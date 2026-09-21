@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { openModuleDatabase } from "@/core/db";
@@ -33,8 +33,8 @@ import { protokolliereDownload, verbucheAbgabe, zaehleDownload } from "./zaehler
  */
 
 const REPO = process.cwd();
-const KERN_DB = resolve(REPO, "src/core/db/index.ts");
-const SCHEMA = resolve(REPO, "src/app/m/files/_db/schema.ts");
+/* Eine echte Datei, kein `node -e` — warum, steht in ihrem Kopf (DRK-359). */
+const KIND = resolve(REPO, "src/app/m/files/_db/gleichzeitigkeit.kind.ts");
 const ZAEHLER = resolve(REPO, "src/app/m/files/_db/zaehler.ts");
 const MIGRATIONEN = "src/app/m/files/_db/migrations";
 
@@ -42,9 +42,8 @@ const MIGRATIONEN = "src/app/m/files/_db/migrations";
 const PARALLEL = 8;
 
 /*
- * Das Kind bekommt seine Parameter über die UMGEBUNG, nicht über `process.argv`:
- * bei `node -e` ist die Bedeutung von `argv[1]` uneindeutig, und ein um eins
- * verschobener Index wäre ein stiller Fehlschlag im Testgerüst.
+ * Das Kind bekommt seine Parameter über die UMGEBUNG, nicht über `process.argv`
+ * — ein um eins verschobener Index wäre ein stiller Fehlschlag im Testgerüst.
  *
  * Der Ablauf ist eine Barriere in zwei Takten: das Kind meldet mit `R`, dass
  * Verbindung UND Funktion stehen (tsx-Start und Modulladen liegen also VOR dem
@@ -52,23 +51,6 @@ const PARALLEL = 8;
  * Überlappung an der Startzeit von acht tsx-Prozessen — der Test wäre
  * rennabhängig grün.
  */
-const KIND = `
-import { existsSync } from "node:fs";
-const { openModuleDatabase } = await import(process.env.KIND_KERN);
-const { drizzle } = await import("drizzle-orm/better-sqlite3");
-const schema = await import(process.env.KIND_SCHEMA);
-const { zaehleDownload, verbucheAbgabe } = await import(process.env.KIND_ZAEHLER);
-const sqlite = openModuleDatabase(process.env.KIND_DB);
-const db = drizzle(sqlite, { schema });
-process.stdout.write("R");
-while (!existsSync(process.env.KIND_START)) {}
-const darf =
-  process.env.KIND_ART === "download"
-    ? zaehleDownload(db, process.env.KIND_ID)
-    : verbucheAbgabe(db, process.env.KIND_ID, Number(process.env.KIND_BYTES));
-sqlite.close();
-process.stdout.write(darf ? "=1" : "=0");
-`;
 
 type Kind = { proc: ChildProcess; aus: string; fehler: string; ende: Promise<number> };
 
@@ -94,7 +76,7 @@ afterEach(() => {
 function starteKind(art: "download" | "abgabe", id: string, bytes: number, start: string): Kind {
   const proc = spawn(
     process.execPath,
-    ["--import", "tsx", "--input-type=module", "-e", KIND],
+    ["--import", "tsx", KIND],
     {
       // `cwd` wird GESETZT, nicht geerbt: nur von der Repo-Wurzel aus findet tsx
       // die `tsconfig.json` und löst damit das `@/…`-Alias auf, das `zaehler.ts`
@@ -103,9 +85,6 @@ function starteKind(art: "download" | "abgabe", id: string, bytes: number, start
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
-        KIND_KERN: KERN_DB,
-        KIND_SCHEMA: SCHEMA,
-        KIND_ZAEHLER: ZAEHLER,
         KIND_DB: dbPfad,
         KIND_START: start,
         KIND_ART: art,
@@ -462,5 +441,27 @@ describe("Punkt 7: die Entscheidung kann kein vorher gelesener Wert sein", () =>
     for (const verboten of [".select(", ".all(", "db.get(", ".prepare("]) {
       expect(quelle.includes(verboten), `zaehler.ts enthält ${verboten}`).toBe(false);
     }
+  });
+});
+
+describe("DRK-359: kein Kindprozess aus `node -e` mit tsx", () => {
+  it("kein Quelltext startet tsx mit --input-type (dem Begleiter von -e)", () => {
+    /*
+     * Unter Node 22.22.2 verliert ein `import()` aus einem `-e`-Einstieg die
+     * benannten Exporte einer `.ts`-Datei; die CI mit neuerem Patch sieht das
+     * nicht. Deshalb ist das Kind oben eine echte Datei — und dieser Scan hält
+     * die Form repo-weit fest, damit sie nicht an anderer Stelle zurückkehrt.
+     */
+    const treffer: string[] = [];
+    for (const wurzel of ["src", "scripts", "e2e"]) {
+      const eintraege = readdirSync(resolve(REPO, wurzel), { recursive: true, withFileTypes: true });
+      for (const e of eintraege) {
+        const pfad = join(e.parentPath, e.name);
+        if (!e.isFile() || !/\.(c|m)?[jt]sx?$/.test(e.name)) continue;
+        if (pfad === resolve(REPO, "src/app/m/files/_db/gleichzeitigkeit.test.ts")) continue;
+        if (readFileSync(pfad, "utf8").includes("--input-type")) treffer.push(pfad);
+      }
+    }
+    expect(treffer).toEqual([]);
   });
 });
