@@ -506,6 +506,58 @@ function aussondernFahrzeugFixtures(): void {
 }
 
 /**
+ * EIGENE Zeilen fuer `lagerbuch-ruecklauf.spec.ts` (DRK-366).
+ *
+ * ⚠️ EIGENES FAHRZEUG UND EIGENER ARTIKEL, weil die Spec BUCHT — dieselbe
+ * Begruendung wie bei `entnahmeboxFixtures` darunter. Das Ziel ist die
+ * Handlager-WURZEL, kein Schrank: einen geteilten legt `lagerbuch-schraenke`
+ * still und wieder frei, und ein eigener verlaengerte die Zielwahl anderer
+ * Specs.
+ *
+ * ⚠️ STILLGELEGT: genau die Einheit, die man ausraeumt — und so taucht sie in
+ * keiner Helferflaeche und in keiner Check-Auswahl auf.
+ *
+ * ⚠️ MINDESTBESTAND 0 und ein Name ohne „Pflaster"/„Kompresse" (I-14). Keine
+ * `lagerort_verfall`-Zeile: sonst erschiene das Fahrzeug in der Verfallsliste.
+ */
+function ruecklaufFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values({
+    id: "e2e-ruecklauf-fahrzeug", name: "E2E Rücklauf-RTW", typ: "fahrzeug",
+    kennung: "MS-E2E-66", aktiv: false, templateId: null, einheitenart: "fahrzeug",
+  }).onConflictDoNothing().run();
+
+  db.insert(artikel).values({
+    id: "e2e-ruecklauf-artikel", name: "E2E Rücklauf Wärmepack", einheit: "Stk.",
+    fach: "RL-1", mindestbestand: 0, aktiv: true, kategorie: "E2E Rücklauf",
+    createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  db.insert(chargen).values({
+    id: "e2e-ruecklauf-charge", artikelId: "e2e-ruecklauf-artikel",
+    chargenNr: "E2E-RL", verfall: E2E_VERFALL_FERN, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  db.insert(sollPositionen).values({
+    id: "e2e-ruecklauf-soll", fahrzeugId: "e2e-ruecklauf-fahrzeug",
+    fachLabel: "Fach E2E", sort: 0, artikelId: "e2e-ruecklauf-artikel", soll: 10,
+    templatePositionId: null, ueberschrieben: false, entfernt: false,
+  }).onConflictDoNothing().run();
+
+  // Idempotent ueber die Referenz, wie in den Fixtures darueber.
+  const schon = db.select().from(buchungen)
+    .where(eq(buchungen.referenz, "e2e-ruecklauf-seed")).get();
+  if (!schon) {
+    db.insert(buchungen).values({
+      id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-ruecklauf-artikel",
+      chargeId: "e2e-ruecklauf-charge", lagerortId: "e2e-ruecklauf-fahrzeug",
+      menge: 50, quelleTyp: "system", quelleId: "e2e",
+      referenz: "e2e-ruecklauf-seed", kommentar: null,
+    }).run();
+  }
+}
+
+/**
  * EIGENE Zeilen fuer `lagerbuch-entnahmebox.spec.ts` (DRK-314).
  *
  * ⚠️ EIN EIGENES FAHRZEUG, EIN EIGENER ARTIKEL, EINE EIGENE CHARGE — und jedes
@@ -1043,6 +1095,7 @@ vorlagenFixtures();
 einheitenartFixtures();
 fahrzeugVerfallFixtures();
 aussondernFahrzeugFixtures();
+ruecklaufFixtures();
 entnahmeboxFixtures();
 einraeumenFixtures();
 kategorieFixtures();
