@@ -170,3 +170,21 @@ describe("POST /api/sync — fremde Execution-ID (DRK-285)", () => {
     sqlite.close();
   });
 });
+
+describe("POST /api/sync — erwarteter Besitzer (DRK-286)", () => {
+  it("weist einen Sync ab, dessen teilnehmerId nicht zum Cookie passt, und nimmt den passenden an", async () => {
+    const { getDb } = await import("../../_db/client");
+    const q = await import("../../_lib/queries");
+    const p = q.alleTeilnehmer(getDb())[0];
+    const cookie = await cookieDurchAnmeldung();
+    const { POST } = await import("./route");
+    const eintrag = { id: "x-1", taskId: "1-1", datum: "2026-09-06" };
+    const fremd = await POST(post({ since: null, teilnehmerId: "jemand-anders", executions: [eintrag], taskStatus: [] }, cookie));
+    expect(fremd.status).toBe(409);
+    expect((await fremd.json()).error.code).toBe("konto_gewechselt");
+    expect(q.fortschritt(getDb(), p.id).executions).toEqual([]);
+    const passend = await POST(post({ since: null, teilnehmerId: p.id, executions: [eintrag], taskStatus: [] }, cookie));
+    expect(passend.status).toBe(200);
+    expect((await passend.json()).executions.map((e: { id: string }) => e.id)).toEqual(["x-1"]);
+  });
+});

@@ -43,6 +43,7 @@ export interface ProgressSnapshot {
 // mit autoritativem Snapshot (Pull).
 export interface SyncRequest {
   since: string | null; // letzter erfolgreicher Sync (serverTime) oder null
+  teilnehmerId?: string; // erwarteter Besitzer (DRK-286); weicht das Cookie ab → 409 konto_gewechselt
   executions: ExecutionDTO[]; // Upserts inkl. Tombstones (deletedAt gesetzt)
   taskStatus: TaskStatusDTO[]; // Upserts (last-write-wins via updatedAt)
 }

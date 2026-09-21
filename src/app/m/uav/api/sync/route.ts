@@ -55,6 +55,12 @@ export async function POST(req: Request) {
   if (!body.ok) return body.response;
   const parsed = syncSchema.safeParse(body.body);
   if (!parsed.success) return fehler(400, "validation_error", parsed.error.message);
+  // DRK-286: der Client sendet den Speicher EINES Kontos. Gehört das Cookie
+  // inzwischen jemand anderem (Login in einem anderen Tab, verspäteter Lauf),
+  // darf dieser Stand nicht unter der neuen Person landen.
+  if (parsed.data.teilnehmerId !== undefined && parsed.data.teilnehmerId !== identitaet.id) {
+    return fehler(409, "konto_gewechselt", "Die Sitzung gehört inzwischen einem anderen Konto");
+  }
   const pending = db.select({ count: count() }).from(auditOutbox).get();
   const newEvents = parsed.data.executions.length + parsed.data.taskStatus.length;
   if (!pending || pending.count + newEvents > SYNC_MAX_PENDING_AUDIT_EVENTS) return fehler(503, "audit_backpressure", "Sync vorübergehend nicht verfügbar");

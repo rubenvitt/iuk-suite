@@ -1,6 +1,6 @@
 import type { SyncRequest } from "../../_lib/typen";
 import { api, ApiError } from "./client";
-import { localStore } from "./localStore";
+import { ANONYM, personenSpeicher } from "./localStore";
 
 /**
  * Push/Pull-Sync gegen `/api/sync` (§9):
@@ -12,6 +12,13 @@ import { localStore } from "./localStore";
  *
  * Bei Netzfehlern bleibt die Engine still: Queue wird behalten, später erneut
  * versucht. Die Queue wird erst nach erfolgreichem Sync geleert.
+ *
+ * Besitzerbindung (DRK-286): `start(besitzer)` legt fest, WESSEN Speicher
+ * synchronisiert wird. Jeder Lauf hält seinen Besitzer fest, schickt ihn als
+ * `teilnehmerId` mit (der Server weist einen Unterschied zum Cookie mit 409
+ * `konto_gewechselt` ab) und schreibt die Antwort in genau diesen Speicher —
+ * eine verspätete Antwort aus As Lauf nach dem Wechsel auf B landet also bei A,
+ * wo sie hingehört, und berührt Bs Zustand nicht.
  */
 export type SyncStatus = "online" | "offline" | "syncing" | "synced" | "fehler";
 
@@ -33,6 +40,8 @@ class SyncEngine {
   private laeuft = false;
   private erneutAnfordern = false;
   private aktiv = false;
+  private besitzer: string | null = null;
+  private beiKontowechsel: (() => void) | null = null;
   private readonly onOnline = () => {
     this.setzeStatus("online");
     void this.triggerSync();
@@ -57,10 +66,17 @@ class SyncEngine {
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
-  /** Startet Trigger (online-Events, Intervall) und einen ersten Sync. */
-  start(): () => void {
-    if (this.aktiv) return () => this.stop();
+  /**
+   * Startet Trigger (online-Events, Intervall) und einen ersten Sync für den
+   * Speicher von `besitzer` (bestätigte Teilnehmer-ID). `beiKontowechsel` wird
+   * gerufen, wenn der Server meldet, dass das Cookie inzwischen einer anderen
+   * Person gehört (Login in einem anderen Tab) — die App fragt dann `me()` neu.
+   */
+  start(besitzer: string, beiKontowechsel?: () => void): () => void {
+    if (this.aktiv) this.stop();
     this.aktiv = true;
+    this.besitzer = besitzer;
+    this.beiKontowechsel = beiKontowechsel ?? null;
     if (typeof window !== "undefined") {
       window.addEventListener("online", this.onOnline);
       window.addEventListener("offline", this.onOffline);
@@ -75,6 +91,8 @@ class SyncEngine {
 
   stop(): void {
     this.aktiv = false;
+    this.besitzer = null;
+    this.beiKontowechsel = null;
     if (typeof window !== "undefined") {
       window.removeEventListener("online", this.onOnline);
       window.removeEventListener("offline", this.onOffline);
@@ -139,18 +157,23 @@ class SyncEngine {
    * Snapshot lokal an (Reconciliation), leert die Queue, setzt `lastSync`.
    * Bei Offline/Netzfehler still bleiben (Queue behalten).
    */
-  async syncJetzt(): Promise<void> {
+  async syncJetzt(besitzer: string | null = this.besitzer): Promise<void> {
+    // Ohne bestätigtes Konto wird nie gesendet — der anonyme Speicher erst recht nicht.
+    if (besitzer === null || besitzer === ANONYM) return;
+    const zustaendig = () => this.besitzer === null || this.besitzer === besitzer;
     if (!online()) {
       this.setzeStatus("offline");
       return;
     }
+    const speicher = personenSpeicher(besitzer);
     // Momentaufnahme der Queue, die tatsächlich gepusht wird. Nach Erfolg werden
     // NUR diese bestätigten Einträge entfernt — Mutationen, die während des
     // laufenden Syncs neu in die Queue kommen, bleiben erhalten (§9).
-    const gesendet = localStore.queueLesen();
-    const { executions, taskStatus } = localStore.queueAlsSyncMutationen();
+    const gesendet = speicher.queueLesen();
+    const { executions, taskStatus } = speicher.queueAlsSyncMutationen();
     const req: SyncRequest = {
-      since: localStore.lastSyncLesen(),
+      since: speicher.lastSyncLesen(),
+      teilnehmerId: besitzer,
       executions,
       taskStatus,
     };
@@ -159,17 +182,38 @@ class SyncEngine {
     try {
       const snapshot = await api.sync(req);
       // Erst nach Erfolg: bestätigte Queue-Einträge entfernen (nur unveränderte),
-      // lastSync setzen, dann den autoritativen Snapshot anwenden.
-      localStore.queueBestaetigteEntfernen(gesendet);
-      localStore.lastSyncSchreiben(snapshot.serverTime);
+      // lastSync setzen, dann den autoritativen Snapshot anwenden — alles im
+      // Speicher des Besitzers, für den dieser Lauf gestartet wurde.
+      speicher.queueBestaetigteEntfernen(gesendet);
+      speicher.lastSyncSchreiben(snapshot.serverTime);
       // Server autoritativ, ABER die noch in der Queue verbliebenen (während des
       // Syncs eingegangenen, noch unbestätigten) Mutationen ÜBER den Snapshot
       // legen, damit eine frische lokale Änderung nicht kurzzeitig aus der UI
       // verschwindet (echter Merge statt reines Replace, §9).
-      const pending = localStore.queueAlsSyncMutationen();
-      localStore.snapshotAnwenden(snapshot, pending);
-      this.setzeStatus("synced");
+      speicher.snapshotAnwenden(snapshot, speicher.queueAlsSyncMutationen());
+      if (zustaendig()) {
+        this.setzeStatus("synced");
+        // `snapshotAnwenden` kann Nachzügler gequeut haben (lokal-only, Altbestand):
+        // gleich senden statt bis zum Intervall zu warten. Endlich — was der
+        // Server annimmt, steht danach im Snapshot und wird nicht erneut gequeut.
+        if (this.besitzer === besitzer && speicher.queueLesen().length > 0) this.erneutAnfordern = true;
+      }
     } catch (e) {
+      if (!zustaendig()) return; // Lauf eines früheren Kontos — nichts mehr zu melden.
+      if (e instanceof ApiError && e.status === 409 && e.code === "fremde_durchfuehrung") {
+        // DRK-285: der Batch wurde komplett abgewiesen, weil er IDs einer
+        // anderen Person trug. Die gehen nie durch — verwerfen, Rest erneut senden.
+        if (speicher.fremdeEntfernen(e.ids)) this.erneutAnfordern = true;
+        this.setzeStatus("fehler");
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409 && e.code === "konto_gewechselt") {
+        // Das Cookie gehört inzwischen einer anderen Person: nichts senden, die
+        // App fragt die Identität neu und startet die Engine für das neue Konto.
+        this.setzeStatus("fehler");
+        this.beiKontowechsel?.();
+        return;
+      }
       // Netz-/Server-Fehler: Queue behalten, später erneut.
       if (e instanceof ApiError && e.status === 0) {
         this.setzeStatus("offline");

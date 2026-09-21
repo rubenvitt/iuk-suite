@@ -14,6 +14,8 @@ type Props = {
   aufgabe: TaskDTO;
   fortschritt: AufgabenFortschritt;
   heute: string;
+  /** Besitzer des lokalen Speichers (DRK-286), für die Team-Vorbelegung. */
+  besitzer: string;
   /**
    * Ohne Code: Beschreibung, Schritte, Lernziel und Hinweise bleiben lesbar,
    * alles Erfassende verschwindet (Betreiberentscheidung 2026-08-29, siehe
@@ -76,6 +78,7 @@ export function TaskDetail({
   aufgabe,
   fortschritt,
   heute,
+  besitzer,
   nurLesen = false,
   onAdd,
   onRemove,
@@ -187,7 +190,7 @@ export function TaskDetail({
           <h3 className={`${styles["sektion-titel"]} ${styles["erfassung-titel"]}`}>
             Neue Durchführung
           </h3>
-          <DurchfuehrungForm onAdd={onAdd} heute={heute} />
+          <DurchfuehrungForm onAdd={onAdd} heute={heute} besitzer={besitzer} />
         </section>
       )}
     </article>
