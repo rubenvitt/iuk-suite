@@ -465,7 +465,8 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
            * bekam diese Spalte genug Zugabe. Mit der Modulleiste (Aufgabe 2) ist
            * die Tabelle 1008px breit und liegt eng — die Spalte bleibt bei ihren
            * 130px, und die 12px Ueberstand standen bei 1280px als
-           * `scrollWidth = 1284` im Dokument (`e2e/mobil-admin.spec.ts:696`).
+           * `scrollWidth = 1284` im Dokument (`e2e/mobil-admin.spec.ts`, Test
+           * „Handlungsknoepfe sind wieder inhaltsbreit, nicht alle gleich").
            *
            * 150 ist keine neue Zahl: „Ø Note" und „Zustand" nebenan stehen schon
            * darauf. Gemessen mit dieser Breite: Spalte 150, Inhalt 142,
@@ -484,7 +485,7 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
                  * ohne ihn ist diese Zeile unteilbar und JEDER Zuwachs der
                  * Beschriftungsbreite (breitere Schriftmetriken auf dem
                  * CI-Runner — in dieser Datei schon einmal teuer, siehe den
-                 * Legenden-Absatz in `mobil-admin.spec.ts:704`) landet wieder
+                 * Legenden-Absatz im selben Test) landet wieder
                  * als waagerechter Scroll auf der GANZEN Seite. Mit `wrap`
                  * rutscht im Zweifel das „…"-Menue in eine zweite Zeile: haesslich
                  * statt kaputt.

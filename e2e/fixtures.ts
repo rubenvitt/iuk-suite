@@ -216,3 +216,42 @@ export async function wechsleAnmeldung(
   ).toEqual([]);
   await devLogin(page, opts);
 }
+
+/**
+ * DIE SICHTBARE DARSTELLUNG EINER TABELLENZEILE — Zeile ODER Karte (DRK-451).
+ *
+ * ⚠️ DER ANLASS IST EINE GEMESSENE ROETE, KEINE VORSORGE. Seit die langen
+ * Tabellen unterhalb von 768px als Karten rendern, steht die Tabelle dort auf
+ * `display: none` — sie ist aber weiterhin IM BAUM. Ein Greifer ueber
+ * `[data-row-key]` findet damit auf dem Telefon einen VERBORGENEN Knoten, und
+ * das Symptom fuehrt in die Irre:
+ *
+ *     waiting for locator('[data-row-key]').first() to be visible
+ *     31 × locator resolved to hidden <div role="row" data-row-key="…">
+ *
+ * Das liest sich wie „die Zeile kommt nicht" — also wie ein Datenproblem oder
+ * ein zu knappes Zeitbudget. Beides ist falsch: die Zeile ist da, sie ist nur
+ * nicht die Darstellung, die der Nutzer bei dieser Breite sieht. Gemessen in
+ * CI-Lauf 35663637630, `e2e (suite-huelle)`, an `flyin-breite.spec.ts` bei
+ * 390px.
+ *
+ * ⚠️ SCHLIMMER ALS EIN ROTER TEST IST DER STILLE FALL. Eine Zusicherung, die
+ * keine Sichtbarkeit verlangt (`toContainText`, ein `evaluate` auf den Kasten),
+ * MISST DEN VERBORGENEN KNOTEN KLAGLOS WEITER — sie prueft dann die Tabelle,
+ * waehrend auf dem Schirm eine Karte steht. Das ist dieselbe Familie wie
+ * CLAUDE.mds Fallen 10/11/12: ein Test, der etwas anderes misst, als sein Name
+ * sagt. Wer eine Zeile auf mehreren Breiten anfasst, greift sie deshalb hier.
+ *
+ * ⚠️ UND DESHALB STEHT HIER `:visible` UND KEINE BREITENABFRAGE. Eine
+ * Fallunterscheidung auf 768 im Test waere ein ZWEITER Ort fuer den Breakpoint
+ * der Suite — genau das, was `docs/design/README.md` mit „ein Breakpoint"
+ * ausschliesst; sie ginge beim naechsten Nachjustieren still auseinander.
+ * `:visible` fragt stattdessen das Ergebnis ab: welche der beiden
+ * Darstellungen steht gerade da.
+ */
+export function sichtbareZeilen(ort: Page | Locator, schluessel?: string): Locator {
+  const wahl = schluessel === undefined
+    ? "[data-row-key]:visible, [data-karte-key]:visible"
+    : `[data-row-key='${schluessel}']:visible, [data-karte-key='${schluessel}']:visible`;
+  return ort.locator(wahl);
+}

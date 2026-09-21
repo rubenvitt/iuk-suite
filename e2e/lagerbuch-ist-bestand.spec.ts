@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, sichtbareZeilen } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -39,10 +39,21 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * fängt `warteAufSpaltenaufteilung` genau diesen Zustand ab. Wer hier wieder
  * 802/802 sieht, sucht dort, nicht an der Breite und nicht im Seed.
  */
+/*
+ * ⚠️ `darstellung` IST KEINE VERZIERUNG, SONDERN DIE ZUSICHERUNG, OHNE DIE
+ * DIESER TEST AUF DEM TELEFON NICHTS MEHR MISST (DRK-451). Seit die
+ * Soll-Bestueckung unterhalb von 768px als Karten rendert, steht die Tabelle
+ * dort auf `display: none` — sie bleibt aber IM BAUM, und ein `evaluate` auf
+ * ihre Zeile rechnet klaglos weiter. Der Test war damit nicht rot, sondern
+ * BLIND: er mass die verborgene Tabelle, waehrend auf dem Schirm eine Karte
+ * stand. Die erwartete Darstellung steht deshalb hier als Datum und wird unten
+ * gegen den Baum geprueft; ein `sichtbareZeilen` allein waere bequemer und
+ * wuerde eine bei 1280px faelschlich erscheinende Karte still mitnehmen.
+ */
 const BREITEN = [
-  { name: "Telefon", width: 390, height: 844 },
-  { name: "Tablet hoch", width: 834, height: 1112 },
-  { name: "Desktop", width: 1280, height: 720 },
+  { name: "Telefon", width: 390, height: 844, darstellung: "karte" },
+  { name: "Tablet hoch", width: 834, height: 1112, darstellung: "tabelle" },
+  { name: "Desktop", width: 1280, height: 720, darstellung: "tabelle" },
 ] as const;
 
 /**
@@ -121,11 +132,16 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
       const antwort = await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
       expect(antwort!.status()).toBe(200);
 
-      const zeile = page
-        .getByRole("table", { name: "Soll-Bestückung" })
-        .locator("tbody tr[data-row-key='e2e-soll']");
+      const zeile = sichtbareZeilen(page, "e2e-soll");
       await expect(zeile).toContainText("E2E Check Kompressen");
       await warteAufSpaltenaufteilung(page);
+
+      // Und sie ist die Darstellung, die hier stehen SOLL — sonst misst alles
+      // Folgende die andere (Begruendung bei `BREITEN`).
+      expect(
+        await zeile.evaluate((el) => (el.hasAttribute("data-karte-key") ? "karte" : "tabelle")),
+        `Darstellung bei ${breite.width}px`,
+      ).toBe(breite.darstellung);
 
       const ist = zeile.locator("[data-rolle='ist']");
       const soll = zeile.getByRole("spinbutton", { name: /^Soll für / });
@@ -140,10 +156,16 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
         const handlager = Array.from(tr.querySelectorAll<HTMLElement>("span"))
           .find((el) => (el.textContent ?? "").startsWith("Handlager "))!;
         const sollFeld = tr.querySelector<HTMLInputElement>("input[aria-label^='Soll für']")!;
+        const eigen = { scrollWidth: tr.scrollWidth, clientWidth: tr.clientWidth };
         const stil = getComputedStyle(zahl);
         const kasten = (el: Element) => {
           const r = el.getBoundingClientRect();
-          return { links: Math.round(r.left), rechts: Math.round(r.right) };
+          return {
+            links: Math.round(r.left),
+            rechts: Math.round(r.right),
+            oben: Math.round(r.top),
+            unten: Math.round(r.bottom),
+          };
         };
         return {
           istPx: parseFloat(stil.fontSize),
@@ -156,7 +178,9 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
             // Der erste Vorfahr der Tabelle, der waagerecht scrollt — nicht der
             // Rahmen: der kann schmal sein, waehrend die Tabelle darin
             // unerreichbar abgeschnitten ist.
-            let el: HTMLElement | null = tr.closest("table")!.parentElement;
+            // ⚠️ AB DER TABELLE, WENN ES EINE GIBT — die Karte hat keine, und
+            // `closest("table")!` warf dort `null.parentElement`.
+            let el: HTMLElement | null = (tr.closest("table") ?? tr).parentElement;
             while (el && !["auto", "scroll"].includes(getComputedStyle(el).overflowX)) {
               el = el.parentElement;
             }
@@ -167,6 +191,7 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
               clientWidth: el.clientWidth,
             };
           })(),
+          eigen,
           fenster: window.innerWidth,
           dokument: {
             scrollWidth: document.documentElement.scrollWidth,
@@ -182,20 +207,51 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
       expect(mass.istPx).toBeGreaterThan(mass.handlagerPx);
       expect(mass.istPx).toBeGreaterThan(mass.sollPx);
       expect(mass.istZiffern).toContain("tabular-nums");
-      // Ist links vom Soll, ohne Ueberlappung.
-      expect(mass.ist.rechts).toBeLessThanOrEqual(mass.soll.links);
-      // Die Tabelle scrollt in sich (docs/design/README.md), statt die Seite
-      // zu verbreitern.
-      expect(mass.scroller).not.toBeNull();
-      expect(mass.scroller!.rechts).toBeLessThanOrEqual(mass.fenster);
-      if (breite.width < 1280) {
-        // Schmal: die Tabelle ist breiter als ihr Kasten und scrollt IN SICH.
+      /*
+       * GETRENNT VOM SOLL — und die Trennung sieht je Darstellung anders aus.
+       *
+       * ⚠️ DIESE ZUSICHERUNG DARF NICHT AUF „ueberlappt nicht" ABGESCHWAECHT
+       * WERDEN, nur damit eine Formel beide Faelle traegt: in der Tabelle steht
+       * das Soll-Feld RECHTS neben der Zahl, in der Karte in der Zeile DARUNTER
+       * (`.merkmale` ist ein einspaltiges Raster). Eine Zusicherung, die beides
+       * durchlaesst, liesse auch die Vertauschung durch — und genau die
+       * Verwechselbarkeit von Ist und Soll ist der Anlass von DRK-315.
+       */
+      if (breite.darstellung === "tabelle") {
+        expect(mass.ist.rechts, "Ist steht links vom Soll").toBeLessThanOrEqual(mass.soll.links);
+      } else {
+        expect(mass.ist.unten, "Ist steht ueber dem Soll").toBeLessThanOrEqual(mass.soll.oben);
+      }
+
+      if (breite.darstellung === "tabelle") {
+        // Die Tabelle scrollt in sich (docs/design/README.md), statt die Seite
+        // zu verbreitern.
+        expect(mass.scroller).not.toBeNull();
+        expect(mass.scroller!.rechts).toBeLessThanOrEqual(mass.fenster);
+        if (breite.width < 1280) {
+          // Schmal: die Tabelle ist breiter als ihr Kasten und scrollt IN SICH.
+          expect(
+            mass.scroller!.scrollWidth,
+            `Die Soll-Tabelle scrollt bei ${breite.width}px nicht in sich `
+            + `(${mass.scroller!.scrollWidth} auf ${mass.scroller!.clientWidth}px) — `
+            + "steht der Kasten bei 802px, lag der Inhalt noch unter der Leiste",
+          ).toBeGreaterThan(mass.scroller!.clientWidth);
+        }
+      } else {
+        /*
+         * ⚠️ AUF DEM TELEFON IST DER EIGENSCROLL KEIN ERFOLG MEHR, SONDERN EIN
+         * FEHLER — und das ist die Umkehrung der Zeile darueber, nicht ihr
+         * Wegfall. Die Tabelle durfte in sich scrollen, weil sechs Spalten
+         * nebeneinander auf 390px nicht anders unterzubringen waren; die Karte
+         * bricht dieselben Felder untereinander um und hat damit keinen Grund,
+         * waagerecht ueberzulaufen. Tut sie es doch, ist ein Feld zu breit —
+         * und auf einer Karte gibt es keine Bildlaufleiste, die das verriete.
+         */
         expect(
-          mass.scroller!.scrollWidth,
-          `Die Soll-Tabelle scrollt bei ${breite.width}px nicht in sich `
-          + `(${mass.scroller!.scrollWidth} auf ${mass.scroller!.clientWidth}px) — `
-          + "steht der Kasten bei 802px, lag der Inhalt noch unter der Leiste",
-        ).toBeGreaterThan(mass.scroller!.clientWidth);
+          mass.eigen.scrollWidth,
+          `Die Soll-Karte laeuft bei ${breite.width}px waagerecht ueber `
+          + `(${mass.eigen.scrollWidth} auf ${mass.eigen.clientWidth}px)`,
+        ).toBeLessThanOrEqual(mass.eigen.clientWidth);
       }
 
       // UND DIE SEITE SELBST LAEUFT NICHT WAAGERECHT UEBER (DRK-322).

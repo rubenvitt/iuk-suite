@@ -806,7 +806,8 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
      * Shell-VARIANTE mit dem Zeigergeraet gleichgesetzt hatte. `FullShell`
      * rendert aber auch bei 390px, und dort unterschritten die 40px die
      * Mindest-Tapflaeche: drei Zusicherungen fielen gleichzeitig
-     * (`lagerbuch-mobil.spec.ts:312`, `mobil-admin.spec.ts:304` und `:413`).
+     * (`lagerbuch-mobil.spec.ts:312`, `mobil-admin.spec.ts`, Test „kein
+     * Bedienelement ist schmaler oder niedriger als 44px").
      * Der Wert steht seither auf 44 (WCAG 2.5.5), und diese Schranken ziehen
      * nach.
      *

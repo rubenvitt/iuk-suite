@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, sichtbareZeilen } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
 import { UAV_ADMIN_GRUPPE, UAV_HOST, uavUrl } from "./helpers/uav";
@@ -131,13 +131,13 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
    *    vollen 90-Sekunden-Timeout.
    *
    * Deshalb hier: die SEITE ueber ihren eigenen Anker belegen (`lb-excel` gibt
-   * es nur auf der Artikeltabelle), die Zeile dann ueber `data-row-key` —
-   * das setzt rc-table in beiden Betriebsarten. Was der Verlust der
-   * Tabellen-Semantik fuer Hilfstechnik bedeutet, steht als DRK-336 auf dem
-   * Board.
+   * es nur auf der Artikeltabelle), die Zeile dann ueber `sichtbareZeilen` —
+   * `data-row-key` setzt rc-table zwar in beiden Betriebsarten, unterhalb von
+   * 768px steht aber die KARTE da. Was der Verlust der Tabellen-Semantik fuer
+   * Hilfstechnik bedeutet, steht als DRK-336 auf dem Board.
    */
   await expect(page.getByTestId("lb-excel")).toBeVisible();
-  await page.locator("[data-row-key]").first().click();
+  await sichtbareZeilen(page).first().click();
   await expect(page.locator(".ant-drawer-right .ant-drawer-content-wrapper")).toBeVisible();
 
   /*
@@ -187,11 +187,11 @@ test("Artikeldetails: kein waagerechter Überlauf, auch mit Chargen und Buchunge
     await page.setViewportSize({ width: breite, height: 800 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     await expect(page.getByTestId("lb-excel")).toBeVisible();
-    const anzahl = Math.min(await page.locator("[data-row-key]").count(), 6);
+    const anzahl = Math.min(await sichtbareZeilen(page).count(), 6);
     expect(anzahl, "keine Artikelzeilen im Seed").toBeGreaterThan(0);
     for (let zeile = 0; zeile < anzahl; zeile++) {
       // Die Hülle bricht nach `load` noch um (CLAUDE.md, Falle 12).
-      await klickeWennRuhig(page.locator("[data-row-key]").nth(zeile));
+      await klickeWennRuhig(sichtbareZeilen(page).nth(zeile));
       const schublade = page.locator(".ant-drawer-right.ant-drawer-open");
       // Erst wenn die Tabellen stehen, hat die Rasterspur ihre volle Breite.
       await expect(schublade.getByText("Letzte Buchungen")).toBeVisible();
