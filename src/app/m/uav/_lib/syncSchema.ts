@@ -22,6 +22,9 @@ export const taskStatusSchema = z.object({
 
 export const syncSchema = z.object({
   since: z.string().nullable(),
+  // DRK-286: der Besitzer, für den der Client sendet. Optional, damit ein noch
+  // gecachter älterer Client weiter synchronisieren kann.
+  teilnehmerId: z.string().min(1).optional(),
   executions: z.array(executionSchema).max(SYNC_MAX_MUTATIONS),
   taskStatus: z.array(taskStatusSchema).max(SYNC_MAX_MUTATIONS),
 }).superRefine((value, ctx) => {

@@ -1,5 +1,5 @@
 import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
-import { getModule } from "@/core/registry";
+import { getModule, requiredGroupsFor } from "@/core/registry";
 import { adminGroupsFor } from "@/core/groups";
 
 // `groups` = Suite-Gruppen (Admin-Frage), `fachgruppen` = Slugs der Gruppen, für
@@ -54,10 +54,41 @@ export function auditFeedbackDenied(viewer: Viewer | null): void {
 }
 
 /**
+ * DARF DIESE PERSON DIE FEEDBACK-VERWALTUNG ÜBERHAUPT BETRETEN? — das
+ * Modulprädikat, getrennt von der Frage „welche Gruppe?".
+ *
+ * Feedback-Admin (`isFeedbackAdmin`) ODER eine der Zugangsgruppen aus
+ * `requiredGroupsFor` — also mit `SUITE_ACCESS_GROUP_FEEDBACK`, nie das
+ * Registry-Feld direkt. Der Admin steht eigens davor, weil eine umkonfigurierte
+ * Instanz ihre Admin-Gruppe nicht zwingend in die Zugangsliste schreibt.
+ *
+ * Es gibt dieses Prädikat nur EINMAL (DRK-290): `requireFeedbackAccess` hält es
+ * in den Layouts, `assertGroupAccess` vor jeder Objektfreigabe. Vorher kannte nur
+ * das Layout es — ein Export-Link oder eine Server Action läuft aber ohne Layout,
+ * und dort genügte die Objektzuordnung allein. Eine ehemalige Gruppenleitung mit
+ * entzogener Modulgruppe, aber stehen gebliebener `user_groups`-Zeile (oder
+ * weiter passendem `fachgruppen`-Claim) las und änderte so ihre alte Gruppe
+ * weiter, auch mit vollständig frischen Claims.
+ */
+export function hatFeedbackVerwaltungszugang(viewer: Viewer | null): boolean {
+  if (!viewer) return false;
+  if (isFeedbackAdmin(viewer)) return true;
+  const zugang = requiredGroupsFor(getModule("feedback"));
+  return viewer.groups.some((g) => zugang.includes(g));
+}
+
+/**
  * DIE zentrale Ownership-Guard gegen die Alt-IDOR. `memberGroupIds` kommt aus
  * user_groups (im Aufrufer via memberGroupIdsFor geladen) — hier reingereicht,
  * damit die Guard rein/testbar bleibt. Jede Route/Action mit group/evening/
  * survey-id MUSS sie aufrufen (evening/survey vorher auf group_id auflösen).
+ *
+ * ZWEI Bedingungen, beide nötig (DRK-290): erst der Modulzugang
+ * (`hatFeedbackVerwaltungszugang`), dann die Objektzuordnung. Die Zuordnung
+ * allein ist KEIN Zugang — sie sagt nur, WELCHE Gruppe jemand verwalten dürfte,
+ * wenn er das Modul überhaupt betreten darf. Weil jeder direkte Weg (beide
+ * Export-Routen, jede Gruppen-Action über `guardGroup`, die Seiten über
+ * `guardPage`) hier durchläuft, kann keiner das Prädikat vergessen.
  */
 export function assertGroupAccess(
   viewer: Viewer | null,
@@ -65,16 +96,23 @@ export function assertGroupAccess(
   memberGroupIds: number[],
 ): void {
   if (isFeedbackAdmin(viewer)) return;
-  if (viewer && memberGroupIds.includes(groupId)) return;
+  if (hatFeedbackVerwaltungszugang(viewer) && memberGroupIds.includes(groupId)) return;
   auditFeedbackDenied(viewer);
   throw new Error("Forbidden");
 }
 
+/**
+ * Die Sichtbarkeit der Gruppenliste folgt derselben Regel wie `assertGroupAccess`:
+ * ohne Modulzugang KEINE Gruppe, auch bei vorhandener Zuordnung. Heute stehen
+ * alle Aufrufer hinter `requireFeedbackAccess`, die Bedingung ändert dort also
+ * nichts — sie steht hier, damit die beiden Freigaben derselben Datei nicht
+ * auseinanderlaufen, sobald jemand die Liste an einer Stelle ohne Layout braucht.
+ */
 export function accessibleGroupFilter(
   viewer: Viewer | null,
   memberGroupIds: number[],
 ): "all" | number[] {
   if (isFeedbackAdmin(viewer)) return "all";
-  if (!viewer) return [];
+  if (!hatFeedbackVerwaltungszugang(viewer)) return [];
   return memberGroupIds;
 }

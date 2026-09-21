@@ -14,7 +14,7 @@ describe("seedLokalUav", () => {
     for (const t of alleTasks) expect(t.bild).toBe(`/m/uav/illustrations/${t.id}.webp`);
 
     const alleTeilnehmer = db.select().from(participants).all();
-    expect(alleTeilnehmer.map((p) => p.loginCode).sort()).toEqual(["E2EGESP2", "E2ETEST1"]);
+    expect(alleTeilnehmer.map((p) => p.loginCode).sort()).toEqual(["E2EGESP2", "E2ETEST1", "E2ETEST3"]);
     const aktiv = db.select().from(participants).where(eq(participants.loginCode, "E2ETEST1")).get()!;
     const inaktiv = db.select().from(participants).where(eq(participants.loginCode, "E2EGESP2")).get()!;
     expect(aktiv.aktiv).toBe(1);
