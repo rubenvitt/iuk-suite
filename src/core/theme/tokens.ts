@@ -55,6 +55,26 @@ export const FARBEN = {
    */
   kontur: "#868686",
   konturAufDunkel: "#707070",
+  /**
+   * SUITE-GRÜN ALS MARKE — die Töne, die antd aus dem Seed `ok` NICHT trifft
+   * (DRK-463). Der Seed ist ein dunkles Grün, und für dunkle Seeds leitet
+   * antds Palette den Grund einer Statusmarke (`colorSuccessBg`) als stumpfes
+   * Grüngrau ab: `#afbab1`, darauf `ok` mit 2,68:1 — jede `Tag color="success"`
+   * lag unter AA. `okBg` darunter trägt 4,66:1 (auf `karte` 5,38:1, auf
+   * `papier` 4,71:1). `okRand` ist die Kontur dazu, ohne Kontrastpflicht.
+   *
+   * Im Dunkelmodus ist es wie beim Rot die SCHRIFT: antd rechnet den Seed auf
+   * `#1d6b36` herunter, 2,81:1 auf `#141414`. Angehoben, derselbe Farbton:
+   * 5,62:1 auf `#141414`, 5,03:1 auf `#1f1f1f`, 5,49:1 auf dem dunklen
+   * Markengrund `#121814`. Die Nachbarn sind Hover/Active und bestehen 4,5:1
+   * auf `#141414`. Anders als beim Rot wird hier `colorSuccess` SELBST
+   * angehoben: die Marke liest ihre Schrift aus genau diesem Token, und eine
+   * gefüllte Erfolgsfläche mit weißer Schrift gibt es in der Suite nicht.
+   */
+  okRand: "#9fcfae",
+  okAufDunkel: "#3fa060",
+  okAufDunkelHover: "#56b878",
+  okAufDunkelActive: "#389a59",
 } as const;
 
 /**

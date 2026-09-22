@@ -81,7 +81,7 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
    */
   const kontur = dark ? FARBEN.konturAufDunkel : FARBEN.kontur;
   return {
-    algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben] : antdTheme.defaultAlgorithm,
+    algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben, erfolgDunkel] : [antdTheme.defaultAlgorithm, erfolgHell],
     // CSS-Variablen statt eingebetteter Werte: der Moduswechsel ist damit ein
     // Variablen-Swap und keine Neu-Serialisierung der Stylesheets.
     cssVar: { key: "iuk" },
@@ -309,3 +309,28 @@ export const SCHREIBTISCHDICHTE: ThemeConfig = {
   cssVar: { key: "iuk-schreibtisch" },
   token: { controlHeight: 32, controlHeightLG: 40 },
 };
+
+/**
+ * SUITE-GRÜN ALS STATUSMARKE LESBAR MACHEN (DRK-463) — dieselbe Bauform wie
+ * `dunkleTextfarben` oben und aus demselben Grund: `colorSuccessBg` ist ein
+ * abgeleiteter Token, nur ein Schritt NACH antds Algorithmus setzt ihn fertig.
+ * Seed und Benennung bleiben; `color="success"` ist die Hausform der Module.
+ * Zahlen und Begründung an `FARBEN.okRand` bzw. `FARBEN.okAufDunkel`.
+ *
+ * Als Funktionsdeklarationen am Dateiende statt neben `dunkleTextfarben`, weil
+ * über 50 Zeilenanker aus den Modulen in diese Datei zeigen — eine Einfügung
+ * weiter oben verschöbe sie alle.
+ */
+function erfolgHell(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<MappingAlgorithm>) {
+  return { ...map!, colorSuccessBg: FARBEN.okBg, colorSuccessBorder: FARBEN.okRand };
+}
+
+function erfolgDunkel(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<MappingAlgorithm>) {
+  return {
+    ...map!,
+    colorSuccess: FARBEN.okAufDunkel,
+    colorSuccessText: FARBEN.okAufDunkel,
+    colorSuccessTextHover: FARBEN.okAufDunkelHover,
+    colorSuccessTextActive: FARBEN.okAufDunkelActive,
+  };
+}

@@ -419,3 +419,44 @@ describe("ARBEITSDICHTE + SCHREIBTISCHDICHTE verschachtelt", () => {
     traeger.remove();
   });
 });
+
+/**
+ * DRK-463: `Tag color="success"` lag mit 2,68:1 (hell) bzw. 2,75:1 (dunkel)
+ * unter AA, weil antd aus dem dunklen Seed `FARBEN.ok` einen grauen Grund
+ * ableitet. Geprüft wird genau das Paar, das antds Marke rendert
+ * (`antd/es/tag/style/statusCmp.js`: Schrift `colorSuccess` auf
+ * `colorSuccessBg`), dazu die Schrift auf den Flächen, auf denen die Marke sitzt.
+ */
+describe("Statusmarke Erfolg", () => {
+  const kontrast = (a: string, b: string) => {
+    const lum = (hex: string) => {
+      const c = hex.replace("#", "");
+      const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [hoch, tief] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hoch + 0.05) / (tief + 0.05);
+  };
+
+  it.each(MODES)("trägt im Modus %s Schrift auf Grund mit AA (4,5:1)", (mode) => {
+    const token = antdTheme.getDesignToken(buildTheme(mode));
+    for (const flaeche of [token.colorSuccessBg, token.colorBgContainer, token.colorBgElevated]) {
+      expect(
+        kontrast(token.colorSuccess, flaeche),
+        `colorSuccess ${token.colorSuccess} auf ${flaeche}`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(kontrast(token.colorSuccessText, flaeche)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("lässt den Seed und die Rot-Rollen unberührt", () => {
+    for (const mode of MODES) {
+      expect(buildTheme(mode).token?.colorSuccess).toBe(FARBEN.ok);
+      const token = antdTheme.getDesignToken(buildTheme(mode));
+      expect(token.colorPrimary.toLowerCase()).not.toBe(FARBEN.okAufDunkel);
+    }
+    expect(antdTheme.getDesignToken(buildTheme("light")).colorSuccess.toLowerCase()).toBe(FARBEN.ok);
+  });
+});
