@@ -29,7 +29,7 @@ import s from "../../_ui/verwaltung.module.css";
  * `(arbeit)`-Zweig strukturell nicht faengt.
  *
  * ⛔ KEINE INSEL — Entscheidung E-V15 (`.superpowers/sdd/planteil4/briefs/KOPF.md:964-989`).
- * `Card`, `Statistic` und `Tag` sind in einer Server Component sicher (`CLAUDE.md:13`).
+ * `Card`, `Statistic` und `Tag` sind in einer Server Component sicher (`CLAUDE.md`, Falle 1).
  * Damit das so bleibt, wandern drei Bauformen des Bestands NICHT mit:
  *
  *   1. `onClick` + `navigate` auf der Karte (`Dashboard.tsx:60-62`) -> `next/link` um die

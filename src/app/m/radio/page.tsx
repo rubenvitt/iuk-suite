@@ -40,8 +40,8 @@ import s from "./_ui/ausleihe.module.css";
  * die am Gate gerade fehlt. Er entsteht in A16.
  *
  * ⛔ DIES IST EINE SERVER COMPONENT: kein `Typography.Title`, kein `Form.Item`, kein
- * `Input.TextArea` (Falle 1, `CLAUDE.md:11-13`) — die Ueberschrift ist ein nacktes `<h1>`.
- * Kein `@ant-design/icons`, in keiner Datei dieses Moduls (Falle 7, `CLAUDE.md:31-44`,
+ * `Input.TextArea` (Falle 1, `CLAUDE.md`) — die Ueberschrift ist ein nacktes `<h1>`.
+ * Kein `@ant-design/icons`, in keiner Datei dieses Moduls (Falle 7, `CLAUDE.md`,
  * Entscheidung E5).
  */
 

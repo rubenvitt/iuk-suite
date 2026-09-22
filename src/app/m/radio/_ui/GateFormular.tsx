@@ -15,18 +15,18 @@ import s from "./ausleihe.module.css";
  * gehoert.
  *
  * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT, NICHT ALS PROP DURCHGEREICHT (Falle 9,
- * `CLAUDE.md:52-70`): eine gewoehnliche Funktion darf die RSC-Grenze nicht ueberqueren,
+ * `CLAUDE.md`): eine gewoehnliche Funktion darf die RSC-Grenze nicht ueberqueren,
  * und Server Actions duerfen es nur als DIREKTER Import. Ein `action`-Prop aus `page.tsx`
  * waere typkorrekt, und `pnpm build` saehe es nicht.
  *
- * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`). Das Gate laeuft ohne
+ * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`). Das Gate laeuft ohne
  * `FullShell` und erbt damit `controlHeight: TAP = 56` vom Wurzelprovider
  * (`src/core/theme/theme.ts:50-51`); `size="large"` waere 72. ⛔ KEIN `Form.Item`, kein
- * `Input.TextArea` — Compound-Zugriffe (Falle 1, `CLAUDE.md:11-13`). Ein nacktes `<form>`
+ * `Input.TextArea` — Compound-Zugriffe (Falle 1, `CLAUDE.md`). Ein nacktes `<form>`
  * mit `action={…}` ist ohnehin die Bauform, die `useActionState` verlangt.
  *
  * ⛔ KEIN `@ant-design/icons` — in KEINER Datei dieses Moduls (Entscheidung E5,
- * Falle 7 `CLAUDE.md:31-44`). Der Absendeknopf traegt eine Beschriftung, kein Zeichen.
+ * Falle 7 `CLAUDE.md`). Der Absendeknopf traegt eine Beschriftung, kein Zeichen.
  */
 
 /**

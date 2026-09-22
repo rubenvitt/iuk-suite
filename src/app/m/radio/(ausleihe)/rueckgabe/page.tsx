@@ -20,7 +20,7 @@ import s from "../../_ui/ausleihe.module.css";
  * (`.superpowers/sdd/planteil3/progress.md:715-730`) —, `page.test.tsx` misst die Wirkung.
  *
  * ⛔ DIES IST EINE SERVER COMPONENT: kein `Typography.Title`, kein `Card.Meta`, kein
- * `Input.TextArea` — Compound-Zugriff ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`,
+ * `Input.TextArea` — Compound-Zugriff ist HTTP 500 (Falle 1, `CLAUDE.md`,
  * Spec:3349-3351). Die Ueberschrift ist ein nacktes `<h1>`, und `Empty` wird NACKT benutzt:
  * ein `Empty.PRESENTED_IMAGE_SIMPLE` waere derselbe Compound-Zugriff. Das Notizfeld mit
  * seinem `Input.TextArea` liegt deshalb ausschliesslich in `_ui/RueckgabeDialog.tsx`

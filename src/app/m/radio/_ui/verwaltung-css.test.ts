@@ -129,7 +129,7 @@ describe("radio-verwaltung.module.css: die drei Zusicherungen seines Kopfes", ()
 
   it("liest keine --ant-Variable, sondern nur die Suite-Variablen auf :root", () => {
     /*
-     * ⛔ FALLE 2 (`CLAUDE.md:14-15`): antd deklariert seine Variablen auf SEINER Scope-Klasse,
+     * ⛔ FALLE 2 (`CLAUDE.md`): antd deklariert seine Variablen auf SEINER Scope-Klasse,
      * eigenes Markup sieht sie nicht — und der Fehler ist STILL, die Regel steht richtig da
      * und die Linie verschwindet einfach. Lesbar sind allein die vier Suite-Variablen auf
      * `:root` (`src/app/globals.css:152-164`), die ihren Dunkelzweig selbst mittragen.
@@ -164,7 +164,7 @@ describe("radio-verwaltung.module.css: die drei Zusicherungen seines Kopfes", ()
      * ⛔ FALLE 3 UND FALLE 4, beide als Textteil. Ein verdrahtetes `color: #000` waere in der
      * Dunkeldarstellung schwarz auf schwarz, und `build`, `typecheck` und Vitest saehen davon
      * nichts; eine feste Hoehe naehme der Flaeche die Bediendichte, die sie erbt
-     * (`CLAUDE.md:18-22`, `_ui/RadioVerwaltungsRahmen.tsx:18-21`).
+     * (`CLAUDE.md`, Falle 4, `_ui/RadioVerwaltungsRahmen.tsx:18-21`).
      *
      * ⚠️ FALLE 3 IST SEIT DEM 2026-08-28 FUER GENAU ZWEI ZEILEN AUFGEHOBEN (Hell- und
      * Dunkelwert der modul-eigenen Zeichenfarbe) — die Ausnahme steht unten als REGEX ueber

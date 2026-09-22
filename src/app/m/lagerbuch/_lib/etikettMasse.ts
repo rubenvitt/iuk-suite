@@ -6,7 +6,7 @@
  * markierten Modul kommt in einer Server Component nicht als Wert an, sondern
  * als Client-Referenz — HTTP 500 fuer die ganze Seite, waehrend `typecheck` und
  * `build` gruen bleiben und Vitest es strukturell nicht sehen kann (Falle 6,
- * CLAUDE.md:24-27).
+ * CLAUDE.md).
  *
  * WARUM HIER UND NICHT IN _lib/grenzen.ts: grenzen.ts haelt die Zahlen, die aus
  * der UMGEBUNG kommen und dort eine Einheit im Namen tragen (§10.3). Diese hier

@@ -204,7 +204,7 @@ export function istRadioAdmin(viewer: RadioViewer | null): boolean {
  * serverseitig gelesen.
  *
  * ⛔ EIN EIGENER MECHANISMUS, KEINE REGISTRY-UEBERSCHREIBUNG: `src/core/registry.ts` kennt je
- * Modul genau zwei, `SUITE_HOST_<KEY>` und `SUITE_ADMIN_GROUP_<KEY>` (`CLAUDE.md:139-140`).
+ * Modul genau zwei, `SUITE_HOST_<KEY>` und `SUITE_ADMIN_GROUP_<KEY>` (`CLAUDE.md`, Abschnitt „Ein neues Modul registrieren“).
  * Eine zweite Gruppe ist dort nicht vorgesehen.
  *
  * ⛔ LEER, FEHLEND ODER NUR LEERRAUM SCHLIESST DIE STUFE (`Spec:4420-4422`, ausgeliefert in
@@ -426,7 +426,7 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  *
  * ⚠️ FRISCHE: BIS ZU EINE STUNDE VERZUG. Gruppen im JWT sind nur so frisch wie der letzte
  * erfolgreiche Token-Refresh; der Takt ist die Access-Token-Lebensdauer von Pocket ID,
- * nicht die Sitzungsdauer von 30 Tagen (`CLAUDE.md:151-156`, von Spec:698 dafuer zitiert).
+ * nicht die Sitzungsdauer von 30 Tagen (`CLAUDE.md`, Abschnitt „Zugriffsschutz“, von Spec:698 dafuer zitiert).
  * Der Verzug wird HINGENOMMEN.
  *
  * ✅ `merkeNutzer` STEHT SEIT PLANTEIL 4 / V3 IM RIEGEL — und zwar NACH ihm (NS-Z7).

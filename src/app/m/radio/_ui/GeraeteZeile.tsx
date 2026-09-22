@@ -13,7 +13,7 @@ import s from "./ausleihe.module.css";
  * ⛔ NACHBAU, KEIN ANTD-BAUSTEIN (Entscheidung E4 und E8, Spec:3667-3670, `:3712-3717`).
  * Die Liste ist kartenfoermig; eine antd-`Table` schiede schon deshalb aus, weil ein
  * `columns[].render` aus einer Server Component die RSC-Grenze nicht ueberqueren darf
- * (Falle 9, `CLAUDE.md:52-70`). Auf einem Telefon ist die Karte ohnehin die richtige Form.
+ * (Falle 9, `CLAUDE.md`). Auf einem Telefon ist die Karte ohnehin die richtige Form.
  *
  * ⛔ DIE PROPS SIND EIN EIGENER, HIER AUSGESCHRIEBENER SATZ und nicht `GeraetMitLeihstand`
  * aus `_db/leihen.ts`. Das ist die tragende Haelfte der Datenschutz-Zusage aus §4.1 Punkt 2

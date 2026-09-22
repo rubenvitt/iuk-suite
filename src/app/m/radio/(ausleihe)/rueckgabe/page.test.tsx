@@ -303,7 +303,7 @@ describe("die Rueckgabe an /rueckgabe", () => {
      * §4.4 Schritt 6 (Spec:3563): „War die Liste leer: ‚Keine Geraete ausgeliehen' (antd
      * `Empty`) — `LoanedDeviceList.tsx:54-63` woertlich."
      * ⛔ `Empty` NACKT, kein `Empty.PRESENTED_IMAGE_SIMPLE`: Compound-Zugriff in einer Server
-     * Component ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`). Vorbild:
+     * Component ist HTTP 500 (Falle 1, `CLAUDE.md`). Vorbild:
      * `(ausleihe)/geraete/page.tsx` und `lagerbuch/verwaltung/(arbeit)/page.tsx:130`.
      * ⛔ UND DIE INSEL ERSCHEINT DANN GAR NICHT — eine Suchzeile ueber nichts ist eine
      * Bedienflaeche ohne Gegenstand (Spec:3559, `routes/return.tsx:60`).

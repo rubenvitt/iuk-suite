@@ -32,7 +32,7 @@ import s from "../../_ui/ausleihe.module.css";
  * fest, `page.test.tsx` misst die Wirkung.
  *
  * ⛔ DIES IST EINE SERVER COMPONENT: kein `Typography.Title`, kein `Card.Meta`, kein
- * `Input.TextArea` — Compound-Zugriff ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`,
+ * `Input.TextArea` — Compound-Zugriff ist HTTP 500 (Falle 1, `CLAUDE.md`,
  * Spec:3349-3351). Die Ueberschrift ist ein nacktes `<h1>`, und `Empty` wird NACKT benutzt:
  * ein `Empty.PRESENTED_IMAGE_SIMPLE` waere derselbe Compound-Zugriff. ⛔ Kein
  * `@ant-design/icons` (Falle 7, Entscheidung E5) und keine `Table` (Entscheidung E4 — ein
@@ -111,7 +111,7 @@ export default async function GeraeteUebersichtPage({
           Client-Hook und liest das `<form>`, in dem seine Komponente STEHT — in dieser
           Server Component kann er nicht laufen (Begruendung ausgeschrieben in
           `_ui/AktualisierenKnopf.tsx`). Die Server Action wird DIREKT importiert und nicht
-          als Prop gereicht (Falle 9, `CLAUDE.md:52-70`).
+          als Prop gereicht (Falle 9, `CLAUDE.md`).
         */}
         <form action={listeAktualisieren}>
           <AktualisierenKnopf />

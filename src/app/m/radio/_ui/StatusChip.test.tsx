@@ -91,7 +91,7 @@ describe("radio-StatusChip: Farbe ist nie der einzige Traeger", () => {
 
   it("der Ton steht als Datenattribut, nicht als verdrahtete Farbe im Markup", async () => {
     /*
-     * Falle 2 (`CLAUDE.md:14-16`): die vier Hexpaare stehen als EIGENE CSS-Variablen im
+     * Falle 2 (`CLAUDE.md`): die vier Hexpaare stehen als EIGENE CSS-Variablen im
      * Modul-Stylesheet, je Hell- und Dunkelzweig (⬜ A-L10, `_lib/status.ts` bei
      * `STATUS_HEX`). Ein `style={{ background: … }}` im Markup traege genau EINEN der
      * beiden Werte und liesse den Dunkelzweig still auf dem Hellwert stehen.

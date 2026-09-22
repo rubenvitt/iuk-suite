@@ -438,7 +438,7 @@ describe("die Rueckkante konto.ts → zugang.ts traegt AUSSCHLIESSLICH Typen", (
 describe('kein "use client" unter _lib/ und _db/', () => {
   it("findet keine Direktive", () => {
     /**
-     * Falle 6, `CLAUDE.md:24-27`. Ein WERT aus einem "use client"-Modul kommt in
+     * Falle 6, `CLAUDE.md`. Ein WERT aus einem "use client"-Modul kommt in
      * einer Server Component NICHT an — sie bekommt eine Client-Referenz statt
      * des Wertes, HTTP 500 fuer die ganze Seite. TypeScript ist zufrieden,
      * `pnpm build` findet nichts, und VITEST KANN ES STRUKTURELL NICHT FINDEN:

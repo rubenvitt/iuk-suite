@@ -29,10 +29,10 @@ import s from "./ausleihe.module.css";
  * lesen sie (Falle 6, `CLAUDE.md`, Punkt 6).
  *
  * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT, nicht als Prop durchgereicht (Falle 9,
- * `CLAUDE.md:52-70`). Ein `action`-Prop aus `page.tsx` waere typkorrekt, und `pnpm build`
+ * `CLAUDE.md`). Ein `action`-Prop aus `page.tsx` waere typkorrekt, und `pnpm build`
  * saehe es nicht.
  *
- * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): die Flaeche laeuft
+ * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`): die Flaeche laeuft
  * ohne `FullShell` und erbt `controlHeight: TAP = 56` (`src/core/theme/theme.ts:50-51`);
  * `size="large"` waere 72. Die Nachbaumasze 44 und 64 sind CSS-Klassen (Entscheidung E8) —
  * ⛔ kein zweiter `ConfigProvider`, der waere eine Client-Komponente.

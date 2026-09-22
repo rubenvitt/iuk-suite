@@ -18,7 +18,7 @@ import { Button } from "antd";
  *
  * ⛔ DAS `<form action={listeAktualisieren}>` STEHT DESHALB IN DER SERVER COMPONENT, dieser
  * Knopf DARIN. Das ist die vorgesehene Aufteilung, nicht ein Umweg: die Server Action wird
- * dort DIREKT importiert (Falle 9, `CLAUDE.md:52-70` — eine gewoehnliche Funktion darf die
+ * dort DIREKT importiert (Falle 9, `CLAUDE.md` — eine gewoehnliche Funktion darf die
  * RSC-Grenze nicht ueberqueren, eine Server Action nur als direkter Import), und ueber diese
  * Grenze reist gar keine Prop.
  *
@@ -30,9 +30,9 @@ import { Button } from "antd";
  *
  * ⛔ KEIN ZEICHEN, SONDERN EINE BESCHRIFTUNG (Entscheidung E5, Spec:3750-3752): `RefreshCw`
  * faellt weg. ⛔ Und kein `@ant-design/icons` — in KEINER Datei dieses Moduls (Falle 7,
- * `CLAUDE.md:31-44`), `"use client"` behebt das nicht, es macht es still.
+ * `CLAUDE.md`), `"use client"` behebt das nicht, es macht es still.
  *
- * ⛔ KEIN `size` (Falle 4, `CLAUDE.md:18-22`): die Flaeche laeuft ohne `FullShell` und erbt
+ * ⛔ KEIN `size` (Falle 4, `CLAUDE.md`): die Flaeche laeuft ohne `FullShell` und erbt
  * `controlHeight: TAP = 56` (`src/core/theme/theme.ts:50-51`); `size="large"` waere 72.
  */
 export function AktualisierenKnopf() {

@@ -26,7 +26,7 @@ import s from "./ausleihe.module.css";
  * ⛔ DIE DATENQUELLE IST DIE SERVER ACTION `entleiherVorschlaege` (A17), KEIN ROUTE
  * HANDLER (Spec:3514-3516): ein zweiter anonymer GET-Endpunkt braeuchte seine eigene
  * Ratenbegrenzung, und der Suchtext stuende in JEDER Zugriffszeile des Proxys. Sie wird
- * ⛔ DIREKT IMPORTIERT, nicht als Prop gereicht (Falle 9, `CLAUDE.md:52-70`).
+ * ⛔ DIREKT IMPORTIERT, nicht als Prop gereicht (Falle 9, `CLAUDE.md`).
  *
  * ⛔ `_db/leihen.ts` WIRD HIER NICHT IMPORTIERT — auch nicht fuer den Typ eines Vorschlags.
  * Diese Datei traegt `"use client"`, und ein Wertimport von dort zoege Drizzle und die
@@ -40,7 +40,7 @@ import s from "./ausleihe.module.css";
  * (`node_modules/antd/es/auto-complete/AutoComplete.js:152`), und was sein inneres
  * Suchfeld an ein `FormData` liefert, ist kein Vertrag, auf den man bauen sollte.
  *
- * ⛔ KEIN `size` (Falle 4, `CLAUDE.md:18-22`): die Flaeche laeuft ohne `FullShell` und erbt
+ * ⛔ KEIN `size` (Falle 4, `CLAUDE.md`): die Flaeche laeuft ohne `FullShell` und erbt
  * `controlHeight: TAP = 56` (`src/core/theme/theme.ts:50-51`); `size="large"` waere 72.
  * ⛔ KEIN `@ant-design/icons` (Entscheidung E5, Falle 7).
  */
