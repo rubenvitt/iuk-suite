@@ -5,7 +5,7 @@
  * KEIN "use client" in dieser Datei. Die Zahlen liest sowohl eine Server
  * Component (`verwaltung/artikel/page.tsx`) als auch eine Client-Insel (die
  * Zaehl-Liste) — und ein WERT aus einem Client-Modul kommt in einer Server
- * Component nicht an, sondern als Client-Referenz (Falle 6, `CLAUDE.md:24-27`).
+ * Component nicht an, sondern als Client-Referenz (Falle 6, `CLAUDE.md`).
  * HTTP 500 fuer die ganze Seite, das `pnpm build` nicht sieht und Vitest
  * strukturell nicht sehen KANN, weil "use client" dort ein wirkungsloser String
  * ist.

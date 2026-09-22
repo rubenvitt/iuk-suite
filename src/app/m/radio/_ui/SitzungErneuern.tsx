@@ -39,10 +39,10 @@ import s from "./ausleihe.module.css";
  * (`briefs/A19.md:66-67`).
  *
  * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT, nicht als Prop durchgereicht (Falle 9,
- * `CLAUDE.md:52-70`): eine gewoehnliche Funktion darf die RSC-Grenze nicht ueberqueren, und
+ * `CLAUDE.md`): eine gewoehnliche Funktion darf die RSC-Grenze nicht ueberqueren, und
  * Server Actions duerfen es nur als DIREKTER Import.
  *
- * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): die Flaeche laeuft
+ * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`): die Flaeche laeuft
  * ohne `FullShell` und erbt `controlHeight: TAP = 56` (`src/core/theme/theme.ts:50-51`);
  * `size="large"` waere 72. Das Tap-Masz des Knopfs kommt aus dem CSS-Modul (Entscheidung
  * E8). ⛔ KEIN `@ant-design/icons` (Entscheidung E5, Falle 7).

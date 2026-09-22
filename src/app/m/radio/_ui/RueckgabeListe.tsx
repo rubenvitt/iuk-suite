@@ -24,7 +24,7 @@ import s from "./ausleihe.module.css";
  * Mechanik ohne Anlass. ⛔ UND KEINE MEHRFACH-RUECKGABE (ebd. `:19-20`): eine Karte, ein
  * Dialog, eine Ausleihe.
  *
- * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`), KEIN
+ * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`), KEIN
  * `@ant-design/icons` (Entscheidung E5, Falle 7) und KEINE `Table` (Entscheidung E4).
  *
  * ⚠️ DIE SUCHE FINDET UEBER DEN ENTLEIHERNAMEN, DIE KARTE ZEIGT IHN NICHT — und das ist

@@ -11,7 +11,7 @@ import type { BestandExportZeile } from "./bestandExport";
  * auch eine Server Component lesen koennen muss. Bleibt die Liste in der Insel,
  * bekommt eine Server Component eine Client-Referenz statt des Wertes: HTTP 500
  * fuer die ganze Seite, `typecheck` und `build` gruen, und Vitest kann es
- * strukturell nicht finden (CLAUDE.md:24-27).
+ * strukturell nicht finden (CLAUDE.md, Falle 6).
  *
  * DIE ZEHNTE SPALTE, „Kategorie", ist KEINE 1:1-Pflicht, sondern DRK-294 — das
  * Alt-Format hatte sie nicht. Sie steht direkt hinter „Fach", weil beide
@@ -34,7 +34,7 @@ import type { BestandExportZeile } from "./bestandExport";
  * Zeile 1, das Icon am Knopf laeuft dort. Wandert der Knopf jemals in eine
  * Server Component, ergibt der Icon-Import HTTP 500 BEIM IMPORT, nicht beim
  * Rendern — und "use client" auf der Icon-Datei behebt das nicht, es macht es
- * still (CLAUDE.md:28-41).
+ * still (CLAUDE.md, Falle 7).
  *
  * ENTSCHEIDUNG 9-G, SEIT DRK-186 SUITE-WEIT: eine Formel-Neutralisierung
  * beruehrt diesen Pfad NICHT. Der Baustein legt jede Zelle mit `type: String`

@@ -483,7 +483,7 @@ describe("die Uebersicht an /geraete", () => {
      * nach fuenf Sekunden verstecken sollte.
      *
      * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT UND NICHT ALS PROP GEREICHT (Falle 9,
-     * `CLAUDE.md:52-70`). Der Fall SENDET das Formular deshalb ab und misst, dass GENAU
+     * `CLAUDE.md`). Der Fall SENDET das Formular deshalb ab und misst, dass GENAU
      * DIESE Funktion laeuft — die DOM-Eigenschaft `form.action` taugt dafuer nicht: React
      * legt dort eine `javascript:`-Notbremse ab und nicht die Funktion (gemessen).
      *

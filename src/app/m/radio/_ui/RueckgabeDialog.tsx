@@ -12,7 +12,7 @@ import s from "./ausleihe.module.css";
  *
  * ⛔ `"use client"`, und die Gruende sind aufzaehlbar: `useActionState` auf
  * `rueckgabeBuchen`, der Zustand des Notizfeldes, und `Input.TextArea` — ein
- * COMPOUND-ZUGRIFF, der in einer Server Component HTTP 500 ist (Falle 1, `CLAUDE.md:11-13`).
+ * COMPOUND-ZUGRIFF, der in einer Server Component HTTP 500 ist (Falle 1, `CLAUDE.md`).
  * Die antd-Zuordnung schreibt fuer ihn ausdruecklich „nur Client" (`briefs/KOPF.md`).
  *
  * ⛔ antd `Modal` STATT DES RADIX-DIALOGS. Die Zuordnungstafel nennt den Grund, und der
@@ -23,14 +23,14 @@ import s from "./ausleihe.module.css";
  *
  * ⛔ DER DIALOG HAENGT IN EINEM PORTAL AN `document.body` — er ist KEIN Nachfahr von
  * `.rahmen` (`_ui/AusleihRahmen.tsx`). Jede Klasse, die er benutzt, darf deshalb nur
- * Variablen lesen, die auf `:root` stehen (Falle 2, `CLAUDE.md:14-15`);
+ * Variablen lesen, die auf `:root` stehen (Falle 2, `CLAUDE.md`);
  * `RueckgabeDialog.test.tsx` misst das an den Klassen, die tatsaechlich im Portal landen.
  *
  * ⛔ DIE ACTION WIRD DIREKT IMPORTIERT, nicht als Prop durchgereicht (Falle 9,
- * `CLAUDE.md:52-70`): eine gewoehnliche Funktion darf die RSC-Grenze nicht ueberqueren, und
+ * `CLAUDE.md`): eine gewoehnliche Funktion darf die RSC-Grenze nicht ueberqueren, und
  * Server Actions duerfen es nur als DIREKTER Import.
  *
- * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): die Flaeche laeuft
+ * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`): die Flaeche laeuft
  * ohne `FullShell` und erbt `controlHeight: TAP = 56` (`src/core/theme/theme.ts:50-51`).
  * Die Nachbaumasze 44 und 64 sind CSS-Klassen (Entscheidung E8). ⛔ KEIN
  * `@ant-design/icons` (Entscheidung E5, Falle 7).

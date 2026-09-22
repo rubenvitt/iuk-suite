@@ -174,7 +174,7 @@ const insel = () => <UploadInsel maxAblaufTage={7} maxDateienProShare={200} maxD
  * Dateien in ein `<input type="file">` zu legen kann `fill()` aus dem Harness
  * nicht — `files` ist keine `value`-Eigenschaft. Das hier ist deshalb KEIN
  * zweites Harness, sondern die eine Zeile, die jsdom fuer Dateiwahl braucht;
- * sie bleibt in dieser Datei (`CLAUDE.md:92-93`).
+ * sie bleibt in dieser Datei (`CLAUDE.md`, Abschnitt „Tests“).
  */
 async function waehle(...dateien: File[]): Promise<void> {
   const feld = query<HTMLInputElement>('input[type="file"]');

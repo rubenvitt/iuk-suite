@@ -244,7 +244,7 @@ afterEach(async () => {
 describe("radio-AusleihRahmen: die Bauform", () => {
   it("traegt kein use client und keinen ant-design-icons-Import", () => {
     /*
-     * Falle 6 UND Falle 7 in einem Fall, und sie sind gegenlaeufig (`CLAUDE.md:41-44`):
+     * Falle 6 UND Falle 7 in einem Fall, und sie sind gegenlaeufig (`CLAUDE.md`, Falle 7):
      * ein `"use client"` machte den Rahmen zur Client-Grenze und liesse `AusleihZugang`
      * als Client-Referenz ankommen; ein `@ant-design/icons` ergaebe HTTP 500 schon beim
      * Import, und `"use client"` behebt das NICHT — es macht es still.
