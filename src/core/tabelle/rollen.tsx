@@ -74,8 +74,8 @@ export const RollenAnbieter = RollenKontext.Provider;
  * Tabelle `scroll.y` setzt — und `virtuell` setzt es immer —, teilt rc-table
  * sie in ZWEI `<table>`-Elemente auf (`Table.js:485` Kopf, `:507` Körper): der
  * Kopf trägt nur `thead`, der Körper nur `tbody`. Die Zuordnung Spaltenkopf →
- * Zelle ist damit schon ohne Virtualisierung dahin. Was hier nachgerüstet wird,
- * ist genau die Differenz, die die Virtualisierung zusätzlich gekostet hat.
+ * Zelle ist damit schon ohne Virtualisierung dahin — bewusst hingenommen (DRK-362,
+ * keine Screenreader-Zusage). Nachgerüstet ist nur, was Virtualisierung kostete.
  */
 function Koerper(props: KastenProps) {
   const { beschriftung, zeilen } = useContext(RollenKontext);

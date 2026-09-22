@@ -244,7 +244,9 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Zuordnung Spaltenkopf → Zelle. Sobald eine Tabelle `scroll.y` setzt — und `virtuell` setzt es
     immer —, teilt rc-table sie in **zwei** `<table>`-Elemente (`Table.js:485` Kopf, `:507`
     Körper); der Kopf trägt nur `thead`, der Körper nur `tbody`. Das gilt für **jede** Tabelle der
-    Suite mit fixem Kopf, virtuell oder nicht, und steht als DRK-362 auf dem Board.
+    Suite mit fixem Kopf, virtuell oder nicht. **Bewusst hingenommen (DRK-362):** für die
+    Verwaltungsflächen gilt keine Screenreader-Zusage, und getrennt ist heute nur, was virtualisiert
+    (ab 150 Zeilen) oder `scroll.y` selbst setzt — kein `aria-describedby`-Umbau ohne neue Zusage.
 
 15. **`Table`s `onChange` feuert nur bei Bedienung DER TABELLE — nicht, wenn sich `dataSource`
     daneben ändert** (gemessen im Modul `lagerbuch`, DRK-331). Der naheliegende Weg, „was steht
