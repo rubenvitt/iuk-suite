@@ -64,9 +64,24 @@ const zettelQuelle = readFileSync(
   "utf8",
 );
 
-/** Die Regel eines Selektors aus dem Quelltext — jsdom rechnet kein CSS. */
+/**
+ * Die Regel eines Selektors aus dem Quelltext — jsdom rechnet kein CSS.
+ *
+ * ⚠️ VOLLSTAENDIG MASKIEREN, nicht nur `.[]()`. Eine fruehere Fassung liess den
+ * RUECKWAERTSSTRICH selbst stehen, dazu `*`, `+`, `?`, `^`, `$`, `{`, `}` und `|`
+ * — CodeQL meldet das zu Recht („Incomplete string escaping or encoding",
+ * Alarm 3 auf diesem Repo). Hier kommen heute nur Literale herein, der Fehler
+ * waere also nicht zu sehen; genau deshalb bliebe er stehen, bis jemand einen
+ * Selektor aus gelesenem CSS hereinreicht und das Muster still etwas anderes
+ * trifft — oder bei einer unpaarigen Klammer `new RegExp` erst zur Laufzeit wirft.
+ *
+ * Dieselbe Maske wie in `core/theme/selektschrift.test.ts` (Funktion `wert`) und
+ * `scripts/e2e-gruppen.test.ts` (Funktion `globZuRegex`), die beide denselben
+ * Fund schon getragen haben.
+ */
 function cssRegel(selektor: string): string {
-  const muster = new RegExp(`${selektor.replace(/[.[\]()]/g, "\\$&")}\\s*\\{[^}]*\\}`);
+  const maskiert = selektor.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+  const muster = new RegExp(`${maskiert}\\s*\\{[^}]*\\}`);
   return muster.exec(cssOhneKommentare)?.[0] ?? "";
 }
 
