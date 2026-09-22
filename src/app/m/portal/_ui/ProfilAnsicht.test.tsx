@@ -11,6 +11,7 @@ const BASIS = {
   name: "Ruben Vitt",
   email: "ruben@example.org",
   kennung: "sub-42",
+  bild: null,
   gruppen: ["iuk"],
   fachgruppen: ["fuehrung"],
   angemeldetSeit: 1_755_000_000,
@@ -32,6 +33,21 @@ describe("ProfilAnsicht", () => {
     expect(text).toContain("sub-42");
     expect(text).toContain("iuk");
     expect(text).toContain("fuehrung");
+  });
+
+  it("zeigt das Profilbild aus Pocket ID, sonst die Initialen", async () => {
+    await mount(
+      <ProfilAnsicht {...BASIS} bild="https://id.example/api/users/u1/profile-picture.png" abmelden={vi.fn()} />,
+    );
+    const bild = query('[data-testid="profil-bild"] img');
+    expect(bild.getAttribute("src")).toBe("https://id.example/api/users/u1/profile-picture.png");
+    // Der Name steht direkt daneben — das Bild ist Zierde.
+    expect(bild.getAttribute("alt")).toBe("");
+    await unmount();
+
+    await mount(<ProfilAnsicht {...BASIS} bild={null} abmelden={vi.fn()} />);
+    expect(exists('[data-testid="profil-bild"] img')).toBe(false);
+    expect(query('[data-testid="profil-bild"]').textContent).toBe("RV");
   });
 
   it("zeigt die laufende Version und den gekuerzten Stand", async () => {

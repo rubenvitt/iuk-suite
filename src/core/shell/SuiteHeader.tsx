@@ -124,6 +124,7 @@ export async function SuiteHeader({
           nav={nav}
           modulKey={moduleKey}
           userName={session?.user?.name ?? null}
+          userBild={session?.user?.image ?? null}
           angemeldet={angemeldet}
           profilHref={angemeldet ? moduleUrl("portal") : null}
         />
