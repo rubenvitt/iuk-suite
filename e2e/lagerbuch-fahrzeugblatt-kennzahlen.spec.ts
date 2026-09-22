@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, warteAufSpaltenaufteilung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -163,7 +163,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
       await page.setViewportSize({ width: breite, height: 900 });
       const antwort = await page.goto(BLAETTER[0]);
       expect(antwort!.status()).toBe(200);
-      await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor();
+      await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor(); await warteAufSpaltenaufteilung(page);
 
       const gesehen = await kacheln(page);
       expect(gesehen).toHaveLength(4);
