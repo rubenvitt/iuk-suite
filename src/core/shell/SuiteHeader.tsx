@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Header } from "antd/es/layout/layout";
 
 import { auth } from "@/core/auth";
+import { rueckmeldungUrl } from "@/core/rueckmeldung/konfiguration";
 import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
@@ -51,6 +52,19 @@ export async function SuiteHeader({
   // eine Liste öffnen, die niemand zu sehen bekommt. Deshalb bleibt sie hier
   // ungerufen, und die Liste bleibt `[]`.
   const eintraege = angemeldet ? await launcherEintraege(session?.user?.groups ?? null) : [];
+  /*
+   * DER WEG ZUM RÜCKMELDEFORMULAR — hier aufgelöst und nicht in der Insel
+   * (DRK-453). `rueckmeldungUrl()` liest `process.env`, und das gibt es im
+   * Client-Bundle nicht; die Adresse ist bewusst KEIN `NEXT_PUBLIC_`-Wert, weil
+   * sie sich sonst an einem fertig gebauten Image nicht mehr ab- und anschalten
+   * liesse (Begründung im Kopf von `rueckmeldung/konfiguration.ts`).
+   *
+   * ⚠️ NUR ANGEMELDET, aus demselben Grund wie `profilHref` unten: `qr` und
+   * `beta` fahren `MinimalShell` OHNE Anmeldezwang, und das Formular ist ein
+   * internes Board. Ein Eintrag, den ein anonymer Besucher auf einer
+   * Generator-Seite sieht, lädt ihn irgendwohin ein, wo er nichts zu suchen hat.
+   */
+  const feedbackHref = angemeldet ? rueckmeldungUrl() : null;
 
   /*
    * NUR NOCH DIE KOPFZEILE. Bis 2026-08-13 stand hier eine zweite Zeile mit
@@ -127,6 +141,7 @@ export async function SuiteHeader({
           userBild={session?.user?.image ?? null}
           angemeldet={angemeldet}
           profilHref={angemeldet ? moduleUrl("portal") : null}
+          feedbackHref={feedbackHref}
         />
       </Header>
     </div>

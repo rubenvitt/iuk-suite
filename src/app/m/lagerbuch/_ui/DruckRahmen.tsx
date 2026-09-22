@@ -23,12 +23,12 @@ import s from "./verwaltung.module.css";
  * Dokumentwechsel zu viel.
  *
  * ⚠️ ER BENUTZT `SuiteRahmen` DIREKT UND NICHT `Shell`/`FullShell`, und das ist
- * die tragende Zeile dieser Datei. `FullShell` hängt die UMFRAGEN ein
- * (`core/umfragen`), und deren Kopf schreibt ausdrücklich aus, warum sie nicht
- * über allem liegen dürfen: „ein Umfragekärtchen im gedruckten Aushang ist ein
- * Fehldruck". Über `Shell` zu gehen wäre der bequeme Weg gewesen und hätte
- * genau diese Entscheidung im Vorbeigehen umgestoßen — ein Formbricks-Widget
- * auf einem Etikettenbogen.
+ * die tragende Zeile dieser Datei. `FullShell` hängt den schwebenden
+ * RÜCKMELDEKNOPF ein (`core/rueckmeldung`, seit DRK-453; davor stand dort die
+ * Formbricks-Einbindung, mit demselben Kopfkommentar aus demselben Grund).
+ * Über `Shell` zu gehen wäre der bequeme Weg gewesen und hätte genau diese
+ * Entscheidung im Vorbeigehen umgestoßen — ein Feedback-Knopf auf einem
+ * Etikettenbogen.
  *
  * ⚠️ `Arbeitsdichte` KOMMT MIT, denn sie ist eine Eigenschaft des INHALTS, nicht
  * des Rahmens (`FullShell` schreibt das so aus). Ohne sie stünden die

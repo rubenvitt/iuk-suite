@@ -140,13 +140,13 @@ pnpm test            # Vitest
 pnpm build           # next build
 pnpm e2e             # Playwright, startet eigenen Dev-Server auf Port 3100 mit DATA_DIR ./.data/e2e
 pnpm e2e:pwa         # PWA-Specs mit eigener Konfiguration
-pnpm e2e:umfragen    # Formbricks-Umfragen mit eigener Konfiguration
+pnpm e2e:rueckmeldung # Rückmeldeformular (eingeschaltet) mit eigener Konfiguration
 ```
 
 Die E2E-Suite läuft in der CI in Gruppen je Modul (`e2e/gruppen.json`); jede Spec, die
 `playwright.config.ts` einschließt, muss dort genau einer Gruppe zugeordnet sein, und keine Spec,
-die dessen `testIgnore` ausschließt (heute die zwei PWA-Specs und `umfragen.spec.ts`, die nur
-über `pnpm e2e:pwa` bzw. `pnpm e2e:umfragen` laufen), darf in einer Gruppe stehen. Beides prüft
+die dessen `testIgnore` ausschließt (heute die zwei PWA-Specs und `rueckmeldung.spec.ts`, die nur
+über `pnpm e2e:pwa` bzw. `pnpm e2e:rueckmeldung` laufen), darf in einer Gruppe stehen. Beides prüft
 `scripts/e2e-gruppen.test.ts`. Wer alle drei Profile fahren will, ruft alle drei Befehle auf.
 
 Eine Reihe von Fehlern findet **kein** Tor, weil sie erst in einem echten Browser oder bei einem

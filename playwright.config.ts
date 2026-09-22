@@ -18,11 +18,11 @@ export default defineConfig({
   // 3100, wo `navigator.serviceWorker` gar nicht existiert (kein sicherer
   // Kontext) — die Fälle scheiterten dann an einer Meldung über `undefined`
   // statt an ihrer Zusage.
-  // `umfragen` kommt aus demselben Grund dazu wie die beiden PWA-Dateien, nur
-  // mit umgekehrtem Vorzeichen: der Fall braucht `SUITE_FORMBRICKS_*` GESETZT,
-  // und dieses Profil setzt sie bewusst leer (siehe `webServer.env` unten). Er
-  // läuft in `playwright.umfragen.config.ts`, Port 3102.
-  testIgnore: /(pwa-spike|zeichen-pwa|umfragen)\.spec\.ts/,
+  // `rueckmeldung` kommt aus demselben Grund dazu wie die beiden PWA-Dateien,
+  // nur mit umgekehrtem Vorzeichen: der Fall braucht `SUITE_RUECKMELDUNG_URL`
+  // GESETZT, und dieses Profil setzt sie bewusst leer (siehe `webServer.env`
+  // unten). Er läuft in `playwright.rueckmeldung.config.ts`, Port 3102.
+  testIgnore: /(pwa-spike|zeichen-pwa|rueckmeldung)\.spec\.ts/,
   workers: 1,
   /*
    * 30s reichen NICHT fuer den ersten Test, der sich anmeldet.
@@ -330,31 +330,30 @@ export default defineConfig({
          */
         POCKET_ID_API_KEY: "",
         /*
-         * KEINE UMFRAGEN IN E2E — dieselbe Bauform wie `POCKET_ID_API_KEY`
-         * darüber, und aus einem verwandten Grund.
+         * KEIN RÜCKMELDEKNOPF IN E2E — dieselbe Bauform wie
+         * `POCKET_ID_API_KEY` darüber, und aus einem verwandten Grund.
          *
-         * Die CI setzt `SUITE_FORMBRICKS_*` nicht; eine `.env.local` in einer
-         * Arbeitskopie sehr wohl, und `next dev` läuft im Repo-Wurzelverzeichnis
-         * und liest sie mit. Ohne diese zwei Zeilen liefe derselbe Lauf lokal
-         * durch den eingebundenen und in der CI durch den leeren Zweig.
+         * Die CI setzt `SUITE_RUECKMELDUNG_URL` nicht; eine `.env.local` in
+         * einer Arbeitskopie sehr wohl, und `next dev` läuft im
+         * Repo-Wurzelverzeichnis und liest sie mit. Ohne diese Zeile liefe
+         * derselbe Lauf lokal durch den eingebundenen und in der CI durch den
+         * leeren Zweig.
          *
-         * ⚠️ UND DAS IST HIER TEURER ALS EIN ABWEICHENDER ZWEIG. Jede
-         * Arbeitsfläche zöge ein Skript von `bricks.iuk-ue.de` nach — ein
-         * Netzaufruf pro Seitenaufruf aus einem Testlauf heraus, gegen ein
-         * FREMDES System. Und ein ausgespieltes Umfragefenster legt sich als
-         * eigene Ebene über die Fläche, auf der die Greifer arbeiten. Beides
-         * macht einen Lauf nicht rot, sondern RENNABHÄNGIG rot: mal steht das
-         * Fenster da, mal nicht, und der Fehlschlag meldet sich als etwas ganz
-         * anderes (dieselbe Klasse wie Falle 10 und 12 in `CLAUDE.md`).
+         * ⚠️ UND DAS IST HIER TEURER ALS EIN ABWEICHENDER ZWEIG: der schwebende
+         * Knopf liegt als eigene Ebene unten rechts über der Fläche, auf der
+         * die Greifer arbeiten — und er verschwindet nach dem ersten Klick,
+         * steht in einem Lauf also mal da und mal nicht. Das macht einen Lauf
+         * nicht rot, sondern RENNABHÄNGIG rot, und der Fehlschlag meldet sich
+         * als etwas ganz anderes (dieselbe Klasse wie Falle 10 und 12 in
+         * `CLAUDE.md`).
          *
          * ⚠️ EIN LEERER WERT REICHT, und das ist bewusst so gebaut:
-         * `umfragenKonfiguration()` liest beide Werte `trim()`-bereinigt und
-         * behandelt zwei leere Zeichenketten wie „nicht gesetzt" — wortlos, ohne
-         * Warnung. Beide müssen stehen: ein einzelner leerer Wert wäre der halb
-         * eingerichtete Fall und schriebe bei jedem Start eine Warnung.
+         * `rueckmeldungUrl()` liest den Wert `trim()`-bereinigt und behandelt
+         * die leere Zeichenkette wie „nicht gesetzt" — wortlos, ohne Warnung.
+         * Wer den Knopf in einem Spec BRAUCHT, setzt die Variable im eigenen
+         * Profil; das ist heute keines.
          */
-        SUITE_FORMBRICKS_APP_URL: "",
-        SUITE_FORMBRICKS_WORKSPACE_ID: "",
+        SUITE_RUECKMELDUNG_URL: "",
         ...AUFGABEN_ENV,
         /*
          * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,

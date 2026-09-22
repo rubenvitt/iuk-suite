@@ -2,6 +2,8 @@ import { auth } from "@/core/auth";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
 import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
 import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
+import { RueckmeldungKarte } from "@/app/m/portal/_ui/RueckmeldungKarte";
+import { rueckmeldungUrl } from "@/core/rueckmeldung/konfiguration";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 
 /**
@@ -27,10 +29,24 @@ export default async function PortalPage() {
     launcherEintraege(session?.user?.groups ?? null),
     leseAnsprechpartner(),
   ]);
+  /*
+   * ⚠️ DIE KACHEL STEHT AUSSERHALB VON `DiensteRaster`, UND ZWAR ABSICHTLICH.
+   * Drinnen wäre sie ein Eintrag der Suche und verschwände beim Tippen — und
+   * sie stünde nicht da, wenn für jemanden noch gar nichts freigeschaltet ist
+   * (`DiensteRaster` steigt in diesem Fall vor dem Raster mit einem `Result`
+   * aus). Genau dann ist der Weg, etwas zu melden, am wichtigsten.
+   *
+   * `rueckmeldungUrl()` liefert `null`, solange die Adresse nicht eingerichtet
+   * ist; dann steht hier nichts. Der Aufruf liegt HIER und nicht in der Kachel,
+   * weil diese Seite die Server Component ist und `process.env` im
+   * Client-Bundle nicht existiert.
+   */
+  const rueckmeldung = rueckmeldungUrl();
   return (
     <>
       <Seitenkopf titel="Apps & Dienste" />
       <DiensteRaster eintraege={eintraege} ansprechpartner={ansprechpartner} />
+      {rueckmeldung && <RueckmeldungKarte url={rueckmeldung} />}
     </>
   );
 }

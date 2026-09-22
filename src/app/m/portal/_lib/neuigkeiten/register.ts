@@ -3,6 +3,7 @@ import zeichenVoruebergehendPausiert from "./notizen/portal/2026-09-07-zeichen-v
 import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-im-profil";
 import berichteAlsExcel from "./notizen/portal/2026-09-16-berichte-als-excel";
 import listenAufDemTelefon from "./notizen/portal/2026-09-21-listen-auf-dem-telefon";
+import feedbackGeben from "./notizen/portal/2026-09-22-feedback-geben";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
@@ -145,6 +146,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   tabellenSortierenFiltern,
   berichteAlsExcel,
   listenAufDemTelefon,
+  feedbackGeben,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   listenNachladen,

@@ -329,6 +329,7 @@ export function SuiteNav({
   userBild = null,
   angemeldet,
   profilHref,
+  feedbackHref,
 }: {
   nav: SuiteNavItem[];
   /** Namensraum des gemerkten Aufklappzustands — siehe `NavListe`. */
@@ -342,6 +343,11 @@ export function SuiteNav({
   angemeldet: boolean;
   /** Basis-URL des Portals, oder `null`, wenn es keine gibt. Siehe `profilEintrag`. */
   profilHref: string | null;
+  /**
+   * Adresse des externen Rückmeldeformulars, oder `null` — nicht eingerichtet
+   * oder anonym. Siehe `feedbackEintrag`.
+   */
+  feedbackHref: string | null;
 }) {
   const [offen, setOffen] = useState(false);
   /*
@@ -424,6 +430,42 @@ export function SuiteNav({
       ]
     : [];
 
+  /**
+   * DER RÜCKMELDEWEG IM MENÜ (DRK-453) — der eine der drei Wege zum Formular,
+   * der immer steht. Der schwebende Knopf (`core/rueckmeldung`) verschwindet
+   * nach einmaliger Benutzung, die Portal-Kachel sieht nur, wer im Portal ist;
+   * dieser Eintrag ist der Ort, an dem man „wo war das nochmal?" beantwortet.
+   *
+   * ⚠️ EIN ECHTES `<a>` UND KEIN `next/link`, wie beim Profileintrag darüber —
+   * nur aus dem anderen Grund: dort geht es über eine Domaingrenze, hier aus
+   * der Anwendung heraus auf einen fremden Host. In beiden Fällen gibt es
+   * nichts clientseitig zu navigieren.
+   *
+   * ⚠️ `rel="noopener noreferrer"` GEHÖRT ZU `target="_blank"`: ohne `noopener`
+   * bekäme die fremde Seite über `window.opener` einen Griff auf das Fenster
+   * der Suite. Dieselbe Paarung steht in `RueckmeldungKnopf.tsx`.
+   *
+   * KEIN ZIEL, KEIN EINTRAG — dieselbe Regel wie beim Profil: ein toter Link
+   * ist schlimmer als kein Link.
+   */
+  const feedbackEintrag = feedbackHref
+    ? [
+        {
+          key: "feedback",
+          label: (
+            <a
+              data-testid="feedback-link"
+              href={feedbackHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Feedback geben
+            </a>
+          ),
+        },
+      ]
+    : [];
+
   const abmeldenEintrag = {
     key: "abmelden",
     icon: <LogoutOutlined />,
@@ -443,10 +485,10 @@ export function SuiteNav({
           key: "nutzer",
           type: "group",
           label: <span data-testid="nutzername">{userName}</span>,
-          children: [...profilEintrag, abmeldenEintrag],
+          children: [...profilEintrag, ...feedbackEintrag, abmeldenEintrag],
         },
       ]
-    : [...profilEintrag, abmeldenEintrag];
+    : [...profilEintrag, ...feedbackEintrag, abmeldenEintrag];
 
   return (
     <>
