@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test"; import { E2E_PORT } from "./helpers/ports";
 
 /**
  * DIE AUFLOESUNG DES AUTO-MODUS, serverseitig.
@@ -12,7 +12,7 @@ import { test, expect, type Page } from "@playwright/test";
  * `/login` ist bewusst gewaehlt: login-frei, auf jedem Host erreichbar und
  * ohne Seed-Abhaengigkeit.
  */
-const PORTAL = "http://portal.localtest.me:3100";
+const PORTAL = `http://portal.localtest.me:${E2E_PORT}`;
 
 /**
  * DAS HYDRATIONS-GATE fuer die beiden Live-Wechsel-Tests weiter unten.

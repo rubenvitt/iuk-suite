@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
-import { devLogin, klickeWennRuhig, wechsleAnmeldung } from "./fixtures";
+import { devLogin, klickeWennRuhig, wechsleAnmeldung, E2E_PORT } from "./fixtures";
 import Database from "better-sqlite3";
 import { randomUUID, createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
-const PORTAL="http://portal.localtest.me:3100";
-const QR="http://qr.localtest.me:3100";
-const ZEICHEN="http://zeichen.localtest.me:3100";
+const PORTAL=`http://portal.localtest.me:${E2E_PORT}`;
+const QR=`http://qr.localtest.me:${E2E_PORT}`;
+const ZEICHEN=`http://zeichen.localtest.me:${E2E_PORT}`;
 function fixtureEvents(actor: string) {
  const db=new Database(".data/e2e/audit.db");
  try {

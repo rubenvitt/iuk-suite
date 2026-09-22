@@ -9,7 +9,7 @@ import { nanoid } from "nanoid";
 
 import { inboxFiles, shareFiles, shares, zugangslinks } from "@/app/m/files/_db/schema";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import { decodeQrPng } from "./helpers/decode-qr";
 
@@ -54,8 +54,8 @@ import { decodeQrPng } from "./helpers/decode-qr";
 
 const VERWALTUNG = "files.localtest.me";
 const INBOX = "drop.localtest.me";
-const V = `http://${VERWALTUNG}:3100`;
-const I = `http://${INBOX}:3100`;
+const V = `http://${VERWALTUNG}:${E2E_PORT}`;
+const I = `http://${INBOX}:${E2E_PORT}`;
 
 /** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
 const GRUPPE = "iuk-files-admin";
@@ -491,7 +491,7 @@ test("8 — T44 Punkt 2: ein auf dem Verwaltungs-Host erzeugter Abgabelink traeg
 
   const adresse = await page.getByTestId("files-zugangslink-link").getAttribute("href");
   expect(adresse, "die einmalige Ausgabe traegt keinen Link").not.toBeNull();
-  const INBOX_PRAEFIX = `http://${INBOX}:3100/u/`;
+  const INBOX_PRAEFIX = `http://${INBOX}:${E2E_PORT}/u/`;
   expect(adresse!.startsWith(INBOX_PRAEFIX), `Link ohne Abgabe-Domain und Port: ${adresse}`).toBe(
     true,
   );

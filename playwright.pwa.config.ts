@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { ZEICHEN_ENV } from "./e2e/helpers/zeichen";
+import { ZEICHEN_ENV } from "./e2e/helpers/zeichen"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
 
 /**
  * Eigene Config für den PWA-Spike (Port 3101, parallel zur E2E-Config auf 3100).
@@ -11,14 +11,14 @@ import { ZEICHEN_ENV } from "./e2e/helpers/zeichen";
  * abschalten, die die anderen Tests mit prüfen.
  */
 const ORIGINS = [
-  "http://beta.localtest.me:3101",
-  "http://portal.localtest.me:3101",
-  "http://qr.localtest.me:3101",
+  `http://beta.localtest.me:${E2E_PORTS.pwa}`,
+  `http://portal.localtest.me:${E2E_PORTS.pwa}`,
+  `http://qr.localtest.me:${E2E_PORTS.pwa}`,
   // Ohne diese Zeile ist `zeichen.localtest.me:3101` kein sicherer Kontext:
   // `isSecureContext` bleibt false, `navigator.serviceWorker` fehlt ganz, und
   // JEDER Fall aus `zeichen-pwa.spec.ts` scheitert an `undefined` statt an
   // seiner Zusage.
-  "http://zeichen.localtest.me:3101",
+  `http://zeichen.localtest.me:${E2E_PORTS.pwa}`,
 ].join(",");
 
 export default defineConfig({
@@ -29,7 +29,7 @@ export default defineConfig({
   testMatch: /(pwa-spike|zeichen-pwa)\.spec\.ts/,
   workers: 1,
   use: {
-    baseURL: "http://beta.localtest.me:3101",
+    baseURL: `http://beta.localtest.me:${E2E_PORTS.pwa}`,
     // Playwrights Standard-Browser ("chromium headless shell") ignoriert
     // --unsafely-treat-insecure-origin-as-secure — gemessen: isSecureContext
     // bleibt false, navigator.serviceWorker fehlt ganz. Der volle Chromium-
@@ -47,8 +47,8 @@ export default defineConfig({
     // dev, weil die Chunk-URLs pro Request variieren und der SW-Cache damit
     // nicht greift. Erst der Prod-Build mit stabil gehashten Assets zeigt, ob
     // Offline wirklich trägt.
-    command: "rm -rf ./.data/pwa-spike && next build && next start -p 3101",
-    url: "http://localhost:3101/api/health",
+    command: `rm -rf ./.data/pwa-spike && next build && next start -p ${E2E_PORTS.pwa}`,
+    url: `http://localhost:${E2E_PORTS.pwa}/api/health`,
     reuseExistingServer: false,
     timeout: 240_000,
     env: {
@@ -58,7 +58,7 @@ export default defineConfig({
       AUTH_DEV_LOGIN: "true",
       AUTH_COOKIE_DOMAIN: ".localtest.me",
       DATA_DIR: "./.data/pwa-spike",
-      PORT: "3101",
+      PORT: String(E2E_PORTS.pwa),
       /*
        * ⛔ DIESE ZWEI ZEILEN GEHÖREN ZUSAMMEN, und die Reihenfolge ihrer Wirkung
        * ist scharf: `zeichenBootFehler()` (`src/app/m/zeichen/_lib/boot.ts`) meldet
@@ -81,3 +81,6 @@ export default defineConfig({
     },
   },
 });
+
+// Nennt den Halter eines belegten Ports (DRK-346, `e2e/helpers/ports.ts`).
+pruefePortsFrei([E2E_PORTS.pwa]);

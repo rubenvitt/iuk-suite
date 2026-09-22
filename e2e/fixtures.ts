@@ -1,4 +1,4 @@
-import { Locator, Page, expect } from "@playwright/test";
+import { Locator, Page, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS };
 
 export async function devLogin(
   page: Page,
@@ -6,7 +6,7 @@ export async function devLogin(
 ) {
   const cb = encodeURIComponent(opts.callbackPath ?? "/");
   // Port ist überschreibbar, weil der PWA-Spike auf einem eigenen Server läuft.
-  await page.goto(`http://${opts.host}:${opts.port ?? 3100}/login?callbackUrl=${cb}`);
+  await page.goto(`http://${opts.host}:${opts.port ?? E2E_PORT}/login?callbackUrl=${cb}`);
   // The login form is a client component; on a cold cross-host load (dev mode,
   // no shared cache across *.localtest.me origins) React can still be
   // hydrating when the click lands, so the browser falls through to a native

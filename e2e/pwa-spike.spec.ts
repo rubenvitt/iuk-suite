@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORTS } from "./fixtures";
 import { decodeQr } from "./helpers/decode-qr";
 
 /**
@@ -13,9 +13,9 @@ import { decodeQr } from "./helpers/decode-qr";
  * einen sicheren Kontext brauchen und `*.localtest.me` über http keiner ist.
  */
 
-const BETA = "http://beta.localtest.me:3101";
-const PORTAL = "http://portal.localtest.me:3101";
-const QR = "http://qr.localtest.me:3101";
+const BETA = `http://beta.localtest.me:${E2E_PORTS.pwa}`;
+const PORTAL = `http://portal.localtest.me:${E2E_PORTS.pwa}`;
+const QR = `http://qr.localtest.me:${E2E_PORTS.pwa}`;
 
 // Name aus `_lib/sw-source.ts`. Bewusst dupliziert statt importiert: der Test
 // soll nach einem Versionssprung auffallen und nicht stillschweigend
@@ -95,7 +95,7 @@ test("anderer Host bleibt sauber: kein Manifest, kein SW, keine Registrierung", 
   // Schritt bewiese der Test nur etwas über die Login-Seite (derselbe blinde
   // Fleck wie bei Post-Cutover-Befund 2, wo ein Verify-Schritt nur prüfte,
   // ob überhaupt etwas lädt).
-  await devLogin(page, { host: "portal.localtest.me", port: 3101, groups: "" });
+  await devLogin(page, { host: "portal.localtest.me", port: E2E_PORTS.pwa, groups: "" });
   // Auf Präsenz prüfen, nicht auf Sichtbarkeit: die Spike-DB startet leer, das
   // Kachel-Grid hat dann keine Höhe. Header + Grid belegen, dass hier die
   // eingeloggte Portal-Seite steht und nicht mehr das Login.
@@ -197,7 +197,7 @@ test("Admin-Seite landet nicht im SW-Cache", async ({ page }) => {
   // einem geteilten Tablet.
   await devLogin(page, {
     host: "qr.localtest.me",
-    port: 3101,
+    port: E2E_PORTS.pwa,
     groups: "iuk-qr-admin",
     callbackPath: "/admin",
   });

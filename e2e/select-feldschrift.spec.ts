@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import { ARBEITSDICHTE } from "@/core/theme/theme";
 
-const PORTAL = "http://portal.localtest.me:3100";
+const PORTAL = `http://portal.localtest.me:${E2E_PORT}`;
 
 /**
  * DAS AUSWAHLFELD TRAEGT 16px UND BLEIBT DABEI AUF SEINER BEDIENDICHTE

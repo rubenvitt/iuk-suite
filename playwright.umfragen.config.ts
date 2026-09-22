@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig } from "@playwright/test"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
 
 /**
  * Eigene Config für die Umfragen-Einbindung (Port 3102, neben 3100/3101).
@@ -31,14 +31,14 @@ export default defineConfig({
   timeout: 90_000,
   retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: "http://portal.localtest.me:3102",
+    baseURL: `http://portal.localtest.me:${E2E_PORTS.umfragen}`,
     trace: "on-first-retry",
   },
   webServer: {
-    command: "rm -rf ./.data/umfragen && next dev -p 3102",
+    command: `rm -rf ./.data/umfragen && next dev -p ${E2E_PORTS.umfragen}`,
     // Wartet auf die Anmeldeseite und übersetzt damit die teuerste Hülle der
     // Suite, bevor der erste Fall läuft — dieselbe Begründung wie im Dev-Profil.
-    url: "http://portal.localtest.me:3102/login",
+    url: `http://portal.localtest.me:${E2E_PORTS.umfragen}/login`,
     reuseExistingServer: false,
     timeout: 180_000,
     env: {
@@ -46,7 +46,7 @@ export default defineConfig({
       AUTH_DEV_LOGIN: "true",
       AUTH_COOKIE_DOMAIN: ".localtest.me",
       DATA_DIR: "./.data/umfragen",
-      PORT: "3102",
+      PORT: String(E2E_PORTS.umfragen),
       NODE_ENV: "development",
       POCKET_ID_API_KEY: "",
       /*
@@ -60,3 +60,6 @@ export default defineConfig({
     },
   },
 });
+
+// Nennt den Halter eines belegten Ports (DRK-346, `e2e/helpers/ports.ts`).
+pruefePortsFrei([E2E_PORTS.umfragen]);

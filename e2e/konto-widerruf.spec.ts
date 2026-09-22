@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, E2E_PORT } from "./fixtures";
 
 /**
  * DIE NAHT, DIE SONST NIEMAND SIEHT.
@@ -14,7 +14,7 @@ test("die Sitzung ueberlebt eine Navigation — der Widerrufs-Lesevorgang im Pro
   page,
 }) => {
   await devLogin(page, { host: "portal.localtest.me" });
-  await page.goto("http://portal.localtest.me:3100/");
+  await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
   await expect(page).not.toHaveURL(/\/login/);
   await expect(page.getByTestId("suite-header")).toBeVisible();
 });
@@ -35,10 +35,10 @@ test("der Widerruf sperrt eine zweite, unabhaengige Sitzung aus", async ({ brows
   await devLogin(seiteB, { host: "portal.localtest.me", email });
 
   // Vorbedingung: B ist wirklich angemeldet, sonst misst der Test nichts.
-  await seiteB.goto("http://portal.localtest.me:3100/");
+  await seiteB.goto(`http://portal.localtest.me:${E2E_PORT}/`);
   await expect(seiteB).not.toHaveURL(/\/login/);
 
-  await seiteA.goto("http://portal.localtest.me:3100/profil");
+  await seiteA.goto(`http://portal.localtest.me:${E2E_PORT}/profil`);
   /*
    * `klickeWennRuhig` statt `.click()`, und das ist Falle 12 aus docs/design/README.md,
    * gemessen am 2026-09-08 auf main (Lauf 34225940426, e2e (2), drei Versuche in Folge):
@@ -75,7 +75,7 @@ test("der Widerruf sperrt eine zweite, unabhaengige Sitzung aus", async ({ brows
   await abgemeldet;
 
   // B navigiert und landet beim Login — ohne dass B irgendetwas getan haette.
-  await seiteB.goto("http://portal.localtest.me:3100/");
+  await seiteB.goto(`http://portal.localtest.me:${E2E_PORT}/`);
   await expect(seiteB).toHaveURL(/\/login/);
 
   /*
@@ -104,7 +104,7 @@ test("nach dem Widerruf traegt eine frische Anmeldung wieder", async ({ page }) 
   // Sonst waere der Knopf eine Falle: einmal gedrueckt, nie wieder hinein.
   const email = "widerruf-neu@localtest.me";
   await devLogin(page, { host: "portal.localtest.me", email });
-  await page.goto("http://portal.localtest.me:3100/profil");
+  await page.goto(`http://portal.localtest.me:${E2E_PORT}/profil`);
   // Aus demselben Grund wie oben (Falle 12).
   await klickeWennRuhig(page.getByTestId("alle-abmelden"));
   // Derselbe Warteposten wie oben, aus demselben Grund.
@@ -115,6 +115,6 @@ test("nach dem Widerruf traegt eine frische Anmeldung wieder", async ({ page }) 
   await abgemeldet;
 
   await devLogin(page, { host: "portal.localtest.me", email });
-  await page.goto("http://portal.localtest.me:3100/");
+  await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
   await expect(page).not.toHaveURL(/\/login/);
 });

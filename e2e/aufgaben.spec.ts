@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { devLogin, klickeWennRuhig, wechsleAnmeldung } from "./fixtures";
+import { devLogin, klickeWennRuhig, wechsleAnmeldung, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import {
   AUFGABEN_HOST,
@@ -53,7 +53,7 @@ test("Modulwurzel antwortet mit 200 und traegt die Suite-Kopfzeile", async ({ pa
  */
 test("Modulzugang ohne personen-Zeile zeigt die Erklaerseite, keine 404", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: GRUPPE, callbackPath: "/" });
-  const res = await page.goto(`http://${HOST}:3100/`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByText("Du bist noch nicht im Modul eingetragen.")).toBeVisible();
 });
@@ -63,7 +63,7 @@ test("ohne die Zugangsgruppe verweigert die Middleware den Zugang", async ({ pag
   // dasselbe Bild wie bei `alpha` in keystone.spec.ts. Deshalb 403 und nicht
   // 404: hier verschweigt die Suite nichts, sie verweigert.
   await devLogin(page, { host: "portal.localtest.me", groups: "" });
-  const res = await page.goto(`http://${HOST}:3100/`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(403);
 });
 
@@ -123,7 +123,7 @@ test("Meine Woche: eine BuFDi meldet sich an, die Modulwurzel antwortet mit 200 
     email: "alina@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Meine Woche", level: 1 })).toBeVisible();
   expect(konsolenFehler).toEqual([]);
@@ -158,7 +158,7 @@ test("/plan/<fremde-person> ist lesbar, aber ohne jede Aktion — kein Formular,
   const href = await fremderLink.getAttribute("href");
   expect(href, "kein Fusszeilen-Verweis zu einem fremden Zeitplan gefunden").toBeTruthy();
 
-  const res = await page.goto(`http://${HOST}:3100${href}`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}${href}`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Zeitplan von /);
   // KEIN `getByRole("button", { name: "Einplanen" })`-Assert (Review-Fund, Fix-Runde 1): der Seed
@@ -190,7 +190,7 @@ test("/plan/<unbekannte-id> bleibt notFound() — die Grenze der Erklaerseiten-A
     email: "alina@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/plan/unbekannte-id`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/plan/unbekannte-id`);
   expect(res?.status()).toBe(404);
 });
 
@@ -225,7 +225,7 @@ test("Verteilung: die Koordination meldet sich an, die Modulwurzel zeigt „Vert
     email: "rike@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
   // Minor 4 (Fix-Runde 1): dieser h1-Abruf allein waere auch vor Aufgabe 14 gruen gewesen (der
@@ -263,7 +263,7 @@ test("Verteilen: /verteilen antwortet der Koordination mit 200 und zeigt den Pos
     email: "rike@localtest.me",
     callbackPath: "/verteilen",
   });
-  const res = await page.goto(`http://${HOST}:3100/verteilen`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Verteilen", level: 1 })).toBeVisible();
   // Der Seed legt „Verbandskästen im Fahrzeugpark prüfen" als eingegangene, noch unverteilte
@@ -305,7 +305,7 @@ test("Ansichtswahl: der Wechsel auf das Brett steht in der Adresse und ueberlebt
     email: "rike@localtest.me",
     callbackPath: "/verteilen",
   });
-  await page.goto(`http://${HOST}:3100/verteilen`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/verteilen`);
 
   // VORHER: die Liste, ohne Parameter — `/verteilen` ist per Vorgabe die Seite, die sie vor dieser
   // Runde war (`alsAnsicht(undefined) === "liste"`).
@@ -349,7 +349,7 @@ test("Verteilen-Gegenprobe: eine auftrag-Person bekommt auf /verteilen 404 — d
     email: "malte@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/verteilen`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen`);
   expect(res?.status()).toBe(404);
 });
 
@@ -366,7 +366,7 @@ test("Personenverwaltung: /personen antwortet der Koordination mit 200", async (
     email: "rike@localtest.me",
     callbackPath: "/personen",
   });
-  const res = await page.goto(`http://${HOST}:3100/personen`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/personen`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Personenverwaltung", level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Person anlegen" })).toBeVisible();
@@ -382,7 +382,7 @@ test("Personenverwaltung-Gegenprobe: eine bufdi-Person bekommt auf /personen 404
     email: "alina@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/personen`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/personen`);
   expect(res?.status()).toBe(404);
 });
 
@@ -411,7 +411,7 @@ test("Meine Auftraege: ein Auftraggeber meldet sich an, die Modulwurzel zeigt �
     email: "malte@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Meine Aufträge", level: 1 })).toBeVisible();
   // GEZIELT AUF DEN SEITENINHALT, NICHT AUF DIE MODULNAVIGATION (Aufgabe 16): seit `_lib/nav.ts`
@@ -462,7 +462,7 @@ test("Aufgabe einstellen: /neu antwortet mit 200 und zeigt das Formular samt „
     email: "malte@localtest.me",
     callbackPath: "/neu",
   });
-  const res = await page.goto(`http://${HOST}:3100/neu`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/neu`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Aufgabe einstellen", level: 1 })).toBeVisible();
   await expect(page.getByLabel("Für mich selbst einstellen")).toBeVisible();
@@ -484,7 +484,7 @@ test("Aufgabe einstellen: eine BuFDi erreicht /neu ebenfalls, aber ohne die „f
     email: "alina@localtest.me",
     callbackPath: "/neu",
   });
-  const res = await page.goto(`http://${HOST}:3100/neu`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/neu`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Aufgabe einstellen", level: 1 })).toBeVisible();
   await expect(page.getByLabel("Für mich selbst einstellen")).toHaveCount(0);
@@ -511,7 +511,7 @@ test("Freigaben: /freigaben antwortet einer Auftraggeberin mit 200 und zeigt ihr
     email: "tomke@localtest.me",
     callbackPath: "/freigaben",
   });
-  const res = await page.goto(`http://${HOST}:3100/freigaben`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/freigaben`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Freigaben", level: 1 })).toBeVisible();
   await expect(page.getByText("Erste-Hilfe-Kurs Nachbereitung")).toBeVisible();
@@ -531,7 +531,7 @@ test("Freigaben: dieselbe Aufgabe erscheint fuer die Koordination unter „in Ve
     email: "rike@localtest.me",
     callbackPath: "/freigaben",
   });
-  const res = await page.goto(`http://${HOST}:3100/freigaben`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/freigaben`);
   expect(res?.status()).toBe(200);
   await expect(page.getByText("Erste-Hilfe-Kurs Nachbereitung")).toBeVisible();
 });
@@ -543,7 +543,7 @@ test("Freigaben-Gegenprobe: eine BuFDi bekommt auf /freigaben 404", async ({ pag
     email: "alina@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/freigaben`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/freigaben`);
   expect(res?.status()).toBe(404);
 });
 
@@ -579,7 +579,7 @@ test("Aufgabendetail: /a/<id> antwortet mit 200, zeigt Chip-Zeile, Metablock, Ve
   expect(href, "kein Verweis auf das Aufgabendetail gefunden").toBeTruthy();
   expect(href).toMatch(/^\/a\//);
 
-  const res = await page.goto(`http://${HOST}:3100${href}`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}${href}`);
   expect(res?.status()).toBe(200);
   await expect(
     page.getByRole("heading", { name: "Verbandskästen im Fahrzeugpark prüfen", level: 1 }),
@@ -606,7 +606,7 @@ test("Aufgabendetail-Gegenprobe: /a/<unbekannt> ergibt 404", async ({ page }) =>
     email: "malte@localtest.me",
     callbackPath: "/",
   });
-  const res = await page.goto(`http://${HOST}:3100/a/unbekannte-id`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/a/unbekannte-id`);
   expect(res?.status()).toBe(404);
 });
 
@@ -630,7 +630,7 @@ test("Archiv: /archiv antwortet mit 200 und zeigt abgeschlossene Aufgaben, gefil
     email: "rike@localtest.me",
     callbackPath: "/archiv",
   });
-  const res = await page.goto(`http://${HOST}:3100/archiv`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/archiv`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Archiv", level: 1 })).toBeVisible();
   await expect(page.getByText("Eigene Fortbildung: Reanimation auffrischen")).toBeVisible();
@@ -742,10 +742,10 @@ async function oeffneNachweisAufgabe(page: import("@playwright/test").Page): Pro
      * dem Laden des Moduls) und ist harmlos: er beruehrt weder Zugriffsrecht
      * noch Datenbank.
      */
-    const warmlauf = await page.request.get(`http://${HOST}:3100${nachweisHref}/nachweis/hochladen`);
+    const warmlauf = await page.request.get(`http://${HOST}:${E2E_PORT}${nachweisHref}/nachweis/hochladen`);
     expect(warmlauf.status(), await warmlauf.text()).toBe(405);
   }
-  await page.goto(`http://${HOST}:3100${nachweisHref}`);
+  await page.goto(`http://${HOST}:${E2E_PORT}${nachweisHref}`);
 
   // NUR BEIM ERSTEN AUFRUF SICHTBAR: eine bereits gestartete Aufgabe zeigt „Bearbeitung starten"
   // nicht mehr (`aktionsOptionen.starten` wird dann false) — der zweite Test dieser Datei trifft
@@ -835,7 +835,7 @@ test("Nachweis hochladen — ein sauberes Bild (Fake-clamd „ok“) wird ausgel
   // <img>-Praesenz im Markup.
   const src = await page.getByTestId("nachweis-bild").getAttribute("src");
   expect(src, "kein src auf dem ausgelieferten Bild").toBeTruthy();
-  const antwort = await page.request.get(`http://${HOST}:3100${src}`);
+  const antwort = await page.request.get(`http://${HOST}:${E2E_PORT}${src}`);
   expect(antwort.status()).toBe(200);
   expect(antwort.headers()["content-type"]).toBe("image/png");
   expect(Buffer.compare(await antwort.body(), PNG)).toBe(0);
@@ -877,7 +877,7 @@ test("Nachweis-Auslieferung: eine andere BuFDi ohne darfNachweisSehen bekommt de
     email: "carla@localtest.me",
     callbackPath: "/",
   });
-  const antwort = await page.request.get(`http://${HOST}:3100${sauberesNachweisSrc}`);
+  const antwort = await page.request.get(`http://${HOST}:${E2E_PORT}${sauberesNachweisSrc}`);
   expect(antwort.status()).toBe(404);
 });
 
@@ -1099,7 +1099,7 @@ test("Ziehbereich: eine in_arbeit-Aufgabe lässt sich ziehen und bleibt in_arbei
   await expect(zieleZeile).toHaveCount(1);
   // DER STATUS BLEIBT in_arbeit, OHNE SONDERFALL (Spec-Nachtrag `72ef235`, Brief) — auf der
   // Detailseite geprueft, die ueber den jetzt echten Link erreichbar ist.
-  await page.goto(`http://${HOST}:3100${href}`);
+  await page.goto(`http://${HOST}:${E2E_PORT}${href}`);
   await expect(page.getByText("In Bearbeitung")).toBeVisible();
 });
 
@@ -1345,7 +1345,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     email: "malte@localtest.me",
     callbackPath: "/neu",
   });
-  await page.goto(`http://${HOST}:3100/neu`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/neu`);
   await page.locator("#af-titel").fill(titel);
   await page
     .locator("#af-beschreibung")
@@ -1358,7 +1358,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   await waehleAusListe(page, "#af-nachweisart", "Bild");
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
-  await page.goto(`http://${HOST}:3100/`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/`);
   const neueAufgabe = page.getByRole("link", { name: titel });
   const href = await neueAufgabe.getAttribute("href");
   expect(
@@ -1374,7 +1374,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     email: "rike@localtest.me",
     callbackPath: "/verteilen",
   });
-  await page.goto(`http://${HOST}:3100/verteilen`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/verteilen`);
   /*
    * ══ `/verteilen` VERTEILT SEIT DER ZWEITEN OBERFLAECHEN-RUNDE (2026-08-16) IN DER ZEILE, NICHT
    *    IM MODAL — dieselbe Action, dieselben Formularschluessel, derselbe `data-testid` am
@@ -1434,7 +1434,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   ).toHaveCount(0);
 
   // 4. BEARBEITUNG STARTEN — Carla, auf der Detailseite.
-  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/a/${aufgabeId}`);
   await expect(page.getByRole("heading", { name: titel, level: 1 })).toBeVisible();
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Bearbeitung starten" }));
   await expect(page.getByText("In Bearbeitung")).toBeVisible();
@@ -1443,7 +1443,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   // dasselbe Bild wie `oeffneNachweisAufgabe` oben), DANN DIE ANTWORT DES UPLOADS SELBST PRUEFEN
   // (Lektion 2, dasselbe Bild wie `sendeNachweis` oben) — statt nur auf einen spaeteren
   // Zustandswechsel zu warten.
-  const warmlauf = await page.request.get(`http://${HOST}:3100/a/${aufgabeId}/nachweis/hochladen`);
+  const warmlauf = await page.request.get(`http://${HOST}:${E2E_PORT}/a/${aufgabeId}/nachweis/hochladen`);
   expect(warmlauf.status(), await warmlauf.text()).toBe(405);
 
   await page
@@ -1471,7 +1471,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     email: "malte@localtest.me",
     callbackPath: "/",
   });
-  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, page.getByTestId(`freigeben-${aufgabeId}`));
   // `exact: true`, NICHT nur `getByText("Abgeschlossen")` (gefunden beim ersten Lauf): das Journal
   // traegt seit `abgeschlossen` NUN AUCH eine Verlaufszeile, deren Text "Abgeschlossen" ALS
@@ -1524,7 +1524,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
 const LEERER_START_KOORDINATION = `leerer-start-${Date.now()}@localtest.me`;
 
 async function personenZahl(page: import("@playwright/test").Page): Promise<number> {
-  const res = await page.goto(`http://${HOST}:3100/personen`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/personen`);
   expect(res?.status(), "/personen antwortet nicht mit 200").toBe(200);
   const kontext = page.getByText(/\d+ Person(?:en)? im Modul, davon \d+ aktiv\./);
   await expect(kontext).toBeVisible();
@@ -1585,7 +1585,7 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
     callbackPath: "/",
   });
 
-  const res = await page.goto(`http://${HOST}:3100/`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
   // DIE GEGENPROBE IN EINEM SATZ: genau dieser Text ist das Symptom, das der Umbau beseitigt.
@@ -1597,11 +1597,11 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
   // ZWEITE NAVIGATION — die Stelle, an der ein nicht-idempotentes `INSERT` eine zweite Zeile
   // erzeugte. `/verteilen` und `/` gehen beide ueber `akteurFuerSeite` (die Seite selbst UND
   // `layout.tsx` fuer die Navigation), der Pfad wird hier also mehrfach durchlaufen.
-  const zweite = await page.goto(`http://${HOST}:3100/`);
+  const zweite = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(zweite?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
   await ruheVorDerNaechstenNavigation(page);
-  const dritte = await page.goto(`http://${HOST}:3100/verteilen`);
+  const dritte = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen`);
   expect(dritte?.status()).toBe(200);
   await ruheVorDerNaechstenNavigation(page);
 
@@ -1657,7 +1657,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await expect(page.getByRole("heading", { name: "Verteilung", level: 1 })).toBeVisible();
 
   // 2. EINEN BUFDI ANLEGEN — ueber `/personen`, mit abgetipptem `sub`.
-  const personenSeite = await page.goto(`http://${HOST}:3100/personen`);
+  const personenSeite = await page.goto(`http://${HOST}:${E2E_PORT}/personen`);
   expect(personenSeite?.status()).toBe(200);
   /*
    * DER RUECKFALLZWEIG IST HIER DER GERENDERTE, UND DAS WIRD ZUGESICHERT STATT ANGENOMMEN:
@@ -1685,7 +1685,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await expect(page.getByRole("cell", { name: bufdiName })).toBeVisible();
 
   // 3. EINE AUFGABE EINSTELLEN — als Koordination, fuer andere (kein „fuer mich selbst").
-  await page.goto(`http://${HOST}:3100/neu`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/neu`);
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Leerstart-Rundlauf angelegte Testaufgabe.");
   await waehleDatum(page, "#af-faelligAm", inTagen(21));
@@ -1694,7 +1694,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
 
   // 4. VERTEILEN — die Id kommt aus dem gerenderten Markup (`data-testid="verteilen-<id>"`), nicht
   // fest verdrahtet: es ist eine `nanoid`, wie ueberall in dieser Datei.
-  const verteilenSeite = await page.goto(`http://${HOST}:3100/verteilen`);
+  const verteilenSeite = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen`);
   expect(verteilenSeite?.status()).toBe(200);
   // `getByRole("listitem")` STATT `getByRole("row")`: der Posteingang ist seit der zweiten
   // Oberflaechen-Runde die Zeilenliste des Moduls (`<ul>`/`<li>`), keine antd-`Table` mehr — die
@@ -1739,7 +1739,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
     page.getByTestId("aufgaben-flaeche").getByRole("button", { name: /^Annehmen:/ }),
   ).toHaveCount(0);
 
-  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Bearbeitung starten" }));
   await expect(page.getByText("In Bearbeitung")).toBeVisible();
   // OHNE NACHWEISPFLICHT (bewusst — der Bildnachweis ist die Sache des vollen Durchlaufs oben):
@@ -1757,7 +1757,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
     email: koordination,
     callbackPath: "/",
   });
-  await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/a/${aufgabeId}`);
   await klickeUndWarteAufSeite(page, page.getByTestId(`freigeben-${aufgabeId}`));
   await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
 });
@@ -1808,14 +1808,14 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
     email: "malte@localtest.me",
     callbackPath: "/neu",
   });
-  await page.goto(`http://${HOST}:3100/neu`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/neu`);
   await page.locator("#af-titel").fill(titel);
   await page.locator("#af-beschreibung").fill("Vom Brett-Fall der vierten Oberflaechen-Runde angelegt.");
   await waehleDatum(page, "#af-faelligAm", inTagen(28));
   await page.locator("#af-dauerMinuten").fill("45");
   await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
-  await page.goto(`http://${HOST}:3100/`);
+  await page.goto(`http://${HOST}:${E2E_PORT}/`);
   const href = await page.getByRole("link", { name: titel }).getAttribute("href");
   expect(href, "Aufgabe wurde nicht angelegt").toBeTruthy();
   const aufgabeId = href!.replace("/a/", "");
@@ -1828,7 +1828,7 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
     email: "rike@localtest.me",
     callbackPath: "/verteilen",
   });
-  const res = await page.goto(`http://${HOST}:3100/verteilen?ansicht=brett`);
+  const res = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen?ansicht=brett`);
   expect(res?.status()).toBe(200);
 
   const stapel = page.locator("[data-brett-spalte='posteingang']");
