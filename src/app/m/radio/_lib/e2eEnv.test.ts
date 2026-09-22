@@ -285,6 +285,6 @@ describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
      * keinen zweiten `baseURL`, sondern die absolute Form (`e2e/helpers/lagerbuch.ts:86-91`).
      */
     expect(konfigImport.use?.baseURL).not.toContain(RADIO_HOST);
-    expect(radioUrl("/admin")).toBe(`http://${RADIO_HOST}:3100/admin`);
+    expect(radioUrl("/admin")).toBe(`http://${RADIO_HOST}:${new URL(String(konfigImport.use?.baseURL)).port}/admin`);
   });
 });

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin, warteAufDarstellung } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufDarstellung } from "./fixtures";
 import { TAP_XL } from "@/core/theme/tokens";
 
 /**
@@ -200,7 +200,7 @@ async function verlaufseintragSichern(page: Page) {
 
 /** Eine eigene Gruppe anlegen und ihr Cockpit oeffnen (Bauform aus `feedback.spec.ts:196`). */
 async function eigeneGruppe(page: Page, name: string, slug: string) {
-  await page.goto("http://feedback.localtest.me:3100/");
+  await page.goto(`http://feedback.localtest.me:${E2E_PORT}/`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "+ Neue Gruppe" }).click();
   const modal = page.getByRole("dialog");
@@ -266,7 +266,7 @@ test.describe("390x844 — das Telefon", () => {
   test("keine Admin-Seite scrollt seitwaerts", async ({ page }) => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
     for (const seite of SEITEN) {
-      const antwort = await page.goto(`http://${seite.host}:3100${seite.pfad}`);
+      const antwort = await page.goto(`http://${seite.host}:${E2E_PORT}${seite.pfad}`);
       // OHNE DIESE ZEILE misst der Test eine 404- oder 500-Seite als „scrollt
       // nicht" und ist gruen, ohne dass die Seite existiert.
       expect(antwort?.status(), `${seite.name}: HTTP`).toBe(200);
@@ -282,7 +282,7 @@ test.describe("390x844 — das Telefon", () => {
     // antwortete mit 500. Unter Vitest sind beide Module normale ES-Module,
     // dort ist der Fehler unsichtbar.
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
-    const antwort = await page.goto("http://feedback.localtest.me:3100/groups/1/trend");
+    const antwort = await page.goto(`http://feedback.localtest.me:${E2E_PORT}/groups/1/trend`);
     expect(antwort?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Trend");
   });
@@ -309,8 +309,8 @@ test.describe("390x844 — das Telefon", () => {
   test("auf dem Telefon stehen Karten — und was Tabelle bleibt, scrollt in seinem Kasten", async ({ page }) => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
     for (const ziel of [
-      "http://feedback.localtest.me:3100/vergleich",
-      "http://portal.localtest.me:3100/admin",
+      `http://feedback.localtest.me:${E2E_PORT}/vergleich`,
+      `http://portal.localtest.me:${E2E_PORT}/admin`,
     ]) {
       await page.goto(ziel);
       await page.waitForLoadState("networkidle");
@@ -385,7 +385,7 @@ test.describe("390x844 — das Telefon", () => {
     page,
   }) => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
-    await page.goto("http://feedback.localtest.me:3100/groups/1");
+    await page.goto(`http://feedback.localtest.me:${E2E_PORT}/groups/1`);
     await page.waitForLoadState("networkidle");
 
     /*
@@ -475,7 +475,7 @@ test.describe("390x844 — das Telefon", () => {
      * eine eigene, schwächere. Eine künftige echte Ausnahme gehört dann auch
      * hier wieder benannt — nicht weggefiltert.
      */
-    await keinesZuKlein(page, "http://feedback.localtest.me:3100/groups/1");
+    await keinesZuKlein(page, `http://feedback.localtest.me:${E2E_PORT}/groups/1`);
 
     /*
      * DIE ZWEI ANDEREN VON AUFGABE 5 BEHOBENEN FLAECHEN, und sie kosten nichts:
@@ -487,8 +487,8 @@ test.describe("390x844 — das Telefon", () => {
      * VORHER: zweimal 70x42, aus dem Seed zwei Dienste).
      */
     for (const ziel of [
-      "http://feedback.localtest.me:3100/groups/1/trend",
-      "http://portal.localtest.me:3100/admin",
+      `http://feedback.localtest.me:${E2E_PORT}/groups/1/trend`,
+      `http://portal.localtest.me:${E2E_PORT}/admin`,
     ]) {
       await page.goto(ziel);
       await page.waitForLoadState("networkidle");
@@ -509,7 +509,7 @@ test.describe("390x844 — das Telefon", () => {
      * Belegungen, in denen `/groups/2` je nach Suite-Position steht.
      */
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
-    await page.goto("http://feedback.localtest.me:3100/groups/2");
+    await page.goto(`http://feedback.localtest.me:${E2E_PORT}/groups/2`);
     await page.waitForLoadState("networkidle");
     await page.getByText("Einstellungen", { exact: false }).first().click();
 
@@ -579,7 +579,7 @@ test.describe("390x844 — das Telefon", () => {
     const lang =
       "https://wiki.iuk-ue.de/books/einsatzhandbuch/chapter/funk-und-fernmeldedienst/page/kanaltrennung";
     // Das qr-Modul ist oeffentlich (`requiresAuth: false`) — kein `devLogin`.
-    await page.goto("http://qr.localtest.me:3100/");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
     await page.getByLabel("Link oder Text").fill(lang);
     await page.getByRole("button", { name: "QR-Code erzeugen" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("wiki.iuk-ue.de");
@@ -588,7 +588,7 @@ test.describe("390x844 — das Telefon", () => {
 
     // Zurueck auf den Generator — der Verlaufseintrag traegt jetzt dieselbe URL
     // als Beschriftung. Das war der zweite Seitwaerts-Scroll des Moduls.
-    await page.goto("http://qr.localtest.me:3100/");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
     await expect(page.getByTestId("history-entry").first()).toBeVisible();
     mass = await ueberlauf(page);
     expect(mass.doc, `Verlauf: ${mass.schuldige.join(" | ")}`).toBe(mass.vw);
@@ -611,7 +611,7 @@ test.describe("390x844 — das Telefon", () => {
     await page.getByLabel("Link oder Text").fill("kurz");
     await page.getByRole("button", { name: "QR-Code erzeugen" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("kurz");
-    await page.goto("http://qr.localtest.me:3100/");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
 
     const eintraege = page.getByTestId("history-entry");
     await expect(eintraege).toHaveCount(2);
@@ -648,7 +648,7 @@ test.describe("700x900 — das Tablet zwischen den alten 600 und den 768 der Sui
      * und die Gegenprobe bei 1280px (ungleich breit) macht daraus ein Paar.
      */
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
-    await page.goto("http://feedback.localtest.me:3100/groups/1");
+    await page.goto(`http://feedback.localtest.me:${E2E_PORT}/groups/1`);
     await page.waitForLoadState("networkidle");
 
     const gruppen = await knopfgruppen(page);
@@ -718,8 +718,8 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
 
     for (const ziel of [
-      "http://feedback.localtest.me:3100/vergleich",
-      "http://portal.localtest.me:3100/admin",
+      `http://feedback.localtest.me:${E2E_PORT}/vergleich`,
+      `http://portal.localtest.me:${E2E_PORT}/admin`,
     ]) {
       await page.goto(ziel);
       await page.waitForLoadState("networkidle");
@@ -750,7 +750,7 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
     // eine wirkungslose Medienabfrage nicht widerlegen — dort saehen richtige
     // und kaputte Fassung beide „volle Breite".
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
-    await page.goto("http://feedback.localtest.me:3100/groups/1");
+    await page.goto(`http://feedback.localtest.me:${E2E_PORT}/groups/1`);
     await page.waitForLoadState("networkidle");
 
     const gruppen = await knopfgruppen(page);
@@ -782,7 +782,7 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
   test("keine Admin-Seite scrollt seitwaerts", async ({ page }) => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
     for (const seite of SEITEN) {
-      const antwort = await page.goto(`http://${seite.host}:3100${seite.pfad}`);
+      const antwort = await page.goto(`http://${seite.host}:${E2E_PORT}${seite.pfad}`);
       expect(antwort?.status(), `${seite.name}: HTTP`).toBe(200);
       await page.waitForLoadState("networkidle");
       const mass = await ueberlauf(page);

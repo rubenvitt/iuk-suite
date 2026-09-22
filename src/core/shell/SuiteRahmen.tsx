@@ -81,7 +81,13 @@ export async function SuiteRahmen({
      */
     <Layout className={druck ? s.druckRahmen : undefined} style={{ minHeight: "100dvh" }}>
       <SuiteHeader moduleKey={moduleKey} nav={nav} />
-      <Layout>
+      {/*
+        ⚠️ `hasSider` AUSDRUECKLICH (DRK-363): ohne die Prop kommt
+        `ant-layout-has-sider` erst mit der Hydration, weil `<Sider>` hier als
+        Client-Referenz ankommt; bis dahin steht die Leiste UEBER dem Inhalt.
+        Gemessen in `e2e/shell-spaltenaufteilung.spec.ts`.
+      */}
+      <Layout hasSider={nav.length > 0}>
         {nav.length > 0 ? (
           <Sider width={240} theme="light" className={s.sider}>
             <Modulleiste nav={nav} modulKey={moduleKey} />

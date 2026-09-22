@@ -402,7 +402,7 @@ test.describe("radio-Verwaltung", () => {
      * trotzdem — und der Vitest-Fall daneben kann es erst recht nicht sagen, weil er
      * `usePathname` MOCKT. Hier steht die einzige Messung dieser Zusage.
      */
-    await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\?/);
+    await expect(page).toHaveURL((url) => url.href.startsWith(radioUrl("/admin/geraete?")));
     expect(new URL(page.url()).searchParams.get("ausleihbar")).toBe("1");
   });
 

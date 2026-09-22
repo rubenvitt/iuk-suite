@@ -25,8 +25,8 @@ export const RADIO_HOST = "radio.localtest.me";
  */
 export const FREMDER_HOST = "feedback.localtest.me";
 
-/** Derselbe Port wie in `playwright.config.ts` (`next dev -p 3100`). */
-export const RADIO_PORT = 3100;
+import { E2E_PORT } from "./ports"; // Derselbe Port wie `playwright.config.ts` (DRK-346).
+export const RADIO_PORT = E2E_PORT;
 
 /**
  * Die Gruppe der Verwaltungsstufe. Registry-Vorgabe (`src/core/registry.ts:198`),

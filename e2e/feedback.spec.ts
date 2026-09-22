@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 
 /**
  * E2E DER OEFFENTLICHEN STRECKE `/f/**` (Plan Teil 2, Task 15) UND DES
@@ -34,7 +34,7 @@ import { devLogin } from "./fixtures";
  * `data-testid="module-title"` (Keystone-Test, `keystone.spec.ts`).
  */
 
-const FEEDBACK = "http://feedback.localtest.me:3100";
+const FEEDBACK = `http://feedback.localtest.me:${E2E_PORT}`;
 // Aus dem Seed (`_lib/seed.ts`): zwei Gruppen, beide mit AKTIVER Umfrage aus den
 // 14 STANDARD_QUESTIONS (acht `schulnote`, sechs `text`). "demo" ist der Zettel
 // aller Formular-Szenarien; "jugend" wird fuer Zustand D geschlossen und

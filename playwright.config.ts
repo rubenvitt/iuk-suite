@@ -8,7 +8,7 @@ import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 import { RADIO_ENV } from "./e2e/helpers/radio";
 import { UAV_ENV } from "./e2e/helpers/uav";
-import { ZEICHEN_ENV } from "./e2e/helpers/zeichen";
+import { ZEICHEN_ENV } from "./e2e/helpers/zeichen"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -72,7 +72,7 @@ export default defineConfig({
    */
   retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: "http://portal.localtest.me:3100",
+    baseURL: `http://portal.localtest.me:${E2E_PORTS.web}`,
     /*
      * `on-first-retry` und bewusst NICHT `retain-on-failure`: die Aufzeichnung
      * kostet in jedem Test Zeit und Platz, `retries` ist aber oben schon auf
@@ -123,14 +123,14 @@ export default defineConfig({
        * HTTP-Anfrage, und ein roher clamd-Socket antwortet darauf nicht — der
        * Lauf hinge beim Start, statt laut zu scheitern.
        */
-      port: 3310,
+      port: E2E_PORTS.clamd,
       // `true` griffe einen `pnpm dev:av` ab, der auf einer ANDEREN Modusdatei
       // laeuft: der Test schriebe dann ins Leere und der Lauf waere
       // rennabhaengig gruen.
       reuseExistingServer: false,
       timeout: 30_000,
       env: {
-        PORT: "3310",
+        PORT: String(E2E_PORTS.clamd),
         // Vorbelegung des Laufs. T47 setzt `error` als erste Anweisung seines
         // Tests, T35/T43 brauchen `ok` — im selben Prozess, `workers: 1`.
         FAKE_CLAMD_MODUS: "ok",
@@ -187,7 +187,7 @@ export default defineConfig({
        * weder die beiden kuratierten Lernsets noch Merkliste/Lernstand des Dev-Nutzers.
        */
       command:
-        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx scripts/seed-lokal.ts zeichen && next dev -p 3100",
+        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx scripts/seed-lokal.ts zeichen && next dev -p ${E2E_PORTS.web}`,
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -201,7 +201,7 @@ export default defineConfig({
        * ohne aus, siehe Bericht), aber ein GET braucht ihn gar nicht erst zu
        * widerlegen.
        */
-      url: "http://feedback.localtest.me:3100/login",
+      url: `http://feedback.localtest.me:${E2E_PORTS.web}/login`,
       reuseExistingServer: false,
       // 120 s waren fuer `/api/health` bemessen; die Anmeldeseite kalt zu
       // uebersetzen kostet auf einem CI-Runner ein Vielfaches der lokal
@@ -214,7 +214,7 @@ export default defineConfig({
         SUITE_ADMIN_GROUP_PORTAL: "portal-only-admin",
         AUTH_COOKIE_DOMAIN: ".localtest.me",
         DATA_DIR: "./.data/e2e",
-        PORT: "3100",
+        PORT: String(E2E_PORTS.web),
         NODE_ENV: "development",
         /*
          * ZWEI files-Hosts, und Index 0 ist WOERTLICH `files.localtest.me`
@@ -243,7 +243,7 @@ export default defineConfig({
         FILES_MAX_ABLAUF_TAGE: "7",
         // Der Fake-clamd oben, nicht der Compose-Sidecar `clamav`.
         FILES_AV_HOST: "127.0.0.1",
-        FILES_AV_PORT: "3310",
+        FILES_AV_PORT: String(E2E_PORTS.clamd),
         /*
          * DIE VIER KLEINEN AV-ZAHLEN SIND PFLICHT, NICHT KOSMETIK: die
          * Produktionsvorgaben 60 000 ms × 5 Versuche waeren fuenf Minuten gegen
@@ -274,7 +274,7 @@ export default defineConfig({
          * waeren nie 'sauber' pruefbar.
          */
         AUFGABEN_AV_HOST: "127.0.0.1",
-        AUFGABEN_AV_PORT: "3310",
+        AUFGABEN_AV_PORT: String(E2E_PORTS.clamd),
         AUFGABEN_AV_TIMEOUT_MS: "2000",
         /*
          * DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE (Quellenwechsel 2026-08-15) —
@@ -454,3 +454,12 @@ export default defineConfig({
    */
   reporter: process.env.CI ? "list" : undefined,
 });
+
+/*
+ * DIE MELDUNG, DIE PLAYWRIGHT SELBST NICHT GIBT (DRK-346). Sein „is already
+ * used" nennt weder Prozess noch Arbeitsverzeichnis und liest sich wie ein
+ * eigener verwaister Rest — so wurden fremde Läufe beendet. Hinten angefügt,
+ * damit die Kommentaranker in diese Datei nicht wandern (Kommentar über
+ * `reporter`).
+ */
+pruefePortsFrei([E2E_PORTS.clamd, E2E_PORTS.web]);

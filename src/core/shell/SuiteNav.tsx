@@ -13,6 +13,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
+import { initialen } from "@/core/shell/initialen";
 import { gruppiereNav } from "@/core/shell/navAbschnitte";
 import { filtereNav, istLangeNav } from "@/core/shell/navFilter";
 import {
@@ -41,15 +42,6 @@ import s from "./shell.module.css";
  * zum Client-Render. Deshalb eine leere Abmeldefunktion.
  */
 const NIE_AENDERND = () => () => {};
-
-function initialen(name: string | null): string {
-  return (name ?? "?")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 /**
  * Der hervorgehobene Navigationseintrag — und, davon getrennt, ob er die
@@ -334,6 +326,7 @@ export function SuiteNav({
   nav,
   modulKey,
   userName,
+  userBild = null,
   angemeldet,
   profilHref,
 }: {
@@ -341,6 +334,11 @@ export function SuiteNav({
   /** Namensraum des gemerkten Aufklappzustands — siehe `NavListe`. */
   modulKey: string;
   userName: string | null;
+  /**
+   * Profilbild aus Pocket ID (`picture`-Claim, via `session.user.image`), oder
+   * `null`. Laedt es nicht, faellt antds `Avatar` selbst auf die Initialen zurueck.
+   */
+  userBild?: string | null;
   angemeldet: boolean;
   /** Basis-URL des Portals, oder `null`, wenn es keine gibt. Siehe `profilEintrag`. */
   profilHref: string | null;
@@ -507,7 +505,12 @@ export function SuiteNav({
                * Der Knopf bringt beides mit und ist mit `controlHeight: 56`
                * zugleich das Tap-Masz der Suite.
                */
-              icon={<Avatar size="small">{initialen(userName)}</Avatar>}
+              icon={
+                // `alt=""`: der Name steht schon im `aria-label` des Knopfes.
+                <Avatar size="small" src={userBild ?? undefined} alt="">
+                  {initialen(userName)}
+                </Avatar>
+              }
             />
           </Dropdown>
         ) : (

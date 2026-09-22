@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, Modal, Space, Tag, Typography } from "antd";
+import { Avatar, Button, Card, Modal, Space, Tag, Typography } from "antd";
 import { signOut } from "next-auth/react";
 
+import { initialen } from "@/core/shell/initialen";
 import { SPACE } from "@/core/theme/tokens";
 
 const { Text } = Typography;
@@ -44,6 +45,7 @@ export function ProfilAnsicht({
   name,
   email,
   kennung,
+  bild,
   gruppen,
   fachgruppen,
   angemeldetSeit,
@@ -54,6 +56,8 @@ export function ProfilAnsicht({
   name: string | null;
   email: string | null;
   kennung: string | null;
+  /** Profilbild aus Pocket ID (`session.user.image`) oder `null`. */
+  bild: string | null;
   gruppen: string[];
   fachgruppen: string[];
   angemeldetSeit: number | null;
@@ -87,7 +91,14 @@ export function ProfilAnsicht({
   return (
     <Space orientation="vertical" size="large" style={{ display: "flex" }}>
       <Card title="Angaben aus der Anmeldung">
-        <Zeile titel="Name">{name ?? "Unbekannt"}</Zeile>
+        {/* Laedt das Bild nicht, faellt `Avatar` selbst auf die Initialen zurueck.
+            `alt=""`: der Name steht direkt daneben. */}
+        <div style={{ display: "flex", alignItems: "center", gap: SPACE.md }}>
+          <Avatar size={64} src={bild ?? undefined} alt="" data-testid="profil-bild">
+            {initialen(name)}
+          </Avatar>
+          <Zeile titel="Name">{name ?? "Unbekannt"}</Zeile>
+        </div>
         <Zeile titel="E-Mail">{email ?? "Keine hinterlegt"}</Zeile>
         <Zeile titel="Gruppen">
           <span data-testid="profil-gruppen">
@@ -106,7 +117,7 @@ export function ProfilAnsicht({
           {angemeldetSeit ? new Date(angemeldetSeit * 1000).toLocaleString("de-DE") : "Unbekannt"}
         </Zeile>
         <Text type="secondary">
-          Name, E-Mail und Gruppen werden zentral verwaltet und lassen sich hier nicht ändern.
+          Name, Profilbild, E-Mail und Gruppen werden zentral verwaltet und lassen sich hier nicht ändern.
         </Text>
       </Card>
 

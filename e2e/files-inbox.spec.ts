@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 
 import { zugangslinks } from "@/app/m/files/_db/schema";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 
 /**
@@ -50,7 +50,7 @@ import { setzeAvModus } from "./helpers/avModus";
 const DB_PFAD = "./.data/e2e/files.db";
 
 const INBOX = "drop.localtest.me";
-const I = `http://${INBOX}:3100`;
+const I = `http://${INBOX}:${E2E_PORT}`;
 
 /**
  * DER ANDERE HOST. Der Posteingang liegt in der Route-Group `(verwaltung)` und
@@ -58,7 +58,7 @@ const I = `http://${INBOX}:3100`;
  * eigentliche Aussage des vierten Tests (Analyse-Falle 17).
  */
 const VERWALTUNG = "files.localtest.me";
-const V = `http://${VERWALTUNG}:3100`;
+const V = `http://${VERWALTUNG}:${E2E_PORT}`;
 
 /** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
 const GRUPPE = "iuk-files-admin";

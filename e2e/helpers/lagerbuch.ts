@@ -37,8 +37,8 @@ export const FREMDER_HOST = "feedback.localtest.me";
  */
 export const LAGERBUCH_ADMIN_GRUPPE = "lagerbuch_nutzer";
 
-/** Derselbe Port wie in `playwright.config.ts` (`next dev -p 3100`). */
-export const LAGERBUCH_PORT = 3100;
+import { E2E_PORT } from "./ports"; // Derselbe Port wie `playwright.config.ts` (DRK-346).
+export const LAGERBUCH_PORT = E2E_PORT;
 
 /**
  * VIER aktive Token-Codes, nicht einer.
