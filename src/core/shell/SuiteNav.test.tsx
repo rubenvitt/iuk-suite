@@ -73,6 +73,7 @@ async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
       userName="Ruben Vitt"
       angemeldet
       profilHref="http://portal.localtest.me:3000"
+      feedbackHref="https://forms.example.test/f/abc"
       {...props}
     />,
   );
@@ -133,6 +134,33 @@ describe("SuiteNav — angemeldet", () => {
     await oeffneNutzermenue();
     expect(existsPortal('[data-testid="profil-link"]')).toBe(false);
     // Abmelden bleibt davon unberuehrt: es haengt an keinem Host.
+    expect(existsPortal('[data-testid="abmelden"]')).toBe(true);
+  });
+
+  it("fuehrt aus dem Nutzermenue aufs Rueckmeldeformular", async () => {
+    await zeichne();
+    await oeffneNutzermenue();
+    const link = queryPortal<HTMLAnchorElement>('[data-testid="feedback-link"]');
+    expect(link.getAttribute("href")).toBe("https://forms.example.test/f/abc");
+    /*
+     * ⚠️ `rel` UND `target` ZUSAMMEN, und deshalb beide hier zugesichert: das
+     * Ziel liegt bei einem fremden Anbieter, und ohne `noopener` bekaeme dessen
+     * Seite ueber `window.opener` einen Griff auf das Fenster der Suite. Ein
+     * spaeterer Umbau, der nur `target` stehen laesst, waere still.
+     */
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("laesst den Feedback-Eintrag weg, wenn kein Formular eingerichtet ist", async () => {
+    /*
+     * `rueckmeldungUrl()` liefert `null`, solange `SUITE_RUECKMELDUNG_URL`
+     * nicht (oder unbrauchbar) gesetzt ist. Dieselbe Regel wie beim Profil: ein
+     * Eintrag ohne Ziel waere ein toter Link.
+     */
+    await zeichne({ feedbackHref: null });
+    await oeffneNutzermenue();
+    expect(existsPortal('[data-testid="feedback-link"]')).toBe(false);
     expect(existsPortal('[data-testid="abmelden"]')).toBe(true);
   });
 

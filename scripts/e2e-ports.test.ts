@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import haupt from "../playwright.config";
 import pwa from "../playwright.pwa.config";
-import umfragen from "../playwright.umfragen.config";
+import rueckmeldung from "../playwright.rueckmeldung.config";
 import {
   E2E_PORTS,
   HAUPTCHECKOUT_PORTS,
@@ -31,7 +31,7 @@ describe("ermittlePorts", () => {
     expect(ermittlePorts({ wurzel: HAUPT, istWorktree: false })).toEqual({
       web: 3100,
       pwa: 3101,
-      umfragen: 3102,
+      rueckmeldung: 3102,
       clamd: 3310,
     });
   });
@@ -41,7 +41,7 @@ describe("ermittlePorts", () => {
     expect(a.web % 10).toBe(0);
     expect(a.web).toBeGreaterThanOrEqual(WORKTREE_BASIS);
     expect(a.web).toBeLessThan(WORKTREE_BASIS + 10 * WORKTREE_BLOECKE);
-    expect(a).toEqual({ web: a.web, pwa: a.web + 1, umfragen: a.web + 2, clamd: a.web + 3 });
+    expect(a).toEqual({ web: a.web, pwa: a.web + 1, rueckmeldung: a.web + 2, clamd: a.web + 3 });
     // Stabil: jeder Prozess (Hauptprozess, Arbeiter, Vitest) muss dieselbe Zahl sehen.
     expect(ermittlePorts({ wurzel: WT_A, istWorktree: true })).toEqual(a);
     expect(ermittlePorts({ wurzel: WT_B, istWorktree: true }).web).not.toBe(a.web);
@@ -59,7 +59,7 @@ describe("ermittlePorts", () => {
     expect(ermittlePorts({ wurzel: WT_A, istWorktree: true, vorgabe: "4500" })).toEqual({
       web: 4500,
       pwa: 4501,
-      umfragen: 4502,
+      rueckmeldung: 4502,
       clamd: 4503,
     });
     expect(ermittlePorts({ wurzel: WT_A, istWorktree: true, vorgabe: "3100" })).toEqual(HAUPTCHECKOUT_PORTS);
@@ -80,11 +80,11 @@ describe("die drei Profile hängen an derselben Quelle", () => {
   it("baseURL jedes Profils trägt seinen Port aus E2E_PORTS", () => {
     expect(port(haupt.use?.baseURL)).toBe(E2E_PORTS.web);
     expect(port(pwa.use?.baseURL)).toBe(E2E_PORTS.pwa);
-    expect(port(umfragen.use?.baseURL)).toBe(E2E_PORTS.umfragen);
+    expect(port(rueckmeldung.use?.baseURL)).toBe(E2E_PORTS.rueckmeldung);
   });
 
   it("die Server der Nebenprofile lauschen, wo ihre baseURL hinzeigt", () => {
-    for (const konfig of [pwa, umfragen]) {
+    for (const konfig of [pwa, rueckmeldung]) {
       const ws = konfig.webServer;
       if (!ws || Array.isArray(ws)) throw new Error("Nebenprofil ohne einzelnen webServer");
       const erwartet = port(konfig.use?.baseURL);
