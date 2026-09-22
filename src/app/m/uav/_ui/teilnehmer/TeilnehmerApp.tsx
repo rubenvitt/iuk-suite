@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Identity } from "../../_lib/sitzung";
 import { api } from "../offline/client";
@@ -69,6 +69,26 @@ function identitaetCachen(identity: Identity): void {
  * Fortschritt geräteweit, und nach dem Login von B sah B den Stand von A.
  */
 export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
+  if (!useHydriert()) return <main className={styles.app} aria-busy="true" />;
+  return <TeilnehmerInsel ansicht={ansicht} />;
+}
+
+const nieAendern = () => () => {};
+
+/**
+ * `false` im Server-HTML und während der Hydration, danach `true` (DRK-446).
+ * Die Insel liest Katalog, Fortschritt und Identität schon im ERSTEN Render aus
+ * dem Browser-Speicher, den der Server nicht hat — ein direkter Aufruf lieferte
+ * so zwei verschiedene Bäume, und React verwarf das Server-HTML („Hydration
+ * failed"). Deshalb rendert der Teil bewusst nur im Client; bei einer
+ * Client-Navigation ist der Wert sofort `true`, dort blitzt nichts leer auf.
+ * Geprüft über den echten Hydrationsweg in `hydration.test.tsx`.
+ */
+function useHydriert(): boolean {
+  return useSyncExternalStore(nieAendern, () => true, () => false);
+}
+
+function TeilnehmerInsel({ ansicht }: { ansicht: "start" | "aufgabe" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const aktiv = ansicht === "aufgabe" ? searchParams.get("id") : null;
