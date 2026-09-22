@@ -7,7 +7,7 @@ import { Datentabelle, Schmalkarten } from "@/core/tabelle";
 import { usePathname, useRouter } from "next/navigation";
 import type { GeraetCursor, GeraetZeile, Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
 import { GERAETE_NACHLADE_FEHLER } from "../../../_lib/nachladen";
-import type { UpdateStand } from "../../../_lib/updateStand";
+import { STAND_TON, STAND_WORT } from "../../../_lib/geraeteFelder";
 import {
   angewandt,
   sortierungLesen,
@@ -91,24 +91,14 @@ const LEER = "—";
 /** `v || '—'` — mit `||` und nicht `??`: alle Spalten sind Freitext, die LEERE Zeichenkette faellt weiter. */
 const text = (v: unknown) => (typeof v === "string" && v ? v : LEER);
 
-/**
+/*
  * ⛔ DER UPDATE-STAND WANDERT ALS WORT, NICHT ALS FARBE (Falle 3, `Spec:4555-4561`;
- * Regel 4 der Insel-Tafel, `.superpowers/sdd/planteil4/briefs/KOPF.md:1377-1380`).
- * `colorError === colorPrimary` (`src/core/theme/theme.ts:32-33`) — ein rotes Zeichen auf
- * einer Datenflaeche saehe aus wie eine Primaeraktion. Rot bleibt allein den zerstoerenden
- * Knoepfen. ⛔ KEIN `#cf1322` und kein zweiter Hexsatz (NS-A8b, `_lib/status.ts:125`).
+ * Regel 4 der Insel-Tafel). Das Wort und der Ton stehen seit DRK-462 in
+ * `_lib/geraeteFelder.ts` (`STAND_TON`, `STAND_WORT`) — ⛔ SIE STANDEN ZUVOR HIER UND EIN
+ * ZWEITES MAL IN `GeraetFormular.tsx`, notiert als ⬜ V14-L1. Der Zusammenzug wurde faellig,
+ * als die Geraeteakte den Stand im Seitenkopf zeigt: der ist eine Server Component, und ein
+ * Import aus einer `"use client"`-Datei waere dort Falle 6.
  */
-const STAND_TON: Record<UpdateStand, "success" | "warning" | undefined> = {
-  aktuell: "success",
-  veraltet: "warning",
-  unbekannt: undefined,
-};
-
-const STAND_WORT: Record<UpdateStand, string> = {
-  aktuell: "Aktuell",
-  veraltet: "Veraltet",
-  unbekannt: "Unbekannt",
-};
 
 /**
  * DIE ACHTZEHN SPALTEN — ⛔ 1:1 aus `deviceColumns.tsx:16-35`, in dieser Reihenfolge.

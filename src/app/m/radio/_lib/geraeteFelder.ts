@@ -10,6 +10,8 @@
 // es." Der Waechter dagegen ist der Fall „keine Insel-Datei zieht _db/ oder drizzle-orm in den
 // Browser" in `admin/(arbeit)/geraete/GeraeteTabelle.test.tsx`.
 
+import type { UpdateStand } from "./updateStand";
+
 /**
  * DIE DREI SCHLUESSELLISTEN DER GERAETELISTE — die EINE Wahrheit fuer Server UND Insel.
  *
@@ -189,3 +191,36 @@ export const UPDATE_SUCHFELDER = ["issi", "rufname", "opta"] as const;
  * Seitengroesse im Sinne von Regime B.
  */
 export const UPDATE_SEITENGROESSE = 25;
+
+/**
+ * DAS WORT UND DER TON DES UPDATE-STANDS — ⛔ EINE QUELLE, NACHDEM ES ZWEI WAREN
+ * (DRK-462; der Posten stand als ⬜ **V14-L1** in `GeraetFormular.tsx` und in
+ * `admin/(arbeit)/geraete/GeraeteTabelle.tsx` notiert, jeweils mit einer eigenen Abschrift
+ * darunter).
+ *
+ * ⛔ SIE MUSSTEN HIERHER, NICHT NUR WEIL ES SCHOENER IST: seit DRK-462 zeigt die Geraeteakte
+ * den Stand als Marke im SEITENKOPF, und der ist eine Server Component. Ein Import aus
+ * `GeraetFormular.tsx` waere Falle 6 (`CLAUDE.md`) — ein `WERT` aus einem `"use client"`-Modul
+ * kommt dort als Client-Referenz an, HTTP 500 fuer die ganze Seite, bei gruenem `typecheck`,
+ * `build` und Vitest. Diese Datei traegt keine Direktive und ist genau dafuer da.
+ *
+ * ⛔ DER STAND WANDERT ALS WORT, NICHT ALS FARBE (Falle 3, `Spec:4555-4561`): `colorError ===
+ * colorPrimary` (`src/core/theme/theme.ts`, `colorError`/`colorPrimary`) — ein rotes Zeichen
+ * auf einer Datenflaeche saehe aus wie eine Primaeraktion. Rot bleibt den zerstoerenden
+ * Knoepfen. ⛔ KEIN `#cf1322` und kein zweiter Hexsatz (NS-A8b, `_lib/status.ts`,
+ * `ZUSTAND_TON`).
+ *
+ * ⛔ `undefined` FUER „unbekannt" IST DER VORGABETON VON `Tag`, KEIN VERGESSENER WERT: der
+ * Bestand faerbt ihn nicht (`deviceColumns.tsx`, die Spalte `updateStand`).
+ */
+export const STAND_TON: Record<UpdateStand, "success" | "warning" | undefined> = {
+  aktuell: "success",
+  veraltet: "warning",
+  unbekannt: undefined,
+};
+
+export const STAND_WORT: Record<UpdateStand, string> = {
+  aktuell: "Aktuell",
+  veraltet: "Veraltet",
+  unbekannt: "Unbekannt",
+};

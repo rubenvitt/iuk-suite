@@ -27,8 +27,8 @@ import { SpaltenWahl, type SpaltenOption } from "./SpaltenWahl";
 /**
  * Die Etiketten der zwoelf waehlbaren Suchfelder — 1:1 aus `SearchFieldPicker.tsx:5-18`.
  *
- * ⛔ DIE SCHLUESSEL KOMMEN AUS `SUCHFELDER` (`_lib/geraeteFelder.ts:52-65`) UND STEHEN HIER
- * NICHT ZWEITMAL. Die Datei dort schreibt den Grund aus (`_lib/geraeteFelder.ts:35-42`): waehlt jemand
+ * ⛔ DIE SCHLUESSEL KOMMEN AUS `SUCHFELDER` (`_lib/geraeteFelder.ts`, die Liste selbst) UND STEHEN HIER
+ * NICHT ZWEITMAL. Die Datei dort schreibt den Grund im Kopf von `SUCHFELDER` aus: waehlt jemand
  * ausschliesslich ein Feld, dessen Name der Lesepfad nicht kennt, greift der
  * Sicherheitszweig `sql\`0\`` und die Liste bleibt fuer diese Auswahl dauerhaft LEER —
  * bei gruenem typecheck, lint, build und Test. Der Fall

@@ -63,8 +63,8 @@ import s from "../../../_ui/verwaltung.module.css";
  *
  * ⚠️ EINE BENANNTE ABWEICHUNG, AUS DER HAUSFORM:
  *   * ⛔ `color="success"` STATT `color="green"` an den zwei Ziel-Marken (`:93`, `:142`): das
- *     Modul benennt seine Toene semantisch (`GeraeteTabelle.tsx:154` `color="warning"`,
- *     `AusleihenTabelle.tsx:97` `color="processing"`). Es ist derselbe gruene Ton aus antds
+ *     Modul benennt seine Toene semantisch (`GeraeteTabelle.tsx`, Spalte `updateStand`, mit
+ *     `color="warning"`; `AusleihenTabelle.tsx:97` `color="processing"`). Es ist derselbe gruene Ton aus antds
  *     Satz und ⛔ ausdruecklich KEIN zweiter Hexsatz, den NS-A8b verboete
  *     (`_lib/status.ts:125`).
  *
@@ -134,7 +134,7 @@ const VERSIONEN_TEXTE = {
    */
   tabelleName: "Softwareversionen",
   /** Die leere Liste — eine Zutat der Suite (Hausform `ausleihen/AusleihenTabelle.tsx:334-335`,
-   *  `geraete/GeraeteTabelle.tsx:451-452`); der Bestand zeigt antds englisches „No data". */
+   *  `geraete/GeraeteTabelle.tsx`, die `leer`-Zutat); der Bestand zeigt antds englisches „No data". */
   leer: "Keine Version angelegt",
 } as const;
 

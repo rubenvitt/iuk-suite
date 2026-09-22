@@ -53,7 +53,7 @@ import s from "../../../../../_ui/verwaltung.module.css";
  * (`docs/design/README.md`) kommt von ihr, `title` ist deshalb eine blanke Zeichenkette.
  */
 
-/** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx:73`. */
+/** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx`, `LEER`. */
 const LEER = "—";
 
 /**
@@ -61,7 +61,7 @@ const LEER = "—";
  *
  * ⚠️ ER STEHT HIER EIN ZWEITES MAL, obwohl der Lesepfad bereits faltet
  * (`_lib/lesepfade/ereignisse.ts`, `wertText`) — und das ist die Hausform, nicht eine
- * Nachlaessigkeit: `GeraeteTabelle.tsx:73-76` fuehrt dieselbe Konstante und denselben
+ * Nachlaessigkeit: `GeraeteTabelle.tsx` fuehrt mit `LEER` dieselbe Konstante und denselben
  * Rueckfall. Was ueber die Props hereinkommt, ist der Vertrag DIESER Datei; die leere
  * Zeichenkette ist der Wert, den `toEventValue` fuer ein geleertes Feld herausgibt
  * (`radio-admin/shared/src/diff-device.ts:4-6`).

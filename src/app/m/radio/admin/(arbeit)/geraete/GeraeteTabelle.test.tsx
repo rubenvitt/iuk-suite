@@ -633,7 +633,7 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
      */
     /*
      * ⛔ ZWEIMAL, NICHT „IRGENDWO" — UND DAS IST DIE TRAGENDE HAELFTE DIESES FALLES. Die
-     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx:475-478`)
+     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx`, dort `onRow`)
      * und `onClick` an der Karte des mobilen Zweigs (`:517`). Ein `toMatch` allein fand den
      * mobilen Treffer und blieb gruen, wenn der GANZE `onRow`-Block verschwand — gemessen in
      * der Schlusspruefung (`.superpowers/sdd/planteil4/REVIEW-V13.md:98`, Fund W2: Block
