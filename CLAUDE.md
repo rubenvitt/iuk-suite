@@ -703,6 +703,12 @@ fahren 3100/3101/3102/3310, jeder Worktree einen festen Block aus seinem Pfad (4
 **Arbeitsverzeichnis** des Halters ab — steht dort „FREMDE Arbeitskopie", **nicht beenden**, sondern
 warten oder `E2E_PORT=<web-port>` setzen (Ausweg auch, wenn zwei Worktrees im selben Block landen).
 
+**Cloud-Sessions (Claude Code on the web) haben kein `git-lfs`** (DRK-368): der frische Klon trägt
+unter `public/` Zeigerdateien, und `src/lfs-medien.test.ts` ist rot, **ohne dass deine Änderung
+etwas damit zu tun hat**. Abhilfe ist `scripts/cloud-lfs.sh` (installiert git-lfs, holt die
+Medien, ~4 s) — nie den Wächter überspringen, er verhindert das Ausliefern von Zeigerdateien.
+Ist er trotzdem rot, lief das Skript nicht; seine Meldung steht am Sitzungsanfang.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
