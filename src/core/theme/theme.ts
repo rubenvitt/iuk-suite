@@ -59,6 +59,27 @@ export type ThemePreference = "auto" | "light" | "dark";
  */
 export function buildTheme(mode: ThemeMode): ThemeConfig {
   const dark = mode === "dark";
+  /*
+   * DIE KONTUR DER BEDIENELEMENTE, NICHT DIE DER SUITE (DRK-370). WCAG 1.4.11
+   * verlangt 3:1 für das, was ein Bedienelement erkennbar macht; bei einem
+   * leeren Feld auf einer Karte gleicher Farbe ist das allein die Kontur, und
+   * antds `colorBorder` trägt dort 1,41:1 bzw. 1,83:1 (Werte an `FARBEN.kontur`).
+   *
+   * ⚠️ ABSICHTLICH NICHT global. `colorBorder` steckt auch in jeder Tabelle,
+   * jedem Kartenrand, jeder Trennlinie — die trennen nur, sie bedienen nichts,
+   * und die Norm verlangt dort nichts. Global angehoben würde die ganze Suite
+   * sichtbar kantiger, ohne dass ein Feld dadurch besser zu finden wäre.
+   * Entschieden in DRK-370 (der dort empfohlene Schnitt): nur Bedienelemente.
+   *
+   * Über den Komponenten-Token, nicht über CSS: antd legt ihn als
+   * `--ant-color-border` auf die Scope-Klasse des Bauteils (`.iuk.ant-input-css-var`),
+   * die globale Variable bleibt stehen — genau der Schnitt, den wir wollen.
+   * `Input` deckt `TextArea`, `Password` und `Search` mit ab, `Select` auch
+   * `AutoComplete`, `DatePicker` auch `TimePicker` und `RangePicker`;
+   * `theme.test.ts` misst das am erzeugten CSS nach. `Button` fehlt bewusst: er
+   * wird an seiner Beschriftung erkannt, nicht an seinem Rahmen.
+   */
+  const kontur = dark ? FARBEN.konturAufDunkel : FARBEN.kontur;
   return {
     algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben] : antdTheme.defaultAlgorithm,
     // CSS-Variablen statt eingebetteter Werte: der Moduswechsel ist damit ein
@@ -126,7 +147,8 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       // bereits `controlHeight / 2` = 28, mit wie ohne Override — ein
       // gleichlautender Eintrag unter `Checkbox` wäre totes Gewicht, siehe der
       // Review vor Task 6.)
-      Radio: { radioSize: 28, dotSize: 14 },
+      Radio: { radioSize: 28, dotSize: 14, colorBorder: kontur },
+      Checkbox: { colorBorder: kontur },
       /*
        * Die Optionen der offenen Auswahlliste sind Tap-Ziele, die gelesen
        * werden muessen, bevor man sie trifft. Sie sind KEIN `input` — die
@@ -144,7 +166,7 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * 16 ist ein Wert aus antds eigener Leiter (12/14/16/20/24/30), also
        * keine dritte Skala im Sinne von docs/design/README.md:110.
        */
-      Select: { optionFontSize: 16 },
+      Select: { optionFontSize: 16, colorBorder: kontur },
       /*
        * `inputFontSize`, NICHT `fontSize` — antd nennt den Token an diesen drei
        * Komponenten so. Der globale `fontSize` bliebe verboten, er verschoebe
@@ -167,9 +189,9 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * Kein `inputFontSizeSM`: das erbt laut `token.js:33` von
        * `inputFontSize`, dort ist keine Luecke.
        */
-      Input: { inputFontSize: 16, inputFontSizeLG: 16 },
-      InputNumber: { inputFontSize: 16, inputFontSizeLG: 16 },
-      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16 },
+      Input: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
+      InputNumber: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
+      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
     },
   };
 }
