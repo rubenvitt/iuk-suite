@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, sichtbareZeilen, warteAufDarstellung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
 import { UAV_ADMIN_GRUPPE, UAV_HOST, uavUrl } from "./helpers/uav";
@@ -131,13 +131,29 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
    *    vollen 90-Sekunden-Timeout.
    *
    * Deshalb hier: die SEITE ueber ihren eigenen Anker belegen (`lb-excel` gibt
-   * es nur auf der Artikeltabelle), die Zeile dann ueber `data-row-key` —
-   * das setzt rc-table in beiden Betriebsarten. Was der Verlust der
-   * Tabellen-Semantik fuer Hilfstechnik bedeutet, steht als DRK-336 auf dem
-   * Board.
+   * es nur auf der Artikeltabelle), die Zeile dann ueber `sichtbareZeilen` —
+   * `data-row-key` setzt rc-table zwar in beiden Betriebsarten, unterhalb von
+   * 768px steht aber die KARTE da. Was der Verlust der Tabellen-Semantik fuer
+   * Hilfstechnik bedeutet, steht als DRK-336 auf dem Board.
    */
   await expect(page.getByTestId("lb-excel")).toBeVisible();
-  await page.locator("[data-row-key]").first().click();
+  /*
+   * ⚠️ HIER STEHT BEWUSST DER TABELLENGREIFER UND NICHT `sichtbareZeilen`:
+   * dieser Test misst NUR bei 1280px, dort ist die Tabelle die Darstellung.
+   *
+   * ⚠️ UND `klickeWennRuhig` STATT `click()` — Falle 12, gemessen. Ein nackter
+   * Klick feuerte hier dreimal in Folge ins Leere: Playwright meldete ihn als
+   * gelungen, und die Schublade kam nie (CI-Lauf 35671119278). Derselbe Test
+   * eine Datei weiter unten, der `klickeWennRuhig` schon benutzt, fiel im
+   * selben Lauf nur als `flaky` — das ist der ganze Unterschied.
+   *
+   * ⚠️ WARUM ES FRUEHER OHNE GING, und das ist der Preis dieser Umstellung:
+   * die Artikelseite rendert seit DRK-451 zusaetzlich 217 verborgene Karten.
+   * Die Hydration dauert damit laenger, und das Fenster, in dem die Huelle
+   * zwischen `mousedown` und `mouseup` umbricht, ist breiter geworden. Die
+   * Seite ist richtig — der Klick kam zu frueh.
+   */
+  await klickeWennRuhig(page.locator("[data-row-key]").first());
   await expect(page.locator(".ant-drawer-right .ant-drawer-content-wrapper")).toBeVisible();
 
   /*
@@ -187,11 +203,14 @@ test("Artikeldetails: kein waagerechter Überlauf, auch mit Chargen und Buchunge
     await page.setViewportSize({ width: breite, height: 800 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     await expect(page.getByTestId("lb-excel")).toBeVisible();
-    const anzahl = Math.min(await page.locator("[data-row-key]").count(), 6);
+    // Erst wenn genau EINE Darstellung im Bild steht, greift `sichtbareZeilen`
+    // die gemeinte (Begruendung dort).
+    await warteAufDarstellung(page);
+    const anzahl = Math.min(await sichtbareZeilen(page).count(), 6);
     expect(anzahl, "keine Artikelzeilen im Seed").toBeGreaterThan(0);
     for (let zeile = 0; zeile < anzahl; zeile++) {
       // Die Hülle bricht nach `load` noch um (CLAUDE.md, Falle 12).
-      await klickeWennRuhig(page.locator("[data-row-key]").nth(zeile));
+      await klickeWennRuhig(sichtbareZeilen(page).nth(zeile));
       const schublade = page.locator(".ant-drawer-right.ant-drawer-open");
       // Erst wenn die Tabellen stehen, hat die Rasterspur ihre volle Breite.
       await expect(schublade.getByText("Letzte Buchungen")).toBeVisible();

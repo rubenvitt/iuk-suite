@@ -5,7 +5,7 @@ import { Flex } from "antd";
 import type { TableProps } from "antd";
 import Link from "next/link";
 import {
-  Datentabelle,
+  Kartentabelle,
   trifftWert,
   werteAlsFilter,
 } from "@/core/tabelle";
@@ -185,11 +185,11 @@ export function ChecksTabelle({ zeilen, leertext }: ChecksTabelleProps) {
   const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
 
   return (
-    <Datentabelle<CheckAnzeigeZeile>
+    <Kartentabelle<CheckAnzeigeZeile>
       rowKey="id"
       aria-label="Checks"
       dataSource={zeilen}
-      locale={{ emptyText: leertext }}
+      leer={{ nichts: leertext, gefiltert: "Kein Check passt zum Filter." }}
       columns={spaltenliste}
     />
   );

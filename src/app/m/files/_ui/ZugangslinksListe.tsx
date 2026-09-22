@@ -11,7 +11,7 @@ import {
   type ZugangslinkFormState,
 } from "../(verwaltung)/zugangslinks/actions";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Datentabelle, nachRang, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachRang, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
 import styles from "./zugangslinks.module.css";
 
 /**
@@ -229,9 +229,11 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
            * Tabelle ist unter 768px also sichtbar und muss scrollen statt
            * umzubrechen.
            */
-          <Datentabelle<ZugangslinkZeile>
+          <Kartentabelle<ZugangslinkZeile>
             rowKey="id"
+            aria-label="Abgabelinks"
             dataSource={zeilen}
+            leer={{ nichts: "Noch keine Abgabelinks angelegt.", gefiltert: "Kein Abgabelink passt zum Filter." }}
             columns={spalten(inboxBasis)}
           />
         )}

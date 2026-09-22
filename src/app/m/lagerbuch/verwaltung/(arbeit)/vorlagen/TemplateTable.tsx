@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachText,
   nachZahl,
   zustandsFilter,
@@ -73,12 +73,13 @@ const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
 
 export function TemplateTable({ zeilen }: { zeilen: TemplateAnzeigeZeile[] }) {
   return (
-    <Datentabelle<TemplateAnzeigeZeile>
+    <Kartentabelle<TemplateAnzeigeZeile>
       rowKey="id"
       aria-label="Vorlagen"
       dataSource={zeilen}
-      locale={{
-        emptyText: "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
+      leer={{
+        nichts: "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
+        gefiltert: "Keine Vorlage passt zum Filter.",
       }}
       columns={SPALTEN}
     />

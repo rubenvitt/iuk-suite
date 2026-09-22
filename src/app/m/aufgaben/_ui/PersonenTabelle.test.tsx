@@ -14,6 +14,26 @@ vi.mock("../actions", () => ({ personBeendenAction: beendenMock }));
 
 import { PersonenTabelle, type PersonenZeile } from "./PersonenTabelle";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. jsdom wertet die Media
+ * Query nicht aus, dort sind also BEIDE „da". Ein Greifer ueber `button` oder
+ * `a` findet damit jede Aktion doppelt, und die Meldung fuehrt in die Irre:
+ * „erwartet 2, bekommen 4" liest sich wie eine doppelt gerenderte Zeile.
+ *
+ * ⚠️ DIE GREIFER AUF `tbody tr` BRAUCHEN IHN NICHT — eine Karte hat kein
+ * `tbody`. Eingerahmt wird nur, was ueber Rolle oder Element greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+/** Alle Elemente eines Typs, aber nur in der breiten Darstellung. */
+function inBreit<T extends HTMLElement>(selektor: string): T[] {
+  return queryAll<T>(`${BREIT} ${selektor}`);
+}
+
+
 function person(over: Partial<PersonRow> & Pick<PersonRow, "id" | "name">): PersonRow {
   return {
     sub: `dev:${over.id}@localtest.me`,
@@ -54,7 +74,7 @@ describe("PersonenTabelle — Zeilenaktionen tragen die EIGENE person.id, nicht 
       { person: person({ id: "p2", name: "Zweite" }), istAktivHeute: true },
     ];
     await mount(<PersonenTabelle zeilen={zeilen} />);
-    const hrefs = queryAll<HTMLAnchorElement>("a")
+    const hrefs = inBreit<HTMLAnchorElement>("a")
       .filter((a) => a.textContent === "Ändern")
       .map((a) => a.getAttribute("href"));
     expect(hrefs).toEqual(["/personen?bearbeiten=p1", "/personen?bearbeiten=p2"]);
@@ -98,7 +118,7 @@ describe("PersonenTabelle — es gibt keine Loeschen-Aktion", () => {
       { person: person({ id: "p2", name: "Zweite", aktivBis: "2020-01-01" }), istAktivHeute: false },
     ];
     await mount(<PersonenTabelle zeilen={zeilen} />);
-    const alleKnoepfeUndLinks = [...queryAll("button"), ...queryAll("a")];
+    const alleKnoepfeUndLinks = [...inBreit("button"), ...inBreit("a")];
     expect(alleKnoepfeUndLinks.some((el) => /löschen|entfernen/i.test(el.textContent ?? ""))).toBe(
       false,
     );
@@ -113,7 +133,7 @@ describe("PersonenTabelle — Beenden ist bestaetigungspflichtig (Spec §9.9), m
     ];
     await mount(<PersonenTabelle zeilen={zeilen} />);
 
-    const beendenKnoepfe = queryAll("button").filter((b) => b.textContent === "Beenden");
+    const beendenKnoepfe = inBreit("button").filter((b) => b.textContent === "Beenden");
     expect(beendenKnoepfe).toHaveLength(2);
     await clickElement(beendenKnoepfe[1]!);
 

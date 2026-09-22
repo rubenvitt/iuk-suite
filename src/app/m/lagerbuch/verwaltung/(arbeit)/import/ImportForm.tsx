@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Alert, Button, Flex, Form, type TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachText,
   nachZahl,
   trifftWert,
@@ -110,10 +110,13 @@ function vorschauSpalten(
 
 export function VorschauTabelle({ rows }: { rows: CsvVorschauZeile[] }) {
   return (
-    <Datentabelle<CsvVorschauZeile>
+    <Kartentabelle<CsvVorschauZeile>
       rowKey="zeile"
       aria-label="Vorschau"
-      locale={{ emptyText: "Keine gültige Zeile in der Datei." }}
+      leer={{
+        nichts: "Keine gültige Zeile in der Datei.",
+        gefiltert: "Keine Zeile passt zum Filter.",
+      }}
       dataSource={rows}
       columns={vorschauSpalten(rows)}
     />

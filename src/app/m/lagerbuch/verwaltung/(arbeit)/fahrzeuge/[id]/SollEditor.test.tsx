@@ -19,6 +19,20 @@ import {
   SollEditor,
 } from "./SollEditor";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. jsdom wertet die Media
+ * Query nicht aus, dort sind also BEIDE „da", und ein Greifer ueber eine
+ * Klasse oder eine `data-rolle` findet jeden Wert doppelt.
+ *
+ * ⚠️ `thead`- UND `tbody`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder
+ * das eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 const mocks = vi.hoisted(() => ({
   setzen: vi.fn(),
   entfernen: vi.fn(),
@@ -201,7 +215,7 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
   it("setzt den Ist als grosse Zahl in eigene Spalte, getrennt vom Handlager", async () => {
     await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
 
-    const ist = queryAll("[data-rolle='ist']");
+    const ist = queryAll(`${BREIT} [data-rolle='ist']`);
     expect(ist.map((zelle) => zelle.textContent)).toEqual([
       "2 Rol",
       "0 Pck",
@@ -235,7 +249,7 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
     await mount(<SollEditor fahrzeugId="fz-1" positionen={geteilt} artikel={ARTIKEL} />);
     // Reihenfolge nach `sollGruppieren`: Fach A · Fach B (p-b1 vor p-x2) · Fach C.
     // Auch der Grabstein in Fach C traegt den Hinweis — er zeigt denselben Bestand.
-    expect(queryAll("[data-rolle='ist']").map((zelle) => zelle.textContent)).toEqual([
+    expect(queryAll(`${BREIT} [data-rolle='ist']`).map((zelle) => zelle.textContent)).toEqual([
       "2 Rolgesamt für 2 Fächer",
       "1 Stk",
       "2 Rolgesamt für 2 Fächer",
@@ -478,7 +492,7 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
    */
   it("filtert nach Fach und trägt an keiner Spalte einen Sortierer", async () => {
     await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
-    expect(queryAll(".ant-table-column-sorters")).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-table-column-sorters`)).toHaveLength(0);
 
     const kopf = queryAll<HTMLElement>("thead th")
       .find((zelle) => (zelle.textContent ?? "").includes("Fach"));

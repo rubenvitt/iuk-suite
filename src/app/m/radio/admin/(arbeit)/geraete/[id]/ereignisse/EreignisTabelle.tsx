@@ -3,7 +3,7 @@
 // src/app/m/radio/admin/(arbeit)/geraete/[id]/ereignisse/EreignisTabelle.tsx
 import { Tag, type TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   trifftWert,
   werteAlsFilter,
 } from "@/core/tabelle";
@@ -270,11 +270,12 @@ export function EreignisTabelle({ zeilen }: EreignisTabelleProps) {
         Lesepfad — eine zweite, rein clientseitige Seitenteilung ueber dem bereits
         geschnittenen Fenster waere sinnlos.
       */}
-      <Datentabelle<Reihe>
+      <Kartentabelle<Reihe>
         rowKey="schluessel"
         columns={spalten(reihen)}
         dataSource={reihen}
         aria-label="Änderungshistorie"
+        leer={{ nichts: "Noch keine Änderung erfasst.", gefiltert: "Keine Änderung passt zum Filter." }}
       />
     </div>
   );

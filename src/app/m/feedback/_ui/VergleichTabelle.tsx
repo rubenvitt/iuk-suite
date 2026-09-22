@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { TableProps } from "antd";
-import { Datentabelle, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
 import { T } from "./typo";
 
@@ -145,8 +145,9 @@ const SPALTEN: TableProps<VergleichZeile>["columns"] = [
 
 export function VergleichTabelle({ zeilen }: { zeilen: VergleichZeile[] }) {
   return (
-    <Datentabelle<VergleichZeile>
+    <Kartentabelle<VergleichZeile>
       rowKey="groupId"
+      aria-label="Gruppenvergleich"
       dataSource={zeilen}
       size="small"
       /*
@@ -166,7 +167,7 @@ export function VergleichTabelle({ zeilen }: { zeilen: VergleichZeile[] }) {
        * (`+ Neue Gruppe`), den nur ein Admin sieht, also derselbe Kreis, der
        * diese Seite überhaupt erreicht.
        */
-      locale={{ emptyText: 'Keine Gruppen — leg eine unter „Deine Gruppen" an.' }}
+      leer={{ nichts: 'Keine Gruppen — leg eine unter „Deine Gruppen" an.' }}
       onRow={() => ({ "data-testid": "vergleich-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={SPALTEN}
     />

@@ -2,8 +2,8 @@
 
 // src/app/m/radio/admin/(arbeit)/ausleihen/AusleihenTabelle.tsx
 import { useCallback } from "react";
-import { Button, Card, DatePicker, Grid, List, Select, Tag, type TableColumnType } from "antd";
-import { Datentabelle, Zellentext } from "@/core/tabelle";
+import { Button, Card, DatePicker, Select, Tag, type TableColumnType } from "antd";
+import { Datentabelle, Schmalkarten, Zellentext } from "@/core/tabelle";
 import dayjs from "dayjs";
 import { usePathname, useRouter } from "next/navigation";
 import type { AusleihZeile, GeraetWahl, LeihCursor } from "../../../_lib/lesepfade/ausleihen";
@@ -293,8 +293,6 @@ export function AusleihenTabelle({
 }: AusleihenTabelleProps) {
   const router = useRouter();
   const pfad = usePathname();
-  const bildschirm = Grid.useBreakpoint();
-  const breit = bildschirm.md === true;
 
   /**
    * ⛔ DER EINE SCHREIBWEG IN DIE ADRESSZEILE. Er legt IMMER den vollstaendigen Patch auf die
@@ -339,16 +337,54 @@ export function AusleihenTabelle({
         aufFilter={schreibeUrl}
       />
 
-      {breit ? (
-        /*
+      {/*
+        ⚠️ DIE UMSCHALTUNG IST SEIT DRK-451 CSS UND NICHT MEHR JAVASCRIPT — die
+        Begruendung steht ausfuehrlich in `geraete/GeraeteTabelle.tsx`, kurz:
+        `Grid.useBreakpoint()` zeigt beim ERSTEN Render die falsche Variante und
+        ist in dieser Suite verboten. Die handgebaute Karte bleibt; nur wer sie
+        einblendet, hat gewechselt.
+      */}
+      <Schmalkarten<AusleihZeile>
+        zeilen={zeilen}
+        schluessel={(z) => z.id}
+        aria-label="Ausleihen"
+        leertext="Keine Ausleihe gefunden"
+        kartenHoehe={150}
+        karte={(z) => (
+          <Card className={s.mobilKarte}>
+            <div className={s.mobilKopf}>
+              <span className={s.mobilName} data-rolle="radio-leihe-mobil-name">
+                {z.rufname}
+              </span>
+              <StatusMarke aktiv={z.aktiv} />
+            </div>
+            <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-entleiher">
+              {z.entleiher}
+            </span>
+            <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-ausgeliehen">
+              Ausgeliehen: {z.ausgeliehenText}
+            </span>
+            {/* ⛔ 1:1: die Rueckgabezeile steht NUR bei einer zurueckgegebenen Leihe (`LoanList.tsx:104-108`). */}
+            {!z.aktiv && (
+              <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-zurueck">
+                Zurückgegeben: {z.zurueckText}
+              </span>
+            )}
+            {z.notiz && (
+              <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-notiz">
+                {z.notiz}
+              </span>
+            )}
+          </Card>
+        )}
+      >
+        {/*
           ⛔ KEINE BLAETTERUNG, KEIN `scroll` UND KEIN `virtuell` HIER — die ersten zwei sind
           die Vorgabe der `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Nachgeladen
           wird ueber die Wache unter der Liste (`_ui/Nachladen.tsx`); eine clientseitige
           Blaetterung ueber den geladenen Zeilen waere schlicht falsch, und `virtuell` machte
           die Tabelle zum eigenen Scroller, an dem die Wache nie in Sicht kaeme (Falle 16).
-          ⚠️ In Vitest faellt das NICHT auf — dort rendert diese Insel den MOBILEN Zweig; der
-          Waechter ist der Quelltext-Scan in der Testdatei und der Playwright-Fall (V23).
-        */
+        */}
         <Datentabelle<AusleihZeile>
           rowKey="id"
           columns={SPALTEN}
@@ -356,50 +392,7 @@ export function AusleihenTabelle({
           aria-label="Ausleihen"
           locale={{ emptyText: "Keine Ausleihe gefunden" }}
         />
-      ) : (
-        /*
-         * DER MOBILE ZWEIG — 1:1 aus `LoanList.tsx:86-…`, ⛔ IN DERSELBEN INSEL, weil
-         * `Grid.useBreakpoint()` ein Client-Hook ist und `renderItem` Falle 9 waere.
-         * ⛔ OHNE `List`-eigene Blaetterung (`LoanList.tsx:89-94`): sie liefe gegen das
-         * Nachladen darunter.
-         * ⚠️ BENANNTE BAUFORM-WAHL: der Bestand baut die Karte aus `Typography.Text`; hier
-         * stehen dieselben Angaben in den Klassen dieses Moduls (`GeraeteTabelle.tsx`,
-         * mobiler Zweig). Der Inhalt wandert, das Bauteil ist das des Hauses.
-         */
-        <List
-          dataSource={zeilen}
-          locale={{ emptyText: "Keine Ausleihe gefunden" }}
-          renderItem={(z) => (
-            <List.Item>
-              <Card className={s.mobilKarte}>
-                <div className={s.mobilKopf}>
-                  <span className={s.mobilName} data-rolle="radio-leihe-mobil-name">
-                    {z.rufname}
-                  </span>
-                  <StatusMarke aktiv={z.aktiv} />
-                </div>
-                <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-entleiher">
-                  {z.entleiher}
-                </span>
-                <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-ausgeliehen">
-                  Ausgeliehen: {z.ausgeliehenText}
-                </span>
-                {/* ⛔ 1:1: die Rueckgabezeile steht NUR bei einer zurueckgegebenen Leihe (`LoanList.tsx:104-108`). */}
-                {!z.aktiv && (
-                  <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-zurueck">
-                    Zurückgegeben: {z.zurueckText}
-                  </span>
-                )}
-                {z.notiz && (
-                  <span className={s.mobilNeben} data-rolle="radio-leihe-mobil-notiz">
-                    {z.notiz}
-                  </span>
-                )}
-              </Card>
-            </List.Item>
-          )}
-        />
-      )}
+      </Schmalkarten>
 
       <NachladeFuss
         nachladen={nachladen}

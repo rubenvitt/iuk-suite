@@ -1,0 +1,131 @@
+/*
+ * DIE KARTE, DIE AUS EINER TABELLENZEILE WIRD (DRK-451).
+ *
+ * Die Begründung steht in `Spaltenkarte.tsx`; hier steht nur, was CSS davon
+ * ausführt.
+ *
+ * ⚠️ KEINE MEDIA QUERY IN DIESER DATEI. Ob die Karte zu sehen ist, entscheidet
+ * `schmalkarten.module.css` an der Liste darüber — eine zweite Abfrage hier
+ * wäre ein zweiter Ort für dieselbe Zahl, und „ein Breakpoint"
+ * (`docs/design/README.md`) ist genau die Regel dagegen. `schmalkarten.test.ts`
+ * hält das fest.
+ *
+ * ⚠️ NUR `--iuk-*`-VARIABLEN, NIE `--ant-*`. antd deklariert seine Variablen auf
+ * seiner Scope-Klasse, nicht auf `:root`; eigenes Markup sieht sie nicht, und
+ * der Fehler ist still — die Linie verschwindet einfach (Falle 2). Die beiden
+ * hier benutzten stehen in `app/globals.css` auf `:root` und haben einen
+ * Dunkelzweig.
+ */
+
+.karte {
+  border: 1px solid var(--iuk-linie);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /*
+   * Ohne eigene Fläche: die Karte sitzt auf dem Seitengrund, und der hat in
+   * beiden Themes schon den richtigen Ton. Eine gesetzte Farbe müsste hier
+   * für hell UND dunkel erfunden werden — zwei Werte, die niemand nachhält.
+   */
+  background: transparent;
+}
+
+.kopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/*
+ * ⚠️ DER TITEL IST EIN TEXT, KEIN BEDIENELEMENT — auch dann nicht, wenn die
+ * Zeile anklickbar ist. Hier stand einmal ein `.titelKnopf` daneben; er ergab
+ * `<button><button>`, sobald die Titelspalte selbst einen Knopf rendert, und
+ * das ist ungültiges HTML mit Hydrationsbruch als Folge (Begründung im Kopf von
+ * `Spaltenkarte.tsx`). Was die Spalte an Bedienbarem mitbringt, steht drin und
+ * bringt sein eigenes Aussehen mit.
+ */
+.titel {
+  font-size: 16px;
+  font-weight: 600;
+  /* Ein langer Name bricht um, statt die Karte breiter zu machen als den
+     Schirm — eine Karte, die waagerecht scrollt, wäre die Tabelle zurück. */
+  overflow-wrap: anywhere;
+  text-align: start;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kennzeichen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/*
+ * ⚠️ ZWEI SPALTEN, UND DIE ERSTE WÄCHST NICHT MIT. `auto 1fr` ließe die
+ * Beschriftungsspalte so breit werden wie ihr längstes Wort — „Zuletzt
+ * geprüft" schöbe dann in jeder Zeile den Wert nach rechts, auch dort, wo die
+ * Beschriftung „Ort" heißt. Eine feste Obergrenze hält die Werte in einer
+ * Flucht, und `minmax` lässt die Spalte auf schmalen Geräten trotzdem
+ * schrumpfen, statt die Karte zu sprengen.
+ */
+.merkmale {
+  margin: 0;
+  display: grid;
+  gap: 4px 12px;
+}
+
+.fach {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+}
+
+.beschriftung {
+  margin: 0;
+  color: var(--iuk-gedaempft);
+  /* Die Schriftrolle kommt als `style` aus `SCHRIFT.kicker` — hier steht nur
+     die Farbe, die laut `schrift.ts` ausdrücklich dem Träger gehört. */
+  overflow-wrap: anywhere;
+}
+
+.wert {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * ⚠️ DIE HANDLUNGEN STEHEN ÜBER DIE VOLLE BREITE UND UNTEREINANDER, nicht
+ * nebeneinander wie in der Tabellenzelle. `docs/design/README.md`:
+ * „Handlungsknöpfe unter 768px sind volle Breite und stehen untereinander" —
+ * und die Karte gibt es nur unter 768px.
+ *
+ * ⚠️ DER NACHFAHREN-SELEKTOR TRIFFT ABSICHTLICH NUR DIE ERSTE EBENE. Ein
+ * `> *` wäre zu wenig (antds `Space` schiebt einen eigenen Kasten dazwischen),
+ * ein unbeschränktes `*` zu viel — es streckte auch das Symbol IM Knopf.
+ */
+.aktionen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-start: 4px;
+}
+
+.aktionen :global(.ant-space) {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.aktionen :global(.ant-space-item),
+.aktionen :global(.ant-btn) {
+  width: 100%;
+}

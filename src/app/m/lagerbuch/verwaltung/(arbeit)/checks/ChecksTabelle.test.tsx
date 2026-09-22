@@ -13,6 +13,25 @@ import {
 import s from "../../../_ui/verwaltung.module.css";
 import { ChecksTabelle, type CheckAnzeigeZeile } from "./ChecksTabelle";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 const ZEILE: CheckAnzeigeZeile = {
   id: "check-42",
   detailHref: "/verwaltung/checks/check-42",
@@ -108,8 +127,8 @@ describe("ChecksTabelle", () => {
       zeile.querySelectorAll("[data-zeichen]"),
       (zeichen) => zeichen.getAttribute("data-zeichen"),
     )).toEqual(["warnung", "sauerstoff"]);
-    expect(queryAll(`.${s.rot}`)).toHaveLength(3);
-    expect(queryAll(`.${s.gelb}`)).toHaveLength(1);
+    expect(queryAll(`${BREIT} .${s.rot}`)).toHaveLength(3);
+    expect(queryAll(`${BREIT} .${s.gelb}`)).toHaveLength(1);
     expect(exists(".ant-pagination")).toBe(false);
 
     const quelle = readFileSync(

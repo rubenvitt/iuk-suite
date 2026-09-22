@@ -11,7 +11,7 @@ import {
   Select,
   type TableProps,
 } from "antd";
-import { Datentabelle, trifftWert, werteAlsFilter } from "@/core/tabelle";
+import { Kartentabelle, trifftWert, werteAlsFilter } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import {
   sollPositionEntfernen,
@@ -391,11 +391,14 @@ export function SollEditor({
     // statt die Tabelle in sich scrollen zu lassen.
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Datentabelle<SollAnzeigeZeile>
+      <Kartentabelle<SollAnzeigeZeile>
         rowKey="id"
         aria-label="Soll-Bestückung"
         dataSource={zeilen}
-        locale={{ emptyText: "Noch keine Soll-Position. Lege unten die erste an." }}
+        leer={{
+          nichts: "Noch keine Soll-Position. Lege unten die erste an.",
+          gefiltert: "Keine Soll-Position passt zum Filter.",
+        }}
         columns={spalten}
       />
       <Flex gap={SPACE.sm} wrap align="center">

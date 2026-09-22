@@ -15,7 +15,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Flex, Form, Input, InputNumber, Modal, type TableProps } from "antd";
-import { Datentabelle, nachText, nachZahl, Zellentext } from "@/core/tabelle";
+import { Kartentabelle, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { SCHRIFT as KICKER_SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { setSchrankAktiv, updateSchrank } from "../../../_actions/lagerorte";
@@ -354,11 +354,11 @@ export function LagerorteListe({ zeilen }: { zeilen: LagerortZeile[] }) {
         <NeuSchrank />
       </Flex>
 
-      <Datentabelle<LagerortZeile>
+      <Kartentabelle<LagerortZeile>
         rowKey="id"
         aria-label="Lagerorte"
         dataSource={zeilen}
-        locale={{ emptyText: "Noch keine Schränke. Lege oben den ersten an." }}
+        leer={{ nichts: "Noch keine Schränke. Lege oben den ersten an." }}
         columns={spaltenliste}
       />
     </>

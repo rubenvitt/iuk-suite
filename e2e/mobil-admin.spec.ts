@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufDarstellung } from "./fixtures";
 import { TAP_XL } from "@/core/theme/tokens";
 
 /**
@@ -287,7 +287,26 @@ test.describe("390x844 — das Telefon", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Trend");
   });
 
-  test("die ueberlaufenden Tabellen scrollen in ihrem eigenen Kasten", async ({ page }) => {
+  /*
+   * ⚠️ DER GEGENSTAND DIESES TESTS HAT SICH VERSCHOBEN, UND DAS IST DER GRUND
+   * FUER DIE FALLUNTERSCHEIDUNG (DRK-451). Bis zur Kartenumstellung war die
+   * Zusage: eine zu breite Tabelle laeuft nicht ins Dokument, sondern scrollt
+   * in ihrem eigenen Kasten. Unterhalb von 768px gibt es die Tabelle auf
+   * diesen beiden Seiten jetzt gar nicht mehr — dort stehen Karten, und die
+   * bringen die Spalten untereinander, statt sie scrollbar zu machen.
+   *
+   * ⚠️ DER ALTE TEST WAR DESHALB NICHT ETWA UEBERHOLT, SONDERN IRREFUEHREND
+   * ROT: `.ant-table-content` steht weiter im Baum, nur auf `display: none`,
+   * und misst sich zu null. Gemessen in CI-Lauf 35663637630:
+   * `{"kasten":0,"tabelle":0,"ueberlaufX":"auto"}` — eine Meldung, die nach
+   * einer kaputten Tabelle aussieht, waehrend die Seite richtig ist.
+   *
+   * ⚠️ DIE TABELLENZUSAGE BLEIBT TROTZDEM STEHEN und wird nicht geloescht: sie
+   * gilt weiter fuer jede Flaeche, die auf dem Telefon eine Tabelle zeigt.
+   * Welcher Zweig laeuft, entscheidet der Baum — nicht eine Breitenabfrage im
+   * Test, die ein zweiter Ort fuer den Breakpoint der Suite waere.
+   */
+  test("auf dem Telefon stehen Karten — und was Tabelle bleibt, scrollt in seinem Kasten", async ({ page }) => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
     for (const ziel of [
       `http://feedback.localtest.me:${E2E_PORT}/vergleich`,
@@ -295,27 +314,67 @@ test.describe("390x844 — das Telefon", () => {
     ]) {
       await page.goto(ziel);
       await page.waitForLoadState("networkidle");
+      // Die Fallunterscheidung unten liest den Baum — sie darf nicht in das
+      // Fenster fallen, in dem noch beide Darstellungen dastehen.
+      await warteAufDarstellung(page);
       const mass = await page.evaluate(() => {
-        const kasten = document.querySelector(".ant-table-content") as HTMLElement;
-        const tabelle = document.querySelector(".ant-table table") as HTMLElement;
+        // `getClientRects().length === 0` ist die Probe auf „steht nicht im
+        // Bild" — sie trifft `display: none` UND einen Knoten ohne Kasten,
+        // ohne den Klassennamen der Huelle zu kennen.
+        const imBild = (el: Element | null): boolean =>
+          el !== null && el.getClientRects().length > 0;
+        const karten = document.querySelector("[data-rolle='schmalkarten']");
+        const kasten = document.querySelector(".ant-table-content");
+        const tabelle = document.querySelector(".ant-table table");
         return {
-          kasten: kasten.clientWidth,
-          tabelle: tabelle.scrollWidth,
-          ueberlaufX: getComputedStyle(kasten).overflowX,
+          karten: imBild(karten)
+            ? {
+              anzahl: karten!.querySelectorAll("[data-karte-key]").length,
+              inhalt: (karten as HTMLElement).scrollWidth,
+              kasten: (karten as HTMLElement).clientWidth,
+            }
+            : null,
+          tabelle: imBild(kasten) && tabelle
+            ? {
+              kasten: (kasten as HTMLElement).clientWidth,
+              inhalt: (tabelle as HTMLElement).scrollWidth,
+              ueberlaufX: getComputedStyle(kasten as HTMLElement).overflowX,
+            }
+            : null,
         };
       });
-      // Die Tabelle ist BREITER als ihr Kasten — genau das ist der Beweis, dass
-      // der Ueberlauf ueberhaupt existiert.
-      expect(mass.tabelle, `${ziel}: ${JSON.stringify(mass)}`).toBeGreaterThan(mass.kasten);
-      /*
-       * UND DER KASTEN SCROLLT. Ohne diese zweite Zusage prueft der Test nichts:
-       * nimmt man `scroll={{ x: "max-content" }}` heraus, ist die Tabelle
-       * IMMER NOCH breiter als ihr Kasten (gemessen: `{"kasten":358,
-       * "tabelle":427,"ueberlaufX":"visible"}`) — nur laeuft
-       * der Ueberlauf dann ins Dokument statt in den Kasten. Erst
-       * `overflow-x: auto` macht aus „ragt heraus" ein „scrollt in sich".
-       */
-      expect(["auto", "scroll"], `${ziel}: ${JSON.stringify(mass)}`).toContain(mass.ueberlaufX);
+      const wo = `${ziel}: ${JSON.stringify(mass)}`;
+      expect(mass.karten ?? mass.tabelle, `${wo} — weder Karten noch Tabelle im Bild`)
+        .not.toBeNull();
+
+      if (mass.karten) {
+        // Nicht bloss „eine Liste ist da": eine LEERE Kartenliste laeuft
+        // ebenfalls nicht ueber und bestuende jede Zusicherung darunter still.
+        expect(mass.karten.anzahl, `${wo} — Kartenliste ohne Karten`).toBeGreaterThan(0);
+        /*
+         * UND SIE LAEUFT NICHT WAAGERECHT UEBER. Das ist die Umkehrung der
+         * Tabellenzusage unten, nicht ihr Wegfall: die Tabelle DURFTE in sich
+         * scrollen, weil sechs Spalten auf 390px nicht anders unterzubringen
+         * waren — die Karte bricht dieselben Felder untereinander um und hat
+         * keinen Grund dazu. Tut sie es doch, ist ein Feld zu breit, und auf
+         * einer Karte gibt es keine Bildlaufleiste, die das verriete.
+         */
+        expect(mass.karten.inhalt, `${wo} — die Karten laufen waagerecht ueber`)
+          .toBeLessThanOrEqual(mass.karten.kasten);
+      } else {
+        // Die Tabelle ist BREITER als ihr Kasten — genau das ist der Beweis, dass
+        // der Ueberlauf ueberhaupt existiert.
+        expect(mass.tabelle!.inhalt, wo).toBeGreaterThan(mass.tabelle!.kasten);
+        /*
+         * UND DER KASTEN SCROLLT. Ohne diese zweite Zusage prueft der Test nichts:
+         * nimmt man `scroll={{ x: "max-content" }}` heraus, ist die Tabelle
+         * IMMER NOCH breiter als ihr Kasten (gemessen: `{"kasten":358,
+         * "tabelle":427,"ueberlaufX":"visible"}`) — nur laeuft
+         * der Ueberlauf dann ins Dokument statt in den Kasten. Erst
+         * `overflow-x: auto` macht aus „ragt heraus" ein „scrollt in sich".
+         */
+        expect(["auto", "scroll"], wo).toContain(mass.tabelle!.ueberlaufX);
+      }
     }
   });
 

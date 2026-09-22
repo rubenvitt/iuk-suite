@@ -23,7 +23,7 @@ import { Flex, Segmented } from "antd";
 import type { TableProps } from "antd";
 import type { ColumnFilterItem } from "antd/es/table/interface";
 import {
-  Datentabelle,
+  Kartentabelle,
   type FilterZustand,
   nachText,
   useEntprellt,
@@ -439,12 +439,13 @@ export function OrtVerfallTabelle({ zeilen }: { zeilen: OrtVerfallZeile[] }) {
       </Flex>
 
       {gruppiert ? (
-        <Datentabelle<Baumzeile>
+        <Kartentabelle<Baumzeile>
           rowKey="schluessel"
           aria-label="Verfallsmeldungen nach Ort"
           dataSource={gruppen}
-          onChange={(_seite, filter) => setSpaltenFilter(filter)}
-          locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
+          filter={spaltenFilter}
+          onFilter={setSpaltenFilter}
+          leer={{ nichts: "Keine Meldung passt zu Suche und Filter." }}
           columns={gruppenSpaltenliste}
           expandable={{
             expandedRowKeys: gruppen
@@ -459,12 +460,13 @@ export function OrtVerfallTabelle({ zeilen }: { zeilen: OrtVerfallZeile[] }) {
           }}
         />
       ) : (
-        <Datentabelle<OrtVerfallZeile>
+        <Kartentabelle<OrtVerfallZeile>
           rowKey="schluessel"
           aria-label="Gemeldete Verfälle"
           dataSource={gefiltert}
-          onChange={(_seite, filter) => setSpaltenFilter(filter)}
-          locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
+          filter={spaltenFilter}
+          onFilter={setSpaltenFilter}
+          leer={{ nichts: "Keine Meldung passt zu Suche und Filter." }}
           columns={spaltenliste}
         />
       )}

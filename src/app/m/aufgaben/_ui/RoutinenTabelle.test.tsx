@@ -4,6 +4,25 @@ import { clickElement, mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom
 import type { RoutineRow } from "../_db/schema";
 import { RoutinenTabelle } from "./RoutinenTabelle";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 /*
  * DIE ZEILENAKTIONEN — UND WARUM SIE EIN EIGENER TEST BRAUCHEN (Review Fix-Runde 1, Important): weder
  * der Aendern-Verweis noch die `routineId` im Ruhen-Formular waren gegen die RICHTIGE zeilenspezifische
@@ -39,7 +58,7 @@ describe("RoutinenTabelle — Zeilenaktionen tragen die EIGENE routine.id, nicht
     ];
     await mount(<RoutinenTabelle routinen={zeilen} />);
 
-    const hrefs = queryAll<HTMLAnchorElement>("a")
+    const hrefs = queryAll<HTMLAnchorElement>(`${BREIT} a`)
       .filter((a) => a.textContent === "Ändern")
       .map((a) => a.getAttribute("href"));
     expect(hrefs).toEqual(["/routinen?bearbeiten=r-1", "/routinen?bearbeiten=r-2"]);
@@ -52,7 +71,8 @@ describe("RoutinenTabelle — Zeilenaktionen tragen die EIGENE routine.id, nicht
     ];
     await mount(<RoutinenTabelle routinen={zeilen} />);
 
-    const ids = queryAll<HTMLInputElement>("input[name='routineId']").map((i) => i.value);
+    const ids = queryAll<HTMLInputElement>(`${BREIT} input[name='routineId']`)
+      .map((i) => i.value);
     expect(ids).toEqual(["r-1", "r-2"]);
   });
 

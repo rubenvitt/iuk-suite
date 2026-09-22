@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, Button, Flex, Input, Modal, type TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachText,
   nachZahl,
   trifftWert,
@@ -277,11 +277,14 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
         </Button>
       </Flex>
 
-      <Datentabelle<BestellAnzeigeZeile>
+      <Kartentabelle<BestellAnzeigeZeile>
         rowKey="id"
         aria-label="Bestellvorschlag"
         dataSource={zeilen}
-        locale={{ emptyText: "Kein Unterbestand und keine offene Bestellmarkierung." }}
+        leer={{
+          nichts: "Kein Unterbestand und keine offene Bestellmarkierung.",
+          gefiltert: "Kein Vorschlag passt zum Filter.",
+        }}
         columns={spalten}
       />
 

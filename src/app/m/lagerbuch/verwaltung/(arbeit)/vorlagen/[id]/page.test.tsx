@@ -324,7 +324,19 @@ describe("VerknuepfteFahrzeugeTable", () => {
     expect(queryAll(`tbody .${verwaltungStyles.chip}.${verwaltungStyles.grau}`)
       .map((chip) => chip.textContent))
       .toEqual(["Fahrzeug", "Tasche", "inaktiv", "nicht zugeordnet"]);
-    expect(queryAll("[aria-label='Verknüpfte Einheiten']")).toHaveLength(1);
+    /*
+     * ⚠️ ZWEI TRAEGER, EIN NAME (DRK-451). Seit diese Tabelle eine
+     * `Kartentabelle` ist, traegt die Beschriftung sowohl die Tabelle als auch
+     * die Kartenliste daneben — und das ist RICHTIG, kein doppelter Name:
+     * `display: none` nimmt die jeweils verborgene aus dem
+     * Zugaenglichkeitsbaum, es hoert also immer nur eine. Fehlte sie an der
+     * Kartenliste, haette die schmale Darstellung gar keinen Namen.
+     *
+     * Die Aussage dieses Falls bleibt „genau EINE Tabelle" — deshalb wird jetzt
+     * auf das `table`-Element gezielt statt auf den Namen allein.
+     */
+    expect(queryAll("table[aria-label='Verknüpfte Einheiten']")).toHaveLength(1);
+    expect(queryAll("ul[aria-label='Verknüpfte Einheiten']")).toHaveLength(1);
     expect(queryAll(".ant-pagination")).toHaveLength(0);
   });
 

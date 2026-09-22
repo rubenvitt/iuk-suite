@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Flex } from "antd";
 import type { TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   filterAktiv,
   type FilterZustand,
   nachDatum,
@@ -424,15 +424,19 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
         <NeuFahrzeug />
       </Flex>
 
-      <Datentabelle<FahrzeugAnzeigeZeile>
+      <Kartentabelle<FahrzeugAnzeigeZeile>
         rowKey="id"
         aria-label="Fahrzeuge und Taschen"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => setSpaltenFilter(filter)}
-        locale={{
-          emptyText: hatFilter
-            ? "Keine Einheit passt zu Suche und Filter."
-            : "Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.",
+        filter={spaltenFilter}
+        onFilter={setSpaltenFilter}
+        leer={{
+          nichts: "Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.",
+          gefiltert: "Keine Einheit passt zu Suche und Filter.",
+          // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
+          // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste
+          // für eine leere Datenbank.
+          aktiv: hatFilter,
         }}
         columns={spaltenliste}
       />

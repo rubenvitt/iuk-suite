@@ -1,7 +1,7 @@
 "use client";
 
 import type { TableProps } from "antd";
-import { Datentabelle, type Filterwert, Zellentext } from "@/core/tabelle";
+import { Kartentabelle, type Filterwert, Zellentext } from "@/core/tabelle";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
@@ -165,10 +165,13 @@ const LOGBUCH_SPALTEN = [
 
 export function BzLogbuchTabelle({ zeilen }: { zeilen: BzLogbuchAnzeigeZeile[] }) {
   return (
-    <Datentabelle<BzLogbuchAnzeigeZeile>
+    <Kartentabelle<BzLogbuchAnzeigeZeile>
       rowKey="id"
       aria-label="Logbuch der Kontrollen"
-      locale={{ emptyText: "Für dieses Gerät wurde noch keine Kontrolle erfasst." }}
+      leer={{
+        nichts: "Für dieses Gerät wurde noch keine Kontrolle erfasst.",
+        gefiltert: "Keine Kontrolle passt zum Filter.",
+      }}
       dataSource={zeilen}
       columns={LOGBUCH_SPALTEN}
     />

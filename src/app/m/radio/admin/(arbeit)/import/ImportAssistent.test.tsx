@@ -78,6 +78,23 @@ import {
 import { ohneKommentare } from "../../../_lib/quelltextScan";
 import { IMPORTIERBARE_FELDER } from "../../../_lib/csv/kopfzeilen";
 import { IMPORTKLASSEN } from "../../../_lib/csv/klassifizieren";
+
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIE VORSCHAU EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * `data-rolle`-Marken, und das ist richtig: `display: none` nimmt die verborgene
+ * aus dem Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem.
+ * jsdom wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ NUR DIE GREIFER DER VORSCHAUZEILEN BRAUCHEN IHN. Die Marken des
+ * Assistenten selbst (`radio-import-hinweis`, `-weiter`, `-kennzahl`) stehen
+ * ausserhalb der Tabelle und gibt es weiterhin genau einmal — sie einzurahmen
+ * liefe ins Leere.
+ */
+const BREIT = '[data-rolle="breitansicht"] ';
+
 import type { KlassifizierteZeile, Zusammenfassung } from "../../../_lib/csv/klassifizieren";
 import { ImportAssistent, ablegeWeiche } from "./ImportAssistent";
 
@@ -275,7 +292,7 @@ async function klickeSpaltenkopf(beschriftung: string): Promise<void> {
 
 /** Die Klassenmarken in der Reihenfolge, in der sie auf dem Bildschirm stehen. */
 function klassen(): string[] {
-  return queryAll('[data-rolle="radio-import-klasse"]').map((el) =>
+  return queryAll(`${BREIT}[data-rolle="radio-import-klasse"]`).map((el) =>
     (el.textContent ?? "").trim(),
   );
 }
@@ -609,7 +626,7 @@ describe("radio-Import: die Vorschau und der Abschluss", () => {
       ],
     });
 
-    const marken = queryAll('[data-rolle="radio-import-klasse"]');
+    const marken = queryAll(`${BREIT}[data-rolle="radio-import-klasse"]`);
     expect(marken.map((m) => (m.textContent ?? "").trim())).toEqual(["Neu", "Übersprungen"]);
 
     /*
@@ -652,7 +669,7 @@ describe("radio-Import: die Vorschau und der Abschluss", () => {
       ],
     });
 
-    const zellen = queryAll('[data-rolle="radio-import-aenderungen"]').map((z) =>
+    const zellen = queryAll(`${BREIT}[data-rolle="radio-import-aenderungen"]`).map((z) =>
       (z.textContent ?? "").trim(),
     );
     expect(zellen).toEqual(["rufname", "ISSI fehlt", "—"]);

@@ -216,3 +216,93 @@ export async function wechsleAnmeldung(
   ).toEqual([]);
   await devLogin(page, opts);
 }
+
+/**
+ * DIE SICHTBARE DARSTELLUNG EINER TABELLENZEILE — Zeile ODER Karte (DRK-451).
+ *
+ * ⚠️ DER ANLASS IST EINE GEMESSENE ROETE, KEINE VORSORGE. Seit die langen
+ * Tabellen unterhalb von 768px als Karten rendern, steht die Tabelle dort auf
+ * `display: none` — sie ist aber weiterhin IM BAUM. Ein Greifer ueber
+ * `[data-row-key]` findet damit auf dem Telefon einen VERBORGENEN Knoten, und
+ * das Symptom fuehrt in die Irre:
+ *
+ *     waiting for locator('[data-row-key]').first() to be visible
+ *     31 × locator resolved to hidden <div role="row" data-row-key="…">
+ *
+ * Das liest sich wie „die Zeile kommt nicht" — also wie ein Datenproblem oder
+ * ein zu knappes Zeitbudget. Beides ist falsch: die Zeile ist da, sie ist nur
+ * nicht die Darstellung, die der Nutzer bei dieser Breite sieht. Gemessen in
+ * CI-Lauf 35663637630, `e2e (suite-huelle)`, an `flyin-breite.spec.ts` bei
+ * 390px.
+ *
+ * ⚠️ SCHLIMMER ALS EIN ROTER TEST IST DER STILLE FALL. Eine Zusicherung, die
+ * keine Sichtbarkeit verlangt (`toContainText`, ein `evaluate` auf den Kasten),
+ * MISST DEN VERBORGENEN KNOTEN KLAGLOS WEITER — sie prueft dann die Tabelle,
+ * waehrend auf dem Schirm eine Karte steht. Das ist dieselbe Familie wie
+ * CLAUDE.mds Fallen 10/11/12: ein Test, der etwas anderes misst, als sein Name
+ * sagt. Wer eine Zeile auf mehreren Breiten anfasst, greift sie deshalb hier.
+ *
+ * ⚠️ UND DESHALB STEHT HIER `:visible` UND KEINE BREITENABFRAGE. Eine
+ * Fallunterscheidung auf 768 im Test waere ein ZWEITER Ort fuer den Breakpoint
+ * der Suite — genau das, was `docs/design/README.md` mit „ein Breakpoint"
+ * ausschliesst; sie ginge beim naechsten Nachjustieren still auseinander.
+ * `:visible` fragt stattdessen das Ergebnis ab: welche der beiden
+ * Darstellungen steht gerade da.
+ */
+export function sichtbareZeilen(ort: Page | Locator, schluessel?: string): Locator {
+  const wahl = schluessel === undefined
+    ? "[data-row-key]:visible, [data-karte-key]:visible"
+    : `[data-row-key='${schluessel}']:visible, [data-karte-key='${schluessel}']:visible`;
+  return ort.locator(wahl);
+}
+
+/**
+ * WARTET, BIS GENAU EINE DER BEIDEN DARSTELLUNGEN IM BILD STEHT (DRK-451).
+ *
+ * ⚠️ DER ANLASS IST EINE GEMESSENE ROETE, DIE `sichtbareZeilen` SELBST
+ * AUSGELOEST HAT — und das ist der Grund, warum sie hier daneben steht.
+ * Kartenliste und Tabelle stehen BEIDE im Baum; welche verschwindet,
+ * entscheidet eine Regel aus einem CSS-Modul. Unter `next dev` kommt die
+ * nicht mit dem ersten Bild, sondern wird nachgereicht. In diesem Fenster
+ * sind kurz BEIDE sichtbar, und weil die Karten VOR der Tabelle rendern,
+ * greift `sichtbareZeilen(page).first()` dann die Karte — bei 1280px, wo sie
+ * gleich darauf verschwindet.
+ *
+ * ⚠️ DAS SYMPTOM NENNT DIE URSACHE NICHT: Playwright meldet den Klick als
+ * gelungen, und die naechste Zusicherung faellt mit „element(s) not found"
+ * auf die SCHUBLADE. Das liest sich wie ein kaputter Zeilenklick, gemessen in
+ * CI-Lauf 35669113741 (`flyin-breite:110`, dreimal in Folge; `:179` einmal,
+ * in der Wiederholung gruen — dieselbe Ursache, nur seltener getroffen).
+ * Dieselbe Familie wie CLAUDE.mds Falle 12: gewartet wird auf etwas, das nie
+ * angestossen wurde.
+ *
+ * ⚠️ WARUM NICHT EINFACH `[data-row-key]` NEHMEN, wo die Tabelle gemeint ist:
+ * an einer Stelle, die NUR breit misst, ist das richtig und steht auch so da.
+ * Wer aber ueber mehrere Breiten laeuft, braucht beide — und dann ist die
+ * Probe auf das fertige Raster die Abhilfe, nicht ein laengeres Zeitbudget
+ * (das Fenster ist kurz, der Fehler trotzdem reproduzierbar).
+ */
+export async function warteAufDarstellung(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => {
+    const imBild = (wahl: string): number =>
+      [...document.querySelectorAll(wahl)]
+        .filter((el) => el.getClientRects().length > 0).length;
+    // Die leere Kartenliste ist ein `<p>`, die gefuellte ein `<ul>` — beide
+    // zaehlen, sonst haengt die Probe auf einer Seite ohne Treffer.
+    const schmal = imBild("[data-rolle='schmalkarten'], [data-rolle='schmalkarten-leer']");
+    const breit = imBild("[data-rolle='breitansicht']");
+    /*
+     * ⚠️ „KEINE BEIDER SORTEN GLEICHZEITIG" — NICHT „GENAU EINE". Der erste
+     * Anlauf zaehlte beide zusammen und verlangte 1; das ist auf einer Seite
+     * mit EINER Tabelle richtig und auf jeder anderen unerfuellbar. Das
+     * Fahrzeugblatt traegt zwei (Soll und Verfall), also stand dort dauerhaft
+     * 2 — die Probe lief in ihr Zeitbudget, und ihre eigene Meldung („das
+     * Raster ist nicht fertig") behauptete eine Ursache, die es nicht gab.
+     * Gemessen in CI-Lauf 35671119278: drei Fehlschlaege in
+     * `lagerbuch-ist-bestand`, auf allen drei Breiten.
+     */
+    return schmal === 0 || breit === 0;
+  }), {
+    message: "Karten und Tabelle stehen noch beide im Bild — das Raster ist nicht fertig",
+  }).toBe(true);
+}

@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { Button, Popconfirm } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachDatum,
   nachJaNein,
   nachText,
@@ -57,9 +57,11 @@ export interface PersonenZeile {
 
 export function PersonenTabelle({ zeilen }: { zeilen: PersonenZeile[] }) {
   return (
-    <Datentabelle<PersonenZeile>
+    <Kartentabelle<PersonenZeile>
       rowKey={(zeile) => zeile.person.id}
+      aria-label="Personen"
       dataSource={zeilen}
+      leer={{ nichts: "Noch keine Personen angelegt.", gefiltert: "Keine Person passt zum Filter." }}
       columns={[
         {
           title: "Name",

@@ -18,6 +18,25 @@ import {
 } from "./OrtVerfallTabelle";
 
 /**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
+/**
  * DREI FAHRZEUGE, DAMIT DER FAHRZEUGFILTER ETWAS ZU TRENNEN HAT — und „RTW
  * Nord" zweimal, weil genau das der Fall ist, den die Karte vorher nicht
  * zeigen konnte: mehrere Meldungen desselben Fahrzeugs standen ueber die Liste
@@ -151,7 +170,7 @@ async function spaltenFilter(spalte: string, ...eintraege: string[]): Promise<vo
  * was ihn in einer kleinen Fixture wie dieser gruen laesst.
  */
 function zeilenSchluessel(): Array<string | null> {
-  return queryAll("[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key"));
+  return queryAll(`${BREIT} [data-row-key]`).map((zeile) => zeile.getAttribute("data-row-key"));
 }
 
 async function suchen(wert: string): Promise<void> {
@@ -178,7 +197,7 @@ describe("OrtVerfallTabelle — Spalten", () => {
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Gemeldete Verfälle");
 
-    const zeile = query("[data-row-key='f1:a2']");
+    const zeile = query(`${BREIT} [data-row-key='f1:a2']`);
     expect(zeile.textContent).toContain("RTW Nord");
     expect(zeile.textContent).toContain("UE-RK 1234");
     expect(zeile.textContent).toContain("Verband");
@@ -189,7 +208,7 @@ describe("OrtVerfallTabelle — Spalten", () => {
   it("verlinkt das Fahrzeug auf sein Blatt", async () => {
     await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
-    expect(query("[data-row-key='f1:a2'] a").getAttribute("href"))
+    expect(query(`${BREIT} [data-row-key='f1:a2'] a`).getAttribute("href"))
       .toBe("/verwaltung/fahrzeuge/f1");
   });
 
@@ -225,7 +244,7 @@ describe("OrtVerfallTabelle — Spalten", () => {
     // auf einer To-do-Liste, die es nicht gibt.
     await mount(<OrtVerfallTabelle zeilen={[BOX_ZEILE]} />);
 
-    const zeile = query("[data-row-key='entnahmebox:a1']");
+    const zeile = query(`${BREIT} [data-row-key='entnahmebox:a1']`);
     expect(zeile.textContent).toContain("Lager");
     expect(zeile.textContent).not.toContain("nicht zugeordnet");
   });
@@ -235,7 +254,7 @@ describe("OrtVerfallTabelle — Spalten", () => {
     // in genau der Zeile, die jemanden zum Aufraeumen schicken soll.
     await mount(<OrtVerfallTabelle zeilen={[BOX_ZEILE]} />);
 
-    expect(query("[data-row-key='entnahmebox:a1'] a").getAttribute("href"))
+    expect(query(`${BREIT} [data-row-key='entnahmebox:a1'] a`).getAttribute("href"))
       .toBe("/verwaltung/entnahmebox");
   });
 
@@ -249,8 +268,8 @@ describe("OrtVerfallTabelle — Spalten", () => {
   it("zeigt den Status als Chip im gelieferten Ton", async () => {
     await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
-    expect(query(`[data-row-key='f1:a2'] .${s.rot}`).textContent).toContain("abgelaufen");
-    expect(query(`[data-row-key='f2:a1'] .${s.gelb}`).textContent).toContain("läuft ab");
+    expect(query(`${BREIT} [data-row-key='f1:a2'] .${s.rot}`).textContent).toContain("abgelaufen");
+    expect(query(`${BREIT} [data-row-key='f2:a1'] .${s.gelb}`).textContent).toContain("läuft ab");
   });
 
   /**
@@ -289,7 +308,7 @@ describe("OrtVerfallTabelle — nach Fahrzeug gruppieren", () => {
     expect(document.querySelector("[data-row-key='fzg:f1']")).toBeNull();
 
     await umschalten("nach Ort");
-    expect(query("[data-row-key='fzg:f1']")).toBeTruthy();
+    expect(query(`${BREIT} [data-row-key='fzg:f1']`)).toBeTruthy();
   });
 
   /**
@@ -310,7 +329,7 @@ describe("OrtVerfallTabelle — nach Fahrzeug gruppieren", () => {
     await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
     await umschalten("nach Ort");
 
-    const kopf = query("[data-row-key='fzg:f1']");
+    const kopf = query(`${BREIT} [data-row-key='fzg:f1']`);
     expect(kopf.textContent).toContain("RTW Nord");
     expect(kopf.textContent).toContain("UE-RK 1234");
     expect(kopf.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
@@ -341,7 +360,7 @@ describe("OrtVerfallTabelle — nach Fahrzeug gruppieren", () => {
     await spaltenFilter("Status", "abgelaufen");
     // Nur f1 hat eine abgelaufene Meldung.
     expect(document.querySelector("[data-row-key='fzg:f2']")).toBeNull();
-    expect(query("[data-row-key='fzg:f1']").querySelector(`.${s.gelb}`)).toBeNull();
+    expect(query(`${BREIT} [data-row-key='fzg:f1']`).querySelector(`.${s.gelb}`)).toBeNull();
   });
 });
 

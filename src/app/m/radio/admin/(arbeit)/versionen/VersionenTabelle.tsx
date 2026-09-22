@@ -3,7 +3,7 @@
 // src/app/m/radio/admin/(arbeit)/versionen/VersionenTabelle.tsx
 import { useMemo, useState } from "react";
 import { Button, Popconfirm, Space, Tag, Tooltip, type TableColumnType } from "antd";
-import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
+import { Kartentabelle, nachText, nachZahl } from "@/core/tabelle";
 import type { VersionZeile } from "../../../_lib/lesepfade/versionen";
 import {
   versionLoeschenAction,
@@ -429,12 +429,12 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
         Seiten, deren Nachbarn man nicht mehr tauschen kann. `x: "max-content"` ist dabei die
         staerkere Form gegenueber `x: true` des Bestands (`:207`).
       */}
-      <Datentabelle<VersionZeile>
+      <Kartentabelle<VersionZeile>
         rowKey="id"
         columns={spalten}
         dataSource={zeilen}
         aria-label={VERSIONEN_TEXTE.tabelleName}
-        locale={{ emptyText: VERSIONEN_TEXTE.leer }}
+        leer={{ nichts: VERSIONEN_TEXTE.leer }}
       />
       {fehler !== null && (
         /*

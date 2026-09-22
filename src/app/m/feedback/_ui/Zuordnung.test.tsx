@@ -62,6 +62,25 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 const quelle = () =>
   readFileSync(join(process.cwd(), "src/app/m/feedback/_ui/Zuordnung.tsx"), "utf8");
 
@@ -120,9 +139,17 @@ describe("Zuordnung — die Liste", () => {
     expect(t).toContain("Fachgruppen-Attribut");
   });
 
+  /*
+   * ⚠️ „JE PERSON EINE" HEISST SEIT DRK-451 „JE PERSON EINE JE DARSTELLUNG".
+   * Diese Tabelle ist eine `Kartentabelle`: jede Zeile steht als Tabellenzeile
+   * UND als Karte im Markup, beide mit derselben Aktion. Gezaehlt wird deshalb
+   * ueber die ZEILEN, nicht ueber Treffer im ganzen Markup — das ist die
+   * Aussage, die gemeint war, und sie haelt in beiden Darstellungen.
+   */
   it("bietet zu jeder Person eine Entfernen-Aktion", () => {
     const t = markup();
-    expect(t.match(/Entfernen/g) ?? []).toHaveLength(2);
+    const breit = t.slice(t.indexOf('data-rolle="breitansicht"'));
+    expect(breit.match(/Entfernen/g) ?? []).toHaveLength(2);
   });
 });
 
@@ -130,7 +157,7 @@ describe("Zuordnung — Entfernen", () => {
   it("ruft removeGroupLeaderAction mit Gruppe und Kennung", async () => {
     await mount(<Zuordnung groupId={7} personen={PERSONEN} />);
 
-    await clickElement(query('[data-testid="entfernen-sub-anna"]'));
+    await clickElement(query(`${BREIT} [data-testid="entfernen-sub-anna"]`));
 
     expect(removeGroupLeaderActionMock).toHaveBeenCalledTimes(1);
     const daten = removeGroupLeaderActionMock.mock.calls[0][0] as FormData;
@@ -420,7 +447,13 @@ describe("Zuordnung — Autofill", () => {
     // ein zweites Mal im Hinweis unter dem Formular („auch Personen, die sich
     // noch nie angemeldet haben"), und der Test zaehlte auf 2. Der Hinweis sagt
     // jetzt „die hier noch nie waren" — dieselbe Aussage, ohne das falsche Wort.
-    expect(t.match(/noch nie in der Verwaltung/g) ?? []).toHaveLength(1);
+    //
+    // ⚠️ GEZAEHLT WIRD IN DER BREITEN DARSTELLUNG (DRK-451): die Zeile steht
+    // seit der Umstellung auch als Karte im Markup, der Satz also zweimal. Die
+    // Aussage („einmal, naemlich in der Zeile") bleibt genau dieselbe — sie
+    // haette sonst nur noch gemessen, wie viele Darstellungen es gibt.
+    const breit = t.slice(t.indexOf('data-rolle="breitansicht"'));
+    expect(breit.match(/noch nie in der Verwaltung/g) ?? []).toHaveLength(1);
     // Die Kennung bleibt sichtbar: sie ist der Wert, der wirklich gespeichert ist.
     expect(t).toContain("sub-nie");
   });

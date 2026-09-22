@@ -25,7 +25,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Card, Flex, InputNumber, Select, type TableProps } from "antd";
-import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
+import { Kartentabelle, nachText, nachZahl } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { bucheInEntnahmebox } from "../../../_actions/entnahmebox";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
@@ -436,14 +436,15 @@ export function BoxAnsicht({
         <Abgabe einheiten={einheiten} gewaehlt={gewaehlt} posten={quellPosten} />
       )}
 
-      <Datentabelle<BoxPosten>
+      <Kartentabelle<BoxPosten>
         rowKey="artikelId"
         aria-label={`Inhalt ${boxName}`}
         dataSource={inhalt}
-        locale={{
-          emptyText: "Die Entnahmebox ist leer. Was hier landet, kommt aus einem "
+        leer={{
+          nichts: "Die Entnahmebox ist leer. Was hier landet, kommt aus einem "
             + "Fahrzeug oder einer Tasche — über „In die Entnahmebox buchen“ oder "
             + "am Telefon über den Reiter „Box“.",
+          gefiltert: "Kein Posten passt zum Filter.",
         }}
         columns={inhaltSpaltenliste}
       />
@@ -452,11 +453,11 @@ export function BoxAnsicht({
         <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: 0, marginBlockEnd: SPACE.sm }}>
           Zuletzt abgegeben
         </h2>
-        <Datentabelle<ZugangZeile>
+        <Kartentabelle<ZugangZeile>
           rowKey="buchungId"
           aria-label="Zuletzt abgegeben"
           dataSource={zugaenge}
-          locale={{ emptyText: "Noch nichts abgegeben." }}
+          leer={{ nichts: "Noch nichts abgegeben.", gefiltert: "Keine Abgabe passt zum Filter." }}
           columns={zugangSpaltenliste}
         />
       </div>

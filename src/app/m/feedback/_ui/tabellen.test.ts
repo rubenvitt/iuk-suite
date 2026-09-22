@@ -40,9 +40,17 @@ describe("Tabellen mit Scroll-Zusage", () => {
   for (const { datei, name } of TABELLEN) {
     it(`${name} bekommt die Scroll-Vorgabe der Datentabelle`, () => {
       const quelle = readFileSync(datei, "utf8");
-      expect(quelle, `${datei}: keine Datentabelle — woher kaeme das scroll?`).toMatch(
-        /<Datentabelle</,
-      );
+      /*
+       * ⚠️ `Kartentabelle` ZAEHLT MIT (DRK-451). Sie ist keine zweite Tabelle,
+       * sondern ein Mantel UM die `Datentabelle` — sie reicht `columns`,
+       * `dataSource` und alles Weitere unveraendert durch und ruehrt `scroll`
+       * nicht an. Die Zusage dieses Scans („die Scroll-Vorgabe der
+       * Datentabelle gilt") traegt sie damit genauso; nur der Bezeichner im
+       * Quelltext hat gewechselt. Der Scan darauf zu verengen haette eine
+       * richtige Datei fuer falsch erklaert.
+       */
+      expect(quelle, `${datei}: weder Daten- noch Kartentabelle — woher kaeme das scroll?`)
+        .toMatch(/<(Daten|Karten)tabelle</);
       /*
        * KEIN EIGENES `scroll` DANEBEN. `Datentabelle` reicht ein uebergebenes
        * `scroll` unveraendert durch und ersetzt die Vorgabe damit — genau das

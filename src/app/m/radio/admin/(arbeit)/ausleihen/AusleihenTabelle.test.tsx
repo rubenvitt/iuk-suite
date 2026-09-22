@@ -84,6 +84,8 @@ const INSEL_SOLL = ["AusleihenTabelle.tsx"];
 
 import { act } from "react";
 import {
+
+
   click,
   clickElement,
   exists,
@@ -488,9 +490,19 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
 
   it("der mobile Zweig traegt Rufname, Status, Entleiher und die Ausleihzeit", async () => {
     /*
-     * ⛔ ER WANDERT MIT (`LoanList.tsx:86-…`), IN DERSELBEN INSEL: `Grid.useBreakpoint()` ist
-     * ein Client-Hook und `renderItem` waere Falle 9. In jsdom ist er der gerenderte Zweig
-     * (Kopf dieser Datei) — deshalb ist er hier ueberhaupt messbar.
+     * ⛔ ER WANDERT MIT (`LoanList.tsx:86-…`), IN DERSELBEN INSEL.
+     *
+     * ⚠️ SEIT DRK-451 IST ER NICHT MEHR DER EINZIGE GERENDERTE ZWEIG. Hier stand
+     * „in jsdom ist er der gerenderte Zweig" — das galt, solange
+     * `Grid.useBreakpoint()` umschaltete und in jsdom `md` falsch meldete. Die
+     * Umschaltung ist jetzt CSS (`Schmalkarten`), also stehen BEIDE
+     * Darstellungen im Baum, und jsdom wertet die Media Query nicht aus.
+     *
+     * Die `radio-leihe-mobil-*`-Marken gibt es nur auf der Karte, die sind
+     * eindeutig. `radio-leihe-status` dagegen traegt die Statusmarke in BEIDEN
+     * Zweigen — sie wird deshalb auf die Kartenliste eingerahmt. Ohne das
+     * zaehlte der Fall, wie viele Darstellungen es gibt, statt was die Karte
+     * traegt.
      */
     await mount(
       <AusleihenTabelle
@@ -498,8 +510,12 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
       />,
     );
 
+    const KARTEN = '[data-rolle="schmalkarten"]';
     expect(texte("radio-leihe-mobil-name")).toEqual(["41/12"]);
-    expect(texte("radio-leihe-status")).toEqual(["Zurückgegeben"]);
+    expect(
+      queryAll(`${KARTEN} [data-rolle="radio-leihe-status"]`)
+        .map((el) => (el.textContent ?? "").trim()),
+    ).toEqual(["Zurückgegeben"]);
     expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Anna Beispiel"]);
     expect(texte("radio-leihe-mobil-ausgeliehen")).toEqual(["Ausgeliehen: 14.06.2026, 09:12"]);
     expect(texte("radio-leihe-mobil-zurueck")).toEqual(["Zurückgegeben: 15.06.2026, 08:00"]);

@@ -1,7 +1,7 @@
 "use client";
 
 import { Empty, type TableProps } from "antd";
-import { Datentabelle, Zellentext } from "@/core/tabelle";
+import { Kartentabelle, Zellentext } from "@/core/tabelle";
 import s from "../../_ui/verwaltung.module.css";
 
 export type UebersichtJournalZeile = {
@@ -98,10 +98,11 @@ export function LetzteBuchungenTable({ zeilen }: {
   }
 
   return (
-    <Datentabelle<UebersichtJournalZeile>
+    <Kartentabelle<UebersichtJournalZeile>
       rowKey="id"
       aria-label="Letzte Buchungen"
       dataSource={zeilen}
+      leer={{ nichts: "Noch keine Buchungen." }}
       columns={SPALTEN}
     />
   );

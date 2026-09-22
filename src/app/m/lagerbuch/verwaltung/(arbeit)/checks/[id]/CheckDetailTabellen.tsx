@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Card, type TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachDatum,
   nachRang,
   nachText,
@@ -378,46 +378,46 @@ export function CheckDetailTabellen({
   return (
     <>
       <Card title="Abgleich" style={{ marginBlockEnd: SPACE.lg }}>
-        <Datentabelle<AbgleichAnzeigeZeile>
+        <Kartentabelle<AbgleichAnzeigeZeile>
           rowKey="id"
           aria-label="Abgleich"
-          locale={{ emptyText: leertext("Keine Positionen erfasst.") }}
+          leer={{ nichts: leertext("Keine Positionen erfasst."), gefiltert: "Keine Position passt zum Filter." }}
           dataSource={abgleichZeilen}
           columns={ABGLEICH_SPALTEN}
         />
       </Card>
       <Card title="Nachfüllung (je Fach)" style={{ marginBlockEnd: SPACE.lg }}>
-        <Datentabelle<NachfuellAnzeigeZeile>
+        <Kartentabelle<NachfuellAnzeigeZeile>
           rowKey="id"
           aria-label="Nachfüllung je Fach"
-          locale={{ emptyText: leertext(nachfuellLeertext) }}
+          leer={{ nichts: leertext(nachfuellLeertext), gefiltert: "Kein Fach passt zum Filter." }}
           dataSource={nachfuellZeilen}
           columns={NACHFUELL_SPALTEN}
         />
       </Card>
       <Card title="Geräte" style={{ marginBlockEnd: SPACE.lg }}>
-        <Datentabelle<GeraetAnzeigeZeile>
+        <Kartentabelle<GeraetAnzeigeZeile>
           rowKey="id"
           aria-label="Geräte im Check"
-          locale={{ emptyText: leertext("Keine Geräte in diesem Check.") }}
+          leer={{ nichts: leertext("Keine Geräte in diesem Check."), gefiltert: "Kein Gerät passt zum Filter." }}
           dataSource={geraeteZeilen}
           columns={geraeteListe}
         />
       </Card>
       <Card title="Sauerstoff" style={{ marginBlockEnd: SPACE.lg }}>
-        <Datentabelle<FlascheAnzeigeZeile>
+        <Kartentabelle<FlascheAnzeigeZeile>
           rowKey="id"
           aria-label="Sauerstoff im Check"
-          locale={{ emptyText: leertext("Keine Flaschen in diesem Check.") }}
+          leer={{ nichts: leertext("Keine Flaschen in diesem Check."), gefiltert: "Keine Flasche passt zum Filter." }}
           dataSource={flaschenZeilen}
           columns={FLASCHEN_SPALTEN}
         />
       </Card>
       <Card title="Verfall (gegen heute gerechnet)">
-        <Datentabelle<VerfallAnzeigeZeile>
+        <Kartentabelle<VerfallAnzeigeZeile>
           rowKey="id"
           aria-label="Verfallsmeldungen des Checks"
-          locale={{ emptyText: leertext("Keine Verfallsangabe in diesem Check.") }}
+          leer={{ nichts: leertext("Keine Verfallsangabe in diesem Check."), gefiltert: "Keine Verfallsangabe passt zum Filter." }}
           dataSource={verfallZeilen}
           columns={verfallListe}
         />
