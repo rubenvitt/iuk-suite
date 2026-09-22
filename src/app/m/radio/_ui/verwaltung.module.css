@@ -262,7 +262,6 @@
 .kopfListe {
   display: grid;
   gap: 8px;
-  margin-block-end: 24px;
 }
 
 .kopfZeile {
@@ -327,7 +326,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-block-start: 24px;
 }
 
 /*
@@ -337,6 +335,72 @@
 .loeschWarnung {
   display: block;
   max-inline-size: 28rem;
+}
+
+/*
+ * ── Die Geraeteakte: Blattbreite, Kopfzeile, Formularfuss (DRK-454) ──────────
+ *
+ * Betreiberbefund vom 2026-09-22: „Die radio-admin Detail Seite eines Funkgeraetes sieht
+ * schrecklich aus." Gemessen im echten Chromium gegen `next dev`, nicht vermutet: die Akte
+ * war die EINZIGE Flaeche des Verwaltungszweigs ohne eine einzige Karte — Kopfdaten,
+ * Formular, Notizfeld und Loeschknopf lagen nackt auf dem Huellengrund, waehrend Uebersicht
+ * und Geraeteliste ihren Inhalt auf `Card` setzen. Und ohne Deckel nahm das Formular die
+ * volle Fensterbreite: das Eingabefeld einer SIEBENSTELLIGEN Ziffernfolge war so breit, wie
+ * der Schirm es zuliess. Mit dem Deckel misst `#issi` bei 1440 px gemessene 479 px, die
+ * Inhaltsspalte 1024.
+ *
+ * ⛔ `max-inline-size` UND NICHT `max-width`: `_ui/verwaltung-css.test.ts` („verdrahtet keine
+ * Farbe … und keine Hoehe") verbietet in diesem Blatt jede Hoehenangabe; die logische Achse
+ * ist ausserdem die Hausform, `.loeschWarnung` fuehrt sie schon.
+ *
+ * ⚠️ DIE 64 REM SIND EIN LESEDECKEL, KEINE SPALTENZAHL: das Formular bleibt zweispaltig
+ * (`SPALTE` in `GeraetFormular.tsx`, `xs: 24, sm: 12`). Wer hier aufdreht, bekommt keine
+ * dritte Spalte, sondern wieder breitere Felder.
+ */
+.akte {
+  max-inline-size: 64rem;
+}
+
+/*
+ * Der Seitenkopf: Titel links, der Textlink auf die Aenderungshistorie rechts.
+ *
+ * ⛔ ER IST DER ORT DES LINKS, und das ist die halbe Behebung von Befund 2: bis DRK-454 stand
+ * er als eigener Absatz zwischen Kopfdaten und Formular — in der Markenfarbe, die in dieser
+ * Suite zugleich `colorError` ist (Falle 3). Ein freistehender roter Satz mitten im Fluss
+ * liest sich wie eine Fehlermeldung. Oben rechts ist er eine Seitenaktion, dieselbe Stelle
+ * wie „Alle veralteten anzeigen" auf der Uebersicht.
+ *
+ * ⛔ `baseline` UND NICHT `center`: der Link sitzt auf der Schriftlinie der Ueberschrift,
+ * nicht in ihrer Mitte. ⛔ UND KEIN EIGENER ABSTAND NACH UNTEN — den traegt `.titel` mit
+ * seinen 12 px; ein zweiter Wert hier waere ein zweiter Wahrheitsort fuer denselben Spalt.
+ */
+.akteKopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 24px;
+}
+
+/*
+ * Der Fuss des Geraeteformulars.
+ *
+ * ⛔ EINE ABGESETZTE LEISTE UND KEIN `Form.Item` MEHR: der Speichern-Knopf stand am Ende von
+ * zwanzig Feldern ohne jede Abgrenzung im Fluss. Die Linie trennt sie von der einen Aktion,
+ * die sie absendet.
+ *
+ * ⛔ DER FEHLER STEHT IN DERSELBEN ZEILE wie der Knopf, nicht darunter: er gehoert an den Ort
+ * der Aktion (Kopfkommentar von `GeraetFormular.tsx`, E6 — kein Toast). `.dialogFehler` bringt
+ * seinen eigenen oberen Abstand mit; in dieser Zeile faellt er nicht ins Gewicht.
+ */
+.formularFuss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-block-start: 8px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--iuk-linie);
 }
 
 /*

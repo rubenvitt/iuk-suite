@@ -602,7 +602,19 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         )}
       </Row>
 
-      <Form.Item>
+      {/*
+        ⛔ EINE ABGESETZTE FUSSLEISTE STATT EINES LEEREN `Form.Item` (DRK-454). Der Knopf stand
+        am Ende von zwanzig Feldern ohne jede Abgrenzung im Fluss. Die Linie trennt sie von der
+        einen Aktion, die sie absendet; das `Form.Item` drum herum trug
+        nichts als seinen Abstand, und der steht jetzt im Blatt (`.formularFuss` in
+        `_ui/verwaltung.module.css`).
+        ⚠️ DER KNOPF BEHAELT `htmlType="submit"` UND BRAUCHT DAS `Form.Item` NICHT: `Form`
+        haengt an `onFinish`, nicht an einem `onClick` — ein Absenden-Knopf irgendwo INNERHALB
+        des `<Form>` loest dieselbe Kette aus.
+        ⛔ DER FEHLER STEHT NEBEN DEM KNOPF, NICHT DARUNTER: er gehoert an den Ort der Aktion,
+        und ohne Toast (E6) ist er die einzige Rueckmeldung, die es gibt.
+      */}
+      <div className={s.formularFuss}>
         <Button
           type="primary"
           htmlType="submit"
@@ -612,18 +624,18 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         >
           Speichern
         </Button>
-      </Form.Item>
 
-      {fehler !== null && (
-        /*
-          ⛔ KEIN `Alert type="error"` UND KEIN ROTTON: `colorError === colorPrimary`
-          (`src/core/theme/theme.ts:32-33`) — ein roter Kasten saehe aus wie die Primaeraktion
-          (Falle 3). Dieselbe Form wie `NeuGeraetModal.tsx:104-113`.
-        */
-        <p className={s.dialogFehler} role="alert" data-rolle="radio-formular-fehler">
-          {fehler}
-        </p>
-      )}
+        {fehler !== null && (
+          /*
+            ⛔ KEIN `Alert type="error"` UND KEIN ROTTON: `colorError === colorPrimary`
+            (`src/core/theme/theme.ts:32-33`) — ein roter Kasten saehe aus wie die Primaeraktion
+            (Falle 3). Dieselbe Form wie `NeuGeraetModal.tsx:104-113`.
+          */
+          <p className={s.dialogFehler} role="alert" data-rolle="radio-formular-fehler">
+            {fehler}
+          </p>
+        )}
+      </div>
     </Form>
   );
 }
