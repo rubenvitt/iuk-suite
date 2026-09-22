@@ -45,7 +45,7 @@
     "react-icons": "5.7.0",
     "recharts": "^3.10.1",
     "write-excel-file": "^4.1.1",
-    "zod": "^4.6.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
