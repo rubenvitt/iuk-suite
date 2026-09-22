@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { inboxFiles, shareFiles, shares, zugangslinks } from "@/app/m/files/_db/schema";
 import { bcryptHash } from "@/app/m/files/_lib/passwort";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
 
 /**
  * DIE MOBIL-ABNAHME DES MODULS `files` BEI 390, 834 UND 1280 (Plan T48).
@@ -699,7 +699,7 @@ for (const vp of VIEWPORTS) {
        * anderes nachzieht und ein Messen mitten hinein nichts Belastbares
        * liefert.
        */
-      await page.waitForLoadState("networkidle");
+      await page.waitForLoadState("networkidle"); await warteAufSpaltenaufteilung(page);
       /*
        * DIE BEIDEN KNOEPFE EINZELN, NICHT ALLE KINDER DER LEISTE: „Ausgewaehlte
        * loeschen" sitzt in einem `<form>` — ein Kindselektor traefe die
@@ -833,7 +833,7 @@ for (const vp of VIEWPORTS) {
       for (const pfad of ["/", "/posteingang"]) {
         const antwort = await page.goto(`${V}${pfad}`);
         expect(antwort?.status(), `${pfad}: HTTP`).toBe(200);
-        await page.waitForLoadState("networkidle");
+        await page.waitForLoadState("networkidle"); await warteAufSpaltenaufteilung(page);
 
         /*
          * DIE KOPFZEILE SELBST, nicht nur das Dokument. Eine Mindestbreite ueber

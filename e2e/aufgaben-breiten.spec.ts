@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
 import {
   AUFGABEN_HOST,
   AUFGABEN_KOORDINATION_SITZUNG,
@@ -70,7 +70,7 @@ for (const vp of [
       });
       const res = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen?ansicht=brett`);
       expect(res?.status()).toBe(200);
-      await expect(page.locator("[data-rolle='brett']")).toBeVisible();
+      await expect(page.locator("[data-rolle='brett']")).toBeVisible(); await warteAufSpaltenaufteilung(page);
 
       const spalten = page.locator("[data-rolle='brett'] [data-person]");
       const anzahl = await spalten.count();
@@ -276,7 +276,7 @@ for (const vp of [
         const antwort = await page.goto(`http://${HOST}:${E2E_PORT}${seite.pfad}`);
         expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
         await expect(page.getByRole("heading", { name: seite.titel, level: 1 })).toBeVisible();
-        await page.waitForLoadState("networkidle");
+        await page.waitForLoadState("networkidle"); await warteAufSpaltenaufteilung(page);
 
         const mass = await ueberlauf(page);
         expect(

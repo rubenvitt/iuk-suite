@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
 /**
@@ -278,7 +278,7 @@ for (const breite of [768, 820, 900]) {
         groups: "da-feedback-admin",
         callbackPath: "/",
       });
-      await expect(page.getByTestId("modulleiste")).toBeVisible();
+      await expect(page.getByTestId("modulleiste")).toBeVisible(); await warteAufSpaltenaufteilung(page);
 
       const quer = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -404,7 +404,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
     expect(nav.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
 
     // Und die beiden Zusagen der Mittelbreiten gelten hier ebenso.
-    const quer = await page.evaluate(() => ({
+    await warteAufSpaltenaufteilung(page); const quer = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,
     }));
@@ -848,7 +848,7 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Mittelband 820px", () 
       host: LAGERBUCH_HOST,
       groups: LAGERBUCH_ADMIN_GRUPPE,
       callbackPath: "/verwaltung",
-    });
+    }); await warteAufSpaltenaufteilung(page);
 
     const breiten = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,

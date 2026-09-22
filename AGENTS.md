@@ -42,7 +42,8 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 11. **`locator.dragTo()` löst kein zuverlässiges `dragstart` aus.** Schrittweise `page.mouse`-Bewegung.
 12. **Ein Klick trifft daneben, wenn die Hülle nach `load` umbricht** → `klickeWennRuhig` aus
     `e2e/fixtures.ts`. Und: jedes `Layout` mit `Sider` in einer Server Component setzt `hasSider`
-    ausdrücklich (`hasSider={nav.length > 0}`), sonst fehlt die Klasse im Server-HTML.
+    ausdrücklich (`hasSider={nav.length > 0}`), sonst fehlt die Klasse im Server-HTML; e2e-Messungen
+    an der Inhaltsbreite warten vorher auf `warteAufSpaltenaufteilung` (`e2e/fixtures.ts`).
     (10–12 sind Testfallen: der e2e-Test misst etwas anderes, als sein Name sagt.)
 13. **Eine `Drawer` mit fester Breite ragt über die linke Kante** und ist auf niedrigen Schirmen zu
     schmal für den Inhalt. `flyinBreite()` aus `core/theme/flyin.ts`; Raster darin per
