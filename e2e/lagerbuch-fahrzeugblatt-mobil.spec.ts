@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, warteAufSpaltenaufteilung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -42,7 +42,7 @@ test.describe("Fahrzeugblatt auf schmalem Schirm", () => {
 
       // Erst wenn der Abschnitt steht, ist die Tabelle gerendert — sonst misst
       // die Probe eine Seite, auf der das Breite machende Element noch fehlt.
-      await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor();
+      await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor(); await warteAufSpaltenaufteilung(page);
 
       const masse = await page.evaluate(() => ({
         scroll: document.documentElement.scrollWidth,

@@ -140,8 +140,8 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Für einen Test hieß das: bis dahin war nichts zu eng, eine Tabelle scrollte nicht in sich,
     und eine Zusicherung darauf fiel, **obwohl die Seite richtig war** (gemessen: Tabellenkasten
     802px statt 562px). Wer einmal per `evaluate` misst und danach nur noch rechnet, hat genau
-    einen Versuch; `warteAufSpaltenaufteilung` in `e2e/lagerbuch-ist-bestand.spec.ts` fragt
-    deshalb die Invariante des fertigen Rasters ab und bleibt als Rückversicherung stehen.
+    einen Versuch; `warteAufSpaltenaufteilung` aus `e2e/fixtures.ts` fragt deshalb die Invariante
+    des fertigen Rasters ab — vor **jeder** Messung, die an der Breite der Inhaltsspalte hängt.
 
     **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
     Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes

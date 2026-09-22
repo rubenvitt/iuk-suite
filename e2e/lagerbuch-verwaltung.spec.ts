@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufSpaltenaufteilung } from "./fixtures";
 import {
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -149,7 +149,7 @@ test.describe("lagerbuch — Modulnavigation", () => {
     // („Entnahmebox“). Die Zusage dieses Tests hängt NICHT an der Zahl, sondern
     // am Satz darunter: mehr Einträge machen die Marge größer, nicht kleiner —
     // deshalb ist ein neuer Eintrag hier eine Zahl im Diff und kein Befund.
-    await expect(leiste.locator("a")).toHaveCount(21);
+    await expect(leiste.locator("a")).toHaveCount(21); await warteAufSpaltenaufteilung(page);
 
     const masse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -182,7 +182,7 @@ test.describe("lagerbuch — Modulnavigation", () => {
      * alten Test, als Gegenprobe gegen eine breitenabhängige Regression.
      */
     await page.setViewportSize({ width: 900, height: 720 });
-    await expect(leiste).toBeVisible();
+    await expect(leiste).toBeVisible(); await warteAufSpaltenaufteilung(page);
     const ueberlaeuft = await leiste.evaluate((element) => {
       const aside = element.closest("aside")!;
       return aside.scrollHeight > aside.clientHeight;

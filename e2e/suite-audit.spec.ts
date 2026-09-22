@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
-import { devLogin, klickeWennRuhig, wechsleAnmeldung, E2E_PORT } from "./fixtures";
+import { devLogin, klickeWennRuhig, wechsleAnmeldung, warteAufSpaltenaufteilung, E2E_PORT } from "./fixtures";
 import Database from "better-sqlite3";
 import { randomUUID, createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -34,7 +34,7 @@ test("Systemeinträge sind initial ausgeblendet und per Checkbox einblendbar",as
  await expect(checkbox).not.toBeChecked();
  expect((await readPage()).every(event=>event.actor.kind!=="system")).toBe(true);
  for(const width of [1280,390]) {
-  await page.setViewportSize({width,height:960});
+  await page.setViewportSize({width,height:960});await warteAufSpaltenaufteilung(page);
   await checkbox.scrollIntoViewIfNeeded();
   const label=checkbox.locator("xpath=ancestor::label");
   expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);

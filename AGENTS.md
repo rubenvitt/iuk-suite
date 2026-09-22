@@ -136,8 +136,8 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     802px statt 562px, die 746px-Tabelle passt hinein). `expect`s eigene Wiederholung rettet das
     nicht — wer einmal per `evaluate` misst und danach nur noch rechnet, hat genau einen Versuch.
     Abhilfe ist nicht „länger warten", sondern die Invariante des fertigen Rasters abzufragen:
-    der Inhalt beginnt dort, wo die Leiste endet (`warteAufSpaltenaufteilung` in
-    `e2e/lagerbuch-ist-bestand.spec.ts`). ⚠️ Die Richtung ist **umgekehrt zu der oben**: dort
+    der Inhalt beginnt dort, wo die Leiste endet (`warteAufSpaltenaufteilung` aus
+    `e2e/fixtures.ts`). ⚠️ Die Richtung ist **umgekehrt zu der oben**: dort
     fliegt die CI mit kaltem `.next` auf, hier die warme Maschine, auf der die Zusicherung sofort
     greift — und weil die Ursache die Hydration ist, gilt sie **nicht nur unter `next dev`**.
     Dass die Hülle den Sprung überhaupt macht, statt `hasSider` fest zu setzen, steht als DRK-363
