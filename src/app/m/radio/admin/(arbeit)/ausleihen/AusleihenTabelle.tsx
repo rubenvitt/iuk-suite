@@ -72,7 +72,7 @@ import { ausleihenNachladenAction } from "../../actions";
  * (`docs/design/README.md`) kommt von ihr, `title` bleibt eine blanke Zeichenkette.
  */
 
-/** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx:69`. */
+/** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx`, `LEER`. */
 const LEER = "—";
 
 /**

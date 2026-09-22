@@ -56,6 +56,12 @@ const INSEL_SOLL = ["GeraetFormular.tsx", "GeraetLoeschen.tsx", "NotizFeld.tsx"]
 /**
  * Das Etikett des EINEN `Form.Item` ohne `name` (`DeviceFields.tsx:169`) — der reine
  * Anzeige-Slot. Er zaehlt weder in `FORMULAR_FELDER` noch in `FELD_ETIKETTEN` mit.
+ *
+ * ⛔ SEIT DRK-462 RENDERT DAS FORMULAR IHN GAR NICHT MEHR: der Update-Stand ist ein Lesewert
+ * und steht als Marke im Seitenkopf (`page.tsx`, `data-rolle="radio-update-stand"`). Der
+ * Filter unten bleibt trotzdem stehen — ⛔ als SPERRE gegen seine Rueckkehr ins Formular, nicht
+ * als toter Rest: kaeme er dorthin zurueck, waere er der einundzwanzigste Etikettentext und
+ * machte die F11-Bindung falsch-rot, statt die Doppelung zu melden.
  */
 const ANZEIGE_SLOT_ETIKETT = "Update-Stand";
 
@@ -280,9 +286,32 @@ describe("radio-Geraetakte: der Feldriegel der Updater-Stufe", () => {
      * gegen die Fund 4 der Runde 1 die Quelltextzaehlung ersetzt hat: eine Zusicherung, die
      * die SCHREIBWEISE mitmisst statt der Aussage.
      */
-    const imMarkupEtiketten = [...quelle.matchAll(/(?<![-\w])label="([^"]+)"/g)]
-      .map((t) => t[1]!)
-      .filter((etikett) => etikett !== ANZEIGE_SLOT_ETIKETT);
+    /*
+     * ⛔ ZWEI ETIKETTEN STEHEN SEIT DRK-462 NICHT MEHR IN EINEM `label`, SONDERN AM KAESTCHEN.
+     * `loanable` und `alamosIntegrated` trugen bis dahin BEIDES — ein `label` darueber und
+     * einen Text daneben, der dasselbe sagte („Ausleihbar" ueber „Für Ausleihe freigegeben").
+     * Das waren zwei Textzeilen fuer einen Haken; der Text am Kaestchen traegt die Aussage
+     * jetzt allein.
+     *
+     * ⛔ DIE F11-BINDUNG WIRD DADURCH NICHT SCHWAECHER, SONDERN GENAUER: gemessen wird ab
+     * jetzt das Wort, das der Bedienende LIEST, und nicht mehr ein Attribut, das im selben
+     * Bauteil neben einem abweichenden Text stehen durfte. Genau diese Abweichung gab es —
+     * „Für Ausleihe freigegeben" war die einzige Stelle der Suite, die das Feld nicht
+     * „Ausleihbar" nannte, und der Fall sah es nicht.
+     *
+     * ⛔ GESCHNITTEN WIRD AUF DIE ZWEI `Checkbox` MIT `Form.Item`-BINDUNG, NICHT AUF JEDEN
+     * TEXT: ein Muster ueber alle Kindtexte faengt auch den Knopf „Hinzufügen" und den
+     * Platzhalter eines Vorschlagsfeldes. Der Anker ist das schliessende `</Checkbox>`.
+     */
+    const amKaestchen = [...quelle.matchAll(/<Checkbox\b[^>]*>([^<]+)<\/Checkbox>/g)].map(
+      (t) => t[1]!.trim(),
+    );
+    expect(amKaestchen.length, "die zwei Haken tragen ihren Text nicht mehr am Kaestchen").toBe(2);
+
+    const imMarkupEtiketten = [
+      ...[...quelle.matchAll(/(?<![-\w])label="([^"]+)"/g)].map((t) => t[1]!),
+      ...amKaestchen,
+    ].filter((etikett) => etikett !== ANZEIGE_SLOT_ETIKETT);
     expect(
       new Set(imMarkupEtiketten).size,
       "ein Etikett steht doppelt im Markup",
@@ -324,9 +353,9 @@ describe("radio-Geraetakte: die Feldregeln des Bestands", () => {
   it("der Statuswahl liegen genau die fuenf Optionen zugrunde", () => {
     /*
      * `radio-admin/shared/src/constants.ts:10-16`. ⛔ `toEqual`, REIHENFOLGE INKLUSIVE — und
-     * die Liste kommt aus `_lib/geraeteFelder.ts:154`, das Formular legt keine zweite an
-     * (`geraeteFelder.ts:151-152`: „⬜ Aufgabe V14 baut die Statusauswahl des Formulars und
-     * liest sie VON HIER").
+     * die Liste kommt aus `_lib/geraeteFelder.ts`, `STATUS_OPTIONEN`, das Formular legt keine
+     * zweite an — dort der ⬜-Vermerk daran: „⬜ Aufgabe V14 baut die Statusauswahl des
+     * Formulars und liest sie VON HIER".
      */
     expect([...STATUS_OPTIONEN]).toEqual([
       "Einsatzbereit",
@@ -382,9 +411,9 @@ describe("radio-Geraetakte: der Diff des Formulars", () => {
 
   it("ein nicht kanonisch geordnetes deviceModes laeuft NICHT rund durch den Diff", () => {
     /*
-     * ⛔ DER WAECHTER UEBER ⬜ **V14-L2** (`GeraetFormular.tsx:162`), und er haelt die HEUTE
+     * ⛔ DER WAECHTER UEBER ⬜ **V14-L2** (`GeraetFormular.tsx`, `listeZuModi`), und er haelt die HEUTE
      * GEMESSENE Lage fest — er segnet sie NICHT ab. `GERAETE_MODI` ist die kanonische Ordnung
-     * (`_lib/geraeteFelder.ts:134`); ein gespeichertes `"DMO,TMO"` faellt ueber
+     * (`_lib/geraeteFelder.ts`, `GERAETE_MODI`); ein gespeichertes `"DMO,TMO"` faellt ueber
      * `modiZuListe` → `listeZuModi` auf `"TMO,DMO"` zurueck, und der Diff macht daraus einen
      * Patcheintrag, den niemand eingegeben hat.
      *
@@ -850,69 +879,132 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
     );
   });
 
-  it("die Kopfdaten tragen die fuenf Alt-Felder, den Titel und die Hiorg-Regel", () => {
+  it("der Seitenkopf traegt den Zustand, die Herkunft und die Hiorg-Regel", () => {
     /*
-     * ⛔ 1:1 AUS `DeviceDetailDrawer.tsx:61` UND `:77-102`. Die Seite ist eine Server Component
-     * und laesst sich hier nicht mounten (`getDb`, `requireRadioVerwaltung`, `next/headers`);
-     * gemessen wird deshalb die Quelle. ⚠️ Das ist die Untergrenze, nicht der Beweis — den
-     * fuehrt der echte Abruf (V23, `Spec:4879`).
+     * ⛔ DER NACHFOLGER VON „die Kopfdaten tragen die fuenf Alt-Felder" (DRK-462). Bis dahin
+     * mass dieser Fall fuenf `<KopfZeile etikett="…">` auf einer eigenen Lesekarte, 1:1 aus
+     * `DeviceDetailDrawer.tsx:77-102`. Die Karte ist weg, und der Grund steht in `page.tsx`
+     * mit der Zahl: DREI ihrer fuenf Zeilen — Hiorg-ID, Ausleihbar, Zuletzt aktualisiert —
+     * wiederholten ein Eingabefeld desselben Bildschirms, 400 px weiter unten.
      *
-     * ⛔ FUENF ZEILEN, EXAKT: eine verlorene faellt sonst nirgends auf. Die fuenfte
-     * („Abweichung") haengt an `updateAnmerkung` und wird nur gezeigt, wenn etwas gemeldet ist.
+     * ⛔ WAS DER FALL WEITERHIN HAELT, IST DIE ZUSAGE UND NICHT DIE BAUFORM: kein Wert, den
+     * die alte Karte trug, darf beim Umbau still verschwinden. Deshalb wird jeder der fuenf
+     * einzeln benannt — vier als Zustandsmarke, einer in der Herkunftszeile.
      *
+     * ⛔ DIE SEITE IST EINE SERVER COMPONENT UND LAESST SICH HIER NICHT MOUNTEN (`getDb`,
+     * `requireRadioVerwaltung`, `next/headers`); gemessen wird die Quelle. ⚠️ Das ist die
+     * Untergrenze, nicht der Beweis — den fuehrt der echte Abruf
+     * (`e2e/radio-verwaltung.spec.ts`, Fall 3).
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
+
+    /*
+     * ⛔ DIE VIER ZUSTANDSMARKEN, JEDE AN IHREM GRIFF. Ein `data-rolle` und nicht ein Text:
+     * die Hausregel verbietet einen Umlaut im Anker, und die Texte der Marken sind Freitext
+     * aus der Datenbank (`status`) oder wandern mit dem Wortlaut (`Nicht ausleihbar`).
+     * ⛔ `radio-update-stand` IST WORTGLEICH DER GRIFF, DEN DER ANZEIGE-SLOT IM FORMULAR TRUG:
+     * `e2e/radio-verwaltung.spec.ts` Fall 3 haengt daran, und ein umbenannter Griff waere dort
+     * ein gruener Lauf auf einer Flaeche, die nichts mehr zeigt.
+     */
+    for (const griff of [
+      "radio-marke-status",
+      "radio-update-stand",
+      "radio-marke-ausleihbar",
+      "radio-marke-verliehen",
+    ]) {
+      expect(quelle, `die Zustandsmarke ${griff} fehlt`).toMatch(
+        new RegExp(`data-rolle="${griff}"`),
+      );
+    }
+
+    /*
+     * ⛔ DER STATUS WIRD NUR GEZEIGT, WENN ER GESETZT IST: `zuZeile` faltet die nullable
+     * Spalte auf die LEERE Zeichenkette (`_lib/lesepfade/geraete.ts`, `status: d.status ?? ""`),
+     * und eine leere Marke waere ein farbiger Fleck ohne Aussage.
+     */
+    expect(quelle, "der Status steht auch ohne gesetzten Wert").toMatch(/akte\.status !== ""/);
+
+    /*
+     * ⛔ DIE ABWEICHUNGSMARKE HAENGT WEITER AN `updateAnmerkung` (`DeviceDetailDrawer.tsx:95-101`)
+     * — die fuenfte der alten Kopfzeilen, und die einzige, die schon dort bedingt war.
+     */
+    expect(quelle, "die Abweichungsmarke steht auch ohne gemeldete Abweichung").toMatch(
+      /akte\.updateAnmerkung && \(/,
+    );
+
+    /*
+     * ⛔ DIE OFFENE LEIHE KOSTET KEINE ZWEITE ABFRAGE: `offeneLeiheZuGeraet` wird fuer die
+     * Loeschwarnung ohnehin geladen. Der Anker haelt genau das fest — wer die Marke spaeter
+     * aus einem eigenen Lesepfad speist, sieht hier, dass es einen gab.
+     */
+    expect(quelle, "die Leihmarke haengt nicht an der bereits geladenen Leihe").toMatch(
+      /offeneLeihe !== null && \(/,
+    );
+
+    /*
      * ⛔ DIE RUECKFALLKETTE DES TITELS MIT `||` UND NICHT `??`: beide Spalten sind Freitext
-     * (`_db/schema.ts:21`, `:43`), die LEERE Zeichenkette muss weiterfallen.
+     * (`_db/schema.ts`, `rufname` und `opta`), die LEERE Zeichenkette muss weiterfallen.
+     */
+    expect(quelle, "die Rueckfallkette des Titels").toMatch(
+      /akte\.rufname \|\| akte\.opta \|\| akte\.issi/,
+    );
+
+    /*
+     * ⛔ DIE ISSI STEHT NEBEN DEM TITEL — UND NUR DANN, WENN SIE NICHT SCHON DER TITEL IST.
+     * Der Bestand setzte sie in Klammern dahinter (`DeviceDetailDrawer.tsx:61`); seit DRK-462
+     * ist sie eine eigene, gedaempfte Nebenangabe. ⛔ OHNE DIE BEDINGUNG TRUEGE EIN GERAET OHNE
+     * RUFNAME UND OHNE OPTA — der Seed fuehrt eines, `g-8` — SEINE NUMMER ZWEIMAL
+     * NEBENEINANDER, und kein Tor faellt.
+     */
+    expect(quelle, "die ISSI steht auch dann daneben, wenn sie der Titel ist").toMatch(
+      /titel === akte\.issi \? null : akte\.issi/,
+    );
+
+    /*
+     * ⛔ DIE ZWEI ZEITANGABEN SIND AN IHREN WERT GEBUNDEN, NICHT NUR AN IHREN NAMEN
+     * (Review-Fund 2). Der Kopfkommentar der Seite warnt genau davor: „Wer sie nach ihren
+     * NAMEN bindet, vertauscht beide Zeilen auf einmal, und kein Tor faellt." Gemessen: ein
+     * Tausch der beiden Ausdruecke war vor dieser Zusicherung **0 rot**.
      *
+     * ⛔ IN DER HERKUNFTSZEILE STEHT DER ZEITPUNKT DER DATENSATZAENDERUNG, und der aufgeloeste
+     * Name gehoert 1:1 dahinter (`DeviceDetailDrawer.tsx:89-94`). ⛔ DER GEPFLEGTE UPDATE-TAG
+     * (`letztesUpdateText`) STEHT NICHT MEHR AUF DIESER SEITE: er ist ein FELD des Formulars
+     * (`lastUpdatedAt`), und genau seine Doppelung war der Befund von DRK-462. Der zweite
+     * Anker haelt ihn draussen — ohne ihn kaeme er beim naechsten Umbau still zurueck.
+     */
+    expect(
+      quelle,
+      "der Zeitpunkt der Datensatzaenderung traegt nicht den aufgeloesten Namen",
+    ).toMatch(/\{akte\.zuletztAktualisiertText\}\s*\n\s*\{akte\.geaendertVonName/);
+    expect(
+      quelle,
+      "der gepflegte Update-Tag steht wieder im Seitenkopf — er ist ein Formularfeld",
+    ).not.toMatch(/letztesUpdateText/);
+
+    /*
      * ⛔ UND DIE HIORG-REGEL 1:1 (`DeviceDetailDrawer.tsx:28-40`): Link nur bei `http://` oder
      * `https://`, sonst Text — inklusive `target="_blank" rel="noreferrer"`. Ohne `noreferrer`
      * traegt der Abruf der fremden Seite die Adresse dieser Verwaltungsflaeche im Referer.
      *
-     * ⚠️ KEIN UMLAUT ALS ANKER (Hausregel): die Zeile „Ge<umlaut>ndert" wird ueber die ZAHL der
-     * Kopfzeilen mitgemessen, nicht ueber ihren Text.
-     */
-    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
-    expect((quelle.match(/<KopfZeile/g) ?? []).length, "fuenf Kopfzeilen").toBe(5);
-    for (const etikett of ["Hiorg-ID", "Ausleihbar", "Zuletzt aktualisiert", "Abweichung"]) {
-      expect(quelle, `die Kopfzeile ${etikett} fehlt`).toMatch(
-        new RegExp(`etikett="${etikett}"`),
-      );
-    }
-    expect(quelle, "die Abweichungszeile steht auch ohne gemeldete Abweichung").toMatch(
-      /akte\.updateAnmerkung && \(/,
-    );
-    expect(quelle, "die Rueckfallkette des Titels").toMatch(
-      /akte\.rufname \|\| akte\.opta \|\| akte\.issi/,
-    );
-    expect(quelle, "die ISSI fehlt in Klammern hinter dem Titel").toMatch(/\(\$\{akte\.issi\}\)/);
-    /*
-     * ⛔ BEIDE ZWEIGE DER HIORG-REGEL, NICHT NUR EINER (Review-Fund 3): der Bestand prueft
-     * `http://` UND `https://` (`DeviceDetailDrawer.tsx:32`). Gemessen: mit nur dem
-     * `https`-Anker liess sich der `http`-Zweig ersatzlos streichen, ohne dass ein Fall rot
-     * wurde. Zwei Anker statt eines Musters ueber die ganze Bedingung, damit eine reine
-     * Umformatierung nicht falsch-rot wird.
+     * ⛔ BEIDE ZWEIGE, NICHT NUR EINER (Review-Fund 3): gemessen liess sich mit nur dem
+     * `https`-Anker der `http`-Zweig ersatzlos streichen, ohne dass ein Fall rot wurde. Zwei
+     * Anker statt eines Musters ueber die ganze Bedingung, damit eine reine Umformatierung
+     * nicht falsch-rot wird.
      */
     expect(quelle, "der Hiorg-Link entsteht nicht bei https").toMatch(/startsWith\("https:\/\/"\)/);
     expect(quelle, "der Hiorg-Link entsteht nicht bei http").toMatch(/startsWith\("http:\/\/"\)/);
     expect(quelle, "der Hiorg-Link ohne noreferrer").toMatch(/rel="noreferrer"/);
 
     /*
-     * ⛔ DIE ZWEI ZEITANGABEN SIND AN IHREN WERT GEBUNDEN, NICHT NUR AN IHREN NAMEN
-     * (Review-Fund 2). Der Kopfkommentar der Seite warnt genau davor: „Wer sie nach ihren
-     * NAMEN bindet, vertauscht beide Zeilen auf einmal, und kein Tor faellt." Gemessen: ein
-     * Tausch der beiden Ausdruecke war vor diesen zwei Zeilen **0 rot**.
-     *
-     * ⚠️ KEIN UMLAUT IM ANKER (Hausregel): die zweite Zeile wird ueber ihren NACHBARN
-     * gebunden — der aufgeloeste Name steht 1:1 wie im Bestand direkt hinter dem Zeitpunkt
-     * der letzten Datensatzaenderung (`DeviceDetailDrawer.tsx:89-94`).
+     * ⛔ UND DIE HIORG-ANGABE STEHT NUR, WENN SIE GESETZT IST. In einer TABELLE mit festen
+     * Zeilen ist der Gedankenstrich richtig — er haelt die Spalte; in der FLIESSENDEN
+     * Herkunftszeile ist „Hiorg-ID —" eine Angabe ohne Inhalt (gemessen an `g-5`, das keine
+     * traegt). ⚠️ `HiorgWert` BEHAELT SEINEN GEDANKENSTRICH TROTZDEM: die Funktion ist 1:1 aus
+     * dem Bestand und wird hier nur nicht mehr mit einem Leerwert gerufen.
      */
-    expect(
-      quelle,
-      "der gepflegte Update-Tag steht nicht in der Zeile Zuletzt aktualisiert",
-    ).toMatch(/etikett="Zuletzt aktualisiert">\{akte\.letztesUpdateText\}/);
-    expect(
-      quelle,
-      "der Zeitpunkt der Datensatzaenderung traegt nicht den aufgeloesten Namen",
-    ).toMatch(/\{akte\.zuletztAktualisiertText\}\s*\n\s*\{akte\.geaendertVonName/);
+    expect(quelle, "die Hiorg-Angabe steht auch ohne eingetragenen Wert").toMatch(
+      /akte\.hiorgId && \(/,
+    );
   });
 
   it("der Textlink auf die Aenderungshistorie steht, in der aeusseren Pfadform", () => {
@@ -970,25 +1062,33 @@ describe("radio-Geraetakte: das Formular im DOM", () => {
       />,
     );
 
-    expect(document.querySelectorAll(".ant-divider").length, "fuenf Abschnitte").toBe(5);
     /*
-     * ⛔ UND ALLE FUENF LINKSBUENDIG (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`:
-     * `orientation="left"`). In antd 6 heisst das `titlePlacement`, weil `orientation` dort die
-     * ACHSE traegt (`node_modules/antd/es/divider/index.d.ts:25`) — ohne das Attribut stehen die
-     * fuenf Ueberschriften zentriert, und die gerenderte Zahl darueber bleibt 5. Gemessen: die
-     * Sonde ohne `titlePlacement` war vor diesem Fall **0 rot**.
+     * ⛔ FUENF ABSCHNITTE, GEMESSEN AN IHREN TEXTEN — nicht mehr an `.ant-divider` (DRK-462).
+     * Die Gliederung ist dieselbe; das Bauteil ist es nicht. Der Bestand setzte fuenf
+     * `Divider titlePlacement="start"` (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`),
+     * und gemessen kostete jeder 25 px Hoehe plus zweimal 16 px Abstand — 285 px allein fuer
+     * Ueberschriften auf einer Seite von 2359 px. Die Abstaende waren nicht zu kuerzen, ohne
+     * gegen antds eigenes CSS zu schreiben (Falle 5), also traegt sie jetzt eigenes Markup.
      *
-     * ⛔ GEMESSEN WIRD DIE WIRKUNG, NICHT DIE SCHREIBWEISE (Review-Fund 4): antd stempelt
-     * `ant-divider-with-text-<placement>` an den Knoten
-     * (`node_modules/antd/es/divider/index.js:71-72`), und die Vorgabe ohne das Attribut ist
-     * `center` (`:48`). Eine Zaehlung der Zeichenkette `<Divider titlePlacement="start">` in der
-     * Quelle war dagegen gemessen FALSCH-ROT, sobald jemand ein Attribut auf eine eigene Zeile
-     * umbrach — bei null Verhaltensaenderung.
+     * ⛔ UEBER DAS ELEMENT UND NICHT UEBER EINE KLASSE DES CSS-MODULS: ein Modulname ist zur
+     * Laufzeit gehasht, und `.formAbschnitt` stuende so in keinem Selektor. Die Ueberschrift
+     * misst ausserdem die ZUSAGE — die fuenf Abschnitte sind eine Gliederung, die eine
+     * Vorleseanwendung ansagen koennen muss —, und nicht die Schreibweise des Markups.
+     *
+     * ⛔ DIE STUFE WIRD MITGEMESSEN, UND SIE IST `<h2>`: `Card title=` rendert eine `div` und
+     * besetzt die zweite Stufe NICHT, ein `<h3>` liesse zwischen dem `<h1>` der Seite und den
+     * Abschnitten also eine Stufe aus. Ein `<strong>` saehe gleich aus und haette gar keine
+     * Rolle. Die Begruendung samt Hausvorbild steht an `Abschnitt` in `GeraetFormular.tsx`.
      */
+    const abschnitte = Array.from(document.querySelectorAll("h2")).map((el) =>
+      (el.textContent ?? "").trim(),
+    );
+    expect(abschnitte.length, "fuenf Abschnitte").toBe(5);
     expect(
-      document.querySelectorAll(".ant-divider-with-text-start").length,
-      "eine Abschnittsueberschrift steht zentriert statt linksbuendig",
-    ).toBe(5);
+      abschnitte.every((text) => text !== ""),
+      "ein Abschnittskopf traegt keinen Text",
+    ).toBe(true);
+    expect(new Set(abschnitte).size, "zwei Abschnitte heissen gleich").toBe(5);
     /*
      * ⛔ GEFUELLT WIRD EIN SCHLICHTES `Input` (`tei`), NICHT EIN VORSCHLAGSFELD: antds
      * `AutoComplete` ist ein `Select` im Combobox-Modus (`_ui/EntleiherFeld.tsx:39-41`), und

@@ -253,40 +253,15 @@
 }
 
 /*
- * DIE GERAETEAKTE (V14) — die Kopfdaten als schlichtes Markup.
+ * DIE GERAETEAKTE (V14) — die Kopfdaten standen hier als `.kopfListe`/`.kopfZeile`/
+ * `.kopfEtikett`/`.kopfWert`: fuenf Lesezeilen auf einer eigenen Karte, als Ersatz fuer
+ * `Descriptions`/`Descriptions.Item` (Falle 1).
  *
- * ⛔ SIE ERSETZEN `Descriptions`/`Descriptions.Item` (`DeviceDetailDrawer.tsx:77-102`), weil
- * Compound-Zugriff in einer Server Component HTTP 500 ist (Falle 1) und eine Insel fuer fuenf
- * Lesefelder Ballast waere.
+ * ⛔ DIE VIER KLASSEN SIND MIT DRK-462 ERSATZLOS WEG, und der Grund steht in `page.tsx`
+ * ausgeschrieben: drei der fuenf Zeilen wiederholten ein Eingabefeld desselben Bildschirms.
+ * Was blieb, traegt jetzt `.akteMarken` (der Zustand) und `.akteHerkunft` (die Herkunft) —
+ * beide weiter unten in diesem Blatt.
  */
-.kopfListe {
-  display: grid;
-  gap: 8px;
-}
-
-.kopfZeile {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  padding-block-end: 8px;
-  border-block-end: 1px solid var(--iuk-linie);
-}
-
-.kopfZeile:last-child {
-  border-block-end: none;
-  padding-block-end: 0;
-}
-
-.kopfEtikett {
-  flex: 0 0 12rem;
-  color: var(--iuk-gedaempft);
-}
-
-.kopfWert {
-  flex: 1 1 12rem;
-  overflow-wrap: anywhere;
-}
 
 /* Der Datumswaehler fuellt seine Spalte (`DeviceFields.tsx:164`, `style={{ width: '100%' }}`). */
 .feldWeit {
@@ -380,6 +355,175 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 4px 24px;
+  margin-block-end: 16px;
+}
+
+/*
+ * ── Der Seitenkopf der Akte (DRK-462) ────────────────────────────────────────
+ *
+ * Betreiberbefund vom 2026-09-22: „ein langweiliges Formular und ziemlich viel Space, sodass
+ * das viel Platz für nichts einnimmt." Gemessen im echten Chromium bei 1440x1000 gegen
+ * `next dev`: die Seite war 2359 px hoch bei 1000 px Sichtflaeche, und die Lesekarte oben
+ * (190 px) wiederholte DREI Werte, die 400 px weiter unten noch einmal als Formularfeld
+ * standen. Statt ihrer stehen hier zwei Zeilen: die Zustandsmarken und die Herkunft.
+ *
+ * ⛔ DIE TEXTSPALTE IST EIN EIGENER KASTEN und nicht einfach der Titel: `.akteKopf` ist
+ * `space-between` mit dem Historien-Link rechts. Ohne die Hulle legte `flex` Marken und
+ * Herkunftszeile als GESCHWISTER neben den Link, statt unter den Titel.
+ * ⚠️ `min-inline-size: 0` IST PFLICHT, NICHT VORSORGE: ein Flex-Kind hat `min-width: auto`,
+ * und ein langer Rufname ohne Leerzeichen draengte den Link sonst aus dem Kasten, statt
+ * umzubrechen.
+ */
+.akteKopfText {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+/*
+ * ⛔ DER EIGENE ABSTAND DER SEITENUEBERSCHRIFT WIRD HIER ZURUECKGENOMMEN: `.titel` traegt
+ * `margin-block-end: 12px` fuer die neun anderen Verwaltungsseiten, die nichts unter sich
+ * haben. Hier setzt `gap` den Spalt zu den Marken, und beides zusammen waeren 20 px zwischen
+ * Titel und Markenzeile. ⛔ Der Wert gehoert NICHT in `.titel` — dort zoege er die neun
+ * anderen Seiten still mit.
+ */
+.akteKopfText .titel {
+  margin-block-end: 0;
+}
+
+/*
+ * Die ISSI neben dem Namen. ⛔ SIE STEHT IM `<h1>` (siehe `page.tsx`) und muss deshalb hier
+ * zurueckgenommen werden — sonst traegt sie die 1.375 rem der Ueberschrift und liest sich wie
+ * ein zweiter Titel. ⛔ KEINE EIGENE FARBE AUS EINEM HEXWERT: `--iuk-gedaempft` ist die
+ * Suite-Variable, die `.geraetIssi` und `.leer` in diesem Blatt schon fuehren.
+ */
+.titelIssi {
+  margin-inline-start: 12px;
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/*
+ * Die Zustandsmarken. ⛔ KEIN EIGENER ABSTAND AM `Tag`: antd bringt `margin-inline-end`
+ * mit, und ein zweiter Wert daneben waere ein zweiter Wahrheitsort fuer denselben Spalt —
+ * `gap` deckt den Umbruch zwischen den ZEILEN ab, den antd nicht kennt.
+ */
+.akteMarken {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+}
+
+/*
+ * Die Herkunftszeile. ⛔ GEDAEMPFT UND KLEIN, weil sie nie eine Handlung anstoesst; ⛔ und
+ * ohne eigene Flaeche, weil eine Karte fuer zwei Lesewerte genau der Ballast war, den DRK-462
+ * abgetragen hat.
+ */
+.akteHerkunft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin: 0;
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+}
+
+/*
+ * ⛔ DER TRENNPUNKT IST EIN EIGENES ELEMENT UND KEIN `::before` AM NACHBARN: bricht die Zeile
+ * um, soll er am ENDE der ersten stehen bleiben und nicht an den Anfang der zweiten rutschen.
+ * ⚠️ `aria-hidden` waere hier falsch — der Punkt ist als Trenner gemeint und wird von
+ * Vorleseanwendungen ohnehin als Pause gelesen; die zwei Angaben stehen in eigenen `<span>`.
+ *
+ * ⛔ UND ER TRAEGT KEINEN EIGENEN TON. Ein erster Versuch gab ihm `--iuk-linie` — gemessen kam
+ * er damit BLASSER heraus als der Punkt zwischen Zeitpunkt und Person, der im gedaempften Ton
+ * der Zeile steht. Das dreht die Hierarchie um: der Punkt, der die GROESSERE Trennung meint,
+ * saehe schwaecher aus als der, der die kleinere meint. Die Klasse bleibt trotzdem stehen —
+ * sie ist der Flex-Griff aus dem Absatz darueber, nicht eine Farbregel.
+ */
+.akteHerkunftTrenner {
+  flex: none;
+}
+
+/*
+ * ── Der Fuss der Akte: die Loeschaktion (DRK-462) ────────────────────────────
+ *
+ * ⛔ EINE ABGESETZTE LEISTE STATT EINER EIGENEN `Card` — eine Korrektur an DRK-454, das dem
+ * Loeschknopf eine weisse Flaeche mit 24 px Innenabstand gab: gemessen 78 px Karte fuer einen
+ * Knopf von 32 px. Eine Karte gruppiert; hier gab es nichts zu gruppieren. Was die Karte
+ * leisten sollte — die zerstoerende Aktion vom Formular darueber absetzen — leistet die Linie.
+ *
+ * ⚠️ DIE MASSE SIND DIE VON `.formularFuss`, UND DAS IST ABSICHT: beide setzen eine Aktion
+ * von dem ab, was ueber ihnen steht. Zwei verschiedene Zahlen fuer dieselbe Geste waeren an
+ * dieser Flaeche sofort zu sehen. ⛔ TROTZDEM KEINE GETEILTE KLASSE: `.formularFuss` steht IN
+ * einer Karte, dieser Fuss unter allen — eine gemeinsame Klasse hiesse, dass die naechste
+ * Massaenderung an der einen die andere still mitzieht (derselbe Grund wie bei
+ * `.importZeile`).
+ */
+.akteFuss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-block-start: 24px;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--iuk-linie);
+}
+
+/* ⛔ OHNE ROT (Falle 3): der Satz erklaert, er warnt nicht. Rot traegt allein der Knopf. */
+.akteFussHinweis {
+  margin: 0;
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+}
+
+/*
+ * ── Die fuenf Abschnitte des Geraeteformulars (DRK-462) ──────────────────────
+ *
+ * ⛔ SIE ERSETZEN `Divider titlePlacement="start"` (`DeviceFields.tsx:56`, `:91`, `:119`,
+ * `:149`, `:174`). Gemessen kostete jeder Divider 25 px Hoehe plus 16 px Abstand oben und
+ * unten — fuenf mal 57 px, also **285 px allein fuer Ueberschriften** auf einer Seite von
+ * 2359 px. ⛔ UND DIE ABSTAENDE WAREN NICHT ZU KUERZEN, OHNE GEGEN ANTDS EIGENES CSS ZU
+ * SCHREIBEN (Falle 5, erste Auspraegung: bei Gleichstand gewinnt antd durch die Reihenfolge) —
+ * eigenes Markup entgeht der Spezifitaetsfrage ganz, statt sie zu gewinnen.
+ *
+ * ⚠️ DER ERSTE ABSCHNITT BEKOMMT KEINEN ABSTAND NACH OBEN: er steht unmittelbar unter dem
+ * Kartenkopf, der seinen eigenen schon mitbringt.
+ */
+.formAbschnitt {
+  margin: 20px 0 12px;
+  padding-block-end: 6px;
+  border-block-end: 1px solid var(--iuk-linie);
+  color: var(--iuk-gedaempft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.formAbschnitt:first-child {
+  margin-block-start: 0;
+}
+
+/*
+ * Die zwei Haken in einer Zeile (`loanable`, `alamosIntegrated`).
+ *
+ * ⛔ SIE STEHEN IN EINEM EIGENEN KASTEN UND NICHT IM RASTER: als `Col` trugen sie je ein
+ * `label` ueber dem Kaestchen — „Ausleihbar" ueber „Für Ausleihe freigegeben" —, also zwei
+ * Textzeilen fuer einen Haken, gemessen 2 x 62 px in zwei verschiedenen Rasterzeilen.
+ *
+ * ⚠️ DER UNTERE ABSTAND IST DER, DEN DAS `Form.Item` MITGEBRACHT HAETTE: die beiden tragen
+ * `noStyle`, und ohne ihn klebte der naechste Abschnittskopf an den Kaestchen.
+ */
+.formHaken {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  margin-block-end: 24px;
 }
 
 /*

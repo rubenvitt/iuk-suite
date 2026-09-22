@@ -3,14 +3,13 @@
 // src/app/m/radio/admin/(arbeit)/geraete/[id]/GeraetFormular.tsx
 import { useEffect, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
-import { AutoComplete, Button, Checkbox, Col, DatePicker, Divider, Form, Input, Row, Select, Tag } from "antd";
+import { AutoComplete, Button, Checkbox, Col, DatePicker, Form, Input, Row, Select } from "antd";
 import { geraetAendernAction } from "../../../actions";
 import type { GeraetPatch } from "../../../actions";
 import type { GeraetFormWerte, Vorschlagsfeld } from "../../../../_lib/lesepfade/geraete";
 import { GERAETE_MODI, STATUS_OPTIONEN } from "../../../../_lib/geraeteFelder";
 import { UPDATER_FELDER, type RadioRolle } from "../../../../_lib/rollen";
 import { tagAusWert } from "../../../../_lib/csv/spalten";
-import type { UpdateStand } from "../../../../_lib/updateStand";
 import s from "../../../../_ui/verwaltung.module.css";
 import { VIkone } from "../../../../_ui/verwaltungIkonen";
 
@@ -68,7 +67,15 @@ import { VIkone } from "../../../../_ui/verwaltungIkonen";
  * der Etikettenliste gleich" bindet sie aneinander, statt es zu erbitten.
  *
  * ⛔ DER ANZEIGE-SLOT „Update-Stand" (`DeviceFields.tsx:169`) ZAEHLT HIER NICHT MIT — er traegt
- * kein `name`, schreibt nichts und ist deshalb auch kein Feld des Feldriegels.
+ * kein `name`, schreibt nichts und ist deshalb auch kein Feld des Feldriegels. ⚠️ Seit DRK-462
+ * rendert das Formular ihn gar nicht mehr; er steht als Marke im Seitenkopf.
+ *
+ * ⚠️ DIESE REIHENFOLGE IST DIE DER LISTE, NICHT MEHR DIE DES RASTERS. Im Abschnitt „Gerät"
+ * steht seit DRK-462 `funktion` VOR `deviceModes`, weil die Mehrfachauswahl dort zwei Spalten
+ * traegt (`SPALTE_DOPPELT`) und die zweite Rasterzeile nur so glatt aufgeht. ⛔ DIE LISTE BLEIBT
+ * TROTZDEM IN DER BESTANDSORDNUNG: sie bindet die Feldnamen an `FELD_ETIKETTEN`
+ * (`_lib/lesepfade/ereignisse.ts`), und die Ereignisliste ordnet ihre Zeilen danach — wer sie
+ * der Rasterordnung nachzoege, sortierte die Aenderungshistorie um.
  */
 export const FORMULAR_FELDER = [
   "issi", // DeviceFields.tsx:62
@@ -244,38 +251,79 @@ export function baueGeaenderteFelder(
 }
 
 /**
- * Das Wort zum Update-Stand — ⛔ ALS WORT, NICHT ALS FARBE (Falle 3, `Spec:4555-4561`; Regel 4
- * der Insel-Tafel): `colorError === colorPrimary` (`src/core/theme/theme.ts:32-33`), ein rotes
- * Zeichen auf einer Datenflaeche saehe aus wie eine Primaeraktion.
+ * ⬜ **V14-L1 IST EINGELOEST** (DRK-462): das Wort und der Ton des Update-Stands standen hier
+ * und ein zweites Mal in `admin/(arbeit)/geraete/GeraeteTabelle.tsx`. Beide lesen sie jetzt aus
+ * `_lib/geraeteFelder.ts` (`STAND_TON`, `STAND_WORT`) — einem Modul OHNE Direktive, und das ist
+ * der Grund, warum der Zusammenzug hier nicht mehr aufschiebbar war: die Geraeteakte zeigt den
+ * Stand seit DRK-462 als Marke im SEITENKOPF, und der ist eine Server Component. Von hier
+ * importiert waere er eine Client-Referenz (Falle 6, HTTP 500 fuer die ganze Seite).
  *
- * ⚠️ ZWEITE KOPIE, BENANNT STATT STILL: dieselbe Zuordnung steht in
- * `admin/(arbeit)/geraete/GeraeteTabelle.tsx:85-95`. Sie von dort zu importieren zoege die
- * ganze Tabelleninsel in das Bundle dieser Seite. ⬜ **V14-L1** — sie in `_lib/geraeteFelder.ts`
- * zusammenzulegen ist ein ClickUp-Board-Posten, kein Bauwert in diesem Fenster (dieselbe
- * Behandlung wie ⬜ V-L9).
+ * ⛔ DAS FORMULAR ZEIGT IHN DAMIT GAR NICHT MEHR: der Anzeige-Slot ohne `name`
+ * (`DeviceFields.tsx:167-171`) ist ersatzlos weg — benannte Abweichung vom Bestand, Begruendung
+ * unten am Abschnitt „Update".
  */
-const STAND_TON: Record<UpdateStand, "success" | "warning" | undefined> = {
-  aktuell: "success",
-  veraltet: "warning",
-  unbekannt: undefined,
-};
-
-const STAND_WORT: Record<UpdateStand, string> = {
-  aktuell: "Aktuell",
-  veraltet: "Veraltet",
-  unbekannt: "Unbekannt",
-};
 
 /**
- * ⚠️ `titlePlacement="start"` IST DIE ANTD-6-SCHREIBWEISE VON `orientation="left"`
- * (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`, `:174`) — benannte Abweichung im Namen, nicht
- * in der Wirkung: in antd 6 traegt `orientation` die Achse (`horizontal`/`vertical`), und die
- * Ausrichtung des Titels heisst `titlePlacement` (`node_modules/antd/es/divider/index.d.ts:22-25`,
- * aufgeschlagen). Ohne sie stuenden die fuenf Abschnittsueberschriften ZENTRIERT.
+ * DIE SPALTENBREITE — ⛔ DREI SPALTEN AB `lg`, NICHT MEHR ZWEI (DRK-462).
  *
- * Die Spaltenbreite des Bestands (`DeviceFields.tsx:27`).
+ * Der Bestand fuehrt `xs: 24, sm: 12` (`DeviceFields.tsx:27`), also fest zwei Spalten. Gemessen
+ * im echten Chromium bei 1440x1000: die Inhaltsspalte ist 1024 px breit, jedes Feld darin
+ * 479 px — eine SIEBENSTELLIGE ISSI in einem Kasten von 479 px, und drei Abschnitte mit
+ * ungerader Feldzahl liessen je eine halbe Zeile (479 x 62 px) leer stehen. Mit der dritten
+ * Spalte misst dasselbe Feld 310 px, und aus fuenf Feldzeilen werden zwei.
+ *
+ * ⚠️ `sm: 12` BLEIBT DAZWISCHEN STEHEN: von 576 bis 992 px waeren drei Spalten je ~200 px, und
+ * darin passt „Update-Anmerkung (Abweichungen)" nicht mehr in eine Etikettzeile. Der Sprung
+ * geht also 1 → 2 → 3, nicht 1 → 3.
+ *
+ * ⛔ KEIN `Grid.useBreakpoint` FUER DIESE ENTSCHEIDUNG: antds `Col` legt sie als CSS-Klassen
+ * ab, eine JS-Abfrage zeigte beim ersten Rendern die falsche Variante (Falle 16, `CLAUDE.md`).
  */
-const SPALTE = { xs: 24, sm: 12 } as const;
+const SPALTE = { xs: 24, sm: 12, lg: 8 } as const;
+
+/** Die breite Spalte fuer die zwei Textfelder — ⛔ ZWEI NEBENEINANDER AB `lg`, nicht untereinander. */
+const SPALTE_BREIT = { xs: 24, lg: 12 } as const;
+
+/**
+ * Die Doppelspalte der Mehrfachauswahl „Gerätefunktionen".
+ *
+ * ⛔ SIE IST KEINE KOSMETIK, SONDERN DIE EINZIGE ZELLE, DIE MEHR ALS EINEN WERT ZEIGT: vier
+ * Modi als Marken in einem Feld von 310 px brechen um, und der Abschnitt „Gerät" haette mit
+ * fuenf gleich breiten Feldern ohnehin eine dritte Spalte leer gelassen. Mit 8 + 16 geht die
+ * zweite Rasterzeile glatt auf.
+ */
+const SPALTE_DOPPELT = { xs: 24, sm: 12, lg: 16 } as const;
+
+/**
+ * EIN ABSCHNITTSKOPF — ⛔ EIGENES MARKUP STATT `Divider titlePlacement="start"` (DRK-462).
+ *
+ * Der Bestand gliedert mit fuenf `Divider` (`DeviceFields.tsx:56`, `:91`, `:119`, `:149`,
+ * `:174`). Gemessen kostete jeder davon 25 px Hoehe plus 16 px Abstand oben und unten — fuenf
+ * mal 57 px, also **285 px allein fuer Ueberschriften** auf einer Seite von 2359 px. Und die
+ * Abstaende liessen sich nicht kuerzen, ohne gegen antds eigenes CSS zu schreiben (Falle 5,
+ * erste Ausprägung: Gleichstand, antd gewinnt durch Reihenfolge).
+ *
+ * ⛔ DER ERSATZ IST EINE UEBERSCHRIFT MIT LINIE, KEIN NACKTER TEXT: die Gliederung ist der
+ * halbe Grund, warum die Flaeche nicht wie eine Feldwueste liest. Sie steht als Ueberschrift
+ * da und nicht als `<strong>`, damit eine Vorleseanwendung die fuenf Abschnitte als
+ * Gliederung ausgibt.
+ *
+ * ⛔ `<h2>` UND NICHT `<h3>`, OBWOHL DIE ABSCHNITTE IN EINER KARTE STEHEN: `Card title=`
+ * rendert eine `div`, KEINE Ueberschrift (`antd/es/card/Card.js`, der `ant-card-head-title`).
+ * Der Kartenkopf besetzt die zweite Stufe also gar nicht, und ein `<h3>` liesse zwischen dem
+ * `<h1>` der Seite und den Abschnitten eine Stufe AUS — der Fall, den jede
+ * Barrierefreiheitspruefung als „heading-order" meldet. ⚠️ Hausvorbild ist das Fahrzeugblatt
+ * (`lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/page.tsx`, seine Abschnittsueberschriften):
+ * dieselbe Lage — Detailseite mit einem `<h1>` und mehreren Abschnitten —, dort ebenfalls
+ * `<h2>`. ⛔ Die `<h3>` in `lagerbuch/_ui/ArtikelDrawer.tsx` und `SammelDrawer.tsx` sind KEIN
+ * Gegenbeispiel: sie stehen in einer `Drawer`, die ihren eigenen Titel als Ueberschrift fuehrt.
+ *
+ * ⚠️ DIE ZAEHLUNG BLEIBT BEI FUENF, und `GeraetFormular.test.tsx` misst sie weiter ueber die
+ * TEXTE, nicht ueber `<Divider`.
+ */
+function Abschnitt({ children }: { children: string }) {
+  return <h2 className={s.formAbschnitt}>{children}</h2>;
+}
 
 export type GeraetFormularProps = {
   /** ⛔ Vorformatiert und serialisierbar; `lastUpdatedAt` ist der Kalendertag `YYYY-MM-DD`. */
@@ -428,8 +476,8 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
       onFinish={absenden}
       requiredMark
     >
-      <Divider titlePlacement="start">Identität</Divider>
-      <Row gutter={[16, 8]}>
+      <Abschnitt>Identität</Abschnitt>
+      <Row gutter={[16, 0]}>
         <Col {...SPALTE}>
           <Form.Item
             name="issi"
@@ -465,14 +513,19 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         </Col>
         <Col {...SPALTE}>
           <Form.Item name="hiorgId" label="Hiorg-ID">
-            {/* Hier als Text bearbeitet; die Akte-Anzeige macht daraus einen Link (page.tsx). */}
+            {/*
+              Hier als Text bearbeitet; den LINK auf eine eingetragene Adresse traegt seit
+              DRK-462 die Kopfzeile der Seite (`page.tsx`, `HiorgWert`) — bis dahin stand der
+              Wert zweimal auf derselben Seite, einmal als Lesezeile und 400 px weiter unten
+              noch einmal als dieses Feld.
+            */}
             <Input disabled={gesperrt("hiorgId")} />
           </Form.Item>
         </Col>
       </Row>
 
-      <Divider titlePlacement="start">Gerät</Divider>
-      <Row gutter={[16, 8]}>
+      <Abschnitt>Gerät</Abschnitt>
+      <Row gutter={[16, 0]}>
         <VorschlagFeld
           name="hersteller"
           label="Hersteller"
@@ -491,7 +544,13 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
           optionen={vorschlaege.bedieneinheit}
           gesperrt={gesperrt("bedieneinheit")}
         />
-        <Col {...SPALTE}>
+        <VorschlagFeld
+          name="funktion"
+          label="Funktion"
+          optionen={vorschlaege.funktion}
+          gesperrt={gesperrt("funktion")}
+        />
+        <Col {...SPALTE_DOPPELT}>
           <Form.Item name="deviceModes" label="Gerätefunktionen">
             <Select
               mode="multiple"
@@ -501,16 +560,10 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
             />
           </Form.Item>
         </Col>
-        <VorschlagFeld
-          name="funktion"
-          label="Funktion"
-          optionen={vorschlaege.funktion}
-          gesperrt={gesperrt("funktion")}
-        />
       </Row>
 
-      <Divider titlePlacement="start">Einsatz</Divider>
-      <Row gutter={[16, 8]}>
+      <Abschnitt>Einsatz</Abschnitt>
+      <Row gutter={[16, 0]}>
         <VorschlagFeld
           name="location"
           label="Lagerort"
@@ -532,20 +585,49 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
             />
           </Form.Item>
         </Col>
-        <Col {...SPALTE}>
-          <Form.Item name="loanable" label="Ausleihbar" valuePropName="checked">
-            <Checkbox disabled={gesperrt("loanable")}>Für Ausleihe freigegeben</Checkbox>
-          </Form.Item>
-        </Col>
-        <Col {...SPALTE}>
-          <Form.Item name="alamosIntegrated" label="Alamos integriert" valuePropName="checked">
-            <Checkbox disabled={gesperrt("alamosIntegrated")}>Integriert</Checkbox>
-          </Form.Item>
-        </Col>
       </Row>
+      {/*
+        ⛔ DIE ZWEI HAKEN STEHEN IN EINER EIGENEN ZEILE UND OHNE ETIKETT DARUEBER (DRK-462).
+        Der Bestand gibt jedem ein `label` — „Ausleihbar" ueber „Für Ausleihe freigegeben",
+        „Alamos integriert" ueber „Integriert": zwei Textzeilen fuer einen Haken, und beide
+        sagen dasselbe. Gemessen kosteten sie so 2 x 62 px in zwei verschiedenen Rasterzeilen.
+        Der Text AM Kaestchen traegt die Aussage jetzt allein, und er ist zugleich die
+        Beschriftung, die eine Vorleseanwendung ansagt — `Checkbox` legt sein Kind in ein
+        `<label>`, der Name geht also nicht verloren.
 
-      <Divider titlePlacement="start">Update</Divider>
-      <Row gutter={[16, 8]}>
+        ⛔ DER TEXT IST WORTGLEICH DAS ETIKETT AUS `FELD_ETIKETTEN`
+        (`_lib/lesepfade/ereignisse.ts`) — „Ausleihbar" und „Alamos integriert" —, UND DAS IST
+        DIE BEDINGUNG, UNTER DER DAS `label` WEGFALLEN DARF: der Fall „die zwanzig Feldnamen
+        stehen im Markup und in der Etikettenliste gleich" bindet Formular und Ereignisliste
+        aneinander (Vorabscan-Fund F11). Er liest diese zwei Texte seit DRK-462 am Kaestchen
+        statt am `label`; stuende dort weiter „Für Ausleihe freigegeben", nennte die
+        Aenderungshistorie dasselbe Feld anders als das Formular.
+        ⚠️ „Für Ausleihe freigegeben" ENTFAELLT DAMIT — benannte Abweichung vom Bestand. Der
+        Satz war die einzige Stelle der Suite, die dieses Feld nicht „Ausleihbar" nannte; die
+        Zustandsmarke im Seitenkopf und die Spalte der Geraeteliste tun es beide.
+        ⚠️ DIE FELDNAMEN BLEIBEN `loanable` UND `alamosIntegrated`: der Feldriegel der
+        Updater-Stufe haengt an ihnen, nicht am Etikett.
+      */}
+      <div className={s.formHaken}>
+        <Form.Item name="loanable" valuePropName="checked" noStyle>
+          <Checkbox disabled={gesperrt("loanable")}>Ausleihbar</Checkbox>
+        </Form.Item>
+        <Form.Item name="alamosIntegrated" valuePropName="checked" noStyle>
+          <Checkbox disabled={gesperrt("alamosIntegrated")}>Alamos integriert</Checkbox>
+        </Form.Item>
+      </div>
+
+      <Abschnitt>Update</Abschnitt>
+      {/*
+        ⛔ DER ANZEIGE-SLOT „Update-Stand" IST HIER WEG (DRK-462) — benannte Abweichung vom
+        Bestand (`DeviceFields.tsx:167-171`, ein `Form.Item` OHNE `name`). Er war ein reiner
+        LESEWERT und belegte trotzdem eine volle Feldzeile (gemessen 479 x 62 px, davon die
+        Haelfte leer), mitten zwischen zwei Eingabefeldern. Seit DRK-462 steht er als Marke im
+        Seitenkopf, wo die Frage „wie steht es um dieses Geraet" ohnehin beantwortet wird.
+        ⛔ ER WAR NIE TEIL DES FELDRIEGELS: ohne `name` schreibt er nichts und steht deshalb
+        auch nicht in `FORMULAR_FELDER`. Sein Wegfall ruehrt keine Rechtestufe an.
+      */}
+      <Row gutter={[16, 0]}>
         <Col {...SPALTE}>
           <Form.Item name="softwareVersion" label="Letztes Update">
             <AutoComplete
@@ -566,23 +648,20 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
             <DatePicker className={s.feldWeit} disabled={gesperrt("lastUpdatedAt")} />
           </Form.Item>
         </Col>
-        {/*
-          ⛔ DER EINE FORM.ITEM OHNE `name` (`DeviceFields.tsx:167-171`): ein reiner
-          Anzeige-Slot. Der Bestand rendert ihn nur im Aendern-Formular, nicht im
-          Anlegen-Dialog — dort gibt es noch keinen Stand.
-        */}
-        <Col {...SPALTE}>
-          <Form.Item label="Update-Stand">
-            <Tag color={STAND_TON[geraet.updateStand]} data-rolle="radio-update-stand">
-              {STAND_WORT[geraet.updateStand]}
-            </Tag>
-          </Form.Item>
-        </Col>
       </Row>
 
-      <Divider titlePlacement="start">Bemerkung</Divider>
-      <Row gutter={[16, 8]}>
-        <Col xs={24}>
+      <Abschnitt>Bemerkung</Abschnitt>
+      {/*
+        ⛔ DIE ZWEI TEXTFELDER STEHEN AB `lg` NEBENEINANDER (DRK-462): sie lagen als zwei
+        `xs={24}` untereinander und nahmen gemessen 2 x 112 px auf der vollen Kartenbreite ein,
+        beide meist leer. `rows={3}` bleibt — die Hoehe ist nicht das Problem, die Anordnung war
+        es.
+        ⚠️ IST `updateNote` NICHT GERENDERT (Updater-Stufe), fuellt „Bemerkung" die halbe
+        Breite und der Rest bleibt leer. Das ist gewollt: ein Textfeld, das je nach Rechtestufe
+        seine Breite wechselt, verschiebt bei jedem Rollenwechsel das ganze Raster.
+      */}
+      <Row gutter={[16, 0]}>
+        <Col {...SPALTE_BREIT}>
           <Form.Item name="notes" label="Bemerkung">
             <Input.TextArea rows={3} disabled={gesperrt("notes")} />
           </Form.Item>
@@ -594,7 +673,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
           `NotizFeld.tsx` liest dieselbe Bedingung ueber `gesperrtFuer`.
         */}
         {!gesperrt("updateNote") && (
-          <Col xs={24}>
+          <Col {...SPALTE_BREIT}>
             <Form.Item name="updateNote" label="Update-Anmerkung (Abweichungen)">
               <Input.TextArea rows={3} />
             </Form.Item>
