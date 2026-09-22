@@ -137,11 +137,23 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
    * Hilfstechnik bedeutet, steht als DRK-336 auf dem Board.
    */
   await expect(page.getByTestId("lb-excel")).toBeVisible();
-  // ⚠️ HIER STEHT BEWUSST DER TABELLENGREIFER UND NICHT `sichtbareZeilen`:
-  // dieser Test misst NUR bei 1280px, dort ist die Tabelle die Darstellung.
-  // Die Vereinigung mit der Karte brachte nichts und kostete ein Wettrennen
-  // (Begruendung bei `warteAufDarstellung`).
-  await page.locator("[data-row-key]").first().click();
+  /*
+   * ⚠️ HIER STEHT BEWUSST DER TABELLENGREIFER UND NICHT `sichtbareZeilen`:
+   * dieser Test misst NUR bei 1280px, dort ist die Tabelle die Darstellung.
+   *
+   * ⚠️ UND `klickeWennRuhig` STATT `click()` — Falle 12, gemessen. Ein nackter
+   * Klick feuerte hier dreimal in Folge ins Leere: Playwright meldete ihn als
+   * gelungen, und die Schublade kam nie (CI-Lauf 35671119278). Derselbe Test
+   * eine Datei weiter unten, der `klickeWennRuhig` schon benutzt, fiel im
+   * selben Lauf nur als `flaky` — das ist der ganze Unterschied.
+   *
+   * ⚠️ WARUM ES FRUEHER OHNE GING, und das ist der Preis dieser Umstellung:
+   * die Artikelseite rendert seit DRK-451 zusaetzlich 217 verborgene Karten.
+   * Die Hydration dauert damit laenger, und das Fenster, in dem die Huelle
+   * zwischen `mousedown` und `mouseup` umbricht, ist breiter geworden. Die
+   * Seite ist richtig — der Klick kam zu frueh.
+   */
+  await klickeWennRuhig(page.locator("[data-row-key]").first());
   await expect(page.locator(".ant-drawer-right .ant-drawer-content-wrapper")).toBeVisible();
 
   /*

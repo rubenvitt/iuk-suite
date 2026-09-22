@@ -382,7 +382,15 @@ test.describe("radio-Verwaltung", () => {
      * Vitest-Fall „ein gesetzter Filter landet in der URL" faehrt — hier aber gegen den
      * echten Router, der die Seite danach WIRKLICH neu liest.
      */
-    await page.locator('[data-rolle="radio-filterknopf"]').click();
+    /*
+     * ⚠️ `klickeWennRuhig` STATT `click()` — Falle 12, gemessen (CI-Lauf
+     * 35671119278). Der nackte Klick auf den Filterknopf galt als gelungen,
+     * das Panel kam in 90 Sekunden nicht, dreimal in Folge. Seit DRK-451
+     * rendert diese Seite neben der Tabelle auch die Kartenliste; die
+     * Hydration dauert laenger, und der Umbruch der Huelle faellt oefter
+     * zwischen `mousedown` und `mouseup`.
+     */
+    await klickeWennRuhig(page.locator('[data-rolle="radio-filterknopf"]'));
     await page.locator('[data-rolle="radio-filter-ausleihbar"] button').click();
     await page.locator('[data-rolle="radio-filter-anwenden"]').click();
 
