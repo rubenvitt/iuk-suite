@@ -1,5 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import { devLogin, sichtbareZeilen, warteAufDarstellung } from "./fixtures";
+import { test, expect } from "@playwright/test";
+import { devLogin, sichtbareZeilen, warteAufDarstellung, warteAufSpaltenaufteilung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -55,67 +55,6 @@ const BREITEN = [
   { name: "Tablet hoch", width: 834, height: 1112, darstellung: "tabelle" },
   { name: "Desktop", width: 1280, height: 720, darstellung: "tabelle" },
 ] as const;
-
-/**
- * WARTET, BIS DIE HUELLE IHRE SPALTEN AUFGETEILT HAT — und das ist kein
- * vorsorgliches Warten, sondern die Abhilfe zu einem GEMESSENEN Ausfall.
- *
- * ⚠️ DAS SYMPTOM SIEHT AUS WIE „die Tabelle scrollt nicht in sich".
- * Gemessen am 2026-09-15 bei 834px, dreimal in Folge gleich:
- *
- *     sofort nach `toContainText`   main 834px — Scroll-Container 802/802
- *     nach der Hydration            main 594px — Scroll-Container 562/746
- *
- * Die Seitenleiste steht in BEIDEN Zustaenden mit 240px da (`display: block`) —
- * sie ist nicht die Ursache. Der Inhalt liegt anfangs bloss noch UNTER ihr statt
- * neben ihr, und zwar weil `Layout` seine Kinder nur mit der Klasse
- * `ant-layout-has-sider` nebeneinander legt. Die steht NICHT im Server-HTML:
- * dort kommt `class="ant-layout iuk"` an, und `.ant-layout` ist
- * `flex-direction: column`. Erst bei der Hydration meldet sich `Sider` per
- * `useEffect` bei `Layout` an (`antd/es/layout/Sider.js:122-125`):
- *
- *     t=0ms     class="ant-layout iuk"                       column   Inhalt 834px
- *     t=500ms   class="ant-layout ant-layout-has-sider iuk"  row      Inhalt 594px
- *
- * ⚠️ ES IST DIE KLASSE, DIE FEHLT, NICHT DIE REGEL — der Unterschied schickt
- * die Fehlersuche sonst ins falsche Stilsystem. Die cssinjs-Regel
- * `.ant-layout-has-sider { flex-direction: row }` steht im selben Server-HTML
- * bereits drin (nachgemessen), und `shell.module.css` deckelt nur die Leiste
- * selbst, nie `Layout` oder `Content`. `useHasSider` hat zwar einen synchronen
- * Rueckfall ueber die Kinder — der greift nicht, weil `SuiteRahmen` eine Server
- * Component ist und `<Sider>` die RSC-Grenze als Client-Referenz ueberquert.
- *
- * Mit 802px Platz fuer 746px Tabelle ist bis dahin nichts zu eng, der Eigenscroll
- * entfaellt — und eine Zusicherung darauf faellt, obwohl die Seite richtig ist.
- *
- * ⚠️ NICHT MIT EINEM GROESSEREN ZEITBUDGET ZU HEILEN: `expect`s eigene
- * Wiederholung greift nur an EINER Zusicherung, gemessen wird hier aber EINMAL
- * in einem `evaluate` und danach nur noch gerechnet. Die erste Messung ist die
- * einzige, und sie faellt in das Fenster.
- *
- * ⚠️ SEIT DRK-363 IST DIE PROBE SOFORT WAHR: `SuiteRahmen` setzt `hasSider`,
- * die Klasse steht im Server-HTML (`e2e/shell-spaltenaufteilung.spec.ts`).
- * Sie bleibt trotzdem stehen — sie kostet nichts und faengt es, falls die
- * Klasse je wieder erst mit der Hydration kommt.
- *
- * Die Probe ist die Invariante des fertigen Rasters: der Inhalt beginnt dort,
- * wo die Leiste endet. Unterhalb von 768px steht die Leiste auf `display: none`
- * (`core/shell/shell.module.css`), ihr Kasten ist dann durchweg 0 — die Probe
- * ist dort wahr, ohne etwas zu behaupten, und das ist richtig so: ohne Leiste
- * gibt es nichts, worauf der Inhalt warten muesste.
- */
-async function warteAufSpaltenaufteilung(page: Page): Promise<void> {
-  await expect.poll(() => page.evaluate(() => {
-    const inhalt = document.querySelector(".ant-layout-content");
-    const leiste = document.querySelector(".ant-layout-sider");
-    if (!inhalt) return false;
-    const links = inhalt.getBoundingClientRect().left;
-    const rechts = leiste ? leiste.getBoundingClientRect().right : 0;
-    return links >= rechts - 1;
-  }), {
-    message: "Der Inhalt liegt noch unter der Seitenleiste statt neben ihr",
-  }).toBe(true);
-}
 
 test.describe("Ist-Bestand im Fahrzeugblatt", () => {
   test.beforeEach(async ({ page }) => {

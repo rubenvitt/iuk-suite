@@ -20,15 +20,15 @@ const PORTAL = `http://portal.localtest.me:${E2E_PORT}`;
  * serialisiert sie klaglos, und jsdom rechnet keine Layoutboxen (Falle 13).
  *
  * ⚠️ GEMESSEN WIRD GEGEN `controlHeight`, UND NICHT GEGEN DAS FELD DANEBEN —
- * das war der erste Versuch, und er ist im CI-Lauf 35143461471 aufgeflogen.
- * Die Zusage „das Auswahlfeld faellt nicht aus der Reihe" gegen den Nachbarn zu
- * pruefen war als Gedanke richtig (unabhaengig von der Bediendichte), setzt aber
- * voraus, dass der Nachbar selbst auf der Reihe steht. Er steht es nicht:
- * gemessen 44,0px fuer das Auswahlfeld und 25,1px fuer das innere `input` eines
- * antd-`Input`, dessen Huelle damit auf 47,1px kommt. **Jedes Eingabefeld der
- * Suite ist 3px hoeher als seine Dichte** — dieselbe Mechanik wie hier, nur beim
- * Setzen von `inputFontSize: 16` nie aufgefallen (DRK-392, eigener Posten; die
- * Zahl hier NICHT daran anpassen, sonst zementiert dieser Test den Fehler).
+ * das war der erste Versuch, und er ist im CI-Lauf 35143461471 aufgeflogen: er
+ * griff im Nachbarfeld das INNERE `input` (25,1px) statt der Huelle. Daraus
+ * wurde „jedes Eingabefeld ist 47,1px hoch" hochgerechnet — FALSCH, und zwar
+ * gemessen (DRK-392): antd rechnet die Polsterung aus `inputFontSize`
+ * (`antd/es/input/style/token.js`, `mergedFontSize`), die Huelle eines `Input`
+ * mit `allowClear` misst auf dieser Seite 43,9px, bei 390 wie bei 1280px. Die
+ * letzte Zusicherung unten haelt das fest, ebenfalls gegen `controlHeight`, mit
+ * `toBeCloseTo`, weil antd die Polsterung auf 0,1px rundet (8,4 statt 8,43).
+ * Die Rechnung dazu steht in `core/theme/eingabehoehe.test.ts`.
  *
  * `controlHeight` aus `ARBEITSDICHTE` statt einer notierten 44: die Zahl steht
  * dann an genau einer Stelle, und eine spaetere Dichteentscheidung macht diesen
@@ -79,6 +79,13 @@ test.describe("Auswahlfeld: 16px Schrift, Hoehe auf der Bediendichte", () => {
       expect(gemessen.hoehe, `Auswahlfeld ${gemessen.hoehe}px`).toBe(
         ARBEITSDICHTE.token!.controlHeight,
       );
+
+      // UND DAS EINGABEFELD DANEBEN — an der HUELLE gemessen, nicht am inneren
+      // `input` (DRK-392). Rundung ja, drei Pixel nein.
+      const huelle = page.locator(".ant-input-affix-wrapper").first();
+      await expect(huelle).toBeVisible();
+      const eingabe = (await huelle.boundingBox())!.height;
+      expect(eingabe, `Eingabefeld ${eingabe}px`).toBeCloseTo(ARBEITSDICHTE.token!.controlHeight!, 0);
     });
   }
 });

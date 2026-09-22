@@ -5,7 +5,8 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { recordAuditEvent } from "@/core/audit/storage";
+import { randomUUID } from "node:crypto";
+import { insertAuditRow, recordAuditEvent, withAuditDatabase } from "@/core/audit/storage";
 import { safeAuditReference, withAuditContext } from "@/core/audit/context";
 vi.mock("@/core/auth",()=>({auth:async()=>({user:{id:"confirmed-admin",groups:["dashboard-admins"]}})}));
 import { GET } from "./data/route";
@@ -42,9 +43,23 @@ it("hides only system actors by default and can include them explicitly",async()
  expect(allView.filtered).toBe(false);
 });
 
+/*
+ * EINE Verbindung, EINE Transaktion — nicht 102-mal `recordAuditEvent` (DRK-352). Jeder
+ * Aufruf dort oeffnet die Datenbank, schaltet WAL ein und schliesst sie wieder, und das
+ * Schliessen der letzten Verbindung checkpointet das WAL mit fsync. Lokal kostet die
+ * Schleife 170 ms; im ungeteilten CI-Lauf (416 s, 10 867 Faelle) riss sie die 5 s, in
+ * einem PR, der mit Audit nichts zu tun hatte. Das Aufzeichnen selbst pruefen die Faelle
+ * oben und `core/audit/storage.test.ts`; hier geht es allein um Filter vor Seitengrenze
+ * und Cursor. 51 je Akteur bleiben noetig: einer ueber der Seitengrenze von 50.
+ * Gleiche `occurred_at` fuer alle ist Absicht — der Cursor muss dann ueber die `id`
+ * weiterschalten, der strengere der beiden Wege.
+ * ⛔ Kein eigenes `timeout` hier, und der globale `testTimeout` bleibt bei 5 s: die
+ * Ursache ist weg, eine groessere Zahl verdeckte nur den naechsten Fall dieser Art.
+ */
 it("filters system entries before applying the page limit and cursor",async()=>{
- for(const actor of [{kind:"user",id:"reader"},{kind:"system"}] as const)
-  for(let i=0;i<51;i++) withAuditContext({actor},()=>recordAuditEvent({module:"qr",objectType:"qr_png",action:"export",result:"success",origin:"server"}));
+ const now=Date.now();
+ withAuditDatabase(db=>db.transaction(()=>{for(const actor of [{kind:"user",id:"reader"},{kind:"system"}])
+  for(let i=0;i<51;i++) insertAuditRow(db,{id:randomUUID(),occurred_at:now,module:"qr",action:"export",object_type:"qr_png",object_ref:null,actor:JSON.stringify(actor),result:"success",origin:"server",correlation_id:null});})());
  const first=await (await GET(new Request("http://portal.localtest.me/admin/audit/data"))).json();
  expect(first.page.events).toHaveLength(50);
  expect(first.page.events.every((event:{actor:{kind:string}})=>event.actor.kind==="user")).toBe(true);

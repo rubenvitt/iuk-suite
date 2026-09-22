@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { devLogin, klickeWennRuhig, wechsleAnmeldung, E2E_PORT } from "./fixtures";
+import { devLogin, klickeWennRuhig, wechsleAnmeldung, warteAufSpaltenaufteilung, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import {
   AUFGABEN_HOST,
@@ -963,7 +963,7 @@ async function zieheZu(
    *
    * DAS ZIEL ZUERST, DIE QUELLE ZULETZT: unter der Maus muss beim `mousedown` die QUELLE liegen.
    */
-  await ziel.scrollIntoViewIfNeeded();
+  await warteAufSpaltenaufteilung(page); await ziel.scrollIntoViewIfNeeded();
   await quelle.scrollIntoViewIfNeeded();
   const quellBox = await quelle.boundingBox();
   const zielBox = await ziel.boundingBox();
