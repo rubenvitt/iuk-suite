@@ -13,11 +13,15 @@
   },
   {
     "name": "lagerbuch-2",
-    "specs": "e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-fahrzeug-kaertchen.spec.ts e2e/lagerbuch-verfall-fahrzeug.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-schraenke.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-kategorien.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-ruecklauf.spec.ts"
+    "specs": "e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-verfall-fahrzeug.spec.ts e2e/lagerbuch-schraenke.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-ruecklauf.spec.ts"
   },
   {
     "name": "lagerbuch-3",
     "specs": "e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-ux.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-umlagern.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-inventur-mobil.spec.ts"
+  },
+  {
+    "name": "lagerbuch-4",
+    "specs": "e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-fahrzeug-kaertchen.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-kategorien.spec.ts"
   },
   {
     "name": "radio",

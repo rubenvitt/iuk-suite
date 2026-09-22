@@ -112,6 +112,49 @@ import { join, sep } from "node:path";
  * Module und bringt genau den Speicherausfall zurueck, den DRK-358 oben misst.
  * Die letzte Zusicherung dieser Datei haelt das fest.
  *
+ * ── WARUM `lagerbuch-2` GETEILT IST (2026-09-22) ──────────────────────────
+ *
+ * Die Gruppe hat an EINEM Tag dreimal ihren Runner verloren — „The runner has
+ * received a shutdown signal", zweimal auf einem PR, einmal auf `main`, und in
+ * keinem anderen Job. Ein viertes Mal starb sie an der Panik, die turbo-tasks
+ * beim Zurueckholen aus `.next/dev/cache/turbopack` wirft. Beides ist dasselbe
+ * Bild wie DRK-358 oben: die Routenflaeche EINES `next dev` ist zu gross.
+ *
+ * ⛔ DER SCHALTER IST WIEDER PROBIERT WORDEN, UND ER BLEIBT VERWORFEN.
+ * `turbopackFileSystemCacheForDev: false` nahm die Panik gemessen weg (zwei
+ * Laeufe, 47 und 74 Faelle, keine einzige Panikzeile) — die Gruppe starb
+ * trotzdem, einmal sogar frueher. Das deckt sich mit dem Absatz oben; die
+ * Panik war ein Symptom des Speichers, nicht seine Ursache. Wer sie einzeln
+ * wegnimmt, hat die Ursache nicht angefasst.
+ *
+ * DER SCHNITT GEHT NACH ROUTENFLAECHE, NICHT NACH LAUFZEIT — dieselbe
+ * Bedingung, unter der der `aufgaben`-Schnitt darunter billig war.
+ * `lagerbuch-hosts` faehrt sechzehn Einstiege ab und deckt damit alles, was
+ * `lagerbuch-mobil`, `-kategorien` und `-fahrzeug-kaertchen` anfassen; die
+ * vier zusammen kosten die zweite Gruppe also fast nichts ueber `hosts`
+ * hinaus. Was in `lagerbuch-2` bleibt, bringt die eigenen Flaechen mit:
+ * Checklisten samt Druckast, Inventur mit Verlaufsdetail, Schraenke, Verfall,
+ * Fahrzeugblatt, Auffuellen.
+ *
+ * ⚠️ DIE FALLZAHL ZEIGT IN DIE ANDERE RICHTUNG ALS DIE ZEIT, und das ist der
+ * Beleg fuer die Regel darunter. Aus dem letzten gruenen Lauf (106711846484,
+ * 8,0 min):
+ *
+ *     lagerbuch-2 (bleibt)   33 Faelle   208 s
+ *     lagerbuch-4 (neu)      47 Faelle   202 s
+ *
+ * Vierzehn Faelle mehr, sechs Sekunden weniger.
+ *
+ * ⚠️ DIE REIHENFOLGE INNERHALB BEIDER EIMER IST DIE VON HEUTE — kein Fall
+ * wechselt seinen Vorgaenger innerhalb seiner Gruppe. Ueber die Grenze traegt
+ * `workers: 1` ohnehin nichts (Absatz unten); beide Gruppen starten mit
+ * demselben frischen Seed, weil jeder Job sein `./.data/e2e` neu anlegt.
+ *
+ * ⚠️ OB ES TRAEGT, SAGT ERST DIE WIEDERHOLUNG. Der Absatz zu DRK-408 unten
+ * misst 78 s Streuung derselben unveraenderten Gruppe; ein einzelner gruener
+ * Lauf beweist hier so wenig wie dort. Belastbar ist bis dahin nur das
+ * Ausbleiben des Runner-Todes ueber mehrere Laeufe.
+ *
  * ── WARUM `aufgaben` ZWEI GRUPPEN HAT (DRK-408) ───────────────────────────
  *
  * `aufgaben` war mit 8:58 die langsamste Gruppe. Von seinen 468 s standen
