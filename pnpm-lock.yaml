@@ -25,8 +25,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0(patch_hash=a2dde07f281924c6b8067a4779957053c4f172346ffdb39816283269804d67a7)
       '@einsatzzeichen/core':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.2.0
+        version: 1.2.0
       '@einsatzzeichen/schema':
         specifier: ^1.1.0
         version: 1.1.0
@@ -344,8 +344,14 @@ packages:
   '@einsatzzeichen/core@1.1.0':
     resolution: {integrity: sha512-J/tYb21nM3h0Jj50z33khdvfafCFDsnQ+deTZl+9LaL74y8MHfRvh6T2YhOuw1zN/HqAuT0DuZW5lvYVgtM0Gw==}
 
+  '@einsatzzeichen/core@1.2.0':
+    resolution: {integrity: sha512-F+RmcWruGfmH7ZXFwGulqO7pXeH3Xzm4eAssCFVowdyuEi1SAAwqU1+YMi4/5ch9d3iGhotuIPpu9hmxbNe16A==}
+
   '@einsatzzeichen/schema@1.1.0':
     resolution: {integrity: sha512-2oNyVRtkGJZr+4Ws08c2CWU4S1H8zBYl7CbJ0IRMPYKm0QCZEdj89tsl2HwHJ8+a/v5XyLKCgt+b03FJLRQFEg==}
+
+  '@einsatzzeichen/schema@1.2.0':
+    resolution: {integrity: sha512-6IY6N0wg+SbCy0Ym5cBYk61i7fr6EnH+gH2s9q46V8HmEqXbgp9WzAhx5UvV5dwfeWzfLgxUo0cFRmpxQFWA7w==}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -4230,7 +4236,13 @@ snapshots:
     dependencies:
       '@einsatzzeichen/schema': 1.1.0
 
+  '@einsatzzeichen/core@1.2.0':
+    dependencies:
+      '@einsatzzeichen/schema': 1.2.0
+
   '@einsatzzeichen/schema@1.1.0': {}
+
+  '@einsatzzeichen/schema@1.2.0': {}
 
   '@emnapi/core@1.10.0':
     dependencies:
