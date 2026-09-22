@@ -291,8 +291,18 @@ export async function warteAufDarstellung(page: Page): Promise<void> {
     // zaehlen, sonst haengt die Probe auf einer Seite ohne Treffer.
     const schmal = imBild("[data-rolle='schmalkarten'], [data-rolle='schmalkarten-leer']");
     const breit = imBild("[data-rolle='breitansicht']");
-    return schmal + breit;
+    /*
+     * ⚠️ „KEINE BEIDER SORTEN GLEICHZEITIG" — NICHT „GENAU EINE". Der erste
+     * Anlauf zaehlte beide zusammen und verlangte 1; das ist auf einer Seite
+     * mit EINER Tabelle richtig und auf jeder anderen unerfuellbar. Das
+     * Fahrzeugblatt traegt zwei (Soll und Verfall), also stand dort dauerhaft
+     * 2 — die Probe lief in ihr Zeitbudget, und ihre eigene Meldung („das
+     * Raster ist nicht fertig") behauptete eine Ursache, die es nicht gab.
+     * Gemessen in CI-Lauf 35671119278: drei Fehlschlaege in
+     * `lagerbuch-ist-bestand`, auf allen drei Breiten.
+     */
+    return schmal === 0 || breit === 0;
   }), {
     message: "Karten und Tabelle stehen noch beide im Bild — das Raster ist nicht fertig",
-  }).toBe(1);
+  }).toBe(true);
 }
