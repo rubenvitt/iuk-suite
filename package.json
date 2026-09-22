@@ -28,7 +28,7 @@
     "@einsatzzeichen/schema": "^1.1.0",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
-    "antd": "^6.6.1",
+    "antd": "^6.6.4",
     "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
