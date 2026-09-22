@@ -319,6 +319,18 @@ jobs:
         gruppe: ${{ fromJSON(needs.e2e-gruppen.outputs.gruppen) }}
     name: e2e (${{ matrix.gruppe.name }})
     runs-on: ubuntu-latest
+    # 30 MINUTEN, WEIL OHNE SIE 360 GELTEN — und das ist keine theoretische Zahl.
+    # Am 2026-09-22 hing `e2e (files-feedback)` 41 Minuten im Testschritt,
+    # wo derselbe sonst 5:14 braucht; der ganze Lauf blieb `in_progress`,
+    # und damit war auch `rerun_failed_jobs` gesperrt — ein Neustart der ANDEREN
+    # abgebrochenen Gruppe ging erst, nachdem jemand von Hand abgebrochen hatte.
+    # Die Vorgabe von GitHub ist 360 Minuten; bis dahin haette niemand
+    # hingesehen. DRK-358 fuehrt die Zeile als offene Richtung.
+    # Die Zahl hat Luft: die laengste Gruppe lag gemessen bei 13 Minuten
+    # Schrittzeit plus rund zwei Minuten Einrichtung. Wer sie reissen sieht,
+    # hat einen Haenger oder eine Gruppe, die zu gross geworden ist — beides
+    # will man sehen, nicht aussitzen.
+    timeout-minutes: 30
     steps:
       # BEWUSST OHNE `lfs: true`, anders als `vitest` und `build`: kein e2e-Fall
       # sichert heute ein Bild zu, und die Objekte fuenfmal — einmal je Shard — zu

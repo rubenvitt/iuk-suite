@@ -16,6 +16,13 @@ allowBuilds:
 # ⛔ VIER ECKEN, NICHT DREI: dieser Eintrag, die Datei unter `patches/` UND die Zeile
 # `COPY patches ./patches` in der deps-Stage des Dockerfiles. `src/docker-kontext.test.ts`
 # haelt sie zusammen; ein Upgrade des Pakets faellt pnpm selbst auf (ERR_PNPM_UNUSED_PATCH).
+# Der zweite Patch haengt an antd: `useDelayState` laesst beim Unmount einen geplanten
+# `setTimeout` stehen und setzt danach den Zustand einer abgeraeumten Komponente. Seine
+# VERSION wandert mit antds Abhaengigkeit mit (6.6.2 brachte 1.12.0, 6.6.4 bringt 1.13.0) —
+# der Patch gehoert also bei jedem antd-Upgrade nachgezogen. Stehen bliebe er sonst an einer
+# Fassung, die niemand mehr laedt: pnpm meldet das NICHT, solange irgendein anderes Paket die
+# alte Version noch zieht (`@ant-design/cssinjs` tut das, ohne den Hook zu benutzen).
+# `src/rc-component-util.test.tsx` misst deshalb die WIRKUNG ueber antds eigene Aufloesung.
 patchedDependencies:
   '@einsatzzeichen/catalog@1.1.0': patches/@einsatzzeichen__catalog@1.1.0.patch
-  '@rc-component/util@1.12.0': patches/@rc-component__util@1.12.0.patch
+  '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch
