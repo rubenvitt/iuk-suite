@@ -17,8 +17,15 @@ import path from "node:path";
  * DIE VERGABE, in dieser Reihenfolge:
  *
  * 1. `E2E_PORT` gesetzt → das ist der Web-Port; die drei anderen liegen direkt
- *    dahinter (+1 PWA, +2 Umfragen, +3 Fake-clamd). Der Ausweg, wenn zwei
+ *    dahinter (+1 PWA, +2 Rückmeldung, +3 Fake-clamd). Der Ausweg, wenn zwei
  *    Worktree-Pfade zufällig im selben Block landen.
+ *
+ *    ⚠️ +2 HIESS BIS DRK-453 `umfragen` (Formbricks). Die Einbindung ist weg,
+ *    der Slot nicht: an seiner Stelle steht jetzt das Profil des externen
+ *    Rückmeldeformulars, das aus demselben Grund ein eigenes braucht — eine
+ *    Umgebungsvariable, die die normale Suite nicht haben darf. Wer in älteren
+ *    Notizen `playwright.umfragen.config.ts` sucht, findet
+ *    `playwright.rueckmeldung.config.ts`.
  * 2. Hauptcheckout (`.git` ist ein VERZEICHNIS) → die alten Zahlen, unverändert.
  *    Das ist auch die CI (`actions/checkout` legt ein echtes `.git` an); jede
  *    Doku, die 3100 nennt, bleibt dort richtig.
@@ -43,14 +50,14 @@ export interface E2EPorts {
   readonly web: number;
   /** `next start` des PWA-Profils (`playwright.pwa.config.ts`). */
   readonly pwa: number;
-  /** `next dev` des Umfragen-Profils (`playwright.umfragen.config.ts`). */
-  readonly umfragen: number;
+  /** `next dev` des Rückmeldungs-Profils (`playwright.rueckmeldung.config.ts`). */
+  readonly rueckmeldung: number;
   /** Der Fake-clamd aus `scripts/fake-clamd.mjs`, Haupt-Profil. */
   readonly clamd: number;
 }
 
 /** Die Zahlen des Hauptcheckouts — so, wie sie vor DRK-346 überall standen. */
-export const HAUPTCHECKOUT_PORTS: E2EPorts = { web: 3100, pwa: 3101, umfragen: 3102, clamd: 3310 };
+export const HAUPTCHECKOUT_PORTS: E2EPorts = { web: 3100, pwa: 3101, rueckmeldung: 3102, clamd: 3310 };
 
 /** Erster Web-Port eines Worktree-Blocks. */
 export const WORKTREE_BASIS = 4100;
@@ -58,7 +65,7 @@ export const WORKTREE_BASIS = 4100;
 export const WORKTREE_BLOECKE = 90;
 
 function blockAb(web: number): E2EPorts {
-  return { web, pwa: web + 1, umfragen: web + 2, clamd: web + 3 };
+  return { web, pwa: web + 1, rueckmeldung: web + 2, clamd: web + 3 };
 }
 
 /** Der Block eines Worktrees — stabil für denselben Pfad, gestreut über alle. */

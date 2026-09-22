@@ -1,0 +1,83 @@
+/*
+ * DER SCHWEBENDE RÜCKMELDEKNOPF — DRK-453.
+ *
+ * ⚠️ KEINE EIGENEN FARBEN, UND DAS IST HIER KEINE SPARSAMKEIT, SONDERN FALLE 2
+ * (`CLAUDE.md`): antd deklariert seine `--ant-*`-Variablen auf seiner
+ * Scope-Klasse, nicht auf `:root` — eigenes Markup sieht sie nicht, und der
+ * Fehler wäre still (die Farbe fiele auf `transparent` zurück, was gültiges CSS
+ * ist). Deshalb tragen beide Knöpfe ihre Farbe als antd-`Button` und diese
+ * Datei nur Lage, Abstand und Schatten. Die vier `--iuk-*`-Variablen aus
+ * `globals.css` stünden zur Verfügung, werden aber nicht gebraucht: was hier
+ * Farbe hat, hat sie schon.
+ *
+ * ⚠️ `type="default"` UND NICHT `primary` — Falle 3. `colorPrimary` ist in
+ * dieser Suite `#c8000f`, dasselbe Rot wie `colorError`. Ein roter Knopf, der
+ * dauerhaft über jeder Arbeitsfläche schwebt, sähe aus wie eine Warnung oder
+ * eine Primäraktion und wäre genau das, was der Auftrag „subtil, soll nicht
+ * stören" ausschliesst.
+ */
+
+.schweber {
+  position: fixed;
+  /*
+   * ⚠️ `env(safe-area-inset-bottom)` ODER 16px, JE NACHDEM WAS GRÖSSER IST.
+   * Auf einem Telefon mit Gestenleiste liegt die unterste Zeile des Fensters
+   * unter genau dieser Leiste; 16px allein schöben den Knopf dorthin, wo jede
+   * Wischgeste ihn zuerst trifft. `max()` ist hier kein Luxus, sondern der
+   * Unterschied zwischen „stört nicht" und „stört immer".
+   */
+  inset-block-end: max(16px, env(safe-area-inset-bottom));
+  inset-inline-end: 16px;
+  /*
+   * ⚠️ UNTER `.kopfBlock` (100) UND WEIT UNTER ALLEM VON ANTD (ab 1000).
+   * Der Knopf steht am unteren Rand und überlappt den klebenden Kopfblock
+   * heute nicht — aber „heute nicht" ist keine Zusage. 90 entscheidet den
+   * Fall, bevor er eintritt: über dem Seiteninhalt (`auto` = 0), unter der
+   * Kopfzeile, und jeder Drawer, jedes Modal und jede Meldung von antd liegen
+   * ohnehin darüber. Ein Knopf, der über einem offenen Modal klebt, wäre die
+   * Sorte Fehler, die erst jemand meldet, der gerade etwas anderes tun wollte.
+   */
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /*
+   * Der Kasten dieses Containers ist genau so gross wie die beiden Knöpfe
+   * darin — es gibt also keine unsichtbare Fläche, die Klicks schluckt. Wer
+   * hier später Polsterung ergänzt, nimmt der Seite darunter einen Streifen
+   * Bedienbarkeit, ohne dass man etwas sieht.
+   */
+}
+
+/*
+ * Der Schatten macht aus einem Knopf einen schwebenden Knopf. Bewusst
+ * zurückhaltend und ohne Farbe: im Hellmodus hebt er die Pille von der Fläche
+ * ab, im Dunkelmodus verschwindet er fast — dort trägt die Kontur des
+ * `default`-Knopfes die Abgrenzung, und ein aufgehellter Schatten wäre ein
+ * erfundener Farbwert (siehe Kopf).
+ */
+.schweber :global(.ant-btn) {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.16);
+}
+
+/*
+ * ⚠️ IM DRUCK WEG — und der Grund ist nicht „sieht auf Papier komisch aus",
+ * sondern Falle 18 (`CLAUDE.md`): im Druckkontext wird aus `position: fixed`
+ * ein Kasten in FENSTERGRÖSSE. Er liegt ausserhalb jeder benannten `@page` und
+ * damit auf der unbenannten ohne `size` — gemessen hat genau dieses Muster am
+ * geschlossenen Navigationsschub ein zusätzliches leeres Blatt im
+ * Vorgabeformat des Druckers erzeugt (`shell.module.css`, „DER GESCHLOSSENE
+ * NAVIGATIONSSCHUB").
+ *
+ * ⚠️ DIE REGEL HÄNGT AN KEINER BEDINGUNG, und das ist die Aussage: die
+ * Druckflächen der Suite gehen ohnehin an `FullShell` vorbei
+ * (`lagerbuch/_ui/DruckRahmen.tsx` benutzt `SuiteRahmen` direkt, genau dafür).
+ * Betroffen ist also die GEWÖHNLICHE Arbeitsseite, die jemand mit Strg+P
+ * ausdruckt — dort nimmt diese Regel ein leeres Blatt weg, das sonst niemandem
+ * auffiele ausser dem, der davorsteht.
+ */
+@media print {
+  .schweber {
+    display: none !important;
+  }
+}
