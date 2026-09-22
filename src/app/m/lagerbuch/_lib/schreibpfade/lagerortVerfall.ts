@@ -237,98 +237,24 @@ export function raeumeVerfallAmLeerenOrt(
   if (verbleibt === 0) loescheVerfallEintrag(db, lagerortId, artikelId);
 }
 
-/**
- * DIE KISTE GIBT IHRE MELDUNG ERST HER, WENN ALLES MATERIAL SIE MITGENOMMEN
- * HAT (DRK-377; Codex zu PR #194, dritter P1 an derselben Naht).
+/*
+ * ⚠️ HIER STAND BIS DRK-404 `raeumeBoxVerfallWennMaterialEsMitnimmt`, und mit
+ * ihr die Spalte `verwaist` als einziger Schreiber. Sie hielt eine Meldung an
+ * der Box fest, sobald Material OHNE das gemeldete Datum eingeraeumt wurde —
+ * kein Datum ging mehr verloren, aber die Kiste meldete danach auf Dauer einen
+ * Verfall fuer nichts (DRK-377, Codex zu PR #194).
  *
- * Aufzurufen NACH der Umlagerungsbuchung, in derselben Transaktion — der
- * Ruecklauf aus der Entnahmebox ins Handlager. Drei Proben, und die dritte ist
- * die, die zweimal gefehlt hat:
+ * Seit DRK-404 verlaesst kein Material die Kiste mehr ohne Datum: traegt die
+ * gewaehlte Charge das gemeldete nicht, fragt die Flaeche danach, und die
+ * Action verweigert die Buchung ohne Antwort (`raeumeAusEntnahmebox`). Damit
+ * gibt es nichts mehr zu verwaisen, und die Box raeumt ihre Meldung ab wie
+ * jeder andere Ort: mit dem letzten Stueck (`raeumeVerfallAmLeerenOrt`).
  *
- *  1. Ohne Meldung ist nichts zu tun.
- *  2. Die BEWEGTE Charge muss genau das gemeldete Datum tragen.
- *  3. Und seit dieser Fassung: aus der Kiste darf fuer diesen Artikel nie
- *     etwas UNPASSENDES herausgegangen sein.
- *
- * ⚠️ PROBE 2 ALLEIN ENTSCHEIDET AUS DER LETZTEN CHARGE, UND DAS IST ZU WENIG,
- * sobald ein Artikel in der Kiste auf MEHREREN Chargen liegt — und das ist der
- * Normalfall, nicht die Ausnahme: zwei Einheiten geben denselben Artikel ab,
- * und bei zwei Herkuenften gewinnt in `uebernimmVerfall` das FRUEHERE Datum.
- * Die Meldung gehoert dann zur Kiste, nicht zu einer ihrer Chargen. Der Ablauf,
- * der die Meldung verlor:
- *
- *    Kiste: Pseudo-Charge (12/99, 3 Stk) + echte Charge (10/26, 2 Stk),
- *           gemeldet 10/26
- *    1. Die Pseudo-Charge wird eingeraeumt → 12/99 ≠ 10/26, Meldung bleibt.
- *       Die 3 Stueck liegen jetzt im Handlager und sehen bis 2099 unbedenklich
- *       aus. DAS ist der benannte, hingenommene Preis (DRK-404).
- *    2. Die echte Charge wird eingeraeumt → 10/26 = 10/26, die Kiste ist leer,
- *       die Meldung faellt.
- *    → Die 3 Stueck aus Schritt 1 sind ohne jede Warnung im Regal, und die
- *      einzige Zeile, die 10/26 noch kannte, ist weg.
- *
- * Schritt 1 nimmt der Kiste nichts — die Meldung steht danach noch da, sichtbar
- * in der Verfallsuebersicht, „laestig, aber ungefaehrlich". Erst Schritt 2
- * loescht sie, und zwar mit einer Begruendung, die nur fuer die Charge aus
- * Schritt 2 gilt. Aus dem hingenommenen Preis wird so ein STILLER DATENVERLUST.
- *
- * ⚠️ PROBE 3 STEHT AN DER MELDUNG UND NICHT IM JOURNAL, und die erste Fassung
- * hatte sie dort (Codex zu PR #194, fuenfter Befund). Sie fragte „ist je etwas
- * mit einem anderen Datum aus der Kiste gegangen?" — und verglich damit ALTE
- * Abgaenge gegen den HEUTIGEN Wert. Ein Abgang, der zu seiner Zeit genau
- * passte, wurde rueckwirkend zum Abweichler, sobald spaeter eine andere
- * Meldung an der Kiste stand:
- *
- *     sauber geleert mit 2026-10  → Meldung faellt, alles richtig
- *     neue Lieferung meldet 2027-01
- *     sauber geleert mit 2027-01  → der alte 2026-10-Abgang passt nicht zu
- *                                   2027-01 → Meldung bleibt, fuer immer
- *
- * Die Kiste sammelte so Meldungen an, die niemand mehr wegbekommt. Aus der
- * Schutzmassnahme wurde ein Dauerzustand — und mein Satz „das ist keine
- * Dauersperre, verglichen wird gegen den aktuellen Wert" war genau verkehrt
- * herum: DASS gegen den aktuellen Wert verglichen wurde, WAR die Sperre.
- *
- * ⚠️ DER ZUSTAND HAELT JETZT GENAU SO LANGE WIE DIE MELDUNG SELBST, und das ist
- * die ganze Kunst an `verwaist`:
- *
- *   * Eine spaetere, fruehere Meldung ERSETZT den Wert — der Upsert oben fasst
- *     die Markierung nicht an, das verwaiste Material liegt ja weiter im Regal.
- *   * Ein sauberes Abraeumen loescht die ZEILE, und die Markierung geht mit ihr.
- *     Die naechste Meldung beginnt unbelastet.
- *
- * Genau das ist mit „ueber den Wechsel der Meldung hinweg merken, beim
- * Neubeginn vergessen" gemeint — und es ist der Grund, warum kein Zeitstempel
- * taugt: `erfasstAt` ist rueckstellbar (vierter Befund), das Journal kennt die
- * Lebensdauer der Meldung nicht (fuenfter).
- *
+ * ⚠️ `verwaist` BLEIBT IM SCHEMA UND WIRD NICHT MEHR GESCHRIEBEN NOCH GELESEN.
+ * Migrationen sind append-only; eine Spalte zu entfernen kostete eine
+ * Tabellen-Neuanlage samt Trigger (0014) fuer null Gewinn. Alte Zeilen mit
+ * `verwaist = 1` fallen beim naechsten Leeren der Kiste wie jede andere.
  */
-export function raeumeBoxVerfallWennMaterialEsMitnimmt(
-  db: DB | Tx,
-  args: { lagerortId: string; artikelId: string; bewegterVerfall: string },
-): void {
-  const { lagerortId, artikelId, bewegterVerfall } = args;
-
-  const amOrt = and(
-    eq(lagerortVerfall.lagerortId, lagerortId),
-    eq(lagerortVerfall.artikelId, artikelId),
-  );
-  const gemeldet = db.select({
-    verfall: lagerortVerfall.verfall, verwaist: lagerortVerfall.verwaist,
-  })
-    .from(lagerortVerfall).where(amOrt).get();
-  if (!gemeldet) return;
-
-  if (gemeldet.verfall !== bewegterVerfall) {
-    // Dieses Material geht OHNE das gemeldete Datum — ab jetzt ueberlebt die
-    // Meldung Material, das sie nicht mehr beschreibt.
-    db.update(lagerortVerfall).set({ verwaist: true }).where(amOrt).run();
-    return;
-  }
-  if (gemeldet.verwaist) return;
-
-  raeumeVerfallAmLeerenOrt(db, lagerortId, artikelId);
-}
 
 /**
  * Hält die Querschnittsinvariante zwischen Soll-Bestückung und Fahrzeug-Verfall:

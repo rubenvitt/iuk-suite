@@ -212,6 +212,27 @@ describe("umlagerung — DRK-338: die gewaehlte Charge", () => {
   });
 });
 
+describe("umlagerung — DRK-404: eine andere Zielcharge", () => {
+  it("bucht das Ziel-Leg auf `nachChargeId`, die Quelle auf die gewaehlte — netto je Artikel null", () => {
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 2, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
+      chargeId: "c-frueh", nachChargeId: "c-spaet", quelle: QUELLE, kommentar: null,
+      referenz: "einraeumen:rtw-1" }));
+    const neu = alleZeilen().filter((b) => b.referenz === "einraeumen:rtw-1");
+    expect(neu.map((b) => [b.lagerortId, b.chargeId, b.menge])).toEqual(expect.arrayContaining([
+      [HANDLAGER_ID, "c-frueh", -2], ["rtw-1", "c-spaet", 2],
+    ]));
+    expect(summe()).toBe(7);
+  });
+
+  it("wirft ohne feste Quellcharge — welche FEFO-Charge ersetzt wuerde, waere geraten", () => {
+    expect(() => inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 2, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
+      nachChargeId: "c-spaet", quelle: QUELLE, kommentar: null, referenz: "x" }))).toThrow();
+    expect(alleZeilen().filter((b) => b.referenz === "x")).toEqual([]);
+  });
+});
+
 describe("umlagerung — EIN Zeitstempel je Vorgang", () => {
   /*
    * ⚠️ DIE UHR TICKT IM TEST, UND DAS IST DER GANZE TEST (Codex-Review zu

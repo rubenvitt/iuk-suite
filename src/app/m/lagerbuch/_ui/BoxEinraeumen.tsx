@@ -13,6 +13,7 @@ import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
 import { raeumeAusEntnahmebox } from "../_actions/entnahmebox";
 import { ampelTon, fmtVerfall } from "../_lib/format";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
+import { MONAT_REGEX, istOhneVerfall } from "../_lib/konstanten";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
 // dieselbe Form liest die Server Component, die ihn befuellt.
 //
@@ -72,7 +73,24 @@ type Rueckmeldung = { art: "ok" | "fehler"; text: string };
  * Teil ueberhaupt zurueck in den Schrank geht. Die Begruendung steht
  * ausgeschrieben an `EinraeumenSchema` (`_actions/entnahmebox.ts`).
  */
-type Wahl = { artikelId: string; chargeId: string; menge: number; zielId: string };
+type Wahl = { artikelId: string; chargeId: string; menge: number; zielId: string; verfall: string };
+
+/**
+ * DRK-404 — MUSS DAS DATUM VON DER PACKUNG ABGELESEN WERDEN?
+ *
+ * Genau dann, wenn die Box fuer den Artikel einen Verfall meldet und die
+ * gewaehlte Charge ihn nicht traegt. Sonst ginge das Material mit „bis 12/99"
+ * (oder einem geratenen Datum) in den Schrank, und die Meldung waere die
+ * einzige Stelle, die das echte kennt. Im Normalfall — keine Meldung, oder die
+ * Charge traegt sie — erscheint kein Feld, und es bleibt beim zweimal Tippen.
+ * Dieselbe Bedingung prueft `raeumeAusEntnahmebox` in der Transaktion.
+ */
+function brauchtDatum(p: EinraeumPosten, chargeId: string): boolean {
+  const charge = p.chargen.find((c) => c.id === chargeId);
+  return !!p.gemeldet && !!charge && charge.verfall !== p.gemeldet.verfall;
+}
+
+const gueltigerMonat = (m: string): boolean => MONAT_REGEX.test(m) && !istOhneVerfall(m);
 
 export function BoxEinraeumen({
   boxName,
@@ -115,6 +133,9 @@ export function BoxEinraeumen({
             chargeId: p.chargen.length === 1 ? p.chargen[0]!.id : "",
             menge: 1,
             zielId: ziele.length === 1 ? ziele[0]!.id : "",
+            // Vorbelegt mit dem gemeldeten Monat: meist steht genau der auf
+            // der Packung, und dann ist die Antwort ein Blick, kein Tippen.
+            verfall: p.gemeldet?.verfall ?? "",
           },
     );
   }
@@ -135,6 +156,8 @@ export function BoxEinraeumen({
     // Die zweite Haelfte derselben Zusage wie der gesperrte Knopf: ein
     // Tastendruck auf einen noch nicht neu gerenderten Knopf kaeme sonst durch.
     if (wahl.chargeId === "" || wahl.zielId === "" || laeuft) return;
+    const mitDatum = brauchtDatum(p, wahl.chargeId);
+    if (mitDatum && !gueltigerMonat(wahl.verfall)) return;
     const menge = Math.min(wahl.menge, grenzeVon(p, wahl.chargeId));
     if (menge <= 0) return;
     setRueck(null);
@@ -145,6 +168,7 @@ export function BoxEinraeumen({
           chargeId: wahl.chargeId,
           menge,
           zielLagerortId: wahl.zielId,
+          ...(mitDatum ? { verfall: wahl.verfall } : {}),
         });
         if (!r.ok) {
           // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
@@ -163,7 +187,8 @@ export function BoxEinraeumen({
          */
         setRueck({
           art: "ok",
-          text: `Eingeräumt: ${r.wert.eingeraeumt} × ${p.artikelName} → ${r.wert.ziel}`,
+          text: `Eingeräumt: ${r.wert.eingeraeumt} × ${p.artikelName} → ${r.wert.ziel}`
+            + (r.wert.abgelesen ? ` · Verfall ${fmtVerfall(r.wert.abgelesen)}` : ""),
         });
         // Die Zeile schliesst nach dem Erfolg — wie in `BoxAbgabe`: sie offen
         // zu lassen hiesse, ein gefuelltes Mengenfeld ueber einer Liste stehen
@@ -219,7 +244,9 @@ export function BoxEinraeumen({
         {posten.map((p) => {
           const offen = wahl?.artikelId === p.artikelId;
           const zielName = offen ? (ziele.find((z) => z.id === wahl.zielId)?.name ?? null) : null;
-          const bereit = offen && wahl.chargeId !== "" && wahl.zielId !== "" && !laeuft;
+          const mitDatum = offen && brauchtDatum(p, wahl.chargeId);
+          const bereit = offen && wahl.chargeId !== "" && wahl.zielId !== "" && !laeuft
+            && (!mitDatum || gueltigerMonat(wahl.verfall));
           return (
             <div key={p.artikelId} data-rolle="einraeum-posten">
               <button
@@ -375,6 +402,34 @@ export function BoxEinraeumen({
                     ))}
                   </fieldset>
 
+                  {/*
+                    DRK-404 — DAS DATUM AUF DER PACKUNG. Nur wenn die Meldung
+                    der Box sonst die einzige Stelle waere, die es kennt
+                    (`brauchtDatum`). Das Feld sagt, WARUM es da ist: ohne den
+                    Satz saehe es aus wie eine Pflichtangabe ohne Anlass.
+                  */}
+                  {mitDatum && p.gemeldet && (
+                    <div style={{ margin: "0 0 10px" }} data-rolle="einraeum-datum">
+                      <p className={s.fussnote} style={{ margin: 0 }}>
+                        Gemeldet ist {fmtVerfall(p.gemeldet.verfall)}, die Charge trägt ein
+                        anderes Datum. Welches steht auf der Packung?
+                      </p>
+                      <div className={s.verfallZeile}>
+                        {/* `pattern` und `inputMode` sind der Rueckfall fuer
+                            Browser, die `month` als Textfeld rendern. */}
+                        <input
+                          type="month"
+                          inputMode="numeric"
+                          pattern="\d{4}-\d{2}"
+                          aria-label="Verfallsmonat auf der Packung"
+                          value={wahl.verfall}
+                          onChange={(e) => setWahl({ ...wahl, verfall: e.target.value })}
+                          data-rolle="einraeum-verfall"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className={s.zeile} style={{ borderTop: "none", padding: 0 }}>
                     <span className={s.zeileHaupt}>Menge</span>
                     <Stepper
@@ -404,7 +459,10 @@ export function BoxEinraeumen({
                         ? "Noch keine Charge gewählt"
                         : zielName === null
                           ? "Noch kein Schrank gewählt"
-                          : `${wahl.menge} ${p.einheit} ${p.artikelName} → ${zielName}`}
+                          : `${wahl.menge} ${p.einheit} ${p.artikelName} → ${zielName}`
+                            + (mitDatum && gueltigerMonat(wahl.verfall)
+                              ? ` · Verfall ${fmtVerfall(wahl.verfall)}`
+                              : "")}
                     </span>
                   </div>
 

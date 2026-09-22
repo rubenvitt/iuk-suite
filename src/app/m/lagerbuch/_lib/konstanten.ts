@@ -155,6 +155,9 @@ export const RUECKLAUF_KOMMENTAR = "Zurück ins Handlager gebucht";
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";
+/** DRK-404: beim Einraeumen aus der Box von der Packung abgelesen — ein Datum
+ *  ohne Nummer. Herkunftshinweis wie die drei darueber, nicht Bedeutungstraeger. */
+export const CHARGE_ABGELESEN = "abgelesen";
 
 /** Entscheidung 2 (b): kein Backfill der Altdaten, aber ab jetzt z.enum() beim Schreiben.
  *  Beim Schreiben streng, beim Anzeigen tolerant (§5.8.2). */
