@@ -255,3 +255,44 @@ export function sichtbareZeilen(ort: Page | Locator, schluessel?: string): Locat
     : `[data-row-key='${schluessel}']:visible, [data-karte-key='${schluessel}']:visible`;
   return ort.locator(wahl);
 }
+
+/**
+ * WARTET, BIS GENAU EINE DER BEIDEN DARSTELLUNGEN IM BILD STEHT (DRK-451).
+ *
+ * ⚠️ DER ANLASS IST EINE GEMESSENE ROETE, DIE `sichtbareZeilen` SELBST
+ * AUSGELOEST HAT — und das ist der Grund, warum sie hier daneben steht.
+ * Kartenliste und Tabelle stehen BEIDE im Baum; welche verschwindet,
+ * entscheidet eine Regel aus einem CSS-Modul. Unter `next dev` kommt die
+ * nicht mit dem ersten Bild, sondern wird nachgereicht. In diesem Fenster
+ * sind kurz BEIDE sichtbar, und weil die Karten VOR der Tabelle rendern,
+ * greift `sichtbareZeilen(page).first()` dann die Karte — bei 1280px, wo sie
+ * gleich darauf verschwindet.
+ *
+ * ⚠️ DAS SYMPTOM NENNT DIE URSACHE NICHT: Playwright meldet den Klick als
+ * gelungen, und die naechste Zusicherung faellt mit „element(s) not found"
+ * auf die SCHUBLADE. Das liest sich wie ein kaputter Zeilenklick, gemessen in
+ * CI-Lauf 35669113741 (`flyin-breite:110`, dreimal in Folge; `:179` einmal,
+ * in der Wiederholung gruen — dieselbe Ursache, nur seltener getroffen).
+ * Dieselbe Familie wie CLAUDE.mds Falle 12: gewartet wird auf etwas, das nie
+ * angestossen wurde.
+ *
+ * ⚠️ WARUM NICHT EINFACH `[data-row-key]` NEHMEN, wo die Tabelle gemeint ist:
+ * an einer Stelle, die NUR breit misst, ist das richtig und steht auch so da.
+ * Wer aber ueber mehrere Breiten laeuft, braucht beide — und dann ist die
+ * Probe auf das fertige Raster die Abhilfe, nicht ein laengeres Zeitbudget
+ * (das Fenster ist kurz, der Fehler trotzdem reproduzierbar).
+ */
+export async function warteAufDarstellung(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => {
+    const imBild = (wahl: string): number =>
+      [...document.querySelectorAll(wahl)]
+        .filter((el) => el.getClientRects().length > 0).length;
+    // Die leere Kartenliste ist ein `<p>`, die gefuellte ein `<ul>` — beide
+    // zaehlen, sonst haengt die Probe auf einer Seite ohne Treffer.
+    const schmal = imBild("[data-rolle='schmalkarten'], [data-rolle='schmalkarten-leer']");
+    const breit = imBild("[data-rolle='breitansicht']");
+    return schmal + breit;
+  }), {
+    message: "Karten und Tabelle stehen noch beide im Bild — das Raster ist nicht fertig",
+  }).toBe(1);
+}

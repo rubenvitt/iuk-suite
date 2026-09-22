@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin, sichtbareZeilen } from "./fixtures";
+import { devLogin, sichtbareZeilen, warteAufDarstellung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -132,6 +132,10 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
       const antwort = await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
       expect(antwort!.status()).toBe(200);
 
+      // Erst wenn genau EINE Darstellung im Bild steht, greift der Greifer die
+      // gemeinte — sonst entscheidet das Zeitverhalten (Begruendung bei
+      // `warteAufDarstellung`). Dieser Test war ohne sie gruen, aber nur so.
+      await warteAufDarstellung(page);
       const zeile = sichtbareZeilen(page, "e2e-soll");
       await expect(zeile).toContainText("E2E Check Kompressen");
       await warteAufSpaltenaufteilung(page);

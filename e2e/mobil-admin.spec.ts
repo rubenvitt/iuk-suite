@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, warteAufDarstellung } from "./fixtures";
 import { TAP_XL } from "@/core/theme/tokens";
 
 /**
@@ -314,6 +314,9 @@ test.describe("390x844 — das Telefon", () => {
     ]) {
       await page.goto(ziel);
       await page.waitForLoadState("networkidle");
+      // Die Fallunterscheidung unten liest den Baum — sie darf nicht in das
+      // Fenster fallen, in dem noch beide Darstellungen dastehen.
+      await warteAufDarstellung(page);
       const mass = await page.evaluate(() => {
         // `getClientRects().length === 0` ist die Probe auf „steht nicht im
         // Bild" — sie trifft `display: none` UND einen Knoten ohne Kasten,

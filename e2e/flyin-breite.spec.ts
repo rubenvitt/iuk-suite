@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { devLogin, klickeWennRuhig, sichtbareZeilen } from "./fixtures";
+import { devLogin, klickeWennRuhig, sichtbareZeilen, warteAufDarstellung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
 import { UAV_ADMIN_GRUPPE, UAV_HOST, uavUrl } from "./helpers/uav";
@@ -137,7 +137,11 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
    * Hilfstechnik bedeutet, steht als DRK-336 auf dem Board.
    */
   await expect(page.getByTestId("lb-excel")).toBeVisible();
-  await sichtbareZeilen(page).first().click();
+  // ⚠️ HIER STEHT BEWUSST DER TABELLENGREIFER UND NICHT `sichtbareZeilen`:
+  // dieser Test misst NUR bei 1280px, dort ist die Tabelle die Darstellung.
+  // Die Vereinigung mit der Karte brachte nichts und kostete ein Wettrennen
+  // (Begruendung bei `warteAufDarstellung`).
+  await page.locator("[data-row-key]").first().click();
   await expect(page.locator(".ant-drawer-right .ant-drawer-content-wrapper")).toBeVisible();
 
   /*
@@ -187,6 +191,9 @@ test("Artikeldetails: kein waagerechter Überlauf, auch mit Chargen und Buchunge
     await page.setViewportSize({ width: breite, height: 800 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     await expect(page.getByTestId("lb-excel")).toBeVisible();
+    // Erst wenn genau EINE Darstellung im Bild steht, greift `sichtbareZeilen`
+    // die gemeinte (Begruendung dort).
+    await warteAufDarstellung(page);
     const anzahl = Math.min(await sichtbareZeilen(page).count(), 6);
     expect(anzahl, "keine Artikelzeilen im Seed").toBeGreaterThan(0);
     for (let zeile = 0; zeile < anzahl; zeile++) {
