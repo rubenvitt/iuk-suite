@@ -160,7 +160,23 @@ test.describe("Excel-Export des Bestands", () => {
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
 
     await page.getByRole("searchbox").fill("gibtesnicht-zzz");
-    await expect(page.getByText(/Kein Artikel passt zu Suche und Filter\./)).toBeVisible();
+    /*
+     * ⚠️ GERAHMT, WEIL DER LEERTEXT ZWEIMAL IM BAUM STEHT (DRK-451). Eine
+     * `Kartentabelle` rendert ihn fuer BEIDE Darstellungen — als
+     * `<p data-rolle="schmalkarten-leer">` der Kartenliste und im
+     * `.ant-table-expanded-row-fixed` der Tabelle. Beide sagen wortgleich
+     * dasselbe, also reisst ein ungerahmtes `getByText` an einer „strict mode
+     * violation", und die Meldung liest sich wie ein fehlender Leertext.
+     *
+     * ⚠️ DIESER FEHLSCHLAG WAR BIS ZUM TITELKNOPF-FIX VERDECKT: die Suche
+     * erreichte den Export gar nicht, der Test fiel vorher und aus einem
+     * anderen Grund. Ein behobener Fehler legt hier also einen zweiten frei —
+     * das ist kein Rueckschritt, sondern die Reihenfolge.
+     */
+    await expect(
+      page.locator("[data-rolle='breitansicht']")
+        .getByText(/Kein Artikel passt zu Suche und Filter\./),
+    ).toBeVisible();
 
     const knopf = page.getByRole("button", { name: /Excel-Liste/ });
     await expect(knopf).toBeEnabled();
