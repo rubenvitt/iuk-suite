@@ -33,7 +33,7 @@
   },
   {
     "name": "suite-huelle",
-    "specs": "e2e/shell-mobil.spec.ts e2e/theme.spec.ts e2e/keystone.spec.ts e2e/launcher.spec.ts e2e/modulnavigation.spec.ts e2e/flyin-breite.spec.ts e2e/select-feldschrift.spec.ts e2e/login-dev-gruppen.spec.ts e2e/konto-widerruf.spec.ts e2e/sitzung-refresh-endgueltig.spec.ts"
+    "specs": "e2e/shell-mobil.spec.ts e2e/shell-spaltenaufteilung.spec.ts e2e/theme.spec.ts e2e/keystone.spec.ts e2e/launcher.spec.ts e2e/modulnavigation.spec.ts e2e/flyin-breite.spec.ts e2e/select-feldschrift.spec.ts e2e/login-dev-gruppen.spec.ts e2e/konto-widerruf.spec.ts e2e/sitzung-refresh-endgueltig.spec.ts"
   },
   {
     "name": "suite-verwaltung",
