@@ -363,6 +363,10 @@
     "kind": "context",
     "via": "aussondernVomLagerort"
   },
+  "src/app/m/lagerbuch/_actions/entnahmebox.ts#aussondernAusEntnahmebox": {
+    "kind": "context",
+    "via": "aussondernAusEntnahmebox"
+  },
   "src/app/m/lagerbuch/_actions/entnahmebox.ts#bucheInEntnahmebox": {
     "kind": "context",
     "via": "bucheInEntnahmebox"

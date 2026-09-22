@@ -4,7 +4,7 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { artikel, chargen, lagerorte } from "../_db/schema";
+import { artikel, buchungen, chargen, lagerorte, newId } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { bereichsAbweisung } from "../_lib/helferBereich";
@@ -22,7 +22,9 @@ import {
   raeumeBoxVerfallWennMaterialEsMitnimmt, verfallFolgtDemMaterial,
 } from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
-import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import {
+  AUSSONDERN_PRAEFIX, EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX,
+} from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 
@@ -725,6 +727,25 @@ export async function raeumeAusEntnahmebox(
           }
 
           /*
+           * RIEGEL 4 — EIN STILLGELEGTER ARTIKEL GEHT NICHT ZURUECK INS REGAL
+           * (DRK-393, und damit die Umkehr der Antwort aus DRK-381).
+           *
+           * DRK-381 liess ihn einraeumen, ausdruecklich als Kompromiss: es gab
+           * keinen Weg, aus der Kiste auszusondern, ein Verbot haette das
+           * Material dort stranden lassen. Den Weg gibt es jetzt
+           * (`aussondernAusEntnahmebox` unten). Damit gilt, was DRK-380 fuer den
+           * Wareneingang festgelegt hat, auch hier: „heraus ja, hinein nein" —
+           * der Platz eines stillgelegten Artikels ist die Kiste, nicht der
+           * Schrank, aus dem FEFO ihn wieder anboete.
+           */
+          const art = tx.select({ aktiv: artikel.aktiv }).from(artikel)
+            .where(eq(artikel.id, v.artikelId)).get();
+          if (art && !art.aktiv) {
+            return "Dieser Artikel ist stillgelegt und kommt nicht zurück ins Handlager. "
+              + "Sondere ihn aus der Kiste aus.";
+          }
+
+          /*
            * ⚠️ NICHT GEDECKTE MENGEN WERDEN ABGEWIESEN, NICHT GEKAPPT
            * (Akzeptanzkriterium 4) — dieselbe Regel und dieselbe Begruendung
            * wie beim Hinweg und in `bucheUmlagerung`: `fefoAbbuchung` kappt
@@ -847,6 +868,163 @@ export async function raeumeAusEntnahmebox(
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.
       return { ok: true, wert: { eingeraeumt, ziel: ziel.name } };
+    },
+  );
+}
+
+/**
+ * AUS DER ENTNAHMEBOX AUSSONDERN — DRK-393, der zweite Ausgang der Kiste.
+ *
+ * Wer die Kiste durchsieht, findet regelmaessig Abgelaufenes. Bis hierher
+ * fuehrte aus ihr genau ein Weg heraus: zurueck ins Handlager. Entsorgen hiess
+ * also, es erst in einen Schrank zu buchen und dort auszusondern — zwei
+ * Vorgaenge im Journal fuer einen Handgriff, und dazwischen stand abgelaufenes
+ * Material als Handlagerbestand da (FEFO bot es an, die Verfallsliste zaehlte
+ * es).
+ *
+ * ⚠️ NICHT `aussondernVomLagerort`, obwohl der Name passt. Jener Weg verlangt
+ * eine EINHEIT mit Soll-Position (`typ = 'fahrzeug'`, `sollPositionen`) und
+ * pflegt deren Verfallsmeldung mit Monatsfeld; die Box ist ein LAGER ohne Soll
+ * und ohne Verfall-Editor. Ihn aufzuweichen hiesse, eine Einheitenprobe fuer
+ * einen Sonderfall zu oeffnen. Gemeinsam haben die beiden, was das Journal
+ * liest: `korrektur` mit negativer Menge und das Praefix
+ * `AUSSONDERN_PRAEFIX` — damit steht die Zeile dort als „Aussonderung", nicht
+ * als Korrektur (DRK-344). Die Referenz nennt wie dort den ORT DES VORGANGS.
+ *
+ * ⚠️ SIE STEHT IN DIESER DATEI, weil sie mit dem Einraeumen die Box-Riegel,
+ * die Chargenprobe und die Deckungsregel „abweisen statt kappen" teilt — die
+ * Probe aus dem Dateikopf. Und sie traegt DENSELBEN Riegel wie das Einraeumen
+ * (`requireLagerbuchAdmin`): eine Stufe, kein Kaertchen. Wer Bestand
+ * vernichtet, braucht mindestens die Erlaubnis dessen, der ihn umraeumt.
+ *
+ * ⚠️ KEINE GEGENBUCHUNG. Das ist der Unterschied zum Einraeumen und die
+ * ganze Aussage: das Material ist danach nirgends.
+ */
+const AussondernBoxSchema = z.object({
+  artikelId: z.string().min(1),
+  /**
+   * PFLICHT, aus demselben Grund wie beim Einraeumen: die Kiste liegt offen,
+   * die Charge steht auf dem Schirm, und im Journal soll genau die stehen, die
+   * im Muell liegt — kein FEFO-Rueckfall, der eine andere hineinschreibt.
+   */
+  chargeId: z.string().min(1),
+  menge: z.coerce.number().int().positive("Menge muss größer als 0 sein").max(BUCHUNG_MENGE_MAX),
+  /**
+   * ⚠️ PFLICHT UND FREI, wie am Fahrzeug — nicht festgenagelt wie beim
+   * Ablegen. Die zweite offene Frage des Tickets. Der Kommentar ist bei einer
+   * Aussonderung der GRUND („abgelaufen", „Verpackung beschaedigt"), und genau
+   * den muss man im Nachhinein belegen koennen; ein fester Text beantwortete
+   * die Frage fuer jeden Fall gleich und damit fuer keinen.
+   */
+  kommentar: z.string().trim().min(1, "Grund erforderlich"),
+});
+
+export async function aussondernAusEntnahmebox(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<HelferErgebnis<{ ausgesondert: number }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext(
+    { actor: auditActor(viewer) },
+    async (): Promise<HelferErgebnis<{ ausgesondert: number }>> => {
+      const geparst = AussondernBoxSchema.safeParse(eingabe);
+      if (!geparst.success) {
+        const ohneGrund = geparst.error.issues.some((i) => i.path[0] === "kommentar");
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: ohneGrund
+            ? "Bitte einen Grund angeben — er steht danach im Journal."
+            : "Die Eingabe war unvollständig. Bitte die Seite neu laden und "
+              + "Charge und Menge erneut wählen.",
+        };
+      }
+      const v = geparst.data;
+
+      let ausgesondert = 0;
+      let fachFehler: string | null;
+      try {
+        fachFehler = db.transaction((tx): string | null => {
+          // RIEGEL 1 — dieselbe Probe wie beim Einraeumen, und ebenso OHNE
+          // `aktiv`: eine stillgelegte Kiste muss man erst recht leeren koennen.
+          const box = tx
+            .select({ typ: lagerorte.typ })
+            .from(lagerorte).where(eq(lagerorte.id, ENTNAHMEBOX_ID)).get();
+          if (!box || box.typ !== "lager") {
+            return `Die ${ENTNAHMEBOX_NAME} ist nicht eingerichtet. Bitte der Verwaltung melden.`;
+          }
+
+          // RIEGEL 2 — die Charge gehoert zu diesem Artikel (I5).
+          const charge = tx.select({
+            artikelId: chargen.artikelId, verfall: chargen.verfall,
+          }).from(chargen).where(eq(chargen.id, v.chargeId)).get();
+          if (!charge || charge.artikelId !== v.artikelId) {
+            return "Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.";
+          }
+
+          /*
+           * ⚠️ ABWEISEN, NICHT KAPPEN — und hier schwerer als beim Einraeumen:
+           * eine gekappte Aussonderung meldete „erledigt", waehrend ein Teil
+           * dessen, was im Muell liegt, weiter als Bestand in der Kiste stuende.
+           * Gedeckt wird ausschliesslich aus DER BOX, nie aus einem Teilbaum.
+           */
+          const rest = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, ENTNAHMEBOX_ID);
+          const vorhanden = rest.get(v.chargeId) ?? 0;
+          if (vorhanden < v.menge) {
+            const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
+              .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
+            return `Von dieser Charge liegen in der ${ENTNAHMEBOX_NAME} nur `
+              + `${vorhanden} ${einheit}`.trimEnd()
+              + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
+          }
+
+          tx.insert(buchungen)
+            .values({
+              id: newId(),
+              ts: new Date(),
+              typ: "korrektur",
+              artikelId: v.artikelId,
+              chargeId: v.chargeId,
+              lagerortId: ENTNAHMEBOX_ID,
+              menge: -v.menge, // VORZEICHENBEHAFTET: ein Abgang ist negativ.
+              quelleTyp: "oidc",
+              quelleId: viewer.sub,
+              // ⚠️ DAS PRAEFIX AUS `_lib/vorgang.ts`, nicht abgeschrieben: nur
+              // daran erkennt das Journal die Zeile als „Aussonderung".
+              referenz: `${AUSSONDERN_PRAEFIX}${ENTNAHMEBOX_ID}`,
+              kommentar: v.kommentar,
+            })
+            .run();
+
+          /*
+           * DIE GEMELDETE VERFALLSANGABE DER BOX (DRK-377) — dieselbe Regel wie
+           * beim Einraeumen, weil fuer die Meldung nur zaehlt, DASS Material die
+           * Kiste verlaesst, nicht wohin. Die Box hat keinen Verfall-Editor;
+           * was hier stehen bliebe, bekaeme niemand mehr weg.
+           */
+          raeumeBoxVerfallWennMaterialEsMitnimmt(tx, {
+            lagerortId: ENTNAHMEBOX_ID,
+            artikelId: v.artikelId,
+            bewegterVerfall: charge.verfall,
+          });
+
+          ausgesondert = v.menge;
+          return null;
+        });
+      } catch {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: "Die Aussonderung wurde nicht gespeichert. Bitte die Seite neu laden und es erneut versuchen.",
+        };
+      }
+
+      if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
+
+      // Ein Bestandsschreiber wie jeder andere — die modulweite Liste
+      // (DRK-374), mit Journal, Verfallsuebersicht und beiden Box-Flaechen.
+      revalidiereBestand();
+      return { ok: true, wert: { ausgesondert } };
     },
   );
 }

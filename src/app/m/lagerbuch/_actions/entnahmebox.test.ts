@@ -6,7 +6,9 @@ import { bereichText } from "../_lib/actionTypen";
 import {
   ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL,
 } from "../_lib/konstanten";
-import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import {
+  AUSSONDERN_PRAEFIX, EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX, vorgangText,
+} from "../_lib/vorgang";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 
 /**
@@ -90,7 +92,9 @@ vi.mock("../_db/client", () => ({
 }));
 
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
-import { bucheInEntnahmebox, raeumeAusEntnahmebox } from "./entnahmebox";
+import {
+  aussondernAusEntnahmebox, bucheInEntnahmebox, raeumeAusEntnahmebox,
+} from "./entnahmebox";
 import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
 
 const JETZT = new Date("2026-09-16T10:00:00Z");
@@ -1137,17 +1141,12 @@ describe("raeumeAusEntnahmebox — die Umbuchung", () => {
     expect(bestand("sch-1", "ch-1")).toBe(3);
   });
 
-  it("raeumt einen STILLGELEGTEN Artikel ein — die dritte offene Frage des Tickets", async () => {
+  it("raeumt einen STILLGELEGTEN Artikel NICHT mehr ein — DRK-393 kehrt DRK-381 um", async () => {
     /*
-     * ⚠️ ERLAUBT, NICHT VERBOTEN, und die Begruendung ist die Abwesenheit eines
-     * anderen Weges: es gibt heute keinen Schreibpfad, der aus der Kiste
-     * AUSSONDERT (`aussondernVomLagerort` haengt an der Einheitenseite). Ein
-     * Verbot liesse das Material dauerhaft in der Box — an einem Ort, den weder
-     * Verfallsliste noch Inventur sehen. Im Schrank sieht `verfallListe` es
-     * wieder; sie filtert `artikel.aktiv` ausdruecklich NICHT.
-     *
-     * Die Oberflaeche verschweigt es trotzdem nicht: `BoxEinraeumen` setzt den
-     * Chip „stillgelegt" an die Zeile.
+     * ⚠️ BIS DRK-393 ERLAUBT, und zwar nur, weil es keinen anderen Ausgang gab:
+     * ohne Weg zum Aussondern haette ein Verbot das Material fuer immer in der
+     * Kiste gelassen. Den Weg gibt es jetzt (`aussondernAusEntnahmebox`), und
+     * damit gilt DRK-380 auch hier: „heraus ja, hinein nein".
      */
     schrank("sch-1", "Schrank 1");
     t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
@@ -1159,8 +1158,10 @@ describe("raeumeAusEntnahmebox — die Umbuchung", () => {
       t.db,
     );
 
-    expect(erg.ok).toBe(true);
-    expect(bestand("sch-1", "ch-1")).toBe(2);
+    expect(erg.ok).toBe(false);
+    expect(erg.ok === false && erg.text).toContain("stillgelegt");
+    expect(neueZeilen()).toHaveLength(0);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(2);
   });
 
   it("schreibt die Buchung auf den angemeldeten `sub`, nie auf ein Kaertchen", async () => {
@@ -1371,6 +1372,155 @@ describe("raeumeAusEntnahmebox — was sie ablehnt", () => {
  * `_lib/helferBereich.ts`, also außerhalb der Attrappe für `_lib/helferZugang`
  * weiter oben. Die Begründung steht im Kopf jener Datei.
  */
+/* ──────────────────────────────────────────────────────────────────────────
+ * AUS DER ENTNAHMEBOX AUSSONDERN — DRK-393.
+ *
+ * Die vier Akzeptanzkriterien, jedes als eigener Fall: eine gezaehlte Menge
+ * EINER Charge, der Box-Bestand sinkt OHNE Gegenbuchung, das Journal liest
+ * „Aussonderung", und der Riegel ist derselbe wie beim Einraeumen.
+ * ────────────────────────────────────────────────────────────────────────── */
+describe("aussondernAusEntnahmebox — DRK-393", () => {
+  it("sondert eine gezaehlte Menge EINER Charge aus — ohne Gegenbuchung", async () => {
+    charge("ch-alt", "2025-01");
+    charge("ch-neu", "2030-01");
+    inDerBox("seed-1", "ch-alt", 4);
+    inDerBox("seed-2", "ch-neu", 3);
+
+    const erg = await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-alt", menge: 3, kommentar: "abgelaufen" },
+      t.db,
+    );
+
+    expect(erg).toEqual({ ok: true, wert: { ausgesondert: 3 } });
+    expect(bestand(ENTNAHMEBOX_ID, "ch-alt")).toBe(1);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-neu"), "die andere Charge bleibt").toBe(3);
+
+    // GENAU EINE Zeile, an der Box, negativ — keine zweite irgendwo sonst.
+    const zeilen = neueZeilen();
+    expect(zeilen).toHaveLength(1);
+    const [z] = zeilen;
+    expect(z!.lagerortId).toBe(ENTNAHMEBOX_ID);
+    expect(z!.menge).toBe(-3);
+    expect(z!.typ).toBe("korrektur");
+    expect(z!.kommentar).toBe("abgelaufen");
+    expect(z!.quelleTyp).toBe("oidc");
+    expect(z!.quelleId).toBe("u-admin");
+  });
+
+  it("steht im Journal als „Aussonderung“, nicht als Korrektur", async () => {
+    charge("ch-1", "2025-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 2, kommentar: "abgelaufen" },
+      t.db,
+    );
+
+    const [z] = neueZeilen();
+    expect(z!.referenz).toBe(`${AUSSONDERN_PRAEFIX}${ENTNAHMEBOX_ID}`);
+    expect(vorgangText(z!)).toBe("Aussonderung");
+  });
+
+  it("verlangt einen Grund — und bucht ohne ihn nichts", async () => {
+    charge("ch-1", "2025-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    const erg = await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, kommentar: "   " },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(erg.ok === false && erg.text).toContain("Grund");
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("bucht NICHTS, wenn die Menge nicht gedeckt ist — statt still zu kappen", async () => {
+    charge("ch-1", "2025-01");
+    buchen("seed-fz", "ch-1", 10, "fz-1");
+    inDerBox("seed-1", "ch-1", 2);
+
+    const erg = await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 5, kommentar: "abgelaufen" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(erg.ok === false && erg.text).toContain("nur 2 Stk");
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("lehnt eine Charge ab, die einem anderen Artikel gehoert (I5)", async () => {
+    charge("ch-fremd", "2025-01", "art-2");
+    inDerBox("seed-fremd", "ch-fremd", 9, "art-2");
+
+    const erg = await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-fremd", menge: 1, kommentar: "abgelaufen" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("sondert einen STILLGELEGTEN Artikel aus einer STILLGELEGTEN Box aus", async () => {
+    // Genau der Fall, fuer den es den Weg gibt: was nicht zurueck ins Regal
+    // darf, muss aus der Kiste heraus koennen.
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, ENTNAHMEBOX_ID)).run();
+    t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    const erg = await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 2, kommentar: "nicht mehr gefuehrt" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(0);
+  });
+
+  it("raeumt die gemeldete Verfallsangabe der Box ab, wenn die Kiste dabei leer wird", async () => {
+    charge("ch-1", "2026-10");
+    inDerBox("seed-1", "ch-1", 3);
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 3, kommentar: "abgelaufen" },
+      t.db,
+    );
+
+    expect(verfallZeilen(ENTNAHMEBOX_ID)).toEqual([]);
+  });
+
+  it("traegt denselben Riegel wie das Einraeumen — ohne Konto keine Zeile", async () => {
+    adminRiegel.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
+    charge("ch-1", "2025-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    await expect(aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, kommentar: "abgelaufen" },
+      t.db,
+    )).rejects.toThrow();
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("raeumt die Flaechen aus, die danach veraltet sind", async () => {
+    charge("ch-1", "2025-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    await aussondernAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, kommentar: "abgelaufen" },
+      t.db,
+    );
+
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
+  });
+});
+
 describe("DRK-406 — der Ortscode des Handlagers darf nichts in die Box legen", () => {
   it("weist die Buchung mit `bereich` ab, ohne eine Zeile zu schreiben", async () => {
     helferRiegel.mockResolvedValue({
