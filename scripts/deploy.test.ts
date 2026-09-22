@@ -166,6 +166,22 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     expect(testJob).toMatch(/needs\.version\.result\s*\}\}"\s*=\s*"success"/);
   });
 
+  it("`test` schweigt nur bei einem ÜBERHOLTEN Lauf, nicht bei jedem abgebrochenen (DRK-410)", () => {
+    // Ein per `if` übersprungener Pflicht-Check gilt als bestanden. `!cancelled()` am
+    // Gate ließe deshalb auch einen von Hand abgebrochenen Lauf am aktuellen PR-Kopf
+    // mergebar zurück. Stillgestellt werden darf `test` allein über `ueberholt`, und der
+    // entscheidet über den Vergleich mit dem PR-Kopf, nicht über `cancelled()` allein.
+    const testJob = rumpf(jobs, "test", 2).join("\n");
+    const ueberholtJob = rumpf(jobs, "ueberholt", 2).join("\n");
+    expect(ueberholtJob, "Job `ueberholt` steht in ci.yml").not.toBe("");
+    expect(testJob).toMatch(/if:\s*\$\{\{\s*always\(\)\s*&&\s*needs\.ueberholt\.outputs\.ueberholt\s*!=\s*'true'\s*\}\}/);
+    expect(testJob).not.toMatch(/cancelled\(\)/);
+    expect(testJob).toMatch(/needs:\s*\[[^\]]*\bueberholt\b/);
+    expect(ueberholtJob).toMatch(/if:\s*\$\{\{\s*cancelled\(\)\s*&&\s*github\.event_name\s*==\s*'pull_request'\s*\}\}/);
+    expect(ueberholtJob).toMatch(/pulls\/\$PR"\s*--jq \.head\.sha/);
+    expect(ueberholtJob).toMatch(/"\$kopf"\s*!=\s*"\$LAUF_SHA"/);
+  });
+
   it("`build` und `merge` warten auf `version` — sonst ist die Ausgabe leer", () => {
     // Ein `needs.version.outputs.version` ohne `needs: version` ist in GitHub Actions
     // kein Fehler, sondern ein leerer String: `SUITE_VERSION=` im Image, `:` als Tag.
