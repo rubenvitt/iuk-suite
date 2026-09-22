@@ -653,9 +653,33 @@ describe("radio-Geraetakte: die Loeschflaeche und die Warnung aus V-L6", () => {
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
     expect(quelle, "die Rollenableitung der Seite").toMatch(/const istAdmin = rolle === "admin";/);
-    expect(quelle, "die Loeschflaeche haengt an keiner Rollenbedingung").toMatch(
-      /istAdmin && \(\s*<GeraetLoeschen/,
-    );
+
+    /*
+     * ⚠️ DIESER FALL IST IN DRK-454 AUFGEWEITET WORDEN, UND DIE AUFWEITUNG IST BEGRENZT.
+     * Bis dahin stand hier `/istAdmin && \(\s*<GeraetLoeschen/` — die Insel musste dem
+     * `&& (` UNMITTELBAR folgen. Seit die Akte ihre Inseln auf je eine `Card` setzt, steht
+     * dazwischen eine Huelle, und der Fall wurde rot, ohne dass die ZUSAGE gebrochen war:
+     * die Loeschflaeche hing weiter an derselben Rollenbedingung. Eine Zusicherung, die die
+     * SCHACHTELUNG mitmisst statt der Aussage, faellt bei jeder Gestaltungsaenderung.
+     *
+     * ⛔ ABER NICHT AUF „steht irgendwo dahinter" AUFGEWEITET: zwischen Bedingung und Insel
+     * duerfen nur OEFFNENDE `div`/`Card` stehen — ein `)}` dazwischen faellt durch, und genau
+     * das ist der Fall, der zaehlt (jede Updater-Person saehe sonst den Loeschknopf). GEMESSEN,
+     * nicht gefolgert: die Insel versuchsweise hinter den Rollenzweig geschoben, dieser Fall
+     * **1 rot** („expected 'istAdmin && (\\n <div className…' to match …"); die Sonde ist
+     * zurueckgenommen.
+     * ⛔ UND GENAU EINMAL: eine zweite, ungeschuetzte `<GeraetLoeschen />` weiter unten faenge
+     * eine Ortspruefung am ersten Treffer nicht.
+     */
+    expect(
+      quelle.match(/<GeraetLoeschen\b/g) ?? [],
+      "die Loeschflaeche steht nicht genau einmal auf der Seite",
+    ).toHaveLength(1);
+    const abBedingung = quelle.slice(quelle.indexOf("istAdmin && ("));
+    expect(
+      abBedingung.slice(0, abBedingung.indexOf("<GeraetLoeschen")),
+      "die Loeschflaeche haengt an keiner Rollenbedingung",
+    ).toMatch(/^istAdmin && \(\s*(?:<(?:div|Card)\b[^>]*>\s*)*$/);
   });
 });
 

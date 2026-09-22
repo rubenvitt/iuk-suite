@@ -729,7 +729,8 @@ test.describe("radio-Verwaltung", () => {
     /*
      * ⛔ GEWARTET WIRD AUF DIE ANTWORT DER SERVER ACTION, NICHT AUF EIN ABWESENDES ELEMENT
      * (REVIEW-V14, NEU-1). Der Fehlerabsatz entsteht NUR bei `ergebnis.ok === false`
-     * (`GeraetFormular.tsx:419`, `:615-621`); im Erfolgsfall und waehrend der noch LAUFENDEN
+     * (`GeraetFormular.tsx`, `absenden` und `data-rolle="radio-formular-fehler"` — ⛔ NAMEN
+     * statt Zeilen, DRK-454 hat den Absatz verschoben); im Erfolgsfall und waehrend der noch LAUFENDEN
      * Action ist er gleichermassen abwesend. Ein `toHaveCount(0)` darauf trifft deshalb sofort
      * zu, faengt kein fehlgeschlagenes Speichern — und ist vor allem KEINE Wartestelle: das
      * `page.reload()` darunter koennte die laufende Action abbrechen.

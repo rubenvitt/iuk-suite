@@ -81,7 +81,8 @@ import type { HochladenAntwort } from "./hochladen/route";
  * werden zu EINER gedaempften Fehlerzeile; ⛔ IHRE TEXTE WANDERN WOERTLICH MIT, nur ihre
  * Darreichung nicht. Kein `Alert type="error"` und kein Rotton: `colorError === colorPrimary`
  * (`src/core/theme/theme.ts:32-33`) — ein roter Kasten saehe aus wie die Primaeraktion
- * (Falle 3, dieselbe Begruendung wie `GeraetFormular.tsx:615-620`). ⚠️ DER
+ * (Falle 3, dieselbe Begruendung wie `GeraetFormular.tsx`, `data-rolle="radio-formular-fehler"`
+ * — ⛔ ein NAME, keine Zeile: die Zeile wandert bei jeder Einfuegung darueber). ⚠️ DER
  * ZUORDNUNGSHINWEIS IST DAVON NICHT BERUEHRT: er traegt `success`/`warning` (1:1
  * `ImportWizard.tsx:170-178`), und `colorWarning`/`colorSuccess` sind eigene Toene
  * (`theme.ts:34-35`). Die Begruendung steht an der Stelle selbst.

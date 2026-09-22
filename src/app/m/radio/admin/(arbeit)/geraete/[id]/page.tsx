@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Tag } from "antd";
+import { Card, Tag } from "antd";
 import { getDb } from "../../../../_db/client";
 import { offeneLeiheZuGeraet } from "../../../../_db/leihen";
 import { geraet, geraetFormWerte, vorschlaege } from "../../../../_lib/lesepfade/geraete";
@@ -129,53 +129,31 @@ export default async function RadioGeraetAktePage({
   const titel = `${akte.rufname || akte.opta || akte.issi} (${akte.issi})`;
 
   return (
-    <>
-      <h1 className={s.titel}>{titel}</h1>
-
-      {/* Die fuenf Alt-Felder aus `DeviceDetailDrawer.tsx:77-102`, in dieser Reihenfolge. */}
-      <div className={s.kopfListe}>
-        <KopfZeile etikett="Hiorg-ID">
-          <HiorgWert wert={akte.hiorgId} />
-        </KopfZeile>
-        <KopfZeile etikett="Ausleihbar">
-          {/* 1:1 `DeviceDetailDrawer.tsx:81-85`: gruen bei ja, Vorgabeton bei nein. */}
-          <Tag color={akte.ausleihbar ? "green" : "default"}>
-            {akte.ausleihbar ? "Ja" : "Nein"}
-          </Tag>
-        </KopfZeile>
-        <KopfZeile etikett="Zuletzt aktualisiert">{akte.letztesUpdateText}</KopfZeile>
-        <KopfZeile etikett="Geändert">
-          {/*
-            1:1 `DeviceDetailDrawer.tsx:89-94`: der Zeitpunkt, und NUR wenn ein Name oder ein
-            roher `sub` bekannt ist, dahinter „ · <Name>". Der Rueckfall auf den rohen `sub`
-            steckt bereits in `geaendertVonName` (`_lib/lesepfade/geraete.ts:708-732`).
-          */}
-          {akte.zuletztAktualisiertText}
-          {akte.geaendertVonName ? ` · ${akte.geaendertVonName}` : ""}
-        </KopfZeile>
-        {/* ⛔ NUR WENN GESETZT (`DeviceDetailDrawer.tsx:95-101`). */}
-        {akte.updateAnmerkung && (
-          <KopfZeile etikett="Abweichung">
-            {/*
-              Das Warndreieck im `Tag` 1:1 aus `DeviceDetailDrawer.tsx:97` — seit dem
-              2026-08-28 aus `_ui/verwaltungIkonen.tsx`, der Zeichenquelle des
-              VERWALTUNGSzweigs (`_ui/ikonen.tsx` bleibt die der Ausleihflaeche). Dieselbe
-              Marke wie in der Abweichungsspalte der Liste (`GeraeteTabelle.tsx`).
-              ⚠️ `react-icons/pi` IN EINER SERVER COMPONENT IST GEMESSEN SICHER (`lagerbuch`,
-              2026-08-12, echter Abruf); Falle 7 ist `@ant-design/icons`, nicht dies hier.
-            */}
-            <Tag color="warning" icon={<VIkone name="warnung" />}>
-              gemeldet
-            </Tag>
-          </KopfZeile>
-        )}
-      </div>
-
+    /*
+     * ⛔ DIE AKTE TRAEGT EINEN LESEDECKEL UND VIER FLAECHEN (DRK-454). Bis dahin war sie die
+     * EINZIGE Flaeche des Verwaltungszweigs ohne eine einzige Karte: Kopfdaten, Formular,
+     * Notizfeld und Loeschknopf lagen nackt auf dem Huellengrund, waehrend Uebersicht
+     * (`admin/(arbeit)/page.tsx`) und Geraeteliste ihren Inhalt auf eine weisse Flaeche
+     * setzen. Und ohne Deckel nahm alles die volle Fensterbreite — Formular wie Trennlinien
+     * der Kopfdaten. Gemessen im echten Chromium bei 1440x1000 NACH dem Umbau: die
+     * Inhaltsspalte 1024 px, `#issi` darin 479 px.
+     *
+     * ⛔ `Card` IST IN EINER SERVER COMPONENT SICHER (`CLAUDE.md`, Falle 1) — als BAUTEIL,
+     * und `title=`/`extra=` sind gewoehnliche Props. ⛔ KEIN `Card.Meta`, KEIN `Card.Grid`:
+     * das waere Compound-Zugriff und damit HTTP 500. Die Bauform ist 1:1 die der Uebersicht
+     * (`admin/(arbeit)/page.tsx`, die Karte „Veraltete Geraete"), kein zweites Muster.
+     */
+    <div className={s.akte}>
       {/*
         DER TEXTLINK AUF DIE AENDERUNGSHISTORIE (`Spec:4774-4776`), eingetragen in V15 im
         selben Commit wie die Zielseite — bis dahin stand hier eine ⬜ mit demselben
         Eigentuemer, weil ⛔ ein Link auf eine 404 schlimmer ist als kein Link
         (`qr/layout.tsx:16-18`).
+        ⛔ SEIT DRK-454 IM SEITENKOPF UND NICHT MEHR IM FLUSS: er stand als eigener Absatz
+        zwischen Kopfdaten und Formular — in der Markenfarbe, die in dieser Suite zugleich
+        `colorError` ist (Falle 3). Ein freistehender roter Satz mitten auf einer Datenflaeche
+        liest sich wie eine Fehlermeldung. Oben rechts ist er eine Seitenaktion, dieselbe
+        Stelle wie „Alle veralteten anzeigen" auf der Uebersicht.
         ⛔ KEIN REITER: „nicht als Reiter, weil `Tabs` eine Insel erzwingen wuerde, die die
         Detailseite sonst nicht braucht" (`Spec:4775-4776`) — und `Tabs` waere in dieser
         Server Component ausserdem Falle 1 (Compound-Zugriff, HTTP 500).
@@ -183,31 +161,88 @@ export default async function RadioGeraetAktePage({
         fuehrt auf dem Verwaltungshost auf `/m/radio/m/radio/...` — 404, bei gruenem
         typecheck und lint (`_lib/nav.test.ts:134-152`, dort echt gemessen).
       */}
-      <p className={s.abstand}>
+      <div className={s.akteKopf}>
+        <h1 className={s.titel}>{titel}</h1>
         <Link href={`/admin/geraete/${akte.id}/ereignisse`}>Änderungen anzeigen</Link>
-      </p>
+      </div>
+
+      {/*
+        Die fuenf Alt-Felder aus `DeviceDetailDrawer.tsx:77-102`, in dieser Reihenfolge.
+        ⚠️ DIESE KARTE TRAEGT BEWUSST KEINEN TITEL: die fuenf Zeilen haben keinen gemeinsamen
+        Oberbegriff, den ein Anwender wiedererkennt (eine Kennung, eine Freigabe, zwei
+        Zeitpunkte, eine Meldung). Ein erfundener waere schlechter als keiner — die Flaeche
+        grenzt sie ohnehin ab.
+      */}
+      <Card>
+        <div className={s.kopfListe}>
+          <KopfZeile etikett="Hiorg-ID">
+            <HiorgWert wert={akte.hiorgId} />
+          </KopfZeile>
+          <KopfZeile etikett="Ausleihbar">
+            {/* 1:1 `DeviceDetailDrawer.tsx:81-85`: gruen bei ja, Vorgabeton bei nein. */}
+            <Tag color={akte.ausleihbar ? "green" : "default"}>
+              {akte.ausleihbar ? "Ja" : "Nein"}
+            </Tag>
+          </KopfZeile>
+          <KopfZeile etikett="Zuletzt aktualisiert">{akte.letztesUpdateText}</KopfZeile>
+          <KopfZeile etikett="Geändert">
+            {/*
+              1:1 `DeviceDetailDrawer.tsx:89-94`: der Zeitpunkt, und NUR wenn ein Name oder ein
+              roher `sub` bekannt ist, dahinter „ · <Name>". Der Rueckfall auf den rohen `sub`
+              steckt bereits in `geaendertVonName` (`_lib/lesepfade/geraete.ts:708-732`).
+            */}
+            {akte.zuletztAktualisiertText}
+            {akte.geaendertVonName ? ` · ${akte.geaendertVonName}` : ""}
+          </KopfZeile>
+          {/* ⛔ NUR WENN GESETZT (`DeviceDetailDrawer.tsx:95-101`). */}
+          {akte.updateAnmerkung && (
+            <KopfZeile etikett="Abweichung">
+              {/*
+                Das Warndreieck im `Tag` 1:1 aus `DeviceDetailDrawer.tsx:97` — seit dem
+                2026-08-28 aus `_ui/verwaltungIkonen.tsx`, der Zeichenquelle des
+                VERWALTUNGSzweigs (`_ui/ikonen.tsx` bleibt die der Ausleihflaeche). Dieselbe
+                Marke wie in der Abweichungsspalte der Liste (`GeraeteTabelle.tsx`).
+                ⚠️ `react-icons/pi` IN EINER SERVER COMPONENT IST GEMESSEN SICHER (`lagerbuch`,
+                2026-08-12, echter Abruf); Falle 7 ist `@ant-design/icons`, nicht dies hier.
+              */}
+              <Tag color="warning" icon={<VIkone name="warnung" />}>
+                gemeldet
+              </Tag>
+            </KopfZeile>
+          )}
+        </div>
+      </Card>
 
       {/*
         ⚠️ BENANNTE ABWEICHUNG: KEINE ZWISCHENUEBERSCHRIFT „Bearbeiten". Der Bestand setzt sie
         (`DeviceDetailDrawer.tsx:104-106`, `Typography.Title level={5}`), weil dort Kopfdaten,
         Formular, Notizfeld und Loeschknopf UEBEREINANDER IN EINEM DRAWER stehen und der
-        Bearbeitungsteil sonst nicht vom Lesekopf zu trennen waere. Hier ist die Akte eine
-        eigene Seite mit eigener Ueberschrift (`Spec:4183-4186`); das Formular gliedert sich
-        ausserdem selbst in fuenf `Divider`-Abschnitte. Eine sechste Ueberschrift ueber der
-        ersten waere doppelt. ⛔ `Typography.Title` waere hier ohnehin Falle 1
-        (Bauform-Zulaessigkeitstafel Nr. 3) — der Ersatz waere ein `<h2>`, nicht das Bauteil.
+        Bearbeitungsteil sonst nicht vom Lesekopf zu trennen waere. Hier tragen die drei Inseln
+        seit DRK-454 je eine eigene Flaeche, und der Kartenkopf nennt sie beim Namen.
+        ⛔ `Typography.Title` waere hier ohnehin Falle 1 (Bauform-Zulaessigkeitstafel Nr. 3) —
+        der Ersatz waere ein `<h2>`, nicht das Bauteil; `Card title=` ist keines von beiden,
+        sondern ein Prop.
       */}
       <div className={s.abstand}>
-        <GeraetFormular
-          geraet={formWerte}
-          rolle={rolle}
-          vorschlaege={felderVorschlaege}
-          versionen={versionen}
-        />
+        <Card title="Gerätedaten">
+          <GeraetFormular
+            geraet={formWerte}
+            rolle={rolle}
+            vorschlaege={felderVorschlaege}
+            versionen={versionen}
+          />
+        </Card>
       </div>
 
+      {/*
+        ⚠️ DER KARTENTITEL ERSETZT DIE UEBERSCHRIFT IN DER INSEL (DRK-454): `NotizFeld` trug sie
+        bis dahin selbst als `<strong>`, und unter einem gleichlautenden Kartenkopf staende
+        dasselbe Wort zweimal untereinander.
+      */}
       <div className={s.abstand}>
-        <NotizFeld geraetId={akte.id} anmerkung={akte.updateAnmerkung} rolle={rolle} />
+        <Card title="Update-Anmerkung">
+          <NotizFeld geraetId={akte.id} anmerkung={akte.updateAnmerkung} rolle={rolle} />
+        </Card>
       </div>
 
       {/*
@@ -217,13 +252,20 @@ export default async function RadioGeraetAktePage({
         ⛔ `rolle` KOMMT VOM RIEGEL (`_lib/zugang.ts`), NICHT AUS EINEM ZWEITEN
         `istRadioAdmin(viewer)` — Vorabscan-Fund F18: eine zweite Ableitung derselben Aussage
         ist die, die auseinanderlaeuft.
+        ⚠️ OHNE KARTENTITEL, und das ist die Umkehrung des Grundes von eben: der Knopf darin
+        heisst „Gerät löschen". Die eigene Flaeche setzt die Aktion schon ab, ein
+        gleichlautender Titel darueber waere dasselbe Wort zweimal auf zwei Zeilen.
       */}
       {istAdmin && (
-        <GeraetLoeschen
-          geraetId={akte.id}
-          offeneLeiheEntleiher={offeneLeihe?.entleiher ?? null}
-        />
+        <div className={s.abstand}>
+          <Card>
+            <GeraetLoeschen
+              geraetId={akte.id}
+              offeneLeiheEntleiher={offeneLeihe?.entleiher ?? null}
+            />
+          </Card>
+        </div>
       )}
-    </>
+    </div>
   );
 }

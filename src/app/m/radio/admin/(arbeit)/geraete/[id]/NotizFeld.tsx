@@ -82,7 +82,13 @@ export function NotizFeld({ geraetId, anmerkung, rolle }: NotizFeldProps) {
       Moduls — gemessen rot, als hier noch `size={8}` stand).
     */
     <div className={s.notizFeld}>
-      <strong>Update-Anmerkung</strong>
+      {/*
+        ⛔ HIER STEHT KEINE UEBERSCHRIFT MEHR (DRK-454): bis dahin trug die Insel ihr
+        „Update-Anmerkung" selbst als `<strong>`. Seit die Akte ihre drei Inseln auf je eine
+        `Card` setzt, steht dasselbe Wort im Kartenkopf — beides zugleich waere es zweimal
+        untereinander. ⚠️ WER DIESE INSEL ANDERSWO EINSETZT, bringt die Ueberschrift mit; sie
+        hat selbst keine mehr.
+      */}
       {zeigtAnmerkung && (
         /*
           ⛔ `whiteSpace: "pre-wrap"` 1:1 aus `UpdateNotePanel.tsx:31`: die Anmerkung ist eine
