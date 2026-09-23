@@ -942,11 +942,12 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
     );
 
     /*
-     * ⛔ DIE RUECKFALLKETTE DES TITELS MIT `||` UND NICHT `??`: beide Spalten sind Freitext
-     * (`_db/schema.ts`, `rufname` und `opta`), die LEERE Zeichenkette muss weiterfallen.
+     * ⛔ DIE RUECKFALLKETTE DES TITELS KOMMT SEIT DRK-455 AUS `_lib/geraetTitel.ts`, dieselbe
+     * wie auf der Aenderungshistorie. `||` statt `??` und die ISSI-Bedingung prueft dort
+     * `_lib/geraetTitel.test.ts` am Verhalten — hier steht nur, dass die Akte sie auch nutzt.
      */
-    expect(quelle, "die Rueckfallkette des Titels").toMatch(
-      /akte\.rufname \|\| akte\.opta \|\| akte\.issi/,
+    expect(quelle, "die Akte fuehrt die Titelkette wieder selbst").toMatch(
+      /const \{ titel, issiNeben \} = geraetTitel\(akte\)/,
     );
 
     /*
@@ -957,7 +958,7 @@ describe("radio-Geraetakte: die Bauform der Insel", () => {
      * NEBENEINANDER, und kein Tor faellt.
      */
     expect(quelle, "die ISSI steht auch dann daneben, wenn sie der Titel ist").toMatch(
-      /titel === akte\.issi \? null : akte\.issi/,
+      /issiNeben !== null && /,
     );
 
     /*

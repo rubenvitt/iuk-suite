@@ -5,6 +5,7 @@ import { Card, Tag } from "antd";
 import { getDb } from "../../../../_db/client";
 import { offeneLeiheZuGeraet } from "../../../../_db/leihen";
 import { STAND_TON, STAND_WORT } from "../../../../_lib/geraeteFelder";
+import { geraetTitel } from "../../../../_lib/geraetTitel";
 import { geraet, geraetFormWerte, vorschlaege } from "../../../../_lib/lesepfade/geraete";
 import { versionenMitGeraetezahl } from "../../../../_lib/lesepfade/versionen";
 import { requireRadioVerwaltung } from "../../../../_lib/zugang";
@@ -112,16 +113,15 @@ export default async function RadioGeraetAktePage({
   const istAdmin = rolle === "admin";
 
   /*
-   * Der Titel 1:1 aus `DeviceDetailDrawer.tsx:61` — die Rueckfallkette mit `||` und nicht mit
-   * `??`, weil beide Spalten Freitext sind und die LEERE Zeichenkette weiterfallen soll.
+   * Der Titel aus `_lib/geraetTitel.ts` — dieselbe Ableitung wie die Aenderungshistorie
+   * (DRK-455), die Rueckfallkette Rufname → OPTA → ISSI 1:1 aus `DeviceDetailDrawer.tsx:61`.
    *
    * ⛔ DIE ISSI STEHT SEIT DRK-462 NICHT MEHR IN KLAMMERN DAHINTER, SONDERN ALS EIGENE
    * NEBENANGABE — und sie steht dort NUR, wenn der Titel nicht ohnehin die ISSI IST. Ohne die
    * zweite Haelfte truege ein Geraet ganz ohne Rufname und OPTA (der Seed fuehrt eines,
    * `g-8`) seine Nummer zweimal nebeneinander.
    */
-  const titel = akte.rufname || akte.opta || akte.issi;
-  const issiNeben = titel === akte.issi ? null : akte.issi;
+  const { titel, issiNeben } = geraetTitel(akte);
 
   return (
     /*
