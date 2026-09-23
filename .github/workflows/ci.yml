@@ -626,8 +626,17 @@ jobs:
     # `version` den Rollout aufhaelt. `merge` schmiedet aus den beiden
     # Architektur-Digests das getaggte Manifest — ab hier wird ein Stand
     # ausrollbar, und genau davor gehoert das Tor.
+    #
+    # ⚠️ DAS `if` BRAUCHT EINE STATUSFUNKTION UND PRUEFT SEINE `needs` SELBST — ein
+    # nacktes `if` bekommt von GitHub ein implizites `success()`, und das prueft
+    # ALLE Vorfahren TRANSITIV. `ueberholt` ist ausserhalb eines abgebrochenen
+    # PR-Laufs immer `skipped`; `test` traegt das per `always()`, aber `merge`,
+    # `release` und `deploy` wurden seit DRK-410 auf JEDEM gruenen main-Lauf still
+    # uebersprungen (ab Lauf 35819023253: kein Image, kein Tag, kein Rollout).
+    # `!cancelled()` schaltet das implizite `success()` ab; die direkten `needs`
+    # stehen deshalb ausdruecklich da, und jeder davon deckt seine eigenen Vorfahren.
     needs: [build, test, version]
-    if: github.event_name != 'pull_request'
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && needs.test.result == 'success' && needs.version.result == 'success' }}
     runs-on: ubuntu-latest
     # Zwei Laeufe DESSELBEN Commits (ein workflow_dispatch neben seinem Push-Lauf, ein
     # „Re-run all jobs" waehrend der erste noch laeuft) duerfen diesen Job nicht
@@ -716,7 +725,8 @@ jobs:
   # docs/runbooks/versionierung.md, Teil F.
   release:
     needs: [merge, version]
-    if: github.ref == 'refs/heads/main'
+    # Statusfunktion und ausdrueckliche `needs`-Pruefung: siehe `merge`.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.merge.result == 'success' && needs.version.result == 'success' }}
     runs-on: ubuntu-latest
     # Dieselbe Gruppe je SHA wie bei `merge`, aus demselben Grund: zwei Laeufe desselben
     # Commits legen Tag und Release nacheinander an, nicht gleichzeitig. Die Pruefung
@@ -838,7 +848,8 @@ jobs:
     # Runner am Server steht. Ohne diese Bedingung haenge jeder main-Lauf am nicht
     # vorhandenen Runner, bis GitHub ihn nach Stunden rot faerbt. Auto-Rollout wieder
     # abschalten heisst: die Variable loeschen, kein Eingriff in diese Datei.
-    if: github.ref == 'refs/heads/main' && vars.SUITE_STACK_DIR != ''
+    # Statusfunktion und ausdrueckliche `needs`-Pruefung: siehe `merge`.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && vars.SUITE_STACK_DIR != '' && needs.merge.result == 'success' }}
     runs-on: [self-hosted, iuk-suite-prod]
     environment:
       name: produktion
