@@ -54,7 +54,7 @@ afterEach(async () => {
 describe("NavListe — kurze Navigation bleibt, wie sie war", () => {
   /*
    * DIE ZUSAGE DIESER GANZEN ÄNDERUNG, und sie gehört an den Anfang: `radio`,
-   * `files`, `zeichen`, `uav` und `aufgaben` liegen alle unter der Schwelle und
+   * `files`, `uav` und `aufgaben` liegen alle unter der Schwelle und
    * bekommen deshalb NICHTS dazu — kein Feld, keine Schalter. Wer die Schwelle
    * herausnimmt, sieht es hier zuerst.
    */

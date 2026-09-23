@@ -1,16 +1,27 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/core/audit/storage", () => ({ recordAuditEvent: vi.fn() }));
+// Seit das Zeichen-Modul entfernt ist, meldet nur noch das anonym zugaengliche qr Browserexporte.
+// Der Verweigerungszweig wird deshalb ueber ein gesperrtes canAccess ausgeuebt.
+vi.mock("@/core/registry", async (importOriginal) => {
+ const actual = await importOriginal<typeof import("@/core/registry")>();
+ return { ...actual, canAccess: vi.fn(actual.canAccess) };
+});
 import { auth } from "@/core/auth";
 import { recordAuditEvent } from "@/core/audit/storage";
+import { canAccess } from "@/core/registry";
 import { currentAuditContext } from "@/core/audit/context";
 import { POST } from "./route";
 function request(body: unknown, headers: Record<string,string> = {}) {
  return new Request("http://qr.localtest.me:3100/api/audit/browser", { method: "POST", headers: { host: "qr.localtest.me:3100", origin: "http://qr.localtest.me:3100", "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
 }
 let testTime = Date.now();
+const echt = await vi.importActual<typeof import("@/core/registry")>("@/core/registry");
 afterEach(() => vi.restoreAllMocks());
-beforeEach(() => { testTime += 60_001; vi.spyOn(Date, "now").mockReturnValue(testTime); vi.mocked(auth).mockResolvedValue(null as never); vi.mocked(recordAuditEvent).mockReset(); });
+beforeEach(() => { testTime += 60_001; vi.spyOn(Date, "now").mockReturnValue(testTime); vi.mocked(auth).mockResolvedValue(null as never); vi.mocked(recordAuditEvent).mockReset(); vi.mocked(canAccess).mockReset().mockImplementation(echt.canAccess); });
+const gesperrt = { module: "qr", format: "png" };
+function sperre() { vi.mocked(canAccess).mockReturnValueOnce(false); }
+function sperreImmer() { vi.mocked(canAccess).mockReturnValue(false); }
 it.each([{module:"qr",format:"png",actor:{id:"victim"}}, {module:"files",format:"png"}, {module:"qr",format:"svg"}, {module:"qr",format:"png",metadata:{text:"secret"}}, {module:"qr",format:"png",action:"delete"}])("rejects forged event %j", async body => {
  expect((await POST(request(body))).status).toBe(400); expect(recordAuditEvent).not.toHaveBeenCalled();
 });
@@ -27,9 +38,10 @@ it("records only server-confirmed identity and fixed fields", async () => {
  expect((await POST(request({module:"qr",format:"png"}))).status).toBe(204);
  expect(recordAuditEvent).toHaveBeenCalledWith({module:"qr",action:"export",objectType:"qr_png",origin:"browser",result:"success"});
 });
-it("allows anonymous QR but rejects anonymous Zeichen exports", async () => {
+it("allows anonymous QR but rejects exports the module denies", async () => {
  expect((await POST(request({module:"qr",format:"png"}))).status).toBe(204);
- expect((await POST(request({module:"zeichen",format:"png"}))).status).toBe(403);
+ sperre();
+ expect((await POST(request(gesperrt))).status).toBe(403);
 });
 it("does not report persistence failure as accepted", async () => {
  vi.mocked(recordAuditEvent).mockImplementation(() => { throw new Error("secret"); });
@@ -44,23 +56,26 @@ it("caps confirmed actor submissions", async () => {
 });
 
 it("bounds recorded anonymous denials and stops writing when exhausted", async () => {
- const statuses=[];
- for(let i=0;i<32;i++) statuses.push((await POST(request({module:"zeichen",format:"png"}))).status);
+ const statuses=[]; sperreImmer();
+ for(let i=0;i<32;i++) statuses.push((await POST(request(gesperrt))).status);
  expect(statuses.slice(0,30)).toEqual(Array(30).fill(403));expect(statuses.slice(30)).toEqual([429,429]);
  expect(recordAuditEvent).toHaveBeenCalledTimes(30);
- expect(recordAuditEvent).toHaveBeenCalledWith({module:"zeichen",action:"access_denied",objectType:"browser_export",result:"denied",origin:"server"});
+ expect(recordAuditEvent).toHaveBeenCalledWith({module:"qr",action:"access_denied",objectType:"browser_export",result:"denied",origin:"server"});
 });
 it("shares one actor budget across successful exports and recorded denials", async () => {
  for(let i=0;i<15;i++) {
   expect((await POST(request({module:"qr",format:"png"}))).status).toBe(204);
-  expect((await POST(request({module:"zeichen",format:"svg"}))).status).toBe(403);
+  sperre();
+  expect((await POST(request(gesperrt))).status).toBe(403);
  }
- for(const moduleKey of ["qr","zeichen"]) expect((await POST(request({module:moduleKey,format:"png"}))).status).toBe(429);
+ expect((await POST(request({module:"qr",format:"png"}))).status).toBe(429);
+ sperreImmer();
+ expect((await POST(request(gesperrt))).status).toBe(429);
  expect(recordAuditEvent).toHaveBeenCalledTimes(30);
  expect(vi.mocked(recordAuditEvent).mock.calls.filter(([e])=>e.result==="denied")).toHaveLength(15);
 });
 it("charges denials to the global budget and exhausts both write branches", async () => {
- for(let i=0;i<30;i++) expect((await POST(request({module:"zeichen",format:"png"}))).status).toBe(403);
+ for(let i=0;i<30;i++) { sperre(); expect((await POST(request(gesperrt))).status).toBe(403); }
  for(let actor=0;actor<9;actor++) {
   vi.mocked(auth).mockResolvedValue({user:{id:"global-"+actor,groups:[]}} as never);
   for(let i=0;i<30;i++) expect((await POST(request({module:"qr",format:"png"}))).status).toBe(204);
@@ -68,6 +83,6 @@ it("charges denials to the global budget and exhausts both write branches", asyn
  vi.mocked(auth).mockResolvedValue({user:{id:"fresh-after-global-cap",groups:[]}} as never);
  expect((await POST(request({module:"qr",format:"png"}))).status).toBe(429);
  vi.mocked(auth).mockResolvedValue(null as never);
- expect((await POST(request({module:"zeichen",format:"png"}))).status).toBe(429);
+ expect((await POST(request(gesperrt))).status).toBe(429);
  expect(recordAuditEvent).toHaveBeenCalledTimes(300);
 });

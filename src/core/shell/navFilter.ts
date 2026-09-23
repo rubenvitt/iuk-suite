@@ -17,14 +17,14 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Die Zahl ist keine Schoenheitsgrenze, sie ist gemessen an dem, was heute im
  * Repo steht: `lagerbuch` fuehrt 21 Eintraege in sechs Abschnitten (in der
  * Seitenleiste rund 1120px, also auf einem 900px-Schirm etwa 300px Scrollweg;
- * im Drawer mit 56px-Zeilen rund 1400px). Die naechstgroeszen sind `radio` mit
- * 7 und `zeichen` mit 6 — dazwischen liegt nichts. Jede Zahl von 8 bis 21
+ * im Drawer mit 56px-Zeilen rund 1400px). Die naechstgroesze ist `radio` mit
+ * 7 — dazwischen liegt nichts. Jede Zahl von 8 bis 21
  * teilt dieselbe Menge; 12 sitzt mit Abstand nach beiden Seiten und laesst
  * damit Raum, ohne dass ein Modul bei jedem neuen Eintrag ueber die Schwelle
  * kippt.
  *
  * ⚠️ DIE SCHWELLE IST DER GRUND, WARUM DIESE AENDERUNG KEIN ANDERES MODUL
- * ANFASST. `radio` (7), `aufgaben` (bis 8), `zeichen` (6), `uav` (3) und
+ * ANFASST. `radio` (7), `aufgaben` (bis 8), `uav` (3) und
  * `files` (3) rendern danach exakt dasselbe Markup wie vorher — kein
  * Filterfeld, keine Schalter, keine zusaetzliche Bedienung fuer eine Liste,
  * die auf einen Blick passt. `navFilter.test.ts` haelt das an den echten

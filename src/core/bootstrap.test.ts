@@ -711,6 +711,9 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * kam mit der Boot-Pruefung fuer `ZEICHEN_SW`/`SUITE_HOST_ZEICHEN` dazu.
      * Wird die Zahl rot, wird sie ANGEHOBEN, nicht geloescht.
      *
+     * ⛔ GESENKT VON `5` AUF `4` AM 2026-09-23: das Modul `zeichen` ist samt
+     * `zeichenBootFehler` aus der Suite entfernt (die Git-Historie haelt es).
+     *
      * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
      * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"
      * (`src/app/m/radio/riegel.test.ts:99-100`). Der Halbsatz „und bewacht
@@ -720,7 +723,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ohne Anfuehrungszeichen, damit nichts eine Woertlichkeit behauptet, die
      * nicht besteht.
      */
-    expect(bootHaken.length).toBe(5);
+    expect(bootHaken.length).toBe(4);
   });
 
   it("jeder Hintergrundstarter aus einer _lib/boot.ts ist in startBackgroundWork eingehaengt", () => {

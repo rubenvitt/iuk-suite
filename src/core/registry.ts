@@ -1,5 +1,4 @@
 import { envHostsFor } from "@/core/hosts";
-import { ZEICHEN_PAUSIERT } from "@/app/m/zeichen/_lib/verfuegbarkeit";
 import { adminGroupsFor, envAccessGroupsFor, hasAnyGroup } from "@/core/groups";
 
 /** Wie in `hosts.ts`: nur „String rein, String oder undefined raus" — bewusst nicht `NodeJS.ProcessEnv`. */
@@ -217,31 +216,6 @@ export const MODULES: ModuleDef[] = [
   { key: "kioskdemo", title: "Kiosk Demo", icon: "DesktopOutlined", shell: "kiosk",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
-  // zeichen: alles hinter dem Login, aber ohne Zugangsgruppe — `requiredGroups: []` heisst
-  // „jeder Eingeloggte" (canAccess steigt bei leerer Liste mit true aus). Anders als bei
-  // qr, feedback, files, lagerbuch und radio hat dieses Modul KEINEN anonymen Teilpfad:
-  // jede Ansicht setzt eine bekannte Person voraus (Lernstand, Merkliste, eigene Zeichen).
-  // Ein uebernommenes `requiresAuth: false` schaltete den generischen Middleware-Riegel ab,
-  // ohne dass dadurch irgendetwas moeglich wuerde.
-  //
-  // ⛔ switcherGroupSources MUSS [] bleiben: bei ["access"] und leerem requiredGroups ist
-  // hasAnyGroup(g, []) === [].some(...) === false — die Kachel waere fuer JEDEN unsichtbar.
-  //
-  // adminGroups gaten allein die kuratierten Lernsets; der Suite-Admin kommt ueber
-  // isModuleAdmin mit durch — hier gewollt, weil hinter dem Riegel kein Geheimnis liegt,
-  // nur kuratierte Listen (dieselbe Linie wie aufgaben, anders als files/lagerbuch).
-  // Der Gruppenname ist eine VORGABE: SUITE_ADMIN_GROUP_ZEICHEN ueberschreibt sie.
-  //
-  // prodHosts bleibt leer, der Host steht ausschliesslich in SUITE_HOST_ZEICHEN —
-  // dieselbe Betreiberauflage wie bei lagerbuch und radio. ANDERS ALS DORT ist er hier
-  // Voraussetzung fuer die PWA: ohne ihn greift der Rewrite in decideRoute nicht und
-  // /sw.js landet im Portal-Modul (Spec §7.1, Riegel in _lib/boot.ts).
-  //
-  // icon: wirksam ist allein die Map ICONS in `core/shell/icons.ts`. Ein dort FEHLENDER
-  // Name faellt STILL auf AppstoreOutlined zurueck.
-  { key: "zeichen", title: "Taktische Zeichen", icon: "DeploymentUnitOutlined", shell: "full",
-    requiresAuth: true, requiredGroups: [], adminGroups: ["iuk-zeichen-admin"],
-    prodHosts: [], showInSwitcher: !ZEICHEN_PAUSIERT, switcherGroupSources: [] },
 ];
 
 const BY_KEY = new Map(MODULES.map((m) => [m.key, m]));
@@ -294,7 +268,6 @@ export function canAccess(
   groups: string[] | null,
   env: EnvLike = process.env,
 ): boolean {
-  if (mod.key === "zeichen" && ZEICHEN_PAUSIERT) return false;
   if (!mod.requiresAuth) return true;
   if (groups === null) return false;
   const erlaubt = requiredGroupsFor(mod, env);

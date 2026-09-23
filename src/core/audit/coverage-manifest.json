@@ -935,50 +935,6 @@
     "kind": "excluded",
     "reason": "Technical generated asset, not a business export."
   },
-  "src/app/m/zeichen/actions.ts#merkeZeichen": {
-    "kind": "context",
-    "via": "merkeZeichen"
-  },
-  "src/app/m/zeichen/actions.ts#entferneZeichen": {
-    "kind": "context",
-    "via": "entferneZeichen"
-  },
-  "src/app/m/zeichen/actions.ts#speichereEigenesZeichen": {
-    "kind": "context",
-    "via": "speichereEigenesZeichen"
-  },
-  "src/app/m/zeichen/actions.ts#beantworte": {
-    "kind": "context",
-    "via": "beantworte"
-  },
-  "src/app/m/zeichen/actions.ts#legeLernsetAn": {
-    "kind": "context",
-    "via": "legeLernsetAn"
-  },
-  "src/app/m/zeichen/actions.ts#setzeLernsetAktiv": {
-    "kind": "context",
-    "via": "setzeLernsetAktiv"
-  },
-  "src/app/m/zeichen/actions.ts#fuegeZeichenZuSetHinzu": {
-    "kind": "context",
-    "via": "fuegeZeichenZuSetHinzu"
-  },
-  "src/app/m/zeichen/actions.ts#entferneZeichenAusSet": {
-    "kind": "context",
-    "via": "entferneZeichenAusSet"
-  },
-  "src/app/m/zeichen/manifest.webmanifest/route.ts#GET": {
-    "kind": "excluded",
-    "reason": "Technical generated asset, not a business export."
-  },
-  "src/app/m/zeichen/pwa-icon.svg/route.ts#GET": {
-    "kind": "excluded",
-    "reason": "Technical generated asset, not a business export."
-  },
-  "src/app/m/zeichen/sw.js/route.ts#GET": {
-    "kind": "excluded",
-    "reason": "Technical generated asset, not a business export."
-  },
   "src/app/api/auth/[...nextauth]/route.ts#GET": {
     "kind": "excluded",
     "reason": "Delegates to Auth.js; authConfig signIn/signOut hooks observe lifecycle once. Polling and token refresh are not sign-ins."

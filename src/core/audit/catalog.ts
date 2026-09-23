@@ -314,41 +314,6 @@ export const AUDIT_TABLES = {
       ]
     }
   },
-  "zeichen": {
-    "eigene_zeichen": {
-      "mode": "audited",
-      "primaryKey": [
-        "id"
-      ]
-    },
-    "lernset_zeichen": {
-      "mode": "audited",
-      "primaryKey": [
-        "lernset_id",
-        "zeichen_id"
-      ]
-    },
-    "lernsets": {
-      "mode": "audited",
-      "primaryKey": [
-        "id"
-      ]
-    },
-    "lernstand": {
-      "mode": "audited",
-      "primaryKey": [
-        "sub",
-        "zeichen_id"
-      ]
-    },
-    "merkliste": {
-      "mode": "audited",
-      "primaryKey": [
-        "sub",
-        "zeichen_id"
-      ]
-    }
-  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",

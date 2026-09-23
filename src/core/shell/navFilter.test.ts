@@ -6,7 +6,6 @@ import type { SuiteNavItem } from "@/core/shell/types";
 import { FILES_NAV } from "@/app/m/files/_lib/nav";
 import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
 import { UAV_NAV } from "@/app/m/uav/_lib/nav";
-import { ZEICHEN_NAV } from "@/app/m/zeichen/_lib/nav";
 import { radioNav } from "@/app/m/radio/_lib/nav";
 
 const NAV: SuiteNavItem[] = [
@@ -100,7 +99,6 @@ describe("die Schwelle gegen die Navigationen, die es heute gibt", () => {
   it.each([
     ["files", FILES_NAV],
     ["uav", UAV_NAV],
-    ["zeichen", ZEICHEN_NAV],
     ["radio (admin, also die längste Stufe)", radioNav("admin")],
   ])("%s bleibt kurz und rendert damit exakt das Markup von vorher", (_name, nav) => {
     expect(istLangeNav(nav)).toBe(false);

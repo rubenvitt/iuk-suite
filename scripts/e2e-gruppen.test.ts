@@ -428,8 +428,8 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // dort eintraegt, ist der Waechter gruen, waehrend der Job sie nie faehrt.
     expect(wirdAusgelassen("pwa-spike.spec.ts")).toBe(true);
     expect(wirdAusgelassen("legacy/pwa-spike.spec.ts")).toBe(true);
-    expect(wirdAusgelassen("zeichen-pwa.spec.ts")).toBe(true);
-    expect(wirdAusgelassen("tief/verschachtelt/zeichen-pwa.spec.ts")).toBe(true);
+    expect(wirdAusgelassen("rueckmeldung.spec.ts")).toBe(true);
+    expect(wirdAusgelassen("tief/verschachtelt/rueckmeldung.spec.ts")).toBe(true);
     expect(wirdAusgelassen("lagerbuch-mobil.spec.ts")).toBe(false);
     expect(wirdAusgelassen("radio-kiosk.spec.ts")).toBe(false);
   });

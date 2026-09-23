@@ -19,7 +19,6 @@ wurden umgeschwenkt.
 | `aufgaben` | Aufgabenverteilung und Zeitplanung für BuFDis mit Koordinationsrolle | Login + Gruppe |
 | `radio` | Funkgeräte: Ausleihe per QR-Code, Bestand, Softwarestände | anonym (Ausleihe), Gruppe (Verwaltung) |
 | `uav` | Drohnen-Trainingsbegleiter, Teilnehmer melden sich mit Dauer-Code an | Code, Gruppe (Verwaltung) |
-| `zeichen` | Taktische Zeichen nachschlagen, bauen und üben (auf `@einsatzzeichen/*`). **Zurzeit pausiert** (`ZEICHEN_PAUSIERT` in `_lib/verfuegbarkeit.ts`): keine Kachel, jede Route antwortet 503; einzig `/sw.js` bleibt offen und liefert den Aufräum-Worker, damit installierte PWAs sich austragen | Login (sobald wieder aktiv) |
 | `alpha`, `beta`, `gamma`, `kioskdemo` | Wegwerf-Module, die den Architektur-Keystone in den E2E-Tests beweisen | – |
 
 Die verbindliche Liste samt Shell-Variante, Gruppen und Host-Fallbacks steht in

@@ -199,7 +199,7 @@ describe("Magic-Link-Brücke uav (Spec §3 #2)", () => {
 });
 
 // Exact exception: no other audit route becomes globally reachable.
-it.each(["qr.localtest.me:3100", "zeichen.localtest.me:3100"])("passes only the browser receiver on %s", host => {
+it.each(["qr.localtest.me:3100", "uav.localtest.me:3100"])("passes only the browser receiver on %s", host => {
   expect(decideRoute({host,pathname:"/api/audit/browser",groups:null})).toEqual({action:"next"});
   expect(decideRoute({host,pathname:"/api/audit/browser/extra",groups:null})).not.toEqual({action:"next"});
   expect(decideRoute({host,pathname:"/api/audit/data",groups:null})).not.toEqual({action:"next"});
