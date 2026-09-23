@@ -24,6 +24,7 @@ import {
   LetzteBuchungenTable,
   type UebersichtJournalZeile,
 } from "./LetzteBuchungenTable";
+import { zeitzone } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
       <SeitenKopf
         titel="Übersicht"
         beschreibung={`Stand ${jetzt.toLocaleString("de-DE", {
-          timeZone: "Europe/Berlin",
+          timeZone: zeitzone(),
         })} Uhr`}
       />
 

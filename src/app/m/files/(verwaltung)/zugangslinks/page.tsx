@@ -5,7 +5,7 @@ import { getDb } from "../../_db/client";
 import { zugangslinks } from "../../_db/schema";
 import { hostFuerRolle, oeffentlicheUrl } from "../../_lib/hostRolle";
 import { entschaerfeTitel } from "../../_lib/zip";
-import { zeitpunktBerlin } from "../../_lib/zeit";
+import { zeitpunktInZone } from "../../_lib/zeit";
 import { ZugangslinksListe, type ZugangslinkZeile } from "../../_ui/ZugangslinksListe";
 
 /**
@@ -115,7 +115,7 @@ export default async function FilesZugangslinksSeite() {
        UTC, also zwei Stunden vor der Berliner Wanduhr. Die Laufzeit darueber
        ist davon unberuehrt: sie ist eine DIFFERENZ zweier Zeitpunkte und
        zonenfrei. */
-    ablaufText: zeitpunktBerlin(roh.expiresAt),
+    ablaufText: zeitpunktInZone(roh.expiresAt),
     /*
      * DER WIDERRUF GEWINNT ueber den Ablauf. Beides kann zugleich zutreffen, und
      * „widerrufen" ist die Aussage ueber eine ENTSCHEIDUNG; „abgelaufen" ist nur

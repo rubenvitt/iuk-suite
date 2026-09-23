@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ladeShare, type ShareDatei, type ShareInhalt, type ShareKopf } from "../../../_db/queries";
 import { grenzen } from "../../../_lib/grenzen";
-import { langerZeitpunktBerlin } from "../../../_lib/zeit";
+import { langerZeitpunktInZone } from "../../../_lib/zeit";
 import { PasswortMaske } from "../../../_ui/PasswortMaske";
 import { vorschauZustand } from "../../../api/preview/[id]/route";
 import s from "./share.module.css";
@@ -273,7 +273,7 @@ function Inhalt({
         <p className={`fp-text ${s.beschreibung}`}>{share.beschreibung}</p>
       )}
       <p className={`fp-meta ${s.randdaten}`}>
-        Verfügbar bis {langerZeitpunktBerlin(share.ablaufAt)}
+        Verfügbar bis {langerZeitpunktInZone(share.ablaufAt)}
         {share.maxDownloads !== null &&
           ` · noch ${Math.max(0, share.maxDownloads - share.downloadCount)} von ${share.maxDownloads} Downloads`}
       </p>

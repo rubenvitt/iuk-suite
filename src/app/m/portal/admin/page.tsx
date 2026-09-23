@@ -2,11 +2,13 @@ import Link from "next/link";
 import { canReadAudit } from "@/core/audit/access";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
-import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
-import { deleteServiceAction, setzeAnsprechpartnerAction } from "@/app/m/portal/actions";
+import { leseAnsprechpartner, leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
+import { deleteServiceAction, setzeAnsprechpartnerAction, setzeZeitzoneAction } from "@/app/m/portal/actions";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
 import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
+import { ZeitzoneForm } from "@/app/m/portal/admin/zeitzone-form";
+import { waehlbareZeitzonen } from "@/core/zeit";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 
 import { SPACE } from "@/core/theme/tokens";
@@ -16,6 +18,7 @@ export default async function PortalAdminPage() {
   const darfAuditLesen = await canReadAudit();
   const services = await getAllServices();
   const ansprechpartner = await leseAnsprechpartner();
+  const zeitzone = leseZeitzone();
 
   // Der Seitenkopf (`@/core/shell/Seitenkopf`, Durchgang Aufgabe 13) trägt den
   // Seitentitel jetzt statt eines eigenen `<h1>`. Die beiden Zwischentitel
@@ -51,6 +54,18 @@ export default async function PortalAdminPage() {
           erscheint dort nur die Erklärung ohne Kontaktweg.
         </p>
         <AnsprechpartnerForm wert={ansprechpartner} action={setzeAnsprechpartnerAction} />
+      </section>
+
+      <section>
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: `0 ${SPACE.lg}px` }}>
+          Zeitzone
+        </h2>
+        <p style={{ marginBlock: `0 ${SPACE.md}px`, color: "var(--iuk-gedaempft)" }}>
+          In dieser Zeitzone zeigt die Suite alle Uhrzeiten an, und in ihr beginnt und endet ein
+          Tag, etwa für Fristen, Tagesfilter und Dateinamen von Exporten. Ein Wechsel gilt sofort
+          und auch für schon gespeicherte Einträge.
+        </p>
+        <ZeitzoneForm wert={zeitzone} zonen={waehlbareZeitzonen()} action={setzeZeitzoneAction} />
       </section>
     </div>
   );

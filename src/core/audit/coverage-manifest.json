@@ -631,6 +631,10 @@
     "kind": "context",
     "via": "setzeAnsprechpartnerAction"
   },
+  "src/app/m/portal/actions.ts#setzeZeitzoneAction": {
+    "kind": "context",
+    "via": "setzeZeitzoneAction"
+  },
   "src/app/m/portal/profil/actions.ts#alleSitzungenAbmelden": {
     "kind": "context",
     "via": "alleSitzungenAbmelden"

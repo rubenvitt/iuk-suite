@@ -1,5 +1,5 @@
 import { registerAuditFunctions } from "@/core/audit/context";
-import { it, expect, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, beforeEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
@@ -77,4 +77,45 @@ it("Isolationskanarienvogel: setzt einen Wert für den nächsten Test", async ()
 it("liest wieder null, obwohl der vorige Test gerade einen Wert gesetzt hat", async () => {
   const { leseAnsprechpartner } = await import("@/app/m/portal/_lib/einstellungen");
   expect(await leseAnsprechpartner()).toBeNull();
+});
+
+describe("Zeitzone (DRK-469)", () => {
+  afterEach(async () => {
+    const { setzeAktiveZeitzone, STANDARD_ZEITZONE } = await import("@/core/zeit");
+    setzeAktiveZeitzone(STANDARD_ZEITZONE);
+  });
+
+  it("liest Europe/Berlin, solange nichts gesetzt ist", async () => {
+    const { leseZeitzone } = await import("@/app/m/portal/_lib/einstellungen");
+    expect(leseZeitzone()).toBe("Europe/Berlin");
+  });
+
+  it("speichert die Zone und setzt sie sofort für den Prozess", async () => {
+    const { leseZeitzone, setzeZeitzone } = await import("@/app/m/portal/_lib/einstellungen");
+    const { zeitzone } = await import("@/core/zeit");
+    await setzeZeitzone("Europe/Lisbon");
+    expect(leseZeitzone()).toBe("Europe/Lisbon");
+    expect(zeitzone()).toBe("Europe/Lisbon");
+  });
+
+  it("nimmt UTC an, obwohl V8 sie nicht unter den IANA-Zonen führt", async () => {
+    const { leseZeitzone, setzeZeitzone } = await import("@/app/m/portal/_lib/einstellungen");
+    await setzeZeitzone("UTC");
+    expect(leseZeitzone()).toBe("UTC");
+  });
+
+  it("weist eine unbekannte Zone ab und lässt die alte stehen", async () => {
+    const { leseZeitzone, setzeZeitzone } = await import("@/app/m/portal/_lib/einstellungen");
+    const { zeitzone } = await import("@/core/zeit");
+    await expect(setzeZeitzone("Mars/Olympus_Mons")).rejects.toThrow("Unbekannte Zeitzone");
+    expect(leseZeitzone()).toBe("Europe/Berlin");
+    expect(zeitzone()).toBe("Europe/Berlin");
+  });
+
+  it("fällt bei einem gespeicherten, unbekannten Namen auf den Standard zurück", async () => {
+    const { leseZeitzone } = await import("@/app/m/portal/_lib/einstellungen");
+    const { getDb } = await import("@/app/m/portal/_db/client");
+    getDb().insert(schema.einstellungen).values({ schluessel: "zeitzone", wert: "Mars/Olympus_Mons" }).run();
+    expect(leseZeitzone()).toBe("Europe/Berlin");
+  });
 });

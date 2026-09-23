@@ -1244,7 +1244,7 @@ sqlite3 --version
 ### §S.4 — `devices.last_updated_at`: die einzige Spalte mit Typwechsel
 
 Quelle ist epoch-**ms** (`radio-admin@265abd5 server/src/db/schema.ts:18`), Ziel ist TEXT
-`YYYY-MM-DD` **in `Europe/Berlin`** (Spec 1 §2.2.3, über `tagInBerlin`; die Zone steht **in der
+`YYYY-MM-DD` **in `Europe/Berlin`** (Spec 1 §2.2.3, über `tagInZone`; die Zone steht **in der
 Funktion**, nicht in `TZ`). Diese Spalte läuft als einzige **nicht** durch `sekunden()` und bleibt
 unumgerechnet (`scripts/import/radio.ts:456-604`).
 
@@ -1296,8 +1296,8 @@ select id, last_updated_at, time(last_updated_at/1000,'unixepoch') as uhrzeit_ut
  limit 1;
 ```
 
-⚠️ **Findet dieser Filter keine Zeile, ist `tagInBerlin` an den Produktionsdaten NICHT prüfbar**, und
-die Zusage ruht allein auf den drei `tagInBerlin`-Unit-Tests (Spec 1 §2.2.5: Formular-Mitternacht
+⚠️ **Findet dieser Filter keine Zeile, ist `tagInZone` an den Produktionsdaten NICHT prüfbar**, und
+die Zusage ruht allein auf den drei `tagInZone`-Unit-Tests (Spec 1 §2.2.5: Formular-Mitternacht
 `2026-08-16T22:00:00Z → 2026-08-17` · CSV-Weg `2026-08-17T00:00:00Z → 2026-08-17` ·
 `Date.now()`-Weg `2026-08-17T14:35:00Z → 2026-08-17`). **Das ist eine Protokollzeile, kein grüner
 Haken.**
@@ -3432,7 +3432,7 @@ ist **der Merge**, nicht der Cutover-Abend.
       gesetzt.** Es ist ein eigener Suite-Posten mit eigener Prüfung gegen **alle** laufenden
       Module; ein nachträgliches `TZ` verschöbe jede Datumsgrenze, die portal, qr, feedback,
       files, lagerbuch und aufgaben bisher in UTC gezogen haben. `radio` hängt bewusst nicht
-      daran — die Zone steht in `tagInBerlin`. **Wer es doch am Cutover-Abend setzt, ändert
+      daran — die Zone steht in `tagInZone`. **Wer es doch am Cutover-Abend setzt, ändert
       sechs fremde Module mit.** ☐ gelesen und **nicht** gesetzt
 
 - [ ] **12. ⬜ L13 bestätigt oder ersetzt · ⬜ L14 abgelesen.**

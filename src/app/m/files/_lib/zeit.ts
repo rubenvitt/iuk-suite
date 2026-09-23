@@ -38,14 +38,10 @@
  * damit echte Zeitpunkte (`_db/schema.ts`); es gibt im Modul `files` keine
  * Kalendertagsspalte. Deshalb ist `UTC` hier ueberall die falsche Antwort.
  *
- * DIE ZONE IST EINE KONSTANTE, KEINE ENV-VARIABLE. Das Modul bedient genau EINE
- * Organisation an genau einem Ort; eine Zone aus der Umgebung waere ein
- * Betriebswert, und Betriebswerte dieses Moduls brechen den Boot ab, wenn sie
- * fehlen (§9.3-Muster, `_lib/grenzen.ts`). Fuer die Anzeigezone hiesze das:
- * ein neuer Pflichteintrag in jedem Runbook und in jeder `.env.local`, damit
- * der Wert am Ende doch ueberall `Europe/Berlin` lautet. Eine Konstante ist
- * dieselbe Zusage ohne die Bruchstelle. Sie steht neben `TIME_ZONE` in
- * `feedback/_lib/lifecycle.ts` — wer eine aendert, prueft die andere.
+ * DIE ZONE KOMMT AUS `core/zeit` (DRK-469). Die Portal-Verwaltung stellt sie
+ * suiteweit ein, der Standard ist `Europe/Berlin`. Frueher stand hier eine
+ * eigene Konstante neben `TIME_ZONE` in `feedback` — zwei Wahrheiten, die nur
+ * zufaellig gleich lauteten.
  *
  * KEIN `"use client"`, und das ist tragend (Falle 6): die Aufrufer sind
  * ueberwiegend Server Components. Aus einem `"use client"`-Modul bekaemen sie
@@ -54,10 +50,9 @@
  * Baustein braucht, importiert von HIER; umgekehrt nie.
  *
  * DIE ZONE STEHT IM NAMEN, nicht in einem Kommentar — Modulregel §9.1, dieselbe
- * wie bei `MILLISEKUNDEN_PRO_STUNDE` oder `BYTE_EINHEITEN_BINAER`. Ein
- * `formatiere(zeitpunkt)` liesze am Aufrufort offen, in welcher Zone das
- * Ergebnis gilt, und genau diese Offenheit ist der Defekt, den diese Datei
- * schlieszt.
+ * wie bei `MILLISEKUNDEN_PRO_STUNDE` oder `BYTE_EINHEITEN_BINAER`: `…InZone`
+ * sagt am Aufrufort, dass das Ergebnis in der Suite-Zone gilt und nicht in der
+ * des Prozesses oder des Geraets.
  *
  * DREI FUNKTIONEN UND NICHT EINE. Die drei Formen sind im Modul in Gebrauch und
  * unterscheiden sich in der AUSSAGE, nicht im Geschmack; sie zu einer
@@ -65,12 +60,12 @@
  * nicht an ihren Aufrufort.
  */
 
-/**
- * Die Zone, in der dieses Modul Zeitpunkte ANZEIGT. Nicht die Zone, in der
- * gerechnet wird — gerechnet wird ueberall in echten Zeitpunkten
+/*
+ * `zeitzone()` ist die Zone, in der dieses Modul Zeitpunkte ANZEIGT. Nicht die
+ * Zone, in der gerechnet wird — gerechnet wird ueberall in echten Zeitpunkten
  * (`Date.getTime()`), und das ist zonenfrei.
  */
-export const ZEITZONE_ANZEIGE = "Europe/Berlin";
+import { zeitFormat } from "@/core/zeit";
 
 /*
  * Die Formatierer stehen auf Modulebene und nicht im Rumpf: ein
@@ -80,29 +75,26 @@ export const ZEITZONE_ANZEIGE = "Europe/Berlin";
  * ihn mit anderen Optionen weiterzureichen, und dann steht die Zonenzusage
  * wieder an mehreren Orten.
  */
-const KURZ = new Intl.DateTimeFormat("de-DE", {
+const KURZ = zeitFormat("de-DE", {
   dateStyle: "medium",
   timeStyle: "short",
-  timeZone: ZEITZONE_ANZEIGE,
 });
 
-const GENAU = new Intl.DateTimeFormat("de-DE", {
+const GENAU = zeitFormat("de-DE", {
   dateStyle: "medium",
   timeStyle: "medium",
-  timeZone: ZEITZONE_ANZEIGE,
 });
 
-const LANG = new Intl.DateTimeFormat("de-DE", {
+const LANG = zeitFormat("de-DE", {
   day: "numeric",
   month: "long",
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
-  timeZone: ZEITZONE_ANZEIGE,
 });
 
 /** „31.07.2026, 14:00" — die Arbeitsform der Verwaltungsansichten. */
-export function zeitpunktBerlin(zeitpunkt: Date): string {
+export function zeitpunktInZone(zeitpunkt: Date): string {
   return KURZ.format(zeitpunkt);
 }
 
@@ -111,7 +103,7 @@ export function zeitpunktBerlin(zeitpunkt: Date): string {
  * zwei Downloads derselben Minute waeren sonst nicht auseinanderzuhalten, und
  * genau die Reihenfolge ist die Frage, die man an ein Protokoll stellt.
  */
-export function zeitpunktGenauBerlin(zeitpunkt: Date): string {
+export function zeitpunktGenauInZone(zeitpunkt: Date): string {
   return GENAU.format(zeitpunkt);
 }
 
@@ -121,6 +113,6 @@ export function zeitpunktGenauBerlin(zeitpunkt: Date): string {
  * richtet, und sie steht auf einem fremden Handy ohne weiteren Zusammenhang;
  * ein `07` im Kalenderformat waere dort die zweideutigere Angabe.
  */
-export function langerZeitpunktBerlin(zeitpunkt: Date): string {
+export function langerZeitpunktInZone(zeitpunkt: Date): string {
   return LANG.format(zeitpunkt);
 }

@@ -21,12 +21,12 @@ it.each([
 });
 it("invalid date preserves typed values, focuses the associated invalid field and never navigates",async()=>{
  await mount(<AuditLog view={ready} search={{}}/>);
- await fill('[aria-label="Von (UTC)"]',"2026-02-30");await submitForm("form");
- expect(router.push).not.toHaveBeenCalled();expect(document.activeElement?.getAttribute("aria-label")).toBe("Von (UTC)");
+ await fill('[aria-label="Von"]',"2026-02-30");await submitForm("form");
+ expect(router.push).not.toHaveBeenCalled();expect(document.activeElement?.getAttribute("aria-label")).toBe("Von");
  expect(document.activeElement?.getAttribute("aria-invalid")).toBe("true");
  expect(document.activeElement?.getAttribute("aria-describedby")).toBe("audit-filter-error");
- expect(document.getElementById("audit-filter-error")?.textContent).toContain("Von (UTC)");
- expect((document.querySelector('[aria-label="Von (UTC)"]') as HTMLInputElement).value).toBe("2026-02-30");
+ expect(document.getElementById("audit-filter-error")?.textContent).toContain("Von");
+ expect((document.querySelector('[aria-label="Von"]') as HTMLInputElement).value).toBe("2026-02-30");
 });
 it("changing a filter drops the old page cursor",async()=>{
  await mount(<AuditLog view={ready} search={{cursorTime:"12",cursorId:"00000000-0000-0000-0000-000000000000"}}/>);
@@ -60,12 +60,12 @@ it("preserves the committed system selection when paging despite unsaved changes
 it("reset clears dirty inputs and validation errors even when the committed URL is already empty",async()=>{
  await mount(<AuditLog view={ready} search={{}}/>);
  await fill('[aria-label="Personenkennung"]',"uncommitted-person");
- await fill('[aria-label="Von (UTC)"]',"2026-02-30");await submitForm("form");
+ await fill('[aria-label="Von"]',"2026-02-30");await submitForm("form");
  expect(document.getElementById("audit-filter-error")).not.toBeNull();
  const reset=Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Filter zurücksetzen")!;
  await clickElement(reset);
  expect((document.querySelector('[aria-label="Personenkennung"]') as HTMLInputElement).value).toBe("");
- expect((document.querySelector('[aria-label="Von (UTC)"]') as HTMLInputElement).value).toBe("");
+ expect((document.querySelector('[aria-label="Von"]') as HTMLInputElement).value).toBe("");
  expect(document.getElementById("audit-filter-error")).toBeNull();
  expect(router.push).toHaveBeenCalledWith("/admin/audit");
 });
@@ -105,7 +105,7 @@ it("removing an object scope drops module, type and hash together and clears cur
  await submitForm("form");
  expect(router.push).toHaveBeenLastCalledWith("/admin/audit?actorId=reader");
 });
-it.each([["to","Bis einschließlich (UTC)","2026-02-30"],["to","Bis einschließlich (UTC)","2026-01-01"]])("associates %s date and range errors",async(key,label,value)=>{
+it.each([["to","Bis einschließlich","2026-02-30"],["to","Bis einschließlich","2026-01-01"]])("associates %s date and range errors",async(key,label,value)=>{
  await mount(<AuditLog view={ready} search={{from:"2026-09-01"}}/>);
  await fill(`[aria-label="${label}"]`,value);await submitForm("form");
  expect(document.activeElement?.getAttribute("aria-label")).toBe(label);

@@ -122,25 +122,25 @@ export const CSV_TRENNZEICHEN = ";";
  */
 export const CSV_BOM = "﻿";
 
-/** Die Zone, in der ein Zeitpunkt zu einem Kalendertag wird — an genau einer Stelle. */
-const ZONE = "Europe/Berlin";
+/** Die Zone, in der ein Zeitpunkt zu einem Kalendertag wird: die der Suite (`core/zeit`). */
+import { zeitzone } from "@/core/zeit";
 
 /**
- * Der Kalendertag eines Zeitpunkts in `Europe/Berlin`, als `YYYY-MM-DD`.
+ * Der Kalendertag eines Zeitpunkts in der Suite-Zone (Standard `Europe/Berlin`), als `YYYY-MM-DD`.
  *
  * ⛔ DIE ZONE STEHT IM AUSDRUCK, NICHT IN DER UMGEBUNG. Das Repo setzt `TZ` ausdruecklich
  * NICHT (`_lib/anzeige.test.ts:25`); wer sich auf die Systemzone verliesse, baute einen
  * Wert, der auf dem Entwicklungsrechner richtig und im Container falsch ist. Dieselbe Form
- * wie `_lib/anzeige.ts:50`.
+ * wie `_lib/anzeige.ts`, `uhrzeit`.
  *
  * ⛔ UEBER `formatToParts` UND NICHT UEBER `format`: die Reihenfolge, die ein Gebietsschema
  * ausgibt, ist kein Vertrag — `de-DE` liefert `TT.MM.JJJJ`, und ein Gebietsschema mit
  * `YYYY-MM-DD` zu waehlen hiesse, sich auf eine Nebenwirkung zu verlassen.
  */
-function tagInBerlin(zeitpunkt: Date): string | null {
+function tagInZone(zeitpunkt: Date): string | null {
   if (Number.isNaN(zeitpunkt.getTime())) return null;
   const teile = new Intl.DateTimeFormat("en-US", {
-    timeZone: ZONE,
+    timeZone: zeitzone(),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -207,10 +207,10 @@ function kalendertag(jahr: number, monat: number, tag: number): string | null {
 export function tagAusWert(wert: unknown): string | null {
   if (wert === null || wert === undefined) return null;
 
-  if (wert instanceof Date) return tagInBerlin(wert);
+  if (wert instanceof Date) return tagInZone(wert);
 
   if (typeof wert === "number") {
-    return Number.isFinite(wert) ? tagInBerlin(new Date(wert)) : null;
+    return Number.isFinite(wert) ? tagInZone(new Date(wert)) : null;
   }
 
   if (typeof wert !== "string") return null;
@@ -221,7 +221,7 @@ export function tagAusWert(wert: unknown): string | null {
   // Reine Millisekundenzahl (`commit-service.ts:44-47`).
   if (/^-?\d+$/.test(roh)) {
     const zahl = Number(roh);
-    return Number.isFinite(zahl) ? tagInBerlin(new Date(zahl)) : null;
+    return Number.isFinite(zahl) ? tagInZone(new Date(zahl)) : null;
   }
 
   // ISO `YYYY-MM-DD` (`commit-service.ts:49-50`).

@@ -23,7 +23,7 @@ import {
 import {
   msZuDatum,
   msZuDatumOptional,
-  tagInBerlin,
+  tagInZone,
   zuBoolOptional,
   pruefeQuelle,
   lieseQuelle,
@@ -266,34 +266,34 @@ describe("Die Zeitachse (Spec 2 §1.3.2)", () => {
     expect(() => msZuDatum("t.x", 4_000_000_000_001)).toThrow(/Millisekunden-Spanne/);
   });
 
-  it("tagInBerlin: 2026-08-16T22:00:00Z (Formular-Mitternacht) ergibt 2026-08-17", () => {
-    expect(tagInBerlin("t.x", Date.UTC(2026, 7, 16, 22, 0, 0))).toBe("2026-08-17");
+  it("tagInZone: 2026-08-16T22:00:00Z (Formular-Mitternacht) ergibt 2026-08-17", () => {
+    expect(tagInZone("t.x", Date.UTC(2026, 7, 16, 22, 0, 0))).toBe("2026-08-17");
   });
 
-  it("tagInBerlin: 2026-08-17T00:00:00Z (CSV-Weg) ergibt 2026-08-17", () => {
-    expect(tagInBerlin("t.x", Date.UTC(2026, 7, 17, 0, 0, 0))).toBe("2026-08-17");
+  it("tagInZone: 2026-08-17T00:00:00Z (CSV-Weg) ergibt 2026-08-17", () => {
+    expect(tagInZone("t.x", Date.UTC(2026, 7, 17, 0, 0, 0))).toBe("2026-08-17");
   });
 
-  it("tagInBerlin: 2026-08-17T14:35:00Z (Date.now()-Weg) ergibt 2026-08-17", () => {
-    expect(tagInBerlin("t.x", Date.UTC(2026, 7, 17, 14, 35, 0))).toBe("2026-08-17");
+  it("tagInZone: 2026-08-17T14:35:00Z (Date.now()-Weg) ergibt 2026-08-17", () => {
+    expect(tagInZone("t.x", Date.UTC(2026, 7, 17, 14, 35, 0))).toBe("2026-08-17");
   });
 
   // ⛛ Ergaenzung dieses Plans: die Nullbehandlung der zwei optionalen Wege.
-  it("msZuDatumOptional und tagInBerlin geben bei null und undefined null zurueck", () => {
+  it("msZuDatumOptional und tagInZone geben bei null und undefined null zurueck", () => {
     expect(msZuDatumOptional("t.x", null)).toBeNull();
     expect(msZuDatumOptional("t.x", undefined)).toBeNull();
-    expect(tagInBerlin("t.x", null)).toBeNull();
-    expect(tagInBerlin("t.x", undefined)).toBeNull();
+    expect(tagInZone("t.x", null)).toBeNull();
+    expect(tagInZone("t.x", undefined)).toBeNull();
     // ⚠️ Aber ein VORHANDENER, falscher Wert wirft auch auf dem optionalen Weg.
     expect(() => msZuDatumOptional("t.x", 1_735_689_600)).toThrow(/Millisekunden-Spanne/);
-    // ⚠️ Und dasselbe für tagInBerlin. Diese Zeile ist der einzige Beweis, dass tagInBerlin
+    // ⚠️ Und dasselbe für tagInZone. Diese Zeile ist der einzige Beweis, dass tagInZone
     // seinen Wert durch msZuDatum schickt, statt ihn selbst in ein `new Date` zu geben —
     // gemessen: ohne sie überlebt genau diese Verkürzung vitest, `tsc --noEmit` UND eslint,
     // und ein Sekundenwert landet still als "1970-01-21" in devices.last_updated_at, einem
     // TEXT-Feld ohne Constraint, hinter dem kein Paritätssignal steht (Spec 1 §2.2.3).
     // Der Faktor bleibt im Ausdruck sichtbar, wie der Plankopf es für jede Überschreitung
     // der Einheitengrenze verlangt: der Divisor ist der Fehler, nicht die Zahl.
-    expect(() => tagInBerlin("t.x", ALT_GERAET.last_updated_at / 1000)).toThrow(
+    expect(() => tagInZone("t.x", ALT_GERAET.last_updated_at / 1000)).toThrow(
       /Millisekunden-Spanne/,
     );
   });
@@ -311,7 +311,7 @@ describe("Die Zeitachse (Spec 2 §1.3.2)", () => {
     // Der Wert kann nur ueber den blinden Cast `.all() as AltGeraet[]` (radio.ts:210)
     // hereinkommen — typseitig ist er von toNeuesGeraet aus unerreichbar. Ohne DIESE
     // Zeile ist die Haertung eine Zusage, die kein Test haelt: derselbe Fehlertyp, den
-    // die Schlusspruefung von B1-B4 an `tagInBerlin` per Mutationssonde entlarvt hat.
+    // die Schlusspruefung von B1-B4 an `tagInZone` per Mutationssonde entlarvt hat.
     expect(zuBoolOptional(undefined)).toBeNull();
   });
 
@@ -486,7 +486,7 @@ describe("toNeuesGeraet (Spec 2 §1.4.3)", () => {
 
   /**
    * ⛛ Additive Zusicherung (Spec 2 §1.3.4): die EINZIGE Spalte mit Typwechsel und die
-   * einzige, deren Richtigkeit an der ZONE haengt. Die drei tagInBerlin-Tests aus Aufgabe 3
+   * einzige, deren Richtigkeit an der ZONE haengt. Die drei tagInZone-Tests aus Aufgabe 3
    * pruefen die FUNKTION; diese Zeile prueft die VERDRAHTUNG. Ein Mapper mit
    * `new Date(ms).toISOString().slice(0,10)` liefert hier "2025-03-01".
    *

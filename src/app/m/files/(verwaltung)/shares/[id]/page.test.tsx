@@ -553,10 +553,10 @@ describe("die Metadaten tragen Zustand, Menge und Datum", () => {
    *
    * DREI AUFRUFSTELLEN, DREI ZUSICHERUNGEN — und die dritte fehlte hier bis zur
    * Nachbesserung: die Karte traegt NEBEN dem Ablauf auch den
-   * ERSTELLUNGSZEITPUNKT, und der war unbewacht. Belegt: `zeitpunktBerlin` an
+   * ERSTELLUNGSZEITPUNKT, und der war unbewacht. Belegt: `zeitpunktInZone` an
    * dieser Stelle durch das Literal „01.01.2000, 00:00" ersetzt liesz alle 36
    * Tests dieser Datei gruen (und, vom Reviewer gemessen, alle 1463 des Moduls).
-   * Eine Zusage auf `ZEITZONE_ANZEIGE` kann das strukturell nicht auffangen: sie
+   * Eine Zusage auf die Zone selbst kann das strukturell nicht auffangen: sie
    * faerbt jede Stelle zugleich und belegt damit nur den Baustein.
    *
    * DIE ZUSICHERUNG IST AUF DIE KARTE EINGEGRENZT, nicht auf das ganze Markup:

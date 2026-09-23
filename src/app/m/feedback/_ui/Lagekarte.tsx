@@ -75,7 +75,7 @@ export type LagekarteProps = {
   jetzt: Date;
   /** `group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS` für die Fristvorschau. */
   stunden: number;
-  /** Heute in `Europe/Berlin` (`YYYY-MM-DD`) — Vorbelegung des Datumsfelds. */
+  /** Heute in der Suite-Zone (`YYYY-MM-DD`) — Vorbelegung des Datumsfelds. */
   heute: string;
   /**
    * Anzahl der Freitext-Antworten der LAUFENDEN Umfrage — der Zwischenstand

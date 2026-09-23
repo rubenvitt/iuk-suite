@@ -4,6 +4,7 @@ import { etikettOrte } from "../../../_lib/lesepfade/ortEtiketten";
 import { tokenListe, type TokenZeile } from "../../../_lib/lesepfade/tokens";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { TokenTable, type TokenAnzeigeZeile } from "./TokenTable";
+import { zeitzone } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export function tokenAnzeigeZeilen(
     label: zeile.label,
     aktiv: zeile.aktiv,
     lastUsedText: zeile.lastUsedAt
-      ? zeile.lastUsedAt.toLocaleString("de-DE", { timeZone: "Europe/Berlin" })
+      ? zeile.lastUsedAt.toLocaleString("de-DE", { timeZone: zeitzone() })
       : "nie benutzt",
     /**
      * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
@@ -73,7 +74,7 @@ export function tokenAnzeigeZeilen(
      * behaupten, die niemand braucht, und die Zeile unnötig breit zu machen.
      */
     ersetztText: zeile.ersetztAm
-      ? zeile.ersetztAm.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })
+      ? zeile.ersetztAm.toLocaleDateString("de-DE", { timeZone: zeitzone() })
       : null,
     zielTyp: zeile.zielTyp,
     zielId: zeile.zielId,

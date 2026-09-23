@@ -1,4 +1,5 @@
-import { kalendertagInZone, TIME_ZONE } from "../_lib/lifecycle";
+import { kalendertagInZone } from "../_lib/lifecycle";
+import { zeitFormat } from "@/core/zeit";
 
 /**
  * ZEITANGABEN DES MODULS AN EINER STELLE (Entwurf §2.3, §4.5).
@@ -23,21 +24,18 @@ import { kalendertagInZone, TIME_ZONE } from "../_lib/lifecycle";
  * Drizzle in das Client-Bündel ziehen.
  */
 
-const TAG_KURZ = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const TAG_KURZ = zeitFormat("de-DE", {
   weekday: "short",
   day: "2-digit",
   month: "2-digit",
 });
 
-const UHRZEIT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const UHRZEIT = zeitFormat("de-DE", {
   hour: "2-digit",
   minute: "2-digit",
 });
 
-const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const ZEITPUNKT = zeitFormat("de-DE", {
   weekday: "short",
   day: "2-digit",
   month: "2-digit",
@@ -45,35 +43,31 @@ const ZEITPUNKT = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
-const WOCHENTAG_ZEIT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const WOCHENTAG_ZEIT = zeitFormat("de-DE", {
   weekday: "short",
   hour: "2-digit",
   minute: "2-digit",
 });
 
-const TAG_LANG = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const TAG_LANG = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
 });
 
-const TAG_MONAT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const TAG_MONAT = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
 });
 
-const ABENDTAG = new Intl.DateTimeFormat("de-DE", {
-  timeZone: TIME_ZONE,
+const ABENDTAG = zeitFormat("de-DE", {
   weekday: "short",
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
 });
 
-const WOCHENTAG = new Intl.DateTimeFormat("de-DE", { timeZone: TIME_ZONE, weekday: "long" });
+const WOCHENTAG = zeitFormat("de-DE", { weekday: "long" });
 
 /*
  * DIE FORMATIERUNG STEHT IN `_lib/lifecycle.ts` (`kalendertagInZone`) und nicht
@@ -141,7 +135,7 @@ export function formatZeitpunkt(datum: Date): string {
   return ZEITPUNKT.format(datum);
 }
 
-/** Heute in `Europe/Berlin` als `YYYY-MM-DD` — die Vorbelegung des Datumsfelds. */
+/** Heute in der Suite-Zone als `YYYY-MM-DD` — die Vorbelegung des Datumsfelds. */
 export function heuteInZone(jetzt: Date = new Date()): string {
   return kalendertagInZone(jetzt);
 }

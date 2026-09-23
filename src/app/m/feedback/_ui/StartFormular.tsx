@@ -40,7 +40,7 @@ export type StartVariante = "primaer" | "naechster";
 
 export type StartFormularProps = {
   groupId: number;
-  /** Heute in `Europe/Berlin` (`YYYY-MM-DD`), serverseitig berechnet. */
+  /** Heute in der Suite-Zone (`YYYY-MM-DD`), serverseitig berechnet. */
   heute: string;
   /** Teilnehmerzahl des letzten Abends — Vorbelegung, nie geraten. */
   teilnehmerVorbelegung: number | null;

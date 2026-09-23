@@ -100,7 +100,7 @@ export type VerlaufZeile = {
 export type VerlaufProps = {
   groupId: number;
   zeilen: VerlaufZeile[];
-  /** Heute in `Europe/Berlin` als `YYYY-MM-DD` — Vorbelegung von „nachtragen". */
+  /** Heute in der Suite-Zone als `YYYY-MM-DD` — Vorbelegung von „nachtragen". */
   heute: string;
 };
 

@@ -38,7 +38,7 @@ import s from "./ausleihe.module.css";
  * setzte einer Besucherin ohne Sitzung eine Suite-Kopfzeile mit Kachelliste vor,
  * `KioskShell` verboete das Scrollen einer Geraeteliste (Spec:3362-3376). Die Flaeche erbt
  * dadurch `controlHeight: TAP = 56` vom Wurzelprovider (`src/core/theme/theme.ts:50-51`),
- * weil `AntdProvider` in der Wurzel-Huelle sitzt (`src/app/layout.tsx:165`) und `radio`
+ * weil `AntdProvider` in der Wurzel-Huelle sitzt (`src/app/layout.tsx:166`) und `radio`
  * keine `FullShell` faehrt, die `ARBEITSDICHTE: 44` darueberlegte (`theme.ts:207-209`).
  * ⛔ `size` wird deshalb auf keinem Element gesetzt (Falle 4: `size="large"` ist 72), und
  * die 44er- und 64er-Masze sind CSS-Klassen — ⛔ KEIN zweiter `ConfigProvider`, der waere

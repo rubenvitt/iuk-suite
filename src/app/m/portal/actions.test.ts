@@ -10,11 +10,17 @@ vi.mock("@/app/m/portal/_lib/services", () => ({
   createService: vi.fn().mockResolvedValue({ id: "svc-1" }),
   deleteService: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
+  setzeAnsprechpartner: vi.fn(),
+  setzeZeitzone: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from "@/core/auth";
 import { createService, deleteService } from "@/app/m/portal/_lib/services";
-import { createServiceAction, deleteServiceAction } from "@/app/m/portal/actions";
+import { setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
+import { revalidatePath } from "next/cache";
+import { createServiceAction, deleteServiceAction, setzeZeitzoneAction } from "@/app/m/portal/actions";
 
 const authMock = vi.mocked(auth);
 const createServiceMock = vi.mocked(createService);
@@ -51,5 +57,18 @@ describe("portal admin actions: authorization boundary", () => {
     authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
     await createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example" }));
     expect(createServiceMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("non-admin session cannot change the suite time zone", async () => {
+    authMock.mockResolvedValue({ user: { groups: [] } } as never);
+    await expect(setzeZeitzoneAction(formData({ zeitzone: "UTC" }))).rejects.toThrow("Forbidden");
+    expect(vi.mocked(setzeZeitzone)).not.toHaveBeenCalled();
+  });
+
+  it("admin session sets the time zone and revalidates the whole suite", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    await setzeZeitzoneAction(formData({ zeitzone: "Europe/Lisbon" }));
+    expect(vi.mocked(setzeZeitzone)).toHaveBeenCalledWith("Europe/Lisbon");
+    expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/", "layout");
   });
 });

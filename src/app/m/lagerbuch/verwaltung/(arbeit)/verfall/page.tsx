@@ -11,11 +11,11 @@ import {
   type OrtVerfallZeile,
 } from "./OrtVerfallTabelle";
 import { VerfallItem } from "./VerfallItem";
+import { zeitFormat } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
-const GEMELDET_FORMAT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: "Europe/Berlin",
+const GEMELDET_FORMAT = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

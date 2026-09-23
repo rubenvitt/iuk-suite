@@ -18,7 +18,7 @@
  *
  * ⛔ KEINE FARBE FUER DEN FLIESZTEXT UND KEINE FLAECHENFARBE. Das Gate laeuft OHNE Shell
  * (Entscheidung E9) und damit ohne antd-`Layout`; das Wurzel-Layout setzt
- * `style={{ colorScheme: mode }}` auf `<html>` (`src/app/layout.tsx:153`), und die
+ * `style={{ colorScheme: mode }}` auf `<html>` (`src/app/layout.tsx:154`), und die
  * Vorgabefarben des Browsers folgen damit dem Hell/Dunkel-Zustand von selbst. Ein
  * verdrahtetes `color: #000` waere in der Dunkeldarstellung schwarz auf schwarz — und
  * `pnpm build`, `typecheck` und Vitest saehen davon nichts (Hauslehre
@@ -271,7 +271,7 @@
   /*
    * ⛔ `Canvas` UND NICHT `inherit`. `.rahmen` setzt bewusst KEINE Flaechenfarbe (Kopf
    * dieser Datei: die Vorgabefarben des Browsers folgen `style={{ colorScheme: mode }}`
-   * aus `src/app/layout.tsx:153` von selbst) — ein `inherit` loeste damit auf
+   * aus `src/app/layout.tsx:154` von selbst) — ein `inherit` loeste damit auf
    * `transparent` auf, und gescrollter Inhalt liefe SICHTBAR unter der Leiste durch.
    * `Canvas` ist das Systemschluesselwort fuer genau diese Vorgabeflaeche und folgt
    * demselben `color-scheme`; es haelt die Regel des Rahmens ein, statt sie zu brechen.

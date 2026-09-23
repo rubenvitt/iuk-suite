@@ -183,3 +183,21 @@ describe("Wurzel-Layout: Theme-Signal fuer CSS", () => {
     );
   });
 });
+
+describe("Wurzel-Layout: Zeitzone fuer den Browser (DRK-469)", () => {
+  /*
+   * Client-Inseln formatieren Zeiten selbst. Sie lesen die Suite-Zone aus
+   * `<html data-zeitzone>` (`core/zeit`, `zeitzone()`); fehlt das Attribut,
+   * rechnet die Hydration mit dem Standard statt mit der eingestellten Zone.
+   */
+  it("stempelt die prozessweite Suite-Zone auf <html>", async () => {
+    const { setzeAktiveZeitzone, STANDARD_ZEITZONE } = await import("@/core/zeit");
+    try {
+      setzeAktiveZeitzone("Europe/Lisbon");
+      expect((await htmlElement({})).props["data-zeitzone"]).toBe("Europe/Lisbon");
+    } finally {
+      setzeAktiveZeitzone(STANDARD_ZEITZONE);
+    }
+    expect((await htmlElement({})).props["data-zeitzone"]).toBe("Europe/Berlin");
+  });
+});

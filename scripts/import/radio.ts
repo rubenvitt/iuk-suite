@@ -54,7 +54,7 @@ const BERLIN = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-export function tagInBerlin(feld: string, ms: number | null | undefined): string | null {
+export function tagInZone(feld: string, ms: number | null | undefined): string | null {
   if (ms === null || ms === undefined) return null;
   const d = msZuDatum(feld, ms);
   const t = Object.fromEntries(BERLIN.formatToParts(d).map((p) => [p.type, p.value]));
@@ -265,7 +265,7 @@ export function toNeuesGeraet(zeile: AltGeraet): schema.NeuesGeraet {
     assignedTo: zeile.assigned_to ?? null,
     softwareVersion: zeile.software_version ?? null,
     // TYPWECHSEL integer(ms) -> text `YYYY-MM-DD` in Europe/Berlin (Spec 1 §2.2.3).
-    lastUpdatedAt: tagInBerlin("devices.last_updated_at", zeile.last_updated_at),
+    lastUpdatedAt: tagInZone("devices.last_updated_at", zeile.last_updated_at),
     notes: zeile.notes ?? null,
     hiorgId: zeile.hiorg_id ?? null,
     opta: zeile.opta ?? null,

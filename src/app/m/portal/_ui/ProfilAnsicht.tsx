@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 
 import { initialen } from "@/core/shell/initialen";
 import { SPACE } from "@/core/theme/tokens";
+import { zeitzone } from "@/core/zeit";
 
 const { Text } = Typography;
 
@@ -114,7 +115,7 @@ export function ProfilAnsicht({
           <Text code>{kennung ?? "—"}</Text>
         </Zeile>
         <Zeile titel="Angemeldet seit">
-          {angemeldetSeit ? new Date(angemeldetSeit * 1000).toLocaleString("de-DE") : "Unbekannt"}
+          {angemeldetSeit ? new Date(angemeldetSeit * 1000).toLocaleString("de-DE", { timeZone: zeitzone() }) : "Unbekannt"}
         </Zeile>
         <Text type="secondary">
           Name, Profilbild, E-Mail und Gruppen werden zentral verwaltet und lassen sich hier nicht ändern.
