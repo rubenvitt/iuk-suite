@@ -216,6 +216,14 @@ export const MODULES: ModuleDef[] = [
   { key: "kioskdemo", title: "Kiosk Demo", icon: "DesktopOutlined", shell: "kiosk",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
+  // zeichen: das Modul ist entfernt (DRK-465), das hier ist nur sein Abräum-Rest. Der Host
+  // liefert unter /sw.js den Abräum-Worker, sonst 410 (`core/routing.ts`, `decideRoute`).
+  // Grund: installierte PWAs holen den Worker nur über zeichen.<domain>/sw.js — ohne
+  // Eintrag gibt es den Pfad nicht, und SUITE_HOST_ZEICHEN bräche als unbekannter Schlüssel
+  // den Start ab. Abbau erst, wenn die Geräte durch sind: `docs/runbooks/zeichen-abbau.md`.
+  { key: "zeichen", title: "Taktische Zeichen", icon: "AppstoreOutlined", shell: "kiosk",
+    requiresAuth: false, requiredGroups: [], adminGroups: [],
+    prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
 ];
 
 const BY_KEY = new Map(MODULES.map((m) => [m.key, m]));
