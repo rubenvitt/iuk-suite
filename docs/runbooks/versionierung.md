@@ -192,3 +192,16 @@ Der Schritt bringt mehr Commits mit als gedacht: ein Merge von `main` in den PR-
 **nicht** doppelt (`scripts/version.test.ts`), aber ein Rebase auf eine alte Basis oder ein
 Squash mit `feat!`-Rumpf sehr wohl. `git log <merge>^1..<merge> --format=%s` zeigt, was das
 Skript gesehen hat; `node scripts/version.mjs <commit>` die Herleitung.
+
+### F5 — main-Lauf grün, aber kein Release, kein Image-Tag, kein Rollout
+
+Die Jobs `merge`, `release` und `deploy` fehlen im Lauf ganz (übersprungen, nicht rot).
+Ursache ist fast immer ein `if` **ohne Statusfunktion** an einem dieser Jobs: GitHub setzt
+dort ein implizites `success()`, und das prüft **alle** Vorfahren transitiv. Ein einziger
+per `if` übersprungener Job irgendwo davor (heute `ueberholt`, der außerhalb eines
+abgebrochenen PR-Laufs immer `skipped` ist) schaltet damit die ganze Kette still ab. So
+geschehen nach DRK-410: vier grüne main-Läufe ohne Release. Abhilfe: `!cancelled()` ins
+`if` und jeden direkten `needs` ausdrücklich auf `result == 'success'` prüfen;
+`scripts/deploy.test.ts` („kein Job hinter `ueberholt` …") hält das fest. Die ausgefallenen
+Nummern bleiben unbesetzt (Teil A, „Lücken sind ehrlich"); der nächste grüne main-Lauf
+rechnet die Schritte mit.

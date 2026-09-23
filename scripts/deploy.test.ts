@@ -182,6 +182,45 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     expect(ueberholtJob).toMatch(/"\$kopf"\s*!=\s*"\$LAUF_SHA"/);
   });
 
+  it("kein Job hinter `ueberholt` verlässt sich auf das implizite `success()`", () => {
+    // Ein `if` ohne Statusfunktion bekommt von GitHub ein implizites `success()`, und das
+    // prüft ALLE Vorfahren transitiv. `ueberholt` ist außerhalb eines abgebrochenen
+    // PR-Laufs immer `skipped` — jeder Job dahinter, der das nicht selbst abfängt, fällt
+    // auf JEDEM grünen main-Lauf still aus. So ist es `merge`, `release` und `deploy`
+    // nach DRK-410 ergangen: grüne Pipeline, kein Image, kein Tag, kein Rollout.
+    const namen = jobs
+      .map((z) => /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(z)?.[1])
+      .filter((n): n is string => n !== undefined);
+    const needsVon = new Map(
+      namen.map((n) => {
+        const zeile = rumpf(jobs, n, 2).find((z) => /^ {4}needs:/.test(z)) ?? "";
+        const wert = zeile.replace(/^ {4}needs:\s*/, "").replace(/[[\]]/g, "");
+        return [n, wert.split(",").map((s) => s.trim()).filter(Boolean)];
+      }),
+    );
+    const vorfahren = (n: string, gesehen = new Set<string>()): Set<string> => {
+      for (const v of needsVon.get(n) ?? []) {
+        if (!gesehen.has(v)) {
+          gesehen.add(v);
+          vorfahren(v, gesehen);
+        }
+      }
+      return gesehen;
+    };
+    const dahinter = namen.filter((n) => vorfahren(n).has("ueberholt"));
+    expect(dahinter).toEqual(expect.arrayContaining(["test", "merge", "release", "deploy"]));
+    for (const n of dahinter) {
+      const bedingung = rumpf(jobs, n, 2).find((z) => /^ {4}if:/.test(z)) ?? "";
+      expect(bedingung, `\`${n}\` braucht eine Statusfunktion im if`).toMatch(/always\(\)|!cancelled\(\)/);
+      // `test` wertet die Ergebnisse im Schritt selbst aus (und muss dafür laufen);
+      // alle anderen prüfen jeden direkten Bedarf im `if`.
+      if (n === "test") continue;
+      for (const v of needsVon.get(n) ?? []) {
+        expect(bedingung, `\`${n}\` prüft needs.${v}.result`).toContain(`needs.${v}.result == 'success'`);
+      }
+    }
+  });
+
   it("`build` und `merge` warten auf `version` — sonst ist die Ausgabe leer", () => {
     // Ein `needs.version.outputs.version` ohne `needs: version` ist in GitHub Actions
     // kein Fehler, sondern ein leerer String: `SUITE_VERSION=` im Image, `:` als Tag.
