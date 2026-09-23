@@ -46,6 +46,41 @@ async function artikelseite(page: Page): Promise<void> {
     `Die Tabelle virtualisiert nicht — dieser Test prüft dann nichts. `
     + `Seed: ${E2E_LAST_ANZAHL} Lastartikel.`,
   ).toHaveCount(1);
+
+  await warteAufRuhigenKoerper(page);
+}
+
+/**
+ * WARTET, BIS DAS SICHTFENSTER DER VIRTUELLEN LISTE STEHT.
+ *
+ * ⚠️ GEMESSEN, NICHT VERMUTET (CI-Lauf 35826504174, `e2e (lagerbuch-3)`):
+ * nach `networkidle` ist der Körper noch 560 px hoch (der Startwert von
+ * `scroll.y`) und trägt 12 Zeilen; erst danach setzt `TabellenVollhoehe`
+ * (Falle 16) die Höhe aus `100dvh` — bei 1280 × 720 auf 399 px —, und
+ * rc-virtual-list wirft die Zeilen 8–12 wieder ab. Ein Greifer, der die
+ * Zeilen VORHER aufzählt (`locator.all()` liefert nur `nth(i)`-Greifer),
+ * zeigt danach auf Zeilen, die es nicht mehr gibt: „element(s) not found"
+ * an `nth(7)`, im Wiederholversuch ein Hänger an `nth(11)`.
+ *
+ * DREI gleiche Proben in Folge (Höhe UND Zeilenzahl), dieselbe Regel wie
+ * `messeWennRuhig` in `fixtures.ts`.
+ */
+async function warteAufRuhigenKoerper(page: Page): Promise<void> {
+  const proben: string[] = [];
+  await expect.poll(async () => {
+    proben.push(await page.evaluate((sel) => {
+      const koerper = document.querySelector(sel);
+      if (!koerper) return "fehlt";
+      const hoehe = Math.round(koerper.getBoundingClientRect().height);
+      return `${hoehe}:${koerper.querySelectorAll("[data-row-key]").length}`;
+    }, KOERPER));
+    const letzte = proben.slice(-3);
+    return letzte.length === 3 && letzte.every((p) => p === letzte[0]);
+  }, {
+    message: "Das Sichtfenster der virtuellen Liste kommt nicht zur Ruhe",
+    intervals: [100],
+    timeout: 15_000,
+  }).toBe(true);
 }
 
 test.describe("Tabellen-Semantik der virtualisierten Artikeltabelle (DRK-336)", () => {
@@ -101,12 +136,21 @@ test.describe("Tabellen-Semantik der virtualisierten Artikeltabelle (DRK-336)", 
     ).toBeLessThan(gesamt);
 
     // Jede Zeile im Baum ist eine Zeile — und sagt, die WIEVIELTE sie ist.
+    // ⚠️ IN EINEM ZUG GELESEN, nicht über `zeilen.all()`: das liefert
+    // `nth(i)`-Greifer, und die virtuelle Liste darf ihr Sichtfenster
+    // zwischen zwei Abfragen neu schneiden (siehe `warteAufRuhigenKoerper`).
+    // Ein Schnappschuss aller Zeilen prüft dieselbe Aussage ohne das Rennen.
     const zeilen = page.locator(`${KOERPER} [data-row-key]`);
-    for (const zeile of await zeilen.all()) {
-      await expect(zeile).toHaveAttribute("role", "row");
-      const index = Number(await zeile.getAttribute("aria-rowindex"));
-      expect(index).toBeGreaterThanOrEqual(1);
-      expect(index).toBeLessThanOrEqual(gesamt);
+    const befund = await zeilen.evaluateAll((knoten) => knoten.map((k) => ({
+      schluessel: k.getAttribute("data-row-key"),
+      rolle: k.getAttribute("role"),
+      index: Number(k.getAttribute("aria-rowindex")),
+    })));
+    expect(befund.length, "Im Körper steht keine Zeile.").toBeGreaterThan(1);
+    for (const { schluessel, rolle, index } of befund) {
+      expect(rolle, `Zeile ${schluessel}: Rolle`).toBe("row");
+      expect(index, `Zeile ${schluessel}: aria-rowindex`).toBeGreaterThanOrEqual(1);
+      expect(index, `Zeile ${schluessel}: aria-rowindex`).toBeLessThanOrEqual(gesamt);
     }
 
     // Die erste sichtbare Zeile ist die erste der Liste, nicht „irgendeine".
