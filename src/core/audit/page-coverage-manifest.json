@@ -195,34 +195,6 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
-  "src/app/m/zeichen/(shell)/katalog/[id]/page.tsx#notFound:zeichen === null || svg === null:1": {
-    "kind": "excluded",
-    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
-  },
-  "src/app/m/zeichen/(shell)/katalog/page.tsx#notFound:!sub:1": {
-    "kind": "excluded",
-    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
-  },
-  "src/app/m/zeichen/(shell)/lernen/page.tsx#notFound:!sub:1": {
-    "kind": "excluded",
-    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
-  },
-  "src/app/m/zeichen/(shell)/lernen/runde/page.tsx#notFound:!sub:1": {
-    "kind": "excluded",
-    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
-  },
-  "src/app/m/zeichen/(shell)/meine/page.tsx#notFound:!sub:1": {
-    "kind": "excluded",
-    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
-  },
-  "src/app/m/zeichen/(shell)/merkliste/page.tsx#notFound:!sub:1": {
-    "kind": "excluded",
-    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
-  },
-  "src/app/m/zeichen/(shell)/verwaltung/lernsets/[id]/page.tsx#notFound:!gefunden:1": {
-    "kind": "excluded",
-    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
-  },
   "src/app/m/lagerbuch/helfer/box/page.tsx#redirect:bereichsAbweisung(zugang, \"box\"):1": {
     "kind": "delegated-denial",
     "reason": "DRK-417: a place code only opens the area its card hangs at — Handlager takeout, Entnahmebox drop-off, unit check and drop-off. `bereichsAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."

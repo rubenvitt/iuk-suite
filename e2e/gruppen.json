@@ -32,8 +32,8 @@
     "specs": "e2e/files-*.spec.ts e2e/feedback.spec.ts"
   },
   {
-    "name": "uav-zeichen",
-    "specs": "e2e/uav.spec.ts e2e/zeichen.spec.ts e2e/zeichen-deaktiviert.spec.ts"
+    "name": "uav",
+    "specs": "e2e/uav.spec.ts"
   },
   {
     "name": "suite-huelle",

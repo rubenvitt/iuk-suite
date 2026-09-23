@@ -114,7 +114,7 @@ describe("Nullbyte-Wächter: die Prüfung selbst", () => {
   });
 
   it("nimmt echte Binärdateien aus, aber keine Quell- oder Textdatei", () => {
-    expect(istZuPruefen("src/app/m/zeichen/_fonts/Arimo[wght].ttf")).toBe(false);
+    expect(istZuPruefen("src/app/fonts/Arimo[wght].ttf")).toBe(false);
     expect(istZuPruefen("public/login-bg.JPG")).toBe(false);
     expect(istZuPruefen("scripts/import/uav.ts")).toBe(true);
     expect(istZuPruefen("docs/design/README.md")).toBe(true);

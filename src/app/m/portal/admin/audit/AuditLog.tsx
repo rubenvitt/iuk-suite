@@ -98,7 +98,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           */}
         <Datentabelle<AuditEvent> rowKey="id" dataSource={ready.page.events} scroll={{x:960}} columns={[
           {title:"Zeit (UTC)",key:"time",width:190,render:(_,event)=><time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>},
-          {title:"Modul",width:130,dataIndex:"module",render:(module:string)=>MODULE_LABELS[module]},
+          {title:"Modul",width:130,dataIndex:"module",render:(module:string)=>MODULE_LABELS[module] ?? module},
           {title:"Aktion / Objekt",width:200,key:"action",render:(_,event)=><>{ACTION_LABELS[event.action]}<br/><span style={SCHRIFT.neben}>{objectLabel(event.objectType)}</span>{event.origin==="browser"&&<div><Tag>Vom Browser gemeldet</Tag></div>}</>},
           {title:"Person / Zugang",width:200,key:"actor",render:(_,event)=><span className={css.break}>{actorLabel(event)}</span>},
           {title:"Ergebnis",width:120,dataIndex:"result",render:(result:AuditEvent["result"])=><Tag>{RESULT_LABELS[result]}</Tag>},
@@ -108,7 +108,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
       <div className={css.mobile} style={{gap:SPACE.md}}>{ready.page.events.map(event=><Card key={event.id}>
         <time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>
         <p><strong>{ACTION_LABELS[event.action]} · {objectLabel(event.objectType)}</strong></p>
-        <p className={css.break}>{MODULE_LABELS[event.module]} · {actorLabel(event)}</p>
+        <p className={css.break}>{MODULE_LABELS[event.module] ?? event.module} · {actorLabel(event)}</p>
         <Space wrap><Tag>{RESULT_LABELS[event.result]}</Tag>{event.origin==="browser"&&<Tag>Vom Browser gemeldet</Tag>}</Space>
         <div style={{marginBlockStart:SPACE.md}}><Button block onClick={()=>setDetails(event)}>Details</Button></div>
       </Card>)}</div>
@@ -123,7 +123,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
       {details && <>
         <dl className={css.details}>
           <dt>Zeit</dt><dd>{auditTime(details.occurredAt)}</dd>
-          <dt>Modul</dt><dd>{MODULE_LABELS[details.module]}</dd>
+          <dt>Modul</dt><dd>{MODULE_LABELS[details.module] ?? details.module}</dd>
           <dt>Aktion</dt><dd>{ACTION_LABELS[details.action]}</dd>
           <dt>Objekt</dt><dd>{objectLabel(details.objectType)}</dd>
           <dt>Person / Zugang</dt><dd>{actorLabel(details)}</dd>

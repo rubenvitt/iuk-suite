@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
 import { devLogin, klickeWennRuhig, wechsleAnmeldung, warteAufSpaltenaufteilung, E2E_PORT } from "./fixtures";
 import Database from "better-sqlite3";
 import { randomUUID, createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 const PORTAL=`http://portal.localtest.me:${E2E_PORT}`;
 const QR=`http://qr.localtest.me:${E2E_PORT}`;
-const ZEICHEN=`http://zeichen.localtest.me:${E2E_PORT}`;
 function fixtureEvents(actor: string) {
  const db=new Database(".data/e2e/audit.db");
  try {
@@ -174,24 +172,8 @@ test("QR auf Modul-Host meldet echten PNG-Export; Meldefehler lassen den Export 
  const offlineDownload=page.waitForEvent("download");await page.getByRole("button",{name:"PNG speichern"}).click();expect((await offlineDownload).suggestedFilename()).toMatch(/\.png$/);
 });
 
-test("Zeichen auf Modul-Host meldet SVG, PNG und Datei erst beim Export",async({page})=>{
- test.skip(ZEICHEN_PAUSIERT, "Taktische Zeichen ist voruebergehend gesperrt");
- test.setTimeout(240_000);
- await devLogin(page,{host:"zeichen.localtest.me",callbackPath:"/baukasten"});
- expect((await page.request.get(ZEICHEN+"/api/audit/browser")).status()).toBe(204);
- const kachel=page.getByTestId("tz-kachel-formation");await expect(kachel).toBeVisible({timeout:180_000});await kachel.click();
- for(const format of ["svg","png","json"]) {
-  const logged=page.waitForResponse(r=>r.url()===ZEICHEN+"/api/audit/browser"&&r.request().method()==="POST");
-  const download=page.waitForEvent("download");await page.getByTestId("tz-export-"+format).click();
-  const file=await download;expect(readFileSync((await file.path())!).length).toBeGreaterThan(10);
-  const response=await logged;expect(response.status()).toBe(204);expect(response.request().postDataJSON()).toEqual({module:"zeichen",format});
- }
- await page.route("**/api/audit/browser",route=>route.abort("internetdisconnected"));
- const offlineDownload=page.waitForEvent("download");await page.getByTestId("tz-export-svg").click();expect((await offlineDownload).suggestedFilename()).toBe("zeichen.svg");
-});
-
-test("Browserempfänger auf beiden Modul-Hosts verwirft fremde Herkunft und Akteursfälschung",async({page})=>{
- for(const host of [QR,ZEICHEN]) {
+test("Browserempfänger auf dem Modul-Host verwirft fremde Herkunft und Akteursfälschung",async({page})=>{
+ for(const host of [QR]) {
   expect((await page.request.get(host+"/api/audit/browser")).status()).toBe(204);
   const foreign=await page.request.post(host+"/api/audit/browser",{headers:{origin:"https://evil.example"},data:{module:"qr",format:"png"}});expect(foreign.status()).toBe(403);
   const forged=await page.request.post(host+"/api/audit/browser",{headers:{origin:host},data:{module:"qr",format:"png",actor:{id:"victim"}}});expect(forged.status()).toBe(400);

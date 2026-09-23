@@ -8,21 +8,17 @@ import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 import { RADIO_ENV } from "./e2e/helpers/radio";
 import { UAV_ENV } from "./e2e/helpers/uav";
-import { ZEICHEN_ENV } from "./e2e/helpers/zeichen"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
+import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
 
 export default defineConfig({
   testDir: "./e2e",
   // Der PWA-Spike braucht Chrome-Flags für den sicheren Kontext und läuft
-  // deshalb in playwright.pwa.config.ts (eigener Port). `zeichen-pwa` gehört seit
-  // Aufgabe 10 dazu: ohne diesen Eintrag liefe die Datei im DEV-Profil auf Port
-  // 3100, wo `navigator.serviceWorker` gar nicht existiert (kein sicherer
-  // Kontext) — die Fälle scheiterten dann an einer Meldung über `undefined`
-  // statt an ihrer Zusage.
-  // `rueckmeldung` kommt aus demselben Grund dazu wie die beiden PWA-Dateien,
+  // deshalb in playwright.pwa.config.ts (eigener Port).
+  // `rueckmeldung` kommt aus demselben Grund dazu wie die PWA-Datei,
   // nur mit umgekehrtem Vorzeichen: der Fall braucht `SUITE_RUECKMELDUNG_URL`
   // GESETZT, und dieses Profil setzt sie bewusst leer (siehe `webServer.env`
   // unten). Er läuft in `playwright.rueckmeldung.config.ts`, Port 3102.
-  testIgnore: /(pwa-spike|zeichen-pwa|rueckmeldung)\.spec\.ts/,
+  testIgnore: /(pwa-spike|rueckmeldung)\.spec\.ts/,
   workers: 1,
   /*
    * 30s reichen NICHT fuer den ersten Test, der sich anmeldet.
@@ -176,18 +172,8 @@ export default defineConfig({
        * Offline-Sync-Checks (Aufgabe 21, Check 7: „anzahl 1-1 ist 1 mehr als
        * die 2 aus dem Seed").
        */
-      /*
-       * `scripts/seed-lokal.ts zeichen` NACH `uav` (Aufgabe 4): dasselbe Muster —
-       * `zeichen` steht in `MODULE_MIGRATIONS` ohne Eintrag in `seedAllModules()`
-       * (`_lib/seedLokal.ts`s Kopfkommentar: die Daten schluesseln auf
-       * `dev:demo@localtest.me`, `SUITE_SEED=1` ist der Generalproben-Schalter). Anders
-       * als bei `radio`/`uav` legt dieser Seed KEINE einloesbare anonyme Zugangszeile an
-       * — `zeichen` hat `requiredGroups: []`, also keinen zusaetzlichen Schutz, den ein
-       * Seed unterlaufen koennte. Ohne diese Zeile faenden e2e-Laeufe gegen `/m/zeichen`
-       * weder die beiden kuratierten Lernsets noch Merkliste/Lernstand des Dev-Nutzers.
-       */
       command:
-        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx scripts/seed-lokal.ts zeichen && next dev -p ${E2E_PORTS.web}`,
+        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && next dev -p ${E2E_PORTS.web}`,
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -389,23 +375,6 @@ export default defineConfig({
          * (`e2e/helpers/uav.ts`) — dieselbe Bauform wie `...RADIO_ENV` darueber.
          */
         ...UAV_ENV,
-        /*
-         * Die zeichen-Zeile (`SUITE_ADMIN_GROUP_ZEICHEN`), aus derselben Quelle wie
-         * `devLogin(…, { groups })` in `e2e/zeichen.spec.ts` (`e2e/helpers/zeichen.ts`) —
-         * dieselbe Bauform wie `...UAV_ENV` darüber, und aus demselben Grund: ohne
-         * Eintrag griffe der Registry-Vorgabewert, es sei denn, `.env.local` setzt
-         * etwas anderes. Der Lauf wäre dann nicht rot, sondern GEGENTEILIG grün — die
-         * Admin-Fälle bezeugten den Riegel-404, den die Gegenprobe ohnehin behauptet.
-         *
-         * ⚠️ `SUITE_ACCESS_GROUP_ZEICHEN` steht bewusst NICHT daneben: eine leer
-         * gesetzte Zugangsgruppe meldet `validateGroupConfig` als Konfigurationsfehler
-         * und bricht den Boot ab — für die GANZE Suite.
-         *
-         * ⚠️ `ZEICHEN_SW` ebenfalls nicht: `http://zeichen.localtest.me:3100` ist kein
-         * sicherer Kontext, `RegisterSW` registrierte dort nichts. Die PWA misst
-         * ausschließlich `playwright.pwa.config.ts`.
-         */
-        ...ZEICHEN_ENV,
       },
     },
   ],

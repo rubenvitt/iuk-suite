@@ -3,20 +3,11 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
-# Der Patch macht das Katalogpaket im BROWSERBUENDEL ladbar: `dist/src/fonts.js` ruft
-# `fileURLToPath` auf Modulebene, und Next ersetzt `node:url` dort durch native-url, das
-# die Funktion nicht kennt — die ganze Baukasten-Insel blieb leer, waehrend build,
-# typecheck, lint und Vitest gruen waren. Begruendung, Messung und die verworfenen
-# Alternativen stehen im Commit 8b66405.
-# ⛔ DER PATCH UEBERSPRINGT NUR IM BROWSER (`typeof window`). Die Literalform
-# `new URL('…', import.meta.url)` bleibt stehen, weil der Bundler genau dieses Muster
-# statisch umschreibt — daran haengt, dass ein Katalog-Import im Server-Graph den Build
-# weiterhin abbricht (M1). Wer den Ausdruck in eine Hilfsfunktion hebt, schaltet die
-# Zusage ab, ohne dass ein Tor rot wird (gemessen, Fix-Runde 2).
-# ⛔ VIER ECKEN, NICHT DREI: dieser Eintrag, die Datei unter `patches/` UND die Zeile
-# `COPY patches ./patches` in der deps-Stage des Dockerfiles. `src/docker-kontext.test.ts`
-# haelt sie zusammen; ein Upgrade des Pakets faellt pnpm selbst auf (ERR_PNPM_UNUSED_PATCH).
-# Der zweite Patch haengt an antd: `useDelayState` laesst beim Unmount einen geplanten
+# ⛔ VIER ECKEN, NICHT DREI: der Eintrag unter `patchedDependencies`, die Datei unter
+# `patches/` UND die Zeile `COPY patches ./patches` in der deps-Stage des Dockerfiles.
+# `src/docker-kontext.test.ts` haelt sie zusammen; ein Upgrade des Pakets faellt pnpm selbst
+# auf (ERR_PNPM_UNUSED_PATCH).
+# Der Patch haengt an antd: `useDelayState` laesst beim Unmount einen geplanten
 # `setTimeout` stehen und setzt danach den Zustand einer abgeraeumten Komponente. Seine
 # VERSION wandert mit antds Abhaengigkeit mit (6.6.2 brachte 1.12.0, 6.6.4 bringt 1.13.0) —
 # der Patch gehoert also bei jedem antd-Upgrade nachgezogen. Stehen bliebe er sonst an einer
@@ -24,5 +15,4 @@ allowBuilds:
 # alte Version noch zieht (`@ant-design/cssinjs` tut das, ohne den Hook zu benutzen).
 # `src/rc-component-util.test.tsx` misst deshalb die WIRKUNG ueber antds eigene Aufloesung.
 patchedDependencies:
-  '@einsatzzeichen/catalog@1.1.0': patches/@einsatzzeichen__catalog@1.1.0.patch
   '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch

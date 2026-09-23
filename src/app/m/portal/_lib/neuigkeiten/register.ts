@@ -4,6 +4,7 @@ import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-i
 import berichteAlsExcel from "./notizen/portal/2026-09-16-berichte-als-excel";
 import listenAufDemTelefon from "./notizen/portal/2026-09-21-listen-auf-dem-telefon";
 import feedbackGeben from "./notizen/portal/2026-09-22-feedback-geben";
+import zeichenEntfernt from "./notizen/portal/2026-09-23-zeichen-entfernt";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
@@ -66,10 +67,6 @@ import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/u
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
 import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-trainingsansicht-ohne-suite-leiste";
-import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-eigene-zeichen-bauen";
-import zeichenNachschlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-taktische-zeichen-nachschlagen";
-import zeichenUeben from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-03-zeichen-ueben";
-import zeichenOhneNetz from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-03-zeichen-ohne-netz";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -149,6 +146,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   berichteAlsExcel,
   listenAufDemTelefon,
   feedbackGeben,
+  zeichenEntfernt,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   listenNachladen,
@@ -156,10 +154,6 @@ const NOTIZEN: readonly Releasenotiz[] = [
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,
   fortschrittZaehltDurchfuehrungen,
-  zeichenNachschlagen,
-  eigeneZeichenBauen,
-  zeichenUeben,
-  zeichenOhneNetz,
   dankeSeiteNurDanke,
 ];
 
