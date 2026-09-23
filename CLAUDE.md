@@ -157,6 +157,12 @@ Drift innerhalb einer Datei meldet `pnpm anker:drift [pfad]` (bewusst kein Tor).
 - E2E-Ports gehören der Arbeitskopie (`e2e/helpers/ports.ts`): in Specs nie ein Portliteral, sondern
   `E2E_PORT`/`E2E_PORTS` aus `./fixtures`. Hält eine „FREMDE Arbeitskopie" den Port, nicht beenden.
 
+**Cloud-Sessions (Claude Code on the web) haben kein `git-lfs`** (DRK-368): der frische Klon trägt
+unter `public/` Zeigerdateien, und `src/lfs-medien.test.ts` ist rot, **ohne dass deine Änderung
+etwas damit zu tun hat**. Abhilfe ist `scripts/cloud-lfs.sh` (installiert git-lfs, holt die
+Medien, ~4 s) — nie den Wächter überspringen, er verhindert das Ausliefern von Zeigerdateien.
+Ist er trotzdem rot, lief das Skript nicht; seine Meldung steht am Sitzungsanfang.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

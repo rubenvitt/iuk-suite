@@ -112,7 +112,7 @@ describe("Medien in Git LFS", () => {
       zeiger,
       `${zeiger.length} Datei(en) sind LFS-Zeiger statt Bilder — der Arbeitsbaum hat die ` +
         `LFS-Objekte nicht:\n${zeiger.join("\n")}\n\n` +
-        `Lokal beheben: "git lfs install && git lfs pull".\n` +
+        `Lokal beheben: "git lfs install && git lfs pull"; Cloud-Session: "scripts/cloud-lfs.sh".\n` +
         `In der CI beheben: "lfs: true" am actions/checkout des betroffenen Jobs ` +
         `(.github/workflows/ci.yml).`,
     ).toEqual([]);
