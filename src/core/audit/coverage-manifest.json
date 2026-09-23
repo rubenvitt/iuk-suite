@@ -964,5 +964,9 @@
       "path": "src/core/audit/access.ts",
       "reason": "Shared suite-only reader guard records audit_log denial before throwing."
     }
+  },
+  "src/app/m/zeichen/sw.js/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
   }
 }
