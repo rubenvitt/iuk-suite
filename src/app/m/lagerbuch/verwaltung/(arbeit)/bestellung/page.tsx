@@ -8,11 +8,11 @@ import {
   BestellListe,
   type BestellAnzeigeZeile,
 } from "./BestellListe";
+import { zeitFormat } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
-const DATUM = new Intl.DateTimeFormat("de-DE", {
-  timeZone: "Europe/Berlin",
+const DATUM = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

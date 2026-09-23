@@ -4,9 +4,14 @@ import { auditTime, OBJECT_LABELS } from "./labels";
 import { AUDIT_TABLES } from "@/core/audit/catalog";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-it.each(["2026-03-29","2026-10-25"])("UTC day is exactly 24 hours across DST transition %s", day=>{
- const result=parseAuditFilters({from:day,to:day});expect(result.to!-result.from!+1).toBe(86400000);
- expect(auditTime(result.from!)).toContain("00:00:00 UTC");
+it.each([["2026-03-29",23,"MEZ"],["2026-10-25",25,"MESZ"],["2026-07-15",24,"MESZ"]] as const)("a day is the wall-clock day of the suite zone across DST transition %s", (day,hours,kuerzel)=>{
+ const result=parseAuditFilters({from:day,to:day});expect(result.to!-result.from!+1).toBe(hours*3600000);
+ expect(auditTime(result.from!)).toBe(`${day.split("-").reverse().join(".")}, 00:00:00 ${kuerzel}`);
+});
+it("follows the suite zone setting", async ()=>{
+ const { setzeAktiveZeitzone, STANDARD_ZEITZONE } = await import("@/core/zeit");
+ try { setzeAktiveZeitzone("UTC"); const result=parseAuditFilters({from:"2026-03-29"}); expect(result.from).toBe(Date.parse("2026-03-29T00:00:00Z")); expect(auditTime(result.from!)).toBe("29.03.2026, 00:00:00 UTC"); }
+ finally { setzeAktiveZeitzone(STANDARD_ZEITZONE); }
 });
 it.each([{from:"2026-02-30"},{from:"2026-09-07",to:"2026-09-06"},{from:"junk"},{actorId:"a".repeat(513)},{objectRef:"secret"},{objectRefHash:"secret"},{module:["qr","files"]},{cursorTime:"1"}])("rejects invalid filters %j", value=>expect(()=>parseAuditFilters(value)).toThrow());
 it.each(["true","false","all",["1","0"]])("rejects invalid system selection %j",includeSystem=>expect(()=>parseAuditFilters({includeSystem})).toThrow());

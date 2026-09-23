@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { zeitzone } from "@/core/zeit";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fmtVerfall, chargeText, ampelTon, geraetFaelligChip, zeitraumAus } from "./format";
 import type { DatumFaelligkeit } from "./domain/geraet";
-import { ZEITZONE } from "./zeit";
 
 describe("fmtVerfall", () => {
   it("macht aus 2026-03 das 03/26", () => {
@@ -111,7 +111,7 @@ describe("zeitraumAus — die vier Faelle aus §5.14.2", () => {
     const z = zeitraumAus("2026-06-01", "2026-06-30");
     expect(z.hinweise).toEqual([]);
     const f = new Intl.DateTimeFormat("de-DE", {
-      timeZone: ZEITZONE, day: "2-digit", month: "2-digit", year: "numeric",
+      timeZone: zeitzone(), day: "2-digit", month: "2-digit", year: "numeric",
       hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
     });
     expect(f.format(z.von!)).toBe("01.06.2026, 00:00:00");

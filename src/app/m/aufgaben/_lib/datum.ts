@@ -1,7 +1,8 @@
 /*
  * ZEIT UND KALENDER — die eine Stelle. KEIN "use client".
  *
- * DIE ZONE STEHT GENAU HIER. In UTC gerechnet liefert `isoTag` zwischen 00:00
+ * DIE ZONE IST DIE DER SUITE (`core/zeit`, DRK-469; Standard `Europe/Berlin`),
+ * NICHT UTC UND NICHT DIE DES PROZESSES. In UTC gerechnet liefert `isoTag` zwischen 00:00
  * und 02:00 deutscher Sommerzeit den VORTAG, und davon haengen die
  * Ueberfaelligkeitsrechnung und die „heute"-Markierung im Wochenplan ab.
  *
@@ -12,11 +13,10 @@
  * hat.
  */
 
-export const ZONE = "Europe/Berlin";
+import { zeitFormat } from "@/core/zeit";
 
 /** `en-CA` ist das Gebietsschema mit dem Format `YYYY-MM-DD` — kein eigener Zusammenbau. */
-const ISO_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: ZONE,
+const ISO_FORMAT = zeitFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -223,8 +223,7 @@ export function ausgewaehlterTag(tage: readonly string[], heute: string, tagPara
  * der stabilen, rein numerischen Ausgabe, diesmal zusaetzlich mit Uhrzeit. `hourCycle: "h23"`
  * erzwingt 24-Stunden-Anzeige unabhaengig vom Standardverhalten des Gebietsschemas.
  */
-const ZEITPUNKT_TEILE = new Intl.DateTimeFormat("en-CA", {
-  timeZone: ZONE,
+const ZEITPUNKT_TEILE = zeitFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",

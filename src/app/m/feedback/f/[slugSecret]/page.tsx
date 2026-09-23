@@ -12,7 +12,8 @@ import {
 } from "../../_db/queries";
 import type { EveningRow, GroupRow, SurveyRow } from "../../_db/schema";
 import { parseToken } from "../../_lib/token";
-import { nextStatusOnAccess, TIME_ZONE } from "../../_lib/lifecycle";
+import { nextStatusOnAccess } from "../../_lib/lifecycle";
+import { zeitzone } from "@/core/zeit";
 import { isRatingType, ratingScale, type Question } from "../../_lib/questions";
 import { FEHLER_PARAMETER } from "../../_lib/absenden";
 import { thema } from "../../_lib/thema";
@@ -91,19 +92,19 @@ function schliesszeit(survey: SurveyRow): Date | null {
  * "am 23. Juli um 09:00" — in der Zeitzone, in der die Frist GERECHNET wurde.
  *
  * Hier ist `timeZone: "UTC"` falsch, anders als beim Abenddatum: `closesAt` ist
- * ein Zeitpunkt aus `computeClosesAt(..., TIME_ZONE)`, kein Kalendertag. In UTC
+ * ein Zeitpunkt aus `computeClosesAt` (Suite-Zone), kein Kalendertag. In UTC
  * formatiert stuende auf dem Zettel 07:00 — eine Uhrzeit, zu der noch offen war.
  */
 function geschlossenAm(zeit: Date): string {
   const tag = new Intl.DateTimeFormat("de-DE", {
     day: "numeric",
     month: "long",
-    timeZone: TIME_ZONE,
+    timeZone: zeitzone(),
   }).format(zeit);
   const uhr = new Intl.DateTimeFormat("de-DE", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: TIME_ZONE,
+    timeZone: zeitzone(),
   }).format(zeit);
   return `am ${tag} um ${uhr}`;
 }

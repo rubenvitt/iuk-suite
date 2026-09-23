@@ -85,7 +85,7 @@ import {
   type BlobZiel,
 } from "@/app/m/files/_lib/storage";
 import { tokenHash } from "@/app/m/files/_lib/token";
-import { zeitpunktBerlin } from "@/app/m/files/_lib/zeit";
+import { zeitpunktInZone } from "@/app/m/files/_lib/zeit";
 
 type FilesDb = BetterSQLite3Database<typeof schema>;
 
@@ -711,7 +711,7 @@ export async function seedLokalFiles(
     protokoll.push(
       `Share ${bauplan.id} „${bauplan.titel}" — ${neu ? "angelegt" : "war schon da"}: ` +
         `${bauplan.zweck}, ${bauplan.dateien.length} Datei(en), davon ${ladbar} ladbar, ` +
-        `${bytes} Bytes auf der Platte, laeuft ${zeitpunktBerlin(ablaufAt)} ab.`,
+        `${bytes} Bytes auf der Platte, laeuft ${zeitpunktInZone(ablaufAt)} ab.`,
     );
     protokoll.push(`    oeffentlich: ${verwaltungsUrl(`/s/${bauplan.id}`)}`);
     protokoll.push(`    Verwaltung:  ${verwaltungsUrl(`/shares/${bauplan.id}`)}`);
@@ -807,7 +807,7 @@ export async function seedLokalFiles(
     .get();
   protokoll.push(
     `Zugangslink ${LINK_ID} „Uebung Nord (lokaler Seed)" — ${linkNeu ? "angelegt" : "war schon da"}, ` +
-      `laeuft ${linkZeile === undefined ? "?" : zeitpunktBerlin(linkZeile.ablaufAt)} ab ` +
+      `laeuft ${linkZeile === undefined ? "?" : zeitpunktInZone(linkZeile.ablaufAt)} ab ` +
       `(die Laufzeit wird nur beim Anlegen gesetzt; ein abgelaufener Link wird nicht verlaengert).`,
   );
   if (linkZeile !== undefined && linkZeile.ablaufAt.getTime() <= jetzt.getTime()) {

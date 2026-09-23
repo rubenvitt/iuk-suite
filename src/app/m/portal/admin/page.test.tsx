@@ -33,6 +33,8 @@ vi.mock("@/app/m/portal/_lib/services", () => ({
 vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   leseAnsprechpartner: vi.fn(),
   setzeAnsprechpartner: vi.fn(),
+  leseZeitzone: vi.fn(() => "Europe/Berlin"),
+  setzeZeitzone: vi.fn(),
 }));
 
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
@@ -42,6 +44,8 @@ import PortalAdminPage from "@/app/m/portal/admin/page";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
 import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
+import { ZeitzoneForm } from "@/app/m/portal/admin/zeitzone-form";
+import { leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
 
 const guardMock = vi.mocked(moduleAdminPageOrNotFound);
 const servicesMock = vi.mocked(getAllServices);
@@ -96,5 +100,16 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
     const baum = flatten((await PortalAdminPage()) as ReactElement);
     const formular = baum.find((el) => el.type === AnsprechpartnerForm)!;
     expect((formular.props as { wert: string | null }).wert).toBe("IuK-Gruppe — iuk@example.org");
+  });
+
+  it("reicht die gepflegte Zeitzone und die waehlbaren Zonen an das Formular durch (DRK-469)", async () => {
+    vi.mocked(leseZeitzone).mockReturnValue("Europe/Lisbon");
+
+    const baum = flatten((await PortalAdminPage()) as ReactElement);
+    const formular = baum.find((el) => el.type === ZeitzoneForm)!;
+    const props = formular.props as { wert: string; zonen: string[] };
+    expect(props.wert).toBe("Europe/Lisbon");
+    expect(props.zonen).toContain("Europe/Berlin");
+    expect(props.zonen).toContain("UTC");
   });
 });

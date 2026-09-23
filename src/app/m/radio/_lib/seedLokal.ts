@@ -77,7 +77,7 @@ const TAGE = (n: number) => new Date(JETZT.getTime() - n * 24 * 60 * 60 * 1000);
  *  kein Zeitstempel.
  *
  *  ⚠️ DIES IST EINE UTC-KUERZUNG, UND SIE IST HIER ABSICHTLICH: es sind Anzeigewerte fuer
- *  lokale Demodaten, kein Importpfad. Der IMPORT kuerzt in Europe/Berlin (`tagInBerlin`,
+ *  lokale Demodaten, kein Importpfad. Der IMPORT kuerzt in Europe/Berlin (`tagInZone`,
  *  scripts/import/radio.ts) — weil eine UTC-Kuerzung nur fuer EINEN der drei Schreibwege
  *  der Quelle richtig ist und fuer die anderen zwei den Tag zurueckschiebt (§2.2.3).
  *  Wer diese Zeile in Produktionscode oder in eine Server Action kopiert, holt genau den

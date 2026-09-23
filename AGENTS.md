@@ -78,6 +78,14 @@ trägt **immer** den aufgelösten Wert `light`/`dark` — ein gestempeltes `auto
 
 Nach `src/core` kommt nur, was ein **zweites, heute belegbares** Modul braucht.
 
+### Zeitzone
+
+Zeiten und Tagesgrenzen rechnen in der Suite-Zone aus `core/zeit` (Standard `Europe/Berlin`,
+einstellbar unter Portal → Verwaltung; der Browser liest `<html data-zeitzone>`). Nie `timeZone`
+als Literal und nie `new Intl.DateTimeFormat({ timeZone })` auf Modulebene, denn das friert die
+Zone beim Import ein. Stattdessen `zeitFormat(locale, optionen)` oder `timeZone: zeitzone()` je
+Aufruf. Ausnahme: ein Kalendertag, der als Mitternacht UTC gespeichert ist, bleibt `timeZone: "UTC"`.
+
 ## Ein neues Modul registrieren — das Dreieck
 
 Ein Modul mit eigener Datenbank braucht drei zusammenpassende Einträge: Migrationsverzeichnis unter

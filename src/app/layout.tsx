@@ -5,6 +5,7 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { reauthProviderId } from "@/core/auth/pocketId";
 import { AntdProvider } from "@/core/theme/AntdProvider";
+import { zeitzone } from "@/core/zeit";
 import {
   THEME_PREF_COOKIE,
   THEME_SYSTEM_COOKIE,
@@ -149,7 +150,7 @@ export default async function RootLayout({
       // `auto` besteht typecheck, build und Vitest und kippt trotzdem jede
       // Modulflaeche still auf helle Darstellung, waehrend antd dunkel rendert.
       // Den Wechsel ohne Reload schreibt `AntdProvider` mit.
-      data-theme={mode}
+      data-theme={mode} data-zeitzone={zeitzone()}
       style={{ colorScheme: mode }}
       suppressHydrationWarning
     >

@@ -1,10 +1,11 @@
+import { tagesGrenzenInZone } from "@/core/zeit";
 import { AUDIT_ACTIONS, AUDIT_MODULES, AUDIT_RESULTS, type AuditFilters } from "@/core/audit/types";
 export type AuditSearch = Record<string, string | string[] | undefined>;
 export const FILTER_KEYS = ["from", "to", "module", "actorId", "action", "result", "objectRefHash", "objectType", "includeSystem"] as const;
 export class AuditFilterError extends Error {
   constructor(message: string, readonly field?: "from" | "to" | "actorId") { super(message); }
 }
-/** Days are explicitly UTC, inclusive. Avoid ambiguous local DST boundaries. */
+/** Tage sind Kalendertage der Suite-Zone (`core/zeit`, DRK-469), inklusiv. Ein Umstellungstag hat 23 oder 25 Stunden. */
 export function parseAuditFilters(search: AuditSearch): AuditFilters {
   const allowed = new Set<string>([...FILTER_KEYS, "cursorTime", "cursorId"]);
   if (Object.keys(search).some(k => !allowed.has(k))) throw Error("Unbekannter Filter. Setze die Filter zurück.");
@@ -37,10 +38,11 @@ export function parseAuditFilters(search: AuditSearch): AuditFilters {
     if (!values[key]) continue;
     const value = values[key];
     const time = Date.parse(value + "T00:00:00.000Z");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(time) || time < 0 || new Date(time).toISOString().slice(0,10) !== value) throw new AuditFilterError(`${key === "from" ? "Von (UTC)" : "Bis einschließlich (UTC)"}: Gib ein gültiges Datum im Format JJJJ-MM-TT ein.`, key);
-    result[key] = time + (key === "to" ? 86_400_000 - 1 : 0);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(time) || time < 0 || new Date(time).toISOString().slice(0,10) !== value) throw new AuditFilterError(`${key === "from" ? "Von" : "Bis einschließlich"}: Gib ein gültiges Datum im Format JJJJ-MM-TT ein.`, key);
+    const tag = tagesGrenzenInZone(value);
+    result[key] = key === "to" ? tag.bis : tag.von;
   }
-  if (result.from !== undefined && result.to !== undefined && result.from > result.to) throw new AuditFilterError("Bis einschließlich (UTC): Wähle ein Datum am oder nach dem Anfangsdatum.", "to");
+  if (result.from !== undefined && result.to !== undefined && result.from > result.to) throw new AuditFilterError("Bis einschließlich: Wähle ein Datum am oder nach dem Anfangsdatum.", "to");
   if (values.cursorTime || values.cursorId) {
     if (!/^\d{1,16}$/.test(values.cursorTime ?? "") || !Number.isSafeInteger(Number(values.cursorTime)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(values.cursorId ?? "")) throw Error("Diese Seitenauswahl ist ungültig. Lade die neuesten Einträge.");
     result.cursor = { occurredAt: Number(values.cursorTime), id: values.cursorId };

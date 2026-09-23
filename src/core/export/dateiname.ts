@@ -5,7 +5,7 @@
  * Grenze, in einem Route Handler wie in einer Client-Insel, und müssen dort
  * dasselbe Ergebnis liefern.
  *
- * ⛔ DIE ZONE STEHT IM CODE, NICHT IN `process.env.TZ` UND NICHT IM BROWSER.
+ * ⛔ DIE ZONE KOMMT AUS DER SUITE, NICHT AUS `process.env.TZ` UND NICHT AUS DEM BROWSER.
  * Das ist die Frage, die das Ticket dem Baustein vererbt hat, und sie hatte
  * bisher zwei verschiedene Antworten:
  *
@@ -18,28 +18,24 @@
  * trüge eine um 00:30 Ortszeit geholte Datei den VORTAG im Namen — typkorrekt,
  * lint-sauber, und erst im Ablageordner sichtbar, wo niemand mehr weiß, warum.
  *
- * `Intl.DateTimeFormat` mit fester `timeZone` beantwortet beides auf einmal und
+ * `Intl.DateTimeFormat` mit ausdrücklicher `timeZone` beantwortet beides auf einmal und
  * rechnet in Node wie im Browser gleich. `en-CA` ist kein Zufall: dieses Gebiet
  * formatiert als `YYYY-MM-DD`, also genau sortierbar — derselbe Griff wie in
  * `lagerbuch/_lib/zeit.ts`.
  *
- * ⚠️ DIE ZONE IST HIER KEINE NEUE SUITE-ENTSCHEIDUNG. Vier Module führen sie
- * heute schon je für sich (`feedback/_lib/lifecycle.ts`, `uav/_lib/datum.ts`,
- * `files/_lib/zeit.ts`, `lagerbuch/_lib/zeit.ts`), und alle vier sagen
- * `Europe/Berlin`. Diese Konstante ist die fünfte Abschrift und ersetzt keine
- * der vier — sie zusammenzuziehen ist ein eigener Posten, kein Nebenertrag
- * dieses Tickets.
+ * ⚠️ DIE ZONE IST DIE DER SUITE (`core/zeit`, DRK-469), Standard `Europe/Berlin`,
+ * einstellbar in der Portal-Verwaltung. Früher stand hier eine fünfte Abschrift
+ * der Konstante, die vier Module je für sich führten.
  */
-export const ZEITZONE_DATEINAME = "Europe/Berlin";
+import { zeitFormat } from "@/core/zeit";
 
-const TAG = new Intl.DateTimeFormat("en-CA", {
-  timeZone: ZEITZONE_DATEINAME,
+const TAG = zeitFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
 });
 
-/** Der Kalendertag in `Europe/Berlin` als `YYYY-MM-DD`. */
+/** Der Kalendertag in der Suite-Zone als `YYYY-MM-DD`. */
 export function exportTag(jetzt: Date): string {
   return TAG.format(jetzt);
 }

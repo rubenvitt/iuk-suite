@@ -1,30 +1,29 @@
 // KEIN "use client" (Falle 6) — von Client-Komponenten UND Server Components
 // gelesen (Aufgabe 15/16 rendern Datumswerte teils direkt in einer Server
 // Component, teils in `_ui/admin/*`).
+import { zeitFormat } from "@/core/zeit";
 
 /**
  * Zeitstempel-Formatierung der Verwaltung (Fix-Runde 1, Aufgabe 15–17):
  * ISO-Strings (`beginn`, `lastSeen`, `letzteAktivitaet`, `letzteDurchfuehrung`)
  * kamen bisher roh auf den Bildschirm (`2026-08-29T09:14:22.481Z`) — Vorbild
  * `uav-praxis/src/admin/ParticipantsPage.tsx`s `formatDatum` (`toLocaleDateString
- * ("de-DE")`), hier mit fester Zeitzone (`Europe/Berlin`) statt der des
+ * ("de-DE")`), hier in der Suite-Zone (`core/zeit`) statt der des
  * Server-Prozesses, damit Verwaltung und Teilnehmer dasselbe Datum sehen,
  * unabhängig davon, wo der Container läuft.
  */
-const KURZ = new Intl.DateTimeFormat("de-DE", {
+const KURZ = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
-  timeZone: "Europe/Berlin",
 });
 
-const MIT_ZEIT = new Intl.DateTimeFormat("de-DE", {
+const MIT_ZEIT = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
-  timeZone: "Europe/Berlin",
 });
 
 /** `dd.mm.yyyy` — leerer String für `null` oder einen ungültigen Wert. */

@@ -7,7 +7,7 @@ import { desc, sql } from "drizzle-orm";
 import { aufraeumenAction } from "../(verwaltung)/ablage-actions";
 import { getDb } from "../_db/client";
 import { aufraeumLaeufe, inboxFiles, shareFiles } from "../_db/schema";
-import { zeitpunktGenauBerlin } from "../_lib/zeit";
+import { zeitpunktGenauInZone } from "../_lib/zeit";
 
 /**
  * DIE ABLAGE-KACHEL (Spec §7.6, §5.6, §4.4, §4.8; Plan T46 Punkt 5).
@@ -390,7 +390,7 @@ function letzterLaufText(lauf: LetzterLauf | null): string {
     return "Noch kein Lauf protokolliert. Der Timer schreibt je Lauf eine Zeile.";
   }
 
-  const wann = zeitpunktGenauBerlin(lauf.gestartetAt);
+  const wann = zeitpunktGenauInZone(lauf.gestartetAt);
   const art = lauf.trockenlauf ? "Trockenlauf" : "Lauf";
 
   if (lauf.beendetAt === null) {

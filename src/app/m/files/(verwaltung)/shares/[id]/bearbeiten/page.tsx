@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { ladeShareDetail } from "../../../../_db/queries";
 import { grenzen } from "../../../../_lib/grenzen";
-import { zeitpunktBerlin } from "../../../../_lib/zeit";
+import { zeitpunktInZone } from "../../../../_lib/zeit";
 import { BearbeitenFormular } from "./BearbeitenFormular";
 
 /**
@@ -129,7 +129,7 @@ export default async function ShareBearbeitenSeite({
            feste Zone formatierte `Intl` in der Zone des Serverprozesses — im
            Container UTC. Die Restlaufzeit oben ist davon unberuehrt: sie ist
            eine DIFFERENZ zweier Zeitpunkte und damit zonenfrei. */
-        ablaufText={zeitpunktBerlin(share.ablaufAt)}
+        ablaufText={zeitpunktInZone(share.ablaufAt)}
         // Serverseitig entschieden: rechnete es der Browser, entschieden Server
         // und Client an der Ablaufsekunde verschieden.
         abgelaufen={share.ablaufAt.getTime() <= jetzt.getTime()}

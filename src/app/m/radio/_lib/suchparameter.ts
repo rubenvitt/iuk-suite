@@ -13,7 +13,7 @@
  * `build` saehen es."
  * ⛔ `GeraetFilter` DAGEGEN IST EIN `import type` UND VERSCHWINDET ZUR LAUFZEIT.
  */
-import { ZONE } from "./anzeige";
+import { zeitzone } from "@/core/zeit";
 import { SORTIER_SCHLUESSEL, SUCHFELDER_VORGABE } from "./geraeteFelder";
 import type { AusleihenParameter } from "./lesepfade/ausleihen";
 import type { GeraetFilter } from "./lesepfade/geraete";
@@ -395,7 +395,7 @@ export function istKalendertag(tag: string): boolean {
 type Zivil = { jahr: number; monat: number; tag: number; std: number; min: number; sek: number };
 
 /**
- * Absoluter Zeitpunkt → Zivilzeit in `ZONE`.
+ * Absoluter Zeitpunkt → Zivilzeit in der Suite-Zone.
  *
  * ⛔ DER FORMATIERER ENTSTEHT JE AUFRUF UND NICHT AUF MODULEBENE — dieselbe Auflage und
  * derselbe gemessene Grund wie in `_lib/anzeige.ts`: ein auf Modulebene gebauter
@@ -406,7 +406,7 @@ type Zivil = { jahr: number; monat: number; tag: number; std: number; min: numbe
 function zonenTeile(at: Date): Zivil {
   const p = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
-      timeZone: ZONE,
+      timeZone: zeitzone(),
       hourCycle: "h23",
       year: "numeric",
       month: "2-digit",
@@ -439,7 +439,7 @@ function zonenVersatzMinuten(at: Date): number {
 }
 
 /**
- * Zivilzeit in `ZONE` → absoluter Zeitpunkt.
+ * Zivilzeit in der Suite-Zone → absoluter Zeitpunkt.
  *
  * ⛔ ZWEI KANDIDATEN, NICHT EINE EINSTUFIGE NAEHERUNG. Der Versatz haengt vom Ergebnis ab, und
  * an den zwei Umstellungstagen ist er innerhalb DESSELBEN Tages verschieden: ein Versatz, der

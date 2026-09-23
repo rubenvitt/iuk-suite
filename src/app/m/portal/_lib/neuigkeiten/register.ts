@@ -5,6 +5,7 @@ import berichteAlsExcel from "./notizen/portal/2026-09-16-berichte-als-excel";
 import listenAufDemTelefon from "./notizen/portal/2026-09-21-listen-auf-dem-telefon";
 import feedbackGeben from "./notizen/portal/2026-09-22-feedback-geben";
 import zeichenEntfernt from "./notizen/portal/2026-09-23-zeichen-entfernt";
+import zeitzoneEinstellen from "./notizen/portal/2026-09-23-zeitzone-einstellen";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
@@ -147,6 +148,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   listenAufDemTelefon,
   feedbackGeben,
   zeichenEntfernt,
+  zeitzoneEinstellen,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   listenNachladen,

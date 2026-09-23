@@ -5,9 +5,9 @@
  * WERT aus einem Client-Modul kommt dort nicht an (HTTP 500, Falle 6). Weder
  * `pnpm build` noch Vitest findet das.
  *
- * DIE ZONE STEHT IM CODE, NICHT IN DER PROZESSUMGEBUNG. `TZ=Europe/Berlin` zu
- * setzen ist ein suiteweiter Eingriff gegen vier laufende Module und ausdruecklich
- * nicht Teil dieses Vorhabens (§1.5). Das Modul haengt bewusst nicht daran —
+ * DIE ZONE IST DIE DER SUITE (`core/zeit`, DRK-469), NICHT DIE DES PROZESSES.
+ * ZEITZONE in den Kommentaren dieses Moduls meint `zeitzone()`: Standard
+ * `Europe/Berlin`, einstellbar in der Portal-Verwaltung. `TZ` bleibt unbeachtet —
  * `_lib/zeit.test.ts` verstellt `process.env.TZ` absichtlich und beweist es.
  *
  * REGEL FUER DAS GANZE MODUL: ausserhalb dieser Datei steht kein
@@ -15,10 +15,9 @@
  * getHours/getMinutes/getFullYear/getMonth/getDate auf einem Datum, das dem
  * Nutzer gezeigt oder mit einem Tagesrand verglichen wird.
  */
-export const ZEITZONE = "Europe/Berlin";
+import { zeitFormat } from "@/core/zeit";
 
-const TEILE = new Intl.DateTimeFormat("en-CA", {
-  timeZone: ZEITZONE,
+const TEILE = zeitFormat("en-CA", {
   hourCycle: "h23",
   year: "numeric", month: "2-digit", day: "2-digit",
   hour: "2-digit", minute: "2-digit", second: "2-digit",
@@ -151,8 +150,7 @@ export function uhrzeit(d: Date): string {
  * Sekunden oder eine andere Zone bekommt, und keine der beiden Seiten saehe die
  * andere.
  */
-const DATUM_ZEIT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: ZEITZONE,
+const DATUM_ZEIT = zeitFormat("de-DE", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

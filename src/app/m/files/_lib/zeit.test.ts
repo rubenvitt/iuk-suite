@@ -110,11 +110,11 @@ describe("die Vorrichtung", () => {
   });
 });
 
-describe("zeitpunktBerlin", () => {
+describe("zeitpunktInZone", () => {
   it.each(PROZESS_ZONEN)("zeigt unter TZ=%s die Berliner Wanduhrzeit", async (zone) => {
-    const { zeitpunktBerlin } = await ladeUnterZone(zone);
-    expect(zeitpunktBerlin(SOMMER)).toBe("31.07.2026, 14:00");
-    expect(zeitpunktBerlin(WINTER)).toBe("15.01.2026, 13:00");
+    const { zeitpunktInZone } = await ladeUnterZone(zone);
+    expect(zeitpunktInZone(SOMMER)).toBe("31.07.2026, 14:00");
+    expect(zeitpunktInZone(WINTER)).toBe("15.01.2026, 13:00");
   });
 
   /**
@@ -123,41 +123,47 @@ describe("zeitpunktBerlin", () => {
    * traegt KEINE Sekunden — das unterscheidet diese Form von der genauen.
    */
   it("schreibt deutsch, ohne Sekunden", async () => {
-    const { zeitpunktBerlin } = await ladeUnterZone("UTC");
-    expect(zeitpunktBerlin(SOMMER)).not.toMatch(/:\d\d:\d\d/);
+    const { zeitpunktInZone } = await ladeUnterZone("UTC");
+    expect(zeitpunktInZone(SOMMER)).not.toMatch(/:\d\d:\d\d/);
   });
 });
 
-describe("zeitpunktGenauBerlin", () => {
+describe("zeitpunktGenauInZone", () => {
   /**
    * Das Zugriffsprotokoll fuehrt SEKUNDEN mit: zwei Downloads derselben Minute
    * waeren sonst nicht auseinanderzuhalten, und genau die Reihenfolge ist die
    * Frage, die man an ein Protokoll stellt.
    */
   it.each(PROZESS_ZONEN)("zeigt unter TZ=%s die Berliner Sekunde", async (zone) => {
-    const { zeitpunktGenauBerlin } = await ladeUnterZone(zone);
-    expect(zeitpunktGenauBerlin(SOMMER)).toBe("31.07.2026, 14:00:00");
-    expect(zeitpunktGenauBerlin(new Date("2026-07-31T12:00:03Z"))).toBe("31.07.2026, 14:00:03");
+    const { zeitpunktGenauInZone } = await ladeUnterZone(zone);
+    expect(zeitpunktGenauInZone(SOMMER)).toBe("31.07.2026, 14:00:00");
+    expect(zeitpunktGenauInZone(new Date("2026-07-31T12:00:03Z"))).toBe("31.07.2026, 14:00:03");
   });
 });
 
-describe("langerZeitpunktBerlin", () => {
+describe("langerZeitpunktInZone", () => {
   /**
    * Die ausgeschriebene Form der oeffentlichen Empfaengerseite — dort ist der
    * Ablauf die einzige Zahl, nach der sich jemand richtet, und sie steht auf
    * einem fremden Handy ohne weiteren Zusammenhang.
    */
   it.each(PROZESS_ZONEN)("zeigt unter TZ=%s den ausgeschriebenen Monat", async (zone) => {
-    const { langerZeitpunktBerlin } = await ladeUnterZone(zone);
-    expect(langerZeitpunktBerlin(SOMMER)).toBe("31. Juli 2026 um 14:00");
-    expect(langerZeitpunktBerlin(WINTER)).toBe("15. Januar 2026 um 13:00");
+    const { langerZeitpunktInZone } = await ladeUnterZone(zone);
+    expect(langerZeitpunktInZone(SOMMER)).toBe("31. Juli 2026 um 14:00");
+    expect(langerZeitpunktInZone(WINTER)).toBe("15. Januar 2026 um 13:00");
   });
 });
 
 describe("die Zone selbst", () => {
-  it("ist `Europe/Berlin` — dieselbe Festlegung wie `TIME_ZONE` im Modul `feedback`", async () => {
-    const { ZEITZONE_ANZEIGE } = await ladeUnterZone("UTC");
-    expect(ZEITZONE_ANZEIGE).toBe("Europe/Berlin");
+  it("folgt der Suite-Zone aus `core/zeit` und nicht einer eigenen Konstante", async () => {
+    const { zeitpunktInZone } = await ladeUnterZone("Europe/Berlin");
+    const { setzeAktiveZeitzone, STANDARD_ZEITZONE } = await import("@/core/zeit");
+    try {
+      setzeAktiveZeitzone("America/New_York");
+      expect(zeitpunktInZone(SOMMER)).toBe("31.07.2026, 08:00");
+    } finally {
+      setzeAktiveZeitzone(STANDARD_ZEITZONE);
+    }
   });
 
   /**

@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { zeitzone } from "@/core/zeit";
 import { verfallStatus, verfallSchwellen, type VerfallSchwellen } from "./verfall";
 import { PSEUDO_VERFALL } from "../konstanten";
-import { ZEITZONE, ausZivilzeit } from "../zeit";
+import { ausZivilzeit } from "../zeit";
 
 /**
  * DIE SCHWELLEN STEHEN HIER ALS LITERALE, nicht aus `grenzen()` gelesen.
@@ -34,7 +35,7 @@ describe("verfallStatus — das Monatsende", () => {
     // Zahl 242.
     const ende = ausZivilzeit(2026, 8, 31, 23, 59, 59, 999);
     const f = new Intl.DateTimeFormat("de-DE", {
-      timeZone: ZEITZONE, year: "numeric", month: "2-digit", day: "2-digit",
+      timeZone: zeitzone(), year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit", hour12: false,
     });
     expect(f.format(ende)).toBe("31.08.2026, 23:59");

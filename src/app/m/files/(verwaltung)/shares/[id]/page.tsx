@@ -7,7 +7,7 @@ import { ladeAuditLog, ladeShareDetail, type ShareDatei } from "../../../_db/que
 import type { AvStatus } from "../../../_lib/av";
 import { oeffentlicheUrl } from "../../../_lib/hostRolle";
 import { entschaerfeTitel } from "../../../_lib/zip";
-import { zeitpunktBerlin, zeitpunktGenauBerlin } from "../../../_lib/zeit";
+import { zeitpunktInZone, zeitpunktGenauInZone } from "../../../_lib/zeit";
 import { AuditLog, type AuditLogZeile } from "../../../_ui/AuditLog";
 import {
   ShareDateienTabelle,
@@ -96,7 +96,7 @@ function byteTextBinaer(bytes: number): string {
  * der Zone des Serverprozesses; im Container ist das UTC, und Ablauf,
  * Erstellung und jede Protokollzeile stuenden im Sommer zwei Stunden zu frueh.
  *
- * `zeitpunktGenauBerlin` traegt die SEKUNDE, `zeitpunktBerlin` nicht: zwei
+ * `zeitpunktGenauInZone` traegt die SEKUNDE, `zeitpunktInZone` nicht: zwei
  * Downloads derselben Minute waeren sonst nicht auseinanderzuhalten, und genau
  * die Reihenfolge ist die Frage, die man an ein Zugriffsprotokoll stellt.
  */
@@ -263,7 +263,7 @@ export default async function ShareDetailSeite({
   const nameJeDatei = new Map(detail.dateien.map((datei) => [datei.id, datei.dateiname]));
   const protokoll: AuditLogZeile[] = logZeilen.map((zeile) => ({
     id: zeile.id,
-    zeitText: zeitpunktGenauBerlin(zeile.zeit),
+    zeitText: zeitpunktGenauInZone(zeile.zeit),
     // Der Rohwert NEBEN dem Anzeigetext: „25.07.2026, 12:00:03" sortierte als
     // Zeichenkette den 2. eines Monats vor den 14. des vorigen.
     zeitIso: zeile.zeit.toISOString(),
@@ -312,7 +312,7 @@ export default async function ShareDetailSeite({
             Größe aus ZWEI Quellen und können verschiedene Zahlen zeigen. */}
         <p>Größe: {groesseText}</p>
         <p>
-          Ablauf: {zeitpunktBerlin(detail.ablaufAt)}
+          Ablauf: {zeitpunktInZone(detail.ablaufAt)}
           {abgelaufen && <> — abgelaufen</>}
         </p>
         {/* `null` = UNBEGRENZT, nicht 0 und nicht −1 (§4.2) — deshalb `??` und
@@ -324,7 +324,7 @@ export default async function ShareDetailSeite({
           {detail.erstelltVon === ALTBESTAND
             ? "Altbestand — nicht zuordenbar"
             : detail.erstelltVon}{" "}
-          am {zeitpunktBerlin(detail.erstelltAt)}
+          am {zeitpunktInZone(detail.erstelltAt)}
         </p>
       </Card>
 

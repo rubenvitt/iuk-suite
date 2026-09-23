@@ -81,7 +81,7 @@ export type KommendeAbendeProps = {
    * erkennen.
    */
   belegteTage: string[];
-  /** `YYYY-MM-DD` in Europe/Berlin, von der Seite gerechnet (§4.5). */
+  /** `YYYY-MM-DD` in der Suite-Zone, von der Seite gerechnet (§4.5). */
   heute: string;
   /**
    * Thema der gerade laufenden Umfrage, sonst `null`. Die Bestätigung beim

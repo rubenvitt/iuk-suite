@@ -24,7 +24,6 @@ export {
 } from "./spalten";
 export {
   XLSX_MIME,
-  ZEITZONE_DATEINAME,
   dateinameSlug,
   datierterDateiname,
   exportTag,

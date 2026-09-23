@@ -6,6 +6,7 @@ import { Datentabelle } from "@/core/tabelle";
 import type { AuditCursor, AuditEvent } from "@/core/audit/types";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "@/core/theme/schrift";
+import { zeitzone } from "@/core/zeit";
 import { ACTION_LABELS, MODULE_LABELS, RESULT_LABELS, actorLabel, auditTime, objectLabel } from "./labels";
 import { FILTER_KEYS, parseAuditFilters, type AuditSearch, AuditFilterError } from "./filters";
 import type { AuditView } from "./read";
@@ -42,8 +43,8 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
     <Card title="Ereignisse eingrenzen">
       <form noValidate aria-describedby={error ? "audit-filter-error" : undefined} onSubmit={event=>{event.preventDefault();apply();}}>
         <div className={css.filters} style={{gap:SPACE.lg}}>
-          <label>Von (UTC)<Input id="audit-from" aria-invalid={error?.field === "from" || undefined} aria-describedby={error?.field === "from" ? "audit-filter-error" : undefined} value={fields.from} placeholder="JJJJ-MM-TT" maxLength={10} allowClear onChange={e=>field("from",e.target.value)} aria-label="Von (UTC)" /></label>
-          <label>Bis einschließlich (UTC)<Input id="audit-to" aria-invalid={error?.field === "to" || undefined} aria-describedby={error?.field === "to" ? "audit-filter-error" : undefined} value={fields.to} placeholder="JJJJ-MM-TT" maxLength={10} allowClear onChange={e=>field("to",e.target.value)} aria-label="Bis einschließlich (UTC)" /></label>
+          <label>Von<Input id="audit-from" aria-invalid={error?.field === "from" || undefined} aria-describedby={error?.field === "from" ? "audit-filter-error" : undefined} value={fields.from} placeholder="JJJJ-MM-TT" maxLength={10} allowClear onChange={e=>field("from",e.target.value)} aria-label="Von" /></label>
+          <label>Bis einschließlich<Input id="audit-to" aria-invalid={error?.field === "to" || undefined} aria-describedby={error?.field === "to" ? "audit-filter-error" : undefined} value={fields.to} placeholder="JJJJ-MM-TT" maxLength={10} allowClear onChange={e=>field("to",e.target.value)} aria-label="Bis einschließlich" /></label>
           <label>Modul<Select aria-label="Modul" value={fields.module} options={options(MODULE_LABELS)} onChange={v=>field("module",v)} /></label>
           <label>Person / Zugang<Input id="audit-actorId" aria-invalid={error?.field === "actorId" || undefined} aria-describedby={error?.field === "actorId" ? "audit-filter-error" : undefined} aria-label="Personenkennung" value={fields.actorId} placeholder="Genaue Kennung aus Details" maxLength={512} allowClear onChange={e=>field("actorId",e.target.value)} /></label>
           <label>Aktion<Select aria-label="Aktion" value={fields.action} options={options(ACTION_LABELS)} onChange={v=>field("action",v)} /></label>
@@ -57,7 +58,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           <Button disabled={pending} onClick={()=>{setFields(Object.fromEntries(FILTER_KEYS.map(key=>[key,""])));setError(null);navigate({});}}>Filter zurücksetzen</Button>
           <Button disabled={pending} onClick={()=>startTransition(()=>router.refresh())}>Neu laden</Button>
         </Space>
-        <p style={{...SCHRIFT.neben,marginBlockEnd:0}}>Zeiten und Tagesgrenzen in UTC. Die Personenkennung findest du in den Details eines Eintrags.</p>
+        <p style={{...SCHRIFT.neben,marginBlockEnd:0}}>Zeiten und Tagesgrenzen in der Zeitzone {zeitzone()}. Die Personenkennung findest du in den Details eines Eintrags.</p>
       </form>
     </Card>
     <div role="status" aria-live="polite">{pending ? "Einträge werden geladen …" : ready ? `${ready.page.events.length} Einträge auf dieser Seite · Neueste zuerst` : ""}</div>
@@ -97,7 +98,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           * Lagerbuchs (DRK-331); dort stand sie erst nach einem Review.
           */}
         <Datentabelle<AuditEvent> rowKey="id" dataSource={ready.page.events} scroll={{x:960}} columns={[
-          {title:"Zeit (UTC)",key:"time",width:190,render:(_,event)=><time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>},
+          {title:"Zeit",key:"time",width:190,render:(_,event)=><time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>},
           {title:"Modul",width:130,dataIndex:"module",render:(module:string)=>MODULE_LABELS[module] ?? module},
           {title:"Aktion / Objekt",width:200,key:"action",render:(_,event)=><>{ACTION_LABELS[event.action]}<br/><span style={SCHRIFT.neben}>{objectLabel(event.objectType)}</span>{event.origin==="browser"&&<div><Tag>Vom Browser gemeldet</Tag></div>}</>},
           {title:"Person / Zugang",width:200,key:"actor",render:(_,event)=><span className={css.break}>{actorLabel(event)}</span>},

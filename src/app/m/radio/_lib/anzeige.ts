@@ -14,7 +14,7 @@
  * `toLocaleTimeString('de-DE')`; `radio-inventar/apps/frontend/src/lib/formatters.ts:32`,
  * `format(date, 'dd.MM.yyyy, HH:mm')`) — diese Datei loest beide Stellen ab.
  *
- * ⛔ DIE ZONE STEHT WOERTLICH HIER UND KOMMT NICHT AUS DER UMGEBUNG. Die
+ * ⛔ DIE ZONE KOMMT AUS DER SUITE-EINSTELLUNG UND NICHT AUS DER UMGEBUNG. Die
  * Voraussetzungstabelle des Leitplans
  * (`docs/superpowers/plans/2026-08-21-radio-modul-leitplan.md:122`) fuehrt die
  * Umgebungsvariable fuer die Zone ausdruecklich als NICHT gesetzt; ein Rueckfall auf die
@@ -47,19 +47,14 @@
  */
 
 /**
- * Die Zone der Flaeche. An genau einer Stelle, damit sie nicht zweimal driften kann.
- *
- * ⛔ SEIT AUFGABE V16 EXPORTIERT, UND GENAU DESHALB: `_lib/suchparameter.ts` rechnet fuer den
- * Zeitraumfilter der Ausleihenliste (⬜ V-L11) Tagesraender in DERSELBEN Zone. Ein zweites
- * `const ZONE = ...` dort waere die zweite Stelle, die dieser Satz ausschliesst.
- * ⚠️ Der Waechter darueber bleibt unberuehrt: `_lib/anzeige.test.ts` verankert auf der
- * DEKLARATION (`const ZONE = "Europe/Berlin"`), die das `export` davor unveraendert enthaelt.
- * ⛔ UND ER ZAEHLT DIE FESTNAGELUNGEN DER ZONE IN DIESER DATEI AUF ZWEI — je eine je
- * Formatierer. Der ausgeschriebene Ausdruck steht hier deshalb NICHT: gemessen beim ersten
- * Lauf zu V16 faerbte er den Fall rot („expected 3 to be 2"), allein an diesem Kommentar.
- * Dieselbe Prosa-Sperre wie beim Konstruktoraufruf zwei Absaetze weiter oben.
+ * Die Zone der Flaeche ist die der Suite: `zeitzone()` aus `core/zeit` (DRK-469), Standard
+ * `Europe/Berlin`, einstellbar in der Portal-Verwaltung. Bis dahin stand sie hier als eigene
+ * Konstante, und `_lib/suchparameter.ts` las sie von hier. Heute lesen beide dieselbe Quelle.
+ * ⛔ DER WAECHTER ZAEHLT DIE STELLEN IN DIESER DATEI, AN DENEN DIE ZONE GESETZT WIRD, UND
+ * ERWARTET ZWEI, je eine pro Formatierer. Der ausgeschriebene Ausdruck steht in diesem
+ * Kommentar deshalb nicht.
  */
-export const ZONE = "Europe/Berlin";
+import { zeitzone } from "@/core/zeit";
 
 /**
  * Die reine Uhrzeit, `HH:mm`, zweistellig — z. B. `14:20`.
@@ -71,7 +66,7 @@ export const ZONE = "Europe/Berlin";
  */
 export function uhrzeit(zeit: Date): string {
   return new Intl.DateTimeFormat("de-DE", {
-    timeZone: ZONE,
+    timeZone: zeitzone(),
     hour: "2-digit",
     minute: "2-digit",
   }).format(zeit);
@@ -86,7 +81,7 @@ export function uhrzeit(zeit: Date): string {
  */
 export function datumMitUhrzeit(zeit: Date): string {
   return new Intl.DateTimeFormat("de-DE", {
-    timeZone: ZONE,
+    timeZone: zeitzone(),
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

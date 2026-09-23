@@ -18,6 +18,7 @@ import {
   type NachfuellAnzeigeZeile,
   type VerfallAnzeigeZeile,
 } from "./CheckDetailTabellen";
+import { zeitzone } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
@@ -147,10 +148,10 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
               */}
             {check.completedAt
               ? `Abgeschlossen ${check.completedAt.toLocaleString("de-DE", {
-                timeZone: "Europe/Berlin",
+                timeZone: zeitzone(),
               })}`
               : `Begonnen ${check.startedAt.toLocaleString("de-DE", {
-                timeZone: "Europe/Berlin",
+                timeZone: zeitzone(),
               })}, läuft noch`}{" · "}
             {/* DRK-311: derselbe aufgeloeste Name wie in der Spalte „Wer" der
                 Historie — wer von dort hierher tippt, liest ihn wieder. Beim

@@ -16,6 +16,7 @@ import {
   type CheckErgebnisChip,
 } from "./ChecksTabelle";
 import { deckelText } from "./checksFilterLogik";
+import { zeitzone } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
 
@@ -127,7 +128,7 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
      * Schalter, ist hier also nie eine Ueberraschung.
      */
     abgeschlossenText: zeile.completedAt?.toLocaleString("de-DE", {
-      timeZone: "Europe/Berlin",
+      timeZone: zeitzone(),
     }) ?? "läuft noch",
     /**
      * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.

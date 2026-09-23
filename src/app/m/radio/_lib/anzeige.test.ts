@@ -140,15 +140,16 @@ describe("radio-anzeige: die Bauform", () => {
      * gesetzt (`docs/superpowers/plans/2026-08-21-radio-modul-leitplan.md:122`).
      */
     const quelle = readFileSync(ANZEIGE, "utf8");
-    // ⛔ AUF DIE DEKLARATION VERANKERT, nicht auf den blossen Namen: ein `Europe/Berlin`
-    // in einem Kommentar erfuellte den Fall sonst, ohne dass eine Zeile es benutzt.
-    expect(quelle, 'keine Deklaration const ZONE = "Europe/Berlin"')
-      .toMatch(/const ZONE = "Europe\/Berlin"/);
+    // ⛔ AUF DEN IMPORT VERANKERT, nicht auf den blossen Namen: ein `zeitzone` in einem
+    // Kommentar erfuellte den Fall sonst, ohne dass eine Zeile es benutzt. Die Zone ist die
+    // der Suite (`core/zeit`, DRK-469), nicht mehr eine Konstante dieser Datei.
+    expect(quelle, "kein Import der Suite-Zone aus core/zeit")
+      .toMatch(/import \{ zeitzone \} from "@\/core\/zeit"/);
     // ⛔ UND BEIDE FORMATIERER MUESSEN SIE FUEHREN. Ohne die Zahl bliebe der Fall gruen,
     // wenn genau eine der beiden Funktionen die Zone verloere — und das ist der
     // wahrscheinlichere Fehler als der Verlust beider.
     expect(
-      quelle.match(/timeZone:\s*ZONE/g)?.length,
+      quelle.match(/timeZone:\s*zeitzone\(\)/g)?.length,
       "nicht beide Formatierer nageln die Zone fest",
     ).toBe(2);
     // ⛔ DER AUSSCHLUSS IST ABSICHTLICH BREIT: `process.env` UEBERHAUPT, nicht nur
@@ -171,9 +172,9 @@ describe("radio-anzeige: die Bauform", () => {
      * ⛔ DIE AUFLAGE AUS DEM KOPF VON `anzeige.ts` HATTE BIS ZUR FIX-RUNDE 1 KEINEN RIEGEL
      * (`REVIEW-A12.md`, Fund F1). Der Schaden ist nicht die Formatiererinstanz — es ist der
      * entwaffnete Waechter darueber. ZWEISTUFIG GEMESSEN, im echten Quellbaum, 2026-08-23:
-     *   1. beide Formatierer auf Modulebene hochgezogen (Zone und `timeZone: ZONE` bleiben
+     *   1. beide Formatierer auf Modulebene hochgezogen (Zone und `timeZone: …` bleiben
      *      woertlich stehen) → 7 von 7 Faellen GRUEN. Kein Fall dieser Datei sah es.
-     *   2. hochgezogen UND die Zeile `timeZone: ZONE` aus beiden entfernt → nur noch 1 rot,
+     *   2. hochgezogen UND die Zeile `timeZone: …` aus beiden entfernt → nur noch 1 rot,
      *      naemlich der Quelltext-Fall darueber. Der Fall aus dem Block „die Zone haengt
      *      nicht an der Zone des Prozesses" (heute `:114-130`; ⚠️ AUF DEN BLOCKNAMEN LESEN,
      *      nicht auf die Zahl — jeder neue Fall darueber verschiebt sie) blieb GRUEN, weil
@@ -201,7 +202,7 @@ describe("radio-anzeige: die Bauform", () => {
     // echten Quellbaum: 9 von 9 Faellen gruen), der Formatierer entstuende aber genau einmal
     // — der Schaden aus dem Kopf von `anzeige.ts`. Dieser Ausschluss trifft eine Bindung auf
     // MODULEBENE (Zeilenanfang, also uneingerueckt), deren Wert aus einem AUFRUF kommt;
-    // `const ZONE = "Europe/Berlin"` ist ein Literal und faellt nicht darunter.
+    // Ein `import` ist keine Bindung dieser Form und faellt nicht darunter.
     expect(
       quelle,
       "ein Modulebenen-Memo ueber einen Funktionsaufruf haelt den Formatierer fest, statt " +

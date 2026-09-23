@@ -58,4 +58,12 @@ export async function register(): Promise<void> {
   // Erst jetzt: die Hintergrundarbeiter der Module lesen Tabellen, die es vor
   // den Migrationen nicht gibt.
   startBackgroundWork();
+
+  // Die Anzeigezone der Suite (DRK-469) aus der Portal-Einstellung in den
+  // Prozess (`core/zeit`). Nach den Migrationen, weil sie eine Tabelle liest,
+  // und vor dem ersten Request, damit keine Seite mit dem Standard rendert.
+  // Unter dem letzten Aufruf oben, weil fremde Kommentare auf dessen Zeile zeigen.
+  const { leseZeitzone } = await import("@/app/m/portal/_lib/einstellungen");
+  const { setzeAktiveZeitzone } = await import("@/core/zeit");
+  setzeAktiveZeitzone(leseZeitzone());
 }

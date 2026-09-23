@@ -3,7 +3,7 @@ import { Alert, Button, Card } from "antd";
 import { notFound } from "next/navigation";
 import { ladeUebersicht, type UebersichtZeile } from "../_db/queries";
 import { entschaerfeTitel } from "../_lib/zip";
-import { zeitpunktBerlin } from "../_lib/zeit";
+import { zeitpunktInZone } from "../_lib/zeit";
 import type { Rolle } from "../_lib/hostRolle";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { AblageKachel } from "./AblageKachel";
@@ -111,7 +111,7 @@ export function zuZeile(roh: UebersichtZeile, jetzt: Date): ShareZeile {
        Spaltenkoepfe: „476,8 MiB" und „31.07.2026, 14:00" ordneten als
        Zeichenkette falsch, und zwar still. */
     groesseBytes: roh.gesamtGroesse,
-    ablaufText: zeitpunktBerlin(roh.ablaufAt),
+    ablaufText: zeitpunktInZone(roh.ablaufAt),
     ablaufIso: roh.ablaufAt.toISOString(),
     abgelaufen: roh.ablaufAt.getTime() <= jetzt.getTime(),
     /* `null` = UNBEGRENZT, nicht 0 und nicht −1 (§4.2) — deshalb `??` und

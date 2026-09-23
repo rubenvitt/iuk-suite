@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, fmtDatumZeit, heuteIso, uhrzeit }
+import { zeitzone } from "@/core/zeit";
+import { ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, fmtDatumZeit, heuteIso, uhrzeit }
   from "./zeit";
 
 /**
@@ -20,7 +21,7 @@ describe.each(ZONEN)("unter Prozess-TZ %s", (tz) => {
   beforeEach(() => { process.env.TZ = tz; });
 
   it("ZEITZONE ist Europe/Berlin", () => {
-    expect(ZEITZONE).toBe("Europe/Berlin");
+    expect(zeitzone()).toBe("Europe/Berlin");
   });
 
   it("monatsEnde trifft den Sommerzeit-Rand", () => {

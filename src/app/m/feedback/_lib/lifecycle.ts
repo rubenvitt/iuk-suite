@@ -19,8 +19,8 @@ export type EveningStatus = "planned" | "held" | "cancelled";
 
 export const DEFAULT_CLOSE_AFTER_HOURS = 48;
 
-/** Einzige Stelle für die Zeitzone der Fristberechnung (Spec-Entscheidung C). */
-export const TIME_ZONE = "Europe/Berlin";
+/** Die Zone der Fristberechnung (Spec-Entscheidung C) ist die der Suite: `zeitzone()`. */
+import { zeitFormat, zeitzone } from "@/core/zeit";
 
 /**
  * DER KALENDERTAG EINES ZEITPUNKTS als `YYYY-MM-DD` in `Europe/Berlin` — die
@@ -47,7 +47,7 @@ export const TIME_ZONE = "Europe/Berlin";
  * käme eine Client-Referenz statt des Wertes an (CLAUDE.md, Falle 6) — HTTP 500
  * für die ganze Seite, und weder `build` noch Vitest sehen es.
  */
-const ISO_TAG = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE });
+const ISO_TAG = zeitFormat("sv-SE", {});
 
 export function kalendertagInZone(datum: Date): string {
   return ISO_TAG.format(datum);
@@ -124,8 +124,8 @@ function zonedTimeToUtc(
  * UTC-Repräsentation.
  */
 export function computeClosesAt(eveningDate: Date, closeAfterHours: number): Date {
-  const { year, month, day } = localDateParts(eveningDate, TIME_ZONE);
-  const endOfLocalDay = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, TIME_ZONE);
+  const { year, month, day } = localDateParts(eveningDate, zeitzone());
+  const endOfLocalDay = zonedTimeToUtc(year, month, day + 1, 0, 0, 0, zeitzone());
   return new Date(endOfLocalDay.getTime() + closeAfterHours * 3600_000);
 }
 

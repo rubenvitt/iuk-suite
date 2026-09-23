@@ -17,7 +17,8 @@ import {
   getSurvey,
   insertResponse,
 } from "../../_db/queries";
-import { computeClosesAt, TIME_ZONE } from "../../_lib/lifecycle";
+import { computeClosesAt } from "../../_lib/lifecycle";
+import { zeitzone } from "@/core/zeit";
 import { STANDARD_QUESTIONS } from "../../_lib/questions";
 import s from "./zettel.module.css";
 
@@ -97,12 +98,12 @@ function geschlossenAm(zeit: Date): string {
   const tag = new Intl.DateTimeFormat("de-DE", {
     day: "numeric",
     month: "long",
-    timeZone: TIME_ZONE,
+    timeZone: zeitzone(),
   }).format(zeit);
   const uhr = new Intl.DateTimeFormat("de-DE", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: TIME_ZONE,
+    timeZone: zeitzone(),
   }).format(zeit);
   return `am ${tag} um ${uhr}`;
 }

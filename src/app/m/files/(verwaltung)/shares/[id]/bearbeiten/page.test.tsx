@@ -216,7 +216,7 @@ const STANDARD: BearbeitenFormularProps = {
   maxDownloadsText: "",
   hatPasswort: false,
   restTage: 6,
-  /* Die Form, die `page.tsx` tatsaechlich uebergibt (`zeitpunktBerlin` aus
+  /* Die Form, die `page.tsx` tatsaechlich uebergibt (`zeitpunktInZone` aus
      `_lib/zeit.ts`) — eine erfundene Schreibweise im Pruefstand liesse eine
      Formatumstellung hier unbemerkt durchgehen. */
   ablaufText: "31.07.2026, 12:00",

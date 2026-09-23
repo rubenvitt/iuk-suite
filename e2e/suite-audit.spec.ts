@@ -101,7 +101,7 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
   const geometry=await page.evaluate(()=>({width:window.innerWidth,document:document.documentElement.scrollWidth,overflow:Array.from(document.querySelectorAll("main, [data-testid=audit-log], [aria-busy], .ant-table-content")).map(el=>({node:el.tagName,classes:el.className,width:el.getBoundingClientRect().width,scroll:el.scrollWidth,minWidth:getComputedStyle(el).minWidth,display:getComputedStyle(el).display}))}));
   await page.screenshot({animations:"disabled",path:SCREENSHOTS+`/desktop-${width}-geometry.png`});
   expect(geometry.document,JSON.stringify(geometry)).toBeLessThanOrEqual(width);
-  const header=page.getByRole("columnheader",{name:"Zeit (UTC)"});
+  const header=page.getByRole("columnheader",{name:"Zeit",exact:true});
   await expect(header.locator("[data-rolle=spaltenkopf]")).toHaveCSS("text-transform","uppercase");
   const table=page.locator(".ant-table-content");
   expect(await table.evaluate(el=>el.scrollWidth>=el.clientWidth)).toBe(true);

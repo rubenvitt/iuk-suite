@@ -1,4 +1,5 @@
 import { getModule } from "@/core/registry";
+import { zeitFormat } from "@/core/zeit";
 import { AUDIT_MODULES, type AuditAction, type AuditEvent, type AuditResult } from "@/core/audit/types";
 export const MODULE_LABELS = Object.fromEntries(AUDIT_MODULES.map(key => [key, key === "konto" ? "Konto" : getModule(key).title]));
 export const ACTION_LABELS: Record<AuditAction, string> = { create: "Angelegt", update: "Geändert", delete: "Gelöscht", sign_in: "Angemeldet", sign_out: "Abgemeldet", session_revoke: "Sitzungen widerrufen", access_denied: "Zugriff verweigert", download: "Heruntergeladen", export: "Exportiert" };
@@ -20,5 +21,6 @@ export function actorLabel(event: AuditEvent): string {
  const actor=event.actor;
  return actor.kind === "anonymous" ? "Anonym" : actor.kind === "system" ? "System" : actor.kind === "access" ? "Gemeinsamer Zugang" : "id" in actor ? actor.name || actor.id : "Anonym";
 }
-const formatter = new Intl.DateTimeFormat("de-DE", { timeZone:"UTC", year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23" });
-export function auditTime(time: number): string { return formatter.format(time) + " UTC"; }
+// In der Suite-Zone (DRK-469), mit Zonenkürzel („MESZ"): ein Protokolleintrag muss eindeutig bleiben, auch rund um die Zeitumstellung.
+const formatter = zeitFormat("de-DE", { year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",timeZoneName:"short" });
+export function auditTime(time: number): string { return formatter.format(time); }
