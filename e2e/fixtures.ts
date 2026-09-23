@@ -1,4 +1,4 @@
-import { Locator, Page, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS };
+import { Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS };
 
 export async function devLogin(
   page: Page,
@@ -355,4 +355,42 @@ export async function warteAufSpaltenaufteilung(page: Page): Promise<void> {
   }), {
     message: "Der Inhalt liegt noch unter der Seitenleiste statt neben ihr",
   }).toBe(true);
+}
+
+/**
+ * WELCHER 404 ES WAR — fuer die Meldung einer Zusicherung auf `status() === 200`.
+ *
+ * Zwei Ausfaelle sehen im Browser gleich aus (dieselbe Seite aus
+ * `app/not-found.tsx`) und haben entgegengesetzte Ursachen:
+ *
+ *   - Die SEITE weist ab (`notFound()` im Guard oder weil ein Datensatz fehlt).
+ *     Der Router-Baum im Flight-Payload beginnt dann beim Segment der
+ *     umgeschriebenen Route (gemessen: `m`).
+ *   - `next dev` KENNT DIE ROUTE NICHT. Dann rendert Next seine eigene
+ *     `/_not-found`-Route, und der Baum beginnt dort.
+ *
+ * Gemessen in CI-Lauf 35043030333 (DRK-369): `/groups/1/evenings/1/auswertung`
+ * lieferte dreimal 404 mit Baum `/_not-found`, waehrend das Cockpit
+ * `/groups/1` im selben Versuch `eveningId: 1` und `surveyId: 1` auslieferte.
+ * Die Daten stimmten also; die Spur „Seed-Ids und Reihenfolge der Specs" war
+ * falsch und haette einen halben Tag gekostet. Die Gegenprobe gegen einen
+ * lokalen `next dev`: Abend 1 unter Gruppe 2 und Abend 999 → 404 mit Baum `m`,
+ * eine erfundene Adresse → 404 mit Baum `/_not-found`.
+ *
+ * Liefert "" bei 200, sonst einen Satz zum Anhaengen an die Meldung. Liest den
+ * Payload nur im Fehlerfall. Faende die Probe den Baum nicht mehr (anderes
+ * Payload-Format nach einem Next-Upgrade), sagt sie das, statt zu raten.
+ */
+export async function warumNicht200(antwort: Response | null): Promise<string> {
+  if (!antwort) return " — keine Antwort";
+  if (antwort.status() === 200) return "";
+  const html = await antwort.text().catch(() => "");
+  const wurzel = /\\"f\\":\[\[\[\\"\\",\{\\"children\\":\[\\"([^"\\]*)/.exec(html)?.[1];
+  if (wurzel === "/_not-found") {
+    return " — Router-Baum `/_not-found`: next dev KENNT DIE ROUTE NICHT. Kein notFound() der Seite, keine Datenfrage (DRK-369)";
+  }
+  if (wurzel) {
+    return ` — Router-Baum beginnt bei „${wurzel}": die Route ist bekannt, die SEITE hat abgewiesen (notFound() im Guard oder fehlende Daten)`;
+  }
+  return " — Router-Baum im Payload nicht gefunden (Format geaendert?)";
 }
