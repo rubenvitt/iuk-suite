@@ -44,6 +44,17 @@ export const FARBEN = {
   gelbBg: "#fbf1dc",
   ok: "#1e7a3c",
   okBg: "#e4f2e9",
+  /**
+   * KONTUR EINES RUHENDEN BEDIENELEMENTS (DRK-370, WCAG 1.4.11: 3:1). antds
+   * `colorBorder` trägt 1,41:1 (`#d9d9d9` auf Weiß) bzw. 1,83:1 (`#424242` auf
+   * `#141414`) — bei einem leeren Feld auf gleichfarbiger Karte ist die Kontur
+   * aber die EINZIGE Grenze. Gerechnet gegen jede Fläche, auf der ein Feld
+   * steht: hell 3,64:1 auf Weiß, 3,18:1 auf `papier`; dunkel 3,72:1 auf
+   * `#141414`, 3,33:1 auf `#1f1f1f` (Modal), 4,24:1 auf `#000000`. Nur für
+   * Bedienelemente — die Reichweite steht in `theme.ts` bei `buildTheme`.
+   */
+  kontur: "#868686",
+  konturAufDunkel: "#707070",
 } as const;
 
 /**

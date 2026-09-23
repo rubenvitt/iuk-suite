@@ -5,7 +5,18 @@ import { resolve } from "node:path";
 import { createElement } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { ConfigProvider, theme as antdTheme } from "antd";
+import { renderToString } from "react-dom/server";
+import { createCache, extractStyle, StyleProvider } from "@ant-design/cssinjs";
+import {
+  Checkbox,
+  ConfigProvider,
+  DatePicker,
+  Input,
+  InputNumber,
+  Radio,
+  Select,
+  theme as antdTheme,
+} from "antd";
 import { ARBEITSDICHTE, SCHREIBTISCHDICHTE, buildTheme, type ThemeMode } from "@/core/theme/theme";
 import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
@@ -109,6 +120,88 @@ describe("buildTheme", () => {
     // muss der abgeleitete Token also wirklich exakt die Suite-Farbe sein.
     const token = antdTheme.getDesignToken(buildTheme("light"));
     expect(token.colorPrimary.toLowerCase()).toBe(FARBEN.rot);
+  });
+
+  /**
+   * DIE KONTUR EINES RUHENDEN BEDIENELEMENTS TRÄGT 3:1 (DRK-370, WCAG 1.4.11).
+   * Gerechnet gegen jede Fläche, auf der ein Feld tatsächlich steht: seine
+   * eigene (`colorBgContainer`), die eines Modals/Popovers (`colorBgElevated`)
+   * und den Seitengrund (`Layout.bodyBg`). Ohne diesen Fall drückt der nächste
+   * „ruhigere" Grauton die Zahl still wieder unter die Schwelle.
+   */
+  const BEDIENELEMENTE = ["Input", "InputNumber", "Select", "DatePicker", "Checkbox", "Radio"] as const;
+
+  it.each(MODES)("hebt die Kontur der Bedienelemente im Modus %s auf 3:1", (mode) => {
+    const cfg = buildTheme(mode);
+    const token = antdTheme.getDesignToken(cfg);
+    const flaechen = [token.colorBgContainer, token.colorBgElevated, cfg.components!.Layout!.bodyBg!];
+    for (const bauteil of BEDIENELEMENTE) {
+      const kontur = (cfg.components![bauteil] as { colorBorder?: string }).colorBorder;
+      expect(kontur, `${bauteil} setzt keine eigene Kontur`).toBeDefined();
+      for (const flaeche of flaechen) {
+        expect(
+          kontrast(kontur!, flaeche),
+          `${bauteil} ${kontur} auf ${flaeche}`,
+        ).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it.each(MODES)("lässt die globale Kontur im Modus %s bei antds Rechnung", (mode) => {
+    // Die Entscheidung aus DRK-370: nur Bedienelemente. Trennlinien, Karten-
+    // und Tabellenränder bleiben, wie sie sind. Die zweite Zusicherung belegt,
+    // dass es die Lücke wirklich gibt — sonst wäre die erste nur eine Abschrift.
+    const eigen = antdTheme.getDesignToken(buildTheme(mode));
+    const antd = antdTheme.getDesignToken({
+      algorithm: mode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    });
+    expect(eigen.colorBorder).toBe(antd.colorBorder);
+    expect(kontrast(antd.colorBorder, antd.colorBgContainer)).toBeLessThan(3);
+  });
+
+  it.each(MODES)("legt die Kontur im Modus %s wirklich auf jedes Bauteil", (mode) => {
+    /*
+     * GEMESSEN AM ERZEUGTEN CSS, nicht am Config-Objekt. Dass `components.X.
+     * colorBorder` als `--ant-color-border` auf `.iuk.ant-X-css-var` landet, ist
+     * antds Verhalten, nicht unseres — benennt ein Major die Scope-Klasse um
+     * oder honoriert er den Token nicht mehr, stünde der Wert oben weiter im
+     * Objekt und wirkte nirgends (dieselbe Lage wie Falle 20). Die Scope-Klasse
+     * steht zusätzlich im Markup; ohne sie träfe die Regel nichts.
+     */
+    const kontur = mode === "dark" ? FARBEN.konturAufDunkel : FARBEN.kontur;
+    const cache = createCache();
+    const markup = renderToString(
+      createElement(
+        StyleProvider,
+        { cache },
+        createElement(
+          ConfigProvider,
+          { theme: buildTheme(mode) },
+          createElement(Input),
+          createElement(InputNumber),
+          createElement(Select, { options: [] }),
+          createElement(DatePicker),
+          createElement(Checkbox),
+          createElement(Radio),
+        ),
+      ),
+    );
+    const css = extractStyle(cache, true);
+    const scopeVon = (selektor: string) =>
+      [...css.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+        .filter((b) => b[1].trim() === selektor)
+        .map((b) => b[2])
+        .join(";");
+    for (const scope of ["input", "input-number", "select", "picker", "checkbox", "radio"]) {
+      expect(markup, `Scope-Klasse ant-${scope}-css-var fehlt im Markup`).toContain(
+        `ant-${scope}-css-var`,
+      );
+      expect(scopeVon(`.iuk.ant-${scope}-css-var`), `ant-${scope}`).toContain(
+        `--ant-color-border:${kontur}`,
+      );
+    }
+    // Und die globale Variable bleibt antds Wert — der Schnitt aus DRK-370.
+    expect(scopeVon(".iuk")).not.toContain(`--ant-color-border:${kontur}`);
   });
 
   it("unterscheidet hellen und dunklen Grundton", () => {
