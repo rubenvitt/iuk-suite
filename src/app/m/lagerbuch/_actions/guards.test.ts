@@ -542,6 +542,11 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * damit auf 62 = 59 bewacht + 3 Ausnahmen, 59 = 55 + 4, in 26 Action-Dateien
  * (die 25. kam mit DRK-406, `ortCodes.ts`, ohne eigenen Nachtrag).
  *
+ * NACHTRAG DRK-393 (22.09.2026): `aussondernAusEntnahmebox` kommt in
+ * `entnahmebox.ts` dazu — der zweite Ausgang der Kiste, bewacht von
+ * `requireLagerbuchAdmin` wie das Einraeumen daneben. Die Zaehlung steht damit
+ * auf 63 = 60 bewacht + 3 Ausnahmen, 60 = 56 + 4, in weiterhin 26 Dateien.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -584,9 +589,9 @@ describe("Zaehlung (§2.1 a)", () => {
     "check.ts": 1,
     "csv.ts": 1,
     "detail.ts": 1,
-    // DRK-314 die Umlagerung IN die Kiste, DRK-381 der Weg zurueck heraus —
-    // zwei Deklarationen mit VERSCHIEDENEN Riegeln in derselben Datei.
-    "entnahmebox.ts": 2,
+    // DRK-314 die Umlagerung IN die Kiste, DRK-381 der Weg zurueck heraus,
+    // DRK-393 das Aussondern aus ihr — mit VERSCHIEDENEN Riegeln in einer Datei.
+    "entnahmebox.ts": 3,
     "entnahmeZiel.ts": 1,   // DRK-300, nach Teil 6 dazugekommen
     "fahrzeuge.ts": 6,
     "gate.ts": 1,
@@ -644,10 +649,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 62 Deklarationen, obwohl es nur 59 verschiedene Namen gibt", () => {
+  it("zaehlt 63 Deklarationen, obwohl es nur 60 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "62 Deklarationen").toHaveLength(62);
-    expect(new Set(namen).size, "59 verschiedene Namen").toBe(59);
+    expect(namen, "63 Deklarationen").toHaveLength(63);
+    expect(new Set(namen).size, "60 verschiedene Namen").toBe(60);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -659,7 +664,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 59 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 60 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -668,7 +673,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "59 bewacht").toBe(59);
+    expect(funde.length - ausnahmen.length, "60 bewacht").toBe(60);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -735,7 +740,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 59 Riegel auf 55 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
+  it("verteilt die 60 Riegel auf 56 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -765,6 +770,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // macht den Rueckweg fuer jedes Kaertchen auf.
       "entnahmebox.ts#bucheInEntnahmebox",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(55);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(56);
   });
 });

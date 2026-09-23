@@ -46,6 +46,7 @@ import inventurTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2
 import dienstabendePlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-dienstabende-planen";
 import checksLaufend from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-19-checks-laufend";
 import ruecklaufVomFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-21-ruecklauf-vom-fahrzeug";
+import aussondernAusDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-22-aussondern-aus-der-box";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -127,6 +128,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verfallInDerBox,
   ortscodes,
   artikeletiketten,
+  aussondernAusDerBox,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,

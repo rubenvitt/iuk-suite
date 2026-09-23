@@ -10,7 +10,7 @@ import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
 // Entscheidung wie in `Auffuellen.tsx`, und die dort ausgeschriebene
 // Begruendung gilt hier unveraendert: die Ausnahme in `Entnahme.tsx` und
 // `BoxAbgabe.tsx` lebt nur aus ihrer Vorgeschichte.
-import { raeumeAusEntnahmebox } from "../_actions/entnahmebox";
+import { aussondernAusEntnahmebox, raeumeAusEntnahmebox } from "../_actions/entnahmebox";
 import { ampelTon, fmtVerfall } from "../_lib/format";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { MONAT_REGEX, istOhneVerfall } from "../_lib/konstanten";
@@ -73,8 +73,29 @@ type Rueckmeldung = { art: "ok" | "fehler"; text: string };
  * Teil ueberhaupt zurueck in den Schrank geht. Die Begruendung steht
  * ausgeschrieben an `EinraeumenSchema` (`_actions/entnahmebox.ts`).
  */
-type Wahl = { artikelId: string; chargeId: string; menge: number; zielId: string; verfall: string };
-
+type Wahl = {
+  artikelId: string; chargeId: string; menge: number; zielId: string; verfall: string;
+  /**
+   * DER ZWEITE AUSGANG DER KISTE — DRK-393.
+   *
+   * ⚠️ EINE WAHL VOR DEM FORMULAR, NICHT EIN ZWEITER KNOPF NEBEN „EINRÄUMEN
+   * BUCHEN". Das war die erste offene Frage des Tickets: zwei Knoepfe
+   * nebeneinander, von denen einer Bestand vernichtet, sind genau die Stelle,
+   * an der jemand mit dem Daumen den falschen trifft. Die Art steht deshalb
+   * oben als Radiogruppe, und darunter erscheint nur der EINE Knopf, der zu
+   * ihr gehoert — mit eigenem Text, eigener Farbe und eigener Pflichtangabe
+   * (dem Grund). Eine eigene Flaeche waere noch sicherer, aber ein Umweg fuer
+   * den zweiten Normalfall der Kiste: man haelt das Teil in der Hand und sieht
+   * die Ampel, genau hier.
+   *
+   * Vorbelegt ist „einraeumen" — der Weg, der nichts vernichtet und den die
+   * Flaeche schon vorher ging. Ein stillgelegter Artikel kennt nur
+   * „aussondern" (die Begruendung steht an `raeumeAusEntnahmebox`, Riegel 4).
+   */
+  art: "einraeumen" | "aussondern";
+  /** Der Grund der Aussonderung; Pflicht, steht danach im Journal. */
+  grund: string;
+};
 /**
  * DRK-404 — MUSS DAS DATUM VON DER PACKUNG ABGELESEN WERDEN?
  *
@@ -133,6 +154,8 @@ export function BoxEinraeumen({
             chargeId: p.chargen.length === 1 ? p.chargen[0]!.id : "",
             menge: 1,
             zielId: ziele.length === 1 ? ziele[0]!.id : "",
+            art: p.artikelAktiv ? "einraeumen" : "aussondern",
+            grund: "",
             // Vorbelegt mit dem gemeldeten Monat: meist steht genau der auf
             // der Packung, und dann ist die Antwort ein Blick, kein Tippen.
             verfall: p.gemeldet?.verfall ?? "",
@@ -155,14 +178,31 @@ export function BoxEinraeumen({
     if (!wahl || wahl.artikelId !== p.artikelId) return;
     // Die zweite Haelfte derselben Zusage wie der gesperrte Knopf: ein
     // Tastendruck auf einen noch nicht neu gerenderten Knopf kaeme sonst durch.
-    if (wahl.chargeId === "" || wahl.zielId === "" || laeuft) return;
-    const mitDatum = brauchtDatum(p, wahl.chargeId);
-    if (mitDatum && !gueltigerMonat(wahl.verfall)) return;
+    if (!istBereit(p, wahl) || laeuft) return;
+    const mitDatum = wahl.art === "einraeumen" && brauchtDatum(p, wahl.chargeId);
     const menge = Math.min(wahl.menge, grenzeVon(p, wahl.chargeId));
     if (menge <= 0) return;
     setRueck(null);
     start(async () => {
       try {
+        if (wahl.art === "aussondern") {
+          const r = await aussondernAusEntnahmebox({
+            artikelId: p.artikelId,
+            chargeId: wahl.chargeId,
+            menge,
+            kommentar: wahl.grund,
+          });
+          if (!r.ok) {
+            setRueck({ art: "fehler", text: r.text });
+            return;
+          }
+          setRueck({
+            art: "ok",
+            text: `Ausgesondert: ${r.wert.ausgesondert} × ${p.artikelName}`,
+          });
+          setWahl(null);
+          return;
+        }
         const r = await raeumeAusEntnahmebox({
           artikelId: p.artikelId,
           chargeId: wahl.chargeId,
@@ -202,6 +242,15 @@ export function BoxEinraeumen({
     });
   }
 
+  /** Was die gewaehlte Art zum Absenden braucht: beim Einraeumen ein Ziel
+   *  (und das Packungsdatum, wo DRK-404 danach fragt), beim Aussondern einen
+   *  Grund — die Charge immer. */
+  function istBereit(p: EinraeumPosten, w: Wahl): boolean {
+    if (w.chargeId === "") return false;
+    if (w.art === "aussondern") return w.grund.trim() !== "";
+    return w.zielId !== "" && (!brauchtDatum(p, w.chargeId) || gueltigerMonat(w.verfall));
+  }
+
   return (
     <div className={s.lesebahn}>
       <Link className={s.rueckweg} href="/auffuellen" data-rolle="einraeumen-rueckweg">
@@ -226,7 +275,7 @@ export function BoxEinraeumen({
       <p className={s.fussnote} data-rolle="einraeumen-hinweis">
         Was hier liegt, wurde aus einem Fahrzeug oder einer Tasche genommen. Du räumst
         es zurück ins Handlager — umgeräumt, nicht neu angenommen. Eine Lieferung buchst
-        du unter „Auffüllen“.
+        du unter „Auffüllen“. Abgelaufenes sonderst du direkt hier aus.
       </p>
 
       {rueck && (
@@ -244,9 +293,8 @@ export function BoxEinraeumen({
         {posten.map((p) => {
           const offen = wahl?.artikelId === p.artikelId;
           const zielName = offen ? (ziele.find((z) => z.id === wahl.zielId)?.name ?? null) : null;
-          const mitDatum = offen && brauchtDatum(p, wahl.chargeId);
-          const bereit = offen && wahl.chargeId !== "" && wahl.zielId !== "" && !laeuft
-            && (!mitDatum || gueltigerMonat(wahl.verfall));
+          const mitDatum = offen && wahl.art === "einraeumen" && brauchtDatum(p, wahl.chargeId);
+          const bereit = offen && istBereit(p, wahl) && !laeuft;
           return (
             <div key={p.artikelId} data-rolle="einraeum-posten">
               <button
@@ -295,16 +343,14 @@ export function BoxEinraeumen({
                       </HelferChip>
                     )}
                     {/*
-                      ⚠️ DIE STILLLEGUNG WIRD BENANNT, NICHT VERHINDERT — die
-                      dritte offene Frage des Tickets. Ein stillgelegter Artikel
-                      laesst sich einraeumen, und das ist die bewusste Antwort:
-                      es gibt heute keinen Weg, aus der Kiste auszusondern, ein
-                      Verbot liesse das Material also dauerhaft darin liegen —
-                      an einem Ort, den weder Verfallsliste noch Inventur sehen.
-                      Im Schrank sieht die Verfallsliste es wieder. Dass der
-                      Artikel nicht mehr gefuehrt wird, gehoert trotzdem auf den
-                      Schirm: sonst trifft jemand die Entscheidung, ohne zu
-                      wissen, dass er sie trifft.
+                      ⚠️ DIE STILLLEGUNG WIRD BENANNT — und seit DRK-393 auch
+                      durchgesetzt. DRK-381 liess einen stillgelegten Artikel
+                      einraeumen, weil es keinen Weg gab, aus der Kiste
+                      auszusondern; ein Verbot haette das Material dort
+                      stranden lassen. Diesen Weg gibt es jetzt, also bietet die
+                      aufgeklappte Zeile nur noch „Aussondern" an. Der Chip
+                      bleibt: er sagt schon in der zugeklappten Zeile, warum der
+                      Rueckweg ins Handlager fehlt.
                     */}
                     {!p.artikelAktiv && (
                       <HelferChip ton="grau">stillgelegt</HelferChip>
@@ -362,6 +408,42 @@ export function BoxEinraeumen({
                     </fieldset>
                   )}
 
+                  {p.artikelAktiv ? (
+                    <fieldset
+                      style={{ border: "none", padding: 0, margin: "0 0 10px" }}
+                      data-rolle="einraeum-artwahl"
+                    >
+                      <legend className={s.fussnote} style={{ padding: 0 }}>
+                        Was passiert damit?
+                      </legend>
+                      {([
+                        ["einraeumen", "Zurück ins Handlager"],
+                        ["aussondern", "Aussondern (entsorgen)"],
+                      ] as const).map(([art, text]) => (
+                        <label key={art} className={`${s.zeile} ${s.zeileWahl}`}>
+                          <input
+                            type="radio"
+                            name={`einraeum-art-${p.artikelId}`}
+                            className={s.wahlKnopf}
+                            value={art}
+                            checked={wahl.art === art}
+                            onChange={() => setWahl({ ...wahl, art })}
+                          />
+                          <div className={s.zeileHaupt}>
+                            <div className={s.zeileName}>{text}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : (
+                    <p className={s.fussnote} data-rolle="einraeum-nur-aussondern">
+                      Dieser Artikel ist stillgelegt und kommt nicht zurück ins Handlager.
+                      Du kannst ihn nur aussondern.
+                    </p>
+                  )}
+
+                  {wahl.art === "einraeumen" && (
+                  <>
                   {/*
                     ⚠️ DAS ZIEL WIRD JE BUCHUNG GEWAEHLT, NICHT EINMAL FUER DIE
                     GANZE KISTE. Der naheliegende Bau waere ein Schrank oben am
@@ -401,6 +483,8 @@ export function BoxEinraeumen({
                       </label>
                     ))}
                   </fieldset>
+                  </>
+                  )}
 
                   {/*
                     DRK-404 — DAS DATUM AUF DER PACKUNG. Nur wenn die Meldung
@@ -457,12 +541,14 @@ export function BoxEinraeumen({
                     <span className={`${s.zielWert} ${zielName === null ? s.zielOffen : ""}`}>
                       {wahl.chargeId === ""
                         ? "Noch keine Charge gewählt"
-                        : zielName === null
-                          ? "Noch kein Schrank gewählt"
-                          : `${wahl.menge} ${p.einheit} ${p.artikelName} → ${zielName}`
-                            + (mitDatum && gueltigerMonat(wahl.verfall)
-                              ? ` · Verfall ${fmtVerfall(wahl.verfall)}`
-                              : "")}
+                        : wahl.art === "aussondern"
+                          ? `${wahl.menge} ${p.einheit} ${p.artikelName} → ausgesondert`
+                          : zielName === null
+                            ? "Noch kein Schrank gewählt"
+                            : `${wahl.menge} ${p.einheit} ${p.artikelName} → ${zielName}`
+                              + (mitDatum && gueltigerMonat(wahl.verfall)
+                                ? ` · Verfall ${fmtVerfall(wahl.verfall)}`
+                                : "")}
                     </span>
                   </div>
 
@@ -473,6 +559,7 @@ export function BoxEinraeumen({
                     Hier kommt Bestand ins Handlager — dieselbe Begruendung wie
                     in `Auffuellen.tsx`.
                   */}
+                  {wahl.art === "einraeumen" ? (
                   <button
                     className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
                     type="button"
@@ -482,6 +569,39 @@ export function BoxEinraeumen({
                   >
                     Einräumen buchen
                   </button>
+                  ) : (
+                    <>
+                      {/*
+                        DER GRUND IST PFLICHT, wie am Fahrzeug: er steht danach
+                        im Journal neben „Aussonderung" und ist das, was man
+                        im Nachhinein belegen muss. Kein vorbelegter Text — ein
+                        Vorschlag, den niemand liest, belegte nichts.
+                      */}
+                      <label className={s.fussnote} style={{ display: "block", margin: "4px 0 10px" }}>
+                        Grund
+                        <input
+                          type="text"
+                          className={s.feld}
+                          value={wahl.grund}
+                          onChange={(e) => setWahl({ ...wahl, grund: e.target.value })}
+                          placeholder="z. B. abgelaufen, Verpackung beschädigt"
+                          data-rolle="aussondern-grund"
+                        />
+                      </label>
+                      {/* ROT, weil hier Bestand weggeht — dieselbe Bedeutung wie
+                          der Knopf in `BoxAbgabe` (Falle 3 betrifft Datenflaechen,
+                          nicht die Handlung). */}
+                      <button
+                        className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
+                        type="button"
+                        disabled={!bereit}
+                        onClick={() => absenden(p)}
+                        data-rolle="aussondern-buchen"
+                      >
+                        Aussondern buchen
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

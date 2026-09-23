@@ -15,12 +15,14 @@ import {
  *
  * `vi.hoisted`, weil `vi.mock` an den Dateikopf gehoben wird.
  */
-const { buchenSpion } = vi.hoisted(() => ({
+const { buchenSpion, aussondernSpion } = vi.hoisted(() => ({
   buchenSpion: vi.fn<(eingabe: unknown) => Promise<unknown>>(),
+  aussondernSpion: vi.fn<(eingabe: unknown) => Promise<unknown>>(),
 }));
 
 vi.mock("../_actions/entnahmebox", () => ({
   raeumeAusEntnahmebox: (eingabe: unknown) => buchenSpion(eingabe),
+  aussondernAusEntnahmebox: (eingabe: unknown) => aussondernSpion(eingabe),
 }));
 
 import { BoxEinraeumen, type EinraeumZiel } from "./BoxEinraeumen";
@@ -140,12 +142,8 @@ describe("BoxEinraeumen — was der Schirm sagt", () => {
   });
 
   it("benennt einen stillgelegten Artikel, statt ihn zu verstecken", async () => {
-    /*
-     * ⚠️ DIE DRITTE OFFENE FRAGE DES TICKETS, UND DIE ANTWORT IST „ERLAUBT,
-     * ABER BENANNT". Verbieten ginge nicht: es gibt heute keinen Weg, aus der
-     * Kiste auszusondern — das Material bliebe fuer immer darin liegen, an
-     * einem Ort, den weder Verfallsliste noch Inventur sehen.
-     */
+    // DRK-381 benannte ihn nur; seit DRK-393 fuehrt aus der Zeile allein das
+    // Aussondern heraus (Block „der zweite Ausgang" unten). Der Chip bleibt.
     await mount(flaeche({ posten: [posten({ artikelAktiv: false })] }));
     expect(query("[data-rolle='einraeum-posten-knopf']").textContent).toContain("stillgelegt");
   });
@@ -457,6 +455,98 @@ describe("BoxEinraeumen — die Bauform", () => {
     // beide importieren direkt, und die Begruendung im Kopf von
     // `Auffuellen.tsx` gibt es nicht mehr. Es gibt keine Ausnahme im Modul.
     const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
-    expect(quelle).toMatch(/import\s*\{\s*raeumeAusEntnahmebox\s*\}\s*from\s*"\.\.\/_actions\/entnahmebox"/);
+    expect(quelle).toMatch(
+      /import\s*\{\s*aussondernAusEntnahmebox,\s*raeumeAusEntnahmebox\s*\}\s*from\s*"\.\.\/_actions\/entnahmebox"/,
+    );
+  });
+});
+
+describe("BoxEinraeumen — der zweite Ausgang: aussondern (DRK-393)", () => {
+  const AUSSONDERN = "[data-rolle='aussondern-buchen']";
+  const GRUND = "[data-rolle='aussondern-grund']";
+
+  async function aufAussondern() {
+    await mount(flaeche({ posten: [einzelPosten()], ziele: [ZIELE[0]!] }));
+    await click("[data-rolle='einraeum-posten-knopf']");
+    await clickElement(query<HTMLInputElement>("[data-rolle='einraeum-artwahl'] input[value='aussondern']"));
+  }
+
+  it("zeigt nie beide Knoepfe zugleich — die Art entscheidet, welcher steht", async () => {
+    /*
+     * ⚠️ DIE ERSTE OFFENE FRAGE DES TICKETS: ein zweiter Knopf direkt neben
+     * „Einräumen buchen" waere der kuerzere Weg, und einer der beiden
+     * vernichtet Bestand. Vorbelegt ist der, der nichts vernichtet.
+     */
+    await mount(flaeche({ posten: [einzelPosten()], ziele: [ZIELE[0]!] }));
+    await click("[data-rolle='einraeum-posten-knopf']");
+    expect(exists(KNOPF)).toBe(true);
+    expect(exists(AUSSONDERN)).toBe(false);
+
+    await clickElement(query<HTMLInputElement>("[data-rolle='einraeum-artwahl'] input[value='aussondern']"));
+    expect(exists(KNOPF)).toBe(false);
+    expect(exists(AUSSONDERN)).toBe(true);
+    expect(exists("[data-rolle='einraeum-zielwahl']"), "kein Ziel beim Aussondern").toBe(false);
+  });
+
+  it("haelt den Knopf gesperrt, bis ein Grund dasteht", async () => {
+    await aufAussondern();
+    expect(query<HTMLButtonElement>(AUSSONDERN).disabled).toBe(true);
+    await fill(GRUND, "   ");
+    expect(query<HTMLButtonElement>(AUSSONDERN).disabled).toBe(true);
+    await fill(GRUND, "abgelaufen");
+    expect(query<HTMLButtonElement>(AUSSONDERN).disabled).toBe(false);
+  });
+
+  it("schickt Artikel, Charge, Menge und Grund — und kein Ziel", async () => {
+    aussondernSpion.mockResolvedValue({ ok: true, wert: { ausgesondert: 1 } });
+    await aufAussondern();
+    await fill(GRUND, "abgelaufen");
+    await click(AUSSONDERN);
+
+    expect(buchenSpion).not.toHaveBeenCalled();
+    expect(aussondernSpion).toHaveBeenCalledWith({
+      artikelId: "art-1", chargeId: "ch-1", menge: 1, kommentar: "abgelaufen",
+    });
+    expect(query("[data-rolle='einraeumen-ergebnis']").textContent)
+      .toBe("Ausgesondert: 1 × Kühlkompresse");
+  });
+
+  it("zeigt den Satz DES SERVERS und laesst die Zeile offen", async () => {
+    aussondernSpion.mockResolvedValue({ ok: false, grund: "eingabe", text: "Von dieser Charge liegen nur 0 Stk." });
+    await aufAussondern();
+    await fill(GRUND, "abgelaufen");
+    await click(AUSSONDERN);
+
+    expect(query("[data-rolle='einraeumen-ergebnis']").textContent).toBe("Von dieser Charge liegen nur 0 Stk.");
+    expect(exists("[data-rolle='einraeum-eingabe']")).toBe(true);
+  });
+
+  it("fragt beim Aussondern NICHT nach dem Packungsdatum (DRK-404 gilt nur fuers Regal)", async () => {
+    // Die Frage existiert, damit das Datum das Material in den Schrank
+    // begleitet. Was in den Muell geht, braucht keins.
+    await mount(flaeche({
+      posten: [einzelPosten({
+        gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
+      })],
+      ziele: [ZIELE[0]!],
+    }));
+    await click("[data-rolle='einraeum-posten-knopf']");
+    expect(exists("[data-rolle='einraeum-datum']"), "beim Einraeumen gefragt").toBe(true);
+
+    await clickElement(query<HTMLInputElement>("[data-rolle='einraeum-artwahl'] input[value='aussondern']"));
+    expect(exists("[data-rolle='einraeum-datum']")).toBe(false);
+    await fill(GRUND, "abgelaufen");
+    expect(query<HTMLButtonElement>(AUSSONDERN).disabled).toBe(false);
+  });
+
+  it("bietet einem STILLGELEGTEN Artikel nur das Aussondern an", async () => {
+    // Seit DRK-393 weist `raeumeAusEntnahmebox` ihn ab (DRK-380: „heraus ja,
+    // hinein nein"). Die Flaeche bietet nichts an, was die Buchung verwirft.
+    await mount(flaeche({ posten: [einzelPosten({ artikelAktiv: false })], ziele: [ZIELE[0]!] }));
+    await click("[data-rolle='einraeum-posten-knopf']");
+    expect(exists("[data-rolle='einraeum-artwahl']")).toBe(false);
+    expect(exists("[data-rolle='einraeum-nur-aussondern']")).toBe(true);
+    expect(exists(KNOPF)).toBe(false);
+    expect(exists(AUSSONDERN)).toBe(true);
   });
 });
