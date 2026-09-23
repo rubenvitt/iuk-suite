@@ -620,7 +620,7 @@ describe("radio-AusleihVorgang: das Ergebnis der Action", () => {
 describe("radio-AusleihVorgang: das Stylesheet", () => {
   it("keine Regel unterhalb des Rahmen-Traegers liest eine Gate-Variable", () => {
     /*
-     * ⛔ FALLE 2 IN IHRER STILLSTEN GESTALT (`CLAUDE.md:14-15`), und sie war HIER schon
+     * ⛔ FALLE 2 IN IHRER STILLSTEN GESTALT (`CLAUDE.md`), und sie war HIER schon
      * einmal eingetreten: acht Regeln des A16/A18-Abschnitts lasen `--radio-gate-linie`,
      * `--radio-gate-marke`, `--radio-gate-flaeche` und `--radio-gate-gedaempft`. Diese vier
      * sind ausschliesslich auf `.gate` deklariert (`ausleihe.module.css:35-39`) — die

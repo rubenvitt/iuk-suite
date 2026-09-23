@@ -476,3 +476,29 @@ test.describe("Kontowechsel auf einem geteilten Gerät (DRK-286)", () => {
     await expect(page.getByText(`${offen} / Adele Offen`)).toBeVisible();
   });
 });
+
+/**
+ * DRK-446 — direkter Aufruf einer Aufgabe mit gefülltem Browser-Speicher. Der
+ * ZWEITE Aufruf ist der Fall: erst dann liegen Katalog und Fortschritt im
+ * `localStorage`, die der Server nicht kennt. Vorher meldete React hier
+ * „Hydration failed" und verwarf das Server-HTML. jsdom hält die Ursache in
+ * `_ui/teilnehmer/hydration.test.tsx` fest; hier steht die Wirkung im echten
+ * Browser.
+ */
+test("direkter Aufruf einer Aufgabe hydriert ohne Abweichung (DRK-446)", async ({ page }) => {
+  const meldungen: string[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") meldungen.push(m.text());
+  });
+  page.on("pageerror", (e) => meldungen.push(e.message));
+
+  await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
+  await page.waitForURL((url) => url.pathname !== "/login");
+  await page.goto(uavUrl("/aufgabe?id=1-1"));
+  await expect(page.getByRole("heading", { name: /Vorflugkontrolle/ })).toBeVisible();
+
+  meldungen.length = 0;
+  await page.goto(uavUrl("/aufgabe?id=1-1"));
+  await expect(page.getByRole("heading", { name: /Vorflugkontrolle/ })).toBeVisible();
+  expect(meldungen.filter((m) => /hydrat/i.test(m))).toEqual([]);
+});

@@ -25,7 +25,7 @@ import { hostFuerRolle, oeffentlicheUrl } from "./hostRolle";
  *
  * DER PREIS DER EIN-STUFEN-ENTSCHEIDUNG, benannt statt verschwiegen: Gruppen im
  * JWT sind nur so frisch wie der letzte Token-Refresh, Takt etwa eine Stunde
- * (`CLAUDE.md:54-59`). Ein Gruppenentzug wirkt also mit bis zu einer Stunde
+ * (`CLAUDE.md`, Abschnitt „Zugriffsschutz“). Ein Gruppenentzug wirkt also mit bis zu einer Stunde
  * Verzug. Eine serverseitige Aufloesung aus der Datenbank — der Weg, den
  * `CLAUDE.md` fuer eilige Faelle nennt — ist hier NICHT moeglich: es gibt keine
  * Objekt-Zugehoerigkeit, an der man sie aufloesen koennte. Das ist die Kehrseite

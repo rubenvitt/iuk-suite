@@ -2,7 +2,7 @@
  * DAS STYLESHEET DER AUSLEIHFLAECHE — angelegt in A11 mit dem GATE-TEIL; A16 und A18-A20
  * erweitern dieselbe Datei (`.superpowers/sdd/planteil3/briefs/A11.md:7`).
  *
- * ⛔ EIGENE VARIABLEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
+ * ⛔ EIGENE VARIABLEN, NIE `--ant-*` (Falle 2, `CLAUDE.md`): antd deklariert seine
  * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
  * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Die VIER
  * Suite-Variablen unten (`--iuk-marke`, `--iuk-gedaempft`, `--iuk-linie`,
@@ -27,7 +27,7 @@
  * ⛔ KEINE HOEHE AUF EINEM BEDIENELEMENT. Die Flaeche erbt `controlHeight: TAP = 56` vom
  * Wurzelprovider (`src/core/theme/theme.ts:50-51`), weil sie ohne `FullShell` laeuft; 72
  * (`size="large"`) wird nirgends gesetzt und 56 nirgends geschrieben, nur geerbt
- * (Entscheidung E8, Falle 4 `CLAUDE.md:18-22`). Die Klassen fuer 44 und 64 entstehen in
+ * (Entscheidung E8, Falle 4 `CLAUDE.md`). Die Klassen fuer 44 und 64 entstehen in
  * A16, nicht hier.
  */
 
@@ -70,7 +70,7 @@
  * zu A11 entschieden, REVIEW-A11 Fund W3; die Begruendung steht an der Zeile selbst) und
  * traegt den Satz aus `_lib/gateTexte.ts` — ⛔ NIE ein antd `Alert type="error"`:
  * `colorError === colorPrimary === #c8000f` (`src/core/theme/theme.ts:32-33`), eine
- * Fehlerbox saehe damit aus wie die Primaeraktion (Falle 3, `CLAUDE.md:16-17`; Entscheidungen E3 und E6).
+ * Fehlerbox saehe damit aus wie die Primaeraktion (Falle 3, `CLAUDE.md`; Entscheidungen E3 und E6).
  * Die Markierung traegt deshalb die KANTE, nicht die Flaeche.
  */
 .meldung {
@@ -119,7 +119,7 @@
  * `var(--radio-gate-linie)` — beide sind AUSSCHLIESSLICH auf `.gate` deklariert (`:35-39`,
  * festgehalten in `AusleihVorgang.test.tsx:626`). Unter `.rahmen` loesen sie nicht auf, und
  * der Ausfall ist STILL: die Linie verschwindet einfach und die Farbe faellt auf den
- * geerbten Wert zurueck (Falle 2, `CLAUDE.md:14-16`). Ein Link dort traegt seine Toene vom
+ * geerbten Wert zurueck (Falle 2, `CLAUDE.md`). Ein Link dort traegt seine Toene vom
  * Traeger `.rahmen` oder bringt sie selbst mit.
  */
 
@@ -582,7 +582,7 @@
 /*
  * Die Kopfzeile der Uebersicht: Ueberschrift links, Aktualisieren-Knopf rechts.
  * ⛔ DIE UEBERSCHRIFT IST EIN NACKTES `h1`, kein `Typography.Title` — Compound-Zugriff in
- * einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`, Spec:3349-3351).
+ * einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md`, Spec:3349-3351).
  */
 .uebersichtKopf {
   display: flex;
@@ -633,12 +633,12 @@
  * ⚠️ ACHT REGELN DES A16/A18-ABSCHNITTS TATEN GENAU DAS und sind in dieser Aufgabe
  * mitgehoben worden (`:441`, `:452`, `:453`, `:460`, `:490`, `:522`, `:556`, `:568`) —
  * zeilenzahl-neutral, 613 Zeilen vor wie nach dem Eingriff. Falle 2 in ihrer stillsten
- * Gestalt (`CLAUDE.md:14-15`): der Wert ist unter `.rahmen` schlicht nicht deklariert, die
+ * Gestalt (`CLAUDE.md`): der Wert ist unter `.rahmen` schlicht nicht deklariert, die
  * Erklaerung ist damit „invalid at computed-value time", und die gedaempfte Farbe faellt
  * still auf die geerbte zurueck. Kein Tor sieht das — `_ui/AusleihVorgang.test.tsx` haelt es
  * ab jetzt fest.
  *
- * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 56 wird geerbt
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md`): 56 wird geerbt
  * und nirgends geschrieben, 72 nirgends gesetzt. Was hier steht, sind die NACHBAU-Masze aus
  * Spec:3711-3722, je als `min-height` UND `min-width`, plus `touch-action: manipulation` —
  * fuer beides gibt es kein antd-Token (Entscheidung E8).
@@ -870,7 +870,7 @@
  * `--radio-rahmen-*` lesen. Der Dialog haengt in einem PORTAL an `document.body`
  * (antd `Modal`) — dort ist WEDER `.rahmen` NOCH `.gate` Vorfahr, und jede Erklaerung, die
  * eine ihrer Variablen liest, wird „invalid at computed-value time": die Farbe faellt still
- * auf die geerbte zurueck (Falle 2, `CLAUDE.md:14-15`). Kein Tor sieht das — `typecheck`,
+ * auf die geerbte zurueck (Falle 2, `CLAUDE.md`). Kein Tor sieht das — `typecheck`,
  * `lint` und jsdom rechnen keine Kaskade; `_ui/RueckgabeDialog.test.tsx` liest deshalb die
  * im Portal TATSAECHLICH vorkommenden Klassen aus dem DOM und prueft ihre Regelkoerper.
  * ⚠️ DERSELBE FALL HAT A19 SCHON EINMAL GETROFFEN (`_ui/AusleihVorgang.test.tsx`, der
@@ -883,7 +883,7 @@
  * Suite-Variablen von `:root` (`src/app/globals.css:153-156`, Dunkelzweig `:160-163`) — sie
  * sind die einzigen, die JEDER Knoten des Dokuments sieht.
  *
- * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 56 wird geerbt
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md`): 56 wird geerbt
  * und nirgends geschrieben, 72 nirgends gesetzt. Spec:3720 fuehrt die Dialogknoepfe
  * ausdruecklich als „geerbt (56)"; was hier steht, sind `min-width` und
  * `touch-action: manipulation`, fuer die es kein antd-Token gibt (Entscheidung E8).

@@ -25,7 +25,7 @@ import s from "./ausleihe.module.css";
  * und ein Wert aus einem Client-Modul kaeme in einer Server Component als Client-Referenz an
  * (Falle 6, `CLAUDE.md`, Punkt 6; `_lib/filter.ts:8-14`).
  *
- * ⛔ DIE INSEL BEKOMMT NUR SERIALISIERBARE PROPS (Falle 9, `CLAUDE.md:52-70`). Keine
+ * ⛔ DIE INSEL BEKOMMT NUR SERIALISIERBARE PROPS (Falle 9, `CLAUDE.md`). Keine
  * Funktion ueberquert die Grenze: der Tap ist ein `next/link` (`GeraeteZeile.tsx`), nicht
  * ein durchgereichter Handler, und der Aktualisieren-Knopf haengt an einer DIREKT
  * importierten Server Action (`_ui/AktualisierenKnopf.tsx`).
@@ -33,7 +33,7 @@ import s from "./ausleihe.module.css";
  * ⛔ KEINE `Table` (Entscheidung E4, Spec:3667-3670) und KEIN `@ant-design/icons`
  * (Entscheidung E5, Falle 7) — die Zeichen kommen aus `_ui/ikonen.tsx`.
  *
- * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): diese Flaeche laeuft
+ * ⛔ KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`): diese Flaeche laeuft
  * ohne `FullShell` und erbt `controlHeight: TAP = 56` (`src/core/theme/theme.ts:50-51`);
  * `size="large"` waere 72. Die zwei Nachbaumasze 44 und 64 sind CSS-Klassen
  * (`ausleihe.module.css`, Entscheidung E8) — ⛔ kein zweiter `ConfigProvider`.

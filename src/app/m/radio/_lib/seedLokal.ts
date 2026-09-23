@@ -32,7 +32,7 @@
 // gemeldet wuerde die naheliegende Verdrahtung, durch scripts/seed-lokal.test.ts:55-56 —
 // `for (const datei of ["src/core/bootstrap.ts", "src/instrumentation.ts"])` gegen
 // `/seedLokal|seed-lokal|seedeLokal/`. Ein `seedLokalRadio(...)` in `seedAllModules()`
-// faerbt diesen Fall rot. NUR EIN UMBENANNTES RE-EXPORT KAEME DURCH — CLAUDE.md:187-188
+// faerbt diesen Fall rot. NUR EIN UMBENANNTES RE-EXPORT KAEME DURCH — CLAUDE.md, Abschnitt „Lokale Demodaten“,
 // nennt genau diese eine Luecke („er faengt die naheliegende Verdrahtung, nicht jede
 // denkbare"). Was UNGEDECKT bleibt, ist damit nicht der Boot-Scan, sondern allein die
 // Zusicherung „diese Datei legt keine einloesbare Zugangszeile an" (NS-A19, unten).

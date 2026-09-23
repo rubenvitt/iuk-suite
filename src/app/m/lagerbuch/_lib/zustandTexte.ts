@@ -10,7 +10,7 @@
  * Ein Text, den error.tsx selbst hielte, waere fuer jede Server Component, die
  * ihn mitliest, Falle 6: sie bekaeme eine Client-Referenz statt des Wertes,
  * HTTP 500 fuer die ganze Seite, waehrend typecheck und build gruen bleiben und
- * Vitest es strukturell nicht sehen kann (§11.6, CLAUDE.md:24-27).
+ * Vitest es strukturell nicht sehen kann (§11.6, CLAUDE.md).
  *
  * WAS HIER NICHT STEHT: die Gate-Texte (_lib/gateTexte.ts, §3.9) und die
  * Helfer-Texte (bei ihren Bauteilen, §7.3). Diese Datei sammelt nicht „alle

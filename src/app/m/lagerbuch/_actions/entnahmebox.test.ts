@@ -4,7 +4,7 @@ import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
 import { bereichText } from "../_lib/actionTypen";
 import {
-  ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL,
+  CHARGE_ABGELESEN, ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL,
 } from "../_lib/konstanten";
 import {
   AUSSONDERN_PRAEFIX, EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX, vorgangText,
@@ -922,19 +922,69 @@ describe("raeumeAusEntnahmebox — die gemeldete Verfallsangabe der Box (DRK-377
     expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall)).toEqual(["2026-10"]);
   });
 
-  it("BEHAELT sie, wenn die Charge ein ECHTES, aber ANDERES Datum traegt", async () => {
+  /*
+   * ── DRK-404: DAS DATUM AUF DER PACKUNG ──────────────────────────────────
+   *
+   * Bis DRK-404 BEHIELT die Box ihre Meldung in den beiden folgenden Lagen —
+   * auch an einer leeren Kiste, und von Hand war sie nicht mehr wegzubekommen.
+   * Jetzt wird nach dem Datum gefragt, das Material bekommt es im Schrank auf
+   * eine eigene Charge, und die Meldung faellt mit dem letzten Stueck.
+   */
+  function pseudoInDerBox() {
+    charge("ch-pseudo", PSEUDO_VERFALL, "art-2");
+    inDerBox("seed-2", "ch-pseudo", 5, "art-2");
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+  }
+  const meldungArt2 = () =>
+    verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2").map((z) => z.verfall);
+  const chargeVon = (id: string) =>
+    t.db.select().from(chargen).where(eq(chargen.id, id)).get();
+
+  it("bucht eine PSEUDO-Charge auf das abgelesene Datum um und raeumt die leere Box ab", async () => {
     /*
-     * ⚠️ DER FALL, DEN „hat die Charge ueberhaupt ein Datum?" DURCHGELASSEN
-     * HAETTE (Codex zu PR #194, zweiter P1). `korrekturAufLagerort` waehlt beim
-     * Plus-Abgleich IRGENDEINE Charge des Artikels — ohne Ortsfilter,
-     * absteigend nach `verfall`. Die kann 12/30 sagen, waehrend der Check 10/26
-     * gemeldet hat. Ein echtes Datum an der Charge beweist also nichts ueber
-     * DIESES Material, und wer die Meldung darauf hin loescht, laesst das
-     * Handlager bis 12/30 unbedenklich aussehen.
-     *
-     * Die Begruendung steht seit jeher im Modul — an Fassung 3 der
-     * Gegenrichtung. Mein erster Riegel stuetzte sich trotzdem auf genau die
-     * Eigenschaft, die sie als wertlos bezeichnet.
+     * ⚠️ DER REGRESSIONSTEST DES TICKETS. Ohne DRK-404 ist er rot: die drei
+     * Stueck gingen mit „bis 12/99" ins Regal, und die Meldung 10/26 blieb an
+     * der leeren Kiste stehen — sichtbar in der Verfallsuebersicht, fuer immer.
+     */
+    pseudoInDerBox();
+
+    const r = await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-pseudo", menge: 5, zielLagerortId: "sch-1", verfall: "2026-10" },
+      t.db,
+    );
+
+    expect(r).toMatchObject({ ok: true, wert: { eingeraeumt: 5, abgelesen: "2026-10" } });
+    const zugang = neueZeilen().find((z) => z.lagerortId === "sch-1")!;
+    expect(zugang.chargeId).not.toBe("ch-pseudo");
+    expect(chargeVon(zugang.chargeId)).toMatchObject({ verfall: "2026-10", chargenNr: CHARGE_ABGELESEN });
+    expect(bestand(ENTNAHMEBOX_ID, "ch-pseudo")).toBe(0);
+    expect(bestand("sch-1", zugang.chargeId)).toBe(5);
+    expect(meldungArt2(), "die leere Kiste meldet nichts mehr").toEqual([]);
+  });
+
+  it("verweigert die Buchung OHNE Datum, wenn die Charge das gemeldete nicht traegt", async () => {
+    pseudoInDerBox();
+
+    const r = await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-pseudo", menge: 5, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(r).toMatchObject({ ok: false, grund: "eingabe" });
+    if (!r.ok) expect(r.text).toContain("10/26");
+    expect(neueZeilen()).toEqual([]);
+    expect(meldungArt2(), "10/26 bleibt erhalten").toEqual(["2026-10"]);
+  });
+
+  it("nimmt ein ABWEICHENDES abgelesenes Datum ernst — auch gegen eine geratene Charge", async () => {
+    /*
+     * `korrekturAufLagerort` waehlt beim Plus-Abgleich irgendeine Charge des
+     * Artikels (Codex zu PR #194, zweiter P1): 12/30 an der Charge beweist
+     * nichts ueber DIESES Material. Abgelesen ist genauer als gemeldet und als
+     * geraten — das Material geht mit 11/26 ins Regal.
      */
     charge("ch-geraten", "2030-12", "art-2");
     inDerBox("seed-2", "ch-geraten", 5, "art-2");
@@ -944,48 +994,75 @@ describe("raeumeAusEntnahmebox — die gemeldete Verfallsangabe der Box (DRK-377
     });
 
     await raeumeAusEntnahmebox(
-      { artikelId: "art-2", chargeId: "ch-geraten", menge: 5, zielLagerortId: "sch-1" },
+      { artikelId: "art-2", chargeId: "ch-geraten", menge: 5, zielLagerortId: "sch-1", verfall: "2026-11" },
       t.db,
     );
 
-    const fuerArt2 = verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2");
-    expect(fuerArt2.map((z) => z.verfall), "10/26 bleibt erhalten").toEqual(["2026-10"]);
+    const zugang = neueZeilen().find((z) => z.lagerortId === "sch-1")!;
+    expect(chargeVon(zugang.chargeId)?.verfall).toBe("2026-11");
+    expect(meldungArt2()).toEqual([]);
   });
 
-  it("BEHAELT sie, wenn die bewegte Charge gar kein Datum traegt", async () => {
-    /*
-     * ⚠️ DER GEFAEHRLICHSTE FALL DES GANZEN TICKETS, und mein erster Entwurf
-     * hatte ihn falsch (Codex zu PR #194, P1). Meine Begruendung lautete „im
-     * Handlager traegt den Verfall die Charge" — das stimmt nur, solange die
-     * Charge ueberhaupt eines traegt. Kann ein Check den gezaehlten Bestand
-     * keiner echten Charge zuordnen, legt er ihn auf eine Pseudo-Charge mit
-     * `PSEUDO_VERFALL`; die sagt „bis 12/99", also gar nichts, und das einzige
-     * echte Datum steht in `lagerort_verfall`.
-     *
-     * Wer es hier loescht, macht aus einer stillen Falschanzeige einen stillen
-     * DATENVERLUST — und zwar am gefaehrlichsten Ort: im Handlager sieht das
-     * Material danach bis 2099 unbedenklich aus.
-     */
-    /*
-     * ⚠️ EIN EIGENER ARTIKEL, DAMIT DIE KISTE WIRKLICH LEER WIRD. Die
-     * gemeinsame Vorbereitung legt zehn Stueck einer ECHT datierten Charge in
-     * die Box; blieben die liegen, raeumte die Regel ohnehin nichts ab und der
-     * Test waere auch ohne den Riegel gruen — er prueefte dann nichts.
-     */
-    charge("ch-pseudo", PSEUDO_VERFALL, "art-2");
-    inDerBox("seed-2", "ch-pseudo", 5, "art-2");
+  it("laesst die Charge unveraendert wandern, wenn das Datum ihr eigenes ist", async () => {
+    charge("ch-geraten", "2030-12", "art-2");
+    inDerBox("seed-2", "ch-geraten", 5, "art-2");
     setzeVerfall(t.db, {
       lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
       quelle: { quelleTyp: "system", quelleId: "check" },
     });
 
-    await raeumeAusEntnahmebox(
-      { artikelId: "art-2", chargeId: "ch-pseudo", menge: 5, zielLagerortId: "sch-1" },
+    const r = await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-geraten", menge: 5, zielLagerortId: "sch-1", verfall: "2030-12" },
       t.db,
     );
 
-    const fuerArt2 = verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2");
-    expect(fuerArt2.map((z) => z.verfall), "10/26 bleibt erhalten").toEqual(["2026-10"]);
+    expect(r.ok && r.wert.abgelesen).toBeFalsy();
+    expect(bestand("sch-1", "ch-geraten")).toBe(5);
+    expect(t.db.select().from(chargen).all().filter((c) => c.chargenNr === CHARGE_ABGELESEN)).toEqual([]);
+  });
+
+  it("verwendet dieselbe abgelesen-Charge wieder, statt je Einraeumen eine neue anzulegen", async () => {
+    pseudoInDerBox();
+    for (const menge of [2, 3]) {
+      await raeumeAusEntnahmebox(
+        { artikelId: "art-2", chargeId: "ch-pseudo", menge, zielLagerortId: "sch-1", verfall: "2026-10" },
+        t.db,
+      );
+    }
+
+    const abgelesen = t.db.select().from(chargen).all().filter((c) => c.chargenNr === CHARGE_ABGELESEN);
+    expect(abgelesen).toHaveLength(1);
+    expect(bestand("sch-1", abgelesen[0]!.id)).toBe(5);
+    expect(meldungArt2()).toEqual([]);
+  });
+
+  it("weist „bis 12/99“ als abgelesenes Datum ab — das ist kein Datum", async () => {
+    pseudoInDerBox();
+
+    const r = await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-pseudo", menge: 5, zielLagerortId: "sch-1", verfall: PSEUDO_VERFALL },
+      t.db,
+    );
+
+    expect(r.ok).toBe(false);
+    expect(neueZeilen()).toEqual([]);
+  });
+
+  it("raeumt auch eine VERWAISTE Altzeile ab, sobald die Kiste leer ist", async () => {
+    /*
+     * Vor DRK-404 markiert, heute von niemandem mehr gelesen: eine solche
+     * Zeile faellt mit dem letzten Stueck wie jede andere — sonst meldete die
+     * Kiste weiter etwas, das nicht mehr in ihr liegt (Akzeptanzkriterium 2).
+     */
+    t.db.update(lagerortVerfall).set({ verwaist: true })
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 10, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(verfallZeilen(ENTNAHMEBOX_ID)).toEqual([]);
   });
 
   it("traegt sie NICHT ins Handlager — dort meldet die Charge", async () => {

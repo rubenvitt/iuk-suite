@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin, E2E_PORT, warteAufDarstellung } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufDarstellung, warteAufSpaltenaufteilung, warumNicht200 } from "./fixtures";
 import { TAP_XL } from "@/core/theme/tokens";
 
 /**
@@ -268,8 +268,9 @@ test.describe("390x844 — das Telefon", () => {
     for (const seite of SEITEN) {
       const antwort = await page.goto(`http://${seite.host}:${E2E_PORT}${seite.pfad}`);
       // OHNE DIESE ZEILE misst der Test eine 404- oder 500-Seite als „scrollt
-      // nicht" und ist gruen, ohne dass die Seite existiert.
-      expect(antwort?.status(), `${seite.name}: HTTP`).toBe(200);
+      // nicht" und ist gruen, ohne dass die Seite existiert. `warumNicht200`
+      // sagt, ob die ROUTE fehlte oder die SEITE abwies (DRK-369).
+      expect(antwort?.status(), `${seite.name}: HTTP${await warumNicht200(antwort)}`).toBe(200);
       await page.waitForLoadState("networkidle");
       const mass = await ueberlauf(page);
       expect(mass.doc, `${seite.name}: ${mass.schuldige.join(" | ")}`).toBe(mass.vw);
@@ -722,7 +723,7 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
       `http://portal.localtest.me:${E2E_PORT}/admin`,
     ]) {
       await page.goto(ziel);
-      await page.waitForLoadState("networkidle");
+      await page.waitForLoadState("networkidle"); await warteAufSpaltenaufteilung(page);
       const layout = await page.evaluate(
         () => getComputedStyle(document.querySelector(".ant-table table")!).tableLayout,
       );
@@ -783,8 +784,8 @@ test.describe("1280x800 — man sieht es auf dem Desktop NICHT", () => {
     await devLogin(page, { host: "feedback.localtest.me", groups: GRUPPEN });
     for (const seite of SEITEN) {
       const antwort = await page.goto(`http://${seite.host}:${E2E_PORT}${seite.pfad}`);
-      expect(antwort?.status(), `${seite.name}: HTTP`).toBe(200);
-      await page.waitForLoadState("networkidle");
+      expect(antwort?.status(), `${seite.name}: HTTP${await warumNicht200(antwort)}`).toBe(200);
+      await page.waitForLoadState("networkidle"); await warteAufSpaltenaufteilung(page);
       const mass = await ueberlauf(page);
 
       /*

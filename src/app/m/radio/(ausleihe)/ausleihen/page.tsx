@@ -21,7 +21,7 @@ import s from "../../_ui/ausleihe.module.css";
  * (`.superpowers/sdd/planteil3/progress.md:715-730`) —, `page.test.tsx` misst die Wirkung.
  *
  * ⛔ DIES IST EINE SERVER COMPONENT: kein `Typography.Title`, kein `Form.Item`, kein
- * `Input.TextArea` — Compound-Zugriff ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`,
+ * `Input.TextArea` — Compound-Zugriff ist HTTP 500 (Falle 1, `CLAUDE.md`,
  * Spec:3349-3351). Die Ueberschrift ist ein nacktes `<h1>`. ⛔ Kein `@ant-design/icons`
  * (Falle 7, Entscheidung E5) und keine `Table` (Entscheidung E4).
  *

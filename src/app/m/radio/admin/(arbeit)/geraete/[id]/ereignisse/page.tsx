@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "../../../../../_db/client";
+import { geraetTitel } from "../../../../../_lib/geraetTitel";
 import { ereignisseFuerGeraet } from "../../../../../_lib/lesepfade/ereignisse";
 import { geraet } from "../../../../../_lib/lesepfade/geraete";
 import { requireRadioVerwaltung } from "../../../../../_lib/zugang";
@@ -92,12 +93,10 @@ export default async function RadioGeraetEreignissePage({
 
   const zeilen = ereignisseFuerGeraet(db, id);
 
-  /*
-   * Der Titel 1:1 wie auf der Akte (`geraete/[id]/page.tsx`, aus
-   * `DeviceDetailDrawer.tsx:61`) — die Rueckfallkette mit `||` und nicht mit `??`, weil beide
-   * Spalten Freitext sind und die LEERE Zeichenkette weiterfallen soll.
-   */
-  const titel = `${akte.rufname || akte.opta || akte.issi} (${akte.issi})`;
+  // Dieselbe Ableitung wie die Akte (`_lib/geraetTitel.ts`, DRK-455): die ISSI in Klammern
+  // nur, wenn der Titel nicht selbst schon die ISSI ist — sonst „1000008 (1000008)".
+  const { titel: name, issiNeben } = geraetTitel(akte);
+  const titel = issiNeben === null ? name : `${name} (${issiNeben})`;
 
   return (
     <>

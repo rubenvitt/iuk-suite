@@ -24,7 +24,7 @@
  * Verzeichnisbaum `Spec:4290` zieht ihn ohnehin so: er fuehrt hier NUR die drei Traeger
  * unten. Der eigenstaendige Mechanismus als solcher bleibt begruendet wie in `Spec:4415-4425`:
  * `src/core/registry.ts` kennt je Modul genau zwei Ueberschreibungen, `SUITE_HOST_<KEY>` und
- * `SUITE_ADMIN_GROUP_<KEY>` (`CLAUDE.md:139-140`) — eine zweite Gruppe ist dort nicht
+ * `SUITE_ADMIN_GROUP_<KEY>` (`CLAUDE.md`, Abschnitt „Ein neues Modul registrieren“) — eine zweite Gruppe ist dort nicht
  * vorgesehen.
  *
  * ⛔ PROSA-SPERRE AUF DIESER DATEI, UND SIE IST GEMESSEN. `_lib/rollen.test.ts` scannt den

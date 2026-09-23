@@ -373,7 +373,7 @@ describe("die Geraeteliste — Trefferzeile, Gruppen, Zeilen", () => {
      * nicht ein eigener 44er-Knopf (`DeviceFilterBar.tsx:54-63`) — antd bringt Tastatur-
      * und Bildschirmleserverhalten mit, ein Nachbau nicht.
      *
-     * ⛔ UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): die Flaeche
+     * ⛔ UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md`): die Flaeche
      * laeuft ohne `FullShell` und erbt `controlHeight: TAP = 56`
      * (`src/core/theme/theme.ts:50-51`); `size="large"` waere 72.
      *

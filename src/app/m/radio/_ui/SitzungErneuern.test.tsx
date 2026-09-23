@@ -226,7 +226,7 @@ describe("radio-SitzungErneuern: was sie mit dem Ergebnis macht", () => {
 describe("radio-SitzungErneuern: die Bauform", () => {
   it("setzt kein size und nennt nur deklarierte Klassen", async () => {
     /*
-     * Falle 4 (`CLAUDE.md:18-22`) und Falle 2 (`CLAUDE.md:14-15`) haben ihre modulweiten
+     * Falle 4 (`CLAUDE.md`) und Falle 2 (`CLAUDE.md`) haben ihre modulweiten
      * Waechter in `_ui/AusleihRahmen.test.tsx` (`FALLE4_DATEIEN`, `STYLESHEET_LESER`, seit
      * der Fix-Runde 1 zu A18 ERZEUGT statt aufgezaehlt). Hier steht nur der Fall, den jene
      * beiden nicht sehen: dass die Insel ueberhaupt in beide Mengen faellt — sie ist eine

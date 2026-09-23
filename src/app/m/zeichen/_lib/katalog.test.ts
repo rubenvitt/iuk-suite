@@ -1,9 +1,10 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { BODY_VARIANT_NAMEN } from "./bezeichnungen";
 import {
@@ -66,14 +67,19 @@ const TSX = "node_modules/.bin/tsx";
  * Grenze — sonst waere die Zahl genau der Zufallswert, den dieses Ticket verhindern
  * will. Wer sie in der echten CI wiedersieht, hat hier den Anknuepfungspunkt.
  *
- * ⛔ Die Zahl gilt NUR fuer diese zwei Faelle, nicht fuer die describe-Ebene und nicht
+ * ⛔ Die Zahl gilt NUR fuer den EINEN Generatorlauf (seit DRK-348 das `beforeAll` von
+ * „Generatorlauf" — beide Faelle lesen dessen Ergebnis), nicht fuer die Datei und nicht
  * global. Die uebrigen 17 Faelle dieser Datei bleiben bei 5 s, und der globale
  * `testTimeout` bleibt es auch; ihn heraufzusetzen wuerde jeden kuenftigen Fall
- * derselben Art verdecken. Nachgeprueft statt angenommen: mit `timeout: 1` faellt
- * genau dieses Paar mit „Test timed out in 1ms", die anderen 17 bleiben gruen — die
- * Zahl kommt also dort an, wo sie hingehoert, und nirgends sonst.
+ * derselben Art verdecken. Nachgeprueft statt angenommen: mit Grenze 1 ms faellt genau
+ * die Gruppe „Generatorlauf" (ihre zwei Faelle uebersprungen), die anderen 17 bleiben gruen.
  */
 const KINDPROZESS_BUDGET = { timeout: 20_000 };
+
+/** Unter dem Budget, damit der Kindprozess mit eigener Meldung endet, bevor Vitest abbricht. */
+const KINDPROZESS_GRENZE_MS = 18_000;
+
+const execFileAsync = promisify(execFile);
 
 /** Das Generat ohne den einzigen nichtdeterministischen Wert. */
 const ohneDatum = (roh: string) => {
@@ -84,48 +90,72 @@ const ohneDatum = (roh: string) => {
 
 describe("Katalog-Generat", () => {
   /*
-   * DER WAECHTER. Er baut das Generat bei JEDEM Lauf neu und vergleicht byteweise.
-   * Damit ist Drift zwischen eingechecktem Stand und installiertem Paket
-   * strukturell ausgeschlossen, nicht nur geregelt.
+   * EIN GENERATORLAUF FUER BEIDE ZUSICHERUNGEN (DRK-348). Waechter und Gegenprobe bauten
+   * frueher je ein eigenes Generat — zweimal derselbe Kindprozess je Lauf, und unter
+   * Verbundlast kippte mal der eine, mal der andere. Jetzt baut `beforeAll` einmal, und
+   * die beiden Faelle lesen nur noch das Ergebnis. Gemessen: 1249 + 668 ms vorher.
    *
-   * ⚠️ ER BAUT IN EINEN WEGWERFPFAD UND FASST DIE EINGECHECKTE DATEI NICHT AN. Schriebe
-   * er dorthin, heilte er sich selbst: ein veraltetes Generat waere genau EINMAL rot —
-   * derselbe Lauf, der die Abweichung meldet, haette sie schon weggeschrieben —, und der
-   * zweite Lauf gruen, ohne dass jemand etwas repariert hat. Die Zusicherung „Drift ist
-   * strukturell ausgeschlossen" haette dann nur der frische CI-Checkout eingeloest, nicht
-   * dieser Test. Nebenbei bleibt so der Arbeitsbaum nach `pnpm vitest run` sauber
-   * (`erzeugtAm` wechselt taeglich) und kein paralleler Worker liest eine halb
-   * geschriebene 541-KB-Datei.
+   * ASYNCHRON, NICHT `execFileSync`: ein synchroner Aufruf blockiert die Ereignisschleife,
+   * Vitests Zeitgrenze kann ihn nicht unterbrechen, und der Kindprozess liefe nach einem
+   * Abbruch weiter. `timeout` am Kindprozess liegt unter dem Budget und sagt ausdruecklich,
+   * dass eine ZEITGRENZE gerissen ist — kein Inhaltsunterschied (Akzeptanzkriterium).
+   *
+   * ⚠️ DER LAUF SCHREIBT IN EINEN WEGWERFPFAD UND FASST DIE EINGECHECKTE DATEI NICHT AN.
+   * Schriebe er dorthin, heilte der Waechter sich selbst: ein veraltetes Generat waere
+   * genau EINMAL rot — derselbe Lauf, der die Abweichung meldet, haette sie schon
+   * weggeschrieben —, und der zweite Lauf gruen, ohne dass jemand etwas repariert hat.
+   * Nebenbei bleibt so der Arbeitsbaum nach `pnpm vitest run` sauber (`erzeugtAm`
+   * wechselt taeglich) und kein paralleler Worker liest eine halb geschriebene Datei.
    */
-  it("entspricht dem installierten Paket", KINDPROZESS_BUDGET, () => {
-    const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
-    try {
-      const probe = join(ordner, "katalog.probe.json");
-      execFileSync(TSX, ["scripts/zeichen-generat.ts", probe], { stdio: "pipe" });
-      expect(ohneDatum(readFileSync(probe, "utf8"))).toBe(
-        ohneDatum(readFileSync(GENERAT, "utf8")),
-      );
-    } finally {
-      rmSync(ordner, { recursive: true, force: true });
-    }
-  });
+  describe("Generatorlauf", () => {
+    let lauf: { probe: string; vorher: string; nachher: string };
 
-  /*
-   * Die Gegenprobe zum Waechter: er darf die Quelle NICHT veraendern. Waere das anders,
-   * hinterliesse jeder Testlauf einen schmutzigen Arbeitsbaum — und der Waechter oben
-   * pruefte am Ende nur noch sich selbst.
-   */
-  it("laesst das eingecheckte Generat unangetastet", KINDPROZESS_BUDGET, () => {
-    const vorher = readFileSync(GENERAT, "utf8");
-    const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
-    try {
-      execFileSync(TSX, ["scripts/zeichen-generat.ts", join(ordner, "wegwerf.json")], {
-        stdio: "pipe",
-      });
-      expect(readFileSync(GENERAT, "utf8")).toBe(vorher);
-    } finally {
-      rmSync(ordner, { recursive: true, force: true });
-    }
+    beforeAll(async () => {
+      const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
+      try {
+        const probe = join(ordner, "katalog.probe.json");
+        const vorher = readFileSync(GENERAT, "utf8");
+        try {
+          await execFileAsync(TSX, ["scripts/zeichen-generat.ts", probe], {
+            timeout: KINDPROZESS_GRENZE_MS,
+          });
+        } catch (fehler) {
+          if ((fehler as { killed?: boolean }).killed) {
+            throw new Error(
+              `ZEITGRENZE, kein Inhaltsunterschied: der Generatorlauf brauchte laenger als ` +
+                `${KINDPROZESS_GRENZE_MS} ms und wurde abgebrochen. Datei einmal allein ` +
+                `nachfahren, bevor der Lauf als Befund gilt (DRK-348).`,
+            );
+          }
+          throw fehler;
+        }
+        lauf = {
+          probe: readFileSync(probe, "utf8"),
+          vorher,
+          nachher: readFileSync(GENERAT, "utf8"),
+        };
+      } finally {
+        rmSync(ordner, { recursive: true, force: true });
+      }
+    }, KINDPROZESS_BUDGET.timeout);
+
+    /*
+     * DER WAECHTER. Das Generat wird bei JEDEM Lauf neu gebaut und byteweise verglichen.
+     * Damit ist Drift zwischen eingechecktem Stand und installiertem Paket strukturell
+     * ausgeschlossen, nicht nur geregelt.
+     */
+    it("entspricht dem installierten Paket", () => {
+      expect(ohneDatum(lauf.probe)).toBe(ohneDatum(lauf.vorher));
+    });
+
+    /*
+     * Die Gegenprobe zum Waechter: er darf die Quelle NICHT veraendern. Waere das anders,
+     * hinterliesse jeder Testlauf einen schmutzigen Arbeitsbaum — und der Waechter oben
+     * pruefte am Ende nur noch sich selbst.
+     */
+    it("laesst das eingecheckte Generat unangetastet", () => {
+      expect(lauf.nachher).toBe(lauf.vorher);
+    });
   });
 
   /*
@@ -136,7 +166,9 @@ describe("Katalog-Generat", () => {
   it("fuehrt 246 Zeichen: 232 Hauptrezepte und 14 Grundzeichen", () => {
     expect(KATALOG_STAND.anzahl).toBe(246);
     expect(alleZeichen().length).toBe(246);
-    expect(alleZeichen().filter((z) => z.id.startsWith("grund:")).length).toBe(14);
+    expect(alleZeichen().filter((z) => z.id.startsWith("grund:")).length).toBe(
+      14,
+    );
   });
 
   it("traegt Paket-, Datenversion und Erzeugungstag", () => {
@@ -150,7 +182,12 @@ describe("Katalog-Generat", () => {
    * diesen Test liefen Seed und Katalog nach einem Upgrade auseinander, und der Seed
    * schriebe Merkzeilen auf IDs, die es nicht mehr gibt.
    */
-  const ANKER = ["rezept:C.1.1", "rezept:E.1.1", "rezept:I.3.5", "grund:base.formation"];
+  const ANKER = [
+    "rezept:C.1.1",
+    "rezept:E.1.1",
+    "rezept:I.3.5",
+    "grund:base.formation",
+  ];
   it.each(ANKER)("loest die Anker-ID %s auf", (id) => {
     expect(findeZeichen(id)).not.toBeNull();
   });
@@ -219,8 +256,12 @@ describe("Katalog-Generat", () => {
 
 describe("sucheZeichen", () => {
   it("findet ueber die Umlautfaltung", () => {
-    expect(sucheZeichen({ text: "loeschgruppe" }).treffer.length).toBeGreaterThan(0);
-    expect(sucheZeichen({ text: "sanitaet" }).treffer.length).toBeGreaterThan(0);
+    expect(
+      sucheZeichen({ text: "loeschgruppe" }).treffer.length,
+    ).toBeGreaterThan(0);
+    expect(sucheZeichen({ text: "sanitaet" }).treffer.length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("schraenkt auf eine ID-Liste ein, wenn `nur` gesetzt ist", () => {

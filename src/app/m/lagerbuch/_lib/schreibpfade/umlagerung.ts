@@ -42,6 +42,18 @@ export type UmlagerungArgs = {
    * Nachfuellung tatsaechlich die aelteste Charge nehmen soll.
    */
   chargeId?: string;
+  /**
+   * DRK-404 — das Ziel-Leg bucht auf DIESE Charge statt auf die abgebuchte.
+   *
+   * ⚠️ DIE EINZIGE AUSNAHME VON „DIE CHARGE BLEIBT ERHALTEN" (Kopf dieser
+   * Datei), und sie ist eng: nur zusammen mit `chargeId`, also genau EINE
+   * Quellcharge. Gebraucht wird sie beim Einraeumen aus der Entnahmebox, wenn
+   * die Person das Datum von der Packung abliest und die Quellcharge es nicht
+   * traegt (Pseudo-Charge aus einem Check). Netto je ARTIKEL bleibt null (I3);
+   * je Charge nicht, und das ist der Zweck: aus „bis 12/99" wird das
+   * abgelesene Datum. Beide Legs tragen weiter dieselbe Referenz.
+   */
+  nachChargeId?: string;
   quelle: Quelle;
   kommentar: string | null;
   /** Pflicht, nicht optional: eine Umlagerung ist IMMER Teil eines Vorgangs
@@ -85,8 +97,13 @@ export function umlagerungVonOrt(
 function zielLeg(
   tx: Tx, args: UmlagerungArgs, quellLeg: { gebucht: number; teile: Teil[] },
 ): { umgelagert: number; teile: Teil[] } {
-  const { artikelId, nachLagerortId, quelle, kommentar, referenz } = args;
+  const { artikelId, nachLagerortId, nachChargeId, quelle, kommentar, referenz } = args;
   const { gebucht, teile } = quellLeg;
+  // Ohne feste Quellcharge verteilte FEFO ueber mehrere — welche davon die
+  // Zielcharge ersetzen soll, waere dann geraten. Ein Wurf, kein Rueckfall.
+  if (nachChargeId && !args.chargeId) {
+    throw new Error("nachChargeId verlangt eine feste chargeId");
+  }
 
   /*
    * ⚠️ EIN ZEITSTEMPEL FUER ALLE LEGS, NICHT EINER JE LEG (Codex-Review zu
@@ -106,7 +123,7 @@ function zielLeg(
   for (const teil of teile) {
     tx.insert(buchungen).values({
       id: newId(), ts, typ: "umlagerung", artikelId,
-      chargeId: teil.chargeId, lagerortId: nachLagerortId, menge: teil.menge,
+      chargeId: nachChargeId ?? teil.chargeId, lagerortId: nachLagerortId, menge: teil.menge,
       quelleTyp: quelle.quelleTyp, quelleId: quelle.quelleId, referenz, kommentar,
     }).run();
   }

@@ -3,7 +3,7 @@
  *
  * KEIN "use client". Die Ampel wird von Server Components entschieden und von
  * Client-Inseln nur DARGESTELLT; ein Wert aus einem Client-Modul kaeme in einer
- * Server Component als Client-Referenz an (Falle 6, `CLAUDE.md:24-27`).
+ * Server Component als Client-Referenz an (Falle 6, `CLAUDE.md`).
  *
  * KEIN Icon-Import, kein JSX, kein Hexwert. Diese Datei entscheidet, WELCHE Farbe
  * gilt — nicht, wie sie aussieht. Die Palette liegt in `_lib/ampel.ts` (Teil 5,

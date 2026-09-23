@@ -663,7 +663,7 @@ describe("radio-RueckgabeDialog: das Stylesheet im Portal", () => {
      * `Tooltip` oder `Popover` dazu, faellt seine Flaeche unter dieselbe Regel — dann ist
      * dieser Fall zu ERWEITERN, nicht zu loeschen." Mit dieser Aufgabe kommt das `Modal`.
      *
-     * ⛔ FALLE 2 (`CLAUDE.md:14-15`) IN IHRER STILLSTEN GESTALT: `--radio-rahmen-*` ist auf
+     * ⛔ FALLE 2 (`CLAUDE.md`) IN IHRER STILLSTEN GESTALT: `--radio-rahmen-*` ist auf
      * `.rahmen` deklariert (`ausleihe.module.css:151-155`), `--radio-gate-*` auf `.gate`
      * (`:34-39`). Der Dialoginhalt haengt in einem Portal an `document.body` und hat KEINEN
      * von beiden als Vorfahr; die Erklaerung wuerde „invalid at computed-value time", und

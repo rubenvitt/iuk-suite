@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, warteAufSpaltenaufteilung } from "./fixtures";
 import {
   E2E_TOKEN_HELFER,
   LAGERBUCH_ADMIN_GRUPPE,
@@ -162,7 +162,7 @@ for (const b of BREITEN) {
           // ERST NACHWEISEN, DASS ES DIE RICHTIGE SEITE IST — sonst misst der
           // Rest hier eine 404, die konstruktionsbedingt nicht ueberlaeuft.
           await seite.anker(page);
-          await page.waitForLoadState("networkidle");
+          await page.waitForLoadState("networkidle"); await warteAufSpaltenaufteilung(page);
 
           /*
            * Das DOKUMENT darf nicht waagerecht scrollen. Breite Inhalte
