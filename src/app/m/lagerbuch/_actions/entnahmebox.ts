@@ -1,10 +1,10 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { artikel, chargen, lagerorte } from "../_db/schema";
+import { artikel, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { bereichsAbweisung } from "../_lib/helferBereich";
@@ -13,13 +13,15 @@ import {
 } from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR,
-  ENTNAHMEBOX_NAME, ausDieserEinheit,
+  ENTNAHMEBOX_NAME, MONAT_REGEX, ausDieserEinheit, istOhneVerfall,
 } from "../_lib/konstanten";
+import { fmtVerfall } from "../_lib/format";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
 import { revalidiereBestand } from "../_lib/revalidierung";
+import { abgeleseneCharge } from "../_lib/schreibpfade/abgeleseneCharge";
 import {
-  raeumeBoxVerfallWennMaterialEsMitnimmt, verfallFolgtDemMaterial,
+  raeumeVerfallAmLeerenOrt, verfallFolgtDemMaterial,
 } from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
@@ -611,16 +613,32 @@ const EinraeumenSchema = z.object({
    * Vorgabe, sondern eine offene Entscheidung, und die bucht nicht.
    */
   zielLagerortId: z.string().min(1),
+  /**
+   * DRK-404 — DAS VON DER PACKUNG ABGELESENE DATUM. Die Flaeche fragt danach
+   * nur, wenn die Box fuer den Artikel einen Verfall meldet und die gewaehlte
+   * Charge ihn nicht traegt; sonst fehlt das Feld, und es bleibt beim
+   * zweimaligen Tippen. Verlangt wird es in der Transaktion, nicht hier: ob
+   * es gebraucht wird, weiss erst die Datenbank.
+   */
+  verfall: z.string().regex(MONAT_REGEX)
+    .refine((m) => !istOhneVerfall(m)).optional(),
 });
+
+export type EinraeumWert = {
+  eingeraeumt: number;
+  ziel: string;
+  /** Nur gesetzt, wenn das Material auf ein abgelesenes Datum umgebucht wurde. */
+  abgelesen?: string;
+};
 
 export async function raeumeAusEntnahmebox(
   eingabe: unknown,
   db: DB = getDb(),
-): Promise<HelferErgebnis<{ eingeraeumt: number; ziel: string }>> {
+): Promise<HelferErgebnis<EinraeumWert>> {
   const viewer = await requireLagerbuchAdmin();
   return withAuditContext(
     { actor: auditActor(viewer) },
-    async (): Promise<HelferErgebnis<{ eingeraeumt: number; ziel: string }>> => {
+    async (): Promise<HelferErgebnis<EinraeumWert>> => {
       const geparst = EinraeumenSchema.safeParse(eingabe);
       if (!geparst.success) {
         // `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
@@ -664,6 +682,7 @@ export async function raeumeAusEntnahmebox(
       }
 
       let eingeraeumt = 0;
+      let abgelesen: string | undefined;
       let fachFehler: string | null;
       try {
         fachFehler = db.transaction((tx): string | null => {
@@ -748,6 +767,44 @@ export async function raeumeAusEntnahmebox(
               + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
           }
 
+          /*
+           * ── DAS DATUM AUF DER PACKUNG (DRK-404) ──────────────────────────
+           *
+           * Meldet die Box fuer diesen Artikel einen Verfall und traegt die
+           * gewaehlte Charge ihn nicht (Pseudo-Charge „bis 12/99" aus einem
+           * Check, oder eine geratene), waere die Meldung die EINZIGE Stelle,
+           * die das Datum kennt. Bis DRK-404 blieb sie deshalb an der Box
+           * stehen, auch an einer leeren. Jetzt wird gefragt: die Person haelt
+           * die Packung in der Hand.
+           *
+           * ⚠️ OHNE ANTWORT WIRD NICHT GEBUCHT — kein Rueckfall auf „dann eben
+           * ohne Datum". Die Flaeche schickt das Feld immer mit, wenn sie es
+           * zeigt; fehlt es trotzdem, kam die Meldung nach dem Laden der Seite
+           * (jemand hat gerade etwas in die Kiste gelegt).
+           */
+          const gemeldet = tx.select({ verfall: lagerortVerfall.verfall })
+            .from(lagerortVerfall)
+            .where(and(
+              eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID),
+              eq(lagerortVerfall.artikelId, v.artikelId),
+            ))
+            .get();
+          if (gemeldet && gemeldet.verfall !== charge.verfall && !v.verfall) {
+            return `Für diesen Artikel ist in der ${ENTNAHMEBOX_NAME} der Verfall `
+              + `${fmtVerfall(gemeldet.verfall)} gemeldet, die Charge trägt ein anderes Datum. `
+              + "Bitte die Seite neu laden und das Datum auf der Packung angeben.";
+          }
+          /*
+           * ⚠️ EINE ANTWORT GILT AUCH OHNE MELDUNG, und auch, wenn sie von der
+           * Meldung abweicht: abgelesen ist genauer als gemeldet. Nur wenn sie
+           * dem Datum der Charge entspricht, wandert die Charge unveraendert —
+           * eine Umbuchung auf dasselbe Datum truege nichts ein.
+           */
+          const zielCharge = v.verfall && v.verfall !== charge.verfall
+            ? abgeleseneCharge(tx, v.artikelId, v.verfall)
+            : undefined;
+          if (zielCharge) abgelesen = v.verfall;
+
           const ergebnis = umlagerungVonOrt(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
@@ -764,6 +821,7 @@ export async function raeumeAusEntnahmebox(
             // traegt sie auf BEIDE Legs; damit bleibt die Verfallsangabe
             // erhalten, auf die FEFO im Handlager spaeter zugreift.
             chargeId: v.chargeId,
+            ...(zielCharge ? { nachChargeId: zielCharge } : {}),
             quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
             kommentar: ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR,
             // ⚠️ DAS PRAEFIX KOMMT AUS `_lib/vorgang.ts` UND WIRD NICHT
@@ -787,19 +845,15 @@ export async function raeumeAusEntnahmebox(
            * kuemmern, denn die Box hat KEINEN Verfall-Editor: was hier stehen
            * bleibt, bekommt niemand mehr weg.
            *
-           * ⚠️ DIE GANZE REGEL STEHT IN DER FUNKTION, NICHT HIER — welche
-           * Proben noetig sind, hat diese Stelle dreimal falsch beantwortet
-           * (Codex zu PR #194, drei P1 hintereinander: „hat die Charge ein
-           * Datum?", dann „traegt die bewegte Charge das gemeldete Datum?",
-           * und beide Male war es zu wenig). Die Begruendungen samt Ablauf
-           * stehen an `raeumeBoxVerfallWennMaterialEsMitnimmt`; wer sie hier
-           * nachbaut, baut die naechste Fassung davon.
+           * ⚠️ SEIT DRK-404 FAELLT SIE SCHLICHT MIT DEM LETZTEN STUECK, wie an
+           * jedem anderen Ort. Bis dahin hielt eine eigene Probe sie fest,
+           * sobald Material ohne das gemeldete Datum gegangen war — noetig,
+           * weil die Meldung dann die einzige Stelle war, die das Datum
+           * kannte. Die Frage oben schliesst genau das aus: jedes Stueck, das
+           * geht, traegt jetzt sein Datum selbst. Die Vorgeschichte (Codex zu
+           * PR #194) steht in `schreibpfade/lagerortVerfall.ts`.
            */
-          raeumeBoxVerfallWennMaterialEsMitnimmt(tx, {
-            lagerortId: ENTNAHMEBOX_ID,
-            artikelId: v.artikelId,
-            bewegterVerfall: charge.verfall,
-          });
+          raeumeVerfallAmLeerenOrt(tx, ENTNAHMEBOX_ID, v.artikelId);
 
           eingeraeumt = ergebnis.umgelagert;
           return null;
@@ -846,7 +900,10 @@ export async function raeumeAusEntnahmebox(
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.
-      return { ok: true, wert: { eingeraeumt, ziel: ziel.name } };
+      return {
+        ok: true,
+        wert: { eingeraeumt, ziel: ziel.name, ...(abgelesen ? { abgelesen } : {}) },
+      };
     },
   );
 }

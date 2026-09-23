@@ -354,6 +354,63 @@ describe("BoxEinraeumen — die Buchung", () => {
   });
 });
 
+describe("BoxEinraeumen — das Datum auf der Packung (DRK-404)", () => {
+  const PSEUDO = {
+    id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
+    ampel: "gruen" as const, text: "bis 12/99",
+  };
+  const GEMELDET = { verfall: "2026-10", ampel: "gelb" as const, abgelaufen: false, text: "fällig 10/26" };
+  const FELD = "[data-rolle='einraeum-verfall']";
+
+  async function oeffnen(p: EinraeumPosten) {
+    await mount(flaeche({ posten: [p], ziele: [ZIELE[0]!] }));
+    await click("[data-rolle='einraeum-posten-knopf']");
+  }
+
+  it("fragt NICHT, wo nichts gemeldet ist — es bleibt beim zweimal Tippen", async () => {
+    await oeffnen(einzelPosten({ chargen: [PSEUDO] }));
+    expect(exists(FELD)).toBe(false);
+  });
+
+  it("fragt NICHT, wenn die Charge das gemeldete Datum schon traegt", async () => {
+    await oeffnen(einzelPosten({
+      chargen: [{ ...PSEUDO, id: "ch-echt", verfall: "2026-10", text: "fällig 10/26" }],
+      gemeldet: GEMELDET,
+    }));
+    expect(exists(FELD)).toBe(false);
+  });
+
+  it("fragt, wenn die Charge das gemeldete Datum nicht traegt — vorbelegt mit ihm", async () => {
+    await oeffnen(einzelPosten({ chargen: [PSEUDO], gemeldet: GEMELDET }));
+    expect((query(FELD) as HTMLInputElement).value).toBe("2026-10");
+    expect(query("[data-rolle='einraeum-datum']").textContent).toContain("Gemeldet ist 10/26");
+  });
+
+  it("schickt das abgelesene Datum mit", async () => {
+    buchenSpion.mockResolvedValue({
+      ok: true, wert: { eingeraeumt: 1, ziel: "Handlager (ohne Schrank)", abgelesen: "2026-11" },
+    });
+    await oeffnen(einzelPosten({ chargen: [PSEUDO], gemeldet: GEMELDET }));
+    await fill(FELD, "2026-11");
+    await click(KNOPF);
+
+    expect(buchenSpion).toHaveBeenCalledWith({
+      artikelId: "art-1", chargeId: "ch-pseudo", menge: 1,
+      zielLagerortId: "handlager", verfall: "2026-11",
+    });
+    expect(query("[data-rolle='einraeumen-ergebnis']").textContent)
+      .toBe("Eingeräumt: 1 × Kühlkompresse → Handlager (ohne Schrank) · Verfall 11/26");
+  });
+
+  it("sperrt den Knopf, solange kein gueltiger Monat dasteht", async () => {
+    await oeffnen(einzelPosten({ chargen: [PSEUDO], gemeldet: GEMELDET }));
+    await fill(FELD, "");
+    expect((query(KNOPF) as HTMLButtonElement).disabled).toBe(true);
+    await fill(FELD, "2099-12");
+    expect((query(KNOPF) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
 describe("BoxEinraeumen — die Bauform", () => {
   /**
    * Kopie von `ohneKommentare()` aus `_lib/bauform.test.ts`, wortgleich mit der
