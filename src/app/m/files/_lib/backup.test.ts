@@ -344,6 +344,23 @@ describe("scripts/backup.sh — wer scheitert, raeumt seinen eigenen Rest weg (D
    * GEMESSEN mit dem Stand von DRK-416 (ohne Falle): nach `tar`-Fehler wie nach SIGTERM
    * lagen `<stempel>/` und `<stempel>.tar.gz.part` im Verzeichnis.
    */
+  const TAR_ATTRAPPE = [
+    "#!/bin/sh",
+    'printf halb >"$2"',
+    ': >"$TEST_MARKE"',
+    'case "$TEST_TAR_MODUS" in scheitert) exit 2 ;; haengt) sleep 1 ;; esac',
+    "exit 0",
+    "",
+  ].join("\n");
+  const TREIBER = 'bash "$TEST_SKRIPT"; echo "rc=$?"';
+  const TREIBER_MIT_SIGNAL = [
+    'bash "$TEST_SKRIPT" & p=$!',
+    'while [ ! -e "$TEST_MARKE" ]; do sleep 0.02; done',
+    'kill -"$TEST_SIGNAL" "$p"',
+    'wait "$p"; echo "rc=$?"',
+    // Die Attrappe schlaeft nach KILL verwaist weiter; ihr Ende abwarten, bevor gezaehlt wird.
+    "sleep 1.2",
+  ].join("\n");
   const lauf = (tarModus: "ok" | "scheitert" | "haengt", signal?: "TERM" | "HUP" | "KILL") => {
     const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-falle-"));
     const bin = path.join(kladde, "bin");
@@ -360,18 +377,18 @@ describe("scripts/backup.sh — wer scheitert, raeumt seinen eigenen Rest weg (D
     ablegen("rsync", "#!/bin/sh\nexit 0\n");
     // `tar -czf <ziel> …`: halb schreiben, dann je nach Lage fertig, scheitern oder haengen.
     // Die Marke sagt dem Test, dass das `.part` jetzt liegt — erst dann kommt das Signal.
-    ablegen(
-      "tar",
-      `#!/bin/sh\nprintf halb >"$2"\n: >"${kladde}/packt"\ncase "${tarModus}" in scheitert) exit 2 ;; haengt) sleep 1 ;; esac\nexit 0\n`,
-    );
-    const skript = signal
-      ? `bash "$1" & p=$!; while [ ! -e "$2/packt" ]; do sleep 0.02; done; kill -${signal} "$p"; wait "$p"; echo "rc=$?"; sleep 1.2`
-      : `bash "$1"; echo "rc=$?"`;
+    // Befehlstexte hier sind FEST; Pfade und Lage kommen ueber die Umgebung (CodeQL:
+    // kein Shell-Text aus einem absoluten Pfad).
+    ablegen("tar", TAR_ATTRAPPE);
     try {
-      const aus = spawnSync("bash", ["-c", skript, "bash", SKRIPT, kladde], {
+      const aus = spawnSync("bash", ["-c", signal ? TREIBER_MIT_SIGNAL : TREIBER], {
         encoding: "utf8",
         env: {
           ...process.env,
+          TEST_SKRIPT: SKRIPT,
+          TEST_MARKE: path.join(kladde, "packt"),
+          TEST_TAR_MODUS: tarModus,
+          TEST_SIGNAL: signal ?? "",
           PATH: `${bin}:${process.env.PATH}`,
           DATA_DIR: daten,
           BACKUP_DIR: path.join(daten, "backups"),
