@@ -1,0 +1,69 @@
+[
+  {
+    "name": "blockkopf-test",
+    "wert": {
+      "v": 1,
+      "block": 7,
+      "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+      "versiegelt": "2027-01-01T00:30:00+01:00",
+      "schluesselId": "0123456789abcdef",
+      "umgebung": "test"
+    },
+    "kanonisch": "{\"block\":7,\"prev\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"schluesselId\":\"0123456789abcdef\",\"umgebung\":\"test\",\"v\":1,\"versiegelt\":\"2027-01-01T00:30:00+01:00\"}"
+  },
+  {
+    "name": "steuerzeichen",
+    "wert": "\u0000\u0001\b\t\n\u000b\f\r\u001f ",
+    "kanonisch": "\"\\u0000\\u0001\\b\\t\\n\\u000b\\f\\r\\u001f \""
+  },
+  {
+    "name": "rueckstrich-und-anfuehrung",
+    "wert": "a\\b\"c/d",
+    "kanonisch": "\"a\\\\b\\\"c/d\""
+  },
+  {
+    "name": "roh-bleibt-roh",
+    "wert": "ä ß „x“ 😀       ﻿",
+    "kanonisch": "\"ä ß „x“ 😀       ﻿\""
+  },
+  {
+    "name": "schluesselsortierung",
+    "wert": {
+      "b": 1,
+      "a": {
+        "2": false,
+        "10": true,
+        "z": [
+          3,
+          2,
+          1
+        ],
+        "": null
+      },
+      "ä": "x",
+      "A": "y"
+    },
+    "kanonisch": "{\"A\":\"y\",\"a\":{\"\":null,\"10\":true,\"2\":false,\"z\":[3,2,1]},\"b\":1,\"ä\":\"x\"}"
+  },
+  {
+    "name": "zahlen",
+    "wert": [
+      0,
+      1,
+      -1,
+      999,
+      9007199254740991,
+      -9007199254740991
+    ],
+    "kanonisch": "[0,1,-1,999,9007199254740991,-9007199254740991]"
+  },
+  {
+    "name": "leer",
+    "wert": {
+      "o": {},
+      "a": [],
+      "s": ""
+    },
+    "kanonisch": "{\"a\":[],\"o\":{},\"s\":\"\"}"
+  }
+]

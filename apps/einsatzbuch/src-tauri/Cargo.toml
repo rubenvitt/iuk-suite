@@ -1,0 +1,10 @@
+# Cargo-Workspace der Desktop-App. `kern` ist frei von Tauri: Vektor-, DB- und Frist-Tests
+# laufen ohne `dist/` und ohne Webview-Pakete (Lehre aus einsatztagebuch/.github/workflows/ci.yml:
+# `tauri::generate_context!` bricht ohne Frontend-Bau schon beim Kompilieren).
+[workspace]
+resolver = "3"
+members = ["kern"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"

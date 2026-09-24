@@ -1,0 +1,13 @@
+[package]
+name = "einsatzbuch-kern"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# Bewusst OHNE `preserve_order` und `arbitrary_precision`. Die Kanonik sortiert trotzdem
+# selbst (jcs.rs) — sie hängt nicht davon ab, welche Map-Art ein anderes Crate einschaltet.
+serde_json = "1"
+thiserror = "2"
