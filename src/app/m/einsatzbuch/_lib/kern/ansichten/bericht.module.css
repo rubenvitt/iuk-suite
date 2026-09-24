@@ -15,8 +15,14 @@
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 @page einsatzbericht { size: 210mm 297mm; margin: 14mm 16mm; }
+/*
+ * Im Druck ohne Füller: Ohne `min-height` gibt es nichts aufzufüllen, aber ein leeres Flex-Kind
+ * kostet trotzdem eine `gap` von 7 mm. Gemessen an der Vektordatei (Reader-E2E): 270,6 mm
+ * Inhalt auf 269 mm Satzspiegel, die Fußzeile rutschte allein auf Seite 2.
+ */
 @media print {
   .blatt { width: auto; min-height: 0; padding: 0; box-shadow: none; }
+  .fueller { display: none; }
 }
 
 .kicker {
