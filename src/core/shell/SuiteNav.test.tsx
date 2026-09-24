@@ -474,7 +474,7 @@ describe("SuiteNav — anonym", () => {
      *
      * Anonym gibt es weiterhin KEINE Modulliste (Grund siehe SuiteNav.tsx): wer
      * abgemeldet auf `feedback` klickt, landet ohnehin auf `/login`
-     * (requireFeedbackAccess.ts:35) — genau dort, wohin dieser Knopf direkt
+     * (`requireFeedbackAccess`, Login-Redirect) — genau dort, wohin dieser Knopf direkt
      * fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum Login umleiten,
      * ist keiner.
      */

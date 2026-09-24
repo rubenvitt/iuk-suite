@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  *
  * `vi.useFakeTimers()` steuert BEIDE Haelften zugleich: `gateSchranke.ts` liest
  * `Date.now()`, und `RateLimiter` benutzt per Vorgabe dieselbe Uhr
- * (`core/ratelimit.ts:22`). Nur so ist „nach Fensterende geht es weiter" ohne
+ * (`core/ratelimit.ts`, Konstruktor von `RateLimiter`). Nur so ist „nach Fensterende geht es weiter" ohne
  * echte Wartezeit pruefbar.
  */
 type Schranke = typeof import("./gateSchranke");
@@ -194,7 +194,7 @@ describe("gateGesperrt LIEST NUR", () => {
   it("bucht nichts — hundert Abfragen schliessen das Gate nicht", async () => {
     /**
      * `RateLimiter.check()` prueft UND bucht in einem Zug
-     * (`core/ratelimit.ts:26-37`); ein reines Nachsehen gibt es dort nicht.
+     * (`core/ratelimit.ts`, `RateLimiter.check`); ein reines Nachsehen gibt es dort nicht.
      * Deshalb merkt sich `gateSchranke.ts` jedes `false` selbst, und diese
      * Funktion liest nur noch die gemerkte Zahl.
      *

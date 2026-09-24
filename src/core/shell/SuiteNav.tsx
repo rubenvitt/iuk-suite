@@ -565,7 +565,7 @@ export function SuiteNav({
            *
            * Der Grund ist nicht, dass die anderen Module kaputt waeren — wer
            * abgemeldet auf `feedback` klickt, landet auf `/login`
-           * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser Knopf
+           * (`requireFeedbackAccess`, Login-Redirect), also genau dort, wohin
            * direkt fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum
            * Login umleiten, verspricht "hier kannst du hin" und liefert "hier
            * musst du dich erst anmelden". Der eine Knopf sagt dasselbe

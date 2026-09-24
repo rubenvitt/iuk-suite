@@ -23,7 +23,7 @@ import type { Viewer } from "./zugang";
  * geschluesselt. DAS JOURNAL IST HEIL — dort stand immer der echte `sub`.
  *
  * LAEUFT NACH DEM RIEGEL: nur wer die Pruefung uebersteht, wird zuordenbar
- * (§3.7.2, Muster `requireFeedbackAccess.ts:50-55`). Der Preis, benannt: heute
+ * (§3.7.2, Muster: `upsertKnownUser` in `requireFeedbackAccess`). Der Preis, benannt: heute
  * entsteht der Satz beim LOGIN, kuenftig beim ERSTEN AUFRUF DER VERWALTUNG. Wer
  * sich anmeldet und lagerbuch nie oeffnet, hat keinen Satz — das ist richtig so.
  *
