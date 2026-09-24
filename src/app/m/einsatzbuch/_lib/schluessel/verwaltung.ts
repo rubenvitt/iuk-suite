@@ -33,10 +33,30 @@ function mitOffset(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}${v}${p(Math.floor(a / 60))}:${p(a % 60)}`;
 }
 
-export async function erzeugeEchtesPaar(
+export interface EchtesPaarVorbereitung {
+  notfall: Notfalldatei;
+  /**
+   * Schreibt die DB-Zeile — erst hier entsteht das echte Paar. Der Aufrufer ruft dies
+   * NACHDEM `notfall` sicher weggeschrieben ist (Datei, QR, …), nie davor. Prüft unmittelbar
+   * vor dem Einfügen erneut, ob inzwischen (z. B. durch einen parallelen Aufruf) ein echtes
+   * Paar entstanden ist, und wirft in dem Fall `EchtesPaarVorhanden` statt einer zweiten Zeile.
+   */
+  speichere(kek: Bytes): Promise<{ schluesselId: string }>;
+}
+
+/**
+ * Erzeugt Schlüsselpaar und Notfall-Sicherung, legt aber NOCH KEINE DB-Zeile an — das
+ * übernimmt `speichere` auf dem Ergebnis, erst nachdem die Sicherung sicher außerhalb des
+ * Prozessspeichers liegt (Datei + QR). Ohne diese Trennung entstünde bei einem Schreibfehler
+ * der Sicherungsdateien (voller Platte, fehlender/schreibgeschützter Ordner, Aufruffehler) ein
+ * echtes Paar, dessen Sicherung nur im Arbeitsspeicher existierte und mit dem Prozess verloren
+ * ginge — der nächste Aufruf fände bereits ein Paar vor (`EchtesPaarVorhanden`) und könnte
+ * keine Sicherung mehr nachliefern.
+ */
+export async function bereiteEchtesPaarVor(
   db: Db,
-  o: { kek: Bytes; kennwort: string; jetzt: Date },
-): Promise<{ schluesselId: string; notfall: Notfalldatei }> {
+  o: { kennwort: string; jetzt: Date },
+): Promise<EchtesPaarVorbereitung> {
   const vorhanden = echtesPaar(db);
   if (vorhanden) throw new EchtesPaarVorhanden(vorhanden.schluesselId);
   // Erst die Sicherung (prüft die Kennwortlänge), dann die Zeile: ohne Sicherung kein Paar.
@@ -45,8 +65,30 @@ export async function erzeugeEchtesPaar(
   const spki = new Uint8Array(await crypto.subtle.exportKey("spki", p.publicKey));
   const kopf = { schluesselId: (await sha256Hex(spki)).slice(0, 16), oeffentlich: zuBase64(spki), erstellt: mitOffset(o.jetzt) };
   const notfall = await erzeugeNotfalldatei(pkcs8, kopf, o.kennwort);
-  const neu = await legePaarAn(db, { art: "echt", rechnerId: null, kek: o.kek, jetzt: o.jetzt, paar: { pkcs8, oeffentlich: kopf.oeffentlich } });
-  return { schluesselId: neu.schluesselId, notfall };
+  return {
+    notfall,
+    async speichere(kek: Bytes) {
+      const nochVorhanden = echtesPaar(db);
+      if (nochVorhanden) throw new EchtesPaarVorhanden(nochVorhanden.schluesselId);
+      const neu = await legePaarAn(db, { art: "echt", rechnerId: null, kek, jetzt: o.jetzt, paar: { pkcs8, oeffentlich: kopf.oeffentlich } });
+      return { schluesselId: neu.schluesselId };
+    },
+  };
+}
+
+/**
+ * Bequemlichkeitshülle für Aufrufer, die Vorbereiten und Speichern nicht trennen müssen
+ * (z. B. Tests ohne eigene Dateisicherung). Das Skript (`scripts/einsatzbuch-schluessel.ts`)
+ * nutzt stattdessen `bereiteEchtesPaarVor` direkt, um zwischen beiden Schritten die
+ * Notfall-Dateien zu schreiben.
+ */
+export async function erzeugeEchtesPaar(
+  db: Db,
+  o: { kek: Bytes; kennwort: string; jetzt: Date },
+): Promise<{ schluesselId: string; notfall: Notfalldatei }> {
+  const { notfall, speichere } = await bereiteEchtesPaarVor(db, o);
+  const { schluesselId } = await speichere(o.kek);
+  return { schluesselId, notfall };
 }
 
 export async function stelleEchtesPaarWiederHer(
