@@ -58,8 +58,8 @@ export function Einsatzdetail({ block, einsatz: e, zeitzone, dritteKennzahl, mit
         <h3 className={s.kicker}>{`Fahrzeuge · ${e.fahrzeuge.length}`}</h3>
         {e.fahrzeuge.length > 0 && (
           <ul className={s.aufzaehlung}>
-            {e.fahrzeuge.map((f) => (
-              <li key={f.id} className={s.fahrzeug} data-fahrzeug="">
+            {e.fahrzeuge.map((f, i) => (
+              <li key={`${i}-${f.id}`} className={s.fahrzeug} data-fahrzeug="">
                 <span className={s.typ}>{f.typ}</span>
                 <span className={s.ruf}>{f.ruf}</span>
               </li>
@@ -71,8 +71,8 @@ export function Einsatzdetail({ block, einsatz: e, zeitzone, dritteKennzahl, mit
         <h3 className={s.kicker}>{`Personal · ${e.personal.length}`}</h3>
         {e.personal.length > 0 && (
           <ul className={s.personen}>
-            {e.personal.map((p) => (
-              <li key={p.id} className={s.person} data-person="">
+            {e.personal.map((p, i) => (
+              <li key={`${i}-${p.id}`} className={s.person} data-person="">
                 {p.name}
                 <span className={s.quali}>{p.quali}</span>
               </li>

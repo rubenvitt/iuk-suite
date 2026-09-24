@@ -48,7 +48,7 @@ export const exportinhaltSchema = z.object({
   schluessel: z.record(z.string().regex(/^[1-9]\d*$/), cek),
   exportiertVon: kurzText(200), quelle: kurzText(200),
   anker: z.object({ block: z.number().int().min(1), hash: hex(64), gemeldetAm: zeitpunkt }).strict().nullable(),
-}).strict().refine((i) => Object.keys(i.schluessel).every((k) => i.bloecke.some((b) => String(b.kopf.block) === k)), "Schlüssel ohne Block");
+}).strict().refine((i) => { const da = new Set(i.bloecke.map((b) => String(b.kopf.block))); return Object.keys(i.schluessel).every((k) => da.has(k)); }, "Schlüssel ohne Block");
 
 export const exportkopfSchema = z.object({
   erstellt: zeitpunkt, umfang: z.enum(["alle", "einzeln"]), von: z.number().int().min(1), bis: z.number().int().min(1),

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { exists, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { TESTEINSAETZE, TESTVERSIEGELT } from "../testvektoren/einsaetze";
 import { Einsatzdetail } from "./Einsatzdetail";
@@ -16,6 +16,20 @@ function wert(beschriftung: string): string | null {
 }
 
 describe("Einsatzdetail", () => {
+  it("doppelte Kennungen (selbst gebaute Datei): jede Zeile bleibt, React warnt nicht", async () => {
+    const e = TESTEINSAETZE[2];
+    const doppelt = { ...e, fahrzeuge: [e.fahrzeuge[0], e.fahrzeuge[0]], personal: [e.personal[0], e.personal[0]] };
+    const konsole = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await mount(<Einsatzdetail block={blockFuer(2)} einsatz={doppelt} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
+      expect(queryAll("[data-fahrzeug]").length).toBe(2);
+      expect(queryAll("[data-person]").length).toBe(2);
+      expect(konsole).not.toHaveBeenCalled();
+    } finally {
+      konsole.mockRestore();
+    }
+  });
+
   it("offenes Ende: „nicht angegeben“ und Dauer „—“", async () => {
     await mount(<Einsatzdetail block={blockFuer(1)} einsatz={TESTEINSAETZE[1]} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
     expect(wert("Beginn")).toBe("29.8.2026, 13:00 Uhr");
