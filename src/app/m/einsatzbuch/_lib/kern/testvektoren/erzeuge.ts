@@ -13,6 +13,12 @@ import { schluesselIdVon } from "../umschlag";
  * `pnpm exec tsx scripts/einsatzbuch-testvektoren.ts` (mit `--neu` auch neue Schlüssel).
  * Die Negativfälle der Spec §9.1 (`negativ`) entstehen aus den positiven Blöcken, ohne neuen
  * Zufall; ihr erwartetes Kettenergebnis steht als Literal hier, nicht aus `pruefeKette`.
+ *
+ * Kopf jedes Vektorblocks: `{ v: 1, block: i + 1, prev: Hash des Vorgängers bzw. GENESIS,
+ * versiegelt: aus der Eingabe, schluesselId: erste 16 Hex-Zeichen von SHA-256(SPKI des
+ * Suite-Schlüssels), umgebung: "echt" }`. Bei den Negativfällen vergleicht Rust nur `ok`
+ * und `block` aus `kette` — `grund` ist Oberflächentext. `zeitzone` in den Eingaben ist die
+ * Suite-Zone, in der Berichte zu den Vektoren gerechnet werden; für die Blöcke selbst ohne Belang.
  */
 export interface Testschluessel { privat: JsonWebKey; oeffentlichSpki: string }
 
@@ -39,10 +45,10 @@ export interface Testerwartung { schluesselId: string; bloecke: Block[]; export:
 const KURVE = { name: "ECDH", namedCurve: "P-256" } as const;
 
 async function paarAusJwk(privat: JsonWebKey): Promise<CryptoKeyPair> {
-  const { d: _d, key_ops: _o, ...oeffentlich } = privat;
+  const { kty, crv, x, y } = privat;
   return {
     privateKey: await crypto.subtle.importKey("jwk", privat, KURVE, true, ["deriveBits"]),
-    publicKey: await crypto.subtle.importKey("jwk", oeffentlich, KURVE, true, []),
+    publicKey: await crypto.subtle.importKey("jwk", { kty, crv, x, y }, KURVE, true, []),
   };
 }
 

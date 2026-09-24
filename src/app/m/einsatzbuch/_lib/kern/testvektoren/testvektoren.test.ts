@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { oeffneBlock } from "../block";
-import { ausBase64 } from "../bytes";
+import { ausBase64, sha256Hex, utf8 } from "../bytes";
 import { entschluesseleExport, istExportdatei } from "../export";
 import { pruefeKette } from "../kette";
 import { importiereOeffentlich, packeAus, schluesselIdVon } from "../umschlag";
@@ -15,6 +17,19 @@ const erwartet = erwartetJson as unknown as Testerwartung;
 describe("Testvektoren (Format-Vertrag mit der Desktop-App)", () => {
   it("die Eingaben erzeugen byte-genau die eingecheckte Erwartung", async () => {
     expect(await erzeugeErwartung(eingaben)).toEqual(erwartet);
+  });
+  it("erwartet.json ist byte-genau das, was die Eingaben erzeugen", async () => {
+    const datei = readFileSync(path.join(__dirname, "erwartet.json"), "utf8");
+    expect(datei).toBe(JSON.stringify(await erzeugeErwartung(eingaben), null, 2) + "\n");
+  });
+  /**
+   * Stolperdraht gegen ein versehentliches zweites `--neu`: Wer die Eingaben bewusst neu
+   * erzeugt, ändert dieses Literal im selben Commit und stimmt es mit der Rust-Seite ab —
+   * Stufe 4 vergleicht in Rust byte-genau gegen genau diese Datei.
+   */
+  it("die Eingaben sind die festgeschriebenen (Rust vergleicht gegen genau diese Datei)", async () => {
+    const roh = readFileSync(path.join(__dirname, "eingaben.json"), "utf8");
+    expect(await sha256Hex(utf8(roh))).toBe("49908f9525dc2c872749fccb9ea5264727d3aa327b6f0f8111ec17e59ab05033");
   });
   it("die Einsätze der Eingabe sind die aus einsaetze.ts", () => {
     expect(eingaben.einsaetze).toEqual(TESTEINSAETZE);
