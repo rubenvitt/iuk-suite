@@ -173,6 +173,11 @@ etwas damit zu tun hat**. Abhilfe ist `scripts/cloud-lfs.sh` (installiert git-lf
 Medien, ~4 s) — nie den Wächter überspringen, er verhindert das Ausliefern von Zeigerdateien.
 Ist er trotzdem rot, lief das Skript nicht; seine Meldung steht am Sitzungsanfang.
 
+**Playwright in Cloud-Sessions** (DRK-473) braucht keinen Handgriff mehr: `e2e/helpers/cloud.ts`
+nimmt dort den vorinstallierten Chromium und schaltet dessen Proxy ab (sonst endet jeder
+`devLogin` nach 45 s auf `/login` — das ist kein Anmeldefehler). Ein neues Playwright-Profil
+geht ebenfalls durch `cloudTauglich(defineConfig(…))`; `scripts/e2e-cloud.test.ts` prüft das.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
