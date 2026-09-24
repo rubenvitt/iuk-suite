@@ -446,3 +446,19 @@ trifft oder eine Abhilfe umbauen will.
     — es kapert die GLOBALE Schriftvariable innerhalb des Feldes, statt die des Bauteils zu setzen,
     und lässt die anderen beiden stehen. Deshalb steht hier ausnahmsweise CSS statt eines Tokens,
     entgegen Falle 5.
+
+21. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** (feedback, DRK-424,
+    in CI gefangen und gegen `build`/`start` nachgemessen). Eine `loading.tsx` ist eine
+    Suspense-Grenze. Der Server schickt ihren Ladezustand zuerst, und mit ihm den Status 200. Ruft
+    die Seite darunter danach `notFound()`, erscheint zwar die 404-Oberfläche, der Status bleibt
+    aber 200. Gemessen am feedback-Cockpit: fremde Gruppe (IDOR-Fall) und unbekannte Gruppe → 200.
+    Trend und Auswertung derselben Gruppe liegen ohne Grenze und liefern 404.
+    lagerbuch trägt dieselbe Form seit DRK-201: ein unbekanntes Gerät liefert 200.
+    ⚠️ **Kein Datenleck, aber ein falscher Status.** Die Seite rendert nichts von der Gruppe, der
+    Schutz greift also. Nur Status und Test widersprechen ihm, und ein Riegel, der auf den Status
+    prüft (`e2e/feedback.spec.ts`, „IDOR-Guard …"), wird rot.
+    **Abhilfe:** Zugriffsprüfung und `notFound()` in ein `layout.tsx` derselben Routengruppe. Ein
+    Layout rendert oberhalb der Grenze seines Segments, also bevor gestreamt wird (Vorbild
+    `feedback/(admin)/groups/[groupId]/(cockpit)/layout.tsx`). Das Layout läuft dann auch beim
+    Vorabladen, dort gehört also nur Lesendes hin. Vitest und `next build` sehen den Status nicht;
+    nur ein e2e-Lauf oder `build`/`start` sieht ihn.

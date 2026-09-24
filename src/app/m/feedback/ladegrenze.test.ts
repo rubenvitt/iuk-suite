@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, it, expect } from "vitest";
 
@@ -61,5 +61,19 @@ describe("feedback: Ladegrenzen", () => {
     const eintraege = readdirSync(COCKPIT).sort();
     expect(eintraege.filter((e) => statSync(join(COCKPIT, e)).isDirectory())).toEqual([]);
     expect(eintraege).toContain("page.tsx");
+  });
+
+  /**
+   * ⛔ OHNE DEN SCHUTZ DAVOR IST DER 404 EIN 200. Unter einer Ladegrenze ist
+   * der Status schon gesendet, wenn die Seite `notFound()` ruft — CI hat es
+   * am ersten Stand dieses Umbaus gefangen (IDOR-Guard: 200 statt 404). Der
+   * Guard MUSS deshalb im Layout derselben Routengruppe laufen, das oberhalb
+   * der Grenze rendert. Ein Quelltext-Scan, weil nur `build`/`start` oder ein
+   * e2e-Lauf den Status sieht, kein DOM-Test.
+   */
+  it("prueft den Zugriff im Layout, also vor der Grenze", () => {
+    const quelle = readFileSync(join(COCKPIT, "layout.tsx"), "utf8");
+    expect(quelle).toMatch(/await guardPage\(/);
+    expect(quelle).toMatch(/notFound\(\)/);
   });
 });

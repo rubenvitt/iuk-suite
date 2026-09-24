@@ -69,6 +69,9 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 20. **CSS gegen einen `.ant-*`-Klassennamen stirbt beim Major-Upgrade still**, und ein Test auf den
     Regeltext merkt es nicht. Wer so eine Regel schreibt, prüft per `renderToString` + `extractStyle`,
     dass die Klasse gerendert wird (Vorbild `core/theme/selektschrift.test.ts`).
+21. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** — der Ladezustand ist
+    mit Status 200 schon gestreamt. Zugriffsprüfung und `notFound()` in ein `layout.tsx` oberhalb
+    der Grenze (Vorbild `feedback/…/(cockpit)/layout.tsx`); nur e2e oder `build`/`start` sieht es.
 
 ### Hell/Dunkel und `core`
 
