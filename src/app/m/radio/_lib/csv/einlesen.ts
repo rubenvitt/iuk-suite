@@ -8,14 +8,14 @@
 // Kodierungserkennung. Die Aufrufer sind serverseitig: der Hochladen-Handler (V18) und die
 // Import-Actions (V10).
 //
-// ⚠️ UND DIE BEGRUENDUNG DAFUER IST HEUTE EINE ANDERE ALS MORGEN — der frueher hier stehende
-// Satz („ein Wertimport zoege Node-Bausteine ins Browser-Bundle") war ein Vorgriff und ist
-// gemessen falsch: `grep -c "^import" src/app/m/radio/_lib/csv/einlesen.ts` -> `0`, kein
-// `node:`-Import, und `TextDecoder` wie `Uint8Array` sind Web-Globals (WHATWG Encoding). Die
-// Datei ist HEUTE browsertauglich. ⛔ DIE GRENZE STEHT TROTZDEM SCHON JETZT: ⬜ A1 unten
-// (`chardet`/`iconv-lite`, Eigentuemer Betreiber) macht sie serverseitig, sobald der Betreiber
-// die zwei Abhaengigkeiten entscheidet — und eine Grenze, die erst mit der Abhaengigkeit
-// gezogen wird, zieht niemand mehr.
+// ⛔ SEIT DRK-389 IST DIE GRENZE ECHT: `lesEinDatei` am Dateiende reicht eine Excel-Mappe an
+// `mappe.ts` weiter, und dort entpackt `node:zlib`. Der CSV-Teil selbst zieht weiterhin nichts
+// Fremdes (`TextDecoder` und `Uint8Array` sind Web-Globals, WHATWG Encoding); der einzige
+// Import steht deshalb unten bei `lesEinDatei` und nicht hier oben. ⬜ A1 unten
+// (`chardet`/`iconv-lite`, Eigentuemer Betreiber) bleibt davon unberuehrt: wer die zwei
+// Abhaengigkeiten entscheidet, aendert nur den CSV-Zweig. Eine Client-Insel importiert diese
+// Datei weiterhin nicht — `ImportAssistent.test.tsx` haelt das fest, und `mappe.ts` gaebe ihr
+// jetzt ohnehin `node:zlib` mit.
 
 /**
  * ⬜ BENANNTE ABWEICHUNG MIT EIGENTUEMER — `chardet` UND `iconv-lite` SIND IM REPO NICHT
@@ -286,4 +286,30 @@ export function lesEinCsv(bytes: Uint8Array, erzwungen?: Trennzeichen): LeseErge
     ok: true,
     daten: { spalten, zeilen, trennzeichen, kodierung: dekodiert.kodierung },
   };
+}
+
+import { istMappe, lesEinMappe, type EingeleseneMappe } from "./mappe";
+
+/** Das Ergebnis von `lesEinDatei`: nur, was beide Formate gemeinsam haben. */
+export type DateiErgebnis = { ok: true; daten: EingeleseneMappe } | { ok: false; fehler: string };
+
+/**
+ * Liest eine hochgeladene Datei, gleich ob Excel-Mappe oder CSV (DRK-389).
+ *
+ * ⛔ ENTSCHIEDEN AM INHALT, NICHT AN DER ENDUNG (`istMappe`). Eine Mappe geht an `lesEinMappe`,
+ * alles andere an `lesEinCsv`, unveraendert. CSV bleibt Eingang, weil Bestandsdateien und
+ * Fremdlisten so ankommen; der Export liefert seit DRK-389 nur noch die Mappe.
+ *
+ * ⛔ EINE KAPUTTE MAPPE IST DIESELBE MELDUNG WIE EINE KAPUTTE CSV, KEIN WURF. `lesEinMappe`
+ * wirft bei einem Archiv, das es nicht lesen kann; hier wird daraus `LESE_FEHLER` — derselbe
+ * Grund wie bei `LeseErgebnis`: ein Wurf wuerde im Handler zum 500.
+ */
+export function lesEinDatei(bytes: Uint8Array): DateiErgebnis {
+  if (!istMappe(bytes)) return lesEinCsv(bytes);
+  try {
+    const mappe = lesEinMappe(bytes);
+    return mappe === null ? { ok: false, fehler: LESE_FEHLER } : { ok: true, daten: mappe };
+  } catch {
+    return { ok: false, fehler: LESE_FEHLER };
+  }
 }

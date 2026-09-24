@@ -1546,66 +1546,66 @@ test.describe("radio-Verwaltung", () => {
     ).toBe(200);
   });
 
-  test("Fall 6: /admin/geraete/export liefert text/csv und beginnt mit dem BOM", async ({
+  test("Fall 6: /admin/geraete/export liefert eine Excel-Mappe, die der Import wieder liest", async ({
     page,
   }) => {
     /*
      * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V22, NICHT NACHBESSERUNG
-     * (`Spec:4886`, Fall 6; `.superpowers/sdd/planteil4/briefs/V22.md:67-68`).
+     * (`Spec:4886`, Fall 6; `.superpowers/sdd/planteil4/briefs/V22.md:67-68`). Seit DRK-389
+     * liefert der Export eine Mappe statt einer CSV, und der Fall schliesst den Rundlauf
+     * ueber die ECHTE Oberflaeche: herunterladen, im Import-Assistenten ablegen, Zuordnung.
      *
      * ⚠️ ZWEI FALL-NUMMERIERUNGEN LAUFEN IN DIESER DATEI NEBENEINANDER, und das steht hier,
      * statt zu verwirren: die Spec zaehlt elf Faelle und fuehrt den Export als **6**
      * (`Spec:4886`), waehrend diese Datei den Spec-Fall 5 („fuenf Seiten je 200") in die
-     * Faelle 5 bis 9 aufgeteilt hat — je einer pro Seite, angelegt von V16 bis V20. Der
-     * Name „Fall 6" ist deshalb ZWEIMAL vergeben; die tragende Adressierung ist der PFAD im
-     * Titel, nicht die Nummer. Dieselbe bewusst stehen gelassene Doppelzaehlung wie in
-     * Ruling **R-V11-2** (`.superpowers/sdd/planteil4/progress.md`), und aus demselben
-     * Grund: vier Faelle umzunummerieren waere Aufwand ohne Zugewinn und eine neue
-     * Fehlerquelle.
+     * Faelle 5 bis 9 aufgeteilt hat; die tragende Adressierung ist der PFAD im Titel (R-V11-2).
      *
-     * ⛔ ER IST DER EINZIGE ECHTE ABRUF EINES ROUTE HANDLERS DIESES ZWEIGS. Was Vitest an
-     * ihm strukturell nicht sehen kann, ist das Zusammenspiel mit Next selbst: ob die
-     * Antwort ueberhaupt AUSGELIEFERT wird, wie sie hier gebaut ist — eine
-     * vorgerenderte Route lieferte den Bestand des Bauzeitpunkts, und `route.ts`s
-     * `export const dynamic = "force-dynamic"` ist der Riegel dagegen.
+     * ⛔ WAS VITEST HIER NICHT SEHEN KANN: ob Next die Antwort so AUSLIEFERT, wie sie gebaut
+     * ist (`dynamic = "force-dynamic"`), und ob der Browser die Mappe durch das Ablegefeld
+     * (`accept`) an den Hochladen-Handler reicht. Die Zellinhalte misst `rundlauf.test.ts`.
      *
-     * ⛔ WARMLAUF-GET VOR DEM ECHTEN ABRUF (Falle 10, `CLAUDE.md`): `next dev` uebersetzt
-     * einen Route Handler beim ERSTEN Treffer. Der erste Aufruf hier tut nichts weiter, als
-     * dieses Fenster zu verbrauchen; gemessen wird der zweite.
-     *
-     * ⛔ DAS BOM WIRD ALS BYTEFOLGE GEPRUEFT, NICHT ALS TEXT. Playwrights `text()` dekodiert
-     * mit eingeschaltetem BOM-Schnitt — der Fall pruefte dann seine eigene Dekodierung
-     * statt der Antwort, und das ist die Familie der Testfallen 10 bis 12: ein Test, der
-     * etwas anderes misst, als sein Name sagt.
-     *
-     * ⚠️ HIER STAND BIS ZUM 2026-08-26 „dass die Liste leer ist, schwaecht den Fall nicht
-     * (⬜ V13-L2)". ✅ **Die Liste ist nicht mehr leer** — V23 hat `scripts/seed-lokal.ts
-     * radio` in `webServer.command` gezogen. An der Aussage aendert das nichts: Kopfzeile und
-     * BOM entstehen unabhaengig vom Bestand (`_lib/csv/spalten.ts:296-306`), und die Zeilen
-     * selbst misst `route.test.ts`. Der Satz steht hier nur richtiggestellt, damit der
-     * naechste Leser den Fall nicht fuer schwaecher haelt, als er ist.
+     * ⛔ WARMLAUF VOR BEIDEN HANDLERN (Falle 10, `CLAUDE.md`): `next dev` uebersetzt einen
+     * Route Handler beim ERSTEN Treffer; ihre Antworten werden bewusst nicht gemessen.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
 
-    // DER WARMLAUF — seine Antwort wird bewusst nicht gemessen (Falle 10).
     await page.request.get(radioUrl("/admin/geraete/export"));
+    await page.request.get(radioUrl("/admin/import/hochladen"));
 
     const antwort = await page.request.get(radioUrl("/admin/geraete/export"));
     expect(antwort.status(), "/admin/geraete/export auf dem radio-Host").toBe(200);
-    expect(
-      antwort.headers()["content-type"],
-      "ohne charset oeffnet deutsches Excel die Datei in seiner Systemkodierung",
-    ).toBe("text/csv; charset=utf-8");
+    expect(antwort.headers()["content-type"]).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     expect(
       antwort.headers()["content-disposition"],
       "ohne Dateinamen speichert der Browser sie als `export` ohne Endung",
-    ).toBe('attachment; filename="funkgeraete-export.csv"');
+    ).toBe('attachment; filename="funkgeraete-export.xlsx"');
+    const mappe = await antwort.body();
+    expect([...mappe.subarray(0, 4)], "keine ZIP-Datei, also keine Mappe").toEqual([0x50, 0x4b, 3, 4]);
 
-    const bytes = await antwort.body();
-    expect(
-      [bytes[0], bytes[1], bytes[2]],
-      "das fuehrende UTF-8-BOM fehlt (Spec:4886)",
-    ).toEqual([0xef, 0xbb, 0xbf]);
+    await page.goto(radioUrl("/admin/import"));
+    const hochgeladen = page.waitForResponse(
+      (a) => new URL(a.url()).pathname === "/admin/import/hochladen" && a.request().method() === "POST",
+    );
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "funkgeraete-export.xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      buffer: mappe,
+    });
+    const hochladeAntwort = await hochgeladen;
+    expect(hochladeAntwort.status(), "der Dateischritt wurde abgewiesen").toBe(200);
+    const rumpf = (await hochladeAntwort.json()) as { ok: boolean; spalten?: string[] };
+    expect(rumpf.ok, "der Handler konnte die eigene Exportmappe nicht lesen").toBe(true);
+    expect(rumpf.spalten, "die neunzehn Kopfzeilen des Rundlaufvertrags").toHaveLength(19);
+
+    await expect(page.locator('[data-rolle="radio-import"]')).toHaveAttribute(
+      "data-schritt",
+      "mapping",
+    );
+    await expect(page.locator('[data-rolle="radio-import-hinweis"]')).toHaveText(
+      "ISSI ist zugeordnet.",
+    );
   });
   test("Fall 8: /m/radio/admin antwortet auf einem fremden Suite-Host mit 404", async ({ page }) => {
     /*

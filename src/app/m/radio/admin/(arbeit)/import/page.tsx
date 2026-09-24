@@ -56,14 +56,14 @@ import { ImportAssistent } from "./ImportAssistent";
  *
  * ⛔ `<h1 className={s.titel}>` UND NICHT `Typography.Title` (`ImportPage.tsx:7`): ein
  * Compound-Zugriff in einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md`). Der Text
- * „CSV-Import" wandert woertlich mit.
+ * „CSV-Import" wurde mit DRK-389 zu „Import" — der Assistent liest auch Excel-Mappen.
  */
 export default async function RadioImportSeite() {
   await requireRadioAdmin();
 
   return (
     <>
-      <h1 className={s.titel}>CSV-Import</h1>
+      <h1 className={s.titel}>Import</h1>
       <ImportAssistent />
     </>
   );

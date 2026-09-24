@@ -4,11 +4,12 @@ import { auditDelivery, auditActor } from "@/core/audit/server";
 import { getDb } from "../../../../_db/client";
 import { radioHostOderNull } from "../../../../_lib/host";
 import { istRadioAdmin, viewerOderNull } from "../../../../_lib/zugang";
-import { baueExportCsv } from "../../../../_lib/csv/spalten";
+import { xlsxAntwort } from "@/core/export/server";
+import { EXPORT_DATEINAME, baueExportBlatt } from "../../../../_lib/csv/mappe";
 import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
 
 /**
- * DER CSV-EXPORT DER GERAETELISTE — aeusserer Pfad `/admin/geraete/export`
+ * DER EXCEL-EXPORT DER GERAETELISTE — aeusserer Pfad `/admin/geraete/export`
  * (Routenkarte `_lib/routen.ts:66`), Aufgabe V22. Er ersetzt `export.ts:69-78`.
  *
  * ⛔ EIN ROUTE HANDLER UND KEINE SEITE, und das ist bauformbedingt: die Antwort ist eine
@@ -52,10 +53,9 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
  * und ist der Gegenfall zu `geraeteMitLeihstand` (`deviceRepo.ts:53-59`), wo sein Fehlen der
  * Fehler waere. Die Begruendung steht ausgeschrieben in `_lib/lesepfade/geraete.ts:805-818`.
  *
- * ⛔ DER RUMPF WIRD NICHT HIER GEBAUT. BOM, `;`, die neunzehn Kopfzeilen und die
- * Zellmaskierung stehen in `_lib/csv/spalten.ts:296-306` (`baueExportCsv`) — dieselbe
- * Funktion, die `_lib/csv/rundlauf.test.ts` gegen den Re-Import haelt. Eine zweite
- * Zusammensetzung hier waere ein zweiter Vertrag ohne zweiten Waechter.
+ * ⛔ DER RUMPF WIRD NICHT HIER GEBAUT: `baueExportBlatt` in `_lib/csv/mappe.ts` (seit DRK-389
+ * eine Mappe statt CSV) ist dieselbe Funktion, die `_lib/csv/rundlauf.test.ts` gegen den
+ * Re-Import haelt — eine zweite Zusammensetzung hier waere ein zweiter Vertrag ohne Waechter.
  */
 
 /**
@@ -92,20 +92,11 @@ export async function GET(request: Request) {
   return auditDelivery("radio", "export", "device_collection", auditActor(viewer), async (target) => {
     target("devices");
 
-    const csv = baueExportCsv(geraeteFuerExport(getDb()));
-
     /*
-     * ⛔ BEIDE KOPFZEILEN ZEICHENGLEICH AUS DEM BESTAND (`export.ts:73-74`). `charset=utf-8`
-     * gehoert dazu: das BOM traegt die Kodierungszusage nur fuer Excel, nicht fuer jeden
-     * anderen Leser. Und der Dateiname steht AUSSCHLIESSLICH hier — der Ausloeser in Insel 1
-     * ist ein Anker mit `download` OHNE Wert (1:1 `DeviceList.tsx:104-111`,
-     * `anchor.download = ''`).
+     * ⛔ DER DATEINAME KOMMT NUR AUS DIESER ANTWORT — der Ausloeser in Insel 1 ist ein Anker mit
+     * `download` OHNE Wert (1:1 `DeviceList.tsx:104-111`, `anchor.download = ''`). Medientyp
+     * und `Content-Disposition` setzt `xlsxAntwort`, wie bei jedem Excel-Ausgang der Suite.
      */
-    return new Response(csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="funkgeraete-export.csv"',
-      },
-    });
+    return xlsxAntwort(EXPORT_DATEINAME, [baueExportBlatt(geraeteFuerExport(getDb()))]);
   });
 }

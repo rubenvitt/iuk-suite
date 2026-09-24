@@ -122,8 +122,8 @@ import type { HochladenAntwort } from "./hochladen/route";
  * `software/UpdateSuche.tsx`).
  */
 const IMPORT_TEXTE = {
-  /** ⛔ Woertlich `ImportWizard.tsx:162`. */
-  ablegen: "CSV-Datei hierher ziehen oder klicken",
+  /** Bestand `ImportWizard.tsx:162`, seit DRK-389 mit Excel — der Handler liest beides. */
+  ablegen: "CSV- oder Excel-Datei hierher ziehen oder klicken",
   /** ⛔ Woertlich `ImportWizard.tsx:163`. */
   laeuft: "Wird verarbeitet…",
   /** ⛔ Woertlich `ImportWizard.tsx:101` — der Text des CLIENTS. Der Server antwortet mit
@@ -400,7 +400,7 @@ export function ImportAssistent() {
       {schritt === "upload" && (
         <div className={s.abstand}>
           <Upload.Dragger
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             maxCount={1}
             showUploadList={false}
             /* ⛔ KEIN PFEIL HIER — die Weiche steht oben, damit ihr Rueckgabewert

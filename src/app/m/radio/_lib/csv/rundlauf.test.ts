@@ -1,18 +1,18 @@
 // src/app/m/radio/_lib/csv/rundlauf.test.ts
 import { describe, it, expect } from "vitest";
 import type { Geraet } from "../../_db/schema";
+import { xlsxAntwort } from "@/core/export/server";
+import { blattnamen, blattZellen, mappenBytes } from "@/core/export/test-mappe";
 import {
-  CSV_BOM,
-  CSV_TRENNZEICHEN,
   EXPORT_SPALTEN,
-  baueExportCsv,
   formatiereZelle,
   tagAusWert,
   wertAusTag,
   type ExportFeld,
 } from "./spalten";
 import { IMPORTIERBARE_FELDER, automatischeSpaltenzuordnung } from "./kopfzeilen";
-import { dekodiereCsv, erkenneTrennzeichen, lesEinCsv } from "./einlesen";
+import { dekodiereCsv, erkenneTrennzeichen, lesEinCsv, lesEinDatei } from "./einlesen";
+import { EXPORT_BLATTNAME, EXPORT_DATEINAME, baueExportBlatt } from "./mappe";
 import { zeileZuEingehend, type Spaltenzuordnung } from "./klassifizieren";
 
 /**
@@ -27,6 +27,12 @@ import { zeileZuEingehend, type Spaltenzuordnung } from "./klassifizieren";
  * zweimal aus (`.superpowers/sdd/planteil4/briefs/V9.md:133`, `:149`), und der Grund ist
  * gemessen: zwei Spalten, die versehentlich auf dasselbe Feld zeigen, sind mit gleichen
  * Werten vollzaehlig UND gruen.
+ *
+ * ⛔ SEIT DRK-389 LAEUFT DER RUNDLAUF UEBER DIE EXCEL-MAPPE, IN BEIDE RICHTUNGEN: exportiert
+ * wird ueber `baueExportBlatt` + `xlsxAntwort` (derselbe Weg wie der Handler), zurueckgelesen
+ * ueber `lesEinDatei` (derselbe Weg wie der Hochladen-Handler). Zwei halbe Vertraege — Mappe
+ * hinaus, CSV herein — waeren schlechter als der eine ganze. CSV bleibt EINGANG; dass eine
+ * Datei im alten CSV-Exportformat weiter hereinkommt, haelt der eigene Fall unten fest.
  *
  * ⚠️ WAS DIESE DATEI NICHT BELEGT: dass der Export-Handler den Riegel traegt — das ist V22
  * und `riegel.test.ts` Klausel (c). Hier steht ausschliesslich der Datenvertrag.
@@ -118,10 +124,14 @@ function zuordnungAus(spalten: readonly string[]): Spaltenzuordnung {
   return zuordnung as Spaltenzuordnung;
 }
 
-/** Exportiert die Geraete und liest sie ueber Erkennung und Zuordnung zurueck. */
-function rundlauf(geraete: readonly Pick<Geraet, ExportFeld>[]) {
-  const csv = baueExportCsv(geraete);
-  const ergebnis = lesEinCsv(new TextEncoder().encode(csv));
+/** Die Exportmappe als Bytes — ueber `xlsxAntwort`, genau wie der Handler sie ausliefert. */
+async function exportMappe(geraete: readonly Pick<Geraet, ExportFeld>[]): Promise<Uint8Array> {
+  return mappenBytes(await xlsxAntwort(EXPORT_DATEINAME, [baueExportBlatt(geraete)]));
+}
+
+/** Exportiert die Geraete als Mappe und liest sie ueber Erkennung und Zuordnung zurueck. */
+async function rundlauf(geraete: readonly Pick<Geraet, ExportFeld>[]) {
+  const ergebnis = lesEinDatei(await exportMappe(geraete));
   if (!ergebnis.ok) {
     throw new Error(`Rundlauf gescheitert: ${ergebnis.fehler}`);
   }
@@ -130,8 +140,8 @@ function rundlauf(geraete: readonly Pick<Geraet, ExportFeld>[]) {
 }
 
 describe("radio-csv: der Rundlauf-Vertrag", () => {
-  it("exportiere drei Geraete, lies das Ergebnis mit der Spaltenerkennung zurueck, erhalte dieselben Felder", () => {
-    const zurueck = rundlauf([GERAET_VOLL, GERAET_DUENN, GERAET_FALSCH]);
+  it("exportiere drei Geraete, lies das Ergebnis mit der Spaltenerkennung zurueck, erhalte dieselben Felder", async () => {
+    const zurueck = await rundlauf([GERAET_VOLL, GERAET_DUENN, GERAET_FALSCH]);
 
     expect(zurueck.length, "drei Zeilen hinein, drei zurueck").toBe(3);
 
@@ -155,50 +165,58 @@ describe("radio-csv: der Rundlauf-Vertrag", () => {
     });
   });
 
-  it("der Rundlauf traegt auch ein Datum", () => {
+  it("der Rundlauf traegt auch ein Datum", async () => {
     /*
      * Entscheidung E-V11 (`.superpowers/sdd/planteil4/briefs/KOPF.md`, Abschnitt E-V11):
      * die Suite-Spalte IST bereits der Kalendertag (`_db/schema.ts:39`). Der Alt-Code
      * rechnet an dieser Stelle (`export.ts:51`), die Suite rechnet NICHT.
      */
-    const zurueck = rundlauf([GERAET_VOLL, GERAET_FALSCH]);
+    const zurueck = await rundlauf([GERAET_VOLL, GERAET_FALSCH]);
 
     expect(zurueck[0]?.lastUpdatedAt, "der Tag des ersten Geraets").toBe("2026-07-01");
     expect(zurueck[1]?.lastUpdatedAt, "der Tag des dritten Geraets").toBe("2026-03-29");
   });
 
-  it("die Exportdatei beginnt mit dem BOM", () => {
-    // `export.ts:9` („UTF-8 BOM so Excel opens the `;`-delimited file with correct
-    // encoding") und `:61` (`return BOM + body`).
-    const csv = baueExportCsv([GERAET_VOLL]);
-
-    expect(csv.charCodeAt(0), "kein fuehrendes U+FEFF").toBe(0xfeff);
-    expect(csv.startsWith(CSV_BOM)).toBe(true);
-  });
-
-  it("das Trennzeichen ist ein Semikolon", () => {
-    // `export.ts:60` (`stringify([header, ...rows], { delimiter: ';' })`).
-    const csv = baueExportCsv([GERAET_VOLL]);
-    const kopfzeile = csv.replace(/^﻿/, "").split("\n")[0] ?? "";
-
-    expect(CSV_TRENNZEICHEN).toBe(";");
-    expect(kopfzeile.split(";").length, "neunzehn Spalten in der Kopfzeile").toBe(19);
-    expect(kopfzeile.split(",").length, "kein Komma als Trennzeichen").toBe(1);
-  });
-
-  it("die Zeilen enden mit einem blossen Zeilenumbruch, nicht mit CR-LF", () => {
+  it("die Exportmappe traegt ein Blatt, die Kopfzeile in Zeile 1 und nur Textzellen", async () => {
     /*
-     * `export.ts:57-62` ueber `csv-stringify`, dessen Vorgabe `\n` ist — gemessen am Alt-Test
-     * `radio-admin/server/test/deviceTei.test.ts:76`, der das Ergebnis an `'\n'` teilt. Bis
-     * Fix-Runde 1 stand das nur im Kommentar (Review V9, Fund F7 Punkt 8): auf `\r\n`
-     * umgestellt blieb alles gruen, weil der Wiedereinleser das CR ohnehin verwirft — der
-     * Rundlauf kann diese Zusicherung also strukturell nicht tragen.
+     * ⛔ NUR TEXTZELLEN, AUCH FUER ISSI UND TEI (`mappe.ts`, `baueExportBlatt`). Als Zahlzelle
+     * verloere die TEI ihre fuehrende Null — `01234567890123` kaeme als `1234567890123` zurueck
+     * und traefe beim Import ein ANDERES Geraet. Deshalb steht hier das Raster und nicht nur
+     * der Rundlauf: `blattZellen` liefert Zahlen als `number`, Text als `string`.
      */
-    const csv = baueExportCsv([GERAET_VOLL, GERAET_DUENN]);
+    const bytes = await exportMappe([GERAET_VOLL, GERAET_DUENN]);
 
-    expect(csv.includes("\r"), "kein CR im Exporttext").toBe(false);
-    expect(csv.endsWith("\n"), "ein Zeilenende auch nach der letzten Zeile").toBe(true);
-    expect(csv.split("\n").length, "Kopfzeile, zwei Datenzeilen und der leere Rest").toBe(4);
+    expect(blattnamen(bytes)).toEqual([EXPORT_BLATTNAME]);
+    const [kopf, voll, duenn] = blattZellen(bytes);
+    expect(kopf).toEqual(EXPORT_SPALTEN.map((spalte) => spalte.kopf));
+    expect(voll?.[0], "die ISSI als Text").toBe("1001");
+    expect(voll?.[1], "die TEI als Text, fuehrende Null inklusive").toBe("01234567890123");
+    expect(
+      [...(voll ?? []), ...(duenn ?? [])].every((zelle) => zelle === null || typeof zelle === "string"),
+      "eine Zahlzelle in der Exportmappe",
+    ).toBe(true);
+    expect(duenn?.[1], "ein leeres Feld ist eine leere Zelle, keine leere Zeichenkette").toBeNull();
+  });
+
+  it("eine Datei im alten CSV-Exportformat kommt weiterhin herein", () => {
+    /*
+     * ⛔ CSV BLEIBT EINGANG (DRK-389). Bestandsdateien, die bis dahin exportiert wurden, tragen
+     * BOM, `;` und die neunzehn Kopfzeilen (`export.ts:9`, `:60-61`). Der Text ist hier
+     * AUSGESCHRIEBEN, nicht gebaut — den CSV-Schreiber gibt es nicht mehr, und genau deshalb
+     * muss das Format als Literal stehen bleiben.
+     */
+    const alt =
+      "\ufeffISSI;TEI;Rufname;Seriennummer;Typ;Status;Standort;Zuordnung;Softwareversion;" +
+      "Zuletzt aktualisiert;Notizen;Hiorg-ID;OPTA;Funktion;Hersteller;Bedieneinheit;" +
+      "Gerätefunktionen;Alamos;Ausleihbar\n" +
+      "1001;01234567890123;Florian Musterstadt 10-1;SN-0001-A;TPH900;Einsatzbereit;Lager Nord;" +
+      "Zugtrupp;6.1.2;2026-07-01;Antenne getauscht;HO-4711;HE RD DA 01-10-1;Fuehrungskraft;" +
+      "Airbus;TFC5000;TMO,DMO;x;x\n";
+    const ergebnis = lesEinDatei(new TextEncoder().encode(alt));
+    if (!ergebnis.ok) throw new Error(ergebnis.fehler);
+
+    const zuordnung = zuordnungAus(ergebnis.daten.spalten);
+    expect(zeileZuEingehend(ergebnis.daten.zeilen[0]!, zuordnung)).toEqual(GERAET_VOLL);
   });
 
   it("die neunzehn Exportspalten und die neunzehn importierbaren Felder stehen in derselben Reihenfolge", () => {
@@ -221,13 +239,13 @@ describe("radio-csv: der Rundlauf-Vertrag", () => {
     expect(formatiereZelle("alamosIntegrated", null)).toBe("");
   });
 
-  it("ein leerer Wahrheitswert laeuft rund, ein falscher NICHT", () => {
+  it("ein leerer Wahrheitswert laeuft rund, ein falscher NICHT", async () => {
     /*
      * ⛔ DER FALL, DEN DER ALT-KOMMENTAR AUSDRUECKLICH BENENNT (`export.ts:40-41`). Er wird
      * hier FESTGEHALTEN, nicht repariert: `false` exportiert als '' und importiert als
      * `null`. Wer ihn heilen will, aendert den Vertrag und nicht diesen Test.
      */
-    const zurueck = rundlauf([GERAET_DUENN, GERAET_FALSCH]);
+    const zurueck = await rundlauf([GERAET_DUENN, GERAET_FALSCH]);
 
     expect(zurueck[0]?.loanable, "null laeuft rund").toBeNull();
     expect(zurueck[1]?.loanable, "false kommt als null zurueck — der gewollte Verlust").toBeNull();
@@ -274,22 +292,23 @@ describe("radio-csv: der Rundlauf-Vertrag", () => {
     ]);
   });
 
-  it("ein Wert mit Semikolon oder Anfuehrungszeichen laeuft rund", () => {
+  it("ein Wert mit Semikolon, Anfuehrungszeichen, Zeilenumbruch oder XML-Zeichen laeuft rund", async () => {
     /*
-     * Die Suite baut den CSV-Text selbst — `csv-stringify` ist im Repo nicht vorhanden
-     * (gemessen: `grep -n "csv-stringify" package.json` ohne Treffer). Die Maskierung ist
-     * damit eigener Code und braucht ihren eigenen Fall, sonst zerreisst ein Notizfeld mit
-     * Semikolon still die ganze Zeile.
+     * Frueher der Fall fuer die eigene CSV-Maskierung; seit DRK-389 der Fall fuer den eigenen
+     * Mappenleser (`mappe.ts`, `entschaerfe`): `<`, `&` und Anfuehrungszeichen stehen im XML
+     * der Mappe als Entitaet und muessen woertlich zurueckkommen.
      */
     const heikel: Pick<Geraet, ExportFeld> = {
       ...GERAET_VOLL,
       notes: 'Kabel; Stecker "kurz" defekt',
       location: "Halle 2\nRegal 4",
+      assignedTo: "Technik & <Reserve>",
     };
-    const zurueck = rundlauf([heikel]);
+    const zurueck = await rundlauf([heikel]);
 
     expect(zurueck[0]?.notes).toBe('Kabel; Stecker "kurz" defekt');
     expect(zurueck[0]?.location).toBe("Halle 2\nRegal 4");
+    expect(zurueck[0]?.assignedTo).toBe("Technik & <Reserve>");
   });
 });
 
