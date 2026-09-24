@@ -35,9 +35,9 @@ pub fn vektor(datei: &str) -> Value {
         .unwrap_or_else(|e| panic!("{}: {e}", pfad.display()))
 }
 
-/// Packt den CEK eines Umschlags mit dem privaten Suite-Schlüssel aus. Wirft, wenn Umschlag
-/// und Kopf nicht zusammengehören (falsches AAD), die Längen nicht stimmen oder `epk` nicht
-/// unkomprimiert ist.
+/// Packt den CEK eines Umschlags mit dem privaten Suite-Schlüssel aus. Gibt `Err` zurück,
+/// wenn Umschlag und Kopf nicht zusammengehören (falsches AAD), die Längen nicht stimmen
+/// oder `epk` nicht unkomprimiert ist.
 pub fn packe_aus(umschlag: &Umschlag, kopf: &Blockkopf, suite_privat: &SecretKey) -> Result<Vec<u8>, KryptoFehler> {
     let epk_bytes = krypto::aus_b64(&umschlag.epk)?;
     if epk_bytes.len() != 65 {
@@ -72,7 +72,8 @@ pub fn packe_aus(umschlag: &Umschlag, kopf: &Blockkopf, suite_privat: &SecretKey
 
 /// Kleine Testeinrichtung mit dem Vektor-SPKI aus `eingaben.json` (`suite.oeffentlichSpki`)
 /// und drei Fahrzeugen, drei Personen und zwei Stichwortgruppen mit den Stammdaten-IDs aus
-/// `K/testvektoren/einsaetze.ts` (`11-83-1`, `p4` …) — keine erfundenen IDs.
+/// `src/app/m/einsatzbuch/_lib/kern/testvektoren/einsaetze.ts` (`11-83-1`, `p4` …) — keine
+/// erfundenen IDs.
 pub fn test_einrichtung(umgebung: Umgebung) -> Einrichtung {
     let spki_b64 = vektor("eingaben.json")["suite"]["oeffentlichSpki"].as_str().unwrap().to_string();
     let spki = krypto::aus_b64(&spki_b64).unwrap();

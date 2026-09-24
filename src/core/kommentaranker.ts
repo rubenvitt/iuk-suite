@@ -125,12 +125,12 @@ export const NICHT_GELESENE_PFADE = [/^docs\//, /^patches\//];
  * eine Endung auftaucht, die in keiner der beiden Listen steht. Eine
  * Allowlist, die niemand nachfuehrt, ist genau der Defekt, den dieser Riegel
  * bewacht.
- */
-/**
- * `rs` und `toml` kommen von der Desktop-App unter `apps/einsatzbuch`: ihr Rust-Kern
- * (`src-tauri/kern`) trägt Kommentaranker wie jede andere Quelldatei, ebenso die
- * Cargo-Manifeste. `html` und `js` gehören zum selben Modul (Tauri-Einstiegsseite,
- * Lint-Konfiguration) — siehe Spec Einsatzbuch §2.2.
+ *
+ * `rs` und `toml` kommen von der Desktop-App unter `apps/einsatzbuch`: ihr
+ * Rust-Kern (`src-tauri/kern`) traegt Kommentaranker wie jede andere
+ * Quelldatei, ebenso die Cargo-Manifeste. `html` und `js` gehoeren zum
+ * selben Modul (Tauri-Einstiegsseite, Lint-Konfiguration) — siehe Spec
+ * Einsatzbuch §2.2.
  */
 export const ENDUNGEN =
   /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson|ya?ml|conf|example|dockerignore|gitattributes|gitignore|rs|toml|html|js)$/;

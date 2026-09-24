@@ -27,6 +27,15 @@ fn versiegelt_die_vektoren_byte_genau() {
     assert_eq!(schluessel_id, erwartet["schluesselId"].as_str().unwrap());
 
     let einsaetze: Vec<Einsatz> = serde_json::from_value(eingaben["einsaetze"].clone()).unwrap();
+    // Ohne diese beiden Prüfungen liefe die Schleife unten bei einer leeren oder verkürzten
+    // Vektor-Datei einfach seltener oder gar nicht durch, und der Test bestünde grün, ohne
+    // je etwas geprüft zu haben.
+    assert!(!einsaetze.is_empty(), "die Eingabevektoren dürfen nicht leer sein");
+    assert_eq!(
+        einsaetze.len(),
+        erwartet["bloecke"].as_array().unwrap().len(),
+        "eingaben.json und erwartet.json müssen gleich viele Einträge haben"
+    );
     let mut prev = GENESIS.to_string();
     for (i, einsatz) in einsaetze.iter().enumerate() {
         let z = &eingaben["bloecke"][i];

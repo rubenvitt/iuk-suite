@@ -3,7 +3,8 @@
 //! App im normalen Betrieb.
 //!
 //! Betriebsart und Einrichtung sind ausdrücklich getrennt: `Betrieb` entscheidet nur, welche
-//! Datei geöffnet wird (`erkenne_betrieb` liest das aus dem Ordnerinhalt, Test vor Echt); ob
+//! Datei geöffnet wird (`erkenne_betrieb` liest das aus dem Ordnerinhalt, Test vor Echt, und
+//! meldet einen Lesefehler statt ihn zu verschlucken); ob
 //! ein geöffnetes Buch schon eine Suite kennt, sagt `Buch::einrichtung`. `richte_ein` und
 //! `uebernehme_stammdaten` sind die Naht zu Stufe 5 (Einrichtungsseite, Stammdatenabgleich) —
 //! hier nur geprüft und geschrieben, aufgerufen wird beides erst dort.
@@ -31,8 +32,14 @@ pub enum BuchFehler {
     UnbekannteSchemaversion { gefunden: i64, bekannt: i64 },
     #[error("die Einrichtung nennt die Umgebung {angegeben:?}, dieses Buch führt aber {betrieb:?}")]
     FalscheUmgebung { angegeben: Umgebung, betrieb: Umgebung },
+    #[error("unbekannter Umgebungswert {0:?} in der Datenbank")]
+    UnbekannteUmgebung(String),
+    /// Ohne `#[from]`: ein Krypto-Fehler soll nicht über ein blindes `?` zu dieser Variante
+    /// werden, denn sie behauptet „Schlüssel der Einrichtung“, während derselbe
+    /// `KryptoFehler` z. B. beim Versiegeln eines Blocks ganz woanders auftreten kann.
+    /// `richte_ein` ordnet deshalb ausdrücklich per `map_err` zu.
     #[error("der öffentliche Schlüssel der Einrichtung ist ungültig: {0}")]
-    UngueltigerSchluessel(#[from] KryptoFehler),
+    UngueltigerSchluessel(KryptoFehler),
     #[error("die angegebene schluesselId passt nicht zum öffentlichen Schlüssel")]
     SchluesselIdPasstNicht,
     #[error("frist_minuten muss zwischen 1 und 120 liegen, war {0}")]
@@ -45,11 +52,15 @@ pub enum BuchFehler {
     NichtEingerichtet,
     #[error("Testbetrieb beenden ist nur im Testbetrieb erlaubt")]
     NichtImTestbetrieb,
+    #[error("WAL-Checkpoint konnte nicht abschließen — eine andere Verbindung ist noch aktiv")]
+    WalCheckpointBeschaeftigt,
+    #[error("SQLite hat den Journalmodus {gefunden:?} gewählt, erwartet war `wal`")]
+    JournalModusNichtWal { gefunden: String },
 }
 
-/// Betriebsart des Rechners — entscheidet nur, welche Datei geöffnet wird (Kontext,
-/// Entscheidung 3: Betriebsart aus der Datei, Test vor Echt). Ob eine Einrichtung vorliegt,
-/// ist davon unabhängig (`Buch::einrichtung`).
+/// Betriebsart des Rechners — entscheidet nur, welche Datei geöffnet wird (Betriebsart aus
+/// der Datei, Test vor Echt; Spec §12). Ob eine Einrichtung vorliegt, ist davon unabhängig
+/// (`Buch::einrichtung`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Betrieb {
@@ -76,13 +87,15 @@ impl Betrieb {
 /// Liest die Betriebsart aus dem Ordnerinhalt: Liegt `einsatzbuch-test.db` vor, ist es
 /// Testbetrieb, sonst zählt `einsatzbuch.db`. Liegt keine der beiden Dateien vor, ist der
 /// Rechner noch nicht eingerichtet — die Einrichtungsfrage beim ersten Start kommt in Stufe 5.
-pub fn erkenne_betrieb(ordner: &Path) -> Option<Betrieb> {
-    if ordner.join(Betrieb::Test.datei()).exists() {
-        Some(Betrieb::Test)
-    } else if ordner.join(Betrieb::Echt.datei()).exists() {
-        Some(Betrieb::Echt)
+/// `try_exists` statt `exists`: ein Lesefehler (z. B. fehlende Berechtigung) wird gemeldet,
+/// nicht still als „Datei fehlt“ gedeutet.
+pub fn erkenne_betrieb(ordner: &Path) -> Result<Option<Betrieb>, BuchFehler> {
+    if ordner.join(Betrieb::Test.datei()).try_exists()? {
+        Ok(Some(Betrieb::Test))
+    } else if ordner.join(Betrieb::Echt.datei()).try_exists()? {
+        Ok(Some(Betrieb::Echt))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -93,10 +106,13 @@ fn umgebung_text(u: Umgebung) -> &'static str {
     }
 }
 
-fn umgebung_aus_text(text: &str) -> Umgebung {
+/// Gibt `Err` zurück, wenn die Datenbank einen anderen Wert als `"echt"` oder `"test"` trägt
+/// — ein unbekannter Wert fällt nicht still auf `Echt` zurück.
+fn umgebung_aus_text(text: &str) -> Result<Umgebung, BuchFehler> {
     match text {
-        "test" => Umgebung::Test,
-        _ => Umgebung::Echt,
+        "echt" => Ok(Umgebung::Echt),
+        "test" => Ok(Umgebung::Test),
+        sonst => Err(BuchFehler::UnbekannteUmgebung(sonst.to_string())),
     }
 }
 
@@ -179,11 +195,17 @@ impl Buch {
     /// Öffnet (und legt bei Bedarf an) die Datenbank der gegebenen Betriebsart im Ordner.
     /// Legt den Ordner selbst **nicht** an — das übernimmt die Hülle, denn nur sie kennt den
     /// richtigen Zeitpunkt (z. B. erst nach einer erfolgreichen Einrichtung). Setzt WAL,
-    /// `synchronous = FULL` und Fremdschlüsselprüfung, bevor sie migriert.
+    /// `synchronous = FULL` und Fremdschlüsselprüfung, bevor sie migriert. Liest den
+    /// tatsächlich gewählten Journalmodus zurück (`pragma_update_and_check`) statt ihn nur
+    /// anzufordern — manche Umgebungen (z. B. eine Netzwerkfreigabe oder `:memory:`) lassen
+    /// WAL gar nicht zu und fallen sonst still auf einen anderen Modus zurück.
     pub fn oeffne(ordner: &Path, betrieb: Betrieb) -> Result<Buch, BuchFehler> {
         let pfad = ordner.join(betrieb.datei());
         let mut conn = Connection::open(&pfad)?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
+        let journal: String = conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get(0))?;
+        if journal != "wal" {
+            return Err(BuchFehler::JournalModusNichtWal { gefunden: journal });
+        }
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         richte_schema_ein(&mut conn)?;
@@ -210,7 +232,7 @@ impl Buch {
         };
         let stammdaten: Stammdaten = serde_json::from_str(&zeile.stammdaten_json)?;
         Ok(Some(Einrichtung {
-            umgebung: umgebung_aus_text(&zeile.umgebung),
+            umgebung: umgebung_aus_text(&zeile.umgebung)?,
             suite_url: zeile.suite_url,
             oeffentlich_spki: zeile.oeffentlich_spki,
             schluessel_id: zeile.schluessel_id,
@@ -241,8 +263,8 @@ impl Buch {
         if e.umgebung != self.betrieb.umgebung() {
             return Err(BuchFehler::FalscheUmgebung { angegeben: e.umgebung, betrieb: self.betrieb.umgebung() });
         }
-        let spki = krypto::aus_b64(&e.oeffentlich_spki)?;
-        krypto::oeffentlich_aus_spki(&spki)?;
+        let spki = krypto::aus_b64(&e.oeffentlich_spki).map_err(BuchFehler::UngueltigerSchluessel)?;
+        krypto::oeffentlich_aus_spki(&spki).map_err(BuchFehler::UngueltigerSchluessel)?;
         if e.schluessel_id != krypto::schluessel_id(&spki) {
             return Err(BuchFehler::SchluesselIdPasstNicht);
         }
@@ -343,11 +365,14 @@ fn loesche_falls_vorhanden(pfad: &Path) -> Result<(), BuchFehler> {
 /// ein echtes Einsatzbuch löscht niemand über diesen Weg.
 ///
 /// Nimmt `Buch` bewusst by value: `PRAGMA wal_checkpoint(TRUNCATE)` schreibt den WAL-Inhalt
-/// noch vor dem Schließen in die Hauptdatei zurück, danach schließt `drop(buch)` die
-/// Verbindung. Windows löscht keine offene Datei — deshalb muss die Hülle das Buch vorher aus
-/// ihrem geteilten Zustand herausnehmen und hier übergeben, statt mit einer geliehenen
-/// Verbindung zu arbeiten. Ein fehlendes Dateipaar (`NotFound`) ist kein Fehler, jeder andere
-/// Lesefehler schon.
+/// noch vor dem Schließen in die Hauptdatei zurück — das Ergebnis wird per `query_row`
+/// gelesen, denn ein `busy`-Wert ungleich 0 heißt, eine andere Verbindung war noch aktiv und
+/// der Checkpoint ist nicht vollständig durchgelaufen. Erst danach schließt `conn.close()` die
+/// Verbindung ausdrücklich; ein Fehler dabei wird weitergereicht statt verschluckt. Windows
+/// löscht keine offene Datei — deshalb muss die Hülle das Buch vorher aus ihrem geteilten
+/// Zustand herausnehmen und hier übergeben, statt mit einer geliehenen Verbindung zu
+/// arbeiten. Ein fehlendes Dateipaar (`NotFound`) ist kein Fehler, jeder andere Lesefehler
+/// schon.
 pub fn beende_testbetrieb(ordner: &Path, buch: Buch) -> Result<(), BuchFehler> {
     if buch.betrieb != Betrieb::Test {
         return Err(BuchFehler::NichtImTestbetrieb);
@@ -357,8 +382,16 @@ pub fn beende_testbetrieb(ordner: &Path, buch: Buch) -> Result<(), BuchFehler> {
     // hat. Nur eine Entwicklerprüfung, kein Nutzerfehlerfall.
     debug_assert_eq!(ordner.join(buch.betrieb.datei()), buch.pfad, "ordner passt nicht zum geöffneten Buch");
     let pfad = buch.pfad.clone();
-    buch.conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")?;
-    drop(buch);
+
+    let (busy, _log, _checkpointed): (i64, i64, i64) = buch
+        .conn
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    if busy != 0 {
+        return Err(BuchFehler::WalCheckpointBeschaeftigt);
+    }
+
+    let Buch { conn, .. } = buch;
+    conn.close().map_err(|(_, fehler)| fehler)?;
 
     loesche_falls_vorhanden(&pfad)?;
     loesche_falls_vorhanden(&mit_dateizusatz(&pfad, "-wal"))?;

@@ -11,8 +11,8 @@ serde = { version = "1", features = ["derive"] }
 # selbst (jcs.rs) — sie hängt nicht davon ab, welche Map-Art ein anderes Crate einschaltet.
 serde_json = "1"
 thiserror = "2"
-# Kohärenter RustCrypto-Stand 2026 (`hybrid-array`). Kein `ring` — `cargo tree -i ring`
-# muss „nichts gefunden" melden (Vorgabe der Kontextdatei).
+# Kohärenter RustCrypto-Stand 2026 (`hybrid-array`). Kein `ring` — CI prüft das per
+# `cargo tree -i ring`, die Ausgabe muss „nichts gefunden“ melden.
 p256 = { version = "0.14", features = ["ecdh", "pkcs8"] }
 hkdf = "0.13"
 sha2 = "0.11"
