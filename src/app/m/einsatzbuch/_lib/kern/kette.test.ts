@@ -48,6 +48,14 @@ describe("pruefeKette", () => {
     const verfaelscht = { ...b2, kopf: { ...b2.kopf, umgebung: "test" as const } };
     expect(await pruefeKette([b1, verfaelscht, b3])).toEqual({ ok: false, block: 2, grund: "Inhalt passt nicht zum Fingerabdruck" });
   });
+  it("ein vertauschter Umschlag fällt am Fingerabdruck auf", async () => {
+    const verfaelscht = { ...b2, umschlag: b3.umschlag };
+    expect(await pruefeKette([b1, verfaelscht, b3])).toEqual({ ok: false, block: 2, grund: "Inhalt passt nicht zum Fingerabdruck" });
+  });
+  it("eine vertauschte IV fällt am Fingerabdruck auf", async () => {
+    const verfaelscht = { ...b2, iv: b3.iv };
+    expect(await pruefeKette([b1, verfaelscht, b3])).toEqual({ ok: false, block: 2, grund: "Inhalt passt nicht zum Fingerabdruck" });
+  });
   it("blockHash ignoriert ein mitgeliefertes hash-Feld", async () => {
     expect(await blockHash(b1)).toBe(b1.hash);
   });

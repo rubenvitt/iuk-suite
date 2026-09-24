@@ -1,4 +1,4 @@
-import { ausBase64, sha256Hex, utf8, zuBase64, zufall, type Bytes } from "./bytes";
+import { ausBase64, mitLaenge, sha256Hex, utf8, zuBase64, zufall, type Bytes } from "./bytes";
 import type { Blockkopf, Umschlag } from "./format";
 import { kanonisch } from "./kanonisch";
 
@@ -38,19 +38,23 @@ export interface Umschlagzufall { ephemer: CryptoKeyPair; iv: Bytes }
 /** Packt den CEK eines Blocks für den öffentlichen Schlüssel der Suite ein. Der Kopf ist AAD. */
 export async function packeEin(cek: Bytes, kopf: Blockkopf, suiteOeffentlich: CryptoKey, z?: Umschlagzufall): Promise<Umschlag> {
   const ephemer = z?.ephemer ?? (await erzeugeSchluesselpaar());
-  const iv = z?.iv ?? zufall(12);
+  const iv = mitLaenge(z?.iv ?? zufall(12), 12, "iv");
   const schluessel = await kek(ephemer.privateKey, suiteOeffentlich);
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: utf8(kanonisch(kopf)) }, schluessel, cek));
   const epk = new Uint8Array(await crypto.subtle.exportKey("raw", ephemer.publicKey));
   return { epk: zuBase64(epk), iv: zuBase64(iv), ct: zuBase64(ct) };
 }
 
-/** Gegenstück in der Suite. Wirft, wenn Umschlag und Kopf nicht zusammengehören. */
+/** Gegenstück in der Suite. Wirft, wenn Umschlag und Kopf nicht zusammengehören oder die Längen nicht stimmen. */
 export async function packeAus(umschlag: Umschlag, kopf: Blockkopf, suitePrivat: CryptoKey): Promise<Bytes> {
-  const epk = await crypto.subtle.importKey("raw", ausBase64(umschlag.epk), KURVE, false, []);
+  const epkBytes = mitLaenge(ausBase64(umschlag.epk), 65, "epk");
+  if (epkBytes[0] !== 0x04) throw new Error("epk muss unkomprimiert sein");
+  const iv = mitLaenge(ausBase64(umschlag.iv), 12, "iv");
+  const ct = mitLaenge(ausBase64(umschlag.ct), 48, "ct");
+  const epk = await crypto.subtle.importKey("raw", epkBytes, KURVE, false, []);
   const schluessel = await kek(suitePrivat, epk);
   return new Uint8Array(await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: ausBase64(umschlag.iv), additionalData: utf8(kanonisch(kopf)) },
-    schluessel, ausBase64(umschlag.ct),
+    { name: "AES-GCM", iv, additionalData: utf8(kanonisch(kopf)) },
+    schluessel, ct,
   ));
 }

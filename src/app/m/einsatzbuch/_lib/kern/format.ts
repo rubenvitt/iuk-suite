@@ -75,3 +75,53 @@ export interface Exportdatei {
   chiffre: { name: "AES-GCM"; laenge: 256; iv: string };
   daten: string;
 }
+
+const EINSATZ_SCHLUESSEL = [
+  "v", "nummer", "stichwort", "beginnDatum", "beginnZeit", "endeDatum", "endeZeit",
+  "strasse", "ort", "objekt", "fahrzeuge", "personal", "vorOrt", "transport", "notizen",
+] as const;
+const FAHRZEUG_SCHLUESSEL = ["id", "typ", "kennung", "ruf", "standort"] as const;
+const PERSON_SCHLUESSEL = ["id", "name", "quali", "ov", "fahrzeugId"] as const;
+
+function istObjekt(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
+function hatGenauSchluessel(x: Record<string, unknown>, schluessel: readonly string[]): boolean {
+  const keys = Object.keys(x);
+  return keys.length === schluessel.length && schluessel.every((k) => keys.includes(k));
+}
+
+function istFahrzeugStand(x: unknown): x is FahrzeugStand {
+  return istObjekt(x) && hatGenauSchluessel(x, FAHRZEUG_SCHLUESSEL) && FAHRZEUG_SCHLUESSEL.every((k) => typeof x[k] === "string");
+}
+
+function istPersonStand(x: unknown): x is PersonStand {
+  if (!istObjekt(x) || !hatGenauSchluessel(x, PERSON_SCHLUESSEL)) return false;
+  if (!(["id", "name", "quali", "ov"] as const).every((k) => typeof x[k] === "string")) return false;
+  return typeof x.fahrzeugId === "string" || x.fahrzeugId === null;
+}
+
+/**
+ * Formprüfung für einen entschlüsselten Klartext. Ein GCM-Rundlauf beweist nur, dass jemand
+ * mit dem CEK diesen Klartext erzeugt hat — nicht, dass er wohlgeformt ist: Der öffentliche
+ * Suite-Schlüssel ist öffentlich, und in einer Exportdatei reisen die CEKs mit. Deshalb prüft
+ * `oeffneBlock` jeden Klartext gegen diese Form, bevor er als `Einsatz` gilt.
+ */
+export function istEinsatz(x: unknown): x is Einsatz {
+  if (!istObjekt(x) || !hatGenauSchluessel(x, EINSATZ_SCHLUESSEL)) return false;
+  if (x.v !== 1) return false;
+  for (const feld of ["nummer", "stichwort", "beginnDatum", "beginnZeit", "strasse", "ort", "objekt", "notizen"] as const) {
+    if (typeof x[feld] !== "string") return false;
+  }
+  for (const feld of ["endeDatum", "endeZeit"] as const) {
+    if (typeof x[feld] !== "string" && x[feld] !== null) return false;
+  }
+  for (const feld of ["vorOrt", "transport"] as const) {
+    const wert = x[feld];
+    if (typeof wert !== "number" || !Number.isSafeInteger(wert) || wert < 0) return false;
+  }
+  if (!Array.isArray(x.fahrzeuge) || !x.fahrzeuge.every(istFahrzeugStand)) return false;
+  if (!Array.isArray(x.personal) || !x.personal.every(istPersonStand)) return false;
+  return true;
+}

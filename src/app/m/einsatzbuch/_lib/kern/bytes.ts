@@ -35,3 +35,13 @@ export async function sha256Hex(bytes: Bytes): Promise<string> {
 export function zufall(laenge: number): Bytes {
   return crypto.getRandomValues(new Uint8Array(laenge));
 }
+
+/**
+ * Erzwingt eine feste Bytelänge. Rust hat für IV, ephemeren Schlüssel und Umschlag-Chiffrat
+ * feste Größen (`Aes256Gcm` z. B. eine feste 12-Byte-Nonce) — ohne diese Prüfung öffnet ein
+ * TypeScript-Block im Reader, aber nicht in der Desktop-App.
+ */
+export function mitLaenge(b: Bytes, n: number, was: string): Bytes {
+  if (b.length !== n) throw new Error(`${was} muss ${n} Byte lang sein`);
+  return b;
+}
