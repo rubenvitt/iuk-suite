@@ -27,4 +27,28 @@ describe("zeit", () => {
     expect(dauerText(143)).toBe("2 h 23 min");
     expect(dauerText(5)).toBe("0 h 05 min");
   });
+  it("pinnt die Umstellungsnächte: die nicht existierende Stunde springt vor, die doppelte nimmt die zweite Instanz", () => {
+    // Frühjahr, 29.3.2026: 02:00–02:59 gibt es nicht (Sprung nach 03:00 Sommerzeit).
+    // 02:30 wird um die Umstellung nach vorn geschoben → 03:30 Sommerzeit (UTC+2) = 01:30 UTC.
+    expect(new Date(wandzeitZuInstant("2026-03-29", "02:30", Z)).toISOString()).toBe("2026-03-29T01:30:00.000Z");
+    // Herbst, 25.10.2026: 02:00–02:59 gibt es doppelt (erst Sommer-, dann Winterzeit).
+    // 02:30 ergibt die zweite, spätere Instanz (Winterzeit, UTC+1) = 01:30 UTC.
+    expect(new Date(wandzeitZuInstant("2026-10-25", "02:30", Z)).toISOString()).toBe("2026-10-25T01:30:00.000Z");
+  });
+  it("lehnt ein Datum ab, das nicht im Format JJJJ-MM-TT steht", () => {
+    expect(() => datumText("2026-9-3")).toThrow("Kein Datum im Format JJJJ-MM-TT: 2026-9-3");
+  });
+  it("lehnt eine Uhrzeit ab, die nicht im Format HH:MM steht", () => {
+    expect(() => wandzeitZuInstant("2026-09-23", "8:42", Z)).toThrow("Keine Uhrzeit im Format HH:MM: 8:42");
+  });
+  it("lehnt einen ungültigen Zeitpunkt ab", () => {
+    expect(() => zeitpunktText("kaputt", Z)).toThrow("Kein gültiger Zeitpunkt: kaputt");
+  });
+  it("lehnt eine Dauer ab, die negativ oder keine ganze Zahl ist", () => {
+    expect(() => dauerText(-125)).toThrow("Dauer muss eine ganze Zahl ab 0 sein");
+    expect(() => dauerText(1.5)).toThrow("Dauer muss eine ganze Zahl ab 0 sein");
+  });
+  it("dauerText(0) ergibt „0 h 00 min“", () => {
+    expect(dauerText(0)).toBe("0 h 00 min");
+  });
 });
