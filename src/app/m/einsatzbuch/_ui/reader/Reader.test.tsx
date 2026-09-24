@@ -193,6 +193,31 @@ describe("Reader", () => {
     expect(query("[data-kettenpruefung]").textContent).toContain("Gebrochen bei Block");
   }, LANG);
 
+  it("gebrochene Kette: Blatt ohne „(geprüft im Reader)“, Siegel nur für geprüfte Blöcke", async () => {
+    const inhalt = await entschluesseleExport(erwartet.export, KW);
+    const zwei = inhalt.bloecke[1];
+    inhalt.bloecke[1] = { ...zwei, kopf: { ...zwei.kopf, versiegelt: "2026-08-29T19:34:00+02:00" } };
+    await mount(<Reader bereitschaft="B" />);
+    await oeffne("manipuliert.einsatzbuch", JSON.stringify(await verschluesseleExport(inhalt, KW, erwartet.export.kopf)), KW);
+    await warte(() => expect(exists('[aria-label="Einsatzkette"]')).toBe(true));
+    expect(query("[data-kettenpruefung]").textContent).toContain("Gebrochen bei Block 2");
+
+    // Block 3 liegt hinter der Bruchstelle: nicht bestätigt.
+    await clickElement(knopf("PDF erzeugen"));
+    let blatt = queryPortal("[data-bericht]").textContent ?? "";
+    expect(blatt).toContain("Unveränderlichkeit nicht bestätigt");
+    expect(blatt).toContain("Gebrochen bei Block 2");
+    expect(blatt).not.toContain("(geprüft im Reader)");
+    await clickElement(knopf("Schließen", queryPortal("[data-druck-steuer]")));
+
+    // Block 1 liegt vor der Bruchstelle: geprüft, also unverändert — der Zusatz fehlt trotzdem.
+    await clickElement(query('[data-block="1"]'));
+    await clickElement(knopf("PDF erzeugen"));
+    blatt = queryPortal("[data-bericht]").textContent ?? "";
+    expect(blatt).toContain("Unverändert seit der Versiegelung");
+    expect(blatt).not.toContain("(geprüft im Reader)");
+  }, LANG);
+
   it("zeigt das Testband, sobald ein Block `umgebung: \"test\"` trägt", async () => {
     const paar = await erzeugeSchluesselpaar();
     const cek = zufall(32);

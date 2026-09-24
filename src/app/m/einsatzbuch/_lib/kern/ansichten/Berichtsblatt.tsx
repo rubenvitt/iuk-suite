@@ -6,9 +6,11 @@ import b from "./bericht.module.css";
 /**
  * Das Berichtsblatt (`docs/design/einsatzbuch-v2/vorlage/Einsatzbericht.dc.html`) aus
  * `bericht()`. Papier bleibt immer hell — deshalb ohne `.wurzel` und ohne Dunkelzweig.
- * Druckt auf der benannten Seite `einsatzbericht` (A4, `bericht.module.css`).
+ * Druckt auf der benannten Seite `einsatzbericht` (A4, `bericht.module.css`). `unveraendert` sagt,
+ * ob die Kettenprüfung diesen Block bestätigt hat — nur dann titelt der Siegelkasten
+ * „Unverändert seit der Versiegelung“; gedruckt werden darf auch ein Block aus gebrochener Kette.
  */
-export function Berichtsblatt({ daten: d, bereitschaft }: { daten: Berichtsdaten; bereitschaft: string }) {
+export function Berichtsblatt({ daten: d, bereitschaft, unveraendert }: { daten: Berichtsdaten; bereitschaft: string; unveraendert: boolean }) {
   return (
     <article className={b.blatt} data-bericht="">
       <header className={b.kopf}>
@@ -92,7 +94,7 @@ export function Berichtsblatt({ daten: d, bereitschaft }: { daten: Berichtsdaten
 
       <div className={b.fueller} />
       <section className={b.siegel}>
-        <h2 className={b.kicker}>Unverändert seit der Versiegelung</h2>
+        <h2 className={b.kicker}>{unveraendert ? "Unverändert seit der Versiegelung" : "Unveränderlichkeit nicht bestätigt"}</h2>
         <dl>
           <dt>Block</dt><dd>{`${d.block} · versiegelt ${d.versiegelt}`}</dd>
           <dt>Fingerabdruck</dt><dd className={b.hash}>{d.hash}</dd>

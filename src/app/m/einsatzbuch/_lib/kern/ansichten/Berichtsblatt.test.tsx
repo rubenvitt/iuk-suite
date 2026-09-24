@@ -18,12 +18,12 @@ const blatt = () => query("[data-bericht]").textContent ?? "";
 
 describe("Berichtsblatt", () => {
   it("Test-Block trägt „TESTDATEN“ im Kopf", async () => {
-    await mount(<Berichtsblatt daten={bericht(testBlock, TESTEINSAETZE[2], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" />);
+    await mount(<Berichtsblatt daten={bericht(testBlock, TESTEINSAETZE[2], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
     expect(query("header").textContent).toContain("TESTDATEN");
   });
 
   it("echter Block: kein „TESTDATEN“, Kopf, Raster, Tabellen, Siegel und Fuß", async () => {
-    await mount(<Berichtsblatt daten={bericht(bloecke[2], TESTEINSAETZE[2], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" />);
+    await mount(<Berichtsblatt daten={bericht(bloecke[2], TESTEINSAETZE[2], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
     const text = blatt();
     expect(text).not.toContain("TESTDATEN");
     const kopf = query("header").textContent ?? "";
@@ -40,6 +40,7 @@ describe("Berichtsblatt", () => {
     expect(queryAll("tbody tr").length).toBe(2);
     expect(text).toContain("Eingesetztes Personal · 2");
     expect(text).toContain("Unverändert seit der Versiegelung");
+    expect(text).not.toContain("Unveränderlichkeit nicht bestätigt");
     expect(text).toContain("3 · versiegelt 23.9.2026, 21:08 Uhr");
     expect(text).toContain(bloecke[2].hash);
     expect(text).toContain("Kette intakt (geprüft im Reader)");
@@ -48,9 +49,18 @@ describe("Berichtsblatt", () => {
     expect(query("[data-notizen]").textContent).toBe(TESTEINSAETZE[2].notizen);
   });
 
+  it("nicht bestätigter Block: Siegelkasten ohne „Unverändert seit der Versiegelung“", async () => {
+    const extra = { ...EXTRA, pruefung: "Gebrochen bei Block 2" };
+    await mount(<Berichtsblatt daten={bericht(bloecke[2], TESTEINSAETZE[2], extra)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert={false} />);
+    const text = blatt();
+    expect(text).toContain("Unveränderlichkeit nicht bestätigt");
+    expect(text).not.toContain("Unverändert seit der Versiegelung");
+    expect(text).toContain("Gebrochen bei Block 2");
+  });
+
   it("leere Listen", async () => {
     const leer = { ...TESTEINSAETZE[0], fahrzeuge: [], personal: [], notizen: "" };
-    await mount(<Berichtsblatt daten={bericht(bloecke[0], leer, EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" />);
+    await mount(<Berichtsblatt daten={bericht(bloecke[0], leer, EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
     const text = blatt();
     expect(text).toContain("Keine Fahrzeuge angegeben.");
     expect(text).toContain("Kein Personal angegeben.");

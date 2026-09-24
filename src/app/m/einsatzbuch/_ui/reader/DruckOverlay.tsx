@@ -9,7 +9,7 @@ import { bericht } from "../../_lib/kern/bericht";
 import type { Block, Einsatz } from "../../_lib/kern/format";
 import { zeitpunktText } from "../../_lib/kern/zeit";
 import { Berichtsblatt } from "../../_lib/kern/ansichten/Berichtsblatt";
-import { chipText, type Kettenzustand } from "../../_lib/kern/ansichten/modell";
+import { chipText, knotenFuer, type Kettenzustand } from "../../_lib/kern/ansichten/modell";
 import s from "./reader.module.css";
 
 export interface DruckOverlayProps {
@@ -44,7 +44,8 @@ export function DruckOverlay({ block, einsatz, kette, dateiname, bereitschaft, z
   }, [onSchliessen]);
 
   const daten = bericht(block, einsatz, {
-    pruefung: `${chipText(kette)} (geprüft im Reader)`,
+    // Wie die Vorlage: der Zusatz nur, wenn die Prüfung bestanden ist.
+    pruefung: kette.art === "intakt" ? `${chipText(kette)} (geprüft im Reader)` : chipText(kette),
     quelle: `Einsatzbuch Reader, aus ${dateiname}`,
     erzeugt,
     zeitzone,
@@ -66,7 +67,7 @@ export function DruckOverlay({ block, einsatz, kette, dateiname, bereitschaft, z
         <Button type="primary" icon={<PiPrinter aria-hidden />} onClick={drucken} ref={speichern}>Als PDF speichern</Button>
       </div>
       <div className={s.blattRahmen}>
-        <Berichtsblatt daten={daten} bereitschaft={bereitschaft} />
+        <Berichtsblatt daten={daten} bereitschaft={bereitschaft} unveraendert={knotenFuer(block.kopf.block, kette) === "geprueft"} />
       </div>
     </div>,
     document.body,
