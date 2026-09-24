@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Dropdown, Input, Modal, Popconfirm, Tag } from "antd";
 import {
@@ -18,6 +18,7 @@ import {
   wiederAnsetzenAction,
 } from "../actions";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../_lib/noten";
+import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
 import { AbendBearbeiten } from "./AbendBearbeiten";
 import { formatDatumLang, formatWochentag } from "./datum";
@@ -857,10 +858,9 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
 }
 
 /**
- * „Abend ohne Feedback nachtragen" (§2.5). Zwei Felder, kein `useActionState`:
- * §4.4 nennt GENAU DREI Formulare mit Feldfehlern, und dieses ist keins davon —
- * das Datum ist ein `<input type="date">` und damit vom Browser gepruefte
- * Eingabe.
+ * „Abend ohne Feedback nachtragen" (§2.5). Seit DRK-429 mit `useActionState`
+ * (§4.4): ein Tag, an dem die Gruppe schon einen Abend hat, kommt als
+ * Feldfehler am Datum zurück, und die Eingaben bleiben stehen.
  *
  * Vorbelegt mit `heute` in `Europe/Berlin`, das die SEITE gerechnet hat: eine
  * Vorbelegung aus `toISOString()` kippt zwischen 00:00 und 02:00 Ortszeit auf den
@@ -885,42 +885,88 @@ function NachtragenDialog({
       footer={null}
       destroyOnHidden
     >
-      <form
-        data-testid="verlauf-nachtragen"
-        /*
-         * GESCHLOSSEN WIRD DANACH, nicht im `onSubmit`. Mit `destroyOnHidden` baut
-         * der `Modal` sein Kind aus, sobald `open` auf `false` faellt — ein
-         * `onSubmit={schliessen}` riss das Formular also mitten aus der laufenden
-         * Action. Der Knopf haette weiter geklickt, nur nichts mehr angelegt, und
-         * genau das ist schlimmer als ein fehlender Knopf.
-         */
-        action={async (daten: FormData) => {
-          await createEveningAction(daten);
-          schliessen();
-        }}
-        className="fb-form"
-        style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
-      >
-        <input type="hidden" name="groupId" value={groupId} />
-        <p style={{ ...T.meta, margin: 0 }}>
-          Der Abend wird nur dokumentiert — es wird kein Feedback erhoben und kein QR-Code gültig.
-        </p>
-        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-          <span style={T.kicker}>Datum</span>
-          <Input type="date" name="date" defaultValue={heute} required />
-        </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-          <span style={T.kicker}>Thema</span>
-          <Input name="topic" placeholder="z. B. Funkübung" />
-        </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
-          <span style={T.kicker}>Teilnehmerzahl</span>
-          <Input type="number" name="participantCount" min={0} placeholder="optional" />
-        </label>
-        <Button type="primary" htmlType="submit">
-          Abend eintragen
-        </Button>
-      </form>
+      <NachtragenFormular groupId={groupId} heute={heute} schliessen={schliessen} />
     </Modal>
+  );
+}
+
+/**
+ * Das Formular als eigenes Bauteil INNERHALB des `Modal`: `destroyOnHidden`
+ * baut es beim Schließen aus, und mit ihm den `useActionState`-Zustand — ein
+ * wieder geöffneter Dialog zeigt also keinen Fehler vom letzten Mal.
+ *
+ * GESCHLOSSEN WIRD NACH DER ACTION und nur bei Erfolg, nicht im `onSubmit`:
+ * sonst risse der Ausbau das Formular mitten aus der laufenden Action, und ein
+ * Feldfehler hätte keinen Ort mehr.
+ */
+function NachtragenFormular({
+  groupId,
+  heute,
+  schliessen,
+}: {
+  groupId: number;
+  heute: string;
+  schliessen: () => void;
+}) {
+  const [state, formAction, isPending] = useActionState(
+    async (prev: FormState, daten: FormData) => {
+      const ergebnis = await createEveningAction(prev, daten);
+      if (ergebnis.ok) schliessen();
+      return ergebnis;
+    },
+    FORM_START,
+  );
+  const datumsFehler = feldFehler(state, "date");
+
+  return (
+    <form
+      data-testid="verlauf-nachtragen"
+      action={formAction}
+      className="fb-form"
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
+    >
+      <input type="hidden" name="groupId" value={groupId} />
+      <p style={{ ...T.meta, margin: 0 }}>
+        Der Abend wird nur dokumentiert — es wird kein Feedback erhoben und kein QR-Code gültig.
+      </p>
+      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+        <span style={T.kicker}>Datum</span>
+        <Input
+          type="date"
+          name="date"
+          defaultValue={feldWert(state, "date", heute)}
+          required
+          status={datumsFehler ? "error" : undefined}
+          aria-invalid={datumsFehler ? true : undefined}
+          aria-describedby={datumsFehler ? "fb-nachtragen-date-err" : undefined}
+        />
+        {datumsFehler && (
+          <span id="fb-nachtragen-date-err" style={T.meta}>
+            {datumsFehler}
+          </span>
+        )}
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+        <span style={T.kicker}>Thema</span>
+        <Input
+          name="topic"
+          defaultValue={feldWert(state, "topic", "")}
+          placeholder="z. B. Funkübung"
+        />
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
+        <span style={T.kicker}>Teilnehmerzahl</span>
+        <Input
+          type="number"
+          name="participantCount"
+          min={0}
+          defaultValue={feldWert(state, "participantCount", "")}
+          placeholder="optional"
+        />
+      </label>
+      <Button type="primary" htmlType="submit" loading={isPending} disabled={isPending}>
+        Abend eintragen
+      </Button>
+    </form>
   );
 }

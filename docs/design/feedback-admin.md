@@ -587,9 +587,17 @@ Modul nicht vor, auch nicht in Client-Komponenten: eine Regel, die man nicht pro
 Der Brief nennt `useActionState`; der Basisentwurf lehnte `Form.Item` ab und wollte Serverfehler als
 `?fehler=` + `Alert`. **Entschieden: `useActionState`, kein `Form`/`Form.Item`, Fehler am Feld.**
 
-**Genau drei Formulare** benutzen es: das Startformular der Lagekarte, das Gruppen-Formular in Zone e
-und „Kennung hinzufügen". Alles andere sind Knopf-Aktionen ohne Eingabe und brauchen keinen
-Zustand.
+**Genau fünf Formulare** benutzen es: das Startformular der Lagekarte, das Gruppen-Formular in Zone e,
+„Kennung hinzufügen", „Abend ohne Feedback nachtragen" und die Zeilenbearbeitung eines Abends. Die
+letzten beiden kamen mit DRK-429 dazu: an einem Tag, an dem die Gruppe schon einen Abend hat, legt
+kein Weg einen zweiten an, und der belegte Tag kommt als Feldfehler am Datum zurück. Alles andere
+sind Knopf-Aktionen ohne Eingabe und brauchen keinen Zustand; der Planungsdialog prüft den Tag vor
+dem Absenden selbst.
+
+**Höchstens ein Dienstabend je Gruppe und Kalendertag** (DRK-429, Kalendertag in der Suite-Zone).
+„Feedback starten" an einem Tag mit einem *geplanten* Abend übernimmt ihn und gibt ihn frei; an einem
+Tag mit einem gelaufenen oder abgesagten Abend ist es ein Feldfehler. Ein abgesagter Abend belegt
+den Tag mit — er wird wieder angesetzt, nicht ersetzt.
 
 **Einheitlicher Rückgabetyp** (`_lib/formState.ts`):
 

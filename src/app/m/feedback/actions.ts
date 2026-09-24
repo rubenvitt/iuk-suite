@@ -16,7 +16,8 @@ import {
   updateGroup,
   setGroupSecret,
   deleteGroup,
-  insertEvening,
+  trageAbendNach,
+  TagBelegt,
   updateEvening,
   deleteEvening,
   setEveningStatus,
@@ -429,19 +430,43 @@ export async function removeGroupLeaderAction(formData: FormData): Promise<void>
 }
 
 // ---- Dienstabende ----
-export async function createEveningAction(formData: FormData) {
+/**
+ * „ABEND OHNE FEEDBACK NACHTRAGEN" (§2.5). Seit DRK-429 mit `useActionState`:
+ * ein Tag, an dem die Gruppe schon einen Abend hat, kommt als Feldfehler am
+ * Datum zurück — geworfen landete er auf der technischen Fehlerseite, und die
+ * Eingaben wären weg. Die Regel selbst steht bei `abendAmTag`.
+ */
+export async function createEveningAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const groupId = num(formData.get("groupId"));
   const { db, viewer } = await guardGroup(groupId);
-  return withAuditContext({ actor: auditActor(viewer) }, async () => {
-    insertEvening(db, {
-      groupId,
-      date: parseDate(formData.get("date")),
-      topic: strOrNull(formData.get("topic")),
-      notes: strOrNull(formData.get("notes")),
-      participantCount: parseCount(formData.get("participantCount")),
-      createdAt: new Date(),
-    });
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<FormState> => {
+    const values = {
+      date: String(formData.get("date") ?? "").trim(),
+      topic: String(formData.get("topic") ?? ""),
+      participantCount: String(formData.get("participantCount") ?? ""),
+    };
+    const date = datumOderFehler(values.date);
+    if (typeof date === "string") return { ok: false, fieldErrors: { date }, values };
+    try {
+      trageAbendNach(db, {
+        groupId,
+        date,
+        topic: strOrNull(values.topic),
+        notes: strOrNull(formData.get("notes")),
+        participantCount: parseCount(values.participantCount),
+        createdAt: new Date(),
+      });
+    } catch (e) {
+      if (e instanceof TagBelegt) {
+        return { ok: false, fieldErrors: { date: tagBelegtMeldung(e) }, values };
+      }
+      throw e;
+    }
     revalidate();
+    return { ok: true };
   });
 }
 /**
@@ -469,11 +494,19 @@ export async function createEveningAction(formData: FormData) {
  *    Eine geschlossene oder abgelaufene Umfrage läuft nicht mehr, ihre Frist
  *    ist Vergangenheit und Teil der Historie.
  */
-export async function updateEveningAction(formData: FormData) {
+export async function updateEveningAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const id = num(formData.get("id"));
   const { db, viewer } = await guardGroup(await groupIdOfEvening(id));
-  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<FormState> => {
     const vorher = getEvening(db, id)!;
+    // Nur die mitgeschickten Felder zurück: der Dialog rendert je Lage andere.
+    const values: Record<string, string> = {};
+    for (const feld of ["date", "topic", "participantCount", "notes"]) {
+      if (formData.has(feld)) values[feld] = String(formData.get(feld) ?? "");
+    }
 
     const patch: Partial<{
       date: Date;
@@ -481,7 +514,11 @@ export async function updateEveningAction(formData: FormData) {
       notes: string | null;
       participantCount: number | null;
     }> = {};
-    if (formData.has("date")) patch.date = parseDate(formData.get("date"));
+    if (formData.has("date")) {
+      const date = datumOderFehler(values.date.trim());
+      if (typeof date === "string") return { ok: false, fieldErrors: { date }, values };
+      patch.date = date;
+    }
     if (formData.has("topic")) patch.topic = strOrNull(formData.get("topic"));
     if (formData.has("notes")) patch.notes = strOrNull(formData.get("notes"));
     // ⚠️ NUR EIN ABEND, DER STATTGEFUNDEN HAT, NIMMT EINE TEILNEHMERZAHL AN —
@@ -496,7 +533,16 @@ export async function updateEveningAction(formData: FormData) {
     if (formData.has("participantCount") && vorher.status === "held") {
       patch.participantCount = parseCount(formData.get("participantCount"));
     }
-    updateEvening(db, id, patch);
+    // Ein Verschieben auf einen belegten Tag (DRK-429) ist ein Feldfehler am
+    // Datum, kein Wurf: sonst landete es auf der technischen Fehlerseite.
+    try {
+      updateEvening(db, id, patch);
+    } catch (e) {
+      if (e instanceof TagBelegt) {
+        return { ok: false, fieldErrors: { date: tagBelegtMeldung(e) }, values };
+      }
+      throw e;
+    }
 
     const datumNeu = patch.date;
     if (datumNeu && datumNeu.getTime() !== new Date(vorher.date).getTime()) {
@@ -512,14 +558,15 @@ export async function updateEveningAction(formData: FormData) {
       }
     }
     revalidate();
+    return { ok: true };
   });
 }
 /**
  * EINEN DIENSTABEND VORAUS EINTRAGEN (DRK-426).
  *
- * KEIN `useActionState`, und das ist dieselbe Entscheidung wie beim Nachtragen:
- * §4.4 nennt genau drei Formulare mit Feldfehlern, und dieses ist keins davon.
- * Das Datum ist ein `<input type="date">` und damit vom Browser geprüft.
+ * KEIN `useActionState`, anders als beim Nachtragen (DRK-429): der Dialog prüft
+ * den Tag schon VOR dem Absenden (siehe unten), und das Datum ist ein
+ * `<input type="date">` und damit vom Browser geprüft.
  *
  * Eine Serienplanung (Takt, Enddatum, Vorschau) gab es hier einmal; sie ist
  * auf Wunsch des Betreibers wieder weg — angelegt wird immer genau ein Abend.
@@ -844,17 +891,26 @@ export async function startFeedbackAction(
 
     const group = getGroup(db, groupId)!;
     const hours = group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
-    createAndStartSurvey(db, {
-      groupId,
-      date,
-      topic: strOrNull(values.topic),
-      // `notes` fällt in der neuen Oberfläche weg (§2.3): ein viertes Feld ohne
-      // Leser. Nachtragbar über die Zeilenbearbeitung im Verlauf.
-      notes: null,
-      participants: parseCount(values.participantCount),
-      closeAfterHours: hours,
-      now: new Date(),
-    });
+    // Ein GEPLANTER Abend desselben Tages wird übernommen, ein gelaufener oder
+    // abgesagter wirft `TagBelegt` (DRK-429, Begründung an `createAndStartSurvey`).
+    try {
+      createAndStartSurvey(db, {
+        groupId,
+        date,
+        topic: strOrNull(values.topic),
+        // `notes` fällt in der neuen Oberfläche weg (§2.3): ein viertes Feld ohne
+        // Leser. Nachtragbar über die Zeilenbearbeitung im Verlauf.
+        notes: null,
+        participants: parseCount(values.participantCount),
+        closeAfterHours: hours,
+        now: new Date(),
+      });
+    } catch (e) {
+      if (e instanceof TagBelegt) {
+        return { ok: false, fieldErrors: { date: tagBelegtMeldung(e) }, values };
+      }
+      throw e;
+    }
     // Nur im Erfolgsfall (§4.4) — ein Feldfehler hat nichts revalidiert.
     revalidate();
     return { ok: true };
@@ -914,6 +970,26 @@ function parseDateOrNull(s: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   const d = new Date(`${s}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+/** Das Datum eines Formulars — oder die Meldung dazu, als Wert für §4.4. */
+function datumOderFehler(s: string): Date | string {
+  if (s === "") return "Datum fehlt";
+  return parseDateOrNull(s) ?? "Datum ungültig — bitte als Tag auswählen";
+}
+/**
+ * WAS AM TAG SCHON STEHT, entscheidet, welchen Weg die Meldung nennt: einen
+ * geplanten gibt man frei, einen abgesagten setzt man wieder an. Ein
+ * gelaufener hat keinen Weg — zwei Erhebungen für einen Abend sind der Fehler.
+ */
+function tagBelegtMeldung(e: TagBelegt): string {
+  switch (e.abend.status) {
+    case "planned":
+      return "An diesem Tag ist schon ein Abend geplant — du findest ihn unter „Kommende Abende“.";
+    case "cancelled":
+      return "An diesem Tag steht ein abgesagter Abend — du kannst ihn im Verlauf wieder ansetzen.";
+    case "held":
+      return "An diesem Tag hat die Gruppe schon einen Dienstabend.";
+  }
 }
 function strOrNull(v: FormDataEntryValue | null): string | null {
   const s = String(v ?? "").trim();
