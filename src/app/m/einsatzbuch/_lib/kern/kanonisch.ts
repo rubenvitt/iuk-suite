@@ -36,7 +36,7 @@ export function kanonisch(wert: unknown): string {
  * kanonisch ist — `utf8(kanonisch(wert))` muss mit `bytes` übereinstimmen. Das fängt auch
  * ein führendes U+FEFF (BOM) ab, das `TextDecoder` sonst still entfernt: Ein Klartext mit
  * BOM bestünde `kanonisch(JSON.parse(text)) === text` scheinbar, obwohl seine Bytes nicht
- * kanonisch sind (Review Befund 1). Jeder Fehler — ungültiges UTF-8, `JSON.parse`,
+ * kanonisch sind. Jeder Fehler — ungültiges UTF-8, `JSON.parse`,
  * `kanonisch`-Wurf, jede Abweichung der Bytes — wird zu genau einer Meldung, damit kein
  * Aufrufer eine englische oder uneinheitliche Fehlermeldung durchreicht.
  */

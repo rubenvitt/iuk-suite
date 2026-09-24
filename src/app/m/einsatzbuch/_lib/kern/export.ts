@@ -43,7 +43,7 @@ const CHIFFRE_SCHLUESSEL = ["name", "laenge", "iv"] as const;
 /**
  * Formprüfung der äußeren Hülle, bevor nach dem Kennwort gefragt wird. Lehnt das Format der
  * Vorlage (`version: 1`) und jede andere Rundenzahl als 600 000 ab. Verlangt auf allen vier
- * Ebenen genau die erwarteten Schlüssel (Review Befund 2): `kopf` ist AAD, ein zusätzliches
+ * Ebenen genau die erwarteten Schlüssel: `kopf` ist AAD, ein zusätzliches
  * oder unbekanntes Feld darin würde sich sonst als `KennwortFalsch` melden statt als
  * Formfehler.
  */

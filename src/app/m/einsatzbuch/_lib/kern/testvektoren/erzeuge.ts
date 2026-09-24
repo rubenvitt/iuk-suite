@@ -20,7 +20,7 @@ import { schluesselIdVon } from "../umschlag";
  * und `block` aus `kette` — `grund` ist Oberflächentext. `zeitzone` in den Eingaben ist die
  * Suite-Zone, in der Berichte zu den Vektoren gerechnet werden; für die Blöcke selbst ohne Belang.
  *
- * Für Rust (Review Befund 5, reine Dokumentation, kein Vektor geändert):
+ * Für Rust:
  * - Das ECDH-Geheimnis (`kek` in `umschlag.ts`) ist die x-Koordinate des Kurvenpunkts,
  *   32 Byte (`deriveBits` mit 256 Bit für P-256).
  * - AES-GCM hängt den 16-Byte-Tag ans Chiffrat: `daten` (Block) bzw. `umschlag.ct`
