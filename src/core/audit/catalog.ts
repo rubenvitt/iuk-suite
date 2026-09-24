@@ -314,7 +314,42 @@ export const AUDIT_TABLES = {
       ]
     }
   },
-  "einsatzbuch": {},
+  "einsatzbuch": {
+    "fahrzeug": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "person": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "stichwort": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "einstellung": {
+      "mode": "audited",
+      "primaryKey": [
+        "schluessel"
+      ]
+    },
+    "schluesselpaar": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "stammdatenstand": {
+      "mode": "excluded",
+      "reason": "Technischer Versionszähler (ETag); jede Änderung, die ihn erhöht, steht bereits als Audit-Zeile der Stammdatentabelle im Log."
+    }
+  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",
