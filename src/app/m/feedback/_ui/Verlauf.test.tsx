@@ -110,7 +110,7 @@ function zeichne(zeilen: VerlaufZeile[]): HTMLElement {
 
 /** Die Zeilen der breiten Darstellung — antds `Table` schreibt sie als `<tr>`. */
 const tabellenzeilen = (wirt: HTMLElement): HTMLElement[] => [
-  ...wirt.querySelectorAll<HTMLElement>(".fb-verlauf-breit tbody tr.ant-table-row"),
+  ...wirt.querySelectorAll<HTMLElement>("[data-rolle='breitansicht'] tbody tr.ant-table-row"),
 ];
 
 /** Die Bloecke der schmalen Darstellung (§2.5, 68px je Abend). */
@@ -445,8 +445,8 @@ describe("Verlauf — Quelltext-Zusagen, die im Markup nicht sichtbar sind", () 
   it("benutzt KEIN `useBreakpoint()` — beide Darstellungen liegen im HTML (§2.5)", () => {
     expect(CODE).not.toContain("useBreakpoint");
     const wirt = zeichne([zeile({})]);
-    expect(wirt.querySelectorAll(".fb-verlauf-breit")).toHaveLength(1);
-    expect(wirt.querySelectorAll(".fb-verlauf-schmal")).toHaveLength(1);
+    expect(wirt.querySelectorAll("[data-rolle='breitansicht']")).toHaveLength(1);
+    expect(wirt.querySelectorAll("[data-rolle='schmalkarten']")).toHaveLength(1);
   });
 
   it("laesst die Tabelle nicht horizontal scrollen (§2.5) — gemessen am DOM", () => {
@@ -465,15 +465,23 @@ describe("Verlauf — Quelltext-Zusagen, die im Markup nicht sichtbar sind", () 
      * ohne sie waere die Zusicherung oben trivial erfuellt.
      */
     const wirt = zeichne([zeile({}), zeile({ eveningId: 2, datum: "2026-07-15" })]);
-    expect(wirt.querySelectorAll(".fb-verlauf-breit .ant-table")).toHaveLength(1);
-    expect(wirt.querySelectorAll(".fb-verlauf-breit .ant-table-scroll-horizontal")).toHaveLength(0);
+    expect(wirt.querySelectorAll("[data-rolle='breitansicht'] .ant-table")).toHaveLength(1);
+    expect(
+      wirt.querySelectorAll("[data-rolle='breitansicht'] .ant-table-scroll-horizontal"),
+    ).toHaveLength(0);
   });
 
-  it("schaltet die beiden Darstellungen in `feedback.css` bei 768px", () => {
+  it("schaltet die beiden Darstellungen ueber `Kartentabelle`, nicht in `feedback.css`", () => {
+    /*
+     * Seit DRK-452 traegt `core/tabelle` die Media Query der Liste. Eine
+     * zweite Umschaltung in `feedback.css` daneben waere ein zweiter Ort fuer
+     * denselben Breakpoint — und die beiden koennten auseinanderlaufen, ohne
+     * dass jsdom es sieht (es wertet keine Media Queries aus).
+     */
+    expect(CODE).toMatch(/<Kartentabelle</);
     const css = quelle("feedback.css");
-    expect(css).toContain(".fb-verlauf-breit");
-    expect(css).toContain(".fb-verlauf-schmal");
-    expect(css).toMatch(/@media \(min-width: 768px\)/);
+    expect(css).not.toContain(".fb-verlauf-breit");
+    expect(css).not.toContain(".fb-verlauf-schmal");
   });
 
   it("gliedert die Tabelle mit der Haarlinie des Moduls, nicht mit antds Vorgabe (§2.5)", () => {
@@ -678,7 +686,7 @@ describe("Verlauf — Abend loeschen (§4.6)", () => {
  */
 describe("Verlauf — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Leiste", () => {
   function spaltenkopf(beschriftung: string): HTMLElement {
-    const th = [...document.querySelectorAll<HTMLElement>(".fb-verlauf-breit thead th")].find(
+    const th = [...document.querySelectorAll<HTMLElement>("[data-rolle='breitansicht'] thead th")].find(
       (t) => (t.textContent ?? "").includes(beschriftung),
     );
     if (!th) throw new Error(`Kein Spaltenkopf „${beschriftung}“`);
@@ -686,7 +694,7 @@ describe("Verlauf — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Le
   }
 
   const reihenfolge = () =>
-    [...document.querySelectorAll<HTMLElement>(".fb-verlauf-breit tbody tr[data-row-key]")].map(
+    [...document.querySelectorAll<HTMLElement>("[data-rolle='breitansicht'] tbody tr[data-row-key]")].map(
       (tr) => tr.getAttribute("data-row-key"),
     );
 
@@ -749,6 +757,32 @@ describe("Verlauf — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Le
 
     await filterWaehlen("Zustand", "Entwurf (Altbestand)");
     expect(reihenfolge()).toEqual(["2"]);
+    // Die Bloecke der schmalen Darstellung lesen DENSELBEN Filterzustand
+    // (DRK-452) — ein Wechsel der Fenstergroesse zeigt keine andere Menge.
+    expect(bloecke(document.body)).toHaveLength(1);
+  });
+
+  it("sortiert die Bloecke wie die Tabelle, sobald ein Spaltenkopf geklickt ist", async () => {
+    await mount(
+      zone([
+        zeile({ eveningId: 1, datum: "2026-07-01", avgSchulnote: 4.6, thema: "Schlecht" }),
+        zeile({ eveningId: 2, datum: "2026-07-08", avgSchulnote: 1.4, thema: "Gut" }),
+      ]),
+    );
+    await clickElement(spaltenkopf("Ø Note"));
+    await clickElement(spaltenkopf("Ø Note"));
+    expect(reihenfolge()).toEqual(["1", "2"]);
+    expect(bloecke(document.body).map((b) => b.textContent)).toEqual([
+      expect.stringContaining("Schlecht"),
+      expect.stringContaining("Gut"),
+    ]);
+  });
+
+  it("unterscheidet am Telefon „nichts angelegt“ von „nichts passt zum Filter“", async () => {
+    await mount(zone([zeile({ eveningId: 1, datum: "2026-07-01", entwurf: false })]));
+    await filterWaehlen("Zustand", "Entwurf (Altbestand)");
+    const leer = document.querySelector("[data-rolle='schmalkarten-leer']");
+    expect(leer?.textContent).toBe("Kein Abend passt zum Filter.");
   });
 });
 

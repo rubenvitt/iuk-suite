@@ -146,3 +146,27 @@ it("reicht die Reihenfolge der Abfrage unveraendert durch und ordnet nicht selbs
  // Und kein Spaltenkopf bietet ueberhaupt an, daran zu drehen.
  expect(document.querySelectorAll(".ant-table-column-sorter")).toHaveLength(0);
 });
+
+/**
+ * DIE KARTE IST AUS DEN SPALTEN ABGELEITET (DRK-452), nicht daneben von Hand
+ * gebaut. Festgehalten wird, was ohne Wunsch an `Kartentabelle` falsch stünde:
+ * die erste Spalte ist hier die ZEIT, also muss die Überschrift ausdrücklich
+ * „Aktion / Objekt" sein, und „Details" ist keine „Aktion(en)"-Spalte, die das
+ * Bauteil von selbst erkennt.
+ */
+it("baut die Karte aus den Spalten: Aktion als Titel, Ergebnis daneben, Details unten",async()=>{
+ await mount(<AuditLog view={{...ready,page:{events:[{...event,origin:"browser"}]}}} search={{}}/>);
+ const karte=document.querySelector('[data-rolle="schmalkarten"] [data-karte-key]')!;
+ expect(karte).not.toBeNull();
+ const titel=karte.querySelector("article > div:first-child")!;
+ expect(titel.textContent).toContain("Vom Browser gemeldet");
+ expect(titel.textContent).toContain("Erfolgreich");
+ const beschriftungen=Array.from(karte.querySelectorAll("dt")).map(dt=>dt.textContent);
+ expect(beschriftungen).toEqual(["Zeit","Modul","Person / Zugang"]);
+ const knopf=karte.querySelector<HTMLButtonElement>('button[aria-label^="Details:"]')!;
+ expect(knopf).not.toBeNull();
+ await clickElement(knopf);
+ expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Ereignisdetails");
+ // Und die Tabelle daneben bleibt eine Zeile — kein zweites Protokoll.
+ expect(document.querySelectorAll('[data-rolle="breitansicht"] tbody tr[data-row-key]')).toHaveLength(1);
+});

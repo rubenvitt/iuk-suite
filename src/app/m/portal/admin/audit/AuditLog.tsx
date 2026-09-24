@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Alert, Button, Card, Checkbox, Input, Modal, Select, Space, Tag } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import { Kartentabelle } from "@/core/tabelle";
 import type { AuditCursor, AuditEvent } from "@/core/audit/types";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -66,7 +66,20 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
     {ready?.transferFailed && <Alert type="warning" showIcon title="Ereignisübernahme gestört" description="Einige Ereignisse konnten noch nicht übernommen werden. Die angezeigte Liste kann unvollständig sein. Lade die Ansicht erneut; bleibt die Meldung bestehen, prüfe die Ereignisübernahme." />}
     {ready && ready.pending > 0 && <Alert type="info" showIcon title="Ereignisse werden noch übernommen" description={`${ready.pending} Ereignisse warten noch auf die Übernahme. Lade die Ansicht erneut.`} />}
     {ready && (ready.page.events.length ? <>
-      <div className={css.desktop}>
+      {/*
+        * EINE LISTE, ZWEI DARSTELLUNGEN — über `Kartentabelle` (DRK-452). Die
+        * Karte ist aus den Spalten abgeleitet, statt daneben von Hand
+        * nachgebaut: Titel ist „Aktion / Objekt" (die erste Spalte trägt hier
+        * die ZEIT, wie in jedem Protokoll), das Ergebnis steht als Kennzeichen
+        * daneben, „Details" unten über die volle Breite.
+        *
+        * Die Filter- und Sortierleiste der Karten bleibt hier leer, und das ist
+        * dieselbe Festlegung wie unten an der Tabelle: keine Spalte trägt
+        * `filters` oder `sorter`. Die Leertexte des Bauteils erreicht die Liste
+        * nie — eine leere Seite steht als eigene Karte weiter unten, weil sie
+        * drei Fälle unterscheidet, die ein Satz nicht trägt.
+        */}
+      <div className={css.liste}>
         {/*
           * SORTIERT WIRD ÜBER `occurredAt`, NIE ÜBER `auditTime(...)`: der
           * Anzeigetext ist ein formatierter Zeitpunkt und sortierte als
@@ -97,7 +110,9 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           * Spaltenfilter nie koennte. Dieselbe Regel gilt im Journal des
           * Lagerbuchs (DRK-331); dort stand sie erst nach einem Review.
           */}
-        <Datentabelle<AuditEvent> rowKey="id" dataSource={ready.page.events} scroll={{x:960}} columns={[
+        <Kartentabelle<AuditEvent> aria-label="Audit-Ereignisse" rowKey="id" dataSource={ready.page.events} scroll={{x:960}}
+          leer={{nichts:"Keine Einträge auf dieser Seite."}}
+          karte={{titel:"action",kennzeichen:["result"],aktionen:"details"}} columns={[
           {title:"Zeit",key:"time",width:190,render:(_,event)=><time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>},
           {title:"Modul",width:130,dataIndex:"module",render:(module:string)=>MODULE_LABELS[module] ?? module},
           {title:"Aktion / Objekt",width:200,key:"action",render:(_,event)=><>{ACTION_LABELS[event.action]}<br/><span style={SCHRIFT.neben}>{objectLabel(event.objectType)}</span>{event.origin==="browser"&&<div><Tag>Vom Browser gemeldet</Tag></div>}</>},
@@ -106,13 +121,6 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           {title:"Details",width:120,key:"details",render:(_,event)=><Button onClick={()=>setDetails(event)} aria-label={`Details: ${objectLabel(event.objectType)}`}>Details</Button>},
         ]} />
       </div>
-      <div className={css.mobile} style={{gap:SPACE.md}}>{ready.page.events.map(event=><Card key={event.id}>
-        <time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>
-        <p><strong>{ACTION_LABELS[event.action]} · {objectLabel(event.objectType)}</strong></p>
-        <p className={css.break}>{MODULE_LABELS[event.module] ?? event.module} · {actorLabel(event)}</p>
-        <Space wrap><Tag>{RESULT_LABELS[event.result]}</Tag>{event.origin==="browser"&&<Tag>Vom Browser gemeldet</Tag>}</Space>
-        <div style={{marginBlockStart:SPACE.md}}><Button block onClick={()=>setDetails(event)}>Details</Button></div>
-      </Card>)}</div>
     </> : <Card><h2 style={SCHRIFT.unterTitel}>{ready.filtered ? "Keine passenden Einträge" : ready.transferFailed || ready.pending ? "Noch keine übernommenen Einträge" : "Noch keine Ereignisse"}</h2>
       <p>{ready.filtered ? "Ändere die Filter oder setze sie zurück." : "Das Audit-Log erfasst Ereignisse ab der Aktivierung. Frühere Vorgänge werden nicht nachträglich rekonstruiert."}</p>
       {committed.includeSystem !== "1" && <p>Systemeinträge sind ausgeblendet. Aktiviere Systemeinträge anzeigen und wähle Filter anwenden, um sie einzublenden.</p>}</Card>)}
