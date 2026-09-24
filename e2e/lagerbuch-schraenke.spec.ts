@@ -206,12 +206,12 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     const verfallFeld = zugangForm.getByLabel("Verfallsmonat");
     await verfallFeld.click();
     await verfallFeld.fill(verfallsmonat);
-    await page.keyboard.press("Enter");
-    // Panel schliessen ueber einen Klick auf eine inerte Ueberschrift, NICHT
-    // ueber `Escape` — Escape ist bei antds Picker ein ABBRUCH und koennte den
-    // gerade eingetippten Wert wieder verwerfen; ein Klick daneben schliesst
-    // nur das Panel (Ausserhalb-Klick-Erkennung).
+    // ⛔ KEIN `Enter`: es schickt das ganze Zugangsformular ab (DRK-415, gegen den gebauten
+    // Stand gemessen — `bucheZugang` lief, das Formular stand danach leer). Panel schliessen
+    // per Klick auf eine inerte Ueberschrift, NICHT per `Escape` (bei antds Picker ein
+    // ABBRUCH); der Klick daneben uebernimmt den getippten Wert.
     await page.getByRole("heading", { name: "Zugang buchen" }).click();
+    await expect(verfallFeld).toHaveValue(verfallsmonat);
 
     const zugangAntwort = serverActionAntwort(page);
     await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));

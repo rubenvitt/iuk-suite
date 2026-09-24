@@ -345,7 +345,7 @@ export async function warteAufDarstellung(page: Page): Promise<void> {
  * zu behaupten — und das ist richtig: ohne Leiste gibt es nichts zu warten.
  */
 export async function warteAufSpaltenaufteilung(page: Page): Promise<void> {
-  await expect.poll(() => page.evaluate(() => {
+  await warteAufGestreamteInhalte(page); await expect.poll(() => page.evaluate(() => {
     const inhalt = document.querySelector(".ant-layout-content");
     const leiste = document.querySelector(".ant-layout-sider");
     if (!inhalt) return false;
@@ -393,4 +393,24 @@ export async function warumNicht200(antwort: Response | null): Promise<string> {
     return ` — Router-Baum beginnt bei „${wurzel}": die Route ist bekannt, die SEITE hat abgewiesen (notFound() im Guard oder fehlende Daten)`;
   }
   return " — Router-Baum im Payload nicht gefunden (Format geaendert?)";
+}
+
+/**
+ * WARTET, BIS REACT SEINE GESTREAMTEN INHALTE EINGESETZT HAT (DRK-415, Falle 22).
+ *
+ * Next streamt Suspense-Inhalte als `<div hidden id="S:n">` hinter die Seite und
+ * setzt sie per Skript an ihren Platz. Gegen den gebauten Stand bleibt dieser
+ * Container gemessen bis ~350 ms NACH `load` stehen (React bündelt das
+ * Einsetzen), und solange steht der Inhalt DOPPELT im Baum: einmal sichtbar,
+ * einmal versteckt mit Breite 0. Ein Greifer trifft dann zwei Knoten (strict
+ * mode), eine Zählung doppelt so viele, eine Breitenmessung Nullen. Unter
+ * `next dev` war das Fenster von der Übersetzungszeit verdeckt.
+ *
+ * Ohne gestreamten Inhalt ist die Probe sofort wahr.
+ */
+export async function warteAufGestreamteInhalte(page: Page): Promise<void> {
+  await expect(
+    page.locator('div[hidden][id^="S:"]'),
+    "React hat gestreamte Suspense-Inhalte noch nicht eingesetzt",
+  ).toHaveCount(0);
 }

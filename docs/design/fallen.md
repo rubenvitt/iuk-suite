@@ -474,3 +474,20 @@ trifft oder eine Abhilfe umbauen will.
     braucht, fragt `lokalUeberHttp()`/`cookiesSicher()` aus `core/lokalHttp` (Laufzeit, Schalter
     `SUITE_LOKAL_HTTP=1`, den nur das e2e-Profil setzt; neben einer `https`-`AUTH_URL` bricht er den
     Boot ab). `core/lokalHttp.test.ts` verbietet `secure:` neben `NODE_ENV` im Quelltext.
+
+22. **Gestreamter Inhalt steht nach `load` noch eine Weile DOPPELT im Baum** (gemessen an DRK-415,
+    gegen den gebauten Stand, per Zeitreihe nach `page.goto` — nicht vermutet). Next streamt
+    Suspense-Inhalte als `<div hidden id="S:0">` hinter die Seite und setzt sie per Skript an ihren
+    Platz; React bündelt dieses Einsetzen. Gemessen stand der Container bis ~350 ms nach `load`,
+    und so lange trifft ein Greifer den Inhalt zweimal: einmal sichtbar, einmal versteckt mit Breite
+    0. Die Fehlerbilder klingen nach allem anderen — `strict mode violation` mit zwei gleichen
+    Knoten (einer davon `[id="S:0"] > …`), acht statt vier Kacheln, eine Kachel „nur 0px breit".
+    Unter `next dev` lag das Fenster innerhalb der Übersetzungszeit und fiel nie auf; seit die CI
+    vorgebaut fährt, trifft es drei Dateien in wechselnden Viewports. **Abhilfe:**
+    `warteAufGestreamteInhalte(page)` aus `e2e/fixtures.ts` vor jeder Zählung, jedem Greifer im
+    strict mode auf gestreamten Inhalt und jeder Messung; `warteAufSpaltenaufteilung` ruft sie mit.
+    ⚠️ **Verwandt, aber eine eigene Ursache: `Enter` in antds Monatsauswahl schickt das umgebende
+    Formular ab.** Unter `next dev` fing der Picker das Enter meist noch ab, gebaut nicht mehr —
+    `bucheZugang` lief mit dem halb ausgefüllten Formular, danach stand es leer, und der Test lief
+    60 s in eine Antwort, die nie kam. Den Wert per Klick daneben übernehmen und ihn zusichern
+    (`lagerbuch-schraenke.spec.ts`).

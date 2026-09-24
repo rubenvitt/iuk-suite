@@ -72,6 +72,9 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 21. **`next build` backt `process.env.NODE_ENV` ein, auch im Servercode** — ein Zweig dahinter ist zur
     Laufzeit nicht mehr erreichbar. Unter `next start` brach so die e2e-Anmeldung (`Secure`-Cookies
     über http). Was die e2e-Suite im anderen Zweig braucht, fragt `core/lokalHttp`.
+22. **Gestreamter Inhalt steht kurz nach `load` doppelt im DOM** (versteckt in `div[hidden id="S:n"]`,
+    im gebauten Stand bis ~350 ms). Vor Zählung, strict-Greifer oder Breitenmessung
+    `warteAufGestreamteInhalte` aus `e2e/fixtures.ts`; `warteAufSpaltenaufteilung` tut es mit.
 
 ### Hell/Dunkel und `core`
 
