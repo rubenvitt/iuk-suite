@@ -77,6 +77,11 @@ export function StammdatenFormular({
     ereignis.preventDefault();
     setFehler(null);
     setFeldFehler({});
+    // Ein geleertes Feld liefert `null`; das Schema hätte dafür nur einen englischen Typfehler.
+    if (art === "stichworte" && z.reihenfolge === null) {
+      setFeldFehler({ reihenfolge: "Bitte eine Zahl von 0 bis 9999 eintragen" });
+      return;
+    }
     setLaeuft(true);
     void speichere()
       .then((ergebnis) => {

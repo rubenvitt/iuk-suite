@@ -25,7 +25,8 @@ export const personEingabe = z.object({
 export const stichwortEingabe = z.object({
   gruppe: text(40, "Gruppe"),
   name: text(40, "Stichwort"),
-  reihenfolge: z.number().int("Reihenfolge ist eine ganze Zahl").min(0).max(9999),
+  reihenfolge: z.number({ error: "Reihenfolge ist eine ganze Zahl" }).int("Reihenfolge ist eine ganze Zahl")
+    .min(0, "Reihenfolge liegt außerhalb von 0 bis 9999").max(9999, "Reihenfolge liegt außerhalb von 0 bis 9999"),
   aktiv: z.boolean(),
 });
 

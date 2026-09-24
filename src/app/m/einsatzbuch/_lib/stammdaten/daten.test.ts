@@ -53,4 +53,9 @@ describe("Eingabeschemas", () => {
   it("Reihenfolge ist eine ganze Zahl von 0 bis 9999", () => {
     expect(stichwortEingabe.safeParse({ gruppe: "RD", name: "RD 1", reihenfolge: 1.5, aktiv: true }).success).toBe(false);
   });
+  it("geleerte Reihenfolge (null) meldet deutsch statt zods englischem Standardtext", () => {
+    const ergebnis = stichwortEingabe.safeParse({ gruppe: "RD", name: "RD 1", reihenfolge: null, aktiv: true });
+    expect(ergebnis.success).toBe(false);
+    expect(ergebnis.error?.issues[0]?.message).toBe("Reihenfolge ist eine ganze Zahl");
+  });
 });

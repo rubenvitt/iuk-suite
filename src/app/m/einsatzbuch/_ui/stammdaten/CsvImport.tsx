@@ -92,7 +92,13 @@ export function CsvImport({ art, onFertig }: { art: Stammdatenart; onFertig: () 
           accept=".csv,text/csv"
           aria-label="CSV-Datei"
           disabled={laeuft}
-          onChange={(e) => void gewaehlt(e.target.files?.[0])}
+          onChange={(e) => {
+            const eingabe = e.target;
+            // Zurücksetzen, sonst löst dieselbe Datei kein zweites `onChange` mehr aus (z. B. nach einer korrigierten CSV mit gleichem Namen).
+            void gewaehlt(eingabe.files?.[0]).finally(() => {
+              eingabe.value = "";
+            });
+          }}
         />
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Alert, App, Button, Input, InputNumber, Switch } from "antd";
+import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { einstellungenSpeichernAction } from "../_actions/einstellungen";
 import type { FeldFehler } from "../_lib/actionErgebnis";
@@ -65,6 +66,7 @@ export function EinstellungenFormular({ start }: { start: Einstellungen }) {
           />
           <span>Minuten</span>
         </div>
+        <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>1 bis 120 Minuten</div>
       </Feld>
 
       <label style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>

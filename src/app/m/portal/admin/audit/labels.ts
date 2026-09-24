@@ -15,6 +15,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  session:"Anmeldung",sessions:"Sitzungen",idp_refresh:"Sitzung beim Identitätsanbieter",access:"Modulzugriff",login_required:"Modulzugriff ohne Anmeldung",share_access:"Freigabezugriff",audit_log:"Audit-Log",browser_export:"Browserexport",bereich:"Bereich außerhalb des Kärtchens",
  share_file:"Datei aus Freigabe",share_archive:"Archiv aus Freigabe",inbox_file:"Datei aus Abgabe",inbox_archive:"Archiv der Abgaben",group_export:"Gruppenauswertung",evening_export:"Dienstabendauswertung",checklist_collection:"Fahrzeug-Checklisten",device_collection:"Funkgeräteübersicht",participant_export:"Teilnehmerauswertung",participant_collection:"Teilnehmerübersicht",proof_file:"Nachweisdatei",
  qr_png:"QR-Code als PNG",
+ fahrzeug:"Fahrzeug (Einsatzbuch)",person:"Person (Einsatzbuch)",stichwort:"Alarmstichwort",einstellung:"Einstellung",schluesselpaar:"Schlüsselpaar des Einsatzbuchs",
 };
 export function objectLabel(type: string): string { return OBJECT_LABELS[type] ?? "Weiteres Objekt"; }
 export function actorLabel(event: AuditEvent): string {
