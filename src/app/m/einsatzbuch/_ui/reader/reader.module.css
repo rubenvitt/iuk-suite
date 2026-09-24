@@ -94,7 +94,7 @@
 }
 .hashbox dd { margin: 0; font-family: var(--rd-mono); word-break: break-all; }
 
-/* ---------- Druck-Overlay (Portal an `body`, Entscheidung 5) ---------- */
+/* ---------- Druck-Overlay (Portal an `body`: die Druckregeln hängen am Overlay) ---------- */
 
 .druckOverlay { position: fixed; inset: 0; z-index: 2000; overflow: auto; background: rgb(0 0 0 / .55); padding: 24px 16px; }
 .steuer { max-width: 210mm; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #fff; color: #1a1d20; padding: 12px 16px; border-radius: 8px; }

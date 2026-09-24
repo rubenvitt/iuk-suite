@@ -48,8 +48,8 @@ function Inhalt({ e }: { e: Listeneintrag }) {
  * Umschaltknopf; die gewählte trägt `aria-pressed="true"`.
  */
 export function Kettenliste({ eintraege, gewaehlt, onWaehle, kopfRechts, fuss }: KettenlisteProps) {
-  // Bei doppelter Blocknummer (selbst gebaute Datei) waehlt nur der erste Treffer die Zeile aus —
-  // sonst truegen zwei Zeilen gleichzeitig aria-pressed="true".
+  // Bei doppelter Blocknummer (selbst gebaute Datei) wählt nur der erste Treffer die Zeile aus —
+  // sonst trügen zwei Zeilen gleichzeitig aria-pressed="true".
   const gewaehlterIndex = gewaehlt === null ? -1 : eintraege.findIndex((e) => e.block === gewaehlt);
   return (
     <section aria-label="Einsatzkette" className={`${s.wurzel} ${s.karte} ${s.liste}`}>

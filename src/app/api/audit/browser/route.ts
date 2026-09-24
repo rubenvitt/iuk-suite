@@ -56,9 +56,9 @@ export async function POST(request: Request) {
   if (!admit(actor.kind === "user" ? actor.id : "anonymous")) return new Response(null, { status: 429, headers: { "Retry-After": "60" } });
   const mod = getModule(event.module);
   const zugang = requiredGroupsFor(mod);
-  // canAccess ist für requiresAuth:false-Module (qr, einsatzbuch) für jeden wahr; ein Modul mit
-  // eigener Zugangsgruppe (einsatzbuch: einsatzbuch-verwaltung) verlangt sie hier zusätzlich,
-  // weil canAccess selbst keine Auskunft darüber gibt (Entscheidung 4, Stufe-3-Kontext).
+  // canAccess ist für requiresAuth:false-Module (qr, einsatzbuch) für jeden wahr; ein Modul mit eigener
+  // Zugangsgruppe (einsatzbuch: einsatzbuch-verwaltung) verlangt sie hier zusätzlich (Plan Stufe 3,
+  // `docs/superpowers/plans/2026-09-24-einsatzbuch-v2-stufe-3-reader.md`, Entscheidung 4).
   if (!canAccess(mod, groups) || (zugang.length > 0 && !hasAnyGroup(groups, zugang))) {
     auditDenied(event.module, actor, "browser_export");
     return new Response(null, { status: 403 });
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   try {
     withAuditContext({ actor }, () => recordAuditEvent({
       module: event.module, action: "export", objectType: `${event.module}_${event.format}`, origin: "browser", result: "success",
-      // Nur der Blockbereich, nie Inhalte oder Kennungen; storage.ts hasht objectRef unverändert (Entscheidung 3, Stufe-3-Kontext).
+      // Nur der Blockbereich, nie Inhalte oder Kennungen; storage.ts speichert objectRef nur als SHA-256 (suchbar, nicht lesbar).
       ...(event.module === "einsatzbuch" ? { objectRef: `bloecke:${event.von}-${event.bis}:${event.anzahl}` } : {}),
     }));
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });

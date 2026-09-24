@@ -23,7 +23,7 @@ export interface DruckOverlayProps {
 }
 
 /**
- * Das Berichtsblatt über der Seite, mit Steuerleiste (Entscheidung 5). Als Portal an `body`,
+ * Das Berichtsblatt über der Seite, mit Steuerleiste. Als Portal an `body`,
  * weil die Druckregeln in `reader.module.css` jedes andere Kind von `body` ausblenden — ein
  * Overlay tief in der Suite-Hülle bliebe mit ihr unsichtbar (Falle 18: Portale treffen
  * Druckregeln unter einem Suite-Rahmen nicht, also steht die Regel am Overlay selbst). Die

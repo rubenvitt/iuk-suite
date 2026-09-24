@@ -14,7 +14,7 @@ const KW = "testvektor-kennwort";
 const ZONE = "Europe/Berlin";
 const KOPF = { erstellt: "2026-09-24T10:00:00+02:00", umfang: "einzeln" as const, von: 1, bis: 1, anzahl: 1, quelle: "Test" };
 
-/** Ein Block mit bekanntem CEK; `umgebung` wählbar; `aendere` verbiegt den Einsatz VOR dem Versiegeln (gültige Krypto, kaputte Form). */
+/** Ein Block mit bekanntem CEK; `umgebung` wählbar; `einsatz` verbiegt den Einsatz VOR dem Versiegeln (gültige Krypto, kaputte Form). */
 async function datei(o: { umgebung?: "echt" | "test"; einsatz?: Record<string, unknown>; inhalt?: (i: Exportinhalt) => unknown; versiegelt?: string } = {}) {
   const paar = await erzeugeSchluesselpaar();
   const id = await schluesselIdVon(paar.publicKey);

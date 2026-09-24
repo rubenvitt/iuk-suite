@@ -35,9 +35,9 @@ export interface Geoeffnet {
 export type Oeffnung = { ok: true; wert: Geoeffnet } | { ok: false; fehler: string; kennwort: boolean };
 
 /**
- * Entschlüsselt mit dem Kennwort, prüft den Inhalt streng (zod, Entscheidung 1) und öffnet
- * jeden Block einzeln — ein Block ohne passenden oder gültigen CEK ist kein Formfehler der
- * ganzen Datei, sondern „Block n lässt sich nicht öffnen“ (Entscheidung 1 aus `kontext.md`).
+ * Entschlüsselt mit dem Kennwort, prüft den Inhalt streng mit zod und öffnet jeden Block einzeln;
+ * ein Block ohne gültigen CEK ist kein Formfehler der Datei, sondern „Block n lässt sich nicht
+ * öffnen“ (Plan Stufe 3, `docs/superpowers/plans/2026-09-24-einsatzbuch-v2-stufe-3-reader.md`, Entscheidung 1).
  */
 export async function oeffneExport(datei: Exportdatei, kennwort: string): Promise<Oeffnung> {
   let roh: unknown;

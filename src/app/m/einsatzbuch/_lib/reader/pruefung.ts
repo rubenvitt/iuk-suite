@@ -3,10 +3,10 @@ import { ausBase64 } from "../kern/bytes";
 import type { Einsatz, Exportinhalt } from "../kern/format";
 
 /**
- * zod-Prüfung für alles, woran die Anzeige nach dem Entschlüsseln abstürzen könnte
- * (Entscheidung 1 aus `kontext.md`). Der Kern prüft die Form bereits (`istExportinhalt`,
- * `istEinsatz`) — zod verschärft Datums-, Uhrzeit- und Zeitpunktformate (echter Kalendertag),
- * Hex-Längen, Längengrenzen und den CEK (gültiges Base64, genau 32 Byte).
+ * zod-Prüfung für alles, woran die Anzeige nach dem Entschlüsseln abstürzen könnte (Plan Stufe 3,
+ * `docs/superpowers/plans/2026-09-24-einsatzbuch-v2-stufe-3-reader.md`, Entscheidung 1). Der Kern
+ * prüft die Form bereits (`istExportinhalt`, `istEinsatz`); zod verschärft Datums-, Uhrzeit- und
+ * Zeitpunktformate (echter Kalendertag), Hex-Längen, Längengrenzen und den CEK (Base64, 32 Byte).
  */
 const ZEITPUNKT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))$/;
 function echterTag(j: number, m: number, t: number) { const d = new Date(Date.UTC(j, m - 1, t)); return d.getUTCFullYear() === j && d.getUTCMonth() === m - 1 && d.getUTCDate() === t; }

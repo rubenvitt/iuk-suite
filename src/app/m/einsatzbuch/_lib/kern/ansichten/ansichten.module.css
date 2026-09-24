@@ -33,9 +33,9 @@
 /* ---------- gemeinsame Bausteine ---------- */
 
 /*
- * `clip-path` haelt den Text im Barrierefreiheitsbaum und im `textContent` (Kettenliste: das
- * Trennzeichen zwischen den beiden Hashes). `display: none` oder `visibility: hidden` wuerden
- * ihn dort LOESCHEN.
+ * `clip-path` hält den Text im Barrierefreiheitsbaum und im `textContent` (Kettenliste: das
+ * Trennzeichen zwischen den beiden Hashes). `display: none` oder `visibility: hidden` würden
+ * ihn dort LÖSCHEN.
  */
 .srOnly {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
