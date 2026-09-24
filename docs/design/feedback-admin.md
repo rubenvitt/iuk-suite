@@ -884,8 +884,8 @@ Mobile Feldschrift: gilt inzwischen **suiteweit** und ohne Breakpoint. Die modul
 `app/globals.css` hält mit `input, textarea, select` eine **Untergrenze** für eigenes Markup —
 bewusst niedrig spezifisch, damit Modul-CSS sie nach oben überschreiben darf (der Abendzettel setzt
 `.textfeld` auf 18px und behält das) — und `core/theme/theme.ts` gibt den antd-Feldern
-`inputFontSize: 16`. Nur das antd-Auswahlfeld braucht in CSS erhöhte Spezifität, weil antd dafür
-keinen brauchbaren Token anbietet.
+`inputFontSize: 16`. Nur das antd-Auswahlfeld steht in CSS mit erhöhter Spezifität — nicht, weil der
+Token-Weg dort versagt (`fontSize` plus `lineHeight` träfe gemessen genauso), sondern der Übersicht wegen.
 
 ⚠️ **Diese Ausnahme stand bis DRK-190 auf `.ant-select-selector` — eine Klasse, die antd 6 nicht mehr
 rendert.** Sie lief also ins Leere, und weil ein Test ihren Regeltext bewachte, hat sie niemand
