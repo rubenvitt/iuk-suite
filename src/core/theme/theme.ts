@@ -81,7 +81,7 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
    */
   const kontur = dark ? FARBEN.konturAufDunkel : FARBEN.kontur;
   return {
-    algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben, erfolgDunkel] : [antdTheme.defaultAlgorithm, erfolgHell],
+    algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben, erfolgDunkel, warnungDunkel] : [antdTheme.defaultAlgorithm, erfolgHell, warnungHell],
     // CSS-Variablen statt eingebetteter Werte: der Moduswechsel ist damit ein
     // Variablen-Swap und keine Neu-Serialisierung der Stylesheets.
     cssVar: { key: "iuk" },
@@ -332,5 +332,34 @@ function erfolgDunkel(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<M
     colorSuccessText: FARBEN.okAufDunkel,
     colorSuccessTextHover: FARBEN.okAufDunkelHover,
     colorSuccessTextActive: FARBEN.okAufDunkelActive,
+  };
+}
+
+/**
+ * SUITE-GELB ALS STATUSMARKE LESBAR MACHEN (DRK-464) — dieselbe Bauform wie
+ * `erfolgHell`/`erfolgDunkel`. Anders als beim Grün wird hier in BEIDEN Modi
+ * `colorWarning` selbst gesetzt: antds Marke liest ihre Schrift aus genau
+ * diesem Token (`antd/es/tag/style/statusCmp.js`), und schon der helle Seed
+ * trägt auf Weiß keine 4,5:1. Hell kommt der Markengrund `gelbBg` dazu.
+ * Zahlen und Begründung an `FARBEN.gelbText`.
+ */
+function warnungHell(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<MappingAlgorithm>) {
+  return {
+    ...map!,
+    colorWarning: FARBEN.gelbText,
+    colorWarningBg: FARBEN.gelbBg,
+    colorWarningText: FARBEN.gelbText,
+    colorWarningTextHover: FARBEN.gelbTextHover,
+    colorWarningTextActive: FARBEN.gelbTextActive,
+  };
+}
+
+function warnungDunkel(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<MappingAlgorithm>) {
+  return {
+    ...map!,
+    colorWarning: FARBEN.gelbAufDunkel,
+    colorWarningText: FARBEN.gelbAufDunkel,
+    colorWarningTextHover: FARBEN.gelbAufDunkelHover,
+    colorWarningTextActive: FARBEN.gelbAufDunkelActive,
   };
 }
