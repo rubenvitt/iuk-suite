@@ -18,7 +18,7 @@ import {
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
   PiLockers, PiHandArrowDown, PiHandArrowUp, PiNotePencil, PiMapPinArea, PiTrayArrowDown,
-  PiAddressBook, PiGearSix,
+  PiAddressBook, PiGearSix, PiBookOpenText,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -65,6 +65,7 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   // DRK-471 — Begründung an der Union in `types.ts`.
   stammdaten: PiAddressBook,
   einstellungen: PiGearSix,
+  reader: PiBookOpenText,
 };
 
 /**

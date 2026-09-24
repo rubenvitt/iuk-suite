@@ -74,7 +74,12 @@ export type NavIkonName =
   // Fahrzeugen auch Personal und Alarmstichworte; `update` (PiArrowsClockwise)
   // heißt in radio die Gerätesoftware. Ein geliehener Name gäbe dem nächsten
   // Leser einen falschen Begriff statt eines fehlenden.
-  | "stammdaten" | "einstellungen";
+  | "stammdaten" | "einstellungen"
+  // DRK-471 (Stufe 3): der Reader, der eine Exportdatei im Browser öffnet. KEIN
+  // geliehener Name — `import` (PiUploadSimple) hieße „hochladen“, und genau das tut
+  // der Reader nicht; `journal` (PiClockCounterClockwise) meint eine Historie. Das
+  // offene Buch mit Text trägt das Lesen.
+  | "reader";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

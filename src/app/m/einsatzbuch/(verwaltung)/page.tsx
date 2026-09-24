@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { Card, Statistic } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
@@ -18,7 +19,7 @@ export default async function EinsatzbuchUebersicht() {
   const aktiv = <T extends { aktiv: boolean }>(l: T[]) => l.filter((x) => x.aktiv).length;
   return (
     <>
-      <Seitenkopf titel="Einsatzbuch" beschreibung="Hier pflegst du Fahrzeuge, Personal, Alarmstichworte und die Einstellungen für den Einsatzbuch-Rechner." />
+      <Seitenkopf titel="Einsatzbuch" beschreibung="Hier pflegst du Fahrzeuge, Personal, Alarmstichworte und die Einstellungen für den Einsatzbuch-Rechner." aktionen={<Link href="/reader">Einsatzdatei im Reader öffnen</Link>} />
       <KekHinweis status={status} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginTop: 16 }}>
         <Card><Statistic title="Fahrzeuge aktiv" value={aktiv(listeFahrzeuge(db))} /></Card>

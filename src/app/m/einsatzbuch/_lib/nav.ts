@@ -9,10 +9,11 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * `/m/einsatzbuch/stammdaten`), weil das Modul unter seinem eigenen Host an der Wurzel hängt.
  *
  * Alle Einträge hängen an `(verwaltung)/layout.tsx` (Host + Gruppe): wer die Leiste sieht,
- * darf jedes Ziel sehen. Stufe 3 hängt „Reader“ an.
+ * darf jedes Ziel sehen. Der Reader (Stufe 3) läuft ganz im Browser, braucht aber dieselbe Hülle.
  */
 export const EINSATZBUCH_NAV: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/", ikon: "uebersicht" },
   { key: "stammdaten", title: "Stammdaten", href: "/stammdaten", ikon: "stammdaten" },
   { key: "einstellungen", title: "Einstellungen", href: "/einstellungen", ikon: "einstellungen" },
+  { key: "reader", title: "Reader", href: "/reader", ikon: "reader" },
 ];
