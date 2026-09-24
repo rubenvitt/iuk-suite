@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>Einsatzbuch</title>
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/colors.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/typography.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/base.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/styles.css">
+<script src="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/_ds_bundle.js"></script>
+<script src="einsatzbuch-kern.js"></script>
+<style>
+@media print{@page{size:A4;margin:14mm 16mm}html,body{background:#fff!important}[data-app]{display:none!important}[data-druck-huelle]{position:static!important;overflow:visible!important;background:none!important;padding:0!important;display:block!important}[data-druck-steuer]{display:none!important}[data-druck]{box-shadow:none!important}[data-bericht]{width:auto!important;min-height:0!important;padding:0!important}}
+body{margin:0;background:var(--verw-body)}
+a{color:var(--iuk-marke)}a:hover{color:var(--brand-fill-hover)}
+input::placeholder,textarea::placeholder{color:var(--iuk-gedaempft);opacity:.8}
+button:focus-visible{outline:2px solid var(--iuk-marke);outline-offset:2px}
+</style>
+</helmet>
+<div data-app="1" style="min-height:100vh;background:var(--verw-body);color:var(--verw-text);font:400 14px/1.5714 var(--font-body)">
+
+<sc-if value="{{ istStart }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Willkommen" style="min-height:100vh;background:var(--brand-fill);color:#fff;display:flex;flex-direction:column">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;padding:48px 24px;text-align:center">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+        <div style="width:52px;height:5px;background:#fff"></div>
+        <div style="font:600 56px/1 var(--font-display);letter-spacing:.07em">EINSATZBUCH</div>
+        <div style="font:400 18px/1.4 var(--font-body)">DRK-Bereitschaft Uelzen</div>
+      </div>
+      <button onClick="{{ oeffnen }}" autoFocus="{{ true }}" style="height:72px;min-width:320px;padding:0 40px;border:none;border-radius:11px;background:#fff;color:#1a1d20;font:600 26px/1 var(--font-display);letter-spacing:.04em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:14px" style-hover="background:#f3f3f3" style-active="background:#e6e6e6">Einsatz öffnen<x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="pfeil-rechts" size="24" hint-size="24px,24px"></x-import></button>
+      <div style="font-size:15px;display:flex;align-items:center;gap:8px">
+        <span style="font:500 13px/24px var(--font-mono);padding:0 8px;border:1px solid rgba(255,255,255,.7);border-radius:4px">Enter</span>oder<span style="font:500 13px/24px var(--font-mono);padding:0 8px;border:1px solid rgba(255,255,255,.7);border-radius:4px">Leertaste</span>öffnet direkt das Formular
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:20px 32px;font-size:14px">
+      <div style="display:flex;align-items:center;gap:8px"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="16" hint-size="16px,16px"></x-import>Verschlüsselt und nur auf diesem Rechner gespeichert</div>
+      <button onClick="{{ zumLogin }}" style="height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.7);border-radius:8px;background:transparent;color:#fff;font:500 14px var(--font-body);cursor:pointer" style-hover="background:rgba(255,255,255,.12)">Verwaltung · Anmelden</button>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ mitKopf }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ kopfKlick }}" style="position:sticky;top:0;z-index:100">
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.SuiteKopf" modul-titel="{{ wortmarke }}" modul-key="einsatzbuch" eintraege="{{ keineApps }}" angemeldet="{{ angemeldet }}" nutzer="Ruben Vitt" theme-pref="{{ themePref }}" on-theme="{{ themaWechseln }}" sticky="{{ false }}" hint-size="100%,69px"></x-import>
+    <sc-if value="{{ menueOffen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:69px;right:16px;width:240px;background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:12px;box-shadow:0 8px 24px rgb(0 0 0/.12);padding:8px;display:flex;flex-direction:column;gap:4px">
+        <div style="padding:8px 10px"><div style="font-weight:600">Ruben Vitt</div><div style="font-size:12px;color:var(--iuk-gedaempft)">Leitung · angemeldet mit Pocket ID</div></div>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="text" icon="antd:logout" block="{{ true }}" on-click="{{ abmelden }}" style="{{ linksbuendig }}" hint-size="100%,44px">Abmelden</x-import>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+
+<sc-if value="{{ istForm }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Erfassung" style="max-width:1080px;margin:0 auto;padding:24px 24px 120px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="margin-left:-15px"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="text" icon="pfeil-links" on-click="{{ zurueck }}" hint-size="120px,44px">{{ zurueckLabel }}</x-import></div>
+      <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Einsatz erfassen · ohne Anmeldung</div>
+      <h1 style="margin:0;font:600 30px/1.15 var(--font-display);letter-spacing:.02em">{{ formTitel }}</h1>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 24px;font-size:14px;color:var(--verw-text-2)">
+        <span style="display:flex;align-items:center;gap:8px"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="16" hint-size="16px,16px"></x-import>Wird verschlüsselt gespeichert</span>
+        <span style="display:flex;align-items:center;gap:8px"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="16" hint-size="16px,16px"></x-import>Wird an die Einsatzkette angehängt</span>
+        <span style="display:flex;align-items:center;gap:8px"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="info" size="16" hint-size="16px,16px"></x-import>{{ fristSatz }}</span>
+      </div>
+    </div>
+    <sc-if value="{{ bearbeiten }}" hint-placeholder-val="{{ false }}">
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Hinweis" ton="info" hint-size="100%,44px">Noch <strong>{{ restText }}</strong> zum Ändern. Übernimm deine Änderungen rechtzeitig — sonst wird der zuletzt abgesendete Stand versiegelt.</x-import>
+    </sc-if>
+
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Alarmstichwort" hint-size="100%,220px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <sc-for list="{{ stichwortGruppen }}" as="g" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:start">
+            <div style="font:600 12px/44px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">{{ g.name }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <sc-for list="{{ g.items }}" as="sw" hint-placeholder-count="3">
+                <button onClick="{{ sw.waehlen }}" aria-pressed="{{ sw.aktiv }}" style="height:44px;padding:0 16px 0 19px;border:1px solid var(--verw-rand);border-radius:8px;background:{{ sw.bg }};box-shadow:inset 3px 0 0 {{ sw.kante }};color:var(--verw-text);font:600 18px/1 var(--font-display);letter-spacing:.02em;cursor:pointer" style-hover="border-color:var(--border-control)">{{ sw.name }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </x-import>
+
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Zeit und Einsatzort" hint-size="100%,300px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px">
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Beginn · Datum" type="date" value="{{ e.beginnDatum }}" on-change="{{ on.beginnDatum }}" hint-size="100%,74px"></x-import>
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Beginn · Uhrzeit" type="time" value="{{ e.beginnZeit }}" on-change="{{ on.beginnZeit }}" hint-size="100%,74px"></x-import>
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Ende · Datum" type="date" value="{{ e.endeDatum }}" on-change="{{ on.endeDatum }}" hint-size="100%,74px"></x-import>
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Ende · Uhrzeit" type="time" value="{{ e.endeZeit }}" on-change="{{ on.endeZeit }}" hint-size="100%,74px"></x-import>
+        </div>
+        <div style="font-size:12px;color:var(--iuk-gedaempft);font-variant-numeric:tabular-nums">{{ dauer }}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Straße, Hausnummer" value="{{ e.strasse }}" on-change="{{ on.strasse }}" placeholder="z. B. Bahnhofstraße 12" hint-size="100%,74px"></x-import>
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="PLZ, Ort" value="{{ e.ort }}" on-change="{{ on.ort }}" placeholder="z. B. 29525 Uelzen" hint-size="100%,74px"></x-import>
+        </div>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Objekt, Lage vor Ort" value="{{ e.objekt }}" on-change="{{ on.objekt }}" placeholder="z. B. Sporthalle, Zufahrt über Hof" hint-size="100%,74px"></x-import>
+      </div>
+    </x-import>
+
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Beteiligte Fahrzeuge" extra="{{ fzZaehler }}" hint-size="100%,420px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-if value="{{ fzHatAuswahl }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <sc-for list="{{ fzAuswahl }}" as="s" hint-placeholder-count="0">
+              <button onClick="{{ s.entfernen }}" aria-label="{{ s.aria }}" style="height:40px;padding:0 8px 0 12px;display:flex;align-items:center;gap:8px;border:1px solid var(--verw-rand);border-radius:8px;background:var(--iuk-flaeche-aktiv);color:var(--verw-text);cursor:pointer" style-hover="border-color:var(--iuk-marke)">
+                <span style="font:600 17px/1 var(--font-display);letter-spacing:.02em">{{ s.typ }}</span>
+                <span style="font:400 12px var(--font-mono);color:var(--verw-text-2)">{{ s.kennung }}</span>
+                <x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="kreuz" size="14" hint-size="14px,14px"></x-import>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ fzOhneAuswahl }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size:14px;color:var(--iuk-gedaempft)">Noch kein Fahrzeug ausgewählt. Such nach Typ, Funkrufname oder Standort.</div>
+        </sc-if>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" value="{{ fzSuche }}" on-change="{{ setFzSuche }}" on-key-down="{{ fzEnter }}" placeholder="Fahrzeug suchen — z. B. „RTW“, „83-1“ oder „Ebstorf“" aria-label="Fahrzeug suchen" hint-size="100%,44px"></x-import>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ fzFilter }}" as="o" hint-placeholder-count="9">
+            <button onClick="{{ o.waehlen }}" style="height:32px;padding:0 12px;border-radius:99px;border:1px solid {{ o.rand }};background:{{ o.bg }};color:var(--verw-text);font:{{ o.font }};cursor:pointer">{{ o.label }}</button>
+          </sc-for>
+        </div>
+        <div style="max-height:312px;overflow:auto;border:1px solid var(--verw-rand-2);border-radius:8px">
+          <sc-for list="{{ fzTreffer }}" as="f" hint-placeholder-count="6">
+            <button onClick="{{ f.toggle }}" aria-pressed="{{ f.aktiv }}" style="width:100%;display:grid;grid-template-columns:20px 84px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:48px;padding:0 12px;border:none;border-bottom:1px solid var(--verw-rand-2);background:{{ f.bg }};color:var(--verw-text);text-align:left;font-family:var(--font-body);cursor:pointer" style-hover="background:var(--iuk-flaeche-aktiv)">
+              <span style="width:20px;height:20px;border-radius:4px;border:1.5px solid {{ f.cbRand }};background:{{ f.cbBg }};display:flex;align-items:center;justify-content:center;color:#fff">
+                <sc-if value="{{ f.aktiv }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="haken" size="14" hint-size="14px,14px"></x-import></sc-if>
+              </span>
+              <span style="font:600 18px/1.2 var(--font-display);letter-spacing:.02em">{{ f.typ }}</span>
+              <span style="font:400 13px var(--font-mono);color:var(--verw-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.ruf }}</span>
+              <span style="font-size:12px;color:var(--iuk-gedaempft)">{{ f.standort }}</span>
+            </button>
+          </sc-for>
+          <sc-if value="{{ fzKeine }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 12px;color:var(--iuk-gedaempft)">Kein Fahrzeug gefunden für „{{ fzSuche }}“.</div></sc-if>
+        </div>
+        <div style="font-size:12px;color:var(--iuk-gedaempft)">{{ fzInfo }}</div>
+      </div>
+    </x-import>
+
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Eingesetztes Personal" extra="{{ peZaehler }}" hint-size="100%,460px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-if value="{{ peChips }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <sc-for list="{{ peAuswahl }}" as="s" hint-placeholder-count="0">
+              <button onClick="{{ s.entfernen }}" aria-label="{{ s.aria }}" style="height:40px;padding:0 8px 0 12px;display:flex;align-items:center;gap:8px;border:1px solid var(--verw-rand);border-radius:8px;background:var(--iuk-flaeche-aktiv);color:var(--verw-text);font:600 14px var(--font-body);cursor:pointer" style-hover="border-color:var(--iuk-marke)">
+                {{ s.name }}<span style="font:600 12px/1 var(--font-display);letter-spacing:.06em;color:var(--verw-text-2)">{{ s.quali }}</span>
+                <x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="kreuz" size="14" hint-size="14px,14px"></x-import>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ peZeilen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;border:1px solid var(--verw-rand-2);border-radius:8px">
+            <sc-for list="{{ peAuswahl }}" as="s" hint-placeholder-count="0">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 56px 220px 44px;gap:12px;align-items:center;min-height:52px;padding:0 4px 0 12px;border-bottom:1px solid var(--verw-rand-2)">
+                <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
+                <span style="font:600 13px/22px var(--font-display);letter-spacing:.06em;color:var(--verw-text-2)">{{ s.quali }}</span>
+                <select value="{{ s.fahrzeug }}" onChange="{{ s.setFz }}" aria-label="Fahrzeug" style="height:36px;padding:0 8px;border:1px solid var(--border-control);border-radius:8px;background:var(--verw-karte);color:var(--verw-text);font:400 16px var(--font-body);min-width:0">
+                  <sc-for list="{{ fzOptionen }}" as="o" hint-placeholder-count="0"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+                </select>
+                <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="text" icon="kreuz" aria-label="{{ s.aria }}" on-click="{{ s.entfernen }}" hint-size="44px,44px"></x-import>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ peOhneAuswahl }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size:14px;color:var(--iuk-gedaempft)">Noch niemand ausgewählt. Such nach Name oder Qualifikation.</div>
+        </sc-if>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" value="{{ peSuche }}" on-change="{{ setPeSuche }}" on-key-down="{{ peEnter }}" placeholder="Person suchen — Nachname, Vorname oder Qualifikation" aria-label="Person suchen" hint-size="100%,44px"></x-import>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ peFilter }}" as="o" hint-placeholder-count="9">
+            <button onClick="{{ o.waehlen }}" style="height:32px;padding:0 12px;border-radius:99px;border:1px solid {{ o.rand }};background:{{ o.bg }};color:var(--verw-text);font:{{ o.font }};cursor:pointer">{{ o.label }}</button>
+          </sc-for>
+        </div>
+        <div style="max-height:360px;overflow:auto;border:1px solid var(--verw-rand-2);border-radius:8px">
+          <sc-for list="{{ peTreffer }}" as="p" hint-placeholder-count="7">
+            <button onClick="{{ p.toggle }}" aria-pressed="{{ p.aktiv }}" style="width:100%;display:grid;grid-template-columns:20px minmax(0,1fr) 64px 120px;gap:12px;align-items:center;min-height:48px;padding:0 12px;border:none;border-bottom:1px solid var(--verw-rand-2);background:{{ p.bg }};color:var(--verw-text);text-align:left;font:{{ p.font }};cursor:pointer" style-hover="background:var(--iuk-flaeche-aktiv)">
+              <span style="width:20px;height:20px;border-radius:4px;border:1.5px solid {{ p.cbRand }};background:{{ p.cbBg }};display:flex;align-items:center;justify-content:center;color:#fff">
+                <sc-if value="{{ p.aktiv }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="haken" size="14" hint-size="14px,14px"></x-import></sc-if>
+              </span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span>
+              <span style="font:600 13px/22px var(--font-display);letter-spacing:.06em;color:var(--verw-text-2)">{{ p.quali }}</span>
+              <span style="font-size:12px;color:var(--iuk-gedaempft);font-weight:400">{{ p.ov }}</span>
+            </button>
+          </sc-for>
+          <sc-if value="{{ peKeine }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 12px;color:var(--iuk-gedaempft)">Niemand gefunden für „{{ peSuche }}“.</div></sc-if>
+        </div>
+        <div style="font-size:12px;color:var(--iuk-gedaempft)">{{ peInfo }}</div>
+      </div>
+    </x-import>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;align-items:start">
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Patienten" hint-size="100%,240px">
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ zaehler }}" as="z" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--verw-rand-2)">
+              <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px">{{ z.titel }}</div><div style="font-size:12px;color:var(--iuk-gedaempft)">{{ z.hilfe }}</div></div>
+              <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="minus-kraeftig" aria-label="{{ z.minusLabel }}" on-click="{{ z.minus }}" hint-size="44px,44px"></x-import>
+              <input value="{{ z.wert }}" onChange="{{ z.setzen }}" inputMode="numeric" aria-label="{{ z.titel }}" style="width:64px;height:44px;border:none;background:transparent;text-align:center;color:var(--verw-text);font:700 36px/1 var(--font-display);font-variant-numeric:tabular-nums">
+              <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="plus-kraeftig" aria-label="{{ z.plusLabel }}" on-click="{{ z.plus }}" hint-size="44px,44px"></x-import>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:baseline;padding-top:12px">
+            <div style="flex:1;font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Gesamt</div>
+            <div style="width:164px;text-align:center;font:700 30px/1 var(--font-display);font-variant-numeric:tabular-nums">{{ gesamt }}</div>
+          </div>
+        </div>
+      </x-import>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Notizen" hint-size="100%,240px">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <textarea value="{{ e.notizen }}" onChange="{{ on.notizen }}" placeholder="Lage, Übergaben, Besonderheiten …" style="min-height:150px;resize:vertical;padding:10px 12px;border:1px solid var(--border-control);border-radius:8px;background:var(--verw-karte);color:var(--verw-text);font:400 16px/1.5 var(--font-body)"></textarea>
+          <div style="font-size:12px;color:var(--iuk-gedaempft)">Keine Namen oder Diagnosen von Patienten eintragen.</div>
+        </div>
+      </x-import>
+    </div>
+  </main>
+  <div style="position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--verw-kopf);border-top:1px solid var(--verw-rand-2);box-shadow:0 -8px 24px rgb(0 0 0/.06)">
+    <div style="max-width:1080px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px">
+      <div style="flex:1 1 300px;min-width:0;font-size:14px;color:{{ bereitFarbe }}">{{ bereitText }}</div>
+      <sc-if value="{{ bearbeiten }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" on-click="{{ verwerfen }}" hint-size="160px,44px">Änderungen verwerfen</x-import>
+      </sc-if>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="pfeil-rechts" disabled="{{ unvollstaendig }}" on-click="{{ absenden }}" style="{{ breiterKnopf }}" hint-size="200px,44px">{{ absendenLabel }}</x-import>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ istFrist }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Frist" style="max-width:720px;margin:0 auto;padding:40px 24px;display:flex;flex-direction:column;gap:24px">
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" hint-size="100%,300px">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Abgesendet · noch änderbar</div>
+        <div style="display:flex;align-items:flex-end;gap:16px">
+          <div style="font:700 88px/.9 var(--font-display);font-variant-numeric:tabular-nums">{{ restText }}</div>
+          <div style="padding-bottom:8px;font-size:15px;color:var(--verw-text-2)">bis zur Versiegelung</div>
+        </div>
+        <div style="height:6px;border-radius:3px;background:var(--verw-rand-2);overflow:hidden"><div style="height:100%;width:{{ restProzent }};background:var(--verw-text)"></div></div>
+        <div style="font-size:15px;text-wrap:pretty">Danach wird der Einsatz verschlüsselt, an die Einsatzkette angehängt und ist hier nicht mehr einsehbar — auch nicht für dich. Nur die Verwaltung kann ihn nach der Anmeldung lesen.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="stift" on-click="{{ aendern }}" hint-size="160px,44px">Angaben ändern</x-import>
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="schluessel" on-click="{{ jetztVersiegeln }}" hint-size="180px,44px">Jetzt versiegeln</x-import>
+        </div>
+      </div>
+    </x-import>
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" title="Zusammenfassung" hint-size="100%,300px">
+      <div style="display:flex;flex-direction:column">
+        <sc-for list="{{ zusammenfassung }}" as="z" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--verw-rand-2)">
+            <div style="color:var(--iuk-gedaempft)">{{ z.k }}</div><div style="font-weight:500;text-wrap:pretty">{{ z.v }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </x-import>
+  </main>
+</sc-if>
+
+<sc-if value="{{ istVersiegelt }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Versiegelt" style="max-width:720px;margin:0 auto;padding:56px 24px;display:flex;flex-direction:column;align-items:center;gap:24px;text-align:center">
+    <div style="width:72px;height:72px;border-radius:999px;background:var(--iuk-ampel-ok-flaeche);color:var(--iuk-ampel-ok-text);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="36" hint-size="36px,36px"></x-import></div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center">
+      <h1 style="margin:0;font:600 30px/1.15 var(--font-display);letter-spacing:.02em">Einsatz versiegelt</h1>
+      <div style="font-size:15px;color:var(--verw-text-2);max-width:520px;text-wrap:pretty">Die Angaben sind verschlüsselt auf diesem Rechner gespeichert und an die Einsatzkette angehängt. Hier sind sie nicht mehr abrufbar.</div>
+    </div>
+    <sc-if value="{{ verfallen }}" hint-placeholder-val="{{ false }}">
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Hinweis" ton="warn" style="{{ textLinks }}" hint-size="100%,44px">Deine letzten Änderungen wurden nicht übernommen — die Frist war abgelaufen. Versiegelt ist der zuletzt abgesendete Stand.</x-import>
+    </sc-if>
+    <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center">
+      <div style="padding:12px 16px;border:1px solid var(--verw-rand);border-radius:8px;background:var(--verw-karte);text-align:left;opacity:.75">
+        <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Block {{ letzter.vorBlock }}</div>
+        <div style="font:400 13px var(--font-mono)">#{{ letzter.prevKurz }}</div>
+      </div>
+      <div style="width:48px;display:flex;align-items:center;justify-content:center;color:var(--iuk-gedaempft)"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="20" hint-size="20px,20px"></x-import></div>
+      <div style="padding:12px 16px 12px 19px;border:1px solid var(--verw-rand);border-radius:8px;background:var(--verw-karte);box-shadow:inset 3px 0 0 var(--iuk-ampel-ok-text);text-align:left">
+        <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-ampel-ok-text)">Block {{ letzter.block }} · neu</div>
+        <div style="font:400 13px var(--font-mono)">#{{ letzter.hashKurz }}</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--iuk-gedaempft)">Versiegelt am {{ letzter.zeit }}</div>
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="plus" on-click="{{ fertig }}" hint-size="200px,44px">Neuen Einsatz erfassen</x-import>
+  </main>
+</sc-if>
+
+<sc-if value="{{ istLogin }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Anmeldung" style="max-width:480px;margin:0 auto;padding:64px 24px">
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" hint-size="100%,300px">
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Verwaltung</div>
+          <h1 style="margin:0;font:600 24px/1.2 var(--font-display);letter-spacing:.02em">Anmelden, um Einsätze zu lesen</h1>
+        </div>
+        <div style="font-size:14px;color:var(--verw-text-2);text-wrap:pretty">Nur für die Leitung. Nach der Anmeldung werden die versiegelten Einsätze auf diesem Rechner für deine Sitzung entschlüsselt.</div>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="antd:login" block="{{ true }}" on-click="{{ anmelden }}" hint-size="100%,44px">Mit Pocket ID anmelden</x-import>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="text" icon="pfeil-links" block="{{ true }}" on-click="{{ zurStart }}" hint-size="100%,44px">Zurück zur Erfassung</x-import>
+      </div>
+    </x-import>
+  </main>
+</sc-if>
+
+<sc-if value="{{ istVerwaltung }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Verwaltung" style="max-width:1440px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px">
+      <div style="flex:1 1 320px;display:flex;flex-direction:column;gap:4px">
+        <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Verwaltung</div>
+        <h1 style="margin:0;font:600 30px/1.15 var(--font-display);letter-spacing:.02em">Versiegelte Einsätze</h1>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="verketten" disabled="{{ pruef.laeuft }}" on-click="{{ kettePruefen }}" hint-size="140px,44px">Kette prüfen</x-import>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="herunterladen" disabled="{{ gesperrt }}" on-click="{{ exportAlle }}" hint-size="160px,44px">Herunterladen</x-import>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="{{ sperrVariante }}" icon="schluessel" on-click="{{ sperrenUmschalten }}" hint-size="160px,44px">{{ sperrLabel }}</x-import>
+      </div>
+    </div>
+
+    <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" hint-size="100%,96px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px 24px">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:40px;height:40px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="20" hint-size="20px,20px"></x-import></div>
+          <div><div style="font-weight:600">Verschlüsselt</div><div style="font-size:12px;color:var(--iuk-gedaempft)">{{ sitzungText }}</div></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:40px;height:40px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="archiv" size="20" hint-size="20px,20px"></x-import></div>
+          <div><div style="font-weight:600">Nur auf diesem Rechner</div><div style="font-size:12px;color:var(--iuk-gedaempft)">Keine Cloud, keine Übertragung. Sicherung als verschlüsselte Datei.</div></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:40px;height:40px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="20" hint-size="20px,20px"></x-import></div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+            <div style="font-weight:600">Lückenlose Kette</div>
+            <div style="font-size:12px;color:var(--iuk-gedaempft)">Jeder Block trägt den Fingerabdruck seines Vorgängers. Reihenfolge und Inhalt sind unverändert, wenn alle Glieder passen.</div>
+            <x-import component-from-global-scope="IDADesignSystem_18c4ca.Chip" ton="{{ pruef.ton }}" hint-size="160px,24px">{{ pruef.text }}</x-import>
+          </div>
+        </div>
+      </div>
+    </x-import>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+      <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Kachel" zahl="{{ k.zahl }}" beschriftung="{{ k.label }}" hint-size="100%,84px"></x-import>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+      <section style="flex:1 1 560px;min-width:0;background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:10px;padding:16px 16px 8px">
+        <div style="display:flex;align-items:baseline;gap:12px;padding:0 8px 12px">
+          <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Einsatzkette</div>
+          <div style="flex:1"></div>
+          <div style="font-size:12px;color:var(--iuk-gedaempft)">neueste oben · {{ anzBloecke }} Blöcke</div>
+        </div>
+        <sc-for list="{{ reihen }}" as="r" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px">
+            <div style="position:relative">
+              <div style="position:absolute;left:15px;width:2px;top:{{ r.lTop }};bottom:0;background:var(--verw-rand)"></div>
+              <div style="position:absolute;left:6px;top:calc(50% - 10px);width:20px;height:20px;border-radius:999px;border:1.5px solid {{ r.knotenRand }};background:{{ r.knotenBg }};color:var(--iuk-ampel-ok-text);display:flex;align-items:center;justify-content:center">
+                <sc-if value="{{ r.geprueft }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="haken" size="12" hint-size="12px,12px"></x-import></sc-if>
+              </div>
+            </div>
+            <button onClick="{{ r.waehlen }}" style="margin:4px 0;display:flex;flex-direction:column;gap:4px;text-align:left;padding:12px 14px 12px 17px;border:1px solid var(--verw-rand-2);border-radius:8px;background:{{ r.bg }};box-shadow:inset 3px 0 0 {{ r.kante }};color:var(--verw-text);font-family:var(--font-body);cursor:pointer" style-hover="border-color:var(--border-control)">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Block {{ r.block }}</span>
+                <span style="font:400 12px var(--font-mono);color:var(--iuk-gedaempft)">{{ r.nummer }}</span>
+                <span style="flex:1"></span>
+                <span style="font-size:12px;color:var(--iuk-gedaempft);font-variant-numeric:tabular-nums">versiegelt {{ r.zeit }}</span>
+              </div>
+              <sc-if value="{{ r.offen }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+                  <span style="font:600 20px/1.2 var(--font-display);letter-spacing:.02em">{{ r.stichwort }}</span>
+                  <span style="font-size:14px;color:var(--verw-text-2)">{{ r.ort }}</span>
+                </div>
+                <div style="font-size:12px;color:var(--iuk-gedaempft);font-variant-numeric:tabular-nums">{{ r.meta }}</div>
+              </sc-if>
+              <sc-if value="{{ r.zu }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:8px;color:var(--verw-text-2)"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="14" hint-size="14px,14px"></x-import><span style="font:400 13px var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.chiffre }}</span></div>
+              </sc-if>
+              <div style="display:flex;align-items:center;gap:6px;font:400 12px var(--font-mono);color:var(--iuk-gedaempft)">#{{ r.hashKurz }}<x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="12" hint-size="12px,12px"></x-import>#{{ r.prevKurz }}</div>
+            </button>
+          </div>
+        </sc-for>
+        <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px">
+          <div style="position:relative">
+            <div style="position:absolute;left:15px;width:2px;top:0;height:50%;background:var(--verw-rand)"></div>
+            <div style="position:absolute;left:10px;top:calc(50% - 6px);width:12px;height:12px;border-radius:2px;background:var(--verw-text-2)"></div>
+          </div>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
+            <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Block 0 · Anfang der Kette</div>
+            <div style="font-size:12px;color:var(--iuk-gedaempft)">Angelegt am 20.8.2026 von Ruben Vitt · #00000000</div>
+          </div>
+        </div>
+      </section>
+
+      <div style="flex:1 1 380px;max-width:520px;min-width:0;display:flex;flex-direction:column;gap:24px;position:sticky;top:93px">
+        <sc-if value="{{ zeigeDetail }}" hint-placeholder-val="{{ false }}">
+          <section style="background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:10px;padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Block {{ d.block }} · {{ d.nummer }}</span>
+                <span style="flex:1"></span>
+                <x-import component-from-global-scope="IDADesignSystem_18c4ca.Chip" ton="grau" zeichen="schluessel" hint-size="100px,24px">Unveränderlich</x-import>
+              </div>
+              <h2 style="margin:0;font:600 24px/1.2 var(--font-display);letter-spacing:.02em;text-wrap:pretty">{{ d.stichwort }}</h2>
+              <div style="font-size:14px;color:var(--verw-text-2)">{{ d.ort }}</div>
+              <sc-if value="{{ d.hatObjekt }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:var(--verw-text-2)">{{ d.objekt }}</div></sc-if>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="drucken" on-click="{{ pdfOeffnen }}" hint-size="140px,44px">PDF erzeugen</x-import>
+              <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="herunterladen" on-click="{{ exportEinen }}" hint-size="200px,44px">Diesen Einsatz herunterladen</x-import>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px 0;border-top:1px solid var(--verw-rand-2);border-bottom:1px solid var(--verw-rand-2)">
+              <div><div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Vor Ort</div><div style="font:700 30px/1.1 var(--font-display)">{{ d.vorOrt }}</div></div>
+              <div><div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Transport</div><div style="font:700 30px/1.1 var(--font-display)">{{ d.transport }}</div></div>
+              <div><div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Dauer</div><div style="font:700 30px/1.1 var(--font-display)">{{ d.dauer }}</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px 12px;font-size:14px">
+              <div style="color:var(--iuk-gedaempft)">Beginn</div><div style="font-variant-numeric:tabular-nums">{{ d.beginn }}</div>
+              <div style="color:var(--iuk-gedaempft)">Ende</div><div style="font-variant-numeric:tabular-nums">{{ d.ende }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Fahrzeuge · {{ d.anzFz }}</div>
+              <sc-for list="{{ d.fahrzeuge }}" as="f" hint-placeholder-count="2">
+                <div style="display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:baseline">
+                  <span style="font:600 16px var(--font-display);letter-spacing:.02em">{{ f.typ }}</span>
+                  <span style="font:400 13px var(--font-mono);color:var(--verw-text-2)">{{ f.ruf }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Personal · {{ d.anzPe }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <sc-for list="{{ d.personal }}" as="p" hint-placeholder-count="4">
+                  <span style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;background:var(--iuk-flaeche-aktiv);font-size:13px">{{ p.name }}<span style="font:600 11px var(--font-display);letter-spacing:.06em;color:var(--verw-text-2)">{{ p.quali }}</span></span>
+                </sc-for>
+              </div>
+            </div>
+            <sc-if value="{{ d.hatNotizen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Notizen</div>
+                <div style="font-size:14px;white-space:pre-wrap;text-wrap:pretty">{{ d.notizen }}</div>
+              </div>
+            </sc-if>
+            <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 12px;padding:12px;border-radius:8px;background:var(--verw-body);font:400 12px/1.6 var(--font-mono);color:var(--verw-text-2)">
+              <div>Fingerabdruck</div><div style="word-break:break-all">{{ d.hash }}</div>
+              <div>Vorgänger</div><div style="word-break:break-all">{{ d.prev }}</div>
+              <div>Versiegelt</div><div>{{ d.versiegelt }}</div>
+            </div>
+          </section>
+
+          <section style="background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:10px;padding:20px 24px;display:flex;flex-direction:column;gap:12px">
+            <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Alarmstichworte</div>
+            <sc-for list="{{ verteilung }}" as="v" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:128px minmax(0,1fr) 28px;gap:12px;align-items:center">
+                <span style="font:600 16px/1.2 var(--font-display);letter-spacing:.02em">{{ v.name }}</span>
+                <div style="height:12px;border-radius:2px;background:var(--verw-body)"><div style="height:100%;width:{{ v.breite }};border-radius:2px;background:var(--verw-text-2)"></div></div>
+                <span style="text-align:right;font:700 18px/1 var(--font-display);font-variant-numeric:tabular-nums">{{ v.anz }}</span>
+              </div>
+            </sc-for>
+          </section>
+        </sc-if>
+        <sc-if value="{{ gesperrt }}" hint-placeholder-val="{{ false }}">
+          <section style="background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:10px;padding:32px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center">
+            <div style="width:56px;height:56px;border-radius:999px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="28" hint-size="28px,28px"></x-import></div>
+            <div style="font:600 24px/1.2 var(--font-display);letter-spacing:.02em">Sitzung gesperrt</div>
+            <div style="font-size:14px;color:var(--verw-text-2);max-width:360px;text-wrap:pretty">Die Einsätze liegen nur noch verschlüsselt vor. Sichtbar bleiben Blocknummer, Zeitpunkt und Fingerabdruck — genug, um die Kette zu prüfen.</div>
+            <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="schluessel" on-click="{{ sperrenUmschalten }}" hint-size="160px,44px">Entsperren</x-import>
+          </section>
+        </sc-if>
+      </div>
+    </div>
+  </main>
+</sc-if>
+</div>
+
+<sc-if value="{{ exportOffen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ exportHintergrund }}" style="position:fixed;inset:0;z-index:200;background:rgb(0 0 0/.45);display:flex;align-items:center;justify-content:center;padding:24px;font:400 14px/1.5714 var(--font-body)">
+    <div role="dialog" aria-modal="true" aria-label="Einsätze herunterladen" style="width:100%;max-width:540px;max-height:100%;overflow:auto;background:var(--verw-karte);color:var(--verw-text);border-radius:12px;box-shadow:0 8px 24px rgb(0 0 0/.12);padding:24px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Herunterladen</div>
+        <h2 style="margin:0;font:600 24px/1.2 var(--font-display);letter-spacing:.02em">Einsätze als Datei speichern</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ exp.umfaenge }}" as="u" hint-placeholder-count="2">
+          <button onClick="{{ u.waehlen }}" aria-pressed="{{ u.aktiv }}" style="display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px 12px 17px;border:1px solid var(--verw-rand);border-radius:8px;background:{{ u.bg }};box-shadow:inset 3px 0 0 {{ u.kante }};color:var(--verw-text);font-family:var(--font-body);cursor:pointer">
+            <span style="width:20px;height:20px;flex:none;border-radius:999px;border:1.5px solid {{ u.rand }};display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;border-radius:999px;background:{{ u.punkt }}"></span></span>
+            <span style="display:flex;flex-direction:column"><span style="font-weight:600;font-size:15px">{{ u.titel }}</span><span style="font-size:12px;color:var(--iuk-gedaempft)">{{ u.hilfe }}</span></span>
+          </button>
+        </sc-for>
+      </div>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Kennwort für die Datei" type="password" value="{{ exp.kw1 }}" on-change="{{ exp.setKw1 }}" hilfe="Mindestens 10 Zeichen. Ohne Kennwort lässt sich die Datei nicht öffnen — es wird nirgends gespeichert." hint-size="100%,96px"></x-import>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Kennwort wiederholen" type="password" value="{{ exp.kw2 }}" on-change="{{ exp.setKw2 }}" fehler="{{ exp.fehler }}" hint-size="100%,74px"></x-import>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:8px;background:var(--verw-body);font-size:13px;color:var(--verw-text-2)">
+        <div style="display:flex;gap:8px;align-items:flex-start"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="16" hint-size="16px,16px"></x-import><span>AES-256-GCM, Schlüssel aus deinem Kennwort abgeleitet (PBKDF2, 250.000 Runden).</span></div>
+        <div style="display:flex;gap:8px;align-items:flex-start"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="16" hint-size="16px,16px"></x-import><span>Fingerabdrücke bleiben erhalten — der Reader prüft die Kette beim Öffnen.</span></div>
+      </div>
+      <sc-if value="{{ exp.fertig }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-radius:8px;background:var(--iuk-ampel-ok-flaeche);color:var(--iuk-ampel-ok-text);font-size:14px">
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="haken" size="16" hint-size="16px,16px"></x-import>
+          <span style="flex:1;min-width:0">Gespeichert als <strong style="font-family:var(--font-mono);font-weight:500;word-break:break-all">{{ exp.dateiname }}</strong></span>
+          <a href="Einsatzbuch Reader.dc.html" target="_blank" style="color:var(--iuk-ampel-ok-text);font-weight:600">Im Reader öffnen</a>
+        </div>
+      </sc-if>
+      <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" on-click="{{ exportSchliessen }}" hint-size="120px,44px">{{ exp.schliessenLabel }}</x-import>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="herunterladen" disabled="{{ exp.gesperrt }}" on-click="{{ exportieren }}" hint-size="180px,44px">{{ exp.knopf }}</x-import>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ pdfOffen }}" hint-placeholder-val="{{ false }}">
+  <div data-druck-huelle="1" style="position:fixed;inset:0;z-index:200;background:rgb(0 0 0/.55);overflow:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:16px">
+    <div data-druck-steuer="1" style="width:210mm;max-width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;color:#fff;font:400 14px/1.5 var(--font-body)">
+      <div style="flex:1 1 240px;display:flex;flex-direction:column">
+        <span style="font:600 20px/1.2 var(--font-display);letter-spacing:.02em">Einsatzbericht · {{ d.nummer }}</span>
+        <span style="font-size:13px">Im Druckdialog „Als PDF speichern“ wählen.</span>
+      </div>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" on-click="{{ pdfSchliessen }}" hint-size="110px,44px">Schließen</x-import>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="drucken" on-click="{{ drucken }}" hint-size="180px,44px">Als PDF speichern</x-import>
+    </div>
+    <div data-druck="1" style="box-shadow:0 8px 24px rgb(0 0 0/.3);flex:none">
+      <dc-import name="Einsatzbericht" b="{{ bericht }}" hint-size="210mm,297mm"></dc-import>
+    </div>
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;frist&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:60,&quot;min&quot;:5,&quot;max&quot;:600,&quot;step&quot;:5,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;label&quot;:&quot;Änderungsfrist nach dem Absenden&quot;},&quot;besatzung&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;label&quot;:&quot;Personal Fahrzeugen zuordnen&quot;},&quot;willkommen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;label&quot;:&quot;Willkommensseite zeigen&quot;}}">
+class Component extends DCLogic {
+  static KEY = 'einsatzbuch-v2';
+  static GRUPPEN = [
+    { name: 'Rettungsdienst', items: ['RD 1', 'RD 2', 'Unterstützung RD'] },
+    { name: 'MANV', items: ['MANV 5', 'MANV 10', 'MANV 25'] },
+    { name: 'Sanitätsdienst', items: ['SanD'] },
+    { name: 'Betreuung', items: ['Betreuung 25', 'Betreuung 50', 'Evakuierung'] },
+    { name: 'Sonstiges', items: ['Personensuche', 'Sonstiges'] }
+  ];
+  static ORTE = [['Uelzen', 11], ['Bad Bevensen', 12], ['Ebstorf', 13], ['Suderburg', 14], ['Bienenbüttel', 15], ['Rosche', 16], ['Wrestedt', 17], ['Bad Bodenteich', 18]];
+  static FZ = (() => {
+    const T = { 'ELW 1': 11, RTW: 83, 'KTW-B': 85, 'GW-San': 64, 'GW-Bt': 68, MTF: 19, PKW: 10 };
+    const U = { 'ELW 1': 1, RTW: 2, 'KTW-B': 3, 'GW-San': 2, 'GW-Bt': 1, MTF: 3, PKW: 2 };
+    const A = { RTW: 1, 'KTW-B': 1, 'GW-San': 1, MTF: 2, PKW: 1 };
+    const out = [];
+    Component.ORTE.forEach(([ort, k], i) => {
+      Object.entries(i === 0 ? U : A).forEach(([typ, n]) => {
+        for (let j = 1; j <= n; j++) { const kennung = `${k}-${T[typ]}-${j}`; out.push({ id: kennung, typ, kennung, ruf: `Rotkreuz ${ort} ${kennung}`, standort: ort }); }
+      });
+    });
+    return out;
+  })();
+  static PERSONAL = (() => {
+    const nn = ['Albers', 'Behrens', 'Cordes', 'Dierks', 'Ehlers', 'Fricke', 'Garbers', 'Hansen', 'Isermann', 'Jürgens', 'Kruse', 'Lüders', 'Meyer', 'Niemann', 'Otte', 'Peters', 'Quast', 'Rademacher', 'Schulz', 'Thies', 'Ulrich', 'Voß', 'Wiebe', 'Zander', 'Brandt', 'Heuer', 'Möller', 'Schröder'];
+    const vn = ['Jana', 'Tim', 'Lea', 'Malte', 'Sophie', 'Jonas', 'Nele', 'Ole', 'Paula', 'Finn', 'Marie', 'Ben', 'Hanna', 'Lukas', 'Clara', 'Henrik', 'Emma', 'Mats', 'Lina', 'Jan', 'Mia', 'Paul', 'Ida', 'Tom', 'Frieda', 'Nils', 'Greta', 'Lars', 'Merle', 'Hauke', 'Svenja', 'Arne', 'Kira', 'Timo', 'Wiebke', 'Sönke', 'Anke', 'Jens', 'Maren', 'Bjarne'];
+    const q = ['SanH', 'SanH', 'RS', 'SanH', 'BtH', 'RS', 'SanH', 'NotSan', 'BtH', 'SanH', 'GF', 'RS', 'SanH', 'BtH', 'ZF', 'SprF', 'RS', 'SanH'];
+    const out = [];
+    for (let i = 0; i < 112; i++) out.push({ id: 'p' + (i + 1), name: `${nn[i % 28]}, ${vn[(i * 7 + Math.floor(i / 28) * 3) % 40]}`, quali: q[i % q.length], ov: Component.ORTE[(i * 5) % 8][0] });
+    return out.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  })();
+  static QUALIS = ['NotSan', 'RS', 'SanH', 'BtH', 'GF', 'ZF', 'SprF'];
+  static SEEDS = [
+    { nummer: '2026-041', stichwort: 'RD 2', beginnDatum: '2026-08-22', beginnZeit: '03:12', endeDatum: '2026-08-22', endeZeit: '04:40', strasse: 'Lindenstraße 8', ort: '29525 Uelzen', objekt: '', fahrzeuge: ['11-83-1'], personal: { p4: '11-83-1', p8: '11-83-1' }, vorOrt: 0, transport: 1, notizen: '' },
+    { nummer: '2026-042', stichwort: 'SanD', beginnDatum: '2026-08-29', beginnZeit: '13:00', endeDatum: '2026-08-29', endeZeit: '19:30', strasse: 'Am Sportzentrum', ort: '29549 Bad Bevensen', objekt: 'Stadtfest, ca. 2.500 Besucher', fahrzeuge: ['12-83-1', '12-85-1', '12-19-1'], personal: { p3: '', p5: '', p16: '', p7: '', p12: '' }, vorOrt: 11, transport: 2, notizen: 'Zwei Transporte durch den Regel-RD übernommen.' },
+    { nummer: '2026-043', stichwort: 'Personensuche', beginnDatum: '2026-09-02', beginnZeit: '20:15', endeDatum: '2026-09-02', endeZeit: '23:50', strasse: 'Waldweg Hösseringen', ort: '29556 Suderburg', objekt: '', fahrzeuge: ['11-11-1', '14-19-1'], personal: { p1: '', p15: '', p9: '', p14: '' }, vorOrt: 0, transport: 1, notizen: '' },
+    { nummer: '2026-044', stichwort: 'Unterstützung RD', beginnDatum: '2026-09-06', beginnZeit: '14:22', endeDatum: '2026-09-06', endeZeit: '16:00', strasse: 'Hauptstraße 30', ort: '29574 Ebstorf', objekt: '', fahrzeuge: ['13-85-1'], personal: { p6: '', p11: '' }, vorOrt: 0, transport: 2, notizen: '' },
+    { nummer: '2026-045', stichwort: 'Betreuung 25', beginnDatum: '2026-09-14', beginnZeit: '06:10', endeDatum: '2026-09-14', endeZeit: '11:30', strasse: 'Kurhaus, Dahlenburger Straße 1', ort: '29549 Bad Bevensen', objekt: 'Evakuierung Wohnanlage, Betreuungsstelle im Kurhaus', fahrzeuge: ['11-11-1', '11-68-1', '12-19-1'], personal: { p1: '', p15: '', p13: '', p20: '', p9: '' }, vorOrt: 0, transport: 0, notizen: '' },
+    { nummer: '2026-046', stichwort: 'SanD', beginnDatum: '2026-09-20', beginnZeit: '18:30', endeDatum: '2026-09-20', endeZeit: '23:45', strasse: 'Stadthalle, Am Schützenplatz 2', ort: '29525 Uelzen', objekt: 'Konzert, ca. 900 Besucher', fahrzeuge: ['11-83-2', '11-19-1'], personal: { p3: '', p6: '', p9: '', p16: '' }, vorOrt: 4, transport: 1, notizen: '' },
+    { nummer: '2026-047', stichwort: 'MANV 10', beginnDatum: '2026-09-23', beginnZeit: '18:42', endeDatum: '2026-09-23', endeZeit: '21:05', strasse: 'B4, Abfahrt Uelzen-Nord', ort: '29525 Uelzen', objekt: 'VU Reisebus / Pkw, Bereitstellungsraum Autohof', fahrzeuge: ['11-11-1', '11-83-1', '11-85-1', '11-64-1', '13-83-1'], personal: { p1: '', p2: '', p4: '', p5: '', p7: '', p8: '', p10: '', p11: '', p12: '', p21: '', p33: '' }, vorOrt: 7, transport: 3, notizen: 'Übergabe an OrgL RD um 19:05 Uhr.\nBehandlungsplatz am GW-San aufgebaut. Unverletzte Businsassen von der Gemeinde übernommen.' }
+  ];
+
+  static h53(str, seed) {
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+  }
+  static H(s) { return Component.h53(s, 0) + Component.h53(s, 1) + Component.h53(s, 2) + Component.h53(s, 3); }
+  static blockHash(b) { return Component.H(JSON.stringify(b.daten) + '|' + b.prev + '|' + b.versiegelt + '|' + b.block); }
+  static baueKette() {
+    let prev = '0'.repeat(64);
+    return Component.SEEDS.map((daten, i) => {
+      const [h, m] = daten.endeZeit.split(':').map(Number);
+      const b = { block: i + 1, prev, versiegelt: `${daten.endeDatum}T${String(h).padStart(2, '0')}:${String(Math.min(59, m + 3)).padStart(2, '0')}`, daten };
+      b.hash = Component.blockHash(b); prev = b.hash; return b;
+    });
+  }
+
+  heute() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  jetzt() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  leer() { return { stichwort: '', beginnDatum: this.heute(), beginnZeit: this.jetzt(), endeDatum: '', endeZeit: '', strasse: '', ort: '', objekt: '', fahrzeuge: [], personal: {}, vorOrt: 0, transport: 0, notizen: '' }; }
+
+  state = (() => {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(Component.KEY)) || {}; } catch (e) {}
+    const kette = Array.isArray(s.kette) && s.kette.length ? s.kette : Component.baueKette();
+    return {
+      kette, phase: s.phase || 'start', entwurf: s.entwurf || this.leer(), pending: s.pending || null, deadline: s.deadline || 0, bearbeiten: !!s.bearbeiten,
+      letzter: s.letzter || null, verfallen: !!s.verfallen, themePref: s.themePref || 'auto',
+      ansicht: 'erfassung', now: Date.now(), gesperrt: false, auswahl: kette[kette.length - 1].block, menue: false,
+      pruef: { idx: -1, laeuft: false, ok: null, zeit: '' },
+      fzSuche: '', fzFilter: 'Alle', peSuche: '', peFilter: 'Alle',
+      exp: null, pdf: false
+    };
+  })();
+
+  componentDidMount() {
+    if (!(this.props.willkommen ?? true) && this.state.phase === 'start') this.setState({ phase: 'form' });
+    this.timer = setInterval(() => this.tick(), 250);
+    this.taste = ev => {
+      if (this.state.ansicht === 'erfassung' && this.state.phase === 'start' && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); this.oeffnen(); }
+    };
+    window.addEventListener('keydown', this.taste);
+    this.mq = window.matchMedia('(prefers-color-scheme: dark)');
+    this.mqFn = () => this.thema(); this.mq.addEventListener && this.mq.addEventListener('change', this.mqFn);
+    this.thema(); this.tick();
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearInterval(this.pruefTimer); window.removeEventListener('keydown', this.taste); this.mq && this.mq.removeEventListener && this.mq.removeEventListener('change', this.mqFn); }
+  componentDidUpdate() {
+    this.thema();
+    const s = this.state;
+    try { localStorage.setItem(Component.KEY, JSON.stringify({ kette: s.kette, phase: s.phase, entwurf: s.entwurf, pending: s.pending, deadline: s.deadline, bearbeiten: s.bearbeiten, letzter: s.letzter, verfallen: s.verfallen, themePref: s.themePref })); } catch (e) {}
+  }
+  thema() {
+    const p = this.state.themePref, dunkel = p === 'dark' || (p === 'auto' && this.mq && this.mq.matches), h = document.documentElement;
+    if (dunkel) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme');
+    h.style.colorScheme = dunkel ? 'dark' : 'light';
+  }
+  tick() {
+    const s = this.state;
+    if (s.pending && (s.phase === 'frist' || s.bearbeiten)) {
+      if (Date.now() >= s.deadline) this.versiegeln(); else this.setState({ now: Date.now() });
+    }
+  }
+  versiegeln = () => {
+    this.setState(s => {
+      if (!s.pending) return null;
+      const last = s.kette[s.kette.length - 1], d = new Date();
+      const nr = (parseInt(String(last.daten.nummer).split('-')[1], 10) || 0) + 1;
+      const b = { block: last.block + 1, prev: last.hash, versiegelt: `${this.heute()}T${this.jetzt()}`, daten: { ...s.pending, nummer: `${d.getFullYear()}-${String(nr).padStart(3, '0')}` } };
+      b.hash = Component.blockHash(b);
+      return { kette: [...s.kette, b], pending: null, deadline: 0, phase: 'versiegelt', verfallen: s.bearbeiten, bearbeiten: false, entwurf: this.leer(), letzter: { block: b.block, hash: b.hash, prev: b.prev, zeit: b.versiegelt }, auswahl: b.block, fzSuche: '', peSuche: '' };
+    });
+  };
+  oeffnen = () => this.setState({ phase: 'form', entwurf: this.state.entwurf || this.leer() });
+  updE(fn) { this.setState(s => ({ entwurf: { ...s.entwurf, ...fn(s.entwurf) } })); }
+  wert(v) { return v && v.target ? v.target.value : v; }
+  datum(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${+d}.${+m}.${y}`; }
+  zeitpunkt(dt) { if (!dt) return ''; const [a, b] = dt.split('T'); return `${this.datum(a)}, ${b} Uhr`; }
+  minuten(e) {
+    if (!(e.beginnDatum && e.beginnZeit && e.endeDatum && e.endeZeit)) return null;
+    return Math.round((new Date(`${e.endeDatum}T${e.endeZeit}`) - new Date(`${e.beginnDatum}T${e.beginnZeit}`)) / 60000);
+  }
+  hm(min) { return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`; }
+  kettePruefen = () => {
+    clearInterval(this.pruefTimer);
+    const k = this.state.kette;
+    let ok = true, prev = '0'.repeat(64);
+    k.forEach(b => { if (b.prev !== prev || Component.blockHash(b) !== b.hash) ok = false; prev = b.hash; });
+    this.setState({ pruef: { idx: 0, laeuft: true, ok: null, zeit: '' } });
+    this.pruefTimer = setInterval(() => {
+      const i = this.state.pruef.idx + 1;
+      if (i > k.length) { clearInterval(this.pruefTimer); this.setState({ pruef: { idx: i, laeuft: false, ok, zeit: this.jetzt() } }); }
+      else this.setState({ pruef: { ...this.state.pruef, idx: i } });
+    }, 90);
+  };
+  exportieren = async () => {
+    const K = window.EinsatzbuchKern, s = this.state, x = s.exp;
+    if (!K || !x || x.laeuft) return;
+    const C = Component, k = s.kette, sel = k.find(b => b.block === s.auswahl) || k[k.length - 1];
+    const bloecke = x.umfang === 'alle' ? k : [sel];
+    const fzAlle = Object.fromEntries(C.FZ.map(f => [f.id, f])), peAlle = Object.fromEntries(C.PERSONAL.map(p => [p.id, p]));
+    const d = new Date(), tag = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const kopf = { erstellt: d.toISOString(), umfang: x.umfang === 'alle' ? 'alle' : 'einzeln', von: bloecke[0].block, bis: bloecke[bloecke.length - 1].block, anzahl: bloecke.length, quelle: 'DRK-Bereitschaft Uelzen' };
+    this.setState({ exp: { ...x, laeuft: true } });
+    try {
+      const datei = await K.verschluesseln({ kette: bloecke, stamm: K.stammFuer(bloecke, fzAlle, peAlle), exportiertVon: 'Ruben Vitt', quelle: kopf.quelle }, x.kw1, kopf);
+      const name = x.umfang === 'alle' ? `einsatzbuch_${tag}_block-${kopf.von}-${kopf.bis}.einsatzbuch` : `einsatz_${sel.daten.nummer}.einsatzbuch`;
+      const url = URL.createObjectURL(new Blob([JSON.stringify(datei, null, 1)], { type: 'application/json' }));
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      this.setState({ exp: { ...this.state.exp, laeuft: false, fertig: name, kw1: '', kw2: '' } });
+    } catch (err) {
+      this.setState({ exp: { ...this.state.exp, laeuft: false, fehlerText: 'Die Datei konnte nicht erzeugt werden. Versuch es noch einmal.' } });
+    }
+  };
+  filterChips(liste, aktiv, setzen) {
+    return liste.map(l => {
+      const an = l === aktiv;
+      return { label: l, waehlen: () => setzen(l), bg: an ? 'var(--iuk-flaeche-aktiv)' : 'transparent', rand: an ? 'var(--verw-text-2)' : 'var(--verw-rand)', font: `${an ? 600 : 400} 13px var(--font-body)` };
+    });
+  }
+  cb(an) { return { cbBg: an ? 'var(--brand-fill)' : 'transparent', cbRand: an ? 'var(--brand-fill)' : 'var(--border-control)', bg: an ? 'var(--iuk-flaeche-aktiv)' : 'transparent' }; }
+
+  renderVals() {
+    const s = this.state, C = Component, frist = Math.max(5, this.props.frist ?? 60), besatzungAn = this.props.besatzung ?? false;
+    const fzMap = Object.fromEntries(C.FZ.map(f => [f.id, f])), peMap = Object.fromEntries(C.PERSONAL.map(p => [p.id, p]));
+    const e = s.entwurf || this.leer();
+    const erf = s.ansicht === 'erfassung';
+    const rest = Math.max(0, Math.ceil((s.deadline - s.now) / 1000));
+    const restText = `${Math.floor(rest / 60)}:${String(rest % 60).padStart(2, '0')}`;
+
+    const on = {};
+    ['beginnDatum', 'beginnZeit', 'endeDatum', 'endeZeit', 'strasse', 'ort', 'objekt', 'notizen'].forEach(k => { on[k] = v => { const w = this.wert(v); this.updE(() => ({ [k]: w })); }; });
+
+    const stichwortGruppen = C.GRUPPEN.map(g => ({ name: g.name, items: g.items.map(n => { const an = e.stichwort === n; return { name: n, aktiv: an, bg: an ? 'var(--iuk-flaeche-aktiv)' : 'var(--verw-karte)', kante: an ? 'var(--brand-fill)' : 'transparent', waehlen: () => this.updE(() => ({ stichwort: an ? '' : n })) }; }) }));
+
+    const toggleFz = id => this.updE(x => {
+      if (x.fahrzeuge.includes(id)) { const personal = { ...x.personal }; Object.keys(personal).forEach(k => { if (personal[k] === id) personal[k] = ''; }); return { fahrzeuge: x.fahrzeuge.filter(i => i !== id), personal }; }
+      return { fahrzeuge: [...x.fahrzeuge, id] };
+    });
+    const fq = s.fzSuche.trim().toLowerCase();
+    const fzTrefferRoh = C.FZ.filter(f => (s.fzFilter === 'Alle' || f.standort === s.fzFilter) && (!fq || `${f.typ} ${f.ruf}`.toLowerCase().includes(fq)));
+    const fzTreffer = fzTrefferRoh.map(f => { const an = e.fahrzeuge.includes(f.id); return { ...f, aktiv: an, ...this.cb(an), toggle: () => toggleFz(f.id) }; });
+    const fzAuswahl = e.fahrzeuge.map(id => fzMap[id]).filter(Boolean).map(f => ({ typ: f.typ, kennung: f.kennung, aria: `${f.typ} ${f.kennung} entfernen`, entfernen: () => toggleFz(f.id) }));
+
+    const togglePe = id => this.updE(x => { const personal = { ...x.personal }; if (id in personal) delete personal[id]; else personal[id] = ''; return { personal }; });
+    const pq = s.peSuche.trim().toLowerCase();
+    const peTreffer = C.PERSONAL.filter(p => (s.peFilter === 'Alle' || p.quali === s.peFilter) && (!pq || `${p.name} ${p.quali} ${p.ov}`.toLowerCase().includes(pq)))
+      .map(p => { const an = p.id in e.personal; return { ...p, aktiv: an, ...this.cb(an), font: `${an ? 600 : 400} 15px var(--font-body)`, toggle: () => togglePe(p.id) }; });
+    const peAuswahl = Object.keys(e.personal).map(id => peMap[id]).filter(Boolean).map(p => ({ name: p.name, quali: p.quali, aria: `${p.name} entfernen`, fahrzeug: e.personal[p.id] || '', entfernen: () => togglePe(p.id), setFz: ev => { const v = ev.target.value; this.updE(x => ({ personal: { ...x.personal, [p.id]: v } })); } }));
+    const anzPe = peAuswahl.length;
+
+    const min = this.minuten(e);
+    const dauer = min === null ? 'Ende noch offen — kannst du auch später in der Frist nachtragen.' : min >= 0 ? `Einsatzdauer ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min` : 'Ende liegt vor dem Beginn — bitte prüfen.';
+    const fehlt = [];
+    if (!e.stichwort) fehlt.push('Alarmstichwort');
+    if (!e.beginnDatum || !e.beginnZeit) fehlt.push('Beginn');
+    if (!e.strasse && !e.ort) fehlt.push('Einsatzort');
+    const unvollstaendig = fehlt.length > 0;
+    const schritt = (k, d) => () => this.updE(x => ({ [k]: Math.max(0, (+x[k] || 0) + d) }));
+    const setze = k => ev => { const n = parseInt(String(ev.target.value).replace(/\D/g, ''), 10); this.updE(() => ({ [k]: isNaN(n) ? 0 : Math.min(n, 999) })); };
+    const zaehler = [
+      { titel: 'Vor Ort behandelt', hilfe: 'ohne Transport', wert: e.vorOrt, minus: schritt('vorOrt', -1), plus: schritt('vorOrt', 1), setzen: setze('vorOrt'), minusLabel: 'Vor Ort behandelt: weniger', plusLabel: 'Vor Ort behandelt: mehr' },
+      { titel: 'Behandelt mit Transport', hilfe: 'ins Krankenhaus oder zum Arzt', wert: e.transport, minus: schritt('transport', -1), plus: schritt('transport', 1), setzen: setze('transport'), minusLabel: 'Mit Transport: weniger', plusLabel: 'Mit Transport: mehr' }
+    ];
+
+    const p = s.pending || e;
+    const zusammenfassung = [
+      { k: 'Alarmstichwort', v: p.stichwort || '—' },
+      { k: 'Beginn', v: p.beginnDatum ? `${this.datum(p.beginnDatum)}, ${p.beginnZeit} Uhr` : '—' },
+      { k: 'Ende', v: p.endeDatum ? `${this.datum(p.endeDatum)}, ${p.endeZeit} Uhr` : 'offen' },
+      { k: 'Einsatzort', v: [p.strasse, p.ort].filter(Boolean).join(', ') || '—' },
+      { k: 'Fahrzeuge', v: p.fahrzeuge.map(id => fzMap[id] ? `${fzMap[id].typ} ${fzMap[id].kennung}` : id).join(' · ') || '—' },
+      { k: 'Personal', v: `${Object.keys(p.personal).length} Kräfte` },
+      { k: 'Patienten', v: `${p.vorOrt} vor Ort · ${p.transport} mit Transport` }
+    ];
+
+    // Verwaltung
+    const k = s.kette, n = k.length, gesperrt = s.gesperrt;
+    const reihen = k.slice().reverse().map((b, i) => {
+      const idxAsc = n - 1 - i, an = b.block === s.auswahl && !gesperrt, geprueft = s.pruef.idx > idxAsc, d = b.daten;
+      return {
+        block: b.block, nummer: d.nummer, zeit: this.zeitpunkt(b.versiegelt), stichwort: d.stichwort, ort: [d.strasse, d.ort].filter(Boolean).join(', '),
+        meta: `${d.fahrzeuge.length} Fahrzeuge  ·  ${Object.keys(d.personal).length} Kräfte  ·  ${d.vorOrt + d.transport} Patienten`,
+        hashKurz: b.hash.slice(0, 8), prevKurz: b.prev.slice(0, 8), chiffre: btoa(b.hash.slice(8, 50)).replace(/=/g, '') + '…',
+        offen: !gesperrt, zu: gesperrt, geprueft, lTop: i === 0 ? '50%' : '0',
+        knotenBg: geprueft ? 'var(--iuk-ampel-ok-flaeche)' : 'var(--verw-karte)', knotenRand: geprueft ? 'var(--iuk-ampel-ok-text)' : 'var(--verw-rand)',
+        bg: an ? 'var(--iuk-flaeche-aktiv)' : 'var(--verw-karte)', kante: an ? 'var(--brand-fill)' : 'transparent',
+        waehlen: () => this.setState({ auswahl: b.block })
+      };
+    });
+    const sel = k.find(b => b.block === s.auswahl) || k[n - 1], sd = sel.daten, smin = this.minuten(sd);
+    const d = {
+      block: sel.block, nummer: sd.nummer, stichwort: sd.stichwort, ort: [sd.strasse, sd.ort].filter(Boolean).join(', '), objekt: sd.objekt, hatObjekt: !!sd.objekt,
+      vorOrt: sd.vorOrt, transport: sd.transport, dauer: smin === null ? '—' : this.hm(smin),
+      beginn: `${this.datum(sd.beginnDatum)}, ${sd.beginnZeit} Uhr`, ende: sd.endeDatum ? `${this.datum(sd.endeDatum)}, ${sd.endeZeit} Uhr` : 'nicht angegeben',
+      fahrzeuge: sd.fahrzeuge.map(id => fzMap[id]).filter(Boolean), anzFz: sd.fahrzeuge.length,
+      personal: Object.keys(sd.personal).map(id => peMap[id]).filter(Boolean), anzPe: Object.keys(sd.personal).length,
+      notizen: sd.notizen, hatNotizen: !!sd.notizen, hash: sel.hash, prev: sel.prev, versiegelt: this.zeitpunkt(sel.versiegelt)
+    };
+    const zaehl = {}; k.forEach(b => { zaehl[b.daten.stichwort] = (zaehl[b.daten.stichwort] || 0) + 1; });
+    const maxZ = Math.max(1, ...Object.values(zaehl));
+    const verteilung = Object.entries(zaehl).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, anz]) => ({ name, anz, breite: `${Math.round(anz / maxZ * 100)}%` }));
+    const summe = f => k.reduce((a, b) => a + f(b.daten), 0);
+    const stunden = Math.round(summe(x => Math.max(0, this.minuten(x) || 0)) / 60);
+    const kpis = [
+      { label: 'Einsätze versiegelt', zahl: String(n) },
+      { label: 'Patienten gesamt', zahl: gesperrt ? '—' : String(summe(x => x.vorOrt + x.transport)) },
+      { label: 'davon mit Transport', zahl: gesperrt ? '—' : String(summe(x => x.transport)) },
+      { label: 'Einsatzstunden', zahl: gesperrt ? '—' : String(stunden) }
+    ];
+    const pr = s.pruef;
+    const pruef = pr.laeuft ? { ton: 'grau', text: `Prüfe Block ${Math.min(pr.idx + 1, n)} von ${n} …`, laeuft: true }
+      : pr.ok === true ? { ton: 'ok', text: `Kette intakt · geprüft ${pr.zeit} Uhr`, laeuft: false }
+      : pr.ok === false ? { ton: 'rot', text: 'Kette gebrochen — Block prüfen', laeuft: false }
+      : { ton: 'grau', text: 'Noch nicht geprüft', laeuft: false };
+
+    const x = s.exp;
+    const setExp = patch => this.setState(st => ({ exp: { ...st.exp, ...patch, fertig: null, fehlerText: '' } }));
+    const exp = x ? {
+      kw1: x.kw1, kw2: x.kw2, fertig: !!x.fertig, dateiname: x.fertig || '',
+      setKw1: v => setExp({ kw1: this.wert(v) }), setKw2: v => setExp({ kw2: this.wert(v) }),
+      fehler: x.fehlerText || (x.kw2 && x.kw1 !== x.kw2 ? 'Die Kennwörter stimmen nicht überein.' : undefined),
+      gesperrt: x.laeuft || x.kw1.length < 10 || x.kw1 !== x.kw2,
+      knopf: x.laeuft ? 'Verschlüssele …' : 'Datei speichern', schliessenLabel: x.fertig ? 'Fertig' : 'Abbrechen',
+      umfaenge: [
+        { id: 'alle', titel: `Alle ${n} Einsätze`, hilfe: `Block 1–${k[n - 1].block} · der Reader kann die ganze Kette prüfen` },
+        { id: 'einer', titel: `Nur ${sd.nummer} · ${sd.stichwort}`, hilfe: `Block ${sel.block} · Fingerabdruck und Vorgänger werden mitgegeben` }
+      ].map(u => { const an = x.umfang === u.id; return { ...u, aktiv: an, bg: an ? 'var(--iuk-flaeche-aktiv)' : 'var(--verw-karte)', kante: an ? 'var(--brand-fill)' : 'transparent', rand: an ? 'var(--brand-fill)' : 'var(--border-control)', punkt: an ? 'var(--brand-fill)' : 'transparent', waehlen: () => setExp({ umfang: u.id }) }; })
+    } : { umfaenge: [] };
+    const K = window.EinsatzbuchKern;
+    const bericht = s.pdf && K ? K.bericht(sel, K.stammFuer([sel], fzMap, peMap), { pruefung: pr.ok === true ? `Kette intakt, geprüft am ${K.jetztText()}` : pr.ok === false ? 'Kette gebrochen' : 'nicht geprüft', quelle: 'Einsatzbuch Verwaltung, Ruben Vitt' }) : null;
+    const wortmarke = React.createElement('span', { style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, letterSpacing: '0.07em' } }, 'EINSATZ', React.createElement('span', { style: { color: 'var(--iuk-marke)' } }, 'BUCH'));
+
+    return {
+      istStart: erf && s.phase === 'start', istForm: erf && s.phase === 'form', istFrist: erf && s.phase === 'frist', istVersiegelt: erf && s.phase === 'versiegelt',
+      istLogin: s.ansicht === 'login', istVerwaltung: s.ansicht === 'verwaltung',
+      mitKopf: !(erf && s.phase === 'start'), angemeldet: s.ansicht === 'verwaltung', menueOffen: s.menue && s.ansicht === 'verwaltung',
+      wortmarke, keineApps: [], themePref: s.themePref, linksbuendig: { justifyContent: 'flex-start' }, textLinks: { textAlign: 'left', width: '100%' }, breiterKnopf: { minWidth: 200 },
+      themaWechseln: () => this.setState(x => ({ themePref: { auto: 'light', light: 'dark', dark: 'auto' }[x.themePref] || 'auto' })),
+      kopfKlick: ev => {
+        const b = ev.target.closest && ev.target.closest('button'); if (!b) return;
+        const l = (b.getAttribute('aria-label') || b.textContent || '').trim();
+        if (l === 'Anmelden') this.setState({ ansicht: 'login' });
+        else if (l.startsWith('Nutzermenü')) this.setState(x => ({ menue: !x.menue }));
+      },
+      oeffnen: this.oeffnen, zumLogin: () => this.setState({ ansicht: 'login' }), zurStart: () => this.setState({ ansicht: 'erfassung' }),
+      anmelden: () => { this.setState({ ansicht: 'verwaltung', gesperrt: false, menue: false, auswahl: k[n - 1].block }); setTimeout(this.kettePruefen, 300); },
+      abmelden: () => { clearInterval(this.pruefTimer); this.setState({ ansicht: 'erfassung', menue: false, gesperrt: false, pruef: { idx: -1, laeuft: false, ok: null, zeit: '' } }); },
+
+      e, on, stichwortGruppen, dauer, zaehler, gesamt: (+e.vorOrt || 0) + (+e.transport || 0),
+      formTitel: s.bearbeiten ? 'Angaben ändern' : 'Neuer Einsatz',
+      fristSatz: `Nach dem Absenden ${frist >= 60 && frist % 60 === 0 ? (frist === 60 ? '1 Minute' : frist / 60 + ' Minuten') : frist + ' Sekunden'} änderbar, danach nicht mehr einsehbar`,
+      bearbeiten: s.bearbeiten, restText, restProzent: `${Math.min(100, rest / frist * 100)}%`,
+      fzSuche: s.fzSuche, setFzSuche: v => this.setState({ fzSuche: this.wert(v) }),
+      fzEnter: ev => { if (ev.key === 'Enter' && fzTreffer[0]) { ev.preventDefault(); if (!fzTreffer[0].aktiv) fzTreffer[0].toggle(); this.setState({ fzSuche: '' }); } },
+      fzFilter: this.filterChips(['Alle', ...C.ORTE.map(o => o[0])], s.fzFilter, v => this.setState({ fzFilter: v })),
+      fzTreffer, fzKeine: fzTreffer.length === 0, fzAuswahl, fzHatAuswahl: fzAuswahl.length > 0, fzOhneAuswahl: fzAuswahl.length === 0,
+      fzZaehler: `${fzAuswahl.length} ausgewählt`, fzInfo: `${fzTreffer.length} von ${C.FZ.length} Fahrzeugen · Enter wählt den ersten Treffer`,
+      fzOptionen: [{ id: '', label: 'Ohne Fahrzeug' }, ...e.fahrzeuge.map(id => fzMap[id]).filter(Boolean).map(f => ({ id: f.id, label: `${f.typ} · ${f.kennung}` }))],
+      peSuche: s.peSuche, setPeSuche: v => this.setState({ peSuche: this.wert(v) }),
+      peEnter: ev => { if (ev.key === 'Enter' && peTreffer[0]) { ev.preventDefault(); if (!peTreffer[0].aktiv) peTreffer[0].toggle(); this.setState({ peSuche: '' }); } },
+      peFilter: this.filterChips(['Alle', ...C.QUALIS], s.peFilter, v => this.setState({ peFilter: v })),
+      peTreffer, peKeine: peTreffer.length === 0, peAuswahl, peChips: anzPe > 0 && !besatzungAn, peZeilen: anzPe > 0 && besatzungAn, peOhneAuswahl: anzPe === 0,
+      peZaehler: `${anzPe} ${anzPe === 1 ? 'Kraft' : 'Kräfte'}`, peInfo: `${peTreffer.length} von ${C.PERSONAL.length} Personen · Enter wählt den ersten Treffer`,
+      unvollstaendig,
+      bereitText: unvollstaendig ? `Ohne ${fehlt.join(', ').replace(/, ([^,]*)$/, ' und $1')} wird nicht abgesendet.` : `Bereit · ${e.stichwort}, ${e.fahrzeuge.length} Fahrzeuge, ${anzPe} Kräfte, ${(+e.vorOrt || 0) + (+e.transport || 0)} Patienten`,
+      bereitFarbe: unvollstaendig ? 'var(--verw-text-2)' : 'var(--verw-text)',
+      absendenLabel: s.bearbeiten ? 'Änderungen übernehmen' : 'Einsatz absenden',
+      absenden: () => { if (unvollstaendig) return; this.setState(x => ({ pending: x.entwurf, phase: 'frist', deadline: x.bearbeiten ? x.deadline : Date.now() + frist * 1000, now: Date.now(), bearbeiten: false })); window.scrollTo(0, 0); },
+      verwerfen: () => this.setState(x => ({ entwurf: x.pending, phase: 'frist', bearbeiten: false })),
+      aendern: () => this.setState(x => ({ entwurf: x.pending, phase: 'form', bearbeiten: true })),
+      jetztVersiegeln: this.versiegeln,
+      zusammenfassung, verfallen: s.verfallen,
+      letzter: s.letzter ? { block: s.letzter.block, vorBlock: s.letzter.block - 1, hashKurz: s.letzter.hash.slice(0, 8), prevKurz: s.letzter.prev.slice(0, 8), zeit: this.zeitpunkt(s.letzter.zeit) } : { block: '', vorBlock: '', hashKurz: '', prevKurz: '', zeit: '' },
+      fertig: () => this.setState({ phase: (this.props.willkommen ?? true) ? 'start' : 'form', entwurf: this.leer(), verfallen: false }),
+
+      zurueckLabel: s.bearbeiten ? 'Zurück zur Frist' : 'Zurück',
+      zurueck: () => { if (s.bearbeiten) this.setState(y => ({ entwurf: y.pending, phase: 'frist', bearbeiten: false })); else this.setState({ phase: (this.props.willkommen ?? true) ? 'start' : 'form' }); window.scrollTo(0, 0); },
+      exp, exportOffen: !!x,
+      exportAlle: () => this.setState({ exp: { umfang: 'alle', kw1: '', kw2: '', laeuft: false, fertig: null, fehlerText: '' } }),
+      exportEinen: () => this.setState({ exp: { umfang: 'einer', kw1: '', kw2: '', laeuft: false, fertig: null, fehlerText: '' } }),
+      exportSchliessen: () => this.setState({ exp: null }),
+      exportHintergrund: ev => { if (ev.target === ev.currentTarget && !(x && x.laeuft)) this.setState({ exp: null }); },
+      exportieren: this.exportieren,
+      pdfOffen: s.pdf && !!bericht, bericht, pdfOeffnen: () => this.setState({ pdf: true }), pdfSchliessen: () => this.setState({ pdf: false }), drucken: () => window.print(),
+      reihen, anzBloecke: n, d, verteilung, kpis, pruef, kettePruefen: this.kettePruefen,
+      gesperrt, zeigeDetail: !gesperrt,
+      sperrLabel: gesperrt ? 'Entsperren' : 'Sitzung sperren', sperrVariante: gesperrt ? 'primary' : 'default',
+      sperrenUmschalten: () => this.setState(x => ({ gesperrt: !x.gesperrt })),
+      sitzungText: gesperrt ? 'Sitzung gesperrt. Inhalte liegen nur verschlüsselt vor.' : 'AES-256-GCM. Für deine Sitzung entschlüsselt — sperrt beim Abmelden.'
+    };
+  }
+}
+</script>
+</body>
+</html>

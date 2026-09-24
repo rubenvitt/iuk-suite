@@ -61,6 +61,10 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // uav: OHNE Schema-Import und OHNE Boot-Seed — ein geseedeter Teilnehmer-Code wäre in einer
   // Generalprobe (SUITE_SEED=1) ein gültiger anonymer Zugang. Das lokale Seed-Skript deckt Dev ab.
   { key: "uav", migrationsFolder: "src/app/m/uav/_db/migrations" },
+  // einsatzbuch: OHNE Boot-Seed — ab Stufe 2 liegt hier das Schlüsselpaar der Einsätze, und
+  // ein Seed in einer Generalprobe (SUITE_SEED=1) legte ein bekanntes Test-Paar an. Das lokale
+  // Seed-Skript deckt Dev ab.
+  { key: "einsatzbuch", migrationsFolder: "src/app/m/einsatzbuch/_db/migrations" },
 ];
 
 /**

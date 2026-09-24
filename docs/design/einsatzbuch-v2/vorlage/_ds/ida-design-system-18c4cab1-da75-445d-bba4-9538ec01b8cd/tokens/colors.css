@@ -1,0 +1,146 @@
+/* IDA / iuk-suite — Farben. Quelle: src/core/theme/tokens.ts (FARBEN), src/app/globals.css (--iuk-*), lagerbuch/_ui/helfer.module.css + verwaltung.module.css (Ampel). */
+:root{
+/* ── Rohwerte (FARBEN) ── */
+--iuk-rot:#c8000f;
+--iuk-rot-dunkel:#a2000c;
+--iuk-rot-bg:#fbe9eb;
+--iuk-rot-auf-dunkel:#e45a66;
+--iuk-rot-auf-dunkel-hover:#ef7f89;
+--iuk-rot-auf-dunkel-active:#d9525e;
+--iuk-tinte:#1a1d20;
+--iuk-stahl:#5b6570;
+--iuk-linie-roh:#d9dde1;
+--iuk-papier:#eef0f1;
+--iuk-karte:#ffffff;
+--iuk-gelb:#b26a00;
+--iuk-gelb-bg:#fbf1dc;
+--iuk-ok:#1e7a3c;
+--iuk-ok-bg:#e4f2e9;
+--iuk-ok-rand:#9fcfae;
+--iuk-ok-auf-dunkel:#3fa060;
+--iuk-kontur:#868686;
+--iuk-kontur-auf-dunkel:#707070;
+
+/* ── Suite-Variablen für eigenes Markup (globals.css) ── */
+--iuk-marke:#c8000f;
+--iuk-gedaempft:#5b6570;
+--iuk-linie:#d9dde1;
+--iuk-flaeche-aktiv:rgb(0 0 0 / 0.06);
+
+/* ── Fachsemantische Ampel (luminanz-monoton ok → gelb → rot; grau = „keine Angabe") ── */
+--iuk-ampel-ok-text:#1e7a3c;
+--iuk-ampel-ok-flaeche:#e4f2e9;
+--iuk-ampel-gelb-text:#8a5200;
+--iuk-ampel-gelb-flaeche:#fbf1dc;
+--iuk-ampel-rot-text:#8c0d16;
+--iuk-ampel-rot-flaeche:#f6e3e0;
+--iuk-ampel-grau-text:#5b6570;
+--iuk-ampel-grau-flaeche:#e7eaec;
+
+/* ── Verwaltung (antd + Suite-Theme) — Flächen ── */
+--verw-body:#eef0f1;          /* Layout.bodyBg */
+--verw-kopf:#ffffff;          /* Layout.headerBg */
+--verw-kopf-text:#1a1d20;     /* Layout.headerColor */
+--verw-karte:#ffffff;         /* colorBgContainer */
+--verw-erhoben:#ffffff;       /* colorBgElevated (Popover, Modal, Drawer) */
+--verw-text:rgba(0,0,0,0.88); /* antd colorText */
+--verw-text-2:rgba(0,0,0,0.65);
+--verw-rand:#d9d9d9;          /* antd colorBorder — Trennlinien */
+--verw-rand-2:#f0f0f0;        /* antd colorBorderSecondary — Karten, Tabellenzeilen */
+--verw-tabellenkopf:#fafafa;  /* antd Table headerBg */
+--verw-panel-linie:#d9dde1;   /* --suite-linie (App-Umschalter) */
+
+/* ── Kiosk / Helfer-Weg (eigene Anmutung, ohne antd) ── */
+--kiosk-rot:#c8000f;
+--kiosk-rot-dk:#a2000c;
+--kiosk-rot-bg:#fbe9eb;
+--kiosk-tinte:#1a1d20;
+--kiosk-stahl:#5b6570;
+--kiosk-linie:#d9dde1;
+--kiosk-papier:#eef0f1;
+--kiosk-karte:#ffffff;
+--kiosk-gelb:#b26a00;
+--kiosk-gelb-bg:#fbf1dc;
+--kiosk-ok:#1e7a3c;
+--kiosk-ok-bg:#e4f2e9;
+
+/* ── Funkgeräte-Ausleihe: Status-Chip (radio/_lib/status.ts STATUS_HEX) — nur als 10px-Punkt neben Text ── */
+--radio-status-frei:#22c55e;
+--radio-status-vergeben:#f59e0b;
+--radio-status-defekt:#ef4444;
+--radio-status-wartung:#6b7280;
+
+/* ── Semantische Aliase ── */
+--text-body:var(--iuk-tinte);
+--text-muted:var(--iuk-gedaempft);
+--text-on-brand:#ffffff;
+--surface-page:var(--verw-body);
+--surface-card:var(--verw-karte);
+--surface-header:var(--verw-kopf);
+--surface-active:var(--iuk-flaeche-aktiv);
+--border-divider:var(--iuk-linie);
+--border-control:var(--iuk-kontur);
+--brand:var(--iuk-marke);
+--brand-fill:var(--iuk-rot);
+--brand-fill-hover:#d62a33;
+--brand-fill-active:#a2000c;
+--link:var(--iuk-marke);
+--status-ok-text:var(--iuk-ampel-ok-text);
+--status-ok-bg:var(--iuk-ampel-ok-flaeche);
+--status-warn-text:var(--iuk-ampel-gelb-text);
+--status-warn-bg:var(--iuk-ampel-gelb-flaeche);
+--status-crit-text:var(--iuk-ampel-rot-text);
+--status-crit-bg:var(--iuk-ampel-rot-flaeche);
+--status-none-text:var(--iuk-ampel-grau-text);
+--status-none-bg:var(--iuk-ampel-grau-flaeche);
+--focus-ring:var(--iuk-tinte);
+}
+
+/* Dunkelmodus — IMMER über data-theme, nie über prefers-color-scheme (Drei-Zustands-Umschalter). */
+:root[data-theme="dark"]{
+--iuk-marke:#e45a66;
+--iuk-gedaempft:#9aa4ad;
+--iuk-linie:#2a2f34;
+--iuk-flaeche-aktiv:rgb(255 255 255 / 0.1);
+--iuk-ampel-ok-text:#7ee0a0;
+--iuk-ampel-ok-flaeche:#10261a;
+--iuk-ampel-gelb-text:#d9a032;
+--iuk-ampel-gelb-flaeche:#2a1e05;
+--iuk-ampel-rot-text:#e8837c;
+--iuk-ampel-rot-flaeche:#2a1113;
+--iuk-ampel-grau-text:#9aa4ad;
+--iuk-ampel-grau-flaeche:#1c2024;
+--verw-body:#000000;
+--verw-kopf:#141414;
+--verw-kopf-text:#ffffff;
+--verw-karte:#141414;
+--verw-erhoben:#1f1f1f;
+--verw-text:rgba(255,255,255,0.85);
+--verw-text-2:rgba(255,255,255,0.65);
+--verw-rand:#424242;
+--verw-rand-2:#303030;
+--verw-tabellenkopf:#1d1d1d;
+--verw-panel-linie:#303030;
+--radio-status-frei:#16a34a;
+--radio-status-vergeben:#d97706;
+--radio-status-defekt:#dc2626;
+--radio-status-wartung:#9ca3af;
+--kiosk-rot:#ff5a5f;
+--kiosk-rot-dk:#d13b40;
+--kiosk-rot-bg:#2a1113;
+--kiosk-tinte:#e8eaec;
+--kiosk-stahl:#9aa4ad;
+--kiosk-linie:#2c3238;
+--kiosk-papier:#14181b;
+--kiosk-karte:#1c2126;
+--kiosk-gelb:#d9a032;
+--kiosk-gelb-bg:#2a1e05;
+--kiosk-ok:#7ee0a0;
+--kiosk-ok-bg:#10261a;
+--text-body:#e8eaec;
+--border-control:var(--iuk-kontur-auf-dunkel);
+--brand-fill:#ad0310;
+--brand-fill-hover:#c8000f;
+--brand-fill-active:#8a0310;
+--focus-ring:#e8eaec;
+}

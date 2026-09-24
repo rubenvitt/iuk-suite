@@ -1,0 +1,52 @@
+/* IDA — Abstände, Bediendichten, Radien, Schatten, Bewegung. Quelle: core/theme/tokens.ts, theme.ts, shell.module.css, helfer.module.css. */
+:root{
+/* SPACE-Skala (4er-Raster) — nur für gap/padding/margin */
+--space-xs:4px;--space-sm:8px;--space-md:12px;--space-lg:16px;--space-xl:24px;--space-xxl:32px;
+
+/* Bediendichten (Tap-Ziele) — hängen an der Shell, nicht am Viewport */
+--tap:56px;            /* TAP — Einsatz, Handschuhe (Kiosk, MinimalShell) */
+--tap-xl:72px;         /* TAP_XL — controlHeightLG / Wandmonitor */
+--arbeit-control:44px; /* ARBEITSDICHTE — FullShell-Inhalt (WCAG 2.5.5) */
+--arbeit-control-lg:48px;
+--schreibtisch-control:32px; /* SCHREIBTISCHDICHTE — nur radio-Verwaltung */
+--schreibtisch-control-lg:40px;
+--nav-zeile:40px;      /* Seitenleisten-Eintrag (nur ≥768px) */
+
+/* Shell-Maße */
+--kopf-hoehe:64px;     /* Layout.headerHeight */
+--streifen:5px;        /* Markenstreifen */
+--kopf-gesamt:69px;    /* --iuk-kopf */
+--sider-breite:240px;
+--akzent-kante:3px;    /* aktive Navigation, Kachelkante, Warnkante */
+--kpi-kante:4px;
+--breakpoint:768px;    /* EINZIGER Breakpoint; max-width-Abfragen: 767.98px */
+--kiosk-bahn:560px;    /* Kiosk-Bahnbreite <768px (≥768: 1200px) */
+
+/* Radien */
+--radius-verw:8px;     /* antd borderRadius */
+--radius-verw-sm:6px;  /* navLink, gefahr, monatsfeld */
+--radius-verw-xs:4px;  /* warnbox, fach */
+--radius-panel:12px;   /* App-Umschalter-Panel */
+--radius-pille:99px;   /* Chips, Beenden, Rückweg */
+--radius-kiosk-karte:14px;
+--radius-kiosk-gatekarte:16px;
+--radius-kiosk-knopf:11px;
+--radius-kiosk-feld:10px;
+--radius-kiosk-stepper:12px;
+
+/* Rahmenstärken */
+--rand-verw:1px;
+--rand-kiosk:1.5px;
+
+/* Schatten */
+--schatten-panel:0 8px 24px rgb(0 0 0 / 0.12);
+--schatten-karte-hover:0 1px 2px -2px rgba(0,0,0,0.16),0 3px 6px 0 rgba(0,0,0,0.12),0 5px 12px 4px rgba(0,0,0,0.09);
+--schatten-abschluss:0 10px 26px rgba(12,18,24,.32);
+--schatten-scanstrich:0 0 14px 2px rgba(200,0,15,.75);
+
+/* Bewegung — sparsam; jede Bewegung hat einen reduced-motion-Zweig */
+--dauer-kurz:120ms;    /* @kind other */ /* Kachelkante border-color/box-shadow */
+--dauer-pfeil:150ms;   /* @kind other */ /* Umschalter-Pfeil rotate(180deg) */
+--ease-standard:ease; /* @kind other */
+--scan-dauer:2.6s;     /* @kind other */ /* ease-in-out infinite */
+}

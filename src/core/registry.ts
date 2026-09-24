@@ -203,6 +203,14 @@ export const MODULES: ModuleDef[] = [
   { key: "uav", title: "Drohnentraining", icon: "RocketOutlined", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: ["uav-training-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
+  // einsatzbuch: Einsatzbuch v2 (docs/superpowers/specs/2026-09-24-einsatzbuch-v2-design.md).
+  // requiresAuth: false wie radio und uav — die Geräte-Schnittstellen der Desktop-App tragen
+  // eigene Tokens (Stufe 5). Den Seitenzugang setzt `_lib/zugang.ts` durch, und zwar NUR über
+  // die Zugangsgruppe, nicht über den Suite-Admin: hier liegt die Freigabe der Einsatz-Schlüssel.
+  // Den Host hält `_lib/host.ts`. showInSwitcher bleibt aus, bis der Reader steht (Stufe 3).
+  { key: "einsatzbuch", title: "Einsatzbuch", icon: "BookOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [],
+    prodHosts: [], showInSwitcher: false, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

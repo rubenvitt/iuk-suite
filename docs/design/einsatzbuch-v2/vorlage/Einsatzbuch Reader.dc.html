@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>Einsatzbuch Reader</title>
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/colors.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/typography.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/base.css">
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/styles.css">
+<script src="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/_ds_bundle.js"></script>
+<script src="einsatzbuch-kern.js"></script>
+<style>
+body{margin:0;background:var(--verw-body)}
+a{color:var(--iuk-marke)}a:hover{color:var(--brand-fill-hover)}
+button:focus-visible{outline:2px solid var(--iuk-marke);outline-offset:2px}
+@media print{@page{size:A4;margin:14mm 16mm}html,body{background:#fff!important}[data-app]{display:none!important}[data-druck-huelle]{position:static!important;overflow:visible!important;background:none!important;padding:0!important;display:block!important}[data-druck-steuer]{display:none!important}[data-druck]{box-shadow:none!important}[data-bericht]{width:auto!important;min-height:0!important;padding:0!important}}
+</style>
+</helmet>
+<div data-app="1" style="min-height:100vh;background:var(--verw-body);color:var(--verw-text);font:400 14px/1.5714 var(--font-body)">
+  <div style="position:sticky;top:0;z-index:100">
+    <div style="height:5px;background:var(--iuk-marke)"></div>
+    <header style="height:64px;padding:0 16px 0 24px;display:flex;align-items:center;gap:16px;background:var(--verw-kopf);color:var(--verw-kopf-text)">
+      <div style="font:600 20px/1 var(--font-display);letter-spacing:.07em">EINSATZ<span style="color:var(--iuk-marke)">BUCH</span></div>
+      <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Reader</div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--verw-text-2)"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="16" hint-size="16px,16px"></x-import>Läuft nur in deinem Browser · kein Server</div>
+      <sc-if value="{{ istOffen }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="kreuz" on-click="{{ schliessen }}" hint-size="150px,44px">Datei schließen</x-import>
+      </sc-if>
+    </header>
+  </div>
+
+  <sc-if value="{{ istLeer }}" hint-placeholder-val="{{ true }}">
+    <main data-screen-label="Datei öffnen" style="max-width:680px;margin:0 auto;padding:48px 24px;display:flex;flex-direction:column;gap:24px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Einsatzbuch Reader</div>
+        <h1 style="margin:0;font:600 30px/1.15 var(--font-display);letter-spacing:.02em">Einsatzbuch-Datei öffnen</h1>
+        <div style="font-size:15px;color:var(--verw-text-2);text-wrap:pretty">Öffne eine Datei, die du in der Verwaltung heruntergeladen hast. Du brauchst das Kennwort, mit dem sie gespeichert wurde.</div>
+      </div>
+      <div onDragOver="{{ ziehenUeber }}" onDragLeave="{{ ziehenWeg }}" onDrop="{{ ablegen }}" style="min-height:220px;border:1.5px dashed {{ zoneRand }};border-radius:10px;background:{{ zoneBg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 24px;text-align:center">
+        <div style="color:var(--verw-text-2)"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="hochladen" size="36" hint-size="36px,36px"></x-import></div>
+        <div style="font:600 20px/1.2 var(--font-display);letter-spacing:.02em">.einsatzbuch-Datei hierher ziehen</div>
+        <div style="font-size:13px;color:var(--iuk-gedaempft)">oder</div>
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="archiv" on-click="{{ waehlen }}" hint-size="170px,44px">Datei auswählen</x-import>
+        <input ref="{{ dateiRef }}" type="file" accept=".einsatzbuch,application/json" onChange="{{ dateiGewaehlt }}" style="display:none">
+      </div>
+      <sc-if value="{{ hatFehler }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Hinweis" ton="warn" hint-size="100%,44px">{{ fehler }}</x-import>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="width:36px;height:36px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="archiv" size="18" hint-size="18px,18px"></x-import></div><div><div style="font-weight:600">Nichts wird hochgeladen</div><div style="font-size:13px;color:var(--iuk-gedaempft)">Die Datei wird nur in diesem Tab gelesen. Schließen oder Neuladen verwirft alles.</div></div></div>
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="width:36px;height:36px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="18" hint-size="18px,18px"></x-import></div><div><div style="font-weight:600">Entschlüsselung mit Kennwort</div><div style="font-size:13px;color:var(--iuk-gedaempft)">AES-256-GCM. Ohne das richtige Kennwort bleibt der Inhalt unlesbar.</div></div></div>
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="width:36px;height:36px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="18" hint-size="18px,18px"></x-import></div><div><div style="font-weight:600">Kette wird geprüft</div><div style="font-size:13px;color:var(--iuk-gedaempft)">Jeder Einsatz wird mit seinem Fingerabdruck und seinem Vorgänger abgeglichen.</div></div></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding-top:12px;border-top:1px solid var(--verw-rand-2);font-size:13px;color:var(--iuk-gedaempft)">
+        <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="link" on-click="{{ beispiel }}" style="{{ ohnePolster }}" hint-size="160px,44px">Beispieldatei öffnen</x-import>
+        <span>Kennwort: <span style="font-family:var(--font-mono);color:var(--verw-text)">uelzen-beispiel</span></span>
+      </div>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ istKennwort }}" hint-placeholder-val="{{ false }}">
+    <main data-screen-label="Kennwort" style="max-width:520px;margin:0 auto;padding:48px 24px">
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" hint-size="100%,360px">
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:44px;height:44px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="22" hint-size="22px,22px"></x-import></div>
+            <div style="min-width:0">
+              <div style="font:500 14px var(--font-mono);word-break:break-all">{{ dateiname }}</div>
+              <div style="font-size:13px;color:var(--iuk-gedaempft)">{{ kopfText }}</div>
+            </div>
+          </div>
+          <x-import component-from-global-scope="IDADesignSystem_18c4ca.TextField" label="Kennwort" type="password" value="{{ kw }}" on-change="{{ setKw }}" on-key-down="{{ kwEnter }}" fehler="{{ kwFehler }}" auto-focus="{{ true }}" hint-size="100%,74px"></x-import>
+          <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+            <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="pfeil-links" on-click="{{ schliessen }}" hint-size="140px,44px">Andere Datei</x-import>
+            <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="schluessel" disabled="{{ entGesperrt }}" on-click="{{ entschluesseln }}" hint-size="160px,44px">{{ entLabel }}</x-import>
+          </div>
+        </div>
+      </x-import>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ istOffen }}" hint-placeholder-val="{{ false }}">
+    <main data-screen-label="Einsätze" style="max-width:1440px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:24px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font:500 12px var(--font-mono);color:var(--iuk-gedaempft);word-break:break-all">{{ dateiname }}</div>
+        <h1 style="margin:0;font:600 30px/1.15 var(--font-display);letter-spacing:.02em">{{ titel }}</h1>
+      </div>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Card" hint-size="100%,96px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px 24px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:40px;height:40px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="schluessel" size="20" hint-size="20px,20px"></x-import></div>
+            <div><div style="font-weight:600">Nur in diesem Tab entschlüsselt</div><div style="font-size:12px;color:var(--iuk-gedaempft)">Nichts wurde hochgeladen oder gespeichert. Schließen verwirft den Inhalt.</div></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:40px;height:40px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="archiv" size="20" hint-size="20px,20px"></x-import></div>
+            <div><div style="font-weight:600">Aus der Verwaltung</div><div style="font-size:12px;color:var(--iuk-gedaempft)">{{ herkunft }}</div></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:40px;height:40px;flex:none;border-radius:8px;background:var(--iuk-flaeche-aktiv);display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="20" hint-size="20px,20px"></x-import></div>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+              <div style="font-weight:600">Kettenprüfung</div>
+              <div style="font-size:12px;color:var(--iuk-gedaempft)">{{ pruefung.satz }}</div>
+              <x-import component-from-global-scope="IDADesignSystem_18c4ca.Chip" ton="{{ pruefung.ton }}" zeichen="{{ pruefung.zeichen }}" hint-size="140px,24px">{{ pruefung.text }}</x-import>
+            </div>
+          </div>
+        </div>
+      </x-import>
+
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+        <section style="flex:1 1 520px;min-width:0;background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:10px;padding:16px 16px 8px">
+          <div style="display:flex;align-items:baseline;gap:12px;padding:0 8px 12px">
+            <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Einsatzkette</div>
+            <div style="flex:1"></div>
+            <div style="font-size:12px;color:var(--iuk-gedaempft)">neueste oben</div>
+          </div>
+          <sc-for list="{{ reihen }}" as="r" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px">
+              <div style="position:relative">
+                <div style="position:absolute;left:15px;width:2px;top:{{ r.lTop }};bottom:0;background:var(--verw-rand)"></div>
+                <div style="position:absolute;left:6px;top:calc(50% - 10px);width:20px;height:20px;border-radius:999px;border:1.5px solid {{ r.knotenRand }};background:{{ r.knotenBg }};color:{{ r.knotenRand }};display:flex;align-items:center;justify-content:center">
+                  <sc-if value="{{ r.geprueft }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="haken" size="12" hint-size="12px,12px"></x-import></sc-if>
+                  <sc-if value="{{ r.gebrochen }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="entketten" size="12" hint-size="12px,12px"></x-import></sc-if>
+                </div>
+              </div>
+              <button onClick="{{ r.waehlen }}" style="margin:4px 0;display:flex;flex-direction:column;gap:4px;text-align:left;padding:12px 14px 12px 17px;border:1px solid var(--verw-rand-2);border-radius:8px;background:{{ r.bg }};box-shadow:inset 3px 0 0 {{ r.kante }};color:var(--verw-text);font-family:var(--font-body);cursor:pointer" style-hover="border-color:var(--border-control)">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <span style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Block {{ r.block }}</span>
+                  <span style="font:400 12px var(--font-mono);color:var(--iuk-gedaempft)">{{ r.nummer }}</span>
+                  <span style="flex:1"></span>
+                  <span style="font-size:12px;color:var(--iuk-gedaempft)">versiegelt {{ r.zeit }}</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+                  <span style="font:600 20px/1.2 var(--font-display);letter-spacing:.02em">{{ r.stichwort }}</span>
+                  <span style="font-size:14px;color:var(--verw-text-2)">{{ r.ort }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font:400 12px var(--font-mono);color:var(--iuk-gedaempft)">#{{ r.hashKurz }}<x-import component-from-global-scope="IDADesignSystem_18c4ca.Icon" name="verketten" size="12" hint-size="12px,12px"></x-import>#{{ r.prevKurz }}</div>
+              </button>
+            </div>
+          </sc-for>
+          <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px">
+            <div style="position:relative">
+              <div style="position:absolute;left:15px;width:2px;top:0;height:50%;background:var(--verw-rand)"></div>
+              <div style="position:absolute;left:10px;top:calc(50% - 6px);width:12px;height:12px;border-radius:2px;background:{{ fussFarbe }}"></div>
+            </div>
+            <div style="padding:12px 14px;font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">{{ fussText }}</div>
+          </div>
+        </section>
+
+        <section style="flex:1 1 380px;max-width:560px;min-width:0;position:sticky;top:93px;background:var(--verw-karte);border:1px solid var(--verw-rand-2);border-radius:10px;padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Block {{ d.block }} · {{ d.nummer }}</span>
+              <span style="flex:1"></span>
+              <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" icon="drucken" on-click="{{ pdfOeffnen }}" hint-size="140px,44px">PDF erzeugen</x-import>
+            </div>
+            <h2 style="margin:0;font:600 24px/1.2 var(--font-display);letter-spacing:.02em">{{ d.stichwort }}</h2>
+            <div style="font-size:14px;color:var(--verw-text-2)">{{ d.ort }}</div>
+            <div style="font-size:14px;color:var(--verw-text-2)">{{ d.objekt }}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px 0;border-top:1px solid var(--verw-rand-2);border-bottom:1px solid var(--verw-rand-2)">
+            <div><div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Vor Ort</div><div style="font:700 30px/1.1 var(--font-display)">{{ d.vorOrt }}</div></div>
+            <div><div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Transport</div><div style="font:700 30px/1.1 var(--font-display)">{{ d.transport }}</div></div>
+            <div><div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Gesamt</div><div style="font:700 30px/1.1 var(--font-display)">{{ d.gesamt }}</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px 12px;font-size:14px">
+            <div style="color:var(--iuk-gedaempft)">Beginn</div><div>{{ d.beginn }}</div>
+            <div style="color:var(--iuk-gedaempft)">Ende</div><div>{{ d.ende }}</div>
+            <div style="color:var(--iuk-gedaempft)">Dauer</div><div>{{ d.dauer }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Fahrzeuge · {{ d.anzFz }}</div>
+            <sc-for list="{{ d.fahrzeuge }}" as="f" hint-placeholder-count="2">
+              <div style="display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:baseline">
+                <span style="font:600 16px var(--font-display);letter-spacing:.02em">{{ f.typ }}</span>
+                <span style="font:400 13px var(--font-mono);color:var(--verw-text-2)">{{ f.ruf }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Personal · {{ d.anzPe }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <sc-for list="{{ d.personal }}" as="p" hint-placeholder-count="4">
+                <span style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;background:var(--iuk-flaeche-aktiv);font-size:13px">{{ p.name }}<span style="font:600 11px var(--font-display);letter-spacing:.06em;color:var(--verw-text-2)">{{ p.quali }}</span></span>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ d.hatNotizen }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font:600 12px var(--font-display);letter-spacing:.09em;text-transform:uppercase;color:var(--iuk-gedaempft)">Notizen</div>
+              <div style="font-size:14px;white-space:pre-wrap">{{ d.notizen }}</div>
+            </div>
+          </sc-if>
+          <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 12px;padding:12px;border-radius:8px;background:var(--verw-body);font:400 12px/1.6 var(--font-mono);color:var(--verw-text-2)">
+            <div>Fingerabdruck</div><div style="word-break:break-all">{{ d.hash }}</div>
+            <div>Vorgänger</div><div style="word-break:break-all">{{ d.prev }}</div>
+            <div>Versiegelt</div><div>{{ d.versiegelt }}</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </sc-if>
+</div>
+
+<sc-if value="{{ pdfOffen }}" hint-placeholder-val="{{ false }}">
+  <div data-druck-huelle="1" style="position:fixed;inset:0;z-index:200;background:rgb(0 0 0/.55);overflow:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:16px">
+    <div data-druck-steuer="1" style="width:210mm;max-width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;color:#fff;font:400 14px/1.5 var(--font-body)">
+      <div style="flex:1 1 240px;display:flex;flex-direction:column">
+        <span style="font:600 20px/1.2 var(--font-display);letter-spacing:.02em">Einsatzbericht · {{ d.nummer }}</span>
+        <span style="font-size:13px">Im Druckdialog „Als PDF speichern“ wählen.</span>
+      </div>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" on-click="{{ pdfSchliessen }}" hint-size="110px,44px">Schließen</x-import>
+      <x-import component-from-global-scope="IDADesignSystem_18c4ca.Button" variant="primary" icon="drucken" on-click="{{ drucken }}" hint-size="180px,44px">Als PDF speichern</x-import>
+    </div>
+    <div data-druck="1" style="box-shadow:0 8px 24px rgb(0 0 0/.3);flex:none">
+      <dc-import name="Einsatzbericht" b="{{ d }}" hint-size="210mm,297mm"></dc-import>
+    </div>
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { stufe: 'leer', datei: null, dateiname: '', kw: '', kwFehler: '', laeuft: false, fehler: '', inhalt: null, pruef: null, auswahl: null, pdf: false, ziehen: false };
+  dateiRef = React.createRef();
+
+  componentDidMount() {
+    this.thema();
+    this.mq = window.matchMedia('(prefers-color-scheme: dark)');
+    this.mqFn = () => this.thema(); this.mq.addEventListener && this.mq.addEventListener('change', this.mqFn);
+  }
+  componentWillUnmount() { this.mq && this.mq.removeEventListener && this.mq.removeEventListener('change', this.mqFn); }
+  thema() {
+    const d = window.matchMedia('(prefers-color-scheme: dark)').matches, h = document.documentElement;
+    if (d) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme');
+    h.style.colorScheme = d ? 'dark' : 'light';
+  }
+  wert(v) { return v && v.target ? v.target.value : v; }
+  zeit(iso) { const d = new Date(iso); return isNaN(d) ? '' : `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} Uhr`; }
+
+  lesen = async file => {
+    if (!file) return;
+    const K = window.EinsatzbuchKern;
+    try {
+      const d = JSON.parse(await file.text());
+      if (!K.istDatei(d)) throw new Error('format');
+      this.setState({ stufe: 'kennwort', datei: d, dateiname: file.name, kw: '', kwFehler: '', fehler: '' });
+    } catch (e) {
+      this.setState({ fehler: `„${file.name}“ ist keine Einsatzbuch-Datei. Erwartet wird eine .einsatzbuch-Datei aus der Verwaltung.` });
+    }
+  };
+  entschluesseln = async () => {
+    const K = window.EinsatzbuchKern, s = this.state;
+    if (!s.kw || s.laeuft) return;
+    this.setState({ laeuft: true, kwFehler: '' });
+    try {
+      const inhalt = await K.entschluesseln(s.datei, s.kw);
+      const kette = inhalt.kette || [];
+      this.setState({ stufe: 'offen', inhalt, pruef: K.pruefeKette(kette), auswahl: kette.length ? kette[kette.length - 1].block : null, laeuft: false, kw: '' });
+    } catch (e) {
+      this.setState({ laeuft: false, kwFehler: 'Das Kennwort passt nicht. Die Datei bleibt verschlüsselt.' });
+    }
+  };
+  beispiel = async () => {
+    const K = window.EinsatzbuchKern, inhalt = K.beispielInhalt(), k = inhalt.kette;
+    const kopf = { erstellt: new Date().toISOString(), umfang: 'alle', von: k[0].block, bis: k[k.length - 1].block, anzahl: k.length, quelle: 'DRK-Bereitschaft Uelzen' };
+    const datei = await K.verschluesseln(inhalt, 'uelzen-beispiel', kopf);
+    this.setState({ stufe: 'kennwort', datei, dateiname: 'beispiel.einsatzbuch', kw: '', kwFehler: '', fehler: '' });
+  };
+
+  renderVals() {
+    const s = this.state, K = window.EinsatzbuchKern;
+    const kopf = s.datei ? s.datei.kopf : null;
+    const kopfText = kopf ? `Exportiert ${this.zeit(kopf.erstellt)} · ${kopf.quelle} · ${kopf.anzahl === 1 ? `Block ${kopf.von}` : `Block ${kopf.von}–${kopf.bis}`} · ${kopf.anzahl} ${kopf.anzahl === 1 ? 'Einsatz' : 'Einsätze'}` : '';
+    const basis = {
+      istLeer: s.stufe === 'leer', istKennwort: s.stufe === 'kennwort', istOffen: s.stufe === 'offen',
+      dateiRef: this.dateiRef, waehlen: () => this.dateiRef.current && this.dateiRef.current.click(),
+      dateiGewaehlt: ev => { const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; this.lesen(f); },
+      ziehenUeber: ev => { ev.preventDefault(); if (!s.ziehen) this.setState({ ziehen: true }); },
+      ziehenWeg: () => this.setState({ ziehen: false }),
+      ablegen: ev => { ev.preventDefault(); this.setState({ ziehen: false }); this.lesen(ev.dataTransfer.files && ev.dataTransfer.files[0]); },
+      zoneRand: s.ziehen ? 'var(--brand-fill)' : 'var(--border-control)', zoneBg: s.ziehen ? 'var(--iuk-flaeche-aktiv)' : 'var(--verw-karte)',
+      hatFehler: !!s.fehler, fehler: s.fehler, beispiel: this.beispiel, ohnePolster: { padding: 0, height: 'auto' },
+      dateiname: s.dateiname, kopfText, kw: s.kw,
+      setKw: v => this.setState({ kw: this.wert(v), kwFehler: '' }),
+      kwEnter: ev => { if (ev.key === 'Enter') { ev.preventDefault(); this.entschluesseln(); } },
+      kwFehler: s.kwFehler || undefined, entGesperrt: !s.kw || s.laeuft, entLabel: s.laeuft ? 'Entschlüssele …' : 'Entschlüsseln',
+      entschluesseln: this.entschluesseln,
+      schliessen: () => this.setState({ stufe: 'leer', datei: null, inhalt: null, pruef: null, dateiname: '', kw: '', kwFehler: '', pdf: false }),
+      reihen: [], d: {}, pruefung: {}, pdfOffen: false
+    };
+    if (s.stufe !== 'offen' || !s.inhalt || !K) return basis;
+
+    const k = s.inhalt.kette, n = k.length, pr = s.pruef || { ok: false };
+    const stamm = s.inhalt.stamm || {};
+    const reihen = k.slice().reverse().map((b, i) => {
+      const geprueft = pr.ok || b.block < pr.block, gebrochen = !pr.ok && b.block === pr.block, an = b.block === s.auswahl, d = b.daten;
+      return {
+        block: b.block, nummer: d.nummer, stichwort: d.stichwort, ort: [d.strasse, d.ort].filter(Boolean).join(', '), zeit: K.zeitpunkt(b.versiegelt),
+        hashKurz: b.hash.slice(0, 8), prevKurz: b.prev.slice(0, 8), geprueft, gebrochen, lTop: i === 0 ? '50%' : '0',
+        knotenBg: gebrochen ? 'var(--iuk-ampel-rot-flaeche)' : geprueft ? 'var(--iuk-ampel-ok-flaeche)' : 'var(--verw-karte)',
+        knotenRand: gebrochen ? 'var(--iuk-ampel-rot-text)' : geprueft ? 'var(--iuk-ampel-ok-text)' : 'var(--verw-rand)',
+        bg: an ? 'var(--iuk-flaeche-aktiv)' : 'var(--verw-karte)', kante: an ? 'var(--brand-fill)' : 'transparent',
+        waehlen: () => this.setState({ auswahl: b.block })
+      };
+    });
+    const sel = k.find(b => b.block === s.auswahl) || k[n - 1];
+    const pruefSatz = pr.ok ? (pr.vollstaendig ? 'Alle Blöcke passen zu ihrem Fingerabdruck und bauen lückenlos auf dem Anfang der Kette auf.' : `Ausschnitt ab Block ${k[0].block}: Die enthaltenen Blöcke passen zusammen. Der Vorgänger #${k[0].prev.slice(0, 8)} ist nicht in der Datei.`) : `Block ${pr.block}: ${pr.grund}. Die Datei wurde nach dem Export verändert oder ist beschädigt.`;
+    const pruefung = pr.ok ? { ton: 'ok', zeichen: 'haken', text: pr.vollstaendig ? 'Kette intakt' : 'Ausschnitt intakt', satz: pruefSatz } : { ton: 'rot', zeichen: 'warnung', text: `Gebrochen bei Block ${pr.block}`, satz: pruefSatz };
+    const d = K.bericht(sel, stamm, { pruefung: pr.ok ? `${pruefung.text} (geprüft im Reader)` : pruefung.text, quelle: `Einsatzbuch Reader, aus ${s.dateiname}` });
+    return {
+      ...basis, reihen, d, pruefung,
+      titel: n === 1 ? `1 Einsatz · Block ${k[0].block}` : `${n} Einsätze · Block ${k[0].block}–${k[n - 1].block}`,
+      herkunft: `${kopf.quelle} · exportiert ${this.zeit(kopf.erstellt)}${s.inhalt.exportiertVon ? ` von ${s.inhalt.exportiertVon}` : ''}`,
+      fussText: pr.vollstaendig ? 'Block 0 · Anfang der Kette' : `Vorgänger #${k[0].prev.slice(0, 8)} · nicht in der Datei`,
+      fussFarbe: pr.vollstaendig ? 'var(--verw-text-2)' : 'var(--verw-rand)',
+      pdfOffen: s.pdf, pdfOeffnen: () => this.setState({ pdf: true }), pdfSchliessen: () => this.setState({ pdf: false }), drucken: () => window.print()
+    };
+  }
+}
+</script>
+</body>
+</html>
