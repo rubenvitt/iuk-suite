@@ -36,7 +36,7 @@ describe("verdeckt: kein Kennwort-Leck bei einer Korrektur (DRK-471)", () => {
     });
 
     const eingabe = verdeckt("Notfall-Kennwort: ", input, output);
-    // Probe aus dem Befund: "geheim-kennwort-12X⌫3⏎" → Kennwort "geheim-kennwort-123".
+    // Probe: "geheim-kennwort-12X⌫3⏎" → Kennwort "geheim-kennwort-123".
     input.write("geheim-kennwort-12X");
     input.write("\x7f"); // Rücktaste: löscht das "X"
     input.write("3");

@@ -9,7 +9,7 @@ export interface Schluesselstatus {
 }
 
 /**
- * Status für die Übersichtsseite (Entscheidung 5/10 im gemeinsamen Kontext): `paar: "unbekannt"`
+ * Status für die Übersichtsseite (Plan Stufe 2, Entscheidungen 5 und 10): `paar: "unbekannt"`
  * heißt, der KEK ist nicht `"ok"`, es existiert aber ein Paar — ob der KEK zu ihm passen würde,
  * lässt sich ohne gültigen KEK nicht prüfen.
  */

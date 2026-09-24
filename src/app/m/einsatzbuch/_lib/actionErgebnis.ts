@@ -8,7 +8,7 @@ import { ZodError } from "zod";
  * geworfener deutscher Fehlersatz käme bei der Verwaltenden also nie an.
  *
  * Eigene Kopie statt Import aus `lagerbuch`: kein modulübergreifender Import
- * (Entscheidung 6, gemeinsamer Kontext Stufe 2).
+ * (Plan Stufe 2, Entscheidung 6).
  *
  * Keine `"use server"`-Direktive auf dieser Datei: dort wäre jeder Export eine
  * Action, und ein exportierter Typ ist dort ein Fehler, den erst die Laufzeit

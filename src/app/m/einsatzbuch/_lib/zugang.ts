@@ -8,7 +8,7 @@ import { getModule, requiredGroupsFor } from "@/core/registry";
 import { istEinsatzbuchHost } from "./host";
 
 /**
- * `NonNullable<Awaited<ReturnType<typeof auth>>>["user"]` (Brief) scheitert am Typecheck:
+ * `NonNullable<Awaited<ReturnType<typeof auth>>>["user"]` scheitert am Typecheck:
  * `auth` aus `NextAuth(fn)` ist überladen (Sitzung/Middleware/Handler-Wrapper), und
  * `ReturnType` löst dabei auf die letzte Überladung auf (`NextMiddleware`), nicht auf die
  * Sitzungs-Signatur. `Session["user"]` (Modulaugmentation in `src/types/next-auth.d.ts`)

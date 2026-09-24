@@ -3,8 +3,8 @@
  * pnpm einsatzbuch:schluessel wiederherstellen <notfalldatei.json>
  *
  * Läuft aus einem Checkout DESSELBEN Stands wie die laufende Suite, gegen DATA_DIR
- * (Runbook docs/runbooks/einsatzbuch-schluessel.md, Entscheidung 9 im gemeinsamen Kontext
- * der Stufe 2). Migriert NICHT: die Suite muss mit diesem Stand einmal gestartet sein.
+ * (Runbook docs/runbooks/einsatzbuch-schluessel.md; Plan Stufe 2, Entscheidung 9, in
+ * docs/superpowers/plans/). Migriert NICHT: die Suite muss mit diesem Stand einmal gestartet sein.
  * Kennwort interaktiv (zweimal, verdeckt) oder aus EINSATZBUCH_NOTFALL_KENNWORT
  * (Tests/Automatisierung). Schlüsselmaterial erscheint nie in einer Log-Zeile.
  */

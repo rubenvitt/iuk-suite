@@ -1,5 +1,5 @@
 /**
- * Das Schlüsselpaar der Suite (Spec §12, Entscheidung 4 im gemeinsamen Kontext). Genau ein
+ * Das Schlüsselpaar der Suite (Spec §12; Plan Stufe 2, Entscheidung 4). Genau ein
  * echtes Paar (`art = "echt"`, `rechnerId = null`), daneben beliebig viele Test-Paare je
  * Test-Rechner. Der private Schlüssel liegt nie im Klartext in der Datenbank: gespeichert wird
  * `<iv base64>:<ct base64>`, AES-256-GCM mit dem KEK, AAD = `einsatzbuch/v1/privat/<schluesselId>`

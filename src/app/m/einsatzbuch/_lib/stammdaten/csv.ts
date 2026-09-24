@@ -1,7 +1,7 @@
 /**
  * CSV-Import der Stammdaten: reine Funktionen ohne Node-API, damit dieses Modul auch in der
  * Browser-Vorschau (Client-Insel) läuft. `import.ts` (Server) schreibt anhand des hier
- * erzeugten Plans (Spec §5.1, Entscheidung 7 im gemeinsamen Kontext).
+ * erzeugten Plans (Spec §5.1; Plan Stufe 2, Entscheidung 7).
  */
 import { fahrzeugEingabe, personEingabe, stichwortEingabe } from "./schemas";
 import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "./typen";
@@ -100,7 +100,7 @@ export function planeImport(art: Stammdatenart, text: string, bestand: Importbes
   if (roh.length - 1 > MAX_CSV_ZEILEN) return { ok: false, fehler: `Höchstens ${MAX_CSV_ZEILEN} Zeilen je Import.` };
 
   // Der fachliche Schlüssel (`kennung`/`name`) ist je nach Art auf einem anderen DTO-Feld zu
-  // finden; die Tabellenweiche macht das hier unvermeidlich generisch (siehe Bericht).
+  // finden; die Tabellenweiche macht das hier unvermeidlich generisch.
   const vorhanden = bestand[art] as (FahrzeugDTO | PersonDTO | StichwortDTO)[];
   const gesehen = new Map<string, number>();
   const zeilen = roh.slice(1).map((felder, i): Vorschauzeile => {

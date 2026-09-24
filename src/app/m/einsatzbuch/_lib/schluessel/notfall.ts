@@ -1,5 +1,5 @@
 /**
- * Notfall-Sicherung des privaten Schlüssels (Spec §12, gemeinsamer Kontext): PKCS#8,
+ * Notfall-Sicherung des privaten Schlüssels (Spec §12): PKCS#8,
  * kennwortgeschützt mit PBKDF2-SHA-256 600 000 Runden + AES-256-GCM, als Datei UND als
  * QR zum Ausdrucken. Anders als beim Export (`kern/export.ts`) ist der Kopf hier klein
  * genug, um mitsamt der verschlüsselten Nutzlast in einen einzigen QR-Code zu passen.

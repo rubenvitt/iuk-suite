@@ -1,7 +1,7 @@
 /**
  * Server-seitiges Anwenden eines geprüften Importplans (Vorschau kommt aus `csv.ts`, das
  * ohne Node-API auch im Browser läuft). Nur „neu“ und „geändert“ schreiben; der Import
- * deaktiviert nichts (Spec §5.1, Entscheidung 7 im gemeinsamen Kontext).
+ * deaktiviert nichts (Spec §5.1; Plan Stufe 2, Entscheidung 7).
  */
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
