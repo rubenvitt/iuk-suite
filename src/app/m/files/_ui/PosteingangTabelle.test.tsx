@@ -16,7 +16,8 @@ import { act } from "react";
  *    Loeschen mit Bestaetigung und Groesze sowie die Mehrfachauswahl fuer
  *    Loeschen und ZIP (6), `size="small"` nur in Tabellenzeilen (7).
  *  - QUELLTEXT-SCAN ueber `posteingang.module.css` und ueber die Komponente:
- *    die Umschaltung unter 767.98px und `scroll={{ x: "max-content" }}` (7).
+ *    die Knopfzeile unter 767.98px, „beide Darstellungen aus `Kartentabelle`,
+ *    nicht von Hand" (DRK-422) und kein festes Tabellenlayout (7).
  *    jsdom wertet Medienabfragen NICHT aus — ein DOM-Test, der „bei 390px steht
  *    die Kartenliste" behauptet, geht IMMER durch und misst nichts
  *    (`docs/design/README.md:199-206`). Was hier wirkt, weiss nur ein Browser;
@@ -159,6 +160,15 @@ async function zeige(zeilen: PosteingangZeile[] = ALLE_DREI): Promise<void> {
   await mount(<PosteingangTabelle zeilen={zeilen} jetztSekunden={JETZT_SEKUNDEN} />);
 }
 
+/**
+ * DIE BEIDEN DARSTELLUNGEN ALS RAHMEN. `Kartentabelle` rendert jede Zeile
+ * ZWEIMAL — als Tabellenzeile und als Karte —, und dieselbe Spalte liefert
+ * dieselbe `data-testid` an beide Stellen. Ohne Rahmen traefe ein Greifer die
+ * erste im Dokument, und das ist die KARTE (die Liste steht vor der Tabelle).
+ */
+const BREIT = "[data-rolle='breitansicht']";
+const SCHMAL = "[data-rolle='schmalkarten']";
+
 /** Die Dateinamen in der Reihenfolge der TABELLENzeilen. */
 function tabellenDateinamen(): string[] {
   return queryAll("tbody.ant-table-tbody tr.ant-table-row").map(
@@ -198,9 +208,19 @@ function filterWerte(gruppe: string): string[] {
   ).map((feld) => feld.value);
 }
 
-async function waehle(id: string): Promise<void> {
-  await schalte(query<HTMLInputElement>(`[data-testid="files-inbox-auswahl-tabelle-${id}"] input`));
+/** Das Kreuzchen einer Zeile — in der Tabelle (antds `rowSelection`) oder auf der Karte. */
+function kreuzchen(id: string, wo: "tabelle" | "karte" = "tabelle"): HTMLInputElement {
+  return wo === "tabelle"
+    ? query<HTMLInputElement>(`${BREIT} tr[data-row-key="${id}"] .ant-table-selection-column input`)
+    : query<HTMLInputElement>(`${SCHMAL} [data-karte-key="${id}"] input[type="checkbox"]`);
 }
+
+async function waehle(id: string, wo: "tabelle" | "karte" = "tabelle"): Promise<void> {
+  await schalte(kreuzchen(id, wo));
+}
+
+/** Das Kopf-Kaestchen der Auswahlspalte. */
+const ALLE_KREUZCHEN = `${BREIT} thead .ant-table-selection-column input`;
 
 /** Den Bestaetigungsknopf EINES offenen Popconfirm im Portal finden. */
 function bestaetigung(beschriftung: string): HTMLElement {
@@ -244,8 +264,8 @@ function abgeschickteIds(): string[] {
 describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
   it("zeigt genau die acht Spalten aus §8.6 in ihrer Reihenfolge", async () => {
     await zeige();
-    // Die AUSWAHLspalte steht davor und ist keine der acht: sie traegt keinen
-    // Wert der Abgabe, sondern die Mehrfachauswahl aus Punkt 6.
+    // Die AUSWAHLspalte (antds `rowSelection`) steht davor und ist keine der
+    // acht: sie traegt keinen Wert der Abgabe, sondern die Mehrfachauswahl.
     expect(spaltenTitel().slice(1)).toEqual([
       "Zeit",
       "Dateiname",
@@ -315,7 +335,7 @@ describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
     // Die Einheit steht im Text, nicht in einem Kommentar (§9.1): „1,0 MB" und
     // „1,0 MiB" unterscheiden sich um den Faktor 1,048576, und genau dieses Paar
     // ist im Modul `files` schon einmal teuer geworden.
-    expect(query("[data-testid='files-posteingang-tabelle']").textContent).toContain("1,0 MiB");
+    expect(query(BREIT).textContent).toContain("1,0 MiB");
   });
 });
 
@@ -405,7 +425,7 @@ describe("Punkt 2 — Filter fuer Kategorie, AV-Status, Zeitraum und Abgabelink"
   it("zeigt eine unbekannte Kategorie ROH an, statt die Zeile zu verwerfen", async () => {
     await zeige();
     expect(tabellenDateinamen()).toContain("bericht.docx");
-    expect(query("[data-testid='files-posteingang-tabelle']").textContent).toContain("berichte");
+    expect(query(BREIT).textContent).toContain("berichte");
   });
 
   it("nennt den leeren Trefferzustand und bietet einen Weg zurueck", async () => {
@@ -466,7 +486,7 @@ describe("Punkt 4 — AV-Zustand mit Symbol UND Text", () => {
    */
   it("sperrt den Download, solange die Zeile nicht freigegeben ist", async () => {
     await zeige([MITTE]);
-    const knopf = query("[data-testid='files-inbox-download-tabelle-bbbbbbbbbb']");
+    const knopf = query(`${BREIT} [data-testid='files-inbox-download-bbbbbbbbbb']`);
     expect(knopf.getAttribute("aria-disabled")).toBe("true");
     expect(knopf.getAttribute("href")).toBeNull();
   });
@@ -474,7 +494,7 @@ describe("Punkt 4 — AV-Zustand mit Symbol UND Text", () => {
   it("verlinkt den Download einer freigegebenen Zeile auf `/api/inbox/<id>`", async () => {
     await zeige([NEU]);
     expect(
-      query("[data-testid='files-inbox-download-tabelle-aaaaaaaaaa']").getAttribute("href"),
+      query(`${BREIT} [data-testid='files-inbox-download-aaaaaaaaaa']`).getAttribute("href"),
     ).toBe("/api/inbox/aaaaaaaaaa");
   });
 });
@@ -510,7 +530,7 @@ describe("Punkt 5 — Leerzustand", () => {
 describe("Punkt 6 — Loeschen mit Bestaetigung und Groesze", () => {
   it("fragt vor dem Loeschen nach und nennt Name und Groesze", async () => {
     await zeige([NEU]);
-    await click("[data-testid='files-inbox-loeschen-tabelle-aaaaaaaaaa']");
+    await click(`${BREIT} [data-testid='files-inbox-loeschen-aaaaaaaaaa']`);
     const text = popconfirmText();
     expect(text).toContain("lage.txt");
     // Die GROESZE gehoert in die Rueckfrage (§8.6): ohne sie sagt „wird
@@ -520,7 +540,7 @@ describe("Punkt 6 — Loeschen mit Bestaetigung und Groesze", () => {
 
   it("schickt erst NACH der Bestaetigung ab — und dann mit genau dieser ID", async () => {
     await zeige([NEU]);
-    await click("[data-testid='files-inbox-loeschen-tabelle-aaaaaaaaaa']");
+    await click(`${BREIT} [data-testid='files-inbox-loeschen-aaaaaaaaaa']`);
     expect(abschicken).not.toHaveBeenCalled();
     await clickElement(bestaetigung("Löschen"));
     expect(abgeschickteIds()).toEqual([NEU.id]);
@@ -583,15 +603,61 @@ describe("Punkt 6 — Mehrfachauswahl", () => {
   it("waehlt mit dem Kopf-Kaestchen alle sichtbaren Zeilen und hebt sie wieder auf", async () => {
     await zeige();
     await filtere("zeitraum", "7t");
-    await schalte(query<HTMLInputElement>("[data-testid='files-inbox-auswahl-alle'] input"));
+    await schalte(query<HTMLInputElement>(ALLE_KREUZCHEN));
     expect(query("[data-testid='files-inbox-zip']").getAttribute("href")).toBe(
       `/api/inbox/zip?ids=${NEU.id},${MITTE.id}`,
     );
-    await schalte(
-      query<HTMLInputElement>("[data-testid='files-inbox-auswahl-alle'] input"),
-      false,
-    );
+    await schalte(query<HTMLInputElement>(ALLE_KREUZCHEN), false);
     expect(query("[data-testid='files-inbox-zip']").getAttribute("aria-disabled")).toBe("true");
+  });
+
+  /**
+   * ⚠️ EINE AUSWAHL, ZWEI DARSTELLUNGEN (DRK-422). Tabelle und Karte teilen
+   * DENSELBEN Zustand: ein Haken auf der Karte steht danach auch in der
+   * Tabelle, und die Sammelaktion sieht ihn. Liefen die beiden auseinander,
+   * aenderte ein Drehen des Tablets still, was „Ausgewählte löschen" loescht.
+   */
+  it("teilt die Auswahl zwischen Karte und Tabelle", async () => {
+    await zeige();
+    await waehle(ALT.id, "karte");
+    expect(kreuzchen(ALT.id, "tabelle").checked).toBe(true);
+    await waehle(NEU.id, "tabelle");
+    expect(kreuzchen(NEU.id, "karte").checked).toBe(true);
+    expect(query("[data-testid='files-inbox-zip']").getAttribute("href")).toBe(
+      `/api/inbox/zip?ids=${NEU.id},${ALT.id}`,
+    );
+    // Abwaehlen auf der Karte nimmt NUR diese Zeile heraus.
+    await schalte(kreuzchen(ALT.id, "karte"), false);
+    expect(kreuzchen(ALT.id, "tabelle").checked).toBe(false);
+    expect(query("[data-testid='files-inbox-zip']").getAttribute("href")).toBe(
+      `/api/inbox/zip?ids=${NEU.id}`,
+    );
+  });
+
+  /**
+   * ⚠️ DIE AUSWAHL UEBERLEBT EINEN FILTER, DER SIE VERBIRGT — sie gilt nur
+   * nicht, solange er sie verbirgt. Das ist `preserveSelectedRowKeys`: ohne
+   * die Angabe verwuerfe antd beim naechsten Haken jede Auswahl, die nicht in
+   * `dataSource` steht, und nach dem Zuruecksetzen des Filters waere sie weg.
+   */
+  it("haelt eine verborgene Auswahl ueber einen weiteren Haken hinweg", async () => {
+    await zeige();
+    await waehle(ALT.id);
+    await filtere("zeitraum", "7t");
+    await waehle(NEU.id);
+    await filtere("zeitraum", "alle");
+    expect(query("[data-testid='files-inbox-zip']").getAttribute("href")).toBe(
+      `/api/inbox/zip?ids=${NEU.id},${ALT.id}`,
+    );
+  });
+
+  it("benennt jedes Kreuzchen nach der Datei, nicht nach der ID", async () => {
+    await zeige([NEU]);
+    expect(kreuzchen(NEU.id, "tabelle").getAttribute("aria-label")).toBe("lage.txt auswählen");
+    expect(kreuzchen(NEU.id, "karte").getAttribute("aria-label")).toBe("lage.txt auswählen");
+    expect(query(ALLE_KREUZCHEN).getAttribute("aria-label")).toBe(
+      "Alle sichtbaren Abgaben auswählen",
+    );
   });
 });
 
@@ -600,14 +666,22 @@ describe("Punkt 6 — Mehrfachauswahl", () => {
 // ---------------------------------------------------------------------------
 
 describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
-  it("haelt Tabelle UND Kartenliste im Markup, mit den Klassen aus `files.css`", async () => {
+  /**
+   * ⚠️ BEIDE DARSTELLUNGEN AUS DEM GEMEINSAMEN BAUTEIL, NICHT VON HAND
+   * (DRK-422). Die Umschaltung ist CSS, nie JavaScript — und sie gehoert
+   * `core/tabelle`, nicht mehr den Klassen `nurDesktop`/`nurMobil` aus
+   * `files.css`. Der Scan haelt fest, dass die Handarbeit nicht zurueckkommt.
+   */
+  it("haelt Tabelle UND Kartenliste im Markup, beide aus `Kartentabelle`", async () => {
+    const quelle = ohneKommentare(readFileSync(KOMPONENTE_PFAD, "utf8"));
+    expect(quelle).toMatch(/<Kartentabelle</);
+    expect(quelle).not.toMatch(/nur(Desktop|Mobil)|fi-liste|useBreakpoint|matchMedia/);
+
     await zeige();
-    // Die Umschaltung ist CSS, nie JavaScript: ein JS-Breakpoint zeigte beim
-    // ersten Render die falsche Variante (`docs/design/README.md:163-165`).
-    expect(query("[data-testid='files-posteingang']").className).toContain("fi-liste");
-    expect(query("[data-testid='files-posteingang-tabelle']").className).toContain("nurDesktop");
-    expect(query("[data-testid='files-posteingang-karten']").className).toContain("nurMobil");
-    expect(queryAll("[data-testid^='files-inbox-karte-']")).toHaveLength(3);
+    expect(query(`[data-testid='files-posteingang'] ${BREIT} .ant-table-wrapper`)).not.toBeNull();
+    expect(queryAll(`[data-testid='files-posteingang'] ${SCHMAL} [data-karte-key]`)).toHaveLength(3);
+    // Der Dateiname ist die Ueberschrift der Karte, nicht die Zeit.
+    expect(query(`${SCHMAL} [data-karte-key="${NEU.id}"]`).textContent).toContain("lage.txt");
   });
 
   /*
@@ -656,7 +730,7 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
   it("laesst die Tabelle scrollen statt umzubrechen, ohne festes Tabellenlayout", async () => {
     await zeige();
     const stil = (
-      query("[data-testid='files-posteingang-tabelle'] table").getAttribute("style") ?? ""
+      query(`${BREIT} table`).getAttribute("style") ?? ""
     ).replace(/\s+/g, "");
     expect(stil).toContain("width:max-content");
     expect(stil).not.toContain("table-layout:fixed");
@@ -690,11 +764,11 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
      * `block` bleibt weiterhin falsch fuer den Alert-Wiederholen-Knopf: eine
      * vollbreite Flaeche in einer Alert-Aktion.
      */
-    const inTabelle = query(`[data-testid='files-inbox-wiederholen-tabelle-${NEU.id}']`);
+    const inTabelle = query(`${BREIT} [data-testid='files-inbox-wiederholen-${NEU.id}']`);
     expect(inTabelle.className, "Zeilenaktion mit small").not.toContain("ant-btn-sm");
     expect(inTabelle.className, "Zeilenaktion mit large").not.toContain("ant-btn-lg");
 
-    const inKarte = query(`[data-testid='files-inbox-wiederholen-karte-${NEU.id}']`);
+    const inKarte = query(`${SCHMAL} [data-testid='files-inbox-wiederholen-${NEU.id}']`);
     expect(inKarte.className, "Kartenaktion mit small").not.toContain("ant-btn-sm");
     expect(inKarte.className, "Kartenaktion mit large").not.toContain("ant-btn-lg");
     expect(inKarte.className, "Kartenaktion vollbreit").not.toContain("ant-btn-block");
@@ -707,10 +781,10 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
     // OHNE Rueckfrage: die Bestaetigung stand schon vor dem ersten Versuch —
     // ein zweites Popconfirm waere eine Rueckfrage zu einer Entscheidung, die
     // die Person gerade getroffen hat.
-    expect(query(`[data-testid='files-inbox-fehler-tabelle-${NEU.id}']`).textContent).toContain(
+    expect(query(`${BREIT} [data-testid='files-inbox-fehler-${NEU.id}']`).textContent).toContain(
       FEHLERTEXT,
     );
-    await click(`[data-testid='files-inbox-wiederholen-tabelle-${NEU.id}']`);
+    await click(`${BREIT} [data-testid='files-inbox-wiederholen-${NEU.id}']`);
     expect(abgeschickteIds()).toEqual([NEU.id]);
   });
 
@@ -770,8 +844,8 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
  * gerade bedient — und die Faelle oben rufen ihn auf einer `clean`-Zeile auf,
  * an der es diesen hier gar nicht geben darf.
  */
-const AV_KNOPF = (kennung: "tabelle" | "karte", id: string) =>
-  `[data-testid='files-inbox-av-wiederholen-${kennung}-${id}']`;
+const AV_KNOPF = (wo: "tabelle" | "karte", id: string) =>
+  `${wo === "tabelle" ? BREIT : SCHMAL} [data-testid='files-inbox-av-wiederholen-${id}']`;
 
 /** Dieselbe Abgabe, nur in einem anderen Pruefzustand. */
 function mitAvStatus(status: (typeof AV_STATUS)[number], id: string): PosteingangZeile {
@@ -783,7 +857,8 @@ describe("T45 — Wiederholen der Virenpruefung", () => {
     await zeige([ALT]);
     expect(exists(AV_KNOPF("tabelle", ALT.id))).toBe(true);
     // Die Kartenliste steht IMMER im Markup (die Umschaltung ist CSS): ohne
-    // den Knopf dort haette die Zeile unter 768px keinen Einstiegspunkt.
+    // den Knopf dort haette die Zeile unter 768px keinen Einstiegspunkt. Seit
+    // DRK-422 rendert ihn dieselbe Spalte an beiden Stellen.
     expect(exists(AV_KNOPF("karte", ALT.id))).toBe(true);
   });
 

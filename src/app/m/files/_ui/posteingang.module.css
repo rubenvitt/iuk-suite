@@ -2,11 +2,9 @@
  * KOMPONENTENLOKALES CSS DES POSTEINGANGS (Plan T43, Spec §8.6).
  *
  * WAS HIER LIEGT UND WAS NICHT: `_ui/files.css` traegt die modulweiten
- * `--fi-*`-Variablen und die EINE Umschaltung Tabelle/Kartenliste
- * (`.fi-liste .nurDesktop` / `.nurMobil`), die sich zwei Ansichten teilen —
- * diese Datei benutzt sie und erklaert sie NICHT ein zweites Mal. Ein
- * `.module.css` haette dafuer ohnehin gehashte Namen und traefe die Klassen aus
- * dem globalen Stylesheet gar nicht (Plan §1, Festlegung C).
+ * `--fi-*`-Variablen. Die Umschaltung Tabelle/Kartenliste gehoert seit DRK-422
+ * dem gemeinsamen Bauteil (`core/tabelle/schmalkarten.module.css`) — auch die
+ * Karte selbst, deshalb steht hier keine Kartenregel mehr.
  *
  * `--ant-*` waere hier still wirkungslos: antd deklariert seine Variablen auf
  * der Scope-Klasse an den Wurzelelementen SEINER Komponenten, nicht auf
@@ -107,36 +105,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/*
- * Der freie Hinweistext der abgebenden Person in der KARTE unter 768px. Er ist
- * Fremdeingabe und kann beliebig lang sein.
- *
- * ⚠️ IN DER TABELLE STEHT DAFUER `Zellentext` AUS `core/tabelle` (DRK-372), und
- * das ist kein Geschmack: dort haengt der Text an einem `<span>`, und
- * `max-width` gilt nicht fuer nicht-ersetzte Inline-Elemente (CSS 2.1 §10.4) —
- * die Deklaration stand richtig da und der Browser verwarf sie. An einem `<p>`
- * wirkt sie. Genau diese Haelfte war jahrelang still.
- */
-.hinweistext {
-  max-width: 32ch;
-  overflow-wrap: anywhere;
-}
-
 .feldFehler {
   /* Warnton als TEXT, nie als Flaeche — siehe Kopfkommentar. */
   color: var(--fi-warn);
   font-size: 14px;
-}
-
-/* Die Karte einer Abgabe unter 768px: eine Zeile je Angabe, mit Beschriftung. */
-.karte {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.karte p {
-  margin: 0;
 }
 
 @media (max-width: 767.98px) {
@@ -171,9 +143,5 @@
   .filterleiste {
     flex-direction: column;
     gap: 16px;
-  }
-
-  .hinweistext {
-    max-width: none;
   }
 }

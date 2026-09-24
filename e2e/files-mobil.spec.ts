@@ -42,8 +42,8 @@ import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
  * Mutation prueft, bekommt dreimal gruen und haelt die Datei danach fuer
  * wertlos — oder, schlimmer, fuer geprueft.
  *
- * Die Mutation, die die zugesagte Eigenschaft trifft, ist `767.98px → 900px` in
- * `_ui/files.css`: bei 390 schweigt sie (mobil so wie so), bei 1280 schweigt sie
+ * Die Mutation, die die zugesagte Eigenschaft trifft, ist `768 → 900` im Bauteil
+ * `core/tabelle` (bis DRK-422 in `files.css`): bei 390 schweigt sie, bei 1280 schweigt sie
  * (Desktop so wie so), und bei 834 wird sie ROT. Das ist woertlich „rot in der
  * Mitte, wo die Enden schweigen" — gemessen, nicht behauptet.
  *
@@ -55,7 +55,7 @@ import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
  *
  * ═══ WAS SONST NOCH GEMESSEN WURDE, UND WAS DABEI HERAUSKAM ══════════════════
  *
- * 1. `files.css` 767.98 → 900: Punkt 1 und 2 bei **834 rot**, 390 und 1280
+ * 1. `files.css` 767.98 → 900 (heute im Bauteil): Punkt 1 und 2 bei **834 rot**, 390 und 1280
  *    gruen. Die tragende Zusage dieser Datei.
  * 2. Punkt 3 und 4 gegen ihre eigene Aussage gedreht (Erwartung `vp.schmal`
  *    invertiert; Trefferflaechen-Schwelle 44 → 60): beide in **allen drei**
@@ -638,8 +638,14 @@ for (const vp of VIEWPORTS) {
       expect(antwort?.status(), "Freigaben-Uebersicht: HTTP").toBe(200);
       await expect(page.getByTestId("files-shares-tabelle")).toBeVisible();
 
-      const tabelle = page.getByTestId("files-shares-tabelle-desktop");
-      const karten = page.getByTestId("files-shares-karten");
+      /*
+       * ⚠️ DIE BEIDEN DARSTELLUNGEN KOMMEN SEIT DRK-422 AUS `Kartentabelle`,
+       * und das Bauteil kennzeichnet sie selbst (`data-rolle`). Gerahmt auf die
+       * Freigaben-Tabelle, weil dieselben Rollen an jeder Kartentabelle stehen.
+       */
+      const liste = page.getByTestId("files-shares-tabelle");
+      const tabelle = liste.locator('[data-rolle="breitansicht"]');
+      const karten = liste.locator('[data-rolle="schmalkarten"]');
       // BEIDE stehen im Markup — die Umschaltung ist CSS, nie JavaScript.
       await expect(tabelle).toHaveCount(1);
       await expect(karten).toHaveCount(1);
@@ -665,8 +671,10 @@ for (const vp of VIEWPORTS) {
       expect(antwort?.status(), "Posteingang: HTTP").toBe(200);
       await expect(page.getByTestId("files-posteingang")).toBeVisible();
 
-      const tabelle = page.getByTestId("files-posteingang-tabelle");
-      const karten = page.getByTestId("files-posteingang-karten");
+      // Die Rollen wie in Punkt 1 — Begruendung dort.
+      const liste = page.getByTestId("files-posteingang");
+      const tabelle = liste.locator('[data-rolle="breitansicht"]');
+      const karten = liste.locator('[data-rolle="schmalkarten"]');
       await expect(tabelle).toHaveCount(1);
       await expect(karten).toHaveCount(1);
 

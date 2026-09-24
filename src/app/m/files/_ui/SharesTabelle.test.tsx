@@ -12,14 +12,15 @@ import { readFileSync } from "node:fs";
  *    Downloads `n / m` bzw. `n / ∞` und der AV-Sammelwert als TEXT (4), die drei
  *    Zeilenaktionen samt Bestaetigung mit Dateizahl UND Groesze (7), der
  *    Fehlerzustand mit `type="warning"` und Wiederholen (9).
- *  - QUELLTEXT-SCAN: „die Umschaltung ist CSS, nie JavaScript" (2) und „kein
+ *  - QUELLTEXT-SCAN: „beide Darstellungen kommen aus `Kartentabelle`, nicht von
+ *    Hand, und die Umschaltung ist CSS, nie JavaScript" (2) und „kein
  *    `type=\"error\"` auf dieser Datenflaeche" (9). Beides sind Aussagen ueber
  *    ABWESENHEIT — ein DOM-Test kann sie strukturell nicht treffen.
  *  - NICHT hier: ob die Medienabfrage WIRKT. jsdom wertet Media Queries nicht
  *    aus; ein Test, der „bei 390px ist die Tabelle unsichtbar" behauptet und
  *    dafuer im DOM sucht, geht IMMER durch (`docs/design/README.md:199-206`).
- *    Die Regel selbst besitzt `files-css.test.ts` (T18), ihre Wirkung
- *    `e2e/files-mobil.spec.ts` (T48) bei 390, 834 und 1280.
+ *    Die Regel gehoert seit DRK-422 dem Bauteil (`core/tabelle`), ihre Wirkung
+ *    misst `e2e/files-mobil.spec.ts` (T48) bei 390, 834 und 1280.
  *  - NICHT hier: die Projektion aus der Datenbank (Punkte 1, 5, 6) — die besitzt
  *    `SharesUebersicht.test.tsx` gegen eine echte, migrierte Datenbank.
  */
@@ -49,6 +50,7 @@ vi.mock("../(verwaltung)/actions", () => ({
 import { act } from "react";
 
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
+import kartenStil from "@/core/tabelle/spaltenkarte.module.css";
 import {
   click,
   clickElement,
@@ -130,6 +132,15 @@ async function zeige(zeilen: ShareZeile[] = [zeile()]): Promise<void> {
   await mount(<SharesTabelle zeilen={zeilen} />);
 }
 
+/**
+ * DIE BEIDEN DARSTELLUNGEN ALS RAHMEN. `Kartentabelle` rendert jede Zeile
+ * ZWEIMAL — als Tabellenzeile und als Karte —, und dieselbe Spalte liefert
+ * dieselbe `data-testid` an beide Stellen. Ohne Rahmen traefe ein Greifer die
+ * erste im Dokument, und das ist die KARTE (die Liste steht vor der Tabelle).
+ */
+const BREIT = "[data-rolle='breitansicht']";
+const SCHMAL = "[data-rolle='schmalkarten']";
+
 /** Der Text einer Tabellenzeile, Zwischenraum normalisiert. */
 function zeilentext(index = 0): string {
   return (queryAll("tbody.ant-table-tbody tr.ant-table-row")[index]?.textContent ?? "").replace(
@@ -140,7 +151,7 @@ function zeilentext(index = 0): string {
 
 /** Der Text einer Karte der schmalen Darstellung. */
 function kartentext(id: string): string {
-  return (query(`[data-testid='files-share-karte-${id}']`).textContent ?? "").replace(/\s+/g, " ");
+  return (query(`${SCHMAL} [data-karte-key='${id}']`).textContent ?? "").replace(/\s+/g, " ");
 }
 
 // ---------------------------------------------------------------------------
@@ -151,27 +162,30 @@ describe("Punkt 2 — Tabelle UND Kartenliste stehen im Markup", () => {
   it("rendert beide Darstellungen mit denselben Zeilen", async () => {
     await zeige([zeile(), zeile({ id: "sh-bbbbbbbb", titel: "Lagekarte" })]);
 
-    const desktop = query("[data-testid='files-shares-tabelle-desktop']");
+    const desktop = query(`[data-testid='files-shares-tabelle'] ${BREIT}`);
     expect(desktop.querySelector(".ant-table-wrapper"), "keine antd-Tabelle").not.toBeNull();
     expect(queryAll("tbody.ant-table-tbody tr.ant-table-row")).toHaveLength(2);
 
-    const mobil = query("[data-testid='files-shares-karten']");
-    expect(mobil.querySelectorAll("[data-testid^='files-share-karte-']")).toHaveLength(2);
+    const mobil = query(`[data-testid='files-shares-tabelle'] ${SCHMAL}`);
+    expect(mobil.querySelectorAll("[data-karte-key]")).toHaveLength(2);
     expect(kartentext("sh-bbbbbbbb")).toContain("Lagekarte");
   });
 
-  it("traegt die Umschaltklassen der Suite an beiden Darstellungen", async () => {
+  /**
+   * ⚠️ DIE KARTE KOMMT AUS DEM GEMEINSAMEN BAUTEIL, NICHT VON HAND (DRK-422).
+   * Bis dahin standen hier eine eigene Kartenliste und die Klassen
+   * `nurDesktop`/`nurMobil` aus `files.css` — dieselbe Entscheidung wie in
+   * `core/tabelle`, an einem zweiten Ort. Der Scan haelt fest, dass sie nicht
+   * zurueckkommt; `files-css.test.ts` tut dasselbe fuer das ganze Modul.
+   */
+  it("baut beide Darstellungen ueber `Kartentabelle`, ohne eigene Umschaltklassen", async () => {
+    const quelle = quelltext(QUELLE_TABELLE);
+    expect(quelle).toMatch(/<Kartentabelle</);
+    expect(quelle).not.toMatch(/nur(Desktop|Mobil)|fi-liste/);
+
     await zeige();
-    /*
-     * `.fi-liste` ist der vorangestellte Praefix aus `files.css` und NICHT
-     * Ballast: `.nurDesktop` allein ist (0,1,0) — Gleichstand mit
-     * `.ant-table-wrapper`, und bei Gleichstand gewinnt antds spaeteres
-     * Stylesheet. Ohne den Praefix am Wrapper greift die Regel nie
-     * (`docs/design/README.md`, Falle 5).
-     */
-    expect(query("[data-testid='files-shares-tabelle']").className).toContain("fi-liste");
-    expect(query("[data-testid='files-shares-tabelle-desktop']").className).toContain("nurDesktop");
-    expect(query("[data-testid='files-shares-karten']").className).toContain("nurMobil");
+    // Der Titel der Freigabe ist die Ueberschrift der Karte, nicht ein Merkmal.
+    expect(kartentext("sh-aaaaaaaa")).toContain("Übung Nord");
   });
 
   it("schaltet NICHT ueber JavaScript um", () => {
@@ -203,7 +217,7 @@ describe("Punkt 3 — `scroll={{ x: \"max-content\" }}` und kein fixes Tabellenl
     /* Leerzeichen heraus: jsdom serialisiert `table-layout: auto`, der
        Strom-Renderer `table-layout:auto` — dieselbe Aussage, zwei Schreibweisen. */
     const stil = (
-      query("[data-testid='files-shares-tabelle-desktop'] table").getAttribute("style") ?? ""
+      query(`${BREIT} table`).getAttribute("style") ?? ""
     ).replace(/\s+/g, "");
     expect(stil).toContain("table-layout:auto");
     expect(stil).toContain("width:max-content");
@@ -337,13 +351,13 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
   it("führt „Bearbeiten“ auf `/shares/<id>/bearbeiten`", async () => {
     await zeige();
     const link = query<HTMLAnchorElement>(
-      "[data-testid='files-share-bearbeiten-tabelle-sh-aaaaaaaa']",
+      `${BREIT} [data-testid='files-share-bearbeiten-sh-aaaaaaaa']`,
     );
     // Relativ und ohne Host: das Ziel liegt auf DEMSELBEN (Verwaltungs-)Host.
     expect(link.getAttribute("href")).toBe("/shares/sh-aaaaaaaa/bearbeiten");
     expect(
       query<HTMLAnchorElement>(
-        "[data-testid='files-share-bearbeiten-karte-sh-aaaaaaaa']",
+        `${SCHMAL} [data-testid='files-share-bearbeiten-sh-aaaaaaaa']`,
       ).getAttribute("href"),
     ).toBe("/shares/sh-aaaaaaaa/bearbeiten");
   });
@@ -351,7 +365,7 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
   it("nennt in der Löschen-Bestätigung Dateizahl UND Größe", async () => {
     await zeige();
     expect(existsPortal(".ant-popconfirm")).toBe(false);
-    await click("[data-testid='files-share-loeschen-tabelle-sh-aaaaaaaa']");
+    await click(`${BREIT} [data-testid='files-share-loeschen-sh-aaaaaaaa']`);
     expect(existsPortal(".ant-popconfirm")).toBe(true);
 
     const text = (document.body.querySelector(".ant-popconfirm")?.textContent ?? "").replace(
@@ -368,7 +382,7 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
     await zeige();
     const loeschen = abschickenFuer(loeschenMock);
 
-    await click("[data-testid='files-share-loeschen-tabelle-sh-aaaaaaaa']");
+    await click(`${BREIT} [data-testid='files-share-loeschen-sh-aaaaaaaa']`);
     expect(loeschen).not.toHaveBeenCalled();
 
     const bestaetigen = Array.from(
@@ -386,7 +400,7 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
     await zeige();
     expect(existsPortal("[data-testid='files-share-qr-dialog']")).toBe(false);
 
-    await click("[data-testid='files-share-qr-tabelle-sh-aaaaaaaa']");
+    await click(`${BREIT} [data-testid='files-share-qr-sh-aaaaaaaa']`);
     const dialog = document.body.querySelector("[data-testid='files-share-qr-dialog']");
     expect(dialog, "kein QR-Dialog").not.toBeNull();
     expect(
@@ -411,7 +425,7 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
 
   /**
    * DERSELBE EINSTIEG AUS DER KARTE — und das ist keine Verdopplung des Tests
-   * darueber. Unter 768px stellt `files.css` die Tabelle auf `display: none`;
+   * darueber. Unter 768px blendet `core/tabelle` die Tabelle aus (`display: none`);
    * die Kartenliste ist dort die EINZIGE sichtbare Darstellung. Faellt der Knopf
    * aus `ZeilenAktionen` der Karte weg, gibt es auf jedem Handy keinen Weg mehr
    * zum QR-Dialog — genau der Verlust, den die Prueffrage „jede Action braucht
@@ -427,7 +441,7 @@ describe("Punkt 7 — Bearbeiten, Löschen, QR", () => {
     await zeige();
     expect(existsPortal("[data-testid='files-share-qr-dialog']")).toBe(false);
 
-    await click("[data-testid='files-share-qr-karte-sh-aaaaaaaa']");
+    await click(`${SCHMAL} [data-testid='files-share-qr-sh-aaaaaaaa']`);
     expect(existsPortal("[data-testid='files-share-qr-dialog']")).toBe(true);
     expect(existsPortal("[data-testid='files-share-qr-png']")).toBe(true);
   });
@@ -474,7 +488,7 @@ describe("Punkt 9 — Warte- und Fehlerzustand", () => {
     });
     await zeige();
 
-    const meldung = query("[data-testid='files-share-fehler-tabelle-sh-aaaaaaaa']");
+    const meldung = query(`${BREIT} [data-testid='files-share-fehler-sh-aaaaaaaa']`);
     expect(meldung.textContent).toContain("Diese Freigabe gibt es nicht (mehr).");
     /*
      * `colorError === colorPrimary === #c8000f`: ein `type="error"` saehe auf
@@ -486,13 +500,13 @@ describe("Punkt 9 — Warte- und Fehlerzustand", () => {
 
     const loeschen = abschickenFuer(loeschenMock);
     expect(loeschen).not.toHaveBeenCalled();
-    await click("[data-testid='files-share-wiederholen-tabelle-sh-aaaaaaaa']");
+    await click(`${BREIT} [data-testid='files-share-wiederholen-sh-aaaaaaaa']`);
     expect(loeschen).toHaveBeenCalled();
   });
 
   it("zeigt keine Meldung, solange nichts gescheitert ist", async () => {
     await zeige();
-    expect(exists("[data-testid='files-share-fehler-tabelle-sh-aaaaaaaa']")).toBe(false);
+    expect(exists("[data-testid='files-share-fehler-sh-aaaaaaaa']")).toBe(false);
   });
 
   it("benutzt in keiner der beiden neuen Dateien `type=\"error\"`", () => {
@@ -518,13 +532,19 @@ describe("Querschnittsregeln", () => {
     expect(quelle).not.toMatch(/size=\{["']large["']\}/);
   });
 
-  /** Unter 768px stehen Handlungsknoepfe untereinander und in voller Breite —
-   *  ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel. Die Karten
-   *  sind die Darstellung, die es dort ueberhaupt gibt. */
-  it("macht die Knöpfe der Kartenliste voll breit", async () => {
+  /**
+   * Unter 768px stehen Handlungsknoepfe untereinander und in voller Breite —
+   * die Karten sind die Darstellung, die es dort ueberhaupt gibt. Seit DRK-422
+   * leistet das nicht mehr `block` am Knopf, sondern der Handlungsbereich der
+   * Karte (`spaltenkarte.module.css`, `.aktionen`). Geprueft wird deshalb, dass
+   * die Knoepfe DORT stehen: rutschte die Knopfspalte als Merkmal in die
+   * Beschreibungsliste (etwa weil sie einen Titel bekaeme), blieben sie schmal.
+   * Ob die Regel WIRKT, misst `e2e/files-mobil.spec.ts`.
+   */
+  it("setzt die Knöpfe der Karte in ihren Handlungsbereich", async () => {
     await zeige();
-    const knopf = query("[data-testid='files-share-loeschen-karte-sh-aaaaaaaa']");
-    expect(knopf.className).toContain("ant-btn-block");
+    const knopf = query(`${SCHMAL} [data-testid='files-share-loeschen-sh-aaaaaaaa']`);
+    expect(knopf.closest(`.${kartenStil.aktionen}`), "Knopf steht nicht im Handlungsbereich").not.toBeNull();
   });
 
   /**

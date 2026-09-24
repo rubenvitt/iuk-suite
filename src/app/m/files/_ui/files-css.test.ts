@@ -1,22 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * QUELLTEXT-SCAN UEBER `_ui/files.css` — und NUR darueber.
  *
- * Was dieser Scan besitzt und was nicht: jsdom wertet Medienabfragen nicht aus.
- * Ein Vitest, der „bei 390px ist die Tabelle unsichtbar" behauptet und dafuer im
- * DOM sucht, geht IMMER durch — er misst nichts (`docs/design/README.md`,
- * Abschnitt „Tests fuer Responsives"). Diesem Scan gehoert deshalb genau eine
- * Aussage: „die Klasse traegt die richtige Medienabfrage und den Praefix".
- * Ob die Regel WIRKT, weisz nur ein echter Browser — das besitzt T48
- * (`e2e/files-mobil.spec.ts`) bei 390, 834 und 1280.
+ * Was dieser Scan besitzt: die Modulvariablen `--fi-*` (Hell/Dunkel-Paritaet,
+ * kein `--ant-*`, kein `prefers-color-scheme`) und die Zusage, dass diese
+ * GLOBALE Datei keine Regel gegen antd und keine Media Query traegt.
+ *
+ * ⚠️ BIS DRK-422 STAND HIER AUCH DIE UMSCHALTUNG TABELLE/KARTENLISTE
+ * (`.fi-liste .nurDesktop`/`.nurMobil` samt 767.98px-Abfrage), und dieser Scan
+ * besass ihre Form. Sie gehoert jetzt dem gemeinsamen Bauteil
+ * (`core/tabelle/schmalkarten.module.css`, bewacht von
+ * `core/tabelle/schmalkarten.test.ts`); eine zweite Abfrage hier waere ein
+ * zweiter Ort fuer dieselbe Entscheidung — genau die Verdopplung, die das Ticket
+ * beseitigt hat. Der Fall „keine Media Query" unten haelt das fest.
  *
  * ABGRENZUNG (Plan §1 Festlegung C): dieser Scan besitzt `_ui/files.css`.
  * `_ui/files-public.css` und ALLE `*.module.css` des Moduls besitzt
  * `files-public-css.test.ts` (T19). Die beiden Globs sind disjunkt und decken
- * zusammen jede CSS-Datei des Moduls ab — ohne diese Aufteilung greift die
- * 767.98px-Zusage genau dort nicht, wo neue Regeln entstehen.
+ * zusammen jede CSS-Datei des Moduls ab.
  */
 const MODUL_DIR = "src/app/m/files";
 /**
@@ -37,17 +41,15 @@ const DATEIEN = [`${MODUL_DIR}/_ui/files.css`];
  *   Rohtext wuerde an genau diesem Satz rot. Der naheliegende „Fix" waere dann, die
  *   Begruendung zu loeschen: der Test haette den Kommentar wegoptimiert, den er
  *   an anderer Stelle verlangt.
- * - `ROH` traegt die Kommentare. Die Zusage „die Spezifitaets-Erhoehung ist
- *   kommentiert" ist nur hier pruefbar.
+ * - `ROH` traegt die Kommentare — nur fuer die Zusage, dass ueberhaupt etwas
+ *   gelesen wurde.
  */
 const ROH = DATEIEN.map((p) => (existsSync(p) ? readFileSync(p, "utf8") : "")).join("\n");
 const OHNE_KOMMENTARE = ROH.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /**
- * Die flachen Regelbloecke der Datei, mit Selektor. `[^{}@]` schlieszt die
- * `@media`-Preludes aus (sie tragen `@`), die Regeln DARIN werden aber wie alle
- * anderen erfasst — genau richtig, weil die Praefix-Zusage fuer Basis UND
- * Medienabfrage gilt.
+ * Die flachen Regelbloecke der Datei, mit Selektor. `[^{}@]` schlieszt
+ * At-Preludes aus (sie tragen `@`).
  *
  * OHNE Anker vor dem Selektor: ein `(?:^|[{}])` davor verschluckt die
  * schliessende Klammer des Vorgaengers, und dann findet der naechste Durchlauf
@@ -61,39 +63,19 @@ const regelnAus = (css: string) =>
     rumpf: m[2],
   }));
 
-/** Die Bloecke der einen Medienabfrage, wie in `feedback-css.test.ts`. */
-const MEDIA_767_BLOECKE = [
-  ...OHNE_KOMMENTARE.matchAll(/@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/g),
-].map((m) => m[1]);
-
 /**
- * BASIS UND MEDIENABFRAGE GETRENNT — und zwar durch HERAUSSCHNEIDEN der
- * `@media`-Bloecke, nicht dadurch, dass geprueft wird, ob der Selektortext
- * irgendwo in einem Block vorkommt. Der zweite Weg kann die beiden Haelften
- * strukturell nicht unterscheiden: Basis- und Medienregel tragen denselben
- * Selektor, also findet ihn eine Textsuche in beiden Faellen im Block — gemessen,
- * der Test hielt daraufhin die vorhandene Basisregel fuer fehlend.
+ * Die Regeln AUSSERHALB jedes At-Blocks. Heute ist das die ganze Datei (sie
+ * kennt keinen, s. „keine Media Query" unten); die Trennung bleibt, damit ein
+ * spaeteres `:root { --fi-… }` in einem At-Block nicht still in die Hell-Menge
+ * gezogen wird und die Paritaetspruefung die falschen Mengen vergleicht.
  */
-const BASIS = OHNE_KOMMENTARE.replace(/@media[^{]*\{[\s\S]*?\n\}/g, "");
+const BASIS = OHNE_KOMMENTARE.replace(/@[a-z-]+[^{]*\{[\s\S]*?\n\}/g, "");
 const REGELN_BASIS = regelnAus(BASIS);
-const REGELN_MEDIA = MEDIA_767_BLOECKE.flatMap(regelnAus);
-const REGELN = [...REGELN_BASIS, ...REGELN_MEDIA];
 
 /**
  * ALLE Regeln der Datei — unabhaengig davon, in welchem At-Block sie stehen.
- *
- * `REGELN` ist fuer die Praefix-Zusage NICHT vollstaendig, und das ist keine
- * Feinheit: `REGELN_MEDIA` kommt allein aus `MEDIA_767_BLOECKE` (die Zahl steht
- * im Regex), `BASIS` schneidet dagegen JEDEN `@media`-Block heraus. Eine Regel in
- * einem ANDEREN At-Block — z. B. dem `min-width: 768px`, den der
- * Breakpoint-Fall unten ausdruecklich erlaubt — landet damit in keiner der beiden
- * Mengen. GEMESSEN: `@media (min-width: 768px) { .ant-table-wrapper { display:
- * none; } }` angehaengt und alle 17 Faelle blieben gruen.
- *
- * Deshalb hier der Weg ueber die ganze Datei: nur die At-PRELUDES fallen weg
- * (`@media … {`), die Regeln darin bleiben. Das deckt auch `@supports` und
- * `@layer` ab, ohne sie einzeln zu erraten. Die uebrig bleibende schliessende
- * Klammer des Blocks bildet keine Regel und stoert `regelnAus` nicht.
+ * Nur die At-PRELUDES fallen weg (`@media … {`), die Regeln darin bleiben. Das
+ * deckt auch `@supports` und `@layer` ab, ohne sie einzeln zu erraten.
  */
 const AT_PRELUDE = /@[a-z-]+[^{;]*\{/g;
 const ALLE_REGELN = regelnAus(OHNE_KOMMENTARE.replace(AT_PRELUDE, ""));
@@ -101,13 +83,7 @@ const ALLE_REGELN = regelnAus(OHNE_KOMMENTARE.replace(AT_PRELUDE, ""));
 const varNamen = (text: string): Set<string> =>
   new Set([...text.matchAll(/(--fi-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
 
-/**
- * Nur aus den BASISREGELN — die Variablen stehen auszerhalb jeder Medienabfrage.
- * Ueber `REGELN` gelesen waere der Filter heute genauso gruen, wuerde aber ein
- * spaeteres `:root { --fi-… }` INNERHALB des 767.98px-Blocks stillschweigend in
- * die Hell-Menge ziehen — und die Paritaetspruefung verglich dann die falschen
- * Mengen.
- */
+/** Nur aus den BASISREGELN — Begruendung an `BASIS`. */
 const rumpfVon = (pruefe: (selektor: string) => boolean): string =>
   REGELN_BASIS.filter((r) => pruefe(r.selektor))
     .map((r) => r.rumpf)
@@ -124,7 +100,7 @@ describe("files.css — der Scan greift nicht ins Leere", () => {
   });
 
   it("findet Regelbloecke (sonst ist die Zerlegung kaputt, nicht die Datei leer)", () => {
-    expect(REGELN.length).toBeGreaterThan(0);
+    expect(REGELN_BASIS.length).toBeGreaterThan(0);
   });
 
   /**
@@ -132,7 +108,7 @@ describe("files.css — der Scan greift nicht ins Leere", () => {
    * traegt die Praefix-Zusage fuer JEDE Regel — eine Zerlegung, die eine Regel
    * uebersieht, macht diese Zusage still enger, ohne rot zu werden. Jede
    * oeffnende Klammer der Datei ist entweder ein At-Prelude oder eine Regel;
-   * heute: 7 Klammern − 1 Prelude = 6 Regeln.
+   * heute: 2 Klammern − 0 Preludes = 2 Regeln (hell und dunkel).
    */
   it("sieht JEDE Regel der Datei — Klammern minus At-Preludes", () => {
     const klammern = (OHNE_KOMMENTARE.match(/\{/g) ?? []).length;
@@ -144,156 +120,43 @@ describe("files.css — der Scan greift nicht ins Leere", () => {
   });
 });
 
-describe("files.css — Breakpoint", () => {
+describe("files.css — keine Umschaltung, keine Regel gegen antd", () => {
   /**
-   * Die Zahl wird AUSGEGEBEN, nicht nur behauptet: „alle max-width-Abfragen
-   * lauten 767.98px" ist bei null Abfragen gruen. Genau so kaeme eine
-   * mobile-first gebaute Umschaltung (`min-width: 768px`) durch diesen Test,
-   * ohne dass je eine 767.98px-Abfrage existierte.
+   * ⚠️ KEINE MEDIA QUERY, UND ZWAR GAR KEINE. Die einzige, die hier je stand,
+   * war die Umschaltung Tabelle/Kartenliste — seit DRK-422 Sache des Bauteils
+   * `core/tabelle` mit SEINER Abfrage. Kaeme hier wieder eine dazu, gaebe es
+   * zwei Orte, die ueber dieselbe Sichtbarkeit entscheiden, und der erste Bruch
+   * fiele nur an einem davon auf. Komponentenlokale Abfragen gehoeren in ein
+   * `*.module.css` (bewacht von `files-public-css.test.ts`).
    */
-  it("kennt mindestens eine `max-width`-Abfrage, und jede lautet 767.98px", () => {
-    const werte = [...OHNE_KOMMENTARE.matchAll(/@media\s*\(max-width:\s*([\d.]+)px\)/g)].map(
-      (m) => m[1],
+  it("kennt keine Media Query", () => {
+    expect(OHNE_KOMMENTARE).not.toMatch(/@media/);
+  });
+
+  /**
+   * DIE HANDGEBAUTEN SICHTBARKEITSKLASSEN KOMMEN NICHT ZURUECK — weder hier
+   * noch an einer Komponente des Moduls. `.nurDesktop`/`.nurMobil` waren die
+   * zweite Haelfte derselben Umschaltung; eine Klasse ohne Regel waere
+   * wirkungslos, eine Regel ohne diesen Scan still wieder da.
+   */
+  it("fuehrt `nurDesktop`/`nurMobil` nirgends im Modul", () => {
+    const quellen = readdirSync(MODUL_DIR, { recursive: true, encoding: "utf8" })
+      .filter((pfad) => /\.(tsx?|css)$/.test(pfad) && !/\.test\.tsx?$/.test(pfad))
+      .map((pfad) => join(MODUL_DIR, pfad));
+    expect(quellen.length, "keine Quelldatei im Modul gefunden").toBeGreaterThan(10);
+    const treffer = quellen.filter((pfad) =>
+      /\bnur(Desktop|Mobil)\b/.test(readFileSync(pfad, "utf8").replace(/\/\*[\s\S]*?\*\//g, "")),
     );
-    console.info(`files.css: ${werte.length} max-width-Abfrage(n) geprueft`);
-    expect(werte.length).toBeGreaterThan(0);
-    expect(new Set(werte)).toEqual(new Set(["767.98"]));
+    expect(treffer, "handgebaute Umschaltklassen statt `Kartentabelle`").toEqual([]);
   });
 
   /**
-   * 767.98 und nicht 768: bei exakt 768px gelten sonst BEIDE Seiten und die
-   * Reihenfolge im Stylesheet entscheidet, welche gewinnt.
-   */
-  it("hat keine 768px-`max-width`-Abfrage und keinen zweiten Breakpoint", () => {
-    expect(OHNE_KOMMENTARE).not.toMatch(/\(max-width:\s*768px\)/);
-    const minWerte = [...OHNE_KOMMENTARE.matchAll(/@media\s*\(min-width:\s*([\d.]+)px\)/g)].map(
-      (m) => m[1],
-    );
-    for (const wert of minWerte) expect(wert).toBe("768");
-  });
-
-  it("hat einen 767.98px-Block, der Regeln enthaelt", () => {
-    expect(MEDIA_767_BLOECKE.length).toBeGreaterThan(0);
-    expect(MEDIA_767_BLOECKE.some((b) => /\{/.test(b))).toBe(true);
-  });
-});
-
-describe("files.css — Umschaltung Tabelle/Kartenliste gegen antd", () => {
-  const umschaltRegeln = REGELN.filter((r) => /\.nur(Desktop|Mobil)\b/.test(r.selektor));
-
-  it("hat beide Umschaltklassen, in Basis UND Medienabfrage", () => {
-    expect(umschaltRegeln.length).toBeGreaterThanOrEqual(4);
-    for (const klasse of [".nurDesktop", ".nurMobil"]) {
-      expect(
-        REGELN_MEDIA.some((r) => r.selektor.includes(klasse)),
-        `${klasse} fehlt in einem 767.98px-Block`,
-      ).toBe(true);
-      expect(
-        REGELN_BASIS.some((r) => r.selektor.includes(klasse)),
-        `${klasse} fehlt in der Basisregel`,
-      ).toBe(true);
-    }
-  });
-
-  /**
-   * Und die Umschaltung muss auch WIRKEN, nicht nur dastehen: die beiden Klassen
-   * tragen in Basis und Medienabfrage GEGENSAETZLICHE `display`-Werte. Ohne
-   * diesen Fall waeren vier Regeln mit demselben Wert gruen — und beide
-   * Darstellungen gleichzeitig sichtbar.
-   */
-  it("kehrt `display` zwischen Basis und Medienabfrage um", () => {
-    const wert = (regeln: { selektor: string; rumpf: string }[], klasse: string) =>
-      regeln.find((r) => r.selektor.includes(klasse))?.rumpf.match(/display:\s*([a-z-]+)/)?.[1];
-    expect(wert(REGELN_BASIS, ".nurDesktop")).not.toBe("none");
-    expect(wert(REGELN_MEDIA, ".nurDesktop")).toBe("none");
-    expect(wert(REGELN_BASIS, ".nurMobil")).toBe("none");
-    expect(wert(REGELN_MEDIA, ".nurMobil")).not.toBe("none");
-  });
-
-  /**
-   * DER VORANGESTELLTE `.fi-*` IST DER GANZE PUNKT DIESER REGEL.
+   * GESCHLOSSENE POSITIVFORM UEBER JEDEN SELEKTOR DER DATEI. Diese Datei ist
+   * das EINZIGE globale Stylesheet des Moduls; eine bare `.ant-…`-Regel darin
+   * ist der Gleichstand-Fall aus Falle 5, der still verliert.
    *
-   * `.nurDesktop` allein ist (0,1,0) — genau so viel wie antds
-   * `.ant-table-wrapper`. Bei Gleichstand entscheidet die Dokumentreihenfolge,
-   * und antds Stylesheet kommt SPAETER: die Regel matcht und verliert trotzdem
-   * (im Repo dreimal passiert, `docs/design/README.md` Falle 5).
-   * `.fi-liste .nurDesktop` ist (0,2,0) und schlaegt antd unabhaengig von der
-   * Reihenfolge.
-   *
-   * Die Pruefung ist als POSITIVFORM gebaut („jeder Selektor sieht so aus"),
-   * nicht als Suche nach `.ant-` — im eigenen Selektor steht `.ant-` gar nicht,
-   * eine solche Suche faende hier nichts und waere immer gruen. Die Form
-   * schliesst zwei Mutationen aus: `.nurDesktop` (Praefix weg) und
-   * `.nurDesktop .fi-liste` (eigene Klasse hinten, Spezifitaet gleich,
-   * Wirkung anders).
-   */
-  it("stellt jeder Umschaltklasse eine eigene Klasse VORAN — nie bar, nie hinten", () => {
-    expect(umschaltRegeln.length).toBeGreaterThan(0);
-    for (const regel of umschaltRegeln) {
-      for (const teil of regel.selektor.split(",").map((t) => t.trim())) {
-        if (!/\.nur(Desktop|Mobil)\b/.test(teil)) continue;
-        expect(
-          teil,
-          `Selektor "${teil}" muss genau eine eigene Klasse VORANSTELLEN ` +
-            `(Form: \`.fi-… .nurDesktop\`). Die Regel gehoert T18 und dieser Datei — ` +
-            `wer eine Umschaltklasse anders braucht, aendert nicht hier, sondern legt ` +
-            `sie komponentenlokal in ein *.module.css (Plan §1 Festlegung C).`,
-        ).toMatch(/^\.fi-[a-z0-9-]+ \.nur(Desktop|Mobil)$/);
-      }
-    }
-  });
-
-  /**
-   * DIE FORM DES SELEKTORS IST NICHT SEINE IDENTITAET — und ein Paar, dessen
-   * Haelften auf VERSCHIEDENE Praefixe zeigen, ist kein Paar.
-   *
-   * GEMESSEN: im 767.98px-Block `.fi-liste` → `.fi-list` gedreht (Tippfehler in
-   * nur EINER Haelfte) und alle Faelle oben blieben gruen — beide Selektoren
-   * erfuellen die Form, beide Haelften enthalten je eine Regel je Klasse, und die
-   * `display`-Werte sind weiter gegensaetzlich. Im Browser matcht der Medienblock
-   * dann NICHTS: bei 390px bleibt die Tabelle sichtbar und die Kartenliste
-   * versteckt — genau das Bild, gegen das diese Regel steht. Gefunden haette es
-   * erst `e2e/files-mobil.spec.ts` (T48), fuenf Wellen spaeter.
-   *
-   * Geprueft wird MENGENGLEICHHEIT der Umschaltselektoren, nicht „es gibt genau
-   * einen Praefix": das faengt den Tippfehler genauso, laesst aber einen zweiten
-   * Umschaltbehaelter zu, SOLANGE beide Haelften ihn tragen. Die Nicht-Leerheit
-   * steht davor, weil ∅ === ∅ gruen waere.
-   */
-  it("nennt in Basis und Medienabfrage DIESELBEN Umschaltselektoren", () => {
-    const umschaltTeile = (regeln: { selektor: string }[]) => [
-      ...new Set(
-        regeln.flatMap((r) =>
-          r.selektor
-            .split(",")
-            .map((t) => t.trim())
-            .filter((t) => /\.nur(Desktop|Mobil)\b/.test(t)),
-        ),
-      ),
-    ].sort();
-    const basis = umschaltTeile(REGELN_BASIS);
-    expect(basis.length, "keine Umschaltregel in der Basis gefunden").toBeGreaterThan(0);
-    expect(
-      umschaltTeile(REGELN_MEDIA),
-      "Basis und Medienabfrage muessen DENSELBEN Praefix tragen — sonst matcht " +
-        "eine Haelfte nichts und die Umschaltung fehlt an genau einer Breite",
-    ).toEqual(basis);
-  });
-
-  /**
-   * GESCHLOSSENE POSITIVFORM UEBER JEDEN SELEKTOR DER DATEI — die Zusage lautet
-   * „JEDE Regel, die eine `.ant-`-Klasse ueberstimmt, traegt eine vorangestellte
-   * eigene Klasse", der Fall oben prueft aber nur die vier heutigen
-   * Umschaltregeln.
-   *
-   * GEMESSEN (Zuwachs statt Kippen): `.ant-table-wrapper { display: none; }` und
-   * `.nurTablet { display: none; }` angehaengt → alle Faelle oben blieben gruen.
-   * Diese Datei ist das EINZIGE globale Stylesheet des Moduls; eine bare
-   * `.ant-…`-Regel darin ist der Gleichstand-Fall aus Falle 5, der still verliert.
-   *
-   * Ueber `ALLE_REGELN` und nicht `REGELN`: eine Regel in einem anderen At-Block
-   * (etwa dem erlaubten `min-width: 768px`) steht in `REGELN` gar nicht — auch das
-   * gemessen, siehe Kommentar an `ALLE_REGELN`.
+   * Ueber `ALLE_REGELN`: eine Regel in einem At-Block steht in `REGELN_BASIS`
+   * gar nicht.
    */
   it("laesst keinen Selektor ohne eigenen Praefix durch — auch keinen neuen", () => {
     expect(ALLE_REGELN.length).toBeGreaterThan(0);
@@ -308,23 +171,6 @@ describe("files.css — Umschaltung Tabelle/Kartenliste gegen antd", () => {
         ).toMatch(/^(:root|\.fi-[a-z0-9-]+)/);
       }
     }
-  });
-
-  /**
-   * Ohne Kommentar entfernt die naechste Aufraeumrunde den Praefix als
-   * vermeintlichen Ballast — und baut damit den Defekt wieder ein, gegen den
-   * die Regel steht (`docs/design/README.md`, „Und die Erhoehung kommentieren").
-   * Deshalb wird der Kommentar hier VERLANGT, im ROHTEXT.
-   */
-  it("begruendet die Spezifitaets-Erhoehung im Kommentar", () => {
-    const kommentare = [...ROH.matchAll(/\/\*[\s\S]*?\*\//g)].map((m) => m[0]);
-    const treffer = kommentare.filter(
-      (k) => /Spezifit/i.test(k) && /\.fi-/.test(k) && /ant-/.test(k),
-    );
-    expect(
-      treffer.length,
-      "kein Kommentar erklaert die vorangestellte Klasse gegen antds Spezifitaet",
-    ).toBeGreaterThan(0);
   });
 
   it("kommt ohne `!important` aus", () => {

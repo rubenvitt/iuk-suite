@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState } from "react";
-import { Alert, Button, Card, Checkbox, Popconfirm, Radio } from "antd";
+import { Alert, Button, Card, Popconfirm, Radio } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -47,7 +47,13 @@ import { SCHREIBBARE_KATEGORIEN, anzeigeKategorie } from "../_lib/kategorien";
  */
 import type { AvStatus } from "../_lib/av";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Datentabelle, nachText, nachZahl, Zellentext } from "@/core/tabelle";
+import {
+  Kartentabelle,
+  nachText,
+  nachZahl,
+  Zellentext,
+  type Kartenwunsch,
+} from "@/core/tabelle";
 import styles from "./posteingang.module.css";
 
 /**
@@ -266,26 +272,6 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
   const aktiveIds = aktive.map((zeile) => zeile.id);
   const aktiveBytes = aktive.reduce((summe, zeile) => summe + zeile.groesseBytes, 0);
 
-  function umschalten(id: string, an: boolean): void {
-    setAusgewaehlt((vorher) => {
-      const naechste = new Set(vorher);
-      if (an) naechste.add(id);
-      else naechste.delete(id);
-      return naechste;
-    });
-  }
-
-  function alleUmschalten(an: boolean): void {
-    setAusgewaehlt((vorher) => {
-      const naechste = new Set(vorher);
-      for (const zeile of gefiltert) {
-        if (an) naechste.add(zeile.id);
-        else naechste.delete(zeile.id);
-      }
-      return naechste;
-    });
-  }
-
   function filterZuruecksetzen(): void {
     setKategorie(ALLE);
     setAvStatus(ALLE);
@@ -397,10 +383,33 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
         </Card>
       )}
 
-      <div className="fi-liste" data-testid="files-posteingang">
-        <div className="nurDesktop" data-testid="files-posteingang-tabelle">
+      {/*
+       * ⚠️ NUR MIT TREFFERN. Ohne sie steht oben die Karte „Keine Abgabe passt"
+       * samt Ruecksetzer — eine leere Tabelle oder Kartenliste darunter waere
+       * derselbe Satz ein zweites Mal, ohne Ausweg.
+       */}
+      {gefiltert.length > 0 && (
+        <div data-testid="files-posteingang">
           {/*
-            * KEIN `scroll` UND KEIN `pagination`: beides ist jetzt Vorgabe der
+            * EINE TABELLE, DIE AUF DEM TELEFON EINE KARTENLISTE IST — das
+            * gemeinsame Bauteil aus `core/tabelle` (DRK-422). Hier standen
+            * vorher zwei Darstellungen von Hand, mit eigenen
+            * Sichtbarkeitsklassen und eigener Media Query in `files.css`;
+            * dieselbe Entscheidung an zwei Orten, und ein Bruch waere nur an
+            * einem davon aufgefallen.
+            *
+            * ⚠️ DIE AUSWAHL IST `rowSelection`, UND DIE KARTE TEILT SIE. Die
+            * eigene Kaestchenspalte gab es, weil `rowSelection` nur die
+            * Tabelle kannte; `Kartentabelle` setzt jetzt dasselbe Kreuzchen in
+            * jede Karte und schreibt in DENSELBEN Zustand. Ein Kreuzchen, zwei
+            * Darstellungen, eine Menge.
+            *
+            * ⚠️ `preserveSelectedRowKeys` IST PFLICHT. `dataSource` ist die
+            * GEFILTERTE Liste; ohne die Angabe verwuerfe antd beim naechsten
+            * Haken jede Auswahl, die ein Filter gerade verbirgt. Was davon
+            * gilt, entscheidet `aktive` oben — nicht antd.
+            *
+            * KEIN `scroll` UND KEIN `pagination`: beides ist Vorgabe der
             * `Datentabelle` — `{ x: "max-content" }` und „nicht blaettern".
             * `max-content` bleibt die einzige ehrliche Angabe, weil die Spalten
             * keine `width` tragen; und KEINE Spalte traegt `fixed` oder
@@ -409,34 +418,28 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
             * das DESKTOP-Bild aendert sich, ohne dass irgendwo etwas
             * ueberlaeuft (`lib/Table.js:426-442`).
             */}
-          <Datentabelle<PosteingangZeile>
+          <Kartentabelle<PosteingangZeile>
             rowKey="id"
+            aria-label="Posteingang"
             dataSource={gefiltert}
-            columns={[
-              auswahlSpalte(gefiltert, ausgewaehlt, umschalten, alleUmschalten),
-              ...spalten(),
-            ]}
+            columns={SPALTEN}
+            karte={KARTE}
+            leer={{ nichts: "Keine Abgabe passt zu diesen Filtern." }}
+            rowSelection={{
+              selectedRowKeys: [...ausgewaehlt],
+              preserveSelectedRowKeys: true,
+              onChange: (schluessel) => setAusgewaehlt(new Set(schluessel.map(String))),
+              /* Der Name am Kreuzchen der TABELLE. Die Karte nimmt ihren aus
+                 der Titelspalte (`kartenName`) — dafuer liefert die Spalte
+                 „Dateiname" eine nackte Zeichenkette. */
+              getCheckboxProps: (zeile) => ({ "aria-label": `${zeile.dateiname} auswählen` }),
+              /* antds Vorgabe am Kopf-Kaestchen ist das englische „Select all" —
+                 und es waehlt nur, was `dataSource` traegt, also die SICHTBAREN. */
+              getTitleCheckboxProps: () => ({ "aria-label": "Alle sichtbaren Abgaben auswählen" }),
+            }}
           />
         </div>
-
-        {/*
-         * DIE KARTENLISTE, und sie steht IMMER im Markup. Unter 767.98px blendet
-         * `files.css` die Tabelle aus und diese Liste ein — die Umschaltung ist
-         * CSS, nie JavaScript: ein JS-Breakpoint zeigt beim ersten Render die
-         * falsche Variante, und `Grid.useBreakpoint` ist ohnehin verboten.
-         * Neun Spalten sind auf 390px keine Liste mehr.
-         */}
-        <div className="nurMobil" data-testid="files-posteingang-karten">
-          {gefiltert.map((zeile) => (
-            <Karte
-              key={zeile.id}
-              zeile={zeile}
-              gewaehlt={ausgewaehlt.has(zeile.id)}
-              umschalten={umschalten}
-            />
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -486,53 +489,15 @@ function FilterGruppe({
 // ---------------------------------------------------------------------------
 
 /**
- * Die AUSWAHLspalte. Sie steht bewusst NICHT in `spalten()`: §8.6 nennt acht
- * Spalten, und diese traegt keinen Wert der Abgabe, sondern die Mehrfachauswahl.
- *
- * Eigene Kaestchen statt `rowSelection`: die Kartenliste unter 768px braucht
- * dieselbe Auswahl, und `rowSelection` gibt es nur in der Tabelle — zwei
- * Auswahlmechanismen waeren zwei Zustaende ueber derselben Sache.
- */
-function auswahlSpalte(
-  sichtbar: PosteingangZeile[],
-  ausgewaehlt: ReadonlySet<string>,
-  umschalten: (id: string, an: boolean) => void,
-  alleUmschalten: (an: boolean) => void,
-) {
-  const gewaehlt = sichtbar.filter((zeile) => ausgewaehlt.has(zeile.id)).length;
-  return {
-    key: "auswahl",
-    title: (
-      <span data-testid="files-inbox-auswahl-alle">
-        <Checkbox
-          checked={sichtbar.length > 0 && gewaehlt === sichtbar.length}
-          indeterminate={gewaehlt > 0 && gewaehlt < sichtbar.length}
-          onChange={(e) => alleUmschalten(e.target.checked)}
-          aria-label="Alle sichtbaren Abgaben auswählen"
-        />
-      </span>
-    ),
-    render: (_: unknown, zeile: PosteingangZeile) => (
-      <span data-testid={`files-inbox-auswahl-tabelle-${zeile.id}`}>
-        <Checkbox
-          checked={ausgewaehlt.has(zeile.id)}
-          onChange={(e) => umschalten(zeile.id, e.target.checked)}
-          aria-label={`${zeile.dateiname} auswählen`}
-        />
-      </span>
-    ),
-  };
-}
-
-/**
  * DIE ACHT SPALTEN AUS §8.6, in ihrer Reihenfolge. `data-spalte` traegt jede
  * Zelle, weil ein Test sonst ueber Textinhalte raten muesste — und „Altbestand"
  * stuende dann irgendwo in der Zeile statt in DIESER Spalte.
  *
  * SPALTENKOEPFE SIND NACKTE ZEICHENKETTEN — die Kicker-Rolle setzt
  * `Datentabelle` selbst (`docs/design/README.md`: ueber `columns[].title`, nie
- * ueber CSS gegen `.ant-table-thead`). Die Auswahlspalte (`auswahlSpalte()`
- * oben) bleibt ausgenommen: ihr Kopf ist eine Checkbox, kein Text.
+ * ueber CSS gegen `.ant-table-thead`). Auf der Karte ist derselbe Titel die
+ * Beschriftung des Werts (`core/tabelle/kartenaufbau.ts`). Die Auswahlspalte
+ * steht nicht hier: sie kommt aus `rowSelection`.
  *
  * ⚠️ SORTIERT WIRD NIE UEBER DEN ANZEIGETEXT. Zeit und Groesze tragen ihre
  * Rohwerte ohnehin schon in der Zeile (`empfangenSekunden`, `groesseBytes`) —
@@ -547,102 +512,111 @@ function auswahlSpalte(
  * Spaltenfilter gerade verbirgt, waere eine Loeschung ohne Rueckfrage. Ein
  * Spaltenfilter daneben waere ein zweiter Ort fuer dieselbe Frage — mit
  * anderer Reichweite. Die Sortierung teilt das Problem nicht: sie ordnet nur
- * um, verbirgt nichts, und die Kartenliste behaelt ihre eigene Ordnung.
+ * um und verbirgt nichts. Auf dem Telefon bietet sie das Bauteil ueber der
+ * Kartenliste an (`Schmalsteuerung`), aus demselben Zustand wie die Koepfe.
  */
-function spalten() {
-  return [
-    {
-      key: "zeit",
-      title: "Zeit",
-      sorter: nachZahl<PosteingangZeile>((zeile) => zeile.empfangenSekunden),
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <span data-spalte="zeit" className={styles.zahlen}>
-          {zeile.empfangenText}
-        </span>
-      ),
-    },
-    {
-      key: "dateiname",
-      title: "Dateiname",
-      sorter: nachText<PosteingangZeile>((zeile) => zeile.dateiname),
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <span data-spalte="dateiname">{zeile.dateiname}</span>
-      ),
-    },
-    {
-      key: "groesse",
-      title: "Größe",
-      sorter: nachZahl<PosteingangZeile>((zeile) => zeile.groesseBytes),
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <span data-spalte="groesse" className={styles.zahlen}>
-          {byteText(zeile.groesseBytes)}
-        </span>
-      ),
-    },
-    {
-      key: "kategorie",
-      title: "Kategorie",
-      // Ueber den ANZEIGETEXT, nicht ueber den Rohwert: `anzeigeKategorie`
-      // uebersetzt, und zwei Zeilen mit demselben Wort stuenden sonst
-      // auseinander, weil ihre Rohwerte verschieden heiszen.
-      sorter: nachText<PosteingangZeile>((zeile) => anzeigeKategorie(zeile.kategorieRoh)),
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        // ROH, auch wenn der Wert unbekannt ist: der Altbestand traegt, was
-        // `sanitizeCategory` durchliess. Eine Zeile zu verwerfen, deren Datei
-        // sehr wohl da ist, waere der teurere Fehler (T6).
-        <span data-spalte="kategorie">{anzeigeKategorie(zeile.kategorieRoh)}</span>
-      ),
-    },
-    {
-      /* Kein `sorter`: ein Hinweis ist Freitext einer fremden Person. Eine
-         alphabetische Ordnung darueber ordnet nach dem ersten Buchstaben eines
-         Satzes und beantwortet keine Frage, die jemand stellt. */
-      key: "hinweis",
-      title: "Hinweis",
-      /* ⚠️ `Zellentext` AUS `core/tabelle` UND NICHT MEHR `.hinweistext`
-         (DRK-372). Die eigene Klasse setzte `max-width: 32ch` an einem nackten
-         `<span>` — und `max-width` gilt nicht fuer nicht-ersetzte
-         Inline-Elemente (CSS 2.1 §10.4). In der KARTE, wo dieselbe Klasse an
-         einem `<p>` haengt, wirkte sie; HIER nie, und zwar still. `Zellentext`
-         bringt sein `display` selbst mit. */
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <Zellentext data-spalte="hinweis" text={zeile.hinweis ?? "—"} />
-      ),
-    },
-    {
-      key: "avstatus",
-      title: "AV-Status",
-      /* Ueber den SATZ aus `AV_TEXT`, nicht ueber den Statusnamen: `unscanned`
-         und `scanning` stuenden alphabetisch nebeneinander, ihre Saetze sagen
-         aber Verschiedenes — sortiert wird, was in der Zelle steht. */
-      sorter: nachText<PosteingangZeile>((zeile) => AV_TEXT[zeile.avStatus]),
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <span data-spalte="avstatus">
-          <AvZustand status={zeile.avStatus} />
-        </span>
-      ),
-    },
-    {
-      key: "abgabelink",
-      title: "Abgabelink",
-      // „Altbestand" ist ein benannter Wert und sortiert deshalb mit — eine
-      // leere Zeichenkette landete am Ende und saehe aus wie ein fehlender Wert.
-      sorter: nachText<PosteingangZeile>((zeile) => zeile.abgabelink?.name ?? "Altbestand"),
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <span data-spalte="abgabelink">
-          <Abgabelink link={zeile.abgabelink} />
-        </span>
-      ),
-    },
-    {
-      key: "aktionen",
-      title: "Aktionen",
-      render: (_: unknown, zeile: PosteingangZeile) => (
-        <ZeilenAktionen zeile={zeile} kennung="tabelle" />
-      ),
-    },
-  ];
-}
+const SPALTEN = [
+  {
+    key: "zeit",
+    title: "Zeit",
+    sorter: nachZahl<PosteingangZeile>((zeile) => zeile.empfangenSekunden),
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      <span data-spalte="zeit" className={styles.zahlen}>
+        {zeile.empfangenText}
+      </span>
+    ),
+  },
+  {
+    key: "dateiname",
+    title: "Dateiname",
+    /* ⚠️ EIN NACKTER TEXT UND KEIN `<span>` — der einzige Wert dieser Tabelle,
+       der das sein MUSS. Er ist die Ueberschrift der Karte und der Name an
+       ihrem Kreuzchen (`kartenName`), und ein Element hat keinen: das
+       Kreuzchen hiesse sonst nach der ID („aaaaaaaaaa auswählen"). Die
+       Testmarke steht deshalb an der Zelle statt an einem Kind. */
+    dataIndex: "dateiname",
+    onCell: () => ({ "data-spalte": "dateiname" }) as React.HTMLAttributes<HTMLElement>,
+    sorter: nachText<PosteingangZeile>((zeile) => zeile.dateiname),
+  },
+  {
+    key: "groesse",
+    title: "Größe",
+    sorter: nachZahl<PosteingangZeile>((zeile) => zeile.groesseBytes),
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      <span data-spalte="groesse" className={styles.zahlen}>
+        {byteText(zeile.groesseBytes)}
+      </span>
+    ),
+  },
+  {
+    key: "kategorie",
+    title: "Kategorie",
+    // Ueber den ANZEIGETEXT, nicht ueber den Rohwert: `anzeigeKategorie`
+    // uebersetzt, und zwei Zeilen mit demselben Wort stuenden sonst
+    // auseinander, weil ihre Rohwerte verschieden heiszen.
+    sorter: nachText<PosteingangZeile>((zeile) => anzeigeKategorie(zeile.kategorieRoh)),
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      // ROH, auch wenn der Wert unbekannt ist: der Altbestand traegt, was
+      // `sanitizeCategory` durchliess. Eine Zeile zu verwerfen, deren Datei
+      // sehr wohl da ist, waere der teurere Fehler (T6).
+      <span data-spalte="kategorie">{anzeigeKategorie(zeile.kategorieRoh)}</span>
+    ),
+  },
+  {
+    /* Kein `sorter`: ein Hinweis ist Freitext einer fremden Person. Eine
+       alphabetische Ordnung darueber ordnet nach dem ersten Buchstaben eines
+       Satzes und beantwortet keine Frage, die jemand stellt. */
+    key: "hinweis",
+    title: "Hinweis",
+    /* ⚠️ `Zellentext` AUS `core/tabelle` UND NICHT `.hinweistext` (DRK-372).
+       Die eigene Klasse setzte `max-width: 32ch` an einem nackten `<span>` —
+       und `max-width` gilt nicht fuer nicht-ersetzte Inline-Elemente (CSS 2.1
+       §10.4): in der Tabelle wirkte sie nie, und zwar still. `Zellentext`
+       bringt sein `display` selbst mit, und seit DRK-422 steht derselbe Wert
+       auch auf der Karte. */
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      <Zellentext data-spalte="hinweis" text={zeile.hinweis ?? "—"} />
+    ),
+  },
+  {
+    key: "avstatus",
+    title: "AV-Status",
+    /* Ueber den SATZ aus `AV_TEXT`, nicht ueber den Statusnamen: `unscanned`
+       und `scanning` stuenden alphabetisch nebeneinander, ihre Saetze sagen
+       aber Verschiedenes — sortiert wird, was in der Zelle steht. */
+    sorter: nachText<PosteingangZeile>((zeile) => AV_TEXT[zeile.avStatus]),
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      <span data-spalte="avstatus">
+        <AvZustand status={zeile.avStatus} />
+      </span>
+    ),
+  },
+  {
+    key: "abgabelink",
+    title: "Abgabelink",
+    // „Altbestand" ist ein benannter Wert und sortiert deshalb mit — eine
+    // leere Zeichenkette landete am Ende und saehe aus wie ein fehlender Wert.
+    sorter: nachText<PosteingangZeile>((zeile) => zeile.abgabelink?.name ?? "Altbestand"),
+    render: (_: unknown, zeile: PosteingangZeile) => (
+      <span data-spalte="abgabelink">
+        <Abgabelink link={zeile.abgabelink} />
+      </span>
+    ),
+  },
+  {
+    key: "aktionen",
+    title: "Aktionen",
+    render: (_: unknown, zeile: PosteingangZeile) => <ZeilenAktionen zeile={zeile} />,
+  },
+];
+
+/**
+ * DIE KARTE: der Dateiname ist die Ueberschrift, nicht die Zeit. Die Zeit steht
+ * in der Tabelle vorn, weil der Posteingang nach ihr geordnet ist — auf der
+ * Karte benennt sie aber keine Abgabe, zwei Abgaben derselben Minute saehen
+ * gleich aus. Die Handlungsspalte findet das Bauteil selbst (Titel „Aktionen").
+ */
+const KARTE: Kartenwunsch = { titel: "dateiname" };
 
 function AvZustand({ status }: { status: AvStatus }) {
   return (
@@ -779,34 +753,23 @@ function SammelAktionen({
 /**
  * DIE ZWEI EINSTIEGSPUNKTE EINER ZEILE (§10.2): Download und Löschen.
  *
- * `kennung` trennt Tabelle und Karte, weil BEIDE Darstellungen im Markup
- * stehen: ohne sie truege jede `data-testid` zweimal, und ein Test wuesste
- * nicht, welche der beiden er gerade bedient.
+ * ⚠️ DIESELBE SPALTE RENDERT TABELLENZELLE UND KARTE — also steht jede
+ * `data-testid` hier ZWEIMAL im Dokument, und die Darstellung steht nicht mehr
+ * im Namen (vor DRK-422 trug sie `-tabelle-`/`-karte-`). Ein Test rahmt deshalb
+ * mit `[data-rolle="breitansicht"]` oder `[data-rolle="schmalkarten"]`, wie an
+ * jeder `Kartentabelle` (Begruendung in `core/tabelle/Schmalkarten.tsx`).
+ *
+ * KEIN `size="small"` AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach Aufgabe
+ * 8): die alte Ausnahme galt der 56px-`controlHeight` — eine 44px-Zeilenaktion
+ * (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend `size="small"` auf 24px
+ * faellt und die Mindesttapflaeche unterbietet (`docs/design/README.md`,
+ * Falle 4). Und kein `block` mehr fuer die Karte: volle Breite und
+ * Untereinander gibt dort `spaltenkarte.module.css` (`.aktionen`) vor.
  */
-function ZeilenAktionen({
-  zeile,
-  kennung,
-}: {
-  zeile: PosteingangZeile;
-  kennung: "tabelle" | "karte";
-}) {
+function ZeilenAktionen({ zeile }: { zeile: PosteingangZeile }) {
   const [zustand, abschicken] = useActionState(inboxLoeschenAction, START);
   const formular = useRef<HTMLFormElement>(null);
   const fehler = fehlerText(zustand);
-
-  /*
-   * KEIN `size="small"` MEHR AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach
-   * Aufgabe 8): die alte Ausnahme galt der 56px-`controlHeight` — eine
-   * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend
-   * `size="small"` auf 24px faellt und die Mindesttapflaeche unterbietet
-   * (`docs/design/README.md`, Falle 4). In der Karte bleibt `block` bestehen —
-   * unter 768px stehen Handlungsknoepfe untereinander und in voller Breite.
-   */
-  const inTabelle = kennung === "tabelle";
-  const masz = inTabelle ? {} : ({ block: true } as const);
-  /* Der Wiederholen-Knopf in der Alert-Aktion braucht keine eigene Ausnahme
-     mehr — ohne `size` steht `controlHeight` (44) an beiden Stellen. */
-  const maszAlert = {};
 
   return (
     <div>
@@ -822,10 +785,9 @@ function ZeilenAktionen({
        * Element.
        */}
       <Button
-        {...masz}
         href={`/api/inbox/${zeile.id}`}
         disabled={!zeile.herunterladbar}
-        data-testid={`files-inbox-download-${kennung}-${zeile.id}`}
+        data-testid={`files-inbox-download-${zeile.id}`}
       >
         Herunterladen
       </Button>
@@ -847,7 +809,7 @@ function ZeilenAktionen({
           cancelText="Abbrechen"
           onConfirm={() => formular.current?.requestSubmit()}
         >
-          <Button {...masz} danger data-testid={`files-inbox-loeschen-${kennung}-${zeile.id}`}>
+          <Button danger data-testid={`files-inbox-loeschen-${zeile.id}`}>
             Löschen
           </Button>
         </Popconfirm>
@@ -878,11 +840,7 @@ function ZeilenAktionen({
               `BlobZiel` (`_lib/storage.ts`), damit niemand unterwegs uebersetzt. */}
           <input type="hidden" name="art" value="inbox" />
           <input type="hidden" name="id" value={zeile.id} />
-          <Button
-            {...masz}
-            htmlType="submit"
-            data-testid={`files-inbox-av-wiederholen-${kennung}-${zeile.id}`}
-          >
+          <Button htmlType="submit" data-testid={`files-inbox-av-wiederholen-${zeile.id}`}>
             Prüfung wiederholen
           </Button>
         </form>
@@ -892,12 +850,11 @@ function ZeilenAktionen({
         <Alert
           type="warning"
           showIcon
-          data-testid={`files-inbox-fehler-${kennung}-${zeile.id}`}
+          data-testid={`files-inbox-fehler-${zeile.id}`}
           message={fehler}
           action={
             <Button
-              {...maszAlert}
-              data-testid={`files-inbox-wiederholen-${kennung}-${zeile.id}`}
+              data-testid={`files-inbox-wiederholen-${zeile.id}`}
               onClick={() => formular.current?.requestSubmit()}
             >
               Wiederholen
@@ -906,41 +863,5 @@ function ZeilenAktionen({
         />
       )}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-
-function Karte({
-  zeile,
-  gewaehlt,
-  umschalten,
-}: {
-  zeile: PosteingangZeile;
-  gewaehlt: boolean;
-  umschalten: (id: string, an: boolean) => void;
-}) {
-  return (
-    <Card title={zeile.dateiname} data-testid={`files-inbox-karte-${zeile.id}`}>
-      <div className={styles.karte}>
-        <span data-testid={`files-inbox-auswahl-karte-${zeile.id}`}>
-          <Checkbox checked={gewaehlt} onChange={(e) => umschalten(zeile.id, e.target.checked)}>
-            Auswählen
-          </Checkbox>
-        </span>
-        <p className={styles.zahlen}>
-          {zeile.empfangenText} · {byteText(zeile.groesseBytes)}
-        </p>
-        <p>Kategorie: {anzeigeKategorie(zeile.kategorieRoh)}</p>
-        {zeile.hinweis !== null && <p className={styles.hinweistext}>Hinweis: {zeile.hinweis}</p>}
-        <p>
-          <AvZustand status={zeile.avStatus} />
-        </p>
-        <p>
-          Abgabelink: <Abgabelink link={zeile.abgabelink} />
-        </p>
-        <ZeilenAktionen zeile={zeile} kennung="karte" />
-      </div>
-    </Card>
   );
 }
