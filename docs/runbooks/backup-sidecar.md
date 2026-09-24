@@ -143,9 +143,27 @@ Tarball kurz nach dem ersten kostet dagegen nur Platz.
 
 Ein Archiv, das gerade gepackt wird, heisst `JJJJMMTTThhmmss.tar.gz.part` und bekommt
 seinen endgueltigen Namen erst, wenn es vollstaendig ist — es zaehlt also nie als
-Generation und wird nie ausgelagert. Liegt eine `.part`-Datei (samt gleichnamigem
-Verzeichnis) herum, **ohne** dass gerade ein Lauf arbeitet, ist sie der Rest eines
-abgebrochenen Laufs und kann geloescht werden; aufgeraeumt wird sie nicht von selbst.
+Generation und wird nie ausgelagert. Eine `.part`-Datei (samt gleichnamigem Verzeichnis)
+ohne laufenden Lauf ist der Rest eines abgebrochenen Laufs. Aufgeraeumt wird sie an zwei
+Stellen:
+
+- **`backup.sh` selbst**, wenn es scheitert (etwa `tar` auf einem vollen Volume) oder
+  SIGTERM, SIGINT oder SIGHUP bekommt: es entfernt Verzeichnis und `.part` **seines
+  eigenen** Laufs, nie ein fertiges Archiv.
+- **Der Sidecar zu Beginn jedes Laufs**, unter der Sperre und **vor** `backup.sh`, für
+  alles, was keine Falle mehr erreicht (SIGKILL am Ende von `stop_grace_period`,
+  Absturz). Er nimmt nur Stempel-Verzeichnisse und `…tar.gz.part`, die seit
+  `BACKUP_SPERRE_ALTER_STUNDEN` (Vorgabe 6) **unverändert** sind. Das ist dieselbe
+  Grenze, ab der eine Sperre als verwaist gilt. Ein Lauf, der noch schreibt, ist damit
+  nie betroffen. Im Protokoll steht je Rest eine Warnung `Rest eines abgebrochenen Laufs
+  entfernt: …`. Ein jüngerer Rest wird mit `… bleibt liegen` genannt und beim nächsten
+  Lauf weggeräumt.
+
+Der Healthcheck meldet Reste bewusst **nicht**. Er läuft ohne Sperre und beantwortet
+nur die Frage, ob eine frische Sicherung liegt. Den Abbruch, der einen Rest hinterlässt,
+zeigt er ohnehin: Der Erfolg bleibt aus. Von Hand löschen musst du nur, wenn es
+eilt, etwa bei vollem Volume vor dem nächsten Lauf, und nur, wenn gerade kein Lauf
+arbeitet.
 
 Der Dienst lässt sich deshalb auch nicht mitten im Lauf abwürgen: `stop_grace_period`
 (Vorgabe 30 Minuten, `SUITE_BACKUP_STOP_GRACE`) lässt eine laufende Sicherung fertig
@@ -497,6 +515,17 @@ Der Lauf, der das ausgelöst hat, hat sein Ergebnis **nirgends** hinterlassen k�
 in der Zustandsdatei steht, ist der Stand **davor** und damit veraltet. Deshalb meldet
 sich der Healthcheck hier sofort statt erst nach `BACKUP_FRIST_STUNDEN` — ein alter
 `ok`-Stand wäre in dieser Lage die gefährlichste Auskunft von allen.
+
+Ist das Volume voll, lohnt ein Blick auf Reste abgebrochener Läufe (Stempel-Verzeichnisse
+und `…tar.gz.part`, siehe „Gleichzeitigkeit"). Sie können bis zu zwei Kopien des
+Datenbestands belegen:
+
+```bash
+docker compose exec backup /bin/sh -c 'ls -la /backups; du -sh /backups/*'
+```
+
+Ältere als `BACKUP_SPERRE_ALTER_STUNDEN` räumt der nächste Lauf selbst weg. Jüngere
+löschst du nur, wenn gerade kein Lauf arbeitet.
 
 Ist das Volume wieder in Ordnung, räumt der nächste Lauf die Meldung von selbst ab; ein
 `docker compose restart backup` beschleunigt das nur.

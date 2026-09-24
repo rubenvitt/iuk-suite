@@ -105,6 +105,29 @@ while :; do
 done
 work="$BACKUP_DIR/$stamp"
 
+# ⚠️ WER SCHEITERT, RAEUMT SEINEN EIGENEN REST WEG (DRK-476). Ein Abbruch mitten in der
+# Arbeit liess `$work` und `$work.tar.gz.part` liegen, und weil beide bewusst nicht als
+# Generation zaehlen, erfasste sie auch keine Rotation: jeder Abbruch kostete bis zu zwei
+# Kopien des Datenbestands, fuer immer. Der teuerste Fall ist ausgerechnet der haeufigste:
+# ein volles Volume laesst `tar` unter `set -e` scheitern, und der Rest haelt es voll.
+#
+# Die Falle fasst NUR den Stempel an, den DIESER Lauf oben per exklusivem `mkdir`
+# beansprucht hat — nie `$work.tar.gz`, und nach dem regulaeren Abraeumen gar nichts
+# mehr (`eigener_rest` wird dort geleert). TERM, INT und HUP laufen ueber `exit`, damit
+# auch sie die EXIT-Falle ausloesen; bash wartet dafuer das laufende Kind (`tar`, `rsync`)
+# ab, und es gibt keinen Wettlauf zwischen Aufraeumen und Weiterschreiben.
+# SIGKILL erreicht keine Falle — solche Reste raeumt der Sidecar unter seiner Sperre
+# (`reste_aufraeumen` in `scripts/backup-sidecar.sh`).
+eigener_rest="$work"
+rest_aufraeumen() {
+  [ -n "$eigener_rest" ] || return 0
+  rm -rf "$eigener_rest" "$eigener_rest.tar.gz.part" 2>/dev/null || true
+}
+trap rest_aufraeumen EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 for db in "${dbs[@]}"; do
   sqlite3 "$db" ".backup '$work/$(basename "$db")'"
 done
@@ -178,6 +201,8 @@ fi
 tar -czf "$work.tar.gz.part" -C "$BACKUP_DIR" "$stamp"
 mv -f "$work.tar.gz.part" "$work.tar.gz"
 rm -rf "$work"
+# Ab hier gibt es nichts Halbes mehr, und die Falle fasst nichts mehr an.
+eigener_rest=""
 
 # Rotation: nur die neuesten $KEEP Tarballs behalten. Wir haben gerade eines
 # geschrieben, das Glob matcht also >=1; mit nullglob AUS bleibt ein (hier

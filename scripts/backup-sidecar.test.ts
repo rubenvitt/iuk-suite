@@ -3,12 +3,14 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  lutimesSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -2982,6 +2984,183 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // `[\s\S]` und nicht der `s`-Flag: das tsconfig-Ziel liegt unter es2018, und tsc
     // lehnt `/…/s` dort mit TS1501 ab — gemessen, nicht vermutet.
     expect(befehle).toMatch(/alter[\s\S]*-gt[\s\S]*BACKUP_FRIST_STUNDEN \* 3600/);
+  });
+});
+
+describe("scripts/backup-sidecar.sh — Reste abgebrochener Laeufe (DRK-476)", () => {
+  /**
+   * Ein hart beendeter Lauf laesst `<stempel>/` und `<stempel>.tar.gz.part` liegen. Seit
+   * DRK-416 zaehlt beides bewusst nicht als Generation — und fiel damit aus JEDER
+   * Rotation: bis zu zwei Kopien des Datenbestands je Abbruch, fuer immer.
+   *
+   * Gemessen wird am ausgeschnittenen `reste_aufraeumen` gegen ein echtes Verzeichnis;
+   * das Alter kommt per `utimesSync`, die Grenze ist die der Sperre (hier 6h).
+   */
+  const STUNDE = 3600_000;
+  const aufraeumen = (
+    lage: (dir: string) => void,
+    { fremdeMarke = false }: { fremdeMarke?: boolean } = {},
+  ) => {
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-reste-"));
+    const dir = path.join(kladde, "backup");
+    const sperre = path.join(kladde, "sperre");
+    mkdirSync(dir, { recursive: true });
+    mkdirSync(path.join(sperre, fremdeMarke ? "eigner.bbbb.1.000001" : "eigner.aaaa.1.000001"), {
+      recursive: true,
+    });
+    lage(dir);
+    const quelle = [
+      // `set -eu` wie im Skript: ein Fehlschritt im Rumpf soll hier auffallen, nicht
+      // erst im Container.
+      "set -eu",
+      sidecar.split("\n").find((z) => z.startsWith("TARBALL_MUSTER=")) ?? "",
+      ...[
+        "protokoll",
+        "warne",
+        "verzeichnis_alter",
+        "sperre_gehoert_uns",
+        "reste_aufraeumen",
+      ].map(shellQuelle),
+      `BACKUP_DIR=${dir}`,
+      `SPERRVERZEICHNIS=${sperre}`,
+      'MARKE_PRAEFIX="eigner.aaaa.1."',
+      'meine_marke="eigner.aaaa.1.000001"',
+      "BACKUP_SPERRE_ALTER_STUNDEN=6",
+      "BACKUP_HERZSCHLAG_SEKUNDEN=60",
+      "reste_aufraeumen",
+    ].join("\n");
+    const lauf = spawnSync("sh", ["-c", quelle], { encoding: "utf8" });
+    try {
+      return { status: lauf.status, stderr: lauf.stderr, stdout: lauf.stdout, uebrig: readdirSync(dir).sort() };
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  };
+  const altern = (p: string, stunden: number) => {
+    const t = new Date(Date.now() - stunden * STUNDE);
+    utimesSync(p, t, t);
+  };
+  /** Ein Rest wie nach einem SIGKILL mitten im `tar`: Verzeichnis mit Inhalt plus `.part`. */
+  const rest = (dir: string, stempel: string, stundenVerzeichnis: number, stundenPart = stundenVerzeichnis) => {
+    mkdirSync(path.join(dir, stempel, "files"), { recursive: true });
+    writeFileSync(path.join(dir, stempel, "portal.db"), "db");
+    writeFileSync(path.join(dir, `${stempel}.tar.gz.part`), "halb");
+    altern(path.join(dir, stempel), stundenVerzeichnis);
+    altern(path.join(dir, `${stempel}.tar.gz.part`), stundenPart);
+  };
+
+  it("raeumt einen alten Rest weg — Verzeichnis UND Teilarchiv — und laesst Generationen stehen", () => {
+    const r = aufraeumen((dir) => {
+      rest(dir, "20260101T033000", 30);
+      // Fertige Generationen, alt wie neu: Sache der Rotation, nie dieses Aufraeumens.
+      writeFileSync(path.join(dir, "20251231T033000.tar.gz"), "fertig");
+      altern(path.join(dir, "20251231T033000.tar.gz"), 48);
+      writeFileSync(path.join(dir, "20260102T033000.tar.gz"), "fertig");
+    });
+    expect(r.status).toBe(0);
+    expect(r.uebrig).toEqual(["20251231T033000.tar.gz", "20260102T033000.tar.gz"]);
+    // Nicht still: der Betreiber sieht im Protokoll, dass frueher etwas abgebrochen ist.
+    expect(r.stderr).toMatch(/Rest eines abgebrochenen Laufs entfernt: 20260101T033000\b/);
+    expect(r.stderr).toMatch(/Rest eines abgebrochenen Laufs entfernt: 20260101T033000\.tar\.gz\.part/);
+  });
+
+  it("ein Verzeichnis, das nach einem SIGKILL zwischen `mv` und `rm -rf` neben seinem fertigen Archiv steht, geht — das Archiv bleibt", () => {
+    const r = aufraeumen((dir) => {
+      mkdirSync(path.join(dir, "20260101T033000"));
+      altern(path.join(dir, "20260101T033000"), 30);
+      writeFileSync(path.join(dir, "20260101T033000.tar.gz"), "fertig");
+      altern(path.join(dir, "20260101T033000.tar.gz"), 30);
+    });
+    expect(r.uebrig).toEqual(["20260101T033000.tar.gz"]);
+  });
+
+  it("ein JUNGER Rest bleibt stehen — er kann einem Lauf gehoeren, der noch lebt", () => {
+    // ⚠️ DAS IST DAS FENSTER AUS DRK-416. Ein ueberholter Lauf arbeitet sein `backup.sh`
+    // zu Ende, und ein von Hand gestarteter nimmt gar keine Sperre. Beide schreiben —
+    // ihr Rest ist deshalb jung, und jung heisst: nicht anfassen.
+    const r = aufraeumen((dir) => rest(dir, "20260101T033000", 1));
+    expect(r.status).toBe(0);
+    expect(r.uebrig).toEqual(["20260101T033000", "20260101T033000.tar.gz.part"]);
+    expect(r.stdout).toMatch(/20260101T033000 bleibt liegen/);
+  });
+
+  it("ein Lauf, der gerade PACKT, laesst sein Verzeichnis alt aussehen — das `.part` rettet beide", () => {
+    // Beim `tar` liest der Lauf sein Verzeichnis nur, dessen mtime bleibt stehen; frisch
+    // ist allein das wachsende `.part`. Wer jeden Eintrag einzeln beurteilte, raeumte das
+    // Verzeichnis unter dem laufenden `tar` weg.
+    const r = aufraeumen((dir) => rest(dir, "20260101T033000", 30, 0));
+    expect(r.uebrig).toEqual(["20260101T033000", "20260101T033000.tar.gz.part"]);
+  });
+
+  it("die Grenze ist die der Sperre, nicht eine eigene Zahl", () => {
+    // Knapp darunter bleibt, knapp darueber geht — bei BACKUP_SPERRE_ALTER_STUNDEN=6.
+    expect(aufraeumen((dir) => rest(dir, "20260101T033000", 5.9)).uebrig).toHaveLength(2);
+    expect(aufraeumen((dir) => rest(dir, "20260101T033000", 6.1)).uebrig).toEqual([]);
+    // Und der Boden aus dem Herzschlag gilt hier genauso wie in `sperre_ist_verwaist`.
+    const rumpf = funktionsrumpf(befehle, "reste_aufraeumen");
+    expect(rumpf).toMatch(/grenze=\$\(\(BACKUP_SPERRE_ALTER_STUNDEN \* 3600\)\)/);
+    expect(rumpf).toMatch(/boden=\$\(\(BACKUP_HERZSCHLAG_SEKUNDEN \* 10\)\)/);
+  });
+
+  it("nur unsere Namen: fremde Dateien, Verzeichnisse und Symlinks bleiben, auch wenn sie alt sind", () => {
+    const r = aufraeumen((dir) => {
+      for (const d of ["fremd", "20260101T03300", "20260101T033000x", "lost+found"]) {
+        mkdirSync(path.join(dir, d));
+        altern(path.join(dir, d), 30);
+      }
+      for (const f of ["notizen.part", "20260101T033000.part", "20260101T033000.zip.part"]) {
+        writeFileSync(path.join(dir, f), "");
+        altern(path.join(dir, f), 30);
+      }
+      // Ein Name, der passt, aber als DATEI statt als Verzeichnis dasteht, und umgekehrt.
+      writeFileSync(path.join(dir, "20260101T040000"), "");
+      altern(path.join(dir, "20260101T040000"), 30);
+      mkdirSync(path.join(dir, "20260101T050000.tar.gz.part"));
+      altern(path.join(dir, "20260101T050000.tar.gz.part"), 30);
+      // Ein Symlink mit passendem Namen zeigt womoeglich woandershin.
+      mkdirSync(path.join(dir, "fremd", "ziel"));
+      // `lutimesSync` altert den LINK selbst — sonst schuetzte ihn schon sein frisches
+      // Alter, und der Riegel dagegen bliebe ungeprueft (gemessen: die Mutation ueberlebte).
+      symlinkSync(path.join(dir, "fremd", "ziel"), path.join(dir, "20260101T060000"));
+      const vorgestern = new Date(Date.now() - 30 * STUNDE);
+      lutimesSync(path.join(dir, "20260101T060000"), vorgestern, vorgestern);
+    });
+    expect(r.status).toBe(0);
+    expect(r.uebrig).toEqual([
+      "20260101T03300",
+      "20260101T033000.part",
+      "20260101T033000.zip.part",
+      "20260101T033000x",
+      "20260101T040000",
+      "20260101T050000.tar.gz.part",
+      "20260101T060000",
+      "fremd",
+      "lost+found",
+      "notizen.part",
+    ]);
+  });
+
+  it("ohne die Sperre wird NICHTS weggeraeumt", () => {
+    const r = aufraeumen((dir) => rest(dir, "20260101T033000", 30), { fremdeMarke: true });
+    expect(r.uebrig).toEqual(["20260101T033000", "20260101T033000.tar.gz.part"]);
+    expect(r.stderr).toMatch(/Sperre verloren/);
+    // `break` statt `return`: die Schleife ist die Subshell einer Pipe.
+    expect(funktionsrumpf(befehle, "reste_aufraeumen")).toMatch(
+      /if ! sperre_gehoert_uns; then[\s\S]*break/,
+    );
+  });
+
+  it("laeuft VOR `backup.sh`, unter der Sperre — nie im Healthcheck", () => {
+    // ⚠️ VOR, NICHT NACH: ist das Volume VON den Resten voll, scheitert `backup.sh`, und
+    // ein Aufraeumen hinter dem Zaun kaeme nie an die Reihe.
+    const rumpfL = funktionsrumpf(befehle, "lauf_ungesperrt");
+    const aufraeumenBei = rumpfL.indexOf("reste_aufraeumen");
+    expect(aufraeumenBei, "der Lauf raeumt auf").toBeGreaterThan(-1);
+    expect(aufraeumenBei).toBeLessThan(rumpfL.indexOf('bash "$BACKUP_SKRIPT"'));
+    // `lauf_ungesperrt` laeuft nur aus `lauf`, also nach `sperre_erwarten`.
+    expect(funktionsrumpf(befehle, "lauf")).toMatch(/sperre_erwarten[\s\S]*lauf_ungesperrt/);
+    // Der Healthcheck laeuft alle fuenf Minuten OHNE Sperre — er meldet, er raeumt nicht.
+    expect(funktionsrumpf(befehle, "zustand")).not.toMatch(/reste_aufraeumen|rm -rf/);
   });
 });
 
