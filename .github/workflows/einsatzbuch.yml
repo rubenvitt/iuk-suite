@@ -1,0 +1,215 @@
+# CI-Tor der Einsatzbuch-Desktop-App: Oberfläche (Vite/React), Rust-Kern und ein
+# Rauchtest des Tauri-Bundles je Zielplattform. Läuft nur an, wenn sich an der App,
+# ihrem geteilten TS-Kern, den Farb-/Abstands-Tokens der Suite oder an dieser Datei
+# selbst etwas ändert — eine Änderung am Workflow prüft sich damit selbst.
+name: einsatzbuch
+
+on:
+  pull_request:
+    paths:
+      - "apps/einsatzbuch/**"
+      - "src/app/m/einsatzbuch/_lib/kern/**"
+      - "src/core/theme/tokens.ts"
+      - ".github/workflows/einsatzbuch.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/einsatzbuch/**"
+      - "src/app/m/einsatzbuch/_lib/kern/**"
+      - "src/core/theme/tokens.ts"
+      - ".github/workflows/einsatzbuch.yml"
+
+permissions:
+  contents: read
+
+# Wie im Einsatzarchiv (einsatztagebuch/.github/workflows/gate.yml): ein
+# überholter PR-Lauf wird abgebrochen, ein Lauf auf `main` läuft immer zu Ende.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  oberflaeche:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # `lfs: true`, weil die App-Icons unter apps/einsatzbuch/src-tauri/icons
+      # als Git-LFS-Objekte liegen (*.png in .gitattributes).
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Icons sind Bilder, keine LFS-Zeigerdateien
+        shell: bash
+        run: |
+          set -euo pipefail
+          fehler=0
+          for datei in apps/einsatzbuch/src-tauri/icons/*.png; do
+            if head -c 40 "$datei" | grep -q "version https://git-lfs"; then
+              echo "::error file=$datei::Zeigerdatei statt Bild – LFS-Objekt nicht geladen."
+              fehler=1
+            fi
+          done
+          exit "$fehler"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # `--ignore-scripts` erspart auf jedem der drei Läufer den Quellbau von
+      # better-sqlite3 (Suite-Abhängigkeit); die App braucht kein Install-Skript.
+      # Im Root, nicht gefiltert: der geteilte TS-Kern unter `src/` löst `react`
+      # aus dem Root-`node_modules` auf.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm --filter einsatzbuch typecheck
+      - run: pnpm --filter einsatzbuch lint
+      - run: pnpm --filter einsatzbuch test
+      - run: pnpm --filter einsatzbuch exec playwright install --with-deps chromium
+      - run: pnpm --filter einsatzbuch e2e
+
+  rust-kern:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Icons sind Bilder, keine LFS-Zeigerdateien
+        shell: bash
+        run: |
+          set -euo pipefail
+          fehler=0
+          for datei in apps/einsatzbuch/src-tauri/icons/*.png; do
+            if head -c 40 "$datei" | grep -q "version https://git-lfs"; then
+              echo "::error file=$datei::Zeigerdatei statt Bild – LFS-Objekt nicht geladen."
+              fehler=1
+            fi
+          done
+          exit "$fehler"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/einsatzbuch/src-tauri
+      # Nur `-p einsatzbuch-kern`, absichtlich: das Paket hängt an keiner
+      # Tauri-/Webview-Abhängigkeit, der Lauf baut also nichts aus dem GTK-Graphen
+      # der Hülle und braucht keine Systembibliotheken (anders als ein echter
+      # Tauri-Build unter Linux, siehe einsatztagebuch/.github/workflows/gate.yml).
+      - name: Kern-Tests
+        working-directory: apps/einsatzbuch/src-tauri
+        run: cargo test -p einsatzbuch-kern --locked
+      # Kein `ring` im Baum (Entscheidung des Kerns: RustCrypto statt ring/*aws-lc*).
+      # Geprüft wird auf Exit-Code UND darauf, dass keine Paketzeile "ring" auftaucht
+      # — ein Grep auf den Wortlaut der Fehlermeldung bräche bei der nächsten
+      # cargo-Version still.
+      - name: Kein ring im Abhängigkeitsbaum
+        working-directory: apps/einsatzbuch/src-tauri
+        shell: bash
+        run: |
+          set +e
+          cargo tree --locked -i ring > /tmp/ring.txt 2>&1
+          status=$?
+          set -e
+          cat /tmp/ring.txt
+          if [ "$status" -eq 0 ]; then
+            echo "::error::cargo tree -i ring endete erfolgreich – ring steckt im Baum."
+            exit 1
+          fi
+          if grep -qE '^ring v[0-9]' /tmp/ring.txt; then
+            echo "::error::ring erscheint als Paketzeile in der Ausgabe."
+            exit 1
+          fi
+      # `preserve_order` verändert die Reihenfolge, die serde_json über eine Map
+      # liefert — die Kanonik (JCS) sortiert Schlüssel explizit selbst und darf
+      # sich darauf nicht verlassen (Cargo.toml-Kommentar an serde_json).
+      # ⚠️ Der Treffer muss die Zeile "serde_json feature \"preserve_order\""
+      # sein, kein bloßes Grep auf das Wort: `schemars` (Tauri-Abhängigkeit)
+      # trägt ein gleichnamiges, unabhängiges Merkmal und stünde sonst fälschlich
+      # als Fund da (gemessen).
+      - name: serde_json ohne preserve_order
+        working-directory: apps/einsatzbuch/src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo tree --locked -e features -i serde_json | tee /tmp/serde_json.txt
+          if grep -q 'serde_json feature "preserve_order"' /tmp/serde_json.txt; then
+            echo "::error::serde_json aktiviert preserve_order."
+            exit 1
+          fi
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      # Unter Windows ist die Vorgabeschale PowerShell; `head`/`grep` gibt es dort
+      # nicht, deshalb ausdrücklich `shell: bash` (Git-Bash liegt auf Windows-Läufern bei).
+      - name: Icons sind Bilder, keine LFS-Zeigerdateien
+        shell: bash
+        run: |
+          set -euo pipefail
+          fehler=0
+          for datei in apps/einsatzbuch/src-tauri/icons/*.png; do
+            if head -c 40 "$datei" | grep -q "version https://git-lfs"; then
+              echo "::error file=$datei::Zeigerdatei statt Bild – LFS-Objekt nicht geladen."
+              fehler=1
+            fi
+          done
+          exit "$fehler"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable, Stand 2026-09-03
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/einsatzbuch/src-tauri
+      # Die Hülle (Paket `einsatzbuch` im Workspace) bindet ihre Oberfläche über
+      # `generate_context!` ein und bricht ohne `dist/` schon beim Kompilieren ab
+      # (Lehre aus einsatztagebuch/.github/workflows/ci.yml, dort an
+      # `apps/desktop/dist`) — deshalb VOR jedem `cargo`-Aufruf.
+      - run: pnpm --filter einsatzbuch build
+      # Läuft den ganzen Workspace, nicht nur `kern`: erst hier läuft
+      # „Testbetrieb beenden" (befehle.rs) auch unter Windows mit, und das ist
+      # der Zweck dieses Jobs.
+      - name: cargo test --workspace
+        working-directory: apps/einsatzbuch/src-tauri
+        run: cargo test --locked --workspace
+      # `--debug` für einen schnellen Rauchtest statt eines optimierten Release-Baus.
+      # `--bundles`: dmg ist lokal wie in der CI anfällig (Lehre aus dem
+      # Einsatzarchiv-Repo) und für einen Rauchtest reicht `app`; unter Windows
+      # baut niemand die MSI/WiX-Kette für einen Rauchtest, `nsis` genügt.
+      - name: tauri build --debug (macOS)
+        if: runner.os == 'macOS'
+        working-directory: apps/einsatzbuch/src-tauri
+        run: pnpm --filter einsatzbuch tauri build --debug --bundles app
+      - name: tauri build --debug (Windows)
+        if: runner.os == 'Windows'
+        working-directory: apps/einsatzbuch/src-tauri
+        run: pnpm --filter einsatzbuch tauri build --debug --bundles nsis
+      - name: Bundle-Größe (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          {
+            echo "### Bundle-Größe (${{ matrix.os }}, debug, app)"
+            du -sh apps/einsatzbuch/src-tauri/target/debug/bundle/macos/*.app
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Bundle-Größe (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "### Bundle-Größe (${{ matrix.os }}, debug, nsis)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-ChildItem -Recurse apps/einsatzbuch/src-tauri/target/debug/bundle/nsis -File |
+            Measure-Object -Property Length -Sum |
+            ForEach-Object { "{0:N2} MB" -f ($_.Sum / 1MB) } |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
