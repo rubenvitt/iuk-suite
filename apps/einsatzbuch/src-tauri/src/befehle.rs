@@ -144,11 +144,14 @@ pub fn lies_stammdaten(z: &Zustand) -> Result<Stammdatenpaket, String> {
     Ok(einrichtung.paket)
 }
 
-pub fn speichere_entwurf(z: &Zustand, entwurf: &Entwurf) -> Result<(), String> {
+/// `bearbeitung`: Der Entwurf ist die Bearbeitung eines ausstehenden Einsatzes. Nach Fristende
+/// lehnt der Kern sie ab (`ErfassungFehler::FristAbgelaufen`), die Oberfläche fragt dann
+/// `frist_pruefen` und zeigt die Versiegelung.
+pub fn speichere_entwurf(z: &Zustand, entwurf: &Entwurf, bearbeitung: bool) -> Result<(), String> {
     let jetzt = z.uhr.jetzt();
     let mut buch = z.buch_zum_schreiben()?;
     let buch = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
-    buch.speichere_entwurf(entwurf, jetzt).map_err(fehler_text)
+    buch.speichere_entwurf(entwurf, jetzt, bearbeitung).map_err(fehler_text)
 }
 
 pub fn verwirf_entwurf(z: &Zustand) -> Result<(), String> {
@@ -157,11 +160,12 @@ pub fn verwirf_entwurf(z: &Zustand) -> Result<(), String> {
     buch.verwerfe_entwurf().map_err(fehler_text)
 }
 
-pub fn sende_ab(z: &Zustand, entwurf: &Entwurf) -> Result<Ausstehend, String> {
+/// `bearbeitung` wie bei `speichere_entwurf`: „Änderungen übernehmen“ statt der ersten Absendung.
+pub fn sende_ab(z: &Zustand, entwurf: &Entwurf, bearbeitung: bool) -> Result<Ausstehend, String> {
     let jetzt = z.uhr.jetzt();
     let mut buch = z.buch_zum_schreiben()?;
     let buch = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
-    buch.sende_ab(entwurf, jetzt).map_err(fehler_text)
+    buch.sende_ab(entwurf, jetzt, bearbeitung).map_err(fehler_text)
 }
 
 /// „Jetzt versiegeln“: versiegelt den ausstehenden Einsatz sofort, mit `verfallen = false`,
@@ -282,8 +286,8 @@ pub async fn stammdaten(app: AppHandle) -> Result<Stammdatenpaket, String> {
 }
 
 #[tauri::command]
-pub async fn entwurf_speichern(app: AppHandle, entwurf: Entwurf) -> Result<(), String> {
-    blockierend(app, move |z| speichere_entwurf(z, &entwurf)).await
+pub async fn entwurf_speichern(app: AppHandle, entwurf: Entwurf, bearbeitung: bool) -> Result<(), String> {
+    blockierend(app, move |z| speichere_entwurf(z, &entwurf, bearbeitung)).await
 }
 
 #[tauri::command]
@@ -292,8 +296,8 @@ pub async fn entwurf_verwerfen(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn absenden(app: AppHandle, entwurf: Entwurf) -> Result<Ausstehend, String> {
-    blockierend(app, move |z| sende_ab(z, &entwurf)).await
+pub async fn absenden(app: AppHandle, entwurf: Entwurf, bearbeitung: bool) -> Result<Ausstehend, String> {
+    blockierend(app, move |z| sende_ab(z, &entwurf, bearbeitung)).await
 }
 
 #[tauri::command]
@@ -445,9 +449,9 @@ mod tests {
         assert_eq!(versiegele_jetzt(&z).unwrap_err(), NICHTS_AUSSTEHEND);
         let mut unvollstaendig = entwurf();
         unvollstaendig.stichwort.clear();
-        assert_eq!(sende_ab(&z, &unvollstaendig).unwrap_err(), "Fehlt: Alarmstichwort");
+        assert_eq!(sende_ab(&z, &unvollstaendig, false).unwrap_err(), "Fehlt: Alarmstichwort");
 
-        sende_ab(&z, &entwurf()).unwrap();
+        sende_ab(&z, &entwurf(), false).unwrap();
         let v = versiegele_jetzt(&z).unwrap();
         assert_eq!(v.nummer, "T-2026-001");
         assert!(!v.verfallen);
@@ -471,8 +475,8 @@ mod tests {
         let uhr = Stelluhr::neu();
         let z = zustand(ordner.path(), &uhr);
         richte_entwicklung_ein(&z, None, Some(15)).unwrap();
-        sende_ab(&z, &entwurf()).unwrap();
-        speichere_entwurf(&z, &entwurf()).unwrap();
+        sende_ab(&z, &entwurf(), false).unwrap();
+        speichere_entwurf(&z, &entwurf(), true).unwrap();
 
         uhr.vor(Duration::minutes(14));
         assert_eq!(pruefe_frist_jetzt(&z).unwrap(), None);
@@ -481,6 +485,23 @@ mod tests {
         assert!(v.verfallen, "ein ungespeicherter Formularstand verfällt");
         // Ein zweiter Aufruf liefert dieselbe, noch nicht quittierte Versiegelung.
         assert_eq!(pruefe_frist_jetzt(&z).unwrap(), Some(v));
+    }
+
+    #[test]
+    fn bearbeitung_nach_fristende_meldet_frist_abgelaufen() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let z = zustand(ordner.path(), &uhr);
+        richte_entwicklung_ein(&z, None, Some(15)).unwrap();
+        sende_ab(&z, &entwurf(), false).unwrap();
+        uhr.vor(Duration::minutes(15));
+
+        let meldung = "Die Frist ist abgelaufen. Versiegelt wird der zuletzt abgesendete Stand.";
+        assert_eq!(sende_ab(&z, &entwurf(), true).unwrap_err(), meldung);
+        assert_eq!(speichere_entwurf(&z, &entwurf(), true).unwrap_err(), meldung);
+        let v = pruefe_frist_jetzt(&z).unwrap().expect("Frist erreicht");
+        assert!(!v.verfallen, "abgelehnte Bearbeitungen hinterlassen keinen Entwurf");
+        assert!(lies_status(&z).unwrap().ausstehend.is_none());
     }
 
     #[test]
@@ -516,9 +537,9 @@ mod tests {
         assert_eq!(serde_json::to_value(&s).unwrap()["startfehler"], fehler.as_str());
 
         assert_eq!(lies_stammdaten(&z).unwrap_err(), fehler);
-        assert_eq!(speichere_entwurf(&z, &entwurf()).unwrap_err(), fehler);
+        assert_eq!(speichere_entwurf(&z, &entwurf(), false).unwrap_err(), fehler);
         assert_eq!(verwirf_entwurf(&z).unwrap_err(), fehler);
-        assert_eq!(sende_ab(&z, &entwurf()).unwrap_err(), fehler);
+        assert_eq!(sende_ab(&z, &entwurf(), false).unwrap_err(), fehler);
         assert_eq!(versiegele_jetzt(&z).unwrap_err(), fehler);
         assert_eq!(pruefe_frist_jetzt(&z).unwrap_err(), fehler);
         assert_eq!(beende_testbetrieb(&z).unwrap_err(), fehler);
@@ -534,7 +555,7 @@ mod tests {
         let uhr = Stelluhr::neu();
         let z = zustand(ordner.path(), &uhr);
         richte_entwicklung_ein(&z, None, Some(15)).unwrap();
-        sende_ab(&z, &entwurf()).unwrap();
+        sende_ab(&z, &entwurf(), false).unwrap();
         uhr.vor(Duration::minutes(15));
         let aus_der_uhr = z.pruefe_frist().unwrap().expect("Frist erreicht");
         assert_eq!(versiegele_jetzt(&z).unwrap(), aus_der_uhr);

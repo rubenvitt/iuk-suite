@@ -82,14 +82,14 @@ fn versiegelt_in_einer_transaktion_und_haengt_an() {
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
 
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf_eins(), t0).unwrap();
+    buch.sende_ab(&entwurf_eins(), t0, false).unwrap();
     let mut zufall = FesterZufall(7);
     let erster = buch.versiegele_ausstehend(t0, &mut zufall, false).unwrap().unwrap();
     assert_eq!(erster.prev, GENESIS);
     assert_eq!(erster.block, 1);
 
     let t1 = Utc.with_ymd_and_hms(2026, 8, 29, 13, 0, 0).unwrap();
-    buch.sende_ab(&entwurf_zwei(), t1).unwrap();
+    buch.sende_ab(&entwurf_zwei(), t1, false).unwrap();
     let mut zufall2 = FesterZufall(9);
     let zweiter = buch.versiegele_ausstehend(t1, &mut zufall2, false).unwrap().unwrap();
     assert_eq!(zweiter.block, 2);
@@ -126,7 +126,7 @@ fn nummern_ueber_den_jahreswechsel_in_der_suite_zone() {
     let erwartete_nummern = ["2026-001", "2027-001", "2027-002"];
     let mut versiegelungen = Vec::new();
     for (i, jetzt) in zeitpunkte.iter().enumerate() {
-        buch.sende_ab(&entwurf_eins(), *jetzt).unwrap();
+        buch.sende_ab(&entwurf_eins(), *jetzt, false).unwrap();
         let mut zufall = FesterZufall(i as u8 + 1);
         versiegelungen.push(buch.versiegele_ausstehend(*jetzt, &mut zufall, false).unwrap().unwrap());
     }
@@ -143,7 +143,7 @@ fn testbetrieb_versiegelt_test_mit_praefix() {
     let mut test = Buch::oeffne(ordner_test.path(), Betrieb::Test).unwrap();
     test.richte_ein(&test_einrichtung(Umgebung::Test)).unwrap();
     let jetzt = Utc.with_ymd_and_hms(2026, 1, 10, 12, 0, 0).unwrap();
-    test.sende_ab(&entwurf_eins(), jetzt).unwrap();
+    test.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
     let mut zufall = FesterZufall(3);
     let versiegelung = test.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap().unwrap();
     assert_eq!(versiegelung.nummer, "T-2026-001");
@@ -152,7 +152,7 @@ fn testbetrieb_versiegelt_test_mit_praefix() {
     let ordner_echt = tempfile::tempdir().unwrap();
     let mut echt = Buch::oeffne(ordner_echt.path(), Betrieb::Echt).unwrap();
     echt.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
-    echt.sende_ab(&entwurf_eins(), jetzt).unwrap();
+    echt.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
     let mut zufall2 = FesterZufall(4);
     let versiegelung2 = echt.versiegele_ausstehend(jetzt, &mut zufall2, false).unwrap().unwrap();
     assert_eq!(versiegelung2.nummer, "2026-001");
@@ -166,7 +166,7 @@ fn fehlende_stammdaten_id_faellt_auf_den_schnappschuss_zurueck() {
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf_eins(), jetzt).unwrap(); // enthält p4
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap(); // enthält p4
 
     let mut paket = test_einrichtung(Umgebung::Echt).paket;
     paket.stammdaten.personal.retain(|p| p.id != "p4");
@@ -202,7 +202,7 @@ fn versiegeln_entfernt_klartext_auch_aus_der_wal() {
     let mut mit_marker = entwurf_eins();
     mit_marker.notizen = marker.into();
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&mit_marker, jetzt).unwrap();
+    buch.sende_ab(&mit_marker, jetzt, false).unwrap();
 
     let mut zufall = FesterZufall(8);
     buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap().unwrap();
@@ -229,7 +229,7 @@ fn neuaufloesung_beim_versiegeln_uebernimmt_umbenannte_stammdaten() {
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf_eins(), jetzt).unwrap(); // enthält Fahrzeug 11-83-1 und Person p4
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap(); // enthält Fahrzeug 11-83-1 und Person p4
 
     let mut paket = test_einrichtung(Umgebung::Echt).paket;
     paket.stammdaten.fahrzeuge.iter_mut().find(|f| f.id == "11-83-1").unwrap().ruf = "Neuer Rufname".into();
@@ -255,7 +255,7 @@ fn fehlendes_fahrzeug_faellt_auf_den_schnappschuss_zurueck() {
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 29, 13, 0, 0).unwrap();
-    buch.sende_ab(&entwurf_zwei(), jetzt).unwrap(); // enthält Fahrzeug 12-19-1
+    buch.sende_ab(&entwurf_zwei(), jetzt, false).unwrap(); // enthält Fahrzeug 12-19-1
 
     let mut paket = test_einrichtung(Umgebung::Echt).paket;
     paket.stammdaten.fahrzeuge.retain(|f| f.id != "12-19-1");
@@ -282,7 +282,7 @@ fn besatzung_aus_ergibt_fahrzeug_id_none_im_klartext() {
     buch.richte_ein(&einrichtung).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf_eins(), jetzt).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
     let mut zufall = FesterZufall(7);
     buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
 
@@ -297,7 +297,7 @@ fn ein_fehlschlag_in_der_transaktion_hinterlaesst_nichts() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf_eins(), jetzt).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
 
     // Ein anderer, aber gültiger Schlüssel: die `schluesselId` in der Einrichtung bleibt
     // unverändert, sodass `krypto::versiegele` mit einem Passungsfehler scheitert.

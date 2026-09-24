@@ -70,6 +70,14 @@ pub enum ErfassungFehler {
     Fehlt(Vec<&'static str>),
     #[error("Eingabe ungültig: {0}")]
     Ungueltig(String),
+    /// Eine Bearbeitung kam nach dem Fristende an, oder es liegt nichts mehr aus, weil die Frist-Uhr
+    /// schon versiegelt hat. Ohne diese Ablehnung legte `sende_ab` die Bearbeitung als neuen
+    /// Einsatz mit neuer Frist an, statt den zuletzt abgesendeten Stand gelten zu lassen.
+    #[error("Die Frist ist abgelaufen. Versiegelt wird der zuletzt abgesendete Stand.")]
+    FristAbgelaufen,
+    /// Ein neuer Einsatz, obwohl noch einer aussteht: Ändern geht nur als Bearbeitung.
+    #[error("Es ist schon ein Einsatz abgesendet. Ändern lässt er sich über „Angaben ändern“, solange die Frist läuft.")]
+    SchonAbgesendet,
     #[error(transparent)]
     Buch(#[from] BuchFehler),
     /// Eigene Variante statt `Buch(BuchFehler::UngueltigerSchluessel(..))`: Letztere behauptet
@@ -271,6 +279,20 @@ pub fn formatiere_zeitpunkt(zeitpunkt: DateTime<Utc>, zeitzone: &str) -> String 
     zeitpunkt.with_timezone(&tz).format("%Y-%m-%dT%H:%M:%S%:z").to_string()
 }
 
+/// Prüft in der laufenden Transaktion, ob ein Schreibschritt zum Stand passt: Eine Bearbeitung
+/// (`bearbeitung = true`) braucht einen ausstehenden Einsatz mit laufender Frist (`jetzt` vor
+/// `frist_bis_ms`, dieselbe Grenze wie `pruefe_frist` in `versiegeln.rs`), ein neuer Einsatz
+/// darf keinen ausstehenden vorfinden.
+fn pruefe_schritt(tx: &rusqlite::Transaction<'_>, bearbeitung: bool, jetzt: DateTime<Utc>) -> Result<(), ErfassungFehler> {
+    let frist_bis_ms: Option<i64> = tx.query_row("SELECT frist_bis_ms FROM ausstehend WHERE id = 1", [], |r| r.get(0)).optional()?;
+    match (bearbeitung, frist_bis_ms) {
+        (true, Some(frist)) if jetzt.timestamp_millis() < frist => Ok(()),
+        (true, _) => Err(ErfassungFehler::FristAbgelaufen),
+        (false, None) => Ok(()),
+        (false, Some(_)) => Err(ErfassungFehler::SchonAbgesendet),
+    }
+}
+
 impl Buch {
     /// Der zwischengespeicherte Formularstand vor dem Absenden, sofern einer vorliegt.
     pub fn entwurf(&self) -> Result<Option<Entwurf>, ErfassungFehler> {
@@ -281,14 +303,20 @@ impl Buch {
         })
     }
 
-    /// Speichert den Formularstand, ohne ihn zu prüfen — er ist noch nicht abgesendet.
-    pub fn speichere_entwurf(&mut self, e: &Entwurf, jetzt: DateTime<Utc>) -> Result<(), ErfassungFehler> {
+    /// Speichert den Formularstand, ohne seinen Inhalt zu prüfen — er ist noch nicht abgesendet.
+    /// `bearbeitung` sagt, ob es die Bearbeitung eines ausstehenden Einsatzes ist; passt das nicht
+    /// zum Stand (`pruefe_schritt`), wird nichts geschrieben. So kann ein verspätetes Speichern
+    /// nach dem Versiegeln den versiegelten Klartext nicht als neuen Entwurf zurückbringen.
+    pub fn speichere_entwurf(&mut self, e: &Entwurf, jetzt: DateTime<Utc>, bearbeitung: bool) -> Result<(), ErfassungFehler> {
         let json = serde_json::to_string(e)?;
-        self.conn().execute(
+        let tx = self.transaktion()?;
+        pruefe_schritt(&tx, bearbeitung, jetzt)?;
+        tx.execute(
             "INSERT INTO entwurf (id, json, geaendert_am) VALUES (1, ?1, ?2) \
              ON CONFLICT(id) DO UPDATE SET json = excluded.json, geaendert_am = excluded.geaendert_am",
             params![json, jetzt.to_rfc3339()],
         )?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -321,7 +349,13 @@ impl Buch {
     /// `frist_bis_ms = jetzt + frist_minuten`; jede weitere überschreibt nur Inhalt und
     /// Schnappschuss, nie die schon gesetzte Frist oder `abgesendet_am` — das erledigt
     /// `ON CONFLICT … DO UPDATE`, indem es beide Spalten aus dem `SET` ausspart.
-    pub fn sende_ab(&mut self, e: &Entwurf, jetzt: DateTime<Utc>) -> Result<Ausstehend, ErfassungFehler> {
+    ///
+    /// `bearbeitung` unterscheidet die erste Absendung von „Änderungen übernehmen“ und wird in
+    /// derselben Transaktion gegen den Stand geprüft (`pruefe_schritt`): Eine Bearbeitung nach
+    /// Fristende ergibt `FristAbgelaufen` und schreibt nichts, auch wenn die Frist-Uhr noch nicht
+    /// versiegelt hat. Der Inhalt wird vorher geprüft, damit eine unvollständige Eingabe immer
+    /// als solche gemeldet wird.
+    pub fn sende_ab(&mut self, e: &Entwurf, jetzt: DateTime<Utc>, bearbeitung: bool) -> Result<Ausstehend, ErfassungFehler> {
         let einrichtung = self.einrichtung()?.ok_or(ErfassungFehler::NichtEingerichtet)?;
         let (normalisiert, schnappschuss) = pruefe_entwurf(e, &einrichtung.paket)?;
 
@@ -331,6 +365,7 @@ impl Buch {
         let neu_abgesendet_am = formatiere_zeitpunkt(jetzt, &einrichtung.paket.zeitzone);
 
         let tx = self.transaktion()?;
+        pruefe_schritt(&tx, bearbeitung, jetzt)?;
         let (abgesendet_am, frist_bis_ms): (String, i64) = tx.query_row(
             "INSERT INTO ausstehend (id, json, schnappschuss, abgesendet_am, frist_bis_ms) \
              VALUES (1, ?1, ?2, ?3, ?4) \

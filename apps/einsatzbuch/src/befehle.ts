@@ -2,7 +2,7 @@
  * Die Tauri-Befehlsnaht — einzige Stelle mit `invoke()` in dieser App. Befehlsnamen sind
  * snake_case (`src-tauri/src/befehle.rs`, `#[tauri::command]`); Tauri übersetzt die camelCase-
  * Argumente selbst nach snake_case, deshalb kommen sie hier so an, wie Rust sie nennt
- * (`{ entwurf }`, `{ spkiPfad, fristMinuten }`).
+ * (`{ entwurf, bearbeitung }`, `{ spkiPfad, fristMinuten }`).
  */
 import { invoke } from "@tauri-apps/api/core";
 
@@ -11,9 +11,11 @@ import type { Ausstehend, Entwurf, Stammdatenpaket, Status, Versiegelung } from 
 export const befehle = {
   status: () => invoke<Status>("status"),
   stammdaten: () => invoke<Stammdatenpaket>("stammdaten"),
-  entwurfSpeichern: (entwurf: Entwurf) => invoke<void>("entwurf_speichern", { entwurf }),
+  /** `bearbeitung`: Bearbeitung eines ausstehenden Einsatzes; nach Fristende lehnt Rust sie ab. */
+  entwurfSpeichern: (entwurf: Entwurf, bearbeitung: boolean) => invoke<void>("entwurf_speichern", { entwurf, bearbeitung }),
   entwurfVerwerfen: () => invoke<void>("entwurf_verwerfen"),
-  absenden: (entwurf: Entwurf) => invoke<Ausstehend>("absenden", { entwurf }),
+  /** `bearbeitung`: „Änderungen übernehmen“ statt der ersten Absendung, sonst wie bei `entwurfSpeichern`. */
+  absenden: (entwurf: Entwurf, bearbeitung: boolean) => invoke<Ausstehend>("absenden", { entwurf, bearbeitung }),
   jetztVersiegeln: () => invoke<Versiegelung>("jetzt_versiegeln"),
   fristPruefen: () => invoke<Versiegelung | null>("frist_pruefen"),
   versiegelungQuittieren: () => invoke<void>("versiegelung_quittieren"),

@@ -7,7 +7,7 @@ use aes_gcm::{Aes256Gcm, KeyInit};
 use base64::Engine as _;
 use chrono::{TimeZone, Utc};
 use einsatzbuch_kern::buch::{Betrieb, Buch};
-use einsatzbuch_kern::erfassung::{Entwurf, PersonAuswahl};
+use einsatzbuch_kern::erfassung::{Entwurf, ErfassungFehler, PersonAuswahl};
 use einsatzbuch_kern::format::{Einsatz, Umgebung};
 use einsatzbuch_kern::krypto;
 use hilfe::{FesterZufall, test_einrichtung};
@@ -57,7 +57,7 @@ fn frist_versiegelt_erst_bei_ablauf() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf(), t0).unwrap();
+    buch.sende_ab(&entwurf(), t0, false).unwrap();
 
     let mut zufall = FesterZufall(1);
     let vor_ablauf = t0 + chrono::Duration::minutes(14) + chrono::Duration::seconds(59);
@@ -73,7 +73,7 @@ fn frist_nach_neustart() {
     {
         let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
         buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
-        buch.sende_ab(&entwurf(), t0).unwrap();
+        buch.sende_ab(&entwurf(), t0, false).unwrap();
     }
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     let mut zufall = FesterZufall(2);
@@ -92,11 +92,11 @@ fn versiegeln_mit_ungespeichertem_formular_nimmt_den_abgesendeten_stand() {
 
     let mut mit_a = entwurf();
     mit_a.notizen = "A".into();
-    buch.sende_ab(&mit_a, t0).unwrap();
+    buch.sende_ab(&mit_a, t0, false).unwrap();
 
     let mut mit_b = entwurf();
     mit_b.notizen = "B".into();
-    buch.speichere_entwurf(&mit_b, t0).unwrap();
+    buch.speichere_entwurf(&mit_b, t0, true).unwrap();
 
     let mut zufall = FesterZufall(3);
     let versiegelung = buch.pruefe_frist(t0 + chrono::Duration::minutes(15), &mut zufall).unwrap().unwrap();
@@ -118,7 +118,7 @@ fn pruefe_frist_ohne_entwurf_ergibt_verfallen_false() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf(), t0).unwrap();
+    buch.sende_ab(&entwurf(), t0, false).unwrap();
 
     let mut zufall = FesterZufall(9);
     let versiegelung = buch.pruefe_frist(t0 + chrono::Duration::minutes(15), &mut zufall).unwrap().unwrap();
@@ -131,10 +131,108 @@ fn jetzt_versiegeln_ist_nicht_verfallen() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    buch.sende_ab(&entwurf(), t0).unwrap();
-    buch.speichere_entwurf(&entwurf(), t0).unwrap();
+    buch.sende_ab(&entwurf(), t0, false).unwrap();
+    buch.speichere_entwurf(&entwurf(), t0, true).unwrap();
 
     let mut zufall = FesterZufall(4);
     let versiegelung = buch.versiegele_ausstehend(t0, &mut zufall, false).unwrap().unwrap();
     assert!(!versiegelung.verfallen);
+}
+
+fn eingerichtet(ordner: &std::path::Path) -> Buch {
+    let mut buch = Buch::oeffne(ordner, Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch
+}
+
+fn mit_notiz(notiz: &str) -> Entwurf {
+    let mut e = entwurf();
+    e.notizen = notiz.into();
+    e
+}
+
+/// Hat die Frist-Uhr schon versiegelt, darf „Änderungen übernehmen“ keinen neuen Einsatz mit
+/// neuer Frist anlegen: Versiegelt bleibt der zuletzt abgesendete Stand.
+#[test]
+fn bearbeitung_nach_versiegeln_durch_die_frist_legt_keinen_neuen_einsatz_an() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = eingerichtet(ordner.path());
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&mit_notiz("A"), t0, false).unwrap();
+    let ablauf = t0 + chrono::Duration::minutes(15);
+    assert!(buch.pruefe_frist(ablauf, &mut FesterZufall(5)).unwrap().is_some());
+
+    let ergebnis = buch.sende_ab(&mit_notiz("B"), ablauf + chrono::Duration::seconds(1), true);
+    assert!(matches!(ergebnis, Err(ErfassungFehler::FristAbgelaufen)), "{ergebnis:?}");
+    assert!(buch.ausstehend().unwrap().is_none(), "kein neuer ausstehender Einsatz");
+    assert!(buch.entwurf().unwrap().is_none());
+    assert_eq!(buch.bloecke().unwrap().len(), 1);
+}
+
+/// Nach Fristende, aber bevor die Frist-Uhr versiegelt hat: Die Bearbeitung wird ebenfalls
+/// abgelehnt, und der abgesendete Stand bleibt unberührt, bis versiegelt wird.
+#[test]
+fn bearbeitung_nach_fristende_vor_dem_versiegeln_wird_abgelehnt() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = eingerichtet(ordner.path());
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    let erste = buch.sende_ab(&mit_notiz("A"), t0, false).unwrap();
+    let ablauf = t0 + chrono::Duration::minutes(15);
+
+    let ergebnis = buch.sende_ab(&mit_notiz("B"), ablauf, true);
+    assert!(matches!(ergebnis, Err(ErfassungFehler::FristAbgelaufen)), "{ergebnis:?}");
+    let gespeichert = buch.speichere_entwurf(&mit_notiz("B"), ablauf, true);
+    assert!(matches!(gespeichert, Err(ErfassungFehler::FristAbgelaufen)), "{gespeichert:?}");
+
+    let ausstehend = buch.ausstehend().unwrap().unwrap();
+    assert_eq!(ausstehend.entwurf.notizen, "A");
+    assert_eq!(ausstehend.frist_bis_ms, erste.frist_bis_ms);
+    assert!(buch.entwurf().unwrap().is_none());
+
+    let versiegelung = buch.pruefe_frist(ablauf, &mut FesterZufall(6)).unwrap().unwrap();
+    assert!(!versiegelung.verfallen);
+    assert_eq!(entschluessele_notizen(&buch.bloecke().unwrap()[0], &suite_privatschluessel()), "A");
+
+    // Eine Sekunde vor Ablauf ging die Bearbeitung noch durch — die Grenze ist `frist_bis_ms`.
+    let ordner2 = tempfile::tempdir().unwrap();
+    let mut buch2 = eingerichtet(ordner2.path());
+    buch2.sende_ab(&mit_notiz("A"), t0, false).unwrap();
+    buch2.sende_ab(&mit_notiz("B"), ablauf - chrono::Duration::seconds(1), true).unwrap();
+    assert_eq!(buch2.ausstehend().unwrap().unwrap().entwurf.notizen, "B");
+}
+
+/// Ein verspätetes Speichern der Bearbeitung, wenn nichts mehr aussteht, schreibt nichts: Sonst
+/// käme der versiegelte Klartext als nächster Entwurf zurück.
+#[test]
+fn bearbeitung_speichern_ohne_ausstehend_wird_abgelehnt() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = eingerichtet(ordner.path());
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+
+    let ergebnis = buch.speichere_entwurf(&mit_notiz("B"), t0, true);
+    assert!(matches!(ergebnis, Err(ErfassungFehler::FristAbgelaufen)), "{ergebnis:?}");
+    assert_eq!(buch.entwurf().unwrap(), None);
+
+    buch.sende_ab(&mit_notiz("A"), t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(7), false).unwrap().unwrap();
+    let danach = buch.speichere_entwurf(&mit_notiz("B"), t0, true);
+    assert!(matches!(danach, Err(ErfassungFehler::FristAbgelaufen)), "{danach:?}");
+    assert_eq!(buch.entwurf().unwrap(), None);
+}
+
+/// Ein neuer Einsatz (keine Bearbeitung), solange einer aussteht, wird abgelehnt — Absenden wie
+/// Speichern — und lässt den ausstehenden unberührt.
+#[test]
+fn neuer_einsatz_bei_ausstehendem_wird_abgelehnt() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = eingerichtet(ordner.path());
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&mit_notiz("A"), t0, false).unwrap();
+
+    let ergebnis = buch.sende_ab(&mit_notiz("B"), t0 + chrono::Duration::minutes(1), false);
+    assert!(matches!(ergebnis, Err(ErfassungFehler::SchonAbgesendet)), "{ergebnis:?}");
+    let gespeichert = buch.speichere_entwurf(&mit_notiz("B"), t0, false);
+    assert!(matches!(gespeichert, Err(ErfassungFehler::SchonAbgesendet)), "{gespeichert:?}");
+    assert_eq!(buch.ausstehend().unwrap().unwrap().entwurf.notizen, "A");
+    assert_eq!(buch.entwurf().unwrap(), None);
 }

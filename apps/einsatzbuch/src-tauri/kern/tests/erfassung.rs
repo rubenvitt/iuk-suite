@@ -48,7 +48,7 @@ fn absenden_verlangt_stichwort_beginn_und_ort() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
 
-    let ergebnis = buch.sende_ab(&leerer_entwurf(), Utc::now());
+    let ergebnis = buch.sende_ab(&leerer_entwurf(), Utc::now(), false);
     assert!(
         matches!(&ergebnis, Err(ErfassungFehler::Fehlt(f)) if f == &vec!["Alarmstichwort", "Beginn", "Einsatzort"]),
         "{ergebnis:?}"
@@ -57,7 +57,7 @@ fn absenden_verlangt_stichwort_beginn_und_ort() {
     // Nur `ort` gesetzt, kein `strasse`, wird akzeptiert.
     let mut mit_ort = gueltiger_entwurf();
     mit_ort.strasse = String::new();
-    assert!(buch.sende_ab(&mit_ort, Utc::now()).is_ok());
+    assert!(buch.sende_ab(&mit_ort, Utc::now(), false).is_ok());
 }
 
 #[test]
@@ -68,25 +68,25 @@ fn absenden_prueft_formate_und_ids() {
 
     let mut zeit_ungueltig = gueltiger_entwurf();
     zeit_ungueltig.beginn_zeit = "24:00".into();
-    assert!(matches!(buch.sende_ab(&zeit_ungueltig, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&zeit_ungueltig, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 
     let mut datum_ungueltig = gueltiger_entwurf();
     datum_ungueltig.beginn_datum = "2026-02-31".into();
-    assert!(matches!(buch.sende_ab(&datum_ungueltig, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&datum_ungueltig, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 
     let mut unbekanntes_fahrzeug = gueltiger_entwurf();
     unbekanntes_fahrzeug.fahrzeuge = vec!["xx".into()];
     unbekanntes_fahrzeug.personal = vec![];
-    assert!(matches!(buch.sende_ab(&unbekanntes_fahrzeug, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&unbekanntes_fahrzeug, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 
     let mut nicht_gewaehltes_fahrzeug = gueltiger_entwurf();
     nicht_gewaehltes_fahrzeug.fahrzeuge = vec!["11-83-1".into(), "12-19-1".into()];
     nicht_gewaehltes_fahrzeug.personal = vec![PersonAuswahl { id: "p4".into(), fahrzeug_id: Some("11-11-1".into()) }];
-    assert!(matches!(buch.sende_ab(&nicht_gewaehltes_fahrzeug, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&nicht_gewaehltes_fahrzeug, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 
     let mut zu_viele = gueltiger_entwurf();
     zu_viele.vor_ort = 1000;
-    assert!(matches!(buch.sende_ab(&zu_viele, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&zu_viele, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 }
 
 #[test]
@@ -96,13 +96,13 @@ fn erneutes_absenden_verlaengert_die_frist_nicht() {
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
 
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    let erste = buch.sende_ab(&gueltiger_entwurf(), t0).unwrap();
+    let erste = buch.sende_ab(&gueltiger_entwurf(), t0, false).unwrap();
     assert_eq!(erste.frist_bis_ms, t0.timestamp_millis() + 15 * 60_000);
 
     let mut geaendert = gueltiger_entwurf();
     geaendert.notizen = "neue Notiz".into();
     let zehn_minuten_spaeter = t0 + chrono::Duration::minutes(10);
-    let zweite = buch.sende_ab(&geaendert, zehn_minuten_spaeter).unwrap();
+    let zweite = buch.sende_ab(&geaendert, zehn_minuten_spaeter, true).unwrap();
     assert_eq!(zweite.frist_bis_ms, erste.frist_bis_ms);
     assert_eq!(zweite.abgesendet_am, erste.abgesendet_am);
     assert_eq!(zweite.entwurf.notizen, "neue Notiz");
@@ -116,12 +116,12 @@ fn doppelte_id_ergibt_ungueltig() {
 
     let mut doppeltes_fahrzeug = gueltiger_entwurf();
     doppeltes_fahrzeug.fahrzeuge = vec!["11-83-1".into(), "11-83-1".into()];
-    assert!(matches!(buch.sende_ab(&doppeltes_fahrzeug, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&doppeltes_fahrzeug, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 
     let mut doppelte_person = gueltiger_entwurf();
     doppelte_person.personal =
         vec![PersonAuswahl { id: "p4".into(), fahrzeug_id: None }, PersonAuswahl { id: "p4".into(), fahrzeug_id: None }];
-    assert!(matches!(buch.sende_ab(&doppelte_person, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&doppelte_person, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 }
 
 #[test]
@@ -133,11 +133,11 @@ fn neunhundertneunundneunzig_geht_tausend_nicht() {
     let mut an_der_grenze = gueltiger_entwurf();
     an_der_grenze.vor_ort = 999;
     an_der_grenze.transport = 999;
-    assert!(buch.sende_ab(&an_der_grenze, Utc::now()).is_ok());
+    assert!(buch.sende_ab(&an_der_grenze, Utc::now(), false).is_ok());
 
     let mut ueber_der_grenze = gueltiger_entwurf();
     ueber_der_grenze.vor_ort = 1000;
-    assert!(matches!(buch.sende_ab(&ueber_der_grenze, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+    assert!(matches!(buch.sende_ab(&ueber_der_grenze, Utc::now(), false), Err(ErfassungFehler::Ungueltig(_))));
 }
 
 #[test]
@@ -147,11 +147,11 @@ fn ausstehend_bestaetigt_nach_erneutem_absenden_den_neuen_stand_und_die_alte_fri
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
 
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    let erste = buch.sende_ab(&gueltiger_entwurf(), t0).unwrap();
+    let erste = buch.sende_ab(&gueltiger_entwurf(), t0, false).unwrap();
 
     let mut geaendert = gueltiger_entwurf();
     geaendert.notizen = "zweite Fassung".into();
-    buch.sende_ab(&geaendert, t0 + chrono::Duration::minutes(10)).unwrap();
+    buch.sende_ab(&geaendert, t0 + chrono::Duration::minutes(10), true).unwrap();
 
     let ausstehend = buch.ausstehend().unwrap().unwrap();
     assert_eq!(ausstehend.entwurf.notizen, "zweite Fassung");
@@ -167,7 +167,7 @@ fn absenden_formatiert_abgesendet_am_und_frist_bis_in_der_suite_zone() {
 
     // 2026-08-22T03:12:00Z ist Sommerzeit in Europe/Berlin (+02:00) → 05:12/05:27 Ortszeit.
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
-    let ausstehend = buch.sende_ab(&gueltiger_entwurf(), t0).unwrap();
+    let ausstehend = buch.sende_ab(&gueltiger_entwurf(), t0, false).unwrap();
     assert_eq!(ausstehend.abgesendet_am, "2026-08-22T05:12:00+02:00");
     assert_eq!(ausstehend.frist_bis, "2026-08-22T05:27:00+02:00");
 }
@@ -176,7 +176,7 @@ fn absenden_formatiert_abgesendet_am_und_frist_bis_in_der_suite_zone() {
 fn ohne_einrichtung_kein_absenden() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    assert!(matches!(buch.sende_ab(&gueltiger_entwurf(), Utc::now()), Err(ErfassungFehler::NichtEingerichtet)));
+    assert!(matches!(buch.sende_ab(&gueltiger_entwurf(), Utc::now(), false), Err(ErfassungFehler::NichtEingerichtet)));
 }
 
 #[test]
@@ -185,7 +185,7 @@ fn entwurf_speichern_und_verwerfen() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     assert_eq!(buch.entwurf().unwrap(), None);
 
-    buch.speichere_entwurf(&gueltiger_entwurf(), Utc::now()).unwrap();
+    buch.speichere_entwurf(&gueltiger_entwurf(), Utc::now(), false).unwrap();
     assert_eq!(buch.entwurf().unwrap().unwrap().stichwort, "RD 2");
 
     buch.verwerfe_entwurf().unwrap();

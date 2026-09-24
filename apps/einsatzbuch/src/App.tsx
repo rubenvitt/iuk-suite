@@ -96,7 +96,7 @@ export function App() {
     const e = entwurfRef.current;
     if (!e) return;
     const stand = aenderungenRef.current;
-    const laufend = befehle.entwurfSpeichern(e).then(
+    const laufend = befehle.entwurfSpeichern(e, lokalRef.current.bearbeiten).then(
       () => {
         if (aenderungenRef.current === stand) ungespeichertRef.current = false;
       },
@@ -285,7 +285,7 @@ export function App() {
           return;
         }
       }
-      await befehle.absenden(e);
+      await befehle.absenden(e, lokalRef.current.bearbeiten);
       ungespeichertRef.current = false;
       setzeLokal({ phase: "frist", bearbeiten: false });
       await laden();
