@@ -214,8 +214,8 @@
  *
  * `min-height: 56px` ist das Touch-Maß der Suite (`TAP` in core/theme/tokens)
  * und gilt hier für den DRAWER. Die Seitenleiste überschreibt es weiter unten
- * auf 40px — sie existiert unterhalb von 768px gar nicht und wird mit Maus
- * bedient.
+ * auf 44px, die `ARBEITSDICHTE` der FullShell (Falle 4) — Begründung dort
+ * (DRK-420).
  *
  * `flex` und nicht `inline-flex`: für ein Flex-Kind ist das dasselbe (Flex-
  * Items werden blockifiziert, CSS Display Module Level 3) — `flex` sagt die
@@ -348,39 +348,39 @@
 }
 
 /*
- * 40px STATT 56 — Begründung im gleichnamigen Test in `shell-css.test.ts`.
+ * 44px STATT 56 — Begründung im gleichnamigen Test in `shell-css.test.ts`.
  * Der `.modulleiste`-Präfix ist (0,2,0) und trägt die Regel; ohne ihn stünde
  * sie gleichauf mit der Basisregel und die Reihenfolge entschiede.
  */
 .modulleiste .navLink {
-  min-height: 40px;
+  min-height: 44px;
 }
 
 /*
- * DIESELBEN 40px FÜR DEN ABSCHNITTSSCHALTER, aus demselben Grund und mit
+ * DIESELBEN 44px FÜR DEN ABSCHNITTSSCHALTER, aus demselben Grund und mit
  * derselben Spezifität (0,2,0) wie eine Regel weiter oben. Ohne sie stünde die
- * Überschrift mit 56px zwischen 40px-Zeilen und wäre in der Leiste das
+ * Überschrift mit 56px zwischen 44px-Zeilen und wäre in der Leiste das
  * auffälligste Element — genau umgekehrt zur Absicht: eine Überschrift ist
  * leiser als das, was sie überschreibt.
  *
- * ⚠️ DIESE ZAHL STEHT IN EINER SPANNUNG ZU FALLE 4, und das ist benannt statt
- * übersehen (Codex P1 zu PR #207, nachgeprüft): `CLAUDE.md` sagt für
- * FullShell-Inhalte 44 (WCAG 2.5.5 AAA) und reserviert 32/40 ausdrücklich für
- * radios Verwaltung. Die Leiste läuft seit dem Navigations-Umbau trotzdem auf
- * 40 — mit der Begründung, die an `.modulleiste .navLink` und im gleichnamigen
- * Test steht: sie existiert unterhalb von 768px gar nicht, wird also mit Maus
- * bedient, und genau der Grund, den Falle 4 für die 44 angibt („weil FullShell
- * auch auf dem Telefon rendert"), trifft auf sie nicht zu.
+ * ⚠️ BIS DRK-420 STAND HIER 40, UND DAS WAR EIN WIDERSPRUCH ZU FALLE 4 (Codex
+ * P1 zu PR #207): `CLAUDE.md` sagt für FullShell-Inhalte 44 (WCAG 2.5.5 AAA),
+ * die Leiste lief seit dem Navigations-Umbau auf 40 — mit der Begründung, sie
+ * existiere unterhalb von 768px gar nicht und werde also mit Maus bedient.
+ * Die Prämisse hält nicht: 768px ist ein TABLET (iPad hochkant 768–820px,
+ * quer ab 1024px), und dort bedient man die Leiste mit dem Finger.
+ * Betreiberentscheidung 2026-09-24: die Leiste folgt der ARBEITSDICHTE, Falle 4
+ * gilt ohne Ausnahme. Kosten: gut 10 % Höhe, bei 21 Zeilen (Lagerbuch) 84px
+ * mehr Scrollweg — bei 1280×720 scrollte die Leiste dort schon vorher.
  *
- * ⚠️ DER SCHALTER FOLGT DER ZEILE, DIE ER ÜBERSCHREIBT, und löst die Spannung
- * bewusst NICHT für sich allein: 44 nur hier machte die Überschrift zum
- * höchsten Element der Leiste und ließe die 21 Links daneben unverändert — die
- * Regelfrage wäre damit nicht beantwortet, nur unsichtbarer. Sie betrifft jede
- * Seitenleiste der Suite und steht als DRK-420 auf dem Board. WCAG 2.5.8 (AA,
- * 24×24) ist mit 40 erfüllt; verfehlt wird AAA, um 4px.
+ * ⚠️ DER SCHALTER FOLGT DER ZEILE, DIE ER ÜBERSCHREIBT, und geht nie allein:
+ * eine andere Zahl nur hier machte die Überschrift zum höchsten oder
+ * niedrigsten Element der Leiste. Wer eine der beiden Zahlen ändert, ändert
+ * beide — `shell-css.test.ts` hält sie gemeinsam an `ARBEITSDICHTE` fest.
+ * Keine `--ant-*`-Variable (Falle 2): die Leiste ist rohes `next/link`-Markup.
  */
 .modulleiste .navAbschnittKnopf {
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .navGruppe {
@@ -391,7 +391,7 @@
 
 /*
  * 20px = SPACE.lg + SPACE.xs. Keine neue Zahl, eine Summe zweier vorhandener
- * (`core/theme/tokens.ts`). Bei 40px-Zeilen muss die Trennung ZWISCHEN Gruppen
+ * (`core/theme/tokens.ts`). Bei 44px-Zeilen muss die Trennung ZWISCHEN Gruppen
  * deutlich größer sein als die zwischen Zeilen (2px), sonst zerfällt die
  * Ordnung — 16px waren dafür zu wenig.
  */
@@ -424,8 +424,8 @@
  *
  * 56px IST DAS TAP-MASZ DER SUITE (`TAP` in core/theme/tokens) und gilt hier
  * für den DRAWER — dieselbe Aufteilung wie bei `.navLink` eine Regel weiter
- * oben, und aus demselben Grund: die Seitenleiste existiert unterhalb von 768px
- * gar nicht und wird mit Maus bedient. Sie überschreibt weiter unten auf 40px.
+ * oben, und aus demselben Grund: die Seitenleiste überschreibt weiter unten auf
+ * 44px, die `ARBEITSDICHTE` der FullShell (Falle 4, DRK-420).
  */
 .navAbschnittKnopf {
   display: flex;
