@@ -135,6 +135,19 @@ describe("startPfad — der Startschirm einer Reichweite", () => {
   });
 
   /**
+   * ⚠️ DRK-394: DIE EINHEIT KOMMT GANZ AN, auch mit URL-Trennzeichen in der Id.
+   * Gelesen ueber `URL` wie im Browser — ein rohes `?fz=rtw#1` hiesse dort `rtw`.
+   */
+  it("eine Einheit mit Trennzeichen in der Id kommt vollständig im Check an", () => {
+    for (const id of ["rtw#1", "a&fz=b", "rtw 1", "100%"]) {
+      const url = new URL(startPfad(["box", "check"], id), "https://lagerbuch.example.org");
+      expect(url.pathname, id).toBe("/helfer/check");
+      expect(url.searchParams.getAll("fz"), id).toEqual([id]);
+      expect(url.hash, id).toBe("");
+    }
+  });
+
+  /**
    * ⚠️ OHNE BINDUNG FÜHRT DER WEG AUF DIE WAHL, nicht in einen Check ohne
    * Einheit. Der Fall ist real: ein Ortscode einer Einheit trägt seine
    * `ziel_id`, ein von Hand angelegter Code mit `ort_id` einer Einheit

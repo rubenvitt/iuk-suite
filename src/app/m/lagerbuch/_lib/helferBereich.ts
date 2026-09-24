@@ -1,6 +1,7 @@
 import { auditDenied } from "@/core/audit/server";
 import { bereichText } from "./actionTypen";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "./konstanten";
+import { tokenZielPfad } from "./tokenZiel";
 import { zugangsAkteur } from "./zugangHerkunft";
 import type { HelferZugang } from "./helferZugang";
 
@@ -111,11 +112,17 @@ export function darf(reichweite: Reichweite, bereich: Bereich): boolean {
  *
  * @param fahrzeugId  Die Einheit des Kärtchens, sonst `null`. Ohne sie führt der
  *   Weg auf die Fahrzeugwahl statt in einen bestimmten Check.
+ *
+ * ⚠️ DER CHECK-PFAD KOMMT VON `tokenZielPfad`, nicht aus einer eigenen Zeile —
+ * DRK-394. Hier stand `?fz=${fahrzeugId}` roh, eine zweite Schreibweise
+ * derselben Adresse neben der des Kärtchens, und beide setzten die Id
+ * unkodiert ein. Eine Id mit `#` oder `&` verlor so still ihren Rest. Jetzt
+ * gibt es die Adresse einmal, und sie ist kodiert.
  */
 export function startPfad(reichweite: Reichweite, fahrzeugId: string | null): string {
   if (darf(reichweite, "entnahme")) return "/helfer";
   if (darf(reichweite, "check")) {
-    return fahrzeugId ? `/helfer/check?fz=${fahrzeugId}` : "/helfer/check";
+    return fahrzeugId ? tokenZielPfad("fahrzeug", fahrzeugId) : "/helfer/check";
   }
   return "/helfer/box";
 }

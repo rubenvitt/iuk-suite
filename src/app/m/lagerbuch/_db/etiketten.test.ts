@@ -100,6 +100,25 @@ describe("etikettenDaten", () => {
   });
 
   /**
+   * DRK-394 — EINE ID MIT URL-TRENNZEICHEN KOMMT GANZ AN. `artikel.id` ist kein
+   * nanoid-Vertrag; roh gedruckt landete `rtw#1&x=1` auf `/a/rtw`, und das
+   * Etikett klebte trotzdem am Regal. Gelesen ueber `URL` wie im Browser.
+   */
+  it("druckt eine Id mit Trennzeichen so, dass sie vollstaendig ankommt", async () => {
+    const id = "rtw#1&x=1 %";
+    t.db.insert(artikel).values({
+      id, name: "Importiert", fach: "B1", einheit: "Stk.", mindestbestand: 0,
+      aktiv: true, createdAt: new Date(),
+    }).run();
+    const d = await etikettenDaten(t.db);
+    const e = d.artikel.find((x) => x.id === id)!;
+    const gelesen = new URL(await decodeQr(e.qr));
+    expect(gelesen.hash).toBe("");
+    expect(gelesen.search).toBe("");
+    expect(decodeURIComponent(gelesen.pathname.replace(/^\/a\//, ""))).toBe(id);
+  });
+
+  /**
    * DRK-406 — DIESER BOGEN DRUCKT KEINE ZUGANGS-KAERTCHEN MEHR.
    *
    * ⚠️ HIER STANDEN ZWEI ZUSICHERUNGEN AUF DIE KAERTCHEN-KARTEN („brennt den
