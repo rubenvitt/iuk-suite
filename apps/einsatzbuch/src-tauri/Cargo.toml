@@ -1,10 +1,39 @@
 # Cargo-Workspace der Desktop-App. `kern` ist frei von Tauri: Vektor-, DB- und Frist-Tests
 # laufen ohne `dist/` und ohne Webview-Pakete (Lehre aus einsatztagebuch/.github/workflows/ci.yml:
-# `tauri::generate_context!` bricht ohne Frontend-Bau schon beim Kompilieren).
+# `tauri::generate_context!` bricht ohne Frontend-Bau schon beim Kompilieren). Das Paket an der
+# Wurzel ist die Tauri-Hülle; sie braucht `../dist` (`pnpm build`) vor dem ersten `cargo build`.
 [workspace]
 resolver = "3"
-members = ["kern"]
+members = [".", "kern"]
 
 [workspace.package]
 edition = "2024"
 rust-version = "1.85"
+
+[package]
+name = "einsatzbuch"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "einsatzbuch_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+einsatzbuch-kern = { path = "kern" }
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[dev-dependencies]
+tempfile = "3"
