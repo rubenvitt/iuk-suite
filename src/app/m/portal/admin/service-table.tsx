@@ -2,6 +2,7 @@
 
 import { Button } from "antd";
 import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
+import { deleteServiceAction } from "@/app/m/portal/actions";
 
 export interface ServiceRow {
   id: string;
@@ -22,13 +23,13 @@ const OEFFENTLICH_FILTER = zustandsFilter<ServiceRow>([
   { wert: "nein", text: "nein", trifft: (zeile) => !zeile.isPublic },
 ]);
 
-export function ServiceTable({
-  services,
-  deleteAction,
-}: {
-  services: ServiceRow[];
-  deleteAction: (formData: FormData) => Promise<void>;
-}) {
+/**
+ * Die Loesch-Action wird DIREKT importiert, nicht als Prop durchgereicht
+ * (Falle 9, `CLAUDE.md`; DRK-398). Die Tabelle hat genau einen Aufrufer und
+ * zeigt genau diese Dienste — eine allgemeine Tabelle, die an eine Action
+ * gebunden wuerde, ist sie nicht. Dieselbe Form wie `service-form.tsx`.
+ */
+export function ServiceTable({ services }: { services: ServiceRow[] }) {
   // Das data-testid sitzt am umschließenden div, NICHT an <Table>: antds Table
   // reicht unbekannte DOM-Attribute nicht zuverlässig durch, und ein still
   // verschwindendes Testid wäre erst im nächsten Testlauf aufgefallen.
@@ -78,7 +79,7 @@ export function ServiceTable({
           // funktioniert das Löschen auch ohne JavaScript und bleibt genau das
           // Muster, das die Seite vorher hatte.
           render: (_, row) => (
-            <form action={deleteAction}>
+            <form action={deleteServiceAction}>
               <input type="hidden" name="id" value={row.id} />
               <Button htmlType="submit" danger>
                 Löschen

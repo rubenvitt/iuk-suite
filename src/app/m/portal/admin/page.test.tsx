@@ -10,6 +10,8 @@ import { isValidElement, type ReactElement } from "react";
  *    die `canAdminModule("portal")` in `layout.tsx` für den Nav-Eintrag prüft.
  *    Ein abweichender Modul-Key hier wäre ein 404 für jeden Admin.
  * 2. `ServiceTable` bekommt die geladenen Dienste unverändert.
+ * 3. KEINE INSEL BEKOMMT EINE FUNKTION ALS PROP (Falle 9, DRK-398): die drei
+ *    Formulare importieren ihre Server Action selbst.
  *
  * Leichte Bauform wie `qr/page.test.tsx`: der Elementbaum wird verglichen,
  * nichts wird gemountet — `getAllServices`/`leseAnsprechpartner` sind
@@ -100,6 +102,19 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
     const baum = flatten((await PortalAdminPage()) as ReactElement);
     const formular = baum.find((el) => el.type === AnsprechpartnerForm)!;
     expect((formular.props as { wert: string | null }).wert).toBe("IuK-Gruppe — iuk@example.org");
+  });
+
+  it("reicht keiner Insel eine Funktion als Prop (Falle 9, DRK-398)", async () => {
+    const baum = flatten((await PortalAdminPage()) as ReactElement);
+    const inseln = [ServiceTable, AnsprechpartnerForm, ZeitzoneForm];
+    for (const insel of inseln) {
+      const element = baum.find((el) => el.type === insel);
+      expect(element, `${insel.name} fehlt im Baum`).toBeDefined();
+      const funktionen = Object.entries(element!.props as Record<string, unknown>)
+        .filter(([, wert]) => typeof wert === "function")
+        .map(([name]) => name);
+      expect(funktionen, insel.name).toEqual([]);
+    }
   });
 
   it("reicht die gepflegte Zeitzone und die waehlbaren Zonen an das Formular durch (DRK-469)", async () => {

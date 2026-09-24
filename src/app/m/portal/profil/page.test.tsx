@@ -69,6 +69,16 @@ describe("Profilseite", () => {
     });
   });
 
+  it("reicht keine Funktion an die Insel — die Action importiert sie selbst (Falle 9, DRK-398)", async () => {
+    authMock.mockResolvedValue({ user: { id: "sub-42" }, expires: "" } as never);
+
+    const insel = flatten(await ProfilPage()).find((el) => el.type === ProfilAnsicht)!;
+    const funktionen = Object.entries(insel.props as Record<string, unknown>)
+      .filter(([, wert]) => typeof wert === "function")
+      .map(([name]) => name);
+    expect(funktionen).toEqual([]);
+  });
+
   it("leitet ohne Sitzung auf den Login", async () => {
     // Die Seite haengt zwar hinter `decideRoute`, aber eine Seite, die sich auf
     // eine Sitzung verlaesst, muss ihr Fehlen selbst beantworten — sonst ist
