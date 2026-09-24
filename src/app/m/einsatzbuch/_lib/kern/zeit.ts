@@ -28,8 +28,7 @@ function versatzMinuten(instant: number, zeitzone: string): number {
  * Wanduhrzeit („2026-10-25", „02:30") in `zeitzone` → Millisekunden seit 1970. Zwei Durchgänge
  * fangen die Umstellungsnacht: Eine Wanduhrzeit, die es nicht gibt (Frühjahr, z. B. 29.3. 02:30),
  * wird um die Umstellung nach vorn geschoben (ergibt 03:30 Sommerzeit); eine doppelte Wanduhrzeit
- * (Herbst, 25.10. 02:30) ergibt die zweite, spätere Instanz (Winterzeit). Beides per `node`
- * nachgemessen (siehe `task-3-report.md`, Abschnitt „Fix-Runde 1") und mit `zeit.test.ts` gepinnt.
+ * (Herbst, 25.10. 02:30) ergibt die zweite, spätere Instanz (Winterzeit). Gepinnt in `zeit.test.ts`.
  */
 export function wandzeitZuInstant(datum: string, zeit: string, zeitzone: string): number {
   pruefeFormat(datum, DATUM_MUSTER, `Kein Datum im Format JJJJ-MM-TT: ${datum}`);
