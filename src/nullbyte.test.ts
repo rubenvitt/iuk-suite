@@ -47,6 +47,8 @@ export const ECHT_BINAER = [
   ".png",
   ".gif",
   ".ico",
+  // Das macOS-Icon der Desktop-App (`apps/einsatzbuch/src-tauri/icons/icon.icns`).
+  ".icns",
   ".ttf",
   ".woff",
   ".woff2",
@@ -116,6 +118,7 @@ describe("Nullbyte-Wächter: die Prüfung selbst", () => {
   it("nimmt echte Binärdateien aus, aber keine Quell- oder Textdatei", () => {
     expect(istZuPruefen("src/app/fonts/Arimo[wght].ttf")).toBe(false);
     expect(istZuPruefen("public/login-bg.JPG")).toBe(false);
+    expect(istZuPruefen("apps/einsatzbuch/src-tauri/icons/icon.icns")).toBe(false);
     expect(istZuPruefen("scripts/import/uav.ts")).toBe(true);
     expect(istZuPruefen("docs/design/README.md")).toBe(true);
   });

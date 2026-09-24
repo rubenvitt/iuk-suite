@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Ausgangsbild der App-Icons. Rote Fläche mit dem weißen Balken der Willkommensseite und
+       „EB“ im Stil Barlow Condensed 600, als Formen gezeichnet statt als Text: so braucht das
+       Rastern keine Schrift. -->
+  <rect width="1024" height="1024" rx="180" ry="180" fill="#c8000f"/>
+  <rect x="382" y="250" width="260" height="25" fill="#fff"/>
+  <g fill="#fff">
+    <path d="M277 360 H487 V424 H347 V520 H467 V582 H347 V696 H487 V760 H277 Z"/>
+    <path fill-rule="evenodd" d="M537 360 H662 Q732 360 732 430 V476 Q732 530 692 551 Q747 572 747 632 V690 Q747 760 677 760 H537 Z M607 424 H645 Q665 424 665 444 V500 Q665 520 645 520 H607 Z M607 582 H655 Q677 582 677 604 V674 Q677 696 655 696 H607 Z"/>
+  </g>
+</svg>
