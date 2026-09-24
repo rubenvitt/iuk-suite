@@ -135,7 +135,7 @@ function bestandAn(artikelId: string, lagerortId: string): number {
 /**
  * EIN ZIEL WÄHLEN — und dabei die ANTWORT prüfen, nicht nur die Landung.
  *
- * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`AGENTS.md`): ein e2e-Test, der eine
+ * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`CLAUDE.md`): ein e2e-Test, der eine
  * Anfrage auslöst, prüft ihre Antwort. Die Zeile darunter wäre sonst blind
  * gegen genau den Fall, für den es die Regel gibt — ein abgebrochener oder
  * abgelehnter POST meldet sich nicht als Fehler, sondern als Zeitüberschreitung

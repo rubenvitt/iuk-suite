@@ -7,7 +7,7 @@ import {
 /*
  * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (Codex-Befund P1 zu
  * PR #174). Die Insel importiert `bucheAuffuellung` seit dem Befund DIREKT —
- * `AGENTS.md`/Falle 9: „Server Actions duerfen als einzige ueber die Grenze,
+ * `CLAUDE.md`/Falle 9: „Server Actions duerfen als einzige ueber die Grenze,
  * aber direkt importiert, nicht als Prop durchgereicht." Ein Prop waere der
  * bequemere Test, und genau deshalb steht hier der Mock: der Test folgt der
  * Bauform, nicht umgekehrt.
@@ -376,7 +376,7 @@ describe("Auffuellen — der Zugangshinweis und die Bauform", () => {
 
   /**
    * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT, NICHT ALS PROP GENOMMEN
-   * (`AGENTS.md`/Falle 9). Geprueft am QUELLTEXT und ohne Kommentare: der
+   * (`CLAUDE.md`/Falle 9). Geprueft am QUELLTEXT und ohne Kommentare: der
    * Kopfkommentar dieser Insel erklaert die Regel und nennt dabei beide
    * Formen, ein Scan auf dem Rohtext waere also auf seiner eigenen Begruendung
    * gruen. Ein `buchen`-Prop faellt hier auf — und zwar VOR dem echten Abruf,

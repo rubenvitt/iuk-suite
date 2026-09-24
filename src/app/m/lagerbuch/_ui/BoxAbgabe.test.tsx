@@ -8,7 +8,7 @@ import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import type { HelferErgebnis } from "../_lib/actionTypen";
 /*
  * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (DRK-375). Die Insel
- * importiert `bucheInEntnahmebox` seit DRK-375 DIREKT — `AGENTS.md`/Falle 9:
+ * importiert `bucheInEntnahmebox` seit DRK-375 DIREKT — `CLAUDE.md`/Falle 9:
  * „Server Actions duerfen als einzige ueber die Grenze, aber direkt importiert,
  * nicht als Prop durchgereicht." Ein Prop waere der bequemere Test, und genau
  * deshalb steht hier der Mock: der Test folgt der Bauform, nicht umgekehrt.
@@ -430,7 +430,7 @@ describe("BoxAbgabe — die Bauform des Helfer-Wegs", () => {
   /**
    * ⚠️ DIESER SCAN STAND EINMAL ANDERSHERUM (DRK-375) — er sicherte zu, dass
    * die Insel GAR KEIN `_actions/`-Modul importiert. Falle 9
-   * (`AGENTS.md`/`CLAUDE.md`) verlangt das Gegenteil: „Server Actions duerfen
+   * (`CLAUDE.md`) verlangt das Gegenteil: „Server Actions duerfen
    * als einzige ueber die Grenze — aber direkt importiert, nicht als Prop
    * durchgereicht."
    *

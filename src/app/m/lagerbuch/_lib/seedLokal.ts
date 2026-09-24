@@ -265,7 +265,7 @@ function vorhandeneIds(rows: { id: string }[]): Set<string> {
  * eindeutig; wer lokal von Hand einen „GF-Schrank" angelegt hat, bekaeme sonst
  * beim naechsten `pnpm seed:lokal` einen UNIQUE-Verstoss — und der Lauf braeche
  * MITTENDRIN ab, weil dieser Abschnitt bewusst ohne Transaktion einfuegt. Aus
- * „idempotent und rein additiv" (AGENTS.md) wuerde eine halb gefuellte
+ * „idempotent und rein additiv" (CLAUDE.md) wuerde eine halb gefuellte
  * Datenbank (Befund von Codex zu PR #166).
  *
  * WARUM AUSWEICHEN UND NICHT UEBERSPRINGEN: die feste `id` des Fixtures haengt
@@ -1196,7 +1196,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * `idx_tokens_ort_aktiv` an; hat die Ziehung zufaellig denselben Wert
    * gezogen, gegen die Eindeutigkeit von `tokens.code`. Beide Male bricht der
    * Lauf MITTENDRIN ab, und die Zusage „idempotent und rein additiv"
-   * (AGENTS.md, „Lokale Demodaten") waere gebrochen — zurueck bleibt eine halb
+   * (CLAUDE.md, „Lokale Demodaten") waere gebrochen — zurueck bleibt eine halb
    * gefuellte Datenbank.
    *
    * ⚠️ UEBERSPRINGEN UND NICHT UEBERSCHREIBEN: der vorhandene Code klebt

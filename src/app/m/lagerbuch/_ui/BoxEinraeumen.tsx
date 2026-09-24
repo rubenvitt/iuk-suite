@@ -6,7 +6,7 @@ import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
 import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
-// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`) — dieselbe
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`) — dieselbe
 // Entscheidung wie in `Auffuellen.tsx`, und die dort ausgeschriebene
 // Begruendung gilt hier unveraendert: die Ausnahme in `Entnahme.tsx` und
 // `BoxAbgabe.tsx` lebt nur aus ihrer Vorgeschichte.

@@ -6,7 +6,7 @@ import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
 import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
-// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`): „Server
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`): „Server
 // Actions duerfen als einzige ueber die Grenze — aber direkt importiert,
 // nicht als Prop durchgereicht."
 import { bucheAuffuellung } from "../_actions/buchung";
@@ -27,7 +27,7 @@ import s from "./helfer.module.css";
  * am Regal wird nach Farbe und Position getippt, nicht nach Beschriftung.
  *
  * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT (Codex-Befund P1 zu PR #174,
- * `AGENTS.md`/Falle 9): „Server Actions duerfen als einzige ueber die Grenze —
+ * `CLAUDE.md`/Falle 9): „Server Actions duerfen als einzige ueber die Grenze —
  * aber direkt importiert, nicht als Prop durchgereicht."
  *
  * ⚠️ HIER STAND, DASS DAS DER UNTERSCHIED ZU `Entnahme.tsx` SEI — das gilt

@@ -390,7 +390,7 @@ describe("helfer/box — die Bauform", () => {
   /**
    * ⚠️ DIE ACTION GEHT NICHT MEHR ALS PROP IN DIE INSEL (DRK-375).
    * `_ui/BoxAbgabe.tsx` importiert `bucheInEntnahmebox` selbst; Falle 9
-   * (`AGENTS.md`/`CLAUDE.md`): „Server Actions duerfen als einzige ueber die
+   * (`CLAUDE.md`): „Server Actions duerfen als einzige ueber die
    * Grenze — aber direkt importiert, nicht als Prop durchgereicht."
    *
    * ⚠️ ZWEI HAELFTEN, UND BEIDE TRAGEN. Am gerenderten Baum faellt auf, wenn

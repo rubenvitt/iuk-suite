@@ -8,7 +8,7 @@ import { Ikone } from "./ikonen";
 import {
   ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferGrund,
 } from "../_lib/actionTypen";
-// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`/`CLAUDE.md`):
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`):
 // „Server Actions duerfen als einzige ueber die Grenze — aber direkt
 // importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
 // `_ui/Auffuellen.tsx` und `_ui/Entnahme.tsx`.
@@ -37,7 +37,7 @@ import s from "./helfer.module.css";
  * (`_actions/buchung.ts` gehoerte einem spaeter laufenden Plan). Diese
  * Begruendung hat hier nie gegolten: `_actions/entnahmebox.ts` entstand in
  * DERSELBEN Aufgabe wie diese Insel. Uebrig blieb nur die bequemere Testform —
- * und dafuer gibt Falle 9 (`AGENTS.md`/`CLAUDE.md`) die Bauform vor: „Server
+ * und dafuer gibt Falle 9 (`CLAUDE.md`) die Bauform vor: „Server
  * Actions duerfen als einzige ueber die Grenze — aber direkt importiert, nicht
  * als Prop durchgereicht."
  *
