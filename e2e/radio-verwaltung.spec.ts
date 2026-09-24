@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { like } from "drizzle-orm";
 import { devices } from "@/app/m/radio/_db/schema";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufDarstellung } from "./fixtures";
 import {
   E2E_CODE_AKTIV,
   FREMDER_HOST,
@@ -40,10 +40,10 @@ import {
  * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
  * strukturell nicht.
  *
- * ⛔ **SEIT DEM 2026-09-21 SIND ES SIEBENUNDZWANZIG `test()`-BLOECKE** (DRK-335: Nachladen).
- * Abgelesen an Playwrights eigener Zaehlzeile — „27 passed (1.6m)" — und ⛔ **nicht** mit
- * `grep -c "test("`, der `test.describe(` und Kommentartreffer mitzaehlt. Der letzte ist
- * „die Verwaltung misst 32" (die dritte Bediendichte); davor „L6 A" bis „L6 D" (Aufgabe L6): der
+ * ⛔ **SEIT DRK-423 SIND ES ACHTUNDZWANZIG `test()`-BLOECKE** (davor 27, DRK-335: Nachladen),
+ * abgelesen an Playwrights Zaehlzeile „28 passed (4.2m)" und ⛔ **nicht** an `grep -c "test("`,
+ * der Kommentartreffer mitzaehlt. Der letzte ist „DRK-423: /admin/ausleihen schaltet per CSS";
+ * davor „die Verwaltung misst 32" (die dritte Bediendichte), davor „L6 A" bis „L6 D" (L6): der
  * Verwaltungsweg als KETTE, von der Wurzel ueber den sichtbaren Link bis auf die 200 der
  * Verwaltung, je Rechtestufe, plus der anonyme Gegenfall und das alte Lesezeichen. Ihre
  * Begruendung und ihre vier Mutationssonden stehen unmittelbar ueber ihnen.
@@ -913,9 +913,9 @@ test.describe("radio-Verwaltung", () => {
 
     /*
      * ⛔ DIE SIEBEN SPALTENKOEPFE IN IHRER REIHENFOLGE — 1:1 `LoanList.tsx:15-47`. Der
-     * Vitest-Fall daneben prueft dieselbe Liste REIN (`SPALTEN.map(...)`), weil jsdom den
-     * mobilen Zweig rendert; ⛔ NUR HIER ENTSTEHT DER TABELLENKOPF UEBERHAUPT, und nur hier
-     * ist gemessen, dass die Spaltendefinitionen die RSC-Grenze heil ueberstanden haben.
+     * Vitest-Fall daneben prueft dieselbe Liste REIN und seit DRK-423 auch am gerenderten Kopf;
+     * ⛔ ABER NUR HIER GEHT SIE UEBER DIE RSC-GRENZE, und nur hier ist gemessen, dass die
+     * Spaltendefinitionen sie heil ueberstanden haben. Welche Darstellung steht: letzter Fall.
      */
     await expect(page.locator("table thead th")).toHaveText([
       "Gerät",
@@ -971,8 +971,8 @@ test.describe("radio-Verwaltung", () => {
      * fuehrt Fall 5 oben bereits in seiner Kopfzeilen-Zusicherung.
      *
      * ⛔ DER GRIFF IST AUF `table tbody` VERANKERT: die Insel hat ZWEI Zweige, und der mobile
-     * setzt dieselbe `StatusMarke` (`:382`). Auf 1280x720 rendert nur der Tabellenzweig
-     * (`breit = bildschirm.md === true`, `:309-310`) — die Verankerung haelt die Zusage auch
+     * setzt dieselbe `StatusMarke`. Seit DRK-451 stehen BEIDE Zweige im HTML, die Media Query
+     * blendet einen aus (letzter Fall dieser Datei) — die Verankerung haelt die Zusage auch
      * dann eindeutig, wenn jemand die Breite dieser Datei einmal aendert.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
@@ -2260,5 +2260,67 @@ test.describe("radio-Verwaltung", () => {
       suchHoehe,
       `die Huelle des Suchfelds ist ${suchHoehe} px hoch — erwartet hoechstens 34 (32 plus Rahmen)`,
     ).toBeLessThanOrEqual(34);
+  });
+
+  test("DRK-423: /admin/ausleihen schaltet per CSS — bei 1280 die Tabelle, bei 390 die Karten", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DIE UMSCHALTUNG IST CSS, NIE JAVASCRIPT (`core/tabelle/Schmalkarten.tsx`). Bis DRK-451
+     * entschied hier `Grid.useBreakpoint()`; der kennt beim ersten Rendern die Fenstergroesse
+     * nicht und zeigt einen Wimpernschlag lang die falsche Variante. Drei Zusagen, jede fuer
+     * sich noetig:
+     *
+     *   (a) DAS SERVER-HTML TRAEGT BEIDE DARSTELLUNGEN. Das ist der eigentliche Beweis fuer
+     *       „CSS statt JavaScript": ein JS-Breakpoint haette auf dem Server keine Breite und
+     *       lieferte genau EINE. Sichtbarkeit allein bewiese es nicht — nach der Hydration sieht
+     *       ein JS-Breakpoint von aussen genauso aus.
+     *   (b) BEI 1280 STEHT DIE TABELLE, DIE KARTEN SIND WEG. Das Ticket verlangt diese Breite
+     *       ausdruecklich: bei 390 allein saehe man keinen Unterschied zu einer Insel, die
+     *       immer Karten zeigt.
+     *   (c) BEI 390 IST ES UMGEKEHRT — der Gegenfall, sonst bewiese (b) nur eine Insel, die
+     *       immer die Tabelle zeigt.
+     *
+     * ⛔ `setViewportSize` IM FALL, KEIN `test.use({ viewport })` — die Warnung am
+     * Umschalter-Fall oben gilt: das setzte die Breite fuer JEDEN Fall dieser Datei um.
+     *
+     * ⛔ `warteAufDarstellung` VOR JEDER SICHTBARKEITSZUSAGE: unter `next dev` kommt die Regel
+     * aus dem CSS-Modul nachgereicht, und in diesem Fenster sind kurz BEIDE sichtbar
+     * (`e2e/fixtures.ts`). Ohne die Probe maesse (b) einen Zwischenzustand.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    const antwort = await page.goto(radioUrl("/admin/ausleihen"));
+    expect(antwort?.status(), "/admin/ausleihen auf dem radio-Host").toBe(200);
+
+    // (a) — der Seed legt vier Leihen an (`_lib/seedLokal.ts`), die Kartenliste ist also gefuellt.
+    const html = await antwort!.text();
+    // ⛔ Die `<table>` IM Rahmen, nicht nur der Rahmen: `Schmalkarten` rendert ihn immer, auch leer.
+    expect(html, "die Tabelle fehlt im Server-HTML — ein JS-Breakpoint?").toMatch(
+      /data-rolle="breitansicht"[^]*?<table/,
+    );
+    expect(html, "die Kartenliste fehlt im Server-HTML — ein JS-Breakpoint?").toContain(
+      'data-rolle="schmalkarten"',
+    );
+
+    const flaeche = page.locator('[data-rolle="radio-ausleihen-flaeche"]');
+    const breit = flaeche.locator('[data-rolle="breitansicht"]');
+    const karten = flaeche.locator('[data-rolle="schmalkarten"]');
+
+    // (b)
+    await warteAufDarstellung(page);
+    await expect(breit, "bei 1280 steht die Tabelle nicht").toBeVisible();
+    await expect(
+      breit.getByRole("columnheader", { name: "Gerät" }),
+      "bei 1280 fehlt der Spaltenkopf der Tabelle",
+    ).toBeVisible();
+    await expect(karten, "bei 1280 stehen die Karten noch im Bild").toBeHidden();
+
+    // (c)
+    await page.setViewportSize({ width: 390, height: 844 });
+    await warteAufDarstellung(page);
+    await expect(karten, "bei 390 stehen keine Karten").toBeVisible();
+    await expect(breit, "bei 390 steht die Tabelle noch im Bild").toBeHidden();
   });
 });
