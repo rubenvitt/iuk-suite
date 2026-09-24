@@ -23,7 +23,7 @@ const QUELLE = "src/app/m/lagerbuch/_ui/Gate.tsx";
  * `core/registry.ts:103-105` bewusst leer) noch der E2E-Host. Das hier ist der
  * ERSTE Zweig von `verwaltungsZiel` (`_lib/zugang.ts:205-213`) unter den
  * Bedingungen, unter denen T87 tatsaechlich faehrt: `lagerbuch.localtest.me`
- * (`e2e/helpers/lagerbuch.ts:17`) auf Port 3100 (`playwright.config.ts:108`).
+ * (`e2e/helpers/lagerbuch.ts:17`) auf Port 3100 (`E2E_PORTS.web` in `playwright.config.ts`).
  */
 const LOGIN = "/login?callbackUrl=http%3A%2F%2Flagerbuch.localtest.me%3A3100%2Fverwaltung";
 
