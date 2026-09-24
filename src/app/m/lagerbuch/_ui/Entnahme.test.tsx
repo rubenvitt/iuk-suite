@@ -13,7 +13,7 @@ import s from "./helfer.module.css";
 import type { HelferErgebnis } from "../_lib/actionTypen";
 /*
  * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (DRK-375). Die Insel
- * importiert `bucheEntnahmeHelfer` seit DRK-375 DIREKT — `AGENTS.md`/Falle 9:
+ * importiert `bucheEntnahmeHelfer` seit DRK-375 DIREKT — `CLAUDE.md`/Falle 9:
  * „Server Actions duerfen als einzige ueber die Grenze, aber direkt importiert,
  * nicht als Prop durchgereicht." Ein Prop waere der bequemere Test, und genau
  * deshalb steht hier der Mock: der Test folgt der Bauform, nicht umgekehrt.
@@ -990,7 +990,7 @@ describe("Entnahme — Bauform", () => {
    * ⚠️ DIESER SCAN STAND EINMAL ANDERSHERUM (DRK-375). Bis dahin sicherte er
    * zu, dass die Insel `_actions/buchung` NICHT importiert — mit der
    * Begruendung, die Datei gehoere einem SPAETER laufenden Plan (Teil 5, H7).
-   * Diese Begruendung ist abgelaufen, und Falle 9 (`AGENTS.md`/`CLAUDE.md`)
+   * Diese Begruendung ist abgelaufen, und Falle 9 (`CLAUDE.md`)
    * verlangt das Gegenteil: „Server Actions duerfen als einzige ueber die
    * Grenze — aber direkt importiert, nicht als Prop durchgereicht."
    *

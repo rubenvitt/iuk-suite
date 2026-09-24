@@ -200,7 +200,7 @@ Ein Modul, das Anwender sehen, ist ein neues Feature und bekommt im selben Commi
 
 | Ort | Inhalt |
 | --- | --- |
-| `CLAUDE.md` / `AGENTS.md` | Projektregeln, Fallen, Konventionen für Commits, Release Notes und Ticket-Board |
+| `CLAUDE.md` | Projektregeln, Fallen, Konventionen für Commits, Release Notes und Ticket-Board |
 | `docs/design/` | Querschnittsregeln für die Oberfläche und Referenzentwürfe |
 | `docs/superpowers/specs/` | Entwurfsdokumente je Modul und Querschnittsthema, mit Begründungen |
 | `docs/superpowers/plans/` | Umsetzungspläne dazu |

@@ -454,7 +454,7 @@ export const EINDEUTIGES_SUFFIX = ((): Map<string, string> => {
  *
  * Der WEITERGEHENDE Vorschlag — mehrdeutige Suffixe MELDEN und damit
  * repo-relative Pfade erzwingen — wuerde genau diese 92 Anker zu Rotmeldungen
- * machen und ihre Umschreibung verlangen, in beiden Anweisungsdateien und in
+ * machen und ihre Umschreibung verlangen, in `CLAUDE.md` und in
  * der Begruendung dieses Riegels. Das ist eine Aenderung der ANKERSYNTAX des
  * Repos, keine am Riegel, und steht als DRK-403 auf dem Board.
  */

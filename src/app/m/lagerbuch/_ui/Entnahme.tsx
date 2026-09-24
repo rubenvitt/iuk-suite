@@ -8,7 +8,7 @@ import { Ikone } from "./ikonen";
 import {
   ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferGrund,
 } from "../_lib/actionTypen";
-// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`/`CLAUDE.md`):
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `CLAUDE.md`):
 // „Server Actions duerfen als einzige ueber die Grenze — aber direkt
 // importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
 // `_ui/Auffuellen.tsx` und `_ui/BoxAbgabe.tsx`.
@@ -33,7 +33,7 @@ import s from "./helfer.module.css";
  * und die Begruendung war eine REIHENFOLGE: `_actions/buchung.ts` gehoerte
  * vollstaendig Teil 5 (Festlegung H7), ein Import hier haette diese Insel von
  * einem SPAETER laufenden Plan abhaengig gemacht. Diese Begruendung ist
- * ABGELAUFEN — die Datei existiert, und Falle 9 (`AGENTS.md`/`CLAUDE.md`)
+ * ABGELAUFEN — die Datei existiert, und Falle 9 (`CLAUDE.md`)
  * lautet woertlich: „Server Actions duerfen als einzige ueber die Grenze —
  * aber direkt importiert, nicht als Prop durchgereicht."
  *
