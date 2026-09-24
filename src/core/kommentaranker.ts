@@ -126,15 +126,24 @@ export const NICHT_GELESENE_PFADE = [/^docs\//, /^patches\//];
  * Allowlist, die niemand nachfuehrt, ist genau der Defekt, den dieser Riegel
  * bewacht.
  */
+/**
+ * `rs` und `toml` kommen von der Desktop-App unter `apps/einsatzbuch`: ihr Rust-Kern
+ * (`src-tauri/kern`) trägt Kommentaranker wie jede andere Quelldatei, ebenso die
+ * Cargo-Manifeste. `html` und `js` gehören zum selben Modul (Tauri-Einstiegsseite,
+ * Lint-Konfiguration) — siehe Spec Einsatzbuch §2.2.
+ */
 export const ENDUNGEN =
-  /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson|ya?ml|conf|example|dockerignore|gitattributes|gitignore)$/;
+  /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson|ya?ml|conf|example|dockerignore|gitattributes|gitignore|rs|toml|html|js)$/;
 
 /** Dateien ohne Endung, die trotzdem Quelltext sind. */
 export const OHNE_ENDUNG = /^(Dockerfile|Makefile|CODEOWNERS|LICENSE)$/;
 
-/** Was kein Text ist, generiert wird oder keinen eigenen Kommentar traegt. */
+/**
+ * Was kein Text ist, generiert wird oder keinen eigenen Kommentar traegt. `icns` ist das
+ * gebündelte Tauri-Anwendungssymbol der Desktop-App (binär, siehe Spec Einsatzbuch §2.2).
+ */
 export const NICHT_GELESEN =
-  /(\.(ttf|woff2?|png|jpe?g|webp|gif|ico|svg|pdf|xlsx|zip|db|sqlite3?|lock|tsbuildinfo)|(^|\/)\.gitkeep)$/;
+  /(\.(ttf|woff2?|png|jpe?g|webp|gif|ico|svg|pdf|xlsx|zip|db|sqlite3?|lock|tsbuildinfo|icns)|(^|\/)\.gitkeep)$/;
 
 /**
  * Ein Pfad, wie er in einem Kommentar steht, gefolgt von `:zeile` oder
