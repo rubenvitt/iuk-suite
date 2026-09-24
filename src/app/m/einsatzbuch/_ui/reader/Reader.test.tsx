@@ -7,11 +7,11 @@ import { clickElement, exists, existsPortal, fill, mount, query, queryAll, query
 import { reportBrowserExport } from "@/core/audit/browser";
 import { versiegele } from "../../_lib/kern/block";
 import { zuBase64, zufall } from "../../_lib/kern/bytes";
-import { verschluesseleExport } from "../../_lib/kern/export";
+import { entschluesseleExport, verschluesseleExport } from "../../_lib/kern/export";
 import type { Exportdatei } from "../../_lib/kern/format";
 import { beispielEinsatz, kopf } from "../../_lib/kern/testhilfe";
 import { erzeugeSchluesselpaar, schluesselIdVon } from "../../_lib/kern/umschlag";
-import { INHALT_BESCHAEDIGT, KENNWORT_FALSCH } from "../../_lib/reader/oeffnen";
+import { INHALT_BESCHAEDIGT, KENNWORT_FALSCH, MAX_DATEIGROESSE, ZU_GROSS } from "../../_lib/reader/oeffnen";
 import { Fehlergrenze } from "./Fehlergrenze";
 import { Reader } from "./Reader";
 
@@ -25,16 +25,22 @@ const KW = "testvektor-kennwort";
 // PBKDF2 mit 600 000 Runden: in Node ≈ 0,5 s je Ableitung, unter Last deutlich mehr.
 const LANG = 20_000;
 
+/** jsdom kennt `isSecureContext` nicht (`undefined`) — der Reader verlangt ausdrücklich `true`. */
+function sicher(wert: boolean) {
+  Object.defineProperty(window, "isSecureContext", { configurable: true, value: wert });
+}
+
 beforeEach(() => {
+  sicher(true);
   document.documentElement.dataset.zeitzone = "Europe/Berlin";
   vi.mocked(reportBrowserExport).mockClear();
 });
 afterEach(unmount);
 
 /** Eine Datei über das versteckte Feld wählen — jsdom kann `input.files` nicht setzen, also per `defineProperty`. */
-async function waehle(name: string, text: string) {
+async function waehle(name: string, text: string, size = text.length, lies = async () => text) {
   const input = query<HTMLInputElement>('input[type="file"]');
-  Object.defineProperty(input, "files", { configurable: true, value: [{ name, text: async () => text }] });
+  Object.defineProperty(input, "files", { configurable: true, value: [{ name, size, text: lies }] });
   await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
 }
 
@@ -81,6 +87,26 @@ describe("Reader", () => {
     await warte(() => expect(exists('[data-testid="reader-fehler"]')).toBe(true));
     expect(query('[data-testid="reader-fehler"]').textContent).toContain("„leer.json“ ist keine Einsatzbuch-Datei");
     expect(exists("[data-dropzone]")).toBe(true);
+    expect(exists('input[type="password"]')).toBe(false);
+  });
+
+  it("ohne sicheren Kontext: Hinweis auf https:// statt der Drop-Zone, keine Dateiwahl", async () => {
+    sicher(false);
+    await mount(<Reader bereitschaft="B" />);
+    const hinweis = query('[data-testid="reader-unsicher"]');
+    expect(hinweis.textContent).toContain("Der Reader braucht eine sichere Verbindung");
+    expect(hinweis.textContent).toContain("Öffne die Suite über https://, dann kann der Browser die Datei entschlüsseln.");
+    expect(exists("[data-dropzone]")).toBe(false);
+    expect(exists('input[type="file"]')).toBe(false);
+  });
+
+  it("weist eine zu große Datei ab, ohne sie zu lesen", async () => {
+    const lies = vi.fn(async () => VEKTOR);
+    await mount(<Reader bereitschaft="B" />);
+    await waehle("riesig.einsatzbuch", VEKTOR, MAX_DATEIGROESSE + 1, lies);
+    await warte(() => expect(exists('[data-testid="reader-fehler"]')).toBe(true));
+    expect(query('[data-testid="reader-fehler"]').textContent).toBe(ZU_GROSS);
+    expect(lies).not.toHaveBeenCalled();
     expect(exists('input[type="password"]')).toBe(false);
   });
 
@@ -138,6 +164,7 @@ describe("Reader", () => {
       await clickElement(knopf("PDF erzeugen"));
       expect(existsPortal("[data-bericht]")).toBe(true);
       const steuer = queryPortal("[data-druck-steuer]");
+      expect(document.activeElement).toBe(knopf("Als PDF speichern", steuer));
       expect(steuer.textContent).toContain("Im Druckdialog „Als PDF speichern“ wählen.");
       expect(queryPortal("[data-bericht]").textContent).toContain("DRK-Bereitschaft Uelzen");
       expect(queryPortal("[data-bericht]").textContent).toContain("Kette intakt (geprüft im Reader)");
@@ -148,9 +175,22 @@ describe("Reader", () => {
 
       await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); });
       expect(existsPortal("[data-bericht]")).toBe(false);
+      expect(document.activeElement).toBe(knopf("PDF erzeugen"));
     } finally {
       drucke.mockRestore();
     }
+  }, LANG);
+
+  it("umgestellte Datei: Anzeige nach Blocknummer, die Kette bleibt gebrochen", async () => {
+    const inhalt = await entschluesseleExport(erwartet.export, KW);
+    const datei = await verschluesseleExport({ ...inhalt, bloecke: [...inhalt.bloecke].reverse() }, KW, erwartet.export.kopf);
+    await mount(<Reader bereitschaft="B" />);
+    await oeffne("umgestellt.einsatzbuch", JSON.stringify(datei), KW);
+    await warte(() => expect(exists('[aria-label="Einsatzkette"]')).toBe(true));
+    expect(queryAll("[data-block]").map((b) => b.dataset.block)).toEqual(["3", "2", "1"]);
+    expect(query('[data-block="3"]').getAttribute("aria-pressed")).toBe("true");
+    expect(query("[data-fuss]").textContent).toBe("Block 0 · Anfang der Kette");
+    expect(query("[data-kettenpruefung]").textContent).toContain("Gebrochen bei Block");
   }, LANG);
 
   it("zeigt das Testband, sobald ein Block `umgebung: \"test\"` trägt", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "antd";
 import { PiPrinter } from "react-icons/pi";
@@ -32,6 +32,10 @@ export interface DruckOverlayProps {
 export function DruckOverlay({ block, einsatz, kette, dateiname, bereitschaft, zeitzone, onSchliessen }: DruckOverlayProps) {
   // Einmal beim Öffnen festgehalten: das Blatt nennt den Zeitpunkt, zu dem es erzeugt wurde.
   const [erzeugt] = useState(() => zeitpunktText(new Date().toISOString(), zeitzone));
+  const speichern = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
+
+  // Der Fokus gehört beim Öffnen in den Dialog; zurück setzt ihn der Aufrufer in `onSchliessen`.
+  useEffect(() => { speichern.current?.focus(); }, []);
 
   useEffect(() => {
     const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onSchliessen(); };
@@ -59,7 +63,7 @@ export function DruckOverlay({ block, einsatz, kette, dateiname, bereitschaft, z
           <span className={s.steuerHinweis}>Im Druckdialog „Als PDF speichern“ wählen.</span>
         </div>
         <Button onClick={onSchliessen}>Schließen</Button>
-        <Button type="primary" icon={<PiPrinter aria-hidden />} onClick={drucken} autoFocus>Als PDF speichern</Button>
+        <Button type="primary" icon={<PiPrinter aria-hidden />} onClick={drucken} ref={speichern}>Als PDF speichern</Button>
       </div>
       <div className={s.blattRahmen}>
         <Berichtsblatt daten={daten} bereitschaft={bereitschaft} />

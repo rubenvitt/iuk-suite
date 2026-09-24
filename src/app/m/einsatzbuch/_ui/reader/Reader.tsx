@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+import { useCallback, useId, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { Alert, Button, Input } from "antd";
 import { PiArchive, PiArrowLeft, PiKey, PiLinkSimple, PiPrinter, PiUploadSimple, PiX } from "react-icons/pi";
 import { reportBrowserExport } from "@/core/audit/browser";
@@ -14,14 +14,22 @@ import { Kettenpruefung } from "../../_lib/kern/ansichten/Kettenpruefung";
 import { Testband } from "../../_lib/kern/ansichten/Testband";
 import { knotenFuer, kurz, type Listeneintrag } from "../../_lib/kern/ansichten/modell";
 import {
-  INHALT_BESCHAEDIGT, KEINE_DATEI, leseDatei, oeffneExport, type Geoeffnet, type Oeffnung,
+  INHALT_BESCHAEDIGT, KEINE_DATEI, leseDatei, MAX_DATEIGROESSE, oeffneExport, ZU_GROSS, type Geoeffnet, type Oeffnung,
 } from "../../_lib/reader/oeffnen";
 import { DruckOverlay } from "./DruckOverlay";
 import { Fehlergrenze } from "./Fehlergrenze";
 import s from "./reader.module.css";
 
 /** Was der Reader von einer gewählten oder abgelegten Datei braucht — `File` erfüllt es. */
-type Dateiquelle = Pick<File, "name" | "text">;
+type Dateiquelle = Pick<File, "name" | "size" | "text">;
+
+const ohneAbo = () => () => {};
+/**
+ * WebCrypto (`crypto.subtle`) gibt es nur in einem sicheren Kontext. Über HTTP an einer LAN-IP
+ * oder `*.localtest.me` fehlt es, und jede Datei endete nach dem Kennwort als „beschädigt“ —
+ * deshalb fragt der Reader vorher. Auf dem Server gilt „sicher“, damit die Hydrierung passt.
+ */
+const sichererKontext = () => window.isSecureContext === true && Boolean(globalThis.crypto?.subtle);
 
 type Stufe =
   | { art: "leer" }
@@ -46,6 +54,7 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
   const [kwFehler, setKwFehler] = useState<string | null>(null);
   const [beschaedigt, setBeschaedigt] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
+  const sicher = useSyncExternalStore(ohneAbo, sichererKontext, () => true);
   const lauf = useRef(0);
   const arbeitet = useRef(false);
   const eingabe = useRef<HTMLInputElement>(null);
@@ -66,6 +75,8 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
   async function lesen(datei: Dateiquelle | undefined) {
     if (!datei) return;
     const nr = ++lauf.current;
+    // Vor `File.text()`: eine riesige Datei soll den Tab nicht erst in den Speicher laden.
+    if (datei.size > MAX_DATEIGROESSE) { setFehler(ZU_GROSS); return; }
     let g: ReturnType<typeof leseDatei>;
     try { g = leseDatei(datei.name, await datei.text(), zeitzone()); }
     catch { g = { ok: false, fehler: KEINE_DATEI(datei.name) }; }
@@ -166,27 +177,37 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
 
   return (
     <div className={`${s.reader} ${s.schmal}`}>
-      <div
-        className={s.zone}
-        data-ziehen={ziehen}
-        data-dropzone=""
-        onDragOver={(e) => { e.preventDefault(); if (!ziehen) setZiehen(true); }}
-        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setZiehen(false); }}
-        onDrop={ablegen}
-      >
-        <span className={s.zoneZeichen} aria-hidden="true"><PiUploadSimple size={36} /></span>
-        <div className={s.zoneTitel}>.einsatzbuch-Datei hierher ziehen</div>
-        <div className={s.gedaempft}>oder</div>
-        <Button type="primary" icon={<PiArchive aria-hidden />} onClick={() => eingabe.current?.click()}>Datei auswählen</Button>
-        <input
-          ref={eingabe}
-          className={s.versteckt}
-          type="file"
-          accept=".einsatzbuch,application/json"
-          aria-label="Einsatzbuch-Datei"
-          onChange={gewaehlt}
+      {sicher ? (
+        <div
+          className={s.zone}
+          data-ziehen={ziehen}
+          data-dropzone=""
+          onDragOver={(e) => { e.preventDefault(); if (!ziehen) setZiehen(true); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setZiehen(false); }}
+          onDrop={ablegen}
+        >
+          <span className={s.zoneZeichen} aria-hidden="true"><PiUploadSimple size={36} /></span>
+          <div className={s.zoneTitel}>.einsatzbuch-Datei hierher ziehen</div>
+          <div className={s.gedaempft}>oder</div>
+          <Button type="primary" icon={<PiArchive aria-hidden />} onClick={() => eingabe.current?.click()}>Datei auswählen</Button>
+          <input
+            ref={eingabe}
+            className={s.versteckt}
+            type="file"
+            accept=".einsatzbuch,application/json"
+            aria-label="Einsatzbuch-Datei"
+            onChange={gewaehlt}
+          />
+        </div>
+      ) : (
+        <Alert
+          type="warning"
+          showIcon
+          title="Der Reader braucht eine sichere Verbindung"
+          description="Öffne die Suite über https://, dann kann der Browser die Datei entschlüsseln."
+          data-testid="reader-unsicher"
         />
-      </div>
+      )}
       {fehler && <Alert type="warning" showIcon title={fehler} data-testid="reader-fehler" />}
       <ul className={s.hinweise}>
         <Hinweis zeichen={<PiArchive size={18} />} titel="Nichts wird hochgeladen" text="Die Datei wird nur in diesem Tab gelesen. Schließen oder Neuladen verwirft alles." />
@@ -225,11 +246,17 @@ interface OffeneDateiProps {
  */
 function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: OffeneDateiProps) {
   const { eintraege, kette } = wert;
-  // Neueste oben; bei doppelter Blocknummer (selbst gebaute Datei) gilt wie in der
-  // `Kettenliste` der erste Treffer dieser Reihenfolge.
-  const absteigend = [...eintraege].reverse();
+  // Nur die Anzeige sortiert nach Blocknummer; `pruefeKette` hat die Dateireihenfolge geprüft,
+  // eine umgestellte Datei bleibt also gebrochen. Neueste oben; bei doppelter Blocknummer
+  // (selbst gebaute Datei) gilt wie in der `Kettenliste` der erste Treffer dieser Reihenfolge.
+  const aufsteigend = [...eintraege].sort((x, y) => x.block.kopf.block - y.block.kopf.block);
+  const absteigend = [...aufsteigend].reverse();
   const [auswahl, setAuswahl] = useState(() => Math.max(...eintraege.map((e) => e.block.kopf.block)));
   const [druck, setDruck] = useState(false);
+  const pdfKnopf = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
+  // Stabil, damit das Overlay seinen Escape-Listener nur einmal bindet; der Fokus kehrt zum
+  // Knopf zurück, der das Overlay geöffnet hat.
+  const schliesseDruck = useCallback(() => { setDruck(false); pdfKnopf.current?.focus(); }, []);
 
   const liste: Listeneintrag[] = absteigend.map(({ block: b, einsatz, fehler }) => ({
     block: b.kopf.block,
@@ -242,7 +269,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
     knoten: knotenFuer(b.kopf.block, kette),
     ...(fehler ? { fehler } : {}),
   }));
-  const erster = eintraege[0].block.kopf;
+  const erster = aufsteigend[0].block.kopf;
   const fuss = erster.block === 1 && erster.prev === GENESIS
     ? "Block 0 · Anfang der Kette"
     : `Vorgänger #${kurz(erster.prev)} · nicht in der Datei`;
@@ -301,7 +328,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
               dritteKennzahl="gesamt"
               mitDauerzeile
               objektImmer
-              kopfRechts={<Button icon={<PiPrinter aria-hidden />} onClick={() => setDruck(true)}>PDF erzeugen</Button>}
+              kopfRechts={<Button ref={pdfKnopf} icon={<PiPrinter aria-hidden />} onClick={() => setDruck(true)}>PDF erzeugen</Button>}
             />
           ) : (
             <section aria-label={`Block ${b.kopf.block}`} className={`${s.karte} ${s.unlesbar}`} data-unlesbar="">
@@ -325,7 +352,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
           dateiname={name}
           bereitschaft={bereitschaft}
           zeitzone={zone}
-          onSchliessen={() => setDruck(false)}
+          onSchliessen={schliesseDruck}
         />
       )}
     </div>
