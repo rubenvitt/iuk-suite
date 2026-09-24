@@ -139,7 +139,7 @@ describe("radio: der Registry-Eintrag", () => {
 
   it("hat sein Icon in der ICONS-Map — sonst traegt es STILL das Portal-Icon", () => {
     /*
-     * DIE FALLE, DIE SCHON EINMAL ZUGESCHLAGEN HAT (icons.ts:22-28,
+     * DIE FALLE, DIE SCHON EINMAL ZUGESCHLAGEN HAT (`core/shell/icons.ts`, Kommentar über `ICONS`;
      * AppUmschalter.test.tsx:203-215): beim Registry-Eintrag von `files` (2026-07-30)
      * stand `FolderOutlined` nicht in der Map — der Eintrag trug daraufhin still das
      * Portal-Icon. Kein Fehler, kein Log, nur ein falsches Bild in JEDER Kopfzeile und in
