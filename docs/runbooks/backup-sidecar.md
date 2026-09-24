@@ -36,9 +36,9 @@ Ticket: DRK-185. Entstanden aus Entscheidung **D1** der Lagerbuch-Portierung.
 * **Alte Sicherungen bleiben liegen, wo sie sind** (`<suite_data>/backups`). Der Sidecar
   schreibt ab jetzt nach `backup_data`; er räumt das alte Verzeichnis **nicht** auf und
   rotiert es auch nicht mehr. Abschnitt 8 sagt, wann es weg darf.
-* **Die Bildnachweise des Moduls `aufgaben` sind weiterhin NICHT im Tarball.** Das ist
-  eine bekannte Lücke (DRK-391), keine Nebenwirkung dieses Updates. Wer das
-  Volume `aufgaben_data` nutzt, sichert es bis dahin daneben.
+* **Die Bildnachweise des Moduls `aufgaben` fehlten beim Umstieg noch im Tarball; seit
+  DRK-365 sind sie drin** (Verzeichnis `aufgaben/`, Mount `aufgaben_data:/data/aufgaben:ro`).
+  Eine Nebensicherung des Volumes darf nach dem ersten grünen Lauf weg.
 
 ## 1. Vorbedingung: vier Dateien statt zwei
 
@@ -311,7 +311,8 @@ docker compose run --rm backup /bin/sh -c \
 Im Tarball müssen stehen: **jede** `*.db` aus `MODULE_MIGRATIONS` und `CORE_MIGRATIONS`
 (heute u. a. `portal.db`, `qr.db`, `feedback.db`, `files.db`, `lagerbuch.db`,
 `aufgaben.db`, `radio.db`, `uav.db`, `zeichen.db`, `konto.db`, `audit.db`) — **und** ein
-Verzeichnis `files/` mit Blobs, sofern im Modul `files` überhaupt welche liegen.
+Verzeichnis `files/` mit Blobs, sofern im Modul `files` überhaupt welche liegen, und ein
+Verzeichnis `aufgaben/` mit den Bildnachweisen, sofern es welche gibt.
 
 > ⚠️ **Fehlt eine `*.db`, ist das KEIN Backup-Fehler, sondern ein Hinweis auf ein Modul,
 > das nie gebootet hat.** `scripts/backup.sh` sammelt ein, was in `$DATA_DIR` liegt; eine

@@ -171,8 +171,8 @@ zahl_oder_vorgabe() {
 
 # ══ Konfiguration ════════════════════════════════════════════════════════════════════
 # Der Kern bleibt `scripts/backup.sh`. Diese Datei ruft es, sie ersetzt es nicht —
-# DATA_DIR, BACKUP_DIR, BLOB_DIR und BACKUP_KEEP liest weiterhin JENES Skript aus der
-# Umgebung, hier steht kein Zweitwert dafuer.
+# DATA_DIR, BACKUP_DIR, BLOB_DIR, AUFGABEN_DIR und BACKUP_KEEP liest weiterhin JENES
+# Skript aus der Umgebung, hier steht kein Zweitwert dafuer.
 BACKUP_SKRIPT="${BACKUP_SKRIPT:-/opt/backup/backup.sh}"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 # ⚠️ EINZIGE AUSNAHME VON DEM ABSATZ DARUEBER, und sie ist kein Zweitwert der Konfiguration,
