@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
+import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
 
 /**
  * Eigene Config für den PWA-Spike (Port 3101, parallel zur E2E-Config auf 3100).
@@ -16,7 +16,7 @@ const ORIGINS = [
   `http://qr.localtest.me:${E2E_PORTS.pwa}`,
 ].join(",");
 
-export default defineConfig({
+export default cloudTauglich(defineConfig({
   testDir: "./e2e",
   // `pwa-spike`: eine Datei, die hier nicht steht, wird von
   // dieser Config nie gefunden — und von der normalen Config (testIgnore)
@@ -56,7 +56,7 @@ export default defineConfig({
       PORT: String(E2E_PORTS.pwa),
     },
   },
-});
+}));
 
 // Nennt den Halter eines belegten Ports (DRK-346, `e2e/helpers/ports.ts`).
 pruefePortsFrei([E2E_PORTS.pwa]);
