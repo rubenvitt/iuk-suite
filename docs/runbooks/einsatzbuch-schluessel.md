@@ -19,9 +19,12 @@ ausdrücklich (`EchtesPaarVorhanden`).
   ```
 - `openssl` auf der Maschine, von der aus der KEK erzeugt wird.
 
-Hauptweg unten ist der **Host-Weg** — er ist gegen ein Wegwerf-Volume tatsächlich durchgemessen
-worden. Der Container-Weg danach ist eine Alternative für den Fall, dass kein Zugriff auf den
-Docker-Host selbst besteht; er ist **nicht** durchprobiert (siehe Warnhinweis dort).
+**Ehrliche Messaussage:** Der Ablauf des Skripts (erzeugen in einen neuen Ordner, DB löschen,
+wiederherstellen) ist gemessen, lokal als eigener Nutzer. Die Rechte-Schritte auf dem Zielhost
+(`sudo` als uid 1001, Zugriff auf den Volume-Mountpunkt) sind **nicht** gemessen — vor dem ersten
+Einsatz einmal gegen ein Wegwerf-Volume proben. Der Container-Weg danach ist eine Alternative für
+den Fall, dass kein Zugriff auf den Docker-Host selbst besteht; er ist ebenfalls **nicht**
+durchprobiert (siehe Warnhinweis dort).
 
 ## KEK erzeugen und setzen
 
@@ -45,32 +48,48 @@ read -rs EINSATZBUCH_SCHLUESSEL_KEK && export EINSATZBUCH_SCHLUESSEL_KEK
 (Alternative: den Wert in eine Datei mit Modus 0600 legen und per `--env-file` an `docker run`
 reichen, statt ihn mit `-e` auf der Befehlszeile zu übergeben.)
 
-## Schlüsselpaar erzeugen — Host-Weg (gemessen)
+## Schlüsselpaar erzeugen — Host-Weg
 
 Aus einem Checkout desselben Stands, direkt auf dem Docker-Host, der Skriptaufruf **als uid 1001**
 (derselbe Nutzer, unter dem der Container später schreibt) — sonst legt das Skript root-eigene
-`-wal`/`-shm`-Dateien im Volume an, die der laufende Container danach nicht mehr anfassen kann:
+`-wal`/`-shm`-Dateien im Volume an, die der laufende Container danach nicht mehr anfassen kann. Der
+Checkout selbst muss dafür an einem Ort liegen, den uid 1001 lesen kann — ein frischer `git clone`
+unter dem eigenen Nutzer landet meist unter dessen Home, das für uid 1001 verschlossen ist:
 
 ```
-git checkout <commit-oder-tag>          # derselbe Stand wie die laufende Suite
+sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /opt/einsatzbuch-schluessel
+git clone <repo-url> /opt/einsatzbuch-schluessel   # oder ein vorhandenes Checkout dorthin verschieben
+cd /opt/einsatzbuch-schluessel && git checkout <commit-oder-tag>   # derselbe Stand wie die laufende Suite
+
 npm i -g pnpm@11.0.9
 pnpm install --frozen-lockfile
+sudo chown -R 1001:1001 /opt/einsatzbuch-schluessel   # macht das Checkout für uid 1001 lesbar
+# Alternative: pnpm install gleich als uid 1001 ausführen, dann entfällt das chown
 
 VOL=$(docker volume inspect suite_data -f '{{ .Mountpoint }}')
-mkdir -m 0700 -p ~/einsatzbuch-schluessel   # AUSSERHALB des Volumes — sonst landet die Sicherung im Backup
+sudo install -d -m 0700 -o 1001 -g 1001 /opt/einsatzbuch-schluessel/ausgabe   # AUSSERHALB des Volumes — sonst landet die Sicherung im Backup
 
 read -rs EINSATZBUCH_SCHLUESSEL_KEK && export EINSATZBUCH_SCHLUESSEL_KEK
 read -rs EINSATZBUCH_NOTFALL_KENNWORT && export EINSATZBUCH_NOTFALL_KENNWORT   # optional, sonst fragt das Skript zweimal, verdeckt
 
 sudo -u '#1001' -g '#1001' env \
+  PATH="$PATH" \
+  HOME=/tmp \
   DATA_DIR="$VOL" \
   EINSATZBUCH_SCHLUESSEL_KEK="$EINSATZBUCH_SCHLUESSEL_KEK" \
   EINSATZBUCH_NOTFALL_KENNWORT="$EINSATZBUCH_NOTFALL_KENNWORT" \
-  pnpm einsatzbuch:schluessel erzeugen --ausgabe ~/einsatzbuch-schluessel
+  pnpm einsatzbuch:schluessel erzeugen --ausgabe /opt/einsatzbuch-schluessel/ausgabe
 ```
 
-Der Ausgabeordner muss nicht vorher angelegt sein: Das Skript legt ihn selbst an (Modus 0700),
-bevor es nach dem Kennwort fragt. Erwartete Ausgabe:
+`PATH="$PATH"` ist hier nötig, weil `sudo` sonst auf seinen eigenen `secure_path` zurückfällt, unter
+dem `pnpm` je nach Zielhost nicht liegt. `HOME=/tmp` gibt der abgesenkten uid 1001 ein beschreibbares
+Zuhause, das sie sonst nicht hat. Der Ausgabeordner ist hier bewusst **vorher** mit `install`
+angelegt statt dem Skript überlassen (es legt einen fehlenden `--ausgabe`-Ordner zwar selbst mit
+Modus 0700 an, aber nur, wenn schon der Elternordner für uid 1001 beschreibbar ist — genau das ist
+auf einem frisch angelegten Pfad ohne diesen Schritt nicht gegeben). Ob uid 1001 den
+Volume-Mountpunkt unter `/var/lib/docker/volumes/…` überhaupt lesen/schreiben darf, hängt von den
+Rechten auf dem jeweiligen Zielhost ab und ist hier nicht geprüft — verweigert der Host den Zugriff,
+den Container-Weg nehmen. Erwartete Ausgabe:
 
 ```
 Schlüsselpaar <schluesselId> angelegt.
@@ -80,7 +99,10 @@ Beide Dateien in den Tresor, danach von diesem Rechner löschen.
 ```
 
 Danach zeigt die Einsatzbuch-Übersicht keinen Hinweis mehr — Voraussetzung ist, dass derselbe KEK
-auch in der laufenden Suite gesetzt ist (nicht nur in dieser Sitzung auf dem Host).
+auch in der laufenden Suite gesetzt ist (nicht nur in dieser Sitzung auf dem Host). Danach beide
+Dateien aus `/opt/einsatzbuch-schluessel/ausgabe` in den Tresor legen und den Checkout-Ordner
+löschen (`sudo rm -rf /opt/einsatzbuch-schluessel`) — er soll nicht als Dauereinrichtung auf dem
+Docker-Host stehen bleiben.
 
 ## Schlüsselpaar erzeugen — Container-Weg (Alternative)
 
@@ -90,9 +112,14 @@ Compiler, und `better-sqlite3` ab Version 13 baut sein natives Binding immer aus
 `python3 make g++` bricht `pnpm install` mit einer Python-Fehlermeldung ab. Ein Bind-Mount des
 Repos für `node_modules` scheidet aus: `pnpm install` im Alpine-Container würde die musl-Bindings
 über die Host-`node_modules` schreiben und den nächsten `pnpm dev`/`pnpm build` auf dem Host
-brechen — das Repo wird deshalb in den Container hinein **kopiert**, statt eingehängt zu werden.
+brechen — das Repo wird deshalb in den Container hinein kopiert, statt eingehängt zu werden, und
+zwar per `tar --exclude=node_modules`: ein einfaches `cp -r` würde die Host-`node_modules` (falls
+vorhanden, mit Host-Bindings gebaut) mit in den Container übernehmen, `pnpm install` im Container
+baut sie dort sauber aus den Quellen neu.
 
 ```
+sudo install -d -m 0700 -o 1001 -g 1001 ~/einsatzbuch-schluessel   # für uid 1001 beschreibbar, AUSSERHALB des Volumes
+
 docker run --rm -it \
   -v suite_data:/data \
   -v "$PWD":/repo-ro:ro \
@@ -101,9 +128,11 @@ docker run --rm -it \
   node:26-alpine \
   sh -c '
     set -e
-    apk add --no-cache python3 make g++ su-exec
+    apk add --no-cache python3 make g++ su-exec tar
     npm i -g pnpm@11.0.9
-    mkdir -p /repo && cp -r /repo-ro/. /repo/ && cd /repo
+    mkdir -p /repo
+    tar -C /repo-ro --exclude=node_modules -cf - . | tar -C /repo -xf -
+    cd /repo
     pnpm install --frozen-lockfile
     read -rs EINSATZBUCH_SCHLUESSEL_KEK && export EINSATZBUCH_SCHLUESSEL_KEK
     su-exec 1001:1001 env HOME=/tmp DATA_DIR=/data \
@@ -139,7 +168,10 @@ bricht ohne gültigen Wert mit Exit 2 ab, bevor es die Notfalldatei überhaupt �
 1. **KEK festlegen**, je nach Fall:
    - **DB verloren** (neue, leere Datenbank nach einer frischen Stufe-2-Migration; das
      Schlüsselpaar selbst war nie kompromittiert): der bisherige KEK darf weitergelten, sofern er
-     noch bekannt ist — diesen Wert wieder einlesen, keinen neuen erzeugen.
+     noch bekannt ist — diesen Wert wieder einlesen, keinen neuen erzeugen. Besteht dagegen der
+     Verdacht, dass der Host selbst kompromittiert wurde (nicht nur die Datenbank verloren ging),
+     trotzdem einen **neuen** KEK nehmen — ein bekannt gebliebener alter KEK schützt nicht vor
+     einem Angreifer, der ihn schon kennt.
    - **KEK verloren** (die Datenbank ist vorhanden, aber der private Schlüssel lässt sich mit
      keinem bekannten KEK mehr entschlüsseln): einen **neuen** KEK erzeugen
      (`openssl rand -base64 32`).
@@ -149,10 +181,47 @@ bricht ohne gültigen Wert mit Exit 2 ab, bevor es die Notfalldatei überhaupt �
    read -rs EINSATZBUCH_SCHLUESSEL_KEK && export EINSATZBUCH_SCHLUESSEL_KEK
    ```
 
-2. **Wiederherstellen aufrufen** (Host- oder Container-Weg wie beim Erzeugen):
+2. **Wiederherstellen aufrufen** — mit demselben Rechte-Wrapper wie beim Erzeugen, nicht mit einem
+   nackten `DATA_DIR=… pnpm …`: sonst läuft das Skript als der eigene, root-eigene Nutzer und legt
+   root-eigene `-wal`/`-shm`-Dateien im Volume an, die der laufende Container (uid 1001) danach
+   nicht mehr anfassen kann.
+
+   **Host-Weg:**
    ```
-   DATA_DIR=<volume-pfad> pnpm einsatzbuch:schluessel wiederherstellen <notfalldatei.json>
+   sudo -u '#1001' -g '#1001' env \
+     PATH="$PATH" \
+     HOME=/tmp \
+     DATA_DIR="$VOL" \
+     EINSATZBUCH_SCHLUESSEL_KEK="$EINSATZBUCH_SCHLUESSEL_KEK" \
+     pnpm einsatzbuch:schluessel wiederherstellen <notfalldatei.json>
    ```
+   (`$VOL` wie beim Erzeugen aus `docker volume inspect suite_data -f '{{ .Mountpoint }}'`; die
+   Notfalldatei kann an einem beliebigen, für uid 1001 lesbaren Pfad liegen, z. B. direkt im
+   Ausgabeordner von vorhin.)
+
+   **Container-Weg** (nicht gemessen), Notfalldatei schreibgeschützt eingehängt statt kopiert:
+   ```
+   docker run --rm -it \
+     -v suite_data:/data \
+     -v "$PWD":/repo-ro:ro \
+     -v <notfalldatei.json>:/notfall.json:ro \
+     -e DATA_DIR=/data \
+     node:26-alpine \
+     sh -c '
+       set -e
+       apk add --no-cache python3 make g++ su-exec tar
+       npm i -g pnpm@11.0.9
+       mkdir -p /repo
+       tar -C /repo-ro --exclude=node_modules -cf - . | tar -C /repo -xf -
+       cd /repo
+       pnpm install --frozen-lockfile
+       read -rs EINSATZBUCH_SCHLUESSEL_KEK && export EINSATZBUCH_SCHLUESSEL_KEK
+       su-exec 1001:1001 env HOME=/tmp DATA_DIR=/data \
+         EINSATZBUCH_SCHLUESSEL_KEK="$EINSATZBUCH_SCHLUESSEL_KEK" \
+         pnpm einsatzbuch:schluessel wiederherstellen /notfall.json
+     '
+   ```
+
    Erwartete Ausgabe, wörtlich, je nach Fall:
    - **DB verloren** (neue Zeile entsteht): `Schlüsselpaar <schluesselId> wiederhergestellt.`
    - **KEK verloren** (vorhandene Zeile wird neu verschlüsselt):
