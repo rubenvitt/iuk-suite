@@ -31,8 +31,12 @@ export default defineConfig({
      * folgende `pnpm build` vergiftet. Das Muster ist bewusst genestet, weil
      * ein `.next/` auch in einem Worktree unter `.claude/worktrees/` liegen
      * kann.
+     *
+     * `apps/**`: Die Desktop-App des Einsatzbuchs (Workspace-Mitglied
+     * `apps/einsatzbuch`) hat ihr eigenes Vitest mit anderer Umgebung und
+     * eigenen Aliasen — die Root-Konfiguration hier passt nicht auf sie.
      */
-    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**", "**/.next/**"],
+    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**", "**/.next/**", "apps/**"],
     // Läuft auch für die node-Umgebung; der Guard in der Datei greift dort.
     setupFiles: ["./vitest.setup.ts"],
     /*

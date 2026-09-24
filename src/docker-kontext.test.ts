@@ -263,3 +263,19 @@ describe("pnpm-Patches im Docker-Build", () => {
     }
   });
 });
+
+describe("Workspace-Mitglied apps/einsatzbuch (Einsatzbuch-Desktop, Spec §2.2)", () => {
+  it("apps liegt nicht im Docker-Kontext — die Desktop-App gehört nicht ins Suite-Image", () => {
+    const muster = ignorierMuster();
+    expect(muster.some((m) => m.test("apps/einsatzbuch/package.json"))).toBe(true);
+    expect(muster.some((m) => m.test("apps/einsatzbuch/src-tauri/Cargo.toml"))).toBe(true);
+  });
+  it("pnpm-workspace.yaml führt apps/* als Mitglied", () => {
+    expect(readFileSync(join(WURZEL, "pnpm-workspace.yaml"), "utf8")).toMatch(/^packages:\n\s+- "apps\/\*"/m);
+  });
+  it("die deps-Stage installiert so, wie in Stufe 4 gemessen", () => {
+    const dockerfile = readFileSync(join(WURZEL, "Dockerfile"), "utf8");
+    // Weg (a): unverändert `pnpm install --frozen-lockfile` — gemessen grün ohne apps/ im Kontext.
+    expect(dockerfile).toMatch(/RUN pnpm install --frozen-lockfile/);
+  });
+});
