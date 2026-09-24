@@ -11,6 +11,11 @@ import nextTypescript from "eslint-config-next/typescript";
  * `git` sieht die Worktrees nicht (`.git/info/exclude`), aber das ist eine
  * lokale, nicht eingecheckte Datei — sie schuetzt nur den Klon, in dem sie
  * steht, und sagt ESLint nichts.
+ *
+ * Die Vorlagen-Ordner unter `docs/design/`: Design-Vorlagen im Originalzustand (z. B. das
+ * gebündelte `support.js` der Einsatzbuch-Vorlage). Sie sind Referenz, kein
+ * Suite-Code, und bleiben unverändert — ESLint-Regeln für Next-Module passen
+ * nicht auf sie.
  */
-const eslintConfig = [{ ignores: [".claude/**"] }, ...nextCoreWebVitals, ...nextTypescript];
+const eslintConfig = [{ ignores: [".claude/**", "docs/design/**/vorlage/**"] }, ...nextCoreWebVitals, ...nextTypescript];
 export default eslintConfig;
