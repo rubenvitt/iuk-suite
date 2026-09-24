@@ -37,7 +37,7 @@ import { dirname, join, normalize } from "node:path";
 /*
  * ⛔ `vi.hoisted`, WEIL `vi.mock` AN DEN DATEIANFANG GEHOBEN WIRD. Ein gewoehnliches
  * `const replaceMock = vi.fn()` darueber ist zur Ausfuehrungszeit der Fabrik noch nicht
- * initialisiert (gemessen in `GeraeteTabelle.test.tsx:80-85`: `ReferenceError: Cannot access
+ * initialisiert (gemessen in `GeraeteTabelle.test.tsx` am `vi.hoisted`: `ReferenceError: Cannot access
  * ... before initialization`, und die ganze Datei faellt aus, nicht ein Fall).
  *
  * ⚠️ OHNE DIESEN ERSATZ STIRBT JEDER `mount()` AN `invariant expected app router to be

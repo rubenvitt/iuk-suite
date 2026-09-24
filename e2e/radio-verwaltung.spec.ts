@@ -40,9 +40,9 @@ import {
  * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
  * strukturell nicht.
  *
- * ⛔ **SEIT DRK-423 SIND ES ACHTUNDZWANZIG `test()`-BLOECKE** (davor 27, DRK-335: Nachladen),
- * abgelesen an Playwrights Zaehlzeile „28 passed (4.2m)" und ⛔ **nicht** an `grep -c "test("`,
- * der Kommentartreffer mitzaehlt. Der letzte ist „DRK-423: /admin/ausleihen schaltet per CSS";
+ * ⛔ **SEIT DRK-472 SIND ES NEUNUNDZWANZIG `test()`-BLOECKE** (davor 28, DRK-423), abgelesen
+ * an Playwrights Zaehlzeile „29 passed" und ⛔ **nicht** an `grep -c "test("`, der
+ * Kommentartreffer mitzaehlt. Die letzten zwei sind „DRK-423/DRK-472: … schaltet per CSS";
  * davor „die Verwaltung misst 32" (die dritte Bediendichte), davor „L6 A" bis „L6 D" (L6): der
  * Verwaltungsweg als KETTE, von der Wurzel ueber den sichtbaren Link bis auf die 200 der
  * Verwaltung, je Rechtestufe, plus der anonyme Gegenfall und das alte Lesezeichen. Ihre
@@ -308,8 +308,8 @@ test.describe("radio-Verwaltung", () => {
   test("Fall 2: /admin/geraete zeigt die Tabelle, und ein Filter landet in der URL", async ({ page }) => {
     /*
      * ⛔ DIESER FALL IST PFLICHTBESTANDTEIL VON AUFGABE V13, NICHT NACHBESSERUNG
-     * (`Spec:4878`). Er ist der EINZIGE Waechter ueber ZWEI Fehlern, die Vitest strukturell
-     * nicht sehen kann — beide sind in `.superpowers/sdd/planteil4/BERICHT-V13.md` als
+     * (`Spec:4878`). Er war der EINZIGE Waechter ueber ZWEI Fehlern, die Vitest damals
+     * nicht sehen konnte — beide sind in `.superpowers/sdd/planteil4/BERICHT-V13.md` als
      * Sonden mit 0 rot protokolliert:
      *
      *   S-V13a  `COLUMN_DEFS` wandert aus der Insel nach `_lib/`. Die achtzehn Spalten
@@ -320,7 +320,7 @@ test.describe("radio-Verwaltung", () => {
      *   S-V13d  `pagination` an der Tabelle eingeschaltet. Die Blaetterung laeuft ueber die
      *           URL (Regime B); ein eingeschaltetes `pagination` legte eine zweite,
      *           rein clientseitige Blaetterung ueber die bereits geschnittenen zwanzig
-     *           Zeilen. Kein Vitest-Fall faerbt sich.
+     *           Zeilen. Seit DRK-472 faerbt sich auch Vitest (Block „die breite Darstellung").
      *
      * ⛔ DIE KOPFZEILE IST DER GRIFF FUER S-V13a: bricht die Insel an der Grenze, rendert die
      * Seite gar nicht, und `thead` fehlt. Ein Blick auf „irgendein Text ist da" saehe das
@@ -583,7 +583,7 @@ test.describe("radio-Verwaltung", () => {
      */
     expect(
       werte.filter((w) => !["Aktuell", "Veraltet", "Unbekannt"].includes(w)),
-      "eine Zelle der Spalte „Update-Stand“ zeigt nicht das Wort aus STAND_WORT (GeraeteTabelle.tsx:87-91)",
+      "eine Zelle der Spalte „Update-Stand“ zeigt nicht das Wort aus STAND_WORT (_lib/geraeteFelder.ts)",
     ).toEqual([]);
     await expect(
       zellen.first().locator(".ant-tag"),
@@ -612,14 +612,14 @@ test.describe("radio-Verwaltung", () => {
      * Waechter darueber, dass der Seed WIRKT: faellt er still weg, meldet diese Zeile es
      * namentlich, statt die Zusicherungen darunter zahnlos zu machen.
      *
-     * ⛔ UND DIE WARTESTELLE DAVOR IST KEINE KOSMETIK — sie ist ein am 2026-08-26 GEMESSENER
-     * Befund, im ersten Lauf mit Seed: `GeraeteTabelle.tsx:400` entscheidet ueber
-     * `Grid.useBreakpoint()` zwischen Tabelle und Kartenliste, und `useBreakpoint` liefert im
-     * Serverrender UND im ersten Client-Render ein leeres Objekt. `breit` ist dann `false`,
-     * und die ausgelieferte Seite traegt eine `<ul>` statt einer `<table>`. `page.goto` kehrt
-     * bei `load` zurueck, also VOR dem Umschlag; das sofortige `count()` las deshalb **0**,
-     * obwohl acht Geraete in der Datenbank standen (Ablaufverfolgung
-     * `test-results/…-raete-id-zeigt-das-Formular/error-context.md`, Knoten `- list`).
+     * ⛔ UND DIE WARTESTELLE DAVOR IST KEINE KOSMETIK — sie war ein am 2026-08-26 GEMESSENER
+     * Befund, im ersten Lauf mit Seed: damals entschied `Grid.useBreakpoint()` zwischen
+     * Tabelle und Kartenliste und lieferte im Serverrender ein leeres Objekt; die Seite trug
+     * eine `<ul>` statt einer `<table>`, und das sofortige `count()` las **0** bei acht Geraeten.
+     * Seit DRK-451 schaltet `Schmalkarten` per CSS, die Tabelle steht schon im Server-HTML
+     * (gemessen im Fall „DRK-472: /admin/geraete schaltet per CSS"). Die Wartestelle BLEIBT:
+     * unter `next dev` kommt die Regel aus dem CSS-Modul nachgereicht, und bis dahin ist die
+     * Sichtbarkeit nicht entschieden (`warteAufDarstellung`, `e2e/fixtures.ts`).
      * ⛔ `count()` WIEDERHOLT NICHT — nur eine `expect(...)`-Zusicherung tut das. Fall 2 hat
      * die Wartestelle ohnehin (`table thead th` sichtbar) und war deshalb gruen; hier fehlte
      * sie, und der Fehlschlag benannte die falsche Ursache.
@@ -628,7 +628,7 @@ test.describe("radio-Verwaltung", () => {
     const zeilen = page.locator("table tbody tr.ant-table-row");
     await expect(
       zeilen.first(),
-      "die Tabelle ist nicht erschienen — Grid.useBreakpoint hat nicht umgeschlagen (GeraeteTabelle.tsx:400)",
+      "die Tabelle ist nicht erschienen — ist die breite Darstellung nicht im Bild? (Schmalkarten)",
     ).toBeVisible();
     expect(
       await zeilen.count(),
@@ -802,16 +802,16 @@ test.describe("radio-Verwaltung", () => {
 
     /*
      * ✅ ⬜ **V13-L2 IST IN V23 GESCHLOSSEN** — dieselbe Zeile in `webServer.command` wie bei
-     * Fall 3, und dieselbe Wartestelle aus demselben gemessenen Grund
-     * (`GeraeteTabelle.tsx:400`, `Grid.useBreakpoint()` liefert im Serverrender ein leeres
-     * Objekt; die Begruendung steht ausgeschrieben in Fall 3). Die Vorbedingung bleibt als
+     * Fall 3, und dieselbe Wartestelle aus demselben Grund (bis DRK-451 ein JS-Breakpoint,
+     * heute das nachgereichte CSS-Modul unter `next dev`; die Begruendung steht
+     * ausgeschrieben in Fall 3). Die Vorbedingung bleibt als
      * Waechter ueber dem Seed stehen.
      */
     await page.goto(radioUrl("/admin/geraete"));
     const zeilen = page.locator("table tbody tr.ant-table-row");
     await expect(
       zeilen.first(),
-      "die Tabelle ist nicht erschienen — Grid.useBreakpoint hat nicht umgeschlagen (GeraeteTabelle.tsx:400)",
+      "die Tabelle ist nicht erschienen — ist die breite Darstellung nicht im Bild? (Schmalkarten)",
     ).toBeVisible();
     expect(
       await zeilen.count(),
@@ -2313,6 +2313,57 @@ test.describe("radio-Verwaltung", () => {
     await expect(breit, "bei 1280 steht die Tabelle nicht").toBeVisible();
     await expect(
       breit.getByRole("columnheader", { name: "Gerät" }),
+      "bei 1280 fehlt der Spaltenkopf der Tabelle",
+    ).toBeVisible();
+    await expect(karten, "bei 1280 stehen die Karten noch im Bild").toBeHidden();
+
+    // (c)
+    await page.setViewportSize({ width: 390, height: 844 });
+    await warteAufDarstellung(page);
+    await expect(karten, "bei 390 stehen keine Karten").toBeVisible();
+    await expect(breit, "bei 390 steht die Tabelle noch im Bild").toBeHidden();
+  });
+
+  test("DRK-472: /admin/geraete schaltet per CSS — bei 1280 die Tabelle, bei 390 die Karten", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DERSELBE BEWEIS WIE „DRK-423: /admin/ausleihen schaltet per CSS" direkt darueber, mit
+     * denselben drei Zusagen — (a) das Server-HTML traegt BEIDE Darstellungen, der eigentliche
+     * Beweis fuer „CSS statt JavaScript"; (b) bei 1280 steht die Tabelle, die Karten sind weg;
+     * (c) bei 390 umgekehrt. Die Begruendung jeder Zusage steht dort und wird hier nicht
+     * wiederholt. Vitest misst die Tabelle am Markup (`GeraeteTabelle.test.tsx`, Block „die
+     * breite Darstellung"), aber welche SICHTBAR ist, sieht jsdom nie.
+     *
+     * ⚠️ KEIN RAHMEN UM DIE FLAECHE WIE BEI DEN AUSLEIHEN: die Geraeteseite traegt genau EINE
+     * `Schmalkarten`, der Rahmen ihrer Rolle ist eindeutig.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    const antwort = await page.goto(radioUrl("/admin/geraete"));
+    expect(antwort?.status(), "/admin/geraete auf dem radio-Host").toBe(200);
+
+    // (a) — der Seed legt acht Geraete an (`_lib/seedLokal.ts`), die Kartenliste ist also gefuellt.
+    const html = await antwort!.text();
+    // ⛔ Die `<table>` IM Rahmen, nicht nur der Rahmen: `Schmalkarten` rendert ihn immer, auch leer.
+    expect(html, "die Tabelle fehlt im Server-HTML — ein JS-Breakpoint?").toMatch(
+      /data-rolle="breitansicht"[^]*?<table/,
+    );
+    expect(html, "die Kartenliste fehlt im Server-HTML — ein JS-Breakpoint?").toContain(
+      'data-rolle="schmalkarten"',
+    );
+
+    const breit = page.locator('[data-rolle="breitansicht"]');
+    const karten = page.locator('[data-rolle="schmalkarten"]');
+    await expect(breit, "die Seite traegt nicht genau eine breite Darstellung").toHaveCount(1);
+    await expect(karten, "die Seite traegt nicht genau eine Kartenliste").toHaveCount(1);
+
+    // (b)
+    await warteAufDarstellung(page);
+    await expect(breit, "bei 1280 steht die Tabelle nicht").toBeVisible();
+    await expect(
+      breit.getByRole("columnheader", { name: "ISSI" }),
       "bei 1280 fehlt der Spaltenkopf der Tabelle",
     ).toBeVisible();
     await expect(karten, "bei 1280 stehen die Karten noch im Bild").toBeHidden();
