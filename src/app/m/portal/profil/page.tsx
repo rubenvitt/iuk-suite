@@ -4,7 +4,6 @@ import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { laufendeRevision, laufendeVersion } from "@/core/version";
 import { ProfilAnsicht } from "@/app/m/portal/_ui/ProfilAnsicht";
-import { alleSitzungenAbmelden } from "@/app/m/portal/profil/actions";
 
 /**
  * Server Component: sie loest die Sitzung auf und reicht fertige Werte durch.
@@ -40,7 +39,6 @@ export default async function ProfilPage() {
         // Bauzeit-Wert still `unbekannt` bliebe.
         version={laufendeVersion()}
         revision={laufendeRevision()}
-        abmelden={alleSitzungenAbmelden}
       />
     </>
   );

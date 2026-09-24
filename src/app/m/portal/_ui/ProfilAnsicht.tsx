@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { initialen } from "@/core/shell/initialen";
 import { SPACE } from "@/core/theme/tokens";
 import { zeitzone } from "@/core/zeit";
+import { alleSitzungenAbmelden } from "@/app/m/portal/profil/actions";
 
 const { Text } = Typography;
 
@@ -38,9 +39,10 @@ function Etiketten({ werte }: { werte: string[] }) {
  * docs/design/README.md). Die Seite darueber holt nur die Sitzung und reicht
  * fertige Werte durch.
  *
- * `abmelden` kommt als Prop herein, statt hier importiert zu werden: eine
- * Server Action laesst sich so im Test durch eine Attrappe ersetzen, ohne den
- * `"use server"`-Rand mitzuziehen.
+ * `alleSitzungenAbmelden` wird hier DIREKT importiert und nicht als Prop
+ * durchgereicht (Falle 9, `CLAUDE.md`). Der Test ersetzt das Modul per
+ * `vi.mock` — die Bauform folgt der Regel, nicht der Testbequemlichkeit
+ * (DRK-398).
  */
 export function ProfilAnsicht({
   name,
@@ -52,7 +54,6 @@ export function ProfilAnsicht({
   angemeldetSeit,
   version,
   revision,
-  abmelden,
 }: {
   name: string | null;
   email: string | null;
@@ -66,7 +67,6 @@ export function ProfilAnsicht({
   version: string;
   /** `laufendeRevision()` — der volle Commit oder `unbekannt`. */
   revision: string;
-  abmelden: () => Promise<void>;
 }) {
   const [fragt, setFragt] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
@@ -74,7 +74,7 @@ export function ProfilAnsicht({
   async function bestaetigt() {
     setLaeuft(true);
     try {
-      await abmelden();
+      await alleSitzungenAbmelden();
       // Erst danach das eigene Geraet — sonst waere die Seite weg, bevor der
       // Widerruf geschrieben ist. Ueber `oidc-signout`, damit auch die Sitzung
       // beim Identitaetsanbieter endet (siehe die Begruendung in

@@ -3,7 +3,6 @@ import { canReadAudit } from "@/core/audit/access";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { leseAnsprechpartner, leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
-import { deleteServiceAction, setzeAnsprechpartnerAction, setzeZeitzoneAction } from "@/app/m/portal/actions";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
 import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
@@ -32,7 +31,7 @@ export default async function PortalAdminPage() {
       {darfAuditLesen && <section><h2 style={{ margin: 0 }}>Audit-Log</h2><p>Änderungen, Anmeldungen und Abrufe in der gesamten Suite nachvollziehen.</p><Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Audit-Log öffnen</Link></section>}
 
       <section>
-        <ServiceTable services={services} deleteAction={deleteServiceAction} />
+        <ServiceTable services={services} />
       </section>
 
       <section>
@@ -53,7 +52,7 @@ export default async function PortalAdminPage() {
           Steht im Portal, wenn jemand für nichts freigeschaltet ist. Bleibt das Feld leer,
           erscheint dort nur die Erklärung ohne Kontaktweg.
         </p>
-        <AnsprechpartnerForm wert={ansprechpartner} action={setzeAnsprechpartnerAction} />
+        <AnsprechpartnerForm wert={ansprechpartner} />
       </section>
 
       <section>
@@ -65,7 +64,7 @@ export default async function PortalAdminPage() {
           Tag, etwa für Fristen, Tagesfilter und Dateinamen von Exporten. Ein Wechsel gilt sofort
           und auch für schon gespeicherte Einträge.
         </p>
-        <ZeitzoneForm wert={zeitzone} zonen={waehlbareZeitzonen()} action={setzeZeitzoneAction} />
+        <ZeitzoneForm wert={zeitzone} zonen={waehlbareZeitzonen()} />
       </section>
     </div>
   );
