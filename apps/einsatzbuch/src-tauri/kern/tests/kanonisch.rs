@@ -1,7 +1,8 @@
 //! Liest die additiven JCS-Randfälle aus dem geteilten TS-Kern (`kanonisch.json`, erzeugt
 //! aus `kanonisch-faelle.ts`) und prüft sie byte-genau gegen `jcs::kanonisch`. Der Pfad ist
-//! relativ zu diesem Crate — dieselbe Konvention wie bei den Blockvektoren aus Task 3
-//! (`eingaben.json`/`erwartet.json`).
+//! relativ zu `CARGO_MANIFEST_DIR` (Kompilierzeit-Konstante dieses Crates) und wird zur
+//! Laufzeit gelesen, nicht per `include_str!` eingebettet — so bleibt die Datei bei jedem
+//! Testlauf frisch, auch wenn sie sich zwischen zwei Kompilierläufen ändert.
 use einsatzbuch_kern::format::Blockkopf;
 use einsatzbuch_kern::jcs;
 use serde::Deserialize;

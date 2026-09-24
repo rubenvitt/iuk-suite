@@ -11,7 +11,10 @@ export const KANONISCH_FAELLE: { name: string; wert: unknown }[] = [
   { name: "blockkopf-test", wert: TESTKOPF },
   { name: "steuerzeichen", wert: "\u0000\u0001\u0008\u0009\u000a\u000b\u000c\u000d\u001f " },
   { name: "rueckstrich-und-anfuehrung", wert: "a\\b\"c/d" },
-  { name: "roh-bleibt-roh", wert: "ä ß „x“ 😀     \u007f \u0080 ﻿" },
+  // U+2028/U+2029/DEL/U+0080/BOM ausdrücklich als \u-Escape, nie als roher Codepunkt im
+  // Quelltext: Ein Editor ersetzt einen rohen Zeilentrenner (U+2028/U+2029) sonst still durch
+  // ein gewöhnliches Leerzeichen — genau das ist hier schon einmal passiert.
+  { name: "roh-bleibt-roh", wert: "ä ß „x“ 😀     \u007f \u0080 ﻿" },
   { name: "schluesselsortierung", wert: { b: 1, a: { z: [3, 2, 1], "": null, "10": true, "2": false }, "ä": "x", A: "y" } },
   { name: "zahlen", wert: [0, 1, -1, 999, 9007199254740991, -9007199254740991] },
   { name: "leer", wert: { o: {}, a: [], s: "" } },

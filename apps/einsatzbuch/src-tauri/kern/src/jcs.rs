@@ -4,6 +4,10 @@
 //! schaltet irgendein Crate `preserve_order` ein, wird die Map still zur IndexMap.
 //! `serde_json` weist einzelne Surrogate schon beim Parsen ab, und ein Rust-`String` kann
 //! keine enthalten — die Surrogat-Prüfung des TS-Kerns ist hier also strukturell erfüllt.
+//! Strenger als der TS-Kern: `serde_json` liest `1.0`, `-0` und `1e2` aus JSON-Text als
+//! Fließkommazahl (nicht als `i64`), `kanonisch` lehnt sie deshalb ab — absichtlich, denn die
+//! echten Werte des Formats entstehen hier immer aus typisierten Feldern (`u8`/`u32`/`u64`),
+//! nie aus roh geparstem JSON-Text.
 use serde_json::Value;
 use std::fmt::Write as _;
 
@@ -110,6 +114,16 @@ mod tests {
         assert!(kanonisch(&json!(9007199254740992_i64)).is_err());
         assert!(kanonisch(&json!(1.5)).is_err());
         assert!(kanonisch(&json!(u64::MAX)).is_err());
+    }
+
+    #[test]
+    fn strenger_als_der_ts_kern_bei_aus_text_geparsten_zahlen() {
+        // `serde_json` liest jede dieser drei Schreibweisen aus JSON-Text als Fließkommazahl,
+        // obwohl der Wert ganzzahlig wäre — Absicht, siehe Modulkommentar.
+        for text in ["1.0", "-0", "1e2"] {
+            let wert: Value = serde_json::from_str(text).unwrap();
+            assert!(kanonisch(&wert).is_err(), "{text} sollte als Fließkommazahl abgelehnt werden");
+        }
     }
 
     #[test]
