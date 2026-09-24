@@ -186,7 +186,7 @@ describe("radioNav — die Verwaltungsnavigation traegt ihre Rechtestufe", () =>
    *   2. `_lib/nav.ts:61` `title: "Übersicht"` → `"Startseite"` — 0 rot. Die Titel der drei
    *      Admin-Eintraege deckt `:86`; die vier gemeinsamen deckte niemand.
    *   3. `_lib/nav.ts:62` `ikon: "geraete"` → `"tokens"` — 0 rot. `:154` prueft nur, DASS ein
-   *      Zeichen da ist, und `Record<NavIkonName, IconType>` (`core/shell/navIkonen.tsx:22`)
+   *      Zeichen da ist, und `Record<NavIkonName, IconType>` (`core/shell/navIkonen.tsx`, `NAV_IKONEN`)
    *      deckt typseitig nur die Gegenrichtung: dass jeder Name eine Komponente hat.
    *
    * ⛔ EIN `toEqual` UEBER DER GANZEN TAFEL UND KEIN `it.each`: die Sperre im Kopf dieser

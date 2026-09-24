@@ -68,7 +68,13 @@ export type NavIkonName =
   // Gegenrichtung — Material aus dem Regal nehmen. Die beiden stuenden
   // ueberdies im selben Modul, und ein geteiltes Zeichen machte sie in der
   // Seitenleiste ununterscheidbar.
-  | "entnahmebox";
+  | "entnahmebox"
+  // DRK-471: die Verwaltung des Einsatzbuchs. KEIN geliehener Name — `fahrzeuge`
+  // (PiTruck) meint im lagerbuch einen Lagerort, und die Stammdaten tragen neben
+  // Fahrzeugen auch Personal und Alarmstichworte; `update` (PiArrowsClockwise)
+  // heißt in radio die Gerätesoftware. Ein geliehener Name gäbe dem nächsten
+  // Leser einen falschen Begriff statt eines fehlenden.
+  | "stammdaten" | "einstellungen";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
