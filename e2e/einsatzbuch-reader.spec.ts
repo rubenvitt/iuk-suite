@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, klickeWennRuhig } from "./fixtures";
 import { entschluesseleExport, verschluesseleExport } from "../src/app/m/einsatzbuch/_lib/kern/export";
 import { versiegele } from "../src/app/m/einsatzbuch/_lib/kern/block";
 import { erzeugeSchluesselpaar, schluesselIdVon } from "../src/app/m/einsatzbuch/_lib/kern/umschlag";
@@ -48,7 +48,7 @@ async function oeffne(page: Page, datei: Exportdatei, kennwort = KW): Promise<vo
     name: "probe.einsatzbuch", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(datei)),
   });
   await page.getByRole("region", { name: "Kennwort" }).locator("input").fill(kennwort);
-  await page.getByRole("button", { name: "Entschlüsseln" }).click();
+  await klickeWennRuhig(page.getByRole("button", { name: "Entschlüsseln" }));
 }
 
 function auditPost(page: Page, format: string): Promise<Response> {
@@ -86,10 +86,10 @@ test("Vektordatei: Kette intakt, Detail, Bericht, Audit beim Öffnen und Drucken
   await expect(page.getByText(/laut Datei/)).toBeVisible();
   await expect(page.getByText("Testdaten — kein echter Einsatz")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "PDF erzeugen" }).click();
+  await klickeWennRuhig(page.getByRole("button", { name: "PDF erzeugen" }));
   await expect(page.getByText("Vertraulich — nur für den Dienstgebrauch")).toBeVisible();
   const gedruckt = auditPost(page, "reader_druck");
-  await page.getByRole("button", { name: "Als PDF speichern" }).click();
+  await klickeWennRuhig(page.getByRole("button", { name: "Als PDF speichern" }));
   const druck = await gedruckt;
   expect(druck.status()).toBe(204);
   expect(druck.request().postDataJSON()).toEqual({ module: "einsatzbuch", format: "reader_druck", von: 3, bis: 3, anzahl: 1 });
@@ -137,6 +137,6 @@ test("Testdatei → Band, und der Bericht trägt TESTDATEN", async ({ page }) =>
   );
   await oeffne(page, datei);
   await expect(page.getByText("Testdaten — kein echter Einsatz")).toBeVisible(ENTSCHLUESSELT);
-  await page.getByRole("button", { name: "PDF erzeugen" }).click();
+  await klickeWennRuhig(page.getByRole("button", { name: "PDF erzeugen" }));
   await expect(page.getByText("TESTDATEN", { exact: true })).toBeVisible();
 });
