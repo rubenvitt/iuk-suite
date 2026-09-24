@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
-import { Alert, Button, Card, Popconfirm, Skeleton } from "antd";
+import { useActionState, useMemo, useRef, useState } from "react";
+import { Alert, Button, Popconfirm, Skeleton } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -11,7 +11,7 @@ import {
   StopOutlined,
 } from "@ant-design/icons";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachDatum,
   nachJaNein,
   nachText,
@@ -59,13 +59,14 @@ import { QrDialog } from "./QrDialog";
  *     ergeben zwei Wahrheiten ueber dieselbe Zahl (MiB gegen MB, Faktor
  *     1,048576 — im Modul `files` schon einmal teuer geworden).
  *
- * BEIDE DARSTELLUNGEN STEHEN IM MARKUP, CSS blendet eine aus. Die Umschaltung
- * ist CSS, NIE JavaScript: ein JS-Breakpoint zeigt beim ersten Render die
- * falsche Variante. Die Klassen `nurDesktop`/`nurMobil` und der vorangestellte
- * `fi-liste` kommen aus `_ui/files.css` (T18) — der Praefix ist dort kein
- * Ballast, sondern der ganze Punkt: `.nurDesktop` allein ist (0,1,0) und damit
- * im Gleichstand mit `.ant-table-wrapper`, und bei Gleichstand gewinnt antds
- * spaeteres Stylesheet (`docs/design/README.md`, Falle 5).
+ * BEIDE DARSTELLUNGEN STEHEN IM MARKUP, CSS blendet eine aus — und zwar das
+ * gemeinsame Bauteil `Kartentabelle` aus `core/tabelle` (DRK-422). Hier standen
+ * vorher eine Tabelle und eine Kartenliste von Hand, mit eigenen
+ * Sichtbarkeitsklassen in `_ui/files.css` und eigener Spezifitaetsbegruendung:
+ * dieselbe Entscheidung wie im Bauteil, an einem zweiten Ort. Die Karte leitet
+ * sich jetzt aus den Spalten ab, und die Spaltenfilter sind auf dem Telefon
+ * ueber der Kartenliste zu erreichen (`Schmalsteuerung`) — vorher gab es sie
+ * dort gar nicht.
  */
 
 export type ShareZeile = {
@@ -265,7 +266,7 @@ function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
       key: "aktionen",
       title: "",
       render: (_: unknown, zeile: ShareZeile) => (
-        <ZeilenAktionen zeile={zeile} kennung="tabelle" qrOeffnen={qrOeffnen} />
+        <ZeilenAktionen zeile={zeile} qrOeffnen={qrOeffnen} />
       ),
     },
   ];
@@ -311,38 +312,36 @@ export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
    * Zweifel beide dasselbe Bild uebereinander.
    */
   const [qrZeile, setQrZeile] = useState<ShareZeile | null>(null);
+  /* Gemerkt: `Kartentabelle` leitet Karte, Filter und angezeigte Liste aus den
+     Spalten ab, und eine bei jedem Render neue Liste risse jede dieser
+     Ableitungen mit. `setQrZeile` hat eine feste Identitaet. */
+  const spaltenListe = useMemo(() => spalten(zeilen, setQrZeile), [zeilen]);
 
   return (
-    <div className="fi-liste" data-testid="files-shares-tabelle">
-      <div className="nurDesktop" data-testid="files-shares-tabelle-desktop">
-        {/*
-          * KEIN `scroll` UND KEIN `pagination`: beides ist jetzt Vorgabe der
-          * `Datentabelle` — `{ x: "max-content" }` und „nicht blaettern".
-          * `max-content` bleibt die einzige ehrliche Angabe, weil die Spalten
-          * keine `width` tragen; und KEINE Spalte traegt `fixed`, keine kuerzt
-          * mit Auslassungspunkten, `scroll.y` ist nicht gesetzt — rc-table
-          * schaltet sonst auf `table-layout: fixed`, verteilt die Spalten
-          * gleichmaeszig und das DESKTOP-Bild aendert sich, ohne dass irgendwo
-          * etwas ueberlaeuft (`lib/Table.js:426-442`).
-          */}
-        <Datentabelle<ShareZeile>
-          rowKey="id"
-          dataSource={zeilen}
-          columns={spalten(zeilen, setQrZeile)}
-        />
-      </div>
-
+    <div data-testid="files-shares-tabelle">
       {/*
-       * DIE KARTENLISTE, und sie steht IMMER im Markup. Unter 767.98px blendet
-       * `files.css` die Tabelle aus und diese Liste ein — eine umgebrochene
-       * Tabellenzeile ist unlesbarer als eine gescrollte, und eine gescrollte
-       * Zeile mit zehn Spalten ist auf 390px keine Liste mehr.
-       */}
-      <div className="nurMobil" data-testid="files-shares-karten">
-        {zeilen.map((zeile) => (
-          <Karte key={zeile.id} zeile={zeile} qrOeffnen={setQrZeile} />
-        ))}
-      </div>
+        * KEIN `scroll` UND KEIN `pagination`: beides ist Vorgabe der
+        * `Datentabelle` — `{ x: "max-content" }` und „nicht blaettern".
+        * `max-content` bleibt die einzige ehrliche Angabe, weil die Spalten
+        * keine `width` tragen; und KEINE Spalte traegt `fixed`, keine kuerzt
+        * mit Auslassungspunkten, `scroll.y` ist nicht gesetzt — rc-table
+        * schaltet sonst auf `table-layout: fixed`, verteilt die Spalten
+        * gleichmaeszig und das DESKTOP-Bild aendert sich, ohne dass irgendwo
+        * etwas ueberlaeuft (`lib/Table.js:426-442`).
+        *
+        * Die Karte braucht keinen Wunsch: „Titel" ist die erste Spalte und
+        * eine nackte Zeichenkette, die Knopfspalte ist die letzte ohne Titel —
+        * beides findet `kartenaufbau` selbst.
+        */}
+      <Kartentabelle<ShareZeile>
+        rowKey="id"
+        aria-label="Freigaben"
+        dataSource={zeilen}
+        columns={spaltenListe}
+        /* „Nichts angelegt" faengt `SharesUebersicht` vorher ab (eigener
+           Leerzustand mit Weg zum Anlegen); hier bleibt nur der Filterfall. */
+        leer={{ nichts: "Keine Freigabe.", gefiltert: "Keine Freigabe passt zum Filter." }}
+      />
 
       {qrZeile !== null && (
         <QrDialog
@@ -370,7 +369,6 @@ export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
 export function SharesTabelleSkelett() {
   return (
     <div
-      className="fi-liste"
       data-testid="files-uebersicht-skelett"
       aria-busy="true"
       aria-label="Freigaben werden geladen"
@@ -410,73 +408,35 @@ export function SharesTabelleSkelett() {
 
 // ---------------------------------------------------------------------------
 
-function Karte({
-  zeile,
-  qrOeffnen,
-}: {
-  zeile: ShareZeile;
-  qrOeffnen: (zeile: ShareZeile) => void;
-}) {
-  return (
-    <Card title={zeile.titel} data-testid={`files-share-karte-${zeile.id}`}>
-      <p>
-        {zeile.typText} · {zeile.anzahlDateien}{" "}
-        {zeile.anzahlDateien === 1 ? "Datei" : "Dateien"}
-        {zeile.anzahlUnvollstaendig > 0 && (
-          <> ({zeile.anzahlUnvollstaendig} unvollständig)</>
-        )}{" "}
-        · {zeile.groesseText}
-      </p>
-      <p>
-        Ablauf: <Ablauf zeile={zeile} />
-      </p>
-      <p>Downloads: {zeile.downloadsText}</p>
-      <p>Passwort: {zeile.hatPasswort ? "Ja" : "Nein"}</p>
-      <p>
-        <AvZustand wert={zeile.avSammelwert} />
-      </p>
-      <p>Erstellt von: {zeile.erstelltVonText}</p>
-      <ZeilenAktionen zeile={zeile} kennung="karte" qrOeffnen={qrOeffnen} />
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-
 /**
  * DIE DREI EINSTIEGSPUNKTE EINER ZEILE (§10.2). „Bearbeiten" und „Löschen"
  * stehen laut §10.2 in Tabelle UND auf der Detailseite — ohne diese Haelfte
  * haetten `bearbeitenAction` und `shareLoeschenAction` in der Liste gar keinen
  * Weg in der Oberflaeche, und eine Action ohne Aufrufer ist kein Feature.
  *
- * `kennung` trennt Tabelle und Karte, weil BEIDE Darstellungen im Markup stehen:
- * ohne sie traegt jede `data-testid` zweimal, und ein Test wuesste nicht, welche
- * der beiden er gerade bedient.
+ * ⚠️ DIESELBE SPALTE RENDERT TABELLENZELLE UND KARTE — also steht jede
+ * `data-testid` hier ZWEIMAL im Dokument, und die Darstellung steht nicht mehr
+ * im Namen (vor DRK-422 trug sie `-tabelle-`/`-karte-`). Ein Test rahmt deshalb
+ * mit `[data-rolle="breitansicht"]` oder `[data-rolle="schmalkarten"]`, wie an
+ * jeder `Kartentabelle` (Begruendung in `core/tabelle/Schmalkarten.tsx`).
+ *
+ * KEIN `size="small"` AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach Aufgabe
+ * 8): die alte Ausnahme galt der 56px-`controlHeight` — eine 44px-Zeilenaktion
+ * (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend `size="small"` auf 24px
+ * faellt und die Mindesttapflaeche unterbietet (`docs/design/README.md`,
+ * Falle 4). Und kein `block` mehr fuer die Karte: volle Breite und
+ * Untereinander gibt dort `spaltenkarte.module.css` (`.aktionen`) vor.
  */
 function ZeilenAktionen({
   zeile,
-  kennung,
   qrOeffnen,
 }: {
   zeile: ShareZeile;
-  kennung: "tabelle" | "karte";
   qrOeffnen: (zeile: ShareZeile) => void;
 }) {
   const [zustand, abschicken] = useActionState(shareLoeschenAction, LOESCHEN_START);
   const formular = useRef<HTMLFormElement>(null);
   const fehler = fehlerText(zustand);
-
-  /*
-   * KEIN `size="small"` MEHR AN ZEILENAKTIONEN (korrigiert Aufgabe 12, nach
-   * Aufgabe 8): die alte Ausnahme galt der 56px-`controlHeight` — eine
-   * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, waehrend
-   * `size="small"` auf 24px faellt und die Mindesttapflaeche unterbietet
-   * (`docs/design/README.md`, Falle 4). In der Karte bleibt `block` bestehen —
-   * unter 768px stehen Handlungsknoepfe untereinander und in voller Breite,
-   * ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel.
-   */
-  const inTabelle = kennung === "tabelle";
-  const masz = inTabelle ? {} : ({ block: true } as const);
 
   return (
     <div>
@@ -493,17 +453,12 @@ function ZeilenAktionen({
        * nur nicht mehr ueber eine Abwesenheit, sondern ueber ein bestehendes Ziel.
        */}
       <Button
-        {...masz}
         href={`/shares/${zeile.id}/bearbeiten`}
-        data-testid={`files-share-bearbeiten-${kennung}-${zeile.id}`}
+        data-testid={`files-share-bearbeiten-${zeile.id}`}
       >
         Bearbeiten
       </Button>
-      <Button
-        {...masz}
-        onClick={() => qrOeffnen(zeile)}
-        data-testid={`files-share-qr-${kennung}-${zeile.id}`}
-      >
+      <Button onClick={() => qrOeffnen(zeile)} data-testid={`files-share-qr-${zeile.id}`}>
         QR
       </Button>
 
@@ -531,7 +486,7 @@ function ZeilenAktionen({
            * #c8000f`, ein roter Vollknopf waere pixelgleich mit einer
            * Primaeraktion. Rot bleibt am Rand.
            */}
-          <Button {...masz} danger data-testid={`files-share-loeschen-${kennung}-${zeile.id}`}>
+          <Button danger data-testid={`files-share-loeschen-${zeile.id}`}>
             Löschen
           </Button>
         </Popconfirm>
@@ -548,12 +503,12 @@ function ZeilenAktionen({
         <Alert
           type="warning"
           showIcon
-          data-testid={`files-share-fehler-${kennung}-${zeile.id}`}
+          data-testid={`files-share-fehler-${zeile.id}`}
           message={fehler}
           action={
-            // Kein `size="small"` mehr — siehe Kommentar an `masz` oben.
+            // Kein `size="small"` — siehe Kommentar an `ZeilenAktionen`.
             <Button
-              data-testid={`files-share-wiederholen-${kennung}-${zeile.id}`}
+              data-testid={`files-share-wiederholen-${zeile.id}`}
               onClick={() => formular.current?.requestSubmit()}
             >
               Wiederholen

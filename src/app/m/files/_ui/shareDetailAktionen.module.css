@@ -3,8 +3,8 @@
  *
  * WARUM EINE EIGENE DATEI UND NICHT `_ui/files.css`: der Kopfkommentar von
  * `files.css` legt die Aufteilung selbst fest — dort liegen die modulweiten
- * `--fi-*`-Variablen und die EINE Umschaltung, die sich zwei Ansichten teilen,
- * komponentenlokale Regeln liegen in einem CSS-Modul NEBEN ihrer Komponente
+ * `--fi-*`-Variablen (die Umschaltung Tabelle/Kartenliste seit DRK-422 in
+ * `core/tabelle`), komponentenlokale Regeln in einem CSS-Modul NEBEN ihrer Komponente
  * (Plan §1, Festlegung C). Diese Regeln haben genau einen Anwender, also
  * gehoeren sie hierher — dieselbe Form wie `posteingang.module.css`,
  * `zugangslinks.module.css` und `uploadInsel.module.css`. Zwei Nebenwirkungen,

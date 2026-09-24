@@ -1,6 +1,5 @@
 /*
- * DIE MODULWEITEN CSS-VARIABLEN VON `files` UND DIE EINE UMSCHALTUNG
- * TABELLE/KARTENLISTE.
+ * DIE MODULWEITEN CSS-VARIABLEN VON `files`.
  *
  * WARUM EIGENE VARIABLEN UND NICHT `--ant-*`: antd deklariert seine Variablen
  * auf der Scope-Klasse an den Wurzelelementen SEINER EIGENEN Komponenten, nicht
@@ -18,10 +17,13 @@
  *
  * WAS HIER NICHT HINEINGEHOERT: komponentenlokale Regeln. Die liegen in einem
  * `*.module.css` neben ihrer Komponente (Plan §1, Festlegung C; Praezedenzfall
- * `feedback/f/[slugSecret]/zettel.module.css`). Diese Datei traegt genau zwei
- * Dinge: die Variablen des Moduls und die Umschaltung, die sich zwei Ansichten
- * teilen. Der Quelltext-Scan `files-css.test.ts` besitzt diese Datei; alle
- * `*.module.css` und `files-public.css` besitzt `files-public-css.test.ts`.
+ * `feedback/f/[slugSecret]/zettel.module.css`). Diese Datei traegt genau eines:
+ * die Variablen des Moduls. Die Umschaltung Tabelle/Kartenliste, die hier bis
+ * DRK-422 stand (`.fi-liste .nurDesktop`/`.nurMobil`), gehoert dem gemeinsamen
+ * Bauteil `core/tabelle` — eine zweite Media Query daneben waere ein zweiter
+ * Ort fuer dieselbe Entscheidung. Der Quelltext-Scan `files-css.test.ts`
+ * besitzt diese Datei; alle `*.module.css` und `files-public.css` besitzt
+ * `files-public-css.test.ts`.
  *
  * ROT TRAEGT IN `files` KEINE FACHLICHE BEDEUTUNG — und ist auf Datenflaechen
  * trotzdem verboten: `colorError === colorPrimary === #c8000f`, ein rotes `Tag`
@@ -55,59 +57,4 @@
   --fi-tint: #1e1e1e;
   /* Aufgehellt, weil #b26a00 auf #141414 nur ~3:1 erreicht. */
   --fi-warn: #e0a144;
-}
-
-/*
- * UMSCHALTUNG TABELLE (Desktop) / KARTENLISTE (mobil).
- *
- * BEIDE Darstellungen stehen im Markup, CSS blendet eine aus — die Umschaltung
- * ist CSS, nie JavaScript: `Grid.useBreakpoint` ist in Server Components
- * verboten, und ein JS-Breakpoint zeigt beim ersten Render die falsche Variante.
- * Vorbild: `feedback/_ui/Verlauf.tsx`.
- *
- * DER VORANGESTELLTE `.fi-liste` IST NICHT UEBERFLUESSIG — er ist der ganze
- * Punkt dieser Regel, und wer ihn als Ballast entfernt, baut den Fehler wieder
- * ein:
- *
- * `.nurDesktop` allein hat die Spezifitaet (0,1,0) — genau so viel wie antds
- * `.ant-table-wrapper`, auf dem diese Regel sitzt. Bei Gleichstand entscheidet
- * die Dokumentreihenfolge, und antds Stylesheet kommt SPAETER: die Regel matcht
- * und verliert trotzdem, still. Im Repo dreimal passiert (`docs/design/README.md`,
- * Falle 5); in der Shell stand der Menue-Knopf deswegen sichtbar auf dem
- * Desktop. `.fi-liste .nurDesktop` ist (0,2,0) und schlaegt antd unabhaengig von
- * der Reihenfolge. Kein `!important` — eine Klasse mehr reicht, und mehr als
- * noetig ueberfaehrt spaeter das eigene Modul-CSS.
- *
- * BASIS UND MEDIENABFRAGE tragen den Praefix. Nur die Medienabfrage zu erhoehen
- * liesze die Basis weiter gegen `.ant-table-wrapper` verlieren — auf dem Desktop
- * ist das folgenlos (beide sagen „sichtbar"), aber es waere ein Paar, dessen eine
- * Haelfte still nicht gilt.
- *
- * 767.98px und nicht 768px: bei exakt 768px gaelten sonst BEIDE Seiten und die
- * Reihenfolge im Stylesheet entschiede, welche gewinnt. 768px ist der EINZIGE
- * Breakpoint der Suite (`core/shell/shell-css.test.ts`); ein Modul, das bei einer
- * anderen Breite schaltet, ist bei 390px nicht zu unterscheiden und dazwischen
- * kaputt.
- *
- * Dieser Scan besitzt nur „die Klasse traegt Praefix und Medienabfrage". Ob die
- * Regel WIRKT, weisz nur ein echter Browser — das besitzt `e2e/files-mobil.spec.ts`
- * bei 390, 834 und 1280.
- */
-.fi-liste .nurDesktop {
-  display: block;
-}
-
-.fi-liste .nurMobil {
-  display: none;
-}
-
-@media (max-width: 767.98px) {
-  /* `.fi-liste` erneut voran — Begruendung oben an den Basisregeln. */
-  .fi-liste .nurDesktop {
-    display: none;
-  }
-
-  .fi-liste .nurMobil {
-    display: block;
-  }
 }

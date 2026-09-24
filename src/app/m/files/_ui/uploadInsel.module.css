@@ -1,8 +1,8 @@
 /*
  * DIE KOMPONENTENLOKALEN REGELN DER UPLOAD-INSEL (Plan §1 Festlegung C:
  * Komponenten-CSS liegt in einem `*.module.css` NEBEN seiner Komponente, nicht
- * in `_ui/files.css` — dort stehen ausschliesslich die Modulvariablen und die
- * eine Umschaltung, die sich zwei Ansichten teilen).
+ * in `_ui/files.css` — dort stehen ausschliesslich die Modulvariablen; die
+ * Umschaltung Tabelle/Kartenliste gehoert seit DRK-422 `core/tabelle`).
  *
  * DIESE DATEI WIRD VON `files-public-css.test.ts` MITGESCANNT (Glob
  * `**\/*.module.css`). Was dort gilt und hier eingehalten ist: kein

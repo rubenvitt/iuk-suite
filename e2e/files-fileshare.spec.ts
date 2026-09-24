@@ -1188,7 +1188,10 @@ test("10 — fail-closed auf den beiden Posteingang-Lesewegen, und die Abgabe bl
     { tabelle: "inbox_files", id: idF },
     async () => {
       await page.goto(`${V}/posteingang`);
-      await page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idF}`).click();
+      await page
+        .locator('[data-rolle="breitansicht"]')
+        .getByTestId(`files-inbox-av-wiederholen-${idF}`)
+        .click();
     },
     async () => {
       // Punkt 4 in `scanning`.
@@ -1210,13 +1213,15 @@ test("10 — fail-closed auf den beiden Posteingang-Lesewegen, und die Abgabe bl
 
   /*
    * PUNKT 6, ZWEITE STELLE: „Prüfung nicht möglich" MIT Wiederholen-Knopf, an
-   * jeder `error`-Zeile und an keiner anderen. Die Kartenliste steht im selben
-   * Markup (`nurMobil`), deshalb traegt jeder Griff die Darstellung im Namen.
+   * jeder `error`-Zeile und an keiner anderen. Der Posteingang ist seit DRK-422
+   * eine `Kartentabelle`: jede Zeile steht ZWEIMAL im DOM, und `getByText`/
+   * `getByTestId` sehen beide — deshalb eingerahmt wie die Detailseite oben.
    */
   await page.goto(`${V}/posteingang`);
-  await expect(page.getByTestId("files-posteingang-tabelle")).toBeVisible();
-  await expect(page.getByText("Prüfung nicht möglich").first()).toBeVisible();
-  await expect(page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idE}`)).toBeVisible();
-  await expect(page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idF}`)).toBeVisible();
-  await expect(page.getByTestId(`files-inbox-av-wiederholen-tabelle-${idD}`)).toHaveCount(0);
+  const posteingangBreit = page.locator('[data-rolle="breitansicht"]');
+  await expect(posteingangBreit).toBeVisible();
+  await expect(posteingangBreit.getByText("Prüfung nicht möglich").first()).toBeVisible();
+  await expect(posteingangBreit.getByTestId(`files-inbox-av-wiederholen-${idE}`)).toBeVisible();
+  await expect(posteingangBreit.getByTestId(`files-inbox-av-wiederholen-${idF}`)).toBeVisible();
+  await expect(posteingangBreit.getByTestId(`files-inbox-av-wiederholen-${idD}`)).toHaveCount(0);
 });
