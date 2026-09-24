@@ -342,6 +342,14 @@ impl Buch {
     pub fn verbindung(&self) -> &Connection {
         &self.conn
     }
+
+    /// Startet eine Transaktion auf der Verbindung dieses Buchs — die Naht, über die
+    /// `erfassung.rs` und `versiegeln.rs` innerhalb des Crates an die Verbindung kommen. Die
+    /// Tabellen `ausstehend`, `entwurf` und `nummern` sind für die App nur über die
+    /// `Buch`-Methoden dieser beiden Module erreichbar, nie unmittelbar.
+    pub(crate) fn transaktion(&mut self) -> Result<rusqlite::Transaction<'_>, BuchFehler> {
+        Ok(self.conn.transaction()?)
+    }
 }
 
 /// Baut aus einem Datenbankpfad den Pfad einer WAL-Begleitdatei (`-wal`, `-shm`) — SQLite
