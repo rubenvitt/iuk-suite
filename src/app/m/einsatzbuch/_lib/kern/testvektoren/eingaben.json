@@ -1,0 +1,213 @@
+{
+  "zeitzone": "Europe/Berlin",
+  "suite": {
+    "privat": {
+      "key_ops": [
+        "deriveBits"
+      ],
+      "ext": true,
+      "kty": "EC",
+      "x": "DVm8k8o69ZOmIthphe3JbX7nrvgtBNmOJ2PuSiYyuz0",
+      "y": "5YfP1O2mDSHW_1x2y3jdKdxEGnajRQ7G6BVboDY5Yi4",
+      "crv": "P-256",
+      "d": "HeAuNXYweMwTGRgguOneeqtDX9nbKeZ4X67fO9Y9GMo"
+    },
+    "oeffentlichSpki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDVm8k8o69ZOmIthphe3JbX7nrvgtBNmOJ2PuSiYyuz3lh8/U7aYNIdb/XHbLeN0p3EQadqNFDsboFVugNjliLg=="
+  },
+  "einsaetze": [
+    {
+      "v": 1,
+      "nummer": "2026-041",
+      "stichwort": "RD 2",
+      "beginnDatum": "2026-08-22",
+      "beginnZeit": "03:12",
+      "endeDatum": "2026-08-22",
+      "endeZeit": "04:40",
+      "strasse": "Lindenstraße 8",
+      "ort": "29525 Uelzen",
+      "objekt": "",
+      "fahrzeuge": [
+        {
+          "id": "11-83-1",
+          "typ": "RTW",
+          "kennung": "11-83-1",
+          "ruf": "Rotkreuz Uelzen 11-83-1",
+          "standort": "Uelzen"
+        }
+      ],
+      "personal": [
+        {
+          "id": "p4",
+          "name": "Dierks, Malte",
+          "quali": "NotSan",
+          "ov": "Uelzen",
+          "fahrzeugId": "11-83-1"
+        },
+        {
+          "id": "p8",
+          "name": "Hansen, Ole",
+          "quali": "RS",
+          "ov": "Uelzen",
+          "fahrzeugId": "11-83-1"
+        }
+      ],
+      "vorOrt": 0,
+      "transport": 1,
+      "notizen": ""
+    },
+    {
+      "v": 1,
+      "nummer": "2026-042",
+      "stichwort": "SanD",
+      "beginnDatum": "2026-08-29",
+      "beginnZeit": "13:00",
+      "endeDatum": null,
+      "endeZeit": null,
+      "strasse": "Am Sportzentrum",
+      "ort": "29549 Bad Bevensen",
+      "objekt": "Stadtfest, ca. 2.500 Besucher",
+      "fahrzeuge": [
+        {
+          "id": "12-19-1",
+          "typ": "MTF",
+          "kennung": "12-19-1",
+          "ruf": "Rotkreuz Bad Bevensen 12-19-1",
+          "standort": "Bad Bevensen"
+        }
+      ],
+      "personal": [
+        {
+          "id": "p11",
+          "name": "Kruse, Marie",
+          "quali": "SanH",
+          "ov": "Bad Bevensen",
+          "fahrzeugId": null
+        }
+      ],
+      "vorOrt": 11,
+      "transport": 2,
+      "notizen": "Zwei Transporte durch den Regel-RD übernommen."
+    },
+    {
+      "v": 1,
+      "nummer": "2026-043",
+      "stichwort": "MANV 10",
+      "beginnDatum": "2026-09-23",
+      "beginnZeit": "18:42",
+      "endeDatum": "2026-09-23",
+      "endeZeit": "21:05",
+      "strasse": "B4, Abfahrt Uelzen-Nord",
+      "ort": "29525 Uelzen",
+      "objekt": "VU Reisebus / Pkw",
+      "fahrzeuge": [
+        {
+          "id": "11-11-1",
+          "typ": "ELW 1",
+          "kennung": "11-11-1",
+          "ruf": "Rotkreuz Uelzen 11-11-1",
+          "standort": "Uelzen"
+        },
+        {
+          "id": "11-64-1",
+          "typ": "GW-San",
+          "kennung": "11-64-1",
+          "ruf": "Rotkreuz Uelzen 11-64-1",
+          "standort": "Uelzen"
+        }
+      ],
+      "personal": [
+        {
+          "id": "p1",
+          "name": "Albers, Jana",
+          "quali": "ZF",
+          "ov": "Uelzen",
+          "fahrzeugId": "11-11-1"
+        },
+        {
+          "id": "p13",
+          "name": "Meyer, Hanna",
+          "quali": "BtH",
+          "ov": "Rosche",
+          "fahrzeugId": "11-64-1"
+        }
+      ],
+      "vorOrt": 7,
+      "transport": 3,
+      "notizen": "Übergabe an OrgL RD um 19:05 Uhr.\n„Behandlungsplatz\" am GW-San aufgebaut. 😀\tTab \u0001    Ende"
+    }
+  ],
+  "bloecke": [
+    {
+      "versiegelt": "2026-08-22T04:43:00+02:00",
+      "cek": "kzCbu8rGd5DJAhD123hnsCDgemYbpvbF45DiH4isCww=",
+      "iv": "7hVai9J5JE5y+UvU",
+      "umschlag": {
+        "ephemer": {
+          "key_ops": [
+            "deriveBits"
+          ],
+          "ext": true,
+          "kty": "EC",
+          "x": "yq5pwNnTTYI-xJo35lrqzOcdf4yDt-jS9VlVmOzDlx8",
+          "y": "4FciC9PXFDuG8z-QkAvRroHdCMB42fytpFuo_a3agzs",
+          "crv": "P-256",
+          "d": "hJ91qW9hs6Fgbw4Dsml5T466S-_qJPpjLMqC8GfVQg0"
+        },
+        "iv": "7xE7NRbSIyuUwR18"
+      }
+    },
+    {
+      "versiegelt": "2026-08-29T19:33:00+02:00",
+      "cek": "r175lS/PqhaQqIy5Dq5sULpAqyoa4lgLv/vbXyrq/KY=",
+      "iv": "yysfDgzZFFA1M5VA",
+      "umschlag": {
+        "ephemer": {
+          "key_ops": [
+            "deriveBits"
+          ],
+          "ext": true,
+          "kty": "EC",
+          "x": "xNGtkRRLZGOOqO_TB1ubcFSJvnTmi4VvZa9KuwBXjt4",
+          "y": "idsR1T8VXVu5ivL8o9GdxkmzFzk5DlynPwyjbOWlYTM",
+          "crv": "P-256",
+          "d": "BDoaY9V19CXVE0lS5H_JDJeTEAuS7FtDnX9Py37Td0Q"
+        },
+        "iv": "fOabS1hzKpKfZNe5"
+      }
+    },
+    {
+      "versiegelt": "2026-09-23T21:08:00+02:00",
+      "cek": "pfhj5F3DOn2+AcraTGPdES6XQBSKcDKXzq6NHT+vyLA=",
+      "iv": "hryvYQdCFcPr1HA7",
+      "umschlag": {
+        "ephemer": {
+          "key_ops": [
+            "deriveBits"
+          ],
+          "ext": true,
+          "kty": "EC",
+          "x": "mHG-zxanS9qfXpceYFIQFsgtHyBcFs5qVNaBDLZA--8",
+          "y": "3W2-sRNkK3U2SCZXdIzlxAabflcpq4ob6BVbqOdvizk",
+          "crv": "P-256",
+          "d": "48jrakbxxKlnHyVo1PGadbjcjmBkMKc2kZg55iJRpVw"
+        },
+        "iv": "/tl7jbWJgE7PgnbJ"
+      }
+    }
+  ],
+  "export": {
+    "kennwort": "testvektor-kennwort",
+    "salt": "+067ljUW9DA5jo91a5q0PQ==",
+    "iv": "fUs8y7/8g9eBn59U",
+    "kopf": {
+      "erstellt": "2026-09-24T10:00:00+02:00",
+      "umfang": "alle",
+      "von": 1,
+      "bis": 3,
+      "anzahl": 3,
+      "quelle": "DRK-Bereitschaft Uelzen"
+    },
+    "exportiertVon": "Testvektor",
+    "quelle": "DRK-Bereitschaft Uelzen"
+  }
+}
