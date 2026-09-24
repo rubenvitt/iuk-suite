@@ -1,0 +1,41 @@
+/* IDA — Typografie. Rollen statt Werte (core/theme/schrift.ts). Verwaltung nutzt antds Leiter 12/14/16/20/24/30. */
+:root{
+/* Rollen der Suite (globals.css) — Rollennamen, keine Schriftnamen */
+--font-display:"Barlow Condensed","Arial Narrow",sans-serif;
+--font-body:"Geist",ui-sans-serif,system-ui,sans-serif;
+--font-mono:"Geist Mono",ui-monospace,monospace;
+/* Kiosk / Helfer-Weg: eigenes Trio (helfer.module.css --lb-*) */
+--kiosk-display:"Barlow Condensed","Arial Narrow",sans-serif; /* @kind font */
+--kiosk-body:"Barlow",system-ui,sans-serif; /* @kind font */
+--kiosk-mono:"IBM Plex Mono",ui-monospace,monospace; /* @kind font */
+
+/* Abendzettel (öffentliches Feedback): Serif nur für H1, „Danke." */
+--font-serif:"Newsreader","Geist",serif; /* @kind font */
+
+/* antd-Leiter (Verwaltung) */
+--fs-12:12px;--fs-14:14px;--fs-16:16px;--fs-20:20px;--fs-24:24px;--fs-30:30px;
+--fs-input-min:16px; /* Eingabefelder nie unter 16px — Zoom ist suiteweit gesperrt */
+
+/* SCHRIFT-Rollen, ausgeschrieben */
+--rolle-titel:600 24px/1.2 var(--font-display);        /* h1 Seitentitel, letter-spacing .02em */
+--rolle-untertitel:600 20px/normal var(--font-display); /* Abschnitt, Wortmarke (.07em), Modultitel */
+--rolle-kicker:600 12px/normal var(--font-display);     /* VERSAL, .09em — Kartentitel, Spaltenköpfe */
+--rolle-zahl:700 30px/1 var(--font-display);            /* KPI-Werte */
+--rolle-text:400 14px/1.5714 var(--font-body);          /* Fließtext, Tabellenzellen */
+--rolle-neben:400 12px/1.5 var(--font-body);            /* Meta, Hilfetexte */
+--rolle-mono:400 12px/1.5 var(--font-mono);             /* Journal, Codes, IDs */
+--ls-titel:0.02em;--ls-marke:0.07em;--ls-kicker:0.09em;
+
+/* Kiosk-Skala (eigene Anmutung erlaubt) */
+--kiosk-marke:700 20px/normal var(--kiosk-display);      /* LAGER|BUCH, .07em */
+--kiosk-gate-marke:700 36px/normal var(--kiosk-display);
+--kiosk-schirmkopf:700 17px/normal var(--kiosk-display); /* versal .08em */
+--kiosk-karten-titel:600 14px/normal var(--kiosk-display);/* versal .09em */
+--kiosk-tab:600 11px/normal var(--kiosk-display);        /* versal .09em */
+--kiosk-zeilenname:600 15px/1.25 var(--kiosk-body);
+--kiosk-meta:400 13px/1.5 var(--kiosk-body);
+--kiosk-knopf:700 15px/normal var(--kiosk-body);
+--kiosk-bestand:700 36px/1.05 var(--kiosk-display);
+--kiosk-codefeld:700 24px/1 var(--kiosk-mono);           /* .16em, zentriert */
+--kiosk-detail-titel:700 24px/1.12 var(--kiosk-display);
+}

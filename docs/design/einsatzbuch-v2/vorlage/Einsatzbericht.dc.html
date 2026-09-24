@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/ida-design-system-18c4cab1-da75-445d-bba4-9538ec01b8cd/tokens/fonts.css">
+</helmet>
+<article data-bericht="1" style="box-sizing:border-box;width:210mm;min-height:297mm;padding:14mm 16mm;background:#fff;color:#1a1d20;font:400 12pt/1.45 'Geist',system-ui,sans-serif;display:flex;flex-direction:column;gap:7mm">
+  <header style="display:flex;flex-direction:column;gap:4mm">
+    <div style="height:1.5mm;background:#c8000f"></div>
+    <div style="display:flex;align-items:flex-end;gap:6mm">
+      <div style="flex:1">
+        <div style="font:600 16pt/1 'Barlow Condensed',sans-serif;letter-spacing:.07em">EINSATZ<span style="color:#c8000f">BUCH</span></div>
+        <div style="font-size:10pt;color:#5b6570;margin-top:1mm">DRK-Bereitschaft Uelzen</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Einsatzbericht</div>
+        <div style="font:500 12pt 'Geist Mono',monospace">{{ b.nummer }}</div>
+      </div>
+    </div>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:1.5mm;padding-bottom:5mm;border-bottom:1px solid #d9dde1">
+    <h1 style="margin:0;font:600 28pt/1.05 'Barlow Condensed',sans-serif;letter-spacing:.02em">{{ b.stichwort }}</h1>
+    <div style="font-size:13pt">{{ b.ort }}</div>
+  </section>
+
+  <section style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4mm 6mm">
+    <div><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Beginn</div><div>{{ b.beginn }}</div></div>
+    <div><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Ende</div><div>{{ b.ende }}</div></div>
+    <div><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Dauer</div><div>{{ b.dauer }}</div></div>
+    <div style="grid-column:span 3"><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Objekt, Lage vor Ort</div><div>{{ b.objekt }}</div></div>
+  </section>
+
+  <section style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #d9dde1;border-radius:2mm">
+    <div style="padding:3mm 4mm;border-right:1px solid #d9dde1"><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Vor Ort behandelt</div><div style="font:700 24pt/1.1 'Barlow Condensed',sans-serif">{{ b.vorOrt }}</div></div>
+    <div style="padding:3mm 4mm;border-right:1px solid #d9dde1"><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Mit Transport</div><div style="font:700 24pt/1.1 'Barlow Condensed',sans-serif">{{ b.transport }}</div></div>
+    <div style="padding:3mm 4mm"><div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Patienten gesamt</div><div style="font:700 24pt/1.1 'Barlow Condensed',sans-serif">{{ b.gesamt }}</div></div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:2mm;break-inside:avoid">
+    <div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Fahrzeuge · {{ b.anzFz }}</div>
+    <sc-if value="{{ b.hatFz }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:28mm minmax(0,1fr) 24mm;border-top:1px solid #1a1d20">
+        <div style="padding:1.5mm 0;font-weight:600;border-bottom:1px solid #d9dde1">Typ</div><div style="padding:1.5mm 0;font-weight:600;border-bottom:1px solid #d9dde1">Funkrufname</div><div style="padding:1.5mm 0;font-weight:600;border-bottom:1px solid #d9dde1;text-align:right">Besatzung</div>
+        <sc-for list="{{ b.fahrzeuge }}" as="f" hint-placeholder-count="3">
+          <div style="padding:1.5mm 0;border-bottom:1px solid #d9dde1;font:600 13pt 'Barlow Condensed',sans-serif">{{ f.typ }}</div>
+          <div style="padding:1.5mm 0;border-bottom:1px solid #d9dde1;font:400 11pt 'Geist Mono',monospace;align-self:stretch;display:flex;align-items:center">{{ f.ruf }}</div>
+          <div style="padding:1.5mm 0;border-bottom:1px solid #d9dde1;text-align:right">{{ f.besatzung }}</div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ b.keineFz }}" hint-placeholder-val="{{ false }}"><div style="color:#5b6570">Keine Fahrzeuge angegeben.</div></sc-if>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:2mm">
+    <div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Eingesetztes Personal · {{ b.anzPe }}</div>
+    <sc-if value="{{ b.hatPe }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:8mm;border-top:1px solid #1a1d20">
+        <sc-for list="{{ b.personal }}" as="p" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 14mm 22mm;gap:2mm;padding:1.5mm 0;border-bottom:1px solid #d9dde1;break-inside:avoid">
+            <span>{{ p.name }}</span><span style="font:600 11pt 'Barlow Condensed',sans-serif;letter-spacing:.06em;color:#5b6570">{{ p.quali }}</span><span style="font-size:10pt;color:#5b6570;text-align:right">{{ p.fahrzeug }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ b.keinePe }}" hint-placeholder-val="{{ false }}"><div style="color:#5b6570">Kein Personal angegeben.</div></sc-if>
+  </section>
+
+  <sc-if value="{{ b.hatNotizen }}" hint-placeholder-val="{{ false }}">
+    <section style="display:flex;flex-direction:column;gap:2mm;break-inside:avoid">
+      <div style="font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570">Notizen</div>
+      <div style="white-space:pre-wrap">{{ b.notizen }}</div>
+    </section>
+  </sc-if>
+
+  <div style="flex:1"></div>
+  <section style="display:grid;grid-template-columns:30mm minmax(0,1fr);gap:1mm 4mm;padding:3mm 4mm;border:1px solid #d9dde1;border-radius:2mm;font-size:10pt;break-inside:avoid">
+    <div style="grid-column:span 2;font:600 10pt 'Barlow Condensed',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#5b6570;padding-bottom:1mm">Unverändert seit der Versiegelung</div>
+    <div style="color:#5b6570">Block</div><div>{{ b.block }} · versiegelt {{ b.versiegelt }}</div>
+    <div style="color:#5b6570">Fingerabdruck</div><div style="font-family:'Geist Mono',monospace;word-break:break-all">{{ b.hash }}</div>
+    <div style="color:#5b6570">Vorgänger</div><div style="font-family:'Geist Mono',monospace;word-break:break-all">{{ b.prev }}</div>
+    <div style="color:#5b6570">Kettenprüfung</div><div>{{ b.pruefung }}</div>
+  </section>
+  <footer style="display:flex;justify-content:space-between;gap:6mm;font-size:10pt;color:#5b6570;padding-top:2mm;border-top:1px solid #d9dde1">
+    <span>Erzeugt {{ b.erzeugt }} · {{ b.quelle }}</span><span>Vertraulich — nur für den Dienstgebrauch</span>
+  </footer>
+</article>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;210mm&quot;,&quot;height&quot;:&quot;297mm&quot;},&quot;b&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;,&quot;default&quot;:{&quot;nummer&quot;:&quot;2026-047&quot;,&quot;block&quot;:7,&quot;stichwort&quot;:&quot;MANV 10&quot;,&quot;ort&quot;:&quot;B4, Abfahrt Uelzen-Nord, 29525 Uelzen&quot;,&quot;objekt&quot;:&quot;VU Reisebus / Pkw&quot;,&quot;beginn&quot;:&quot;23.9.2026, 18:42 Uhr&quot;,&quot;ende&quot;:&quot;23.9.2026, 21:05 Uhr&quot;,&quot;dauer&quot;:&quot;2 h 23 min&quot;,&quot;vorOrt&quot;:7,&quot;transport&quot;:3,&quot;gesamt&quot;:10,&quot;fahrzeuge&quot;:[{&quot;typ&quot;:&quot;RTW&quot;,&quot;ruf&quot;:&quot;Rotkreuz Uelzen 11-83-1&quot;,&quot;besatzung&quot;:&quot;2&quot;}],&quot;anzFz&quot;:1,&quot;hatFz&quot;:true,&quot;keineFz&quot;:false,&quot;personal&quot;:[{&quot;name&quot;:&quot;Dierks, Malte&quot;,&quot;quali&quot;:&quot;NotSan&quot;,&quot;fahrzeug&quot;:&quot;RTW 11-83-1&quot;}],&quot;anzPe&quot;:1,&quot;hatPe&quot;:true,&quot;keinePe&quot;:false,&quot;notizen&quot;:&quot;&quot;,&quot;hatNotizen&quot;:false,&quot;hash&quot;:&quot;a3f9…&quot;,&quot;prev&quot;:&quot;7c21…&quot;,&quot;versiegelt&quot;:&quot;23.9.2026, 21:08 Uhr&quot;,&quot;pruefung&quot;:&quot;Kette intakt&quot;,&quot;quelle&quot;:&quot;Verwaltung&quot;,&quot;erzeugt&quot;:&quot;24.9.2026&quot;}}}"></script>
+</body>
+</html>

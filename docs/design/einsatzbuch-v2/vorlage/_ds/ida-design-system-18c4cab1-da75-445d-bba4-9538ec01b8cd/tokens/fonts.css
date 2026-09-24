@@ -1,0 +1,20 @@
+/* Webfonts der Suite — lokal gespiegelt von Google Fonts (latin). Registriert in src/app/layout.tsx via next/font. */
+@font-face{font-family:"Barlow";font-style:normal;font-weight:400;font-display:swap;src:url("../assets/fonts/barlow-400.woff2") format("woff2");}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url("../assets/fonts/barlow-500.woff2") format("woff2");}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url("../assets/fonts/barlow-600.woff2") format("woff2");}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:700;font-display:swap;src:url("../assets/fonts/barlow-700.woff2") format("woff2");}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url("../assets/fonts/barlow-condensed-600.woff2") format("woff2");}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:700;font-display:swap;src:url("../assets/fonts/barlow-condensed-700.woff2") format("woff2");}
+@font-face{font-family:"Geist";font-style:normal;font-weight:400;font-display:swap;src:url("../assets/fonts/geist-400.woff2") format("woff2");}
+@font-face{font-family:"Geist";font-style:normal;font-weight:500;font-display:swap;src:url("../assets/fonts/geist-400.woff2") format("woff2");}
+@font-face{font-family:"Geist";font-style:normal;font-weight:600;font-display:swap;src:url("../assets/fonts/geist-400.woff2") format("woff2");}
+@font-face{font-family:"Geist";font-style:normal;font-weight:700;font-display:swap;src:url("../assets/fonts/geist-400.woff2") format("woff2");}
+@font-face{font-family:"Geist Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../assets/fonts/geist-mono-400.woff2") format("woff2");}
+@font-face{font-family:"Geist Mono";font-style:normal;font-weight:600;font-display:swap;src:url("../assets/fonts/geist-mono-400.woff2") format("woff2");}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:400;font-display:swap;src:url("../assets/fonts/ibm-plex-mono-400.woff2") format("woff2");}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:500;font-display:swap;src:url("../assets/fonts/ibm-plex-mono-500.woff2") format("woff2");}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:600;font-display:swap;src:url("../assets/fonts/ibm-plex-mono-600.woff2") format("woff2");}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-weight:700;font-display:swap;src:url("../assets/fonts/ibm-plex-mono-700.woff2") format("woff2");}
+/* Newsreader — nur die öffentliche Feedback-Ansicht „Abendzettel" (feedback/f/[slugSecret]/Zustaende.tsx) */
+@font-face{font-family:"Newsreader";font-style:normal;font-weight:400;font-display:swap;src:url("../assets/fonts/newsreader-400.woff2") format("woff2");}
+@font-face{font-family:"Newsreader";font-style:normal;font-weight:600;font-display:swap;src:url("../assets/fonts/newsreader-400.woff2") format("woff2");}
