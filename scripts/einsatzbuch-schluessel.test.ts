@@ -1,11 +1,13 @@
 /**
- * Regressionssicherung für Fix-Runde 1 (DRK-471) an `einsatzbuch-schluessel.ts`:
+ * Regressionssicherung für `einsatzbuch-schluessel.ts` (DRK-471):
  *
- *  - Befund 1: `verdeckt()` durfte das Kennwort nie im Klartext ausgeben, auch nicht bei
- *    einer Korrektur (Rücktaste) mitten in der Eingabe.
- *  - Befund 2: `main()` durfte nie eine `schluesselpaar`-Zeile anlegen, bevor die
- *    Notfall-Sicherung sicher auf der Platte liegt — weder bei einem Aufruffehler
- *    (`--ausgabe` ohne Wert) noch bei einem Schreibfehler (Ordner nicht beschreibbar).
+ *  - `verdeckt()` darf das Kennwort nie im Klartext ausgeben, auch nicht bei einer Korrektur
+ *    (Rücktaste) mitten in der Eingabe.
+ *  - `main()` darf nie eine `schluesselpaar`-Zeile anlegen, bevor die Notfall-Sicherung sicher
+ *    auf der Platte liegt — weder bei einem Aufruffehler (`--ausgabe` ohne Wert) noch bei einem
+ *    Schreibfehler (Ordner nicht beschreibbar).
+ *  - Ein noch nicht vorhandener `--ausgabe`-Ordner entsteht selbst (rekursiv, Modus 0700),
+ *    statt den Aufruf mit ENOENT abzubrechen.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -22,7 +24,7 @@ const NOTFALL_KENNWORT = "ein-notfallkennwort-fuer-tests";
 const zaehlerSchluesselpaar = (db: TestDb): number =>
   (db.all(sql.raw("SELECT count(*) AS n FROM schluesselpaar")) as { n: number }[])[0].n;
 
-describe("verdeckt: kein Kennwort-Leck bei einer Korrektur (Befund 1, DRK-471)", () => {
+describe("verdeckt: kein Kennwort-Leck bei einer Korrektur (DRK-471)", () => {
   it("Rücktaste (\\x7f) mitten in der Eingabe erscheint nie auf der Ausgabe", async () => {
     const input = new PassThrough();
     const geschrieben: string[] = [];
@@ -50,7 +52,7 @@ describe("verdeckt: kein Kennwort-Leck bei einer Korrektur (Befund 1, DRK-471)",
   });
 });
 
-describe("main erzeugen: Sicherung entsteht vor der DB-Zeile (Befund 2, DRK-471)", () => {
+describe("main erzeugen: Sicherung entsteht vor der DB-Zeile (DRK-471)", () => {
   let vorherKek: string | undefined;
   let vorherKennwort: string | undefined;
   const wegwerfOrdner: string[] = [];
@@ -109,5 +111,20 @@ describe("main erzeugen: Sicherung entsteht vor der DB-Zeile (Befund 2, DRK-471)
     expect(html).toBeDefined();
     expect(statSync(path.join(ordner, json!)).mode & 0o777).toBe(0o600);
     expect(statSync(path.join(ordner, html!)).mode & 0o777).toBe(0o600);
+  });
+
+  it("(d) --ausgabe zeigt auf einen noch nicht vorhandenen (verschachtelten) Ordner: main() legt ihn selbst an, Modus 0700", async () => {
+    const db = testDb();
+    const wurzel = mkdtempSync(path.join(tmpdir(), "eb-schluessel-anlegen-"));
+    wegwerfOrdner.push(wurzel);
+    const ordner = path.join(wurzel, "noch-nicht-da", "verschachtelt");
+
+    const exit = await main(["erzeugen", "--ausgabe", ordner], db);
+
+    expect(exit).toBe(0);
+    expect(zaehlerSchluesselpaar(db)).toBe(1);
+    const info = statSync(ordner);
+    expect(info.isDirectory()).toBe(true);
+    expect(info.mode & 0o777).toBe(0o700);
   });
 });

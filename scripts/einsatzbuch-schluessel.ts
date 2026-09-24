@@ -8,7 +8,7 @@
  * Kennwort interaktiv (zweimal, verdeckt) oder aus EINSATZBUCH_NOTFALL_KENNWORT
  * (Tests/Automatisierung). Schlüsselmaterial erscheint nie in einer Log-Zeile.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { Writable } from "node:stream";
@@ -32,16 +32,16 @@ function stummeAusgabe(): Writable {
 }
 
 /**
- * Verdeckte Eingabe. FALLE (Befund Fix-Runde 1, DRK-471): die frühere Fassung ließ `readline`
- * selbst gegen `process.stdout` schreiben und filterte per `s.includes(frage)` — bei einer
- * Korrektur (Rücktaste) ruft Node intern `kRefreshLine` auf, das `prompt + this.line` in EINEM
- * Aufruf schreibt; die Zeichenkette beginnt mit der Frage und enthielt damit unbemerkt das bis
- * dahin eingegebene Kennwort im Klartext auf dem Terminal.
+ * Verdeckte Eingabe. `readline` darf hier niemals selbst gegen ein echtes Terminal schreiben:
+ * ruft es intern `kRefreshLine` auf (z. B. bei einer Rücktaste mitten in der Eingabe), schreibt
+ * es `prompt + this.line` in einem einzigen Aufruf — die Zeichenkette beginnt mit der Frage und
+ * enthielte damit unbemerkt das bis dahin eingegebene Kennwort im Klartext auf dem Terminal
+ * (DRK-471).
  *
- * Abhilfe: Die Frage wird direkt auf `output` geschrieben (kein readline-Umweg), und `readline`
- * bekommt einen komplett stummen Writable als eigenen `output` — es kann also gar nichts mehr
- * echoen, weder die Frage noch eine Zeilenkorrektur. `input`/`output` sind injizierbar, damit
- * sich das Verhalten ohne echtes TTY testen lässt (`einsatzbuch-schluessel.test.ts`).
+ * Deshalb schreibt diese Funktion die Frage selbst direkt auf `output` (kein readline-Umweg),
+ * und `readline` bekommt einen komplett stummen Writable als eigenen `output` — es kann also
+ * gar nichts mehr echoen, weder die Frage noch eine Zeilenkorrektur. `input`/`output` sind
+ * injizierbar, damit sich das Verhalten ohne echtes TTY testen lässt (`einsatzbuch-schluessel.test.ts`).
  */
 export function verdeckt(
   frage: string,
@@ -82,14 +82,19 @@ export async function main(argv: string[], db?: Db): Promise<number> {
   }
 
   if (befehl === "erzeugen") {
-    // Aufruffehler VOR jedem Schreiben (Befund Fix-Runde 1, DRK-471): sonst entstünde bei
-    // `--ausgabe` ohne Wert ein TypeError erst mitten im Ablauf, ggf. nach dem Kennwort-Dialog.
+    // Aufruffehler VOR jedem Schreiben prüfen: sonst entstünde bei `--ausgabe` ohne Wert ein
+    // TypeError erst mitten im Ablauf, ggf. nach dem Kennwort-Dialog (DRK-471).
     const i = rest.indexOf("--ausgabe");
     if (i >= 0 && rest[i + 1] === undefined) {
       console.error("--ausgabe braucht einen Ordner. Aufruf: pnpm einsatzbuch:schluessel erzeugen [--ausgabe <ordner>]");
       return 2;
     }
     const ordner = i >= 0 ? rest[i + 1] : process.cwd();
+    // Der Ordner entsteht schon hier, VOR dem Kennwortdialog: sonst bricht ein fehlender
+    // `--ausgabe`-Ordner erst NACH der (zweimaligen, verdeckten) Eingabe ab, und die Eingabe war
+    // umsonst. `recursive: true` legt auch fehlende Elternordner an; Modus 0700, weil hier gleich
+    // Notfall-Sicherungen mit Schlüsselmaterial hineingeschrieben werden.
+    mkdirSync(ordner, { recursive: true, mode: 0o700 });
 
     const echtDb = db ?? getModuleDb("einsatzbuch", schema);
     const tabelle = echtDb.all(sql`SELECT name FROM sqlite_master WHERE type='table' AND name='schluesselpaar'`);
@@ -98,10 +103,10 @@ export async function main(argv: string[], db?: Db): Promise<number> {
       return 2;
     }
 
-    // Reihenfolge ist die Abhilfe zu Befund 2 (Fix-Runde 1, DRK-471): erst die Sicherung auf
-    // die Platte (json + html), ERST DANACH die DB-Zeile. Scheitert das Schreiben (voller
-    // Platte, Ordner fehlt/schreibgeschützt), bricht `main()` hier ab, bevor `speichere()`
-    // je aufgerufen wurde — es existiert dann kein echtes Paar ohne Sicherung.
+    // Reihenfolge ist bewusst so: erst die Sicherung auf die Platte (json + html), ERST DANACH
+    // die DB-Zeile (DRK-471). Scheitert das Schreiben (volle Platte, Ordner nachträglich
+    // schreibgeschützt), bricht `main()` hier ab, bevor `speichere()` je aufgerufen wurde — es
+    // existiert dann kein echtes Paar ohne Sicherung.
     const { notfall, speichere } = await bereiteEchtesPaarVor(echtDb, { kennwort: await kennwort(true), jetzt: new Date() });
     const json = path.join(ordner, `einsatzbuch-notfall-${notfall.kopf.schluesselId}.json`);
     const html = path.join(ordner, `einsatzbuch-notfall-${notfall.kopf.schluesselId}.html`);
