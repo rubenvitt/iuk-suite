@@ -1,5 +1,5 @@
-import { ausBase64, ausUtf8, utf8, zuBase64, zufall, type Bytes } from "./bytes";
-import type { Exportdatei, Exportinhalt, Exportkopf } from "./format";
+import { ausBase64, ausUtf8, mitLaenge, utf8, zuBase64, zufall, type Bytes } from "./bytes";
+import { istExportinhalt, type Exportdatei, type Exportinhalt, type Exportkopf } from "./format";
 import { kanonisch } from "./kanonisch";
 
 export const EXPORT_ITERATIONEN = 600_000;
@@ -21,8 +21,8 @@ export async function verschluesseleExport(
   inhalt: Exportinhalt, kennwort: string, kopf: Exportkopf, z?: { salt: Bytes; iv: Bytes },
 ): Promise<Exportdatei> {
   if (kennwort.length < KENNWORT_MINDESTLAENGE) throw new Error(`Kennwort braucht mindestens ${KENNWORT_MINDESTLAENGE} Zeichen`);
-  const salt = z?.salt ?? zufall(16);
-  const iv = z?.iv ?? zufall(12);
+  const salt = mitLaenge(z?.salt ?? zufall(16), 16, "salt");
+  const iv = mitLaenge(z?.iv ?? zufall(12), 12, "iv");
   const schluessel = await kennwortSchluessel(kennwort, salt, EXPORT_ITERATIONEN);
   const daten = new Uint8Array(await crypto.subtle.encrypt(
     { name: "AES-GCM", iv, additionalData: utf8(kanonisch(kopf)) }, schluessel, utf8(kanonisch(inhalt)),
@@ -33,21 +33,6 @@ export async function verschluesseleExport(
     chiffre: { name: "AES-GCM", laenge: 256, iv: zuBase64(iv) },
     daten: zuBase64(daten),
   };
-}
-
-/** Wirft `KennwortFalsch`, wenn Kennwort oder Kopf nicht passen — beides ist für AES-GCM derselbe Fehler. */
-export async function entschluesseleExport(datei: Exportdatei, kennwort: string): Promise<Exportinhalt> {
-  const schluessel = await kennwortSchluessel(kennwort, ausBase64(datei.kdf.salt), datei.kdf.iterationen);
-  let klar: ArrayBuffer;
-  try {
-    klar = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: ausBase64(datei.chiffre.iv), additionalData: utf8(kanonisch(datei.kopf)) },
-      schluessel, ausBase64(datei.daten),
-    );
-  } catch {
-    throw new KennwortFalsch();
-  }
-  return JSON.parse(ausUtf8(new Uint8Array(klar))) as Exportinhalt;
 }
 
 const istObjekt = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -63,4 +48,52 @@ export function istExportdatei(x: unknown): x is Exportdatei {
     && typeof kdf.salt === "string"
     && istObjekt(chiffre) && chiffre.name === "AES-GCM" && chiffre.laenge === 256 && typeof chiffre.iv === "string"
     && typeof daten === "string";
+}
+
+/**
+ * Entschlüsselt eine Exportdatei. Reihenfolge ist bewusst, damit eine beschädigte oder fremde
+ * Datei sich als solche meldet statt als falsches Kennwort, und keine fremde Rundenzahl in die
+ * Schlüsselableitung gelangt: erst die Hülle (`istExportdatei`, prüft u. a. die Rundenzahl),
+ * dann Salt/IV/Daten auf gültiges Base64 und feste Länge (beides derselbe Formatfehler, noch
+ * vor der teuren Schlüsselableitung), erst danach die eigentliche Entschlüsselung — nur ein
+ * Fehler von `crypto.subtle.decrypt` wird zu `KennwortFalsch` — und zuletzt die Form des
+ * Klartexts (`istExportinhalt`): ein GCM-Rundlauf beweist nur, dass der Klartext mit
+ * *irgendeinem* Schlüssel erzeugt wurde, nicht dass er kanonisches JSON im erwarteten Format ist.
+ */
+export async function entschluesseleExport(datei: Exportdatei, kennwort: string): Promise<Exportinhalt> {
+  if (!istExportdatei(datei)) throw new Error("Keine gültige Exportdatei des Einsatzbuchs");
+
+  let salt: Bytes;
+  let iv: Bytes;
+  let daten: Bytes;
+  try {
+    salt = mitLaenge(ausBase64(datei.kdf.salt), 16, "salt");
+    iv = mitLaenge(ausBase64(datei.chiffre.iv), 12, "iv");
+    daten = ausBase64(datei.daten);
+  } catch {
+    throw new Error("Keine gültige Exportdatei des Einsatzbuchs");
+  }
+
+  const schluessel = await kennwortSchluessel(kennwort, salt, EXPORT_ITERATIONEN);
+  let klar: ArrayBuffer;
+  try {
+    klar = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv, additionalData: utf8(kanonisch(datei.kopf)) },
+      schluessel, daten,
+    );
+  } catch {
+    throw new KennwortFalsch();
+  }
+
+  const text = ausUtf8(new Uint8Array(klar));
+  const e: unknown = JSON.parse(text);
+  let kanonischesJson: boolean;
+  try {
+    kanonischesJson = kanonisch(e) === text;
+  } catch {
+    kanonischesJson = false;
+  }
+  if (!kanonischesJson) throw new Error("Inhalt der Exportdatei ist kein kanonisches JSON");
+  if (!istExportinhalt(e)) throw new Error("Inhalt der Exportdatei hat nicht die erwartete Form");
+  return e;
 }
