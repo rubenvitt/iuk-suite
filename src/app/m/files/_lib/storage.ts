@@ -194,17 +194,36 @@ const besitz = new AsyncLocalStorage<ReadonlySet<string>>();
  * `SchreibbesitzBelegt`. Freigegeben wird in JEDEM Ausgang, auch bei einem Wurf.
  */
 export async function mitSchreibbesitz<T>(ziel: BlobZiel, arbeit: () => Promise<T>): Promise<T> {
-  const pfad = pfadFuer(ziel);
+  return mitSchreibbesitzAller([ziel], arbeit);
+}
+
+/**
+ * Derselbe Besitz an MEHREREN Dateien auf einmal — alle oder keine (DRK-448).
+ * Ist auch nur eine belegt, wird keine genommen, und `SchreibbesitzBelegt` fliegt.
+ *
+ * Gebraucht vom Loeschen einer ganzen Freigabe: Bytes UND Zeilen muessen unter dem
+ * Besitz ALLER ihrer Dateien gehen. Nacheinander genommen, laege zwischen dem
+ * Loeschen der Bytes einer Datei und dem Sammel-DELETE der Zeilen ein Fenster, in
+ * dem ein Chunk die Zeile noch offen sieht und eine neue Zwischendatei anlegt —
+ * ein Blob, dessen Zeile Augenblicke spaeter verschwindet.
+ */
+export async function mitSchreibbesitzAller<T>(
+  ziele: readonly BlobZiel[],
+  arbeit: () => Promise<T>,
+): Promise<T> {
+  const pfade = ziele.map(pfadFuer);
   const belegt = belegtePfade();
-  if (belegt.has(pfad)) {
-    throw new SchreibbesitzBelegt(`[files] ${benenne(ziel)} wird gerade beschrieben`);
+  const besetzt = ziele.find((_, i) => belegt.has(pfade[i]));
+  if (besetzt !== undefined) {
+    throw new SchreibbesitzBelegt(`[files] ${benenne(besetzt)} wird gerade beschrieben`);
   }
-  belegt.add(pfad);
+  // Ohne `await` zwischen Pruefung und Eintrag: kein zweiter Vorgang kann dazwischen.
+  for (const pfad of pfade) belegt.add(pfad);
   try {
     const bisher = besitz.getStore() ?? new Set<string>();
-    return await besitz.run(new Set([...bisher, pfad]), arbeit);
+    return await besitz.run(new Set([...bisher, ...pfade]), arbeit);
   } finally {
-    belegt.delete(pfad);
+    for (const pfad of pfade) belegt.delete(pfad);
   }
 }
 
@@ -278,11 +297,13 @@ function uebersetze(fehler: unknown, was: string): unknown {
   return fehler;
 }
 
-async function entferneStill(pfad: string): Promise<void> {
+/** `true` = die Datei lag da und ist jetzt weg; `false` = sie fehlte schon. */
+async function entferneStill(pfad: string): Promise<boolean> {
   try {
     await unlink(pfad);
+    return true;
   } catch (fehler) {
-    if (errnoCode(fehler) === "ENOENT") return;
+    if (errnoCode(fehler) === "ENOENT") return false;
     throw uebersetze(fehler, pfad);
   }
 }
@@ -482,11 +503,16 @@ export async function groesse(ziel: BlobZiel): Promise<number> {
  * Idempotent: eine fehlende Datei ist KEIN Fehler. Loescht auch eine liegen gebliebene
  * Zwischendatei desselben Ziels — sonst bleibt nach einem Abbruch halber Muell liegen,
  * den nur noch ein Verzeichnislisting findet.
+ *
+ * Meldet, was tatsaechlich dalag (DRK-448) — auch eine LEERE Zwischendatei, die
+ * `fortschritt` von einer fehlenden nicht unterscheiden kann. Das Aufraeum-Protokoll
+ * zaehlt daraus, statt vorher zu raten.
  */
-export async function loesche(ziel: BlobZiel): Promise<void> {
+export async function loesche(ziel: BlobZiel): Promise<{ blob: boolean; teil: boolean }> {
   const pfad = pfadFuer(ziel);
-  await entferneStill(pfad);
-  await entferneStill(`${pfad}${TEIL_SUFFIX}`);
+  const blob = await entferneStill(pfad);
+  const teil = await entferneStill(`${pfad}${TEIL_SUFFIX}`);
+  return { blob, teil };
 }
 
 /**

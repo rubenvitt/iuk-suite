@@ -634,6 +634,61 @@ describe("Ein Aufraeum-Lauf", () => {
     expect(existsSync(join(ABLAGE, "inbox", "offenAlt01.part"))).toBe(false);
     expect(existsSync(join(ABLAGE, "inbox", "offenJung1.part"))).toBe(true);
     expect(existsSync(join(ABLAGE, "inbox", "offenBelgt.part"))).toBe(true);
+
+    // Das Protokoll zaehlt, was GING — nicht, was verplant war (DRK-448). Die
+    // gehaltene Abgabe war verplant und blieb stehen.
+    expect(ergebnis.zahlen).toMatchObject({ inboxGeloescht: 1, partsGeloescht: 1 });
+    expect(protokoll()[0]).toMatchObject({ inbox_geloescht: 1, parts_geloescht: 1 });
+  });
+
+  it("laesst einen sterbenden Share stehen, solange eine seiner Dateien beschrieben wird — und zaehlt ihn nicht (DRK-448)", async () => {
+    const jetzt = new Date();
+    await legeBestandAn(jetzt);
+    process.env.FILES_INBOX_AUFBEWAHRUNG_TAGE = "30";
+
+    const { mitSchreibbesitz } = await import("./storage");
+    let freigeben!: () => void;
+    const gehalten = mitSchreibbesitz(
+      { art: "share", shareId: SHARE_ALT, fileId: DATEI_HALB },
+      () => new Promise<void>((w) => (freigeben = w)),
+    );
+
+    const ergebnis = await fuehreAufraeumLaufAus();
+    freigeben();
+    await gehalten;
+
+    expect(ergebnis.fehler).toBeNull();
+    // Der Share bleibt GANZ: keine seiner Dateien verliert ihre Bytes, solange
+    // eine davon beschrieben wird — sonst zeigte er eine fertige Datei ohne Blob.
+    expect(await zaehle("shares")).toBe(1 + 1);
+    expect(existsSync(blobPfad(SHARE_ALT, DATEI_FERTIG))).toBe(true);
+    expect(existsSync(`${blobPfad(SHARE_ALT, DATEI_HALB)}.part`)).toBe(true);
+    // Gezaehlt wird nur der Rest: die einzeln verfallene Datei, Logzeile, Inbox.
+    expect(ergebnis.zahlen).toMatchObject({
+      sharesGeloescht: 0,
+      dateienGeloescht: 1,
+      bytesGeloescht: 50 + 40,
+      logzeilenGeloescht: 1,
+      inboxGeloescht: 1,
+      partsGeloescht: 1,
+    });
+    // Der naechste Lauf holt ihn.
+    const danach = await fuehreAufraeumLaufAus();
+    expect(danach.zahlen).toMatchObject({ sharesGeloescht: 1, dateienGeloescht: 2, bytesGeloescht: 300 });
+    expect(await zaehle("shares")).toBe(1);
+  });
+
+  it("zaehlt auch eine LEERE Zwischendatei als geloescht (DRK-448)", async () => {
+    const jetzt = new Date();
+    await legeBestandAn(jetzt);
+    // Abbruch zwischen `open` und dem ersten `write`: die `.part` liegt, ist aber leer.
+    writeFileSync(`${blobPfad(SHARE_LEBT, DATEI_LEBT)}.part`, "");
+
+    const ergebnis = await fuehreAufraeumLaufAus();
+
+    expect(existsSync(`${blobPfad(SHARE_LEBT, DATEI_LEBT)}.part`)).toBe(false);
+    // Die halbe Datei des sterbenden Shares UND die leere des lebenden.
+    expect(ergebnis.zahlen.partsGeloescht).toBe(2);
   });
 
   it("laeuft auf einem leeren Bestand durch, ohne etwas zu behaupten", async () => {

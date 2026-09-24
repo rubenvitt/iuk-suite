@@ -995,6 +995,34 @@ describe("shareLoeschenAction", () => {
     }
   });
 
+  it("waehrend eine Datei hochlaedt, loescht es NICHTS — auch nicht die fertigen Nachbarn (DRK-448)", async () => {
+    /*
+     * Ein laufender Chunk haelt den Schreibbesitz seiner Datei. Loeschte die
+     * Action daran vorbei, legte er nach dem Loeschen der Bytes eine neue
+     * Zwischendatei an, und das Sammel-DELETE nahm ihm die Zeile: ein
+     * Verzeichnis mit Bytes, die keiner Freigabe mehr gehoeren.
+     */
+    const opfer = await legeAn(GUELTIG, ["bericht.pdf", "video.mp4"]);
+    const fertig = await blob(opfer.shareId, opfer.dateien[0].fileId, "Inhalt", true);
+    const laeuft = await blob(opfer.shareId, opfer.dateien[1].fileId, "halb", false);
+
+    let freigeben!: () => void;
+    const gehalten = mitSchreibbesitz(laeuft, () => new Promise<void>((w) => (freigeben = w)));
+    const ergebnis = abgewiesen(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+    freigeben();
+    await gehalten;
+
+    expect(ergebnis.feldFehler.id).toMatch(/gerade hochgeladen/);
+    expect(rohZeilen("shares").map((z) => z.id)).toEqual([opfer.shareId]);
+    expect(await groesse(fertig)).toBe(6);
+    expect(await fortschritt(laeuft)).toBe(4);
+
+    // Losgelassen, geht es beim naechsten Versuch.
+    bestaetigt(await shareLoeschenAction(LEER, fd({ id: opfer.shareId })));
+    expect(rohZeilen("shares")).toHaveLength(0);
+    expect(ablageWurzelEintraege()).not.toContain(opfer.shareId);
+  });
+
   it("eine unbekannte ID wird benannt abgelehnt, und nichts verschwindet", async () => {
     const { shareId } = await legeAn();
     const ergebnis = abgewiesen(await shareLoeschenAction(LEER, fd({ id: "Abcdefghij" })));

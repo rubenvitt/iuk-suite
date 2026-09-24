@@ -137,6 +137,7 @@ import {
   loescheShareVerzeichnis,
   pruefeAblage,
   mitSchreibbesitz,
+  mitSchreibbesitzAller,
   scanPfad,
   schreibeStrom as schreibeStromRoh,
   type BlobZiel,
@@ -379,17 +380,26 @@ describe("lieseStrom und groesse — Fehlendes ist BlobFehlt, nicht ENOENT", () 
 });
 
 describe("loesche — still, idempotent, und die Zwischendatei mit", () => {
-  it("ist auf Fehlendes still", async () => {
-    await expect(loesche(shareZiel)).resolves.toBeUndefined();
-    await expect(loesche(inboxZiel)).resolves.toBeUndefined();
+  it("ist auf Fehlendes still — und meldet, dass nichts dalag", async () => {
+    await expect(loesche(shareZiel)).resolves.toEqual({ blob: false, teil: false });
+    await expect(loesche(inboxZiel)).resolves.toEqual({ blob: false, teil: false });
   });
 
   it("räumt eine liegen gebliebene Zwischendatei mit", async () => {
     await schreibeStrom(shareZiel, quelle("halb"), { maxBytes: 1024 });
     expect(existsSync(teilPfad)).toBe(true);
 
-    await loesche(shareZiel);
+    await expect(loesche(shareZiel)).resolves.toEqual({ blob: false, teil: true });
     expect(existsSync(teilPfad)).toBe(false);
+  });
+
+  // DRK-448: eine LEERE Zwischendatei zaehlt als geloescht. `fortschritt` liefert fuer
+  // sie 0 wie fuer eine fehlende — das Aufraeum-Protokoll zaehlte sie deshalb nicht.
+  it("meldet auch eine leere Zwischendatei als geloescht", async () => {
+    await schreibeStrom(shareZiel, quelle(), { maxBytes: 1024 });
+    expect(existsSync(teilPfad)).toBe(true);
+
+    await expect(loesche(shareZiel)).resolves.toEqual({ blob: false, teil: true });
   });
 
   // Still ist `loesche` nur bei ENOENT. Ein EACCES/EROFS ist ein Konfigurationsfehler und
@@ -410,9 +420,9 @@ describe("loesche — still, idempotent, und die Zwischendatei mit", () => {
     await schreibeStrom(shareZiel, quelle("ganz"), { maxBytes: 1024 });
     await abschliesse(shareZiel);
 
-    await loesche(shareZiel);
+    await expect(loesche(shareZiel)).resolves.toEqual({ blob: true, teil: false });
     expect(existsSync(zielPfad)).toBe(false);
-    await expect(loesche(shareZiel)).resolves.toBeUndefined();
+    await expect(loesche(shareZiel)).resolves.toEqual({ blob: false, teil: false });
   });
 });
 
@@ -761,6 +771,25 @@ describe("Schreibbesitz — exklusiv je Datei, und nur für den, der ihn hält (
       }),
     ).rejects.toThrow("Absicht");
     await expect(mitSchreibbesitz(shareZiel, async () => "frei")).resolves.toBe("frei");
+  });
+
+  it("mehrere Dateien auf einmal: alle oder keine (DRK-448)", async () => {
+    let freigeben!: () => void;
+    const gehalten = mitSchreibbesitz(inboxZiel, () => new Promise<void>((w) => (freigeben = w)));
+    // Eine belegte reicht — und die freie daneben bleibt dann AUCH frei.
+    await expect(
+      mitSchreibbesitzAller([shareZiel, inboxZiel], async () => "beide"),
+    ).rejects.toBeInstanceOf(SchreibbesitzBelegt);
+    await expect(mitSchreibbesitz(shareZiel, async () => "frei")).resolves.toBe("frei");
+    freigeben();
+    await gehalten;
+
+    // Im Besitz beider darf auf beide geschrieben werden; danach sind beide frei.
+    await mitSchreibbesitzAller([shareZiel, inboxZiel], async () => {
+      await schreibeStromRoh(shareZiel, quelle("a"), { maxBytes: 10 });
+      await schreibeStromRoh(inboxZiel, quelle("b"), { maxBytes: 10 });
+    });
+    await expect(mitSchreibbesitz(inboxZiel, async () => "danach")).resolves.toBe("danach");
   });
 
   it("abschliesse ersetzt nie ein schon bestehendes Ziel", async () => {

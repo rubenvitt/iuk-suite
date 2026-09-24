@@ -24,7 +24,7 @@ import s from "../(oeffentlich-inbox)/u/[token]/abgabe.module.css";
  *
  * `PUT /api/u/<token>/upload` (T31). Drei Eigenheiten, die man nicht raten kann:
  *
- * 1. **`name`, `kategorie` und `hinweis` NUR im ersten Chunk.** Der Server legt
+ * 1. **`name`, `kategorie`, `hinweis` und `schluessel` NUR im ersten Chunk.** Der Server legt
  *    die Zeile in `eroeffne()` an, und das läuft ausschließlich, solange keine
  *    `id` mitkommt. Am letzten Chunk angehängt wären sie stumm — der Hinweis
  *    einer 5-MiB-Datei ginge lautlos verloren.
@@ -85,8 +85,27 @@ type Eintrag = {
   wiederholbar: boolean;
 };
 
-/** Wo eine Übertragung steht — überlebt einen Fehlschlag, damit „Wiederholen" FORTSETZT. */
-type Stand = { id: string | null; ab: number };
+/**
+ * Wo eine Übertragung steht — überlebt einen Fehlschlag, damit „Wiederholen" FORTSETZT.
+ *
+ * `abgabeSchluessel` ist der Idempotenzschlüssel des ersten Chunks (DRK-448): geht
+ * dessen Antwort verloren, kennt dieses Formular die `id` nicht, und nur derselbe
+ * Schlüssel führt die Wiederholung zu derselben Abgabe statt zu einer zweiten.
+ */
+type Stand = { id: string | null; ab: number; abgabeSchluessel: string };
+
+/**
+ * 16 Zufallsbytes als base64url — 22 Zeichen, 128 Bit. `getRandomValues` und nicht
+ * `randomUUID`: Letzteres fehlt außerhalb eines sicheren Kontexts, und die Abgabe
+ * läuft auch über eine nackte Adresse im Einsatz-WLAN.
+ */
+function neuerAbgabeSchluessel(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 /** Was der Server auf einen Chunk antwortet (T31). */
 type ChunkAntwort = { id?: string; empfangen?: number; fertig?: boolean };
@@ -266,7 +285,14 @@ export function AbgabeFormular({ token }: { token: string }) {
     const datei = dateienRef.current.get(schluessel);
     if (datei === undefined) return;
 
-    const stand: Stand = standRef.current.get(schluessel) ?? { id: null, ab: 0 };
+    // SOFORT gemerkt, nicht erst nach der ersten Antwort: fehlt genau die, muss die
+    // Wiederholung denselben Schlüssel schicken.
+    const stand: Stand = standRef.current.get(schluessel) ?? {
+      id: null,
+      ab: 0,
+      abgabeSchluessel: neuerAbgabeSchluessel(),
+    };
+    standRef.current.set(schluessel, stand);
     aktualisiere(schluessel, { zustand: "laeuft", fehler: null, zusatz: null, wiederholbar: false });
 
     try {
@@ -284,6 +310,7 @@ export function AbgabeFormular({ token }: { token: string }) {
           p.set("name", datei.name);
           if (kat !== "") p.set("kategorie", kat);
           if (notiz !== "") p.set("hinweis", notiz);
+          p.set("schluessel", stand.abgabeSchluessel);
         } else {
           p.set("id", stand.id);
         }
@@ -305,9 +332,15 @@ export function AbgabeFormular({ token }: { token: string }) {
           const koerper = (await antwort.json().catch(() => ({}))) as Fehlerkoerper;
           // Der Server nennt bei 409 seinen Stand. Ihn zu übernehmen macht die
           // Wiederholung zu einer Fortsetzung statt zu einem zweiten Anfang.
-          const erwartet = (koerper as { erwartetesAb?: unknown }).erwartetesAb;
+          const { erwartetesAb: erwartet, id: bekannt } = koerper as {
+            erwartetesAb?: unknown;
+            id?: unknown;
+          };
           if (typeof erwartet === "number") {
             stand.ab = erwartet;
+            // Die `id` nennt der Server mit, weil er die Abgabe über den Schlüssel
+            // gefunden haben kann — dann kennt dieses Formular sie noch nicht.
+            if (typeof bekannt === "string") stand.id = bekannt;
             standRef.current.set(schluessel, stand);
           }
           throw new Abgelehnt(
