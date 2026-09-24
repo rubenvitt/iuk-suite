@@ -72,4 +72,22 @@ describe("Kettenliste", () => {
     expect(zeile.textContent).not.toContain("10 Patienten");
     expect(zeile.getAttribute("aria-label")).toBe("Block 3, verschlüsselt");
   });
+
+  it("die Hashes sind textlich getrennt, nicht nur durchs Icon", async () => {
+    await mount(<Kettenliste eintraege={eintraege} gewaehlt={null} onWaehle={() => {}} fuss={{ text: "x" }} />);
+    expect(query('button[data-block="3"]').textContent).toContain("#cccccccc ⛓ #bbbbbbbb");
+  });
+
+  it("bei doppelter Blocknummer (selbst gebaute Datei) ist höchstens eine Zeile gewählt", async () => {
+    const doppelt: Listeneintrag[] = [
+      { block: 3, nummer: "2026-043", stichwort: "MANV 10", ort: null, versiegelt: "23.9.2026, 21:08 Uhr", hash: h("c"), prev: h("b"), knoten: "neutral" },
+      { block: 3, nummer: "2026-044", stichwort: "RD 3", ort: null, versiegelt: "23.9.2026, 22:00 Uhr", hash: h("d"), prev: h("c"), knoten: "neutral" },
+    ];
+    await mount(<Kettenliste eintraege={doppelt} gewaehlt={3} onWaehle={() => {}} fuss={{ text: "x" }} />);
+    const zeilen = queryAll('button[data-block="3"]');
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen.filter((z) => z.getAttribute("aria-pressed") === "true")).toHaveLength(1);
+    expect(zeilen[0].getAttribute("aria-pressed")).toBe("true");
+    expect(zeilen[1].getAttribute("aria-pressed")).toBe("false");
+  });
 });

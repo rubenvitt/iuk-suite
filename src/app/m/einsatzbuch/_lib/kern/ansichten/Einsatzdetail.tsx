@@ -2,9 +2,9 @@
 
 import type { ReactNode } from "react";
 import type { Einsatz } from "../format";
+import { einsatzTexte } from "../bericht";
 import { zeitpunktText } from "../zeit";
 import s from "./ansichten.module.css";
-import { einsatzTexte } from "./modell";
 
 export interface EinsatzdetailProps {
   /** `nummer` ist die Blocknummer; `versiegelt` ist ISO mit Offset wie im Blockkopf und wird hier in `zeitzone` formatiert. */

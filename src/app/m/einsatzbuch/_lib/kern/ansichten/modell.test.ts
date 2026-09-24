@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import erwartetJson from "../testvektoren/erwartet.json";
 import { TESTEINSAETZE } from "../testvektoren/einsaetze";
 import type { Block } from "../format";
-import { chipText, einsatzTexte, kettenzustandAus, knotenFuer, pruefSatz } from "./modell";
+import { einsatzTexte } from "../bericht";
+import { chipText, kettenzustandAus, knotenFuer, pruefSatz } from "./modell";
 
 const bloecke = (erwartetJson as unknown as { bloecke: Block[] }).bloecke;
 

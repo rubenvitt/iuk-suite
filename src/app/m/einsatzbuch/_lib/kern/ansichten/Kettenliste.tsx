@@ -48,6 +48,9 @@ function Inhalt({ e }: { e: Listeneintrag }) {
  * Umschaltknopf; die gewählte trägt `aria-pressed="true"`.
  */
 export function Kettenliste({ eintraege, gewaehlt, onWaehle, kopfRechts, fuss }: KettenlisteProps) {
+  // Bei doppelter Blocknummer (selbst gebaute Datei) waehlt nur der erste Treffer die Zeile aus —
+  // sonst truegen zwei Zeilen gleichzeitig aria-pressed="true".
+  const gewaehlterIndex = gewaehlt === null ? -1 : eintraege.findIndex((e) => e.block === gewaehlt);
   return (
     <section aria-label="Einsatzkette" className={`${s.wurzel} ${s.karte} ${s.liste}`}>
       <div className={s.listenkopf} data-kopf="">
@@ -55,8 +58,8 @@ export function Kettenliste({ eintraege, gewaehlt, onWaehle, kopfRechts, fuss }:
         {kopfRechts && <span className={s.kopfRechts}>{kopfRechts}</span>}
       </div>
       <ol className={s.kette}>
-        {eintraege.map((e) => (
-          <li key={e.block} className={s.glied}>
+        {eintraege.map((e, i) => (
+          <li key={`${e.block}-${i}`} className={s.glied}>
             <div className={s.spur} aria-hidden="true">
               <div className={s.linie} />
               <div className={s.knoten} data-knoten={e.knoten}>
@@ -68,7 +71,7 @@ export function Kettenliste({ eintraege, gewaehlt, onWaehle, kopfRechts, fuss }:
               type="button"
               className={s.zeile}
               data-block={e.block}
-              aria-pressed={e.block === gewaehlt}
+              aria-pressed={i === gewaehlterIndex}
               aria-label={knopfName(e)}
               onClick={() => onWaehle(e.block)}
             >
@@ -82,6 +85,9 @@ export function Kettenliste({ eintraege, gewaehlt, onWaehle, kopfRechts, fuss }:
               <div className={`${s.mono} ${s.hashes}`}>
                 <span>#{kurz(e.hash)}</span>
                 <Zeichen name="verketten" groesse={12} />
+                {/* Das Icon ist rein visuell (aria-hidden); ohne dieses Zeichen klebt der
+                    Text/Kopie-Inhalt zu "#hash8#prev8" zusammen. */}
+                <span className={s.srOnly}> ⛓ </span>
                 <span>#{kurz(e.prev)}</span>
               </div>
             </button>

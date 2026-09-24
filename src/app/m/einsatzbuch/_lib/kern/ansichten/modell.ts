@@ -1,6 +1,5 @@
-import type { Block, Einsatz } from "../format";
+import type { Block } from "../format";
 import type { Kettenergebnis } from "../kette";
-import { datumText, dauerMinuten, dauerText } from "../zeit";
 
 /**
  * Anzeigemodell der geteilten Ansichten (Reader, Verwaltung, Desktop-App). Rein und ohne
@@ -70,21 +69,4 @@ export interface Listeneintrag {
 export function knotenFuer(block: number, z: Kettenzustand): Listeneintrag["knoten"] {
   if (z.art === "gebrochen") return block < z.block ? "geprueft" : block === z.block ? "gebrochen" : "neutral";
   return z.art === "intakt" ? "geprueft" : "neutral";
-}
-
-export interface Einsatztexte { ort: string; objekt: string; beginn: string; ende: string; dauer: string }
-
-/**
- * Ort, Objekt, Beginn, Ende und Dauer nach denselben Regeln wie `bericht()` (`../bericht.ts`),
- * damit Detailansicht und Berichtsblatt für denselben Einsatz dasselbe zeigen.
- */
-export function einsatzTexte(e: Einsatz, zeitzone: string): Einsatztexte {
-  const minuten = dauerMinuten(e, zeitzone);
-  return {
-    ort: [e.strasse, e.ort].filter(Boolean).join(", ") || "—",
-    objekt: e.objekt || "—",
-    beginn: `${datumText(e.beginnDatum)}, ${e.beginnZeit} Uhr`,
-    ende: e.endeDatum && e.endeZeit ? `${datumText(e.endeDatum)}, ${e.endeZeit} Uhr` : "nicht angegeben",
-    dauer: minuten === null || minuten < 0 ? "—" : dauerText(minuten),
-  };
 }
