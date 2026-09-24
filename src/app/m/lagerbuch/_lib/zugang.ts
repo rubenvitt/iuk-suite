@@ -35,7 +35,7 @@ export type Viewer = { sub: string; groups: string[]; name: string | null; email
  * schreibt `name` und `email` in `users`; eine zweifeldrige Kopie truege still
  * `null` in beide Spalten und erzeugte damit den benannten Defektzustand aus
  * §4.13 — eine ROHE `sub`-Kennung im Journal statt eines Namens. Die Werte liegen
- * an: `core/auth/config.ts:163-176` laesst `session.user.name/email` unangetastet
+ * an: `core/auth/config.ts`, Callback `session`, laesst `session.user.name/email` unangetastet
  * und setzt nur `groups`, `isAdmin` und `id`.
  *
  * Ohne `user.id` gibt es keinen Viewer; ein fehlender `groups`-Claim ist die

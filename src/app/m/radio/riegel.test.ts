@@ -934,7 +934,7 @@ describe("Pflicht 17 — dieses Modul nimmt von der Suite-Admin-Abkuerzung Absta
 
   it("findet keinen Treffer auf isAdmin", () => {
     /*
-     * `isAdmin` heisst in der Suite „ist BETREIBER" (core/auth/config.ts:202-205), nicht „darf
+     * `isAdmin` heisst in der Suite „ist BETREIBER" (core/auth/config.ts, Callback `session`), nicht „darf
      * radio verwalten". Ein 1:1-Port aus dem Alt-Bestand waere TYPKORREKT und liefe durch
      * `pnpm build` — und BEIDE Dev-Logins der Suite setzen `isAdmin = true`. Die E2E
      * blieben also gruen, waehrend die gesamte Radio-Verwaltung fuer jeden Suite-Betreiber
