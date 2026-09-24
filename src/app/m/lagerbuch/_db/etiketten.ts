@@ -92,7 +92,9 @@ export async function etikettenDaten(db: DB): Promise<EtikettenDaten> {
    */
   const artikelEtiketten = await Promise.all(
     arts.map(async (a) => {
-      const url = `${basis}/a/${a.id}`;
+      // Kodiert seit DRK-394, wie `tokenZielPfad` — fuer jede nanoid-Id ist das
+      // zeichengleich mit dem Bestand; eine Id mit `#` verloere sonst ihren Rest.
+      const url = `${basis}/a/${encodeURIComponent(a.id)}`;
       return { id: a.id, name: a.name, fach: a.fach, url, qr: await qrSvg(url) };
     }),
   );
@@ -281,7 +283,7 @@ export async function ortEtikettenDaten(
      * abtippbare Adresse auf etwas anderes. Deshalb entsteht die Adresse HIER,
      * einmal, aus derselben Entscheidung wie der QR.
      */
-    const url = code ? `${basis}/t/${code}` : `${basis}/o/${o.id}`;
+    const url = code ? `${basis}/t/${code}` : `${basis}/o/${encodeURIComponent(o.id)}`;
     return {
       id: o.id,
       name: o.name,

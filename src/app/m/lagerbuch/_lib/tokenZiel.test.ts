@@ -1,6 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { nanoid, urlAlphabet } from "nanoid";
 import { tokenZielPfad, fahrzeugBindungAus } from "./tokenZiel";
 import { sanitizeReturnTo } from "./returnTo";
+
+/**
+ * DEN PFAD SO LESEN, WIE DER BROWSER IHN LIEST — DRK-394. Ueber `URL`, nicht per
+ * `slice` ab dem ersten `?`: nur so faellt ein `#` in der Id als FRAGMENT auf,
+ * das beim Server nie ankommt. Die Basis ist beliebig, der Pfad ist lokal.
+ */
+const wieDerBrowser = (pfad: string) => new URL(pfad, "https://lagerbuch.example.org");
+
+/** Ids, die ein importierter Bestand tragen KOENNTE — `lagerorte.id` und `artikel.id` nehmen jeden Text. */
+const TRENNZEICHEN_IDS = ["rtw#1", "a&x=1", "a?b", "100%", "rtw 1", "a+b", "a%2Fb", "a/b", "a:b", "rtw#1&fz=ktw-9"];
 
 describe("tokenZielPfad — wohin ein eingeloester Code fuehrt", () => {
   it("fuehrt einen Artikel-Code aufs Artikel-Detail", () => {
@@ -37,6 +48,59 @@ describe("tokenZielPfad — wohin ein eingeloester Code fuehrt", () => {
     for (const [typ, id] of [["artikel", "a"], ["fahrzeug", "f"], [null, null]] as const) {
       expect(sanitizeReturnTo(tokenZielPfad(typ, id))).toBe(tokenZielPfad(typ, id));
     }
+    // DRK-394: auch fuer eine Id mit `:` — roh eingesetzt verwarf der Schutz sie.
+    for (const id of TRENNZEICHEN_IDS) {
+      expect(sanitizeReturnTo(tokenZielPfad("artikel", id)), id).toBe(tokenZielPfad("artikel", id));
+      expect(sanitizeReturnTo(tokenZielPfad("fahrzeug", id)), id).toBe(tokenZielPfad("fahrzeug", id));
+    }
+  });
+});
+
+describe("tokenZielPfad — eine Id mit URL-Trennzeichen kommt VOLLSTAENDIG an (DRK-394)", () => {
+  it("die Lesart faengt den Riss ueberhaupt — Gegenprobe am alten, rohen Pfad", () => {
+    // Ohne diese Zeile waere der Test darunter womoeglich blind: roh eingesetzt
+    // sieht der Server von `rtw#1` nur `rtw`, und genau das muss die Lesart zeigen.
+    const roh = wieDerBrowser("/helfer/check?fz=rtw#1");
+    expect(roh.searchParams.get("fz")).toBe("rtw");
+    expect(roh.hash).toBe("#1");
+  });
+
+  it("der Artikel-Zweig traegt die ganze Id in EINEM Pfadsegment", () => {
+    for (const id of TRENNZEICHEN_IDS) {
+      const url = wieDerBrowser(tokenZielPfad("artikel", id));
+      const segmente = url.pathname.split("/");
+      expect(segmente, id).toHaveLength(3);
+      expect(segmente[1], id).toBe("a");
+      expect(decodeURIComponent(segmente[2]), id).toBe(id);
+      expect(url.search, id).toBe("");
+      expect(url.hash, id).toBe("");
+    }
+  });
+
+  it("der Fahrzeug-Zweig traegt die ganze Id als GENAU EIN `fz`", () => {
+    for (const id of TRENNZEICHEN_IDS) {
+      const url = wieDerBrowser(tokenZielPfad("fahrzeug", id));
+      expect(url.pathname, id).toBe("/helfer/check");
+      expect(url.searchParams.getAll("fz"), id).toEqual([id]);
+      expect([...url.searchParams.keys()], id).toEqual(["fz"]);
+      expect(url.hash, id).toBe("");
+    }
+  });
+
+  /**
+   * DIE ZUSAGE, DIE DIE AUFGEHOBENE ZEICHENGLEICHHEIT ERSETZT. Die Alt-Anwendung
+   * vergibt jede Artikel- und Fahrzeug-Id ueber `nanoid()`, der Handlager heisst
+   * `handlager` — fuer all diese Ids ist der Landepfad Zeichen fuer Zeichen der,
+   * den die Alt-Fassung roh gebaut hat. Bestehende Etiketten und Kaertchen
+   * landen also genau wie vorher.
+   */
+  it("fuer jede Id der Alt-Anwendung ist der Pfad ZEICHENGLEICH mit dem rohen", () => {
+    const ids = [urlAlphabet, "handlager", ...Array.from({ length: 50 }, () => nanoid())];
+    for (const id of ids) {
+      expect(tokenZielPfad("artikel", id)).toBe(`/a/${id}`);
+      expect(tokenZielPfad("fahrzeug", id)).toBe(`/helfer/check?fz=${id}`);
+    }
+    expect(ids).toHaveLength(52);
   });
 });
 

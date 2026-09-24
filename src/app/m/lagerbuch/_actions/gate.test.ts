@@ -346,7 +346,7 @@ describe("einloesenAmGate — Schritt 5: Erfolg", () => {
   });
 
   it("leitet auf einen AEUSSEREN Pfad um — auch im Artikel-Zweig", async () => {
-    // Die zweite Haelfte von `tokenZielPfad` (`tokenZiel.ts:17`). Die Pfade
+    // Die zweite Haelfte von `tokenZielPfad` (Zweig `artikel`). Die Pfade
     // tragen die AEUSSERE Form (`/a/<id>`), nicht die innere
     // (`/m/lagerbuch/a/<id>`): sie landen in einem `redirect()`, also beim
     // Browser, und der kennt nur den Modul-Host.
