@@ -429,7 +429,7 @@ test.describe("radio-Zugang", () => {
     const email = "t3-suite@localtest.me";
     /*
      * Die Kennung, die der Server aus dieser Anmeldung baut: `dev:${email}`
-     * (`src/core/auth/config.ts:63`). Sie ist der `sub` der Suite-Sitzung und damit genau
+     * (`src/core/auth/config.ts`, Provider `dev-login`). Sie ist der `sub` der Suite-Sitzung und damit genau
      * der Wert, den `_lib/ausleihZugang.ts`, `befund` Schritt 2 als `weg: "suite"` fuehrt.
      */
     const kennung = `dev:${email}`;

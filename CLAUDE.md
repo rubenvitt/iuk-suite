@@ -156,7 +156,9 @@ Feldzuordnung — zusätzlich feldweise Stichproben gegen die Alt-Anwendung.
 4. Wer Kommentare aufräumt, hält die **Zeilenzahl** der Datei — sonst veralten fremde Zeilenanker.
 
 `src/core/kommentaranker.test.ts` prüft, dass jeder Zeilenanker auf eine existierende Zeile zeigt;
-Drift innerhalb einer Datei meldet `pnpm anker:drift [pfad]` (bewusst kein Tor).
+Drift innerhalb einer Datei meldet `pnpm anker:drift [pfad]` (bewusst kein Tor). Regel 1 ist ein
+Tor: `pnpm anker:neu` meldet jeden **neuen** Zeilenanker ins eigene Repo gegenüber `main`, CI
+(`lint`) bricht daran. Verschobene Anker zählen nicht, eine nachgezogene Zahl schon.
 
 ## Tests
 

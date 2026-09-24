@@ -217,7 +217,7 @@ describe("kein session.user.isAdmin im Modul", () => {
      * waehrend die gesamte Lagerbuch-Verwaltung fuer jeden Suite-Betreiber offen
      * stuende (Falle 13).
      *
-     * `isAdmin` heisst in der Suite „ist BETREIBER" (`core/auth/config.ts:170`),
+     * `isAdmin` heisst in der Suite „ist BETREIBER" (`core/auth/config.ts`, Callback `session`),
      * nicht „darf lagerbuch verwalten". Betrieb und Einsicht sind zwei Rollen:
      * hinter /verwaltung liegen das Journal mit KLARNAMEN und der Etikettenbogen
      * mit den Token-Codes IM KLARTEXT — dem Secret selbst.
