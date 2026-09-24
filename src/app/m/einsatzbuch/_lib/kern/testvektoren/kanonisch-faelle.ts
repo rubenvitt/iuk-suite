@@ -14,7 +14,7 @@ export const KANONISCH_FAELLE: { name: string; wert: unknown }[] = [
   // U+2028/U+2029/DEL/U+0080/BOM ausdrücklich als \u-Escape, nie als roher Codepunkt im
   // Quelltext: Ein Editor ersetzt einen rohen Zeilentrenner (U+2028/U+2029) sonst still durch
   // ein gewöhnliches Leerzeichen — genau das ist hier schon einmal passiert.
-  { name: "roh-bleibt-roh", wert: "ä ß „x“ 😀     \u007f \u0080 ﻿" },
+  { name: "roh-bleibt-roh", wert: "ä ß „x“ 😀 \u2028 \u2029 \u007f \u0080 \uFEFF" },
   { name: "schluesselsortierung", wert: { b: 1, a: { z: [3, 2, 1], "": null, "10": true, "2": false }, "ä": "x", A: "y" } },
   { name: "zahlen", wert: [0, 1, -1, 999, 9007199254740991, -9007199254740991] },
   { name: "leer", wert: { o: {}, a: [], s: "" } },

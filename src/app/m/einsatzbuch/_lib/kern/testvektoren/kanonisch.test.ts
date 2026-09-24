@@ -23,17 +23,22 @@ describe("JCS-Randfälle (Format-Vertrag mit der Desktop-App)", () => {
   /**
    * Stolperdraht: In `kanonisch-faelle.ts` ist ein roher Zeilentrenner (U+2028/U+2029) einmal
    * still zu einem gewöhnlichen Leerzeichen geworden — ein Editor kann das mit unsichtbaren
-   * Codepunkten im Quelltext jederzeit wieder tun. Dieser Test verlangt die Codepunkte
-   * ausdrücklich, damit ein solcher Verlust hier auffällt statt nur im Rust-Vergleich.
+   * Codepunkten im Quelltext jederzeit wieder tun. Kein anderer Test bemerkt das:
+   * `kanonisch.json` wird aus denselben Fällen erzeugt, und `kanonisch.rs` rechnet nur gegen
+   * diese Datei nach — ein Verlust in `kanonisch-faelle.ts` bliebe also unbemerkt, solange
+   * `kanonisch.json` nicht neu erzeugt wird. Dieser Test verlangt die Codepunkte ausdrücklich.
+   * Die Vergleichswerte stehen deshalb selbst als `\u`-Escape da, nie als roher Codepunkt:
+   * sonst träfe dieselbe stille Ersetzung Quelltext und Vergleichswert gleichermaßen, und der
+   * Stolperdraht bliebe wirkungslos.
    */
   it("roh-bleibt-roh enthält U+2028, U+2029, DEL und BOM als echte Codepunkte", () => {
     const fall = KANONISCH_FAELLE.find((f) => f.name === "roh-bleibt-roh");
     expect(typeof fall?.wert).toBe("string");
     const wert = fall!.wert as string;
-    expect(wert).toContain(" ");
-    expect(wert).toContain(" ");
+    expect(wert).toContain("\u2028");
+    expect(wert).toContain("\u2029");
     expect(wert).toContain("\u007f");
-    expect(wert).toContain("﻿");
+    expect(wert).toContain("\uFEFF");
   });
   it("steuerzeichen enthält alle erwarteten Steuerzeichen als echte Codepunkte", () => {
     const fall = KANONISCH_FAELLE.find((f) => f.name === "steuerzeichen");
