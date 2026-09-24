@@ -150,17 +150,18 @@ export function StammdatenFormular({
         <>
           {text("gruppe", "Gruppe")}
           {text("name", "Stichwort")}
+          {/* Bewusst ohne `min`/`max` wie bei der Frist (`EinstellungenFormular`): antd klemmte
+              getippte 10000 beim Verlassen still auf 9999. So lehnt der Server sie am Feld ab. */}
           <Feld id={`${basis}-reihenfolge`} label="Reihenfolge" fehler={feldFehler.reihenfolge}>
             <InputNumber
               id={`${basis}-reihenfolge`}
-              min={0}
-              max={9999}
               precision={0}
               value={z.reihenfolge}
               status={feldFehler.reihenfolge ? "error" : undefined}
               aria-describedby={feldFehler.reihenfolge ? `${basis}-reihenfolge-fehler` : undefined}
               onChange={(wert) => setze("reihenfolge", typeof wert === "number" ? wert : null)}
             />
+            <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>0 bis 9999</div>
           </Feld>
         </>
       ) : null}

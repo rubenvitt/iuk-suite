@@ -38,6 +38,10 @@ einzigen Zugriff sowohl den Schlüssel zum Umschlag als auch den Umschlag selbst
 Variable zeigt die Übersicht einen Hinweis, und die Schlüsselfreigabe (Stufe 5) antwortet mit
 Status 503.
 
+Der Entwicklungs-KEK, den `pnpm seed:lokal einsatzbuch` nennt, steht im Repo und taugt nur lokal:
+`erzeugen` und `wiederherstellen` lehnen ihn mit Exit 2 ab, und läuft die Suite im Container
+(`NODE_ENV=production`) mit ihm, warnt die Übersicht „Der Entwicklungs-KEK ist aktiv“.
+
 Den KEK **nie** als Wert in eine Befehlszeile schreiben — er landet sonst im Klartext in der
 Shell-History. Verdeckt einlesen und in der Sitzung weiterreichen:
 
@@ -107,7 +111,7 @@ Docker-Host stehen bleiben.
 ## Schlüsselpaar erzeugen — Container-Weg (Alternative)
 
 ⚠️ **Nicht gemessen** — vor dem ersten echten Einsatz einmal gegen ein Wegwerf-Volume proben.
-Abgeleitet aus der `deps`-Stage des `Dockerfile`: `node:22-alpine` hat weder `python3` noch einen
+Abgeleitet aus der `deps`-Stage des `Dockerfile`: `node:26-alpine` hat weder `python3` noch einen
 Compiler, und `better-sqlite3` ab Version 13 baut sein natives Binding immer aus den Quellen — ohne
 `python3 make g++` bricht `pnpm install` mit einer Python-Fehlermeldung ab. Ein Bind-Mount des
 Repos für `node_modules` scheidet aus: `pnpm install` im Alpine-Container würde die musl-Bindings

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dekodiere, parseCsv, planeImport, type Importbestand } from "./csv";
+import { dekodiere, parseCsv, parseCsvMitZeilen, planeImport, type Importbestand } from "./csv";
 
 const LEER: Importbestand = { fahrzeuge: [], personal: [], stichworte: [] };
 const win1252 = (s: string) =>
@@ -22,6 +22,12 @@ describe("parseCsv", () => {
   it("Komma und Tab als Trennzeichen, Leerzeilen fallen weg", () => {
     expect(parseCsv("gruppe,name,reihenfolge\n\nMANV,MANV 5,1\n")).toEqual([["gruppe", "name", "reihenfolge"], ["MANV", "MANV 5", "1"]]);
     expect(parseCsv("typ\tkennung\n RTW \t11-83-1")).toEqual([["typ", "kennung"], [" RTW ", "11-83-1"]]);
+  });
+  it("merkt die physische Zeile: Leerzeilen zählen mit, ein Umbruch im Anführungsfeld auch, CRLF und CR je einmal", () => {
+    const text = 'name;quali;ov\r\n\r\n"Voß,\r\nAnke";SanH;Uelzen\n\nOtte, Ole;RS;Uelzen\rBrandt, Eva;GF;Rosche';
+    expect(parseCsvMitZeilen(text).map((d) => [d.zeile, d.felder[0]])).toEqual([
+      [1, "name"], [3, "Voß,\r\nAnke"], [6, "Otte, Ole"], [7, "Brandt, Eva"],
+    ]);
   });
 });
 
@@ -51,6 +57,19 @@ describe("planeImport", () => {
     expect(plan.ok && plan.zeilen[3].fehler).toBe("Kennung fehlt");
     expect(plan.ok && plan.zeilen[4].fehler).toBe("Kennung steht schon in Zeile 4");
     expect(plan.ok && plan.zeilen[1].id).toBe("f2");
+  });
+  it("„Zeile n“ zeigt auf die Zeile der Datei, auch mit Leerzeile und mehrzeiligem Feld davor", () => {
+    const plan = planeImport("fahrzeuge", [
+      "typ;kennung;ruf;standort",
+      "RTW;11-83-1;Rotkreuz Uelzen 11-83-1;Uelzen",
+      "",
+      'MTF;11-19-1;"Rotkreuz Uelzen',
+      '11-19-1";Uelzen',
+      "MTF;;ohne Kennung;Uelzen",
+      "MTF;11-19-1;doppelt;Uelzen",
+    ].join("\n"), bestand);
+    expect(plan.ok && plan.zeilen.map((z) => [z.zeile, z.klasse])).toEqual([[2, "unveraendert"], [4, "neu"], [6, "fehler"], [7, "fehler"]]);
+    expect(plan.ok && plan.zeilen[3].fehler).toBe("Kennung steht schon in Zeile 4");
   });
   it("Person: mehrdeutiger Name ist eine Fehlerzeile", () => {
     const plan = planeImport("personal", "name;quali;ov\nMeyer, Hanna;SanH;Uelzen\nAlbers, Jana;GF;Uelzen", bestand);

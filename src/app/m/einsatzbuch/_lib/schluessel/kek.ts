@@ -1,4 +1,4 @@
-import { ausBase64, type Bytes } from "../kern/bytes";
+import { ausBase64, zuBase64, type Bytes } from "../kern/bytes";
 
 export const KEK_VARIABLE = "EINSATZBUCH_SCHLUESSEL_KEK";
 /** NUR für lokale Entwicklung und Tests (Seed). UTF-8 von „einsatzbuch-entwicklungs-kek-32b". */
@@ -16,4 +16,13 @@ export function kekAusUmgebung(env: Record<string, string | undefined> = process
   } catch {
     return { status: "ungueltig" };
   }
+}
+
+/**
+ * Ist `kek` der im Repo nachlesbare Entwicklungs-KEK? Verglichen wird auf Bytes, nicht auf die
+ * Zeichenkette aus der Umgebung (Leerraum, andere Base64-Schreibweise). Das Schlüssel-Skript
+ * lehnt ihn für das echte Paar ab; die Übersicht warnt, wenn er in Produktion gesetzt ist.
+ */
+export function istEntwicklungsKek(kek: Bytes): boolean {
+  return zuBase64(kek) === ENTWICKLUNGS_KEK;
 }

@@ -41,6 +41,15 @@ describe("Stammdaten-Actions", () => {
     const leer = await fahrzeugSpeichernAction(null, { ...FZ, kennung: "" });
     expect(leer.ok ? null : leer.feldFehler?.kennung).toBe("Kennung fehlt");
   });
+  it("Stichwort mit Reihenfolge 10000: deutscher Feldfehler, nichts geschrieben (das Formular klemmt nicht mehr)", async () => {
+    gruppen = ["einsatzbuch-verwaltung"];
+    const { stichwortSpeichernAction } = await import("./stammdaten");
+    const { getDb } = await import("../_db/client");
+    const { listeStichworte } = await import("../_lib/stammdaten/daten");
+    const r = await stichwortSpeichernAction(null, { gruppe: "MANV", name: "MANV 5", reihenfolge: 10000, aktiv: true });
+    expect(r.ok ? null : r.feldFehler?.reihenfolge).toBe("Reihenfolge liegt außerhalb von 0 bis 9999");
+    expect(listeStichworte(getDb())).toEqual([]);
+  });
   it("die Audit-Zeile trägt die handelnde Person", async () => {
     gruppen = ["einsatzbuch-verwaltung"];
     const { fahrzeugSpeichernAction } = await import("./stammdaten");

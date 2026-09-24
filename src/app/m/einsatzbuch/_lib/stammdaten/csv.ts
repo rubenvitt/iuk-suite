@@ -39,15 +39,33 @@ export function dekodiere(bytes: Uint8Array): string {
   }
 }
 
+/** Ein Datensatz mit der physischen Zeile der Datei, in der er beginnt (1-basiert). */
+export interface CsvDatensatz {
+  zeile: number;
+  felder: string[];
+}
+
 /** RFC 4180: Felder in Anführungszeichen dürfen Trennzeichen, Zeilenumbrüche und verdoppelte Anführungszeichen enthalten. */
 export function parseCsv(text: string): string[][] {
+  return parseCsvMitZeilen(text).map((d) => d.felder);
+}
+
+/**
+ * Wie `parseCsv`, merkt aber je Datensatz die Zeile der Datei, in der er beginnt. Leerzeilen
+ * fallen weg, zählen aber mit, und ein Zeilenumbruch in einem Anführungsfeld schiebt die
+ * Zählung weiter, ohne einen Datensatz zu beginnen — so zeigt „Zeile n“ auf die Zeile, die
+ * man im Editor sieht. `\r\n` und ein einzelnes `\r` zählen je einmal.
+ */
+export function parseCsvMitZeilen(text: string): CsvDatensatz[] {
   const ohneBom = text.startsWith("﻿") ? text.slice(1) : text;
   const ersteZeile = ohneBom.split(/\r?\n/, 1)[0] ?? "";
   const trenner = ersteZeile.includes(";") ? ";" : ersteZeile.includes("\t") ? "\t" : ",";
-  const zeilen: string[][] = [];
+  const saetze: CsvDatensatz[] = [];
   let feld = "";
   let zeile: string[] = [];
   let inAnf = false;
+  let physisch = 1;
+  let beginn = 1;
   for (let i = 0; i < ohneBom.length; i++) {
     const c = ohneBom[i];
     if (inAnf) {
@@ -58,6 +76,7 @@ export function parseCsv(text: string): string[][] {
         inAnf = false;
       } else {
         feld += c;
+        if (c === "\n" || (c === "\r" && ohneBom[i + 1] !== "\n")) physisch++;
       }
     } else if (c === '"' && feld === "") {
       inAnf = true;
@@ -68,15 +87,17 @@ export function parseCsv(text: string): string[][] {
       if (c === "\r" && ohneBom[i + 1] === "\n") i++;
       zeile.push(feld);
       feld = "";
-      if (zeile.some((f) => f.trim() !== "")) zeilen.push(zeile);
+      if (zeile.some((f) => f.trim() !== "")) saetze.push({ zeile: beginn, felder: zeile });
       zeile = [];
+      physisch++;
+      beginn = physisch;
     } else {
       feld += c;
     }
   }
   zeile.push(feld);
-  if (zeile.some((f) => f.trim() !== "")) zeilen.push(zeile);
-  return zeilen;
+  if (zeile.some((f) => f.trim() !== "")) saetze.push({ zeile: beginn, felder: zeile });
+  return saetze;
 }
 
 const SCHEMA = { fahrzeuge: fahrzeugEingabe, personal: personEingabe, stichworte: stichwortEingabe } as const;
@@ -91,10 +112,10 @@ const SCHLUESSEL_TEXT: Record<Stammdatenart, string> = { fahrzeuge: "Kennung", p
  */
 export function planeImport(art: Stammdatenart, text: string, bestand: Importbestand): Importplan {
   if (text.length > MAX_CSV_ZEICHEN) return { ok: false, fehler: "Die Datei ist größer als 512 KB." };
-  const roh = parseCsv(text);
+  const roh = parseCsvMitZeilen(text);
   if (roh.length === 0) return { ok: false, fehler: "Die Datei ist leer." };
   const kopf = KOPFZEILEN[art];
-  if (roh[0].map((s) => s.trim().toLowerCase()).join(";") !== kopf.join(";")) {
+  if (roh[0].felder.map((s) => s.trim().toLowerCase()).join(";") !== kopf.join(";")) {
     return { ok: false, fehler: `Die Kopfzeile muss genau „${kopf.join(";")}“ lauten.` };
   }
   if (roh.length - 1 > MAX_CSV_ZEILEN) return { ok: false, fehler: `Höchstens ${MAX_CSV_ZEILEN} Zeilen je Import.` };
@@ -103,8 +124,7 @@ export function planeImport(art: Stammdatenart, text: string, bestand: Importbes
   // finden; die Tabellenweiche macht das hier unvermeidlich generisch.
   const vorhanden = bestand[art] as (FahrzeugDTO | PersonDTO | StichwortDTO)[];
   const gesehen = new Map<string, number>();
-  const zeilen = roh.slice(1).map((felder, i): Vorschauzeile => {
-    const zeile = i + 2;
+  const zeilen = roh.slice(1).map(({ zeile, felder }): Vorschauzeile => {
     const werte = Object.fromEntries(kopf.map((k, j) => [k, (felder[j] ?? "").trim()]));
     if (felder.length !== kopf.length) {
       return { zeile, klasse: "fehler", werte, fehler: `${kopf.length} Spalten erwartet, ${felder.length} gefunden` };
