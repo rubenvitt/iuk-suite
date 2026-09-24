@@ -1,0 +1,93 @@
+/*
+ * Das Berichtsblatt (`docs/design/einsatzbuch-v2/vorlage/Einsatzbericht.dc.html`). Papier ist
+ * immer hell: feste Farben, keine Variablen, kein Dunkelzweig.
+ *
+ * A4 als BENANNTE Seite mit ausgeschriebenen Kantenlängen (Falle 18, `CLAUDE.md`): ein
+ * Formatname wie `A4` ist hier nicht gemeint, und eine unbenannte `@page` träfe jede andere
+ * Druckfläche der Suite mit. `print-color-adjust` hält den roten Kopfbalken im Druck, auch
+ * wenn der Dialog „Hintergrundgrafiken“ abschaltet.
+ */
+.blatt {
+  page: einsatzbericht;
+  box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 14mm 16mm;
+  background: #fff; color: #1a1d20; font: 12pt/1.45 var(--font-body, "Geist", system-ui, sans-serif);
+  display: flex; flex-direction: column; gap: 7mm;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+@page einsatzbericht { size: 210mm 297mm; margin: 14mm 16mm; }
+@media print {
+  .blatt { width: auto; min-height: 0; padding: 0; box-shadow: none; }
+}
+
+.kicker {
+  margin: 0; font: 600 10pt var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif);
+  letter-spacing: .09em; text-transform: uppercase; color: #5b6570;
+}
+.mono { font-family: var(--font-mono, "Geist Mono", ui-monospace, monospace); }
+
+.kopf { display: flex; flex-direction: column; gap: 4mm; }
+.balken { height: 1.5mm; background: #c8000f; }
+.kopfzeile { display: flex; align-items: flex-end; gap: 6mm; }
+.kopfzeile > :first-child { flex: 1; }
+.wortmarke { font: 600 16pt/1 var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif); letter-spacing: .07em; }
+.wortmarke > span { color: #c8000f; }
+.bereitschaft { font-size: 10pt; color: #5b6570; margin-top: 1mm; }
+.testdaten {
+  align-self: center; padding: 1.5mm 3mm; border: .6mm solid #1a1d20; border-radius: 1mm;
+  font: 700 14pt/1 var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif); letter-spacing: .12em;
+}
+.nummerblock { text-align: right; }
+.nummer { font: 500 12pt var(--font-mono, "Geist Mono", ui-monospace, monospace); }
+
+.titel { display: flex; flex-direction: column; gap: 1.5mm; padding-bottom: 5mm; border-bottom: 1px solid #d9dde1; }
+.titel h1 { margin: 0; font: 600 28pt/1.05 var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif); letter-spacing: .02em; }
+.titel p { margin: 0; font-size: 13pt; }
+
+.raster { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4mm 6mm; }
+.raster dd { margin: 0; }
+.breit { grid-column: span 3; }
+
+.zahlen { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid #d9dde1; border-radius: 2mm; }
+.zahlen > div { padding: 3mm 4mm; }
+.zahlen > div + div { border-left: 1px solid #d9dde1; }
+.zahlen dd { margin: 0; font: 700 24pt/1.1 var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif); }
+
+.abschnitt { display: flex; flex-direction: column; gap: 2mm; break-inside: avoid; }
+.leer { margin: 0; color: #5b6570; }
+
+.tabelle { width: 100%; border-collapse: collapse; border-top: 1px solid #1a1d20; }
+.tabelle th, .tabelle td { padding: 1.5mm 0; border-bottom: 1px solid #d9dde1; text-align: left; vertical-align: middle; }
+.tabelle th { font-weight: 600; }
+.tabelle th:first-child { width: 28mm; }
+.tabelle th:last-child, .tabelle td:last-child { width: 24mm; text-align: right; }
+.fzTyp { font: 600 13pt var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif); }
+.fzRuf { font: 400 11pt var(--font-mono, "Geist Mono", ui-monospace, monospace); }
+
+.personal {
+  list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 8mm; border-top: 1px solid #1a1d20;
+}
+.personal li {
+  display: grid; grid-template-columns: minmax(0, 1fr) 14mm 22mm; gap: 2mm; padding: 1.5mm 0;
+  border-bottom: 1px solid #d9dde1; break-inside: avoid;
+}
+.quali { font: 600 11pt var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif); letter-spacing: .06em; color: #5b6570; }
+.pFahrzeug { font-size: 10pt; color: #5b6570; text-align: right; }
+
+.notizen { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fueller { flex: 1; }
+
+.siegel {
+  display: flex; flex-direction: column; gap: 1mm; padding: 3mm 4mm; border: 1px solid #d9dde1; border-radius: 2mm;
+  font-size: 10pt; break-inside: avoid;
+}
+.siegel dl { margin: 0; display: grid; grid-template-columns: 30mm minmax(0, 1fr); gap: 1mm 4mm; }
+.siegel dt { color: #5b6570; }
+.siegel dd { margin: 0; }
+.siegel .kicker { padding-bottom: 1mm; }
+.hash { font-family: var(--font-mono, "Geist Mono", ui-monospace, monospace); word-break: break-all; }
+
+.fuss {
+  display: flex; justify-content: space-between; gap: 6mm; font-size: 10pt; color: #5b6570;
+  padding-top: 2mm; border-top: 1px solid #d9dde1;
+}
