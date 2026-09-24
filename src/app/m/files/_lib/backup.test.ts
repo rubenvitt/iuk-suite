@@ -223,13 +223,32 @@ describe("scripts/backup.sh — der Zeitstempel ist der NAME der Generation", ()
     // serialisiert, und zwei serialisierte Laeufe folgen einander um Sekundenbruchteile.
     // Am externen Ziel wiederholt sich das, weil derselbe Name hochgeladen wird.
     const i = zeileMit('stamp="$(date +%Y%m%dT%H%M%S)"');
-    const pruefung = zeileMit('while [ -e "$BACKUP_DIR/$stamp.tar.gz" ]');
-    const anlegen = zeileMit('mkdir -p "$work"');
+    const pruefung = zeileMit('if [ ! -e "$BACKUP_DIR/$stamp.tar.gz" ]; then');
+    const anlegen = zeileMit('if mkdir "$BACKUP_DIR/$stamp" 2>/dev/null; then');
     expect(i, "erst stempeln").toBeLessThan(pruefung);
     expect(pruefung, "dann auf Belegung pruefen, erst dann anlegen").toBeLessThan(anlegen);
-    // Auch ein liegengebliebenes Arbeitsverzeichnis (SIGKILL im vorigen Lauf) belegt
-    // den Namen — `tar` packte es sonst als Inhalt der neuen Generation mit ein.
-    expect(befehleText).toContain('|| [ -e "$BACKUP_DIR/$stamp" ]');
+  });
+
+  it("beansprucht das Arbeitsverzeichnis per exklusivem `mkdir`, nie per `mkdir -p`", () => {
+    // ⚠️ DRK-416. `mkdir -p` gelingt auch fuer ein Verzeichnis, das es schon gibt: zwei
+    // Laeufe derselben Sekunde kamen beide durch Pruefung und Anlegen, schrieben in
+    // DASSELBE Verzeichnis, und das `rm -rf` des einen raeumte es unter dem `tar` des
+    // anderen weg. GEMESSEN mit zwei gleichzeitigen Laeufen: vorher meldeten beide
+    // `backup: wrote …T195337.tar.gz`, nachher lagen `…T195340` und `…T195341` da.
+    // Ein liegengebliebenes Arbeitsverzeichnis (SIGKILL im vorigen Lauf) belegt den
+    // Namen damit von selbst — das nackte `mkdir` scheitert daran.
+    expect(befehleText).not.toMatch(/mkdir -p "\$work"/);
+    expect(befehleText).not.toMatch(/mkdir -p "\$BACKUP_DIR\/\$stamp"/);
+    // Nach dem `mkdir` NOCH EINMAL aufs Archiv schauen: ein Lauf mit demselben Stempel
+    // kann dazwischen fertig geworden sein (er benennt um, bevor er abraeumt).
+    const anlegen = zeileMit('if mkdir "$BACKUP_DIR/$stamp" 2>/dev/null; then');
+    const nachpruefen = zeileMit('[ -e "$BACKUP_DIR/$stamp.tar.gz" ] || break');
+    const zurueck = zeileMit('rmdir "$BACKUP_DIR/$stamp"');
+    expect(anlegen).toBeLessThan(nachpruefen);
+    expect(nachpruefen).toBeLessThan(zurueck);
+    // `BACKUP_DIR` selbst darf weiter per `-p` entstehen (Aufruf von Hand), aber VOR
+    // der Schleife — sonst scheiterte das nackte `mkdir` beim ersten Lauf.
+    expect(zeileMit('mkdir -p "$BACKUP_DIR"')).toBeLessThan(anlegen);
   });
 
   it("WARTET auf die naechste Sekunde, statt einen Zusatz an den Namen zu haengen", () => {
@@ -239,7 +258,7 @@ describe("scripts/backup.sh — der Zeitstempel ist der NAME der Generation", ()
     // und NIE MEHR wegrotiert. Ausserdem beruht die Rotation darauf, dass der Name
     // lexikografisch wie chronologisch sortiert.
     const rumpf = quelle.slice(
-      quelle.indexOf('while [ -e "$BACKUP_DIR/$stamp.tar.gz" ]'),
+      quelle.indexOf("while :; do"),
       quelle.indexOf('work="$BACKUP_DIR/$stamp"'),
     );
     expect(rumpf).toContain("sleep 1");
@@ -268,12 +287,54 @@ describe("scripts/backup.sh — der Zeitstempel ist der NAME der Generation", ()
   });
 });
 
+describe("scripts/backup.sh — ein wachsendes Archiv ist keine Generation", () => {
+  it("packt unter `.part` und benennt erst nach dem `tar` um, VOR dem Abraeumen", () => {
+    // ⚠️ DRK-416. `tar` schrieb direkt auf den endgueltigen Namen, und ein halbes Archiv
+    // passt auf das Muster, mit dem gezaehlt wird: es besetzte einen KEEP-Platz, und die
+    // naechste fertige Generation fiel dafuer. GEMESSEN mit SIGKILL mitten im `tar` und
+    // 30 MB Daten: vorher lagen 6 MB unter `…T195353.tar.gz`, nachher nur
+    // `…T195354.tar.gz.part`.
+    const packen = zeileMit('tar -czf "$work.tar.gz.part"');
+    const umbenennen = zeileMit('mv -f "$work.tar.gz.part" "$work.tar.gz"');
+    const abraeumen = zeilen.findIndex(
+      (z, i) => i > packen && !z.trim().startsWith("#") && z.includes('rm -rf "$work"'),
+    );
+    expect(packen).toBeLessThan(umbenennen);
+    // Umbenennen VOR dem Abraeumen: so steht in jedem Augenblick Verzeichnis ODER
+    // Archiv, und die Pruefung auf Belegung sieht den Namen nie frei.
+    expect(umbenennen).toBeLessThan(abraeumen);
+    // Und der Vertrag mit dem Sidecar nennt den FERTIGEN Namen.
+    expect(befehleText).toContain('echo "backup: wrote $work.tar.gz"');
+  });
+
+  it("der Zwischenname faellt durch BEIDE Zaehlmuster", () => {
+    // Lokal rotiert der Sidecar ueber TARBALL_MUSTER, von Hand `backup.sh` ueber
+    // `*.tar.gz`. Ein Zwischenname wie `….part.tar.gz` fiele durch das eine, nicht durch
+    // das andere — deshalb haengt `.part` HINTER `.tar.gz`.
+    // Der Zwischenname kommt aus dem `tar`-Aufruf selbst, nicht aus diesem Test.
+    const zusatz = befehleText.match(/tar -czf "\$work([^"]+)"/)?.[1];
+    expect(zusatz, "tar packt nach \"$work<zusatz>\"").toBeDefined();
+    const name = `20260101T030000${zusatz}`;
+    expect(name.endsWith(".tar.gz")).toBe(false);
+    const muster = readFileSync(path.join(WURZEL, "scripts/backup-sidecar.sh"), "utf8").match(
+      /TARBALL_MUSTER='([^']+)'/,
+    );
+    expect(muster, "TARBALL_MUSTER in scripts/backup-sidecar.sh").not.toBeNull();
+    const p = execFileSync(
+      "sh",
+      ["-c", 'case "$1" in $2) echo passt ;; *) echo faellt ;; esac', "sh", name, muster?.[1] ?? ""],
+      { encoding: "utf8" },
+    );
+    expect(p.trim()).toBe("faellt");
+  });
+});
+
 describe("scripts/backup.sh — was unveraendert bleiben muss", () => {
   it("packt genau EIN tar und haengt nichts an ein gzip-Archiv an", () => {
     // `tar -rf` an ein gzip-Archiv ist unmoeglich („Cannot append to compressed
     // archive") und braeche unter `set -euo pipefail` den GANZEN Lauf ab — auch fuer
     // portal, qr und feedback. Deshalb wandern die Blobs vorher ins Arbeitsverzeichnis.
-    expect(quelle).toContain('tar -czf "$work.tar.gz" -C "$BACKUP_DIR" "$stamp"');
+    expect(quelle).toContain('tar -czf "$work.tar.gz.part" -C "$BACKUP_DIR" "$stamp"');
     expect(befehleText).not.toMatch(/tar\s+-[a-z]*r/);
     expect(befehle.filter((z) => z.includes("tar -"))).toHaveLength(1);
   });

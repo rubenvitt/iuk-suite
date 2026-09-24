@@ -250,13 +250,14 @@ select {
  * Deckungsgleichheit mit antds Vorgabe Zufall ist — dieselbe Falle, die bei
  * `inputFontSizeLG` in `theme.ts` ausfuehrlich steht.
  *
- * KEIN Token statt Spezifitaet, obwohl `docs/design/README.md` das vorzieht:
- * `components.Select.fontSize` greift daneben. Gemessen ergibt es
- * `.iuk.ant-select-css-var { --ant-font-size: 16px }` — es kapert also die
- * GLOBALE Schriftvariable innerhalb des Auswahlfeldes, statt die des Bauteils
- * zu setzen, und laesst `line-height`/`font-height` unberuehrt (also wieder die
- * 3px). `Select` kennt sonst nur `optionFontSize` fuer die offene Liste
- * (theme.ts).
+ * KEIN Token statt Spezifitaet, obwohl `docs/design/README.md` das vorzieht —
+ * aus einem ENGEREN Grund, als es klingt. `components.Select.fontSize` ALLEIN
+ * ergibt `.iuk.ant-select-css-var { --ant-font-size: 16px }`, kapert also die
+ * GLOBALE Schriftvariable im Feld und laesst `font-height` stehen (wieder die
+ * 3px). Die haengen aber an der fehlenden Zeilenhoehe, nicht am Token-Weg: mit
+ * `Select.lineHeight` daneben (16 × 1.375 = antds 22px `font-height`) trifft er
+ * gemessen exakt 56/44px (DRK-405). CSS steht hier nur, weil es die drei
+ * zusammengehoerigen Werte an EINER Stelle sichtbar haelt.
  *
  * `core/theme/selektschrift.test.ts` haelt das fest, und zwar an der WIRKUNG:
  * es rendert ein Auswahlfeld mit dem Suite-Theme, zieht antds erzeugtes CSS

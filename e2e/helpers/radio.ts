@@ -7,8 +7,8 @@
  * Literale — und der Fehlerfall ist nicht laut, sondern GEGENTEILIG: mit
  * falschem `groups` bezeugte der Lauf den Riegel-404 und saehe dabei aus wie ein
  * bestandener Test. Derselbe Absatz steht fuer `lagerbuch` in
- * `e2e/helpers/lagerbuch.ts:5-13` und fuer `aufgaben` in
- * `playwright.config.ts:245-268`.
+ * `e2e/helpers/lagerbuch.ts:5-13` und fuer `aufgaben` in `playwright.config.ts`,
+ * Absatz „DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE".
  */
 
 /** Der Modul-Host. Wildcard-DNS loest jeden `*.localtest.me` auf 127.0.0.1 auf. */
@@ -18,7 +18,7 @@ export const RADIO_HOST = "radio.localtest.me";
  * Der ZWEITE erreichbare Suite-Host fuer die „fremder Host"-Zusage (Spec:4891,
  * Fall 8).
  *
- * ⚠️ ER EXISTIERT BEREITS: `playwright.config.ts:156` wartet heute schon auf
+ * ⚠️ ER EXISTIERT BEREITS: `webServer.url` in `playwright.config.ts` wartet schon auf
  * `http://feedback.localtest.me:3100/login`. Es wird KEIN dritter Host
  * eingefuehrt — und `feedback` ist die schaerfere Probe, weil `moduleForHost`
  * dort tatsaechlich ein Modul liefert (`e2e/helpers/lagerbuch.ts:23-27`).
@@ -65,9 +65,9 @@ export const RADIO_UPDATER_GRUPPE = "iuk-radio-updater";
  * TRAEGT (`src/core/registry.ts:198`): `next dev` laeuft im
  * Repo-Wurzelverzeichnis und liest `.env.local` mit; wer dort den produktiven
  * Namen eintraegt, verschoebe still die Gruppe des E2E-Servers, und der Lauf
- * waere nicht rot, sondern gegenteilig gruen. Die Begruendung steht fuer
- * `aufgaben` ausgeschrieben in `playwright.config.ts:261-263`; ein in
- * `webServer.env` gesetzter Wert hat Vorrang vor jeder `.env`-Datei.
+ * waere nicht rot, sondern gegenteilig gruen. Die Begruendung steht fuer `aufgaben`
+ * in `playwright.config.ts`, Absatz „DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE"; ein
+ * in `webServer.env` gesetzter Wert hat Vorrang vor jeder `.env`-Datei.
  *
  * ⛔ DAS SITZUNGSGEHEIMNIS GEHOERT AUS DEMSELBEN GRUND HIERHER UND NICHT NACH
  * `.env.local`: `ausleihSitzungGeheimnis()` wirft `GrenzenUngueltig`, sobald sie
@@ -117,7 +117,7 @@ export const RADIO_ENV: Record<string, string> = {
 
 /**
  * Absolute Per-Host-URL: `baseURL` zeigt auf den PORTAL-Host
- * (`playwright.config.ts:65`), und `portal` traegt `requiresAuth: true` — jeder
+ * (`use.baseURL` in `playwright.config.ts`), und `portal` traegt `requiresAuth: true` — jeder
  * RELATIVE Aufruf landete dort im Login (`e2e/helpers/lagerbuch.ts:86-91`).
  */
 export function radioUrl(pfad: string): string {
@@ -147,7 +147,7 @@ export function fremdUrl(pfad: string): string {
  * Prozessen mit verschiedenen `DATA_DIR`-Sichten, und ein Import zoege das ganze
  * Modul in den Testprozess.
  *
- * Beide sind im Lauf vorhanden, weil `playwright.config.ts:158` vor `next dev`
+ * Beide sind im Lauf vorhanden, weil `playwright.config.ts` vor `next dev`
  * `pnpm exec tsx scripts/seed-lokal.ts radio` faehrt. Die Zusage „aktiv" bzw.
  * „gesperrt" tragen die Seed-Zeilen `seedLokal.ts:190` (`aktiv: true`) und
  * `:192-193` (`aktiv: false`, `gesperrtAm`, `gesperrtVon`).
