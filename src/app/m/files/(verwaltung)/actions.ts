@@ -1,5 +1,6 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
+import { TITEL_MAX_LAENGE, titelZuLang } from "@/core/titel";
 
 /**
  * DIE SERVER ACTIONS DER FILESHARE-VERWALTUNG (Spec §7.1).
@@ -69,6 +70,14 @@ export type AnlegenErgebnis =
  * Zeile heraus. Dieselbe Bauform wie `GANZZAHL` in `_lib/grenzen.ts`.
  */
 const GANZZAHL = /^\d+$/;
+
+/**
+ * Beim Anlegen UND beim Bearbeiten (DRK-402, Begruendung in `core/titel.ts`).
+ * Das Feld laesst keinen laengeren Titel entstehen; ankommen kann er nur am
+ * Feld vorbei — oder als Bestandstitel, der beim naechsten Speichern mitgeht.
+ * Deshalb eine Meldung statt eines Wurfs: gekuerzt wird von Hand, nie still.
+ */
+const TITEL_ZU_LANG = `Der Titel darf höchstens ${TITEL_MAX_LAENGE} Zeichen haben.`;
 
 /**
  * Mindestlaenge eines NEU gesetzten Share-Passworts (§7.1: „Passwort optional,
@@ -153,6 +162,7 @@ export async function anlegenAction(formData: FormData): Promise<AnlegenErgebnis
 
     const titel = werte.title.trim();
     if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
+    else if (titelZuLang(titel)) feldFehler.title = TITEL_ZU_LANG;
 
     /*
      * Die Laufzeit wird bei JEDEM Speichern gedeckelt, nicht nur hier: `updateShare`
@@ -433,6 +443,7 @@ export async function bearbeitenAction(
     if (formData.has("title")) {
       const titel = werte.title.trim();
       if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
+      else if (titelZuLang(titel)) feldFehler.title = TITEL_ZU_LANG;
       else aenderung.title = titel;
     }
 

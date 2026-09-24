@@ -4,6 +4,7 @@ import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { isModuleAdmin } from "@/core/groups";
 import { getModule } from "@/core/registry";
+import { TITEL_MAX_LAENGE, titelZuLang } from "@/core/titel";
 import { revalidatePath } from "next/cache";
 import { getDb, type DB } from "./_db/client";
 import {
@@ -111,6 +112,13 @@ function istGesetzt(formData: FormData, name: string): boolean {
 }
 
 /**
+ * Fuer Aufgabe UND Routine (DRK-402, Begruendung in `core/titel.ts`): beide stehen nebeneinander
+ * im Wochenplan, zwei Regeln fuer dasselbe Feld waeren willkuerlich. Ein Feldfehler statt eines
+ * Wurfs, weil ein Bestandstitel ueber der Grenze beim naechsten Speichern ganz regulaer mitkommt.
+ */
+const TITEL_ZU_LANG = `Titel zu lang — hoechstens ${TITEL_MAX_LAENGE} Zeichen.`;
+
+/**
  * AUFGABE EINSTELLEN (Spec §5.2, §8.3). Zwei Ausprägungen, beide von `anfangsZustand()`
  * entschieden — diese Action fragt nicht selbst, ob "fuer sich selbst" oder "fuer andere" erlaubt
  * ist, sie reicht nur die Absicht (`fuerSichSelbst`) durch und wirft, wenn `anfangsZustand()`
@@ -166,6 +174,7 @@ export async function aufgabeEinstellenAction(
     const fieldErrors: Record<string, string> = {};
     const titel = values.titel.trim();
     if (titel === "") fieldErrors.titel = "Titel fehlt.";
+    else if (titelZuLang(titel)) fieldErrors.titel = TITEL_ZU_LANG;
     const beschreibung = values.beschreibung.trim();
     if (beschreibung === "") fieldErrors.beschreibung = "Erklaerung fehlt.";
     if (!istGueltigerIsoTag(values.faelligAm)) {
@@ -925,6 +934,7 @@ async function routineFormularGemeinsam(
     const fieldErrors: Record<string, string> = {};
     const titel = values.titel.trim();
     if (titel === "") fieldErrors.titel = "Titel fehlt.";
+    else if (titelZuLang(titel)) fieldErrors.titel = TITEL_ZU_LANG;
     if (indizes.length === 0) {
       fieldErrors.wochentage = "Mindestens ein Wochentag muss gewaehlt sein.";
     }

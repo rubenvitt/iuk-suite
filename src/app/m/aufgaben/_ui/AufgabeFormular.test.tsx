@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 import { feldWertImDom, listenOptionen, oeffneListe, waehleDatum } from "./testFelder";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 /*
  * `useActionState` SELBST GEMOCKT (Vorbild `RoutineFormular.test.tsx`) — so laesst sich jeder
@@ -48,6 +49,11 @@ describe("AufgabeFormular — Zeile 1 und die Action", () => {
   it("ruft useActionState mit aufgabeEinstellenAction auf", async () => {
     await mount(<AufgabeFormular darfFuerAndere={false} />);
     expect(useActionStateMock).toHaveBeenCalledWith(EINSTELLEN_MARKER, FORM_START);
+  });
+
+  it("das Titelfeld laesst keinen Titel ueber der Grenze entstehen (DRK-402)", async () => {
+    await mount(<AufgabeFormular darfFuerAndere={false} />);
+    expect(query<HTMLInputElement>("#af-titel").maxLength).toBe(TITEL_MAX_LAENGE);
   });
 });
 
