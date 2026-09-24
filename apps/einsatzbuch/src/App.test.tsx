@@ -1,7 +1,7 @@
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { clickElement, mount, queryAll, unmount } from "../../../src/app/m/qr/_lib/test-dom";
+import { clickElement, fill, mount, queryAll, unmount } from "../../../src/app/m/qr/_lib/test-dom";
 import type { Ausstehend, Entwurf, Stammdatenpaket, Status, Versiegelung } from "./typen";
 
 const befehle = vi.hoisted(() => ({
@@ -64,8 +64,7 @@ function entwurf(teil: Partial<Entwurf> = {}): Entwurf {
   };
 }
 
-function ausstehend(e: Entwurf = entwurf()): Ausstehend {
-  const fristBisMs = Date.now() + 10 * 60_000;
+function ausstehend(e: Entwurf = entwurf(), fristBisMs = Date.now() + 10 * 60_000): Ausstehend {
   return { entwurf: e, abgesendetAm: "2026-09-24T10:05:00+02:00", fristBis: "2026-09-24T10:20:00+02:00", fristBisMs };
 }
 
@@ -251,6 +250,17 @@ describe("Versiegelt", () => {
     expect(text()).not.toContain(VERFALLEN);
   });
 
+  it("„Neuen Einsatz erfassen“ verwirft einen Entwurf, der nach dem Quittieren ohne Ausstehendes übrig ist", async () => {
+    await starte(status({ versiegelung: versiegelung() }));
+    befehle.status.mockResolvedValue(status({ entwurf: entwurf({ notizen: "versiegelter Stand" }) }));
+    await clickElement(knopf("Neuen Einsatz erfassen")!);
+    await warte();
+    expect(befehle.entwurfVerwerfen).toHaveBeenCalledTimes(1);
+    expect(befehle.entwurfVerwerfen.mock.invocationCallOrder[0]).toBeGreaterThan(befehle.versiegelungQuittieren.mock.invocationCallOrder[0]);
+    await clickElement(knopf("Einsatz öffnen")!);
+    expect(queryAll<HTMLTextAreaElement>("textarea")[0]?.value).toBe("");
+  });
+
   it("„Neuen Einsatz erfassen“ quittiert zuerst und fragt erst dann den Status ab", async () => {
     await starte(status({ versiegelung: versiegelung() }));
     befehle.status.mockResolvedValue(status());
@@ -274,5 +284,148 @@ describe("Fehler der Befehlsnaht", () => {
     expect(hinweis?.textContent).toContain("Status nicht lesbar");
     expect(alarm).not.toHaveBeenCalled();
     alarm.mockRestore();
+  });
+});
+
+/** Stellt die Versiegelung bereit, die `frist_pruefen` meldet, und lässt den nächsten Status sie tragen. */
+function fristVersiegelt(v: Versiegelung): void {
+  befehle.fristPruefen.mockImplementation(async () => {
+    befehle.status.mockResolvedValue(status({ versiegelung: v }));
+    return v;
+  });
+}
+
+describe("Bearbeiten nach Fristende", () => {
+  it("sendet nicht ab, wenn die Frist nach Rusts Uhr schon um ist, und meldet den Verfall", async () => {
+    await starte(status({ ausstehend: ausstehend(), entwurf: entwurf() }));
+    const jetzt = Date.now();
+    befehle.status.mockResolvedValue(status({ jetztMs: jetzt, ausstehend: ausstehend(entwurf(), jetzt - 1), entwurf: entwurf() }));
+    fristVersiegelt(versiegelung({ verfallen: false }));
+    await clickElement(knopf("Änderungen übernehmen")!);
+    await warte();
+    expect(befehle.absenden).not.toHaveBeenCalled();
+    expect(befehle.fristPruefen).toHaveBeenCalled();
+    expect(queryAll("h1").map((h) => h.textContent)).toContain("Einsatz versiegelt");
+    expect(text()).toContain(VERFALLEN);
+  });
+
+  it("zeigt nach abgelehntem Absenden (Frist abgelaufen) die Versiegelung mit Verfall", async () => {
+    await starte(status({ ausstehend: ausstehend(), entwurf: entwurf() }));
+    befehle.absenden.mockRejectedValue("Die Frist ist abgelaufen. Versiegelt wird der zuletzt abgesendete Stand.");
+    fristVersiegelt(versiegelung({ verfallen: false }));
+    await clickElement(knopf("Änderungen übernehmen")!);
+    await warte();
+    expect(befehle.absenden).toHaveBeenCalledWith(expect.objectContaining({ strasse: "Lindenstraße 8" }), true);
+    expect(queryAll("h1").map((h) => h.textContent)).toContain("Einsatz versiegelt");
+    expect(text()).toContain(VERFALLEN);
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual([VERFALLEN]);
+  });
+});
+
+describe("Bestätigungsdialog", () => {
+  it("hält den Fokus: Tab kreist, Escape schließt auch von außerhalb", async () => {
+    await starte(status({ betrieb: "test" }));
+    await clickElement(knopf("Testbetrieb beenden")!);
+    const abbrechen = knopf("Abbrechen")!;
+    const loeschen = knopf("Testdatenbank löschen")!;
+    expect(document.activeElement).toBe(abbrechen);
+
+    loeschen.focus();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    });
+    expect(document.activeElement).toBe(abbrechen);
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }));
+    });
+    expect(document.activeElement).toBe(loeschen);
+
+    (document.activeElement as HTMLElement).blur();
+    await act(async () => {
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(queryAll('[role="dialog"]')).toHaveLength(0);
+    expect(befehle.testbetriebBeenden).not.toHaveBeenCalled();
+  });
+});
+
+describe("mit gestellter Uhr", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(async () => {
+    await unmount();
+    vi.useRealTimers();
+  });
+
+  /** Uhr vorstellen und die dabei fälligen Promise-Ketten auslaufen lassen. */
+  async function laufe(ms: number): Promise<void> {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  async function starteMitUhr(s: Status): Promise<void> {
+    befehle.status.mockResolvedValue(s);
+    await mount(<App />);
+    await laufe(0);
+    await laufe(0);
+  }
+
+  const STRASSE = 'input[placeholder="z. B. Bahnhofstraße 12"]';
+
+  it("speichert den Entwurf erst 500 ms nach der letzten Änderung", async () => {
+    await starteMitUhr(status());
+    await clickElement(knopf("Einsatz öffnen")!);
+    await fill(STRASSE, "Bahnhofstraße 1");
+    await laufe(300);
+    await fill(STRASSE, "Bahnhofstraße 12");
+    await laufe(499);
+    expect(befehle.entwurfSpeichern).not.toHaveBeenCalled();
+    await laufe(1);
+    expect(befehle.entwurfSpeichern).toHaveBeenCalledTimes(1);
+    expect(befehle.entwurfSpeichern).toHaveBeenCalledWith(expect.objectContaining({ strasse: "Bahnhofstraße 12" }), false);
+  });
+
+  it("fragt bei Restzeit 0 sofort frist_pruefen, vorher nicht", async () => {
+    await starteMitUhr(status({ ausstehend: ausstehend(entwurf(), Date.now() + 1500) }));
+    expect(text()).toContain("Abgesendet · noch änderbar");
+    await laufe(1000);
+    expect(befehle.fristPruefen).not.toHaveBeenCalled();
+    await laufe(750);
+    expect(befehle.fristPruefen).toHaveBeenCalledTimes(1);
+  });
+
+  it("läuft die Frist mitten in einer Bearbeitung ab: kein Speichern mehr, Verfall aus der ungespeicherten Änderung", async () => {
+    await starteMitUhr(status({ ausstehend: ausstehend(entwurf(), Date.now() + 200), entwurf: entwurf() }));
+    fristVersiegelt(versiegelung({ verfallen: false }));
+    await fill(STRASSE, "Hauptstraße 30");
+    await laufe(250);
+    await laufe(0);
+    expect(befehle.fristPruefen).toHaveBeenCalled();
+    await laufe(2000);
+    expect(befehle.entwurfSpeichern).not.toHaveBeenCalled();
+    expect(queryAll("h1").map((h) => h.textContent)).toContain("Einsatz versiegelt");
+    // Rust meldet `verfallen: false`, die ungespeicherte Änderung macht es trotzdem zum Verfall.
+    expect(text()).toContain(VERFALLEN);
+  });
+
+  it("löscht einen Fehler der Abfrage nach der nächsten gelungenen Abfrage", async () => {
+    const s = status({ ausstehend: ausstehend() });
+    await starteMitUhr(s);
+    befehle.status.mockRejectedValueOnce("Status gerade nicht lesbar");
+    await laufe(5000);
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual(["Status gerade nicht lesbar"]);
+    await laufe(5000);
+    expect(queryAll('[role="alert"]')).toHaveLength(0);
+  });
+
+  it("startet keine zweite Abfrage, solange eine hängt", async () => {
+    await starteMitUhr(status({ ausstehend: ausstehend() }));
+    const vorher = befehle.status.mock.calls.length;
+    befehle.status.mockReturnValue(new Promise(() => {}));
+    await laufe(20_000);
+    expect(befehle.status.mock.calls.length).toBe(vorher + 1);
   });
 });

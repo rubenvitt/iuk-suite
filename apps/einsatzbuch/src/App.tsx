@@ -2,12 +2,14 @@
  * Ablauf der Erfassung: Willkommen → Formular → Frist → Versiegelt, dazu „nicht eingerichtet“ und
  * die Startfehlerseite. Welche Seite gilt, leitet `phaseAus` (`logik/ablauf.ts`) aus dem Status von
  * Rust und dem lokalen Zustand ab; entschieden wird mit der Uhr in Rust, die Oberfläche zählt nur
- * lokal herunter und fragt nach (alle 5 s `status`, bei 0 sofort `frist_pruefen`).
+ * lokal herunter und fragt nach (`ablauf/fristUhr.ts`).
  *
- * Der Entwurf gehört dieser Komponente. Änderungen gehen 500 ms verzögert per `entwurfSpeichern`
- * an Rust; bis dahin gilt er als ungespeichert. Das zählt, wenn die Frist während einer Bearbeitung
- * abläuft: Rust meldet `verfallen`, sobald eine gespeicherte Bearbeitung existierte, die Oberfläche
- * ergänzt den Fall, dass die letzte Änderung noch gar nicht gespeichert war.
+ * Der Entwurf gehört dieser Komponente. Änderungen gehen 500 ms verzögert an Rust
+ * (`ablauf/entwurfSpeicher.ts`); bis dahin gilt er als ungespeichert. Das zählt, wenn die Frist
+ * während einer Bearbeitung abläuft: Rust meldet `verfallen`, sobald eine gespeicherte Bearbeitung
+ * existierte, die Oberfläche ergänzt den Fall, dass die letzte Änderung noch gar nicht gespeichert
+ * war. Nach Fristende lehnt Rust jede Bearbeitung ab (`FristAbgelaufen`); die Oberfläche fragt dann
+ * `frist_pruefen` und zeigt die Versiegelung mit dem Hinweis, dass die Änderungen verfallen sind.
  *
  * Refs spiegeln Zustand, den asynchrone Schritte lesen (Polling, Speicher-Timer): Sie würden sonst
  * mit dem Wert aus dem Render arbeiten, in dem sie gestartet wurden.
@@ -15,6 +17,8 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 
+import { useEntwurfSpeicher } from "./ablauf/entwurfSpeicher";
+import { useFristUhr, type FristStand } from "./ablauf/fristUhr";
 import { Bestaetigung } from "./bausteine/Bestaetigung";
 import { Hinweis } from "./bausteine/Hinweis";
 import { Kopf } from "./bausteine/Kopf";
@@ -29,13 +33,9 @@ import { Startfehler } from "./seiten/Startfehler";
 import { Versiegelt } from "./seiten/Versiegelt";
 import { Willkommen } from "./seiten/Willkommen";
 import { useThema } from "./stil/thema";
-import type { Entwurf, Stammdatenpaket, Status, Versiegelung } from "./typen";
+import type { Entwurf, Stammdatenpaket, Status } from "./typen";
 
 const START: Lokal = { phase: "start", bearbeiten: false };
-const SPEICHER_VERZOEGERUNG_MS = 500;
-const TAKT_MS = 250;
-const ABFRAGE_MS = 5000;
-const FRIST_NACHFRAGE_MS = 1000;
 
 /** Tauri liefert Fehler als Zeichenkette (`Result<_, String>` in `befehle.rs`), alles andere wird lesbar gemacht. */
 function fehlerText(e: unknown): string {
@@ -53,18 +53,17 @@ export function App() {
   const [verfallenLokal, setVerfallenLokal] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [bestaetigen, setBestaetigen] = useState(false);
-  /** `jetzt`: lokale Uhr beim letzten Takt; `versatz`: Uhr in Rust minus lokale Uhr, beim letzten Status gemessen. */
-  const [uhr, setUhr] = useState({ jetzt: 0, versatz: 0 });
+  const [fristStand, setFristStand] = useState<FristStand | null>(null);
 
+  const statusRef = useRef<Status | null>(null);
+  const versatzRef = useRef(0);
   const lokalRef = useRef<Lokal>(START);
   const entwurfRef = useRef<Entwurf | null>(null);
   /** Der Entwurf stammt unverändert aus `leererEntwurf`: Beim Öffnen bekommt er dann einen frischen Beginn. */
   const frischRef = useRef(false);
-  const ungespeichertRef = useRef(false);
-  const aenderungenRef = useRef(0);
-  const speicherTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const speichertRef = useRef<Promise<void> | null>(null);
   const laeuftRef = useRef(false);
+  /** Der angezeigte Fehler stammt aus einer Abfrage im Hintergrund und verschwindet mit der nächsten, die gelingt. */
+  const fehlerAusAbfrageRef = useRef(false);
 
   const zeitzone = status?.zeitzone ?? paket?.zeitzone ?? null;
 
@@ -79,59 +78,49 @@ export function App() {
     setEntwurf(e);
   }
 
-  function stoppeSpeicherTimer() {
-    if (speicherTimerRef.current !== null) clearTimeout(speicherTimerRef.current);
-    speicherTimerRef.current = null;
+  function zeigeFehler(e: unknown, ausAbfrage: boolean) {
+    fehlerAusAbfrageRef.current = ausAbfrage;
+    setFehler(fehlerText(e));
   }
 
-  /** Kein Speichern mehr anstoßen und ein laufendes abwarten, bevor ein Schritt den Entwurf in Rust ersetzt. */
-  async function stoppeSpeichern() {
-    stoppeSpeicherTimer();
-    const laufend = speichertRef.current;
-    if (laufend) await laufend;
+  /** Restzeit jetzt, außerhalb des Renders gerechnet (für den Speicher-Timer). */
+  function restJetzt(): number {
+    const a = statusRef.current?.ausstehend;
+    return a ? restSekunden(a.fristBisMs, Date.now() + versatzRef.current) : 0;
   }
 
-  async function speichere() {
-    speicherTimerRef.current = null;
-    const e = entwurfRef.current;
-    if (!e) return;
-    const stand = aenderungenRef.current;
-    const laufend = befehle.entwurfSpeichern(e, lokalRef.current.bearbeiten).then(
-      () => {
-        if (aenderungenRef.current === stand) ungespeichertRef.current = false;
-      },
-      (err: unknown) => setFehler(fehlerText(err)),
-    );
-    speichertRef.current = laufend;
-    await laufend;
-    if (speichertRef.current === laufend) speichertRef.current = null;
-  }
-
-  function aendere(e: Entwurf) {
-    setzeEntwurf(e);
-    ungespeichertRef.current = true;
-    aenderungenRef.current += 1;
-    stoppeSpeicherTimer();
-    speicherTimerRef.current = setTimeout(() => void speichere(), SPEICHER_VERZOEGERUNG_MS);
-  }
+  const speicher = useEntwurfSpeicher({
+    darfSpeichern: (bearbeitung) => {
+      const l = lokalRef.current;
+      if (l.phase !== "form" || l.bearbeiten !== bearbeitung || laeuftRef.current) return false;
+      return !bearbeitung || restJetzt() > 0;
+    },
+    beiFehler: (f, bearbeitung) => {
+      void (async () => {
+        if (bearbeitung && (await versiegeltNachAblehnung().catch(() => false))) return;
+        zeigeFehler(f, false);
+      })();
+    },
+  });
 
   /**
    * Übernimmt einen Status. Beim Wechsel nach „versiegelt“ wird festgehalten, ob gerade eine
-   * Bearbeitung mit ungespeicherter Änderung lief, und der Speicher-Timer gestoppt: Ein Speichern
-   * nach dem Versiegeln brächte den versiegelten Klartext als nächsten Entwurf zurück.
+   * Bearbeitung mit ungespeicherter Änderung lief, und kein Speichern mehr angestoßen.
    */
   function uebernehme(s: Status, ersterStart = false) {
     const jetzt = Date.now();
+    statusRef.current = s;
+    versatzRef.current = s.jetztMs - jetzt;
     setStatus(s);
-    setUhr({ jetzt, versatz: s.jetztMs - jetzt });
+    setFristStand(s.ausstehend ? { fristBisMs: s.ausstehend.fristBisMs, versatz: s.jetztMs - jetzt, gemessenAm: jetzt } : null);
     const vorher = lokalRef.current;
     // Neustart mitten in einer Bearbeitung: Rust hält Ausstehendes und Entwurf, also dort weiter.
     const neustartInBearbeitung = ersterStart && s.eingerichtet && !s.startfehler && !s.versiegelung && s.ausstehend && s.entwurf;
     const neu: Lokal = neustartInBearbeitung ? { phase: "form", bearbeiten: true } : phaseAus(s, vorher);
     if (neu.phase === "versiegelt" && vorher.phase !== "versiegelt") {
-      stoppeSpeicherTimer();
-      setVerfallenLokal(vorher.bearbeiten && ungespeichertRef.current);
-      ungespeichertRef.current = false;
+      void speicher.stoppe();
+      setVerfallenLokal(vorher.bearbeiten && speicher.ungespeichert());
+      speicher.setzeUngespeichert(false);
     }
     setzeLokal(neu);
   }
@@ -142,15 +131,29 @@ export function App() {
     return s;
   }
 
+  /**
+   * Rust hat eine Bearbeitung abgelehnt oder die Frist ist nach Rusts Uhr um: `frist_pruefen`
+   * versiegelt den zuletzt abgesendeten Stand, und weil die Änderungen nicht übernommen wurden,
+   * zeigt die Versiegelung sie als verfallen. `false`, wenn nichts versiegelt wurde.
+   */
+  async function versiegeltNachAblehnung(): Promise<boolean> {
+    const v = await befehle.fristPruefen();
+    if (!v) return false;
+    speicher.setzeUngespeichert(true);
+    await laden();
+    return true;
+  }
+
   /** Ein Bedienschritt zur Zeit; sein Fehler landet im Hinweis über dem Inhalt. */
   async function fuehreAus(schritt: () => Promise<void>) {
     if (laeuftRef.current) return;
     laeuftRef.current = true;
+    fehlerAusAbfrageRef.current = false;
     setFehler(null);
     try {
       await schritt();
     } catch (e) {
-      setFehler(fehlerText(e));
+      zeigeFehler(e, false);
     } finally {
       laeuftRef.current = false;
     }
@@ -167,6 +170,8 @@ export function App() {
     else if (s.entwurf) setzeEntwurf(s.entwurf);
   });
 
+  const startFehler = useEffectEvent((e: unknown) => zeigeFehler(e, false));
+
   useEffect(() => {
     let aktiv = true;
     const istAktiv = () => aktiv;
@@ -174,65 +179,53 @@ export function App() {
       .status()
       .then((s) => (aktiv ? gestartet(s, istAktiv) : undefined))
       .catch((e: unknown) => {
-        if (aktiv) setFehler(fehlerText(e));
+        if (aktiv) startFehler(e);
       });
     return () => {
       aktiv = false;
     };
   }, []);
 
-  useEffect(() => {
-    const timer = speicherTimerRef;
-    return () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    };
-  }, []);
-
-  // Frist: lokaler Takt für Restzeit und Balken, Status alle 5 s. Auch während einer Bearbeitung,
-  // denn die Frist läuft weiter und der Hinweis im Formular zeigt die Restzeit.
+  // Frist: auch während einer Bearbeitung, denn die Frist läuft weiter und der Hinweis im
+  // Formular zeigt die Restzeit.
   const ausstehend = status?.ausstehend ?? null;
   const fristLaeuft = ausstehend !== null && !status?.versiegelung && (lokal.phase === "frist" || (lokal.phase === "form" && lokal.bearbeiten));
-  const rest = ausstehend ? restSekunden(ausstehend.fristBisMs, uhr.jetzt + uhr.versatz) : 0;
-  const abgelaufen = fristLaeuft && rest === 0;
 
-  const frage = useEffectEvent(async () => {
-    if (laeuftRef.current) return;
-    try {
-      await laden();
-    } catch (e) {
-      setFehler(fehlerText(e));
-    }
-  });
-
-  useEffect(() => {
-    if (!fristLaeuft) return;
-    const takt = setInterval(() => setUhr((u) => ({ ...u, jetzt: Date.now() })), TAKT_MS);
-    const abfrage = setInterval(() => void frage(), ABFRAGE_MS);
-    return () => {
-      clearInterval(takt);
-      clearInterval(abfrage);
-    };
-  }, [fristLaeuft]);
-
-  const geprueft = useEffectEvent(async (v: Versiegelung | null) => {
-    if (v) await laden();
-  });
-
-  // Lokal abgelaufen: sofort nachfragen, und jede Sekunde wieder, solange Rust (eigene Uhr) noch
-  // nichts versiegelt hat.
-  useEffect(() => {
-    if (!abgelaufen) return;
-    const pruefe = () => {
+  const rest = useFristUhr({
+    stand: fristStand,
+    aktiv: fristLaeuft,
+    frage: async () => {
       if (laeuftRef.current) return;
-      befehle
-        .fristPruefen()
-        .then((v) => geprueft(v))
-        .catch((e: unknown) => setFehler(fehlerText(e)));
-    };
-    pruefe();
-    const wieder = setInterval(pruefe, FRIST_NACHFRAGE_MS);
-    return () => clearInterval(wieder);
-  }, [abgelaufen]);
+      try {
+        await laden();
+        if (fehlerAusAbfrageRef.current) {
+          fehlerAusAbfrageRef.current = false;
+          setFehler(null);
+        }
+      } catch (e) {
+        zeigeFehler(e, true);
+      }
+    },
+    // Bei 0 erst das Speichern anhalten: Eine Bearbeitung, die jetzt noch in Rust ankäme, würde
+    // ohnehin abgelehnt, und die Versiegelung nimmt den zuletzt abgesendeten Stand.
+    pruefe: async () => {
+      if (laeuftRef.current) return;
+      try {
+        await speicher.stoppe();
+        const v = await befehle.fristPruefen();
+        if (v) await laden();
+      } catch (e) {
+        zeigeFehler(e, true);
+      }
+    },
+  });
+
+  function aendere(e: Entwurf) {
+    setzeEntwurf(e);
+    // Während ein Schritt läuft (Absenden, Verwerfen), plant eine Eingabe kein Speichern: Der
+    // Schritt ersetzt den Entwurf in Rust ohnehin.
+    if (!laeuftRef.current) speicher.plane(e, lokalRef.current.bearbeiten);
+  }
 
   function oeffnen() {
     if ((frischRef.current || !entwurfRef.current) && zeitzone) setzeEntwurf(leererEntwurf(new Date(), zeitzone), true);
@@ -259,9 +252,9 @@ export function App() {
   /** „Änderungen verwerfen“ und „Zurück zur Frist“: Bearbeitung in Rust löschen, zurück zur Frist. */
   const zurFrist = () =>
     fuehreAus(async () => {
-      await stoppeSpeichern();
+      await speicher.stoppe();
       await befehle.entwurfVerwerfen();
-      ungespeichertRef.current = false;
+      speicher.setzeUngespeichert(false);
       setzeLokal({ phase: "frist", bearbeiten: false });
       await laden();
     });
@@ -275,18 +268,25 @@ export function App() {
     fuehreAus(async () => {
       const e = entwurfRef.current;
       if (!e || fehlendeAngaben(e).length > 0) return;
-      await stoppeSpeichern();
-      if (lokalRef.current.bearbeiten) {
-        // Die Frist kann inzwischen abgelaufen sein. Ein Absenden danach legte die Bearbeitung
-        // als neuen Einsatz mit neuer Frist an, statt sie zu verwerfen.
+      const bearbeitung = lokalRef.current.bearbeiten;
+      await speicher.stoppe();
+      if (bearbeitung) {
+        // Ist die Frist nach Rusts Uhr schon um, gar nicht erst absenden: Rust lehnte ab, und
+        // versiegelt wird der zuletzt abgesendete Stand.
         const s = await befehle.status();
-        if (!s.ausstehend || s.versiegelung) {
-          uebernehme(s);
+        const vorbei = !s.ausstehend || s.versiegelung !== null || s.jetztMs >= s.ausstehend.fristBisMs;
+        if (vorbei) {
+          if (!(await versiegeltNachAblehnung())) uebernehme(s);
           return;
         }
       }
-      await befehle.absenden(e, lokalRef.current.bearbeiten);
-      ungespeichertRef.current = false;
+      try {
+        await befehle.absenden(e, bearbeitung);
+      } catch (f) {
+        if (bearbeitung && (await versiegeltNachAblehnung())) return;
+        throw f;
+      }
+      speicher.setzeUngespeichert(false);
       setzeLokal({ phase: "frist", bearbeiten: false });
       await laden();
       window.scrollTo({ top: 0 });
@@ -295,7 +295,7 @@ export function App() {
   const aendern = () => {
     if (!ausstehend) return;
     setzeEntwurf(ausstehend.entwurf);
-    ungespeichertRef.current = false;
+    speicher.setzeUngespeichert(false);
     setzeLokal({ phase: "form", bearbeiten: true });
   };
 
@@ -307,12 +307,12 @@ export function App() {
 
   /**
    * „Neuen Einsatz erfassen“: erst quittieren, dann den Status lesen. Sonst meldeten `status` und
-   * `frist_pruefen` dieselbe Versiegelung erneut. Hat ein Speichern die Versiegelung überholt, liegt
-   * danach ein Entwurf ohne Ausstehendes in Rust; der wäre der versiegelte Stand und wird verworfen.
+   * `frist_pruefen` dieselbe Versiegelung erneut. Liegt danach ein Entwurf ohne Ausstehendes in
+   * Rust, stammt er aus der versiegelten Bearbeitung und wird verworfen.
    */
   const fertig = () =>
     fuehreAus(async () => {
-      await stoppeSpeichern();
+      await speicher.stoppe();
       await befehle.versiegelungQuittieren();
       let s = await befehle.status();
       if (s.entwurf && !s.ausstehend) {
@@ -329,7 +329,7 @@ export function App() {
   const testEnde = () =>
     fuehreAus(async () => {
       setBestaetigen(false);
-      await stoppeSpeichern();
+      await speicher.stoppe();
       try {
         await befehle.testbetriebBeenden();
       } catch (e) {
