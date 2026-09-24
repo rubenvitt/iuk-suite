@@ -88,11 +88,11 @@ const BLOCK_SCHLUESSEL = ["kopf", "iv", "daten", "umschlag", "hash"] as const;
 const EXPORTANKER_SCHLUESSEL = ["block", "hash", "gemeldetAm"] as const;
 const EXPORTINHALT_SCHLUESSEL = ["bloecke", "schluessel", "exportiertVon", "quelle", "anker"] as const;
 
-function istObjekt(x: unknown): x is Record<string, unknown> {
+export function istObjekt(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
 }
 
-function hatGenauSchluessel(x: Record<string, unknown>, schluessel: readonly string[]): boolean {
+export function hatGenauSchluessel(x: Record<string, unknown>, schluessel: readonly string[]): boolean {
   const keys = Object.keys(x);
   return keys.length === schluessel.length && schluessel.every((k) => keys.includes(k));
 }

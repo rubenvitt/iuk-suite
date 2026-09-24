@@ -1,6 +1,6 @@
-import { ausBase64, ausUtf8, mitLaenge, utf8, zuBase64, zufall, type Bytes } from "./bytes";
-import { istExportinhalt, type Exportdatei, type Exportinhalt, type Exportkopf } from "./format";
-import { kanonisch } from "./kanonisch";
+import { ausBase64, mitLaenge, utf8, zuBase64, zufall, type Bytes } from "./bytes";
+import { hatGenauSchluessel, istExportinhalt, istObjekt, type Exportdatei, type Exportinhalt, type Exportkopf } from "./format";
+import { ausKanonischemJson, kanonisch } from "./kanonisch";
 
 export const EXPORT_ITERATIONEN = 600_000;
 export const KENNWORT_MINDESTLAENGE = 10;
@@ -35,18 +35,29 @@ export async function verschluesseleExport(
   };
 }
 
-const istObjekt = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const EXPORTDATEI_SCHLUESSEL = ["format", "version", "kopf", "kdf", "chiffre", "daten"] as const;
+const EXPORTKOPF_SCHLUESSEL = ["erstellt", "umfang", "von", "bis", "anzahl", "quelle"] as const;
+const KDF_SCHLUESSEL = ["name", "hash", "iterationen", "salt"] as const;
+const CHIFFRE_SCHLUESSEL = ["name", "laenge", "iv"] as const;
 
-/** Formprüfung der äußeren Hülle, bevor nach dem Kennwort gefragt wird. Lehnt das Format der Vorlage (`version: 1`) und jede andere Rundenzahl als 600 000 ab. */
+/**
+ * Formprüfung der äußeren Hülle, bevor nach dem Kennwort gefragt wird. Lehnt das Format der
+ * Vorlage (`version: 1`) und jede andere Rundenzahl als 600 000 ab. Verlangt auf allen vier
+ * Ebenen genau die erwarteten Schlüssel (Review Befund 2): `kopf` ist AAD, ein zusätzliches
+ * oder unbekanntes Feld darin würde sich sonst als `KennwortFalsch` melden statt als
+ * Formfehler.
+ */
 export function istExportdatei(x: unknown): x is Exportdatei {
-  if (!istObjekt(x) || x.format !== "einsatzbuch-export" || x.version !== 2) return false;
+  if (!istObjekt(x) || !hatGenauSchluessel(x, EXPORTDATEI_SCHLUESSEL)) return false;
+  if (x.format !== "einsatzbuch-export" || x.version !== 2) return false;
   const { kopf, kdf, chiffre, daten } = x;
-  return istObjekt(kopf) && typeof kopf.erstellt === "string" && (kopf.umfang === "alle" || kopf.umfang === "einzeln")
+  return istObjekt(kopf) && hatGenauSchluessel(kopf, EXPORTKOPF_SCHLUESSEL)
+    && typeof kopf.erstellt === "string" && (kopf.umfang === "alle" || kopf.umfang === "einzeln")
     && Number.isSafeInteger(kopf.von) && Number.isSafeInteger(kopf.bis) && Number.isSafeInteger(kopf.anzahl) && typeof kopf.quelle === "string"
-    && istObjekt(kdf) && kdf.name === "PBKDF2" && kdf.hash === "SHA-256"
+    && istObjekt(kdf) && hatGenauSchluessel(kdf, KDF_SCHLUESSEL) && kdf.name === "PBKDF2" && kdf.hash === "SHA-256"
     && kdf.iterationen === EXPORT_ITERATIONEN
     && typeof kdf.salt === "string"
-    && istObjekt(chiffre) && chiffre.name === "AES-GCM" && chiffre.laenge === 256 && typeof chiffre.iv === "string"
+    && istObjekt(chiffre) && hatGenauSchluessel(chiffre, CHIFFRE_SCHLUESSEL) && chiffre.name === "AES-GCM" && chiffre.laenge === 256 && typeof chiffre.iv === "string"
     && typeof daten === "string";
 }
 
@@ -85,15 +96,12 @@ export async function entschluesseleExport(datei: Exportdatei, kennwort: string)
     throw new KennwortFalsch();
   }
 
-  const text = ausUtf8(new Uint8Array(klar));
-  const e: unknown = JSON.parse(text);
-  let kanonischesJson: boolean;
+  let e: unknown;
   try {
-    kanonischesJson = kanonisch(e) === text;
+    e = ausKanonischemJson(new Uint8Array(klar));
   } catch {
-    kanonischesJson = false;
+    throw new Error("Inhalt der Exportdatei ist kein kanonisches JSON");
   }
-  if (!kanonischesJson) throw new Error("Inhalt der Exportdatei ist kein kanonisches JSON");
   if (!istExportinhalt(e)) throw new Error("Inhalt der Exportdatei hat nicht die erwartete Form");
   return e;
 }

@@ -73,6 +73,12 @@ describe("Versiegeln, Einpacken, Auspacken, Öffnen", () => {
     const { block, cek } = await roh(k, JSON.stringify(beispielEinsatz(), null, 1), paar.publicKey);
     await expect(oeffneBlock(block, cek)).rejects.toThrow("kein kanonisches JSON");
   });
+  it("ein Klartext mit führendem BOM öffnet nicht, obwohl TextDecoder es sonst still entfernt", async () => {
+    const paar = await erzeugeSchluesselpaar();
+    const k = kopf(1, GENESIS, await schluesselIdVon(paar.publicKey));
+    const { block, cek } = await roh(k, "﻿" + kanonisch(beispielEinsatz()), paar.publicKey);
+    await expect(oeffneBlock(block, cek)).rejects.toThrow("kein kanonisches JSON");
+  });
   it("ein kanonischer Klartext mit falscher Form öffnet nicht", async () => {
     const paar = await erzeugeSchluesselpaar();
     const k = kopf(1, GENESIS, await schluesselIdVon(paar.publicKey));

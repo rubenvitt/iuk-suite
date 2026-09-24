@@ -1,6 +1,6 @@
-import { ausBase64, ausUtf8, mitLaenge, utf8, zuBase64, zufall, type Bytes } from "./bytes";
+import { ausBase64, mitLaenge, utf8, zuBase64, zufall, type Bytes } from "./bytes";
 import { istEinsatz, type Block, type Blockkopf, type Einsatz } from "./format";
-import { kanonisch } from "./kanonisch";
+import { ausKanonischemJson, kanonisch } from "./kanonisch";
 import { blockHash } from "./kette";
 import { packeEin, schluesselIdVon, type Umschlagzufall } from "./umschlag";
 
@@ -40,15 +40,12 @@ export async function oeffneBlock(block: Block, cek: Bytes): Promise<Einsatz> {
     { name: "AES-GCM", iv: mitLaenge(ausBase64(block.iv), 12, "iv"), additionalData: utf8(kanonisch(block.kopf)) },
     await aesSchluessel(cek), ausBase64(block.daten),
   );
-  const text = ausUtf8(new Uint8Array(klar));
-  const e: unknown = JSON.parse(text);
-  let kanonischesJson: boolean;
+  let e: unknown;
   try {
-    kanonischesJson = kanonisch(e) === text;
+    e = ausKanonischemJson(new Uint8Array(klar));
   } catch {
-    kanonischesJson = false;
+    throw new Error("Klartext ist kein kanonisches JSON");
   }
-  if (!kanonischesJson) throw new Error("Klartext ist kein kanonisches JSON");
   if (!istEinsatz(e)) throw new Error("Klartext ist kein Einsatz im Format v1");
   return e;
 }

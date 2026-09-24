@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { kanonisch } from "./kanonisch";
+import { utf8 } from "./bytes";
+import { ausKanonischemJson, kanonisch } from "./kanonisch";
 
 describe("kanonisch (RFC 8785 für die Werte des Einsatzbuchs)", () => {
   it("sortiert Schlüssel, lässt Leerraum weg, verschachtelt", () => {
@@ -18,5 +19,26 @@ describe("kanonisch (RFC 8785 für die Werte des Einsatzbuchs)", () => {
     expect(() => kanonisch("a\uDC00")).toThrow("Surrogat");
     expect(() => kanonisch({ a: new Date(0) })).toThrow("Nur einfache Objekte");
     expect(() => kanonisch(new Map())).toThrow("Nur einfache Objekte");
+  });
+  it("lehnt eine dünn besetzte Reihung ab, statt eine Lücke als Komma zu schreiben", () => {
+    const duenn: number[] = [];
+    duenn[1] = 1;
+    expect(() => kanonisch(duenn)).toThrow();
+  });
+});
+
+describe("ausKanonischemJson (Bytes → Wert, nur wenn die Bytes selbst kanonisch sind)", () => {
+  it("nimmt kanonisches JSON an und gibt den geparsten Wert zurück", () => {
+    expect(ausKanonischemJson(utf8('{"a":1}'))).toEqual({ a: 1 });
+  });
+  it("lehnt zusätzlichen Leerraum ab, obwohl JSON.parse ihn schluckt", () => {
+    expect(() => ausKanonischemJson(utf8('{"a": 1}'))).toThrow("kein kanonisches JSON");
+  });
+  it("lehnt ein führendes BOM ab, das TextDecoder sonst still entfernt", () => {
+    const mitBom = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8('{"a":1}')]);
+    expect(() => ausKanonischemJson(mitBom)).toThrow("kein kanonisches JSON");
+  });
+  it("lehnt ungültiges UTF-8 ab", () => {
+    expect(() => ausKanonischemJson(new Uint8Array([0xff]))).toThrow("kein kanonisches JSON");
   });
 });

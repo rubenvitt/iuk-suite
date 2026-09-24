@@ -66,6 +66,10 @@ describe("Export", () => {
     expect(istExportdatei(null)).toBe(false);
     expect(istExportdatei([])).toBe(false);
     expect(istExportdatei({ format: "einsatzbuch-export" })).toBe(false);
+    expect(istExportdatei({ ...datei, zusatz: 1 })).toBe(false);
+    expect(istExportdatei({ ...datei, kopf: { ...datei.kopf, zusatz: 1 } })).toBe(false);
+    expect(istExportdatei({ ...datei, kdf: { ...datei.kdf, zusatz: 1 } })).toBe(false);
+    expect(istExportdatei({ ...datei, chiffre: { ...datei.chiffre, zusatz: 1 } })).toBe(false);
   });
 
   it("ein fremdes Dateiformat (version: 1) wird schon vor dem Kennwort abgelehnt", async () => {
@@ -93,6 +97,11 @@ describe("Export", () => {
 
   it("ein Klartext, der kein kanonisches JSON ist, öffnet nicht", async () => {
     const kaputt = await bauDatei(JSON.stringify(inhalt, null, 1));
+    await expect(entschluesseleExport(kaputt, "richtiges-kennwort")).rejects.toThrow("kein kanonisches JSON");
+  });
+
+  it("ein Klartext mit führendem BOM öffnet nicht, obwohl TextDecoder es sonst still entfernt", async () => {
+    const kaputt = await bauDatei("﻿" + kanonisch(inhalt));
     await expect(entschluesseleExport(kaputt, "richtiges-kennwort")).rejects.toThrow("kein kanonisches JSON");
   });
 

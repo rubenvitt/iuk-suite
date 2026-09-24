@@ -44,6 +44,15 @@ describe("zeit", () => {
   it("lehnt einen ungültigen Zeitpunkt ab", () => {
     expect(() => zeitpunktText("kaputt", Z)).toThrow("Kein gültiger Zeitpunkt: kaputt");
   });
+  it("lehnt einen Zeitpunkt ohne Offset ab — sonst hinge er still von der Laufzeit-Zone ab", () => {
+    expect(() => zeitpunktText("2026-09-23T19:08:00", Z)).toThrow("Kein gültiger Zeitpunkt: 2026-09-23T19:08:00");
+  });
+  it("lehnt einen Kalendertag ab, den es nicht gibt", () => {
+    expect(() => datumText("2026-02-31")).toThrow("Kein gültiger Kalendertag: 2026-02-31");
+  });
+  it("lehnt eine Uhrzeit ab, die es nicht gibt", () => {
+    expect(() => wandzeitZuInstant("2026-09-23", "24:00", Z)).toThrow("Keine gültige Uhrzeit: 24:00");
+  });
   it("lehnt eine Dauer ab, die negativ oder keine ganze Zahl ist", () => {
     expect(() => dauerText(-125)).toThrow("Dauer muss eine ganze Zahl ab 0 sein");
     expect(() => dauerText(1.5)).toThrow("Dauer muss eine ganze Zahl ab 0 sein");

@@ -19,6 +19,15 @@ import { schluesselIdVon } from "../umschlag";
  * Suite-Schlüssels), umgebung: "echt" }`. Bei den Negativfällen vergleicht Rust nur `ok`
  * und `block` aus `kette` — `grund` ist Oberflächentext. `zeitzone` in den Eingaben ist die
  * Suite-Zone, in der Berichte zu den Vektoren gerechnet werden; für die Blöcke selbst ohne Belang.
+ *
+ * Für Rust (Review Befund 5, reine Dokumentation, kein Vektor geändert):
+ * - Das ECDH-Geheimnis (`kek` in `umschlag.ts`) ist die x-Koordinate des Kurvenpunkts,
+ *   32 Byte (`deriveBits` mit 256 Bit für P-256).
+ * - AES-GCM hängt den 16-Byte-Tag ans Chiffrat: `daten` (Block) bzw. `umschlag.ct`
+ *   (48 Byte = 32 Byte CEK + 16 Byte Tag).
+ * - Die AAD ist jeweils die UTF-8-Kodierung von JCS(`kopf`) — auch beim Umschlag, dessen
+ *   `packeEin` den eigenen Blockkopf als AAD nimmt, nicht den Einsatz.
+ * - Der Klartext eines Blocks ist die UTF-8-Kodierung von JCS(`Einsatz`).
  */
 export interface Testschluessel { privat: JsonWebKey; oeffentlichSpki: string }
 
