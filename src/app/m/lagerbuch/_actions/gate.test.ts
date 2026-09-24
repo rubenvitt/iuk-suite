@@ -232,8 +232,8 @@ describe("einloesenAmGate — der Absenderschluessel: einmal ermittelt, zweimal 
 
     await einloesenAmGate({}, form({ code: "000-000" }));
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null, eingabe: "000-000" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null, eingabe: "000-000" });
   });
 });
 
@@ -572,8 +572,8 @@ describe("einloesenAmGate — das Merkmal „bekanntes Gerät\" (DRK-291)", () =
 
     await einloesenAmGate({}, form({ code: "000-000" }));
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc", eingabe: "000-000" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc", eingabe: "000-000" });
     expect(gateFehlversuchBuchen.mock.calls[0]?.[1]).toEqual(gateGesperrt.mock.calls[0]?.[1]);
     // Misserfolg: KEIN Gerätecookie — das Merkmal gibt es nur für einen richtigen Code.
     expect(stand.cookies).toEqual([]);

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { type ActionErgebnis } from "../_lib/actionErgebnis";
 import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
-import { setzeOrtCodeNeu, StandVeraltet } from "../_lib/schreibpfade/ortCodes";
+import { ersetzeAlteOrtCodes, setzeOrtCodeNeu, StandVeraltet } from "../_lib/schreibpfade/ortCodes";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -93,5 +93,39 @@ export async function setzeOrtCodeZurueck(
     revalidatePath(LISTENPFAD);
     revalidatePath(ETIKETTENPFAD);
     return { ok: true, wert: { code } };
+  });
+}
+
+const NEUDRUCK_FEHLER =
+  "Die alten Codes konnten nicht vollständig neu erzeugt werden. Lade die Seite "
+  + "neu — was schon neu ist, siehst du dort.";
+
+/**
+ * ALLE ALTEN ORTSCODES AUF EINMAL NEU — DRK-442, der Knopf auf den
+ * Ortsetiketten. Wer die Karten ohnehin neu druckt, soll das nicht dreißigmal
+ * einzeln anstoßen.
+ *
+ * ⚠️ KEIN `bisher` WIE BEIM EINZELNEN ZURÜCKSETZEN, und das ist kein Loch: die
+ * Bedingung ist hier die FORM, nicht ein gesehener Code. Ein zweiter Klick —
+ * oder ein zweiter Tab — findet keinen alten Code mehr und tut nichts; der
+ * Wettlauf kann also nie einen gerade erzeugten langen Code verbrennen.
+ *
+ * @returns Wie viele Codes neu entstanden sind — so viele Karten müssen neu
+ *   gedruckt werden.
+ */
+export async function ersetzeAlteOrtCodesAmOrt(
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ neu: number }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ neu: number }>> => {
+    let neu: number;
+    try {
+      neu = ersetzeAlteOrtCodes(db, viewer.sub);
+    } catch {
+      return { ok: false, fehler: NEUDRUCK_FEHLER };
+    }
+    revalidatePath(LISTENPFAD);
+    revalidatePath(ETIKETTENPFAD);
+    return { ok: true, wert: { neu } };
   });
 }

@@ -6,6 +6,7 @@ import {
 } from "../_lib/konstanten";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
 import { stelleOrtCodesSicher } from "../_lib/schreibpfade/ortCodes";
+import { istLangerCode } from "../_lib/code";
 import type { DB } from "./client";
 import { artikel, tokens } from "./schema";
 
@@ -162,6 +163,13 @@ export type OrtEtikettenDaten = {
    * er druckt.
    */
   neueCodes: number;
+  /**
+   * WIE VIELE KARTEN NOCH EINEN CODE IN DER ALTEN FORM TRAGEN (6 Ziffern) —
+   * DRK-442. Solange die Zahl nicht null ist, haengt an diesen Orten ein Code,
+   * den die modulweite Sperre fuer neue Geraete abweisen kann; die Insel bietet
+   * dafuer den Neudruck an.
+   */
+  alteCodes: number;
 };
 
 /**
@@ -293,5 +301,6 @@ export async function ortEtikettenDaten(
     };
   }));
 
-  return { basis, orte, neueCodes };
+  const alteCodes = orte.filter((o) => o.code !== null && !istLangerCode(o.code)).length;
+  return { basis, orte, neueCodes, alteCodes };
 }

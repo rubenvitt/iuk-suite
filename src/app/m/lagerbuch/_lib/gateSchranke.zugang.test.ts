@@ -218,6 +218,63 @@ describe("DRK-291 lagerbuch — Fehlversuche mit Merkmal bleiben gedeckelt", () 
   });
 });
 
+describe("DRK-442 lagerbuch — ein LANGER Code kommt nach verteiltem Druck immer herein", () => {
+  /*
+   * Die eigentliche Lösung des Rests aus DRK-291: ein UNBEKANNTES Gerät —
+   * kein Gerätecookie, keine Sitzung — mit einem langen Code. Minuten- UND
+   * Stundensperre der Unbekannten sind ausgelöst.
+   */
+  const LANG = "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E";
+
+  beforeEach(() => {
+    t.db.insert(tokens).values({
+      id: "tk-lang", code: LANG, label: "RTW 2", aktiv: true,
+      createdAt: new Date(), createdBy: "sub-admin",
+    }).run();
+  });
+
+  async function vollerDruck() {
+    await verteilterDruck();
+    expect(m.schranke.gateGesperrt("cf:203.0.113.200")).not.toBeNull();
+  }
+
+  it("QR-Einlösung", async () => {
+    await vollerDruck();
+    client("203.0.113.70");
+    const r = await qr(LANG);
+    expect(r.location).not.toContain("grund=");
+    expect(r.cookies.some((c) => c.startsWith("helfer_session="))).toBe(true);
+  });
+
+  it("Handeingabe am Gate — klein geschrieben, mit Leerzeichen, O statt 0", async () => {
+    await vollerDruck();
+    client("203.0.113.71");
+    expect(await manuell("7k3m q9xd 2rtp 4w8n hv6b c1zf j5oe")).toBe("ok");
+    expect(stand.gesetzt.has("helfer_session")).toBe(true);
+  });
+
+  it("Erneuerung", async () => {
+    await vollerDruck();
+    client("203.0.113.72");
+    expect(await m.sitzung.erneuereSitzung(LANG)).toEqual({ ok: true, wert: null });
+  });
+
+  it("vom selben Absender, der eben selbst gesperrt wurde", async () => {
+    client("203.0.113.73");
+    for (let i = 0; i < 6; i++) await manuell("000-000");
+    expect(await manuell("482137")).toMatch(/Zu viele Fehlversuche/);
+    expect(await manuell(LANG)).toBe("ok");
+  });
+
+  it("ein falscher langer Code geht an die Datenbank, bleibt aber ein Fehlversuch", async () => {
+    await vollerDruck();
+    client("203.0.113.74");
+    expect(await manuell("ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ")).toMatch(/unbekannt/);
+    // Der alte Code desselben Geräts bleibt gesperrt — der Rest aus DRK-291.
+    expect(await manuell("482137")).toMatch(/Zu viele Fehlversuche/);
+  });
+});
+
 describe("DRK-291 lagerbuch — abgewiesene Anfragen verlängern keine Sperre", () => {
   it("Anfragen während der modulweiten Sperre schieben ihr Ende nicht hinaus", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });

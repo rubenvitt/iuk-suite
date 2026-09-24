@@ -49,6 +49,7 @@ import dienstabendePlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback
 import checksLaufend from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-19-checks-laufend";
 import ruecklaufVomFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-21-ruecklauf-vom-fahrzeug";
 import aussondernAusDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-22-aussondern-aus-der-box";
+import langeZugangsCodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-24-lange-zugangs-codes";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -128,6 +129,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   ortscodes,
   artikeletiketten,
   aussondernAusDerBox,
+  langeZugangsCodes,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { einloesenAmGate, type GateZustand } from "../_actions/gate";
 import { LAGERBUCH_MARKE, LAGERBUCH_ZEILE } from "../_lib/marke";
+import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -183,20 +184,20 @@ export function Gate({
           <form className={s.gateForm} action={formAction}>
             <input type="hidden" name="returnTo" value={returnTo} />
             {/*
-              `inputMode="numeric"`, `maxLength` und `pattern` sind zusammen die
-              billigste Massnahme gegen Fehleingaben am GEMEINSAMEN
-              Rate-Limit-Eimer (§7.5.3, Falle 24): alle Helferinnen hinter
-              demselben Uplink — ein Anschluss oder Mobilfunk hinter CGNAT —
-              teilen sich fuenf Fehlversuche pro Minute.
+              `maxLength` und `pattern` (aus `_lib/tokenForm.ts`) sind die
+              billigste Massnahme gegen Fehleingaben am GEMEINSAMEN Eimer der
+              alten Form (§7.5.3, Falle 24). Seit DRK-442 traegt ein Code
+              Buchstaben: kein `inputMode="numeric"` mehr, dafuer Grossschrift
+              und keine Autokorrektur, die eine Vierergruppe zum Wort macht.
             */}
             <input
               className={s.codefeld}
               name="code"
-              inputMode="numeric"
+              autoCapitalize="characters" autoCorrect="off" spellCheck={false}
               autoComplete="off"
-              maxLength={7}
-              pattern="[0-9]{3}-?[0-9]{3}"
-              placeholder="000-000"
+              maxLength={CODEFELD_LAENGE}
+              pattern={CODEFELD_MUSTER}
+              placeholder={CODEFELD_PLATZHALTER}
               aria-label="Zugangs-Code"
             />
             {/*

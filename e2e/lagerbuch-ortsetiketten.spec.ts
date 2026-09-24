@@ -181,7 +181,8 @@ test.describe("Ortsetiketten (Bogen)", () => {
      * ist in keiner Vorrichtung festgeschrieben. Ein erwarteter Literalwert
      * waere eine Zusage ueber eine Ziehung, die niemand gegeben hat.
      */
-    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
+    // DRK-442: die lange Form, 28 Zeichen Crockford-Base32 in Vierergruppen.
+    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){6}$`));
     /*
      * Der Fuss nennt denselben Zugang — abtippbar, fuer ein Telefon ohne Kamera.
      *
@@ -199,7 +200,7 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await expect(karte.locator(".lb-ortkarteUrl"))
       .not.toContainText(`/o/${E2E_FAHRZEUG_ID}`);
     await expect(karte.locator(".lb-ortkarteCode"))
-      .toHaveText(`Code ${ziel.slice(-7)}`);
+      .toHaveText(`Code ${ziel.slice(ziel.lastIndexOf("/") + 1)}`);
 
     // Dann der Abruf. Als Praedikat und NICHT als Regex: ein `?` im Muster ist
     // der klassische stille Fehlgriff — unescaped macht es das vorige Zeichen
@@ -209,6 +210,32 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await page.waitForURL((url) => url.pathname.endsWith("/helfer/check")
       && url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
     await expect(page.getByText(E2E_FAHRZEUG_NAME).first()).toBeVisible();
+  });
+
+  /**
+   * DRK-442 — DER LANGE CODE VON HAND. Der Ausweichweg fuer eine streikende
+   * Kamera: abgemeldet, klein geschrieben, mit Leerzeichen statt Bindestrichen.
+   *
+   * ⚠️ NUR EIN ECHTER BROWSER PRUEFT DAS FELDMUSTER. Chromium uebersetzt
+   * `pattern` mit dem `v`-Flag und ignoriert ein Muster, das dort nicht
+   * kompiliert; jsdom validiert es gar nicht. Ein zu enges Muster (die alte
+   * Ziffernform) liesse den Knopf hier ohne jede Meldung wirkungslos.
+   */
+  test("ein langer Code laesst sich am Gate von Hand eintippen", async ({ page, browser }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    const karte = page.locator(".lb-ortkarte", { hasText: E2E_FAHRZEUG_NAME }).first();
+    const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
+    const code = ziel.slice(ziel.lastIndexOf("/") + 1);
+
+    const ctx = await browser.newContext();
+    const helfer = await ctx.newPage();
+    await helfer.goto(lagerbuchUrl("/"));
+    await helfer.getByRole("textbox", { name: "Zugangs-Code" })
+      .fill(code.toLowerCase().replaceAll("-", " "));
+    await helfer.getByRole("button", { name: "Weiter" }).click();
+    await helfer.waitForURL((url) => url.pathname.endsWith("/helfer/check")
+      && url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+    await ctx.close();
   });
 
   /** Der Handlager fuehrt auf die Artikelliste — nicht in eine Fahrzeugwahl. */
@@ -264,7 +291,8 @@ test.describe("Ortsetiketten (Bogen)", () => {
     const karte = page.locator(".lb-ortkarte").nth(index);
 
     const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
-    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
+    // DRK-442: die lange Form, 28 Zeichen Crockford-Base32 in Vierergruppen.
+    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){6}$`));
     await expect(karte.locator(".lb-ortkarteUrl")).toContainText(ziel);
     await expect(karte.locator(".lb-ortkarteUrl")).not.toContainText(`/o/${HANDLAGER_ID}`);
 
@@ -353,7 +381,8 @@ test.describe("Ortsetiketten (Bogen)", () => {
     const karte = page.locator(".lb-ortkarte").nth(index);
 
     const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
-    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
+    // DRK-442: die lange Form, 28 Zeichen Crockford-Base32 in Vierergruppen.
+    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){6}$`));
 
     // Der Scan — abgemeldet, wie in der Halle.
     const anonym = await browser.newContext();
@@ -789,8 +818,10 @@ test.describe("Ortsetiketten (Bogen)", () => {
        * die Adresse den Fuss fuellt — genau dort entscheidet sich, ob „vorn"
        * wirklich traegt.
        */
+      // DRK-442: die Adresse einer Karte MIT langem Code — die laengste reale.
       fuss.textContent =
-        `https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/o/${id}`;
+        "https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/t/"
+        + "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E";
       /*
        * ⚠️ MIT DEM CODE DANEBEN — seit DRK-406, und ohne ihn misst der Test
        * eine Karte, die es nicht mehr gibt. Bis dahin trug nur die
@@ -806,7 +837,7 @@ test.describe("Ortsetiketten (Bogen)", () => {
       marke.textContent = id;
       const code = document.createElement("span");
       code.className = "lb-ortkarteCode";
-      code.textContent = "Code 123-456";
+      code.textContent = "Code 7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E";
       kennzeile.append(marke, document.createTextNode(" · "), code);
       fuss.prepend(kennzeile);
 

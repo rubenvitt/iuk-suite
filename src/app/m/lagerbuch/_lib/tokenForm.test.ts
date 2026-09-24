@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  CODEFELD_LAENGE,
+  CODEFELD_MUSTER,
   TOKEN_ALPHABET,
+  TOKEN_GRUPPE,
   TOKEN_LOESCHGRUND,
+  TOKEN_ZEICHEN,
   TOKEN_ZIEHUNGEN,
-  TOKEN_ZIFFERN,
 } from "./tokenForm";
 
 const QUELLE = "src/app/m/lagerbuch/_lib/tokenForm.ts";
@@ -42,18 +45,61 @@ function ohneKommentare(quelle: string): string {
 
 describe("tokenForm — §8.3, der Token-Vertrag", () => {
   /**
-   * DIE DREI ZAHLEN STEHEN AUF LAMINIERTEN KAERTCHEN IM FAHRZEUG. Sie zu
-   * aendern macht gedruckte Gegenstaende wertlos — 1:1-Pflicht.
+   * DIESE ZAHLEN STEHEN AUF LAMINIERTEN KAERTCHEN IM FAHRZEUG. Sie zu aendern
+   * macht gedruckte Gegenstaende wertlos — 1:1-Pflicht (seit DRK-442 die lange
+   * Form).
    */
-  it("benutzt genau die zehn Ziffern und sechs Stellen", () => {
-    expect(TOKEN_ALPHABET).toBe("0123456789");
-    expect(TOKEN_ZIFFERN).toBe(6);
-    // Coderaum 10^6 — die Zahl, gegen die die Gate-Schranke rechnet (§3.5.3).
-    expect(TOKEN_ALPHABET.length ** TOKEN_ZIFFERN).toBe(1_000_000);
+  it("benutzt Crockford-Base32 in sieben Vierergruppen", () => {
+    expect(TOKEN_ALPHABET).toBe("0123456789ABCDEFGHJKMNPQRSTVWXYZ");
+    expect(TOKEN_ZEICHEN).toBe(28);
+    expect(TOKEN_GRUPPE).toBe(4);
+    expect(TOKEN_ZEICHEN % TOKEN_GRUPPE).toBe(0);
+    // 32 Zeichen ohne Doppel, ohne I, L, O, U — sonst schrumpfte der Coderaum.
+    expect(new Set(TOKEN_ALPHABET).size).toBe(32);
+    expect(TOKEN_ALPHABET).not.toMatch(/[ILOU]/);
+  });
+
+  /**
+   * DIE SCHRANKE LAESST DIESE FORM UNGEBREMST DURCH (DRK-442) — die Zahl ist
+   * also die Abwehr. 128 bit ist die Schwelle aus
+   * `docs/radio-portierung-analyse.md`.
+   */
+  it("traegt mindestens 128 bit", () => {
+    expect(TOKEN_ZEICHEN * Math.log2(TOKEN_ALPHABET.length)).toBeGreaterThanOrEqual(128);
   });
 
   it("zieht hoechstens zwanzigmal", () => {
     expect(TOKEN_ZIEHUNGEN).toBe(20);
+  });
+
+  /**
+   * DAS FELDMUSTER — DRK-442. Chromium uebersetzt `pattern` mit dem `v`-Flag
+   * und IGNORIERT ein Muster, das dort nicht kompiliert; das Feld naehme dann
+   * still jede Eingabe an. Deshalb wird es hier genau so gebaut.
+   */
+  describe("CODEFELD_MUSTER", () => {
+    const muster = new RegExp(`^(?:${CODEFELD_MUSTER})$`, "v");
+
+    it("nimmt beide Formen, mit und ohne Trenner, auch klein geschrieben", () => {
+      for (const ok of [
+        "123-456", "123456", "123 456",
+        "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J5AE",
+        "7K3MQ9XD2RTP4W8NHV6BC1ZFJ5AE",
+        "7k3m q9xd 2rtp 4w8n hv6b c1zf j5ae",
+        "7K3O-Q9XD-2RTP-4W8N-HV6B-C1ZF-J5AE",   // O statt 0: normalisiereCode bildet zurueck
+      ]) expect(muster.test(ok), ok).toBe(true);
+    });
+
+    it("weist offensichtlich Falsches ab", () => {
+      for (const falsch of ["", "12345", "1234567", "abc-def", "7K3M-Q9XD", "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J5A"]) {
+        expect(muster.test(falsch), falsch).toBe(false);
+      }
+    });
+
+    it("laesst die laengste gueltige Eingabe ganz ins Feld", () => {
+      expect("7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J5AE").toHaveLength(CODEFELD_LAENGE);
+      expect(TOKEN_ZEICHEN + TOKEN_ZEICHEN / TOKEN_GRUPPE - 1).toBe(CODEFELD_LAENGE);
+    });
   });
 
   /**
@@ -103,7 +149,7 @@ describe("tokenForm — §8.3, der Token-Vertrag", () => {
   });
 
   /**
-   * Eine Datei ohne Importe. Sie haelt vier Werte und sonst nichts — jeder
+   * Eine Datei ohne Importe. Sie haelt Werte und sonst nichts — jeder
    * Import waere ein Weg, auf dem Modulzustand in eine Konstante kaeme.
    */
   it("importiert nichts", () => {

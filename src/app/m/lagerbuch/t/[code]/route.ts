@@ -56,7 +56,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
 
   const absender = absenderAus(kopf);                                // §3.5.2, einmal ermittelt
   const keks = new NextRequest(req).cookies;
-  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value) };   // DRK-291
+  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value), eingabe: code };   // DRK-291, DRK-442
 
   // SCHRITT 2 — gesperrt? OHNE Datenbankzugriff. Die Sekundenzahl wird NICHT
   // mitgegeben: das Gate liest sie selbst aus derselben Schranke (§7.2.4, §3.9).
