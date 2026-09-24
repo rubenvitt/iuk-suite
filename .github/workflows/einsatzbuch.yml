@@ -5,6 +5,8 @@
 name: einsatzbuch
 
 on:
+  # Bewusst ohne `branches`: der Workflow soll auf jedem PR laufen, auch auf einem
+  # gestapelten, der (noch) nicht gegen `main` zielt.
   pull_request:
     paths:
       - "apps/einsatzbuch/**"
@@ -22,10 +24,14 @@ on:
 permissions:
   contents: read
 
-# Wie im Einsatzarchiv (einsatztagebuch/.github/workflows/gate.yml): ein
-# überholter PR-Lauf wird abgebrochen, ein Lauf auf `main` läuft immer zu Ende.
+# Der Gruppenschlüssel ist `github.sha`, nicht `github.ref` (Begründung im
+# `concurrency`-Kommentar von `ci.yml`): `github.ref` ist für jeden Push auf
+# `main` dieselbe Zeichenkette, und ein dritter Push in derselben Gruppe ersetzt
+# sonst den noch wartenden zweiten — dessen Lauf verschwindet still, statt rot
+# zu werden. Ein überholter PR-Lauf wird weiterhin abgebrochen, ein Lauf auf
+# `main` läuft immer zu Ende.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: einsatzbuch-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -188,13 +194,14 @@ jobs:
       # `--bundles`: dmg ist lokal wie in der CI anfällig (Lehre aus dem
       # Einsatzarchiv-Repo) und für einen Rauchtest reicht `app`; unter Windows
       # baut niemand die MSI/WiX-Kette für einen Rauchtest, `nsis` genügt.
+      # Kein `working-directory`: `pnpm --filter einsatzbuch` legt den Ausführungsort
+      # selbst auf das Paket `apps/einsatzbuch` fest, unabhängig vom Arbeitsverzeichnis
+      # der Shell.
       - name: tauri build --debug (macOS)
         if: runner.os == 'macOS'
-        working-directory: apps/einsatzbuch/src-tauri
         run: pnpm --filter einsatzbuch tauri build --debug --bundles app
       - name: tauri build --debug (Windows)
         if: runner.os == 'Windows'
-        working-directory: apps/einsatzbuch/src-tauri
         run: pnpm --filter einsatzbuch tauri build --debug --bundles nsis
       - name: Bundle-Größe (macOS)
         if: runner.os == 'macOS'
