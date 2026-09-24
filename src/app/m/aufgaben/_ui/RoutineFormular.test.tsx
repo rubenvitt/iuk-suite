@@ -5,6 +5,7 @@ import { click, fill, mount, query, queryAll, submitForm, unmount } from "@/app/
 import { waehleZeit } from "./testFelder";
 import type { RoutineRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 /*
  * DIE ERSTE CLIENT-INSEL DES MODULS — GETESTET WIE `files/_ui/ZugangslinksListe.test.tsx`:
@@ -93,6 +94,11 @@ describe("RoutineFormular — Zeile 1 und die Action-Wahl", () => {
   it("waehlt routineAendernAction MIT `routine`-Prop", async () => {
     await mount(<RoutineFormular routine={ROUTINE} />);
     expect(useActionStateMock).toHaveBeenCalledWith(AENDERN_MARKER, FORM_START);
+  });
+
+  it("das Titelfeld laesst keinen Titel ueber der Grenze entstehen (DRK-402)", async () => {
+    await mount(<RoutineFormular />);
+    expect(query<HTMLInputElement>("#rt-titel").maxLength).toBe(TITEL_MAX_LAENGE);
   });
 });
 

@@ -61,6 +61,7 @@ vi.mock("react", async (importOriginal) => {
 
 import { click, fill, mount, query, exists, rerender, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { ShareFormZustand } from "../../../actions";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 import ShareBearbeitenSeite from "./page";
 import { BearbeitenFormular, type BearbeitenFormularProps } from "./BearbeitenFormular";
 
@@ -330,6 +331,11 @@ describe("das Formular ist bedienbar", () => {
   it("schickt die Kennung mit — ohne sie findet die Action die Zeile nicht", async () => {
     await mount(formular());
     expect(daten().get("id")).toBe("sh1234abcd");
+  });
+
+  it("das Titelfeld laesst keinen Titel ueber der Grenze entstehen (DRK-402)", async () => {
+    await mount(formular());
+    expect(query<HTMLInputElement>('input[name="title"]').maxLength).toBe(TITEL_MAX_LAENGE);
   });
 
   it("laesst Titel und Beschreibung aendern", async () => {

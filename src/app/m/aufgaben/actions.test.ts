@@ -79,6 +79,7 @@ import {
 } from "./actions";
 import type { FormState } from "./_lib/formState";
 import { createDirectory, type Directory, type DirectoryTransport } from "@/core/directory";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 /**
  * HEUTE IST EIN FESTES DATUM, KEIN "je nach Testlauf" — die Actions ermitteln `heute` selbst ueber
@@ -243,6 +244,24 @@ describe("aufgabeEinstellenAction", () => {
     expect(ergebnis.values.beschreibung).toBe("Bestand und Verfallsdaten kontrollieren.");
     expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("ein Titel ueber der Grenze kommt als Feldfehler zurueck, genau an der Grenze wird angelegt (DRK-402)", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    anmelden(auftrag);
+
+    const zuLang = erwarteFeldfehler(
+      await aufgabeEinstellenAction({ ok: true }, form({ titel: "x".repeat(TITEL_MAX_LAENGE + 1) })),
+    );
+    expect(zuLang.fieldErrors.titel).toContain(String(TITEL_MAX_LAENGE));
+    expect(t.db.select().from(aufgaben).all()).toHaveLength(0);
+
+    // Randleerraum zaehlt nicht mit — geprueft wird der getrimmte Titel, der gespeichert wuerde.
+    const ergebnis = await aufgabeEinstellenAction(
+      { ok: true },
+      form({ titel: ` ${"x".repeat(TITEL_MAX_LAENGE)} ` }),
+    );
+    expect(ergebnis).toEqual({ ok: true });
   });
 
   it("eine leere Erklaerung kommt als Feldfehler zurueck", async () => {
@@ -1947,6 +1966,17 @@ describe("routineAnlegenAction", () => {
     expect(ergebnis.fieldErrors.titel).toBeTruthy();
   });
 
+  it("ein Titel ueber der Grenze wird abgelehnt (DRK-402)", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAnlegenAction({ ok: true }, form({ titel: "x".repeat(TITEL_MAX_LAENGE + 1) })),
+    );
+    expect(ergebnis.fieldErrors.titel).toContain(String(TITEL_MAX_LAENGE));
+    expect(t.db.select().from(routinen).all()).toHaveLength(0);
+  });
+
   it("eine nicht-positive Dauer wird abgelehnt", async () => {
     const bufdi = legePerson("dev:alina@test", "bufdi");
     anmelden(bufdi);
@@ -2024,6 +2054,25 @@ describe("routineAendernAction", () => {
     expect(aktualisiert.uhrzeit).toBe("07:30");
     expect(aktualisiert.dauerMinuten).toBe(45);
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/aufgaben", "layout");
+  });
+
+  /*
+   * EIN BESTANDSTITEL UEBER DER GRENZE (DRK-402) wird nicht still gekuerzt: wer nur die Uhrzeit
+   * aendert, schickt den alten Titel mit, bekommt die Meldung, und in der Datenbank steht er
+   * unveraendert, bis jemand ihn von Hand kuerzt.
+   */
+  it("ein Bestandstitel ueber der Grenze kommt als Feldfehler zurueck und bleibt unveraendert stehen", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const langerTitel = "x".repeat(TITEL_MAX_LAENGE + 5);
+    const routine = legeRoutine({ personId: bufdi.id, titel: langerTitel });
+    anmelden(bufdi);
+
+    const ergebnis = erwarteFeldfehler(
+      await routineAendernAction({ ok: true }, form(routine.id, { titel: langerTitel })),
+    );
+    expect(ergebnis.fieldErrors.titel).toContain(String(TITEL_MAX_LAENGE));
+    expect(routineNachId(t.db, routine.id)!.titel).toBe(langerTitel);
+    expect(routineNachId(t.db, routine.id)!.uhrzeit).toBe("08:00");
   });
 
   /*

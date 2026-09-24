@@ -6,6 +6,7 @@ import { aufgabeAendernAction, aufgabeAnlegenAction, aufgabeLoeschenAction } fro
 import type { TaskDTO, Teil } from "../../_lib/typen";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+import { TITEL_MAX_LAENGE, titelZuLang } from "@/core/titel";
 
 /*
  * DAS AUFGABEN-FORMULAR (Aufgabe 17) — eine `"use client"`-Komponente (Falle 1:
@@ -93,6 +94,15 @@ export function AufgabeFormular({
   function speichern(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
     if (!zustand.nummer.trim() || !zustand.titel.trim()) return;
+    /*
+     * Ein BESTANDSTITEL über der Grenze (DRK-402, `core/titel.ts`): `maxLength`
+     * schneidet einen vorbelegten Wert nicht ab, und der Server lehnte ihn nur
+     * mit dem allgemeinen „konnte nicht gespeichert werden" ab. Hier steht, warum.
+     */
+    if (titelZuLang(zustand.titel.trim())) {
+      setFehler(`Der Titel darf höchstens ${TITEL_MAX_LAENGE} Zeichen haben.`);
+      return;
+    }
     setFehler(null);
     setBusy(true);
     void (aufgabe ? aufgabeAendernAction(aufgabe.id, eingabe()) : aufgabeAnlegenAction(eingabe()))
@@ -165,7 +175,12 @@ export function AufgabeFormular({
         <label htmlFor="af-titel" style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
           Titel
         </label>
-        <Input id="af-titel" value={zustand.titel} onChange={(ereignis) => setZustand({ ...zustand, titel: ereignis.target.value })} />
+        <Input
+          id="af-titel"
+          maxLength={TITEL_MAX_LAENGE}
+          value={zustand.titel}
+          onChange={(ereignis) => setZustand({ ...zustand, titel: ereignis.target.value })}
+        />
       </div>
 
       <div>

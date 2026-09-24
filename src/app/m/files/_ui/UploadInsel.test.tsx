@@ -56,6 +56,7 @@ vi.mock("../(verwaltung)/actions", () => ({ anlegenAction: anlegenActionMock }))
 
 import type { AnlegenErgebnis } from "../(verwaltung)/actions";
 import { FILES_CHUNK_BYTES } from "../_lib/grenzen";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { UploadInsel } from "./UploadInsel";
 import { click, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
@@ -207,6 +208,15 @@ beforeEach(() => {
 
 afterEach(async () => {
   await unmount();
+});
+
+// ---------------------------------------------------------------------------
+
+describe("Titel", () => {
+  it("das Titelfeld laesst keinen Titel ueber der Grenze entstehen (DRK-402)", async () => {
+    await mount(insel());
+    expect(query<HTMLInputElement>('input[name="title"]').maxLength).toBe(TITEL_MAX_LAENGE);
+  });
 });
 
 // ---------------------------------------------------------------------------
