@@ -20,6 +20,7 @@ export function ausBase64(text: string): Bytes {
   const bin = atob(text);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  if (zuBase64(out) !== text) throw new Error("Kein gültiges Base64");
   return out;
 }
 

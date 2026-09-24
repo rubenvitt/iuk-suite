@@ -11,10 +11,12 @@ describe("kanonisch (RFC 8785 für die Werte des Einsatzbuchs)", () => {
   it("maskiert wie JSON.stringify: Anführungszeichen, Zeilenumbruch, Steuerzeichen; Umlaute und Emoji bleiben roh", () => {
     expect(kanonisch("ä\n\"x\u0001😀")).toBe('"ä\\n\\"x\\u0001😀"');
   });
-  it("lehnt Brüche, undefined und einzelne Surrogate ab", () => {
+  it("lehnt Brüche, undefined, einzelne Surrogate und Nicht-Objekte wie Date ab", () => {
     expect(() => kanonisch({ a: 1.5 })).toThrow("Nur ganze Zahlen");
     expect(() => kanonisch({ a: undefined })).toThrow("undefined");
     expect(() => kanonisch("\uD800")).toThrow("Surrogat");
     expect(() => kanonisch("a\uDC00")).toThrow("Surrogat");
+    expect(() => kanonisch({ a: new Date(0) })).toThrow("Nur einfache Objekte");
+    expect(() => kanonisch(new Map())).toThrow("Nur einfache Objekte");
   });
 });

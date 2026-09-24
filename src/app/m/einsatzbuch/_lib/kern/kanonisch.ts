@@ -19,6 +19,8 @@ export function kanonisch(wert: unknown): string {
   }
   if (Array.isArray(wert)) return `[${wert.map(kanonisch).join(",")}]`;
   if (typeof wert === "object") {
+    const proto = Object.getPrototypeOf(wert);
+    if (proto !== Object.prototype && proto !== null) throw new Error("Nur einfache Objekte erlaubt");
     const eintraege = Object.entries(wert as Record<string, unknown>);
     for (const [k, v] of eintraege) if (v === undefined) throw new Error(`Feld ${k} ist undefined`);
     eintraege.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
