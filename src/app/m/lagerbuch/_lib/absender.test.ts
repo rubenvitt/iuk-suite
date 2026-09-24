@@ -15,7 +15,7 @@ describe("absenderAus", () => {
      *
      * Der Suite-Container ist direkt erreichbar (Betreiber, 03.08.2026). Wer ihn
      * direkt erreicht, setzt den Header VOLLSTAENDIG selbst — den ersten Eintrag
-     * zu nehmen (core/ratelimit.ts:60) oder den letzten
+     * zu nehmen (`clientIpAus` bis 2026-08-21) oder den letzten
      * (lagerbuch/rateLimit.ts:29-35) macht dabei keinen Unterschied: beide
      * ergeben einen FRISCHEN Eimer je Versuch.
      *

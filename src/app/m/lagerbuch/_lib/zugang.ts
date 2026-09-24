@@ -156,7 +156,7 @@ export function _resetGemeldeteGruppen(): void {
  *
  * DAS ZIEL MUSS ABSOLUT UND AUF EINEN DER SUITE BEKANNTEN HOST ZEIGEN. Ein
  * relatives `/m/lagerbuch/verwaltung` (feedbacks Weg,
- * `requireFeedbackAccess.ts:35`) ist bei EINEM Host richtig — hier setzte es die
+ * `requireFeedbackAccess`, Login-Redirect) ist bei EINEM Host richtig — hier setzte es die
  * verwaltende Person auf dem PORTAL-Host ab, weil `AUTH_URL` suiteweit derselbe
  * Wert ist (`core/auth/redirect.ts:8-18`), und entwertete den ganzen
  * returnTo-Apparat. `suiteRedirect` prueft das Ziel gegen die Allowlist aus
