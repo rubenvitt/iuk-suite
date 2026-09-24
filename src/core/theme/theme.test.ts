@@ -460,3 +460,49 @@ describe("Statusmarke Erfolg", () => {
     expect(antdTheme.getDesignToken(buildTheme("light")).colorSuccess.toLowerCase()).toBe(FARBEN.ok);
   });
 });
+
+/**
+ * DRK-464: `Tag color="warning"` lag mit 3,61:1 (hell) bzw. 3,26:1 (dunkel)
+ * unter AA, und anders als beim Grün schon wegen der Schrift selbst. Dieselbe
+ * Prüfung wie oben: das Paar, das antds Marke rendert (Schrift `colorWarning`
+ * auf `colorWarningBg`), dazu Schrift auf Karte und Modal — und hell auf
+ * `papier`, dem Seitengrund, auf dem `Typography type="warning"` steht.
+ */
+describe("Statusmarke Warnung", () => {
+  const kontrast = (a: string, b: string) => {
+    const lum = (hex: string) => {
+      const c = hex.replace("#", "");
+      const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [hoch, tief] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hoch + 0.05) / (tief + 0.05);
+  };
+
+  it.each(MODES)("trägt im Modus %s Schrift auf Grund mit AA (4,5:1)", (mode) => {
+    const token = antdTheme.getDesignToken(buildTheme(mode));
+    const flaechen = [token.colorWarningBg, token.colorBgContainer, token.colorBgElevated];
+    if (mode === "light") flaechen.push(FARBEN.papier);
+    for (const flaeche of flaechen) {
+      for (const rolle of [
+        "colorWarning",
+        "colorWarningText",
+        "colorWarningTextHover",
+        "colorWarningTextActive",
+      ] as const) {
+        expect(kontrast(token[rolle], flaeche), `${rolle} ${token[rolle]} auf ${flaeche}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("lässt den Seed stehen und die anderen Statusrollen unberührt", () => {
+    for (const mode of MODES) {
+      expect(buildTheme(mode).token?.colorWarning).toBe(FARBEN.gelb);
+      const token = antdTheme.getDesignToken(buildTheme(mode));
+      expect(token.colorSuccess.toLowerCase()).toBe(mode === "dark" ? FARBEN.okAufDunkel : FARBEN.ok);
+      expect(token.colorError.toLowerCase()).toBe(mode === "dark" ? FARBEN.rotAufDunkel : FARBEN.rot);
+    }
+  });
+});

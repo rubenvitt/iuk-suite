@@ -731,7 +731,7 @@ function aktionen(
  * DIE REIHENFOLGE IST DIE VORRANGLISTE AUS §7 Nr. 2, und `nachweisHochladen` STEHT VOR `fertig`:
  * `uebergang()` erlaubt `in_arbeit`×`fertig` unabhaengig von der Nachweispflicht
  * (`lebenszyklus.ts:145-158`), die Ablehnung entsteht erst in `fertigMeldenAction` als Feldfehler
- * (`actions.ts:647-668`). Ohne die Umsortierung waere fuer eine nachweispflichtige Aufgabe „Fertig
+ * (`actions.ts`, `fertigMeldenAction`). Ohne die Umsortierung waere fuer eine nachweispflichtige Aufgabe „Fertig
  * melden" der Primaerknopf, waehrend der tatsaechlich noetige erste Schritt gar nicht dasteht.
  *
  * `freigabe_offen` FAELLT DURCH — fuer eine bereits fertig gemeldete Aufgabe hat die ausfuehrende

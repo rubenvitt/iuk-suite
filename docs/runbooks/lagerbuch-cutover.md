@@ -450,11 +450,11 @@ weiter übergangen.
 
 ---
 
-## 17. ⚠️ Drei Abfragen gegen die **Alt**-Datenbank, **bevor** importiert wird
+## 17. ⚠️ Vier Abfragen gegen die **Alt**-Datenbank, **bevor** importiert wird
 
-Alle drei beantworten eine Frage, die der Paritätscheck strukturell **nicht** stellt: er beweist den
+Alle vier beantworten eine Frage, die der Paritätscheck strukturell **nicht** stellt: er beweist den
 Datenbank-**Rundlauf**, nicht die **Feldzuordnung** — ein konsistenter Zuordnungsfehler ist
-paritätsgrün. Drei `SELECT`s, drei Protokollzeilen. Spaltennamen sind an der eingefrorenen
+paritätsgrün. Vier `SELECT`s, vier Protokollzeilen. Spaltennamen sind an der eingefrorenen
 Alt-Anwendung (`ca04eb1`, `src/db/schema.ts`) nachgelesen, nicht geraten.
 
 ### 17.1 Wie viele aktive Artikel und Codes bringt der Import mit? (Abschlussreview Teil 6, I1)
@@ -549,6 +549,27 @@ mit „**0 Positionen**" — das Modul erzeugt solche Zeilen im Normalbetrieb nu
 Datenimport kann sie in Mengen und Formen mitbringen, die das Modul nie erzeugt**. Zwei Zahlen, die
 zusammenpassen müssen: was vorher da war, muss nachher da sein — und nichts sonst. Weicht die Zahl
 ab, ist das ein **Zuordnungs**befund, und genau die sieht der Paritätscheck nicht.
+
+### 17.4 Trägt der Bestand Ids außerhalb des nanoid-Alphabets? (DRK-394)
+
+```sql
+select 'artikel', id from artikel where id glob '*[^A-Za-z0-9_-]*'
+union all select 'lagerorte', id from lagerorte where id glob '*[^A-Za-z0-9_-]*'
+union all select 'tokens.ziel_id', ziel_id from tokens where ziel_id glob '*[^A-Za-z0-9_-]*';
+```
+
+**Erwartet: null Zeilen.** Die Alt-Anwendung vergibt jede dieser Ids über `nanoid()` (Alphabet
+`A-Za-z0-9_-`), der Handlager heißt `handlager` — nachgelesen über die ganze Historie des
+eingefrorenen Repos. Eine Zeile hier heißt: jemand hat die Datenbank von Hand bearbeitet.
+
+**Warum die Abfrage trotzdem läuft.** Die Suite setzt die Landepfade seit DRK-394 kodiert zusammen
+(`/a/<id>`, `/helfer/check?fz=<id>`) — für jede nanoid-Id ist das **zeichengleich** mit dem, was die
+Alt-Anwendung gebaut hat, gedruckte Etiketten und Kärtchen landen also wie vorher. Eine Id mit `#`,
+`&`, `?`, `%` oder Leerzeichen dagegen landet **nach** dem Cutover anders als vorher, weil die
+Alt-Anwendung sie roh eingesetzt und damit abgeschnitten hat. Die Abfrage sagt, ob das nur eine
+Vorsichtsmaßnahme ist oder eine Landung, die sich beim Umschwenken ändert. Liefert sie Zeilen, die
+Ids **nicht** umschreiben (DRK-394 schließt eine Migration ausdrücklich aus), sondern die betroffenen
+Etiketten nach dem Cutover einmal scannen und die Landung prüfen.
 
 ---
 

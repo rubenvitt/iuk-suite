@@ -141,6 +141,12 @@ Warten und nicht ueberspringen, und das ist Absicht: ein uebersprungener Lauf wa
 `deploy.sh` ein gruener Exit-Code **ohne Sicherung**, und es rollte ohne aus. Ein zweites
 Tarball kurz nach dem ersten kostet dagegen nur Platz.
 
+Ein Archiv, das gerade gepackt wird, heisst `JJJJMMTTThhmmss.tar.gz.part` und bekommt
+seinen endgueltigen Namen erst, wenn es vollstaendig ist — es zaehlt also nie als
+Generation und wird nie ausgelagert. Liegt eine `.part`-Datei (samt gleichnamigem
+Verzeichnis) herum, **ohne** dass gerade ein Lauf arbeitet, ist sie der Rest eines
+abgebrochenen Laufs und kann geloescht werden; aufgeraeumt wird sie nicht von selbst.
+
 Der Dienst lässt sich deshalb auch nicht mitten im Lauf abwürgen: `stop_grace_period`
 (Vorgabe 30 Minuten, `SUITE_BACKUP_STOP_GRACE`) lässt eine laufende Sicherung fertig
 werden, statt sie abzubrechen. ⚠️ **Dockers Vorgabe von 10 Sekunden reicht dafür nicht**

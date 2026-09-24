@@ -268,7 +268,7 @@ describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
      * ⚠️ WAS ER NICHT BELEGT: dass ein WERT im Serverprozess ankommt. Beide Seiten des
      * Vergleichs stammen aus `RADIO_ENV` (`playwright.config.ts` spreizt es ein), sie
      * wandern also gemeinsam. Bewacht ist genau die Einspreizung — gemessen: ohne
-     * `...RADIO_ENV` in `playwright.config.ts:326` faellt dieser Fall.
+     * `...RADIO_ENV` in `webServer.env` (`playwright.config.ts`) faellt dieser Fall.
      */
     const env = nextEintrag().env ?? {};
     for (const [name, wert] of Object.entries(RADIO_ENV)) {
@@ -279,7 +279,7 @@ describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
 
   it("faehrt die radio-Faelle ueber eine ABSOLUTE URL auf den Modul-Host", () => {
     /*
-     * ⛔ `baseURL` ZEIGT AUF DEN PORTAL-HOST (`playwright.config.ts:65`), und `portal`
+     * ⛔ `baseURL` ZEIGT AUF DEN PORTAL-HOST (`use.baseURL` in `playwright.config.ts`), und `portal`
      * traegt `requiresAuth: true` — ein RELATIVER Aufruf landete im Login statt auf
      * `/admin`, und der Fall bezeugte den Login. ⬜ V-L4 ist deshalb gestrichen: es braucht
      * keinen zweiten `baseURL`, sondern die absolute Form (`e2e/helpers/lagerbuch.ts:86-91`).

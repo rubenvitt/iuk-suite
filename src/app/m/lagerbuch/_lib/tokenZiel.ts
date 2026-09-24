@@ -5,18 +5,32 @@
  *
  * Rückgabe ist ein lokaler Pfad (startet mit "/") und ist damit kompatibel mit sanitizeReturnTo.
  *
- * ZEICHENGLEICH aus `lagerbuch/src/lib/auth/tokenZiel.ts` — nur der Ablageort
- * wechselt (§3.1). Der erste Aufrufer entsteht in Teil 4 (`t/[code]/route.ts`,
- * §7.2.3); bis dahin ist die Datei bewusst ohne Konsument.
+ * Übernommen aus `lagerbuch/src/lib/auth/tokenZiel.ts` (§3.1). Der erste Aufrufer
+ * entstand in Teil 4 (`t/[code]/route.ts`, §7.2.3).
  *
  * ⚠️ DIE PFADE TRAGEN DIE AEUSSERE FORM (`/helfer`, `/a/<id>`), nicht die innere
  * (`/m/lagerbuch/helfer`). Sie landen in einem `Location`-Kopf bzw. in einem
  * `redirect()`, also beim Browser — und der kennt nur den Modul-Host.
+ *
+ * ⚠️ DIE ZUSAGE „ZEICHENGLEICH MIT DER ALT-ANWENDUNG" IST AUFGEHOBEN — DRK-394.
+ * Sie stimmte schon seit DRK-302 nicht mehr (der Fahrzeugzweig laeuft ueber
+ * `fahrzeugBindungAus`, und die Alt-Fassung kennt diesen zweiten Export nicht).
+ * An ihre Stelle tritt die Zusage, die der Cutover tatsaechlich braucht und die
+ * sich pruefen laesst: GLEICHE AUSGABE FUER JEDE ID, DIE DIE ALT-ANWENDUNG
+ * ERZEUGEN KONNTE. Dort entsteht jede Artikel- und Fahrzeug-Id ueber `nanoid()`
+ * (Alphabet `A-Za-z0-9_-`), der Handlager heisst `handlager` — und auf diesem
+ * Alphabet ist die Kodierung die Identitaet. `tokenZiel.test.ts` haelt das fest.
+ *
+ * ⚠️ WARUM UEBERHAUPT KODIERT: `lagerorte.id` und `artikel.id` sind KEIN
+ * nanoid-Vertrag, die Spalten nehmen jeden Text. Roh eingesetzt wird aus
+ * `rtw#1` ein Fragment (der Server sieht alles ab `#` nicht), aus `a&x=1` ein
+ * zweiter Parameter — und beides STILL: die Seite rendert klaglos, es fehlt
+ * nur, was hinter dem Trennzeichen stand. Kein Tor sieht das.
  */
 export function tokenZielPfad(zielTyp: string | null | undefined, zielId: string | null | undefined): string {
-  if (zielTyp === "artikel" && zielId) return `/a/${zielId}`;
+  if (zielTyp === "artikel" && zielId) return `/a/${encodeURIComponent(zielId)}`;
   const fahrzeug = fahrzeugBindungAus(zielTyp, zielId);
-  if (fahrzeug) return `/helfer/check?fz=${fahrzeug}`;
+  if (fahrzeug) return `/helfer/check?${new URLSearchParams({ fz: fahrzeug })}`;
   return "/helfer";
 }
 

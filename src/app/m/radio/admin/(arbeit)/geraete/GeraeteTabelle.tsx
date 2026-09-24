@@ -40,7 +40,7 @@ import type { SpaltenOption } from "./SpaltenWahl";
  *   1. **Falle 9**: die achtzehn Spalten fuehren fuenfzehn `render`-Funktionen
  *      (`deviceColumns.tsx:16-35`). Aus einer Server Component ueber die Grenze gereicht:
  *      `Error: Functions cannot be passed directly to Client Components`.
- *   2. `Grid.useBreakpoint()` (`DeviceList.tsx:36`) ist ein Client-Hook.
+ *   2. `Schmalkarten` bekommt die Karte als Funktion (`karte`) — ebenso wenig serialisierbar.
  *   3. `usePersistentState` fuer die Spaltenauswahl (`DeviceList.tsx:49-51`) ebenso.
  *   4. **Falle 1**: `Input.Search` und `Space.Compact` in der Werkzeugleiste sind
  *      Compound-Zugriffe — in einer Server Component HTTP 500.
@@ -461,8 +461,8 @@ export function GeraeteTabelle({
 
         ⚠️ UND EIN NEBENEFFEKT, DER EINEN TEST BETRIFFT: der alte Kommentar
         sagte, in Vitest rendere diese Insel den MOBILEN Zweig. Das gilt nicht
-        mehr — jetzt stehen BEIDE im Baum, und ein Greifer ohne Rahmen findet
-        jede Zeile zweimal (Begruendung im Kopf von `Schmalkarten.tsx`).
+        mehr — jetzt stehen BEIDE im Baum (seit DRK-472 dort auch gemessen), und
+        ein Greifer ohne Rahmen findet jede Zeile zweimal (`Schmalkarten.tsx`).
       */}
       <Schmalkarten<GeraetZeile>
         zeilen={zeilen}

@@ -91,7 +91,7 @@ describe("viewerAusSession — VIER Felder, nicht zwei", () => {
      * `null` in beide Spalten und erzeugte damit den benannten Defektzustand aus
      * §4.13 — eine ROHE sub-Kennung im Journal statt eines Namens.
      *
-     * Die Werte liegen an: `core/auth/config.ts:163-176` laesst
+     * Die Werte liegen an: `core/auth/config.ts`, Callback `session`, laesst
      * session.user.name/email UNANGETASTET und setzt nur groups, isAdmin und id.
      */
     expect(viewerAusSession(ADMIN)).toEqual({

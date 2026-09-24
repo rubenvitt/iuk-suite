@@ -51,8 +51,8 @@ export type Viewer = { sub: string; groups: string[] };
  * die Env-Ueberschreibung an genau dieser Stelle wirkungslos — und diese Stelle
  * ist der einzige Ort, an dem der Modulzugang durchgesetzt wird. Genau so
  * entstand der Befund vor dem feedback-Cutover
- * (`feedback/_lib/requireFeedbackAccess.ts:37-44` schreibt ihn aus), und
- * `registry.ts:28-34` beschreibt dieselbe Falle fuer die Hosts.
+ * (`feedback/_lib/requireFeedbackAccess.ts`, vor `hatFeedbackVerwaltungszugang`,
+ * schreibt ihn aus), und `registry.ts:28-34` beschreibt dieselbe Falle fuer die Hosts.
  */
 function erlaubteGruppen(): string[] {
   const mod = getModule("files");
@@ -79,7 +79,7 @@ function erlaubteGruppen(): string[] {
  * `docs/design/README.md:239-242`.
  *
  * EINE LEERE LISTE GEWAEHRT NICHTS. Das ist die Bauform aus
- * `requireFeedbackAccess.ts:45-47` und ausdruecklich NICHT die aus `canAccess`
+ * `hatFeedbackVerwaltungszugang` (feedback) und ausdruecklich NICHT die aus `canAccess`
  * (`registry.ts:157-159`), die bei leerer Liste mit `true` aussteigt — der
  * Kommentar an `envAccessGroupsFor` (`core/groups.ts:44-58`) nennt das woertlich
  * „eine OEFFNUNG". Wer die Verknuepfung von `canAccess` abschreibt, oeffnet
@@ -153,7 +153,7 @@ async function rueckkehrZiel(): Promise<string> {
  * `requireFeedbackAccess` („EINE Stelle, zwei Layouts").
  *
  * Keine Sitzung → Anmeldung. Sitzung ohne Zugang → `notFound()`, NICHT 403: die
- * Existenz der Route wird nicht verraten (`requireFeedbackAccess.ts:48`,
+ * Existenz der Route wird nicht verraten (`requireFeedbackAccess`, `notFound()`,
  * `docs/design/README.md:239-242`).
  */
 export async function requireFilesAccess(): Promise<Viewer> {
