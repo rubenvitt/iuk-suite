@@ -1,4 +1,4 @@
-export const AUDIT_MODULES = ["portal", "qr", "feedback", "files", "lagerbuch", "aufgaben", "radio", "uav", "konto"] as const;
+export const AUDIT_MODULES = ["portal", "qr", "feedback", "files", "lagerbuch", "aufgaben", "radio", "uav", "einsatzbuch", "konto"] as const;
 export const AUDIT_ACTIONS = ["create", "update", "delete", "sign_in", "sign_out", "session_revoke", "access_denied", "download", "export"] as const;
 export const AUDIT_RESULTS = ["success", "denied", "failure"] as const;
 export const AUDIT_ORIGINS = ["server", "browser", "database"] as const;

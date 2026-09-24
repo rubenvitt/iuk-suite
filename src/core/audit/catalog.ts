@@ -314,6 +314,7 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "einsatzbuch": {},
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",
