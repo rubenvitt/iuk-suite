@@ -7,16 +7,16 @@
 // durchsetzt, steht in `src/app/m/radio/riegel.test.ts:909-962`.
 //
 // ⛔ DIESE DATEI ZIEHT NICHTS AUS `node:*`, AUS `_db/` ODER AUS EINER KODIERUNGSBIBLIOTHEK.
-// Der einzige Import hier ist ein TYPimport (`import type`), der zur Laufzeit verschwindet —
-// ein WERTimport aus `_db/` zoege Drizzle und `better-sqlite3` ins Browser-Bundle, und weder
-// typecheck noch lint noch build saehen es.
+// Ein WERTimport aus `_db/` zoege Drizzle und `better-sqlite3` ins Browser-Bundle, und weder
+// typecheck noch lint noch build saehen es. Der einzige Import ist `core/zeit` (weiter unten,
+// bei `tagInZone`); der Typimport `Geraet` fiel mit dem CSV-Schreiber weg (DRK-389).
 //
-// ⚠️ ZU `_lib/csv/einlesen.ts` IM SELBEN ORDNER: sie fasst als einzige des Ordners Bytes an,
-// zieht aber HEUTE ebenfalls nichts Fremdes (gemessen: kein `import`, kein `node:`;
-// `TextDecoder` und `Uint8Array` sind Web-Globals). Der frueher hier stehende Satz behauptete
-// das Gegenteil und war ein Vorgriff. Die Grenze steht trotzdem schon jetzt — ⬜ A1
-// (`chardet`/`iconv-lite`, Eigentuemer Betreiber) macht jene Datei serverseitig.
-import type { Geraet } from "../../_db/schema";
+// ⚠️ ZU `_lib/csv/einlesen.ts` UND `_lib/csv/mappe.ts` IM SELBEN ORDNER: sie fassen als
+// einzige des Ordners Bytes an, und `mappe.ts` zieht `node:zlib` (DRK-389, Excel-Mappe).
+// Beide sind damit serverseitig; eine Client-Insel importiert sie nicht. Diese Datei hier
+// bleibt ohne Node-Bezug, weil die Insel `EXPORT_SPALTEN` und `tagAusWert` ueber
+// `kopfzeilen.ts`/`klassifizieren.ts` mitliest (dort ist jeder Bezug auf `_db/` ein Typimport).
+//
 
 /**
  * ⛔ ENTSCHEIDUNG E-V12 — DER CSV-EXPORT BEKOMMT KEINE FORMEL-NEUTRALISIERUNG.
@@ -110,17 +110,17 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
   { feld: "loanable", kopf: "Ausleihbar" },
 ] as const;
 
-/**
- * ⛔ TRENNZEICHEN `;` (`export.ts:60`, `stringify(…, { delimiter: ';' })`) — deutsches Excel
- * oeffnet nur so ohne Zwischendialog.
+/*
+ * ⛔ HIER STANDEN BIS DRK-389 TRENNZEICHEN (`;`) UND BOM DES CSV-EXPORTS (`export.ts:9`,
+ * `:60-61`). Der Export liefert seitdem eine Excel-Mappe (`_lib/csv/mappe.ts`,
+ * `baueExportBlatt`), und beides hat dort keine Entsprechung: eine Mappe kennt weder
+ * Trennzeichen noch Kodierungsfrage. Der CSV-LESER kennt beides weiterhin selbst
+ * (`einlesen.ts`, `erkenneTrennzeichen` und `dekodiereCsv`) — CSV bleibt Eingang.
+ *
+ * ⚠️ DIE ZEILENZAHL DIESES BLOCKS IST ABSICHT: Anker aus anderen Dateien zeigen auf die
+ * Zeilen darunter (`tagAusWert`, `tagInZone`), und ein kuerzerer Block liesse sie alle
+ * still verrutschen (`CLAUDE.md`, Kommentaranker Regel 4).
  */
-export const CSV_TRENNZEICHEN = ";";
-
-/**
- * ⛔ FUEHRENDES UTF-8-BOM (`export.ts:9`, `:61`). Der Alt-Kommentar nennt den Grund:
- * „UTF-8 BOM so Excel opens the `;`-delimited file with correct encoding."
- */
-export const CSV_BOM = "﻿";
 
 /** Die Zone, in der ein Zeitpunkt zu einem Kalendertag wird: die der Suite (`core/zeit`). */
 import { zeitzone } from "@/core/zeit";
@@ -248,7 +248,7 @@ export function wertAusTag(tag: string | null | undefined): string {
 }
 
 /**
- * Formatiert ein Geraetefeld in seine CSV-Zelle — DREI Regeln, 1:1 aus `export.ts:45-54`.
+ * Formatiert ein Geraetefeld in seine Exportzelle — DREI Regeln, 1:1 aus `export.ts:45-54`.
  *
  * 1. `alamosIntegrated`/`loanable`: `true -> 'x'`, sonst `''` (`export.ts:46-48`).
  *    ⛔ NUR `true` UND `null` LAUFEN RUND, und der Alt-Kommentar benennt das ausdruecklich
@@ -266,41 +266,4 @@ export function formatiereZelle(feld: ExportFeld, wert: unknown): string {
     return wertAusTag(wert as string | null);
   }
   return wert === null || wert === undefined ? "" : String(wert);
-}
-
-/**
- * Maskiert eine Zelle nach RFC 4180: nur wenn sie das Trennzeichen, ein Anfuehrungszeichen
- * oder einen Zeilenumbruch enthaelt, und dann mit verdoppelten Anfuehrungszeichen.
- *
- * ⬜ BENANNTE ABWEICHUNG, DENSELBEN GRUND WIE `einlesen.ts`: der Bestand nimmt dafuer
- * `csv-stringify` (`export.ts:2`), und das Paket ist im Repo gemessen NICHT vorhanden
- * (`grep -n "csv-stringify" package.json` ohne Treffer, 2026-08-25). Eine neue Abhaengigkeit
- * ist eine Entscheidung, keine Nebenwirkung — deshalb steht die Frage als Vermerk in der
- * Aufgabenrueckmeldung und hier der Nachbau der beiden Regeln, die der Vertrag braucht.
- * `feedback/_lib/csv.ts:24-30` ist NICHT wiederverwendbar: es joint hart mit `,` (`:7`) und
- * neutralisiert Formeln (`:17-22`), was E-V12 hier ausdruecklich ausschliesst.
- */
-function maskiereZelle(zelle: string): string {
-  if (zelle.includes(CSV_TRENNZEICHEN) || /["\r\n]/.test(zelle)) {
-    return `"${zelle.replace(/"/g, '""')}"`;
-  }
-  return zelle;
-}
-
-/**
- * Baut den vollstaendigen CSV-Text (mit fuehrendem BOM) fuer die uebergebenen Geraete.
- *
- * 1:1 aus `export.ts:57-62`: Kopfzeile aus `EXPORT_SPALTEN`, je Geraet eine Zeile ueber
- * `formatiereZelle`, `;` als Trennzeichen, `\n` als Zeilenende (die Vorgabe von
- * `csv-stringify`, gemessen am Alt-Test `radio-admin/server/test/deviceTei.test.ts:76`, der
- * das Ergebnis an `'\n'` teilt), und ein Zeilenende auch nach der letzten Zeile.
- */
-export function baueExportCsv(geraete: readonly Pick<Geraet, ExportFeld>[]): string {
-  const kopfzeile = EXPORT_SPALTEN.map((spalte) => maskiereZelle(spalte.kopf)).join(CSV_TRENNZEICHEN);
-  const zeilen = geraete.map((geraet) =>
-    EXPORT_SPALTEN.map((spalte) => maskiereZelle(formatiereZelle(spalte.feld, geraet[spalte.feld]))).join(
-      CSV_TRENNZEICHEN,
-    ),
-  );
-  return `${CSV_BOM}${[kopfzeile, ...zeilen].join("\n")}\n`;
 }

@@ -2,7 +2,7 @@ import { auditDenied, auditActor } from "@/core/audit/server";
 // src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts
 import { radioHostOderNull } from "../../../../_lib/host";
 import { istRadioAdmin, viewerOderNull } from "../../../../_lib/zugang";
-import { LESE_FEHLER, lesEinCsv } from "../../../../_lib/csv/einlesen";
+import { LESE_FEHLER, lesEinDatei } from "../../../../_lib/csv/einlesen";
 
 /**
  * DER DATEISCHRITT DES ZWEIPHASIGEN CSV-IMPORTS — aeusserer Pfad `/admin/import/hochladen`
@@ -19,8 +19,8 @@ import { LESE_FEHLER, lesEinCsv } from "../../../../_lib/csv/einlesen";
  * Begruendung ausgeschrieben: `src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts:2-9`
  * und `src/app/m/files/api/u/[token]/upload/route.ts`.
  *
- * ⛔ ER SCHREIBT NICHTS. Er liest die Bytes, erkennt Kodierung und Trennzeichen (V9,
- * `_lib/csv/einlesen.ts`) und gibt Spaltennamen und ROHZEILEN als JSON zurueck. Die
+ * ⛔ ER SCHREIBT NICHTS. Er liest die Bytes — eine Excel-Mappe oder eine CSV (DRK-389,
+ * `_lib/csv/einlesen.ts`, `lesEinDatei`) — und gibt Spaltennamen und ROHZEILEN als JSON zurueck. Die
  * Zuordnung faellt in der Insel, das Schreiben in `importSchreibenAction`
  * (`admin/actions.ts`) — ⛔ zweiphasig, und das bleibt so (`Spec:4695-4702`: „Eine einphasige
  * Suite-Fassung (‚Datei hoch, fertig') ist kein Port, sondern ein anderes Produkt").
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     return antwort({ ok: false, fehler: LESE_FEHLER });
   }
 
-  const gelesen = lesEinCsv(new Uint8Array(await datei.arrayBuffer()));
+  const gelesen = lesEinDatei(new Uint8Array(await datei.arrayBuffer()));
   if (!gelesen.ok) {
     return antwort({ ok: false, fehler: gelesen.fehler });
   }

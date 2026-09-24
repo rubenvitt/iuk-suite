@@ -16,11 +16,11 @@
  *
  * ⛔ WARUM ÜBERHAUPT EIN BAUSTEIN IN `core`: die Suite-Regel lautet „nur was ein
  * zweites, heute belegbares Modul braucht". Belegt sind heute VIER:
- * `feedback` (zwei Ausgaben), `uav` (zwei), `lagerbuch` (zwei). Der fünfte
- * Ausgabeweg, `radio`s Geräteliste, bleibt bewusst CSV — er ist kein Report,
- * sondern das Wiedereinlesformat des Import-Assistenten (`_lib/csv/
- * rundlauf.test.ts` hält den Vertrag). Ein Report wird GELESEN, ein
- * Austauschformat wird ZURÜCKGELESEN; nur das erste gehört hierher.
+ * `feedback` (zwei Ausgaben), `uav` (zwei), `lagerbuch` (zwei), dazu seit
+ * DRK-389 `radio`s Geräteliste. Sie ist kein Report, sondern das
+ * Wiedereinlesformat des Import-Assistenten; umgestellt wurde sie erst, als der
+ * Assistent die Mappe auch LESEN konnte (`radio/_lib/csv/mappe.ts`,
+ * `rundlauf.test.ts` hält den Vertrag). Der Leser bleibt im Modul.
  */
 
 /**

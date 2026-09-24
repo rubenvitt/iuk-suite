@@ -12,6 +12,9 @@ import * as schema from "../../../../_db/schema";
 import { devices } from "../../../../_db/schema";
 import { ohneKommentare } from "../../../../_lib/quelltextScan";
 import { LESE_FEHLER } from "../../../../_lib/csv/einlesen";
+import { xlsxAntwort } from "@/core/export/server";
+import { mappenBytes } from "@/core/export/test-mappe";
+import { EXPORT_DATEINAME, baueExportBlatt } from "../../../../_lib/csv/mappe";
 
 /**
  * DER DATEISCHRITT DES CSV-IMPORTS — `POST /admin/import/hochladen`, Entscheidung **E-V16**
@@ -200,6 +203,30 @@ describe("POST /admin/import/hochladen — der Riegel, alles IN der Route (B11)"
       ["1000001", "41/12", "Einsatzbereit"],
       ["1000002", "41/13", "Wartung"],
     ]);
+  });
+
+  it("eine Excel-Mappe liefert dieselbe Form — erkannt am Inhalt, nicht am Namen", async () => {
+    /*
+     * ⛔ DRK-389: der Assistent liest auch `.xlsx`. Die Mappe ist hier die ECHTE Exportmappe
+     * (`baueExportBlatt` + `xlsxAntwort`), und sie traegt absichtlich den Namen `geraete.csv`
+     * und den Medientyp `text/csv` — entschieden wird an den Bytes, und ein Handler, der nach
+     * Endung oder Medientyp verzweigte, liefe hier in den CSV-Zweig und lieferte Zeichensalat.
+     */
+    const geraet = {
+      issi: "1000009", tei: "01234567890123", rufname: "41/19", serialNumber: null, deviceType: null,
+      status: "Wartung", location: null, assignedTo: null, softwareVersion: null, lastUpdatedAt: "2026-07-01",
+      notes: null, hiorgId: null, opta: null, funktion: null, hersteller: null, bedieneinheit: null,
+      deviceModes: null, alamosIntegrated: null, loanable: true,
+    };
+    const bytes = await mappenBytes(await xlsxAntwort(EXPORT_DATEINAME, [baueExportBlatt([geraet])]));
+    const daten = new FormData();
+    daten.set("datei", new File([new Uint8Array(bytes)], "geraete.csv", { type: "text/csv" }));
+
+    const rumpf = (await (await POST(anfrage(daten))).json()) as Antwort;
+    if (!rumpf.ok) throw new Error(`die Mappe wurde nicht gelesen: ${rumpf.fehler}`);
+    expect(rumpf.spalten[0]).toBe("ISSI");
+    expect(rumpf.spalten).toHaveLength(19);
+    expect(rumpf.zeilen[0]?.slice(0, 3)).toEqual(["1000009", "01234567890123", "41/19"]);
   });
 
   it("er schreibt KEINE Zeile in die Datenbank", async () => {
