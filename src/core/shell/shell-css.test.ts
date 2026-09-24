@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { ARBEITSDICHTE } from "@/core/theme/theme";
 
 /**
  * DIE UMSCHALTUNG MOBIL/DESKTOP IST CSS, NICHT JAVASCRIPT.
@@ -27,6 +28,15 @@ import { readFileSync } from "node:fs";
  */
 const CSS = readFileSync("src/core/shell/shell.module.css", "utf8");
 const OHNE_KOMMENTARE = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+
+/*
+ * DIE SEITENLEISTE LÄUFT AUF DER `ARBEITSDICHTE` (Falle 4, DRK-420). Ein CSS-Modul
+ * kann den Token nicht lesen, also hält der Test die Zahl daran fest — wer
+ * `ARBEITSDICHTE` verschiebt, sieht hier, dass die Leiste mitgehen muss.
+ */
+function leistenHoehe(): RegExp {
+  return new RegExp(`min-height\\s*:\\s*${ARBEITSDICHTE.token!.controlHeight}px`);
+}
 
 type CssRegel = {
   selektor: string;
@@ -654,12 +664,12 @@ describe("shell.module.css", () => {
     expect(regel![1]).toMatch(/border-inline-start:\s*3px solid transparent/);
   });
 
-  it("gibt der Leiste eine dichtere Zeile als dem Drawer", () => {
+  it("gibt der Leiste die ARBEITSDICHTE und dem Drawer das Tap-Maß", () => {
     /*
      * `.navLink` bleibt in seiner Basis auf 56px — das ist der Drawer, und dort
      * ist es ein Finger (`TAP` in core/theme/tokens.ts, Einsatzanforderung).
-     * Die Leiste existiert unterhalb von 768px gar nicht und wird mit Maus
-     * bedient; 40px ist antds eigenes Maß.
+     * Die Leiste steht ab 768px, also auch auf dem Tablet unter dem Finger:
+     * 44px, die `ARBEITSDICHTE` der FullShell (Falle 4, DRK-420).
      *
      * `.modulleiste .navLink` ist (0,2,0). Die Verschachtelung ist NICHT
      * Ballast: `.navLink` allein wäre (0,1,0) und stünde gleichauf mit der
@@ -669,7 +679,7 @@ describe("shell.module.css", () => {
      */
     const regel = /\.modulleiste\s+\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(regel, "Regel `.modulleiste .navLink` fehlt").not.toBeNull();
-    expect(regel![1]).toMatch(/min-height:\s*40px/);
+    expect(regel![1]).toMatch(leistenHoehe());
 
     const basis = /\.navLink\s*\{([^}]*)\}/.exec(OHNE_KOMMENTARE);
     expect(basis![1], "der Drawer braucht das Tap-Masz").toMatch(/min-height:\s*56px/);
@@ -864,18 +874,18 @@ describe("das lange Menue — Aufklappen und Filtern", () => {
 
   /*
    * DIESELBE DICHTE-AUFTEILUNG WIE BEI `.navLink`: 56px im Drawer (Tap-Masz der
-   * Suite), 40px in der Seitenleiste, die es unter 768px gar nicht gibt und die
-   * mit Maus bedient wird. Und dieselbe Spezifitaetsfalle: ohne den
+   * Suite), 44px in der Seitenleiste (`ARBEITSDICHTE`, Falle 4, DRK-420), weil
+   * der Schalter der Zeile folgt. Und dieselbe Spezifitaetsfalle: ohne den
    * `.modulleiste`-Praefix stuende die Ausnahme gleichauf mit der Basisregel und
    * die Reihenfolge entschiede (Falle 5).
    */
-  it("gibt dem Schalter im Drawer 56px und in der Leiste 40px", () => {
+  it("gibt dem Schalter im Drawer 56px und in der Leiste die ARBEITSDICHTE", () => {
     const regeln = cssRegeln(OHNE_KOMMENTARE);
     const basis = regeln.find((r) => r.selektor === ".navAbschnittKnopf");
     expect(basis!.deklarationen).toMatch(/min-height\s*:\s*56px/);
     const leiste = regeln.find((r) => r.selektor === ".modulleiste .navAbschnittKnopf");
     expect(leiste, "Regel `.modulleiste .navAbschnittKnopf` fehlt").toBeDefined();
-    expect(leiste!.deklarationen).toMatch(/min-height\s*:\s*40px/);
+    expect(leiste!.deklarationen).toMatch(leistenHoehe());
   });
 
   /*

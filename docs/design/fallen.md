@@ -17,6 +17,11 @@ trifft oder eine Abhilfe umbauen will.
    weil `FullShell` auch auf dem Telefon rendert); `MinimalShell` (`qr`, `beta`) und alles ohne Shell 56/72;
    `SCHREIBTISCHDICHTE` 32/40 nur, wo ein Modul sie ausdrücklich anlegt — heute allein `radio`s Verwaltung
    (Betreiberentscheidung 2026-08-28; unterschreitet AAA bewusst, hält die AA-Untergrenze 24, WCAG 2.5.8).
+   **Die Seitenleiste ist KEINE Ausnahme** (Betreiberentscheidung 2026-09-24, DRK-420): sie lief bis
+   dahin auf 40, weil sie unter 768px nicht rendert und darum „mit Maus bedient" werde. Die Prämisse
+   trug nicht — ab 768px steht sie auf jedem Tablet unter dem Finger (iPad hochkant 768–820px). Ihre
+   Zeilen sind rohes `next/link`-Markup und lesen den Token nicht; `shell-css.test.ts` hält die Zahl
+   an `ARBEITSDICHTE`, `e2e/shell-mobil.spec.ts` („Seitenleiste auf dem Tablet") misst 44 im Browser.
 5. **Eigenes CSS gegen antd-CSS entscheidet die Spezifität, meist gegen dich** — und immer still: die
    Regel steht richtig da und greift nur nicht. Drei Ausprägungen (Gleichstand → antd gewinnt durch
    Reihenfolge · eigene Regel zu schwach · eigene Regel zu stark und trifft das eigene Modul). Wo antd

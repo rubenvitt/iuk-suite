@@ -21,7 +21,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Sider weder `collapsible` noch `breakpoint` trägt — beides ist bewusst nicht
  * gesetzt (antds Sider-Breakpoints laufen über JS und zeigen beim ersten
  * Render die falsche Variante). Wer den Sider später einklappbar macht, holt
- * sich damit einen 80px-Auslöser neben 40px-Bedienelemente und muss diese
+ * sich damit einen 80px-Auslöser neben 44px-Bedienelemente und muss diese
  * Grenze neu entscheiden.
  *
  * HIER HÄNGT DER SCHWEBENDE RÜCKMELDEKNOPF, UND DIESE STELLE IST DIE
