@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { UavDb } from "../_db/client";
 import { participants, sessions } from "../_db/schema";
-
+import { cookiesSicher } from "@/core/lokalHttp";
 export const SID_COOKIE = "sid";                        // Alt: sessions.ts:10
 export const TEILNEHMER_TTL_MS = 180 * 24 * 60 * 60 * 1000; // Alt: sessions.ts:13
 
@@ -50,5 +50,5 @@ export function sessionLoeschen(db: UavDb, roh: string): void {
 }
 
 export function sidCookieOptionen(): { httpOnly: true; sameSite: "lax"; path: "/"; secure: boolean; maxAge: number } {
-  return { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production", maxAge: TEILNEHMER_TTL_MS / 1000 };
+  return { httpOnly: true, sameSite: "lax", path: "/", secure: cookiesSicher(), maxAge: TEILNEHMER_TTL_MS / 1000 };
 }

@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "e2e:gebaut": "next build && E2E_VORGEBAUT=1 playwright test",
     "e2e:pwa": "playwright test --config=playwright.pwa.config.ts",
     "e2e:rueckmeldung": "playwright test --config=playwright.rueckmeldung.config.ts"
   },

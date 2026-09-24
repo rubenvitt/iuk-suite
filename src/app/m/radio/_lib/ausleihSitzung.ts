@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { grenzen, ausleihSitzungGeheimnis } from "./grenzen";
-
+import { cookiesSicher } from "@/core/lokalHttp";
 /**
  * DIE AUSLEIH-SITZUNG: ein signiertes JWT in einem HOST-ONLY-Cookie (Spec 1 §3.4,
  * Spec:2423-2629).
@@ -176,8 +176,8 @@ export async function verifyAusleihSitzung(value: string): Promise<AusleihSitzun
  * kennt den Namen nicht und importiert diese Datei nicht; der Quelltext-Scan dazu steht
  * in A9 (`_lib/bauform.test.ts`).
  *
- * `secure` kommt aus NODE_ENV und nicht aus einer Basis-URL: `NODE_ENV=production` steht
- * fest im Image (`Dockerfile:36`). Bewacht vom Fall „secure folgt NODE_ENV" in
+ * `secure` kommt zur Laufzeit aus NODE_ENV (`cookiesSicher`, DRK-415), nicht aus einer Basis-URL:
+ * `NODE_ENV=production` steht fest im Image (`Dockerfile:36`). Bewacht vom Fall „secure folgt NODE_ENV" in
  * `ausleihSitzung.test.ts` — er setzt die Variable auf BEIDE Werte, weil ein Vergleich
  * gegen `process.env.NODE_ENV` eine Tautologie waere.
  *
@@ -215,7 +215,7 @@ export function ausleihCookieOptionen(gueltigkeitSekunden: number): {
     httpOnly: true as const,
     sameSite: "lax" as const,
     path: "/" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: cookiesSicher(),
     maxAge: gueltigkeitSekunden,
   };
 }

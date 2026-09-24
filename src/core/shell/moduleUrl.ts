@@ -1,12 +1,12 @@
 import { findModule, prodHostsFor } from "@/core/registry";
-
+import { lokalUeberHttp } from "@/core/lokalHttp";
 /**
  * URL, unter der ein Modul erreichbar ist — oder null, wenn es das nicht ist.
  *
  * In Prod zählt allein der Prod-Host: kein Eintrag heißt, dass die Domain noch
- * nicht auf die Suite zeigt (oder es nie eine geben wird, wie bei den
- * Wegwerf-Modulen). Dann gibt es keinen Link statt eines toten.
- * In Dev/Test bleibt es beim wildcard-DNS-Schema `<key>.localtest.me`.
+ * nicht auf die Suite zeigt (oder es nie eine geben wird). Dann kein Link statt
+ * eines toten. In Dev/Test und im e2e-Lauf gegen einen gebauten Stand bleibt es
+ * beim wildcard-DNS-Schema `<key>.localtest.me` (`lokalUeberHttp`, DRK-415).
  *
  * Der Host kommt über `prodHostsFor()` — also aus `SUITE_HOST_<KEY>`, wenn
  * gesetzt. An `mod.prodHosts` vorbeizulesen wäre exakt Post-Cutover-Befund 2 in
@@ -16,7 +16,7 @@ export function moduleUrl(key: string): string | null {
   const mod = findModule(key);
   if (!mod) return null;
 
-  if (process.env.NODE_ENV === "production") {
+  if (!lokalUeberHttp()) {
     const host = prodHostsFor(mod)[0];
     return host ? `https://${host}` : null;
   }

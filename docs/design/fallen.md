@@ -85,6 +85,10 @@ trifft oder eine Abhilfe umbauen will.
     ihre Antwort** (`page.waitForResponse`), statt nur auf eine spätere Zustandsänderung zu warten —
     sonst läuft jede abgelehnte Antwort (404, 405, 413, abgebrochen) still ins Zeitbudget und meldet
     sich als etwas anderes.
+    **Seit DRK-415 fährt die CI gegen einen vorgebauten Stand** (`next start`, `e2e/helpers/server.ts`),
+    und dort gibt es keine Erstkompilierung mehr. Die Warmlauf-GETs bleiben trotzdem stehen: lokal
+    ist `next dev` weiter die Vorgabe, und unter `next start` sind sie ein harmloser zusätzlicher
+    Abruf. Die zweite Testregel hängt nicht an der Erstkompilierung und gilt unverändert.
 11. **`locator.dragTo()` löst kein zuverlässiges natives `dragstart` aus** (gemessen im Modul
     `aufgaben`, Aufgabe 20): ein Zug zwischen zwei Tagesspalten lief reproduzierbar in den vollen
     90-Sekunden-Timeout, ohne dass je ein `drop` feuerte — `dragstart` feuerte nur bei einem
@@ -110,6 +114,9 @@ trifft oder eine Abhilfe umbauen will.
     Lage hält über alle drei Versuche an. Lokal unsichtbar (warmes `.next`, 20 von 20 Mal grün).
     Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
     dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
+    Seit DRK-415 fährt die CI vorgebaut, und der Auslöser aus der Erstübersetzung fällt dort weg.
+    `klickeWennRuhig` bleibt trotzdem Pflicht: lokal läuft weiter `next dev`, und die Sitzung kommt
+    auch im gebauten Stand erst nach `load` — der Umbruch wird kürzer, nicht unmöglich.
 
     ⚠️ **Die Hülle brach ein ZWEITES Mal um, und dieser Umbruch traf nicht den Klick,
     sondern jede MESSUNG** (gemessen im Modul `lagerbuch`, DRK-322, bei 834px — gegen antds
@@ -446,3 +453,19 @@ trifft oder eine Abhilfe umbauen will.
     — es kapert die GLOBALE Schriftvariable innerhalb des Feldes, statt die des Bauteils zu setzen,
     und lässt die anderen beiden stehen. Deshalb steht hier ausnahmsweise CSS statt eines Tokens,
     entgegen Falle 5.
+
+21. **`next build` backt `process.env.NODE_ENV` fest ein — auch im Servercode** (gemessen an DRK-415,
+    im gebauten Chunk nachgesehen, nicht vermutet). Von `if (process.env.NODE_ENV === "production")`
+    bleibt nach dem Build nur der eine Zweig übrig; eine Umgebungsvariable zur Laufzeit erreicht den
+    anderen nicht mehr. Ersetzt wird **nur der wörtliche Ausdruck**: ein Zugriff über eine Variable
+    (`env.NODE_ENV` mit `env = process.env` als Parameter) bleibt zur Laufzeit stehen — derselbe
+    Chunk zeigt dafür `"production"===a.NODE_ENV`. Unter `next dev` und in Vitest fällt der
+    Unterschied nie auf, weil dort nichts gebaut wird. **Getroffen hat es die e2e-Suite gegen den
+    gebauten Stand:** die Anmelde-Cookies der Suite, von lagerbuch (Helfer), radio (Ausleihe), files
+    (Passwort) und uav bekamen `Secure`, und Chromium verwirft ein `Secure`-Cookie über
+    `http://*.localtest.me` **still** — die Dev-Anmeldung kam nicht mehr von `/login` weg, 18 von 21
+    Fällen einer Probe waren rot, und keiner meldete „Cookie verworfen". Dazu zeigten Modul-Links auf
+    die echten Produktionshosts. **Abhilfe:** was die e2e-Suite unter `next start` im anderen Zweig
+    braucht, fragt `lokalUeberHttp()`/`cookiesSicher()` aus `core/lokalHttp` (Laufzeit, Schalter
+    `SUITE_LOKAL_HTTP=1`, den nur das e2e-Profil setzt; neben einer `https`-`AUTH_URL` bricht er den
+    Boot ab). `core/lokalHttp.test.ts` verbietet `secure:` neben `NODE_ENV` im Quelltext.

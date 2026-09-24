@@ -17,7 +17,7 @@ import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
 import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot";
 import { uavBootFehler } from "@/app/m/uav/_lib/boot";
 import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
-
+import { lokalHttpFehler } from "@/core/lokalHttp";
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
 // kopiert den Ordner an genau diesen Pfad in das standalone-Image).
@@ -102,7 +102,7 @@ export const CORE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
 export async function assertHostConfig(): Promise<void> {
   const keys = MODULES.map((m) => m.key);
   const errors = [
-    ...validateHostConfig(keys),
+    ...validateHostConfig(keys), ...lokalHttpFehler(),
     ...validateGroupConfig(keys),
     ...(await filesBootFehler()),
     // lagerbuch: greift nur bei gesetztem SUITE_HOST_LAGERBUCH und WIRFT NIE (Spec §10.5).

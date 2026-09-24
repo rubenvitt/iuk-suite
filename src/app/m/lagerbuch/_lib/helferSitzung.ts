@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { grenzen, helferSitzungGeheimnis } from "./grenzen";
-
+import { cookiesSicher } from "@/core/lokalHttp";
 /**
  * Die Helfer-Sitzung: ein signiertes JWT in einem HOST-ONLY-Cookie.
  * KEIN "use client" (Falle 6) — die Werte lesen Server Components und Route
@@ -124,8 +124,8 @@ export async function verifyHelferSitzung(value: string): Promise<HelferSitzung 
  * verhaelt sich ein domain-weites Cookie exakt wie ein host-only (Falle 19). Die
  * einzige Absicherung ist die Quelltext-Zusicherung in `helferSitzung.test.ts`.
  *
- * `secure` kommt aus NODE_ENV, nicht aus `config.appBaseUrl.startsWith("https://")`
- * (`helferSession.ts:32`): `NODE_ENV=production` steht fest im Image
+ * `secure` kommt zur Laufzeit aus NODE_ENV (`cookiesSicher`, DRK-415), nicht aus `config.appBaseUrl.
+ * startsWith("https://")` (`helferSession.ts:32`): `NODE_ENV=production` steht fest im Image
  * (`iuk-suite/Dockerfile:25`), waehrend `APP_BASE_URL` in der Suite gar nicht
  * existiert (§8.2).
  *
@@ -139,7 +139,7 @@ export function helferCookieOptionen(gueltigkeitSekunden: number) {
     httpOnly: true as const,
     sameSite: "lax" as const,
     path: "/" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: cookiesSicher(),
     maxAge: gueltigkeitSekunden,
   };
 }
