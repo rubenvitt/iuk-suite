@@ -13,7 +13,6 @@ declare module "next-auth" {
       fachgruppen: string[];
       isAdmin: boolean;
     };
-    error?: string;
     /**
      * Unix-SEKUNDEN der Anmeldung, aus `token.angemeldetSeit`. Die Profilseite
      * zeigt sie als „angemeldet seit".

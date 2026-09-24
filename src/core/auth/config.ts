@@ -216,10 +216,10 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
          * Sitzungs-Cookie, statt es neu zu setzen. Damit ist die Sitzung auf
          * ALLEN Wegen tot — Proxy, RSC, Server Action, API-Route.
          *
-         * Ein `token.error` waere dagegen nur ein Hinweis an den Browser.
-         * Schlimmer: `components/providers.tsx` beantwortet `RefreshTokenError`
-         * mit einem STILLEN Neu-Login; diesen Weg wiederzuverwenden hiesze, die
-         * widerrufene Person sofort wieder anzumelden.
+         * Ein `token.error` waere dagegen nur ein Hinweis an den Browser — und
+         * den liest seit DRK-444 niemand mehr. Frueher beantwortete der Browser
+         * `RefreshTokenError` mit einem STILLEN Neu-Login; diesen Weg zu nehmen
+         * hiess, die widerrufene Person sofort wieder anzumelden.
          *
          * VOR `tokenAuffrischen`, nicht danach: fuer eine sterbende Sitzung das
          * Refresh-Token bei Pocket ID zu rotieren, bringt niemandem etwas — und
@@ -238,6 +238,11 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
          * Pocket ID, auch nicht auf dem RSC-Pfad), danach fuer den Fehlschlag,
          * der gerade passiert ist. Ein TRANSIENTER Fehlschlag setzt nur
          * `refreshFailedAt` und kommt hier unveraendert durch.
+         *
+         * Pocket ID erfaehrt vom Verwerfen nichts, und das ist gewollt
+         * (DRK-444): Das Token ist dort schon tot, und ein RP-Logout braucht
+         * einen Browser, den es an dieser Stelle nicht gibt. Begruendung
+         * ausfuehrlich in `api/auth/oidc-signout/route.ts`.
          */
         if (token.error === "RefreshTokenError") return null;
         const aufgefrischt = await tokenAuffrischen(token, { darfSchreiben: request !== undefined });
@@ -258,9 +263,9 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
         if (token.sub) {
           session.user.id = token.sub;
         }
-        if (token.error) {
-          session.error = token.error as string;
-        }
+        // `token.error` bleibt bewusst im Server: `RefreshTokenError` beendet
+        // die Sitzung schon im `jwt`-Callback, und der Browser liest seit
+        // DRK-444 keinen Vermerk mehr.
         // Fuer die Profilseite („angemeldet seit"). Sie ist der einzige
         // Konsument; der Widerruf selbst liest den Wert aus dem Token, nicht
         // aus der Sitzung.
