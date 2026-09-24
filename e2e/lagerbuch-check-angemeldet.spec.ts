@@ -216,7 +216,7 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
 
     /*
      * ⚠️ DIE ANTWORT WIRD GEPRÜFT, nicht nur der Satz danach — zweite Testregel
-     * aus Falle 10 (`CLAUDE.md`, `AGENTS.md`). Ohne sie läuft eine abgelehnte
+     * aus Falle 10 (`CLAUDE.md`). Ohne sie läuft eine abgelehnte
      * oder abgebrochene Server-Action still ins Zeitbudget und meldet sich als
      * „gebucht“ wurde nicht sichtbar — also als etwas ganz anderes als der
      * tatsächliche HTTP-Fehler.
