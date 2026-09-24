@@ -153,6 +153,11 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     let ende_datum = e.ende_datum.trim().to_string();
     let ende_zeit = e.ende_zeit.trim().to_string();
 
+    // `stichwort` wird nur auf „nicht leer" geprüft, nicht gegen `paket.stammdaten.stichworte`:
+    // Die Stammdaten-Stichworte sind Vorschläge für die Oberfläche, keine abschließende Liste —
+    // genau wie im TS-Kern, der dieselbe Prüfung ebenfalls nicht kennt. Ein Versiegeln darf nie an
+    // inzwischen geänderten oder gelöschten Stammdaten scheitern (siehe `loese_schnappschuss` in
+    // `versiegeln.rs`), also erst recht nicht am Wortlaut eines freien Textfelds.
     let mut fehlt = Vec::new();
     if stichwort.is_empty() {
         fehlt.push("Alarmstichwort");
@@ -257,8 +262,9 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
 }
 
 /// Formatiert einen Zeitpunkt in der gegebenen Zone wie `versiegelt` (Spec §3):
-/// `%Y-%m-%dT%H:%M:%S%:z`. Gemeinsam für `versiegelt` (in `versiegeln.rs`) und `frist_bis`, damit
-/// beide Zeitpunkte, die dieses Crate nach außen gibt, dieselbe Schreibweise tragen.
+/// `%Y-%m-%dT%H:%M:%S%:z`. Gemeinsam für `versiegelt` (in `versiegeln.rs`), `frist_bis` und
+/// `abgesendet_am`, damit jeder Zeitpunkt, den dieses Crate nach außen gibt, dieselbe
+/// Schreibweise trägt.
 pub(crate) fn formatiere_zeitpunkt(zeitpunkt: DateTime<Utc>, zeitzone: &str) -> String {
     let tz: chrono_tz::Tz = zeitzone.parse().expect("Zeitzone wurde bei der Einrichtung geprüft");
     zeitpunkt.with_timezone(&tz).format("%Y-%m-%dT%H:%M:%S%:z").to_string()
@@ -267,8 +273,7 @@ pub(crate) fn formatiere_zeitpunkt(zeitpunkt: DateTime<Utc>, zeitzone: &str) -> 
 impl Buch {
     /// Der zwischengespeicherte Formularstand vor dem Absenden, sofern einer vorliegt.
     pub fn entwurf(&self) -> Result<Option<Entwurf>, ErfassungFehler> {
-        let json: Option<String> =
-            self.verbindung().query_row("SELECT json FROM entwurf WHERE id = 1", [], |r| r.get(0)).optional()?;
+        let json: Option<String> = self.conn().query_row("SELECT json FROM entwurf WHERE id = 1", [], |r| r.get(0)).optional()?;
         Ok(match json {
             Some(json) => Some(serde_json::from_str(&json)?),
             None => None,
@@ -278,7 +283,7 @@ impl Buch {
     /// Speichert den Formularstand, ohne ihn zu prüfen — er ist noch nicht abgesendet.
     pub fn speichere_entwurf(&mut self, e: &Entwurf, jetzt: DateTime<Utc>) -> Result<(), ErfassungFehler> {
         let json = serde_json::to_string(e)?;
-        self.verbindung().execute(
+        self.conn().execute(
             "INSERT INTO entwurf (id, json, geaendert_am) VALUES (1, ?1, ?2) \
              ON CONFLICT(id) DO UPDATE SET json = excluded.json, geaendert_am = excluded.geaendert_am",
             params![json, jetzt.to_rfc3339()],
@@ -288,7 +293,7 @@ impl Buch {
 
     /// Verwirft den Formularstand. Ohne einen vorhandenen Entwurf ist das ein No-op.
     pub fn verwerfe_entwurf(&mut self) -> Result<(), ErfassungFehler> {
-        self.verbindung().execute("DELETE FROM entwurf", [])?;
+        self.conn().execute("DELETE FROM entwurf", [])?;
         Ok(())
     }
 
@@ -296,7 +301,7 @@ impl Buch {
     /// Einsatz.
     pub fn ausstehend(&self) -> Result<Option<Ausstehend>, ErfassungFehler> {
         let zeile: Option<(String, String, i64)> = self
-            .verbindung()
+            .conn()
             .query_row("SELECT json, abgesendet_am, frist_bis_ms FROM ausstehend WHERE id = 1", [], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?))
             })
@@ -309,10 +314,12 @@ impl Buch {
         Ok(Some(Ausstehend { entwurf, abgesendet_am, frist_bis, frist_bis_ms }))
     }
 
-    /// Prüft den Entwurf, hinterlegt ihn als ausstehend und löscht den Formularstand. Die erste
-    /// Absendung setzt `frist_bis_ms = jetzt + frist_minuten`; jede weitere überschreibt nur
-    /// Inhalt und Schnappschuss, nie die schon gesetzte Frist oder `abgesendet_am` — das
-    /// erledigt `ON CONFLICT … DO UPDATE`, indem es beide Spalten aus dem `SET` ausspart.
+    /// Prüft den Entwurf, hinterlegt ihn als ausstehend und löscht den Formularstand — beides in
+    /// einer Transaktion (`self.transaktion()`), damit nie ein `entwurf` verschwindet, ohne dass
+    /// `ausstehend` den Stand übernommen hat, und umgekehrt. Die erste Absendung setzt
+    /// `frist_bis_ms = jetzt + frist_minuten`; jede weitere überschreibt nur Inhalt und
+    /// Schnappschuss, nie die schon gesetzte Frist oder `abgesendet_am` — das erledigt
+    /// `ON CONFLICT … DO UPDATE`, indem es beide Spalten aus dem `SET` ausspart.
     pub fn sende_ab(&mut self, e: &Entwurf, jetzt: DateTime<Utc>) -> Result<Ausstehend, ErfassungFehler> {
         let einrichtung = self.einrichtung()?.ok_or(ErfassungFehler::NichtEingerichtet)?;
         let (normalisiert, schnappschuss) = pruefe_entwurf(e, &einrichtung.paket)?;
@@ -320,9 +327,10 @@ impl Buch {
         let entwurf_json = serde_json::to_string(&normalisiert)?;
         let schnappschuss_json = serde_json::to_string(&schnappschuss)?;
         let neue_frist_bis_ms = jetzt.timestamp_millis() + i64::from(einrichtung.paket.frist_minuten) * 60_000;
-        let neu_abgesendet_am = jetzt.to_rfc3339();
+        let neu_abgesendet_am = formatiere_zeitpunkt(jetzt, &einrichtung.paket.zeitzone);
 
-        let (abgesendet_am, frist_bis_ms): (String, i64) = self.verbindung().query_row(
+        let tx = self.transaktion()?;
+        let (abgesendet_am, frist_bis_ms): (String, i64) = tx.query_row(
             "INSERT INTO ausstehend (id, json, schnappschuss, abgesendet_am, frist_bis_ms) \
              VALUES (1, ?1, ?2, ?3, ?4) \
              ON CONFLICT(id) DO UPDATE SET json = excluded.json, schnappschuss = excluded.schnappschuss \
@@ -330,7 +338,8 @@ impl Buch {
             params![entwurf_json, schnappschuss_json, neu_abgesendet_am, neue_frist_bis_ms],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
-        self.verbindung().execute("DELETE FROM entwurf", [])?;
+        tx.execute("DELETE FROM entwurf", [])?;
+        tx.commit()?;
 
         let zeitpunkt = DateTime::<Utc>::from_timestamp_millis(frist_bis_ms).expect("frist_bis_ms liegt im gültigen Bereich");
         let frist_bis = formatiere_zeitpunkt(zeitpunkt, &einrichtung.paket.zeitzone);

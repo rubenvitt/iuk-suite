@@ -109,6 +109,70 @@ fn erneutes_absenden_verlaengert_die_frist_nicht() {
 }
 
 #[test]
+fn doppelte_id_ergibt_ungueltig() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+
+    let mut doppeltes_fahrzeug = gueltiger_entwurf();
+    doppeltes_fahrzeug.fahrzeuge = vec!["11-83-1".into(), "11-83-1".into()];
+    assert!(matches!(buch.sende_ab(&doppeltes_fahrzeug, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+
+    let mut doppelte_person = gueltiger_entwurf();
+    doppelte_person.personal =
+        vec![PersonAuswahl { id: "p4".into(), fahrzeug_id: None }, PersonAuswahl { id: "p4".into(), fahrzeug_id: None }];
+    assert!(matches!(buch.sende_ab(&doppelte_person, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+}
+
+#[test]
+fn neunhundertneunundneunzig_geht_tausend_nicht() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+
+    let mut an_der_grenze = gueltiger_entwurf();
+    an_der_grenze.vor_ort = 999;
+    an_der_grenze.transport = 999;
+    assert!(buch.sende_ab(&an_der_grenze, Utc::now()).is_ok());
+
+    let mut ueber_der_grenze = gueltiger_entwurf();
+    ueber_der_grenze.vor_ort = 1000;
+    assert!(matches!(buch.sende_ab(&ueber_der_grenze, Utc::now()), Err(ErfassungFehler::Ungueltig(_))));
+}
+
+#[test]
+fn ausstehend_bestaetigt_nach_erneutem_absenden_den_neuen_stand_und_die_alte_frist() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    let erste = buch.sende_ab(&gueltiger_entwurf(), t0).unwrap();
+
+    let mut geaendert = gueltiger_entwurf();
+    geaendert.notizen = "zweite Fassung".into();
+    buch.sende_ab(&geaendert, t0 + chrono::Duration::minutes(10)).unwrap();
+
+    let ausstehend = buch.ausstehend().unwrap().unwrap();
+    assert_eq!(ausstehend.entwurf.notizen, "zweite Fassung");
+    assert_eq!(ausstehend.frist_bis_ms, erste.frist_bis_ms);
+    assert_eq!(ausstehend.frist_bis, erste.frist_bis);
+}
+
+#[test]
+fn absenden_formatiert_abgesendet_am_und_frist_bis_in_der_suite_zone() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+
+    // 2026-08-22T03:12:00Z ist Sommerzeit in Europe/Berlin (+02:00) → 05:12/05:27 Ortszeit.
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    let ausstehend = buch.sende_ab(&gueltiger_entwurf(), t0).unwrap();
+    assert_eq!(ausstehend.abgesendet_am, "2026-08-22T05:12:00+02:00");
+    assert_eq!(ausstehend.frist_bis, "2026-08-22T05:27:00+02:00");
+}
+
+#[test]
 fn ohne_einrichtung_kein_absenden() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();

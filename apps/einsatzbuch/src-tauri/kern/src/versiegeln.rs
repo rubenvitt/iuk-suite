@@ -49,6 +49,31 @@ fn loese_schnappschuss(entwurf: &Entwurf, stammdaten: &Stammdaten, alt: &Schnapp
     (fahrzeuge, personal)
 }
 
+/// Räumt nach einem erfolgreichen Versiegeln den Klartext auch aus der WAL: `VACUUM` allein
+/// schreibt bei einer offenen Verbindung im WAL-Modus nur neue Frames in die `-wal`-Datei, die
+/// alten Frames mit dem Klartext aus `ausstehend`/`entwurf` blieben dort bis zum nächsten,
+/// von dieser Funktion nicht kontrollierten Checkpoint liegen — das träfe den Normalbetrieb mit
+/// langlebiger Verbindung ebenso wie jeden Absturz dazwischen. Der Checkpoint danach schreibt die
+/// WAL vollständig in die Hauptdatei zurück und schneidet `-wal` auf 0 Byte zurück (`TRUNCATE`).
+/// Beide Schritte sind unkritisch, wenn sie scheitern — der Block steht schon fest — und werden
+/// nur geloggt, nie als Fehler nach außen gereicht.
+fn raeume_nach_dem_versiegeln_auf(conn: &rusqlite::Connection) {
+    if let Err(fehler) = conn.execute("VACUUM", []) {
+        eprintln!("VACUUM nach dem Versiegeln fehlgeschlagen (unkritisch, der Block ist schon geschrieben): {fehler}");
+    }
+    match conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+    }) {
+        Ok((busy, _log, _checkpointed)) if busy != 0 => eprintln!(
+            "WAL-Checkpoint nach dem Versiegeln unvollständig (unkritisch, der Block ist schon geschrieben): eine andere Verbindung war noch aktiv"
+        ),
+        Ok(_) => {}
+        Err(fehler) => {
+            eprintln!("WAL-Checkpoint nach dem Versiegeln fehlgeschlagen (unkritisch, der Block ist schon geschrieben): {fehler}")
+        }
+    }
+}
+
 impl Buch {
     /// Versiegelt den ausstehenden Einsatz in einer Transaktion (Spec §4.3):
     /// 1. Nummer je Kalenderjahr in der Zone der Einrichtung vergeben.
@@ -57,10 +82,12 @@ impl Buch {
     /// 4. Block anhängen.
     /// 5. `ausstehend` und `entwurf` löschen.
     ///
-    /// Ohne ausstehenden Einsatz `Ok(None)`. Scheitert ein Schritt, verwirft die `Transaction`
-    /// beim Verlassen der Funktion über `?` alles Bisherige — ohne `commit()` rollt `rusqlite`
-    /// automatisch zurück. `VACUUM` läuft danach außerhalb der Transaktion; ein Fehler dabei ist
-    /// unkritisch (der Block steht schon fest) und wird nur geloggt.
+    /// Ohne ausstehenden Einsatz `Ok(None)` — auch der Lesezugriff, der das feststellt, läuft
+    /// schon auf `tx`, damit diese Methode für sich genommen atomar ist, unabhängig davon, was
+    /// die Aufruferin (`pruefe_frist` oder ein unmittelbarer „Jetzt versiegeln"-Aufruf) vorher
+    /// schon gelesen hat. Scheitert ein Schritt, verwirft die `Transaction` beim Verlassen der
+    /// Funktion über `?` alles Bisherige — ohne `commit()` rollt `rusqlite` automatisch zurück.
+    /// `raeume_nach_dem_versiegeln_auf` läuft danach außerhalb der Transaktion.
     pub fn versiegele_ausstehend(
         &mut self,
         jetzt: DateTime<Utc>,
@@ -68,15 +95,19 @@ impl Buch {
         verfallen_wenn_entwurf: bool,
     ) -> Result<Option<Versiegelung>, ErfassungFehler> {
         let einrichtung = self.einrichtung()?.ok_or(ErfassungFehler::NichtEingerichtet)?;
+        // Vor `self.transaktion()` gelesen: `Betrieb` ist `Copy`, `tx` leiht `self` aber
+        // veränderlich, solange sie lebt — ein späterer `self.betrieb()`-Aufruf ginge nicht mehr.
+        let betrieb = self.betrieb();
+        let praefix = if betrieb == Betrieb::Test { "T-" } else { "" };
 
-        let ausstehend_zeile: Option<(String, String)> = self
-            .verbindung()
+        let tx = self.transaktion()?;
+
+        let ausstehend_zeile: Option<(String, String)> = tx
             .query_row("SELECT json, schnappschuss FROM ausstehend WHERE id = 1", [], |r| Ok((r.get(0)?, r.get(1)?)))
             .optional()?;
         let Some((entwurf_json, schnappschuss_json)) = ausstehend_zeile else { return Ok(None) };
 
-        let entwurf_existiert: bool =
-            self.verbindung().query_row("SELECT EXISTS(SELECT 1 FROM entwurf WHERE id = 1)", [], |r| r.get(0))?;
+        let entwurf_existiert: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM entwurf WHERE id = 1)", [], |r| r.get(0))?;
         let verfallen = verfallen_wenn_entwurf && entwurf_existiert;
 
         let entwurf: Entwurf = serde_json::from_str(&entwurf_json)?;
@@ -85,12 +116,6 @@ impl Buch {
 
         let tz: chrono_tz::Tz = einrichtung.paket.zeitzone.parse().expect("Zeitzone wurde bei der Einrichtung geprüft");
         let jahr = i64::from(jetzt.with_timezone(&tz).year());
-        // Vor `self.transaktion()` gelesen: `Betrieb` ist `Copy`, `tx` leiht `self` aber
-        // veränderlich, solange sie lebt — ein späterer `self.betrieb()`-Aufruf ginge nicht mehr.
-        let betrieb = self.betrieb();
-        let praefix = if betrieb == Betrieb::Test { "T-" } else { "" };
-
-        let tx = self.transaktion()?;
 
         let letzte: i64 = tx.query_row(
             "INSERT INTO nummern (jahr, letzte) VALUES (?1, 1) \
@@ -149,9 +174,7 @@ impl Buch {
         tx.execute("DELETE FROM entwurf", [])?;
         tx.commit()?;
 
-        if let Err(fehler) = self.verbindung().execute("VACUUM", []) {
-            eprintln!("VACUUM nach dem Versiegeln fehlgeschlagen (unkritisch, der Block ist schon geschrieben): {fehler}");
-        }
+        raeume_nach_dem_versiegeln_auf(self.conn());
 
         Ok(Some(Versiegelung { block: block_nr, hash: block.hash, prev, versiegelt: versiegelt_text, nummer, verfallen }))
     }
@@ -159,13 +182,17 @@ impl Buch {
     /// Prüft die Frist mit der übergebenen Uhrzeit, nie mit der Systemzeit: Ist ein ausstehender
     /// Einsatz vorhanden und `frist_bis_ms` erreicht, versiegelt sie den zuletzt abgesendeten
     /// Stand (`verfallen = true`, sofern dabei ein ungespeicherter Formularstand existierte).
-    /// Ohne ausstehenden Einsatz oder vor Ablauf `Ok(None)`.
+    /// Ohne ausstehenden Einsatz oder vor Ablauf `Ok(None)`. Die Prüfung selbst läuft auf einer
+    /// eigenen, rein lesenden Transaktion (`tx` wird ohne Schreibzugriff verworfen, das ist bei
+    /// einer reinen Leseaktion gleichwertig zu `commit()`); das eigentliche Versiegeln danach ist
+    /// unabhängig davon noch einmal für sich atomar (`versiegele_ausstehend`).
     pub fn pruefe_frist(&mut self, jetzt: DateTime<Utc>, z: &mut dyn Zufall) -> Result<Option<Versiegelung>, ErfassungFehler> {
-        let frist_bis_ms: Option<i64> =
-            self.verbindung().query_row("SELECT frist_bis_ms FROM ausstehend WHERE id = 1", [], |r| r.get(0)).optional()?;
-        match frist_bis_ms {
-            Some(f) if f <= jetzt.timestamp_millis() => self.versiegele_ausstehend(jetzt, z, true),
-            _ => Ok(None),
-        }
+        let faellig = {
+            let tx = self.transaktion()?;
+            let frist_bis_ms: Option<i64> =
+                tx.query_row("SELECT frist_bis_ms FROM ausstehend WHERE id = 1", [], |r| r.get(0)).optional()?;
+            matches!(frist_bis_ms, Some(f) if f <= jetzt.timestamp_millis())
+        };
+        if faellig { self.versiegele_ausstehend(jetzt, z, true) } else { Ok(None) }
     }
 }

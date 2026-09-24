@@ -181,6 +181,116 @@ fn fehlende_stammdaten_id_faellt_auf_den_schnappschuss_zurueck() {
     assert_eq!(einsatz.personal[0].name, "Dierks, Malte");
 }
 
+/// `true`, wenn `nadel` irgendwo in `heuhaufen` als zusammenhängende Bytefolge vorkommt — die
+/// rohe Suche, mit der die folgenden Tests eine Rohdatei auf Klartext abklopfen.
+fn enthaelt(heuhaufen: &[u8], nadel: &[u8]) -> bool {
+    !nadel.is_empty() && heuhaufen.windows(nadel.len()).any(|fenster| fenster == nadel)
+}
+
+/// Regressionstest zum WAL-Leck: `VACUUM` allein schreibt bei offener Verbindung im WAL-Modus
+/// nur in die `-wal`-Datei, die alten Frames mit dem Klartext aus `ausstehend`/`entwurf` blieben
+/// sonst bis zum nächsten, unkontrollierten Checkpoint liegen — auch über einen Absturz hinweg.
+/// Geprüft bei **offenem** `Buch`, absichtlich vor jedem `drop`, denn genau das ist der Fall, den
+/// ein bloßes „am Ende schließt SQLite ja doch auf" nicht abdeckt.
+#[test]
+fn versiegeln_entfernt_klartext_auch_aus_der_wal() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+
+    let marker = "KLARTEXT-MARKER-7f3a";
+    let mut mit_marker = entwurf_eins();
+    mit_marker.notizen = marker.into();
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&mit_marker, jetzt).unwrap();
+
+    let mut zufall = FesterZufall(8);
+    buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap().unwrap();
+
+    let db_bytes = std::fs::read(ordner.path().join("einsatzbuch.db")).unwrap();
+    assert!(!enthaelt(&db_bytes, marker.as_bytes()), "Marker steckt noch in der Hauptdatei");
+
+    let wal_pfad = ordner.path().join("einsatzbuch.db-wal");
+    match std::fs::read(&wal_pfad) {
+        Ok(wal_bytes) => assert!(!enthaelt(&wal_bytes, marker.as_bytes()), "Marker steckt noch in der WAL"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {} // keine WAL-Datei ist ebenfalls in Ordnung
+        Err(e) => panic!("WAL-Datei nicht lesbar: {e}"),
+    }
+}
+
+/// Ein umbenanntes Fahrzeug und eine umbenannte Person übernehmen beim Versiegeln den NEUEN
+/// Stammdaten-Wert, nicht den Schnappschuss vom Absenden — der Rückfall greift nur, wenn eine ID
+/// ganz verschwunden ist (siehe `fehlende_stammdaten_id_faellt_auf_den_schnappschuss_zurueck`),
+/// nicht schon bei einer bloßen Namensänderung.
+#[test]
+fn neuaufloesung_beim_versiegeln_uebernimmt_umbenannte_stammdaten() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt).unwrap(); // enthält Fahrzeug 11-83-1 und Person p4
+
+    let mut paket = test_einrichtung(Umgebung::Echt).paket;
+    paket.stammdaten.fahrzeuge.iter_mut().find(|f| f.id == "11-83-1").unwrap().ruf = "Neuer Rufname".into();
+    paket.stammdaten.personal.iter_mut().find(|p| p.id == "p4").unwrap().name = "Dierks, Malte-Neu".into();
+    paket.version = 2;
+    buch.uebernehme_stammdaten(&paket).unwrap();
+
+    let mut zufall = FesterZufall(5);
+    buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
+
+    let bloecke = buch.bloecke().unwrap();
+    let einsatz = entschluessele(&bloecke[0], &suite_privatschluessel());
+    assert_eq!(einsatz.fahrzeuge[0].ruf, "Neuer Rufname");
+    assert_eq!(einsatz.personal[0].name, "Dierks, Malte-Neu");
+}
+
+/// Derselbe Rückfall wie bei einer verschwundenen Person, hier für ein verschwundenes Fahrzeug:
+/// Der Klartext trägt den beim Absenden gespeicherten Schnappschuss.
+#[test]
+fn fehlendes_fahrzeug_faellt_auf_den_schnappschuss_zurueck() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 29, 13, 0, 0).unwrap();
+    buch.sende_ab(&entwurf_zwei(), jetzt).unwrap(); // enthält Fahrzeug 12-19-1
+
+    let mut paket = test_einrichtung(Umgebung::Echt).paket;
+    paket.stammdaten.fahrzeuge.retain(|f| f.id != "12-19-1");
+    paket.version = 2;
+    buch.uebernehme_stammdaten(&paket).unwrap();
+
+    let mut zufall = FesterZufall(6);
+    buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
+
+    let bloecke = buch.bloecke().unwrap();
+    let einsatz = entschluessele(&bloecke[0], &suite_privatschluessel());
+    assert_eq!(einsatz.fahrzeuge[0].ruf, "Rotkreuz Bad Bevensen 12-19-1");
+}
+
+/// Ist `besatzung` aus, trägt der Klartext für jede Person `fahrzeugId: null` — unabhängig
+/// davon, welches Fahrzeug im Entwurf gewählt war (`pruefe_entwurf` normalisiert das schon beim
+/// Absenden weg, siehe `erfassung.rs`).
+#[test]
+fn besatzung_aus_ergibt_fahrzeug_id_none_im_klartext() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    let mut einrichtung = test_einrichtung(Umgebung::Echt);
+    einrichtung.paket.besatzung = false;
+    buch.richte_ein(&einrichtung).unwrap();
+
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt).unwrap();
+    let mut zufall = FesterZufall(7);
+    buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
+
+    let bloecke = buch.bloecke().unwrap();
+    let einsatz = entschluessele(&bloecke[0], &suite_privatschluessel());
+    assert!(einsatz.personal.iter().all(|p| p.fahrzeug_id.is_none()), "{:?}", einsatz.personal);
+}
+
 #[test]
 fn ein_fehlschlag_in_der_transaktion_hinterlaesst_nichts() {
     let ordner = tempfile::tempdir().unwrap();

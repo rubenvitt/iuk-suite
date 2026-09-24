@@ -208,6 +208,13 @@ impl Buch {
         }
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        // Der Klartext eines ausstehenden Einsatzes liegt bewusst unverschlüsselt in `ausstehend`
+        // und `entwurf` (Spec §4.2) — `secure_delete` sorgt dafür, dass SQLite eine gelöschte
+        // Seite mit Nullen statt mit ihrem alten Inhalt überschreibt, sobald sie wiederverwendet
+        // wird. Nötig, aber allein nicht hinreichend: erst zusammen mit `VACUUM` und einem
+        // WAL-Checkpoint nach dem Versiegeln (`versiegeln.rs`) verschwindet der Klartext auch aus
+        // der `-wal`-Datei.
+        conn.pragma_update(None, "secure_delete", "ON")?;
         richte_schema_ein(&mut conn)?;
         Ok(Buch { conn, betrieb, pfad })
     }
@@ -337,16 +344,25 @@ impl Buch {
         Ok(bloecke)
     }
 
-    /// Nur für Tests: Zugriff auf die rohe Verbindung, um z. B. die Trigger auf `bloecke`
-    /// unmittelbar zu prüfen.
+    /// Nur für Integrationstests (`tests/*.rs`, die als eigene Crates nur `pub` sehen): Zugriff
+    /// auf die rohe Verbindung, um z. B. die Trigger auf `bloecke` unmittelbar zu prüfen oder eine
+    /// Zeile für einen Fehlerfall zu manipulieren. Der Kern selbst liest und schreibt außerhalb
+    /// einer Transaktion über `conn()` (`pub(crate)`, siehe dort).
     pub fn verbindung(&self) -> &Connection {
         &self.conn
     }
 
-    /// Startet eine Transaktion auf der Verbindung dieses Buchs — die Naht, über die
-    /// `erfassung.rs` und `versiegeln.rs` innerhalb des Crates an die Verbindung kommen. Die
-    /// Tabellen `ausstehend`, `entwurf` und `nummern` sind für die App nur über die
+    /// Zugriff auf die Verbindung für den Kern selbst — die Naht, über die `erfassung.rs` und
+    /// `versiegeln.rs` innerhalb des Crates lesen und (außerhalb einer Transaktion) schreiben.
+    /// Die Tabellen `ausstehend`, `entwurf` und `nummern` sind für die App nur über die
     /// `Buch`-Methoden dieser beiden Module erreichbar, nie unmittelbar.
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
+    /// Startet eine Transaktion auf der Verbindung dieses Buchs — die zweite Naht neben `conn()`,
+    /// für die Fälle, in denen mehrere Schritte atomar zusammengehören (`sende_ab`,
+    /// `versiegele_ausstehend`).
     pub(crate) fn transaktion(&mut self) -> Result<rusqlite::Transaction<'_>, BuchFehler> {
         Ok(self.conn.transaction()?)
     }

@@ -108,6 +108,23 @@ fn versiegeln_mit_ungespeichertem_formular_nimmt_den_abgesendeten_stand() {
     assert_eq!(notizen, "A");
 }
 
+/// Läuft die Frist ab, ohne dass je ein ungespeicherter Formularstand existierte (kein
+/// `speichere_entwurf`-Aufruf), ist `verfallen` auch bei der automatischen, fristausgelösten
+/// Versiegelung `false` — `verfallen_wenn_entwurf` allein reicht nicht, es muss auch wirklich
+/// einen `entwurf` gegeben haben.
+#[test]
+fn pruefe_frist_ohne_entwurf_ergibt_verfallen_false() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&entwurf(), t0).unwrap();
+
+    let mut zufall = FesterZufall(9);
+    let versiegelung = buch.pruefe_frist(t0 + chrono::Duration::minutes(15), &mut zufall).unwrap().unwrap();
+    assert!(!versiegelung.verfallen);
+}
+
 #[test]
 fn jetzt_versiegeln_ist_nicht_verfallen() {
     let ordner = tempfile::tempdir().unwrap();
