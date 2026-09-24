@@ -889,6 +889,30 @@ describe("Entnahme — Bauform", () => {
   });
 
   /**
+   * DRK-399 — „ÄNDERN" STEHT AUF 56, UND SEIN RANDMASS IST DIE POLSTERUNG.
+   *
+   * ⚠️ ZWEI DATEIEN, EINE ZAHL. Das negative Randmaß von `.zielAendern` muss
+   * genau die Polsterung der Zeile aufheben, die `Entnahme.tsx` inline setzt:
+   * gemessen (Chromium, 390x844) liegt die „+"-Taste 1px über „Ändern" und der
+   * Buchen-Knopf 0px darunter. Mehr Randmaß, und die Trefferfläche ragt in
+   * beide hinein. Deshalb liest der Test BEIDE Seiten und vergleicht sie — wer
+   * nur eine ändert, sieht es hier. Die Geometrie selbst misst
+   * `e2e/lagerbuch-helfer.spec.ts` (jsdom rechnet keine Layoutboxen).
+   */
+  it("gibt `Ändern` 56px, ohne dass die Trefferflaeche aus der Zeile ragt", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+
+    const regel = regeln(".zielAendern");
+    expect(Number.parseInt(regel.get("min-height") ?? "", 10)).toBeGreaterThanOrEqual(56);
+
+    const zeile = query<HTMLElement>(ZIEL);
+    const polster = Number.parseFloat(zeile.style.paddingTop);
+    expect(polster, "die Zeile muss ihre Polsterung inline tragen").toBeGreaterThan(0);
+    expect(Number.parseFloat(zeile.style.paddingBottom)).toBe(polster);
+    expect(regel.get("margin")).toBe(`-${polster}px 0`);
+  });
+
+  /**
    * DRK-309, Reviewrunde 6 — DIE ZIELZEILE NENNT ART UND KENNUNG.
    *
    * ⚠️ SIE IST DIE LETZTE ZEILE VOR EINER BUCHUNG, und die Wahl dahinter gilt

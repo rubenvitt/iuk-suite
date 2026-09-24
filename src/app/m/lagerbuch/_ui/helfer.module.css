@@ -439,11 +439,21 @@
  * „Ändern" ist ein WEG, keine Handlung — deshalb Text und keine zweite Pille
  * neben dem roten Knopf. Und deshalb in Tinte statt in Rot: die Handlungsfarbe
  * gehört dem Knopf direkt darunter, zwei rote Flächen übereinander streiten um
- * dieselbe Aufmerksamkeit. Die 44px sind die Trefferfläche (WCAG 2.5.5); das
- * negative Randmaß hält den sichtbaren Text trotzdem an der Kante.
+ * dieselbe Aufmerksamkeit.
+ *
+ * ⚠️ 56px, NICHT 44 (DRK-399) — aus demselben Grund wie `.rueckweg`: ein Weg,
+ * und der Helferweg läuft in der 56/72-Dichte (CLAUDE.md, Falle 4).
+ *
+ * ⚠️ DAS RANDMASS IST GENAU DIE POLSTERUNG DER ZEILE (`padding: 11px 0` am
+ * Aufrufer in `Entnahme.tsx`), und das ist gemessen, nicht Geschmack (echter
+ * Chromium, 390x844): direkt über „Ändern" liegt die „+"-Taste des Steppers
+ * (1px Abstand), direkt darunter der Buchen-Knopf (0px). Ein Randmaß über der
+ * Polsterung ließe die Trefferfläche in BEIDE hineinragen — ein Tipp auf „+"
+ * öffnete dann die Zielwahl. So füllt „Ändern" die Zeile genau aus; sie wächst
+ * dafür von 46 auf 56px, und der Buchen-Knopf rückt 10px tiefer.
  */
 .zielAendern {
-  display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0;
+  display: inline-flex; align-items: center; min-height: 56px; margin: -11px 0;
   font-size: 14px; font-weight: 600; color: var(--lb-tinte); text-decoration: underline;
   text-underline-offset: 3px; white-space: nowrap;
 }
@@ -564,9 +574,26 @@
   display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
   padding: 2.5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap;
 }
+/*
+ * DIE FÜNF GERÄTEKNÖPFE IM CHECK — 56x56px, NICHT 44 (DRK-399).
+ *
+ * ⚠️ SIE BUCHEN. Kein Rückweg, sondern das, womit im Geräteschritt „fehlt"
+ * oder „Defekt" ins Journal geht; die Einsatzdichte 56/72 (Handschuhe, CLAUDE.md
+ * Falle 4) gilt für sie zuerst. Die 44 stammten aus der `FullShell`-Dichte.
+ *
+ * ⚠️ AUCH DIE BREITE: „fehlt" war als Trefferfläche nur 42,5px breit, „Defekt"
+ * 53,1px. `justify-content` hält die Pille dabei in der Mitte ihrer Fläche.
+ *
+ * ⚠️ DIE ZEILE BRICHT DADURCH NICHT ZUSÄTZLICH UM — gemessen, nicht
+ * angenommen (echter Chromium, 390x844): die fünf standen schon bei 44 auf
+ * zwei Zeilen (3 + 2, „Gebrauchsspuren" passt nie in die erste), und daran
+ * ändert die Mindestbreite nichts. Eine Gerätezeile wird 12px je Knopfzeile
+ * höher (24px bei „vorhanden", 12px bei „fehlt", wo nur zwei Knöpfe stehen);
+ * kein Knopf ragt über die Karte, die Seite scrollt nicht seitwärts.
+ */
 .chipKnopf {
-  background: none; border: 0; padding: 6px 0; min-height: 44px;
-  display: inline-flex; align-items: center;
+  background: none; border: 0; padding: 6px 0; min-height: 56px; min-width: 56px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .chip.warnhinweis {
   white-space: normal; display: block; border-radius: 10px; padding: 8px 10px;

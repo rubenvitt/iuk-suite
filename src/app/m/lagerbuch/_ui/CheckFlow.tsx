@@ -120,7 +120,7 @@ function Schritte({ folge, aktiv }: { folge: Phase[]; aktiv: Phase }) {
 const zustandTon = (z: Zustand) =>
   z === "In Ordnung" ? "ok" : z === "Gebrauchsspuren" ? "gelb" : "rot";
 
-/** Die fünf Geräteknöpfe teilen das entschiedene 44px-Tippziel aus `.chipKnopf`. */
+/** Die fünf Geräteknöpfe teilen das 56x56px-Tippziel aus `.chipKnopf` (DRK-399). */
 export function CheckFlow({
   fahrzeug,
   soll,
