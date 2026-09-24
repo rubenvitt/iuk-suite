@@ -385,15 +385,21 @@ test("Erfassung offline → online → in der Verwaltung sichtbar (Check 7)", as
  * Eigener `cf-connecting-ip` je Lauf: ohne ihn zählten die Fehlversuche gegen den
  * Sammel-Eimer `"unknown"`, den alle anderen Fälle dieses Servers mitbenutzen.
  */
-test("Anmelde-API: überlanger Rohwert 400, formatfalscher Code 401, gültiger Code 200 (DRK-287)", async ({
+test("Anmelde-API: überlanger Body 413, überlanger Rohwert 400, formatfalscher Code 401, gültiger Code 200 (DRK-287, DRK-447)", async ({
   request,
 }) => {
   const headers = { "cf-connecting-ip": "203.0.113.87" };
   const anmelden = (code: string) => request.post(uavUrl("/api/anmeldung"), { data: { code }, headers });
 
+  // DRK-447: ein Body über der Größenbremse wird gar nicht erst ganz gelesen.
   const ueberlang = await anmelden("A".repeat(1024 * 1024));
-  expect(ueberlang.status()).toBe(400);
-  expect((await ueberlang.json()).error.code).toBe("validation_error");
+  expect(ueberlang.status()).toBe(413);
+  expect((await ueberlang.json()).error.code).toBe("body_too_large");
+
+  // Unter der Bremse, aber über `CODE_ROH_MAX_ZEICHEN`: die Schema-Grenze aus DRK-287 greift weiter.
+  const rohZuLang = await anmelden("A".repeat(100));
+  expect(rohZuLang.status()).toBe(400);
+  expect((await rohZuLang.json()).error.code).toBe("validation_error");
 
   const formatfalsch = await anmelden("ZZZZ!ZZZ");
   expect(formatfalsch.status()).toBe(401);
