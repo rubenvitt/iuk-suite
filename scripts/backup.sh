@@ -77,9 +77,31 @@ fi
 # (TARBALL_MUSTER) — er wuerde dort als fremd gewarnt und nie mehr wegrotiert. Eine
 # Sekunde zu warten kostet eine Sekunde und laesst Namensform und Sortierung
 # (lexikografisch = chronologisch, worauf die Rotation beruht) unangetastet.
+#
+# ⚠️ UND DER ANSPRUCH AUF DEN NAMEN IST DAS `mkdir` SELBST, OHNE `-p` (DRK-416). Pruefen
+# und danach `mkdir -p` waren zwei Schritte, und `-p` gelingt auch fuer ein Verzeichnis,
+# das es schon gibt: zwei Laeufe derselben Sekunde (Uebernahme einer fuer verwaist
+# gehaltenen Sperre im Sidecar) kamen beide durch, schrieben ihre Kopien in DASSELBE
+# Verzeichnis, und das `rm -rf` des einen raeumte es unter dem `tar` des anderen weg.
+# Ein nacktes `mkdir` gelingt genau einem — dasselbe Muster wie die Sperre des Sidecars.
+# Das Archiv wird danach NOCH EINMAL geprueft: zwischen der ersten Pruefung und unserem
+# `mkdir` kann ein Lauf mit demselben Stempel fertig geworden sein. Weil er erst
+# umbenennt und dann sein Verzeichnis abraeumt, steht sein Archiv dann schon da.
+mkdir -p "$BACKUP_DIR"
 stamp="$(date +%Y%m%dT%H%M%S)"
 versuche=0
-while [ -e "$BACKUP_DIR/$stamp.tar.gz" ] || [ -e "$BACKUP_DIR/$stamp" ]; do
+while :; do
+  if [ ! -e "$BACKUP_DIR/$stamp.tar.gz" ]; then
+    if mkdir "$BACKUP_DIR/$stamp" 2>/dev/null; then
+      [ -e "$BACKUP_DIR/$stamp.tar.gz" ] || break
+      rmdir "$BACKUP_DIR/$stamp"
+    elif [ ! -e "$BACKUP_DIR/$stamp" ]; then
+      # Gescheitert, obwohl nichts im Weg steht: Rechte oder ein volles Volume. Warten
+      # aendert daran nichts, und „steht die Uhr?" waere die falsche Diagnose.
+      echo "backup: $BACKUP_DIR/$stamp laesst sich nicht anlegen — aborting" >&2
+      exit 1
+    fi
+  fi
   # Nach zwei Runden MUSS die Sekunde gewechselt haben; tut sie es nicht, steht die Uhr.
   # Dann ist Abbrechen richtig: stilles Ueberschreiben waere der Schaden, den es zu
   # verhindern gilt.
@@ -92,7 +114,6 @@ while [ -e "$BACKUP_DIR/$stamp.tar.gz" ] || [ -e "$BACKUP_DIR/$stamp" ]; do
   stamp="$(date +%Y%m%dT%H%M%S)"
 done
 work="$BACKUP_DIR/$stamp"
-mkdir -p "$work"
 
 for db in "${dbs[@]}"; do
   sqlite3 "$db" ".backup '$work/$(basename "$db")'"
@@ -183,7 +204,19 @@ if [ -f "$work/aufgaben.db" ]; then
   fi
 fi
 
-tar -czf "$work.tar.gz" -C "$BACKUP_DIR" "$stamp"
+# ⚠️ GEPACKT WIRD UNTER EINEM NAMEN, DER NICHT ALS GENERATION ZAEHLT (DRK-416). `tar`
+# schrieb frueher direkt auf `$stamp.tar.gz`, und ein WACHSENDES Archiv passt auf das
+# Muster, mit dem lokal wie am Ziel gezaehlt wird (TARBALL_MUSTER im Sidecar, `*.tar.gz`
+# in der Rotation unten): das eines fremden, ueberholten Laufs besetzte einen der
+# KEEP-Plaetze, und die naechste FERTIGE Generation fiel dafuer. Und ein Lauf, der mitten
+# im Packen ausfaellt (SIGKILL am Ende von `stop_grace_period`), hinterliess ein
+# abgeschnittenes Archiv unter einem gueltigen Namen. `.part` endet nicht auf `.tar.gz`;
+# ein zaehlbarer Name entsteht erst mit dem `mv`, und das ist im selben Verzeichnis ein
+# atomares rename. Erst umbenennen, DANN das Arbeitsverzeichnis abraeumen — so steht in
+# jedem Augenblick eines von beiden, und die Pruefung oben sieht den Namen belegt.
+# Ein `.part` ohne laufenden Lauf ist ein Rest eines abgebrochenen und darf weg.
+tar -czf "$work.tar.gz.part" -C "$BACKUP_DIR" "$stamp"
+mv -f "$work.tar.gz.part" "$work.tar.gz"
 rm -rf "$work"
 
 # Rotation: nur die neuesten $KEEP Tarballs behalten. Wir haben gerade eines

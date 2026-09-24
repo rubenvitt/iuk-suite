@@ -623,7 +623,7 @@ describe("Der E2E-Satz aus §9.3 ist mit dieser Kette vertraeglich", () => {
 
   it("die kleinen AV-Zahlen halten den fail-closed-Weg im Playwright-Budget", () => {
     // `FILES_AV_TIMEOUT_MS` 60 000 x `FILES_AV_VERSUCHE` 5 waeren fuenf Minuten
-    // gegen `timeout: 90_000` (`playwright.config.ts:32`): die Zusage
+    // gegen `timeout: 90_000` in `playwright.config.ts`: die Zusage
     // „fail-closed ist erreichbar" liefe in einen Playwright-Timeout, sobald
     // der Fake-Scanner HAENGT statt abzulehnen (Spec §9.3).
     const g = grenzen(E2E);

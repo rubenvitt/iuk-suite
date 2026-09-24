@@ -399,22 +399,6 @@ export default defineConfig({
    * rot mit `page.waitForURL: Timeout 45000ms`. Die belastbaren Zahlen stehen
    * dort, wo die Suite ohnehin taeglich laeuft.
    *
-   * ⚠️ ER STEHT AM ENDE DER KONFIGURATION, UND DAS IST KEINE NACHLAESSIGKEIT.
-   * Gut zwei Dutzend Kommentaranker aus zehn Dateien zeigen als
-   * `playwright.config.ts:<zeile>` in diese Datei — die Aufstellung fuehrt DRK-414.
-   * Ein Block von 26 Zeilen weiter oben haette jeden davon um 26 Zeilen verschoben
-   * — still, denn die Zeilen GIBT es alle noch, sie sagen nur etwas anderes.
-   * `src/core/kommentaranker.test.ts` faengt das ausdruecklich NICHT (er ist ein
-   * Boden, keine Decke: er prueft, dass die Zeile existiert, nicht dass sie noch
-   * dasselbe sagt). Wer hier etwas einfuegt, fuegt es ebenfalls hinten an — oder
-   * zieht die Anker mit. Dass sie Zeilen statt Namen nennen, ist der eigentliche
-   * Mangel (DRK-414).
-   *
-   * ⚠️ UND DESHALB STEHT HIER AUCH KEINE LISTE VON ZEILENNUMMERN MEHR: sie stand
-   * eine Fassung lang da und war selbst genau das, wovor dieser Absatz warnt — ein
-   * Verweis, den die naechste Einfuegung still falsch macht. Wer die Anker zaehlen
-   * will, zaehlt sie im Ticket oder mit einem `grep`, nicht aus einem Kommentar.
-   *
    * Der Preis ist eine Zeile Protokoll je Fall statt eines Punktes — bei der
    * groessten Gruppe rund 190 Zeilen. Dafuer traegt jeder gruene Lauf die Zahlen
    * fuer den naechsten Schnitt, ohne dass jemand eigens dafuer einen Lauf
@@ -426,8 +410,6 @@ export default defineConfig({
 /*
  * DIE MELDUNG, DIE PLAYWRIGHT SELBST NICHT GIBT (DRK-346). Sein „is already
  * used" nennt weder Prozess noch Arbeitsverzeichnis und liest sich wie ein
- * eigener verwaister Rest — so wurden fremde Läufe beendet. Hinten angefügt,
- * damit die Kommentaranker in diese Datei nicht wandern (Kommentar über
- * `reporter`).
+ * eigener verwaister Rest — so wurden fremde Läufe beendet.
  */
 pruefePortsFrei([E2E_PORTS.clamd, E2E_PORTS.web]);
