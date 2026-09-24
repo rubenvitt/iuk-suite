@@ -36,8 +36,9 @@ Kryptografie ist Platzhalter (siehe §10).
 | A13 | Frist nach dem Absenden 15 Minuten, in der Suite einstellbar | Rückfrage |
 | A14 | Repo-Aufteilung: App unter `apps/`, geteilter Kern im Modul (Ansatz A) | Rückfrage |
 | A15 | Anmeldung am Rechner über die Suite (Einmalcode), Kettenanker bei der Suite | Designfreigabe §1 |
+| A16 | Die Anbindung Ende-zu-Ende testen, ohne Echtdaten zu schreiben oder die echte Kette zu brechen; Test-Clients lassen sich löschen (§12) | Nachtrag 2026-09-24 |
 
-**Nicht in v2.0:** Schlüsselwechsel, mehrere Rechner, Nachträge zu versiegelten Einsätzen,
+**Nicht in v2.0:** Schlüsselwechsel, mehrere *echte* Rechner (Test-Rechner: §12), Nachträge zu versiegelten Einsätzen,
 Statistik über die Kennzahlen der Vorlage hinaus, Import aus dem Einsatzarchiv, Code-Signing-
 Zertifikate.
 
@@ -77,7 +78,9 @@ WKWebView, im Browser und in Node ≥ 20.
 | `format.ts` | Typen `Einsatz`, `Blockkopf`, `Block`, `Exportdatei`, Versionskonstanten |
 | `kanonisch.ts` | Kanonisches JSON nach RFC 8785 (JCS) für die hier verwendeten Typen |
 | `kette.ts` | `blockHash`, `pruefeKette` (Ergebnisse wie in der Vorlage: `ok`, `vollstaendig`, `block`, `grund`) |
-| `umschlag.ts` | `entschluesseleBlock(block, cek)`. Das Einpacken passiert in Rust (§4.3), das Auspacken in der Suite (§5.4). |
+| `umschlag.ts` | `packeEin`/`packeAus` (ECDH-ES), `schluesselIdVon`. Im Betrieb packt Rust ein (§4.3) und die Suite aus (§5.4); die TS-Fassung von `packeEin` erzeugt Testvektoren und Testdaten. |
+| `block.ts` | `versiegele` (Testvektoren, Tests), `oeffneBlock(block, cek)` |
+| `zeit.ts` | Wanduhrzeit in der Suite-Zone, Dauer, Datums- und Zeitpunkttexte (Zone als Parameter) |
 | `export.ts` | `verschluesseleExport`, `entschluesseleExport`, `istExportdatei` |
 | `bericht.ts` | Berichtsmodell wie `EinsatzbuchKern.bericht` der Vorlage |
 | `ansichten/` | `Kettenliste`, `Einsatzdetail`, `Berichtsblatt`, `Kettenpruefung` (Client-Komponenten, nur serialisierbare Props) |
@@ -106,7 +109,7 @@ Ein Grenztest (`kern/grenze.test.ts`) liest alle Dateien unter `kern/` und verbi
 - `vitest.config.ts`: `exclude` bekommt `apps/**`, die App hat eigenes Vitest.
 - `.dockerignore`: `apps`.
 - `Dockerfile`, deps-Stage: `pnpm install --frozen-lockfile --filter iuk-suite...` bzw. die
-  Stage kopiert `apps/einsatzbuch/package.json` mit. Das wird in Stufe 1 gemessen und der Weg
+  Stage kopiert `apps/einsatzbuch/package.json` mit. Das wird in Stufe 4 gemessen und der Weg
   festgelegt, der den Docker-Build grün hält. `src/docker-kontext.test.ts` bekommt die Zusicherung.
 
 ### 2.3 Suite-Modul — `src/app/m/einsatzbuch/`
@@ -116,7 +119,8 @@ Ein Grenztest (`kern/grenze.test.ts`) liest alle Dateien unter `kern/` und verbi
   wird modul-intern in `_lib/zugang.ts` durchgesetzt, und zwar im Layout **und** in jedem Handler.
 - Zugangsgruppe: Vorgabe `einsatzbuch-verwaltung`, überschreibbar per
   `SUITE_ACCESS_GROUP_EINSATZBUCH`, gelesen über `envAccessGroupsFor`/`requiredGroupsFor`. Die
-  Gruppe öffnet alle Modulseiten und die Schlüsselfreigabe. Eine getrennte Admin-Gruppe gibt es
+  Gruppe öffnet alle Modulseiten und die Schlüsselfreigabe — **nur** die Gruppe, der Suite-Admin
+  allein nicht. Eine getrennte Admin-Gruppe gibt es
   nicht, `adminGroups: []`.
 - Host über `SUITE_HOST_EINSATZBUCH`, `prodHosts: []`. Die Handler tragen den Host-Riegel wie `radio`.
 - Eigene Datenbank → Dreieck: `_db/migrations`, `MODULE_MIGRATIONS`, `COPY`-Zeile im `Dockerfile`.
@@ -162,6 +166,7 @@ interface Blockkopf {
   prev: string;           // SHA-256-Hex des Vorgängers; Block 1: 64 × "0"
   versiegelt: string;     // ISO mit Offset
   schluesselId: string;   // SHA-256-Hex des öffentlichen Suite-Schlüssels (SPKI-DER), erste 16 Zeichen
+  umgebung: "echt" | "test";  // Test-Rechner versiegeln immer "test" (§12); Teil von Hash und AAD
 }
 interface Block {
   kopf: Blockkopf;
@@ -554,12 +559,12 @@ Texte der Vorlage bleiben wörtlich, wo die Funktion gleich bleibt.
 ## 11. Stufen (je ein PR)
 
 1. **Kern und Modulgerüst:** `_lib/kern` mit Format, JCS, Kette, Export, Bericht, Testvektoren und
-   Grenztest. Registry-Eintrag, Zugang, Host-Riegel, DB-Dreieck, leere Seiten, Werkzeug-Ausschlüsse
-   (`tsconfig`, ESLint, Vitest, Docker) für `apps/**`, Workspace-Eintrag.
+   Grenztest. Registry-Eintrag, Zugang, Host-Riegel, DB-Dreieck, Übersichtsseite.
 2. **Suite-Pflege und Schlüssel:** Stammdaten mit CSV-Import, Einstellungen, Schlüsselpaar-Skript,
    KEK, Runbook `einsatzbuch-schluessel.md`, Seed.
 3. **Reader.**
-4. **Desktop I:** Tauri-Gerüst (Icons inkl. `icon.ico`, Einzelinstanz, Autostart), lokale DB,
+4. **Desktop I:** Workspace-Eintrag und Werkzeug-Ausschlüsse (`tsconfig`, ESLint, Vitest, Docker)
+   für `apps/**`, Tauri-Gerüst (Icons inkl. `icon.ico`, Einzelinstanz, Autostart), lokale DB,
    Erfassung, Frist-Uhr, Versiegeln in Rust gegen die Testvektoren.
 5. **Desktop II + Suite-API:** Anmeldung (Seite, `tausch`, Loopback), Einrichtung, Stammdaten-Abruf,
    Anker, Schlüsselfreigabe, Verwaltung am Rechner.
@@ -576,3 +581,62 @@ kommen die Tore der App dazu.
 getaggt als `einsatzbuch-vX.Y.Z` von Hand beim Release (Runbook). Die Suite-Versionierung
 (`scripts/version.mjs`) zählt nur Tags `vX.Y.Z` und bleibt unberührt. Stufe 7 prüft, dass
 `einsatzbuch-v*`-Tags sie nicht stören.
+
+---
+
+## 12. Test-Rechner (Nachtrag A16)
+
+Die Anbindung muss sich Ende-zu-Ende ausprobieren lassen: Einrichtung, Anmeldung, Stammdaten,
+Versiegeln, Anker, Schlüsselfreigabe, Export, Reader. Dabei dürfen weder echte Einsätze entstehen
+noch die echte Kette oder ihre Anker berührt werden.
+
+**Einrichtungsart.** `POST einrichten` nimmt `{ art: "echt" | "test", name }`.
+- `echt`: wie §4.4. Es gibt genau einen echten Rechner; eine neue echte Einrichtung widerruft den
+  bisherigen.
+- `test`: legt einen **zusätzlichen** Test-Rechner an. Die Suite erzeugt dafür ein **eigenes
+  Schlüsselpaar**, der private Schlüssel liegt mit demselben KEK verschlüsselt in der Modul-DB. Die
+  Antwort liefert dessen öffentlichen Schlüssel. Beliebig viele Test-Rechner sind möglich.
+
+**Datenmodell (Suite, ergänzt §5.1).**
+- `schluesselpaar` bekommt `rechnerId` (NULL = das echte Paar) und `art`.
+- `rechner` bekommt `art` (`echt`/`test`), `name` und `id`. Genau ein aktiver `echt`, beliebig
+  viele `test`.
+- `anker` ist je `rechnerId` getrennt (PK `rechnerId, block`).
+
+**Verhalten.**
+- **Blockkopf:** Ein Test-Rechner versiegelt mit `umgebung: "test"` und seinem Test-Schlüssel. Seine
+  Einsatznummern tragen das Präfix `T-` (`T-2026-001`). Ein echter Rechner versiegelt nie `test`.
+- **Schlüsselfreigabe:** `schluessel/freigeben` findet das Paar über die `schluesselId`. Test-Paare
+  gibt sie nur frei, wenn `kopf.umgebung === "test"`, das echte Paar nur bei `"echt"`. Ein
+  Mischversuch antwortet 422. Die Audit-Zeile nennt Art und Rechner.
+- **Anker und Status:** Anker, letzter Kontakt und letzte Sicherung eines Test-Rechners stehen nur
+  an diesem Test-Rechner. Die Übersicht und der Anker des echten Rechners bleiben unberührt.
+- **Desktop:**
+  - Beim ersten Start fragt die App: „Echter Einsatzbuch-Rechner“ oder „Testrechner“.
+  - Ein Testrechner nutzt eine **eigene Datenbankdatei** (`einsatzbuch-test.db`) und trägt dauerhaft
+    ein gestreiftes Band „TESTBETRIEB — nichts hiervon ist ein echter Einsatz“.
+  - Automatische Sicherung ist im Testbetrieb aus, Export geht.
+  - Die Suite-Adresse ist bei der Einrichtung vorbelegt (Build-Wert) und im Testbetrieb änderbar,
+    etwa `http://einsatzbuch.localtest.me:3000` gegen die lokale Suite.
+- **Löschen in der Suite:** Auf der Seite „Rechner“ listet die Suite die Test-Rechner mit Name,
+  eingerichtet am/von und letztem Kontakt. „Test-Rechner löschen“ entfernt Rechner, Token,
+  Schlüsselpaar und Anker unwiderruflich. Danach sind die Testeinsätze dieses Rechners auch mit
+  Export nicht mehr zu öffnen, soweit der Export die CEKs nicht selbst trägt.
+- **Löschen in der App:**
+  - „Testbetrieb beenden“ löscht die lokale Testdatenbank.
+  - Ist eine Verwaltungssitzung offen, löscht die App zusätzlich den Test-Rechner in der Suite
+    (`DELETE /m/einsatzbuch/api/rechner/<id>`, Sitzungstoken, nur `art = test`).
+  - Danach steht die App wieder bei der Einrichtungsfrage.
+- **Reader:** Enthält eine Datei Blöcke mit `umgebung: "test"`, zeigt der Reader oben ein nicht
+  wegklickbares Band „Testdaten — kein echter Einsatz“. Das Berichtsblatt trägt dann „TESTDATEN“
+  im Kopf.
+- **Kein Wechsel im Betrieb:** Eine echte Installation wird nie zum Testrechner. Ein Testrechner
+  wird echt nur über „Testbetrieb beenden“ und eine neue Einrichtung. Die Kette entsteht dabei
+  leer, es wird nichts übernommen.
+
+**Stufen:**
+- Stufe 1: das Feld `umgebung` im Format.
+- Stufe 2: Schlüsselpaare je Rechner.
+- Stufe 3: Band im Reader.
+- Stufe 4: getrennte DB-Datei und Band in der App.
+- Stufe 5: Einrichtungsart, Freigaberegel, Löschen in Suite und App.
