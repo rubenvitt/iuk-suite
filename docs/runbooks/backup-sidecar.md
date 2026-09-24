@@ -36,9 +36,11 @@ Ticket: DRK-185. Entstanden aus Entscheidung **D1** der Lagerbuch-Portierung.
 * **Alte Sicherungen bleiben liegen, wo sie sind** (`<suite_data>/backups`). Der Sidecar
   schreibt ab jetzt nach `backup_data`; er räumt das alte Verzeichnis **nicht** auf und
   rotiert es auch nicht mehr. Abschnitt 8 sagt, wann es weg darf.
-* **Die Bildnachweise des Moduls `aufgaben` sind weiterhin NICHT im Tarball.** Das ist
-  eine bekannte Lücke (DRK-391), keine Nebenwirkung dieses Updates. Wer das
-  Volume `aufgaben_data` nutzt, sichert es bis dahin daneben.
+* **Die Bildnachweise des Moduls `aufgaben` sind seit DRK-391 im Tarball** (Verzeichnis
+  `aufgaben/`, gelesen über den Mount `aufgaben_data:/data/aufgaben:ro`). Das kam nach
+  diesem Update; wer auf einem Stand davor steht, sichert `aufgaben_data` daneben.
+  Beim Nachziehen gehören `compose.yaml` **und** `scripts/backup.sh` zusammen auf den
+  Server — das Skript allein bricht ab, sobald es Bildnachweise gibt (leerer Mountpunkt).
 
 ## 1. Vorbedingung: vier Dateien statt zwei
 
@@ -310,8 +312,14 @@ docker compose run --rm backup /bin/sh -c \
 
 Im Tarball müssen stehen: **jede** `*.db` aus `MODULE_MIGRATIONS` und `CORE_MIGRATIONS`
 (heute u. a. `portal.db`, `qr.db`, `feedback.db`, `files.db`, `lagerbuch.db`,
-`aufgaben.db`, `radio.db`, `uav.db`, `zeichen.db`, `konto.db`, `audit.db`) — **und** ein
-Verzeichnis `files/` mit Blobs, sofern im Modul `files` überhaupt welche liegen.
+`aufgaben.db`, `radio.db`, `uav.db`, `zeichen.db`, `konto.db`, `audit.db`) — **und** die
+Verzeichnisse `files/` und `aufgaben/` mit Blobs, sofern in den Modulen `files` bzw.
+`aufgaben` (Bildnachweise) überhaupt welche liegen.
+
+> ⚠️ **Bricht der Lauf mit `rows in aufgaben.db (dateien) but no blobs` ab**, fehlt der
+> Mount `aufgaben_data:/data/aufgaben:ro` im Dienst `backup` — meist eine `compose.yaml`
+> auf dem Server, die älter ist als `scripts/backup.sh`. Dasselbe Bild mit `files.db`
+> heißt: `files_data` fehlt.
 
 > ⚠️ **Fehlt eine `*.db`, ist das KEIN Backup-Fehler, sondern ein Hinweis auf ein Modul,
 > das nie gebootet hat.** `scripts/backup.sh` sammelt ein, was in `$DATA_DIR` liegt; eine
@@ -356,6 +364,10 @@ docker compose stop suite
 # … Dateien aus dem entpackten Stand nach /data zurückkopieren, als SUITE_USER …
 docker compose start suite
 ```
+
+Die `*.db` gehören nach `suite_data`, die Blob-Verzeichnisse in **ihr eigenes** Volume:
+`files/` nach `files_data`, `aufgaben/` nach `aufgaben_data` — nicht als Unterverzeichnis
+nach `suite_data`, dort sähe die Suite sie hinter dem Mount nicht.
 
 > ⚠️ **Ein Restore ist kein Rollback.** Die Boot-Instrumentation migriert beim Start nach
 > vorn; ein Tarball von vor einer Migration passt nicht zu einem neueren Image. Wer weit

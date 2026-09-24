@@ -345,10 +345,12 @@ services:
       # um „den Eigentümer zu reparieren" —, nimmt dem Backup die einzige Zusicherung,
       # die es den Blobs gegenueber gibt. `scripts/backup-sidecar.test.ts` haelt beides.
       - files_data:/data/files:ro
-      # ⚠️ `aufgaben_data` FEHLT HIER, UND DAS IST KEIN VERSEHEN: `scripts/backup.sh`
-      # liest das Verzeichnis heute nicht, ein Mount waere also ein Versprechen ohne
-      # Deckung. Die Luecke ist im README benannt und steht als DRK-391 auf dem Board; wer sie
-      # schliesst, braucht beides — die Zeile hier UND die im Skript.
+      # Die Bildnachweise des Moduls `aufgaben` (DRK-391) — dasselbe Muster wie `files_data`
+      # direkt darueber: nur lesend, und unter genau dem Pfad, den `scripts/backup.sh` als
+      # `AUFGABEN_DIR` vorbelegt. Die Zeile hier und die im Skript gehoeren ZUSAMMEN: ohne das
+      # Skript waere der Mount ein Versprechen ohne Deckung, ohne den Mount bricht das Skript
+      # ab, sobald `dateien` Zeilen hat (leerer Mountpunkt). `backup-sidecar.test.ts` haelt beides.
+      - aufgaben_data:/data/aufgaben:ro
       - backup_data:/backups
       # ZWEITE UND DRITTE DATEI, DIE NEBEN DIESER `compose.yaml` AUF DEM SERVER LIEGEN
       # MUSS — bisher war es allein `clamd.files.conf`. Fehlt eine, legt Docker an ihrer

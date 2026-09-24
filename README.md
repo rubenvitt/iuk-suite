@@ -166,12 +166,11 @@ und kosten je einen halben Tag, wenn man sie nicht kennt. Vor Oberflächenarbeit
 * **Backup:** der Dienst `backup` im Compose-Stack ruft `scripts/backup.sh` täglich, lagert das
   Tarball per rclone extern aus (`BACKUP_RCLONE_ZIEL`) und meldet einen Fehlschlag über seinen
   Healthcheck und einen Ping (`BACKUP_PING_URL`). Runbook: `docs/runbooks/backup-sidecar.md`.
-  Gesichert wird je Modul eine konsistente SQLite-Kopie plus die Blobs des Moduls `files`;
-  lokal liegen die Tarballs im eigenen Volume `backup_data`, rotiert über `BACKUP_KEEP`.
-  ⚠️ Die Bildnachweise des Moduls `aufgaben` liegen im eigenen Volume `aufgaben_data`
-  (`/data/aufgaben`) und werden vom Skript weiterhin **nicht** mitgesichert (DRK-391); ein Restore
-  enthält dann `aufgaben.db` mit Verweisen auf Bilder, die fehlen. Wer das Volume nutzt,
-  sichert es daneben, bis das Skript nachgezogen ist.
+  Gesichert wird je Modul eine konsistente SQLite-Kopie plus die Blobs der Module `files`
+  (Volume `files_data`) und `aufgaben` (Bildnachweise, Volume `aufgaben_data`); lokal liegen die
+  Tarballs im eigenen Volume `backup_data`, rotiert über `BACKUP_KEEP`. Hat eine der beiden
+  Datenbanken Zeilen, aber das Blob-Verzeichnis ist leer (fehlender Mount), bricht der Lauf ab,
+  statt ein unvollständiges Tarball als Erfolg zu melden.
 * **Runbooks** in `docs/runbooks/`: automatischer Rollout, Versionierung, Inbetriebnahme und
   Cutover je Modul, Sitzungswiderruf, WebFinger.
 
