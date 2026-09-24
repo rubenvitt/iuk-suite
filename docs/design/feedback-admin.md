@@ -628,8 +628,20 @@ dann `type="warning"` — **nie** `type="error"` (4.9).
 
 Ausschließlich der Zustand aus `useActionState`: `isPending` → Primärknopf `loading` **und**
 `disabled`, Beschriftung unverändert (ein wechselndes Label liest sich wie ein anderer Knopf). Kein
-Skeleton, kein Spinner-Overlay, keine `loading.tsx`: die Seite rendert serverseitig in einem Zug, und
-für 50 Aufrufe im Jahr ist jede Choreografie beim zweiten Mal Reibung.
+Skeleton, kein Spinner-Overlay: für 50 Aufrufe im Jahr ist jede Choreografie beim zweiten Mal Reibung.
+
+**Eine Ausnahme, gemessen (DRK-424, 24.09.2026): die Ladegrenze um das Cockpit.** Die alte Begründung
+„die Seite rendert serverseitig in einem Zug" gilt nur unter `next dev`. In Produktion wird eine
+dynamische Route mit `loading.tsx` vorabgeladen, und die Adresse wechselt sofort. Ohne sie blieb der
+Klick auf eine Gruppenkarte 432 ms ohne jede Reaktion (Produktionsbuild, 150 ms Rundlauf simuliert);
+mit ihr stehen Adresse und Ladezustand nach 47 ms. Die Grenze liegt in der Routengruppe
+`groups/[groupId]/(cockpit)/` und umschließt nur das Cockpit. Trend und Auswertung bleiben ohne:
+der Trend wird nur über einen Knopf mit `href` erreicht (nichts wird vorabgeladen), und eine Grenze
+über der Auswertung ließe den Ladezustand beim Weg aus dem Verlauf nur 75 ms aufblitzen. Der Preis
+ist benannt: ohne JavaScript zeigt das Cockpit nur den Ladezustand, weil erst ein Skript den
+gestreamten Inhalt einsetzt. Trend, Auswertung und alle öffentlichen Seiten bleiben ohne
+JavaScript lesbar. Der Ladezustand ist das gemeinsame Bauteil `core/shell/SeiteLaedt.tsx`; der
+Riegel `feedback/ladegrenze.test.ts` lässt genau diese eine Grenze zu.
 Knopf-Aktionen ohne Formularzustand (Beenden, Secret, Löschen) laufen im `Popconfirm`, dessen
 `okButtonProps={{ loading }}` aus einem `useTransition` gespeist wird.
 **Selbstaktualisierung:** `_ui/Aktualisierer.tsx` ruft alle 30s `router.refresh()` — nur wenn eine
