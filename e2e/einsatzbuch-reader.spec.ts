@@ -75,7 +75,13 @@ test.beforeEach(async ({ page }) => {
   expect(await page.evaluate(() => window.isSecureContext && typeof crypto.subtle === "object")).toBe(true);
 });
 
-test("Vektordatei: Kette intakt, Detail, Bericht, Audit beim Öffnen und Drucken", async ({ page }) => {
+test("Vektordatei: Kette intakt, Detail, Bericht, Audit beim Öffnen und Drucken (im Dunkelmodus)", async ({ page, context }) => {
+  // Gedruckt wird im Dunkelmodus mit sichtbarer Seitenleiste: das Blatt muss trotzdem hell sein und
+  // die Hülle verschwinden. Die Wahl ist das Theme-Cookie der Suite, serverseitig gelesen.
+  await context.addCookies([{ name: "iuk-theme-pref", value: "dark", url: url("/") }]);
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   const geoeffnet = auditPost(page, "reader_oeffnen");
   await oeffne(page, vektor);
   await expect(kettenbefund(page, "Kette intakt")).toBeVisible(ENTSCHLUESSELT);
@@ -95,8 +101,17 @@ test("Vektordatei: Kette intakt, Detail, Bericht, Audit beim Öffnen und Drucken
   expect(druck.request().postDataJSON()).toEqual({ module: "einsatzbuch", format: "reader_druck", von: 3, bis: 3, anzahl: 1 });
   expect(await page.evaluate(() => (window as unknown as { __drucke: number }).__drucke)).toBe(1);
 
+  // Vorher sichtbar, sonst bewiese „im Druck verborgen“ nichts.
+  await expect(page.locator(".ant-layout-sider")).toBeVisible();
+  await expect(page.getByTestId("suite-header")).toBeVisible();
   await page.emulateMedia({ media: "print" });
   await expect(page.getByTestId("suite-header")).toBeHidden();
+  await expect(page.locator(".ant-layout-sider")).toBeHidden();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  // Papier bleibt hell (bericht.module.css: #fff auf #1a1d20).
+  const blatt = page.locator("[data-bericht]");
+  expect(await blatt.evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]))
+    .toEqual(["rgb(255, 255, 255)", "rgb(26, 29, 32)"]);
   await expect(page.getByRole("button", { name: "Als PDF speichern" })).toBeHidden();
   await expect(page.getByText("Vertraulich — nur für den Dienstgebrauch")).toBeVisible();
   const doc = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true }));
