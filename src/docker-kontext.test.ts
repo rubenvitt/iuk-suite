@@ -87,12 +87,33 @@ function ignorierMuster(): RegExp[] {
     });
 }
 
-/** Die Dateien, die der Container sieht: getrackt und von keinem Muster getroffen. */
-function kontextDateien(muster: RegExp[]): Set<string> {
-  const getrackt = execFileSync("git", ["ls-files", "-z"], { cwd: WURZEL, encoding: "utf8" })
+function getrackteDateien(): string[] {
+  return execFileSync("git", ["ls-files", "-z"], { cwd: WURZEL, encoding: "utf8" })
     .split("\0")
     .filter(Boolean);
+}
+
+/** Die Dateien, die der Container sieht: getrackt und von keinem Muster getroffen. */
+function kontextDateien(muster: RegExp[], getrackt = getrackteDateien()): Set<string> {
   return new Set(getrackt.filter((pfad) => !muster.some((m) => m.test(pfad))));
+}
+
+/**
+ * Warum eine Datei, die auf der Platte liegt, dem Container trotzdem fehlt. Zwei
+ * Ursachen mit verschiedener Abhilfe, und die Meldung muss die richtige nennen
+ * (DRK-428): der Kontext entsteht aus `git ls-files`, also ist eine frisch
+ * angelegte, noch nicht gestagte Datei ebenfalls „nicht im Kontext". Wer dann
+ * „per .dockerignore ausgeschlossen" liest, sucht dort nach einer Regel, die es
+ * nicht gibt — und das im wahrscheinlichsten Moment, direkt nach dem Anlegen.
+ *
+ * Das Muster geht vor: trifft es, hilft `git add` nicht.
+ */
+function fehlGrund(pfad: string, muster: RegExp[], getrackt: ReadonlySet<string>): string {
+  if (muster.some((m) => m.test(pfad))) return `${pfad} ist per .dockerignore ausgeschlossen`;
+  if (!getrackt.has(pfad)) {
+    return `${pfad} ist nicht in Git (der Docker-Kontext kennt nur getrackte Dateien — \`git add\`)`;
+  }
+  return `${pfad} fehlt im Docker-Kontext`;
 }
 
 /**
@@ -115,7 +136,9 @@ function relativeImporte(inhalt: string): string[] {
 
 describe("Docker-Build-Kontext", () => {
   const muster = ignorierMuster();
-  const kontext = kontextDateien(muster);
+  const getrackt = getrackteDateien();
+  const kontext = kontextDateien(muster, getrackt);
+  const getracktMenge = new Set(getrackt);
 
   it("kennt die heutigen Ausschlüsse (sonst prüft der Rest ins Leere)", () => {
     // Verankert: greift an der Wurzel …
@@ -126,6 +149,17 @@ describe("Docker-Build-Kontext", () => {
     // Gegenprobe: der Produktivcode ist noch da.
     expect(kontext.has("src/app/layout.tsx")).toBe(true);
     expect(kontext.has("tsconfig.json")).toBe(true);
+  });
+
+  it("nennt für ein fehlendes Importziel die richtige Ursache", () => {
+    const getrackt = new Set(["src/a.ts", "e2e/b.ts"]);
+    // Neu angelegt, noch nicht gestagt: kein Muster trifft, `git add` hilft.
+    expect(fehlGrund("src/neu.ts", muster, getrackt)).toMatch(/ist nicht in Git/);
+    expect(fehlGrund("src/neu.ts", muster, getrackt)).not.toMatch(/dockerignore/);
+    // Getrackt, aber ausgeschlossen: die Regel steht in `.dockerignore`.
+    expect(fehlGrund("e2e/b.ts", muster, getrackt)).toMatch(/per \.dockerignore ausgeschlossen/);
+    // Beides zugleich: das Muster ist die Ursache, `git add` allein hilft nicht.
+    expect(fehlGrund("e2e/neu.ts", muster, getrackt)).toMatch(/per \.dockerignore ausgeschlossen/);
   });
 
   it("keine Datei im Kontext importiert etwas, das der Container nicht hat", () => {
@@ -156,7 +190,7 @@ describe("Docker-Build-Kontext", () => {
         );
         brueche.push(
           aussenAufDerPlatte
-            ? `${pfad} importiert "${spezifizierer}" → ${aussenAufDerPlatte} ist per .dockerignore ausgeschlossen`
+            ? `${pfad} importiert "${spezifizierer}" → ${fehlGrund(aussenAufDerPlatte, muster, getracktMenge)}`
             : `${pfad} importiert "${spezifizierer}" → kein Ziel gefunden`,
         );
       }

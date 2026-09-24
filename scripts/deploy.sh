@@ -366,7 +366,13 @@ backup_wird_gesund() {
 backup_skripte_neuer_als() {
   local seit="$1" datei zeit
   for datei in scripts/backup.sh scripts/backup-sidecar.sh; do
-    zeit="$(stat -c %Z "$STACK_DIR/$datei" 2>/dev/null || echo 0)"
+    # `stat -c %Z` ist GNU (der Server), `stat -f %c` dieselbe ctime unter BSD/macOS —
+    # dort liefen die Faelle in `backup-sidecar.test.ts` sonst still auf 0 (DRK-450).
+    # GNU liest `-f` als Dateisystem-Modus: erreicht wird das nur, wenn schon `-c` an
+    # der Datei scheiterte, und was dann kommt, faengt die Ziffernpruefung ab.
+    zeit="$(stat -c %Z "$STACK_DIR/$datei" 2>/dev/null \
+      || stat -f %c "$STACK_DIR/$datei" 2>/dev/null || echo 0)"
+    case "$zeit" in '' | *[!0-9]*) zeit=0 ;; esac
     # ⚠️ `-ge`, NICHT `-gt`: bei GLEICHER Sekunde ist die Reihenfolge nicht mehr
     # feststellbar. Beide Zahlen sind auf Sekunden gerundet (gemessen: StartedAt
     # `…00.000000001Z` und `…00.999999999Z` ergeben ueber `date +%s` dieselbe Zahl) —
@@ -491,7 +497,12 @@ if [ -z "$backup_cid" ]; then
   Nachsehen: docker compose ps -a backup && docker compose up -d backup"
 else
   gestartet="$(docker inspect -f '{{.State.StartedAt}}' "$backup_cid" 2>/dev/null || true)"
-  seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
+  # `date -d` ist GNU (der Server); `date -j -f` dasselbe unter BSD/macOS, das weder
+  # Nanosekunden noch das `Z` liest — und ohne `-u` in Ortszeit rechnete (DRK-450).
+  gestartet_bsd="${gestartet%%.*}"
+  seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null \
+    || date -j -u -f '%Y-%m-%dT%H:%M:%S' "${gestartet_bsd%Z}" +%s 2>/dev/null \
+    || echo 0)"
   if backup_skripte_neuer_als "$seit"; then
     melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
     # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESEN MELDUNGEN (siehe setze_pin).

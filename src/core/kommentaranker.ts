@@ -452,11 +452,11 @@ export const EINDEUTIGES_SUFFIX = ((): Map<string, string> => {
  * acht, `CLAUDE.md` und `AGENTS.md` eingeschlossen. Mit der Obergrenze werden
  * alle 92 geprueft, keiner davon rot.
  *
- * Der WEITERGEHENDE Vorschlag — mehrdeutige Suffixe MELDEN und damit
- * repo-relative Pfade erzwingen — wuerde genau diese 92 Anker zu Rotmeldungen
- * machen und ihre Umschreibung verlangen, in `CLAUDE.md` und in
- * der Begruendung dieses Riegels. Das ist eine Aenderung der ANKERSYNTAX des
- * Repos, keine am Riegel, und steht als DRK-403 auf dem Board.
+ * ⚠️ REPO-RELATIVE PFADE ERZWINGEN ist ENTSCHIEDEN ABGELEHNT (DRK-403): es
+ * poliert die Form, die Regel 1 in `CLAUDE.md` gar nicht will, und braucht eine
+ * Bestandsliste. Ein Namensanker hat keine Zeile — dort gehen diese Grenze und
+ * die an `FORTSETZUNG` und `EINDEUTIGES_SUFFIX` von selbst zu. Offen ist
+ * Regel 1 selbst, 81 neue Zeilenanker in acht Tagen: DRK-474.
  */
 const MEHRDEUTIGE_OBERGRENZE = ((): Map<string, number> => {
   const kandidaten = new Map<string, string[]>();
