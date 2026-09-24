@@ -89,6 +89,11 @@ trifft oder eine Abhilfe umbauen will.
     und dort gibt es keine Erstkompilierung mehr. Die Warmlauf-GETs bleiben trotzdem stehen: lokal
     ist `next dev` weiter die Vorgabe, und unter `next start` sind sie ein harmloser zusätzlicher
     Abruf. Die zweite Testregel hängt nicht an der Erstkompilierung und gilt unverändert.
+    ⚠️ **Dabei den Antworttext nur lesen, wenn die Antwort scheitert** (`r.ok() ? "" : await r.text()`
+    in der Meldung der Zusicherung): die Meldung wird auch im Erfolgsfall gebaut, und navigiert die
+    Seite danach schon weiter, gibt es den Text nicht mehr — `Network.getResponseBody: No data found`.
+    Gegen den schnelleren gebauten Stand traf das drei `aufgaben`-Fälle, die unter `next dev` grün
+    waren.
 11. **`locator.dragTo()` löst kein zuverlässiges natives `dragstart` aus** (gemessen im Modul
     `aufgaben`, Aufgabe 20): ein Zug zwischen zwei Tagesspalten lief reproduzierbar in den vollen
     90-Sekunden-Timeout, ohne dass je ein `drop` feuerte — `dragstart` feuerte nur bei einem
