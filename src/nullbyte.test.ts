@@ -37,8 +37,8 @@ const WURZEL = resolve(__dirname, "..");
  * Bewusst eine DENYLISTE und keine Allowlist der Textendungen: eine Allowlist
  * ist an dem Tag still lückenhaft, an dem eine neue Textendung dazukommt —
  * und dieser Wächter existiert gerade gegen stille Lücken. Hier steht also,
- * was echt binär ist; alles andere wird gelesen. Die Bildformate stehen so
- * auch in `.gitattributes` (`filter=lfs`, `-text`).
+ * was echt binär ist; alles andere wird gelesen. `.webp`, `.jpg`, `.jpeg` und `.png` stehen
+ * so auch in `.gitattributes` (`filter=lfs`, `-text`), `.ico` und `.icns` liegen ohne LFS.
  */
 export const ECHT_BINAER = [
   ".webp",

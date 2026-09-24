@@ -4,7 +4,7 @@
 //! Reihenfolge beim Start (Spec §4.1, §4.3):
 //! 1. Einzelinstanz als erstes Plugin, damit ein zweiter Start sofort beim ersten landet.
 //! 2. `setup`: Buch öffnen, **eine überfällige Frist versiegeln**, Zustand ablegen, Frist-Uhr
-//!    starten, und erst dann das Fenster bauen. Es steht deshalb in `tauri.conf.json` mit
+//!    starten, und erst dann das Fenster bauen (`Zustand::beim_start`). Es steht deshalb in `tauri.conf.json` mit
 //!    `"create": false`: Die Oberfläche sieht einen überfälligen Einsatz nie als ausstehend.
 pub mod befehle;
 pub mod zustand;
@@ -13,9 +13,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::Duration;
 
 use einsatzbuch_kern::anmeldung::{self, Ziel};
-use einsatzbuch_kern::buch::{Buch, erkenne_betrieb};
-use einsatzbuch_kern::krypto::SystemZufall;
-use einsatzbuch_kern::uhr::{SystemUhr, Uhr};
+use einsatzbuch_kern::uhr::SystemUhr;
 use tauri::{AppHandle, Manager, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
@@ -60,27 +58,12 @@ fn starte_frist_uhr(app: AppHandle) -> std::io::Result<()> {
 }
 
 fn richte_ein(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // Scheitert das Öffnen der Datenbank, steht der Fehler im Zustand und erreicht die
+    // Oberfläche; der Start geht weiter, damit es ein Fenster gibt, das ihn zeigt.
     let ordner = app.path().app_data_dir()?;
-    std::fs::create_dir_all(&ordner)?;
-    let uhr: Box<dyn Uhr> = Box::new(SystemUhr);
+    let zustand = Zustand::beim_start(ordner, Box::new(SystemUhr));
 
-    let mut unquittiert = None;
-    let buch = match erkenne_betrieb(&ordner)? {
-        Some(betrieb) => {
-            let mut buch = Buch::oeffne(&ordner, betrieb)?;
-            // Nach einem Absturz oder Beenden während der Frist: versiegeln, bevor die
-            // Oberfläche erscheint. Ein Fehler hier hält den Start nicht auf; die Frist-Uhr
-            // versucht es in 15 Sekunden erneut.
-            match buch.pruefe_frist(uhr.jetzt(), &mut SystemZufall) {
-                Ok(v) => unquittiert = v,
-                Err(fehler) => eprintln!("Frist-Prüfung beim Start fehlgeschlagen: {fehler}"),
-            }
-            Some(buch)
-        }
-        None => None,
-    };
-
-    app.manage(Zustand::neu(ordner, buch, unquittiert, uhr));
+    app.manage(zustand);
     starte_frist_uhr(app.handle().clone())?;
 
     let fenster = app

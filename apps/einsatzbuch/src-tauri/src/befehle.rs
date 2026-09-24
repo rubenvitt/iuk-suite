@@ -3,9 +3,10 @@
 //! Fehler gehen als deutscher `String` hinaus.
 //!
 //! Jeder Befehl ist eine dünne Hülle um eine Funktion auf `&Zustand`. Die Funktionen kennen
-//! kein Tauri und lassen sich deshalb ohne Fenster testen (unten). Alle Befehle laufen mit
-//! `async` im Thread-Pool statt auf dem Hauptthread: Versiegeln schließt ein `VACUUM` ein,
-//! und das soll das Fenster nicht einfrieren.
+//! kein Tauri und lassen sich deshalb ohne Fenster testen (unten). Die Befehle, die das Buch
+//! sperren, laufen per `spawn_blocking` auf einem Thread für blockierende Arbeit: Sie warten
+//! auf den Buch-Mutex und schließen beim Versiegeln ein `VACUUM` ein. Das soll weder das
+//! Fenster noch die Worker der asynchronen Laufzeit aufhalten.
 #[cfg(debug_assertions)]
 use std::path::Path;
 
@@ -14,12 +15,13 @@ use einsatzbuch_kern::einrichtung::Stammdatenpaket;
 use einsatzbuch_kern::erfassung::{Ausstehend, Entwurf, ErfassungFehler, Versiegelung, formatiere_zeitpunkt};
 use einsatzbuch_kern::krypto::SystemZufall;
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::zustand::Zustand;
+use crate::zustand::{Zustand, oeffne_buch, startfehler_text};
 
 const NICHT_EINGERICHTET: &str = "Dieser Rechner ist noch nicht eingerichtet.";
+const NICHTS_AUSSTEHEND: &str = "Es gibt keinen abgesendeten Einsatz, der versiegelt werden könnte.";
 
 /// Übersetzt einen Fehler aus Erfassung und Versiegeln in die Meldung für die Oberfläche.
 /// `Fehlt` wird zur Liste der fehlenden Felder („Fehlt: Alarmstichwort, Beginn“), die übrigen
@@ -65,6 +67,9 @@ pub struct Status {
     pub eingerichtet: bool,
     /// `true` nur in Debug-Builds: Dann bietet die Oberfläche den Entwicklerweg an.
     pub entwicklung: bool,
+    /// Die Datenbank ließ sich nicht öffnen. Die Oberfläche zeigt den Text, jeder schreibende
+    /// Befehl lehnt ab.
+    pub startfehler: Option<String>,
     pub bereitschaft: Option<String>,
     pub zeitzone: Option<String>,
     pub frist_minuten: Option<u32>,
@@ -79,57 +84,61 @@ pub struct Status {
     pub versiegelung: Option<Versiegelung>,
 }
 
+/// Liest den Status. `startfehler` und `versiegelung` werden unter dem Buch-Lock gelesen,
+/// damit Kette, Ausstehendes und Versiegelung zum selben Stand gehören.
 pub fn lies_status(z: &Zustand) -> Result<Status, String> {
     let jetzt = z.uhr.jetzt();
-    let mut status = {
-        let buch = z.buch();
-        match buch.as_ref() {
-            None => Status {
-                betrieb: None,
-                eingerichtet: false,
+    let buch = z.buch();
+    let startfehler = z.startfehler().clone();
+    let mut status = match buch.as_ref() {
+        None => Status {
+            betrieb: None,
+            eingerichtet: false,
+            entwicklung: cfg!(debug_assertions),
+            startfehler,
+            bereitschaft: None,
+            zeitzone: None,
+            frist_minuten: None,
+            besatzung: None,
+            jetzt: formatiere_zeitpunkt(jetzt, "UTC"),
+            jetzt_ms: jetzt.timestamp_millis(),
+            entwurf: None,
+            ausstehend: None,
+            kette: Kettenstand { anzahl: 0, letzter: None },
+            versiegelung: None,
+        },
+        Some(buch) => {
+            let einrichtung = buch.einrichtung().map_err(buch_fehler_text)?;
+            let zone = einrichtung.as_ref().map_or("UTC", |e| e.paket.zeitzone.as_str());
+            let kopf = buch.kettenkopf().map_err(buch_fehler_text)?;
+            Status {
+                betrieb: Some(buch.betrieb()),
+                eingerichtet: einrichtung.is_some(),
                 entwicklung: cfg!(debug_assertions),
-                bereitschaft: None,
-                zeitzone: None,
-                frist_minuten: None,
-                besatzung: None,
-                jetzt: formatiere_zeitpunkt(jetzt, "UTC"),
+                startfehler,
+                jetzt: formatiere_zeitpunkt(jetzt, zone),
                 jetzt_ms: jetzt.timestamp_millis(),
-                entwurf: None,
-                ausstehend: None,
-                kette: Kettenstand { anzahl: 0, letzter: None },
+                bereitschaft: einrichtung.as_ref().map(|e| e.paket.bereitschaft.clone()),
+                zeitzone: einrichtung.as_ref().map(|e| e.paket.zeitzone.clone()),
+                frist_minuten: einrichtung.as_ref().map(|e| e.paket.frist_minuten),
+                besatzung: einrichtung.as_ref().map(|e| e.paket.besatzung),
+                entwurf: buch.entwurf().map_err(fehler_text)?,
+                ausstehend: buch.ausstehend().map_err(fehler_text)?,
+                kette: Kettenstand {
+                    anzahl: kopf.as_ref().map_or(0, |(block, _)| *block),
+                    letzter: kopf.map(|(block, hash)| Kettenglied { block, hash }),
+                },
                 versiegelung: None,
-            },
-            Some(buch) => {
-                let einrichtung = buch.einrichtung().map_err(buch_fehler_text)?;
-                let zone = einrichtung.as_ref().map_or("UTC", |e| e.paket.zeitzone.as_str());
-                let kopf = buch.kettenkopf().map_err(buch_fehler_text)?;
-                Status {
-                    betrieb: Some(buch.betrieb()),
-                    eingerichtet: einrichtung.is_some(),
-                    entwicklung: cfg!(debug_assertions),
-                    jetzt: formatiere_zeitpunkt(jetzt, zone),
-                    jetzt_ms: jetzt.timestamp_millis(),
-                    bereitschaft: einrichtung.as_ref().map(|e| e.paket.bereitschaft.clone()),
-                    zeitzone: einrichtung.as_ref().map(|e| e.paket.zeitzone.clone()),
-                    frist_minuten: einrichtung.as_ref().map(|e| e.paket.frist_minuten),
-                    besatzung: einrichtung.as_ref().map(|e| e.paket.besatzung),
-                    entwurf: buch.entwurf().map_err(fehler_text)?,
-                    ausstehend: buch.ausstehend().map_err(fehler_text)?,
-                    kette: Kettenstand {
-                        anzahl: kopf.as_ref().map_or(0, |(block, _)| *block),
-                        letzter: kopf.map(|(block, hash)| Kettenglied { block, hash }),
-                    },
-                    versiegelung: None,
-                }
             }
         }
     };
     status.versiegelung = z.unquittiert().clone();
+    drop(buch);
     Ok(status)
 }
 
 pub fn lies_stammdaten(z: &Zustand) -> Result<Stammdatenpaket, String> {
-    let buch = z.buch();
+    let buch = z.buch_zum_schreiben()?;
     let buch = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
     let einrichtung = buch.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
     Ok(einrichtung.paket)
@@ -137,65 +146,91 @@ pub fn lies_stammdaten(z: &Zustand) -> Result<Stammdatenpaket, String> {
 
 pub fn speichere_entwurf(z: &Zustand, entwurf: &Entwurf) -> Result<(), String> {
     let jetzt = z.uhr.jetzt();
-    let mut buch = z.buch();
+    let mut buch = z.buch_zum_schreiben()?;
     let buch = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     buch.speichere_entwurf(entwurf, jetzt).map_err(fehler_text)
 }
 
 pub fn verwirf_entwurf(z: &Zustand) -> Result<(), String> {
-    let mut buch = z.buch();
+    let mut buch = z.buch_zum_schreiben()?;
     let buch = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     buch.verwerfe_entwurf().map_err(fehler_text)
 }
 
 pub fn sende_ab(z: &Zustand, entwurf: &Entwurf) -> Result<Ausstehend, String> {
     let jetzt = z.uhr.jetzt();
-    let mut buch = z.buch();
+    let mut buch = z.buch_zum_schreiben()?;
     let buch = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     buch.sende_ab(entwurf, jetzt).map_err(fehler_text)
 }
 
 /// „Jetzt versiegeln“: versiegelt den ausstehenden Einsatz sofort, mit `verfallen = false`,
-/// denn es gibt dann keinen Bearbeitungsstand, der verloren gehen könnte.
+/// denn es gibt dann keinen Bearbeitungsstand, der verloren gehen könnte. Liegt nichts mehr
+/// aus, weil die Frist-Uhr gerade zuvorgekommen ist, kommt deren noch nicht quittierte
+/// Versiegelung zurück statt eines Fehlers: Der Klick war dann nicht vergeblich, der Einsatz
+/// ist versiegelt.
 pub fn versiegele_jetzt(z: &Zustand) -> Result<Versiegelung, String> {
     let jetzt = z.uhr.jetzt();
-    let ergebnis = {
-        let mut buch = z.buch();
-        let buch = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
-        buch.versiegele_ausstehend(jetzt, &mut SystemZufall, false).map_err(fehler_text)?
+    let mut buch = z.buch_zum_schreiben()?;
+    let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
+    let v = match offen.versiegele_ausstehend(jetzt, &mut SystemZufall, false).map_err(fehler_text)? {
+        Some(v) => {
+            *z.unquittiert() = Some(v.clone());
+            v
+        }
+        None => z.unquittiert().clone().ok_or(NICHTS_AUSSTEHEND)?,
     };
-    let v = ergebnis.ok_or("Es gibt keinen abgesendeten Einsatz, der versiegelt werden könnte.")?;
-    z.merke_versiegelung(v.clone());
+    drop(buch);
     Ok(v)
 }
 
 /// Prüft die Frist sofort und gibt die unquittierte Versiegelung zurück. Das ist entweder die
 /// eben entstandene oder eine, die die Frist-Uhr kurz vorher geschrieben hat: Zählt die
-/// Oberfläche auf 0 herunter, kann die Uhr im Hintergrund schon zugeschlagen haben.
+/// Oberfläche auf 0 herunter, kann die Uhr im Hintergrund schon zugeschlagen haben. Prüfung
+/// und Lesen laufen unter demselben Buch-Lock.
 pub fn pruefe_frist_jetzt(z: &Zustand) -> Result<Option<Versiegelung>, String> {
-    z.pruefe_frist()?;
-    Ok(z.unquittiert().clone())
+    let mut buch = z.buch_zum_schreiben()?;
+    if let Some(offen) = buch.as_mut() {
+        if let Some(v) = offen.pruefe_frist(z.uhr.jetzt(), &mut SystemZufall).map_err(fehler_text)? {
+            *z.unquittiert() = Some(v);
+        }
+    }
+    let v = z.unquittiert().clone();
+    drop(buch);
+    Ok(v)
 }
 
 pub fn quittiere(z: &Zustand) {
+    let buch = z.buch();
     *z.unquittiert() = None;
+    drop(buch);
 }
 
 /// Beendet den Testbetrieb. Das Buch wird nur im Testbetrieb aus dem Zustand genommen: Der
 /// Kern verbraucht es auch im Fehlerfall, bei `Echt` wäre es sonst weg, obwohl nichts gelöscht
 /// wurde. Danach sieht die Frist-Uhr `None`, und die App steht wieder bei „nicht eingerichtet“.
+///
+/// Scheitert das Löschen, ist das Buch trotzdem verbraucht. Dann wird die Datei neu geöffnet
+/// und zurückgelegt, damit die App weiterläuft und die Frist-Uhr weiterprüft. Lässt sie sich
+/// nicht mehr öffnen (etwa weil das Löschen halb durch ist), wird das ein Startfehler: Die
+/// Oberfläche meldet es, und kein Befehl fasst die Datei mehr an.
 pub fn beende_testbetrieb(z: &Zustand) -> Result<(), String> {
-    {
-        let mut buch = z.buch();
-        match buch.as_ref().map(|b| b.betrieb()) {
-            Some(Betrieb::Test) => {}
-            Some(Betrieb::Echt) => return Err("Testbetrieb beenden geht nur im Testbetrieb.".into()),
-            None => return Err(NICHT_EINGERICHTET.into()),
-        }
-        let test = buch.take().expect("oben auf Some geprüft");
-        buch::beende_testbetrieb(&z.ordner, test).map_err(buch_fehler_text)?;
+    let mut buch = z.buch_zum_schreiben()?;
+    match buch.as_ref().map(|b| b.betrieb()) {
+        Some(Betrieb::Test) => {}
+        Some(Betrieb::Echt) => return Err("Testbetrieb beenden geht nur im Testbetrieb.".into()),
+        None => return Err(NICHT_EINGERICHTET.into()),
     }
-    quittiere(z);
+    let test = buch.take().expect("oben auf Some geprüft");
+    if let Err(fehler) = buch::beende_testbetrieb(&z.ordner, test) {
+        match oeffne_buch(&z.ordner) {
+            Ok(wieder) => *buch = wieder,
+            Err(oeffnen) => *z.startfehler() = Some(startfehler_text(oeffnen)),
+        }
+        return Err(buch_fehler_text(fehler));
+    }
+    *z.unquittiert() = None;
+    drop(buch);
     Ok(())
 }
 
@@ -212,7 +247,7 @@ pub fn richte_entwicklung_ein(z: &Zustand, spki_pfad: Option<&Path>, frist_minut
     };
     let frist = frist_minuten.unwrap_or(15).clamp(1, 120);
     let jetzt = z.uhr.jetzt();
-    let mut buch = z.buch();
+    let mut buch = z.buch_zum_schreiben()?;
     if let Some(offen) = buch.as_ref() {
         if offen.einrichtung().map_err(buch_fehler_text)?.is_some() {
             return Err("Dieser Rechner ist schon eingerichtet.".into());
@@ -225,61 +260,75 @@ pub fn richte_entwicklung_ein(z: &Zustand, spki_pfad: Option<&Path>, frist_minut
     Ok(())
 }
 
-#[tauri::command(async)]
-pub fn status(z: State<'_, Zustand>) -> Result<Status, String> {
-    lies_status(&z)
+/// Führt `f` auf dem Zustand in einem Thread für blockierende Arbeit aus.
+async fn blockierend<T, F>(app: AppHandle, f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&Zustand) -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(move || f(&app.state::<Zustand>()))
+        .await
+        .map_err(|e| format!("Der Befehl wurde abgebrochen: {e}"))?
 }
 
-#[tauri::command(async)]
-pub fn stammdaten(z: State<'_, Zustand>) -> Result<Stammdatenpaket, String> {
-    lies_stammdaten(&z)
+#[tauri::command]
+pub async fn status(app: AppHandle) -> Result<Status, String> {
+    blockierend(app, lies_status).await
 }
 
-#[tauri::command(async)]
-pub fn entwurf_speichern(z: State<'_, Zustand>, entwurf: Entwurf) -> Result<(), String> {
-    speichere_entwurf(&z, &entwurf)
+#[tauri::command]
+pub async fn stammdaten(app: AppHandle) -> Result<Stammdatenpaket, String> {
+    blockierend(app, lies_stammdaten).await
 }
 
-#[tauri::command(async)]
-pub fn entwurf_verwerfen(z: State<'_, Zustand>) -> Result<(), String> {
-    verwirf_entwurf(&z)
+#[tauri::command]
+pub async fn entwurf_speichern(app: AppHandle, entwurf: Entwurf) -> Result<(), String> {
+    blockierend(app, move |z| speichere_entwurf(z, &entwurf)).await
 }
 
-#[tauri::command(async)]
-pub fn absenden(z: State<'_, Zustand>, entwurf: Entwurf) -> Result<Ausstehend, String> {
-    sende_ab(&z, &entwurf)
+#[tauri::command]
+pub async fn entwurf_verwerfen(app: AppHandle) -> Result<(), String> {
+    blockierend(app, verwirf_entwurf).await
 }
 
-#[tauri::command(async)]
-pub fn jetzt_versiegeln(z: State<'_, Zustand>) -> Result<Versiegelung, String> {
-    versiegele_jetzt(&z)
+#[tauri::command]
+pub async fn absenden(app: AppHandle, entwurf: Entwurf) -> Result<Ausstehend, String> {
+    blockierend(app, move |z| sende_ab(z, &entwurf)).await
 }
 
-#[tauri::command(async)]
-pub fn frist_pruefen(z: State<'_, Zustand>) -> Result<Option<Versiegelung>, String> {
-    pruefe_frist_jetzt(&z)
+#[tauri::command]
+pub async fn jetzt_versiegeln(app: AppHandle) -> Result<Versiegelung, String> {
+    blockierend(app, versiegele_jetzt).await
 }
 
-#[tauri::command(async)]
-pub fn versiegelung_quittieren(z: State<'_, Zustand>) -> Result<(), String> {
-    quittiere(&z);
-    Ok(())
+#[tauri::command]
+pub async fn frist_pruefen(app: AppHandle) -> Result<Option<Versiegelung>, String> {
+    blockierend(app, pruefe_frist_jetzt).await
 }
 
-#[tauri::command(async)]
-pub fn testbetrieb_beenden(z: State<'_, Zustand>) -> Result<(), String> {
-    beende_testbetrieb(&z)
+#[tauri::command]
+pub async fn versiegelung_quittieren(app: AppHandle) -> Result<(), String> {
+    blockierend(app, |z| {
+        quittiere(z);
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn testbetrieb_beenden(app: AppHandle) -> Result<(), String> {
+    blockierend(app, beende_testbetrieb).await
 }
 
 /// Ob die App beim Anmelden am Betriebssystem startet. Eingeschaltet wird das bei der echten
 /// Einrichtung, nie im Testbetrieb und nie in Debug-Builds; hier nur Lesen und Schalten für
-/// die Verwaltung.
-#[tauri::command(async)]
+/// die Verwaltung. Beide Befehle sperren das Buch nicht und laufen synchron.
+#[tauri::command]
 pub fn autostart_status(app: AppHandle) -> Result<bool, String> {
     app.autolaunch().is_enabled().map_err(|e| format!("Autostart ist nicht lesbar: {e}"))
 }
 
-#[tauri::command(async)]
+#[tauri::command]
 pub fn autostart_setzen(app: AppHandle, an: bool) -> Result<(), String> {
     let autostart = app.autolaunch();
     let ergebnis = if an { autostart.enable() } else { autostart.disable() };
@@ -287,9 +336,9 @@ pub fn autostart_setzen(app: AppHandle, an: bool) -> Result<(), String> {
 }
 
 #[cfg(debug_assertions)]
-#[tauri::command(async)]
-pub fn entwicklung_einrichten(z: State<'_, Zustand>, spki_pfad: Option<String>, frist_minuten: Option<u32>) -> Result<(), String> {
-    richte_entwicklung_ein(&z, spki_pfad.as_deref().map(Path::new), frist_minuten)
+#[tauri::command]
+pub async fn entwicklung_einrichten(app: AppHandle, spki_pfad: Option<String>, frist_minuten: Option<u32>) -> Result<(), String> {
+    blockierend(app, move |z| richte_entwicklung_ein(z, spki_pfad.as_deref().map(Path::new), frist_minuten)).await
 }
 
 #[cfg(test)]
@@ -323,8 +372,7 @@ mod tests {
     }
 
     fn zustand(ordner: &Path, uhr: &Stelluhr) -> Zustand {
-        let buch = buch::erkenne_betrieb(ordner).unwrap().map(|b| Buch::oeffne(ordner, b).unwrap());
-        Zustand::neu(ordner.to_path_buf(), buch, None, Box::new(uhr.clone()))
+        Zustand::beim_start(ordner.to_path_buf(), Box::new(uhr.clone()))
     }
 
     fn entwurf() -> Entwurf {
@@ -394,7 +442,7 @@ mod tests {
         assert_eq!(s.jetzt, "2026-09-24T10:00:00+02:00");
         assert_eq!(lies_stammdaten(&z).unwrap().stammdaten.personal.len(), 112);
 
-        assert_eq!(versiegele_jetzt(&z).unwrap_err(), "Es gibt keinen abgesendeten Einsatz, der versiegelt werden könnte.");
+        assert_eq!(versiegele_jetzt(&z).unwrap_err(), NICHTS_AUSSTEHEND);
         let mut unvollstaendig = entwurf();
         unvollstaendig.stichwort.clear();
         assert_eq!(sende_ab(&z, &unvollstaendig).unwrap_err(), "Fehlt: Alarmstichwort");
@@ -448,5 +496,70 @@ mod tests {
         assert!(z.buch.is_poisoned());
         assert!(lies_status(&z).is_ok());
         assert_eq!(z.pruefe_frist().unwrap(), None);
+    }
+
+    #[test]
+    fn kaputte_datei_wird_startfehler_und_bleibt_unberuehrt() {
+        let ordner = tempfile::tempdir().unwrap();
+        let datei = ordner.path().join("einsatzbuch-test.db");
+        let muell: Vec<u8> = (0..4096u32).map(|i| (i * 37 % 251) as u8).collect();
+        std::fs::write(&datei, &muell).unwrap();
+
+        let z = zustand(ordner.path(), &Stelluhr::neu());
+        let fehler = z.startfehler().clone().expect("kaputte Datei muss ein Startfehler sein");
+        assert!(fehler.starts_with("Die Datenbank dieses Rechners ließ sich nicht öffnen"), "{fehler}");
+        assert!(z.buch().is_none());
+
+        let s = lies_status(&z).unwrap();
+        assert_eq!(s.startfehler.as_deref(), Some(fehler.as_str()));
+        assert!(!s.eingerichtet);
+        assert_eq!(serde_json::to_value(&s).unwrap()["startfehler"], fehler.as_str());
+
+        assert_eq!(lies_stammdaten(&z).unwrap_err(), fehler);
+        assert_eq!(speichere_entwurf(&z, &entwurf()).unwrap_err(), fehler);
+        assert_eq!(verwirf_entwurf(&z).unwrap_err(), fehler);
+        assert_eq!(sende_ab(&z, &entwurf()).unwrap_err(), fehler);
+        assert_eq!(versiegele_jetzt(&z).unwrap_err(), fehler);
+        assert_eq!(pruefe_frist_jetzt(&z).unwrap_err(), fehler);
+        assert_eq!(beende_testbetrieb(&z).unwrap_err(), fehler);
+        assert_eq!(richte_entwicklung_ein(&z, None, None).unwrap_err(), fehler);
+        assert_eq!(z.pruefe_frist().unwrap(), None, "die Frist-Uhr fasst ohne Buch nichts an");
+
+        assert_eq!(std::fs::read(&datei).unwrap(), muell, "die kaputte Datei muss byte-gleich bleiben");
+    }
+
+    #[test]
+    fn jetzt_versiegeln_nach_der_frist_uhr_liefert_deren_versiegelung() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let z = zustand(ordner.path(), &uhr);
+        richte_entwicklung_ein(&z, None, Some(15)).unwrap();
+        sende_ab(&z, &entwurf()).unwrap();
+        uhr.vor(Duration::minutes(15));
+        let aus_der_uhr = z.pruefe_frist().unwrap().expect("Frist erreicht");
+        assert_eq!(versiegele_jetzt(&z).unwrap(), aus_der_uhr);
+        quittiere(&z);
+        assert_eq!(versiegele_jetzt(&z).unwrap_err(), NICHTS_AUSSTEHEND);
+    }
+
+    #[test]
+    fn gescheitertes_testbetrieb_beenden_legt_das_buch_zurueck() {
+        let ordner = tempfile::tempdir().unwrap();
+        let z = zustand(ordner.path(), &Stelluhr::neu());
+        richte_entwicklung_ein(&z, None, None).unwrap();
+        // Eine zweite Verbindung mit offener Lesetransaktion lässt den WAL-Checkpoint in
+        // `beende_testbetrieb` scheitern.
+        let fremd = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+        fremd.verbindung().execute_batch("BEGIN; SELECT count(*) FROM bloecke;").unwrap();
+
+        assert!(beende_testbetrieb(&z).is_err());
+        assert_eq!(z.buch().as_ref().map(|b| b.betrieb()), Some(Betrieb::Test), "das Buch muss zurückliegen");
+        assert_eq!(*z.startfehler(), None);
+        assert!(lies_status(&z).unwrap().eingerichtet);
+
+        fremd.verbindung().execute_batch("COMMIT;").unwrap();
+        drop(fremd);
+        beende_testbetrieb(&z).unwrap();
+        assert!(z.buch().is_none());
     }
 }
