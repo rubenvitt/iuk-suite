@@ -28,7 +28,7 @@ import { ausleihenNachladenAction } from "../../actions";
  * Component entstuende, ist eine gewoehnliche Funktion — keine Server Action —, und React
  * lehnt ab, sie ueber die RSC-Grenze zu reichen
  * (`Error: Functions cannot be passed directly to Client Components`). Dazu kommen
- * `Grid.useBreakpoint()` (ein Client-Hook, Nr. 5), `renderItem` des mobilen Zweigs und die
+ * `karte` der schmalen Darstellung (ebenfalls eine Funktion), das Nachladen und die
  * zustandshaltenden Bedienelemente des Filters. ⚠️ Weder `typecheck` noch `lint` noch `build`
  * sehen das, und jsdom kann es STRUKTURELL nicht sehen — dort gibt es keine RSC-Grenze. Der
  * Waechter ist der Playwright-Fall aus `Spec:4881-4882` (Fall 5), Eigentuemer Aufgabe V23.
@@ -128,9 +128,9 @@ function StatusMarke({ aktiv }: { aktiv: boolean }) {
  * Spaltenfilter aufzuloesen hiesse, aus einer Aussage ueber den Bestand eine ueber die Seite
  * zu machen.
  *
- * ⛔ EXPORTIERT, DAMIT DIE ZELLEN OHNE TABELLE PRUEFBAR SIND: in jsdom rendert diese Insel
- * den MOBILEN Zweig (`vitest.setup.ts` stubt `matchMedia` mit `matches: false`), der
- * Tabellenkopf entsteht dort nie. Der Grund steht im Kopf von `AusleihenTabelle.test.tsx`.
+ * ⛔ EXPORTIERT, DAMIT DIE ZELLEN AUCH OHNE TABELLE PRUEFBAR SIND. Seit DRK-451 steht in
+ * jsdom zusaetzlich die echte Tabelle im Baum (die Umschaltung ist CSS, jsdom blendet nichts
+ * aus); wie beide Wege geprueft werden, steht im Kopf von `AusleihenTabelle.test.tsx`.
  */
 export const SPALTEN: TableColumnType<AusleihZeile>[] = [
   {
