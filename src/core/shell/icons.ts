@@ -1,5 +1,6 @@
 import {
   AppstoreOutlined,
+  BookOutlined,
   BorderOutlined,
   CaretUpOutlined,
   CommentOutlined,
@@ -148,4 +149,5 @@ export const ICONS: Record<string, ComponentType> = {
   ScheduleOutlined,
   WifiOutlined,
   RocketOutlined,
+  BookOutlined,
 };
