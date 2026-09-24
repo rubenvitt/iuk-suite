@@ -115,7 +115,7 @@ import { E2E_CODE_AKTIV, RADIO_ENV, radioUrl } from "./helpers/radio";
 
 /**
  * ⚠️ DER PFAD KOMMT NICHT AUS `moduleDbPath()`. `DATA_DIR=./.data/e2e` steht nur in
- * `playwright.config.ts:182` (`webServer.env`) und erreicht ausschliesslich den
+ * `playwright.config.ts` (`webServer.env`) und erreicht ausschliesslich den
  * SERVERprozess. Im Testprozess ist die Variable nicht gesetzt; `moduleDbPath` liefe auf
  * `./.data/radio.db` und laese EINE ANDERE DATEI als die, in die der Server schreibt.
  * Wortlaut und Vorbild: `e2e/lagerbuch-hosts.spec.ts:55` (Vorbehalt) und `:68-69` (die
@@ -158,7 +158,7 @@ const AUSLEIH_COOKIE_ANFANG = "radio_ausleihe=";
  * ⛔ DIE SITZUNGSDAUER WIRD RELATIV ZUM KONFIGURIERTEN WERT GEPRUEFT, NIE GEGEN DIE ZAHL
  * `12` (§8.2.2, `Spec:6573` woertlich: „sonst wandert die Entscheidung in eine
  * Testdatei"). Die Quelle ist `RADIO_ENV` in `e2e/helpers/radio.ts` — derselbe Wert, den
- * `webServer.env` dem Server gibt (`playwright.config.ts:326`, `...RADIO_ENV`), also genau
+ * `webServer.env` dem Server gibt (`playwright.config.ts`, `...RADIO_ENV`), also genau
  * die Zahl, gegen die der Server rechnet: `ausleihGueltigkeitSekunden()` ist
  * `grenzen().ausleihSitzungStunden * 3600` (`_lib/ausleihSitzung.ts:97-99`).
  */

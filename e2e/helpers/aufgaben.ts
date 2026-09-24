@@ -21,7 +21,7 @@ import type { Page } from "@playwright/test";
  * ohne (oder mit falscher) Koordinationsgruppe bezeugt genau die 404-Riegel,
  * die die Gegenproben dieser Suite ohnehin behaupten (`/verteilen`,
  * `/personen`, `/freigaben`) — der Lauf saehe aus wie bestanden. Dieselbe
- * Klasse steht in `playwright.config.ts:2-6` schon ausgeschrieben: „Zwei
+ * Klasse steht am Import von `AV_MODUS_DATEI` in `playwright.config.ts` schon ausgeschrieben: „Zwei
  * Literale liefen auseinander, ohne dass ein Lauf rot wuerde."
  *
  * FUER E2E GELTEN DIE REGISTRY-VORGABEN (`src/core/registry.ts`), nicht die
