@@ -2,7 +2,7 @@
 //! Betriebsart aus der Datei und Einrichtung samt Testbetrieb-Ende.
 mod hilfe;
 
-use einsatzbuch_kern::buch::{BuchFehler, Betrieb, Buch, beende_testbetrieb, erkenne_betrieb};
+use einsatzbuch_kern::buch::{BuchFehler, Betrieb, Buch, beende_testbetrieb, erkenne_betrieb, hat_echte_einrichtung};
 use einsatzbuch_kern::format::Umgebung;
 
 #[test]
@@ -151,4 +151,38 @@ fn stammdatenabgleich_ohne_einrichtung_scheitert() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     let paket = hilfe::test_einrichtung(Umgebung::Test).paket;
     assert!(matches!(buch.uebernehme_stammdaten(&paket), Err(BuchFehler::NichtEingerichtet)));
+}
+
+/// Die Frage „gibt es hier schon eine echte Einrichtung?“ darf die Antwort nicht selbst
+/// verändern: Auf einem frischen Ordner legt sie keine `einsatzbuch.db` an — sonst meldete
+/// `erkenne_betrieb` danach `Echt` statt „nicht eingerichtet“ (Spec §12).
+#[test]
+fn echte_einrichtung_pruefen_legt_auf_frischem_ordner_keine_datei_an() {
+    let ordner = tempfile::tempdir().unwrap();
+    assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
+    assert_eq!(std::fs::read_dir(ordner.path()).unwrap().count(), 0, "der Ordner muss leer bleiben");
+    assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), None);
+}
+
+/// Eine `einsatzbuch.db` ohne Zeile in `einrichtung` ist keine echte Einrichtung; mit Zeile
+/// schon — auch solange das echte Buch noch offen ist und die Zeile nur in der WAL steht.
+#[test]
+fn echte_einrichtung_zaehlt_erst_mit_zeile_in_einrichtung() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt)).unwrap();
+    assert!(hat_echte_einrichtung(ordner.path()).unwrap());
+    drop(buch);
+    assert!(hat_echte_einrichtung(ordner.path()).unwrap());
+}
+
+/// Eine leere Datei (ohne Schema, `user_version = 0`) meldet `false`, statt an der fehlenden
+/// Tabelle zu scheitern — und wird dabei nicht migriert.
+#[test]
+fn echte_einrichtung_auf_leerer_datei_ist_false_ohne_migration() {
+    let ordner = tempfile::tempdir().unwrap();
+    std::fs::write(ordner.path().join("einsatzbuch.db"), b"").unwrap();
+    assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
+    assert_eq!(std::fs::metadata(ordner.path().join("einsatzbuch.db")).unwrap().len(), 0);
 }

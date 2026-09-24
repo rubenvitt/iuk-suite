@@ -422,3 +422,31 @@ pub fn beende_testbetrieb(ordner: &Path, buch: Buch) -> Result<(), BuchFehler> {
     loesche_falls_vorhanden(&mit_dateizusatz(&pfad, "-shm"))?;
     Ok(())
 }
+
+/// Ob im Ordner schon eine **echte** Einrichtung liegt, also `einsatzbuch.db` mit einer Zeile
+/// in `einrichtung` (Spec §12: eine echte Installation wird nie zum Testrechner). Bewusst nicht
+/// über `Buch::oeffne`: Das legte auf einem frischen Ordner eine leere `einsatzbuch.db` an, und
+/// `erkenne_betrieb` meldete danach `Echt` statt „nicht eingerichtet“. Stattdessen erst
+/// `try_exists`, dann rein lesend öffnen (`SQLITE_OPEN_READ_ONLY` legt keine Datei an und
+/// migriert nichts). Eine Datei ohne Tabelle `einrichtung` (noch kein Schema) zählt als
+/// „keine Einrichtung“.
+pub fn hat_echte_einrichtung(ordner: &Path) -> Result<bool, BuchFehler> {
+    let pfad = ordner.join(Betrieb::Echt.datei());
+    if !pfad.try_exists()? {
+        return Ok(false);
+    }
+    let conn = Connection::open_with_flags(
+        &pfad,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    let hat_tabelle: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'einrichtung')",
+        [],
+        |r| r.get(0),
+    )?;
+    if !hat_tabelle {
+        return Ok(false);
+    }
+    let hat_zeile: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM einrichtung)", [], |r| r.get(0))?;
+    Ok(hat_zeile)
+}

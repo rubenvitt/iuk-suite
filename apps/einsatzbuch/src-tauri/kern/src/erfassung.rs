@@ -264,8 +264,9 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
 /// Formatiert einen Zeitpunkt in der gegebenen Zone wie `versiegelt` (Spec §3):
 /// `%Y-%m-%dT%H:%M:%S%:z`. Gemeinsam für `versiegelt` (in `versiegeln.rs`), `frist_bis` und
 /// `abgesendet_am`, damit jeder Zeitpunkt, den dieses Crate nach außen gibt, dieselbe
-/// Schreibweise trägt.
-pub(crate) fn formatiere_zeitpunkt(zeitpunkt: DateTime<Utc>, zeitzone: &str) -> String {
+/// Schreibweise trägt. Öffentlich, weil die Hülle `jetzt` im Status genauso schreibt. Die Zone
+/// muss gültig sein (aus der Einrichtung oder `"UTC"`), sonst bricht die Funktion ab.
+pub fn formatiere_zeitpunkt(zeitpunkt: DateTime<Utc>, zeitzone: &str) -> String {
     let tz: chrono_tz::Tz = zeitzone.parse().expect("Zeitzone wurde bei der Einrichtung geprüft");
     zeitpunkt.with_timezone(&tz).format("%Y-%m-%dT%H:%M:%S%:z").to_string()
 }
