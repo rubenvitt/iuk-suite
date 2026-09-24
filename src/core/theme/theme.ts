@@ -164,13 +164,13 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * `globals.css`). Deshalb steht es dort in CSS und nicht hier.
        *
        * 16 ist ein Wert aus antds eigener Leiter (12/14/16/20/24/30), also
-       * keine dritte Skala im Sinne von docs/design/README.md:110.
+       * keine dritte Skala im Sinne von docs/design/README.md, „Typografie".
        */
       Select: { optionFontSize: 16, colorBorder: kontur },
       /*
        * `inputFontSize`, NICHT `fontSize` — antd nennt den Token an diesen drei
        * Komponenten so. Der globale `fontSize` bliebe verboten, er verschoebe
-       * die ganze Leiter (docs/design/README.md:110).
+       * die ganze Leiter (docs/design/README.md, „Typografie").
        *
        * Ueber Tokens statt ueber CSS-Spezifitaet, damit die Regel in
        * `globals.css` niedrig spezifisch bleiben kann und Modul-CSS sie
