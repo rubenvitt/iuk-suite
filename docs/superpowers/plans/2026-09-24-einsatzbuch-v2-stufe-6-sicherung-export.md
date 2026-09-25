@@ -476,3 +476,15 @@ Jede Entscheidung gehört in den Abschlussbericht.
 - [ ] Review über den gesamten Diff der Stufe, Befunde in einer Fix-Runde.
 - [ ] Push, PR gegen `claude/einsatzbuch-v2-stufe-5` (oder `main`, falls #300 inzwischen gemergt ist: dann `origin/main` einmergen). Deutsche Beschreibung, Schlusszeile `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Danach `gh pr view --json autoMergeRequest` → `null`.
 - [ ] **Keine Release-Notiz in Stufe 6.** Die Notiz für App und Rechner-Teil kommt mit der Auslieferung (Stufe 7), denn vorher gibt es keine installierbare App.
+
+---
+
+## Nachträge aus der Umsetzung (Rulings)
+
+- **Zu Entscheidung 1:** Auch die stündliche Runde sichert. Ein unveränderter letzter Hash ergibt `Unveraendert` ohne Schreiben und ohne Rotation und frischt `letzte_sicherung` auf. So wird eine gescheiterte Sicherung binnen einer Stunde wiederholt, und ein untätiger Rechner wird nicht nach 7 Tagen rot. „Ordner wählen“ sichert sofort im Befehl, der Anstoß `Sicherung` entfällt.
+- **Zu Entscheidung 2:** Eine leere Kette mit erreichbarem Ordner ohne längere Datei gilt als gesichert (nichts zu sichern).
+- **Zu Entscheidung 5:** `GET /api/anker` verlangt `?erster=<Hash von Block 1>` und wertet nur Rechner dieser Kette aus. Sonst verdrängten die Anker eines ausgefallenen Vorgängers mit anderer Kette eine gültige Sicherung.
+- **Sperrreihenfolge, Ausnahme:** Ein Mutex `Zustand::sicherung` reiht die Sicherungsschreiber ein. Er steht vor `buch` (`sicherung` → `buch` → Blatt) und liegt vom Lesen der Blöcke bis zum Vermerk, auch über der Datei-I/O im Sicherungsordner. Die Suite-Meldung liegt außerhalb. Kein Pfad der Oberfläche außer „Ordner wählen“ wartet auf ihn.
+- **Windows:** `std::fs::rename` ersetzt vorhandene Dateien schon; das Ziel wird nur nach einem verweigerten Umbenennen entfernt und dann einmal neu versucht.
+- **Aufräumtakt der Suite:** Modul-`let`-Wache wie das Vorbild `starteRadioHintergrund`, keine `globalThis`-Wache.
+- **E2E:** Die Root-`tsconfig.json` kennt den Alias `@kern/*`, weil das Export-Skript das App-Modul `logik/export.ts` importiert.
