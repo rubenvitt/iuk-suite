@@ -18,6 +18,7 @@ use crate::erfassung::Versiegelung;
 use crate::format::{Block, Umgebung};
 use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
+use crate::sicherung::Sicherungsangaben;
 
 const SCHEMA: &str = include_str!("schema.sql");
 const SCHEMA_V2: &str = include_str!("schema_v2.sql");
@@ -602,6 +603,47 @@ impl Buch {
     pub fn widerrufen_setzen(&mut self, widerrufen: bool) -> Result<(), BuchFehler> {
         let geaenderte_zeilen = self.conn.execute("UPDATE einrichtung SET widerrufen = ?1 WHERE id = 1", params![widerrufen])?;
         if geaenderte_zeilen == 0 {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        Ok(())
+    }
+
+    /// Ordner, letzte gelungene Sicherung, letzter Fehler und Einrichtungszeitpunkt — die
+    /// Grundlage für `sicherung::stufe`. `None` ohne Einrichtung.
+    pub fn sicherungsangaben(&self) -> Result<Option<Sicherungsangaben>, BuchFehler> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT sicherungsordner, letzte_sicherung, sicherung_fehler, eingerichtet_am FROM einrichtung WHERE id = 1",
+                [],
+                |r| Ok(Sicherungsangaben { ordner: r.get(0)?, letzte: r.get(1)?, fehler: r.get(2)?, eingerichtet_am: r.get(3)? }),
+            )
+            .optional()?)
+    }
+
+    /// Setzt den Sicherungsordner oder löscht ihn (`None`). Letzte Sicherung und letzter Fehler
+    /// bleiben stehen; den nächsten Versuch stößt die Hülle an.
+    pub fn sicherungsordner_setzen(&mut self, ordner: Option<&str>) -> Result<(), BuchFehler> {
+        self.aendere_einrichtung("UPDATE einrichtung SET sicherungsordner = ?1 WHERE id = 1", params![ordner])
+    }
+
+    /// Eine Sicherung ist gelungen (auch `Unveraendert`): merkt den Zeitpunkt und löscht den
+    /// Fehler des letzten Versuchs.
+    pub fn sicherung_gelungen(&mut self, zeitpunkt: &str) -> Result<(), BuchFehler> {
+        self.aendere_einrichtung(
+            "UPDATE einrichtung SET letzte_sicherung = ?1, sicherung_fehler = NULL WHERE id = 1",
+            params![zeitpunkt],
+        )
+    }
+
+    /// Eine Sicherung ist gescheitert: merkt den Text. Die letzte gelungene Sicherung bleibt.
+    pub fn sicherung_gescheitert(&mut self, text: &str) -> Result<(), BuchFehler> {
+        self.aendere_einrichtung("UPDATE einrichtung SET sicherung_fehler = ?1 WHERE id = 1", params![text])
+    }
+
+    /// Ein `UPDATE` auf die Einrichtungszeile; keine geänderte Zeile heißt: nicht eingerichtet.
+    fn aendere_einrichtung(&mut self, sql: &str, werte: impl rusqlite::Params) -> Result<(), BuchFehler> {
+        if self.conn.execute(sql, werte)? == 0 {
             return Err(BuchFehler::NichtEingerichtet);
         }
         Ok(())
