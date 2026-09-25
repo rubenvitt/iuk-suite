@@ -1234,12 +1234,18 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `Skeleton.Button` waere ein Compound-Zugriff und in einer Server
     // Component `undefined` — HTTP 500 genau dann, wenn der Ladezustand
     // greifen soll. Fuenfzehn Namen.
+    //
+    // NACHTRAG 24.09.2026 (DRK-424): `SeiteLaedt.tsx` ist wieder GESTRICHEN —
+    // nicht weil die Begruendung fiel, sondern weil die Datei nach
+    // `core/shell/` gewandert ist (feedback braucht sie als zweites Modul).
+    // Derselbe Grund wie bei `Brotkrume.tsx`: ein Ausnahmename fuer eine
+    // Datei, die hier nicht mehr liegt, winkte eine kuenftige gleichnamige
+    // STILL durch. Vierzehn Namen.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
       "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx",
-      "SeiteLaedt.tsx",
     ]);
     //
     // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.

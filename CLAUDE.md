@@ -75,6 +75,9 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 22. **Gestreamter Inhalt steht kurz nach `load` doppelt im DOM** (versteckt in `div[hidden id="S:n"]`,
     im gebauten Stand bis ~350 ms). Vor Zählung, strict-Greifer oder Breitenmessung
     `warteAufGestreamteInhalte` aus `e2e/fixtures.ts`; `warteAufSpaltenaufteilung` tut es mit.
+23. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** — der Ladezustand ist
+    mit Status 200 schon gestreamt. Zugriffsprüfung und `notFound()` in ein `layout.tsx` oberhalb
+    der Grenze (Vorbild `feedback/…/(cockpit)/layout.tsx`); nur e2e oder `build`/`start` sieht es.
 
 ### Hell/Dunkel und `core`
 

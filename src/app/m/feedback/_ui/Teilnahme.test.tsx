@@ -32,7 +32,7 @@ const URL_VOLL = `https://feedback.iuk-ue.de/f/${TOKEN}`;
 const UI = join(process.cwd(), "src/app/m/feedback/_ui");
 const SEITE = join(
   process.cwd(),
-  "src/app/m/feedback/(admin)/groups/[groupId]/page.tsx",
+  "src/app/m/feedback/(admin)/groups/[groupId]/(cockpit)/page.tsx",
 );
 const ohneKommentare = (text: string) =>
   text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
