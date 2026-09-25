@@ -50,6 +50,7 @@ import { artikel, buchungen, chargen, newId } from "../../_db/schema";
 import { BuchungAbgewiesen } from "../buchungAbgewiesen";
 import { HANDLAGER_ID } from "../konstanten";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
+import { findeFahrzeug } from "./fahrzeug";
 import type { Quelle, Tx } from "./abbuchung";
 
 /**
@@ -83,6 +84,135 @@ export function zugangBuchen(
 ): { chargeId: string } {
   const { artikelId, menge, lagerortId, charge, quelle, kommentar, referenz } = args;
 
+  const chargeId = zugangsCharge(tx, artikelId, charge);
+
+  /*
+   * DER BEREICH, NICHT DER DIREKTE ELTERNTEIL — Codex-Befund P2 zu PR #174.
+   *
+   * ⚠️ HIER STAND `ort.parentId !== HANDLAGER_ID`, UND DAS WAR MIT DER AUSWAHL
+   * NICHT MEHR EINIG. `handlagerSchraenke` (und damit `zugangsZiele`, die die
+   * Wahl fuellt) steigt ueber `teilbaum` BELIEBIG TIEF ab; ein Ort unterhalb
+   * eines Schranks stand also zur Wahl und wurde hier unten trotzdem
+   * abgewiesen — eine angebotene Buchung, die immer scheitert.
+   *
+   * ⚠️ HEUTE UNERREICHBAR, ABER NICHT HARMLOS: `createSchrank` verdrahtet
+   * `parentId: HANDLAGER_ID`, tiefere Orte koennen also nur aus einem Import
+   * kommen. Genau darauf ist `teilbaum` aber gebaut — `zaehlBereich`
+   * (`_lib/lesepfade/orte.ts`) schreibt es aus: „Schraenke haben heute keine
+   * Kinder, aber ein spaeter eingehaengter Ort fiele sonst still aus der
+   * Zaehlung." Diese Pruefung war die einzige Stelle, die das anders sah.
+   *
+   * Die Bauform ist die von `bucheUmlagerung`, die dieselbe Frage schon so
+   * stellt: Mengenlehre ueber `handlagerOrte`, kein Elternteil-Vergleich.
+   */
+  const bereich = new Set(handlagerOrte(tx));
+  if (!bereich.has(lagerortId)) {
+    throw new BuchungAbgewiesen("Ziel ist kein Ort im Handlager");
+  }
+  /*
+   * ⚠️ DIE WURZEL BLEIBT VON DER AKTIV-PROBE AUSGENOMMEN, wie bisher: sie ist
+   * kein Schrank, den man stilllegt, sondern das „noch nicht zugeordnet" des
+   * Handlagers. Waere sie einbezogen, haenge der Altbestands-Weg an einem Feld,
+   * das keine Oberflaeche setzt.
+   */
+  if (lagerortId !== HANDLAGER_ID && !ortStamm(tx).get(lagerortId)?.aktiv) {
+    throw new BuchungAbgewiesen("Ziel ist kein gültiger, aktiver Schrank im Handlager");
+  }
+
+  tx.insert(buchungen)
+    .values({
+      id: newId(),
+      ts: new Date(),
+      typ: "zugang",
+      artikelId,
+      chargeId,
+      lagerortId,
+      menge,
+      quelleTyp: quelle.quelleTyp,
+      quelleId: quelle.quelleId,
+      referenz,
+      kommentar,
+    })
+    .run();
+
+  // §5.5 — siehe Punkt 3 im Kopf dieser Datei.
+  tx.update(artikel).set({ bestelltAt: null }).where(eq(artikel.id, artikelId)).run();
+
+  return { chargeId };
+}
+
+/**
+ * DRK-485 — DER WARENEINGANG DIREKT AN EINER EINHEIT (Fahrzeug oder Tasche),
+ * ohne dass das Material vorher irgendwo im Buch lag.
+ *
+ * ⚠️ EINE EIGENE FUNKTION UND KEIN SCHALTER AN `zugangBuchen`. Punkt 2 im Kopf
+ * dieser Datei („das Ziel liegt im Handlager") ist genau die Pruefung, die
+ * einen Wareneingang nicht still zur Fahrzeugbuchung werden laesst — ein
+ * Parameter, der sie abschaltet, waere derselbe stille Weg mit einem Namen.
+ * Hier ist das Ziel stattdessen AUSDRUECKLICH eine aktive Einheit, und ein
+ * Schrank wird genauso abgewiesen wie dort ein Fahrzeug.
+ *
+ * ⚠️ PUNKT 3 GILT HIER NICHT: die Bestellt-Markierung bleibt stehen. Die
+ * Bestellliste rechnet mit dem HANDLAGER-Bestand (`bestellvorschlag`), und der
+ * aendert sich durch Material an einer Einheit nicht. Loeschte dieser Weg die
+ * Markierung, schluege die Liste eine laufende Bestellung ein zweites Mal vor,
+ * waehrend das Handlager weiter auf sie wartet (Entscheidung zu DRK-485).
+ *
+ * `typ: "zugang"` wie jeder Wareneingang, `referenz: null` — der Ort steht in
+ * der Journalspalte „Ort", und ein eigenes Etikett beschriebe denselben
+ * Vorgang zweimal (dieselbe Abwaegung wie bei `bucheAuffuellung`).
+ */
+export function zugangAnEinheitBuchen(
+  tx: Tx,
+  args: {
+    artikelId: string;
+    menge: number;
+    einheitId: string;
+    charge: ZugangCharge;
+    quelle: Quelle;
+  },
+): { chargeId: string } {
+  const { artikelId, menge, einheitId, charge, quelle } = args;
+
+  // Das Ziel ZUERST: eine abgewiesene Einheit soll keine Charge anlegen, auch
+  // keine, die der Rueckroll gleich wieder nimmt.
+  if (!findeFahrzeug(tx, einheitId)?.aktiv) {
+    throw new BuchungAbgewiesen("Ziel ist kein gültiges, aktives Fahrzeug und keine aktive Tasche");
+  }
+
+  const chargeId = zugangsCharge(tx, artikelId, charge);
+
+  tx.insert(buchungen)
+    .values({
+      id: newId(),
+      ts: new Date(),
+      typ: "zugang",
+      artikelId,
+      chargeId,
+      lagerortId: einheitId,
+      menge,
+      quelleTyp: quelle.quelleTyp,
+      quelleId: quelle.quelleId,
+      referenz: null,
+      kommentar: null,
+    })
+    .run();
+
+  return { chargeId };
+}
+
+/**
+ * DIE PUNKTE 1 UND 4 AUS DEM KOPF DIESER DATEI — der Artikel ist aktiv, die
+ * Charge gehoert zu ihm oder entsteht neu. Gibt die Charge zurueck, auf die
+ * gebucht wird.
+ *
+ * ⚠️ EINE FUNKTION FUER BEIDE ZUGANGSARTEN (DRK-485): der Wareneingang ins
+ * Handlager (`zugangBuchen`) und der direkt an einer Einheit
+ * (`zugangAnEinheitBuchen`) teilen genau diese zwei Invarianten und
+ * unterscheiden sich allein im Ziel. Eine zweite Fassung vergaesse eine davon
+ * still — derselbe Grund, aus dem diese Datei ueberhaupt existiert.
+ */
+function zugangsCharge(tx: Tx, artikelId: string, charge: ZugangCharge): string {
   /*
    * DER ARTIKEL IST AKTIV — Punkt 4 im Kopf dieser Datei, DRK-380.
    *
@@ -145,57 +275,5 @@ export function zugangBuchen(
     }
   }
 
-  /*
-   * DER BEREICH, NICHT DER DIREKTE ELTERNTEIL — Codex-Befund P2 zu PR #174.
-   *
-   * ⚠️ HIER STAND `ort.parentId !== HANDLAGER_ID`, UND DAS WAR MIT DER AUSWAHL
-   * NICHT MEHR EINIG. `handlagerSchraenke` (und damit `zugangsZiele`, die die
-   * Wahl fuellt) steigt ueber `teilbaum` BELIEBIG TIEF ab; ein Ort unterhalb
-   * eines Schranks stand also zur Wahl und wurde hier unten trotzdem
-   * abgewiesen — eine angebotene Buchung, die immer scheitert.
-   *
-   * ⚠️ HEUTE UNERREICHBAR, ABER NICHT HARMLOS: `createSchrank` verdrahtet
-   * `parentId: HANDLAGER_ID`, tiefere Orte koennen also nur aus einem Import
-   * kommen. Genau darauf ist `teilbaum` aber gebaut — `zaehlBereich`
-   * (`_lib/lesepfade/orte.ts`) schreibt es aus: „Schraenke haben heute keine
-   * Kinder, aber ein spaeter eingehaengter Ort fiele sonst still aus der
-   * Zaehlung." Diese Pruefung war die einzige Stelle, die das anders sah.
-   *
-   * Die Bauform ist die von `bucheUmlagerung`, die dieselbe Frage schon so
-   * stellt: Mengenlehre ueber `handlagerOrte`, kein Elternteil-Vergleich.
-   */
-  const bereich = new Set(handlagerOrte(tx));
-  if (!bereich.has(lagerortId)) {
-    throw new BuchungAbgewiesen("Ziel ist kein Ort im Handlager");
-  }
-  /*
-   * ⚠️ DIE WURZEL BLEIBT VON DER AKTIV-PROBE AUSGENOMMEN, wie bisher: sie ist
-   * kein Schrank, den man stilllegt, sondern das „noch nicht zugeordnet" des
-   * Handlagers. Waere sie einbezogen, haenge der Altbestands-Weg an einem Feld,
-   * das keine Oberflaeche setzt.
-   */
-  if (lagerortId !== HANDLAGER_ID && !ortStamm(tx).get(lagerortId)?.aktiv) {
-    throw new BuchungAbgewiesen("Ziel ist kein gültiger, aktiver Schrank im Handlager");
-  }
-
-  tx.insert(buchungen)
-    .values({
-      id: newId(),
-      ts: new Date(),
-      typ: "zugang",
-      artikelId,
-      chargeId,
-      lagerortId,
-      menge,
-      quelleTyp: quelle.quelleTyp,
-      quelleId: quelle.quelleId,
-      referenz,
-      kommentar,
-    })
-    .run();
-
-  // §5.5 — siehe Punkt 3 im Kopf dieser Datei.
-  tx.update(artikel).set({ bestelltAt: null }).where(eq(artikel.id, artikelId)).run();
-
-  return { chargeId };
+  return chargeId;
 }

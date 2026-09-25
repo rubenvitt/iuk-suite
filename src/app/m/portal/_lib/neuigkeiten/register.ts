@@ -51,6 +51,7 @@ import checksLaufend from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/202
 import ruecklaufVomFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-21-ruecklauf-vom-fahrzeug";
 import aussondernAusDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-22-aussondern-aus-der-box";
 import langeZugangsCodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-24-lange-zugangs-codes";
+import materialAufladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-25-material-aufladen";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -131,6 +132,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   artikeletiketten,
   aussondernAusDerBox,
   langeZugangsCodes,
+  materialAufladen,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,
