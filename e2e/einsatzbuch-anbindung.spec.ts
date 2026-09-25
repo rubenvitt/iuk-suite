@@ -257,8 +257,8 @@ test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
     const { geraeteToken } = await rechnerAnlegen(page, request, { art: "echt", name });
 
     // Warmlauf zuerst (Falle 10): ein GET auf `/api/anker` kompiliert die Route, bevor der erste
-    // POST hier kommt.
-    const warm = await request.get(url("/api/anker"), { headers: { authorization: `Bearer ${geraeteToken}` } });
+    // POST hier kommt. `erster` nennt die Kette (Hash von Block 1); ohne ihn wäre es eine 400.
+    const warm = await request.get(url(`/api/anker?erster=${"a".repeat(64)}`), { headers: { authorization: `Bearer ${geraeteToken}` } });
     expect(warm.status()).toBe(200);
 
     // Zwei widersprüchliche Meldungen für denselben Block erzeugen eine Anker-Abweichung

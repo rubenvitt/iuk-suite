@@ -657,15 +657,19 @@ fn anker_nach_panik_unter_dem_lock_laufen_weiter() {
 // Kettenanker (GET /api/anker) und Sicherung
 // ---------------------------------------------------------------------------------------------
 
-/// `hole_kettenanker`: `GET` mit dem Geräte-Token, 200 mit Anker liefert `Some((block, hash))`.
+/// Hash von Block 1 der gesuchten Kette (`?erster=`).
+const ERSTER: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// `hole_kettenanker`: `GET` mit dem Geräte-Token und `?erster=`, 200 mit Anker liefert
+/// `Some((block, hash))`.
 #[test]
 fn hole_kettenanker_schickt_get_mit_bearer_und_liest_den_anker() {
     let t = FakeTransport::neu(|_| antwort(200, &fixture("anker-lesen.json")));
-    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet").unwrap();
+    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER).unwrap();
     assert_eq!(ergebnis, Some((7, "f02cabded48fd793ea6d8e7e9ca4a350f5690b88f189129d76c6804e81fc6d9a".into())));
     let a = &t.anfragen()[0];
     assert_eq!(a.methode, "GET");
-    assert_eq!(a.url, "https://suite.example/m/einsatzbuch/api/anker");
+    assert_eq!(a.url, format!("https://suite.example/m/einsatzbuch/api/anker?erster={ERSTER}"));
     assert_eq!(a.bearer.as_deref(), Some("geraet"));
     assert_eq!(a.if_none_match, None);
     assert_eq!(a.json, None);
@@ -674,19 +678,19 @@ fn hole_kettenanker_schickt_get_mit_bearer_und_liest_den_anker() {
 #[test]
 fn hole_kettenanker_ohne_anker_ist_none() {
     let t = FakeTransport::neu(|_| antwort(200, r#"{"anker":null}"#));
-    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet").unwrap(), None);
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER).unwrap(), None);
 }
 
 #[test]
 fn hole_kettenanker_401_ist_widerrufen() {
     let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr."));
-    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet"), Err(SuiteFehler::Widerrufen));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER), Err(SuiteFehler::Widerrufen));
 }
 
 #[test]
 fn hole_kettenanker_409_ist_abgelehnt_mit_code_anker_mehrdeutig() {
     let t = FakeTransport::neu(|_| fehler(409, "anker_mehrdeutig", "Der Kettenanker ist nicht eindeutig."));
-    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet");
+    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER);
     assert!(
         matches!(ergebnis, Err(SuiteFehler::Abgelehnt { status: 409, ref code, .. }) if code == "anker_mehrdeutig"),
         "{ergebnis:?}"
@@ -699,14 +703,43 @@ fn hole_kettenanker_409_ist_abgelehnt_mit_code_anker_mehrdeutig() {
 fn hole_kettenanker_5xx_ohne_koerper_ist_nicht_erreichbar() {
     for status in [500, 502, 503, 504] {
         let t = FakeTransport::neu(move |_| antwort(status, "<html>Bad Gateway</html>"));
-        assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet"), Err(SuiteFehler::NichtErreichbar(format!("HTTP {status}"))));
+        assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER), Err(SuiteFehler::NichtErreichbar(format!("HTTP {status}"))));
     }
 }
 
 #[test]
 fn hole_kettenanker_netzfehler_ist_nicht_erreichbar() {
     let t = FakeTransport::neu(|_| Err("keine Verbindung".into()));
-    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet"), Err(SuiteFehler::NichtErreichbar("keine Verbindung".into())));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER), Err(SuiteFehler::NichtErreichbar("keine Verbindung".into())));
+}
+
+/// Ein Geheimnis, das an der falschen Stelle im Körper steht (etwa ein CEK im Feld `block`).
+const CEK_ARTIG: &str = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=";
+
+/// Prüft, dass weder Text noch `Debug` eines Fehlers das Geheimnis zitiert, und liefert den Text.
+fn ohne_geheimnis(fehler: &SuiteFehler) -> String {
+    let text = fehler.to_string();
+    assert!(!text.contains(CEK_ARTIG) && !text.contains("q83vEjRWeJ"), "Text zitiert das Geheimnis: {text}");
+    assert!(!format!("{fehler:?}").contains("q83vEjRWeJ"), "Debug zitiert das Geheimnis: {fehler:?}");
+    text
+}
+
+/// Review M1: `serde_json::Error` zitiert Zeichenketten aus dem Körper („invalid type: string
+/// "…"“). Der Fehlertext nennt nur Art, Zeile und Spalte.
+#[test]
+fn ein_vertragsfehler_zitiert_keinen_wert_aus_dem_koerper() {
+    let koerper = json!({ "anker": { "block": CEK_ARTIG, "hash": ERSTER } }).to_string();
+    let t = FakeTransport::neu(move |_| antwort(200, &koerper));
+    let fehler = suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER).unwrap_err();
+    assert!(matches!(fehler, SuiteFehler::Antwort(_)), "{fehler:?}");
+    let text = ohne_geheimnis(&fehler);
+    assert!(text.contains("Zeile 1") && text.contains("Spalte"), "{text}");
+
+    let koerper = json!([{ "block": CEK_ARTIG, "cek": CEK_ARTIG }]).to_string();
+    let t = FakeTransport::neu(move |_| antwort(200, &koerper));
+    let fehler = suite::gib_frei(&t, SUITE, "sitzung", &[block(1)]).unwrap_err();
+    assert!(matches!(fehler, SuiteFehler::Antwort(_)), "{fehler:?}");
+    ohne_geheimnis(&fehler);
 }
 
 /// `melde_sicherung`: `POST /api/sicherung {erstellt}` mit dem Geräte-Token, 204 ist Erfolg.

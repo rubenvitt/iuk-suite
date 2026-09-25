@@ -4,10 +4,10 @@
  * (Plan Stufe 5, Task 3: Handler mit Geräte-Token laufen unter `withAuditContext`).
  *
  * `GET` ist die Gegenrichtung (Stufe 6, Entscheidung 5): Der Rechner holt den höchsten
- * Suite-Anker der Kette, zu der er gehört — für die Wiederherstellung. Anders als `POST` prüft
- * das nicht gegen eine Meldung, sondern liest den Stand: Ein frisch eingerichteter echter
- * Rechner hat noch keine eigenen Anker, `POST` würde einen unbekannten Block einfach annehmen.
- * Read-only wie `GET stammdaten`, aber ohne `letzter_kontakt` — `POST` setzt ihn auch nicht.
+ * Suite-Anker der Kette, deren Block 1 den Hash `?erster=` trägt — für die Wiederherstellung.
+ * Anders als `POST` prüft das nicht gegen eine Meldung, sondern liest den Stand: Ein frisch
+ * eingerichteter echter Rechner hat noch keine eigenen Anker, `POST` würde einen unbekannten
+ * Block einfach annehmen. Read-only wie `GET stammdaten`, aber ohne `letzter_kontakt`.
  */
 import { auditDenied, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../../_db/client";
@@ -16,7 +16,7 @@ import { kettenanker, meldeAnker } from "../../_lib/anbindung/anker";
 import { rechnerAusToken } from "../../_lib/anbindung/geraet";
 import { begrenztesJson } from "../../_lib/anbindung/koerper";
 import { bearerAus } from "../../_lib/anbindung/token";
-import { ankerAnfrage, fehler } from "../../_lib/anbindung/vertrag";
+import { ankerAnfrage, fehler, kettenankerAbfrage } from "../../_lib/anbindung/vertrag";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +52,12 @@ export async function GET(req: Request) {
     return fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr.");
   }
 
-  const ergebnis = kettenanker(db, r);
+  const abfrage = kettenankerAbfrage.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!abfrage.success) return fehler(400, "validation_error", abfrage.error.message);
+
+  const ergebnis = kettenanker(db, r, abfrage.data.erster);
   if (!ergebnis.ok) {
-    return fehler(409, "anker_mehrdeutig", "Der Kettenanker ist nicht eindeutig: echte Rechner tragen für den höchsten Block verschiedene Hashes.");
+    return fehler(409, "anker_mehrdeutig", "Der Kettenanker ist nicht eindeutig: echte Rechner derselben Kette tragen für den höchsten Block verschiedene Hashes.");
   }
   return Response.json({ anker: ergebnis.anker });
 }

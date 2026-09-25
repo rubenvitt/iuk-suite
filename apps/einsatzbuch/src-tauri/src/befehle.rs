@@ -1166,9 +1166,11 @@ pub(crate) mod tests {
     }
 
     impl Aufgezeichnet {
-        /// Der Pfad unterhalb von `/m/einsatzbuch`, gleich auf welchem Host.
+        /// Der Pfad unterhalb von `/m/einsatzbuch`, gleich auf welchem Host, ohne Abfrage
+        /// (`?erster=…` bei `GET /api/anker`).
         pub(crate) fn pfad(&self) -> &str {
-            self.url.split_once("/m/einsatzbuch").map_or("", |(_, pfad)| pfad)
+            let pfad = self.url.split_once("/m/einsatzbuch").map_or("", |(_, pfad)| pfad);
+            pfad.split_once('?').map_or(pfad, |(ohne, _)| ohne)
         }
     }
 

@@ -79,40 +79,65 @@ describe("meldeAnker", () => {
 });
 
 describe("kettenanker", () => {
-  it("echter Rechner: über alle echten Rechner, auch widerrufene — der aktive ohne eigene Anker liest den höchsten Block des widerrufenen", () => {
+  /** Meldet für `rechnerId` die Blöcke 1..n mit den gegebenen Hashes (Index 0 = Block 1). */
+  function melde(db: ReturnType<typeof testDb>, rechnerId: string, hashes: string[]) {
+    hashes.forEach((hash, i) => db.insert(anker).values({ rechnerId, block: i + 1, hash, gemeldetAm: JETZT }).run());
+  }
+  const h = (zeichen: string) => zeichen.repeat(64).slice(0, 64);
+
+  it("echter Rechner: über alle echten Rechner derselben Kette, auch widerrufene — der aktive ohne eigene Anker liest den höchsten Block des widerrufenen", () => {
     const db = testDb();
     legeRechnerAn(db, { id: "alt", art: "echt", widerrufenAm: JETZT });
     const neu = legeRechnerAn(db, { id: "neu", art: "echt" });
-    for (let block = 1; block <= 5; block++) {
-      db.insert(anker).values({ rechnerId: "alt", block, hash: block.toString().repeat(64).slice(0, 64), gemeldetAm: JETZT }).run();
-    }
-    expect(kettenanker(db, neu)).toEqual({ ok: true, anker: { block: 5, hash: "5".repeat(64) } });
+    melde(db, "alt", ["1", "2", "3", "4", "5"].map(h));
+    expect(kettenanker(db, neu, h("1"))).toEqual({ ok: true, anker: { block: 5, hash: h("5") } });
   });
 
-  it("Test-Rechner sieht nur eigene Anker, nie die echten", () => {
+  it("Entscheidung 5, Kettenidentität: A trägt Anker bis 10, B hat eine neue Kette bis 5 begonnen — für Bs Kette zählt nur B", () => {
+    const db = testDb();
+    legeRechnerAn(db, { id: "a", art: "echt", widerrufenAm: JETZT });
+    legeRechnerAn(db, { id: "b", art: "echt", widerrufenAm: JETZT });
+    const c = legeRechnerAn(db, { id: "c", art: "echt" });
+    melde(db, "a", Array.from({ length: 10 }, (_, i) => h(`a${i}`)));
+    melde(db, "b", Array.from({ length: 5 }, (_, i) => h(`b${i}`)));
+
+    expect(kettenanker(db, c, h("b0"))).toEqual({ ok: true, anker: { block: 5, hash: h("b4") } });
+    expect(kettenanker(db, c, h("a0"))).toEqual({ ok: true, anker: { block: 10, hash: h("a9") } });
+    expect(kettenanker(db, c, h("f"))).toEqual({ ok: true, anker: null });
+  });
+
+  it("ein Rechner ohne Anker für Block 1 zählt zu keiner Kette", () => {
+    const db = testDb();
+    const echt = legeRechnerAn(db, { id: "echt1", art: "echt" });
+    db.insert(anker).values({ rechnerId: "echt1", block: 7, hash: H2, gemeldetAm: JETZT }).run();
+    expect(kettenanker(db, echt, H1)).toEqual({ ok: true, anker: null });
+  });
+
+  it("Test-Rechner sieht nur eigene Anker, nie die echten — und auch nur mit passendem Block 1", () => {
     const db = testDb();
     legeRechnerAn(db, { id: "echt1", art: "echt" });
-    db.insert(anker).values({ rechnerId: "echt1", block: 9, hash: H1, gemeldetAm: JETZT }).run();
+    melde(db, "echt1", [H1, H1]);
     const test = legeRechnerAn(db, { id: "probe", art: "test" });
-    expect(kettenanker(db, test)).toEqual({ ok: true, anker: null });
+    expect(kettenanker(db, test, H1)).toEqual({ ok: true, anker: null });
 
-    db.insert(anker).values({ rechnerId: "probe", block: 2, hash: H2, gemeldetAm: JETZT }).run();
-    expect(kettenanker(db, test)).toEqual({ ok: true, anker: { block: 2, hash: H2 } });
+    melde(db, "probe", [H1, H2]);
+    expect(kettenanker(db, test, H1)).toEqual({ ok: true, anker: { block: 2, hash: H2 } });
+    expect(kettenanker(db, test, H2)).toEqual({ ok: true, anker: null });
   });
 
-  it("gleicher höchster Block, verschiedene Hashes bei zwei echten Rechnern → mehrdeutig", () => {
+  it("gleicher höchster Block, verschiedene Hashes bei zwei echten Rechnern derselben Kette → mehrdeutig", () => {
     const db = testDb();
     const a = legeRechnerAn(db, { id: "a", art: "echt", widerrufenAm: JETZT });
     const b = legeRechnerAn(db, { id: "b", art: "echt" });
-    db.insert(anker).values({ rechnerId: "a", block: 4, hash: H1, gemeldetAm: JETZT }).run();
-    db.insert(anker).values({ rechnerId: "b", block: 4, hash: H2, gemeldetAm: JETZT }).run();
-    expect(kettenanker(db, a)).toEqual({ ok: false });
-    expect(kettenanker(db, b)).toEqual({ ok: false });
+    melde(db, "a", [H1, h("2"), h("3"), H1]);
+    melde(db, "b", [H1, h("2"), h("3"), H2]);
+    expect(kettenanker(db, a, H1)).toEqual({ ok: false });
+    expect(kettenanker(db, b, H1)).toEqual({ ok: false });
   });
 
   it("ohne Anker → null", () => {
     const db = testDb();
     const echt = legeRechnerAn(db, { id: "echt1", art: "echt" });
-    expect(kettenanker(db, echt)).toEqual({ ok: true, anker: null });
+    expect(kettenanker(db, echt, H1)).toEqual({ ok: true, anker: null });
   });
 });

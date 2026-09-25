@@ -231,7 +231,8 @@ struct Wiederherstellungsgrundlage {
 ///    samt `nummern` läuft in der Transaktion von `Buch::uebernehme_sicherung`.
 /// 3. Datei lesen (höchstens 256 MiB) und ohne Netz prüfen: Kette ab Block 1, gepinnte
 ///    `schluesselId`, nur `echt` (`wiederherstellung::pruefe_bloecke`).
-/// 4. `GET anker` mit dem Geräte-Token, dann die Ankerregel (`wiederherstellung::pruefe`).
+/// 4. `GET anker` mit dem Geräte-Token für die Kette dieser Sicherung (`erster` = Hash ihres
+///    Blocks 1, Entscheidung 5), dann die Ankerregel (`wiederherstellung::pruefe`).
 /// 5. Alle Blöcke mit der Sitzung freigeben lassen; eine 401 verwirft die Sitzung.
 /// 6. Jeden Block öffnen und die Nummern je Jahr zusammenfassen. Scheitert ein Block, bricht
 ///    alles ab. CEKs und Klartexte werden danach sofort verworfen, die CEKs (`Cek`, auf dem
@@ -261,8 +262,12 @@ pub fn stelle_wieder_her(z: &Zustand, datei: &Path) -> Result<Wiederhergestellt,
     let sicherung = kern_sicherung::lies(datei).map_err(|e| e.to_string())?;
     wiederherstellung::pruefe_bloecke(&sicherung.bloecke, &g.gepinnt).map_err(|e| e.to_string())?;
 
+    // `pruefe_bloecke` lehnt eine leere Kette schon ab; `first` statt Index, damit hier nie eine
+    // Panik entstehen kann.
+    let erster = sicherung.bloecke.first().map(|b| b.hash.as_str());
+    let erster = erster.ok_or_else(|| wiederherstellung::Wiederherstellungsfehler::Leer.to_string())?;
     let geraet = z.tresor.lies(konto_fuer(Betrieb::Echt))?.map(Zeroizing::new).ok_or(KEIN_GERAETETOKEN)?;
-    let anker = suite::hole_kettenanker(&*z.transport, &g.suite_url, &geraet).map_err(|e| match e {
+    let anker = suite::hole_kettenanker(&*z.transport, &g.suite_url, &geraet, erster).map_err(|e| match e {
         SuiteFehler::NichtErreichbar(_) => WIEDERHERSTELLEN_BRAUCHT_VERBINDUNG.to_string(),
         e => e.to_string(),
     })?;
@@ -789,6 +794,26 @@ mod tests {
 
         let v = versiegele_einen(&z);
         assert_eq!((v.block, v.nummer.as_str()), (4, "2026-004"), "Nummer und Kette laufen weiter");
+    }
+
+    /// Entscheidung 5 mit Kettenidentität: Die Suite kennt eine ältere, verlorene Kette bis Block
+    /// 10 (Rechner A ohne Sicherung) und die Kette dieser Sicherung bis Block 3. Gefragt wird nach
+    /// der Kette der Sicherung (`erster` = Hash ihres Blocks 1), also passt der Anker, und die
+    /// Anker der alten Kette stören nicht.
+    #[test]
+    fn wiederherstellen_fragt_nach_der_kette_der_sicherung_und_eine_fremde_kette_stoert_nicht() {
+        let (_o, _z, z, suite, datei, bloecke) = b_und_sicherung();
+        let erster = bloecke[0].hash.clone();
+        let eigene = suite_mit_anker(Some((3, bloecke[2].hash.clone())));
+        let fremde = suite_mit_anker(Some((10, "f".repeat(64))));
+        let gesucht = format!("erster={erster}");
+        suite.setze(move |a| if a.url.ends_with(&gesucht) { eigene(a) } else { fremde(a) });
+
+        assert_eq!(stelle_wieder_her(&z, &datei), Ok(Wiederhergestellt { bloecke: 3 }));
+        let anfrage = &suite.anfragen()[0];
+        assert_eq!(anfrage.pfad(), "/api/anker");
+        assert!(anfrage.url.ends_with(&format!("/m/einsatzbuch/api/anker?erster={erster}")), "{}", anfrage.url);
+        assert_eq!(lies_bloecke(&z).unwrap(), bloecke);
     }
 
     #[test]

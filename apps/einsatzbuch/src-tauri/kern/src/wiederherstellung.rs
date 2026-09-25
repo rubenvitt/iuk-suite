@@ -43,9 +43,10 @@ pub enum Wiederherstellungsfehler {
 /// Format und Version prüft schon `sicherung::lies`. In dieser Reihenfolge:
 /// 1. Die Blöcke selbst (`pruefe_bloecke`): nicht leer, Kette ab Block 1, gepinnter Schlüssel,
 ///    nur `echt`.
-/// 2. Der Anker der Suite (`suite::hole_kettenanker`) liegt vor (`KeinAnker`), zeigt auf Block 1
-///    oder höher (`UngueltigerAnker`), nicht über den letzten Block der Sicherung hinaus
-///    (`Veraltet`), und der Block dort trägt denselben Hash (`AnkerPasstNicht`).
+/// 2. Der Anker der Suite (`suite::hole_kettenanker`, erfragt für die Kette mit dem Block-1-Hash
+///    dieser Sicherung) liegt vor (`KeinAnker`), zeigt auf Block 1 oder höher
+///    (`UngueltigerAnker`), nicht über den letzten Block der Sicherung hinaus (`Veraltet`), und
+///    der Block dort trägt denselben Hash (`AnkerPasstNicht`).
 pub fn pruefe(datei: &Sicherungsdatei, gepinnt: &str, anker: Option<(u64, &str)>) -> Result<(), Wiederherstellungsfehler> {
     pruefe_bloecke(&datei.bloecke, gepinnt)?;
     let letzter = datei.bloecke.last().expect("pruefe_bloecke lehnt eine leere Kette schon mit `Leer` ab");
