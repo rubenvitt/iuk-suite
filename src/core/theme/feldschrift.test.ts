@@ -124,7 +124,7 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
 
   it("laesst die globale Schriftleiter unangetastet", () => {
     // Basis 16 verschoebe jede Ueberschrift und Tabellenzelle — verboten laut
-    // docs/design/README.md:110 ("antds eigene Leiter, keine dritte Skala").
+    // docs/design/README.md, Abschnitt "Typografie" ("eine dritte Skala im Produkt").
     for (const modus of ["light", "dark"] as const) {
       expect(buildTheme(modus).token?.fontSize).toBeUndefined();
     }
