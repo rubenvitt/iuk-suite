@@ -1,0 +1,35 @@
+[package]
+name = "einsatzbuch-kern"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# Bewusst OHNE `preserve_order` und `arbitrary_precision`. Die Kanonik sortiert trotzdem
+# selbst (jcs.rs) — sie hängt nicht davon ab, welche Map-Art ein anderes Crate einschaltet.
+serde_json = "1"
+thiserror = "2"
+# Kohärenter RustCrypto-Stand 2026 (`hybrid-array`). Kein `ring` — CI prüft das per
+# `cargo tree -i ring`, die Ausgabe muss „nichts gefunden“ melden.
+p256 = { version = "0.14", features = ["ecdh", "pkcs8"] }
+hkdf = "0.13"
+sha2 = "0.11"
+# `zeroize`: wischt die AES-Rundenschlüssel (CEK, KEK) und den GHASH-Zustand beim Drop —
+# ohne das Merkmal überlebt der Schlüsselplan im Speicher, auch wenn der Kern die Rohschlüssel
+# selbst per `zeroize` löscht.
+aes-gcm = { version = "0.11", features = ["zeroize"] }
+base64 = "0.23"
+getrandom = "0.4"
+zeroize = "1"
+# `bundled`: kompiliert SQLite mit, statt eine Systembibliothek vorauszusetzen — die Hülle
+# (Tauri) muss so auf keinem Entwickler- oder Baurechner eine passende `libsqlite3` finden.
+rusqlite = { version = "0.40", features = ["bundled"] }
+# Ohne Default-Features: nur Uhr (`clock`) und `std`, kein `wasmbind`/`serde`-Umbau, den der
+# Kern nicht braucht.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
+
+[dev-dependencies]
+tempfile = "3"

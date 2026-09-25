@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@kern/*": ["../../src/app/m/einsatzbuch/_lib/kern/*"],
+      "@/core/theme/tokens": ["../../src/core/theme/tokens.ts"]
+    }
+  },
+  "include": ["src", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+}

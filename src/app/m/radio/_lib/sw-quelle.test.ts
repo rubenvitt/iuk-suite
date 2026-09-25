@@ -12,7 +12,7 @@ import { RADIO_SW_ABRAEUM_QUELLE } from "./sw-quelle";
  *
  * ⛔ UND DIE PARAMETERFORM IST DER GRUND, WARUM NODE 26 HIER NICHTS VERDECKT: `self` und
  * `caches` sind PARAMETER und verdecken jedes gleichnamige Global. Node bringt eigene
- * Web-Globals mit (`vitest.config.ts:54-87` beschreibt denselben Mechanismus fuer
+ * Web-Globals mit (`vitest.config.ts`, Option `execArgv` beschreibt denselben Mechanismus fuer
  * `localStorage`); ein Test, der sich auf ihre Abwesenheit verliesse, waere rennabhaengig.
  *
  * ⛔ `waitUntil` WIRD GEDRAINT, BEVOR IRGENDETWAS GEPRUEFT WIRD. Der `activate`-Handler

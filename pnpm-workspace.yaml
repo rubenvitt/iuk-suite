@@ -1,3 +1,8 @@
+# Die Desktop-App des Einsatzbuchs ist ein eigenes Workspace-Mitglied (Spec §2.2); die Suite
+# bleibt das Root-Paket. `apps` fehlt im Docker-Kontext (`.dockerignore`) — wie die deps-Stage
+# damit umgeht, hält `src/docker-kontext.test.ts` fest.
+packages:
+  - "apps/*"
 allowBuilds:
   better-sqlite3: true
   esbuild: true

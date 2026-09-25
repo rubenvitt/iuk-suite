@@ -37,8 +37,8 @@ const WURZEL = resolve(__dirname, "..");
  * Bewusst eine DENYLISTE und keine Allowlist der Textendungen: eine Allowlist
  * ist an dem Tag still lückenhaft, an dem eine neue Textendung dazukommt —
  * und dieser Wächter existiert gerade gegen stille Lücken. Hier steht also,
- * was echt binär ist; alles andere wird gelesen. Die Bildformate stehen so
- * auch in `.gitattributes` (`filter=lfs`, `-text`).
+ * was echt binär ist; alles andere wird gelesen. `.webp`, `.jpg`, `.jpeg` und `.png` stehen
+ * so auch in `.gitattributes` (`filter=lfs`, `-text`), `.ico` und `.icns` liegen ohne LFS.
  */
 export const ECHT_BINAER = [
   ".webp",
@@ -47,6 +47,8 @@ export const ECHT_BINAER = [
   ".png",
   ".gif",
   ".ico",
+  // Das macOS-Icon der Desktop-App (`apps/einsatzbuch/src-tauri/icons/icon.icns`).
+  ".icns",
   ".ttf",
   ".woff",
   ".woff2",
@@ -116,6 +118,7 @@ describe("Nullbyte-Wächter: die Prüfung selbst", () => {
   it("nimmt echte Binärdateien aus, aber keine Quell- oder Textdatei", () => {
     expect(istZuPruefen("src/app/fonts/Arimo[wght].ttf")).toBe(false);
     expect(istZuPruefen("public/login-bg.JPG")).toBe(false);
+    expect(istZuPruefen("apps/einsatzbuch/src-tauri/icons/icon.icns")).toBe(false);
     expect(istZuPruefen("scripts/import/uav.ts")).toBe(true);
     expect(istZuPruefen("docs/design/README.md")).toBe(true);
   });

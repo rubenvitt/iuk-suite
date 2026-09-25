@@ -16,6 +16,14 @@ import nextTypescript from "eslint-config-next/typescript";
  * gebündelte `support.js` der Einsatzbuch-Vorlage). Sie sind Referenz, kein
  * Suite-Code, und bleiben unverändert — ESLint-Regeln für Next-Module passen
  * nicht auf sie.
+ *
+ * `apps/**`: Die Desktop-App des Einsatzbuchs (Workspace-Mitglied `apps/einsatzbuch`)
+ * hat eine eigene Lint-Konfiguration (`apps/einsatzbuch/eslint.config.js`); die
+ * Next-Regeln hier passen dort nicht.
  */
-const eslintConfig = [{ ignores: [".claude/**", "docs/design/**/vorlage/**"] }, ...nextCoreWebVitals, ...nextTypescript];
+const eslintConfig = [
+  { ignores: [".claude/**", "docs/design/**/vorlage/**", "apps/**"] },
+  ...nextCoreWebVitals,
+  ...nextTypescript,
+];
 export default eslintConfig;

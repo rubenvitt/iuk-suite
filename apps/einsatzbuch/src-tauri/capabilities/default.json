@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Das Hauptfenster des Einsatzbuchs. Die App-Befehle aus generate_handler! brauchen ohne App-Manifest in build.rs keinen Eintrag; hier stehen nur die Kern- und Dialog-Rechte der Oberfläche.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-ask"]
+}

@@ -8,6 +8,9 @@ playwright-report
 docs
 e2e
 .claude
+# Die Desktop-App des Einsatzbuchs (Workspace-Mitglied `apps/einsatzbuch`) gehört
+# nicht ins Suite-Image, und ihr `src-tauri/target` wäre allein schon Gigabytes groß.
+apps
 # Die Playwright-Konfigurationen gehoeren nicht ins Image — und sie DUERFEN hier
 # nicht fehlen: `tsconfig.json` zieht mit `**/*.ts` jede Datei im Kontext in den
 # Typecheck von `next build`, und `playwright.config.ts` importiert aus dem hier

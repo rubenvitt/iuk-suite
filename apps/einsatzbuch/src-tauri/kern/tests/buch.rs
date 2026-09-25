@@ -1,0 +1,246 @@
+//! Lokale Datenbank (Spec §4.2): Anlage, WAL/`synchronous`, Unveränderlichkeit von `bloecke`,
+//! Betriebsart aus der Datei und Einrichtung samt Testbetrieb-Ende.
+mod hilfe;
+
+use einsatzbuch_kern::buch::{BuchFehler, Betrieb, Buch, beende_testbetrieb, erkenne_betrieb, hat_echte_einrichtung};
+use einsatzbuch_kern::format::Umgebung;
+
+#[test]
+fn legt_an_wal_und_synchronous_full() {
+    let ordner = tempfile::tempdir().unwrap();
+    let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    let c = buch.verbindung();
+    assert_eq!(c.query_row("PRAGMA journal_mode", [], |r| r.get::<_, String>(0)).unwrap(), "wal");
+    assert_eq!(c.query_row("PRAGMA synchronous", [], |r| r.get::<_, i64>(0)).unwrap(), 2); // FULL
+    assert!(ordner.path().join("einsatzbuch.db").exists());
+}
+
+#[test]
+fn trigger_verbieten_update_und_delete_nur_auf_bloecke() {
+    let ordner = tempfile::tempdir().unwrap();
+    let buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    let c = buch.verbindung();
+    c.execute("INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (1, '{}', ?1, 'x')", [&"a".repeat(64)]).unwrap();
+    let upd = c.execute("UPDATE bloecke SET json = '[]' WHERE block = 1", []).unwrap_err().to_string();
+    assert!(upd.contains("unveränderlich"), "{upd}");
+    let del = c.execute("DELETE FROM bloecke WHERE block = 1", []).unwrap_err().to_string();
+    assert!(del.contains("unveränderlich"), "{del}");
+    // Die übrigen Tabellen sind normal änderbar.
+    c.execute("INSERT INTO entwurf (id, json, geaendert_am) VALUES (1, '{}', 'x')", []).unwrap();
+    c.execute("UPDATE entwurf SET json = '[]'", []).unwrap();
+    c.execute("DELETE FROM entwurf", []).unwrap();
+    c.execute("INSERT INTO nummern (jahr, letzte) VALUES (2026, 1)", []).unwrap();
+    c.execute("UPDATE nummern SET letzte = 2", []).unwrap();
+}
+
+#[test]
+fn betriebsart_aus_der_datei_test_vor_echt() {
+    let ordner = tempfile::tempdir().unwrap();
+    assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), None);
+    drop(Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap());
+    assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), Some(Betrieb::Echt));
+    drop(Buch::oeffne(ordner.path(), Betrieb::Test).unwrap());
+    assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), Some(Betrieb::Test));
+}
+
+#[test]
+fn einrichtung_nur_mit_passender_umgebung_und_schluessel_id() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut test = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    assert!(matches!(
+        test.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt)),
+        Err(BuchFehler::FalscheUmgebung { .. })
+    ));
+    let mut falsch = hilfe::test_einrichtung(Umgebung::Test);
+    falsch.schluessel_id = "0000000000000000".into();
+    assert!(matches!(test.richte_ein(&falsch), Err(BuchFehler::SchluesselIdPasstNicht)));
+    test.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    assert!(matches!(
+        test.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)),
+        Err(BuchFehler::SchonEingerichtet)
+    ));
+    assert_eq!(test.einrichtung().unwrap().unwrap().paket.zeitzone, "Europe/Berlin");
+}
+
+#[test]
+fn testbetrieb_beenden_loescht_datei_samt_wal_und_shm_auch_bei_offener_verbindung() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    assert!(ordner.path().join("einsatzbuch-test.db-wal").exists());
+    beende_testbetrieb(ordner.path(), buch).unwrap();
+    for f in ["einsatzbuch-test.db", "einsatzbuch-test.db-wal", "einsatzbuch-test.db-shm"] {
+        assert!(!ordner.path().join(f).exists(), "{f} liegt noch da");
+    }
+    assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), None);
+}
+
+#[test]
+fn testbetrieb_beenden_verweigert_ein_echtes_buch() {
+    let ordner = tempfile::tempdir().unwrap();
+    let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    assert!(matches!(beende_testbetrieb(ordner.path(), buch), Err(BuchFehler::NichtImTestbetrieb)));
+    assert!(ordner.path().join("einsatzbuch.db").exists());
+}
+
+/// Dasselbe Verzeichnis ein zweites Mal geöffnet muss `user_version` unverändert lassen
+/// (kein erneutes `richte_schema_ein`, keine zweite Migration) und die schon geschriebene
+/// Einrichtung unangetastet zurückgeben.
+#[test]
+fn erneutes_oeffnen_derselben_datei_behaelt_schemaversion_und_einrichtung() {
+    let ordner = tempfile::tempdir().unwrap();
+    {
+        let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+        buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    }
+    let buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+    assert_eq!(version, 1);
+    let einrichtung = buch.einrichtung().unwrap();
+    assert!(einrichtung.is_some());
+    assert_eq!(einrichtung.unwrap().paket.zeitzone, "Europe/Berlin");
+}
+
+/// Eine höhere, diesem Rechner unbekannte Schemaversion darf nicht kommentarlos weiterlaufen
+/// — dieser Rechner kennt kein Rückwärtsschema und muss das Öffnen verweigern.
+#[test]
+fn unbekannte_hoehere_schemaversion_wird_beim_oeffnen_verweigert() {
+    let ordner = tempfile::tempdir().unwrap();
+    drop(Buch::oeffne(ordner.path(), Betrieb::Test).unwrap());
+    {
+        let conn = rusqlite::Connection::open(ordner.path().join(Betrieb::Test.datei())).unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+    }
+    assert!(matches!(
+        Buch::oeffne(ordner.path(), Betrieb::Test),
+        Err(BuchFehler::UnbekannteSchemaversion { gefunden: 2, bekannt: 1 })
+    ));
+}
+
+/// `frist_minuten` außerhalb von 1..=120 ist keine sinnvolle Frist und muss `richte_ein`
+/// scheitern lassen — sowohl an der unteren als auch an der oberen Grenze.
+#[test]
+fn frist_ausserhalb_von_1_bis_120_wird_abgelehnt() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    for frist in [0u32, 121u32] {
+        let mut e = hilfe::test_einrichtung(Umgebung::Test);
+        e.paket.frist_minuten = frist;
+        // Beide Fälle scheitern schon an der Feldregel, bevor irgendetwas geschrieben wird —
+        // dieselbe Verbindung kann also für beide Grenzwerte wiederverwendet werden.
+        assert!(matches!(buch.richte_ein(&e), Err(BuchFehler::FristAusserBereich(f)) if f == frist));
+    }
+}
+
+/// Eine Zeitzone, die `chrono_tz` nicht kennt, ist keine gültige IANA-Zeitzone und muss
+/// `richte_ein` ebenso scheitern lassen wie eine Frist außerhalb des erlaubten Bereichs.
+#[test]
+fn ungueltige_zeitzone_wird_abgelehnt() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    let mut e = hilfe::test_einrichtung(Umgebung::Test);
+    e.paket.zeitzone = "Nirgendwo/Erfunden".into();
+    assert!(matches!(buch.richte_ein(&e), Err(BuchFehler::UngueltigeZeitzone(_))));
+}
+
+/// `uebernehme_stammdaten` ist die Naht für einen späteren Stammdatenabgleich — ohne
+/// vorherige Einrichtung gibt es aber keine Zeile, die sie aktualisieren könnte.
+#[test]
+fn stammdatenabgleich_ohne_einrichtung_scheitert() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    let paket = hilfe::test_einrichtung(Umgebung::Test).paket;
+    assert!(matches!(buch.uebernehme_stammdaten(&paket), Err(BuchFehler::NichtEingerichtet)));
+}
+
+/// Die Frage „gibt es hier schon eine echte Einrichtung?“ darf die Antwort nicht selbst
+/// verändern: Auf einem frischen Ordner legt sie keine `einsatzbuch.db` an — sonst meldete
+/// `erkenne_betrieb` danach `Echt` statt „nicht eingerichtet“ (Spec §12).
+#[test]
+fn echte_einrichtung_pruefen_legt_auf_frischem_ordner_keine_datei_an() {
+    let ordner = tempfile::tempdir().unwrap();
+    assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
+    assert_eq!(std::fs::read_dir(ordner.path()).unwrap().count(), 0, "der Ordner muss leer bleiben");
+    assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), None);
+}
+
+/// Eine `einsatzbuch.db` ohne Zeile in `einrichtung` ist keine echte Einrichtung; mit Zeile
+/// schon — auch solange das echte Buch noch offen ist und die Zeile nur in der WAL steht.
+#[test]
+fn echte_einrichtung_zaehlt_erst_mit_zeile_in_einrichtung() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt)).unwrap();
+    assert!(hat_echte_einrichtung(ordner.path()).unwrap());
+    drop(buch);
+    assert!(hat_echte_einrichtung(ordner.path()).unwrap());
+}
+
+/// Eine leere Datei (ohne Schema, `user_version = 0`) meldet `false`, statt an der fehlenden
+/// Tabelle zu scheitern — und wird dabei nicht migriert.
+#[test]
+fn echte_einrichtung_auf_leerer_datei_ist_false_ohne_migration() {
+    let ordner = tempfile::tempdir().unwrap();
+    std::fs::write(ordner.path().join("einsatzbuch.db"), b"").unwrap();
+    assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
+    assert_eq!(std::fs::metadata(ordner.path().join("einsatzbuch.db")).unwrap().len(), 0);
+}
+
+#[test]
+fn stammdaten_ueber_den_grenzen_des_readers_werden_abgelehnt() {
+    // An der Grenze (UTF-16: 60 × „😀“ = 120 Einheiten) geht es noch.
+    let mut an_der_grenze = hilfe::test_einrichtung(Umgebung::Test);
+    an_der_grenze.paket.stammdaten.fahrzeuge[0].ruf = "😀".repeat(60);
+    an_der_grenze.paket.stammdaten.stichworte[0].items.push("ä".repeat(80));
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&an_der_grenze).unwrap();
+
+    // Einrichten: ein Funkrufname eine Einheit zu lang.
+    let mut zu_lang = hilfe::test_einrichtung(Umgebung::Test);
+    zu_lang.paket.stammdaten.fahrzeuge[0].ruf = format!("{}a", "😀".repeat(60));
+    let ordner2 = tempfile::tempdir().unwrap();
+    let mut buch2 = Buch::oeffne(ordner2.path(), Betrieb::Test).unwrap();
+    let fehler = buch2.richte_ein(&zu_lang).unwrap_err();
+    assert!(
+        matches!(&fehler, BuchFehler::StammdatenZuLang { feld: "Funkrufname", eintrag, laenge: 121, hoechstens: 120 } if eintrag == "11-83-1"),
+        "{fehler:?}"
+    );
+    assert_eq!(fehler.to_string(), "Stammdaten zu lang: Funkrufname bei „11-83-1“ hat 121 Zeichen, erlaubt sind höchstens 120");
+    assert!(buch2.einrichtung().unwrap().is_none(), "nichts eingerichtet");
+
+    // Übernehmen: jedes Schnappschussfeld und jedes Stichwort einzeln.
+    type Setze = fn(&mut einsatzbuch_kern::einrichtung::Stammdaten);
+    let faelle: [(&str, usize, Setze); 10] = [
+        ("Fahrzeug-ID", 80, |s| s.fahrzeuge[0].id = "x".repeat(81)),
+        ("Fahrzeugtyp", 40, |s| s.fahrzeuge[0].typ = "x".repeat(41)),
+        ("Kennung", 40, |s| s.fahrzeuge[0].kennung = "x".repeat(41)),
+        ("Funkrufname", 120, |s| s.fahrzeuge[0].ruf = "x".repeat(121)),
+        ("Standort", 80, |s| s.fahrzeuge[0].standort = "x".repeat(81)),
+        ("Personen-ID", 80, |s| s.personal[0].id = "x".repeat(81)),
+        ("Name", 120, |s| s.personal[0].name = "x".repeat(121)),
+        ("Qualifikation", 40, |s| s.personal[0].quali = "x".repeat(41)),
+        ("Ortsverein", 80, |s| s.personal[0].ov = "x".repeat(81)),
+        ("Alarmstichwort", 80, |s| s.stichworte[1].items[0] = "x".repeat(81)),
+    ];
+    for (feld, grenze, setze) in faelle {
+        let mut paket = an_der_grenze.paket.clone();
+        setze(&mut paket.stammdaten);
+        let fehler = buch.uebernehme_stammdaten(&paket).unwrap_err();
+        assert!(
+            matches!(&fehler, BuchFehler::StammdatenZuLang { feld: f, hoechstens, .. } if *f == feld && *hoechstens == grenze),
+            "{feld}: {fehler:?}"
+        );
+    }
+    // Abgelehnt heißt: Die gespeicherten Stammdaten bleiben unverändert.
+    assert_eq!(buch.einrichtung().unwrap().unwrap().paket, an_der_grenze.paket);
+}
+
+#[test]
+fn stammdaten_der_entwickler_einrichtung_halten_die_grenzen_ein() {
+    let json = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/entwicklung/stammdaten.json")).unwrap();
+    let mut einrichtung = hilfe::test_einrichtung(Umgebung::Test);
+    einrichtung.paket.stammdaten = serde_json::from_str(&json).unwrap();
+    einsatzbuch_kern::grenzen::pruefe_stammdaten(&einrichtung.paket).unwrap();
+}
