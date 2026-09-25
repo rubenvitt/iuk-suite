@@ -570,6 +570,15 @@ impl Buch {
         }
     }
 
+    /// Hash des Blocks mit dieser Nummer, `None`, wenn es ihn (noch) nicht gibt — für den
+    /// Ankerstand, der zum bestätigten Block auch dessen Hash zeigt.
+    pub fn hash_von(&self, block: u64) -> Result<Option<String>, BuchFehler> {
+        Ok(self
+            .conn
+            .query_row("SELECT hash FROM bloecke WHERE block = ?1", params![block as i64], |r| r.get(0))
+            .optional()?)
+    }
+
     /// Alle versiegelten Blöcke, aufsteigend nach Blocknummer.
     pub fn bloecke(&self) -> Result<Vec<Block>, BuchFehler> {
         let mut anweisung = self.conn.prepare("SELECT json FROM bloecke ORDER BY block ASC")?;
@@ -642,6 +651,12 @@ pub fn beende_testbetrieb(ordner: &Path, buch: Buch) -> Result<(), BuchFehler> {
     // wenn die Aufruferin (die Hülle) denselben Ordner übergibt, mit dem sie das Buch geöffnet
     // hat. Nur eine Entwicklerprüfung, kein Nutzerfehlerfall.
     debug_assert_eq!(ordner.join(buch.betrieb.datei()), buch.pfad, "ordner passt nicht zum geöffneten Buch");
+    schliesse_und_loesche(buch)
+}
+
+/// Checkpoint, Schließen, Löschen samt `-wal`/`-shm` — der gemeinsame Teil von
+/// `beende_testbetrieb` und `verwirf_unfertiges_buch`.
+fn schliesse_und_loesche(buch: Buch) -> Result<(), BuchFehler> {
     let pfad = buch.pfad.clone();
 
     let (busy, _log, _checkpointed): (i64, i64, i64) = buch
@@ -658,6 +673,19 @@ pub fn beende_testbetrieb(ordner: &Path, buch: Buch) -> Result<(), BuchFehler> {
     loesche_falls_vorhanden(&mit_dateizusatz(&pfad, "-wal"))?;
     loesche_falls_vorhanden(&mit_dateizusatz(&pfad, "-shm"))?;
     Ok(())
+}
+
+/// Verwirft ein Buch, dessen Einrichtung gescheitert ist (Review Focus 3): Die Hülle legt die
+/// Datei erst nach der Antwort von `einrichten` an; scheitert danach `richte_ein` oder der
+/// Tresor, darf keine halbe Datei liegen bleiben, sonst erschiene die Einrichtungsfrage nicht
+/// wieder. Anders als `beende_testbetrieb` gilt das auch im Echtbetrieb — aber nur, solange
+/// keine Einrichtung geschrieben ist: Ohne Einrichtung gibt es auch keinen Block, ein echtes
+/// Einsatzbuch löscht dieser Weg also nie.
+pub fn verwirf_unfertiges_buch(buch: Buch) -> Result<(), BuchFehler> {
+    if buch.einrichtung()?.is_some() {
+        return Err(BuchFehler::SchonEingerichtet);
+    }
+    schliesse_und_loesche(buch)
 }
 
 /// Ob im Ordner schon eine **echte** Einrichtung liegt, also `einsatzbuch.db` mit einer Zeile

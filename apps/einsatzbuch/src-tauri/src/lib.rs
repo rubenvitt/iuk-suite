@@ -1,15 +1,20 @@
-//! Die Tauri-Hülle des Einsatzbuchs: Plugins, Zustand, Frist-Uhr und Fenster. Die Fachlogik
-//! steht im Crate `einsatzbuch-kern` (`kern/`), die Befehle der Oberfläche in `befehle.rs`.
+//! Die Tauri-Hülle des Einsatzbuchs: Plugins, Zustand, Frist-Uhr, Abgleich-Thread und Fenster.
+//! Die Fachlogik steht im Crate `einsatzbuch-kern` (`kern/`), die Befehle der Oberfläche in
+//! `befehle.rs`; HTTP zur Suite in `netz.rs`, der Schlüsselbund in `schluesselbund.rs`.
 //!
 //! Reihenfolge beim Start (Spec §4.1, §4.3):
 //! 1. Einzelinstanz als erstes Plugin, damit ein zweiter Start sofort beim ersten landet.
 //! 2. `setup`: Buch öffnen, **eine überfällige Frist versiegeln**, Zustand ablegen, Frist-Uhr
-//!    starten, und erst dann das Fenster bauen (`Zustand::beim_start`). Es steht deshalb in `tauri.conf.json` mit
+//!    und Abgleich-Thread starten, und erst dann das Fenster bauen (`Zustand::beim_start`). Es steht deshalb in `tauri.conf.json` mit
 //!    `"create": false`: Die Oberfläche sieht einen überfälligen Einsatz nie als ausstehend.
+pub mod abgleich;
 pub mod befehle;
+pub mod netz;
+pub mod schluesselbund;
 pub mod zustand;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::mpsc;
 use std::time::Duration;
 
 use einsatzbuch_kern::anmeldung::{self, Ziel};
@@ -17,14 +22,14 @@ use einsatzbuch_kern::uhr::SystemUhr;
 use tauri::{AppHandle, Manager, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::zustand::Zustand;
+use crate::netz::NetzTransport;
+use crate::zustand::{Anbindungsteile, Zustand};
 
 /// Takt der Frist-Uhr (Spec §4.3: Prüfung beim Start und alle 15 Sekunden).
 const FRIST_TAKT: Duration = Duration::from_secs(15);
 
 /// Öffnet die Anmelde-URL im Systembrowser oder schreibt sie, nur in Debug-Builds mit
 /// `EINSATZBUCH_ANMELDUNG_STDOUT=1`, als eine Zeile auf stdout (`anmeldung::ziel`).
-#[allow(dead_code)] // verdrahtet in Stufe 5
 pub fn oeffne_anmelde_url(app: &AppHandle, url: &str) -> Result<(), String> {
     let schalter = std::env::var(anmeldung::STDOUT_SCHALTER).ok();
     match anmeldung::ziel(url, schalter.as_deref()) {
@@ -36,6 +41,16 @@ pub fn oeffne_anmelde_url(app: &AppHandle, url: &str) -> Result<(), String> {
             .opener()
             .open_url(url, None::<&str>)
             .map_err(|e| format!("Der Browser ließ sich nicht öffnen: {e}")),
+    }
+}
+
+/// Holt das Hauptfenster nach vorn — nach der Anmeldung im Browser steht sonst der Browser
+/// vor der App.
+pub fn hole_fokus(app: &AppHandle) {
+    if let Some(fenster) = app.get_webview_window("main") {
+        let _ = fenster.unminimize();
+        let _ = fenster.show();
+        let _ = fenster.set_focus();
     }
 }
 
@@ -61,10 +76,14 @@ fn richte_ein(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Scheitert das Öffnen der Datenbank, steht der Fehler im Zustand und erreicht die
     // Oberfläche; der Start geht weiter, damit es ein Fenster gibt, das ihn zeigt.
     let ordner = app.path().app_data_dir()?;
-    let zustand = Zustand::beim_start(ordner, Box::new(SystemUhr));
+    let teile = Anbindungsteile { transport: Box::new(NetzTransport::neu()), tresor: schluesselbund::system_tresor() };
+    let zustand = Zustand::beim_start(ordner, Box::new(SystemUhr), teile);
+    let (signal, empfaenger) = mpsc::channel();
+    *zustand.abgleich() = Some(signal);
 
     app.manage(zustand);
     starte_frist_uhr(app.handle().clone())?;
+    abgleich::starte(app.handle().clone(), empfaenger)?;
 
     let fenster = app
         .config()
@@ -93,6 +112,15 @@ pub fn run() {
         befehle::frist_pruefen,
         befehle::versiegelung_quittieren,
         befehle::testbetrieb_beenden,
+        befehle::einrichten,
+        befehle::anmelden,
+        befehle::neu_einrichten,
+        befehle::anmeldung_abbrechen,
+        befehle::abmelden,
+        befehle::bloecke,
+        befehle::schluessel_freigeben,
+        befehle::anker_abgleichen,
+        befehle::stammdaten_abgleichen,
         befehle::autostart_status,
         befehle::autostart_setzen,
         befehle::entwicklung_einrichten,
@@ -108,18 +136,21 @@ pub fn run() {
         befehle::frist_pruefen,
         befehle::versiegelung_quittieren,
         befehle::testbetrieb_beenden,
+        befehle::einrichten,
+        befehle::anmelden,
+        befehle::neu_einrichten,
+        befehle::anmeldung_abbrechen,
+        befehle::abmelden,
+        befehle::bloecke,
+        befehle::schluessel_freigeben,
+        befehle::anker_abgleichen,
+        befehle::stammdaten_abgleichen,
         befehle::autostart_status,
         befehle::autostart_setzen,
     ];
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argumente, _ordner| {
-            if let Some(fenster) = app.get_webview_window("main") {
-                let _ = fenster.unminimize();
-                let _ = fenster.show();
-                let _ = fenster.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(|app, _argumente, _ordner| hole_fokus(app)))
         // Nur registriert, nicht eingeschaltet: Das geschieht bei der echten Einrichtung, nie
         // im Testbetrieb und nie in Debug-Builds (sonst trüge jeder Entwicklerlauf die App in
         // den Autostart des Entwicklerrechners ein).

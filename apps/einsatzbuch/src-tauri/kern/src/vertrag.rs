@@ -4,13 +4,19 @@
 //! `deny_unknown_fields` wie `.strict()` in zod: Ein Feld, das nur eine Seite kennt, fällt hier wie
 //! dort auf, statt still verloren zu gehen. Kein `#[serde(flatten)]` — das hebelt
 //! `deny_unknown_fields` aus.
+//!
+//! Typen mit einem Geheimnis (Code, Verifier, Sitzungs- und Geräte-Token, CEK) leiten `Debug`
+//! nicht ab, sondern schwärzen es (`suite::GESCHWAERZT`): Ein `{:?}` im Log darf nichts preisgeben.
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 use crate::einrichtung::{Einrichtung, Stammdatenpaket};
 use crate::format::{Blockkopf, Umgebung, Umschlag};
+use crate::suite::GESCHWAERZT;
 
 /// Anfrage an `POST /api/anmelden/tausch`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TauschAnfrage {
     pub code: String,
@@ -20,7 +26,7 @@ pub struct TauschAnfrage {
 /// Antwort von `POST /api/anmelden/tausch`. `rechner_id` und `einrichtung` sind im Vertrag
 /// Pflichtfelder, die `null` sein dürfen — sie werden deshalb als `null` geschrieben, nie
 /// weggelassen.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TauschAntwort {
     pub sitzungstoken: String,
@@ -48,7 +54,7 @@ pub struct EinrichtenAnfrage {
 }
 
 /// Antwort von `POST /api/einrichten`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EinrichtenAntwort {
     pub rechner_id: String,
@@ -98,7 +104,7 @@ pub struct Freigabeposten {
 
 /// Ein Eintrag der Antwort von `POST /api/schluessel/freigeben` (nacktes Array): der
 /// Inhaltsschlüssel eines Blocks in Base64.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Schluesselposten {
     pub block: u64,
@@ -130,4 +136,44 @@ pub struct Fehlerkoerper {
 pub struct FehlerInhalt {
     pub code: String,
     pub message: String,
+}
+
+impl fmt::Debug for TauschAnfrage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TauschAnfrage").field("code", &GESCHWAERZT).field("verifier", &GESCHWAERZT).finish()
+    }
+}
+
+impl fmt::Debug for TauschAntwort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TauschAntwort")
+            .field("sitzungstoken", &GESCHWAERZT)
+            .field("name", &self.name)
+            .field("ablauf", &self.ablauf)
+            .field("rechner_id", &self.rechner_id)
+            .field("einrichtung", &self.einrichtung)
+            .finish()
+    }
+}
+
+impl fmt::Debug for EinrichtenAntwort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EinrichtenAntwort")
+            .field("rechner_id", &self.rechner_id)
+            .field("art", &self.art)
+            .field("name", &self.name)
+            .field("geraete_token", &GESCHWAERZT)
+            .field("oeffentlich_spki", &self.oeffentlich_spki)
+            .field("schluessel_id", &self.schluessel_id)
+            .field("paket", &self.paket)
+            .field("eingerichtet_am", &self.eingerichtet_am)
+            .field("eingerichtet_von", &self.eingerichtet_von)
+            .finish()
+    }
+}
+
+impl fmt::Debug for Schluesselposten {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Schluesselposten").field("block", &self.block).field("cek", &GESCHWAERZT).finish()
+    }
 }

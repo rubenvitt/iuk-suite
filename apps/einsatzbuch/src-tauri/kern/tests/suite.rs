@@ -501,3 +501,103 @@ fn anker_mit_unerwartetem_status_ist_ein_fehler_und_haelt_den_stand() {
     assert!(matches!(ergebnis, Err(ref m) if m.contains("kaputt")), "{ergebnis:?}");
     assert_eq!(anbindung(&buch).anker_gemeldet_bis, 0);
 }
+
+// ---------------------------------------------------------------------------------------------
+// 5xx eines Proxys ist Offline (Nachtrag aus dem Review von Task 7)
+// ---------------------------------------------------------------------------------------------
+
+/// Ein vorgeschalteter Proxy antwortet mit 502/503/504, solange die Suite nicht läuft. Für den
+/// Anker- und den Stammdatenabgleich heißt das „nicht erreichbar“, nicht „Fehler“: Der nächste
+/// Lauf meldet nach, der Stand bleibt.
+#[test]
+fn anker_mit_5xx_ist_offline_und_haelt_den_stand() {
+    for status in [500, 502, 503, 504] {
+        let ordner = tempfile::tempdir().unwrap();
+        let buch = geteiltes_buch(ordner.path(), 2);
+        let t = FakeTransport::neu(move |_| antwort(status, "<html>Bad Gateway</html>")).mit_buch(&buch);
+        assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Offline, "HTTP {status}");
+        let stand = anbindung(&buch);
+        assert_eq!(stand.anker_gemeldet_bis, 0);
+        assert!(!stand.widerrufen);
+        assert_eq!(gemeldete_bloecke(&t), [1], "nach dem ersten 5xx geht keine weitere Anfrage");
+    }
+}
+
+#[test]
+fn stammdaten_mit_5xx_sind_nicht_erreichbar() {
+    for status in [502, 503, 504] {
+        let t = FakeTransport::neu(move |_| antwort(status, "<html>Service Unavailable</html>"));
+        let ergebnis = suite::hole_stammdaten(&t, SUITE, "geraet", Some(ETAG));
+        assert!(matches!(ergebnis, Err(SuiteFehler::NichtErreichbar(ref m)) if m.contains(&status.to_string())), "{ergebnis:?}");
+    }
+    // Auch ein 503 mit lesbarem Fehlerkörper der Suite ist für den Abgleich nur „nicht erreichbar“.
+    let t = FakeTransport::neu(|_| fehler(503, "wartung", "Die Suite wird gewartet."));
+    assert!(matches!(suite::hole_stammdaten(&t, SUITE, "geraet", None), Err(SuiteFehler::NichtErreichbar(_))));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Wettlauf gegen „Neu einrichten“ (Nachtrag aus dem Review von Task 7)
+// ---------------------------------------------------------------------------------------------
+
+/// Schreibt mitten in der Anfrage — der Lock ist dann frei — eine Neu-Einrichtung mit neuer
+/// Rechnerkennung ins Buch, so wie `richte_neu_ein` der Hülle es zwischen zwei Ankeranfragen
+/// tun kann.
+fn richte_waehrend_der_anfrage_neu_ein(buch: &Mutex<Option<Buch>>) {
+    let mut wache = buch.lock().unwrap();
+    let offen = wache.as_mut().unwrap();
+    offen.richte_neu_ein(&hilfe::test_einrichtung(Umgebung::Echt), "r2", "Neuer Rechner").unwrap();
+}
+
+/// Eine späte Antwort an den alten Rechner darf den Stand des neuen nicht verändern: weder eine
+/// Bestätigung noch einen Widerruf noch eine Abweichung.
+#[test]
+fn spaete_antwort_nach_neu_einrichten_wird_verworfen() {
+    let faelle: [(u16, String); 3] = [
+        (204, String::new()),
+        (401, json!({ "error": { "code": "geraet_ungueltig", "message": "m" } }).to_string()),
+        (409, json!({ "error": { "code": "anker_abweichung", "message": "m" }, "erwartet": "e".repeat(64) }).to_string()),
+    ];
+    for (status, koerper) in faelle {
+        let ordner = tempfile::tempdir().unwrap();
+        let buch = geteiltes_buch(ordner.path(), 2);
+        let im_skript = buch.clone();
+        let t = FakeTransport::neu(move |_| {
+            richte_waehrend_der_anfrage_neu_ein(&im_skript);
+            antwort(status, &koerper)
+        })
+        .mit_buch(&buch);
+
+        assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Ueberholt, "HTTP {status}");
+        let stand = anbindung(&buch);
+        assert_eq!(stand.rechner_id, "r2");
+        assert_eq!(stand.anker_gemeldet_bis, 0, "HTTP {status}: keine Bestätigung für den neuen Rechner");
+        assert!(!stand.widerrufen, "HTTP {status}: kein Widerruf des neuen Rechners");
+        assert_eq!(stand.anker_abweichung, None, "HTTP {status}: keine Abweichung am neuen Rechner");
+        assert_eq!(gemeldete_bloecke(&t), [1], "HTTP {status}: nach dem Wechsel geht nichts mehr hinaus");
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Keine Geheimnisse im Debug-Text (Nachtrag aus dem Review von Task 7)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn anfrage_und_antwort_schwaerzen_token_und_koerper_im_debug() {
+    let anfrage = Anfrage {
+        methode: "POST",
+        url: "https://suite.example/m/einsatzbuch/api/anmelden/tausch".into(),
+        bearer: Some("GEHEIMES-GERAETETOKEN"),
+        if_none_match: Some("\"7/Europe/Berlin\""),
+        json: Some(r#"{"code":"GEHEIMER-CODE","verifier":"GEHEIMER-VERIFIER"}"#.into()),
+    };
+    let text = format!("{anfrage:?}");
+    for geheim in ["GEHEIMES-GERAETETOKEN", "GEHEIMER-CODE", "GEHEIMER-VERIFIER"] {
+        assert!(!text.contains(geheim), "{text}");
+    }
+    assert!(text.contains("api/anmelden/tausch") && text.contains("POST"), "Methode und Adresse bleiben lesbar: {text}");
+
+    let antwort = Antwort { status: 200, etag: None, koerper: r#"{"sitzungstoken":"GEHEIMES-SITZUNGSTOKEN"}"#.into() };
+    let text = format!("{antwort:?}");
+    assert!(!text.contains("GEHEIMES-SITZUNGSTOKEN"), "{text}");
+    assert!(text.contains("200"), "{text}");
+}

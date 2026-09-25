@@ -22,8 +22,9 @@ use crate::vertrag::{
 };
 
 /// Eine Anfrage an die Suite. `json` ist der fertige Körper; die Hülle setzt dazu
-/// `Content-Type: application/json`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `Content-Type: application/json`. `Debug` schwärzt Token und Körper (darin stehen Code und
+/// Verifier des Tauschs), damit ein `{:?}` im Log nichts preisgibt.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Anfrage<'a> {
     pub methode: &'static str,
     pub url: String,
@@ -33,11 +34,42 @@ pub struct Anfrage<'a> {
 }
 
 /// Die Antwort der Suite: Status, `ETag` (unverändert, samt Anführungszeichen) und Körper.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `Debug` nennt vom Körper nur die Länge: Er trägt Sitzungs- und Geräte-Token oder CEKs.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Antwort {
     pub status: u16,
     pub etag: Option<String>,
     pub koerper: String,
+}
+
+/// Platzhalter für ein geschwärztes Geheimnis im `Debug`-Text.
+pub const GESCHWAERZT: &str = "…";
+
+/// `Some("…")` bzw. `None` — ob ein Geheimnis da ist, bleibt sichtbar, sein Wert nicht.
+fn geschwaerzt<T>(wert: &Option<T>) -> Option<&'static str> {
+    wert.as_ref().map(|_| GESCHWAERZT)
+}
+
+impl std::fmt::Debug for Anfrage<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Anfrage")
+            .field("methode", &self.methode)
+            .field("url", &self.url)
+            .field("bearer", &geschwaerzt(&self.bearer))
+            .field("if_none_match", &self.if_none_match)
+            .field("json", &self.json.as_ref().map(|j| format!("{GESCHWAERZT} ({} Bytes)", j.len())))
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for Antwort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Antwort")
+            .field("status", &self.status)
+            .field("etag", &self.etag)
+            .field("koerper", &format!("{GESCHWAERZT} ({} Bytes)", self.koerper.len()))
+            .finish()
+    }
 }
 
 pub trait Transport: Send + Sync {
@@ -150,7 +182,9 @@ pub enum StammdatenErgebnis {
 }
 
 /// `GET /api/stammdaten` mit dem Geräte-Token und dem letzten `ETag` (Entscheidung 7). Der
-/// `ETag` geht Byte für Byte zurück, samt Anführungszeichen: Die Suite vergleicht exakt.
+/// `ETag` geht Byte für Byte zurück, samt Anführungszeichen: Die Suite vergleicht exakt. Ein
+/// 5xx (etwa 502/503/504 eines vorgeschalteten Proxys) heißt „nicht erreichbar“, wie ein
+/// Netzfehler: Der Rechner behält seine Kopie und fragt beim nächsten Abgleich wieder.
 pub fn hole_stammdaten(
     t: &dyn Transport,
     suite: &str,
@@ -171,6 +205,7 @@ pub fn hole_stammdaten(
         200 => Ok(StammdatenErgebnis::Neu { paket: lies_json(&a)?, etag: a.etag.clone() }),
         304 => Ok(StammdatenErgebnis::Unveraendert),
         401 => Err(SuiteFehler::Widerrufen),
+        500..=599 => Err(SuiteFehler::NichtErreichbar(format!("HTTP {}", a.status))),
         _ => Err(abgelehnt(&a)),
     }
 }
@@ -185,6 +220,9 @@ pub enum AnkerErgebnis {
     Offline,
     /// Das Geräte-Token gilt nicht mehr (gespeichert).
     Widerrufen,
+    /// Während des Laufs wurde der Rechner neu eingerichtet (neue `rechner_id`). Die Antworten
+    /// galten dem alten Rechner und werden verworfen; der nächste Lauf meldet für den neuen.
+    Ueberholt,
 }
 
 /// Führt `f` unter dem Lock auf dem Buch aus und gibt den Lock sofort wieder frei.
@@ -197,13 +235,19 @@ fn mit_buch<T>(buch: &Mutex<Option<Buch>>, f: impl FnOnce(&mut Buch) -> Result<T
 /// Meldet alle unbestätigten Blöcke aufsteigend; hält das Buch nur zum Lesen und Schreiben, nie
 /// während einer Anfrage.
 ///
-/// 1. Unter dem Lock die offenen Anker lesen, dann den Lock freigeben.
+/// 1. Unter dem Lock die offenen Anker und die `rechner_id` lesen, dann den Lock freigeben.
 /// 2. Je Block `POST /api/anker`: 204 wird unter dem Lock bestätigt; 409 speichert die
-///    Abweichung und bricht ab; 401 speichert den Widerruf; ein Netzfehler ist `Offline`.
+///    Abweichung und bricht ab; 401 speichert den Widerruf; ein Netzfehler oder ein 5xx (Proxy
+///    vor einer nicht laufenden Suite) ist `Offline`.
 /// 3. War nichts offen, wird der letzte Block trotzdem erneut gemeldet — „Kette prüfen gegen den
 ///    Anker“: 204 bestätigt, 409 zeigt eine Abweichung.
 ///
-/// Eine sonstige Ablehnung der Suite (400, 5xx) oder ein Datenbankfehler ist `Err` und lässt
+/// Jeder Schreibschritt prüft unter demselben Lock, dass die `rechner_id` noch die aus Schritt 1
+/// ist. Hat „Neu einrichten“ sie zwischen zwei Anfragen gewechselt, galt die Antwort dem alten
+/// Rechner: Sie wird verworfen, der Lauf endet mit `Ueberholt`, und der neue Rechner bekommt
+/// weder eine fremde Bestätigung noch einen fremden Widerruf.
+///
+/// Eine sonstige Ablehnung der Suite (etwa 400) oder ein Datenbankfehler ist `Err` und lässt
 /// den gespeicherten Stand, wie er ist.
 pub fn gleiche_anker_ab(
     buch: &Mutex<Option<Buch>>,
@@ -211,7 +255,18 @@ pub fn gleiche_anker_ab(
     suite: &str,
     geraet: &str,
 ) -> Result<AnkerErgebnis, String> {
-    let (offen, kopf) = mit_buch(buch, |b| Ok((b.unbestaetigte_anker()?, b.kettenkopf()?)))?;
+    let (offen, kopf, rechner) =
+        mit_buch(buch, |b| Ok((b.unbestaetigte_anker()?, b.kettenkopf()?, rechner_id(b)?)))?;
+    // Schreibt nur, solange derselbe Rechner eingerichtet ist; `false` heißt „überholt“.
+    let schreibe = |f: &dyn Fn(&mut Buch) -> Result<(), BuchFehler>| {
+        mit_buch(buch, |b| {
+            if rechner_id(b)? != rechner {
+                return Ok(false);
+            }
+            f(b)?;
+            Ok(true)
+        })
+    };
     let arbeit = match (offen.is_empty(), kopf) {
         (false, _) => offen,
         (true, Some(letzter)) => vec![letzter],
@@ -231,9 +286,15 @@ pub fn gleiche_anker_ab(
             return Ok(AnkerErgebnis::Offline);
         };
         match a.status {
-            200 | 204 => mit_buch(buch, |b| b.anker_bestaetigt(block))?,
+            200 | 204 => {
+                if !schreibe(&|b| b.anker_bestaetigt(block))? {
+                    return Ok(AnkerErgebnis::Ueberholt);
+                }
+            }
             401 => {
-                mit_buch(buch, |b| b.widerrufen_setzen(true))?;
+                if !schreibe(&|b| b.widerrufen_setzen(true))? {
+                    return Ok(AnkerErgebnis::Ueberholt);
+                }
                 return Ok(AnkerErgebnis::Widerrufen);
             }
             409 => {
@@ -242,14 +303,22 @@ pub fn gleiche_anker_ab(
                     .and_then(|f| f.erwartet)
                     .ok_or_else(|| format!("Die Suite meldet für Block {block} eine Abweichung ohne erwarteten Hash."))?;
                 let abweichung = Ankerabweichung { block, erwartet, gemeldet: hash };
-                mit_buch(buch, |b| b.anker_abweichung_setzen(&abweichung))?;
+                if !schreibe(&|b| b.anker_abweichung_setzen(&abweichung))? {
+                    return Ok(AnkerErgebnis::Ueberholt);
+                }
                 return Ok(AnkerErgebnis::Abweichung(abweichung));
             }
+            500..=599 => return Ok(AnkerErgebnis::Offline),
             _ => return Err(abgelehnt(&a).to_string()),
         }
     }
     let bis = mit_buch(buch, |b| Ok(b.anbindung()?.map_or(0, |a| a.anker_gemeldet_bis)))?;
     Ok(AnkerErgebnis::Bestaetigt(bis))
+}
+
+/// Die `rechner_id` der Einrichtung; `None` ohne Einrichtung.
+fn rechner_id(b: &Buch) -> Result<Option<String>, BuchFehler> {
+    Ok(b.anbindung()?.map(|a| a.rechner_id))
 }
 
 /// Höchstens so viele Einträge je Freigabe-Anfrage (Tabelle „Schnittstellen“, Nr. 7).

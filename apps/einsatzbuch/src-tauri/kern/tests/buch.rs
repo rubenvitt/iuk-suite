@@ -2,7 +2,9 @@
 //! Betriebsart aus der Datei und Einrichtung samt Testbetrieb-Ende.
 mod hilfe;
 
-use einsatzbuch_kern::buch::{BuchFehler, Betrieb, Buch, beende_testbetrieb, erkenne_betrieb, hat_echte_einrichtung};
+use einsatzbuch_kern::buch::{
+    BuchFehler, Betrieb, Buch, beende_testbetrieb, erkenne_betrieb, hat_echte_einrichtung, verwirf_unfertiges_buch,
+};
 use einsatzbuch_kern::format::Umgebung;
 
 #[test]
@@ -459,4 +461,48 @@ fn widerrufen_setzen_ohne_einrichtung_scheitert() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     assert!(matches!(buch.widerrufen_setzen(true), Err(BuchFehler::NichtEingerichtet)));
+}
+
+/// Review Focus 3: Scheitert eine Einrichtung, nachdem die Datei schon angelegt ist, räumt die
+/// Hülle sie mit `verwirf_unfertiges_buch` wieder ab — auch im Echtbetrieb, den
+/// `beende_testbetrieb` zu Recht verweigert. Samt `-wal` und `-shm`.
+#[test]
+fn unfertiges_buch_wird_samt_wal_und_shm_verworfen_auch_echt() {
+    for betrieb in [Betrieb::Echt, Betrieb::Test] {
+        let ordner = tempfile::tempdir().unwrap();
+        let buch = Buch::oeffne(ordner.path(), betrieb).unwrap();
+        assert!(ordner.path().join(betrieb.datei()).exists());
+        verwirf_unfertiges_buch(buch).unwrap();
+        for zusatz in ["", "-wal", "-shm"] {
+            let datei = format!("{}{zusatz}", betrieb.datei());
+            assert!(!ordner.path().join(&datei).exists(), "{datei} liegt noch da");
+        }
+        assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), None);
+    }
+}
+
+/// Ein eingerichtetes Buch ist nie „unfertig“: Der Weg löscht kein echtes Einsatzbuch.
+#[test]
+fn eingerichtetes_buch_wird_nicht_verworfen() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    assert!(matches!(verwirf_unfertiges_buch(buch), Err(BuchFehler::SchonEingerichtet)));
+    assert!(ordner.path().join("einsatzbuch.db").exists());
+    assert!(hat_echte_einrichtung(ordner.path()).unwrap());
+}
+
+#[test]
+fn hash_eines_blocks_nach_nummer() {
+    use chrono::{TimeZone, Utc};
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    assert_eq!(buch.hash_von(1).unwrap(), None);
+    hilfe::versiegele_einen_einsatz(&mut buch, Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap(), 1);
+    hilfe::versiegele_einen_einsatz(&mut buch, Utc.with_ymd_and_hms(2026, 8, 22, 4, 12, 0).unwrap(), 2);
+    let bloecke = buch.bloecke().unwrap();
+    assert_eq!(buch.hash_von(1).unwrap().as_deref(), Some(bloecke[0].hash.as_str()));
+    assert_eq!(buch.hash_von(2).unwrap().as_deref(), Some(bloecke[1].hash.as_str()));
+    assert_eq!(buch.hash_von(3).unwrap(), None);
 }

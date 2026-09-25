@@ -143,3 +143,29 @@ fn einrichten_antwort_ergibt_die_lokale_einrichtung() {
     assert_eq!(e.eingerichtet_am, a.eingerichtet_am);
     assert_eq!(e.eingerichtet_von, a.eingerichtet_von);
 }
+
+/// Kein Geheimnis im Debug-Text (Nachtrag aus dem Review von Task 7): Wer eine Antwort mit `{:?}`
+/// loggt, darf weder Sitzungs- noch Geräte-Token, weder Code noch Verifier, noch einen CEK
+/// schreiben.
+#[test]
+fn geheimnisse_erscheinen_nicht_im_debug_text() {
+    use einsatzbuch_kern::vertrag::TauschAnfrage;
+
+    let tausch: TauschAntwort = serde_json::from_value(lies("tausch.json")).unwrap();
+    let text = format!("{tausch:?}");
+    assert!(!text.contains(&tausch.sitzungstoken), "{text}");
+    assert!(text.contains(&tausch.name), "der Name bleibt lesbar: {text}");
+
+    let einrichten: EinrichtenAntwort = serde_json::from_value(lies("einrichten.json")).unwrap();
+    let text = format!("{einrichten:?}");
+    assert!(!text.contains(&einrichten.geraete_token), "{text}");
+    assert!(text.contains(&einrichten.rechner_id), "die Rechnerkennung bleibt lesbar: {text}");
+
+    let posten = Schluesselposten { block: 7, cek: "GEHEIMER-CEK".into() };
+    let text = format!("{posten:?}");
+    assert!(!text.contains("GEHEIMER-CEK") && text.contains('7'), "{text}");
+
+    let anfrage = TauschAnfrage { code: "GEHEIMER-CODE".into(), verifier: "GEHEIMER-VERIFIER".into() };
+    let text = format!("{anfrage:?}");
+    assert!(!text.contains("GEHEIMER-CODE") && !text.contains("GEHEIMER-VERIFIER"), "{text}");
+}
