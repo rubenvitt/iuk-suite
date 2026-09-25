@@ -491,6 +491,7 @@ trifft oder eine Abhilfe umbauen will.
     `bucheZugang` lief mit dem halb ausgefüllten Formular, danach stand es leer, und der Test lief
     60 s in eine Antwort, die nie kam. Den Wert per Klick daneben übernehmen und ihn zusichern
     (`lagerbuch-schraenke.spec.ts`).
+
 23. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** (feedback, DRK-424,
     in CI gefangen und gegen `build`/`start` nachgemessen). Eine `loading.tsx` ist eine
     Suspense-Grenze. Der Server schickt ihren Ladezustand zuerst, und mit ihm den Status 200. Ruft
