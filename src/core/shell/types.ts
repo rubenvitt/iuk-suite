@@ -79,7 +79,13 @@ export type NavIkonName =
   // geliehener Name — `import` (PiUploadSimple) hieße „hochladen“, und genau das tut
   // der Reader nicht; `journal` (PiClockCounterClockwise) meint eine Historie. Das
   // offene Buch mit Text trägt das Lesen.
-  | "reader";
+  | "reader"
+  // DRK-471 (Stufe 5): die Verwaltung des Einsatzbuch-Rechners (Widerruf, Test-Rechner,
+  // Schlüsselfreigaben). KEIN geliehener Name — `stammdaten` (PiAddressBook) meint Fahrzeuge,
+  // Personal und Stichworte, `einstellungen` (PiGearSix) die Fristen der Suite; keiner der
+  // beiden trägt das physische Gerät, um das es hier geht. Ein geliehener Name gäbe dem
+  // nächsten Leser einen falschen Begriff statt eines fehlenden.
+  | "rechner";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

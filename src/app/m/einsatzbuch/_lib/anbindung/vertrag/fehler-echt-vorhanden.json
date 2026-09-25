@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "echt_vorhanden",
+    "message": "Es gibt bereits einen echten Rechner „Einsatzleitung“, eingerichtet am 12.09.2026, 18:04 von Ole Brandt."
+  },
+  "eingerichtetAm": "2026-09-12T18:04:00+02:00",
+  "eingerichtetVon": "Ole Brandt"
+}

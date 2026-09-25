@@ -155,7 +155,7 @@ fn rundlauf_mit_systemzufall_oeffnet_den_klartext_und_scheitert_bei_veraendertem
 
     let iv: [u8; 12] = krypto::aus_b64(&block.iv).unwrap().try_into().unwrap();
     let daten = krypto::aus_b64(&block.daten).unwrap();
-    let aad = block.kopf.kanonisch();
+    let aad = block.kopf.kanonisch().unwrap();
     let cek_array: [u8; 32] = cek.try_into().unwrap();
     let klar = Aes256Gcm::new(&cek_array.into())
         .decrypt(&iv.into(), Payload { msg: &daten, aad: aad.as_bytes() })

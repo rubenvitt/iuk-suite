@@ -52,34 +52,45 @@ export interface NeuesPaar {
   pkcs8: Bytes;
 }
 
+async function schluesselmaterial(paar?: { pkcs8: Bytes; oeffentlich: string }): Promise<{ pkcs8: Bytes; oeffentlich: string }> {
+  if (paar) return paar;
+  const p = await erzeugeSchluesselpaar();
+  return {
+    pkcs8: new Uint8Array(await crypto.subtle.exportKey("pkcs8", p.privateKey)),
+    oeffentlich: zuBase64(new Uint8Array(await crypto.subtle.exportKey("spki", p.publicKey))),
+  };
+}
+
+/**
+ * Baut eine vollständige `schluesselpaar`-Zeile, fügt sie aber NICHT ein. Ohne `paar` erzeugt sie
+ * ein frisches Schlüsselpaar. Für Aufrufer, die das (asynchrone) Schlüsselmaterial vor einer
+ * synchronen better-sqlite3-Transaktion brauchen (`richteEin` in `anbindung/rechner.ts`).
+ */
+export async function bereitePaarVor(
+  o: { art: "echt" | "test"; rechnerId: string | null; kek: Bytes; jetzt: Date; paar?: { pkcs8: Bytes; oeffentlich: string } },
+): Promise<typeof schluesselpaar.$inferSelect> {
+  const { pkcs8, oeffentlich } = await schluesselmaterial(o.paar);
+  const schluesselId = await schluesselIdVon(await importiereOeffentlich(oeffentlich));
+  return {
+    id: nanoid(),
+    art: o.art,
+    rechnerId: o.rechnerId,
+    schluesselId,
+    oeffentlich,
+    privatVerschluesselt: await verschluesselePrivat(pkcs8, schluesselId, o.kek),
+    erzeugtAm: o.jetzt,
+  };
+}
+
 /** Legt eine neue `schluesselpaar`-Zeile an. Ohne `paar` erzeugt sie ein frisches Schlüsselpaar. */
 export async function legePaarAn(
   db: Db,
   o: { art: "echt" | "test"; rechnerId: string | null; kek: Bytes; jetzt: Date; paar?: { pkcs8: Bytes; oeffentlich: string } },
 ): Promise<NeuesPaar> {
-  let pkcs8: Bytes;
-  let oeffentlich: string;
-  if (o.paar) {
-    ({ pkcs8, oeffentlich } = o.paar);
-  } else {
-    const p = await erzeugeSchluesselpaar();
-    pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", p.privateKey));
-    oeffentlich = zuBase64(new Uint8Array(await crypto.subtle.exportKey("spki", p.publicKey)));
-  }
-  const schluesselId = await schluesselIdVon(await importiereOeffentlich(oeffentlich));
-  const id = nanoid();
-  db.insert(schluesselpaar)
-    .values({
-      id,
-      art: o.art,
-      rechnerId: o.rechnerId,
-      schluesselId,
-      oeffentlich,
-      privatVerschluesselt: await verschluesselePrivat(pkcs8, schluesselId, o.kek),
-      erzeugtAm: o.jetzt,
-    })
-    .run();
-  return { id, schluesselId, oeffentlich, pkcs8 };
+  const material = await schluesselmaterial(o.paar);
+  const zeile = await bereitePaarVor({ ...o, paar: material });
+  db.insert(schluesselpaar).values(zeile).run();
+  return { id: zeile.id, schluesselId: zeile.schluesselId, oeffentlich: zeile.oeffentlich, pkcs8: material.pkcs8 };
 }
 
 export const paarZuId = (db: Db, schluesselId: string) =>

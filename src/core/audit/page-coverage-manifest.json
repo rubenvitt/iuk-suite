@@ -35,6 +35,14 @@
     "kind": "denial",
     "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
   },
+  "src/app/m/einsatzbuch/anmelden/page.tsx#redirect:zugang.art === \"anmelden\":1": {
+    "kind": "excluded",
+    "reason": "Anmeldeumweg ohne Sitzung; Audit per auditLoginRequired in _lib."
+  },
+  "src/app/m/einsatzbuch/anmelden/page.tsx#redirect:unconditional/catch:1": {
+    "kind": "excluded",
+    "reason": "Erfolgreiche Anmeldung — Weiterleitung mit Einmalcode zum Loopback-Rückruf der App, keine Zugriffsentscheidung."
+  },
   "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/auswertung/page.tsx#notFound:!evening:1": {
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."

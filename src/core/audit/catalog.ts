@@ -1,6 +1,13 @@
 import type { AuditModule } from "./types";
-/** Explicit inventory. Adding a schema table requires a coverage decision here and a migration. */
-export type AuditTableDecision = { mode: "audited" | "anonymous"; primaryKey: readonly string[] } | { mode: "excluded"; reason: string };
+/**
+ * Explicit inventory. Adding a schema table requires a coverage decision here and a migration.
+ * `unauditedColumns` lets an audited table's UPDATE trigger leave a reasoned set of touch-only
+ * columns (e.g. a last-contact timestamp) out of its WHEN predicate; `catalog.test.ts` still checks
+ * every other persisted column is covered, and that every named column actually exists.
+ */
+export type AuditTableDecision =
+  | { mode: "audited" | "anonymous"; primaryKey: readonly string[]; unauditedColumns?: { columns: readonly string[]; reason: string } }
+  | { mode: "excluded"; reason: string };
 export const AUDIT_TABLES = {
   "portal": {
     "services": {
@@ -348,6 +355,43 @@ export const AUDIT_TABLES = {
     "stammdatenstand": {
       "mode": "excluded",
       "reason": "Technischer Versionszähler (ETag); jede Änderung, die ihn erhöht, steht bereits als Audit-Zeile der Stammdatentabelle im Log."
+    },
+    "rechner": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "letzter_kontakt",
+          "letzte_sicherung"
+        ],
+        "reason": "Technische Kontaktzeiten des Geräts, keine fachliche Änderung am Rechner."
+      }
+    },
+    "anker": {
+      "mode": "excluded",
+      "reason": "Hash-Meldungen des Rechners, keine Inhalte; Abweichungen stehen auditiert in anker_abweichung."
+    },
+    "anker_abweichung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "einmalcode": {
+      "mode": "excluded",
+      "reason": "Kurzlebige Einmalcodes der Anmeldung; die Anmeldung selbst ist als Sitzung nachvollziehbar, die Freigabe auditiert."
+    },
+    "sitzung": {
+      "mode": "excluded",
+      "reason": "Technische Sitzungen des Rechners (30 min); jede Schlüsselfreigabe steht auditiert in freigabe."
+    },
+    "freigabe": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "konto": {

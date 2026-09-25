@@ -6,7 +6,8 @@
 //! `umschlag.ts`. `test_einrichtung` baut eine kleine, aber echte Einrichtung aus demselben
 //! Vektor-SPKI und den Stammdaten-IDs aus
 //! `src/app/m/einsatzbuch/_lib/kern/testvektoren/einsaetze.ts`. `FesteUhr` und `FesterZufall`
-//! sind austauschbare Uhr- bzw. Zufallsquellen für deterministische Tests. Nicht jede Datei
+//! sind austauschbare Uhr- bzw. Zufallsquellen für deterministische Tests,
+//! `versiegele_einen_einsatz` legt einen echten Block an die Kette. Nicht jede Datei
 //! nutzt jeden Helfer — daher das pauschale `allow(dead_code)` statt einzelner Ausnahmen je
 //! Funktion. Kein Teil der Produktionsschnittstelle des Kerns.
 #![allow(dead_code)]
@@ -25,6 +26,12 @@ use hkdf::Hkdf;
 use p256::{PublicKey, SecretKey, ecdh};
 use serde_json::Value;
 use sha2::Sha256;
+
+/// Rechnerkennung und -name, die die Tests dieses Crates `Buch::richte_ein`/`richte_neu_ein`
+/// mitgeben. Ihr Inhalt ist für die Tests hier ohne Bedeutung, nur dass `Buch` sie unverändert
+/// übernimmt (siehe `anbindung()`).
+pub const RECHNER_ID: &str = "r1";
+pub const RECHNER_NAME: &str = "Testrechner";
 
 /// Liest eine JSON-Datei aus `src/app/m/einsatzbuch/_lib/kern/testvektoren/` relativ zu diesem Crate.
 pub fn vektor(datei: &str) -> Value {
@@ -62,7 +69,7 @@ pub fn packe_aus(umschlag: &Umschlag, kopf: &Blockkopf, suite_privat: &SecretKey
         .expand(krypto::UMSCHLAG_INFO, &mut kek)
         .map_err(|_| KryptoFehler::HkdfFehlgeschlagen)?;
 
-    let aad = kopf.kanonisch();
+    let aad = kopf.kanonisch().expect("Testköpfe tragen sichere Blocknummern");
     let nonce: [u8; 12] = iv.try_into().expect("Länge oben geprüft");
     let cek = Aes256Gcm::new(&kek.into())
         .decrypt(&nonce.into(), Payload { msg: &ct, aad: aad.as_bytes() })
@@ -156,4 +163,28 @@ impl krypto::Zufall for FesterZufall {
     fn fuelle(&mut self, puffer: &mut [u8]) {
         puffer.fill(self.0);
     }
+}
+
+/// Sendet einen gültigen Einsatz ab und versiegelt ihn sofort — für Tests, die eine ECHTE Kette
+/// mit mindestens einem Block brauchen (nicht nur eine leere), um „Kette bleibt unverändert“
+/// belastbar zu prüfen. Fahrzeug/Personen-IDs passen zu `test_einrichtung`.
+pub fn versiegele_einen_einsatz(buch: &mut einsatzbuch_kern::buch::Buch, jetzt: chrono::DateTime<chrono::Utc>, zufall_saat: u8) {
+    use einsatzbuch_kern::erfassung::{Entwurf, PersonAuswahl};
+    let entwurf = Entwurf {
+        stichwort: "RD 2".into(),
+        beginn_datum: "2026-08-22".into(),
+        beginn_zeit: "03:12".into(),
+        ende_datum: String::new(),
+        ende_zeit: String::new(),
+        strasse: "Lindenstraße 8".into(),
+        ort: "29525 Uelzen".into(),
+        objekt: String::new(),
+        fahrzeuge: vec!["11-83-1".into()],
+        personal: vec![PersonAuswahl { id: "p4".into(), fahrzeug_id: Some("11-83-1".into()) }],
+        vor_ort: 0,
+        transport: 1,
+        notizen: String::new(),
+    };
+    buch.sende_ab(&entwurf, jetzt, false).unwrap();
+    buch.versiegele_ausstehend(jetzt, &mut FesterZufall(zufall_saat), false).unwrap().unwrap();
 }

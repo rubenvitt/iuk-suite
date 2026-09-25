@@ -1,0 +1,21 @@
+{
+  "version": 7,
+  "stammdaten": {
+    "fahrzeuge": [
+      { "id": "S30b2bswU8FPOqS6jgF5B", "typ": "RTW", "kennung": "11-83-1", "ruf": "Rotkreuz Uelzen 11-83-1", "standort": "Uelzen" },
+      { "id": "S-Ql3tN7pHT9IHP473Nba", "typ": "KTW", "kennung": "11-85-2", "ruf": "Rotkreuz Uelzen 11-85-2", "standort": "Bad Bevensen" }
+    ],
+    "personal": [
+      { "id": "_gH6Ga_FOiqlRTSmEoT1c", "name": "Albers, Jana", "quali": "SanH", "ov": "Uelzen" },
+      { "id": "VHUkhKri86Cu_211p60Dd", "name": "Brandt, Ole", "quali": "RS", "ov": "Bad Bevensen" }
+    ],
+    "stichworte": [
+      { "name": "Rettungsdienst", "items": ["RD 1", "RD 2"] },
+      { "name": "Sanitätsdienst", "items": ["SanD Veranstaltung"] }
+    ]
+  },
+  "fristMinuten": 15,
+  "besatzung": true,
+  "zeitzone": "Europe/Berlin",
+  "bereitschaft": "DRK-Bereitschaft Uelzen"
+}

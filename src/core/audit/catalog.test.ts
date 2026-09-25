@@ -7,7 +7,7 @@ import { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { AUDIT_SOURCES, AUDIT_TABLES, auditMigrationsFolder, type AuditTableDecision } from "./catalog";
 import { registerAuditFunctions, withAuditContext } from "./context";
 
-function assertUpdateColumnCoverage(db: Database.Database, table: string): void {
+function assertUpdateColumnCoverage(db: Database.Database, table: string, unaudited: readonly string[] = []): void {
   const trigger = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND tbl_name=? AND name=?").get(table, `audit_${table}_update`) as { sql: string } | undefined;
   expect(trigger, `${table}: UPDATE audit trigger missing`).toBeDefined();
   // This exact OR-of-distinct-column predicate preserves no-op suppression.
@@ -16,9 +16,11 @@ function assertUpdateColumnCoverage(db: Database.Database, table: string): void 
   expect(predicate, `${table}: UPDATE audit predicate missing`).toBeDefined();
   const actual = predicate!.trim().split(/\s+OR\s+/i).map(clause => clause.replace(/\s+/g, " ")).sort();
   const columns = db.prepare(`PRAGMA table_xinfo('${table}')`).all() as {name:string}[];
-  const expected = columns.map(({name}) => `OLD."${name}" IS NOT NEW."${name}"`).sort();
+  const unknown = unaudited.filter(name => !columns.some(c => c.name === name));
+  if (unknown.length) throw new Error(`${table}: unauditedColumns nennt unbekannte Spalte(n) ${unknown.join(", ")}`);
+  const expected = columns.filter(({name}) => !unaudited.includes(name)).map(({name}) => `OLD."${name}" IS NOT NEW."${name}"`).sort();
   const missing = expected.filter(clause => !actual.includes(clause));
-  expect(actual, `${table}: audit UPDATE must cover every persisted column; missing: ${missing.join(", ")}`).toEqual(expected);
+  expect(actual, `${table}: audit UPDATE must cover every persisted column except the declared exclusions; missing: ${missing.join(", ")}`).toEqual(expected);
 }
 
 describe("explicit audit coverage inventory", () => {
@@ -53,7 +55,8 @@ describe("explicit audit coverage inventory", () => {
           expect(triggers.map(t=>t.name).sort()).toEqual(["create","update","delete"].map(a=>`audit_${table}_${a}`).sort());
           const pk = (db.prepare(`PRAGMA table_info('${table}')`).all() as {name:string;pk:number}[]).filter(c=>c.pk).sort((a,b)=>a.pk-b.pk).map(c=>c.name);
           expect([...decision.primaryKey]).toEqual(pk);
-          assertUpdateColumnCoverage(db, table);
+          if (decision.unauditedColumns) expect(decision.unauditedColumns.reason.length).toBeGreaterThan(20);
+          assertUpdateColumnCoverage(db, table, decision.unauditedColumns?.columns);
         }
       }
     } finally { db.close(); }
@@ -77,6 +80,13 @@ describe("explicit audit coverage inventory", () => {
       expect(db.prepare("SELECT count(*) n FROM audit_outbox").get()).toEqual({n:2});
       db.exec("UPDATE portal_einstellungen SET new_audit_field='covered' WHERE schluessel='test'");
       expect(db.prepare("SELECT count(*) n FROM audit_outbox").get()).toEqual({n:2});
+    } finally { db.close(); }
+  });
+  it("rejects an unauditedColumns entry naming a column the table doesn't have", () => {
+    const db = new Database(":memory:"); registerAuditFunctions(db);
+    try {
+      migrate(drizzle(db), { migrationsFolder: auditMigrationsFolder("portal") });
+      expect(() => assertUpdateColumnCoverage(db, "portal_einstellungen", ["nicht_vorhanden"])).toThrow("nicht_vorhanden");
     } finally { db.close(); }
   });
   it("anonymous feedback carries neither contents nor inherited identity/correlation/reference", () => {

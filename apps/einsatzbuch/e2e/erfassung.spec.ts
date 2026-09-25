@@ -87,10 +87,10 @@ test("ein Ende nur mit Datum sperrt das Absenden, mit Uhrzeit geht es", async ({
   await expect(page.getByText("Abgesendet · noch änderbar")).toBeVisible();
 });
 
-test("nicht eingerichtet: Hinweis, Entwicklerweg nur im Debug-Build", async ({ page }) => {
+test("nicht eingerichtet: Einrichtungsfrage, Entwicklerweg nur im Debug-Build", async ({ page }) => {
   await installiereStub(page, { betrieb: null, entwicklung: false });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Rechner ist noch nicht eingerichtet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Diesen Rechner einrichten" })).toBeVisible();
   await expect(page.getByText("Entwickler-Einrichtung (nur Debug-Build)")).toHaveCount(0);
 });
 
@@ -122,7 +122,7 @@ test("eine Bearbeitung, die während des Ablaufs offen bleibt, legt keinen zweit
   expect(absendungen).toHaveLength(1);
 });
 
-test("„Testbetrieb beenden“ mit Bestätigung führt zu „nicht eingerichtet“", async ({ page }) => {
+test("„Testbetrieb beenden“ mit Bestätigung führt zur Einrichtungsfrage", async ({ page }) => {
   await installiereStub(page, { betrieb: "test", fristSekunden: 60 });
   await page.goto("/");
   await expect(page.getByText("TESTBETRIEB — nichts hiervon ist ein echter Einsatz")).toBeVisible();
@@ -133,5 +133,5 @@ test("„Testbetrieb beenden“ mit Bestätigung führt zu „nicht eingerichtet
   await expect(page.getByRole("heading", { name: "Testbetrieb beenden?" })).toBeVisible();
   await page.getByRole("button", { name: "Testdatenbank löschen" }).click();
 
-  await expect(page.getByRole("heading", { name: "Rechner ist noch nicht eingerichtet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Diesen Rechner einrichten" })).toBeVisible();
 });

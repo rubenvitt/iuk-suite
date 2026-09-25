@@ -1,12 +1,25 @@
 import { expect, test, type Page } from "@playwright/test";
 import { devLogin, E2E_PORT, klickeWennRuhig } from "./fixtures";
+import { E2E_VORGEBAUT } from "./helpers/server";
 
 /**
  * Stufe 2 des Einsatzbuchs: Stammdaten und Einstellungen über die Oberfläche.
  *
- * Die Spec legt ihre Daten selbst an (der E2E-Server seedet das Einsatzbuch nicht) und hängt
- * an jede Kennung und jeden Namen eine Laufnummer, damit Wiederholungen gegen dieselbe
- * Datenbank nicht an „gibt es schon“ scheitern.
+ * Die Spec legt ihre Stammdaten (Fahrzeuge, Personal) selbst an und hängt an jede Kennung und
+ * jeden Namen eine Laufnummer, damit Wiederholungen gegen dieselbe Datenbank nicht an „gibt es
+ * schon“ scheitern.
+ *
+ * ⚠️ SEIT TASK 4 SEEDET `e2e/seed-einsatzbuch.ts` (vor dem Next-Server, `playwright.config.ts`)
+ * DAS ECHTE SCHLÜSSELPAAR mit dem Entwicklungs-KEK — die Anmeldeseite braucht ein echtes Paar für
+ * `art=echt`, sonst antwortet `einrichten` mit `503 kein_echtes_paar`. Damit meldet
+ * `schluesselStatus` immer `kek: "ok"`, `paar: "ok"`; ob der KEK-Hinweis auf der Übersicht trotzdem
+ * erscheint, entscheidet allein `entwicklungsKekInProduktion` (`_lib/schluessel/status.ts`), und
+ * die hängt von `NODE_ENV` ab, also von `E2E_VORGEBAUT` (`e2e/helpers/server.ts`):
+ * - `next dev` (lokal, `E2E_VORGEBAUT` ungesetzt) läuft mit `NODE_ENV=development` — kein Hinweis.
+ * - der vorgebaute Stand (`E2E_VORGEBAUT=1`; so fährt die CI, Job `e2e`) läuft mit
+ *   `NODE_ENV=production` — `entwicklungsKekInProduktion: true`, „Der Entwicklungs-KEK ist aktiv“
+ *   (`KekHinweis.tsx`) steht auf der Übersicht. Der erste Testfall unten prüft deshalb je nach
+ *   `E2E_VORGEBAUT` das eine oder das andere.
  *
  * Greifer:
  * - Kartentabelle rendert Tabelle UND Karten ins HTML (CSS schaltet). Zeilen deshalb über die
@@ -30,12 +43,18 @@ test.beforeEach(async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
 });
 
-test("Übersicht, Stammdaten und Einstellungen antworten mit 200; ohne KEK steht der Hinweis da", async ({ page }) => {
+test("Übersicht, Stammdaten und Einstellungen antworten mit 200; der Entwicklungs-KEK-Hinweis erscheint nur im vorgebauten Server", async ({ page }) => {
   for (const pfad of ["/", "/stammdaten", "/stammdaten?reiter=personal", "/einstellungen"]) {
     expect((await page.goto(url(pfad)))?.status(), pfad).toBe(200);
   }
   await page.goto(url("/"));
-  await expect(page.getByTestId("kek-hinweis")).toBeVisible();
+  const hinweis = page.getByTestId("kek-hinweis");
+  if (E2E_VORGEBAUT) {
+    await expect(hinweis).toHaveCount(1);
+    await expect(hinweis).toContainText("Der Entwicklungs-KEK ist aktiv");
+  } else {
+    await expect(hinweis).toHaveCount(0);
+  }
 });
 
 test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal per CSV", async ({ page }) => {

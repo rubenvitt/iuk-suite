@@ -98,7 +98,9 @@ pub fn richte_testbetrieb_ein(ordner: &Path, spki: String, frist_minuten: u32, j
 
     let schon_da = ordner.join(Betrieb::Test.datei()).try_exists().map_err(|e| e.to_string())?;
     let mut buch = Buch::oeffne(ordner, Betrieb::Test).map_err(|e| e.to_string())?;
-    if let Err(fehler) = buch.richte_ein(&einrichtung) {
+    // Entscheidung im Kontext dieser Stufe: Der Entwicklerweg setzt eine feste Rechnerkennung
+    // und einen festen Namen, denn er kennt keine echte Anmeldung bei der Suite.
+    if let Err(fehler) = buch.richte_ein(&einrichtung, "entwicklung", "Entwicklung") {
         if !schon_da {
             if let Err(aufraeumen) = buch::beende_testbetrieb(ordner, buch) {
                 eprintln!("Die halb angelegte Testdatenbank ließ sich nicht löschen: {aufraeumen}");
@@ -194,6 +196,11 @@ mod tests {
         assert_eq!(e.paket.stammdaten.personal.len(), 112);
         assert_eq!(e.paket.stammdaten.fahrzeuge.len(), 56);
         assert_eq!(e.paket.stammdaten.stichworte.len(), 5);
+        let anbindung = buch.anbindung().unwrap().unwrap();
+        assert_eq!(anbindung.rechner_id, "entwicklung");
+        assert_eq!(anbindung.rechner_name, "Entwicklung");
+        assert_eq!(anbindung.anker_gemeldet_bis, 0);
+        assert!(!anbindung.widerrufen);
         assert_eq!(erkenne_betrieb(ordner.path()).unwrap(), Some(Betrieb::Test));
     }
 
@@ -217,7 +224,7 @@ mod tests {
             },
             eingerichtet_am: "2026-01-01T00:00:00+01:00".into(),
             eingerichtet_von: "test".into(),
-        })
+        }, "r1", "Testrechner")
         .unwrap();
         drop(echt);
         let fehler = richte_testbetrieb_ein(ordner.path(), vektor_spki(), 15, jetzt()).err().unwrap();

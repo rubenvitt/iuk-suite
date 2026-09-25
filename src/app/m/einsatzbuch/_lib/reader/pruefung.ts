@@ -36,16 +36,15 @@ export const einsatzSchema = z.object({
   vorOrt: zahl, transport: zahl, notizen: kurzText(20_000),
 }).strict().refine((e) => (e.endeDatum === null) === (e.endeZeit === null), "Ende nur vollständig");
 
-const cek = z.string().refine((s) => { try { return ausBase64(s).length === 32; } catch { return false; } });
-const block = z.object({
-  kopf: z.object({ v: z.literal(1), block: z.number().int().min(1), prev: hex(64), versiegelt: zeitpunkt, schluesselId: hex(16), umgebung: z.enum(["echt", "test"]) }).strict(),
-  iv: z.string(), daten: z.string(), hash: hex(64),
-  umschlag: z.object({ epk: z.string(), iv: z.string(), ct: z.string() }).strict(),
-}).strict();
+/** Kopf, Umschlag und CEK einzeln exportiert: `anbindung/vertrag.ts` prüft `schluessel/freigeben` damit gleich streng. */
+export const cekSchema = z.string().refine((s) => { try { return ausBase64(s).length === 32; } catch { return false; } });
+export const kopfSchema = z.object({ v: z.literal(1), block: z.number().int().min(1), prev: hex(64), versiegelt: zeitpunkt, schluesselId: hex(16), umgebung: z.enum(["echt", "test"]) }).strict();
+export const umschlagSchema = z.object({ epk: z.string(), iv: z.string(), ct: z.string() }).strict();
+const block = z.object({ kopf: kopfSchema, iv: z.string(), daten: z.string(), hash: hex(64), umschlag: umschlagSchema }).strict();
 
 export const exportinhaltSchema = z.object({
   bloecke: z.array(block).min(1).max(10_000),
-  schluessel: z.record(z.string().regex(/^[1-9]\d*$/), cek),
+  schluessel: z.record(z.string().regex(/^[1-9]\d*$/), cekSchema),
   exportiertVon: kurzText(200), quelle: kurzText(200),
   anker: z.object({ block: z.number().int().min(1), hash: hex(64), gemeldetAm: zeitpunkt }).strict().nullable(),
 }).strict().refine((i) => { const da = new Set(i.bloecke.map((b) => String(b.kopf.block))); return Object.keys(i.schluessel).every((k) => da.has(k)); }, "Schlüssel ohne Block");

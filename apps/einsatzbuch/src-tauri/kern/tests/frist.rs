@@ -35,7 +35,7 @@ fn entschluessele_notizen(block: &einsatzbuch_kern::format::Block, suite_privat:
     let cek_array: [u8; 32] = cek.try_into().unwrap();
     let iv: [u8; 12] = krypto::aus_b64(&block.iv).unwrap().try_into().unwrap();
     let daten = krypto::aus_b64(&block.daten).unwrap();
-    let aad = block.kopf.kanonisch();
+    let aad = block.kopf.kanonisch().unwrap();
     let klartext = Aes256Gcm::new(&cek_array.into())
         .decrypt(&iv.into(), Payload { msg: &daten, aad: aad.as_bytes() })
         .expect("der ausgepackte CEK muss den Klartext öffnen");
@@ -55,7 +55,7 @@ fn suite_privatschluessel() -> p256::SecretKey {
 fn frist_versiegelt_erst_bei_ablauf() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf(), t0, false).unwrap();
 
@@ -72,7 +72,7 @@ fn frist_nach_neustart() {
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     {
         let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-        buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+        buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
         buch.sende_ab(&entwurf(), t0, false).unwrap();
     }
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
@@ -87,7 +87,7 @@ fn frist_nach_neustart() {
 fn versiegeln_mit_ungespeichertem_formular_nimmt_den_abgesendeten_stand() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
 
     let mut mit_a = entwurf();
@@ -116,7 +116,7 @@ fn versiegeln_mit_ungespeichertem_formular_nimmt_den_abgesendeten_stand() {
 fn pruefe_frist_ohne_entwurf_ergibt_verfallen_false() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf(), t0, false).unwrap();
 
@@ -129,7 +129,7 @@ fn pruefe_frist_ohne_entwurf_ergibt_verfallen_false() {
 fn jetzt_versiegeln_ist_nicht_verfallen() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf(), t0, false).unwrap();
     buch.speichere_entwurf(&entwurf(), t0, true).unwrap();
@@ -141,7 +141,7 @@ fn jetzt_versiegeln_ist_nicht_verfallen() {
 
 fn eingerichtet(ordner: &std::path::Path) -> Buch {
     let mut buch = Buch::oeffne(ordner, Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     buch
 }
 

@@ -13,14 +13,15 @@ import { EINSATZBUCH_NAV } from "./nav";
 const ROUTEN: Record<string, string> = {
   "/": "src/app/m/einsatzbuch/(verwaltung)/page.tsx",
   "/stammdaten": "src/app/m/einsatzbuch/(verwaltung)/stammdaten/page.tsx",
+  "/rechner": "src/app/m/einsatzbuch/(verwaltung)/rechner/page.tsx",
   "/einstellungen": "src/app/m/einsatzbuch/(verwaltung)/einstellungen/page.tsx",
   "/reader": "src/app/m/einsatzbuch/(verwaltung)/reader/page.tsx",
 };
 
 describe("EINSATZBUCH_NAV", () => {
   // Über einer leeren Liste wären alle `for`-Fälle leer-grün.
-  it("führt genau vier Einträge", () => {
-    expect(EINSATZBUCH_NAV).toHaveLength(4);
+  it("führt genau fünf Einträge", () => {
+    expect(EINSATZBUCH_NAV).toHaveLength(5);
   });
 
   it("zeigt mit jedem href auf eine Route, die es gibt", () => {

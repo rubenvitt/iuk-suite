@@ -19,6 +19,18 @@ function stat(teil: Partial<Status> = {}): Status {
     ausstehend: null,
     kette: { anzahl: 0, letzter: null },
     versiegelung: null,
+    suiteUrl: null,
+    suiteVorgabe: "https://einsatzbuch.iuk-ue.de",
+    rechnerName: null,
+    eingerichtetAm: null,
+    eingerichtetVon: null,
+    schluesselId: null,
+    stammdatenVom: null,
+    ankerBestaetigtBis: 0,
+    ankerAbweichung: null,
+    widerrufen: false,
+    sitzung: null,
+    anmeldungLaeuft: false,
     ...teil,
   };
 }
@@ -62,12 +74,12 @@ describe("phaseAus", () => {
   });
 
   it("nicht eingerichtet", () => {
-    expect(phaseAus(stat({ eingerichtet: false }), { phase: "start", bearbeiten: false })).toEqual({ phase: "nicht-eingerichtet", bearbeiten: false });
+    expect(phaseAus(stat({ eingerichtet: false }), { phase: "start", bearbeiten: false })).toEqual({ phase: "einrichtung", bearbeiten: false });
   });
 
   it("nicht eingerichtet geht vor einer Versiegelung", () => {
     expect(phaseAus(stat({ eingerichtet: false, versiegelung: VERSIEGELUNG }), { phase: "start", bearbeiten: false })).toEqual({
-      phase: "nicht-eingerichtet",
+      phase: "einrichtung",
       bearbeiten: false,
     });
   });
@@ -101,6 +113,16 @@ describe("phaseAus", () => {
 
   it("lokal form bleibt form, ohne Ausstehendes oder Versiegelung", () => {
     expect(phaseAus(stat(), { phase: "form", bearbeiten: false })).toEqual({ phase: "form", bearbeiten: false });
+  });
+
+  it("lokal anmelden bzw. verwaltung bleibt so, ohne Ausstehendes oder Versiegelung", () => {
+    expect(phaseAus(stat(), { phase: "anmelden", bearbeiten: false })).toEqual({ phase: "anmelden", bearbeiten: false });
+    expect(phaseAus(stat(), { phase: "verwaltung", bearbeiten: false })).toEqual({ phase: "verwaltung", bearbeiten: false });
+  });
+
+  it("Ausstehend geht vor anmelden bzw. verwaltung", () => {
+    expect(phaseAus(stat({ ausstehend: AUSSTEHEND }), { phase: "anmelden", bearbeiten: false })).toEqual({ phase: "frist", bearbeiten: false });
+    expect(phaseAus(stat({ ausstehend: AUSSTEHEND }), { phase: "verwaltung", bearbeiten: false })).toEqual({ phase: "frist", bearbeiten: false });
   });
 
   it("sonst start", () => {

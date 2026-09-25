@@ -143,6 +143,11 @@ impl Buch {
             schluessel_id: einrichtung.schluessel_id.clone(),
             umgebung: betrieb.umgebung(),
         };
+        // Fund aus Phase C: Vor der eigentlichen Verschlüsselung prüfen, ob sich dieser Kopf
+        // überhaupt kanonisieren lässt — eine manipulierte Kette mit einer Blocknummer über der
+        // Grenze sicherer Ganzzahlen (`jcs::SICHER`) lief hier früher in einen Panic statt in
+        // diesen Fehler.
+        kopf.kanonisch()?;
         let einsatz = Einsatz {
             v: 1,
             nummer: nummer.clone(),

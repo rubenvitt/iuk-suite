@@ -6,7 +6,9 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
-import type { Ausstehend, Entwurf, Stammdatenpaket, Status, Versiegelung } from "./typen";
+import type { Block } from "@kern/format";
+
+import type { Ankerstand, Ausstehend, Entwurf, Schluesselposten, SitzungInfo, Stammdatenpaket, Status, Versiegelung } from "./typen";
 
 export const befehle = {
   status: () => invoke<Status>("status"),
@@ -22,4 +24,16 @@ export const befehle = {
   testbetriebBeenden: () => invoke<void>("testbetrieb_beenden"),
   entwicklungEinrichten: (a: { spkiPfad: string | null; fristMinuten: number | null }) =>
     invoke<void>("entwicklung_einrichten", a),
+  /** Wartet bis zu 5 min auf den Anmelderückruf der Suite (`anmeldung_abbrechen` bricht ab). */
+  einrichten: (a: { art: "echt" | "test"; name: string; suiteUrl: string }) => invoke<void>("einrichten", a),
+  anmelden: () => invoke<SitzungInfo>("anmelden"),
+  neuEinrichten: () => invoke<void>("neu_einrichten"),
+  /** Synchron: Der laufende `einrichten`/`anmelden`/`neu_einrichten` endet danach mit „Anmeldung abgebrochen.“ */
+  anmeldungAbbrechen: () => invoke<void>("anmeldung_abbrechen"),
+  /** Synchron: verwirft das Sitzungstoken. */
+  abmelden: () => invoke<void>("abmelden"),
+  bloecke: () => invoke<Block[]>("bloecke"),
+  schluesselFreigeben: () => invoke<Schluesselposten[]>("schluessel_freigeben"),
+  ankerAbgleichen: () => invoke<Ankerstand>("anker_abgleichen"),
+  stammdatenAbgleichen: () => invoke<void>("stammdaten_abgleichen"),
 };

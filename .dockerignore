@@ -18,6 +18,9 @@ apps
 # „Cannot find module ./e2e/helpers/avModus" — waehrend `pnpm typecheck`,
 # `pnpm build` und Vitest lokal alle gruen bleiben, weil `e2e/` dort existiert.
 playwright*.config.ts
+# Der Browserteil des Einsatzbuch-Ende-zu-Ende-Laufs (Plan Stufe 5, Task 12) importiert aus
+# dem ausgeschlossenen `e2e/` und läuft nur am Entwicklungsrechner — nicht ins Image.
+scripts/einsatzbuch-e2e-*.ts
 **/*.test.ts
 **/*.test.tsx
 .env*

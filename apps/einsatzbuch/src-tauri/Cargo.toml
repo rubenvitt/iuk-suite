@@ -34,6 +34,22 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# HTTP zur Suite (Entscheidung 8): ohne Default-Features, denn die bringen rustls und damit
+# `ring` mit. `native-tls` nimmt die TLS-Implementierung des Betriebssystems (Schannel unter
+# Windows, Security.framework unter macOS). Kein rustls, kein `ring`, kein `aws-lc` — die CI
+# prüft das Lockfile (Schritt „Kein ring“).
+ureq = { version = "3", default-features = false, features = ["native-tls", "json"] }
+# Sitzungstoken im Speicher: wird beim Verwerfen überschrieben (Sperren heißt abmelden).
+zeroize = "1"
+
+# Schlüsselbund nur, wo die App ausgeliefert wird (Entscheidung 8). `keyring` 3, nicht 4: Die 4
+# verlangt Rust 1.88 (Workspace: 1.85), und nur die 3 kennt `apple-native`/`windows-native`.
+# Unter anderen Zielen hält `schluesselbund.rs` das Token im Speicher und warnt.
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
 
 [dev-dependencies]
 tempfile = "3"

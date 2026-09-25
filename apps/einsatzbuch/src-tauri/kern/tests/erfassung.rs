@@ -46,7 +46,7 @@ fn gueltiger_entwurf() -> Entwurf {
 fn absenden_verlangt_stichwort_beginn_und_ort() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let ergebnis = buch.sende_ab(&leerer_entwurf(), Utc::now(), false);
     assert!(
@@ -64,7 +64,7 @@ fn absenden_verlangt_stichwort_beginn_und_ort() {
 fn absenden_prueft_formate_und_ids() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let mut zeit_ungueltig = gueltiger_entwurf();
     zeit_ungueltig.beginn_zeit = "24:00".into();
@@ -93,7 +93,7 @@ fn absenden_prueft_formate_und_ids() {
 fn erneutes_absenden_verlaengert_die_frist_nicht() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     let erste = buch.sende_ab(&gueltiger_entwurf(), t0, false).unwrap();
@@ -112,7 +112,7 @@ fn erneutes_absenden_verlaengert_die_frist_nicht() {
 fn doppelte_id_ergibt_ungueltig() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let mut doppeltes_fahrzeug = gueltiger_entwurf();
     doppeltes_fahrzeug.fahrzeuge = vec!["11-83-1".into(), "11-83-1".into()];
@@ -128,7 +128,7 @@ fn doppelte_id_ergibt_ungueltig() {
 fn neunhundertneunundneunzig_geht_tausend_nicht() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let mut an_der_grenze = gueltiger_entwurf();
     an_der_grenze.vor_ort = 999;
@@ -144,7 +144,7 @@ fn neunhundertneunundneunzig_geht_tausend_nicht() {
 fn ausstehend_bestaetigt_nach_erneutem_absenden_den_neuen_stand_und_die_alte_frist() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     let erste = buch.sende_ab(&gueltiger_entwurf(), t0, false).unwrap();
@@ -163,7 +163,7 @@ fn ausstehend_bestaetigt_nach_erneutem_absenden_den_neuen_stand_und_die_alte_fri
 fn absenden_formatiert_abgesendet_am_und_frist_bis_in_der_suite_zone() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     // 2026-08-22T03:12:00Z ist Sommerzeit in Europe/Berlin (+02:00) → 05:12/05:27 Ortszeit.
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
@@ -196,7 +196,7 @@ fn entwurf_speichern_und_verwerfen() {
 fn sende(teil: impl FnOnce(&mut Entwurf)) -> Result<(), String> {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let mut e = gueltiger_entwurf();
     teil(&mut e);
     match buch.sende_ab(&e, Utc::now(), false) {
@@ -249,7 +249,7 @@ fn hoechstens_200_fahrzeuge_und_1000_kraefte_je_einsatz() {
         let ordner = tempfile::tempdir().unwrap();
         let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
         // Die Stammdaten dürfen mehr führen, als ein Einsatz nennen darf.
-        buch.richte_ein(&einrichtung).unwrap();
+        buch.richte_ein(&einrichtung, hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
         let mut e = gueltiger_entwurf();
         e.fahrzeuge = (0..fahrzeuge).map(|i| format!("f{i}")).collect();
         e.personal = (0..personen).map(|i| PersonAuswahl { id: format!("p{i}"), fahrzeug_id: None }).collect();
@@ -310,7 +310,7 @@ fn volle_kette_nimmt_keinen_neuen_einsatz_an() {
 
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     // 10 000 echte Blöcke wären zu teuer. Die Trigger verbieten nur UPDATE und DELETE, und
     // `sende_ab` sieht nur MAX(block) — also genügt eine Zeile mit Block 10 000.
     buch.verbindung()

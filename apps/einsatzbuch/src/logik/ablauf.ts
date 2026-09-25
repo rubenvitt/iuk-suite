@@ -6,7 +6,7 @@
  */
 import type { Status } from "../typen";
 
-export type Phase = "nicht-eingerichtet" | "startfehler" | "start" | "form" | "frist" | "versiegelt";
+export type Phase = "einrichtung" | "anmelden" | "startfehler" | "start" | "form" | "frist" | "versiegelt" | "verwaltung";
 
 export interface Lokal {
   phase: Phase;
@@ -18,7 +18,7 @@ export interface Lokal {
  * Reihenfolge:
  * 1. `status.startfehler` gesetzt → "startfehler", vor allem anderen: Ohne offene Datenbank
  *    sagt kein anderes Feld des Status noch etwas Verlässliches.
- * 2. nicht eingerichtet → "nicht-eingerichtet".
+ * 2. nicht eingerichtet → "einrichtung".
  * 3. `status.versiegelung` gesetzt → "versiegelt". Das bleibt so, bis die Oberfläche eine
  *    gezeigte Versiegelung per `befehle.versiegelungQuittieren()` quittiert hat — und zwar bei
  *    „Neuen Einsatz erfassen“, gleich ob die Versiegelung von „Jetzt versiegeln“ stammt oder von
@@ -30,7 +30,11 @@ export interface Lokal {
  *    Person ändert gerade die Angaben eines abgesendeten, noch nicht versiegelten Einsatzes.
  * 5. `status.ausstehend` gesetzt (sonst) → "frist".
  * 6. lokal `form` → "form".
- * 7. sonst → "start".
+ * 7. lokal `anmelden` oder `verwaltung` → so lassen. Beide sind, wie „form“, ein rein lokaler
+ *    Ausflug der Verwaltung (Kopf-Knopf „Verwaltung · Anmelden“ bzw. der Name in der Sitzung), den
+ *    kein Feld des Status auslöst; ein zwischendurch neu geladener Status (etwa nach `laden()`)
+ *    soll ihn nicht verlassen.
+ * 8. sonst → "start".
  *
  * Beim allerersten Status nach dem Start mit `ausstehend` UND `entwurf` gesetzt entscheidet die
  * Oberfläche selbst für `{ phase: "form", bearbeiten: true }` als lokalen Ausgangspunkt, bevor sie
@@ -39,13 +43,14 @@ export interface Lokal {
  */
 export function phaseAus(status: Status, lokal: Lokal): Lokal {
   if (status.startfehler) return { phase: "startfehler", bearbeiten: false };
-  if (!status.eingerichtet) return { phase: "nicht-eingerichtet", bearbeiten: false };
+  if (!status.eingerichtet) return { phase: "einrichtung", bearbeiten: false };
   if (status.versiegelung) return { phase: "versiegelt", bearbeiten: false };
   if (status.ausstehend) {
     if (lokal.phase === "form" && lokal.bearbeiten) return lokal;
     return { phase: "frist", bearbeiten: false };
   }
   if (lokal.phase === "form") return { phase: "form", bearbeiten: lokal.bearbeiten };
+  if (lokal.phase === "anmelden" || lokal.phase === "verwaltung") return { phase: lokal.phase, bearbeiten: false };
   return { phase: "start", bearbeiten: false };
 }
 

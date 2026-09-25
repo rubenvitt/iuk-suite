@@ -29,7 +29,7 @@ fn entschluessele(block: &einsatzbuch_kern::format::Block, suite_privat: &p256::
     let cek_array: [u8; 32] = cek.try_into().unwrap();
     let iv: [u8; 12] = krypto::aus_b64(&block.iv).unwrap().try_into().unwrap();
     let daten = krypto::aus_b64(&block.daten).unwrap();
-    let aad = block.kopf.kanonisch();
+    let aad = block.kopf.kanonisch().unwrap();
     let klartext = Aes256Gcm::new(&cek_array.into())
         .decrypt(&iv.into(), Payload { msg: &daten, aad: aad.as_bytes() })
         .expect("der ausgepackte CEK muss den Klartext öffnen");
@@ -79,7 +79,7 @@ fn entwurf_zwei() -> Entwurf {
 fn versiegelt_in_einer_transaktion_und_haengt_an() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf_eins(), t0, false).unwrap();
@@ -116,7 +116,7 @@ fn versiegelt_in_einer_transaktion_und_haengt_an() {
 fn nummern_ueber_den_jahreswechsel_in_der_suite_zone() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let zeitpunkte = [
         Utc.with_ymd_and_hms(2026, 12, 31, 22, 0, 0).unwrap(),
@@ -141,7 +141,7 @@ fn nummern_ueber_den_jahreswechsel_in_der_suite_zone() {
 fn testbetrieb_versiegelt_test_mit_praefix() {
     let ordner_test = tempfile::tempdir().unwrap();
     let mut test = Buch::oeffne(ordner_test.path(), Betrieb::Test).unwrap();
-    test.richte_ein(&test_einrichtung(Umgebung::Test)).unwrap();
+    test.richte_ein(&test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let jetzt = Utc.with_ymd_and_hms(2026, 1, 10, 12, 0, 0).unwrap();
     test.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
     let mut zufall = FesterZufall(3);
@@ -151,7 +151,7 @@ fn testbetrieb_versiegelt_test_mit_praefix() {
 
     let ordner_echt = tempfile::tempdir().unwrap();
     let mut echt = Buch::oeffne(ordner_echt.path(), Betrieb::Echt).unwrap();
-    echt.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    echt.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     echt.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
     let mut zufall2 = FesterZufall(4);
     let versiegelung2 = echt.versiegele_ausstehend(jetzt, &mut zufall2, false).unwrap().unwrap();
@@ -163,7 +163,7 @@ fn testbetrieb_versiegelt_test_mit_praefix() {
 fn nummer_bleibt_auch_vierstellig_unter_der_grenze_des_readers() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Test)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let jetzt = Utc.with_ymd_and_hms(2026, 6, 1, 12, 0, 0).unwrap();
     buch.verbindung().execute("INSERT INTO nummern (jahr, letzte) VALUES (2026, 999)", []).unwrap();
     buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
@@ -177,7 +177,7 @@ fn nummer_bleibt_auch_vierstellig_unter_der_grenze_des_readers() {
 fn fehlende_stammdaten_id_faellt_auf_den_schnappschuss_zurueck() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap(); // enthält p4
@@ -185,7 +185,7 @@ fn fehlende_stammdaten_id_faellt_auf_den_schnappschuss_zurueck() {
     let mut paket = test_einrichtung(Umgebung::Echt).paket;
     paket.stammdaten.personal.retain(|p| p.id != "p4");
     paket.version = 2;
-    buch.uebernehme_stammdaten(&paket).unwrap();
+    buch.uebernehme_stammdaten(&paket, Some("etag-1"), "2026-01-01T00:00:00+01:00").unwrap();
 
     let mut zufall = FesterZufall(5);
     buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
@@ -210,7 +210,7 @@ fn enthaelt(heuhaufen: &[u8], nadel: &[u8]) -> bool {
 fn versiegeln_entfernt_klartext_auch_aus_der_wal() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let marker = "KLARTEXT-MARKER-7f3a";
     let mut mit_marker = entwurf_eins();
@@ -240,7 +240,7 @@ fn versiegeln_entfernt_klartext_auch_aus_der_wal() {
 fn neuaufloesung_beim_versiegeln_uebernimmt_umbenannte_stammdaten() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap(); // enthält Fahrzeug 11-83-1 und Person p4
@@ -249,7 +249,7 @@ fn neuaufloesung_beim_versiegeln_uebernimmt_umbenannte_stammdaten() {
     paket.stammdaten.fahrzeuge.iter_mut().find(|f| f.id == "11-83-1").unwrap().ruf = "Neuer Rufname".into();
     paket.stammdaten.personal.iter_mut().find(|p| p.id == "p4").unwrap().name = "Dierks, Malte-Neu".into();
     paket.version = 2;
-    buch.uebernehme_stammdaten(&paket).unwrap();
+    buch.uebernehme_stammdaten(&paket, Some("etag-1"), "2026-01-01T00:00:00+01:00").unwrap();
 
     let mut zufall = FesterZufall(5);
     buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
@@ -266,7 +266,7 @@ fn neuaufloesung_beim_versiegeln_uebernimmt_umbenannte_stammdaten() {
 fn fehlendes_fahrzeug_faellt_auf_den_schnappschuss_zurueck() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 29, 13, 0, 0).unwrap();
     buch.sende_ab(&entwurf_zwei(), jetzt, false).unwrap(); // enthält Fahrzeug 12-19-1
@@ -274,7 +274,7 @@ fn fehlendes_fahrzeug_faellt_auf_den_schnappschuss_zurueck() {
     let mut paket = test_einrichtung(Umgebung::Echt).paket;
     paket.stammdaten.fahrzeuge.retain(|f| f.id != "12-19-1");
     paket.version = 2;
-    buch.uebernehme_stammdaten(&paket).unwrap();
+    buch.uebernehme_stammdaten(&paket, Some("etag-1"), "2026-01-01T00:00:00+01:00").unwrap();
 
     let mut zufall = FesterZufall(6);
     buch.versiegele_ausstehend(jetzt, &mut zufall, false).unwrap();
@@ -293,7 +293,7 @@ fn besatzung_aus_ergibt_fahrzeug_id_none_im_klartext() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     let mut einrichtung = test_einrichtung(Umgebung::Echt);
     einrichtung.paket.besatzung = false;
-    buch.richte_ein(&einrichtung).unwrap();
+    buch.richte_ein(&einrichtung, hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
@@ -309,7 +309,7 @@ fn besatzung_aus_ergibt_fahrzeug_id_none_im_klartext() {
 fn ein_fehlschlag_in_der_transaktion_hinterlaesst_nichts() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
-    buch.richte_ein(&test_einrichtung(Umgebung::Echt)).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
     let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
     buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
 
@@ -329,4 +329,69 @@ fn ein_fehlschlag_in_der_transaktion_hinterlaesst_nichts() {
     assert_eq!(nummern, 0, "die Nummernvergabe darf nicht hängen geblieben sein");
     assert!(buch.ausstehend().unwrap().is_some(), "der ausstehende Einsatz muss erhalten bleiben");
     assert!(buch.bloecke().unwrap().is_empty());
+}
+
+/// Fund aus Phase C: Eine manipulierte Kette, deren letzter Block schon 2^53 − 1 ist (eine
+/// Einheit unter der Grenze sicherer Ganzzahlen), lässt den nächsten Block bei 2^53 landen —
+/// `versiegele_ausstehend` muss das als Fehler melden, nicht als Panic. Im Normalbetrieb kommt
+/// die Kette dort nie an: `grenzen::kette_hat_platz` begrenzt sie in `sende_ab` weit darunter auf
+/// 10 000 Blöcke, und genau deshalb wird der ausstehende Einsatz hier VOR der manipulierten
+/// Kettenzeile abgesendet — `versiegele_ausstehend` selbst prüft die Kettenlänge nicht noch
+/// einmal, nur `sende_ab` tut das.
+#[test]
+fn versiegele_ausstehend_mit_zu_grosser_blocknummer_scheitert_ohne_panic() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
+
+    let manipulierter_block = (1u64 << 53) - 1;
+    buch.verbindung()
+        .execute(
+            "INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (?1, '{}', ?2, 'x')",
+            rusqlite::params![manipulierter_block as i64, "a".repeat(64)],
+        )
+        .unwrap();
+
+    let ergebnis = buch.versiegele_ausstehend(jetzt, &mut FesterZufall(1), false);
+    assert!(matches!(ergebnis, Err(ErfassungFehler::Kanonik(_))), "{ergebnis:?}");
+    // Kein Panic bis hierhin heißt schon: der Fund ist behoben. Zusätzlich bleibt der
+    // ausstehende Einsatz erhalten, wie bei jedem anderen Fehlschlag in der Transaktion.
+    assert!(buch.ausstehend().unwrap().is_some());
+}
+
+/// `unbestaetigte_anker` liefert die Blöcke über `anker_gemeldet_bis`, aufsteigend; nach
+/// `anker_bestaetigt` steigt die Grenze, senkt sich aber nie durch eine kleinere Zahl.
+#[test]
+fn unbestaetigte_anker_nach_teilweiser_bestaetigung() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    for (i, entwurf) in [entwurf_eins(), entwurf_zwei(), entwurf_eins()].into_iter().enumerate() {
+        buch.sende_ab(&entwurf, jetzt, false).unwrap();
+        buch.versiegele_ausstehend(jetzt, &mut FesterZufall(i as u8 + 1), false).unwrap();
+    }
+    let bloecke = buch.bloecke().unwrap();
+    assert_eq!(bloecke.len(), 3);
+
+    assert_eq!(
+        buch.unbestaetigte_anker().unwrap(),
+        vec![(1, bloecke[0].hash.clone()), (2, bloecke[1].hash.clone()), (3, bloecke[2].hash.clone())]
+    );
+
+    buch.anker_bestaetigt(2).unwrap();
+    assert_eq!(buch.unbestaetigte_anker().unwrap(), vec![(3, bloecke[2].hash.clone())]);
+    assert_eq!(buch.anbindung().unwrap().unwrap().anker_gemeldet_bis, 2);
+
+    // Eine verspätete, schon überholte Bestätigung senkt die Grenze nicht wieder.
+    buch.anker_bestaetigt(1).unwrap();
+    assert_eq!(buch.anbindung().unwrap().unwrap().anker_gemeldet_bis, 2);
+    assert_eq!(buch.unbestaetigte_anker().unwrap(), vec![(3, bloecke[2].hash.clone())]);
+
+    buch.anker_bestaetigt(3).unwrap();
+    assert!(buch.unbestaetigte_anker().unwrap().is_empty());
 }

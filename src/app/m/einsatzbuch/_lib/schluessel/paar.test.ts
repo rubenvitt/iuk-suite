@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { testDb } from "../testDb";
 import { zufall } from "../kern/bytes";
 import { importiereOeffentlich, schluesselIdVon } from "../kern/umschlag";
-import { entschluesselePrivat, legePaarAn, PrivatUnlesbar, verschluesselePrivat } from "./paar";
+import { schluesselpaar } from "../../_db/schema";
+import { bereitePaarVor, entschluesselePrivat, legePaarAn, PrivatUnlesbar, verschluesselePrivat } from "./paar";
 
 const KEK = new Uint8Array(32).fill(7);
 const ANDERER_KEK = new Uint8Array(32).fill(8);
@@ -47,5 +48,18 @@ describe("legePaarAn", () => {
     const db = testDb();
     await legePaarAn(db, { art: "echt", rechnerId: null, kek: KEK, jetzt: new Date(0) });
     await expect(legePaarAn(db, { art: "echt", rechnerId: null, kek: KEK, jetzt: new Date(0) })).rejects.toThrow();
+  });
+});
+
+describe("bereitePaarVor", () => {
+  it("baut eine vollständige Zeile, fügt aber nichts ein; der private Schlüssel liegt nur verschlüsselt darin", async () => {
+    const db = testDb();
+    const zeile = await bereitePaarVor({ art: "echt", rechnerId: null, kek: KEK, jetzt: new Date(0) });
+    expect(db.select().from(schluesselpaar).all()).toEqual([]);
+    expect(zeile.schluesselId).toBe(await schluesselIdVon(await importiereOeffentlich(zeile.oeffentlich)));
+    expect(zeile.privatVerschluesselt).toMatch(/^[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/);
+    await expect(entschluesselePrivat(zeile.privatVerschluesselt, zeile.schluesselId, KEK)).resolves.toBeInstanceOf(Uint8Array);
+    db.insert(schluesselpaar).values(zeile).run();
+    expect(db.select().from(schluesselpaar).all()).toEqual([zeile]);
   });
 });
