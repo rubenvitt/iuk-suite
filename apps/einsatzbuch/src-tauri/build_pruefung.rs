@@ -180,4 +180,15 @@ mod tests {
         assert_eq!(basis.pointer("/bundle/createUpdaterArtifacts"), None);
         assert_eq!(overlay.pointer("/bundle/createUpdaterArtifacts"), Some(&serde_json::Value::Bool(true)));
     }
+
+    /// Das Release-Bundle für macOS ist ad hoc signiert (`"-"` reicht der Bundler als
+    /// `codesign --sign -` durch): Ohne jede Signatur nennt macOS auf Apple Silicon eine
+    /// heruntergeladene App „beschädigt“. Der Debug-Rauchtest bleibt ohne.
+    #[test]
+    fn adhoc_signatur_nur_im_release_overlay() {
+        let basis: serde_json::Value = serde_json::from_str(ECHTE_CONF).unwrap();
+        let overlay: serde_json::Value = serde_json::from_str(OVERLAY).unwrap();
+        assert_eq!(basis.pointer("/bundle/macOS/signingIdentity"), None);
+        assert_eq!(overlay.pointer("/bundle/macOS/signingIdentity"), Some(&serde_json::json!("-")));
+    }
 }
