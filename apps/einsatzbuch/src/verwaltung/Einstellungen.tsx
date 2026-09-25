@@ -10,6 +10,9 @@
  *   erst nach einer Bestätigung. Den Rest prüft Rust (Anker der Suite, Freigabe, Ausstehendes).
  *   Die Meldung steht außerhalb dieser Bedingung, denn nach dem Neulesen ist die Kette nicht mehr leer.
  * - **Autostart:** nur im Echtbetrieb, gelesen und geschaltet über `autostart_status`/`autostart_setzen`.
+ * - **Update:** nur ein Hinweis, wenn der Updater (Rust, nur im Release-Build) eine Version
+ *   vorgemerkt hat (`status.update`). Einen Knopf gibt es nicht: Rust installiert selbst, sobald
+ *   nichts aussteht und niemand angemeldet ist (Stufe 7, Entscheidung 1).
  *
  * Den Status liest die Karte nie selbst. Sie meldet eine Änderung an die App (`beiGeaendert`),
  * die ihn über `laden()` mit Sequenznummer holt (`App.tsx`). Fehler aus Rust kommen als
@@ -33,6 +36,8 @@ export interface EinstellungenProps {
   ketteLeer: boolean;
   mitSitzung: boolean;
   zeitzone: string;
+  /** Version eines vorgemerkten Updates (`status.update`), sonst `null`. */
+  update: string | null;
   /** Die App liest den Status neu; `ketteNeu` heißt: auch die Verwaltung neu laden. */
   beiGeaendert: (ketteNeu: boolean) => Promise<void>;
 }
@@ -168,6 +173,18 @@ export function Einstellungen(p: EinstellungenProps) {
             {sicherungMeldung ? <Hinweis ton={sicherungMeldung.ton}>{sicherungMeldung.text}</Hinweis> : null}
           </div>
         </div>
+
+        {p.update !== null ? (
+          <div className="einstellung">
+            <div className="leitsatz-zeichen"><Zeichen name="herunterladen" groesse={20} /></div>
+            <div className="stapel stapel-8 einstellung-inhalt">
+              <div className="leitsatz-titel">Update</div>
+              <Hinweis ton="info" rolle="status">
+                Update auf {p.update} ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht und niemand angemeldet ist.
+              </Hinweis>
+            </div>
+          </div>
+        ) : null}
 
         {echt ? (
           <div className="einstellung">

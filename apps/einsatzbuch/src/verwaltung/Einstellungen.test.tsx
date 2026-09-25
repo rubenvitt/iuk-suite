@@ -32,6 +32,7 @@ function props(teil: Partial<EinstellungenProps> = {}): EinstellungenProps {
     ketteLeer: false,
     mitSitzung: true,
     zeitzone: "Europe/Berlin",
+    update: null,
     beiGeaendert: vi.fn(async () => {}),
     ...teil,
   };
@@ -243,5 +244,25 @@ describe("Autostart", () => {
     await warte();
     expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual(["Autostart ließ sich nicht umschalten: verweigert"]);
     expect(schalter()?.checked).toBe(true);
+  });
+});
+
+describe("Update", () => {
+  const HINWEIS =
+    "Update auf 0.2.0 ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht und niemand angemeldet ist.";
+
+  it("ohne vorgemerktes Update kein Hinweis", async () => {
+    await zeige(props());
+    expect(text()).not.toContain("vorgemerkt");
+  });
+
+  it("nennt die vorgemerkte Version und wann sie installiert wird", async () => {
+    await zeige(props({ update: "0.2.0" }));
+    expect(queryAll('[role="status"]').map((h) => h.textContent)).toContain(HINWEIS);
+  });
+
+  it("auch im Testbetrieb", async () => {
+    await zeige(props({ betrieb: "test", sicherung: { ordner: null, letzte: null, fehler: null, stufe: "aus" }, update: "0.2.0" }));
+    expect(text()).toContain(HINWEIS);
   });
 });

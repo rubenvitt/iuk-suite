@@ -102,8 +102,8 @@ fn sicherungsgrundlage(z: &Zustand) -> Result<Option<Sicherungsgrundlage>, Strin
 }
 
 /// Vermerkt das Ergebnis im Buch, aber nur, wenn noch derselbe Ordner gewählt ist: Wurde er
-/// während des Schreibens gewechselt, gilt das Ergebnis dem alten, und der Anstoß der neuen Wahl
-/// sichert gleich danach in den neuen.
+/// während des Schreibens gewechselt, gilt das Ergebnis dem alten, und `setze_sicherungsordner`
+/// sichert gleich danach selbst in den neuen (es wartet dafür auf `Zustand::sicherung`).
 fn vermerke(z: &Zustand, ordner: &str, f: impl FnOnce(&mut Buch) -> Result<(), BuchFehler>) -> Result<(), String> {
     let mut buch = z.buch();
     let Some(offen) = buch.as_mut() else { return Ok(()) };

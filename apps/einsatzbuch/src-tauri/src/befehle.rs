@@ -141,6 +141,9 @@ pub struct Status {
     pub sitzung: Option<SitzungInfo>,
     /// Die App wartet auf den Anmelderückruf der Suite.
     pub anmeldung_laeuft: bool,
+    /// Version eines vorgemerkten, noch nicht installierten Updates (`updater.rs`); im
+    /// Debug-Build immer `None`, denn dort läuft kein Updater.
+    pub update: Option<String>,
 }
 
 /// Die Verwaltungssitzung in Rust (Spec §4.4). Das Token wird beim Verwerfen überschrieben
@@ -246,6 +249,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
             widerrufen: false,
             sitzung: None,
             anmeldung_laeuft: false,
+            update: None,
         },
         Some(buch) => {
             let einrichtung = buch.einrichtung().map_err(buch_fehler_text)?;
@@ -287,12 +291,14 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                 widerrufen: anbindung.as_ref().is_some_and(|a| a.widerrufen),
                 sitzung: None,
                 anmeldung_laeuft: false,
+                update: None,
             }
         }
     };
     drop(buch);
     status.sitzung = sitzung_info(z);
     status.anmeldung_laeuft = z.anmeldung().is_some();
+    status.update = z.update().as_ref().map(|v| v.version.clone());
     Ok(status)
 }
 
@@ -1381,7 +1387,7 @@ pub(crate) mod tests {
     }
 
     /// Ein Entwurf mit den IDs aus `vertrag/einrichten.json`.
-    fn entwurf_suite() -> Entwurf {
+    pub(crate) fn entwurf_suite() -> Entwurf {
         Entwurf {
             fahrzeuge: vec!["S30b2bswU8FPOqS6jgF5B".into()],
             personal: vec![PersonAuswahl { id: "_gH6Ga_FOiqlRTSmEoT1c".into(), fahrzeug_id: Some("S30b2bswU8FPOqS6jgF5B".into()) }],

@@ -10,11 +10,11 @@
 //! ein Blatt, nie umgekehrt. `sicherung` nimmt nur `sichere_jetzt`, und niemand ruft es unter
 //! einem anderen Lock; es darf über der Datei-I/O im Sicherungsordner gehalten werden, denn es
 //! sperrt nur den zweiten Schreiber, und unter ihm wird `buch` nur kurz genommen. Über der
-//! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung` und
-//! `abgleich` sind Blätter: Wer einen von ihnen hält, nimmt keinen weiteren Mutex. Kein anderer
-//! Lock wird über eine Anfrage an die Suite, das Warten auf den Anmelderückruf, einen Dialog oder
-//! das Schreiben und Prüfen einer Datei außerhalb des App-Datenordners (Sicherungsordner)
-//! gehalten. Den Versiegelungshinweis schreibt der Kern in
+//! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung`,
+//! `abgleich` und `update` sind Blätter: Wer einen von ihnen hält, nimmt keinen weiteren Mutex.
+//! Kein anderer Lock wird über eine Anfrage an die Suite oder den Update-Endpunkt, das Warten auf
+//! den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei außerhalb des
+//! App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
 //! derselben Transaktion wie den Block, und `lies_status` liest ihn unter dem Buch-Lock. So
 //! sieht die Oberfläche nie einen halben Stand, etwa einen schon versiegelten Block ohne die
 //! zugehörige Versiegelung. Ein vergifteter Mutex (Panik in einem
@@ -36,6 +36,7 @@ use einsatzbuch_kern::uhr::Uhr;
 
 use crate::abgleich::Anstoss;
 use crate::befehle::Sitzung;
+use crate::updater::Vorgemerkt;
 
 pub struct Zustand {
     /// `app_data_dir`, dort liegen `einsatzbuch.db` bzw. `einsatzbuch-test.db`.
@@ -68,6 +69,9 @@ pub struct Zustand {
     /// Suite-Adresse eines echten Rechners (`anmeldung::SUITE_VORGABE`); ein echter Rechner
     /// verbindet sich mit keiner anderen.
     pub suite_vorgabe: String,
+    /// Ein gefundenes, noch nicht installiertes Update (`updater.rs`). Nur im Release-Build je
+    /// gesetzt.
+    pub update: Mutex<Option<Vorgemerkt>>,
 }
 
 /// Was die Anbindung an die Suite mitbringt — im Betrieb Netz und Schlüsselbund, in Tests Fakes.
@@ -102,6 +106,7 @@ impl Zustand {
             abgleich: Mutex::new(None),
             sicherung: Mutex::new(()),
             suite_vorgabe: SUITE_VORGABE.to_string(),
+            update: Mutex::new(None),
         }
     }
 
@@ -150,6 +155,10 @@ impl Zustand {
 
     pub fn abgleich(&self) -> MutexGuard<'_, Option<Sender<Anstoss>>> {
         self.abgleich.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn update(&self) -> MutexGuard<'_, Option<Vorgemerkt>> {
+        self.update.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Sperrt die Sicherung für einen Schreiber (Sperrreihenfolge oben: vor `buch`).

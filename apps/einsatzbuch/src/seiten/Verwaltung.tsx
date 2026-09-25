@@ -58,6 +58,8 @@ interface VerwaltungProps {
   ketteLeer: boolean;
   beiKettePruefen: () => Promise<void>;
   /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
+  /** Version eines vorgemerkten Updates (`status.update`), für die Karte „Einstellungen“. */
+  update: string | null;
   beiEinstellungGeaendert: (ketteNeu: boolean) => Promise<void>;
   beiSperren: () => void;
 }
@@ -178,6 +180,7 @@ export function Verwaltung(p: VerwaltungProps) {
         ketteLeer={p.ketteLeer}
         mitSitzung={p.sitzung !== null}
         zeitzone={zeitzone}
+        update={p.update}
         beiGeaendert={p.beiEinstellungGeaendert}
       />
 
