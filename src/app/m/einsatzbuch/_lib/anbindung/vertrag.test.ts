@@ -12,7 +12,7 @@ import { gibFrei } from "./freigabe";
 import { erzeugeSitzung, sitzungAus } from "./sitzung";
 import {
   ankerAnfrage, einrichtenAnfrage, einrichtenAntwort, fehler, fehlerKoerper, freigabeAnfrage, freigabeAntwort,
-  sicherungAnfrage, stammdatenpaketSchema, tauschAnfrage, tauschAntwort,
+  kettenankerAntwort, sicherungAnfrage, stammdatenpaketSchema, tauschAnfrage, tauschAntwort,
 } from "./vertrag";
 
 const ORDNER = join(__dirname, "vertrag");
@@ -23,6 +23,7 @@ const SCHEMA: Record<string, z.ZodType> = {
   "freigeben-anfrage.json": freigabeAnfrage,
   "freigeben.json": freigabeAntwort,
   "fehler-echt-vorhanden.json": fehlerKoerper,
+  "anker-lesen.json": kettenankerAntwort,
 };
 const lies = (datei: string): unknown => JSON.parse(readFileSync(join(ORDNER, datei), "utf8"));
 
@@ -103,6 +104,15 @@ describe("Anfrageschemas", () => {
     expect(ankerAnfrage.safeParse({ block: 1.5, hash: "a".repeat(64) }).success).toBe(false);
     expect(ankerAnfrage.safeParse({ block: 1, hash: "A".repeat(64) }).success).toBe(false);
   });
+  it("kettenankerAntwort: anker mit block ≥ 1 und Hash hex64, oder null", () => {
+    expect(kettenankerAntwort.safeParse({ anker: { block: 7, hash: "a".repeat(64) } }).success).toBe(true);
+    expect(kettenankerAntwort.safeParse({ anker: null }).success).toBe(true);
+    expect(kettenankerAntwort.safeParse({ anker: { block: 0, hash: "a".repeat(64) } }).success).toBe(false);
+    expect(kettenankerAntwort.safeParse({ anker: { block: 10_001, hash: "a".repeat(64) } }).success).toBe(true);
+    expect(kettenankerAntwort.safeParse({ anker: { block: 7, hash: "A".repeat(64) } }).success).toBe(false);
+    expect(kettenankerAntwort.safeParse({}).success).toBe(false);
+  });
+
   it("sicherungAnfrage: Zeitpunkt mit Offset", () => {
     expect(sicherungAnfrage.safeParse({ erstellt: "2026-09-25T10:00:00+02:00" }).success).toBe(true);
     expect(sicherungAnfrage.safeParse({ erstellt: "2026-09-25T10:00:00" }).success).toBe(false);

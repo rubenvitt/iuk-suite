@@ -17,8 +17,8 @@ use crate::buch::{Ankerabweichung, Buch, BuchFehler};
 use crate::einrichtung::Stammdatenpaket;
 use crate::format::{Block, Umgebung};
 use crate::vertrag::{
-    AnkerAnfrage, EinrichtenAnfrage, EinrichtenAntwort, Fehlerkoerper, Freigabeposten, Schluesselposten, TauschAnfrage,
-    TauschAntwort,
+    AnkerAnfrage, EinrichtenAnfrage, EinrichtenAntwort, Fehlerkoerper, Freigabeposten, KettenankerAntwort,
+    Schluesselposten, SicherungAnfrage, TauschAnfrage, TauschAntwort,
 };
 
 /// Eine Anfrage an die Suite. `json` ist der fertige Körper; die Hülle setzt dazu
@@ -336,6 +336,33 @@ fn rechner_id(b: &Buch) -> Result<Option<String>, BuchFehler> {
     Ok(b.anbindung()?.map(|a| a.rechner_id))
 }
 
+/// `GET /api/anker` mit dem Geräte-Token (Stufe 6, Entscheidung 5): der höchste Suite-Anker der
+/// Kette, zu der dieser Rechner gehört — `None` bei einer leeren Kette. Anders als
+/// `gleiche_anker_ab` prüft das nicht gegen eine Meldung, sondern liest den Stand für die
+/// Wiederherstellung. 401 heißt Widerrufen wie bei den anderen Geräte-Schnittstellen; eine
+/// mehrdeutige Kette der Suite (`409 anker_mehrdeutig`) und ein 5xx ohne lesbaren Fehlerkörper
+/// laufen über `abgelehnt_oder_offline` wie bei `gib_frei`.
+pub fn hole_kettenanker(t: &dyn Transport, suite: &str, geraet: &str) -> Result<Option<(u64, String)>, SuiteFehler> {
+    let a = sende(
+        t,
+        Anfrage {
+            methode: "GET",
+            url: modul_url(suite, "/api/anker"),
+            bearer: Some(geraet),
+            if_none_match: None,
+            json: None,
+        },
+    )?;
+    match a.status {
+        200 => {
+            let antwort: KettenankerAntwort = lies_json(&a)?;
+            Ok(antwort.anker.map(|k| (k.block, k.hash)))
+        }
+        401 => Err(SuiteFehler::Widerrufen),
+        _ => Err(abgelehnt_oder_offline(&a)),
+    }
+}
+
 /// Höchstens so viele Einträge je Freigabe-Anfrage (Tabelle „Schnittstellen“, Nr. 7).
 pub const PAKET: usize = 200;
 
@@ -399,5 +426,28 @@ pub fn loesche_rechner(t: &dyn Transport, suite: &str, sitzung: &str, rechner_id
     match a.status {
         200 | 204 => Ok(()),
         _ => Err(abgelehnt(&a)),
+    }
+}
+
+/// `POST /api/sicherung` mit dem Geräte-Token (Tabelle „Schnittstellen“, Nr. 6): meldet den
+/// Zeitpunkt der letzten gelungenen Sicherung. 204 ist der einzige Erfolg; 401 heißt Widerrufen
+/// wie bei den anderen Geräte-Schnittstellen (Stammdaten, Anker), ein 5xx ohne lesbaren
+/// Fehlerkörper „nicht erreichbar“.
+pub fn melde_sicherung(t: &dyn Transport, suite: &str, geraet: &str, erstellt: &str) -> Result<(), SuiteFehler> {
+    let koerper = SicherungAnfrage { erstellt: erstellt.to_string() };
+    let a = sende(
+        t,
+        Anfrage {
+            methode: "POST",
+            url: modul_url(suite, "/api/sicherung"),
+            bearer: Some(geraet),
+            if_none_match: None,
+            json: Some(als_json(&koerper)),
+        },
+    )?;
+    match a.status {
+        204 => Ok(()),
+        401 => Err(SuiteFehler::Widerrufen),
+        _ => Err(abgelehnt_oder_offline(&a)),
     }
 }

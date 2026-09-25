@@ -60,6 +60,16 @@ export type EinrichtenAntwort = z.infer<typeof einrichtenAntwort>;
 
 export const ankerAnfrage = z.object({ block: z.number().int().min(1).max(10_000), hash: hex(64) }).strict();
 
+/**
+ * Antwort von `GET /api/anker` (Entscheidung 5): der höchste Suite-Anker der Kette, zu der der
+ * anfragende Rechner gehört, oder `null` ohne einen. Anders als `ankerAnfrage` ohne Obergrenze
+ * auf `block` — die Kette kann inzwischen weiter sein, als `POST anker` je gesehen hat.
+ */
+export const kettenankerAntwort = z.object({
+  anker: z.object({ block: z.number().int().min(1), hash: hex(64) }).strict().nullable(),
+}).strict();
+export type KettenankerAntwort = z.infer<typeof kettenankerAntwort>;
+
 export const sicherungAnfrage = z.object({ erstellt: zeitpunkt }).strict();
 
 /**

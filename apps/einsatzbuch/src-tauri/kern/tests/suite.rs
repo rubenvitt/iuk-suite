@@ -652,3 +652,89 @@ fn anker_nach_panik_unter_dem_lock_laufen_weiter() {
     let stand = buch.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().unwrap().anbindung().unwrap().unwrap();
     assert_eq!(stand.anker_gemeldet_bis, 2);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Kettenanker (GET /api/anker) und Sicherung
+// ---------------------------------------------------------------------------------------------
+
+/// `hole_kettenanker`: `GET` mit dem Geräte-Token, 200 mit Anker liefert `Some((block, hash))`.
+#[test]
+fn hole_kettenanker_schickt_get_mit_bearer_und_liest_den_anker() {
+    let t = FakeTransport::neu(|_| antwort(200, &fixture("anker-lesen.json")));
+    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet").unwrap();
+    assert_eq!(ergebnis, Some((7, "f02cabded48fd793ea6d8e7e9ca4a350f5690b88f189129d76c6804e81fc6d9a".into())));
+    let a = &t.anfragen()[0];
+    assert_eq!(a.methode, "GET");
+    assert_eq!(a.url, "https://suite.example/m/einsatzbuch/api/anker");
+    assert_eq!(a.bearer.as_deref(), Some("geraet"));
+    assert_eq!(a.if_none_match, None);
+    assert_eq!(a.json, None);
+}
+
+#[test]
+fn hole_kettenanker_ohne_anker_ist_none() {
+    let t = FakeTransport::neu(|_| antwort(200, r#"{"anker":null}"#));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet").unwrap(), None);
+}
+
+#[test]
+fn hole_kettenanker_401_ist_widerrufen() {
+    let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr."));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet"), Err(SuiteFehler::Widerrufen));
+}
+
+#[test]
+fn hole_kettenanker_409_ist_abgelehnt_mit_code_anker_mehrdeutig() {
+    let t = FakeTransport::neu(|_| fehler(409, "anker_mehrdeutig", "Der Kettenanker ist nicht eindeutig."));
+    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet");
+    assert!(
+        matches!(ergebnis, Err(SuiteFehler::Abgelehnt { status: 409, ref code, .. }) if code == "anker_mehrdeutig"),
+        "{ergebnis:?}"
+    );
+}
+
+/// Review Focus 4 sinngemäß: ein 5xx eines vorgeschalteten Proxys ohne lesbaren Fehlerkörper ist
+/// „nicht erreichbar“, kein Fehler.
+#[test]
+fn hole_kettenanker_5xx_ohne_koerper_ist_nicht_erreichbar() {
+    for status in [500, 502, 503, 504] {
+        let t = FakeTransport::neu(move |_| antwort(status, "<html>Bad Gateway</html>"));
+        assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet"), Err(SuiteFehler::NichtErreichbar(format!("HTTP {status}"))));
+    }
+}
+
+#[test]
+fn hole_kettenanker_netzfehler_ist_nicht_erreichbar() {
+    let t = FakeTransport::neu(|_| Err("keine Verbindung".into()));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet"), Err(SuiteFehler::NichtErreichbar("keine Verbindung".into())));
+}
+
+/// `melde_sicherung`: `POST /api/sicherung {erstellt}` mit dem Geräte-Token, 204 ist Erfolg.
+#[test]
+fn melde_sicherung_schickt_koerper_und_bearer() {
+    let t = FakeTransport::neu(|_| antwort(204, ""));
+    suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00").unwrap();
+    let a = &t.anfragen()[0];
+    assert_eq!(a.methode, "POST");
+    assert_eq!(a.url, "https://suite.example/m/einsatzbuch/api/sicherung");
+    assert_eq!(a.bearer.as_deref(), Some("geraet"));
+    assert_eq!(a.json, Some(json!({ "erstellt": "2026-09-25T10:00:00+02:00" })));
+}
+
+#[test]
+fn melde_sicherung_401_ist_widerrufen() {
+    let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr."));
+    assert_eq!(
+        suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00"),
+        Err(SuiteFehler::Widerrufen)
+    );
+}
+
+#[test]
+fn melde_sicherung_5xx_ohne_koerper_ist_nicht_erreichbar() {
+    let t = FakeTransport::neu(|_| antwort(503, "<html>Service Unavailable</html>"));
+    assert_eq!(
+        suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00"),
+        Err(SuiteFehler::NichtErreichbar("HTTP 503".into()))
+    );
+}

@@ -93,6 +93,28 @@ pub struct AnkerAnfrage {
     pub hash: String,
 }
 
+/// Antwort von `GET /api/anker` (Stufe 6, Entscheidung 5): der höchste Suite-Anker der Kette, zu
+/// der der anfragende Rechner gehört, oder `null` ohne einen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct KettenankerAntwort {
+    pub anker: Option<Kettenanker>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Kettenanker {
+    pub block: u64,
+    pub hash: String,
+}
+
+/// Anfrage an `POST /api/sicherung`: der Zeitpunkt der letzten gelungenen Sicherung.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SicherungAnfrage {
+    pub erstellt: String,
+}
+
 /// Ein Eintrag der Anfrage an `POST /api/schluessel/freigeben` — der Körper ist ein nacktes
 /// Array dieser Einträge.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
