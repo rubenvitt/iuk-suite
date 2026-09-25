@@ -5,17 +5,19 @@
 //!   gültigen Schlüssel. Der Code hier kompiliert trotzdem in beiden Profilen, damit Tests und
 //!   Clippy ihn sehen.
 //! - Der Thread prüft kurz nach dem Start (`ERSTE_PRUEFUNG`) und danach alle 6 Stunden
-//!   (`PRUEFTAKT`). Eine neuere Version wird nur **vorgemerkt** (`Zustand::update`, nur die
-//!   Version); der Status meldet sie der Oberfläche.
+//!   (`PRUEFTAKT`), nach einer gescheiterten Prüfung schon nach 15 Minuten (`WIEDERHOLUNG`).
+//!   Eine neuere Version wird nur **vorgemerkt** (`Zustand::update`, nur die Version); der
+//!   Status meldet sie der Oberfläche.
 //! - Jede Minute (`REGELTAKT`) fragt er, solange etwas vorgemerkt ist, `darf_installieren`:
 //!   nichts ausstehend, keine Sitzung, keine laufende Anmeldung. Erst dann lädt er herunter
 //!   (Entscheidung 2), fragt die Regel nach dem Herunterladen **noch einmal** und installiert nur,
 //!   wenn sie weiter gilt: Das Herunterladen kann dauern, und wer in der Zeit einen Einsatz
 //!   absendet oder sich anmeldet, soll nicht mitten in der Arbeit neu starten.
 //! - Nach dem Installieren folgt `AppHandle::restart()` aus dem Tauri-Kern (kein
-//!   `tauri-plugin-process` nötig, dessen `relaunch` ruft dasselbe). Unter Windows beendet
-//!   `install` die App schon selbst und startet den NSIS-Installer (`installMode: "passive"`),
-//!   der sie danach neu startet.
+//!   `tauri-plugin-process` nötig, dessen `relaunch` ruft dasselbe), aber erst, wenn
+//!   `darf_installieren` dann noch gilt; sonst wartet der Neustart minütlich darauf (`Lauf`).
+//!   Unter Windows beendet `install` die App schon selbst und startet den NSIS-Installer
+//!   (`installMode: "passive"`), der sie danach neu startet.
 //! - Fehler gehen ins Log, eine Panik fängt der Thread je Runde (wie `abgleich.rs`). Ein Fehler
 //!   beim Installieren (etwa eine falsche Signatur) verwirft die Vormerkung: Die nächste Prüfung
 //!   merkt neu vor, statt jede Minute erneut herunterzuladen.
@@ -36,6 +38,8 @@ pub const ERSTE_PRUEFUNG: Duration = Duration::from_secs(30);
 pub const PRUEFTAKT: Duration = Duration::from_secs(6 * 60 * 60);
 /// Abstand, in dem eine Vormerkung gegen `darf_installieren` geprüft wird.
 pub const REGELTAKT: Duration = Duration::from_secs(60);
+/// Nächster Versuch nach einer gescheiterten Prüfung (etwa offline beim Start), statt 6 Stunden.
+pub const WIEDERHOLUNG: Duration = Duration::from_secs(15 * 60);
 
 /// Ein gefundenes, noch nicht installiertes Update. Nur die Metadaten: Heruntergeladen wird erst
 /// beim Installieren (Entscheidung 2).
@@ -176,19 +180,50 @@ fn fange<T>(was: &str, f: impl FnOnce() -> Result<T, String>) -> Option<T> {
     }
 }
 
+/// Der Zustand der Thread-Schleife: wann die nächste Prüfung fällig ist und ob ein installiertes
+/// Update noch auf den Neustart wartet. `schritt` ist eine Minute der Schleife, mit der Zeit von
+/// außen, damit sich der Ablauf ohne Warten testen lässt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Lauf {
+    pub naechste_pruefung: Instant,
+    pub neustart_faellig: bool,
+}
+
+impl Lauf {
+    /// Die erste Prüfung ist beim ersten Schritt fällig.
+    pub fn neu(jetzt: Instant) -> Lauf {
+        Lauf { naechste_pruefung: jetzt, neustart_faellig: false }
+    }
+
+    /// Eine Minute der Schleife. `true` heißt: jetzt neu starten.
+    ///
+    /// - Wartet ein installiertes Update auf den Neustart, wird nur `darf_installieren` gefragt:
+    ///   Unter macOS ist das Bundle dann schon ersetzt, und zwischen Installation und Neustart kann
+    ///   sich jemand angemeldet oder einen Einsatz abgesendet haben. Weder Prüfung noch
+    ///   Installation laufen dann erneut.
+    /// - Sonst ist die Prüfung fällig: nach einem Erfolg die nächste in 6 Stunden, nach einem
+    ///   Fehlschlag (etwa offline beim Start) in 15 Minuten.
+    /// - Danach die Installationsrunde; nach einer Installation gleich die Frage nach dem Neustart.
+    pub fn schritt(&mut self, z: &Zustand, q: &dyn Quelle, jetzt: Instant) -> bool {
+        if !self.neustart_faellig {
+            if jetzt >= self.naechste_pruefung {
+                let gelungen = fange("Update-Prüfung", || pruefrunde(z, q)).is_some();
+                self.naechste_pruefung = jetzt + if gelungen { PRUEFTAKT } else { WIEDERHOLUNG };
+            }
+            self.neustart_faellig = fange("Update-Installation", || installationsrunde(z, q)) == Some(true);
+        }
+        self.neustart_faellig && fange("Neustart-Prüfung", || Ok(darf_installieren(&lage(z)))) == Some(true)
+    }
+}
+
 /// Startet den Updater-Thread. `lib.rs` ruft das nur im Release-Build.
 pub fn starte(app: AppHandle) -> std::io::Result<()> {
     std::thread::Builder::new().name("updater".into()).spawn(move || {
         let quelle = PluginQuelle { app: app.clone() };
         std::thread::sleep(ERSTE_PRUEFUNG);
-        let mut naechste_pruefung = Instant::now();
+        let mut lauf = Lauf::neu(Instant::now());
         loop {
-            let zustand = app.state::<Zustand>();
-            if Instant::now() >= naechste_pruefung {
-                fange("Update-Prüfung", || pruefrunde(&zustand, &quelle));
-                naechste_pruefung = Instant::now() + PRUEFTAKT;
-            }
-            if fange("Update-Installation", || installationsrunde(&zustand, &quelle)) == Some(true) {
+            if lauf.schritt(&app.state::<Zustand>(), &quelle, Instant::now()) {
                 app.restart();
             }
             std::thread::sleep(REGELTAKT);
@@ -227,7 +262,10 @@ mod tests {
         installation: RefCell<Result<Installation, String>>,
         /// Läuft zwischen „heruntergeladen“ und der zweiten Frage an `darf` (Lage kippt).
         waehrend_download: RefCell<Option<Box<dyn Fn()>>>,
+        /// Läuft nach einer gelungenen Installation, vor der Frage nach dem Neustart.
+        nach_installation: RefCell<Option<Box<dyn Fn()>>>,
         installiert: Cell<u32>,
+        geprueft: Cell<u32>,
     }
 
     impl FakeQuelle {
@@ -236,13 +274,16 @@ mod tests {
                 version: RefCell::new(Ok(version.map(String::from))),
                 installation: RefCell::new(Ok(Installation::Installiert)),
                 waehrend_download: RefCell::new(None),
+                nach_installation: RefCell::new(None),
                 installiert: Cell::new(0),
+                geprueft: Cell::new(0),
             }
         }
     }
 
     impl Quelle for FakeQuelle {
         fn pruefe(&self) -> Result<Option<String>, String> {
+            self.geprueft.set(self.geprueft.get() + 1);
             self.version.borrow().clone()
         }
         fn installiere(&self, darf: &dyn Fn() -> bool) -> Result<Installation, String> {
@@ -255,6 +296,9 @@ mod tests {
             }
             if ergebnis == Ok(Installation::Installiert) {
                 self.installiert.set(self.installiert.get() + 1);
+                if let Some(f) = self.nach_installation.borrow().as_ref() {
+                    f();
+                }
             }
             ergebnis
         }
@@ -375,6 +419,71 @@ mod tests {
         *q.installation.borrow_mut() = Ok(Installation::KeinUpdate);
         assert_eq!(installationsrunde(&z, &q), Ok(false));
         assert_eq!(vorgemerkt(&z), None);
+    }
+
+    /// Kippt die Lage zwischen Installation und Neustart (macOS: das Bundle ist schon ersetzt),
+    /// wartet der Neustart, bis es wieder ruhig ist, ohne erneut zu installieren oder zu prüfen.
+    #[test]
+    fn neustart_wartet_nach_der_installation_auf_einen_ruhigen_moment() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        *z.sitzung() = None;
+        let z = Arc::new(z);
+        let q = FakeQuelle::mit(Some("0.2.0"));
+        let z2 = Arc::clone(&z);
+        *q.nach_installation.borrow_mut() = Some(Box::new(move || {
+            *z2.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
+        }));
+        let start = Instant::now();
+        let mut lauf = Lauf::neu(start);
+
+        assert!(!lauf.schritt(&z, &q, start), "installiert, aber eine Anmeldung läuft inzwischen");
+        assert_eq!(q.installiert.get(), 1);
+        assert!(lauf.neustart_faellig);
+        assert!(!lauf.schritt(&z, &q, start + REGELTAKT));
+        assert!(!lauf.schritt(&z, &q, start + PRUEFTAKT), "auch nach 6 Stunden noch nicht ruhig");
+        assert_eq!((q.installiert.get(), q.geprueft.get()), (1, 1), "weder neu installiert noch neu geprüft");
+
+        *z.anmeldung() = None;
+        assert!(lauf.schritt(&z, &q, start + PRUEFTAKT + REGELTAKT), "jetzt ruhig: neu starten");
+        assert_eq!(q.installiert.get(), 1);
+    }
+
+    #[test]
+    fn neustart_sofort_wenn_es_nach_der_installation_ruhig_bleibt() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        *z.sitzung() = None;
+        let q = FakeQuelle::mit(Some("0.2.0"));
+        let start = Instant::now();
+        assert!(Lauf::neu(start).schritt(&z, &q, start));
+    }
+
+    /// Scheitert eine Prüfung (etwa offline beim Start), folgt die nächste nach 15 Minuten; nach
+    /// einer gelungenen wieder nach 6 Stunden.
+    #[test]
+    fn nach_einer_gescheiterten_pruefung_nach_15_minuten_erneut() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        let q = FakeQuelle::mit(None);
+        *q.version.borrow_mut() = Err("offline".into());
+        let start = Instant::now();
+        let mut lauf = Lauf::neu(start);
+
+        lauf.schritt(&z, &q, start);
+        assert_eq!(q.geprueft.get(), 1);
+        lauf.schritt(&z, &q, start + WIEDERHOLUNG - REGELTAKT);
+        assert_eq!(q.geprueft.get(), 1);
+        lauf.schritt(&z, &q, start + WIEDERHOLUNG);
+        assert_eq!(q.geprueft.get(), 2, "15 Minuten nach dem Fehlschlag");
+
+        *q.version.borrow_mut() = Ok(None);
+        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG);
+        assert_eq!(q.geprueft.get(), 3);
+        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG + PRUEFTAKT - REGELTAKT);
+        assert_eq!(q.geprueft.get(), 3, "nach einem Erfolg erst nach 6 Stunden");
+        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG + PRUEFTAKT);
+        assert_eq!(q.geprueft.get(), 4);
     }
 
     #[test]

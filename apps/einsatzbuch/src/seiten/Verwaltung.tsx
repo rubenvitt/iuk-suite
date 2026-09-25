@@ -56,10 +56,10 @@ interface VerwaltungProps {
   sicherung: Sicherungsstand | null;
   /** `status.kette.anzahl === 0` — Bedingung für „Aus Sicherung wiederherstellen“. */
   ketteLeer: boolean;
-  beiKettePruefen: () => Promise<void>;
-  /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
   /** Version eines vorgemerkten Updates (`status.update`), für die Karte „Einstellungen“. */
   update: string | null;
+  beiKettePruefen: () => Promise<void>;
+  /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
   beiEinstellungGeaendert: (ketteNeu: boolean) => Promise<void>;
   beiSperren: () => void;
 }
