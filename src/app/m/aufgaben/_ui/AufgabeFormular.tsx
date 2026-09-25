@@ -7,6 +7,7 @@ import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
 import { NACHWEIS_ARTEN, PRIORITAETEN } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { PrioritaetChip } from "./Chip";
 import { DatumFeld, WahlFeld, ZeitFeld } from "./Felder";
 import s from "./aufgaben.module.css";
@@ -108,6 +109,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         <Input
           id="af-titel"
           name="titel"
+          maxLength={TITEL_MAX_LAENGE}
           defaultValue={feldWert(state, "titel", "")}
           status={titelFehler ? "error" : undefined}
           aria-invalid={titelFehler ? true : undefined}

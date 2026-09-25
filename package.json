@@ -8,6 +8,7 @@
     "dev:av": "node scripts/fake-clamd.mjs",
     "seed:lokal": "tsx scripts/seed-lokal.ts",
     "anker:drift": "tsx scripts/anker-drift.ts",
+    "anker:neu": "tsx scripts/anker-neu.ts",
     "import:uav": "tsx scripts/import/uav.ts",
     "build": "next build",
     "start": "next start",

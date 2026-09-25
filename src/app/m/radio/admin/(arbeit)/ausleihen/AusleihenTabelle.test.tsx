@@ -37,7 +37,7 @@ import { dirname, join, normalize } from "node:path";
 /*
  * ⛔ `vi.hoisted`, WEIL `vi.mock` AN DEN DATEIANFANG GEHOBEN WIRD. Ein gewoehnliches
  * `const replaceMock = vi.fn()` darueber ist zur Ausfuehrungszeit der Fabrik noch nicht
- * initialisiert (gemessen in `GeraeteTabelle.test.tsx:80-85`: `ReferenceError: Cannot access
+ * initialisiert (gemessen in `GeraeteTabelle.test.tsx` am `vi.hoisted`: `ReferenceError: Cannot access
  * ... before initialization`, und die ganze Datei faellt aus, nicht ein Fall).
  *
  * ⚠️ OHNE DIESEN ERSATZ STIRBT JEDER `mount()` AN `invariant expected app router to be
@@ -526,8 +526,8 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
     /*
      * ⛔ DER GRIFF DES PLAYWRIGHT-FALLS (V23, `Spec:4881-4882`) — und er darf nicht am
      * `<table>` haengen: die Insel hat zwei Zweige. (⚠️ Hier stand „⬜ V13-L2 laesst die Liste
-     * dort heute leer" — seit V23 seedet der e2e-Lauf, `playwright.config.ts:158`.) Ein Griff
-     * auf Tabellenmarkup meldete den mobilen Zweig als gebrochene Insel. Fall 4 sagt dasselbe.
+     * dort heute leer" — seit V23 seedet der e2e-Lauf, `seed-lokal.ts radio` in `playwright.config.ts`.)
+     * Ein Griff auf Tabellenmarkup meldete den mobilen Zweig als gebrochene Insel. Fall 4 sagt dasselbe.
      */
     await mount(<AusleihenTabelle {...props({ zeilen: [], gesamt: 0 })} />);
     expect(queryAll('[data-rolle="radio-ausleihen-flaeche"]').length).toBe(1);

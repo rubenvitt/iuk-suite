@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 /**
@@ -387,6 +389,106 @@ describe("scripts/deploy.sh", () => {
       .filter(([, z]) => /(^|[^\\])`/.test(z));
     expect(verdaechtig.map(([n, z]) => `${n}: ${z.trim()}`)).toEqual([]);
   });
+
+  it("zeigt vor dem Rollback, WARUM die Suite nicht hochkam — geschwärzt (DRK-467)", () => {
+    /*
+     * Ohne Auszug stand im Lauf nur „nicht healthy geworden", die Ursache („Ungültige
+     * Host-Konfiguration") lag allein im Container-Log auf dem Server (Lauf 35843699990).
+     * Der Auszug muss VOR dem Rollback stehen: `up -d` ersetzt den Container, und mit
+     * ihm verschwindet sein Log.
+     */
+    const schritt6 = deploySh.slice(deploySh.indexOf("# ══ Schritt 6"), deploySh.indexOf("# ══ Schritt 7"));
+    expect(schritt6.indexOf("zeige_suite_log")).toBeGreaterThan(-1);
+    expect(schritt6.indexOf("zeige_suite_log")).toBeLessThan(schritt6.indexOf("zurueck_und_raus"));
+    // Nach Schritt 7 war der Container healthy und öffentlich erreichbar — sein Log kann
+    // Nutzerdaten tragen und gehört nicht in ein öffentliches Protokoll.
+    const schritt7 = deploySh.slice(deploySh.indexOf("# ══ Schritt 7"), deploySh.indexOf("# ══ Schritt 8 "));
+    expect(schritt7).not.toMatch(/zeige_suite_log|compose logs/);
+  });
+
+  it("der Auszug trägt keinen Wert aus der .env — auch keinen ohne „geheim“ im Namen", () => {
+    const funktion = (name: string) => {
+      const ab = deploySh.indexOf(`${name}() {`);
+      expect(ab, `${name} steht in scripts/deploy.sh`).toBeGreaterThan(-1);
+      return deploySh.slice(ab, deploySh.indexOf("\n}\n", ab) + 3);
+    };
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "deploy-log-"));
+    const env = path.join(kladde, ".env");
+    writeFileSync(
+      env,
+      [
+        "# Kommentar",
+        "AUTH_SECRET=abcdefghijklmnopqrstuvwxyz012345",
+        'POCKET_ID_CLIENT_SECRET="doppelt-gequotet"',
+        "export POCKET_ID_API_KEY='einfach-gequotet'",
+        // Der Fall, den eine Namensliste übersähe: das Token steckt in einer URL.
+        "BACKUP_PING_URL=https://hc.example/ping/0f1e2d3c # Kommentar",
+        "SUITE_HOST_QR=qr.iuk-ue.de",
+        "KURZ=true",
+        "SUITE_IMAGE=ghcr.io/rubenvitt/iuk-suite@sha256:0123456789abcdef",
+        "TEIL=abcdefghij",
+        "CRLF=crlf-geheimnis\r",
+        "",
+      ].join("\n"),
+    );
+    const log = [
+      "Ungültige Host-Konfiguration: SUITE_HOST_FOO passt zu keinem Modul. Bekannt: SUITE_HOST_QR",
+      "abcdefghijklmnopqrstuvwxyz012345 doppelt-gequotet einfach-gequotet crlf-geheimnis",
+      "https://hc.example/ping/0f1e2d3c qr.iuk-ue.de true",
+      "postgres://nutzer:passwort@db:5432/x",
+    ].join("\n");
+    writeFileSync(path.join(kladde, "log"), log + "\n");
+    writeFileSync(
+      path.join(kladde, "docker"),
+      [
+        "#!/bin/bash",
+        `if [ "$2" = "logs" ]; then cat ${JSON.stringify(path.join(kladde, "log"))}; exit 0; fi`,
+        'if [ "$2" = "ps" ]; then echo "suite-1 ghcr.io/rubenvitt/iuk-suite@sha256:0123456789abcdef Up (unhealthy)"; exit 0; fi',
+        "exit 1",
+      ].join("\n"),
+    );
+    chmodSync(path.join(kladde, "docker"), 0o755);
+    const fahre = (envDatei: string) => {
+      const p = spawnSync(
+        "bash",
+        [
+          "-c",
+          `set -euo pipefail\nmelde() { echo "== $*"; }\nENV_DATEI=${JSON.stringify(envDatei)}\nLOG_ZEILEN=80\n${funktion("schwaerze")}\n${funktion("zeige_suite_log")}\nzeige_suite_log test\necho WEITER`,
+        ],
+        { encoding: "utf8", timeout: 20_000, env: { ...process.env, PATH: `${kladde}:${process.env.PATH}` } },
+      );
+      return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+    };
+    try {
+      const lauf = fahre(env);
+      expect(lauf.code).toBe(0);
+      expect(lauf.aus).toContain("WEITER");
+      for (const geheim of [
+        "abcdefghij",
+        "doppelt-gequotet",
+        "einfach-gequotet",
+        "crlf-geheimnis",
+        "0f1e2d3c",
+        "qr.iuk-ue.de",
+        "passwort",
+      ]) {
+        expect(lauf.aus, `„${geheim}" ist geschwärzt`).not.toContain(geheim);
+      }
+      // Die Gegenprobe ist die Hälfte der Messung: die Ursache muss lesbar bleiben.
+      expect(lauf.aus).toContain("SUITE_HOST_FOO passt zu keinem Modul");
+      expect(lauf.aus).toContain("Up (unhealthy)");
+      expect(lauf.aus).toContain("sha256:0123456789abcdef");
+      expect(lauf.aus).toMatch(/\btrue$/m);
+      // Ist die .env nicht lesbar, kommt NICHTS durch — und der Rollback läuft trotzdem.
+      const blind = fahre(path.join(kladde, "fehlt"));
+      expect(blind.code).toBe(0);
+      expect(blind.aus).toContain("WEITER");
+      expect(blind.aus).not.toContain("abcdefghijklmnopqrstuvwxyz012345");
+      expect(blind.aus).not.toContain("Host-Konfiguration");
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  }, 20_000);
 
   it("liest die .env NIE als Ganzes — sie trägt Geheimnisse", () => {
     // Ein `cat .env` oder `docker compose config` mit sichtbarer Ausgabe landete im

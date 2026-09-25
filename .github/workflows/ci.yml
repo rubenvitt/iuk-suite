@@ -86,7 +86,12 @@ jobs:
       # OHNE `lfs: true`, anders als `vitest` unten: ESLint liest Quelltext, keine
       # Medien. Eine Zeigerdatei statt eines Bildes faellt ihm nicht auf und soll
       # es auch nicht — dafuer gibt es `src/lfs-medien.test.ts`.
+      #
+      # `fetch-depth: 2` fuer `anker:neu` unten: der Checkout eines PRs ist der
+      # Merge-Commit, und erst mit Tiefe 2 liegt sein erster Elter (`main`) da.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@v4
         with:
           version: 11.0.9
@@ -96,6 +101,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # Regel 1 der Kommentaranker (`CLAUDE.md`): kein NEUER Zeilenanker ins
+      # eigene Repo (DRK-474). `HEAD^1` ist `main`, der Diff also genau der PR —
+      # der Bestand bleibt aussen vor, ohne dass jemand eine Liste pflegt.
+      # Nur auf PRs: auf `main` kaeme das Tor zu spaet, und dort ist `HEAD^1`
+      # bei einem Direkt-Push nicht der Vergleich, den es meint.
+      - if: github.event_name == 'pull_request'
+        run: pnpm anker:neu --basis HEAD^1
 
   typecheck:
     runs-on: ubuntu-latest

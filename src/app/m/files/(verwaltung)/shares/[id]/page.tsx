@@ -376,7 +376,7 @@ export default async function ShareDetailSeite({
            * PUNKT 5 DER PRÜFLISTE — Leerzustand mit nächstem Schritt. Der
            * Weg dorthin ist über die Anwendung praktisch unerreichbar:
            * `anlegenAction` verlangt „mindestens eine Datei"
-           * (`(verwaltung)/actions.ts:203`), und es gibt keine Action, die
+           * (`(verwaltung)/actions.ts`, `feldFehler.dateien`), und es gibt keine Action, die
            * eine einzelne `share_files`-Zeile löscht — nur `shareLoeschenAction`
            * für die GANZE Freigabe. Erreichbar bliebe nur ein fehlerhafter
            * Altimport ohne Dateizeilen. Trotzdem: derselbe Ausweg wie beim

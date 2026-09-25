@@ -438,6 +438,16 @@ trotzdem da, wurde am Image außerhalb der Pipeline gebaut.
 
 ### E5 — Rollback nach Schritt 6: nicht `healthy` geworden
 
+**Die erste Auskunft steht schon im Job-Log.** Vor dem Rollback schreibt `deploy.sh` einen
+„Auszug für die Fehlersuche" ins Protokoll: `docker compose ps -a` und die letzten 80
+Zeilen des gescheiterten Suite-Containers — vorher, weil der Rollback den Container und
+damit sein Log ersetzt. Wird auch der Rollback nicht gesund, folgt ein zweiter Auszug vom
+alten Stand. Jeder Wert aus der Server-`.env` (ab 8 Zeichen, außer `SUITE_IMAGE`) und
+jede Zugangsangabe in einer URL steht darin als `***`, denn das Protokoll ist öffentlich;
+Variablennamen bleiben lesbar. Ein ausgeschriebener Hostname aus `SUITE_HOST_*` ist
+deshalb nur am Server zu sehen. Nach Schritt 7 (E6) gibt es bewusst keinen Auszug: der
+Container war da schon öffentlich erreichbar, sein Log kann Nutzerdaten tragen.
+
 **Erster Blick ist `docker compose ps clamav`, nicht das Suite-Log.** Die Suite wartet
 per `depends_on: service_healthy` auf den Scanner; ein fehlgeschlagener freshclam-
 Erststart oder eine zu knappe `start_period` hält sie beliebig lange zurück.

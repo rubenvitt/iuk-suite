@@ -8,8 +8,8 @@
  * `groups` bezeugt der Lauf den 404 aus §11.5, Zustand 19 und sieht dabei aus wie
  * ein bestandener Test.
  *
- * Dieselbe Klasse steht in `playwright.config.ts:2-6` schon ausgeschrieben (fuer
- * AV_MODUS_DATEI): „Zwei Literale liefen auseinander, ohne dass ein Lauf rot
+ * Dieselbe Klasse steht in `playwright.config.ts` schon ausgeschrieben (am Import
+ * von `AV_MODUS_DATEI`): „Zwei Literale liefen auseinander, ohne dass ein Lauf rot
  * wuerde — er waere rennabhaengig gruen."
  */
 
@@ -20,7 +20,7 @@ export const LAGERBUCH_HOST = "lagerbuch.localtest.me";
  * Der ZWEITE erreichbare Suite-Host fuer die „fremder Host"-Zusagen (§3.8.3,
  * §12.2, §12.6 Punkt 3).
  *
- * ⚠️ ER EXISTIERT BEREITS: `playwright.config.ts:95` wartet heute schon auf
+ * ⚠️ ER EXISTIERT BEREITS: `webServer.url` in `playwright.config.ts` wartet schon auf
  * `http://feedback.localtest.me:3100/login`. Es wird KEIN dritter Host
  * eingefuehrt — und `feedback` ist zugleich die schaerfere Probe, weil
  * `moduleForHost` dort tatsaechlich ein Modul liefert (Festlegung H8).

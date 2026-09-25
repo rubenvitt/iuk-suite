@@ -22,11 +22,11 @@ import { dirname, join, normalize } from "node:path";
  * Tabelle. ⛔ Beides ist der Grund, warum der Playwright-Fall aus `Spec:4878`
  * PFLICHTBESTANDTEIL ist und nicht Nachbesserung — Eigentuemer ist Aufgabe V23.
  *
- * ⚠️ UND DER ZWEITE BLINDE FLECK IST DIE BREITE: `vitest.setup.ts` stubt `matchMedia` mit
- * `matches: false`, also liefert `Grid.useBreakpoint()` hier ausschliesslich falsche
- * Breakpoints — gerendert wird der MOBILE Zweig (`DeviceList.tsx:188-231`). Die Werkzeugleiste
- * steht in beiden Zweigen, die Spaltenlogik wird hier deshalb REIN geprueft
- * (`baueSpalten`), nicht am gerenderten Tabellenkopf. Der Kopf ist V23s Fall.
+ * ✅ DER ZWEITE BLINDE FLECK WAR DIE BREITE, UND ER IST SEIT DRK-472 ZU. Bis DRK-451 schaltete
+ * die Insel per `Grid.useBreakpoint()` um, und jsdom sah nur den MOBILEN Zweig. Seit `Schmalkarten`
+ * per CSS umschaltet, stehen BEIDE Darstellungen im Baum; der Block „die breite Darstellung" am
+ * Ende dieser Datei misst Kopf, Zellen, Sortierpfeil und Zeilenklick an der echten Tabelle. Welche
+ * SICHTBAR ist, sieht jsdom nie (keine Media Query) — das misst der e2e-Fall „DRK-472".
  */
 
 const INSEL_ORDNER = "src/app/m/radio/admin/(arbeit)/geraete";
@@ -112,6 +112,7 @@ import {
   existsPortal,
   mount,
   query,
+  queryAll,
   queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
@@ -428,7 +429,7 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
      * ⛔ DER NACHSCHLAG BEKOMMT DIE SUCHPARAMETER IN ADRESSZEILEN-FORM (`suchparameterZu`),
      * damit die Action sie mit DERSELBEN Faltung liest wie die Seite. Die Logik des Hooks
      * steht in `_ui/Nachladen.test.tsx`; hier geht es um die Anbindung dieser Insel.
-     * ⚠️ Vitest rendert den MOBILEN Zweig — der Fuss steht deshalb unter BEIDEN Zweigen.
+     * ⚠️ Der Fuss steht UNTER `Schmalkarten`, also genau einmal fuer beide Darstellungen.
      */
     let melden: (() => void) | null = null;
     vi.stubGlobal(
@@ -634,13 +635,13 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
     /*
      * ⛔ ZWEIMAL, NICHT „IRGENDWO" — UND DAS IST DIE TRAGENDE HAELFTE DIESES FALLES. Die
      * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx`, dort `onRow`)
-     * und `onClick` an der Karte des mobilen Zweigs (`:517`). Ein `toMatch` allein fand den
+     * und `onClick` an der Karte des mobilen Zweigs (dort `karte`). Ein `toMatch` allein fand den
      * mobilen Treffer und blieb gruen, wenn der GANZE `onRow`-Block verschwand — gemessen in
      * der Schlusspruefung (`.superpowers/sdd/planteil4/REVIEW-V13.md:98`, Fund W2: Block
      * entfernt, `Test Files 59 passed (59)` · `Tests 802 passed | 5 todo (807)`, 0 rot).
-     * ⚠️ Und Vitest kann es hier auch nicht am DOM sehen: `vitest.setup.ts` stubt `matchMedia`
-     * mit `matches: false`, es rendert ausschliesslich der mobile Zweig. Der Klick auf eine
-     * echte Tabellenzeile ist V23s Fall.
+     * ⚠️ Seit DRK-472 misst der Block „die breite Darstellung" den Klick auf eine echte
+     * Tabellenzeile auch am DOM. Der Scan bleibt: er zaehlt BEIDE Stellen, die DOM-Probe nur
+     * die eine, auf die sie klickt (die Karte hat keinen Zeilenklick-Fall).
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
     expect(quelle, "eine innere Pfadform in der Insel").not.toMatch(/["'`]\/m\/radio\//);
@@ -800,7 +801,7 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
   it("die fuenf Dateien der Insel tragen use client als erste Zeile", () => {
     /*
      * ⛔ FALLE 1 UND FALLE 9 ZUGLEICH (Bauform-Zulaessigkeitstafel Nr. 1, 3 und 5): die
-     * Insel fuehrt `render`-Funktionen, `Grid.useBreakpoint()`, `Input.Search` und
+     * Insel fuehrt `render`-Funktionen, `karte` fuer `Schmalkarten`, `Input.Search` und
      * `Space.Compact`. Fehlte die Direktive an EINER der fuenf, waere es HTTP 500 beim
      * ersten Abruf — und typecheck, lint und build saehen nichts.
      *
@@ -974,5 +975,176 @@ describe("radio-Geraeteliste: die Bauform der Insel", () => {
     const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
     expect(quelle, "eine Action als Prop").not.toMatch(/=\{[a-zA-Z]*Action\}/);
     expect(quelle, "ein Date ueber die Grenze").not.toMatch(/=\{new Date\(/);
+  });
+});
+
+/**
+ * DIE BREITE DARSTELLUNG, AM GERENDERTEN MARKUP (DRK-472).
+ *
+ * Bis DRK-451 entschied `Grid.useBreakpoint()`, welche Darstellung entsteht, und jsdom meldete
+ * dort immer „schmal": die Tabelle entstand in dieser Datei NIE, und die Spaltenlogik war nur
+ * rein an `COLUMN_DEFS`/`baueSpalten` geprueft. Seit die Umschaltung CSS ist, steht die Tabelle
+ * mit im Baum — gemessen wurde sie trotzdem nicht. Diese Faelle tun es, nach dem Vorbild der
+ * Ausleihenliste (`ausleihen/AusleihenTabelle.test.tsx`, Block „die breite Darstellung").
+ *
+ * ⛔ JEDER GRIFF IST AUF `[data-rolle="breitansicht"]` EINGERAHMT: die Karte traegt dieselbe
+ * `Tag`-Marke und denselben Namen, ohne Rahmen zaehlte ein Fall die Darstellungen statt der
+ * Zeilen.
+ *
+ * ⚠️ WELCHE DER BEIDEN SICHTBAR IST, SAGT JSDOM NICHT — es wertet keine Media Query aus. Das
+ * belegt der Playwright-Fall „DRK-472: /admin/geraete schaltet per CSS" in
+ * `e2e/radio-verwaltung.spec.ts`, bei 1280 und bei 390.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+/** Die Texte der Kopfzellen der breiten Darstellung, in ihrer Reihenfolge. */
+const kopf = () => queryAll(`${BREIT} thead th`).map((th) => (th.textContent ?? "").trim());
+
+describe("radio-Geraeteliste: die breite Darstellung (DRK-472)", () => {
+  it("die Tabelle steht neben der Kartenliste im Baum, mit den acht Vorgabekoepfen", async () => {
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+
+    expect(queryAll(`${BREIT} table`).length, "die breite Darstellung traegt keine Tabelle").toBe(1);
+    expect(queryAll('[data-rolle="schmalkarten"]').length, "die Kartenliste fehlt").toBe(1);
+    /*
+     * ⛔ `toEqual` AUF DEN GERENDERTEN KOPF, NICHT AUF `VORGABE_SPALTEN`: der Fall „acht Spalten
+     * sind vorgewaehlt" haelt die Schluessel, dieser haelt, dass `baueSpalten` und die
+     * `Datentabelle` daraus auch diese Koepfe in dieser Reihenfolge machen. ⚠️ Die Abweichungs-
+     * spalte heisst im Kopf „Abweichung", nur in der Spaltenwahl „⚠ Abweichung".
+     */
+    expect(kopf()).toEqual([
+      "OPTA / Rufname",
+      "ISSI",
+      "Funktion",
+      "Gerät",
+      "Update-Stand",
+      "Status",
+      "Lagerort",
+      "Abweichung",
+    ]);
+  });
+
+  it("jedes Geraet ist eine Tabellenzeile, und ihre Zellen kommen aus den render-Funktionen", async () => {
+    /*
+     * ⛔ ZWEI GEGENSAETZLICHE ZEILEN: eine voll besetzte mit Abweichung und eine, in der jeder
+     * Rueckfall greift. Ein vertauschter Zweig in der Erstspalte, ein verlorener Gedankenstrich
+     * in `text` oder eine Abweichungsmarke, die auch bei `false` steht, dreht hier je eine Zelle.
+     * ⛔ Die LEERE Zeichenkette in `rufname` und `funktion` haelt das `||` statt `??` fest.
+     * ⚠️ „Lagerort" und „Status" haben KEIN `render` (1:1 `deviceColumns.tsx`) — ein leerer
+     * Lagerort bleibt deshalb leer und wird nicht zum Gedankenstrich.
+     */
+    await mount(
+      <GeraeteTabelle
+        {...eigenschaften({
+          zeilen: [
+            zeile({
+              opta: "DRK 1",
+              funktion: "Führung",
+              geraeteTyp: "MTP3550",
+              updateStand: "veraltet",
+              lagerort: "Lager",
+              hatAbweichung: true,
+            }),
+            zeile({ id: "g-2", issi: "1000002", rufname: "", funktion: "", status: "Defekt" }),
+          ],
+          gesamt: 2,
+        })}
+      />,
+    );
+
+    expect(queryAll(`${BREIT} tr[data-row-key]`).map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["g-1", "g-2"]);
+    const zellen = (id: string) =>
+      queryAll(`${BREIT} tr[data-row-key="${id}"] td`).map((td) => (td.textContent ?? "").trim());
+    expect(zellen("g-1")).toEqual([
+      "DRK 1",
+      "1000001",
+      "Führung",
+      "MTP3550",
+      "Veraltet",
+      "Einsatzbereit",
+      "Lager",
+      "Abweichung",
+    ]);
+    expect(zellen("g-2")).toEqual(["—", "1000002", "—", "—", "Unbekannt", "Defekt", "", ""]);
+  });
+
+  it("eine gespeicherte Spaltenauswahl formt den gerenderten Kopf, und die Spaltenwahl auch", async () => {
+    /*
+     * ⛔ DER WEG BIS IN DEN KOPF, NICHT NUR BIS IN DEN SPEICHER: der Fall „die Spaltenauswahl
+     * schaltet eine Spalte an und aus" liest `localStorage`, `baueSpalten` wird oben rein
+     * geprueft. Ob die Insel die Auswahl auch ANWENDET (`useSyncExternalStore`, `ZUHOERER`),
+     * sah bisher niemand. Die gespeicherte Liste ist absichtlich verdreht und traegt einen
+     * unbekannten Schluessel — der Kopf folgt der Reihenfolge der Definitionen.
+     */
+    window.localStorage.setItem(
+      SPALTEN_SPEICHER,
+      JSON.stringify(["softwareVersion", "gibtsNicht", "issi", "rufname"]),
+    );
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    expect(kopf()).toEqual(["OPTA / Rufname", "ISSI", "Letztes Update"]);
+
+    await click('[data-rolle="radio-spaltenwahl"]');
+    await clickPortal('[data-schluessel="issi"] input[type="checkbox"]');
+    expect(kopf(), "die Spaltenwahl hat den Kopf nicht erreicht").toEqual([
+      "OPTA / Rufname",
+      "Letztes Update",
+    ]);
+  });
+
+  it("die Sortierung aus der Adresszeile steht als Pfeil an genau einem Kopf", async () => {
+    /*
+     * ⛔ `sortOrder` WIRD AUS DER PROP ABGELEITET (`spaltenSortierung`), NICHT VON ANTD
+     * GEMERKT: sonst zeigte der Kopf nach „zurueck" im Browser die alte Richtung. antd stempelt
+     * die Richtung als `aria-sort` an die Kopfzelle.
+     */
+    await mount(<GeraeteTabelle {...eigenschaften({ sortierung: "issi:desc" })} />);
+    const sortiert = queryAll(`${BREIT} thead th[aria-sort]`);
+    expect(sortiert.map((th) => (th.textContent ?? "").trim())).toEqual(["ISSI"]);
+    expect(sortiert[0]!.getAttribute("aria-sort")).toBe("descending");
+  });
+
+  it("ein Klick auf eine Tabellenzeile fuehrt auf die AEUSSERE Detailadresse", async () => {
+    /*
+     * ⛔ DIE DOM-HAELFTE ZUM QUELLTEXT-SCAN „jede Zeile fuehrt auf die AEUSSERE Detailadresse":
+     * der zaehlt beide Stellen, dieser Fall belegt, dass `onRow` an der ECHTEN Zeile haengt.
+     */
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    await click(`${BREIT} tr[data-row-key="g-1"]`);
+    expect(pushMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).toHaveBeenCalledWith("/admin/geraete/g-1");
+  });
+
+  it("die Tabelle blaettert nicht selbst — am DOM gemessen", async () => {
+    /*
+     * ⛔ FUENFUNDZWANZIG ZEILEN, NICHT EINE: antds Vorgabe sind zehn je Seite. Blaetterte die
+     * Tabelle (Sonde S-V13d, bisher nur im e2e-Fall 2 gefangen), stuenden hier zehn Zeilen und
+     * eine `.ant-pagination`. Unter `VIRTUELL_AB_ZEILEN` (150), also ohne Virtualisierung.
+     */
+    const viele = Array.from({ length: 25 }, (_, i) => zeile({ id: `g-${i + 1}` }));
+    await mount(<GeraeteTabelle {...eigenschaften({ zeilen: viele, gesamt: 25 })} />);
+
+    expect(queryAll(`${BREIT} tr[data-row-key]`).length, "die Tabelle zeigt nur eine Seite").toBe(25);
+    expect(exists(`${BREIT} .ant-pagination`), "die Tabelle blaettert selbst").toBe(false);
+  });
+
+  it("die Umschaltung ist CSS: kein JavaScript-Breakpoint in der Insel", () => {
+    /*
+     * ⛔ DIE REGEL DER SUITE (`core/tabelle/Schmalkarten.tsx`): beide Darstellungen liegen im
+     * HTML, die Media Query blendet eine aus. Ein JS-Breakpoint kennt beim ersten Rendern die
+     * Fenstergroesse nicht und zeigt einen Wimpernschlag lang die falsche Variante — und in
+     * jsdom liefe dann wieder nur ein Zweig; die Faelle oben wuerden rot, aber mit einer
+     * Meldung ueber fehlende Zeilen statt ueber die Ursache. ⛔ UEBER ALLE DATEIEN DER INSEL
+     * (`inselDateien`), nicht nur die Tabelle: die Werkzeugleiste stuende genauso im Baum.
+     * Dieselbe Sperre wie in `ausleihen/AusleihenTabelle.test.tsx`.
+     */
+    const tabelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
+    expect(tabelle, "die Insel schaltet nicht ueber Schmalkarten um").toMatch(/<Schmalkarten</);
+    for (const datei of inselDateien()) {
+      const quelle = ohneKommentare(readFileSync(`${INSEL_ORDNER}/${datei}`, "utf8"));
+      expect(quelle, `${datei}: ein JavaScript-Breakpoint in der Insel`).not.toMatch(
+        /useBreakpoint|matchMedia|innerWidth|clientWidth/,
+      );
+    }
   });
 });

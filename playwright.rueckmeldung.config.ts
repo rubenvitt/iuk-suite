@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
+import { defineConfig } from "@playwright/test"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
 
 /**
  * Eigene Config für die Rückmelde-Einbindung (Port 3102, neben 3100/3101).
@@ -25,7 +25,7 @@ import { defineConfig } from "@playwright/test"; import { E2E_PORTS, pruefePorts
  * die Quelltext-Wächter in `src/core/rueckmeldung/einbindung.test.ts` laufen
  * dagegen bei jedem `pnpm vitest run` mit und decken die Reichweite ab.
  */
-export default defineConfig({
+export default cloudTauglich(defineConfig({
   testDir: "./e2e",
   // Eine Datei, die weder hier noch in der normalen Config steht, liefe in
   // KEINEM Profil — dieselbe Falle, die im PWA-Profil kommentiert ist. Der
@@ -64,7 +64,7 @@ export default defineConfig({
       SUITE_RUECKMELDUNG_URL: "https://formular.invalid/f/e2e",
     },
   },
-});
+}));
 
 // Nennt den Halter eines belegten Ports (DRK-346, `e2e/helpers/ports.ts`).
 pruefePortsFrei([E2E_PORTS.rueckmeldung]);

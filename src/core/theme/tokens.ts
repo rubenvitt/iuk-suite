@@ -75,6 +75,31 @@ export const FARBEN = {
   okAufDunkel: "#3fa060",
   okAufDunkelHover: "#56b878",
   okAufDunkelActive: "#389a59",
+  /**
+   * SUITE-GELB ALS STATUSMARKE (DRK-464). Anders als beim Grün liegt es hier an
+   * der SCHRIFT selbst, in beiden Modi: `gelb` trägt schon auf `karte` nur
+   * 4,24:1, auf antds abgeleitetem Markengrund `#f2edda` 3,61:1; dunkel rechnet
+   * antd den Seed auf `#9a5d03` herunter, 3,46:1 auf `#141414`.
+   *
+   * Kein neuer Ton: dieselben Werte führen die Lagerbuch-Ampel
+   * (`lagerbuch/_lib/ampel.ts`) und die Dateiansichten (`--fp-hinweis`,
+   * `--fi-warn`). Hell `gelbText` 6,39:1 auf `karte`, 5,69:1 auf `gelbBg`
+   * (der Markengrund, mit dem `gelb` schon immer gepaart war), 5,59:1 auf
+   * `papier`; Hover/Active bestehen 4,5:1 auf allen dreien. Dunkel
+   * `gelbAufDunkel` 7,92:1 auf `#141414`, 7,08:1 auf `#1f1f1f`, 7,47:1 auf
+   * antds dunklem Markengrund `#201911`.
+   *
+   * Der Seed `gelb` bleibt: ein dunklerer Seed zöge antds ganze Ableitung
+   * (Grund, Rand, Hover) mit, und als Kante oder Symbol (3:1) trägt er.
+   * Eine gefüllte Warnfläche mit weißer Schrift gibt es in der Suite nicht —
+   * nur deshalb darf `gelbAufDunkel` auch `colorWarning` selbst sein.
+   */
+  gelbText: "#8a5200",
+  gelbTextHover: "#9a5c00",
+  gelbTextActive: "#7a4800",
+  gelbAufDunkel: "#d9a032",
+  gelbAufDunkelHover: "#e0a144",
+  gelbAufDunkelActive: "#c98f2a",
 } as const;
 
 /**

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 // Zod aus uav-praxis/server/routes/admin.ts kopiert.
 
@@ -20,7 +21,8 @@ export const taskAnlegenSchema = z.object({
   id: z.string().min(1).optional(),
   teil: teilSchema,
   nummer: z.string().min(1),
-  titel: z.string().min(1),
+  // Obergrenze: DRK-402, Begründung in `core/titel.ts`.
+  titel: z.string().min(1).max(TITEL_MAX_LAENGE),
   lernziel: z.string().default(""),
   schritte: z.array(z.string()).default([]),
   durchfuehrungshinweise: z.array(z.string()).default([]),
@@ -36,7 +38,7 @@ export const taskAnlegenSchema = z.object({
 export const taskPatchSchema = z.object({
   teil: teilSchema.optional(),
   nummer: z.string().min(1).optional(),
-  titel: z.string().min(1).optional(),
+  titel: z.string().min(1).max(TITEL_MAX_LAENGE).optional(),
   lernziel: z.string().optional(),
   schritte: z.array(z.string()).optional(),
   durchfuehrungshinweise: z.array(z.string()).optional(),

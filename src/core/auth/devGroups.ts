@@ -49,7 +49,7 @@ export function devGroupChoices(env: EnvLike = process.env): string[] {
  * Vereinigt die angehakten Gruppen mit dem Freitextfeld daneben — in dieser
  * Reihenfolge, doppelte Nennungen fallen weg. Das Ergebnis geht als EIN
  * kommagetrennter Wert an den `dev-login`-Provider, weil dessen `credentials`
- * genau ein `groups`-Feld kennt (`core/auth/config.ts:58`) und `parseDevGroups`
+ * genau ein `groups`-Feld kennt (`core/auth/config.ts`, Provider `dev-login`) und `parseDevGroups`
  * es serverseitig ohnehin wieder zerlegt, trimmt und Leeres verwirft.
  *
  * DIE TRENNUNG VON HÄKCHEN UND FREITEXT IST ABSICHT. Die Häkchen decken alles

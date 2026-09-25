@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  *
  * ⬜ A-L12 — OB `cf-connecting-ip` AUF EINEM MODUL-HOST HEUTE DIE CLIENT-ADRESSE TRAEGT,
  * IST UNBESTIMMT. Der Befund vom 2026-08-22 sagt nein: dort bekommt jede Anfrage die
- * Egress-Adresse dieses Servers als Absenderschluessel (`src/core/ratelimit.ts:98-111`).
+ * Egress-Adresse dieses Servers als Absenderschluessel (`clientIpAus`, „AUF MODUL-HOSTS").
  * Der Umbau dagegen ist gebaut (`src/core/routing.ts:59-61`). Die Abnahme am Server steht
  * aus (`docs/superpowers/berichte/2026-08-22-proxy-rewrite-abnahme.md:29-32` — P1 und P6
  * offen). ⛔ Diese Datei setzt KEINE der beiden Antworten voraus, und sie muss es nicht:
@@ -24,7 +24,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  * Sperre des vorigen mit, und die Reihenfolge der Faelle entschiede das Ergebnis.
  *
  * ⛔ DIE EINE ZAHL, DIE JEDER FALL DIESER DATEI BRAUCHT: `RateLimiter.check` VERWEIGERT
- * ERST DEN (max+1)-TEN AUFRUF, NICHT DEN max-TEN. `src/core/ratelimit.ts:29-30` prueft
+ * ERST DEN (max+1)-TEN AUFRUF, NICHT DEN max-TEN. `RateLimiter.check` prueft
  * `if (recent.length >= this.max)`, und `recent` enthaelt den LAUFENDEN Aufruf noch
  * nicht — Aufruf Nr. N sieht `N-1`. Und `gateFehlversuchBuchen` schreibt `gesperrtBis`
  * NUR im `false`-Zweig (`lagerbuch/_lib/gateSchranke.ts`, `bucheKette`); ohne dieses eine
@@ -94,7 +94,7 @@ describe("radio-Gate-Schranke: der Absender-Eimer", () => {
   it("weist den 6. Fehlversuch desselben Absenders ab", async () => {
     // RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN, Vorgabe 5 (A1, Spec:3006) — und die
     // Sperre entsteht beim SECHSTEN Versuch, nicht beim fuenften (Kopfkommentar oben,
-    // `src/core/ratelimit.ts:29-30`). Der Testname nennt die Zahl, wie im Vorbild
+    // `RateLimiter.check` in `src/core/ratelimit.ts`). Der Testname nennt die Zahl, wie im Vorbild
     // `lagerbuch/_lib/gateSchranke.test.ts:79`.
     const { gateGesperrt, gateFehlversuchBuchen } = await frisch();
     for (let i = 0; i < 6; i++) {

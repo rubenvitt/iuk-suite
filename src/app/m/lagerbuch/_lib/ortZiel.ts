@@ -14,9 +14,9 @@
  * zweite Wahrheit, und die faellt erst auf, wenn die Check-Strecke umzieht.
  *
  * ⚠️ WARUM TROTZDEM EINE EIGENE DATEI UND KEIN ZWEITER EXPORT IN `tokenZiel.ts`:
- * jene Datei ist ZEICHENGLEICH aus der Alt-Anwendung uebernommen (§3.1, ihr
- * Kopf schreibt das aus). Ein neuer Export darin loeschte diese Zusage fuer eine
- * Sache, die es in der Alt-Anwendung gar nicht gibt.
+ * jene Datei traegt die Landung der Kaertchen aus der Alt-Anwendung (§3.1).
+ * Ihre Zeichengleichheit ist seit DRK-394 aufgehoben, ihr Thema bleibt: das
+ * Ortsetikett gibt es in der Alt-Anwendung gar nicht.
  *
  * ⚠️ ES GIBT KEINEN LAGER-ZWEIG MIT EIGENEM ZIEL, und das ist eine
  * ENTSCHEIDUNG, keine Luecke (ClickUp DRK-312): einen Kontext „dieser
@@ -133,8 +133,8 @@ export function ortZielPfad(
    * das Gegenteil (Codex-Befund P2 zu PR #186, nachgemessen, nicht vermutet).
    *
    * Es stand `${ziel}&gescannt=${encodeURIComponent(ort.id)}`: die GESCANNTE Id
-   * kodiert, die GEBUNDENE nicht — die setzt `tokenZielPfad` roh in sein
-   * `?fz=` ein. Bei einem importierten Bestand kann eine Id URL-Trennzeichen
+   * kodiert, die GEBUNDENE nicht — die setzte `tokenZielPfad` damals roh in
+   * sein `?fz=` ein. Bei einem importierten Bestand kann eine Id URL-Trennzeichen
    * tragen (`lagerorte.id` ist kein nanoid-Vertrag), und dann ist das Ergebnis
    * still falsch, gemessen:
    *
@@ -158,11 +158,11 @@ export function ortZielPfad(
    * Hand hat — `URLSearchParams` kodiert beide, und das rohe `?fz=` verschwindet
    * damit aus DIESEM Zweig.
    *
-   * ⚠️ `tokenZielPfad` SELBST BLEIBT UNBERUEHRT, und das ist Absicht: die Datei
-   * ist ZEICHENGLEICH aus der Alt-Anwendung uebernommen (§3.1, ihr Kopf schreibt
-   * das aus), und ihr fehlendes `encodeURIComponent` trifft auch `/a/<id>` und
-   * das blosse `?fz=` — also mehr als diesen Auftrag. Das steht als eigenes
-   * Ticket auf dem Board (DRK-394), nicht als stille Ausweitung hier.
+   * ⚠️ SEIT DRK-394 KODIERT AUCH `tokenZielPfad` SELBST — `/a/<id>` und das
+   * blosse `?fz=` trugen denselben Riss, blieben hier aber bewusst draussen
+   * (mehr als dieser Auftrag, und die Zeichengleichheit mit der Alt-Anwendung
+   * war eine eigene Entscheidung; sie ist dort im Kopf aufgehoben). Dieser
+   * Zweig baut seine Abfrage trotzdem weiter selbst: er traegt ZWEI Werte.
    */
   const ziel = tokenZielPfad("fahrzeug", fahrzeugBindung);
   const abfrage = new URLSearchParams({ fz: fahrzeugBindung, gescannt: ort.id });
