@@ -83,12 +83,12 @@ describe("POST /api/anmeldung", () => {
  * BEVOR ein Zähler für ihn entsteht — sonst wächst der Prozessspeicher mit jedem neuen String.
  */
 describe("POST /api/anmeldung — Speicherrahmen (DRK-287)", () => {
-  it("überlanger Rohwert (1 MiB) → 400, ohne dass ein Zähler ihn als Schlüssel sieht", async () => {
+  it("überlanger Rohwert (1 MiB) → 413 schon am Body, ohne dass ein Zähler ihn als Schlüssel sieht", async () => {
     const { POST } = await import("./route");
     const schluessel = await gebuchteSchluessel();
     const res = await POST(post("A".repeat(1024 * 1024)));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error.code).toBe("validation_error");
+    expect(res.status).toBe(413);
+    expect((await res.json()).error.code).toBe("body_too_large");
     expect(schluessel().every((k) => k.length <= 64)).toBe(true);
     // Gegenprobe, dass der Spion überhaupt sieht: ein formatgültiger Code wird gebucht.
     await POST(post("ZZZZZZZZ"));
@@ -151,5 +151,85 @@ describe("POST /api/anmeldung — Speicherrahmen (DRK-287)", () => {
     // Ohne `cf-connecting-ip` landen alle im Sammel-Eimer "unknown" — dieselbe Zusage.
     for (let i = 0; i < grenze + 20; i++) await POST(post(`ZZZY${String(i).padStart(4, "0")}`));
     expect((await POST(post(process.env.__TEST_CODE!))).status).toBe(200);
+  });
+});
+
+/** DRK-447: der Body wird nie ganz gelesen, nur bis zur Grenze — wie in `api/sync`. */
+describe("POST /api/anmeldung — Body-Größenbremse (DRK-447)", () => {
+  const roh = (body: string, contentLength?: string) =>
+    new Request("http://x/api/anmeldung", {
+      method: "POST",
+      headers: { host: "uav-training.iuk-ue.de", "content-type": "application/json", ...(contentLength ? { "content-length": contentLength } : {}) },
+      body,
+    });
+
+  it("angegebener Content-Length über der Grenze → 413, bevor gelesen wird", async () => {
+    const { POST, ANMELDUNG_MAX_BODY_BYTES } = await import("./route");
+    const res = await POST(roh(JSON.stringify({ code: "ZZZZZZZZ" }), String(ANMELDUNG_MAX_BODY_BYTES + 1)));
+    expect(res.status).toBe(413);
+    expect((await res.json()).error.code).toBe("body_too_large");
+  });
+
+  it("gelogener Content-Length: gezählt wird beim Lesen", async () => {
+    const { POST, ANMELDUNG_MAX_BODY_BYTES } = await import("./route");
+    const res = await POST(roh(JSON.stringify({ code: "ZZZZZZZZ", polster: "x".repeat(ANMELDUNG_MAX_BODY_BYTES) }), "20"));
+    expect(res.status).toBe(413);
+  });
+
+  it("an der Grenze wird normal geprüft — ein gültiger Code mit Polster meldet an", async () => {
+    const { POST, ANMELDUNG_MAX_BODY_BYTES } = await import("./route");
+    const rumpf = JSON.stringify({ code: process.env.__TEST_CODE!, polster: "" });
+    const body = JSON.stringify({ code: process.env.__TEST_CODE!, polster: "x".repeat(ANMELDUNG_MAX_BODY_BYTES - rumpf.length) });
+    expect(Buffer.byteLength(body)).toBe(ANMELDUNG_MAX_BODY_BYTES);
+    expect((await POST(roh(body))).status).toBe(200);
+  });
+
+  it("kaputtes JSON → 400 invalid_json", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(roh("{code:"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("invalid_json");
+  });
+});
+
+/**
+ * DRK-447: die Audit-Zeilen verworfener Anmeldungen haben eine modulweite Obergrenze — auch wenn
+ * jede Anfrage eine frische Absenderadresse trägt. Erfolgreiche Anmeldungen zählen nicht mit.
+ */
+describe("POST /api/anmeldung — Audit-Obergrenze für Ablehnungen (DRK-447)", () => {
+  async function auditZeilen() {
+    const { queryAuditEvents } = await import("@/core/audit/storage");
+    const alle = (typ: string) => queryAuditEvents({ module: "uav", objectType: typ, limit: 100 }).events;
+    return { einzeln: alle("access"), gedrosselt: alle("access_throttled"), anmeldungen: alle("session") };
+  }
+
+  it("viele Fehlversuche von wechselnden Adressen: höchstens das Budget plus eine Markierung", async () => {
+    const { POST } = await import("./route");
+    const { ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN: budget } = await import("../../_lib/anmeldeSchranke");
+    for (let i = 0; i < budget * 5; i++) {
+      expect((await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, `198.51.100.${i % 250}`))).status).toBe(401);
+    }
+    const z = await auditZeilen();
+    expect(z.einzeln).toHaveLength(budget);
+    expect(z.gedrosselt).toHaveLength(1);
+    expect(z.gedrosselt[0]).toMatchObject({ action: "access_denied", result: "denied", actor: { kind: "anonymous" } });
+  });
+
+  it("formatfalsche Codes zählen genauso gegen die Obergrenze", async () => {
+    const { POST } = await import("./route");
+    const { ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN: budget } = await import("../../_lib/anmeldeSchranke");
+    for (let i = 0; i < budget * 3; i++) await POST(post(`!${i}`, undefined, `203.0.113.${i}`));
+    const z = await auditZeilen();
+    expect(z.einzeln.length + z.gedrosselt.length).toBe(budget + 1);
+  });
+
+  it("über der Obergrenze meldet sich ein gültiger Code weiter an und wird protokolliert", async () => {
+    const { POST } = await import("./route");
+    const { ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN: budget } = await import("../../_lib/anmeldeSchranke");
+    for (let i = 0; i < budget * 2; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, `192.0.2.${i}`));
+    for (let i = 0; i < 3; i++) expect((await POST(post(process.env.__TEST_CODE!, undefined, "192.0.2.200"))).status).toBe(200);
+    const z = await auditZeilen();
+    expect(z.anmeldungen).toHaveLength(3);
+    expect(z.einzeln).toHaveLength(budget);
   });
 });

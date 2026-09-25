@@ -1,15 +1,19 @@
-import { withAuditContext, auditParticipantActor, auditEvent, auditDenied } from "@/core/audit/server";
+import { withAuditContext, auditParticipantActor, auditEvent } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clientIpAus } from "@/core/ratelimit";
 import { getDb } from "../../_db/client";
 import { hostAbweisung } from "../../_lib/hostRiegel";
-import { codeVersuchErlaubt, fehlversuchBuchen } from "../../_lib/anmeldeSchranke";
+import { ablehnungProtokollieren, codeVersuchErlaubt, fehlversuchBuchen } from "../../_lib/anmeldeSchranke";
+import { begrenztesJson } from "../../_lib/begrenztesJson";
 import { CODE_ROH_MAX_ZEICHEN, codeFormatGueltig, codeNormalisieren } from "../../_lib/code";
 import { teilnehmerGesehen, teilnehmerPerCode } from "../../_lib/queries";
 import { SID_COOKIE, sessionErzeugen, sidCookieOptionen } from "../../_lib/sitzung";
 
 export const dynamic = "force-dynamic";
+// Der Body trägt nur `{"code":"…"}` mit höchstens `CODE_ROH_MAX_ZEICHEN` Zeichen — ein KiB
+// lässt reichlich Luft für Escapes und Leerraum und liest nie mehr in den Speicher (DRK-447).
+export const ANMELDUNG_MAX_BODY_BYTES = 1024;
 // Rohwert klein begrenzen, BEVOR normalisiert und gezählt wird (DRK-287).
 const schema = z.object({ code: z.string().min(1).max(CODE_ROH_MAX_ZEICHEN) });
 
@@ -18,12 +22,12 @@ const zuVieleVersuche = () => fehler(429, "rate_limited", "Zu viele Versuche. Bi
 
 export async function POST(req: Request) {
   const abweisung = hostAbweisung(req); if (abweisung) return abweisung;
-  let body: unknown; try { body = await req.json(); } catch { return fehler(400, "invalid_json", "Ungültiger JSON-Body"); }
-  const parsed = schema.safeParse(body); if (!parsed.success) return fehler(400, "validation_error", "code fehlt oder ist zu lang");
+  const body = await begrenztesJson(req, ANMELDUNG_MAX_BODY_BYTES, "Anmelde-Body ist zu groß"); if (!body.ok) return body.response;
+  const parsed = schema.safeParse(body.body); if (!parsed.success) return fehler(400, "validation_error", "code fehlt oder ist zu lang");
   // Zwei Zähler, je Code und je Absender — Begründung in `_lib/anmeldeSchranke.ts`.
   const absender = clientIpAus(req.headers);
   const code = codeNormalisieren(parsed.data.code);
-  const abgelehnt = () => { fehlversuchBuchen(absender); auditDenied("uav"); return fehler(401, "invalid_code", "Ungültiger oder inaktiver Code."); };
+  const abgelehnt = () => { fehlversuchBuchen(absender); ablehnungProtokollieren(); return fehler(401, "invalid_code", "Ungültiger oder inaktiver Code."); };
   if (!codeFormatGueltig(code)) return abgelehnt();
   if (!codeVersuchErlaubt(code, absender)) return zuVieleVersuche();
   const db = getDb();

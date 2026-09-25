@@ -13,6 +13,7 @@ import {
   importUav,
   paritaetUav,
   schreibeUndPruefe,
+  codeFormatPruefen,
   type AltTeilnehmer,
   type AltAufgabe,
   type AltDurchfuehrung,
@@ -352,5 +353,39 @@ describe("paritaetUav — Wiederverwendung nach dem ersten Login (I1)", () => {
 
     const reports = paritaetUav(quelle, ziel, JETZT);
     expect(reports.some((r) => !r.ok)).toBe(true);
+  });
+});
+
+/**
+ * DRK-447: die Anmeldung nimmt seit DRK-287 nur noch 8 Zeichen Crockford-Base32 an. Ein
+ * Bestandscode in anderer Form käme parität-grün an und wäre trotzdem unbrauchbar.
+ */
+describe("codeFormatPruefen / Codeformat vor dem Import (DRK-447)", () => {
+  it("zählt alle Codes und nennt Abweichler nur mit ihrer ID", () => {
+    const bericht = codeFormatPruefen([
+      { id: "p-1", login_code: "ABCDEFGH" },
+      { id: "p-2", login_code: "ABCDEFG" }, // zu kurz
+      { id: "p-3", login_code: "ABCDEFGI" }, // I gehört nicht zum Alphabet
+      { id: "p-4", login_code: "abcdefgh" }, // Kleinbuchstaben werden nie ausgestellt
+    ]);
+    expect(bericht).toEqual({ geprueft: 4, abweichend: ["p-2", "p-3", "p-4"] });
+  });
+
+  it("bricht vor dem Schreiben ab, wenn ein Code (auch eines inaktiven Teilnehmers) abweicht", () => {
+    const quelle = altDb();
+    teilnehmer(quelle);
+    teilnehmer(quelle, { id: "p-2", login_code: "ALT-1234", aktiv: 0 });
+    const ziel = frischeZielDb();
+    expect(() => schreibeUndPruefe(quelle, ziel, JETZT)).toThrow(/Codeformat FAILED: 1 von 2 .*IDs: p-2\)/);
+    expect(() => schreibeUndPruefe(quelle, ziel, JETZT)).not.toThrow(/ALT-1234/);
+    expect(ziel.select().from(schema.participants).all()).toEqual([]);
+  });
+
+  it("meldet die Zahl der geprüften Codes zurück, wenn alle passen", () => {
+    const quelle = altDb();
+    teilnehmer(quelle);
+    teilnehmer(quelle, { id: "p-2", login_code: "ZZZZZZZZ" });
+    const { codes } = schreibeUndPruefe(quelle, frischeZielDb(), JETZT);
+    expect(codes).toEqual({ geprueft: 2, abweichend: [] });
   });
 });

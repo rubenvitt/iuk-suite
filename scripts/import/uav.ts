@@ -14,6 +14,7 @@ import Database from "better-sqlite3";
 import * as schema from "@/app/m/uav/_db/schema";
 import { getDb } from "@/app/m/uav/_db/client";
 import type { UavDb } from "@/app/m/uav/_db/client";
+import { codeFormatGueltig } from "@/app/m/uav/_lib/code";
 import { migrateAllModules } from "@/core/bootstrap";
 import { checkParity, assertParity, type ParityReport } from "./parity";
 
@@ -416,6 +417,26 @@ export function paritaetUav(quelle: Database.Database, ziel: UavDb, jetzt: Date 
   return reports;
 }
 
+export interface CodeFormatBericht {
+  geprueft: number;
+  /** Teilnehmer-IDs, NIE die Codes selbst — ein Code ist der Zugang und gehört in kein Log. */
+  abweichend: string[];
+}
+
+/**
+ * Hat jeder Bestandscode die Form, die die Anmeldung seit DRK-287 annimmt (8 Zeichen
+ * Crockford-Base32, `codeFormatGueltig`)? Ein abweichender Code käme zwar unverändert im Ziel
+ * an — die Parität bliebe grün —, aber die Anmeldung verwürfe ihn vor jeder Datenbankabfrage:
+ * die Person wäre still ausgesperrt (DRK-447). Geprüft werden auch inaktive Teilnehmer, denn
+ * wer reaktiviert wird, meldet sich mit seinem alten Code an.
+ */
+export function codeFormatPruefen(teilnehmer: Pick<AltTeilnehmer, "id" | "login_code">[]): CodeFormatBericht {
+  return {
+    geprueft: teilnehmer.length,
+    abweichend: teilnehmer.filter((z) => !codeFormatGueltig(z.login_code)).map((z) => z.id),
+  };
+}
+
 /**
  * Import + Parität, testbar OHNE `getModuleDb()`/`migrateAllModules()` (radio.ts:613-641
  * begründet die Trennung: `getModuleDb()`s Cache ist per Modulschlüssel gekeyt, nicht per
@@ -425,16 +446,28 @@ export function paritaetUav(quelle: Database.Database, ziel: UavDb, jetzt: Date 
  * roten Paritätsbericht und einem still geloggten „Parität grün" mit Exit 0. Ein
  * geworfener Fehler heißt: das Ziel wurde bereits (idempotent) beschrieben — nicht
  * "nichts ist passiert" (radio.ts:634-637).
+ *
+ * Ausnahme: die Codeformat-Prüfung (DRK-447) läuft VOR dem Schreiben — sie braucht nur die
+ * Quelle, und ein Code, mit dem sich niemand mehr anmelden kann, ist ein Grund, gar nicht
+ * erst zu importieren.
  */
 export function schreibeUndPruefe(
   quelle: Database.Database,
   ziel: UavDb,
   jetzt: Date = new Date(),
-): { ergebnis: ImportErgebnis; reports: ParityReport[] } {
+): { ergebnis: ImportErgebnis; reports: ParityReport[]; codes: CodeFormatBericht } {
+  const codes = codeFormatPruefen(lieseQuelle(quelle).participants);
+  if (codes.abweichend.length > 0) {
+    throw new Error(
+      `Codeformat FAILED: ${codes.abweichend.length} von ${codes.geprueft} login_codes sind keine 8 Zeichen ` +
+        `Crockford-Base32 — diese Teilnehmer könnten sich nicht mehr anmelden (IDs: ${codes.abweichend.join(", ")}). ` +
+        "Import ABORTED — no cutover.",
+    );
+  }
   const ergebnis = importUav(quelle, ziel, jetzt);
   const reports = paritaetUav(quelle, ziel, jetzt); // wirft bei login_code-Abweichung direkt
   for (const report of reports) assertParity(report); // wirft bei jeder Zeilen-Abweichung
-  return { ergebnis, reports };
+  return { ergebnis, reports, codes };
 }
 
 /** Die Klammer über Quelle öffnen, migrieren, schreiben-und-prüfen, melden. */
@@ -444,12 +477,13 @@ export function runUavImport(quellPfad: string): void {
   const quellDb = new Database(quellPfad, { readonly: true });
   try {
     const ziel = getDb();
-    const { ergebnis, reports } = schreibeUndPruefe(quellDb, ziel);
+    const { ergebnis, reports, codes } = schreibeUndPruefe(quellDb, ziel);
     console.log(
       `Quelle: participants=${ergebnis.participants} tasks=${ergebnis.tasks} ` +
         `executions=${ergebnis.executions} taskStatus=${ergebnis.taskStatus} ` +
         `sessions=${ergebnis.sessions} (übersprungen: ${ergebnis.sessionsUebersprungen})`,
     );
+    console.log(`Codeformat: ${codes.geprueft} von ${codes.geprueft} login_codes im Anmeldeformat.`);
     const zeilen = reports.reduce((n, r) => n + r.sourceCount, 0);
     console.log(`uav-Import OK — ${zeilen} Zeilen, Parität grün.`);
   } finally {
