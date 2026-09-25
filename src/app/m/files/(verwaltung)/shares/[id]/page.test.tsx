@@ -879,7 +879,7 @@ describe("Punkt 8 — keine Datei vollständig übertragen", () => {
  * NACHTRAG AUFGABE 12, PUNKT 5 DER PRÜFLISTE. Diese Freigabe hat NICHT eine
  * unvollständige Datei (siehe oben), sondern gar keine Dateizeile — ein
  * Zustand, den `anlegenAction` über die Anwendung ausschließt
- * („mindestens eine Datei", `feldFehler.dateien`), der aber über
+ * („mindestens eine Datei", `(verwaltung)/actions.ts`, `feldFehler.dateien`), der aber über
  * einen fehlerhaften Altimport technisch entstehen kann. Ohne diesen Test
  * bliebe der `dateiZeilen.length === 0`-Zweig ungeprüft — er ist strukturell
  * anders als der Zwischenzustand oben (`legeDatei` wird hier gar nicht

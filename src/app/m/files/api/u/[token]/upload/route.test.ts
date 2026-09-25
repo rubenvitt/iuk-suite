@@ -1437,3 +1437,102 @@ describe("PUT /api/u/[token]/upload — DRK-288: Kontingent für offene Abgaben"
     expect(inboxZeilen()).toHaveLength(0);
   });
 });
+
+// --- DRK-448: der Idempotenzschluessel des ersten Chunks ----------------------
+
+describe("PUT /api/u/[token]/upload — DRK-448: Idempotenzschlüssel", () => {
+  const SCHLUESSEL = "k7Q-2mZ_x9Lp4Rt8Vw1YbA";
+
+  it("ein wiederholter erster Chunk nach verlorener Antwort setzt DIESELBE Abgabe fort", async () => {
+    // Ein Platz: ohne Schluessel endete die Wiederholung mit 429.
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+    const kopf = PNG(4);
+    const frage = { ab: 0, name: "bild.png", schluessel: SCHLUESSEL };
+
+    // Die Antwort auf diesen Chunk „geht verloren".
+    const verloren = await koerperVon(await put({ token, koerper: kopf, frage }));
+
+    const wiederholt = await put({ token, koerper: kopf, frage });
+    expect(wiederholt.status).toBe(200);
+    const koerper = await koerperVon(wiederholt);
+    expect(koerper).toMatchObject({ id: verloren.id, empfangen: kopf.byteLength, fertig: false });
+    // Nichts doppelt angehaengt, keine zweite Zeile.
+    expect(statSync(`${blobPfad(verloren.id!)}.part`).size).toBe(kopf.byteLength);
+    expect(inboxZeilen()).toHaveLength(1);
+
+    const rest = Uint8Array.from([1, 2, 3]);
+    const fertig = await put({
+      token,
+      koerper: rest,
+      frage: { id: verloren.id, ab: kopf.byteLength, ende: 1, typ: "image/png" },
+    });
+    expect(fertig.status).toBe(200);
+    expect(new Uint8Array(readFileSync(blobPfad(verloren.id!)))).toEqual(
+      Uint8Array.from([...kopf, ...rest]),
+    );
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1 });
+  });
+
+  it("nach einem verlorenen ABSCHLUSS liefert derselbe Schlüssel die Quittung — ohne zweite Buchung", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    const erst = await koerperVon(await abgabe(token, PNG(8), { schluessel: SCHLUESSEL }));
+    const nochmal = await abgabe(token, PNG(8), { schluessel: SCHLUESSEL });
+
+    expect(nochmal.status).toBe(200);
+    expect(await koerperVon(nochmal)).toMatchObject({
+      id: erst.id,
+      empfangen: 16,
+      fertig: true,
+      mimeTyp: "image/png",
+    });
+    expect(inboxZeilen()).toHaveLength(1);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 16 });
+  });
+
+  it("findet nur Abgaben des EIGENEN Links", async () => {
+    const a = neuerLink();
+    const b = neuerLink();
+    const frage = { ab: 0, name: "bild.png", schluessel: SCHLUESSEL };
+
+    const vonA = await koerperVon(await put({ token: a.token, koerper: PNG(4), frage }));
+    const vonB = await koerperVon(await put({ token: b.token, koerper: PNG(4), frage }));
+
+    expect(vonB.id).not.toBe(vonA.id);
+    expect(inboxZeilen()).toHaveLength(2);
+  });
+
+  it("eine leere Zwischendatei wird beim selben Schlüssel neu beschrieben, nicht quittiert", async () => {
+    const { token } = neuerLink();
+    const frage = { ab: 0, name: "bild.png", schluessel: SCHLUESSEL };
+
+    const leer = await koerperVon(await put({ token, frage }));
+    expect(leer.empfangen).toBe(0);
+
+    const kopf = PNG(4);
+    const danach = await koerperVon(await put({ token, koerper: kopf, frage }));
+    expect(danach).toMatchObject({ id: leer.id, empfangen: kopf.byteLength });
+  });
+
+  it("weist einen Schlüssel in falscher Form mit 400 ab — ohne Zeile", async () => {
+    const { token } = neuerLink();
+
+    const antwort = await abgabe(token, PNG(8), { schluessel: "zu-kurz" });
+
+    expect(antwort.status).toBe(400);
+    expect((await koerperVon(antwort)).code).toBe("schluessel");
+    expect(inboxZeilen()).toHaveLength(0);
+  });
+
+  it("nennt bei 409 die `id` mit — der Client kennt sie nach einer verlorenen Antwort nicht", async () => {
+    const { token } = neuerLink();
+    const { id } = await koerperVon(
+      await put({ token, koerper: PNG(4), frage: { ab: 0, name: "bild.png" } }),
+    );
+
+    const daneben = await put({ token, koerper: PNG(4), frage: { id, ab: 3 } });
+
+    expect(daneben.status).toBe(409);
+    expect(await koerperVon(daneben)).toMatchObject({ id, erwartetesAb: 12 });
+  });
+});

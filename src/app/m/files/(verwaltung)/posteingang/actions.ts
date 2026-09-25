@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/app/m/files/_db/client";
 import { inboxFiles } from "@/app/m/files/_db/schema";
 import { requireFilesAccess } from "@/app/m/files/_lib/access";
-import { loesche } from "@/app/m/files/_lib/storage";
+import { SchreibbesitzBelegt, loesche, mitSchreibbesitz } from "@/app/m/files/_lib/storage";
 
 /**
  * DER EINZIGE SCHREIBWEG DES POSTEINGANGS (Spec §8.6; Plan T43).
@@ -104,21 +104,67 @@ export async function inboxLoeschenAction(
     const db = getDb();
     let geloescht = 0;
     let bytes = 0;
+    let inUebertragung = 0;
 
     for (const id of ids) {
       const [zeile] = db
-        .select({ id: inboxFiles.id, size: inboxFiles.size })
+        .select({ id: inboxFiles.id })
         .from(inboxFiles)
         .where(eq(inboxFiles.id, id))
         .limit(1)
         .all();
       if (!zeile) continue;
 
-      await loesche({ art: "inbox", inboxFileId: zeile.id });
-      db.delete(inboxFiles).where(eq(inboxFiles.id, zeile.id)).run();
+      /*
+       * IM SCHREIBBESITZ, Bytes UND Zeile (DRK-448). Ohne ihn konnte ein
+       * laufender Chunk der Abgabe die Offen-Prüfung passieren, die Bytes hier
+       * gingen weg, und sein `open(…, "a")` legte danach eine NEUE Zwischendatei
+       * an — deren Zeile Augenblicke später verschwand. Ausgeliefert wurde davon
+       * nichts, aber der Speicher blieb belegt, und kein Lauf fand ihn wieder.
+       *
+       * Belegt heißt: gerade läuft ein Chunk. Gewartet wird NICHT — ein langsamer
+       * Rumpf hielte die Verwaltung beliebig lange fest —, die Abgabe bleibt
+       * stehen und die Quittung sagt es.
+       */
+      try {
+        const weg = await mitSchreibbesitz({ art: "inbox", inboxFileId: zeile.id }, async () => {
+          // Unter dem Besitz ERNEUT: der Upload kann die Zeile inzwischen selbst
+          // verworfen haben (Kontingent, Dateityp).
+          const [jetzt] = db
+            .select({ size: inboxFiles.size })
+            .from(inboxFiles)
+            .where(eq(inboxFiles.id, zeile.id))
+            .limit(1)
+            .all();
+          if (!jetzt) return null;
+          await loesche({ art: "inbox", inboxFileId: zeile.id });
+          db.delete(inboxFiles).where(eq(inboxFiles.id, zeile.id)).run();
+          return jetzt.size;
+        });
+        if (weg === null) continue;
+        geloescht += 1;
+        bytes += weg;
+      } catch (grund) {
+        if (!(grund instanceof SchreibbesitzBelegt)) throw grund;
+        inUebertragung += 1;
+      }
+    }
 
-      geloescht += 1;
-      bytes += zeile.size;
+    if (inUebertragung > 0) {
+      // Was schon weg ist, soll die Liste sofort nicht mehr zeigen.
+      if (geloescht > 0) auffrischen();
+      const bleibt =
+        inUebertragung === 1
+          ? "Eine Abgabe wird gerade übertragen und bleibt stehen"
+          : `${inUebertragung} Abgaben werden gerade übertragen und bleiben stehen`;
+      return {
+        ok: false,
+        feldFehler: {
+          ids:
+            (geloescht > 0 ? `${geloescht} gelöscht. ` : "") +
+            `${bleibt} — bitte in einem Moment erneut löschen.`,
+        },
+      };
     }
 
     /*
