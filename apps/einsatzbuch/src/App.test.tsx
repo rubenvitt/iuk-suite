@@ -61,6 +61,7 @@ function status(teil: Partial<Status> = {}): Status {
     stammdatenVom: "2026-09-25T10:00:00+02:00",
     ankerBestaetigtBis: 3,
     ankerAbweichung: null,
+    anker: null,
     widerrufen: false,
     sitzung: null,
     anmeldungLaeuft: false,

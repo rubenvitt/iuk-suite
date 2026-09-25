@@ -116,6 +116,14 @@ export interface Schluesselposten {
   cek: string;
 }
 
+/** Der letzte von der Suite bestätigte Anker samt Zeitpunkt (`src-tauri/kern/src/buch.rs`,
+ *  `Exportanker`) — genau die Form von `Exportinhalt.anker` im geteilten Kern (`format.ts`). */
+export interface Exportanker {
+  block: number;
+  hash: string;
+  gemeldetAm: string;
+}
+
 export interface Status {
   betrieb: "echt" | "test" | null;
   eingerichtet: boolean;
@@ -144,6 +152,8 @@ export interface Status {
   stammdatenVom: string | null;
   ankerBestaetigtBis: number;
   ankerAbweichung: Ankerabweichung | null;
+  /** Der letzte bestätigte Anker mit Zeitpunkt; `null`, solange die Suite nichts bestätigt hat. */
+  anker: Exportanker | null;
   widerrufen: boolean;
   /** Die Verwaltungssitzung; eine abgelaufene erscheint als `null`. */
   sitzung: SitzungInfo | null;

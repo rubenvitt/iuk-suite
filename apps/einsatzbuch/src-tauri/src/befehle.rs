@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use einsatzbuch_kern::anmeldung::{self, anmelde_url};
-use einsatzbuch_kern::buch::{self, Ankerabweichung, Betrieb, Buch, BuchFehler};
+use einsatzbuch_kern::buch::{self, Ankerabweichung, Betrieb, Buch, BuchFehler, Exportanker};
 use einsatzbuch_kern::einrichtung::Stammdatenpaket;
 use einsatzbuch_kern::erfassung::{Ausstehend, Entwurf, ErfassungFehler, Versiegelung, formatiere_zeitpunkt};
 use einsatzbuch_kern::format::{Block, Umgebung};
@@ -110,7 +110,8 @@ pub struct Status {
     pub entwurf: Option<Entwurf>,
     pub ausstehend: Option<Ausstehend>,
     pub kette: Kettenstand,
-    /// Die noch nicht quittierte Versiegelung, aus der Frist-Uhr oder „Jetzt versiegeln“.
+    /// Die noch nicht quittierte Versiegelung, aus der Frist-Uhr oder „Jetzt versiegeln“. Steht
+    /// im Buch (`Buch::unquittiert`) und übersteht so einen Neustart.
     pub versiegelung: Option<Versiegelung>,
     /// Suite-Adresse der Einrichtung.
     pub suite_url: Option<String>,
@@ -125,6 +126,9 @@ pub struct Status {
     pub stammdaten_vom: Option<String>,
     pub anker_bestaetigt_bis: u64,
     pub anker_abweichung: Option<Ankerabweichung>,
+    /// Der letzte bestätigte Anker samt Zeitpunkt (`Buch::bestaetigter_anker`) — geht so in
+    /// `Exportinhalt.anker`.
+    pub anker: Option<Exportanker>,
     pub widerrufen: bool,
     /// Die Verwaltungssitzung, ohne Token. Eine abgelaufene erscheint als `None`.
     pub sitzung: Option<SitzungInfo>,
@@ -198,8 +202,8 @@ pub struct Ankerstand {
     pub widerrufen: bool,
 }
 
-/// Liest den Status. `startfehler` und `versiegelung` werden unter dem Buch-Lock gelesen,
-/// damit Kette, Ausstehendes und Versiegelung zum selben Stand gehören. Sitzung und laufende
+/// Liest den Status. `startfehler` und alles aus dem Buch (auch `versiegelung`) werden unter
+/// dem Buch-Lock gelesen, damit Kette, Ausstehendes und Versiegelung zum selben Stand gehören. Sitzung und laufende
 /// Anmeldung kommen danach, ohne Buch-Lock (Blätter der Sperrreihenfolge, `zustand.rs`).
 pub fn lies_status(z: &Zustand) -> Result<Status, String> {
     let jetzt = z.uhr.jetzt();
@@ -230,6 +234,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
             stammdaten_vom: None,
             anker_bestaetigt_bis: 0,
             anker_abweichung: None,
+            anker: None,
             widerrufen: false,
             sitzung: None,
             anmeldung_laeuft: false,
@@ -256,7 +261,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                     anzahl: kopf.as_ref().map_or(0, |(block, _)| *block),
                     letzter: kopf.map(|(block, hash)| Kettenglied { block, hash }),
                 },
-                versiegelung: None,
+                versiegelung: buch.unquittiert().map_err(buch_fehler_text)?,
                 suite_url: einrichtung.as_ref().map(|e| e.suite_url.clone()),
                 suite_vorgabe: z.suite_vorgabe.clone(),
                 rechner_name: anbindung.as_ref().map(|a| a.rechner_name.clone()).filter(|n| !n.is_empty()),
@@ -269,13 +274,13 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                     .or_else(|| einrichtung.as_ref().map(|e| e.eingerichtet_am.clone())),
                 anker_bestaetigt_bis: anbindung.as_ref().map_or(0, |a| a.anker_gemeldet_bis),
                 anker_abweichung: anbindung.as_ref().and_then(|a| a.anker_abweichung.clone()),
+                anker: buch.bestaetigter_anker().map_err(buch_fehler_text)?,
                 widerrufen: anbindung.as_ref().is_some_and(|a| a.widerrufen),
                 sitzung: None,
                 anmeldung_laeuft: false,
             }
         }
     };
-    status.versiegelung = z.unquittiert().clone();
     drop(buch);
     status.sitzung = sitzung_info(z);
     status.anmeldung_laeuft = z.anmeldung().is_some();
@@ -314,20 +319,18 @@ pub fn sende_ab(z: &Zustand, entwurf: &Entwurf, bearbeitung: bool) -> Result<Aus
 }
 
 /// „Jetzt versiegeln“: versiegelt den ausstehenden Einsatz sofort, mit `verfallen = false`,
-/// denn es gibt dann keinen Bearbeitungsstand, der verloren gehen könnte. Liegt nichts mehr
-/// aus, weil die Frist-Uhr gerade zuvorgekommen ist, kommt deren noch nicht quittierte
-/// Versiegelung zurück statt eines Fehlers: Der Klick war dann nicht vergeblich, der Einsatz
-/// ist versiegelt.
+/// denn es gibt dann keinen Bearbeitungsstand, der verloren gehen könnte. Der Kern merkt die
+/// Versiegelung in derselben Transaktion als unquittiert vor. Liegt nichts mehr aus, weil die
+/// Frist-Uhr gerade zuvorgekommen ist, kommt deren noch nicht quittierte Versiegelung aus dem
+/// Buch zurück statt eines Fehlers: Der Klick war dann nicht vergeblich, der Einsatz ist
+/// versiegelt.
 pub fn versiegele_jetzt(z: &Zustand) -> Result<Versiegelung, String> {
     let jetzt = z.uhr.jetzt();
     let mut buch = z.buch_zum_schreiben()?;
     let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     let (v, neu) = match offen.versiegele_ausstehend(jetzt, &mut SystemZufall, false).map_err(fehler_text)? {
-        Some(v) => {
-            *z.unquittiert() = Some(v.clone());
-            (v, true)
-        }
-        None => (z.unquittiert().clone().ok_or(NICHTS_AUSSTEHEND)?, false),
+        Some(v) => (v, true),
+        None => (offen.unquittiert().map_err(buch_fehler_text)?.ok_or(NICHTS_AUSSTEHEND)?, false),
     };
     drop(buch);
     if neu {
@@ -337,19 +340,14 @@ pub fn versiegele_jetzt(z: &Zustand) -> Result<Versiegelung, String> {
 }
 
 /// Prüft die Frist sofort und gibt die unquittierte Versiegelung zurück. Das ist entweder die
-/// eben entstandene oder eine, die die Frist-Uhr kurz vorher geschrieben hat: Zählt die
-/// Oberfläche auf 0 herunter, kann die Uhr im Hintergrund schon zugeschlagen haben. Prüfung
-/// und Lesen laufen unter demselben Buch-Lock.
+/// eben entstandene oder eine, die die Frist-Uhr kurz vorher (oder ein früherer Lauf der App)
+/// geschrieben hat: Zählt die Oberfläche auf 0 herunter, kann die Uhr im Hintergrund schon
+/// zugeschlagen haben. Prüfung und Lesen laufen unter demselben Buch-Lock.
 pub fn pruefe_frist_jetzt(z: &Zustand) -> Result<Option<Versiegelung>, String> {
     let mut buch = z.buch_zum_schreiben()?;
-    let mut neu = false;
-    if let Some(offen) = buch.as_mut() {
-        if let Some(v) = offen.pruefe_frist(z.uhr.jetzt(), &mut SystemZufall).map_err(fehler_text)? {
-            *z.unquittiert() = Some(v);
-            neu = true;
-        }
-    }
-    let v = z.unquittiert().clone();
+    let Some(offen) = buch.as_mut() else { return Ok(None) };
+    let neu = offen.pruefe_frist(z.uhr.jetzt(), &mut SystemZufall).map_err(fehler_text)?.is_some();
+    let v = offen.unquittiert().map_err(buch_fehler_text)?;
     drop(buch);
     if neu {
         z.stosse_abgleich_an();
@@ -357,10 +355,14 @@ pub fn pruefe_frist_jetzt(z: &Zustand) -> Result<Option<Versiegelung>, String> {
     Ok(v)
 }
 
-pub fn quittiere(z: &Zustand) {
-    let buch = z.buch();
-    *z.unquittiert() = None;
-    drop(buch);
+/// Die Oberfläche hat die Versiegelung gesehen: Der Hinweis im Buch entfällt. Ohne Buch gibt
+/// es keinen Hinweis und nichts zu tun.
+pub fn quittiere(z: &Zustand) -> Result<(), String> {
+    let mut buch = z.buch_zum_schreiben()?;
+    match buch.as_mut() {
+        Some(offen) => offen.quittiere().map_err(buch_fehler_text),
+        None => Ok(()),
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -761,20 +763,22 @@ fn abgleichsgrundlage(z: &Zustand) -> Result<Abgleichsgrundlage, String> {
 
 /// „Kette prüfen“ gegen die Suite und der Ankerlauf des Abgleich-Threads (`suite::gleiche_anker_ab`):
 /// meldet offene Blöcke nach bzw. den letzten erneut und liefert den Stand danach.
+///
+/// Der Bestätigungszeitpunkt steht in der Zone der Einrichtung, gelesen vor dem Lauf. Derselbe
+/// Text geht ins Buch (`anker_gemeldet_am`, später `Exportinhalt.anker.gemeldetAm`) und in
+/// `Ankerstand.gemeldet_am`.
 pub fn gleiche_anker_jetzt(z: &Zustand) -> Result<Ankerstand, String> {
     let g = abgleichsgrundlage(z)?;
-    let ergebnis = suite::gleiche_anker_ab(&z.buch, &*z.transport, &g.suite_url, &g.geraet)?;
-    let jetzt = z.uhr.jetzt();
+    let gemeldet_am = formatiere_zeitpunkt(z.uhr.jetzt(), &g.zeitzone);
+    let ergebnis = suite::gleiche_anker_ab(&z.buch, &*z.transport, &g.suite_url, &g.geraet, &gemeldet_am)?;
     let buch = z.buch_zum_schreiben()?;
     let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
-    let e = offen.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
     let a = offen.anbindung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
     let bis = a.anker_gemeldet_bis;
     Ok(Ankerstand {
         bestaetigt_bis: bis,
         hash: if bis > 0 { offen.hash_von(bis).map_err(buch_fehler_text)? } else { None },
-        gemeldet_am: matches!(ergebnis, AnkerErgebnis::Bestaetigt(n) if n > 0)
-            .then(|| formatiere_zeitpunkt(jetzt, &e.paket.zeitzone)),
+        gemeldet_am: matches!(ergebnis, AnkerErgebnis::Bestaetigt(n) if n > 0).then_some(gemeldet_am),
         abweichung: a.anker_abweichung,
         offline: ergebnis == AnkerErgebnis::Offline,
         widerrufen: a.widerrufen,
@@ -839,7 +843,6 @@ pub fn beende_testbetrieb(z: &Zustand) -> Result<(), String> {
         }
         return Err(buch_fehler_text(fehler));
     }
-    *z.unquittiert() = None;
     drop(buch);
 
     if let Err(e) = z.tresor.loesche(konto_fuer(Betrieb::Test)) {
@@ -930,11 +933,7 @@ pub async fn frist_pruefen(app: AppHandle) -> Result<Option<Versiegelung>, Strin
 
 #[tauri::command]
 pub async fn versiegelung_quittieren(app: AppHandle) -> Result<(), String> {
-    blockierend(app, |z| {
-        quittiere(z);
-        Ok(())
-    })
-    .await
+    blockierend(app, quittiere).await
 }
 
 #[tauri::command]
@@ -1332,7 +1331,7 @@ pub(crate) mod tests {
     pub(crate) fn versiegele_einen(z: &Zustand) -> Versiegelung {
         sende_ab(z, &entwurf_suite(), false).unwrap();
         let v = versiegele_jetzt(z).unwrap();
-        quittiere(z);
+        quittiere(z).unwrap();
         v
     }
 
@@ -1426,7 +1425,7 @@ pub(crate) mod tests {
         assert_eq!(s.kette, Kettenstand { anzahl: 1, letzter: Some(Kettenglied { block: 1, hash: v.hash.clone() }) });
         assert!(s.ausstehend.is_none());
 
-        quittiere(&z);
+        quittiere(&z).unwrap();
         assert_eq!(lies_status(&z).unwrap().versiegelung, None);
 
         beende_testbetrieb(&z).unwrap();
@@ -1525,7 +1524,7 @@ pub(crate) mod tests {
         uhr.vor(Duration::minutes(15));
         let aus_der_uhr = z.pruefe_frist().unwrap().expect("Frist erreicht");
         assert_eq!(versiegele_jetzt(&z).unwrap(), aus_der_uhr);
-        quittiere(&z);
+        quittiere(&z).unwrap();
         assert_eq!(versiegele_jetzt(&z).unwrap_err(), NICHTS_AUSSTEHEND);
     }
 
@@ -2041,7 +2040,8 @@ pub(crate) mod tests {
     #[test]
     fn anker_jetzt_liefert_den_ankerstand() {
         let ordner = tempfile::tempdir().unwrap();
-        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        let uhr = Stelluhr::neu();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &uhr);
         let leer = gleiche_anker_jetzt(&z).unwrap();
         assert_eq!(leer, Ankerstand { bestaetigt_bis: 0, hash: None, gemeldet_am: None, abweichung: None, offline: false, widerrufen: false });
 
@@ -2059,12 +2059,75 @@ pub(crate) mod tests {
             assert!(json.get(feld).is_some(), "{feld} fehlt: {json}");
         }
         assert_eq!(lies_status(&z).unwrap().anker_bestaetigt_bis, 1);
+        // Der bestätigte Anker samt Zeitpunkt in der Zone der Einrichtung (nicht UTC) — für den Export.
+        let exportanker = Exportanker { block: 1, hash: v.hash.clone(), gemeldet_am: "2026-09-24T10:00:00+02:00".into() };
+        assert_eq!(lies_status(&z).unwrap().anker, Some(exportanker.clone()));
 
+        uhr.vor(Duration::hours(1));
         suite.setze(|_| antwort(503, "<html>Service Unavailable</html>"));
         let offline = gleiche_anker_jetzt(&z).unwrap();
         assert!(offline.offline);
         assert_eq!(offline.bestaetigt_bis, 1, "offline bleibt der Stand");
         assert_eq!(offline.gemeldet_am, None);
+        assert_eq!(lies_status(&z).unwrap().anker, Some(exportanker), "offline bleibt auch der Zeitpunkt");
+
+        // Die erneute Meldung des letzten Blocks frischt den Zeitpunkt auf.
+        suite.setze(gesunde_suite);
+        let wieder = gleiche_anker_jetzt(&z).unwrap();
+        assert_eq!(wieder.gemeldet_am.as_deref(), Some("2026-09-24T11:00:00+02:00"));
+        assert_eq!(
+            lies_status(&z).unwrap().anker,
+            Some(Exportanker { block: 1, hash: v.hash, gemeldet_am: "2026-09-24T11:00:00+02:00".into() })
+        );
+    }
+
+    /// Härtung aus Phase C: Der Versiegelungshinweis steht im Buch, nicht im Speicher der Hülle.
+    /// Ein neuer Zustand auf demselben Ordner (Neustart der App) zeigt ihn samt `verfallen`, bis
+    /// er quittiert ist — und danach auch nach einem weiteren Neustart nicht mehr.
+    #[test]
+    fn versiegelungshinweis_uebersteht_den_neustart_des_zustands() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let v = {
+            let z = zustand(ordner.path(), &uhr);
+            richte_entwicklung_ein(&z, None, Some(15)).unwrap();
+            sende_ab(&z, &entwurf(), false).unwrap();
+            speichere_entwurf(&z, &entwurf(), true).unwrap();
+            uhr.vor(Duration::minutes(15));
+            let v = z.pruefe_frist().unwrap().expect("Frist erreicht");
+            assert!(v.verfallen);
+            v
+        };
+
+        let z = zustand(ordner.path(), &uhr);
+        let s = lies_status(&z).unwrap();
+        assert_eq!(s.versiegelung, Some(v.clone()), "der Hinweis muss den Neustart überstehen");
+        assert!(s.versiegelung.as_ref().is_some_and(|v| v.verfallen));
+        assert_eq!(serde_json::to_value(&s).unwrap()["versiegelung"]["verfallen"], true);
+        assert_eq!(pruefe_frist_jetzt(&z).unwrap(), Some(v.clone()), "auch frist_pruefen liefert ihn");
+        assert_eq!(versiegele_jetzt(&z).unwrap(), v, "„Jetzt versiegeln“ liefert ihn statt eines Fehlers");
+
+        quittiere(&z).unwrap();
+        assert_eq!(lies_status(&z).unwrap().versiegelung, None);
+        drop(z);
+        assert_eq!(lies_status(&zustand(ordner.path(), &uhr)).unwrap().versiegelung, None, "quittiert bleibt quittiert");
+    }
+
+    /// Versiegelt die Frist schon beim Start (`beim_start`), steht der Hinweis im Status.
+    #[test]
+    fn frist_beim_start_versiegelt_und_zeigt_den_hinweis() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        {
+            let z = zustand(ordner.path(), &uhr);
+            richte_entwicklung_ein(&z, None, Some(15)).unwrap();
+            sende_ab(&z, &entwurf(), false).unwrap();
+        }
+        uhr.vor(Duration::minutes(20));
+        let z = zustand(ordner.path(), &uhr);
+        let s = lies_status(&z).unwrap();
+        assert_eq!(s.kette.anzahl, 1, "beim_start versiegelt die überfällige Frist");
+        assert!(s.versiegelung.as_ref().is_some_and(|v| v.block == 1 && !v.verfallen), "{:?}", s.versiegelung);
     }
 
     #[test]
@@ -2093,7 +2156,7 @@ pub(crate) mod tests {
         uhr.vor(Duration::minutes(15));
         pruefe_frist_jetzt(&z).unwrap().expect("Frist erreicht");
         assert!(rx.try_recv().is_ok(), "frist_pruefen");
-        quittiere(&z);
+        quittiere(&z).unwrap();
 
         sende_ab(&z, &entwurf_suite(), false).unwrap();
         uhr.vor(Duration::minutes(15));
@@ -2109,7 +2172,7 @@ pub(crate) mod tests {
         let json = serde_json::to_value(lies_status(&z).unwrap()).unwrap();
         for feld in [
             "suiteUrl", "suiteVorgabe", "rechnerName", "eingerichtetAm", "eingerichtetVon", "schluesselId", "stammdatenVom",
-            "ankerBestaetigtBis", "ankerAbweichung", "widerrufen", "sitzung", "anmeldungLaeuft",
+            "ankerBestaetigtBis", "ankerAbweichung", "anker", "widerrufen", "sitzung", "anmeldungLaeuft",
         ] {
             assert!(json.get(feld).is_some(), "{feld} fehlt: {json}");
         }

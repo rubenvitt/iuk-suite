@@ -338,12 +338,13 @@ mod lauf {
         );
         let uhr = starte_frist_uhr(Arc::clone(z), Arc::clone(halt));
         let frist_ende = aus.frist_bis_ms + FRIST_NACHLAUF_MS;
-        while z.unquittiert().is_none() && chrono::Utc::now().timestamp_millis() < frist_ende {
+        // Der Versiegelungshinweis steht im Buch (`Buch::unquittiert`); `lies_status` liest ihn
+        // unter dem Buch-Lock und gibt den Lock vor der Rückkehr wieder frei.
+        let mut gesehen = lies_status(z)?.versiegelung;
+        while gesehen.is_none() && chrono::Utc::now().timestamp_millis() < frist_ende {
             thread::sleep(Duration::from_millis(500));
+            gesehen = lies_status(z)?.versiegelung;
         }
-        // Erst in eine Variable: Im `match` lebte der Guard bis zum Ende, und `pruefe_frist_jetzt`
-        // nimmt denselben Mutex (`unquittiert`) — das wäre ein Selbst-Deadlock.
-        let gesehen = z.unquittiert().clone();
         let versiegelung: Versiegelung = match gesehen {
             Some(v) => v,
             None => {
@@ -351,7 +352,7 @@ mod lauf {
                 pruefe_frist_jetzt(z)?.ok_or("Auch pruefe_frist_jetzt hat nichts versiegelt.")?
             }
         };
-        quittiere(z);
+        quittiere(z)?;
         halt.store(true, Ordering::SeqCst);
         let _ = uhr.join();
         pruefe(versiegelung.block == 1 && !versiegelung.verfallen, || format!("unerwartete Versiegelung: {versiegelung:?}"))?;

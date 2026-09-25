@@ -28,6 +28,7 @@ function stat(teil: Partial<Status> = {}): Status {
     stammdatenVom: null,
     ankerBestaetigtBis: 0,
     ankerAbweichung: null,
+    anker: null,
     widerrufen: false,
     sitzung: null,
     anmeldungLaeuft: false,

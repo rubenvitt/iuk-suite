@@ -14,13 +14,15 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 use crate::einrichtung::{Einrichtung, Stammdaten, Stammdatenpaket};
+use crate::erfassung::Versiegelung;
 use crate::format::{Block, Umgebung};
 use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
 
 const SCHEMA: &str = include_str!("schema.sql");
 const SCHEMA_V2: &str = include_str!("schema_v2.sql");
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_V3: &str = include_str!("schema_v3.sql");
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuchFehler {
@@ -30,6 +32,9 @@ pub enum BuchFehler {
     Datei(#[from] std::io::Error),
     #[error("gespeicherte Stammdaten sind kein gültiges JSON: {0}")]
     StammdatenJson(#[from] serde_json::Error),
+    /// Ohne `#[from]`, damit ein JSON-Fehler der Versiegelung nicht als Stammdatenfehler erscheint.
+    #[error("die gespeicherte, noch nicht quittierte Versiegelung ist kein gültiges JSON: {0}")]
+    UnquittiertJson(serde_json::Error),
     #[error("unbekannte Schemaversion {gefunden} — dieser Rechner kennt nur Version {bekannt}")]
     UnbekannteSchemaversion { gefunden: i64, bekannt: i64 },
     #[error("die Einrichtung nennt die Umgebung {angegeben:?}, dieses Buch führt aber {betrieb:?}")]
@@ -209,6 +214,16 @@ pub struct Ankerabweichung {
     pub gemeldet: String,
 }
 
+/// Der letzte von der Suite bestätigte Anker samt Zeitpunkt der Bestätigung — camelCase, denn er
+/// geht 1:1 in `Exportinhalt.anker` des geteilten TS-Kerns (`_lib/kern/format.ts`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Exportanker {
+    pub block: u64,
+    pub hash: String,
+    pub gemeldet_am: String,
+}
+
 /// Der Teil der Einrichtung, den erst die Anbindung an die Suite (Stufe 5, Schema v2) hinzufügt:
 /// Rechnerkennung und -name, Stand des letzten Stammdatenabrufs, wie weit die Kette der Suite
 /// schon bestätigt ist, eine offene Ankerabweichung und ob dieser Rechner widerrufen ist. `None`
@@ -225,32 +240,27 @@ pub struct Anbindung {
     pub widerrufen: bool,
 }
 
-/// Legt bei einer frischen Datenbank (`user_version = 0`) das Schema v1 und danach v2 in einer
-/// Transaktion an; eine v1-Datei (`user_version = 1`, aus der Zeit vor der Anbindung an die
-/// Suite) wendet nur noch v2 an. Beide Zweige setzen `user_version` im selben Zug auf
-/// `SCHEMA_VERSION`. Eine schon bekannte Version wird übersprungen, eine unbekannte höhere
-/// Version verweigert — dieser Rechner kennt kein Rückwärtsschema.
+/// Hebt die Datenbank in **einer** Transaktion auf `SCHEMA_VERSION`: Eine frische Datei
+/// (`user_version = 0`) bekommt v1, v2 und v3, eine v1-Datei (aus der Zeit vor der Anbindung an
+/// die Suite) v2 und v3, eine v2-Datei (Stufe 5) nur noch v3. `user_version` wird im selben Zug
+/// gesetzt. Eine schon aktuelle Version wird übersprungen, eine unbekannte höhere verweigert —
+/// dieser Rechner kennt kein Rückwärtsschema.
 fn richte_schema_ein(conn: &mut Connection) -> Result<(), BuchFehler> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-    match version {
-        0 => {
-            let tx = conn.transaction()?;
-            tx.execute_batch(SCHEMA)?;
-            tx.execute_batch(SCHEMA_V2)?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            tx.commit()?;
-            Ok(())
-        }
-        1 => {
-            let tx = conn.transaction()?;
-            tx.execute_batch(SCHEMA_V2)?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            tx.commit()?;
-            Ok(())
-        }
-        v if v == SCHEMA_VERSION => Ok(()),
-        gefunden => Err(BuchFehler::UnbekannteSchemaversion { gefunden, bekannt: SCHEMA_VERSION }),
+    let schritte: &[&str] = match version {
+        0 => &[SCHEMA, SCHEMA_V2, SCHEMA_V3],
+        1 => &[SCHEMA_V2, SCHEMA_V3],
+        2 => &[SCHEMA_V3],
+        v if v == SCHEMA_VERSION => return Ok(()),
+        gefunden => return Err(BuchFehler::UnbekannteSchemaversion { gefunden, bekannt: SCHEMA_VERSION }),
+    };
+    let tx = conn.transaction()?;
+    for schritt in schritte {
+        tx.execute_batch(schritt)?;
     }
+    tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    tx.commit()?;
+    Ok(())
 }
 
 /// Das lokale Einsatzbuch: eine offene Verbindung auf `einsatzbuch.db` oder
@@ -387,7 +397,7 @@ impl Buch {
     /// mit `AndererSchluessel` abgelehnt, ohne dass sich irgendetwas ändert. Bei passendem
     /// Schlüssel übernimmt sie Suite-URL, Schlüssel, Stammdatenpaket sowie die neue
     /// `rechnerId`/`rechnerName` dieser Sitzung und setzt die Anbindung zurück: Der Rechner
-    /// meldet seine ganze Kette neu (`ankerGemeldetBis = 0`), ist nicht mehr widerrufen und
+    /// meldet seine ganze Kette neu (`ankerGemeldetBis = 0`, ohne Bestätigungszeitpunkt), ist nicht mehr widerrufen und
     /// trägt keine offene Ankerabweichung mehr. Kette und `eingerichtetAm` bleiben unverändert —
     /// es ist dieselbe Installation, kein neues Buch.
     pub fn richte_neu_ein(&mut self, e: &Einrichtung, rechner_id: &str, rechner_name: &str) -> Result<(), BuchFehler> {
@@ -411,7 +421,7 @@ impl Buch {
             "UPDATE einrichtung SET suite_url = ?1, oeffentlich_spki = ?2, schluessel_id = ?3, \
              stammdaten_json = ?4, stammdaten_version = ?5, frist_minuten = ?6, besatzung = ?7, \
              zeitzone = ?8, bereitschaft = ?9, rechner_id = ?10, rechner_name = ?11, \
-             anker_gemeldet_bis = 0, widerrufen = 0, anker_abweichung = NULL \
+             anker_gemeldet_bis = 0, anker_gemeldet_am = NULL, widerrufen = 0, anker_abweichung = NULL \
              WHERE id = 1",
             params![
                 e.suite_url,
@@ -433,7 +443,7 @@ impl Buch {
     /// Liest die Anbindung an die Suite, sofern schon eine Einrichtung vorliegt. `rechner_id`
     /// und `rechner_name` kommen per `COALESCE(…, '')`: Eine Datenbank, die noch unter Schema v1
     /// entstand (vor dieser Anbindung), hat dort `NULL` stehen — dieser Fall trifft nur
-    /// Entwicklerdateien, denn eine ausgelieferte Installation kennt nur Schema v2. `None` heißt
+    /// Entwicklerdateien, denn eine ausgelieferte Installation beginnt bei Schema v2. `None` heißt
     /// „noch gar keine Einrichtung“, nicht zu verwechseln mit den leeren Feldern dieses Falls.
     pub fn anbindung(&self) -> Result<Option<Anbindung>, BuchFehler> {
         let gefunden = self.conn.query_row(
@@ -525,15 +535,55 @@ impl Buch {
 
     /// Merkt einen von der Suite bestätigten Anker vor. Setzt `anker_gemeldet_bis` nur herauf
     /// (`MAX`), nie herunter — eine verspätet ankommende, schon überholte Bestätigung darf einen
-    /// inzwischen weiter fortgeschrittenen Stand nicht wieder zurückdrehen.
-    pub fn anker_bestaetigt(&mut self, block: u64) -> Result<(), BuchFehler> {
+    /// inzwischen weiter fortgeschrittenen Stand nicht wieder zurückdrehen. `gemeldet_am` wird
+    /// nur übernommen, wenn `block` mindestens der bisherige Stand ist: Die erneute Meldung des
+    /// letzten Blocks (`suite::gleiche_anker_ab`) frischt den Zeitpunkt auf, eine überholte nicht.
+    /// SQLite wertet jede rechte Seite gegen die alte Zeile aus, der `CASE` sieht also den
+    /// Stand vor diesem `UPDATE`.
+    pub fn anker_bestaetigt(&mut self, block: u64, gemeldet_am: &str) -> Result<(), BuchFehler> {
         let geaenderte_zeilen = self.conn.execute(
-            "UPDATE einrichtung SET anker_gemeldet_bis = MAX(anker_gemeldet_bis, ?1) WHERE id = 1",
-            params![block as i64],
+            "UPDATE einrichtung SET \
+             anker_gemeldet_am = CASE WHEN ?1 >= anker_gemeldet_bis THEN ?2 ELSE anker_gemeldet_am END, \
+             anker_gemeldet_bis = MAX(anker_gemeldet_bis, ?1) WHERE id = 1",
+            params![block as i64, gemeldet_am],
         )?;
         if geaenderte_zeilen == 0 {
             return Err(BuchFehler::NichtEingerichtet);
         }
+        Ok(())
+    }
+
+    /// Der letzte von der Suite bestätigte Anker mit Hash und Zeitpunkt, für den Export. `None`
+    /// ohne Einrichtung, solange nichts bestätigt ist (`anker_gemeldet_bis = 0`), solange der
+    /// Zeitpunkt fehlt (bestätigt noch unter Schema v2) oder falls der Block nicht in der Kette
+    /// steht — ein Anker ohne Hash taugt nicht für den Export.
+    pub fn bestaetigter_anker(&self) -> Result<Option<Exportanker>, BuchFehler> {
+        let zeile: Option<(i64, Option<String>)> = self
+            .conn
+            .query_row("SELECT anker_gemeldet_bis, anker_gemeldet_am FROM einrichtung WHERE id = 1", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .optional()?;
+        let Some((bis, Some(gemeldet_am))) = zeile else { return Ok(None) };
+        if bis <= 0 {
+            return Ok(None);
+        }
+        let block = bis as u64;
+        Ok(self.hash_von(block)?.map(|hash| Exportanker { block, hash, gemeldet_am }))
+    }
+
+    /// Die letzte Versiegelung, die die Oberfläche noch nicht quittiert hat (Tabelle
+    /// `unquittiert`, geschrieben von `versiegele_ausstehend` in derselben Transaktion wie der
+    /// Block). Übersteht so einen Neustart.
+    pub fn unquittiert(&self) -> Result<Option<Versiegelung>, BuchFehler> {
+        let json: Option<String> =
+            self.conn.query_row("SELECT json FROM unquittiert WHERE id = 1", [], |r| r.get(0)).optional()?;
+        json.map(|j| serde_json::from_str(&j).map_err(BuchFehler::UnquittiertJson)).transpose()
+    }
+
+    /// Die Oberfläche hat die Versiegelung gesehen: Der Hinweis entfällt. Ohne Hinweis ein No-op.
+    pub fn quittiere(&mut self) -> Result<(), BuchFehler> {
+        self.conn.execute("DELETE FROM unquittiert", [])?;
         Ok(())
     }
 

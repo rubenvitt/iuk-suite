@@ -249,7 +249,8 @@ fn mit_buch<T>(buch: &Mutex<Option<Buch>>, f: impl FnOnce(&mut Buch) -> Result<T
 /// während einer Anfrage.
 ///
 /// 1. Unter dem Lock die offenen Anker und die `rechner_id` lesen, dann den Lock freigeben.
-/// 2. Je Block `POST /api/anker`: 204 wird unter dem Lock bestätigt; 409 speichert die
+/// 2. Je Block `POST /api/anker`: 204 wird unter dem Lock bestätigt, mit `gemeldet_am` als
+///    Zeitpunkt (`Buch::anker_bestaetigt`, die Zone wählt die Aufruferin); 409 speichert die
 ///    Abweichung und bricht ab; 401 speichert den Widerruf; ein Netzfehler oder ein 5xx (Proxy
 ///    vor einer nicht laufenden Suite) ist `Offline`.
 /// 3. War nichts offen, wird der letzte Block trotzdem erneut gemeldet — „Kette prüfen gegen den
@@ -267,6 +268,7 @@ pub fn gleiche_anker_ab(
     t: &dyn Transport,
     suite: &str,
     geraet: &str,
+    gemeldet_am: &str,
 ) -> Result<AnkerErgebnis, String> {
     let (offen, kopf, rechner) =
         mit_buch(buch, |b| Ok((b.unbestaetigte_anker()?, b.kettenkopf()?, rechner_id(b)?)))?;
@@ -300,7 +302,7 @@ pub fn gleiche_anker_ab(
         };
         match a.status {
             200 | 204 => {
-                if !schreibe(&|b| b.anker_bestaetigt(block))? {
+                if !schreibe(&|b| b.anker_bestaetigt(block, gemeldet_am))? {
                     return Ok(AnkerErgebnis::Ueberholt);
                 }
             }

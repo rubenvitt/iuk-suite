@@ -83,6 +83,34 @@ fn frist_nach_neustart() {
     assert!(buch.ausstehend().unwrap().is_none());
 }
 
+/// Härtung aus Phase C: Der Hinweis „Deine letzten Änderungen wurden nicht übernommen …“ übersteht
+/// einen Neustart. Nach Versiegeln per Frist mit ungespeichertem Entwurf, Schließen und Neuöffnen
+/// liefert `unquittiert()` dieselbe Versiegelung mit `verfallen = true`, bis sie quittiert ist.
+#[test]
+fn versiegelungshinweis_uebersteht_den_neustart_bis_zum_quittieren() {
+    let ordner = tempfile::tempdir().unwrap();
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    let versiegelung = {
+        let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+        buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+        buch.sende_ab(&entwurf(), t0, false).unwrap();
+        buch.speichere_entwurf(&entwurf(), t0, true).unwrap();
+        let v = buch.pruefe_frist(t0 + chrono::Duration::minutes(15), &mut FesterZufall(8)).unwrap().unwrap();
+        assert!(v.verfallen);
+        v
+    };
+
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    let nach_neustart = buch.unquittiert().unwrap().expect("der Hinweis muss den Neustart überstehen");
+    assert_eq!(nach_neustart, versiegelung);
+    assert!(nach_neustart.verfallen);
+
+    buch.quittiere().unwrap();
+    assert_eq!(buch.unquittiert().unwrap(), None);
+    drop(buch);
+    assert_eq!(Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap().unquittiert().unwrap(), None, "quittiert bleibt quittiert");
+}
+
 #[test]
 fn versiegeln_mit_ungespeichertem_formular_nimmt_den_abgesendeten_stand() {
     let ordner = tempfile::tempdir().unwrap();
