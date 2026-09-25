@@ -26,6 +26,12 @@ use p256::{PublicKey, SecretKey, ecdh};
 use serde_json::Value;
 use sha2::Sha256;
 
+/// Rechnerkennung und -name, die die Tests dieses Crates `Buch::richte_ein`/`richte_neu_ein`
+/// mitgeben. Ihr Inhalt ist für die Tests hier ohne Bedeutung, nur dass `Buch` sie unverändert
+/// übernimmt (siehe `anbindung()`).
+pub const RECHNER_ID: &str = "r1";
+pub const RECHNER_NAME: &str = "Testrechner";
+
 /// Liest eine JSON-Datei aus `src/app/m/einsatzbuch/_lib/kern/testvektoren/` relativ zu diesem Crate.
 pub fn vektor(datei: &str) -> Value {
     let pfad = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -62,7 +68,7 @@ pub fn packe_aus(umschlag: &Umschlag, kopf: &Blockkopf, suite_privat: &SecretKey
         .expand(krypto::UMSCHLAG_INFO, &mut kek)
         .map_err(|_| KryptoFehler::HkdfFehlgeschlagen)?;
 
-    let aad = kopf.kanonisch();
+    let aad = kopf.kanonisch().expect("Testköpfe tragen sichere Blocknummern");
     let nonce: [u8; 12] = iv.try_into().expect("Länge oben geprüft");
     let cek = Aes256Gcm::new(&kek.into())
         .decrypt(&nonce.into(), Payload { msg: &ct, aad: aad.as_bytes() })

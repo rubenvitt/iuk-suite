@@ -91,6 +91,13 @@ pub enum ErfassungFehler {
     /// die Einrichtung selbst aussagt.
     #[error(transparent)]
     Krypto(#[from] KryptoFehler),
+    /// Fund aus Phase C: Eine Blocknummer über der Grenze sicherer Ganzzahlen ließ
+    /// `Blockkopf::kanonisch` früher abstürzen, statt einen Fehler zu melden. Eine solche
+    /// Blocknummer entsteht im Normalbetrieb nicht (`grenzen::kette_hat_platz` begrenzt die
+    /// Kette weit darunter), aber `versiegele_ausstehend` prüft trotzdem, bevor sie
+    /// verschlüsselt — eine manipulierte Kette darf nie in einen Panic laufen.
+    #[error("der Blockkopf lässt sich nicht kanonisieren: {0}")]
+    Kanonik(#[from] crate::jcs::JcsFehler),
 }
 
 /// `rusqlite::Error` und `serde_json::Error` erreichen `ErfassungFehler` immer über

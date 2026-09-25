@@ -10,8 +10,8 @@
 //! hier nur geprüft und geschrieben, aufgerufen wird beides erst dort.
 use std::path::{Path, PathBuf};
 
-use rusqlite::{Connection, params};
-use serde::Serialize;
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::{Deserialize, Serialize};
 
 use crate::einrichtung::{Einrichtung, Stammdaten, Stammdatenpaket};
 use crate::format::{Block, Umgebung};
@@ -19,7 +19,8 @@ use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
 
 const SCHEMA: &str = include_str!("schema.sql");
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_V2: &str = include_str!("schema_v2.sql");
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuchFehler {
@@ -62,6 +63,24 @@ pub enum BuchFehler {
     WalCheckpointBeschaeftigt,
     #[error("SQLite hat den Journalmodus {gefunden:?} gewählt, erwartet war `wal`")]
     JournalModusNichtWal { gefunden: String },
+    /// Entscheidung 10: Die Betriebsart folgt aus der Einrichtung, die Datenbankdatei entsteht
+    /// erst nach einer erfolgreichen Antwort von `einrichten`. Liegen beide Dateien vor — etwa
+    /// nach einem manuellen Eingriff im Datenordner —, ist unklar, welche gilt; das frühere
+    /// stille „Test vor Echt“ verschluckte genau diesen Fall (Fund aus Phase C).
+    #[error(
+        "Im Datenordner liegen sowohl einsatzbuch.db als auch einsatzbuch-test.db. Welche gilt, \
+         ist unklar — bitte eine der beiden Dateien entfernen (lassen)."
+    )]
+    BeideDateien,
+    /// Entscheidung 12: Neu einrichten nach Widerruf gibt es nur für den echten Rechner, und der
+    /// Schlüssel bleibt dabei gepinnt. Eine andere `schluesselId` wird abgelehnt, mit beiden IDs
+    /// in der Meldung, damit die Oberfläche sie rot anzeigen kann.
+    #[error(
+        "Dieser Rechner ist mit einem anderen Schlüssel eingerichtet (gepinnt: {gepinnt}, \
+         angeboten: {neu}). Neu einrichten ändert den gepinnten Schlüssel nicht — bitte wende \
+         dich an die Verwaltung."
+    )]
+    AndererSchluessel { gepinnt: String, neu: String },
 }
 
 /// Betriebsart des Rechners — entscheidet nur, welche Datei geöffnet wird (Betriebsart aus
@@ -90,18 +109,21 @@ impl Betrieb {
     }
 }
 
-/// Liest die Betriebsart aus dem Ordnerinhalt: Liegt `einsatzbuch-test.db` vor, ist es
-/// Testbetrieb, sonst zählt `einsatzbuch.db`. Liegt keine der beiden Dateien vor, ist der
-/// Rechner noch nicht eingerichtet — die Einrichtungsfrage beim ersten Start kommt in Stufe 5.
-/// `try_exists` statt `exists`: ein Lesefehler (z. B. fehlende Berechtigung) wird gemeldet,
-/// nicht still als „Datei fehlt“ gedeutet.
+/// Liest die Betriebsart aus dem Ordnerinhalt. Liegt keine der beiden Dateien vor, ist der
+/// Rechner noch nicht eingerichtet — die Einrichtungsfrage beim ersten Start. Liegen **beide**
+/// vor, ist das ein Startfehler (Entscheidung 10, Fund aus Phase C): Die Betriebsart folgt aus
+/// der Einrichtung, es sollte also nie beide Dateien zugleich geben, und ein früheres stilles
+/// „Test vor Echt“ hätte genau diesen widersprüchlichen Zustand verschluckt. `try_exists` statt
+/// `exists`: ein Lesefehler (z. B. fehlende Berechtigung) wird gemeldet, nicht still als „Datei
+/// fehlt“ gedeutet.
 pub fn erkenne_betrieb(ordner: &Path) -> Result<Option<Betrieb>, BuchFehler> {
-    if ordner.join(Betrieb::Test.datei()).try_exists()? {
-        Ok(Some(Betrieb::Test))
-    } else if ordner.join(Betrieb::Echt.datei()).try_exists()? {
-        Ok(Some(Betrieb::Echt))
-    } else {
-        Ok(None)
+    let test_da = ordner.join(Betrieb::Test.datei()).try_exists()?;
+    let echt_da = ordner.join(Betrieb::Echt.datei()).try_exists()?;
+    match (test_da, echt_da) {
+        (true, true) => Err(BuchFehler::BeideDateien),
+        (true, false) => Ok(Some(Betrieb::Test)),
+        (false, true) => Ok(Some(Betrieb::Echt)),
+        (false, false) => Ok(None),
     }
 }
 
@@ -176,15 +198,52 @@ fn lies_einrichtung_zeile(zeile: &rusqlite::Row<'_>) -> rusqlite::Result<Einrich
     })
 }
 
-/// Legt bei einer frischen Datenbank (`user_version = 0`) das Schema in einer Transaktion an
-/// und setzt `user_version` im selben Zug. Eine bekannte Version wird übersprungen, eine
-/// unbekannte höhere Version verweigert — dieser Rechner kennt kein Rückwärtsschema.
+/// Eine gemeldete Abweichung zwischen dem Anker, den dieser Rechner meldet, und dem, was die
+/// Suite dazu gespeichert hat (`409 anker_abweichung`) — camelCase, denn dieselbe Form geht
+/// unverändert über die Naht nach Task 7/8 hinaus (`Ankerstand`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ankerabweichung {
+    pub block: u64,
+    pub erwartet: String,
+    pub gemeldet: String,
+}
+
+/// Der Teil der Einrichtung, den erst die Anbindung an die Suite (Stufe 5, Schema v2) hinzufügt:
+/// Rechnerkennung und -name, Stand des letzten Stammdatenabrufs, wie weit die Kette der Suite
+/// schon bestätigt ist, eine offene Ankerabweichung und ob dieser Rechner widerrufen ist. `None`
+/// von `Buch::anbindung`, solange noch gar keine Einrichtung vorliegt — nicht zu verwechseln mit
+/// leeren Feldern einer migrierten v1-Zeile (siehe dort).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Anbindung {
+    pub rechner_id: String,
+    pub rechner_name: String,
+    pub stammdaten_etag: Option<String>,
+    pub stammdaten_abgerufen: Option<String>,
+    pub anker_gemeldet_bis: u64,
+    pub anker_abweichung: Option<Ankerabweichung>,
+    pub widerrufen: bool,
+}
+
+/// Legt bei einer frischen Datenbank (`user_version = 0`) das Schema v1 und danach v2 in einer
+/// Transaktion an; eine v1-Datei (`user_version = 1`, aus der Zeit vor der Anbindung an die
+/// Suite) wendet nur noch v2 an. Beide Zweige setzen `user_version` im selben Zug auf
+/// `SCHEMA_VERSION`. Eine schon bekannte Version wird übersprungen, eine unbekannte höhere
+/// Version verweigert — dieser Rechner kennt kein Rückwärtsschema.
 fn richte_schema_ein(conn: &mut Connection) -> Result<(), BuchFehler> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     match version {
         0 => {
             let tx = conn.transaction()?;
             tx.execute_batch(SCHEMA)?;
+            tx.execute_batch(SCHEMA_V2)?;
+            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            tx.commit()?;
+            Ok(())
+        }
+        1 => {
+            let tx = conn.transaction()?;
+            tx.execute_batch(SCHEMA_V2)?;
             tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             tx.commit()?;
             Ok(())
@@ -278,9 +337,12 @@ impl Buch {
     /// - jedes Stammdatenfeld hält die Grenzen des Readers ein (`grenzen.rs`);
     /// - es liegt noch keine Einrichtung vor.
     ///
-    /// Ein Schlüsselwechsel gehört nicht zu v2.0; das Neu-Einrichten nach einem Widerruf
-    /// klärt Stufe 5.
-    pub fn richte_ein(&mut self, e: &Einrichtung) -> Result<(), BuchFehler> {
+    /// Ein Schlüsselwechsel gehört nicht in diese Methode; das Neu-Einrichten nach einem
+    /// Widerruf ist `richte_neu_ein`. `rechner_id` und `rechner_name` kommen aus derselben
+    /// Antwort von `POST einrichten` wie `e` — der neu angelegte Rechner dieser Sitzung
+    /// (Entscheidung 2) — und werden ungeprüft übernommen; die Anbindung beginnt ohne Anker
+    /// (`anker_gemeldet_bis = 0`) und unwiderrufen.
+    pub fn richte_ein(&mut self, e: &Einrichtung, rechner_id: &str, rechner_name: &str) -> Result<(), BuchFehler> {
         if e.umgebung != self.betrieb.umgebung() {
             return Err(BuchFehler::FalscheUmgebung { angegeben: e.umgebung, betrieb: self.betrieb.umgebung() });
         }
@@ -298,8 +360,8 @@ impl Buch {
         self.conn.execute(
             "INSERT INTO einrichtung (id, umgebung, suite_url, oeffentlich_spki, schluessel_id, \
              stammdaten_json, stammdaten_version, frist_minuten, besatzung, zeitzone, bereitschaft, \
-             eingerichtet_am, eingerichtet_von) \
-             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             eingerichtet_am, eingerichtet_von, rechner_id, rechner_name) \
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 umgebung_text(e.umgebung),
                 e.suite_url,
@@ -313,22 +375,182 @@ impl Buch {
                 e.paket.bereitschaft,
                 e.eingerichtet_am,
                 e.eingerichtet_von,
+                rechner_id,
+                rechner_name,
             ],
         )?;
         Ok(())
     }
 
-    /// Übernimmt ein neues Stammdatenpaket eines späteren Abgleichs (Naht für Stufe 5), mit
-    /// denselben Paketregeln wie `richte_ein`. Verlangt eine bestehende Einrichtung — ohne sie
-    /// gäbe es keine Zeile zum Aktualisieren.
-    pub fn uebernehme_stammdaten(&mut self, p: &Stammdatenpaket) -> Result<(), BuchFehler> {
+    /// Richtet einen zuvor widerrufenen echten Rechner neu ein (Entscheidung 12). Der Schlüssel
+    /// bleibt gepinnt: Nennt `e` eine andere `schluesselId` als die schon gespeicherte, wird das
+    /// mit `AndererSchluessel` abgelehnt, ohne dass sich irgendetwas ändert. Bei passendem
+    /// Schlüssel übernimmt sie Suite-URL, Schlüssel, Stammdatenpaket sowie die neue
+    /// `rechnerId`/`rechnerName` dieser Sitzung und setzt die Anbindung zurück: Der Rechner
+    /// meldet seine ganze Kette neu (`ankerGemeldetBis = 0`), ist nicht mehr widerrufen und
+    /// trägt keine offene Ankerabweichung mehr. Kette und `eingerichtetAm` bleiben unverändert —
+    /// es ist dieselbe Installation, kein neues Buch.
+    pub fn richte_neu_ein(&mut self, e: &Einrichtung, rechner_id: &str, rechner_name: &str) -> Result<(), BuchFehler> {
+        if e.umgebung != self.betrieb.umgebung() {
+            return Err(BuchFehler::FalscheUmgebung { angegeben: e.umgebung, betrieb: self.betrieb.umgebung() });
+        }
+        let spki = krypto::aus_b64(&e.oeffentlich_spki).map_err(BuchFehler::UngueltigerSchluessel)?;
+        krypto::oeffentlich_aus_spki(&spki).map_err(BuchFehler::UngueltigerSchluessel)?;
+        if e.schluessel_id != krypto::schluessel_id(&spki) {
+            return Err(BuchFehler::SchluesselIdPasstNicht);
+        }
+        pruefe_paket(&e.paket)?;
+
+        let bestehend = self.einrichtung()?.ok_or(BuchFehler::NichtEingerichtet)?;
+        if e.schluessel_id != bestehend.schluessel_id {
+            return Err(BuchFehler::AndererSchluessel { gepinnt: bestehend.schluessel_id, neu: e.schluessel_id.clone() });
+        }
+
+        let stammdaten_json = serde_json::to_string(&e.paket.stammdaten)?;
+        self.conn.execute(
+            "UPDATE einrichtung SET suite_url = ?1, oeffentlich_spki = ?2, schluessel_id = ?3, \
+             stammdaten_json = ?4, stammdaten_version = ?5, frist_minuten = ?6, besatzung = ?7, \
+             zeitzone = ?8, bereitschaft = ?9, rechner_id = ?10, rechner_name = ?11, \
+             anker_gemeldet_bis = 0, widerrufen = 0, anker_abweichung = NULL \
+             WHERE id = 1",
+            params![
+                e.suite_url,
+                e.oeffentlich_spki,
+                e.schluessel_id,
+                stammdaten_json,
+                e.paket.version,
+                e.paket.frist_minuten,
+                e.paket.besatzung,
+                e.paket.zeitzone,
+                e.paket.bereitschaft,
+                rechner_id,
+                rechner_name,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Liest die Anbindung an die Suite, sofern schon eine Einrichtung vorliegt. `rechner_id`
+    /// und `rechner_name` kommen per `COALESCE(…, '')`: Eine Datenbank, die noch unter Schema v1
+    /// entstand (vor dieser Anbindung), hat dort `NULL` stehen — dieser Fall trifft nur
+    /// Entwicklerdateien, denn eine ausgelieferte Installation kennt nur Schema v2. `None` heißt
+    /// „noch gar keine Einrichtung“, nicht zu verwechseln mit den leeren Feldern dieses Falls.
+    pub fn anbindung(&self) -> Result<Option<Anbindung>, BuchFehler> {
+        let gefunden = self.conn.query_row(
+            "SELECT COALESCE(rechner_id, ''), COALESCE(rechner_name, ''), stammdaten_etag, \
+             stammdaten_abgerufen, anker_gemeldet_bis, anker_abweichung, widerrufen \
+             FROM einrichtung WHERE id = 1",
+            [],
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, bool>(6)?,
+                ))
+            },
+        );
+        let (rechner_id, rechner_name, stammdaten_etag, stammdaten_abgerufen, anker_gemeldet_bis, abweichung_json, widerrufen) =
+            match gefunden {
+                Ok(zeile) => zeile,
+                Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+                Err(e) => return Err(e.into()),
+            };
+        let anker_abweichung = match abweichung_json {
+            Some(json) => Some(serde_json::from_str(&json)?),
+            None => None,
+        };
+        Ok(Some(Anbindung {
+            rechner_id,
+            rechner_name,
+            stammdaten_etag,
+            stammdaten_abgerufen,
+            anker_gemeldet_bis: anker_gemeldet_bis as u64,
+            anker_abweichung,
+            widerrufen,
+        }))
+    }
+
+    /// Übernimmt ein neues Stammdatenpaket eines späteren Abgleichs, mit denselben Paketregeln
+    /// wie `richte_ein`, und schreibt zugleich den ETag der Antwort sowie den Abrufzeitpunkt
+    /// fest (Entscheidung 7). Verlangt eine bestehende Einrichtung — ohne sie gäbe es keine
+    /// Zeile zum Aktualisieren.
+    pub fn uebernehme_stammdaten(&mut self, p: &Stammdatenpaket, etag: Option<&str>, abgerufen: &str) -> Result<(), BuchFehler> {
         pruefe_paket(p)?;
         let stammdaten_json = serde_json::to_string(&p.stammdaten)?;
         let geaenderte_zeilen = self.conn.execute(
             "UPDATE einrichtung SET stammdaten_json = ?1, stammdaten_version = ?2, \
-             frist_minuten = ?3, besatzung = ?4, zeitzone = ?5, bereitschaft = ?6 WHERE id = 1",
-            params![stammdaten_json, p.version, p.frist_minuten, p.besatzung, p.zeitzone, p.bereitschaft],
+             frist_minuten = ?3, besatzung = ?4, zeitzone = ?5, bereitschaft = ?6, \
+             stammdaten_etag = ?7, stammdaten_abgerufen = ?8 WHERE id = 1",
+            params![stammdaten_json, p.version, p.frist_minuten, p.besatzung, p.zeitzone, p.bereitschaft, etag, abgerufen],
         )?;
+        if geaenderte_zeilen == 0 {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        Ok(())
+    }
+
+    /// Bestätigt eine `304` der Suite auf `GET stammdaten` (unverändert seit dem letzten ETag):
+    /// schreibt nur den neuen Abrufzeitpunkt fest, lässt Paket und ETag unangetastet.
+    pub fn stammdaten_bestaetigt(&mut self, abgerufen: &str) -> Result<(), BuchFehler> {
+        let geaenderte_zeilen =
+            self.conn.execute("UPDATE einrichtung SET stammdaten_abgerufen = ?1 WHERE id = 1", params![abgerufen])?;
+        if geaenderte_zeilen == 0 {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        Ok(())
+    }
+
+    /// Blöcke, die der Suite noch nicht als Anker gemeldet sind (`block > anker_gemeldet_bis`),
+    /// aufsteigend nach Blocknummer — die Arbeitsliste für den nächsten Ankerlauf. Verlangt eine
+    /// bestehende Einrichtung, denn ohne sie gibt es keinen Stand, gegen den `block` verglichen
+    /// werden könnte.
+    pub fn unbestaetigte_anker(&self) -> Result<Vec<(u64, String)>, BuchFehler> {
+        let bestaetigt_bis: i64 = self
+            .conn
+            .query_row("SELECT anker_gemeldet_bis FROM einrichtung WHERE id = 1", [], |r| r.get(0))
+            .optional()?
+            .ok_or(BuchFehler::NichtEingerichtet)?;
+        let mut anweisung = self.conn.prepare("SELECT block, hash FROM bloecke WHERE block > ?1 ORDER BY block ASC")?;
+        let zeilen = anweisung.query_map(params![bestaetigt_bis], |r| Ok((r.get::<_, i64>(0)? as u64, r.get::<_, String>(1)?)))?;
+        let mut ergebnis = Vec::new();
+        for zeile in zeilen {
+            ergebnis.push(zeile?);
+        }
+        Ok(ergebnis)
+    }
+
+    /// Merkt einen von der Suite bestätigten Anker vor. Setzt `anker_gemeldet_bis` nur herauf
+    /// (`MAX`), nie herunter — eine verspätet ankommende, schon überholte Bestätigung darf einen
+    /// inzwischen weiter fortgeschrittenen Stand nicht wieder zurückdrehen.
+    pub fn anker_bestaetigt(&mut self, block: u64) -> Result<(), BuchFehler> {
+        let geaenderte_zeilen = self.conn.execute(
+            "UPDATE einrichtung SET anker_gemeldet_bis = MAX(anker_gemeldet_bis, ?1) WHERE id = 1",
+            params![block as i64],
+        )?;
+        if geaenderte_zeilen == 0 {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        Ok(())
+    }
+
+    /// Merkt eine von der Suite gemeldete Ankerabweichung vor (`409 anker_abweichung`) — oder
+    /// löscht sie mit `richte_neu_ein`; ein eigenes „Abweichung löschen“ gibt es sonst nicht.
+    pub fn anker_abweichung_setzen(&mut self, a: &Ankerabweichung) -> Result<(), BuchFehler> {
+        let json = serde_json::to_string(a)?;
+        let geaenderte_zeilen = self.conn.execute("UPDATE einrichtung SET anker_abweichung = ?1 WHERE id = 1", params![json])?;
+        if geaenderte_zeilen == 0 {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        Ok(())
+    }
+
+    /// Setzt oder löscht den Widerruf dieses Rechners.
+    pub fn widerrufen_setzen(&mut self, widerrufen: bool) -> Result<(), BuchFehler> {
+        let geaenderte_zeilen = self.conn.execute("UPDATE einrichtung SET widerrufen = ?1 WHERE id = 1", params![widerrufen])?;
         if geaenderte_zeilen == 0 {
             return Err(BuchFehler::NichtEingerichtet);
         }

@@ -87,9 +87,14 @@ pub struct Block {
 }
 
 impl Blockkopf {
-    pub fn kanonisch(&self) -> String {
+    /// Fund aus Phase C: Eine Blocknummer über der Grenze sicherer Ganzzahlen (`jcs::kanonisch`)
+    /// ließ diese Methode früher mit `.expect(..)` abstürzen, statt den Fehler zu melden. Eine
+    /// solche Blocknummer entsteht im Normalbetrieb nicht (`grenzen::kette_hat_platz` begrenzt
+    /// die Kette weit darunter), aber eine manipulierte Datenbankzeile darf trotzdem nie in
+    /// einen Panic laufen — deshalb `Result` statt eines stillen Aufrufvertrags „das geht immer
+    /// gut“.
+    pub fn kanonisch(&self) -> Result<String, crate::jcs::JcsFehler> {
         crate::jcs::kanonisch(&serde_json::to_value(self).expect("Blockkopf ist serialisierbar"))
-            .expect("Blockkopf trägt nur sichere Zahlen")
     }
 }
 

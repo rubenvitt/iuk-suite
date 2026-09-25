@@ -165,7 +165,7 @@ pub fn versiegele(
         return Err(KryptoFehler::SchluesselIdPasstNicht);
     }
 
-    let aad = kopf.kanonisch();
+    let aad = kopf.kanonisch()?;
     let klar = einsatz.kanonisch()?;
     let daten = Aes256Gcm::new(&z.cek.into())
         .encrypt(&z.iv.into(), Payload { msg: klar.as_bytes(), aad: aad.as_bytes() })
