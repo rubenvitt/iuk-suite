@@ -29,8 +29,12 @@ const TAKT: Duration = Duration::from_millis(20);
 const HOECHSTENS_KOPF: usize = 16 * 1024;
 /// Eine Verbindung, die so lange keine vollständige Anfrage liefert, wird verworfen.
 const VERBINDUNG_ZEITLIMIT: Duration = Duration::from_secs(10);
-/// Mehr gleichzeitig offene Verbindungen werden nicht gehalten; die älteste weicht.
+/// Mehr gleichzeitig offene Verbindungen werden nicht gehalten: Die älteste schon einmal gelesene
+/// weicht; ist noch keine gelesen, wird die neue abgewiesen.
 const HOECHSTENS_VERBINDUNGEN: usize = 16;
+/// Höchstens so viele neue Verbindungen je Takt. Eine Flut hielte die Schleife sonst in `accept`
+/// fest, und keine angenommene Verbindung käme zum Lesen.
+const ANNAHMEN_JE_TAKT: usize = 16;
 /// Schreibzeitlimit für die Antwortseite.
 const SCHREIB_ZEITLIMIT: Duration = Duration::from_secs(2);
 
@@ -74,6 +78,8 @@ struct Offen {
     strom: TcpStream,
     puffer: Vec<u8>,
     seit: Instant,
+    /// Ob `lies_weiter` die Verbindung schon einmal abgefragt hat. Nur dann darf sie verdrängt werden.
+    gelesen: bool,
 }
 
 enum Lesestand {
@@ -113,16 +119,12 @@ impl Listener {
         let ende = Instant::now() + zeitlimit;
         let mut offen: Vec<Offen> = Vec::new();
         loop {
-            if abbruch.load(Ordering::SeqCst) {
-                return Err(LoopbackFehler::Abbruch);
-            }
-            if Instant::now() >= ende {
-                return Err(LoopbackFehler::Zeitlimit);
-            }
-            self.nimm_an(&mut offen)?;
+            pruefe_ende(ende, abbruch)?;
+            self.nimm_an(&mut offen, ende, abbruch)?;
 
             let mut i = 0;
             while i < offen.len() {
+                offen[i].gelesen = true;
                 match lies_weiter(&mut offen[i]) {
                     Lesestand::Wartet if offen[i].seit.elapsed() < VERBINDUNG_ZEITLIMIT => i += 1,
                     Lesestand::Wartet | Lesestand::Weg => {
@@ -142,19 +144,28 @@ impl Listener {
         }
     }
 
-    /// Nimmt alle wartenden Verbindungen an. Ein angenommener Socket erbt `O_NONBLOCK` je nach
-    /// Betriebssystem (macOS ja, Linux nein) — deshalb wird der Modus ausdrücklich gesetzt.
-    fn nimm_an(&self, offen: &mut Vec<Offen>) -> io::Result<()> {
-        loop {
+    /// Nimmt bis zu `ANNAHMEN_JE_TAKT` wartende Verbindungen an und prüft vor jeder Abbruch und
+    /// Zeitlimit. Ist die Liste voll, weicht die älteste schon gelesene; eine noch nie gelesene wird
+    /// nie verdrängt — sonst ginge ein echter Rückruf, dem eine Flut folgt, ungelesen verloren.
+    /// Ein angenommener Socket erbt `O_NONBLOCK` je nach Betriebssystem (macOS ja, Linux nein) —
+    /// deshalb wird der Modus ausdrücklich gesetzt.
+    fn nimm_an(&self, offen: &mut Vec<Offen>, ende: Instant, abbruch: &AtomicBool) -> Result<(), LoopbackFehler> {
+        for _ in 0..ANNAHMEN_JE_TAKT {
+            pruefe_ende(ende, abbruch)?;
             match self.inner.accept() {
                 Ok((strom, _)) => {
                     if strom.set_nonblocking(true).is_err() {
                         continue;
                     }
                     if offen.len() >= HOECHSTENS_VERBINDUNGEN {
-                        offen.remove(0);
+                        let aelteste = offen.iter().enumerate().filter(|(_, o)| o.gelesen).min_by_key(|(_, o)| o.seit);
+                        match aelteste.map(|(i, _)| i) {
+                            Some(i) => drop(offen.swap_remove(i)),
+                            // Alle gehaltenen sind ungelesen: die neue abweisen (Drop schließt sie).
+                            None => continue,
+                        }
                     }
-                    offen.push(Offen { strom, puffer: Vec::new(), seit: Instant::now() });
+                    offen.push(Offen { strom, puffer: Vec::new(), seit: Instant::now(), gelesen: false });
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(()),
                 // Eine Gegenstelle, die schon vor `accept` wieder weg ist, beendet die Anmeldung nicht.
@@ -163,10 +174,22 @@ impl Listener {
                         e.kind(),
                         io::ErrorKind::Interrupted | io::ErrorKind::ConnectionAborted | io::ErrorKind::ConnectionReset
                     ) => {}
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             }
         }
+        Ok(())
     }
+}
+
+/// Abbruch-Flag und Zeitlimit — geprüft in jedem Takt und vor jeder Annahme.
+fn pruefe_ende(ende: Instant, abbruch: &AtomicBool) -> Result<(), LoopbackFehler> {
+    if abbruch.load(Ordering::SeqCst) {
+        return Err(LoopbackFehler::Abbruch);
+    }
+    if Instant::now() >= ende {
+        return Err(LoopbackFehler::Zeitlimit);
+    }
+    Ok(())
 }
 
 /// Liest, was die Verbindung gerade hergibt, ohne zu blockieren. Fertig ist die Anfrage mit dem
@@ -309,6 +332,47 @@ mod tests {
         assert_eq!(anfragezeile(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n"), "GET / HTTP/1.1");
         assert_eq!(anfragezeile(b"GET / HTTP/1.1"), "GET / HTTP/1.1");
         assert_eq!(anfragezeile(&[0xff, b'\n']), "");
+    }
+
+    /// Legt `n` stumme Verbindungen in die Warteschlange des Listeners.
+    fn stumme(l: &Listener, n: usize) -> Vec<TcpStream> {
+        (0..n).map(|_| TcpStream::connect(("127.0.0.1", l.port())).unwrap()).collect()
+    }
+
+    #[test]
+    fn nimm_an_nimmt_je_takt_hoechstens_die_obergrenze_und_verdraengt_nie_ungelesene() {
+        let l = Listener::oeffne().unwrap();
+        let _stumm = stumme(&l, ANNAHMEN_JE_TAKT * 3);
+        let ende = Instant::now() + Duration::from_secs(10);
+        let nie = AtomicBool::new(false);
+        let mut offen = Vec::new();
+        // Die Verbindungen stehen erst nach dem Handschlag in der Warteschlange; kurz warten.
+        thread::sleep(Duration::from_millis(100));
+        l.nimm_an(&mut offen, ende, &nie).unwrap();
+        assert_eq!(offen.len(), ANNAHMEN_JE_TAKT);
+        let erste: Vec<Instant> = offen.iter().map(|o| o.seit).collect();
+
+        // Noch keine gelesen: Neue werden abgewiesen, die gehaltenen bleiben.
+        l.nimm_an(&mut offen, ende, &nie).unwrap();
+        assert_eq!(offen.iter().map(|o| o.seit).collect::<Vec<_>>(), erste);
+
+        // Nach einem Lesedurchgang dürfen die gelesenen den neuen weichen.
+        offen.iter_mut().for_each(|o| o.gelesen = true);
+        l.nimm_an(&mut offen, ende, &nie).unwrap();
+        assert_eq!(offen.len(), HOECHSTENS_VERBINDUNGEN);
+        assert!(offen.iter().all(|o| !o.gelesen));
+    }
+
+    #[test]
+    fn nimm_an_prueft_abbruch_und_zeitlimit_vor_jeder_annahme() {
+        let l = Listener::oeffne().unwrap();
+        let _stumm = stumme(&l, 4);
+        thread::sleep(Duration::from_millis(100));
+        let mut offen = Vec::new();
+        let ende = Instant::now() + Duration::from_secs(10);
+        assert!(matches!(l.nimm_an(&mut offen, ende, &AtomicBool::new(true)), Err(LoopbackFehler::Abbruch)));
+        assert!(matches!(l.nimm_an(&mut offen, Instant::now(), &AtomicBool::new(false)), Err(LoopbackFehler::Zeitlimit)));
+        assert!(offen.is_empty());
     }
 
     #[test]

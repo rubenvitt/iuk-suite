@@ -181,3 +181,92 @@ fn listener_hoert_nur_auf_127_0_0_1_und_einem_hohen_port() {
     assert!(listener.port() >= 1024, "{}", listener.port());
     assert_eq!(listener.port(), adresse.port());
 }
+
+/// Hält bis zu `anzahl` stumme Verbindungen offen, verteilt auf drei Fäden, bis `halt` gesetzt ist.
+/// Stumm und gehalten statt auf- und wieder zugemacht: Sonst liegen Tausende Ports im TIME_WAIT
+/// und stören andere Läufe auf demselben Rechner.
+fn flut(port: u16, anzahl: usize, halt: Arc<AtomicBool>) -> Vec<thread::JoinHandle<Vec<TcpStream>>> {
+    (0..3)
+        .map(|_| {
+            let halt = halt.clone();
+            thread::spawn(move || {
+                let mut gehalten = Vec::new();
+                while gehalten.len() < anzahl / 3 && !halt.load(Ordering::SeqCst) {
+                    match TcpStream::connect(("127.0.0.1", port)) {
+                        Ok(s) => gehalten.push(s),
+                        Err(_) => thread::sleep(Duration::from_millis(1)),
+                    }
+                }
+                gehalten
+            })
+        })
+        .collect()
+}
+
+fn warte_auf_flut(faeden: Vec<thread::JoinHandle<Vec<TcpStream>>>) -> Vec<TcpStream> {
+    faeden.into_iter().flat_map(|f| f.join().unwrap()).collect()
+}
+
+/// Ein Rückruf, dem viele stumme Verbindungen folgen, bevor der Listener zum Zug kommt: Er darf
+/// nicht ungelesen verdrängt werden, weil die Warteschlange voll ist.
+#[test]
+fn ein_rueckruf_vor_einer_flut_wird_nicht_ungelesen_verdraengt() {
+    let listener = Listener::oeffne().unwrap();
+    let port = listener.port();
+    let mut echt = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    echt.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    write!(echt, "GET /rueckruf?code=zuerst&state={STATE} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n").unwrap();
+    let _stumm: Vec<TcpStream> = (0..40).map(|_| TcpStream::connect(("127.0.0.1", port)).unwrap()).collect();
+
+    let abbruch = Arc::new(AtomicBool::new(false));
+    let flag = abbruch.clone();
+    let faden = thread::spawn(move || listener.warte(STATE, Duration::from_secs(5), &flag));
+    let mut antwort = String::new();
+    let _ = echt.read_to_string(&mut antwort);
+    assert!(antwort.starts_with("HTTP/1.1 200 "), "{antwort:?}");
+    assert_eq!(faden.join().unwrap().unwrap(), Rueckruf::Code("zuerst".into()));
+}
+
+/// Nach einer Flut stummer Verbindungen kommt der echte Rückruf noch an.
+#[test]
+fn ein_rueckruf_nach_einer_flut_wird_angenommen() {
+    let (port, _abbruch, faden) = starte(Duration::from_secs(30));
+    let halt = Arc::new(AtomicBool::new(false));
+    let _stumm = warte_auf_flut(flut(port, 150, halt));
+    // Erst die Warteschlange des Betriebssystems leerlaufen lassen (Rückstau 128): Ist sie voll,
+    // setzt der Kern die nächste Verbindung schon vor `accept` zurück — das prüft dieser Test nicht.
+    thread::sleep(Duration::from_secs(1));
+    let start = Instant::now();
+    assert_eq!(status(&hole(port, &format!("/rueckruf?code=danach&state={STATE}"))), 200);
+    assert!(start.elapsed() < Duration::from_secs(5), "{:?}", start.elapsed());
+    assert_eq!(faden.join().unwrap().unwrap(), Rueckruf::Code("danach".into()));
+}
+
+/// Während eine Flut von Verbindungen hereinkommt, wirken Abbruch und Zeitlimit weiter.
+#[test]
+fn eine_flut_verzoegert_weder_abbruch_noch_zeitlimit() {
+    let (port, abbruch, faden) = starte(Duration::from_secs(60));
+    let halt = Arc::new(AtomicBool::new(false));
+    let fluter = flut(port, 150, halt.clone());
+    thread::sleep(Duration::from_millis(50));
+    let start = Instant::now();
+    abbruch.store(true, Ordering::SeqCst);
+    let ergebnis = faden.join().unwrap();
+    let dauer = start.elapsed();
+    halt.store(true, Ordering::SeqCst);
+    drop(warte_auf_flut(fluter));
+    assert!(matches!(ergebnis, Err(LoopbackFehler::Abbruch)), "{ergebnis:?}");
+    assert!(dauer < Duration::from_secs(1), "{dauer:?}");
+
+    let listener = Listener::oeffne().unwrap();
+    let port = listener.port();
+    let halt = Arc::new(AtomicBool::new(false));
+    let fluter = flut(port, 150, halt.clone());
+    let start = Instant::now();
+    let ergebnis = listener.warte(STATE, Duration::from_millis(300), &AtomicBool::new(false));
+    let dauer = start.elapsed();
+    halt.store(true, Ordering::SeqCst);
+    drop(warte_auf_flut(fluter));
+    assert!(matches!(ergebnis, Err(LoopbackFehler::Zeitlimit)), "{ergebnis:?}");
+    assert!(dauer < Duration::from_secs(3), "{dauer:?}");
+}
