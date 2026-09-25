@@ -35,7 +35,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "PLATZHALTER — öffentlichen Minisign-Schlüssel nach docs/runbooks/einsatzbuch-release.md eintragen",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExMzVEMjM5NEE3NTRBMUQKUldRZFNuVktPZEkxb1duV0xLOW1qeDg1T0wrcXpjRTIvWjBNN2N5OHBHVkVCYnl3bXhnTThhNzMK",
       "endpoints": ["https://github.com/rubenvitt/iuk-suite/releases/download/einsatzbuch-updater/latest.json"],
       "windows": { "installMode": "passive" }
     }

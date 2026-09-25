@@ -156,13 +156,16 @@ mod tests {
         assert_eq!(pruefe_updater_schluessel(&platzhalter, "debug", true), Ok(()));
     }
 
-    /// Schlägt an, sobald jemand den Platzhalter ohne Runbook entfernt: Der echte Schlüssel kommt
-    /// nur über `docs/runbooks/einsatzbuch-release.md` hinein, und mit ihm wird dieser Test angepasst.
+    /// Der echte Updater-Schlüssel (Minisign-Key-ID `A135D2394A754A1D`, eingetragen am 26.09.2026 nach
+    /// `docs/runbooks/einsatzbuch-release.md`). Ein Wechsel ändert diese Konstante im selben PR: Jede
+    /// installierte App nimmt nur Updates an, die zu diesem Schlüssel passen.
+    const ECHTER_PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExMzVEMjM5NEE3NTRBMUQKUldRZFNuVktPZEkxb1duV0xLOW1qeDg1T0wrcXpjRTIvWjBNN2N5OHBHVkVCYnl3bXhnTThhNzMK";
+
     #[test]
-    fn echte_konfiguration_traegt_heute_den_platzhalter() {
+    fn echte_konfiguration_traegt_den_updater_schluessel() {
         let wert: serde_json::Value = serde_json::from_str(ECHTE_CONF).unwrap();
-        assert_eq!(wert.pointer("/plugins/updater/pubkey").and_then(|v| v.as_str()), Some(PLATZHALTER_TEXT));
-        assert_eq!(pruefe_updater_schluessel(ECHTE_CONF, "release", false), Err(MELDUNG.to_string()));
+        assert_eq!(wert.pointer("/plugins/updater/pubkey").and_then(|v| v.as_str()), Some(ECHTER_PUBKEY));
+        assert_eq!(pruefe_updater_schluessel(ECHTE_CONF, "release", false), Ok(()));
         assert_eq!(pruefe_updater_schluessel(ECHTE_CONF, "debug", true), Ok(()));
         assert_eq!(
             wert.pointer("/plugins/updater/endpoints"),

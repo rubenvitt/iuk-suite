@@ -75,6 +75,11 @@ einkompiliert.
 
 ### Öffentlichen Teil eintragen (einmalig, vor dem ersten Tag)
 
+**Erledigt am 26.09.2026:** Schlüssel mit der Minisign-Key-ID `A135D2394A754A1D` ist eingetragen. Der private Teil liegt
+als Secret `TAURI_SIGNING_PRIVATE_KEY` (samt `…_PASSWORD`) im Repo und beim Betreiber im Passwortmanager. Die Schritte
+unten gelten weiter für einen späteren Schlüsselwechsel.
+
+
 1. Den Inhalt der `.pub`-Datei aus der Erzeugung nehmen (bei der Erzeugung unten
    `~/.tauri/einsatzbuch.key.pub`). Das ist **eine** Zeile Base64, und genau diese Zeile gehört
    unverändert in `plugins.updater.pubkey` in `apps/einsatzbuch/src-tauri/tauri.conf.json`: ohne
