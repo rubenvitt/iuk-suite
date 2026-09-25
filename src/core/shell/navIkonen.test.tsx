@@ -11,6 +11,7 @@ import { NAV_IKONEN } from "./navIkonen";
 import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
 import { radioNav } from "@/app/m/radio/_lib/nav";
 import { UAV_NAV } from "@/app/m/uav/_lib/nav";
+import { EINSATZBUCH_NAV } from "@/app/m/einsatzbuch/_lib/nav";
 
 /*
  * ⛔ `radioNav("admin")` UND NICHT `radioNav("updater")`: die Admin-Form ist die
@@ -18,7 +19,7 @@ import { UAV_NAV } from "@/app/m/uav/_lib/nav";
  * Eintraege ungeprueft, die die Admin-Stufe allein sieht — darunter zwei der drei
  * Zeichen, die mit dem Modul `radio` neu in die Map gekommen sind.
  */
-const GESETZTE_NAVS = [...LAGERBUCH_NAV, ...radioNav("admin"), ...UAV_NAV];
+const GESETZTE_NAVS = [...LAGERBUCH_NAV, ...radioNav("admin"), ...UAV_NAV, ...EINSATZBUCH_NAV];
 
 describe("Nav-Zeichen", () => {
   it("kennt zu jedem in einer Modulnavigation gesetzten Schluessel eine Komponente", () => {

@@ -127,6 +127,13 @@
     "kind": "excluded",
     "reason": "Technical generated asset, not a business export."
   },
+  "src/app/m/einsatzbuch/_actions/einstellungen.ts#einstellungenSpeichernAction": { "kind": "context", "via": "einstellungenSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#aktivSetzenAction": { "kind": "context", "via": "aktivSetzenAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#csvUebernehmenAction": { "kind": "context", "via": "csvUebernehmenAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#csvVorschauAction": { "kind": "excluded", "reason": "Probelauf des CSV-Imports: liest den Bestand und schreibt nichts; die Übernahme läuft über csvUebernehmenAction." },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#fahrzeugSpeichernAction": { "kind": "context", "via": "fahrzeugSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#personSpeichernAction": { "kind": "context", "via": "personSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#stichwortSpeichernAction": { "kind": "context", "via": "stichwortSpeichernAction" },
   "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.xlsx/route.ts#GET": {
     "kind": "context",
     "via": "GET",

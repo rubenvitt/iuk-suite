@@ -68,7 +68,18 @@ export type NavIkonName =
   // Gegenrichtung — Material aus dem Regal nehmen. Die beiden stuenden
   // ueberdies im selben Modul, und ein geteiltes Zeichen machte sie in der
   // Seitenleiste ununterscheidbar.
-  | "entnahmebox";
+  | "entnahmebox"
+  // DRK-471: die Verwaltung des Einsatzbuchs. KEIN geliehener Name — `fahrzeuge`
+  // (PiTruck) meint im lagerbuch einen Lagerort, und die Stammdaten tragen neben
+  // Fahrzeugen auch Personal und Alarmstichworte; `update` (PiArrowsClockwise)
+  // heißt in radio die Gerätesoftware. Ein geliehener Name gäbe dem nächsten
+  // Leser einen falschen Begriff statt eines fehlenden.
+  | "stammdaten" | "einstellungen"
+  // DRK-471 (Stufe 3): der Reader, der eine Exportdatei im Browser öffnet. KEIN
+  // geliehener Name — `import` (PiUploadSimple) hieße „hochladen“, und genau das tut
+  // der Reader nicht; `journal` (PiClockCounterClockwise) meint eine Historie. Das
+  // offene Buch mit Text trägt das Lesen.
+  | "reader";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
