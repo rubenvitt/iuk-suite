@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Dropdown, Input, Modal, Popconfirm, Tag } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachDatum,
   nachText,
   nachZahl,
@@ -59,8 +59,8 @@ import { T } from "./typo";
  *    `colorPrimary === colorError === #c8000f`. Ein roter Balken auf einer
  *    Datenflaeche liest sich als Alarm (Farb-Klausel §4.9).
  * 4. KEIN `useBreakpoint()` UND KEIN HORIZONTAL SCROLLENDES `Table` (§2.5):
- *    beide Darstellungen liegen im HTML, `@media (min-width: 768px)` in
- *    `feedback.css` schaltet. `useBreakpoint()` liefert beim ersten Rendern alle
+ *    beide Darstellungen liegen im HTML, die Media Query von `Kartentabelle`
+ *    schaltet (DRK-452). `useBreakpoint()` liefert beim ersten Rendern alle
  *    Werte `false` und liesse die Zone einen Wimpernschlag leer.
  * 5. DER LAUFENDE ABEND STEHT NICHT HIER. Das entscheidet `cockpitZustand`
  *    (`verlauf` schliesst ihn aus, §2.2) — derselbe Abend zweimal auf einer Seite
@@ -219,16 +219,13 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
       </div>
 
       {/*
-       * BEIDE DARSTELLUNGEN LIEGEN IM HTML (§2.5). Die Klassen schalten in
-       * `feedback.css` bei 768px; `display` steht deshalb NICHT inline — eine
-       * Klasse mit `display: none` kann ein inline gesetztes `display` nicht
-       * schlagen (dieselbe Falle, die `.fb-legende-woerter` dokumentiert).
+       * BEIDE DARSTELLUNGEN LIEGEN IM HTML (§2.5). Geschaltet wird seit DRK-452
+       * in `Kartentabelle`, nicht mehr in `feedback.css`: dieselbe Media Query
+       * wie an jeder anderen Liste der Suite. `.fb-verlauf` traegt nur noch die
+       * Haarlinie der Tabelle, kein `display`.
        */}
-      <div className="fb-verlauf-breit">
-        <BreiteTabelle groupId={groupId} zeilen={sortiert} />
-      </div>
-      <div className="fb-verlauf-schmal">
-        <SchmaleListe groupId={groupId} zeilen={sortiert} />
+      <div className="fb-verlauf">
+        <VerlaufTabelle groupId={groupId} zeilen={sortiert} />
       </div>
 
       <NachtragenDialog
@@ -341,7 +338,7 @@ function Zeilenziel({
 }
 
 // ---------------------------------------------------------------------------
-// Die breite Darstellung — Tabelle ohne Karte, direkt auf dem Seitengrund
+// Die Liste — breit eine Tabelle ohne Karte, schmal ein Block je Abend
 // ---------------------------------------------------------------------------
 
 /**
@@ -354,12 +351,23 @@ function Zeilenziel({
  * `datum` (ein `Date`), `avgSchulnote`, und beim Ruecklauf ueber den ANTEIL,
  * den auch der Balken zeigt — ohne Teilnehmerzahl gibt es keinen (§2.3), die
  * Zeile bleibt dann ohne Wert und steht aufsteigend hinten.
+ *
+ * ⚠️ `Kartentabelle` MIT EIGENER KARTE, NICHT DIE ABGELEITETE (DRK-452). Die
+ * Schmalliste ist kein Stapel aus Spaltenkarten, sondern ein Block je Abend,
+ * dessen ganze Flaeche das Ziel ist (`Abendblock`) — das bleibt der
+ * Rendervertrag dieser Zone. Vom Bauteil kommt, was hier von Hand fehlte: die
+ * Filter- und Sortierleiste ueber den Bloecken (vorher war der Filter
+ * „Zustand" am Telefon nicht erreichbar), die Trefferanzeige und der zweite
+ * Leertext fuer „nichts passt zum Filter".
  */
-function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZeile[] }) {
+function VerlaufTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZeile[] }) {
   return (
-    <Datentabelle<VerlaufZeile>
+    <Kartentabelle<VerlaufZeile>
+      aria-label="Vergangene Dienstabende"
       rowKey="eveningId"
       dataSource={zeilen}
+      leer={{ nichts: LEER_TEXT, gefiltert: "Kein Abend passt zum Filter." }}
+      karte={(z) => <Abendblock groupId={groupId} zeile={z} />}
       size="middle"
       blaettern={{ pageSize: 12, hideOnSinglePage: true, size: "small" }}
       // ⚠️ KEIN `scroll` — und das ist eine Messung, keine Auslassung. Diese
@@ -371,7 +379,6 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
       // (`.ant-table-scroll-horizontal` darf nicht entstehen), nicht am
       // Quelltext.
       scroll={false}
-      locale={{ emptyText: LEER_TEXT }}
       columns={[
         {
           title: "Datum",
@@ -528,77 +535,70 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
  * Das „…"-Menue liegt in einem 44px-Bereich rechts und stoppt die Ausbreitung
  * des Klicks, damit es nicht mit dem Zeilenlink kollidiert.
  */
-function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZeile[] }) {
-  if (zeilen.length === 0) return <p style={{ ...T.meta, margin: 0 }}>{LEER_TEXT}</p>;
-
+function Abendblock({ groupId, zeile: z }: { groupId: number; zeile: VerlaufZeile }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      {zeilen.map((z) => (
-        <div
-          key={z.eveningId}
-          data-testid="verlauf-block"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: SPACE.sm,
-            borderTop: "1px solid var(--fb-split)",
-          }}
-        >
-          <Zeilenziel
-            groupId={groupId}
-            zeile={z}
+    <div
+      data-testid="verlauf-block"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: SPACE.sm,
+        borderTop: "1px solid var(--fb-split)",
+      }}
+    >
+      <Zeilenziel
+        groupId={groupId}
+        zeile={z}
+        style={{
+          flex: 1,
+          minHeight: 68,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: SPACE.xs,
+          color: "inherit",
+          padding: `${SPACE.sm}px 0`,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+          <span style={{ ...T.body, fontWeight: 600, flex: 1 }}>
+            {formatDatumLang(z.datum)}
+          </span>
+          <Notenpille note={z.avgSchulnote} />
+        </span>
+        <span style={{ display: "flex", alignItems: "baseline", gap: SPACE.sm }}>
+          <span
             style={{
+              ...T.meta,
               flex: 1,
-              minHeight: 68,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: SPACE.xs,
-              color: "inherit",
-              padding: `${SPACE.sm}px 0`,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-              <span style={{ ...T.body, fontWeight: 600, flex: 1 }}>
-                {formatDatumLang(z.datum)}
-              </span>
-              <Notenpille note={z.avgSchulnote} />
-            </span>
-            <span style={{ display: "flex", alignItems: "baseline", gap: SPACE.sm }}>
-              <span
-                style={{
-                  ...T.meta,
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {z.thema ?? "—"}
-              </span>
-              <Ruecklauf zeile={z} ohneBalken />
-            </span>
-            <Zustandsvermerk zeile={z} />
-            {z.hasLegacyScale && <Altbestandsfussnote />}
-          </Zeilenziel>
-          {/*
-           * Rechts neben dem Zeilenlink, als GESCHWISTER und nicht darin. §2.5
-           * nennt hier `stopPropagation` — das braucht nur, wer das Menue
-           * INNERHALB der Linkflaeche haengt. Ein Geschwister kollidiert nicht:
-           * ein Klick auf das „…" erreicht den Link nie, und der Link bleibt ein
-           * einziges, zusammenhaengendes Ziel (§4.14). Ein Knopf IM `<a>` waere
-           * zudem verschachtelt Interaktives.
-           *
-           * „Jetzt starten" steht NEBEN dem Menue und ersetzt es nicht: sonst
-           * waeren Bearbeiten und Loeschen am Handy genau fuer die Zeilen
-           * unerreichbar, die am haeufigsten aufgeraeumt werden muessen.
-           */}
-          {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
-          <span style={{ width: 44, display: "flex", justifyContent: "center" }}>
-            <AbendMenue zeile={z} />
+            {z.thema ?? "—"}
           </span>
-        </div>
-      ))}
+          <Ruecklauf zeile={z} ohneBalken />
+        </span>
+        <Zustandsvermerk zeile={z} />
+        {z.hasLegacyScale && <Altbestandsfussnote />}
+      </Zeilenziel>
+      {/*
+       * Rechts neben dem Zeilenlink, als GESCHWISTER und nicht darin. §2.5
+       * nennt hier `stopPropagation` — das braucht nur, wer das Menue
+       * INNERHALB der Linkflaeche haengt. Ein Geschwister kollidiert nicht:
+       * ein Klick auf das „…" erreicht den Link nie, und der Link bleibt ein
+       * einziges, zusammenhaengendes Ziel (§4.14). Ein Knopf IM `<a>` waere
+       * zudem verschachtelt Interaktives.
+       *
+       * „Jetzt starten" steht NEBEN dem Menue und ersetzt es nicht: sonst
+       * waeren Bearbeiten und Loeschen am Handy genau fuer die Zeilen
+       * unerreichbar, die am haeufigsten aufgeraeumt werden muessen.
+       */}
+      {z.entwurf && z.surveyId !== null && <StartenKnopf surveyId={z.surveyId} />}
+      <span style={{ width: 44, display: "flex", justifyContent: "center" }}>
+        <AbendMenue zeile={z} />
+      </span>
     </div>
   );
 }

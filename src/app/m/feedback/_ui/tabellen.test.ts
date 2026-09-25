@@ -28,8 +28,8 @@ import { readFileSync } from "node:fs";
  * `max-content` und nicht eine Zahl: KEINE der zehn Spalten dieser beiden
  * Tabellen traegt ein `width`. Eine Pixelsumme waere erfunden. `Verlauf.tsx`
  * waere der Gegenfall (fuenf von sechs Spalten mit `width`, Summe 680) — die
- * Tabelle braucht die Prop aber gar nicht, weil `.fb-verlauf-breit` unter 768px
- * `display: none` ist und dort die Schmalliste steht.
+ * Tabelle braucht die Prop aber gar nicht, weil `Kartentabelle` sie unter 768px
+ * ausblendet und dort die Schmalliste steht.
  */
 const TABELLEN = [
   { datei: "src/app/m/feedback/_ui/VergleichTabelle.tsx", name: "Gruppenvergleich" },
@@ -88,9 +88,9 @@ describe("Tabellen mit Scroll-Zusage", () => {
   it("Verlauf.tsx schaltet die Vorgabe bewusst AB", () => {
     /*
      * Gegenprobe zum haeufigsten Missverstaendnis: die Tabelle in Verlauf.tsx
-     * hat kein waagerechtes Scrollen und braucht keins. Sie liegt in
-     * `.fb-verlauf-breit`, das unterhalb des Suite-Breakpoints `display: none`
-     * ist; bei 768px stehen ihr 736px zur Verfuegung und sie belegt gemessen
+     * hat kein waagerechtes Scrollen und braucht keins. Sie liegt in der
+     * Breitansicht der `Kartentabelle`, die unterhalb des Suite-Breakpoints
+     * `display: none` ist; bei 768px stehen ihr 736px zur Verfuegung und sie belegt gemessen
      * 736. Und sie traegt ein `ellipsis` (Spalte „Thema"), dessen ganze Aufgabe
      * das Abschneiden ist — unter `max-content` wuechse die Spalte stattdessen.
      *
