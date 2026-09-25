@@ -2103,7 +2103,8 @@ Eimer eine Anfrage fällt; ein richtiger Code bleibt Pflicht.
 
 **Der bewusste Rest:** ein **neues** Gerät, das genau während eines Angriffs zum ersten Mal scannt,
 bleibt gesperrt, bis die Sperre abläuft. Das ist bei sechs Ziffern ohne längere Codes nicht
-auflösbar; längere Codes (Neudruck der Etiketten) sind ein eigenes Ticket.
+auflösbar; die längeren Codes stehen in §3.5.3b (DRK-442) und lösen den Rest für jede neu gedruckte
+Karte.
 **Der Preis:** wer ein Merkmal hat — also schon einmal einen richtigen Code kannte, etwa von einem
 abfotografierten Etikett —, rät zusätzlich im Budget der Bekannten; die Obergrenze aller Fehlversuche
 verdoppelt sich für genau diesen Personenkreis (600/h statt 300/h), und nur er kann die Bekannten
@@ -2112,6 +2113,35 @@ aussperren.
 **Unverändert:** Schritt 2 bucht nichts, und der Kurzschluss gegen die feste Deadline lässt keine
 abgewiesene oder während der Sperre gebuchte Anfrage die Sperre verlängern
 (`_lib/gateSchranke.zugang.test.ts` hält das fest, samt der Zugänge auf allen drei Flächen).
+
+#### 3.5.3b Nachtrag DRK-442 (24.09.2026): lange Codes, und die Sperre trifft sie nicht mehr
+
+**Neue Codes haben 28 Zeichen Crockford-Base32 in sieben Vierergruppen**
+(`7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E`), 140 bit — dieselbe Form wie im Funkmodul und über der
+128-bit-Schwelle aus `docs/radio-portierung-analyse.md`. Selbst ungebremst, bei 10⁶ Versuchen je
+Sekunde und K = 1.000 aktiven Codes, liegt der erste Treffer bei rund 2¹⁴⁰/(10⁹/s) ≈ 4 × 10²⁵
+Jahren. Eintippen bleibt der Ausweichweg: Groß/klein egal, Trenner beliebig, `O` wird `0`, `I`/`L`
+werden `1` (nur bei genau 28 Zeichen, damit kein Altbestand mit Buchstaben verloren geht).
+
+**Eine Eingabe in der langen Form ist nie gesperrt** (`gateGesperrt(absender, { eingabe })`, Vorbild
+`radio/_lib/gateSchranke.ts`). Die Schranke normalisiert die rohe Eingabe dafür selbst, damit die
+Reihenfolge „Sperre vor Normalisieren" des Bauform-Scans stehen bleibt. Ein falscher langer Code wird
+weiter gebucht, in die Gruppe der Anfrage — er kann damit höchstens die alte Form sperren, nie die
+lange.
+
+**Der Übergang (Betreiberentscheidung 24.09.2026): alte Codes gelten bis zum Neudruck.** Ein
+6-stelliger Code läuft weiter hinter der Schranke aus §3.5.3a, mit bekannten Geräten und dem dort
+benannten Rest. Erzeugt wird die alte Form nie mehr — weder beim Anlegen einer Einheit noch beim
+Nachzug der Ortsetiketten noch beim Zurücksetzen. Die Ortsetiketten zählen die Karten mit altem Code
+und bieten „Alte Codes neu erzeugen" an (alle auf einmal, je Ort eine eigene Transaktion über
+`setzeOrtCodeNeu`, der alte Code wird verbrannt); die Code-Liste markiert jeden aktiven alten Code.
+Der Altbestand ohne Karte hat keinen Nachfolger und bleibt, bis jemand ihn sperrt. **Mit dem letzten
+aktiven alten Code verschwindet der Rest aus §3.5.3a**, ohne dass Code angefasst werden muss.
+
+**Bewusster Rest:** die Zahl der Suchen mit wohlgeformten langen Eingaben ist nicht gedeckelt — jede
+Kappe wäre wieder der Hebel, mit dem Unangemeldete alle aussperren. Die Suche ist eine
+Gleichheitssuche auf dem `UNIQUE`-Index; Volumenschutz gehört vor den Prozess (Cloudflare/Traefik,
+D6).
 
 #### 3.5.4 Ändert das etwas an `core`? Nein — und das ist die Antwort auf die Frage im Auftrag
 
@@ -9232,6 +9262,10 @@ Helfer-Sitzung, der `__Secure-`-Präfix des Callback-Cookies, `AUTH_URL=${APP_BA
 `decideRoute` auf `/a/<id>` einen Login erzwingen, landete **jeder gedruckte QR** in Pocket ID.
 
 ### 8.3 Tokens: Alphabet, Länge, Kollision, Ablauf, Einlösung
+
+> **Nachtrag DRK-442 (24.09.2026):** Alphabet und Länge unten beschreiben die **alte** Form. Neu
+> erzeugt wird seitdem nur noch die lange (28 Zeichen Crockford-Base32, `_lib/tokenForm.ts`); die
+> alte gilt bis zum Neudruck ihrer Karte weiter. Begründung und Übergang: §3.5.3b.
 
 **Der Bestand, 1:1-Pflicht.**
 

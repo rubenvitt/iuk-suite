@@ -21,10 +21,10 @@ import { HELFER_COOKIE, helferCookieOptionen } from "./helferSitzung";
  * Wer es trägt, muss trotzdem einen richtigen Code eingeben.
  *
  * ⚠️ DER BEWUSSTE REST: ein Gerät OHNE Merkmal — das neue Telefon, das genau
- * während eines Angriffs zum ersten Mal scannt — bleibt gesperrt, bis die Sperre
- * abläuft. Das lässt sich bei sechs Ziffern ohne längere Codes nicht auflösen
- * (Rechnung in `docs/superpowers/specs/2026-08-03-lagerbuch-modul-design.md`,
- * §3.5.3); längere Codes sind ein eigenes Ticket.
+ * während eines Angriffs zum ersten Mal scannt — bleibt mit einem ALTEN Code
+ * gesperrt, bis die Sperre abläuft (Rechnung in
+ * `docs/superpowers/specs/2026-08-03-lagerbuch-modul-design.md`, §3.5.3). Seit
+ * DRK-442 gilt das nur noch für die 6-stellige Form; lange Codes sperrt nichts.
  *
  * ZWEI QUELLEN, EIN ERGEBNIS:
  *  1. das Gerätecookie `lagerbuch_geraet` — ein Jahr gültig, nach jeder

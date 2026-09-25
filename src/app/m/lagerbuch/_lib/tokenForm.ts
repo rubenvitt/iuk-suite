@@ -1,7 +1,7 @@
 /**
  * §8.3 — DER TOKEN-VERTRAG UND DER TEXT ZU ENTSCHEIDUNG 8-F.
  *
- * WARUM DIESE VIER WERTE HIER STEHEN UND NICHT IN `_actions/`:
+ * WARUM DIESE WERTE HIER STEHEN UND NICHT IN `_actions/`:
  * Ein `"use server"`-Modul darf ausschliesslich async-Funktionen exportieren —
  * jeder Export wird dort zu einer Server Action mit global aufrufbarer ID.
  * Der Bauform-Scan in `_actions/guards.test.ts` (Zusicherung „kennt an einem
@@ -17,19 +17,54 @@
  * (Falle 6, CLAUDE.md). Diese Datei ist damit von beiden Seiten lesbar, und
  * genau das ist ihr Zweck.
  *
- * Sie haelt vier Werte und sonst nichts — keine Importe, keine Logik.
+ * Sie haelt nur Werte und sonst nichts — keine Importe, keine Logik.
  */
 
 // ——— §8.3: die Codeform ————————————————————————————————————————————————
 //
-// DIESE DREI ZAHLEN STEHEN AUF LAMINIERTEN KAERTCHEN IM FAHRZEUG. Sie zu
-// aendern macht gedruckte Gegenstaende wertlos — 1:1-Pflicht.
+// DIESE ZAHLEN STEHEN AUF LAMINIERTEN KAERTCHEN IM FAHRZEUG. Sie zu aendern
+// macht gedruckte Gegenstaende wertlos — 1:1-Pflicht.
 //
-// Coderaum 10^6. Die Sicherheit gegen Raten liegt NICHT in der Laenge, sondern
-// in der Drosselung davor (§3.5.3): bei N aktiven Codes rund 10^6/N Versuche im
-// Erwartungswert.
-export const TOKEN_ALPHABET = "0123456789";
-export const TOKEN_ZIFFERN = 6;
+// SEIT DRK-442 IST DER CODERAUM DIE ABWEHR, NICHT DIE DROSSELUNG: 28 Zeichen
+// Crockford-Base32 in sieben Vierergruppen, 28 × 5 = 140 bit — dieselbe Form wie
+// im Funkmodul (`radio/_lib/code.ts`) und ueber der 128-bit-Schwelle aus
+// `docs/radio-portierung-analyse.md`. Selbst ungebremst, bei 10^6 Versuchen je
+// Sekunde und 1.000 aktiven Codes, liegt der erste Treffer bei rund 10^25
+// Jahren. Deshalb weist die modulweite Sperre eine Eingabe in DIESER Form nie ab
+// (`gateSchranke.ts`, `gateGesperrt`).
+//
+// Das Alphabet laesst I, L, O und U KONSTRUKTIV weg; beim Eintippen bildet
+// `normalisiereCode` O auf 0 und I/L auf 1 zurueck. 32 Zeichen teilen 256, die
+// Ziehung ist damit ohne Verzerrung.
+//
+// ⚠️ DIE ALTE FORM (6 Ziffern, `NNN-NNN`, 10^6) BLEIBT GUELTIG, bis ihre Karte
+// neu gedruckt ist (Betreiberentscheidung 24.09.2026) — aber nur hinter der
+// Sperre. Erzeugt wird sie nie mehr; erkannt wird sie in `code.ts`.
+export const TOKEN_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+export const TOKEN_ZEICHEN = 28;
+export const TOKEN_GRUPPE = 4;
+
+/**
+ * DAS EINGABEFELD FUER EINEN CODE — am Gate (`_ui/Gate.tsx`) und bei der
+ * Erneuerung mitten im Check (`_ui/CheckFlow.tsx`). Ein Wert an einer Stelle,
+ * weil zwei Felder, die verschiedene Formen annehmen, genau an der Erneuerung
+ * auseinanderliefen: dort, wo zwanzig Minuten Zaehlarbeit auf dem Spiel stehen.
+ *
+ * Das Muster nimmt beide Formen, mit oder ohne Trenner je Gruppe, und Klein-
+ * buchstaben. Es ist die billigste Massnahme gegen Fehleingaben am GEMEINSAMEN
+ * Fehlversuchs-Eimer der alten Form (§7.5.3, Falle 24): eine offensichtlich
+ * falsche Eingabe geht gar nicht erst ab. `normalisiereCode` bringt, was
+ * durchkommt, auf die Erzeugerform.
+ *
+ * ⚠️ `(-| )` UND NICHT `[- ]`: Chromium uebersetzt `pattern` mit dem `v`-Flag,
+ * und dort ist ein nacktes `-` in einer Zeichenklasse ein Syntaxfehler — das
+ * Feld naehme dann still JEDE Eingabe an.
+ */
+export const CODEFELD_MUSTER =
+  "[0-9]{3}(-| )?[0-9]{3}|([0-9A-Za-z]{4}(-| )?){6}[0-9A-Za-z]{4}";
+/** 28 Zeichen und sechs Trenner. */
+export const CODEFELD_LAENGE = 34;
+export const CODEFELD_PLATZHALTER = "Code vom Etikett";
 
 /**
  * Hoechstzahl der Ziehungen in `erzeugeFreienCode` (`_actions/tokens.ts`).

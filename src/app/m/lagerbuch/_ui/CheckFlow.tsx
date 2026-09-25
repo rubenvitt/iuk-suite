@@ -8,6 +8,7 @@ import { LeerZustand } from "./LeerZustand";
 import { Ikone } from "./ikonen";
 import { checkAbschluss, type CheckAbschlussWert } from "../_actions/check";
 import { erneuereSitzung } from "../_actions/sitzung";
+import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
 import {
   checkNutzlast,
   zaehleAblaufende,
@@ -699,11 +700,11 @@ export function CheckFlow({
           <div className={s.feldZeile}>
             <input
               className={s.codefeld}
-              inputMode="numeric"
+              autoCapitalize="characters" autoCorrect="off" spellCheck={false}
               autoComplete="off"
-              maxLength={7}
-              pattern="[0-9]{3}-?[0-9]{3}"
-              placeholder="000-000"
+              maxLength={CODEFELD_LAENGE}
+              pattern={CODEFELD_MUSTER}
+              placeholder={CODEFELD_PLATZHALTER}
               aria-label="Zugangs-Code"
               value={erneuerungsCode}
               onChange={(e) => setErneuerungsCode(e.target.value)}

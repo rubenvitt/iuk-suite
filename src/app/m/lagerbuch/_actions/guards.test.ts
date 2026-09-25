@@ -547,6 +547,12 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * `requireLagerbuchAdmin` wie das Einraeumen daneben. Die Zaehlung steht damit
  * auf 63 = 60 bewacht + 3 Ausnahmen, 60 = 56 + 4, in weiterhin 26 Dateien.
  *
+ * NACHTRAG DRK-442 (24.09.2026): `ersetzeAlteOrtCodesAmOrt` kommt in
+ * `ortCodes.ts` dazu — der Neudruck aller alten Ortscodes auf die lange Form,
+ * bewacht von `requireLagerbuchAdmin` wie das einzelne Zuruecksetzen daneben.
+ * Die Zaehlung steht damit auf 64 = 61 bewacht + 3 Ausnahmen, 61 = 57 + 4, in
+ * weiterhin 26 Dateien.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -603,7 +609,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "lagerortVerfall.ts": 1,
     // DRK-406: das Zuruecksetzen eines Ortscodes — die EINZIGE Action, die
     // seither noch einen Zugangs-Code in die Welt bringt.
-    "ortCodes.ts": 1,
+    "ortCodes.ts": 2,
     "loeschen.ts": 3,
     "ruecklauf.ts": 1,   // DRK-366, Fahrzeug -> Schrank
     "sauerstoff.ts": 3,
@@ -649,10 +655,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 63 Deklarationen, obwohl es nur 60 verschiedene Namen gibt", () => {
+  it("zaehlt 64 Deklarationen, obwohl es nur 61 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "63 Deklarationen").toHaveLength(63);
-    expect(new Set(namen).size, "60 verschiedene Namen").toBe(60);
+    expect(namen, "64 Deklarationen").toHaveLength(64);
+    expect(new Set(namen).size, "61 verschiedene Namen").toBe(61);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -673,7 +679,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "60 bewacht").toBe(60);
+    expect(funde.length - ausnahmen.length, "61 bewacht").toBe(61);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -770,6 +776,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // macht den Rueckweg fuer jedes Kaertchen auf.
       "entnahmebox.ts#bucheInEntnahmebox",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(56);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(57);
   });
 });

@@ -130,7 +130,7 @@ const GANZZAHL = /^[+-]?\d+$/;
  * abweist (Vorbild `src/app/m/lagerbuch/_lib/grenzen.ts:122-133`).
  *
  * ⚠️ EIN GESETZTER, UNGUELTIGER WERT WIRFT — er faellt NICHT still auf die Vorgabe
- * zurueck. Das ist gewollt (`src/app/m/lagerbuch/_lib/gateSchranke.ts:12-14`): „ein Modul,
+ * zurueck. Das ist gewollt (`src/app/m/lagerbuch/_lib/gateSchranke.ts:13-15`): „ein Modul,
  * das mit einer kaputten Zahl gar nicht erst startet, ist richtiger als eines, das still
  * eine andere Grenze faehrt als die, die in der .env steht."
  */
@@ -161,7 +161,7 @@ function zahl(name: ZahlName, env: EnvLike): number {
  * genau das, und es ist dort zulaessig, WEIL alle vier Zahlen eine Vorbelegung haben:
  * `next build` laeuft mit NODE_ENV=production und ohne .env und wertet Modulebene aus.
  * Die Folge, die man kennen muss: eine geaenderte .env wirkt erst nach einem Neustart
- * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:16-20`).
+ * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:17-21`).
  *
  * KEINE KOPPLUNGSPRUEFUNG hier — SIE STEHT IN `grenzenFehler()` AM DATEIENDE. Die
  * Gate-Ungleichungskette (Absender <= gesamt/min <= gesamt/h) ist eine BOOT-Pruefung: der
