@@ -24,7 +24,7 @@ declare global {
  * dynamisch — gemessen kippten /qr, /wifi, /tel und /contact von statisch auf
  * server-gerendert. Genau das vermeidet `qr/page.tsx` bewusst, indem es auf die
  * Server-Prop `searchParams` verzichtet. Zusaetzliche Kosten entstehen nicht:
- * der `SessionGuard` im Root-Layout ruft `useSession()` ohnehin auf jeder Seite.
+ * der `SessionProvider` im Root-Layout holt die Sitzung ohnehin auf jeder Seite.
  *
  * Bewusst ein Effekt und keine Zuweisung waehrend des Renderns: `setHistoryOwner`
  * benachrichtigt die Abonnenten des Verlauf-Stores, und das waehrend des Renderns

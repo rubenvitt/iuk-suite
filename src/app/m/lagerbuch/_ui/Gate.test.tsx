@@ -276,7 +276,7 @@ describe("Gate — die Verwaltungskarte", () => {
     // §3.6.6, Entscheidung 15 (a): „der Verwaltungs-Knopf fuehrt auf das
     // Suite-/login". Ein aus dem Bestand uebernommenes `signIn("oidc", …)`
     // liefe ins Leere — die Suite kennt den Anbieter als "pocket-id"
-    // (core/auth/pocketId.ts:28), und Auth.js meldet einen unbekannten
+    // (core/auth/pocketId.ts, POCKET_ID_PROVIDER_ID), und Auth.js meldet einen unbekannten
     // Anbieter erst zur LAUFZEIT.
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const a = query<HTMLAnchorElement>("[data-rolle='gate-verwaltung']");

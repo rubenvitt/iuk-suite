@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { Barlow, Barlow_Condensed, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
-import { reauthProviderId } from "@/core/auth/pocketId";
 import { AntdProvider } from "@/core/theme/AntdProvider";
 import { zeitzone } from "@/core/zeit";
 import {
@@ -160,9 +159,7 @@ export default async function RootLayout({
       </head>
       <body>
         <AntdRegistry>
-          {/* Serverseitig aufgeloest: die Client-Komponente kann POCKET_ID_ISSUER
-              nicht lesen. Ohne Pocket ID bleibt es beim harten Logout. */}
-          <Providers reauthProvider={reauthProviderId()}>
+          <Providers>
             <AntdProvider
               initialMode={mode}
               initialPreference={preference}
