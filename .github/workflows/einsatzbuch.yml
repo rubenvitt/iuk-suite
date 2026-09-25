@@ -374,8 +374,9 @@ jobs:
       # Ohne privaten Schlüssel bräche `tauri build` erst nach dem Kompilieren ab; ohne Kennwort
       # nähme es in der CI still ein leeres. Beides soll vorher und mit Weg zum Runbook scheitern.
       # Die Secrets stehen nur an diesem und am Build-Schritt, nicht am Job: sie erreichen nur
-      # die Prozesse dieser beiden Schritte. Was der Build-Schritt ausführt, ist deshalb per SHA
-      # (pnpm, Rust-Toolchain) oder per Lockfile (`tauri`, Crates) festgenagelt.
+      # die Prozesse dieser beiden Schritte. Im Build-Schritt laufen pnpm (Action per SHA),
+      # `tauri` und die Crates (Lockfile, `--locked`) und der Rust-Compiler; von dem ist nur die
+      # installierende Action per SHA gepinnt, nicht die Version (siehe dort).
       - name: Signier-Secrets und Suite-Adresse sind gesetzt
         shell: bash
         env:
@@ -412,7 +413,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      # Dieselbe gepinnte Toolchain wie in `rust-kern` und `desktop`. Bewusst ohne
+      # Dieselbe Toolchain-Action wie in `rust-kern` und `desktop`. Gepinnt ist nur die Action:
+      # sie installiert das zur Laufzeit aktuelle stable, der Compiler eines Release kann sich
+      # also von dem des letzten Prüflaufs unterscheiden. Bewusst ohne
       # `Swatinem/rust-cache`: ein Release ist selten, und `target/` aus dem Cache wäre
       # ungeprüfte Eingabe in ein signiertes Paket (anders als der pnpm-Speicher gibt es dafür
       # keinen Abgleich gegen das Lockfile).
@@ -424,6 +427,9 @@ jobs:
       # `pnpm --filter` den Befehl ausführt. Das Frontend baut `beforeBuildCommand` mit.
       # Mit dem Schlüssel aus der Umgebung signiert Tauri das `.app.tar.gz` (macOS) und den
       # NSIS-Installer selbst (Windows) und legt je eine `.sig` daneben.
+      # `-- --locked`: alles nach `--` reicht die CLI an `cargo build` weiter (lokal mit
+      # `--runner /bin/echo` gemessen: `build --locked --bins --features tauri/custom-protocol
+      # --release`); ein Lockfile, das nicht zum Manifest passt, bricht den Bau ab.
       # DMG: das `bundle_dmg.sh` des Bundlers überspringt den Finder-Schritt, wenn `CI` gesetzt
       # ist (`--skip-jenkins`, tauri-bundler `bundle/macos/dmg/mod.rs`), und GitHub setzt `CI`.
       - name: tauri build (macOS, universell)
@@ -431,13 +437,13 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --target universal-apple-darwin --bundles app,dmg
+        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --target universal-apple-darwin --bundles app,dmg -- --locked
       - name: tauri build (Windows)
         if: runner.os == 'Windows'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --bundles nsis
+        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --bundles nsis -- --locked
       # Genau die erwarteten Dateien, flach in einen Ordner: jede fehlende wird benannt, statt
       # dass ein Glob still weniger findet. Namen nach tauri-bundler 2.9 (`dmg/mod.rs`:
       # `<Produkt>_<Version>_universal.dmg`, `nsis/mod.rs`: `<Produkt>_<Version>_x64-setup.exe`,
@@ -497,8 +503,16 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    # Eine feste Gruppe über alle Tags: zwei zugleich gepushte Tags schreiben das Manifest
+    # nacheinander, nie verschränkt. Kommt der ältere Tag als zweiter an, bricht er an der
+    # Sperre gegen ein älteres Manifest ab (rot, gewollt). GitHub hält je Gruppe nur EINEN
+    # wartenden Lauf; ein dritter gleichzeitiger Tag bricht den wartenden zweiten ab (sichtbar
+    # als „cancelled“) — dessen Veröffentlichung dann per „Re-run“ nachholen.
+    concurrency:
+      group: einsatzbuch-updater-manifest
+      cancel-in-progress: false
+    # `GH_TOKEN` steht nur an den Schritten, die `gh` aufrufen.
     env:
-      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
       # Nur für `scripts/einsatzbuch-updater-json.mjs`; das Skript hat keine Abhängigkeiten,
@@ -535,6 +549,8 @@ jobs:
       # ersetzt nur die Dateien.
       - name: Release einsatzbuch-vX.Y.Z anlegen
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="$GITHUB_REF_NAME"
@@ -565,11 +581,23 @@ jobs:
       # setzt das Manifest nicht zurück; das bleibt eine bewusste Handlung nach Runbook.
       - name: latest.json am Dauer-Release einsatzbuch-updater ersetzen
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#einsatzbuch-v}"
           if gh release view einsatzbuch-updater >/dev/null 2>&1; then
-            bisher="$(gh release download einsatzbuch-updater --pattern latest.json --output - 2>/dev/null | jq -r '.version // empty' || true)"
+            # Ohne `latest.json` (erster Lauf nach dem Anlegen) gibt es nichts zu vergleichen.
+            # Liegt es da und lässt sich nicht lesen, greift die Sperre in diesem Lauf nicht —
+            # das soll am Lauf sichtbar sein, nicht still.
+            bisher=""
+            namen="$(gh release view einsatzbuch-updater --json assets --jq '.assets[].name')"
+            if grep -qx 'latest.json' <<< "$namen"; then
+              if ! bisher="$(gh release download einsatzbuch-updater --pattern latest.json --output - | jq -r '.version // empty')" || [ -z "$bisher" ]; then
+                echo "::warning::latest.json am Dauer-Release ließ sich nicht lesen – die Sperre gegen ein älteres Manifest greift in diesem Lauf nicht."
+                bisher=""
+              fi
+            fi
             if [ -n "$bisher" ] && [ "$(printf '%s\n%s\n' "$bisher" "$version" | sort -V | tail -n 1)" != "$version" ]; then
               echo "::error::latest.json am Dauer-Release nennt schon $bisher, neuer als $version – nicht zurückgesetzt. Rücksetzen nur von Hand, siehe docs/runbooks/einsatzbuch-release.md."
               exit 1
