@@ -133,11 +133,11 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     const verfallFeld = zugangForm.getByLabel("Verfallsmonat");
     await verfallFeld.click();
     await verfallFeld.fill(verfallsmonat);
-    await page.keyboard.press("Enter");
-    // Panel ueber einen Klick auf eine inerte Ueberschrift schliessen, NICHT
-    // ueber `Escape`: das ist bei antds Picker ein ABBRUCH und verwuerfe den
-    // gerade getippten Wert.
+    // ⛔ KEIN `Enter`: es schickt das Formular ab (DRK-415, Begruendung in
+    // `lagerbuch-schraenke.spec.ts`). Panel per Klick auf eine inerte Ueberschrift
+    // schliessen, NICHT per `Escape` (bei antds Picker ein ABBRUCH).
     await page.getByRole("heading", { name: "Zugang buchen" }).click();
+    await expect(verfallFeld).toHaveValue(verfallsmonat);
 
     const zugangAntwort = serverActionAntwort(page);
     await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));

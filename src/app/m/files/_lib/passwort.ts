@@ -19,7 +19,7 @@
  */
 import bcrypt from "bcryptjs";
 import { createHmac, timingSafeEqual } from "node:crypto";
-
+import { cookiesSicher } from "@/core/lokalHttp";
 /**
  * Ein Cookie JE Share. Ein einziges Cookie würde beim zweiten geschützten Share
  * den ersten überschreiben (§7.4) — wer zwei Shares entsperrt hat, verlöre den
@@ -138,7 +138,7 @@ export function erzeugeShareCookie(
     value: cookieWert(shareId, gueltigBisSekunden),
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: cookiesSicher(),
     path: "/",
     maxAge,
   };

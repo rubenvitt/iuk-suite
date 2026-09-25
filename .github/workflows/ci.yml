@@ -322,7 +322,7 @@ jobs:
         run: echo "gruppen=$(jq -c . e2e/gruppen.json)" >> "$GITHUB_OUTPUT"
 
   e2e:
-    needs: [e2e-gruppen]
+    needs: [e2e-gruppen, e2e-build]
     strategy:
       # Ohne das verdeckt die erste rote Gruppe die anderen, und man sieht nach
       # einem Fehlschlag nur einen Teil der Suite.
@@ -343,6 +343,11 @@ jobs:
     # hat einen Haenger oder eine Gruppe, die zu gross geworden ist — beides
     # will man sehen, nicht aussitzen.
     timeout-minutes: 30
+    # GEGEN DEN VORGEBAUTEN STAND AUS `e2e-build`, NICHT GEGEN `next dev` (DRK-415).
+    # Was die Variable umschaltet und warum der gebaute Stand dafuer
+    # `SUITE_LOKAL_HTTP=1` braucht: `e2e/helpers/server.ts`.
+    env:
+      E2E_VORGEBAUT: "1"
     steps:
       # BEWUSST OHNE `lfs: true`, anders als `vitest` und `build`: kein e2e-Fall
       # sichert heute ein Bild zu, und die Objekte fuenfmal — einmal je Shard — zu
@@ -357,6 +362,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # NACH `pnpm install`: `.next/node_modules/` traegt Symlinks auf
+      # `node_modules/.pnpm/…` (Turbopacks Verweis auf better-sqlite3), und die
+      # zeigen erst nach der Installation irgendwohin.
+      - uses: actions/download-artifact@v4
+        with:
+          name: e2e-build
+      - run: tar -xf e2e-build.tar && rm e2e-build.tar
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e ${{ matrix.gruppe.specs }}
       # OHNE DIESEN SCHRITT IST DER EINZIGE BELEG EINES ROTEN E2E-LAUFS WEG.
@@ -394,6 +406,46 @@ jobs:
             playwright-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  # ══ EIN BUILD FUER ALLE E2E-GRUPPEN (DRK-415) ═══════════════════════════════════
+  #
+  # Unter `next dev` uebersetzte jede Gruppe die Routen, die sie anfasst, beim
+  # ersten Treffer selbst — einmal je Gruppe, und auf einem kalten `.next`. DRK-408
+  # hat den Anteil unfreiwillig gemessen: 96 s Fallzeit zwischen Gruppen verschoben,
+  # und die Summe STIEG um 71 s, weil die Erstuebersetzung dem ersten Fall der
+  # Gruppe gehoert, nicht der Datei. Hier wird einmal gebaut; jede Gruppe laedt das
+  # Ergebnis und faehrt `next start`.
+  #
+  # ⚠️ EIN EIGENER BUILD, NICHT DER AUS `build`: der laeuft im Docker-Build
+  # (`output: "standalone"`, beide Architekturen) und legt kein `.next` auf den
+  # Runner. Es herauszuholen hiesse, die Image-Schicht zu entpacken — teurer als
+  # dieser Job, und `build` wartet auf `version`.
+  #
+  # ⚠️ ALS TAR, NICHT ALS VERZEICHNIS: `.next/node_modules/` besteht aus Symlinks
+  # (siehe den Entpack-Schritt im Job `e2e`), und `upload-artifact` loest Symlinks
+  # auf, statt sie zu erhalten. Ausgelassen sind `.next/cache` (Turbopacks
+  # Build-Cache, fuer `next start` wertlos) und `.next/standalone` (die Kopie fuers
+  # Image) — zusammen der groessere Teil des Verzeichnisses.
+  e2e-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: tar -cf e2e-build.tar --exclude=.next/cache --exclude=.next/standalone .next
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e2e-build
+          path: e2e-build.tar
+          if-no-files-found: error
+          retention-days: 1
 
   # DER NAME `test` IST VERTRAGLICH, NICHT BESCHREIBEND: das Ruleset auf `main`
   # verlangt genau diesen Status-Kontext. Wuerden `lint` und `e2e (radio)` …

@@ -9,7 +9,7 @@ import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 import { RADIO_ENV } from "./e2e/helpers/radio";
 import { UAV_ENV } from "./e2e/helpers/uav";
 import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
-
+import { nextServerBefehl, VORGEBAUT_ENV } from "./e2e/helpers/server";
 export default cloudTauglich(defineConfig({
   testDir: "./e2e",
   // Der PWA-Spike braucht Chrome-Flags für den sicheren Kontext und läuft
@@ -173,7 +173,7 @@ export default cloudTauglich(defineConfig({
        * die 2 aus dem Seed").
        */
       command:
-        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && next dev -p ${E2E_PORTS.web}`,
+        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && ${nextServerBefehl(E2E_PORTS.web)}`,
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -201,7 +201,7 @@ export default cloudTauglich(defineConfig({
         AUTH_COOKIE_DOMAIN: ".localtest.me",
         DATA_DIR: "./.data/e2e",
         PORT: String(E2E_PORTS.web),
-        NODE_ENV: "development",
+        NODE_ENV: "development", ...VORGEBAUT_ENV, // DRK-415: `e2e/helpers/server.ts`
         /*
          * ZWEI files-Hosts, und Index 0 ist WOERTLICH `files.localtest.me`
          * (Spec §3.4). `moduleForHost` prueft `${key}.localtest.me` UND
