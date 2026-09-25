@@ -10,6 +10,7 @@ import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 import einsatzdateienImReader from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-24-einsatzdateien-im-reader";
+import desktopAppInstallieren from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-25-desktop-app-installieren";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
@@ -165,6 +166,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   fortschrittZaehltDurchfuehrungen,
   dankeSeiteNurDanke,
   einsatzdateienImReader,
+  desktopAppInstallieren,
 ];
 
 /**
