@@ -51,7 +51,7 @@ export default async function EinsatzbuchUebersicht() {
           <Statistic
             title="Anker-Abweichungen"
             value={abweichungen}
-            valueStyle={abweichungen > 0 ? { color: "var(--eb-verw-rot-text)" } : undefined}
+            styles={abweichungen > 0 ? { content: { color: "var(--eb-verw-rot-text)" } } : undefined}
           />
         </Card>
       </div>
