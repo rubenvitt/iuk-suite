@@ -9,7 +9,7 @@ use zeroize::Zeroizing;
 
 use crate::krypto::Zufall;
 
-/// Suite-Adresse eines echten Rechners (Nachtrag des Controllers); ein Build kann sie über
+/// Suite-Adresse eines echten Rechners (`status.suiteVorgabe`); ein Build kann sie über
 /// `EINSATZBUCH_SUITE_URL` ersetzen. `match` statt `unwrap_or`, damit der Wert eine Konstante
 /// bleibt.
 pub const SUITE_VORGABE: &str = match option_env!("EINSATZBUCH_SUITE_URL") {

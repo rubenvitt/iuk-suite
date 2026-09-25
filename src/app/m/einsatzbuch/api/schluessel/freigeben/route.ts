@@ -1,7 +1,7 @@
 /**
  * Schnittstelle 7 der Anbindung: Die Verwaltung fragt die CEKs freigegebener Blöcke an. `gibFrei`
  * entscheidet die Obergrenze (`HOECHSTENS_FREIGABEN`, 413 `zu_viele`) selbst — das Anfrageschema
- * hat deshalb bewusst kein `.max(200)` (Task-2-Bericht). Die Körpergrenze hier (256 KiB) ist eine
+ * hat deshalb bewusst kein `.max(200)`. Die Körpergrenze hier (256 KiB) ist eine
  * zweite, unabhängige Bremse: Ein RIESIGES Array wird nie ganz geparst, ganz gleich, wie die
  * Anzahl der Einträge am Ende ausfällt.
  */
@@ -16,7 +16,7 @@ import { fehler, freigabeAnfrage } from "../../../_lib/anbindung/vertrag";
 
 export const dynamic = "force-dynamic";
 
-// 256 KiB (Übergabe aus Task 2/Review): `freigabeAnfrage` begrenzt die Anzahl nicht selbst.
+// 256 KiB (Plan Stufe 5, Task 3): `freigabeAnfrage` begrenzt die Anzahl nicht selbst.
 const MAX_BODY_BYTES = 256 * 1024;
 
 export async function POST(req: Request) {

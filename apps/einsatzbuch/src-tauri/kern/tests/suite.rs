@@ -525,7 +525,7 @@ fn anker_mit_unerwartetem_status_ist_ein_fehler_und_haelt_den_stand() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 5xx eines Proxys ist Offline (Nachtrag aus dem Review von Task 7)
+// 5xx eines Proxys ist Offline
 // ---------------------------------------------------------------------------------------------
 
 /// Ein vorgeschalteter Proxy antwortet mit 502/503/504, solange die Suite nicht läuft. Für den
@@ -558,7 +558,7 @@ fn stammdaten_mit_5xx_sind_nicht_erreichbar() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Wettlauf gegen „Neu einrichten“ (Nachtrag aus dem Review von Task 7)
+// Wettlauf gegen „Neu einrichten“
 // ---------------------------------------------------------------------------------------------
 
 /// Schreibt mitten in der Anfrage — der Lock ist dann frei — eine Neu-Einrichtung mit neuer
@@ -600,7 +600,7 @@ fn spaete_antwort_nach_neu_einrichten_wird_verworfen() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Keine Geheimnisse im Debug-Text (Nachtrag aus dem Review von Task 7)
+// Keine Geheimnisse im Debug-Text
 // ---------------------------------------------------------------------------------------------
 
 #[test]

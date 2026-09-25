@@ -66,7 +66,7 @@ export function App() {
   const [fristStand, setFristStand] = useState<FristStand | null>(null);
   /**
    * `einrichten`/`anmelden`/`neu_einrichten` warten bis zu 5 min auf den Loopback-Rückruf; Rust
-   * setzt `status.anmeldungLaeuft` schon vor dem Ausgang auf `false` (Übergabe aus Task 8), die
+   * setzt `status.anmeldungLaeuft` schon vor dem Ausgang auf `false`, die
    * Oberfläche sperrt ihre Knöpfe deshalb an diesem eigenen Zustand, nicht am Status-Feld.
    */
   const [wartetAuf, setWartetAuf] = useState<"einrichten" | "anmelden" | "neuEinrichten" | null>(null);
@@ -458,7 +458,7 @@ export function App() {
 
   /**
    * „Sitzung sperren“, 10 min ohne Eingabe oder Tokenablauf: heißt abmelden (Spec §4.4,
-   * Entscheidung 9 aus `kontext.md`). Bewusst NICHT über `fuehreAus` — dessen Ein-Schritt-Wächter
+   * Plan Stufe 5, Entscheidung 9). Bewusst NICHT über `fuehreAus` — dessen Ein-Schritt-Wächter
    * ließe eine Sperre fallen, während ein anderer Schritt läuft. Erst synchron Klartext und CEKs
    * verwerfen, dann Rust abmelden. Wer gerade erfasst, bleibt in der Erfassung; aus Verwaltung und
    * Anmeldung geht es zur Startseite mit dem Hinweis.
@@ -499,8 +499,8 @@ export function App() {
   const restProzent = fristMinuten ? Math.min(100, (rest / (fristMinuten * 60)) * 100) : 0;
 
   // Widerruf (Spec §8): auf Start- und Verwaltungsseite, mit dem passenden Weg zurück in die
-  // Einrichtung. Ein Testrechner kennt kein `neu_einrichten` (nur echt, Entscheidung 12 aus
-  // `kontext.md`) — dort beendet derselbe Bestätigungsdialog wie im Fuß der Startseite den Test.
+  // Einrichtung. Ein Testrechner kennt kein `neu_einrichten` (nur echt, Plan Stufe 5,
+  // Entscheidung 12) — dort beendet derselbe Bestätigungsdialog wie im Fuß der Startseite den Test.
   const widerrufBanner =
     status?.widerrufen && (lokal.phase === "start" || lokal.phase === "verwaltung") ? (
       <div className="fehlerleiste">

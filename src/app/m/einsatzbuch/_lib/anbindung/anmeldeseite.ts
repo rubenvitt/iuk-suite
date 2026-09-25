@@ -14,7 +14,7 @@ import { GEHEIMNIS } from "./token";
 
 const PORT_MIN = 1024;
 const PORT_MAX = 65535;
-// Nur Ziffern, keine führende Null (Brief Schritt 2: "port=08080" wird abgewiesen).
+// Nur Ziffern, keine führende Null (Plan Stufe 5, Task 4: "port=08080" wird abgewiesen).
 const PORT_RE = /^[1-9]\d*$/;
 const STATE_RE = /^[A-Za-z0-9_-]{16,128}$/;
 const NAME_MAX = 60;

@@ -72,7 +72,7 @@ export const freigabeAntwort = z.array(z.object({ block: z.number().int().min(1)
 
 /**
  * Fehlerkörper: `{ error: { code, message } }`, dazu höchstens die Zusatzfelder, die der Rust-Kern
- * kennt (`Fehlerkoerper`, Nachtrag des Controllers). Ein neues Zusatzfeld braucht beide Seiten.
+ * kennt (`Fehlerkoerper` in `kern/src/vertrag.rs`). Ein neues Zusatzfeld braucht beide Seiten.
  */
 export const fehlerKoerper = z.object({
   error: z.object({ code: z.string().min(1), message: z.string() }).strict(),

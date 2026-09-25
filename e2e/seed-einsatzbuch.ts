@@ -10,7 +10,7 @@
  * antwortet ohne ein vorhandenes echtes Paar mit `503 kein_echtes_paar`. Der KEK dafür ist der
  * Entwicklungs-KEK aus `_lib/schluessel/kek.ts` (`ENTWICKLUNGS_KEK`), den `playwright.config.ts`
  * additiv als `EINSATZBUCH_SCHLUESSEL_KEK` an den Next-Server reicht — als Literal dort, mit
- * Kommentaranker hierher, nicht als Import (Brief Task 4: die Konfiguration soll nicht von
+ * Kommentaranker hierher, nicht als Import (die Konfiguration soll nicht von
  * App-Interna abhängen).
  */
 import { drizzle } from "drizzle-orm/better-sqlite3";

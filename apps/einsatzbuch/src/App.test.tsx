@@ -260,7 +260,7 @@ describe("Kopf: Verwaltung · Anmelden", () => {
   });
 });
 
-describe("Willkommen: Verwaltung · Anmelden im Fuß (Vorlage Zeile ~45)", () => {
+describe("Willkommen: Verwaltung · Anmelden im Fuß (Vorlage: Ansicht `istStart`, Knopf `zumLogin`)", () => {
   it("ist auf der reinen Startseite sichtbar, eingerichtet und ohne Sitzung; ein Klick zeigt die Anmeldekarte", async () => {
     await starte(status());
     const knopfEl = knopf("Verwaltung · Anmelden");

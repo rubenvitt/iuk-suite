@@ -1,6 +1,6 @@
 /**
- * Anmeldekarte der Verwaltung, nach `Einsatzbuch v2.dc.html` (Abschnitt „Anmeldung“, Zeile
- * ~292–306), und der Wartebildschirm während des offenen Browsers. Beide gehören zusammen: Die
+ * Anmeldekarte der Verwaltung, nach `Einsatzbuch v2.dc.html` (Ansicht `istLogin`), und der
+ * Wartebildschirm während des offenen Browsers. Beide gehören zusammen: Die
  * Einrichtungsfrage zeigt nach ihrem eigenen Knopf denselben `Wartebildschirm` (`App.tsx` setzt
  * `wartetAuf` für `einrichten`, `anmelden` und `neu_einrichten` gleich um, denn alle drei warten
  * auf denselben Loopback-Rückruf und lassen sich mit demselben Befehl abbrechen).

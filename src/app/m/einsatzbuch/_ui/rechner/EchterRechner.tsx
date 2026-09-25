@@ -8,7 +8,7 @@ import type { EchterRechnerStatus } from "../../_lib/anbindung/status";
 import styles from "./rechner.module.css";
 
 /**
- * Karte „Echter Einsatzbuch-Rechner" (Brief §5.2). Eigene Client-Insel mit serialisierbaren
+ * Karte „Echter Einsatzbuch-Rechner" (Spec §5.2). Eigene Client-Insel mit serialisierbaren
  * Props (Falle 9): `rechnerWiderrufenAction` wird direkt importiert, nicht als Prop gereicht.
  * Ohne echten Rechner zeigt sie nur den Hinweistext — die Einrichtung startet am Rechner selbst,
  * die Suite legt hier nichts an.

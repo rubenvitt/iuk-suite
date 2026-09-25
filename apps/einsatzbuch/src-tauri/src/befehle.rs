@@ -181,7 +181,7 @@ pub fn autostart_einschalten(e: &Einrichtungsergebnis) -> bool {
     e.echt && !cfg!(debug_assertions)
 }
 
-/// Stand des Ankerabgleichs nach „Kette prüfen“ (Nachtrag des Controllers: `Ankerstand`).
+/// Stand des Ankerabgleichs nach „Kette prüfen“ (Plan Stufe 5, Task 8: `gleiche_anker_jetzt`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Ankerstand {

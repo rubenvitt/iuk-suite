@@ -1,11 +1,11 @@
 /**
  * Kopfzeile wie `SuiteKopf` der Vorlage (`components/verwaltung/shell/SuiteKopf.jsx`): 5 px
  * Markenstreifen, 64 px Leiste, links die Wortmarke EINSATZ+BUCH. Rechts — eingerichtet und ohne
- * Sitzung — der Knopf „Verwaltung · Anmelden“ (Vorlage Zeile 45, aus dem Fuß der Startseite
- * hierher gezogen: die Kopfzeile steht auf jeder Seite außer der Startseite selbst). Mit Sitzung
- * zeigt der Kopf stattdessen den Namen (führt zur Verwaltung) und „Sitzung sperren“ (Spec §4.4:
- * Sperren heißt Abmelden, Entscheidung 9 aus `kontext.md`). Dazu immer der Umschalter
- * Hell/Dunkel/Auto.
+ * Sitzung — der Knopf „Verwaltung · Anmelden“ (Vorlage `Einsatzbuch v2.dc.html`, Knopf `zumLogin`).
+ * Er steht hier UND im Fuß der Startseite (`Willkommen`): Die Kopfzeile steht auf jeder Seite außer
+ * der Startseite selbst, dort trägt ihn der Fuß. Mit Sitzung zeigt der Kopf stattdessen den Namen
+ * (führt zur Verwaltung) und „Sitzung sperren“ (Spec §4.4: Sperren heißt Abmelden, Plan Stufe 5,
+ * Entscheidung 9). Dazu immer der Umschalter Hell/Dunkel/Auto.
  */
 import type { ThemaWahl } from "../stil/thema";
 import type { SitzungInfo } from "../typen";

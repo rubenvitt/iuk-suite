@@ -1,7 +1,7 @@
 /**
  * Schnittstelle 5 der Anbindung: Der Rechner meldet den Hash eines versiegelten Blocks. Eine
  * Abweichung landet auditiert in `anker_abweichung` — dafür braucht es den Akteur des Geräts
- * (Brief: „Handler mit Geräte-Token laufen unter withAuditContext(...)").
+ * (Plan Stufe 5, Task 3: Handler mit Geräte-Token laufen unter `withAuditContext`).
  */
 import { auditDenied, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../../_db/client";

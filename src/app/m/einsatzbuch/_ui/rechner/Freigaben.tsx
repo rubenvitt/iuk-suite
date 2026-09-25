@@ -5,7 +5,7 @@ import { Kartentabelle } from "@/core/tabelle";
 import type { FreigabeZeile } from "../../_lib/anbindung/status";
 
 /**
- * Die letzten 20 Schlüsselfreigaben (Brief §5.2, Entscheidung 4). Rein lesend — keine Aktion,
+ * Die letzten 20 Schlüsselfreigaben (Spec §5.2, Plan Stufe 5, Entscheidung 4). Rein lesend — keine Aktion,
  * kein Formular —, aber als eigene Client-Insel wie `EchterRechner`/`TestRechnerListe`, damit
  * die Seite konsistent aus RSC + Client-Karten besteht statt zwei Bauarten zu mischen.
  */

@@ -167,8 +167,8 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
 
     /**
      * „Mit Pocket ID anmelden und einrichten“: wie `richte_ein` bindet die neue Sitzung sofort
-     * an den frischen Rechner (Entscheidung 1 aus `task-8-report.md`, „Schnittstelle für Task
-     * 9“) — wer eingerichtet hat, ist bis zum Sperren angemeldet.
+     * an den frischen Rechner (Plan Stufe 5, Entscheidung 2: nach `einrichten` ist die Sitzung
+     * an den neuen Rechner gebunden) — wer eingerichtet hat, ist bis zum Sperren angemeldet.
      */
     async function einrichten(a: { art: "echt" | "test"; name: string; suiteUrl: string }): Promise<void> {
       if (zustand.eingerichtet) throw new Error("Dieser Rechner ist schon eingerichtet.");

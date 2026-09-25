@@ -144,7 +144,7 @@ fn einrichten_antwort_ergibt_die_lokale_einrichtung() {
     assert_eq!(e.eingerichtet_von, a.eingerichtet_von);
 }
 
-/// Kein Geheimnis im Debug-Text (Nachtrag aus dem Review von Task 7): Wer eine Antwort mit `{:?}`
+/// Kein Geheimnis im Debug-Text: Wer eine Antwort mit `{:?}`
 /// loggt, darf weder Sitzungs- noch Geräte-Token, weder Code noch Verifier, noch einen CEK
 /// schreiben.
 #[test]

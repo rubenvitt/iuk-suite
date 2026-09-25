@@ -112,7 +112,7 @@ pub struct Schluesselposten {
 }
 
 /// Fehlerkörper jeder Schnittstelle: `{ error: { code, message } }`, dazu die optionalen
-/// Zusatzfelder, die `fehlerKoerper` in `vertrag.ts` kennt (Nachtrag des Controllers):
+/// Zusatzfelder, die `fehlerKoerper` in `vertrag.ts` kennt (Plan Stufe 5, „Schnittstellen“):
 /// `erwartet` bei `409 anker_abweichung`, `eingerichtetAm`/`eingerichtetVon` bei
 /// `409 echt_vorhanden`, `feld`/`eintrag` bei `422 stammdaten_zu_lang`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

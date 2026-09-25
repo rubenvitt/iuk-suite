@@ -2,7 +2,7 @@
  * Schnittstelle 3 der Anbindung: Die App richtet mit ihrer Verwaltungssitzung einen Rechner ein.
  * `richteEin` trägt bereits einen eigenen Audit-Kontext (Task 2); die Hülle hier umhüllt zusätzlich
  * mit dem Akteur der Sitzung, damit die Manifest-Zusage `context` unabhängig von der Fachfunktion
- * gilt — der innere Kontext gewinnt (Task-2-Bericht, Punkt 6).
+ * gilt — der innere Kontext gewinnt (`withAuditContext` verschachtelt).
  */
 import { auditActor, auditDenied, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../../_db/client";

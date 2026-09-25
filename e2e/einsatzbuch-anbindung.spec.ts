@@ -6,14 +6,14 @@ import { devLogin, klickeWennRuhig, E2E_PORT } from "./fixtures";
 /**
  * Stufe 5, Task 4: die Anmeldeseite des Einsatzbuch-Rechners ohne Suite-Chrome.
  *
- * PROBE (Brief Schritt 1, vor allem anderen — Ergebnis im Task-4-Bericht): beweist den
+ * PROBE (Plan Stufe 5, Task 4, Step 1 — vor allem anderen): beweist den
  * Laufzeitweg, den kein `pnpm build` sieht — eine externe Weiterleitung auf
  * `http://127.0.0.1:<port>/rueckruf…` aus einer Server Component, und dass der Login-Umweg die
  * Query erhält. Das sind die Fälle 1 und 3 unten.
  *
  * ⚠️ `page.route`/`page.context().route()` FANGEN DEN ZWEITEN SPRUNG EINER
  * URSPRUNGSÜBERGREIFENDEN WEITERLEITUNG NICHT ZUVERLÄSSIG AB — GEMESSEN, NICHT VERMUTET (drei
- * Diagnosefälle, Befund im Task-4-Bericht):
+ * Diagnosefälle):
  *   1. Direktes `page.goto("http://127.0.0.1:<port>/…")` MIT `page.route(...)`: die Route greift,
  *      200 kommt an.
  *   2. Dieselbe Route registriert, dann `page.goto` auf `/anmelden…` (307 auf 127.0.0.1): die
@@ -67,7 +67,7 @@ function loopbackServer(port: number): { wait: () => Promise<URLSearchParams>; t
  * PKCE, Anmeldeseite, `tausch` und `einrichten` in einem — der Helfer, den Task 5 weiter nutzt.
  * `art: "echt"` überlebt einen schon vorhandenen aktiven echten Rechner: die Ersetzen-Frage
  * erscheint dann statt der sofortigen Weiterleitung, und der Helfer beantwortet sie mit
- * „Ersetzen“ (CI wiederholt einen roten Lauf gegen dieselbe Datenbank — Advisor-Hinweis).
+ * „Ersetzen“ (CI wiederholt einen roten Lauf gegen dieselbe Datenbank).
  * Wärmt `tausch` und `einrichten` je mit einem GET auf (Falle 10 aus `CLAUDE.md`): ein GET auf
  * einen POST-Handler antwortet 405, das genügt als Warmlauf.
  */

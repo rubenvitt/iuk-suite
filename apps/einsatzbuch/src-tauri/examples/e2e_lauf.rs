@@ -23,7 +23,7 @@
 //!
 //! Jeder Schritt schreibt Zeilen `E2E <schritt>: …`. Nach Schritt 4 und nach Schritt 6 wartet der
 //! Treiber auf eine Markendatei im Steuerordner (`touch …`, die Zeile nennt den Pfad), damit der
-//! Controller die Datenbank der Suite abfragen kann. Scheitert ein Schritt nach der Einrichtung,
+//! Aufrufer die Datenbank der Suite abfragen kann. Scheitert ein Schritt nach der Einrichtung,
 //! beendet der Treiber den Testbetrieb trotzdem, damit kein Eintrag im Schlüsselbund bleibt.
 //!
 //! Geheimnisse: Die Anmelde-URL (nur `state` und `challenge`) geht wie im Debug-Schalter der App
@@ -166,7 +166,7 @@ mod lauf {
         }
     }
 
-    /// Wartet, bis der Controller `touch <marke>` ausführt (Datenbankabfragen der Suite).
+    /// Wartet, bis der Aufrufer `touch <marke>` ausführt (Datenbankabfragen der Suite).
     fn pause(steuerung: &Path, schritt: u8, wozu: &str) -> Result<(), String> {
         let marke = steuerung.join(format!("weiter-{schritt}"));
         e2e!(schritt, "Pause ({wozu}) — weiter mit: touch {}", marke.display());

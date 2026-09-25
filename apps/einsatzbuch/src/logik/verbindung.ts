@@ -4,8 +4,8 @@
  * kommen. Keine React-Abhängigkeit, kein `invoke`; die Zeitzone kommt als Parameter in jeden
  * Aufruf — nie ein `timeZone`-Literal auf Modulebene, sonst friert sie beim Import ein.
  *
- * Die meisten Fehlerbilder aus §8 sind wörtliche Rust-Meldungen (siehe „Meldungstexte“ in
- * `task-8-report.md`) und brauchen hier keine Funktion — sie laufen unverändert durch
+ * Die meisten Fehlerbilder aus §8 sind wörtliche Rust-Meldungen (die `#[error]`-Texte in Kern
+ * und Hülle) und brauchen hier keine Funktion — sie laufen unverändert durch
  * `App.tsx`s allgemeine Fehleranzeige. Nur die beiden Texte unten entstehen aus Feldern.
  */
 import type { Ankerabweichung } from "../typen";
@@ -14,7 +14,7 @@ const ZEITPUNKT_MUSTER = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]
 
 /**
  * `status.stammdatenVom` → „Stammdaten vom 25.9.2026, 10:00“, in `zeitzone`. Anders als
- * `zeitpunktText` aus `@kern/zeit` ohne „Uhr“ (Vorlage: Kopf der Verwaltung, Task-9-Brief).
+ * `zeitpunktText` aus `@kern/zeit` ohne „Uhr“ (Vorlage: Kopf der Ansicht `istVerwaltung`).
  */
 export function stammdatenVomText(vom: string, zeitzone: string): string {
   if (!ZEITPUNKT_MUSTER.test(vom) || Number.isNaN(new Date(vom).getTime())) {

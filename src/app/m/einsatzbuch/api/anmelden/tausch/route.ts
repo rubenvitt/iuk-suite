@@ -25,7 +25,7 @@ const begrenzer = new RateLimiter({ windowMs: 60_000, max: 10 });
 
 export async function POST(req: Request) {
   const ab = hostAbweisung(req); if (ab) return ab;
-  // Ratenbremse zuerst, dann der Code (Brief Schritt 2): ein Angreifer mit vielen Codes verbraucht
+  // Ratenbremse zuerst, dann der Code (Plan Stufe 5, Task 3): ein Angreifer mit vielen Codes verbraucht
   // sein Budget, bevor auch nur ein Code geprüft wird.
   if (!begrenzer.check(clientIpAus(req.headers))) return fehler(429, "rate_limited", "Zu viele Versuche. Bitte später erneut versuchen.");
 

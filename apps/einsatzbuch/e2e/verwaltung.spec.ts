@@ -3,7 +3,7 @@
  * (`./stub.ts`). Deckt Einrichtung (Testrechner), Anmeldung, die entschlüsselte Verwaltung samt
  * Kettenprüfung, die Sperre (Knopf und Ruhe-Uhr über `page.clock`) und den Freigabe-Fehler ohne
  * Verbindung ab. Ein Klick-Ende-zu-Ende über die echte Tauri-Hülle gibt es nicht (Spec §9.3,
- * Entscheidung 16 aus `kontext.md`: WKWebView kennt keinen WebDriver) — dafür steht
+ * Plan Stufe 5, Entscheidung 16: WKWebView kennt keinen WebDriver) — dafür steht
  * `T/examples/e2e_lauf.rs` (Task 12). Diese Datei prüft nur die Oberfläche.
  *
  * Blöcke und Inhaltsschlüssel kommen wörtlich aus den eingefrorenen Kern-Testvektoren

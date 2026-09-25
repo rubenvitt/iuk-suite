@@ -1,5 +1,5 @@
 /**
- * Startseite, nach `Einsatzbuch v2.dc.html` (Abschnitt `istStart`, Zeile ~45). Der Fuß zeigt —
+ * Startseite, nach `Einsatzbuch v2.dc.html` (Ansicht `istStart`). Der Fuß zeigt —
  * eingerichtet und ohne Sitzung — „Verwaltung · Anmelden“ (Vorlage-Wortlaut, `zumLogin`); mit
  * Sitzung stattdessen den Namen als Weg zurück zur Verwaltung. Im Testbetrieb kommt zusätzlich
  * „Testbetrieb beenden“ dazu (kein Vorlagen-Pendant, Bedienung des Offline-Testrechners). Enter

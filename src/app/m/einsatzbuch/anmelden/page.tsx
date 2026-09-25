@@ -3,7 +3,7 @@
  * Suite-Chrome, außerhalb von `(verwaltung)`. Nur `Card`/`Result` (Falle 1) und eigenes Markup
  * mit eigenen CSS-Variablen (Falle 2, `anmelden.module.css`).
  *
- * Die Probe aus Schritt 1 (Task-4-Bericht) hat den Laufzeitweg schon bewiesen: externe
+ * Die Probe aus Task 4, Step 1 (`e2e/einsatzbuch-anbindung.spec.ts`) hat den Laufzeitweg schon bewiesen: externe
  * Weiterleitung auf `http://127.0.0.1:<port>/rueckruf…` aus einer Server Component, und der
  * Login-Umweg mit erhaltener Query. Die Fachlogik liegt in `_lib/anbindung/anmeldeseite.ts` —
  * dort auch die Begründung, warum NICHT `requireEinsatzbuchZugang` aus `_lib/zugang.ts` läuft.
