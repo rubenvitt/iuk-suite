@@ -146,6 +146,35 @@ function text(): string {
   return document.body.textContent ?? "";
 }
 
+/** Das echte `setTimeout`, beim Laden der Datei gegriffen — `vi.useFakeTimers()` ersetzt es erst im Test. */
+const echtesSetTimeout = globalThis.setTimeout.bind(globalThis);
+const RUNDEN = 150;
+
+/**
+ * Wartet, bis `bedingung` gilt, statt eine feste Zahl von Takten zu laufen (DRK-471). WebCrypto
+ * antwortet aus dem Threadpool nach Wanduhr, nicht nach Takten der Ereignisschleife; auf einem
+ * langsamen CI-Rechner reichen `warte()` oder `laufe(0)` in fester Zahl dafür nicht. `schritt`
+ * lässt die Promise-Ketten laufen (unter gestellter Uhr `laufe(0)`); die echte Pause dazwischen
+ * steht in `act`, damit ein dabei eintreffendes Ergebnis nicht am gestellten `setImmediate` des
+ * React-Schedulers hängen bleibt. Die Grenze liegt unter dem Test-Timeout von 5 s, damit die
+ * Meldung hier fällt und nicht als bloßer Timeout.
+ */
+async function warteBis(bedingung: () => boolean, was: string, schritt: () => Promise<void> = warte): Promise<void> {
+  for (let i = 0; i < RUNDEN; i++) {
+    await schritt();
+    if (bedingung()) return;
+    await act(async () => {
+      await new Promise((fertig) => echtesSetTimeout(fertig, 10));
+    });
+  }
+  throw new Error(`Nach ${RUNDEN} Runden (mindestens 1,5 s echte Zeit) noch nicht: ${was}. Seite: ${text().slice(0, 300)}`);
+}
+
+/** Der Ladelauf der Verwaltung ist durch: Schlüssel neu angefragt, und nichts wird mehr entschlüsselt. */
+function verwaltungGeladen(freigabenVorher: number): () => boolean {
+  return () => befehle.schluesselFreigeben.mock.calls.length > freigabenVorher && !text().includes("Einsätze werden entschlüsselt");
+}
+
 /** Knopf nach seinem zugänglichen Namen: `aria-label`, sonst der sichtbare Text. */
 function knopf(name: string): HTMLButtonElement | undefined {
   return queryAll<HTMLButtonElement>("button").find((b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim() === name);
@@ -359,9 +388,16 @@ async function meldeAnUndOeffneVerwaltung(s: Status = status()): Promise<void> {
   await clickElement(knopf("Verwaltung · Anmelden")!);
   befehle.anmelden.mockResolvedValue(SITZUNG);
   befehle.status.mockResolvedValue({ ...s, sitzung: SITZUNG });
+  const freigabenVorher = befehle.schluesselFreigeben.mock.calls.length;
   await clickElement(knopf("Mit Pocket ID anmelden")!);
-  await warte();
-  await warte();
+  await warteBis(verwaltungGeladen(freigabenVorher), "Verwaltung geladen");
+}
+
+/** „Kette prüfen“ hasht die Kette echt; fertig ist es, wenn die App danach den Status neu gelesen hat. */
+async function pruefeDieKette(): Promise<void> {
+  const vorher = befehle.status.mock.calls.length;
+  await clickElement(knopf("Kette prüfen")!);
+  await warteBis(() => befehle.status.mock.calls.length > vorher, "Status nach „Kette prüfen“ neu gelesen");
 }
 
 describe("Verwaltung", () => {
@@ -409,8 +445,7 @@ describe("Verwaltung", () => {
   it("hält Rust nach „Kette prüfen“ keine Sitzung mehr, gilt die Verwaltung als gesperrt", async () => {
     await meldeAnUndOeffneVerwaltung();
     befehle.status.mockResolvedValue(status());
-    await clickElement(knopf("Kette prüfen")!);
-    await warte();
+    await pruefeDieKette();
     expect(text()).not.toContain("MANV 10");
     expect(text()).toContain(GESPERRT);
   });
@@ -470,8 +505,7 @@ describe("Verwaltung", () => {
     });
     await meldeAnUndOeffneVerwaltung(status({ ankerBestaetigtBis: 1 }));
     expect(text()).toContain("Anker bestätigt bis Block 1");
-    await clickElement(knopf("Kette prüfen")!);
-    await warte();
+    await pruefeDieKette();
     expect(befehle.ankerAbgleichen).toHaveBeenCalledTimes(1);
     expect(text()).toContain("Kette intakt");
     expect(text()).toContain("Anker bestätigt bis Block 2");
@@ -480,8 +514,7 @@ describe("Verwaltung", () => {
   it("„Kette prüfen“ ohne Suite: lokal intakt, Anker nicht geprüft", async () => {
     befehle.ankerAbgleichen.mockResolvedValue({ bestaetigtBis: 3, hash: null, gemeldetAm: null, abweichung: null, offline: true, widerrufen: false });
     await meldeAnUndOeffneVerwaltung();
-    await clickElement(knopf("Kette prüfen")!);
-    await warte();
+    await pruefeDieKette();
     expect(text()).toContain("Kette intakt");
     expect(text()).toContain("Anker nicht geprüft — die Suite ist nicht erreichbar.");
   });
@@ -491,8 +524,7 @@ describe("Verwaltung", () => {
       bestaetigtBis: 4, hash: null, gemeldetAm: null, abweichung: { block: 5, erwartet: "1a2b3c4d".repeat(8), gemeldet: "99887766".repeat(8) }, offline: false, widerrufen: false,
     });
     await meldeAnUndOeffneVerwaltung();
-    await clickElement(knopf("Kette prüfen")!);
-    await warte();
+    await pruefeDieKette();
     expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Anker weicht ab bei Block 5: erwartet #1a2b3c4d, hier #99887766");
   });
 });
@@ -572,7 +604,7 @@ describe("Statusreihenfolge", () => {
     befehle.status.mockReturnValueOnce(alt.promise).mockReturnValueOnce(neu.promise);
     // Erste Anfrage: „Kette prüfen“ liest den Status danach neu. Die Antwort hängt.
     await clickElement(knopf("Kette prüfen")!);
-    for (let i = 0; i < 20 && befehle.status.mock.calls.length < 1; i++) await warte();
+    await warteBis(() => befehle.status.mock.calls.length >= 1, "Status nach „Kette prüfen“ angefragt");
     expect(befehle.status).toHaveBeenCalledTimes(1);
     // Zweite, jüngere Anfrage: „Sitzung sperren“ meldet ab und liest neu.
     await clickElement(knopf("Sitzung sperren")!);
@@ -675,9 +707,9 @@ describe("Einstellungen in der Verwaltung", () => {
     befehle.schluesselFreigeben.mockResolvedValue(CEKS);
     befehle.status.mockResolvedValue(status({ sicherung: MIT_ORDNER, sitzung: SITZUNG }));
     await clickElement(knopf("Aus Sicherung wiederherstellen")!);
+    const freigabenVorher = befehle.schluesselFreigeben.mock.calls.length;
     await clickElement(knopf("Datei wählen")!);
-    await warte();
-    await warte();
+    await warteBis(verwaltungGeladen(freigabenVorher), "Verwaltung nach der Wiederherstellung neu geladen");
     expect(befehle.wiederherstellen).toHaveBeenCalledTimes(1);
     expect(text()).toContain("3 Blöcke wiederhergestellt");
     expect(knopf("Aus Sicherung wiederherstellen")).toBeUndefined();
@@ -977,8 +1009,9 @@ describe("mit gestellter Uhr", () => {
     await starteMitUhr(status());
     await clickElement(knopf("Verwaltung · Anmelden")!);
     befehle.status.mockResolvedValue(status({ sitzung: { name: "Ruben Vitt", ablaufMs: ablauf } }));
+    const freigabenVorher = befehle.schluesselFreigeben.mock.calls.length;
     await clickElement(knopf("Mit Pocket ID anmelden")!);
-    for (let i = 0; i < 10; i++) await laufe(0);
+    await warteBis(verwaltungGeladen(freigabenVorher), "Verwaltung geladen", () => laufe(0));
     expect(text()).toContain("MANV 10");
     befehle.status.mockResolvedValue(status());
     await laufe(2 * 60_000);
