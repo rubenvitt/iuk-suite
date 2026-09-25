@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
  * `src/app/m/qr/_lib/test-dom.tsx`.
  *
  * ⚠️ KEIN `localStorage` IN DIESER DATEI, und das ist keine Auslassung: Node 26 bringt ein
- * eigenes mit, das jsdoms verdeckt (`vitest.config.ts:58-91`). Die Insel haelt ihren
+ * eigenes mit, das jsdoms verdeckt (`vitest.config.ts`, Option `execArgv`). Die Insel haelt ihren
  * Zustand in `useState` — der Suchtext ist fluechtig und steht ausdruecklich auch nicht in
  * der URL (`_lib/filter.ts:22-24`, Spec:3633-3635).
  */
