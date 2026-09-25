@@ -195,9 +195,24 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       return einstellungen.bloecke;
     }
 
-    function schluesselFreigeben(): Schluesselposten[] {
+    /**
+     * Wie `gib_schluessel_frei` in Rust: `bloecke` (`null`/`undefined`) gibt alle frei, eine
+     * Liste nur die genannten Nummern — eine unbekannte wird gegen die lokale Kette geprüft,
+     * bevor die (hier simulierte) Anfrage überhaupt entsteht.
+     */
+    function schluesselFreigeben(bloecke: number[] | null): Schluesselposten[] {
+      if (bloecke) {
+        for (const n of bloecke) {
+          if (!einstellungen.bloecke.some((b) => b.kopf.block === n)) throw new Error(`Block ${n} gibt es auf diesem Rechner nicht.`);
+        }
+      }
       if (einstellungen.freigabeFehler) throw new Error(einstellungen.freigabeFehler);
-      return einstellungen.schluesselposten;
+      return bloecke ? einstellungen.schluesselposten.filter((p) => bloecke.includes(p.block)) : einstellungen.schluesselposten;
+    }
+
+    /** Wie `export_speichern`: hängt die Endung an, ohne einen echten Dialog zu zeigen. */
+    function exportSpeichern(dateiname: string): string {
+      return dateiname.endsWith(".einsatzbuch") ? dateiname : `${dateiname}.einsatzbuch`;
     }
 
     /** Wie `anker_abgleichen`: bestätigt in diesem Stub immer die ganze mitgegebene Kette. */
@@ -458,11 +473,17 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         case "bloecke":
           return bloecke();
         case "schluessel_freigeben":
-          return schluesselFreigeben();
+          return schluesselFreigeben((args.bloecke as number[] | null | undefined) ?? null);
         case "anker_abgleichen":
           return ankerAbgleichen();
         case "stammdaten_abgleichen":
           return stammdatenAbgleichen();
+        case "export_speichern":
+          return exportSpeichern(args.dateiname as string);
+        case "drucken":
+          return undefined;
+        case "reader_oeffnen":
+          return undefined;
         default:
           throw new Error(`Unbekannter Befehl im Playwright-Stub: ${cmd}`);
       }

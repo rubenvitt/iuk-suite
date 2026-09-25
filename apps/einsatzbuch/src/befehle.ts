@@ -43,11 +43,20 @@ export const befehle = {
   /** Synchron: verwirft das Sitzungstoken. */
   abmelden: () => invoke<void>("abmelden"),
   bloecke: () => invoke<Block[]>("bloecke"),
-  schluesselFreigeben: () => invoke<Schluesselposten[]>("schluessel_freigeben"),
+  /** Ohne `bloecke` (bzw. `undefined`) gibt die Suite wie bisher alle Inhaltsschlüssel frei; mit
+   * einer Liste nur die genannten Blocknummern (Export „einzeln“). */
+  schluesselFreigeben: (bloecke?: number[]) => invoke<Schluesselposten[]>("schluessel_freigeben", { bloecke: bloecke ?? null }),
   ankerAbgleichen: () => invoke<Ankerstand>("anker_abgleichen"),
   stammdatenAbgleichen: () => invoke<void>("stammdaten_abgleichen"),
   /** Öffnet den Ordnerdialog des Systems; `null` heißt abgebrochen, sonst der gewählte Pfad. Nur im Echtbetrieb. */
   sicherungsordnerWaehlen: () => invoke<string | null>("sicherungsordner_waehlen"),
   /** Öffnet den Dateidialog (`.json`) und stellt die Sicherung wieder her; `null` heißt abgebrochen. */
   wiederherstellen: () => invoke<Wiederhergestellt | null>("wiederherstellen"),
+  /** Speichern-Dialog des Systems (Vorschlagsname, Filter `.einsatzbuch`), dann atomar
+   * geschrieben; `null` heißt im Dialog abgebrochen, sonst der Dateiname des Ziels. */
+  exportSpeichern: (inhalt: string, dateiname: string) => invoke<string | null>("export_speichern", { inhalt, dateiname }),
+  /** `WebviewWindow::print()` der Hülle — kein `window.print()` im Webview. */
+  drucken: () => invoke<void>("drucken"),
+  /** „Im Reader öffnen“: `<suiteUrl>/m/einsatzbuch/reader` im Systembrowser. */
+  readerOeffnen: () => invoke<void>("reader_oeffnen"),
 };

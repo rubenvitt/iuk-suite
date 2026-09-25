@@ -732,18 +732,38 @@ pub fn lies_bloecke(z: &Zustand) -> Result<Vec<Block>, String> {
     offen.bloecke().map_err(buch_fehler_text)
 }
 
-/// Lässt die Suite die Inhaltsschlüssel aller Blöcke freigeben (200er-Pakete, `suite::gib_frei`).
-/// Ohne gültige Sitzung, und wenn die Suite die Sitzung nicht mehr kennt (401), heißt es neu
-/// anmelden; ohne Netz „Lesen braucht Verbindung zur Suite.“ (Spec §8).
-pub fn gib_schluessel_frei(z: &Zustand) -> Result<Vec<Schluesselposten>, String> {
+/// Lässt die Suite die Inhaltsschlüssel freigeben (200er-Pakete, `suite::gib_frei`): mit
+/// `bloecke` nur die genannten Nummern (Stufe 6, Entscheidung 9 — „einzeln“ beim Export), `None`
+/// wie bisher alle. Eine unbekannte Nummer wird schon gegen die lokale Kette geprüft, bevor
+/// überhaupt eine Anfrage entsteht — die Audit-Zeile der Suite nennt dann nur die angefragten
+/// Blöcke. Ohne gültige Sitzung, und wenn die Suite die Sitzung nicht mehr kennt (401), heißt es
+/// neu anmelden; ohne Netz „Lesen braucht Verbindung zur Suite.“ (Spec §8).
+pub fn gib_schluessel_frei(z: &Zustand, bloecke: Option<&[u64]>) -> Result<Vec<Schluesselposten>, String> {
     let token = gueltiges_token(z)?;
-    let (suite_url, bloecke) = {
+    let (suite_url, alle) = {
         let buch = z.buch_zum_schreiben()?;
         let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
         let e = offen.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
         (e.suite_url, offen.bloecke().map_err(buch_fehler_text)?)
     };
-    suite::gib_frei(&*z.transport, &suite_url, &token, &bloecke).map_err(|e| freigabe_fehler(z, &token, e, LESEN_BRAUCHT_VERBINDUNG))
+    let ausgewaehlt = match bloecke {
+        None => alle,
+        // `BTreeSet`: doppelte Nummern (etwa aus der Oberfläche verdoppelt) landen nur einmal in
+        // der Anfrage — sonst nennt `suite::gib_frei` „andere Blöcke als angefragt“, weil die
+        // Suite dieselbe Nummer nicht zweimal freigibt.
+        // `BTreeSet`: doppelte Nummern (etwa aus der Oberfläche verdoppelt) landen nur einmal in
+        // der Anfrage — sonst nennt `suite::gib_frei` „andere Blöcke als angefragt“, weil die
+        // Suite dieselbe Nummer nicht zweimal freigibt.
+        Some(nummern) => nummern
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|n| alle.iter().find(|b| b.kopf.block == n).cloned().ok_or_else(|| format!("Block {n} gibt es auf diesem Rechner nicht.")))
+            .collect::<Result<Vec<_>, String>>()?,
+    };
+    suite::gib_frei(&*z.transport, &suite_url, &token, &ausgewaehlt)
+        .map_err(|e| freigabe_fehler(z, &token, e, LESEN_BRAUCHT_VERBINDUNG))
 }
 
 /// Die Meldung zu einer gescheiterten Freigabe (`suite::gib_frei`), geteilt von „Lesen“ und
@@ -1016,9 +1036,11 @@ pub async fn bloecke(app: AppHandle) -> Result<Vec<Block>, String> {
     blockierend(app, lies_bloecke).await
 }
 
+/// `bloecke`: `None` (bzw. kein Argument aus TS) gibt wie bisher alle frei; `Some` nur die
+/// genannten Nummern (Export „einzeln“, Stufe 6 Entscheidung 9).
 #[tauri::command]
-pub async fn schluessel_freigeben(app: AppHandle) -> Result<Vec<Schluesselposten>, String> {
-    blockierend(app, gib_schluessel_frei).await
+pub async fn schluessel_freigeben(app: AppHandle, bloecke: Option<Vec<u64>>) -> Result<Vec<Schluesselposten>, String> {
+    blockierend(app, move |z| gib_schluessel_frei(z, bloecke.as_deref())).await
 }
 
 #[tauri::command]
@@ -1848,13 +1870,13 @@ pub(crate) mod tests {
         let (z, suite) = eingerichteter_testrechner(ordner.path(), &uhr);
         versiegele_einen(&z);
         melde_ab(&z);
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), SITZUNG_ABGELAUFEN);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), SITZUNG_ABGELAUFEN);
 
         let browser = Browser::neu();
         melde_an(&z, &|u| browser.oeffne(u)).unwrap();
         suite.leere();
         uhr.vor(Duration::hours(2)); // Ablauf 10:00 UTC erreicht
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), SITZUNG_ABGELAUFEN);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), SITZUNG_ABGELAUFEN);
         assert!(z.sitzung().is_none(), "eine abgelaufene Sitzung wird verworfen");
         assert!(suite.anfragen().is_empty());
     }
@@ -1865,7 +1887,7 @@ pub(crate) mod tests {
         let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
         versiegele_einen(&z);
         versiegele_einen(&z);
-        let schluessel = gib_schluessel_frei(&z).unwrap();
+        let schluessel = gib_schluessel_frei(&z, None).unwrap();
         assert_eq!(schluessel.iter().map(|s| s.block).collect::<Vec<_>>(), [1, 2]);
         assert_eq!(schluessel[0].cek, "cek1");
         let freigabe = &suite.nach_pfad("/api/schluessel/freigeben")[0];
@@ -1874,13 +1896,56 @@ pub(crate) mod tests {
         assert_eq!(lies_bloecke(&z).unwrap().len(), 2);
 
         suite.setze(|_| Err("keine Verbindung".into()));
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG);
         assert!(z.sitzung().is_some(), "offline bleibt die Sitzung");
 
         // Die Suite kennt die Sitzung nicht mehr (etwa nach Widerruf): verwerfen, neu anmelden.
         suite.setze(|_| fehler(401, "sitzung_ungueltig", "Die Sitzung ist ungültig."));
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), SITZUNG_ABGELAUFEN);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), SITZUNG_ABGELAUFEN);
         assert!(z.sitzung().is_none());
+    }
+
+    /// Stufe 6, Entscheidung 9: „einzeln“ beim Export gibt nur den gewählten Block frei, und die
+    /// Audit-Zeile der Suite nennt nur ihn.
+    #[test]
+    fn freigabe_mit_blockliste_fragt_nur_die_genannten_bloecke_an() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        versiegele_einen(&z);
+        versiegele_einen(&z);
+        let schluessel = gib_schluessel_frei(&z, Some(&[2])).unwrap();
+        assert_eq!(schluessel.iter().map(|s| s.block).collect::<Vec<_>>(), [2]);
+        assert_eq!(schluessel[0].cek, "cek2");
+        let freigabe = &suite.nach_pfad("/api/schluessel/freigeben")[0];
+        let angefragt = freigabe.json.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(angefragt.len(), 1, "nur Block 2 geht in die Anfrage, {angefragt:?}");
+        assert_eq!(angefragt[0]["kopf"]["block"], 2);
+    }
+
+    /// Eine doppelt genannte Blocknummer geht nur einmal in die Anfrage — sonst nennt die Suite
+    /// „andere Blöcke als angefragt“, weil sie dieselbe Nummer nicht zweimal freigibt.
+    #[test]
+    fn freigabe_mit_doppelter_blocknummer_fragt_nur_einmal_an() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        versiegele_einen(&z);
+        let schluessel = gib_schluessel_frei(&z, Some(&[2, 2])).unwrap();
+        assert_eq!(schluessel.iter().map(|s| s.block).collect::<Vec<_>>(), [2]);
+        let freigabe = &suite.nach_pfad("/api/schluessel/freigeben")[0];
+        assert_eq!(freigabe.json.as_ref().unwrap().as_array().unwrap().len(), 1);
+    }
+
+    /// Eine unbekannte Blocknummer wird gegen die lokale Kette geprüft, bevor überhaupt eine
+    /// Anfrage entsteht.
+    #[test]
+    fn freigabe_mit_unbekannter_blocknummer_scheitert_ohne_anfrage() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        assert_eq!(gib_schluessel_frei(&z, Some(&[7])).unwrap_err(), "Block 7 gibt es auf diesem Rechner nicht.");
+        assert!(suite.anfragen().is_empty(), "eine unbekannte Nummer darf keine Anfrage auslösen");
     }
 
     /// Review Focus 4: Hinter einem Proxy ist ein 5xx ohne lesbaren Körper „die Suite läuft
@@ -1892,11 +1957,11 @@ pub(crate) mod tests {
         versiegele_einen(&z);
         for status in [500, 502, 503, 504] {
             suite.setze(move |_| antwort(status, "<html>Bad Gateway</html>"));
-            assert_eq!(gib_schluessel_frei(&z).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG, "HTTP {status}");
+            assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG, "HTTP {status}");
             assert!(z.sitzung().is_some(), "HTTP {status}: die Sitzung bleibt");
         }
         suite.setze(|_| fehler(503, "kek_fehlt", "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung."));
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung.");
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung.");
     }
 
     #[test]

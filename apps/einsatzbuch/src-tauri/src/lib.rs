@@ -1,7 +1,7 @@
 //! Die Tauri-Hülle des Einsatzbuchs: Plugins, Zustand, Frist-Uhr, Abgleich-Thread und Fenster.
 //! Die Fachlogik steht im Crate `einsatzbuch-kern` (`kern/`), die Befehle der Oberfläche in
-//! `befehle.rs`, Sicherung und Wiederherstellen in `sicherung.rs`; HTTP zur Suite in `netz.rs`,
-//! der Schlüsselbund in `schluesselbund.rs`.
+//! `befehle.rs`, Sicherung und Wiederherstellen in `sicherung.rs`, Export/Drucken/Reader in
+//! `export.rs`; HTTP zur Suite in `netz.rs`, der Schlüsselbund in `schluesselbund.rs`.
 //!
 //! Reihenfolge beim Start (Spec §4.1, §4.3):
 //! 1. Einzelinstanz als erstes Plugin, damit ein zweiter Start sofort beim ersten landet.
@@ -10,6 +10,7 @@
 //!    `"create": false`: Die Oberfläche sieht einen überfälligen Einsatz nie als ausstehend.
 pub mod abgleich;
 pub mod befehle;
+pub mod export;
 pub mod netz;
 pub mod schluesselbund;
 pub mod sicherung;
@@ -127,6 +128,9 @@ pub fn run() {
         befehle::autostart_setzen,
         sicherung::sicherungsordner_waehlen,
         sicherung::wiederherstellen,
+        export::export_speichern,
+        export::drucken,
+        export::reader_oeffnen,
         befehle::entwicklung_einrichten,
     ];
     #[cfg(not(debug_assertions))]
@@ -153,6 +157,9 @@ pub fn run() {
         befehle::autostart_setzen,
         sicherung::sicherungsordner_waehlen,
         sicherung::wiederherstellen,
+        export::export_speichern,
+        export::drucken,
+        export::reader_oeffnen,
     ];
 
     tauri::Builder::default()

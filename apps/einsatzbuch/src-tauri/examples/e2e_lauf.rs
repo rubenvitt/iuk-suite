@@ -383,7 +383,7 @@ mod lauf {
         pruefe(gebunden.as_deref() == Some(eigene.as_str()), || format!("Sitzung gebunden an {gebunden:?}, Rechner ist {eigene}"))?;
         e2e!(5, "melde_an: Sitzung für „{}“, gebunden an Rechner {eigene} (Geräte-Token im Tausch)", info.name);
 
-        let posten = gib_schluessel_frei(z)?;
+        let posten = gib_schluessel_frei(z, None)?;
         let bloecke = lies_bloecke(z)?;
         pruefe(posten.len() == 1 && posten[0].block == 1 && bloecke.len() == 1, || {
             format!("{} Schlüsselposten für {} Blöcke", posten.len(), bloecke.len())
@@ -417,7 +417,7 @@ mod lauf {
             .status()
             .map_err(|e| format!("Löschskript: {e}"))?;
         pruefe(status.success(), || format!("Löschskript endete mit {status}"))?;
-        match gib_schluessel_frei(z) {
+        match gib_schluessel_frei(z, None) {
             Ok(p) => return Err(format!("gib_schluessel_frei nach dem Löschen gab {} Schlüssel frei", p.len())),
             Err(text) => {
                 pruefe(text == SITZUNG_ABGELAUFEN, || format!("unerwartete Meldung: {text}"))?;
