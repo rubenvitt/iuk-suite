@@ -69,19 +69,37 @@ const RUST: Record<string, () => number> = {
   BLOECKE: () => arrayMax(exportinhaltSchema.shape.bloecke),
 };
 
+/** Ganzzahltypen, die Rust für eine Grenze erlaubt; jede `pub const` mit einem davon ist eine Grenze. */
+const GANZZAHL = "(?:u8|u16|u32|u64|u128|usize|i8|i16|i32|i64|i128|isize)";
+/** Ein Zahlliteral wie in Rust (`20_000`, auch mit Typsuffix `10_000u64`), sonst `undefined`. */
+function literal(wert: string): number | undefined {
+  const m = new RegExp(`^([\\d_]+)${GANZZAHL}?$`).exec(wert.trim());
+  return m ? zahl(m[1]) : undefined;
+}
+
 describe("grenzen.rs (Rust-Kern) gegen den Reader", () => {
   const text = lies("src-tauri/kern/src/grenzen.rs");
-  const gefunden = new Map([...text.matchAll(/^pub const ([A-Z_]+): (?:usize|u64) = ([\d_]+);/gm)].map((m) => [m[1], zahl(m[2])]));
+  const gefunden = new Map([...text.matchAll(new RegExp(`^pub const ([A-Z0-9_]+): ${GANZZAHL} = ([^;]+);`, "gm"))].map((m) => [m[1], m[2]]));
+  const alleKonstanten = [...text.matchAll(/^pub const ([A-Za-z0-9_]+)\s*:/gm)].map((m) => m[1]);
 
-  for (const [name, reader] of Object.entries(RUST)) {
-    it(`${name} gleicht der Reader-Grenze`, () => {
+  // Mindestbestand: diese Grenzen müssen da sein, auch wenn jemand die Datei umbaut.
+  for (const name of Object.keys(RUST)) {
+    it(`${name} ist in grenzen.rs vorhanden`, () => {
       expect(gefunden.has(name), `Grenze ${name} nicht gefunden — Datei umgebaut?`).toBe(true);
-      expect(gefunden.get(name)).toBe(reader());
     });
   }
-
-  it("jede Konstante in grenzen.rs ist hier abgeglichen", () => {
-    expect([...gefunden.keys()].filter((n) => !(n in RUST))).toEqual([]);
+  // Jede gefundene Grenze, auch eine neue, wird gegen den Reader verglichen.
+  for (const [name, wert] of gefunden) {
+    it(`${name} gleicht der Reader-Grenze`, () => {
+      const reader = RUST[name];
+      expect(reader, `Grenze ${name} in grenzen.rs hat kein Gegenstück im Reader — in RUST (grenzen-abgleich.test.ts) zuordnen`).toBeDefined();
+      const n = literal(wert);
+      expect(n, `Grenze ${name} = ${wert} ist kein Zahlliteral — der Abgleich kann sie nicht lesen`).toBeDefined();
+      expect(n).toBe(reader());
+    });
+  }
+  it("jede pub const in grenzen.rs hat einen Ganzzahltyp", () => {
+    expect(alleKonstanten.filter((n) => !gefunden.has(n)), "pub const ohne Ganzzahltyp — kann keine Längengrenze sein, oder der Abgleich übersieht sie").toEqual([]);
   });
 });
 
@@ -90,14 +108,19 @@ describe("formular.ts (Oberfläche der App) gegen den Reader", () => {
   const block = /export const HOECHSTLAENGE = \{([^}]*)\}/.exec(text)?.[1];
   const gefunden = new Map([...(block ?? "").matchAll(/(\w+): ([\d_]+)/g)].map((m) => [m[1], zahl(m[2])]));
 
-  it("HOECHSTLAENGE ist vorhanden und nennt nur Einsatzfelder", () => {
+  it("HOECHSTLAENGE ist vorhanden", () => {
     expect(block, "Grenze HOECHSTLAENGE nicht gefunden — Datei umgebaut?").toBeDefined();
-    expect([...gefunden.keys()].filter((k) => !(k in EINSATZFELD))).toEqual([]);
   });
+  // Mindestbestand: diese Felder begrenzt das Formular heute.
   for (const feld of ["strasse", "ort", "objekt", "notizen"]) {
-    it(`HOECHSTLAENGE.${feld} gleicht der Reader-Grenze`, () => {
+    it(`HOECHSTLAENGE.${feld} ist vorhanden`, () => {
       expect(gefunden.has(feld), `Grenze HOECHSTLAENGE.${feld} nicht gefunden — Datei umgebaut?`).toBe(true);
-      expect(gefunden.get(feld)).toBe(EINSATZFELD[feld]());
+    });
+  }
+  for (const [feld, wert] of gefunden) {
+    it(`HOECHSTLAENGE.${feld} gleicht der Reader-Grenze`, () => {
+      expect(EINSATZFELD[feld], `HOECHSTLAENGE.${feld} ist kein Einsatzfeld mit Reader-Grenze — in EINSATZFELD (grenzen-abgleich.test.ts) zuordnen`).toBeDefined();
+      expect(wert).toBe(EINSATZFELD[feld]());
     });
   }
 });
@@ -105,23 +128,27 @@ describe("formular.ts (Oberfläche der App) gegen den Reader", () => {
 describe("e2e/stub.ts (Nachbau des Rust-Befehls) gegen den Reader", () => {
   const text = lies("e2e/stub.ts");
   const laengen = new Map([...text.matchAll(/\["[^"]+", e\.(\w+)(?:\.trim\(\))?, ([\d_]+)\]/g)].map((m) => [m[1], zahl(m[2])]));
-  const listen = new Map([...text.matchAll(/e\.(fahrzeuge|personal)\.length > ([\d_]+)/g)].map((m) => [m[1], zahl(m[2])]));
+  const listen = new Map([...text.matchAll(/e\.(\w+)\.length > ([\d_]+)/g)].map((m) => [m[1], zahl(m[2])]));
 
+  // Mindestbestand: diese Prüfungen baut der Stub heute nach.
   for (const feld of ["stichwort", "strasse", "ort", "objekt", "notizen"]) {
-    it(`Länge ${feld} gleicht der Reader-Grenze`, () => {
+    it(`Längenprüfung ${feld} ist vorhanden`, () => {
       expect(laengen.has(feld), `Grenze ${feld} nicht gefunden — Datei umgebaut?`).toBe(true);
-      expect(laengen.get(feld)).toBe(EINSATZFELD[feld]());
     });
   }
   for (const feld of ["fahrzeuge", "personal"]) {
-    it(`Anzahl ${feld} gleicht der Reader-Grenze`, () => {
+    it(`Anzahlprüfung ${feld} ist vorhanden`, () => {
       expect(listen.has(feld), `Grenze ${feld} nicht gefunden — Datei umgebaut?`).toBe(true);
-      expect(listen.get(feld)).toBe(EINSATZFELD[feld]());
     });
   }
-  it("jede Längenprüfung im Stub nennt ein Einsatzfeld", () => {
-    expect([...laengen.keys()].filter((k) => !(k in EINSATZFELD))).toEqual([]);
-  });
+  for (const [art, gefunden] of [["Länge", laengen], ["Anzahl", listen]] as const) {
+    for (const [feld, wert] of gefunden) {
+      it(`${art} ${feld} gleicht der Reader-Grenze`, () => {
+        expect(EINSATZFELD[feld], `${art} ${feld} im Stub ist kein Einsatzfeld mit Reader-Grenze — in EINSATZFELD (grenzen-abgleich.test.ts) zuordnen`).toBeDefined();
+        expect(wert).toBe(EINSATZFELD[feld]());
+      });
+    }
+  }
 });
 
 describe("Pflege-Schemas der Suite bleiben unter den Reader-Grenzen", () => {

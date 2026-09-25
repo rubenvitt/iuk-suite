@@ -173,6 +173,40 @@ describe("richteEin — Ablehnungen", () => {
   });
 });
 
+describe("richteEin — Wettlauf", () => {
+  it("zweimal parallel mit derselben Sitzung: genau ein ok, ein 409 schon_eingerichtet, genau ein neuer Rechner mit einem Paar", async () => {
+    const db = await mitEchtemPaar();
+    const vorher = zaehle(db);
+    const s = sitzungFuer(db, { art: "test", name: "Übungsrechner", ersetzen: false });
+    const ergebnisse = await Promise.all([
+      richteEin(db, s, { art: "test", name: "Übungsrechner" }, { jetzt: JETZT, env }),
+      richteEin(db, s, { art: "test", name: "Übungsrechner" }, { jetzt: JETZT, env }),
+    ]);
+    const ok = ergebnisse.filter((e) => e.ok);
+    expect(ok).toHaveLength(1);
+    expect(ergebnisse.filter((e) => !e.ok)).toEqual([expect.objectContaining({ ok: false, status: 409, code: "schon_eingerichtet" })]);
+    expect(zaehle(db)).toEqual({ rechner: vorher.rechner + 1, paare: vorher.paare + 1 });
+    const neu = ok[0].ok ? ok[0].antwort.rechnerId : "";
+    expect(db.select().from(schluesselpaar).where(eq(schluesselpaar.rechnerId, neu)).all()).toHaveLength(1);
+    expect(db.select().from(sitzung).where(eq(sitzung.tokenHash, s.tokenHash)).get()).toMatchObject({ rechnerId: neu, eingerichtet: true });
+  });
+
+  it("zwei echte Einrichtungen aus zwei Sitzungen ohne ersetzen parallel: ein ok, ein 409 echt_vorhanden, genau ein aktiver echter Rechner", async () => {
+    const db = await mitEchtemPaar();
+    const s1 = sitzungFuer(db, { art: "echt", name: "Einsatzleitung", ersetzen: false }, { sub: "sub-1" });
+    const s2 = sitzungFuer(db, { art: "echt", name: "Einsatzleitung", ersetzen: false }, { sub: "sub-2", name: "Kai Brandt" });
+    const ergebnisse = await Promise.all([
+      richteEin(db, s1, { art: "echt", name: "Einsatzleitung" }, { jetzt: JETZT, env }),
+      richteEin(db, s2, { art: "echt", name: "Einsatzleitung" }, { jetzt: JETZT, env }),
+    ]);
+    expect(ergebnisse.filter((e) => e.ok)).toHaveLength(1);
+    expect(ergebnisse.filter((e) => !e.ok)).toEqual([expect.objectContaining({ ok: false, status: 409, code: "echt_vorhanden" })]);
+    const aktiv = db.select().from(rechner).where(and(eq(rechner.art, "echt"), sql`widerrufen_am IS NULL`)).all();
+    expect(aktiv).toHaveLength(1);
+    expect(db.select().from(rechner).all()).toHaveLength(1);
+  });
+});
+
 describe("aktiverEchterRechner / widerrufe / loescheTestRechner", () => {
   it("widerrufe setzt widerrufen_am einmal; ein zweiter Widerruf und eine unbekannte ID liefern false", async () => {
     const db = await mitEchtemPaar();

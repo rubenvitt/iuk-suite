@@ -9,7 +9,7 @@ import { ENTWICKLUNGS_KEK } from "../schluessel/kek";
 import { legePaarAn } from "../schluessel/paar";
 import { testDb, type TestDb } from "../testDb";
 import { bereichsText, gibFrei, type FreigabeAnfrage } from "./freigabe";
-import { loescheTestRechner } from "./rechner";
+import { loescheTestRechner, widerrufe } from "./rechner";
 import { erzeugeSitzung, sitzungAus, type SitzungZeile } from "./sitzung";
 import { freigabeAntwort } from "./vertrag";
 
@@ -166,6 +166,28 @@ describe("gibFrei", () => {
     const { db, t1 } = await aufbau();
     const { anfrage: a } = await anfrage(t1, [1], "test");
     expect(await gibFrei(db, sitzungMit(db, null), a, { jetzt: JETZT, env })).toMatchObject({ ok: false, status: 403, code: "sitzung_ohne_rechner" });
+  });
+
+  it("Sitzungsrechner nach sitzungAus widerrufen: die ältere SitzungZeile gibt nichts mehr frei (403), keine Zeile", async () => {
+    const { db, echt, t1 } = await aufbau();
+    const test = sitzungMit(db, "r1");
+    const echte = sitzungMit(db, "re");
+    const { anfrage: at } = await anfrage(t1, [1], "test");
+    const { anfrage: ae } = await anfrage(echt, [1], "echt");
+    expect(widerrufe(db, "r1", JETZT)).toBe(true);
+    expect(widerrufe(db, "re", JETZT)).toBe(true);
+    expect(await gibFrei(db, test, at, { jetzt: JETZT, env })).toMatchObject({ ok: false, status: 403, code: "sitzung_ohne_rechner" });
+    expect(await gibFrei(db, echte, ae, { jetzt: JETZT, env })).toMatchObject({ ok: false, status: 403, code: "sitzung_ohne_rechner" });
+    expect(freigaben(db)).toEqual([]);
+  });
+
+  it("Sitzungsrechner nach sitzungAus gelöscht: die ältere SitzungZeile gibt nichts mehr frei (403)", async () => {
+    const { db, t1 } = await aufbau();
+    const s = sitzungMit(db, "r1");
+    const { anfrage: a } = await anfrage(t1, [1], "test");
+    expect(loescheTestRechner(db, "r1")).toBe("geloescht");
+    expect(await gibFrei(db, s, a, { jetzt: JETZT, env })).toMatchObject({ ok: false, status: 403, code: "sitzung_ohne_rechner" });
+    expect(freigaben(db)).toEqual([]);
   });
 
   it("ohne KEK: 503 kek_fehlt, keine Zeile", async () => {
