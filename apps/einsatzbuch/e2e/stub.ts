@@ -14,6 +14,12 @@
  * bzw. deren Inhaltsschlüssel unverändert weiter — entschlüsselt wird ausschließlich vom
  * geteilten Kern im Browser selbst (`@kern/block`), der Stub sieht nie einen Klartext.
  *
+ * Seit Stufe 6 kommen Sicherung, Wiederherstellen und Autostart dazu (`sicherungsordner_waehlen`,
+ * `wiederherstellen`, `autostart_status`, `autostart_setzen`). Die Kette, die `bloecke` liefert,
+ * ist dieselbe, die `status.kette` zählt; eine Wiederherstellung ersetzt sie durch
+ * `sicherungsdatei`. Die Sicherung selbst läuft in Rust im Abgleich-Thread; der Stub vermerkt sie
+ * gleich beim Wählen des Ordners als gelungen.
+ *
  * Die Funktion, die an `page.addInitScript` geht, läuft im Browser und hat dort keinen Zugriff
  * auf dieses Modul — jede Kleinigkeit, die sie braucht, kommt über `einstellungen` als Argument
  * oder steht in ihrem eigenen Rumpf.
@@ -22,7 +28,18 @@ import type { Page } from "@playwright/test";
 
 import type { Block } from "@kern/format";
 
-import type { Ankerstand, Ausstehend, Entwurf, Schluesselposten, Stammdaten, Stammdatenpaket, Status, Versiegelung } from "../src/typen";
+import type {
+  Ankerstand,
+  Ausstehend,
+  Entwurf,
+  Schluesselposten,
+  Sicherungsstand,
+  Stammdaten,
+  Stammdatenpaket,
+  Status,
+  Versiegelung,
+  Wiederhergestellt,
+} from "../src/typen";
 
 export interface StubOptionen {
   betrieb?: "test" | "echt" | null;
@@ -36,6 +53,12 @@ export interface StubOptionen {
   freigabeFehler?: string;
   /** Ablauf der Verwaltungssitzung ab `einrichten`/`anmelden`, in ms; groß genug für die Ruhe-Uhr (10 min). */
   sitzungAblaufMs?: number;
+  /** Der Ordner, den der „Dialog“ von `sicherungsordner_waehlen` liefert; `null` heißt abgebrochen. */
+  sicherungsordnerWahl?: string | null;
+  /** Die Blöcke der Datei, die der „Dialog“ von `wiederherstellen` liefert; ohne sie heißt es abgebrochen. */
+  sicherungsdatei?: Block[];
+  /** Der Autostart beim Start des Stubs. */
+  autostart?: boolean;
 }
 
 /**
@@ -76,6 +99,9 @@ interface Einstellungen {
   schluesselposten: Schluesselposten[];
   freigabeFehler: string | null;
   sitzungAblaufMs: number;
+  sicherungsordnerWahl: string | null;
+  sicherungsdatei: Block[] | null;
+  autostart: boolean;
 }
 
 /** Spielt das Fake-Backend ein. Muss vor `page.goto(...)` aufgerufen werden. */
@@ -92,6 +118,9 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     freigabeFehler: optionen.freigabeFehler ?? null,
     // Groß genug, dass in „Automatische Sperre“ die Ruhe-Uhr (10 min) vor dem Tokenablauf greift.
     sitzungAblaufMs: optionen.sitzungAblaufMs ?? 60 * 60_000,
+    sicherungsordnerWahl: optionen.sicherungsordnerWahl === undefined ? "/Volumes/Sicherung/Einsatzbuch" : optionen.sicherungsordnerWahl,
+    sicherungsdatei: optionen.sicherungsdatei ?? null,
+    autostart: optionen.autostart ?? true,
   };
 
   await page.addInitScript((einstellungen: Einstellungen) => {
@@ -125,6 +154,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       /** Zuletzt von `anker_abgleichen` bestätigter Block, wie Rust ihn im Status hält. */
       ankerBestaetigtBis: number;
       sitzung: { name: string; ablaufMs: number } | null;
+      sicherung: { ordner: string | null; letzte: string | null; fehler: string | null };
     }
 
     function neuerZustand(betrieb: "test" | "echt" | null, rechnerName: string | null = null): Zustand {
@@ -142,10 +172,15 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         eingerichtetVon: eingerichtet ? NUTZERNAME : null,
         ankerBestaetigtBis: 0,
         sitzung: null,
+        sicherung: { ordner: null, letzte: null, fehler: null },
       };
     }
 
+    /** Die versiegelten Blöcke der Verwaltung; `status.kette` zählt dieselben. */
+    let kette: Block[] = einstellungen.bloecke;
     let zustand = neuerZustand(einstellungen.betrieb);
+    zustand.bloecke = kette.map((b) => ({ block: b.kopf.block, hash: b.hash }));
+    let autostart = einstellungen.autostart;
 
     /**
      * Wie der Loopback-Rückruf der echten Anmeldung: löst nach 100 ms auf, per
@@ -192,7 +227,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     }
 
     function bloecke(): Block[] {
-      return einstellungen.bloecke;
+      return kette;
     }
 
     /**
@@ -203,7 +238,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     function schluesselFreigeben(bloecke: number[] | null): Schluesselposten[] {
       if (bloecke) {
         for (const n of bloecke) {
-          if (!einstellungen.bloecke.some((b) => b.kopf.block === n)) throw new Error(`Block ${n} gibt es auf diesem Rechner nicht.`);
+          if (!kette.some((b) => b.kopf.block === n)) throw new Error(`Block ${n} gibt es auf diesem Rechner nicht.`);
         }
       }
       if (einstellungen.freigabeFehler) throw new Error(einstellungen.freigabeFehler);
@@ -230,12 +265,45 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
 
     /** Wie `anker_abgleichen`: bestätigt in diesem Stub immer die ganze mitgegebene Kette. */
     function ankerAbgleichen(): Ankerstand {
-      if (einstellungen.bloecke.length === 0) {
+      if (kette.length === 0) {
         return { bestaetigtBis: 0, hash: null, gemeldetAm: null, abweichung: null, offline: false, widerrufen: false };
       }
-      const letzter = einstellungen.bloecke[einstellungen.bloecke.length - 1];
+      const letzter = kette[kette.length - 1];
       zustand.ankerBestaetigtBis = letzter.kopf.block;
       return { bestaetigtBis: letzter.kopf.block, hash: letzter.hash, gemeldetAm: new Date().toISOString(), abweichung: null, offline: false, widerrufen: false };
+    }
+
+    /** Wie `sicherungsstand` und `stufe` in Rust, ohne die 7-Tage-Regel (kein e2e-Fall wartet eine Woche). */
+    function sicherungsstand(): Sicherungsstand | null {
+      if (!zustand.eingerichtet) return null;
+      const { ordner, letzte, fehler } = zustand.sicherung;
+      if (zustand.betrieb !== "echt") return { ordner, letzte, fehler, stufe: "aus" };
+      return { ordner, letzte, fehler, stufe: ordner === null || fehler !== null ? "gelb" : "ok" };
+    }
+
+    /** Wie `sicherungsordner_waehlen`: nur im Echtbetrieb; die Sicherung gilt sofort als gelungen. */
+    function sicherungsordnerWaehlen(): string | null {
+      if (zustand.betrieb !== "echt") throw new Error("Im Testbetrieb gibt es keine Sicherung.");
+      const ordner = einstellungen.sicherungsordnerWahl;
+      if (ordner === null) return null;
+      zustand.sicherung = { ordner, letzte: new Date().toISOString(), fehler: null };
+      return ordner;
+    }
+
+    /** Wie `stelle_wieder_her`, soweit ohne Suite nachbildbar: Sitzung, Echtbetrieb, leere Kette. */
+    function wiederherstellen(): Wiederhergestellt | null {
+      if (!zustand.sitzung) throw new Error("Die Sitzung ist abgelaufen. Bitte neu anmelden.");
+      if (zustand.betrieb !== "echt") throw new Error("Wiederherstellen geht nur im Echtbetrieb.");
+      if (zustand.bloecke.length > 0 || zustand.ausstehend) {
+        throw new Error(
+          "Auf diesem Rechner gibt es schon Einsätze (Blöcke, einen ausstehenden Einsatz oder vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatzbuch.",
+        );
+      }
+      const datei = einstellungen.sicherungsdatei;
+      if (!datei) return null;
+      kette = datei;
+      zustand.bloecke = kette.map((b) => ({ block: b.kopf.block, hash: b.hash }));
+      return { bloecke: kette.length };
     }
 
     function stammdatenAbgleichen(): void {
@@ -338,7 +406,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         ankerBestaetigtBis: zustand.ankerBestaetigtBis,
         ankerAbweichung: null,
         anker: null,
-        sicherung: null,
+        sicherung: sicherungsstand(),
         widerrufen: false,
         sitzung: zustand.sitzung,
         anmeldungLaeuft: false,
@@ -496,6 +564,15 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         case "drucken":
           return undefined;
         case "reader_oeffnen":
+          return undefined;
+        case "sicherungsordner_waehlen":
+          return sicherungsordnerWaehlen();
+        case "wiederherstellen":
+          return wiederherstellen();
+        case "autostart_status":
+          return autostart;
+        case "autostart_setzen":
+          autostart = args.an as boolean;
           return undefined;
         default:
           throw new Error(`Unbekannter Befehl im Playwright-Stub: ${cmd}`);

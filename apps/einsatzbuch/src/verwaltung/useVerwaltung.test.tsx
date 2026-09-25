@@ -164,6 +164,29 @@ describe("useVerwaltung", () => {
     expect(enthaeltKlartext(h.aktuell)).toEqual([]);
   });
 
+  it("`neuLaden()` holt Blöcke und Schlüssel neu, etwa nach einer Wiederherstellung", async () => {
+    befehle.bloecke.mockResolvedValue([]);
+    befehle.schluesselFreigeben.mockResolvedValue([]);
+    const h = await renderVerwaltung();
+    expect(h.aktuell.zustand).toMatchObject({ art: "offen", offen: [], zu: [] });
+    befehle.bloecke.mockResolvedValue(BLOECKE);
+    befehle.schluesselFreigeben.mockResolvedValue(CEKS);
+    await act(async () => h.aktuell.neuLaden());
+    await warte();
+    const z = h.aktuell.zustand;
+    if (z.art !== "offen") throw new Error(`erwartet offen, war ${z.art}`);
+    expect(z.offen.map((o) => o.block.kopf.block)).toEqual([1, 2, 3]);
+    expect(befehle.bloecke).toHaveBeenCalledTimes(2);
+  });
+
+  it("`neuLaden()` ohne `aktiv` holt nichts", async () => {
+    const h = await renderVerwaltung(false);
+    await act(async () => h.aktuell.neuLaden());
+    await warte();
+    expect(h.aktuell.zustand).toEqual({ art: "laedt" });
+    expect(befehle.bloecke).not.toHaveBeenCalled();
+  });
+
   it("„Kette prüfen“ prüft lokal und gleicht gegen den Anker der Suite ab", async () => {
     const h = await renderVerwaltung();
     await act(async () => {

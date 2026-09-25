@@ -2,7 +2,8 @@
  * Verwaltung am Rechner im echten Browser gegen den Vite-Dev-Server, mit gestubbtem `invoke`
  * (`./stub.ts`). Deckt Einrichtung (Testrechner), Anmeldung, die entschlüsselte Verwaltung samt
  * Kettenprüfung, die Sperre (Knopf und Ruhe-Uhr über `page.clock`), den Freigabe-Fehler ohne
- * Verbindung, den Export und das Berichtsblatt samt Druckregeln ab. Ein Klick-Ende-zu-Ende über die echte Tauri-Hülle gibt es nicht (Spec §9.3,
+ * Verbindung, den Export, das Berichtsblatt samt Druckregeln und die Karte „Einstellungen“
+ * (Sicherungsordner, Wiederherstellen, Autostart) ab. Ein Klick-Ende-zu-Ende über die echte Tauri-Hülle gibt es nicht (Spec §9.3,
  * Plan Stufe 5, Entscheidung 16: WKWebView kennt keinen WebDriver) — dafür steht
  * `T/examples/e2e_lauf.rs` (Task 12). Diese Datei prüft nur die Oberfläche.
  *
@@ -205,4 +206,42 @@ test("Berichtsblatt: „PDF erzeugen“, im Druck nur das Blatt, „Als PDF spei
   // Ohne offene Überlagerung greifen die Druckregeln nicht mehr.
   await page.emulateMedia({ media: "print" });
   await expect(page.locator("#wurzel")).toBeVisible();
+});
+
+test("Einstellungen: „Ordner wählen“ zeigt danach die letzte Sicherung, der Autostart lässt sich schalten", async ({ page }) => {
+  await meldeAnUndOeffneVerwaltung(page);
+  const karte = page.locator("section.karte").filter({ has: page.getByRole("heading", { name: "Einstellungen" }) });
+  await expect(karte.getByText("Noch kein Sicherungsordner gewählt")).toBeVisible();
+  // Die Kette ist nicht leer: kein Wiederherstellen.
+  await expect(karte.getByRole("button", { name: "Aus Sicherung wiederherstellen" })).toHaveCount(0);
+
+  const statusVorher = (await aufrufe(page, "status")).length;
+  await karte.getByRole("button", { name: "Ordner wählen" }).click();
+  await expect(karte.getByText(/^Letzte Sicherung: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2} Uhr$/)).toBeVisible();
+  await expect(karte.getByText("/Volumes/Sicherung/Einsatzbuch")).toBeVisible();
+  expect((await aufrufe(page, "status")).length).toBeGreaterThan(statusVorher);
+
+  const schalter = karte.getByRole("switch", { name: "Beim Anmelden am Rechner starten" });
+  await expect(schalter).toBeChecked();
+  await schalter.click();
+  await expect(schalter).not.toBeChecked();
+  const [setzen] = await aufrufe(page, "autostart_setzen");
+  expect(setzen?.args).toEqual({ an: false });
+});
+
+test("Aus Sicherung wiederherstellen: nach der Bestätigung „3 Blöcke wiederhergestellt“ und die Kette in der Verwaltung", async ({ page }) => {
+  await meldeAnUndOeffneVerwaltung(page, { bloecke: [], sicherungsdatei: BLOECKE });
+  await expect(page.locator("button[data-block]")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Aus Sicherung wiederherstellen" }).click();
+  const dialog = page.getByRole("dialog", { name: "Aus Sicherung wiederherstellen?" });
+  await expect(dialog).toBeVisible();
+  expect(await aufrufe(page, "wiederherstellen")).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Datei wählen" }).click();
+
+  await expect(page.getByText("3 Blöcke wiederhergestellt")).toBeVisible();
+  await expect(page.locator("button[data-block]")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "MANV 10" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Aus Sicherung wiederherstellen" })).toHaveCount(0);
+  expect(await aufrufe(page, "wiederherstellen")).toHaveLength(1);
 });

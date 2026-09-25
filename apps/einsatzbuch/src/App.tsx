@@ -17,6 +17,13 @@
  * Die Verwaltung (`seiten/Verwaltung.tsx`) entschlüsselt nur, solange Rust eine Sitzung hält und
  * sie offen ist (`verwaltung/useVerwaltung.ts`). Die Sperre (`verwaltung/useSperre.ts`) wacht
  * app-weit über jede Sitzung, auch während der Erfassung, denn die Sitzung überdauert den Wechsel.
+ * Eine Fehlergrenze (`bausteine/Fehlergrenze.tsx`) fängt, was die Verwaltung beim Rendern wirft;
+ * Kopf und Erfassung liegen außerhalb.
+ *
+ * Jede Statusabfrage trägt eine laufende Nummer (`frageStatus`). Antworten können sich überholen,
+ * etwa „Kette prüfen“ und „Sitzung sperren“ kurz nacheinander. Übernommen wird eine Antwort nur,
+ * wenn noch keine jüngere Anfrage übernommen wurde (`uebernehmeAktuell`). Sonst brächte eine
+ * verspätete Antwort etwa eine schon verworfene Sitzung zurück.
  */
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
@@ -24,6 +31,7 @@ import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "rea
 import { useEntwurfSpeicher } from "./ablauf/entwurfSpeicher";
 import { useFristUhr, type FristStand } from "./ablauf/fristUhr";
 import { Bestaetigung } from "./bausteine/Bestaetigung";
+import { Fehlergrenze } from "./bausteine/Fehlergrenze";
 import { Hinweis } from "./bausteine/Hinweis";
 import { Karte } from "./bausteine/Karte";
 import { Knopf } from "./bausteine/Knopf";
@@ -46,6 +54,12 @@ import { useSperre } from "./verwaltung/useSperre";
 import { useVerwaltung } from "./verwaltung/useVerwaltung";
 
 const START: Lokal = { phase: "start", bearbeiten: false };
+
+/** Eine Statusantwort mit der Nummer ihrer Anfrage (`frageStatus`). */
+interface Statusantwort {
+  nr: number;
+  s: Status;
+}
 
 /** Tauri liefert Fehler als Zeichenkette (`Result<_, String>` in `befehle.rs`), alles andere wird lesbar gemacht. */
 function fehlerText(e: unknown): string {
@@ -84,6 +98,10 @@ export function App() {
   const laeuftRef = useRef(false);
   /** Der angezeigte Fehler stammt aus einer Abfrage im Hintergrund und verschwindet mit der nächsten, die gelingt. */
   const fehlerAusAbfrageRef = useRef(false);
+  /** Nummer der zuletzt gestellten Statusanfrage. */
+  const statusNrRef = useRef(0);
+  /** Nummer der Anfrage, deren Antwort zuletzt übernommen wurde. */
+  const uebernommenNrRef = useRef(0);
 
   const zeitzone = status?.zeitzone ?? paket?.zeitzone ?? null;
 
@@ -159,10 +177,25 @@ export function App() {
     setzeLokal(neu);
   }
 
+  /** Fragt den Status unter der nächsten laufenden Nummer. */
+  async function frageStatus(): Promise<Statusantwort> {
+    const nr = ++statusNrRef.current;
+    return { nr, s: await befehle.status() };
+  }
+
+  /** Übernimmt eine Antwort, wenn keine jüngere Anfrage schon übernommen wurde; sonst `false`. */
+  function uebernehmeAktuell(a: Statusantwort, ersterStart = false): boolean {
+    if (a.nr < uebernommenNrRef.current) return false;
+    uebernommenNrRef.current = a.nr;
+    uebernehme(a.s, ersterStart);
+    return true;
+  }
+
+  /** Liest den Status und liefert den, der danach gilt: bei einer überholten Antwort den jüngeren. */
   async function laden(): Promise<Status> {
-    const s = await befehle.status();
-    uebernehme(s);
-    return s;
+    const a = await frageStatus();
+    if (uebernehmeAktuell(a)) return a.s;
+    return statusRef.current ?? a.s;
   }
 
   /**
@@ -193,9 +226,12 @@ export function App() {
     }
   }
 
-  /** Erster Status nach dem Start, dann einmal die Stammdaten und der Entwurf. */
-  const gestartet = useEffectEvent(async (s: Status, istAktiv: () => boolean) => {
-    uebernehme(s, true);
+  /**
+   * Erster Status nach dem Start, dann einmal die Stammdaten und der Entwurf. Das geschieht auch,
+   * wenn eine jüngere Antwort schon übernommen wurde; es gilt dann deren Stand.
+   */
+  const gestartet = useEffectEvent(async (a: Statusantwort, istAktiv: () => boolean) => {
+    const s = uebernehmeAktuell(a, true) ? a.s : (statusRef.current ?? a.s);
     if (s.startfehler || !s.eingerichtet) return;
     const p = await befehle.stammdaten();
     if (!istAktiv()) return;
@@ -209,9 +245,10 @@ export function App() {
   useEffect(() => {
     let aktiv = true;
     const istAktiv = () => aktiv;
+    const nr = ++statusNrRef.current;
     befehle
       .status()
-      .then((s) => (aktiv ? gestartet(s, istAktiv) : undefined))
+      .then((s) => (aktiv ? gestartet({ nr, s }, istAktiv) : undefined))
       .catch((e: unknown) => {
         if (aktiv) startFehler(e);
       });
@@ -306,10 +343,11 @@ export function App() {
       if (bearbeitung) {
         // Ist die Frist nach Rusts Uhr schon um, gar nicht erst absenden: Rust lehnte ab, und
         // versiegelt wird der zuletzt abgesendete Stand.
-        const s = await befehle.status();
+        const a = await frageStatus();
+        const s = a.s;
         const vorbei = !s.ausstehend || s.versiegelung !== null || s.jetztMs >= s.ausstehend.fristBisMs;
         if (vorbei) {
-          if (!(await versiegeltNachAblehnung())) uebernehme(s);
+          if (!(await versiegeltNachAblehnung())) uebernehmeAktuell(a);
           return;
         }
       }
@@ -347,7 +385,8 @@ export function App() {
     fuehreAus(async () => {
       await speicher.stoppe();
       await befehle.versiegelungQuittieren();
-      let s = await befehle.status();
+      const a = await frageStatus();
+      let s = a.s;
       if (s.entwurf && !s.ausstehend) {
         await befehle.entwurfVerwerfen();
         s = { ...s, entwurf: null };
@@ -356,7 +395,7 @@ export function App() {
       setzeEntwurf(zone ? leererEntwurf(new Date(), zone) : null, true);
       setVerfallenLokal(false);
       setzeLokal(START);
-      uebernehme(s);
+      uebernehmeAktuell({ nr: a.nr, s });
     });
 
   const testEnde = () =>
@@ -494,6 +533,15 @@ export function App() {
     await laden().catch((e: unknown) => zeigeFehler(e, true));
   }
 
+  /**
+   * Nach „Ordner wählen“ oder „Aus Sicherung wiederherstellen“ (`verwaltung/Einstellungen.tsx`):
+   * den Status neu lesen, nach einer Wiederherstellung auch Blöcke und Schlüssel.
+   */
+  async function einstellungGeaendert(ketteNeu: boolean) {
+    if (ketteNeu) verwaltung.neuLaden();
+    await laden().catch((e: unknown) => zeigeFehler(e, true));
+  }
+
   const test = status?.betrieb === "test";
   const fristMinuten = status?.fristMinuten ?? paket?.fristMinuten ?? null;
   const restProzent = fristMinuten ? Math.min(100, (rest / (fristMinuten * 60)) * 100) : 0;
@@ -544,19 +592,25 @@ export function App() {
         break;
       case "verwaltung":
         inhalt = zeitzone ? (
-          <Verwaltung
-            zustand={verwaltung.zustand}
-            zeitzone={zeitzone}
-            bereitschaft={status.bereitschaft ?? paket?.bereitschaft ?? null}
-            sitzung={status.sitzung}
-            eingerichtetAm={status.eingerichtetAm}
-            eingerichtetVon={status.eingerichtetVon}
-            stammdatenVom={status.stammdatenVom}
-            ankerBestaetigtBis={status.ankerBestaetigtBis}
-            ankerAbweichung={status.ankerAbweichung}
-            beiKettePruefen={kettePruefen}
-            beiSperren={() => void sperren()}
-          />
+          <Fehlergrenze beiSperren={() => void sperren()}>
+            <Verwaltung
+              zustand={verwaltung.zustand}
+              zeitzone={zeitzone}
+              betrieb={status.betrieb}
+              bereitschaft={status.bereitschaft ?? paket?.bereitschaft ?? null}
+              sitzung={status.sitzung}
+              eingerichtetAm={status.eingerichtetAm}
+              eingerichtetVon={status.eingerichtetVon}
+              stammdatenVom={status.stammdatenVom}
+              ankerBestaetigtBis={status.ankerBestaetigtBis}
+              ankerAbweichung={status.ankerAbweichung}
+              sicherung={status.sicherung}
+              ketteLeer={status.kette.anzahl === 0}
+              beiKettePruefen={kettePruefen}
+              beiEinstellungGeaendert={einstellungGeaendert}
+              beiSperren={() => void sperren()}
+            />
+          </Fehlergrenze>
         ) : null;
         break;
       case "start":

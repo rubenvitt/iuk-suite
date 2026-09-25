@@ -86,10 +86,13 @@ export function useVerwaltung(aktiv: boolean): {
   zustand: Verwaltungszustand;
   kettePruefen: () => Promise<void>;
   verwerfen: () => void;
+  neuLaden: () => void;
 } {
   const [zustand, setZustand] = useState<Verwaltungszustand>(LAEDT);
   /** Generation des Ladelaufs; ein Objekt, damit der Aufräumer dasselbe Zählwerk hochzählt. */
   const laufRef = useRef({ nr: 0 });
+  /** Zählt „neu laden“; als Abhängigkeit des Ladeeffekts startet jede Erhöhung einen frischen Lauf. */
+  const [ladung, setLadung] = useState(0);
 
   const lade = useEffectEvent(async (nr: number) => {
     const gilt = () => nr === laufRef.current.nr;
@@ -122,17 +125,26 @@ export function useVerwaltung(aktiv: boolean): {
     const lauf = laufRef.current;
     void lade(++lauf.nr);
     return () => {
-      // Deaktiviert (Sperre, Abmelden, Seite verlassen): laufende Ergebnisse gelten nicht mehr,
-      // und der Klartext geht mit.
+      // Deaktiviert (Sperre, Abmelden, Seite verlassen) oder neu geladen: laufende Ergebnisse
+      // gelten nicht mehr, und der Klartext geht mit.
       lauf.nr++;
       setZustand(LAEDT);
     };
-  }, [aktiv]);
+  }, [aktiv, ladung]);
 
   /** Verwirft Klartext und laufende Ergebnisse sofort; neu geladen wird erst beim nächsten Aktivieren. */
   function verwerfen() {
     laufRef.current.nr++;
     setZustand(LAEDT);
+  }
+
+  /**
+   * Lädt Blöcke und Schlüssel neu, etwa nach einer Wiederherstellung: über `ladung` im Effekt,
+   * also nur, solange aktiv (ein gesperrter Stand bleibt zu). Der Aufräumer des vorigen Laufs
+   * erklärt dessen Ergebnisse für ungültig.
+   */
+  function neuLaden() {
+    setLadung((n) => n + 1);
   }
 
   /** „Kette prüfen“ (Spec §4.6): die gespeicherte Kette lokal und, wenn online, gegen den Anker der Suite. */
@@ -158,5 +170,5 @@ export function useVerwaltung(aktiv: boolean): {
     if (gilt()) setZustand((z) => (z.art === "offen" ? { ...z, anker: ankerAus(stand), ankerstand: stand, ankerFehler: null } : z));
   }
 
-  return { zustand, kettePruefen, verwerfen };
+  return { zustand, kettePruefen, verwerfen, neuLaden };
 }

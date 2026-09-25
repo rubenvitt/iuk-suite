@@ -6,7 +6,10 @@
  * Kerns (`@kern/ansichten`), wie im Reader der Suite. „Herunterladen“ öffnet den Export-Dialog
  * (`verwaltung/ExportDialog.tsx`), „PDF erzeugen“ das Berichtsblatt
  * (`verwaltung/BerichtUeberlagerung.tsx`). Beide hängen an dieser Seite: Sperrt die Sitzung,
- * verschwindet die Seite und nimmt sie mit.
+ * verschwindet die Seite und nimmt sie mit. Unter dem Stand von Stammdaten und Anker steht die
+ * Karte „Einstellungen“ (`verwaltung/Einstellungen.tsx`) mit Sicherung, Wiederherstellen und
+ * Autostart. Sie hängt an keinem Ladezustand, damit ein Neuladen nach dem Wiederherstellen ihre
+ * Meldung nicht mitnimmt.
  *
  * Die Seite hält nur die gewählte Blocknummer selbst; Klartext kommt ausschließlich aus
  * `zustand` (`verwaltung/useVerwaltung.ts`) und ist nach dem Sperren weg.
@@ -32,14 +35,16 @@ import { befehle } from "../befehle";
 import type { Exportumfang } from "../logik/export";
 import { ankerAbweichungText, stammdatenVomText } from "../logik/verbindung";
 import { BerichtUeberlagerung } from "../verwaltung/BerichtUeberlagerung";
+import { Einstellungen } from "../verwaltung/Einstellungen";
 import { ExportDialog } from "../verwaltung/ExportDialog";
 import { anfangText, kennzahlen, listeneintraege, sitzungText, stichwortVerteilung } from "../verwaltung/modell";
 import type { Verwaltungszustand } from "../verwaltung/useVerwaltung";
-import type { Ankerabweichung, SitzungInfo } from "../typen";
+import type { Ankerabweichung, Sicherungsstand, SitzungInfo, Status } from "../typen";
 
 interface VerwaltungProps {
   zustand: Verwaltungszustand;
   zeitzone: string;
+  betrieb: Status["betrieb"];
   bereitschaft: string | null;
   sitzung: SitzungInfo | null;
   eingerichtetAm: string | null;
@@ -48,7 +53,12 @@ interface VerwaltungProps {
   /** Aus dem Status — bis „Kette prüfen“ einen frischeren Stand liefert. */
   ankerBestaetigtBis: number;
   ankerAbweichung: Ankerabweichung | null;
+  sicherung: Sicherungsstand | null;
+  /** `status.kette.anzahl === 0` — Bedingung für „Aus Sicherung wiederherstellen“. */
+  ketteLeer: boolean;
   beiKettePruefen: () => Promise<void>;
+  /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
+  beiEinstellungGeaendert: (ketteNeu: boolean) => Promise<void>;
   beiSperren: () => void;
 }
 
@@ -161,6 +171,15 @@ export function Verwaltung(p: VerwaltungProps) {
         {offen?.ankerFehler ? <Hinweis ton="warn">{offen.ankerFehler}</Hinweis> : null}
         {abweichung ? <Hinweis ton="warn">{ankerAbweichungText(abweichung)}</Hinweis> : null}
       </div>
+
+      <Einstellungen
+        betrieb={p.betrieb}
+        sicherung={p.sicherung}
+        ketteLeer={p.ketteLeer}
+        mitSitzung={p.sitzung !== null}
+        zeitzone={zeitzone}
+        beiGeaendert={p.beiEinstellungGeaendert}
+      />
 
       {z.art === "laedt" ? (
         <div className="leer" role="status">

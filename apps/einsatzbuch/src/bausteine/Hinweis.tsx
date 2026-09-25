@@ -3,7 +3,8 @@
  * auf Ampelfläche. `warn` statt eines roten Alerts, weil Suite-Rot die Primäraktion ist
  * (`docs/design/README.md`, „Rot: Chrome ja, Datenfläche nein“).
  *
- * Die Rolle folgt der Vorlage (`warn` → `alert`, `info` → `status`). `rolle="note"` ist für einen
+ * Die Rolle folgt der Vorlage (`warn` → `alert`, `info` → `status`). `ok` (grün, etwa „Letzte
+ * Sicherung: …“) ist eine eigene Ergänzung und meldet sich wie `info`. `rolle="note"` ist für einen
  * Hinweis mit laufendem Inhalt, etwa einer Restzeit: In einer Live-Region würde jeder Takt neu
  * vorgelesen.
  */
@@ -14,7 +15,7 @@ export function Hinweis({
   rolle,
   children,
 }: {
-  ton?: "info" | "warn";
+  ton?: "info" | "warn" | "ok";
   rolle?: "alert" | "status" | "note";
   children: ReactNode;
 }) {

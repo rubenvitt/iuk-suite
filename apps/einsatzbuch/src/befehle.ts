@@ -48,6 +48,10 @@ export const befehle = {
   schluesselFreigeben: (bloecke?: number[]) => invoke<Schluesselposten[]>("schluessel_freigeben", { bloecke: bloecke ?? null }),
   ankerAbgleichen: () => invoke<Ankerstand>("anker_abgleichen"),
   stammdatenAbgleichen: () => invoke<void>("stammdaten_abgleichen"),
+  /** Ob die App beim Anmelden am Betriebssystem startet (`autostart_status`); synchron in Rust. */
+  autostartStatus: () => invoke<boolean>("autostart_status"),
+  /** Schaltet den Autostart (`autostart_setzen`); die Verwaltung bietet das nur im Echtbetrieb an. */
+  autostartSetzen: (an: boolean) => invoke<void>("autostart_setzen", { an }),
   /** Öffnet den Ordnerdialog des Systems; `null` heißt abgebrochen, sonst der gewählte Pfad. Nur im Echtbetrieb. */
   sicherungsordnerWaehlen: () => invoke<string | null>("sicherungsordner_waehlen"),
   /** Öffnet den Dateidialog (`.json`) und stellt die Sicherung wieder her; `null` heißt abgebrochen. */

@@ -1,8 +1,14 @@
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { versiegele } from "@kern/block";
+import { zuBase64 } from "@kern/bytes";
+import type { Block } from "@kern/format";
+import { beispielEinsatz, GENESIS, kopf as blockkopf } from "@kern/testhilfe";
+import { erzeugeSchluesselpaar, schluesselIdVon } from "@kern/umschlag";
+
 import { clickElement, fill, mount, queryAll, unmount } from "../../../src/app/m/qr/_lib/test-dom";
-import type { Ausstehend, Entwurf, Stammdatenpaket, Status, Versiegelung } from "./typen";
+import type { Ausstehend, Entwurf, Schluesselposten, Stammdatenpaket, Status, Versiegelung } from "./typen";
 import { BLOECKE, CEKS } from "./verwaltung/testvektoren";
 
 const befehle = vi.hoisted(() => ({
@@ -28,6 +34,10 @@ const befehle = vi.hoisted(() => ({
   exportSpeichern: vi.fn(),
   drucken: vi.fn(),
   readerOeffnen: vi.fn(),
+  sicherungsordnerWaehlen: vi.fn(),
+  wiederherstellen: vi.fn(),
+  autostartStatus: vi.fn(),
+  autostartSetzen: vi.fn(),
 }));
 vi.mock("./befehle", () => ({ befehle }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -165,6 +175,8 @@ beforeEach(() => {
   befehle.abmelden.mockResolvedValue(undefined);
   befehle.bloecke.mockResolvedValue(BLOECKE);
   befehle.schluesselFreigeben.mockResolvedValue(CEKS);
+  befehle.autostartStatus.mockResolvedValue(true);
+  befehle.autostartSetzen.mockResolvedValue(undefined);
   befehle.ankerAbgleichen.mockResolvedValue({
     bestaetigtBis: 3, hash: BLOECKE[2].hash, gemeldetAm: "2026-09-25T10:00:00+02:00", abweichung: null, offline: false, widerrufen: false,
   });
@@ -539,6 +551,145 @@ describe("Export und Berichtsblatt in der Verwaltung", () => {
     await warte();
     expect(document.body.querySelector(".bericht-ueberlagerung")).toBeNull();
     expect(text()).not.toContain("MANV 10");
+  });
+});
+
+/** Ein Versprechen, das der Test selbst einlöst — für Antworten in vertauschter Reihenfolge. */
+function offenesVersprechen<T>(): { promise: Promise<T>; loese: (wert: T) => void } {
+  let loese: (wert: T) => void = () => {};
+  const promise = new Promise<T>((l) => (loese = l));
+  return { promise, loese };
+}
+
+describe("Statusreihenfolge", () => {
+  it("übernimmt von zwei vertauscht ankommenden Antworten nur die jüngere", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    const alt = offenesVersprechen<Status>();
+    const neu = offenesVersprechen<Status>();
+    befehle.status.mockReset();
+    befehle.status.mockReturnValueOnce(alt.promise).mockReturnValueOnce(neu.promise);
+    // Erste Anfrage: „Kette prüfen“ liest den Status danach neu. Die Antwort hängt.
+    await clickElement(knopf("Kette prüfen")!);
+    for (let i = 0; i < 20 && befehle.status.mock.calls.length < 1; i++) await warte();
+    expect(befehle.status).toHaveBeenCalledTimes(1);
+    // Zweite, jüngere Anfrage: „Sitzung sperren“ meldet ab und liest neu.
+    await clickElement(knopf("Sitzung sperren")!);
+    await warte();
+    expect(befehle.status).toHaveBeenCalledTimes(2);
+    // Die jüngere kommt zuerst an, die ältere (noch mit Sitzung) danach.
+    await act(async () => neu.loese(status({ bereitschaft: "DRK-Bereitschaft Neu" })));
+    await warte();
+    await act(async () => alt.loese(status({ bereitschaft: "DRK-Bereitschaft Alt", sitzung: SITZUNG })));
+    await warte();
+    expect(text()).toContain("DRK-Bereitschaft Neu");
+    expect(text()).not.toContain("DRK-Bereitschaft Alt");
+    // Die veraltete Antwort bringt die verworfene Sitzung nicht zurück.
+    expect(text()).not.toContain("Ruben Vitt");
+    expect(knopf("Verwaltung · Anmelden")).toBeDefined();
+  });
+});
+
+describe("Neustart", () => {
+  it("zeigt den Verfall aus dem ersten Status nach dem Start („Deine letzten Änderungen wurden nicht übernommen …“)", async () => {
+    await starte(status({ versiegelung: versiegelung({ verfallen: true }), ausstehend: null, entwurf: null }));
+    expect(queryAll("h1").map((h) => h.textContent)).toContain("Einsatz versiegelt");
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual([VERFALLEN]);
+  });
+});
+
+/**
+ * Ein Block mit einem Datum, das es nicht gibt (31. Februar): Er besteht die Formprüfung von
+ * `oeffneBlock` (Zeichenkette), scheitert aber an den Formatierern der Verwaltung.
+ */
+async function blockMitUngueltigemDatum(): Promise<{ block: Block; posten: Schluesselposten }> {
+  const suite = await erzeugeSchluesselpaar();
+  const cek = new Uint8Array(32).fill(7);
+  const einsatz = { ...beispielEinsatz("2026-044"), beginnDatum: "2026-02-31" };
+  const block = await versiegele(einsatz, blockkopf(1, GENESIS, await schluesselIdVon(suite.publicKey)), suite.publicKey, {
+    cek,
+    iv: new Uint8Array(12).fill(1),
+    umschlag: { ephemer: await erzeugeSchluesselpaar(), iv: new Uint8Array(12).fill(2) },
+  });
+  return { block, posten: { block: 1, cek: zuBase64(cek) } };
+}
+
+describe("Fehlergrenze um die Verwaltung", () => {
+  it("ein ungültiges Datum im Klartext: Hinweis mit „Sitzung sperren“ statt weißer Seite, Kopf und Erfassung bleiben bedienbar", async () => {
+    const konsole = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { block, posten } = await blockMitUngueltigemDatum();
+      befehle.bloecke.mockResolvedValue([block]);
+      befehle.schluesselFreigeben.mockResolvedValue([posten]);
+      await meldeAnUndOeffneVerwaltung(status({ kette: { anzahl: 1, letzter: { block: 1, hash: block.hash } } }));
+      expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain(
+        "Diese Ansicht ließ sich nicht anzeigen. Sperr die Sitzung und melde dich neu an.",
+      );
+      expect(text()).not.toContain("2026-02-31");
+      // Der Kopf liegt außerhalb der Grenze und bleibt bedienbar.
+      const thema = queryAll<HTMLButtonElement>("button.rundknopf")[0];
+      const vorher = thema.getAttribute("aria-label");
+      await clickElement(thema);
+      expect(queryAll<HTMLButtonElement>("button.rundknopf")[0].getAttribute("aria-label")).not.toBe(vorher);
+      // „Sitzung sperren“ führt zur Startseite, die Erfassung geht.
+      befehle.status.mockResolvedValue(status());
+      await clickElement(knopf("Sitzung sperren")!);
+      await warte();
+      expect(befehle.abmelden).toHaveBeenCalledTimes(1);
+      expect(text()).toContain(GESPERRT);
+      await clickElement(knopf("Einsatz öffnen")!);
+      expect(knopf("Einsatz absenden")).toBeDefined();
+    } finally {
+      konsole.mockRestore();
+    }
+  });
+});
+
+describe("Einstellungen in der Verwaltung", () => {
+  const OHNE_ORDNER = { ordner: null, letzte: null, fehler: null, stufe: "gelb" as const };
+  const MIT_ORDNER = { ordner: "/Volumes/Sicherung", letzte: "2026-09-25T10:05:00+02:00", fehler: null, stufe: "ok" as const };
+
+  it("„Ordner wählen“: danach liest die App den Status neu und zeigt den neuen Stand", async () => {
+    await meldeAnUndOeffneVerwaltung(status({ sicherung: OHNE_ORDNER }));
+    expect(text()).toContain("Noch kein Sicherungsordner gewählt");
+    befehle.sicherungsordnerWaehlen.mockResolvedValue("/Volumes/Sicherung");
+    befehle.status.mockResolvedValue(status({ sicherung: MIT_ORDNER, sitzung: SITZUNG }));
+    const vorher = befehle.status.mock.calls.length;
+    await clickElement(knopf("Ordner wählen")!);
+    await warte();
+    expect(befehle.status.mock.calls.length).toBe(vorher + 1);
+    expect(befehle.status.mock.invocationCallOrder.at(-1)).toBeGreaterThan(befehle.sicherungsordnerWaehlen.mock.invocationCallOrder[0]);
+    expect(text()).toContain("Letzte Sicherung: 25.09.2026, 10:05 Uhr");
+    // Die Verwaltung bleibt dabei offen und wird nicht neu geladen.
+    expect(befehle.bloecke).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("MANV 10");
+  });
+
+  it("„Aus Sicherung wiederherstellen“ bei leerer Kette: danach Status und Kette neu, die Meldung bleibt", async () => {
+    befehle.bloecke.mockResolvedValue([]);
+    befehle.schluesselFreigeben.mockResolvedValue([]);
+    await meldeAnUndOeffneVerwaltung(status({ kette: { anzahl: 0, letzter: null }, sicherung: MIT_ORDNER }));
+    befehle.wiederherstellen.mockResolvedValue({ bloecke: 3 });
+    befehle.bloecke.mockResolvedValue(BLOECKE);
+    befehle.schluesselFreigeben.mockResolvedValue(CEKS);
+    befehle.status.mockResolvedValue(status({ sicherung: MIT_ORDNER, sitzung: SITZUNG }));
+    await clickElement(knopf("Aus Sicherung wiederherstellen")!);
+    await clickElement(knopf("Datei wählen")!);
+    await warte();
+    await warte();
+    expect(befehle.wiederherstellen).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("3 Blöcke wiederhergestellt");
+    expect(knopf("Aus Sicherung wiederherstellen")).toBeUndefined();
+    expect(befehle.bloecke).toHaveBeenCalledTimes(2);
+    expect(queryAll<HTMLButtonElement>("button[data-block]").map((z) => z.dataset.block)).toEqual(["3", "2", "1"]);
+  });
+
+  it("Autostart-Schalter nur im Echtbetrieb", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    expect(queryAll('input[role="switch"]')).toHaveLength(1);
+    await unmount();
+    await meldeAnUndOeffneVerwaltung(status({ betrieb: "test", sicherung: { ordner: null, letzte: null, fehler: null, stufe: "aus" } }));
+    expect(queryAll('input[role="switch"]')).toHaveLength(0);
+    expect(text()).toContain("Im Testbetrieb ist die automatische Sicherung aus.");
   });
 });
 

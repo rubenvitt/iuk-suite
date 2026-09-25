@@ -264,6 +264,7 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 }
 .hinweis-warn { color: var(--iuk-ampel-rot-text); background: var(--iuk-ampel-rot-flaeche); }
 .hinweis-info { color: var(--iuk-ampel-gelb-text); background: var(--iuk-ampel-gelb-flaeche); }
+.hinweis-ok { color: var(--iuk-ampel-ok-text); background: var(--iuk-ampel-ok-flaeche); }
 
 .modal-grund {
   position: fixed;
@@ -714,6 +715,19 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 .verteilung-anz { text-align: right; font: 700 18px/1 var(--font-display); font-variant-numeric: tabular-nums; }
 .gesperrt-karte { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
 .gesperrt-karte .hinweis { flex: 1 1 280px; }
+
+/*
+ * Karte „Einstellungen“ (`verwaltung/Einstellungen.tsx`). Die Vorlage hat keine; Zeilen wie die
+ * Leitsätze der Verwaltung (Zeichen links, Titel, Text), der Schalter ist eine native Checkbox
+ * mit `role="switch"` in der Markenfarbe.
+ */
+.einstellung { display: flex; gap: 12px; align-items: flex-start; }
+.einstellung-inhalt { flex: 1; min-width: 0; }
+.einstellung-pfad { font-family: var(--font-mono); word-break: break-all; }
+.hinweis-zusatz { font-size: 13px; margin-top: 4px; text-wrap: pretty; }
+.schalter { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; font-size: 15px; color: var(--verw-text); cursor: pointer; }
+.schalter input { width: 20px; height: 20px; margin: 0; accent-color: var(--brand-fill); cursor: pointer; }
+.schalter input:disabled { cursor: not-allowed; }
 
 /* Fehler am Eingabefeld (`fehler` am `TextField` der Vorlage) */
 .feld-rahmen-fehler { border-color: var(--iuk-ampel-rot-text); }
