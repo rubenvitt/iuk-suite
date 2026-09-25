@@ -31,7 +31,7 @@
  *
  * ── WELCHES PRAEFIX EINEN EIGENEN VORGANGSTEXT BEKOMMT ────────────────────
  *
- * Acht Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
+ * Neun Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
  * Praefix?", sondern: *steht auf dem Schirm schon, was passiert ist?*
  *
  * | Praefix            | Typ                | eigener Text? | warum |
@@ -44,6 +44,7 @@
  * | `entnahmebox:`     | umlagerung         | nein          | DRK-314, das Ablegen in der Kiste in der Halle. Dieselbe Antwort und derselbe Grund wie die zwei Zeilen darueber: „Umlagerung" ist bereits wahr und vollstaendig, und WOHIN steht in der Spalte „Ort" — dort liest sich die Zeile mit dem Plus als „Entnahmebox". Der Kommentar ist zusaetzlich im Quelltext festgenagelt (`ENTNAHMEBOX_KOMMENTAR`, `konstanten.ts`) und steht damit wie bei `check:` bereits in der Spalte daneben. |
  * | `einraeumen:`      | umlagerung         | nein          | DRK-381, der Weg ZURUECK: aus der Kiste in einen Schrank des Handlagers. Dieselbe Antwort und derselbe Grund wie die vier Zeilen darueber — „Umlagerung" ist bereits wahr und vollstaendig, und wohin steht in der Spalte „Ort". Auch hier ist der Kommentar festgenagelt (`ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR`, `konstanten.ts`). |
  * | `ruecklauf:`       | umlagerung         | nein          | DRK-366, vom Fahrzeug oder aus der Tasche direkt in einen Schrank des Handlagers. Dieselbe Antwort wie bei `entnahme-ziel:`, nur in der Gegenrichtung: „Umlagerung" ist wahr, die beiden Orte stehen in der Spalte „Ort", und der Kommentar ist festgenagelt (`RUECKLAUF_KOMMENTAR`, `konstanten.ts`). Dass die Handlager-Summe dabei steigt, unterscheidet ihn vom Umraeumen, aber nicht von `entnahme-ziel:` — und das traegt auch kein eigenes Etikett. |
+ * | `aufladen:`        | umlagerung         | nein          | DRK-485, von einem beliebigen Ort (Schrank, andere Einheit, Entnahmebox) auf eine Einheit, ausgeloest auf ihrem Blatt. Dieselbe Antwort wie bei `entnahme-ziel:`: „Umlagerung" ist wahr, die beiden Orte stehen in der Spalte „Ort", und der Kommentar ist festgenagelt (`AUFLADEN_KOMMENTAR`, `konstanten.ts`). Das Praefix nennt das ZIEL — die Einheit, deren Blatt den Vorgang ausloest. |
  *
  * ⚠️ `entnahmebox:` NENNT ALS ERSTES DIESER PRAEFIXE DIE QUELLE, NICHT DAS ZIEL,
  * und das ist kein Versehen: das Ziel ist hier eine KONSTANTE (es gibt genau
@@ -150,6 +151,23 @@ export const EINRAEUMEN_PRAEFIX = "einraeumen:";
  * darueber: die Buchung IST eine Umlagerung (Tabelle oben).
  */
 export const RUECKLAUF_PRAEFIX = "ruecklauf:";
+
+/**
+ * DRK-485 — der Weg auf eine Einheit, von einem beliebigen anderen Ort aus.
+ *
+ * ⚠️ ES NENNT DAS ZIEL, NICHT DIE QUELLE — umgekehrt zu `ruecklauf:` und aus
+ * demselben Grund: der Vorgang gehoert zu der Einheit, auf deren Blatt er
+ * ausgeloest wird, und die Quelle steht in der Ortsspalte der Minus-Zeile.
+ * BEIDE Legs teilen den Wert.
+ *
+ * ⚠️ NICHT `entnahme-ziel:`, obwohl das ebenfalls das Fahrzeug nennt: dort ist
+ * die Quelle IMMER das Handlager, hier kann sie eine andere Einheit oder die
+ * Entnahmebox sein. Wer spaeter „was kam per Entnahme aufs Fahrzeug?" fragt,
+ * bekaeme sonst Material aus dem Nachbarfahrzeug mitgezaehlt.
+ *
+ * ⚠️ NICHT IN `VORGANG_ARTEN` (Tabelle oben): die Buchung IST eine Umlagerung.
+ */
+export const AUFLADEN_PRAEFIX = "aufladen:";
 
 /**
  * Die Reihenfolge ist die Reihenfolge im Auswahlfeld: erst die vier

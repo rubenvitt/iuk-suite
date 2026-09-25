@@ -152,6 +152,14 @@ export const ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR = "Aus der Entnahmebox eingeräumt
  */
 export const RUECKLAUF_KOMMENTAR = "Zurück ins Handlager gebucht";
 
+/**
+ * DER KOMMENTAR DES AUFLADENS — DRK-485, von einem beliebigen Ort auf eine
+ * Einheit. Festgenagelt und neutral aus denselben Gruenden wie der Ruecklauf
+ * darueber; „aufgeladen" und nicht „aufgefuellt", weil Auffuellen im Modul ein
+ * WARENEINGANG ist und dies eine Umlagerung.
+ */
+export const AUFLADEN_KOMMENTAR = "Aufgeladen";
+
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";

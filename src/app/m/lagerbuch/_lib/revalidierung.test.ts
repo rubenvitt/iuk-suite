@@ -212,6 +212,7 @@ describe("_actions/ — jeder Bestandsschreiber benutzt die eine Liste", () => {
 
   it("findet ueberhaupt Schreiber (sonst prueft der Scan nichts)", () => {
     expect(schreiber.map((d) => d.name).sort()).toEqual([
+      "aufladen.ts",
       "aussondern.ts",
       "aussondernLagerort.ts",
       "buchung.ts",
