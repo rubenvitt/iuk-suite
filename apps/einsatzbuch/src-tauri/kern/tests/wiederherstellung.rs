@@ -444,3 +444,38 @@ fn nach_der_uebernahme_setzt_das_versiegeln_nummer_und_kette_fort() {
     assert_eq!(kette::pruefe(&alle), Ok(()));
     assert_eq!(buch.unbestaetigte_anker().unwrap().len(), 4);
 }
+
+/// `uebernehme_sicherung` verlässt sich nicht auf die Aufruferin: In der Transaktion prüft es die
+/// Blöcke selbst wie `wiederherstellung::pruefe_bloecke` (Kette ab Block 1, gepinnter Schlüssel der
+/// Einrichtung, nur `echt`). Eine leere, gebrochene, fremde oder Test-Kette schreibt keine Zeile.
+#[test]
+fn uebernehmen_prueft_die_bloecke_selbst_und_schreibt_bei_fehlern_nichts() {
+    let echt = kette_aus(Betrieb::Echt, 3);
+    let mut gebrochen = echt.clone();
+    gebrochen.remove(1);
+    let mut veraendert = echt.clone();
+    veraendert[2].kopf.versiegelt = "2099-01-01T00:00:00+01:00".into();
+    let faelle: Vec<(&str, Vec<Block>, Wiederherstellungsfehler)> = vec![
+        ("leer", Vec::new(), Wiederherstellungsfehler::Leer),
+        ("Lücke", gebrochen, Wiederherstellungsfehler::KetteGebrochen { block: 3, grund: Kettengrund::Vorgaenger }),
+        ("Fingerabdruck", veraendert, Wiederherstellungsfehler::KetteGebrochen { block: 3, grund: Kettengrund::Hash }),
+        ("Testbetrieb", kette_aus(Betrieb::Test, 2), Wiederherstellungsfehler::Testbetrieb { block: 1 }),
+    ];
+    for (fall, bloecke, erwartet) in faelle {
+        let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
+        let fehler = buch.uebernehme_sicherung(&bloecke, &BTreeMap::from([(2026, 3)])).unwrap_err();
+        assert!(matches!(&fehler, BuchFehler::Sicherung(f) if *f == erwartet), "{fall}: {fehler:?}");
+        assert!(buch.bloecke().unwrap().is_empty(), "{fall}");
+        assert!(nummern_im_buch(&buch).is_empty(), "{fall}");
+    }
+
+    // Anderer gepinnter Schlüssel in der Einrichtung: dieselbe, sonst gültige Kette gilt nicht.
+    let (_ordner, mut buch) = eingerichtetes_buch(Betrieb::Echt);
+    buch.verbindung().execute("UPDATE einrichtung SET schluessel_id = 'ffffffffffffffff' WHERE id = 1", []).unwrap();
+    let fehler = buch.uebernehme_sicherung(&echt, &BTreeMap::from([(2026, 3)])).unwrap_err();
+    let erwartet =
+        Wiederherstellungsfehler::AndererSchluessel { block: 1, gefunden: gepinnt(), gepinnt: "ffffffffffffffff".into() };
+    assert!(matches!(&fehler, BuchFehler::Sicherung(f) if *f == erwartet), "{fehler:?}");
+    assert!(buch.bloecke().unwrap().is_empty());
+    assert!(nummern_im_buch(&buch).is_empty());
+}

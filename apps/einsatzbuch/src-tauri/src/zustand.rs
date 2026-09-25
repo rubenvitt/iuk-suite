@@ -2,12 +2,14 @@
 //! die Anbindung an die Suite (Sitzung, laufende Anmeldung, Transport, Tresor, Signal an den
 //! Abgleich-Thread). Befehle, Frist-Uhr und Abgleich-Thread teilen sich **eine**
 //! Datenbankverbindung hinter einem Mutex. Die noch nicht quittierte Versiegelung steht seit
-//! Schema v3 im Buch selbst (`Buch::unquittiert`), nicht hier.
+//! Schema v3 im Buch selbst (`Buch::unquittiert`), nicht hier. Die Sicherung schreibt nur der
+//! Abgleich-Thread (`abgleich.rs`, `sicherung.rs`); Befehle stoßen ihn dafür an.
 //!
 //! Sperrreihenfolge: immer zuerst `buch`, dann höchstens ein Blatt, nie umgekehrt.
 //! `startfehler`, `sitzung`, `anmeldung` und `abgleich` sind Blätter: Wer einen von ihnen
-//! hält, nimmt keinen weiteren Mutex. Kein Lock wird über eine Anfrage an die Suite oder das
-//! Warten auf den Anmelderückruf gehalten. Den Versiegelungshinweis schreibt der Kern in
+//! hält, nimmt keinen weiteren Mutex. Kein Lock wird über eine Anfrage an die Suite, das
+//! Warten auf den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei
+//! außerhalb des App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
 //! derselben Transaktion wie den Block, und `lies_status` liest ihn unter dem Buch-Lock. So
 //! sieht die Oberfläche nie einen halben Stand, etwa einen schon versiegelten Block ohne die
 //! zugehörige Versiegelung. Ein vergifteter Mutex (Panik in einem
@@ -27,6 +29,7 @@ use einsatzbuch_kern::suite::Transport;
 use einsatzbuch_kern::tresor::Tresor;
 use einsatzbuch_kern::uhr::Uhr;
 
+use crate::abgleich::Anstoss;
 use crate::befehle::Sitzung;
 
 pub struct Zustand {
@@ -50,8 +53,9 @@ pub struct Zustand {
     pub transport: Box<dyn Transport>,
     /// Geräte-Token: Schlüsselbund des Betriebssystems im Betrieb, `Speichertresor` in Tests.
     pub tresor: Box<dyn Tresor>,
-    /// Signal an den Abgleich-Thread (`abgleich.rs`): „es gibt einen neuen Block“.
-    pub abgleich: Mutex<Option<Sender<()>>>,
+    /// Signal an den Abgleich-Thread (`abgleich.rs`): „es gibt einen neuen Block“ (sichern und
+    /// Anker melden) oder „der Sicherungsordner ist neu“ (nur sichern).
+    pub abgleich: Mutex<Option<Sender<Anstoss>>>,
     /// Suite-Adresse eines echten Rechners (`anmeldung::SUITE_VORGABE`); ein echter Rechner
     /// verbindet sich mit keiner anderen.
     pub suite_vorgabe: String,
@@ -134,15 +138,16 @@ impl Zustand {
         self.anmeldung.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub fn abgleich(&self) -> MutexGuard<'_, Option<Sender<()>>> {
+    pub fn abgleich(&self) -> MutexGuard<'_, Option<Sender<Anstoss>>> {
         self.abgleich.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Weckt den Abgleich-Thread für einen Ankerabgleich. Jede Versiegelung ruft das; ohne
+    /// Weckt den Abgleich-Thread. `NeuerBlock` rufen Versiegeln, Frist-Uhr, Einrichten, Neu
+    /// einrichten und Wiederherstellen, `Sicherung` die Wahl des Sicherungsordners. Ohne
     /// laufenden Thread (Tests, oder der Thread ist beendet) geschieht nichts.
-    pub fn stosse_abgleich_an(&self) {
+    pub fn stosse_an(&self, anstoss: Anstoss) {
         if let Some(signal) = self.abgleich().as_ref() {
-            let _ = signal.send(());
+            let _ = signal.send(anstoss);
         }
     }
 
@@ -165,7 +170,7 @@ impl Zustand {
         let ergebnis = offen.pruefe_frist(self.uhr.jetzt(), &mut SystemZufall).map_err(crate::befehle::fehler_text)?;
         drop(buch);
         if ergebnis.is_some() {
-            self.stosse_abgleich_an();
+            self.stosse_an(Anstoss::NeuerBlock);
         }
         Ok(ergebnis)
     }

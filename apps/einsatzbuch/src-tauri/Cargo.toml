@@ -53,3 +53,11 @@ keyring = { version = "3", features = ["windows-native"] }
 
 [dev-dependencies]
 tempfile = "3"
+# Nur für die Fake-Suite der Wiederherstellungstests (`sicherung.rs`): Sie packt die Umschläge mit
+# dem privaten Vektor-Schlüssel aus, wie die echte Suite bei der Freigabe. Dieselben Versionen
+# wie im Kern, also keine neuen Pakete im Lockfile (und weiter kein `ring`).
+p256 = { version = "0.14", features = ["ecdh"] }
+hkdf = "0.13"
+sha2 = "0.11"
+aes-gcm = "0.11"
+base64 = "0.23"

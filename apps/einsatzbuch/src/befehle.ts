@@ -8,7 +8,17 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { Block } from "@kern/format";
 
-import type { Ankerstand, Ausstehend, Entwurf, Schluesselposten, SitzungInfo, Stammdatenpaket, Status, Versiegelung } from "./typen";
+import type {
+  Ankerstand,
+  Ausstehend,
+  Entwurf,
+  Schluesselposten,
+  SitzungInfo,
+  Stammdatenpaket,
+  Status,
+  Versiegelung,
+  Wiederhergestellt,
+} from "./typen";
 
 export const befehle = {
   status: () => invoke<Status>("status"),
@@ -36,4 +46,8 @@ export const befehle = {
   schluesselFreigeben: () => invoke<Schluesselposten[]>("schluessel_freigeben"),
   ankerAbgleichen: () => invoke<Ankerstand>("anker_abgleichen"),
   stammdatenAbgleichen: () => invoke<void>("stammdaten_abgleichen"),
+  /** Öffnet den Ordnerdialog des Systems; `null` heißt abgebrochen, sonst der gewählte Pfad. Nur im Echtbetrieb. */
+  sicherungsordnerWaehlen: () => invoke<string | null>("sicherungsordner_waehlen"),
+  /** Öffnet den Dateidialog (`.json`) und stellt die Sicherung wieder her; `null` heißt abgebrochen. */
+  wiederherstellen: () => invoke<Wiederhergestellt | null>("wiederherstellen"),
 };

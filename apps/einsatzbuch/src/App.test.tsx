@@ -62,6 +62,7 @@ function status(teil: Partial<Status> = {}): Status {
     ankerBestaetigtBis: 3,
     ankerAbweichung: null,
     anker: null,
+    sicherung: null,
     widerrufen: false,
     sitzung: null,
     anmeldungLaeuft: false,

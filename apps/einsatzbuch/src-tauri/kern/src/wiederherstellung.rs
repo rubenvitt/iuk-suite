@@ -10,7 +10,7 @@
 //! abgelehnt.
 use std::collections::BTreeMap;
 
-use crate::format::{Einsatz, Umgebung};
+use crate::format::{Block, Einsatz, Umgebung};
 use crate::kette::{self, Kettengrund};
 use crate::sicherung::Sicherungsdatei;
 
@@ -41,30 +41,16 @@ pub enum Wiederherstellungsfehler {
 
 /// Prüft eine gelesene Sicherungsdatei, bevor irgendein Block freigegeben oder übernommen wird.
 /// Format und Version prüft schon `sicherung::lies`. In dieser Reihenfolge:
-/// 1. Die Datei enthält mindestens einen Block (`Leer`).
-/// 2. Die Kette ist ab Block 1 vollständig und unverändert (`kette::pruefe`, `KetteGebrochen`).
-/// 3. Jeder Kopf trägt die gepinnte `schluesselId` (`AndererSchluessel`) und `umgebung: "echt"`
-///    (`Testbetrieb`), gemeldet wird der erste abweichende Block.
-/// 4. Der Anker der Suite (`suite::hole_kettenanker`) liegt vor (`KeinAnker`), zeigt auf Block 1
+/// 1. Die Blöcke selbst (`pruefe_bloecke`): nicht leer, Kette ab Block 1, gepinnter Schlüssel,
+///    nur `echt`.
+/// 2. Der Anker der Suite (`suite::hole_kettenanker`) liegt vor (`KeinAnker`), zeigt auf Block 1
 ///    oder höher (`UngueltigerAnker`), nicht über den letzten Block der Sicherung hinaus
 ///    (`Veraltet`), und der Block dort trägt denselben Hash (`AnkerPasstNicht`).
 pub fn pruefe(datei: &Sicherungsdatei, gepinnt: &str, anker: Option<(u64, &str)>) -> Result<(), Wiederherstellungsfehler> {
+    pruefe_bloecke(&datei.bloecke, gepinnt)?;
     let Some(letzter) = datei.bloecke.last() else {
         return Err(Wiederherstellungsfehler::Leer);
     };
-    kette::pruefe(&datei.bloecke).map_err(|f| Wiederherstellungsfehler::KetteGebrochen { block: f.block, grund: f.grund })?;
-    for b in &datei.bloecke {
-        if b.kopf.schluessel_id != gepinnt {
-            return Err(Wiederherstellungsfehler::AndererSchluessel {
-                block: b.kopf.block,
-                gefunden: b.kopf.schluessel_id.clone(),
-                gepinnt: gepinnt.to_string(),
-            });
-        }
-        if b.kopf.umgebung != Umgebung::Echt {
-            return Err(Wiederherstellungsfehler::Testbetrieb { block: b.kopf.block });
-        }
-    }
 
     let (anker_block, anker_hash) = anker.ok_or(Wiederherstellungsfehler::KeinAnker)?;
     if anker_block == 0 {
@@ -83,6 +69,33 @@ pub fn pruefe(datei: &Sicherungsdatei, gepinnt: &str, anker: Option<(u64, &str)>
             sicherung: am_anker.hash.clone(),
             suite: anker_hash.to_string(),
         });
+    }
+    Ok(())
+}
+
+/// Die Prüfungen, die nur die Blöcke brauchen, ohne Netz. Die Hülle ruft sie vor der Anfrage
+/// nach dem Anker (eine kaputte Datei meldet sich so auch offline), und `Buch::uebernehme_sicherung`
+/// ruft sie noch einmal in seiner Transaktion. In dieser Reihenfolge:
+/// 1. Mindestens ein Block (`Leer`).
+/// 2. Die Kette ist ab Block 1 vollständig und unverändert (`kette::pruefe`, `KetteGebrochen`).
+/// 3. Jeder Kopf trägt die gepinnte `schluesselId` (`AndererSchluessel`) und `umgebung: "echt"`
+///    (`Testbetrieb`), gemeldet wird der erste abweichende Block.
+pub fn pruefe_bloecke(bloecke: &[Block], gepinnt: &str) -> Result<(), Wiederherstellungsfehler> {
+    if bloecke.is_empty() {
+        return Err(Wiederherstellungsfehler::Leer);
+    }
+    kette::pruefe(bloecke).map_err(|f| Wiederherstellungsfehler::KetteGebrochen { block: f.block, grund: f.grund })?;
+    for b in bloecke {
+        if b.kopf.schluessel_id != gepinnt {
+            return Err(Wiederherstellungsfehler::AndererSchluessel {
+                block: b.kopf.block,
+                gefunden: b.kopf.schluessel_id.clone(),
+                gepinnt: gepinnt.to_string(),
+            });
+        }
+        if b.kopf.umgebung != Umgebung::Echt {
+            return Err(Wiederherstellungsfehler::Testbetrieb { block: b.kopf.block });
+        }
     }
     Ok(())
 }

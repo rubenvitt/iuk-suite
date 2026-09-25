@@ -310,6 +310,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         ankerBestaetigtBis: zustand.ankerBestaetigtBis,
         ankerAbweichung: null,
         anker: null,
+        sicherung: null,
         widerrufen: false,
         sitzung: zustand.sitzung,
         anmeldungLaeuft: false,

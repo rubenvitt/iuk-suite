@@ -20,6 +20,7 @@ use crate::format::{Block, Umgebung};
 use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
 use crate::sicherung::Sicherungsangaben;
+use crate::wiederherstellung::Wiederherstellungsfehler;
 
 const SCHEMA: &str = include_str!("schema.sql");
 const SCHEMA_V2: &str = include_str!("schema_v2.sql");
@@ -98,6 +99,10 @@ pub enum BuchFehler {
     /// Im Testbetrieb gibt es keine Sicherung, also auch nichts wiederherzustellen.
     #[error("Wiederherstellen geht nur im Echtbetrieb.")]
     NurImEchtbetrieb,
+    /// `uebernehme_sicherung` prüft die Blöcke in seiner Transaktion selbst
+    /// (`wiederherstellung::pruefe_bloecke`); der Text ist der dieser Prüfung.
+    #[error("{0}")]
+    Sicherung(#[from] Wiederherstellungsfehler),
 }
 
 /// Betriebsart des Rechners — entscheidet nur, welche Datei geöffnet wird (Betriebsart aus
@@ -666,6 +671,9 @@ impl Buch {
     /// Prüfung und Einfügen nichts dazwischenkommt (Review Focus 3):
     /// - ohne Einrichtung `NichtEingerichtet`, im Testbetrieb `NurImEchtbetrieb`;
     /// - `bloecke`, `ausstehend` und `nummern` müssen leer sein, sonst `KetteNichtLeer`;
+    /// - die Blöcke selbst noch einmal wie `wiederherstellung::pruefe_bloecke`, gegen die
+    ///   `schluessel_id` der Einrichtung aus derselben Transaktion, sonst `Sicherung`. Die
+    ///   Methode verlässt sich also nicht darauf, dass die Aufruferin geprüft hat;
     /// - dann jeden Block einfügen wie `versiegele_ausstehend` (JSON, Hash, `versiegelt` aus dem
     ///   Kopf) und die Nummern je Jahr.
     ///
@@ -675,10 +683,11 @@ impl Buch {
         let betrieb = self.betrieb;
         let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
-        let eingerichtet: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM einrichtung WHERE id = 1)", [], |r| r.get(0))?;
-        if !eingerichtet {
+        let gepinnt: Option<String> =
+            tx.query_row("SELECT schluessel_id FROM einrichtung WHERE id = 1", [], |r| r.get(0)).optional()?;
+        let Some(gepinnt) = gepinnt else {
             return Err(BuchFehler::NichtEingerichtet);
-        }
+        };
         if betrieb != Betrieb::Echt {
             return Err(BuchFehler::NurImEchtbetrieb);
         }
@@ -690,6 +699,7 @@ impl Buch {
         if belegt {
             return Err(BuchFehler::KetteNichtLeer);
         }
+        crate::wiederherstellung::pruefe_bloecke(bloecke, &gepinnt)?;
 
         for b in bloecke {
             tx.execute(
