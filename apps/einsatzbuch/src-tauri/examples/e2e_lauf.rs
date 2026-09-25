@@ -1,4 +1,5 @@
-//! Ende-zu-Ende-Treiber der Anbindung Desktop-App ↔ Suite (Stufe 5, Task 12) — NUR im Debug-Build.
+//! Ende-zu-Ende-Treiber der Anbindung Desktop-App ↔ Suite (Stufe 5, Task 12; bis zum Reader
+//! erweitert in Stufe 6, Task 11) — NUR im Debug-Build.
 //!
 //! Computer-Use ist nicht freigegeben, und für WKWebView gibt es keinen WebDriver (Entscheidung
 //! 16). Deshalb treibt dieses Beispielprogramm DIESELBEN Funktionen `fn(&Zustand, …)` aus
@@ -6,7 +7,11 @@
 //! `ureq`), dem echten Schlüsselbund (`schluesselbund::system_tresor`), dem echten
 //! Loopback-Listener und der Systemuhr. Den Browserteil übernimmt
 //! `scripts/einsatzbuch-e2e-anmeldung.ts` (Dev-Login statt Pocket ID), das Entschlüsseln
-//! `scripts/einsatzbuch-e2e-oeffnen.ts` mit demselben Kernaufruf wie die Verwaltung.
+//! `scripts/einsatzbuch-e2e-oeffnen.ts` mit demselben Kernaufruf wie die Verwaltung. Den Export
+//! baut `scripts/einsatzbuch-e2e-export.ts` mit `baueExport` aus `apps/einsatzbuch/src/logik/export.ts`
+//! (dem Modul des Export-Dialogs), gespeichert wird er mit `export::speichere_export` (dem Code
+//! des Befehls `export_speichern`), und `scripts/einsatzbuch-e2e-reader.ts` öffnet die Datei im
+//! Reader der Suite.
 //!
 //! Aufruf (im Repo-Root vorher `pnpm --filter einsatzbuch build`):
 //!
@@ -20,6 +25,8 @@
 //! - `E2E_FREIGABE_DATEI`: wohin Schritt 5 Blöcke und CEKs für das Entschlüssel-Skript schreibt;
 //!   Vorgabe `<TMPDIR>/einsatzbuch-e2e-steuerung/freigabe.json`. Die Datei wird danach gelöscht.
 //! - `E2E_RECHNER_NAME`: Name des Test-Rechners, Vorgabe „E2E-Lauf“.
+//! - `E2E_EXPORT_KENNWORT`: Kennwort der Exportdatei (Schritt 5b/5c), Vorgabe
+//!   `VORGABE_KENNWORT`. Der Treiber reicht es an beide Skripte weiter.
 //!
 //! Jeder Schritt schreibt Zeilen `E2E <schritt>: …`. Nach Schritt 4 und nach Schritt 6 wartet der
 //! Treiber auf eine Markendatei im Steuerordner (`touch …`, die Zeile nennt den Pfad), damit der
@@ -27,7 +34,9 @@
 //! beendet der Treiber den Testbetrieb trotzdem, damit kein Eintrag im Schlüsselbund bleibt.
 //!
 //! Geheimnisse: Die Anmelde-URL (nur `state` und `challenge`) geht wie im Debug-Schalter der App
-//! auf stdout; Tokens nie. Die CEKs aus Schritt 5 stehen nur in der Freigabedatei.
+//! auf stdout; Tokens nie. Die CEKs aus Schritt 5 und 5b stehen nur in der Freigabe- bzw.
+//! Auftragsdatei, die der Treiber direkt nach dem jeweiligen Skript löscht. Die Exportdatei
+//! `<steuerung>/e2e.einsatzbuch` ist mit dem Kennwort verschlüsselt und bleibt als Beleg liegen.
 
 #[cfg(not(debug_assertions))]
 compile_error!("Der E2E-Treiber `e2e_lauf` existiert nur im Debug-Build: Er schreibt Inhaltsschlüssel in eine Datei.");
@@ -67,6 +76,7 @@ mod lauf {
         beende_testbetrieb, brich_anmeldung_ab, gib_schluessel_frei, gleiche_anker_jetzt, lies_bloecke, lies_stammdaten,
         lies_status, melde_an, pruefe_frist_jetzt, quittiere, richte_ein_ueber_suite, sende_ab,
     };
+    use einsatzbuch_lib::export::speichere_export;
     use einsatzbuch_lib::netz::NetzTransport;
     use einsatzbuch_lib::schluesselbund;
     use einsatzbuch_lib::zustand::{Anbindungsteile, Zustand};
@@ -81,6 +91,13 @@ mod lauf {
     /// Die Meldung, die nur der 401-Pfad von `gib_schluessel_frei` zusammen mit einer verworfenen
     /// Sitzung liefert (eine lokal abgelaufene Sitzung schließt Schritt 6 vorher aus).
     const SITZUNG_ABGELAUFEN: &str = "Die Sitzung ist abgelaufen. Bitte neu anmelden.";
+    /// Kennwort der Exportdatei ohne `E2E_EXPORT_KENNWORT` — ein Testwert, mindestens 10 Zeichen
+    /// (`KENNWORT_MINDESTLAENGE` im Kern). Gleich der Vorgabe in `scripts/einsatzbuch-e2e-export.ts`.
+    const VORGABE_KENNWORT: &str = "e2e-export-kennwort";
+    /// Zeilen, die `scripts/einsatzbuch-e2e-reader.ts` je bestandener Prüfung ausgibt (ohne die
+    /// laufabhängigen Teile Nummer und Stichwort, die Schritt 5c eigens prüft).
+    const READER_PRUEFUNGEN: [&str; 3] =
+        ["Reader: Kettenprüfung „Kette intakt“", "Reader: Audit reader_oeffnen 204", "Reader: Testband „Testdaten — kein echter Einsatz“"];
 
     macro_rules! e2e {
         ($schritt:expr, $($arg:tt)*) => {{
@@ -217,6 +234,8 @@ mod lauf {
         let steuerung = std::env::temp_dir().join("einsatzbuch-e2e-steuerung");
         let freigabe_datei =
             std::env::var_os("E2E_FREIGABE_DATEI").map(PathBuf::from).unwrap_or_else(|| steuerung.join("freigabe.json"));
+        let auftrag_datei = steuerung.join("export-auftrag.json");
+        let kennwort = std::env::var("E2E_EXPORT_KENNWORT").ok().filter(|k| !k.is_empty()).unwrap_or_else(|| VORGABE_KENNWORT.into());
         let repo = repo_wurzel()?;
 
         // SAFETY: Noch läuft kein weiterer Faden dieses Prozesses (Zustand, Frist-Uhr und
@@ -250,9 +269,19 @@ mod lauf {
 
         let browser = Browser { z: Arc::clone(&z), repo: repo.clone(), faden: Mutex::new(None) };
         let halt = Arc::new(AtomicBool::new(false));
-        let ergebnis = schritte(&z, &browser, &halt, &Lauf { suite: &suite, name: &name, steuerung: &steuerung, freigabe_datei: &freigabe_datei, repo: &repo });
+        let lauf = Lauf {
+            suite: &suite,
+            name: &name,
+            steuerung: &steuerung,
+            freigabe_datei: &freigabe_datei,
+            auftrag_datei: &auftrag_datei,
+            kennwort: &kennwort,
+            repo: &repo,
+        };
+        let ergebnis = schritte(&z, &browser, &halt, &lauf);
         halt.store(true, Ordering::SeqCst);
         let _ = std::fs::remove_file(&freigabe_datei);
+        let _ = std::fs::remove_file(&auftrag_datei);
 
         if let Err(fehler) = &ergebnis {
             e2e!("Aufräumen", "Lauf gescheitert ({fehler}) — beende den Testbetrieb trotzdem");
@@ -278,6 +307,9 @@ mod lauf {
         name: &'a str,
         steuerung: &'a Path,
         freigabe_datei: &'a Path,
+        /// Blöcke, CEKs und Exportangaben für `scripts/einsatzbuch-e2e-export.ts` (Schritt 5b).
+        auftrag_datei: &'a Path,
+        kennwort: &'a str,
         repo: &'a Path,
     }
 
@@ -324,7 +356,7 @@ mod lauf {
             personal: vec![PersonAuswahl { id: person.id.clone(), fahrzeug_id: Some(fahrzeug.id.clone()) }],
             vor_ort: 1,
             transport: 0,
-            notizen: "Ende-zu-Ende-Lauf Stufe 5".into(),
+            notizen: "Ende-zu-Ende-Lauf Stufe 6".into(),
         };
         let aus = sende_ab(z, &entwurf, false)?;
         e2e!(
@@ -410,6 +442,12 @@ mod lauf {
         pruefe(text.contains(&erwartet), || format!("Ausgabe enthält nicht „{erwartet}“"))?;
         e2e!(5, "entschlüsselt mit oeffneBlock: {erwartet}; Freigabedatei gelöscht");
 
+        // Schritt 5b: Export wie der Export-Dialog, gespeichert wie `export_speichern` -------------
+        let datei = exportiere(z, l, &versiegelung)?;
+
+        // Schritt 5c: die Exportdatei im Reader der Suite öffnen -----------------------------------
+        oeffne_im_reader(l, &datei, &versiegelung.nummer, &stichwort)?;
+
         // Schritt 6: Test-Rechner in der Suite löschen, Freigabe muss scheitern ---------------------
         let jetzt_ms = chrono::Utc::now().timestamp_millis();
         pruefe(z.sitzung().as_ref().is_some_and(|s| s.ablauf_ms > jetzt_ms), || "vor Schritt 6 keine gültige Sitzung".into())?;
@@ -434,6 +472,95 @@ mod lauf {
         pruefe(z.tresor.lies(konto_fuer(Betrieb::Test))?.is_none(), || "Geräte-Token liegt noch im Schlüsselbund".into())?;
         pruefe(!lies_status(z)?.eingerichtet, || "nach dem Beenden noch eingerichtet".into())?;
         e2e!(7, "beende_testbetrieb: {} gelöscht, Geräte-Token aus dem Schlüsselbund entfernt, Rechner nicht eingerichtet", datei.display());
+        Ok(())
+    }
+
+    /// Schritt 5b: frische CEKs (`gib_schluessel_frei(z, None)`, eine zweite Freigabezeile in der
+    /// Suite), Blöcke und der bestätigte Anker aus dem Status gehen per Auftragsdatei an
+    /// `scripts/einsatzbuch-e2e-export.ts` (`baueExport`, „einzeln“, Block der Versiegelung
+    /// ausdrücklich gewählt). Dessen stdout — die Exportdatei — speichert `speichere_export` nach
+    /// `<steuerung>/e2e.einsatzbuch`. Die Auftragsdatei wird gelöscht, bevor das Ergebnis des
+    /// Skripts geprüft wird.
+    fn exportiere(z: &Zustand, l: &Lauf<'_>, versiegelung: &Versiegelung) -> Result<PathBuf, String> {
+        let s = lies_status(z)?;
+        // Review Focus 4: Der Export trägt den letzten BESTÄTIGTEN Anker samt Zeitpunkt.
+        let anker = s.anker.clone().ok_or("Der Status trägt keinen bestätigten Anker.")?;
+        pruefe(anker.block == versiegelung.block && anker.hash == versiegelung.hash, || {
+            format!("Anker im Status {anker:?} passt nicht zur Versiegelung (Block {}, Hash {})", versiegelung.block, versiegelung.hash)
+        })?;
+        let exportiert_von = s.sitzung.as_ref().map(|i| i.name.clone()).ok_or("Vor dem Export keine gültige Sitzung.")?;
+        let quelle = s.bereitschaft.clone().unwrap_or_default();
+        let zeitzone = s.zeitzone.clone().ok_or("Der Status trägt keine Zeitzone.")?;
+
+        let posten = gib_schluessel_frei(z, None)?;
+        let bloecke = lies_bloecke(z)?;
+        pruefe(posten.len() == 1 && posten[0].block == versiegelung.block && bloecke.len() == 1, || {
+            format!("{} Schlüsselposten für {} Blöcke", posten.len(), bloecke.len())
+        })?;
+        e2e!("5b", "gib_schluessel_frei(None): {} CEK(s) für Block(e) {:?}", posten.len(), posten.iter().map(|p| p.block).collect::<Vec<_>>());
+        e2e!("5b", "Anker aus dem Status: Block {}, Hash {}, gemeldet {}", anker.block, anker.hash, anker.gemeldet_am);
+        let schluessel: BTreeMap<String, &str> = posten.iter().map(|p| (p.block.to_string(), p.cek.as_str())).collect();
+        let json = Zeroizing::new(
+            serde_json::to_string(&serde_json::json!({
+                "bloecke": bloecke,
+                "schluessel": schluessel,
+                "auftrag": {
+                    "umfang": "einzeln",
+                    "gewaehlt": versiegelung.block,
+                    "anker": anker,
+                    "exportiertVon": exportiert_von,
+                    "quelle": quelle,
+                    "erstellt": s.jetzt,
+                    "zeitzone": zeitzone,
+                    "nummer": versiegelung.nummer,
+                },
+            }))
+            .map_err(|e| e.to_string())?,
+        );
+        drop(schluessel);
+        drop(posten);
+        std::fs::write(l.auftrag_datei, json.as_bytes()).map_err(|e| format!("Auftragsdatei: {e}"))?;
+        drop(json);
+        let auftrag = l.auftrag_datei.to_str().ok_or("Pfad der Auftragsdatei ist kein UTF-8")?;
+        let ausgabe = tsx(l.repo, &["scripts/einsatzbuch-e2e-export.ts", auftrag]).env("E2E_EXPORT_KENNWORT", l.kennwort).output();
+        let _ = std::fs::remove_file(l.auftrag_datei);
+        pruefe(!l.auftrag_datei.exists(), || format!("{} liegt noch", l.auftrag_datei.display()))?;
+        let ausgabe = ausgabe.map_err(|e| format!("Export-Skript: {e}"))?;
+        for zeile in String::from_utf8_lossy(&ausgabe.stderr).lines() {
+            e2e!("5b", "export │ {zeile}");
+        }
+        pruefe(ausgabe.status.success(), || format!("Export-Skript endete mit {}", ausgabe.status))?;
+        let inhalt = String::from_utf8(ausgabe.stdout).map_err(|_| "Die Ausgabe des Export-Skripts ist kein UTF-8.".to_string())?;
+
+        let ziel = l.steuerung.join("e2e.einsatzbuch");
+        let name = speichere_export(&ziel, &inhalt)?;
+        let kopf: serde_json::Value = serde_json::from_str::<serde_json::Value>(&inhalt).map_err(|e| e.to_string())?["kopf"].clone();
+        pruefe(
+            kopf["umfang"] == "einzeln" && kopf["von"] == versiegelung.block && kopf["bis"] == versiegelung.block && kopf["anzahl"] == 1,
+            || format!("unerwarteter Exportkopf: {kopf}"),
+        )?;
+        e2e!("5b", "speichere_export: {name} ({} Bytes) in {}, Kopf {kopf}; Auftragsdatei gelöscht", inhalt.len(), l.steuerung.display());
+        Ok(ziel)
+    }
+
+    /// Schritt 5c: `scripts/einsatzbuch-e2e-reader.ts` öffnet die Exportdatei im Reader der Suite
+    /// (volles Chromium, sicherer Kontext für genau diesen Ursprung) und gibt je bestandener
+    /// Prüfung eine Zeile aus; der Treiber verlangt Exit 0 UND jede dieser Zeilen.
+    fn oeffne_im_reader(l: &Lauf<'_>, datei: &Path, nummer: &str, stichwort: &str) -> Result<(), String> {
+        let pfad = datei.to_str().ok_or("Pfad der Exportdatei ist kein UTF-8")?;
+        let ausgabe = tsx(l.repo, &["scripts/einsatzbuch-e2e-reader.ts", l.suite, pfad, l.kennwort, nummer, stichwort])
+            .output()
+            .map_err(|e| format!("Reader-Skript: {e}"))?;
+        let text = String::from_utf8_lossy(&ausgabe.stdout);
+        for zeile in text.lines().chain(String::from_utf8_lossy(&ausgabe.stderr).lines()) {
+            e2e!("5c", "reader │ {zeile}");
+        }
+        pruefe(ausgabe.status.success(), || format!("Reader-Skript endete mit {}", ausgabe.status))?;
+        let detail = [format!("Reader: Detail Block 1 · {nummer}"), format!("Reader: Detail Stichwort „{stichwort}“")];
+        for erwartet in READER_PRUEFUNGEN.iter().copied().chain(detail.iter().map(String::as_str)) {
+            pruefe(text.lines().any(|z| z.starts_with(erwartet)), || format!("Reader-Ausgabe ohne „{erwartet}“"))?;
+        }
+        e2e!("5c", "Reader der Suite: Kette intakt, Testband, Detail {nummer} „{stichwort}“");
         Ok(())
     }
 
