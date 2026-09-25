@@ -26,11 +26,16 @@ describe("KekHinweis", () => {
     const hinweis = query('[data-testid="kek-hinweis"]');
     expect(hinweis.textContent).toContain("Der Entwicklungs-KEK ist aktiv");
     expect(hinweis.textContent).toContain("steht im Repo");
+    expect(hinweis.textContent).toContain("aus der Notfall-Sicherung neu ab");
   });
 
-  it("der Entwicklungs-KEK geht dem fehlenden Paar vor", async () => {
+  it("der Entwicklungs-KEK geht dem fehlenden Paar vor — und rät dann zum Erzeugen, nicht zur Notfall-Sicherung", async () => {
     await mount(<KekHinweis status={{ kek: "ok", paar: "fehlt", schluesselId: null, entwicklungsKekInProduktion: true }} />);
-    expect(query('[data-testid="kek-hinweis"]').textContent).toContain("Der Entwicklungs-KEK ist aktiv");
+    const text = query('[data-testid="kek-hinweis"]').textContent;
+    expect(text).toContain("Der Entwicklungs-KEK ist aktiv");
+    expect(text).toContain("eigenen KEK");
+    expect(text).toContain("pnpm einsatzbuch:schluessel erzeugen");
+    expect(text).not.toContain("Notfall-Sicherung");
   });
 });
 

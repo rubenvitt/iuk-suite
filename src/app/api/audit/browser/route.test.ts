@@ -86,3 +86,26 @@ it("charges denials to the global budget and exhausts both write branches", asyn
  expect((await POST(request(gesperrt))).status).toBe(429);
  expect(recordAuditEvent).toHaveBeenCalledTimes(300);
 });
+// einsatzbuch: requiresAuth:false wie qr, aber mit Zugangsgruppe. canAccess() ist dafür für jeden
+// wahr (echte Implementierung, hier NICHT gesperrt) — die Route prüft die Gruppe deshalb selbst
+// (Plan Stufe 3, `docs/superpowers/plans/2026-09-24-einsatzbuch-v2-stufe-3-reader.md`, Entscheidung 4).
+const einsatzbuchEreignis = {module:"einsatzbuch",format:"reader_oeffnen",von:1,bis:3,anzahl:3};
+it("rejects an anonymous einsatzbuch reader event although canAccess allows the module", async () => {
+ expect((await POST(request(einsatzbuchEreignis))).status).toBe(403);
+ expect(recordAuditEvent).toHaveBeenCalledWith({module:"einsatzbuch",action:"access_denied",objectType:"browser_export",result:"denied",origin:"server"});
+});
+it("rejects a suite admin without the einsatzbuch access group", async () => {
+ vi.mocked(auth).mockResolvedValue({user:{id:"suite",groups:["dashboard-admins"]}} as never);
+ expect((await POST(request(einsatzbuchEreignis))).status).toBe(403);
+ expect(recordAuditEvent).toHaveBeenCalledWith({module:"einsatzbuch",action:"access_denied",objectType:"browser_export",result:"denied",origin:"server"});
+});
+it("records the einsatzbuch reader event with its block range for a member of the access group", async () => {
+ vi.mocked(auth).mockResolvedValue({user:{id:"jana",groups:["einsatzbuch-verwaltung"]}} as never);
+ expect((await POST(request(einsatzbuchEreignis))).status).toBe(204);
+ // storage.ts hasht objectRef beim Schreiben (safeAuditReference) — hier, mit gemocktem
+ // recordAuditEvent, ist der übergebene Bereichs-String noch im Klartext sichtbar.
+ expect(recordAuditEvent).toHaveBeenCalledWith({module:"einsatzbuch",action:"export",objectType:"einsatzbuch_reader_oeffnen",origin:"browser",result:"success",objectRef:"bloecke:1-3:3"});
+});
+it("allows anonymous qr/png export unaffected by the einsatzbuch access group", async () => {
+ expect((await POST(request({module:"qr",format:"png"}))).status).toBe(204);
+});

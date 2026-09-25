@@ -1,6 +1,24 @@
 import type { Block, Einsatz } from "./format";
 import { datumText, dauerMinuten, dauerText, zeitpunktText } from "./zeit";
 
+export interface Einsatztexte { ort: string; objekt: string; beginn: string; ende: string; dauer: string }
+
+/**
+ * Ort, Objekt, Beginn, Ende und Dauer — geteilt mit den Kern-Ansichten
+ * (`ansichten/Einsatzdetail.tsx`), damit Detailansicht und Berichtsblatt für denselben Einsatz
+ * dasselbe zeigen. `bericht()` baut seine fünf gleichnamigen Felder aus dieser Funktion.
+ */
+export function einsatzTexte(e: Einsatz, zeitzone: string): Einsatztexte {
+  const minuten = dauerMinuten(e, zeitzone);
+  return {
+    ort: [e.strasse, e.ort].filter(Boolean).join(", ") || "—",
+    objekt: e.objekt || "—",
+    beginn: `${datumText(e.beginnDatum)}, ${e.beginnZeit} Uhr`,
+    ende: e.endeDatum && e.endeZeit ? `${datumText(e.endeDatum)}, ${e.endeZeit} Uhr` : "nicht angegeben",
+    dauer: minuten === null || minuten < 0 ? "—" : dauerText(minuten),
+  };
+}
+
 export interface Berichtsdaten {
   /** Spec §12: Das Berichtsblatt trägt dann „TESTDATEN" im Kopf. */
   test: boolean;
@@ -34,7 +52,6 @@ export function bericht(
   block: Block, e: Einsatz,
   extra: { pruefung: string; quelle: string; erzeugt: string; zeitzone: string },
 ): Berichtsdaten {
-  const minuten = dauerMinuten(e, extra.zeitzone);
   const fahrzeuge = e.fahrzeuge.map((f) => {
     const n = e.personal.filter((p) => p.fahrzeugId === f.id).length;
     return { typ: f.typ, ruf: f.ruf, besatzung: n > 0 ? String(n) : "—" };
@@ -48,11 +65,7 @@ export function bericht(
     nummer: e.nummer,
     block: block.kopf.block,
     stichwort: e.stichwort,
-    ort: [e.strasse, e.ort].filter(Boolean).join(", ") || "—",
-    objekt: e.objekt || "—",
-    beginn: `${datumText(e.beginnDatum)}, ${e.beginnZeit} Uhr`,
-    ende: e.endeDatum && e.endeZeit ? `${datumText(e.endeDatum)}, ${e.endeZeit} Uhr` : "nicht angegeben",
-    dauer: minuten === null || minuten < 0 ? "—" : dauerText(minuten),
+    ...einsatzTexte(e, extra.zeitzone),
     vorOrt: e.vorOrt,
     transport: e.transport,
     gesamt: e.vorOrt + e.transport,

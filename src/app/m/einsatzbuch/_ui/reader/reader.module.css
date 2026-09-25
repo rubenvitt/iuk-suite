@@ -1,0 +1,115 @@
+/*
+ * Der Reader (`docs/design/einsatzbuch-v2/vorlage/Einsatzbuch Reader.dc.html`). Eigene
+ * Variablen an der Wurzelklasse statt `--ant-*` (Falle 2, `CLAUDE.md`); Hell/Dunkel über
+ * `<html data-theme>`. Werte wie in den Kern-Ansichten (`kern/ansichten/ansichten.module.css`),
+ * damit Karten des Readers und der Ansichten nebeneinander gleich aussehen.
+ */
+.reader {
+  --rd-text: rgba(0, 0, 0, .88); --rd-text-2: rgba(0, 0, 0, .65); --rd-rand: #d9d9d9; --rd-rand-2: #f0f0f0;
+  --rd-karte: #fff; --rd-aktiv: rgb(0 0 0 / .06); --rd-gedaempft: #5b6570; --rd-marke: #c8000f;
+  --rd-display: var(--font-display, "Barlow Condensed", "Arial Narrow", sans-serif);
+  --rd-mono: var(--font-mono, "Geist Mono", ui-monospace, monospace);
+  color: var(--rd-text);
+}
+:root[data-theme="dark"] .reader {
+  --rd-text: rgba(255, 255, 255, .85); --rd-text-2: rgba(255, 255, 255, .65); --rd-rand: #424242; --rd-rand-2: #303030;
+  --rd-karte: #141414; --rd-aktiv: rgb(255 255 255 / .1); --rd-gedaempft: #9aa4ad; --rd-marke: #e45a66;
+}
+
+.schmal { max-width: 680px; display: flex; flex-direction: column; gap: 24px; }
+.kennwortSpalte { max-width: 520px; }
+
+.karte {
+  box-sizing: border-box; min-width: 0; background: var(--rd-karte);
+  border: 1px solid var(--rd-rand-2); border-radius: 10px;
+}
+
+.kicker {
+  margin: 0; font: 600 12px/normal var(--rd-display); letter-spacing: .09em; text-transform: uppercase;
+  color: var(--rd-gedaempft);
+}
+.mono { font: 500 14px/1.4 var(--rd-mono); word-break: break-all; }
+.gedaempft { font-size: 13px; color: var(--rd-gedaempft); }
+
+/* ---------- leer ---------- */
+
+.zone {
+  min-height: 220px; border: 1.5px dashed var(--rd-rand); border-radius: 10px; background: var(--rd-karte);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 32px 24px; text-align: center;
+}
+/* Die Markenkante nur während des Ziehens — sie zeigt „hier ablegen“, keinen Befund (Falle 3). */
+.zone[data-ziehen="true"] { border-color: var(--rd-marke); background: var(--rd-aktiv); }
+.zoneZeichen { color: var(--rd-text-2); display: flex; }
+.zoneTitel { font: 600 20px/1.2 var(--rd-display); letter-spacing: .02em; }
+.versteckt { display: none; }
+
+.hinweise { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.hinweis { display: flex; gap: 12px; align-items: flex-start; }
+.hinweisZeichen {
+  width: 36px; height: 36px; flex: none; border-radius: 8px; background: var(--rd-aktiv);
+  display: flex; align-items: center; justify-content: center;
+}
+.hinweisTitel { font-weight: 600; }
+.hinweisText { font-size: 14px; color: var(--rd-text-2); text-wrap: pretty; }
+
+/* ---------- kennwort ---------- */
+
+.kennwortKarte { padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+.dateikopf { display: flex; gap: 12px; align-items: flex-start; }
+.dateikopf > :last-child { min-width: 0; }
+.dateiZeichen {
+  width: 44px; height: 44px; flex: none; border-radius: 8px; background: var(--rd-aktiv);
+  display: flex; align-items: center; justify-content: center;
+}
+.feld { display: flex; flex-direction: column; gap: 6px; }
+.feldLabel { font-weight: 600; }
+.feldFehler { font-size: 14px; }
+.knoepfe { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* ---------- offen ---------- */
+
+.offen { display: flex; flex-direction: column; gap: 20px; }
+.offenKopf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.offenKopf > :first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dateiname { font: 400 13px/1.4 var(--rd-mono); color: var(--rd-gedaempft); word-break: break-all; }
+.titel { margin: 0; font: 600 26px/1.15 var(--rd-display); letter-spacing: .02em; }
+
+.info {
+  padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 24px;
+}
+.infoSpalte { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.infoSpalte > :last-child { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.spalten { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.links { flex: 1 1 520px; min-width: 0; }
+.rechts { flex: 1 1 380px; max-width: 560px; min-width: 0; position: sticky; top: 16px; }
+.links > *, .rechts > * { width: 100%; }
+
+.unlesbar { padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+.unlesbarText { margin: 0; font-weight: 600; }
+.hashbox {
+  margin: 0; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px 12px;
+  font-size: 12px; color: var(--rd-gedaempft);
+}
+.hashbox dd { margin: 0; font-family: var(--rd-mono); word-break: break-all; }
+
+/* ---------- Druck-Overlay (Portal an `body`: die Druckregeln hängen am Overlay) ---------- */
+
+.druckOverlay { position: fixed; inset: 0; z-index: 2000; overflow: auto; background: rgb(0 0 0 / .55); padding: 24px 16px; }
+.steuer { max-width: 210mm; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #fff; color: #1a1d20; padding: 12px 16px; border-radius: 8px; }
+.steuerText { flex: 1 1 240px; display: flex; flex-direction: column; }
+.steuerTitel { font-weight: 600; }
+.steuerHinweis { font-size: 13px; color: #5b6570; }
+.blattRahmen { width: max-content; max-width: 100%; margin: 0 auto; box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+/*
+ * `:has(> .druckOverlay)` bindet das Ausblenden an ein OFFENES Overlay: ein CSS-Modul bleibt nach
+ * einer Client-Navigation geladen, und ohne diese Bedingung druckte Strg+P auf jeder späteren
+ * Seite (und im Reader ohne Overlay) ein leeres Blatt.
+ */
+@media print {
+  :global(body):has(> .druckOverlay) > :not(.druckOverlay) { display: none !important; }
+  .druckOverlay { position: static; background: none; padding: 0; overflow: visible; }
+  .steuer { display: none; }
+  .blattRahmen { box-shadow: none; width: auto; }
+}

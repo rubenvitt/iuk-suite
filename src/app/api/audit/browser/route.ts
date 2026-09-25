@@ -2,7 +2,8 @@ import { auth } from "@/core/auth";
 import { auditActor, auditDenied, withAuditContext } from "@/core/audit/server";
 import { recordAuditEvent } from "@/core/audit/storage";
 import { parseBrowserExport } from "@/core/audit/browser-schema";
-import { canAccess, getModule } from "@/core/registry";
+import { canAccess, getModule, requiredGroupsFor } from "@/core/registry";
+import { hasAnyGroup } from "@/core/groups";
 import { resolveHost } from "@/core/routing";
 
 const MAX_BYTES = 256;
@@ -50,14 +51,24 @@ export async function POST(request: Request) {
   if (!event) return new Response(null, { status: 400 });
   const session = await auth();
   const actor = auditActor(session?.user);
+  const groups = session?.user?.groups ?? null;
   // Charge every validated claim before either success or denial can write an event.
   if (!admit(actor.kind === "user" ? actor.id : "anonymous")) return new Response(null, { status: 429, headers: { "Retry-After": "60" } });
-  if (!canAccess(getModule(event.module), session?.user?.groups ?? null)) {
+  const mod = getModule(event.module);
+  const zugang = requiredGroupsFor(mod);
+  // canAccess ist für requiresAuth:false-Module (qr, einsatzbuch) für jeden wahr; ein Modul mit eigener
+  // Zugangsgruppe (einsatzbuch: einsatzbuch-verwaltung) verlangt sie hier zusätzlich (Plan Stufe 3,
+  // `docs/superpowers/plans/2026-09-24-einsatzbuch-v2-stufe-3-reader.md`, Entscheidung 4).
+  if (!canAccess(mod, groups) || (zugang.length > 0 && !hasAnyGroup(groups, zugang))) {
     auditDenied(event.module, actor, "browser_export");
     return new Response(null, { status: 403 });
   }
   try {
-    withAuditContext({ actor }, () => recordAuditEvent({ module: event.module, action: "export", objectType: `${event.module}_${event.format}`, origin: "browser", result: "success" }));
+    withAuditContext({ actor }, () => recordAuditEvent({
+      module: event.module, action: "export", objectType: `${event.module}_${event.format}`, origin: "browser", result: "success",
+      // Nur der Blockbereich, nie Inhalte oder Kennungen; storage.ts speichert objectRef nur als SHA-256 (suchbar, nicht lesbar).
+      ...(event.module === "einsatzbuch" ? { objectRef: `bloecke:${event.von}-${event.bis}:${event.anzahl}` } : {}),
+    }));
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   } catch {
     console.error("[audit] Browsermeldung konnte nicht gespeichert werden.");
