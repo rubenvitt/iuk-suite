@@ -11,7 +11,8 @@
 //! einem anderen Lock; es darf über der Datei-I/O im Sicherungsordner gehalten werden, denn es
 //! sperrt nur den zweiten Schreiber, und unter ihm wird `buch` nur kurz genommen. Über der
 //! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung`,
-//! `abgleich` und `update` sind Blätter: Wer einen von ihnen hält, nimmt keinen weiteren Mutex.
+//! `abgleich`, `update` und `update_fehler` sind Blätter: Wer einen von ihnen hält, nimmt keinen
+//! weiteren Mutex.
 //! Kein anderer Lock wird über eine Anfrage an die Suite oder den Update-Endpunkt, das Warten auf
 //! den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei außerhalb des
 //! App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
@@ -36,7 +37,7 @@ use einsatzbuch_kern::uhr::Uhr;
 
 use crate::abgleich::Anstoss;
 use crate::befehle::Sitzung;
-use crate::updater::Vorgemerkt;
+use crate::updater::{Updatefehler, Vorgemerkt};
 
 pub struct Zustand {
     /// `app_data_dir`, dort liegen `einsatzbuch.db` bzw. `einsatzbuch-test.db`.
@@ -72,6 +73,8 @@ pub struct Zustand {
     /// Ein gefundenes, noch nicht installiertes Update (`updater.rs`). Nur im Release-Build je
     /// gesetzt.
     pub update: Mutex<Option<Vorgemerkt>>,
+    /// Die letzten Fehler des Updaters (`updater.rs`), für die Karte „Einstellungen“.
+    pub update_fehler: Mutex<Updatefehler>,
 }
 
 /// Was die Anbindung an die Suite mitbringt — im Betrieb Netz und Schlüsselbund, in Tests Fakes.
@@ -107,6 +110,7 @@ impl Zustand {
             sicherung: Mutex::new(()),
             suite_vorgabe: SUITE_VORGABE.to_string(),
             update: Mutex::new(None),
+            update_fehler: Mutex::new(Updatefehler::default()),
         }
     }
 
@@ -159,6 +163,10 @@ impl Zustand {
 
     pub fn update(&self) -> MutexGuard<'_, Option<Vorgemerkt>> {
         self.update.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn update_fehler(&self) -> MutexGuard<'_, Updatefehler> {
+        self.update_fehler.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Sperrt die Sicherung für einen Schreiber (Sperrreihenfolge oben: vor `buch`).

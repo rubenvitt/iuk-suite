@@ -411,6 +411,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         sitzung: zustand.sitzung,
         anmeldungLaeuft: false,
         update: null,
+        updateFehler: null,
       };
     }
 

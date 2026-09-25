@@ -360,6 +360,20 @@ impl Buch {
         })
     }
 
+    /// Wann der Entwurf zuletzt gespeichert wurde (`speichere_entwurf`, Spalte `geaendert_am`);
+    /// `None` ohne Entwurf. Der Updater der Hülle hält damit eine Installation auf, solange
+    /// jemand an einem Entwurf schreibt. Ein unlesbarer Zeitpunkt ist ein Fehler, kein `None`.
+    pub fn entwurf_geaendert_am(&self) -> Result<Option<DateTime<Utc>>, ErfassungFehler> {
+        let text: Option<String> =
+            self.conn().query_row("SELECT geaendert_am FROM entwurf WHERE id = 1", [], |r| r.get(0)).optional()?;
+        text.map(|t| {
+            DateTime::parse_from_rfc3339(&t)
+                .map(|d| d.with_timezone(&Utc))
+                .map_err(|_| ErfassungFehler::Ungueltig(format!("Änderungszeit des Entwurfs unlesbar: {t:?}")))
+        })
+        .transpose()
+    }
+
     /// Speichert den Formularstand, ohne seinen Inhalt zu prüfen — er ist noch nicht abgesendet.
     /// `bearbeitung` sagt, ob es die Bearbeitung eines ausstehenden Einsatzes ist; passt das nicht
     /// zum Stand (`pruefe_schritt`), wird nichts geschrieben. So kann ein verspätetes Speichern

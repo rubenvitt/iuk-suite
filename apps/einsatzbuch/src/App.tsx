@@ -607,6 +607,7 @@ export function App() {
               sicherung={status.sicherung}
               ketteLeer={status.kette.anzahl === 0}
               update={status.update}
+              updateFehler={status.updateFehler}
               beiKettePruefen={kettePruefen}
               beiEinstellungGeaendert={einstellungGeaendert}
               beiSperren={() => void sperren()}

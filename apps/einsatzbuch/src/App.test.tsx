@@ -80,6 +80,7 @@ function status(teil: Partial<Status> = {}): Status {
     sitzung: null,
     anmeldungLaeuft: false,
     update: null,
+    updateFehler: null,
     ...teil,
   };
 }

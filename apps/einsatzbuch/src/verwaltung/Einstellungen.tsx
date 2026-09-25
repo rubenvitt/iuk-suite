@@ -11,8 +11,12 @@
  *   Die Meldung steht außerhalb dieser Bedingung, denn nach dem Neulesen ist die Kette nicht mehr leer.
  * - **Autostart:** nur im Echtbetrieb, gelesen und geschaltet über `autostart_status`/`autostart_setzen`.
  * - **Update:** nur ein Hinweis, wenn der Updater (Rust, nur im Release-Build) eine Version
- *   vorgemerkt hat (`status.update`). Einen Knopf gibt es nicht: Rust installiert selbst, sobald
- *   nichts aussteht und niemand angemeldet ist (Stufe 7, Entscheidung 1).
+ *   vorgemerkt hat (`status.update`) oder zuletzt gescheitert ist (`status.updateFehler`). Einen
+ *   Knopf gibt es nicht: Rust installiert selbst, sobald nichts aussteht, niemand angemeldet ist
+ *   und 15 Minuten lang kein Entwurf geändert wurde (Stufe 7, Entscheidung 1). Der Fehler steht
+ *   auch ohne Vormerkung da, denn ein gescheitertes Installieren verwirft sie. Ein Release-Build
+ *   hat kein Log, das jemand liest; dieser Hinweis ist der einzige Ort, an dem etwa eine
+ *   Signatur auffällt, die nicht zum Schlüssel der App passt.
  *
  * Den Status liest die Karte nie selbst. Sie meldet eine Änderung an die App (`beiGeaendert`),
  * die ihn über `laden()` mit Sequenznummer holt (`App.tsx`). Fehler aus Rust kommen als
@@ -38,6 +42,8 @@ export interface EinstellungenProps {
   zeitzone: string;
   /** Version eines vorgemerkten Updates (`status.update`), sonst `null`. */
   update: string | null;
+  /** Letzter Fehler des Updaters (`status.updateFehler`), sonst `null`. */
+  updateFehler: string | null;
   /** Die App liest den Status neu; `ketteNeu` heißt: auch die Verwaltung neu laden. */
   beiGeaendert: (ketteNeu: boolean) => Promise<void>;
 }
@@ -174,14 +180,22 @@ export function Einstellungen(p: EinstellungenProps) {
           </div>
         </div>
 
-        {p.update !== null ? (
+        {p.update !== null || p.updateFehler !== null ? (
           <div className="einstellung">
             <div className="leitsatz-zeichen"><Zeichen name="herunterladen" groesse={20} /></div>
             <div className="stapel stapel-8 einstellung-inhalt">
               <div className="leitsatz-titel">Update</div>
-              <Hinweis ton="info" rolle="status">
-                Update auf {p.update} ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht und niemand angemeldet ist.
-              </Hinweis>
+              {p.update !== null ? (
+                <Hinweis ton="info" rolle="status">
+                  Update auf {p.update} ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde.
+                </Hinweis>
+              ) : null}
+              {p.updateFehler !== null ? (
+                <Hinweis ton="warn" rolle="status">
+                  <div>{p.updateFehler}</div>
+                  <div className="hinweis-zusatz">Die App versucht es in etwa 15 Minuten erneut.</div>
+                </Hinweis>
+              ) : null}
             </div>
           </div>
         ) : null}
