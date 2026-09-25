@@ -8,18 +8,34 @@
  * und ein Hash aus `crypto.subtle.digest`. Die Meldungen sind wörtlich die aus Rust, so wie
  * `fehler_text` in `src-tauri/src/befehle.rs` sie an die Oberfläche gibt.
  *
+ * Seit Task 11 bildet der Stub zusätzlich Einrichtung, Anmeldung und Verwaltung nach:
+ * `einrichten`/`anmelden` lösen wie der echte Loopback-Rückruf verzögert auf und setzen danach
+ * `sitzung`; `bloecke`/`schluessel_freigeben` reichen die schon versiegelten Testvektor-Blöcke
+ * bzw. deren Inhaltsschlüssel unverändert weiter — entschlüsselt wird ausschließlich vom
+ * geteilten Kern im Browser selbst (`@kern/block`), der Stub sieht nie einen Klartext.
+ *
  * Die Funktion, die an `page.addInitScript` geht, läuft im Browser und hat dort keinen Zugriff
  * auf dieses Modul — jede Kleinigkeit, die sie braucht, kommt über `einstellungen` als Argument
  * oder steht in ihrem eigenen Rumpf.
  */
 import type { Page } from "@playwright/test";
 
-import type { Ausstehend, Entwurf, Stammdaten, Stammdatenpaket, Status, Versiegelung } from "../src/typen";
+import type { Block } from "@kern/format";
+
+import type { Ankerstand, Ausstehend, Entwurf, Schluesselposten, Stammdaten, Stammdatenpaket, Status, Versiegelung } from "../src/typen";
 
 export interface StubOptionen {
   betrieb?: "test" | "echt" | null;
   fristSekunden?: number;
   entwicklung?: boolean;
+  /** Schon versiegelte Blöcke für die Verwaltung (`bloecke`), z. B. aus den Kern-Testvektoren. */
+  bloecke?: Block[];
+  /** Deren Inhaltsschlüssel für `schluessel_freigeben`, block-weise (aus denselben Testvektoren). */
+  schluesselposten?: Schluesselposten[];
+  /** Lässt `schluessel_freigeben` mit dieser Meldung scheitern, wörtlich wie eine Ablehnung aus Rust. */
+  freigabeFehler?: string;
+  /** Ablauf der Verwaltungssitzung ab `einrichten`/`anmelden`, in ms; groß genug für die Ruhe-Uhr (10 min). */
+  sitzungAblaufMs?: number;
 }
 
 /**
@@ -56,6 +72,10 @@ interface Einstellungen {
   stammdaten: Stammdaten;
   bereitschaft: string;
   zeitzone: string;
+  bloecke: Block[];
+  schluesselposten: Schluesselposten[];
+  freigabeFehler: string | null;
+  sitzungAblaufMs: number;
 }
 
 /** Spielt das Fake-Backend ein. Muss vor `page.goto(...)` aufgerufen werden. */
@@ -67,6 +87,11 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     stammdaten: STAMMDATEN,
     bereitschaft: "DRK-Bereitschaft Uelzen",
     zeitzone: "Europe/Berlin",
+    bloecke: optionen.bloecke ?? [],
+    schluesselposten: optionen.schluesselposten ?? [],
+    freigabeFehler: optionen.freigabeFehler ?? null,
+    // Groß genug, dass in „Automatische Sperre“ die Ruhe-Uhr (10 min) vor dem Tokenablauf greift.
+    sitzungAblaufMs: optionen.sitzungAblaufMs ?? 60 * 60_000,
   };
 
   await page.addInitScript((einstellungen: Einstellungen) => {
@@ -76,6 +101,9 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     // Nur für den Anzeigetext („Nach dem Absenden … Minuten änderbar“); die Frist selbst läuft
     // über `FRIST_MS`, nicht über diesen gerundeten Wert.
     const FRIST_MINUTEN_ANZEIGE = Math.max(1, Math.round(einstellungen.fristSekunden / 60));
+    // Der einzige Pocket-ID-Name, den dieser Stub kennt — für `eingerichtetVon` und die
+    // Verwaltungssitzung gleichermaßen.
+    const NUTZERNAME = "Ruben Vitt";
 
     interface AusstehendIntern {
       entwurf: Entwurf;
@@ -91,13 +119,100 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       versiegelung: Versiegelung | null;
       bloecke: { block: number; hash: string }[];
       nummern: Record<number, number>;
+      rechnerName: string | null;
+      eingerichtetAm: string | null;
+      eingerichtetVon: string | null;
+      /** Zuletzt von `anker_abgleichen` bestätigter Block, wie Rust ihn im Status hält. */
+      ankerBestaetigtBis: number;
+      sitzung: { name: string; ablaufMs: number } | null;
     }
 
-    function neuerZustand(betrieb: "test" | "echt" | null): Zustand {
-      return { betrieb, eingerichtet: betrieb !== null, entwurf: null, ausstehend: null, versiegelung: null, bloecke: [], nummern: {} };
+    function neuerZustand(betrieb: "test" | "echt" | null, rechnerName: string | null = null): Zustand {
+      const eingerichtet = betrieb !== null;
+      return {
+        betrieb,
+        eingerichtet,
+        entwurf: null,
+        ausstehend: null,
+        versiegelung: null,
+        bloecke: [],
+        nummern: {},
+        rechnerName,
+        eingerichtetAm: eingerichtet ? new Date().toISOString() : null,
+        eingerichtetVon: eingerichtet ? NUTZERNAME : null,
+        ankerBestaetigtBis: 0,
+        sitzung: null,
+      };
     }
 
     let zustand = neuerZustand(einstellungen.betrieb);
+
+    /**
+     * Wie der Loopback-Rückruf der echten Anmeldung: löst nach 100 ms auf, per
+     * `anmeldung_abbrechen` synchron unterbrechbar (`Anmeldung abgebrochen.`, wörtlich wie in
+     * Rust). Nur eine Anmeldung wartet zur Zeit, wie beim echten `LaufendeAnmeldung`-Wächter.
+     */
+    let abbruchSignal: { abgebrochen: boolean } | null = null;
+    async function wartenAufRueckruf(): Promise<void> {
+      const signal = { abgebrochen: false };
+      abbruchSignal = signal;
+      await new Promise<void>((loese) => setTimeout(loese, 100));
+      abbruchSignal = null;
+      if (signal.abgebrochen) throw new Error("Anmeldung abgebrochen.");
+    }
+
+    function anmeldungAbbrechen(): void {
+      if (abbruchSignal) abbruchSignal.abgebrochen = true;
+    }
+
+    /**
+     * „Mit Pocket ID anmelden und einrichten“: wie `richte_ein` bindet die neue Sitzung sofort
+     * an den frischen Rechner (Entscheidung 1 aus `task-8-report.md`, „Schnittstelle für Task
+     * 9“) — wer eingerichtet hat, ist bis zum Sperren angemeldet.
+     */
+    async function einrichten(a: { art: "echt" | "test"; name: string; suiteUrl: string }): Promise<void> {
+      if (zustand.eingerichtet) throw new Error("Dieser Rechner ist schon eingerichtet.");
+      await wartenAufRueckruf();
+      zustand = neuerZustand(a.art, a.name);
+      zustand.sitzung = { name: NUTZERNAME, ablaufMs: Date.now() + einstellungen.sitzungAblaufMs };
+    }
+
+    /** „Mit Pocket ID anmelden“ auf der Anmeldekarte. */
+    async function anmelden(): Promise<{ name: string; ablaufMs: number }> {
+      if (!zustand.eingerichtet) throw new Error(NICHT_EINGERICHTET);
+      await wartenAufRueckruf();
+      const sitzung = { name: NUTZERNAME, ablaufMs: Date.now() + einstellungen.sitzungAblaufMs };
+      zustand.sitzung = sitzung;
+      return sitzung;
+    }
+
+    /** Synchron, wie in Rust: verwirft nur das Sitzungstoken, rührt Buch und Tresor nicht an. */
+    function abmelden(): void {
+      zustand.sitzung = null;
+    }
+
+    function bloecke(): Block[] {
+      return einstellungen.bloecke;
+    }
+
+    function schluesselFreigeben(): Schluesselposten[] {
+      if (einstellungen.freigabeFehler) throw new Error(einstellungen.freigabeFehler);
+      return einstellungen.schluesselposten;
+    }
+
+    /** Wie `anker_abgleichen`: bestätigt in diesem Stub immer die ganze mitgegebene Kette. */
+    function ankerAbgleichen(): Ankerstand {
+      if (einstellungen.bloecke.length === 0) {
+        return { bestaetigtBis: 0, hash: null, gemeldetAm: null, abweichung: null, offline: false, widerrufen: false };
+      }
+      const letzter = einstellungen.bloecke[einstellungen.bloecke.length - 1];
+      zustand.ankerBestaetigtBis = letzter.kopf.block;
+      return { bestaetigtBis: letzter.kopf.block, hash: letzter.hash, gemeldetAm: new Date().toISOString(), abweichung: null, offline: false, widerrufen: false };
+    }
+
+    function stammdatenAbgleichen(): void {
+      // Kein e2e-Fall dieser Task prüft die Stammdaten selbst neu; der Befehl muss nur bekannt sein.
+    }
 
     /** Wie `fehlendeAngaben` in `logik/formular.ts` und `pruefe_entwurf` in Rust, getrimmt. */
     function fehlendeAngaben(e: Entwurf): string[] {
@@ -183,19 +298,19 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         ausstehend: ausstehendFuerStatus(),
         kette: { anzahl: zustand.bloecke.length, letzter: zustand.bloecke.length > 0 ? zustand.bloecke[zustand.bloecke.length - 1] : null },
         versiegelung: zustand.versiegelung,
-        // Anbindung an die Suite (Stufe 5, Task 9): Dieser Stub bildet nur die Erfassung nach
-        // (`erfassung.spec.ts`); Anmeldung und Einrichtung über die Suite erweitert Task 11.
-        suiteUrl: null,
+        suiteUrl: zustand.eingerichtet ? "https://einsatzbuch.iuk-ue.de" : null,
         suiteVorgabe: "https://einsatzbuch.iuk-ue.de",
-        rechnerName: null,
-        eingerichtetAm: null,
-        eingerichtetVon: null,
-        schluesselId: null,
-        stammdatenVom: null,
-        ankerBestaetigtBis: 0,
+        rechnerName: zustand.rechnerName,
+        eingerichtetAm: zustand.eingerichtetAm,
+        eingerichtetVon: zustand.eingerichtetVon,
+        schluesselId: zustand.eingerichtet ? "s1" : null,
+        // Ohne eigenen Abgleich (Task 11 prüft `stammdaten_abgleichen` nicht) gilt der
+        // Einrichtungszeitpunkt, wie `Status.stammdatenVom` es bis zum ersten Abruf vorsieht.
+        stammdatenVom: zustand.eingerichtetAm,
+        ankerBestaetigtBis: zustand.ankerBestaetigtBis,
         ankerAbweichung: null,
         widerrufen: false,
-        sitzung: null,
+        sitzung: zustand.sitzung,
         anmeldungLaeuft: false,
       };
     }
@@ -330,6 +445,22 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
           return testbetriebBeenden();
         case "entwicklung_einrichten":
           return entwicklungEinrichten();
+        case "einrichten":
+          return einrichten({ art: args.art as "echt" | "test", name: args.name as string, suiteUrl: args.suiteUrl as string });
+        case "anmelden":
+          return anmelden();
+        case "anmeldung_abbrechen":
+          return anmeldungAbbrechen();
+        case "abmelden":
+          return abmelden();
+        case "bloecke":
+          return bloecke();
+        case "schluessel_freigeben":
+          return schluesselFreigeben();
+        case "anker_abgleichen":
+          return ankerAbgleichen();
+        case "stammdaten_abgleichen":
+          return stammdatenAbgleichen();
         default:
           throw new Error(`Unbekannter Befehl im Playwright-Stub: ${cmd}`);
       }
