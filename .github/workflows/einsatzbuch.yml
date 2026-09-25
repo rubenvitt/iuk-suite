@@ -449,8 +449,9 @@ jobs:
           targets: ${{ matrix.rust-ziele }}
       # `--config`: das Overlay `src-tauri/tauri.release.conf.json` schaltet
       # `bundle.createUpdaterArtifacts` ein und signiert das macOS-Bundle ad hoc
-      # (`bundle.macOS.signingIdentity: "-"`; ohne jede Signatur nennt macOS auf Apple Silicon
-      # eine heruntergeladene App „beschädigt“). Die CLI legt das Overlay per JSON Merge Patch
+      # (`bundle.macOS.signingIdentity: "-"`). Ohne sie trägt nur das Binär die Signatur des
+      # Linkers, das Bundle ist nicht versiegelt (`codesign --verify --deep --strict` scheitert),
+      # und macOS nennt eine heruntergeladene App auf Apple Silicon „beschädigt“. Die CLI legt das Overlay per JSON Merge Patch
       # über `tauri.conf.json` (`tauri build --help`, Option `--config`). Der Pfad gilt relativ
       # zu `apps/einsatzbuch`, wo `pnpm --filter` den Befehl ausführt.
       # `beforeBuildCommand` (`pnpm build`, das Frontend) läuft in diesem Schritt mit, also mit

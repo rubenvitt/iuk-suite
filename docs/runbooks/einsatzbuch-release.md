@@ -114,7 +114,8 @@ Der zweite Aufruf fragt den Wert verdeckt ab. So landet das Kennwort nicht in de
 Danach den privaten Schlüssel und das Kennwort im Tresor (Passwortmanager) ablegen, den
 öffentlichen Teil eintragen wie oben und die Schlüsseldatei vom Rechner löschen.
 
-**Wenn die Schlüssel nicht zusammenpassen:** `tauri build` warnt dann nur und bricht nicht ab.
+**Wenn die Schlüssel nicht zusammenpassen:** `tauri build` warnt dann nur und bricht nicht ab (so
+beschrieben, den Wortlaut der Warnung hat hier noch niemand gesehen).
 Deshalb prüft `release-veroeffentlichen` im Schritt „Signaturen passen zum Updater-Schlüssel“ jede
 `.sig` gegen den öffentlichen Schlüssel aus `tauri.conf.json`, bevor es irgendetwas veröffentlicht.
 Passt eine nicht, scheitert der Lauf mit „Signiert mit Schlüssel …, tauri.conf.json nennt aber …“
