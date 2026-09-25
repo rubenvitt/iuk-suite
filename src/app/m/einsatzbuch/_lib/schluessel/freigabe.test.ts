@@ -7,6 +7,7 @@ import { importiereOeffentlich } from "../kern/umschlag";
 import eingabenJson from "../kern/testvektoren/eingaben.json";
 import erwartetJson from "../kern/testvektoren/erwartet.json";
 import type { Block } from "../kern/format";
+import { rechner } from "../../_db/schema";
 import { legePaarAn } from "./paar";
 import { packeAusFuer } from "./freigabe";
 
@@ -54,6 +55,8 @@ describe("packeAusFuer", () => {
     const alsTest = { ...b.kopf, umgebung: "test" as const };
     expect(await packeAusFuer(b.kopf.schluesselId, b.umschlag, alsTest, { db, env })).toMatchObject({ status: 422, code: "umgebung_passt_nicht" });
 
+    // Seit Stufe 5 verlangt die Konsistenzregel einen existierenden Test-Rechner (`schluesselpaar.rechner_id: kein Test-Rechner`).
+    db.insert(rechner).values({ id: "r1", art: "test", name: "Testrechner", tokenHash: "token-r1", eingerichtetAm: new Date(0), eingerichtetVon: "Alice", eingerichtetVonSub: "sub-1" }).run();
     const test = await legePaarAn(db, { art: "test", rechnerId: "r1", kek: new Uint8Array(32).fill(7), jetzt: new Date(0) });
     const oeff = await importiereOeffentlich(test.oeffentlich);
     const tb = await versiegele(beispielEinsatz("T-2026-001"), kopf(1, "0".repeat(64), test.schluesselId, "test"), oeff);
