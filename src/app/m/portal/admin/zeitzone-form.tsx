@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Select } from "antd";
 import { SPACE } from "@/core/theme/tokens";
+import { setzeZeitzoneAction } from "@/app/m/portal/actions";
 
 /**
  * Die Anzeigezone der Suite (DRK-469). Die Liste kommt vom Server
@@ -12,19 +13,14 @@ import { SPACE } from "@/core/theme/tokens";
  *
  * Ein verstecktes Feld trägt den Wert, weil antds `Select` kein natives
  * Formularelement ist und das `<form action>` ihn sonst nicht mitschickt.
+ *
+ * Die Action wird DIREKT importiert, nicht als Prop durchgereicht (Falle 9,
+ * `CLAUDE.md`; DRK-398).
  */
-export function ZeitzoneForm({
-  wert,
-  zonen,
-  action,
-}: {
-  wert: string;
-  zonen: string[];
-  action: (formData: FormData) => Promise<void>;
-}) {
+export function ZeitzoneForm({ wert, zonen }: { wert: string; zonen: string[] }) {
   const [zone, setZone] = useState(wert);
   return (
-    <form action={action} data-testid="zeitzone-form">
+    <form action={setzeZeitzoneAction} data-testid="zeitzone-form">
       <input type="hidden" name="zeitzone" value={zone} />
       <Select
         showSearch={{ optionFilterProp: ["label", "value"] }}

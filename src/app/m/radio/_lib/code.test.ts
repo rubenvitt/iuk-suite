@@ -16,7 +16,7 @@ import { CODE_ALPHABET, erzeugeCode, normalisiereCode, istCodeForm } from "./cod
  * `.superpowers/sdd/planteil3/VORABSCAN-A.md:218-228`; Auflage aus
  * `.superpowers/sdd/planteil3/briefs/KOPF.md:211-217`). Der Befund vom 2026-08-22 sagt
  * nein: auf einem Modul-Host bekommt jede Anfrage denselben Absenderschluessel
- * (`src/core/ratelimit.ts:98-111`). Der Umbau dagegen ist gebaut
+ * (`src/core/ratelimit.ts`, `clientIpAus`, „AUF MODUL-HOSTS"). Der Umbau dagegen ist gebaut
  * (`src/core/routing.ts:59-61`). Die Abnahme am Server steht aus
  * (`docs/superpowers/berichte/2026-08-22-proxy-rewrite-abnahme.md:29-32` — P1 und P6
  * offen).

@@ -909,3 +909,39 @@ test.describe("Schmalstes Geraet (320px)", () => {
     expect(titel).toBeGreaterThan(0);
   });
 });
+
+test.describe("Seitenleiste auf dem Tablet", () => {
+  // 768×1024 = iPad hochkant: die kleinste Breite, an der die Leiste steht.
+  test.use({ viewport: { width: 768, height: 1024 } });
+
+  test("gibt jeder Zeile und jedem Abschnittsschalter 44px (ARBEITSDICHTE)", async ({ page }) => {
+    /*
+     * DRK-420, Betreiberentscheidung 2026-09-24. Die Leiste lief auf 40px mit
+     * der Begründung, sie werde mit Maus bedient — ab 768px steht sie aber auch
+     * auf dem Tablet unter dem Finger. `shell-css.test.ts` prüft den Regeltext;
+     * ob die 44 nach Polsterung, Rahmen und Kaskade im Browser ANKOMMEN, weiß
+     * nur der Browser. Das Lagerbuch, weil nur seine Leiste (21 Einträge,
+     * ab `NAV_LANG_AB_EINTRAEGEN`) auch Abschnittsschalter trägt.
+     */
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+    const leiste = page.getByTestId("modulleiste");
+    await expect(leiste).toBeVisible();
+    const hoehen = async (selektor: string) =>
+      leiste.locator(selektor).evaluateAll((els) =>
+        els
+          .filter((el) => (el as HTMLElement).offsetParent !== null)
+          .map((el) => Math.round(el.getBoundingClientRect().height)),
+      );
+    const zeilen = await hoehen('[data-testid="nav-link"]');
+    const schalter = await hoehen('button[data-testid="nav-abschnitt"]');
+    console.log(`768px: Zeilen ${JSON.stringify(zeilen)}, Schalter ${JSON.stringify(schalter)}`);
+    expect(zeilen.length).toBeGreaterThan(0);
+    expect(schalter.length).toBeGreaterThan(0);
+    expect(Math.min(...zeilen)).toBeGreaterThanOrEqual(44);
+    expect(Math.min(...schalter)).toBeGreaterThanOrEqual(44);
+  });
+});

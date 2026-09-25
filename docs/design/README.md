@@ -75,7 +75,7 @@ Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt." Beides ist über
   in `core/theme/theme.ts` legt sie über den Inhalt. 56/72 gilt weiter für `MinimalShell` (`qr`,
   `beta`) und für alles ohne Shell (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`).
   44 ist WCAG 2.5.5 (Target Size, Enhanced — Stufe AAA, die Suite geht hier also über die
-  AA-Untergrenze hinaus) und gilt **überall**, weil `FullShell` auch auf dem Telefon rendert.
+  AA-Untergrenze hinaus) und gilt **überall** — auf dem Telefon wie in der Seitenleiste (DRK-420).
 - **Die dritte Dichte ist `SCHREIBTISCHDICHTE` (32/40) und gilt NUR, wo ein Modul sie ausdrücklich
   anlegt** — heute allein die Verwaltung des Moduls `radio` (Betreiberentscheidung 2026-08-28,
   Maus-und-Tastatur-Datenfläche im Maß der Alt-Anwendung): unter AAA, hält AA 24 (WCAG 2.5.8).

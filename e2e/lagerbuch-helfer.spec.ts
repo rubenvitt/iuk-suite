@@ -3,6 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
 import {
+  E2E_FAHRZEUG_ANDERES_NAME,
   E2E_FAHRZEUG_NAME,
   E2E_TOKEN_CHECK,
   E2E_TOKEN_HELFER,
@@ -135,7 +136,7 @@ function bestandAn(artikelId: string, lagerortId: string): number {
 /**
  * EIN ZIEL WÄHLEN — und dabei die ANTWORT prüfen, nicht nur die Landung.
  *
- * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`AGENTS.md`): ein e2e-Test, der eine
+ * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`CLAUDE.md`): ein e2e-Test, der eine
  * Anfrage auslöst, prüft ihre Antwort. Die Zeile darunter wäre sonst blind
  * gegen genau den Fall, für den es die Regel gibt — ein abgebrochener oder
  * abgelehnter POST meldet sich nicht als Fehler, sondern als Zeitüberschreitung
@@ -934,5 +935,123 @@ test.describe("DRK-378 — die Nebennavigation gehoert derselben Bediendichte", 
       zurueckKasten!.height,
       "Bediendichte des Helferwegs: 56, nicht 44 (DRK-378)",
     ).toBeGreaterThanOrEqual(56);
+  });
+});
+
+test.describe("DRK-399 — „Ändern“ und die Geraeteknoepfe gehoeren derselben Bediendichte", () => {
+  /**
+   * DIE FORTSETZUNG VON DRK-378: dort standen „Beenden“ und „Zurueck“ auf 44,
+   * hier die zwei Bedienelemente, die beim Messen danach uebrig blieben. Die
+   * Begruendung ist dieselbe (56/72 ohne Shell, Bedienung mit Handschuhen,
+   * `CLAUDE.md` Falle 4) und steht oben ausgeschrieben; hier steht nur, was an
+   * DIESEN beiden Elementen anders ist — und das ist jeweils die Nachbarschaft,
+   * nicht das Mass.
+   *
+   * ⚠️ VITEST SIEHT DIE HAELFTE: er liest die deklarierten Regeln
+   * (`Entnahme.test.tsx`, `CheckFlow.test.tsx`), aber nicht, wohin die Flaeche
+   * ragt und ob die Zeile umbricht. jsdom rechnet keine Layoutboxen.
+   */
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.waitForURL(/\/helfer$/);
+  });
+
+  test("„Ändern“ misst 56px und ragt weder in den Stepper noch in den Buchen-Knopf", async ({
+    page,
+  }) => {
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    const zeile = page.locator("[data-rolle='entnahme-ziel']");
+    /*
+     * Ohne gewaehltes Ziel steht hier seit DRK-406 der vollbreite Wahlknopf und
+     * kein „Ändern“. Beide Wege fuehren auf dieselbe Wahlseite — welcher da ist,
+     * haengt an einem Cookie, das ein frueherer Test derselben Sitzung setzen
+     * kann; der Test stellt seinen Zustand deshalb selbst her (§12.3).
+     */
+    await zeile.getByRole("link").first().click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await expect(zeile).toContainText(E2E_FAHRZEUG_NAME);
+
+    const aendern = await zeile.getByRole("link", { name: "Ändern" }).boundingBox();
+    const plus = await page.getByRole("button", { name: /erhöhen$/ }).boundingBox();
+    const buchen = await page.getByRole("button", { name: "Entnahme buchen" }).boundingBox();
+    expect(aendern && plus && buchen, "alle drei muessen eine Flaeche im Bild haben").toBeTruthy();
+
+    expect(aendern!.height, "Bediendichte des Helferwegs: 56, nicht 44 (DRK-399)")
+      .toBeGreaterThanOrEqual(56);
+    /*
+     * ⚠️ DIE EIGENTLICHE ZUSAGE. „Ändern“ steht rechts unter der „+“-Taste
+     * (gemessen: 1px Abstand) und direkt ueber dem Buchen-Knopf (0px). Ein
+     * negatives Randmass, das die 56 „unsichtbar“ machen wollte, schoebe die
+     * Trefferflaeche in beide hinein: ein Tipp auf „+“ oeffnete die Zielwahl.
+     * Der Preis ist gemessen und bewusst gezahlt — die Zeile waechst von 46 auf
+     * 56px, der Buchen-Knopf rueckt 10px tiefer.
+     */
+    expect(aendern!.y, "„Ändern“ darf nicht in die „+“-Taste ragen")
+      .toBeGreaterThanOrEqual(plus!.y + plus!.height);
+    expect(aendern!.y + aendern!.height, "„Ändern“ darf nicht in den Buchen-Knopf ragen")
+      .toBeLessThanOrEqual(buchen!.y);
+  });
+
+  test("die fuenf Geraeteknoepfe messen 56x56 und brechen nicht zusaetzlich um", async ({
+    page,
+  }) => {
+    // „E2E Geräte RTW“ ist das Fahrzeug MIT Geraeteschritt (`seed-lagerbuch.ts`,
+    // `geraeteFixtures`). Der Test schliesst den Check NICHT ab und schreibt
+    // deshalb nichts: bis „Abschließen“ lebt alles im Zustand der Seite.
+    await page.goto(lagerbuchUrl("/helfer/check"));
+    await page.getByRole("link", { name: new RegExp(`^${E2E_FAHRZEUG_ANDERES_NAME}`) }).click();
+    await page.waitForURL(/\/helfer\/check\?fz=/);
+
+    /*
+     * Einmal „−“ auf 0 zaehlt das leere Fach und gibt „Weiter“ frei. In einer
+     * Schleife, weil ein Klick vor der Hydrierung verpufft; „−“ auf einer
+     * gezaehlten 0 bleibt 0, die Wiederholung ist also folgenlos.
+     */
+    const weiter = page.getByRole("button", { name: "Weiter" });
+    await expect(async () => {
+      await page.getByRole("button", { name: /^E2E Geräte Pflaster.*verringern$/ }).click();
+      await expect(weiter).toBeEnabled({ timeout: 1_000 });
+    }).toPass({ timeout: 30_000 });
+    await weiter.click(); // Zaehlen → Nachfuellen
+    // Derselbe Knopf, ein neuer Schritt: erst die Ansage abwarten, sonst
+    // trifft der zweite Klick den ersten Schritt ein zweites Mal.
+    await expect(page.getByText("Weiter zu Geräte")).toBeVisible();
+    await weiter.click(); // Nachfuellen → Geraete
+
+    const knoepfe = page.locator(
+      "[data-rolle='geraet-vorhanden'], [data-rolle='geraet-fehlt'], [data-rolle='geraet-zustand']",
+    );
+    await expect(knoepfe).toHaveCount(5);
+    const kaesten = await knoepfe.evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return { name: e.textContent?.trim() ?? "", y: r.y, rechts: r.right, w: r.width, h: r.height };
+      }),
+    );
+    for (const k of kaesten) {
+      expect(k.h, `„${k.name}“: Bediendichte des Helferwegs, 56 (DRK-399)`).toBeGreaterThanOrEqual(56);
+      // „fehlt“ war als Trefferflaeche 42,5px schmal — die Hoehe allein reicht nicht.
+      expect(k.w, `„${k.name}“: auch die Breite traegt 56 (DRK-399)`).toBeGreaterThanOrEqual(56);
+    }
+
+    /*
+     * ⚠️ DER BEFUERCHTETE UMBRUCH, GEMESSEN: bei 390px standen die fuenf schon
+     * mit 44 auf ZWEI Zeilen (3 + 2 — „Gebrauchsspuren“ passt nie in die erste)
+     * und stehen mit 56 weiterhin auf zweien. Die Schranke faengt eine kuenftige
+     * Aenderung, die eine dritte Zeile erzwingt; sie ist keine Stilvorgabe.
+     */
+    const zeilen = new Set(kaesten.map((k) => Math.round(k.y)));
+    expect(zeilen.size, "die fuenf Knoepfe stehen am Telefon auf hoechstens zwei Zeilen").toBeLessThanOrEqual(2);
+    const karte = await knoepfe.first().evaluate((e) => e.parentElement!.getBoundingClientRect().right);
+    for (const k of kaesten) {
+      expect(k.rechts, `„${k.name}“ ragt ueber die Zeile hinaus`).toBeLessThanOrEqual(karte + 0.5);
+    }
+    const seitwaerts = await page.evaluate(
+      () => document.scrollingElement!.scrollWidth - document.scrollingElement!.clientWidth,
+    );
+    expect(seitwaerts, "die Seite darf nicht seitwaerts scrollen").toBe(0);
   });
 });

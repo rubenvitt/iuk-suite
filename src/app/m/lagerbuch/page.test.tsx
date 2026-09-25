@@ -47,7 +47,7 @@ function ohneKommentare(quelle: string): string {
  * bewusst leer) noch der E2E-Host, und der reparierte Dev-Login weist einen
  * absoluten `callbackUrl` ab, der nicht die eigene Origin trifft. Die Form hier
  * ist die, unter der T87 tatsaechlich faehrt: `lagerbuch.localtest.me`
- * (`e2e/helpers/lagerbuch.ts:17`) auf Port 3100 (`playwright.config.ts:108`) —
+ * (`e2e/helpers/lagerbuch.ts:17`) auf Port 3100 (`E2E_PORTS.web` in `playwright.config.ts`) —
  * dieselbe Konstante, die `_ui/Gate.test.tsx` (T77) schon fuehrt.
  */
 const HOST = "lagerbuch.localtest.me:3100";

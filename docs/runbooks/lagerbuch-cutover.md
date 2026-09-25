@@ -411,7 +411,7 @@ bewussten Abweichungen. Der Tabelleninhalt ist zeichengleich.*
 | **Zeitstempel-Einheit** | UNIX-**Sekunden**, Drizzle `mode: "timestamp"` | ⚠️ **Ein Faktor-1000-Fehler ist paritätsgrün.** Der Mapper normalisiert auf ganze Sekunden |
 | **Zeitzone** | `Europe/Berlin` als **Modulkonstante** im Code | `TZ` wird von Spec 1 **nicht** gesetzt; der Wert ist Runbook-Eingabe. Das Modul hängt bewusst nicht daran |
 | **Geheimnisse** | **nur** `HELFER_SESSION_SECRET` aus der produktiven `stack.env`, unter dem neuen Namen `LAGERBUCH_HELFER_SITZUNG_SECRET` | Laufende Helfer-Sitzungen (bis 12 h) überleben den Cutover — **nur, wenn der Modul-Host zeichengleich der heutige ist** (host-only Cookie). `AUTH_SECRET` der Suite bleibt unverändert. Abbau-Zeile: alte `stack.env` löschen |
-| **Organisationsname** | `LAGERBUCH_ORGANISATION`, eine `.env`-Zeile | Steht am Gate und als `name` im PWA-Manifest. Nicht oder leer gesetzt gilt der **Platzhalter** „DRK Bereitschaft Musterstadt“ aus der Alt-Anwendung — ⚠️ **zum Cutover also setzen:** `name` wird beim **Installieren** der PWA auf jedem Helfer-Handy eingebrannt, und eine spätere Korrektur erreicht kein Gerät, auf dem die App schon liegt. Marke („Lagerbuch“) und Unterzeile bleiben Konstanten im Code. ⚠️ **Ändert der gesetzte Wert den Namen, den Anwender heute am Gate lesen, gehört an DIESEM Tag eine Anwender-Notiz dazu** („Ein Name ändert sich“, AGENTS.md) — mit dem Datum des Rollouts, nicht dem des Commits, und ohne die Variable zu nennen. Der Code allein löst sie nicht aus: er liefert den Platzhalter unverändert weiter |
+| **Organisationsname** | `LAGERBUCH_ORGANISATION`, eine `.env`-Zeile | Steht am Gate und als `name` im PWA-Manifest. Nicht oder leer gesetzt gilt der **Platzhalter** „DRK Bereitschaft Musterstadt“ aus der Alt-Anwendung — ⚠️ **zum Cutover also setzen:** `name` wird beim **Installieren** der PWA auf jedem Helfer-Handy eingebrannt, und eine spätere Korrektur erreicht kein Gerät, auf dem die App schon liegt. Marke („Lagerbuch“) und Unterzeile bleiben Konstanten im Code. ⚠️ **Ändert der gesetzte Wert den Namen, den Anwender heute am Gate lesen, gehört an DIESEM Tag eine Anwender-Notiz dazu** („Ein Name ändert sich“, `docs/release-notes.md`) — mit dem Datum des Rollouts, nicht dem des Commits, und ohne die Variable zu nennen. Der Code allein löst sie nicht aus: er liefert den Platzhalter unverändert weiter |
 | **Kennungen (`sub`)** | ✅ **gemessen: gleich.** `subject_types_supported: ["public"]`, keine pairwise identifiers | **Es gibt keine Zuordnungstabelle**, und sie wird nicht gebraucht: der Weg fällt **per Identität** zur Nulloperation zusammen. ⚠️ Der Paritätscheck beantwortete die Frage nie (in beiden Fällen grün); die Stichprobe R11 bleibt |
 | **`users`-Tabelle** | Altbestand wird **gefiltert übernommen**, nicht geleert | Eine Zeile wandert genau dann, wenn ihre `id` in einer der sechs Autorenschaftsspalten vorkommt — das Prädikat **ist** der Waisenfilter. ⚠️ **Ausnahme:** Personen, deren einzige `users`-Zeile eine Waise ist (letzte Anmeldung vor `f2b515b`, 29.07.2026). Für die zeigt das Journal die **rohe Kennung**, und ihr Klarname steht **nur** in der Zeile, die der Filter aussortiert → **Bereinigung über die Klarnamen**, keine Übersetzungstabelle. `select count(*) from users` ist ohnehin **keine** Personenzahl |
 | **`BESTELL_FAKTOR`** | **ersatzlos gestrichen** | Kein Produktivpfad liest das Feld; ein produktiv gesetzter Wert hat nie etwas bewirkt. Er wandert **nicht** mit |
@@ -450,11 +450,11 @@ weiter übergangen.
 
 ---
 
-## 17. ⚠️ Drei Abfragen gegen die **Alt**-Datenbank, **bevor** importiert wird
+## 17. ⚠️ Vier Abfragen gegen die **Alt**-Datenbank, **bevor** importiert wird
 
-Alle drei beantworten eine Frage, die der Paritätscheck strukturell **nicht** stellt: er beweist den
+Alle vier beantworten eine Frage, die der Paritätscheck strukturell **nicht** stellt: er beweist den
 Datenbank-**Rundlauf**, nicht die **Feldzuordnung** — ein konsistenter Zuordnungsfehler ist
-paritätsgrün. Drei `SELECT`s, drei Protokollzeilen. Spaltennamen sind an der eingefrorenen
+paritätsgrün. Vier `SELECT`s, vier Protokollzeilen. Spaltennamen sind an der eingefrorenen
 Alt-Anwendung (`ca04eb1`, `src/db/schema.ts`) nachgelesen, nicht geraten.
 
 ### 17.1 Wie viele aktive Artikel und Codes bringt der Import mit? (Abschlussreview Teil 6, I1)
@@ -549,6 +549,27 @@ mit „**0 Positionen**" — das Modul erzeugt solche Zeilen im Normalbetrieb nu
 Datenimport kann sie in Mengen und Formen mitbringen, die das Modul nie erzeugt**. Zwei Zahlen, die
 zusammenpassen müssen: was vorher da war, muss nachher da sein — und nichts sonst. Weicht die Zahl
 ab, ist das ein **Zuordnungs**befund, und genau die sieht der Paritätscheck nicht.
+
+### 17.4 Trägt der Bestand Ids außerhalb des nanoid-Alphabets? (DRK-394)
+
+```sql
+select 'artikel', id from artikel where id glob '*[^A-Za-z0-9_-]*'
+union all select 'lagerorte', id from lagerorte where id glob '*[^A-Za-z0-9_-]*'
+union all select 'tokens.ziel_id', ziel_id from tokens where ziel_id glob '*[^A-Za-z0-9_-]*';
+```
+
+**Erwartet: null Zeilen.** Die Alt-Anwendung vergibt jede dieser Ids über `nanoid()` (Alphabet
+`A-Za-z0-9_-`), der Handlager heißt `handlager` — nachgelesen über die ganze Historie des
+eingefrorenen Repos. Eine Zeile hier heißt: jemand hat die Datenbank von Hand bearbeitet.
+
+**Warum die Abfrage trotzdem läuft.** Die Suite setzt die Landepfade seit DRK-394 kodiert zusammen
+(`/a/<id>`, `/helfer/check?fz=<id>`) — für jede nanoid-Id ist das **zeichengleich** mit dem, was die
+Alt-Anwendung gebaut hat, gedruckte Etiketten und Kärtchen landen also wie vorher. Eine Id mit `#`,
+`&`, `?`, `%` oder Leerzeichen dagegen landet **nach** dem Cutover anders als vorher, weil die
+Alt-Anwendung sie roh eingesetzt und damit abgeschnitten hat. Die Abfrage sagt, ob das nur eine
+Vorsichtsmaßnahme ist oder eine Landung, die sich beim Umschwenken ändert. Liefert sie Zeilen, die
+Ids **nicht** umschreiben (DRK-394 schließt eine Migration ausdrücklich aus), sondern die betroffenen
+Etiketten nach dem Cutover einmal scannen und die Landung prüfen.
 
 ---
 

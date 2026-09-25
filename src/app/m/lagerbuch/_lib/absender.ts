@@ -5,7 +5,7 @@
  * WARUM `x-forwarded-for` HIER GAR NICHT VORKOMMT — in keiner Richtung:
  * der Suite-Container ist auf dem Server direkt erreichbar (Betreiber,
  * 03.08.2026). Wer ihn direkt erreicht, setzt den Header vollstaendig selbst.
- * Den ERSTEN Eintrag zu nehmen (`core/ratelimit.ts:60`) oder den LETZTEN
+ * Den ERSTEN Eintrag zu nehmen (`clientIpAus` bis 2026-08-21) oder den LETZTEN
  * (`lagerbuch/src/lib/auth/rateLimit.ts:29-35`) macht dabei keinen Unterschied:
  * beide ergeben einen frischen Eimer je Versuch. Beide Begruendungen sind fuer
  * ihre jeweilige Topologie richtig und fuer diese hier falsch.
@@ -14,7 +14,7 @@
  * Kette der echte Absender — und fuer eine Anfrage am Rand vorbei ebenso
  * faelschbar wie alles andere. Er ist also eine Buendelung, kein Beweis; in
  * `files` heisst die entsprechende Spalte aus demselben Grund
- * `client_ip_unbestaetigt` (`core/ratelimit.ts:52-55`).
+ * `client_ip_unbestaetigt` (`core/ratelimit.ts`, Kommentar an `clientIpAus`).
  *
  * OHNE JEDEN KOPF ein KONSTANTER Wert: alle kopflosen Aufrufer teilen sich EINEN
  * Eimer. Das ist der sichere Ausfallmodus — er kann nur zu STRENG sein, nie zu

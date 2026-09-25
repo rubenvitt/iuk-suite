@@ -293,7 +293,7 @@ test("4 — die anonyme Abgabe erscheint im Posteingang des anderen Hosts und is
   }).toPass({ timeout: 60_000 });
 
   const adresse = await zeile()
-    .locator("[data-testid^='files-inbox-download-tabelle-']")
+    .locator("[data-testid^='files-inbox-download-']")
     .getAttribute("href");
   expect(adresse, "der Download-Knopf trägt keine Adresse").not.toBeNull();
 

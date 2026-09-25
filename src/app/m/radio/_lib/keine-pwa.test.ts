@@ -226,7 +226,7 @@ const VERBOTE_ANZAHL = 5;
 // Suite audit: _lib/audit.ts adds verified shared-access attribution (110 + 1).
 // DRK-335: Nachladen beim Scrollen — `_lib/nachladen.ts` und `_ui/Nachladen.tsx` (111 + 2).
 // DRK-455: der Geraetetitel fuer Akte und Historie aus einer Stelle, `_lib/geraetTitel.ts` (113 + 1).
-const QUELLDATEIEN_ANZAHL = 114;
+const QUELLDATEIEN_ANZAHL = 115; // DRK-389: der Excel-Leser und -Schreiber `_lib/csv/mappe.ts` (114 + 1).
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.

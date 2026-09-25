@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Alert, Button, Card, Checkbox, Input } from "antd";
 
 import { bearbeitenAction, type ShareFormZustand } from "../../../actions";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 import css from "./bearbeiten.module.css";
 
 /**
@@ -199,6 +200,7 @@ export function BearbeitenFormular(props: BearbeitenFormularProps) {
           <span className={css.beschriftung}>Titel</span>
           <Input
             name="title"
+            maxLength={TITEL_MAX_LAENGE}
             value={titel}
             onChange={(e) => setTitel(e.target.value)}
             status={titelFehler ? "error" : undefined}

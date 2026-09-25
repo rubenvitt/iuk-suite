@@ -8,6 +8,7 @@ import type { RoutineRow } from "../_db/schema";
 import { WOCHENTAG_BIT } from "../_lib/anzeige";
 import { ZeitFeld } from "./Felder";
 import { SPACE } from "@/core/theme/tokens";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 /*
  * DIE ERSTE CLIENT-INSEL DES MODULS (Aufgabe 11, Brief). Vier Stellen, an denen sie scheitern kann,
@@ -105,6 +106,7 @@ export function RoutineFormular({ routine }: { routine?: RoutineRow }) {
         <Input
           id="rt-titel"
           name="titel"
+          maxLength={TITEL_MAX_LAENGE}
           defaultValue={feldWert(state, "titel", routine?.titel ?? "")}
           status={titelFehler ? "error" : undefined}
           aria-invalid={titelFehler ? true : undefined}

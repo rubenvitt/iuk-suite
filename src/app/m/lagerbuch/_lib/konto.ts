@@ -15,7 +15,7 @@ import type { Viewer } from "./zugang";
  *
  * `id` ist der `sub` und niemals `user.id` — Auth.js vergibt bei OIDC je Login
  * eine ZUFALLS-UUID (`lagerbuch/src/lib/auth/konto.ts:10-15`). In der Suite kommt
- * der Wert aus `session.user.id`, das `core/auth/config.ts:171-173` auf
+ * der Wert aus `session.user.id`, das der Callback `session` in `core/auth/config.ts` auf
  * `token.sub` legt; die Verwechslung ist hier also nicht mehr moeglich. Genau
  * diese Verwechslung hat den Altbestand verseucht: bis `f2b515b` (29.07.2026,
  * fuenf Tage vor dem Freeze) schrieb `src/auth.ts` den Auth.js-`user.id` in
@@ -23,7 +23,7 @@ import type { Viewer } from "./zugang";
  * geschluesselt. DAS JOURNAL IST HEIL — dort stand immer der echte `sub`.
  *
  * LAEUFT NACH DEM RIEGEL: nur wer die Pruefung uebersteht, wird zuordenbar
- * (§3.7.2, Muster `requireFeedbackAccess.ts:50-55`). Der Preis, benannt: heute
+ * (§3.7.2, Muster: `upsertKnownUser` in `requireFeedbackAccess`). Der Preis, benannt: heute
  * entsteht der Satz beim LOGIN, kuenftig beim ERSTEN AUFRUF DER VERWALTUNG. Wer
  * sich anmeldet und lagerbuch nie oeffnet, hat keinen Satz — das ist richtig so.
  *

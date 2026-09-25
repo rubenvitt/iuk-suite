@@ -29,7 +29,7 @@ import s from "./helfer.module.css";
  * das Suite-/login"). `signIn("oidc", …)` waere die naheliegende Uebernahme
  * aus dem Bestand (dort Zeile 55) und in der Suite FALSCH: er heisst dort
  * **`"pocket-id"`** (`core/auth/pocketId.ts:28`) und existiert nur bei
- * gesetztem `POCKET_ID_ISSUER` (`core/auth/config.ts:76`). Auth.js meldet einen
+ * gesetztem `POCKET_ID_ISSUER` (`core/auth/config.ts`, Liste `providers`). Auth.js meldet einen
  * unbekannten Anbieter erst zur LAUFZEIT — `pnpm build` bliebe gruen.
  *
  * `/login` steht auf JEDEM Host zur Verfuegung: `core/routing.ts:12` fuehrt es

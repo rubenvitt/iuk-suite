@@ -1034,7 +1034,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
   /**
    * ⚠️ WARUM ES DIESEN TEST GIBT (Review-Befund 2). Die fuenf Auswahlknoepfe
    * tragen die CSS-Modulklasse `.chipKnopf`, welche das UA-Chrome entfernt und
-   * das entschiedene 44px-Tippziel setzt. Ohne diese Klasse bliebe um die
+   * das 56x56px-Tippziel setzt (DRK-399). Ohne diese Klasse bliebe um die
    * rund 21px hohe Chip-Pille das Browser-Chrome stehen. „Tap-Mass 56px" ist
    * eine Querschnittsregel dieses Plans, und
    * `core/theme/tokens.ts:33` begruendet sie woertlich („Bedienung mit
@@ -1042,9 +1042,11 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
    * `_ui/Stepper.tsx:10-11`). Diese fuenf Knoepfe SIND der Geraeteschritt, und
    * ein Fehlgriff schreibt „fehlt" oder „Defekt" ins Journal.
    *
-   * ⚠️ GEPRUEFT WIRD `>= 44`, NICHT `=== "44px"`: die Regel ist das Tippmass,
-   * nicht der Literalwert. Eine spaetere Anhebung auf 56 laesst den Test gruen,
-   * ein Wegfall macht ihn rot.
+   * ⚠️ GEPRUEFT WIRD `>= 56`, NICHT `>= 44` (DRK-399): bis dahin prueften
+   * diese Zeilen die `FullShell`-Dichte, und die 44 standen gruen neben einer
+   * Einsatzanforderung von 56. Und `>=`, nicht `=== "56px"`: die Regel ist das
+   * Tippmass, nicht der Literalwert. Ob die Zeile dabei umbricht, sieht nur ein
+   * echter Browser (`e2e/lagerbuch-helfer.spec.ts`, DRK-399).
    *
    * ⚠️ jsdom berechnet kein CSS (`HelferChip.tsx:22-28`); deshalb prüft der
    * Test die gerenderte Klasse und ihre deklarierte Regel gemeinsam.
@@ -1065,7 +1067,9 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     const chipKnopf = regeln(".chipKnopf");
     for (const k of knoepfe) {
       expect(k.className).toMatch(/chipKnopf/);
-      expect(Number.parseInt(chipKnopf.get("min-height") ?? "", 10)).toBeGreaterThanOrEqual(44);
+      expect(Number.parseInt(chipKnopf.get("min-height") ?? "", 10)).toBeGreaterThanOrEqual(56);
+      // Auch die BREITE: „fehlt" war als Tippziel 42,5px schmal (DRK-399).
+      expect(Number.parseInt(chipKnopf.get("min-width") ?? "", 10)).toBeGreaterThanOrEqual(56);
       // Das UA-Chrome um jede Pille muss mit weg, sonst sitzt der vergroesserte
       // Knopf als grauer Kasten um den Chip.
       expect(chipKnopf.get("border")).toBe("0");

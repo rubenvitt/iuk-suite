@@ -440,7 +440,7 @@ describe("/a/<id> — der Rahmen", () => {
   /**
    * ⚠️ DIESE ZUSICHERUNG STAND EINMAL ANDERSHERUM (DRK-375) — sie pruefte die
    * IDENTITAET des durchgereichten `buchen`-Props. Seit DRK-375 importiert
-   * `_ui/Entnahme.tsx` die Action selbst; Falle 9 (`AGENTS.md`/`CLAUDE.md`):
+   * `_ui/Entnahme.tsx` die Action selbst; Falle 9 (`CLAUDE.md`):
    * „Server Actions duerfen als einzige ueber die Grenze — aber direkt
    * importiert, nicht als Prop durchgereicht."
    *

@@ -6,7 +6,7 @@
 // GENERALPROBEN-Schalter. Fuer `radio` ist der Ausschluss schaerfer als fuer die anderen
 // Module: eine geseedete Zeile in `zugangscodes` ist ein gueltiger ANONYMER
 // SCHREIBZUGANG — jemand kann damit ohne Anmeldung Geraete ausleihen und zurueckgeben.
-// Diese Datei laeuft nur ueber scripts/seed-lokal.ts (seit V23 auch aus `playwright.config.ts:158`).
+// Diese Datei laeuft nur ueber scripts/seed-lokal.ts (seit V23 auch vor `next dev` in `playwright.config.ts`).
 //
 // ⛔ DIE ZUSICHERUNG DAZU, AUSGESCHRIEBEN (Falle No. 31,
 // docs/radio-portierung-analyse.md:1740-1749, woertlich): „Fuer `radio` heisst das: ein
@@ -65,7 +65,7 @@
 import type { DB } from "../_db/client";
 import { devices, loans, softwareVersions, users, zugangscodes } from "../_db/schema";
 
-/** Der `sub`, den das Dev-Login praegt: `dev:${email}` (src/core/auth/config.ts:63).
+/** Der `sub`, den das Dev-Login praegt: `dev:${email}` (src/core/auth/config.ts, Provider `dev-login`).
  *  Zeichengleich zum Praezedenzfall src/app/m/lagerbuch/_lib/seedLokal.ts:114. */
 const SEED_SUB = "dev:demo@localtest.me";
 

@@ -2,6 +2,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { act } from "react";
 
+// Die Insel importiert `deleteServiceAction` direkt (Falle 9, DRK-398); die
+// Action besitzt `actions.test.ts`, hier genuegt eine Attrappe des Moduls.
+vi.mock("@/app/m/portal/actions", () => ({ deleteServiceAction: vi.fn() }));
+
 import { ServiceTable, type ServiceRow } from "./service-table";
 import { exists, mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 
@@ -25,7 +29,7 @@ const DIENSTE: ServiceRow[] = [
 ];
 
 async function zeige(dienste: ServiceRow[] = DIENSTE): Promise<void> {
-  await mount(<ServiceTable services={dienste} deleteAction={vi.fn()} />);
+  await mount(<ServiceTable services={dienste} />);
 }
 
 /**

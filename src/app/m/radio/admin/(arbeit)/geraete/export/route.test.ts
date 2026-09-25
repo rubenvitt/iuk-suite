@@ -10,10 +10,13 @@ import { openModuleDatabase } from "@/core/db";
 import * as schema from "../../../../_db/schema";
 import { devices } from "../../../../_db/schema";
 import { ohneKommentare } from "../../../../_lib/quelltextScan";
-import { CSV_BOM, CSV_TRENNZEICHEN, EXPORT_SPALTEN } from "../../../../_lib/csv/spalten";
+import { XLSX_MIME } from "@/core/export";
+import { blattZellen, mappenBytes } from "@/core/export/test-mappe";
+import { EXPORT_SPALTEN } from "../../../../_lib/csv/spalten";
 
 /**
- * DER CSV-EXPORT — `GET /admin/geraete/export`, Aufgabe V22 (`Spec:4379`, `Spec:4728`).
+ * DER EXPORT — `GET /admin/geraete/export`, Aufgabe V22 (`Spec:4379`, `Spec:4728`); seit
+ * DRK-389 eine Excel-Mappe statt einer CSV.
  *
  * ⛔ ER IST DER EINE LESE-HANDLER DER VERWALTUNG UND ERSETZT `export.ts:69-78`. Ein Route
  * Handler und keine Seite, weil die Antwort eine Datei ist und kein Dokument — `notFound()`
@@ -124,9 +127,8 @@ function saeeGeraete(): void {
       },
       {
         id: "g-neu",
-        // ⛔ EIN SEMIKOLON IM WERT — die Maskierungsregel aus `_lib/csv/spalten.ts` ist
-        // sonst in dieser Datei unbelegt, und eine unmaskierte Zelle verschoebe beim
-        // Re-Import jede Folgespalte um eins.
+        // ⛔ EIN SEMIKOLON IM WERT — in der CSV war es die Maskierungsprobe; in der Mappe
+        // prueft es, dass der Wert in SEINER Zelle steht und nicht zerlegt wird.
         rufname: "41/14; Reserve",
         issi: "1000003",
         loanable: true,
@@ -178,16 +180,14 @@ function anfrage(kopf: HeadersInit = RADIO_HOST): Request {
 }
 
 /**
- * Die Kopfzeile wird GELESEN, nicht abgeschrieben (`_lib/csv/spalten.ts:91-111`). Eine
- * zweite Abschrift waere die Stelle, an der eine Spaltenumbenennung still auseinanderlaeuft
- * — und sie truege ausserdem einen Umlaut in einem zitierten Wert.
+ * Die Kopfzeile wird GELESEN, nicht abgeschrieben (`_lib/csv/spalten.ts`, `EXPORT_SPALTEN`).
+ * Eine zweite Abschrift waere die Stelle, an der eine Spaltenumbenennung still auseinanderlaeuft.
  */
-const KOPFZEILE = EXPORT_SPALTEN.map((spalte) => spalte.kopf).join(CSV_TRENNZEICHEN);
+const KOPFZEILE = EXPORT_SPALTEN.map((spalte) => spalte.kopf);
 
-/** Der Rumpf ohne BOM, in Zeilen zerlegt; die Schlusszeile ist leer und faellt heraus. */
-function zeilenAus(text: string): string[] {
-  const ohneBom = text.startsWith(CSV_BOM) ? text.slice(CSV_BOM.length) : text;
-  return ohneBom.split("\n").filter((zeile) => zeile !== "");
+/** Das Raster des einen Blattes: Kopfzeile, dann eine Zeile je Geraet. */
+async function zeilenAus(antwort: Response): Promise<(string | number | null)[][]> {
+  return blattZellen(await mappenBytes(antwort));
 }
 
 describe("GET /admin/geraete/export — der Riegel, alles IN der Route (B11)", () => {
@@ -241,66 +241,42 @@ describe("GET /admin/geraete/export — der Riegel, alles IN der Route (B11)", (
     expect(antwort.status, "die Updater-Stufe erreicht den Export").toBe(404);
   });
 
-  it("als Admin antwortet der Handler mit text/csv", async () => {
+  it("als Admin antwortet der Handler mit einer Excel-Mappe", async () => {
     /*
-     * Der positive Fall. ⛔ DER MEDIENTYP STEHT ZEICHENGLEICH IM BESTAND
-     * (`export.ts:73`, `'text/csv; charset=utf-8'`) — ohne `charset` oeffnet deutsches
-     * Excel die Datei in seiner Systemkodierung, und das BOM allein traegt die Zusage nur
-     * fuer Excel, nicht fuer jeden anderen Leser.
+     * Der positive Fall. Seit DRK-389 liefert der Export eine Mappe; den Medientyp setzt
+     * `xlsxAntwort` aus `core/export`, wie bei jedem Excel-Ausgang der Suite.
      */
     saeeGeraete();
     const antwort = await GET(anfrage());
     expect(antwort.status).toBe(200);
-    expect(antwort.headers.get("content-type")).toBe("text/csv; charset=utf-8");
-  });
-
-  it("die Antwort beginnt mit dem BOM", async () => {
-    /*
-     * ⛔ `export.ts:9`, `:61`: „UTF-8 BOM so Excel opens the `;`-delimited file with correct
-     * encoding." Ohne das BOM zeigt deutsches Excel jeden Umlaut der Kopfzeile
-     * („Gerätefunktionen", `export.ts:33`) als Ersatzzeichen — und die Datei laeuft trotzdem
-     * durch jeden Test, der nur den Text vergleicht.
-     *
-     * ⛔ GEMESSEN WERDEN DIE BYTES, NICHT DER DEKODIERTE TEXT. Ein `TextDecoder` mit
-     * eingeschaltetem BOM-Schnitt entfernt es beim Lesen still — der Fall pruefte dann seine
-     * eigene Dekodierung statt der Antwort. Dieselbe Familie wie die Testfallen 10 bis 12
-     * (`CLAUDE.md`): ein Test, der etwas anderes misst, als sein Name sagt.
-     */
-    saeeGeraete();
-    const antwort = await GET(anfrage());
-    const bytes = new Uint8Array(await antwort.arrayBuffer());
-    expect([bytes[0], bytes[1], bytes[2]], "das fuehrende UTF-8-BOM fehlt").toEqual([
-      0xef, 0xbb, 0xbf,
-    ]);
+    expect(antwort.headers.get("content-type")).toBe(XLSX_MIME);
   });
 
   it("die Antwort traegt einen Dateinamen im Content-Disposition", async () => {
     /*
-     * ⛔ ZEICHENGLEICH AUS `export.ts:74`. Der Ausloeser in Insel 1 ist ein Anker mit
-     * `download`-Attribut OHNE Wert (`DeviceList.tsx:104-111`, `anchor.download = ''`) — der
-     * Name der gespeicherten Datei kommt also AUSSCHLIESSLICH aus dieser Kopfzeile. Faellt
-     * sie weg, speichert der Browser die Datei unter dem letzten Pfadsegment `export`, ohne
-     * Endung, und deutsches Excel oeffnet sie gar nicht erst.
+     * ⛔ DER NAME KOMMT NUR VON HIER. Der Ausloeser in Insel 1 ist ein Anker mit
+     * `download`-Attribut OHNE Wert (`DeviceList.tsx:104-111`, `anchor.download = ''`) — faellt
+     * die Kopfzeile weg, speichert der Browser die Datei unter dem letzten Pfadsegment
+     * `export`, ohne Endung, und Excel oeffnet sie gar nicht erst.
      */
     saeeGeraete();
     const antwort = await GET(anfrage());
     expect(antwort.headers.get("content-disposition")).toBe(
-      'attachment; filename="funkgeraete-export.csv"',
+      'attachment; filename="funkgeraete-export.xlsx"',
     );
   });
 
-  it("der Rumpf traegt die neunzehn Kopfzeilen des Rundlaufvertrags", async () => {
+  it("die Mappe traegt die neunzehn Kopfzeilen des Rundlaufvertrags", async () => {
     /*
-     * ⛔ GELESEN, NICHT ABGESCHRIEBEN (`_lib/csv/spalten.ts:91-111`): eine zweite Abschrift
-     * der Kopfzeilen waere die Stelle, an der der Rundlaufvertrag still auseinanderlaeuft.
-     * Die 19 stehen als Zahl daneben, damit ein versehentlich abgeschnittener Satz nicht
-     * durch die Gleichheit mit sich selbst gruen bleibt.
+     * ⛔ GELESEN, NICHT ABGESCHRIEBEN (`EXPORT_SPALTEN`): eine zweite Abschrift der Kopfzeilen
+     * waere die Stelle, an der der Rundlaufvertrag still auseinanderlaeuft. Die 19 stehen als
+     * Zahl daneben, damit ein versehentlich abgeschnittener Satz nicht durch die Gleichheit mit
+     * sich selbst gruen bleibt.
      */
     saeeGeraete();
-    const antwort = await GET(anfrage());
-    const zeilen = zeilenAus(await antwort.text());
+    const zeilen = await zeilenAus(await GET(anfrage()));
     expect(EXPORT_SPALTEN.length, "der Rundlaufvertrag fuehrt neunzehn Spalten").toBe(19);
-    expect(zeilen[0]).toBe(KOPFZEILE);
+    expect(zeilen[0]).toEqual(KOPFZEILE);
   });
 
   it("der Export enthaelt auch nicht ausleihbare Geraete", async () => {
@@ -316,26 +292,26 @@ describe("GET /admin/geraete/export — der Riegel, alles IN der Route (B11)", (
      * ISSI namentlich — und `desc(createdAt)` gibt die Reihenfolge vor (`deviceRepo.ts:64`).
      */
     saeeGeraete();
-    const antwort = await GET(anfrage());
-    const zeilen = zeilenAus(await antwort.text());
+    const zeilen = await zeilenAus(await GET(anfrage()));
     expect(zeilen.length, "Kopfzeile plus drei Datenzeilen").toBe(4);
-    expect(zeilen[1]!.startsWith("1000003;"), "neuestes Geraet zuerst (desc(createdAt))").toBe(true);
-    expect(zeilen[2]!.startsWith("1000002;"), "das nicht ausleihbare Geraet fehlt").toBe(true);
-    expect(zeilen[3]!.startsWith("1000001;")).toBe(true);
+    expect(zeilen.slice(1).map((zeile) => zeile[0]), "neuestes Geraet zuerst (desc(createdAt))").toEqual([
+      "1000003",
+      "1000002",
+      "1000001",
+    ]);
   });
 
-  it("eine Zelle mit dem Trennzeichen wird maskiert", async () => {
+  it("ein Wert mit Semikolon steht ganz in seiner Zelle", async () => {
     /*
-     * ⛔ RFC 4180 (`_lib/csv/spalten.ts:275-291`): eine unmaskierte Zelle mit `;` verschoebe
-     * beim Re-Import jede Folgespalte um eins — und der Rundlauf ist die schriftlich
-     * gegebene Zusage dieses Wegs (`export.ts:11-15`).
+     * In der CSV war das die Maskierungsprobe (RFC 4180). In der Mappe gibt es kein
+     * Trennzeichen — geprueft wird, dass der Wert unzerlegt unter „Rufname" steht und die
+     * Folgespalten nicht verrutschen.
      */
     saeeGeraete();
-    const antwort = await GET(anfrage());
-    const zeilen = zeilenAus(await antwort.text());
-    expect(zeilen[1], "die Zelle mit dem Trennzeichen steht unmaskiert im Rumpf").toContain(
-      '"41/14; Reserve"',
-    );
+    const zeilen = await zeilenAus(await GET(anfrage()));
+    const rufname = KOPFZEILE.indexOf("Rufname");
+    expect(zeilen[1]?.[rufname]).toBe("41/14; Reserve");
+    expect(zeilen[1]?.[rufname + 1], "die Spalte hinter dem Rufnamen ist leer").toBeNull();
   });
 });
 
@@ -382,7 +358,7 @@ describe("GET /admin/geraete/export — die Bauform, die kein Typ haelt", () => 
      * ausser diesem Fall saehe das Verschwinden der Zeile.
      *
      * ⛔ UEBER `ohneKommentare`, NICHT UEBER DEN ROHEN TEXT: sonst bliebe eine
-     * AUSKOMMENTIERTE Zeile gruen — dieselbe Hausform wie `../GeraeteTabelle.test.tsx:879-880`,
+     * AUSKOMMENTIERTE Zeile gruen — dieselbe Hausform wie `../GeraeteTabelle.test.tsx` (Fall „force-dynamic“),
      * `../../ausleihen/AusleihenTabelle.test.tsx:665-666` und
      * `../../software/UpdateSuche.test.tsx:650-651` (⚠️ jene liegt unter `software/`, nicht
      * unter `update/`).

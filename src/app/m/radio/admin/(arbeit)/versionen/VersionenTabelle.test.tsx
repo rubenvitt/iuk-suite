@@ -43,8 +43,8 @@ const BREIT = '[data-rolle="breitansicht"] ';
  * ruft `Grid.useBreakpoint()` nicht (der Bestand tut es ebenfalls nicht,
  * `SoftwareVersionsPage.tsx:1-25`). Deshalb rendert jsdom hier die ECHTE Tabelle mit ihren
  * Zeilen, und die Zellen werden am gerenderten Baum geprueft statt an einem Geruest ueber
- * einer exportierten Spaltenliste — anders als in `AusleihenTabelle.test.tsx:20-30`, wo der
- * `matchMedia`-Stub den mobilen Zweig erzwingt.
+ * einer exportierten Spaltenliste. (Hier stand „anders als in `AusleihenTabelle.test.tsx:20-30`,
+ * wo der `matchMedia`-Stub den mobilen Zweig erzwingt" — seit DRK-451 nicht mehr, DRK-423.)
  */
 
 /*

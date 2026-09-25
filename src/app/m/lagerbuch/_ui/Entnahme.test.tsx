@@ -13,7 +13,7 @@ import s from "./helfer.module.css";
 import type { HelferErgebnis } from "../_lib/actionTypen";
 /*
  * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (DRK-375). Die Insel
- * importiert `bucheEntnahmeHelfer` seit DRK-375 DIREKT — `AGENTS.md`/Falle 9:
+ * importiert `bucheEntnahmeHelfer` seit DRK-375 DIREKT — `CLAUDE.md`/Falle 9:
  * „Server Actions duerfen als einzige ueber die Grenze, aber direkt importiert,
  * nicht als Prop durchgereicht." Ein Prop waere der bequemere Test, und genau
  * deshalb steht hier der Mock: der Test folgt der Bauform, nicht umgekehrt.
@@ -889,6 +889,30 @@ describe("Entnahme — Bauform", () => {
   });
 
   /**
+   * DRK-399 — „ÄNDERN" STEHT AUF 56, UND SEIN RANDMASS IST DIE POLSTERUNG.
+   *
+   * ⚠️ ZWEI DATEIEN, EINE ZAHL. Das negative Randmaß von `.zielAendern` muss
+   * genau die Polsterung der Zeile aufheben, die `Entnahme.tsx` inline setzt:
+   * gemessen (Chromium, 390x844) liegt die „+"-Taste 1px über „Ändern" und der
+   * Buchen-Knopf 0px darunter. Mehr Randmaß, und die Trefferfläche ragt in
+   * beide hinein. Deshalb liest der Test BEIDE Seiten und vergleicht sie — wer
+   * nur eine ändert, sieht es hier. Die Geometrie selbst misst
+   * `e2e/lagerbuch-helfer.spec.ts` (jsdom rechnet keine Layoutboxen).
+   */
+  it("gibt `Ändern` 56px, ohne dass die Trefferflaeche aus der Zeile ragt", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+
+    const regel = regeln(".zielAendern");
+    expect(Number.parseInt(regel.get("min-height") ?? "", 10)).toBeGreaterThanOrEqual(56);
+
+    const zeile = query<HTMLElement>(ZIEL);
+    const polster = Number.parseFloat(zeile.style.paddingTop);
+    expect(polster, "die Zeile muss ihre Polsterung inline tragen").toBeGreaterThan(0);
+    expect(Number.parseFloat(zeile.style.paddingBottom)).toBe(polster);
+    expect(regel.get("margin")).toBe(`-${polster}px 0`);
+  });
+
+  /**
    * DRK-309, Reviewrunde 6 — DIE ZIELZEILE NENNT ART UND KENNUNG.
    *
    * ⚠️ SIE IST DIE LETZTE ZEILE VOR EINER BUCHUNG, und die Wahl dahinter gilt
@@ -990,7 +1014,7 @@ describe("Entnahme — Bauform", () => {
    * ⚠️ DIESER SCAN STAND EINMAL ANDERSHERUM (DRK-375). Bis dahin sicherte er
    * zu, dass die Insel `_actions/buchung` NICHT importiert — mit der
    * Begruendung, die Datei gehoere einem SPAETER laufenden Plan (Teil 5, H7).
-   * Diese Begruendung ist abgelaufen, und Falle 9 (`AGENTS.md`/`CLAUDE.md`)
+   * Diese Begruendung ist abgelaufen, und Falle 9 (`CLAUDE.md`)
    * verlangt das Gegenteil: „Server Actions duerfen als einzige ueber die
    * Grenze — aber direkt importiert, nicht als Prop durchgereicht."
    *

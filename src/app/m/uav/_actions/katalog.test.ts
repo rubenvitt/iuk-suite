@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { rmSync } from "node:fs";
 import { migrateAllModules } from "@/core/bootstrap";
 import { NotFound } from "../_lib/queries";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 const DIR = "./.data/uav-actions-katalog-test";
 let gruppen: string[] | null = null;
@@ -61,6 +62,14 @@ describe("aufgabeAnlegenAction", () => {
     const { aufgabeAnlegenAction } = await import("./katalog");
     await expect(aufgabeAnlegenAction({ ...EINGABE, titel: "" })).rejects.toThrow();
   });
+
+  it("ein Titel über der Grenze wirft, genau an der Grenze wird angelegt (DRK-402)", async () => {
+    gruppen = ["uav-training-admin"];
+    const { aufgabeAnlegenAction } = await import("./katalog");
+    await expect(aufgabeAnlegenAction({ ...EINGABE, titel: "x".repeat(TITEL_MAX_LAENGE + 1) })).rejects.toThrow();
+    const aufgabe = await aufgabeAnlegenAction({ ...EINGABE, titel: "x".repeat(TITEL_MAX_LAENGE) });
+    expect(aufgabe.titel).toHaveLength(TITEL_MAX_LAENGE);
+  });
 });
 
 describe("aufgabeAendernAction", () => {
@@ -76,6 +85,16 @@ describe("aufgabeAendernAction", () => {
     const geaendert = await aufgabeAendernAction(angelegt.id, { titel: "Neuer Titel", aktiv: false });
     expect(geaendert.titel).toBe("Neuer Titel");
     expect(geaendert.aktiv).toBe(false);
+  });
+
+  it("ein Titel über der Grenze wirft, der gespeicherte bleibt stehen (DRK-402)", async () => {
+    gruppen = ["uav-training-admin"];
+    const { aufgabeAnlegenAction, aufgabeAendernAction } = await import("./katalog");
+    const { getDb } = await import("../_db/client");
+    const { alleTasks } = await import("../_lib/queries");
+    const angelegt = await aufgabeAnlegenAction(EINGABE);
+    await expect(aufgabeAendernAction(angelegt.id, { titel: "x".repeat(TITEL_MAX_LAENGE + 1) })).rejects.toThrow();
+    expect(alleTasks(getDb(), true)[0]?.titel).toBe("Vorflugkontrolle");
   });
 
   it("unbekannte id wirft NotFound", async () => {

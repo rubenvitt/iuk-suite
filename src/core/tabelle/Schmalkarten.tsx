@@ -17,9 +17,9 @@
  *    Hand `nurDesktop`/`nurMobil` samt eigener Kartenliste, jede mit ihrer
  *    eigenen Spezifitätsbegründung. Nicht Vorrat für künftigen Bedarf also,
  *    sondern eine eingetretene Doppelung — derselbe Maßstab, an dem die
- *    `Datentabelle` selbst gemessen wurde. ⚠️ `files` ist mit diesem Ticket
- *    NICHT umgestellt: dort hängt Zeilenauswahl daran (`ReadonlySet` über die
- *    Karten hinweg), und das ist ein eigener Auftrag, keine stille Ausweitung.
+ *    `Datentabelle` selbst gemessen wurde. `files` ist seit DRK-422 umgestellt
+ *    (über `Kartentabelle`, samt Zeilenauswahl, die Tabelle und Karte teilen);
+ *    die handgebauten Klassen sind dort entfallen.
  *
  * ⚠️ WAS SIE LÖST, UND WARUM DIE BISHERIGE ANTWORT NICHT REICHT.
  * `docs/design/README.md` sagt: „antd-`Table` scrollt auf schmalen Geräten, sie

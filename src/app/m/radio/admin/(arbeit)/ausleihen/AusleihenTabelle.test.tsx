@@ -15,16 +15,16 @@ import { dirname, join, normalize } from "node:path";
  * ⛔ DAS ETABLIERTE HARNESS, KEIN ZWEITES (`CLAUDE.md`, „Tests"):
  * `src/app/m/qr/_lib/test-dom.tsx`.
  *
- * ⚠️ ZWEI BLINDE FLECKEN, BEIDE GEERBT UND BEIDE BENANNT:
+ * ⚠️ ZWEI BLINDE FLECKEN, BEIDE GEERBT UND BENANNT — DER ZWEITE IST SEIT DRK-423 ZU:
  *   1. **Falle 9.** In jsdom gibt es keine RSC-Grenze — eine `render`-Funktion ist hier ein
  *      gewoehnlicher Funktionswert. Zoege jemand `SPALTEN` nach `_lib/` und liesse die Server
  *      Component sie durchreichen, bliebe JEDER Fall dieser Datei gruen. Der Waechter dagegen
  *      ist der Playwright-Fall aus `Spec:4881-4882` (Fall 5) — Eigentuemer Aufgabe V23.
- *   2. **Die Breite.** `vitest.setup.ts` stubt `matchMedia` mit `matches: false`, also liefert
- *      `Grid.useBreakpoint()` hier ausschliesslich falsche Breakpoints — gerendert wird der
- *      MOBILE Zweig. Die sieben Spalten werden deshalb REIN an `SPALTEN` geprueft und ihre
- *      Zellen ueber ein Geruest, nicht am gerenderten Tabellenkopf. Der Kopf ist V23s Fall.
- *      Dieselbe Aufteilung und derselbe Grund wie in `GeraeteTabelle.test.tsx:25-29`.
+ *   2. **Die Breite.** Bis DRK-451 schaltete die Insel per `Grid.useBreakpoint()` um, und jsdom
+ *      sah nur den MOBILEN Zweig. Seit die Umschaltung CSS ist (`Schmalkarten`), stehen BEIDE
+ *      Darstellungen im Baum; die breite pruefen die Faelle „die breite Darstellung" am Ende
+ *      dieser Datei am echten Tabellenkopf. `SPALTEN` und das Geruest bleiben daneben. Welche
+ *      Darstellung SICHTBAR ist, sieht jsdom nie (keine Media Query) — das misst der e2e-Fall.
  *
  * ⛔ WAS DIESE DATEI ZUSAETZLICH ZUM AUFGABENBRIEF HAELT: die vier 1:1-Untergrenzen, die der
  * Vorabscan als UNGEPRUEFT gemeldet hat (`.superpowers/sdd/planteil4/VORABSCAN.md:665`:
@@ -37,7 +37,7 @@ import { dirname, join, normalize } from "node:path";
 /*
  * ⛔ `vi.hoisted`, WEIL `vi.mock` AN DEN DATEIANFANG GEHOBEN WIRD. Ein gewoehnliches
  * `const replaceMock = vi.fn()` darueber ist zur Ausfuehrungszeit der Fabrik noch nicht
- * initialisiert (gemessen in `GeraeteTabelle.test.tsx:80-85`: `ReferenceError: Cannot access
+ * initialisiert (gemessen in `GeraeteTabelle.test.tsx` am `vi.hoisted`: `ReferenceError: Cannot access
  * ... before initialization`, und die ganze Datei faellt aus, nicht ein Fall).
  *
  * ⚠️ OHNE DIESEN ERSATZ STIRBT JEDER `mount()` AN `invariant expected app router to be
@@ -132,9 +132,9 @@ function props(teil: Partial<Parameters<typeof AusleihenTabelle>[0]> = {}) {
 /**
  * Ein Geruest, das die ZELLEN der sieben Spalten rendert.
  *
- * ⛔ ES IST DER EINZIGE WEG AN DIE ZELLEN, und der Grund steht im Kopf dieser Datei: in jsdom
- * rendert `AusleihenTabelle` den MOBILEN Zweig, nicht die Tabelle. Ein Fall, der die Zellen
- * am gerenderten Tabellenkopf suchte, maesse den falschen Zweig — oder gar nichts.
+ * ⚠️ HIER STAND „DER EINZIGE WEG AN DIE ZELLEN" — das galt, solange jsdom nur den mobilen
+ * Zweig renderte. Seit DRK-451 steht die Tabelle mit im Baum (Kopf dieser Datei); das Geruest
+ * bleibt, weil es jede Zelle ohne antds Tabellenmechanik und ohne Karte daneben misst.
  */
 type ZellenRender = (wert: unknown, zeile: AusleihZeile, index: number) => ReactNode;
 
@@ -526,8 +526,8 @@ describe("radio-Ausleihen: Nachladen und Filter", () => {
     /*
      * ⛔ DER GRIFF DES PLAYWRIGHT-FALLS (V23, `Spec:4881-4882`) — und er darf nicht am
      * `<table>` haengen: die Insel hat zwei Zweige. (⚠️ Hier stand „⬜ V13-L2 laesst die Liste
-     * dort heute leer" — seit V23 seedet der e2e-Lauf, `playwright.config.ts:158`.) Ein Griff
-     * auf Tabellenmarkup meldete den mobilen Zweig als gebrochene Insel. Fall 4 sagt dasselbe.
+     * dort heute leer" — seit V23 seedet der e2e-Lauf, `seed-lokal.ts radio` in `playwright.config.ts`.)
+     * Ein Griff auf Tabellenmarkup meldete den mobilen Zweig als gebrochene Insel. Fall 4 sagt dasselbe.
      */
     await mount(<AusleihenTabelle {...props({ zeilen: [], gesamt: 0 })} />);
     expect(queryAll('[data-rolle="radio-ausleihen-flaeche"]').length).toBe(1);
@@ -538,7 +538,7 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
   it("die Datei der Insel traegt use client als erste Zeile", () => {
     /*
      * ⛔ FALLE 9 (Bauform-Zulaessigkeitstafel Nr. 1): die sieben Spalten fuehren sieben
-     * `render`-Funktionen; dazu `Grid.useBreakpoint()`, `renderItem`, `Select` und
+     * `render`-Funktionen; dazu `karte` der schmalen Darstellung, das Nachladen, `Select` und
      * `DatePicker`. ⛔ DIE MENGE WIRD GEFUNDEN, NICHT AUFGEZAEHLT (R-V11-1).
      */
     const gefunden = inselDateien();
@@ -554,12 +554,12 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
   it("die Tabelle blaettert nicht selbst und bietet keinen Groessenwechsler", () => {
     /*
      * ⛔ REGIME B (`KOPF.md`, antd-Zuordnung): keine tabelleneigene Blaetterung, die
-     * Blaetterung laeuft ueber die URL. ⚠️ EIN VERSEHENTLICH EINGESCHALTETES BLAETTERWERK
-     * FAELLT IN VITEST NICHT AUF — und hier aus einem zweiten, schaerferen Grund als sonst:
-     * jsdom stubt `matchMedia` mit `matches: false` (`vitest.setup.ts`), diese Insel rendert
-     * dort also den MOBILEN Zweig und die Tabelle entsteht nie. Eine DOM-Zusicherung auf
-     * `.ant-pagination` waere hier VAKUUM — sie waere gruen, auch wenn die Tabelle blaetterte.
-     * ⛔ DESHALB BLEIBT DAS EIN QUELLTEXT-SCAN; er hat nur seinen Gegenstand gewechselt.
+     * Blaetterung laeuft ueber die URL. ⚠️ HIER STAND, EIN BLAETTERWERK FIELE IN VITEST NICHT
+     * AUF, weil jsdom nur den mobilen Zweig renderte und die Tabelle nie entstand. Seit DRK-451
+     * steht die Tabelle mit im Baum, und der Block „die breite Darstellung" am Ende dieser
+     * Datei misst `.ant-pagination` jetzt auch am DOM. ⛔ DER QUELLTEXT-SCAN BLEIBT trotzdem:
+     * er nennt den WEG (`blaettern=`, `showSizeChanger`, `size`), die DOM-Probe die Wirkung —
+     * beide zusammen sagen, was fehlt, wenn einer von beiden rot wird.
      *
      * ⛔ **UND GENAU DESHALB IST ER UMGESCHRIEBEN STATT GELOESCHT.** Seit der Umstellung auf
      * `@/core/tabelle` steht `pagination={false}` als VORGABE in
@@ -716,6 +716,101 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
     expect(quelle, "die Seite schreibt die Portionsgroesse selbst hin").not.toMatch(/\b20\b/);
     expect(quelle, "die Position erreicht die Insel nicht").toMatch(
       /naechsterCursor=\{seite\.naechsterCursor\}/,
+    );
+  });
+});
+
+/**
+ * DIE BREITE DARSTELLUNG, AM GERENDERTEN MARKUP (DRK-423).
+ *
+ * Bis DRK-451 entschied `Grid.useBreakpoint()`, welche Darstellung entsteht, und jsdom
+ * meldete dort immer „schmal": die Tabelle entstand in dieser Datei NIE, jede Zusage ueber sie
+ * war rein an `SPALTEN` oder vakuum — und das fiel nicht auf, weil alles gruen war. Seit die
+ * Umschaltung CSS ist, stehen beide Darstellungen im Baum, und diese Faelle messen die breite.
+ *
+ * ⛔ JEDER GRIFF IST AUF `[data-rolle="breitansicht"]` EINGERAHMT: `radio-leihe-status` steht
+ * auch auf der Karte, ohne Rahmen zaehlte ein Fall die Darstellungen statt der Zeilen.
+ *
+ * ⚠️ WELCHE DER BEIDEN SICHTBAR IST, SAGT JSDOM NICHT — es wertet keine Media Query aus. Das
+ * belegt der Playwright-Fall „DRK-423: /admin/ausleihen schaltet per CSS" in
+ * `e2e/radio-verwaltung.spec.ts`, bei 1280 und bei 390.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+describe("radio-Ausleihen: die breite Darstellung (DRK-423)", () => {
+  it("die Tabelle steht neben der Kartenliste im Baum, mit den sieben Spaltenkoepfen", async () => {
+    await mount(<AusleihenTabelle {...props()} />);
+
+    expect(queryAll(`${BREIT} table`).length, "die breite Darstellung traegt keine Tabelle").toBe(1);
+    expect(queryAll('[data-rolle="schmalkarten"]').length, "die Kartenliste fehlt").toBe(1);
+    /*
+     * ⛔ `toEqual` AUF DEN GERENDERTEN KOPF, NICHT AUF `SPALTEN`: der Fall oben haelt die Liste,
+     * dieser haelt, dass die `Datentabelle` sie auch so ausgibt (Kicker, Reihenfolge).
+     */
+    expect(queryAll(`${BREIT} thead th`).map((th) => (th.textContent ?? "").trim())).toEqual([
+      "Gerät",
+      "Typ",
+      "Ausleihende:r",
+      "Ausgeliehen",
+      "Zurückgegeben",
+      "Status",
+      "Notiz",
+    ]);
+  });
+
+  it("jede Leihe ist eine Tabellenzeile, und ihre Zellen kommen aus den render-Funktionen", async () => {
+    /*
+     * ⛔ ZWEI VERSCHIEDENE ZEILEN: eine laufende mit Typ und eine zurueckgegebene mit leerem Typ.
+     * Ein vertauschter Zweig in `StatusMarke` oder ein verlorener Rueckfall in `wert` dreht
+     * oder leert hier je eine Zelle.
+     */
+    await mount(
+      <AusleihenTabelle
+        {...props({
+          zeilen: [
+            zeile(),
+            zeile({ id: "l-2", geraetetyp: "", aktiv: false, zurueckText: "15.06.2026, 08:00" }),
+          ],
+          gesamt: 2,
+        })}
+      />,
+    );
+
+    const imBreiten = (rolle: string) =>
+      queryAll(`${BREIT} [data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
+    expect(queryAll(`${BREIT} tr[data-row-key]`).map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["l-1", "l-2"]);
+    expect(imBreiten("radio-leihe-status")).toEqual(["Aktiv", "Zurückgegeben"]);
+    expect(imBreiten("radio-leihe-typ")).toEqual(["Motorola MTP3550", "—"]);
+    expect(imBreiten("radio-leihe-zurueck")).toEqual(["—", "15.06.2026, 08:00"]);
+  });
+
+  it("die Tabelle blaettert nicht selbst — jetzt auch am DOM gemessen", async () => {
+    /*
+     * ⛔ FUENFUNDZWANZIG ZEILEN, NICHT EINE: antds Vorgabe sind zehn je Seite. Blaetterte die
+     * Tabelle, stuenden hier zehn Zeilen und eine `.ant-pagination` — bei einer Zeile saehe
+     * man keinen Unterschied. Unter `VIRTUELL_AB_ZEILEN` (150), also ohne Virtualisierung.
+     */
+    const viele = Array.from({ length: 25 }, (_, i) => zeile({ id: `l-${i + 1}` }));
+    await mount(<AusleihenTabelle {...props({ zeilen: viele, gesamt: 25 })} />);
+
+    expect(queryAll(`${BREIT} tr[data-row-key]`).length, "die Tabelle zeigt nur eine Seite").toBe(25);
+    expect(exists(`${BREIT} .ant-pagination`), "die Tabelle blaettert selbst").toBe(false);
+  });
+
+  it("die Umschaltung ist CSS: kein JavaScript-Breakpoint in der Insel", () => {
+    /*
+     * ⛔ DIE REGEL DER SUITE (`core/tabelle/Schmalkarten.tsx`): beide Darstellungen liegen im
+     * HTML, die Media Query blendet eine aus. Ein JS-Breakpoint kennt beim ersten Rendern die
+     * Fenstergroesse nicht und zeigt einen Wimpernschlag lang die falsche Variante — und in
+     * jsdom liefe dann wieder nur ein Zweig, ohne dass dieser Block es merkte: seine Faelle
+     * oben wuerden rot, aber mit einer Meldung ueber fehlende Zeilen statt ueber die Ursache.
+     * Dieselbe Sperre wie `files/_ui/SharesTabelle.test.tsx`.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
+    expect(quelle, "die Insel schaltet nicht ueber Schmalkarten um").toMatch(/<Schmalkarten</);
+    expect(quelle, "ein JavaScript-Breakpoint in der Insel").not.toMatch(
+      /useBreakpoint|matchMedia|innerWidth|clientWidth/,
     );
   });
 });

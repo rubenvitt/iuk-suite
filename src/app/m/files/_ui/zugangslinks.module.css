@@ -2,7 +2,7 @@
  * KOMPONENTENLOKALES CSS DER ABGABELINK-LISTE (Plan T39, Spec §8.6).
  *
  * WAS HIER LIEGT UND WAS NICHT: `_ui/files.css` traegt die modulweiten
- * `--fi-*`-Variablen und die EINE Umschaltung, die sich zwei Ansichten teilen.
+ * `--fi-*`-Variablen; die Umschaltung Tabelle/Kartenliste gehoert `core/tabelle`.
  * Alles, was nur diese Ansicht braucht, gehoert hierher (Plan §1, Festlegung C;
  * Praezedenzfall `feedback/f/[slugSecret]/zettel.module.css`). Die Variablen
  * kommen von dort und werden hier nur benutzt — `--ant-*` waere still wirkungslos,

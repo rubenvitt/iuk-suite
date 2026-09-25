@@ -5,6 +5,7 @@ import { useActionState, useCallback, useEffect, useRef, useState } from "react"
 import { Alert, Button, Card, Input, Progress } from "antd";
 
 import { anlegenAction, type AnlegenErgebnis } from "../(verwaltung)/actions";
+import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { FILES_CHUNK_BYTES } from "../_lib/grenzen";
 import { MIME_ALLOWLIST } from "../_lib/mime";
 import css from "./uploadInsel.module.css";
@@ -415,6 +416,7 @@ export function UploadInsel({
             <span className={css.beschriftung}>Titel</span>
             <Input
               name="title"
+              maxLength={TITEL_MAX_LAENGE}
               value={werte.title}
               onChange={(e) => setWerte((w) => ({ ...w, title: e.target.value }))}
               status={state.ok || !state.feldFehler.title ? undefined : "error"}

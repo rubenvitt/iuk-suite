@@ -1,8 +1,8 @@
 /*
  * DIE KOMPONENTENLOKALEN REGELN DES BEARBEITEN-FORMULARS (Plan §1 Festlegung C:
  * Komponenten-CSS liegt in einem `*.module.css` NEBEN seiner Komponente, nicht
- * in `_ui/files.css` — dort stehen ausschliesslich die Modulvariablen und die
- * eine Umschaltung, die sich zwei Ansichten teilen).
+ * in `_ui/files.css` — dort stehen ausschliesslich die Modulvariablen; die
+ * Umschaltung Tabelle/Kartenliste gehoert seit DRK-422 `core/tabelle`).
  *
  * DIE DOPPELUNG MIT `_ui/uploadInsel.module.css` IST BEWUSST UND BENANNT. Die
  * beiden Formulare sehen gleich aus und tragen dieselben vier Rollen
