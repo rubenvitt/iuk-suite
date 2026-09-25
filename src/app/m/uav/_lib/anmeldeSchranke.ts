@@ -1,3 +1,4 @@
+import { auditDenied } from "@/core/audit/server";
 import { RateLimiter } from "@/core/ratelimit";
 
 /**
@@ -43,4 +44,51 @@ export function fehlversuchBuchen(absender: string): void {
  */
 export function codeVersuchErlaubt(code: string, absender: string): boolean {
   return jeCode.check(code, jeAbsender.istGesperrt(absender));
+}
+
+/**
+ * Obergrenze für die AUDIT-ZEILEN verworfener Anmeldungen (DRK-447) — modulweit, nicht je
+ * Absender. Die beiden Zähler oben bremsen je Code und je Adresse; teilen sich alle Anfragen
+ * eine Adresse (Egress des Modul-Hosts) oder ist sie gefälscht (Container an Cloudflare
+ * vorbei), gibt es über sie keine Obergrenze für Zeilen in der Audit-Datenbank.
+ *
+ * Deshalb: je Minutenfenster höchstens `ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN` einzelne Zeilen,
+ * danach EINE Zeile `access_throttled` („ab hier nicht mehr einzeln protokolliert") und bis
+ * zum nächsten Fenster nichts mehr. Die Markierung ist die Spur eines Scans — ganz verwerfen
+ * hieße, genau den Angriff unsichtbar zu machen, gegen den die Zeilen da sind. Höchstens
+ * `ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN + 1` Zeilen je Minute, egal wie viele Absender.
+ *
+ * ⛔ Gilt NUR für Ablehnungen. Eine erfolgreiche Anmeldung protokolliert die Route direkt und
+ * unabhängig von diesem Fenster; die Drossel ändert auch keine Antwort.
+ *
+ * Festes Fenster statt `RateLimiter`: nur ein Schlüssel, und für die Markierung zählt, ob sie
+ * in DIESEM Fenster schon geschrieben ist — das ist ein Zustand je Fenster, kein Zeitstempel-
+ * Verlauf. Prozessspeicher wie oben: nach einem Neustart beginnt ein frisches Fenster.
+ */
+export const ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN = 10;
+
+export type AuditEntscheid = "einzeln" | "gedrosselt" | "still";
+
+export class AblehnungsDrossel {
+  private fensterStart = -Infinity;
+  private geschrieben = 0;
+  private markiert = false;
+  constructor(private readonly opts: { max: number; windowMs: number; now?: () => number }) {}
+  /** Was soll für DIESE Ablehnung ins Audit? Bucht zugleich. */
+  entscheiden(): AuditEntscheid {
+    const t = (this.opts.now ?? Date.now)();
+    if (t - this.fensterStart >= this.opts.windowMs) { this.fensterStart = t; this.geschrieben = 0; this.markiert = false; }
+    if (this.geschrieben < this.opts.max) { this.geschrieben++; return "einzeln"; }
+    if (!this.markiert) { this.markiert = true; return "gedrosselt"; }
+    return "still";
+  }
+}
+
+const auditAblehnungen = new AblehnungsDrossel({ max: ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN, windowMs: 60_000 });
+
+/** Die verworfene Anmeldung protokollieren — im Rahmen der modulweiten Obergrenze. */
+export function ablehnungProtokollieren(): void {
+  const entscheid = auditAblehnungen.entscheiden();
+  if (entscheid === "einzeln") auditDenied("uav");
+  else if (entscheid === "gedrosselt") auditDenied("uav", { kind: "anonymous" }, "access_throttled");
 }

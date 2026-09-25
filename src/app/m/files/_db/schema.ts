@@ -198,11 +198,20 @@ export const inboxFiles = sqliteTable(
     bytesVollstaendigAt: integer("bytes_vollstaendig_at", { mode: "timestamp" }),
     avStatus: text("av_status").notNull(),
     avGeprueftAt: integer("av_geprueft_at", { mode: "timestamp" }),
+    // Der IDEMPOTENZSCHLÜSSEL des Clients (DRK-448), vom ersten Chunk. Ging die
+    // Antwort darauf verloren, kennt der Client die `id` nicht — mit demselben
+    // Schlüssel setzt er dieselbe Abgabe fort, statt einen zweiten Dateiplatz zu
+    // belegen. Die `id` bleibt vom Server; der Schlüssel findet nur, was zum
+    // eigenen Token gehört. NULL für den Altbestand und für Clients ohne ihn.
+    abgabeSchluessel: text("abgabe_schluessel"),
   },
   (t) => [
     index("idx_inbox_empfangen").on(t.empfangenAt), // Posteingang-Sortierung
     index("idx_inbox_av").on(t.avStatus),
     index("idx_inbox_token").on(t.tokenId),
+    // UNIQUE je Link: zwei gleichzeitige Wiederholungen desselben ersten Chunks
+    // legen sonst doch zwei Zeilen an. Mehrere NULL sind in SQLite erlaubt.
+    uniqueIndex("idx_inbox_schluessel").on(t.tokenId, t.abgabeSchluessel),
     check("inbox_files_av_status_check", sql`${t.avStatus} IN ${AV_STATUS_SQL}`),
   ],
 );

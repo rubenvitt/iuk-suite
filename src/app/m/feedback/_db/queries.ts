@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import {
@@ -186,6 +186,86 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
 }
 
 /**
+ * HÖCHSTENS EIN DIENSTABEND JE GRUPPE UND KALENDERTAG (DRK-429) — die Regel an
+ * EINER Stelle.
+ *
+ * Zwei Zeilen für einen Dienstabend enden als zwei getrennte Auswertungen, die
+ * sich nicht mehr zusammenführen lassen. Bis DRK-429 hielt nur die Planung die
+ * Regel ein; „Feedback starten", „Abend ohne Feedback nachtragen" und das
+ * Verschieben in der Zeilenbearbeitung legten den zweiten Abend still an.
+ *
+ * Jede Lage belegt den Tag, auch `cancelled`: ein abgesagter Abend wird wieder
+ * angesetzt, nicht durch einen zweiten ersetzt — sonst stünde „am 3. November
+ * war kein Dienst" neben dem Abend, der an jenem Tag doch lief.
+ *
+ * ⚠️ VERGLICHEN WIRD DER KALENDERTAG IN DER SUITE-ZONE (`kalendertagInZone`),
+ * aus demselben Grund wie in `planEvenings`: importierte Abende tragen einen
+ * Zeitanteil. Die Abfrage grenzt deshalb nur grob über ±2 Tage vor (der
+ * Index `idx_evenings_group_date` trägt sie) und entscheidet erst im Code.
+ *
+ * ⚠️ KEIN DATENBANKRIEGEL: ein `UNIQUE` über `date` meinte den Zeitpunkt, nicht
+ * den Kalendertag. Dafür bräuchte es eine gespeicherte Tagesspalte. Die
+ * Aufrufer prüfen deshalb in DERSELBEN Transaktion, in der sie schreiben;
+ * SQLite serialisiert Schreibzugriffe, zwei gleichzeitige Absendungen kommen
+ * also nicht beide durch.
+ *
+ * `ausser` nimmt den Abend aus, der gerade verschoben wird — sonst belegte er
+ * seinen eigenen Tag.
+ */
+export function abendAmTag(
+  db: DB,
+  groupId: number,
+  date: Date,
+  ausser: number | null = null,
+): EveningRow | undefined {
+  const tag = kalendertagInZone(date);
+  const spanne = 2 * 24 * 60 * 60 * 1000;
+  return db
+    .select()
+    .from(evenings)
+    .where(
+      and(
+        eq(evenings.groupId, groupId),
+        gte(evenings.date, new Date(date.getTime() - spanne)),
+        lte(evenings.date, new Date(date.getTime() + spanne)),
+      ),
+    )
+    .all()
+    .find((r) => r.id !== ausser && kalendertagInZone(r.date) === tag);
+}
+
+/**
+ * Der Tag ist schon belegt — geworfen von den schreibenden Wegen, damit keiner
+ * den zweiten Abend anlegt. Die Actions fangen ihn und zeigen ihn am
+ * Datumsfeld (§4.4); `abend` sagt, WAS dort steht, denn davon hängt ab, welchen
+ * Weg die Meldung nennt.
+ */
+export class TagBelegt extends Error {
+  constructor(readonly abend: EveningRow) {
+    super(`Die Gruppe hat am ${kalendertagInZone(abend.date)} schon einen Dienstabend`);
+    this.name = "TagBelegt";
+  }
+}
+
+/**
+ * „ABEND OHNE FEEDBACK NACHTRAGEN" — `insertEvening` mit der Tagesregel.
+ *
+ * `insertEvening` selbst bleibt ohne Prüfung: Import, Seeds und Tests legen
+ * damit Bestand an, darunter mit Absicht zwei Abende am selben Tag (so sieht
+ * der Altbestand aus, gegen den `latestSurveyForGroup` abgesichert ist).
+ */
+export function trageAbendNach(
+  db: DB,
+  v: { groupId: number; date: Date; topic: string | null; notes: string | null; participantCount: number | null; createdAt: Date },
+): EveningRow {
+  return db.transaction((tx) => {
+    const belegt = abendAmTag(tx, v.groupId, v.date);
+    if (belegt) throw new TagBelegt(belegt);
+    return tx.insert(evenings).values(v).returning().get();
+  });
+}
+
+/**
  * GEPLANTE ABENDE IN EINER TRANSAKTION — überspringt, was schon dasteht.
  *
  * Die Oberfläche reicht heute genau einen Termin herein (`planEveningsAction`). Zwei
@@ -279,7 +359,17 @@ export function updateEvening(
    * Betrieb — im Betrieb hätte es eine Fehlerseite gegeben.
    */
   if (Object.keys(patch).length === 0) return;
-  db.update(evenings).set(patch).where(eq(evenings.id, id)).run();
+  db.transaction((tx) => {
+    // Ein neues Datum darf nicht auf einen Tag fallen, an dem die Gruppe schon
+    // einen ANDEREN Abend hat (`abendAmTag`, DRK-429). Das unveränderte Datum
+    // trifft nur den Abend selbst und fällt über `ausser` heraus.
+    if (patch.date) {
+      const eve = tx.select().from(evenings).where(eq(evenings.id, id)).get();
+      const belegt = eve && abendAmTag(tx, eve.groupId, patch.date, id);
+      if (belegt) throw new TagBelegt(belegt);
+    }
+    tx.update(evenings).set(patch).where(eq(evenings.id, id)).run();
+  });
 }
 export function deleteEvening(db: DB, id: number): void {
   db.delete(evenings).where(eq(evenings.id, id)).run();
@@ -396,37 +486,47 @@ export function releaseSurveyForEvening(
   return db.transaction((tx) => {
     const eve = tx.select().from(evenings).where(eq(evenings.id, input.eveningId)).get();
     if (!eve) throw new Error("evening not found");
-    const vorhanden = tx.select().from(surveys).where(eq(surveys.eveningId, eve.id)).get();
-    const closesAt = computeClosesAt(eve.date, input.closeAfterHours);
-
-    // Reihenfolge wie in `createAndStartSurvey`: erst die Geschwister schließen.
-    schliesseAktiveDerGruppe(tx, eve.groupId, input.now, vorhanden?.id ?? null);
-
-    const survey = vorhanden
-      ? tx
-          .update(surveys)
-          .set({ status: "active", activatedAt: input.now, closesAt, closedAt: null })
-          .where(eq(surveys.id, vorhanden.id))
-          .returning()
-          .get()
-      : tx
-          .insert(surveys)
-          .values({
-            eveningId: eve.id,
-            status: "active",
-            questions: JSON.stringify(STANDARD_QUESTIONS),
-            closeAfterHours: input.closeAfterHours,
-            activatedAt: input.now,
-            closesAt,
-            closedAt: null,
-            createdAt: input.now,
-          })
-          .returning()
-          .get();
-
-    tx.update(evenings).set({ status: "held" }).where(eq(evenings.id, eve.id)).run();
-    return survey;
+    return gibAbendFrei(tx, eve, input.closeAfterHours, input.now);
   });
+}
+
+/**
+ * Der Rumpf der Freigabe, ohne eigene Transaktion: `releaseSurveyForEvening`
+ * und die Übernahme in `createAndStartSurvey` (DRK-429) laufen beide hier
+ * durch, damit es EINE Fassung davon gibt, wie ein geplanter Abend zum
+ * gelaufenen mit Umfrage wird.
+ */
+function gibAbendFrei(tx: DB, eve: EveningRow, closeAfterHours: number, now: Date): SurveyRow {
+  const vorhanden = tx.select().from(surveys).where(eq(surveys.eveningId, eve.id)).get();
+  const closesAt = computeClosesAt(eve.date, closeAfterHours);
+
+  // Reihenfolge wie in `createAndStartSurvey`: erst die Geschwister schließen.
+  schliesseAktiveDerGruppe(tx, eve.groupId, now, vorhanden?.id ?? null);
+
+  const survey = vorhanden
+    ? tx
+        .update(surveys)
+        .set({ status: "active", activatedAt: now, closesAt, closedAt: null })
+        .where(eq(surveys.id, vorhanden.id))
+        .returning()
+        .get()
+    : tx
+        .insert(surveys)
+        .values({
+          eveningId: eve.id,
+          status: "active",
+          questions: JSON.stringify(STANDARD_QUESTIONS),
+          closeAfterHours,
+          activatedAt: now,
+          closesAt,
+          closedAt: null,
+          createdAt: now,
+        })
+        .returning()
+        .get();
+
+  tx.update(evenings).set({ status: "held" }).where(eq(evenings.id, eve.id)).run();
+  return survey;
 }
 
 /**
@@ -437,6 +537,17 @@ export function releaseSurveyForEvening(
  *
  * Der Abend entsteht auf `held`: „Feedback starten" heißt, dass der Dienstabend
  * JETZT läuft. Ein im Voraus angesetzter Abend kommt über `planEvenings`.
+ *
+ * STEHT AN DEM TAG SCHON EIN ABEND (`abendAmTag`, DRK-429), entsteht keiner:
+ *
+ * * Ein GEPLANTER wird übernommen und freigegeben (`gibAbendFrei`). Das ist
+ *   der Alltagsfall: der Donnerstag steht seit Wochen im Kalender, und am
+ *   Donnerstag drückt die Leitung „Feedback für heute starten" statt
+ *   „Freigeben". Ein Thema aus dem Formular ersetzt das geplante, ein leeres
+ *   lässt es stehen — wer beim Start nichts einträgt, meint das geplante.
+ * * Ein GELAUFENER oder ABGESAGTER wirft `TagBelegt`. Zwei Erhebungen für
+ *   einen Abend sind genau der Datenfehler, den die Regel verhindert, und ein
+ *   abgesagter Abend wird wieder angesetzt statt ersetzt.
  */
 export function createAndStartSurvey(
   db: DB,
@@ -449,8 +560,25 @@ export function createAndStartSurvey(
     closeAfterHours: number;
     now: Date;
   },
-): { eveningId: number; surveyId: number } {
+): { eveningId: number; surveyId: number; uebernommen: boolean } {
   return db.transaction((tx) => {
+    const belegt = abendAmTag(tx, input.groupId, input.date);
+    if (belegt && belegt.status !== "planned") throw new TagBelegt(belegt);
+    if (belegt) {
+      const vorhanden = tx.select().from(surveys).where(eq(surveys.eveningId, belegt.id)).get();
+      tx.update(evenings)
+        .set({
+          topic: input.topic ?? belegt.topic,
+          notes: input.notes ?? belegt.notes,
+          participantCount: input.participants,
+        })
+        .where(eq(evenings.id, belegt.id))
+        .run();
+      // Dieselbe Vorrangregel wie `freigebenAction`: Umfrage vor Gruppe.
+      const hours = vorhanden?.closeAfterHours ?? input.closeAfterHours;
+      const survey = gibAbendFrei(tx, belegt, hours, input.now);
+      return { eveningId: belegt.id, surveyId: survey.id, uebernommen: true };
+    }
     const eve = tx
       .insert(evenings)
       .values({
@@ -482,7 +610,7 @@ export function createAndStartSurvey(
       })
       .returning()
       .get();
-    return { eveningId: eve.id, surveyId: survey.id };
+    return { eveningId: eve.id, surveyId: survey.id, uebernommen: false };
   });
 }
 

@@ -3,30 +3,30 @@ import { headers } from "next/headers";
 import { Button, Card, Col, Row, Statistic } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
-import { getDb } from "../../../_db/client";
-import { getGroup, listGroupMembers, listKnownUsers, listResponses } from "../../../_db/queries";
-import type { SurveyRow } from "../../../_db/schema";
-import { guardPage } from "../../../_lib/guardPage";
-import { cockpitZustand } from "../../../_lib/cockpit";
-import { computeDAStats, verteilungJeFrage } from "../../../_lib/aggregation";
-import { DEFAULT_CLOSE_AFTER_HOURS, freigabelage } from "../../../_lib/lifecycle";
-import { buildToken } from "../../../_lib/token";
-import type { Question } from "../../../_lib/questions";
-import { T } from "../../../_ui/typo";
-import { formatDatumKurz, heuteInZone, tagInZone } from "../../../_ui/datum";
-import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../../../_lib/noten";
-import { Notenpille } from "../../../_ui/Noten";
-import { Lagekarte } from "../../../_ui/Lagekarte";
-import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
-import { Verlauf, type VerlaufZeile } from "../../../_ui/Verlauf";
-import { KommendeAbende } from "../../../_ui/KommendeAbende";
-import { EinstellungenPanel } from "../../../_ui/EinstellungenPanel";
-import type { ZuordnungPerson } from "../../../_ui/Zuordnung";
+import { getDb } from "../../../../_db/client";
+import { getGroup, listGroupMembers, listKnownUsers, listResponses } from "../../../../_db/queries";
+import type { SurveyRow } from "../../../../_db/schema";
+import { guardPage } from "../../../../_lib/guardPage";
+import { cockpitZustand } from "../../../../_lib/cockpit";
+import { computeDAStats, verteilungJeFrage } from "../../../../_lib/aggregation";
+import { DEFAULT_CLOSE_AFTER_HOURS, freigabelage } from "../../../../_lib/lifecycle";
+import { buildToken } from "../../../../_lib/token";
+import type { Question } from "../../../../_lib/questions";
+import { T } from "../../../../_ui/typo";
+import { formatDatumKurz, heuteInZone, tagInZone } from "../../../../_ui/datum";
+import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../../../../_lib/noten";
+import { Notenpille } from "../../../../_ui/Noten";
+import { Lagekarte } from "../../../../_ui/Lagekarte";
+import { Teilnahme, teilnahmeUrlAus } from "../../../../_ui/Teilnahme";
+import { Verlauf, type VerlaufZeile } from "../../../../_ui/Verlauf";
+import { KommendeAbende } from "../../../../_ui/KommendeAbende";
+import { EinstellungenPanel } from "../../../../_ui/EinstellungenPanel";
+import type { ZuordnungPerson } from "../../../../_ui/Zuordnung";
 import { getDirectory } from "@/core/directory";
-import { leitungAus } from "../../../_lib/personen";
-import { accessibleGroupFilter, isFeedbackAdmin } from "../../../_lib/access";
-import { einstiegZiel } from "../../../_lib/einstieg";
-import { thema } from "../../../_lib/thema";
+import { leitungAus } from "../../../../_lib/personen";
+import { accessibleGroupFilter, isFeedbackAdmin } from "../../../../_lib/access";
+import { einstiegZiel } from "../../../../_lib/einstieg";
+import { thema } from "../../../../_lib/thema";
 
 /**
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
@@ -535,8 +535,8 @@ function LetzterAbend({
          * Notenpille ist kein erkennbares Ziel.
          *
          * `href` statt `<Link>` um den Knopf: antd rendert daraus EIN `<a>` —
-         * ein Tabstop, ein Fokusring (§4.14), und der Weg zur Auswertung
-         * funktioniert ohne JavaScript. `<Link><Button>` wäre `<a><button>`,
+         * ein Tabstop, ein Fokusring (§4.14), und die Auswertung selbst liest
+         * sich ohne JavaScript (DRK-424). `<Link><Button>` wäre `<a><button>`,
          * also verschachtelt Interaktives, und `fb-fokus` würde einen zweiten
          * Ring über antds eigenen legen.
          */}

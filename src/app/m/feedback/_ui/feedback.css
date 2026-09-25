@@ -193,19 +193,26 @@
 }
 
 /*
- * DIE ZWEI DARSTELLUNGEN DES VERLAUFS (§2.5).
+ * DIE ZWEI DARSTELLUNGEN DES VERLAUFS (§2.5) — und die Kopfzeile darueber.
  *
  * Der Entwurf schliesst BEIDE naheliegenden Loesungen ausdruecklich aus: kein
  * horizontal scrollendes `Table` (sechs Spalten auf 390px sind unbedienbar) und
  * kein `Grid.useBreakpoint()` (in einer Server Component ist es RSC-Falle 1,
  * und in einer Client-Insel liefert es beim ersten Rendern ALLE Werte `false` —
  * die Zone bliebe einen Wimpernschlag leer und springt danach). Also liegen
- * beide Darstellungen im HTML, und diese Medienabfrage schaltet.
+ * beide Darstellungen im HTML, und eine Medienabfrage schaltet.
+ *
+ * SEIT DRK-452 SCHALTET DIE LISTE SELBST NICHT MEHR HIER, sondern in
+ * `core/tabelle` (`Kartentabelle`, derselbe Rahmen wie an jeder anderen Liste
+ * der Suite). Hier bleiben nur `.fb-nur-breit`/`.fb-nur-schmal` fuer den
+ * Notenfunken der Kopfzeile, der NEBEN der Liste steht.
+ * Der Rahmen dort schaltet an derselben Grenze wie diese Datei (768px); ein
+ * zweiter Breakpoint entsteht damit nicht.
  *
  * WARUM HIER UND NICHT INLINE: eine Medienabfrage laesst sich nicht inline
  * setzen, und eine Klasse mit `display: none` verliert gegen ein inline
  * gesetztes `display` — dieselbe Falle, die `.fb-legende-woerter` oben
- * dokumentiert. Deshalb setzt `Verlauf.tsx` an diesen vier Klassen KEIN
+ * dokumentiert. Deshalb setzt `Verlauf.tsx` an diesen beiden Klassen KEIN
  * `display`.
  *
  * 768px ist der Umbruch des Entwurfs (§2.5) UND der Breakpoint der ganzen
@@ -215,27 +222,20 @@
  * erklaerte nicht, warum die Knopfzeile frueher umschalten muesste. Gemessen
  * bei 700x900: Menue-Knopf sichtbar, Schmalliste sichtbar, Knoepfe trotzdem
  * nebeneinander und inhaltsbreit. Seither steht ueberall 767.98/768.
- *
- * 767.98 und nicht 768 in den `max-width`-Abfragen: bei exakt 768px gaelten
- * sonst beide Seiten gleichzeitig, und die Reihenfolge im Stylesheet entschiede.
  */
-.fb-verlauf-breit,
 .fb-nur-breit {
   display: none;
 }
 
-.fb-verlauf-schmal,
 .fb-nur-schmal {
   display: block;
 }
 
 @media (min-width: 768px) {
-  .fb-verlauf-breit,
   .fb-nur-breit {
     display: block;
   }
 
-  .fb-verlauf-schmal,
   .fb-nur-schmal {
     display: none;
   }
@@ -250,13 +250,13 @@
  *
  * Hier als Regel und nicht als Token in `theme.ts`: die Farbe gilt fuer DIESE
  * Tabelle, nicht fuer die aller Module. `!important` steht bewusst nicht dort —
- * die Selektoren sind spezifisch genug, weil `.fb-verlauf-breit` davorsteht.
+ * die Selektoren sind spezifisch genug, weil `.fb-verlauf` davorsteht.
  */
-.fb-verlauf-breit .ant-table-tbody > tr > td {
+.fb-verlauf .ant-table-tbody > tr > td {
   border-bottom-color: var(--fb-split);
 }
 
-.fb-verlauf-breit .ant-table-tbody > tr.ant-table-row:hover > td {
+.fb-verlauf .ant-table-tbody > tr.ant-table-row:hover > td {
   background: var(--fb-tint);
 }
 

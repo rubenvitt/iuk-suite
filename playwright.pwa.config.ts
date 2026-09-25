@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
+import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
 
 /**
  * Eigene Config für den PWA-Spike (Port 3101, parallel zur E2E-Config auf 3100).
@@ -9,6 +9,11 @@ import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
  * `--unsafely-treat-insecure-origin-as-secure`. Dieses Flag soll nicht in der
  * normalen E2E-Suite hängen — dort würde es reale Browser-Sicherheitszusagen
  * abschalten, die die anderen Tests mit prüfen.
+ *
+ * `e2e/einsatzbuch-reader.spec.ts` setzt denselben Schalter dennoch innerhalb der
+ * normalen Suite: dort steht er per `test.use` auf Dateiebene, nicht in dieser
+ * globalen Config, und gilt nur für den einen Origin des Readers — die anderen
+ * Specs derselben Suite behalten ihre echte Sicherheitszusage.
  */
 const ORIGINS = [
   `http://beta.localtest.me:${E2E_PORTS.pwa}`,
@@ -16,7 +21,7 @@ const ORIGINS = [
   `http://qr.localtest.me:${E2E_PORTS.pwa}`,
 ].join(",");
 
-export default defineConfig({
+export default cloudTauglich(defineConfig({
   testDir: "./e2e",
   // `pwa-spike`: eine Datei, die hier nicht steht, wird von
   // dieser Config nie gefunden — und von der normalen Config (testIgnore)
@@ -56,7 +61,7 @@ export default defineConfig({
       PORT: String(E2E_PORTS.pwa),
     },
   },
-});
+}));
 
 // Nennt den Halter eines belegten Ports (DRK-346, `e2e/helpers/ports.ts`).
 pruefePortsFrei([E2E_PORTS.pwa]);

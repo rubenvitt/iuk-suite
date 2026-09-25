@@ -9,6 +9,7 @@ import zeitzoneEinstellen from "./notizen/portal/2026-09-23-zeitzone-einstellen"
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
+import einsatzdateienImReader from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-24-einsatzdateien-im-reader";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
@@ -49,6 +50,7 @@ import dienstabendePlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback
 import checksLaufend from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-19-checks-laufend";
 import ruecklaufVomFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-21-ruecklauf-vom-fahrzeug";
 import aussondernAusDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-22-aussondern-aus-der-box";
+import langeZugangsCodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-24-lange-zugangs-codes";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -128,6 +130,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   ortscodes,
   artikeletiketten,
   aussondernAusDerBox,
+  langeZugangsCodes,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,
@@ -159,6 +162,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   trainingsansichtOhneSuiteLeiste,
   fortschrittZaehltDurchfuehrungen,
   dankeSeiteNurDanke,
+  einsatzdateienImReader,
 ];
 
 /**

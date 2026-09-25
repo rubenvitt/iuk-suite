@@ -29,8 +29,8 @@ import { T } from "./typo";
  *
  * ⚠️ DER HINWEIS „STEHT SCHON" IM PLANUNGSDIALOG IST KEIN SCHMUCK, sondern der
  * Ersatz für eine Rückmeldung nach dem Absenden. `planEveningsAction` kommt
- * ohne Formularzustand aus (§4.4 nennt genau drei Formulare mit Feldfehlern,
- * dieses ist keins davon), und `planEvenings` überspringt einen belegten Tag
+ * ohne Formularzustand aus (anders als Nachtragen und Bearbeiten, DRK-429:
+ * die sind §4.4-Formulare), und `planEvenings` überspringt einen belegten Tag
  * still. Ohne den Hinweis schlösse sich der Dialog, und es wäre nichts
  * passiert. Deshalb prüft der Dialog den Tag vorher und sperrt den Knopf.
  *
@@ -312,9 +312,9 @@ function AbendZeile({
 }
 
 /**
- * Der Planungsdialog. Zwei Eingaben, kein `useActionState` — dieselbe
- * Begründung wie beim `NachtragenDialog` (§4.4): das Datum ist ein
- * `<input type="date">`, das Thema ist frei.
+ * Der Planungsdialog. Zwei Eingaben, kein `useActionState`: den belegten Tag
+ * meldet der Dialog selbst vor dem Absenden (Kopf dieser Datei), das Datum ist
+ * ein `<input type="date">`, das Thema ist frei.
  *
  * GESCHLOSSEN WIRD NACH DER ACTION, nicht im `onSubmit`: `destroyOnHidden` baut
  * das Formular sonst mitten im Absenden aus.

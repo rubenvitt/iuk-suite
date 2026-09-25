@@ -452,6 +452,69 @@ describe("AbgabeFormular — das Drahtformat aus T31", () => {
     expect(fortsetzung.get("name")).toBeNull();
   });
 
+  /**
+   * DRK-448: geht die Antwort auf den ersten Chunk verloren, kennt das Formular
+   * die `id` nicht. Nur DERSELBE Schlüssel führt die Wiederholung zur selben
+   * Abgabe — ein neuer eröffnete eine zweite und belegte einen zweiten Platz.
+   */
+  it("schickt im ersten Chunk einen Schlüssel — und nach einem Netzfehler DENSELBEN", async () => {
+    antwortGeber = (_url, nr) =>
+      nr === 1 ? { status: 0, werfen: new TypeError("Failed to fetch") } : erfolgAus({ "a.png": 8 })(_url);
+    await mount(<AbgabeFormular token={TOKEN} />);
+    await waehle([datei("a.png", "image/png", 8)]);
+    await abgeben();
+
+    await click('[data-testid="abgabe-eintrag"][data-datei="a.png"] [data-testid="eintrag-wiederholen"]');
+
+    const erster = parameter(aufrufe[0]).get("schluessel");
+    expect(erster).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(parameter(aufrufe[1]).get("schluessel")).toBe(erster);
+    expect(parameter(aufrufe[1]).get("id")).toBeNull();
+  });
+
+  it("zwei Dateien tragen zwei verschiedene Schlüssel", async () => {
+    antwortGeber = erfolgAus({ "a.png": 8, "b.png": 8 });
+    await mount(<AbgabeFormular token={TOKEN} />);
+    await waehle([datei("a.png", "image/png", 8), datei("b.png", "image/png", 8)]);
+    await abgeben();
+
+    const [a, b] = aufrufe.map((url) => parameter(url).get("schluessel"));
+    expect(a).not.toBeNull();
+    expect(a).not.toBe(b);
+  });
+
+  it("übernimmt bei 409 auch die `id` des Servers — gefunden über den Schlüssel", async () => {
+    const gesamt = 2 * FILES_CHUNK_BYTES;
+    antwortGeber = (url, nr) => {
+      if (nr === 1) {
+        return {
+          status: 409,
+          koerper: { code: "offset", id: "inbox-7", erwartetesAb: FILES_CHUNK_BYTES },
+        };
+      }
+      const p = parameter(url);
+      return {
+        status: 200,
+        koerper: {
+          id: "inbox-7",
+          empfangen: Math.min(Number(p.get("ab")) + FILES_CHUNK_BYTES, gesamt),
+          fertig: p.get("ende") === "1",
+        },
+      };
+    };
+    await mount(<AbgabeFormular token={TOKEN} />);
+    await waehle([datei("video.mp4", "video/mp4", gesamt)]);
+    await abgeben();
+
+    await click(
+      '[data-testid="abgabe-eintrag"][data-datei="video.mp4"] [data-testid="eintrag-wiederholen"]',
+    );
+
+    const fortsetzung = parameter(aufrufe[1]);
+    expect(fortsetzung.get("id")).toBe("inbox-7");
+    expect(fortsetzung.get("ab")).toBe(String(FILES_CHUNK_BYTES));
+  });
+
   it("adressiert den Abgabeweg des eigenen Tokens", async () => {
     antwortGeber = erfolgAus({ "a.txt": 3 });
     await mount(<AbgabeFormular token={TOKEN} />);

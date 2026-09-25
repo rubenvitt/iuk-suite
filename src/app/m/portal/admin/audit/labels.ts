@@ -12,9 +12,11 @@ export const OBJECT_LABELS: Record<string,string> = {
  device_events:"Funkgeräteereignis",devices:"Funkgerät",loans:"Ausleihe",software_versions:"Softwarestand",zugangscodes:"Ausleihzugang",
  executions:"Durchführung",participants:"Trainingsteilnehmer",task_status:"Trainingsfortschritt",tasks:"Trainingsaufgabe",
  sitzung_widerruf:"Sitzungswiderruf",
- session:"Anmeldung",sessions:"Sitzungen",idp_refresh:"Sitzung beim Identitätsanbieter",access:"Modulzugriff",login_required:"Modulzugriff ohne Anmeldung",share_access:"Freigabezugriff",audit_log:"Audit-Log",browser_export:"Browserexport",bereich:"Bereich außerhalb des Kärtchens",
+ session:"Anmeldung",sessions:"Sitzungen",idp_refresh:"Sitzung beim Identitätsanbieter",access:"Modulzugriff",access_throttled:"Weitere Ablehnungen nicht einzeln protokolliert",login_required:"Modulzugriff ohne Anmeldung",share_access:"Freigabezugriff",audit_log:"Audit-Log",browser_export:"Browserexport",bereich:"Bereich außerhalb des Kärtchens",
  share_file:"Datei aus Freigabe",share_archive:"Archiv aus Freigabe",inbox_file:"Datei aus Abgabe",inbox_archive:"Archiv der Abgaben",group_export:"Gruppenauswertung",evening_export:"Dienstabendauswertung",checklist_collection:"Fahrzeug-Checklisten",device_collection:"Funkgeräteübersicht",participant_export:"Teilnehmerauswertung",participant_collection:"Teilnehmerübersicht",proof_file:"Nachweisdatei",
  qr_png:"QR-Code als PNG",
+ fahrzeug:"Fahrzeug (Einsatzbuch)",person:"Person (Einsatzbuch)",stichwort:"Alarmstichwort",einstellung:"Einstellung",schluesselpaar:"Schlüsselpaar des Einsatzbuchs",
+ einsatzbuch_reader_oeffnen:"Einsatzdatei im Reader geöffnet",einsatzbuch_reader_druck:"Einsatzbericht aus dem Reader gedruckt",
 };
 export function objectLabel(type: string): string { return OBJECT_LABELS[type] ?? "Weiteres Objekt"; }
 export function actorLabel(event: AuditEvent): string {

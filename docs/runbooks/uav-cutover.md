@@ -63,6 +63,9 @@ Diese vier Dinge stehen nicht im Repo und müssen vor der Generalprobe (§P) erl
    sqlite3 snap.db "select count(*) from executions;"
    sqlite3 snap.db "select count(*) from task_status;"
    sqlite3 snap.db "select count(*) from sessions where kind='participant' and expires_at > datetime('now');"
+   # Codes, die NICHT 8 Zeichen Crockford-Base32 sind — muss 0 sein (DRK-447), sonst meldet
+   # sich diese Person nach dem Cutover nicht mehr an; der Import bricht dann ohnehin ab:
+   sqlite3 snap.db "select count(*) from participants where login_code not glob '[0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z][0-9A-HJKMNP-TV-Z]';"
    ```
    Zahlen hier eintragen, bevor es weitergeht:
 
@@ -72,6 +75,7 @@ Diese vier Dinge stehen nicht im Repo und müssen vor der Generalprobe (§P) erl
    | `executions` | ⬜ |
    | `task_status` | ⬜ |
    | `sessions` (aktive Teilnehmer-Sitzungen) | ⬜ |
+   | `participants` mit abweichendem Codeformat (muss 0 sein) | ⬜ |
 
 ---
 
@@ -107,18 +111,22 @@ Abräum-Worker, sobald der Host tatsächlich wechselt — sichtbar wird das erst
 DATA_DIR=./.data/gp pnpm exec tsx scripts/import/uav.ts snap.db
 ```
 
-Der Aufruf entspricht `runUavImport()` in `scripts/import/uav.ts:409-426`. Erwartet, als letzte
-Zeile:
+Der Aufruf entspricht `runUavImport()` in `scripts/import/uav.ts`. Erwartet, als letzte
+Zeilen:
 
 ```
+Codeformat: <n> von <n> login_codes im Anmeldeformat.
 uav-Import OK — <n> Zeilen, Parität grün.
 ```
 
-Bricht der Lauf ab, steht die Ursache in der Fehlermeldung — entweder ein `ParityReport`-Mismatch
-(`scripts/import/parity.ts`) oder der eigenständige Wurf bei einer abweichenden
-`login_code`-Menge (`paritaetUav`, `scripts/import/uav.ts:373-382` — das ist die einzige Prüfung,
-die **vor** jeder anderen Parität wirft, weil der Dauer-Code der einzige Zugangsweg eines
-Teilnehmers ist). **Bricht die Generalprobe ab: kein Cutover, Ursache klären.**
+Bricht der Lauf ab, steht die Ursache in der Fehlermeldung — ein `ParityReport`-Mismatch
+(`scripts/import/parity.ts`), der eigenständige Wurf bei einer abweichenden
+`login_code`-Menge (`paritaetUav` in `scripts/import/uav.ts` — er wirft **vor** jeder anderen
+Parität, weil der Dauer-Code der einzige Zugangsweg eines Teilnehmers ist) oder
+`Codeformat FAILED` (`codeFormatPruefen`, DRK-447): ein Bestandscode ist nicht 8 Zeichen
+Crockford-Base32, die Anmeldung würde ihn verwerfen. Diese Prüfung läuft **vor** dem Schreiben
+und nennt nur Teilnehmer-IDs, nie Codes. **Bricht die Generalprobe ab: kein Cutover, Ursache
+klären.**
 
 ⚠️ **Der Import (und sein Paritätscheck) läuft gegen ein FRISCHES, noch unbenutztes `DATA_DIR` —
 bevor sich irgendjemand anmeldet.** `paritaetUav` vergleicht `sessions`/`executions`/`task_status`
@@ -239,7 +247,7 @@ docker compose exec suite sh -c 'sqlite3 /data/uav.db "select count(*) from exec
 ```
 
 und die Suite-DB (`uav.db`) sichern, bevor die Alt-App wieder Schreibzugriff bekommt. Ein
-erneuter Import nach einem Rollback ist idempotent (Upsert per PK, `scripts/import/uav.ts:225-254`)
+erneuter Import nach einem Rollback ist idempotent (Upsert per PK, `importUav` in `scripts/import/uav.ts`)
 — er trägt aber keine in der Suite-Zeit entstandenen Zeilen in die Alt-App zurück.
 
 ---

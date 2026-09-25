@@ -34,6 +34,16 @@ while [ "${#KEEP}" -gt 1 ] && [ "${KEEP#0}" != "$KEEP" ]; do KEEP="${KEEP#0}"; d
 #   Bind-Mount:                 BLOB_DIR=/srv/iuk-suite/files
 BLOB_DIR="${BLOB_DIR:-$DATA_DIR/files}"
 
+# Die Bildnachweise des Moduls `aufgaben` (DRK-365) — dieselbe Lage wie bei `files`
+# direkt darueber: eigenes benanntes Volume `aufgaben_data`, host-seitig also ein LEERER
+# Mountpunkt unter `$DATA_DIR/aufgaben`. Im Dienst `backup` stimmt die Vorgabe von selbst
+# (`aufgaben_data:/data/aufgaben:ro`); von Hand muss sie auf das Volume zeigen:
+#   Benanntes Volume (Vorgabe): AUFGABEN_DIR=/var/lib/docker/volumes/aufgaben_data/_data
+# BEWUSST eine zweite Variable und keine Liste von Blob-Verzeichnissen: was „vollstaendig"
+# heisst, ist je Modul eine eigene Abfrage (unten beim Riegel), eine Liste spart also nur
+# die eine Zeile hier und verschoebe die Modulkenntnis in ein Zuordnungsformat.
+AUFGABEN_DIR="${AUFGABEN_DIR:-$DATA_DIR/aufgaben}"
+
 # DBs einsammeln. nullglob NUR hier, danach sofort wieder aus — sonst leakt es in
 # das Rotations-Glob unten und ein leerer Match würde dort zum CWD-Listing/rm.
 shopt -s nullglob
@@ -105,6 +115,29 @@ while :; do
 done
 work="$BACKUP_DIR/$stamp"
 
+# ⚠️ WER SCHEITERT, RAEUMT SEINEN EIGENEN REST WEG (DRK-476). Ein Abbruch mitten in der
+# Arbeit liess `$work` und `$work.tar.gz.part` liegen, und weil beide bewusst nicht als
+# Generation zaehlen, erfasste sie auch keine Rotation: jeder Abbruch kostete bis zu zwei
+# Kopien des Datenbestands, fuer immer. Der teuerste Fall ist ausgerechnet der haeufigste:
+# ein volles Volume laesst `tar` unter `set -e` scheitern, und der Rest haelt es voll.
+#
+# Die Falle fasst NUR den Stempel an, den DIESER Lauf oben per exklusivem `mkdir`
+# beansprucht hat — nie `$work.tar.gz`, und nach dem regulaeren Abraeumen gar nichts
+# mehr (`eigener_rest` wird dort geleert). TERM, INT und HUP laufen ueber `exit`, damit
+# auch sie die EXIT-Falle ausloesen; bash wartet dafuer das laufende Kind (`tar`, `rsync`)
+# ab, und es gibt keinen Wettlauf zwischen Aufraeumen und Weiterschreiben.
+# SIGKILL erreicht keine Falle — solche Reste raeumt der Sidecar unter seiner Sperre
+# (`reste_aufraeumen` in `scripts/backup-sidecar.sh`).
+eigener_rest="$work"
+rest_aufraeumen() {
+  [ -n "$eigener_rest" ] || return 0
+  rm -rf "$eigener_rest" "$eigener_rest.tar.gz.part" 2>/dev/null || true
+}
+trap rest_aufraeumen EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 for db in "${dbs[@]}"; do
   sqlite3 "$db" ".backup '$work/$(basename "$db")'"
 done
@@ -123,6 +156,15 @@ done
 # Upload), ist das kein Fehler; ein nacktes rsync naehme hier alles mit.
 if [ -d "$BLOB_DIR" ]; then
   rsync -a --exclude='*.part' "$BLOB_DIR/" "$work/files/"
+fi
+# Die Bildnachweise von `aufgaben`, nach `$work/aufgaben/` — dieselbe Begruendung wie
+# oben, mit einem Unterschied: das Modul schreibt jeden Blob in EINEM Zug und ohne
+# Zwischendatei (`aufgaben/_lib/ablage.ts`, `legeNachweisAb`), es gibt also kein `*.part`
+# auszuschliessen. Und die Reihenfolge traegt die Konsistenz: der Blob liegt, BEVOR seine
+# Zeile in `dateien` entsteht, und die DB-Kopie oben ist aelter als dieses rsync — jede
+# Zeile der Kopie hat ihren Blob also schon, wenn hier kopiert wird.
+if [ -d "$AUFGABEN_DIR" ]; then
+  rsync -a "$AUFGABEN_DIR/" "$work/aufgaben/"
 fi
 
 # Der stille Fall: vollstaendige Zeilen in der DB, aber kein einziger Blob kopiert
@@ -164,6 +206,27 @@ if [ -f "$work/files.db" ]; then
   fi
 fi
 
+# Derselbe stille Fall fuer `aufgaben` (DRK-365): Zeilen in `dateien`, aber kein einziger
+# Bildnachweis kopiert (leerer Mountpunkt, falsch belegtes AUFGABEN_DIR). Jede Zeile gilt
+# als vollstaendig — eine Spalte wie `bytes_vollstaendig_at` braucht das Modul nicht, weil
+# der Blob fertig geschrieben ist, bevor die Zeile entsteht (siehe beim rsync oben).
+# `|| echo 0` aus demselben Grund wie bei `files`: vor der ersten Migration fehlt die
+# Tabelle, und das Backup der anderen Module muss trotzdem laufen.
+if [ -f "$work/aufgaben.db" ]; then
+  zeilen_aufgaben="$(sqlite3 "$work/aufgaben.db" "select count(*) from dateien" \
+    2>/dev/null || echo 0)"
+  [ -n "$zeilen_aufgaben" ] || zeilen_aufgaben=0
+  blobs_aufgaben=0
+  if [ -d "$work/aufgaben" ]; then
+    blobs_aufgaben="$(find "$work/aufgaben" -type f | wc -l | tr -d ' ')"
+  fi
+  if [ "$zeilen_aufgaben" -gt 0 ] && [ "$blobs_aufgaben" -eq 0 ]; then
+    echo "backup: $zeilen_aufgaben rows in aufgaben.db (dateien) but no blobs from $AUFGABEN_DIR — aborting" >&2
+    rm -rf "$work"
+    exit 1
+  fi
+fi
+
 # ⚠️ GEPACKT WIRD UNTER EINEM NAMEN, DER NICHT ALS GENERATION ZAEHLT (DRK-416). `tar`
 # schrieb frueher direkt auf `$stamp.tar.gz`, und ein WACHSENDES Archiv passt auf das
 # Muster, mit dem lokal wie am Ziel gezaehlt wird (TARBALL_MUSTER im Sidecar, `*.tar.gz`
@@ -178,6 +241,8 @@ fi
 tar -czf "$work.tar.gz.part" -C "$BACKUP_DIR" "$stamp"
 mv -f "$work.tar.gz.part" "$work.tar.gz"
 rm -rf "$work"
+# Ab hier gibt es nichts Halbes mehr, und die Falle fasst nichts mehr an.
+eigener_rest=""
 
 # Rotation: nur die neuesten $KEEP Tarballs behalten. Wir haben gerade eines
 # geschrieben, das Glob matcht also >=1; mit nullglob AUS bleibt ein (hier

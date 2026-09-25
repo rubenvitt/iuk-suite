@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 /**
@@ -326,6 +327,130 @@ describe("scripts/backup.sh — ein wachsendes Archiv ist keine Generation", () 
       { encoding: "utf8" },
     );
     expect(p.trim()).toBe("faellt");
+  });
+});
+
+describe("scripts/backup.sh — wer scheitert, raeumt seinen eigenen Rest weg (DRK-476)", () => {
+  /**
+   * Seit DRK-416 zaehlen `<stempel>/` und `<stempel>.tar.gz.part` bewusst nicht als
+   * Generation — und fielen damit aus jeder Rotation. Ein abgebrochener Lauf liess sie
+   * fuer immer liegen, und der haeufigste Abbruch ist ausgerechnet ein volles Volume.
+   *
+   * ⚠️ HIER LAEUFT DAS SKRIPT WIRKLICH, anders als im Rest dieser Datei: `sqlite3`,
+   * `rsync` und `tar` sind Attrappen im PATH. Echte Werkzeuge braucht die Frage nicht —
+   * sie handelt davon, was nach einem Abbruch im Verzeichnis LIEGT, nicht davon, was im
+   * Archiv steht. Und ein Scan saehe die Falle, nicht ihre Wirkung.
+   *
+   * GEMESSEN mit dem Stand von DRK-416 (ohne Falle): nach `tar`-Fehler wie nach SIGTERM
+   * lagen `<stempel>/` und `<stempel>.tar.gz.part` im Verzeichnis.
+   */
+  const TAR_ATTRAPPE = [
+    "#!/bin/sh",
+    'printf halb >"$2"',
+    ': >"$TEST_MARKE"',
+    'case "$TEST_TAR_MODUS" in scheitert) exit 2 ;; haengt) sleep 1 ;; esac',
+    "exit 0",
+    "",
+  ].join("\n");
+  const TREIBER = 'bash "$TEST_SKRIPT"; echo "rc=$?"';
+  const TREIBER_MIT_SIGNAL = [
+    'bash "$TEST_SKRIPT" & p=$!',
+    'while [ ! -e "$TEST_MARKE" ]; do sleep 0.02; done',
+    'kill -"$TEST_SIGNAL" "$p"',
+    'wait "$p"; echo "rc=$?"',
+    // Die Attrappe schlaeft nach KILL verwaist weiter; ihr Ende abwarten, bevor gezaehlt wird.
+    "sleep 1.2",
+  ].join("\n");
+  const lauf = (tarModus: "ok" | "scheitert" | "haengt", signal?: "TERM" | "HUP" | "KILL") => {
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-falle-"));
+    const bin = path.join(kladde, "bin");
+    const daten = path.join(kladde, "daten");
+    mkdirSync(bin);
+    mkdirSync(daten);
+    writeFileSync(path.join(daten, "portal.db"), "");
+    const ablegen = (name: string, inhalt: string) => {
+      writeFileSync(path.join(bin, name), inhalt);
+      chmodSync(path.join(bin, name), 0o755);
+    };
+    // `.backup '<ziel>'` → das Ziel anlegen, damit das Arbeitsverzeichnis Inhalt hat.
+    ablegen("sqlite3", `#!/bin/sh\nziel=$(printf '%s' "$2" | sed "s/^.backup '\\(.*\\)'$/\\1/")\nprintf db >"$ziel"\n`);
+    ablegen("rsync", "#!/bin/sh\nexit 0\n");
+    // `tar -czf <ziel> …`: halb schreiben, dann je nach Lage fertig, scheitern oder haengen.
+    // Die Marke sagt dem Test, dass das `.part` jetzt liegt — erst dann kommt das Signal.
+    // Befehlstexte hier sind FEST; Pfade und Lage kommen ueber die Umgebung (CodeQL:
+    // kein Shell-Text aus einem absoluten Pfad).
+    ablegen("tar", TAR_ATTRAPPE);
+    try {
+      const aus = spawnSync("bash", ["-c", signal ? TREIBER_MIT_SIGNAL : TREIBER], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          TEST_SKRIPT: SKRIPT,
+          TEST_MARKE: path.join(kladde, "packt"),
+          TEST_TAR_MODUS: tarModus,
+          TEST_SIGNAL: signal ?? "",
+          PATH: `${bin}:${process.env.PATH}`,
+          DATA_DIR: daten,
+          BACKUP_DIR: path.join(daten, "backups"),
+          BLOB_DIR: path.join(daten, "files"),
+          BACKUP_ROTATE: "0",
+        },
+      });
+      return {
+        rc: Number(aus.stdout.match(/rc=(\d+)/)?.[1]),
+        uebrig: readdirSync(path.join(daten, "backups")).sort(),
+      };
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  };
+
+  it("der gelungene Lauf hinterlaesst genau sein Archiv — die Falle raeumt es NICHT weg", () => {
+    const r = lauf("ok");
+    expect(r.rc).toBe(0);
+    expect(r.uebrig).toHaveLength(1);
+    expect(r.uebrig[0]).toMatch(/^\d{8}T\d{6}\.tar\.gz$/);
+  });
+
+  it("scheitert `tar` (volles Volume), bleibt weder Verzeichnis noch `.part` liegen", () => {
+    const r = lauf("scheitert");
+    expect(r.rc).not.toBe(0);
+    expect(r.uebrig).toEqual([]);
+  });
+
+  // ⚠️ INT NICHT HIER: ein Hintergrundjob einer nicht interaktiven Shell erbt SIGINT als
+  // IGNORIERT, und bash kann ein beim Start ignoriertes Signal nicht fangen — gemessen,
+  // rc=0 und alles fertig gepackt. Ein echtes Strg-C trifft die Vordergrundgruppe; die
+  // Falle dafuer prueft der letzte Fall als Text.
+  it.each(["TERM", "HUP"] as const)("nach SIG%s mitten im Packen bleibt nichts liegen", (signal) => {
+    const r = lauf("haengt", signal);
+    expect(r.rc).not.toBe(0);
+    expect(r.uebrig).toEqual([]);
+  });
+
+  it("SIGKILL erreicht keine Falle — das ist die Luecke, die der Sidecar schliesst", () => {
+    // Die Gegenprobe zur Messung selbst: hier MUSS etwas liegen bleiben, sonst misst der
+    // Aufbau nicht, was er vorgibt. Weggeraeumt wird es von `reste_aufraeumen`.
+    const r = lauf("haengt", "KILL");
+    expect(r.rc).toBe(137);
+    expect(r.uebrig).toHaveLength(2);
+    expect(r.uebrig[1]).toMatch(/\.tar\.gz\.part$/);
+  });
+
+  it("die Falle fasst nur den eigenen Stempel an und ist nach dem Abraeumen entschaerft", () => {
+    // Sie wird erst gesetzt, wenn der Stempel per exklusivem `mkdir` UNSER ist — vorher
+    // koennte `$work` der Name eines anderen Laufs sein.
+    const anspruch = zeileMit('mkdir "$BACKUP_DIR/$stamp"');
+    const falle = zeileMit("trap rest_aufraeumen EXIT");
+    expect(anspruch).toBeLessThan(falle);
+    expect(befehleText).toContain('rm -rf "$eigener_rest" "$eigener_rest.tar.gz.part"');
+    expect(befehleText).not.toMatch(/rm -rf[^\n]*\.tar\.gz"/);
+    // Entschaerft erst NACH dem regulaeren Abraeumen: scheitert das `rm -rf`, versucht es
+    // die Falle noch einmal — das fertige Archiv faellt dabei nie darunter.
+    const umbenennen = zeileMit('mv -f "$work.tar.gz.part" "$work.tar.gz"');
+    const entschaerft = zeileMit('eigener_rest=""');
+    expect(entschaerft).toBeGreaterThan(umbenennen);
+    for (const s of ["TERM", "INT", "HUP"]) expect(befehleText).toMatch(new RegExp(`trap 'exit \\d+' ${s}`));
   });
 });
 

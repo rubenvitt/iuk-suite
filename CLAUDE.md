@@ -37,8 +37,8 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 9. **`columns[].render` aus einer Server Component geht nicht über die RSC-Grenze.** Tabelle in eine
    `"use client"`-Komponente heben, die nur serialisierbare Props bekommt. Server Actions direkt
    importieren, nie als Prop reichen.
-10. **Ein POST in die Erstkompilierung eines Route Handlers wird abgebrochen** (`next dev`). Im e2e
-    vorher ein Warmlauf-GET; und jede ausgelöste Anfrage per `page.waitForResponse` prüfen.
+10. **Ein POST in die Erstkompilierung eines Route Handlers wird abgebrochen** (`next dev`, lokal). Im
+    e2e vorher ein Warmlauf-GET; und jede ausgelöste Anfrage per `page.waitForResponse` prüfen.
 11. **`locator.dragTo()` löst kein zuverlässiges `dragstart` aus.** Schrittweise `page.mouse`-Bewegung.
 12. **Ein Klick trifft daneben, wenn die Hülle nach `load` umbricht** → `klickeWennRuhig` aus
     `e2e/fixtures.ts`. Und: jedes `Layout` mit `Sider` in einer Server Component setzt `hasSider`
@@ -69,6 +69,15 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 20. **CSS gegen einen `.ant-*`-Klassennamen stirbt beim Major-Upgrade still**, und ein Test auf den
     Regeltext merkt es nicht. Wer so eine Regel schreibt, prüft per `renderToString` + `extractStyle`,
     dass die Klasse gerendert wird (Vorbild `core/theme/selektschrift.test.ts`).
+21. **`next build` backt `process.env.NODE_ENV` ein, auch im Servercode** — ein Zweig dahinter ist zur
+    Laufzeit nicht mehr erreichbar. Unter `next start` brach so die e2e-Anmeldung (`Secure`-Cookies
+    über http). Was die e2e-Suite im anderen Zweig braucht, fragt `core/lokalHttp`.
+22. **Gestreamter Inhalt steht kurz nach `load` doppelt im DOM** (versteckt in `div[hidden id="S:n"]`,
+    im gebauten Stand bis ~350 ms). Vor Zählung, strict-Greifer oder Breitenmessung
+    `warteAufGestreamteInhalte` aus `e2e/fixtures.ts`; `warteAufSpaltenaufteilung` tut es mit.
+23. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** — der Ladezustand ist
+    mit Status 200 schon gestreamt. Zugriffsprüfung und `notFound()` in ein `layout.tsx` oberhalb
+    der Grenze (Vorbild `feedback/…/(cockpit)/layout.tsx`); nur e2e oder `build`/`start` sieht es.
 
 ### Hell/Dunkel und `core`
 
@@ -161,6 +170,8 @@ Tor: `pnpm anker:neu` meldet jeden **neuen** Zeilenanker ins eigene Repo gegenü
 
 `pnpm typecheck` · `pnpm lint` · `pnpm vitest run` · `pnpm build` · `pnpm exec playwright test`.
 
+- e2e fährt lokal gegen `next dev`, in der CI gegen einen vorgebauten Stand (`next start`,
+  `E2E_VORGEBAUT=1`, `e2e/helpers/server.ts`). Den CI-Weg lokal nachfahren: `pnpm e2e:gebaut`.
 - `typecheck` läuft mit `--pretty false`; außerhalb dieser Umgebung den Exit-Code prüfen, nicht die
   Ausgabe greppen.
 - DOM-Tests nutzen das Harness `src/app/m/qr/_lib/test-dom.tsx` — kein zweites erfinden.
@@ -172,6 +183,11 @@ unter `public/` Zeigerdateien, und `src/lfs-medien.test.ts` ist rot, **ohne dass
 etwas damit zu tun hat**. Abhilfe ist `scripts/cloud-lfs.sh` (installiert git-lfs, holt die
 Medien, ~4 s) — nie den Wächter überspringen, er verhindert das Ausliefern von Zeigerdateien.
 Ist er trotzdem rot, lief das Skript nicht; seine Meldung steht am Sitzungsanfang.
+
+**Playwright in Cloud-Sessions** (DRK-473) braucht keinen Handgriff mehr: `e2e/helpers/cloud.ts`
+nimmt dort den vorinstallierten Chromium und schaltet dessen Proxy ab (sonst endet jeder
+`devLogin` nach 45 s auf `/login` — das ist kein Anmeldefehler). Ein neues Playwright-Profil
+geht ebenfalls durch `cloudTauglich(defineConfig(…))`; `scripts/e2e-cloud.test.ts` prüft das.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

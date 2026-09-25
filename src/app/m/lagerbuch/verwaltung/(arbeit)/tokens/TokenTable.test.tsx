@@ -798,6 +798,26 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   });
 });
 
+describe("TokenTable — alte Form (DRK-442)", () => {
+  const LANG = { ...FAHRZEUG, id: "t-lang", code: "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E" };
+
+  function hinweisIn(code: string): string | null {
+    const zelle = queryAll<HTMLElement>("[data-row-key], tbody tr")
+      .find((z) => (z.textContent ?? "").includes(code));
+    return zelle?.querySelector("[data-testid='lb-token-alte-form']")?.textContent ?? null;
+  }
+
+  it("markiert aktive 6-stellige Codes und sagt, was zu tun ist", async () => {
+    await mount(<TokenTable zeilen={[FAHRZEUG, ARTIKEL, LISTE, LANG]} />);
+    expect(hinweisIn(FAHRZEUG.code)).toBe("alte Form — neu erzeugen und Karte neu drucken");
+    // Altbestand ohne Karte: kein Nachfolger, nur die Auskunft.
+    expect(hinweisIn(LISTE.code)).toBe("alte Form");
+    // Gesperrt ist erledigt; lang ist nie „alt".
+    expect(hinweisIn(ARTIKEL.code)).toBeNull();
+    expect(hinweisIn(LANG.code)).toBeNull();
+  });
+});
+
 describe("TokensSeite", () => {
   const ROHZEILE = {
     id: "t-nacht",

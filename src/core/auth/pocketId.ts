@@ -8,20 +8,10 @@ const SCOPES = process.env.POCKET_ID_SCOPES ?? "openid profile email groups";
 // (code_challenge is still sent); `nonce` is an OIDC bonus.
 const CHECKS: Array<"pkce" | "state" | "nonce"> = ["pkce", "state", "nonce"];
 
-type EnvLike = Record<string, string | undefined>;
-
-/** Die Kennung, unter der der Provider registriert ist. Der SessionGuard
- *  uebergibt sie an `signIn` — sie muss woertlich stimmen. */
+/** Die Kennung, unter der der Provider registriert ist. Wer `signIn` mit ihr
+ *  ruft, muss sie woertlich treffen — Auth.js meldet einen unbekannten
+ *  Anbieter erst zur Laufzeit. */
 export const POCKET_ID_PROVIDER_ID = "pocket-id";
-
-/**
- * Ob ein stiller Re-Login ueberhaupt moeglich ist. Dieselbe Bedingung, unter
- * der `config.ts` den Provider registriert: ohne `POCKET_ID_ISSUER` laeuft die
- * Instanz auf Dev-Login, und `signIn("pocket-id")` liefe dort ins Leere.
- */
-export function reauthProviderId(env: EnvLike = process.env): string | null {
-  return env.POCKET_ID_ISSUER ? POCKET_ID_PROVIDER_ID : null;
-}
 
 export function pocketIdProvider() {
   return {

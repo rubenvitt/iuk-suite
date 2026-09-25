@@ -53,13 +53,13 @@ export async function einloesenAmGate(
   const absender = absenderAus(kopf);   // §3.5.2 — einmal ermittelt, zweimal benutzt
   const keks = await cookies();
   // DRK-291: ein bekanntes Geraet zaehlt in eigene Eimer (`gateSchrankeMerkmal.ts`).
-  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value) };
+  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value), eingabe: String(formData.get("code") ?? "") };
 
   // SCHRITT 2 — gesperrt? OHNE Datenbankzugriff, VOR der Codesuche (§3.5.3): der
   // Absender-Eimer ist rotierbar, gedeckelt wird die Codesuche durch die
-  // modulweiten Zaehler der Gruppe dieser Anfrage. Ein richtiger Code von einem
-  // UNBEKANNTEN Geraet wartet waehrend einer modulweiten Sperre — der bewusste
-  // Rest aus §3.5.3a. KEINE Buchung hier — sonst verlaengerte jeder Versuch
+  // modulweiten Zaehler der Gruppe dieser Anfrage. Ein richtiger ALTER Code von
+  // einem UNBEKANNTEN Geraet wartet waehrend einer modulweiten Sperre (§3.5.3a);
+  // ein langer nie (DRK-442). KEINE Buchung hier — sonst verlaengerte jeder Versuch
   // waehrend der Sperre die Sperre.
   const sperrSekunden = gateGesperrt(absender, anfrage);
   if (sperrSekunden !== null) {

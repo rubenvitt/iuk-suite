@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
-import * as schema from "../../../_db/schema";
+import * as schema from "../../../../_db/schema";
 import {
   insertEvening,
   insertGroup,
@@ -14,8 +14,8 @@ import {
   setSurveyStatus,
   setGroupMembers,
   upsertKnownUser,
-} from "../../../_db/queries";
-import type { Question } from "../../../_lib/questions";
+} from "../../../../_db/queries";
+import type { Question } from "../../../../_lib/questions";
 
 /**
  * DIE KOPFZONE UND DER SLOT „LETZTER ABEND" DES COCKPITS (§4.2, §2.7).
@@ -58,8 +58,8 @@ vi.mock("@/core/directory", () => ({
   isDirectoryConfigured: () => false,
 }));
 
-vi.mock("../../../_lib/guardPage", () => ({ guardPage: guardPageMock }));
-vi.mock("../../../_db/client", () => ({ getDb: () => db }));
+vi.mock("../../../../_lib/guardPage", () => ({ guardPage: guardPageMock }));
+vi.mock("../../../../_db/client", () => ({ getDb: () => db }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("notFound(): die Gruppe wurde nicht geladen");
@@ -78,7 +78,7 @@ vi.mock("next/headers", () => ({
 }));
 // Die Actions liegen hinter `"use server"` und ziehen Datenbank und `next/*`
 // nach; die Seite prueft hier ihre Darstellung, nicht ihre Aktionen.
-vi.mock("../../../actions", () => ({
+vi.mock("../../../../actions", () => ({
   startFeedbackAction: vi.fn(),
   beendeFeedbackAction: vi.fn(),
   // Zone d (Verlauf) braucht drei weitere — ohne sie ist der Import `undefined`
@@ -342,7 +342,7 @@ describe("Slot „Letzter Abend“ (§2.7)", () => {
 describe("Zone d — VERLAUF, verdrahtet", () => {
   /** Die Zeilen der breiten Verlaufsdarstellung. */
   const verlaufszeilen = (wirt: HTMLElement) => [
-    ...wirt.querySelectorAll<HTMLElement>(".fb-verlauf-breit tbody tr.ant-table-row"),
+    ...wirt.querySelectorAll<HTMLElement>(".fb-verlauf [data-rolle='breitansicht'] tbody tr.ant-table-row"),
   ];
 
   it("zeigt jeden abgeschlossenen Abend mit Rücklauf und Notenpille", async () => {

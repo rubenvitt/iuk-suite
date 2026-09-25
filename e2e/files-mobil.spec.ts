@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { inboxFiles, shareFiles, shares, zugangslinks } from "@/app/m/files/_db/schema";
 import { bcryptHash } from "@/app/m/files/_lib/passwort";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
-import { devLogin, E2E_PORT, warteAufSpaltenaufteilung } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 
 /**
  * DIE MOBIL-ABNAHME DES MODULS `files` BEI 390, 834 UND 1280 (Plan T48).
@@ -636,7 +636,7 @@ for (const vp of VIEWPORTS) {
       // OHNE DIESE ZEILE misst der Test eine 404- oder 500-Seite als
       // „Darstellung stimmt" — beide haben keine der beiden Varianten im DOM.
       expect(antwort?.status(), "Freigaben-Uebersicht: HTTP").toBe(200);
-      await expect(page.getByTestId("files-shares-tabelle")).toBeVisible();
+      await warteAufGestreamteInhalte(page); await expect(page.getByTestId("files-shares-tabelle")).toBeVisible();
 
       /*
        * ⚠️ DIE BEIDEN DARSTELLUNGEN KOMMEN SEIT DRK-422 AUS `Kartentabelle`,

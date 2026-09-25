@@ -30,6 +30,7 @@ import {
   type SurveyStatus,
 } from "./_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "./_lib/questions";
+import { FORM_START } from "./_lib/formState";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 import { FEHLER_EMAIL_MEHRDEUTIG } from "./_lib/personen";
 
@@ -871,6 +872,137 @@ describe("startFeedbackAction: Abend, aktive Umfrage und Frist in einem Klick", 
   });
 });
 
+/**
+ * HÖCHSTENS EIN DIENSTABEND JE GRUPPE UND TAG (DRK-429) — an den drei Formularen,
+ * die vorher still einen zweiten Abend anlegten. Die Regel selbst prüft
+ * `queries.test.ts`; hier geht es darum, dass sie als FELDFEHLER ankommt (§4.4)
+ * und nicht als Wurf, der auf der technischen Fehlerseite endet.
+ */
+describe("Tagesregel an Starten, Nachtragen und Bearbeiten (DRK-429)", () => {
+  const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  function lage(status: "planned" | "held" | "cancelled") {
+    const group = insertGroup(db, { name: "B", slug: "bereitschaft", secret: "abc12", closeAfterHours: null, createdAt: new Date() });
+    const abend = insertEvening(db, {
+      groupId: group.id,
+      date: tag("2026-07-22"),
+      topic: "Geplant",
+      notes: null,
+      participantCount: null,
+      status,
+      createdAt: new Date(),
+    });
+    alsGruppenleitung("bereitschaft");
+    return { group, abend };
+  }
+  function form(felder: Record<string, string | number>): FormData {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(felder)) f.set(k, String(v));
+    return f;
+  }
+
+  it("Feedback starten übernimmt den geplanten Abend desselben Tages", async () => {
+    const { startFeedbackAction } = await loadActions();
+    const { group, abend } = lage("planned");
+
+    const ergebnis = await startFeedbackAction(
+      FORM_START,
+      form({ groupId: group.id, date: "2026-07-22", topic: "", participantCount: "14" }),
+    );
+
+    expect(ergebnis).toEqual({ ok: true });
+    expect(listEvenings(db, group.id)).toHaveLength(1);
+    const laufend = activeSurveyForGroup(db, group.id)!;
+    expect(laufend.evening.id).toBe(abend.id);
+    expect(laufend.evening.status).toBe("held");
+    expect(laufend.evening.topic).toBe("Geplant");
+    expect(laufend.evening.participantCount).toBe(14);
+  });
+
+  it.each([
+    ["held", "schon einen Dienstabend"],
+    ["cancelled", "abgesagter Abend"],
+  ] as const)("Feedback starten meldet einen %s-Abend am Datum", async (status, text) => {
+    const { startFeedbackAction } = await loadActions();
+    const { group } = lage(status);
+
+    const ergebnis = await startFeedbackAction(
+      FORM_START,
+      form({ groupId: group.id, date: "2026-07-22", topic: "Funk", participantCount: "" }),
+    );
+
+    expect(ergebnis.ok).toBe(false);
+    if (ergebnis.ok) return;
+    expect(ergebnis.fieldErrors.date).toContain(text);
+    expect(ergebnis.values.topic).toBe("Funk");
+    expect(listEvenings(db, group.id)).toHaveLength(1);
+    expect(activeSurveyForGroup(db, group.id)).toBeUndefined();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("Nachtragen meldet einen belegten Tag am Datum und legt nichts an", async () => {
+    const { createEveningAction } = await loadActions();
+    const { group } = lage("planned");
+
+    const ergebnis = await createEveningAction(
+      FORM_START,
+      form({ groupId: group.id, date: "2026-07-22", topic: "Funk", participantCount: "9" }),
+    );
+
+    expect(ergebnis).toMatchObject({
+      ok: false,
+      fieldErrors: { date: expect.stringContaining("Kommende Abende") },
+      values: { date: "2026-07-22", topic: "Funk", participantCount: "9" },
+    });
+    expect(listEvenings(db, group.id)).toHaveLength(1);
+  });
+
+  it("Nachtragen legt an einem freien Tag an", async () => {
+    const { createEveningAction } = await loadActions();
+    const { group } = lage("held");
+
+    const ergebnis = await createEveningAction(
+      FORM_START,
+      form({ groupId: group.id, date: "2026-07-15", topic: "Funk", participantCount: "9" }),
+    );
+
+    expect(ergebnis).toEqual({ ok: true });
+    const neu = listEvenings(db, group.id).find((e) => e.topic === "Funk")!;
+    expect(neu).toMatchObject({ status: "held", participantCount: 9, date: tag("2026-07-15") });
+  });
+
+  it("Nachtragen meldet ein fehlendes Datum am Feld, statt zu werfen", async () => {
+    const { createEveningAction } = await loadActions();
+    const { group } = lage("held");
+    const ergebnis = await createEveningAction(FORM_START, form({ groupId: group.id, date: "" }));
+    expect(ergebnis).toMatchObject({ ok: false, fieldErrors: { date: "Datum fehlt" } });
+  });
+
+  it("Bearbeiten meldet das Verschieben auf einen belegten Tag und ändert nichts", async () => {
+    const { updateEveningAction } = await loadActions();
+    const { group } = lage("held");
+    const zweiter = insertEvening(db, {
+      groupId: group.id,
+      date: tag("2026-07-29"),
+      topic: "Zweiter",
+      notes: null,
+      participantCount: null,
+      createdAt: new Date(),
+    });
+
+    const ergebnis = await updateEveningAction(
+      FORM_START,
+      form({ id: zweiter.id, date: "2026-07-22", topic: "Geändert" }),
+    );
+
+    expect(ergebnis).toMatchObject({
+      ok: false,
+      fieldErrors: { date: expect.stringContaining("schon einen Dienstabend") },
+      values: { date: "2026-07-22", topic: "Geändert" },
+    });
+    expect(getEvening(db, zweiter.id)).toMatchObject({ date: tag("2026-07-29"), topic: "Zweiter" });
+  });
+});
+
 describe("beendeFeedbackAction: der geplante Schluss-Schritt", () => {
   it("schließt genau die genannte Umfrage und revalidiert das Cockpit", async () => {
     const { beendeFeedbackAction } = await loadActions();
@@ -1470,7 +1602,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     const f = new FormData();
     f.set("id", String(evening.id));
     f.set("participantCount", "18");
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     const nachher = getEvening(db, evening.id)!;
     expect(nachher.participantCount).toBe(18);
@@ -1508,7 +1640,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     f.set("id", String(evening.id));
     f.set("participantCount", "18");
     f.set("topic", "Funkübung");
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     const nachher = getEvening(db, evening.id)!;
     expect(nachher.participantCount).toBeNull();
@@ -1543,7 +1675,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     const f = new FormData();
     f.set("id", String(evening.id));
     f.set("participantCount", "18");
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     expect(getEvening(db, evening.id)!.participantCount).toBeNull();
   });
@@ -1558,7 +1690,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     const f = new FormData();
     f.set("id", String(eveningId));
     f.set("date", neu);
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     const nachher = getSurvey(db, survey.id)!;
     expect(getEvening(db, eveningId)!.date).toEqual(new Date(`${neu}T00:00:00Z`));
@@ -1579,7 +1711,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     f.set("id", String(eveningId));
     f.set("date", iso);
     f.set("participantCount", "18");
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     expect(getSurvey(db, survey.id)!.closesAt).toEqual(vorher);
   });
@@ -1599,7 +1731,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     const f = new FormData();
     f.set("id", String(eveningId));
     f.set("date", "2026-07-22");
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     expect(getSurvey(db, survey.id)!.closesAt).toEqual(vorher);
     expect(getSurvey(db, survey.id)!.status).toBe("closed");
@@ -1633,7 +1765,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     const f = new FormData();
     f.set("id", String(eveningId));
     f.set("date", heute.toISOString().slice(0, 10));
-    await updateEveningAction(f);
+    await updateEveningAction(FORM_START, f);
 
     const nachher = getSurvey(db, survey.id)!;
     expect(getEvening(db, eveningId)!.date).toEqual(heute);
@@ -1653,7 +1785,7 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     const f = new FormData();
     f.set("id", String(eveningId));
     f.set("participantCount", "18");
-    await expect(updateEveningAction(f)).rejects.toThrow();
+    await expect(updateEveningAction(FORM_START, f)).rejects.toThrow();
     expect(getEvening(db, eveningId)!.participantCount).toBeNull();
   });
 });
@@ -2189,8 +2321,8 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
       a.updateGroupAction(LEER, form({ id: l.groupId, name: "Übernommen", closeAfterHours: 72 })),
     regenerateSecretAction: (a, l) => a.regenerateSecretAction(form({ id: l.groupId })),
     createEveningAction: (a, l) =>
-      a.createEveningAction(form({ groupId: l.groupId, date: "2026-10-01", topic: "Neu" })),
-    updateEveningAction: (a, l) => a.updateEveningAction(form({ id: l.heldId, topic: "Geändert" })),
+      a.createEveningAction(FORM_START, form({ groupId: l.groupId, date: "2026-10-01", topic: "Neu" })),
+    updateEveningAction: (a, l) => a.updateEveningAction(FORM_START, form({ id: l.heldId, topic: "Geändert" })),
     deleteEveningAction: (a, l) => a.deleteEveningAction(form({ id: l.heldId })),
     activateSurveyAction: (a, l) => a.activateSurveyAction(form({ id: l.draftSurveyId })),
     startFeedbackAction: (a, l) =>

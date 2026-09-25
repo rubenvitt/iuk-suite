@@ -103,7 +103,7 @@ describe("radio-Grenzen: jede Zahl haelt ihre Vorgabe, ihre Unter- und ihre Ober
      *   ein Wert UEBER `max` -> Wurf           (Mutation: `max` heben oder Pruefung streichen)
      *
      * ⚠️ EIN UNGUELTIGER WERT WIRFT, ER FAELLT NICHT AUF DIE VORGABE ZURUECK. Das ist
-     * gewollt (`lagerbuch/_lib/gateSchranke.ts:12-14`): „ein Modul, das mit einer kaputten Zahl
+     * gewollt (`lagerbuch/_lib/gateSchranke.ts:13-15`): „ein Modul, das mit einer kaputten Zahl
      * gar nicht erst startet, ist richtiger als eines, das still eine andere Grenze faehrt
      * als die, die in der .env steht."
      *

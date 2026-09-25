@@ -1,4 +1,4 @@
-import { Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS };
+import { Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS }; import { E2E_VORGEBAUT } from "./helpers/server";
 
 export async function devLogin(
   page: Page,
@@ -35,9 +35,9 @@ export async function devLogin(
   // machine put under artificial CPU load, to stand in for a CI runner: 13.7s.
   // The same login a second time, warm: 0.3s. So 10s was never reachable in CI
   // and the first logging-in test of the run always died right here. The login
-  // page itself is compiled before the suite starts — see `webServer.url` in
-  // playwright.config.ts, where the numbers are written out in full.
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 45_000 });
+  // page itself is compiled before the suite starts. Against the prebuilt server
+  // (CI since DRK-415) nothing compiles: 20s, below the 45s test timeout, so a stuck login reports here.
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: E2E_VORGEBAUT ? 20_000 : 45_000 });
   await page.waitForLoadState("networkidle");
 }
 
@@ -345,7 +345,7 @@ export async function warteAufDarstellung(page: Page): Promise<void> {
  * zu behaupten — und das ist richtig: ohne Leiste gibt es nichts zu warten.
  */
 export async function warteAufSpaltenaufteilung(page: Page): Promise<void> {
-  await expect.poll(() => page.evaluate(() => {
+  await warteAufGestreamteInhalte(page); await expect.poll(() => page.evaluate(() => {
     const inhalt = document.querySelector(".ant-layout-content");
     const leiste = document.querySelector(".ant-layout-sider");
     if (!inhalt) return false;
@@ -393,4 +393,24 @@ export async function warumNicht200(antwort: Response | null): Promise<string> {
     return ` — Router-Baum beginnt bei „${wurzel}": die Route ist bekannt, die SEITE hat abgewiesen (notFound() im Guard oder fehlende Daten)`;
   }
   return " — Router-Baum im Payload nicht gefunden (Format geaendert?)";
+}
+
+/**
+ * WARTET, BIS REACT SEINE GESTREAMTEN INHALTE EINGESETZT HAT (DRK-415, Falle 22).
+ *
+ * Next streamt Suspense-Inhalte als `<div hidden id="S:n">` hinter die Seite und
+ * setzt sie per Skript an ihren Platz. Gegen den gebauten Stand bleibt dieser
+ * Container gemessen bis ~350 ms NACH `load` stehen (React bündelt das
+ * Einsetzen), und solange steht der Inhalt DOPPELT im Baum: einmal sichtbar,
+ * einmal versteckt mit Breite 0. Ein Greifer trifft dann zwei Knoten (strict
+ * mode), eine Zählung doppelt so viele, eine Breitenmessung Nullen. Unter
+ * `next dev` war das Fenster von der Übersetzungszeit verdeckt.
+ *
+ * Ohne gestreamten Inhalt ist die Probe sofort wahr.
+ */
+export async function warteAufGestreamteInhalte(page: Page): Promise<void> {
+  await expect(
+    page.locator('div[hidden][id^="S:"]'),
+    "React hat gestreamte Suspense-Inhalte noch nicht eingesetzt",
+  ).toHaveCount(0);
 }

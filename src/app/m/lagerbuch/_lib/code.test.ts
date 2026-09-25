@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalisiereCode } from "./code";
+import { gruppiereCode, istLangerCode, normalisiereCode } from "./code";
 
 describe("normalisiereCode", () => {
   it("bringt jede zumutbare Eingabeform auf DIESELBE kanonische Gestalt", () => {
@@ -45,5 +45,44 @@ describe("normalisiereCode", () => {
     // machte aus einem Tippfehler einen 500 im Route Handler.
     expect(() => normalisiereCode("!!!")).not.toThrow();
     expect(normalisiereCode("!!!")).toBe("");
+  });
+});
+
+describe("die lange Form — DRK-442", () => {
+  const LANG = "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E";
+
+  it("bringt jede zumutbare Eingabe auf die Erzeugerform", () => {
+    for (const roh of [
+      LANG,
+      "7K3MQ9XD2RTP4W8NHV6BC1ZFJ50E",
+      "7k3m q9xd 2rtp 4w8n hv6b c1zf j50e",
+      " 7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E\n",
+    ]) expect(normalisiereCode(roh), roh).toBe(LANG);
+  });
+
+  it("bildet O auf 0 und I/L auf 1 zurueck — nur bei genau 28 Zeichen", () => {
+    expect(normalisiereCode("7K3M-Q9XD-2RTP-4W8N-HV6B-CIZF-J50E")).toBe(LANG);
+    expect(normalisiereCode("7K3M-Q9XD-2RTP-4W8N-HV6B-ClZF-J50E")).toBe(LANG);
+    expect(normalisiereCode("7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J5OE")).toBe(LANG);
+    // Ein Altbestand mit Buchstaben bleibt, wie er ist: kein O wird still zur 0.
+    expect(normalisiereCode("BOOT-1")).toBe("BOOT1");
+  });
+
+  it("laesst die alte Form unangetastet", () => {
+    expect(normalisiereCode("482137")).toBe("482-137");
+    expect(istLangerCode("482-137")).toBe(false);
+  });
+
+  it("istLangerCode prueft Gestalt UND Alphabet", () => {
+    expect(istLangerCode(LANG)).toBe(true);
+    expect(istLangerCode(LANG.replaceAll("-", ""))).toBe(false);          // nicht gruppiert
+    expect(istLangerCode(LANG.toLowerCase())).toBe(false);               // nicht kanonisch
+    expect(istLangerCode(normalisiereCode("U".repeat(28)))).toBe(false); // U ist kein Zeichen
+    expect(istLangerCode(LANG.slice(0, -1))).toBe(false);
+  });
+
+  it("gruppiert in Vieren", () => {
+    expect(gruppiereCode("ABCDEFGH")).toBe("ABCD-EFGH");
+    expect(normalisiereCode(normalisiereCode(LANG))).toBe(LANG);
   });
 });

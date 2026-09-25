@@ -587,9 +587,17 @@ Modul nicht vor, auch nicht in Client-Komponenten: eine Regel, die man nicht pro
 Der Brief nennt `useActionState`; der Basisentwurf lehnte `Form.Item` ab und wollte Serverfehler als
 `?fehler=` + `Alert`. **Entschieden: `useActionState`, kein `Form`/`Form.Item`, Fehler am Feld.**
 
-**Genau drei Formulare** benutzen es: das Startformular der Lagekarte, das Gruppen-Formular in Zone e
-und „Kennung hinzufügen". Alles andere sind Knopf-Aktionen ohne Eingabe und brauchen keinen
-Zustand.
+**Genau fünf Formulare** benutzen es: das Startformular der Lagekarte, das Gruppen-Formular in Zone e,
+„Kennung hinzufügen", „Abend ohne Feedback nachtragen" und die Zeilenbearbeitung eines Abends. Die
+letzten beiden kamen mit DRK-429 dazu: an einem Tag, an dem die Gruppe schon einen Abend hat, legt
+kein Weg einen zweiten an, und der belegte Tag kommt als Feldfehler am Datum zurück. Alles andere
+sind Knopf-Aktionen ohne Eingabe und brauchen keinen Zustand; der Planungsdialog prüft den Tag vor
+dem Absenden selbst.
+
+**Höchstens ein Dienstabend je Gruppe und Kalendertag** (DRK-429, Kalendertag in der Suite-Zone).
+„Feedback starten" an einem Tag mit einem *geplanten* Abend übernimmt ihn und gibt ihn frei; an einem
+Tag mit einem gelaufenen oder abgesagten Abend ist es ein Feldfehler. Ein abgesagter Abend belegt
+den Tag mit — er wird wieder angesetzt, nicht ersetzt.
 
 **Einheitlicher Rückgabetyp** (`_lib/formState.ts`):
 
@@ -628,8 +636,20 @@ dann `type="warning"` — **nie** `type="error"` (4.9).
 
 Ausschließlich der Zustand aus `useActionState`: `isPending` → Primärknopf `loading` **und**
 `disabled`, Beschriftung unverändert (ein wechselndes Label liest sich wie ein anderer Knopf). Kein
-Skeleton, kein Spinner-Overlay, keine `loading.tsx`: die Seite rendert serverseitig in einem Zug, und
-für 50 Aufrufe im Jahr ist jede Choreografie beim zweiten Mal Reibung.
+Skeleton, kein Spinner-Overlay: für 50 Aufrufe im Jahr ist jede Choreografie beim zweiten Mal Reibung.
+
+**Eine Ausnahme, gemessen (DRK-424, 24.09.2026): die Ladegrenze um das Cockpit.** Die alte Begründung
+„die Seite rendert serverseitig in einem Zug" gilt nur unter `next dev`. In Produktion wird eine
+dynamische Route mit `loading.tsx` vorabgeladen, und die Adresse wechselt sofort. Ohne sie blieb der
+Klick auf eine Gruppenkarte 432 ms ohne jede Reaktion (Produktionsbuild, 150 ms Rundlauf simuliert);
+mit ihr stehen Adresse und Ladezustand nach 47 ms. Die Grenze liegt in der Routengruppe
+`groups/[groupId]/(cockpit)/` und umschließt nur das Cockpit. Trend und Auswertung bleiben ohne:
+der Trend wird nur über einen Knopf mit `href` erreicht (nichts wird vorabgeladen), und eine Grenze
+über der Auswertung ließe den Ladezustand beim Weg aus dem Verlauf nur 75 ms aufblitzen. Der Preis
+ist benannt: ohne JavaScript zeigt das Cockpit nur den Ladezustand, weil erst ein Skript den
+gestreamten Inhalt einsetzt. Trend, Auswertung und alle öffentlichen Seiten bleiben ohne
+JavaScript lesbar. Der Ladezustand ist das gemeinsame Bauteil `core/shell/SeiteLaedt.tsx`; der
+Riegel `feedback/ladegrenze.test.ts` lässt genau diese eine Grenze zu.
 Knopf-Aktionen ohne Formularzustand (Beenden, Secret, Löschen) laufen im `Popconfirm`, dessen
 `okButtonProps={{ loading }}` aus einem `useTransition` gespeist wird.
 **Selbstaktualisierung:** `_ui/Aktualisierer.tsx` ruft alle 30s `router.refresh()` — nur wenn eine

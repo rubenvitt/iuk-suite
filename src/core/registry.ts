@@ -207,10 +207,11 @@ export const MODULES: ModuleDef[] = [
   // requiresAuth: false wie radio und uav — die Geräte-Schnittstellen der Desktop-App tragen
   // eigene Tokens (Stufe 5). Den Seitenzugang setzt `_lib/zugang.ts` durch, und zwar NUR über
   // die Zugangsgruppe, nicht über den Suite-Admin: hier liegt die Freigabe der Einsatz-Schlüssel.
-  // Den Host hält `_lib/host.ts`. showInSwitcher bleibt aus, bis der Reader steht (Stufe 3).
+  // Den Host hält `_lib/host.ts`. Im Umschalter nur für die Zugangsgruppe
+  // (`switcherGroupSources: ["access"]`).
   { key: "einsatzbuch", title: "Einsatzbuch", icon: "BookOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [],
-    prodHosts: [], showInSwitcher: false, switcherGroupSources: ["access"] },
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

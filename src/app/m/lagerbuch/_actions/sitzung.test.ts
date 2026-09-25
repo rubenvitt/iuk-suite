@@ -252,8 +252,8 @@ describe("erneuereSitzung — der Absenderschluessel: einmal ermittelt, zweimal 
 
     await erneuereSitzung("000-000");
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null, eingabe: "000-000" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null, eingabe: "000-000" });
   });
 });
 
@@ -396,8 +396,8 @@ describe("erneuereSitzung — das Merkmal „bekanntes Gerät\" (DRK-291)", () =
 
     await erneuereSitzung("000-000");
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc", eingabe: "000-000" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc", eingabe: "000-000" });
     expect(gateFehlversuchBuchen.mock.calls[0]?.[1]).toEqual(gateGesperrt.mock.calls[0]?.[1]);
     // Misserfolg: KEIN Gerätecookie.
     expect(stand.cookieOps).toEqual([]);

@@ -20,7 +20,7 @@ import { readFileSync } from "node:fs";
  *            768px beide Regeln und die Reihenfolge im Stylesheet entschiede.
  *   768    = der Suite-Breakpoint von oben (= antds `md`).
  *   992    = antds `lg`, und KEINE Mobil-/Desktop-Umschaltung: es ist die
- *            Schwelle, ab der `groups/[groupId]/page.tsx:225,254` ueberhaupt
+ *            Schwelle, ab der `groups/[groupId]/(cockpit)/page.tsx` ueberhaupt
  *            zwei Spalten hat (`<Col xs={24} lg={…}>`). Eine mitfahrende rechte
  *            Karte in einer einspaltigen Seite klebte ueber der Lagekarte. Der
  *            Wert folgt einer Rasterentscheidung, nicht einer zweiten

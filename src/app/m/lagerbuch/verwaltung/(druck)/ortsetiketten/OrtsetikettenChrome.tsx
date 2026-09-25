@@ -21,9 +21,11 @@
  * bewusst KEIN antd und KEIN Zeichen (Fallen 1 und 7). Der Druckknopf braucht
  * ausserdem `window.print()`.
  */
-import { Button, Flex } from "antd";
+import { useState, useTransition } from "react";
+import { Alert, Button, Flex } from "antd";
 import Link from "next/link";
 import { SPACE } from "@/core/theme/tokens";
+import { ersetzeAlteOrtCodesAmOrt } from "../../../_actions/ortCodes";
 import { Ikone } from "../../../_ui/ikonen";
 import {
   ORT_JE_BLATT, ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM,
@@ -32,6 +34,7 @@ import {
 export function OrtsetikettenChrome({
   basis,
   neueCodes,
+  alteCodes,
 }: {
   basis: string;
   /**
@@ -42,7 +45,40 @@ export function OrtsetikettenChrome({
    * ungefragt Datenbankzeilen, ohne es zu sagen. Genau das soll sie nicht.
    */
   neueCodes: number;
+  /**
+   * WIE VIELE KARTEN NOCH EINEN CODE IN DER ALTEN FORM TRAGEN — DRK-442.
+   * Pflicht aus demselben Grund wie `neueCodes`.
+   */
+  alteCodes: number;
 }) {
+  const [ergebnis, setErgebnis] = useState<{ ok: boolean; text: string } | null>(null);
+  const [laeuft, startTransition] = useTransition();
+
+  function alteErsetzen(): void {
+    /*
+     * ⚠️ DIE RUECKFRAGE NENNT DIE FOLGE AM ORT, wie „Neu erzeugen" in der
+     * Code-Liste: die Wirkung tritt nicht hier ein, sondern an jeder laminierten
+     * Karte, die gerade am Fahrzeug haengt. Ab dem Klick fuehrt sie ins Leere.
+     */
+    if (!window.confirm(
+      `Für ${alteCodes === 1 ? "einen Ort" : `${alteCodes} Orte`} einen neuen, langen Code erzeugen?\n\n`
+      + "Die bisherigen 6-stelligen Codes werden dauerhaft gesperrt. Die Karten "
+      + "müssen danach neu gedruckt und angebracht werden — bis dahin führt ein "
+      + "Scan aufs Anmeldefeld.",
+    )) return;
+    setErgebnis(null);
+    startTransition(async () => {
+      try {
+        const r = await ersetzeAlteOrtCodesAmOrt();
+        setErgebnis(r.ok
+          ? { ok: true, text: `${r.wert.neu === 1 ? "Ein neuer Code ist" : `${r.wert.neu} neue Codes sind`} entstanden. Drucke jetzt die Karten und tausche sie aus.` }
+          : { ok: false, text: r.fehler });
+      } catch {
+        setErgebnis({ ok: false, text: "Die alten Codes konnten nicht neu erzeugt werden." });
+      }
+    });
+  }
+
   return (
     <div className="lb-nichtDrucken" data-testid="lb-ort-chrome">
       <Link href="/verwaltung">
@@ -89,6 +125,34 @@ export function OrtsetikettenChrome({
                 : `Für ${neueCodes} Orte sind gerade neue Zugangs-Codes entstanden.`}
               {" "}Diese Karten musst du ausdrucken und anbringen.
             </p>
+          )}
+          {/*
+            ⚠️ DER NEUDRUCK AUF LANGE CODES — DRK-442. Nur da, solange eine
+            Karte noch einen 6-stelligen Code traegt. Ein solcher Code gilt
+            weiter, aber hinter der Sperre, die ein Angreifer fuer neue Geraete
+            ausloesen kann; ein langer wird nie abgewiesen.
+          */}
+          {alteCodes > 0 && (
+            <div data-testid="lb-ort-alt" style={{ marginBlock: SPACE.sm }}>
+              <p style={{ margin: 0, fontWeight: 600 }}>
+                {alteCodes === 1
+                  ? "Eine Karte trägt noch einen alten 6-stelligen Code."
+                  : `${alteCodes} Karten tragen noch einen alten 6-stelligen Code.`}
+                {" "}Er gilt weiter, kann aber bei einem Angriff für neue Geräte gesperrt werden.
+              </p>
+              <Button disabled={laeuft} onClick={alteErsetzen} style={{ marginBlockStart: SPACE.sm }}>
+                Alte Codes neu erzeugen
+              </Button>
+            </div>
+          )}
+          {ergebnis && (
+            <Alert
+              type={ergebnis.ok ? "success" : "warning"}
+              showIcon={false}
+              title={ergebnis.text}
+              style={{ marginBlock: SPACE.sm }}
+              data-testid="lb-ort-alt-ergebnis"
+            />
           )}
           {/*
             DIE FORMATANSAGE STEHT AM BILDSCHIRM, nicht nur im Stylesheet. Der
