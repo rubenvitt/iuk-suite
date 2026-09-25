@@ -9,7 +9,7 @@ import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 import { RADIO_ENV } from "./e2e/helpers/radio";
 import { UAV_ENV } from "./e2e/helpers/uav";
 import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
-import { nextServerBefehl, VORGEBAUT_ENV } from "./e2e/helpers/server";
+import { E2E_VORGEBAUT, nextServerBefehl, VORGEBAUT_ENV } from "./e2e/helpers/server";
 export default cloudTauglich(defineConfig({
   testDir: "./e2e",
   // Der PWA-Spike braucht Chrome-Flags für den sicheren Kontext und läuft
@@ -21,52 +21,52 @@ export default cloudTauglich(defineConfig({
   testIgnore: /(pwa-spike|rueckmeldung)\.spec\.ts/,
   workers: 1,
   /*
-   * 30s reichen NICHT fuer den ersten Test, der sich anmeldet.
+   * 90 s UNTER `next dev`, 45 s GEGEN DEN VORGEBAUTEN STAND (DRK-415).
    *
-   * Die Suite faehrt gegen `next dev`, und ein Dev-Server uebersetzt jede Route
-   * erst beim ersten Aufruf. In der CI ist `.next` IMMER kalt (frischer
-   * Checkout, kein Build-Cache) UND der Runner klein; lokal ist beides nicht so,
-   * deshalb blieb es unentdeckt, bis es in der CI stand. Gemessen auf einem
-   * geloeschten `.next` und einer kuenstlich unter Last gesetzten Maschine (der
-   * Ersatz fuer den Runner), sonst identischer Lauf:
+   * `next dev` uebersetzt jede Route erst beim ersten Aufruf. Lokal ist das die
+   * Vorgabe, und in der CI stand bis DRK-415 derselbe Server auf einem IMMER
+   * kalten `.next` (frischer Checkout) und einem kleinen Runner — dort reichten
+   * 30 s nicht. Gemessen auf einem geloeschten `.next` und einer kuenstlich unter
+   * Last gesetzten Maschine (der Ersatz fuer den Runner), sonst identischer
+   * Lauf:
    *
    *   GET /login ............................  7 368 ms
    *   Anmelden bis die Adresse /login verlaesst  13 722 ms
    *   derselbe Login ein zweites Mal, warm ...  1 160 ms
    *
-   * Das ist echte Uebersetzungsarbeit, kein Haenger: der Klick stoesst
-   * nacheinander die next-auth-Routen und die angemeldete Modul-Wurzel an. Die
-   * erste Zeile nimmt ihm `webServer.url` unten ab; die zweite bleibt im Test
-   * stehen und passt mit dem, was der Test danach noch tut, nicht in 30 s.
+   * Das ist echte Uebersetzungsarbeit, kein Haenger. GEGEN DEN VORGEBAUTEN STAND
+   * (die CI, `e2e/helpers/server.ts`) faellt sie weg: im ersten Lauf lag der
+   * laengste von 521 Faellen bei 15 s, im lokalen Volllauf auf 4 Kernen bei 23 s.
+   * 45 s sind das Doppelte — Luft fuer einen langsamen Runner, und knapp genug,
+   * dass ein Fall, der auf das Dreifache anwaechst, auffaellt.
    *
    * Die Grenze gilt bewusst fuer ALLE Tests statt fuer einen ausgewaehlten: wer
-   * der erste anmeldende Test ist, haengt an der Dateireihenfolge und aendert
-   * sich mit der naechsten Spec.
+   * der erste anmeldende Test ist, haengt an der Dateireihenfolge.
    */
-  timeout: 90_000,
+  timeout: E2E_VORGEBAUT ? 45_000 : 90_000,
   /*
-   * WIEDERHOLUNGEN NUR IN DER CI — und der Grund ist derselbe wie beim
-   * `timeout` darueber, nur eine Ebene tiefer.
+   * WIEDERHOLUNGEN NUR IN DER CI, und seit DRK-415 EINE statt zwei.
    *
-   * `next dev` uebersetzt eine Route beim ERSTEN Aufruf. Der Test-Timeout von
-   * 90 s deckt das ab; die EINZELNE Zusicherung tut es nicht: `expect` bricht
-   * nach seinem Default von 5 s ab, lange bevor der Test selbst aufgibt. Ein
-   * Klick auf einen Link, dessen Zielroute noch uebersetzt wird, laesst
-   * `toHaveURL` deshalb unter Last auflaufen, waehrend die Navigation noch
-   * laeuft. Gemessen am 12.08.2026: derselbe Commit faellt einmal
-   * (`e2e/lagerbuch-verwaltung.spec.ts:35`, 13 Pollversuche auf der alten URL)
-   * und laeuft im unveraenderten Rerun durch.
+   * Die zwei stammten aus `next dev`: eine Route, die beim ersten Aufruf noch
+   * uebersetzt wird, laesst eine einzelne Zusicherung (`expect`, 5 s) auflaufen,
+   * lange bevor der Test aufgibt. Gemessen am 12.08.2026: derselbe Commit faellt
+   * einmal (`e2e/lagerbuch-verwaltung.spec.ts:35`, 13 Pollversuche auf der alten
+   * URL) und laeuft im unveraenderten Rerun durch. Gegen den vorgebauten Stand
+   * gibt es diese Latenz nicht mehr; im ersten Lauf brauchte keiner der 521
+   * Faelle eine Wiederholung.
    *
-   * ⚠️ DIE WIEDERHOLUNG IST KEINE ENTSCHULDIGUNG FUER EINEN WACKLIGEN TEST.
-   * Sie faengt Uebersetzungslatenz, nicht Logikfehler: ein Test, der aus
-   * fachlichen Gruenden mal so und mal anders ausgeht, wird auch im zweiten
-   * Anlauf rot, und `flaky` im Report ist das Signal, ihn anzusehen — nicht,
-   * die Zahl zu erhoehen.
+   * EINE bleibt, und zwar fuer `trace: "on-first-retry"` darunter: ohne
+   * Wiederholung gaebe es keine Ablaufverfolgung, und genau die macht einen
+   * Runner-Zustand wie den vom 14.08. (Kommentar dort) in Minuten belegbar.
+   *
+   * ⚠️ DIE WIEDERHOLUNG IST KEINE ENTSCHULDIGUNG FUER EINEN WACKLIGEN TEST: ein
+   * Fall, der aus fachlichen Gruenden mal so und mal anders ausgeht, bleibt ein
+   * Befund — `flaky` im Report heisst ansehen, nicht die Zahl erhoehen.
    *
    * LOKAL BLEIBT ES BEI NULL: wer hier entwickelt, soll einen fehlschlagenden
    * Test sofort sehen und nicht hinter einem stillen zweiten Versuch.
    */
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: `http://portal.localtest.me:${E2E_PORTS.web}`,
     /*
