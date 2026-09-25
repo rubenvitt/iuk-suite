@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, klickeWennRuhig, E2E_PORT } from "./fixtures";
 
 /**
  * Stufe 5, Task 4: die Anmeldeseite des Einsatzbuch-Rechners ohne Suite-Chrome.
@@ -209,5 +209,51 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
     expect(tausch.ok(), await tausch.text()).toBeTruthy();
     const koerper = (await tausch.json()) as { einrichtung: { art: string; name: string; ersetzen: boolean } | null };
     expect(koerper.einrichtung).toMatchObject({ art: "echt", name: "Zweiter Leitrechner", ersetzen: true });
+  });
+});
+
+/**
+ * Stufe 5, Task 5: die Verwaltungsseite „Rechner" (Widerruf, Test-Rechner löschen) und die
+ * Rechnerstatus-Karten der Übersicht.
+ */
+test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
+  test("listet einen Test-Rechner und löscht ihn nach Bestätigung", async ({ page, request }) => {
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    const name = `Testrechner ${Date.now()}`;
+    const { geraeteToken } = await rechnerAnlegen(page, request, { art: "test", name });
+
+    // Warmlauf zuerst (Falle 10 gilt für POST-Handler; ein GET auf `stammdaten` ist selbst
+    // schon der eigentliche Abruf, hier als Beleg, dass das Token VOR dem Löschen noch gilt).
+    const vorher = await request.get(url("/api/stammdaten"), { headers: { authorization: `Bearer ${geraeteToken}` } });
+    expect(vorher.status()).toBe(200);
+
+    await page.goto(url("/rechner"));
+    // Über die Tabellen-Rolle, nicht über den Text (Vorbild `einsatzbuch-stammdaten.spec.ts`):
+    // `Kartentabelle` rendert Karten- UND Tabellendarstellung ins DOM, CSS blendet eine aus, und
+    // ein reiner Textgreifer träfe deshalb beide (`display: none` zählt für `getByText` mit).
+    const tabelle = page.getByRole("table", { name: "Test-Rechner" });
+    const zeile = tabelle.locator("[data-row-key]", { hasText: name });
+    await expect(zeile).toBeVisible();
+
+    await klickeWennRuhig(zeile.getByRole("button", { name: "Test-Rechner löschen" }));
+    await expect(page.getByText(`Test-Rechner „${name}“ löschen?`)).toBeVisible();
+    await klickeWennRuhig(page.getByRole("button", { name: "Endgültig löschen" }));
+    await expect(zeile).toHaveCount(0);
+    await expect(tabelle.getByText("Keine Test-Rechner.")).toBeVisible();
+
+    const nachher = await request.get(url("/api/stammdaten"), { headers: { authorization: `Bearer ${geraeteToken}` } });
+    expect(nachher.status()).toBe(401);
+  });
+});
+
+test.describe("Übersicht der Einsatzbuch-Verwaltung", () => {
+  test("zeigt Rechnerstatus", async ({ page, request }) => {
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    await rechnerAnlegen(page, request, { art: "test", name: `Statusrechner ${Date.now()}` });
+
+    await page.goto(url("/"));
+    await expect(page.getByText("Echter Rechner", { exact: true })).toBeVisible();
+    await expect(page.getByText("Anker-Abweichungen", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Rechner verwalten" })).toHaveAttribute("href", "/rechner");
   });
 });

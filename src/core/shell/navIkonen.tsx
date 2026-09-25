@@ -18,7 +18,7 @@ import {
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
   PiLockers, PiHandArrowDown, PiHandArrowUp, PiNotePencil, PiMapPinArea, PiTrayArrowDown,
-  PiAddressBook, PiGearSix, PiBookOpenText,
+  PiAddressBook, PiGearSix, PiBookOpenText, PiDesktopTower,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -66,6 +66,9 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   stammdaten: PiAddressBook,
   einstellungen: PiGearSix,
   reader: PiBookOpenText,
+  // DRK-471 (Stufe 5) — Begründung an der Union in `types.ts`. Der Rechnerturm trägt das
+  // physische Gerät der Einsatzstelle, nicht seine Daten.
+  rechner: PiDesktopTower,
 };
 
 /**

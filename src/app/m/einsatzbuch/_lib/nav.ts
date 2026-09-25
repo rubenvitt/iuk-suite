@@ -14,6 +14,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
 export const EINSATZBUCH_NAV: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/", ikon: "uebersicht" },
   { key: "stammdaten", title: "Stammdaten", href: "/stammdaten", ikon: "stammdaten" },
+  { key: "rechner", title: "Rechner", href: "/rechner", ikon: "rechner" },
   { key: "einstellungen", title: "Einstellungen", href: "/einstellungen", ikon: "einstellungen" },
   { key: "reader", title: "Reader", href: "/reader", ikon: "reader" },
 ];

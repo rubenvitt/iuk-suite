@@ -129,6 +129,8 @@
   },
   "src/app/m/einsatzbuch/_actions/anmelden.ts#ersetzenBestaetigenAction": { "kind": "context", "via": "ersetzenBestaetigenAction" },
   "src/app/m/einsatzbuch/_actions/einstellungen.ts#einstellungenSpeichernAction": { "kind": "context", "via": "einstellungenSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/rechner.ts#rechnerWiderrufenAction": { "kind": "context", "via": "rechnerWiderrufenAction" },
+  "src/app/m/einsatzbuch/_actions/rechner.ts#testRechnerLoeschenAction": { "kind": "context", "via": "testRechnerLoeschenAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#aktivSetzenAction": { "kind": "context", "via": "aktivSetzenAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#csvUebernehmenAction": { "kind": "context", "via": "csvUebernehmenAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#csvVorschauAction": { "kind": "excluded", "reason": "Probelauf des CSV-Imports: liest den Bestand und schreibt nichts; die Übernahme läuft über csvUebernehmenAction." },

@@ -1,0 +1,31 @@
+/*
+ * Eigene Rot-Variable für die Rechnerseite (Falle 3, `docs/design/README.md`): Suite-Rot ist in
+ * dieser Suite zugleich `colorPrimary` und `colorError`, ein `Alert type="error"` oder ein rotes
+ * `Tag` sähe wie eine Primäraktion aus. Eine Anker-Abweichung ist eine fachliche Warnung vor
+ * einer veränderten Kette — Rot erscheint deshalb nur als Text- und Randfarbe dieser Liste, nie
+ * als Fläche. Vorbild `lagerbuch/_ui/verwaltung.module.css` (`--lb-ampel-rot-text`).
+ */
+.modul {
+  --eb-verw-rot-text: #8c0d16;
+}
+:root[data-theme="dark"] .modul {
+  --eb-verw-rot-text: #e8837c;
+}
+
+.abweichungenListe {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.abweichungenZeile {
+  border-inline-start: 3px solid var(--eb-verw-rot-text);
+  padding-inline-start: 8px;
+  color: var(--eb-verw-rot-text);
+  font-size: 13px;
+}
+.abweichungenZahl {
+  color: var(--eb-verw-rot-text);
+  font-weight: 600;
+}
