@@ -76,4 +76,18 @@ describe("POST /api/anker", () => {
     expect(zeilen).toHaveLength(1);
     expect(JSON.parse(zeilen[0].actor)).toEqual({ kind: "access", id: `einsatzbuch:rechner:${rechnerId}`, name: "Übungsrechner" });
   });
+
+  it("dieselbe Abweichung erneut → wieder 409 mit erwartet, aber genau eine Zeile und ein Audit-Eintrag", async () => {
+    const { db, geraeteToken } = await einRechner();
+    const { ankerAbweichung } = await import("../../_db/schema");
+    const { POST } = await import("./route");
+    expect((await POST(req({ bearer: geraeteToken, body: { block: 1, hash: "a".repeat(64) } }))).status).toBe(204);
+    for (let i = 0; i < 3; i++) {
+      const res = await POST(req({ bearer: geraeteToken, body: { block: 1, hash: "b".repeat(64) } }));
+      expect(res.status).toBe(409);
+      expect((await res.json()).erwartet).toBe("a".repeat(64));
+    }
+    expect(db.select().from(ankerAbweichung).all()).toHaveLength(1);
+    expect(db.all(sql`SELECT id FROM audit_outbox WHERE object_type = 'anker_abweichung'`)).toHaveLength(1);
+  });
 });

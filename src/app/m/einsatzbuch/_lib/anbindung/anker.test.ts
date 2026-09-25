@@ -37,6 +37,26 @@ describe("meldeAnker", () => {
     expect(db.select().from(anker).all()).toEqual([{ rechnerId: "r1", block: 3, hash: H1, gemeldetAm: JETZT }]);
   });
 
+  it("dieselbe Abweichung erneut gemeldet → wieder erwartet, aber keine zweite Zeile", () => {
+    const db = mitRechnern();
+    meldeAnker(db, "r1", 3, H1, JETZT);
+    expect(meldeAnker(db, "r1", 3, H2, JETZT)).toEqual({ ok: false, erwartet: H1 });
+    expect(meldeAnker(db, "r1", 3, H2, new Date(JETZT.getTime() + 3_600_000))).toEqual({ ok: false, erwartet: H1 });
+    expect(meldeAnker(db, "r1", 3, H2, new Date(JETZT.getTime() + 7_200_000))).toEqual({ ok: false, erwartet: H1 });
+    expect(db.select().from(ankerAbweichung).all()).toEqual([
+      { id: expect.any(String), rechnerId: "r1", block: 3, erwartet: H1, gemeldet: H2, zeitpunkt: JETZT },
+    ]);
+  });
+
+  it("eine andere Abweichung am selben Block ist eine neue Zeile", () => {
+    const db = mitRechnern();
+    const H3 = "3".repeat(64);
+    meldeAnker(db, "r1", 3, H1, JETZT);
+    meldeAnker(db, "r1", 3, H2, JETZT);
+    expect(meldeAnker(db, "r1", 3, H3, JETZT)).toEqual({ ok: false, erwartet: H1 });
+    expect(db.select({ gemeldet: ankerAbweichung.gemeldet }).from(ankerAbweichung).all().map((z) => z.gemeldet).sort()).toEqual([H2, H3]);
+  });
+
   it("Anker zweier Rechner stören sich nicht", () => {
     const db = mitRechnern();
     expect(meldeAnker(db, "r1", 1, H1, JETZT)).toEqual({ ok: true });
