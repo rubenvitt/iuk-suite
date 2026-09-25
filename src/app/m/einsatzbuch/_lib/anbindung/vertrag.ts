@@ -27,6 +27,7 @@ export const tauschAntwort = z.object({
   rechnerId: z.string().nullable(),
   einrichtung: einrichtungswunsch.nullable(),
 }).strict();
+export type TauschAntwort = z.infer<typeof tauschAntwort>;
 
 export const einrichtenAnfrage = z.object({ art, name: z.string().trim().min(1).max(60) }).strict();
 

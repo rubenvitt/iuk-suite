@@ -134,6 +134,34 @@
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#fahrzeugSpeichernAction": { "kind": "context", "via": "fahrzeugSpeichernAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#personSpeichernAction": { "kind": "context", "via": "personSpeichernAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stichwortSpeichernAction": { "kind": "context", "via": "stichwortSpeichernAction" },
+  "src/app/m/einsatzbuch/api/anker/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/einsatzbuch/api/anmelden/tausch/route.ts#POST": {
+    "kind": "explicit-only",
+    "reason": "Anmeldung des Rechners; die Sitzung selbst ist technisch, jede Freigabe wird auditiert."
+  },
+  "src/app/m/einsatzbuch/api/einrichten/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/einsatzbuch/api/rechner/[id]/route.ts#DELETE": {
+    "kind": "context",
+    "via": "DELETE"
+  },
+  "src/app/m/einsatzbuch/api/schluessel/freigeben/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/einsatzbuch/api/sicherung/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/einsatzbuch/api/stammdaten/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
   "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.xlsx/route.ts#GET": {
     "kind": "context",
     "via": "GET",
