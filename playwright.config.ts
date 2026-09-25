@@ -172,8 +172,16 @@ export default cloudTauglich(defineConfig({
        * Offline-Sync-Checks (Aufgabe 21, Check 7: „anzahl 1-1 ist 1 mehr als
        * die 2 aus dem Seed").
        */
+      /*
+       * `e2e/seed-einsatzbuch.ts` NACH `uav`, VOR `next dev` (Task 4): stellt das echte
+       * Schlüsselpaar der Suite wieder her, idempotent, mit dem Entwicklungs-KEK aus
+       * `EINSATZBUCH_SCHLUESSEL_KEK` unten. Ohne diese Zeile antwortet `POST /api/einrichten` mit
+       * `art: "echt"` immer `503 kein_echtes_paar` — `e2e/einsatzbuch-anbindung.spec.ts`s
+       * Ersetzen-Frage braucht aber einen VORHANDENEN echten Rechner, den erst dieses Paar
+       * ermöglicht.
+       */
       command:
-        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && ${nextServerBefehl(E2E_PORTS.web)}`,
+        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx e2e/seed-einsatzbuch.ts && ${nextServerBefehl(E2E_PORTS.web)}`,
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -375,6 +383,15 @@ export default cloudTauglich(defineConfig({
          * (`e2e/helpers/uav.ts`) — dieselbe Bauform wie `...RADIO_ENV` darueber.
          */
         ...UAV_ENV,
+        /*
+         * Der Entwicklungs-KEK des Einsatzbuchs (Task 4), als LITERAL statt eines Imports: die
+         * Konfiguration soll nicht von App-Interna abhängen. Anker: `ENTWICKLUNGS_KEK` in
+         * `src/app/m/einsatzbuch/_lib/schluessel/kek.ts` (UTF-8 von
+         * „einsatzbuch-entwicklungs-kek-32b", nur für lokale Entwicklung und Tests). Ohne ihn
+         * antwortet `POST /api/einrichten` mit `503 kek_fehlt`, und `e2e/seed-einsatzbuch.ts`
+         * (oben, vor diesem Server) könnte das echte Schlüsselpaar nicht anlegen.
+         */
+        EINSATZBUCH_SCHLUESSEL_KEK: "ZWluc2F0emJ1Y2gtZW50d2lja2x1bmdzLWtlay0zMmI=",
       },
     },
   ],

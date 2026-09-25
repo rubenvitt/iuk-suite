@@ -1,0 +1,87 @@
+/*
+ * Die Anmeldeseite des Einsatzbuch-Rechners — OHNE Suite-Chrome, liegt außerhalb von
+ * `(verwaltung)`. Eigene Variablen statt `--ant-*` (Falle 2, CLAUDE.md): das antd-Scope
+ * hängt seine Variablen an die Wurzel SEINER EIGENEN Komponenten, nicht an `:root` — eigenes
+ * Markup außerhalb eines antd-Baums sähe sie nicht.
+ *
+ * `Card`/`Result` (Falle 1) tragen ihr Aussehen selbst; hier steht nur die Bühne drumherum
+ * und der eigene Knopf/Link der Ersetzen- und Kein-Zugang-Seite.
+ */
+.seite {
+  --eb-papier: #f4f1ea;
+  --eb-flaeche: #ffffff;
+  --eb-tinte: #16181a;
+  --eb-gedaempft: #5e625f;
+  --eb-linie: #ddd8ce;
+  --eb-knopf-grund: #24282c;
+  --eb-knopf-schrift: #ffffff;
+
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--eb-papier);
+  color: var(--eb-tinte);
+}
+
+:root[data-theme="dark"] .seite {
+  --eb-papier: #16181a;
+  --eb-flaeche: #202327;
+  --eb-tinte: #f4f1ea;
+  --eb-gedaempft: #b7bcb8;
+  --eb-linie: #34383d;
+  --eb-knopf-grund: #f4f1ea;
+  --eb-knopf-schrift: #16181a;
+}
+
+.karte {
+  width: 100%;
+  max-width: 420px;
+}
+
+.hinweis {
+  margin-top: 16px;
+  color: var(--eb-gedaempft);
+  font-size: 14px;
+}
+
+/* Ohne Shell gilt die 56px-Tapfläche wie bei `MinimalShell` (Falle 4, CLAUDE.md). */
+.knopf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 24px;
+  margin-top: 8px;
+  border-radius: 8px;
+  background: var(--eb-knopf-grund);
+  color: var(--eb-knopf-schrift);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.formular {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.absatz {
+  color: var(--eb-tinte);
+  line-height: 1.5;
+}
+
+/* „Abbrechen" — dieselbe 56px-Tapfläche wie `.knopf` (Falle 4), aber ohne Füllung: keine
+   zweite Primäraktion neben „Ersetzen". */
+.knopfSekundaer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 8px;
+  margin-top: 8px;
+  color: var(--eb-gedaempft);
+  text-decoration: underline;
+}

@@ -4,9 +4,17 @@ import { devLogin, E2E_PORT, klickeWennRuhig } from "./fixtures";
 /**
  * Stufe 2 des Einsatzbuchs: Stammdaten und Einstellungen über die Oberfläche.
  *
- * Die Spec legt ihre Daten selbst an (der E2E-Server seedet das Einsatzbuch nicht) und hängt
- * an jede Kennung und jeden Namen eine Laufnummer, damit Wiederholungen gegen dieselbe
- * Datenbank nicht an „gibt es schon“ scheitern.
+ * Die Spec legt ihre Stammdaten (Fahrzeuge, Personal) selbst an und hängt an jede Kennung und
+ * jeden Namen eine Laufnummer, damit Wiederholungen gegen dieselbe Datenbank nicht an „gibt es
+ * schon“ scheitern.
+ *
+ * ⚠️ SEIT TASK 4 SEEDET `e2e/seed-einsatzbuch.ts` (vor `next dev`, `playwright.config.ts`) DAS
+ * ECHTE SCHLÜSSELPAAR mit dem Entwicklungs-KEK — die Anmeldeseite braucht ein echtes Paar für
+ * `art=echt`, sonst antwortet `einrichten` mit `503 kein_echtes_paar`. Der KEK-Hinweis auf der
+ * Übersicht verschwindet dadurch: `schluesselStatus` liefert `kek: "ok"`, `paar: "ok"`, und
+ * `entwicklungsKekInProduktion` bleibt unter `next dev` (`NODE_ENV=development`) `false`
+ * (`_lib/schluessel/status.ts`). Der erste Testfall unten prüft deshalb bewusst das GEGENTEIL
+ * seines ursprünglichen Namens: der Hinweis steht NICHT mehr da.
  *
  * Greifer:
  * - Kartentabelle rendert Tabelle UND Karten ins HTML (CSS schaltet). Zeilen deshalb über die
@@ -30,12 +38,12 @@ test.beforeEach(async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
 });
 
-test("Übersicht, Stammdaten und Einstellungen antworten mit 200; ohne KEK steht der Hinweis da", async ({ page }) => {
+test("Übersicht, Stammdaten und Einstellungen antworten mit 200; mit echtem Paar und gültigem KEK bleibt der Hinweis aus", async ({ page }) => {
   for (const pfad of ["/", "/stammdaten", "/stammdaten?reiter=personal", "/einstellungen"]) {
     expect((await page.goto(url(pfad)))?.status(), pfad).toBe(200);
   }
   await page.goto(url("/"));
-  await expect(page.getByTestId("kek-hinweis")).toBeVisible();
+  await expect(page.getByTestId("kek-hinweis")).toHaveCount(0);
 });
 
 test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal per CSV", async ({ page }) => {
