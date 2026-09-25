@@ -274,6 +274,24 @@ describe("Versiegelt", () => {
   });
 });
 
+describe("Formular", () => {
+  it("begrenzt die Textfelder wie der Reader", async () => {
+    await starte(status());
+    await clickElement(knopf("Einsatz öffnen")!);
+    expect(feld("Straße, Hausnummer")?.maxLength).toBe(200);
+    expect(feld("PLZ, Ort")?.maxLength).toBe(200);
+    expect(feld("Objekt, Lage vor Ort")?.maxLength).toBe(500);
+    expect(queryAll<HTMLTextAreaElement>("textarea")[0]?.maxLength).toBe(20_000);
+  });
+
+  it("sperrt das Absenden bei einem Ende nur mit Datum", async () => {
+    await starte(status({ entwurf: entwurf({ endeDatum: "2026-09-24" }) }));
+    await clickElement(knopf("Einsatz öffnen")!);
+    expect(text()).toContain("Ende nur mit Datum und Uhrzeit angeben.");
+    expect(knopf("Einsatz absenden")?.disabled).toBe(true);
+  });
+});
+
 describe("Fehler der Befehlsnaht", () => {
   it("landen als Hinweis über dem Inhalt, nicht als alert()", async () => {
     const alarm = vi.spyOn(window, "alert").mockImplementation(() => {});
@@ -418,6 +436,19 @@ describe("mit gestellter Uhr", () => {
     await laufe(5000);
     expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual(["Status gerade nicht lesbar"]);
     await laufe(5000);
+    expect(queryAll('[role="alert"]')).toHaveLength(0);
+  });
+
+  it("löscht einen Fehler der Abfrage auch nach einer gelungenen Frist-Prüfung", async () => {
+    await starteMitUhr(status({ ausstehend: ausstehend(entwurf(), Date.now() + 6000) }));
+    befehle.status.mockRejectedValueOnce("Status gerade nicht lesbar");
+    await laufe(5000);
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual(["Status gerade nicht lesbar"]);
+    // Bei Restzeit 0 fragt die Uhr `frist_pruefen`; das gelingt (noch nichts versiegelt), lange
+    // bevor die nächste Status-Abfrage bei 10 s käme.
+    await laufe(1500);
+    expect(befehle.fristPruefen).toHaveBeenCalled();
+    expect(befehle.status.mock.calls.length).toBe(2);
     expect(queryAll('[role="alert"]')).toHaveLength(0);
   });
 

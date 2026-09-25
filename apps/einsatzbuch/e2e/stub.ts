@@ -2,9 +2,11 @@
  * Stub-Schicht für `invoke` — die einzige Naht, über die die Oberfläche mit Rust spricht
  * (`../src/befehle.ts`). `installiereStub` spielt vor jeder Navigation ein Fake-Backend in die
  * Seite ein (`page.addInitScript`), das die Regeln aus `src-tauri/kern/src/erfassung.rs` und
- * `versiegeln.rs` im Browser nachbildet: Pflichtfelder, die Frist ohne Verlängerung bei einer
+ * `versiegeln.rs` im Browser nachbildet: Pflichtfelder (getrimmt), ein nur halb angegebenes
+ * Ende, die Grenzen des Readers (`grenzen.rs`), die Frist ohne Verlängerung bei einer
  * Bearbeitung, „verfallen“ beim Versiegeln über einen vorhandenen Entwurf, Nummern `T-JJJJ-NNN`
- * und ein Hash aus `crypto.subtle.digest`.
+ * und ein Hash aus `crypto.subtle.digest`. Die Meldungen sind wörtlich die aus Rust, so wie
+ * `fehler_text` in `src-tauri/src/befehle.rs` sie an die Oberfläche gibt.
  *
  * Die Funktion, die an `page.addInitScript` geht, läuft im Browser und hat dort keinen Zugriff
  * auf dieses Modul — jede Kleinigkeit, die sie braucht, kommt über `einstellungen` als Argument
@@ -97,13 +99,42 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
 
     let zustand = neuerZustand(einstellungen.betrieb);
 
-    /** Wie `fehlendeAngaben` in `logik/formular.ts` und `pruefe_entwurf` in Rust. */
+    /** Wie `fehlendeAngaben` in `logik/formular.ts` und `pruefe_entwurf` in Rust, getrimmt. */
     function fehlendeAngaben(e: Entwurf): string[] {
       const fehlt: string[] = [];
-      if (!e.stichwort) fehlt.push("Alarmstichwort");
-      if (!e.beginnDatum || !e.beginnZeit) fehlt.push("Beginn");
-      if (!e.strasse && !e.ort) fehlt.push("Einsatzort");
+      if (!e.stichwort.trim()) fehlt.push("Alarmstichwort");
+      if (!e.beginnDatum.trim() || !e.beginnZeit.trim()) fehlt.push("Beginn");
+      if (!e.strasse.trim() && !e.ort.trim()) fehlt.push("Einsatzort");
       return fehlt;
+    }
+
+    /**
+     * Die übrigen Regeln aus `pruefe_entwurf`, soweit die Specs sie erreichen können: Ende nur
+     * vollständig, Längen in UTF-16-Codeeinheiten (`String.length`) am getrimmten Wert (Notizen
+     * ungetrimmt), Anzahl der Fahrzeuge und Kräfte.
+     */
+    function pruefeInhalt(e: Entwurf): void {
+      if (!e.endeDatum.trim() !== !e.endeZeit.trim()) {
+        throw new Error("Eingabe ungültig: Ende braucht Datum und Uhrzeit zusammen oder keins von beiden");
+      }
+      const laengen: [string, string, number][] = [
+        ["Alarmstichwort", e.stichwort.trim(), 80],
+        ["Straße", e.strasse.trim(), 200],
+        ["Ort", e.ort.trim(), 200],
+        ["Objekt", e.objekt.trim(), 500],
+        ["Notizen", e.notizen, 20_000],
+      ];
+      for (const [feld, wert, hoechstens] of laengen) {
+        if (wert.length > hoechstens) {
+          throw new Error(`Eingabe ungültig: ${feld} darf höchstens ${hoechstens} Zeichen lang sein, hat ${wert.length}`);
+        }
+      }
+      if (e.fahrzeuge.length > 200) {
+        throw new Error(`Eingabe ungültig: höchstens 200 Fahrzeuge je Einsatz, gewählt sind ${e.fahrzeuge.length}`);
+      }
+      if (e.personal.length > 1000) {
+        throw new Error(`Eingabe ungültig: höchstens 1000 Kräfte je Einsatz, gewählt sind ${e.personal.length}`);
+      }
     }
 
     /**
@@ -185,7 +216,12 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       if (!zustand.eingerichtet) throw new Error(NICHT_EINGERICHTET);
       const fehlt = fehlendeAngaben(entwurf);
       if (fehlt.length > 0) throw new Error(`Fehlt: ${fehlt.join(", ")}`);
+      pruefeInhalt(entwurf);
       pruefeSchritt(bearbeitung, Date.now());
+      const letzter = zustand.bloecke[zustand.bloecke.length - 1];
+      if (!bearbeitung && letzter && letzter.block >= 10_000) {
+        throw new Error("Das Einsatzbuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung.");
+      }
       if (zustand.ausstehend) {
         zustand.ausstehend = { ...zustand.ausstehend, entwurf };
       } else {

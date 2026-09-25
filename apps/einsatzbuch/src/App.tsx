@@ -25,7 +25,7 @@ import { Kopf } from "./bausteine/Kopf";
 import { Testband } from "./bausteine/Testband";
 import { befehle } from "./befehle";
 import { phaseAus, restSekunden, restText, type Lokal } from "./logik/ablauf";
-import { fehlendeAngaben, leererEntwurf } from "./logik/formular";
+import { kannAbsenden, leererEntwurf } from "./logik/formular";
 import { Formular } from "./seiten/Formular";
 import { Frist } from "./seiten/Frist";
 import { NichtEingerichtet } from "./seiten/NichtEingerichtet";
@@ -81,6 +81,13 @@ export function App() {
   function zeigeFehler(e: unknown, ausAbfrage: boolean) {
     fehlerAusAbfrageRef.current = ausAbfrage;
     setFehler(fehlerText(e));
+  }
+
+  /** Nach einer gelungenen Abfrage oder Frist-Prüfung: Ein Fehler aus dem Hintergrund ist überholt. */
+  function loescheAbfrageFehler() {
+    if (!fehlerAusAbfrageRef.current) return;
+    fehlerAusAbfrageRef.current = false;
+    setFehler(null);
   }
 
   /** Restzeit jetzt, außerhalb des Renders gerechnet (für den Speicher-Timer). */
@@ -198,10 +205,7 @@ export function App() {
       if (laeuftRef.current) return;
       try {
         await laden();
-        if (fehlerAusAbfrageRef.current) {
-          fehlerAusAbfrageRef.current = false;
-          setFehler(null);
-        }
+        loescheAbfrageFehler();
       } catch (e) {
         zeigeFehler(e, true);
       }
@@ -214,6 +218,7 @@ export function App() {
         await speicher.stoppe();
         const v = await befehle.fristPruefen();
         if (v) await laden();
+        loescheAbfrageFehler();
       } catch (e) {
         zeigeFehler(e, true);
       }
@@ -267,7 +272,7 @@ export function App() {
   const absenden = () =>
     fuehreAus(async () => {
       const e = entwurfRef.current;
-      if (!e || fehlendeAngaben(e).length > 0) return;
+      if (!e || !kannAbsenden(e)) return;
       const bearbeitung = lokalRef.current.bearbeiten;
       await speicher.stoppe();
       if (bearbeitung) {

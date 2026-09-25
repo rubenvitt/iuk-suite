@@ -160,6 +160,20 @@ fn testbetrieb_versiegelt_test_mit_praefix() {
 }
 
 #[test]
+fn nummer_bleibt_auch_vierstellig_unter_der_grenze_des_readers() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Test)).unwrap();
+    let jetzt = Utc.with_ymd_and_hms(2026, 6, 1, 12, 0, 0).unwrap();
+    buch.verbindung().execute("INSERT INTO nummern (jahr, letzte) VALUES (2026, 999)", []).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
+    let versiegelung = buch.versiegele_ausstehend(jetzt, &mut FesterZufall(5), false).unwrap().unwrap();
+    assert_eq!(versiegelung.nummer, "T-2026-1000");
+    assert!(versiegelung.nummer.encode_utf16().count() <= einsatzbuch_kern::grenzen::NUMMER);
+    assert_eq!(entschluessele(&buch.bloecke().unwrap()[0], &suite_privatschluessel()).nummer, "T-2026-1000");
+}
+
+#[test]
 fn fehlende_stammdaten_id_faellt_auf_den_schnappschuss_zurueck() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();

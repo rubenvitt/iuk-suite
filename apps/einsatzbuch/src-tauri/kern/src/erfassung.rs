@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::buch::{Buch, BuchFehler};
 use crate::einrichtung::Stammdatenpaket;
 use crate::format::{FahrzeugStand, PersonStand};
+use crate::grenzen;
 use crate::krypto::KryptoFehler;
 
 /// Eine gewählte Person: ihre Stammdaten-ID und, sofern die Einrichtung `besatzung` führt, das
@@ -78,6 +79,10 @@ pub enum ErfassungFehler {
     /// Ein neuer Einsatz, obwohl noch einer aussteht: Ändern geht nur als Bearbeitung.
     #[error("Es ist schon ein Einsatz abgesendet. Ändern lässt er sich über „Angaben ändern“, solange die Frist läuft.")]
     SchonAbgesendet,
+    /// Die Kette hat schon `grenzen::BLOECKE` Blöcke. Ein Export mit mehr Blöcken ließe sich im
+    /// Reader nicht öffnen; ein weiterer Einsatz wird deshalb gar nicht erst angenommen.
+    #[error("Das Einsatzbuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung.")]
+    KetteVoll,
     #[error(transparent)]
     Buch(#[from] BuchFehler),
     /// Eigene Variante statt `Buch(BuchFehler::UngueltigerSchluessel(..))`: Letztere behauptet
@@ -127,12 +132,28 @@ fn ist_zeitform(s: &str) -> bool {
 /// Tag wie den 31. Februar mit einem Fehler ab, statt ihn wie `Date.UTC` in den nächsten Monat
 /// zu rollen — anders als die Rundlauf-Prüfung im TS-Kern (`zeit.ts`) braucht Rust dafür keinen
 /// eigenen Vergleich.
+///
+/// Jahre vor 100 lehnt sie ab: `Date.UTC` legt die Jahre 0–99 auf 1900–1999, der Rundlauf im
+/// Reader (`echterTag`) scheitert daran, und ein solcher Einsatz ließe sich nie mehr öffnen.
 fn pruefe_datum(s: &str) -> Result<(), ErfassungFehler> {
     if !ist_datumsform(s) {
         return Err(ErfassungFehler::Ungueltig(format!("kein Datum im Format JJJJ-MM-TT: {s}")));
     }
     chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
         .map_err(|_| ErfassungFehler::Ungueltig(format!("kein gültiger Kalendertag: {s}")))?;
+    let jahr: u32 = s[0..4].parse().expect("Form oben geprüft");
+    if jahr < 100 {
+        return Err(ErfassungFehler::Ungueltig(format!("kein gültiger Kalendertag: {s}")));
+    }
+    Ok(())
+}
+
+/// Ein Textfeld über der Grenze des Readers, gezählt in UTF-16-Codeeinheiten (`grenzen.rs`).
+fn pruefe_laenge(feld: &str, wert: &str, hoechstens: usize) -> Result<(), ErfassungFehler> {
+    let laenge = grenzen::laenge(wert);
+    if laenge > hoechstens {
+        return Err(ErfassungFehler::Ungueltig(format!("{feld} darf höchstens {hoechstens} Zeichen lang sein, hat {laenge}")));
+    }
     Ok(())
 }
 
@@ -151,7 +172,9 @@ fn pruefe_zeit(s: &str) -> Result<(), ErfassungFehler> {
 
 /// Prüft einen Entwurf gegen die Stammdaten und liefert die normalisierte Fassung (getrimmt,
 /// `ende_*` konsistent leer oder gültig, `fahrzeugId` gelöscht wenn `besatzung` aus ist) samt dem
-/// Schnappschuss der dabei aufgelösten Fahrzeuge und Personen.
+/// Schnappschuss der dabei aufgelösten Fahrzeuge und Personen. Längen und Mengen prüft sie gegen
+/// die Grenzen des Readers (`grenzen.rs`), und zwar am normalisierten Wert, denn der wird
+/// versiegelt.
 pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(Entwurf, Schnappschuss), ErfassungFehler> {
     let stichwort = e.stichwort.trim().to_string();
     let beginn_datum = e.beginn_datum.trim().to_string();
@@ -160,6 +183,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     let ort = e.ort.trim().to_string();
     let ende_datum = e.ende_datum.trim().to_string();
     let ende_zeit = e.ende_zeit.trim().to_string();
+    let objekt = e.objekt.trim().to_string();
 
     // `stichwort` wird nur auf „nicht leer" geprüft, nicht gegen `paket.stammdaten.stichworte`:
     // Die Stammdaten-Stichworte sind Vorschläge für die Oberfläche, keine abschließende Liste —
@@ -195,6 +219,25 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     }
     if e.transport > 999 {
         return Err(ErfassungFehler::Ungueltig(format!("Transport muss höchstens 999 sein, war {}", e.transport)));
+    }
+    pruefe_laenge("Alarmstichwort", &stichwort, grenzen::STICHWORT)?;
+    pruefe_laenge("Straße", &strasse, grenzen::STRASSE)?;
+    pruefe_laenge("Ort", &ort, grenzen::ORT)?;
+    pruefe_laenge("Objekt", &objekt, grenzen::OBJEKT)?;
+    pruefe_laenge("Notizen", &e.notizen, grenzen::NOTIZEN)?;
+    if e.fahrzeuge.len() > grenzen::FAHRZEUGE {
+        return Err(ErfassungFehler::Ungueltig(format!(
+            "höchstens {} Fahrzeuge je Einsatz, gewählt sind {}",
+            grenzen::FAHRZEUGE,
+            e.fahrzeuge.len()
+        )));
+    }
+    if e.personal.len() > grenzen::PERSONAL {
+        return Err(ErfassungFehler::Ungueltig(format!(
+            "höchstens {} Kräfte je Einsatz, gewählt sind {}",
+            grenzen::PERSONAL,
+            e.personal.len()
+        )));
     }
 
     let mut gesehene_fahrzeuge = std::collections::HashSet::new();
@@ -241,7 +284,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
         ende_zeit,
         strasse,
         ort,
-        objekt: e.objekt.trim().to_string(),
+        objekt,
         fahrzeuge: e.fahrzeuge.clone(),
         personal,
         vor_ort: e.vor_ort,
@@ -354,7 +397,9 @@ impl Buch {
     /// derselben Transaktion gegen den Stand geprüft (`pruefe_schritt`): Eine Bearbeitung nach
     /// Fristende ergibt `FristAbgelaufen` und schreibt nichts, auch wenn die Frist-Uhr noch nicht
     /// versiegelt hat. Der Inhalt wird vorher geprüft, damit eine unvollständige Eingabe immer
-    /// als solche gemeldet wird.
+    /// als solche gemeldet wird. Ein neuer Einsatz braucht außerdem Platz in der Kette
+    /// (`grenzen::kette_hat_platz`), sonst `KetteVoll`; eine Bearbeitung ändert nur den schon
+    /// ausstehenden Einsatz, der beim ersten Absenden Platz hatte.
     pub fn sende_ab(&mut self, e: &Entwurf, jetzt: DateTime<Utc>, bearbeitung: bool) -> Result<Ausstehend, ErfassungFehler> {
         let einrichtung = self.einrichtung()?.ok_or(ErfassungFehler::NichtEingerichtet)?;
         let (normalisiert, schnappschuss) = pruefe_entwurf(e, &einrichtung.paket)?;
@@ -366,6 +411,12 @@ impl Buch {
 
         let tx = self.transaktion()?;
         pruefe_schritt(&tx, bearbeitung, jetzt)?;
+        if !bearbeitung {
+            let letzter: Option<i64> = tx.query_row("SELECT MAX(block) FROM bloecke", [], |r| r.get(0))?;
+            if !grenzen::kette_hat_platz(letzter.map(|b| b as u64)) {
+                return Err(ErfassungFehler::KetteVoll);
+            }
+        }
         let (abgesendet_am, frist_bis_ms): (String, i64) = tx.query_row(
             "INSERT INTO ausstehend (id, json, schnappschuss, abgesendet_am, frist_bis_ms) \
              VALUES (1, ?1, ?2, ?3, ?4) \

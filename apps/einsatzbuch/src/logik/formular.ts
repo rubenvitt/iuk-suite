@@ -39,13 +39,37 @@ export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
   };
 }
 
-/** Pflichtfelder, in der Reihenfolge der Vorlage: Alarmstichwort, Beginn, Einsatzort (Straße ODER Ort). */
+/**
+ * Höchstlängen der Textfelder, wie sie der Reader der Suite durchsetzt und Rust beim Absenden
+ * prüft (`grenzen.rs` im Kern). Das DOM-Attribut `maxLength` zählt wie der Reader in
+ * UTF-16-Codeeinheiten. Das Alarmstichwort hat kein Eingabefeld: Es kommt aus den Stammdaten,
+ * deren Stichworte Rust schon beim Übernehmen auf 80 begrenzt.
+ */
+export const HOECHSTLAENGE = { strasse: 200, ort: 200, objekt: 500, notizen: 20_000 } as const;
+
+/** Hinweis, wenn das Ende nur halb angegeben ist; Rust lehnt ein solches Absenden ab. */
+export const ENDE_UNVOLLSTAENDIG = "Ende nur mit Datum und Uhrzeit angeben.";
+
+/**
+ * Pflichtfelder, in der Reihenfolge der Vorlage: Alarmstichwort, Beginn, Einsatzort (Straße ODER
+ * Ort). Getrimmt wie in Rust (`pruefe_entwurf`): Nur Leerzeichen zählen als fehlend.
+ */
 export function fehlendeAngaben(e: Entwurf): FehlendeAngabe[] {
   const fehlt: FehlendeAngabe[] = [];
-  if (!e.stichwort) fehlt.push("Alarmstichwort");
-  if (!e.beginnDatum || !e.beginnZeit) fehlt.push("Beginn");
-  if (!e.strasse && !e.ort) fehlt.push("Einsatzort");
+  if (!e.stichwort.trim()) fehlt.push("Alarmstichwort");
+  if (!e.beginnDatum.trim() || !e.beginnZeit.trim()) fehlt.push("Beginn");
+  if (!e.strasse.trim() && !e.ort.trim()) fehlt.push("Einsatzort");
   return fehlt;
+}
+
+/** Ende mit nur Datum oder nur Uhrzeit — beide leer (offen) oder beide gesetzt ist in Ordnung. */
+export function endeUnvollstaendig(e: Entwurf): boolean {
+  return !e.endeDatum.trim() !== !e.endeZeit.trim();
+}
+
+/** Die eine Regel für den Knopf, den Text darüber und den Schritt „Absenden“ in der App. */
+export function kannAbsenden(e: Entwurf): boolean {
+  return fehlendeAngaben(e).length === 0 && !endeUnvollstaendig(e);
 }
 
 /** Reiht eine Liste deutscher Begriffe mit Komma, das letzte Komma wird „und“ (Vorlage-Regex). */
@@ -53,10 +77,11 @@ function reihe(begriffe: string[]): string {
   return begriffe.join(", ").replace(/, ([^,]*)$/, " und $1");
 }
 
-/** Text unter dem Formular: entweder die fehlenden Angaben, oder eine Zeile Zusammenfassung. */
+/** Text unter dem Formular: die fehlenden Angaben, ein halbes Ende oder eine Zeile Zusammenfassung. */
 export function bereitText(e: Entwurf): string {
   const fehlt = fehlendeAngaben(e);
   if (fehlt.length > 0) return `Ohne ${reihe(fehlt)} wird nicht abgesendet.`;
+  if (endeUnvollstaendig(e)) return ENDE_UNVOLLSTAENDIG;
   const patienten = e.vorOrt + e.transport;
   return `Bereit · ${e.stichwort}, ${e.fahrzeuge.length} Fahrzeuge, ${e.personal.length} Kräfte, ${patienten} Patienten`;
 }

@@ -1,8 +1,8 @@
 /**
  * Erfassung im echten Browser gegen den Vite-Dev-Server, mit gestubbtem `invoke`
  * (`./stub.ts`). Deckt den Ablauf Erfassen → Frist → Versiegeln aus `App.tsx` ab, dazu die
- * Fälle, in denen die Frist während einer Bearbeitung abläuft, und den nicht eingerichteten
- * Rechner.
+ * Fälle, in denen die Frist während einer Bearbeitung abläuft, ein nur halb angegebenes Ende
+ * und den nicht eingerichteten Rechner.
  */
 import { expect, test, type Page } from "@playwright/test";
 
@@ -68,6 +68,23 @@ test("Frist läuft ab, während ungespeichert bearbeitet wird → abgesendeter S
   await expect(
     page.getByText("Deine letzten Änderungen wurden nicht übernommen — die Frist war abgelaufen. Versiegelt ist der zuletzt abgesendete Stand."),
   ).toBeVisible();
+});
+
+test("ein Ende nur mit Datum sperrt das Absenden, mit Uhrzeit geht es", async ({ page }) => {
+  await installiereStub(page, { betrieb: "test", fristSekunden: 60 });
+  await page.goto("/");
+  await expect(page.getByText("TESTBETRIEB — nichts hiervon ist ein echter Einsatz")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "RD 2" }).click();
+  await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");
+  await page.getByLabel("Ende · Datum").fill("2026-09-24");
+
+  await expect(page.getByText("Ende nur mit Datum und Uhrzeit angeben.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Einsatz absenden" })).toBeDisabled();
+
+  await page.getByLabel("Ende · Uhrzeit").fill("11:30");
+  await page.getByRole("button", { name: "Einsatz absenden" }).click();
+  await expect(page.getByText("Abgesendet · noch änderbar")).toBeVisible();
 });
 
 test("nicht eingerichtet: Hinweis, Entwicklerweg nur im Debug-Build", async ({ page }) => {

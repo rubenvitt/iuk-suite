@@ -4,10 +4,14 @@ import type { Entwurf, Fahrzeug, Person, Stammdatenpaket } from "../typen";
 import {
   bereitText,
   dauerHinweis,
+  ENDE_UNVOLLSTAENDIG,
+  endeUnvollstaendig,
   fahrzeugFilter,
   fahrzeugTreffer,
   fehlendeAngaben,
   fristSatz,
+  HOECHSTLAENGE,
+  kannAbsenden,
   leererEntwurf,
   personFilter,
   personTreffer,
@@ -82,6 +86,13 @@ describe("Pflichtfelder (Spec §4.3)", () => {
   it("Ort ODER Straße genügt", () => {
     expect(fehlendeAngaben(mit({ stichwort: "RD 2", ort: "29525 Uelzen" }))).toEqual([]);
     expect(fehlendeAngaben(mit({ stichwort: "RD 2", strasse: "Lindenstraße 8" }))).toEqual([]);
+  });
+
+  it("nur Leerzeichen zählen als fehlend, wie in Rust getrimmt", () => {
+    expect(fehlendeAngaben(mit({ stichwort: "  ", strasse: " ", ort: "\t" }))).toEqual(["Alarmstichwort", "Einsatzort"]);
+    expect(fehlendeAngaben(mit({ stichwort: "RD 2", beginnZeit: " ", ort: "Uelzen" }))).toEqual(["Beginn"]);
+    expect(kannAbsenden(mit({ stichwort: " ", ort: "Uelzen" }))).toBe(false);
+    expect(fehlendeAngaben(mit({ stichwort: " RD 2 ", ort: " Uelzen " }))).toEqual([]);
   });
 
   it("bereit: Zusammenfassung in einer Zeile", () => {
@@ -194,4 +205,28 @@ it("Zusammenfassung: Zeilen wie in der Vorlage, inklusive offenem Ende", () => {
     { k: "Personal", v: "1 Kräfte" },
     { k: "Patienten", v: "1 vor Ort · 2 mit Transport" },
   ]);
+});
+
+describe("Grenzen des Readers", () => {
+  it("Ende nur mit Datum und Uhrzeit: halb angegeben sperrt das Absenden", () => {
+    const basis = { stichwort: "RD 2", ort: "Uelzen" };
+    for (const e of [mit({ ...basis, endeDatum: "2026-09-24" }), mit({ ...basis, endeZeit: "11:00" })]) {
+      expect(endeUnvollstaendig(e)).toBe(true);
+      expect(kannAbsenden(e)).toBe(false);
+      expect(bereitText(e)).toBe("Ende nur mit Datum und Uhrzeit angeben.");
+    }
+    expect(ENDE_UNVOLLSTAENDIG).toBe("Ende nur mit Datum und Uhrzeit angeben.");
+    expect(kannAbsenden(mit({ ...basis }))).toBe(true);
+    expect(kannAbsenden(mit({ ...basis, endeDatum: "2026-09-24", endeZeit: "11:00" }))).toBe(true);
+    // Leerzeichen zählen wie in Rust als leer.
+    expect(endeUnvollstaendig(mit({ ...basis, endeDatum: "2026-09-24", endeZeit: " " }))).toBe(true);
+  });
+
+  it("fehlende Pflichtfelder gehen dem halben Ende im Text vor", () => {
+    expect(bereitText(mit({ endeDatum: "2026-09-24" }))).toBe("Ohne Alarmstichwort und Einsatzort wird nicht abgesendet.");
+  });
+
+  it("Höchstlängen wie im Reader", () => {
+    expect(HOECHSTLAENGE).toEqual({ strasse: 200, ort: 200, objekt: 500, notizen: 20_000 });
+  });
 });

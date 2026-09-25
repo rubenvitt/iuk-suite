@@ -186,3 +186,61 @@ fn echte_einrichtung_auf_leerer_datei_ist_false_ohne_migration() {
     assert!(!hat_echte_einrichtung(ordner.path()).unwrap());
     assert_eq!(std::fs::metadata(ordner.path().join("einsatzbuch.db")).unwrap().len(), 0);
 }
+
+#[test]
+fn stammdaten_ueber_den_grenzen_des_readers_werden_abgelehnt() {
+    // An der Grenze (UTF-16: 60 × „😀“ = 120 Einheiten) geht es noch.
+    let mut an_der_grenze = hilfe::test_einrichtung(Umgebung::Test);
+    an_der_grenze.paket.stammdaten.fahrzeuge[0].ruf = "😀".repeat(60);
+    an_der_grenze.paket.stammdaten.stichworte[0].items.push("ä".repeat(80));
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&an_der_grenze).unwrap();
+
+    // Einrichten: ein Funkrufname eine Einheit zu lang.
+    let mut zu_lang = hilfe::test_einrichtung(Umgebung::Test);
+    zu_lang.paket.stammdaten.fahrzeuge[0].ruf = format!("{}a", "😀".repeat(60));
+    let ordner2 = tempfile::tempdir().unwrap();
+    let mut buch2 = Buch::oeffne(ordner2.path(), Betrieb::Test).unwrap();
+    let fehler = buch2.richte_ein(&zu_lang).unwrap_err();
+    assert!(
+        matches!(&fehler, BuchFehler::StammdatenZuLang { feld: "Funkrufname", eintrag, laenge: 121, hoechstens: 120 } if eintrag == "11-83-1"),
+        "{fehler:?}"
+    );
+    assert_eq!(fehler.to_string(), "Stammdaten zu lang: Funkrufname bei „11-83-1“ hat 121 Zeichen, erlaubt sind höchstens 120");
+    assert!(buch2.einrichtung().unwrap().is_none(), "nichts eingerichtet");
+
+    // Übernehmen: jedes Schnappschussfeld und jedes Stichwort einzeln.
+    type Setze = fn(&mut einsatzbuch_kern::einrichtung::Stammdaten);
+    let faelle: [(&str, usize, Setze); 10] = [
+        ("Fahrzeug-ID", 80, |s| s.fahrzeuge[0].id = "x".repeat(81)),
+        ("Fahrzeugtyp", 40, |s| s.fahrzeuge[0].typ = "x".repeat(41)),
+        ("Kennung", 40, |s| s.fahrzeuge[0].kennung = "x".repeat(41)),
+        ("Funkrufname", 120, |s| s.fahrzeuge[0].ruf = "x".repeat(121)),
+        ("Standort", 80, |s| s.fahrzeuge[0].standort = "x".repeat(81)),
+        ("Personen-ID", 80, |s| s.personal[0].id = "x".repeat(81)),
+        ("Name", 120, |s| s.personal[0].name = "x".repeat(121)),
+        ("Qualifikation", 40, |s| s.personal[0].quali = "x".repeat(41)),
+        ("Ortsverein", 80, |s| s.personal[0].ov = "x".repeat(81)),
+        ("Alarmstichwort", 80, |s| s.stichworte[1].items[0] = "x".repeat(81)),
+    ];
+    for (feld, grenze, setze) in faelle {
+        let mut paket = an_der_grenze.paket.clone();
+        setze(&mut paket.stammdaten);
+        let fehler = buch.uebernehme_stammdaten(&paket).unwrap_err();
+        assert!(
+            matches!(&fehler, BuchFehler::StammdatenZuLang { feld: f, hoechstens, .. } if *f == feld && *hoechstens == grenze),
+            "{feld}: {fehler:?}"
+        );
+    }
+    // Abgelehnt heißt: Die gespeicherten Stammdaten bleiben unverändert.
+    assert_eq!(buch.einrichtung().unwrap().unwrap().paket, an_der_grenze.paket);
+}
+
+#[test]
+fn stammdaten_der_entwickler_einrichtung_halten_die_grenzen_ein() {
+    let json = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/entwicklung/stammdaten.json")).unwrap();
+    let mut einrichtung = hilfe::test_einrichtung(Umgebung::Test);
+    einrichtung.paket.stammdaten = serde_json::from_str(&json).unwrap();
+    einsatzbuch_kern::grenzen::pruefe_stammdaten(&einrichtung.paket).unwrap();
+}

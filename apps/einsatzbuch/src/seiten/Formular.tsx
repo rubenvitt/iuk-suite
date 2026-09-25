@@ -18,8 +18,9 @@ import {
   dauerHinweis,
   fahrzeugFilter,
   fahrzeugTreffer,
-  fehlendeAngaben,
   fristSatz,
+  HOECHSTLAENGE,
+  kannAbsenden,
   personFilter,
   personTreffer,
   schalteFahrzeug,
@@ -71,7 +72,7 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
   const [peFilter, setPeFilter] = useState("Alle");
 
   const setze = (feld: Textfeld) => (wert: string) => beiAenderung({ ...e, [feld]: wert });
-  const unvollstaendig = fehlendeAngaben(e).length > 0;
+  const unvollstaendig = !kannAbsenden(e);
 
   const fzMap = new Map(fahrzeuge.map((f) => [f.id, f]));
   const peMap = new Map(personal.map((p) => [p.id, p]));
@@ -173,10 +174,22 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
             </div>
             <div className="neben zahlen">{sichererDauerHinweis(e, paket.zeitzone)}</div>
             <div className="raster raster-260">
-              <Feld label="Straße, Hausnummer" wert={e.strasse} beiAenderung={setze("strasse")} placeholder="z. B. Bahnhofstraße 12" />
-              <Feld label="PLZ, Ort" wert={e.ort} beiAenderung={setze("ort")} placeholder="z. B. 29525 Uelzen" />
+              <Feld
+                label="Straße, Hausnummer"
+                wert={e.strasse}
+                beiAenderung={setze("strasse")}
+                placeholder="z. B. Bahnhofstraße 12"
+                maxLength={HOECHSTLAENGE.strasse}
+              />
+              <Feld label="PLZ, Ort" wert={e.ort} beiAenderung={setze("ort")} placeholder="z. B. 29525 Uelzen" maxLength={HOECHSTLAENGE.ort} />
             </div>
-            <Feld label="Objekt, Lage vor Ort" wert={e.objekt} beiAenderung={setze("objekt")} placeholder="z. B. Sporthalle, Zufahrt über Hof" />
+            <Feld
+              label="Objekt, Lage vor Ort"
+              wert={e.objekt}
+              beiAenderung={setze("objekt")}
+              placeholder="z. B. Sporthalle, Zufahrt über Hof"
+              maxLength={HOECHSTLAENGE.objekt}
+            />
           </div>
         </Karte>
 
@@ -347,6 +360,7 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
                 onChange={(ev) => setze("notizen")(ev.target.value)}
                 placeholder="Lage, Übergaben, Besonderheiten …"
                 aria-label="Notizen"
+                maxLength={HOECHSTLAENGE.notizen}
               />
               <div className="neben">Keine Namen oder Diagnosen von Patienten eintragen.</div>
             </div>

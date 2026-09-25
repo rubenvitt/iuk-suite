@@ -15,6 +15,7 @@ use serde::Serialize;
 
 use crate::einrichtung::{Einrichtung, Stammdaten, Stammdatenpaket};
 use crate::format::{Block, Umgebung};
+use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
 
 const SCHEMA: &str = include_str!("schema.sql");
@@ -46,6 +47,11 @@ pub enum BuchFehler {
     FristAusserBereich(u32),
     #[error("Zeitzone {0:?} ist keine gültige IANA-Zeitzone")]
     UngueltigeZeitzone(String),
+    /// Ein Stammdatenfeld über der Grenze des Readers (`grenzen.rs`). Abgelehnt schon beim
+    /// Übernehmen, damit das Versiegeln nie an einem Schnappschuss scheitert, den niemand öffnen
+    /// könnte.
+    #[error("Stammdaten zu lang: {feld} bei „{eintrag}“ hat {laenge} Zeichen, erlaubt sind höchstens {hoechstens}")]
+    StammdatenZuLang { feld: &'static str, eintrag: String, laenge: usize, hoechstens: usize },
     #[error("dieses Buch ist schon eingerichtet")]
     SchonEingerichtet,
     #[error("dieses Buch ist noch nicht eingerichtet")]
@@ -116,9 +122,10 @@ fn umgebung_aus_text(text: &str) -> Result<Umgebung, BuchFehler> {
     }
 }
 
-/// Prüft die beiden Feldregeln, die sowohl beim erstmaligen Einrichten als auch bei jedem
-/// späteren Stammdatenabgleich gelten müssen: eine sinnvolle Frist und eine lesbare Zeitzone.
-fn pruefe_frist_und_zeitzone(paket: &Stammdatenpaket) -> Result<(), BuchFehler> {
+/// Prüft die Feldregeln, die sowohl beim erstmaligen Einrichten als auch bei jedem späteren
+/// Stammdatenabgleich gelten müssen: eine sinnvolle Frist, eine lesbare Zeitzone und
+/// Stammdaten innerhalb der Grenzen des Readers (`grenzen::pruefe_stammdaten`).
+fn pruefe_paket(paket: &Stammdatenpaket) -> Result<(), BuchFehler> {
     if !(1..=120).contains(&paket.frist_minuten) {
         return Err(BuchFehler::FristAusserBereich(paket.frist_minuten));
     }
@@ -126,6 +133,12 @@ fn pruefe_frist_und_zeitzone(paket: &Stammdatenpaket) -> Result<(), BuchFehler> 
         .zeitzone
         .parse::<chrono_tz::Tz>()
         .map_err(|_| BuchFehler::UngueltigeZeitzone(paket.zeitzone.clone()))?;
+    grenzen::pruefe_stammdaten(paket).map_err(|u| BuchFehler::StammdatenZuLang {
+        feld: u.feld,
+        eintrag: u.eintrag,
+        laenge: u.laenge,
+        hoechstens: u.hoechstens,
+    })?;
     Ok(())
 }
 
@@ -262,6 +275,7 @@ impl Buch {
     /// - der öffentliche Schlüssel ist gültiges P-256-SPKI, und `schluessel_id` passt dazu;
     /// - `frist_minuten` liegt zwischen 1 und 120;
     /// - `zeitzone` ist eine lesbare IANA-Zeitzone;
+    /// - jedes Stammdatenfeld hält die Grenzen des Readers ein (`grenzen.rs`);
     /// - es liegt noch keine Einrichtung vor.
     ///
     /// Ein Schlüsselwechsel gehört nicht zu v2.0; das Neu-Einrichten nach einem Widerruf
@@ -275,7 +289,7 @@ impl Buch {
         if e.schluessel_id != krypto::schluessel_id(&spki) {
             return Err(BuchFehler::SchluesselIdPasstNicht);
         }
-        pruefe_frist_und_zeitzone(&e.paket)?;
+        pruefe_paket(&e.paket)?;
         if self.einrichtung()?.is_some() {
             return Err(BuchFehler::SchonEingerichtet);
         }
@@ -304,10 +318,11 @@ impl Buch {
         Ok(())
     }
 
-    /// Übernimmt ein neues Stammdatenpaket eines späteren Abgleichs (Naht für Stufe 5).
-    /// Verlangt eine bestehende Einrichtung — ohne sie gäbe es keine Zeile zum Aktualisieren.
+    /// Übernimmt ein neues Stammdatenpaket eines späteren Abgleichs (Naht für Stufe 5), mit
+    /// denselben Paketregeln wie `richte_ein`. Verlangt eine bestehende Einrichtung — ohne sie
+    /// gäbe es keine Zeile zum Aktualisieren.
     pub fn uebernehme_stammdaten(&mut self, p: &Stammdatenpaket) -> Result<(), BuchFehler> {
-        pruefe_frist_und_zeitzone(p)?;
+        pruefe_paket(p)?;
         let stammdaten_json = serde_json::to_string(&p.stammdaten)?;
         let geaenderte_zeilen = self.conn.execute(
             "UPDATE einrichtung SET stammdaten_json = ?1, stammdaten_version = ?2, \
