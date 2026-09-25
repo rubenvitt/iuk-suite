@@ -165,12 +165,10 @@ impl krypto::Zufall for FesterZufall {
     }
 }
 
-/// Sendet einen gültigen Einsatz ab und versiegelt ihn sofort — für Tests, die eine ECHTE Kette
-/// mit mindestens einem Block brauchen (nicht nur eine leere), um „Kette bleibt unverändert“
-/// belastbar zu prüfen. Fahrzeug/Personen-IDs passen zu `test_einrichtung`.
-pub fn versiegele_einen_einsatz(buch: &mut einsatzbuch_kern::buch::Buch, jetzt: chrono::DateTime<chrono::Utc>, zufall_saat: u8) {
+/// Ein gültiger Entwurf, dessen Fahrzeug- und Personen-IDs zu `test_einrichtung` passen.
+pub fn gueltiger_entwurf() -> einsatzbuch_kern::erfassung::Entwurf {
     use einsatzbuch_kern::erfassung::{Entwurf, PersonAuswahl};
-    let entwurf = Entwurf {
+    Entwurf {
         stichwort: "RD 2".into(),
         beginn_datum: "2026-08-22".into(),
         beginn_zeit: "03:12".into(),
@@ -184,7 +182,13 @@ pub fn versiegele_einen_einsatz(buch: &mut einsatzbuch_kern::buch::Buch, jetzt: 
         vor_ort: 0,
         transport: 1,
         notizen: String::new(),
-    };
-    buch.sende_ab(&entwurf, jetzt, false).unwrap();
+    }
+}
+
+/// Sendet einen gültigen Einsatz ab und versiegelt ihn sofort — für Tests, die eine ECHTE Kette
+/// mit mindestens einem Block brauchen (nicht nur eine leere), um „Kette bleibt unverändert“
+/// belastbar zu prüfen. Fahrzeug/Personen-IDs passen zu `test_einrichtung`.
+pub fn versiegele_einen_einsatz(buch: &mut einsatzbuch_kern::buch::Buch, jetzt: chrono::DateTime<chrono::Utc>, zufall_saat: u8) {
+    buch.sende_ab(&gueltiger_entwurf(), jetzt, false).unwrap();
     buch.versiegele_ausstehend(jetzt, &mut FesterZufall(zufall_saat), false).unwrap().unwrap();
 }

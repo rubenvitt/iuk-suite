@@ -8,6 +8,7 @@
 //! ein geöffnetes Buch schon eine Suite kennt, sagt `Buch::einrichtung`. `richte_ein` und
 //! `uebernehme_stammdaten` sind die Naht zu Stufe 5 (Einrichtungsseite, Stammdatenabgleich) —
 //! hier nur geprüft und geschrieben, aufgerufen wird beides erst dort.
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -87,6 +88,16 @@ pub enum BuchFehler {
          dich an die Verwaltung."
     )]
     AndererSchluessel { gepinnt: String, neu: String },
+    /// Wiederherstellen setzt eine leere Kette voraus (Entscheidung 6): keine Blöcke, kein
+    /// ausstehender Einsatz und keine vergebene Nummer.
+    #[error(
+        "Auf diesem Rechner gibt es schon Einsätze (Blöcke, einen ausstehenden Einsatz oder \
+         vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatzbuch."
+    )]
+    KetteNichtLeer,
+    /// Im Testbetrieb gibt es keine Sicherung, also auch nichts wiederherzustellen.
+    #[error("Wiederherstellen geht nur im Echtbetrieb.")]
+    NurImEchtbetrieb,
 }
 
 /// Betriebsart des Rechners — entscheidet nur, welche Datei geöffnet wird (Betriebsart aus
@@ -646,6 +657,50 @@ impl Buch {
         if self.conn.execute(sql, werte)? == 0 {
             return Err(BuchFehler::NichtEingerichtet);
         }
+        Ok(())
+    }
+
+    /// Übernimmt eine geprüfte Sicherung (Entscheidung 6, Schritt 7) in **einer** Transaktion.
+    /// Geprüft ist sie vorher mit `wiederherstellung::pruefe`, die Nummern stammen aus
+    /// `wiederherstellung::nummern` über die geöffneten Blöcke. In der Transaktion, damit zwischen
+    /// Prüfung und Einfügen nichts dazwischenkommt (Review Focus 3):
+    /// - ohne Einrichtung `NichtEingerichtet`, im Testbetrieb `NurImEchtbetrieb`;
+    /// - `bloecke`, `ausstehend` und `nummern` müssen leer sein, sonst `KetteNichtLeer`;
+    /// - dann jeden Block einfügen wie `versiegele_ausstehend` (JSON, Hash, `versiegelt` aus dem
+    ///   Kopf) und die Nummern je Jahr.
+    ///
+    /// `anker_gemeldet_bis` bleibt 0: Der Rechner meldet danach die ganze Kette als seine Anker.
+    /// Scheitert ein Schritt, rollt die `Transaction` beim Verlassen über `?` alles zurück.
+    pub fn uebernehme_sicherung(&mut self, bloecke: &[Block], nummern: &BTreeMap<i64, i64>) -> Result<(), BuchFehler> {
+        let betrieb = self.betrieb;
+        let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+
+        let eingerichtet: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM einrichtung WHERE id = 1)", [], |r| r.get(0))?;
+        if !eingerichtet {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        if betrieb != Betrieb::Echt {
+            return Err(BuchFehler::NurImEchtbetrieb);
+        }
+        let belegt: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM bloecke) OR EXISTS(SELECT 1 FROM ausstehend) OR EXISTS(SELECT 1 FROM nummern)",
+            [],
+            |r| r.get(0),
+        )?;
+        if belegt {
+            return Err(BuchFehler::KetteNichtLeer);
+        }
+
+        for b in bloecke {
+            tx.execute(
+                "INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (?1, ?2, ?3, ?4)",
+                params![b.kopf.block as i64, serde_json::to_string(b)?, b.hash, b.kopf.versiegelt],
+            )?;
+        }
+        for (jahr, letzte) in nummern {
+            tx.execute("INSERT INTO nummern (jahr, letzte) VALUES (?1, ?2)", params![jahr, letzte])?;
+        }
+        tx.commit()?;
         Ok(())
     }
 

@@ -46,6 +46,10 @@ pub enum KryptoFehler {
     UngueltigesBase64,
     #[error("{was} muss {soll} Byte lang sein, war {ist}")]
     FalscheLaenge { was: &'static str, soll: usize, ist: usize },
+    #[error("Klartext ist kein kanonisches JSON")]
+    KeinKanonischesJson,
+    #[error("Klartext ist kein Einsatz im Format v1")]
+    KeinEinsatz,
 }
 
 /// Zufallsquelle für einen Versiegelungsvorgang — austauschbar, damit Tests deterministisch
@@ -186,6 +190,45 @@ pub fn versiegele(
     let ohne_hash = serde_json::json!({ "kopf": kopf, "iv": b64(&z.iv), "daten": b64(&daten), "umschlag": umschlag });
     let hash = sha256_hex(crate::jcs::kanonisch(&ohne_hash)?.as_bytes());
     Ok(Block { kopf: kopf.clone(), iv: b64(&z.iv), daten: b64(&daten), umschlag, hash })
+}
+
+/// Öffnet einen Block mit seinem CEK — Gegenstück zu `oeffneBlock` in `block.ts`: AES-256-GCM
+/// mit AAD = JCS(Kopf), danach die Formprüfung des Klartexts. Ein gelungener GCM-Rundlauf beweist
+/// nur, dass jemand mit diesem CEK den Klartext erzeugt hat, nicht dass er ein Einsatz im Format
+/// v1 ist. Deshalb in der Reihenfolge des TS-Kerns:
+/// 1. Der Klartext ist JSON und byte-gleich zu seiner eigenen Kanonik (`ausKanonischemJson`),
+///    sonst `KeinKanonischesJson`.
+/// 2. Er ist ein `Einsatz` mit `v = 1` und genau dessen Schlüsseln (`istEinsatz`), sonst
+///    `KeinEinsatz`. Der Rundlauf `einsatz.kanonisch() == klartext` fängt dabei ein fehlendes
+///    `Option`-Feld ab, das serde still mit `None` füllen würde.
+///
+/// Den CEK besitzt und wischt die Aufruferin; der entschlüsselte Klartext liegt hier in
+/// `Zeroizing` und wird beim Verlassen überschrieben.
+pub fn oeffne_block(block: &Block, cek: &[u8; 32]) -> Result<Einsatz, KryptoFehler> {
+    let iv = aus_b64(&block.iv)?;
+    let iv: [u8; 12] = iv.as_slice().try_into().map_err(|_| KryptoFehler::FalscheLaenge { was: "iv", soll: 12, ist: iv.len() })?;
+    let daten = aus_b64(&block.daten)?;
+    let aad = block.kopf.kanonisch()?;
+    let klar = Zeroizing::new(
+        Aes256Gcm::new(&(*cek).into())
+            .decrypt(&iv.into(), Payload { msg: &daten, aad: aad.as_bytes() })
+            .map_err(|_| KryptoFehler::Entschluesselung)?,
+    );
+
+    let wert: serde_json::Value = serde_json::from_slice(&klar).map_err(|_| KryptoFehler::KeinKanonischesJson)?;
+    let kanonisch = Zeroizing::new(crate::jcs::kanonisch(&wert).map_err(|_| KryptoFehler::KeinKanonischesJson)?);
+    if kanonisch.as_bytes() != klar.as_slice() {
+        return Err(KryptoFehler::KeinKanonischesJson);
+    }
+    let einsatz: Einsatz = serde_json::from_value(wert).map_err(|_| KryptoFehler::KeinEinsatz)?;
+    if einsatz.v != 1 {
+        return Err(KryptoFehler::KeinEinsatz);
+    }
+    let rundlauf = Zeroizing::new(einsatz.kanonisch().map_err(|_| KryptoFehler::KeinEinsatz)?);
+    if rundlauf.as_bytes() != klar.as_slice() {
+        return Err(KryptoFehler::KeinEinsatz);
+    }
+    Ok(einsatz)
 }
 
 #[cfg(test)]

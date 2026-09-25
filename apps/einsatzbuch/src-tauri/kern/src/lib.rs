@@ -20,3 +20,4 @@ pub mod tresor;
 pub mod uhr;
 pub mod versiegeln;
 pub mod vertrag;
+pub mod wiederherstellung;
