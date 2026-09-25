@@ -1,17 +1,19 @@
 // Stilregeln für Notizen: CLAUDE.md, Abschnitt „Release Notes".
 // Zielgruppe: die Einsatzbuch-Verwaltung (switcherGroupSources: ["access"]).
+// Am Tag des Rollouts gibt es noch kein Release der App (der Updater-Schlüssel fehlt noch),
+// deshalb „kommt“ und „sobald“ statt „lässt sich jetzt installieren“.
 import { absatz, type Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 const notiz: Releasenotiz = {
   modul: "einsatzbuch",
   slug: "desktop-app-installieren",
   datum: "2026-09-25",
-  titel: "Die Desktop-App gibt es für Windows und macOS",
+  titel: "Eine Desktop-App für die Einsatzbuch-Rechner",
   inhalt: [
     absatz(
-      "Die Desktop-App des Einsatzbuchs lässt sich jetzt auf Windows und macOS installieren und hält sich selbst aktuell. " +
-        "Ein Update wartet, bis kein Einsatz aussteht und niemand angemeldet ist. " +
-        "Unter „Rechner“ siehst du den letzten Kontakt und die letzte Sicherung und entfernst alte Testrechner mit „Test-Rechner löschen“.",
+      "Für die Einsatzbuch-Rechner kommt eine Desktop-App für Windows und macOS, die sich selbst aktuell hält. " +
+        "Sobald die erste Version erschienen ist, findest du sie auf GitHub unter den Releases von „iuk-suite“ als „Einsatzbuch“. " +
+        "Unter „Rechner“ siehst du dann für jeden Rechner den letzten Kontakt und die letzte Sicherung.",
     ),
   ],
 };

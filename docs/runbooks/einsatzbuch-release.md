@@ -9,8 +9,9 @@ Beteiligte Dateien:
 |---|---|
 | `.github/workflows/einsatzbuch.yml`, Jobs `release-bauen` und `release-veroeffentlichen` | baut, signiert und veröffentlicht aus einem Tag `einsatzbuch-vX.Y.Z` |
 | `scripts/einsatzbuch-updater-json.mjs` | baut `latest.json`, das Manifest des Updaters |
+| `scripts/einsatzbuch-signaturen-pruefen.mjs` | prüft vor dem Veröffentlichen jede `.sig` gegen den öffentlichen Schlüssel |
 | `apps/einsatzbuch/src-tauri/tauri.conf.json` | Version, öffentlicher Updater-Schlüssel, Adresse des Manifests |
-| `apps/einsatzbuch/src-tauri/tauri.release.conf.json` | Overlay nur für den Release-Lauf (`createUpdaterArtifacts`) |
+| `apps/einsatzbuch/src-tauri/tauri.release.conf.json` | Overlay nur für den Release-Lauf (`createUpdaterArtifacts`, Ad-hoc-Signatur für macOS) |
 | `apps/einsatzbuch/src-tauri/build_pruefung.rs` | Riegel: kein Release-Build mit Platzhalter statt Schlüssel |
 | `apps/einsatzbuch/src-tauri/src/updater.rs` | wann die App prüft und wann sie installiert |
 | `apps/einsatzbuch/src/version.test.ts` | Versionsgleichheit der drei Dateien und des Lockfiles |
@@ -18,8 +19,10 @@ Beteiligte Dateien:
 **Ehrliche Messaussage:** Bis heute (25.09.2026) gibt es kein einziges Einsatzbuch-Release. Kein
 Schritt dieses Runbooks ist von Tag bis Update durchgelaufen. Geprüft sind der Workflow per
 `actionlint`, das Manifest-Skript und die Versionsgleichheit per Test, der Platzhalter-Riegel per
-`cargo test` und `cargo update -p einsatzbuch` in einer Kopie. Die Texte der Warnungen von Windows
-und macOS stammen nicht aus einer eigenen Installation. Den ersten Release-Lauf deshalb eng begleiten
+`cargo test` und `cargo update -p einsatzbuch` in einer Kopie. Die Signaturprüfung ist gegen echte
+Ausgaben von `tauri signer` mit Wegwerf-Schlüsseln getestet, die Ad-hoc-Signatur an einem lokalen
+Debug-Bundle (`codesign` meldet `Signature=adhoc`). Die Texte der Warnungen von Windows und macOS
+stammen nicht aus einer eigenen Installation. Den ersten Release-Lauf deshalb eng begleiten
 und dieses Runbook danach an den gemessenen Stand anpassen.
 
 ## Überblick
@@ -43,9 +46,10 @@ Danach veröffentlicht `release-veroeffentlichen` zwei Releases:
 **Warum `einsatzbuch-updater` nie gelöscht wird:** Jede installierte App fragt fest unter
 `https://github.com/rubenvitt/iuk-suite/releases/download/einsatzbuch-updater/latest.json` nach
 (`plugins.updater.endpoints` in `tauri.conf.json`). Die Adresse ist in jede ausgelieferte Version
-einkompiliert. Fehlt das Release, findet keine App mehr ein Update, und keine meldet das
-sichtbar, nur im Log. Der nächste Release-Lauf legt es zwar neu an, bis dahin steht aber jede
-App still. Aus demselben Grund bleiben die Versions-Releases stehen, auf die `latest.json` zeigt:
+einkompiliert. Fehlt das Release, findet keine App mehr ein Update. Zu sehen ist das nur in der
+Verwaltung der App unter „Einstellungen“ → „Update“ („Suche nach Updates gescheitert: …“), also
+nur, wenn dort jemand nachsieht. Der nächste Release-Lauf legt es zwar neu an, bis dahin steht aber
+jede App still. Aus demselben Grund bleiben die Versions-Releases stehen, auf die `latest.json` zeigt:
 Das Manifest verweist mit seinen Download-Adressen auf die Dateien dort.
 
 **„Latest“ bleibt die Suite:** Beide Releases entstehen mit `--latest=false`, und die
@@ -110,11 +114,17 @@ Der zweite Aufruf fragt den Wert verdeckt ab. So landet das Kennwort nicht in de
 Danach den privaten Schlüssel und das Kennwort im Tresor (Passwortmanager) ablegen, den
 öffentlichen Teil eintragen wie oben und die Schlüsseldatei vom Rechner löschen.
 
-**Im Build-Log nachsehen:** Passt der private Schlüssel nicht zum öffentlichen in `tauri.conf.json`,
-warnt Tauri nur und bricht nicht ab. Das Release entsteht dann, aber keine App installiert es, weil
-die Signaturprüfung scheitert. Beim ersten Release nach jedem Schlüsselwechsel deshalb das Log der
-Schritte „tauri build (macOS, universell)“ und „tauri build (Windows)“ nach einer Warnung zum
-Schlüssel durchsehen. Den genauen Wortlaut der Warnung hat hier noch niemand gesehen.
+**Wenn die Schlüssel nicht zusammenpassen:** `tauri build` warnt dann nur und bricht nicht ab.
+Deshalb prüft `release-veroeffentlichen` im Schritt „Signaturen passen zum Updater-Schlüssel“ jede
+`.sig` gegen den öffentlichen Schlüssel aus `tauri.conf.json`, bevor es irgendetwas veröffentlicht.
+Passt eine nicht, scheitert der Lauf mit „Signiert mit Schlüssel …, tauri.conf.json nennt aber …“
+und dem Verweis auf diesen Abschnitt; es entsteht weder das Versions-Release noch ein neues
+`latest.json`. Abhilfe: Das Secret `TAURI_SIGNING_PRIVATE_KEY` (samt Kennwort) auf den privaten
+Schlüssel setzen, der zum öffentlichen in `tauri.conf.json` gehört, und den Lauf per „Re-run all
+jobs“ wiederholen. Hier ausnahmsweise alle Jobs: Die Pakete müssen neu signiert werden, und
+veröffentlicht ist noch nichts (zur Regel „nur Re-run failed jobs“ siehe „Scheitert der Lauf“). Den
+öffentlichen Schlüssel nur ändern, wenn noch keine App ausgeliefert ist; sonst gilt der Abschnitt
+zum Verlust unten.
 
 **Verlust des privaten Schlüssels:** Installierte Apps kennen nur den öffentlichen Schlüssel, mit
 dem sie gebaut wurden, und lehnen jedes Update ab, das mit einem neuen Schlüssel signiert ist. Nach
@@ -148,6 +158,40 @@ Schritt „Signier-Secrets und Suite-Adresse sind gesetzt“ scheitern. Ein scho
 Rechner hat die Adresse bei der Einrichtung gespeichert. Ein Umzug der Suite auf eine andere Adresse
 ist in diesem Runbook nicht abgedeckt.
 
+## Tags schützen (einmalig, empfohlen)
+
+Wer Schreibrecht am Repository hat, kann einen Tag löschen oder auf einen anderen Commit
+verschieben. Beim Dauer-Release `einsatzbuch-updater` hängt daran jede installierte App (Abschnitt
+„Überblick“), bei `einsatzbuch-vX.Y.Z` die Zuordnung von Version und Quellstand. Ein Tag-Ruleset
+verhindert beides (nicht gemessen, bei der Einrichtung einmal mit einem Test-Tag ausprobieren):
+
+GitHub → Settings → Rules → Rulesets → „New ruleset“ → „New tag ruleset“:
+
+- Name `einsatzbuch-tags`, Enforcement status „Active“.
+- Target tags: „Include by pattern“ `einsatzbuch-*` (deckt `einsatzbuch-updater` und alle
+  `einsatzbuch-vX.Y.Z`).
+- Rules: „Restrict updates“, „Restrict deletions“ und „Block force pushes“ einschalten.
+- **„Restrict creations“ nicht einschalten.** Der Betreiber legt die Versions-Tags an, und der erste
+  Lauf von `release-veroeffentlichen` legt `einsatzbuch-updater` über `gh release create --target`
+  selbst an. Das Hochladen von `latest.json` mit `--clobber` verschiebt den Tag nicht.
+
+Dasselbe per API:
+
+```
+gh api repos/rubenvitt/iuk-suite/rulesets -X POST --input - <<'JSON'
+{
+  "name": "einsatzbuch-tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/einsatzbuch-*"], "exclude": [] } },
+  "rules": [{ "type": "update" }, { "type": "deletion" }, { "type": "non_fast_forward" }]
+}
+JSON
+```
+
+Das Ruleset schützt den Tag, nicht das Release: `gh release delete einsatzbuch-updater` ginge
+weiterhin (ohne `--cleanup-tag` bleibt der Tag stehen). Deshalb gilt „nie löschen“ unverändert.
+
 ## Release taggen
 
 1. **Versions-PR.** Dieselbe neue Nummer `X.Y.Z` eintragen in:
@@ -179,7 +223,8 @@ ist in diesem Runbook nicht abgedeckt.
    ```
 
    Der Tag muss genau `einsatzbuch-vX.Y.Z` lauten, also ohne Zusatz wie `-rc1`. Der Workflow prüft
-   die Form und die Gleichheit mit den drei Dateien („Tag und Version stimmen überein“).
+   die Form und die Gleichheit mit den drei Dateien („Tag und Version stimmen überein“) und bricht
+   ab, wenn der Commit nicht auf `main` liegt („Tag zeigt auf einen Commit auf main“).
 
 3. **Lauf beobachten:**
 
@@ -203,11 +248,19 @@ ist in diesem Runbook nicht abgedeckt.
    dort doch ein Einsatzbuch-Release, das Suite-Release wieder zu „Latest“ machen:
    `gh release edit vA.B.C --latest`.
 
-**Scheitert der Lauf:** Einen vorübergehenden Fehler (Läufer, Netz) per „Re-run failed jobs“
-wiederholen. Ein wiederholter Lauf ersetzt die Dateien eines schon angelegten Releases. Braucht es
-eine Änderung am Code, den Tag nicht verschieben. Die Korrektur bekommt die nächste Nummer. Meldet
-der Lauf „latest.json am Dauer-Release nennt schon …, neuer als …“, lief ein älterer Tag nach einem
-neueren. Das Manifest bleibt dann absichtlich, wie es ist.
+**Scheitert der Lauf:** Einen vorübergehenden Fehler (Läufer, Netz) **nur per „Re-run failed
+jobs“** wiederholen, **nie per „Re-run all jobs“**, sobald der Lauf schon etwas veröffentlicht hat
+(das Release `einsatzbuch-vX.Y.Z` besteht). „Re-run failed jobs“ nimmt die schon gebauten Pakete
+dieses Laufs (Artefakte, 7 Tage aufbewahrt) und lädt dieselben Dateien noch einmal hoch.
+„Re-run all jobs“ baut dagegen neu, und die neuen Pakete sind nicht bytegleich mit den alten. Sie
+ersetzen die Dateien am Versions-Release unter derselben Adresse, während `latest.json` am
+Dauer-Release noch die Signaturen der alten Pakete trägt, bis der letzte Schritt durch ist. Scheitert
+der Lauf dazwischen, bleibt es dabei. Solange lehnt jede App, die gerade herunterlädt, das Update als
+falsch signiert ab. Die einzige Ausnahme steht unter „Wenn die Schlüssel nicht zusammenpassen“: Dort
+ist noch nichts veröffentlicht. Sind die Artefakte abgelaufen, die Korrektur mit der nächsten Nummer
+ausliefern. Braucht es eine Änderung am Code, den Tag nicht verschieben. Die Korrektur bekommt die
+nächste Nummer. Meldet der Lauf „latest.json am Dauer-Release nennt schon …, neuer als …“, lief ein
+älterer Tag nach einem neueren. Das Manifest bleibt dann absichtlich, wie es ist.
 
 ## Installation unter Windows
 
@@ -224,11 +277,18 @@ neueren. Das Manifest bleibt dann absichtlich, wie es ist.
    öffnen. Sie läuft auf Apple Silicon und Intel.
 2. „Einsatzbuch“ in den Ordner „Programme“ ziehen. **Nicht aus der DMG heraus starten:** Dort kann
    der Updater die App nicht ersetzen.
-3. Die App ist weder von Apple signiert noch notarisiert. Beim ersten Öffnen erscheint deshalb eine
+3. Die App ist nur ad hoc signiert (ohne Zertifikat von Apple, `signingIdentity: "-"` in
+   `tauri.release.conf.json`) und nicht notarisiert. Beim ersten Öffnen erscheint deshalb eine
    Warnung, dass macOS die App nicht öffnet. Die Warnung schließen, dann **Systemeinstellungen →
    Datenschutz & Sicherheit** öffnen, im Abschnitt „Sicherheit“ bei „Einsatzbuch“ auf „Dennoch
    öffnen“ klicken und mit Kennwort oder Touch ID bestätigen. Ab macOS 15 umgeht „Öffnen“ per
    Rechtsklick die Sperre nicht mehr, deshalb nur dieser Weg.
+
+   Ohne die Ad-hoc-Signatur meldete macOS auf Apple Silicon stattdessen, die App sei „beschädigt“
+   und solle in den Papierkorb; dafür gibt es in den Systemeinstellungen keinen Knopf. Erscheint
+   diese Meldung trotzdem (nicht gemessen), im Terminal
+   `xattr -dr com.apple.quarantine /Applications/Einsatzbuch.app` ausführen und die App erneut
+   öffnen. Das entfernt nur die Download-Markierung dieser einen App.
 
 ## Einrichtung als echter Rechner oder Testrechner
 
@@ -261,22 +321,31 @@ Wer einrichtet, braucht in der Suite Zugang zur Verwaltung des Einsatzbuchs.
 
 - Nur die Release-Fassung prüft auf Updates, ein Entwicklerbuild nie. Die erste Prüfung kommt etwa
   30 Sekunden nach dem Start, danach alle 6 Stunden. Nach einer gescheiterten Prüfung, etwa ohne
-  Netz, versucht die App es nach 15 Minuten erneut.
+  Netz, und nach einem gescheiterten Herunterladen oder Installieren versucht die App es nach
+  15 Minuten erneut.
 - Eine neuere Version wird zunächst nur **vorgemerkt**. Installiert wird sie erst, wenn kein
-  Einsatz aussteht, niemand in der Verwaltung angemeldet ist und keine Anmeldung läuft. Die App
-  prüft das jede Minute, vor und nach dem Herunterladen. Ein Entwurf hält das Update nicht auf, denn
-  er übersteht den Neustart. Der Neustart nach der Installation wartet ebenfalls auf einen solchen
+  Einsatz aussteht, niemand in der Verwaltung angemeldet ist, keine Anmeldung läuft und seit
+  15 Minuten niemand an einem Entwurf geschrieben hat. Die App prüft das jede Minute, vor und nach
+  dem Herunterladen. Ein Entwurf, der länger unverändert liegt, hält das Update nicht auf: Er
+  übersteht den Neustart. Der Neustart nach der Installation wartet ebenfalls auf einen solchen
   ruhigen Moment.
 - Wer in der Verwaltung angemeldet ist, sieht unter „Einstellungen“ → „Update“ den Hinweis „Update
   auf X.Y.Z ist vorgemerkt“. Genau diese Anmeldung hält das Update aber auf. Nach „Sitzung sperren“
   (oder 10 Minuten ohne Eingabe) installiert die App innerhalb etwa einer Minute, sofern nichts
-  aussteht.
+  aussteht und kein Entwurf in Arbeit ist.
 - **Früher prüfen lassen:** Die App beenden und neu starten. Das zieht nur die Prüfung auf etwa
   30 Sekunden nach dem Start vor. Die Regeln für die Installation gelten weiter, erzwingen lässt
   sich nichts.
 - Unter Windows beendet der Installer die App selbst und startet sie danach neu.
 - Scheitert die Installation (etwa an einer falschen Signatur), verwirft die App die Vormerkung und
-  merkt bei der nächsten Prüfung neu vor. Fehler stehen nur im Log der App.
+  merkt bei der nächsten Prüfung, 15 Minuten später, neu vor.
+- **Fehler sehen:** Eine Release-Fassung schreibt kein Log, das man einsehen könnte. Den letzten
+  Fehler zeigt die Verwaltung der App unter „Einstellungen“ → „Update“, zum Beispiel „Suche nach
+  Updates gescheitert: …“ oder „Update auf X.Y.Z nicht installiert: Die Signatur des Updates passt
+  nicht zum Schlüssel dieser App.“ Ein Fehler beim Installieren bleibt dort stehen, bis ein Update
+  gelingt oder keine neuere Version mehr angeboten wird; ein Fehler der Suche nur bis zur nächsten
+  gelungenen Suche. Die Signatur-Meldung heißt: Das Update ist mit einem anderen Schlüssel signiert,
+  als diese App kennt (Abschnitt „Updater-Schlüssel“).
 
 ## Rücksetzen
 
@@ -359,8 +428,8 @@ Suite für diese Kette kennt.
 
 ## Was in diesem Runbook NICHT vorkommt
 
-- **Signierung durch Apple oder mit einem Windows-Zertifikat.** Deshalb die Warnungen bei der
-  Installation.
+- **Signierung durch Apple oder mit einem Windows-Zertifikat.** macOS ist nur ad hoc signiert.
+  Deshalb die Warnungen bei der Installation.
 - **MSI-Pakete und Linux.** Ausgeliefert werden nur NSIS für Windows x64 und das universelle
   macOS-Bundle.
 - **Ein Umzug der Suite auf eine andere Adresse** für schon eingerichtete Rechner.
