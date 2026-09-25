@@ -136,7 +136,7 @@ fn unbekannte_hoehere_schemaversion_wird_beim_oeffnen_verweigert() {
 /// fehlenden Spalte zu scheitern (`COALESCE`, siehe `Buch::anbindung`). Dieser Fall trifft nur
 /// Entwicklerdateien — eine ausgelieferte Installation kennt nur Schema v2.
 #[test]
-fn migration_von_v1_auf_v2_behaelt_die_einrichtung_und_liefert_leere_rechner_id() {
+fn migration_von_v1_auf_v3_behaelt_die_einrichtung_und_liefert_leere_rechner_id() {
     let ordner = tempfile::tempdir().unwrap();
     let pfad = ordner.path().join(Betrieb::Test.datei());
     {
@@ -524,6 +524,25 @@ fn frische_datei_landet_direkt_bei_schema_v3() {
     c.prepare("SELECT anker_gemeldet_am, sicherung_fehler FROM einrichtung").unwrap();
     assert_eq!(buch.unquittiert().unwrap(), None);
     assert_eq!(buch.bestaetigter_anker().unwrap(), None);
+}
+
+/// Review M6: Eine gespeicherte Versiegelung, die sich nicht mehr lesen lässt (etwa nach einem
+/// Update, das `Versiegelung` geändert hat), darf den Status nicht für immer blockieren. Sie gilt
+/// als keine, und die Zeile wird gelöscht — auch über einen Neustart hinweg.
+#[test]
+fn eine_unlesbare_unquittierte_versiegelung_gilt_als_keine_und_wird_geloescht() {
+    let ordner = tempfile::tempdir().unwrap();
+    for json in ["{kaputt", r#"{"block":"eins"}"#] {
+        {
+            let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+            buch.verbindung().execute("INSERT OR REPLACE INTO unquittiert (id, json) VALUES (1, ?1)", [json]).unwrap();
+        }
+        let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+        assert_eq!(buch.unquittiert().unwrap(), None, "{json}");
+        let zeilen: i64 = buch.verbindung().query_row("SELECT COUNT(*) FROM unquittiert", [], |r| r.get(0)).unwrap();
+        assert_eq!(zeilen, 0, "die unlesbare Zeile ist gelöscht: {json}");
+        assert_eq!(buch.unquittiert().unwrap(), None);
+    }
 }
 
 /// v2→v3: Eine Datei aus Stufe 5 (`schema.sql` + `schema_v2.sql`, `user_version = 2`) wird beim

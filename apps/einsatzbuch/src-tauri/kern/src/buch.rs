@@ -35,9 +35,6 @@ pub enum BuchFehler {
     Datei(#[from] std::io::Error),
     #[error("gespeicherte Stammdaten sind kein gültiges JSON: {0}")]
     StammdatenJson(#[from] serde_json::Error),
-    /// Ohne `#[from]`, damit ein JSON-Fehler der Versiegelung nicht als Stammdatenfehler erscheint.
-    #[error("die gespeicherte, noch nicht quittierte Versiegelung ist kein gültiges JSON: {0}")]
-    UnquittiertJson(serde_json::Error),
     #[error("unbekannte Schemaversion {gefunden} — dieser Rechner kennt nur Version {bekannt}")]
     UnbekannteSchemaversion { gefunden: i64, bekannt: i64 },
     #[error("die Einrichtung nennt die Umgebung {angegeben:?}, dieses Buch führt aber {betrieb:?}")]
@@ -592,10 +589,28 @@ impl Buch {
     /// Die letzte Versiegelung, die die Oberfläche noch nicht quittiert hat (Tabelle
     /// `unquittiert`, geschrieben von `versiegele_ausstehend` in derselben Transaktion wie der
     /// Block). Übersteht so einen Neustart.
+    ///
+    /// Lässt sich das gespeicherte JSON nicht lesen (etwa nach einem Update, das `Versiegelung`
+    /// geändert hat), gilt das als kein Hinweis: Die Zeile wird gelöscht und der Fehler geloggt,
+    /// ohne Inhalt. Sonst scheiterte `lies_status` bei jedem Aufruf, und die App bliebe stehen;
+    /// der Block selbst liegt unverändert in `bloecke`.
     pub fn unquittiert(&self) -> Result<Option<Versiegelung>, BuchFehler> {
         let json: Option<String> =
             self.conn.query_row("SELECT json FROM unquittiert WHERE id = 1", [], |r| r.get(0)).optional()?;
-        json.map(|j| serde_json::from_str(&j).map_err(BuchFehler::UnquittiertJson)).transpose()
+        let Some(json) = json else { return Ok(None) };
+        match serde_json::from_str(&json) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) => {
+                eprintln!(
+                    "Die gespeicherte Versiegelung ist nicht lesbar ({:?}, Zeile {}, Spalte {}); der Hinweis entfällt.",
+                    e.classify(),
+                    e.line(),
+                    e.column()
+                );
+                self.conn.execute("DELETE FROM unquittiert", [])?;
+                Ok(None)
+            }
+        }
     }
 
     /// Die Oberfläche hat die Versiegelung gesehen: Der Hinweis entfällt. Ohne Hinweis ein No-op.

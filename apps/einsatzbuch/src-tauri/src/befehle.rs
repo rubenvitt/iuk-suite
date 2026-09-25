@@ -770,9 +770,6 @@ pub fn gib_schluessel_frei(z: &Zustand, bloecke: Option<&[u64]>) -> Result<Vec<S
         // `BTreeSet`: doppelte Nummern (etwa aus der Oberfläche verdoppelt) landen nur einmal in
         // der Anfrage — sonst nennt `suite::gib_frei` „andere Blöcke als angefragt“, weil die
         // Suite dieselbe Nummer nicht zweimal freigibt.
-        // `BTreeSet`: doppelte Nummern (etwa aus der Oberfläche verdoppelt) landen nur einmal in
-        // der Anfrage — sonst nennt `suite::gib_frei` „andere Blöcke als angefragt“, weil die
-        // Suite dieselbe Nummer nicht zweimal freigibt.
         Some(nummern) => nummern
             .iter()
             .copied()
@@ -1430,6 +1427,17 @@ pub(crate) mod tests {
     fn fehlende_felder_werden_als_liste_gemeldet() {
         let e = ErfassungFehler::Fehlt(vec!["Alarmstichwort", "Beginn"]);
         assert_eq!(fehler_text(e), "Fehlt: Alarmstichwort, Beginn");
+    }
+
+    /// Review M6: Eine unlesbare unquittierte Versiegelung blockiert den Status nicht, auch nicht
+    /// beim zweiten Lesen.
+    #[test]
+    fn status_trotz_unlesbarer_unquittierter_versiegelung() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        z.buch().as_ref().unwrap().verbindung().execute("INSERT INTO unquittiert (id, json) VALUES (1, '{kaputt')", []).unwrap();
+        assert_eq!(lies_status(&z).unwrap().versiegelung, None);
+        assert_eq!(lies_status(&z).unwrap().versiegelung, None);
     }
 
     #[test]
