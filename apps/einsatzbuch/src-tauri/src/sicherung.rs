@@ -117,9 +117,11 @@ fn vermerke(z: &Zustand, ordner: &str, f: impl FnOnce(&mut Buch) -> Result<(), B
 /// 2. Testbetrieb, keine Einrichtung oder kein Ordner: `Ok(None)`, nichts geschieht.
 /// 3. `sicherung::schreibe` ohne Lock. Danach unter einem kurzen Lock `sicherung_gelungen` (auch
 ///    bei `Unveraendert`) bzw. `sicherung_gescheitert` mit dem Text, der dann auch `Err` ist.
-///    Eine leere Kette (`LeereKette`) schreibt nie. Liegt im Ordner eine lesbare Sicherung mit
-///    Blöcken, ist das eine längere Kette als die lokale: vermerkt wie `VorhandeneLaenger`, also
-///    gelb (Review Focus 1, etwa vor einer Wiederherstellung). Ohne solche Datei geschieht nichts.
+///    Eine leere Kette (`LeereKette`) schreibt nie (`leere_kette`): Liegt im Ordner eine lesbare
+///    Sicherung mit Blöcken, ist das eine längere Kette als die lokale, vermerkt wie
+///    `VorhandeneLaenger`, also gelb (Review Focus 1, etwa vor einer Wiederherstellung). Ist der
+///    Ordner nicht lesbar, ist das ein Fehlschlag. Sonst gilt die Sicherung als gelungen, denn es
+///    gibt nichts zu sichern; gemeldet wird der Suite dann nichts.
 /// 4. Nach einem Erfolg, mit Geräte-Token und ohne Widerruf: `suite::melde_sicherung`. Ein
 ///    Fehler dort geht nur ins Log.
 ///
@@ -131,13 +133,12 @@ pub fn sichere_jetzt(z: &Zustand) -> Result<Option<String>, String> {
     let datei = Sicherungsdatei::neu(erstellt.clone(), g.bloecke);
     match kern_sicherung::schreibe(Path::new(&g.ordner), &datei) {
         Ok(Schreibergebnis::LeereKette) => {
-            let vorhanden = kern_sicherung::lies(&Path::new(&g.ordner).join(kern_sicherung::DATEI)).map_or(0, |d| d.bloecke.len());
-            if vorhanden == 0 {
-                return Ok(None);
+            if let Err(text) = leere_kette(Path::new(&g.ordner)) {
+                vermerke(z, &g.ordner, |b| b.sicherung_gescheitert(&text))?;
+                return Err(text);
             }
-            let text = SicherungFehler::VorhandeneLaenger { vorhanden, lokal: 0 }.to_string();
-            vermerke(z, &g.ordner, |b| b.sicherung_gescheitert(&text))?;
-            return Err(text);
+            vermerke(z, &g.ordner, |b| b.sicherung_gelungen(&erstellt))?;
+            return Ok(Some(erstellt));
         }
         Ok(Schreibergebnis::Geschrieben | Schreibergebnis::Unveraendert) => {
             vermerke(z, &g.ordner, |b| b.sicherung_gelungen(&erstellt))?;
@@ -161,6 +162,22 @@ pub fn sichere_jetzt(z: &Zustand) -> Result<Option<String>, String> {
         }
     }
     Ok(Some(erstellt))
+}
+
+/// Bei leerer lokaler Kette: Ist der Ordner lesbar und liegt dort keine längere Kette, ist nichts
+/// zu tun (`Ok`). `Err` mit dem Text für den Status, wenn der Ordner nicht lesbar ist, eine
+/// vorhandene Datei sich wegen eines Ein-/Ausgabefehlers nicht lesen lässt oder sie Blöcke trägt.
+/// Eine fremde oder kaputte Datei trägt keine lesbare Kette und gilt wie keine (so rotiert sie
+/// auch `schreibe` beim ersten echten Block weg).
+fn leere_kette(ordner: &Path) -> Result<(), String> {
+    std::fs::read_dir(ordner).map_err(|e| SicherungFehler::Io(e).to_string())?;
+    match kern_sicherung::lies(&ordner.join(kern_sicherung::DATEI)) {
+        Ok(d) if d.bloecke.is_empty() => Ok(()),
+        Ok(d) => Err(SicherungFehler::VorhandeneLaenger { vorhanden: d.bloecke.len(), lokal: 0 }.to_string()),
+        Err(SicherungFehler::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(SicherungFehler::Json(_) | SicherungFehler::FremdesFormat | SicherungFehler::ZuGross { .. }) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// Setzt den Sicherungsordner (`None` löscht ihn) und stößt die Sicherung an. Nur im
@@ -217,7 +234,8 @@ struct Wiederherstellungsgrundlage {
 /// 4. `GET anker` mit dem Geräte-Token, dann die Ankerregel (`wiederherstellung::pruefe`).
 /// 5. Alle Blöcke mit der Sitzung freigeben lassen; eine 401 verwirft die Sitzung.
 /// 6. Jeden Block öffnen und die Nummern je Jahr zusammenfassen. Scheitert ein Block, bricht
-///    alles ab. CEKs und Klartexte werden danach sofort verworfen, die CEKs überschrieben.
+///    alles ab. CEKs und Klartexte werden danach sofort verworfen, die CEKs (`Cek`, auf dem
+///    Heap) überschrieben.
 /// 7. Blöcke und Nummern in einer Transaktion übernehmen, die die Blöcke noch einmal prüft.
 /// 8. `NeuerBlock` anstoßen: sichern und alle Anker für diesen Rechner melden.
 pub fn stelle_wieder_her(z: &Zustand, datei: &Path) -> Result<Wiederhergestellt, String> {
@@ -272,7 +290,7 @@ pub fn stelle_wieder_her(z: &Zustand, datei: &Path) -> Result<Wiederhergestellt,
 /// Die CEKs der Freigabe als Bytes je Block. Jeder Base64-Text wird gleich nach dem Lesen
 /// überschrieben, auch wenn ein anderer Posten scheitert: Die Posten werden verbraucht, und was
 /// übrig ist, wischt die Schleife bzw. `Zeroizing` beim Verlassen.
-fn entpacke(mut posten: Vec<Schluesselposten>) -> Result<BTreeMap<u64, Zeroizing<[u8; 32]>>, String> {
+fn entpacke(mut posten: Vec<Schluesselposten>) -> Result<BTreeMap<u64, Cek>, String> {
     let mut ceks = BTreeMap::new();
     let mut fehler = None;
     for p in &mut posten {
@@ -292,10 +310,15 @@ fn entpacke(mut posten: Vec<Schluesselposten>) -> Result<BTreeMap<u64, Zeroizing
     }
 }
 
+/// Ein CEK auf dem Heap: Die Bytes werden erst nach dem Anlegen der Box hineinkopiert und danach
+/// nie als Wert bewegt (nur die Box), also bleibt keine ungewischte Kopie auf dem Stack. Beim Drop
+/// überschreibt `Zeroizing` sie.
+type Cek = Box<Zeroizing<[u8; 32]>>;
+
 /// Ein CEK aus Base64, genau 32 Byte. Der dekodierte Puffer liegt nur in `Zeroizing`.
-fn cek_aus(text: &str) -> Result<Zeroizing<[u8; 32]>, String> {
+fn cek_aus(text: &str) -> Result<Cek, String> {
     let roh = Zeroizing::new(krypto::aus_b64(text).map_err(|e| e.to_string())?);
-    let mut cek = Zeroizing::new([0u8; 32]);
+    let mut cek: Cek = Box::new(Zeroizing::new([0u8; 32]));
     if roh.len() != cek.len() {
         return Err(format!("{} statt 32 Byte", roh.len()));
     }
@@ -304,7 +327,7 @@ fn cek_aus(text: &str) -> Result<Zeroizing<[u8; 32]>, String> {
 }
 
 /// Öffnet jeden Block der Sicherung mit seinem CEK; der erste, der scheitert, bricht alles ab.
-fn oeffne_alle(sicherung: &Sicherungsdatei, ceks: &BTreeMap<u64, Zeroizing<[u8; 32]>>) -> Result<Vec<Einsatz>, String> {
+fn oeffne_alle(sicherung: &Sicherungsdatei, ceks: &BTreeMap<u64, Cek>) -> Result<Vec<Einsatz>, String> {
     sicherung
         .bloecke
         .iter()
@@ -361,6 +384,7 @@ mod tests {
     use aes_gcm::aead::{Aead, Payload};
     use aes_gcm::{Aes256Gcm, KeyInit};
     use base64::Engine as _;
+    use chrono::Duration as TimeDelta;
     use einsatzbuch_kern::format::{Block, Blockkopf, Umschlag};
     use einsatzbuch_kern::krypto;
     use einsatzbuch_kern::sicherung::{self as kern_sicherung, Sicherungsdatei};
@@ -375,7 +399,7 @@ mod tests {
     use crate::abgleich::{Anstoss, Lauf, runde};
     use crate::befehle::tests::{
         Aufgezeichnet, Browser, FakeSuite, Stelluhr, antwort, eingerichteter_echter_rechner, eingerichteter_testrechner, fehler,
-        gesunde_suite, versiegele_einen, zustand_mit,
+        gesunde_suite, versiegele_einen, warte_bis, zustand_mit,
     };
     use crate::befehle::{SITZUNG_ABGELAUFEN, lies_bloecke, lies_status, melde_ab, melde_an};
 
@@ -393,7 +417,11 @@ mod tests {
 
     /// Ein echter Rechner mit gewähltem Sicherungsordner.
     fn echter_rechner_mit_ordner(ordner: &Path, ziel: &Path) -> (Zustand, FakeSuite) {
-        let (z, suite) = eingerichteter_echter_rechner(ordner, &Stelluhr::neu());
+        echter_rechner_mit_ordner_und_uhr(ordner, ziel, &Stelluhr::neu())
+    }
+
+    fn echter_rechner_mit_ordner_und_uhr(ordner: &Path, ziel: &Path, uhr: &Stelluhr) -> (Zustand, FakeSuite) {
+        let (z, suite) = eingerichteter_echter_rechner(ordner, uhr);
         setze_sicherungsordner(&z, Some(ziel.to_path_buf())).unwrap();
         (z, suite)
     }
@@ -489,19 +517,108 @@ mod tests {
         assert!(s.letzte.is_some());
     }
 
-    /// Entscheidung 1: Die stündliche Runde gleicht Stammdaten und Anker ab, sichert aber nicht.
+    fn namen_in(ordner: &Path) -> Vec<String> {
+        let mut namen: Vec<String> =
+            std::fs::read_dir(ordner).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        namen.sort();
+        namen
+    }
+
+    /// Fix-Runde 1, A (ändert Entscheidung 1): Auch die stündliche Runde sichert zuerst. Bei
+    /// unveränderter Kette heißt das `Unveraendert`: kein Schreiben, keine Rotation, aber
+    /// `letzte` wird aufgefrischt und der Suite gemeldet.
     #[test]
-    fn stuendliche_runde_sichert_nicht() {
+    fn stuendliche_runde_bestaetigt_die_sicherung_ohne_zu_rotieren() {
         let ordner = tempfile::tempdir().unwrap();
         let ziel = tempfile::tempdir().unwrap();
-        let (z, suite) = echter_rechner_mit_ordner(ordner.path(), ziel.path());
+        let uhr = Stelluhr::neu();
+        let (z, suite) = echter_rechner_mit_ordner_und_uhr(ordner.path(), ziel.path(), &uhr);
         versiegele_einen(&z);
+        runde(&z, Lauf::NEUER_BLOCK);
+        let vorher = std::fs::read(datei_in(ziel.path())).unwrap();
+        let erste = stand(&z).letzte.expect("gesichert");
         suite.leere();
 
+        uhr.vor(TimeDelta::hours(1));
         runde(&z, Lauf::STUENDLICH);
-        assert!(!datei_in(ziel.path()).exists());
-        assert_eq!(pfade(&suite), ["GET /api/stammdaten", "POST /api/anker"]);
-        assert_eq!(stand(&z).letzte, None);
+        assert_eq!(std::fs::read(datei_in(ziel.path())).unwrap(), vorher, "nicht neu geschrieben");
+        assert_eq!(namen_in(ziel.path()), [kern_sicherung::DATEI], "nicht rotiert");
+        assert_eq!(pfade(&suite), ["POST /api/sicherung", "GET /api/stammdaten", "POST /api/anker"]);
+        let s = stand(&z);
+        assert_ne!(s.letzte.as_deref(), Some(erste.as_str()), "letzte aufgefrischt");
+        assert_eq!(s.stufe, Sicherungsstufe::Ok);
+    }
+
+    /// Fix-Runde 1, D: in der echten Schleife mit kurzem Takt. Die stündliche Runde frischt
+    /// `letzte` auf, ohne zu rotieren; nach einem Fehlschlag (Ordner weg, dann wieder da) schreibt
+    /// die nächste stündliche Runde die Sicherung und löscht den Fehler.
+    #[test]
+    fn schleife_frischt_auf_und_holt_einen_fehlschlag_nach() {
+        let ordner = tempfile::tempdir().unwrap();
+        let ziel = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let (z, _suite) = echter_rechner_mit_ordner_und_uhr(ordner.path(), ziel.path(), &uhr);
+        versiegele_einen(&z);
+        let z = std::sync::Arc::new(z);
+        let (tx, rx) = mpsc::channel::<Anstoss>();
+        let z2 = std::sync::Arc::clone(&z);
+        let faden = std::thread::spawn(move || crate::abgleich::schleife(&z2, &rx, std::time::Duration::from_millis(200)));
+
+        warte_bis(|| stand(&z).letzte.is_some());
+        let vorher = std::fs::read(datei_in(ziel.path())).unwrap();
+        let erste = stand(&z).letzte.unwrap();
+        uhr.vor(TimeDelta::hours(1));
+        warte_bis(|| stand(&z).letzte.as_deref() != Some(erste.as_str()));
+        assert_eq!(std::fs::read(datei_in(ziel.path())).unwrap(), vorher);
+        assert_eq!(namen_in(ziel.path()), [kern_sicherung::DATEI]);
+
+        std::fs::remove_dir_all(ziel.path()).unwrap();
+        warte_bis(|| stand(&z).fehler.is_some());
+        assert_eq!(stand(&z).stufe, Sicherungsstufe::Gelb);
+
+        std::fs::create_dir(ziel.path()).unwrap();
+        warte_bis(|| stand(&z).fehler.is_none());
+        assert_eq!(kern_sicherung::lies(&datei_in(ziel.path())).unwrap().bloecke.len(), 1);
+        assert_eq!(stand(&z).stufe, Sicherungsstufe::Ok);
+
+        drop(tx);
+        faden.join().unwrap();
+    }
+
+    /// Fix-Runde 1, B: Ein echter Rechner ohne Blöcke mit erreichbarem Ordner gilt als gesichert
+    /// (nichts zu sichern, keine längere Kette dort) und wird nicht rot. Ohne Meldung an die
+    /// Suite und ohne Datei. Ein unerreichbarer Ordner ist ein Fehlschlag, und der Fehler bleibt
+    /// nach dem Wechsel auf einen erreichbaren Ordner nicht stehen.
+    #[test]
+    fn leere_kette_mit_erreichbarem_ordner_gilt_als_gesichert() {
+        let ordner = tempfile::tempdir().unwrap();
+        let ziel = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let (z, suite) = echter_rechner_mit_ordner_und_uhr(ordner.path(), ziel.path(), &uhr);
+        suite.leere();
+
+        runde(&z, Lauf::NUR_SICHERUNG);
+        let s = stand(&z);
+        assert!(s.letzte.is_some() && s.fehler.is_none(), "{s:?}");
+        assert_eq!(s.stufe, Sicherungsstufe::Ok);
+        assert!(namen_in(ziel.path()).is_empty(), "eine leere Kette wird nie geschrieben");
+
+        uhr.vor(TimeDelta::days(8));
+        runde(&z, Lauf::STUENDLICH);
+        assert_eq!(stand(&z).stufe, Sicherungsstufe::Ok, "nach 8 Tagen ohne Einsatz nicht rot");
+        assert!(!pfade(&suite).contains(&"POST /api/sicherung".to_string()), "{:?}", pfade(&suite));
+
+        std::fs::remove_dir_all(ziel.path()).unwrap();
+        runde(&z, Lauf::NUR_SICHERUNG);
+        let s = stand(&z);
+        assert_eq!(s.stufe, Sicherungsstufe::Gelb);
+        assert!(s.fehler.is_some());
+
+        let neu = tempfile::tempdir().unwrap();
+        setze_sicherungsordner(&z, Some(neu.path().to_path_buf())).unwrap();
+        runde(&z, Lauf::NUR_SICHERUNG);
+        let s = stand(&z);
+        assert_eq!((s.stufe, s.fehler), (Sicherungsstufe::Ok, None), "kein alter Fehler nach dem Wechsel");
     }
 
     /// Nach der Wahl des Ordners (`Anstoss::Sicherung`) wird nur gesichert, ohne Ankerabgleich.

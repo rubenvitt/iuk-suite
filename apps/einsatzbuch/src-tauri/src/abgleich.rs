@@ -6,8 +6,11 @@
 //!   - `NeuerBlock` (Versiegeln, Frist-Uhr, Einrichten, Neu einrichten, Wiederherstellen): erst
 //!     die Sicherung, dann der Ankerabgleich;
 //!   - `Sicherung` (Sicherungsordner gewählt): nur die Sicherung.
-//! - Läuft die Stunde ab, folgen Stammdaten und Anker, aber **keine** Sicherung: Ohne neuen Block
-//!   gibt es nichts Neues zu sichern.
+//! - Läuft die Stunde ab, folgt dieselbe volle Runde wie beim Start: erst die Sicherung, dann
+//!   Stammdaten und Anker (Fix-Runde 1 zu Task 5, ändert Entscheidung 1). Bei unveränderter Kette
+//!   ergibt die Sicherung `Unveraendert`: kein Schreiben, keine Rotation, aber „letzte Sicherung“
+//!   heißt dann „zuletzt als aktuell im Ordner bestätigt“. So holt die Stunde einen
+//!   fehlgeschlagenen Versuch nach, und ein Rechner ohne neue Blöcke wird nach 7 Tagen nicht rot.
 //! - Die Sicherung läuft vor jeder Anfrage an die Suite in dieser Runde und unabhängig von
 //!   Geräte-Token und Widerruf (`sicherung::sichere_jetzt`). Weil nur dieser Thread sie schreibt,
 //!   gibt es nie zwei Schreiber auf derselben Datei, und kein Lock bleibt über der Datei-I/O im
@@ -63,8 +66,9 @@ pub struct Lauf {
 impl Lauf {
     /// Beim Start: sichern, dann voll abgleichen.
     pub const START: Lauf = Lauf { sichern: true, runde: Runde::Voll };
-    /// Nach Ablauf des Takts ohne Anstoß: voll abgleichen, nicht sichern.
-    pub const STUENDLICH: Lauf = Lauf { sichern: false, runde: Runde::Voll };
+    /// Nach Ablauf des Takts ohne Anstoß: wie der Start sichern (bestätigt die Datei oder holt
+    /// einen Fehlschlag nach), dann voll abgleichen.
+    pub const STUENDLICH: Lauf = Lauf { sichern: true, runde: Runde::Voll };
     /// Nach `Anstoss::NeuerBlock`: sichern, dann Anker melden.
     pub const NEUER_BLOCK: Lauf = Lauf { sichern: true, runde: Runde::NurAnker };
     /// Nach `Anstoss::Sicherung`: nur sichern.

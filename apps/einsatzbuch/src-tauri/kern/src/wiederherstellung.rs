@@ -48,9 +48,7 @@ pub enum Wiederherstellungsfehler {
 ///    (`Veraltet`), und der Block dort trägt denselben Hash (`AnkerPasstNicht`).
 pub fn pruefe(datei: &Sicherungsdatei, gepinnt: &str, anker: Option<(u64, &str)>) -> Result<(), Wiederherstellungsfehler> {
     pruefe_bloecke(&datei.bloecke, gepinnt)?;
-    let Some(letzter) = datei.bloecke.last() else {
-        return Err(Wiederherstellungsfehler::Leer);
-    };
+    let letzter = datei.bloecke.last().expect("pruefe_bloecke lehnt eine leere Kette schon mit `Leer` ab");
 
     let (anker_block, anker_hash) = anker.ok_or(Wiederherstellungsfehler::KeinAnker)?;
     if anker_block == 0 {
