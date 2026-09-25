@@ -25,6 +25,9 @@ const befehle = vi.hoisted(() => ({
   schluesselFreigeben: vi.fn(),
   ankerAbgleichen: vi.fn(),
   stammdatenAbgleichen: vi.fn(),
+  exportSpeichern: vi.fn(),
+  drucken: vi.fn(),
+  readerOeffnen: vi.fn(),
 }));
 vi.mock("./befehle", () => ({ befehle }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -366,7 +369,7 @@ describe("Verwaltung", () => {
     expect(text()).toContain("Stammdaten vom 25.9.2026, 10:00");
     expect(text()).toContain("Anker bestätigt bis Block 3");
     expect(text()).toContain("Kette intakt");
-    expect(knopf("Herunterladen")).toBeUndefined();
+    expect(knopf("Herunterladen")?.disabled).toBe(false);
   });
 
   it("wählt ein Einsatz per Klick in der Kette", async () => {
@@ -426,6 +429,12 @@ describe("Verwaltung", () => {
     expect(text()).not.toContain("MANV 10");
   });
 
+  it("ohne Freigabe ist „Herunterladen“ gesperrt", async () => {
+    befehle.schluesselFreigeben.mockRejectedValue("Lesen braucht Verbindung zur Suite.");
+    await meldeAnUndOeffneVerwaltung();
+    expect(knopf("Herunterladen")?.disabled).toBe(true);
+  });
+
   it("ohne Freigabe meldet ein Klick auf eine Zeile keinen kaputten Block", async () => {
     befehle.schluesselFreigeben.mockRejectedValue("Lesen braucht Verbindung zur Suite.");
     await meldeAnUndOeffneVerwaltung();
@@ -471,6 +480,65 @@ describe("Verwaltung", () => {
     await clickElement(knopf("Kette prüfen")!);
     await warte();
     expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Anker weicht ab bei Block 5: erwartet #1a2b3c4d, hier #99887766");
+  });
+});
+
+/** Knöpfe im ganzen Dokument, auch in der Überlagerung (Portal an `body`). */
+function knopfImDokument(name: string): HTMLButtonElement | undefined {
+  return Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).find((b) => (b.textContent ?? "").trim() === name);
+}
+
+describe("Export und Berichtsblatt in der Verwaltung", () => {
+  it("„Herunterladen“ öffnet den Dialog mit „alle“, „Diesen Einsatz herunterladen“ mit dem gewählten Einsatz", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(knopf("Herunterladen")!);
+    expect(queryAll("h2").map((h) => h.textContent)).toContain("Einsätze als Datei speichern");
+    expect(queryAll<HTMLButtonElement>("button.umfang").map((u) => u.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
+    expect(text()).toContain("Nur 2026-043 · MANV 10");
+    await clickElement(knopf("Abbrechen")!);
+    expect(text()).not.toContain("Einsätze als Datei speichern");
+
+    await clickElement(queryAll<HTMLButtonElement>('button[data-block="1"]')[0]);
+    await clickElement(knopf("Diesen Einsatz herunterladen")!);
+    expect(text()).toContain("Nur 2026-041 · RD 2");
+    expect(queryAll<HTMLButtonElement>("button.umfang").map((u) => u.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
+  });
+
+  it("„Sitzung sperren“ nimmt den offenen Dialog mit", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(knopf("Herunterladen")!);
+    befehle.status.mockResolvedValue(status());
+    await clickElement(knopf("Sitzung sperren")!);
+    await warte();
+    expect(text()).not.toContain("Einsätze als Datei speichern");
+  });
+
+  it("„PDF erzeugen“ zeigt das Berichtsblatt des gewählten Einsatzes, erzeugt zum frischen Zeitpunkt aus Rust", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    befehle.status.mockResolvedValue(status({ sitzung: SITZUNG, jetzt: "2026-09-25T11:42:00+02:00" }));
+    await clickElement(knopf("PDF erzeugen")!);
+    await warte();
+    const huelle = document.body.querySelector(".bericht-ueberlagerung");
+    expect(huelle?.getAttribute("aria-label")).toBe("Einsatzbericht · 2026-043");
+    expect(huelle?.textContent).toContain("Unverändert seit der Versiegelung");
+    expect(huelle?.textContent).toContain("Erzeugt 25.9.2026, 11:42 Uhr · Einsatzbuch Verwaltung, Ruben Vitt");
+    befehle.drucken.mockResolvedValue(undefined);
+    await clickElement(knopfImDokument("Als PDF speichern")!);
+    expect(befehle.drucken).toHaveBeenCalledTimes(1);
+    await clickElement(knopfImDokument("Schließen")!);
+    expect(document.body.querySelector(".bericht-ueberlagerung")).toBeNull();
+  });
+
+  it("„Sitzung sperren“ nimmt das Berichtsblatt mit", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(knopf("PDF erzeugen")!);
+    await warte();
+    expect(document.body.querySelector(".bericht-ueberlagerung")).not.toBeNull();
+    befehle.status.mockResolvedValue(status());
+    await clickElement(knopfImDokument("Sitzung sperren")!);
+    await warte();
+    expect(document.body.querySelector(".bericht-ueberlagerung")).toBeNull();
+    expect(text()).not.toContain("MANV 10");
   });
 });
 

@@ -714,3 +714,118 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 .verteilung-anz { text-align: right; font: 700 18px/1 var(--font-display); font-variant-numeric: tabular-nums; }
 .gesperrt-karte { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
 .gesperrt-karte .hinweis { flex: 1 1 280px; }
+
+/* Fehler am Eingabefeld (`fehler` am `TextField` der Vorlage) */
+.feld-rahmen-fehler { border-color: var(--iuk-ampel-rot-text); }
+.feld-fehler { font-size: 12px; color: var(--iuk-ampel-rot-text); }
+
+/* Export-Dialog (Vorlage `exportOffen` in `Einsatzbuch v2.dc.html`) */
+.export-dialog { max-width: 540px; max-height: 100%; overflow: auto; gap: 16px; background: var(--verw-karte); }
+.export-titel { margin: 0; font: 600 24px/1.2 var(--font-display); letter-spacing: 0.02em; }
+.umfang {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 12px 14px 12px 17px;
+  border: 1px solid var(--verw-rand);
+  border-radius: 8px;
+  background: var(--verw-karte);
+  color: var(--verw-text);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.umfang[aria-pressed="true"] { background: var(--iuk-flaeche-aktiv); box-shadow: inset 3px 0 0 var(--brand-fill); }
+.umfang:disabled { cursor: not-allowed; opacity: 0.6; }
+.umfang-punkt {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 1.5px solid var(--border-control);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.umfang-punkt > span { width: 10px; height: 10px; border-radius: 999px; }
+.umfang[aria-pressed="true"] .umfang-punkt { border-color: var(--brand-fill); }
+.umfang[aria-pressed="true"] .umfang-punkt > span { background: var(--brand-fill); }
+.umfang-text { display: flex; flex-direction: column; }
+.umfang-titel { font-size: 15px; font-weight: 600; }
+.umfang-hilfe { font-size: 12px; color: var(--iuk-gedaempft); }
+.export-hinweise {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--verw-body);
+  color: var(--verw-text-2);
+  font-size: 13px;
+}
+.export-hinweis { display: flex; gap: 8px; align-items: flex-start; }
+.export-fertig {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--iuk-ampel-ok-flaeche);
+  color: var(--iuk-ampel-ok-text);
+  font-size: 14px;
+}
+.export-fertig-text { flex: 1; min-width: 0; }
+.export-dateiname { font-family: var(--font-mono); font-weight: 500; word-break: break-all; }
+.export-reader {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/*
+ * Berichtsblatt (Vorlage `pdfOffen`). Die Überlagerung ist ein Portal direkt unter `body`; die
+ * Druckregeln hängen an ihrer eigenen Klasse und greifen nur, solange sie offen ist
+ * (`:has(> .bericht-ueberlagerung)`). Keine `@page` hier: Die Seite ist die benannte
+ * `einsatzbericht` aus dem Kern-CSS des Blatts (Falle 18, `CLAUDE.md`).
+ */
+.bericht-ueberlagerung {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.55);
+}
+.bericht-steuer {
+  width: 210mm;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: #fff;
+  font: 400 14px/1.5 var(--font-body);
+}
+.bericht-steuer-text { flex: 1 1 240px; display: flex; flex-direction: column; font-size: 13px; }
+.bericht-steuer-titel { font: 600 20px/1.2 var(--font-display); letter-spacing: 0.02em; }
+.bericht-steuer-fehler { flex-basis: 100%; }
+.bericht-rahmen { flex: none; max-width: 100%; overflow-x: auto; box-shadow: 0 8px 24px rgb(0 0 0 / 0.3); }
+@media print {
+  body:has(> .bericht-ueberlagerung) { background: #fff; }
+  body:has(> .bericht-ueberlagerung) > :not(.bericht-ueberlagerung) { display: none !important; }
+  .bericht-ueberlagerung { position: static; display: block; overflow: visible; padding: 0; background: none; }
+  .bericht-steuer { display: none; }
+  .bericht-rahmen { max-width: none; overflow: visible; box-shadow: none; }
+}

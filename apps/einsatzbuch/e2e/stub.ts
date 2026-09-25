@@ -210,8 +210,21 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       return bloecke ? einstellungen.schluesselposten.filter((p) => bloecke.includes(p.block)) : einstellungen.schluesselposten;
     }
 
-    /** Wie `export_speichern`: hängt die Endung an, ohne einen echten Dialog zu zeigen. */
-    function exportSpeichern(dateiname: string): string {
+    /**
+     * Wie `export_speichern` (`src-tauri/src/export.rs`, `speichere_export`): lehnt ab, was keine
+     * Exportdatei der Version 2 ist, und hängt die Endung an, ohne einen echten Dialog zu zeigen.
+     * Die zuletzt „gespeicherte“ Datei liegt für die Spec unter `window.__export`.
+     */
+    function exportSpeichern(inhalt: string, dateiname: string): string {
+      let wert: unknown;
+      try {
+        wert = JSON.parse(inhalt);
+      } catch {
+        throw new Error("Das ist keine Exportdatei des Einsatzbuchs.");
+      }
+      const kennung = typeof wert === "object" && wert !== null && !Array.isArray(wert) ? (wert as Record<string, unknown>) : null;
+      if (kennung?.format !== "einsatzbuch-export" || kennung.version !== 2) throw new Error("Das ist keine Exportdatei des Einsatzbuchs.");
+      (window as unknown as { __export: unknown }).__export = wert;
       return dateiname.endsWith(".einsatzbuch") ? dateiname : `${dateiname}.einsatzbuch`;
     }
 
@@ -479,7 +492,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         case "stammdaten_abgleichen":
           return stammdatenAbgleichen();
         case "export_speichern":
-          return exportSpeichern(args.dateiname as string);
+          return exportSpeichern(args.inhalt as string, args.dateiname as string);
         case "drucken":
           return undefined;
         case "reader_oeffnen":

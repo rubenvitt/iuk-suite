@@ -547,6 +547,7 @@ export function App() {
           <Verwaltung
             zustand={verwaltung.zustand}
             zeitzone={zeitzone}
+            bereitschaft={status.bereitschaft ?? paket?.bereitschaft ?? null}
             sitzung={status.sitzung}
             eingerichtetAm={status.eingerichtetAm}
             eingerichtetVon={status.eingerichtetVon}

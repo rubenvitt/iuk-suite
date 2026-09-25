@@ -1,8 +1,8 @@
 /**
  * Verwaltung am Rechner im echten Browser gegen den Vite-Dev-Server, mit gestubbtem `invoke`
  * (`./stub.ts`). Deckt Einrichtung (Testrechner), Anmeldung, die entschlüsselte Verwaltung samt
- * Kettenprüfung, die Sperre (Knopf und Ruhe-Uhr über `page.clock`) und den Freigabe-Fehler ohne
- * Verbindung ab. Ein Klick-Ende-zu-Ende über die echte Tauri-Hülle gibt es nicht (Spec §9.3,
+ * Kettenprüfung, die Sperre (Knopf und Ruhe-Uhr über `page.clock`), den Freigabe-Fehler ohne
+ * Verbindung, den Export und das Berichtsblatt samt Druckregeln ab. Ein Klick-Ende-zu-Ende über die echte Tauri-Hülle gibt es nicht (Spec §9.3,
  * Plan Stufe 5, Entscheidung 16: WKWebView kennt keinen WebDriver) — dafür steht
  * `T/examples/e2e_lauf.rs` (Task 12). Diese Datei prüft nur die Oberfläche.
  *
@@ -17,7 +17,8 @@ import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import type { Block } from "@kern/format";
+import { entschluesseleExport } from "@kern/export";
+import type { Block, Exportdatei } from "@kern/format";
 
 import type { Schluesselposten } from "../src/typen";
 import { installiereStub, type StubOptionen } from "./stub";
@@ -131,4 +132,77 @@ test("Einrichtungsfrage: „Testrechner“ mit Name ruft `einrichten` mit art �
 
   const [aufruf] = await aufrufe(page, "einrichten");
   expect(aufruf?.args).toMatchObject({ art: "test", name: "Testrechner 1" });
+});
+
+test("Export: Herunterladen, Kennwort zweimal, gespeichert — der Kern öffnet die Datei wieder", async ({ page }) => {
+  await meldeAnUndOeffneVerwaltung(page);
+  await expect(page.getByRole("heading", { name: "MANV 10" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Herunterladen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Einsätze als Datei speichern" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("PBKDF2, 600.000 Runden")).toBeVisible();
+  await dialog.getByLabel("Kennwort für die Datei").fill("korrekt-pferd-batterie");
+  await dialog.getByLabel("Kennwort wiederholen").fill("korrekt-pferd-batterie");
+  await dialog.getByRole("button", { name: "Datei speichern" }).click();
+
+  await expect(dialog.getByText(/^Gespeichert als einsatzbuch_\d{4}-\d{2}-\d{2}_block-1-3\.einsatzbuch$/)).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByLabel("Kennwort für die Datei")).toHaveValue("");
+
+  // Frische Schlüssel genau für die exportierten Blöcke (die erste Freigabe beim Öffnen ist ohne Liste).
+  const freigaben = await aufrufe(page, "schluessel_freigeben");
+  expect(freigaben.map((a) => a.args.bloecke)).toEqual([null, [1, 2, 3]]);
+  const [speichern] = await aufrufe(page, "export_speichern");
+  expect(speichern?.args.dateiname).toMatch(/^einsatzbuch_\d{4}-\d{2}-\d{2}_block-1-3\.einsatzbuch$/);
+
+  // Der Stub hat nur eine Exportdatei der Version 2 angenommen; der Kern öffnet sie mit dem Kennwort.
+  const datei = await page.evaluate(() => (window as unknown as { __export: Exportdatei }).__export);
+  expect(datei).toMatchObject({ format: "einsatzbuch-export", version: 2, kopf: { umfang: "alle", von: 1, bis: 3, anzahl: 3, quelle: "DRK-Bereitschaft Uelzen" } });
+  const inhalt = await entschluesseleExport(datei, "korrekt-pferd-batterie");
+  expect(inhalt.bloecke).toEqual(BLOECKE);
+  expect(Object.keys(inhalt.schluessel)).toEqual(["1", "2", "3"]);
+  expect(inhalt.exportiertVon).toBe("Ruben Vitt");
+});
+
+test("Export „einzeln“ gibt nur den gewählten Block frei", async ({ page }) => {
+  await meldeAnUndOeffneVerwaltung(page);
+  await page.locator('button[data-block="2"]').click();
+  await expect(page.getByRole("heading", { name: "SanD" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Diesen Einsatz herunterladen" }).click();
+  const dialog = page.getByRole("dialog", { name: "Einsätze als Datei speichern" });
+  await expect(dialog.getByRole("button", { name: /^Nur 2026-042/ })).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByLabel("Kennwort für die Datei").fill("korrekt-pferd-batterie");
+  await dialog.getByLabel("Kennwort wiederholen").fill("korrekt-pferd-batterie");
+  await dialog.getByRole("button", { name: "Datei speichern" }).click();
+
+  await expect(dialog.getByText("Gespeichert als einsatz_2026-042.einsatzbuch")).toBeVisible({ timeout: 30_000 });
+  const freigaben = await aufrufe(page, "schluessel_freigeben");
+  expect(freigaben.at(-1)?.args.bloecke).toEqual([2]);
+});
+
+test("Berichtsblatt: „PDF erzeugen“, im Druck nur das Blatt, „Als PDF speichern“ druckt über die Hülle", async ({ page }) => {
+  await meldeAnUndOeffneVerwaltung(page);
+  await expect(page.getByRole("heading", { name: "MANV 10" })).toBeVisible();
+
+  await page.getByRole("button", { name: "PDF erzeugen" }).click();
+  const huelle = page.getByRole("dialog", { name: "Einsatzbericht · 2026-043" });
+  await expect(huelle).toBeVisible();
+  await expect(huelle.getByText("Im Druckdialog „Als PDF speichern“ wählen.")).toBeVisible();
+  await expect(huelle.getByText("Unverändert seit der Versiegelung")).toBeVisible();
+
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator("#wurzel")).toBeHidden();
+  await expect(page.locator("[data-bericht]")).toBeVisible();
+  await expect(huelle.getByRole("button", { name: "Als PDF speichern" })).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+
+  await huelle.getByRole("button", { name: "Als PDF speichern" }).click();
+  await expect.poll(async () => (await aufrufe(page, "drucken")).length).toBe(1);
+
+  await huelle.getByRole("button", { name: "Schließen" }).click();
+  await expect(huelle).toHaveCount(0);
+  // Ohne offene Überlagerung greifen die Druckregeln nicht mehr.
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator("#wurzel")).toBeVisible();
 });
