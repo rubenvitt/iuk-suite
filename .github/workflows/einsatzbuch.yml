@@ -1,7 +1,9 @@
 # CI-Tor der Einsatzbuch-Desktop-App: Oberfläche (Vite/React), Rust-Kern und ein
 # Rauchtest des Tauri-Bundles je Zielplattform. Läuft nur an, wenn sich an der App,
-# ihrem geteilten TS-Kern, den Farb-/Abstands-Tokens der Suite oder an dieser Datei
-# selbst etwas ändert — eine Änderung am Workflow prüft sich damit selbst.
+# ihrem geteilten TS-Kern, den Farb-/Abstands-Tokens der Suite, am pnpm-Workspace
+# (Lockfile, Mitgliederliste), an den Suite-Dateien, die die App mitbenutzt (E2E-Ports,
+# DOM-Harness), oder an dieser Datei selbst etwas ändert — eine Änderung am Workflow
+# prüft sich damit selbst.
 name: einsatzbuch
 
 on:
@@ -12,6 +14,10 @@ on:
       - "apps/einsatzbuch/**"
       - "src/app/m/einsatzbuch/_lib/kern/**"
       - "src/core/theme/tokens.ts"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "e2e/helpers/ports.ts"
+      - "src/app/m/qr/_lib/test-dom.tsx"
       - ".github/workflows/einsatzbuch.yml"
   push:
     branches: [main]
@@ -19,6 +25,10 @@ on:
       - "apps/einsatzbuch/**"
       - "src/app/m/einsatzbuch/_lib/kern/**"
       - "src/core/theme/tokens.ts"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "e2e/helpers/ports.ts"
+      - "src/app/m/qr/_lib/test-dom.tsx"
       - ".github/workflows/einsatzbuch.yml"
 
 permissions:
@@ -93,6 +103,9 @@ jobs:
             fi
           done
           exit "$fehler"
+      # Dieselbe gepinnte Toolchain wie im Job `desktop`, statt der zufällig auf dem
+      # Läufer vorinstallierten: sonst prüfen Kern und Hülle mit verschiedenen Compilern.
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable, Stand 2026-09-03
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: apps/einsatzbuch/src-tauri
@@ -106,7 +119,9 @@ jobs:
       # Kein `ring` im Baum (Entscheidung des Kerns: RustCrypto statt ring/*aws-lc*).
       # Geprüft wird auf Exit-Code UND darauf, dass keine Paketzeile "ring" auftaucht
       # — ein Grep auf den Wortlaut der Fehlermeldung bräche bei der nächsten
-      # cargo-Version still.
+      # cargo-Version still. `cargo tree` löst nur die Zielplattform des Läufers
+      # (Linux) auf; ein `ring`, das nur unter Windows oder macOS hereinkommt, sähe es
+      # nicht. Das Lockfile führt jede Plattform, deshalb zusätzlich der Grep darauf.
       - name: Kein ring im Abhängigkeitsbaum
         working-directory: apps/einsatzbuch/src-tauri
         shell: bash
@@ -122,6 +137,10 @@ jobs:
           fi
           if grep -qE '^ring v[0-9]' /tmp/ring.txt; then
             echo "::error::ring erscheint als Paketzeile in der Ausgabe."
+            exit 1
+          fi
+          if grep -q '^name = "ring"' Cargo.lock; then
+            echo "::error file=apps/einsatzbuch/src-tauri/Cargo.lock::ring steht im Lockfile (andere Zielplattform)."
             exit 1
           fi
       # `preserve_order` verändert die Reihenfolge, die serde_json über eine Map
