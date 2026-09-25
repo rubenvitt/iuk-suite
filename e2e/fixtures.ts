@@ -1,4 +1,4 @@
-import { Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS };
+import { Locator, Page, Response, expect } from "@playwright/test"; import { E2E_PORT, E2E_PORTS } from "./helpers/ports"; export { E2E_PORT, E2E_PORTS }; import { E2E_VORGEBAUT } from "./helpers/server";
 
 export async function devLogin(
   page: Page,
@@ -35,9 +35,9 @@ export async function devLogin(
   // machine put under artificial CPU load, to stand in for a CI runner: 13.7s.
   // The same login a second time, warm: 0.3s. So 10s was never reachable in CI
   // and the first logging-in test of the run always died right here. The login
-  // page itself is compiled before the suite starts — see `webServer.url` in
-  // playwright.config.ts, where the numbers are written out in full.
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 45_000 });
+  // page itself is compiled before the suite starts. Against the prebuilt server
+  // (CI since DRK-415) nothing compiles: 20s, below the 45s test timeout, so a stuck login reports here.
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: E2E_VORGEBAUT ? 20_000 : 45_000 });
   await page.waitForLoadState("networkidle");
 }
 
