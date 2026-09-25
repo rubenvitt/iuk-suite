@@ -1,18 +1,34 @@
 /**
- * Startseite, nach `Einsatzbuch v2.dc.html` (Abschnitt `istStart`). Statt „Verwaltung · Anmelden“
- * steht im Fuß nur im Testbetrieb „Testbetrieb beenden“; Anmeldung und Verwaltung kommen später.
- * Enter und Leertaste hört die App selbst ab (`App.tsx`).
+ * Startseite, nach `Einsatzbuch v2.dc.html` (Abschnitt `istStart`, Zeile ~45). Der Fuß zeigt —
+ * eingerichtet und ohne Sitzung — „Verwaltung · Anmelden“ (Vorlage-Wortlaut, `zumLogin`); mit
+ * Sitzung stattdessen den Namen als Weg zurück zur Verwaltung. Im Testbetrieb kommt zusätzlich
+ * „Testbetrieb beenden“ dazu (kein Vorlagen-Pendant, Bedienung des Offline-Testrechners). Enter
+ * und Leertaste hört die App selbst ab (`App.tsx`).
  */
 import { Zeichen } from "../bausteine/Symbol";
+import type { SitzungInfo } from "../typen";
 
 interface WillkommenProps {
   bereitschaft: string | null;
   test: boolean;
+  eingerichtet: boolean;
+  sitzung: SitzungInfo | null;
   beiOeffnen: () => void;
   beiTestEnde: () => void;
+  beiAnmeldenKlick: () => void;
+  beiVerwaltungKlick: () => void;
 }
 
-export function Willkommen({ bereitschaft, test, beiOeffnen, beiTestEnde }: WillkommenProps) {
+export function Willkommen({
+  bereitschaft,
+  test,
+  eingerichtet,
+  sitzung,
+  beiOeffnen,
+  beiTestEnde,
+  beiAnmeldenKlick,
+  beiVerwaltungKlick,
+}: WillkommenProps) {
   return (
     <div className="willkommen" data-screen-label="Willkommen">
       <div className="willkommen-mitte">
@@ -35,11 +51,22 @@ export function Willkommen({ bereitschaft, test, beiOeffnen, beiTestEnde }: Will
           <Zeichen name="schluessel" />
           Verschlüsselt und nur auf diesem Rechner gespeichert
         </div>
-        {test ? (
-          <button type="button" className="umrissknopf" onClick={beiTestEnde}>
-            Testbetrieb beenden
-          </button>
-        ) : null}
+        <div className="willkommen-fuss-rechts">
+          {sitzung ? (
+            <button type="button" className="umrissknopf" onClick={beiVerwaltungKlick}>
+              {sitzung.name}
+            </button>
+          ) : eingerichtet ? (
+            <button type="button" className="umrissknopf" onClick={beiAnmeldenKlick}>
+              Verwaltung · Anmelden
+            </button>
+          ) : null}
+          {test ? (
+            <button type="button" className="umrissknopf" onClick={beiTestEnde}>
+              Testbetrieb beenden
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

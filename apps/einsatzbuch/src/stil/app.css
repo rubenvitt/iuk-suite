@@ -392,6 +392,7 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
   font-size: 14px;
 }
 .willkommen-hinweis { display: flex; align-items: center; gap: 8px; }
+.willkommen-fuss-rechts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .umrissknopf {
   height: 44px;
   padding: 0 16px;

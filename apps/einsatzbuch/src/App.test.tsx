@@ -29,6 +29,7 @@ vi.mock("./befehle", () => ({ befehle }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 import { App } from "./App";
+import { Willkommen } from "./seiten/Willkommen";
 
 const BAND = "TESTBETRIEB — nichts hiervon ist ein echter Einsatz";
 const VERFALLEN =
@@ -249,6 +250,38 @@ describe("Kopf: Verwaltung · Anmelden", () => {
     expect(knopf("Verwaltung · Anmelden")).toBeUndefined();
     expect(text()).toContain("Ruben Vitt");
     expect(knopf("Sitzung sperren")).toBeDefined();
+  });
+});
+
+describe("Willkommen: Verwaltung · Anmelden im Fuß (Vorlage Zeile ~45)", () => {
+  it("ist auf der reinen Startseite sichtbar, eingerichtet und ohne Sitzung; ein Klick zeigt die Anmeldekarte", async () => {
+    await starte(status());
+    const knopfEl = knopf("Verwaltung · Anmelden");
+    expect(knopfEl).toBeDefined();
+    await clickElement(knopfEl!);
+    expect(text()).toContain("Anmelden, um Einsätze zu lesen");
+  });
+
+  it("fehlt ohne Einrichtung", async () => {
+    await mount(
+      <Willkommen
+        bereitschaft={null}
+        test={false}
+        eingerichtet={false}
+        sitzung={null}
+        beiOeffnen={() => {}}
+        beiTestEnde={() => {}}
+        beiAnmeldenKlick={() => {}}
+        beiVerwaltungKlick={() => {}}
+      />,
+    );
+    expect(knopf("Verwaltung · Anmelden")).toBeUndefined();
+  });
+
+  it("mit Sitzung: kein Anmelden-Knopf, sondern der Name als Weg zur Verwaltung", async () => {
+    await starte(status({ sitzung: { name: "Ruben Vitt", ablaufMs: Date.now() + 3_600_000 } }));
+    expect(knopf("Verwaltung · Anmelden")).toBeUndefined();
+    expect(text()).toContain("Ruben Vitt");
   });
 });
 

@@ -510,8 +510,12 @@ export function App() {
           <Willkommen
             bereitschaft={status.bereitschaft ?? paket?.bereitschaft ?? null}
             test={test}
+            eingerichtet={status.eingerichtet}
+            sitzung={status.sitzung}
             beiOeffnen={oeffnen}
             beiTestEnde={() => setBestaetigen(true)}
+            beiAnmeldenKlick={oeffneAnmeldung}
+            beiVerwaltungKlick={zurVerwaltung}
           />
         );
         break;
