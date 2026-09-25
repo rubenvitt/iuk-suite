@@ -75,7 +75,7 @@ vi.mock("../../../_actions/codes", () => ({
  * Aktionen aus Planteil 3 rufen KEIN `revalidatePath` (`/usr/bin/grep -n revalidatePath
  * src/app/m/radio/_actions/codes.ts` → nichts, gemessen 2026-08-26), und V20 fasst
  * `_actions/` nicht an (`.superpowers/sdd/planteil4/VORABSCAN.md:640`). Dieselbe Form wie
- * `geraete/GeraeteTabelle.test.tsx:91-95`.
+ * `geraete/GeraeteTabelle.test.tsx` (dort `vi.hoisted` und `vi.mock("next/navigation")`).
  */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: refreshMock }),

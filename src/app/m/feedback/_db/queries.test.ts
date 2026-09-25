@@ -26,6 +26,10 @@ import {
   listKnownUsers,
   setGroupMembers,
   listGroupMembers,
+  abendAmTag,
+  trageAbendNach,
+  TagBelegt,
+  updateEvening,
 } from "./queries";
 import { parseFachgruppen } from "@/core/auth/fachgruppen";
 import { computeClosesAt, type EveningStatus } from "@/app/m/feedback/_lib/lifecycle";
@@ -673,7 +677,8 @@ describe("createAndStartSurvey", () => {
   it("Invariante: zwei Starts derselben Gruppe hinterlassen genau eine aktive Umfrage", () => {
     const g = mkGroup();
     const first = start(g.id);
-    const second = start(g.id);
+    // Ein anderer Tag: am selben Tag verweigert die Tagesregel den zweiten Abend.
+    const second = start(g.id, { date: new Date("2026-07-21T00:00:00Z") });
 
     expect(countActive(g.id)).toBe(1);
     const s1 = getSurvey(db, first.surveyId)!;
@@ -688,7 +693,7 @@ describe("createAndStartSurvey", () => {
     const groupB = mkGroup("B", "b");
     const inB = start(groupB.id);
     start(groupA.id);
-    start(groupA.id);
+    start(groupA.id, { date: new Date("2026-07-21T00:00:00Z") });
 
     expect(countActive(groupB.id)).toBe(1);
     expect(getSurvey(db, inB.surveyId)!.status).toBe("active");
@@ -721,6 +726,129 @@ describe("createAndStartSurvey", () => {
     expect(after.status).toBe("draft");
     expect(after.closedAt).toBeNull();
     expect(after.activatedAt).toBeNull();
+  });
+
+  /*
+   * HÖCHSTENS EIN ABEND JE GRUPPE UND TAG (DRK-429). Der Alltagsfall: der
+   * Donnerstag ist geplant, und am Donnerstag drückt die Leitung „Feedback
+   * starten" statt „Freigeben". Vorher standen danach zwei Zeilen im Verlauf.
+   */
+  describe("an einem Tag, an dem schon ein Abend steht", () => {
+    const abend = (groupId: number, status: EveningStatus, d = date) =>
+      insertEvening(db, { groupId, date: d, topic: "Geplant", notes: "Raum 2", participantCount: null, status, createdAt: new Date(0) });
+    const zeilen = (groupId: number) =>
+      (sqlite.prepare("SELECT COUNT(*) AS c FROM evenings WHERE group_id = ?").get(groupId) as { c: number }).c;
+
+    it("übernimmt einen GEPLANTEN Abend und gibt ihn frei, statt einen zweiten anzulegen", () => {
+      const g = mkGroup();
+      const geplant = abend(g.id, "planned");
+
+      const ergebnis = start(g.id);
+
+      expect(ergebnis).toMatchObject({ eveningId: geplant.id, uebernommen: true });
+      expect(zeilen(g.id)).toBe(1);
+      const eve = getEvening(db, geplant.id)!;
+      expect(eve.status).toBe("held");
+      expect(eve.topic).toBe("Funk");
+      expect(eve.notes).toBe("Raum 2");
+      expect(eve.participantCount).toBe(12);
+      const s = getSurvey(db, ergebnis.surveyId)!;
+      expect(s.eveningId).toBe(geplant.id);
+      expect(s.status).toBe("active");
+      expect(s.closesAt).toEqual(computeClosesAt(date, 48));
+    });
+
+    it("lässt das geplante Thema stehen, wenn beim Start keins eingetragen wird", () => {
+      const g = mkGroup();
+      const geplant = abend(g.id, "planned");
+      start(g.id, { topic: null });
+      expect(getEvening(db, geplant.id)!.topic).toBe("Geplant");
+    });
+
+    it("schließt auch bei der Übernahme die laufende Umfrage der Gruppe", () => {
+      const g = mkGroup();
+      const vorher = start(g.id, { date: new Date("2026-07-13T00:00:00Z") });
+      abend(g.id, "planned");
+      const nachher = start(g.id);
+      expect(getSurvey(db, vorher.surveyId)!.status).toBe("closed");
+      expect(getSurvey(db, nachher.surveyId)!.status).toBe("active");
+      expect(countActive(g.id)).toBe(1);
+    });
+
+    it.each(["held", "cancelled"] as const)("verweigert einen Tag mit %s-Abend und schreibt nichts", (status) => {
+      const g = mkGroup();
+      const vorhanden = abend(g.id, status);
+      expect(() => start(g.id)).toThrow(TagBelegt);
+      expect(zeilen(g.id)).toBe(1);
+      expect(getEvening(db, vorhanden.id)!.status).toBe(status);
+      expect(countActive(g.id)).toBe(0);
+    });
+
+    it("vergleicht den Kalendertag der Suite-Zone, nicht den Zeitstempel", () => {
+      const g = mkGroup();
+      // Importiert als 2026-07-20 00:30 +0200 — in UTC der 19., in Berlin der 20.
+      abend(g.id, "held", new Date("2026-07-19T22:30:00Z"));
+      expect(() => start(g.id)).toThrow(TagBelegt);
+    });
+
+    it("lässt denselben Tag einer ANDEREN Gruppe zu", () => {
+      const a = mkGroup("A", "a");
+      const b = mkGroup("B", "b");
+      abend(a.id, "held");
+      expect(start(b.id).uebernommen).toBe(false);
+    });
+  });
+});
+
+describe("Tagesregel bei Nachtragen und Verschieben (DRK-429)", () => {
+  const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const neu = (groupId: number, iso: string, status: EveningStatus = "held") =>
+    insertEvening(db, { groupId, date: tag(iso), topic: null, notes: null, participantCount: null, status, createdAt: new Date(0) });
+
+  it("trageAbendNach legt an einem freien Tag an", () => {
+    const g = mkGroup();
+    const e = trageAbendNach(db, { groupId: g.id, date: tag("2026-07-20"), topic: "Funk", notes: null, participantCount: 7, createdAt: new Date(0) });
+    expect(getEvening(db, e.id)!.status).toBe("held");
+  });
+
+  it.each(["planned", "held", "cancelled"] as const)("trageAbendNach verweigert einen Tag mit %s-Abend", (status) => {
+    const g = mkGroup();
+    const vorhanden = neu(g.id, "2026-07-20", status);
+    let fehler: unknown;
+    try {
+      trageAbendNach(db, { groupId: g.id, date: tag("2026-07-20"), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    } catch (e) {
+      fehler = e;
+    }
+    expect(fehler).toBeInstanceOf(TagBelegt);
+    expect((fehler as TagBelegt).abend.id).toBe(vorhanden.id);
+    expect(listEvenings(db, g.id)).toHaveLength(1);
+  });
+
+  it("updateEvening verweigert das Verschieben auf einen belegten Tag", () => {
+    const g = mkGroup();
+    neu(g.id, "2026-07-20");
+    const zweiter = neu(g.id, "2026-07-27");
+    expect(() => updateEvening(db, zweiter.id, { date: tag("2026-07-20"), topic: "neu" })).toThrow(TagBelegt);
+    const danach = getEvening(db, zweiter.id)!;
+    expect(danach.date).toEqual(tag("2026-07-27"));
+    expect(danach.topic).toBeNull();
+  });
+
+  it("updateEvening lässt das eigene Datum und einen freien Tag zu", () => {
+    const g = mkGroup();
+    const e = neu(g.id, "2026-07-20");
+    updateEvening(db, e.id, { date: tag("2026-07-20"), topic: "gleich" });
+    updateEvening(db, e.id, { date: tag("2026-07-21") });
+    expect(getEvening(db, e.id)!).toMatchObject({ topic: "gleich", date: tag("2026-07-21") });
+  });
+
+  it("abendAmTag sieht keine andere Gruppe", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    neu(a.id, "2026-07-20");
+    expect(abendAmTag(db, b.id, tag("2026-07-20"))).toBeUndefined();
+    expect(abendAmTag(db, a.id, tag("2026-07-21"))).toBeUndefined();
   });
 });
 

@@ -471,8 +471,8 @@ export function SuiteNav({
     icon: <LogoutOutlined />,
     label: "Abmelden",
     "data-testid": "abmelden",
-    // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
-    // ohne ihn endet der Logout auf einer 404 (siehe oidc-signout/route.ts).
+    // Ueber `oidc-signout`, damit auch die Sitzung bei Pocket ID endet — sonst
+    // meldet der naechste Login-Klick wortlos dieselbe Person wieder an.
     // `void`, nicht das Promise schweben lassen: scheitert `signOut` (Netz weg,
     // Endpunkt tot), ist die Ablehnung sonst unbehandelt und landet je nach
     // Laufzeit als `unhandledrejection` in der Konsole — an einer Stelle, an
@@ -565,7 +565,7 @@ export function SuiteNav({
            *
            * Der Grund ist nicht, dass die anderen Module kaputt waeren — wer
            * abgemeldet auf `feedback` klickt, landet auf `/login`
-           * (requireFeedbackAccess.ts:35), also genau dort, wohin dieser Knopf
+           * (`requireFeedbackAccess`, Login-Redirect), also genau dort, wohin
            * direkt fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum
            * Login umleiten, verspricht "hier kannst du hin" und liefert "hier
            * musst du dich erst anmelden". Der eine Knopf sagt dasselbe

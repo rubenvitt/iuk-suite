@@ -285,9 +285,9 @@ describe("authConfig — session-Callback", () => {
     expect(sitzung.user.id).toBe("u-1");
   });
 
-  it("reicht einen Fehlervermerk durch — RefreshTokenError kommt seit DRK-284 nie hier an", async () => {
+  it("reicht keinen Fehlervermerk an den Browser — dort liest ihn seit DRK-444 niemand", async () => {
     const sitzung = (await bauen({ error: "RefreshTokenError" })) as { error?: string };
-    expect(sitzung.error).toBe("RefreshTokenError");
+    expect(sitzung.error).toBeUndefined();
   });
 
   it("setzt isAdmin nicht ohne die Suite-Admin-Gruppe", async () => {

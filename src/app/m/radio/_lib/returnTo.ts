@@ -14,7 +14,7 @@
  *
  * ⛔ AUFLAGE AN DEN AUFRUFER (A9/A10): DIE HAELFTE `typeof raw !== "string"` IST TRAGEND.
  * `formData.get("returnTo")` liefert `string | File | null`
- * (Bestandsform: `src/app/m/lagerbuch/_actions/gate.ts:51` umhuellt den Wert deshalb mit
+ * (Bestandsform: `einloesenAmGate` in `lagerbuch/_actions/gate.ts` umhuellt den Wert deshalb mit
  * `String(...)`), und `searchParams` liefert bei doppelt gesetztem Parameter ein Array.
  * Ohne diese Haelfte ist der Nicht-String kein `null`, sondern ein geworfener
  * `TypeError: raw.startsWith is not a function` — an einer ANONYM erreichbaren Flaeche.

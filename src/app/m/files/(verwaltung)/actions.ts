@@ -1,5 +1,6 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
+import { TITEL_MAX_LAENGE, titelZuLang } from "@/core/titel";
 
 /**
  * DIE SERVER ACTIONS DER FILESHARE-VERWALTUNG (Spec §7.1).
@@ -44,7 +45,13 @@ import { requireFilesAccess } from "../_lib/access";
 import { reiheAvEin } from "../_lib/av";
 import { grenzen } from "../_lib/grenzen";
 import { bcryptHash } from "../_lib/passwort";
-import { loesche, loescheShareVerzeichnis } from "../_lib/storage";
+import {
+  SchreibbesitzBelegt,
+  loesche,
+  loescheShareVerzeichnis,
+  mitSchreibbesitzAller,
+  type BlobZiel,
+} from "../_lib/storage";
 
 /**
  * Der Ausgang eines Formularlaufs.
@@ -69,6 +76,14 @@ export type AnlegenErgebnis =
  * Zeile heraus. Dieselbe Bauform wie `GANZZAHL` in `_lib/grenzen.ts`.
  */
 const GANZZAHL = /^\d+$/;
+
+/**
+ * Beim Anlegen UND beim Bearbeiten (DRK-402, Begruendung in `core/titel.ts`).
+ * Das Feld laesst keinen laengeren Titel entstehen; ankommen kann er nur am
+ * Feld vorbei — oder als Bestandstitel, der beim naechsten Speichern mitgeht.
+ * Deshalb eine Meldung statt eines Wurfs: gekuerzt wird von Hand, nie still.
+ */
+const TITEL_ZU_LANG = `Der Titel darf höchstens ${TITEL_MAX_LAENGE} Zeichen haben.`;
 
 /**
  * Mindestlaenge eines NEU gesetzten Share-Passworts (§7.1: „Passwort optional,
@@ -153,6 +168,7 @@ export async function anlegenAction(formData: FormData): Promise<AnlegenErgebnis
 
     const titel = werte.title.trim();
     if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
+    else if (titelZuLang(titel)) feldFehler.title = TITEL_ZU_LANG;
 
     /*
      * Die Laufzeit wird bei JEDEM Speichern gedeckelt, nicht nur hier: `updateShare`
@@ -433,6 +449,7 @@ export async function bearbeitenAction(
     if (formData.has("title")) {
       const titel = werte.title.trim();
       if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
+      else if (titelZuLang(titel)) feldFehler.title = TITEL_ZU_LANG;
       else aenderung.title = titel;
     }
 
@@ -634,32 +651,60 @@ export async function shareLoeschenAction(
       .where(eq(shareFiles.shareId, id))
       .all();
 
-    for (const datei of dateien) {
-      await loesche({ art: "share", shareId: id, fileId: datei.id });
-    }
-
     /*
-     * Nach der Schleife, nie darin: `rmdir` gelingt erst, wenn die letzte Datei
-     * weg ist. Ein Fehlschlag darf das Loeschen NICHT scheitern lassen — die
-     * Zeilen sind der teurere Zustand, und der Vorgang liesse sich sonst nicht
-     * abschliessen. Er darf aber auch nicht still bleiben, sonst sucht der
-     * Betreiber die Ursache der steigenden „verwaisten Blobs" im Aufraeum-Bericht
-     * und findet sie nie. Dieselbe Linie wie `raeumeBytesWeg` in
-     * `api/u/[token]/upload/route.ts`.
+     * IM SCHREIBBESITZ ALLER DATEIEN, Bytes UND Zeilen (DRK-448). Ohne ihn lief
+     * ein Chunk, der die Zeile noch offen sah, nach dem Loeschen der Bytes weiter,
+     * legte eine neue Zwischendatei an — und das Sammel-DELETE darunter nahm ihm
+     * die Zeile. Uebrig blieb ein Verzeichnis mit Bytes, die keiner Freigabe mehr
+     * gehoeren. Neue Dateien kommen nicht hinzu: `share_files` entsteht nur mit
+     * seiner Freigabe (`anlegenAction`), die Liste oben ist also vollstaendig.
+     *
+     * Belegt heisst: gerade laeuft ein Upload. Dann wird NICHTS geloescht —
+     * gewartet wird nicht, ein langsamer Rumpf hielte die Verwaltung sonst
+     * beliebig lange fest.
      */
+    const ziele: BlobZiel[] = dateien.map((datei) => ({
+      art: "share",
+      shareId: id,
+      fileId: datei.id,
+    }));
     try {
-      await loescheShareVerzeichnis(id);
-    } catch (grund) {
-      console.error(`[files] Verzeichnis der geloeschten Freigabe ${id} blieb stehen:`, grund);
-    }
+      await mitSchreibbesitzAller(ziele, async () => {
+        for (const ziel of ziele) await loesche(ziel);
 
-    // EINE Transaktion: ein Fehler zwischen den beiden DELETEs hinterliesse sonst
-    // Dateizeilen ohne Kopf — sichtbar in keiner Ansicht und nur noch per SQL
-    // auffindbar.
-    getDb().transaction((tx) => {
-      tx.delete(shareFiles).where(eq(shareFiles.shareId, id)).run();
-      tx.delete(shares).where(eq(shares.id, id)).run();
-    });
+        /*
+         * Nach der Schleife, nie darin: `rmdir` gelingt erst, wenn die letzte Datei
+         * weg ist. Ein Fehlschlag darf das Loeschen NICHT scheitern lassen — die
+         * Zeilen sind der teurere Zustand, und der Vorgang liesse sich sonst nicht
+         * abschliessen. Er darf aber auch nicht still bleiben, sonst sucht der
+         * Betreiber die Ursache der steigenden „verwaisten Blobs" im Aufraeum-Bericht
+         * und findet sie nie. Dieselbe Linie wie `raeumeBytesWeg` in
+         * `api/u/[token]/upload/route.ts`.
+         */
+        try {
+          await loescheShareVerzeichnis(id);
+        } catch (grund) {
+          console.error(`[files] Verzeichnis der geloeschten Freigabe ${id} blieb stehen:`, grund);
+        }
+
+        // EINE Transaktion: ein Fehler zwischen den beiden DELETEs hinterliesse sonst
+        // Dateizeilen ohne Kopf — sichtbar in keiner Ansicht und nur noch per SQL
+        // auffindbar.
+        getDb().transaction((tx) => {
+          tx.delete(shareFiles).where(eq(shareFiles.shareId, id)).run();
+          tx.delete(shares).where(eq(shares.id, id)).run();
+        });
+      });
+    } catch (grund) {
+      if (!(grund instanceof SchreibbesitzBelegt)) throw grund;
+      return {
+        ok: false,
+        feldFehler: {
+          id: "Eine Datei dieser Freigabe wird gerade hochgeladen — bitte in einem Moment erneut löschen.",
+        },
+        werte,
+      };
+    }
 
     auffrischenMitUnterrouten();
     return { ok: true };

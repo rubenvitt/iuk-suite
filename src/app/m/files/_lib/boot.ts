@@ -22,7 +22,7 @@ import { withAuditContext } from "@/core/audit/server";
 
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { and, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getModule, prodHostsFor } from "@/core/registry";
 
@@ -38,17 +38,15 @@ import {
   planeAufraeumen,
   type Aufraeumzahlen,
   type Aufraeumplan,
-  type DateiKandidat,
   type InboxKandidat,
 } from "./aufraeumen";
 import { grenzen, grenzenFehler, type Grenzen } from "./grenzen";
 import { validateFilesHosts } from "./hostRolle";
 import {
   SchreibbesitzBelegt,
-  fortschritt,
   loesche,
   loescheShareVerzeichnis,
-  mitSchreibbesitz,
+  mitSchreibbesitzAller,
   pruefeAblage,
   type BlobZiel,
 } from "./storage";
@@ -268,27 +266,57 @@ export async function fuehreAufraeumLaufAus(
     inboxGeloescht: 0,
     verwaisteBlobsGemeldet: 0,
   };
-  let partsGeloescht = 0;
+  // Die Ausfuehrung zaehlt HIER HINEIN, Posten fuer Posten — ein Wurf mitten im
+  // Lauf laesst stehen, was bis dahin wirklich geschehen ist.
+  const ausgefuehrt: Ausgefuehrt = {
+    sharesGeloescht: 0,
+    dateienGeloescht: 0,
+    bytesGeloescht: 0,
+    logzeilenGeloescht: 0,
+    inboxGeloescht: 0,
+    partsGeloescht: 0,
+  };
   let fehler: string | null = null;
 
   try {
-    const { plan, dateien, inbox } = await ladeUndPlane(g, gestartet, trockenlauf);
+    const { plan, inbox } = await ladeUndPlane(g, gestartet, trockenlauf);
     /*
-     * Die Zahlen stammen aus dem PLAN, nicht aus der Ausfuehrung — im
-     * Trockenlauf gibt es keine Ausfuehrung, und nur so ist die Vorschau mit dem
-     * echten Lauf vergleichbar (§4.8). Der Preis steht hier, damit ihn niemand
-     * uebersieht: scheitert die Ausfuehrung auf halbem Weg, tragen die Spalten
-     * das VORHABEN und `fehler` sagt, dass es nicht vollstaendig ausgefuehrt
-     * wurde.
+     * ZWEI QUELLEN, und der Schalter entscheidet (DRK-448):
+     *
+     * - Im TROCKENLAUF die Zahlen des PLANS — es gibt keine Ausfuehrung, und nur
+     *   so ist die Vorschau mit dem echten Lauf vergleichbar (§4.8).
+     * - Im echten Lauf die Zahlen der AUSFUEHRUNG. Vorher standen auch hier die
+     *   des Plans, und eine Datei, die ein laufender Upload gerade hielt und die
+     *   deshalb blieb, zaehlte als geloescht — die Spalte, die der Betreiber
+     *   liest, behauptete eine Loeschung, die nicht stattfand. Scheitert die
+     *   Ausfuehrung auf halbem Weg, tragen die Spalten, was bis dahin geschah,
+     *   und `fehler` sagt, dass es nicht alles war.
+     *
+     * `verwaiste_blobs_gemeldet` ist in beiden Faellen die Zahl des Plans: ein
+     * Bericht, keine Loeschung.
      */
-    zahlen = plan.zahlen;
-    partsGeloescht = await fuehreLoeschungAus(plan, dateien, inbox);
+    zahlen = { ...plan.zahlen };
+    if (!plan.trockenlauf) {
+      await fuehreLoeschungAus(plan, inbox, ausgefuehrt);
+    }
   } catch (grund) {
     fehler = grund instanceof Error ? grund.message : String(grund);
     // Laut, weil ein stumm gescheitertes Aufraeumen sich erst meldet, wenn das
     // Volume voll ist.
     console.error("[files] Aufraeumlauf gescheitert:", grund);
   }
+
+  if (!trockenlauf) {
+    zahlen = {
+      sharesGeloescht: ausgefuehrt.sharesGeloescht,
+      dateienGeloescht: ausgefuehrt.dateienGeloescht,
+      bytesGeloescht: ausgefuehrt.bytesGeloescht,
+      logzeilenGeloescht: ausgefuehrt.logzeilenGeloescht,
+      inboxGeloescht: ausgefuehrt.inboxGeloescht,
+      verwaisteBlobsGemeldet: zahlen.verwaisteBlobsGemeldet,
+    };
+  }
+  const partsGeloescht = ausgefuehrt.partsGeloescht;
 
   bank
     .update(aufraeumLaeufe)
@@ -321,7 +349,7 @@ async function ladeUndPlane(
   g: Grenzen,
   now: Date,
   trockenlauf: boolean,
-): Promise<{ plan: Aufraeumplan; dateien: DateiKandidat[]; inbox: InboxKandidat[] }> {
+): Promise<{ plan: Aufraeumplan; inbox: InboxKandidat[] }> {
   const bank = getDb();
 
   const kandidatenShares = bank
@@ -440,7 +468,7 @@ async function ladeUndPlane(
     blobVerzeichnisse: await ablageWurzelListe(),
   });
 
-  return { plan, dateien, inbox };
+  return { plan, inbox };
 }
 
 /**
@@ -467,44 +495,70 @@ async function ablageWurzelListe(): Promise<string[]> {
   }
 }
 
+/** Was die Ausfuehrung WIRKLICH geloescht hat — dieselben Spalten wie §4.8. */
+type Ausgefuehrt = {
+  -readonly [K in Exclude<keyof Aufraeumzahlen, "verwaisteBlobsGemeldet">]: number;
+} & { partsGeloescht: number };
+
 /**
- * Fuehrt aus, was der Plan auftraegt — und liefert `parts_geloescht`.
+ * Fuehrt aus, was der Plan auftraegt — und ZAEHLT DABEI, was tatsaechlich ging
+ * (DRK-448), in `zaehlt` hinein.
  *
- * Diese Zahl kann NUR hier entstehen: `_lib/aufraeumen.ts` kennt das
- * Dateisystem nicht, und eine `.part` muss nicht existieren (die Zeile entsteht
- * vor dem ersten Byte, §7.1). Gezaehlt wird deshalb, was tatsaechlich dalag.
- *
- * GRENZE, ehrlich benannt: `fortschritt()` liefert 0 fuer „fehlt" UND fuer
- * „liegt da, ist aber leer" — eine nullbyteige `.part` (Abbruch zwischen
- * `open` und dem ersten `write`) wird nicht mitgezaehlt. Sauber waere ein
- * `loesche`, das meldet, was es entfernt hat; das ist eine Aenderung an
- * `_lib/storage.ts` und gehoert nicht in diesen Task.
+ * Gezaehlt wird an der Wirkung, nie am Auftrag: Zeilen an den `changes` des
+ * DELETE, Bytes an der `size` der Zeile, die unter dem Schreibbesitz noch da war,
+ * Zwischendateien an dem, was `loesche` wirklich entfernt hat — auch eine LEERE,
+ * die ein `fortschritt()` von einer fehlenden nicht unterscheiden koennte. Was ein
+ * laufender Upload gerade haelt, bleibt diesmal stehen und zaehlt nicht; der
+ * naechste Lauf holt es.
  */
 async function fuehreLoeschungAus(
   plan: Aufraeumplan,
-  dateien: DateiKandidat[],
   inbox: InboxKandidat[],
-): Promise<number> {
+  zaehlt: Ausgefuehrt,
+): Promise<void> {
   // Im Trockenlauf ist jede Liste leer — die Wache hier ist trotzdem richtig:
   // sie macht „ein Trockenlauf loescht nichts" unabhaengig davon, ob die Form
   // des Plans das eines Tages noch traegt.
-  if (plan.trockenlauf) return 0;
+  if (plan.trockenlauf) return;
 
   const bank = getDb();
-  let parts = 0;
 
-  // 1. Sterbende Shares: erst die Bytes jeder Datei, dann das (nun leere)
-  //    Verzeichnis, dann die Zeile — `share_files` faellt per Cascade.
-  const sterbend = new Set(plan.loeschen.shareIds);
-  for (const datei of dateien) {
-    if (!sterbend.has(datei.shareId)) continue;
-    if (await entferneBytes({ art: "share", shareId: datei.shareId, fileId: datei.id })) parts += 1;
-  }
+  // 1. Sterbende Shares, JE SHARE im Schreibbesitz ALLER seiner Dateien: erst die
+  //    Bytes, dann das (nun leere) Verzeichnis, dann die Zeilen. Ohne den Besitz
+  //    legte ein laufender Chunk nach dem Loeschen der Bytes eine neue
+  //    Zwischendatei an, deren Zeile gleich darauf verschwand (DRK-448). Neue
+  //    Dateien kommen nicht hinzu: `share_files` entsteht nur mit dem Share.
   for (const shareId of plan.loeschen.shareIds) {
-    await loescheShareVerzeichnis(shareId);
-  }
-  if (plan.loeschen.shareIds.length > 0) {
-    bank.delete(shares).where(inArray(shares.id, [...plan.loeschen.shareIds])).run();
+    const ziele: BlobZiel[] = bank
+      .select({ id: shareFiles.id })
+      .from(shareFiles)
+      .where(eq(shareFiles.shareId, shareId))
+      .all()
+      .map((datei) => ({ art: "share", shareId, fileId: datei.id }));
+    await imBesitzAllerOderNicht(ziele, async () => {
+      for (const ziel of ziele) {
+        if ((await loesche(ziel)).teil) zaehlt.partsGeloescht += 1;
+      }
+      await loescheShareVerzeichnis(shareId);
+      const { dateien, bytes, shares: weg } = bank.transaction((tx) => {
+        const stand = tx
+          .select({
+            anzahl: sql<number>`count(*)`,
+            bytes: sql<number>`coalesce(sum(${shareFiles.size}), 0)`,
+          })
+          .from(shareFiles)
+          .where(eq(shareFiles.shareId, shareId))
+          .get();
+        // Ausdruecklich, nicht per Cascade: das haengt an `PRAGMA foreign_keys`
+        // (dieselbe Linie wie `shareLoeschenAction`).
+        tx.delete(shareFiles).where(eq(shareFiles.shareId, shareId)).run();
+        const geloescht = tx.delete(shares).where(eq(shares.id, shareId)).run();
+        return { dateien: stand?.anzahl ?? 0, bytes: stand?.bytes ?? 0, shares: geloescht.changes };
+      });
+      zaehlt.sharesGeloescht += weg;
+      zaehlt.dateienGeloescht += dateien;
+      zaehlt.bytesGeloescht += bytes;
+    });
   }
 
   // 2. Einzelne verfallene Uploads an UEBERLEBENDEN Shares — je Datei im
@@ -514,23 +568,26 @@ async function fuehreLoeschungAus(
   //    Datei noch offen ist — sonst naehme der Lauf eine eben fertig gewordene mit.
   for (const ziel of plan.loeschen.parts) {
     if (ziel.art !== "share") continue;
-    const weg = await imBesitzOderNicht(ziel, async () => {
+    await imBesitzAllerOderNicht([ziel], async () => {
       const nochOffen = bank
-        .select({ id: shareFiles.id })
+        .select({ size: shareFiles.size })
         .from(shareFiles)
         .where(and(eq(shareFiles.id, ziel.fileId), isNull(shareFiles.bytesVollstaendigAt)))
         .get();
-      if (nochOffen === undefined) return false;
-      const lagDa = await entferneBytes(ziel);
-      bank.delete(shareFiles).where(eq(shareFiles.id, ziel.fileId)).run();
-      return lagDa;
+      if (nochOffen === undefined) return;
+      if ((await loesche(ziel)).teil) zaehlt.partsGeloescht += 1;
+      const weg = bank.delete(shareFiles).where(eq(shareFiles.id, ziel.fileId)).run().changes;
+      zaehlt.dateienGeloescht += weg;
+      zaehlt.bytesGeloescht += weg * nochOffen.size;
     });
-    if (weg) parts += 1;
   }
 
   // 3. Audit-Logzeilen — ohne Bytes, mit eigener Frist.
   if (plan.loeschen.logzeilenIds.length > 0) {
-    bank.delete(downloadLogs).where(inArray(downloadLogs.id, [...plan.loeschen.logzeilenIds])).run();
+    zaehlt.logzeilenGeloescht += bank
+      .delete(downloadLogs)
+      .where(inArray(downloadLogs.id, [...plan.loeschen.logzeilenIds]))
+      .run().changes;
   }
 
   // 4. Inbox — abgeschlossene nach ihrer Aufbewahrung, offene nach ihrer
@@ -542,42 +599,35 @@ async function fuehreLoeschungAus(
   for (const id of plan.loeschen.inboxIds) {
     const ziel: BlobZiel = { art: "inbox", inboxFileId: id };
     const offenVerplant = warOffen.get(id) === true;
-    const weg = await imBesitzOderNicht(ziel, async () => {
-      if (offenVerplant) {
-        const nochOffen = bank
-          .select({ id: inboxFiles.id })
-          .from(inboxFiles)
-          .where(and(eq(inboxFiles.id, id), isNull(inboxFiles.bytesVollstaendigAt)))
-          .get();
-        if (nochOffen === undefined) return false;
-      }
-      const lagDa = await entferneBytes(ziel);
-      bank.delete(inboxFiles).where(eq(inboxFiles.id, id)).run();
-      return lagDa;
+    await imBesitzAllerOderNicht([ziel], async () => {
+      const jetzt = bank
+        .select({ size: inboxFiles.size, bytesVollstaendigAt: inboxFiles.bytesVollstaendigAt })
+        .from(inboxFiles)
+        .where(eq(inboxFiles.id, id))
+        .get();
+      if (jetzt === undefined) return;
+      if (offenVerplant && jetzt.bytesVollstaendigAt !== null) return;
+      if ((await loesche(ziel)).teil) zaehlt.partsGeloescht += 1;
+      const weg = bank.delete(inboxFiles).where(eq(inboxFiles.id, id)).run().changes;
+      zaehlt.inboxGeloescht += weg;
+      zaehlt.bytesGeloescht += weg * jetzt.size;
     });
-    if (weg) parts += 1;
   }
-
-  return parts;
 }
 
 /**
- * `arbeit` im Schreibbesitz der Datei — oder gar nicht, wenn gerade ein Upload
- * sie haelt (DRK-289). `false` heisst dann „diesmal nicht"; der naechste Lauf
- * holt sie.
+ * `arbeit` im Schreibbesitz aller `ziele` — oder gar nicht, wenn gerade ein
+ * Upload eine davon haelt (DRK-289). Dann bleibt alles stehen; der naechste
+ * Lauf holt es.
  */
-async function imBesitzOderNicht(ziel: BlobZiel, arbeit: () => Promise<boolean>): Promise<boolean> {
+async function imBesitzAllerOderNicht(
+  ziele: readonly BlobZiel[],
+  arbeit: () => Promise<void>,
+): Promise<void> {
   try {
-    return await mitSchreibbesitz(ziel, arbeit);
+    await mitSchreibbesitzAller(ziele, arbeit);
   } catch (grund) {
-    if (grund instanceof SchreibbesitzBelegt) return false;
+    if (grund instanceof SchreibbesitzBelegt) return;
     throw grund;
   }
-}
-
-/** Loescht Blob UND Zwischendatei; liefert, ob eine `.part` dalag. */
-async function entferneBytes(ziel: BlobZiel): Promise<boolean> {
-  const lagDa = (await fortschritt(ziel)) > 0;
-  await loesche(ziel);
-  return lagDa;
 }

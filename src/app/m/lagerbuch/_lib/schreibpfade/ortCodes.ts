@@ -4,7 +4,8 @@ import { customAlphabet } from "nanoid";
 import type { DB } from "../../_db/client";
 import { newId, tokens } from "../../_db/schema";
 import { etikettOrte, type EtikettOrtZeile } from "../lesepfade/ortEtiketten";
-import { TOKEN_ALPHABET, TOKEN_ZIEHUNGEN, TOKEN_ZIFFERN } from "../tokenForm";
+import { gruppiereCode, istLangerCode } from "../code";
+import { TOKEN_ALPHABET, TOKEN_ZEICHEN, TOKEN_ZIEHUNGEN } from "../tokenForm";
 
 /**
  * DIE ORTSCODES — DRK-406. Ein aktiver Zugangs-Code je Ortskarte, ohne
@@ -44,22 +45,25 @@ import { TOKEN_ALPHABET, TOKEN_ZIEHUNGEN, TOKEN_ZIFFERN } from "../tokenForm";
  * gefunden ist — sie wirft nicht, die Aufrufer verwandeln das in einen
  * benannten deutschen Fehler.
  *
- * ⚠️ `customAlphabet` AUS nanoid, NIE `Math.random()`. Der Coderaum ist 10^6,
- * und die Sicherheit gegen Raten liegt ausdrücklich nicht in der Länge, sondern
- * in der Drosselung davor (§3.5.3, `_lib/tokenForm.ts`) — ein vorhersagbarer
- * Generator nähme der Drosselung ihre Grundlage, weil sie dann das Falsche
- * erschwert. nanoid zieht aus `crypto.getRandomValues` und verteilt
- * gleichmäßig; ein `Math.random()`-Nachbau ist typkorrekt, lint-sauber und in
- * keinem Tor von dieser Zeile zu unterscheiden.
+ * ⚠️ `customAlphabet` AUS nanoid, NIE `Math.random()`. Seit DRK-442 IST der
+ * Coderaum die Abwehr (140 bit, `_lib/tokenForm.ts`): die Schranke laesst eine
+ * Eingabe in dieser Form ungebremst an die Datenbank — ein vorhersagbarer
+ * Generator naehme dem Coderaum also die EINZIGE Grundlage, die er noch hat.
+ * nanoid zieht aus `crypto.getRandomValues` und verteilt gleichmaessig; ein
+ * `Math.random()`-Nachbau ist typkorrekt, lint-sauber und in keinem Tor von
+ * dieser Zeile zu unterscheiden.
+ *
+ * ⚠️ DIE KOLLISIONSPRUEFUNG BLEIBT, obwohl sie bei 2^140 nie anschlaegt. Sie
+ * ist billig, und sie ist der Riegel gegen einen kaputten Generator — ein
+ * `UNIQUE`-Wurf beim `INSERT` waere die schlechtere Fehlerform.
  */
-const sechsZiffern = customAlphabet(TOKEN_ALPHABET, TOKEN_ZIFFERN);
+const zeichen = customAlphabet(TOKEN_ALPHABET, TOKEN_ZEICHEN);
 
 function ziehFreienCode(db: DB): string | null {
   for (let versuch = 0; versuch < TOKEN_ZIEHUNGEN; versuch++) {
-    const ziffern = sechsZiffern();
     // Der Bindestrich ist Teil des GESPEICHERTEN Werts (§4.7), nicht der
-    // Anzeige — `normalisiereCode` fügt ihn beim Einlösen wieder ein.
-    const code = `${ziffern.slice(0, 3)}-${ziffern.slice(3)}`;
+    // Anzeige — `normalisiereCode` setzt ihn beim Einlösen wieder ein.
+    const code = gruppiereCode(zeichen());
     const belegt = db.select({ id: tokens.id })
       .from(tokens)
       .where(eq(tokens.code, code))
@@ -140,7 +144,7 @@ function legeAn(db: DB, ort: EtikettOrtZeile, ausstellerSub: string): string | n
  * ⚠️ SIE GIBT JEDEN FEHLSCHLAG ALS `null` ZURÜCK UND WIRFT NIE. Das ist der
  * Unterschied, der an dieser Stelle zählt: die Einheit ist das, was jemand
  * anlegen wollte, der Code ist die Beigabe. Ein Wurf machte aus einer
- * erschöpften Ziehung — 20 Fehlversuche in einem Coderaum von 10^6 — einen
+ * erschöpften Ziehung — 20 Fehlversuche in Folge — einen
  * fehlgeschlagenen Anlegevorgang. Der Nachzug beim Öffnen der Ortsetiketten
  * holt es beim nächsten Mal.
  *
@@ -350,4 +354,39 @@ export function setzeOrtCodeNeu(
     if (e instanceof ZiehungErschoepft) return null;
     throw e;
   }
+}
+
+/**
+ * DER NEUDRUCK — DRK-442. Jeder Ort, dessen aktiver Code noch die ALTE Form hat
+ * (6 Ziffern), bekommt einen langen; der alte wird verbrannt wie bei jedem
+ * Zurücksetzen.
+ *
+ * ⚠️ ÜBER `setzeOrtCodeNeu` JE ORT, NICHT ALS EIGENES `UPDATE`. Jene Funktion
+ * trägt die ganze Sorgfalt des Zurücksetzens — `ersetzt_am`, der gesehene
+ * Code als Bedingung, die Transaktion je Ort. Eine Sammelfassung daneben wäre
+ * die Stelle, an der beide auseinanderlaufen.
+ *
+ * ⚠️ JEDER ORT IST EINE EIGENE TRANSAKTION, und das ist gewollt: scheitert der
+ * zwölfte, sind die elf davor trotzdem lang — und die Seite zählt nur, was
+ * wirklich neu ist. Ein veralteter Stand (jemand war schneller) ist kein
+ * Fehler: der Ort hat dann schon einen neuen Code, und der ist lang.
+ *
+ * ⚠️ NUR ORTSCODES. Der Altbestand ohne Karte hat keinen Nachfolger, an den
+ * sein Code übergehen könnte; er bleibt, bis jemand ihn sperrt.
+ *
+ * @returns Wie viele Codes neu entstanden sind — so viele Karten müssen neu
+ *   gedruckt werden.
+ */
+export function ersetzeAlteOrtCodes(db: DB, ausstellerSub: string): number {
+  let neu = 0;
+  for (const ort of etikettOrte(db)) {
+    const bisher = aktiverOrtCode(db, ort.id);
+    if (!bisher || istLangerCode(bisher)) continue;
+    try {
+      if (setzeOrtCodeNeu(db, ort, ausstellerSub, bisher)) neu++;
+    } catch (e) {
+      if (!(e instanceof StandVeraltet)) throw e;
+    }
+  }
+  return neu;
 }

@@ -397,8 +397,8 @@ describe("/t/<code> — Schritt 6: Misserfolg", () => {
     );
 
     expect(gateGesperrt).toHaveBeenCalledTimes(1);
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: null });   // `absender.ts:48-51`
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: null });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: null, eingabe: "000-000" });   // `absender.ts:48-51`
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: null, eingabe: "000-000" });
     expect(gateFehlversuchBuchen).toHaveBeenCalledWith(...gateGesperrt.mock.calls[0]!);
   });
 
@@ -427,8 +427,8 @@ describe("/t/<code> — das Merkmal „bekanntes Gerät\" (DRK-291)", () => {
       ctx("000-000"),
     );
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: "geraet:abc" });
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: "geraet:abc" });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: "geraet:abc", eingabe: "000-000" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: "geraet:abc", eingabe: "000-000" });
     expect(gateFehlversuchBuchen.mock.calls[0]?.[1]).toEqual(gateGesperrt.mock.calls[0]?.[1]);
     // Misserfolg: KEIN Gerätecookie — das Merkmal gibt es nur für einen richtigen Code.
     expect(r.headers.get("set-cookie")).toBeNull();

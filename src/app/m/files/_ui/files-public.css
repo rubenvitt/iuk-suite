@@ -30,7 +30,7 @@
  * sie ins Leere auf — und der Fehler ist still, die Haarlinie verschwindet
  * einfach.
  *
- * DUNKELMODUS ueber `:root[data-theme="dark"]` (gesetzt in `app/layout.tsx:71`),
+ * DUNKELMODUS ueber `:root[data-theme="dark"]` (gesetzt am `<html>` in `app/layout.tsx`),
  * bewusst NICHT ueber `prefers-color-scheme`: die Suite hat einen
  * Cookie-Umschalter, sonst bricht der Fall „System dunkel, Umschalter hell".
  * Die Hellwerte liegen zusaetzlich auf dem nackten `:root`, damit ein Kontext

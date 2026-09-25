@@ -25,7 +25,7 @@ const IPV4_MAPPED_MARKER = 0xffff;
  *
  * ⬜ LEERSTELLE (W3, `.superpowers/sdd/REVIEW-ratelimit.md`, nachtraeglich
  * verschaerft durch `docs/superpowers/berichte/2026-08-22-client-ip-hinter-cloudflare.md`):
- * seit der CWE-348-Umstellung (`clientIpAus`, `src/core/ratelimit.ts:80-83`)
+ * seit der CWE-348-Umstellung (`clientIpAus` in `src/core/ratelimit.ts`)
  * liefert `roh` ohne `cf-connecting-ip` den Sammelwert `"unknown"` —
  * `ipKuerzen("unknown")` ergibt `null`, weder `isIPv4` noch `isIPv6`
  * erkennen ihn. Auf dem APEX heisst das: die Auditspalten `client_ip_unbestaetigt`

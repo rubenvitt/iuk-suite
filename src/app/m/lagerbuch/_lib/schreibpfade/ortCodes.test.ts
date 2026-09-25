@@ -5,7 +5,8 @@ import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import type { DB } from "../../_db/client";
 import { lagerorte, tokens } from "../../_db/schema";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../konstanten";
-import { TOKEN_ALPHABET, TOKEN_ZIEHUNGEN, TOKEN_ZIFFERN } from "../tokenForm";
+import { TOKEN_ALPHABET, TOKEN_ZEICHEN, TOKEN_ZIEHUNGEN } from "../tokenForm";
+import { gruppiereCode, istLangerCode } from "../code";
 
 /**
  * DIE ORTSCODES — DRK-406.
@@ -35,7 +36,8 @@ vi.mock("nanoid", async () => {
 });
 
 import {
-  aktiverOrtCode, setzeOrtCodeNeu, StandVeraltet, stelleOrtCodeSicher, stelleOrtCodesSicher,
+  aktiverOrtCode, ersetzeAlteOrtCodes, setzeOrtCodeNeu, StandVeraltet, stelleOrtCodeSicher,
+  stelleOrtCodesSicher,
 } from "./ortCodes";
 import { etikettOrt } from "../lesepfade/ortEtiketten";
 
@@ -71,13 +73,14 @@ function ohneKommentare(quelle: string): string {
 }
 
 const AUSSTELLER = "u-admin";
+const EINSEN = "1".repeat(TOKEN_ZEICHEN);
 
 let t: TestDb;
 
 beforeEach(() => {
   ziffernGenerator.mockReset();
   let naechster = 1;
-  ziffernGenerator.mockImplementation(() => String(naechster++).padStart(6, "0"));
+  ziffernGenerator.mockImplementation(() => String(naechster++).padStart(TOKEN_ZEICHEN, "0"));
   t = migrierteTestDb("lagerbuch-ortcodes-");
 });
 
@@ -111,17 +114,17 @@ function ortVon(id: string) {
   return ort;
 }
 
-describe("die Codeform (§8.3) — unverändert, nur an der neuen Stelle", () => {
+describe("die Codeform (§8.3, seit DRK-442 lang)", () => {
   it("konfiguriert den Generator aus den Konstanten, nicht aus Literalen", () => {
     const quelle = readFileSync(QUELLE, "utf8");
 
     expect(quelle).toContain('from "../tokenForm"');
-    expect(quelle).toMatch(/customAlphabet\(\s*TOKEN_ALPHABET\s*,\s*TOKEN_ZIFFERN\s*\)/);
+    expect(quelle).toMatch(/customAlphabet\(\s*TOKEN_ALPHABET\s*,\s*TOKEN_ZEICHEN\s*\)/);
     expect(quelle, "das Alphabet steht nur noch in _lib/tokenForm.ts")
       .not.toMatch(/customAlphabet\(\s*["']/);
     expect(generatorKonfiguration).toContainEqual({
       alphabet: TOKEN_ALPHABET,
-      laenge: TOKEN_ZIFFERN,
+      laenge: TOKEN_ZEICHEN,
     });
   });
 
@@ -137,10 +140,10 @@ describe("die Codeform (§8.3) — unverändert, nur an der neuen Stelle", () =>
     expect(ohneKommentare(readFileSync(QUELLE, "utf8"))).not.toContain("Math.random");
   });
 
-  it("speichert den Code in der Form NNN-NNN", () => {
+  it("speichert den Code in der langen Form, in Vierergruppen (DRK-442)", () => {
     const code = stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
 
-    expect(code).toMatch(/^\d{3}-\d{3}$/);
+    expect(istLangerCode(code!)).toBe(true);
     expect(
       t.db.select().from(tokens).where(eq(tokens.code, code!)).get(),
       "der Bindestrich muss in der Spalte stehen",
@@ -148,8 +151,8 @@ describe("die Codeform (§8.3) — unverändert, nur an der neuen Stelle", () =>
   });
 
   it("zieht höchstens TOKEN_ZIEHUNGEN mal", () => {
-    ziffernGenerator.mockReturnValue("111111");
-    expect(stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)).toBe("111-111");
+    ziffernGenerator.mockReturnValue(EINSEN);
+    expect(stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)).toBe(gruppiereCode(EINSEN));
 
     einheit({ id: "rtw-1", name: "RTW 1" });
     ziffernGenerator.mockClear();
@@ -197,7 +200,7 @@ describe("stelleOrtCodesSicher — idempotent und rein additiv", () => {
 
     for (const id of [HANDLAGER_ID, ENTNAHMEBOX_ID, "rtw-1", "ta-1"]) {
       expect(zeilenVon(id), id).toHaveLength(1);
-      expect(aktiverOrtCode(t.db, id), id).toMatch(/^\d{3}-\d{3}$/);
+      expect(istLangerCode(aktiverOrtCode(t.db, id)!), id).toBe(true);
     }
   });
 
@@ -316,8 +319,8 @@ describe("stelleOrtCodeSicher — wirft nie, auch nicht am INSERT", () => {
   });
 
   it("gibt `null` zurück, wenn die Ziehung erschöpft ist", () => {
-    ziffernGenerator.mockReturnValue("111111");
-    expect(stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)).toBe("111-111");
+    ziffernGenerator.mockReturnValue(EINSEN);
+    expect(stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)).toBe(gruppiereCode(EINSEN));
 
     einheit({ id: "rtw-2", name: "RTW 2" });
     expect(() => stelleOrtCodeSicher(t.db, ortVon("rtw-2"), AUSSTELLER)).not.toThrow();
@@ -501,7 +504,7 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
    */
   it("rollt vollständig zurück, wenn kein freier Code mehr zu ziehen ist", () => {
     const alt = stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)!;
-    ziffernGenerator.mockReturnValue(alt.replace("-", ""));
+    ziffernGenerator.mockReturnValue(alt.replaceAll("-", ""));
 
     expect(setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER, alt)).toBeNull();
 
@@ -510,5 +513,67 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
     // Auch die Markierung ist zurückgerollt — sonst stünde ein gültiger,
     // aktiver Code als „ersetzt" da und wäre nie wieder zu reaktivieren.
     expect(zeilenVon(HANDLAGER_ID)[0]!.ersetztAm).toBeNull();
+  });
+});
+
+/**
+ * DER NEUDRUCK AUF LANGE CODES — DRK-442. Vorbedingung ist ein Bestand, wie ihn
+ * DRK-406 hinterlassen hat: Ortscodes in der alten, 6-stelligen Form.
+ */
+describe("ersetzeAlteOrtCodes", () => {
+  function alterOrtCode(ortId: string, code: string): void {
+    t.db.insert(tokens).values({
+      id: `alt-${ortId}`, code, label: ortId, ortId, zielTyp: null, zielId: null,
+      aktiv: true, createdAt: new Date(), createdBy: AUSSTELLER,
+    }).run();
+  }
+
+  it("ersetzt jeden alten Ortscode durch einen langen und verbrennt den alten", () => {
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    alterOrtCode(HANDLAGER_ID, "111-222");
+    alterOrtCode("rtw-1", "333-444");
+
+    expect(ersetzeAlteOrtCodes(t.db, AUSSTELLER)).toBe(2);
+
+    for (const [ort, alt] of [[HANDLAGER_ID, "111-222"], ["rtw-1", "333-444"]] as const) {
+      expect(istLangerCode(aktiverOrtCode(t.db, ort)!), ort).toBe(true);
+      const alte = t.db.select().from(tokens).where(eq(tokens.code, alt)).get()!;
+      expect(alte.aktiv).toBe(false);
+      expect(alte.ersetztAm, "verbrannt, nicht nur gesperrt").not.toBeNull();
+      expect(alte.ortId, "die alte Zeile behält ihre Karte").toBe(ort);
+    }
+  });
+
+  it("lässt lange Ortscodes und den Altbestand ohne Karte stehen", () => {
+    const lang = stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)!;
+    t.db.insert(tokens).values({
+      id: "hand", code: "555-666", label: "von Hand", ortId: null, zielTyp: null, zielId: null,
+      aktiv: true, createdAt: new Date(), createdBy: AUSSTELLER,
+    }).run();
+
+    expect(ersetzeAlteOrtCodes(t.db, AUSSTELLER)).toBe(0);
+    expect(aktiverOrtCode(t.db, HANDLAGER_ID)).toBe(lang);
+    expect(t.db.select().from(tokens).where(eq(tokens.id, "hand")).get()!.aktiv).toBe(true);
+  });
+
+  it("ein zweiter Durchlauf tut nichts — kein frisch erzeugter Code wird verbrannt", () => {
+    alterOrtCode(HANDLAGER_ID, "111-222");
+    expect(ersetzeAlteOrtCodes(t.db, AUSSTELLER)).toBe(1);
+    const neu = aktiverOrtCode(t.db, HANDLAGER_ID);
+    expect(ersetzeAlteOrtCodes(t.db, AUSSTELLER)).toBe(0);
+    expect(aktiverOrtCode(t.db, HANDLAGER_ID)).toBe(neu);
+  });
+
+  it("zählt einen Ort mit erschöpfter Ziehung nicht mit und lässt seinen alten Code gelten", () => {
+    alterOrtCode(HANDLAGER_ID, "111-222");
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    alterOrtCode("rtw-1", "333-444");
+    ziffernGenerator.mockReturnValue(EINSEN);
+
+    // Der erste Ort bekommt den einzigen ziehbaren Code, der zweite keinen mehr.
+    expect(ersetzeAlteOrtCodes(t.db, AUSSTELLER)).toBe(1);
+    const codes = [aktiverOrtCode(t.db, HANDLAGER_ID), aktiverOrtCode(t.db, "rtw-1")];
+    expect(codes).toContain(gruppiereCode(EINSEN));
+    expect(codes.filter((c) => c && !istLangerCode(c))).toHaveLength(1);
   });
 });

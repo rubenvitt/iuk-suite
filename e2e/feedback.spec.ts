@@ -393,7 +393,7 @@ test("geschlossene Umfrage: Zustand D — zwischen zwei Abenden dagegen Zustand 
   // nicht mehr — das Thema ueberlebt jede Formatfrage. Beide Darstellungen des
   // Verlaufs liegen gleichzeitig im HTML (CSS schaltet bei 768px), deshalb die
   // breite Zone als Bezug und nicht die ganze Seite.
-  await expect(page.locator(".fb-verlauf-breit").getByText("Kartenkunde")).toBeVisible();
+  await expect(page.locator('.fb-verlauf [data-rolle="breitansicht"]').getByText("Kartenkunde")).toBeVisible();
 
   await page.goto(`${FEEDBACK}/f/${JUGEND_TOKEN}`);
   await expect(

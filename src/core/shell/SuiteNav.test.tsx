@@ -112,8 +112,8 @@ describe("SuiteNav — angemeldet", () => {
     await zeichne();
     await oeffneNutzermenue();
     await clickPortal('[data-testid="abmelden"]');
-    // Derselbe Weg, den SessionGuard bei RefreshTokenError automatisch geht —
-    // ohne ihn endete der Logout auf einer 404 (siehe oidc-signout/route.ts).
+    // Ueber `oidc-signout`, damit auch die Sitzung bei Pocket ID endet (siehe
+    // die Begruendung in `app/api/auth/oidc-signout/route.ts`).
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/api/auth/oidc-signout" });
   });
 
@@ -474,7 +474,7 @@ describe("SuiteNav — anonym", () => {
      *
      * Anonym gibt es weiterhin KEINE Modulliste (Grund siehe SuiteNav.tsx): wer
      * abgemeldet auf `feedback` klickt, landet ohnehin auf `/login`
-     * (requireFeedbackAccess.ts:35) — genau dort, wohin dieser Knopf direkt
+     * (`requireFeedbackAccess`, Login-Redirect) — genau dort, wohin dieser Knopf direkt
      * fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum Login umleiten,
      * ist keiner.
      */

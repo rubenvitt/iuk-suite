@@ -19,6 +19,7 @@ import { SPACE } from "@/core/theme/tokens";
 import type { Einheitenart } from "../../../_lib/konstanten";
 import { setzeOrtCodeZurueck } from "../../../_actions/ortCodes";
 import { setTokenAktiv } from "../../../_actions/tokens";
+import { istLangerCode } from "../../../_lib/code";
 import { falte } from "../../../_lib/suche";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
@@ -193,7 +194,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
    * Lage, in der man zurücksetzt: ein Code wurde missbraucht, die Karte muss
    * JETZT neu gedruckt werden. Die Tabelle zeigt ihn nach der Revalidierung
    * zwar auch — aber irgendwo zwischen zwanzig anderen Zeilen, und welche der
-   * sechsstelligen Zahlen die neue ist, sieht man ihr nicht an.
+   * Zeichenfolgen die neue ist, sieht man ihr nicht an.
    */
   const [neuerCode, setNeuerCode] = useState<{ ort: string; code: string } | null>(null);
   const [laeuft, startTransition] = useTransition();
@@ -272,8 +273,21 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       title: "Code",
       dataIndex: "code",
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.code),
-      render: (code: string) => (
-        <span style={{ ...SCHRIFT.mono, fontWeight: 600 }}>{code}</span>
+      /*
+       * ⚠️ „ALTE FORM" STEHT NUR AN AKTIVEN CODES — DRK-442. Ein gesperrter
+       * 6-stelliger Code ist erledigt; ein aktiver gilt noch, aber hinter der
+       * Sperre, die ein Angreifer für neue Geräte auslösen kann. Die Zeile sagt,
+       * was zu tun ist, nicht nur, was ist.
+       */
+      render: (code: string, zeile) => (
+        <div>
+          <span style={{ ...SCHRIFT.mono, fontWeight: 600 }}>{code}</span>
+          {zeile.aktiv && !istLangerCode(code) ? (
+            <div style={SCHRIFT.neben} data-testid="lb-token-alte-form">
+              {zeile.zuruecksetzbar ? "alte Form — neu erzeugen und Karte neu drucken" : "alte Form"}
+            </div>
+          ) : null}
+        </div>
       ),
     },
     {

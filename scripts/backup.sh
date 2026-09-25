@@ -34,6 +34,16 @@ while [ "${#KEEP}" -gt 1 ] && [ "${KEEP#0}" != "$KEEP" ]; do KEEP="${KEEP#0}"; d
 #   Bind-Mount:                 BLOB_DIR=/srv/iuk-suite/files
 BLOB_DIR="${BLOB_DIR:-$DATA_DIR/files}"
 
+# Die Bildnachweise des Moduls `aufgaben` (DRK-365) — dieselbe Lage wie bei `files`
+# direkt darueber: eigenes benanntes Volume `aufgaben_data`, host-seitig also ein LEERER
+# Mountpunkt unter `$DATA_DIR/aufgaben`. Im Dienst `backup` stimmt die Vorgabe von selbst
+# (`aufgaben_data:/data/aufgaben:ro`); von Hand muss sie auf das Volume zeigen:
+#   Benanntes Volume (Vorgabe): AUFGABEN_DIR=/var/lib/docker/volumes/aufgaben_data/_data
+# BEWUSST eine zweite Variable und keine Liste von Blob-Verzeichnissen: was „vollstaendig"
+# heisst, ist je Modul eine eigene Abfrage (unten beim Riegel), eine Liste spart also nur
+# die eine Zeile hier und verschoebe die Modulkenntnis in ein Zuordnungsformat.
+AUFGABEN_DIR="${AUFGABEN_DIR:-$DATA_DIR/aufgaben}"
+
 # DBs einsammeln. nullglob NUR hier, danach sofort wieder aus — sonst leakt es in
 # das Rotations-Glob unten und ein leerer Match würde dort zum CWD-Listing/rm.
 shopt -s nullglob
@@ -124,6 +134,15 @@ done
 if [ -d "$BLOB_DIR" ]; then
   rsync -a --exclude='*.part' "$BLOB_DIR/" "$work/files/"
 fi
+# Die Bildnachweise von `aufgaben`, nach `$work/aufgaben/` — dieselbe Begruendung wie
+# oben, mit einem Unterschied: das Modul schreibt jeden Blob in EINEM Zug und ohne
+# Zwischendatei (`aufgaben/_lib/ablage.ts`, `legeNachweisAb`), es gibt also kein `*.part`
+# auszuschliessen. Und die Reihenfolge traegt die Konsistenz: der Blob liegt, BEVOR seine
+# Zeile in `dateien` entsteht, und die DB-Kopie oben ist aelter als dieses rsync — jede
+# Zeile der Kopie hat ihren Blob also schon, wenn hier kopiert wird.
+if [ -d "$AUFGABEN_DIR" ]; then
+  rsync -a "$AUFGABEN_DIR/" "$work/aufgaben/"
+fi
 
 # Der stille Fall: vollstaendige Zeilen in der DB, aber kein einziger Blob kopiert
 # (falsch belegtes BLOB_DIR, leerer Mountpunkt). Dieselbe Linie wie der Abbruch oben
@@ -159,6 +178,27 @@ if [ -f "$work/files.db" ]; then
     echo "backup: $zeilen complete rows in files.db but no blobs from $BLOB_DIR — aborting" >&2
     # Das halbe Arbeitsverzeichnis abraeumen: die Rotation unten fasst nur *.tar.gz an,
     # ein Rest bliebe also bei jedem Cron-Lauf liegen und saehe wie ein Backup aus.
+    rm -rf "$work"
+    exit 1
+  fi
+fi
+
+# Derselbe stille Fall fuer `aufgaben` (DRK-365): Zeilen in `dateien`, aber kein einziger
+# Bildnachweis kopiert (leerer Mountpunkt, falsch belegtes AUFGABEN_DIR). Jede Zeile gilt
+# als vollstaendig — eine Spalte wie `bytes_vollstaendig_at` braucht das Modul nicht, weil
+# der Blob fertig geschrieben ist, bevor die Zeile entsteht (siehe beim rsync oben).
+# `|| echo 0` aus demselben Grund wie bei `files`: vor der ersten Migration fehlt die
+# Tabelle, und das Backup der anderen Module muss trotzdem laufen.
+if [ -f "$work/aufgaben.db" ]; then
+  zeilen_aufgaben="$(sqlite3 "$work/aufgaben.db" "select count(*) from dateien" \
+    2>/dev/null || echo 0)"
+  [ -n "$zeilen_aufgaben" ] || zeilen_aufgaben=0
+  blobs_aufgaben=0
+  if [ -d "$work/aufgaben" ]; then
+    blobs_aufgaben="$(find "$work/aufgaben" -type f | wc -l | tr -d ' ')"
+  fi
+  if [ "$zeilen_aufgaben" -gt 0 ] && [ "$blobs_aufgaben" -eq 0 ]; then
+    echo "backup: $zeilen_aufgaben rows in aufgaben.db (dateien) but no blobs from $AUFGABEN_DIR — aborting" >&2
     rm -rf "$work"
     exit 1
   fi

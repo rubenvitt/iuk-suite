@@ -8,9 +8,9 @@ import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 import { RADIO_ENV } from "./e2e/helpers/radio";
 import { UAV_ENV } from "./e2e/helpers/uav";
-import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports";
+import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
 
-export default defineConfig({
+export default cloudTauglich(defineConfig({
   testDir: "./e2e",
   // Der PWA-Spike braucht Chrome-Flags für den sicheren Kontext und läuft
   // deshalb in playwright.pwa.config.ts (eigener Port).
@@ -405,7 +405,7 @@ export default defineConfig({
    * anstossen muss.
    */
   reporter: process.env.CI ? "list" : undefined,
-});
+}));
 
 /*
  * DIE MELDUNG, DIE PLAYWRIGHT SELBST NICHT GIBT (DRK-346). Sein „is already

@@ -6,13 +6,11 @@
 .details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
 .details dt { color: var(--iuk-gedaempft); }
 .details dd { margin: 0; overflow-wrap: anywhere; }
-/* Let the table scroll inside this grid item instead of widening the document. */
-.desktop { min-width: 0; }
-.mobile { display: none; }
+/* Let the table scroll inside this grid item instead of widening the document.
+   Tabelle und Karten schaltet `Kartentabelle` (DRK-452), nicht diese Datei. */
+.liste { min-width: 0; }
 @media (max-width: 767.98px) {
   .filters { grid-template-columns: 1fr; }
   .actions { flex-direction: column; align-items: stretch; width: 100%; }
   .actions :global(.ant-space-item), .actions :global(.ant-btn) { width: 100%; }
-  .desktop { display: none; }
-  .mobile { display: grid; }
 }

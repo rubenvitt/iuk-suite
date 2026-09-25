@@ -6,6 +6,7 @@ import {
 } from "../_lib/konstanten";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
 import { stelleOrtCodesSicher } from "../_lib/schreibpfade/ortCodes";
+import { istLangerCode } from "../_lib/code";
 import type { DB } from "./client";
 import { artikel, tokens } from "./schema";
 
@@ -92,7 +93,9 @@ export async function etikettenDaten(db: DB): Promise<EtikettenDaten> {
    */
   const artikelEtiketten = await Promise.all(
     arts.map(async (a) => {
-      const url = `${basis}/a/${a.id}`;
+      // Kodiert seit DRK-394, wie `tokenZielPfad` — fuer jede nanoid-Id ist das
+      // zeichengleich mit dem Bestand; eine Id mit `#` verloere sonst ihren Rest.
+      const url = `${basis}/a/${encodeURIComponent(a.id)}`;
       return { id: a.id, name: a.name, fach: a.fach, url, qr: await qrSvg(url) };
     }),
   );
@@ -162,6 +165,13 @@ export type OrtEtikettenDaten = {
    * er druckt.
    */
   neueCodes: number;
+  /**
+   * WIE VIELE KARTEN NOCH EINEN CODE IN DER ALTEN FORM TRAGEN (6 Ziffern) —
+   * DRK-442. Solange die Zahl nicht null ist, haengt an diesen Orten ein Code,
+   * den die modulweite Sperre fuer neue Geraete abweisen kann; die Insel bietet
+   * dafuer den Neudruck an.
+   */
+  alteCodes: number;
 };
 
 /**
@@ -281,7 +291,7 @@ export async function ortEtikettenDaten(
      * abtippbare Adresse auf etwas anderes. Deshalb entsteht die Adresse HIER,
      * einmal, aus derselben Entscheidung wie der QR.
      */
-    const url = code ? `${basis}/t/${code}` : `${basis}/o/${o.id}`;
+    const url = code ? `${basis}/t/${code}` : `${basis}/o/${encodeURIComponent(o.id)}`;
     return {
       id: o.id,
       name: o.name,
@@ -293,5 +303,6 @@ export async function ortEtikettenDaten(
     };
   }));
 
-  return { basis, orte, neueCodes };
+  const alteCodes = orte.filter((o) => o.code !== null && !istLangerCode(o.code)).length;
+  return { basis, orte, neueCodes, alteCodes };
 }

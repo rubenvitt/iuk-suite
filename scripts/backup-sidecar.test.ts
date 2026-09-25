@@ -307,11 +307,24 @@ describe("compose.yaml — der Dienst `backup` existiert und haengt am richtigen
     expect(liste(backup, "environment", 4)).toContain("BACKUP_SKRIPT=/opt/backup/backup.sh");
   });
 
-  it("`aufgaben_data` ist NICHT gemountet — sonst ist es ein Versprechen ohne Deckung", () => {
-    // `scripts/backup.sh` liest das Verzeichnis heute nicht (im README benannt, DRK-391). Ein Mount hier saehe aus, als waeren die Bildnachweise gesichert.
-    // Wer die Luecke schliesst, braucht BEIDES — diese Zeile und die im Skript; dieser
-    // Fall wird dann rot und ist der Ort, an dem das auffaellt.
-    expect(backupMounts.filter((m) => m.includes("aufgaben_data"))).toEqual([]);
+  it("`aufgaben_data` liegt NUR LESEND drin, unter dem Pfad, den backup.sh vorbelegt", () => {
+    // DRK-365: bis dahin fehlte der Mount absichtlich, weil `scripts/backup.sh` das
+    // Verzeichnis nicht las — ein Mount waere ein Versprechen ohne Deckung gewesen. Jetzt
+    // gehoeren beide Haelften zusammen, und dieser Fall haelt sie zusammen: die Vorgabe
+    // im Skript, der Mountpunkt hier und der Ort, an den das Modul schreibt.
+    expect(backupMounts).toContain("aufgaben_data:/data/aufgaben:ro");
+    expect(liste(backup, "environment", 4)).toContain("DATA_DIR=/data");
+    const skript = lies("scripts/backup.sh");
+    expect(skript).toMatch(/^AUFGABEN_DIR="\$\{AUFGABEN_DIR:-\$DATA_DIR\/aufgaben\}"$/m);
+    const ablage = lies("src/app/m/aufgaben/_lib/ablage.ts");
+    expect(ablage).toContain('resolve(process.env.DATA_DIR ?? "./.data", "aufgaben")');
+    // Dieselbe Zusicherung wie bei `files_data`: `suite` ist der EINZIGE Dienst, der das
+    // Volume schreibend mountet (clamav liest ebenfalls nur).
+    const schreibend = Object.entries({ suite, clamav: rumpf(services, "clamav", 2), backup })
+      .map(([name, dienst]) => [name, liste(dienst, "volumes", 4)] as const)
+      .filter(([, mounts]) => mounts.some((m) => /^aufgaben_data:/.test(m) && !m.endsWith(":ro")))
+      .map(([name]) => name);
+    expect(schreibend, "nur `suite` schreibt in `aufgaben_data`").toEqual(["suite"]);
   });
 });
 

@@ -44,7 +44,7 @@ const ORDNER = join(process.cwd(), "src/app/m/radio/_actions");
  *                                eingetragenen Werte zu verlieren (§3.4.4,
  *                                Spec:2563-2570; dritte der „genau drei Stellen" aus
  *                                Spec:2258). Vorbild woertlich:
- *                                `lagerbuch/_actions/sitzung.ts:17-26` und `:51`.
+ *                                `lagerbuch/_actions/sitzung.ts`, Kopf und `erneuereSitzung`.
  *   sitzung.ts#beenden         — sie BEENDET die Sitzung. Ein Riegel, der eine gueltige
  *                                Sitzung verlangt, machte aus einem toten Cookie ein
  *                                unloeschbares (§3.4.5, Spec:2774).

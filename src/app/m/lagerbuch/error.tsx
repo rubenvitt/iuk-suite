@@ -70,7 +70,7 @@ export default function LagerbuchFehlergrenze({
             Dokumentladen neu starten, statt per Soft-Navigation durch
             denselben Router zu gehen, der gerade geworfen hat. `<Link>`
             koennte im errorten Segment stehen bleiben — ein `<a>` kann das
-            nicht. Vorbild: `_ui/Gate.tsx:210-212` waehlt aus einem anderen
+            nicht. Vorbild: `_ui/Gate.tsx`, `gate-verwaltung`, waehlt aus einem anderen
             Grund (Ziel ausserhalb des Moduls) dieselbe Form.
           */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages --

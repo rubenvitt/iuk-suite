@@ -257,6 +257,103 @@ setze_pin() {
   mv "$tmp" "$ENV_DATEI"
 }
 
+# Filtert einen Log-Strom, bevor er ins Protokoll des Laufs geht: jeder Wert aus der
+# Server-.env wird zu ***, ebenso Zugangsdaten in einer URL (://nutzer:pass@).
+#
+# ⚠️ DAS PROTOKOLL IST ÖFFENTLICH, das Repo ist es auch. GitHub maskiert nur, was es als
+# Secret kennt, und AUTH_SECRET, POCKET_ID_CLIENT_SECRET oder eine BACKUP_PING_URL aus
+# der Server-Datei kennt es nicht. Deshalb schwärzt der Filter ALLE Werte der .env und
+# nicht nur die mit „geheim" klingendem Namen: eine Namensliste übersähe genau die URL
+# mit dem Token darin. Der Preis ist bewusst gezahlt — ein Hostname aus SUITE_HOST_*
+# steht im Auszug dann als ***, der NAME der Variable aber bleibt lesbar, und der ist
+# es, den die Boot-Prüfungen melden („SUITE_HOST_… passt zu keinem Modul").
+#
+# Ausgenommen sind Werte unter 8 Zeichen (true, 0, 3000 schwärzten sonst jede zweite
+# Zeile, und so kurz ist kein Geheimnis dieser Datei) und SUITE_IMAGE, das dieses Skript
+# selbst setzt und oben schon ausgibt. Gegen einen Wert, den die Anwendung umkodiert
+# ausgibt (JSON-escaped, URL-kodiert), hilft der Filter nicht — deshalb zeigt ihn nur
+# der Fall, in dem der Container keinen Verkehr hatte (siehe zeige_suite_log).
+#
+# Kann awk die .env nicht lesen, kommt KEIN Log durch: ungeschwärzt ist schlechter als
+# gar nicht. Nur index/substr, kein gensub — auf dem Server kann mawk stehen.
+schwaerze() {
+  awk -v env_datei="$ENV_DATEI" '
+    function merke(w) { if (length(w) >= 8) geheim[++n] = w }
+    BEGIN {
+      q = sprintf("%c", 39)
+      while ((r = (getline zeile < env_datei)) > 0) {
+        sub(/\r$/, "", zeile)
+        if (zeile ~ /^[[:space:]]*(#|$)/) continue
+        sub(/^[[:space:]]*export[[:space:]]+/, "", zeile)
+        p = index(zeile, "=")
+        if (p == 0) continue
+        name = substr(zeile, 1, p - 1)
+        gsub(/[[:space:]]/, "", name)
+        if (name == "SUITE_IMAGE") continue
+        roh = substr(zeile, p + 1)
+        merke(roh)
+        w = roh
+        sub(/^[[:space:]]+/, "", w)
+        sub(/[[:space:]]+$/, "", w)
+        erstes = substr(w, 1, 1)
+        if (length(w) >= 2 && (erstes == "\"" || erstes == q) && substr(w, length(w), 1) == erstes) {
+          w = substr(w, 2, length(w) - 2)
+        } else {
+          sub(/[[:space:]]+#.*$/, "", w)
+        }
+        if (w != roh) merke(w)
+      }
+      if (r < 0) {
+        print "  (kein Auszug: " env_datei " ist nicht lesbar, und ungeschwärzt geht nichts ins Protokoll)"
+        exit 2
+      }
+      # Längste zuerst: steckt ein Wert in einem anderen, bliebe sonst ein Rest stehen.
+      for (i = 2; i <= n; i++) {
+        v = geheim[i]
+        for (j = i - 1; j >= 1 && length(geheim[j]) < length(v); j--) geheim[j + 1] = geheim[j]
+        geheim[j + 1] = v
+      }
+    }
+    {
+      zeile = $0
+      for (i = 1; i <= n; i++) {
+        aus = ""
+        while ((p = index(zeile, geheim[i])) > 0) {
+          aus = aus substr(zeile, 1, p - 1) "***"
+          zeile = substr(zeile, p + length(geheim[i]))
+        }
+        zeile = aus zeile
+      }
+      gsub(/:\/\/[^\/@[:space:]]+@/, "://***@", zeile)
+      print zeile
+    }'
+}
+
+# Schreibt ins Protokoll, WARUM die Suite nicht hochkommt — BEVOR der Rollback den
+# Container ersetzt, denn mit ihm verschwindet sein Log. Ohne das stand im Lauf nur „nicht
+# healthy geworden", und die Ursache (etwa „Ungültige Host-Konfiguration") lag allein im
+# Container-Log auf dem Server (DRK-467, Lauf 35843699990).
+#
+# ⚠️ NUR NACH SCHRITT 6, NICHT NACH SCHRITT 7. Ein Container, der nie healthy war, hatte
+# keinen Verkehr: Traefik übergeht Container, deren Healthcheck nicht healthy meldet, und
+# das Log beginnt mit dem Austausch in Schritt 5 — im Auszug stehen also Startmeldungen
+# und die Anfragen des Healthchecks, keine Nutzer. Nach Schritt 7 dagegen war er healthy
+# und öffentlich erreichbar; sein Log kann Namen und Adressen tragen, und die gehören
+# nicht in ein öffentliches Protokoll.
+#
+# `ps -a` zuerst, weil der häufigste Grund gar nicht im Suite-Log steht: ein clamav, der
+# nicht healthy wird, hält die Suite per depends_on zurück (Runbook E5).
+LOG_ZEILEN=80
+zeige_suite_log() {
+  melde "Auszug für die Fehlersuche ($1) — Werte aus der .env geschwärzt"
+  echo "  docker compose ps -a:"
+  { docker compose ps -a 2>&1 || true; } | schwaerze || true
+  echo
+  echo "  docker compose logs suite, letzte $LOG_ZEILEN Zeilen:"
+  { docker compose logs --no-color --timestamps --tail="$LOG_ZEILEN" suite 2>&1 || true; } | schwaerze || true
+  echo "  (Ende des Auszugs)"
+}
+
 warte_gesund() {
   local frist=$((SECONDS + FRIST)) cid zustand
   while [ "$SECONDS" -lt "$frist" ]; do
@@ -409,6 +506,8 @@ zurueck_und_raus() {
     abbruch "$grund — Rollback auf $RUECKWEG gelaufen, der Stack ist wieder healthy.
   Der Fehler steckt im ausgerollten Stand, nicht im Server."
   fi
+  # Auch der alte Stand war nie healthy, hatte also ebenso keinen Verkehr (zeige_suite_log).
+  zeige_suite_log "Rollback $RUECKWEG"
   # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESEN MELDUNGEN. In einer doppelt gequoteten
   # Zeichenkette ist ein Backtick-Paar für bash eine KOMMANDOSUBSTITUTION: aus dem
   # Hinweis „erster Blick ist `docker compose ps clamav`" wurde beim Probelauf am
@@ -422,7 +521,10 @@ zurueck_und_raus() {
 
 # ══ Schritt 6 — auf `healthy` warten ═════════════════════════════════════════════════
 melde "Schritt 6: auf healthy warten (bis zu ${FRIST}s)"
-warte_gesund || zurueck_und_raus "Die Suite ist nicht healthy geworden."
+if ! warte_gesund; then
+  zeige_suite_log "neuer Stand $NEUES_IMAGE"
+  zurueck_und_raus "Die Suite ist nicht healthy geworden. Ihre letzten Logzeilen stehen oben."
+fi
 echo "  healthy."
 
 # ══ Schritt 7 — Beweis: antwortet WIRKLICH der neue Commit? ══════════════════════════

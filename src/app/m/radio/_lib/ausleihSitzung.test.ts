@@ -73,7 +73,7 @@ describe("radio-Ausleihsitzung: die Cookie-Attribute", () => {
      * gibt es nur EINE Optionen-Funktion mit einem Parameter, statt zweier Objekte.
      *
      * Ein `cookies.delete(name)` setzt kein `Path` und loescht dadurch am falschen Scope
-     * (`lagerbuch/_actions/sitzung.ts:140-149`) — der Quelltext-Scan dagegen steht in A9.
+     * (`lagerbuch/_actions/sitzung.ts`, Kommentar in `beenden`) — der Quelltext-Scan dagegen steht in A9.
      */
     const { ausleihCookieOptionen } = await import("./ausleihSitzung");
     const setzen = ausleihCookieOptionen(43_200);

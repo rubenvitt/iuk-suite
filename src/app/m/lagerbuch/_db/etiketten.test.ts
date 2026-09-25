@@ -13,6 +13,7 @@ import { artikel, lagerorte, tokens, newId } from "./schema";
 import { decodeQr } from "../../../../../e2e/helpers/decode-qr";
 import { etikettenDaten, ortEtikettenDaten, EtikettenBasisFehlt } from "./etiketten";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../_lib/konstanten";
+import { istLangerCode } from "../_lib/code";
 
 /**
  * DER HOST WIRD GEMOCKT, NICHT DIE BASIS-URL — und das ist der Unterschied zum
@@ -97,6 +98,25 @@ describe("etikettenDaten", () => {
     const d = await etikettenDaten(t.db);
     const e = d.artikel.find((x) => x.id === A_ID)!;
     expect(await decodeQr(e.qr)).toBe(`https://lagerbuch.iuk-ue.de/a/${A_ID}`);
+  });
+
+  /**
+   * DRK-394 — EINE ID MIT URL-TRENNZEICHEN KOMMT GANZ AN. `artikel.id` ist kein
+   * nanoid-Vertrag; roh gedruckt landete `rtw#1&x=1` auf `/a/rtw`, und das
+   * Etikett klebte trotzdem am Regal. Gelesen ueber `URL` wie im Browser.
+   */
+  it("druckt eine Id mit Trennzeichen so, dass sie vollstaendig ankommt", async () => {
+    const id = "rtw#1&x=1 %";
+    t.db.insert(artikel).values({
+      id, name: "Importiert", fach: "B1", einheit: "Stk.", mindestbestand: 0,
+      aktiv: true, createdAt: new Date(),
+    }).run();
+    const d = await etikettenDaten(t.db);
+    const e = d.artikel.find((x) => x.id === id)!;
+    const gelesen = new URL(await decodeQr(e.qr));
+    expect(gelesen.hash).toBe("");
+    expect(gelesen.search).toBe("");
+    expect(decodeURIComponent(gelesen.pathname.replace(/^\/a\//, ""))).toBe(id);
   });
 
   /**
@@ -232,7 +252,7 @@ describe("ortEtikettenDaten", () => {
      * ⚠️ `/t/<code>` UND NICHT MEHR `/o/<id>` — DRK-406. Bis dahin trug jede
      * Karte ihre Ortsadresse, und ein Scan verlangte eine Anmeldung.
      */
-    expect(rtw.code).toMatch(/^\d{3}-\d{3}$/);
+    expect(istLangerCode(rtw.code!), "DRK-442: die lange Form").toBe(true);
     expect(rtw.url).toBe(`https://lagerbuch.iuk-ue.de/t/${rtw.code}`);
     expect(await decodeQr(rtw.qr)).toBe(`https://lagerbuch.iuk-ue.de/t/${rtw.code}`);
   });

@@ -1,5 +1,6 @@
 import { RateLimiter } from "@/core/ratelimit";
 import { grenzen } from "./grenzen";
+import { istLangerCode, normalisiereCode } from "./code";
 
 /**
  * DIE GATE-SCHRANKE — zwei Gruppen zu drei Zaehlern, und sie zaehlen NUR Fehlversuche.
@@ -38,10 +39,21 @@ const g = grenzen();
  * die Eimer der Unbekannten; ein Gerät, das schon einmal mit richtigem Code
  * hereinkam, zählt in Eimer, die er nicht erreicht.
  *
- * ⚠️ DER BEWUSSTE REST: ein NEUES Gerät während eines Angriffs bleibt gesperrt,
- * bis die Sperre abläuft. Ohne längere Codes ist das nicht auflösbar — ein
- * richtiger Code, der während der Sperre für jeden durchginge, hieße unbegrenztes
- * Raten.
+ * ⚠️ DER REST, SEIT DRK-442 NUR NOCH FÜR DIE ALTE FORM: ein NEUES Gerät
+ * während eines Angriffs bleibt mit einem 6-stelligen Code gesperrt, bis die
+ * Sperre abläuft. Ein richtiger kurzer Code, der während der Sperre für jeden
+ * durchginge, hieße unbegrenztes Raten in 10^6.
+ *
+ * ⛔ EINE EINGABE IN DER LANGEN FORM IST NIE GESPERRT (DRK-442, Vorbild
+ * `radio/_lib/gateSchranke.ts`). 28 Zeichen Crockford-Base32 sind 140 bit
+ * (`tokenForm.ts`): selbst ungebremst ist Raten aussichtslos, und jede Sperre
+ * davor wäre nur der Hebel, mit dem Unangemeldete neue Geräte aussperren.
+ * Gebucht wird ein langer Fehlversuch trotzdem — in die Gruppe der Anfrage, wie
+ * jeder andere; er sperrt damit höchstens die alte Form, nie die lange.
+ * ⚠️ BEWUSSTER REST: die ZAHL solcher Suchen ist nicht mehr gedeckelt.
+ * Volumenschutz gehört vor den Prozess (Cloudflare/Traefik); die Suche selbst
+ * ist eine Gleichheitssuche auf dem `UNIQUE`-Index von `tokens.code`. Mit dem
+ * letzten alten Code verschwindet auch der Rest oben.
  * ⚠️ DER PREIS: wer ein Merkmal besitzt (also schon einmal einen richtigen Code
  * kannte), rät zusätzlich im Budget der Bekannten — die Obergrenze aller
  * Fehlversuche verdoppelt sich damit für genau diesen Personenkreis, und nur er
@@ -83,8 +95,13 @@ const BEKANNT_MIN = "bekannt:minute";
 const BEKANNT_STD = "bekannt:stunde";
 const merkmalSchluessel = (m: string) => `merkmal:${m}`;
 
-/** Was eine Anfrage über sich mitbringt. `merkmal` aus `gateMerkmal()`. */
-export type GateAnfrage = { merkmal?: string | null };
+/**
+ * Was eine Anfrage über sich mitbringt. `merkmal` aus `gateMerkmal()`;
+ * `eingabe` ist der ROHE Code, so wie er ankam — ohne sie (die Gate-Seite, die
+ * nur die Sekundenzahl für `grund=zuviele` braucht) antwortet `gateGesperrt`
+ * wie für die alte Form, also mit der vorsichtigen Zahl.
+ */
+export type GateAnfrage = { merkmal?: string | null; eingabe?: string };
 
 function restMs(schluessel: string, jetzt: number): number {
   const bis = gesperrtBis.get(schluessel);
@@ -107,11 +124,17 @@ function restMs(schluessel: string, jetzt: number): number {
  * Kopfzeilen und Cookies selbst (§7.2.4).
  *
  * ⚠️ UND SIE IST ES, DIE DEN DATENBANKZUGRIFF SCHUETZT: sie steht VOR der
- * Codesuche. Ein richtiger Code von einem UNBEKANNTEN Gerät wartet deshalb
+ * Codesuche. Ein richtiger ALTER Code von einem UNBEKANNTEN Gerät wartet deshalb
  * während einer modulweiten Sperre — ein Gerät MIT Merkmal nicht, solange nicht
  * die Eimer der Bekannten selbst voll sind (Kopf dieser Datei).
+ *
+ * ⛔ EINE LANGE EINGABE BEKOMMT IMMER `null` (DRK-442). Diese Funktion
+ * normalisiert die rohe Eingabe dafür SELBST: sie steht an der Aufrufstelle VOR
+ * `normalisiereCode` (Reihenfolge-Scan in `_lib/bauform.test.ts`), und
+ * `normalisiereCode`/`istLangerCode` sind rein.
  */
 export function gateGesperrt(absender: string, anfrage: GateAnfrage = {}): number | null {
+  if (anfrage.eingabe !== undefined && istLangerCode(normalisiereCode(anfrage.eingabe))) return null;
   const jetzt = Date.now();
   const m = anfrage.merkmal;
   const ms = m

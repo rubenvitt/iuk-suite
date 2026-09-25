@@ -19,8 +19,8 @@ import { istCodeForm, normalisiereCode } from "./code";
  * einen Neustart ueberlebt — sie ist deshalb hier ausdruecklich verboten und von einem
  * Quelltext-Scan bewacht (`_lib/gateSchranke.test.ts`, Fall „gateGesperrt macht keinen
  * Datenbankzugriff — Quelltext-Scan"). Der Preis steht in
- * `src/core/ratelimit.ts:6-10`: die Treffer liegen im Prozessspeicher und sind nach
- * einem Neustart weg. Fuer eine Notbremse ist das tragbar.
+ * `src/core/ratelimit.ts` (Kopf von `RateLimiter`): die Treffer liegen im Prozessspeicher
+ * und sind nach einem Neustart weg. Fuer eine Notbremse ist das tragbar.
  *
  * ⛔ DIE ABWEHR SIND DIE ZWEI MODULWEITEN ZAEHLER, NICHT DER ABSENDER-EIMER. Woertlich
  * aus dem Bestand (`src/app/m/lagerbuch/_lib/absender.ts:30-33`): „Der Per-Absender-
@@ -31,7 +31,7 @@ import { istCodeForm, normalisiereCode } from "./code";
  * ⬜ A-L12 — OB `cf-connecting-ip` AUF EINEM MODUL-HOST HEUTE DIE CLIENT-ADRESSE TRAEGT,
  * IST UNBESTIMMT. Der Befund vom 2026-08-22 sagt nein: dort liefert der Kopf bei jeder
  * Anfrage die Egress-Adresse dieses Servers, weil der Modul-Host-Rewrite einen zweiten,
- * externen Round-Trip erzeugt (`src/core/ratelimit.ts:98-111`). Der Umbau dagegen ist
+ * externen Round-Trip erzeugt (`clientIpAus`, „AUF MODUL-HOSTS"). Der Umbau dagegen ist
  * gebaut (`src/core/routing.ts:59-61`: „Seit `src/proxy.ts` das Rewrite-Ziel auf die
  * Origin der Anfrage zurueckschreibt, entfaellt der zweite, externe Round-Trip"). Die
  * Abnahme am Server steht aus
@@ -51,7 +51,7 @@ import { istCodeForm, normalisiereCode } from "./code";
  * internen Hops es wirklich gibt). Diese Datei setzt NICHT voraus, dass sie kommt.
  *
  * ⛔ UND SIE BRAUCHT KEINE ZWISCHENSCHICHT (Spec:3033-3035): `radio` ruft
- * `clientIpAus(kopf)` (`src/core/ratelimit.ts:113-116`) unmittelbar an der Aufrufstelle
+ * `clientIpAus(kopf)` (aus `src/core/ratelimit.ts`) unmittelbar an der Aufrufstelle
  * und reicht das Ergebnis als `absender` herein. `lagerbuch`s `_lib/absender.ts` wird
  * hier NICHT nachgebaut.
  *

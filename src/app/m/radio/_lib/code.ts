@@ -19,7 +19,7 @@
  *
  * ⚠️ OB RECHNUNG A HEUTE GILT, IST UNBESTIMMT — ⬜ A-L12. Der Befund vom 2026-08-22 sagt
  * nein: auf einem Modul-Host bekommt jede Anfrage denselben Absenderschluessel
- * (`src/core/ratelimit.ts:98-111`). Der Umbau dagegen ist gebaut
+ * (`src/core/ratelimit.ts`, `clientIpAus`, „AUF MODUL-HOSTS"). Der Umbau dagegen ist gebaut
  * (`src/core/routing.ts:59-61`). Die Abnahme am Server steht aus
  * (`docs/superpowers/berichte/2026-08-22-proxy-rewrite-abnahme.md:29-32` — P1 und P6
  * offen). ⛔ Diese Datei setzt KEINE der beiden Antworten voraus. Sie muss es auch nicht:
@@ -113,7 +113,7 @@ export function erzeugeCode(): string {
  * Normalisierung nur Treffer HINZUFUEGEN, nie einen bestehenden verlieren — genau deshalb
  * ist sie sicher; die Suche laeuft auf Gleichheit gegen `zugangscodes.code`, und die
  * Spalte wird nicht aufgeweicht (Spec:2105-2108, Vorbild
- * `src/app/m/lagerbuch/_lib/code.ts:4-8`).
+ * `src/app/m/lagerbuch/_lib/code.ts:7-10`).
  *
  * ⛔ SONST UNVERAENDERT HEISST: DIE GEREINIGTE ZEICHENKETTE, UNGRUPPIERT — nicht die rohe
  * Eingabe. Wer stattdessen jede Laenge gruppierte, machte aus einem Tippfehler eine

@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  *
  * `vi.useFakeTimers()` steuert BEIDE Haelften zugleich: `gateSchranke.ts` liest
  * `Date.now()`, und `RateLimiter` benutzt per Vorgabe dieselbe Uhr
- * (`core/ratelimit.ts:22`). Nur so ist „nach Fensterende geht es weiter" ohne
+ * (`core/ratelimit.ts`, Konstruktor von `RateLimiter`). Nur so ist „nach Fensterende geht es weiter" ohne
  * echte Wartezeit pruefbar.
  */
 type Schranke = typeof import("./gateSchranke");
@@ -194,7 +194,7 @@ describe("gateGesperrt LIEST NUR", () => {
   it("bucht nichts — hundert Abfragen schliessen das Gate nicht", async () => {
     /**
      * `RateLimiter.check()` prueft UND bucht in einem Zug
-     * (`core/ratelimit.ts:26-37`); ein reines Nachsehen gibt es dort nicht.
+     * (`core/ratelimit.ts`, `RateLimiter.check`); ein reines Nachsehen gibt es dort nicht.
      * Deshalb merkt sich `gateSchranke.ts` jedes `false` selbst, und diese
      * Funktion liest nur noch die gemerkte Zahl.
      *
@@ -214,6 +214,37 @@ describe("gateGesperrt LIEST NUR", () => {
     // koennen. Ein `db`-Parameter hier waere die Verletzung der Zusage.
     const s = await frisch();
     expect(s.gateGesperrt.length).toBe(1);
+  });
+});
+
+describe("DRK-442 — eine lange Eingabe ist nie gesperrt", () => {
+  const LANG = "7K3M-Q9XD-2RTP-4W8N-HV6B-C1ZF-J50E";
+
+  it("auch nicht bei voller Absender-, Minuten- und Stundensperre", async () => {
+    const s = await frisch({
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "1",
+      LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "1",
+    });
+    for (let i = 0; i < 6; i++) s.gateFehlversuchBuchen("cf:1.2.3.4");
+    for (let a = 0; a < 3; a++) s.gateFehlversuchBuchen(`cf:9.9.9.${a}`);
+    expect(s.gateGesperrt("cf:1.2.3.4")).not.toBeNull();
+    expect(s.gateGesperrt("cf:5.5.5.5")).not.toBeNull();
+
+    // Die rohe Eingabe, wie sie am Feld oder in der URL ankommt.
+    for (const eingabe of [LANG, LANG.toLowerCase(), LANG.replaceAll("-", " "), LANG.replace("0", "O")]) {
+      expect(s.gateGesperrt("cf:1.2.3.4", { eingabe }), eingabe).toBeNull();
+      expect(s.gateGesperrt("cf:5.5.5.5", { eingabe, merkmal: "geraet:x" }), eingabe).toBeNull();
+    }
+  });
+
+  it("die alte Form und alles andere bleiben hinter der Sperre", async () => {
+    const s = await frisch();
+    for (let i = 0; i < 6; i++) s.gateFehlversuchBuchen("cf:1.2.3.4");
+    for (const eingabe of ["482137", "482-137", "", "U".repeat(28), LANG.slice(0, -1)]) {
+      expect(s.gateGesperrt("cf:1.2.3.4", { eingabe }), eingabe).not.toBeNull();
+    }
+    // Ohne `eingabe` (die Gate-Seite) die vorsichtige Zahl.
+    expect(s.gateGesperrt("cf:1.2.3.4")).toBe(60);
   });
 });
 

@@ -276,16 +276,21 @@
  */
 .gateForm { display: flex; flex-direction: column; gap: 12px }
 /*
- * Das Zahlenfeld. 24px statt der heutigen 21 (§7.7.2 Punkt 1) — deutlich ueber
- * der 16px-Untergrenze, weil sechs Ziffern auf einem Handy in einer
- * Fahrzeughalle abgelesen und getippt werden.
+ * Das Codefeld. Seit DRK-442 18px statt 24px und kaum Sperrung: ein langer
+ * Code hat 34 Zeichen, und bei 24px mit `.16em` waeren das rund 620px — das
+ * Feld zeigte am Telefon nur ein Drittel dessen, was gerade getippt wird. 18px
+ * Mono sind rund 390px; gemeinsam mit dem Rollen im Feld bleibt die Gruppe, an
+ * der man tippt, ganz sichtbar. Ueber der 16px-Untergrenze, unter der iOS beim
+ * Antippen die Seite vergroessert.
  */
 .codefeld {
   width: 100%; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 12px;
-  font: 700 24px/1 var(--lb-mono); letter-spacing: .16em; text-align: center;
+  font: 700 18px/1 var(--lb-mono); letter-spacing: .02em; text-align: center;
   text-transform: uppercase; background: var(--lb-karte); color: var(--lb-tinte);
   min-height: 56px; font-variant-numeric: tabular-nums;
 }
+/* Der Platzhalter ist ein Satz, kein Code — ohne Grossschrift und Fettdruck. */
+.codefeld::placeholder { text-transform: none; font-weight: 400; letter-spacing: normal }
 .gateFehler { color: var(--lb-ampel-rot-text); font-size: 13px; font-weight: 600 }
 
 /* ——— Bausteine ——— */
