@@ -2,8 +2,8 @@
 # Rauchtest des Tauri-Bundles je Zielplattform. Läuft nur an, wenn sich an der App,
 # ihrem geteilten TS-Kern, den Farb-/Abstands-Tokens der Suite, am pnpm-Workspace
 # (Lockfile, Mitgliederliste), an den Suite-Dateien, die die App mitbenutzt (E2E-Ports,
-# DOM-Harness), oder an dieser Datei selbst etwas ändert — eine Änderung am Workflow
-# prüft sich damit selbst.
+# DOM-Harness, Drahtvertrag der Anbindung samt Beispieldateien für `kern/tests/vertrag.rs`),
+# oder an dieser Datei selbst etwas ändert — eine Änderung am Workflow prüft sich selbst.
 name: einsatzbuch
 
 on:
@@ -13,6 +13,8 @@ on:
     paths:
       - "apps/einsatzbuch/**"
       - "src/app/m/einsatzbuch/_lib/kern/**"
+      - "src/app/m/einsatzbuch/_lib/anbindung/vertrag/**"
+      - "src/app/m/einsatzbuch/_lib/anbindung/vertrag.ts"
       - "src/core/theme/tokens.ts"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -24,6 +26,8 @@ on:
     paths:
       - "apps/einsatzbuch/**"
       - "src/app/m/einsatzbuch/_lib/kern/**"
+      - "src/app/m/einsatzbuch/_lib/anbindung/vertrag/**"
+      - "src/app/m/einsatzbuch/_lib/anbindung/vertrag.ts"
       - "src/core/theme/tokens.ts"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
