@@ -64,7 +64,10 @@ export function Verwaltung(p: VerwaltungProps) {
   const anzahl = offen ? offen.offen.length + offen.zu.length : 0;
   // Ohne Wahl der neueste offene Block (Vorlage: `auswahl` = letzter Block der Kette).
   const auswahl = offen ? (offen.offen.find((o) => o.block.kopf.block === gewaehlt) ?? (gewaehlt === null ? offen.offen.at(-1) : undefined)) : undefined;
-  const gewaehltZu = offen && gewaehlt !== null && !auswahl ? offen.zu.some((b) => b.kopf.block === gewaehlt) : false;
+  // Nur mit Freigabe heißt „zu“ wirklich „lässt sich nicht öffnen“. Ohne Freigabe (offline,
+  // abgelehnt) ist jeder Block zu, ohne kaputt zu sein — dann steht nur der neutrale Hinweis da.
+  const ohneFreigabe = offen !== null && offen.fehler !== null;
+  const gewaehltZu = offen && !ohneFreigabe && gewaehlt !== null && !auswahl ? offen.zu.some((b) => b.kopf.block === gewaehlt) : false;
 
   return (
     <main className="seite seite-verwaltung" data-screen-label="Verwaltung">
@@ -152,7 +155,7 @@ export function Verwaltung(p: VerwaltungProps) {
                 fuss={{ text: anfangText(p.eingerichtetAm, p.eingerichtetVon, zeitzone) }}
               />
             </div>
-            {offen.offen.length > 0 || gewaehltZu ? (
+            {offen.offen.length > 0 || gewaehltZu || ohneFreigabe ? (
               <div className="verwaltung-rechts">
                 {auswahl ? (
                   <Einsatzdetail
@@ -167,6 +170,12 @@ export function Verwaltung(p: VerwaltungProps) {
                 ) : gewaehltZu ? (
                   <Karte>
                     <Hinweis ton="warn">{`Block ${gewaehlt} lässt sich nicht öffnen`}</Hinweis>
+                  </Karte>
+                ) : ohneFreigabe ? (
+                  <Karte>
+                    <div className="absatz">
+                      Die Einsätze liegen nur verschlüsselt vor. Sichtbar bleiben Blocknummer, Zeitpunkt und Fingerabdruck — genug, um die Kette zu prüfen.
+                    </div>
                   </Karte>
                 ) : null}
                 {offen.offen.length > 0 ? (

@@ -424,6 +424,14 @@ describe("Verwaltung", () => {
     expect(text()).not.toContain("MANV 10");
   });
 
+  it("ohne Freigabe meldet ein Klick auf eine Zeile keinen kaputten Block", async () => {
+    befehle.schluesselFreigeben.mockRejectedValue("Lesen braucht Verbindung zur Suite.");
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(queryAll<HTMLButtonElement>('button[data-block="2"]')[0]);
+    expect(text()).not.toContain("lässt sich nicht öffnen");
+    expect(text()).toContain("Die Einsätze liegen nur verschlüsselt vor");
+  });
+
   it("zeigt eine 422-Meldung der Suite mit beiden IDs wörtlich als Warnung", async () => {
     const meldung = "Der Schlüssel 8cedd95d94246a4d passt nicht zum Rechner (erwartet 1a2b3c4d5e6f7a8b).";
     befehle.schluesselFreigeben.mockRejectedValue(meldung);
