@@ -1,5 +1,7 @@
 //! Kern des Einsatzbuchs am Rechner: Format, Kanonik, Kryptografie, lokale Datenbank,
-//! Erfassung, Frist und Versiegeln. Frei von Tauri — die Hülle liegt eine Ebene höher.
+//! Erfassung, Frist und Versiegeln, dazu Anmeldung und Protokoll der Suite-Anbindung (Stufe 5)
+//! hinter den Traits `suite::Transport` und `tresor::Tresor`. Frei von Tauri und ohne Netz-Crate —
+//! die Hülle liegt eine Ebene höher und bringt HTTP und Schlüsselbund mit.
 pub mod anmeldung;
 pub mod buch;
 pub mod einrichtung;
@@ -10,5 +12,9 @@ pub mod format;
 pub mod grenzen;
 pub mod jcs;
 pub mod krypto;
+pub mod loopback;
+pub mod suite;
+pub mod tresor;
 pub mod uhr;
 pub mod versiegeln;
+pub mod vertrag;

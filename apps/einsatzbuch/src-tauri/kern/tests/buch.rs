@@ -315,30 +315,6 @@ fn anbindung_ohne_einrichtung_ist_none_danach_traegt_sie_die_uebergebenen_werte(
     assert_eq!(anbindung.anker_abweichung, None);
 }
 
-/// Sendet einen gültigen Einsatz ab und versiegelt ihn sofort — für Tests, die eine ECHTE Kette
-/// mit mindestens einem Block brauchen (nicht nur eine leere), um „Kette bleibt unverändert“
-/// belastbar zu prüfen. Fahrzeug/Personen-IDs passen zu `hilfe::test_einrichtung`.
-fn versiegele_einen_einsatz(buch: &mut Buch, jetzt: chrono::DateTime<chrono::Utc>, zufall_saat: u8) {
-    use einsatzbuch_kern::erfassung::{Entwurf, PersonAuswahl};
-    let entwurf = Entwurf {
-        stichwort: "RD 2".into(),
-        beginn_datum: "2026-08-22".into(),
-        beginn_zeit: "03:12".into(),
-        ende_datum: String::new(),
-        ende_zeit: String::new(),
-        strasse: "Lindenstraße 8".into(),
-        ort: "29525 Uelzen".into(),
-        objekt: String::new(),
-        fahrzeuge: vec!["11-83-1".into()],
-        personal: vec![PersonAuswahl { id: "p4".into(), fahrzeug_id: Some("11-83-1".into()) }],
-        vor_ort: 0,
-        transport: 1,
-        notizen: String::new(),
-    };
-    buch.sende_ab(&entwurf, jetzt, false).unwrap();
-    buch.versiegele_ausstehend(jetzt, &mut hilfe::FesterZufall(zufall_saat), false).unwrap().unwrap();
-}
-
 /// Entscheidung 12: `richte_neu_ein` mit einer anderen `schluesselId` als der gepinnten wird
 /// abgelehnt (`AndererSchluessel`, beide IDs in der Meldung), und nichts an der Einrichtung
 /// ändert sich — geprüft an einer echten, nicht leeren Kette: Ein bloßer Längenvergleich wäre bei
@@ -349,7 +325,7 @@ fn richte_neu_ein_lehnt_einen_anderen_schluessel_ab_und_aendert_nichts() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt), "r1", "Wache Alt").unwrap();
     let jetzt = chrono::Utc::now();
-    versiegele_einen_einsatz(&mut buch, jetzt, 1);
+    hilfe::versiegele_einen_einsatz(&mut buch, jetzt, 1);
     let vorher = buch.einrichtung().unwrap().unwrap();
     let vorher_anbindung = buch.anbindung().unwrap().unwrap();
     let bloecke_vorher = buch.bloecke().unwrap();
@@ -383,7 +359,7 @@ fn richte_neu_ein_mit_gleichem_schluessel_setzt_die_anbindung_zurueck() {
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt), "r1", "Wache Alt").unwrap();
     let jetzt = chrono::Utc::now();
-    versiegele_einen_einsatz(&mut buch, jetzt, 2);
+    hilfe::versiegele_einen_einsatz(&mut buch, jetzt, 2);
     buch.anker_bestaetigt(1).unwrap();
     buch.widerrufen_setzen(true).unwrap();
     let vorher = buch.einrichtung().unwrap().unwrap();
