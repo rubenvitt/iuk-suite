@@ -82,13 +82,20 @@ pub enum SicherungFehler {
 ///    einem Ein-/Ausgabefehler, endet `schreibe` mit `Io`, ebenfalls ohne Rotation.
 /// 3. Temp-Datei im selben Ordner vollständig schreiben, `sync_all` über das Schreib-Handle,
 ///    Handle schließen.
-/// 4. Die bisherige Datei rotieren: `.9` nach `.10` herunter bis zur aktuellen nach `.1`.
+/// 4. Die bisherige Datei rotieren (`rotiere`): die Stände bis zur ersten Lücke um eins nach
+///    oben, dann die aktuelle nach `.1`.
 /// 5. Die Temp-Datei auf den Zielnamen umbenennen, danach unter Unix das Verzeichnis
 ///    synchronisieren.
 ///
 /// Scheitert ein Schritt nach dem Anlegen, entfernt die Wache die Temp-Datei. Scheitert erst das
 /// Umbenennen, wird die eben nach `.1` rotierte Datei zurückbenannt, so gut es geht.
 pub fn schreibe(ordner: &Path, datei: &Sicherungsdatei) -> Result<Schreibergebnis, SicherungFehler> {
+    schreibe_mit(ordner, datei, &mut |von: &Path, nach: &Path| fs::rename(von, nach))
+}
+
+/// `schreibe` mit austauschbarem Umbenennen — die Naht, über die die Tests dieses Moduls ein
+/// scheiterndes `rename` an einer bestimmten Stelle herstellen.
+fn schreibe_mit(ordner: &Path, datei: &Sicherungsdatei, umbenennen: Umbenennen) -> Result<Schreibergebnis, SicherungFehler> {
     let Some(letzter) = datei.bloecke.last() else {
         return Ok(Schreibergebnis::LeereKette);
     };
@@ -115,15 +122,15 @@ pub fn schreibe(ordner: &Path, datei: &Sicherungsdatei) -> Result<Schreibergebni
 
     let bytes = serde_json::to_vec(datei).map_err(io::Error::other)?;
     let temp = TempDatei::neben(&ziel, &bytes)?;
-    let aktuelle_rotiert = rotiere(ordner, &ziel)?;
-    if let Err(e) = ersetze(&temp.pfad, &ziel) {
+    let aktuelle_rotiert = rotiere(ordner, &ziel, umbenennen)?;
+    if let Err(e) = ersetze_mit(&temp.pfad, &ziel, cfg!(windows), umbenennen) {
         if aktuelle_rotiert {
-            let _ = fs::rename(ordner.join(rotiert(1)), &ziel);
+            let _ = umbenennen(&ordner.join(rotiert(1)), &ziel);
         }
         return Err(e.into());
     }
     temp.entschaerfe();
-    synchronisiere_ordner(ordner)?;
+    synchronisiere_ordner(ordner);
     Ok(Schreibergebnis::Geschrieben)
 }
 
@@ -132,9 +139,10 @@ pub fn schreibe(ordner: &Path, datei: &Sicherungsdatei) -> Result<Schreibergebni
 /// Ziel wird vollständig ersetzt.
 pub fn schreibe_atomar(ziel: &Path, bytes: &[u8]) -> io::Result<()> {
     let temp = TempDatei::neben(ziel, bytes)?;
-    ersetze(&temp.pfad, ziel)?;
+    ersetze_mit(&temp.pfad, ziel, cfg!(windows), &mut |von: &Path, nach: &Path| fs::rename(von, nach))?;
     temp.entschaerfe();
-    synchronisiere_ordner(ordner_von(ziel))
+    synchronisiere_ordner(ordner_von(ziel));
+    Ok(())
 }
 
 /// Nur die Kennung der Datei, ohne `deny_unknown_fields`: So meldet `lies` eine fremde Datei
@@ -218,53 +226,68 @@ fn rotiert(i: u32) -> String {
     format!("einsatzbuch-sicherung.{i}.json")
 }
 
-/// Rotiert die bisherige Datei: `.9` nach `.10` herunter bis `.1` nach `.2`, dann die aktuelle
-/// nach `.1`. Der alte Stand `.10` fällt dabei weg. Ohne aktuelle Datei gibt es nichts zu
-/// rotieren. Meldet, ob die aktuelle Datei nach `.1` gewandert ist.
-fn rotiere(ordner: &Path, ziel: &Path) -> io::Result<bool> {
+/// Ein Umbenennen, wie `fs::rename` — austauschbar für die Tests (`schreibe_mit`).
+type Umbenennen<'a> = &'a mut dyn FnMut(&Path, &Path) -> io::Result<()>;
+
+/// Rotiert die bisherige Datei nach `.1`. Geschoben wird nur bis zur ersten Lücke: Ist `.k` der
+/// kleinste freie Stand, wandern `.k-1` nach `.k` herunter bis `.1` nach `.2`. Sind alle zehn
+/// belegt, fällt der älteste `.10` weg. Danach wandert die aktuelle Datei nach `.1`.
+///
+/// Warum bis zur Lücke: Scheitert `aktuell → .1` oder danach das Umbenennen der Temp-Datei, ist
+/// `.1` frei. Der nächste Versuch füllt genau diese Lücke, statt alle Stände erneut zu schieben.
+/// So kostet ein wiederholt scheiternder Versuch keinen weiteren Stand. Ohne aktuelle Datei gibt
+/// es nichts zu rotieren. Meldet, ob die aktuelle Datei nach `.1` gewandert ist.
+fn rotiere(ordner: &Path, ziel: &Path, umbenennen: Umbenennen) -> io::Result<bool> {
     if !ziel.try_exists()? {
         return Ok(false);
     }
-    for i in (1..STAENDE).rev() {
-        let von = ordner.join(rotiert(i));
-        if von.try_exists()? {
-            ersetze(&von, &ordner.join(rotiert(i + 1)))?;
+    let mut frei = STAENDE;
+    for i in 1..=STAENDE {
+        if !ordner.join(rotiert(i)).try_exists()? {
+            frei = i;
+            break;
         }
     }
-    ersetze(ziel, &ordner.join(rotiert(1)))?;
+    for i in (1..frei).rev() {
+        ersetze_mit(&ordner.join(rotiert(i)), &ordner.join(rotiert(i + 1)), cfg!(windows), umbenennen)?;
+    }
+    ersetze_mit(ziel, &ordner.join(rotiert(1)), cfg!(windows), umbenennen)?;
     Ok(true)
 }
 
-/// Benennt `von` nach `nach` um und ersetzt dabei ein bestehendes Ziel.
-///
-/// Windows-Lehre aus dem Einsatzarchiv (Spec §4.2, `7fb15de`): `std::fs::rename` ersetzt unter
-/// Windows nur Dateien und scheitert an manchen Freigaben, deshalb wird ein bestehendes Ziel
-/// dort vorher entfernt. `cfg!` statt `#[cfg]`, damit der Zweig auch auf anderen Systemen
-/// übersetzt und von Clippy geprüft wird.
-fn ersetze(von: &Path, nach: &Path) -> io::Result<()> {
-    if cfg!(windows) {
-        match fs::remove_file(nach) {
-            Ok(()) => {}
-            Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(e) => return Err(e),
+/// Benennt `von` nach `nach` um und ersetzt dabei ein bestehendes Ziel. `std::fs::rename`
+/// ersetzt eine bestehende Datei auf allen Systemen, unter Windows über `MoveFileExW` mit
+/// `MOVEFILE_REPLACE_EXISTING`. Erst wenn Windows das Umbenennen verweigert
+/// (`PermissionDenied`, `AlreadyExists`, etwa wegen einer Freigabe), wird das Ziel entfernt und
+/// genau einmal neu versucht. Ein Entfernen vorab hätte bei einem danach scheiternden
+/// Umbenennen die alte Datei gekostet. `windows` kommt aus `cfg!(windows)` (nicht `#[cfg]`),
+/// damit der Zweig überall übersetzt, von Clippy geprüft und in den Tests erreicht wird.
+fn ersetze_mit(von: &Path, nach: &Path, windows: bool, umbenennen: Umbenennen) -> io::Result<()> {
+    match umbenennen(von, nach) {
+        Err(e) if windows && matches!(e.kind(), ErrorKind::PermissionDenied | ErrorKind::AlreadyExists) => {
+            match fs::remove_file(nach) {
+                Ok(()) => {}
+                Err(entfernen) if entfernen.kind() == ErrorKind::NotFound => {}
+                Err(_) => return Err(e),
+            }
+            umbenennen(von, nach)
         }
+        sonst => sonst,
     }
-    fs::rename(von, nach)
 }
 
 /// Synchronisiert das Verzeichnis nach dem Umbenennen, damit der neue Name einen Stromausfall
-/// übersteht — nur unter Unix. Unter Windows ausdrücklich nicht: Dort lässt sich ein Verzeichnis
-/// so nicht öffnen, geflusht wird dort nur über das Schreib-Handle (Windows-Lehre, Spec §4.2).
-/// Netzlaufwerke kennen den fsync auf ein Verzeichnis teils nicht (`EINVAL`, `ENOTSUP`); das
-/// ist kein Fehler der Sicherung, die Datei selbst ist über `sync_all` geschrieben.
-fn synchronisiere_ordner(ordner: &Path) -> io::Result<()> {
+/// übersteht — nur unter Unix. Windows-Lehre aus dem Einsatzarchiv (Spec §4.2, `7fb15de`):
+/// Dateien über das Schreib-Handle flushen (`TempDatei::neben`), kein fsync auf Verzeichnisse
+/// unter Windows. Ein Fehler hier macht die Sicherung nicht ungeschehen, denn die Datei ist
+/// schon ersetzt und über `sync_all` geschrieben. Er wird nur protokolliert, etwa auf
+/// Netzlaufwerken ohne fsync für Verzeichnisse (`EINVAL`, `ENOTSUP`).
+fn synchronisiere_ordner(ordner: &Path) {
     if !cfg!(unix) {
-        return Ok(());
+        return;
     }
-    match File::open(ordner).and_then(|d| d.sync_all()) {
-        Ok(()) => Ok(()),
-        Err(e) if matches!(e.kind(), ErrorKind::Unsupported | ErrorKind::InvalidInput) => Ok(()),
-        Err(e) => Err(e),
+    if let Err(e) = File::open(ordner).and_then(|d| d.sync_all()) {
+        eprintln!("Sicherung: fsync auf den Ordner {} fehlgeschlagen: {e}", ordner.display());
     }
 }
 
@@ -314,5 +337,156 @@ impl Drop for TempDatei {
         if self.aktiv {
             let _ = fs::remove_file(&self.pfad);
         }
+    }
+}
+
+/// Fehlerpfade, die sich mit echten Dateien nicht verlässlich herstellen lassen: über die Naht
+/// `umbenennen` in `schreibe_mit` und `ersetze_mit`.
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::format::{Blockkopf, Umgebung, Umschlag};
+
+    fn block(n: u64) -> Block {
+        Block {
+            kopf: Blockkopf {
+                v: 1,
+                block: n,
+                prev: format!("{:064x}", n - 1),
+                versiegelt: "2026-09-25T10:00:00+02:00".into(),
+                schluessel_id: "0123456789abcdef".into(),
+                umgebung: Umgebung::Echt,
+            },
+            iv: "AAAAAAAAAAAAAAAA".into(),
+            daten: "AAAA".into(),
+            umschlag: Umschlag { epk: "BA==".into(), iv: "AAAAAAAAAAAAAAAA".into(), ct: "AAAA".into() },
+            hash: format!("{n:064x}"),
+        }
+    }
+
+    fn datei(n: u64) -> Sicherungsdatei {
+        Sicherungsdatei::neu("2026-09-25T12:00:00+02:00".into(), (1..=n).map(block).collect())
+    }
+
+    fn schnappschuss(ordner: &Path) -> BTreeMap<String, Vec<u8>> {
+        fs::read_dir(ordner)
+            .unwrap()
+            .map(|e| {
+                let e = e.unwrap();
+                (e.file_name().into_string().unwrap(), fs::read(e.path()).unwrap())
+            })
+            .collect()
+    }
+
+    fn echt(von: &Path, nach: &Path) -> io::Result<()> {
+        fs::rename(von, nach)
+    }
+
+    fn verweigert() -> io::Error {
+        io::Error::from(ErrorKind::PermissionDenied)
+    }
+
+    /// Aktuelle Datei plus `.1` bis `.anzahl`, jeweils mit eigenem Inhalt.
+    fn ordner_mit_staenden(anzahl: u32) -> tempfile::TempDir {
+        let ordner = tempfile::tempdir().unwrap();
+        schreibe(ordner.path(), &datei(1)).unwrap();
+        for i in 1..=anzahl {
+            fs::write(ordner.path().join(rotiert(i)), format!("stand {i}")).unwrap();
+        }
+        ordner
+    }
+
+    /// Scheitert `aktuell → .1` immer wieder, verschiebt nur der erste Versuch die Stände (die
+    /// Lücke bei `.1` bleibt). Jeder weitere Versuch füllt diese Lücke, statt erneut zu schieben:
+    /// Kein Fehlversuch kostet einen Stand.
+    #[test]
+    fn wiederholt_scheiterndes_rotieren_kostet_keinen_stand() {
+        let ordner = ordner_mit_staenden(5);
+        let aktuell = fs::read(ordner.path().join(DATEI)).unwrap();
+        let eins = ordner.path().join(rotiert(1));
+        for _ in 0..3 {
+            let mut umbenennen = |von: &Path, nach: &Path| if nach == eins { Err(verweigert()) } else { echt(von, nach) };
+            let fehler = schreibe_mit(ordner.path(), &datei(2), &mut umbenennen).unwrap_err();
+            assert!(matches!(fehler, SicherungFehler::Io(_)), "{fehler:?}");
+        }
+        let mut erwartet = BTreeMap::from([(DATEI.to_string(), aktuell)]);
+        for i in 1..=5 {
+            erwartet.insert(rotiert(i + 1), format!("stand {i}").into_bytes());
+        }
+        assert_eq!(schnappschuss(ordner.path()), erwartet);
+    }
+
+    /// Scheitert erst `temp → aktuell`, wandert die eben nach `.1` rotierte Datei zurück, die
+    /// Temp-Datei verschwindet. Der nächste gelungene Lauf füllt die Lücke bei `.1`.
+    #[test]
+    fn scheiterndes_umbenennen_der_temp_datei_benennt_die_aktuelle_zurueck() {
+        let ordner = ordner_mit_staenden(3);
+        let aktuell = fs::read(ordner.path().join(DATEI)).unwrap();
+        let mut umbenennen = |von: &Path, nach: &Path| {
+            if von.extension().is_some_and(|e| e == "tmp") { Err(verweigert()) } else { echt(von, nach) }
+        };
+        let fehler = schreibe_mit(ordner.path(), &datei(2), &mut umbenennen).unwrap_err();
+        assert!(matches!(fehler, SicherungFehler::Io(_)), "{fehler:?}");
+        let mut erwartet = BTreeMap::from([(DATEI.to_string(), aktuell.clone())]);
+        for i in 1..=3 {
+            erwartet.insert(rotiert(i + 1), format!("stand {i}").into_bytes());
+        }
+        assert_eq!(schnappschuss(ordner.path()), erwartet);
+
+        assert_eq!(schreibe(ordner.path(), &datei(2)).unwrap(), Schreibergebnis::Geschrieben);
+        let nachher = schnappschuss(ordner.path());
+        assert_eq!(nachher[&rotiert(1)], aktuell);
+        for i in 1..=3 {
+            assert_eq!(nachher[&rotiert(i + 1)], format!("stand {i}").into_bytes(), ".{} blieb erhalten", i + 1);
+        }
+        assert_eq!(nachher.len(), 5);
+    }
+
+    /// Windows-Zweig: Verweigert `rename` das bestehende Ziel, wird es entfernt und genau einmal
+    /// neu versucht.
+    #[test]
+    fn ersetze_entfernt_unter_windows_erst_nach_verweigertem_umbenennen() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (von, nach) = (ordner.path().join("neu"), ordner.path().join("ziel"));
+        fs::write(&von, "neu").unwrap();
+        fs::write(&nach, "alt").unwrap();
+        let mut versuche = 0;
+        let mut umbenennen = |a: &Path, b: &Path| {
+            versuche += 1;
+            if b.exists() { Err(verweigert()) } else { echt(a, b) }
+        };
+        ersetze_mit(&von, &nach, true, &mut umbenennen).unwrap();
+        assert_eq!(versuche, 2);
+        assert_eq!(fs::read(&nach).unwrap(), b"neu");
+        assert!(!von.exists());
+    }
+
+    /// Außerhalb von Windows wird ein bestehendes Ziel nie entfernt: Der Fehler geht durch, das
+    /// Ziel bleibt.
+    #[test]
+    fn ersetze_entfernt_ausserhalb_von_windows_nichts() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (von, nach) = (ordner.path().join("neu"), ordner.path().join("ziel"));
+        fs::write(&von, "neu").unwrap();
+        fs::write(&nach, "alt").unwrap();
+        let fehler = ersetze_mit(&von, &nach, false, &mut |_: &Path, _: &Path| Err(verweigert())).unwrap_err();
+        assert_eq!(fehler.kind(), ErrorKind::PermissionDenied);
+        assert_eq!(fs::read(&nach).unwrap(), b"alt");
+    }
+
+    /// Unter Windows ist ein anderer Fehler als „verweigert“/„existiert“ kein Grund, das Ziel zu
+    /// entfernen.
+    #[test]
+    fn ersetze_entfernt_bei_anderen_fehlern_nichts() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (von, nach) = (ordner.path().join("neu"), ordner.path().join("ziel"));
+        fs::write(&von, "neu").unwrap();
+        fs::write(&nach, "alt").unwrap();
+        let fehler =
+            ersetze_mit(&von, &nach, true, &mut |_: &Path, _: &Path| Err(io::Error::from(ErrorKind::NotFound))).unwrap_err();
+        assert_eq!(fehler.kind(), ErrorKind::NotFound);
+        assert_eq!(fs::read(&nach).unwrap(), b"alt");
     }
 }

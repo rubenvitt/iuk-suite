@@ -267,6 +267,24 @@ fn schreibe_atomar_ersetzt_ein_bestehendes_ziel_vollstaendig() {
     assert_eq!(namen, ["einsatz_2026-001.einsatzbuch"]);
 }
 
+/// Scheitert das Umbenennen (hier ist das Ziel ein nicht leerer Ordner), bleibt keine
+/// Temp-Datei liegen, und das Ziel bleibt, wie es war.
+#[cfg(unix)]
+#[test]
+fn schreibe_atomar_raeumt_bei_scheiterndem_umbenennen_auf() {
+    let ordner = tempfile::tempdir().unwrap();
+    let ziel = ordner.path().join("export.einsatzbuch");
+    fs::create_dir(&ziel).unwrap();
+    fs::write(ziel.join("inhalt"), b"bleibt").unwrap();
+    let fehler = sicherung::schreibe_atomar(&ziel, b"neu").unwrap_err();
+    assert!(ziel.is_dir(), "{fehler:?}");
+    assert_eq!(fs::read(ziel.join("inhalt")).unwrap(), b"bleibt");
+    assert_eq!(schnappschuss(&ziel).len(), 1);
+    keine_temp_datei(ordner.path());
+    let namen: Vec<String> = schnappschuss(ordner.path()).into_keys().collect();
+    assert_eq!(namen, ["export.einsatzbuch"]);
+}
+
 #[test]
 fn schreibe_atomar_legt_ein_neues_ziel_an() {
     let ordner = tempfile::tempdir().unwrap();
