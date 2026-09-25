@@ -650,3 +650,67 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 .radiokarte-text { display: flex; flex-direction: column; gap: 4px; }
 .radiokarte-titel { font-weight: 600; }
 .radiokarte-hilfe { font-size: 13px; color: var(--verw-text-2); }
+
+/* Verwaltung (Vorlage „Verwaltung“ in `Einsatzbuch v2.dc.html`) */
+.seite-verwaltung { max-width: 1440px; padding: 24px; }
+.stapel-4 { gap: 4px; }
+.verwaltung-kopf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.verwaltung-titel { flex: 1 1 320px; gap: 4px; }
+.verwaltung-leitsaetze { gap: 16px 24px; }
+.leitsatz { display: flex; gap: 12px; align-items: flex-start; }
+.leitsatz-zeichen {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--iuk-flaeche-aktiv);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.leitsatz-titel { font-weight: 600; }
+.verwaltung-stand { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.kachel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 12px 12px 28px;
+  background: var(--verw-karte);
+  border: 1px solid var(--verw-rand-2);
+  border-radius: 10px;
+}
+.kachel-zahl { font: 700 30px/1 var(--font-display); font-variant-numeric: tabular-nums lining-nums; }
+.kachel-label { font-size: 14px; color: var(--verw-text-2); }
+.verwaltung-spalten { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.verwaltung-links { flex: 1 1 560px; min-width: 0; }
+.verwaltung-rechts {
+  flex: 1 1 380px;
+  max-width: 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 93px;
+}
+.chip-grau {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 9px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--iuk-gedaempft);
+  background: var(--iuk-flaeche-aktiv);
+}
+.verteilung { padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+.verteilung .kicker { margin: 0; }
+.verteilung-zeile { display: grid; grid-template-columns: 128px minmax(0, 1fr) 28px; gap: 12px; align-items: center; }
+.verteilung-name { font: 600 16px/1.2 var(--font-display); letter-spacing: 0.02em; }
+.verteilung-bahn { height: 12px; border-radius: 2px; background: var(--verw-body); }
+.verteilung-balken { height: 100%; border-radius: 2px; background: var(--verw-text-2); }
+.verteilung-anz { text-align: right; font: 700 18px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.gesperrt-karte { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.gesperrt-karte .hinweis { flex: 1 1 280px; }

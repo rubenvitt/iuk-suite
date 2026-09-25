@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clickElement, fill, mount, queryAll, unmount } from "../../../src/app/m/qr/_lib/test-dom";
 import type { Ausstehend, Entwurf, Stammdatenpaket, Status, Versiegelung } from "./typen";
+import { BLOECKE, CEKS } from "./verwaltung/testvektoren";
 
 const befehle = vi.hoisted(() => ({
   status: vi.fn(),
@@ -156,6 +157,12 @@ beforeEach(() => {
   befehle.entwurfVerwerfen.mockResolvedValue(undefined);
   befehle.fristPruefen.mockResolvedValue(null);
   befehle.versiegelungQuittieren.mockResolvedValue(undefined);
+  befehle.abmelden.mockResolvedValue(undefined);
+  befehle.bloecke.mockResolvedValue(BLOECKE);
+  befehle.schluesselFreigeben.mockResolvedValue(CEKS);
+  befehle.ankerAbgleichen.mockResolvedValue({
+    bestaetigtBis: 3, hash: BLOECKE[2].hash, gemeldetAm: "2026-09-25T10:00:00+02:00", abweichung: null, offline: false, widerrufen: false,
+  });
 });
 
 afterEach(async () => {
@@ -324,11 +331,136 @@ describe("Widerruf", () => {
   });
 });
 
-describe("Verwaltung (Platzhalter, Task 10 ersetzt sie)", () => {
-  it("zeigt „Stammdaten vom …“ in der Zone des Status", async () => {
-    await starte(status({ ausstehend: ausstehend(), sitzung: { name: "Ruben Vitt", ablaufMs: Date.now() + 3_600_000 } }));
-    await clickElement(knopf("Ruben Vitt")!);
+const SITZUNG = { name: "Ruben Vitt", ablaufMs: Date.now() + 3_600_000 };
+const GESPERRT = "Sitzung gesperrt. Die Einsätze liegen nur noch verschlüsselt vor.";
+
+/** Von der Startseite über die Anmeldekarte in die Verwaltung. */
+async function meldeAnUndOeffneVerwaltung(s: Status = status()): Promise<void> {
+  await starte(s);
+  await clickElement(knopf("Verwaltung · Anmelden")!);
+  befehle.anmelden.mockResolvedValue(SITZUNG);
+  befehle.status.mockResolvedValue({ ...s, sitzung: SITZUNG });
+  await clickElement(knopf("Mit Pocket ID anmelden")!);
+  await warte();
+  await warte();
+}
+
+describe("Verwaltung", () => {
+  it("erscheint nach `anmelden` mit Kette, Detail des neuesten Einsatzes, Kennzahlen und Verteilung", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    expect(queryAll("h1").map((h) => h.textContent)).toContain("Versiegelte Einsätze");
+    expect(befehle.bloecke).toHaveBeenCalled();
+    expect(befehle.schluesselFreigeben).toHaveBeenCalledTimes(1);
+    // Kettenliste: drei Blöcke, neueste oben; das Detail zeigt Block 3.
+    const zeilen = queryAll<HTMLButtonElement>("button[data-block]");
+    expect(zeilen.map((z) => z.dataset.block)).toEqual(["3", "2", "1"]);
+    expect(zeilen[0].getAttribute("aria-pressed")).toBe("true");
+    expect(queryAll('section[aria-label="Block 3"] h2').map((h) => h.textContent)).toEqual(["MANV 10"]);
+    expect(text()).toContain("Sitzung von Ruben Vitt, endet");
+    expect(text()).toContain("Nur auf diesem Rechner");
+    expect(text()).toContain("Einsätze versiegelt");
+    expect(text()).toContain("Alarmstichworte");
+    expect(text()).toContain("Block 0 · Anfang der Kette · angelegt am 1.9.2026 von Ruben Vitt");
     expect(text()).toContain("Stammdaten vom 25.9.2026, 10:00");
+    expect(text()).toContain("Anker bestätigt bis Block 3");
+    expect(text()).toContain("Kette intakt");
+    expect(knopf("Herunterladen")).toBeUndefined();
+  });
+
+  it("wählt ein Einsatz per Klick in der Kette", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(queryAll<HTMLButtonElement>('button[data-block="1"]')[0]);
+    expect(queryAll('section[aria-label="Block 1"] h2').map((h) => h.textContent)).toEqual(["RD 2"]);
+  });
+
+  it("„Sitzung sperren“ ruft `abmelden`, der Stichworttext ist aus dem DOM verschwunden", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    expect(text()).toContain("MANV 10");
+    befehle.abmelden.mockResolvedValue(undefined);
+    befehle.status.mockResolvedValue(status());
+    await clickElement(knopf("Sitzung sperren")!);
+    await warte();
+    expect(befehle.abmelden).toHaveBeenCalledTimes(1);
+    for (const e of ["MANV 10", "RD 2", "SanD", "2026-043", "Lindenstraße 8"]) expect(text()).not.toContain(e);
+    expect(text()).toContain(GESPERRT);
+    await clickElement(knopf("Entsperren")!);
+    expect(text()).toContain("Anmelden, um Einsätze zu lesen");
+  });
+
+  it("hält Rust nach „Kette prüfen“ keine Sitzung mehr, gilt die Verwaltung als gesperrt", async () => {
+    await meldeAnUndOeffneVerwaltung();
+    befehle.status.mockResolvedValue(status());
+    await clickElement(knopf("Kette prüfen")!);
+    await warte();
+    expect(text()).not.toContain("MANV 10");
+    expect(text()).toContain(GESPERRT);
+  });
+
+  it("sperrt aus der Verwaltung zur laufenden Frist, ohne den Startseiten-Hinweis vorzumerken", async () => {
+    const s = status({ ausstehend: ausstehend() });
+    await meldeAnUndOeffneVerwaltung(s);
+    expect(text()).toContain("MANV 10");
+    befehle.status.mockResolvedValue(s);
+    await clickElement(knopf("Sitzung sperren")!);
+    await warte();
+    expect(text()).toContain("Abgesendet · noch änderbar");
+    expect(text()).not.toContain("MANV 10");
+    befehle.jetztVersiegeln.mockResolvedValue(versiegelung());
+    befehle.status.mockResolvedValue(status({ versiegelung: versiegelung() }));
+    await clickElement(knopf("Jetzt versiegeln")!);
+    await warte();
+    befehle.status.mockResolvedValue(status());
+    await clickElement(knopf("Neuen Einsatz erfassen")!);
+    await warte();
+    expect(text()).not.toContain(GESPERRT);
+  });
+
+  it("zeigt einen Freigabe-Fehler aus Rust wörtlich, die Blöcke nur als Chiffre", async () => {
+    befehle.schluesselFreigeben.mockRejectedValue("Lesen braucht Verbindung zur Suite.");
+    await meldeAnUndOeffneVerwaltung();
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Lesen braucht Verbindung zur Suite.");
+    const zeilen = queryAll<HTMLButtonElement>("button[data-block]");
+    expect(zeilen.map((z) => z.getAttribute("aria-label"))).toEqual(["Block 3, verschlüsselt", "Block 2, verschlüsselt", "Block 1, verschlüsselt"]);
+    expect(text()).not.toContain("MANV 10");
+  });
+
+  it("zeigt eine 422-Meldung der Suite mit beiden IDs wörtlich als Warnung", async () => {
+    const meldung = "Der Schlüssel 8cedd95d94246a4d passt nicht zum Rechner (erwartet 1a2b3c4d5e6f7a8b).";
+    befehle.schluesselFreigeben.mockRejectedValue(meldung);
+    await meldeAnUndOeffneVerwaltung();
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain(meldung);
+  });
+
+  it("„Kette prüfen“ prüft lokal und gegen den Anker, getrennt angezeigt", async () => {
+    befehle.ankerAbgleichen.mockResolvedValue({
+      bestaetigtBis: 2, hash: "b".repeat(64), gemeldetAm: "2026-09-25T10:00:00+02:00", abweichung: null, offline: false, widerrufen: false,
+    });
+    await meldeAnUndOeffneVerwaltung(status({ ankerBestaetigtBis: 1 }));
+    expect(text()).toContain("Anker bestätigt bis Block 1");
+    await clickElement(knopf("Kette prüfen")!);
+    await warte();
+    expect(befehle.ankerAbgleichen).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("Kette intakt");
+    expect(text()).toContain("Anker bestätigt bis Block 2");
+  });
+
+  it("„Kette prüfen“ ohne Suite: lokal intakt, Anker nicht geprüft", async () => {
+    befehle.ankerAbgleichen.mockResolvedValue({ bestaetigtBis: 3, hash: null, gemeldetAm: null, abweichung: null, offline: true, widerrufen: false });
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(knopf("Kette prüfen")!);
+    await warte();
+    expect(text()).toContain("Kette intakt");
+    expect(text()).toContain("Anker nicht geprüft — die Suite ist nicht erreichbar.");
+  });
+
+  it("zeigt eine Anker-Abweichung rot", async () => {
+    befehle.ankerAbgleichen.mockResolvedValue({
+      bestaetigtBis: 4, hash: null, gemeldetAm: null, abweichung: { block: 5, erwartet: "1a2b3c4d".repeat(8), gemeldet: "99887766".repeat(8) }, offline: false, widerrufen: false,
+    });
+    await meldeAnUndOeffneVerwaltung();
+    await clickElement(knopf("Kette prüfen")!);
+    await warte();
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain("Anker weicht ab bei Block 5: erwartet #1a2b3c4d, hier #99887766");
   });
 });
 
@@ -587,6 +719,42 @@ describe("mit gestellter Uhr", () => {
     expect(befehle.fristPruefen).toHaveBeenCalled();
     expect(befehle.status.mock.calls.length).toBe(2);
     expect(queryAll('[role="alert"]')).toHaveLength(0);
+  });
+
+  it("sperrt app-weit nach 10 min ohne Eingabe, auch mitten in der Erfassung, und bleibt dort", async () => {
+    const offen = ausstehend(entwurf(), Date.now() + 60 * 60_000);
+    const sitzung = { name: "Ruben Vitt", ablaufMs: Date.now() + 3_600_000 };
+    // Rust hält die Sitzung, bis `abmelden` kommt — auch über die Status-Abfragen der Frist hinweg.
+    befehle.status.mockImplementation(async () => status({ ausstehend: offen, sitzung: befehle.abmelden.mock.calls.length > 0 ? null : sitzung }));
+    await mount(<App />);
+    await laufe(0);
+    await laufe(0);
+    expect(text()).toContain("Abgesendet · noch änderbar");
+    expect(knopf("Sitzung sperren")).toBeDefined();
+    await laufe(10 * 60_000 - 1);
+    expect(befehle.abmelden).not.toHaveBeenCalled();
+    await laufe(1);
+    await laufe(0);
+    expect(befehle.abmelden).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("Abgesendet · noch änderbar");
+    expect(knopf("Sitzung sperren")).toBeUndefined();
+  });
+
+  it("sperrt beim Ablauf des Tokens: Verwaltung verworfen, Startseite mit Hinweis", async () => {
+    const ablauf = Date.now() + 2 * 60_000;
+    befehle.anmelden.mockResolvedValue({ name: "Ruben Vitt", ablaufMs: ablauf });
+    await starteMitUhr(status());
+    await clickElement(knopf("Verwaltung · Anmelden")!);
+    befehle.status.mockResolvedValue(status({ sitzung: { name: "Ruben Vitt", ablaufMs: ablauf } }));
+    await clickElement(knopf("Mit Pocket ID anmelden")!);
+    for (let i = 0; i < 10; i++) await laufe(0);
+    expect(text()).toContain("MANV 10");
+    befehle.status.mockResolvedValue(status());
+    await laufe(2 * 60_000);
+    await laufe(0);
+    expect(befehle.abmelden).toHaveBeenCalledTimes(1);
+    expect(text()).not.toContain("MANV 10");
+    expect(text()).toContain(GESPERRT);
   });
 
   it("startet keine zweite Abfrage, solange eine hängt", async () => {

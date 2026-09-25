@@ -13,6 +13,10 @@
  *
  * Refs spiegeln Zustand, den asynchrone Schritte lesen (Polling, Speicher-Timer): Sie würden sonst
  * mit dem Wert aus dem Render arbeiten, in dem sie gestartet wurden.
+ *
+ * Die Verwaltung (`seiten/Verwaltung.tsx`) entschlüsselt nur, solange Rust eine Sitzung hält und
+ * sie offen ist (`verwaltung/useVerwaltung.ts`). Die Sperre (`verwaltung/useSperre.ts`) wacht
+ * app-weit über jede Sitzung, auch während der Erfassung, denn die Sitzung überdauert den Wechsel.
  */
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
@@ -28,16 +32,18 @@ import { Testband } from "./bausteine/Testband";
 import { befehle } from "./befehle";
 import { phaseAus, restSekunden, restText, type Lokal } from "./logik/ablauf";
 import { kannAbsenden, leererEntwurf } from "./logik/formular";
-import { ankerAbweichungText, stammdatenVomText } from "./logik/verbindung";
 import { Anmelden, Wartebildschirm } from "./seiten/Anmelden";
 import { Einrichtungsfrage } from "./seiten/Einrichtungsfrage";
 import { Formular } from "./seiten/Formular";
 import { Frist } from "./seiten/Frist";
 import { Startfehler } from "./seiten/Startfehler";
+import { Verwaltung } from "./seiten/Verwaltung";
 import { Versiegelt } from "./seiten/Versiegelt";
 import { Willkommen } from "./seiten/Willkommen";
 import { useThema } from "./stil/thema";
 import type { Entwurf, Stammdatenpaket, Status } from "./typen";
+import { useSperre } from "./verwaltung/useSperre";
+import { useVerwaltung } from "./verwaltung/useVerwaltung";
 
 const START: Lokal = { phase: "start", bearbeiten: false };
 
@@ -64,6 +70,10 @@ export function App() {
    * Oberfläche sperrt ihre Knöpfe deshalb an diesem eigenen Zustand, nicht am Status-Feld.
    */
   const [wartetAuf, setWartetAuf] = useState<"einrichten" | "anmelden" | "neuEinrichten" | null>(null);
+  /** Uhr von Rust minus Uhr hier, für den Tokenablauf (`useSperre`); als Zustand, weil der Render ihn liest. */
+  const [versatz, setVersatz] = useState(0);
+  /** Nach einer Sperre aus der Verwaltung: Hinweis mit „Entsperren“ auf der Startseite. */
+  const [gesperrtHinweis, setGesperrtHinweis] = useState(false);
 
   const statusRef = useRef<Status | null>(null);
   const versatzRef = useRef(0);
@@ -128,12 +138,19 @@ export function App() {
     const jetzt = Date.now();
     statusRef.current = s;
     versatzRef.current = s.jetztMs - jetzt;
+    setVersatz(s.jetztMs - jetzt);
     setStatus(s);
     setFristStand(s.ausstehend ? { fristBisMs: s.ausstehend.fristBisMs, versatz: s.jetztMs - jetzt, gemessenAm: jetzt } : null);
     const vorher = lokalRef.current;
     // Neustart mitten in einer Bearbeitung: Rust hält Ausstehendes und Entwurf, also dort weiter.
     const neustartInBearbeitung = ersterStart && s.eingerichtet && !s.startfehler && !s.versiegelung && s.ausstehend && s.entwurf;
-    const neu: Lokal = neustartInBearbeitung ? { phase: "form", bearbeiten: true } : phaseAus(s, vorher);
+    let neu: Lokal = neustartInBearbeitung ? { phase: "form", bearbeiten: true } : phaseAus(s, vorher);
+    // Rust hält keine Sitzung mehr (abgelaufen, von der Suite verworfen): Die Verwaltung ist dann
+    // gesperrt, wie nach „Sitzung sperren“ — nicht eine Seite, die ewig auf Schlüssel wartet.
+    if (neu.phase === "verwaltung" && !s.sitzung) {
+      neu = phaseAus(s, START);
+      setGesperrtHinweis(neu.phase === "start");
+    }
     if (neu.phase === "versiegelt" && vorher.phase !== "versiegelt") {
       void speicher.stoppe();
       setVerfallenLokal(vorher.bearbeiten && speicher.ungespeichert());
@@ -243,6 +260,7 @@ export function App() {
   }
 
   function oeffnen() {
+    setGesperrtHinweis(false);
     if ((frischRef.current || !entwurfRef.current) && zeitzone) setzeEntwurf(leererEntwurf(new Date(), zeitzone), true);
     setzeLokal({ phase: "form", bearbeiten: false });
   }
@@ -402,7 +420,10 @@ export function App() {
         setWartetAuf(null);
       }
       const s = await laden();
-      if (s.sitzung) setzeLokal({ phase: "verwaltung", bearbeiten: false });
+      if (s.sitzung) {
+        setGesperrtHinweis(false);
+        setzeLokal({ phase: "verwaltung", bearbeiten: false });
+      }
     });
 
   /** „Neu einrichten“ im Widerrufs-Hinweis (nur echt, nur nach Widerruf). */
@@ -420,7 +441,10 @@ export function App() {
   /** Synchron: Der laufende `einrichten`/`anmelden`/`neu_einrichten` endet danach mit „Anmeldung abgebrochen.“ */
   const anmeldungAbbrechen = () => void befehle.anmeldungAbbrechen();
 
-  const oeffneAnmeldung = () => setzeLokal({ phase: "anmelden", bearbeiten: false });
+  const oeffneAnmeldung = () => {
+    setGesperrtHinweis(false);
+    setzeLokal({ phase: "anmelden", bearbeiten: false });
+  };
 
   /** Verlässt die Anmeldekarte wieder dorthin, wo der Status ohne sie hinführen würde. */
   const zurueckVonAnmeldung = () => {
@@ -430,14 +454,45 @@ export function App() {
 
   const zurVerwaltung = () => setzeLokal({ phase: "verwaltung", bearbeiten: false });
 
-  /** „Sitzung sperren“ heißt abmelden (Spec §4.4, Entscheidung 9 aus `kontext.md`). */
-  const sperren = () =>
-    fuehreAus(async () => {
+  const verwaltung = useVerwaltung(status?.sitzung != null && lokal.phase === "verwaltung");
+
+  /**
+   * „Sitzung sperren“, 10 min ohne Eingabe oder Tokenablauf: heißt abmelden (Spec §4.4,
+   * Entscheidung 9 aus `kontext.md`). Bewusst NICHT über `fuehreAus` — dessen Ein-Schritt-Wächter
+   * ließe eine Sperre fallen, während ein anderer Schritt läuft. Erst synchron Klartext und CEKs
+   * verwerfen, dann Rust abmelden. Wer gerade erfasst, bleibt in der Erfassung; aus Verwaltung und
+   * Anmeldung geht es zur Startseite mit dem Hinweis.
+   */
+  async function sperren() {
+    verwaltung.verwerfen();
+    const phase = lokalRef.current.phase;
+    if (phase === "verwaltung" || phase === "anmelden") {
+      const s = statusRef.current;
+      const ziel = s ? phaseAus(s, START) : START;
+      // Der Hinweis gehört zur Startseite; führt die Sperre zur Frist, käme er sonst viel später.
+      setGesperrtHinweis(ziel.phase === "start");
+      setzeLokal(ziel);
+    }
+    try {
       await befehle.abmelden();
-      const warVerwaltung = lokalRef.current.phase === "verwaltung";
-      const s = await laden();
-      if (warVerwaltung) setzeLokal(phaseAus(s, { phase: "start", bearbeiten: false }));
-    });
+      await laden();
+    } catch (e) {
+      zeigeFehler(e, false);
+    }
+  }
+
+  useSperre({
+    aktiv: status?.sitzung != null,
+    ablaufMs: status?.sitzung?.ablaufMs ?? null,
+    jetztVersatz: versatz,
+    sperre: () => void sperren(),
+  });
+
+  /** Lokal prüfen und gegen den Anker; danach den Status neu lesen (Widerruf, Abweichung). */
+  async function kettePruefen() {
+    await verwaltung.kettePruefen();
+    await laden().catch((e: unknown) => zeigeFehler(e, true));
+  }
 
   const test = status?.betrieb === "test";
   const fristMinuten = status?.fristMinuten ?? paket?.fristMinuten ?? null;
@@ -488,22 +543,20 @@ export function App() {
         inhalt = <Anmelden beiAnmelden={() => void meldeAn()} beiZurueck={zurueckVonAnmeldung} />;
         break;
       case "verwaltung":
-        inhalt = (
-          <main className="seite seite-schmal" data-screen-label="Verwaltung">
-            <div className="stapel stapel-8">
-              <div className="kicker">Verwaltung</div>
-              <h1 className="titel">{status.rechnerName ?? "Einsatzbuch-Rechner"}</h1>
-            </div>
-            <Karte>
-              <div className="stapel stapel-8">
-                {status.stammdatenVom && zeitzone ? <div className="neben">{stammdatenVomText(status.stammdatenVom, zeitzone)}</div> : null}
-                {status.ankerAbweichung ? <Hinweis ton="warn">{ankerAbweichungText(status.ankerAbweichung)}</Hinweis> : null}
-                {/* Platzhalter: Die Verwaltungsansicht selbst (Kette prüfen, Herunterladen, versiegelte Einsätze) folgt in Task 10. */}
-                <div className="absatz">Die Verwaltungsansicht folgt.</div>
-              </div>
-            </Karte>
-          </main>
-        );
+        inhalt = zeitzone ? (
+          <Verwaltung
+            zustand={verwaltung.zustand}
+            zeitzone={zeitzone}
+            sitzung={status.sitzung}
+            eingerichtetAm={status.eingerichtetAm}
+            eingerichtetVon={status.eingerichtetVon}
+            stammdatenVom={status.stammdatenVom}
+            ankerBestaetigtBis={status.ankerBestaetigtBis}
+            ankerAbweichung={status.ankerAbweichung}
+            beiKettePruefen={kettePruefen}
+            beiSperren={() => void sperren()}
+          />
+        ) : null;
         break;
       case "start":
         inhalt = (
@@ -575,6 +628,7 @@ export function App() {
               sitzung={status?.sitzung ?? null}
               beiAnmeldenKlick={oeffneAnmeldung}
               beiVerwaltungKlick={zurVerwaltung}
+              mitSperren={lokal.phase !== "verwaltung"}
               beiSperren={() => void sperren()}
             />
           ) : null}
@@ -586,6 +640,18 @@ export function App() {
         </div>
       ) : null}
       {widerrufBanner}
+      {gesperrtHinweis && lokal.phase === "start" ? (
+        <div className="fehlerleiste">
+          <Karte>
+            <div className="gesperrt-karte">
+              <Hinweis ton="info">Sitzung gesperrt. Die Einsätze liegen nur noch verschlüsselt vor.</Hinweis>
+              <Knopf variante="primaer" zeichen="schluessel" onClick={oeffneAnmeldung}>
+                Entsperren
+              </Knopf>
+            </div>
+          </Karte>
+        </div>
+      ) : null}
       {inhalt}
       {bestaetigen ? (
         <Bestaetigung

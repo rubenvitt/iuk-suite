@@ -31,10 +31,12 @@ interface KopfProps {
   sitzung: SitzungInfo | null;
   beiAnmeldenKlick: () => void;
   beiVerwaltungKlick: () => void;
+  /** In der Verwaltung steht „Sitzung sperren“ in deren Kopfzeile; hier nicht ein zweites Mal. */
+  mitSperren?: boolean;
   beiSperren: () => void;
 }
 
-export function Kopf({ thema, beiThemaWechsel, eingerichtet, sitzung, beiAnmeldenKlick, beiVerwaltungKlick, beiSperren }: KopfProps) {
+export function Kopf({ thema, beiThemaWechsel, eingerichtet, sitzung, beiAnmeldenKlick, beiVerwaltungKlick, mitSperren = true, beiSperren }: KopfProps) {
   const label = `Design: ${THEMA_TEXT[thema]}`;
   return (
     <div className="kopf">
@@ -49,7 +51,7 @@ export function Kopf({ thema, beiThemaWechsel, eingerichtet, sitzung, beiAnmelde
               <button type="button" className="kopf-nutzer" onClick={beiVerwaltungKlick}>
                 {sitzung.name}
               </button>
-              <Knopf onClick={beiSperren}>Sitzung sperren</Knopf>
+              {mitSperren ? <Knopf onClick={beiSperren}>Sitzung sperren</Knopf> : null}
             </>
           ) : eingerichtet ? (
             <Knopf onClick={beiAnmeldenKlick}>Verwaltung · Anmelden</Knopf>
