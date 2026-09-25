@@ -4,8 +4,8 @@
  * mit Titel, Zeilen mit Zeichen wie die Leitsätze) und den Ampeltönen von `Hinweis`.
  *
  * - **Sicherung:** der Stand aus dem Status in Worten (`logik/sicherung.ts`) und „Ordner wählen“.
- *   Die Sicherung selbst schreibt der Abgleich-Thread in Rust. Der Status, der direkt nach der
- *   Wahl gelesen wird, kann also noch den alten Zeitpunkt tragen.
+ *   Die Wahl sichert in Rust gleich in den neuen Ordner, bevor der Befehl zurückkehrt. Der
+ *   Status, der direkt danach gelesen wird, trägt also schon das Ergebnis, auch ein Scheitern.
  * - **Aus Sicherung wiederherstellen:** nur im Echtbetrieb, bei leerer Kette und mit Sitzung,
  *   erst nach einer Bestätigung. Den Rest prüft Rust (Anker der Suite, Freigabe, Ausstehendes).
  *   Die Meldung steht außerhalb dieser Bedingung, denn nach dem Neulesen ist die Kette nicht mehr leer.

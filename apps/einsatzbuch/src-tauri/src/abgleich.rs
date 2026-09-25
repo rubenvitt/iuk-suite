@@ -3,18 +3,18 @@
 //!
 //! - Beim Start läuft er sofort einmal: erst die Sicherung, dann die Stammdaten, dann die Anker.
 //! - Danach wartet er bis zu einer Stunde auf einen `Anstoss` (`Zustand::stosse_an`):
-//!   - `NeuerBlock` (Versiegeln, Frist-Uhr, Einrichten, Neu einrichten, Wiederherstellen): erst
-//!     die Sicherung, dann der Ankerabgleich;
-//!   - `Sicherung` (Sicherungsordner gewählt): nur die Sicherung.
+//!   `NeuerBlock` (Versiegeln, Frist-Uhr, Einrichten, Neu einrichten, Wiederherstellen): erst
+//!   die Sicherung, dann der Ankerabgleich. Die Wahl des Sicherungsordners stößt ihn nicht an,
+//!   sie sichert selbst (`sicherung::setze_sicherungsordner`, Review I2).
 //! - Läuft die Stunde ab, folgt dieselbe volle Runde wie beim Start: erst die Sicherung, dann
 //!   Stammdaten und Anker (Fix-Runde 1 zu Task 5, ändert Entscheidung 1). Bei unveränderter Kette
 //!   ergibt die Sicherung `Unveraendert`: kein Schreiben, keine Rotation, aber „letzte Sicherung“
 //!   heißt dann „zuletzt als aktuell im Ordner bestätigt“. So holt die Stunde einen
 //!   fehlgeschlagenen Versuch nach, und ein Rechner ohne neue Blöcke wird nach 7 Tagen nicht rot.
 //! - Die Sicherung läuft vor jeder Anfrage an die Suite in dieser Runde und unabhängig von
-//!   Geräte-Token und Widerruf (`sicherung::sichere_jetzt`). Weil nur dieser Thread sie schreibt,
-//!   gibt es nie zwei Schreiber auf derselben Datei, und kein Lock bleibt über der Datei-I/O im
-//!   Sicherungsordner (etwa einem Netzlaufwerk) gehalten.
+//!   Geräte-Token und Widerruf (`sicherung::sichere_jetzt`). Mit der Wahl des Ordners teilt er
+//!   sich den Mutex `Zustand::sicherung`, also schreiben nie zwei gleichzeitig; weder `buch` noch
+//!   ein Blatt bleibt über der Datei-I/O im Sicherungsordner (etwa einem Netzlaufwerk) gehalten.
 //! - Fehler landen im Log (ohne Körper und ohne Token), nie als Panik; eine Panik in der
 //!   Sicherung oder im Abgleich fängt der Thread je Teil und macht mit dem nächsten weiter.
 //! - Er hält den Buch-Lock nie während einer Anfrage: Er ruft dieselben Funktionen wie die
@@ -36,13 +36,13 @@ use crate::zustand::Zustand;
 /// Abstand der vollen Runden (Stammdaten und Anker).
 pub const TAKT: Duration = Duration::from_secs(60 * 60);
 
-/// Was den Abgleich-Thread weckt (Entscheidung 1).
+/// Was den Abgleich-Thread weckt (Entscheidung 1). Den früheren Anstoß `Sicherung` (Ordner
+/// gewählt) gibt es nicht mehr: Die Wahl sichert selbst, damit die Oberfläche das Ergebnis gleich
+/// sieht (Review I2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anstoss {
     /// Es gibt einen neuen Block (oder eine ganz neue Kette): sichern, dann Anker melden.
     NeuerBlock,
-    /// Der Sicherungsordner ist neu gewählt: nur sichern.
-    Sicherung,
 }
 
 /// Der Suite-Teil einer Runde.
@@ -52,8 +52,6 @@ pub enum Runde {
     Voll,
     /// Nur Anker — nach einem neuen Block.
     NurAnker,
-    /// Keine Anfrage an die Suite für Stammdaten und Anker — nach der Wahl des Ordners.
-    Keine,
 }
 
 /// Eine Runde des Threads: ob zuerst gesichert wird, und was danach mit der Suite abzugleichen ist.
@@ -71,17 +69,11 @@ impl Lauf {
     pub const STUENDLICH: Lauf = Lauf { sichern: true, runde: Runde::Voll };
     /// Nach `Anstoss::NeuerBlock`: sichern, dann Anker melden.
     pub const NEUER_BLOCK: Lauf = Lauf { sichern: true, runde: Runde::NurAnker };
-    /// Nach `Anstoss::Sicherung`: nur sichern.
-    pub const NUR_SICHERUNG: Lauf = Lauf { sichern: true, runde: Runde::Keine };
 
-    /// Der Lauf nach einem Anstoß (mehrere in Folge zusammengefasst): Gesichert wird immer,
-    /// Anker nur nach einem neuen Block. Ist die volle Runde fällig, wird es gleich eine volle.
-    fn nach(neuer_block: bool, volle_faellig: bool) -> Lauf {
-        match (volle_faellig, neuer_block) {
-            (true, _) => Lauf { sichern: true, runde: Runde::Voll },
-            (false, true) => Lauf::NEUER_BLOCK,
-            (false, false) => Lauf::NUR_SICHERUNG,
-        }
+    /// Der Lauf nach einem Anstoß (mehrere in Folge zusammengefasst): sichern und Anker melden.
+    /// Ist die volle Runde fällig, wird es gleich eine volle.
+    fn nach(volle_faellig: bool) -> Lauf {
+        if volle_faellig { Lauf { sichern: true, runde: Runde::Voll } } else { Lauf::NEUER_BLOCK }
     }
 }
 
@@ -101,7 +93,7 @@ fn abgleichbar(z: &Zustand) -> bool {
 
 /// Der Suite-Teil einer Runde. Fehler gehen ins Log.
 fn gleiche_ab(z: &Zustand, r: Runde) {
-    if r == Runde::Keine || !abgleichbar(z) {
+    if !abgleichbar(z) {
         return;
     }
     if r == Runde::Voll {
@@ -133,8 +125,8 @@ pub fn runde(z: &Zustand, l: Lauf) {
 }
 
 /// Die Schleife des Threads: der Startlauf sofort, danach je Anstoß ein Lauf (`Lauf::nach`) und
-/// je abgelaufenem `takt` ein stündlicher. Mehrere Anstöße in Folge ergeben einen Lauf; ist
-/// einer davon `NeuerBlock`, gleicht er die Anker ab. Der Takt zählt ab der letzten vollen
+/// je abgelaufenem `takt` ein stündlicher. Mehrere Anstöße in Folge ergeben einen Lauf, der
+/// sichert und die Anker abgleicht. Der Takt zählt ab der letzten vollen
 /// Runde, nicht ab dem letzten Anstoß — sonst verdrängten Versiegelungen, die öfter als
 /// stündlich kommen, den Stammdatenabgleich ganz. Ist die Frist nach einem Anstoß schon um,
 /// wird die Runde gleich zur vollen. Endet, wenn niemand mehr senden kann.
@@ -143,12 +135,9 @@ pub fn schleife(z: &Zustand, signal: &Receiver<Anstoss>, takt: Duration) {
     let mut naechste_volle = Instant::now() + takt;
     loop {
         let lauf = match signal.recv_timeout(naechste_volle.saturating_duration_since(Instant::now())) {
-            Ok(erster) => {
-                let mut neuer_block = erster == Anstoss::NeuerBlock;
-                while let Ok(weiterer) = signal.try_recv() {
-                    neuer_block |= weiterer == Anstoss::NeuerBlock;
-                }
-                Lauf::nach(neuer_block, Instant::now() >= naechste_volle)
+            Ok(Anstoss::NeuerBlock) => {
+                while signal.try_recv().is_ok() {}
+                Lauf::nach(Instant::now() >= naechste_volle)
             }
             Err(RecvTimeoutError::Timeout) => Lauf::STUENDLICH,
             Err(RecvTimeoutError::Disconnected) => return,
@@ -209,10 +198,9 @@ mod tests {
         faden.join().unwrap();
     }
 
-    /// Entscheidung 1: Der Start sichert vor jeder Anfrage an die Suite, `Anstoss::Sicherung`
-    /// sichert nur, ohne Ankerabgleich.
+    /// Entscheidung 1: Der Start sichert vor jeder Anfrage an die Suite.
     #[test]
-    fn start_sichert_zuerst_und_der_ordneranstoss_nur_sichert() {
+    fn start_sichert_vor_jeder_anfrage_an_die_suite() {
         let ordner = tempfile::tempdir().unwrap();
         let ziel = tempfile::tempdir().unwrap();
         let (z, suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
@@ -227,12 +215,6 @@ mod tests {
         warte_bis(|| suite.anfragen().len() >= 3);
         assert_eq!(pfade(&suite), ["POST /api/sicherung", "GET /api/stammdaten", "POST /api/anker"]);
         assert!(ziel.path().join(einsatzbuch_kern::sicherung::DATEI).exists());
-
-        suite.leere();
-        tx.send(Anstoss::Sicherung).unwrap();
-        warte_bis(|| !suite.anfragen().is_empty());
-        std::thread::sleep(Duration::from_millis(300));
-        assert_eq!(pfade(&suite), ["POST /api/sicherung"], "nach der Wahl des Ordners nur die Sicherung");
 
         drop(tx);
         faden.join().unwrap();

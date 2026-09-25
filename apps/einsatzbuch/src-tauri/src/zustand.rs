@@ -2,14 +2,19 @@
 //! die Anbindung an die Suite (Sitzung, laufende Anmeldung, Transport, Tresor, Signal an den
 //! Abgleich-Thread). Befehle, Frist-Uhr und Abgleich-Thread teilen sich **eine**
 //! Datenbankverbindung hinter einem Mutex. Die noch nicht quittierte Versiegelung steht seit
-//! Schema v3 im Buch selbst (`Buch::unquittiert`), nicht hier. Die Sicherung schreibt nur der
-//! Abgleich-Thread (`abgleich.rs`, `sicherung.rs`); Befehle stoßen ihn dafür an.
+//! Schema v3 im Buch selbst (`Buch::unquittiert`), nicht hier. Die Sicherung schreiben der
+//! Abgleich-Thread und der Befehl „Sicherungsordner wählen“ (`sicherung::sichere_jetzt`); der
+//! Mutex `sicherung` reiht die beiden ein.
 //!
-//! Sperrreihenfolge: immer zuerst `buch`, dann höchstens ein Blatt, nie umgekehrt.
-//! `startfehler`, `sitzung`, `anmeldung` und `abgleich` sind Blätter: Wer einen von ihnen
-//! hält, nimmt keinen weiteren Mutex. Kein Lock wird über eine Anfrage an die Suite, das
-//! Warten auf den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei
-//! außerhalb des App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
+//! Sperrreihenfolge: `sicherung` (falls gebraucht) vor allem anderen, dann `buch`, dann höchstens
+//! ein Blatt, nie umgekehrt. `sicherung` nimmt nur `sichere_jetzt`, und niemand ruft es unter
+//! einem anderen Lock; es darf über der Datei-I/O im Sicherungsordner gehalten werden, denn es
+//! sperrt nur den zweiten Schreiber, und unter ihm wird `buch` nur kurz genommen. Über der
+//! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung` und
+//! `abgleich` sind Blätter: Wer einen von ihnen hält, nimmt keinen weiteren Mutex. Kein anderer
+//! Lock wird über eine Anfrage an die Suite, das Warten auf den Anmelderückruf, einen Dialog oder
+//! das Schreiben und Prüfen einer Datei außerhalb des App-Datenordners (Sicherungsordner)
+//! gehalten. Den Versiegelungshinweis schreibt der Kern in
 //! derselben Transaktion wie den Block, und `lies_status` liest ihn unter dem Buch-Lock. So
 //! sieht die Oberfläche nie einen halben Stand, etwa einen schon versiegelten Block ohne die
 //! zugehörige Versiegelung. Ein vergifteter Mutex (Panik in einem
@@ -54,8 +59,12 @@ pub struct Zustand {
     /// Geräte-Token: Schlüsselbund des Betriebssystems im Betrieb, `Speichertresor` in Tests.
     pub tresor: Box<dyn Tresor>,
     /// Signal an den Abgleich-Thread (`abgleich.rs`): „es gibt einen neuen Block“ (sichern und
-    /// Anker melden) oder „der Sicherungsordner ist neu“ (nur sichern).
+    /// Anker melden).
     pub abgleich: Mutex<Option<Sender<Anstoss>>>,
+    /// Reiht die Schreiber der Sicherung ein (`sicherung::sichere_jetzt`): Abgleich-Thread und
+    /// „Sicherungsordner wählen“. Ohne ihn rotierten zwei Läufe gleichzeitig, oder ein älterer
+    /// Stand schriebe nach einem neueren und meldete eine längere Kette im Ordner.
+    pub sicherung: Mutex<()>,
     /// Suite-Adresse eines echten Rechners (`anmeldung::SUITE_VORGABE`); ein echter Rechner
     /// verbindet sich mit keiner anderen.
     pub suite_vorgabe: String,
@@ -91,6 +100,7 @@ impl Zustand {
             transport: teile.transport,
             tresor: teile.tresor,
             abgleich: Mutex::new(None),
+            sicherung: Mutex::new(()),
             suite_vorgabe: SUITE_VORGABE.to_string(),
         }
     }
@@ -142,9 +152,14 @@ impl Zustand {
         self.abgleich.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Sperrt die Sicherung für einen Schreiber (Sperrreihenfolge oben: vor `buch`).
+    pub fn sicherung(&self) -> MutexGuard<'_, ()> {
+        self.sicherung.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Weckt den Abgleich-Thread. `NeuerBlock` rufen Versiegeln, Frist-Uhr, Einrichten, Neu
-    /// einrichten und Wiederherstellen, `Sicherung` die Wahl des Sicherungsordners. Ohne
-    /// laufenden Thread (Tests, oder der Thread ist beendet) geschieht nichts.
+    /// einrichten und Wiederherstellen. Ohne laufenden Thread (Tests, oder der Thread ist
+    /// beendet) geschieht nichts.
     pub fn stosse_an(&self, anstoss: Anstoss) {
         if let Some(signal) = self.abgleich().as_ref() {
             let _ = signal.send(anstoss);

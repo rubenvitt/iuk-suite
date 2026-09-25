@@ -3,11 +3,13 @@
 //! nur, wann gesichert wird, was mit dem Ergebnis geschieht und wie die Wiederherstellung Datei,
 //! Suite und Buch zusammenbringt.
 //!
-//! - `sichere_jetzt` ruft nur der Abgleich-Thread (`abgleich.rs`, Entscheidung 1). Befehle stoßen
-//!   ihn an (`Zustand::stosse_an`), statt selbst zu schreiben: So gibt es nie zwei Schreiber auf
-//!   derselben Datei, und das Versiegeln hängt an keinem Sicherungsordner (Review Focus 6).
-//! - Kein Lock wird über dem Prüfen oder Schreiben im Sicherungsordner, über einer Anfrage an die
-//!   Suite oder über einem Dialog gehalten (`zustand.rs`, Sperrreihenfolge).
+//! - `sichere_jetzt` rufen der Abgleich-Thread (`abgleich.rs`, Entscheidung 1) und die Wahl des
+//!   Sicherungsordners (`setze_sicherungsordner`), damit die Oberfläche das Ergebnis gleich sieht.
+//!   Versiegeln und die übrigen Befehle stoßen den Thread an (`Zustand::stosse_an`), statt selbst
+//!   zu schreiben: Das Versiegeln hängt an keinem Sicherungsordner (Review Focus 6). Die beiden
+//!   Schreiber reiht der Mutex `Zustand::sicherung` ein.
+//! - Weder `buch` noch ein Blatt wird über dem Prüfen oder Schreiben im Sicherungsordner, über
+//!   einer Anfrage an die Suite oder über einem Dialog gehalten (`zustand.rs`, Sperrreihenfolge).
 //! - Die Tauri-Befehle `sicherungsordner_waehlen` und `wiederherstellen` öffnen den Dialog im
 //!   Thread für blockierende Arbeit und rufen danach genau eine Funktion auf `&Zustand`.
 use std::collections::BTreeMap;
@@ -111,8 +113,11 @@ fn vermerke(z: &Zustand, ordner: &str, f: impl FnOnce(&mut Buch) -> Result<(), B
     f(offen).map_err(buch_fehler_text)
 }
 
-/// Sichert die Kette in den Sicherungsordner (Entscheidungen 1 und 2). Nur der Abgleich-Thread
-/// ruft das.
+/// Sichert die Kette in den Sicherungsordner (Entscheidungen 1 und 2). Es rufen der
+/// Abgleich-Thread und `setze_sicherungsordner`, nie unter einem anderen Lock.
+/// 0. `Zustand::sicherung` nehmen und bis nach dem Vermerk halten: So rotieren zwei Läufe nie
+///    gleichzeitig, und kein älterer Stand schreibt nach einem neueren. Buch-Locks darunter
+///    bleiben kurz, und über der Meldung an die Suite ist der Mutex schon frei.
 /// 1. Unter einem kurzen Lock Betrieb, Einrichtung, Ordner und Blöcke lesen, dann freigeben.
 /// 2. Testbetrieb, keine Einrichtung oder kein Ordner: `Ok(None)`, nichts geschieht.
 /// 3. `sicherung::schreibe` ohne Lock. Danach unter einem kurzen Lock `sicherung_gelungen` (auch
@@ -127,6 +132,7 @@ fn vermerke(z: &Zustand, ordner: &str, f: impl FnOnce(&mut Buch) -> Result<(), B
 ///
 /// `Ok(Some(erstellt))` nennt den Zeitpunkt der gelungenen Sicherung.
 pub fn sichere_jetzt(z: &Zustand) -> Result<Option<String>, String> {
+    let schreiber = z.sicherung();
     let jetzt = z.uhr.jetzt();
     let Some(g) = sicherungsgrundlage(z)? else { return Ok(None) };
     let erstellt = formatiere_zeitpunkt(jetzt, &g.zeitzone);
@@ -149,6 +155,7 @@ pub fn sichere_jetzt(z: &Zustand) -> Result<Option<String>, String> {
             return Err(text);
         }
     }
+    drop(schreiber);
 
     if !g.widerrufen {
         match z.tresor.lies(konto_fuer(Betrieb::Echt)).map(|t| t.map(Zeroizing::new)) {
@@ -180,9 +187,12 @@ fn leere_kette(ordner: &Path) -> Result<(), String> {
     }
 }
 
-/// Setzt den Sicherungsordner (`None` löscht ihn) und stößt die Sicherung an. Nur im
-/// Echtbetrieb; der Ordner muss ein vorhandenes Verzeichnis mit absolutem Pfad sein. Geprüft wird
-/// das ohne Lock, denn der Ordner kann auf einem Netzlaufwerk liegen.
+/// Setzt den Sicherungsordner (`None` löscht ihn) und sichert gleich hinein (`sichere_jetzt`),
+/// ohne Lock über der Datei-I/O. So nennt der Status direkt nach der Wahl das Ergebnis, auch einen
+/// Ordner, in den sich nicht schreiben lässt (gelb); `Ok` heißt „gewählt“, das Scheitern der
+/// Sicherung steht im Status. Nur im Echtbetrieb; der Ordner muss ein vorhandenes Verzeichnis mit
+/// absolutem Pfad sein. Geprüft wird das ohne Lock, denn der Ordner kann auf einem Netzlaufwerk
+/// liegen.
 pub fn setze_sicherungsordner(z: &Zustand, ordner: Option<PathBuf>) -> Result<(), String> {
     pruefe_echtbetrieb(z, NUR_IM_ECHTBETRIEB)?;
     let text = match ordner {
@@ -202,7 +212,11 @@ pub fn setze_sicherungsordner(z: &Zustand, ordner: Option<PathBuf>) -> Result<()
         }
         offen.sicherungsordner_setzen(text.as_deref()).map_err(buch_fehler_text)?;
     }
-    z.stosse_an(Anstoss::Sicherung);
+    if text.is_some() {
+        if let Err(e) = sichere_jetzt(z) {
+            eprintln!("Sicherung nach der Wahl des Ordners: {e}");
+        }
+    }
     Ok(())
 }
 
@@ -569,7 +583,8 @@ mod tests {
         let z2 = std::sync::Arc::clone(&z);
         let faden = std::thread::spawn(move || crate::abgleich::schleife(&z2, &rx, std::time::Duration::from_millis(200)));
 
-        warte_bis(|| stand(&z).letzte.is_some());
+        // `letzte` steht schon seit der Wahl des Ordners (leere Kette); gewartet wird auf die Datei.
+        warte_bis(|| datei_in(ziel.path()).exists() && stand(&z).letzte.is_some());
         let vorher = std::fs::read(datei_in(ziel.path())).unwrap();
         let erste = stand(&z).letzte.unwrap();
         uhr.vor(TimeDelta::hours(1));
@@ -602,7 +617,7 @@ mod tests {
         let (z, suite) = echter_rechner_mit_ordner_und_uhr(ordner.path(), ziel.path(), &uhr);
         suite.leere();
 
-        runde(&z, Lauf::NUR_SICHERUNG);
+        let _ = sichere_jetzt(&z);
         let s = stand(&z);
         assert!(s.letzte.is_some() && s.fehler.is_none(), "{s:?}");
         assert_eq!(s.stufe, Sicherungsstufe::Ok);
@@ -614,21 +629,22 @@ mod tests {
         assert!(!pfade(&suite).contains(&"POST /api/sicherung".to_string()), "{:?}", pfade(&suite));
 
         std::fs::remove_dir_all(ziel.path()).unwrap();
-        runde(&z, Lauf::NUR_SICHERUNG);
+        let _ = sichere_jetzt(&z);
         let s = stand(&z);
         assert_eq!(s.stufe, Sicherungsstufe::Gelb);
         assert!(s.fehler.is_some());
 
         let neu = tempfile::tempdir().unwrap();
         setze_sicherungsordner(&z, Some(neu.path().to_path_buf())).unwrap();
-        runde(&z, Lauf::NUR_SICHERUNG);
+        let _ = sichere_jetzt(&z);
         let s = stand(&z);
         assert_eq!((s.stufe, s.fehler), (Sicherungsstufe::Ok, None), "kein alter Fehler nach dem Wechsel");
     }
 
-    /// Nach der Wahl des Ordners (`Anstoss::Sicherung`) wird nur gesichert, ohne Ankerabgleich.
+    /// Review I2: Die Wahl des Ordners sichert sofort im Befehl, nicht erst im Abgleich-Thread.
+    /// Der Status gleich danach nennt das Ergebnis — ohne Ankerabgleich und ohne Anstoß.
     #[test]
-    fn ordner_waehlen_stoesst_nur_die_sicherung_an() {
+    fn ordner_waehlen_sichert_sofort_ohne_ankerabgleich() {
         let ordner = tempfile::tempdir().unwrap();
         let ziel = tempfile::tempdir().unwrap();
         let (z, suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
@@ -638,11 +654,64 @@ mod tests {
         suite.leere();
 
         setze_sicherungsordner(&z, Some(ziel.path().to_path_buf())).unwrap();
-        assert_eq!(rx.try_recv(), Ok(Anstoss::Sicherung));
-        assert!(!datei_in(ziel.path()).exists(), "geschrieben wird nur im Abgleich-Thread");
-        runde(&z, Lauf::NUR_SICHERUNG);
-        assert!(datei_in(ziel.path()).exists());
+        assert!(datei_in(ziel.path()).exists(), "gleich im Befehl geschrieben");
+        let s = stand(&z);
+        assert!(s.letzte.is_some() && s.fehler.is_none(), "{s:?}");
+        assert_eq!(s.stufe, Sicherungsstufe::Ok);
         assert_eq!(pfade(&suite), ["POST /api/sicherung"]);
+        assert!(rx.try_recv().is_err(), "kein Anstoß an den Abgleich-Thread");
+    }
+
+    /// Review I2: Ein Ordner, in den sich nicht schreiben lässt, ist gleich nach der Wahl gelb mit
+    /// dem Fehler — nicht erst nach dem nächsten Anstoß.
+    #[cfg(unix)]
+    #[test]
+    fn ein_nicht_beschreibbarer_ordner_ist_gleich_nach_der_wahl_gelb() {
+        use std::os::unix::fs::PermissionsExt;
+        let ordner = tempfile::tempdir().unwrap();
+        let ziel = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        suite.leere();
+        std::fs::set_permissions(ziel.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        let ergebnis = setze_sicherungsordner(&z, Some(ziel.path().to_path_buf()));
+        let s = stand(&z);
+        std::fs::set_permissions(ziel.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(ergebnis, Ok(()), "gewählt ist der Ordner; das Scheitern steht im Status");
+        assert_eq!(s.ordner.as_deref(), ziel.path().to_str());
+        assert_eq!(s.stufe, Sicherungsstufe::Gelb, "{s:?}");
+        assert!(s.fehler.is_some(), "{s:?}");
+        assert!(!pfade(&suite).contains(&"POST /api/sicherung".to_string()), "eine gescheiterte Sicherung meldet nichts");
+    }
+
+    /// Review I2: Befehl und Abgleich-Thread können gleichzeitig sichern. Der Sicherungs-Mutex
+    /// reiht sie ein: Kein Lauf scheitert an einer halben Rotation oder an einem älteren Stand,
+    /// der nach einem neueren schreibt.
+    #[test]
+    fn zwei_gleichzeitige_sicherungen_stoeren_sich_nicht() {
+        let ordner = tempfile::tempdir().unwrap();
+        let ziel = tempfile::tempdir().unwrap();
+        let (z, _suite) = echter_rechner_mit_ordner(ordner.path(), ziel.path());
+        let z = std::sync::Arc::new(z);
+        // Einer versiegelt und sichert wie der Abgleich-Thread, der andere sichert nur, wie die
+        // Wahl des Ordners.
+        let z2 = std::sync::Arc::clone(&z);
+        let thread = std::thread::spawn(move || {
+            for _ in 0..15 {
+                versiegele_einen(&z2);
+                sichere_jetzt(&z2).unwrap();
+            }
+        });
+        for _ in 0..30 {
+            sichere_jetzt(&z).unwrap();
+        }
+        thread.join().unwrap();
+        sichere_jetzt(&z).unwrap();
+        let s = stand(&z);
+        assert_eq!((s.stufe, s.fehler), (Sicherungsstufe::Ok, None));
+        assert_eq!(kern_sicherung::lies(&datei_in(ziel.path())).unwrap().bloecke.len(), 15);
     }
 
     #[test]
@@ -676,7 +745,7 @@ mod tests {
         let uhr = Stelluhr::neu();
         let (z, suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
         setze_sicherungsordner(&z, Some(ziel.path().to_path_buf())).unwrap();
-        runde(&z, Lauf::NUR_SICHERUNG);
+        let _ = sichere_jetzt(&z);
         drop(z);
         let mut letzter = None;
         for _ in 0..11 {
