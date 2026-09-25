@@ -72,8 +72,8 @@ export function EchterRechner({ rechner }: { rechner: EchterRechnerStatus | null
             <div>
               <p style={{ margin: `0 0 ${SPACE.xs}px`, fontWeight: 600 }}>Anker-Abweichungen</p>
               <ul className={styles.abweichungenListe}>
-                {rechner.abweichungen.map((a, i) => (
-                  <li key={i} className={styles.abweichungenZeile}>
+                {rechner.abweichungen.map((a) => (
+                  <li key={`${a.block}-${a.zeitpunkt}`} className={styles.abweichungenZeile}>
                     Block {a.block}: erwartet {a.erwartet}, gemeldet {a.gemeldet} — {a.zeitpunkt}
                   </li>
                 ))}

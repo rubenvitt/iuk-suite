@@ -12,6 +12,12 @@ import styles from "./rechner.module.css";
  * Telefon Karten, sonst eine Tabelle. Die Liste kommt nach jedem Löschen über die Props neu
  * (`testRechnerLoeschenAction` ruft `revalidatePath`); gemerkt wird hier nur, welche Zeile
  * gerade löscht. `testRechnerLoeschenAction` steht direkt importiert, nie als Prop (Falle 9).
+ *
+ * `styles.modul` steht am äußeren Wrapper (Falle 2 in Modulform): `--eb-verw-rot-text` ist nur
+ * unter `.modul` deklariert (`rechner.module.css`), nicht global. Ohne diese Klasse an einem
+ * Vorfahren löst `var(--eb-verw-rot-text)` in der Abweichungszahl ins Leere auf — still, die
+ * Zahl bliebe in der normalen Textfarbe stehen (Vorbild `EchterRechner.tsx`, dessen `Card` die
+ * Klasse trägt).
  */
 export function TestRechnerListe({ liste }: { liste: TestRechnerZeile[] }) {
   const { message } = App.useApp();
@@ -28,40 +34,42 @@ export function TestRechnerListe({ liste }: { liste: TestRechnerZeile[] }) {
   }
 
   return (
-    <Kartentabelle<TestRechnerZeile>
-      rowKey="id"
-      aria-label="Test-Rechner"
-      dataSource={liste}
-      leer={{ nichts: "Keine Test-Rechner." }}
-      columns={[
-        { title: "Name", key: "name", sorter: nachText<TestRechnerZeile>((r) => r.name), render: (_: unknown, r) => r.name },
-        { title: "Eingerichtet", key: "eingerichtet", render: (_: unknown, r) => `${r.eingerichtetAm} von ${r.eingerichtetVon}` },
-        { title: "Letzter Kontakt", key: "kontakt", render: (_: unknown, r) => r.letzterKontakt ?? "Noch kein Kontakt" },
-        { title: "Anker bis", key: "anker", render: (_: unknown, r) => (r.ankerBis !== null ? `Block ${r.ankerBis}` : "Noch kein Anker") },
-        {
-          title: "Abweichungen",
-          key: "abweichungen",
-          render: (_: unknown, r) => (r.abweichungen > 0 ? <span className={styles.abweichungenZahl}>{r.abweichungen}</span> : r.abweichungen),
-        },
-        {
-          title: "Aktionen",
-          key: "aktionen",
-          render: (_: unknown, r) => (
-            <Popconfirm
-              title={`Test-Rechner „${r.name}“ löschen?`}
-              description="Rechner, Token, Schlüsselpaar und Anker werden unwiderruflich entfernt. Testeinsätze dieses Rechners lassen sich danach nicht mehr öffnen."
-              okText="Endgültig löschen"
-              cancelText="Abbrechen"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => loeschen(r.id)}
-            >
-              <Button danger loading={laeuft === r.id} disabled={laeuft !== null && laeuft !== r.id}>
-                Test-Rechner löschen
-              </Button>
-            </Popconfirm>
-          ),
-        },
-      ]}
-    />
+    <div className={styles.modul}>
+      <Kartentabelle<TestRechnerZeile>
+        rowKey="id"
+        aria-label="Test-Rechner"
+        dataSource={liste}
+        leer={{ nichts: "Keine Test-Rechner." }}
+        columns={[
+          { title: "Name", key: "name", sorter: nachText<TestRechnerZeile>((r) => r.name), render: (_: unknown, r) => r.name },
+          { title: "Eingerichtet", key: "eingerichtet", render: (_: unknown, r) => `${r.eingerichtetAm} von ${r.eingerichtetVon}` },
+          { title: "Letzter Kontakt", key: "kontakt", render: (_: unknown, r) => r.letzterKontakt ?? "Noch kein Kontakt" },
+          { title: "Anker bis", key: "anker", render: (_: unknown, r) => (r.ankerBis !== null ? `Block ${r.ankerBis}` : "Noch kein Anker") },
+          {
+            title: "Abweichungen",
+            key: "abweichungen",
+            render: (_: unknown, r) => (r.abweichungen > 0 ? <span className={styles.abweichungenZahl}>{r.abweichungen}</span> : r.abweichungen),
+          },
+          {
+            title: "Aktionen",
+            key: "aktionen",
+            render: (_: unknown, r) => (
+              <Popconfirm
+                title={`Test-Rechner „${r.name}“ löschen?`}
+                description="Rechner, Token, Schlüsselpaar und Anker werden unwiderruflich entfernt. Testeinsätze dieses Rechners lassen sich danach nicht mehr öffnen."
+                okText="Endgültig löschen"
+                cancelText="Abbrechen"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => loeschen(r.id)}
+              >
+                <Button danger loading={laeuft === r.id} disabled={laeuft !== null && laeuft !== r.id}>
+                  Test-Rechner löschen
+                </Button>
+              </Popconfirm>
+            ),
+          },
+        ]}
+      />
+    </div>
   );
 }
