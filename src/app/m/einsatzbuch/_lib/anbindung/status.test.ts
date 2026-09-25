@@ -116,5 +116,7 @@ describe("rechnerStatus", () => {
     // Der jüngste Eintrag (i = 24, spätester Zeitpunkt) steht zuerst, der 20. jüngste (i = 5) zuletzt.
     expect(freigaben[0].anzahl).toBe(24);
     expect(freigaben[19].anzahl).toBe(5);
+    // Die ID der Freigabe reist mit — sie ist der Zeilenschlüssel der Tabelle (`Freigaben`).
+    expect(freigaben[0].id).toBe("f24");
   });
 });

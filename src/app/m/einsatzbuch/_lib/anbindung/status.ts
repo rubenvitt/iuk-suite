@@ -42,6 +42,8 @@ export interface TestRechnerZeile {
   abweichungen: number;
 }
 export interface FreigabeZeile {
+  /** ID der Freigabe — der Zeilenschlüssel der Tabelle; die Anzeigefelder allein sind nicht eindeutig. */
+  id: string;
   zeitpunkt: string;
   name: string;
   art: "echt" | "test";
@@ -121,7 +123,7 @@ export function rechnerStatus(
     eingerichtetAm: ANZEIGE.format(r.eingerichtetAm),
     eingerichtetVon: r.eingerichtetVon,
     // `widerrufenAm` ist hier nie `null` (der WHERE-Filter oben verlangt es); der Nicht-Null-
-    // Ausrufer ist trotzdem noetig, weil die Spaltensicht selbst `Date | null` bleibt.
+    // Ausrufer ist trotzdem nötig, weil die Spaltensicht selbst `Date | null` bleibt.
     widerrufenAm: ANZEIGE.format(r.widerrufenAm!),
     ankerBis: ankerBisFuer(db, r.id),
     abweichungen: abweichungenFuer(db, r.id),
@@ -131,7 +133,7 @@ export function rechnerStatus(
     .orderBy(desc(freigabe.zeitpunkt))
     .limit(HOECHSTENS_FREIGABEN)
     .all()
-    .map((f) => ({ zeitpunkt: ANZEIGE.format(f.zeitpunkt), name: f.name, art: f.art, rechnerName: f.rechnerName, bloecke: f.bloecke, anzahl: f.anzahl }));
+    .map((f) => ({ id: f.id, zeitpunkt: ANZEIGE.format(f.zeitpunkt), name: f.name, art: f.art, rechnerName: f.rechnerName, bloecke: f.bloecke, anzahl: f.anzahl }));
 
   return { echt, test, freigaben, widerrufeneEcht };
 }
