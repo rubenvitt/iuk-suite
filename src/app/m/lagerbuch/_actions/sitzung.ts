@@ -58,7 +58,7 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
 
   const absender = absenderAus(kopf);   // §3.5.2 — einmal ermittelt, zweimal benutzt
   const keks = await cookies();
-  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value) };   // DRK-291, §3.5.3a
+  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value), eingabe: rohCode };   // DRK-291/442, §3.5.3a
   const sperrSekunden = gateGesperrt(absender, anfrage);   // SCHRITT 2 — ohne DB, ohne Buchung
   if (sperrSekunden !== null) {
     return {

@@ -256,6 +256,57 @@ describe("inboxLoeschenAction — Zeile UND Bytes", () => {
   });
 });
 
+describe("inboxLoeschenAction — gegen einen laufenden Upload (DRK-448)", () => {
+  /*
+   * Ein laufender Chunk HAELT den Schreibbesitz der Abgabe. Loeschte die Action
+   * daran vorbei, legte der Chunk nach dem Loeschen der Bytes eine neue
+   * Zwischendatei an, deren Zeile gleich darauf verschwand — belegter Speicher,
+   * den kein Lauf mehr einer Abgabe zuordnet. Die Vorrichtung haelt den Besitz
+   * so, wie ein Chunk ihn haelt.
+   */
+  async function halteWieEinChunk(inboxFileId: string): Promise<() => Promise<void>> {
+    const { mitSchreibbesitz } = await import("@/app/m/files/_lib/storage");
+    let freigeben!: () => void;
+    const gehalten = mitSchreibbesitz(
+      { art: "inbox", inboxFileId },
+      () => new Promise<void>((w) => (freigeben = w)),
+    );
+    return async () => {
+      freigeben();
+      await gehalten;
+    };
+  }
+
+  it("laesst eine gerade beschriebene Abgabe stehen, loescht den Rest und sagt es", async () => {
+    await legeAbgabe({ id: id(1), inhalt: "eins" });
+    await legeAbgabe({ id: id(2), inhalt: "zwei" });
+    const loslassen = await halteWieEinChunk(id(1));
+
+    const ergebnis = await loeschen([id(1), id(2)]);
+    await loslassen();
+
+    expect(ergebnis.ok).toBe(false);
+    if (ergebnis.ok) return;
+    expect(ergebnis.feldFehler.ids).toMatch(/^1 gelöscht\. Eine Abgabe wird gerade übertragen/);
+    expect(zeilenIds()).toEqual([id(1)]);
+    expect(await bytesDa(id(1))).toBe(true);
+    expect(await bytesDa(id(2))).toBe(false);
+    // Was schon weg ist, verschwindet sofort aus der Liste.
+    expect(revalidatePathMock).toHaveBeenCalled();
+  });
+
+  it("loescht dieselbe Abgabe, sobald der Upload sie losgelassen hat", async () => {
+    await legeAbgabe({ id: id(1), inhalt: "eins" });
+    const loslassen = await halteWieEinChunk(id(1));
+    expect((await loeschen([id(1)])).ok).toBe(false);
+    await loslassen();
+
+    expect(await loeschen([id(1)])).toMatchObject({ ok: true, geloescht: 1 });
+    expect(zeilenIds()).toEqual([]);
+    expect(await bytesDa(id(1))).toBe(false);
+  });
+});
+
 describe("inboxLoeschenAction — der Riegel", () => {
   it("loescht ohne Zugang NICHTS und wirft", async () => {
     await legeAbgabe({ id: id(1), inhalt: "eins" });

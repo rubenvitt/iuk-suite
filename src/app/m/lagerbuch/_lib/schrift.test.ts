@@ -4,7 +4,7 @@ import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { SCHRIFT } from "./schrift";
 
-/** antds Leiter (docs/design/README.md:149-152). Eine dritte Skala waere der Fehler. */
+/** antds Leiter (docs/design/README.md, Abschnitt „Typografie"). Eine dritte Skala waere der Fehler. */
 const LEITER = [12, 14, 16, 20, 24, 30];
 
 describe("SCHRIFT: sieben Rollen auf antds Leiter", () => {

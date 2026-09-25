@@ -103,6 +103,8 @@ const TABELLEN: Record<string, { name: string; notnull: 0 | 1; dflt: string | nu
     { name: "bytes_vollstaendig_at", notnull: 0, dflt: null },
     { name: "av_status", notnull: 1, dflt: null },
     { name: "av_geprueft_at", notnull: 0, dflt: null },
+    // DRK-448: der Idempotenzschlüssel des ersten Chunks; NULL für den Altbestand.
+    { name: "abgabe_schluessel", notnull: 0, dflt: null },
   ],
   zugangslinks: [
     { name: "id", notnull: 1, dflt: null },
@@ -142,7 +144,7 @@ const INDIZES: Record<string, string[]> = {
   shares: ["idx_shares_created", "idx_shares_expires"],
   share_files: ["idx_share_files_av", "idx_share_files_share"],
   download_logs: ["idx_logs_share_time", "idx_logs_time"],
-  inbox_files: ["idx_inbox_av", "idx_inbox_empfangen", "idx_inbox_token"],
+  inbox_files: ["idx_inbox_av", "idx_inbox_empfangen", "idx_inbox_schluessel", "idx_inbox_token"],
   zugangslinks: ["idx_zugangslinks_hash"],
   aufraeum_laeufe: [],
 };
@@ -221,6 +223,39 @@ describe("files-Migration: Indizes (§4.9)", () => {
         .run(id);
     einfuegen("zl-uniq-1");
     expect(() => einfuegen("zl-uniq-2")).toThrow();
+  });
+
+  it("idx_inbox_schluessel: derselbe Schlüssel je Link nur einmal, NULL beliebig oft (DRK-448)", () => {
+    sqlite
+      .prepare(
+        `INSERT INTO zugangslinks
+           (id, name, token_start, token_hash, created_at, created_by, expires_at,
+            budget_dateien, budget_bytes)
+         VALUES (?, 'Übung', 'dz-2345', ?, 0, 'u', 0, 10, 100)`,
+      )
+      .run("zl-schl-1", "HASH-SCHL-1");
+    sqlite
+      .prepare(
+        `INSERT INTO zugangslinks
+           (id, name, token_start, token_hash, created_at, created_by, expires_at,
+            budget_dateien, budget_bytes)
+         VALUES (?, 'Übung', 'dz-2345', ?, 0, 'u', 0, 10, 100)`,
+      )
+      .run("zl-schl-2", "HASH-SCHL-2");
+    const abgabe = (id: string, token: string, schluessel: string | null) =>
+      sqlite
+        .prepare(
+          `INSERT INTO inbox_files
+             (id, token_id, dateiname, size, empfangen_at, av_status, abgabe_schluessel)
+           VALUES (?, ?, 'a.pdf', 0, 0, 'scanning', ?)`,
+        )
+        .run(id, token, schluessel);
+    abgabe("in-schl-1", "zl-schl-1", "S");
+    expect(() => abgabe("in-schl-2", "zl-schl-1", "S")).toThrow();
+    // Ein anderer Link darf denselben Schlüssel tragen — gefunden wird nur im eigenen.
+    expect(() => abgabe("in-schl-3", "zl-schl-2", "S")).not.toThrow();
+    expect(() => abgabe("in-schl-4", "zl-schl-1", null)).not.toThrow();
+    expect(() => abgabe("in-schl-5", "zl-schl-1", null)).not.toThrow();
   });
 });
 

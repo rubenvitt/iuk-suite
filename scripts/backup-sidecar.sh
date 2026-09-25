@@ -171,8 +171,8 @@ zahl_oder_vorgabe() {
 
 # ══ Konfiguration ════════════════════════════════════════════════════════════════════
 # Der Kern bleibt `scripts/backup.sh`. Diese Datei ruft es, sie ersetzt es nicht —
-# DATA_DIR, BACKUP_DIR, BLOB_DIR und BACKUP_KEEP liest weiterhin JENES Skript aus der
-# Umgebung, hier steht kein Zweitwert dafuer.
+# DATA_DIR, BACKUP_DIR, BLOB_DIR, AUFGABEN_DIR und BACKUP_KEEP liest weiterhin JENES
+# Skript aus der Umgebung, hier steht kein Zweitwert dafuer.
 BACKUP_SKRIPT="${BACKUP_SKRIPT:-/opt/backup/backup.sh}"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 # ⚠️ EINZIGE AUSNAHME VON DEM ABSATZ DARUEBER, und sie ist kein Zweitwert der Konfiguration,
@@ -734,6 +734,89 @@ lokal_rotieren() {
       fi
     done
   rm -f "$unsere"
+}
+
+# ══ Reste abgebrochener Laeufe ═══════════════════════════════════════════════════════
+# ⚠️ KEINE ROTATION ERFASST SIE, UND DAS IST ABSICHT (DRK-416) — also muss es jemand
+# anderes tun (DRK-476). Ein Lauf, der hart endet (SIGKILL am Ende von
+# `stop_grace_period`, Absturz), laesst sein Arbeitsverzeichnis `<stempel>/` und das halbe
+# `<stempel>.tar.gz.part` liegen. Beide fallen durch TARBALL_MUSTER, damit sie nie als
+# Generation zaehlen — und blieben deshalb fuer immer: bis zu zwei Kopien des
+# Datenbestands je Abbruch. Die weichen Faelle (`set -e`, TERM) raeumt `backup.sh` selbst
+# per Falle; hierher gehoert, was keine Falle mehr erreicht.
+#
+# ⚠️ WER, WANN UND WAS — drei Riegel, und jeder hat seinen Grund:
+#   * NUR UNTER DER SPERRE, vor jeder Loeschung erneut geprueft (wie `lokal_rotieren`).
+#     Der Healthcheck laeuft ohne sie und raeumt deshalb nie.
+#   * NUR WAS SEIT DER ALTERSGRENZE DER SPERRE UNBERUEHRT IST — dasselbe Urteil, mit dem
+#     `sperre_ist_verwaist` einen Lauf fuer tot erklaert. Das ist der Kern: ein FREMDER
+#     Lauf lebt neben uns nur, wenn seine Sperre uebernommen wurde, und dafuer musste er
+#     mindestens so lange stumm sein. Sobald er wieder schreibt (Verzeichnis beim Kopieren,
+#     `.part` beim Packen), ist sein Rest frisch und bleibt stehen. Dasselbe schuetzt einen
+#     von Hand gestarteten `backup.sh`, der gar keine Sperre nimmt.
+#   * NUR UNSERE NAMEN, abgeleitet aus TARBALL_MUSTER statt aus einem zweiten Muster: ein
+#     Verzeichnis `X` zaehlt, wenn `X.tar.gz` passt, eine Datei `X.part`, wenn `X` passt.
+#     Ein fertiges `.tar.gz` faellt hier nie darunter — das ist Sache der Rotation.
+#
+# ⚠️ VOR DEM LAUF, NICHT DANACH. Ist das Volume VON den Resten voll, scheitert `backup.sh`
+# — und ein Aufraeumen hinter dem Zaun kaeme nie an die Reihe. Vor dem Lauf gibt es
+# ausserdem noch keinen eigenen Stempel, den es versehentlich treffen koennte.
+#
+# Nicht still, aber auch kein Fehlschlag: ein Rest heisst, dass FRUEHER ein Lauf
+# abgebrochen ist, und das meldet der Healthcheck laengst (ausbleibender Erfolg). Dieser
+# Lauf hat damit nichts zu tun; er vermerkt es im Protokoll und arbeitet weiter.
+reste_aufraeumen() {
+  grenze=$((BACKUP_SPERRE_ALTER_STUNDEN * 3600))
+  boden=$((BACKUP_HERZSCHLAG_SEKUNDEN * 10))
+  if [ "$grenze" -lt "$boden" ]; then grenze="$boden"; fi
+  ls -1 "$BACKUP_DIR" 2>/dev/null | while read -r name; do
+      [ -n "$name" ] || continue
+      pfad="$BACKUP_DIR/$name"
+      # Ein Symlink ist nie unser Rest — `rm -rf` loeste ihn zwar nicht auf, aber wer ihn
+      # dort hingelegt hat, meinte etwas anderes.
+      [ ! -L "$pfad" ] || continue
+      stempel=""
+      case "$name" in
+        *.part)
+          case "${name%.part}" in
+            $TARBALL_MUSTER) [ -f "$pfad" ] && stempel="${name%.tar.gz.part}" ;;
+          esac
+          ;;
+        *)
+          case "$name.tar.gz" in
+            $TARBALL_MUSTER) [ -d "$pfad" ] && stempel="$name" ;;
+          esac
+          ;;
+      esac
+      [ -n "$stempel" ] || continue
+      # Das JUENGSTE Lebenszeichen des ganzen Stempels, nicht nur dieses Eintrags: ein
+      # Lauf, der gerade packt, laesst sein Verzeichnis unberuehrt und schreibt nur das
+      # `.part`. Beide Teile eines Stempels bekommen damit dasselbe Urteil.
+      # Ein Alter unter 0 (fehlt, oder die mtime liegt in der Zukunft) zaehlt nicht mit;
+      # bleibt gar keins, bleibt auch der Rest — im Zweifel stehen lassen.
+      juengstes=-1
+      for teil in "$BACKUP_DIR/$stempel" "$BACKUP_DIR/$stempel.tar.gz.part"; do
+        a="$(verzeichnis_alter "$teil")"
+        [ "$a" -ge 0 ] || continue
+        if [ "$juengstes" -lt 0 ] || [ "$a" -lt "$juengstes" ]; then juengstes="$a"; fi
+      done
+      [ "$juengstes" -ge 0 ] || continue
+      if [ "$juengstes" -le "$grenze" ]; then
+        protokoll "  $name bleibt liegen: vor $((juengstes / 60))min zuletzt beschrieben,
+  weggeraeumt wird erst nach $((grenze / 3600))h ohne Aenderung."
+        continue
+      fi
+      # `break` statt `return` — dies ist die Subshell einer Pipe.
+      if ! sperre_gehoert_uns; then
+        warne "  Sperre verloren — die restlichen Reste bleiben stehen."
+        break
+      fi
+      if rm -rf "$pfad"; then
+        warne "Rest eines abgebrochenen Laufs entfernt: $name ($((juengstes / 3600))h unberuehrt)."
+      else
+        warne "  Rest $name liess sich nicht entfernen — $BACKUP_DIR waechst."
+      fi
+    done
 }
 
 # ══ Rueckmeldung nach aussen ═════════════════════════════════════════════════════════
@@ -1550,6 +1633,8 @@ lauf() {
 
 lauf_ungesperrt() {
   protokoll "──────── Lauf beginnt ────────"
+  # VOR `backup.sh` und unter der Sperre — warum gerade hier, steht an der Funktion.
+  reste_aufraeumen
   log="$(mktemp)"
   statusdatei="$(mktemp)"
 

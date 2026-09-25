@@ -44,7 +44,11 @@ test("Systemeinträge sind initial ausgeblendet und per Checkbox einblendbar",as
  await expect(page).toHaveURL(/includeSystem=1/);
  await expect(checkbox).toBeChecked();
  expect((await readPage()).some(event=>event.id===systemId)).toBe(true);
- await expect(page.getByText("QR-Codes · System",{exact:true})).toBeVisible();
+ // Bei 390px die Karte: Modul und Person stehen dort seit DRK-452 als eigene Merkmale.
+ const systemKarte=page.locator(`[data-rolle="schmalkarten"] [data-karte-key="${systemId}"]`);
+ await expect(systemKarte).toBeVisible();
+ await expect(systemKarte.locator("dd").filter({hasText:/^QR-Codes$/})).toBeVisible();
+ await expect(systemKarte.locator("dd").filter({hasText:/^System$/})).toBeVisible();
  await page.reload();await expect(checkbox).toBeChecked();
  await page.getByRole("button",{name:"Ältere Einträge"}).click();
  await expect(page).toHaveURL(/cursorId=/);await expect(page).toHaveURL(/includeSystem=1/);
@@ -118,7 +122,8 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
  await page.getByRole("button",{name:"Neueste Einträge"}).click();await expect(page).not.toHaveURL(/cursorId=/);
  await page.setViewportSize({width:390,height:844});
  await page.screenshot({animations:"disabled",path:SCREENSHOTS+"/mobile.png"});
- await page.getByRole("button",{name:"Details",exact:true}).first().scrollIntoViewIfNeeded();
+ // Die Karte traegt denselben Knopf wie die Tabellenspalte, also denselben Namen (DRK-452).
+ await page.getByRole("button",{name:/^Details: /}).first().scrollIntoViewIfNeeded();
  await page.screenshot({animations:"disabled",path:SCREENSHOTS+"/mobile-list.png"});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  const applyBox=await page.getByRole("button",{name:"Filter anwenden"}).boundingBox();expect(applyBox!.height).toBeGreaterThanOrEqual(44);
@@ -126,7 +131,7 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
  expect(resetBox!.width).toBeCloseTo(applyBox!.width,0);expect(resetBox!.y).toBeGreaterThanOrEqual(applyBox!.y+applyBox!.height);
  await page.context().addCookies([{name:"iuk-theme-pref",value:"dark",domain:".localtest.me",path:"/"}]);
  await page.reload();await expect(page.locator("html")).toHaveAttribute("data-theme","dark");
- await page.getByRole("button",{name:"Details",exact:true}).first().click();
+ await page.getByRole("button",{name:/^Details: /}).first().click();
  await expect(page.getByRole("dialog")).toContainText("QR-Code als PNG");
  await page.screenshot({animations:"disabled",path:SCREENSHOTS+"/mobile-dark-details.png"});
  await page.keyboard.press("Escape");

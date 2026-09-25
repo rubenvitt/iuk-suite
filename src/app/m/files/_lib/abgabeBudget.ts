@@ -107,18 +107,65 @@ export async function unterBudgetRiegel<T>(tokenId: string, arbeit: () => Promis
 }
 
 /**
+ * Was `belegeDateiplatz` vorfand: einen neuen Platz, eine Abgabe mit demselben
+ * Idempotenzschlüssel (DRK-448) — oder keinen Platz.
+ */
+export type Dateiplatz =
+  | { art: "neu" }
+  | {
+      art: "vorhanden";
+      id: string;
+      dateiname: string;
+      abgeschlossen: boolean;
+      size: number;
+      mimeType: string | null;
+    }
+  | { art: "voll" };
+
+/**
  * Belegt einen Dateiplatz: legt die Zeile an, wenn der Link noch einen hat, und
  * sonst nicht. Zählen und Anlegen stehen in EINER `IMMEDIATE`-Transaktion — auch
  * gegen einen zweiten Prozess auf derselben Datei, nicht nur innerhalb dieses.
- * `false` = kein Platz frei (der Aufrufer antwortet 429).
+ * `voll` = kein Platz frei (der Aufrufer antwortet 429).
+ *
+ * TRÄGT DIE ZEILE EINEN `abgabeSchluessel` (DRK-448), wird VOR dem Zählen nach
+ * einer Abgabe desselben Links mit demselben Schlüssel gesucht — in derselben
+ * Transaktion, damit zwei gleichzeitige Wiederholungen nicht beide „keine
+ * gefunden" sehen. Eine gefundene belegt keinen zweiten Platz; sie IST der Platz,
+ * den die verlorene Antwort nicht mehr melden konnte.
  */
 export function belegeDateiplatz(
   db: DB,
   tokenId: string,
   zeile: typeof inboxFiles.$inferInsert,
-): boolean {
+): Dateiplatz {
   return db.transaction(
-    (tx) => {
+    (tx): Dateiplatz => {
+      const schluessel = zeile.abgabeSchluessel ?? null;
+      if (schluessel !== null) {
+        const vorhanden = tx
+          .select({
+            id: inboxFiles.id,
+            dateiname: inboxFiles.dateiname,
+            bytesVollstaendigAt: inboxFiles.bytesVollstaendigAt,
+            size: inboxFiles.size,
+            mimeType: inboxFiles.mimeType,
+          })
+          .from(inboxFiles)
+          .where(and(eq(inboxFiles.tokenId, tokenId), eq(inboxFiles.abgabeSchluessel, schluessel)))
+          .get();
+        if (vorhanden !== undefined) {
+          return {
+            art: "vorhanden",
+            id: vorhanden.id,
+            dateiname: vorhanden.dateiname,
+            abgeschlossen: vorhanden.bytesVollstaendigAt !== null,
+            size: vorhanden.size,
+            mimeType: vorhanden.mimeType,
+          };
+        }
+      }
+
       const stand = tx
         .select({
           budget: zugangslinks.budgetDateien,
@@ -130,10 +177,10 @@ export function belegeDateiplatz(
         .from(zugangslinks)
         .where(eq(zugangslinks.id, tokenId))
         .get();
-      if (stand === undefined) return false;
-      if (stand.verbraucht + stand.offen >= stand.budget) return false;
+      if (stand === undefined) return { art: "voll" };
+      if (stand.verbraucht + stand.offen >= stand.budget) return { art: "voll" };
       tx.insert(inboxFiles).values(zeile).run();
-      return true;
+      return { art: "neu" };
     },
     { behavior: "immediate" },
   );

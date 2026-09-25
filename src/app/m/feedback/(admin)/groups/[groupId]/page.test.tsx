@@ -342,7 +342,7 @@ describe("Slot „Letzter Abend“ (§2.7)", () => {
 describe("Zone d — VERLAUF, verdrahtet", () => {
   /** Die Zeilen der breiten Verlaufsdarstellung. */
   const verlaufszeilen = (wirt: HTMLElement) => [
-    ...wirt.querySelectorAll<HTMLElement>(".fb-verlauf-breit tbody tr.ant-table-row"),
+    ...wirt.querySelectorAll<HTMLElement>(".fb-verlauf [data-rolle='breitansicht'] tbody tr.ant-table-row"),
   ];
 
   it("zeigt jeden abgeschlossenen Abend mit Rücklauf und Notenpille", async () => {

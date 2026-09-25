@@ -53,6 +53,8 @@ import { normalisiereToken, tokenHash } from "../../../../_lib/token";
  *     &name=<Anzeigename>     nur beim ERSTEN Chunk (ab=0 ohne id), Pflicht.
  *     &kategorie=<wert>       nur beim ersten Chunk, optional.
  *     &hinweis=<text>         nur beim ersten Chunk, optional.
+ *     &schluessel=<Schluessel> nur beim ersten Chunk, optional: der
+ *                             Idempotenzschluessel des Clients (DRK-448).
  *     &typ=<deklarierter MIME> nur beim LETZTEN Chunk (ende=1), optional.
  *   Rumpf: die rohen Bytes dieses Chunks (hoechstens `FILES_CHUNK_BYTES`).
  *
@@ -60,7 +62,7 @@ import { normalisiereToken, tokenHash } from "../../../../_lib/token";
  *   200 { id, empfangen, fertig: true, mimeTyp, dateiname }  — der letzte Chunk.
  *   Fehler: { code, fehler, … } mit
  *     code ∈ "token" · "zu-viele-fehlversuche" · "unbekannt" · "offset" · "name"
- *           · "kategorie" · "hinweis" · "zu-gross" · "typ-nicht-erlaubt"
+ *           · "kategorie" · "hinweis" · "schluessel" · "zu-gross" · "typ-nicht-erlaubt"
  *           · "kein-platz" · "ablage" · "kontingent" · "zu-viele-anfragen"
  *           · "veraltet" (nur der POST-Altweg)
  *
@@ -75,6 +77,23 @@ import { normalisiereToken, tokenHash } from "../../../../_lib/token";
  * HTTP-Header sind ISO-8859-1, `Übung_Größe.pdf` waere dort ein Mojibake-Weg —
  * und genau dieser Name ist die 1:1-Zusage aus §12. Die Query ist UTF-8 und
  * prozentkodiert. In keinen Pfad geht der Name ohnehin (`_lib/storage.ts`).
+ *
+ * ═══ DER IDEMPOTENZSCHLUESSEL (DRK-448) ═══════════════════════════════════════
+ *
+ * Ging die Antwort auf den ersten Chunk verloren, kannte der Client die `id`
+ * nicht, und seine Wiederholung eroeffnete eine ZWEITE Abgabe. Die erste hielt
+ * bis zu ihrem Verfall (24 h) einen Dateiplatz — bei einem Link mit einem Platz
+ * endete die Wiederholung mit 429. Deshalb nennt der Client beim ersten Chunk
+ * einen Schluessel, und derselbe Schluessel findet dieselbe Abgabe wieder:
+ *
+ *   offen, Zwischendatei leer   → der Chunk wird geschrieben, wie beim ersten Mal.
+ *   offen, Bytes liegen schon   → 200 mit `id` und dem Stand, OHNE den Rumpf zu
+ *                                 lesen: das ist die Antwort, die verloren ging.
+ *   abgeschlossen               → 200 mit der Quittung des Abschlusses.
+ *
+ * Die `id` kommt weiter vom SERVER (siehe unten): der Schluessel findet nur
+ * Abgaben des EIGENEN Tokens (`token_id` im `WHERE`, eindeutig je Link), und er
+ * ist mindestens 16 Zeichen lang — erraten laesst er sich nicht.
  *
  * ═══ DIE ZEILE ENTSTEHT BEIM ERSTEN CHUNK, nicht beim letzten ════════════════
  *
@@ -127,6 +146,7 @@ type Fehlercode =
   | "name"
   | "kategorie"
   | "hinweis"
+  | "schluessel"
   | "zu-gross"
   | "typ-nicht-erlaubt"
   | "kein-platz"
@@ -190,6 +210,13 @@ function notbremse(max: number): RateLimiter {
 const NAMENS_UNRAT = /[\x00-\x1F\x7F/\\]/g;
 
 const GANZZAHL = /^\d+$/;
+
+/**
+ * Die Form des Idempotenzschluessels (DRK-448): das URL-Alphabet, 16 bis 64
+ * Zeichen. Die UNTERgrenze ist die Zusage „nicht zu erraten" — 16 Zeichen tragen
+ * 96 Bit; der Client dieser Suite schickt 22 (128 Bit).
+ */
+const SCHLUESSEL_MUSTER = /^[A-Za-z0-9_-]{16,64}$/;
 
 const JSON_KOPF = {
   "content-type": "application/json; charset=utf-8",
@@ -325,6 +352,25 @@ function loeseTokenAuf(roh: string, jetzt: Date): Link | null {
   };
 }
 
+/**
+ * Ob diese Anfrage ein erster Chunk ist, dessen Schluessel eine Abgabe des Links
+ * schon traegt (DRK-448). Nur fuer die Ausnahme der Vorpruefung; verbindlich
+ * entscheidet `belegeDateiplatz`.
+ */
+function kenntSchluessel(anfrage: Request, tokenId: string): boolean {
+  const suche = new URL(anfrage.url).searchParams;
+  const schluessel = suche.get("schluessel");
+  if (suche.get("id") !== null || schluessel === null || !SCHLUESSEL_MUSTER.test(schluessel)) {
+    return false;
+  }
+  const zeile = getDb()
+    .select({ id: inboxFiles.id })
+    .from(inboxFiles)
+    .where(and(eq(inboxFiles.tokenId, tokenId), eq(inboxFiles.abgabeSchluessel, schluessel)))
+    .get();
+  return zeile !== undefined;
+}
+
 /** Blob, Zwischendatei UND Zeile weg — der Weg jeder ENDGUELTIGEN Ablehnung. */
 async function verwirf(ziel: BlobZiel, inboxFileId: string): Promise<void> {
   await raeumeBytesWeg(ziel);
@@ -393,7 +439,12 @@ export async function PUT(
   // hinterlaesst, und Sache des Aufraeum-Laufs (§7.6). Die Pruefung nach hinten
   // zu verschieben, waere der teurere Tausch: dann liefe jede Anfrage eines
   // erschoepften Links erst durch die Notbremse.
-  if (link.restDateien <= 0 || link.restBytes <= 0) {
+  //
+  // AUSNAHME (DRK-448): ein erster Chunk, dessen Schluessel eine Abgabe dieses
+  // Links schon kennt. Er belegt nichts Neues — er holt die Antwort ab, die
+  // verloren ging, und die haette sonst ausgerechnet bei der Abgabe, die das
+  // Kontingent GENAU gefuellt hat, „Kontingent erschöpft" gelautet.
+  if ((link.restDateien <= 0 || link.restBytes <= 0) && !kenntSchluessel(anfrage, link.id)) {
     return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
   }
 
@@ -458,8 +509,17 @@ async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Resp
   const ende = suche.get("ende") === "1";
   const id = suche.get("id");
 
-  const zeile = id === null ? eroeffne(suche, tokenId, anfrage, jetzt, ab) : hole(id, tokenId);
-  if (zeile instanceof Response) return zeile;
+  let zeile: Zeile;
+  let wiederaufgenommen = false;
+  if (id === null) {
+    const eroeffnet = eroeffne(suche, tokenId, anfrage, jetzt, ab);
+    if (eroeffnet instanceof Response) return eroeffnet;
+    ({ zeile, wiederaufgenommen } = eroeffnet);
+  } else {
+    const offen = hole(id, tokenId);
+    if (offen instanceof Response) return offen;
+    zeile = offen;
+  }
 
   const ziel: BlobZiel = { art: "inbox", inboxFileId: zeile.id };
   // VOR dem `try`, weil der `catch` die Grenze fuer die 413-Meldung braucht. Der
@@ -483,18 +543,35 @@ async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Resp
       // davor, und dazwischen darf eine andere Anfrage abgeschlossen haben. Ohne
       // diese Zeile begaenne eine Folgeanfrage mit `ab=0` eine neue
       // Zwischendatei neben dem schon geprueften Blob.
-      if (id !== null) {
-        const nochOffen = hole(id, tokenId);
-        if (nochOffen instanceof Response) return nochOffen;
-      }
-      return await byteWeg(anfrage, suche, ziel, zeile, tokenId, ab, ende, jetzt, g);
+      //
+      // AUCH NACH DEM ERSTEN CHUNK (DRK-448): zwischen dem Anlegen der Zeile und
+      // diesem Besitz kann die Verwaltung sie geloescht haben. Ohne die Pruefung
+      // legte der Chunk danach eine Zwischendatei ohne Zeile an — Bytes, die kein
+      // Lauf mehr einer Abgabe zuordnet.
+      const nochOffen = hole(zeile.id, tokenId);
+      if (nochOffen instanceof Response) return nochOffen;
+      return await byteWeg(
+        anfrage,
+        suche,
+        ziel,
+        zeile,
+        tokenId,
+        ab,
+        ende,
+        jetzt,
+        g,
+        wiederaufgenommen,
+      );
     });
   } catch (grund) {
     if (grund instanceof SchreibbesitzBelegt) {
       // Dieselbe Antwort wie bei EEXIST unten: der Client uebernimmt den Stand
       // und setzt fort, sobald die laufende Anfrage durch ist.
       const stand = await fortschritt(ziel).catch(() => 0);
+      // MIT `id`: kam diese Anfrage ueber den Idempotenzschluessel, kennt der
+      // Client sie noch nicht (DRK-448).
       return fehler(409, "offset", "Für diese Abgabe läuft bereits eine Übertragung.", {
+        id: zeile.id,
         erwartetesAb: stand,
       });
     }
@@ -513,6 +590,7 @@ async function byteWeg(
   ende: boolean,
   jetzt: Date,
   g: ReturnType<typeof grenzen>,
+  wiederaufgenommen: boolean,
 ): Promise<Response> {
   // Welche Grenze den Schreibstrom begrenzt hat, entscheidet den Namen der
   // Ablehnung — geworfen wird in jedem Fall `GroesseUeberschritten`. Belegt wird
@@ -530,6 +608,16 @@ async function byteWeg(
     // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter Zustand, der
     // auseinanderlaufen kann (§7.1 Schritt 3).
     const bisher = await fortschritt(ziel);
+
+    // DIE VERLORENE ANTWORT (DRK-448): derselbe erste Chunk kam schon an. Der
+    // Rumpf wird NICHT gelesen — geantwortet wird, was die erste Anfrage
+    // geantwortet haette, und der Client setzt bei `empfangen` fort. Nur bei
+    // liegenden Bytes: eine leere Zwischendatei (Abbruch vor dem ersten Byte,
+    // 507) ist ein neuer Anfang und geht den normalen Weg.
+    if (wiederaufgenommen && bisher > 0) {
+      return antwort(200, { id: zeile.id, empfangen: bisher, fertig: false });
+    }
+
     // GENAU die Laenge, in BEIDE Richtungen: ein kleineres `ab` haenge zusammen
     // mit `anhaengen` die Bytes trotzdem hinten an und verdorbe den Blob
     // still — die Magic-Byte-Pruefung saehe nichts davon, weil sie nur den Kopf
@@ -539,7 +627,7 @@ async function byteWeg(
         409,
         "offset",
         `Dieser Abschnitt passt nicht: erwartet wurde Byte ${bisher}.`,
-        { erwartetesAb: bisher },
+        { id: zeile.id, erwartetesAb: bisher },
       );
     }
 
@@ -628,7 +716,7 @@ function eroeffne(
   anfrage: Request,
   jetzt: Date,
   ab: number,
-): Zeile | Response {
+): { zeile: Zeile; wiederaufgenommen: boolean } | Response {
   if (ab !== 0) {
     return fehler(400, "offset", "Ohne `id` beginnt eine Abgabe bei `ab=0`.", { erwartetesAb: 0 });
   }
@@ -659,6 +747,14 @@ function eroeffne(
     );
   }
 
+  // Leer heisst „ohne Schluessel" — der Weg vor DRK-448, und fuer Clients, die
+  // ihn nicht kennen, weiter gueltig.
+  const rohSchluessel = suche.get("schluessel");
+  const schluessel = rohSchluessel === null || rohSchluessel === "" ? null : rohSchluessel;
+  if (schluessel !== null && !SCHLUESSEL_MUSTER.test(schluessel)) {
+    return fehler(400, "schluessel", "Der Schlüssel dieser Abgabe hat nicht die erwartete Form.");
+  }
+
   const id = nanoid(10);
   // DER DATEIPLATZ WIRD HIER BELEGT, nicht erst beim Abschluss (DRK-288): Zaehlen
   // und Anlegen in einer Transaktion. Vorher sah jede neue Abgabe dasselbe
@@ -681,10 +777,24 @@ function eroeffne(
     empfangenAt: jetzt,
     bytesVollstaendigAt: null,
     avStatus: "scanning",
+    abgabeSchluessel: schluessel,
   });
-  if (!belegt) return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
+  if (belegt.art === "voll") return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
+  if (belegt.art === "neu") return { zeile: { id, dateiname }, wiederaufgenommen: false };
 
-  return { id, dateiname };
+  // Derselbe Schluessel, schon ABGESCHLOSSEN: die verlorene Antwort war die des
+  // letzten Chunks. Die Quittung von damals, ohne ein Byte zu lesen und ohne
+  // eine zweite Buchung — der Dateiplatz ist verbraucht, nicht noch einmal.
+  if (belegt.abgeschlossen) {
+    return antwort(200, {
+      id: belegt.id,
+      empfangen: belegt.size,
+      fertig: true,
+      mimeTyp: belegt.mimeType,
+      dateiname: belegt.dateiname,
+    });
+  }
+  return { zeile: { id: belegt.id, dateiname: belegt.dateiname }, wiederaufgenommen: true };
 }
 
 /**
@@ -875,6 +985,7 @@ async function aufSchreibfehler(
     // wie in `api/upload/[fileId]/route.ts`.
     const stand = await fortschritt(ziel).catch(() => 0);
     return fehler(409, "offset", "Für diese Abgabe läuft bereits eine Übertragung.", {
+      id: inboxFileId,
       erwartetesAb: stand,
     });
   }

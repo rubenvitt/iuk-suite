@@ -113,7 +113,7 @@ export function erzeugeCode(): string {
  * Normalisierung nur Treffer HINZUFUEGEN, nie einen bestehenden verlieren — genau deshalb
  * ist sie sicher; die Suche laeuft auf Gleichheit gegen `zugangscodes.code`, und die
  * Spalte wird nicht aufgeweicht (Spec:2105-2108, Vorbild
- * `src/app/m/lagerbuch/_lib/code.ts:4-8`).
+ * `src/app/m/lagerbuch/_lib/code.ts:7-10`).
  *
  * ⛔ SONST UNVERAENDERT HEISST: DIE GEREINIGTE ZEICHENKETTE, UNGRUPPIERT — nicht die rohe
  * Eingabe. Wer stattdessen jede Laenge gruppierte, machte aus einem Tippfehler eine

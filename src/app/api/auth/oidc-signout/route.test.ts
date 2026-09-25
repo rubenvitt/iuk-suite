@@ -17,9 +17,9 @@ function stubDiscovery(body: unknown) {
 }
 
 describe("GET /api/auth/oidc-signout", () => {
-  // Der eigentliche Befund: diese Route fehlte in der Suite. providers.tsx
-  // schickt bei RefreshTokenError hierher, und der Logout endete auf einer 404 —
-  // die Sitzung beim Identity Provider lief dabei ungebrochen weiter.
+  // Der eigentliche Befund: diese Route fehlte in der Suite. Der Logout
+  // schickte hierher und endete auf einer 404 — die Sitzung beim Identity
+  // Provider lief dabei ungebrochen weiter.
   it("leitet auf den end_session_endpoint mit post_logout_redirect_uri", async () => {
     vi.stubEnv("AUTH_URL", APP);
     vi.stubEnv("POCKET_ID_ISSUER", ISSUER);

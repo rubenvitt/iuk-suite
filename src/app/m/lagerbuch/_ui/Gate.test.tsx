@@ -13,6 +13,7 @@ vi.mock("../_actions/gate", () => ({ einloesenAmGate: vi.fn() }));
 import { einloesenAmGate } from "../_actions/gate";
 
 import { Gate } from "./Gate";
+import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/Gate.tsx";
 
@@ -220,8 +221,8 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
   });
 });
 
-describe("Gate — das Zahlenfeld (§7.2.4)", () => {
-  it("traegt inputmode, maxlength, pattern, aria-label — und KEIN aria-describedby", async () => {
+describe("Gate — das Codefeld (§7.2.4)", () => {
+  it("traegt maxlength, pattern, aria-label — und KEIN aria-describedby", async () => {
     // inputMode/maxlength/pattern sind zusammen die billigste Massnahme gegen
     // Fehleingaben am GEMEINSAMEN Rate-Limit-Eimer (Falle 24): alle Helferinnen
     // hinter demselben Uplink teilen sich fuenf Fehlversuche pro Minute.
@@ -235,13 +236,16 @@ describe("Gate — das Zahlenfeld (§7.2.4)", () => {
     // schlechter als keiner, weil sie dann gar nichts sagt und es niemandem
     // auffaellt. Diese Zeile haelt genau das in der neuen Form fest — kein
     // halber Rueckbau, der das Attribut stehen laesst und das Ziel entfernt.
-    // Das Format traegt weiterhin `placeholder="000-000"` samt `pattern`.
+    // Das Format traegt `pattern`; seit DRK-442 nimmt es beide Codeformen, und
+    // ohne `inputmode="numeric"`: ein langer Code hat Buchstaben.
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const f = query<HTMLInputElement>("input[name='code']");
-    expect(f.getAttribute("inputmode")).toBe("numeric");
-    expect(f.getAttribute("maxlength")).toBe("7");
-    expect(f.getAttribute("pattern")).toBe("[0-9]{3}-?[0-9]{3}");
-    expect(f.getAttribute("placeholder")).toBe("000-000");
+    expect(f.getAttribute("inputmode")).toBeNull();
+    expect(f.getAttribute("maxlength")).toBe(String(CODEFELD_LAENGE));
+    expect(f.getAttribute("pattern")).toBe(CODEFELD_MUSTER);
+    expect(f.getAttribute("placeholder")).toBe(CODEFELD_PLATZHALTER);
+    expect(f.getAttribute("autocapitalize")).toBe("characters");
+    expect(f.getAttribute("spellcheck")).toBe("false");
     expect(f.getAttribute("aria-label")).toBe("Zugangs-Code");
     expect(f.getAttribute("aria-describedby")).toBeNull();
     expect(f.getAttribute("autocomplete")).toBe("off");
@@ -276,7 +280,7 @@ describe("Gate — die Verwaltungskarte", () => {
     // §3.6.6, Entscheidung 15 (a): „der Verwaltungs-Knopf fuehrt auf das
     // Suite-/login". Ein aus dem Bestand uebernommenes `signIn("oidc", …)`
     // liefe ins Leere — die Suite kennt den Anbieter als "pocket-id"
-    // (core/auth/pocketId.ts:28), und Auth.js meldet einen unbekannten
+    // (core/auth/pocketId.ts, POCKET_ID_PROVIDER_ID), und Auth.js meldet einen unbekannten
     // Anbieter erst zur LAUFZEIT.
     await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const a = query<HTMLAnchorElement>("[data-rolle='gate-verwaltung']");

@@ -257,7 +257,7 @@ describe("redeemToken — Nicht-Treffer, und was er NICHT verraet", () => {
      *  - `"482137"` haelt ALLEIN jede Normalisierung, die den BINDESTRICH
      *    EINSETZT. Das ist der Fall, den Nachtrag N-2 benennt: ruft jemand die
      *    modul-eigene `normalisiereCode` INNERHALB von `redeemToken`, dann
-     *    liefert sie fuer `"482137"` den Wert `"482-137"` (`_lib/code.ts:27-28`)
+     *    liefert sie fuer `"482137"` den Wert `"482-137"` (`_lib/code.ts`, `normalisiereCode`)
      *    — der Aufruf gelaenge. `" 482-137 "` sieht diesen Fall zwar MIT, weil
      *    `normalisiereCode` zusaetzlich trimmt; eine Bindestrich-Einsetzung ohne
      *    trim (etwa eine aufgeteilte Fassung) faellt aber NUR hier auf.

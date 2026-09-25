@@ -78,7 +78,7 @@ export default async function OrtsetikettenSeite() {
 
   return (
     <>
-      <OrtsetikettenChrome basis={daten.basis} neueCodes={daten.neueCodes} />
+      <OrtsetikettenChrome basis={daten.basis} neueCodes={daten.neueCodes} alteCodes={daten.alteCodes} />
       <OrtsetikettenBogen orte={daten.orte} />
       {/*
         §11.7 — jeder gestaltete Zustand traegt einen benannten Weg zurueck, und

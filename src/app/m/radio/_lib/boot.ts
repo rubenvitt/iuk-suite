@@ -163,7 +163,7 @@ export function historieMonateFehler(env: EnvLike = process.env): string | null 
  * ⚠️ SIE WIRFT bei einem gesetzten, ungueltigen Wert — sie faellt NICHT still auf die
  * Vorgabe zurueck. Ein Modul, das mit einer kaputten Zahl gar nicht erst startet, ist
  * richtiger als eines, das still eine andere Loeschgrenze faehrt als die, die in der .env
- * steht (`src/app/m/lagerbuch/_lib/gateSchranke.ts:12-14`). Der Wurf erreicht den Boot nie:
+ * steht (`src/app/m/lagerbuch/_lib/gateSchranke.ts:13-15`). Der Wurf erreicht den Boot nie:
  * `radioBootFehler()` fragt `historieMonateFehler()` und liefert die Meldung als Liste.
  * Der Konsument des Wurfs ist der Takt aus G4.
  */

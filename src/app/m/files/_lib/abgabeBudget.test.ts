@@ -77,14 +77,27 @@ function link() {
 
 describe("belegeDateiplatz", () => {
   it("belegt genau so viele Plätze, wie das Budget hat — offene zählen mit", () => {
-    expect(belegeDateiplatz(db, LINK, zeile("Datei00001"))).toBe(true);
-    expect(belegeDateiplatz(db, LINK, zeile("Datei00002"))).toBe(true);
-    expect(belegeDateiplatz(db, LINK, zeile("Datei00003"))).toBe(false);
+    expect(belegeDateiplatz(db, LINK, zeile("Datei00001"))).toEqual({ art: "neu" });
+    expect(belegeDateiplatz(db, LINK, zeile("Datei00002"))).toEqual({ art: "neu" });
+    expect(belegeDateiplatz(db, LINK, zeile("Datei00003"))).toEqual({ art: "voll" });
     expect(db.select({ id: inboxFiles.id }).from(inboxFiles).all()).toHaveLength(2);
   });
 
   it("ein unbekannter Link belegt nichts", () => {
-    expect(belegeDateiplatz(db, "Unbekannt1", zeile("Datei00001"))).toBe(false);
+    expect(belegeDateiplatz(db, "Unbekannt1", zeile("Datei00001"))).toEqual({ art: "voll" });
+  });
+
+  it("derselbe Idempotenzschlüssel findet die Abgabe wieder, statt einen Platz zu belegen (DRK-448)", () => {
+    const mitSchluessel = (id: string) => ({ ...zeile(id), abgabeSchluessel: "S".repeat(22) });
+    expect(belegeDateiplatz(db, LINK, mitSchluessel("Datei00001"))).toEqual({ art: "neu" });
+    expect(belegeDateiplatz(db, LINK, mitSchluessel("Datei00002"))).toMatchObject({
+      art: "vorhanden",
+      id: "Datei00001",
+      abgeschlossen: false,
+    });
+    // Der zweite Platz ist frei geblieben — eine andere Datei bekommt ihn noch.
+    expect(belegeDateiplatz(db, LINK, zeile("Datei00003"))).toEqual({ art: "neu" });
+    expect(db.select({ id: inboxFiles.id }).from(inboxFiles).all()).toHaveLength(2);
   });
 });
 

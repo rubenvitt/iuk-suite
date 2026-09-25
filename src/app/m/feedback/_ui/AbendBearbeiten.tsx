@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button, Input, Modal } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import type { EveningStatus } from "../_lib/lifecycle";
 import { updateEveningAction } from "../actions";
+import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { T } from "./typo";
 import { tagInZone } from "./datum";
 
@@ -27,10 +28,11 @@ import { tagInZone } from "./datum";
  * deshalb als eigene Client-Insel herueberkommen — nicht als `useState` in der
  * Karte.
  *
- * Kein `useActionState`: §4.4 nennt GENAU DREI Formulare mit Feldfehlern, und
- * dieses ist keins davon. Dasselbe Muster wie `NachtragenDialog`, inklusive des
- * Schliessens NACH der Action (`destroyOnHidden` baut das Formular sonst mitten
- * im Absenden aus).
+ * Seit DRK-429 mit `useActionState` (§4.4): ein Datum, an dem die Gruppe
+ * schon einen ANDEREN Abend hat, kommt als Feldfehler zurück statt als
+ * Fehlerseite. Dasselbe Muster wie `NachtragenDialog`, inklusive des
+ * Schliessens NACH der Action und nur bei Erfolg (`destroyOnHidden` baut das
+ * Formular sonst mitten im Absenden aus).
  */
 
 export type AbendFelder = {
@@ -77,10 +79,6 @@ export function AbendBearbeiten({
   schliessen: () => void;
   lage?: EveningStatus;
 }) {
-  // Ueber `datum.ts`, nicht `toISOString()`: die Vorbelegung eines Datumsfelds
-  // kippt damit nicht auf den Vortag (§4.5).
-  const isoTag = tagInZone(abend.datum);
-
   return (
     <Modal
       open={offen}
@@ -89,51 +87,101 @@ export function AbendBearbeiten({
       footer={null}
       destroyOnHidden
     >
-      <form
-        data-testid="abend-bearbeiten"
-        action={async (daten: FormData) => {
-          await updateEveningAction(daten);
-          schliessen();
-        }}
-        className="fb-form"
-        style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
-      >
-        <input type="hidden" name="id" value={abend.eveningId} />
-        <label style={FELD}>
-          <span style={T.kicker}>Datum</span>
-          <Input type="date" name="date" defaultValue={isoTag} required />
-          <span style={T.meta}>
-            {lage === "held"
-              ? "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit."
-              : "Das Feedback gibst du weiterhin am Abend selbst frei."}
-          </span>
-        </label>
-        <label style={FELD}>
-          <span style={T.kicker}>Thema</span>
-          <Input name="topic" defaultValue={abend.thema ?? ""} placeholder="z. B. Funkübung" />
-        </label>
-        {lage === "held" && (
-          <label style={FELD}>
-            <span style={T.kicker}>Teilnehmerzahl</span>
-            <Input
-              type="number"
-              name="participantCount"
-              min={0}
-              defaultValue={abend.teilnehmer?.toString() ?? ""}
-              placeholder="optional"
-            />
-            <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
-          </label>
-        )}
-        <label style={FELD}>
-          <span style={T.kicker}>Notizen</span>
-          <Input name="notes" defaultValue={abend.notizen ?? ""} placeholder="optional" />
-        </label>
-        <Button type="primary" htmlType="submit">
-          Speichern
-        </Button>
-      </form>
+      <BearbeitenFormular abend={abend} schliessen={schliessen} lage={lage} />
     </Modal>
+  );
+}
+
+/**
+ * Das Formular INNERHALB des `Modal`, damit `destroyOnHidden` den
+ * `useActionState`-Zustand mit ausbaut: ein wieder geöffneter Dialog zeigt
+ * keinen Fehler vom letzten Mal.
+ */
+function BearbeitenFormular({
+  abend,
+  schliessen,
+  lage,
+}: {
+  abend: AbendFelder;
+  schliessen: () => void;
+  lage: EveningStatus;
+}) {
+  const [state, formAction, isPending] = useActionState(
+    async (prev: FormState, daten: FormData) => {
+      const ergebnis = await updateEveningAction(prev, daten);
+      if (ergebnis.ok) schliessen();
+      return ergebnis;
+    },
+    FORM_START,
+  );
+  const datumsFehler = feldFehler(state, "date");
+  // Ueber `datum.ts`, nicht `toISOString()`: die Vorbelegung eines Datumsfelds
+  // kippt damit nicht auf den Vortag (§4.5).
+  const isoTag = tagInZone(abend.datum);
+
+  return (
+    <form
+      data-testid="abend-bearbeiten"
+      action={formAction}
+      className="fb-form"
+      style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
+    >
+      <input type="hidden" name="id" value={abend.eveningId} />
+      <label style={FELD}>
+        <span style={T.kicker}>Datum</span>
+        <Input
+          type="date"
+          name="date"
+          defaultValue={feldWert(state, "date", isoTag)}
+          required
+          status={datumsFehler ? "error" : undefined}
+          aria-invalid={datumsFehler ? true : undefined}
+          aria-describedby={datumsFehler ? `fb-abend-${abend.eveningId}-date-err` : undefined}
+        />
+        {datumsFehler && (
+          <span id={`fb-abend-${abend.eveningId}-date-err`} style={T.meta}>
+            {datumsFehler}
+          </span>
+        )}
+        <span style={T.meta}>
+          {lage === "held"
+            ? "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit."
+            : "Das Feedback gibst du weiterhin am Abend selbst frei."}
+        </span>
+      </label>
+      <label style={FELD}>
+        <span style={T.kicker}>Thema</span>
+        <Input
+          name="topic"
+          defaultValue={feldWert(state, "topic", abend.thema ?? "")}
+          placeholder="z. B. Funkübung"
+        />
+      </label>
+      {lage === "held" && (
+        <label style={FELD}>
+          <span style={T.kicker}>Teilnehmerzahl</span>
+          <Input
+            type="number"
+            name="participantCount"
+            min={0}
+            defaultValue={feldWert(state, "participantCount", abend.teilnehmer?.toString() ?? "")}
+            placeholder="optional"
+          />
+          <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
+        </label>
+      )}
+      <label style={FELD}>
+        <span style={T.kicker}>Notizen</span>
+        <Input
+          name="notes"
+          defaultValue={feldWert(state, "notes", abend.notizen ?? "")}
+          placeholder="optional"
+        />
+      </label>
+      <Button type="primary" htmlType="submit" loading={isPending} disabled={isPending}>
+        Speichern
+      </Button>
+    </form>
   );
 }
 
