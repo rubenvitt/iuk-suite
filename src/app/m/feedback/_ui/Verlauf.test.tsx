@@ -394,6 +394,7 @@ describe("Verlauf — die Kopfzeile (§2.5)", () => {
   });
 
   it("legt einen nachgetragenen Abend ueber `createEveningAction` an", async () => {
+    createEveningActionMock.mockResolvedValue({ ok: true });
     await mount(zone(sechs));
     const oeffnen = [...document.querySelectorAll<HTMLElement>("button")].find(
       (b) => (b.textContent ?? "").trim() === "Abend ohne Feedback nachtragen",
@@ -418,9 +419,51 @@ describe("Verlauf — die Kopfzeile (§2.5)", () => {
      */
     await abschicken(form!);
     expect(createEveningActionMock).toHaveBeenCalledTimes(1);
-    const daten = createEveningActionMock.mock.calls[0][0] as FormData;
+    const daten = createEveningActionMock.mock.calls[0][1] as FormData;
     expect(daten.get("groupId")).toBe("7");
     expect(daten.get("date")).toBe("2026-07-25");
+    // Erfolg schliesst den Dialog.
+    expect(document.querySelector("form[data-testid='verlauf-nachtragen']")).toBeNull();
+  });
+
+  /*
+   * EIN BELEGTER TAG (DRK-429) kommt als Feldfehler zurueck. Der Dialog bleibt
+   * offen, die Meldung steht am Datum, und die Eingaben sind noch da — ein Wurf
+   * haette auf der technischen Fehlerseite geendet.
+   */
+  it("zeigt einen belegten Tag am Datumsfeld und laesst den Dialog offen", async () => {
+    const meldung = "An diesem Tag hat die Gruppe schon einen Dienstabend.";
+    // Wie die echte Action: die abgeschickten Werte kommen unverändert zurück.
+    createEveningActionMock.mockImplementation(async (_prev: unknown, daten: FormData) => ({
+      ok: false,
+      fieldErrors: { date: meldung },
+      values: {
+        date: String(daten.get("date")),
+        topic: String(daten.get("topic")),
+        participantCount: String(daten.get("participantCount")),
+      },
+    }));
+    await mount(zone(sechs));
+    const oeffnen = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Abend ohne Feedback nachtragen",
+    );
+    await clickElement(oeffnen!);
+    const thema = document.querySelector<HTMLInputElement>(
+      "form[data-testid='verlauf-nachtragen'] input[name='topic']",
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(Object.getPrototypeOf(thema), "value")!.set!.call(thema, "Funk");
+      thema.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await abschicken(document.querySelector<HTMLFormElement>("form[data-testid='verlauf-nachtragen']")!);
+
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='verlauf-nachtragen']");
+    expect(form).not.toBeNull();
+    expect(form!.textContent).toContain(meldung);
+    const datum = form!.querySelector<HTMLInputElement>("input[name='date']")!;
+    expect(datum.getAttribute("aria-invalid")).toBe("true");
+    expect(datum.value).toBe("2026-07-25");
+    expect(form!.querySelector<HTMLInputElement>("input[name='topic']")!.value).toBe("Funk");
   });
 });
 
@@ -560,6 +603,7 @@ describe("Verlauf — Abend bearbeiten (§2.5)", () => {
   });
 
   it("schickt die nachgetragene Teilnehmerzahl an updateEveningAction", async () => {
+    updateEveningActionMock.mockResolvedValue({ ok: true });
     await mount(zone(einer));
     await menueOeffnen();
     const form = await bearbeitenWaehlen();
@@ -574,11 +618,30 @@ describe("Verlauf — Abend bearbeiten (§2.5)", () => {
     await abschicken(form);
 
     expect(updateEveningActionMock).toHaveBeenCalledTimes(1);
-    const daten = updateEveningActionMock.mock.calls[0][0] as FormData;
+    const daten = updateEveningActionMock.mock.calls[0][1] as FormData;
     expect(daten.get("id")).toBe("42");
     expect(daten.get("participantCount")).toBe("18");
     // Das Datum faehrt mit: aendert es sich, ankert die Action `closesAt` neu.
     expect(daten.get("date")).toBe("2026-07-22");
+  });
+
+  it("zeigt ein Verschieben auf einen belegten Tag am Datumsfeld (DRK-429)", async () => {
+    const meldung = "An diesem Tag hat die Gruppe schon einen Dienstabend.";
+    updateEveningActionMock.mockImplementation(async (_prev: unknown, daten: FormData) => ({
+      ok: false,
+      fieldErrors: { date: meldung },
+      values: { date: String(daten.get("date")) },
+    }));
+    await mount(zone(einer));
+    await menueOeffnen();
+    await abschicken(await bearbeitenWaehlen());
+
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']");
+    expect(form).not.toBeNull();
+    expect(form!.textContent).toContain(meldung);
+    const datum = form!.querySelector<HTMLInputElement>("input[name='date']")!;
+    expect(datum.getAttribute("aria-invalid")).toBe("true");
+    expect(datum.value).toBe("2026-07-22");
   });
 
   it("nennt die Folge einer Datumsaenderung, damit die Frist keine Ueberraschung ist", async () => {

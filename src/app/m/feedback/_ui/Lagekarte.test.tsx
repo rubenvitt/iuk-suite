@@ -979,6 +979,16 @@ describe("Lagekarte — „Teilnehmerzahl nachtragen“ (2.4)", () => {
   });
 
   it("oeffnet die Zeilenbearbeitung des LAUFENDEN Abends und schickt sie ab", async () => {
+    // Die Zeilenbearbeitung laeuft seit DRK-429 ueber `useActionState` (§4.4):
+    // der Ersatz reicht das Absenden hier an die Action durch, statt es zu schlucken.
+    useActionStateMock.mockImplementation(
+      (action: (prev: FormState, daten: FormData) => Promise<FormState>, init: FormState) => [
+        init,
+        (daten: FormData) => action(init, daten),
+        false,
+      ],
+    );
+    updateEveningActionMock.mockResolvedValue({ ok: true });
     await mount(karte(ohneNenner));
 
     const knopf = [...document.querySelectorAll<HTMLElement>("button")].find(
@@ -999,7 +1009,7 @@ describe("Lagekarte — „Teilnehmerzahl nachtragen“ (2.4)", () => {
     });
 
     expect(updateEveningActionMock).toHaveBeenCalledTimes(1);
-    const daten = updateEveningActionMock.mock.calls[0][0] as FormData;
+    const daten = updateEveningActionMock.mock.calls[0][1] as FormData;
     expect(daten.get("id")).toBe("42");
     expect(daten.get("date")).toBe("2026-07-22");
     expect(daten.has("participantCount")).toBe(true);
