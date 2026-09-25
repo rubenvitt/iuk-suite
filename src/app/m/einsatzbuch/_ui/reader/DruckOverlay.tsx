@@ -9,13 +9,15 @@ import { bericht } from "../../_lib/kern/bericht";
 import type { Block, Einsatz } from "../../_lib/kern/format";
 import { zeitpunktText } from "../../_lib/kern/zeit";
 import { Berichtsblatt } from "../../_lib/kern/ansichten/Berichtsblatt";
-import { chipText, knotenFuer, type Kettenzustand } from "../../_lib/kern/ansichten/modell";
+import { chipText, type Kettenzustand } from "../../_lib/kern/ansichten/modell";
 import s from "./reader.module.css";
 
 export interface DruckOverlayProps {
   block: Block;
   einsatz: Einsatz;
   kette: Kettenzustand;
+  /** Prüfstatus an der Position des Blocks in der Datei (`Eintrag.knoten`), nicht nach Nummer. */
+  unveraendert: boolean;
   dateiname: string;
   bereitschaft: string;
   zeitzone: string;
@@ -29,7 +31,7 @@ export interface DruckOverlayProps {
  * Druckregeln unter einem Suite-Rahmen nicht, also steht die Regel am Overlay selbst). Die
  * A4-Seite kommt aus dem Kern-CSS des Berichtsblatts (`@page einsatzbericht`).
  */
-export function DruckOverlay({ block, einsatz, kette, dateiname, bereitschaft, zeitzone, onSchliessen }: DruckOverlayProps) {
+export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, bereitschaft, zeitzone, onSchliessen }: DruckOverlayProps) {
   // Einmal beim Öffnen festgehalten: das Blatt nennt den Zeitpunkt, zu dem es erzeugt wurde.
   const [erzeugt] = useState(() => zeitpunktText(new Date().toISOString(), zeitzone));
   const speichern = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
@@ -67,7 +69,7 @@ export function DruckOverlay({ block, einsatz, kette, dateiname, bereitschaft, z
         <Button type="primary" icon={<PiPrinter aria-hidden />} onClick={drucken} ref={speichern}>Als PDF speichern</Button>
       </div>
       <div className={s.blattRahmen}>
-        <Berichtsblatt daten={daten} bereitschaft={bereitschaft} unveraendert={knotenFuer(block.kopf.block, kette) === "geprueft"} />
+        <Berichtsblatt daten={daten} bereitschaft={bereitschaft} unveraendert={unveraendert} />
       </div>
     </div>,
     document.body,

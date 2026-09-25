@@ -191,6 +191,17 @@ describe("Reader", () => {
     expect(query('[data-block="3"]').getAttribute("aria-pressed")).toBe("true");
     expect(query("[data-fuss]").textContent).toBe("Block 0 · Anfang der Kette");
     expect(query("[data-kettenpruefung]").textContent).toContain("Gebrochen bei Block");
+
+    // Der Status folgt der Position IN DER DATEI [3, 2, 1]: Block 3 geprüft, Bruch bei Block 2,
+    // Block 1 dahinter nie gehasht — nach Nummern hieße er fälschlich „geprüft“.
+    expect(queryAll("[data-knoten]").map((k) => k.dataset.knoten)).toEqual(["geprueft", "gebrochen", "neutral"]);
+    expect(query('[data-block="1"]').closest("li")?.querySelector<HTMLElement>("[data-knoten]")?.dataset.knoten).not.toBe("geprueft");
+
+    await clickElement(query('[data-block="1"]'));
+    await clickElement(knopf("PDF erzeugen"));
+    const blatt = queryPortal("[data-bericht]").textContent ?? "";
+    expect(blatt).toContain("Unveränderlichkeit nicht bestätigt");
+    expect(blatt).not.toContain("Unverändert seit der Versiegelung");
   }, LANG);
 
   it("gebrochene Kette: Blatt ohne „(geprüft im Reader)“, Siegel nur für geprüfte Blöcke", async () => {

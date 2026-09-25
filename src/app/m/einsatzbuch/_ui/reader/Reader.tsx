@@ -12,7 +12,7 @@ import { Einsatzdetail } from "../../_lib/kern/ansichten/Einsatzdetail";
 import { Kettenliste } from "../../_lib/kern/ansichten/Kettenliste";
 import { Kettenpruefung } from "../../_lib/kern/ansichten/Kettenpruefung";
 import { Testband } from "../../_lib/kern/ansichten/Testband";
-import { knotenFuer, kurz, type Listeneintrag } from "../../_lib/kern/ansichten/modell";
+import { kurz, type Listeneintrag } from "../../_lib/kern/ansichten/modell";
 import {
   INHALT_BESCHAEDIGT, KEINE_DATEI, leseDatei, MAX_DATEIGROESSE, oeffneExport, ZU_GROSS, type Geoeffnet, type Oeffnung,
 } from "../../_lib/reader/oeffnen";
@@ -247,8 +247,10 @@ interface OffeneDateiProps {
 function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: OffeneDateiProps) {
   const { eintraege, kette } = wert;
   // Nur die Anzeige sortiert nach Blocknummer; `pruefeKette` hat die Dateireihenfolge geprüft,
-  // eine umgestellte Datei bleibt also gebrochen. Neueste oben; bei doppelter Blocknummer
-  // (selbst gebaute Datei) gilt wie in der `Kettenliste` der erste Treffer dieser Reihenfolge.
+  // eine umgestellte Datei bleibt also gebrochen. Den Prüfstatus trägt jeder Eintrag aus seiner
+  // Dateiposition mit (`Eintrag.knoten`) — nach der Sortierung wird nichts neu berechnet. Neueste
+  // oben; bei doppelter Blocknummer (selbst gebaute Datei) gilt wie in der `Kettenliste` der
+  // erste Treffer dieser Reihenfolge.
   const aufsteigend = [...eintraege].sort((x, y) => x.block.kopf.block - y.block.kopf.block);
   const absteigend = [...aufsteigend].reverse();
   const [auswahl, setAuswahl] = useState(() => Math.max(...eintraege.map((e) => e.block.kopf.block)));
@@ -258,7 +260,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
   // Knopf zurück, der das Overlay geöffnet hat.
   const schliesseDruck = useCallback(() => { setDruck(false); pdfKnopf.current?.focus(); }, []);
 
-  const liste: Listeneintrag[] = absteigend.map(({ block: b, einsatz, fehler }) => ({
+  const liste: Listeneintrag[] = absteigend.map(({ block: b, einsatz, fehler, knoten }) => ({
     block: b.kopf.block,
     nummer: einsatz?.nummer ?? null,
     stichwort: einsatz?.stichwort ?? null,
@@ -266,7 +268,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
     versiegelt: zeitpunktText(b.kopf.versiegelt, zone),
     hash: b.hash,
     prev: b.kopf.prev,
-    knoten: knotenFuer(b.kopf.block, kette),
+    knoten,
     ...(fehler ? { fehler } : {}),
   }));
   const erster = aufsteigend[0].block.kopf;
@@ -349,6 +351,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
           block={b}
           einsatz={gewaehlt.einsatz}
           kette={kette}
+          unveraendert={gewaehlt.knoten === "geprueft"}
           dateiname={name}
           bereitschaft={bereitschaft}
           zeitzone={zone}

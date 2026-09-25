@@ -67,6 +67,14 @@ describe("oeffneExport", () => {
     expect(r.ok && r.wert.kette).toEqual({ art: "intakt", vollstaendig: true });
     expect(r.ok && r.wert.anker?.block).toBe(3);
     expect(r.ok && [r.wert.von, r.wert.bis, r.wert.anzahl, r.wert.test]).toEqual([1, 3, 3, false]);
+    expect(r.ok && r.wert.eintraege.map((e) => [e.block.kopf.block, e.knoten])).toEqual([[1, "geprueft"], [2, "geprueft"], [3, "geprueft"]]);
+  });
+  it("umgestellte Datei [3, 2, 1] → Prüfstatus nach Dateiposition, Block 1 hinter dem Bruch nie geprüft", async () => {
+    const inhalt = await entschluesseleExport(erwartet.export, KW);
+    const umgestellt = await verschluesseleExport({ ...inhalt, bloecke: [...inhalt.bloecke].reverse() }, KW, erwartet.export.kopf);
+    const r = await oeffneExport(umgestellt, KW);
+    expect(r.ok && r.wert.kette).toMatchObject({ art: "gebrochen", block: 2 });
+    expect(r.ok && r.wert.eintraege.map((e) => [e.block.kopf.block, e.knoten])).toEqual([[3, "geprueft"], [2, "gebrochen"], [1, "neutral"]]);
   });
   it("falsches Kennwort", async () => {
     expect(await oeffneExport(erwartet.export, "falsch-falsch")).toEqual({ ok: false, fehler: KENNWORT_FALSCH, kennwort: true });
@@ -78,6 +86,7 @@ describe("oeffneExport", () => {
     expect(r.ok && r.wert.kette).toMatchObject({ art: "gebrochen", block: 2 });
     expect(r.ok && r.wert.eintraege[1].fehler).toBe("Block 2 lässt sich nicht öffnen");
     expect(r.ok && r.wert.eintraege[0].einsatz).not.toBeNull();
+    expect(r.ok && r.wert.eintraege.map((e) => [e.block.kopf.block, e.knoten])).toEqual([[1, "geprueft"], [2, "gebrochen"], [3, "neutral"]]);
   });
   it("Einzelexport aus der Mitte → Ausschnitt intakt", async () => {
     const inhalt = await entschluesseleExport(erwartet.export, KW);

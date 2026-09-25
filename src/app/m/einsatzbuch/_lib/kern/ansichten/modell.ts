@@ -65,7 +65,13 @@ export interface Listeneintrag {
   fehler?: string;
 }
 
-/** Bis vor die Bruchstelle geprüft, die Bruchstelle gebrochen, danach neutral. */
+/**
+ * Bis vor die Bruchstelle geprüft, die Bruchstelle gebrochen, danach neutral — nach Blocknummer.
+ * Gilt nur für eine aufsteigend geordnete Kette ohne doppelte Nummern, wie die Desktop-App sie
+ * per Konstruktion führt. Eine fremde Datei kann umgestellt sein: `pruefeKette` bricht an der
+ * ersten fehlerhaften DATEIPOSITION ab, eine kleinere Nummer dahinter wurde nie gehasht. Der
+ * Reader nimmt deshalb den Positionsstatus aus `_lib/reader/oeffnen.ts` (`Eintrag.knoten`).
+ */
 export function knotenFuer(block: number, z: Kettenzustand): Listeneintrag["knoten"] {
   if (z.art === "gebrochen") return block < z.block ? "geprueft" : block === z.block ? "gebrochen" : "neutral";
   return z.art === "intakt" ? "geprueft" : "neutral";
