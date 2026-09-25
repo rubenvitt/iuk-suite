@@ -16,7 +16,10 @@ thiserror = "2"
 p256 = { version = "0.14", features = ["ecdh", "pkcs8"] }
 hkdf = "0.13"
 sha2 = "0.11"
-aes-gcm = "0.11"
+# `zeroize`: wischt die AES-Rundenschlüssel (CEK, KEK) und den GHASH-Zustand beim Drop —
+# ohne das Merkmal überlebt der Schlüsselplan im Speicher, auch wenn der Kern die Rohschlüssel
+# selbst per `zeroize` löscht.
+aes-gcm = { version = "0.11", features = ["zeroize"] }
 base64 = "0.23"
 getrandom = "0.4"
 zeroize = "1"

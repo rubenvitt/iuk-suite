@@ -127,8 +127,8 @@ export const NICHT_GELESENE_PFADE = [/^docs\//, /^patches\//];
  * bewacht.
  *
  * `rs` und `toml` kommen von der Desktop-App unter `apps/einsatzbuch`: ihr
- * Rust-Kern (`src-tauri/kern`) traegt Kommentaranker wie jede andere
- * Quelldatei, ebenso die Cargo-Manifeste. `html` und `js` gehoeren zum
+ * Rust-Kern (`src-tauri/kern`) trägt Kommentaranker wie jede andere
+ * Quelldatei, ebenso die Cargo-Manifeste. `html` und `js` gehören zum
  * selben Modul (Tauri-Einstiegsseite, Lint-Konfiguration) — siehe Spec
  * Einsatzbuch §2.2.
  */
@@ -139,7 +139,7 @@ export const ENDUNGEN =
 export const OHNE_ENDUNG = /^(Dockerfile|Makefile|CODEOWNERS|LICENSE)$/;
 
 /**
- * Was kein Text ist, generiert wird oder keinen eigenen Kommentar traegt. `icns` ist das
+ * Was kein Text ist, generiert wird oder keinen eigenen Kommentar trägt. `icns` ist das
  * gebündelte Tauri-Anwendungssymbol der Desktop-App (binär, siehe Spec Einsatzbuch §2.2).
  */
 export const NICHT_GELESEN =

@@ -42,7 +42,7 @@ import s from "./ausleihe.module.css";
  * in `useState` und ist fluechtig; ein Rufname oder Entleihername im Verlauf eines geteilten
  * Telefons ist eine Spur, die niemand braucht. ⛔ Und er steht auch nicht in
  * `localStorage` — Node 26 verdeckt dort jsdoms Fassung, und die Insel braucht ihn nicht
- * ueber einen Seitenwechsel hinaus (`vitest.config.ts:54-87`).
+ * ueber einen Seitenwechsel hinaus (`vitest.config.ts:58-91`).
  */
 
 /**

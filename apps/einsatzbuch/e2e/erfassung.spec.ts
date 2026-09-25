@@ -14,8 +14,8 @@ interface Aufruf {
 }
 
 /**
- * Öffnet das Formular, wählt Stichwort, Ort, Fahrzeug und Person wie in der Spec-Skizze des
- * Auftrags und sendet ab. Von beiden Tests genutzt, die mit einem abgesendeten Einsatz beginnen.
+ * Öffnet das Formular, füllt die kleinste vollständige Erfassung aus (Stichwort, Ort, ein
+ * Fahrzeug, eine Person) und sendet ab. Gemeinsamer Anfang aller Tests mit abgesendetem Einsatz.
  */
 async function erfasseUndSendeAb(page: Page): Promise<void> {
   await page.goto("/");
