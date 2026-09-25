@@ -789,7 +789,7 @@ async function sendeNachweis(page: import("@playwright/test").Page): Promise<voi
     page.waitForResponse((r) => r.url().includes("/nachweis/hochladen")),
     page.getByRole("button", { name: "Nachweis speichern" }).click(),
   ]);
-  expect(antwort.ok(), `Upload abgelehnt: HTTP ${antwort.status()} — ${await antwort.text()}`).toBe(true);
+  expect(antwort.ok(), `Upload abgelehnt: HTTP ${antwort.status()} — ${antwort.ok() ? "" : await antwort.text()}`).toBe(true);
 }
 
 test("Nachweis hochladen — ein Fund (Fake-clamd „found“) wird NICHT ausgeliefert, Fertig melden bleibt verweigert", async ({
@@ -1296,7 +1296,7 @@ async function klickeUndWarteAufSeite(
   ]);
   expect(
     antwort.ok(),
-    `Aktion auf ${seite} abgelehnt: HTTP ${antwort.status()} — ${await antwort.text()}`,
+    `Aktion auf ${seite} abgelehnt: HTTP ${antwort.status()} — ${antwort.ok() ? "" : await antwort.text()}`,
   ).toBe(true);
 }
 
@@ -1455,7 +1455,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   ]);
   expect(
     uploadAntwort.ok(),
-    `Upload abgelehnt: HTTP ${uploadAntwort.status()} — ${await uploadAntwort.text()}`,
+    `Upload abgelehnt: HTTP ${uploadAntwort.status()} — ${uploadAntwort.ok() ? "" : await uploadAntwort.text()}`,
   ).toBe(true);
 
   await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);

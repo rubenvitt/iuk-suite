@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { devLogin, klickeWennRuhig, warteAufSpaltenaufteilung } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 import {
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -299,7 +299,7 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     expect(antwort?.status(), "die Seite muss ausliefern, nicht in eine RSC-Falle laufen").toBe(200);
     await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
 
-    const meldung = page.locator(".ant-alert").filter({ hasText: "Ergebnis unlesbar" });
+    await warteAufGestreamteInhalte(page); const meldung = page.locator(".ant-alert").filter({ hasText: "Ergebnis unlesbar" });
     await expect(meldung).toHaveCount(1);
     // ⚠️ `colorError === colorPrimary === #c8000f` (§6.6.5): ein roter Alert saehe
     // aus wie eine Primaeraktion. Die Klasse ist der einzige Beleg, der die
@@ -319,7 +319,7 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
 
     expect(antwort?.status()).toBe(200);
     await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
-    await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+    await warteAufGestreamteInhalte(page); await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
     /*
      * Die leeren Tabellen sagen weiter, was sie sagen dürfen — hier stimmt es ja.
      *

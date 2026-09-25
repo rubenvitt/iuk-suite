@@ -85,6 +85,15 @@ trifft oder eine Abhilfe umbauen will.
     ihre Antwort** (`page.waitForResponse`), statt nur auf eine spätere Zustandsänderung zu warten —
     sonst läuft jede abgelehnte Antwort (404, 405, 413, abgebrochen) still ins Zeitbudget und meldet
     sich als etwas anderes.
+    **Seit DRK-415 fährt die CI gegen einen vorgebauten Stand** (`next start`, `e2e/helpers/server.ts`),
+    und dort gibt es keine Erstkompilierung mehr. Die Warmlauf-GETs bleiben trotzdem stehen: lokal
+    ist `next dev` weiter die Vorgabe, und unter `next start` sind sie ein harmloser zusätzlicher
+    Abruf. Die zweite Testregel hängt nicht an der Erstkompilierung und gilt unverändert.
+    ⚠️ **Dabei den Antworttext nur lesen, wenn die Antwort scheitert** (`r.ok() ? "" : await r.text()`
+    in der Meldung der Zusicherung): die Meldung wird auch im Erfolgsfall gebaut, und navigiert die
+    Seite danach schon weiter, gibt es den Text nicht mehr — `Network.getResponseBody: No data found`.
+    Gegen den schnelleren gebauten Stand traf das drei `aufgaben`-Fälle, die unter `next dev` grün
+    waren.
 11. **`locator.dragTo()` löst kein zuverlässiges natives `dragstart` aus** (gemessen im Modul
     `aufgaben`, Aufgabe 20): ein Zug zwischen zwei Tagesspalten lief reproduzierbar in den vollen
     90-Sekunden-Timeout, ohne dass je ein `drop` feuerte — `dragstart` feuerte nur bei einem
@@ -110,6 +119,9 @@ trifft oder eine Abhilfe umbauen will.
     Lage hält über alle drei Versuche an. Lokal unsichtbar (warmes `.next`, 20 von 20 Mal grün).
     Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
     dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
+    Seit DRK-415 fährt die CI vorgebaut, und der Auslöser aus der Erstübersetzung fällt dort weg.
+    `klickeWennRuhig` bleibt trotzdem Pflicht: lokal läuft weiter `next dev`, und die Sitzung kommt
+    auch im gebauten Stand erst nach `load` — der Umbruch wird kürzer, nicht unmöglich.
 
     ⚠️ **Die Hülle brach ein ZWEITES Mal um, und dieser Umbruch traf nicht den Klick,
     sondern jede MESSUNG** (gemessen im Modul `lagerbuch`, DRK-322, bei 834px — gegen antds
@@ -447,7 +459,39 @@ trifft oder eine Abhilfe umbauen will.
     = antds 22px) trifft der Token gemessen exakt 56/44px; der Token-Weg trägt, nur nicht halb.
     CSS steht hier ausnahmsweise, entgegen Falle 5, weil es die drei Werte an einer Stelle zeigt.
 
-21. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** (feedback, DRK-424,
+21. **`next build` backt `process.env.NODE_ENV` fest ein — auch im Servercode** (gemessen an DRK-415,
+    im gebauten Chunk nachgesehen, nicht vermutet). Von `if (process.env.NODE_ENV === "production")`
+    bleibt nach dem Build nur der eine Zweig übrig; eine Umgebungsvariable zur Laufzeit erreicht den
+    anderen nicht mehr. Ersetzt wird **nur der wörtliche Ausdruck**: ein Zugriff über eine Variable
+    (`env.NODE_ENV` mit `env = process.env` als Parameter) bleibt zur Laufzeit stehen — derselbe
+    Chunk zeigt dafür `"production"===a.NODE_ENV`. Unter `next dev` und in Vitest fällt der
+    Unterschied nie auf, weil dort nichts gebaut wird. **Getroffen hat es die e2e-Suite gegen den
+    gebauten Stand:** die Anmelde-Cookies der Suite, von lagerbuch (Helfer), radio (Ausleihe), files
+    (Passwort) und uav bekamen `Secure`, und Chromium verwirft ein `Secure`-Cookie über
+    `http://*.localtest.me` **still** — die Dev-Anmeldung kam nicht mehr von `/login` weg, 18 von 21
+    Fällen einer Probe waren rot, und keiner meldete „Cookie verworfen". Dazu zeigten Modul-Links auf
+    die echten Produktionshosts. **Abhilfe:** was die e2e-Suite unter `next start` im anderen Zweig
+    braucht, fragt `lokalUeberHttp()`/`cookiesSicher()` aus `core/lokalHttp` (Laufzeit, Schalter
+    `SUITE_LOKAL_HTTP=1`, den nur das e2e-Profil setzt; neben einer `https`-`AUTH_URL` bricht er den
+    Boot ab). `core/lokalHttp.test.ts` verbietet `secure:` neben `NODE_ENV` im Quelltext.
+
+22. **Gestreamter Inhalt steht nach `load` noch eine Weile DOPPELT im Baum** (gemessen an DRK-415,
+    gegen den gebauten Stand, per Zeitreihe nach `page.goto` — nicht vermutet). Next streamt
+    Suspense-Inhalte als `<div hidden id="S:0">` hinter die Seite und setzt sie per Skript an ihren
+    Platz; React bündelt dieses Einsetzen. Gemessen stand der Container bis ~350 ms nach `load`,
+    und so lange trifft ein Greifer den Inhalt zweimal: einmal sichtbar, einmal versteckt mit Breite
+    0. Die Fehlerbilder klingen nach allem anderen — `strict mode violation` mit zwei gleichen
+    Knoten (einer davon `[id="S:0"] > …`), acht statt vier Kacheln, eine Kachel „nur 0px breit".
+    Unter `next dev` lag das Fenster innerhalb der Übersetzungszeit und fiel nie auf; seit die CI
+    vorgebaut fährt, trifft es drei Dateien in wechselnden Viewports. **Abhilfe:**
+    `warteAufGestreamteInhalte(page)` aus `e2e/fixtures.ts` vor jeder Zählung, jedem Greifer im
+    strict mode auf gestreamten Inhalt und jeder Messung; `warteAufSpaltenaufteilung` ruft sie mit.
+    ⚠️ **Verwandt, aber eine eigene Ursache: `Enter` in antds Monatsauswahl schickt das umgebende
+    Formular ab.** Unter `next dev` fing der Picker das Enter meist noch ab, gebaut nicht mehr —
+    `bucheZugang` lief mit dem halb ausgefüllten Formular, danach stand es leer, und der Test lief
+    60 s in eine Antwort, die nie kam. Den Wert per Klick daneben übernehmen und ihn zusichern
+    (`lagerbuch-schraenke.spec.ts`).
+23. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** (feedback, DRK-424,
     in CI gefangen und gegen `build`/`start` nachgemessen). Eine `loading.tsx` ist eine
     Suspense-Grenze. Der Server schickt ihren Ladezustand zuerst, und mit ihm den Status 200. Ruft
     die Seite darunter danach `notFound()`, erscheint zwar die 404-Oberfläche, der Status bleibt

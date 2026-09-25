@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-
+import { cookiesSicher } from "@/core/lokalHttp";
 type EnvLike = Record<string, string | undefined>;
 
 /**
@@ -40,14 +40,14 @@ type EnvLike = Record<string, string | undefined>;
  * einzufrieren (etwa die 900 s für `state`/`nonce`/`pkce`).
  *
  * `secure` steht dennoch explizit drin, weil es vom Default abweicht: Auth.js
- * leitet es aus dem Protokoll der `AUTH_URL` ab, das Projekt aus `NODE_ENV`.
- * Das ist bestehendes Verhalten und wird hier nicht nebenbei geändert.
+ * leitet es aus dem Protokoll der `AUTH_URL` ab, das Projekt aus `NODE_ENV` —
+ * zur Laufzeit gelesen, mit dem e2e-Schalter aus `core/lokalHttp` (DRK-415).
  */
 export function authCookies(env: EnvLike = process.env): NonNullable<NextAuthConfig["cookies"]> {
   const domain = env.AUTH_COOKIE_DOMAIN || undefined;
   const options = {
     domain,
-    secure: env.NODE_ENV === "production",
+    secure: cookiesSicher(env),
   };
 
   return {

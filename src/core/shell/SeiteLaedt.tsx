@@ -44,7 +44,7 @@ import { SPACE } from "@/core/theme/tokens";
  * er von einem Skript. Gemessen am Cockpit: 31 statt 2131 Zeichen sichtbarer
  * Text. Wo eine Seite ohne JavaScript lesbar bleiben MUSS, keine Grenze.
  *
- * ⛔ UND UNTER DER GRENZE IST EIN `notFound()` EIN HTTP 200 (Falle 21,
+ * ⛔ UND UNTER DER GRENZE IST EIN `notFound()` EIN HTTP 200 (Falle 23,
  * `CLAUDE.md`): der Ladezustand ist mit Status 200 schon unterwegs, wenn die
  * Seite ablehnt. Zugriffspruefung und `notFound()` gehoeren deshalb in ein
  * `layout.tsx` oberhalb der Grenze (Vorbild feedback `(cockpit)/layout.tsx`).
