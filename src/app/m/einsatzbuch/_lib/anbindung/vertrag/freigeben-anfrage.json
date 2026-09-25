@@ -1,0 +1,32 @@
+[
+  {
+    "kopf": {
+      "v": 1,
+      "block": 1,
+      "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+      "versiegelt": "2026-08-22T04:43:00+02:00",
+      "schluesselId": "8cedd95d94246a4d",
+      "umgebung": "echt"
+    },
+    "umschlag": {
+      "epk": "BMquacDZ002CPsSaN+Za6sznHX+Mg7fo0vVZVZjsw5cf4FciC9PXFDuG8z+QkAvRroHdCMB42fytpFuo/a3agzs=",
+      "iv": "7xE7NRbSIyuUwR18",
+      "ct": "eDhuuWEe7rU58UCGZVwcFIYWwcU92/ud64WvAnm/AgZWKk2dVMfW3qXh4+lIkZP1"
+    }
+  },
+  {
+    "kopf": {
+      "v": 1,
+      "block": 2,
+      "prev": "797007cb0cfdad0dd19b56ae3a2d0a94840b5031fa07abce67c3c1f9d71ed98e",
+      "versiegelt": "2026-08-29T19:33:00+02:00",
+      "schluesselId": "8cedd95d94246a4d",
+      "umgebung": "echt"
+    },
+    "umschlag": {
+      "epk": "BMTRrZEUS2Rjjqjv0wdbm3BUib505ouFb2WvSrsAV47eidsR1T8VXVu5ivL8o9GdxkmzFzk5DlynPwyjbOWlYTM=",
+      "iv": "fOabS1hzKpKfZNe5",
+      "ct": "Yy+1doL/FKRYtxZXOONyr5/WQeLQPrsTzCzTzDH7UrVuxbMLJ2rLhgchuA/cyFdZ"
+    }
+  }
+]
