@@ -25,6 +25,7 @@ import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "../ChecklisteKnopf";
 import { CheckDurchfuehrenKnopf } from "../CheckDurchfuehrenKnopf";
+import { AufladenDialog } from "./AufladenDialog";
 import { EinheitenartWahl } from "./EinheitenartWahl";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
@@ -264,6 +265,19 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
               <CheckDurchfuehrenKnopf
                 fahrzeugId={fahrzeug.id}
                 beschriftung="Check durchführen"
+              />
+            )}
+            {/*
+              DRK-485 — MATERIAL AUFLADEN, von einem anderen Ort oder neu. Nur
+              an der AKTIVEN Einheit, dieselbe Regel wie beim Check darueber:
+              die Action nimmt auf eine stillgelegte nichts mehr an, und ein
+              Knopf, der immer abgewiesen wird, ist schlimmer als keiner.
+            */}
+            {fahrzeug.aktiv && (
+              <AufladenDialog
+                fahrzeugId={fahrzeug.id}
+                einheitenart={fahrzeug.einheitenart}
+                artikel={artikel}
               />
             )}
             <FahrzeugAktivToggle

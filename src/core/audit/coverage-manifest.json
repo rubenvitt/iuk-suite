@@ -417,6 +417,10 @@
     "kind": "context",
     "via": "bucheRuecklauf"
   },
+  "src/app/m/lagerbuch/_actions/aufladen.ts#bucheAufladen": {
+    "kind": "context",
+    "via": "bucheAufladen"
+  },
   "src/app/m/lagerbuch/_actions/bestellung.ts#markiereBestellt": {
     "kind": "context",
     "via": "markiereBestellt"
