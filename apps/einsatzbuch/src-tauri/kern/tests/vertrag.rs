@@ -185,3 +185,11 @@ fn geheimnisse_erscheinen_nicht_im_debug_text() {
     let text = format!("{anfrage:?}");
     assert!(!text.contains("GEHEIMER-CODE") && !text.contains("GEHEIMER-VERIFIER"), "{text}");
 }
+
+/// Ein Posten der Freigabe trägt einen CEK. Er wischt ihn beim Drop selbst, auf jedem Pfad —
+/// auch wenn `gib_frei` nach einem abgelehnten Paket alle schon gelesenen Posten verwirft.
+#[test]
+fn schluesselposten_wischt_seinen_cek_beim_drop() {
+    fn wischt_beim_drop<T: zeroize::ZeroizeOnDrop>() {}
+    wischt_beim_drop::<Schluesselposten>();
+}

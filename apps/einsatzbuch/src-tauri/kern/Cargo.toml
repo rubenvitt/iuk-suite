@@ -15,7 +15,11 @@ thiserror = "2"
 # `cargo tree -i ring`, die Ausgabe muss „nichts gefunden“ melden.
 p256 = { version = "0.14", features = ["ecdh", "pkcs8"] }
 hkdf = "0.13"
-sha2 = "0.11"
+# `zeroize` auf `hmac` und `sha2`: `hkdf` 0.13 hat selbst kein solches Merkmal. Der Zustand, den
+# `Hkdf<Sha256>` hält (`hmac::Hmac<Sha256>`), wischt sich erst damit beim Drop — Beleg an
+# `krypto::versiegele`. `hmac` steht nur deshalb hier; der Kern ruft es nicht selbst.
+hmac = { version = "0.13", features = ["zeroize"] }
+sha2 = { version = "0.11", features = ["zeroize"] }
 # `zeroize`: wischt die AES-Rundenschlüssel (CEK, KEK) und den GHASH-Zustand beim Drop —
 # ohne das Merkmal überlebt der Schlüsselplan im Speicher, auch wenn der Kern die Rohschlüssel
 # selbst per `zeroize` löscht.
@@ -31,5 +35,15 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 chrono-tz = "0.10"
 
+[features]
+# `Blockzufall::fest` — fester Zufall für die Testvektoren und Tests. Nur die eigenen Tests schalten
+# es ein (die Selbst-Abhängigkeit unten); die Hülle nicht, nachprüfbar mit
+# `cargo tree -e features -p einsatzbuch`.
+testhilfe = []
+
 [dev-dependencies]
 tempfile = "3"
+# Die eigenen Integrationstests (`tests/*.rs`) sehen den Kern mit `testhilfe`. Eine Abhängigkeit
+# des Pakets auf sich selbst unter `[dev-dependencies]` ist der übliche Weg, Merkmale nur für Tests
+# einzuschalten; im normalen Bau fehlt sie.
+einsatzbuch-kern = { path = ".", features = ["testhilfe"] }

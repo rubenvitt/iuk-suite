@@ -270,3 +270,35 @@ fn eine_flut_verzoegert_weder_abbruch_noch_zeitlimit() {
     assert!(matches!(ergebnis, Err(LoopbackFehler::Zeitlimit)), "{ergebnis:?}");
     assert!(dauer < Duration::from_secs(3), "{dauer:?}");
 }
+
+/// Der echte Rückruf kommt in zwei Stücken: Die Anfragezeile ist schon gelesen, das Kopfende fehlt
+/// noch. Die Liste ist voll mit gelesenen Verbindungen, und eine Flut drängt nach. Der halbe
+/// Rückruf darf nicht weichen — „gelesen“ heißt hier nur „halb gelesen“.
+#[test]
+fn ein_halber_rueckruf_ueberlebt_eine_flut() {
+    let listener = Listener::oeffne().unwrap();
+    let port = listener.port();
+    let mut halb = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    halb.set_read_timeout(Some(Duration::from_secs(8))).unwrap();
+    write!(halb, "GET /rueckruf?code=halb&state={STATE} HTTP/1.1\r\n").unwrap();
+    // Füllt die Liste (16) mit stummen Verbindungen, die nach dem ersten Takt „gelesen“ sind.
+    let _stumm: Vec<TcpStream> = (0..15).map(|_| TcpStream::connect(("127.0.0.1", port)).unwrap()).collect();
+
+    let abbruch = Arc::new(AtomicBool::new(false));
+    let flag = abbruch.clone();
+    let faden = thread::spawn(move || listener.warte(STATE, Duration::from_secs(8), &flag));
+    thread::sleep(Duration::from_millis(300));
+
+    let halt = Arc::new(AtomicBool::new(false));
+    let _flut = warte_auf_flut(flut(port, 90, halt));
+    thread::sleep(Duration::from_millis(500));
+
+    // Im roten Fall ist die Verbindung schon geschlossen; das Schreiben darf dann scheitern.
+    let _ = write!(halb, "Host: 127.0.0.1:{port}\r\n\r\n");
+    let mut antwort = String::new();
+    let _ = halb.read_to_string(&mut antwort);
+    abbruch.store(true, Ordering::SeqCst);
+    let ergebnis = faden.join().unwrap();
+    assert!(antwort.starts_with("HTTP/1.1 200 "), "{antwort:?}");
+    assert_eq!(ergebnis.unwrap(), Rueckruf::Code("halb".into()));
+}

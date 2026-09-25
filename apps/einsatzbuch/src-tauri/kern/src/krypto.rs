@@ -108,11 +108,15 @@ pub fn oeffentlich_aus_spki(spki_der: &[u8]) -> Result<PublicKey, KryptoFehler> 
 /// ephemerer Schlüssel für den Umschlag und dessen eigene IV. `SecretKey` ist selbst
 /// `ZeroizeOnDrop` — der ephemere Schlüssel braucht also kein eigenes Aufräumen; `cek` ist
 /// ein rohes Array und bekommt sein eigenes `Drop` unten.
+///
+/// Die Felder sind privat, und der Typ ist weder `Clone` noch `Copy`: Außerhalb dieses Moduls
+/// kommt niemand an den CEK, und es entsteht keine zweite Kopie, die kein `Drop` wischt. Gelesen
+/// wird er nur in `versiegele`, die den Zufall verbraucht.
 pub struct Blockzufall {
-    pub cek: [u8; 32],
-    pub iv: [u8; 12],
-    pub ephemer: SecretKey,
-    pub umschlag_iv: [u8; 12],
+    cek: [u8; 32],
+    iv: [u8; 12],
+    ephemer: SecretKey,
+    umschlag_iv: [u8; 12],
 }
 
 impl Blockzufall {
@@ -137,6 +141,13 @@ impl Blockzufall {
                 break schluessel;
             }
         };
+        Blockzufall { cek, iv, ephemer, umschlag_iv }
+    }
+
+    /// Fester Zufall für die Testvektoren (`tests/vektoren.rs`) und andere Tests. Nur mit dem
+    /// Merkmal `testhilfe`, das allein die Tests des Kerns einschalten.
+    #[cfg(feature = "testhilfe")]
+    pub fn fest(cek: [u8; 32], iv: [u8; 12], ephemer: SecretKey, umschlag_iv: [u8; 12]) -> Blockzufall {
         Blockzufall { cek, iv, ephemer, umschlag_iv }
     }
 }
@@ -171,17 +182,38 @@ pub fn versiegele(
 
     let aad = kopf.kanonisch()?;
     let klar = einsatz.kanonisch()?;
-    let daten = Aes256Gcm::new(&z.cek.into())
+    // `new_from_slice` statt `new(&z.cek.into())`: Die Umwandlung in ein Array legte eine
+    // ungewischte Kopie des Schlüssels auf den Stack, `new_from_slice` nur eine Referenz darauf.
+    let daten = Aes256Gcm::new_from_slice(&z.cek)
+        .map_err(|_| KryptoFehler::Verschluesselung)?
         .encrypt(&z.iv.into(), Payload { msg: klar.as_bytes(), aad: aad.as_bytes() })
         .map_err(|_| KryptoFehler::Verschluesselung)?;
 
     // ECDH-ES: geteiltes Geheimnis = x-Koordinate (32 Byte) → HKDF-SHA256, Salt leer, feste Info.
+    //
+    // Was hier gewischt wird (belegt am Quelltext der Crates, nicht behauptet):
+    // - Der Zustand in `Hkdf` ist ein `hmac::Hmac<Sha256>`, gebaut per `digest::buffer_fixed!`
+    //   mit `impl: MacTraits` — ohne `ZeroizeOnDrop`-Marker. Gewischt wird er trotzdem über die
+    //   Drop-Kette: seine beiden Kerne (`hmac::block_api::HmacCore`, Felder `digest` und
+    //   `opad_digest`) enthalten je einen `sha2::block_api::Sha256VarCore`, dessen `impl Drop`
+    //   mit dem Merkmal `sha2/zeroize` Zustand und Blockzähler wischt. Der Puffer ist ein
+    //   `block_buffer::BlockBuffer`, dessen `impl Drop` mit `block-buffer/zeroize` wischt
+    //   (eingeschaltet über `digest/zeroize`, das `hmac/zeroize` setzt). Das gilt auch für den
+    //   Klon, den `hkdf::GenericHkdf::expand_multi_info` je Ausgabeblock anlegt. Der Test
+    //   `hmac_zustand_wischt_sich_beim_drop` bricht den Bau, fehlt eines der Merkmale.
+    // - Den PRK gibt `hkdf::GenericHkdf::new` ungewischt weg; deshalb hier `extract` und der PRK
+    //   in `Zeroizing`.
+    // - Nicht erreichbar sind Zwischenwerte auf dem Stack der Crates: der Schlüsselblock
+    //   (PRK ⊕ ipad/opad) aus `hmac::utils::get_der_key` in `HmacCore::new_from_slice` sowie
+    //   `output`/`prev` in `hkdf::GenericHkdf::expand_multi_info` — bei 32 Byte Ausgabe ist
+    //   `output` der KEK selbst.
     let geteilt = ecdh::diffie_hellman(z.ephemer.to_nonzero_scalar(), suite.as_affine());
     let mut kek = Zeroizing::new([0u8; 32]);
-    Hkdf::<Sha256>::new(None, geteilt.raw_secret_bytes())
-        .expand(UMSCHLAG_INFO, kek.as_mut())
-        .map_err(|_| KryptoFehler::HkdfFehlgeschlagen)?;
-    let ct = Aes256Gcm::new(&(*kek).into())
+    let (prk, hkdf) = Hkdf::<Sha256>::extract(None, geteilt.raw_secret_bytes());
+    let _prk = Zeroizing::new(prk);
+    hkdf.expand(UMSCHLAG_INFO, kek.as_mut()).map_err(|_| KryptoFehler::HkdfFehlgeschlagen)?;
+    let ct = Aes256Gcm::new_from_slice(kek.as_ref())
+        .map_err(|_| KryptoFehler::Verschluesselung)?
         .encrypt(&z.umschlag_iv.into(), Payload { msg: &z.cek, aad: aad.as_bytes() })
         .map_err(|_| KryptoFehler::Verschluesselung)?;
     let epk = z.ephemer.public_key().to_sec1_point(false); // 65 Byte, 0x04‖x‖y
@@ -210,7 +242,8 @@ pub fn oeffne_block(block: &Block, cek: &[u8; 32]) -> Result<Einsatz, KryptoFehl
     let daten = aus_b64(&block.daten)?;
     let aad = block.kopf.kanonisch()?;
     let klar = Zeroizing::new(
-        Aes256Gcm::new(&(*cek).into())
+        Aes256Gcm::new_from_slice(cek)
+            .map_err(|_| KryptoFehler::Entschluesselung)?
             .decrypt(&iv.into(), Payload { msg: &daten, aad: aad.as_bytes() })
             .map_err(|_| KryptoFehler::Entschluesselung)?,
     );
@@ -288,6 +321,32 @@ mod tests {
         };
         let ergebnis = versiegele(&leerer_einsatz(), &kopf, &oeffentlich, z);
         assert!(matches!(ergebnis, Err(KryptoFehler::SchluesselIdPasstNicht)), "{ergebnis:?}");
+    }
+
+    /// `Blockzufall` ist nicht klonbar: Ein Klon wäre eine zweite Kopie des CEK. Geprüft beim
+    /// Kompilieren — wäre `Blockzufall: Clone`, passten beide Implementierungen, und der Aufruf
+    /// wäre mehrdeutig (dieselbe Technik wie `assert_not_impl_any!` aus `static_assertions`).
+    #[test]
+    fn blockzufall_ist_nicht_klonbar() {
+        trait MehrdeutigWennKlonbar<A> {
+            fn pruefe() {}
+        }
+        impl<T: ?Sized> MehrdeutigWennKlonbar<()> for T {}
+        impl<T: Clone> MehrdeutigWennKlonbar<u8> for T {}
+        <Blockzufall as MehrdeutigWennKlonbar<_>>::pruefe();
+    }
+
+    /// Der Zustand, den `Hkdf<Sha256>` hält, ist ein `hmac::Hmac<Sha256>`: zwei SHA-256-Kerne
+    /// (`hmac::block_api::HmacCore`, Felder `digest` und `opad_digest`) und ein Blockpuffer. Beide
+    /// wischen sich mit den Merkmalen `zeroize` von `sha2` und `hmac` beim Drop (Beleg im Kommentar
+    /// an `versiegele`). Fehlt ein Merkmal, kompiliert dieser Test nicht.
+    #[test]
+    fn hmac_zustand_wischt_sich_beim_drop() {
+        use hmac::block_api::HmacCore;
+        use sha2::digest::block_api::{Buffer, CoreProxy};
+        fn wischt_beim_drop<T: zeroize::ZeroizeOnDrop>() {}
+        wischt_beim_drop::<<Sha256 as CoreProxy>::Core>();
+        wischt_beim_drop::<Buffer<HmacCore<Sha256>>>();
     }
 
     /// Skript-Zufall für `ziehe`: liefert der Reihe nach feste Antworten, unabhängig von der

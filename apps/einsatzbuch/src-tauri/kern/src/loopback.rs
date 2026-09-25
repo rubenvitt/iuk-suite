@@ -29,9 +29,12 @@ const TAKT: Duration = Duration::from_millis(20);
 const HOECHSTENS_KOPF: usize = 16 * 1024;
 /// Eine Verbindung, die so lange keine vollständige Anfrage liefert, wird verworfen.
 const VERBINDUNG_ZEITLIMIT: Duration = Duration::from_secs(10);
-/// Mehr gleichzeitig offene Verbindungen werden nicht gehalten: Die älteste schon einmal gelesene
-/// weicht; ist noch keine gelesen, wird die neue abgewiesen.
+/// Mehr gleichzeitig offene Verbindungen werden nicht gehalten. Wer bei voller Liste weicht, regelt
+/// `zu_verdraengen`; weicht keine, wird die neue abgewiesen.
 const HOECHSTENS_VERBINDUNGEN: usize = 16;
+/// Womit ein Rückruf beginnt. Eine Verbindung, deren Puffer dazu passt, kann noch der echte
+/// Rückruf werden und wird nicht verdrängt.
+const RUECKRUF_ANFANG: &[u8] = b"GET /rueckruf";
 /// Höchstens so viele neue Verbindungen je Takt. Eine Flut hielte die Schleife sonst in `accept`
 /// fest, und keine angenommene Verbindung käme zum Lesen.
 const ANNAHMEN_JE_TAKT: usize = 16;
@@ -78,7 +81,8 @@ struct Offen {
     strom: TcpStream,
     puffer: Vec<u8>,
     seit: Instant,
-    /// Ob `lies_weiter` die Verbindung schon einmal abgefragt hat. Nur dann darf sie verdrängt werden.
+    /// Ob `lies_weiter` die Verbindung schon einmal abgefragt hat. Eine nie abgefragte wird nie
+    /// verdrängt; eine abgefragte nur nach der Regel von `zu_verdraengen`.
     gelesen: bool,
 }
 
@@ -145,8 +149,8 @@ impl Listener {
     }
 
     /// Nimmt bis zu `ANNAHMEN_JE_TAKT` wartende Verbindungen an und prüft vor jeder Abbruch und
-    /// Zeitlimit. Ist die Liste voll, weicht die älteste schon gelesene; eine noch nie gelesene wird
-    /// nie verdrängt — sonst ginge ein echter Rückruf, dem eine Flut folgt, ungelesen verloren.
+    /// Zeitlimit. Ist die Liste voll, weicht eine Verbindung nach `zu_verdraengen`; weicht keine,
+    /// wird die neue abgewiesen.
     /// Ein angenommener Socket erbt `O_NONBLOCK` je nach Betriebssystem (macOS ja, Linux nein) —
     /// deshalb wird der Modus ausdrücklich gesetzt.
     fn nimm_an(&self, offen: &mut Vec<Offen>, ende: Instant, abbruch: &AtomicBool) -> Result<(), LoopbackFehler> {
@@ -158,10 +162,9 @@ impl Listener {
                         continue;
                     }
                     if offen.len() >= HOECHSTENS_VERBINDUNGEN {
-                        let aelteste = offen.iter().enumerate().filter(|(_, o)| o.gelesen).min_by_key(|(_, o)| o.seit);
-                        match aelteste.map(|(i, _)| i) {
+                        match zu_verdraengen(offen) {
                             Some(i) => drop(offen.swap_remove(i)),
-                            // Alle gehaltenen sind ungelesen: die neue abweisen (Drop schließt sie).
+                            // Keine darf weichen: die neue abweisen (Drop schließt sie).
                             None => continue,
                         }
                     }
@@ -179,6 +182,28 @@ impl Listener {
         }
         Ok(())
     }
+}
+
+/// Welche Verbindung bei voller Liste weicht:
+/// 1. die älteste gelesene, die noch kein Byte geliefert hat (eine Vorratsverbindung des Browsers
+///    oder ein Teil einer Flut);
+/// 2. sonst die älteste, deren Puffer nicht zu `RUECKRUF_ANFANG` passt, also kein Rückruf mehr
+///    werden kann.
+///
+/// Sonst keine (`None`). Eine nie gelesene weicht nie — sonst ginge ein echter Rückruf, dem eine
+/// Flut folgt, ungelesen verloren. Ebenso wenig weicht ein halb gelesener Rückruf, dessen
+/// Kopfende noch aussteht: „Gelesen“ heißt dort nur „angefangen“.
+fn zu_verdraengen(offen: &[Offen]) -> Option<usize> {
+    let aelteste = |passt: &dyn Fn(&Offen) -> bool| {
+        offen.iter().enumerate().filter(|(_, o)| o.gelesen && passt(o)).min_by_key(|(_, o)| o.seit).map(|(i, _)| i)
+    };
+    aelteste(&|o| o.puffer.is_empty()).or_else(|| aelteste(&|o| !kann_rueckruf_werden(&o.puffer)))
+}
+
+/// Ob der Puffer ein Anfang von `RUECKRUF_ANFANG` ist oder damit beginnt. Beide Richtungen: Auch
+/// ein Rückruf, von dem erst „GET /r“ angekommen ist, bleibt.
+fn kann_rueckruf_werden(puffer: &[u8]) -> bool {
+    puffer.starts_with(RUECKRUF_ANFANG) || RUECKRUF_ANFANG.starts_with(puffer)
 }
 
 /// Abbruch-Flag und Zeitlimit — geprüft in jedem Takt und vor jeder Annahme.
@@ -361,6 +386,43 @@ mod tests {
         l.nimm_an(&mut offen, ende, &nie).unwrap();
         assert_eq!(offen.len(), HOECHSTENS_VERBINDUNGEN);
         assert!(offen.iter().all(|o| !o.gelesen));
+    }
+
+    /// Eine gelesene Verbindung mit festem Puffer und Alter, für die Verdrängungsregel.
+    fn gelesene(l: &Listener, puffer: &[u8], alter_ms: u64) -> Offen {
+        let _gegenstelle = TcpStream::connect(("127.0.0.1", l.port())).unwrap();
+        let strom = loop {
+            match l.inner.accept() {
+                Ok((strom, _)) => break strom,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(5)),
+                Err(e) => panic!("{e}"),
+            }
+        };
+        Offen { strom, puffer: puffer.to_vec(), seit: Instant::now() - Duration::from_millis(alter_ms), gelesen: true }
+    }
+
+    #[test]
+    fn verdraengt_wird_zuerst_die_aelteste_leere_dann_die_aelteste_fremde() {
+        let l = Listener::oeffne().unwrap();
+        // Ältestes zuerst: ein halber Rückruf, ein „GET /r“ (auch ein Präfix), eine fremde, zwei leere.
+        let mut offen = vec![
+            gelesene(&l, b"GET /rueckruf?code=c&state=s HTTP/1.1\r\n", 900),
+            gelesene(&l, b"GET /r", 800),
+            gelesene(&l, b"GET /favicon.ico HTTP/1.1\r\n", 700),
+            gelesene(&l, b"", 600),
+            gelesene(&l, b"", 500),
+        ];
+        assert_eq!(zu_verdraengen(&offen), Some(3), "die älteste ohne Bytes");
+        offen.remove(4);
+        offen.remove(3);
+        assert_eq!(zu_verdraengen(&offen), Some(2), "danach die älteste, die kein Rückruf werden kann");
+        offen.remove(2);
+        assert_eq!(zu_verdraengen(&offen), None, "Rückrufe und ihre Anfänge bleiben, die neue wird abgewiesen");
+
+        // Eine ungelesene weicht nie, auch leer nicht.
+        let mut ungelesen = gelesene(&l, b"", 1000);
+        ungelesen.gelesen = false;
+        assert_eq!(zu_verdraengen(&[ungelesen]), None);
     }
 
     #[test]

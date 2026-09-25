@@ -54,6 +54,8 @@ pub(crate) const KEIN_GERAETETOKEN: &str =
 const NEU_NUR_ECHT: &str =
     "Neu einrichten gibt es nur für den echten Rechner. Einen Testrechner beendest du und richtest ihn neu ein.";
 const NEU_NUR_NACH_WIDERRUF: &str = "Neu einrichten ist nur nach einem Widerruf nötig.";
+const NEU_EINRICHTUNG_GEAENDERT: &str =
+    "Die Einrichtung dieses Rechners hat sich während des Neu-Einrichtens geändert. Nichts übernommen.";
 
 /// Übersetzt einen Fehler aus Erfassung und Versiegeln in die Meldung für die Oberfläche.
 /// `Fehlt` wird zur Liste der fehlenden Felder („Fehlt: Alarmstichwort, Beginn“), die übrigen
@@ -625,8 +627,17 @@ pub fn melde_an(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) -> Res
 /// `schluesselId` lehnt `Buch::richte_neu_ein` mit beiden IDs ab, und das alte Geräte-Token
 /// kommt zurück in den Tresor. Die Suite hat den neuen Rechner dann schon angelegt; das lässt
 /// sich von hier nicht zurücknehmen (die Meldung schickt zur Verwaltung).
+///
+/// Der Schlüsselbund kann auf einen Dialog des Betriebssystems warten, deshalb läuft er nie unter
+/// dem Buch-Lock (Sperrreihenfolge in `zustand.rs`):
+/// 1. unter Lock prüfen und die Einrichtung lesen;
+/// 2. Anmeldung und `POST einrichten` ohne Lock;
+/// 3. ohne Lock das alte Token lesen und das neue schreiben;
+/// 4. unter Lock erneut prüfen, dass Betrieb und `schluesselId` unverändert sind, dann
+///    `Buch::richte_neu_ein`;
+/// 5. scheitert Schritt 4 auf irgendeinem Weg: ohne Lock das alte Token zurücklegen.
 pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) -> Result<(), String> {
-    let (suite_url, name) = {
+    let (suite_url, name, schluessel_id) = {
         let buch = z.buch_zum_schreiben()?;
         let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
         if offen.betrieb() != Betrieb::Echt {
@@ -638,17 +649,26 @@ pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) 
             return Err(NEU_NUR_NACH_WIDERRUF.into());
         }
         let name = if a.rechner_name.trim().is_empty() { "Einsatzbuch-Rechner".to_string() } else { a.rechner_name };
-        (e.suite_url, name)
+        (e.suite_url, name, e.schluessel_id)
     };
     let mut sitzung = melde_an_der_suite(z, &suite_url, Some((Umgebung::Echt, &name)), None, oeffne)?;
     let antwort = suite::richte_ein(&*z.transport, &suite_url, &sitzung.token, Umgebung::Echt, &name).map_err(|e| e.to_string())?;
 
-    let mut buch = z.buch_zum_schreiben()?;
-    let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     let konto = konto_fuer(Betrieb::Echt);
     let altes_token = z.tresor.lies(konto)?.map(Zeroizing::new);
     z.tresor.schreibe(konto, &antwort.geraete_token)?;
-    if let Err(fehler) = offen.richte_neu_ein(&antwort.einrichtung(&suite_url), &antwort.rechner_id, &name) {
+
+    // Jeder Fehler in diesem Block — auch ein `?` — landet unten beim Zurücklegen des Tokens.
+    let uebernommen = (|| {
+        let mut buch = z.buch_zum_schreiben()?;
+        let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
+        let jetzt = offen.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
+        if offen.betrieb() != Betrieb::Echt || jetzt.schluessel_id != schluessel_id {
+            return Err(NEU_EINRICHTUNG_GEAENDERT.to_string());
+        }
+        offen.richte_neu_ein(&antwort.einrichtung(&suite_url), &antwort.rechner_id, &name).map_err(buch_fehler_text)
+    })();
+    if let Err(fehler) = uebernommen {
         let zurueck = match altes_token.as_deref() {
             Some(alt) => z.tresor.schreibe(konto, alt),
             None => z.tresor.loesche(konto),
@@ -656,9 +676,8 @@ pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) 
         if let Err(e) = zurueck {
             eprintln!("Das bisherige Geräte-Token ließ sich nicht zurücklegen: {e}");
         }
-        return Err(buch_fehler_text(fehler));
+        return Err(fehler);
     }
-    drop(buch);
     sitzung.rechner_id = Some(antwort.rechner_id.clone());
     *z.sitzung() = Some(sitzung);
     z.stosse_an(Anstoss::NeuerBlock);
@@ -2059,6 +2078,126 @@ pub(crate) mod tests {
         assert_eq!(anbindung.rechner_id, "r-neu");
         assert!(anbindung.widerrufen);
         assert_eq!(z.tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu"), "das alte Token bleibt");
+    }
+
+    /// Ein Tresor, dessen Schreiben hängt, solange er scharf ist — wie ein Schlüsselbund, der auf
+    /// einen Dialog des Betriebssystems wartet. Lesen und Löschen hängen nie.
+    #[derive(Clone, Default)]
+    struct HaengenderTresor(Arc<HaengeLage>);
+
+    #[derive(Default)]
+    struct HaengeLage {
+        werte: Speichertresor,
+        /// (scharf, hängt gerade)
+        lage: Mutex<(bool, bool)>,
+        signal: std::sync::Condvar,
+    }
+
+    impl HaengenderTresor {
+        fn schaerfe(&self) {
+            self.0.lage.lock().unwrap().0 = true;
+        }
+        fn warte_bis_es_haengt(&self) {
+            let lage = self.0.lage.lock().unwrap();
+            let (lage, _) =
+                self.0.signal.wait_timeout_while(lage, std::time::Duration::from_secs(10), |(_, haengt)| !*haengt).unwrap();
+            assert!(lage.1, "der Tresor wurde nie beschrieben");
+        }
+        fn gib_frei(&self) {
+            self.0.lage.lock().unwrap().0 = false;
+            self.0.signal.notify_all();
+        }
+    }
+
+    impl Tresor for HaengenderTresor {
+        fn lies(&self, konto: &str) -> Result<Option<String>, String> {
+            self.0.werte.lies(konto)
+        }
+        fn schreibe(&self, konto: &str, wert: &str) -> Result<(), String> {
+            let mut lage = self.0.lage.lock().unwrap();
+            if lage.0 {
+                lage.1 = true;
+                self.0.signal.notify_all();
+                lage = self.0.signal.wait_while(lage, |(scharf, _)| *scharf).unwrap();
+                lage.1 = false;
+            }
+            drop(lage);
+            self.0.werte.schreibe(konto, wert)
+        }
+        fn loesche(&self, konto: &str) -> Result<(), String> {
+            self.0.werte.loesche(konto)
+        }
+    }
+
+    /// Richtet einen widerrufenen echten Rechner neu ein, während der Tresor beim Schreiben des
+    /// neuen Tokens hängt. `waehrenddessen` läuft in dieser Zeit in einem zweiten Faden; sein
+    /// Ergebnis kommt nur zurück, wenn er binnen 2 Sekunden fertig wird.
+    fn neu_einrichten_waehrend_der_tresor_haengt<T: Send>(
+        ordner: &Path,
+        waehrenddessen: impl FnOnce(&Zustand) -> T + Send,
+    ) -> (Zustand, HaengenderTresor, Result<(), String>, Option<T>) {
+        let suite = FakeSuite::gesund();
+        let tresor = HaengenderTresor::default();
+        let z = zustand_mit(ordner, &Stelluhr::neu(), &suite, Box::new(tresor.clone()));
+        let browser = Browser::neu();
+        richte_ein_ueber_suite(&z, Umgebung::Echt, "Einsatzleitung", SUITE, &|u| browser.oeffne(u)).unwrap();
+        z.buch().as_mut().unwrap().widerrufen_setzen(true).unwrap();
+        suite.setze(|a| match a.pfad() {
+            "/api/einrichten" => antwort(200, &einrichten_antwort(a, "r-neu-2", "geraet-neu-2").to_string()),
+            _ => gesunde_suite(a),
+        });
+        tresor.schaerfe();
+        let zr = &z;
+        let (ergebnis, zweiter) = std::thread::scope(|s| {
+            let neu = s.spawn(|| richte_neu_ein(zr, &|u| browser.oeffne(u)));
+            tresor.warte_bis_es_haengt();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let faden = s.spawn(move || {
+                let _ = tx.send(waehrenddessen(zr));
+            });
+            let zweiter = rx.recv_timeout(std::time::Duration::from_secs(2)).ok();
+            // Erst freigeben, dann auf beide Fäden warten — ein Assert vorher ließe den Test hängen.
+            tresor.gib_frei();
+            let ergebnis = neu.join().unwrap();
+            faden.join().unwrap();
+            (ergebnis, zweiter)
+        });
+        (z, tresor, ergebnis, zweiter)
+    }
+
+    #[test]
+    fn neu_einrichten_haelt_den_buch_lock_nicht_ueber_dem_schluesselbund() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, tresor, ergebnis, status) =
+            neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| lies_status(z).map(|s| s.widerrufen));
+        assert_eq!(status, Some(Ok(true)), "lies_status darf nicht auf den Schlüsselbund warten");
+        ergebnis.unwrap();
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu-2"));
+        assert_eq!(z.buch().as_ref().unwrap().anbindung().unwrap().unwrap().rechner_id, "r-neu-2");
+    }
+
+    #[test]
+    fn neu_einrichten_legt_das_alte_token_zurueck_wenn_das_buch_danach_nicht_mehr_passt() {
+        // Ein Startfehler, gesetzt während der Tresor hängt: Das Buch wird nicht angefasst, und das
+        // bisherige Token liegt wieder im Tresor.
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, tresor, ergebnis, _) = neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| {
+            *z.startfehler() = Some("Die Datenbank ist weg.".into());
+        });
+        assert_eq!(ergebnis.unwrap_err(), "Die Datenbank ist weg.");
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu"));
+        let anbindung = z.buch().as_ref().unwrap().anbindung().unwrap().unwrap();
+        assert_eq!(anbindung.rechner_id, "r-neu");
+        assert!(anbindung.widerrufen);
+
+        // Das Buch ist inzwischen zu: ebenso.
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, tresor, ergebnis, _) = neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| {
+            *z.buch() = None;
+        });
+        assert_eq!(ergebnis.unwrap_err(), NICHT_EINGERICHTET);
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu"));
+        assert!(z.buch().is_none());
     }
 
     #[test]

@@ -10,6 +10,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 use crate::einrichtung::{Einrichtung, Stammdatenpaket};
 use crate::format::{Blockkopf, Umgebung, Umschlag};
@@ -125,7 +126,9 @@ pub struct Freigabeposten {
 }
 
 /// Ein Eintrag der Antwort von `POST /api/schluessel/freigeben` (nacktes Array): der
-/// Inhaltsschlüssel eines Blocks in Base64.
+/// Inhaltsschlüssel eines Blocks in Base64. Beim Drop wird `cek` überschrieben (`impl Drop`
+/// unten) — auf jedem Pfad, auch wenn `suite::gib_frei` nach einem abgelehnten Paket alle schon
+/// gelesenen Posten verwirft. Das Drahtformat ändert sich dadurch nicht.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Schluesselposten {
@@ -193,6 +196,14 @@ impl fmt::Debug for EinrichtenAntwort {
             .finish()
     }
 }
+
+impl Drop for Schluesselposten {
+    fn drop(&mut self) {
+        self.cek.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Schluesselposten {}
 
 impl fmt::Debug for Schluesselposten {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

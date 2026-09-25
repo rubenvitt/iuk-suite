@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
+use zeroize::Zeroizing;
 use serde::de::DeserializeOwned;
 
 use crate::anmeldung::{modul_url, prozent_kodiere};
@@ -380,7 +381,7 @@ pub fn gib_frei(
     for paket in bloecke.chunks(PAKET) {
         let posten: Vec<Freigabeposten> =
             paket.iter().map(|b| Freigabeposten { kopf: b.kopf.clone(), umschlag: b.umschlag.clone() }).collect();
-        let a = sende(
+        let mut a = sende(
             t,
             Anfrage {
                 methode: "POST",
@@ -393,7 +394,11 @@ pub fn gib_frei(
         if a.status != 200 {
             return Err(abgelehnt_oder_offline(&a));
         }
-        let schluessel: Vec<Schluesselposten> = lies_json(&a)?;
+        // Der Körper trägt die CEKs im Klartext (Base64): nach dem Lesen überschreiben, auch wenn
+        // er nicht zum Vertrag passt. Die Posten wischen ihre CEKs selbst (`Schluesselposten`).
+        let koerper = Zeroizing::new(std::mem::take(&mut a.koerper));
+        let schluessel: Vec<Schluesselposten> = serde_json::from_str(&koerper)
+            .map_err(|e| SuiteFehler::Antwort(format!("Körper passt nicht zum Vertrag: {e}")))?;
         if zaehle(schluessel.iter().map(|s| s.block)) != zaehle(paket.iter().map(|b| b.kopf.block)) {
             return Err(SuiteFehler::Antwort("die Freigabe nennt andere Blöcke als angefragt".into()));
         }
