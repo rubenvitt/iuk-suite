@@ -29,16 +29,18 @@ const fehler = (status: 422 | 503, code: FreigabeCode, meldung: string): Freigab
  *
  * Die Freigaberegel „Umgebung ↔ Art des Paars" (Spec §12) steht VOR dem Auspacken: ein echtes
  * Paar öffnet nie einen Block mit `umgebung: "test"` und umgekehrt.
+ *
+ * `o.privat` ist die Variante mit schon geöffnetem Privatschlüssel (Stufe 6, Task 7): `gibFrei`
+ * öffnet ihn für eine Anfrage mit vielen Blöcken je `schluesselId` nur einmal (eigener Cache für
+ * die Dauer der Anfrage) und reicht ihn hier durch — ohne `o.privat` öffnet diese Funktion ihn
+ * wie bisher selbst, KEK und Entschlüsselung eingeschlossen.
  */
 export async function packeAusFuer(
   schluesselId: string,
   umschlag: Umschlag,
   kopf: Blockkopf,
-  o: { db?: Db; env?: Record<string, string | undefined> } = {},
+  o: { db?: Db; env?: Record<string, string | undefined>; privat?: CryptoKey } = {},
 ): Promise<Freigabe> {
-  const k = kekAusUmgebung(o.env ?? process.env);
-  if (k.status === "fehlt") return fehler(503, "kek_fehlt", "EINSATZBUCH_SCHLUESSEL_KEK ist nicht gesetzt");
-  if (k.status === "ungueltig") return fehler(503, "kek_ungueltig", "EINSATZBUCH_SCHLUESSEL_KEK ist kein 32-Byte-Wert in Base64");
   // Zuerst die angefragte ID nachschlagen (der Aufrufer fragt „gib mir den CEK für diese ID"),
   // erst danach den Kopf gegen die Anfrage prüfen — eine unbekannte ID bleibt so auch dann
   // `schluessel_unbekannt`, wenn der mitgelieferte Block zufällig eine andere, bekannte ID trägt.
@@ -55,10 +57,17 @@ export async function packeAusFuer(
     );
   }
   let privat: CryptoKey;
-  try {
-    privat = await importierePrivat(zuBase64(await entschluesselePrivat(paar.privatVerschluesselt, paar.schluesselId, k.kek)));
-  } catch {
-    return fehler(503, "privat_unlesbar", "Der private Schlüssel lässt sich mit diesem KEK nicht lesen");
+  if (o.privat) {
+    privat = o.privat;
+  } else {
+    const k = kekAusUmgebung(o.env ?? process.env);
+    if (k.status === "fehlt") return fehler(503, "kek_fehlt", "EINSATZBUCH_SCHLUESSEL_KEK ist nicht gesetzt");
+    if (k.status === "ungueltig") return fehler(503, "kek_ungueltig", "EINSATZBUCH_SCHLUESSEL_KEK ist kein 32-Byte-Wert in Base64");
+    try {
+      privat = await importierePrivat(zuBase64(await entschluesselePrivat(paar.privatVerschluesselt, paar.schluesselId, k.kek)));
+    } catch {
+      return fehler(503, "privat_unlesbar", "Der private Schlüssel lässt sich mit diesem KEK nicht lesen");
+    }
   }
   try {
     return { ok: true, cek: await packeAus(umschlag, kopf, privat), art: paar.art, rechnerId: paar.rechnerId };

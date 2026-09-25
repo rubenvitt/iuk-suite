@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { freigabe, rechner } from "../../_db/schema";
 import { ausBase64, zuBase64, zufall } from "../kern/bytes";
 import type { Blockkopf } from "../kern/format";
@@ -7,6 +7,7 @@ import { kopf } from "../kern/testhilfe";
 import { importiereOeffentlich, packeEin } from "../kern/umschlag";
 import { ENTWICKLUNGS_KEK } from "../schluessel/kek";
 import { legePaarAn } from "../schluessel/paar";
+import * as paarModul from "../schluessel/paar";
 import { testDb, type TestDb } from "../testDb";
 import { bereichsText, gibFrei, type FreigabeAnfrage } from "./freigabe";
 import { loescheTestRechner, widerrufe } from "./rechner";
@@ -196,6 +197,35 @@ describe("gibFrei", () => {
     expect(await gibFrei(db, sitzungMit(db, "r1"), a, { jetzt: JETZT, env: {} })).toMatchObject({ ok: false, status: 503, code: "kek_fehlt" });
     expect(await gibFrei(db, sitzungMit(db, "r1"), a, { jetzt: JETZT, env: { EINSATZBUCH_SCHLUESSEL_KEK: "kurz" } })).toMatchObject({ ok: false, status: 503, code: "kek_ungueltig" });
     expect(freigaben(db)).toEqual([]);
+  });
+});
+
+describe("gibFrei — Cache des geöffneten Privatschlüssels je Anfrage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("200 Einträge mit demselben Schlüssel: entschluesselePrivat läuft genau einmal", async () => {
+    const { db, t1 } = await aufbau();
+    const spion = vi.spyOn(paarModul, "entschluesselePrivat");
+    const nummern = Array.from({ length: 200 }, (_, i) => i + 1);
+    const { anfrage: a } = await anfrage(t1, nummern, "test");
+    const e = await gibFrei(db, sitzungMit(db, "r1"), a, { jetzt: JETZT, env });
+    expect(e.ok).toBe(true);
+    expect(spion).toHaveBeenCalledTimes(1);
+  });
+
+  it("zwei verschiedene Schlüssel in einer Anfrage laufen je einmal", async () => {
+    const { db, t1 } = await aufbau();
+    // Ein zweites Test-Paar für denselben Rechner „r1" — nur für diese Probe, die normale
+    // Einrichtung legt je Test-Rechner genau ein Paar an.
+    const t1b = await legePaarAn(db, { art: "test", rechnerId: "r1", kek, jetzt: JETZT });
+    const spion = vi.spyOn(paarModul, "entschluesselePrivat");
+    const eins = await anfrage(t1, [1], "test");
+    const zwei = await anfrage(t1b, [2], "test");
+    const e = await gibFrei(db, sitzungMit(db, "r1"), [...eins.anfrage, ...zwei.anfrage], { jetzt: JETZT, env });
+    expect(e.ok).toBe(true);
+    expect(spion).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -7,9 +7,18 @@
  */
 .modul {
   --eb-verw-rot-text: #8c0d16;
+  --eb-verw-trenner: #ddd8ce;
 }
 :root[data-theme="dark"] .modul {
   --eb-verw-rot-text: #e8837c;
+  --eb-verw-trenner: #34383d;
+}
+
+/* Trennt mehrere widerrufene Rechner in `WiderrufeneRechner` (Entscheidung 11) voneinander;
+   die erste Zeile bekommt keine Linie darüber. */
+.widerrufenZeile + .widerrufenZeile {
+  border-top: 1px solid var(--eb-verw-trenner);
+  padding-top: 16px;
 }
 
 .abweichungenListe {

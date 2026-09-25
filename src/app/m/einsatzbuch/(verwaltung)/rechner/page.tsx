@@ -6,6 +6,7 @@ import { requireEinsatzbuchHost } from "../../_lib/host";
 import { requireEinsatzbuchZugang } from "../../_lib/zugang";
 import { rechnerStatus } from "../../_lib/anbindung/status";
 import { EchterRechner } from "../../_ui/rechner/EchterRechner";
+import { WiderrufeneRechner } from "../../_ui/rechner/WiderrufeneRechner";
 import { TestRechnerListe } from "../../_ui/rechner/TestRechnerListe";
 import { Freigaben } from "../../_ui/rechner/Freigaben";
 
@@ -22,7 +23,7 @@ export default async function RechnerSeite() {
   requireEinsatzbuchHost(await headers());
   await requireEinsatzbuchZugang();
   const db = getDb();
-  const { echt, test, freigaben } = rechnerStatus(db);
+  const { echt, test, freigaben, widerrufeneEcht } = rechnerStatus(db);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
@@ -31,6 +32,7 @@ export default async function RechnerSeite() {
         beschreibung="Der echte Einsatzbuch-Rechner, alle Test-Rechner und die letzten Schlüsselfreigaben."
       />
       <EchterRechner rechner={echt} />
+      <WiderrufeneRechner liste={widerrufeneEcht} />
       <TestRechnerListe liste={test} />
       <Freigaben liste={freigaben} />
     </div>

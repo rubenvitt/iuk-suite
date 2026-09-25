@@ -46,6 +46,16 @@
   font-size: 14px;
 }
 
+/* `Result`s `title`-Prop bekommt ein echtes `<h1>` statt reinen Texts (Stufe 6, Task 7): antd
+   rendert den Titel sonst als `<div>`, ohne Überschriften-Rolle — `getByRole("heading", …)`
+   findet ihn nicht (e2e). Die Schrift kommt weiter von `.ant-result-title`, dieses `<h1>` erbt
+   sie nur, statt eigene Werte zu setzen (Falle 2: eigenes Markup sieht `--ant-*` nicht sicher). */
+.titel {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
 /* Ohne Shell gilt die 56px-Tapfläche wie bei `MinimalShell` (Falle 4, CLAUDE.md). */
 .knopf {
   display: inline-flex;

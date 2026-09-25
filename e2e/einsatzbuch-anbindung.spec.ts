@@ -143,7 +143,9 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
     const rueckruf = loopbackServer(port);
     try {
       await page.goto(url(`/anmelden?port=${port}&state=${state()}&challenge=${challengeRoh()}`));
-      await expect(page.getByText("Kein Zugang zum Einsatzbuch", { exact: true })).toBeVisible();
+      // Ein echtes `<h1>` (Stufe 6, Task 7), nicht nur Text: `Result`s String-Titel rendert als
+      // `<div>` ohne Überschriften-Rolle, das fände `getByRole` nicht.
+      await expect(page.getByRole("heading", { name: "Kein Zugang zum Einsatzbuch" })).toBeVisible();
       await expect(page.getByText("Dein Konto ist nicht in der Gruppe für das Einsatzbuch. Bitte wende dich an die Leitung.")).toBeVisible();
       await expect(page.getByRole("link", { name: "Zurück zum Einsatzbuch-Rechner" })).toHaveAttribute(
         "href", new RegExp(`^http://127\\.0\\.0\\.1:${port}/rueckruf\\?state=.+&fehler=kein_zugang$`),
@@ -243,6 +245,38 @@ test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
 
     const nachher = await request.get(url("/api/stammdaten"), { headers: { authorization: `Bearer ${geraeteToken}` } });
     expect(nachher.status()).toBe(401);
+  });
+
+  /**
+   * Stufe 6, Task 7, Entscheidung 11: ein widerrufener echter Rechner verschwindet nicht
+   * spurlos — er steht mit seinen Abweichungen unter der Karte des aktiven Rechners.
+   */
+  test("ein widerrufener echter Rechner mit Abweichung steht unter der Karte des aktiven Rechners", async ({ page, request }) => {
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    const name = `Leitrechner ${Date.now()}`;
+    const { geraeteToken } = await rechnerAnlegen(page, request, { art: "echt", name });
+
+    // Warmlauf zuerst (Falle 10): ein GET auf `/api/anker` kompiliert die Route, bevor der erste
+    // POST hier kommt.
+    const warm = await request.get(url("/api/anker"), { headers: { authorization: `Bearer ${geraeteToken}` } });
+    expect(warm.status()).toBe(200);
+
+    // Zwei widersprüchliche Meldungen für denselben Block erzeugen eine Anker-Abweichung
+    // (`_lib/anbindung/anker.ts`s `meldeAnker`) — der zweite Aufruf bekommt 409 zurück.
+    const kopf = { authorization: `Bearer ${geraeteToken}` };
+    const erste = await request.post(url("/api/anker"), { headers: kopf, data: { block: 1, hash: "a".repeat(64) } });
+    expect(erste.status()).toBe(204);
+    const zweite = await request.post(url("/api/anker"), { headers: kopf, data: { block: 1, hash: "b".repeat(64) } });
+    expect(zweite.status()).toBe(409);
+
+    await page.goto(url("/rechner"));
+    await klickeWennRuhig(page.getByRole("button", { name: "Rechner widerrufen" }));
+    await expect(page.getByText("Rechner widerrufen?")).toBeVisible();
+    await klickeWennRuhig(page.getByRole("button", { name: "Widerrufen", exact: true }));
+
+    await expect(page.getByText("Widerrufene echte Rechner")).toBeVisible();
+    await expect(page.getByText(name)).toBeVisible();
+    await expect(page.getByText(new RegExp(`Block 1: erwartet a{64}, gemeldet b{64}`))).toBeVisible();
   });
 });
 
