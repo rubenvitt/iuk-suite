@@ -94,8 +94,8 @@ pub struct AnkerAnfrage {
     pub hash: String,
 }
 
-/// Antwort von `GET /api/anker` (Stufe 6, Entscheidung 5): der höchste Suite-Anker der Kette, zu
-/// der der anfragende Rechner gehört, oder `null` ohne einen.
+/// Antwort von `GET /api/anker?erster=…` (Stufe 6, Entscheidung 5): der höchste Suite-Anker der
+/// Kette, deren Block 1 den Hash `erster` trägt, oder `null` ohne einen.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KettenankerAntwort {

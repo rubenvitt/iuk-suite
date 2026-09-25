@@ -674,6 +674,11 @@ mod tests {
         versiegele_einen(&z);
         suite.leere();
         std::fs::set_permissions(ziel.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+        // Als root greifen die Rechte nicht; dann beweist der Test nichts.
+        if std::fs::write(ziel.path().join("probe"), b"x").is_ok() {
+            eprintln!("übersprungen: Der Ordner bleibt beschreibbar (root?)");
+            return;
+        }
 
         let ergebnis = setze_sicherungsordner(&z, Some(ziel.path().to_path_buf()));
         let s = stand(&z);
