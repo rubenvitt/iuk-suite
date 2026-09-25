@@ -87,6 +87,35 @@ export interface Kettenstand {
   letzter: Kettenglied | null;
 }
 
+/** Die Verwaltungssitzung im Status, ohne Token (`src-tauri/src/befehle.rs`, `SitzungInfo`). */
+export interface SitzungInfo {
+  name: string;
+  ablaufMs: number;
+}
+
+/** Anker der Suite weicht vom lokalen Wert ab (Spec §8), aus `Status.ankerAbweichung` oder `Ankerstand.abweichung`. */
+export interface Ankerabweichung {
+  block: number;
+  erwartet: string;
+  gemeldet: string;
+}
+
+/** Rückgabe von `anker_abgleichen` (`src-tauri/src/befehle.rs`, `Ankerstand`). */
+export interface Ankerstand {
+  bestaetigtBis: number;
+  hash: string | null;
+  gemeldetAm: string | null;
+  abweichung: Ankerabweichung | null;
+  offline: boolean;
+  widerrufen: boolean;
+}
+
+/** Ein Posten der Schlüsselfreigabe (`src-tauri/kern/src/vertrag.rs`, `Schluesselposten`). */
+export interface Schluesselposten {
+  block: number;
+  cek: string;
+}
+
 export interface Status {
   betrieb: "echt" | "test" | null;
   eingerichtet: boolean;
@@ -103,4 +132,22 @@ export interface Status {
   ausstehend: Ausstehend | null;
   kette: Kettenstand;
   versiegelung: Versiegelung | null;
+  /** Suite-Adresse der Einrichtung; `null` ohne Einrichtung. */
+  suiteUrl: string | null;
+  /** Suite-Adresse eines echten Rechners — Vorbelegung der Einrichtungsfrage. */
+  suiteVorgabe: string;
+  rechnerName: string | null;
+  eingerichtetAm: string | null;
+  eingerichtetVon: string | null;
+  schluesselId: string | null;
+  /** Letzter Stammdatenabruf; bis zum ersten Abgleich der Zeitpunkt der Einrichtung. */
+  stammdatenVom: string | null;
+  ankerBestaetigtBis: number;
+  ankerAbweichung: Ankerabweichung | null;
+  widerrufen: boolean;
+  /** Die Verwaltungssitzung; eine abgelaufene erscheint als `null`. */
+  sitzung: SitzungInfo | null;
+  /** Die App wartet auf den Anmelderückruf der Suite. Wird schon vor dem Ausgang des laufenden
+   *  Befehls `false` — die Oberfläche sperrt ihre Knöpfe deshalb am eigenen Zustand, nicht daran. */
+  anmeldungLaeuft: boolean;
 }

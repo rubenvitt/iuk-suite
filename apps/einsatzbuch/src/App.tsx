@@ -21,14 +21,18 @@ import { useEntwurfSpeicher } from "./ablauf/entwurfSpeicher";
 import { useFristUhr, type FristStand } from "./ablauf/fristUhr";
 import { Bestaetigung } from "./bausteine/Bestaetigung";
 import { Hinweis } from "./bausteine/Hinweis";
+import { Karte } from "./bausteine/Karte";
+import { Knopf } from "./bausteine/Knopf";
 import { Kopf } from "./bausteine/Kopf";
 import { Testband } from "./bausteine/Testband";
 import { befehle } from "./befehle";
 import { phaseAus, restSekunden, restText, type Lokal } from "./logik/ablauf";
 import { kannAbsenden, leererEntwurf } from "./logik/formular";
+import { ankerAbweichungText, stammdatenVomText } from "./logik/verbindung";
+import { Anmelden, Wartebildschirm } from "./seiten/Anmelden";
+import { Einrichtungsfrage } from "./seiten/Einrichtungsfrage";
 import { Formular } from "./seiten/Formular";
 import { Frist } from "./seiten/Frist";
-import { NichtEingerichtet } from "./seiten/NichtEingerichtet";
 import { Startfehler } from "./seiten/Startfehler";
 import { Versiegelt } from "./seiten/Versiegelt";
 import { Willkommen } from "./seiten/Willkommen";
@@ -54,6 +58,12 @@ export function App() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [bestaetigen, setBestaetigen] = useState(false);
   const [fristStand, setFristStand] = useState<FristStand | null>(null);
+  /**
+   * `einrichten`/`anmelden`/`neu_einrichten` warten bis zu 5 min auf den Loopback-Rückruf; Rust
+   * setzt `status.anmeldungLaeuft` schon vor dem Ausgang auf `false` (Übergabe aus Task 8), die
+   * Oberfläche sperrt ihre Knöpfe deshalb an diesem eigenen Zustand, nicht am Status-Feld.
+   */
+  const [wartetAuf, setWartetAuf] = useState<"einrichten" | "anmelden" | "neuEinrichten" | null>(null);
 
   const statusRef = useRef<Status | null>(null);
   const versatzRef = useRef(0);
@@ -349,7 +359,7 @@ export function App() {
       await laden();
     });
 
-  const einrichten = (quelle: "vektor" | "datei", fristMinuten: number | null) =>
+  const entwicklungEinrichtenJetzt = (quelle: "vektor" | "datei", fristMinuten: number | null) =>
     fuehreAus(async () => {
       let spkiPfad: string | null = null;
       if (quelle === "datei") {
@@ -370,18 +380,130 @@ export function App() {
       setzeEntwurf(leererEntwurf(new Date(), s.zeitzone ?? p.zeitzone), true);
     });
 
+  /** „Mit Pocket ID anmelden und einrichten“ auf der Einrichtungsfrage. */
+  const richteEin = (art: "echt" | "test", name: string, suiteUrl: string) =>
+    fuehreAus(async () => {
+      setWartetAuf("einrichten");
+      try {
+        await befehle.einrichten({ art, name, suiteUrl });
+      } finally {
+        setWartetAuf(null);
+      }
+      await laden();
+    });
+
+  /** „Mit Pocket ID anmelden“ auf der Anmeldekarte: danach direkt zur Verwaltung. */
+  const meldeAn = () =>
+    fuehreAus(async () => {
+      setWartetAuf("anmelden");
+      try {
+        await befehle.anmelden();
+      } finally {
+        setWartetAuf(null);
+      }
+      const s = await laden();
+      if (s.sitzung) setzeLokal({ phase: "verwaltung", bearbeiten: false });
+    });
+
+  /** „Neu einrichten“ im Widerrufs-Hinweis (nur echt, nur nach Widerruf). */
+  const neuEinrichtenJetzt = () =>
+    fuehreAus(async () => {
+      setWartetAuf("neuEinrichten");
+      try {
+        await befehle.neuEinrichten();
+      } finally {
+        setWartetAuf(null);
+      }
+      await laden();
+    });
+
+  /** Synchron: Der laufende `einrichten`/`anmelden`/`neu_einrichten` endet danach mit „Anmeldung abgebrochen.“ */
+  const anmeldungAbbrechen = () => void befehle.anmeldungAbbrechen();
+
+  const oeffneAnmeldung = () => setzeLokal({ phase: "anmelden", bearbeiten: false });
+
+  /** Verlässt die Anmeldekarte wieder dorthin, wo der Status ohne sie hinführen würde. */
+  const zurueckVonAnmeldung = () => {
+    const s = statusRef.current;
+    setzeLokal(s ? phaseAus(s, { phase: "start", bearbeiten: false }) : START);
+  };
+
+  const zurVerwaltung = () => setzeLokal({ phase: "verwaltung", bearbeiten: false });
+
+  /** „Sitzung sperren“ heißt abmelden (Spec §4.4, Entscheidung 9 aus `kontext.md`). */
+  const sperren = () =>
+    fuehreAus(async () => {
+      await befehle.abmelden();
+      const warVerwaltung = lokalRef.current.phase === "verwaltung";
+      const s = await laden();
+      if (warVerwaltung) setzeLokal(phaseAus(s, { phase: "start", bearbeiten: false }));
+    });
+
   const test = status?.betrieb === "test";
   const fristMinuten = status?.fristMinuten ?? paket?.fristMinuten ?? null;
   const restProzent = fristMinuten ? Math.min(100, (rest / (fristMinuten * 60)) * 100) : 0;
 
+  // Widerruf (Spec §8): auf Start- und Verwaltungsseite, mit dem passenden Weg zurück in die
+  // Einrichtung. Ein Testrechner kennt kein `neu_einrichten` (nur echt, Entscheidung 12 aus
+  // `kontext.md`) — dort beendet derselbe Bestätigungsdialog wie im Fuß der Startseite den Test.
+  const widerrufBanner =
+    status?.widerrufen && (lokal.phase === "start" || lokal.phase === "verwaltung") ? (
+      <div className="fehlerleiste">
+        <div className="stapel stapel-8">
+          <Hinweis ton="warn">Rechner muss neu eingerichtet werden.</Hinweis>
+          {test ? (
+            <Knopf variante="gefahr" onClick={() => setBestaetigen(true)}>
+              Testbetrieb beenden und neu einrichten
+            </Knopf>
+          ) : (
+            <Knopf variante="gefahr" onClick={() => void neuEinrichtenJetzt()}>
+              Neu einrichten
+            </Knopf>
+          )}
+        </div>
+      </div>
+    ) : null;
+
   let inhalt: ReactNode = null;
-  if (status) {
+  if (wartetAuf) {
+    // Einrichten, Anmelden und Neu-Einrichten warten alle auf denselben Loopback-Rückruf und
+    // zeigen deshalb denselben Wartebildschirm, unabhängig davon, von welcher Seite aus gestartet.
+    inhalt = <Wartebildschirm beiAbbrechen={anmeldungAbbrechen} />;
+  } else if (status) {
     switch (lokal.phase) {
       case "startfehler":
         inhalt = <Startfehler fehler={status.startfehler ?? ""} />;
         break;
-      case "nicht-eingerichtet":
-        inhalt = <NichtEingerichtet entwicklung={status.entwicklung} beiEinrichten={(q, f) => void einrichten(q, f)} />;
+      case "einrichtung":
+        inhalt = (
+          <Einrichtungsfrage
+            suiteVorgabe={status.suiteVorgabe}
+            entwicklung={status.entwicklung}
+            beiEinrichten={(art, name, suiteUrl) => void richteEin(art, name, suiteUrl)}
+            beiEntwicklungEinrichten={(q, f) => void entwicklungEinrichtenJetzt(q, f)}
+          />
+        );
+        break;
+      case "anmelden":
+        inhalt = <Anmelden beiAnmelden={() => void meldeAn()} beiZurueck={zurueckVonAnmeldung} />;
+        break;
+      case "verwaltung":
+        inhalt = (
+          <main className="seite seite-schmal" data-screen-label="Verwaltung">
+            <div className="stapel stapel-8">
+              <div className="kicker">Verwaltung</div>
+              <h1 className="titel">{status.rechnerName ?? "Einsatzbuch-Rechner"}</h1>
+            </div>
+            <Karte>
+              <div className="stapel stapel-8">
+                {status.stammdatenVom && zeitzone ? <div className="neben">{stammdatenVomText(status.stammdatenVom, zeitzone)}</div> : null}
+                {status.ankerAbweichung ? <Hinweis ton="warn">{ankerAbweichungText(status.ankerAbweichung)}</Hinweis> : null}
+                {/* Platzhalter: Die Verwaltungsansicht selbst (Kette prüfen, Herunterladen, versiegelte Einsätze) folgt in Task 10. */}
+                <div className="absatz">Die Verwaltungsansicht folgt.</div>
+              </div>
+            </Karte>
+          </main>
+        );
         break;
       case "start":
         inhalt = (
@@ -441,7 +563,17 @@ export function App() {
       {test || mitKopf ? (
         <div className="oben">
           {test ? <Testband /> : null}
-          {mitKopf ? <Kopf thema={thema.wahl} beiThemaWechsel={thema.wechsle} /> : null}
+          {mitKopf ? (
+            <Kopf
+              thema={thema.wahl}
+              beiThemaWechsel={thema.wechsle}
+              eingerichtet={status?.eingerichtet ?? false}
+              sitzung={status?.sitzung ?? null}
+              beiAnmeldenKlick={oeffneAnmeldung}
+              beiVerwaltungKlick={zurVerwaltung}
+              beiSperren={() => void sperren()}
+            />
+          ) : null}
         </div>
       ) : null}
       {fehler ? (
@@ -449,6 +581,7 @@ export function App() {
           <Hinweis ton="warn">{fehler}</Hinweis>
         </div>
       ) : null}
+      {widerrufBanner}
       {inhalt}
       {bestaetigen ? (
         <Bestaetigung

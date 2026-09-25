@@ -15,6 +15,15 @@ const befehle = vi.hoisted(() => ({
   versiegelungQuittieren: vi.fn(),
   testbetriebBeenden: vi.fn(),
   entwicklungEinrichten: vi.fn(),
+  einrichten: vi.fn(),
+  anmelden: vi.fn(),
+  neuEinrichten: vi.fn(),
+  anmeldungAbbrechen: vi.fn(),
+  abmelden: vi.fn(),
+  bloecke: vi.fn(),
+  schluesselFreigeben: vi.fn(),
+  ankerAbgleichen: vi.fn(),
+  stammdatenAbgleichen: vi.fn(),
 }));
 vi.mock("./befehle", () => ({ befehle }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -41,6 +50,18 @@ function status(teil: Partial<Status> = {}): Status {
     ausstehend: null,
     kette: { anzahl: 3, letzter: { block: 3, hash: "c".repeat(64) } },
     versiegelung: null,
+    suiteUrl: "https://einsatzbuch.iuk-ue.de",
+    suiteVorgabe: "https://einsatzbuch.iuk-ue.de",
+    rechnerName: "Einsatzleitwagen 1",
+    eingerichtetAm: "2026-09-01T09:00:00+02:00",
+    eingerichtetVon: "Ruben Vitt",
+    schluesselId: "s1",
+    stammdatenVom: "2026-09-25T10:00:00+02:00",
+    ankerBestaetigtBis: 3,
+    ankerAbweichung: null,
+    widerrufen: false,
+    sitzung: null,
+    anmeldungLaeuft: false,
     ...teil,
   };
 }
@@ -170,20 +191,37 @@ describe("Testband", () => {
     await clickElement(knopf("Testdatenbank löschen")!);
     await warte();
     expect(befehle.testbetriebBeenden).toHaveBeenCalledTimes(1);
-    expect(text()).toContain("Rechner ist noch nicht eingerichtet");
+    expect(text()).toContain("Diesen Rechner einrichten");
     expect(queryAll('[role="dialog"]')).toHaveLength(0);
   });
 });
 
-describe("Nicht eingerichtet", () => {
+describe("Einrichtungsfrage", () => {
   it("zeigt ohne Entwicklungs-Build keinen Entwicklerweg", async () => {
     await starte(status({ betrieb: null, eingerichtet: false, entwicklung: false }));
-    expect(text()).toContain("Rechner ist noch nicht eingerichtet");
-    expect(text()).toContain("Die Einrichtung übernimmt die Verwaltung über die Anmeldung an der Suite.");
+    expect(text()).toContain("Diesen Rechner einrichten");
     expect(text()).not.toContain("Entwickler-Einrichtung");
     expect(knopf("Mit Testvektor-Schlüssel einrichten")).toBeUndefined();
     expect(knopf("Schlüssel aus Datei …")).toBeUndefined();
     expect(befehle.stammdaten).not.toHaveBeenCalled();
+  });
+
+  it("die Suite-Adresse ist bei „Echter Einsatzbuch-Rechner“ schreibgeschützt und bei „Testrechner“ änderbar", async () => {
+    await starte(status({ betrieb: null, eingerichtet: false }));
+    expect(feld("Suite-Adresse")?.readOnly).toBe(true);
+    expect(feld("Suite-Adresse")?.value).toBe("https://einsatzbuch.iuk-ue.de");
+
+    const testKarte = queryAll<HTMLLabelElement>("label.radiokarte").find((l) => l.textContent?.includes("Testrechner"));
+    await clickElement(testKarte!.querySelector("input")!);
+    expect(feld("Suite-Adresse")?.readOnly).toBe(false);
+  });
+
+  it("sendet einrichten mit Art, Name und URL", async () => {
+    await starte(status({ betrieb: null, eingerichtet: false }));
+    befehle.einrichten.mockReturnValue(new Promise(() => {}));
+    await fill('input[placeholder="z. B. Einsatzleitwagen 1"]', "Einsatzleitwagen 1");
+    await clickElement(knopf("Mit Pocket ID anmelden und einrichten")!);
+    expect(befehle.einrichten).toHaveBeenCalledWith({ art: "echt", name: "Einsatzleitwagen 1", suiteUrl: "https://einsatzbuch.iuk-ue.de" });
   });
 
   it("zeigt im Entwicklungs-Build die Entwickler-Einrichtung mit Frist 15", async () => {
@@ -192,6 +230,72 @@ describe("Nicht eingerichtet", () => {
     expect(knopf("Mit Testvektor-Schlüssel einrichten")).toBeDefined();
     expect(knopf("Schlüssel aus Datei …")).toBeDefined();
     expect(feld("Frist in Minuten")?.value).toBe("15");
+  });
+});
+
+describe("Kopf: Verwaltung · Anmelden", () => {
+  it("fehlt ohne Einrichtung", async () => {
+    await starte(status({ eingerichtet: false, betrieb: null }));
+    expect(knopf("Verwaltung · Anmelden")).toBeUndefined();
+  });
+
+  it("steht eingerichtet und ohne Sitzung", async () => {
+    await starte(status({ ausstehend: ausstehend() }));
+    expect(knopf("Verwaltung · Anmelden")).toBeDefined();
+  });
+
+  it("weicht mit Sitzung dem Namen und „Sitzung sperren“", async () => {
+    await starte(status({ ausstehend: ausstehend(), sitzung: { name: "Ruben Vitt", ablaufMs: Date.now() + 3_600_000 } }));
+    expect(knopf("Verwaltung · Anmelden")).toBeUndefined();
+    expect(text()).toContain("Ruben Vitt");
+    expect(knopf("Sitzung sperren")).toBeDefined();
+  });
+});
+
+describe("Anmeldung der Verwaltung", () => {
+  it("zeigt die Anmeldekarte, meldet mit Pocket ID an und zeigt währenddessen den Wartetext; Abbrechen ruft anmeldung_abbrechen", async () => {
+    await starte(status({ ausstehend: ausstehend() }));
+    await clickElement(knopf("Verwaltung · Anmelden")!);
+    expect(text()).toContain("Anmelden, um Einsätze zu lesen");
+
+    befehle.anmelden.mockReturnValue(new Promise(() => {}));
+    await clickElement(knopf("Mit Pocket ID anmelden")!);
+    await warte();
+    expect(befehle.anmelden).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("Anmeldung läuft — der Browser ist geöffnet. Melde dich dort an; danach geht es hier weiter.");
+
+    await clickElement(knopf("Abbrechen")!);
+    expect(befehle.anmeldungAbbrechen).toHaveBeenCalledTimes(1);
+  });
+
+  it("„Zurück zur Erfassung“ verlässt die Anmeldekarte wieder", async () => {
+    await starte(status({ ausstehend: ausstehend() }));
+    await clickElement(knopf("Verwaltung · Anmelden")!);
+    await clickElement(knopf("Zurück zur Erfassung")!);
+    expect(text()).toContain("Abgesendet · noch änderbar");
+  });
+});
+
+describe("Widerruf", () => {
+  it("zeigt „Rechner muss neu eingerichtet werden.“ mit „Neu einrichten“ bei echt", async () => {
+    await starte(status({ widerrufen: true }));
+    expect(text()).toContain("Rechner muss neu eingerichtet werden.");
+    expect(knopf("Neu einrichten")).toBeDefined();
+    expect(knopf("Testbetrieb beenden und neu einrichten")).toBeUndefined();
+  });
+
+  it("zeigt „Testbetrieb beenden und neu einrichten“ bei test", async () => {
+    await starte(status({ widerrufen: true, betrieb: "test" }));
+    expect(knopf("Testbetrieb beenden und neu einrichten")).toBeDefined();
+    expect(knopf("Neu einrichten")).toBeUndefined();
+  });
+});
+
+describe("Verwaltung (Platzhalter, Task 10 ersetzt sie)", () => {
+  it("zeigt „Stammdaten vom …“ in der Zone des Status", async () => {
+    await starte(status({ ausstehend: ausstehend(), sitzung: { name: "Ruben Vitt", ablaufMs: Date.now() + 3_600_000 } }));
+    await clickElement(knopf("Ruben Vitt")!);
+    expect(text()).toContain("Stammdaten vom 25.9.2026, 10:00");
   });
 });
 

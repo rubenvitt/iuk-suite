@@ -183,6 +183,20 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         ausstehend: ausstehendFuerStatus(),
         kette: { anzahl: zustand.bloecke.length, letzter: zustand.bloecke.length > 0 ? zustand.bloecke[zustand.bloecke.length - 1] : null },
         versiegelung: zustand.versiegelung,
+        // Anbindung an die Suite (Stufe 5, Task 9): Dieser Stub bildet nur die Erfassung nach
+        // (`erfassung.spec.ts`); Anmeldung und Einrichtung über die Suite erweitert Task 11.
+        suiteUrl: null,
+        suiteVorgabe: "https://einsatzbuch.iuk-ue.de",
+        rechnerName: null,
+        eingerichtetAm: null,
+        eingerichtetVon: null,
+        schluesselId: null,
+        stammdatenVom: null,
+        ankerBestaetigtBis: 0,
+        ankerAbweichung: null,
+        widerrufen: false,
+        sitzung: null,
+        anmeldungLaeuft: false,
       };
     }
 

@@ -148,6 +148,17 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 }
 .wortmarke { font: 600 20px/normal var(--font-display); letter-spacing: 0.07em; }
 .wortmarke-akzent { color: var(--iuk-marke); }
+.kopf-rechts { display: flex; align-items: center; gap: 12px; }
+.kopf-nutzer {
+  height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 600 14px var(--font-body);
+  cursor: pointer;
+}
+.kopf-nutzer:hover { text-decoration: underline; }
 .rundknopf {
   width: 56px;
   height: 56px;
@@ -308,6 +319,7 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 }
 .kicker-ok { color: var(--iuk-ampel-ok-text); }
 .titel { margin: 0; font: 600 30px/1.15 var(--font-display); letter-spacing: 0.02em; }
+.titel-karte { margin: 0; font: 600 24px/1.2 var(--font-display); letter-spacing: 0.02em; }
 .quali { font: 600 13px/22px var(--font-display); letter-spacing: 0.06em; color: var(--verw-text-2); }
 
 /* ── Seiten ── */
@@ -618,3 +630,22 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Einrichtungsfrage */
+.radiokarte {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1 1 240px;
+  min-width: 220px;
+  padding: 16px;
+  border: 1px solid var(--verw-rand);
+  border-radius: 8px;
+  background: var(--verw-karte);
+  cursor: pointer;
+}
+.radiokarte:has(input:checked) { border-color: var(--brand-fill); box-shadow: inset 3px 0 0 var(--brand-fill); }
+.radiokarte input { margin-top: 3px; accent-color: var(--brand-fill); }
+.radiokarte-text { display: flex; flex-direction: column; gap: 4px; }
+.radiokarte-titel { font-weight: 600; }
+.radiokarte-hilfe { font-size: 13px; color: var(--verw-text-2); }
