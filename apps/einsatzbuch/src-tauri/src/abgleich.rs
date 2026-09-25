@@ -13,7 +13,7 @@
 //!   nicht: Dort gibt es nichts abzugleichen, bzw. die Antwort wäre wieder 401.
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use einsatzbuch_kern::tresor::konto_fuer;
 use tauri::{AppHandle, Manager};
@@ -71,18 +71,25 @@ fn sichere_runde(z: &Zustand, r: Runde) {
 }
 
 /// Die Schleife des Threads: eine volle Runde sofort, danach je Signal eine Ankerrunde und je
-/// abgelaufenem `takt` eine volle. Mehrere Signale in Folge ergeben eine Runde. Endet, wenn
-/// niemand mehr senden kann.
+/// abgelaufenem `takt` eine volle. Mehrere Signale in Folge ergeben eine Runde. Der Takt zählt
+/// ab der letzten vollen Runde, nicht ab dem letzten Signal — sonst verdrängten Versiegelungen,
+/// die öfter als stündlich kommen, den Stammdatenabgleich ganz. Ist die Frist nach einem Signal
+/// schon um, wird die Runde gleich zur vollen. Endet, wenn niemand mehr senden kann.
 pub fn schleife(z: &Zustand, signal: &Receiver<()>, takt: Duration) {
     sichere_runde(z, Runde::Voll);
+    let mut naechste_volle = Instant::now() + takt;
     loop {
-        match signal.recv_timeout(takt) {
+        let runde = match signal.recv_timeout(naechste_volle.saturating_duration_since(Instant::now())) {
             Ok(()) => {
                 while signal.try_recv().is_ok() {}
-                sichere_runde(z, Runde::NurAnker);
+                if Instant::now() >= naechste_volle { Runde::Voll } else { Runde::NurAnker }
             }
-            Err(RecvTimeoutError::Timeout) => sichere_runde(z, Runde::Voll),
+            Err(RecvTimeoutError::Timeout) => Runde::Voll,
             Err(RecvTimeoutError::Disconnected) => return,
+        };
+        sichere_runde(z, runde);
+        if runde == Runde::Voll {
+            naechste_volle = Instant::now() + takt;
         }
     }
 }
@@ -146,6 +153,34 @@ mod tests {
         let faden = std::thread::spawn(move || schleife(&z2, &rx, Duration::from_millis(200)));
         warte_bis(|| pfade(&suite).iter().filter(|p| *p == "GET /api/stammdaten").count() >= 2);
         drop(tx);
+        faden.join().unwrap();
+    }
+
+    /// Kommen Versiegelungen öfter als der Takt, fällt die volle Runde trotzdem nicht aus: Die
+    /// Frist zählt ab der letzten vollen Runde, nicht ab dem letzten Signal.
+    #[test]
+    fn haeufige_signale_verdraengen_die_volle_runde_nicht() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        suite.leere();
+        let z = Arc::new(z);
+        let (tx, rx) = mpsc::channel::<()>();
+        let z2 = Arc::clone(&z);
+        let faden = std::thread::spawn(move || schleife(&z2, &rx, Duration::from_millis(300)));
+        let laeuft = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let laeuft2 = Arc::clone(&laeuft);
+        let sender = std::thread::spawn(move || {
+            while laeuft2.load(std::sync::atomic::Ordering::SeqCst) {
+                if tx.send(()).is_err() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
+        warte_bis(|| pfade(&suite).iter().filter(|p| *p == "GET /api/stammdaten").count() >= 3);
+        laeuft.store(false, std::sync::atomic::Ordering::SeqCst);
+        sender.join().unwrap();
         faden.join().unwrap();
     }
 

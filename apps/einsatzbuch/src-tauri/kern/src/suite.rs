@@ -7,7 +7,7 @@
 //! Sitzungstoken (Einrichten, Freigeben, Rechner löschen) ist nur die Sitzung abgelaufen — das
 //! bleibt ein gewöhnliches `Abgelehnt` mit dem Code der Suite (`sitzung_ungueltig`).
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -110,6 +110,16 @@ fn abgelehnt(a: &Antwort) -> SuiteFehler {
     match serde_json::from_str::<Fehlerkoerper>(&a.koerper) {
         Ok(f) => SuiteFehler::Abgelehnt { status: a.status, code: f.error.code, meldung: f.error.message },
         Err(_) => SuiteFehler::Antwort(format!("HTTP {} ohne lesbaren Fehlerkörper", a.status)),
+    }
+}
+
+/// Wie `abgelehnt`, aber ein 5xx ohne lesbaren Fehlerkörper ist „nicht erreichbar“: Hinter einem
+/// Proxy ist das der Normalfall für „die Suite läuft nicht“ (Review Focus 4). Ein 5xx der Suite
+/// selbst (etwa `503 kek_fehlt`) trägt einen Fehlerkörper und behält seine Meldung.
+fn abgelehnt_oder_offline(a: &Antwort) -> SuiteFehler {
+    match abgelehnt(a) {
+        SuiteFehler::Antwort(_) if (500..=599).contains(&a.status) => SuiteFehler::NichtErreichbar(format!("HTTP {}", a.status)),
+        sonst => sonst,
     }
 }
 
@@ -225,9 +235,12 @@ pub enum AnkerErgebnis {
     Ueberholt,
 }
 
-/// Führt `f` unter dem Lock auf dem Buch aus und gibt den Lock sofort wieder frei.
+/// Führt `f` unter dem Lock auf dem Buch aus und gibt den Lock sofort wieder frei. Ein
+/// vergifteter Mutex (Panik eines anderen Threads unter dem Lock) wird übernommen wie in der
+/// Hülle (`zustand.rs`): Die Datenbank sichert sich über ihre Transaktionen selbst, und ein
+/// Abgleich, der bis zum Neustart scheitert, wäre schlimmer.
 fn mit_buch<T>(buch: &Mutex<Option<Buch>>, f: impl FnOnce(&mut Buch) -> Result<T, BuchFehler>) -> Result<T, String> {
-    let mut wache = buch.lock().map_err(|_| "Das Einsatzbuch ist nach einem Absturz gesperrt.".to_string())?;
+    let mut wache = buch.lock().unwrap_or_else(PoisonError::into_inner);
     let offen = wache.as_mut().ok_or_else(|| "Das Einsatzbuch ist nicht geöffnet.".to_string())?;
     f(offen).map_err(|e| e.to_string())
 }
@@ -327,6 +340,7 @@ pub const PAKET: usize = 200;
 /// `POST /api/schluessel/freigeben` mit dem Sitzungstoken, in Paketen zu `PAKET`. Es gibt kein
 /// Teilergebnis: Lehnt die Suite ein Paket ab, gehen keine weiteren, und der Aufruf scheitert
 /// ganz (Entscheidung 3). Ohne Blöcke geht keine Anfrage — die Suite verlangt mindestens einen.
+/// Ein 5xx ohne Fehlerkörper ist `NichtErreichbar` (`abgelehnt_oder_offline`).
 pub fn gib_frei(
     t: &dyn Transport,
     suite: &str,
@@ -348,7 +362,7 @@ pub fn gib_frei(
             },
         )?;
         if a.status != 200 {
-            return Err(abgelehnt(&a));
+            return Err(abgelehnt_oder_offline(&a));
         }
         let schluessel: Vec<Schluesselposten> = lies_json(&a)?;
         if zaehle(schluessel.iter().map(|s| s.block)) != zaehle(paket.iter().map(|b| b.kopf.block)) {

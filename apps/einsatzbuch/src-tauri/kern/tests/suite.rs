@@ -187,9 +187,31 @@ fn gib_frei_lehnt_eine_antwort_mit_anderen_bloecken_ab() {
 
 #[test]
 fn ein_unlesbarer_fehlerkoerper_wird_zu_antwort_statt_panik() {
-    let t = FakeTransport::neu(|_| antwort(502, "<html>Bad Gateway</html>"));
+    // 404 „Not found“ als Text: so antwortet `hostAbweisung` auf einem falschen Host.
+    let t = FakeTransport::neu(|_| antwort(404, "Not found"));
     let ergebnis = suite::gib_frei(&t, SUITE, "sitzung", &[block(1)]);
+    assert!(matches!(ergebnis, Err(SuiteFehler::Antwort(ref m)) if m.contains("404")), "{ergebnis:?}");
+    let t = FakeTransport::neu(|_| antwort(502, "<html>Bad Gateway</html>"));
+    let ergebnis = suite::richte_ein(&t, SUITE, "sitzung", Umgebung::Test, "Laptop");
     assert!(matches!(ergebnis, Err(SuiteFehler::Antwort(ref m)) if m.contains("502")), "{ergebnis:?}");
+}
+
+/// Review Focus 4: Bei der Freigabe ist ein 5xx ohne Fehlerkörper (Proxy vor einer nicht
+/// laufenden Suite) „nicht erreichbar“; ein 503 der Suite mit Fehlerkörper bleibt `Abgelehnt`.
+#[test]
+fn gib_frei_mit_5xx_eines_proxys_ist_nicht_erreichbar() {
+    for status in [500, 502, 503, 504] {
+        let t = FakeTransport::neu(move |_| antwort(status, "<html>Bad Gateway</html>"));
+        assert_eq!(
+            suite::gib_frei(&t, SUITE, "sitzung", &[block(1)]),
+            Err(SuiteFehler::NichtErreichbar(format!("HTTP {status}")))
+        );
+    }
+    let t = FakeTransport::neu(|_| fehler(503, "kek_fehlt", "Der Schlüssel der Suite fehlt."));
+    assert_eq!(
+        suite::gib_frei(&t, SUITE, "sitzung", &[block(1)]),
+        Err(SuiteFehler::Abgelehnt { status: 503, code: "kek_fehlt".into(), meldung: "Der Schlüssel der Suite fehlt.".into() })
+    );
 }
 
 #[test]
@@ -600,4 +622,25 @@ fn anfrage_und_antwort_schwaerzen_token_und_koerper_im_debug() {
     let text = format!("{antwort:?}");
     assert!(!text.contains("GEHEIMES-SITZUNGSTOKEN"), "{text}");
     assert!(text.contains("200"), "{text}");
+}
+
+/// Nach einer Panik unter dem Buch-Lock (etwa in der Frist-Uhr) läuft der Abgleich weiter: Der
+/// vergiftete Mutex wird übernommen wie in der Hülle, statt jeden weiteren Lauf bis zum Neustart
+/// scheitern zu lassen.
+#[test]
+fn anker_nach_panik_unter_dem_lock_laufen_weiter() {
+    let ordner = tempfile::tempdir().unwrap();
+    let buch = geteiltes_buch(ordner.path(), 2);
+    let vergifter = buch.clone();
+    let _ = std::thread::spawn(move || {
+        let _halten = vergifter.lock().unwrap();
+        panic!("absichtlich, um den Mutex zu vergiften");
+    })
+    .join();
+    assert!(buch.is_poisoned());
+
+    let t = FakeTransport::neu(|_| antwort(204, ""));
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Bestaetigt(2));
+    let stand = buch.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().unwrap().anbindung().unwrap().unwrap();
+    assert_eq!(stand.anker_gemeldet_bis, 2);
 }

@@ -1863,6 +1863,22 @@ pub(crate) mod tests {
         assert!(z.sitzung().is_none());
     }
 
+    /// Review Focus 4: Hinter einem Proxy ist ein 5xx ohne lesbaren Körper „die Suite läuft
+    /// nicht“ — das ist fehlende Verbindung. Ein 503 der Suite selbst behält seine Meldung.
+    #[test]
+    fn freigabe_bei_5xx_eines_proxys_braucht_verbindung_bei_5xx_der_suite_ihre_meldung() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        for status in [500, 502, 503, 504] {
+            suite.setze(move |_| antwort(status, "<html>Bad Gateway</html>"));
+            assert_eq!(gib_schluessel_frei(&z).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG, "HTTP {status}");
+            assert!(z.sitzung().is_some(), "HTTP {status}: die Sitzung bleibt");
+        }
+        suite.setze(|_| fehler(503, "kek_fehlt", "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung."));
+        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung.");
+    }
+
     #[test]
     fn sitzung_schwaerzt_das_token_im_debug() {
         let s = Sitzung { token: Zeroizing::new("GEHEIMES-TOKEN".into()), name: "Jana".into(), ablauf_ms: 1, rechner_id: None };
