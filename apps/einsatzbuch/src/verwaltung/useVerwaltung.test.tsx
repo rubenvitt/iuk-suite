@@ -45,6 +45,20 @@ async function warte(): Promise<void> {
   }
 }
 
+/**
+ * Wie `warte()`, aber bis `bedingung` gilt, höchstens `grenzeMs`. Echtes WebCrypto braucht auf einem
+ * langsamen CI-Läufer mehr als die zehn Takte von `warte()` (gemessen in der CI von #304: der Zustand
+ * stand danach noch auf „laedt“). Wirft nicht; die Zusicherung danach meldet den Zustand.
+ */
+async function warteBis(bedingung: () => boolean, grenzeMs = 2000): Promise<void> {
+  const ende = Date.now() + grenzeMs;
+  while (!bedingung() && Date.now() < ende) {
+    await act(async () => {
+      await new Promise((fertig) => setTimeout(fertig, 10));
+    });
+  }
+}
+
 function ankerstand(teil: Partial<Ankerstand> = {}): Ankerstand {
   return {
     bestaetigtBis: 3,
@@ -158,6 +172,7 @@ describe("useVerwaltung", () => {
 
   it("wird es inaktiv, verwirft es den Klartext von selbst", async () => {
     const h = await renderVerwaltung();
+    await warteBis(() => h.aktuell.zustand.art === "offen");
     expect(h.aktuell.zustand.art).toBe("offen");
     await h.neu(false);
     expect(h.aktuell.zustand).toEqual({ art: "laedt" });
@@ -173,6 +188,7 @@ describe("useVerwaltung", () => {
     befehle.schluesselFreigeben.mockResolvedValue(CEKS);
     await act(async () => h.aktuell.neuLaden());
     await warte();
+    await warteBis(() => h.aktuell.zustand.art === "offen" && h.aktuell.zustand.offen.length === 3);
     const z = h.aktuell.zustand;
     if (z.art !== "offen") throw new Error(`erwartet offen, war ${z.art}`);
     expect(z.offen.map((o) => o.block.kopf.block)).toEqual([1, 2, 3]);

@@ -5,11 +5,15 @@
 # DOM-Harness, Drahtvertrag der Anbindung samt Beispieldateien für `kern/tests/vertrag.rs`),
 # oder an dieser Datei selbst etwas ändert — eine Änderung am Workflow prüft sich selbst.
 #
-# Ein Tag `einsatzbuch-vX.Y.Z` baut darüber hinaus die Release-Fassung der App, signiert
-# die Updater-Pakete und veröffentlicht sie (Jobs `release-bauen` und
-# `release-veroeffentlichen`, Runbook docs/runbooks/einsatzbuch-release.md). Beide Releases
-# (`einsatzbuch-vX.Y.Z` und das Dauer-Release `einsatzbuch-updater` mit `latest.json`)
-# entstehen mit `--latest=false`: „Latest“ bleibt das Release der Suite (`ci.yml`).
+# Ein Push auf `main` baut darüber hinaus die Release-Fassung der App, signiert die
+# Updater-Pakete und veröffentlicht sie, wenn seit dem letzten Tag `einsatzbuch-vX.Y.Z` ein
+# `feat`, `fix`, `perf` oder eine brechende Änderung an der App dazugekommen ist (Job
+# `release-version`, Regel in `scripts/einsatzbuch-version.mjs`). Die Version wird dabei
+# errechnet, der Tag entsteht erst ganz am Ende mit dem Release. Ein von Hand gepushter Tag
+# `einsatzbuch-vX.Y.Z` bleibt der Notfallweg und baut genau diese Version (Jobs
+# `release-bauen` und `release-veroeffentlichen`, Runbook docs/runbooks/einsatzbuch-release.md).
+# Beide Releases (`einsatzbuch-vX.Y.Z` und das Dauer-Release `einsatzbuch-updater` mit
+# `latest.json`) entstehen mit `--latest=false`: „Latest“ bleibt das Release der Suite (`ci.yml`).
 # Die Suite-Versionierung (`scripts/version.mjs`) zählt nur exakte `vX.Y.Z`-Tags und sieht
 # beide Tags nicht (`scripts/version.test.ts`).
 name: einsatzbuch
@@ -55,16 +59,30 @@ on:
 permissions:
   contents: read
 
-# Der Gruppenschlüssel ist `github.sha`, nicht `github.ref` (Begründung im
-# `concurrency`-Kommentar von `ci.yml`): `github.ref` ist für jeden Push auf
-# `main` dieselbe Zeichenkette, und ein dritter Push in derselben Gruppe ersetzt
-# sonst den noch wartenden zweiten — dessen Lauf verschwindet still, statt rot
-# zu werden. Ein überholter PR-Lauf wird weiterhin abgebrochen, ein Lauf auf
-# `main` läuft immer zu Ende. Ein Tag nimmt dagegen `github.ref` in den Schlüssel:
-# Ein Release-Tag zeigt meist auf denselben Commit wie der letzte Push auf `main`,
-# und mit `github.sha` stünden beide Läufe in einer Gruppe und warteten aufeinander.
+# Drei Arten von Läufen, drei Schlüssel:
+#
+# - PR: je PR eine Gruppe, ein überholter Lauf wird abgebrochen.
+# - Push auf `main`: EINE feste Gruppe für alle, ohne Abbruch. Jeder solche Lauf kann ein
+#   Release werden, und `release-version` rechnet die Nummer aus dem letzten Tag. Der Tag
+#   entsteht aber erst ein bis zwei Stunden später in `release-veroeffentlichen`. Liefen zwei
+#   Läufe nebeneinander, sähen beide denselben Tag und bauten dieselbe Nummer. Eine Gruppe nur
+#   an den Release-Jobs reichte nicht: Sie hält einen Job, nicht die Kette von der Rechnung bis
+#   zum Tag über drei Jobs. Deshalb die ganze Kette in einer Gruppe: Ein laufender Lauf wird nie
+#   abgebrochen, ein neuer wartet. Kommt ein dritter, ersetzt GitHub den noch wartenden zweiten
+#   (sichtbar als „cancelled“). Das ist hier in Ordnung: Der dritte Stand enthält die Commits
+#   des zweiten, rechnet sie mit und veröffentlicht sie; die Prüfjobs laufen für ihn auf
+#   demselben Code plus seiner Änderung. Der Preis: Prüfläufe auf `main` warten hinter einem
+#   laufenden Release.
+# - Tag (Notfallweg): je Tag eine eigene Gruppe. Ein Notfall-Release soll weder hinter einem
+#   Release-Lauf warten noch als wartender Lauf von einem Push auf `main` ersetzt werden. Die
+#   Nummer vergibt dort der Mensch; dass `main` sie nicht zugleich vergibt, sichert
+#   `release-veroeffentlichen` (Prüfung auf einen fremden Tag), und das Manifest schreiben beide
+#   nacheinander (Gruppe am Job).
+#
+# Der Gruppenname für `main` muss sich von `einsatzbuch-updater-manifest` (am Job
+# `release-veroeffentlichen`) unterscheiden, sonst erkennt GitHub einen Deadlock und bricht ab.
 concurrency:
-  group: einsatzbuch-${{ github.event.pull_request.number || (startsWith(github.ref, 'refs/tags/') && github.ref) || github.sha }}
+  group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'einsatzbuch-release-main' || format('einsatzbuch-{0}', github.event.pull_request.number || github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -263,13 +281,54 @@ jobs:
             ForEach-Object { "{0:N2} MB" -f ($_.Sum / 1MB) } |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
-  # Release-Fassung aus einem Tag `einsatzbuch-vX.Y.Z` (Runbook
-  # docs/runbooks/einsatzbuch-release.md). Hängt an allen drei Prüfjobs: ein Tag auf einem
-  # Stand, dessen Tests rot sind, wird nicht ausgeliefert. Nur `contents: read`; schreiben
-  # darf erst `release-veroeffentlichen`, und das erst, wenn beide Plattformen gebaut sind.
+  # Entscheidet, ob dieser Lauf ein Release wird, und mit welcher Version und welchem Tag. Die
+  # einzige Quelle dafür: `release-bauen` und `release-veroeffentlichen` lesen Version und Tag nur
+  # aus diesen Ausgaben, nie aus `GITHUB_REF_NAME`.
+  # - Push auf `main`: `scripts/einsatzbuch-version.mjs` rechnet aus der Historie (Regel im
+  #   Kopf des Skripts). `fetch-depth: 0` holt Historie und Tags.
+  # - Tag `einsatzbuch-v*` (Notfallweg): Der Tag ist die Version; eine andere Form als
+  #   `einsatzbuch-vX.Y.Z` lässt den Lauf hier scheitern.
+  # - PR: dieselbe Rechnung auf dem Merge-Stand des PRs, nur als Vorschau in der
+  #   Zusammenfassung des Laufs („Würde der Merge ein Release auslösen?“). Die Release-Jobs
+  #   laufen nur bei `push`.
+  # Läuft neben den Prüfjobs, nicht nach ihnen: Er hat keine Secrets und schreibt nichts.
+  release-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.rechne.outputs.release }}
+      version: ${{ steps.rechne.outputs.version }}
+      tag: ${{ steps.rechne.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: rechne
+        shell: bash
+        env:
+          MANUELLER_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$MANUELLER_TAG" ]; then
+            node scripts/einsatzbuch-version.mjs --tag "$MANUELLER_TAG"
+          else
+            node scripts/einsatzbuch-version.mjs HEAD
+          fi
+
+  # Release-Fassung, wenn `release-version` ein Release beschließt (Runbook
+  # docs/runbooks/einsatzbuch-release.md). Hängt an allen drei Prüfjobs: Ohne Statusfunktion im
+  # `if` gilt implizit `success()`, ein Stand mit roten Tests wird also nicht ausgeliefert. Nur
+  # `contents: read`; schreiben darf erst `release-veroeffentlichen`, und das erst, wenn beide
+  # Plattformen gebaut sind.
   release-bauen:
-    if: startsWith(github.ref, 'refs/tags/einsatzbuch-v')
-    needs: [oberflaeche, rust-kern, desktop]
+    if: github.event_name == 'push' && needs.release-version.outputs.release == 'true'
+    needs: [oberflaeche, rust-kern, desktop, release-version]
     permissions:
       contents: read
     strategy:
@@ -288,6 +347,9 @@ jobs:
       # Wird zur Compile-Zeit eingebaut (`option_env!` an `SUITE_VORGABE`,
       # `kern/src/anmeldung.rs`); der Rückfall ist dieselbe Vorgabe wie dort.
       EINSATZBUCH_SUITE_URL: ${{ vars.EINSATZBUCH_SUITE_URL || 'https://einsatzbuch.iuk-ue.de' }}
+      # Version und Tag aus `release-version`, beim Notfallweg aus dem Tag.
+      VERSION: ${{ needs.release-version.outputs.version }}
+      TAG: ${{ needs.release-version.outputs.tag }}
     steps:
       # `fetch-depth: 0` holt auch `origin/main` für den folgenden Schritt.
       - uses: actions/checkout@v4
@@ -296,21 +358,21 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       # Signiert und veröffentlicht wird nur, was schon auf `main` liegt (Review und CI der Suite
-      # durchlaufen hat). Ein Tag auf einem Seitenzweig bräche sonst erst nach dem Bau ab, oder
-      # gar nicht; und der private Schlüssel stünde einem ungeprüften Stand zur Verfügung. Der
-      # Schritt steht deshalb vor jedem Schritt mit Secrets; `release-veroeffentlichen` hängt per
-      # `needs` an diesem Job.
-      - name: Tag zeigt auf einen Commit auf main
+      # durchlaufen hat). Beim Push auf `main` gilt das von selbst; beim Notfallweg bräche ein Tag
+      # auf einem Seitenzweig sonst erst nach dem Bau ab, oder gar nicht, und der private
+      # Schlüssel stünde einem ungeprüften Stand zur Verfügung. Der Schritt steht deshalb vor jedem
+      # Schritt mit Secrets; `release-veroeffentlichen` hängt per `needs` an diesem Job.
+      - name: Stand liegt auf main
         shell: bash
         run: |
           set -euo pipefail
-          runbook='docs/runbooks/einsatzbuch-release.md (Abschnitt „Release taggen“)'
+          runbook='docs/runbooks/einsatzbuch-release.md (Abschnitt „Notfall-Release per Tag“)'
           if ! git rev-parse --verify --quiet origin/main >/dev/null; then
-            echo "::error::origin/main fehlt im Checkout – die Herkunft des Tags lässt sich nicht prüfen."
+            echo "::error::origin/main fehlt im Checkout – die Herkunft des Stands lässt sich nicht prüfen."
             exit 1
           fi
           if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::Der Tag $GITHUB_REF_NAME zeigt auf $GITHUB_SHA, und dieser Commit liegt nicht auf main. Nur einen Commit auf main taggen – siehe $runbook."
+            echo "::error::Der Stand $GITHUB_SHA ($GITHUB_REF_NAME) liegt nicht auf main. Nur einen Commit auf main taggen – siehe $runbook."
             exit 1
           fi
           echo "$GITHUB_SHA liegt auf main."
@@ -326,48 +388,26 @@ jobs:
             fi
           done
           exit "$fehler"
-      # Der Tag ist die Version, und dieselbe Nummer muss in allen drei Dateien stehen: Tauri
-      # schreibt die aus `tauri.conf.json` in Bundle und Dateinamen, der Updater vergleicht
-      # sie mit `latest.json`. Das Tag-Muster oben (`einsatzbuch-v*`) ist lockerer als X.Y.Z.
-      # Aus `Cargo.toml` zählt nur der Abschnitt `[package]`, nicht `[workspace.package]` oder
-      # eine Abhängigkeit. Node liegt auf jedem Läufer bei; die Prüfung braucht kein Paket.
-      - name: Tag und Version stimmen überein
+      # Die Version kommt nicht aus den Dateien der App, sondern aus `release-version`: Das Overlay
+      # `src-tauri/tauri.version.conf.json` setzt `version` für `tauri build` (zweites `--config`,
+      # nach dem Release-Overlay). Tauri nimmt die Nummer daraus für Bundle und Dateinamen, für
+      # die App selbst (`package_info().version`, mit der der Updater `latest.json` vergleicht) und
+      # für das Feld `version:` im trusted comment jeder `.sig`: Die CLI reicht die Overlays als
+      # `TAURI_CONFIG` an `generate_context!` weiter (gemessen am 26.09.2026 an einem Debug-Bundle
+      # mit CLI 2.11.5: `Info.plist`, Binär und `.sig` trugen die Overlay-Version, nicht die aus
+      # `tauri.conf.json`). `tauri.conf.json`, `package.json` und `Cargo.toml` behalten ihren
+      # Entwicklerstand; niemand pflegt dort eine Nummer. Die Form prüft `release-version`
+      # schon, hier noch einmal, weil der Wert in einer Datei landet.
+      - name: Version für den Bau festlegen
         shell: bash
         run: |
           set -euo pipefail
-          node - <<'JS'
-          const fs = require("node:fs");
-          const runbook = "docs/runbooks/einsatzbuch-release.md";
-          const tag = process.env.GITHUB_REF_NAME ?? "";
-          const treffer = /^einsatzbuch-v(\d+\.\d+\.\d+)$/.exec(tag);
-          if (!treffer) {
-            console.log(`::error::Der Tag „${tag}“ hat nicht die Form einsatzbuch-vX.Y.Z – siehe ${runbook}.`);
-            process.exit(1);
-          }
-          const soll = treffer[1];
-          const app = "apps/einsatzbuch";
-          const zeilen = fs.readFileSync(`${app}/src-tauri/Cargo.toml`, "utf8").split(/\r?\n/);
-          let cargo;
-          for (let i = zeilen.findIndex((z) => z.trim() === "[package]") + 1; i > 0 && i < zeilen.length; i++) {
-            if (zeilen[i].trim().startsWith("[")) break;
-            const m = /^version\s*=\s*"([^"]*)"/.exec(zeilen[i].trim());
-            if (m) { cargo = m[1]; break; }
-          }
-          const ist = {
-            [`${app}/src-tauri/tauri.conf.json`]: JSON.parse(fs.readFileSync(`${app}/src-tauri/tauri.conf.json`, "utf8")).version,
-            [`${app}/package.json`]: JSON.parse(fs.readFileSync(`${app}/package.json`, "utf8")).version,
-            [`${app}/src-tauri/Cargo.toml`]: cargo,
-          };
-          let fehler = false;
-          for (const [datei, version] of Object.entries(ist)) {
-            if (version !== soll) {
-              console.log(`::error file=${datei}::Version ${version ?? "(keine)"} passt nicht zum Tag ${tag} (erwartet ${soll}) – siehe ${runbook}.`);
-              fehler = true;
-            }
-          }
-          if (fehler) process.exit(1);
-          console.log(`Version ${soll} steht in allen drei Dateien.`);
-          JS
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$TAG" != "einsatzbuch-v$VERSION" ]; then
+            echo "::error::Version [$VERSION] oder Tag [$TAG] aus release-version hat nicht die Form X.Y.Z bzw. einsatzbuch-vX.Y.Z."
+            exit 1
+          fi
+          printf '{\n  "version": "%s"\n}\n' "$VERSION" > apps/einsatzbuch/src-tauri/tauri.version.conf.json
+          cat apps/einsatzbuch/src-tauri/tauri.version.conf.json
       # Derselbe Riegel wie `build.rs` (`build_pruefung.rs`, Kennung `PLATZHALTER`), nur früher
       # und mit Anmerkung am Lauf: eine App mit Platzhalter nähme nie ein Update an. Die genaue
       # Formprüfung des Minisign-Schlüssels macht `build.rs`; hier reicht, dass er einer ist.
@@ -452,8 +492,10 @@ jobs:
       # (`bundle.macOS.signingIdentity: "-"`). Ohne sie trägt nur das Binär die Signatur des
       # Linkers, das Bundle ist nicht versiegelt (`codesign --verify --deep --strict` scheitert),
       # und macOS nennt eine heruntergeladene App auf Apple Silicon „beschädigt“. Die CLI legt das Overlay per JSON Merge Patch
-      # über `tauri.conf.json` (`tauri build --help`, Option `--config`). Der Pfad gilt relativ
-      # zu `apps/einsatzbuch`, wo `pnpm --filter` den Befehl ausführt.
+      # über `tauri.conf.json` (`tauri build --help`, Option `--config`), mehrere in der
+      # angegebenen Reihenfolge; das zweite setzt die Version (Schritt „Version für den Bau
+      # festlegen“). Die Pfade gelten relativ zu `apps/einsatzbuch`, wo `pnpm --filter` den Befehl
+      # ausführt.
       # `beforeBuildCommand` (`pnpm build`, das Frontend) läuft in diesem Schritt mit, also mit
       # dem privaten Schlüssel in der Umgebung (siehe oben bei den Secrets).
       # Mit dem Schlüssel aus der Umgebung signiert Tauri das `.app.tar.gz` (macOS) und den
@@ -468,22 +510,24 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --target universal-apple-darwin --bundles app,dmg -- --locked
+        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --config src-tauri/tauri.version.conf.json --target universal-apple-darwin --bundles app,dmg -- --locked
       - name: tauri build (Windows)
         if: runner.os == 'Windows'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --bundles nsis -- --locked
+        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --config src-tauri/tauri.version.conf.json --bundles nsis -- --locked
       # Genau die erwarteten Dateien, flach in einen Ordner: jede fehlende wird benannt, statt
-      # dass ein Glob still weniger findet. Namen nach tauri-bundler 2.9 (`dmg/mod.rs`:
-      # `<Produkt>_<Version>_universal.dmg`, `nsis/mod.rs`: `<Produkt>_<Version>_x64-setup.exe`,
-      # `updater_bundle.rs`: `<Produkt>.app.tar.gz`); `.sig` hängt die CLI an.
+      # dass ein Glob still weniger findet. Weil DMG und Installer die Version im Namen tragen,
+      # fällt hier auch auf, wenn das Versions-Overlay nicht gegriffen hat. Namen nach
+      # tauri-bundler 2.9 (`dmg/mod.rs`: `<Produkt>_<Version>_universal.dmg`, `nsis/mod.rs`:
+      # `<Produkt>_<Version>_x64-setup.exe`, `updater_bundle.rs`: `<Produkt>.app.tar.gz`); `.sig`
+      # hängt die CLI an.
       - name: Pakete einsammeln
         shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          version="$VERSION"
           if [ "$RUNNER_OS" = "macOS" ]; then
             bundle="apps/einsatzbuch/src-tauri/target/universal-apple-darwin/release/bundle"
             dateien=(
@@ -528,28 +572,37 @@ jobs:
   # Versions-Release mit allen Dateien, dann prüfen, dass sie dort unter genau diesen Namen
   # liegen, erst dann `latest.json` am Dauer-Release ersetzen — sonst zeigte der Updater aller
   # installierten Apps auf fehlende oder unbrauchbare Dateien.
+  #
+  # Hier, und erst hier, entsteht beim Push auf `main` der Tag `einsatzbuch-vX.Y.Z`: `gh release
+  # create --target` legt ihn am gebauten Commit an. Ein Tag, den dieser Job mit `GITHUB_TOKEN`
+  # setzt, stößt keinen neuen Workflow-Lauf an; deshalb bauen und veröffentlichen wir im Lauf
+  # des Pushes selbst.
   release-veroeffentlichen:
-    if: startsWith(github.ref, 'refs/tags/einsatzbuch-v')
-    needs: release-bauen
+    if: github.event_name == 'push' && needs.release-version.outputs.release == 'true'
+    needs: [release-version, release-bauen]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
-    # Eine feste Gruppe über alle Tags: zwei zugleich gepushte Tags schreiben das Manifest
-    # nacheinander, nie verschränkt. Kommt der ältere Tag als zweiter an, bricht er an der
-    # Sperre gegen ein älteres Manifest ab (rot, gewollt). GitHub hält je Gruppe nur EINEN
-    # wartenden Lauf; ein dritter gleichzeitiger Tag bricht den wartenden zweiten ab (sichtbar
-    # als „cancelled“) — dessen Veröffentlichung dann per „Re-run“ nachholen.
+    # Eine feste Gruppe über alle Läufe, die veröffentlichen (Push auf `main` und Notfall-Tags):
+    # Zwei schreiben das Manifest nacheinander, nie verschränkt. Kommt die ältere Version als
+    # zweite an, bricht sie an der Sperre gegen ein älteres Manifest ab (rot, gewollt). GitHub
+    # hält je Gruppe nur EINEN wartenden Lauf; ein dritter gleichzeitiger bricht den wartenden
+    # zweiten ab (sichtbar als „cancelled“) — dessen Veröffentlichung dann per „Re-run failed
+    # jobs“ nachholen. Läufe auf `main` erreichen diesen Job ohnehin nur nacheinander (Gruppe
+    # `einsatzbuch-release-main` des Workflows); diese hier ist für Notfall-Tags daneben.
     concurrency:
       group: einsatzbuch-updater-manifest
       cancel-in-progress: false
     # `GH_TOKEN` steht nur an den Schritten, die `gh` aufrufen.
     env:
       GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.release-version.outputs.version }}
+      TAG: ${{ needs.release-version.outputs.tag }}
     steps:
       # Nur für `scripts/einsatzbuch-signaturen-pruefen.mjs`, `scripts/einsatzbuch-updater-json.mjs`
-      # und `tauri.conf.json`; die Skripte haben keine Abhängigkeiten, deshalb weder LFS noch
-      # `pnpm install`.
+      # und `tauri.conf.json`, und für `git ls-remote` beim Tag; die Skripte haben keine
+      # Abhängigkeiten, deshalb weder LFS noch `pnpm install`.
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -565,24 +618,26 @@ jobs:
       # `tauri build` nur, und jede installierte App lehnte das Update still ab. Deshalb hier jede
       # `.sig` gegen den Schlüssel aus dem getaggten Stand prüfen, bevor irgendetwas
       # veröffentlicht wird (auch das Versions-Release). Das Skript prüft wie der Updater
-      # (Minisign, vorgehasht `ED` und alt `Ed`) und nennt bei einem Fehler das Runbook.
+      # (Minisign, vorgehasht `ED` und alt `Ed`) und nennt bei einem Fehler das Runbook. Mit
+      # `--version` prüft es auch die signierte Version gegen die, die `latest.json` gleich nennt:
+      # Weichen sie ab, lehnt der Updater ab.
       - name: Signaturen passen zum Updater-Schlüssel
         shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#einsatzbuch-v}"
           node scripts/einsatzbuch-signaturen-pruefen.mjs \
             --config apps/einsatzbuch/src-tauri/tauri.conf.json \
+            --version "$VERSION" \
             auslieferung/Einsatzbuch.app.tar.gz \
-            "auslieferung/Einsatzbuch_${version}_x64-setup.exe"
+            "auslieferung/Einsatzbuch_${VERSION}_x64-setup.exe"
       - name: latest.json bauen
         shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          version="$VERSION"
           node scripts/einsatzbuch-updater-json.mjs \
             --version "$version" \
-            --tag "$GITHUB_REF_NAME" \
+            --tag "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --notes "Einsatzbuch $version" \
             --mac-archiv auslieferung/Einsatzbuch.app.tar.gz \
@@ -591,40 +646,102 @@ jobs:
             --win-sig "auslieferung/Einsatzbuch_${version}_x64-setup.exe.sig" \
             > auslieferung/latest.json
           cat auslieferung/latest.json
-      # `--latest=false`: „Latest“ bleibt das Release der Suite. `--verify-tag`: das Release
-      # legt nie selbst einen Tag an. Ein wiederholter Lauf findet das Release schon vor und
-      # ersetzt nur die Dateien.
+      # `--latest=false`: „Latest“ bleibt das Release der Suite. Ein wiederholter Lauf findet das
+      # Release schon vor und ersetzt nur die Dateien.
+      #
+      # DER TAG. Gibt es ihn schon (Notfallweg, oder ein wiederholter Lauf), muss er auf genau den
+      # gebauten Commit zeigen; dann `--verify-tag`, damit `gh` nie still einen anlegt. Gibt es ihn
+      # nicht, legt `--target "$GITHUB_SHA"` ihn am gebauten Commit an. Zeigt er woanders hin,
+      # bricht der Schritt ab: `gh release create` ignorierte `--target` für einen bestehenden Tag,
+      # und das Release hinge still am falschen Stand. Ebenso bricht er ab, wenn es schon eine
+      # HÖHERE Version gibt: Das ist ein älterer Lauf, per „Re-run failed jobs“ wiederholt, nachdem
+      # ein neuerer schon veröffentlicht hat (`release-version` läuft dabei nicht neu, seine Nummer
+      # ist veraltet), oder ein Notfall-Tag mit zu kleiner Nummer. Ohne diese Sperre entstünden Tag
+      # und signiertes Release, und erst die Sperre am Manifest hielte den Lauf auf.
+      # Die Abfrage unterscheidet „kein Tag“ (leere Ausgabe) von „Abfrage gescheitert“
+      # (Exit-Code ≠ 0), sonst gälte ein Netzfehler als „kein Tag“. `^{}` löst einen annotierten Tag
+      # auf seinen Commit auf. Nach dem Anlegen wird noch einmal gelesen (mit kurzer Wiederholung,
+      # falls der neue Tag nicht sofort sichtbar ist): Wer zwischen Abfrage und Anlegen einen Tag
+      # pusht, fällt dort auf, bevor `latest.json` ersetzt wird. Das Repository ist öffentlich,
+      # `git ls-remote` braucht deshalb kein Token (Checkout mit `persist-credentials: false`).
       - name: Release einsatzbuch-vX.Y.Z anlegen
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="$GITHUB_REF_NAME"
-          version="${tag#einsatzbuch-v}"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag besteht schon – Dateien werden ersetzt."
-            gh release upload "$tag" auslieferung/* --clobber
+          # Einfache Anführungszeichen, weil der Text typografische Anführungszeichen trägt.
+          runbook='docs/runbooks/einsatzbuch-release.md (Abschnitt „Scheitert der Lauf“)'
+          # Setzt `tags` auf Zeilen „<Tag> <Commit>“ aller Tags `einsatzbuch-v*` von origin,
+          # annotierte aufgelöst; bricht den Schritt mit der Meldung aus `$1` ab, wenn origin nicht
+          # antwortet. Kein `$(…)` um den Aufruf: `exit` soll den Schritt beenden, keine Subshell.
+          lies_tags() {
+            local roh
+            if ! roh="$(git ls-remote --tags origin 'refs/tags/einsatzbuch-v*')"; then
+              echo "::error::Die Tags von origin ließen sich nicht lesen – $1"
+              exit 1
+            fi
+            tags="$(awk '{ n = $2; sub(/^refs\/tags\//, "", n); if (sub(/\^\{\}$/, "", n)) g[n] = $1; else r[n] = $1 }
+              END { for (n in r) print n, (n in g ? g[n] : r[n]) }' <<< "$roh")"
+          }
+          commit_von() { awk -v t="$1" '$1 == t { print $2 }' <<< "$tags"; }
+          lies_tags "ob $TAG schon besteht, ist offen; nichts wird veröffentlicht."
+          bisher="$(commit_von "$TAG")"
+          if [ -n "$bisher" ] && [ "$bisher" != "$GITHUB_SHA" ]; then
+            echo "::error::Der Tag $TAG besteht schon und zeigt auf $bisher, gebaut wurde $GITHUB_SHA. Nichts wird veröffentlicht – siehe $runbook."
+            exit 1
+          fi
+          hoeher=""
+          while read -r name _; do
+            [[ "$name" =~ ^einsatzbuch-v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            v="${BASH_REMATCH[1]}"
+            if [ "$v" != "$VERSION" ] && [ "$(printf '%s\n%s\n' "$v" "$VERSION" | sort -V | tail -n 1)" = "$v" ]; then
+              hoeher="$hoeher $name"
+            fi
+          done <<< "$tags"
+          if [ -n "$hoeher" ]; then
+            echo "::error::Es gibt schon eine höhere Version als $VERSION:$hoeher. Nichts wird veröffentlicht – siehe $runbook."
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG besteht schon – Dateien werden ersetzt."
+            gh release upload "$TAG" auslieferung/* --clobber
           else
-            notizen="Desktop-App des Einsatzbuchs, Version $version. Windows: Einsatzbuch_${version}_x64-setup.exe, macOS: Einsatzbuch_${version}_universal.dmg. Installation und Updates: docs/runbooks/einsatzbuch-release.md."
-            gh release create "$tag" auslieferung/* \
-              --verify-tag \
+            notizen="Desktop-App des Einsatzbuchs, Version $VERSION. Windows: Einsatzbuch_${VERSION}_x64-setup.exe, macOS: Einsatzbuch_${VERSION}_universal.dmg. Installation und Updates: docs/runbooks/einsatzbuch-release.md."
+            if [ -n "$bisher" ]; then
+              ziel=(--verify-tag)
+            else
+              echo "Tag $TAG fehlt – er entsteht mit dem Release an $GITHUB_SHA."
+              ziel=(--target "$GITHUB_SHA")
+            fi
+            gh release create "$TAG" auslieferung/* \
+              "${ziel[@]}" \
               --latest=false \
-              --title "Einsatzbuch $version" \
+              --title "Einsatzbuch $VERSION" \
               --notes "$notizen"
+          fi
+          for versuch in 1 2 3; do
+            lies_tags "Release $TAG ist angelegt, der Tag aber nicht nachgeprüft; latest.json wird nicht ersetzt – siehe $runbook."
+            danach="$(commit_von "$TAG")"
+            if [ "$danach" = "$GITHUB_SHA" ]; then break; fi
+            if [ "$versuch" -lt 3 ]; then sleep 5; fi
+          done
+          if [ "$danach" != "$GITHUB_SHA" ]; then
+            echo "::error::Nach dem Anlegen zeigt $TAG auf [${danach}], gebaut wurde $GITHUB_SHA – latest.json wird nicht ersetzt – siehe $runbook."
+            exit 1
           fi
           # GitHub benennt Dateien mit Sonderzeichen beim Hochladen um; dann liefen die URLs
           # in `latest.json` ins Leere. Deshalb jede gebaute Datei unter ihrem Namen suchen.
           fehlend="$(comm -23 \
             <(find auslieferung -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort) \
-            <(gh release view "$tag" --json assets --jq '.assets[].name' | LC_ALL=C sort))"
+            <(gh release view "$TAG" --json assets --jq '.assets[].name' | LC_ALL=C sort))"
           if [ -n "$fehlend" ]; then
-            echo "::error::Am Release $tag fehlen Dateien unter ihrem gebauten Namen: $fehlend – latest.json wird nicht veröffentlicht."
+            echo "::error::Am Release $TAG fehlen Dateien unter ihrem gebauten Namen: $fehlend – latest.json wird nicht veröffentlicht."
             exit 1
           fi
       # Das Dauer-Release trägt nur `latest.json`, die Adresse steht fest in `tauri.conf.json`
       # (`plugins.updater.endpoints`). Beim ersten Lauf wird es angelegt, danach nur die Datei
-      # ersetzt. Ein Lauf eines älteren Tags (Wiederholung, Tags in falscher Reihenfolge)
+      # ersetzt. Ein Lauf einer älteren Version (Wiederholung, Notfall-Tag nach einem neueren Release)
       # setzt das Manifest nicht zurück; das bleibt eine bewusste Handlung nach Runbook.
       - name: latest.json am Dauer-Release einsatzbuch-updater ersetzen
         shell: bash
@@ -632,7 +749,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          version="$VERSION"
           if gh release view einsatzbuch-updater >/dev/null 2>&1; then
             # Ohne `latest.json` (erster Lauf nach dem Anlegen) gibt es nichts zu vergleichen.
             # Liegt es da und lässt sich nicht lesen, greift die Sperre in diesem Lauf nicht —

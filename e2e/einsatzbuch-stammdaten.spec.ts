@@ -85,8 +85,9 @@ test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal
     name: "personal.csv", mimeType: "text/csv",
     buffer: Buffer.from(`name;quali;ov\n${name};SanH;Uelzen\nOhne Komma;SanH;Uelzen\n`, "utf8"),
   });
-  await expect(page.getByText("1 neu")).toBeVisible();
-  await expect(page.getByText("1 mit Fehler")).toBeVisible();
+  // Die ganze Zählzeile, exakt: `getByText("1 neu")` träfe als Teilstring auch den Funkrufnamen oben,
+  // sobald die zufällige Kennung auf 1 endet („… 99-83-45701 neu“) — gemessen in der CI von #304.
+  await expect(page.getByText("1 neu · 0 geändert · 0 unverändert · 1 mit Fehler", { exact: true })).toBeVisible();
   const vorschau = page.getByRole("table", { name: "Vorschau des Imports" });
   await expect(vorschau.getByText("Name bitte als „Nachname, Vorname“")).toBeVisible();
   await page.getByRole("button", { name: "Übernehmen" }).click();

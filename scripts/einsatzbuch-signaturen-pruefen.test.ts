@@ -79,14 +79,13 @@ describe("pruefeSignatur — Ausgaben von tauri signer", () => {
  * aber an (`allow_legacy = true`). Hier mit einem frischen Ed25519-Paar nachgebaut.
  */
 describe("pruefeSignatur — altes Format Ed", () => {
-  function altesPaar(daten: Buffer) {
+  function altesPaar(daten: Buffer, kommentar = "timestamp:1790374635\tfile:alt.bin") {
     const { publicKey, privateKey } = generateKeyPairSync("ed25519");
     const roh = Buffer.from(publicKey.export({ format: "jwk" }).x as string, "base64url");
     const id = randomBytes(8);
     const pub = Buffer.concat([Buffer.from("Ed", "latin1"), id, roh]);
     const pubkey = kodiere(["untrusted comment: minisign public key", pub.toString("base64"), ""]);
     const sig = sign(null, daten, privateKey);
-    const kommentar = "timestamp:1790374635\tfile:alt.bin";
     const global = sign(null, Buffer.concat([sig, Buffer.from(kommentar)]), privateKey);
     const signatur = kodiere([
       "untrusted comment: signature from minisign secret key",
@@ -102,6 +101,20 @@ describe("pruefeSignatur — altes Format Ed", () => {
     const { pubkey, signatur } = altesPaar(DATEN);
     expect(pruefeSignatur({ pubkey, signatur, daten: DATEN })).toBeNull();
     expect(pruefeSignatur({ pubkey, signatur, daten: Buffer.from("anders") })).toMatch(/passt nicht zur Datei/);
+  });
+
+  // Der Bundler schreibt die Version in den trusted comment (gemessen, CLI 2.11.5); der Updater
+  // lehnt ab, wenn sie nicht zur Version in `latest.json` passt.
+  it("signierte Version gegen --version", () => {
+    const { pubkey, signatur } = altesPaar(DATEN, "timestamp:1790403543\tfile:Einsatzbuch.app.tar.gz\tversion:1.2.3");
+    expect(pruefeSignatur({ pubkey, signatur, daten: DATEN, version: "1.2.3" })).toBeNull();
+    expect(pruefeSignatur({ pubkey, signatur, daten: DATEN })).toBeNull();
+    expect(pruefeSignatur({ pubkey, signatur, daten: DATEN, version: "1.2.4" })).toBe(
+      "Signiert für Version 1.2.3, latest.json nennt aber 1.2.4: Der Updater lehnte das Update ab.",
+    );
+    // Ohne Feld (so signiert `tauri signer sign`) nimmt der Updater an, also auch die Prüfung.
+    const ohne = altesPaar(DATEN);
+    expect(pruefeSignatur({ pubkey: ohne.pubkey, signatur: ohne.signatur, daten: DATEN, version: "1.2.4" })).toBeNull();
   });
 });
 
