@@ -673,19 +673,19 @@ jobs:
           # Einfache Anführungszeichen, weil der Text typografische Anführungszeichen trägt.
           runbook='docs/runbooks/einsatzbuch-release.md (Abschnitt „Scheitert der Lauf“)'
           # Setzt `tags` auf Zeilen „<Tag> <Commit>“ aller Tags `einsatzbuch-v*` von origin,
-          # annotierte aufgelöst; bricht den Schritt ab, wenn origin nicht antwortet. Kein `$(…)`
-          # um den Aufruf: `exit` soll den Schritt beenden, nicht eine Subshell.
+          # annotierte aufgelöst; bricht den Schritt mit der Meldung aus `$1` ab, wenn origin nicht
+          # antwortet. Kein `$(…)` um den Aufruf: `exit` soll den Schritt beenden, keine Subshell.
           lies_tags() {
             local roh
             if ! roh="$(git ls-remote --tags origin 'refs/tags/einsatzbuch-v*')"; then
-              echo "::error::Die Tags von origin ließen sich nicht lesen – ob $TAG schon besteht, ist offen; nichts wird veröffentlicht."
+              echo "::error::Die Tags von origin ließen sich nicht lesen – $1"
               exit 1
             fi
             tags="$(awk '{ n = $2; sub(/^refs\/tags\//, "", n); if (sub(/\^\{\}$/, "", n)) g[n] = $1; else r[n] = $1 }
               END { for (n in r) print n, (n in g ? g[n] : r[n]) }' <<< "$roh")"
           }
           commit_von() { awk -v t="$1" '$1 == t { print $2 }' <<< "$tags"; }
-          lies_tags
+          lies_tags "ob $TAG schon besteht, ist offen; nichts wird veröffentlicht."
           bisher="$(commit_von "$TAG")"
           if [ -n "$bisher" ] && [ "$bisher" != "$GITHUB_SHA" ]; then
             echo "::error::Der Tag $TAG besteht schon und zeigt auf $bisher, gebaut wurde $GITHUB_SHA. Nichts wird veröffentlicht – siehe $runbook."
@@ -720,11 +720,11 @@ jobs:
               --title "Einsatzbuch $VERSION" \
               --notes "$notizen"
           fi
-          for _ in 1 2 3; do
-            lies_tags
+          for versuch in 1 2 3; do
+            lies_tags "Release $TAG ist angelegt, der Tag aber nicht nachgeprüft; latest.json wird nicht ersetzt – siehe $runbook."
             danach="$(commit_von "$TAG")"
-            [ "$danach" = "$GITHUB_SHA" ] && break
-            sleep 5
+            if [ "$danach" = "$GITHUB_SHA" ]; then break; fi
+            if [ "$versuch" -lt 3 ]; then sleep 5; fi
           done
           if [ "$danach" != "$GITHUB_SHA" ]; then
             echo "::error::Nach dem Anlegen zeigt $TAG auf [${danach}], gebaut wurde $GITHUB_SHA – latest.json wird nicht ersetzt – siehe $runbook."

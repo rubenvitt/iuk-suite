@@ -222,8 +222,9 @@ export function berechneEinsatzbuchVersion(cwd, ziel = "HEAD") {
       .join(", ");
     throw new Error(
       `Die errechnete Version ${version} ist schon vergeben oder überholt: ${beschrieben} liegt nicht in der ` +
-        `Historie von ${zielCommit.slice(0, 7)}. Entweder wird ein älterer Lauf wiederholt, nachdem ein ` +
-        `neuerer schon veröffentlicht hat, oder der Tag liegt abseits von main und gehört gelöscht. ` +
+        `Historie von ${zielCommit.slice(0, 7)}. Entweder hat ein neuerer Stand schon veröffentlicht (dieser ` +
+        `Lauf ist eine Wiederholung oder lief nach einem Notfall-Tag an), oder der Tag liegt abseits von main ` +
+        `und gehört gelöscht. ` +
         `Siehe docs/runbooks/einsatzbuch-release.md, Abschnitt „Scheitert der Lauf“.`,
     );
   }

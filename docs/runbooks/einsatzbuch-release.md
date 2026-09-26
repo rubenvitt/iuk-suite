@@ -33,8 +33,9 @@ Release-Lauf deshalb eng begleiten und dieses Runbook danach an den gemessenen S
 
 **Releases laufen automatisch.** Jeder Push auf `main`, auf den der Pfadfilter des Workflows
 greift (App, geteilter Kern, Lockfiles, der Workflow selbst), startet den Workflow `einsatzbuch`.
-Die Prüfjobs `oberflaeche`, `rust-kern` und `desktop` laufen wie auf jedem PR, daneben entscheidet `release-version`, ob dieser Stand ein Release wird (Abschnitt „Wann ein Merge ein
-Release auslöst“). Nur wenn ja und alle drei Prüfjobs grün sind, baut `release-bauen` die
+Die Prüfjobs `oberflaeche`, `rust-kern` und `desktop` laufen wie auf jedem PR, daneben entscheidet
+`release-version`, ob dieser Stand ein Release wird (Abschnitt „Wann ein Merge ein Release
+auslöst“). Nur wenn ja und alle drei Prüfjobs grün sind, baut `release-bauen` die
 Release-Fassung:
 
 - **macOS:** ein universelles Bundle für Apple Silicon und Intel. Die DMG ist für die Erstinstallation
@@ -302,7 +303,7 @@ Version aus dem Tag.
    Releases, und die Suite legt bei jedem Merge eines an; deshalb die Tags selbst lesen:
 
    ```
-   git ls-remote --tags origin 'refs/tags/einsatzbuch-v*' | grep -v '\^{}' | sort -t/ -k3 -V | tail -n 1
+   git ls-remote --tags origin 'refs/tags/einsatzbuch-v*' | grep -E 'einsatzbuch-v[0-9]+\.[0-9]+\.[0-9]+$' | sort -t/ -k3 -V | tail -n 1
    ```
 
    Der Updater installiert nur eine höhere Version als die installierte, und der Workflow lehnt eine
@@ -341,10 +342,14 @@ einsatzbuch-vX.Y.Z“); dann fehlt, was der ursprüngliche Lauf nicht mehr gesch
 ursprünglichen Lauf per „Re-run failed jobs“ fertig machen. Die einzige Ausnahme steht unter „Wenn
 die Schlüssel nicht zusammenpassen“: Dort ist noch nichts veröffentlicht und nichts getaggt.
 
-Ist der gescheiterte Lauf nicht mehr der neueste auf `main`, hat ein späterer Lauf seine Commits
-schon mitgerechnet. Hat der spätere veröffentlicht, lehnt der alte bei einer Wiederholung ab (unten,
-„schon vergeben oder überholt“ bzw. „höhere Version“). Hat keiner veröffentlicht, den **neuesten**
-Lauf auf `main` wiederholen, nicht den alten.
+Ist der gescheiterte Lauf nicht mehr der neueste auf `main`:
+
+- Trägt er schon sein Release (Tag und Versions-Release bestehen) und gibt es keinen höheren Tag,
+  ihn per „Re-run failed jobs“ fertig machen. Ein späterer Lauf ohne auslösenden Commit hat nichts
+  veröffentlicht und holt das nicht nach.
+- Hat er noch nichts angelegt, den **neuesten** Lauf auf `main` wiederholen: Er rechnet die Commits
+  des alten mit. Hat ein späterer schon veröffentlicht, lehnt der alte eine Wiederholung ohnehin ab
+  (unten, „schon vergeben oder überholt“ bzw. „höhere Version“).
 
 Sind die Artefakte abgelaufen, die Korrektur mit der nächsten Nummer ausliefern. Braucht es eine
 Änderung am Code, den Tag nicht verschieben: Die Korrektur als `fix(einsatzbuch): …` mergen, sie
@@ -363,8 +368,15 @@ Meldungen und was sie heißen:
   schon eine höhere Version als X.Y.Z“** (`release-veroeffentlichen`): Zwischen Rechnung und
   Veröffentlichen ist ein Tag gleicher oder höherer Nummer entstanden (meist ein Notfall-Tag), oder
   ein älterer Lauf wurde per „Re-run failed jobs“ wiederholt, nachdem ein neuerer veröffentlicht
-  hat. Nichts wurde veröffentlicht und nichts getaggt. Stammt der störende Tag von einem neueren
-  Release, ist nichts zu tun; sonst wie oben.
+  hat. Nichts wurde veröffentlicht und nichts getaggt. Den Lauf per „Re-run all jobs“ wiederholen,
+  das ist hier gefahrlos: Er rechnet von dem neuen Tag aus neu und liefert, was seither fehlt, oder
+  er scheitert an „schon vergeben oder überholt“, und dann ist wirklich nichts zu tun.
+- **„Release einsatzbuch-vX.Y.Z ist angelegt, der Tag aber nicht nachgeprüft“** oder **„Nach dem
+  Anlegen zeigt einsatzbuch-vX.Y.Z auf …“** (`release-veroeffentlichen`): Das Versions-Release
+  besteht, `latest.json` ist nicht ersetzt. Zeigt der Tag auf den gebauten Stand
+  (`git ls-remote --tags origin refs/tags/einsatzbuch-vX.Y.Z`), den Lauf per „Re-run failed jobs“
+  fertig machen. Zeigt er woanders hin, hat jemand in der Lücke einen Tag gepusht: Release und Tag
+  von Hand klären, bevor irgendetwas wiederholt wird.
 - **„latest.json am Dauer-Release nennt schon …, neuer als …“**: Eine ältere Version lief nach einer
   neueren. Das Manifest bleibt dann absichtlich, wie es ist.
 
