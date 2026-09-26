@@ -32,8 +32,8 @@ Release-Lauf deshalb eng begleiten und dieses Runbook danach an den gemessenen S
 ## Überblick
 
 **Releases laufen automatisch.** Jeder Push auf `main`, auf den der Pfadfilter des Workflows
-greift (App, geteilter Kern, Lockfiles, der Workflow selbst), startet den Workflow `einsatzbuch`. Die Prüfjobs `oberflaeche`, `rust-kern` und `desktop` laufen wie auf jedem PR, daneben
-entscheidet `release-version`, ob dieser Stand ein Release wird (Abschnitt „Wann ein Merge ein
+greift (App, geteilter Kern, Lockfiles, der Workflow selbst), startet den Workflow `einsatzbuch`.
+Die Prüfjobs `oberflaeche`, `rust-kern` und `desktop` laufen wie auf jedem PR, daneben entscheidet `release-version`, ob dieser Stand ein Release wird (Abschnitt „Wann ein Merge ein
 Release auslöst“). Nur wenn ja und alle drei Prüfjobs grün sind, baut `release-bauen` die
 Release-Fassung:
 
@@ -137,8 +137,10 @@ Deshalb prüft `release-veroeffentlichen` im Schritt „Signaturen passen zum Up
 Passt eine nicht, scheitert der Lauf mit „Signiert mit Schlüssel …, tauri.conf.json nennt aber …“
 und dem Verweis auf diesen Abschnitt; es entsteht weder das Versions-Release noch ein neues
 `latest.json`. Abhilfe: Das Secret `TAURI_SIGNING_PRIVATE_KEY` (samt Kennwort) auf den privaten
-Schlüssel setzen, der zum öffentlichen in `tauri.conf.json` gehört, und den Lauf per „Re-run all
-jobs“ wiederholen. Hier ausnahmsweise alle Jobs: Die Pakete müssen neu signiert werden, und
+Schlüssel setzen, der zum öffentlichen in `tauri.conf.json` gehört, und den **neuesten** Lauf auf
+`main` (beim Notfallweg den Lauf des Tags) per „Re-run all jobs“ wiederholen. Ein älterer Lauf
+rechnete auf seinem alten Stand neu; der neueste enthält alle Commits seit dem letzten Tag. Hier
+ausnahmsweise alle Jobs: Die Pakete müssen neu signiert werden, und
 veröffentlicht ist noch nichts (zur Regel „nur Re-run failed jobs“ siehe „Scheitert der Lauf“). Den
 öffentlichen Schlüssel nur ändern, wenn noch keine App ausgeliefert ist; sonst gilt der Abschnitt
 zum Verlust unten.
@@ -217,7 +219,10 @@ gerechnet:
 
 1. **Basis** ist der höchste Tag `einsatzbuch-vX.Y.Z`, der vom gepushten Stand aus erreichbar ist.
 2. **Gezählt** werden alle Commits seit der Basis, die keine Merge-Commits sind und etwas unter
-   `apps/einsatzbuch/` oder `src/app/m/einsatzbuch/_lib/kern/` ändern.
+   `apps/einsatzbuch/`, `src/app/m/einsatzbuch/_lib/kern/` oder an `src/core/theme/tokens.ts` (die
+   Farben der Suite, die ins Bundle der App gehen) ändern. Das Lockfile im Wurzelverzeichnis
+   (`pnpm-lock.yaml`) zählt nicht, auch wenn eine Abhängigkeit darin ins Bundle geht: Ein
+   Abhängigkeitsupdate allein löst kein Release aus, es geht mit dem nächsten hinaus.
 3. **Ein Release entsteht**, wenn mindestens einer davon eine Kopfzeile vom Typ `feat`, `fix` oder
    `perf` hat (Bereich beliebig, etwa `fix(einsatzbuch): …`) oder brechend ist (`feat!:`, `fix!:`,
    jeder andere Typ mit `!`, oder eine Fußzeile `BREAKING CHANGE:`). `perf` zählt mit, weil eine
@@ -293,9 +298,16 @@ Für den Fall, dass ein Stand sofort hinaus muss, ohne dass ein Merge ein Releas
 `revert`), oder dass der automatische Weg klemmt. Der Tag hat dann Vorrang: Gebaut wird genau die
 Version aus dem Tag.
 
-1. Die Nummer wählen: höher als jede schon ausgelieferte (`gh release list | grep einsatzbuch-v`).
-   Der Updater installiert nur eine höhere Version als die installierte. Die Dateien der App
-   bleiben unverändert, kein Versions-PR.
+1. Die Nummer wählen: höher als jede schon vergebene. `gh release list` zeigt nur die letzten 30
+   Releases, und die Suite legt bei jedem Merge eines an; deshalb die Tags selbst lesen:
+
+   ```
+   git ls-remote --tags origin 'refs/tags/einsatzbuch-v*' | grep -v '\^{}' | sort -t/ -k3 -V | tail -n 1
+   ```
+
+   Der Updater installiert nur eine höhere Version als die installierte, und der Workflow lehnt eine
+   Nummer ab, über der schon ein Tag liegt. Die Dateien der App bleiben unverändert, kein
+   Versions-PR.
 2. Einen Commit auf `main` taggen:
 
    ```
@@ -306,7 +318,10 @@ Version aus dem Tag.
 
    Der Tag muss genau `einsatzbuch-vX.Y.Z` lauten, also ohne Zusatz wie `-rc1`; sonst scheitert
    `release-version`. Liegt der Commit nicht auf `main`, bricht `release-bauen` im Schritt „Stand
-   liegt auf main“ ab, bevor ein Secret im Spiel ist.
+   liegt auf main“ ab, bevor ein Secret im Spiel ist. **Den Tag dann löschen**
+   (`git push --delete origin einsatzbuch-vX.Y.Z`; mit dem Ruleset aus „Tags schützen“ braucht das
+   eine Ausnahme für den Betreiber). Bleibt er liegen, lehnt `release-version` jeden späteren
+   automatischen Lauf ab, der dieselbe oder eine kleinere Nummer errechnet.
 3. Lauf beobachten wie oben, nur mit `--branch einsatzbuch-vX.Y.Z`.
 
 Nicht einen Stand von Hand taggen, für den gerade ein automatischer Lauf baut: Beide Läufe
@@ -326,20 +341,30 @@ einsatzbuch-vX.Y.Z“); dann fehlt, was der ursprüngliche Lauf nicht mehr gesch
 ursprünglichen Lauf per „Re-run failed jobs“ fertig machen. Die einzige Ausnahme steht unter „Wenn
 die Schlüssel nicht zusammenpassen“: Dort ist noch nichts veröffentlicht und nichts getaggt.
 
+Ist der gescheiterte Lauf nicht mehr der neueste auf `main`, hat ein späterer Lauf seine Commits
+schon mitgerechnet. Hat der spätere veröffentlicht, lehnt der alte bei einer Wiederholung ab (unten,
+„schon vergeben oder überholt“ bzw. „höhere Version“). Hat keiner veröffentlicht, den **neuesten**
+Lauf auf `main` wiederholen, nicht den alten.
+
 Sind die Artefakte abgelaufen, die Korrektur mit der nächsten Nummer ausliefern. Braucht es eine
 Änderung am Code, den Tag nicht verschieben: Die Korrektur als `fix(einsatzbuch): …` mergen, sie
 bekommt die nächste Nummer.
 
 Meldungen und was sie heißen:
 
-- **„Die errechnete Version X.Y.Z ist schon vergeben: einsatzbuch-vX.Y.Z zeigt auf …“**
-  (`release-version`): Ein älterer Lauf wurde wiederholt, nachdem ein neuerer die Nummer schon
-  vergeben hat, oder jemand hat einen Stand abseits von `main` getaggt. Nichts wurde gebaut. Der
-  ältere Lauf braucht nicht wiederholt zu werden, der neuere hat seine Commits schon ausgeliefert.
-- **„Der Tag einsatzbuch-vX.Y.Z besteht schon und zeigt auf …, gebaut wurde …“**
-  (`release-veroeffentlichen`): Zwischen Rechnung und Veröffentlichen ist ein Tag gleicher Nummer
-  an einem anderen Stand entstanden, meist ein Notfall-Tag. Nichts wurde veröffentlicht. Den
-  nächsten auslösenden Merge abwarten oder per Notfall-Tag mit höherer Nummer ausliefern.
+- **„Die errechnete Version X.Y.Z ist schon vergeben oder überholt: einsatzbuch-vA.B.C (…) liegt
+  nicht in der Historie von …“** (`release-version`). Nichts wurde gebaut. Zwei Ursachen:
+  - Ein älterer Lauf wurde wiederholt, nachdem ein neuerer schon veröffentlicht hat. Dann ist nichts
+    zu tun: Der neuere hat die Commits des älteren mit ausgeliefert.
+  - Der genannte Tag liegt auf einem Stand abseits von `main`, meist ein abgewiesener Notfall-Tag.
+    Dann den Tag löschen (Abschnitt „Notfall-Release per Tag“, Schritt 2) und den Lauf per „Re-run
+    all jobs“ wiederholen; es war noch nichts veröffentlicht.
+- **„Der Tag einsatzbuch-vX.Y.Z besteht schon und zeigt auf …, gebaut wurde …“** und **„Es gibt
+  schon eine höhere Version als X.Y.Z“** (`release-veroeffentlichen`): Zwischen Rechnung und
+  Veröffentlichen ist ein Tag gleicher oder höherer Nummer entstanden (meist ein Notfall-Tag), oder
+  ein älterer Lauf wurde per „Re-run failed jobs“ wiederholt, nachdem ein neuerer veröffentlicht
+  hat. Nichts wurde veröffentlicht und nichts getaggt. Stammt der störende Tag von einem neueren
+  Release, ist nichts zu tun; sonst wie oben.
 - **„latest.json am Dauer-Release nennt schon …, neuer als …“**: Eine ältere Version lief nach einer
   neueren. Das Manifest bleibt dann absichtlich, wie es ist.
 

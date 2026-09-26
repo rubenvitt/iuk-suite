@@ -21,7 +21,10 @@
  *
  *  2. GEZÄHLT werden die Commits seit der Basis ohne Merge-Commits, die etwas unter `PFADE`
  *     ändern (`git log --no-merges --full-history`: jeder Commit gegen seinen einzigen
- *     Elternteil, ohne die Vereinfachung, die sonst ganze Seitenzweige überspringt).
+ *     Elternteil, ohne die Vereinfachung, die sonst ganze Seitenzweige überspringt). `PFADE` sind
+ *     die App, der geteilte TS-Kern und die Farb-Tokens der Suite (per Alias ins Bundle,
+ *     `apps/einsatzbuch/vite.config.ts`). Lockfiles zählen nicht: Eine reine
+ *     Abhängigkeitsänderung wartet auf das nächste auslösende Commit.
  *
  *  3. EIN RELEASE entsteht, wenn mindestens einer davon `loestReleaseAus`: Kopfzeile vom Typ
  *     `feat`, `fix` oder `perf` (Bereich beliebig), oder ein Major nach `sprungAusNachricht`
@@ -41,7 +44,7 @@
  * sähen deshalb dieselbe Basis und rechneten dieselbe Nummer. Das verhindert nicht dieses
  * Skript, sondern der Workflow: Läufe auf `main` stehen in einer festen `concurrency`-Gruppe
  * und laufen nacheinander (Kommentar dort). Das Skript sichert nur ab, dass eine schon
- * vergebene Nummer laut scheitert, statt ein zweites Mal gebaut zu werden.
+ * vergebene oder überholte Nummer laut scheitert, statt gebaut zu werden.
  *
  * TRÄGT `ziel` SELBST SCHON DEN BASIS-TAG, entsteht kein Release (`schonGetaggt`): Das ist ein
  * wiederholter Lauf nach einem Release („Re-run all jobs“) oder ein Stand, den jemand von Hand
@@ -62,7 +65,7 @@ import { erhoehe, formatVersion, groessterSprung, sprungAusNachricht } from "./v
 /** @typedef {import("./version.mjs").Version} Version */
 
 /** Die Pfade, deren Änderungen in die App eingehen. Deckungsgleich mit Regel 2 im Kopf. */
-export const PFADE = ["apps/einsatzbuch", "src/app/m/einsatzbuch/_lib/kern"];
+export const PFADE = ["apps/einsatzbuch", "src/app/m/einsatzbuch/_lib/kern", "src/core/theme/tokens.ts"];
 
 const TAG_MUSTER = /^einsatzbuch-v(\d+)\.(\d+)\.(\d+)$/;
 const AUSLOESENDE_TYPEN = new Set(["feat", "fix", "perf"]);
@@ -199,17 +202,29 @@ export function berechneEinsatzbuchVersion(cwd, ziel = "HEAD") {
 
   const tag = `einsatzbuch-v${version}`;
   /*
-   * IST DIE NUMMER SCHON VERGEBEN? Ein Tag auf `ziel` selbst ist oben schon behandelt, ein
-   * erreichbarer Tag dieser Nummer wäre Basis gewesen. Übrig bleibt ein Tag abseits der
-   * Historie von `ziel`: ein neuerer Lauf hat die Nummer schon vergeben (dieser Lauf ist eine
-   * Wiederholung eines älteren Standes), oder jemand hat einen Seitenzweig getaggt. Beides soll
-   * vor dem Bau scheitern, nicht erst beim Anlegen des Releases.
+   * IST DIE NUMMER SCHON VERGEBEN ODER ÜBERHOLT? Erreichbare Tags liegen alle unter der
+   * errechneten Nummer (der höchste ist die Basis). Ein Tag mit gleicher oder höherer Nummer
+   * liegt also abseits der Historie von `ziel`: Ein neuerer Lauf hat schon veröffentlicht (dieser
+   * Lauf ist die Wiederholung eines älteren Standes), oder ein Tag liegt auf einem Stand abseits
+   * von `main` (ein Notfall-Tag, den `release-bauen` abgewiesen hat, bleibt stehen). Beides soll
+   * vor dem Bau scheitern, nicht erst beim Veröffentlichen; eine niedrigere Nummer nähme ohnehin
+   * kein Rechner an. `release-veroeffentlichen` prüft dasselbe noch einmal gegen origin, weil
+   * „Re-run failed jobs“ diesen Job nicht neu rechnen lässt.
    */
-  if (git(["tag", "--list", tag], cwd).trim() === tag) {
-    const tagCommit = git(["rev-parse", `${tag}^{commit}`], cwd).trim();
+  const soll = parseEinsatzbuchTag(tag);
+  const konflikte = git(["tag", "--list", "einsatzbuch-v*"], cwd)
+    .split("\n")
+    .map((t) => t.trim())
+    .filter((t) => TAG_MUSTER.test(t) && vergleiche(parseEinsatzbuchTag(t), soll) >= 0);
+  if (konflikte.length > 0) {
+    const beschrieben = konflikte
+      .map((t) => `${t} (${git(["rev-parse", "--short", `${t}^{commit}`], cwd).trim()})`)
+      .join(", ");
     throw new Error(
-      `Die errechnete Version ${version} ist schon vergeben: ${tag} zeigt auf ${tagCommit.slice(0, 7)}, ` +
-        `nicht auf ${zielCommit.slice(0, 7)}. Siehe docs/runbooks/einsatzbuch-release.md, Abschnitt „Scheitert der Lauf“.`,
+      `Die errechnete Version ${version} ist schon vergeben oder überholt: ${beschrieben} liegt nicht in der ` +
+        `Historie von ${zielCommit.slice(0, 7)}. Entweder wird ein älterer Lauf wiederholt, nachdem ein ` +
+        `neuerer schon veröffentlicht hat, oder der Tag liegt abseits von main und gehört gelöscht. ` +
+        `Siehe docs/runbooks/einsatzbuch-release.md, Abschnitt „Scheitert der Lauf“.`,
     );
   }
 

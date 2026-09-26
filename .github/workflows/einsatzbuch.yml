@@ -653,12 +653,17 @@ jobs:
       # gebauten Commit zeigen; dann `--verify-tag`, damit `gh` nie still einen anlegt. Gibt es ihn
       # nicht, legt `--target "$GITHUB_SHA"` ihn am gebauten Commit an. Zeigt er woanders hin,
       # bricht der Schritt ab: `gh release create` ignorierte `--target` für einen bestehenden Tag,
-      # und das Release hinge still am falschen Stand. Die Abfrage unterscheidet „kein Tag“
-      # (leere Ausgabe) von „Abfrage gescheitert“ (Exit-Code ≠ 0), sonst gälte ein Netzfehler als
-      # „kein Tag“. `^{}` löst einen annotierten Tag auf seinen Commit auf. Nach dem Anlegen wird
-      # noch einmal gelesen: Wer zwischen Abfrage und Anlegen einen Tag pusht, fällt dort auf,
-      # bevor `latest.json` ersetzt wird. Das Repository ist öffentlich, `git ls-remote` braucht
-      # deshalb kein Token (Checkout mit `persist-credentials: false`).
+      # und das Release hinge still am falschen Stand. Ebenso bricht er ab, wenn es schon eine
+      # HÖHERE Version gibt: Das ist ein älterer Lauf, per „Re-run failed jobs“ wiederholt, nachdem
+      # ein neuerer schon veröffentlicht hat (`release-version` läuft dabei nicht neu, seine Nummer
+      # ist veraltet), oder ein Notfall-Tag mit zu kleiner Nummer. Ohne diese Sperre entstünden Tag
+      # und signiertes Release, und erst die Sperre am Manifest hielte den Lauf auf.
+      # Die Abfrage unterscheidet „kein Tag“ (leere Ausgabe) von „Abfrage gescheitert“
+      # (Exit-Code ≠ 0), sonst gälte ein Netzfehler als „kein Tag“. `^{}` löst einen annotierten Tag
+      # auf seinen Commit auf. Nach dem Anlegen wird noch einmal gelesen (mit kurzer Wiederholung,
+      # falls der neue Tag nicht sofort sichtbar ist): Wer zwischen Abfrage und Anlegen einen Tag
+      # pusht, fällt dort auf, bevor `latest.json` ersetzt wird. Das Repository ist öffentlich,
+      # `git ls-remote` braucht deshalb kein Token (Checkout mit `persist-credentials: false`).
       - name: Release einsatzbuch-vX.Y.Z anlegen
         shell: bash
         env:
@@ -667,22 +672,35 @@ jobs:
           set -euo pipefail
           # Einfache Anführungszeichen, weil der Text typografische Anführungszeichen trägt.
           runbook='docs/runbooks/einsatzbuch-release.md (Abschnitt „Scheitert der Lauf“)'
-          # Setzt `commit` auf den Commit des Tags, leer ohne Tag; bricht den Schritt ab, wenn
-          # origin nicht antwortet. Kein `$(…)`: `exit` soll den Schritt beenden, nicht eine Subshell.
-          tag_commit() {
-            local refs geschaelt roh
-            if ! refs="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"; then
+          # Setzt `tags` auf Zeilen „<Tag> <Commit>“ aller Tags `einsatzbuch-v*` von origin,
+          # annotierte aufgelöst; bricht den Schritt ab, wenn origin nicht antwortet. Kein `$(…)`
+          # um den Aufruf: `exit` soll den Schritt beenden, nicht eine Subshell.
+          lies_tags() {
+            local roh
+            if ! roh="$(git ls-remote --tags origin 'refs/tags/einsatzbuch-v*')"; then
               echo "::error::Die Tags von origin ließen sich nicht lesen – ob $TAG schon besteht, ist offen; nichts wird veröffentlicht."
               exit 1
             fi
-            geschaelt="$(awk -v r="refs/tags/$TAG^{}" '$2 == r { print $1 }' <<< "$refs")"
-            roh="$(awk -v r="refs/tags/$TAG" '$2 == r { print $1 }' <<< "$refs")"
-            commit="${geschaelt:-$roh}"
+            tags="$(awk '{ n = $2; sub(/^refs\/tags\//, "", n); if (sub(/\^\{\}$/, "", n)) g[n] = $1; else r[n] = $1 }
+              END { for (n in r) print n, (n in g ? g[n] : r[n]) }' <<< "$roh")"
           }
-          tag_commit
-          bisher="$commit"
+          commit_von() { awk -v t="$1" '$1 == t { print $2 }' <<< "$tags"; }
+          lies_tags
+          bisher="$(commit_von "$TAG")"
           if [ -n "$bisher" ] && [ "$bisher" != "$GITHUB_SHA" ]; then
             echo "::error::Der Tag $TAG besteht schon und zeigt auf $bisher, gebaut wurde $GITHUB_SHA. Nichts wird veröffentlicht – siehe $runbook."
+            exit 1
+          fi
+          hoeher=""
+          while read -r name _; do
+            [[ "$name" =~ ^einsatzbuch-v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            v="${BASH_REMATCH[1]}"
+            if [ "$v" != "$VERSION" ] && [ "$(printf '%s\n%s\n' "$v" "$VERSION" | sort -V | tail -n 1)" = "$v" ]; then
+              hoeher="$hoeher $name"
+            fi
+          done <<< "$tags"
+          if [ -n "$hoeher" ]; then
+            echo "::error::Es gibt schon eine höhere Version als $VERSION:$hoeher. Nichts wird veröffentlicht – siehe $runbook."
             exit 1
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -702,8 +720,12 @@ jobs:
               --title "Einsatzbuch $VERSION" \
               --notes "$notizen"
           fi
-          tag_commit
-          danach="$commit"
+          for _ in 1 2 3; do
+            lies_tags
+            danach="$(commit_von "$TAG")"
+            [ "$danach" = "$GITHUB_SHA" ] && break
+            sleep 5
+          done
           if [ "$danach" != "$GITHUB_SHA" ]; then
             echo "::error::Nach dem Anlegen zeigt $TAG auf [${danach}], gebaut wurde $GITHUB_SHA – latest.json wird nicht ersetzt – siehe $runbook."
             exit 1

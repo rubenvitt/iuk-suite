@@ -216,14 +216,35 @@ describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
     const aelter = git("rev-parse", "HEAD");
     commit("fix(einsatzbuch): noch einer", APP);
     git("tag", "einsatzbuch-v1.1.2");
-    expect(() => berechneEinsatzbuchVersion(repo, aelter)).toThrow(/1\.1\.2 ist schon vergeben: einsatzbuch-v1\.1\.2 zeigt auf/);
+    expect(() => berechneEinsatzbuchVersion(repo, aelter)).toThrow(
+      /1\.1\.2 ist schon vergeben oder überholt: einsatzbuch-v1\.1\.2 \([0-9a-f]+\) liegt nicht in der Historie/,
+    );
     // Vom getaggten Stand aus ist es kein Fehler, sondern „schon getaggt“.
     expect(berechneEinsatzbuchVersion(repo)).toMatchObject({ release: false, schonGetaggt: true });
   });
 
+  it("eine HÖHERE Nummer abseits der Historie scheitert ebenso: der Updater nähme die kleinere nie", () => {
+    // Ein älterer Lauf wird wiederholt, nachdem ein neuerer mit einem größeren Sprung
+    // veröffentlicht hat; oder ein Notfall-Tag liegt auf einem Seitenzweig.
+    git("checkout", "-q", "-b", "seitenzweig");
+    commit("fix(einsatzbuch): auf dem Zweig", APP);
+    git("tag", "einsatzbuch-v1.3.0");
+    git("checkout", "-q", "main");
+    commit("fix(einsatzbuch): auf main", APP);
+    expect(() => berechneEinsatzbuchVersion(repo)).toThrow(/1\.1\.3 ist schon vergeben oder überholt: einsatzbuch-v1\.3\.0/);
+    git("tag", "-d", "einsatzbuch-v1.3.0");
+    expect(berechneEinsatzbuchVersion(repo)).toMatchObject({ release: true, version: "1.1.3" });
+  });
+
+  it("die Farb-Tokens der Suite gehen ins Bundle und zählen mit", () => {
+    git("tag", "einsatzbuch-v1.1.3");
+    commit("fix(theme): Kontrast", "src/core/theme/tokens.ts");
+    expect(berechneEinsatzbuchVersion(repo)).toMatchObject({ release: true, version: "1.1.4" });
+  });
+
   it("ein Major setzt Minor und Patch zurück", () => {
     pr("pr-4", [["fix(einsatzbuch): x", APP], ["refactor(einsatzbuch)!: Datenbank neu", KERN]], "Merge pull request #5");
-    expect(berechneEinsatzbuchVersion(repo)).toMatchObject({ release: true, version: "2.0.0" });
+    expect(berechneEinsatzbuchVersion(repo)).toMatchObject({ release: true, version: "2.0.0", basis: "einsatzbuch-v1.1.3" });
   });
 
   it("die Suite-Version sieht keinen Einsatzbuch-Tag", () => {
