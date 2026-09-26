@@ -94,6 +94,10 @@ describe("groessterSprung und Nachspielen", () => {
     expect(() => parseTag("1.0.0")).toThrow(/vX\.Y\.Z/);
     expect(() => parseTag("v1.0")).toThrow(/vX\.Y\.Z/);
     expect(() => parseTag("v1.0.0-rc1")).toThrow(/vX\.Y\.Z/);
+    // Die Tags der Einsatzbuch-Desktop-App (`.github/workflows/einsatzbuch.yml`) sind
+    // keine Suite-Versionen, auch wenn der eine eine Versionsnummer trägt.
+    expect(() => parseTag("einsatzbuch-v1.0.0")).toThrow(/vX\.Y\.Z/);
+    expect(() => parseTag("einsatzbuch-updater")).toThrow(/vX\.Y\.Z/);
   });
 });
 
@@ -270,6 +274,22 @@ describe("berechneVersion — an einer echten Historie", () => {
     // nicht. Ob das Image-Tag dann stehen bleibt, entscheidet `merge` gegen die Registry.
     git("tag", "v2.1.2");
     expect(berechneVersion(repo)).toMatchObject({ version: "2.1.2", basis: "v2.1.2" });
+  });
+
+  it("die Tags der Einsatzbuch-App zählen nicht — auch nicht als nähere Basis", () => {
+    // Die Desktop-App wird aus `einsatzbuch-vX.Y.Z` gebaut und veröffentlicht ihr
+    // Updater-Manifest am Dauer-Release `einsatzbuch-updater` (beide Tags liegen auf
+    // `main`-Commits). Sie liegen hier bewusst NÄHER an HEAD als `v2.1.2`: Würden sie
+    // gezählt, gewänne der nächste Tag und die Suite spränge auf 1.0.x zurück.
+    commit("fix: nach v2.1.2");
+    const ohne = berechneVersion(repo);
+    expect(ohne).toMatchObject({ version: "2.1.3", basis: "v2.1.2" });
+    git("tag", "einsatzbuch-v1.0.0");
+    git("tag", "-a", "einsatzbuch-updater", "-m", "Dauer-Release");
+    expect(berechneVersion(repo)).toEqual(ohne);
+    // Ein weiterer Schritt zählt ganz normal weiter, von der Suite-Basis aus.
+    commit("fix: nach den Einsatzbuch-Tags");
+    expect(berechneVersion(repo)).toMatchObject({ version: "2.1.4", basis: "v2.1.2" });
   });
 
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {

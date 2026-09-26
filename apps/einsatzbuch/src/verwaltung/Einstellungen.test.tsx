@@ -32,6 +32,8 @@ function props(teil: Partial<EinstellungenProps> = {}): EinstellungenProps {
     ketteLeer: false,
     mitSitzung: true,
     zeitzone: "Europe/Berlin",
+    update: null,
+    updateFehler: null,
     beiGeaendert: vi.fn(async () => {}),
     ...teil,
   };
@@ -243,5 +245,47 @@ describe("Autostart", () => {
     await warte();
     expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual(["Autostart ließ sich nicht umschalten: verweigert"]);
     expect(schalter()?.checked).toBe(true);
+  });
+});
+
+describe("Update", () => {
+  const HINWEIS =
+    "Update auf 0.2.0 ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde.";
+  const FEHLER = "Update auf 0.2.0 nicht installiert: Die Signatur des Updates passt nicht zum Schlüssel dieser App.";
+  const NOCHMAL = "Die App versucht es in etwa 15 Minuten erneut.";
+
+  it("ohne vorgemerktes Update und ohne Fehler kein Hinweis", async () => {
+    await zeige(props());
+    expect(text()).not.toContain("vorgemerkt");
+    expect(text()).not.toContain("Update");
+  });
+
+  /** Ein gescheitertes Installieren verwirft die Vormerkung: Der Fehler steht dann allein da. */
+  it("zeigt den letzten Fehler auch ohne Vormerkung", async () => {
+    await zeige(props({ updateFehler: FEHLER }));
+    expect(text()).toContain("Update");
+    expect(text()).not.toContain("vorgemerkt");
+    const hinweise = queryAll('[role="status"]').map((h) => h.textContent);
+    expect(hinweise).toContain(FEHLER + NOCHMAL);
+    expect(queryAll('[role="alert"]')).toEqual([]);
+  });
+
+  it("zeigt Vormerkung und Fehler nebeneinander", async () => {
+    await zeige(props({ update: "0.2.0", updateFehler: "Suche nach Updates gescheitert: Der Update-Server war nicht erreichbar oder lieferte kein Update-Verzeichnis." }));
+    const hinweise = queryAll('[role="status"]').map((h) => h.textContent);
+    expect(hinweise).toContain(HINWEIS);
+    expect(hinweise).toContain(
+      "Suche nach Updates gescheitert: Der Update-Server war nicht erreichbar oder lieferte kein Update-Verzeichnis." + NOCHMAL,
+    );
+  });
+
+  it("nennt die vorgemerkte Version und wann sie installiert wird", async () => {
+    await zeige(props({ update: "0.2.0" }));
+    expect(queryAll('[role="status"]').map((h) => h.textContent)).toContain(HINWEIS);
+  });
+
+  it("auch im Testbetrieb", async () => {
+    await zeige(props({ betrieb: "test", sicherung: { ordner: null, letzte: null, fehler: null, stufe: "aus" }, update: "0.2.0" }));
+    expect(text()).toContain(HINWEIS);
   });
 });

@@ -32,5 +32,12 @@
     "active": true,
     "targets": ["app", "dmg", "nsis"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExMzVEMjM5NEE3NTRBMUQKUldRZFNuVktPZEkxb1duV0xLOW1qeDg1T0wrcXpjRTIvWjBNN2N5OHBHVkVCYnl3bXhnTThhNzMK",
+      "endpoints": ["https://github.com/rubenvitt/iuk-suite/releases/download/einsatzbuch-updater/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
   }
 }

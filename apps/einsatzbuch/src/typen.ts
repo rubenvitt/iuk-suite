@@ -182,4 +182,10 @@ export interface Status {
   /** Die App wartet auf den Anmelderückruf der Suite. Wird schon vor dem Ausgang des laufenden
    *  Befehls `false` — die Oberfläche sperrt ihre Knöpfe deshalb am eigenen Zustand, nicht daran. */
   anmeldungLaeuft: boolean;
+  /** Version eines vorgemerkten, noch nicht installierten Updates (`src-tauri/src/updater.rs`);
+   *  `null` ohne Vormerkung und immer im Debug-Build. */
+  update: string | null;
+  /** Der letzte Fehler des Updaters als kurzer Text (`Updatefehler::anzeige` in
+   *  `src-tauri/src/updater.rs`); `null`, solange nichts scheiterte, und immer im Debug-Build. */
+  updateFehler: string | null;
 }

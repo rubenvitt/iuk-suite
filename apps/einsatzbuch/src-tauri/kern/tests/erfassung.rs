@@ -184,12 +184,20 @@ fn entwurf_speichern_und_verwerfen() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     assert_eq!(buch.entwurf().unwrap(), None);
+    assert_eq!(buch.entwurf_geaendert_am().unwrap(), None);
 
-    buch.speichere_entwurf(&gueltiger_entwurf(), Utc::now(), false).unwrap();
+    let erst = Utc.with_ymd_and_hms(2026, 9, 25, 10, 0, 0).unwrap();
+    buch.speichere_entwurf(&gueltiger_entwurf(), erst, false).unwrap();
     assert_eq!(buch.entwurf().unwrap().unwrap().stichwort, "RD 2");
+    assert_eq!(buch.entwurf_geaendert_am().unwrap(), Some(erst));
+
+    let spaeter = erst + chrono::Duration::minutes(7);
+    buch.speichere_entwurf(&gueltiger_entwurf(), spaeter, false).unwrap();
+    assert_eq!(buch.entwurf_geaendert_am().unwrap(), Some(spaeter), "jedes Speichern setzt die Zeit neu");
 
     buch.verwerfe_entwurf().unwrap();
     assert_eq!(buch.entwurf().unwrap(), None);
+    assert_eq!(buch.entwurf_geaendert_am().unwrap(), None);
 }
 
 /// Absenden mit einem geänderten Entwurf; `Ok` oder die Meldung von `Ungueltig`.

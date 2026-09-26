@@ -33,6 +33,8 @@ function stat(teil: Partial<Status> = {}): Status {
     widerrufen: false,
     sitzung: null,
     anmeldungLaeuft: false,
+    update: null,
+    updateFehler: null,
     ...teil,
   };
 }

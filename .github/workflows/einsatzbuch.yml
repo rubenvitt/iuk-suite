@@ -4,6 +4,14 @@
 # (Lockfile, Mitgliederliste), an den Suite-Dateien, die die App mitbenutzt (E2E-Ports,
 # DOM-Harness, Drahtvertrag der Anbindung samt Beispieldateien für `kern/tests/vertrag.rs`),
 # oder an dieser Datei selbst etwas ändert — eine Änderung am Workflow prüft sich selbst.
+#
+# Ein Tag `einsatzbuch-vX.Y.Z` baut darüber hinaus die Release-Fassung der App, signiert
+# die Updater-Pakete und veröffentlicht sie (Jobs `release-bauen` und
+# `release-veroeffentlichen`, Runbook docs/runbooks/einsatzbuch-release.md). Beide Releases
+# (`einsatzbuch-vX.Y.Z` und das Dauer-Release `einsatzbuch-updater` mit `latest.json`)
+# entstehen mit `--latest=false`: „Latest“ bleibt das Release der Suite (`ci.yml`).
+# Die Suite-Versionierung (`scripts/version.mjs`) zählt nur exakte `vX.Y.Z`-Tags und sieht
+# beide Tags nicht (`scripts/version.test.ts`).
 name: einsatzbuch
 
 on:
@@ -21,8 +29,17 @@ on:
       - "e2e/helpers/ports.ts"
       - "src/app/m/qr/_lib/test-dom.tsx"
       - ".github/workflows/einsatzbuch.yml"
+  # Tags laufen trotz `paths` immer an. GitHub-Doku, „Workflow syntax for GitHub Actions“,
+  # Abschnitt `on.<push|pull_request|pull_request_target>.<paths|paths-ignore>`
+  # (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions):
+  # „Path filters are not evaluated for pushes of tags.“ Deshalb laufen `oberflaeche`,
+  # `rust-kern` und `desktop` bei einem Release-Tag mit, und die Release-Jobs hängen per
+  # `needs` an ihnen. `tags` steht neben `branches`, denn laut derselben Seite gilt: „If you
+  # define only `tags`/`tags-ignore` or only `branches`/`branches-ignore`, the workflow
+  # won't run for events affecting the undefined Git ref.“
   push:
     branches: [main]
+    tags: ["einsatzbuch-v*"]
     paths:
       - "apps/einsatzbuch/**"
       - "src/app/m/einsatzbuch/_lib/kern/**"
@@ -43,9 +60,11 @@ permissions:
 # `main` dieselbe Zeichenkette, und ein dritter Push in derselben Gruppe ersetzt
 # sonst den noch wartenden zweiten — dessen Lauf verschwindet still, statt rot
 # zu werden. Ein überholter PR-Lauf wird weiterhin abgebrochen, ein Lauf auf
-# `main` läuft immer zu Ende.
+# `main` läuft immer zu Ende. Ein Tag nimmt dagegen `github.ref` in den Schlüssel:
+# Ein Release-Tag zeigt meist auf denselben Commit wie der letzte Push auf `main`,
+# und mit `github.sha` stünden beide Läufe in einer Gruppe und warteten aufeinander.
 concurrency:
-  group: einsatzbuch-${{ github.event.pull_request.number || github.sha }}
+  group: einsatzbuch-${{ github.event.pull_request.number || (startsWith(github.ref, 'refs/tags/') && github.ref) || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -243,3 +262,398 @@ jobs:
             Measure-Object -Property Length -Sum |
             ForEach-Object { "{0:N2} MB" -f ($_.Sum / 1MB) } |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+  # Release-Fassung aus einem Tag `einsatzbuch-vX.Y.Z` (Runbook
+  # docs/runbooks/einsatzbuch-release.md). Hängt an allen drei Prüfjobs: ein Tag auf einem
+  # Stand, dessen Tests rot sind, wird nicht ausgeliefert. Nur `contents: read`; schreiben
+  # darf erst `release-veroeffentlichen`, und das erst, wenn beide Plattformen gebaut sind.
+  release-bauen:
+    if: startsWith(github.ref, 'refs/tags/einsatzbuch-v')
+    needs: [oberflaeche, rust-kern, desktop]
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ein universelles Bundle für beide Mac-Architekturen (`latest.json` führt es unter
+          # `darwin-aarch64` und `darwin-x86_64`); dafür braucht die Toolchain beide Ziele.
+          - os: macos-latest
+            rust-ziele: aarch64-apple-darwin,x86_64-apple-darwin
+          - os: windows-latest
+            rust-ziele: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      # Wird zur Compile-Zeit eingebaut (`option_env!` an `SUITE_VORGABE`,
+      # `kern/src/anmeldung.rs`); der Rückfall ist dieselbe Vorgabe wie dort.
+      EINSATZBUCH_SUITE_URL: ${{ vars.EINSATZBUCH_SUITE_URL || 'https://einsatzbuch.iuk-ue.de' }}
+    steps:
+      # `fetch-depth: 0` holt auch `origin/main` für den folgenden Schritt.
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          persist-credentials: false
+          fetch-depth: 0
+      # Signiert und veröffentlicht wird nur, was schon auf `main` liegt (Review und CI der Suite
+      # durchlaufen hat). Ein Tag auf einem Seitenzweig bräche sonst erst nach dem Bau ab, oder
+      # gar nicht; und der private Schlüssel stünde einem ungeprüften Stand zur Verfügung. Der
+      # Schritt steht deshalb vor jedem Schritt mit Secrets; `release-veroeffentlichen` hängt per
+      # `needs` an diesem Job.
+      - name: Tag zeigt auf einen Commit auf main
+        shell: bash
+        run: |
+          set -euo pipefail
+          runbook='docs/runbooks/einsatzbuch-release.md (Abschnitt „Release taggen“)'
+          if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+            echo "::error::origin/main fehlt im Checkout – die Herkunft des Tags lässt sich nicht prüfen."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Der Tag $GITHUB_REF_NAME zeigt auf $GITHUB_SHA, und dieser Commit liegt nicht auf main. Nur einen Commit auf main taggen – siehe $runbook."
+            exit 1
+          fi
+          echo "$GITHUB_SHA liegt auf main."
+      - name: Icons sind Bilder, keine LFS-Zeigerdateien
+        shell: bash
+        run: |
+          set -euo pipefail
+          fehler=0
+          for datei in apps/einsatzbuch/src-tauri/icons/*.png; do
+            if head -c 40 "$datei" | grep -q "version https://git-lfs"; then
+              echo "::error file=$datei::Zeigerdatei statt Bild – LFS-Objekt nicht geladen."
+              fehler=1
+            fi
+          done
+          exit "$fehler"
+      # Der Tag ist die Version, und dieselbe Nummer muss in allen drei Dateien stehen: Tauri
+      # schreibt die aus `tauri.conf.json` in Bundle und Dateinamen, der Updater vergleicht
+      # sie mit `latest.json`. Das Tag-Muster oben (`einsatzbuch-v*`) ist lockerer als X.Y.Z.
+      # Aus `Cargo.toml` zählt nur der Abschnitt `[package]`, nicht `[workspace.package]` oder
+      # eine Abhängigkeit. Node liegt auf jedem Läufer bei; die Prüfung braucht kein Paket.
+      - name: Tag und Version stimmen überein
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'JS'
+          const fs = require("node:fs");
+          const runbook = "docs/runbooks/einsatzbuch-release.md";
+          const tag = process.env.GITHUB_REF_NAME ?? "";
+          const treffer = /^einsatzbuch-v(\d+\.\d+\.\d+)$/.exec(tag);
+          if (!treffer) {
+            console.log(`::error::Der Tag „${tag}“ hat nicht die Form einsatzbuch-vX.Y.Z – siehe ${runbook}.`);
+            process.exit(1);
+          }
+          const soll = treffer[1];
+          const app = "apps/einsatzbuch";
+          const zeilen = fs.readFileSync(`${app}/src-tauri/Cargo.toml`, "utf8").split(/\r?\n/);
+          let cargo;
+          for (let i = zeilen.findIndex((z) => z.trim() === "[package]") + 1; i > 0 && i < zeilen.length; i++) {
+            if (zeilen[i].trim().startsWith("[")) break;
+            const m = /^version\s*=\s*"([^"]*)"/.exec(zeilen[i].trim());
+            if (m) { cargo = m[1]; break; }
+          }
+          const ist = {
+            [`${app}/src-tauri/tauri.conf.json`]: JSON.parse(fs.readFileSync(`${app}/src-tauri/tauri.conf.json`, "utf8")).version,
+            [`${app}/package.json`]: JSON.parse(fs.readFileSync(`${app}/package.json`, "utf8")).version,
+            [`${app}/src-tauri/Cargo.toml`]: cargo,
+          };
+          let fehler = false;
+          for (const [datei, version] of Object.entries(ist)) {
+            if (version !== soll) {
+              console.log(`::error file=${datei}::Version ${version ?? "(keine)"} passt nicht zum Tag ${tag} (erwartet ${soll}) – siehe ${runbook}.`);
+              fehler = true;
+            }
+          }
+          if (fehler) process.exit(1);
+          console.log(`Version ${soll} steht in allen drei Dateien.`);
+          JS
+      # Derselbe Riegel wie `build.rs` (`build_pruefung.rs`, Kennung `PLATZHALTER`), nur früher
+      # und mit Anmerkung am Lauf: eine App mit Platzhalter nähme nie ein Update an. Die genaue
+      # Formprüfung des Minisign-Schlüssels macht `build.rs`; hier reicht, dass er einer ist.
+      - name: Updater-Schlüssel ist kein Platzhalter
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'JS'
+          const fs = require("node:fs");
+          const datei = "apps/einsatzbuch/src-tauri/tauri.conf.json";
+          const pubkey = JSON.parse(fs.readFileSync(datei, "utf8"))?.plugins?.updater?.pubkey;
+          const gut =
+            typeof pubkey === "string" &&
+            !pubkey.startsWith("PLATZHALTER") &&
+            Buffer.from(pubkey, "base64").toString("utf8").startsWith("untrusted comment:");
+          if (!gut) {
+            console.log(
+              `::error file=${datei}::Der Updater-Schlüssel (plugins.updater.pubkey) ist noch ein Platzhalter ` +
+                "oder kein öffentlicher Minisign-Schlüssel. Erzeuge ihn nach docs/runbooks/einsatzbuch-release.md " +
+                "(Abschnitt „Updater-Schlüssel“) und trage den öffentlichen Teil ein.",
+            );
+            process.exit(1);
+          }
+          JS
+      # Ohne privaten Schlüssel bräche `tauri build` erst nach dem Kompilieren ab; ohne Kennwort
+      # nähme es in der CI still ein leeres. Beides soll vorher und mit Weg zum Runbook scheitern.
+      # Die Secrets stehen nur an diesem und am Build-Schritt, nicht am Job: sie erreichen nur
+      # die Prozesse dieser beiden Schritte. Im Build-Schritt laufen pnpm (Action per SHA),
+      # `tauri` und die Crates (Lockfile, `--locked`) und der Rust-Compiler; von dem ist nur die
+      # installierende Action per SHA gepinnt, nicht die Version (siehe dort). Dazu kommt der
+      # Frontend-Build: `tauri build` startet `beforeBuildCommand` (`pnpm build`, also Vite mit
+      # allen npm-Paketen der App aus dem Lockfile) im selben Prozessbaum, mit dem privaten
+      # Schlüssel in der Umgebung. `pnpm install --ignore-scripts` schützt davor nicht, denn der
+      # Build führt den Code dieser Pakete aus.
+      - name: Signier-Secrets und Suite-Adresse sind gesetzt
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Einfache Anführungszeichen, weil die Texte typografische Anführungszeichen tragen.
+          schluessel='docs/runbooks/einsatzbuch-release.md (Abschnitt „Updater-Schlüssel“)'
+          adresse='docs/runbooks/einsatzbuch-release.md (Abschnitt „Suite-Adresse“)'
+          fehler=0
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY//[[:space:]]/}" ]; then
+            echo "::error::Das Secret TAURI_SIGNING_PRIVATE_KEY fehlt oder ist leer – siehe $schluessel."
+            fehler=1
+          fi
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD//[[:space:]]/}" ]; then
+            echo "::error::Das Secret TAURI_SIGNING_PRIVATE_KEY_PASSWORD fehlt oder ist leer – siehe $schluessel."
+            fehler=1
+          fi
+          if ! [[ "$EINSATZBUCH_SUITE_URL" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::EINSATZBUCH_SUITE_URL ist leer oder keine https-Adresse (Wert: [$EINSATZBUCH_SUITE_URL]) – Repository-Variable prüfen, siehe $adresse."
+            fehler=1
+          fi
+          exit "$fehler"
+      # Per SHA statt `@v4` wie in den Prüfjobs: das pnpm dieser Action läuft im Build-Schritt
+      # mit dem privaten Schlüssel in der Umgebung.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4, Stand 2026-09-25
+        with:
+          version: 11.0.9
+      # Der pnpm-Cache bleibt: pnpm prüft jedes Paket aus dem Speicher gegen den Integritäts-Hash
+      # im Lockfile.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Dieselbe Toolchain-Action wie in `rust-kern` und `desktop`. Gepinnt ist nur die Action:
+      # sie installiert das zur Laufzeit aktuelle stable, der Compiler eines Release kann sich
+      # also von dem des letzten Prüflaufs unterscheiden. Bewusst ohne
+      # `Swatinem/rust-cache`: ein Release ist selten, und `target/` aus dem Cache wäre
+      # ungeprüfte Eingabe in ein signiertes Paket (anders als der pnpm-Speicher gibt es dafür
+      # keinen Abgleich gegen das Lockfile).
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable, Stand 2026-09-03
+        with:
+          targets: ${{ matrix.rust-ziele }}
+      # `--config`: das Overlay `src-tauri/tauri.release.conf.json` schaltet
+      # `bundle.createUpdaterArtifacts` ein und signiert das macOS-Bundle ad hoc
+      # (`bundle.macOS.signingIdentity: "-"`). Ohne sie trägt nur das Binär die Signatur des
+      # Linkers, das Bundle ist nicht versiegelt (`codesign --verify --deep --strict` scheitert),
+      # und macOS nennt eine heruntergeladene App auf Apple Silicon „beschädigt“. Die CLI legt das Overlay per JSON Merge Patch
+      # über `tauri.conf.json` (`tauri build --help`, Option `--config`). Der Pfad gilt relativ
+      # zu `apps/einsatzbuch`, wo `pnpm --filter` den Befehl ausführt.
+      # `beforeBuildCommand` (`pnpm build`, das Frontend) läuft in diesem Schritt mit, also mit
+      # dem privaten Schlüssel in der Umgebung (siehe oben bei den Secrets).
+      # Mit dem Schlüssel aus der Umgebung signiert Tauri das `.app.tar.gz` (macOS) und den
+      # NSIS-Installer selbst (Windows) und legt je eine `.sig` daneben.
+      # `-- --locked`: alles nach `--` reicht die CLI an `cargo build` weiter (lokal mit
+      # `--runner /bin/echo` gemessen: `build --locked --bins --features tauri/custom-protocol
+      # --release`); ein Lockfile, das nicht zum Manifest passt, bricht den Bau ab.
+      # DMG: das `bundle_dmg.sh` des Bundlers überspringt den Finder-Schritt, wenn `CI` gesetzt
+      # ist (`--skip-jenkins`, tauri-bundler `bundle/macos/dmg/mod.rs`), und GitHub setzt `CI`.
+      - name: tauri build (macOS, universell)
+        if: runner.os == 'macOS'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --target universal-apple-darwin --bundles app,dmg -- --locked
+      - name: tauri build (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm --filter einsatzbuch tauri build --config src-tauri/tauri.release.conf.json --bundles nsis -- --locked
+      # Genau die erwarteten Dateien, flach in einen Ordner: jede fehlende wird benannt, statt
+      # dass ein Glob still weniger findet. Namen nach tauri-bundler 2.9 (`dmg/mod.rs`:
+      # `<Produkt>_<Version>_universal.dmg`, `nsis/mod.rs`: `<Produkt>_<Version>_x64-setup.exe`,
+      # `updater_bundle.rs`: `<Produkt>.app.tar.gz`); `.sig` hängt die CLI an.
+      - name: Pakete einsammeln
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            bundle="apps/einsatzbuch/src-tauri/target/universal-apple-darwin/release/bundle"
+            dateien=(
+              "$bundle/dmg/Einsatzbuch_${version}_universal.dmg"
+              "$bundle/macos/Einsatzbuch.app.tar.gz"
+              "$bundle/macos/Einsatzbuch.app.tar.gz.sig"
+            )
+          else
+            bundle="apps/einsatzbuch/src-tauri/target/release/bundle"
+            dateien=(
+              "$bundle/nsis/Einsatzbuch_${version}_x64-setup.exe"
+              "$bundle/nsis/Einsatzbuch_${version}_x64-setup.exe.sig"
+            )
+          fi
+          mkdir -p auslieferung
+          fehler=0
+          for datei in "${dateien[@]}"; do
+            if [ -f "$datei" ]; then
+              cp "$datei" auslieferung/
+            else
+              echo "::error::Paket fehlt: $datei"
+              fehler=1
+            fi
+          done
+          if [ "$fehler" -ne 0 ]; then
+            echo "Vorhanden unter $bundle:"
+            find "$bundle" -maxdepth 2 -type f || true
+            exit 1
+          fi
+          ls -la auslieferung
+      - uses: actions/upload-artifact@v7
+        with:
+          name: einsatzbuch-release-${{ runner.os }}
+          path: auslieferung/
+          if-no-files-found: error
+          # Ein wiederholter Lauf ersetzt die Pakete, statt am Namen zu scheitern.
+          overwrite: true
+          retention-days: 7
+
+  # Veröffentlicht, was `release-bauen` auf beiden Plattformen gebaut hat. Einziger Job mit
+  # Schreibrecht. Reihenfolge: erst die Signaturen gegen den Updater-Schlüssel prüfen, dann das
+  # Versions-Release mit allen Dateien, dann prüfen, dass sie dort unter genau diesen Namen
+  # liegen, erst dann `latest.json` am Dauer-Release ersetzen — sonst zeigte der Updater aller
+  # installierten Apps auf fehlende oder unbrauchbare Dateien.
+  release-veroeffentlichen:
+    if: startsWith(github.ref, 'refs/tags/einsatzbuch-v')
+    needs: release-bauen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    # Eine feste Gruppe über alle Tags: zwei zugleich gepushte Tags schreiben das Manifest
+    # nacheinander, nie verschränkt. Kommt der ältere Tag als zweiter an, bricht er an der
+    # Sperre gegen ein älteres Manifest ab (rot, gewollt). GitHub hält je Gruppe nur EINEN
+    # wartenden Lauf; ein dritter gleichzeitiger Tag bricht den wartenden zweiten ab (sichtbar
+    # als „cancelled“) — dessen Veröffentlichung dann per „Re-run“ nachholen.
+    concurrency:
+      group: einsatzbuch-updater-manifest
+      cancel-in-progress: false
+    # `GH_TOKEN` steht nur an den Schritten, die `gh` aufrufen.
+    env:
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # Nur für `scripts/einsatzbuch-signaturen-pruefen.mjs`, `scripts/einsatzbuch-updater-json.mjs`
+      # und `tauri.conf.json`; die Skripte haben keine Abhängigkeiten, deshalb weder LFS noch
+      # `pnpm install`.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: einsatzbuch-release-*
+          path: auslieferung
+          merge-multiple: true
+      # Passt der private Schlüssel der CI nicht zum öffentlichen in `tauri.conf.json`, warnt
+      # `tauri build` nur, und jede installierte App lehnte das Update still ab. Deshalb hier jede
+      # `.sig` gegen den Schlüssel aus dem getaggten Stand prüfen, bevor irgendetwas
+      # veröffentlicht wird (auch das Versions-Release). Das Skript prüft wie der Updater
+      # (Minisign, vorgehasht `ED` und alt `Ed`) und nennt bei einem Fehler das Runbook.
+      - name: Signaturen passen zum Updater-Schlüssel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          node scripts/einsatzbuch-signaturen-pruefen.mjs \
+            --config apps/einsatzbuch/src-tauri/tauri.conf.json \
+            auslieferung/Einsatzbuch.app.tar.gz \
+            "auslieferung/Einsatzbuch_${version}_x64-setup.exe"
+      - name: latest.json bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          node scripts/einsatzbuch-updater-json.mjs \
+            --version "$version" \
+            --tag "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes "Einsatzbuch $version" \
+            --mac-archiv auslieferung/Einsatzbuch.app.tar.gz \
+            --mac-sig auslieferung/Einsatzbuch.app.tar.gz.sig \
+            --win-installer "auslieferung/Einsatzbuch_${version}_x64-setup.exe" \
+            --win-sig "auslieferung/Einsatzbuch_${version}_x64-setup.exe.sig" \
+            > auslieferung/latest.json
+          cat auslieferung/latest.json
+      # `--latest=false`: „Latest“ bleibt das Release der Suite. `--verify-tag`: das Release
+      # legt nie selbst einen Tag an. Ein wiederholter Lauf findet das Release schon vor und
+      # ersetzt nur die Dateien.
+      - name: Release einsatzbuch-vX.Y.Z anlegen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          version="${tag#einsatzbuch-v}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag besteht schon – Dateien werden ersetzt."
+            gh release upload "$tag" auslieferung/* --clobber
+          else
+            notizen="Desktop-App des Einsatzbuchs, Version $version. Windows: Einsatzbuch_${version}_x64-setup.exe, macOS: Einsatzbuch_${version}_universal.dmg. Installation und Updates: docs/runbooks/einsatzbuch-release.md."
+            gh release create "$tag" auslieferung/* \
+              --verify-tag \
+              --latest=false \
+              --title "Einsatzbuch $version" \
+              --notes "$notizen"
+          fi
+          # GitHub benennt Dateien mit Sonderzeichen beim Hochladen um; dann liefen die URLs
+          # in `latest.json` ins Leere. Deshalb jede gebaute Datei unter ihrem Namen suchen.
+          fehlend="$(comm -23 \
+            <(find auslieferung -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort) \
+            <(gh release view "$tag" --json assets --jq '.assets[].name' | LC_ALL=C sort))"
+          if [ -n "$fehlend" ]; then
+            echo "::error::Am Release $tag fehlen Dateien unter ihrem gebauten Namen: $fehlend – latest.json wird nicht veröffentlicht."
+            exit 1
+          fi
+      # Das Dauer-Release trägt nur `latest.json`, die Adresse steht fest in `tauri.conf.json`
+      # (`plugins.updater.endpoints`). Beim ersten Lauf wird es angelegt, danach nur die Datei
+      # ersetzt. Ein Lauf eines älteren Tags (Wiederholung, Tags in falscher Reihenfolge)
+      # setzt das Manifest nicht zurück; das bleibt eine bewusste Handlung nach Runbook.
+      - name: latest.json am Dauer-Release einsatzbuch-updater ersetzen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#einsatzbuch-v}"
+          if gh release view einsatzbuch-updater >/dev/null 2>&1; then
+            # Ohne `latest.json` (erster Lauf nach dem Anlegen) gibt es nichts zu vergleichen.
+            # Liegt es da und lässt sich nicht lesen, greift die Sperre in diesem Lauf nicht —
+            # das soll am Lauf sichtbar sein, nicht still.
+            bisher=""
+            namen="$(gh release view einsatzbuch-updater --json assets --jq '.assets[].name')"
+            if grep -qx 'latest.json' <<< "$namen"; then
+              if ! bisher="$(gh release download einsatzbuch-updater --pattern latest.json --output - | jq -r '.version // empty')" || [ -z "$bisher" ]; then
+                echo "::warning::latest.json am Dauer-Release ließ sich nicht lesen – die Sperre gegen ein älteres Manifest greift in diesem Lauf nicht."
+                bisher=""
+              fi
+            fi
+            if [ -n "$bisher" ] && [ "$(printf '%s\n%s\n' "$bisher" "$version" | sort -V | tail -n 1)" != "$version" ]; then
+              echo "::error::latest.json am Dauer-Release nennt schon $bisher, neuer als $version – nicht zurückgesetzt. Rücksetzen nur von Hand, siehe docs/runbooks/einsatzbuch-release.md."
+              exit 1
+            fi
+          else
+            gh release create einsatzbuch-updater \
+              --target "$GITHUB_SHA" \
+              --latest=false \
+              --title "Einsatzbuch-Updater" \
+              --notes "Dauer-Release für den Updater der Desktop-App. Nicht löschen."
+          fi
+          gh release upload einsatzbuch-updater auslieferung/latest.json --clobber

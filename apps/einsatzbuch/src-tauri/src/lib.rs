@@ -1,12 +1,13 @@
 //! Die Tauri-Hülle des Einsatzbuchs: Plugins, Zustand, Frist-Uhr, Abgleich-Thread und Fenster.
 //! Die Fachlogik steht im Crate `einsatzbuch-kern` (`kern/`), die Befehle der Oberfläche in
 //! `befehle.rs`, Sicherung und Wiederherstellen in `sicherung.rs`, Export/Drucken/Reader in
-//! `export.rs`; HTTP zur Suite in `netz.rs`, der Schlüsselbund in `schluesselbund.rs`.
+//! `export.rs`; HTTP zur Suite in `netz.rs`, der Schlüsselbund in `schluesselbund.rs`, der
+//! Updater in `updater.rs`.
 //!
 //! Reihenfolge beim Start (Spec §4.1, §4.3):
 //! 1. Einzelinstanz als erstes Plugin, damit ein zweiter Start sofort beim ersten landet.
-//! 2. `setup`: Buch öffnen, **eine überfällige Frist versiegeln**, Zustand ablegen, Frist-Uhr
-//!    und Abgleich-Thread starten, und erst dann das Fenster bauen (`Zustand::beim_start`). Es steht deshalb in `tauri.conf.json` mit
+//! 2. `setup`: Buch öffnen, **eine überfällige Frist versiegeln**, Zustand ablegen, Frist-Uhr,
+//!    Abgleich- und (nur im Release-Build) Updater-Thread starten, und erst dann das Fenster bauen (`Zustand::beim_start`). Es steht deshalb in `tauri.conf.json` mit
 //!    `"create": false`: Die Oberfläche sieht einen überfälligen Einsatz nie als ausstehend.
 pub mod abgleich;
 pub mod befehle;
@@ -14,7 +15,13 @@ pub mod export;
 pub mod netz;
 pub mod schluesselbund;
 pub mod sicherung;
+pub mod updater;
 pub mod zustand;
+
+// Der Platzhalter-Riegel aus `build.rs`, hier nur für seine Tests eingebunden.
+#[cfg(test)]
+#[path = "../build_pruefung.rs"]
+mod build_pruefung;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc;
@@ -87,6 +94,10 @@ fn richte_ein(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(zustand);
     starte_frist_uhr(app.handle().clone())?;
     abgleich::starte(app.handle().clone(), empfaenger)?;
+    // Updater nur im Release-Build (Stufe 7, Entscheidung 1): Entwicklerläufe fragen nie bei
+    // GitHub nach.
+    #[cfg(not(debug_assertions))]
+    updater::starte(app.handle().clone())?;
 
     let fenster = app
         .config()
@@ -162,14 +173,19 @@ pub fn run() {
         export::reader_oeffnen,
     ];
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argumente, _ordner| hole_fokus(app)))
         // Nur registriert, nicht eingeschaltet: Das geschieht bei der echten Einrichtung, nie
         // im Testbetrieb und nie in Debug-Builds (sonst trüge jeder Entwicklerlauf die App in
         // den Autostart des Entwicklerrechners ein).
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+    // Der Updater nur im Release-Build und nur aus Rust benutzt (`updater.rs`), deshalb ohne
+    // Capability. Endpunkt und Schlüssel stehen in `tauri.conf.json` (`plugins.updater`).
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    builder
         .setup(richte_ein)
         .invoke_handler(befehle)
         .run(tauri::generate_context!())

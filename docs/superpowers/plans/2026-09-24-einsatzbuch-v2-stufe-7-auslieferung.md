@@ -165,3 +165,18 @@ Alle Regeln aus Stufe 6 (`…-stufe-6-sicherung-export.md`, „Global Constraint
 - [ ] Volle Tore wie Stufe 6, Task 12, dazu `actionlint`.
 - [ ] Review über den Diff der Stufe, eine Fix-Runde.
 - [ ] Push, PR gegen `claude/einsatzbuch-v2-stufe-6-7`, danach `gh pr view --json autoMergeRequest` → `null`.
+
+---
+
+## Nachträge aus der Umsetzung (Rulings)
+
+- **Öffentlicher Updater-Schlüssel:** bleibt in diesem Stand ein Platzhalter. Der Betreiber trägt ihn per PR in `tauri.conf.json` ein und passt dabei den Test ein, der den Platzhalter festhält (Runbook, Abschnitt „Updater-Schlüssel“).
+- **Riegel:** Er prüft die Minisign-Form, nicht nur ein Präfix. Er greift im Profil `release` und immer, wenn `debug_assertions` aus sind, also dort, wo der Updater mitkompiliert wird.
+- **Installationsregel:** Zu „nichts ausstehend, niemand angemeldet, keine Anmeldung läuft“ kommt „kein Entwurf in den letzten 15 Minuten geändert“ (Autostart-Szenario). Die Regel wird vor dem Herunterladen, vor dem Installieren und vor dem Neustart geprüft.
+- **Wiederholung:** 15 Minuten nach einer gescheiterten Prüfung oder Installation, sonst 6 Stunden. Der letzte Fehler steht in der Karte „Einstellungen“.
+- **Workflow:**
+  - Der Tag muss auf `main` liegen.
+  - Jede `.sig` wird vor dem Ersetzen von `latest.json` gegen den `pubkey` geprüft.
+  - macOS wird ad hoc signiert, nur im Release-Overlay.
+  - Die Manifest-Veröffentlichung läuft in einer eigenen Concurrency-Gruppe, und ein älterer Tag setzt `latest.json` nicht zurück.
+- **Release-Notiz:** so formuliert, dass sie am Rollout-Tag stimmt („sobald die erste Version erschienen ist“).

@@ -410,6 +410,8 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         widerrufen: false,
         sitzung: zustand.sitzung,
         anmeldungLaeuft: false,
+        update: null,
+        updateFehler: null,
       };
     }
 

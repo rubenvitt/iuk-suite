@@ -56,6 +56,10 @@ interface VerwaltungProps {
   sicherung: Sicherungsstand | null;
   /** `status.kette.anzahl === 0` — Bedingung für „Aus Sicherung wiederherstellen“. */
   ketteLeer: boolean;
+  /** Version eines vorgemerkten Updates (`status.update`), für die Karte „Einstellungen“. */
+  update: string | null;
+  /** Letzter Fehler des Updaters (`status.updateFehler`), für die Karte „Einstellungen“. */
+  updateFehler: string | null;
   beiKettePruefen: () => Promise<void>;
   /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
   beiEinstellungGeaendert: (ketteNeu: boolean) => Promise<void>;
@@ -178,6 +182,8 @@ export function Verwaltung(p: VerwaltungProps) {
         ketteLeer={p.ketteLeer}
         mitSitzung={p.sitzung !== null}
         zeitzone={zeitzone}
+        update={p.update}
+        updateFehler={p.updateFehler}
         beiGeaendert={p.beiEinstellungGeaendert}
       />
 
