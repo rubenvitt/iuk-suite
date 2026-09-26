@@ -3,8 +3,13 @@
  * „Kette prüfen“ und „Sitzung sperren“, die Karte „Verschlüsselt / Nur auf diesem Rechner /
  * Lückenlose Kette“, Kennzahl-Kacheln, die Einsatzkette, das Detail des gewählten Einsatzes und
  * die Stichwortverteilung. Kettenliste, Detail und Prüfchip sind die geteilten Ansichten des
- * Kerns (`@kern/ansichten`), wie im Reader der Suite. „Herunterladen“ und das Berichtsblatt
- * kommen mit Stufe 6.
+ * Kerns (`@kern/ansichten`), wie im Reader der Suite. „Herunterladen“ öffnet den Export-Dialog
+ * (`verwaltung/ExportDialog.tsx`), „PDF erzeugen“ das Berichtsblatt
+ * (`verwaltung/BerichtUeberlagerung.tsx`). Beide hängen an dieser Seite: Sperrt die Sitzung,
+ * verschwindet die Seite und nimmt sie mit. Unter dem Stand von Stammdaten und Anker steht die
+ * Karte „Einstellungen“ (`verwaltung/Einstellungen.tsx`) mit Sicherung, Wiederherstellen und
+ * Autostart. Sie hängt an keinem Ladezustand, damit ein Neuladen nach dem Wiederherstellen ihre
+ * Meldung nicht mitnimmt.
  *
  * Die Seite hält nur die gewählte Blocknummer selbst; Klartext kommt ausschließlich aus
  * `zustand` (`verwaltung/useVerwaltung.ts`) und ist nach dem Sperren weg.
@@ -20,18 +25,27 @@ import { Einsatzdetail } from "@kern/ansichten/Einsatzdetail";
 import { Kettenliste } from "@kern/ansichten/Kettenliste";
 import { Kettenpruefung } from "@kern/ansichten/Kettenpruefung";
 
+import type { Block } from "@kern/format";
+
 import { Hinweis } from "../bausteine/Hinweis";
 import { Karte } from "../bausteine/Karte";
 import { Knopf } from "../bausteine/Knopf";
 import { Zeichen } from "../bausteine/Symbol";
+import { befehle } from "../befehle";
+import type { Exportumfang } from "../logik/export";
 import { ankerAbweichungText, stammdatenVomText } from "../logik/verbindung";
+import { BerichtUeberlagerung } from "../verwaltung/BerichtUeberlagerung";
+import { Einstellungen } from "../verwaltung/Einstellungen";
+import { ExportDialog } from "../verwaltung/ExportDialog";
 import { anfangText, kennzahlen, listeneintraege, sitzungText, stichwortVerteilung } from "../verwaltung/modell";
 import type { Verwaltungszustand } from "../verwaltung/useVerwaltung";
-import type { Ankerabweichung, SitzungInfo } from "../typen";
+import type { Ankerabweichung, Sicherungsstand, SitzungInfo, Status } from "../typen";
 
 interface VerwaltungProps {
   zustand: Verwaltungszustand;
   zeitzone: string;
+  betrieb: Status["betrieb"];
+  bereitschaft: string | null;
   sitzung: SitzungInfo | null;
   eingerichtetAm: string | null;
   eingerichtetVon: string | null;
@@ -39,7 +53,12 @@ interface VerwaltungProps {
   /** Aus dem Status — bis „Kette prüfen“ einen frischeren Stand liefert. */
   ankerBestaetigtBis: number;
   ankerAbweichung: Ankerabweichung | null;
+  sicherung: Sicherungsstand | null;
+  /** `status.kette.anzahl === 0` — Bedingung für „Aus Sicherung wiederherstellen“. */
+  ketteLeer: boolean;
   beiKettePruefen: () => Promise<void>;
+  /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
+  beiEinstellungGeaendert: (ketteNeu: boolean) => Promise<void>;
   beiSperren: () => void;
 }
 
@@ -47,6 +66,10 @@ export function Verwaltung(p: VerwaltungProps) {
   const { zustand: z, zeitzone } = p;
   const [gewaehlt, setGewaehlt] = useState<number | null>(null);
   const [prueft, setPrueft] = useState(false);
+  const [exportUmfang, setExportUmfang] = useState<Exportumfang | null>(null);
+  /** Das offene Berichtsblatt: Block und die beim Öffnen frisch aus Rust gelesenen Angaben. */
+  const [druck, setDruck] = useState<{ block: number; erzeugt: string; sitzungName: string; bereitschaft: string } | null>(null);
+  const [aktionFehler, setAktionFehler] = useState<string | null>(null);
 
   async function pruefen() {
     setPrueft(true);
@@ -54,6 +77,20 @@ export function Verwaltung(p: VerwaltungProps) {
       await p.beiKettePruefen();
     } finally {
       setPrueft(false);
+    }
+  }
+
+  /**
+   * „PDF erzeugen“: `erzeugt` ist `Status.jetzt` beim Öffnen, frisch gelesen — der Status der
+   * App stammt womöglich noch von der Anmeldung.
+   */
+  async function berichtOeffnen(block: number) {
+    setAktionFehler(null);
+    try {
+      const s = await befehle.status();
+      setDruck({ block, erzeugt: s.jetzt, sitzungName: s.sitzung?.name ?? p.sitzung?.name ?? "", bereitschaft: s.bereitschaft ?? p.bereitschaft ?? "" });
+    } catch (e) {
+      setAktionFehler(typeof e === "string" ? e : String(e));
     }
   }
 
@@ -68,6 +105,9 @@ export function Verwaltung(p: VerwaltungProps) {
   // abgelehnt) ist jeder Block zu, ohne kaputt zu sein — dann steht nur der neutrale Hinweis da.
   const ohneFreigabe = offen !== null && offen.fehler !== null;
   const gewaehltZu = offen && !ohneFreigabe && gewaehlt !== null && !auswahl ? offen.zu.some((b) => b.kopf.block === gewaehlt) : false;
+  // Die ganze Kette, aufsteigend, wie Rust sie liefert — für den Export.
+  const kette: Block[] = offen ? [...offen.offen.map((o) => o.block), ...offen.zu].sort((a, b) => a.kopf.block - b.kopf.block) : [];
+  const druckOffen = druck && offen ? offen.offen.find((o) => o.block.kopf.block === druck.block) : undefined;
 
   return (
     <main className="seite seite-verwaltung" data-screen-label="Verwaltung">
@@ -80,6 +120,9 @@ export function Verwaltung(p: VerwaltungProps) {
           <Knopf zeichen="verketten" disabled={!offen || prueft} onClick={() => void pruefen()}>
             Kette prüfen
           </Knopf>
+          <Knopf zeichen="herunterladen" disabled={!offen || offen.offen.length === 0} onClick={() => setExportUmfang("alle")}>
+            Herunterladen
+          </Knopf>
           <Knopf zeichen="schluessel" onClick={p.beiSperren}>
             Sitzung sperren
           </Knopf>
@@ -87,6 +130,7 @@ export function Verwaltung(p: VerwaltungProps) {
       </div>
 
       {offen?.fehler ? <Hinweis ton="warn">{offen.fehler}</Hinweis> : null}
+      {aktionFehler ? <Hinweis ton="warn">{aktionFehler}</Hinweis> : null}
       {z.art === "fehler" ? <Hinweis ton="warn">{z.meldung}</Hinweis> : null}
 
       <Karte>
@@ -128,6 +172,15 @@ export function Verwaltung(p: VerwaltungProps) {
         {abweichung ? <Hinweis ton="warn">{ankerAbweichungText(abweichung)}</Hinweis> : null}
       </div>
 
+      <Einstellungen
+        betrieb={p.betrieb}
+        sicherung={p.sicherung}
+        ketteLeer={p.ketteLeer}
+        mitSitzung={p.sitzung !== null}
+        zeitzone={zeitzone}
+        beiGeaendert={p.beiEinstellungGeaendert}
+      />
+
       {z.art === "laedt" ? (
         <div className="leer" role="status">
           Einsätze werden entschlüsselt …
@@ -166,6 +219,16 @@ export function Verwaltung(p: VerwaltungProps) {
                     mitDauerzeile={false}
                     objektImmer={false}
                     kopfRechts={<span className="chip-grau"><Zeichen name="schluessel" groesse={12} />Unveränderlich</span>}
+                    aktionen={
+                      <>
+                        <Knopf zeichen="drucken" onClick={() => void berichtOeffnen(auswahl.block.kopf.block)}>
+                          PDF erzeugen
+                        </Knopf>
+                        <Knopf zeichen="herunterladen" onClick={() => setExportUmfang("einzeln")}>
+                          Diesen Einsatz herunterladen
+                        </Knopf>
+                      </>
+                    }
                   />
                 ) : gewaehltZu ? (
                   <Karte>
@@ -196,6 +259,28 @@ export function Verwaltung(p: VerwaltungProps) {
             ) : null}
           </div>
         </>
+      ) : null}
+
+      {exportUmfang && offen ? (
+        <ExportDialog
+          bloecke={kette}
+          einzeln={auswahl ? { block: auswahl.block.kopf.block, nummer: auswahl.einsatz.nummer, stichwort: auswahl.einsatz.stichwort } : null}
+          umfang={exportUmfang}
+          zeitzone={zeitzone}
+          beiSchliessen={() => setExportUmfang(null)}
+        />
+      ) : null}
+      {druck && druckOffen ? (
+        <BerichtUeberlagerung
+          block={druckOffen.block}
+          einsatz={druckOffen.einsatz}
+          pruefung={offen?.pruefung ?? null}
+          bereitschaft={druck.bereitschaft}
+          sitzungName={druck.sitzungName}
+          erzeugt={druck.erzeugt}
+          zeitzone={zeitzone}
+          beiSchliessen={() => setDruck(null)}
+        />
       ) : null}
     </main>
   );

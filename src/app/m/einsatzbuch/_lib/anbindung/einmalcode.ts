@@ -6,6 +6,7 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { einmalcode } from "../../_db/schema";
 import type { Db } from "../stammdaten/daten";
+import { raeumeAnbindungAuf } from "./aufraeumen";
 import { gleich, hashVon, neuesGeheimnis, s256 } from "./token";
 
 export const CODE_GUELTIG_MS = 60_000;
@@ -17,6 +18,9 @@ export function erzeugeCode(
   db: Db,
   o: { challenge: string; sub: string; name: string; jetzt: Date; einrichtung: Einrichtungswunsch | null },
 ): string {
+  // Aufräumen bei Zugriff (Entscheidung 10, `./aufraeumen.ts`): abgelaufene Codes und Sitzungen
+  // verschwinden, ohne auf den Zehn-Minuten-Takt zu warten.
+  raeumeAnbindungAuf(db, o.jetzt);
   const code = neuesGeheimnis();
   db.insert(einmalcode).values({
     codeHash: hashVon(code),

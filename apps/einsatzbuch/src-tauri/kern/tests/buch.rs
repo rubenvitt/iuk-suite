@@ -108,7 +108,7 @@ fn erneutes_oeffnen_derselben_datei_behaelt_schemaversion_und_einrichtung() {
     }
     let buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     let einrichtung = buch.einrichtung().unwrap();
     assert!(einrichtung.is_some());
     assert_eq!(einrichtung.unwrap().paket.zeitzone, "Europe/Berlin");
@@ -122,21 +122,21 @@ fn unbekannte_hoehere_schemaversion_wird_beim_oeffnen_verweigert() {
     drop(Buch::oeffne(ordner.path(), Betrieb::Test).unwrap());
     {
         let conn = rusqlite::Connection::open(ordner.path().join(Betrieb::Test.datei())).unwrap();
-        conn.pragma_update(None, "user_version", 3).unwrap();
+        conn.pragma_update(None, "user_version", 4).unwrap();
     }
     assert!(matches!(
         Buch::oeffne(ordner.path(), Betrieb::Test),
-        Err(BuchFehler::UnbekannteSchemaversion { gefunden: 3, bekannt: 2 })
+        Err(BuchFehler::UnbekannteSchemaversion { gefunden: 4, bekannt: 3 })
     ));
 }
 
-/// v1→v2 (Schema-Migration dieser Änderung): Eine Datei, die noch unter v1 entstand — vor der
+/// v1→v3: Eine Datei, die noch unter v1 entstand — vor der
 /// Anbindung an die Suite —, öffnet weiterhin. Die Einrichtung bleibt erhalten, `user_version`
-/// steht danach auf 2, und `anbindung()` liefert `Some` mit `rechner_id = ""` statt an der
+/// steht danach auf 3 (v2 und v3 in einem Zug), und `anbindung()` liefert `Some` mit `rechner_id = ""` statt an der
 /// fehlenden Spalte zu scheitern (`COALESCE`, siehe `Buch::anbindung`). Dieser Fall trifft nur
 /// Entwicklerdateien — eine ausgelieferte Installation kennt nur Schema v2.
 #[test]
-fn migration_von_v1_auf_v2_behaelt_die_einrichtung_und_liefert_leere_rechner_id() {
+fn migration_von_v1_auf_v3_behaelt_die_einrichtung_und_liefert_leere_rechner_id() {
     let ordner = tempfile::tempdir().unwrap();
     let pfad = ordner.path().join(Betrieb::Test.datei());
     {
@@ -158,7 +158,7 @@ fn migration_von_v1_auf_v2_behaelt_die_einrichtung_und_liefert_leere_rechner_id(
 
     let buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     let einrichtung = buch.einrichtung().unwrap().expect("die v1-Einrichtung muss erhalten bleiben");
     assert_eq!(einrichtung.suite_url, "https://iuk-ue.example");
     let anbindung = buch.anbindung().unwrap().expect("eine Einrichtung liegt vor, also auch eine Anbindung");
@@ -362,7 +362,8 @@ fn richte_neu_ein_mit_gleichem_schluessel_setzt_die_anbindung_zurueck() {
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt), "r1", "Wache Alt").unwrap();
     let jetzt = chrono::Utc::now();
     hilfe::versiegele_einen_einsatz(&mut buch, jetzt, 2);
-    buch.anker_bestaetigt(1).unwrap();
+    buch.anker_bestaetigt(1, "2026-09-24T10:00:00+02:00").unwrap();
+    assert!(buch.bestaetigter_anker().unwrap().is_some());
     buch.widerrufen_setzen(true).unwrap();
     let vorher = buch.einrichtung().unwrap().unwrap();
     let bloecke_vorher = buch.bloecke().unwrap();
@@ -379,6 +380,10 @@ fn richte_neu_ein_mit_gleichem_schluessel_setzt_die_anbindung_zurueck() {
     assert_eq!(anbindung.anker_gemeldet_bis, 0);
     assert!(!anbindung.widerrufen);
     assert_eq!(anbindung.anker_abweichung, None);
+    assert_eq!(buch.bestaetigter_anker().unwrap(), None, "richte_neu_ein setzt auch den Ankerzeitpunkt zurück");
+    let am: Option<String> =
+        buch.verbindung().query_row("SELECT anker_gemeldet_am FROM einrichtung WHERE id = 1", [], |r| r.get(0)).unwrap();
+    assert_eq!(am, None);
 }
 
 /// `richte_neu_ein` ohne bestehende Einrichtung verlangt eine — es gibt sonst keinen gepinnten
@@ -505,4 +510,131 @@ fn hash_eines_blocks_nach_nummer() {
     assert_eq!(buch.hash_von(1).unwrap().as_deref(), Some(bloecke[0].hash.as_str()));
     assert_eq!(buch.hash_von(2).unwrap().as_deref(), Some(bloecke[1].hash.as_str()));
     assert_eq!(buch.hash_von(3).unwrap(), None);
+}
+
+/// Eine frische Datei landet unmittelbar bei Schema v3 — samt Tabelle `unquittiert` und den
+/// Spalten `anker_gemeldet_am` und `sicherung_fehler`.
+#[test]
+fn frische_datei_landet_direkt_bei_schema_v3() {
+    let ordner = tempfile::tempdir().unwrap();
+    let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    let c = buch.verbindung();
+    assert_eq!(c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 3);
+    assert_eq!(c.query_row("SELECT COUNT(*) FROM unquittiert", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+    c.prepare("SELECT anker_gemeldet_am, sicherung_fehler FROM einrichtung").unwrap();
+    assert_eq!(buch.unquittiert().unwrap(), None);
+    assert_eq!(buch.bestaetigter_anker().unwrap(), None);
+}
+
+/// Review M6: Eine gespeicherte Versiegelung, die sich nicht mehr lesen lässt (etwa nach einem
+/// Update, das `Versiegelung` geändert hat), darf den Status nicht für immer blockieren. Sie gilt
+/// als keine, und die Zeile wird gelöscht — auch über einen Neustart hinweg.
+#[test]
+fn eine_unlesbare_unquittierte_versiegelung_gilt_als_keine_und_wird_geloescht() {
+    let ordner = tempfile::tempdir().unwrap();
+    for json in ["{kaputt", r#"{"block":"eins"}"#] {
+        {
+            let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+            buch.verbindung().execute("INSERT OR REPLACE INTO unquittiert (id, json) VALUES (1, ?1)", [json]).unwrap();
+        }
+        let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+        assert_eq!(buch.unquittiert().unwrap(), None, "{json}");
+        let zeilen: i64 = buch.verbindung().query_row("SELECT COUNT(*) FROM unquittiert", [], |r| r.get(0)).unwrap();
+        assert_eq!(zeilen, 0, "die unlesbare Zeile ist gelöscht: {json}");
+        assert_eq!(buch.unquittiert().unwrap(), None);
+    }
+}
+
+/// v2→v3: Eine Datei aus Stufe 5 (`schema.sql` + `schema_v2.sql`, `user_version = 2`) wird beim
+/// Öffnen auf v3 gehoben. Einrichtung, Anbindung und Blöcke bleiben erhalten; es gibt noch keine
+/// unquittierte Versiegelung und keinen bestätigten Anker mit Zeitpunkt.
+#[test]
+fn migration_von_v2_auf_v3_behaelt_einrichtung_und_bloecke() {
+    let ordner = tempfile::tempdir().unwrap();
+    let pfad = ordner.path().join(Betrieb::Echt.datei());
+    let hash = "a".repeat(64);
+    {
+        let conn = rusqlite::Connection::open(&pfad).unwrap();
+        conn.execute_batch(include_str!("../src/schema.sql")).unwrap();
+        conn.execute_batch(include_str!("../src/schema_v2.sql")).unwrap();
+        conn.execute(
+            "INSERT INTO einrichtung (id, umgebung, suite_url, oeffentlich_spki, schluessel_id, \
+             stammdaten_json, stammdaten_version, frist_minuten, besatzung, zeitzone, bereitschaft, \
+             eingerichtet_am, eingerichtet_von, rechner_id, rechner_name, anker_gemeldet_bis) \
+             VALUES (1, 'echt', 'https://iuk-ue.example', 'AAAA', '0000000000000000', '{\"fahrzeuge\":[],\"personal\":[],\"stichworte\":[]}', \
+             1, 15, 0, 'Europe/Berlin', 'Regelbereitschaft', '2026-01-01T00:00:00+01:00', 'test', 'r1', 'Wache', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (1, '{}', ?1, '2026-01-01T00:05:00+01:00')",
+            [&hash],
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+    }
+
+    let buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    let version: i64 = buch.verbindung().query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+    assert_eq!(version, 3);
+    let einrichtung = buch.einrichtung().unwrap().expect("die v2-Einrichtung muss erhalten bleiben");
+    assert_eq!(einrichtung.suite_url, "https://iuk-ue.example");
+    let anbindung = buch.anbindung().unwrap().unwrap();
+    assert_eq!(anbindung.rechner_id, "r1");
+    assert_eq!(anbindung.anker_gemeldet_bis, 1);
+    assert_eq!(buch.kettenkopf().unwrap(), Some((1, hash)));
+    assert_eq!(buch.unquittiert().unwrap(), None);
+    // Bestätigt bis 1, aber ohne Zeitpunkt (den kannte v2 nicht): kein Exportanker.
+    assert_eq!(buch.bestaetigter_anker().unwrap(), None);
+}
+
+/// Ankerzeitpunkt: `anker_bestaetigt(3, t)` setzt Stand und Zeitpunkt; eine verspätete Bestätigung
+/// eines kleineren Blocks ändert keins von beiden; dieselbe Blocknummer erneut (der stündliche
+/// Lauf meldet den letzten Block noch einmal) frischt den Zeitpunkt auf.
+#[test]
+fn anker_bestaetigt_setzt_zeitpunkt_nur_bei_gleichem_oder_hoeherem_block() {
+    use chrono::{TimeZone, Utc};
+    use einsatzbuch_kern::buch::Exportanker;
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    for i in 1..=3u8 {
+        hilfe::versiegele_einen_einsatz(&mut buch, Utc.with_ymd_and_hms(2026, 8, 22, 3, 12 + u32::from(i), 0).unwrap(), i);
+    }
+    let hash3 = buch.hash_von(3).unwrap().unwrap();
+    assert_eq!(buch.bestaetigter_anker().unwrap(), None, "vor der ersten Bestätigung gibt es keinen Anker");
+
+    buch.anker_bestaetigt(3, "2026-09-24T10:00:00+02:00").unwrap();
+    let erwartet = Exportanker { block: 3, hash: hash3.clone(), gemeldet_am: "2026-09-24T10:00:00+02:00".into() };
+    assert_eq!(buch.bestaetigter_anker().unwrap(), Some(erwartet.clone()));
+    assert_eq!(buch.anbindung().unwrap().unwrap().anker_gemeldet_bis, 3);
+
+    buch.anker_bestaetigt(2, "2026-09-24T11:00:00+02:00").unwrap();
+    assert_eq!(buch.bestaetigter_anker().unwrap(), Some(erwartet), "eine überholte Bestätigung ändert nichts");
+    assert_eq!(buch.anbindung().unwrap().unwrap().anker_gemeldet_bis, 3);
+
+    buch.anker_bestaetigt(3, "2026-09-24T12:00:00+02:00").unwrap();
+    assert_eq!(
+        buch.bestaetigter_anker().unwrap(),
+        Some(Exportanker { block: 3, hash: hash3, gemeldet_am: "2026-09-24T12:00:00+02:00".into() })
+    );
+}
+
+/// `Exportanker` geht 1:1 in `Exportinhalt.anker` des TS-Kerns (`format.ts`): camelCase.
+#[test]
+fn exportanker_ist_camel_case() {
+    use einsatzbuch_kern::buch::Exportanker;
+    let a = Exportanker { block: 3, hash: "h".into(), gemeldet_am: "2026-09-24T10:00:00+02:00".into() };
+    assert_eq!(
+        serde_json::to_value(&a).unwrap(),
+        serde_json::json!({ "block": 3, "hash": "h", "gemeldetAm": "2026-09-24T10:00:00+02:00" })
+    );
+}
+
+#[test]
+fn anker_bestaetigt_ohne_einrichtung_scheitert() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    assert!(matches!(buch.anker_bestaetigt(1, "2026-09-24T10:00:00+02:00"), Err(BuchFehler::NichtEingerichtet)));
+    assert_eq!(buch.bestaetigter_anker().unwrap(), None);
 }

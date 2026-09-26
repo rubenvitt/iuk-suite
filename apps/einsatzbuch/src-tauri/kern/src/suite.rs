@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
+use zeroize::Zeroizing;
 use serde::de::DeserializeOwned;
 
 use crate::anmeldung::{modul_url, prozent_kodiere};
@@ -17,8 +18,8 @@ use crate::buch::{Ankerabweichung, Buch, BuchFehler};
 use crate::einrichtung::Stammdatenpaket;
 use crate::format::{Block, Umgebung};
 use crate::vertrag::{
-    AnkerAnfrage, EinrichtenAnfrage, EinrichtenAntwort, Fehlerkoerper, Freigabeposten, Schluesselposten, TauschAnfrage,
-    TauschAntwort,
+    AnkerAnfrage, EinrichtenAnfrage, EinrichtenAntwort, Fehlerkoerper, Freigabeposten, KettenankerAntwort,
+    Schluesselposten, SicherungAnfrage, TauschAnfrage, TauschAntwort,
 };
 
 /// Eine Anfrage an die Suite. `json` ist der fertige Körper; die Hülle setzt dazu
@@ -101,7 +102,20 @@ fn als_json<T: Serialize + ?Sized>(wert: &T) -> String {
 }
 
 fn lies_json<T: DeserializeOwned>(a: &Antwort) -> Result<T, SuiteFehler> {
-    serde_json::from_str(&a.koerper).map_err(|e| SuiteFehler::Antwort(format!("Körper passt nicht zum Vertrag: {e}")))
+    serde_json::from_str(&a.koerper).map_err(|e| vertragsfehler(&e))
+}
+
+/// Ein Körper, der nicht zum Vertrag passt. Nie `{e}`: Der Text eines `serde_json::Error` zitiert
+/// Werte aus dem Körper („invalid type: string "…"“), und der kann CEKs oder Tokens tragen. Es
+/// bleiben die Art des Fehlers sowie Zeile und Spalte.
+fn vertragsfehler(e: &serde_json::Error) -> SuiteFehler {
+    let art = match e.classify() {
+        serde_json::error::Category::Io => "Lesefehler",
+        serde_json::error::Category::Syntax => "kein gültiges JSON",
+        serde_json::error::Category::Data => "falsche Form oder falscher Typ",
+        serde_json::error::Category::Eof => "Körper endet vorzeitig",
+    };
+    SuiteFehler::Antwort(format!("Körper passt nicht zum Vertrag: {art} (Zeile {}, Spalte {})", e.line(), e.column()))
 }
 
 /// Deutet eine Fehlerantwort. Ohne lesbaren Fehlerkörper — etwa eine HTML-Seite eines
@@ -249,7 +263,8 @@ fn mit_buch<T>(buch: &Mutex<Option<Buch>>, f: impl FnOnce(&mut Buch) -> Result<T
 /// während einer Anfrage.
 ///
 /// 1. Unter dem Lock die offenen Anker und die `rechner_id` lesen, dann den Lock freigeben.
-/// 2. Je Block `POST /api/anker`: 204 wird unter dem Lock bestätigt; 409 speichert die
+/// 2. Je Block `POST /api/anker`: 204 wird unter dem Lock bestätigt, mit `gemeldet_am` als
+///    Zeitpunkt (`Buch::anker_bestaetigt`, die Zone wählt die Aufruferin); 409 speichert die
 ///    Abweichung und bricht ab; 401 speichert den Widerruf; ein Netzfehler oder ein 5xx (Proxy
 ///    vor einer nicht laufenden Suite) ist `Offline`.
 /// 3. War nichts offen, wird der letzte Block trotzdem erneut gemeldet — „Kette prüfen gegen den
@@ -267,6 +282,7 @@ pub fn gleiche_anker_ab(
     t: &dyn Transport,
     suite: &str,
     geraet: &str,
+    gemeldet_am: &str,
 ) -> Result<AnkerErgebnis, String> {
     let (offen, kopf, rechner) =
         mit_buch(buch, |b| Ok((b.unbestaetigte_anker()?, b.kettenkopf()?, rechner_id(b)?)))?;
@@ -300,7 +316,7 @@ pub fn gleiche_anker_ab(
         };
         match a.status {
             200 | 204 => {
-                if !schreibe(&|b| b.anker_bestaetigt(block))? {
+                if !schreibe(&|b| b.anker_bestaetigt(block, gemeldet_am))? {
                     return Ok(AnkerErgebnis::Ueberholt);
                 }
             }
@@ -334,6 +350,35 @@ fn rechner_id(b: &Buch) -> Result<Option<String>, BuchFehler> {
     Ok(b.anbindung()?.map(|a| a.rechner_id))
 }
 
+/// `GET /api/anker?erster=…` mit dem Geräte-Token (Stufe 6, Entscheidung 5): der höchste
+/// Suite-Anker der Kette, deren Block 1 den Hash `erster` trägt — `None`, wenn die Suite für
+/// diese Kette keinen Anker kennt. `erster` macht die Kette erkennbar: Ohne ihn zählten die Anker
+/// einer älteren, verlorenen Kette mit, und eine gültige Sicherung hieße „veraltet“. Anders als
+/// `gleiche_anker_ab` prüft das nicht gegen eine Meldung, sondern liest den Stand für die
+/// Wiederherstellung. 401 heißt Widerrufen wie bei den anderen Geräte-Schnittstellen; eine
+/// mehrdeutige Kette der Suite (`409 anker_mehrdeutig`) und ein 5xx ohne lesbaren Fehlerkörper
+/// laufen über `abgelehnt_oder_offline` wie bei `gib_frei`.
+pub fn hole_kettenanker(t: &dyn Transport, suite: &str, geraet: &str, erster: &str) -> Result<Option<(u64, String)>, SuiteFehler> {
+    let a = sende(
+        t,
+        Anfrage {
+            methode: "GET",
+            url: modul_url(suite, &format!("/api/anker?erster={}", prozent_kodiere(erster))),
+            bearer: Some(geraet),
+            if_none_match: None,
+            json: None,
+        },
+    )?;
+    match a.status {
+        200 => {
+            let antwort: KettenankerAntwort = lies_json(&a)?;
+            Ok(antwort.anker.map(|k| (k.block, k.hash)))
+        }
+        401 => Err(SuiteFehler::Widerrufen),
+        _ => Err(abgelehnt_oder_offline(&a)),
+    }
+}
+
 /// Höchstens so viele Einträge je Freigabe-Anfrage (Tabelle „Schnittstellen“, Nr. 7).
 pub const PAKET: usize = 200;
 
@@ -351,7 +396,7 @@ pub fn gib_frei(
     for paket in bloecke.chunks(PAKET) {
         let posten: Vec<Freigabeposten> =
             paket.iter().map(|b| Freigabeposten { kopf: b.kopf.clone(), umschlag: b.umschlag.clone() }).collect();
-        let a = sende(
+        let mut a = sende(
             t,
             Anfrage {
                 methode: "POST",
@@ -364,7 +409,11 @@ pub fn gib_frei(
         if a.status != 200 {
             return Err(abgelehnt_oder_offline(&a));
         }
-        let schluessel: Vec<Schluesselposten> = lies_json(&a)?;
+        // Der Körper trägt die CEKs im Klartext (Base64): nach dem Lesen überschreiben, auch wenn
+        // er nicht zum Vertrag passt. Die Posten wischen ihre CEKs selbst (`Schluesselposten`).
+        let koerper = Zeroizing::new(std::mem::take(&mut a.koerper));
+        let schluessel: Vec<Schluesselposten> = serde_json::from_str(&koerper)
+            .map_err(|e| vertragsfehler(&e))?;
         if zaehle(schluessel.iter().map(|s| s.block)) != zaehle(paket.iter().map(|b| b.kopf.block)) {
             return Err(SuiteFehler::Antwort("die Freigabe nennt andere Blöcke als angefragt".into()));
         }
@@ -397,5 +446,28 @@ pub fn loesche_rechner(t: &dyn Transport, suite: &str, sitzung: &str, rechner_id
     match a.status {
         200 | 204 => Ok(()),
         _ => Err(abgelehnt(&a)),
+    }
+}
+
+/// `POST /api/sicherung` mit dem Geräte-Token (Tabelle „Schnittstellen“, Nr. 6): meldet den
+/// Zeitpunkt der letzten gelungenen Sicherung. 204 ist der einzige Erfolg; 401 heißt Widerrufen
+/// wie bei den anderen Geräte-Schnittstellen (Stammdaten, Anker), ein 5xx ohne lesbaren
+/// Fehlerkörper „nicht erreichbar“.
+pub fn melde_sicherung(t: &dyn Transport, suite: &str, geraet: &str, erstellt: &str) -> Result<(), SuiteFehler> {
+    let koerper = SicherungAnfrage { erstellt: erstellt.to_string() };
+    let a = sende(
+        t,
+        Anfrage {
+            methode: "POST",
+            url: modul_url(suite, "/api/sicherung"),
+            bearer: Some(geraet),
+            if_none_match: None,
+            json: Some(als_json(&koerper)),
+        },
+    )?;
+    match a.status {
+        204 => Ok(()),
+        401 => Err(SuiteFehler::Widerrufen),
+        _ => Err(abgelehnt_oder_offline(&a)),
     }
 }

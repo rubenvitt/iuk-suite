@@ -137,6 +137,10 @@
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#fahrzeugSpeichernAction": { "kind": "context", "via": "fahrzeugSpeichernAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#personSpeichernAction": { "kind": "context", "via": "personSpeichernAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stichwortSpeichernAction": { "kind": "context", "via": "stichwortSpeichernAction" },
+  "src/app/m/einsatzbuch/api/anker/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
   "src/app/m/einsatzbuch/api/anker/route.ts#POST": {
     "kind": "context",
     "via": "POST"

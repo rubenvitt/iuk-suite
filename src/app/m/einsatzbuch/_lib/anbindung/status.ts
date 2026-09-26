@@ -4,7 +4,7 @@
  * letzten Schlüsselfreigaben (Entscheidung 4). Zeiten kommen als Text in der Suite-Zone
  * (`zeitFormat`), nie als Datum — die Seite formatiert nichts selbst nach.
  */
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { zeitFormat } from "@/core/zeit";
 import { anker, ankerAbweichung, freigabe, rechner, schluesselpaar } from "../../_db/schema";
 import type { Db } from "../stammdaten/daten";
@@ -20,6 +20,18 @@ export interface EchterRechnerStatus {
   abweichungen: { block: number; erwartet: string; gemeldet: string; zeitpunkt: string }[];
   schluesselId: string | null;
 }
+/** Ein widerrufener echter Rechner (Stufe 6, Task 7, Entscheidung 11) — dieselben Felder wie
+ *  `EchterRechnerStatus`, ohne `letzterKontakt`/`letzteSicherung`/`schluesselId` (für einen
+ *  widerrufenen Rechner ohne Aussagekraft), dafür mit `widerrufenAm`. */
+export interface WiderrufenerRechnerStatus {
+  id: string;
+  name: string;
+  eingerichtetAm: string;
+  eingerichtetVon: string;
+  widerrufenAm: string;
+  ankerBis: number | null;
+  abweichungen: { block: number; erwartet: string; gemeldet: string; zeitpunkt: string }[];
+}
 export interface TestRechnerZeile {
   id: string;
   name: string;
@@ -30,6 +42,8 @@ export interface TestRechnerZeile {
   abweichungen: number;
 }
 export interface FreigabeZeile {
+  /** ID der Freigabe — der Zeilenschlüssel der Tabelle; die Anzeigefelder allein sind nicht eindeutig. */
+  id: string;
   zeitpunkt: string;
   name: string;
   art: "echt" | "test";
@@ -56,14 +70,21 @@ function ankerBisFuer(db: Db, rechnerId: string): number | null {
   return zeile?.block ?? null;
 }
 
-export function rechnerStatus(db: Db): { echt: EchterRechnerStatus | null; test: TestRechnerZeile[]; freigaben: FreigabeZeile[] } {
+/** Die Abweichungen eines Rechners, formatiert und neueste zuerst. */
+function abweichungenFuer(db: Db, rechnerId: string): EchterRechnerStatus["abweichungen"] {
+  return db.select().from(ankerAbweichung)
+    .where(eq(ankerAbweichung.rechnerId, rechnerId))
+    .orderBy(desc(ankerAbweichung.zeitpunkt))
+    .all()
+    .map((a) => ({ block: a.block, erwartet: a.erwartet, gemeldet: a.gemeldet, zeitpunkt: ANZEIGE.format(a.zeitpunkt) }));
+}
+
+export function rechnerStatus(
+  db: Db,
+): { echt: EchterRechnerStatus | null; test: TestRechnerZeile[]; freigaben: FreigabeZeile[]; widerrufeneEcht: WiderrufenerRechnerStatus[] } {
   const echtZeile = db.select().from(rechner).where(and(eq(rechner.art, "echt"), isNull(rechner.widerrufenAm))).get();
   let echt: EchterRechnerStatus | null = null;
   if (echtZeile) {
-    const abweichungen = db.select().from(ankerAbweichung)
-      .where(eq(ankerAbweichung.rechnerId, echtZeile.id))
-      .orderBy(desc(ankerAbweichung.zeitpunkt))
-      .all();
     // Das echte Paar trägt `rechnerId: null` (Spec §12); es gibt höchstens eines.
     const paar = db.select({ schluesselId: schluesselpaar.schluesselId }).from(schluesselpaar).where(eq(schluesselpaar.art, "echt")).get();
     echt = {
@@ -74,7 +95,7 @@ export function rechnerStatus(db: Db): { echt: EchterRechnerStatus | null; test:
       letzterKontakt: formatiereDatum(echtZeile.letzterKontakt),
       letzteSicherung: formatiereIso(echtZeile.letzteSicherung),
       ankerBis: ankerBisFuer(db, echtZeile.id),
-      abweichungen: abweichungen.map((a) => ({ block: a.block, erwartet: a.erwartet, gemeldet: a.gemeldet, zeitpunkt: ANZEIGE.format(a.zeitpunkt) })),
+      abweichungen: abweichungenFuer(db, echtZeile.id),
       schluesselId: paar?.schluesselId ?? null,
     };
   }
@@ -90,11 +111,29 @@ export function rechnerStatus(db: Db): { echt: EchterRechnerStatus | null; test:
     abweichungen: db.select({ id: ankerAbweichung.id }).from(ankerAbweichung).where(eq(ankerAbweichung.rechnerId, r.id)).all().length,
   }));
 
+  // Widerrufene echte Rechner (Entscheidung 11), neueste zuerst — die Sortierung nach
+  // `widerrufenAm` ist wohldefiniert, weil hier nur Zeilen mit gesetztem `widerrufenAm` stehen.
+  const widerrufeneZeilen = db.select().from(rechner)
+    .where(and(eq(rechner.art, "echt"), isNotNull(rechner.widerrufenAm)))
+    .orderBy(desc(rechner.widerrufenAm))
+    .all();
+  const widerrufeneEcht: WiderrufenerRechnerStatus[] = widerrufeneZeilen.map((r) => ({
+    id: r.id,
+    name: r.name,
+    eingerichtetAm: ANZEIGE.format(r.eingerichtetAm),
+    eingerichtetVon: r.eingerichtetVon,
+    // `widerrufenAm` ist hier nie `null` (der WHERE-Filter oben verlangt es); der Nicht-Null-
+    // Ausrufer ist trotzdem nötig, weil die Spaltensicht selbst `Date | null` bleibt.
+    widerrufenAm: ANZEIGE.format(r.widerrufenAm!),
+    ankerBis: ankerBisFuer(db, r.id),
+    abweichungen: abweichungenFuer(db, r.id),
+  }));
+
   const freigaben: FreigabeZeile[] = db.select().from(freigabe)
     .orderBy(desc(freigabe.zeitpunkt))
     .limit(HOECHSTENS_FREIGABEN)
     .all()
-    .map((f) => ({ zeitpunkt: ANZEIGE.format(f.zeitpunkt), name: f.name, art: f.art, rechnerName: f.rechnerName, bloecke: f.bloecke, anzahl: f.anzahl }));
+    .map((f) => ({ id: f.id, zeitpunkt: ANZEIGE.format(f.zeitpunkt), name: f.name, art: f.art, rechnerName: f.rechnerName, bloecke: f.bloecke, anzahl: f.anzahl }));
 
-  return { echt, test, freigaben };
+  return { echt, test, freigaben, widerrufeneEcht };
 }

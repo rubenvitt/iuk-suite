@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@kern/*": ["./src/app/m/einsatzbuch/_lib/kern/*"]
     }
   },
   "include": [

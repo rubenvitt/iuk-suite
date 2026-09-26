@@ -3,6 +3,11 @@
  * Suite-Chrome, außerhalb von `(verwaltung)`. Nur `Card`/`Result` (Falle 1) und eigenes Markup
  * mit eigenen CSS-Variablen (Falle 2, `anmelden.module.css`).
  *
+ * `Result`s `title` trägt seit Stufe 6, Task 7 ein echtes `<h1>` (Klasse `.titel`) statt eines
+ * reinen Strings: antd rendert einen String-Titel als `<div>` ohne Überschriften-Rolle, und
+ * `getByRole("heading", …)` im e2e fand ihn deshalb nicht. Kein antd-Compound (weiter Falle 1) —
+ * nur ein eigenes Element als Kindknoten der `title`-Prop.
+ *
  * Die Probe aus Task 4, Step 1 (`e2e/einsatzbuch-anbindung.spec.ts`) hat den Laufzeitweg schon bewiesen: externe
  * Weiterleitung auf `http://127.0.0.1:<port>/rueckruf…` aus einer Server Component, und der
  * Login-Umweg mit erhaltener Query. Die Fachlogik liegt in `_lib/anbindung/anmeldeseite.ts` —
@@ -40,7 +45,7 @@ export default async function AnmeldenPage({
         <Card className={s.karte}>
           <Result
             status="error"
-            title="Anmeldung nicht möglich"
+            title={<h1 className={s.titel}>Anmeldung nicht möglich</h1>}
             subTitle="Die Adresse ist unvollständig. Starte die Anmeldung erneut am Einsatzbuch-Rechner."
           />
         </Card>
@@ -59,7 +64,7 @@ export default async function AnmeldenPage({
         <Card className={s.karte}>
           <Result
             status="warning"
-            title="Kein Zugang zum Einsatzbuch"
+            title={<h1 className={s.titel}>Kein Zugang zum Einsatzbuch</h1>}
             subTitle="Dein Konto ist nicht in der Gruppe für das Einsatzbuch. Bitte wende dich an die Leitung."
             extra={
               <a className={s.knopf} href={rueckrufUrl(p, { fehler: "kein_zugang" })}>

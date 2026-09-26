@@ -17,9 +17,9 @@ function legeRechnerAn(db: TestDb, id: string, art: "echt" | "test", name: strin
 }
 
 describe("rechnerStatus", () => {
-  it("ohne echten Rechner: echt ist null, test und freigaben sind leer", async () => {
+  it("ohne echten Rechner: echt ist null, test, freigaben und widerrufeneEcht sind leer", async () => {
     const db = testDb();
-    expect(rechnerStatus(db)).toEqual({ echt: null, test: [], freigaben: [] });
+    expect(rechnerStatus(db)).toEqual({ echt: null, test: [], freigaben: [], widerrufeneEcht: [] });
   });
 
   it("ankerBis ist der höchste gemeldete Block, unabhängig von der Meldereihenfolge", async () => {
@@ -65,6 +65,30 @@ describe("rechnerStatus", () => {
     expect(rechnerStatus(db).echt).toBeNull();
   });
 
+  it("ein widerrufener echter Rechner erscheint in widerrufeneEcht samt Abweichungen, neueste zuerst", async () => {
+    const db = testDb();
+    await legePaarAn(db, { art: "echt", rechnerId: null, kek, jetzt: JETZT });
+    legeRechnerAn(db, "re1", "echt", "Erster Leitrechner");
+    db.insert(anker).values({ rechnerId: "re1", block: 2, hash: "a".repeat(64), gemeldetAm: JETZT }).run();
+    db.insert(ankerAbweichung).values({
+      id: "abw-1", rechnerId: "re1", block: 2, erwartet: "1".repeat(64), gemeldet: "2".repeat(64), zeitpunkt: JETZT,
+    }).run();
+    const spaeter = new Date(JETZT.getTime() + 1000);
+    widerrufe(db, "re1", JETZT);
+
+    legeRechnerAn(db, "re2", "echt", "Zweiter Leitrechner");
+    widerrufe(db, "re2", spaeter);
+
+    const { echt, widerrufeneEcht } = rechnerStatus(db);
+    expect(echt).toBeNull();
+    expect(widerrufeneEcht).toHaveLength(2);
+    // Neueste (spätester Widerruf) zuerst.
+    expect(widerrufeneEcht[0]).toMatchObject({ id: "re2", name: "Zweiter Leitrechner", ankerBis: null, abweichungen: [] });
+    expect(widerrufeneEcht[1]).toMatchObject({ id: "re1", name: "Erster Leitrechner", ankerBis: 2 });
+    expect(widerrufeneEcht[1].abweichungen).toHaveLength(1);
+    expect(widerrufeneEcht[1].abweichungen[0]).toMatchObject({ block: 2, erwartet: "1".repeat(64), gemeldet: "2".repeat(64) });
+  });
+
   it("trägt den Fingerabdruck des echten Schlüsselpaars", async () => {
     const db = testDb();
     const paar = await legePaarAn(db, { art: "echt", rechnerId: null, kek, jetzt: JETZT });
@@ -92,5 +116,7 @@ describe("rechnerStatus", () => {
     // Der jüngste Eintrag (i = 24, spätester Zeitpunkt) steht zuerst, der 20. jüngste (i = 5) zuletzt.
     expect(freigaben[0].anzahl).toBe(24);
     expect(freigaben[19].anzahl).toBe(5);
+    // Die ID der Freigabe reist mit — sie ist der Zeilenschlüssel der Tabelle (`Freigaben`).
+    expect(freigaben[0].id).toBe("f24");
   });
 });

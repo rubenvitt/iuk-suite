@@ -13,10 +13,10 @@ export function Freigaben({ liste }: { liste: FreigabeZeile[] }) {
   return (
     <Card title="Letzte Schlüsselfreigaben">
       <Kartentabelle<FreigabeZeile>
-        // Ohne eigene ID (die Zeile trägt keine, Entscheidung 4): der Schlüssel setzt sich aus
-        // allen Feldern zusammen, nie aus dem Index — antd warnt vor `index` als Schlüssel, weil
-        // er bei Sortierung/Filterung nicht stabil bleibt.
-        rowKey={(z) => `${z.zeitpunkt}-${z.name}-${z.art}-${z.rechnerName}-${z.bloecke}-${z.anzahl}`}
+        // Die ID der Freigabe: Die Anzeigefelder allein sind nicht eindeutig (zwei Freigaben
+        // derselben Person in derselben Minute über dieselben Blöcke), und der Index bleibt bei
+        // Sortierung/Filterung nicht stabil.
+        rowKey="id"
         aria-label="Schlüsselfreigaben"
         dataSource={liste}
         leer={{ nichts: "Noch keine Schlüsselfreigaben." }}

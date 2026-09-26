@@ -6,7 +6,7 @@ mod hilfe;
 use std::sync::{Arc, Mutex};
 
 use chrono::{Duration, TimeZone, Utc};
-use einsatzbuch_kern::buch::{Ankerabweichung, Betrieb, Buch};
+use einsatzbuch_kern::buch::{Ankerabweichung, Betrieb, Buch, Exportanker};
 use einsatzbuch_kern::einrichtung::Stammdatenpaket;
 use einsatzbuch_kern::format::{Block, Blockkopf, GENESIS, Umgebung, Umschlag};
 use einsatzbuch_kern::suite::{
@@ -15,6 +15,8 @@ use einsatzbuch_kern::suite::{
 use serde_json::{Value, json};
 
 const SUITE: &str = "https://suite.example";
+/// Zeitpunkt, den die Tests `gleiche_anker_ab` als Bestätigungszeitpunkt mitgeben.
+const GEMELDET: &str = "2026-09-24T10:00:00+02:00";
 
 /// Eine aufgezeichnete Anfrage, mit eigenen Strings statt Leihgaben und dem Körper als JSON.
 #[derive(Debug, Clone)]
@@ -409,16 +411,22 @@ fn anker_werden_nach_neustart_nachgemeldet() {
     let hash = hashes(&buch);
 
     let offline = FakeTransport::neu(|_| Err("keine Verbindung".into())).mit_buch(&buch);
-    assert_eq!(suite::gleiche_anker_ab(&buch, &offline, SUITE, "geraet").unwrap(), AnkerErgebnis::Offline);
+    assert_eq!(suite::gleiche_anker_ab(&buch, &offline, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Offline);
     assert_eq!(anbindung(&buch).anker_gemeldet_bis, 0);
+    assert_eq!(buch.lock().unwrap().as_ref().unwrap().bestaetigter_anker().unwrap(), None, "offline gibt es keinen Zeitpunkt");
 
     // Neustart: Buch schließen und neu öffnen.
     *buch.lock().unwrap() = None;
     *buch.lock().unwrap() = Some(Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap());
 
     let online = FakeTransport::neu(|_| antwort(204, "")).mit_buch(&buch);
-    assert_eq!(suite::gleiche_anker_ab(&buch, &online, SUITE, "geraet").unwrap(), AnkerErgebnis::Bestaetigt(3));
+    assert_eq!(suite::gleiche_anker_ab(&buch, &online, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Bestaetigt(3));
     assert_eq!(anbindung(&buch).anker_gemeldet_bis, 3);
+    assert_eq!(
+        buch.lock().unwrap().as_ref().unwrap().bestaetigter_anker().unwrap(),
+        Some(Exportanker { block: 3, hash: hash[2].clone(), gemeldet_am: GEMELDET.into() }),
+        "die Bestätigung trägt den übergebenen Zeitpunkt"
+    );
 
     let anfragen = online.anfragen();
     assert_eq!(anfragen.len(), 3);
@@ -437,11 +445,11 @@ fn ohne_offene_anker_wird_der_letzte_block_erneut_gemeldet() {
     let ordner = tempfile::tempdir().unwrap();
     let buch = geteiltes_buch(ordner.path(), 2);
     let t = FakeTransport::neu(|_| antwort(204, "")).mit_buch(&buch);
-    suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap();
+    suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap();
     assert_eq!(gemeldete_bloecke(&t), [1, 2]);
 
     let t = FakeTransport::neu(|_| antwort(204, "")).mit_buch(&buch);
-    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Bestaetigt(2));
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Bestaetigt(2));
     assert_eq!(gemeldete_bloecke(&t), [2]);
 
     let erwartet = "f".repeat(64);
@@ -449,7 +457,7 @@ fn ohne_offene_anker_wird_der_letzte_block_erneut_gemeldet() {
         antwort(409, &json!({ "error": { "code": "anker_abweichung", "message": "m" }, "erwartet": erwartet }).to_string())
     })
     .mit_buch(&buch);
-    let ergebnis = suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap();
+    let ergebnis = suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap();
     let hash = hashes(&buch);
     let abweichung = Ankerabweichung { block: 2, erwartet: "f".repeat(64), gemeldet: hash[1].clone() };
     assert_eq!(ergebnis, AnkerErgebnis::Abweichung(abweichung.clone()));
@@ -477,7 +485,7 @@ fn abweichung_bei_block_2_wird_gespeichert_und_block_3_nicht_gesendet() {
     })
     .mit_buch(&buch);
 
-    let ergebnis = suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap();
+    let ergebnis = suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap();
     let abweichung = Ankerabweichung { block: 2, erwartet, gemeldet: hash[1].clone() };
     assert_eq!(ergebnis, AnkerErgebnis::Abweichung(abweichung.clone()));
     assert_eq!(gemeldete_bloecke(&t), [1, 2]);
@@ -491,7 +499,7 @@ fn anker_401_setzt_widerrufen() {
     let ordner = tempfile::tempdir().unwrap();
     let buch = geteiltes_buch(ordner.path(), 2);
     let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr.")).mit_buch(&buch);
-    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Widerrufen);
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Widerrufen);
     let stand = anbindung(&buch);
     assert!(stand.widerrufen);
     assert_eq!(stand.anker_gemeldet_bis, 0);
@@ -503,7 +511,7 @@ fn leere_kette_ist_ohne_anfrage_bestaetigt() {
     let ordner = tempfile::tempdir().unwrap();
     let buch = geteiltes_buch(ordner.path(), 0);
     let t = FakeTransport::neu(|_| panic!("keine Anfrage erwartet")).mit_buch(&buch);
-    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Bestaetigt(0));
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Bestaetigt(0));
     assert!(t.anfragen().is_empty());
 }
 
@@ -511,7 +519,7 @@ fn leere_kette_ist_ohne_anfrage_bestaetigt() {
 fn anker_ohne_offenes_buch_ist_ein_fehler() {
     let buch: Mutex<Option<Buch>> = Mutex::new(None);
     let t = FakeTransport::neu(|_| panic!("keine Anfrage erwartet"));
-    assert!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").is_err());
+    assert!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).is_err());
 }
 
 #[test]
@@ -519,7 +527,7 @@ fn anker_mit_unerwartetem_status_ist_ein_fehler_und_haelt_den_stand() {
     let ordner = tempfile::tempdir().unwrap();
     let buch = geteiltes_buch(ordner.path(), 2);
     let t = FakeTransport::neu(|_| fehler(400, "validation_error", "kaputt")).mit_buch(&buch);
-    let ergebnis = suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet");
+    let ergebnis = suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET);
     assert!(matches!(ergebnis, Err(ref m) if m.contains("kaputt")), "{ergebnis:?}");
     assert_eq!(anbindung(&buch).anker_gemeldet_bis, 0);
 }
@@ -537,7 +545,7 @@ fn anker_mit_5xx_ist_offline_und_haelt_den_stand() {
         let ordner = tempfile::tempdir().unwrap();
         let buch = geteiltes_buch(ordner.path(), 2);
         let t = FakeTransport::neu(move |_| antwort(status, "<html>Bad Gateway</html>")).mit_buch(&buch);
-        assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Offline, "HTTP {status}");
+        assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Offline, "HTTP {status}");
         let stand = anbindung(&buch);
         assert_eq!(stand.anker_gemeldet_bis, 0);
         assert!(!stand.widerrufen);
@@ -589,7 +597,7 @@ fn spaete_antwort_nach_neu_einrichten_wird_verworfen() {
         })
         .mit_buch(&buch);
 
-        assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Ueberholt, "HTTP {status}");
+        assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Ueberholt, "HTTP {status}");
         let stand = anbindung(&buch);
         assert_eq!(stand.rechner_id, "r2");
         assert_eq!(stand.anker_gemeldet_bis, 0, "HTTP {status}: keine Bestätigung für den neuen Rechner");
@@ -640,7 +648,126 @@ fn anker_nach_panik_unter_dem_lock_laufen_weiter() {
     assert!(buch.is_poisoned());
 
     let t = FakeTransport::neu(|_| antwort(204, ""));
-    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet").unwrap(), AnkerErgebnis::Bestaetigt(2));
+    assert_eq!(suite::gleiche_anker_ab(&buch, &t, SUITE, "geraet", GEMELDET).unwrap(), AnkerErgebnis::Bestaetigt(2));
     let stand = buch.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().unwrap().anbindung().unwrap().unwrap();
     assert_eq!(stand.anker_gemeldet_bis, 2);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Kettenanker (GET /api/anker) und Sicherung
+// ---------------------------------------------------------------------------------------------
+
+/// Hash von Block 1 der gesuchten Kette (`?erster=`).
+const ERSTER: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// `hole_kettenanker`: `GET` mit dem Geräte-Token und `?erster=`, 200 mit Anker liefert
+/// `Some((block, hash))`.
+#[test]
+fn hole_kettenanker_schickt_get_mit_bearer_und_liest_den_anker() {
+    let t = FakeTransport::neu(|_| antwort(200, &fixture("anker-lesen.json")));
+    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER).unwrap();
+    assert_eq!(ergebnis, Some((7, "f02cabded48fd793ea6d8e7e9ca4a350f5690b88f189129d76c6804e81fc6d9a".into())));
+    let a = &t.anfragen()[0];
+    assert_eq!(a.methode, "GET");
+    assert_eq!(a.url, format!("https://suite.example/m/einsatzbuch/api/anker?erster={ERSTER}"));
+    assert_eq!(a.bearer.as_deref(), Some("geraet"));
+    assert_eq!(a.if_none_match, None);
+    assert_eq!(a.json, None);
+}
+
+#[test]
+fn hole_kettenanker_ohne_anker_ist_none() {
+    let t = FakeTransport::neu(|_| antwort(200, r#"{"anker":null}"#));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER).unwrap(), None);
+}
+
+#[test]
+fn hole_kettenanker_401_ist_widerrufen() {
+    let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr."));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER), Err(SuiteFehler::Widerrufen));
+}
+
+#[test]
+fn hole_kettenanker_409_ist_abgelehnt_mit_code_anker_mehrdeutig() {
+    let t = FakeTransport::neu(|_| fehler(409, "anker_mehrdeutig", "Der Kettenanker ist nicht eindeutig."));
+    let ergebnis = suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER);
+    assert!(
+        matches!(ergebnis, Err(SuiteFehler::Abgelehnt { status: 409, ref code, .. }) if code == "anker_mehrdeutig"),
+        "{ergebnis:?}"
+    );
+}
+
+/// Review Focus 4 sinngemäß: ein 5xx eines vorgeschalteten Proxys ohne lesbaren Fehlerkörper ist
+/// „nicht erreichbar“, kein Fehler.
+#[test]
+fn hole_kettenanker_5xx_ohne_koerper_ist_nicht_erreichbar() {
+    for status in [500, 502, 503, 504] {
+        let t = FakeTransport::neu(move |_| antwort(status, "<html>Bad Gateway</html>"));
+        assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER), Err(SuiteFehler::NichtErreichbar(format!("HTTP {status}"))));
+    }
+}
+
+#[test]
+fn hole_kettenanker_netzfehler_ist_nicht_erreichbar() {
+    let t = FakeTransport::neu(|_| Err("keine Verbindung".into()));
+    assert_eq!(suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER), Err(SuiteFehler::NichtErreichbar("keine Verbindung".into())));
+}
+
+/// Ein Geheimnis, das an der falschen Stelle im Körper steht (etwa ein CEK im Feld `block`).
+const CEK_ARTIG: &str = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=";
+
+/// Prüft, dass weder Text noch `Debug` eines Fehlers das Geheimnis zitiert, und liefert den Text.
+fn ohne_geheimnis(fehler: &SuiteFehler) -> String {
+    let text = fehler.to_string();
+    assert!(!text.contains(CEK_ARTIG) && !text.contains("q83vEjRWeJ"), "Text zitiert das Geheimnis: {text}");
+    assert!(!format!("{fehler:?}").contains("q83vEjRWeJ"), "Debug zitiert das Geheimnis: {fehler:?}");
+    text
+}
+
+/// Review M1: `serde_json::Error` zitiert Zeichenketten aus dem Körper („invalid type: string
+/// "…"“). Der Fehlertext nennt nur Art, Zeile und Spalte.
+#[test]
+fn ein_vertragsfehler_zitiert_keinen_wert_aus_dem_koerper() {
+    let koerper = json!({ "anker": { "block": CEK_ARTIG, "hash": ERSTER } }).to_string();
+    let t = FakeTransport::neu(move |_| antwort(200, &koerper));
+    let fehler = suite::hole_kettenanker(&t, SUITE, "geraet", ERSTER).unwrap_err();
+    assert!(matches!(fehler, SuiteFehler::Antwort(_)), "{fehler:?}");
+    let text = ohne_geheimnis(&fehler);
+    assert!(text.contains("Zeile 1") && text.contains("Spalte"), "{text}");
+
+    let koerper = json!([{ "block": CEK_ARTIG, "cek": CEK_ARTIG }]).to_string();
+    let t = FakeTransport::neu(move |_| antwort(200, &koerper));
+    let fehler = suite::gib_frei(&t, SUITE, "sitzung", &[block(1)]).unwrap_err();
+    assert!(matches!(fehler, SuiteFehler::Antwort(_)), "{fehler:?}");
+    ohne_geheimnis(&fehler);
+}
+
+/// `melde_sicherung`: `POST /api/sicherung {erstellt}` mit dem Geräte-Token, 204 ist Erfolg.
+#[test]
+fn melde_sicherung_schickt_koerper_und_bearer() {
+    let t = FakeTransport::neu(|_| antwort(204, ""));
+    suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00").unwrap();
+    let a = &t.anfragen()[0];
+    assert_eq!(a.methode, "POST");
+    assert_eq!(a.url, "https://suite.example/m/einsatzbuch/api/sicherung");
+    assert_eq!(a.bearer.as_deref(), Some("geraet"));
+    assert_eq!(a.json, Some(json!({ "erstellt": "2026-09-25T10:00:00+02:00" })));
+}
+
+#[test]
+fn melde_sicherung_401_ist_widerrufen() {
+    let t = FakeTransport::neu(|_| fehler(401, "geraet_ungueltig", "Das Geräte-Token gilt nicht mehr."));
+    assert_eq!(
+        suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00"),
+        Err(SuiteFehler::Widerrufen)
+    );
+}
+
+#[test]
+fn melde_sicherung_5xx_ohne_koerper_ist_nicht_erreichbar() {
+    let t = FakeTransport::neu(|_| antwort(503, "<html>Service Unavailable</html>"));
+    assert_eq!(
+        suite::melde_sicherung(&t, SUITE, "geraet", "2026-09-25T10:00:00+02:00"),
+        Err(SuiteFehler::NichtErreichbar("HTTP 503".into()))
+    );
 }

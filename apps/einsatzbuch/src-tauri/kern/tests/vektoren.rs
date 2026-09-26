@@ -55,12 +55,12 @@ fn versiegelt_die_vektoren_byte_genau() {
             schluessel_id: schluessel_id.clone(),
             umgebung: Umgebung::Echt,
         };
-        let zufall = Blockzufall {
-            cek: b64(z["cek"].as_str().unwrap()).try_into().unwrap(),
-            iv: b64(z["iv"].as_str().unwrap()).try_into().unwrap(),
-            ephemer: p256::SecretKey::from_slice(&b64url(z["umschlag"]["ephemer"]["d"].as_str().unwrap())).unwrap(),
-            umschlag_iv: b64(z["umschlag"]["iv"].as_str().unwrap()).try_into().unwrap(),
-        };
+        let zufall = Blockzufall::fest(
+            b64(z["cek"].as_str().unwrap()).try_into().unwrap(),
+            b64(z["iv"].as_str().unwrap()).try_into().unwrap(),
+            p256::SecretKey::from_slice(&b64url(z["umschlag"]["ephemer"]["d"].as_str().unwrap())).unwrap(),
+            b64(z["umschlag"]["iv"].as_str().unwrap()).try_into().unwrap(),
+        );
         let block: Block = krypto::versiegele(einsatz, &kopf, &suite, zufall).unwrap();
         let soll = &erwartet["bloecke"][i];
 

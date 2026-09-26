@@ -51,7 +51,14 @@ pub struct Ausstehend {
     pub frist_bis_ms: i64,
 }
 
-/// Ergebnis eines Versiegelns — das, was die Oberfläche danach anzeigt.
+/// Ergebnis eines Versiegelns — das, was die Oberfläche danach anzeigt. Liegt auch als JSON in
+/// der Tabelle `unquittiert` (`Buch::unquittiert`) und muss dort ein Update der App überstehen:
+/// - Bewusst ohne `#[serde(default)]` auf den heutigen Feldern: Jedes wird für den Hinweis
+///   gebraucht, ein Ersatzwert zeigte einen falschen (und `verfallen = false` verschwiege gerade
+///   die Warnung „nicht übernommen“). Eine unlesbare Zeile verwirft `Buch::unquittiert` stattdessen.
+/// - Ein **neues** Feld bekommt `Option` oder `#[serde(default)]`, damit ältere Zeilen lesbar
+///   bleiben. Unbekannte Felder (nach einem Rückschritt der App) stören schon heute nicht, denn es
+///   gibt kein `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Versiegelung {

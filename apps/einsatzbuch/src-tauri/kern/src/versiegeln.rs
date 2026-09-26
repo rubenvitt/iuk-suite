@@ -80,7 +80,8 @@ impl Buch {
     /// 2. Aktuelle Stammdaten in den Einsatz einsetzen (Rückfall auf den Schnappschuss).
     /// 3. `krypto::versiegele`.
     /// 4. Block anhängen.
-    /// 5. `ausstehend` und `entwurf` löschen.
+    /// 5. Die Versiegelung als unquittiert vormerken (`unquittiert`, ersetzt eine ältere).
+    /// 6. `ausstehend` und `entwurf` löschen.
     ///
     /// Ohne ausstehenden Einsatz `Ok(None)` — auch der Lesezugriff, der das feststellt, läuft
     /// schon auf `tx`, damit diese Methode für sich genommen atomar ist, unabhängig davon, was
@@ -175,13 +176,20 @@ impl Buch {
             "INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (?1, ?2, ?3, ?4)",
             params![block_nr as i64, serde_json::to_string(&block)?, block.hash, versiegelt_text],
         )?;
+        let versiegelung = Versiegelung { block: block_nr, hash: block.hash, prev, versiegelt: versiegelt_text, nummer, verfallen };
+        // In `tx`, nach dem Block: Ohne Hinweis kein Block und umgekehrt. So übersteht „Deine
+        // letzten Änderungen wurden nicht übernommen …“ auch einen Absturz direkt danach.
+        tx.execute(
+            "INSERT OR REPLACE INTO unquittiert (id, json) VALUES (1, ?1)",
+            params![serde_json::to_string(&versiegelung)?],
+        )?;
         tx.execute("DELETE FROM ausstehend", [])?;
         tx.execute("DELETE FROM entwurf", [])?;
         tx.commit()?;
 
         raeume_nach_dem_versiegeln_auf(self.conn());
 
-        Ok(Some(Versiegelung { block: block_nr, hash: block.hash, prev, versiegelt: versiegelt_text, nummer, verfallen }))
+        Ok(Some(versiegelung))
     }
 
     /// Prüft die Frist mit der übergebenen Uhrzeit, nie mit der Systemzeit: Ist ein ausstehender

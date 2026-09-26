@@ -10,9 +10,10 @@ import { auditActor, withAuditContext } from "@/core/audit/server";
 import { freigabe, rechner } from "../../_db/schema";
 import { zuBase64 } from "../kern/bytes";
 import type { Blockkopf, Umschlag } from "../kern/format";
+import { importierePrivat } from "../kern/umschlag";
 import { packeAusFuer } from "../schluessel/freigabe";
 import { kekAusUmgebung } from "../schluessel/kek";
-import { paarZuId } from "../schluessel/paar";
+import { entschluesselePrivat, paarZuId } from "../schluessel/paar";
 import type { Db } from "../stammdaten/daten";
 import type { SitzungZeile } from "./sitzung";
 
@@ -52,37 +53,56 @@ export async function gibFrei(
   if (k.status === "fehlt") return ablehnung(503, "kek_fehlt", "EINSATZBUCH_SCHLUESSEL_KEK ist nicht gesetzt");
   if (k.status === "ungueltig") return ablehnung(503, "kek_ungueltig", "EINSATZBUCH_SCHLUESSEL_KEK ist kein 32-Byte-Wert in Base64");
 
-  const schluessel: { block: number; cek: string }[] = [];
-  for (const { kopf, umschlag } of anfrage) {
-    const paar = paarZuId(db, kopf.schluesselId);
-    if (!paar) return ablehnung(422, "schluessel_unbekannt", `Schlüssel ${kopf.schluesselId} ist der Suite nicht bekannt.`);
-    if (paar.art !== r.art) {
-      return ablehnung(
-        422, "art_passt_nicht",
-        `Block ${kopf.block} trägt einen ${artText(paar.art)}Schlüssel (${paar.schluesselId}), der Rechner „${r.name}“ ist ein ${artText(r.art)}Rechner.`,
-      );
+  // Cache des geöffneten Privatschlüssels je `schluesselId`, nur für die Dauer dieser Anfrage
+  // (Stufe 6, Task 7): eine Freigabe mit bis zu 200 Blöcken desselben Schlüssels (`HOECHSTENS_FREIGABEN`)
+  // öffnete ihn sonst bis zu 200-mal. `packeAusFuer` bekommt ihn schon geöffnet und entschlüsselt
+  // dann selbst nichts mehr. Verworfen wird der Cache am Ende der Anfrage (`finally`), erfolgreich
+  // oder nicht — er trägt nichts, was über diese eine Anfrage hinaus leben soll.
+  const privatCache = new Map<string, CryptoKey>();
+  try {
+    const schluessel: { block: number; cek: string }[] = [];
+    for (const { kopf, umschlag } of anfrage) {
+      const paar = paarZuId(db, kopf.schluesselId);
+      if (!paar) return ablehnung(422, "schluessel_unbekannt", `Schlüssel ${kopf.schluesselId} ist der Suite nicht bekannt.`);
+      if (paar.art !== r.art) {
+        return ablehnung(
+          422, "art_passt_nicht",
+          `Block ${kopf.block} trägt einen ${artText(paar.art)}Schlüssel (${paar.schluesselId}), der Rechner „${r.name}“ ist ein ${artText(r.art)}Rechner.`,
+        );
+      }
+      if (paar.art === "test" && paar.rechnerId !== r.id) {
+        return ablehnung(
+          422, "fremder_rechner",
+          `Schlüssel ${paar.schluesselId} gehört zum Rechner ${paar.rechnerId}, diese Anmeldung zum Rechner ${r.id}.`,
+        );
+      }
+      let privat = privatCache.get(paar.schluesselId);
+      if (!privat) {
+        try {
+          privat = await importierePrivat(zuBase64(await entschluesselePrivat(paar.privatVerschluesselt, paar.schluesselId, k.kek)));
+        } catch {
+          return ablehnung(503, "privat_unlesbar", "Der private Schlüssel lässt sich mit diesem KEK nicht lesen.");
+        }
+        privatCache.set(paar.schluesselId, privat);
+      }
+      const f = await packeAusFuer(kopf.schluesselId, umschlag, kopf, { db, env: o.env ?? process.env, privat });
+      if (!f.ok) return ablehnung(f.status, f.code, f.meldung);
+      schluessel.push({ block: kopf.block, cek: zuBase64(f.cek) });
     }
-    if (paar.art === "test" && paar.rechnerId !== r.id) {
-      return ablehnung(
-        422, "fremder_rechner",
-        `Schlüssel ${paar.schluesselId} gehört zum Rechner ${paar.rechnerId}, diese Anmeldung zum Rechner ${r.id}.`,
-      );
-    }
-    const f = await packeAusFuer(kopf.schluesselId, umschlag, kopf, { db, env: o.env ?? process.env });
-    if (!f.ok) return ablehnung(f.status, f.code, f.meldung);
-    schluessel.push({ block: kopf.block, cek: zuBase64(f.cek) });
-  }
 
-  if (schluessel.length > 0) {
-    const bloecke = [...new Set(schluessel.map((x) => x.block))];
-    withAuditContext({ actor: auditActor({ sub: s.sub, name: s.name }) }, () => {
-      db.insert(freigabe).values({
-        id: nanoid(), zeitpunkt: o.jetzt, sub: s.sub, name: s.name, art: r.art,
-        rechnerId: r.id, rechnerName: r.name, bloecke: bereichsText(bloecke), anzahl: bloecke.length,
-      }).run();
-    });
+    if (schluessel.length > 0) {
+      const bloecke = [...new Set(schluessel.map((x) => x.block))];
+      withAuditContext({ actor: auditActor({ sub: s.sub, name: s.name }) }, () => {
+        db.insert(freigabe).values({
+          id: nanoid(), zeitpunkt: o.jetzt, sub: s.sub, name: s.name, art: r.art,
+          rechnerId: r.id, rechnerName: r.name, bloecke: bereichsText(bloecke), anzahl: bloecke.length,
+        }).run();
+      });
+    }
+    return { ok: true, schluessel };
+  } finally {
+    privatCache.clear();
   }
-  return { ok: true, schluessel };
 }
 
 /** Blocknummern als lesbare Bereiche: [1, 2, 3, 5, 7, 8] → „1–3, 5, 7–8“ (sortiert, ohne Doppelte). */

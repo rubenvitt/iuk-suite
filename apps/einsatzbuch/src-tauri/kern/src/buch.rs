@@ -8,19 +8,24 @@
 //! ein geöffnetes Buch schon eine Suite kennt, sagt `Buch::einrichtung`. `richte_ein` und
 //! `uebernehme_stammdaten` sind die Naht zu Stufe 5 (Einrichtungsseite, Stammdatenabgleich) —
 //! hier nur geprüft und geschrieben, aufgerufen wird beides erst dort.
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 use crate::einrichtung::{Einrichtung, Stammdaten, Stammdatenpaket};
+use crate::erfassung::Versiegelung;
 use crate::format::{Block, Umgebung};
 use crate::grenzen;
 use crate::krypto::{self, KryptoFehler};
+use crate::sicherung::Sicherungsangaben;
+use crate::wiederherstellung::Wiederherstellungsfehler;
 
 const SCHEMA: &str = include_str!("schema.sql");
 const SCHEMA_V2: &str = include_str!("schema_v2.sql");
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_V3: &str = include_str!("schema_v3.sql");
+const SCHEMA_VERSION: i64 = 3;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuchFehler {
@@ -81,6 +86,20 @@ pub enum BuchFehler {
          dich an die Verwaltung."
     )]
     AndererSchluessel { gepinnt: String, neu: String },
+    /// Wiederherstellen setzt eine leere Kette voraus (Entscheidung 6): keine Blöcke, kein
+    /// ausstehender Einsatz und keine vergebene Nummer.
+    #[error(
+        "Auf diesem Rechner gibt es schon Einsätze (Blöcke, einen ausstehenden Einsatz oder \
+         vergebene Nummern). Wiederherstellen geht nur auf einem leeren Einsatzbuch."
+    )]
+    KetteNichtLeer,
+    /// Im Testbetrieb gibt es keine Sicherung, also auch nichts wiederherzustellen.
+    #[error("Wiederherstellen geht nur im Echtbetrieb.")]
+    NurImEchtbetrieb,
+    /// `uebernehme_sicherung` prüft die Blöcke in seiner Transaktion selbst
+    /// (`wiederherstellung::pruefe_bloecke`); der Text ist der dieser Prüfung.
+    #[error("{0}")]
+    Sicherung(#[from] Wiederherstellungsfehler),
 }
 
 /// Betriebsart des Rechners — entscheidet nur, welche Datei geöffnet wird (Betriebsart aus
@@ -209,6 +228,16 @@ pub struct Ankerabweichung {
     pub gemeldet: String,
 }
 
+/// Der letzte von der Suite bestätigte Anker samt Zeitpunkt der Bestätigung — camelCase, denn er
+/// geht 1:1 in `Exportinhalt.anker` des geteilten TS-Kerns (`_lib/kern/format.ts`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Exportanker {
+    pub block: u64,
+    pub hash: String,
+    pub gemeldet_am: String,
+}
+
 /// Der Teil der Einrichtung, den erst die Anbindung an die Suite (Stufe 5, Schema v2) hinzufügt:
 /// Rechnerkennung und -name, Stand des letzten Stammdatenabrufs, wie weit die Kette der Suite
 /// schon bestätigt ist, eine offene Ankerabweichung und ob dieser Rechner widerrufen ist. `None`
@@ -225,32 +254,27 @@ pub struct Anbindung {
     pub widerrufen: bool,
 }
 
-/// Legt bei einer frischen Datenbank (`user_version = 0`) das Schema v1 und danach v2 in einer
-/// Transaktion an; eine v1-Datei (`user_version = 1`, aus der Zeit vor der Anbindung an die
-/// Suite) wendet nur noch v2 an. Beide Zweige setzen `user_version` im selben Zug auf
-/// `SCHEMA_VERSION`. Eine schon bekannte Version wird übersprungen, eine unbekannte höhere
-/// Version verweigert — dieser Rechner kennt kein Rückwärtsschema.
+/// Hebt die Datenbank in **einer** Transaktion auf `SCHEMA_VERSION`: Eine frische Datei
+/// (`user_version = 0`) bekommt v1, v2 und v3, eine v1-Datei (aus der Zeit vor der Anbindung an
+/// die Suite) v2 und v3, eine v2-Datei (Stufe 5) nur noch v3. `user_version` wird im selben Zug
+/// gesetzt. Eine schon aktuelle Version wird übersprungen, eine unbekannte höhere verweigert —
+/// dieser Rechner kennt kein Rückwärtsschema.
 fn richte_schema_ein(conn: &mut Connection) -> Result<(), BuchFehler> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-    match version {
-        0 => {
-            let tx = conn.transaction()?;
-            tx.execute_batch(SCHEMA)?;
-            tx.execute_batch(SCHEMA_V2)?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            tx.commit()?;
-            Ok(())
-        }
-        1 => {
-            let tx = conn.transaction()?;
-            tx.execute_batch(SCHEMA_V2)?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            tx.commit()?;
-            Ok(())
-        }
-        v if v == SCHEMA_VERSION => Ok(()),
-        gefunden => Err(BuchFehler::UnbekannteSchemaversion { gefunden, bekannt: SCHEMA_VERSION }),
+    let schritte: &[&str] = match version {
+        0 => &[SCHEMA, SCHEMA_V2, SCHEMA_V3],
+        1 => &[SCHEMA_V2, SCHEMA_V3],
+        2 => &[SCHEMA_V3],
+        v if v == SCHEMA_VERSION => return Ok(()),
+        gefunden => return Err(BuchFehler::UnbekannteSchemaversion { gefunden, bekannt: SCHEMA_VERSION }),
+    };
+    let tx = conn.transaction()?;
+    for schritt in schritte {
+        tx.execute_batch(schritt)?;
     }
+    tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    tx.commit()?;
+    Ok(())
 }
 
 /// Das lokale Einsatzbuch: eine offene Verbindung auf `einsatzbuch.db` oder
@@ -387,7 +411,7 @@ impl Buch {
     /// mit `AndererSchluessel` abgelehnt, ohne dass sich irgendetwas ändert. Bei passendem
     /// Schlüssel übernimmt sie Suite-URL, Schlüssel, Stammdatenpaket sowie die neue
     /// `rechnerId`/`rechnerName` dieser Sitzung und setzt die Anbindung zurück: Der Rechner
-    /// meldet seine ganze Kette neu (`ankerGemeldetBis = 0`), ist nicht mehr widerrufen und
+    /// meldet seine ganze Kette neu (`ankerGemeldetBis = 0`, ohne Bestätigungszeitpunkt), ist nicht mehr widerrufen und
     /// trägt keine offene Ankerabweichung mehr. Kette und `eingerichtetAm` bleiben unverändert —
     /// es ist dieselbe Installation, kein neues Buch.
     pub fn richte_neu_ein(&mut self, e: &Einrichtung, rechner_id: &str, rechner_name: &str) -> Result<(), BuchFehler> {
@@ -411,7 +435,7 @@ impl Buch {
             "UPDATE einrichtung SET suite_url = ?1, oeffentlich_spki = ?2, schluessel_id = ?3, \
              stammdaten_json = ?4, stammdaten_version = ?5, frist_minuten = ?6, besatzung = ?7, \
              zeitzone = ?8, bereitschaft = ?9, rechner_id = ?10, rechner_name = ?11, \
-             anker_gemeldet_bis = 0, widerrufen = 0, anker_abweichung = NULL \
+             anker_gemeldet_bis = 0, anker_gemeldet_am = NULL, widerrufen = 0, anker_abweichung = NULL \
              WHERE id = 1",
             params![
                 e.suite_url,
@@ -433,7 +457,7 @@ impl Buch {
     /// Liest die Anbindung an die Suite, sofern schon eine Einrichtung vorliegt. `rechner_id`
     /// und `rechner_name` kommen per `COALESCE(…, '')`: Eine Datenbank, die noch unter Schema v1
     /// entstand (vor dieser Anbindung), hat dort `NULL` stehen — dieser Fall trifft nur
-    /// Entwicklerdateien, denn eine ausgelieferte Installation kennt nur Schema v2. `None` heißt
+    /// Entwicklerdateien, denn eine ausgelieferte Installation beginnt bei Schema v2. `None` heißt
     /// „noch gar keine Einrichtung“, nicht zu verwechseln mit den leeren Feldern dieses Falls.
     pub fn anbindung(&self) -> Result<Option<Anbindung>, BuchFehler> {
         let gefunden = self.conn.query_row(
@@ -525,15 +549,73 @@ impl Buch {
 
     /// Merkt einen von der Suite bestätigten Anker vor. Setzt `anker_gemeldet_bis` nur herauf
     /// (`MAX`), nie herunter — eine verspätet ankommende, schon überholte Bestätigung darf einen
-    /// inzwischen weiter fortgeschrittenen Stand nicht wieder zurückdrehen.
-    pub fn anker_bestaetigt(&mut self, block: u64) -> Result<(), BuchFehler> {
+    /// inzwischen weiter fortgeschrittenen Stand nicht wieder zurückdrehen. `gemeldet_am` wird
+    /// nur übernommen, wenn `block` mindestens der bisherige Stand ist: Die erneute Meldung des
+    /// letzten Blocks (`suite::gleiche_anker_ab`) frischt den Zeitpunkt auf, eine überholte nicht.
+    /// SQLite wertet jede rechte Seite gegen die alte Zeile aus, der `CASE` sieht also den
+    /// Stand vor diesem `UPDATE`.
+    pub fn anker_bestaetigt(&mut self, block: u64, gemeldet_am: &str) -> Result<(), BuchFehler> {
         let geaenderte_zeilen = self.conn.execute(
-            "UPDATE einrichtung SET anker_gemeldet_bis = MAX(anker_gemeldet_bis, ?1) WHERE id = 1",
-            params![block as i64],
+            "UPDATE einrichtung SET \
+             anker_gemeldet_am = CASE WHEN ?1 >= anker_gemeldet_bis THEN ?2 ELSE anker_gemeldet_am END, \
+             anker_gemeldet_bis = MAX(anker_gemeldet_bis, ?1) WHERE id = 1",
+            params![block as i64, gemeldet_am],
         )?;
         if geaenderte_zeilen == 0 {
             return Err(BuchFehler::NichtEingerichtet);
         }
+        Ok(())
+    }
+
+    /// Der letzte von der Suite bestätigte Anker mit Hash und Zeitpunkt, für den Export. `None`
+    /// ohne Einrichtung, solange nichts bestätigt ist (`anker_gemeldet_bis = 0`), solange der
+    /// Zeitpunkt fehlt (bestätigt noch unter Schema v2) oder falls der Block nicht in der Kette
+    /// steht — ein Anker ohne Hash taugt nicht für den Export.
+    pub fn bestaetigter_anker(&self) -> Result<Option<Exportanker>, BuchFehler> {
+        let zeile: Option<(i64, Option<String>)> = self
+            .conn
+            .query_row("SELECT anker_gemeldet_bis, anker_gemeldet_am FROM einrichtung WHERE id = 1", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .optional()?;
+        let Some((bis, Some(gemeldet_am))) = zeile else { return Ok(None) };
+        if bis <= 0 {
+            return Ok(None);
+        }
+        let block = bis as u64;
+        Ok(self.hash_von(block)?.map(|hash| Exportanker { block, hash, gemeldet_am }))
+    }
+
+    /// Die letzte Versiegelung, die die Oberfläche noch nicht quittiert hat (Tabelle
+    /// `unquittiert`, geschrieben von `versiegele_ausstehend` in derselben Transaktion wie der
+    /// Block). Übersteht so einen Neustart.
+    ///
+    /// Lässt sich das gespeicherte JSON nicht lesen (etwa nach einem Update, das `Versiegelung`
+    /// geändert hat), gilt das als kein Hinweis: Die Zeile wird gelöscht und der Fehler geloggt,
+    /// ohne Inhalt. Sonst scheiterte `lies_status` bei jedem Aufruf, und die App bliebe stehen;
+    /// der Block selbst liegt unverändert in `bloecke`.
+    pub fn unquittiert(&self) -> Result<Option<Versiegelung>, BuchFehler> {
+        let json: Option<String> =
+            self.conn.query_row("SELECT json FROM unquittiert WHERE id = 1", [], |r| r.get(0)).optional()?;
+        let Some(json) = json else { return Ok(None) };
+        match serde_json::from_str(&json) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) => {
+                eprintln!(
+                    "Die gespeicherte Versiegelung ist nicht lesbar ({:?}, Zeile {}, Spalte {}); der Hinweis entfällt.",
+                    e.classify(),
+                    e.line(),
+                    e.column()
+                );
+                self.conn.execute("DELETE FROM unquittiert", [])?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// Die Oberfläche hat die Versiegelung gesehen: Der Hinweis entfällt. Ohne Hinweis ein No-op.
+    pub fn quittiere(&mut self) -> Result<(), BuchFehler> {
+        self.conn.execute("DELETE FROM unquittiert", [])?;
         Ok(())
     }
 
@@ -554,6 +636,96 @@ impl Buch {
         if geaenderte_zeilen == 0 {
             return Err(BuchFehler::NichtEingerichtet);
         }
+        Ok(())
+    }
+
+    /// Ordner, letzte gelungene Sicherung, letzter Fehler und Einrichtungszeitpunkt — die
+    /// Grundlage für `sicherung::stufe`. `None` ohne Einrichtung.
+    pub fn sicherungsangaben(&self) -> Result<Option<Sicherungsangaben>, BuchFehler> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT sicherungsordner, letzte_sicherung, sicherung_fehler, eingerichtet_am FROM einrichtung WHERE id = 1",
+                [],
+                |r| Ok(Sicherungsangaben { ordner: r.get(0)?, letzte: r.get(1)?, fehler: r.get(2)?, eingerichtet_am: r.get(3)? }),
+            )
+            .optional()?)
+    }
+
+    /// Setzt den Sicherungsordner oder löscht ihn (`None`). Letzte Sicherung und letzter Fehler
+    /// bleiben stehen; den nächsten Versuch stößt die Hülle an.
+    pub fn sicherungsordner_setzen(&mut self, ordner: Option<&str>) -> Result<(), BuchFehler> {
+        self.aendere_einrichtung("UPDATE einrichtung SET sicherungsordner = ?1 WHERE id = 1", params![ordner])
+    }
+
+    /// Eine Sicherung ist gelungen (auch `Unveraendert`): merkt den Zeitpunkt und löscht den
+    /// Fehler des letzten Versuchs.
+    pub fn sicherung_gelungen(&mut self, zeitpunkt: &str) -> Result<(), BuchFehler> {
+        self.aendere_einrichtung(
+            "UPDATE einrichtung SET letzte_sicherung = ?1, sicherung_fehler = NULL WHERE id = 1",
+            params![zeitpunkt],
+        )
+    }
+
+    /// Eine Sicherung ist gescheitert: merkt den Text. Die letzte gelungene Sicherung bleibt.
+    pub fn sicherung_gescheitert(&mut self, text: &str) -> Result<(), BuchFehler> {
+        self.aendere_einrichtung("UPDATE einrichtung SET sicherung_fehler = ?1 WHERE id = 1", params![text])
+    }
+
+    /// Ein `UPDATE` auf die Einrichtungszeile; keine geänderte Zeile heißt: nicht eingerichtet.
+    fn aendere_einrichtung(&mut self, sql: &str, werte: impl rusqlite::Params) -> Result<(), BuchFehler> {
+        if self.conn.execute(sql, werte)? == 0 {
+            return Err(BuchFehler::NichtEingerichtet);
+        }
+        Ok(())
+    }
+
+    /// Übernimmt eine geprüfte Sicherung (Entscheidung 6, Schritt 7) in **einer** Transaktion.
+    /// Geprüft ist sie vorher mit `wiederherstellung::pruefe`, die Nummern stammen aus
+    /// `wiederherstellung::nummern` über die geöffneten Blöcke. In der Transaktion, damit zwischen
+    /// Prüfung und Einfügen nichts dazwischenkommt (Review Focus 3):
+    /// - ohne Einrichtung `NichtEingerichtet`, im Testbetrieb `NurImEchtbetrieb`;
+    /// - `bloecke`, `ausstehend` und `nummern` müssen leer sein, sonst `KetteNichtLeer`;
+    /// - die Blöcke selbst noch einmal wie `wiederherstellung::pruefe_bloecke`, gegen die
+    ///   `schluessel_id` der Einrichtung aus derselben Transaktion, sonst `Sicherung`. Die
+    ///   Methode verlässt sich also nicht darauf, dass die Aufruferin geprüft hat;
+    /// - dann jeden Block einfügen wie `versiegele_ausstehend` (JSON, Hash, `versiegelt` aus dem
+    ///   Kopf) und die Nummern je Jahr.
+    ///
+    /// `anker_gemeldet_bis` bleibt 0: Der Rechner meldet danach die ganze Kette als seine Anker.
+    /// Scheitert ein Schritt, rollt die `Transaction` beim Verlassen über `?` alles zurück.
+    pub fn uebernehme_sicherung(&mut self, bloecke: &[Block], nummern: &BTreeMap<i64, i64>) -> Result<(), BuchFehler> {
+        let betrieb = self.betrieb;
+        let tx = self.conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+
+        let gepinnt: Option<String> =
+            tx.query_row("SELECT schluessel_id FROM einrichtung WHERE id = 1", [], |r| r.get(0)).optional()?;
+        let Some(gepinnt) = gepinnt else {
+            return Err(BuchFehler::NichtEingerichtet);
+        };
+        if betrieb != Betrieb::Echt {
+            return Err(BuchFehler::NurImEchtbetrieb);
+        }
+        let belegt: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM bloecke) OR EXISTS(SELECT 1 FROM ausstehend) OR EXISTS(SELECT 1 FROM nummern)",
+            [],
+            |r| r.get(0),
+        )?;
+        if belegt {
+            return Err(BuchFehler::KetteNichtLeer);
+        }
+        crate::wiederherstellung::pruefe_bloecke(bloecke, &gepinnt)?;
+
+        for b in bloecke {
+            tx.execute(
+                "INSERT INTO bloecke (block, json, hash, versiegelt) VALUES (?1, ?2, ?3, ?4)",
+                params![b.kopf.block as i64, serde_json::to_string(b)?, b.hash, b.kopf.versiegelt],
+            )?;
+        }
+        for (jahr, letzte) in nummern {
+            tx.execute("INSERT INTO nummern (jahr, letzte) VALUES (?1, ?2)", params![jahr, letzte])?;
+        }
+        tx.commit()?;
         Ok(())
     }
 

@@ -10,6 +10,7 @@ import { getDb } from "../../../_db/client";
 import { hostAbweisung } from "../../../_lib/hostRiegel";
 import { rechnerAusToken } from "../../../_lib/anbindung/geraet";
 import { begrenztesJson } from "../../../_lib/anbindung/koerper";
+import { raeumeAnbindungAuf } from "../../../_lib/anbindung/aufraeumen";
 import { loeseEin } from "../../../_lib/anbindung/einmalcode";
 import { erzeugeSitzung } from "../../../_lib/anbindung/sitzung";
 import { zeitpunktInZone } from "../../../_lib/anbindung/stammdatenpaket";
@@ -35,6 +36,9 @@ export async function POST(req: Request) {
 
   const db = getDb();
   const jetzt = new Date();
+  // Aufräumen bei Zugriff (Entscheidung 10, `_lib/anbindung/aufraeumen.ts`): abgelaufene Codes
+  // und Sitzungen verschwinden, ohne auf den Zehn-Minuten-Takt zu warten.
+  raeumeAnbindungAuf(db, jetzt);
   const eingeloest = loeseEin(db, parsed.data.code, parsed.data.verifier, jetzt);
   if (!eingeloest.ok) {
     const message = eingeloest.code === "verifier_falsch" ? "Der Verifier passt nicht zum Code." : "Der Code ist unbekannt, abgelaufen oder schon eingelöst.";

@@ -5,7 +5,9 @@
 use std::path::PathBuf;
 
 use einsatzbuch_kern::format::Umgebung;
-use einsatzbuch_kern::vertrag::{EinrichtenAntwort, Fehlerkoerper, Freigabeposten, Schluesselposten, TauschAntwort};
+use einsatzbuch_kern::vertrag::{
+    EinrichtenAntwort, Fehlerkoerper, Freigabeposten, KettenankerAntwort, Schluesselposten, TauschAntwort,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -79,6 +81,7 @@ fn jede_fixture_liest_sich_mit_ihrem_typ_und_lehnt_fremde_felder_ab() {
     assert_eq!(
         dateien,
         [
+            "anker-lesen.json",
             "einrichten.json",
             "fehler-echt-vorhanden.json",
             "freigeben-anfrage.json",
@@ -89,6 +92,7 @@ fn jede_fixture_liest_sich_mit_ihrem_typ_und_lehnt_fremde_felder_ab() {
     );
     for datei in &dateien {
         match datei.as_str() {
+            "anker-lesen.json" => pruefe::<KettenankerAntwort>(datei),
             "einrichten.json" => pruefe::<EinrichtenAntwort>(datei),
             "fehler-echt-vorhanden.json" => pruefe::<Fehlerkoerper>(datei),
             "freigeben-anfrage.json" => pruefe::<Vec<Freigabeposten>>(datei),
@@ -98,6 +102,18 @@ fn jede_fixture_liest_sich_mit_ihrem_typ_und_lehnt_fremde_felder_ab() {
             sonst => panic!("keine Zuordnung für {sonst}"),
         }
     }
+}
+
+#[test]
+fn kettenanker_antwort_kennt_null_und_einen_anker() {
+    let ohne: KettenankerAntwort = serde_json::from_str(r#"{"anker":null}"#).unwrap();
+    assert_eq!(ohne.anker, None);
+    assert_eq!(serde_json::to_string(&ohne).unwrap(), r#"{"anker":null}"#);
+
+    let mit: KettenankerAntwort = serde_json::from_value(lies("anker-lesen.json")).unwrap();
+    let anker = mit.anker.expect("die Fixture trägt einen Anker");
+    assert_eq!(anker.block, 7);
+    assert_eq!(anker.hash.len(), 64);
 }
 
 #[test]
@@ -168,4 +184,12 @@ fn geheimnisse_erscheinen_nicht_im_debug_text() {
     let anfrage = TauschAnfrage { code: "GEHEIMER-CODE".into(), verifier: "GEHEIMER-VERIFIER".into() };
     let text = format!("{anfrage:?}");
     assert!(!text.contains("GEHEIMER-CODE") && !text.contains("GEHEIMER-VERIFIER"), "{text}");
+}
+
+/// Ein Posten der Freigabe trägt einen CEK. Er wischt ihn beim Drop selbst, auf jedem Pfad —
+/// auch wenn `gib_frei` nach einem abgelehnten Paket alle schon gelesenen Posten verwirft.
+#[test]
+fn schluesselposten_wischt_seinen_cek_beim_drop() {
+    fn wischt_beim_drop<T: zeroize::ZeroizeOnDrop>() {}
+    wischt_beim_drop::<Schluesselposten>();
 }

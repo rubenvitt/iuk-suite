@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use einsatzbuch_kern::anmeldung::{self, anmelde_url};
-use einsatzbuch_kern::buch::{self, Ankerabweichung, Betrieb, Buch, BuchFehler};
+use einsatzbuch_kern::buch::{self, Ankerabweichung, Betrieb, Buch, BuchFehler, Exportanker};
 use einsatzbuch_kern::einrichtung::Stammdatenpaket;
 use einsatzbuch_kern::erfassung::{Ausstehend, Entwurf, ErfassungFehler, Versiegelung, formatiere_zeitpunkt};
 use einsatzbuch_kern::format::{Block, Umgebung};
@@ -32,9 +32,11 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 use zeroize::Zeroizing;
 
+use crate::abgleich::Anstoss;
+use crate::sicherung::{Sicherungsstand, sicherungsstand};
 use crate::zustand::{Zustand, oeffne_buch, startfehler_text};
 
-const NICHT_EINGERICHTET: &str = "Dieser Rechner ist noch nicht eingerichtet.";
+pub(crate) const NICHT_EINGERICHTET: &str = "Dieser Rechner ist noch nicht eingerichtet.";
 const NICHTS_AUSSTEHEND: &str = "Es gibt keinen abgesendeten Einsatz, der versiegelt werden könnte.";
 const SCHON_EINGERICHTET: &str = "Dieser Rechner ist schon eingerichtet.";
 const TESTBETRIEB_ERST_BEENDEN: &str = "Testbetrieb erst beenden.";
@@ -45,13 +47,15 @@ const ADRESSE_UNGUELTIG: &str = "Die Suite-Adresse muss mit https:// oder http:/
 const ANMELDUNG_LAEUFT: &str = "Es läuft schon eine Anmeldung.";
 const KEIN_ZUGANG: &str = "Kein Zugang zum Einsatzbuch — dir fehlt die Gruppe in der Suite.";
 const ANMELDUNG_ABGEBROCHEN: &str = "Anmeldung abgebrochen.";
-const SITZUNG_ABGELAUFEN: &str = "Die Sitzung ist abgelaufen. Bitte neu anmelden.";
+pub(crate) const SITZUNG_ABGELAUFEN: &str = "Die Sitzung ist abgelaufen. Bitte neu anmelden.";
 const LESEN_BRAUCHT_VERBINDUNG: &str = "Lesen braucht Verbindung zur Suite.";
-const KEIN_GERAETETOKEN: &str =
+pub(crate) const KEIN_GERAETETOKEN: &str =
     "Für diesen Rechner liegt kein Geräte-Token im Schlüsselbund. Der Abgleich mit der Suite ist so nicht möglich.";
 const NEU_NUR_ECHT: &str =
     "Neu einrichten gibt es nur für den echten Rechner. Einen Testrechner beendest du und richtest ihn neu ein.";
 const NEU_NUR_NACH_WIDERRUF: &str = "Neu einrichten ist nur nach einem Widerruf nötig.";
+const NEU_EINRICHTUNG_GEAENDERT: &str =
+    "Die Einrichtung dieses Rechners hat sich während des Neu-Einrichtens geändert. Nichts übernommen.";
 
 /// Übersetzt einen Fehler aus Erfassung und Versiegeln in die Meldung für die Oberfläche.
 /// `Fehlt` wird zur Liste der fehlenden Felder („Fehlt: Alarmstichwort, Beginn“), die übrigen
@@ -64,7 +68,7 @@ pub fn fehler_text(e: ErfassungFehler) -> String {
     }
 }
 
-fn buch_fehler_text(e: BuchFehler) -> String {
+pub(crate) fn buch_fehler_text(e: BuchFehler) -> String {
     match e {
         BuchFehler::NichtEingerichtet => NICHT_EINGERICHTET.into(),
         sonst => sonst.to_string(),
@@ -110,7 +114,8 @@ pub struct Status {
     pub entwurf: Option<Entwurf>,
     pub ausstehend: Option<Ausstehend>,
     pub kette: Kettenstand,
-    /// Die noch nicht quittierte Versiegelung, aus der Frist-Uhr oder „Jetzt versiegeln“.
+    /// Die noch nicht quittierte Versiegelung, aus der Frist-Uhr oder „Jetzt versiegeln“. Steht
+    /// im Buch (`Buch::unquittiert`) und übersteht so einen Neustart.
     pub versiegelung: Option<Versiegelung>,
     /// Suite-Adresse der Einrichtung.
     pub suite_url: Option<String>,
@@ -125,6 +130,12 @@ pub struct Status {
     pub stammdaten_vom: Option<String>,
     pub anker_bestaetigt_bis: u64,
     pub anker_abweichung: Option<Ankerabweichung>,
+    /// Der letzte bestätigte Anker samt Zeitpunkt (`Buch::bestaetigter_anker`) — geht so in
+    /// `Exportinhalt.anker`.
+    pub anker: Option<Exportanker>,
+    /// Sicherungsordner, letzte Sicherung, letzter Fehler und Ampel (`sicherung::stufe`); `None`
+    /// ohne Einrichtung. Ob die Kette leer ist, steht in `kette.anzahl`.
+    pub sicherung: Option<Sicherungsstand>,
     pub widerrufen: bool,
     /// Die Verwaltungssitzung, ohne Token. Eine abgelaufene erscheint als `None`.
     pub sitzung: Option<SitzungInfo>,
@@ -198,8 +209,8 @@ pub struct Ankerstand {
     pub widerrufen: bool,
 }
 
-/// Liest den Status. `startfehler` und `versiegelung` werden unter dem Buch-Lock gelesen,
-/// damit Kette, Ausstehendes und Versiegelung zum selben Stand gehören. Sitzung und laufende
+/// Liest den Status. `startfehler` und alles aus dem Buch (auch `versiegelung`) werden unter
+/// dem Buch-Lock gelesen, damit Kette, Ausstehendes und Versiegelung zum selben Stand gehören. Sitzung und laufende
 /// Anmeldung kommen danach, ohne Buch-Lock (Blätter der Sperrreihenfolge, `zustand.rs`).
 pub fn lies_status(z: &Zustand) -> Result<Status, String> {
     let jetzt = z.uhr.jetzt();
@@ -230,6 +241,8 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
             stammdaten_vom: None,
             anker_bestaetigt_bis: 0,
             anker_abweichung: None,
+            anker: None,
+            sicherung: None,
             widerrufen: false,
             sitzung: None,
             anmeldung_laeuft: false,
@@ -256,7 +269,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                     anzahl: kopf.as_ref().map_or(0, |(block, _)| *block),
                     letzter: kopf.map(|(block, hash)| Kettenglied { block, hash }),
                 },
-                versiegelung: None,
+                versiegelung: buch.unquittiert().map_err(buch_fehler_text)?,
                 suite_url: einrichtung.as_ref().map(|e| e.suite_url.clone()),
                 suite_vorgabe: z.suite_vorgabe.clone(),
                 rechner_name: anbindung.as_ref().map(|a| a.rechner_name.clone()).filter(|n| !n.is_empty()),
@@ -269,13 +282,14 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                     .or_else(|| einrichtung.as_ref().map(|e| e.eingerichtet_am.clone())),
                 anker_bestaetigt_bis: anbindung.as_ref().map_or(0, |a| a.anker_gemeldet_bis),
                 anker_abweichung: anbindung.as_ref().and_then(|a| a.anker_abweichung.clone()),
+                anker: buch.bestaetigter_anker().map_err(buch_fehler_text)?,
+                sicherung: sicherungsstand(buch, jetzt).map_err(buch_fehler_text)?,
                 widerrufen: anbindung.as_ref().is_some_and(|a| a.widerrufen),
                 sitzung: None,
                 anmeldung_laeuft: false,
             }
         }
     };
-    status.versiegelung = z.unquittiert().clone();
     drop(buch);
     status.sitzung = sitzung_info(z);
     status.anmeldung_laeuft = z.anmeldung().is_some();
@@ -314,53 +328,50 @@ pub fn sende_ab(z: &Zustand, entwurf: &Entwurf, bearbeitung: bool) -> Result<Aus
 }
 
 /// „Jetzt versiegeln“: versiegelt den ausstehenden Einsatz sofort, mit `verfallen = false`,
-/// denn es gibt dann keinen Bearbeitungsstand, der verloren gehen könnte. Liegt nichts mehr
-/// aus, weil die Frist-Uhr gerade zuvorgekommen ist, kommt deren noch nicht quittierte
-/// Versiegelung zurück statt eines Fehlers: Der Klick war dann nicht vergeblich, der Einsatz
-/// ist versiegelt.
+/// denn es gibt dann keinen Bearbeitungsstand, der verloren gehen könnte. Der Kern merkt die
+/// Versiegelung in derselben Transaktion als unquittiert vor. Liegt nichts mehr aus, weil die
+/// Frist-Uhr gerade zuvorgekommen ist, kommt deren noch nicht quittierte Versiegelung aus dem
+/// Buch zurück statt eines Fehlers: Der Klick war dann nicht vergeblich, der Einsatz ist
+/// versiegelt.
 pub fn versiegele_jetzt(z: &Zustand) -> Result<Versiegelung, String> {
     let jetzt = z.uhr.jetzt();
     let mut buch = z.buch_zum_schreiben()?;
     let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     let (v, neu) = match offen.versiegele_ausstehend(jetzt, &mut SystemZufall, false).map_err(fehler_text)? {
-        Some(v) => {
-            *z.unquittiert() = Some(v.clone());
-            (v, true)
-        }
-        None => (z.unquittiert().clone().ok_or(NICHTS_AUSSTEHEND)?, false),
+        Some(v) => (v, true),
+        None => (offen.unquittiert().map_err(buch_fehler_text)?.ok_or(NICHTS_AUSSTEHEND)?, false),
     };
     drop(buch);
     if neu {
-        z.stosse_abgleich_an();
+        z.stosse_an(Anstoss::NeuerBlock);
     }
     Ok(v)
 }
 
 /// Prüft die Frist sofort und gibt die unquittierte Versiegelung zurück. Das ist entweder die
-/// eben entstandene oder eine, die die Frist-Uhr kurz vorher geschrieben hat: Zählt die
-/// Oberfläche auf 0 herunter, kann die Uhr im Hintergrund schon zugeschlagen haben. Prüfung
-/// und Lesen laufen unter demselben Buch-Lock.
+/// eben entstandene oder eine, die die Frist-Uhr kurz vorher (oder ein früherer Lauf der App)
+/// geschrieben hat: Zählt die Oberfläche auf 0 herunter, kann die Uhr im Hintergrund schon
+/// zugeschlagen haben. Prüfung und Lesen laufen unter demselben Buch-Lock.
 pub fn pruefe_frist_jetzt(z: &Zustand) -> Result<Option<Versiegelung>, String> {
     let mut buch = z.buch_zum_schreiben()?;
-    let mut neu = false;
-    if let Some(offen) = buch.as_mut() {
-        if let Some(v) = offen.pruefe_frist(z.uhr.jetzt(), &mut SystemZufall).map_err(fehler_text)? {
-            *z.unquittiert() = Some(v);
-            neu = true;
-        }
-    }
-    let v = z.unquittiert().clone();
+    let Some(offen) = buch.as_mut() else { return Ok(None) };
+    let neu = offen.pruefe_frist(z.uhr.jetzt(), &mut SystemZufall).map_err(fehler_text)?.is_some();
+    let v = offen.unquittiert().map_err(buch_fehler_text)?;
     drop(buch);
     if neu {
-        z.stosse_abgleich_an();
+        z.stosse_an(Anstoss::NeuerBlock);
     }
     Ok(v)
 }
 
-pub fn quittiere(z: &Zustand) {
-    let buch = z.buch();
-    *z.unquittiert() = None;
-    drop(buch);
+/// Die Oberfläche hat die Versiegelung gesehen: Der Hinweis im Buch entfällt. Ohne Buch gibt
+/// es keinen Hinweis und nichts zu tun.
+pub fn quittiere(z: &Zustand) -> Result<(), String> {
+    let mut buch = z.buch_zum_schreiben()?;
+    match buch.as_mut() {
+        Some(offen) => offen.quittiere().map_err(buch_fehler_text),
+        None => Ok(()),
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -526,7 +537,7 @@ pub fn richte_ein_ueber_suite(
     }
     sitzung.rechner_id = Some(antwort.rechner_id.clone());
     *z.sitzung() = Some(sitzung);
-    z.stosse_abgleich_an();
+    z.stosse_an(Anstoss::NeuerBlock);
     Ok(Einrichtungsergebnis { echt: art == Umgebung::Echt })
 }
 
@@ -616,8 +627,17 @@ pub fn melde_an(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) -> Res
 /// `schluesselId` lehnt `Buch::richte_neu_ein` mit beiden IDs ab, und das alte Geräte-Token
 /// kommt zurück in den Tresor. Die Suite hat den neuen Rechner dann schon angelegt; das lässt
 /// sich von hier nicht zurücknehmen (die Meldung schickt zur Verwaltung).
+///
+/// Der Schlüsselbund kann auf einen Dialog des Betriebssystems warten, deshalb läuft er nie unter
+/// dem Buch-Lock (Sperrreihenfolge in `zustand.rs`):
+/// 1. unter Lock prüfen und die Einrichtung lesen;
+/// 2. Anmeldung und `POST einrichten` ohne Lock;
+/// 3. ohne Lock das alte Token lesen und das neue schreiben;
+/// 4. unter Lock erneut prüfen, dass Betrieb und `schluesselId` unverändert sind, dann
+///    `Buch::richte_neu_ein`;
+/// 5. scheitert Schritt 4 auf irgendeinem Weg: ohne Lock das alte Token zurücklegen.
 pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) -> Result<(), String> {
-    let (suite_url, name) = {
+    let (suite_url, name, schluessel_id) = {
         let buch = z.buch_zum_schreiben()?;
         let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
         if offen.betrieb() != Betrieb::Echt {
@@ -629,17 +649,26 @@ pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) 
             return Err(NEU_NUR_NACH_WIDERRUF.into());
         }
         let name = if a.rechner_name.trim().is_empty() { "Einsatzbuch-Rechner".to_string() } else { a.rechner_name };
-        (e.suite_url, name)
+        (e.suite_url, name, e.schluessel_id)
     };
     let mut sitzung = melde_an_der_suite(z, &suite_url, Some((Umgebung::Echt, &name)), None, oeffne)?;
     let antwort = suite::richte_ein(&*z.transport, &suite_url, &sitzung.token, Umgebung::Echt, &name).map_err(|e| e.to_string())?;
 
-    let mut buch = z.buch_zum_schreiben()?;
-    let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
     let konto = konto_fuer(Betrieb::Echt);
     let altes_token = z.tresor.lies(konto)?.map(Zeroizing::new);
     z.tresor.schreibe(konto, &antwort.geraete_token)?;
-    if let Err(fehler) = offen.richte_neu_ein(&antwort.einrichtung(&suite_url), &antwort.rechner_id, &name) {
+
+    // Jeder Fehler in diesem Block — auch ein `?` — landet unten beim Zurücklegen des Tokens.
+    let uebernommen = (|| {
+        let mut buch = z.buch_zum_schreiben()?;
+        let offen = buch.as_mut().ok_or(NICHT_EINGERICHTET)?;
+        let jetzt = offen.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
+        if offen.betrieb() != Betrieb::Echt || jetzt.schluessel_id != schluessel_id {
+            return Err(NEU_EINRICHTUNG_GEAENDERT.to_string());
+        }
+        offen.richte_neu_ein(&antwort.einrichtung(&suite_url), &antwort.rechner_id, &name).map_err(buch_fehler_text)
+    })();
+    if let Err(fehler) = uebernommen {
         let zurueck = match altes_token.as_deref() {
             Some(alt) => z.tresor.schreibe(konto, alt),
             None => z.tresor.loesche(konto),
@@ -647,12 +676,11 @@ pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) 
         if let Err(e) = zurueck {
             eprintln!("Das bisherige Geräte-Token ließ sich nicht zurücklegen: {e}");
         }
-        return Err(buch_fehler_text(fehler));
+        return Err(fehler);
     }
-    drop(buch);
     sitzung.rechner_id = Some(antwort.rechner_id.clone());
     *z.sitzung() = Some(sitzung);
-    z.stosse_abgleich_an();
+    z.stosse_an(Anstoss::NeuerBlock);
     Ok(())
 }
 
@@ -671,10 +699,17 @@ pub fn melde_ab(z: &Zustand) {
 
 /// Das Sitzungstoken, solange die Sitzung gilt. Eine abgelaufene Sitzung wird dabei verworfen.
 fn gueltiges_token(z: &Zustand) -> Result<Zeroizing<String>, String> {
+    gueltige_sitzung(z).map(|(token, _)| token)
+}
+
+/// Token und gebundener Rechner der Sitzung, solange sie gilt; eine abgelaufene wird dabei
+/// verworfen. Nimmt nur den Sitzungs-Mutex (ein Blatt, `zustand.rs`), also nie unter dem Buch-Lock
+/// aufrufen und danach das Buch sperren wollen — erst das eine, dann das andere.
+pub(crate) fn gueltige_sitzung(z: &Zustand) -> Result<(Zeroizing<String>, Option<String>), String> {
     let jetzt = z.uhr.jetzt().timestamp_millis();
     let mut sitzung = z.sitzung();
     match sitzung.as_ref() {
-        Some(s) if s.ablauf_ms > jetzt => Ok(s.token.clone()),
+        Some(s) if s.ablauf_ms > jetzt => Ok((s.token.clone(), s.rechner_id.clone())),
         Some(_) => {
             *sitzung = None;
             Err(SITZUNG_ABGELAUFEN.into())
@@ -716,25 +751,48 @@ pub fn lies_bloecke(z: &Zustand) -> Result<Vec<Block>, String> {
     offen.bloecke().map_err(buch_fehler_text)
 }
 
-/// Lässt die Suite die Inhaltsschlüssel aller Blöcke freigeben (200er-Pakete, `suite::gib_frei`).
-/// Ohne gültige Sitzung, und wenn die Suite die Sitzung nicht mehr kennt (401), heißt es neu
-/// anmelden; ohne Netz „Lesen braucht Verbindung zur Suite.“ (Spec §8).
-pub fn gib_schluessel_frei(z: &Zustand) -> Result<Vec<Schluesselposten>, String> {
+/// Lässt die Suite die Inhaltsschlüssel freigeben (200er-Pakete, `suite::gib_frei`): mit
+/// `bloecke` nur die genannten Nummern (Stufe 6, Entscheidung 9 — „einzeln“ beim Export), `None`
+/// wie bisher alle. Eine unbekannte Nummer wird schon gegen die lokale Kette geprüft, bevor
+/// überhaupt eine Anfrage entsteht — die Audit-Zeile der Suite nennt dann nur die angefragten
+/// Blöcke. Ohne gültige Sitzung, und wenn die Suite die Sitzung nicht mehr kennt (401), heißt es
+/// neu anmelden; ohne Netz „Lesen braucht Verbindung zur Suite.“ (Spec §8).
+pub fn gib_schluessel_frei(z: &Zustand, bloecke: Option<&[u64]>) -> Result<Vec<Schluesselposten>, String> {
     let token = gueltiges_token(z)?;
-    let (suite_url, bloecke) = {
+    let (suite_url, alle) = {
         let buch = z.buch_zum_schreiben()?;
         let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
         let e = offen.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
         (e.suite_url, offen.bloecke().map_err(buch_fehler_text)?)
     };
-    match suite::gib_frei(&*z.transport, &suite_url, &token, &bloecke) {
-        Ok(schluessel) => Ok(schluessel),
-        Err(SuiteFehler::NichtErreichbar(_)) => Err(LESEN_BRAUCHT_VERBINDUNG.into()),
-        Err(SuiteFehler::Abgelehnt { status: 401, .. }) => {
-            verwirf_sitzung_mit(z, &token);
-            Err(SITZUNG_ABGELAUFEN.into())
+    let ausgewaehlt = match bloecke {
+        None => alle,
+        // `BTreeSet`: doppelte Nummern (etwa aus der Oberfläche verdoppelt) landen nur einmal in
+        // der Anfrage — sonst nennt `suite::gib_frei` „andere Blöcke als angefragt“, weil die
+        // Suite dieselbe Nummer nicht zweimal freigibt.
+        Some(nummern) => nummern
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|n| alle.iter().find(|b| b.kopf.block == n).cloned().ok_or_else(|| format!("Block {n} gibt es auf diesem Rechner nicht.")))
+            .collect::<Result<Vec<_>, String>>()?,
+    };
+    suite::gib_frei(&*z.transport, &suite_url, &token, &ausgewaehlt)
+        .map_err(|e| freigabe_fehler(z, &token, e, LESEN_BRAUCHT_VERBINDUNG))
+}
+
+/// Die Meldung zu einer gescheiterten Freigabe (`suite::gib_frei`), geteilt von „Lesen“ und
+/// Wiederherstellen: Ohne Netz `offline`, bei 401 kennt die Suite die Sitzung nicht mehr — sie
+/// wird verworfen (nur, wenn es noch dieselbe ist), und es heißt neu anmelden.
+pub(crate) fn freigabe_fehler(z: &Zustand, token: &str, e: SuiteFehler, offline: &str) -> String {
+    match e {
+        SuiteFehler::NichtErreichbar(_) => offline.into(),
+        SuiteFehler::Abgelehnt { status: 401, .. } => {
+            verwirf_sitzung_mit(z, token);
+            SITZUNG_ABGELAUFEN.into()
         }
-        Err(e) => Err(e.to_string()),
+        e => e.to_string(),
     }
 }
 
@@ -761,20 +819,22 @@ fn abgleichsgrundlage(z: &Zustand) -> Result<Abgleichsgrundlage, String> {
 
 /// „Kette prüfen“ gegen die Suite und der Ankerlauf des Abgleich-Threads (`suite::gleiche_anker_ab`):
 /// meldet offene Blöcke nach bzw. den letzten erneut und liefert den Stand danach.
+///
+/// Der Bestätigungszeitpunkt steht in der Zone der Einrichtung, gelesen vor dem Lauf. Derselbe
+/// Text geht ins Buch (`anker_gemeldet_am`, später `Exportinhalt.anker.gemeldetAm`) und in
+/// `Ankerstand.gemeldet_am`.
 pub fn gleiche_anker_jetzt(z: &Zustand) -> Result<Ankerstand, String> {
     let g = abgleichsgrundlage(z)?;
-    let ergebnis = suite::gleiche_anker_ab(&z.buch, &*z.transport, &g.suite_url, &g.geraet)?;
-    let jetzt = z.uhr.jetzt();
+    let gemeldet_am = formatiere_zeitpunkt(z.uhr.jetzt(), &g.zeitzone);
+    let ergebnis = suite::gleiche_anker_ab(&z.buch, &*z.transport, &g.suite_url, &g.geraet, &gemeldet_am)?;
     let buch = z.buch_zum_schreiben()?;
     let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
-    let e = offen.einrichtung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
     let a = offen.anbindung().map_err(buch_fehler_text)?.ok_or(NICHT_EINGERICHTET)?;
     let bis = a.anker_gemeldet_bis;
     Ok(Ankerstand {
         bestaetigt_bis: bis,
         hash: if bis > 0 { offen.hash_von(bis).map_err(buch_fehler_text)? } else { None },
-        gemeldet_am: matches!(ergebnis, AnkerErgebnis::Bestaetigt(n) if n > 0)
-            .then(|| formatiere_zeitpunkt(jetzt, &e.paket.zeitzone)),
+        gemeldet_am: matches!(ergebnis, AnkerErgebnis::Bestaetigt(n) if n > 0).then_some(gemeldet_am),
         abweichung: a.anker_abweichung,
         offline: ergebnis == AnkerErgebnis::Offline,
         widerrufen: a.widerrufen,
@@ -839,7 +899,6 @@ pub fn beende_testbetrieb(z: &Zustand) -> Result<(), String> {
         }
         return Err(buch_fehler_text(fehler));
     }
-    *z.unquittiert() = None;
     drop(buch);
 
     if let Err(e) = z.tresor.loesche(konto_fuer(Betrieb::Test)) {
@@ -883,7 +942,7 @@ pub fn richte_entwicklung_ein(z: &Zustand, spki_pfad: Option<&Path>, frist_minut
 }
 
 /// Führt `f` auf dem Zustand in einem Thread für blockierende Arbeit aus.
-async fn blockierend<T, F>(app: AppHandle, f: F) -> Result<T, String>
+pub(crate) async fn blockierend<T, F>(app: AppHandle, f: F) -> Result<T, String>
 where
     T: Send + 'static,
     F: FnOnce(&Zustand) -> Result<T, String> + Send + 'static,
@@ -930,11 +989,7 @@ pub async fn frist_pruefen(app: AppHandle) -> Result<Option<Versiegelung>, Strin
 
 #[tauri::command]
 pub async fn versiegelung_quittieren(app: AppHandle) -> Result<(), String> {
-    blockierend(app, |z| {
-        quittiere(z);
-        Ok(())
-    })
-    .await
+    blockierend(app, quittiere).await
 }
 
 #[tauri::command]
@@ -997,9 +1052,11 @@ pub async fn bloecke(app: AppHandle) -> Result<Vec<Block>, String> {
     blockierend(app, lies_bloecke).await
 }
 
+/// `bloecke`: `None` (bzw. kein Argument aus TS) gibt wie bisher alle frei; `Some` nur die
+/// genannten Nummern (Export „einzeln“, Stufe 6 Entscheidung 9).
 #[tauri::command]
-pub async fn schluessel_freigeben(app: AppHandle) -> Result<Vec<Schluesselposten>, String> {
-    blockierend(app, gib_schluessel_frei).await
+pub async fn schluessel_freigeben(app: AppHandle, bloecke: Option<Vec<u64>>) -> Result<Vec<Schluesselposten>, String> {
+    blockierend(app, move |z| gib_schluessel_frei(z, bloecke.as_deref())).await
 }
 
 #[tauri::command]
@@ -1106,9 +1163,11 @@ pub(crate) mod tests {
     }
 
     impl Aufgezeichnet {
-        /// Der Pfad unterhalb von `/m/einsatzbuch`, gleich auf welchem Host.
+        /// Der Pfad unterhalb von `/m/einsatzbuch`, gleich auf welchem Host, ohne Abfrage
+        /// (`?erster=…` bei `GET /api/anker`).
         pub(crate) fn pfad(&self) -> &str {
-            self.url.split_once("/m/einsatzbuch").map_or("", |(_, pfad)| pfad)
+            let pfad = self.url.split_once("/m/einsatzbuch").map_or("", |(_, pfad)| pfad);
+            pfad.split_once('?').map_or(pfad, |(ohne, _)| ohne)
         }
     }
 
@@ -1212,6 +1271,7 @@ pub(crate) mod tests {
             ("POST", "/api/einrichten") => antwort(200, &einrichten_antwort(a, "r-neu", "geraet-neu").to_string()),
             ("GET", "/api/stammdaten") => antwort(304, ""),
             ("POST", "/api/anker") => antwort(204, ""),
+            ("POST", "/api/sicherung") => antwort(204, ""),
             ("POST", "/api/schluessel/freigeben") => {
                 let posten: Vec<Value> = a.json.as_ref().unwrap().as_array().unwrap().iter()
                     .map(|p| json!({ "block": p["kopf"]["block"], "cek": format!("cek{}", p["kopf"]["block"]) }))
@@ -1311,7 +1371,7 @@ pub(crate) mod tests {
         (z, suite)
     }
 
-    fn eingerichteter_echter_rechner(ordner: &Path, uhr: &Stelluhr) -> (Zustand, FakeSuite) {
+    pub(crate) fn eingerichteter_echter_rechner(ordner: &Path, uhr: &Stelluhr) -> (Zustand, FakeSuite) {
         let suite = FakeSuite::gesund();
         let z = zustand_mit(ordner, uhr, &suite, Box::new(Speichertresor::default()));
         let browser = Browser::neu();
@@ -1332,7 +1392,7 @@ pub(crate) mod tests {
     pub(crate) fn versiegele_einen(z: &Zustand) -> Versiegelung {
         sende_ab(z, &entwurf_suite(), false).unwrap();
         let v = versiegele_jetzt(z).unwrap();
-        quittiere(z);
+        quittiere(z).unwrap();
         v
     }
 
@@ -1367,6 +1427,17 @@ pub(crate) mod tests {
     fn fehlende_felder_werden_als_liste_gemeldet() {
         let e = ErfassungFehler::Fehlt(vec!["Alarmstichwort", "Beginn"]);
         assert_eq!(fehler_text(e), "Fehlt: Alarmstichwort, Beginn");
+    }
+
+    /// Review M6: Eine unlesbare unquittierte Versiegelung blockiert den Status nicht, auch nicht
+    /// beim zweiten Lesen.
+    #[test]
+    fn status_trotz_unlesbarer_unquittierter_versiegelung() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        z.buch().as_ref().unwrap().verbindung().execute("INSERT INTO unquittiert (id, json) VALUES (1, '{kaputt')", []).unwrap();
+        assert_eq!(lies_status(&z).unwrap().versiegelung, None);
+        assert_eq!(lies_status(&z).unwrap().versiegelung, None);
     }
 
     #[test]
@@ -1426,7 +1497,7 @@ pub(crate) mod tests {
         assert_eq!(s.kette, Kettenstand { anzahl: 1, letzter: Some(Kettenglied { block: 1, hash: v.hash.clone() }) });
         assert!(s.ausstehend.is_none());
 
-        quittiere(&z);
+        quittiere(&z).unwrap();
         assert_eq!(lies_status(&z).unwrap().versiegelung, None);
 
         beende_testbetrieb(&z).unwrap();
@@ -1525,7 +1596,7 @@ pub(crate) mod tests {
         uhr.vor(Duration::minutes(15));
         let aus_der_uhr = z.pruefe_frist().unwrap().expect("Frist erreicht");
         assert_eq!(versiegele_jetzt(&z).unwrap(), aus_der_uhr);
-        quittiere(&z);
+        quittiere(&z).unwrap();
         assert_eq!(versiegele_jetzt(&z).unwrap_err(), NICHTS_AUSSTEHEND);
     }
 
@@ -1828,13 +1899,13 @@ pub(crate) mod tests {
         let (z, suite) = eingerichteter_testrechner(ordner.path(), &uhr);
         versiegele_einen(&z);
         melde_ab(&z);
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), SITZUNG_ABGELAUFEN);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), SITZUNG_ABGELAUFEN);
 
         let browser = Browser::neu();
         melde_an(&z, &|u| browser.oeffne(u)).unwrap();
         suite.leere();
         uhr.vor(Duration::hours(2)); // Ablauf 10:00 UTC erreicht
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), SITZUNG_ABGELAUFEN);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), SITZUNG_ABGELAUFEN);
         assert!(z.sitzung().is_none(), "eine abgelaufene Sitzung wird verworfen");
         assert!(suite.anfragen().is_empty());
     }
@@ -1845,7 +1916,7 @@ pub(crate) mod tests {
         let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
         versiegele_einen(&z);
         versiegele_einen(&z);
-        let schluessel = gib_schluessel_frei(&z).unwrap();
+        let schluessel = gib_schluessel_frei(&z, None).unwrap();
         assert_eq!(schluessel.iter().map(|s| s.block).collect::<Vec<_>>(), [1, 2]);
         assert_eq!(schluessel[0].cek, "cek1");
         let freigabe = &suite.nach_pfad("/api/schluessel/freigeben")[0];
@@ -1854,13 +1925,56 @@ pub(crate) mod tests {
         assert_eq!(lies_bloecke(&z).unwrap().len(), 2);
 
         suite.setze(|_| Err("keine Verbindung".into()));
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG);
         assert!(z.sitzung().is_some(), "offline bleibt die Sitzung");
 
         // Die Suite kennt die Sitzung nicht mehr (etwa nach Widerruf): verwerfen, neu anmelden.
         suite.setze(|_| fehler(401, "sitzung_ungueltig", "Die Sitzung ist ungültig."));
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), SITZUNG_ABGELAUFEN);
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), SITZUNG_ABGELAUFEN);
         assert!(z.sitzung().is_none());
+    }
+
+    /// Stufe 6, Entscheidung 9: „einzeln“ beim Export gibt nur den gewählten Block frei, und die
+    /// Audit-Zeile der Suite nennt nur ihn.
+    #[test]
+    fn freigabe_mit_blockliste_fragt_nur_die_genannten_bloecke_an() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        versiegele_einen(&z);
+        versiegele_einen(&z);
+        let schluessel = gib_schluessel_frei(&z, Some(&[2])).unwrap();
+        assert_eq!(schluessel.iter().map(|s| s.block).collect::<Vec<_>>(), [2]);
+        assert_eq!(schluessel[0].cek, "cek2");
+        let freigabe = &suite.nach_pfad("/api/schluessel/freigeben")[0];
+        let angefragt = freigabe.json.as_ref().unwrap().as_array().unwrap();
+        assert_eq!(angefragt.len(), 1, "nur Block 2 geht in die Anfrage, {angefragt:?}");
+        assert_eq!(angefragt[0]["kopf"]["block"], 2);
+    }
+
+    /// Eine doppelt genannte Blocknummer geht nur einmal in die Anfrage — sonst nennt die Suite
+    /// „andere Blöcke als angefragt“, weil sie dieselbe Nummer nicht zweimal freigibt.
+    #[test]
+    fn freigabe_mit_doppelter_blocknummer_fragt_nur_einmal_an() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        versiegele_einen(&z);
+        let schluessel = gib_schluessel_frei(&z, Some(&[2, 2])).unwrap();
+        assert_eq!(schluessel.iter().map(|s| s.block).collect::<Vec<_>>(), [2]);
+        let freigabe = &suite.nach_pfad("/api/schluessel/freigeben")[0];
+        assert_eq!(freigabe.json.as_ref().unwrap().as_array().unwrap().len(), 1);
+    }
+
+    /// Eine unbekannte Blocknummer wird gegen die lokale Kette geprüft, bevor überhaupt eine
+    /// Anfrage entsteht.
+    #[test]
+    fn freigabe_mit_unbekannter_blocknummer_scheitert_ohne_anfrage() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        versiegele_einen(&z);
+        assert_eq!(gib_schluessel_frei(&z, Some(&[7])).unwrap_err(), "Block 7 gibt es auf diesem Rechner nicht.");
+        assert!(suite.anfragen().is_empty(), "eine unbekannte Nummer darf keine Anfrage auslösen");
     }
 
     /// Review Focus 4: Hinter einem Proxy ist ein 5xx ohne lesbaren Körper „die Suite läuft
@@ -1872,11 +1986,11 @@ pub(crate) mod tests {
         versiegele_einen(&z);
         for status in [500, 502, 503, 504] {
             suite.setze(move |_| antwort(status, "<html>Bad Gateway</html>"));
-            assert_eq!(gib_schluessel_frei(&z).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG, "HTTP {status}");
+            assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), LESEN_BRAUCHT_VERBINDUNG, "HTTP {status}");
             assert!(z.sitzung().is_some(), "HTTP {status}: die Sitzung bleibt");
         }
         suite.setze(|_| fehler(503, "kek_fehlt", "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung."));
-        assert_eq!(gib_schluessel_frei(&z).unwrap_err(), "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung.");
+        assert_eq!(gib_schluessel_frei(&z, None).unwrap_err(), "Der Schlüssel der Suite fehlt. Bitte wende dich an die Verwaltung.");
     }
 
     #[test]
@@ -1976,6 +2090,126 @@ pub(crate) mod tests {
         assert_eq!(z.tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu"), "das alte Token bleibt");
     }
 
+    /// Ein Tresor, dessen Schreiben hängt, solange er scharf ist — wie ein Schlüsselbund, der auf
+    /// einen Dialog des Betriebssystems wartet. Lesen und Löschen hängen nie.
+    #[derive(Clone, Default)]
+    struct HaengenderTresor(Arc<HaengeLage>);
+
+    #[derive(Default)]
+    struct HaengeLage {
+        werte: Speichertresor,
+        /// (scharf, hängt gerade)
+        lage: Mutex<(bool, bool)>,
+        signal: std::sync::Condvar,
+    }
+
+    impl HaengenderTresor {
+        fn schaerfe(&self) {
+            self.0.lage.lock().unwrap().0 = true;
+        }
+        fn warte_bis_es_haengt(&self) {
+            let lage = self.0.lage.lock().unwrap();
+            let (lage, _) =
+                self.0.signal.wait_timeout_while(lage, std::time::Duration::from_secs(10), |(_, haengt)| !*haengt).unwrap();
+            assert!(lage.1, "der Tresor wurde nie beschrieben");
+        }
+        fn gib_frei(&self) {
+            self.0.lage.lock().unwrap().0 = false;
+            self.0.signal.notify_all();
+        }
+    }
+
+    impl Tresor for HaengenderTresor {
+        fn lies(&self, konto: &str) -> Result<Option<String>, String> {
+            self.0.werte.lies(konto)
+        }
+        fn schreibe(&self, konto: &str, wert: &str) -> Result<(), String> {
+            let mut lage = self.0.lage.lock().unwrap();
+            if lage.0 {
+                lage.1 = true;
+                self.0.signal.notify_all();
+                lage = self.0.signal.wait_while(lage, |(scharf, _)| *scharf).unwrap();
+                lage.1 = false;
+            }
+            drop(lage);
+            self.0.werte.schreibe(konto, wert)
+        }
+        fn loesche(&self, konto: &str) -> Result<(), String> {
+            self.0.werte.loesche(konto)
+        }
+    }
+
+    /// Richtet einen widerrufenen echten Rechner neu ein, während der Tresor beim Schreiben des
+    /// neuen Tokens hängt. `waehrenddessen` läuft in dieser Zeit in einem zweiten Faden; sein
+    /// Ergebnis kommt nur zurück, wenn er binnen 2 Sekunden fertig wird.
+    fn neu_einrichten_waehrend_der_tresor_haengt<T: Send>(
+        ordner: &Path,
+        waehrenddessen: impl FnOnce(&Zustand) -> T + Send,
+    ) -> (Zustand, HaengenderTresor, Result<(), String>, Option<T>) {
+        let suite = FakeSuite::gesund();
+        let tresor = HaengenderTresor::default();
+        let z = zustand_mit(ordner, &Stelluhr::neu(), &suite, Box::new(tresor.clone()));
+        let browser = Browser::neu();
+        richte_ein_ueber_suite(&z, Umgebung::Echt, "Einsatzleitung", SUITE, &|u| browser.oeffne(u)).unwrap();
+        z.buch().as_mut().unwrap().widerrufen_setzen(true).unwrap();
+        suite.setze(|a| match a.pfad() {
+            "/api/einrichten" => antwort(200, &einrichten_antwort(a, "r-neu-2", "geraet-neu-2").to_string()),
+            _ => gesunde_suite(a),
+        });
+        tresor.schaerfe();
+        let zr = &z;
+        let (ergebnis, zweiter) = std::thread::scope(|s| {
+            let neu = s.spawn(|| richte_neu_ein(zr, &|u| browser.oeffne(u)));
+            tresor.warte_bis_es_haengt();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let faden = s.spawn(move || {
+                let _ = tx.send(waehrenddessen(zr));
+            });
+            let zweiter = rx.recv_timeout(std::time::Duration::from_secs(2)).ok();
+            // Erst freigeben, dann auf beide Fäden warten — ein Assert vorher ließe den Test hängen.
+            tresor.gib_frei();
+            let ergebnis = neu.join().unwrap();
+            faden.join().unwrap();
+            (ergebnis, zweiter)
+        });
+        (z, tresor, ergebnis, zweiter)
+    }
+
+    #[test]
+    fn neu_einrichten_haelt_den_buch_lock_nicht_ueber_dem_schluesselbund() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, tresor, ergebnis, status) =
+            neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| lies_status(z).map(|s| s.widerrufen));
+        assert_eq!(status, Some(Ok(true)), "lies_status darf nicht auf den Schlüsselbund warten");
+        ergebnis.unwrap();
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu-2"));
+        assert_eq!(z.buch().as_ref().unwrap().anbindung().unwrap().unwrap().rechner_id, "r-neu-2");
+    }
+
+    #[test]
+    fn neu_einrichten_legt_das_alte_token_zurueck_wenn_das_buch_danach_nicht_mehr_passt() {
+        // Ein Startfehler, gesetzt während der Tresor hängt: Das Buch wird nicht angefasst, und das
+        // bisherige Token liegt wieder im Tresor.
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, tresor, ergebnis, _) = neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| {
+            *z.startfehler() = Some("Die Datenbank ist weg.".into());
+        });
+        assert_eq!(ergebnis.unwrap_err(), "Die Datenbank ist weg.");
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu"));
+        let anbindung = z.buch().as_ref().unwrap().anbindung().unwrap().unwrap();
+        assert_eq!(anbindung.rechner_id, "r-neu");
+        assert!(anbindung.widerrufen);
+
+        // Das Buch ist inzwischen zu: ebenso.
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, tresor, ergebnis, _) = neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| {
+            *z.buch() = None;
+        });
+        assert_eq!(ergebnis.unwrap_err(), NICHT_EINGERICHTET);
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu"));
+        assert!(z.buch().is_none());
+    }
+
     #[test]
     fn neu_einrichten_gibt_es_nur_fuer_den_echten_rechner() {
         let ordner = tempfile::tempdir().unwrap();
@@ -2041,7 +2275,8 @@ pub(crate) mod tests {
     #[test]
     fn anker_jetzt_liefert_den_ankerstand() {
         let ordner = tempfile::tempdir().unwrap();
-        let (z, suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        let uhr = Stelluhr::neu();
+        let (z, suite) = eingerichteter_testrechner(ordner.path(), &uhr);
         let leer = gleiche_anker_jetzt(&z).unwrap();
         assert_eq!(leer, Ankerstand { bestaetigt_bis: 0, hash: None, gemeldet_am: None, abweichung: None, offline: false, widerrufen: false });
 
@@ -2059,12 +2294,75 @@ pub(crate) mod tests {
             assert!(json.get(feld).is_some(), "{feld} fehlt: {json}");
         }
         assert_eq!(lies_status(&z).unwrap().anker_bestaetigt_bis, 1);
+        // Der bestätigte Anker samt Zeitpunkt in der Zone der Einrichtung (nicht UTC) — für den Export.
+        let exportanker = Exportanker { block: 1, hash: v.hash.clone(), gemeldet_am: "2026-09-24T10:00:00+02:00".into() };
+        assert_eq!(lies_status(&z).unwrap().anker, Some(exportanker.clone()));
 
+        uhr.vor(Duration::hours(1));
         suite.setze(|_| antwort(503, "<html>Service Unavailable</html>"));
         let offline = gleiche_anker_jetzt(&z).unwrap();
         assert!(offline.offline);
         assert_eq!(offline.bestaetigt_bis, 1, "offline bleibt der Stand");
         assert_eq!(offline.gemeldet_am, None);
+        assert_eq!(lies_status(&z).unwrap().anker, Some(exportanker), "offline bleibt auch der Zeitpunkt");
+
+        // Die erneute Meldung des letzten Blocks frischt den Zeitpunkt auf.
+        suite.setze(gesunde_suite);
+        let wieder = gleiche_anker_jetzt(&z).unwrap();
+        assert_eq!(wieder.gemeldet_am.as_deref(), Some("2026-09-24T11:00:00+02:00"));
+        assert_eq!(
+            lies_status(&z).unwrap().anker,
+            Some(Exportanker { block: 1, hash: v.hash, gemeldet_am: "2026-09-24T11:00:00+02:00".into() })
+        );
+    }
+
+    /// Härtung aus Phase C: Der Versiegelungshinweis steht im Buch, nicht im Speicher der Hülle.
+    /// Ein neuer Zustand auf demselben Ordner (Neustart der App) zeigt ihn samt `verfallen`, bis
+    /// er quittiert ist — und danach auch nach einem weiteren Neustart nicht mehr.
+    #[test]
+    fn versiegelungshinweis_uebersteht_den_neustart_des_zustands() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let v = {
+            let z = zustand(ordner.path(), &uhr);
+            richte_entwicklung_ein(&z, None, Some(15)).unwrap();
+            sende_ab(&z, &entwurf(), false).unwrap();
+            speichere_entwurf(&z, &entwurf(), true).unwrap();
+            uhr.vor(Duration::minutes(15));
+            let v = z.pruefe_frist().unwrap().expect("Frist erreicht");
+            assert!(v.verfallen);
+            v
+        };
+
+        let z = zustand(ordner.path(), &uhr);
+        let s = lies_status(&z).unwrap();
+        assert_eq!(s.versiegelung, Some(v.clone()), "der Hinweis muss den Neustart überstehen");
+        assert!(s.versiegelung.as_ref().is_some_and(|v| v.verfallen));
+        assert_eq!(serde_json::to_value(&s).unwrap()["versiegelung"]["verfallen"], true);
+        assert_eq!(pruefe_frist_jetzt(&z).unwrap(), Some(v.clone()), "auch frist_pruefen liefert ihn");
+        assert_eq!(versiegele_jetzt(&z).unwrap(), v, "„Jetzt versiegeln“ liefert ihn statt eines Fehlers");
+
+        quittiere(&z).unwrap();
+        assert_eq!(lies_status(&z).unwrap().versiegelung, None);
+        drop(z);
+        assert_eq!(lies_status(&zustand(ordner.path(), &uhr)).unwrap().versiegelung, None, "quittiert bleibt quittiert");
+    }
+
+    /// Versiegelt die Frist schon beim Start (`beim_start`), steht der Hinweis im Status.
+    #[test]
+    fn frist_beim_start_versiegelt_und_zeigt_den_hinweis() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        {
+            let z = zustand(ordner.path(), &uhr);
+            richte_entwicklung_ein(&z, None, Some(15)).unwrap();
+            sende_ab(&z, &entwurf(), false).unwrap();
+        }
+        uhr.vor(Duration::minutes(20));
+        let z = zustand(ordner.path(), &uhr);
+        let s = lies_status(&z).unwrap();
+        assert_eq!(s.kette.anzahl, 1, "beim_start versiegelt die überfällige Frist");
+        assert!(s.versiegelung.as_ref().is_some_and(|v| v.block == 1 && !v.verfallen), "{:?}", s.versiegelung);
     }
 
     #[test]
@@ -2087,18 +2385,18 @@ pub(crate) mod tests {
         *z.abgleich() = Some(tx);
 
         versiegele_einen(&z);
-        assert!(rx.try_recv().is_ok(), "jetzt_versiegeln");
+        assert_eq!(rx.try_recv(), Ok(Anstoss::NeuerBlock), "jetzt_versiegeln");
 
         sende_ab(&z, &entwurf_suite(), false).unwrap();
         uhr.vor(Duration::minutes(15));
         pruefe_frist_jetzt(&z).unwrap().expect("Frist erreicht");
-        assert!(rx.try_recv().is_ok(), "frist_pruefen");
-        quittiere(&z);
+        assert_eq!(rx.try_recv(), Ok(Anstoss::NeuerBlock), "frist_pruefen");
+        quittiere(&z).unwrap();
 
         sende_ab(&z, &entwurf_suite(), false).unwrap();
         uhr.vor(Duration::minutes(15));
         z.pruefe_frist().unwrap().expect("Frist erreicht");
-        assert!(rx.try_recv().is_ok(), "Frist-Uhr");
+        assert_eq!(rx.try_recv(), Ok(Anstoss::NeuerBlock), "Frist-Uhr");
         assert!(rx.try_recv().is_err(), "genau ein Signal je Versiegelung");
     }
 
@@ -2109,7 +2407,7 @@ pub(crate) mod tests {
         let json = serde_json::to_value(lies_status(&z).unwrap()).unwrap();
         for feld in [
             "suiteUrl", "suiteVorgabe", "rechnerName", "eingerichtetAm", "eingerichtetVon", "schluesselId", "stammdatenVom",
-            "ankerBestaetigtBis", "ankerAbweichung", "widerrufen", "sitzung", "anmeldungLaeuft",
+            "ankerBestaetigtBis", "ankerAbweichung", "anker", "sicherung", "widerrufen", "sitzung", "anmeldungLaeuft",
         ] {
             assert!(json.get(feld).is_some(), "{feld} fehlt: {json}");
         }

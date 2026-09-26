@@ -10,6 +10,7 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 use crate::einrichtung::{Einrichtung, Stammdatenpaket};
 use crate::format::{Blockkopf, Umgebung, Umschlag};
@@ -93,6 +94,28 @@ pub struct AnkerAnfrage {
     pub hash: String,
 }
 
+/// Antwort von `GET /api/anker?erster=…` (Stufe 6, Entscheidung 5): der höchste Suite-Anker der
+/// Kette, deren Block 1 den Hash `erster` trägt, oder `null` ohne einen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct KettenankerAntwort {
+    pub anker: Option<Kettenanker>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Kettenanker {
+    pub block: u64,
+    pub hash: String,
+}
+
+/// Anfrage an `POST /api/sicherung`: der Zeitpunkt der letzten gelungenen Sicherung.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SicherungAnfrage {
+    pub erstellt: String,
+}
+
 /// Ein Eintrag der Anfrage an `POST /api/schluessel/freigeben` — der Körper ist ein nacktes
 /// Array dieser Einträge.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,7 +126,9 @@ pub struct Freigabeposten {
 }
 
 /// Ein Eintrag der Antwort von `POST /api/schluessel/freigeben` (nacktes Array): der
-/// Inhaltsschlüssel eines Blocks in Base64.
+/// Inhaltsschlüssel eines Blocks in Base64. Beim Drop wird `cek` überschrieben (`impl Drop`
+/// unten) — auf jedem Pfad, auch wenn `suite::gib_frei` nach einem abgelehnten Paket alle schon
+/// gelesenen Posten verwirft. Das Drahtformat ändert sich dadurch nicht.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Schluesselposten {
@@ -171,6 +196,14 @@ impl fmt::Debug for EinrichtenAntwort {
             .finish()
     }
 }
+
+impl Drop for Schluesselposten {
+    fn drop(&mut self) {
+        self.cek.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Schluesselposten {}
 
 impl fmt::Debug for Schluesselposten {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

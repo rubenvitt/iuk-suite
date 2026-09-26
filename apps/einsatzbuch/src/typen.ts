@@ -116,6 +116,33 @@ export interface Schluesselposten {
   cek: string;
 }
 
+/** Der letzte von der Suite bestätigte Anker samt Zeitpunkt (`src-tauri/kern/src/buch.rs`,
+ *  `Exportanker`) — genau die Form von `Exportinhalt.anker` im geteilten Kern (`format.ts`). */
+export interface Exportanker {
+  block: number;
+  hash: string;
+  gemeldetAm: string;
+}
+
+/** Ampel der Sicherung (`src-tauri/kern/src/sicherung.rs`, `Sicherungsstufe`): `aus` im Testbetrieb,
+ *  `rot` ab 7 Tagen ohne gelungene Sicherung, `gelb` ohne Ordner oder nach einem Fehlschlag. */
+export type Sicherungsstufe = "aus" | "ok" | "gelb" | "rot";
+
+/** Stand der Sicherung im Status (`src-tauri/src/sicherung.rs`, `Sicherungsstand`). */
+export interface Sicherungsstand {
+  ordner: string | null;
+  /** Letzte gelungene Sicherung, in der Zone der Einrichtung. */
+  letzte: string | null;
+  /** Text des letzten gescheiterten Versuchs; `null` nach einem Erfolg. */
+  fehler: string | null;
+  stufe: Sicherungsstufe;
+}
+
+/** Rückgabe von `wiederherstellen` (`src-tauri/src/sicherung.rs`, `Wiederhergestellt`). */
+export interface Wiederhergestellt {
+  bloecke: number;
+}
+
 export interface Status {
   betrieb: "echt" | "test" | null;
   eingerichtet: boolean;
@@ -144,6 +171,11 @@ export interface Status {
   stammdatenVom: string | null;
   ankerBestaetigtBis: number;
   ankerAbweichung: Ankerabweichung | null;
+  /** Der letzte bestätigte Anker mit Zeitpunkt; `null`, solange die Suite nichts bestätigt hat. */
+  anker: Exportanker | null;
+  /** Sicherungsordner, letzte Sicherung, letzter Fehler und Ampel; `null` ohne Einrichtung. Ob
+   *  die Kette leer ist, steht in `kette.anzahl`. */
+  sicherung: Sicherungsstand | null;
   widerrufen: boolean;
   /** Die Verwaltungssitzung; eine abgelaufene erscheint als `null`. */
   sitzung: SitzungInfo | null;

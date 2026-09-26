@@ -769,11 +769,16 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      *
      * ⛔ ANGEHOBEN VON `2` AUF `3` DURCH G4, im selben Commit wie die `2` darueber:
      * `starteFilesHintergrund`, `starteAufgabenScanArbeiter`, `starteRadioHintergrund`.
+     *
+     * ⛔ ANGEHOBEN VON `3` AUF `4` (Stufe 6, Task 7): `starteEinsatzbuchHintergrund`
+     * (`src/app/m/einsatzbuch/_lib/anbindung/aufraeumen.ts`) kam dazu — dieselbe Ausnahme wie
+     * `starteAufgabenScanArbeiter`: sie liegt NICHT in einer `_lib/boot.ts` und ist deshalb von
+     * `hintergrundStarter` (Klausel IIa) strukturell nicht sichtbar, nur von dieser Klausel (IIb).
      */
     for (const name of starterAufrufe) {
       expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
     }
-    expect(starterAufrufe.length).toBe(3);
+    expect(starterAufrufe.length).toBe(4);
   });
 
   it("kein Blockkommentar in den zwei gelesenen Ausschnitten, denn der Filter kennt nur //", () => {

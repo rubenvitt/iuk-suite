@@ -19,8 +19,13 @@ export default async function EinsatzbuchUebersicht() {
   await requireEinsatzbuchZugang();
   const db = getDb();
   const status = await schluesselStatus(db);
-  const { echt, test } = rechnerStatus(db);
-  const abweichungen = (echt?.abweichungen.length ?? 0) + test.reduce((summe, r) => summe + r.abweichungen, 0);
+  const { echt, test, widerrufeneEcht } = rechnerStatus(db);
+  // Entscheidung 11: die Übersicht zählt Abweichungen über ALLE echten Rechner, auch widerrufene —
+  // eine veränderte Kette bleibt ein Befund, auch nachdem der Rechner selbst widerrufen wurde.
+  const abweichungen =
+    (echt?.abweichungen.length ?? 0)
+    + widerrufeneEcht.reduce((summe, r) => summe + r.abweichungen.length, 0)
+    + test.reduce((summe, r) => summe + r.abweichungen, 0);
   const aktiv = <T extends { aktiv: boolean }>(l: T[]) => l.filter((x) => x.aktiv).length;
   return (
     <>

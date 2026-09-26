@@ -6,7 +6,7 @@ use aes_gcm::aead::{Aead, Payload};
 use aes_gcm::{Aes256Gcm, KeyInit};
 use base64::Engine as _;
 use chrono::{TimeZone, Utc};
-use einsatzbuch_kern::buch::{Betrieb, Buch};
+use einsatzbuch_kern::buch::{Betrieb, Buch, BuchFehler};
 use einsatzbuch_kern::erfassung::{Entwurf, ErfassungFehler, PersonAuswahl};
 use einsatzbuch_kern::format::{Einsatz, GENESIS, Umgebung};
 use einsatzbuch_kern::krypto;
@@ -329,6 +329,56 @@ fn ein_fehlschlag_in_der_transaktion_hinterlaesst_nichts() {
     assert_eq!(nummern, 0, "die Nummernvergabe darf nicht hängen geblieben sein");
     assert!(buch.ausstehend().unwrap().is_some(), "der ausstehende Einsatz muss erhalten bleiben");
     assert!(buch.bloecke().unwrap().is_empty());
+    assert_eq!(buch.unquittiert().unwrap(), None, "ohne Block auch kein Versiegelungshinweis");
+}
+
+/// Block und Versiegelungshinweis entstehen in **derselben** Transaktion: Scheitert erst das
+/// Schreiben von `unquittiert` (hier per Trigger erzwungen, nach dem `INSERT` in `bloecke`),
+/// bleibt weder ein Block noch eine Nummer noch eine `unquittiert`-Zeile zurück, und der
+/// ausstehende Einsatz ist noch da.
+#[test]
+fn scheitert_der_versiegelungshinweis_entsteht_auch_kein_block() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
+    buch.verbindung()
+        .execute_batch(
+            "CREATE TRIGGER unquittiert_scheitert BEFORE INSERT ON unquittiert \
+             BEGIN SELECT RAISE(ABORT, 'absichtlich gescheitert'); END;",
+        )
+        .unwrap();
+
+    let ergebnis = buch.versiegele_ausstehend(jetzt, &mut FesterZufall(5), false);
+    assert!(matches!(ergebnis, Err(ErfassungFehler::Buch(BuchFehler::Datenbank(_)))), "{ergebnis:?}");
+
+    assert!(buch.bloecke().unwrap().is_empty(), "der Block darf ohne Hinweis nicht stehen bleiben");
+    let nummern: i64 = buch.verbindung().query_row("SELECT COUNT(*) FROM nummern", [], |r| r.get(0)).unwrap();
+    assert_eq!(nummern, 0);
+    let zeilen: i64 = buch.verbindung().query_row("SELECT COUNT(*) FROM unquittiert", [], |r| r.get(0)).unwrap();
+    assert_eq!(zeilen, 0);
+    assert!(buch.ausstehend().unwrap().is_some(), "der ausstehende Einsatz muss erhalten bleiben");
+}
+
+/// Jede Versiegelung ersetzt die vorige, noch nicht quittierte (höchstens eine Zeile).
+#[test]
+fn eine_neue_versiegelung_ersetzt_den_alten_hinweis() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    let jetzt = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    buch.sende_ab(&entwurf_eins(), jetzt, false).unwrap();
+    let erste = buch.versiegele_ausstehend(jetzt, &mut FesterZufall(1), false).unwrap().unwrap();
+    assert_eq!(buch.unquittiert().unwrap(), Some(erste));
+    buch.sende_ab(&entwurf_zwei(), jetzt, false).unwrap();
+    let zweite = buch.versiegele_ausstehend(jetzt, &mut FesterZufall(2), false).unwrap().unwrap();
+    assert_eq!(buch.unquittiert().unwrap(), Some(zweite));
+    let zeilen: i64 = buch.verbindung().query_row("SELECT COUNT(*) FROM unquittiert", [], |r| r.get(0)).unwrap();
+    assert_eq!(zeilen, 1);
+    buch.quittiere().unwrap();
+    assert_eq!(buch.unquittiert().unwrap(), None);
+    buch.quittiere().unwrap();
 }
 
 /// Fund aus Phase C: Eine manipulierte Kette, deren letzter Block schon 2^53 − 1 ist (eine
@@ -383,15 +433,15 @@ fn unbestaetigte_anker_nach_teilweiser_bestaetigung() {
         vec![(1, bloecke[0].hash.clone()), (2, bloecke[1].hash.clone()), (3, bloecke[2].hash.clone())]
     );
 
-    buch.anker_bestaetigt(2).unwrap();
+    buch.anker_bestaetigt(2, "2026-09-24T10:00:00+02:00").unwrap();
     assert_eq!(buch.unbestaetigte_anker().unwrap(), vec![(3, bloecke[2].hash.clone())]);
     assert_eq!(buch.anbindung().unwrap().unwrap().anker_gemeldet_bis, 2);
 
     // Eine verspätete, schon überholte Bestätigung senkt die Grenze nicht wieder.
-    buch.anker_bestaetigt(1).unwrap();
+    buch.anker_bestaetigt(1, "2026-09-24T10:00:00+02:00").unwrap();
     assert_eq!(buch.anbindung().unwrap().unwrap().anker_gemeldet_bis, 2);
     assert_eq!(buch.unbestaetigte_anker().unwrap(), vec![(3, bloecke[2].hash.clone())]);
 
-    buch.anker_bestaetigt(3).unwrap();
+    buch.anker_bestaetigt(3, "2026-09-24T10:00:00+02:00").unwrap();
     assert!(buch.unbestaetigte_anker().unwrap().is_empty());
 }
