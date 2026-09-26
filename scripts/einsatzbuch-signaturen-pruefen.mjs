@@ -7,7 +7,7 @@
  * Release angelegt oder `latest.json` ersetzt wird:
  *
  *   node scripts/einsatzbuch-signaturen-pruefen.mjs \
- *     --config apps/einsatzbuch/src-tauri/tauri.conf.json \
+ *     --config apps/einsatzbuch/src-tauri/tauri.conf.json --version 1.2.3 \
  *     auslieferung/Einsatzbuch.app.tar.gz auslieferung/Einsatzbuch_1.2.3_x64-setup.exe
  *
  * Zu jedem Paket gehört `<Paket>.sig` daneben. Warum: Passt der private Schlüssel der CI nicht
@@ -24,6 +24,10 @@
  * - Algorithmus `ED` (vorgehasht, BLAKE2b-512; das erzeugt `tauri signer`, gemessen am
  *   25.09.2026 mit CLI 2.11.5) oder `Ed` (alt, über die Rohdaten).
  * - Schlüssel-ID gleich, Signatur über die Datei gültig, globale Signatur gültig.
+ * - Mit `--version`: Trägt der trusted comment ein Feld `version:` (das schreibt der Bundler von
+ *   CLI 2.11.5, gemessen am 26.09.2026 an einem Debug-Bundle mit Versions-Overlay), muss es diese
+ *   Version sein. Der Updater (`verify_signed_version`) vergleicht es mit der Version aus
+ *   `latest.json` und lehnt bei Abweichung ab; fehlt das Feld, nimmt er an, und so auch hier.
  *
  * Wie `scripts/einsatzbuch-updater-json.mjs` ohne Abhängigkeiten: Node bringt Ed25519 und
  * BLAKE2b-512 mit, der Job braucht weder `pnpm install` noch ein Paket aus apt.
@@ -81,10 +85,10 @@ export function leseSchluessel(pubkey) {
 
 /**
  * Prüft eine Signatur gegen Schlüssel und Daten.
- * @param {{ pubkey: string; signatur: string; daten: Buffer }} eingabe
+ * @param {{ pubkey: string; signatur: string; daten: Buffer; version?: string }} eingabe
  * @returns {string | null} `null`, wenn sie passt, sonst der Grund
  */
-export function pruefeSignatur({ pubkey, signatur, daten }) {
+export function pruefeSignatur({ pubkey, signatur, daten, version }) {
   try {
     const { id, schluessel } = leseSchluessel(pubkey);
     const zeilen = base64(signatur, "Die Signaturdatei").toString("utf8").split(/\r?\n/);
@@ -116,6 +120,16 @@ export function pruefeSignatur({ pubkey, signatur, daten }) {
     if (!verify(null, Buffer.concat([sig, kommentar]), schluessel, global)) {
       return "Die globale Signatur passt nicht: Der „trusted comment“ wurde verändert.";
     }
+    if (version !== undefined) {
+      const signiert = kommentar
+        .toString("utf8")
+        .split("\t")
+        .find((feld) => feld.startsWith("version:"))
+        ?.slice("version:".length);
+      if (signiert !== undefined && signiert.replace(/^v/, "") !== version.replace(/^v/, "")) {
+        return `Signiert für Version ${signiert}, latest.json nennt aber ${version}: Der Updater lehnte das Update ab.`;
+      }
+    }
     return null;
   } catch (e) {
     return /** @type {Error} */ (e).message;
@@ -129,12 +143,14 @@ export function pruefeSignatur({ pubkey, signatur, daten }) {
 export function hauptprogramm(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
-    options: { config: { type: "string" } },
+    options: { config: { type: "string" }, version: { type: "string" } },
     allowPositionals: true,
   });
   const config = values.config;
   if (!config || positionals.length === 0) {
-    process.stderr.write("Aufruf: einsatzbuch-signaturen-pruefen.mjs --config <tauri.conf.json> <Paket> [<Paket> …]\n");
+    process.stderr.write(
+      "Aufruf: einsatzbuch-signaturen-pruefen.mjs --config <tauri.conf.json> [--version X.Y.Z] <Paket> [<Paket> …]\n",
+    );
     return 2;
   }
   const pubkey = JSON.parse(readFileSync(config, "utf8"))?.plugins?.updater?.pubkey;
@@ -149,7 +165,7 @@ export function hauptprogramm(argv) {
       ? "Das Paket fehlt."
       : !existsSync(sigDatei)
         ? "Die Signaturdatei fehlt."
-        : pruefeSignatur({ pubkey, signatur: readFileSync(sigDatei, "utf8"), daten: readFileSync(paket) });
+        : pruefeSignatur({ pubkey, signatur: readFileSync(sigDatei, "utf8"), daten: readFileSync(paket), version: values.version });
     if (grund === null) {
       process.stdout.write(`Signatur passt: ${path.basename(paket)}\n`);
     } else {
