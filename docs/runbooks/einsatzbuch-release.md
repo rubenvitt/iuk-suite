@@ -7,28 +7,34 @@ Beteiligte Dateien:
 
 | Datei | Rolle |
 |---|---|
-| `.github/workflows/einsatzbuch.yml`, Jobs `release-bauen` und `release-veroeffentlichen` | baut, signiert und veröffentlicht aus einem Tag `einsatzbuch-vX.Y.Z` |
+| `.github/workflows/einsatzbuch.yml`, Job `release-version` | entscheidet je Push auf `main`, ob ein Release entsteht, und mit welcher Version |
+| `.github/workflows/einsatzbuch.yml`, Jobs `release-bauen` und `release-veroeffentlichen` | baut, signiert und veröffentlicht; legt dabei den Tag `einsatzbuch-vX.Y.Z` an |
+| `scripts/einsatzbuch-version.mjs` | die Regel: löst ein Stand ein Release aus, welche Version |
 | `scripts/einsatzbuch-updater-json.mjs` | baut `latest.json`, das Manifest des Updaters |
 | `scripts/einsatzbuch-signaturen-pruefen.mjs` | prüft vor dem Veröffentlichen jede `.sig` gegen den öffentlichen Schlüssel |
-| `apps/einsatzbuch/src-tauri/tauri.conf.json` | Version, öffentlicher Updater-Schlüssel, Adresse des Manifests |
+| `apps/einsatzbuch/src-tauri/tauri.conf.json` | öffentlicher Updater-Schlüssel, Adresse des Manifests; die Version dort ist nur der Entwicklerstand |
 | `apps/einsatzbuch/src-tauri/tauri.release.conf.json` | Overlay nur für den Release-Lauf (`createUpdaterArtifacts`, Ad-hoc-Signatur für macOS) |
 | `apps/einsatzbuch/src-tauri/build_pruefung.rs` | Riegel: kein Release-Build mit Platzhalter statt Schlüssel |
 | `apps/einsatzbuch/src-tauri/src/updater.rs` | wann die App prüft und wann sie installiert |
-| `apps/einsatzbuch/src/version.test.ts` | Versionsgleichheit der drei Dateien und des Lockfiles |
+| `apps/einsatzbuch/src/version.test.ts` | Entwicklerstand der Version gleich in drei Dateien und im Lockfile |
 
-**Ehrliche Messaussage:** Bis heute (25.09.2026) gibt es kein einziges Einsatzbuch-Release. Kein
-Schritt dieses Runbooks ist von Tag bis Update durchgelaufen. Geprüft sind der Workflow per
-`actionlint`, das Manifest-Skript und die Versionsgleichheit per Test, der Platzhalter-Riegel per
-`cargo test` und `cargo update -p einsatzbuch` in einer Kopie. Die Signaturprüfung ist gegen echte
-Ausgaben von `tauri signer` mit Wegwerf-Schlüsseln getestet, die Ad-hoc-Signatur an einem lokalen
-Debug-Bundle (`codesign` meldet `Signature=adhoc`). Die Texte der Warnungen von Windows und macOS
-stammen nicht aus einer eigenen Installation. Den ersten Release-Lauf deshalb eng begleiten
-und dieses Runbook danach an den gemessenen Stand anpassen.
+**Ehrliche Messaussage:** Bis heute (26.09.2026) gibt es kein einziges Einsatzbuch-Release. Kein
+Schritt dieses Runbooks ist von Merge bis Update durchgelaufen. Geprüft sind der Workflow per
+`actionlint`, das Manifest-Skript, die Versionsregel (an Wegwerf-Repos) und die Versionsgleichheit
+per Test, der Platzhalter-Riegel per `cargo test` und `cargo update -p einsatzbuch` in einer Kopie.
+Die Signaturprüfung ist gegen echte Ausgaben von `tauri signer` mit Wegwerf-Schlüsseln getestet, die
+Ad-hoc-Signatur an einem lokalen Debug-Bundle (`codesign` meldet `Signature=adhoc`). Dass die
+Version aus dem Overlay in `Info.plist`, im Binär und im signierten Kommentar der `.sig` ankommt, ist
+an einem lokalen Debug-Bundle gemessen (26.09.2026, CLI 2.11.5), nicht an einem Release-Lauf. Die
+Texte der Warnungen von Windows und macOS stammen nicht aus einer eigenen Installation. Den ersten
+Release-Lauf deshalb eng begleiten und dieses Runbook danach an den gemessenen Stand anpassen.
 
 ## Überblick
 
-Ein Tag `einsatzbuch-vX.Y.Z` startet den Workflow `einsatzbuch`. Die Prüfjobs `oberflaeche`,
-`rust-kern` und `desktop` laufen mit. Erst wenn alle drei grün sind, baut `release-bauen` die
+**Releases laufen automatisch.** Jeder Push auf `main`, auf den der Pfadfilter des Workflows
+greift (App, geteilter Kern, Lockfiles, der Workflow selbst), startet den Workflow `einsatzbuch`. Die Prüfjobs `oberflaeche`, `rust-kern` und `desktop` laufen wie auf jedem PR, daneben
+entscheidet `release-version`, ob dieser Stand ein Release wird (Abschnitt „Wann ein Merge ein
+Release auslöst“). Nur wenn ja und alle drei Prüfjobs grün sind, baut `release-bauen` die
 Release-Fassung:
 
 - **macOS:** ein universelles Bundle für Apple Silicon und Intel. Die DMG ist für die Erstinstallation
@@ -36,7 +42,8 @@ Release-Fassung:
 - **Windows x64:** der NSIS-Installer `Einsatzbuch_X.Y.Z_x64-setup.exe` mit `.sig`. Er dient für die
   Erstinstallation und für den Updater.
 
-Danach veröffentlicht `release-veroeffentlichen` zwei Releases:
+Danach legt `release-veroeffentlichen` den Tag `einsatzbuch-vX.Y.Z` an und veröffentlicht zwei
+Releases:
 
 | Release | Inhalt | Lebensdauer |
 |---|---|---|
@@ -58,13 +65,17 @@ Suite-Versionierung (`scripts/version.mjs`) zählt nur exakte `vX.Y.Z`-Tags (Run
 Suite.
 
 **Das Repository muss öffentlich bleiben.** Der Updater lädt ohne Anmeldung von github.com. Bei
-einem privaten Repository scheitert jede Prüfung (Stand 25.09.2026: öffentlich).
+einem privaten Repository scheitert jede Prüfung (Stand 25.09.2026: öffentlich). Auch die Prüfung
+auf einen schon bestehenden Tag in `release-veroeffentlichen` liest ohne Token (`git ls-remote`);
+bei einem privaten Repository scheiterte sie laut, statt still weiterzumachen.
 
-**Stand beim Betreiber** (so gemeldet vom koordinierenden Lauf am 25.09.2026, hier nicht geprüft):
-Das Schlüsselpaar wurde am 25.09.2026 erzeugt, und die Secrets `TAURI_SIGNING_PRIVATE_KEY` und
+**Stand beim Betreiber** (so gemeldet vom koordinierenden Lauf, hier nicht geprüft): Das
+Schlüsselpaar wurde am 25.09.2026 erzeugt, und die Secrets `TAURI_SIGNING_PRIVATE_KEY` und
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` sind im Repository gesetzt. Den privaten Schlüssel verwahrt der
-Betreiber im Passwortmanager. **Offen vor dem ersten Tag:** Der öffentliche Teil muss noch per PR in
-`tauri.conf.json` eingetragen werden (Abschnitt „Updater-Schlüssel“, Schritt „Öffentlichen Teil eintragen“).
+Betreiber im Passwortmanager. Der öffentliche Teil ist seit dem 26.09.2026 in `tauri.conf.json`
+eingetragen (Minisign-Key-ID `A135D2394A754A1D`, Abschnitt „Updater-Schlüssel“). Damit fehlt für
+das erste Release nichts mehr: Der erste Push auf `main` mit dem automatischen Release-Weg baut
+`1.0.0`, weil es noch keinen Einsatzbuch-Tag gibt und `main` schon `feat`-Commits der App trägt.
 
 ## Updater-Schlüssel
 
@@ -177,9 +188,10 @@ GitHub → Settings → Rules → Rulesets → „New ruleset“ → „New tag 
 - Target tags: „Include by pattern“ `einsatzbuch-*` (deckt `einsatzbuch-updater` und alle
   `einsatzbuch-vX.Y.Z`).
 - Rules: „Restrict updates“, „Restrict deletions“ und „Block force pushes“ einschalten.
-- **„Restrict creations“ nicht einschalten.** Der Betreiber legt die Versions-Tags an, und der erste
-  Lauf von `release-veroeffentlichen` legt `einsatzbuch-updater` über `gh release create --target`
-  selbst an. Das Hochladen von `latest.json` mit `--clobber` verschiebt den Tag nicht.
+- **„Restrict creations“ nicht einschalten.** `release-veroeffentlichen` legt jeden Versions-Tag
+  selbst an (`gh release create --target`, mit dem `GITHUB_TOKEN` des Laufs), beim ersten Lauf
+  ebenso `einsatzbuch-updater`, und im Notfall pusht der Betreiber einen Tag von Hand. Das
+  Hochladen von `latest.json` mit `--clobber` verschiebt den Tag nicht.
 
 Dasselbe per API:
 
@@ -198,29 +210,93 @@ JSON
 Das Ruleset schützt den Tag, nicht das Release: `gh release delete einsatzbuch-updater` ginge
 weiterhin (ohne `--cleanup-tag` bleibt der Tag stehen). Deshalb gilt „nie löschen“ unverändert.
 
-## Release taggen
+## Wann ein Merge ein Release auslöst
 
-1. **Versions-PR.** Dieselbe neue Nummer `X.Y.Z` eintragen in:
-   - `apps/einsatzbuch/src-tauri/tauri.conf.json`, Feld `version`
-   - `apps/einsatzbuch/package.json`, Feld `version`
-   - `apps/einsatzbuch/src-tauri/Cargo.toml`, Abschnitt `[package]`, Feld `version`
+Die Regel steht in `scripts/einsatzbuch-version.mjs` und wird für jeden Push auf `main` neu
+gerechnet:
 
-   Danach in `apps/einsatzbuch/src-tauri` das Lockfile nachziehen:
+1. **Basis** ist der höchste Tag `einsatzbuch-vX.Y.Z`, der vom gepushten Stand aus erreichbar ist.
+2. **Gezählt** werden alle Commits seit der Basis, die keine Merge-Commits sind und etwas unter
+   `apps/einsatzbuch/` oder `src/app/m/einsatzbuch/_lib/kern/` ändern.
+3. **Ein Release entsteht**, wenn mindestens einer davon eine Kopfzeile vom Typ `feat`, `fix` oder
+   `perf` hat (Bereich beliebig, etwa `fix(einsatzbuch): …`) oder brechend ist (`feat!:`, `fix!:`,
+   jeder andere Typ mit `!`, oder eine Fußzeile `BREAKING CHANGE:`). `perf` zählt mit, weil eine
+   Beschleunigung sonst bis zum nächsten `fix` unausgeliefert auf `main` läge. Kein Release lösen
+   `test`, `docs`, `chore`, `ci`, `build`, `refactor`, `style`, `revert` und Nachrichten ohne
+   Präfix aus, also auch keine reine Lockfile- oder Abhängigkeitsänderung mit `chore`/`build`.
+4. **Die Version** ist die Basis plus der größte Sprung über die auslösenden Commits, nach denselben
+   Regeln wie die Suite (Runbook `versionierung.md`): brechend Major, `feat` Minor, sonst Patch. Ein
+   PR mit drei `fix` und einem `feat` ergibt also einmal Minor. Gibt es noch keinen
+   Einsatzbuch-Tag, wird es `1.0.0`.
 
-   ```
-   mise exec -- cargo update -p einsatzbuch --offline
-   ```
+Commits, die kein Release auslösen, gehen nicht verloren: Das nächste Release zählt sie mit, weil es
+ab dem letzten Tag rechnet. Muss ein `revert` sofort hinaus, den Commit als `fix(einsatzbuch): …`
+formulieren oder den Notfallweg nehmen.
 
-   Das ändert in `Cargo.lock` genau eine Zeile, die Version der App (gemessen). Ohne diesen Schritt
-   bricht jeder Job mit `--locked` ab. `pnpm --filter einsatzbuch test` prüft alle vier Stellen
-   (`src/version.test.ts`). Die Kopfzeile des Commits entscheidet über die Nummer der **Suite**
-   (Runbook `versionierung.md`). Für einen reinen Versionssprung deshalb
-   `chore(einsatzbuch): Version X.Y.Z`, nicht `feat`.
+**Vorher ablesen:** Auf jedem PR, der die App berührt, rechnet der Job `release-version` dieselbe
+Regel auf dem Merge-Stand des PRs und schreibt das Ergebnis in die Zusammenfassung des Laufs
+(„Einsatzbuch-Release X.Y.Z“ oder „Kein Einsatzbuch-Release“, darunter jeder gezählte Commit mit
+„löst aus“ oder „zählt nicht“). Das stimmt für einen Merge mit Merge-Commit. Bei einem Squash-Merge
+zählt stattdessen die Kopfzeile des einen Squash-Commits, also der PR-Titel. Lokal geht dasselbe:
 
-   Die Nummer muss höher sein als jede schon ausgelieferte. Der Updater installiert nur eine höhere
-   Version als die installierte.
+```
+git fetch origin --tags
+node scripts/einsatzbuch-version.mjs origin/main
+```
 
-2. **Tag nach dem Merge**, auf den Merge-Commit auf `main`:
+Nach dem Merge steht die Entscheidung in der Zusammenfassung des Laufs auf `main`
+(`gh run list --workflow einsatzbuch.yml --branch main`).
+
+## Woher die Version kommt
+
+Die Versionsnummer pflegt niemand von Hand. `tauri.conf.json`, `package.json` und
+`src-tauri/Cargo.toml` tragen nur den Entwicklerstand (`0.1.0`), und der bleibt. Der Schritt „Version
+für den Bau festlegen“ in `release-bauen` schreibt die Version aus `release-version` in ein Overlay
+`src-tauri/tauri.version.conf.json`, das `tauri build` als zweites `--config` bekommt. Tauri nimmt
+sie von dort für die Dateinamen, für die App selbst (die Version, mit der der Updater `latest.json`
+vergleicht) und für den signierten Kommentar jeder `.sig`. `release-veroeffentlichen` prüft vor dem
+Veröffentlichen, dass die signierte Version die ist, die `latest.json` nennt; weichen sie ab, lehnte
+der Updater jedes Update ab.
+
+Die Kopfzeile eines Commits entscheidet außerdem über die Nummer der **Suite** (Runbook
+`versionierung.md`). Beides zählt unabhängig: Die Suite sieht die Einsatzbuch-Tags nicht, das
+Einsatzbuch sieht die Suite-Tags nicht.
+
+## Lauf beobachten und Ergebnis prüfen
+
+```
+gh run list --workflow einsatzbuch.yml --branch main
+gh run watch <run-id> --exit-status
+```
+
+Der Job `release-bauen` hat je Plattform höchstens 90 Minuten. Läufe auf `main` laufen nacheinander:
+Ein neuer wartet, bis der laufende fertig ist, und ein noch wartender wird von einem neueren ersetzt
+(„cancelled“). Das ist gewollt, denn der neuere Stand enthält die Commits des ersetzten und
+veröffentlicht sie mit. So bekommen zwei schnelle Merges nie dieselbe Nummer.
+
+Danach:
+
+```
+gh release view einsatzbuch-vX.Y.Z
+gh release download einsatzbuch-updater --pattern latest.json --output - | jq .version
+gh release view --json tagName --jq .tagName
+```
+
+Die zweite Zeile muss `"X.Y.Z"` zeigen. Die dritte zeigt das Release, das GitHub als „Latest“
+führt, und das muss weiterhin ein Suite-Release `vA.B.C` sein, **kein** `einsatzbuch-…`. Steht
+dort doch ein Einsatzbuch-Release, das Suite-Release wieder zu „Latest“ machen:
+`gh release edit vA.B.C --latest`.
+
+## Notfall-Release per Tag
+
+Für den Fall, dass ein Stand sofort hinaus muss, ohne dass ein Merge ein Release auslöst (etwa ein
+`revert`), oder dass der automatische Weg klemmt. Der Tag hat dann Vorrang: Gebaut wird genau die
+Version aus dem Tag.
+
+1. Die Nummer wählen: höher als jede schon ausgelieferte (`gh release list | grep einsatzbuch-v`).
+   Der Updater installiert nur eine höhere Version als die installierte. Die Dateien der App
+   bleiben unverändert, kein Versions-PR.
+2. Einen Commit auf `main` taggen:
 
    ```
    git fetch origin
@@ -228,45 +304,44 @@ weiterhin (ohne `--cleanup-tag` bleibt der Tag stehen). Deshalb gilt „nie lös
    git push origin einsatzbuch-vX.Y.Z
    ```
 
-   Der Tag muss genau `einsatzbuch-vX.Y.Z` lauten, also ohne Zusatz wie `-rc1`. Der Workflow prüft
-   die Form und die Gleichheit mit den drei Dateien („Tag und Version stimmen überein“) und bricht
-   ab, wenn der Commit nicht auf `main` liegt („Tag zeigt auf einen Commit auf main“).
+   Der Tag muss genau `einsatzbuch-vX.Y.Z` lauten, also ohne Zusatz wie `-rc1`; sonst scheitert
+   `release-version`. Liegt der Commit nicht auf `main`, bricht `release-bauen` im Schritt „Stand
+   liegt auf main“ ab, bevor ein Secret im Spiel ist.
+3. Lauf beobachten wie oben, nur mit `--branch einsatzbuch-vX.Y.Z`.
 
-3. **Lauf beobachten:**
+Nicht einen Stand von Hand taggen, für den gerade ein automatischer Lauf baut: Beide Läufe
+veröffentlichten dann an dasselbe Release, der zweite ersetzte die Dateien des ersten durch neu
+gebaute. Nach einem Notfall-Tag rechnet der automatische Weg von ihm aus weiter, wenn er von
+`main` aus erreichbar ist.
 
-   ```
-   gh run list --workflow einsatzbuch.yml --branch einsatzbuch-vX.Y.Z
-   gh run watch <run-id> --exit-status
-   ```
+## Scheitert der Lauf
 
-   Der Job `release-bauen` hat je Plattform höchstens 90 Minuten.
+Einen vorübergehenden Fehler (Läufer, Netz) **nur per „Re-run failed jobs“** wiederholen, **nie per
+„Re-run all jobs“**, sobald der Lauf schon etwas veröffentlicht hat (das Release
+`einsatzbuch-vX.Y.Z` besteht). „Re-run failed jobs“ behält die Entscheidung von `release-version`
+und die schon gebauten Pakete dieses Laufs (Artefakte, 7 Tage aufbewahrt) und lädt dieselben
+Dateien noch einmal hoch. „Re-run all jobs“ rechnet neu: Trägt der Stand inzwischen seinen Tag,
+entscheidet `release-version` „kein Release“ und meldet das als Warnung („Dieser Stand trägt schon
+einsatzbuch-vX.Y.Z“); dann fehlt, was der ursprüngliche Lauf nicht mehr geschafft hat. Deshalb den
+ursprünglichen Lauf per „Re-run failed jobs“ fertig machen. Die einzige Ausnahme steht unter „Wenn
+die Schlüssel nicht zusammenpassen“: Dort ist noch nichts veröffentlicht und nichts getaggt.
 
-4. **Ergebnis prüfen:**
+Sind die Artefakte abgelaufen, die Korrektur mit der nächsten Nummer ausliefern. Braucht es eine
+Änderung am Code, den Tag nicht verschieben: Die Korrektur als `fix(einsatzbuch): …` mergen, sie
+bekommt die nächste Nummer.
 
-   ```
-   gh release view einsatzbuch-vX.Y.Z
-   gh release download einsatzbuch-updater --pattern latest.json --output - | jq .version
-   gh release view --json tagName --jq .tagName
-   ```
+Meldungen und was sie heißen:
 
-   Die zweite Zeile muss `"X.Y.Z"` zeigen. Die dritte zeigt das Release, das GitHub als „Latest“
-   führt, und das muss weiterhin ein Suite-Release `vA.B.C` sein, **kein** `einsatzbuch-…`. Steht
-   dort doch ein Einsatzbuch-Release, das Suite-Release wieder zu „Latest“ machen:
-   `gh release edit vA.B.C --latest`.
-
-**Scheitert der Lauf:** Einen vorübergehenden Fehler (Läufer, Netz) **nur per „Re-run failed
-jobs“** wiederholen, **nie per „Re-run all jobs“**, sobald der Lauf schon etwas veröffentlicht hat
-(das Release `einsatzbuch-vX.Y.Z` besteht). „Re-run failed jobs“ nimmt die schon gebauten Pakete
-dieses Laufs (Artefakte, 7 Tage aufbewahrt) und lädt dieselben Dateien noch einmal hoch.
-„Re-run all jobs“ baut dagegen neu, und die neuen Pakete sind nicht bytegleich mit den alten. Sie
-ersetzen die Dateien am Versions-Release unter derselben Adresse, während `latest.json` am
-Dauer-Release noch die Signaturen der alten Pakete trägt, bis der letzte Schritt durch ist. Scheitert
-der Lauf dazwischen, bleibt es dabei. Solange lehnt jede App, die gerade herunterlädt, das Update als
-falsch signiert ab. Die einzige Ausnahme steht unter „Wenn die Schlüssel nicht zusammenpassen“: Dort
-ist noch nichts veröffentlicht. Sind die Artefakte abgelaufen, die Korrektur mit der nächsten Nummer
-ausliefern. Braucht es eine Änderung am Code, den Tag nicht verschieben. Die Korrektur bekommt die
-nächste Nummer. Meldet der Lauf „latest.json am Dauer-Release nennt schon …, neuer als …“, lief ein
-älterer Tag nach einem neueren. Das Manifest bleibt dann absichtlich, wie es ist.
+- **„Die errechnete Version X.Y.Z ist schon vergeben: einsatzbuch-vX.Y.Z zeigt auf …“**
+  (`release-version`): Ein älterer Lauf wurde wiederholt, nachdem ein neuerer die Nummer schon
+  vergeben hat, oder jemand hat einen Stand abseits von `main` getaggt. Nichts wurde gebaut. Der
+  ältere Lauf braucht nicht wiederholt zu werden, der neuere hat seine Commits schon ausgeliefert.
+- **„Der Tag einsatzbuch-vX.Y.Z besteht schon und zeigt auf …, gebaut wurde …“**
+  (`release-veroeffentlichen`): Zwischen Rechnung und Veröffentlichen ist ein Tag gleicher Nummer
+  an einem anderen Stand entstanden, meist ein Notfall-Tag. Nichts wurde veröffentlicht. Den
+  nächsten auslösenden Merge abwarten oder per Notfall-Tag mit höherer Nummer ausliefern.
+- **„latest.json am Dauer-Release nennt schon …, neuer als …“**: Eine ältere Version lief nach einer
+  neueren. Das Manifest bleibt dann absichtlich, wie es ist.
 
 ## Installation unter Windows
 
@@ -392,9 +467,10 @@ Manifest, deshalb ist das Handarbeit. Dabei gilt:
 
 - Das Rücksetzen stuft keinen Rechner herunter. Wer die schlechte Version schon hat, behält sie, bis
   er per Installer zurückgesetzt wird oder eine höhere Version kommt.
-- Die Korrektur bekommt eine **höhere Nummer als die schlechte Version**, sonst erreicht sie die
-  Rechner nicht, die schon auf der schlechten Version sind.
-- **Den Lauf des schlechten Tags danach nie wiederholen.** Die Sperre im Workflow hält nur ein
+- Die Korrektur braucht eine **höhere Nummer als die schlechte Version**, sonst erreicht sie die
+  Rechner nicht, die schon auf der schlechten Version sind. Ein `fix`-Merge bekommt sie von selbst,
+  weil der automatische Weg vom höchsten Tag aus rechnet; beim Notfall-Tag selbst darauf achten.
+- **Den Lauf der schlechten Version danach nie wiederholen.** Die Sperre im Workflow hält nur ein
   Manifest auf, das älter als das vorhandene ist. Die schlechte Version ist neuer als `A.B.C` und
   stünde nach einem „Re-run“ wieder im Manifest.
 

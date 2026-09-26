@@ -2,14 +2,14 @@
 /// <reference types="node" />
 /**
  * Versionsgleichheit der Desktop-App (Stufe 7, Review Focus 5): Dieselbe Nummer steht in
- * `src-tauri/tauri.conf.json` (Tauri schreibt sie in Bundle und Dateinamen, der Updater vergleicht
- * sie mit `latest.json`), in `package.json`, in `src-tauri/Cargo.toml` (`[package]`) und im
+ * `src-tauri/tauri.conf.json` (Entwicklerbuilds tragen sie in Bundle und Dateinamen), in
+ * `package.json`, in `src-tauri/Cargo.toml` (`[package]`) und im
  * Eintrag der App in `src-tauri/Cargo.lock` — alle Jobs bauen mit `--locked`, ein veraltetes
  * Lockfile bräche den Release-Lauf erst in der CI ab.
  *
- * Der Release-Workflow (`.github/workflows/einsatzbuch.yml`, Schritt „Tag und Version stimmen
- * überein“) prüft zusätzlich den Tag. Dieser Test fängt die Abweichung schon im Versions-PR.
- * Runbook: docs/runbooks/einsatzbuch-release.md, Abschnitt „Release taggen“.
+ * Die Nummer hier ist nur der Entwicklerstand: Die Release-Version setzt die CI per Overlay
+ * (`.github/workflows/einsatzbuch.yml`, „Version für den Bau festlegen“). Runbook:
+ * docs/runbooks/einsatzbuch-release.md, Abschnitt „Woher die Version kommt“.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
