@@ -31,6 +31,8 @@
  *  3. JEDER STAND AUF `main` HAT EINE NUMMER, auch ein reiner Doku- oder
  *     Dependabot-Merge: er ergibt ein ausgeliefertes Image, und ein Image ohne Nummer
  *     wäre wieder nur ein SHA. Der kleinste Sprung ist deshalb Patch, nie „kein Sprung".
+ *     Ausnahme: ein Schritt, der nur die Desktop-App ändert (`NUR_APP`), ergibt kein
+ *     Image und deshalb auch keine Nummer.
  *
  * DER SPRUNG JE SCHRITT ist der größte über alle Commits, die der Schritt mitbringt
  * (bei einem Merge-Commit: die Commits des PRs), nach Conventional Commits:
@@ -160,6 +162,27 @@ export function spieleNach(basis, schritte) {
 }
 
 /**
+ * Pfade, die das Suite-Image nicht berühren: die Desktop-App (`.dockerignore` schließt
+ * `apps` aus), ihr eigener Workflow und ihr Runbook. Ein Schritt, der NUR hier etwas
+ * ändert, ist kein Schritt der Suite: Er erhöht die Nummer nicht, und steht seit dem
+ * letzten Tag nichts anderes an, baut `ci.yml` weder Image noch Release noch Deploy
+ * (`ausliefern`). Die App hat ihren eigenen Release-Weg (`.github/workflows/einsatzbuch.yml`).
+ * Eine Release-Notiz der App unter `src/app/m/portal/…` zeigt die Suite an — sie gehört
+ * deshalb bewusst NICHT hierher.
+ */
+export const NUR_APP = ["apps/einsatzbuch/", ".github/workflows/einsatzbuch.yml", "docs/runbooks/einsatzbuch-release.md"];
+
+/**
+ * Ändert ein Schritt nur Dateien unter `NUR_APP`? Ein leerer Schritt (keine Datei) zählt
+ * NICHT als App-Schritt: er bleibt ein Patch der Suite wie bisher.
+ *
+ * @param {readonly string[]} dateien
+ */
+export function nurApp(dateien) {
+  return dateien.length > 0 && dateien.every((d) => NUR_APP.some((p) => (p.endsWith("/") ? d.startsWith(p) : d === p)));
+}
+
+/**
  * @param {string[]} args
  * @param {string} cwd
  */
@@ -236,7 +259,7 @@ function naechsterVersionstag(cwd, ziel) {
  * @param {string} cwd Arbeitsverzeichnis im Repo
  * @param {string} ziel Commit, dessen Version gesucht ist
  * @param {{ anker?: { commit: string; version: string } }} [optionen]
- * @returns {{ version: string; basis: string | null; ankerBenutzt: boolean; schritte: { commit: string; sprung: Sprung; betreff: string }[] }}
+ * @returns {{ version: string; basis: string | null; ankerBenutzt: boolean; ausliefern: boolean; schritte: { commit: string; sprung: Sprung; betreff: string; nurApp: boolean }[] }}
  */
 export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
   const anker = optionen.anker ?? ANKER;
@@ -281,12 +304,22 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
       .map((n) => n.trim())
       .filter(Boolean);
     const betreff = git(["log", "-1", "--format=%s", commit], cwd).trim();
-    return { commit, sprung: groessterSprung(nachrichten), betreff };
+    const dateien = git(["diff", "--name-only", `${commit}^1`, commit], cwd).split("\n").filter(Boolean);
+    return { commit, sprung: groessterSprung(nachrichten), betreff, nurApp: nurApp(dateien) };
   });
 
   let version = start;
-  for (const s of schritte) version = erhoehe(version, s.sprung);
+  for (const s of schritte) if (!s.nurApp) version = erhoehe(version, s.sprung);
   const nummer = formatVersion(version);
+
+  /*
+   * NUR APP-SCHRITTE SEIT DER BASIS: nichts für die Suite. Die Nummer ist dann die der
+   * Basis, und deren Tag zeigt auf einen älteren Commit — die Prüfung unten schlüge an.
+   * Ohne Schritte (dieser Commit IST die Basis, ein wiederholter Lauf) bleibt es beim
+   * Ausliefern wie bisher.
+   */
+  const ausliefern = schritte.length === 0 || schritte.some((s) => !s.nurApp);
+  if (!ausliefern) return { version: nummer, basis, ankerBenutzt: basis === null, schritte, ausliefern };
 
   /*
    * IST DIE NUMMER SCHON VERGEBEN? Ein Tag `vX.Y.Z` auf einem Commit ABSEITS der Kette
@@ -316,7 +349,7 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
      */
   }
 
-  return { version: nummer, basis, ankerBenutzt: basis === null, schritte };
+  return { version: nummer, basis, ankerBenutzt: basis === null, schritte, ausliefern };
 }
 
 /**
@@ -332,12 +365,15 @@ export function bericht(ergebnis) {
       : `Basis: ${ergebnis.basis}`,
   );
   for (const s of ergebnis.schritte) {
-    zeilen.push(`  ${s.commit.slice(0, 7)}  ${s.sprung.padEnd(5)}  ${s.betreff}`);
+    zeilen.push(`  ${s.commit.slice(0, 7)}  ${(s.nurApp ? "app" : s.sprung).padEnd(5)}  ${s.betreff}`);
   }
   if (ergebnis.schritte.length === 0) {
     zeilen.push("  (keine Schritte seit der Basis — dieser Commit IST die Basis)");
   }
   zeilen.push(`Version: ${ergebnis.version}`);
+  if (!ergebnis.ausliefern) {
+    zeilen.push("Nur die Desktop-App geändert (`app`): kein Image, kein Suite-Release, kein Deploy.");
+  }
   return zeilen.join("\n");
 }
 
@@ -354,13 +390,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     // `basis` leer heißt: erster Tag. Der Job `release` lässt dann die PR-Liste weg.
     appendFileSync(
       process.env.GITHUB_OUTPUT,
-      `version=${ergebnis.version}\nbasis=${ergebnis.basis ?? ""}\n`,
+      `version=${ergebnis.version}\nbasis=${ergebnis.basis ?? ""}\nausliefern=${ergebnis.ausliefern}\n`,
     );
   }
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `### Version ${ergebnis.version}\n\n\`\`\`\n${bericht(ergebnis)}\n\`\`\`\n`,
+      `### ${ergebnis.ausliefern ? `Version ${ergebnis.version}` : "Kein Suite-Release (nur Desktop-App)"}\n\n\`\`\`\n${bericht(ergebnis)}\n\`\`\`\n`,
     );
   }
 }

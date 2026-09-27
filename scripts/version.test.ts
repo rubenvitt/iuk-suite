@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -10,6 +10,7 @@ import {
   erhoehe,
   formatVersion,
   groessterSprung,
+  nurApp,
   parseTag,
   spieleNach,
   sprungAusNachricht,
@@ -105,6 +106,24 @@ describe("groessterSprung und Nachspielen", () => {
  * Das Wegwerf-Repo. `--allow-empty`, weil es hier nur um Nachrichten und Kanten
  * geht; `--no-ff` erzwingt den Merge-Commit, den ein GitHub-Merge ebenfalls legt.
  */
+describe("nurApp — welche Schritte die Suite nicht berühren", () => {
+  it("nur Dateien der Desktop-App, ihres Workflows und Runbooks", () => {
+    expect(nurApp(["apps/einsatzbuch/src/x.ts", ".github/workflows/einsatzbuch.yml"])).toBe(true);
+    expect(nurApp(["docs/runbooks/einsatzbuch-release.md"])).toBe(true);
+  });
+
+  it("eine Datei der Suite, das Lockfile oder die Release-Notiz im Portal reichen für die Suite", () => {
+    expect(nurApp(["apps/einsatzbuch/src/x.ts", "pnpm-lock.yaml"])).toBe(false);
+    expect(nurApp(["apps/einsatzbuch/src/x.ts", "src/app/m/portal/_lib/neuigkeiten/register.ts"])).toBe(false);
+    expect(nurApp(["src/app/m/einsatzbuch/_lib/kern/x.ts"])).toBe(false);
+    expect(nurApp([".github/workflows/einsatzbuch.yml.bak"])).toBe(false);
+  });
+
+  it("ein leerer Schritt bleibt ein Schritt der Suite", () => {
+    expect(nurApp([])).toBe(false);
+  });
+});
+
 describe("berechneVersion — an einer echten Historie", () => {
   let repo: string;
   const git = (...args: string[]) =>
@@ -290,6 +309,37 @@ describe("berechneVersion — an einer echten Historie", () => {
     // Ein weiterer Schritt zählt ganz normal weiter, von der Suite-Basis aus.
     commit("fix: nach den Einsatzbuch-Tags");
     expect(berechneVersion(repo)).toMatchObject({ version: "2.1.4", basis: "v2.1.2" });
+  });
+
+  it("ein Schritt nur an der Desktop-App erhöht nichts und liefert nichts aus", () => {
+    // Die App hat ihren eigenen Release-Weg; ein Suite-Image ohne Änderung wäre eine
+    // Nummer ohne Inhalt, und der Deploy liefe umsonst.
+    const aendere = (datei: string, nachricht: string) => {
+      mkdirSync(path.dirname(path.join(repo, datei)), { recursive: true });
+      writeFileSync(path.join(repo, datei), `${nachricht}\n`);
+      git("add", "--", datei);
+      git("commit", "-q", "-m", nachricht);
+    };
+    git("tag", "v3.0.0");
+    git("checkout", "-q", "-b", "pr-app");
+    aendere("apps/einsatzbuch/src/a.ts", "feat(einsatzbuch): nur die App");
+    aendere(".github/workflows/einsatzbuch.yml", "ci(einsatzbuch): ihr Workflow");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "pr-app", "-m", "Merge pull request #6");
+    const e = berechneVersion(repo);
+    expect(e).toMatchObject({ version: "3.0.0", basis: "v3.0.0", ausliefern: false });
+    expect(e.schritte).toMatchObject([{ nurApp: true }]);
+    expect(bericht(e)).toMatch(/app\s+Merge pull request #6/);
+    // Der nächste Suite-Schritt zählt von der Basis aus, als gäbe es den App-Schritt nicht.
+    aendere("src/app/m/portal/b.ts", "fix(portal): in der Suite");
+    expect(berechneVersion(repo)).toMatchObject({ version: "3.0.1", ausliefern: true });
+    // Ein PR, der App UND Suite ändert, ist ein ganz normaler Suite-Schritt.
+    git("checkout", "-q", "-b", "pr-beides");
+    aendere("apps/einsatzbuch/src/a.ts", "feat(einsatzbuch): App");
+    aendere("src/app/m/portal/_lib/neuigkeiten/notiz.ts", "docs: Release-Notiz im Portal");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "pr-beides", "-m", "Merge pull request #7");
+    expect(berechneVersion(repo)).toMatchObject({ version: "3.1.0", ausliefern: true });
   });
 
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {

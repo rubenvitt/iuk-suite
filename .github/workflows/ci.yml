@@ -191,6 +191,10 @@ jobs:
       # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. Nur zur Auskunft —
       # `release` rechnet seine Basis selbst frisch.
       basis: ${{ steps.rechne.outputs.basis }}
+      # `false`, wenn seit dem letzten Tag nur die Desktop-App geaendert wurde
+      # (`NUR_APP` in scripts/version.mjs): dann auf `main` kein `build`, `merge`,
+      # `release`, `deploy`. Die App hat ihren eigenen Release-Weg (einsatzbuch.yml).
+      ausliefern: ${{ steps.rechne.outputs.ausliefern }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -558,6 +562,9 @@ jobs:
     #
     # `version` bleibt, weil die Nummer als Build-Arg ins Image geht (unten).
     needs: [version]
+    # Auf einem PR baut er immer (Image-Smoke); auf `main` nur, wenn die Suite etwas
+    # ausliefert — ein reiner App-Merge braucht kein Image.
+    if: ${{ github.event_name == 'pull_request' || needs.version.outputs.ausliefern == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -700,7 +707,7 @@ jobs:
     # `!cancelled()` schaltet das implizite `success()` ab; die direkten `needs`
     # stehen deshalb ausdruecklich da, und jeder davon deckt seine eigenen Vorfahren.
     needs: [build, test, version]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && needs.test.result == 'success' && needs.version.result == 'success' }}
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' && needs.test.result == 'success' && needs.version.result == 'success' && needs.version.outputs.ausliefern == 'true' }}
     runs-on: ubuntu-latest
     # Zwei Laeufe DESSELBEN Commits (ein workflow_dispatch neben seinem Push-Lauf, ein
     # „Re-run all jobs" waehrend der erste noch laeuft) duerfen diesen Job nicht
