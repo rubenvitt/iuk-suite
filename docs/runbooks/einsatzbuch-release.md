@@ -17,6 +17,7 @@ Beteiligte Dateien:
 | `apps/einsatzbuch/src-tauri/build_pruefung.rs` | Riegel: kein Release-Build mit Platzhalter statt Schlüssel |
 | `apps/einsatzbuch/src-tauri/src/updater.rs` | wann die App prüft und wann sie installiert |
 | `apps/einsatzbuch/src/version.test.ts` | Entwicklerstand der Version gleich in drei Dateien und im Lockfile |
+| `scripts/einsatzbuch-vorgaenger.sh`, Job `vorgaenger` | Kompatibilität mit dem letzten Release, Tor vor jedem Release |
 
 **Ehrliche Messaussage:** Bis heute (26.09.2026) gibt es kein einziges Einsatzbuch-Release. Kein
 Schritt dieses Runbooks ist von Merge bis Update durchgelaufen. Geprüft sind der Workflow per
@@ -252,6 +253,35 @@ node scripts/einsatzbuch-version.mjs origin/main
 
 Nach dem Merge steht die Entscheidung in der Zusammenfassung des Laufs auf `main`
 (`gh run list --workflow einsatzbuch.yml --branch main`).
+
+## Kompatibilität mit dem letzten Release
+
+**Regel:** Jede Version liest, was die Version davor geschrieben hat, und die Version davor liest,
+was die neue schreibt. Rechner aktualisieren sich zu verschiedenen Zeiten, eine Sicherung wandert
+auf einen Rechner mit älterer App, und die Suite spricht nach dem Merge mit Rechnern beider Stände.
+
+Der Job `vorgaenger` prüft das bei jedem PR und vor jedem Release (`release-bauen` hängt daran)
+gegen den höchsten Tag `einsatzbuch-vX.Y.Z` vor dem Stand. Er checkt das Release als Worktree aus
+und fährt `kern/tests/vorgaenger.rs` in beiden Ständen:
+
+1. Der neue Stand schreibt eine Sicherung, das Release stellt sie wieder her und versiegelt weiter.
+2. Das Release schreibt Sicherung und Datenbank, der neue Stand stellt die Sicherung wieder her,
+   übernimmt die Datenbank wie bei einem Update und versiegelt weiter.
+3. Das Release liest die Drahtbeispiele der Suite aus dem neuen Stand (`anbindung/vertrag/`).
+
+Lokal: `scripts/einsatzbuch-vorgaenger.sh` (oder mit einem Tag als Argument). Braucht die Tags im
+Klon und eine Rust-Toolchain, dauert beim ersten Mal etwa eine Minute für den Bau des Releases.
+
+**Eine gewollte Formatänderung geht in zwei Releases.** Die Formattypen sind streng (`deny_unknown_fields`,
+`hatGenauSchluessel`): Ein neues oder fehlendes Feld macht eine Datei für die Vorversion unlesbar.
+
+1. Erst ein Release, das die alte **und** die neue Form liest, aber weiter die alte schreibt.
+2. Erst danach ein Release, das die neue Form schreibt. Sein Vorgänger ist dann Release 1.
+
+Ein Feld, das fachlich wegfällt, bleibt deshalb im Format und wird leer geschrieben (so der
+Ortsverein der Personen seit DRK-488). Die Gegenrichtung, eine ältere App auf der Datenbank einer
+neueren, prüft der Job nicht: Der Updater stuft nie herab, und „Älteres Release installieren“
+unten geht nur bei gleichem Datenbankschema.
 
 ## Woher die Version kommt
 
