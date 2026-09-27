@@ -51,17 +51,25 @@
   color: #ffffff;
 }
 
-.bildDatei {
+/*
+ * Das Bild als Hintergrund und nicht als `<img>`: nur so lädt der Browser
+ * allein das Bild des geltenden Modus. Die Pfade setzt `login-form.tsx` als
+ * `--an-bild-hell`/`--an-bild-dunkel` (gewählt in `login/_lib/hintergrund.ts`).
+ */
+.bildFlaeche {
   position: absolute;
   inset: 0;
   z-index: -2;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  background-image: var(--an-bild-hell);
+  background-size: cover;
   /* Der Mast steht rechts, seine Lichter im oberen Drittel — im flachen Band
      auf dem Telefon sollen sie im Bild bleiben. */
-  object-position: 65% 30%;
+  background-position: 65% 30%;
   animation: heranfahren 1.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+:root[data-theme="dark"] .bildFlaeche {
+  background-image: var(--an-bild-dunkel);
 }
 
 /*
@@ -315,7 +323,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bildDatei,
+  .bildFlaeche,
   .inhalt {
     animation: none;
   }

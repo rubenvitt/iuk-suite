@@ -4,6 +4,7 @@ import { auth } from "@/core/auth";
 import { devLoginEnabled } from "@/core/auth/devLogin";
 import { devGroupChoices } from "@/core/auth/devGroups";
 import { LoginForm } from "@/components/login-form";
+import { hintergrundAm } from "./_lib/hintergrund";
 
 export default async function LoginPage() {
   // Ein unlesbares Sitzungs-Cookie darf die Anmeldeseite NICHT zerlegen: auth()
@@ -29,7 +30,11 @@ export default async function LoginPage() {
   const devLogin = devLoginEnabled();
   return (
     <Suspense fallback={null}>
-      <LoginForm devLogin={devLogin} gruppenAuswahl={devLogin ? devGroupChoices() : []} />
+      <LoginForm
+        devLogin={devLogin}
+        gruppenAuswahl={devLogin ? devGroupChoices() : []}
+        hintergrund={hintergrundAm(new Date())}
+      />
     </Suspense>
   );
 }

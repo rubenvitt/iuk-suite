@@ -4,17 +4,10 @@ import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
 import { suiteRedirect } from "@/core/auth/redirect";
 import { vereinigeGruppen } from "@/core/auth/devGroups";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState, type CSSProperties } from "react";
 import { Button, Checkbox, Input } from "antd";
+import { HINTERGRUND_STANDARD, type Hintergrund } from "@/app/login/_lib/hintergrund";
 import styles from "./login-form.module.css";
-
-/**
- * Das Hintergrundbild. Unter `/login/…` und nicht an der Wurzel: `/login` steht
- * in `core/routing.ts` auf der PASSTHROUGH-Liste, `/login-bg.jpg` stand es
- * nicht — auf einem Modul-Host (z. B. Lagerbuch) schrieb der Proxy das Bild auf
- * `/m/<modul>/login-bg.jpg` um, 404, die Seite stand ohne Bild da.
- */
-const HINTERGRUNDBILD = "/login/hintergrund.jpg";
 
 /**
  * Enter ohne Fokus auf einem Bedienelement führt zu Pocket ID. Was selbst auf
@@ -43,6 +36,7 @@ function PocketIdLogo() {
 export function LoginForm({
   devLogin,
   gruppenAuswahl = [],
+  hintergrund = HINTERGRUND_STANDARD,
 }: {
   devLogin: boolean;
   /**
@@ -52,6 +46,12 @@ export function LoginForm({
    * Client-Referenz an (Falle 6, HTTP 500 für die Anmeldeseite).
    */
   gruppenAuswahl?: string[];
+  /**
+   * Die Bilder je Modus, gewählt auf dem Server (`login/_lib/hintergrund.ts`).
+   * Welches gilt, entscheidet CSS über `data-theme` — so lädt der Browser
+   * nur das eine, und ein Wechsel des Modus tauscht es ohne Neuladen.
+   */
+  hintergrund?: Hintergrund;
 }) {
   const callbackUrl = useSearchParams().get("callbackUrl") ?? "/";
   const [email, setEmail] = useState("dev@localtest.me");
@@ -100,9 +100,16 @@ export function LoginForm({
 
   return (
     <main className={styles.seite}>
-      <section className={styles.bild}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- `next/image` braucht zur Laufzeit `sharp` im Standalone-Image; ein Bild, eine Größe, dafür lohnt es nicht. */}
-        <img className={styles.bildDatei} src={HINTERGRUNDBILD} alt="" fetchPriority="high" decoding="async" />
+      <section
+        className={styles.bild}
+        style={
+          {
+            "--an-bild-hell": `url(${hintergrund.hell})`,
+            "--an-bild-dunkel": `url(${hintergrund.dunkel})`,
+          } as CSSProperties
+        }
+      >
+        <div className={styles.bildFlaeche} aria-hidden />
         <div className={styles.bildInhalt}>
           <span className={styles.marke}>
             <span className={styles.markeKachel} aria-hidden>
