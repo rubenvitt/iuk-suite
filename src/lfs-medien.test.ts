@@ -78,7 +78,7 @@ function lfsDateien(endungen: string[]): string[] {
     .filter((pfad) => endungen.some((endung) => pfad.toLowerCase().endsWith(endung)));
 }
 
-/** Nur der Kopf, nicht die ganze Datei — `login-bg.jpg` allein ist 613 KB gross. */
+/** Nur der Kopf, nicht die ganze Datei — `login-bg.jpg` war allein 613 KB gross. */
 function kopf(pfad: string, bytes: number): Buffer {
   const puffer = Buffer.alloc(bytes);
   const fd = openSync(pfad, "r");
@@ -100,7 +100,7 @@ describe("Medien in Git LFS", () => {
     // Gegenprobe: es gibt überhaupt Dateien, auf die die Muster passen.
     expect(dateien.length).toBeGreaterThan(0);
     expect(dateien).toContain("public/m/uav/illustrations/1-1.webp");
-    expect(dateien).toContain("public/login-bg.jpg");
+    expect(dateien).toContain("public/login/nacht.jpg");
   });
 
   it("keine Datei ist eine LFS-Zeigerdatei statt des Bildes", () => {

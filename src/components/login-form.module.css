@@ -1,0 +1,332 @@
+/*
+ * DIE ANMELDESEITE — zwei Flächen: das Bild und die Anmeldung.
+ *
+ * Ab 768px (der einzige Breakpoint der Suite) stehen beide nebeneinander,
+ * darunter liegt das Bild als Band oben und die Anmeldung schiebt sich mit
+ * runden Ecken darüber. Die Seite läuft ohne Shell, die Bedienelemente haben
+ * also antds Vorgabehöhe 56 (Falle 4: kein `size`).
+ *
+ * Eigene Variablen `--an-*` statt `--ant-*` (Falle 2). Werte aus
+ * `core/theme/tokens.ts`; der Dunkelzweig hängt an `data-theme`, nie an
+ * `prefers-color-scheme` (CLAUDE.md, „Hell/Dunkel").
+ */
+.seite {
+  --an-flaeche: #ffffff;
+  --an-tinte: #1a1d20;
+  --an-gedaempft: #5b6570;
+  --an-linie: #d9dde1;
+  --an-marke: #c8000f;
+  --an-taste: #eef0f1;
+  /* Farben des IDA-Zeichens (`components/ida-logo.tsx`). */
+  --ida-stamm: #1a1d20;
+  --ida-signal: #c8000f;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  background: var(--an-flaeche);
+  color: var(--an-tinte);
+  font-family: var(--font-body);
+}
+
+/* Gedämpft 7,5:1 auf #141414; Marke = `FARBEN.rotAufDunkel` (Text-Rot im Dunkeln). */
+:root[data-theme="dark"] .seite {
+  --an-flaeche: #141414;
+  --an-tinte: #eceef0;
+  --an-gedaempft: #a3acb5;
+  --an-linie: #2c3136;
+  --an-marke: #e45a66;
+  --an-taste: #1f1f1f;
+  --ida-stamm: #eceef0;
+}
+
+/* ---------- Bildfläche ---------- */
+
+.bild {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: clamp(240px, 40dvh, 380px);
+  /* Rückfall, solange das Bild lädt oder fehlt: weißer Text bleibt lesbar. */
+  background: #1a1d20;
+  color: #ffffff;
+}
+
+/*
+ * Das Bild als Hintergrund und nicht als `<img>`: nur so lädt der Browser
+ * allein das Bild des geltenden Modus. Die Pfade setzt `login-form.tsx` als
+ * `--an-bild-hell`/`--an-bild-dunkel` (gewählt in `login/_lib/hintergrund.ts`).
+ */
+.bildFlaeche {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: var(--an-bild-hell);
+  background-size: cover;
+  /* Der Mast steht rechts, seine Lichter im oberen Drittel — im flachen Band
+     auf dem Telefon sollen sie im Bild bleiben. */
+  background-position: 65% 30%;
+  animation: heranfahren 1.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+:root[data-theme="dark"] .bildFlaeche {
+  background-image: var(--an-bild-dunkel);
+}
+
+/*
+ * Der Schleier trägt die Lesbarkeit, nicht das Bild: unten 0,78 Schwarz ergibt
+ * selbst über reinem Weiß ≈ #383838, weißer Text darauf ≈ 11:1.
+ */
+.bild::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(10, 12, 14, 0.35) 0%, rgba(10, 12, 14, 0) 30%),
+    linear-gradient(0deg, rgba(10, 12, 14, 0.78) 0%, rgba(10, 12, 14, 0.35) 45%, rgba(10, 12, 14, 0) 75%);
+}
+
+.bildInhalt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: flex-end;
+  padding: 24px 24px 48px;
+}
+
+.bildTitel {
+  max-width: 16ch;
+  text-wrap: balance;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 7vw, 40px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Markenstreifen über dem Titel — Rot auf Chrome, nie auf einer Datenfläche. */
+.bildTitel::before {
+  content: "";
+  display: block;
+  width: 48px;
+  height: 4px;
+  margin-bottom: 16px;
+  border-radius: 2px;
+  background: #c8000f;
+}
+
+/* ---------- Anmeldefläche ---------- */
+
+.anmeldung {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-top: -24px;
+  padding: 32px 24px 24px;
+  border-radius: 24px 24px 0 0;
+  background: var(--an-flaeche);
+}
+
+.inhalt {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  animation: einblenden 0.5s ease-out 0.1s both;
+}
+
+/* „IDA" steht auf der Unterkante des Stamms, nicht mittig daneben. */
+.marke {
+  display: flex;
+  align-items: flex-end;
+  /* Klein, weil die Wellen nach rechts über den Schriftzug greifen. */
+  gap: 4px;
+  margin-bottom: 40px;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 0.74;
+  letter-spacing: 0.02em;
+  color: var(--an-tinte);
+}
+
+/* Das Zeichen ist hochkant (323 × 820); die Höhe bestimmt, die Breite folgt. */
+.markeZeichen {
+  display: block;
+  width: auto;
+  height: 68px;
+}
+
+.kicker {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--an-marke);
+}
+
+.titel {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 48px);
+  font-weight: 700;
+  line-height: 1.02;
+  color: var(--an-tinte);
+}
+
+.einleitung {
+  margin: 0 0 32px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--an-gedaempft);
+}
+
+.knopfInhalt {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tipp {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--an-gedaempft);
+}
+
+/*
+ * Nur wo es eine Tastatur gibt; auf dem Telefon wäre der Tipp Rauschen. Beide
+ * Bedingungen: `pointer: fine` allein trifft auch ein schmales Browserfenster
+ * am Rechner, die Breite allein auch ein Tablet ohne Tastatur.
+ */
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+  .tipp {
+    display: flex;
+  }
+}
+
+.taste {
+  display: inline-block;
+  min-width: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--an-linie);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--an-taste);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--an-tinte);
+  text-align: center;
+}
+
+.entwicklung {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 40px;
+  padding: 16px;
+  border: 1px dashed var(--an-linie);
+  border-radius: 12px;
+}
+
+.entwicklungTitel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--an-gedaempft);
+}
+
+.gruppen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gruppenKopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.fuss {
+  margin: 32px 0 0;
+  font-size: 12px;
+  color: var(--an-gedaempft);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .seite {
+    grid-template-columns: minmax(0, 1.15fr) minmax(400px, 1fr);
+    grid-template-rows: minmax(100dvh, auto);
+  }
+
+  .bild {
+    min-height: 100dvh;
+  }
+
+  .bildInhalt {
+    padding: 40px clamp(32px, 5vw, 64px) 56px;
+  }
+
+  .bildTitel {
+    font-size: clamp(44px, 4.6vw, 64px);
+  }
+
+  .anmeldung {
+    margin-top: 0;
+    padding: 48px clamp(32px, 6vw, 96px) 32px;
+    border-radius: 0;
+  }
+}
+
+@keyframes heranfahren {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes einblenden {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bildFlaeche,
+  .inhalt {
+    animation: none;
+  }
+}
