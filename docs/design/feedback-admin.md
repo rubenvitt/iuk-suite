@@ -597,7 +597,9 @@ dem Absenden selbst.
 **Höchstens ein Dienstabend je Gruppe und Kalendertag** (DRK-429, Kalendertag in der Suite-Zone).
 „Feedback starten" an einem Tag mit einem *geplanten* Abend übernimmt ihn und gibt ihn frei; an einem
 Tag mit einem gelaufenen oder abgesagten Abend ist es ein Feldfehler. Ein abgesagter Abend belegt
-den Tag mit — er wird wieder angesetzt, nicht ersetzt.
+den Tag mit — er wird wieder angesetzt, nicht ersetzt. Die Regel steht im Code, nicht als Index in
+der Datenbank (DRK-479): ein Doppeltag aus dem Altbestand bleibt stehen und bearbeitbar, gesperrt ist
+nur das Verschieben auf einen belegten Tag. Der Import meldet solche Tage zur Handbereinigung.
 
 **Einheitlicher Rückgabetyp** (`_lib/formState.ts`):
 
