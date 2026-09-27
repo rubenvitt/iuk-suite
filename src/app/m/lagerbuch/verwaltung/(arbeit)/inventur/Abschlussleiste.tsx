@@ -33,6 +33,7 @@ import {
   type ZaehlStand,
 } from "./inventurZustand";
 import { useZaehlstand, type Zaehlspeicher } from "./zaehlspeicher";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 /**
  * ⚠️ EIN ERGEBNIS GEHOERT ZU DEM STAND, AUS DEM ES ENTSTANDEN IST — und
@@ -143,7 +144,7 @@ export function Abschlussleiste({
               title={
                 <>
                   {`Inventur gebucht — ${korrigiert} ${korrigiert === 1 ? "Position" : "Positionen"} korrigiert. `}
-                  <Link href={`/verwaltung/inventur/verlauf/${inventurId}`}>Im Verlauf ansehen</Link>
+                  <Link href={verwaltungDetailPfad("inventur/verlauf", inventurId)}>Im Verlauf ansehen</Link>
                 </>
               }
             />

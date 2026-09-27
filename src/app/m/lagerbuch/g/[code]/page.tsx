@@ -14,6 +14,7 @@ import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
 import {
   BARCODE_TITEL, BARCODE_TEXT, BARCODE_NOCHMAL, BARCODE_LISTE,
 } from "@/app/m/lagerbuch/_lib/zustandTexte";
+import { verwaltungDetailPfad } from "@/app/m/lagerbuch/_lib/verwaltungPfad";
 
 export const dynamic = "force-dynamic";
 
@@ -67,16 +68,16 @@ export default async function GeraetDeepLink({ params }: Props) {
     const helfer = await helferZugangOderNull(getDb());
     if (helfer) redirect("/helfer");
     // AUFS GATE, nie nach /login — mit Rueckkehrziel in AEUSSERER Pfadform.
-    redirect(`/?returnTo=${encodeURIComponent(`/g/${code}`)}`);
+    redirect(`/?returnTo=${encodeURIComponent(`/g/${encodeURIComponent(code)}`)}`);
   }
 
   const gesucht = normalisiereBarcode(code);
   const db = getDb();
 
   const ger = geraetByBarcode(db, gesucht);
-  if (ger) redirect(`/verwaltung/geraete/${ger.id}`);
+  if (ger) redirect(verwaltungDetailPfad("geraete", ger.id));
   const bz = bzGeraetByBarcode(db, gesucht);
-  if (bz) redirect(`/verwaltung/bz/${bz.id}`);
+  if (bz) redirect(verwaltungDetailPfad("bz", bz.id));
 
   /**
    * §11.5, ZUSTAND 15 — HTTP 200 statt 404 (Entscheidung 8-C2). notFound() ist

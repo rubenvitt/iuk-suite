@@ -41,6 +41,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { gruppiereNachOrt, type OrtGruppe } from "./gruppierung";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 export type OrtVerfallZeile = {
   /** `${lagerortId}:${artikelId}` — je Paar gibt es hoechstens eine Meldung. */
@@ -116,7 +117,7 @@ function ortArt(
  * Ziel schlimmer als gar keines — der Name steht ja da.
  */
 function ortHref(zeile: { ortId: string; ortTyp: "lager" | "fahrzeug" }): string | null {
-  if (zeile.ortTyp !== "lager") return `/verwaltung/fahrzeuge/${zeile.ortId}`;
+  if (zeile.ortTyp !== "lager") return verwaltungDetailPfad("fahrzeuge", zeile.ortId);
   return istEntnahmebox(zeile.ortId) ? "/verwaltung/entnahmebox" : null;
 }
 

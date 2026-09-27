@@ -2,6 +2,7 @@
 
 import { geraetZuBarcode } from "../../../../_actions/bz";
 import { BarcodeScanner } from "../../../../_ui/BarcodeScanner";
+import { verwaltungDetailPfad } from "../../../../_lib/verwaltungPfad";
 
 /**
  * Reicht ausschließlich die BZ-Suche in Teil 4s Scanner und baut den äußeren
@@ -18,7 +19,7 @@ export function BzScanner() {
         if (!ergebnis.ok) throw new Error(ergebnis.fehler);
         return ergebnis.wert;
       }}
-      zielPfad={(id) => `/verwaltung/bz/${id}`}
+      zielPfad={(id) => verwaltungDetailPfad("bz", id)}
     />
   );
 }

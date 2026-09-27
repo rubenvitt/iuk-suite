@@ -474,3 +474,58 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     await expect(lesbar).not.toContainText("unlesbar");
   });
 });
+
+/**
+ * DRK-480 — DER 404 DER DETAILROUTEN IST EIN ECHTER 404.
+ *
+ * ⛔ UNTER EINER `loading.tsx` KAM ER ALS 200 AN (Falle 23, `CLAUDE.md`): der
+ * Ladezustand war mit Status 200 schon gestreamt, wenn die Seite `notFound()`
+ * rief. Gemessen gegen `build`/`start`: unbekanntes Geraet und unbekanntes
+ * Fahrzeug je 200. Seitdem prueft das `layout.tsx` jedes Segments vor der
+ * Grenze. Vitest und `next build` sehen den Status nicht — nur ein Lauf wie
+ * dieser.
+ *
+ * ⚠️ DIE GEGENPROBE GEHOERT DAZU: ein Layout, das ALLES ablehnt, waere unten
+ * ebenfalls gruen. Deshalb je Route mit Seed-Datensatz auch der 200.
+ */
+test.describe("lagerbuch — Detailrouten antworten auf Unbekanntes mit 404 (DRK-480)", () => {
+  test.beforeEach(async ({ page }) => {
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+  });
+
+  test("unbekannte ID auf allen sieben Detailrouten, Lager-ID als Fahrzeug", async ({ page }) => {
+    for (const pfad of [
+      "/verwaltung/bz/gibt-es-nicht",
+      "/verwaltung/checks/gibt-es-nicht",
+      "/verwaltung/fahrzeuge/gibt-es-nicht",
+      // Eine bekannte Lager-ID ist noch kein Fahrzeugblatt.
+      "/verwaltung/fahrzeuge/handlager",
+      "/verwaltung/geraete/gibt-es-nicht",
+      "/verwaltung/inventur/verlauf/gibt-es-nicht",
+      "/verwaltung/sauerstoff/gibt-es-nicht",
+      "/verwaltung/vorlagen/gibt-es-nicht",
+      // Die Unterseite liegt unter derselben Grenze und demselben Layout.
+      "/verwaltung/bz/gibt-es-nicht/kontrolle",
+    ]) {
+      const antwort = await page.goto(lagerbuchUrl(pfad));
+      expect(antwort?.status(), pfad).toBe(404);
+    }
+  });
+
+  test("bekannte ID liefert weiter 200", async ({ page }) => {
+    for (const pfad of [
+      "/verwaltung/checks/e2e-check-lesbar",
+      "/verwaltung/fahrzeuge/e2e-fahrzeug",
+      "/verwaltung/geraete/e2e-geraet",
+      "/verwaltung/sauerstoff/e2e-o2",
+      "/verwaltung/vorlagen/e2e-vorlagenfeld-tpl",
+    ]) {
+      const antwort = await page.goto(lagerbuchUrl(pfad));
+      expect(antwort?.status(), pfad).toBe(200);
+    }
+  });
+});

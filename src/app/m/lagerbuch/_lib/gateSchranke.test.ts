@@ -193,10 +193,10 @@ describe("die Kette ist KURZSCHLIESSEND", () => {
 describe("gateGesperrt LIEST NUR", () => {
   it("bucht nichts — hundert Abfragen schliessen das Gate nicht", async () => {
     /**
-     * `RateLimiter.check()` prueft UND bucht in einem Zug
-     * (`core/ratelimit.ts`, `RateLimiter.check`); ein reines Nachsehen gibt es dort nicht.
-     * Deshalb merkt sich `gateSchranke.ts` jedes `false` selbst, und diese
-     * Funktion liest nur noch die gemerkte Zahl.
+     * `RateLimiter.check()` prueft UND bucht in einem Zug. `gateSchranke.ts` merkt
+     * sich jedes `false` selbst (Restzeit und feste Deadline, die das ja/nein von
+     * `RateLimiter.istGesperrt` nicht liefert; Kopf von `gesperrtBis`), und diese
+     * Funktion liest nur die gemerkte Zahl.
      *
      * Die Mutation, die ohne diesen Fall gruen bliebe: `gateGesperrt` ruft
      * `check()`. Dann sperrte sich die Gate-SEITE selbst aus, weil sie die

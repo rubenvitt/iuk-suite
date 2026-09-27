@@ -8,183 +8,89 @@ import { join, sep } from "node:path";
  * ── WARUM ES DIESE DATEI GIBT ─────────────────────────────────────────────
  *
  * Bis DRK-358 teilte die CI die e2e-Suite mit `playwright test --shard=n/5`
- * auf. Playwright teilt dabei nach FALLZAHL, nicht nach Modul: welche
- * Spec-Dateien zusammen in einem Shard landen, ergibt sich aus Dateireihenfolge
- * und Testzahl — also aus etwas, das jeder neue Test verschiebt.
+ * auf. Playwright teilt dabei nach FALLZAHL, nicht nach Laufzeit und nicht
+ * nach Modul: welche Spec-Dateien zusammen in einem Shard landen, ergibt sich
+ * aus Dateireihenfolge und Testzahl — also aus etwas, das jeder neue Test
+ * verschiebt, und zwar still. Seit DRK-358 ist die Aufteilung deshalb EXPLIZIT
+ * (`e2e/gruppen.json`): eine Zusage, keine Nebenwirkung.
  *
- * Das ist nicht egal, weil EIN `next dev` den ganzen Shard bedient und sein
- * Speicher mit der Zahl der uebersetzten Routen waechst, ohne je zurueckzufallen
- * (so auch in `node_modules/next/dist/docs/01-app/02-guides/memory-usage.md`
- * ausgeschrieben). Die Aufteilung wurde am 2026-08-28 einmal richtig gewaehlt —
- * bei damals 211 Faellen trennte `n/5` die Module sauber, der schwerste Shard
- * trug NUR lagerbuch. Bei 356 Faellen trug Shard 4 dann acht Dateien aus vier
- * Modulen, und der Runner starb.
+ * ── DER STAND: NACH LAUFZEIT GESCHNITTEN (DRK-484) ────────────────────────
  *
- * GEMESSEN (DRK-358), gleicher Commit, gleicher kalter `.next`:
+ * Bis DRK-415 fuhr jede Gruppe gegen ein eigenes `next dev`, und dessen
+ * Speicher wuchs mit jeder uebersetzten Route (Geschichte unten). Das war der
+ * EINZIGE Grund fuer „eine Gruppe je Modul". Seit DRK-415 laedt jede Gruppe
+ * einen vorgebauten Stand und faehrt `next start`; gemessen (lokal, 4 Kerne,
+ * RSS des `next-server` alle 5 s) lief die GANZE Suite am Stueck auf EINEM
+ * Server mit 485 MB Spitze, 520 Faelle. Der Speichergrund ist damit weg.
+ *
+ * ⚠️ GEBLIEBEN IST DER GETEILTE ZUSTAND JE RUNNER: `workers: 1`, ein Fake-clamd,
+ * ein `.data/e2e` je Gruppe (Kommentar am Job `e2e` in `ci.yml`). Eine Datei
+ * liegt deshalb immer GANZ in einer Gruppe, und innerhalb der Gruppe faehrt
+ * Playwright die Dateien nach NAMEN sortiert (`localeCompare`, also
+ * `aufgaben-anleitung` vor `aufgaben`) — gleich, in welcher Reihenfolge `specs`
+ * sie nennt. Die Listen stehen in dieser Sortierung. Ausnahme: eine Datei, die
+ * per `test.use` einen eigenen Worker verlangt (`einsatzbuch-reader`, Kanal und
+ * Startoptionen), laeuft NACH den anderen ihrer Gruppe (Lauf 1417).
+ *
+ * DER SCHNITT VOM 2026-09-27: acht Eimer zu je rund 170 s Testzeit statt elf
+ * Modulgruppen mit 24 bis 182 s. Gemessen an sieben gruenen main-Laeufen gegen
+ * `next start` (1393 bis 1417), je Datei die Zeit von Protokollzeile zu
+ * Protokollzeile des `list`-Reporters, gemittelt. Acht ist die kleinste Zahl,
+ * bei der die langsamste Gruppe nicht laenger laeuft als vorher (sieben
+ * hiessen ~193 s); jeder Runner weniger spart ~50 s Einrichtung. Die
+ * Rechnung steht am Job `e2e` in `.github/workflows/ci.yml`.
+ *
+ * ⚠️ DIE NAMEN SIND EIMER, KEINE BEDEUTUNG. `eimer-3` ist nicht „files",
+ * sondern der dritte Eimer. Wer eine neue Spec anlegt, traegt sie in den mit
+ * der KLEINSTEN Testzeit im letzten gruenen Lauf ein — nicht nach Fallzahl
+ * (eine Datei braucht 0,4 s, eine andere 127 s), nicht nach Name, nicht nach
+ * Modul. Der Waechter unten wird rot, solange sie in keinem steht; still
+ * verschwinden kann sie nicht.
+ *
+ * ⚠️ UNTER `next start` DARF MAN DATEIZEITEN ADDIEREN, unter `next dev` durfte
+ * man es nicht (DRK-408, unten): dort gehoerte die Erstuebersetzung einer
+ * Route dem ersten Fall der GRUPPE, der sie traf, und dieselbe unveraenderte
+ * Gruppe streute ueber drei Laeufe um 78 s. Gegen `next start` liegt die
+ * Spanne je Gruppe ueber sieben Laeufe bei 3 bis 32 s (ein Ausreisser 62 s) —
+ * einen Kandidaten-Schnitt MEHRFACH zu fahren, bevor man ihm glaubt, bleibt
+ * trotzdem die billigere Wahl.
+ *
+ * ⛔ UND NICHT ZURUECK ZU `--shard`, auch ohne Speichergrund: es teilte wieder
+ * nach Fallzahl und nach einer Zuordnung, die jeder neue Test verschiebt. Die
+ * letzte Zusicherung dieser Datei haelt das fest.
+ *
+ * ── GESCHICHTE: WARUM ES UNTER `next dev` JE MODUL SEIN MUSSTE ────────────
+ *
+ * Nur noch Geschichte fuer die CI — lokal faehrt `pnpm e2e` weiterhin gegen
+ * `next dev`, und wer dort die ganze Suite am Stueck faehrt, trifft auf
+ * dasselbe.
+ *
+ * DRK-358: EIN `next dev` bediente den ganzen Shard, und sein Speicher wuchs
+ * mit der Zahl der uebersetzten Routen, ohne je zurueckzufallen
+ * (`node_modules/next/dist/docs/01-app/02-guides/memory-usage.md`). Bei 211
+ * Faellen trennte `n/5` die Module noch sauber, bei 356 trug Shard 4 acht
+ * Dateien aus vier Modulen, und der Runner starb. Gleicher Commit, gleicher
+ * kalter `.next`:
  *
  *   `radio-hosts` + `radio-kiosk` ALLEIN   ->  4 258 MB Spitze, alle 12 gruen
  *   dieselben Faelle als Teil von Shard 4  -> 12 768 MB Spitze, der Shard stirbt
  *
- * Faktor 3, und der Fall, der im Verbund rot war, ist allein gruen. Der
- * Speicher haengt an der SUMME der Modulflaechen im Shard, nicht an einem Fall.
- *
- * ⛔ ZWEI NAHELIEGENDE ABHILFEN SIND GEMESSEN UND VERWORFEN:
+ * ⛔ GEMESSEN UND VERWORFEN, falls es lokal wieder auftaucht:
  *   * `turbopackMemoryEviction: "full"` — die Spitze blieb (12 203 MB gegen
  *     12 074 MB). Eviction gibt frei, was schon auf der Platte liegt; sie
  *     verhindert die Allokation WAEHREND der Uebersetzung nicht.
- *   * `turbopackFileSystemCacheForDev: false` — schon frueher probiert
- *     (`fb9fe44e`, zurueckgenommen in `63b5b820`): ohne Platte bleibt alles im
- *     Speicher, der Shard starb dann frueher statt spaeter.
+ *   * `turbopackFileSystemCacheForDev: false` — zweimal probiert (`fb9fe44e`,
+ *     zurueckgenommen in `63b5b820`; noch einmal am 2026-09-22): es nahm die
+ *     Turbopack-Panik beim Zurueckholen aus dem Plattencache weg, aber der
+ *     Runner starb trotzdem, einmal frueher. Die Panik war ein Symptom des
+ *     Speichers, nicht seine Ursache.
  *
- * Bleibt die Routenflaeche je Server. Sie schrumpft nur ueber die Aufteilung —
- * und die ist seit DRK-358 EXPLIZIT (`e2e/gruppen.json`) statt aus der Fallzahl
- * abgeleitet. Eine Gruppe je Modul heisst: eine Zusage, keine Nebenwirkung.
- *
- * ── WARUM EIN MODUL MEHRERE GRUPPEN HAT (DRK-407, DRK-408) ────────────────
- *
- * „Eine Gruppe je Modul" war die Regel von DRK-358, nicht ihr Zweck. Der Zweck
- * ist die Routenflaeche je Server — und ein Modul darf dafuer auch MEHRERE
- * Gruppen haben, solange keine Gruppe zwei Module mischt. Genau das war noetig:
- *
- *   Lauf 35187192289, dieselbe CI, Gruppe fuer Gruppe gemessen:
- *     lagerbuch        14:17   (185 Faelle, 32 Dateien)   ← 65 % des Laufs
- *     aufgaben          9:10
- *     files-feedback    5:03
- *     suite-huelle      4:18
- *     suite-verwaltung  4:04
- *     radio             3:22
- *     uav-zeichen       1:22
- *
- * Sechs Runner standen neun bis dreizehn Minuten still, waehrend lagerbuch
- * seriell durchlief.
- *
- * ⚠️ DIE AUFTEILUNG GING NACH FALLZAHL, UND DAS IST DER FALSCHE MASSSTAB.
- * DRK-407 balancierte lagerbuch auf 66/66/64 Faelle, weil Playwrights
- * `dot`-Reporter nichts anderes hergibt; gemessen kamen 4:42 / 8:15 / 4:59
- * heraus. 75 % Spreizung bei GLEICHER Fallzahl: ein Fall kann 0,8 s dauern
- * oder 52 s. Seit DRK-408 laeuft die CI deshalb mit `reporter: "list"`, und
- * jede Zeile nennt die Dauer ihres Falls.
- *
- * ⛔ UND JETZT DER TEIL, DER GELD GEKOSTET HAT — ZWEIMAL, UND DAS ZWEITE MAL
- * WAR EIN IRRTUM UEBER DEN ERSTEN. Mit den gemessenen Zahlen wurde in DRK-408
- * ein Schnitt gerechnet, der lagerbuch auf 365 / 359 / 360 s bringen sollte:
- * vier Dateien wandern, keine Zusicherung wird angefasst. Gemessen kamen
- * 312 / 449 / 398 s heraus, bei einer Summe, die von 1088 auf 1159 s stieg —
- * obwohl eine reine Umverteilung die Summe nicht aendern darf.
- *
- * ⚠️ DIESE 71 s SIND ABER KEIN BEFUND, SONDERN RAUSCHEN, und das faellt erst
- * auf, wenn man dieselbe Gruppe oefter als einmal misst. `lagerbuch-2` mit
- * UNVERAENDERTEN elf Dateien, ueber drei Laeufe:
- *
- *     Lauf 1058 (main)   495 s     Lauf 1078 (PR)  460 s
- *     Lauf 1087 (PR)     538 s     Spanne          78 s
- *
- * Mit dem Schnitt (sieben Dateien) waren es 449 s — also WENIGER als die
- * Spanne der unveraenderten Konfiguration von ihrem eigenen besten Lauf
- * entfernt. Aus je einem Lauf laesst sich die Wirkung des Schnitts damit
- * ueberhaupt nicht ablesen, in keine Richtung. Der Schnitt ist trotzdem
- * zurueckgenommen, aber aus dem schwaecheren und ehrlicheren Grund: er zeigt
- * keinen messbaren Gewinn, und dann gewinnt die Fassung mit der laengeren
- * Lauf-Historie.
- *
- * WAS BLEIBT, IST DIE BAUART-EINSICHT, und die haengt nicht an den 71 s: ein
- * erheblicher Teil dessen, was der Reporter einem Fall zuschreibt, ist die
- * ERSTUEBERSETZUNG der Route, die er anfaesst (`next dev` auf kaltem `.next`
- * — die Einzelzahlen stehen am `timeout` in `playwright.config.ts`, 7,4 s
- * fuer ein einziges `GET /login`). Sie gehoert nicht der Datei, sondern dem
- * ersten Fall der GRUPPE, der die Route trifft. Dateizeiten zu addieren
- * unterstellt, sie waeren verschiebbar; das sind sie nicht.
- *
- * ⛔ DARAUS FOLGEN ZWEI REGELN FUER DEN NAECHSTEN SCHNITT, und die zweite ist
- * die teurere: Dateizeiten NICHT addieren, sondern den Kandidaten-Schnitt
- * fahren — und ihn MEHRFACH fahren, weil ein einzelner Lauf eine Streuung von
- * 78 s hat und damit alles verdeckt, was kleiner ist. Wer unter dieser Grenze
- * optimieren will, misst zuerst die Grenze.
- *
- * ⚠️ DIE NUMMERN SIND EIMER, KEINE BEDEUTUNG. `lagerbuch-2` ist nicht „die
- * Verwaltung", sondern „der zweite Eimer". Wer eine neue lagerbuch-Spec
- * anlegt, traegt sie in den KLEINSTEN ein; welcher das ist, sagt die LAUFZEIT
- * im letzten gruenen Lauf, nicht die Fallzahl und nicht der Name. Der
- * Waechter unten wird rot, solange sie in keinem steht — still verschwinden
- * kann sie nicht.
- *
- * ⛔ UND NICHT ZURUECK ZU `--shard`: das teilt wieder nach Fallzahl ueber ALLE
- * Module und bringt genau den Speicherausfall zurueck, den DRK-358 oben misst.
- * Die letzte Zusicherung dieser Datei haelt das fest.
- *
- * ── WARUM `lagerbuch-2` GETEILT IST (2026-09-22) ──────────────────────────
- *
- * Die Gruppe hat an EINEM Tag dreimal ihren Runner verloren — „The runner has
- * received a shutdown signal", zweimal auf einem PR, einmal auf `main`, und in
- * keinem anderen Job. Ein viertes Mal starb sie an der Panik, die turbo-tasks
- * beim Zurueckholen aus `.next/dev/cache/turbopack` wirft. Beides ist dasselbe
- * Bild wie DRK-358 oben: die Routenflaeche EINES `next dev` ist zu gross.
- *
- * ⛔ DER SCHALTER IST WIEDER PROBIERT WORDEN, UND ER BLEIBT VERWORFEN.
- * `turbopackFileSystemCacheForDev: false` nahm die Panik gemessen weg (zwei
- * Laeufe, 47 und 74 Faelle, keine einzige Panikzeile) — die Gruppe starb
- * trotzdem, einmal sogar frueher. Das deckt sich mit dem Absatz oben; die
- * Panik war ein Symptom des Speichers, nicht seine Ursache. Wer sie einzeln
- * wegnimmt, hat die Ursache nicht angefasst.
- *
- * DER SCHNITT GEHT NACH ROUTENFLAECHE, NICHT NACH LAUFZEIT — dieselbe
- * Bedingung, unter der der `aufgaben`-Schnitt darunter billig war.
- * `lagerbuch-hosts` faehrt sechzehn Einstiege ab und deckt damit alles, was
- * `lagerbuch-mobil`, `-kategorien` und `-fahrzeug-kaertchen` anfassen; die
- * vier zusammen kosten die zweite Gruppe also fast nichts ueber `hosts`
- * hinaus. Was in `lagerbuch-2` bleibt, bringt die eigenen Flaechen mit:
- * Checklisten samt Druckast, Inventur mit Verlaufsdetail, Schraenke, Verfall,
- * Fahrzeugblatt, Auffuellen.
- *
- * ⚠️ DIE FALLZAHL ZEIGT IN DIE ANDERE RICHTUNG ALS DIE ZEIT, und das ist der
- * Beleg fuer die Regel darunter. Aus dem letzten gruenen Lauf (106711846484,
- * 8,0 min):
- *
- *     lagerbuch-2 (bleibt)   33 Faelle   208 s
- *     lagerbuch-4 (neu)      47 Faelle   202 s
- *
- * Vierzehn Faelle mehr, sechs Sekunden weniger.
- *
- * ⚠️ DIE REIHENFOLGE INNERHALB BEIDER EIMER IST DIE VON HEUTE — kein Fall
- * wechselt seinen Vorgaenger innerhalb seiner Gruppe. Ueber die Grenze traegt
- * `workers: 1` ohnehin nichts (Absatz unten); beide Gruppen starten mit
- * demselben frischen Seed, weil jeder Job sein `./.data/e2e` neu anlegt.
- *
- * ⚠️ OB ES TRAEGT, SAGT ERST DIE WIEDERHOLUNG. Der Absatz zu DRK-408 unten
- * misst 78 s Streuung derselben unveraenderten Gruppe; ein einzelner gruener
- * Lauf beweist hier so wenig wie dort. Belastbar ist bis dahin nur das
- * Ausbleiben des Runner-Todes ueber mehrere Laeufe.
- *
- * ── WARUM `aufgaben` ZWEI GRUPPEN HAT (DRK-408) ───────────────────────────
- *
- * `aufgaben` war mit 8:58 die langsamste Gruppe. Von seinen 468 s standen
- * 240 s in EINEM zusammenhaengenden Block — Umschaltung, „Kein waagerechtes
- * Scrollen" (vier Viewports mal neun Seiten, 185 s allein), Fuehrungskarte,
- * Dunkelmodus. Der steht seit DRK-408 in `aufgaben-breiten.spec.ts` und
- * damit in einer eigenen Gruppe. Gemessen: 8:58 -> 4:20 + 4:20.
- *
- * ⚠️ WARUM DAS HIER AUFGING UND BEI LAGERBUCH NICHT (die Rechnung oben): die
- * Faelle dieses Blocks rufen dieselben wenigen Routen immer wieder auf, nur
- * in anderen Breiten. Die zweite Gruppe uebersetzt also fast nichts, was die
- * erste nicht auch braeuchte — die SUMME fiel sogar leicht (8:58 -> 8:40),
- * statt wie bei lagerbuch um 71 s zu steigen. Das ist die Bedingung, unter
- * der ein Schnitt billig ist, und sie steht in keiner Laufzeitzahl.
- *
- * ⚠️ DER SCHNITT IST NICHT DIE HAELFTE DER FAELLE: 49 der 93 stehen drueben,
- * aber nur die Haelfte der Zeit. Nach Fallzahl waere er woanders gelandet.
- *
- * ⚠️ ZWEI GRUPPEN, NICHT ZWEI DATEIEN IN EINER GRUPPE — sonst spart der
- * Schnitt nichts: ein `next dev` faehrt seine Dateien seriell. Der Preis ist
- * ein zweiter Serverstart (gemessen ~38 s); er faellt gegen 4:20 gesparte
- * Laufzeit nicht ins Gewicht, waere aber der Grund, es NICHT beliebig weit
- * zu treiben.
- *
- * ⚠️ WAS DEN SCHNITT ZULAESSIG MACHTE, steht im Kopf von
- * `aufgaben-breiten.spec.ts`: kein Fall dort haengt an einem Fall hier. Der
- * einzige gekoppelte Verbund des Moduls ist das Nachweis-Trio und blieb
- * vollstaendig in `aufgaben.spec.ts`. ⛔ `workers: 1` traegt ueber eine
- * Gruppengrenze NICHTS mehr — zwei Gruppen sind zwei Prozesse gegen zwei
- * Server.
+ * DRK-407, DRK-408, 2026-09-22: aus demselben Grund bekamen lagerbuch (erst
+ * drei, dann vier) und aufgaben (zwei) mehrere Gruppen, geschnitten nach
+ * ROUTENFLAECHE und nie modulgemischt. Die Lehre, die davon bleibt: ein Schnitt
+ * nach Fallzahl ist keiner (DRK-407 balancierte 66/66/64 Faelle und bekam
+ * 4:42 / 8:15 / 4:59), und seit DRK-408 laeuft die CI mit `reporter: "list"`,
+ * damit jede Zeile die Dauer ihres Falls nennt.
  *
  * ── WAS DIESER TEST HAELT ─────────────────────────────────────────────────
  *
@@ -326,10 +232,10 @@ function loese(muster: string, vorhanden: string[]): string[] {
  *
  * ⛔ WAS HIER NICHT MEHR STEHT, und warum das kein Verlust ist: die Regel „nur
  * `vitest` darf sharden" war eleganter und loeste ein Problem, das es nicht
- * gibt. Gefaehrlich ist Sharding allein bei e2e, weil dort EIN `next dev` den
- * ganzen Shard bedient (DRK-358, oben). Ein anderer Job, der shardet, ist
- * harmlos; ihn mitzuverbieten hat den Waechter angreifbar gemacht, ohne etwas
- * zu schuetzen.
+ * gibt. Falsch ist Sharding allein bei e2e, weil es dort die explizite, nach
+ * Laufzeit geschnittene Zuordnung ersetzte (oben). Ein anderer Job, der
+ * shardet, ist harmlos; ihn mitzuverbieten hat den Waechter angreifbar
+ * gemacht, ohne etwas zu schuetzen.
  */
 const E2E_AUFRUF = "      - run: pnpm e2e ${{ matrix.gruppe.specs }}";
 
@@ -504,8 +410,8 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
 
     expect(
       mitShard,
-      "ausserhalb des vitest-Jobs shardet etwas — bei e2e ist das der Ausfall aus DRK-358 " +
-        "(ein `next dev` je Shard, 12 768 MB Spitze, Runner tot)",
+      "ausserhalb des vitest-Jobs shardet etwas — bei e2e hiesse das: Aufteilung nach Fallzahl " +
+        "statt der Eimer aus e2e/gruppen.json, und jeder neue Test verschiebt sie still",
     ).toEqual([VITEST_AUFRUF]);
   });
 });

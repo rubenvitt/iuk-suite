@@ -20,6 +20,7 @@ import {
 } from "../_lib/schreibpfade/templateSync";
 import { bereinigeVerfallOhneAktivesSoll } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const VERFALL_PFAD = "/m/lagerbuch/verwaltung/verfall";
 
@@ -28,7 +29,7 @@ function revalidate(fahrzeugId?: string) {
   revalidatePath("/m/lagerbuch/verwaltung/vorlagen");
   revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
   if (fahrzeugId) {
-    revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${fahrzeugId}`);
+    revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", fahrzeugId));
   }
 }
 

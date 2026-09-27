@@ -24,6 +24,7 @@ import {
   type BzLogbuchAnzeigeZeile,
 } from "./BzLogbuchTabelle";
 import { ReferenzEditor, type BzEditorWerte } from "./ReferenzEditor";
+import { verwaltungDetailPfad } from "../../../../_lib/verwaltungPfad";
 
 export const dynamic = "force-dynamic";
 
@@ -186,7 +187,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
       <div style={{ marginBlockEnd: SPACE.lg }}>
         <Link
-          href={`/verwaltung/bz/${geraet.id}/kontrolle`}
+          href={verwaltungDetailPfad("bz", geraet.id, "kontrolle")}
           role="button"
           style={{
             ...SCHRIFT.text,

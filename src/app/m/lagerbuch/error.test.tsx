@@ -188,4 +188,42 @@ describe("error.tsx — die Modul-Fehlergrenze (§11.2, §12.2)", () => {
       "verwaltung/(arbeit)/vorlagen/[id]/loading.tsx",
     ]);
   });
+
+  /**
+   * ⛔ OHNE DAS LAYOUT DANEBEN IST DER 404 EIN 200 (Falle 23, `CLAUDE.md`;
+   * DRK-480). Unter der Grenze ist der Status schon gesendet, wenn die Seite
+   * `notFound()` ruft — gemessen gegen `build`/`start`: unbekanntes Geraet und
+   * unbekanntes Fahrzeug je 200. Das `layout.tsx` desselben Segments rendert
+   * oberhalb der Grenze und prueft dort. Ein Quelltext-Scan, weil nur
+   * `build`/`start` oder ein e2e-Lauf den Status sieht (e2e:
+   * `lagerbuch-verwaltung.spec.ts`, „Detailrouten …").
+   *
+   * ⚠️ DER ANDERE PREIS IST BEWUSST HINGENOMMEN (DRK-480, 27.09.2026): ohne
+   * JavaScript bleiben diese sieben Seiten beim Ladezustand stehen
+   * (`core/shell/SeiteLaedt.tsx`). Die Verwaltung ist eine Arbeitsflaeche fuer
+   * angemeldete Admins, und jede Handlung auf ihr — Formular, Umschalter,
+   * Dialog — ist ohnehin eine Client-Insel. Dieselbe Abwaegung wie beim
+   * feedback-Cockpit (DRK-424). Die Helferflaechen tragen keine Grenze; der
+   * Fall darueber haelt das fest.
+   */
+  it("prueft neben jeder Ladegrenze im Layout, ob es das Objekt gibt", () => {
+    // Den Baum lesen, nicht die Liste darueber abschreiben — dieselbe Lehre
+    // wie beim Verlauf, der beim Aufzaehlen von Hand herausfiel.
+    const segmente: string[] = [];
+    (function suche(dir: string): void {
+      for (const eintrag of readdirSync(dir)) {
+        const pfad = join(dir, eintrag);
+        if (statSync(pfad).isDirectory()) suche(pfad);
+        else if (eintrag === "loading.tsx") segmente.push(dir);
+      }
+    })(__dirname);
+
+    expect(segmente).toHaveLength(7);
+    for (const segment of segmente) {
+      const pfad = join(segment, "layout.tsx");
+      const quelle = ohneKommentare(readFileSync(pfad, "utf8"));
+      expect(quelle, pfad).toMatch(/detailVorhanden\(getDb\(\), "[a-z]+", id\)/);
+      expect(quelle, pfad).toMatch(/notFound\(\)/);
+    }
+  });
 });

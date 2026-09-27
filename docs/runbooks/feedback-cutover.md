@@ -108,6 +108,11 @@ sqlite3 feedback.db "SELECT DISTINCT user_id FROM user_groups LIMIT 5;"
    ```
    → muss mit `Feedback import OK — <n> Zeilen, Parität grün.` enden. Bricht es ab: **kein Cutover**,
    Report prüfen.
+   Folgt darauf eine Liste „Tag(e) mit mehr als einem Dienstabend je Gruppe", ist das **kein
+   Abbruchgrund**: die Alt-App erlaubte zwei Abende am selben Tag, die Suite nicht mehr. Die Abende
+   werden trotzdem importiert und bleiben bearbeitbar. Die Liste an die Gruppenleitungen geben:
+   nach dem Cutover den falsch datierten Abend verschieben oder einen Abend ohne Antworten löschen.
+   Zusammenführen geht nicht.
    Danach stichprobenhaft gegen die Alt-Anwendung vergleichen: Gruppenzahl, Abendzahl, und für einen
    Abend die Durchschnittsnoten. Die Parität beweist den Datenbank-Rundlauf, **nicht** die
    Richtigkeit der Zuordnung von Feldern — der Stichprobenvergleich schließt diese Lücke.
