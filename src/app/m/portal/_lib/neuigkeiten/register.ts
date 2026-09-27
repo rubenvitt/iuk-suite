@@ -12,6 +12,7 @@ import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 import einsatzdateienImReader from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-24-einsatzdateien-im-reader";
 import desktopAppInstallieren from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-25-desktop-app-installieren";
 import personalOhneOrtsverein from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-27-personal-ohne-ortsverein";
+import nachUpdatesSuchen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-27-nach-updates-suchen";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -171,6 +172,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   einsatzdateienImReader,
   desktopAppInstallieren,
   personalOhneOrtsverein,
+  nachUpdatesSuchen,
 ];
 
 /**

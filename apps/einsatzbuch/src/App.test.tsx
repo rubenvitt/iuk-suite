@@ -38,6 +38,8 @@ const befehle = vi.hoisted(() => ({
   wiederherstellen: vi.fn(),
   autostartStatus: vi.fn(),
   autostartSetzen: vi.fn(),
+  updateSuchen: vi.fn(),
+  beiUpdateStand: vi.fn(),
 }));
 vi.mock("./befehle", () => ({ befehle }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -81,6 +83,8 @@ function status(teil: Partial<Status> = {}): Status {
     anmeldungLaeuft: false,
     update: null,
     updateFehler: null,
+    updateGeprueft: null,
+    version: "1.1.0",
     ...teil,
   };
 }
@@ -208,6 +212,7 @@ beforeEach(() => {
   befehle.schluesselFreigeben.mockResolvedValue(CEKS);
   befehle.autostartStatus.mockResolvedValue(true);
   befehle.autostartSetzen.mockResolvedValue(undefined);
+  befehle.beiUpdateStand.mockResolvedValue(() => {});
   befehle.ankerAbgleichen.mockResolvedValue({
     bestaetigtBis: 3, hash: BLOECKE[2].hash, gemeldetAm: "2026-09-25T10:00:00+02:00", abweichung: null, offline: false, widerrufen: false,
   });
@@ -399,6 +404,27 @@ async function pruefeDieKette(): Promise<void> {
   await clickElement(knopf("Kette prüfen")!);
   await warteBis(() => befehle.status.mock.calls.length > vorher, "Status nach „Kette prüfen“ neu gelesen");
 }
+
+describe("Update-Stand", () => {
+  /** Der Updater-Thread prüft außerhalb jedes Bedienschritts; sein Ereignis lässt die App neu lesen. */
+  it("liest den Status neu, wenn der Updater einen neuen Stand meldet, und meldet sich beim Abhängen ab", async () => {
+    const abmelden = vi.fn();
+    befehle.beiUpdateStand.mockResolvedValue(abmelden);
+    await meldeAnUndOeffneVerwaltung();
+    expect(text()).toContain("Installiert ist Version 1.1.0.");
+    expect(text()).not.toContain("vorgemerkt");
+    expect(befehle.beiUpdateStand).toHaveBeenCalledTimes(1);
+
+    befehle.status.mockResolvedValue(status({ sitzung: SITZUNG, update: "1.2.0" }));
+    const melde = befehle.beiUpdateStand.mock.calls[0][0] as () => void;
+    await act(async () => melde());
+    await warte();
+    expect(text()).toContain("Update auf 1.2.0 ist vorgemerkt.");
+
+    await unmount();
+    expect(abmelden).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("Verwaltung", () => {
   it("erscheint nach `anmelden` mit Kette, Detail des neuesten Einsatzes, Kennzahlen und Verteilung", async () => {

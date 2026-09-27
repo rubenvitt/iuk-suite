@@ -5,6 +5,7 @@
  * (`{ entwurf, bearbeitung }`, `{ spkiPfad, fristMinuten }`).
  */
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type { Block } from "@kern/format";
 
@@ -52,6 +53,20 @@ export const befehle = {
   autostartStatus: () => invoke<boolean>("autostart_status"),
   /** Schaltet den Autostart (`autostart_setzen`); die Verwaltung bietet das nur im Echtbetrieb an. */
   autostartSetzen: (an: boolean) => invoke<void>("autostart_setzen", { an }),
+  /** „Nach Updates suchen“: prüft sofort; das Ergebnis, auch ein Fehler, steht danach im Status.
+   * Scheitert nur, wenn die Suche gar nicht laufen konnte (etwa im Entwicklerbuild). */
+  updateSuchen: () => invoke<void>("update_suchen"),
+  /** Der Updater-Thread meldet, dass sich der Update-Teil des Status geändert hat
+   * (`STAND_EREIGNIS` in `src-tauri/src/updater.rs`). Das Abmelden ist in Tauri asynchron; ein
+   * Fehler dabei (etwa nach dem Schließen des Fensters) bleibt still. */
+  beiUpdateStand: async (f: () => void): Promise<UnlistenFn> => {
+    const abmelden = await listen("update-stand", () => f());
+    return () => {
+      void Promise.resolve()
+        .then(abmelden)
+        .catch(() => undefined);
+    };
+  },
   /** Öffnet den Ordnerdialog des Systems; `null` heißt abgebrochen, sonst der gewählte Pfad. Nur im Echtbetrieb. */
   sicherungsordnerWaehlen: () => invoke<string | null>("sicherungsordner_waehlen"),
   /** Öffnet den Dateidialog (`.json`) und stellt die Sicherung wieder her; `null` heißt abgebrochen. */

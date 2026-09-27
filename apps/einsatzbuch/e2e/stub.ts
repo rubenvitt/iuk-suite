@@ -412,6 +412,8 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         anmeldungLaeuft: false,
         update: null,
         updateFehler: null,
+        updateGeprueft: null,
+        version: "0.1.0",
       };
     }
 
@@ -576,6 +578,14 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         case "autostart_setzen":
           autostart = args.an as boolean;
           return undefined;
+        // Kein Updater im Browser: Die Suche findet nichts, und das Ereignis `update-stand`
+        // (`befehle.beiUpdateStand`) kommt nie; An- und Abmelden gelingen nur.
+        case "update_suchen":
+          return undefined;
+        case "plugin:event|listen":
+          return 1;
+        case "plugin:event|unlisten":
+          return undefined;
         default:
           throw new Error(`Unbekannter Befehl im Playwright-Stub: ${cmd}`);
       }
@@ -589,6 +599,10 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         return id;
       },
       metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+    };
+    // `listen` aus `@tauri-apps/api/event` meldet sich hier wieder ab (`befehle.beiUpdateStand`).
+    (window as unknown as { __TAURI_EVENT_PLUGIN_INTERNALS__: unknown }).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener: () => undefined,
     };
   }, einstellungen);
 }

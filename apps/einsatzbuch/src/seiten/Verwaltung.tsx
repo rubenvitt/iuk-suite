@@ -60,6 +60,12 @@ interface VerwaltungProps {
   update: string | null;
   /** Letzter Fehler des Updaters (`status.updateFehler`), für die Karte „Einstellungen“. */
   updateFehler: string | null;
+  /** Letzte gelungene Suche nach Updates (`status.updateGeprueft`), für die Karte „Einstellungen“. */
+  updateGeprueft: string | null;
+  /** Installierte Version (`status.version`), für die Karte „Einstellungen“. */
+  version: string | null;
+  /** Debug-Build (`status.entwicklung`): kein Updater, also kein „Nach Updates suchen“. */
+  entwicklung: boolean;
   beiKettePruefen: () => Promise<void>;
   /** Die App liest den Status neu, mit `ketteNeu` auch Blöcke und Schlüssel. */
   beiEinstellungGeaendert: (ketteNeu: boolean) => Promise<void>;
@@ -184,6 +190,9 @@ export function Verwaltung(p: VerwaltungProps) {
         zeitzone={zeitzone}
         update={p.update}
         updateFehler={p.updateFehler}
+        updateGeprueft={p.updateGeprueft}
+        version={p.version}
+        entwicklung={p.entwicklung}
         beiGeaendert={p.beiEinstellungGeaendert}
       />
 

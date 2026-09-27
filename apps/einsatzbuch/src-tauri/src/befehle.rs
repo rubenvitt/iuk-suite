@@ -147,6 +147,12 @@ pub struct Status {
     /// Der letzte Fehler des Updaters als kurzer Text ohne Pfade oder Adressen
     /// (`updater::Updatefehler::anzeige`); `None`, solange nichts scheiterte.
     pub update_fehler: Option<String>,
+    /// Wann die letzte Prüfung beim Update-Endpunkt gelang, in der Zone der Einrichtung; `None`,
+    /// solange keine gelang, und immer im Debug-Build.
+    pub update_geprueft: Option<String>,
+    /// Die installierte Version (`package_info`), gesetzt vom Befehl `status`; `lies_status`
+    /// kennt die App nicht.
+    pub version: Option<String>,
 }
 
 /// Die Verwaltungssitzung in Rust (Spec §4.4). Das Token wird beim Verwerfen überschrieben
@@ -254,6 +260,8 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
             anmeldung_laeuft: false,
             update: None,
             update_fehler: None,
+            update_geprueft: None,
+            version: None,
         },
         Some(buch) => {
             let einrichtung = buch.einrichtung().map_err(buch_fehler_text)?;
@@ -297,6 +305,8 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                 anmeldung_laeuft: false,
                 update: None,
                 update_fehler: None,
+                update_geprueft: None,
+                version: None,
             }
         }
     };
@@ -305,6 +315,8 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
     status.anmeldung_laeuft = z.anmeldung().is_some();
     status.update = z.update().as_ref().map(|v| v.version.clone());
     status.update_fehler = z.update_fehler().anzeige();
+    let geprueft = *z.update_geprueft();
+    status.update_geprueft = geprueft.map(|g| formatiere_zeitpunkt(g, status.zeitzone.as_deref().unwrap_or("UTC")));
     Ok(status)
 }
 
@@ -966,7 +978,31 @@ where
 
 #[tauri::command]
 pub async fn status(app: AppHandle) -> Result<Status, String> {
-    blockierend(app, lies_status).await
+    let version = app.package_info().version.to_string();
+    let mut status = blockierend(app, lies_status).await?;
+    status.version = Some(version);
+    Ok(status)
+}
+
+/// „Nach Updates suchen“: eine Prüfrunde sofort (`updater::pruefrunde`), außerhalb des Takts.
+/// Ihr Ergebnis, auch ein Fehler, steht danach im Status; der Befehl selbst scheitert nur, wenn
+/// er gar nicht laufen konnte. Installiert wird weiter nur vom Updater-Thread.
+#[tauri::command]
+pub async fn update_suchen(app: AppHandle) -> Result<(), String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let quelle = crate::updater::PluginQuelle { app: app.clone() };
+        blockierend(app, move |z| {
+            let _ = crate::updater::pruefrunde(z, &quelle);
+            Ok(())
+        })
+        .await
+    }
+    #[cfg(debug_assertions)]
+    {
+        let _ = app;
+        Err("Ein Entwicklerbuild sucht nicht nach Updates.".into())
+    }
 }
 
 #[tauri::command]

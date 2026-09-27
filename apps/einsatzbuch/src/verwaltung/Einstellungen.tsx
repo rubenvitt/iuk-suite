@@ -10,13 +10,14 @@
  *   erst nach einer Bestätigung. Den Rest prüft Rust (Anker der Suite, Freigabe, Ausstehendes).
  *   Die Meldung steht außerhalb dieser Bedingung, denn nach dem Neulesen ist die Kette nicht mehr leer.
  * - **Autostart:** nur im Echtbetrieb, gelesen und geschaltet über `autostart_status`/`autostart_setzen`.
- * - **Update:** nur ein Hinweis, wenn der Updater (Rust, nur im Release-Build) eine Version
- *   vorgemerkt hat (`status.update`) oder zuletzt gescheitert ist (`status.updateFehler`). Einen
- *   Knopf gibt es nicht: Rust installiert selbst, sobald nichts aussteht, niemand angemeldet ist
- *   und 15 Minuten lang kein Entwurf geändert wurde (Stufe 7, Entscheidung 1). Der Fehler steht
- *   auch ohne Vormerkung da, denn ein gescheitertes Installieren verwirft sie. Ein Release-Build
- *   hat kein Log, das jemand liest; dieser Hinweis ist der einzige Ort, an dem etwa eine
- *   Signatur auffällt, die nicht zum Schlüssel der App passt.
+ * - **Update:** die installierte Version, die letzte gelungene Suche (`status.updateGeprueft`),
+ *   ein Hinweis, wenn der Updater (Rust, nur im Release-Build) eine Version vorgemerkt hat
+ *   (`status.update`) oder zuletzt gescheitert ist (`status.updateFehler`), und „Nach Updates
+ *   suchen“. Der Knopf sucht nur; installiert wird weiter von Rust allein, sobald nichts
+ *   aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde (Stufe 7,
+ *   Entscheidung 1). Der Fehler steht auch ohne Vormerkung da, denn ein gescheitertes
+ *   Installieren verwirft sie. Ein Release-Build hat kein Log, das jemand liest; dieser Hinweis
+ *   ist der einzige Ort, an dem etwa eine Signatur auffällt, die nicht zum Schlüssel passt.
  *
  * Den Status liest die Karte nie selbst. Sie meldet eine Änderung an die App (`beiGeaendert`),
  * die ihn über `laden()` mit Sequenznummer holt (`App.tsx`). Fehler aus Rust kommen als
@@ -30,7 +31,7 @@ import { Karte } from "../bausteine/Karte";
 import { Knopf } from "../bausteine/Knopf";
 import { Zeichen } from "../bausteine/Symbol";
 import { befehle } from "../befehle";
-import { sicherungsanzeige } from "../logik/sicherung";
+import { sicherungsanzeige, sicherungszeitText } from "../logik/sicherung";
 import type { Sicherungsstand, Status } from "../typen";
 
 export interface EinstellungenProps {
@@ -44,6 +45,12 @@ export interface EinstellungenProps {
   update: string | null;
   /** Letzter Fehler des Updaters (`status.updateFehler`), sonst `null`. */
   updateFehler: string | null;
+  /** Letzte gelungene Suche nach Updates (`status.updateGeprueft`), sonst `null`. */
+  updateGeprueft: string | null;
+  /** Installierte Version (`status.version`). */
+  version: string | null;
+  /** Debug-Build: Dort läuft kein Updater, „Nach Updates suchen“ entfällt. */
+  entwicklung: boolean;
   /** Die App liest den Status neu; `ketteNeu` heißt: auch die Verwaltung neu laden. */
   beiGeaendert: (ketteNeu: boolean) => Promise<void>;
 }
@@ -67,6 +74,8 @@ export function Einstellungen(p: EinstellungenProps) {
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [autostartLaeuft, setAutostartLaeuft] = useState(false);
   const [autostartFehler, setAutostartFehler] = useState<string | null>(null);
+  const [sucht, setSucht] = useState(false);
+  const [sucheFehler, setSucheFehler] = useState<string | null>(null);
   /** Nach dem Abhängen (Sperre) kommt kein Ergebnis mehr in den Zustand. */
   const lebt = useRef(true);
 
@@ -134,6 +143,24 @@ export function Einstellungen(p: EinstellungenProps) {
     }
   }
 
+  /** Das Ergebnis, auch ein Fehler der Suche, steht danach im Status; hier landet nur, was die
+   * Suche gar nicht erst laufen ließ. */
+  async function updateSuchen() {
+    if (sucht) return;
+    setSucht(true);
+    setSucheFehler(null);
+    try {
+      await befehle.updateSuchen();
+    } catch (e) {
+      if (lebt.current) setSucheFehler(fehlerText(e));
+    }
+    try {
+      await p.beiGeaendert(false);
+    } finally {
+      if (lebt.current) setSucht(false);
+    }
+  }
+
   const anzeige = p.sicherung ? sicherungsanzeige(p.sicherung, p.zeitzone) : null;
   const kannWiederherstellen = echt && p.ketteLeer && p.mitSitzung;
 
@@ -180,25 +207,43 @@ export function Einstellungen(p: EinstellungenProps) {
           </div>
         </div>
 
-        {p.update !== null || p.updateFehler !== null ? (
-          <div className="einstellung">
-            <div className="leitsatz-zeichen"><Zeichen name="herunterladen" groesse={20} /></div>
-            <div className="stapel stapel-8 einstellung-inhalt">
-              <div className="leitsatz-titel">Update</div>
-              {p.update !== null ? (
-                <Hinweis ton="info" rolle="status">
-                  Update auf {p.update} ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde.
-                </Hinweis>
-              ) : null}
-              {p.updateFehler !== null ? (
-                <Hinweis ton="warn" rolle="status">
-                  <div>{p.updateFehler}</div>
-                  <div className="hinweis-zusatz">Die App versucht es in etwa 15 Minuten erneut.</div>
-                </Hinweis>
-              ) : null}
-            </div>
+        <div className="einstellung">
+          <div className="leitsatz-zeichen"><Zeichen name="herunterladen" groesse={20} /></div>
+          <div className="stapel stapel-8 einstellung-inhalt">
+            <div className="leitsatz-titel">Update</div>
+            {p.version !== null ? <div className="absatz">Installiert ist Version {p.version}.</div> : null}
+            {p.update !== null ? (
+              <Hinweis ton="info" rolle="status">
+                Update auf {p.update} ist vorgemerkt. Es wird installiert, sobald kein Einsatz aussteht, niemand angemeldet ist und 15 Minuten lang kein Entwurf geändert wurde.
+              </Hinweis>
+            ) : null}
+            {p.updateFehler !== null ? (
+              <Hinweis ton="warn" rolle="status">
+                <div>{p.updateFehler}</div>
+                <div className="hinweis-zusatz">Die App versucht es in etwa 15 Minuten erneut.</div>
+              </Hinweis>
+            ) : null}
+            {p.entwicklung ? (
+              <div className="neben">Ein Entwicklerbuild sucht nicht nach Updates.</div>
+            ) : (
+              <>
+                {p.update === null && p.updateFehler === null ? (
+                  <div className="neben" role="status">
+                    {p.updateGeprueft !== null
+                      ? `Keine neuere Version. Zuletzt gesucht: ${sicherungszeitText(p.updateGeprueft, p.zeitzone)}`
+                      : "Noch nicht nach Updates gesucht."}
+                  </div>
+                ) : null}
+                <div className="reihe-umbruch">
+                  <Knopf zeichen="herunterladen" disabled={sucht} onClick={() => void updateSuchen()}>
+                    {sucht ? "Sucht …" : "Nach Updates suchen"}
+                  </Knopf>
+                </div>
+                {sucheFehler ? <Hinweis ton="warn">{sucheFehler}</Hinweis> : null}
+              </>
+            )}
           </div>
-        ) : null}
+        </div>
 
         {echt ? (
           <div className="einstellung">
