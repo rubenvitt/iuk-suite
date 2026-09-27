@@ -114,9 +114,9 @@ const gateStunde = new RateLimiter({ windowMs: 3_600_000, max: g.gateGesamtProSt
 
 /**
  * DIE LESBARE SPERRZEIT — Schluessel → Zeitpunkt in ms, bis zu dem dieser Eimer als
- * erschoepft gilt. `RateLimiter.check()` prueft und BUCHT in einem Zug
- * (`src/core/ratelimit.ts`, `check`); ein reines Nachsehen gibt es dort nicht. Deshalb
- * merkt sich diese Datei jedes `false` selbst, und `gateGesperrt` liest nur diese Zahl.
+ * erschoepft gilt. `RateLimiter.istGesperrt` sieht ohne Buchung nach, sagt aber nur ja/nein
+ * zum GLEITENDEN Fenster; gebraucht sind die Restzeit und eine FESTE Deadline (Kette in
+ * `gateFehlversuchBuchen`). Deshalb merkt sich diese Datei jedes `false` selbst.
  */
 const gesperrtBis = new Map<string, number>();
 
