@@ -188,8 +188,9 @@ Medien, ~4 s) — nie den Wächter überspringen, er verhindert das Ausliefern v
 Ist er trotzdem rot, lief das Skript nicht; seine Meldung steht am Sitzungsanfang.
 
 **Playwright in Cloud-Sessions** (DRK-473) braucht keinen Handgriff mehr: `e2e/helpers/cloud.ts`
-nimmt dort den vorinstallierten Chromium und schaltet dessen Proxy ab (sonst endet jeder
-`devLogin` nach 45 s auf `/login` — das ist kein Anmeldefehler). Ein neues Playwright-Profil
+nimmt dort wie die CI die vorinstallierte Headless-Shell (vollen Chromium nur bei `channel: "chromium"`;
+DRK-489: der fragt `/favicon.ico` an, der 404 steht in der Konsole) und schaltet den Proxy ab (sonst
+endet jeder `devLogin` nach 45 s auf `/login` — das ist kein Anmeldefehler). Ein neues Playwright-Profil
 geht ebenfalls durch `cloudTauglich(defineConfig(…))`; `scripts/e2e-cloud.test.ts` prüft das.
 
 <!-- BEGIN:nextjs-agent-rules -->
