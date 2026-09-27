@@ -43,11 +43,17 @@ import { SPACE } from "@/core/theme/tokens";
  * diesen Ladezustand und reicht den Inhalt versteckt nach — eingetauscht wird
  * er von einem Skript. Gemessen am Cockpit: 31 statt 2131 Zeichen sichtbarer
  * Text. Wo eine Seite ohne JavaScript lesbar bleiben MUSS, keine Grenze.
+ * Bewusst hingenommen ist der Preis heute an zwei Stellen, beide Arbeitsflaechen
+ * fuer Angemeldete, auf denen jede Handlung ohnehin ein Skript braucht: das
+ * feedback-Cockpit (DRK-424) und die sieben Detailrouten der lagerbuch-
+ * Verwaltung (DRK-480; gemessen an Geraet und Fahrzeug: drei Ladekarten, kein
+ * Inhalt). Wer eine neue Grenze legt, trifft diese Entscheidung neu.
  *
  * ⛔ UND UNTER DER GRENZE IST EIN `notFound()` EIN HTTP 200 (Falle 23,
  * `CLAUDE.md`): der Ladezustand ist mit Status 200 schon unterwegs, wenn die
  * Seite ablehnt. Zugriffspruefung und `notFound()` gehoeren deshalb in ein
- * `layout.tsx` oberhalb der Grenze (Vorbild feedback `(cockpit)/layout.tsx`).
+ * `layout.tsx` oberhalb der Grenze (Vorbild feedback `(cockpit)/layout.tsx`;
+ * lagerbuch je Detailroute ein `[id]/layout.tsx` neben der `loading.tsx`).
  *
  * ⛔ SERVER COMPONENT, UND DAS IST DIE TEURE HAELFTE. Eine `loading.tsx` ist
  * eine Server Component; ein `Skeleton.Button` waere ein Compound-Zugriff und

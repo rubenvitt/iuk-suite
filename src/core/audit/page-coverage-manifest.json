@@ -195,6 +195,34 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/bz/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"bz\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"check\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"fahrzeug\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/geraete/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"geraet\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/inventur/verlauf/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"inventurlauf\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/sauerstoff/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"sauerstoff\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/vorlagen/[id]/layout.tsx#notFound:!detailVorhanden(getDb(), \"vorlage\", id):1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
   "src/app/m/portal/admin/audit/page.tsx#notFound:error instanceof AuditAccessDenied:1": {
     "kind": "delegated-denial",
     "reason": "Existing readAuditView suite guard records the refusal before this 404 mapping."
