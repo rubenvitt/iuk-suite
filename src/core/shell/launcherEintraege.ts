@@ -1,4 +1,5 @@
-import { visibleSwitcherModules } from "@/core/registry";
+import { hasAnyGroup } from "@/core/groups";
+import { VERWALTUNGSEINSTIEGE, verwaltungsGruppenFor, visibleSwitcherModules } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { dienstEintraege } from "@/app/m/portal/_lib/launcher";
 import type { LauncherEintrag } from "@/core/shell/types";
@@ -21,22 +22,34 @@ import type { LauncherEintrag } from "@/core/shell/types";
  */
 export const ABSCHNITT_APPS = "Apps";
 
-/** Die Suite-Module für diese Session. Liest `process.env` über `moduleUrl`. */
+/**
+ * Die Suite-Module für diese Session. Liest `process.env` über `moduleUrl`.
+ *
+ * Direkt hinter einem Modul steht sein Verwaltungseinstieg (`VERWALTUNGSEINSTIEGE` in
+ * `core/registry`), wenn die Session ihn öffnen darf — sonst führte die Kachel in ein 404.
+ */
 export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
   return visibleSwitcherModules(groups).flatMap((mod) => {
     const href = moduleUrl(mod.key);
     if (!href) return [];
-    return [
-      {
-        key: mod.key,
-        title: mod.title,
-        // Der NAME, nicht die Komponente — aufgelöst wird nur in Client-Inseln.
-        icon: mod.icon,
-        href,
-        abschnitt: ABSCHNITT_APPS,
-        extern: false,
-      },
-    ];
+    const eintrag: LauncherEintrag = {
+      key: mod.key,
+      title: mod.title,
+      // Der NAME, nicht die Komponente — aufgelöst wird nur in Client-Inseln.
+      icon: mod.icon,
+      href,
+      abschnitt: ABSCHNITT_APPS,
+      extern: false,
+    };
+    const verwaltungen = VERWALTUNGSEINSTIEGE.filter(
+      (v) => v.modul === mod.key && hasAnyGroup(groups, verwaltungsGruppenFor(v)),
+    ).map((v) => ({
+      ...eintrag,
+      key: `${mod.key}:verwaltung`,
+      title: v.titel,
+      href: `${href}${v.pfad}`,
+    }));
+    return [eintrag, ...verwaltungen];
   });
 }
 

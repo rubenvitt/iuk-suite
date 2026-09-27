@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { like } from "drizzle-orm";
 import { devices } from "@/app/m/radio/_db/schema";
-import { devLogin, klickeWennRuhig, warteAufDarstellung } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufDarstellung, warteAufGestreamteInhalte } from "./fixtures";
 import {
   E2E_CODE_AKTIV,
   FREMDER_HOST,
@@ -1058,6 +1058,23 @@ test.describe("radio-Verwaltung", () => {
       page.locator('[data-rolle="radio-update-flaeche"]'),
       "die Insel ist an der RSC-Grenze gebrochen (Falle 1)",
     ).toHaveCount(1);
+
+    /*
+     * DRK-495: DER UPDATE-MODUS STEHT AUF 56, NICHT AUF DER 32 DER VERWALTUNG. Gemessen an der
+     * Huelle des Suchfelds wie im Fall „die Verwaltung misst 32" unten — dort die Obergrenze
+     * 34, hier die Untergrenze 56. Faellt `UPDATE_DICHTE` weg, misst die Huelle wieder 32.
+     */
+    await warteAufGestreamteInhalte(page);
+    const suchHoehe = await page
+      .locator('[data-rolle="radio-update-flaeche"] [aria-label="Suche"]')
+      .evaluate((el) => {
+        const huelle = el.closest(".ant-input-search, .ant-input-affix-wrapper, .ant-input-group-wrapper");
+        return huelle ? huelle.getBoundingClientRect().height : 0;
+      });
+    expect(
+      suchHoehe,
+      `das Suchfeld des Update-Modus ist ${suchHoehe} px hoch — erwartet mindestens 56 (UPDATE_DICHTE)`,
+    ).toBeGreaterThanOrEqual(56);
 
     /*
      * ⛔ OHNE SUCHTEXT STEHT DER LEERTEXT, NICHT EINE LEERE LISTE (1:1 `UpdateMode.tsx:68`).

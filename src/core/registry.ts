@@ -306,3 +306,42 @@ export function visibleSwitcherModules(
     return hasAnyGroup(groups, required);
   });
 }
+
+/**
+ * DER ZWEITE EINSTIEG EINES MODULS: seine Verwaltung als eigene Kachel im Portal und im
+ * App-Umschalter (DRK-495). Die Modulkachel zeigt auf die Wurzel des Moduls — bei `radio`
+ * ist das die anonyme Ausleihe, und die Verwaltung lag nur hinter „Zur Verwaltung“.
+ *
+ * SICHTBAR NUR FÜR DIE, DIE DIE VERWALTUNG AUCH ÖFFNEN DÜRFEN — sonst führte die Kachel in
+ * ein 404. Maßgeblich sind `adminGroupsFor` und, wo das Modul eine zweite Stufe kennt, die
+ * Gruppe aus `weitereGruppeEnv`. Deren Lesart ist die des Moduls (bei `radio`
+ * `updaterGruppe()` in `_lib/zugang.ts`): EIN getrimmter Name, leer heißt „keine Gruppe“,
+ * kein Komma-Split. Wer dort die Lesart ändert, ändert sie hier mit.
+ *
+ * AM DATEIENDE und nicht als Feld von `ModuleDef`: gut zwanzig Zeilenanker aus den Modulen
+ * zeigen in diese Datei, und ein Feld im Interface verschöbe sie alle (Vorbild: die
+ * Algorithmus-Schritte am Ende von `core/theme/theme.ts`).
+ */
+export interface VerwaltungsEinstieg {
+  modul: string;
+  titel: string;
+  /** Pfad auf dem Host des Moduls, mit führendem Schrägstrich. */
+  pfad: string;
+  /** Name einer Umgebungsvariable mit EINER weiteren Gruppe, die die Verwaltung öffnet. */
+  weitereGruppeEnv?: string;
+}
+
+export const VERWALTUNGSEINSTIEGE: readonly VerwaltungsEinstieg[] = [
+  { modul: "radio", titel: "Funkgeräte-Verwaltung", pfad: "/admin",
+    weitereGruppeEnv: "SUITE_UPDATER_GROUP_RADIO" },
+];
+
+/** Die Gruppen, die den Verwaltungseinstieg eines Moduls sehen. */
+export function verwaltungsGruppenFor(
+  einstieg: VerwaltungsEinstieg,
+  env: EnvLike = process.env,
+): string[] {
+  const gruppen = adminGroupsFor(getModule(einstieg.modul), env);
+  const weitere = einstieg.weitereGruppeEnv ? env[einstieg.weitereGruppeEnv]?.trim() : undefined;
+  return weitere ? [...gruppen, weitere] : gruppen;
+}

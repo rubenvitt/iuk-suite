@@ -748,14 +748,55 @@ describe("radio-Update-Modus: die Bauform der Insel und ihrer Seite", () => {
 
   it("die Insel setzt kein size an einem antd-Bedienelement", () => {
     /*
-     * ⛔ FALLE 4: die Verwaltung traegt seit dem 2026-08-28 `SCHREIBTISCHDICHTE` mit
-     * `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon. Der Bestand setzt
-     * `size="small"` an der Karte (`UpdateDeviceCard.tsx:44`) — ⛔ das wandert NICHT mit.
+     * ⛔ FALLE 4: das Mass kommt aus dem Theme — seit DRK-495 aus `UPDATE_DICHTE` (56/72) statt
+     * aus der `SCHREIBTISCHDICHTE` der Verwaltung. Der Bestand setzt `size="small"` an der
+     * Karte (`UpdateDeviceCard.tsx:44`) — ⛔ das wandert NICHT mit.
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_INSEL, "utf8"));
     expect(quelle, "ein size-Attribut an einem antd-Bedienelement (Falle 4)").not.toMatch(
       /\bsize=\{?["']?(?:small|large)/,
     );
+  });
+
+  it("die Insel steht auf dem Einsatzmass 56/72, nicht auf der Schreibtischdichte (DRK-495)", async () => {
+    /*
+     * ⛔ ZWEI HAELFTEN. Der Quelltext sagt, WELCHE Werte das Theme der Insel traegt; das
+     * gerenderte Markup sagt, dass die Bedienelemente wirklich UNTER diesem Theme stehen —
+     * antd haengt den `cssVar.key` an jedes Bauteil. Ohne den `ConfigProvider` fehlte die
+     * Klasse, und die Felder fielen still auf die 32 der Verwaltung zurueck. Die Hoehe in
+     * Pixeln misst `e2e/radio-verwaltung.spec.ts`, Fall 6 — jsdom rechnet keine Boxen.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_INSEL, "utf8"));
+    expect(quelle).toMatch(/token:\s*\{\s*controlHeight:\s*TAP,\s*controlHeightLG:\s*TAP_XL\s*\}/);
+
+    await mount(<UpdateSuche {...props()} />);
+    for (const griff of [
+      SUCHFELD,
+      '[data-rolle="radio-update-tap"]',
+      '[data-rolle="radio-update-anmerkung-knopf"]',
+    ]) {
+      const el = query(griff);
+      const traeger = el.closest(".iuk-radio-update") ?? (el.classList.contains("iuk-radio-update") ? el : null);
+      expect(traeger, `${griff} steht nicht unter UPDATE_DICHTE`).not.toBeNull();
+    }
+    expect(query(ZIELFELD).closest(".ant-select")?.classList.contains("iuk-radio-update")).toBe(true);
+  });
+
+  it("die Karte zeigt den Stand VOR dem Tap: Version und letztes Update (DRK-495)", async () => {
+    await mount(
+      <UpdateSuche
+        {...props({
+          zeilen: [
+            karte({ id: "g-1", softwareVersion: "2.0.0", letztesUpdateText: "2026-08-03" }),
+            karte({ id: "g-2", softwareVersion: null, letztesUpdateText: "—" }),
+          ],
+        })}
+      />,
+    );
+    expect(texte("radio-update-karte-stand")).toEqual([
+      "Version 2.0.0 · Letztes Update 2026-08-03",
+      "Version — · Letztes Update —",
+    ]);
   });
 
   it("die Flaeche traegt ihre Rolle, auch ohne ein einziges Geraet", async () => {

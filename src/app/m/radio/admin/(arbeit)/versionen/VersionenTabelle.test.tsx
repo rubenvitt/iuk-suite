@@ -787,7 +787,7 @@ describe("radio-Versionen: die VIER Fehlerpfade der Flaeche", () => {
    * ⚠️ DASS DIE TEXTE HIER AUSGESCHRIEBEN STEHEN, IST HAUSFORM UND KEIN ZWEITER WAHRHEITSORT:
    * ein Import waere tautologisch (dieselbe Wahl und derselbe Grund wie am Sperrfall oben, der
    * „Wird von 3 Gerät(en) genutzt — erst umstellen" ebenfalls ausschreibt, und wie im Kopf von
-   * `UPDATE_TEXTE`, `software/UpdateSuche.tsx:87-90`).
+   * `UPDATE_TEXTE` in `software/UpdateSuche.tsx`).
    *
    * ⚠️ DIE VIER PFADE SIND NICHT SYMMETRISCH, und deshalb traegt jeder seinen EIGENEN
    * Ausloeser statt eines gemeinsamen Klicks: `loeschen` sitzt hinter einem `Popconfirm` (ein
@@ -908,7 +908,7 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
      * Formulierungsaenderung eine Suche ueber neun Dateien."
      *
      * ⛔ DIESER FALL IST NEU (REVIEW-V19, Fund **F1**) UND DER ERSTE SEINER ART IM MODUL. Die
-     * zwei Schwesterinseln FUEHREN ihre Liste (`software/UpdateSuche.tsx:91` `UPDATE_TEXTE`,
+     * zwei Schwesterinseln FUEHREN ihre Liste (`software/UpdateSuche.tsx` `UPDATE_TEXTE`,
      * `import/ImportAssistent.tsx:113` `IMPORT_TEXTE`), aber ⛔ KEINE Testdatei des Moduls
      * BEWACHT die Bauform. ⛔ DIE MESSUNG DAZU LIEF UEBER DIE KLASSE UND NICHT UEBER EINE
      * DATEILISTE (Ruling **R-V11-3**: „Ein Gegen-`grep` mit Dateiliste prueft die Liste, nicht

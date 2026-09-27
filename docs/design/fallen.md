@@ -16,7 +16,7 @@ trifft oder eine Abhilfe umbauen will.
    alle in `core/theme/theme.ts`:** `FullShell`-Inhalte 44 (`ARBEITSDICHTE`; WCAG 2.5.5 AAA, gilt **überall**,
    weil `FullShell` auch auf dem Telefon rendert); `MinimalShell` (`qr`, `beta`) und alles ohne Shell 56/72;
    `SCHREIBTISCHDICHTE` 32/40 nur, wo ein Modul sie ausdrücklich anlegt — heute allein `radio`s Verwaltung
-   (Betreiberentscheidung 2026-08-28; unterschreitet AAA bewusst, hält die AA-Untergrenze 24, WCAG 2.5.8).
+   (Betreiberentscheidung 2026-08-28; unterschreitet AAA bewusst, hält die AA-Untergrenze 24, WCAG 2.5.8) — ohne deren Update-Modus, der 56/72 fährt (DRK-495).
    **Die Seitenleiste ist KEINE Ausnahme** (Betreiberentscheidung 2026-09-24, DRK-420): sie lief bis
    dahin auf 40, weil sie unter 768px nicht rendert und darum „mit Maus bedient" werde. Die Prämisse
    trug nicht — ab 768px steht sie auf jedem Tablet unter dem Finger (iPad hochkant 768–820px). Ihre

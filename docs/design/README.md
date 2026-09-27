@@ -78,7 +78,7 @@ Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt." Beides ist über
   AA-Untergrenze hinaus) und gilt **überall** — auf dem Telefon wie in der Seitenleiste (DRK-420).
 - **Die dritte Dichte ist `SCHREIBTISCHDICHTE` (32/40) und gilt NUR, wo ein Modul sie ausdrücklich
   anlegt** — heute allein die Verwaltung des Moduls `radio` (Betreiberentscheidung 2026-08-28,
-  Maus-und-Tastatur-Datenfläche im Maß der Alt-Anwendung): unter AAA, hält AA 24 (WCAG 2.5.8).
+  Maus-und-Tastatur-Datenfläche im Maß der Alt-Anwendung): unter AAA, hält AA 24 (WCAG 2.5.8). Deren Update-Modus nimmt sie zurück und steht auf 56/72 — er wird am Telefon neben dem Gerät bedient (Betreiberentscheidung 2026-09-27, DRK-495).
 - **Die `size="small"`-Ausnahme trägt nicht mehr.** Ihr Grund waren die 56px; eine 44px-Zeilenaktion
   sprengt keine Zeile. Was bliebe, wäre der Schaden: an einer ikonischen Zeilenaktion ergibt
   `size="small"` 24px. `e2e/lagerbuch-mobil.spec.ts:312` misst deshalb „44px breit UND hoch".

@@ -29,7 +29,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * von aussen. Grund: die Verwaltung ist eine Maus-und-Tastatur-Datenflaeche und lief in
  * der Alt-Anwendung auf antds Vorgabemass (Betreiberentscheidung; die volle Begruendung
  * samt der bewussten Abweichung von der 44px-Regel steht am Wert selbst,
- * `src/core/theme/SCHREIBTISCHDICHTE` in `core/theme/theme.ts`).
+ * `src/core/theme/SCHREIBTISCHDICHTE` in `core/theme/theme.ts`). AUSNAHME: der Update-Modus nimmt sie in seiner Insel zurueck (56/72, `UPDATE_DICHTE`, DRK-495).
  * ⛔ DIE KOPFZEILE UND DIE MODULLEISTE BLEIBEN 44: sie stehen in `Shell`, also AUSSERHALB
  * dieses Providers — die Suite sieht in jedem Modul gleich aus.
  *

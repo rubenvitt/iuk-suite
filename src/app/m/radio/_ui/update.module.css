@@ -1,0 +1,163 @@
+/*
+ * DER UPDATE-MODUS (`admin/(arbeit)/software/UpdateSuche.tsx`) — DRK-495.
+ *
+ * Kiosk-Anmutung für die Hand, nicht für die Wand: EINE Spalte, große Bedienelemente, wenig
+ * Chrom. Die Formensprache ist die der Ausleihe (`ausleihe.module.css`: Anzeigeschrift für den
+ * Titel, Monoschrift für Kennungen, schmale Mittelspalte), die Fläche bleibt aber in der
+ * Verwaltung — Kopfzeile und Modulnavigation stehen darüber.
+ *
+ * ⛔ KEINE HÖHE: 56/72 kommt aus dem Theme der Insel (`UPDATE_DICHTE`), nicht aus diesem Blatt
+ * (Falle 4 und 5, `CLAUDE.md`). ⛔ KEIN `--ant-*` (Falle 2) und kein Farbwert (Falle 3):
+ * nur die Suite-Variablen von `:root`. `_ui/update-css.test.ts` hält alle drei fest.
+ */
+
+.flaeche {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding-block-end: 2rem;
+}
+
+.kopf {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.titel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--iuk-marke);
+}
+
+.hinweis {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--iuk-gedaempft);
+}
+
+/* Zielversion und Fortschritt gehören zusammen: der Balken misst gegen genau diese Version. */
+.ziel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--iuk-linie);
+  border-inline-start: 3px solid var(--iuk-marke);
+  border-radius: 0 8px 8px 0;
+}
+
+.etikett {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--iuk-gedaempft);
+}
+
+.weit {
+  width: 100%;
+}
+
+.fortschritt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-block-start: 0.25rem;
+}
+
+.fortschrittText {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--iuk-gedaempft);
+}
+
+.leer {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 1.0625rem;
+  color: var(--iuk-gedaempft);
+}
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.karte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.karteKopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.karteText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+
+.name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.neben {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  letter-spacing: 0.02em;
+  color: var(--iuk-gedaempft);
+  overflow-wrap: anywhere;
+}
+
+.stand {
+  font-size: 0.9375rem;
+  color: var(--iuk-gedaempft);
+}
+
+.standWert {
+  font-family: var(--font-mono);
+  color: inherit;
+}
+
+/* Auf dem Telefon untereinander, ab etwa Tablet-Breite nebeneinander — ohne `@media`. */
+.knoepfe {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.anmerkung {
+  width: 100%;
+}
+
+.anmerkungText {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--iuk-linie);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fehler {
+  margin: 0;
+}
