@@ -17,6 +17,7 @@ import {
 } from "./ChecksTabelle";
 import { deckelText } from "./checksFilterLogik";
 import { zeitzone } from "@/core/zeit";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,7 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
 function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
   return {
     id: zeile.id,
-    detailHref: `/verwaltung/checks/${zeile.id}`,
+    detailHref: verwaltungDetailPfad("checks", zeile.id),
     fahrzeugId: zeile.fahrzeugId,
     fahrzeugName: zeile.fahrzeugName,
     fahrzeugKennung: zeile.fahrzeugKennung,

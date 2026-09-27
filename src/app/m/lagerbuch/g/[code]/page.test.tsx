@@ -130,6 +130,29 @@ describe("g/[code] — die Rollen-Weiche (§3.2.1, §11.3)", () => {
     expect(redirect).toHaveBeenCalledWith("/verwaltung/geraete/g1");
     expect(redirect).not.toHaveBeenCalledWith(expect.stringContaining("/m/lagerbuch"));
   });
+
+  /**
+   * DRK-477 — BEIDE WEITERLEITUNGEN KODIEREN, gelesen ueber `URL` wie im Browser.
+   * Next reicht den Routenparameter DEKODIERT herein; roh eingesetzt hiesse ein
+   * Barcode `ab#1` am Gate nur `/g/ab`, eine Id `g#1` im Ziel nur `g`.
+   */
+  it("fuehrt eine Id mit Trennzeichen vollstaendig ins Ziel", async () => {
+    viewer.wert = { sub: "u1", groups: ["lagerbuch_nutzer"] };
+    treffer.geraet = { id: "g#1?x=/2" };
+    await expect(GeraetDeepLink({ params: params("x") })).rejects.toThrow();
+    const ziel = new URL(redirect.mock.calls[0][0], "https://lagerbuch.example.org");
+    expect(ziel.pathname).toBe("/verwaltung/geraete/g%231%3Fx%3D%2F2");
+    expect(ziel.search + ziel.hash).toBe("");
+  });
+
+  it("gibt dem Gate einen Barcode mit Trennzeichen vollstaendig mit", async () => {
+    await expect(GeraetDeepLink({ params: params("ab#1/2") })).rejects.toThrow();
+    const gate = new URL(redirect.mock.calls[0][0], "https://lagerbuch.example.org");
+    const rueckkehr = new URL(gate.searchParams.get("returnTo")!, gate);
+    expect(rueckkehr.pathname.split("/")).toEqual(["", "g", "ab%231%2F2"]);
+    expect(decodeURIComponent(rueckkehr.pathname.slice("/g/".length))).toBe("ab#1/2");
+    expect(rueckkehr.hash).toBe("");
+  });
 });
 
 describe("g/[code] — der eine gerenderte Zustand (§11.3, 8-C2)", () => {

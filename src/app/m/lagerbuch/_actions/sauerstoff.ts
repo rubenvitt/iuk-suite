@@ -14,6 +14,7 @@ import {
 } from "../_lib/domain/o2";
 import { istEntnahmebox } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/sauerstoff";
 const LAGERORT_FEHLER = "Lagerort nicht gefunden oder inaktiv.";
@@ -112,7 +113,7 @@ export async function flascheSpeichern(
         })
         .where(eq(o2Flaschen.id, v.id))
         .run();
-      revalidatePath(`${LISTENPFAD}/${v.id}`);
+      revalidatePath(verwaltungDetailPfadIntern("sauerstoff", v.id));
     } else {
       db.insert(o2Flaschen).values({
         id,
@@ -155,7 +156,7 @@ export async function setFlascheAktiv(
       .where(eq(o2Flaschen.id, v.id))
       .run();
     revalidatePath(LISTENPFAD);
-    revalidatePath(`${LISTENPFAD}/${v.id}`);
+    revalidatePath(verwaltungDetailPfadIntern("sauerstoff", v.id));
     return { ok: true };
   });
 }
@@ -196,7 +197,7 @@ export async function messungErfassen(
       kommentar: v.kommentar ?? null,
     }).run();
     revalidatePath(LISTENPFAD);
-    revalidatePath(`${LISTENPFAD}/${v.flascheId}`);
+    revalidatePath(verwaltungDetailPfadIntern("sauerstoff", v.flascheId));
     return { ok: true, wert: { id } };
   });
 }

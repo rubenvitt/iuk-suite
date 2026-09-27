@@ -8,6 +8,7 @@ import {
   type Einheitenart,
 } from "../../../../_lib/konstanten";
 import { Chip } from "../../../../_ui/Chip";
+import { verwaltungDetailPfad } from "../../../../_lib/verwaltungPfad";
 
 export type VerknuepftesFahrzeugDto = {
   id: string;
@@ -49,7 +50,7 @@ const SPALTEN: TableProps<VerknuepftesFahrzeugDto>["columns"] = [
     key: "fahrzeug",
     sorter: nachText<VerknuepftesFahrzeugDto>((zeile) => zeile.name),
     render: (name: string, fahrzeug) => (
-      <Link href={`/verwaltung/fahrzeuge/${fahrzeug.id}`}>
+      <Link href={verwaltungDetailPfad("fahrzeuge", fahrzeug.id)}>
         {name}{fahrzeug.kennung ? ` (${fahrzeug.kennung})` : ""}
       </Link>
     ),

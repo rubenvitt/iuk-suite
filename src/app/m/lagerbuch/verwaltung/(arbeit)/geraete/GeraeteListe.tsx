@@ -29,6 +29,7 @@ import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { NeuGeraet } from "./NeuGeraet";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 /**
  * Ausschließlich JSON-sichere Anzeige- und Filterwerte überschreiten die
@@ -106,7 +107,7 @@ function spalten(
       render: (wert: string, zeile) => (
         <span>
           <Link
-            href={`/verwaltung/geraete/${zeile.id}`}
+            href={verwaltungDetailPfad("geraete", zeile.id)}
             style={{ fontWeight: 600 }}
           >
             {wert}

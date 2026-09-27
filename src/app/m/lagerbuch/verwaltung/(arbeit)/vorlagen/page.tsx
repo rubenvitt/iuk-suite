@@ -4,6 +4,7 @@ import { templateUebersicht } from "../../../_lib/lesepfade/fahrzeuge";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { NeuTemplate } from "./NeuTemplate";
 import { TemplateTable, type TemplateAnzeigeZeile } from "./TemplateTable";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ function templateAnzeigeZeilen(db: DB): TemplateAnzeigeZeile[] {
   return templateUebersicht(db).map((zeile) => ({
     id: zeile.id,
     name: zeile.name,
-    detailHref: `/verwaltung/vorlagen/${zeile.id}`,
+    detailHref: verwaltungDetailPfad("vorlagen", zeile.id),
     inaktiv: !zeile.aktiv,
     bestueckungText: `${anzahlText(zeile.positionen, "Position", "Positionen")}${
       zeile.faecher > 0

@@ -362,7 +362,7 @@ describe("RSC-Grenze", () => {
     );
     expect(page).toMatch(/export const dynamic\s*=\s*["']force-dynamic["']/);
     expect(`${page}\n${liste}`).not.toContain("/m/lagerbuch/verwaltung");
-    expect(liste).toContain("/verwaltung/sauerstoff/");
+    expect(liste).toContain(`verwaltungDetailPfad("sauerstoff"`); // aeussere Form, DRK-477
   });
 });
 

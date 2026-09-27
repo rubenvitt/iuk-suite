@@ -8,6 +8,7 @@ import { fmtDatumZeit } from "../../../../_lib/zeit";
 import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { VerlaufTabelle, type VerlaufZeile } from "./VerlaufTabelle";
+import { verwaltungDetailPfad } from "../../../../_lib/verwaltungPfad";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export function verlaufSeitenInhalt(db: DB): ReactNode {
     umfangText: umfangText(l.umfang, aufloesung),
     positionen: l.positionen,
     abweichungen: l.abweichungen,
-    detailHref: `/verwaltung/inventur/verlauf/${l.id}`,
+    detailHref: verwaltungDetailPfad("inventur/verlauf", l.id),
   }));
 
   const beschreibung = "Abgeschlossene Inventuren mit allen gezählten Positionen. Inventuren vor dieser Änderung stehen nur im Journal."

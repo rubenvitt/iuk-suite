@@ -13,6 +13,7 @@ import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const FAHRZEUGE_PFAD = "/m/lagerbuch/verwaltung/fahrzeuge";
 const VERFALL_PFAD = "/m/lagerbuch/verwaltung/verfall";
@@ -220,7 +221,7 @@ export async function setEinheitenart(
     }
 
     revalidatePath(FAHRZEUGE_PFAD);
-    revalidatePath(`${FAHRZEUGE_PFAD}/${v.id}`);
+    revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", v.id));
     return { ok: true };
   });
 }
@@ -295,7 +296,7 @@ export async function sollPositionSetzen(
     }
 
     revalidatePath(FAHRZEUGE_PFAD);
-    revalidatePath(`${FAHRZEUGE_PFAD}/${v.fahrzeugId}`);
+    revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", v.fahrzeugId));
     return { ok: true, wert: { id } };
   });
 }
@@ -361,7 +362,7 @@ export async function sollPositionEntfernen(
       return { ok: false, fehler: "Soll-Position konnte nicht entfernt werden." };
     }
 
-    if (row) revalidatePath(`${FAHRZEUGE_PFAD}/${row.fahrzeugId}`);
+    if (row) revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", row.fahrzeugId));
     revalidatePath(VERFALL_PFAD);
     revalidatePath(FAHRZEUGE_PFAD);
     return { ok: true };
@@ -398,7 +399,7 @@ export async function sollPositionWiederherstellen(
       };
     }
 
-    if (row) revalidatePath(`${FAHRZEUGE_PFAD}/${row.fahrzeugId}`);
+    if (row) revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", row.fahrzeugId));
     revalidatePath(FAHRZEUGE_PFAD);
     return { ok: true };
   });

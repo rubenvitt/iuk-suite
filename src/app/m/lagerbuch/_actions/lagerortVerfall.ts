@@ -11,6 +11,7 @@ import { MONAT_REGEX } from "../_lib/konstanten";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import type { VerfallWert } from "../_lib/verfallStand";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const VerfallSchema = z.object({
   lagerortId: z.string().min(1),
@@ -104,7 +105,7 @@ export async function verfallSetzen(
       return zeile?.verfall ?? null;
     });
 
-    revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.lagerortId}`);
+    revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", v.lagerortId));
     revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
     revalidatePath("/m/lagerbuch/verwaltung/verfall");
     return { ok: true, wert: { verfall: geschrieben } };

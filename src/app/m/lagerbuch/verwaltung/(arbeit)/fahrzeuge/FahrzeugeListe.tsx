@@ -25,6 +25,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { NeuFahrzeug } from "./NeuFahrzeug";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 /**
  * Die Client-Insel erhaelt ausschliesslich JSON-sichere Skalare. Insbesondere
@@ -211,7 +212,7 @@ function spalten(
       render: (wert: string, zeile) => (
         <span>
           <Link
-            href={`/verwaltung/fahrzeuge/${zeile.id}`}
+            href={verwaltungDetailPfad("fahrzeuge", zeile.id)}
             style={{ fontWeight: 600 }}
           >
             {wert}

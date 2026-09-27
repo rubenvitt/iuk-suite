@@ -66,7 +66,7 @@ import s from "../../_ui/verwaltung.module.css";
  * misst sie: „Ein `href="/m/radio/admin/geraete"` in der Navigation fuehrte auf dem
  * Verwaltungshost auf `/m/radio/m/radio/admin/geraete` — 404, und typecheck wie lint
  * bleiben gruen." Dieselbe Hausform steht im Bestand des Repos
- * (`lagerbuch/verwaltung/(arbeit)/geraete/GeraeteListe.tsx:152`: `/verwaltung/geraete/...`).
+ * (`lagerbuch/_lib/verwaltungPfad.ts`, `verwaltungDetailPfad`: `/verwaltung/geraete/...`).
  * ⛔ Der Fehler waere fuer typecheck, lint und Vitest unsichtbar und zeigte sich erst im
  * echten Abruf.
  */
