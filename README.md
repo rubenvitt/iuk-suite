@@ -142,7 +142,8 @@ pnpm e2e:pwa         # PWA-Specs mit eigener Konfiguration
 pnpm e2e:rueckmeldung # Rückmeldeformular (eingeschaltet) mit eigener Konfiguration
 ```
 
-Die E2E-Suite läuft in der CI in Gruppen je Modul (`e2e/gruppen.json`); jede Spec, die
+Die E2E-Suite läuft in der CI in Gruppen, die nach Laufzeit geschnitten sind (`e2e/gruppen.json`,
+neue Specs in die Gruppe mit der kürzesten Laufzeit); jede Spec, die
 `playwright.config.ts` einschließt, muss dort genau einer Gruppe zugeordnet sein, und keine Spec,
 die dessen `testIgnore` ausschließt (heute die zwei PWA-Specs und `rueckmeldung.spec.ts`, die nur
 über `pnpm e2e:pwa` bzw. `pnpm e2e:rueckmeldung` laufen), darf in einer Gruppe stehen. Beides prüft
