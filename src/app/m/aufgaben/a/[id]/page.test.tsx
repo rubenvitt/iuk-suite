@@ -233,7 +233,7 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
     expect(document.body.textContent).toContain("Nachweistext fuer den ausgeschiedenen Pruefer.");
     expect(queryAll("[data-testid^='freigeben-']")).toHaveLength(0);
     expect(queryAll("[data-testid^='zurueckweisen-']")).toHaveLength(0);
-    expect(document.body.textContent).toContain("Für diese Aufgabe ist derzeit keine Aktion möglich.");
+    expect(document.body.textContent).toContain("Gerade steht hier kein Arbeitsschritt an.");
   });
 });
 
@@ -330,5 +330,26 @@ describe("AufgabeDetailPage — Sichtrecht und die Grenze der Erklärseiten-Ausn
     const element = await AufgabeDetailPage({ params: Promise.resolve({ id: a.id }) });
     await mount(element);
     expect(query("h1").textContent).toBe("Fremde Aufgabe");
+  });
+});
+
+describe("Seitenkopf — Ändern und Zurückziehen (DRK-487)", () => {
+  it("der Ersteller einer verteilten Aufgabe sieht beide oben, nicht in der Aktionszone", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, zugewiesenAn: alina.id });
+    await mount(aufgabeInhalt(t.db, akteur(malte), a, HEUTE));
+    expect(query("[data-testid='aendern']").getAttribute("href")).toBe(`/a/${a.id}/bearbeiten`);
+    expect(queryAll("#aktion [data-testid='zurueckziehen']")).toHaveLength(0);
+    expect(queryAll("[data-testid='zurueckziehen']")).toHaveLength(1);
+  });
+
+  it("die zugewiesene BuFDi sieht keinen der beiden", async () => {
+    const malte = legePerson("dev:malte@test", "auftrag");
+    const alina = legePerson("dev:alina@test", "bufdi");
+    const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, zugewiesenAn: alina.id });
+    await mount(aufgabeInhalt(t.db, akteur(alina), a, HEUTE));
+    expect(queryAll("[data-testid='aendern']")).toHaveLength(0);
+    expect(queryAll("[data-testid='zurueckziehen']")).toHaveLength(0);
   });
 });

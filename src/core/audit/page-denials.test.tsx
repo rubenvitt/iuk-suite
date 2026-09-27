@@ -19,6 +19,7 @@ vi.mock("@/app/m/feedback/_db/client",()=>({getDb:()=>feedbackDb}));
 vi.mock("next/navigation",()=>({notFound:()=>{throw Error("NEXT_HTTP_ERROR_FALLBACK;404");},useRouter:()=>({}),usePathname:()=>"/",useSearchParams:()=>new URLSearchParams()}));
 import * as zugang from "@/app/m/aufgaben/_lib/zugang";
 import DetailPage from "@/app/m/aufgaben/a/[id]/page";
+import BearbeitenPage from "@/app/m/aufgaben/a/[id]/bearbeiten/page";
 import PlanPage from "@/app/m/aufgaben/plan/[personId]/page";
 import FreigabenPage from "@/app/m/aufgaben/freigaben/page";
 import RoutinenPage from "@/app/m/aufgaben/routinen/page";
@@ -44,6 +45,7 @@ beforeEach(()=>{
 afterEach(()=>{taskDb.schliessen();feedback.close();central.close();rmSync(dir,{recursive:true,force:true});vi.unstubAllEnvs();});
 const cases=[
  ["task",()=>DetailPage({params:Promise.resolve({id:taskId})})],
+ ["bearbeiten",()=>BearbeitenPage({params:Promise.resolve({id:taskId})})],
  ["plan",()=>PlanPage({params:Promise.resolve({personId:other.id}),searchParams:Promise.resolve({})})],
  ["freigaben",()=>FreigabenPage()],
  ["routinen",()=>RoutinenPage({searchParams:Promise.resolve({})})],

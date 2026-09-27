@@ -32,6 +32,16 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  redirect: (ziel: string) => {
+    throw new Error(`NEXT_REDIRECT:${ziel}`);
+  },
+}));
+
+// Die Ablage wird nicht beschrieben — nur beobachtet, welche Dateien `zurueckziehenAction` entfernt.
+const { loescheNachweisMock } = vi.hoisted(() => ({ loescheNachweisMock: vi.fn(async () => {}) }));
+vi.mock("./_lib/ablage", async (echt) => ({
+  ...(await echt<typeof import("./_lib/ablage")>()),
+  loescheNachweis: loescheNachweisMock,
 }));
 
 let sitzung: unknown = null;
@@ -56,6 +66,7 @@ vi.mock("@/core/directory", async (echt) => ({
 }));
 
 import {
+  aufgabeBearbeitenAction,
   aufgabeEinstellenAction,
   einplanenAction,
   einplanenAnnehmenAction,
@@ -93,6 +104,7 @@ beforeEach(() => {
   t = migrierteTestDb();
   sitzung = null;
   revalidatePathMock.mockClear();
+  loescheNachweisMock.mockClear();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${HEUTE}T12:00:00Z`));
 });
@@ -741,7 +753,7 @@ describe("zurueckziehenAction", () => {
     expect(aufgabe(t.db, task.id)).not.toBeNull();
   });
 
-  it.each(["verteilt", "in_arbeit", "freigabe_offen", "abgeschlossen", "zurueckgewiesen"] as const)(
+  it.each(["in_arbeit", "freigabe_offen", "abgeschlossen", "zurueckgewiesen"] as const)(
     "zurueckziehen aus dem Zustand %s wird abgelehnt — hat bereits eine Geschichte",
     async (status) => {
       const auftrag = legePerson("dev:malte@test", "auftrag");
@@ -755,11 +767,74 @@ describe("zurueckziehenAction", () => {
       anmelden(auftrag);
 
       await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(
-        /Zurueckziehen ist nur aus dem Zustand "eingegangen" moeglich/,
+        /Zurueckziehen ist nur moeglich, solange niemand an der Aufgabe arbeitet/,
       );
       expect(aufgabe(t.db, task.id)).not.toBeNull();
     },
   );
+
+  /*
+   * DRK-487: aus `verteilt` darf zurueckgezogen werden — der Fall „doppelt eingestellt", auch fuer
+   * eine Selbstaufgabe, die gar nie im Posteingang lag.
+   */
+  it("die BuFDi zieht ihre eigene verteilte Selbstaufgabe zurueck", async () => {
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: bufdi.id,
+      zugewiesenAn: bufdi.id,
+      istSelbst: true,
+      status: "verteilt",
+    });
+    anmelden(bufdi);
+
+    await zurueckziehenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)).toBeNull();
+  });
+
+  it("aus verteilt: die zugewiesene BuFDi einer FREMDaufgabe darf nicht zurueckziehen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "verteilt" });
+    anmelden(bufdi);
+
+    await expect(zurueckziehenAction(form(task.id))).rejects.toThrow(/Nur die Erstellerin/);
+    expect(aufgabe(t.db, task.id)).not.toBeNull();
+  });
+
+  it("entfernt die Nachweisdateien aus der Ablage — die Kaskade nimmt nur die Zeilen mit", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "verteilt" });
+    const datei = t.db
+      .insert(dateien)
+      .values({ aufgabeId: task.id, dateiname: "a.png", mime: "image/png", groesse: 1 })
+      .returning()
+      .get();
+    anmelden(auftrag);
+
+    await zurueckziehenAction(form(task.id));
+
+    expect(aufgabe(t.db, task.id)).toBeNull();
+    expect(loescheNachweisMock).toHaveBeenCalledWith(datei.id);
+  });
+
+  it("mit `weiter=start` leitet es auf die Startseite um — nur mit diesem festen Wert", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: auftrag.id });
+    anmelden(auftrag);
+    const f = form(task.id);
+    f.set("weiter", "start");
+
+    await expect(zurueckziehenAction(f)).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(aufgabe(t.db, task.id)).toBeNull();
+
+    // Ein anderer Wert ist kein Ziel — kein offener Redirect.
+    const zweite = legeAufgabe({ erstellerId: auftrag.id });
+    const g = form(zweite.id);
+    g.set("weiter", "https://boese.example");
+    await expect(zurueckziehenAction(g)).resolves.toBeUndefined();
+  });
 
   it("eine unbekannte aufgabeId wirft", async () => {
     const auftrag = legePerson("dev:malte@test", "auftrag");
@@ -2946,5 +3021,135 @@ describe("personenSucheAction — die Personensuche im Verzeichnis", () => {
     const ergebnis = await personenSucheAction("bendix");
 
     expect(ergebnis.people.map((p) => p.userId)).toEqual(["pid-bendix"]);
+  });
+});
+
+describe("aufgabeBearbeitenAction (DRK-487)", () => {
+  function form(aufgabeId: string, felder: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("aufgabeId", aufgabeId);
+    const werte: Record<string, string> = {
+      titel: "T",
+      beschreibung: "B",
+      prioritaet: "mittel",
+      faelligAm: "2026-08-20",
+      faelligUhrzeit: "",
+      dauerMinuten: "60",
+      nachweisArt: "text",
+      ...felder,
+    };
+    for (const [k, v] of Object.entries(werte)) f.set(k, v);
+    return f;
+  }
+
+  it("der Ersteller korrigiert Titel und Frist — Verlauf nennt die Felder, dann Umleitung", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status: "in_arbeit" });
+    anmelden(auftrag);
+
+    await expect(
+      aufgabeBearbeitenAction({ ok: true }, form(task.id, { titel: "  Neu  ", faelligAm: "2026-08-25" })),
+    ).rejects.toThrow(`NEXT_REDIRECT:/a/${task.id}`);
+
+    const nachher = aufgabe(t.db, task.id)!;
+    expect(nachher.titel).toBe("Neu");
+    expect(nachher.faelligAm).toBe("2026-08-25");
+    // Zustand, Zuweisung und Pruefer bleiben.
+    expect(nachher.status).toBe("in_arbeit");
+    expect(nachher.zugewiesenAn).toBe(bufdi.id);
+    expect(nachher.prueferId).toBe(auftrag.id);
+    const zeile = letzteVerlaufszeile(task.id);
+    expect(zeile.ereignis).toBe("bearbeitet");
+    expect(zeile.notiz).toBe("Titel, Frist");
+    expect(zeile.akteurId).toBe(auftrag.id);
+  });
+
+  it("die Nachweispflicht laesst sich nachtraeglich setzen", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: auftrag.id });
+    anmelden(auftrag);
+
+    await expect(
+      aufgabeBearbeitenAction({ ok: true }, form(task.id, { nachweisPflicht: "true", nachweisArt: "bild" })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    const nachher = aufgabe(t.db, task.id)!;
+    expect(nachher.nachweisPflicht).toBe(true);
+    expect(nachher.nachweisArt).toBe("bild");
+    expect(letzteVerlaufszeile(task.id).notiz).toBe("Nachweispflicht, Nachweisform");
+  });
+
+  it("ohne Aenderung wird nichts geschrieben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: auftrag.id });
+    anmelden(auftrag);
+
+    await expect(aufgabeBearbeitenAction({ ok: true }, form(task.id))).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(verlaufFuer(t.db, task.id)).toEqual([]);
+  });
+
+  it("ein Feldfehler kommt zurueck, samt aufgabeId — nichts wird geschrieben", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: auftrag.id });
+    anmelden(auftrag);
+
+    const ergebnis = erwarteFeldfehler(
+      await aufgabeBearbeitenAction({ ok: true }, form(task.id, { titel: " " })),
+    );
+    expect(ergebnis.fieldErrors.titel).toBe("Titel fehlt.");
+    expect(ergebnis.values.aufgabeId).toBe(task.id);
+    expect(aufgabe(t.db, task.id)!.titel).toBe("T");
+  });
+
+  it("die Koordination darf eine fremde Aufgabe bearbeiten", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const koordination = legePerson("dev:rike@test", "auftrag");
+    const task = legeAufgabe({ erstellerId: auftrag.id });
+    anmelden(koordination, true);
+
+    await expect(
+      aufgabeBearbeitenAction({ ok: true }, form(task.id, { prioritaet: "hoch" })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(aufgabe(t.db, task.id)!.prioritaet).toBe("hoch");
+  });
+
+  it("die zugewiesene BuFDi einer Fremdaufgabe darf nicht bearbeiten", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({
+      erstellerId: auftrag.id,
+      prueferId: auftrag.id,
+      zugewiesenAn: bufdi.id,
+      status: "in_arbeit",
+      nachweisPflicht: true,
+    });
+    anmelden(bufdi);
+
+    await expect(aufgabeBearbeitenAction({ ok: true }, form(task.id))).rejects.toThrow(
+      /Nur die Erstellerin bzw. der Ersteller oder die Koordination/,
+    );
+    expect(aufgabe(t.db, task.id)!.nachweisPflicht).toBe(true);
+  });
+
+  it.each(["freigabe_offen", "abgeschlossen"] as const)("aus %s wird abgelehnt", async (status) => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    const bufdi = legePerson("dev:alina@test", "bufdi");
+    const task = legeAufgabe({ erstellerId: auftrag.id, prueferId: auftrag.id, zugewiesenAn: bufdi.id, status });
+    anmelden(auftrag);
+
+    await expect(
+      aufgabeBearbeitenAction({ ok: true }, form(task.id, { titel: "Neu" })),
+    ).rejects.toThrow(/nicht mehr bearbeitbar/);
+    expect(aufgabe(t.db, task.id)!.titel).toBe("T");
+  });
+
+  it("eine unbekannte aufgabeId wirft", async () => {
+    const auftrag = legePerson("dev:malte@test", "auftrag");
+    anmelden(auftrag);
+    await expect(aufgabeBearbeitenAction({ ok: true }, form("nicht-vorhanden"))).rejects.toThrow(
+      /nicht gefunden/,
+    );
   });
 });

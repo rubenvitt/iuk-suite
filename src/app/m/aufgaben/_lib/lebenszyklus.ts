@@ -1,5 +1,6 @@
 import type { AufgabeRow, Status } from "../_db/schema";
 import {
+  darfAufgabeVerwalten,
   darfEinstellenFuerAndere,
   darfFreigeben,
   darfPlanAendern,
@@ -182,6 +183,15 @@ export const UEBERGAENGE: readonly { von: Status; aktion: Aktion; nach: Status }
 );
 
 /**
+ * AUS WELCHEN ZUSTAENDEN ZURUECKZIEHEN (= LOESCHEN) GEHT. Spec §5.2 nannte nur `eingegangen`;
+ * DRK-487 nimmt `verteilt` dazu: eine Selbstaufgabe startet dort und war damit nie loeschbar, und
+ * eine doppelt eingestellte Fremdaufgabe faellt oft erst nach dem Verteilen auf. Solange niemand
+ * angefangen hat, traegt der Verlauf nur Einstellen und Verteilen — nichts, was die Loeschung
+ * vernichten wuerde. Ab `in_arbeit` bleibt es gesperrt.
+ */
+const ZURUECKZIEHBAR: readonly Status[] = ["eingegangen", "verteilt"];
+
+/**
  * DIE EINE STELLE, AN DER SPEC §5.2 GEPRUEFT WIRD. Jedes Paar (Status, Aktion), das nicht in
  * `TABELLE` steht (oder dessen `gilt`-Bedingung nicht zutrifft), wird abgelehnt — nicht als
  * Sonderfall, sondern weil `TABELLE.find` nichts findet.
@@ -196,16 +206,13 @@ export function uebergang(
   heute: string,
 ): UebergangErgebnis {
   if (aktion === "zurueckziehen") {
-    if (a.status !== "eingegangen") {
+    if (!ZURUECKZIEHBAR.includes(a.status)) {
       return {
         erlaubt: false,
-        grund: `Zurueckziehen ist nur aus dem Zustand "eingegangen" moeglich — diese Aufgabe ist "${a.status}" und hat bereits eine Geschichte mit Dokumentationswert.`,
+        grund: `Zurueckziehen ist nur moeglich, solange niemand an der Aufgabe arbeitet — diese Aufgabe ist "${a.status}" und hat bereits eine Geschichte mit Dokumentationswert.`,
       };
     }
-    const darf =
-      (akteur.person.id === a.erstellerId && istAktiv(akteur.person, heute)) ||
-      darfVerteilen(akteur, heute);
-    if (!darf) {
+    if (!darfAufgabeVerwalten(akteur, a, heute)) {
       return {
         erlaubt: false,
         accessDenied: true,
@@ -275,4 +282,32 @@ export function anfangsZustand(
     };
   }
   return { erlaubt: true, status: "eingegangen", zugewiesenAn: null, istSelbst: false };
+}
+
+/**
+ * AUS WELCHEN ZUSTAENDEN EINE AUFGABE BEARBEITET WERDEN DARF (DRK-487). Nicht `freigabe_offen`:
+ * dort prueft jemand gegen genau diesen Auftrag, und eine Aenderung unter der Pruefung waere eine
+ * andere Aufgabe als die fertig gemeldete. Nicht `abgeschlossen`: das ist Dokumentation.
+ */
+export const BEARBEITBAR: readonly Status[] = ["eingegangen", "verteilt", "in_arbeit", "zurueckgewiesen"];
+
+export type BearbeitungErgebnis = { erlaubt: true } | { erlaubt: false; grund: string; accessDenied?: true };
+
+/**
+ * `bearbeiten` IST KEINE `Aktion` — es aendert den Inhalt, nicht den Zustand, und steht deshalb
+ * nicht in `TABELLE` (und nicht im Lebenszyklus-Bild der Anleitung). Die Form des Ergebnisses ist
+ * dieselbe wie bei `uebergang()`, damit Action und Aktionszone es gleich behandeln.
+ */
+export function bearbeitung(a: AufgabeRow, akteur: Akteur, heute: string): BearbeitungErgebnis {
+  if (!BEARBEITBAR.includes(a.status)) {
+    return { erlaubt: false, grund: `Im Zustand "${a.status}" ist die Aufgabe nicht mehr bearbeitbar.` };
+  }
+  if (!darfAufgabeVerwalten(akteur, a, heute)) {
+    return {
+      erlaubt: false,
+      accessDenied: true,
+      grund: "Nur die Erstellerin bzw. der Ersteller oder die Koordination kann diese Aufgabe bearbeiten.",
+    };
+  }
+  return { erlaubt: true };
 }

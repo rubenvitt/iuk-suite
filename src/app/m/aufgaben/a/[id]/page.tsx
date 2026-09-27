@@ -21,6 +21,7 @@ import {
   subFuerSitzung,
   type Akteur,
 } from "../../_lib/zugang";
+import { Button } from "antd";
 import { AktionsZone } from "../../_ui/AktionsZone";
 import { PrioritaetChip, StatusChip } from "../../_ui/Chip";
 import { Frist } from "../../_ui/Frist";
@@ -28,6 +29,7 @@ import { Ikone } from "../../_ui/ikonen";
 import { NachweisBild } from "../../_ui/NachweisBild";
 import { NichtEingetragenSeite } from "../../_ui/NichtEingetragenSeite";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
+import { ZurueckziehenKnopf } from "../../_ui/ZurueckziehenKnopf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import s from "../../_ui/aufgaben.module.css";
@@ -89,6 +91,24 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
         titel={task.titel}
         hilfe="aufgabe"
         kontext={`Erstellt von ${erstellerName} · Frist ${fmtTagKurz(task.faelligAm)}`}
+        aktionen={
+          /*
+           * ÄNDERN UND ZURUECKZIEHEN IM KOPF (DRK-487) — dort, wo man Aendern und Loeschen eines
+           * Objekts sucht, und getrennt von der Aktionszone, die die Arbeit voranbringt. `Button`
+           * mit `href` ist in einer Server Component sicher (Vorbild `_ui/Fuehrungskarte.tsx`),
+           * der Zurueckziehen-Knopf ist eine eigene Insel (Falle 9).
+           */
+          optionen.bearbeiten || optionen.zurueckziehen ? (
+            <>
+              {optionen.bearbeiten ? (
+                <Button href={`/a/${task.id}/bearbeiten`} data-testid="aendern">
+                  Ändern
+                </Button>
+              ) : null}
+              {optionen.zurueckziehen ? <ZurueckziehenKnopf aufgabeId={task.id} zurStart /> : null}
+            </>
+          ) : undefined
+        }
       />
 
       <div

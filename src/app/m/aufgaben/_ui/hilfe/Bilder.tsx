@@ -141,7 +141,7 @@ function Lebenszyklus() {
         "Der Weg einer Aufgabe von oben nach unten: neu, eingegangen, verteilt, in Arbeit, " +
         "Freigabe offen, abgeschlossen. Eine Selbstaufgabe überspringt die Freigabe. Aus " +
         "„Freigabe offen“ führt „zurückweisen“ nach „zurückgewiesen“ und von dort zurück in " +
-        "„in Arbeit“. Aus „eingegangen“ kann die Aufgabe zurückgezogen und damit gelöscht werden. " +
+        "„in Arbeit“. Aus „eingegangen“ und „verteilt“ kann die Aufgabe zurückgezogen und damit gelöscht werden. " +
         "Die vollständige Liste aller Übergänge steht als Tabelle unter dem Bild."
       }
       hoehe={434}
@@ -195,7 +195,11 @@ function Lebenszyklus() {
         * vermutet). Der Ueberlauf-Riegel in `Bilder.test.tsx` faengt das NICHT — er misst die
         * Grenzen des `viewBox`, keine Ueberdeckung zweier Elemente darin.
         */}
-      <Kantentext x={MITTE + 8} y={106} zeilen={["verteilen", "Koordinatorin"]} />
+      {/*
+        * SEIT DRK-487 LINKS DER KETTE: rechts laeuft jetzt „zurückziehen" aus „verteilt" nach
+        * „gelöscht" hindurch, und die Beschriftung laege darauf.
+        */}
+      <Kantentext x={MITTE - 8} y={106} zeilen={["verteilen", "Koordinatorin"]} anker="end" />
 
       <Pfeil punkte={[[MITTE, 152], [MITTE, 184]]} />
       <Kantentext x={MITTE + 8} y={172} zeilen={["starten · Auftragnehmer"]} />
@@ -213,6 +217,7 @@ function Lebenszyklus() {
       {/* Zurueckziehen */}
       <Pfeil punkte={[[180, 78], [193, 78], [193, 110], [210, 110]]} gestrichelt farbe={STAHL} />
       <Kantentext x={186} y={72} zeilen={["zurückziehen"]} gedaempft />
+      <Pfeil punkte={[[172, 124], [172, 117], [210, 117]]} gestrichelt farbe={STAHL} />
 
       {/* Die zwei Schleifen an „verteilt“ */}
       <Pfeil punkte={[[180, 129], [192, 129], [192, 137], [182, 137]]} farbe={STAHL} />

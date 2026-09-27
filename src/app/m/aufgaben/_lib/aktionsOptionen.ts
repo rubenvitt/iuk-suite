@@ -1,5 +1,5 @@
 import type { AufgabeRow } from "../_db/schema";
-import { uebergang, type Aktion } from "./lebenszyklus";
+import { bearbeitung, uebergang, type Aktion } from "./lebenszyklus";
 import { darfNachweisHochladen, type Akteur } from "./zugang";
 
 /*
@@ -54,6 +54,12 @@ export interface AktionsOptionen {
    * Pflicht gibt es nichts, das ein Nachweis erfuellen muesste.
    */
   nachweisHochladen: boolean;
+  /**
+   * BEARBEITEN (DRK-487) — ebenfalls kein Uebergang; entschieden von `bearbeitung()`
+   * (`_lib/lebenszyklus.ts`), derselben Funktion, die `aufgabeBearbeitenAction` und die Route
+   * `/a/<id>/bearbeiten` fragen. Ein Knopf, den der Server ablehnt, kann so nicht entstehen.
+   */
+  bearbeiten: boolean;
 }
 
 const GEPRUEFTE_AKTIONEN: readonly (keyof AktionsOptionen)[] = [
@@ -78,5 +84,6 @@ export function aktionsOptionen(a: AufgabeRow, akteur: Akteur, heute: string): A
   // Zeile. `zugang.ts` bleibt damit bei reinen Personen-/Rollenfragen (Kopfkommentar dort).
   ergebnis.nachweisHochladen =
     a.status === "in_arbeit" && a.nachweisPflicht && darfNachweisHochladen(akteur, a, heute);
+  ergebnis.bearbeiten = bearbeitung(a, akteur, heute).erlaubt;
   return ergebnis;
 }

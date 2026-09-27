@@ -39,6 +39,10 @@
     "kind": "context",
     "via": "aufgabeEinstellenAction"
   },
+  "src/app/m/aufgaben/actions.ts#aufgabeBearbeitenAction": {
+    "kind": "context",
+    "via": "aufgabeBearbeitenAction"
+  },
   "src/app/m/aufgaben/actions.ts#verteilenAction": {
     "kind": "context",
     "via": "verteilenGemeinsam"

@@ -5,6 +5,7 @@ import {
   clickElement,
   existsPortal,
   mount,
+  query,
   queryAll,
   queryPortal,
   unmount,
@@ -78,6 +79,7 @@ vi.mock("../actions", () => ({
 }));
 
 import { AktionsZone } from "./AktionsZone";
+import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
 
 function aufgabe(over: Partial<AufgabeRow> & Pick<AufgabeRow, "id">): AufgabeRow {
   return {
@@ -114,6 +116,7 @@ const ALLE_AUS: AktionsOptionen = {
   wiederaufnehmen: false,
   zurueckziehen: false,
   umverteilen: false,
+  bearbeiten: false,
   nachweisHochladen: false,
 };
 
@@ -141,7 +144,7 @@ afterEach(async () => {
 describe("AktionsZone — keine Aktion moeglich", () => {
   it("zeigt einen ausgeschriebenen Satz, wenn keine einzige Aktion erlaubt ist (z. B. Endzustand)", async () => {
     await mount(<AktionsZone nachweisMaxBytes={MAX_BYTES} aufgabe={aufgabe({ id: "a1", status: "abgeschlossen" })} optionen={ALLE_AUS} />);
-    expect(document.body.textContent).toContain("Für diese Aufgabe ist derzeit keine Aktion möglich.");
+    expect(document.body.textContent).toContain("Gerade steht hier kein Arbeitsschritt an.");
     expect(queryAll("button")).toHaveLength(0);
   });
 });
@@ -290,14 +293,36 @@ describe("AktionsZone — Freigeben/Zurückweisen kommen aus FreigabeZone.tsx, k
   });
 });
 
-describe("AktionsZone — Zurückziehen ist bestätigungspflichtig (Spec §9.9)", () => {
-  it("oeffnet erst nach dem Klick eine Bestaetigung; sendet erst NACH der Bestaetigung ab, mit der eigenen aufgabeId", async () => {
+describe("AktionsZone — Ändern und Zurückziehen stehen im Seitenkopf, nicht hier (DRK-487)", () => {
+  it("rendert weder Ändern noch Zurückziehen, auch wenn beide erlaubt sind", async () => {
     await mount(
       <AktionsZone
         nachweisMaxBytes={MAX_BYTES}
-        aufgabe={aufgabe({ id: "a1", status: "eingegangen" })}
-        optionen={{ ...ALLE_AUS, zurueckziehen: true }}
+        aufgabe={aufgabe({ id: "a9", status: "verteilt" })}
+        optionen={{ ...ALLE_AUS, starten: true, bearbeiten: true, zurueckziehen: true }}
       />,
+    );
+    expect(queryAll("[data-testid='aendern']")).toHaveLength(0);
+    expect(queryAll("[data-testid='zurueckziehen']")).toHaveLength(0);
+    expect(document.body.textContent).toContain("Bearbeitung starten");
+  });
+
+  it("sind sie die einzigen erlaubten Optionen, steht der Satz — die Zone zaehlt sie nicht mit", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a9", status: "eingegangen" })}
+        optionen={{ ...ALLE_AUS, bearbeiten: true, zurueckziehen: true }}
+      />,
+    );
+    expect(document.body.textContent).toContain("Gerade steht hier kein Arbeitsschritt an.");
+  });
+});
+
+describe("ZurueckziehenKnopf — bestätigungspflichtig (Spec §9.9)", () => {
+  it("oeffnet erst nach dem Klick eine Bestaetigung; sendet erst NACH der Bestaetigung ab, mit der eigenen aufgabeId", async () => {
+    await mount(
+      <ZurueckziehenKnopf aufgabeId="a1" />,
     );
     expect(existsPortal(".ant-popconfirm")).toBe(false);
 
@@ -318,11 +343,7 @@ describe("AktionsZone — Zurückziehen ist bestätigungspflichtig (Spec §9.9)"
 
   it("„Abbrechen“ schliesst die Bestaetigung, ohne abzusenden", async () => {
     await mount(
-      <AktionsZone
-        nachweisMaxBytes={MAX_BYTES}
-        aufgabe={aufgabe({ id: "a1", status: "eingegangen" })}
-        optionen={{ ...ALLE_AUS, zurueckziehen: true }}
-      />,
+      <ZurueckziehenKnopf aufgabeId="a1" />,
     );
     await click("[data-testid='zurueckziehen']");
     expect(existsPortal(".ant-popconfirm")).toBe(true);
@@ -334,6 +355,14 @@ describe("AktionsZone — Zurückziehen ist bestätigungspflichtig (Spec §9.9)"
     await clickElement(abbrechen);
 
     expect(zurueckziehenMock).not.toHaveBeenCalled();
+  });
+
+  it("mit zurStart (Detailseite) traegt das Formular weiter=start, ohne nicht", async () => {
+    await mount(<ZurueckziehenKnopf aufgabeId="a9" zurStart />);
+    expect(query<HTMLInputElement>("input[type='hidden'][name='weiter']").value).toBe("start");
+    await unmount();
+    await mount(<ZurueckziehenKnopf aufgabeId="a9" />);
+    expect(queryAll("input[name='weiter']")).toHaveLength(0);
   });
 });
 
@@ -398,7 +427,7 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
    * diesen Zustand der EINZIGE erlaubte Eintrag — keine andere Aktion hat in `TABELLE` eine Zeile
    * aus `eingegangen` — und damit ausgerechnet die LOESCHENDE Aktion der Primaerknopf.
    */
-  it("zeigt bei `eingegangen` KEINEN Primaerknopf; „Zurückziehen“ bleibt sekundaer mit Popconfirm", async () => {
+  it("zeigt bei `eingegangen` KEINEN Primaerknopf — „Zurückziehen“ steht seit DRK-487 im Seitenkopf", async () => {
     await mount(
       <AktionsZone
         nachweisMaxBytes={MAX_BYTES}
@@ -407,7 +436,7 @@ describe("AktionsZone — genau ein Primaerknopf (§7 Nr. 2)", () => {
       />,
     );
     expect(primaere()).toHaveLength(0);
-    expect(queryAll("[data-testid='zurueckziehen']")).toHaveLength(1);
+    expect(queryAll("[data-testid='zurueckziehen']")).toHaveLength(0);
   });
 
   /**

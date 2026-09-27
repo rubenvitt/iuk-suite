@@ -522,15 +522,15 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       {
         titel: "Zurückziehen",
         text:
-          "Solange der Auftrag noch im Posteingang liegt, kannst du ihn zurückziehen; er " +
-          "verschwindet dann samt Verlauf. Danach nicht mehr — ab da hat er eine Geschichte, und " +
-          "die gehört zur Leistungsdokumentation.",
+          "Solange niemand an dem Auftrag arbeitet, kannst du ihn zurückziehen; er verschwindet " +
+          "dann samt Verlauf. Danach nicht mehr — ab da hat er eine Geschichte, und die gehört zur " +
+          "Leistungsdokumentation.",
       },
     ],
     grenzen: [
       "Du verteilst nicht: den Empfänger bestimmt die Koordinatorin. Der Weg dorthin existiert in dieser Sicht nicht, und /verteilen antwortet dir mit 404.",
       "Fremde Aufträge siehst du nicht — nur deine eigenen und die, in denen du Prüfer bist.",
-      "Ist eine Aufgabe erst verteilt, ist Zurückziehen vorbei; umhängen kann sie aber die Koordinatorin.",
+      "Ist eine Aufgabe erst in Arbeit, ist Zurückziehen vorbei; ändern kannst du sie bis zur Freigabe weiter.",
     ],
     verweise: ["einstellen", "freigaben", "aufgabe", "archiv"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-auftraege",
@@ -1023,7 +1023,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         erklaerung:
           "Genau die Aktionen, die du mit dieser Aufgabe in diesem Zustand ausführen darfst — " +
           "höchstens eine davon ist die rote Hauptaktion. Steht dort nichts, ist für dich gerade " +
-          "nichts zu tun.",
+          "nichts zu tun. Ändern und Zurückziehen stehen oben neben dem Titel.",
       },
       {
         form: "liste",
@@ -1048,6 +1048,14 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
           "zwei Gründen: der Zustand passt nicht, oder die Rolle.",
       },
       {
+        titel: "Korrigieren",
+        text:
+          "Verschrieben, Frist falsch, Nachweispflicht vergessen? Wer die Aufgabe eingestellt hat " +
+          "und die Koordinatorin ändern sie über „Ändern“ oben neben dem Titel — bis sie zur " +
+          "Freigabe gemeldet ist. " +
+          "Die Änderung steht danach im Verlauf.",
+      },
+      {
         titel: "Nachweis anlegen",
         text:
           "Beim Fertigmelden: Text schreiben oder Bild hochladen. Bilder gehen vor der Auslieferung " +
@@ -1061,7 +1069,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
       },
     ],
     grenzen: [
-      "Zurückziehen geht nur, solange die Aufgabe noch im Posteingang liegt — danach hat sie eine Geschichte, die nicht verschwinden soll.",
+      "Zurückziehen geht nur, solange niemand an der Aufgabe arbeitet — danach hat sie eine Geschichte, die nicht verschwinden soll.",
       "Nachweise sieht nicht jeder, sondern nur die vier Rollen zu dieser Aufgabe.",
       "Der Verlauf lässt sich nicht bearbeiten. Eine falsche Angabe wird durch einen neuen Schritt korrigiert, nicht durch Überschreiben.",
     ],
@@ -1164,7 +1172,7 @@ export function zielHref(sicht: HilfeSicht, akteur: Akteur): string | null {
  * haben, und jede Zeile von `TABELLE` MUSS hier vorkommen — `hilfe.test.ts` vergleicht beide
  * Mengen in BEIDE Richtungen gegen das aus `lebenszyklus.ts` exportierte `UEBERGAENGE`.
  *
- * ZWEI KANTEN HABEN BEWUSST KEINEN TABELLENEINTRAG, und beide sind als solche markiert:
+ * ZWEI AKTIONEN HABEN BEWUSST KEINEN TABELLENEINTRAG, und beide sind als solche markiert:
  * `einstellen` (kein Uebergang — es gibt keinen Ausgangszustand, s. `anfangsZustand`) und
  * `zurueckziehen` (kein Zielzustand — es LOESCHT die Aufgabe). Sie tragen `schluessel: null`;
  * der Test nimmt genau diese aus dem Mengenvergleich heraus und prueft dafuer, dass es nicht mehr
@@ -1205,6 +1213,13 @@ export const ZYKLUS_KANTEN: readonly ZyklusKante[] = [
   },
   {
     von: "eingegangen",
+    nach: "geloescht",
+    aktion: "zurückziehen (löscht die Aufgabe)",
+    wer: "Auftraggeber · Koordinatorin",
+    schluessel: null,
+  },
+  {
+    von: "verteilt",
     nach: "geloescht",
     aktion: "zurückziehen (löscht die Aufgabe)",
     wer: "Auftraggeber · Koordinatorin",

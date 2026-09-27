@@ -318,6 +318,19 @@ export function darfEinstellenFuerAndere(akteur: Akteur, heute: string): boolean
 }
 
 /**
+ * WER EINE AUFGABE ALS AUFTRAG VERANTWORTET (DRK-487): die Person, die sie eingestellt hat (aktiv),
+ * ODER die Koordination (Gruppe, ohne `istAktiv` — s. `darfVerteilen`). Das Praedikat hinter
+ * `zurueckziehen` UND `bearbeiten` (`_lib/lebenszyklus.ts`); vorher stand es dort als Inline-Ausdruck.
+ *
+ * DER ZUGEWIESENE BUFDI GEHOERT BEWUSST NICHT DAZU: wer eine Fremdaufgabe bearbeiten duerfte, koennte
+ * sich die Nachweispflicht selbst abschalten oder die Frist verschieben, gegen die geprueft wird.
+ * Bei einer Selbstaufgabe ist er ohnehin der Ersteller.
+ */
+export function darfAufgabeVerwalten(akteur: Akteur, a: AufgabeRow, heute: string): boolean {
+  return (akteur.person.id === a.erstellerId && istAktiv(akteur.person, heute)) || darfVerteilen(akteur, heute);
+}
+
+/**
  * Wer koordiniert, oeffnet die Personenverwaltung (Spec §4). Ohne `istAktiv` — s. `darfVerteilen`.
  *
  * HIER WIEGT DIE REGEL AM SCHWERSTEN: eine Koordinationsperson, die ihr eigenes `aktivBis` auf

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AufgabeRow, PersonRow, Rolle } from "../_db/schema";
 import { aktionsOptionen } from "./aktionsOptionen";
-import { uebergang } from "./lebenszyklus";
+import { bearbeitung, uebergang } from "./lebenszyklus";
 import { darfNachweisHochladen, type Akteur } from "./zugang";
 
 const HEUTE = "2026-08-13";
@@ -69,6 +69,7 @@ const ALLE_AUS: Record<string, boolean> = {
   wiederaufnehmen: false,
   zurueckziehen: false,
   umverteilen: false,
+  bearbeiten: false,
   nachweisHochladen: false,
 };
 
@@ -92,6 +93,7 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
       wiederaufnehmen: uebergang(a, "wiederaufnehmen", akteur(bufdi), HEUTE).erlaubt,
       zurueckziehen: uebergang(a, "zurueckziehen", akteur(bufdi), HEUTE).erlaubt,
       umverteilen: uebergang(a, "umverteilen", akteur(bufdi), HEUTE).erlaubt,
+      bearbeiten: bearbeitung(a, akteur(bufdi), HEUTE).erlaubt,
       // KEIN `uebergang()`-Aufruf hier (Aufgabe 19, Kopfkommentar von `aktionsOptionen`): Nachweis
       // hochladen ist kein Uebergang der Tabelle. `a.status === "verteilt"` in dieser Fixtur macht
       // das Ergebnis ohnehin `false`, unabhaengig von `darfNachweisHochladen`.
@@ -186,10 +188,67 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
     expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({ ...ALLE_AUS, wiederaufnehmen: true });
   });
 
-  it("„eingegangen“, Ersteller: NUR zurueckziehen ist erlaubt", () => {
+  it("„eingegangen“, Ersteller: NUR zurueckziehen und bearbeiten sind erlaubt", () => {
     const ersteller = person("auftrag", { id: "ersteller-e" });
     const a = aufgabe({ status: "eingegangen", erstellerId: ersteller.id, zugewiesenAn: null });
-    expect(aktionsOptionen(a, akteur(ersteller), HEUTE)).toEqual({ ...ALLE_AUS, zurueckziehen: true });
+    expect(aktionsOptionen(a, akteur(ersteller), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      zurueckziehen: true,
+      bearbeiten: true,
+    });
+  });
+
+  /*
+   * DRK-487 — BEARBEITEN UND ZURUECKZIEHEN FUER DEN ERSTELLER. Aus `verteilt` beides; aus
+   * `in_arbeit` nur noch bearbeiten; aus `freigabe_offen` nichts mehr (dort wird gegen genau diesen
+   * Auftrag geprueft), obwohl der Ersteller dort als Pruefer freigeben darf.
+   */
+  it("„verteilt“, Ersteller: zurueckziehen und bearbeiten", () => {
+    const ersteller = person("auftrag", { id: "ersteller-v" });
+    const a = aufgabe({ status: "verteilt", erstellerId: ersteller.id, zugewiesenAn: "bufdi-irgendwer" });
+    expect(aktionsOptionen(a, akteur(ersteller), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      zurueckziehen: true,
+      bearbeiten: true,
+    });
+  });
+
+  it("„in_arbeit“, Ersteller: nur noch bearbeiten", () => {
+    const ersteller = person("auftrag", { id: "ersteller-i" });
+    const a = aufgabe({ status: "in_arbeit", erstellerId: ersteller.id, zugewiesenAn: "bufdi-irgendwer" });
+    expect(aktionsOptionen(a, akteur(ersteller), HEUTE)).toEqual({ ...ALLE_AUS, bearbeiten: true });
+  });
+
+  it("„freigabe_offen“, Ersteller als Pruefer: freigeben ja, bearbeiten nein", () => {
+    const ersteller = person("auftrag", { id: "ersteller-f" });
+    const a = aufgabe({
+      status: "freigabe_offen",
+      erstellerId: ersteller.id,
+      prueferId: ersteller.id,
+      zugewiesenAn: "bufdi-irgendwer",
+    });
+    expect(aktionsOptionen(a, akteur(ersteller), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      freigeben: true,
+      zurueckweisen: true,
+    });
+  });
+
+  it("Selbstaufgabe „verteilt“, die BuFDi selbst: starten, zurueckziehen und bearbeiten", () => {
+    const bufdi = person("bufdi", { id: "bufdi-selbst" });
+    const a = aufgabe({
+      status: "verteilt",
+      erstellerId: bufdi.id,
+      zugewiesenAn: bufdi.id,
+      istSelbst: true,
+      prueferId: null,
+    });
+    expect(aktionsOptionen(a, akteur(bufdi), HEUTE)).toEqual({
+      ...ALLE_AUS,
+      starten: true,
+      zurueckziehen: true,
+      bearbeiten: true,
+    });
   });
 
   it("„abgeschlossen“, jede Rolle: gar keine Aktion — Endzustand", () => {
@@ -212,16 +271,19 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
   it("„verteilt“, Koordination: umverteilen ist erlaubt — die Zustandsaktion von Rang 5a", () => {
     const koordination = person("auftrag", { id: "koord-um-1" });
     const a = aufgabe({ status: "verteilt", zugewiesenAn: "bufdi-irgendwer" });
+    // `zurueckziehen`/`bearbeiten` kommen seit DRK-487 hinzu: die Koordination darf beides aus `verteilt`.
     expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual({
       ...ALLE_AUS,
       umverteilen: true,
+      zurueckziehen: true,
+      bearbeiten: true,
     });
   });
 
   it("„in_arbeit“, Koordination: KEIN umverteilen — die Tabelle kennt es nur aus „verteilt“", () => {
     const koordination = person("auftrag", { id: "koord-um-2" });
     const a = aufgabe({ status: "in_arbeit", zugewiesenAn: "bufdi-irgendwer" });
-    expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual(ALLE_AUS);
+    expect(aktionsOptionen(a, akteur(koordination, true), HEUTE)).toEqual({ ...ALLE_AUS, bearbeiten: true });
   });
 
   it("„verteilt“, Auftraggeber ohne Koordination: KEIN umverteilen — `darfVerteilen` ist falsch", () => {
@@ -257,6 +319,8 @@ describe("aktionsOptionen — ruft uebergang() je Aktion, baut die Tabelle nicht
     expect(aktionsOptionen(a, akteur(exKoordination, true), HEUTE)).toEqual({
       ...ALLE_AUS,
       umverteilen: true,
+      zurueckziehen: true,
+      bearbeiten: true,
     });
   });
 

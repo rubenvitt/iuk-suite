@@ -14,6 +14,7 @@ import desktopAppInstallieren from "@/app/m/portal/_lib/neuigkeiten/notizen/eins
 import personalOhneOrtsverein from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-27-personal-ohne-ortsverein";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
+import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
 import mitCodeEinsteigen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-mit-code-einsteigen";
 import bestandNullAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-bestand-null-ausblenden";
@@ -97,6 +98,7 @@ import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/not
 const NOTIZEN: readonly Releasenotiz[] = [
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
+  aufgabenBearbeiten,
   checklisteAlsPdf,
   mitCodeEinsteigen,
   bestandNullAusblenden,

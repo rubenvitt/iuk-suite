@@ -26,11 +26,19 @@ import { zurueckziehenAction } from "../actions";
  * Verteilung wartet. Deshalb steht hier kein `type="primary"`, sondern `danger` auf einem
  * Standardknopf — und deshalb steht `zurueckziehen` auch nicht in der Vorrangliste von §7 Nr. 2.
  */
-export function ZurueckziehenKnopf({ aufgabeId }: { aufgabeId: string }) {
+export function ZurueckziehenKnopf({
+  aufgabeId,
+  zurStart = false,
+}: {
+  aufgabeId: string;
+  /** Aus `/a/<id>` (DRK-487): danach auf die Startseite, denn die Detailseite gibt es nicht mehr. */
+  zurStart?: boolean;
+}) {
   const formular = useRef<HTMLFormElement>(null);
   return (
     <form action={zurueckziehenAction} ref={formular}>
       <input type="hidden" name="aufgabeId" value={aufgabeId} />
+      {zurStart ? <input type="hidden" name="weiter" value="start" /> : null}
       <Popconfirm
         title="Aufgabe zurückziehen?"
         description="Die Aufgabe wird samt ihrem gesamten Verlauf gelöscht. Das lässt sich nicht rückgängig machen."
