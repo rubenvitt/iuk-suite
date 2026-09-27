@@ -30,6 +30,7 @@ import {
   trageAbendNach,
   TagBelegt,
   updateEvening,
+  doppelteTage,
 } from "./queries";
 import { parseFachgruppen } from "@/core/auth/fachgruppen";
 import { computeClosesAt, type EveningStatus } from "@/app/m/feedback/_lib/lifecycle";
@@ -841,6 +842,52 @@ describe("Tagesregel bei Nachtragen und Verschieben (DRK-429)", () => {
     updateEvening(db, e.id, { date: tag("2026-07-20"), topic: "gleich" });
     updateEvening(db, e.id, { date: tag("2026-07-21") });
     expect(getEvening(db, e.id)!).toMatchObject({ topic: "gleich", date: tag("2026-07-21") });
+  });
+
+  /*
+   * BESTANDSSCHUTZ (DRK-479): zwei Abende am selben Tag aus dem Altbestand.
+   * Der Bearbeiten-Dialog schickt das Datum immer mit — bis DRK-479 fand die
+   * Prüfung dabei jeweils den anderen Abend, und keiner der beiden ließ sich
+   * mehr speichern.
+   */
+  it("updateEvening lässt einen Doppeltag aus dem Altbestand bearbeiten und verschieben", () => {
+    const g = mkGroup();
+    const a = neu(g.id, "2026-07-20");
+    const b = neu(g.id, "2026-07-20");
+    updateEvening(db, a.id, { date: tag("2026-07-20"), topic: "Funk" });
+    expect(getEvening(db, a.id)!.topic).toBe("Funk");
+    updateEvening(db, b.id, { date: tag("2026-07-21") });
+    expect(getEvening(db, b.id)!.date).toEqual(tag("2026-07-21"));
+  });
+
+  it("updateEvening vergleicht beim Bestandsschutz den Tag, nicht den Zeitpunkt", () => {
+    const g = mkGroup();
+    // Importiert als 2026-07-20 00:30 +0200 — das Formular schickt Mitternacht UTC.
+    const a = insertEvening(db, { groupId: g.id, date: new Date("2026-07-19T22:30:00Z"), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    neu(g.id, "2026-07-20");
+    updateEvening(db, a.id, { date: tag("2026-07-20"), notes: "nachgetragen" });
+    expect(getEvening(db, a.id)!.notes).toBe("nachgetragen");
+  });
+
+  it("updateEvening verweigert auch einem Doppeltag den Umzug auf einen belegten Tag", () => {
+    const g = mkGroup();
+    const a = neu(g.id, "2026-07-20");
+    neu(g.id, "2026-07-20");
+    neu(g.id, "2026-07-27");
+    expect(() => updateEvening(db, a.id, { date: tag("2026-07-27") })).toThrow(TagBelegt);
+  });
+
+  it("doppelteTage listet je Gruppe die Tage mit mehr als einem Abend", () => {
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    const eins = neu(a.id, "2026-07-20");
+    // Derselbe Kalendertag in der Suite-Zone, in UTC der Vortag.
+    const zwei = insertEvening(db, { groupId: a.id, date: new Date("2026-07-19T22:30:00Z"), topic: null, notes: null, participantCount: null, createdAt: new Date(0) });
+    neu(a.id, "2026-07-27");
+    neu(b.id, "2026-07-20");
+    expect(doppelteTage(db)).toEqual([
+      { groupId: a.id, tag: "2026-07-20", eveningIds: [zwei.id, eins.id] },
+    ]);
   });
 
   it("abendAmTag sieht keine andere Gruppe", () => {

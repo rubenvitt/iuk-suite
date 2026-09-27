@@ -3,6 +3,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { getModuleDb } from "@/core/db";
 import { migrateAllModules } from "@/core/bootstrap";
 import * as schema from "@/app/m/feedback/_db/schema";
+import { doppelteTage } from "@/app/m/feedback/_db/queries";
 import { normalizeTimestamp } from "./feedback-time";
 import { checkParity, assertParity, type ParityReport, type Row } from "./parity";
 
@@ -274,6 +275,31 @@ export function checkFeedbackParity(source: FeedbackSource, db: FeedbackDb): Par
   return checkParity(taggedRows(source), taggedTargetRows(db));
 }
 
+/**
+ * DOPPELTAGE NACH DEM IMPORT — die Liste zur Handbereinigung (DRK-479).
+ *
+ * Seit DRK-429 hat eine Gruppe höchstens einen Abend je Kalendertag, aber die
+ * Alt-Anwendung kannte die Regel nicht, und dieser Import setzt sie nicht
+ * durch: zusammenführen lassen sich zwei Abende nicht (getrennte
+ * Auswertungen), und einen davon wegzulassen verlöre Antworten. Die Suite
+ * lässt solche Tage stehen und bearbeitbar; aufräumen muss ein Mensch —
+ * verschieben, was am falschen Tag steht, oder einen leeren Abend löschen.
+ *
+ * Kein Abbruch, nur ein Bericht. `null` heißt: keine Doppeltage.
+ */
+export function berichtDoppelteTage(db: FeedbackDb): string | null {
+  const doppelt = doppelteTage(db);
+  if (doppelt.length === 0) return null;
+  const namen = new Map(db.select().from(schema.groups).all().map((g) => [g.id, g.name]));
+  const zeilen = doppelt.map(
+    (d) => `  ${namen.get(d.groupId) ?? `Gruppe ${d.groupId}`}, ${d.tag}: Abende ${d.eveningIds.join(", ")}`,
+  );
+  return [
+    `${doppelt.length} Tag(e) mit mehr als einem Dienstabend je Gruppe — bitte von Hand bereinigen:`,
+    ...zeilen,
+  ].join("\n");
+}
+
 export async function runFeedbackImport(sourceDbPath: string): Promise<void> {
   migrateAllModules();
   const sourceDb = new Database(sourceDbPath, { readonly: true });
@@ -291,6 +317,8 @@ export async function runFeedbackImport(sourceDbPath: string): Promise<void> {
   const report = checkFeedbackParity(source, db);
   assertParity(report);
   console.log(`Feedback import OK — ${report.sourceCount} Zeilen, Parität grün.`);
+  const doppelt = berichtDoppelteTage(db);
+  if (doppelt) console.warn(doppelt);
 }
 
 // CLI: tsx scripts/import/feedback.ts <alt-feedback.db>   (DATA_DIR steuert das Ziel)
