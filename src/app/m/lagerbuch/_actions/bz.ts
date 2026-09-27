@@ -19,6 +19,7 @@ import { BEACHTUNG_HINWEIS_MAX } from "../_lib/grenzen";
 import { beachtungsFelder, bewerteKontrolle, bzBeachtung } from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/bz";
 const LAGERORT_FEHLER = "Lagerort nicht gefunden oder inaktiv.";
@@ -140,8 +141,8 @@ function orNull<T>(value: T | undefined): T | null {
  */
 function revalidate(id: string) {
   revalidatePath(LISTENPFAD);
-  revalidatePath(`${LISTENPFAD}/${id}`);
-  revalidatePath(`${LISTENPFAD}/${id}/kontrolle`);
+  revalidatePath(verwaltungDetailPfadIntern("bz", id));
+  revalidatePath(verwaltungDetailPfadIntern("bz", id, "kontrolle"));
 }
 
 /**

@@ -30,6 +30,7 @@ import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import type { BzAnzeigeZeile } from "./bzAnzeige";
 import { NeuBzGeraet } from "./NeuBzGeraet";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 /**
  * ⚠️ BEMERKUNG UND HINWEIS SIND DURCHSUCHBAR, UND DAS STEHT AUCH IM
@@ -93,7 +94,7 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
       render: (wert: string, zeile) => (
         <span>
           <Link
-            href={`/verwaltung/bz/${zeile.id}`}
+            href={verwaltungDetailPfad("bz", zeile.id)}
             style={{ fontWeight: 600 }}
           >
             {wert}

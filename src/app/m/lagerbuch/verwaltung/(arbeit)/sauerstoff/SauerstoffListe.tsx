@@ -27,6 +27,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { NeuFlasche } from "./NeuFlasche";
+import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 /**
  * Die Client-Grenze bekommt keine Date-Instanz. Der Server formatiert den
@@ -75,7 +76,7 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
     render: (wert: string, zeile) => (
       <span>
         <Link
-          href={`/verwaltung/sauerstoff/${zeile.id}`}
+          href={verwaltungDetailPfad("sauerstoff", zeile.id)}
           style={{ fontWeight: 600 }}
         >
           {wert}

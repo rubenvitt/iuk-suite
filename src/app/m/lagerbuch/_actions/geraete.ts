@@ -17,6 +17,7 @@ import {
 } from "../_lib/konstanten";
 import { geraetByBarcode } from "../_lib/lesepfade/geraete";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/geraete";
 const LAGERORT_FEHLER = "Lagerort nicht gefunden oder inaktiv.";
@@ -73,7 +74,7 @@ function orNull(value: string | undefined): string | null {
 
 function revalidate(id: string) {
   revalidatePath(LISTENPFAD);
-  revalidatePath(`${LISTENPFAD}/${id}`);
+  revalidatePath(verwaltungDetailPfadIntern("geraete", id));
 }
 
 export async function geraetSpeichern(
