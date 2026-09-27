@@ -269,7 +269,7 @@ describe("Update", () => {
 
   it("nennt die letzte Suche, wenn sie keine neuere Version fand", async () => {
     await zeige(props({ updateGeprueft: "2026-09-27T10:15:00+02:00" }));
-    expect(text()).toContain("Keine neuere Version. Zuletzt gesucht: 27.09.2026, 10:15 Uhr");
+    expect(text()).toContain("Diese Version ist aktuell. Zuletzt gesucht: 27.09.2026, 10:15 Uhr");
   });
 
   /** Den Stand liest die Karte nicht selbst: Nach der Suche meldet sie an die App, die neu lädt. */

@@ -251,6 +251,18 @@ git fetch origin --tags
 node scripts/einsatzbuch-version.mjs origin/main
 ```
 
+**Release-Notizen:** Im selben Lauf schreibt `release-version` auch den Text des
+GitHub-Releases (`releaseNotizen` in `scripts/einsatzbuch-version.mjs`): die gezählten Commits,
+nach „Brechende Änderungen“, „Neu“, „Behoben“, „Schneller“ und „Weitere Änderungen an der App“
+gruppiert, je mit Kurz-SHA und PR-Nummer, dazu der Vergleich seit dem letzten Tag und die
+Dateinamen. Die Vorschau steht auf jedem PR in der Zusammenfassung des Laufs. Der Text kommt
+aus den Kopfzeilen der Commits, also die Kopfzeile so schreiben, dass sie ohne Präfix für sich
+steht. Beim Notfall-Tag gibt es keine gezählten Commits, dort nur Kopf und Dateien.
+
+**Kein Suite-Release für reine App-Merges:** Ändert ein Merge nur die App (`NUR_APP` in
+`scripts/version.mjs`), baut `ci.yml` kein Image, kein Suite-Release und rollt nichts aus
+(Runbook `versionierung.md`, Teil A).
+
 Nach dem Merge steht die Entscheidung in der Zusammenfassung des Laufs auf `main`
 (`gh run list --workflow einsatzbuch.yml --branch main`).
 

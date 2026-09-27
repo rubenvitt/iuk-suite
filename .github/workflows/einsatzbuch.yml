@@ -325,6 +325,8 @@ jobs:
       release: ${{ steps.rechne.outputs.release }}
       version: ${{ steps.rechne.outputs.version }}
       tag: ${{ steps.rechne.outputs.tag }}
+      # Text des GitHub-Releases: die gezählten Commits nach Art gruppiert (`releaseNotizen`).
+      notizen: ${{ steps.rechne.outputs.notizen }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -623,6 +625,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       VERSION: ${{ needs.release-version.outputs.version }}
       TAG: ${{ needs.release-version.outputs.tag }}
+      NOTIZEN: ${{ needs.release-version.outputs.notizen }}
     steps:
       # Nur für `scripts/einsatzbuch-signaturen-pruefen.mjs`, `scripts/einsatzbuch-updater-json.mjs`
       # und `tauri.conf.json`, und für `git ls-remote` beim Tag; die Skripte haben keine
@@ -731,7 +734,9 @@ jobs:
             echo "Release $TAG besteht schon – Dateien werden ersetzt."
             gh release upload "$TAG" auslieferung/* --clobber
           else
-            notizen="Desktop-App des Einsatzbuchs, Version $VERSION. Windows: Einsatzbuch_${VERSION}_x64-setup.exe, macOS: Einsatzbuch_${VERSION}_universal.dmg. Installation und Updates: docs/runbooks/einsatzbuch-release.md."
+            # Aus `release-version` (Commits nach Art, Vergleich, Dateien); der Satz ist nur der
+            # Rückfall, falls die Ausgabe fehlt (etwa ein wiederholter Lauf von vor dieser Änderung).
+            notizen="${NOTIZEN:-Desktop-App des Einsatzbuchs, Version $VERSION. Windows: Einsatzbuch_${VERSION}_x64-setup.exe, macOS: Einsatzbuch_${VERSION}_universal.dmg. Installation und Updates: docs/runbooks/einsatzbuch-release.md.}"
             if [ -n "$bisher" ]; then
               ziel=(--verify-tag)
             else

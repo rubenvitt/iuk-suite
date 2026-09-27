@@ -41,6 +41,14 @@ Drei Folgen, die man kennen sollte:
 
 * **Auch ein Doku- oder Dependabot-Merge ist eine Version.** Er ergibt ein Image, und ein
   Image ohne Nummer wäre wieder nur ein Commit-SHA. Der kleinste Sprung ist Patch.
+* **Ausnahme: ein Merge, der nur die Desktop-App ändert, ist keine Version.** Ändert ein
+  Schritt ausschließlich Dateien unter `NUR_APP` (`scripts/version.mjs`: `apps/einsatzbuch/`,
+  `.github/workflows/einsatzbuch.yml`, `docs/runbooks/einsatzbuch-release.md`), zählt er
+  nicht mit. Steht seit dem letzten Tag nichts anderes an, gibt der Job `version`
+  `ausliefern=false` aus, und auf `main` entfallen `build`, `merge`, `release` und
+  `deploy` (übersprungen, nicht rot). Die App hat ihren eigenen Release-Weg
+  (`einsatzbuch-release.md`). Eine Release-Notiz im Portal ist Suite-Code: ein App-PR mit
+  Notiz ergibt deshalb auch ein Suite-Release.
 * **Ein PR mit drei `feat`-Commits ist EIN Minor-Sprung**, nicht drei: der Schritt ist der
   Merge, nicht der Einzelcommit. Wer drei Nummern will, mergt drei PRs.
 * **Lücken sind ehrlich.** Scheitert ein Lauf vor dem Tag (roter Build, roter Smoke), bleibt

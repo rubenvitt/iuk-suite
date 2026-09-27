@@ -56,6 +56,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────
  */
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -119,6 +120,45 @@ function vergleiche(a, b) {
   return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
 }
 
+/** @typedef {"brechend" | "feat" | "fix" | "perf" | "sonst"} Art */
+
+/**
+ * In welchen Abschnitt der Release-Notizen gehört ein Commit? Brechend geht vor dem Typ.
+ *
+ * @param {string} nachricht Kopfzeile und Rumpf
+ * @returns {Art}
+ */
+export function artDerAenderung(nachricht) {
+  if (sprungAusNachricht(nachricht) === "major") return "brechend";
+  const typ = /^(\w+)(\([^)]*\))?(!)?:\s/.exec(nachricht.split("\n", 1)[0] ?? "")?.[1];
+  return typ === "feat" || typ === "fix" || typ === "perf" ? typ : "sonst";
+}
+
+/**
+ * Welcher PR hat einen Commit auf `main` gebracht? Jeder Merge-Commit auf der First-Parent-Kette
+ * seit der Basis bringt die Commits `M^1..M` mit; seine Kopfzeile nennt die Nummer („Merge pull
+ * request #307 …“). Squash-Merges tragen sie am Ende der Kopfzeile („… (#307)“) und brauchen
+ * die Zuordnung nicht; ein direkter Push hat keinen PR.
+ *
+ * @param {string} cwd
+ * @param {string | null} basis
+ * @param {string} zielCommit
+ * @returns {Map<string, number>}
+ */
+function pullRequestsJeCommit(cwd, basis, zielCommit) {
+  /** @type {Map<string, number>} */
+  const karte = new Map();
+  const bereich = basis === null ? zielCommit : `${basis}..${zielCommit}`;
+  for (const zeile of git(["log", "--first-parent", "--merges", "--format=%H %s", bereich], cwd).split("\n")) {
+    const m = /^(\w+) Merge pull request #(\d+)\b/.exec(zeile);
+    if (!m) continue;
+    for (const c of git(["rev-list", `${m[1]}^1..${m[1]}`], cwd).split("\n").filter(Boolean)) {
+      karte.set(c, Number(m[2]));
+    }
+  }
+  return karte;
+}
+
 /**
  * @typedef {{
  *   release: boolean;
@@ -127,7 +167,7 @@ function vergleiche(a, b) {
  *   basis: string | null;
  *   schonGetaggt: boolean;
  *   grund: string;
- *   commits: { commit: string; betreff: string; loestAus: boolean }[];
+ *   commits: { commit: string; betreff: string; loestAus: boolean; art: Art; pr: number | null }[];
  * }} Ergebnis
  */
 
@@ -178,10 +218,13 @@ export function berechneEinsatzbuchVersion(cwd, ziel = "HEAD") {
     basis?.version ?? null,
     commits.map((c) => c.nachricht),
   );
+  const prVon = pullRequestsJeCommit(cwd, basis?.tag ?? null, zielCommit);
   const liste = commits.map((c) => ({
     commit: c.commit,
     betreff: c.nachricht.split("\n", 1)[0] ?? "",
     loestAus: loestReleaseAus(c.nachricht),
+    art: artDerAenderung(c.nachricht),
+    pr: prVon.get(c.commit) ?? null,
   }));
   const seit = basis === null ? "seit Beginn der Historie (noch kein Einsatzbuch-Tag)" : `seit ${basis.tag}`;
 
@@ -277,6 +320,53 @@ export function bericht(e) {
   return zeilen.join("\n");
 }
 
+const ABSCHNITTE = /** @type {const} */ ([
+  ["brechend", "Brechende Änderungen"],
+  ["feat", "Neu"],
+  ["fix", "Behoben"],
+  ["perf", "Schneller"],
+  ["sonst", "Weitere Änderungen an der App"],
+]);
+
+/**
+ * Der Text des GitHub-Releases `einsatzbuch-vX.Y.Z` (Markdown): die gezählten Commits nach Art
+ * gruppiert, je mit Kurz-SHA und PR (GitHub verlinkt beides), dazu der Vergleich seit der Basis
+ * und die Dateien. Beim Notfall-Tag gibt es keine gezählten Commits; dann nur Kopf und Dateien.
+ *
+ * @param {Ergebnis} e
+ * @param {{ repo?: string }} [optionen] `owner/name` für die Links
+ */
+export function releaseNotizen(e, optionen = {}) {
+  const { version, tag, basis } = e;
+  if (!version || !tag) return "";
+  const repo = optionen.repo ?? "";
+  const zeilen = [`Desktop-App des Einsatzbuchs, Version ${version}.`];
+  for (const [art, titel] of ABSCHNITTE) {
+    const eintraege = e.commits.filter((c) => c.art === art);
+    if (eintraege.length === 0) continue;
+    zeilen.push("", `### ${titel}`, "");
+    for (const c of eintraege) {
+      const text = c.betreff.replace(/^\w+(\([^)]*\))?!?:\s*/, "");
+      const bezug = [c.commit.slice(0, 7), ...(c.pr !== null && !text.includes(`#${c.pr}`) ? [`#${c.pr}`] : [])];
+      zeilen.push(`- ${text} (${bezug.join(", ")})`);
+    }
+  }
+  if (basis !== null && repo) {
+    zeilen.push("", `Alle Commits seit ${basis}: https://github.com/${repo}/compare/${basis}...${tag}`);
+  }
+  zeilen.push(
+    "",
+    "### Herunterladen",
+    "",
+    `- Windows: \`Einsatzbuch_${version}_x64-setup.exe\``,
+    `- macOS: \`Einsatzbuch_${version}_universal.dmg\``,
+    "",
+    "Installierte Apps holen das Update selbst (Verwaltung → „Einstellungen“ → „Update“). " +
+      "Installation und Updates: docs/runbooks/einsatzbuch-release.md.",
+  );
+  return zeilen.join("\n");
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const { values, positionals } = parseArgs({
     args: process.argv.slice(2),
@@ -292,6 +382,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exit(1);
   }
   console.log(bericht(ergebnis));
+  const notizen = releaseNotizen(ergebnis, { repo: process.env.GITHUB_REPOSITORY });
+  if (notizen) console.log(`\nRelease-Notizen:\n${notizen}`);
   if (ergebnis.schonGetaggt) {
     console.log(
       `::warning::${ergebnis.grund} Fehlt am Release etwas oder latest.json ist nicht ersetzt, ` +
@@ -307,9 +399,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       process.env.GITHUB_OUTPUT,
       `release=${ergebnis.release}\nversion=${ergebnis.version ?? ""}\ntag=${ergebnis.tag ?? ""}\n`,
     );
+    // Mehrzeilig per Begrenzer (GitHub-Doku „Multiline strings“); ein zufälliger, damit keine
+    // Commit-Zeile ihn zufällig trifft.
+    const ende = `NOTIZEN_${randomUUID()}`;
+    appendFileSync(process.env.GITHUB_OUTPUT, `notizen<<${ende}\n${notizen}\n${ende}\n`);
   }
   if (process.env.GITHUB_STEP_SUMMARY) {
     const titel = ergebnis.release ? `Einsatzbuch-Release ${ergebnis.version}` : "Kein Einsatzbuch-Release";
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ${titel}\n\n\`\`\`\n${bericht(ergebnis)}\n\`\`\`\n`);
+    if (notizen) {
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n#### Release-Notizen\n\n${notizen}\n`);
+    }
   }
 }
