@@ -20,6 +20,7 @@ import {
   Space,
   Switch,
 } from "antd";
+import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { Kartentabelle, nachRang, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
@@ -751,6 +752,9 @@ export function ArtikelDrawer({
                             format="YYYY-MM"
                             aria-label="Verfallsmonat"
                             style={{ width: "100%" }}
+                            // DRK-483: Enter uebernimmt den Monat, gebucht wird erst
+                            // ueber „Zugang buchen".
+                            onKeyDown={enterUebernimmtNurDasFeld}
                           />
                         </Form.Item>
                       </div>

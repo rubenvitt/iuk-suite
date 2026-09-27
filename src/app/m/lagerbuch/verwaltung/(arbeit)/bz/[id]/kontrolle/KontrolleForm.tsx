@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, Button, DatePicker, Form, Input, InputNumber, Radio } from "antd";
 import type { Dayjs } from "dayjs";
+import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { SPACE } from "@/core/theme/tokens";
 import { kontrolleErfassen } from "../../../../../_actions/bz";
 import { monatAusPicker } from "../../../../../_ui/monat";
@@ -156,6 +157,7 @@ export function KontrolleForm({
           picker="month"
           format="YYYY-MM"
           aria-label="Kompressen-Verfall"
+          onKeyDown={enterUebernimmtNurDasFeld}
           style={{ width: "100%" }}
         />
       </Form.Item>

@@ -9,6 +9,7 @@ import {
 import { Alert, Button, DatePicker, Form, Input, Radio, Select } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
+import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { SPACE } from "@/core/theme/tokens";
 import { geraetSpeichern } from "../../../../_actions/geraete";
 import { standortMeta } from "../../../../_lib/konstanten";
@@ -189,6 +190,7 @@ export function GeraetForm({
             aria-label="Nächste MTK"
             allowClear
             format="YYYY-MM-DD"
+            onKeyDown={enterUebernimmtNurDasFeld}
           />
         </Form.Item>
       ) : (
@@ -204,6 +206,7 @@ export function GeraetForm({
               aria-label="Ablaufdatum"
               allowClear
               format="YYYY-MM-DD"
+              onKeyDown={enterUebernimmtNurDasFeld}
             />
           </Form.Item>
         </>
