@@ -211,8 +211,12 @@
   color: var(--an-gedaempft);
 }
 
-/* Nur wo es eine Tastatur gibt; auf dem Telefon wäre der Tipp Rauschen. */
-@media (hover: hover) and (pointer: fine) {
+/*
+ * Nur wo es eine Tastatur gibt; auf dem Telefon wäre der Tipp Rauschen. Beide
+ * Bedingungen: `pointer: fine` allein trifft auch ein schmales Browserfenster
+ * am Rechner, die Breite allein auch ein Tablet ohne Tastatur.
+ */
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
   .tipp {
     display: flex;
   }
