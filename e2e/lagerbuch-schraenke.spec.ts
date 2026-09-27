@@ -200,16 +200,16 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     await klickeWennRuhig(zugangForm.getByRole("combobox", { name: "Wohin" }));
     await page.locator(".ant-select-item-option", { hasText: schrankName }).click();
 
-    // Verfallsmonat — antds Monatsauswahl. Direkt eingetippt und mit Enter
-    // bestaetigt statt ueber den Kalender zu einem 64 Jahre entfernten Monat
-    // zu blaettern.
+    // Verfallsmonat — antds Monatsauswahl. Direkt eingetippt statt ueber den
+    // Kalender zu einem 64 Jahre entfernten Monat zu blaettern; uebernommen per
+    // Klick daneben (unten).
     const verfallFeld = zugangForm.getByLabel("Verfallsmonat");
     await verfallFeld.click();
     await verfallFeld.fill(verfallsmonat);
-    // ⛔ KEIN `Enter`: es schickt das ganze Zugangsformular ab (DRK-415, gegen den gebauten
-    // Stand gemessen — `bucheZugang` lief, das Formular stand danach leer). Panel schliessen
-    // per Klick auf eine inerte Ueberschrift, NICHT per `Escape` (bei antds Picker ein
-    // ABBRUCH); der Klick daneben uebernimmt den getippten Wert.
+    // Panel per Klick auf eine inerte Ueberschrift schliessen, NICHT per `Escape` (bei antds
+    // Picker ein ABBRUCH); der Klick daneben uebernimmt den getippten Wert. `Enter` taete es
+    // seit DRK-483 auch (bis dahin schickte es das ganze Formular ab, DRK-415) — diesen Weg
+    // haelt `lagerbuch-zugang-enter.spec.ts` fest, hier bleibt der Klick.
     await page.getByRole("heading", { name: "Zugang buchen" }).click();
     await expect(verfallFeld).toHaveValue(verfallsmonat);
 

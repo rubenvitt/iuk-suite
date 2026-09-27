@@ -9,7 +9,7 @@
   },
   {
     "name": "eimer-3",
-    "specs": "e2e/files-*.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-einraeumen.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts"
+    "specs": "e2e/files-*.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-einraeumen.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-zugang-enter.spec.ts"
   },
   {
     "name": "eimer-4",

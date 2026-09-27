@@ -133,9 +133,9 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     const verfallFeld = zugangForm.getByLabel("Verfallsmonat");
     await verfallFeld.click();
     await verfallFeld.fill(verfallsmonat);
-    // ⛔ KEIN `Enter`: es schickt das Formular ab (DRK-415, Begruendung in
-    // `lagerbuch-schraenke.spec.ts`). Panel per Klick auf eine inerte Ueberschrift
-    // schliessen, NICHT per `Escape` (bei antds Picker ein ABBRUCH).
+    // Panel per Klick auf eine inerte Ueberschrift schliessen, NICHT per `Escape` (bei
+    // antds Picker ein ABBRUCH). `Enter` ginge seit DRK-483 auch, Begruendung in
+    // `lagerbuch-schraenke.spec.ts`.
     await page.getByRole("heading", { name: "Zugang buchen" }).click();
     await expect(verfallFeld).toHaveValue(verfallsmonat);
 

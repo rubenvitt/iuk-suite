@@ -6,6 +6,7 @@ import deDE from "antd/es/date-picker/locale/de_DE";
 import dayjs, { type Dayjs } from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import "dayjs/locale/de";
+import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 
 /*
  * `customParseFormat` AUSDRUECKLICH, OBWOHL antd DENSELBEN PLUGIN SCHON LAEDT
@@ -112,27 +113,7 @@ function imElternknoten(ausloeser: HTMLElement): HTMLElement {
   return ausloeser.parentElement ?? document.body;
 }
 
-/**
- * `Enter` IM DATUMS- ODER ZEITFELD UEBERNIMMT DIE EINGABE — UND SENDET NICHT DAS FORMULAR AB.
- *
- * `@rc-component/picker` uebernimmt eine getippte Eingabe bei `Enter` (`Selector/Input.js`s
- * `onSharedKeyDown` ruft `onSubmit()`), ruft danach diesen Handler und ruft `preventDefault()
- * SELBST NICHT. In einem `<form>` bleibt damit die implizite Absendung des Browsers stehen: der
- * Tastendruck, der das Datum uebernimmt, betaetigt im selben Zug den ersten Absendeknopf.
- *
- * DAS IST NICHT NUR EIN SCHOENHEITSFEHLER, und der schlimmste Fall steht in `ZuweisenInline.tsx`:
- * dort IST jeder Absendeknopf eine Person („der Klick auf den Namen ist das Absenden"). Ein `Enter`
- * im Zeitvorschlag verteilte die Aufgabe damit an die ERSTE Person der Liste — nicht an die
- * gewaehlte, denn gewaehlt war noch keine. Ein natives `<input type="date">` trug denselben
- * scharfen Rand; er faellt hier auf, weil `Enter` am Auswahlfeld nicht mehr nur „absenden" heisst,
- * sondern „uebernehmen".
- *
- * DIE REIHENFOLGE MACHT ES MOEGLICH: rc-pickers eigene Uebernahme laeuft VOR diesem Handler. Wir
- * unterdruecken also nur die Folge des Tastendrucks, nicht seine Wirkung im Feld.
- */
-function enterUebernimmtNurDasFeld(ereignis: React.KeyboardEvent<HTMLElement>): void {
-  if (ereignis.key === "Enter") ereignis.preventDefault();
-}
+/* `Enter` uebernimmt nur das Feld und sendet nicht ab: `core/formular/enter.ts`. */
 
 interface FeldProps {
   /** Traegt das SICHTBARE Feld — `label htmlFor` und jeder Testgriff zeigen darauf. */
