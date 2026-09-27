@@ -189,4 +189,9 @@ export interface Status {
   /** Der letzte Fehler des Updaters als kurzer Text (`Updatefehler::anzeige` in
    *  `src-tauri/src/updater.rs`); `null`, solange nichts scheiterte, und immer im Debug-Build. */
   updateFehler: string | null;
+  /** Wann die letzte Suche nach Updates gelang, in der Zone der Einrichtung; `null`, solange
+   *  keine gelang, und immer im Debug-Build. */
+  updateGeprueft: string | null;
+  /** Die installierte Version der App. */
+  version: string | null;
 }

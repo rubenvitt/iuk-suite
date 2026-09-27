@@ -257,6 +257,29 @@ export function App() {
     };
   }, []);
 
+  // Der Updater-Thread prüft außerhalb jedes Bedienschritts (zuerst 30 s nach dem Start); ändert
+  // sich dabei der Update-Teil des Status, meldet er das, und die Karte „Einstellungen“ zeigt es.
+  const updateStandGeaendert = useEffectEvent(() => {
+    if (laeuftRef.current) return;
+    laden().catch((e: unknown) => zeigeFehler(e, true));
+  });
+
+  useEffect(() => {
+    let aktiv = true;
+    let abmelden: (() => void) | null = null;
+    befehle
+      .beiUpdateStand(() => updateStandGeaendert())
+      .then((f) => {
+        if (aktiv) abmelden = f;
+        else f();
+      })
+      .catch(() => undefined);
+    return () => {
+      aktiv = false;
+      abmelden?.();
+    };
+  }, []);
+
   // Frist: auch während einer Bearbeitung, denn die Frist läuft weiter und der Hinweis im
   // Formular zeigt die Restzeit.
   const ausstehend = status?.ausstehend ?? null;
@@ -608,6 +631,9 @@ export function App() {
               ketteLeer={status.kette.anzahl === 0}
               update={status.update}
               updateFehler={status.updateFehler}
+              updateGeprueft={status.updateGeprueft}
+              version={status.version}
+              entwicklung={status.entwicklung}
               beiKettePruefen={kettePruefen}
               beiEinstellungGeaendert={einstellungGeaendert}
               beiSperren={() => void sperren()}

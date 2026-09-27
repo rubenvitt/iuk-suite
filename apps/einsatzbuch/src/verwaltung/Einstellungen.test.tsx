@@ -16,6 +16,7 @@ const befehle = vi.hoisted(() => ({
   wiederherstellen: vi.fn(),
   autostartStatus: vi.fn(),
   autostartSetzen: vi.fn(),
+  updateSuchen: vi.fn(),
 }));
 vi.mock("../befehle", () => ({ befehle }));
 
@@ -34,6 +35,9 @@ function props(teil: Partial<EinstellungenProps> = {}): EinstellungenProps {
     zeitzone: "Europe/Berlin",
     update: null,
     updateFehler: null,
+    updateGeprueft: null,
+    version: "1.1.0",
+    entwicklung: false,
     beiGeaendert: vi.fn(async () => {}),
     ...teil,
   };
@@ -254,10 +258,50 @@ describe("Update", () => {
   const FEHLER = "Update auf 0.2.0 nicht installiert: Die Signatur des Updates passt nicht zum Schlüssel dieser App.";
   const NOCHMAL = "Die App versucht es in etwa 15 Minuten erneut.";
 
-  it("ohne vorgemerktes Update und ohne Fehler kein Hinweis", async () => {
+  it("ohne vorgemerktes Update und ohne Fehler: Version und Stand der Suche, kein Hinweis", async () => {
     await zeige(props());
     expect(text()).not.toContain("vorgemerkt");
-    expect(text()).not.toContain("Update");
+    expect(queryAll(".hinweis-info, .hinweis-warn")).toEqual([]);
+    expect(text()).toContain("Installiert ist Version 1.1.0.");
+    expect(text()).toContain("Noch nicht nach Updates gesucht.");
+    expect(knopf("Nach Updates suchen")).toBeDefined();
+  });
+
+  it("nennt die letzte Suche, wenn sie keine neuere Version fand", async () => {
+    await zeige(props({ updateGeprueft: "2026-09-27T10:15:00+02:00" }));
+    expect(text()).toContain("Keine neuere Version. Zuletzt gesucht: 27.09.2026, 10:15 Uhr");
+  });
+
+  /** Den Stand liest die Karte nicht selbst: Nach der Suche meldet sie an die App, die neu lädt. */
+  it("„Nach Updates suchen“ sucht, sperrt den Knopf solange und lässt die App neu laden", async () => {
+    let fertig!: () => void;
+    befehle.updateSuchen.mockReturnValue(new Promise<void>((r) => (fertig = r)));
+    const p = props();
+    await zeige(p);
+    await clickElement(knopf("Nach Updates suchen")!);
+    expect(befehle.updateSuchen).toHaveBeenCalledTimes(1);
+    expect(knopf("Sucht …")?.disabled).toBe(true);
+    expect(p.beiGeaendert).not.toHaveBeenCalled();
+    await act(async () => fertig());
+    await warte();
+    expect(p.beiGeaendert).toHaveBeenCalledWith(false);
+    expect(knopf("Nach Updates suchen")?.disabled).toBe(false);
+  });
+
+  it("zeigt, wenn die Suche gar nicht laufen konnte, und lädt trotzdem neu", async () => {
+    befehle.updateSuchen.mockRejectedValue("Der Befehl wurde abgebrochen: x");
+    const p = props();
+    await zeige(p);
+    await clickElement(knopf("Nach Updates suchen")!);
+    await warte();
+    expect(text()).toContain("Der Befehl wurde abgebrochen: x");
+    expect(p.beiGeaendert).toHaveBeenCalledWith(false);
+  });
+
+  it("im Entwicklerbuild ohne Knopf", async () => {
+    await zeige(props({ entwicklung: true }));
+    expect(knopf("Nach Updates suchen")).toBeUndefined();
+    expect(text()).toContain("Ein Entwicklerbuild sucht nicht nach Updates.");
   });
 
   /** Ein gescheitertes Installieren verwirft die Vormerkung: Der Fehler steht dann allein da. */

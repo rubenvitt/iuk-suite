@@ -27,15 +27,20 @@
 //!   `abgleich.rs`). Ein Fehler beim Installieren (etwa eine falsche Signatur) verwirft die
 //!   Vormerkung: Die nächste Prüfung, 15 Minuten später, merkt neu vor, statt jede Minute erneut
 //!   herunterzuladen.
+//! - „Nach Updates suchen“ (Befehl `update_suchen`) ruft dieselbe `pruefrunde` sofort, außerhalb
+//!   des Takts. Sie merkt nur vor; installiert wird weiter nur hier im Thread, im ruhigen Moment.
+//! - Ändert eine Runde, was der Status über das Update meldet (`Stand`), sendet der Thread das
+//!   Ereignis `STAND_EREIGNIS`, und die Oberfläche liest den Status neu. Sonst sähe niemand das
+//!   Ergebnis der ersten Prüfung, der die App vorher geöffnet hat.
 //!
-//! Sperrreihenfolge (`zustand.rs`): `update` und `update_fehler` sind Blätter, keiner wird über
-//! dem anderen gehalten. `lage` nimmt das Buch kurz und gibt es vor den Blättern frei; kein Lock
+//! Sperrreihenfolge (`zustand.rs`): `update`, `update_fehler` und `update_geprueft` sind Blätter,
+//! keiner wird über einem anderen gehalten. `lage` nimmt das Buch kurz und gibt es vor den Blättern frei; kein Lock
 //! wird über einer Anfrage an GitHub gehalten.
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::zustand::Zustand;
@@ -51,6 +56,9 @@ pub const REGELTAKT: Duration = Duration::from_secs(60);
 pub const WIEDERHOLUNG: Duration = Duration::from_secs(15 * 60);
 /// So lange nach der letzten Änderung eines Entwurfs gilt: Hier schreibt gerade jemand.
 pub const ENTWURF_RUHE: Duration = Duration::from_secs(15 * 60);
+
+/// Ereignis an die Oberfläche: Der Update-Teil des Status hat sich geändert (`Stand`).
+pub const STAND_EREIGNIS: &str = "update-stand";
 
 /// Ein gefundenes, noch nicht installiertes Update. Nur die Metadaten: Heruntergeladen wird erst
 /// beim Installieren (Entscheidung 2).
@@ -162,6 +170,7 @@ pub fn pruefrunde(z: &Zustand, q: &dyn Quelle) -> Result<(), String> {
             return Err(e);
         }
     };
+    *z.update_geprueft() = Some(z.uhr.jetzt());
     {
         let mut fehler = z.update_fehler();
         fehler.pruefung = None;
@@ -279,6 +288,23 @@ fn fange<T>(was: &str, f: impl FnOnce() -> Result<T, String>) -> Option<T> {
     }
 }
 
+/// Was der Status über das Update meldet: Vormerkung, Fehler und letzte Prüfung. Ändert es sich
+/// in einer Runde des Threads, sendet er `STAND_EREIGNIS`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Stand {
+    pub update: Option<String>,
+    pub fehler: Option<String>,
+    pub geprueft: Option<DateTime<Utc>>,
+}
+
+/// Liest die Blätter einzeln, keines über dem anderen (Sperrreihenfolge, `zustand.rs`).
+pub fn stand(z: &Zustand) -> Stand {
+    let update = z.update().as_ref().map(|v| v.version.clone());
+    let fehler = z.update_fehler().anzeige();
+    let geprueft = *z.update_geprueft();
+    Stand { update, fehler, geprueft }
+}
+
 /// Der Zustand der Thread-Schleife: wann die nächste Prüfung fällig ist und ob ein installiertes
 /// Update noch auf den Neustart wartet. `schritt` ist eine Minute der Schleife, mit der Zeit von
 /// außen, damit sich der Ablauf ohne Warten testen lässt.
@@ -328,7 +354,14 @@ pub fn starte(app: AppHandle) -> std::io::Result<()> {
         std::thread::sleep(ERSTE_PRUEFUNG);
         let mut lauf = Lauf::neu(Instant::now());
         loop {
-            if lauf.schritt(&app.state::<Zustand>(), &quelle, Instant::now()) {
+            let zustand = app.state::<Zustand>();
+            let vorher = stand(&zustand);
+            let neustart = lauf.schritt(&zustand, &quelle, Instant::now());
+            if stand(&zustand) != vorher {
+                // Scheitert das Senden, zeigt die Oberfläche den Stand beim nächsten Neulesen.
+                let _ = app.emit(STAND_EREIGNIS, ());
+            }
+            if neustart {
                 app.restart();
             }
             std::thread::sleep(REGELTAKT);
@@ -344,6 +377,7 @@ mod tests {
     use std::sync::atomic::AtomicBool;
 
     use chrono::Duration as Dauer;
+    use einsatzbuch_kern::erfassung::formatiere_zeitpunkt;
     use einsatzbuch_kern::uhr::Uhr;
     use zeroize::Zeroizing;
 
@@ -460,6 +494,37 @@ mod tests {
         *q.version.borrow_mut() = Ok(None);
         pruefrunde(&z, &q).unwrap();
         assert_eq!(vorgemerkt(&z), None, "zurückgesetzt nach Runbook");
+    }
+
+    /// Die letzte gelungene Prüfung steht mit Zeitpunkt im Status und im `Stand`; eine
+    /// gescheiterte lässt ihn stehen.
+    #[test]
+    fn pruefrunde_haelt_die_letzte_gelungene_pruefung_fest() {
+        let ordner = tempfile::tempdir().unwrap();
+        let uhr = Stelluhr::neu();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
+        assert_eq!(stand(&z), Stand { update: None, fehler: None, geprueft: None });
+        assert_eq!(lies_status(&z).unwrap().update_geprueft, None);
+
+        let q = FakeQuelle::mit(None);
+        pruefrunde(&z, &q).unwrap();
+        let erste = uhr.jetzt();
+        assert_eq!(stand(&z), Stand { update: None, fehler: None, geprueft: Some(erste) });
+        let s = lies_status(&z).unwrap();
+        let zone = s.zeitzone.clone().unwrap();
+        assert_eq!(s.update_geprueft, Some(formatiere_zeitpunkt(erste, &zone)));
+        let json = serde_json::to_value(&s).unwrap();
+        assert_eq!(json.get("updateGeprueft"), Some(&serde_json::json!(formatiere_zeitpunkt(erste, &zone))));
+
+        uhr.vor(Dauer::minutes(5));
+        *q.version.borrow_mut() = Err("offline".into());
+        assert!(pruefrunde(&z, &q).is_err());
+        assert_eq!(stand(&z).geprueft, Some(erste), "eine gescheiterte Prüfung zählt nicht");
+        assert!(stand(&z).fehler.is_some());
+
+        *q.version.borrow_mut() = Ok(Some("0.2.0".into()));
+        pruefrunde(&z, &q).unwrap();
+        assert_eq!(stand(&z), Stand { update: Some("0.2.0".into()), fehler: None, geprueft: Some(uhr.jetzt()) });
     }
 
     #[test]
