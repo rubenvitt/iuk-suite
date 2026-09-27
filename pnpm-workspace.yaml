@@ -19,5 +19,15 @@ allowBuilds:
 # Fassung, die niemand mehr laedt: pnpm meldet das NICHT, solange irgendein anderes Paket die
 # alte Version noch zieht (`@ant-design/cssinjs` tut das, ohne den Hook zu benutzen).
 # `src/rc-component-util.test.tsx` misst deshalb die WIRKUNG ueber antds eigene Aufloesung.
+#
+# Der Patch an next (DRK-481): nach dem Proxy tauscht Next den Koerper jeder POST-Anfrage gegen
+# einen Puffer und kopiert dabei dessen `_destroy`/`_events` auf die IncomingMessage. Bricht der
+# Client ab, bevor die Route den Koerper gelesen und geantwortet hat, wird `aborted` (ECONNRESET)
+# so zur uncaughtException, und der Netzhaken (`core/av/scanner`) beendet die ganze Suite —
+# gemessen gegen den gebauten Stand: zwei POSTs mit RST auf `/` genuegten, ohne Anmeldung. Der
+# Patch haengt einen leeren `error`-Zuhoerer an und stellt damit Nodes eigene Regel wieder her
+# (ohne Zuhoerer kein `error`); wer den Koerper liest, bekommt den Fehler weiter. Bis 16.4 canary
+# unveraendert upstream. `src/next-anfrageabbruch.test.ts` misst die WIRKUNG in einem Kindprozess.
 patchedDependencies:
   '@rc-component/util@1.13.0': patches/@rc-component__util@1.13.0.patch
+  next@16.3.3: patches/next@16.3.3.patch
