@@ -32,13 +32,14 @@ on:
       - "pnpm-workspace.yaml"
       - "e2e/helpers/ports.ts"
       - "src/app/m/qr/_lib/test-dom.tsx"
+      - "scripts/einsatzbuch-vorgaenger.sh"
       - ".github/workflows/einsatzbuch.yml"
   # Tags laufen trotz `paths` immer an. GitHub-Doku, „Workflow syntax for GitHub Actions“,
   # Abschnitt `on.<push|pull_request|pull_request_target>.<paths|paths-ignore>`
   # (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions):
   # „Path filters are not evaluated for pushes of tags.“ Deshalb laufen `oberflaeche`,
-  # `rust-kern` und `desktop` bei einem Release-Tag mit, und die Release-Jobs hängen per
-  # `needs` an ihnen. `tags` steht neben `branches`, denn laut derselben Seite gilt: „If you
+  # `rust-kern`, `vorgaenger` und `desktop` bei einem Release-Tag mit, und die Release-Jobs
+  # hängen per `needs` an ihnen. `tags` steht neben `branches`, denn laut derselben Seite gilt: „If you
   # define only `tags`/`tags-ignore` or only `branches`/`branches-ignore`, the workflow
   # won't run for events affecting the undefined Git ref.“
   push:
@@ -54,6 +55,7 @@ on:
       - "pnpm-workspace.yaml"
       - "e2e/helpers/ports.ts"
       - "src/app/m/qr/_lib/test-dom.tsx"
+      - "scripts/einsatzbuch-vorgaenger.sh"
       - ".github/workflows/einsatzbuch.yml"
 
 permissions:
@@ -202,6 +204,28 @@ jobs:
             exit 1
           fi
 
+  # Kompatibilität mit dem letzten Release `einsatzbuch-vX.Y.Z` (DRK-488): Was dieser Stand
+  # schreibt, liest die Version davor, und umgekehrt, samt Übernahme ihrer Datenbank wie bei einem
+  # Update und dem Drahtvertrag der Suite. Die Proben stehen im Kopf von
+  # `scripts/einsatzbuch-vorgaenger.sh`, das Vorgehen bei einer gewollten Formatänderung im
+  # Runbook docs/runbooks/einsatzbuch-release.md. `fetch-depth: 0` holt die Tags; das Release
+  # checkt das Skript als eigenen Worktree aus und baut dessen Kern, deshalb ein zweiter Cache.
+  vorgaenger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable, Stand 2026-09-03
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/einsatzbuch/src-tauri
+      - name: Formatprobe und Drahtvertrag gegen das letzte Release
+        shell: bash
+        run: scripts/einsatzbuch-vorgaenger.sh
+
   desktop:
     strategy:
       fail-fast: false
@@ -322,13 +346,13 @@ jobs:
           fi
 
   # Release-Fassung, wenn `release-version` ein Release beschließt (Runbook
-  # docs/runbooks/einsatzbuch-release.md). Hängt an allen drei Prüfjobs: Ohne Statusfunktion im
+  # docs/runbooks/einsatzbuch-release.md). Hängt an allen vier Prüfjobs: Ohne Statusfunktion im
   # `if` gilt implizit `success()`, ein Stand mit roten Tests wird also nicht ausgeliefert. Nur
   # `contents: read`; schreiben darf erst `release-veroeffentlichen`, und das erst, wenn beide
   # Plattformen gebaut sind.
   release-bauen:
     if: github.event_name == 'push' && needs.release-version.outputs.release == 'true'
-    needs: [oberflaeche, rust-kern, desktop, release-version]
+    needs: [oberflaeche, rust-kern, vorgaenger, desktop, release-version]
     permissions:
       contents: read
     strategy:

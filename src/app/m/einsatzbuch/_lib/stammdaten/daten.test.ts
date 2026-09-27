@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { person } from "../../_db/schema";
 import { testDb } from "../testDb";
 import { fahrzeugEingabe, personEingabe, stichwortEingabe } from "./schemas";
 import {
@@ -32,8 +33,8 @@ describe("Stammdaten", () => {
   });
   it("sortiert: Fahrzeuge nach Standort/Kennung, Personal nach Name (de), Stichworte nach Gruppe/Reihenfolge", () => {
     const db = testDb();
-    speicherePerson(db, null, { name: "Voß, Anke", quali: "SanH", ov: "Uelzen", aktiv: true });
-    speicherePerson(db, null, { name: "Albers, Jana", quali: "ZF", ov: "Uelzen", aktiv: true });
+    speicherePerson(db, null, { name: "Voß, Anke", quali: "SanH", aktiv: true });
+    speicherePerson(db, null, { name: "Albers, Jana", quali: "NotSan", aktiv: true });
     expect(listePersonal(db).map((p) => p.name)).toEqual(["Albers, Jana", "Voß, Anke"]);
     speichereStichwort(db, null, { gruppe: "MANV", name: "MANV 25", reihenfolge: 3, aktiv: true });
     speichereStichwort(db, null, { gruppe: "MANV", name: "MANV 5", reihenfolge: 1, aktiv: true });
@@ -47,8 +48,25 @@ describe("Eingabeschemas", () => {
     expect(fahrzeugEingabe.safeParse({ ...FZ, kennung: "" }).success).toBe(false);
   });
   it("Name nur als „Nachname, Vorname“", () => {
-    expect(personEingabe.safeParse({ name: "Jana Albers", quali: "ZF", ov: "Uelzen", aktiv: true }).success).toBe(false);
-    expect(personEingabe.safeParse({ name: "Albers, Jana", quali: "ZF", ov: "Uelzen", aktiv: true }).success).toBe(true);
+    expect(personEingabe.safeParse({ name: "Jana Albers", quali: "RS", aktiv: true }).success).toBe(false);
+    expect(personEingabe.safeParse({ name: "Albers, Jana", quali: "RS", aktiv: true }).success).toBe(true);
+  });
+  it("Qualifikation nur aus der festen Liste (DRK-488)", () => {
+    for (const quali of ["NotSan", "RettAss", "RS", "SiK", "SanH", " SiK "]) {
+      expect(personEingabe.safeParse({ name: "Albers, Jana", quali, aktiv: true }).success).toBe(true);
+    }
+    const falsch = personEingabe.safeParse({ name: "Albers, Jana", quali: "GF", aktiv: true });
+    expect(falsch.success).toBe(false);
+    expect(falsch.error?.issues[0]?.message).toBe("Qualifikation bitte aus NotSan, RettAss, RS, SiK, SanH wählen");
+    expect(personEingabe.safeParse({ name: "Albers, Jana", quali: "", aktiv: true }).error?.issues[0]?.message).toBe("Qualifikation fehlt");
+  });
+  it("Personal verlässt die Datenschicht ohne Ortsverein, die Spalte bleibt leer (DRK-488)", () => {
+    const db = testDb();
+    const neu = speicherePerson(db, null, { name: "Voß, Anke", quali: "SanH", aktiv: true });
+    expect(neu).toEqual({ id: expect.any(String), name: "Voß, Anke", quali: "SanH", aktiv: true });
+    expect(speicherePerson(db, neu.id, { name: "Voß, Anke", quali: "RS", aktiv: true })).not.toHaveProperty("ov");
+    expect(listePersonal(db)[0]).not.toHaveProperty("ov");
+    expect(db.select({ ov: person.ov }).from(person).all()).toEqual([{ ov: "" }]);
   });
   it("Reihenfolge ist eine ganze Zahl von 0 bis 9999", () => {
     expect(stichwortEingabe.safeParse({ gruppe: "RD", name: "RD 1", reihenfolge: 1.5, aktiv: true }).success).toBe(false);

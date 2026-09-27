@@ -1,17 +1,16 @@
 "use client";
 
 import { useId, useState, type FormEvent, type ReactNode } from "react";
-import { Alert, AutoComplete, Button, Input, InputNumber, Switch } from "antd";
+import { Alert, Button, Input, InputNumber, Select, Switch } from "antd";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { fahrzeugSpeichernAction, personSpeichernAction, stichwortSpeichernAction } from "../../_actions/stammdaten";
 import type { FeldFehler } from "../../_lib/actionErgebnis";
-import { ORTE, QUALIS } from "../../_lib/stammdaten/vorlage";
+import { QUALIFIKATIONEN } from "../../_lib/stammdaten/vorlage";
 import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "../../_lib/stammdaten/typen";
 import type { Stammeintrag } from "./StammdatenTabelle";
 
-const QUALI_OPTIONEN = QUALIS.map((q) => ({ value: q }));
-const ORT_OPTIONEN = ORTE.map(([ort]) => ({ value: ort }));
+const QUALI_OPTIONEN = QUALIFIKATIONEN.map((q) => ({ value: q.kurz, label: `${q.kurz} – ${q.lang}` }));
 
 /** Die Textfelder aller drei Arten in einem Zustand; welche davon gelten, entscheidet `art`. */
 interface Zustand {
@@ -21,14 +20,13 @@ interface Zustand {
   standort: string;
   name: string;
   quali: string;
-  ov: string;
   gruppe: string;
   reihenfolge: number | null;
   aktiv: boolean;
 }
 
 function zustandAus(art: Stammdatenart, eintrag: Stammeintrag | null): Zustand {
-  const leer: Zustand = { typ: "", kennung: "", ruf: "", standort: "", name: "", quali: "", ov: "", gruppe: "", reihenfolge: 0, aktiv: true };
+  const leer: Zustand = { typ: "", kennung: "", ruf: "", standort: "", name: "", quali: "", gruppe: "", reihenfolge: 0, aktiv: true };
   if (!eintrag) return leer;
   if (art === "fahrzeuge") {
     const f = eintrag as FahrzeugDTO;
@@ -36,7 +34,7 @@ function zustandAus(art: Stammdatenart, eintrag: Stammeintrag | null): Zustand {
   }
   if (art === "personal") {
     const p = eintrag as PersonDTO;
-    return { ...leer, name: p.name, quali: p.quali, ov: p.ov, aktiv: p.aktiv };
+    return { ...leer, name: p.name, quali: p.quali, aktiv: p.aktiv };
   }
   const s = eintrag as StichwortDTO;
   return { ...leer, gruppe: s.gruppe, name: s.name, reihenfolge: s.reihenfolge, aktiv: s.aktiv };
@@ -69,7 +67,7 @@ export function StammdatenFormular({
   function speichere() {
     const id = eintrag?.id ?? null;
     if (art === "fahrzeuge") return fahrzeugSpeichernAction(id, { typ: z.typ, kennung: z.kennung, ruf: z.ruf, standort: z.standort, aktiv: z.aktiv });
-    if (art === "personal") return personSpeichernAction(id, { name: z.name, quali: z.quali, ov: z.ov, aktiv: z.aktiv });
+    if (art === "personal") return personSpeichernAction(id, { name: z.name, quali: z.quali, aktiv: z.aktiv });
     return stichwortSpeichernAction(id, { gruppe: z.gruppe, name: z.name, reihenfolge: z.reihenfolge, aktiv: z.aktiv });
   }
 
@@ -108,19 +106,21 @@ export function StammdatenFormular({
       />
     </Feld>
   );
-  /** Freitext mit Vorschlägen: neue Werte bleiben möglich, die Vorlage ist nur eine Hilfe. */
-  const vorschlag = (feld: "quali" | "ov", label: string, optionen: { value: string }[]) => (
-    <Feld id={`${basis}-${feld}`} label={label} fehler={feldFehler[feld]}>
-      <AutoComplete
-        id={`${basis}-${feld}`}
-        value={z[feld]}
-        options={optionen}
-        status={feldFehler[feld] ? "error" : undefined}
-        aria-describedby={feldFehler[feld] ? `${basis}-${feld}-fehler` : undefined}
-        onChange={(wert: string) => setze(feld, wert)}
-        showSearch={{
-          filterOption: (eingabe, option) => (option?.value ?? "").toLowerCase().includes(eingabe.toLowerCase()),
-        }}
+  /**
+   * Feste Liste statt Freitext (DRK-488). Volle Breite: Ohne sie schrumpft das Feld auf seinen
+   * Wert. Ein Altwert außerhalb der Liste bleibt sichtbar, speichern lässt ihn der Server nicht.
+   */
+  const quali = (
+    <Feld id={`${basis}-quali`} label="Qualifikation" fehler={feldFehler.quali}>
+      <Select
+        id={`${basis}-quali`}
+        style={{ width: "100%" }}
+        value={z.quali || undefined}
+        placeholder="Qualifikation wählen"
+        options={QUALI_OPTIONEN}
+        status={feldFehler.quali ? "error" : undefined}
+        aria-describedby={feldFehler.quali ? `${basis}-quali-fehler` : undefined}
+        onChange={(wert: string) => setze("quali", wert)}
       />
     </Feld>
   );
@@ -141,8 +141,7 @@ export function StammdatenFormular({
       {art === "personal" ? (
         <>
           {text("name", "Name (Nachname, Vorname)")}
-          {vorschlag("quali", "Qualifikation", QUALI_OPTIONEN)}
-          {vorschlag("ov", "Ortsverein", ORT_OPTIONEN)}
+          {quali}
         </>
       ) : null}
 

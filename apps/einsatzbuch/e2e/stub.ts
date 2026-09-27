@@ -63,7 +63,7 @@ export interface StubOptionen {
 
 /**
  * Drei Fahrzeuge, drei Personen — Ausschnitt aus `src-tauri/kern/entwicklung/stammdaten.json`
- * (derselbe Ortsverein Uelzen), klein genug für eine Spec: „83-1“ trifft nur ein Fahrzeug,
+ * (Standort Uelzen), klein genug für eine Spec: „83-1“ trifft nur ein Fahrzeug,
  * „Dierks“ nur eine Person.
  */
 const STAMMDATEN: Stammdaten = {
@@ -73,9 +73,9 @@ const STAMMDATEN: Stammdaten = {
     { id: "11-64-1", typ: "GW-San", kennung: "11-64-1", ruf: "Rotkreuz Uelzen 11-64-1", standort: "Uelzen" },
   ],
   personal: [
-    { id: "p4", name: "Dierks, Paul", quali: "SanH", ov: "Bad Bodenteich" },
-    { id: "p1", name: "Albers, Jana", quali: "SanH", ov: "Uelzen" },
-    { id: "p8", name: "Hansen, Finn", quali: "NotSan", ov: "Suderburg" },
+    { id: "p4", name: "Dierks, Paul", quali: "SanH", ov: "" },
+    { id: "p1", name: "Albers, Jana", quali: "SanH", ov: "" },
+    { id: "p8", name: "Hansen, Finn", quali: "NotSan", ov: "" },
   ],
   // Wörtlich die fünf Gruppen aus der Vorlage (`docs/design/einsatzbuch-v2/vorlage/
   // Einsatzbuch v2.dc.html`, dieselbe Liste wie in `stammdaten.json`).

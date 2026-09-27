@@ -106,10 +106,13 @@ export function fahrzeugTreffer(alle: Fahrzeug[], suche: string, filter: string)
   return alle.filter((f) => (filter === "Alle" || f.standort === filter) && (!q || `${f.typ} ${f.ruf}`.toLowerCase().includes(q)));
 }
 
-/** Personensuche über Name, Qualifikation und Ortsverein, gefiltert nach Qualifikation. */
+/**
+ * Personensuche über Name und Qualifikation, gefiltert nach Qualifikation. Den Ortsverein führt
+ * die Suite nicht mehr (DRK-488); er reist leer mit und wird weder gezeigt noch durchsucht.
+ */
 export function personTreffer(alle: Person[], suche: string, filter: string): Person[] {
   const q = suche.trim().toLowerCase();
-  return alle.filter((p) => (filter === "Alle" || p.quali === filter) && (!q || `${p.name} ${p.quali} ${p.ov}`.toLowerCase().includes(q)));
+  return alle.filter((p) => (filter === "Alle" || p.quali === filter) && (!q || `${p.name} ${p.quali}`.toLowerCase().includes(q)));
 }
 
 /** Distinkte Standorte in Reihenfolge des ersten Auftretens, mit vorangestelltem „Alle“. */

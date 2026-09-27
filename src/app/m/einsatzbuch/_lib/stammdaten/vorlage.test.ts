@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VORLAGE_FAHRZEUGE, VORLAGE_PERSONAL, VORLAGE_STICHWORTE } from "./vorlage";
+import { QUALIS, VORLAGE_FAHRZEUGE, VORLAGE_PERSONAL, VORLAGE_STICHWORTE } from "./vorlage";
 
 describe("Stammdaten der Vorlage", () => {
   it("56 Fahrzeuge, Kennung = ID, Funkrufname nach Muster", () => {
@@ -10,9 +10,11 @@ describe("Stammdaten der Vorlage", () => {
   });
   it("112 Personen mit festen IDs aus dem Generator der Vorlage", () => {
     expect(VORLAGE_PERSONAL).toHaveLength(112);
-    expect(VORLAGE_PERSONAL.find((p) => p.id === "p1")).toMatchObject({ name: "Albers, Jana", quali: "SanH", ov: "Uelzen" });
-    expect(VORLAGE_PERSONAL.find((p) => p.id === "p4")).toMatchObject({ name: "Dierks, Paul", quali: "SanH", ov: "Bad Bodenteich" });
-    expect(VORLAGE_PERSONAL.find((p) => p.id === "p8")).toMatchObject({ name: "Hansen, Finn", quali: "NotSan", ov: "Suderburg" });
+    expect(VORLAGE_PERSONAL.find((p) => p.id === "p1")).toEqual({ id: "p1", name: "Albers, Jana", quali: "SanH", aktiv: true });
+    expect(VORLAGE_PERSONAL.find((p) => p.id === "p4")).toMatchObject({ name: "Dierks, Paul", quali: "SanH" });
+    expect(VORLAGE_PERSONAL.find((p) => p.id === "p8")).toMatchObject({ name: "Hansen, Finn", quali: "NotSan" });
+    // Nur Qualifikationen der festen Liste (DRK-488), sonst ließe sich die Vorlage nicht bearbeiten.
+    expect(VORLAGE_PERSONAL.every((p) => (QUALIS as readonly string[]).includes(p.quali))).toBe(true);
     expect(new Set(VORLAGE_PERSONAL.map((p) => p.name)).size).toBe(112);
   });
   it("12 Stichworte in 5 Gruppen, eindeutige Namen", () => {

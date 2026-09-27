@@ -8,8 +8,16 @@ import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "./type
 
 export const KOPFZEILEN: Record<Stammdatenart, readonly string[]> = {
   fahrzeuge: ["typ", "kennung", "ruf", "standort"],
-  personal: ["name", "quali", "ov"],
+  personal: ["name", "quali"],
   stichworte: ["gruppe", "name", "reihenfolge"],
+};
+/**
+ * Frühere Kopfzeilen, die der Import weiter annimmt. Spalten, die `KOPFZEILEN` nicht mehr kennt,
+ * liest er und verwirft sie: Eine vorhandene Personalliste mit Ortsverein (bis DRK-488) geht so
+ * ohne Umbau durch.
+ */
+const FRUEHERE_KOPFZEILEN: Partial<Record<Stammdatenart, readonly string[]>> = {
+  personal: ["name", "quali", "ov"],
 };
 export const MAX_CSV_ZEICHEN = 512 * 1024;
 export const MAX_CSV_ZEILEN = 2000;
@@ -115,9 +123,10 @@ export function planeImport(art: Stammdatenart, text: string, bestand: Importbes
   const roh = parseCsvMitZeilen(text);
   if (roh.length === 0) return { ok: false, fehler: "Die Datei ist leer." };
   const kopf = KOPFZEILEN[art];
-  if (roh[0].felder.map((s) => s.trim().toLowerCase()).join(";") !== kopf.join(";")) {
-    return { ok: false, fehler: `Die Kopfzeile muss genau „${kopf.join(";")}“ lauten.` };
-  }
+  const gelesen = roh[0].felder.map((s) => s.trim().toLowerCase()).join(";");
+  const alt = FRUEHERE_KOPFZEILEN[art];
+  const spalten = gelesen === kopf.join(";") ? kopf : alt && gelesen === alt.join(";") ? alt : null;
+  if (!spalten) return { ok: false, fehler: `Die Kopfzeile muss genau „${kopf.join(";")}“ lauten.` };
   if (roh.length - 1 > MAX_CSV_ZEILEN) return { ok: false, fehler: `Höchstens ${MAX_CSV_ZEILEN} Zeilen je Import.` };
 
   // Der fachliche Schlüssel (`kennung`/`name`) ist je nach Art auf einem anderen DTO-Feld zu
@@ -125,9 +134,9 @@ export function planeImport(art: Stammdatenart, text: string, bestand: Importbes
   const vorhanden = bestand[art] as (FahrzeugDTO | PersonDTO | StichwortDTO)[];
   const gesehen = new Map<string, number>();
   const zeilen = roh.slice(1).map(({ zeile, felder }): Vorschauzeile => {
-    const werte = Object.fromEntries(kopf.map((k, j) => [k, (felder[j] ?? "").trim()]));
-    if (felder.length !== kopf.length) {
-      return { zeile, klasse: "fehler", werte, fehler: `${kopf.length} Spalten erwartet, ${felder.length} gefunden` };
+    const werte = Object.fromEntries(kopf.map((k) => [k, (felder[spalten.indexOf(k)] ?? "").trim()]));
+    if (felder.length !== spalten.length) {
+      return { zeile, klasse: "fehler", werte, fehler: `${spalten.length} Spalten erwartet, ${felder.length} gefunden` };
     }
     const eingabe = {
       ...werte,

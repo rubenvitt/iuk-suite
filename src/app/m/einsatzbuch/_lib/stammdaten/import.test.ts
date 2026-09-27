@@ -26,17 +26,17 @@ describe("wendeImportAn", () => {
 
   it("schreibt Personal (neu und geändert, reaktiviert)", () => {
     const db = testDb();
-    speicherePerson(db, null, { name: "Meyer, Hanna", quali: "BtH", ov: "Rosche", aktiv: false });
-    const text = "name;quali;ov\nMeyer, Hanna;SanH;Uelzen\nAlbers, Jana;ZF;Uelzen";
+    speicherePerson(db, null, { name: "Meyer, Hanna", quali: "SiK", aktiv: false });
+    const text = "name;quali\nMeyer, Hanna;SanH\nAlbers, Jana;NotSan";
     const plan = planeImport("personal", text, bestandFuerImport(db));
     if (!plan.ok) throw new Error(plan.fehler);
     expect(wendeImportAn(db, plan)).toEqual({ neu: 1, geaendert: 1, unveraendert: 0, fehler: 0 });
     const liste = listePersonal(db);
     expect(liste.find((p) => p.name === "Meyer, Hanna")).toEqual({
-      id: expect.any(String), name: "Meyer, Hanna", quali: "SanH", ov: "Uelzen", aktiv: true,
+      id: expect.any(String), name: "Meyer, Hanna", quali: "SanH", aktiv: true,
     });
     expect(liste.find((p) => p.name === "Albers, Jana")).toEqual({
-      id: expect.any(String), name: "Albers, Jana", quali: "ZF", ov: "Uelzen", aktiv: true,
+      id: expect.any(String), name: "Albers, Jana", quali: "NotSan", aktiv: true,
     });
   });
 

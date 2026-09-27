@@ -484,7 +484,7 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 .treffer:hover { background: var(--iuk-flaeche-aktiv); }
 .treffer[aria-pressed="true"] { background: var(--iuk-flaeche-aktiv); }
 .treffer-fz { grid-template-columns: 20px 84px minmax(0, 1fr) auto; }
-.treffer-pe { grid-template-columns: 20px minmax(0, 1fr) 64px 120px; }
+.treffer-pe { grid-template-columns: 20px minmax(0, 1fr) 72px; }
 .treffer-pe[aria-pressed="true"] { font-weight: 600; }
 .treffer-typ { font: 600 18px/1.2 var(--font-display); letter-spacing: 0.02em; }
 .treffer-ruf { font: 400 13px var(--font-mono); color: var(--verw-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

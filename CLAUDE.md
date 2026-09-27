@@ -175,6 +175,9 @@ Tor: `pnpm anker:neu` meldet jeden **neuen** Zeilenanker ins eigene Repo gegenü
 - `typecheck` läuft mit `--pretty false`; außerhalb dieser Umgebung den Exit-Code prüfen, nicht die
   Ausgabe greppen.
 - DOM-Tests nutzen das Harness `src/app/m/qr/_lib/test-dom.tsx` — kein zweites erfinden.
+- Die Einsatzbuch-App bleibt mit ihrem letzten Release kompatibel, in beide Richtungen (DRK-488): Job
+  `vorgaenger` (`scripts/einsatzbuch-vorgaenger.sh`). Eine Formatänderung braucht zwei Releases, erst
+  lesen, dann schreiben (Runbook `einsatzbuch-release.md`); ein weggefallenes Feld bleibt leer stehen.
 - E2E-Ports gehören der Arbeitskopie (`e2e/helpers/ports.ts`): in Specs nie ein Portliteral, sondern
   `E2E_PORT`/`E2E_PORTS` aus `./fixtures`. Hält eine „FREMDE Arbeitskopie" den Port, nicht beenden.
 

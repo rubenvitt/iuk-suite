@@ -5,6 +5,7 @@
  * ohne dort nachzuziehen.
  */
 import { z } from "zod";
+import { QUALIS } from "./vorlage";
 
 const text = (max: number, feld: string) =>
   z.string().trim().min(1, `${feld} fehlt`).max(max, `${feld} ist länger als ${max} Zeichen`);
@@ -18,8 +19,7 @@ export const fahrzeugEingabe = z.object({
 });
 export const personEingabe = z.object({
   name: text(80, "Name").regex(/^[^,]+, [^,]+$/, "Name bitte als „Nachname, Vorname“"),
-  quali: text(20, "Qualifikation"),
-  ov: text(60, "Ortsverein"),
+  quali: text(20, "Qualifikation").refine((q) => (QUALIS as readonly string[]).includes(q), `Qualifikation bitte aus ${QUALIS.join(", ")} wählen`),
   aktiv: z.boolean(),
 });
 export const stichwortEingabe = z.object({

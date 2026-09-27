@@ -17,8 +17,8 @@ function befuellt() {
   const db = testDb();
   speichereFahrzeug(db, null, { typ: "RTW", kennung: "11-83-1", ruf: "Rotkreuz Uelzen 11-83-1", standort: "Uelzen", aktiv: true });
   speichereFahrzeug(db, null, { typ: "KTW", kennung: "11-85-9", ruf: "Rotkreuz Uelzen 11-85-9", standort: "Uelzen", aktiv: false });
-  speicherePerson(db, null, { name: "Albers, Jana", quali: "SanH", ov: "Uelzen", aktiv: true });
-  speicherePerson(db, null, { name: "Brandt, Ole", quali: "RS", ov: "Bad Bevensen", aktiv: false });
+  speicherePerson(db, null, { name: "Albers, Jana", quali: "SanH", aktiv: true });
+  speicherePerson(db, null, { name: "Brandt, Ole", quali: "RS", aktiv: false });
   // Gruppe „Rettungsdienst“ hat die kleinste Reihenfolge (1), „Brand“ erst 5: Rettungsdienst zuerst.
   speichereStichwort(db, null, { gruppe: "Brand", name: "B 2", reihenfolge: 6, aktiv: true });
   speichereStichwort(db, null, { gruppe: "Brand", name: "B 1", reihenfolge: 5, aktiv: true });
@@ -42,7 +42,8 @@ describe("baueStammdatenpaket", () => {
       version: stammdatenVersion(db),
       stammdaten: {
         fahrzeuge: [{ id: expect.any(String), typ: "RTW", kennung: "11-83-1", ruf: "Rotkreuz Uelzen 11-83-1", standort: "Uelzen" }],
-        personal: [{ id: expect.any(String), name: "Albers, Jana", quali: "SanH", ov: "Uelzen" }],
+        // `ov` bleibt als leeres Drahtfeld: Die App bis v1.0.0 verlangt es (DRK-488).
+        personal: [{ id: expect.any(String), name: "Albers, Jana", quali: "SanH", ov: "" }],
         stichworte: [
           { name: "Rettungsdienst", items: ["RD 1", "RD 0", "RD 2"] },
           { name: "Brand", items: ["B 1", "B 2"] },
