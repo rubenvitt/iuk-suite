@@ -126,13 +126,13 @@ jobs:
       - run: pnpm typecheck
 
   # ⚠️ HIER IST `--shard` RICHTIG, WAEHREND ES BEI e2e VERBOTEN IST — die
-  # Begruendung von DRK-358 traegt genau NICHT hierher, und der Unterschied ist
+  # Begruendung von dort traegt genau NICHT hierher, und der Unterschied ist
   # der Grund, warum beides nebeneinander stehen kann:
   #
-  #   e2e:    EIN `next dev` bedient den ganzen Shard, sein Speicher waechst mit
-  #           der Zahl uebersetzter Routen und faellt nie zurueck. Wer nach
-  #           Fallzahl teilt, mischt Module in einen Server — gemessen 12 768 MB
-  #           Spitze und ein toter Runner (`scripts/e2e-gruppen.test.ts`).
+  #   e2e:    EIN Server und EINE Datenbank bedienen die ganze Gruppe, die
+  #           Dateien laufen nacheinander, und ihre Laufzeiten reichen von
+  #           0,4 s bis 127 s. Wer nach Fallzahl teilt, bekommt weder gleich
+  #           lange Gruppen noch eine feste Zuordnung (Job `e2e`).
   #   Vitest: kein Server, kein geteilter Zustand ueber Dateigrenzen. Jeder Shard
   #           ist ein eigener Runner mit eigenem Arbeitsbaum; die Dateien, die
   #           feste relative Pfade beschreiben (`./.data/…`), liegen damit auf
@@ -205,7 +205,7 @@ jobs:
       - id: rechne
         run: node scripts/version.mjs
 
-  # GRUPPEN JE MODUL, NICHT MEHR WORKER — und das ist keine Geschmacksfrage.
+  # GRUPPEN STATT WORKER — und das ist keine Geschmacksfrage.
   # `playwright.config.ts` steht auf `workers: 1`, weil der Fake-clamd seine
   # Modusdatei prozessweit teilt und `FILES_AV_PARALLEL: 1` die Reihenfolge
   # festnagelt; zwei Worker auf EINER Maschine wuerden sich gegenseitig den
@@ -213,105 +213,76 @@ jobs:
   # Fake-clamd, eigenem `.data/e2e` und eigener `FAKE_CLAMD_MODUS: ok`-
   # Vorbelegung — der geteilte Zustand wird dupliziert statt geteilt. Eine
   # Spec-Datei liegt immer ganz in einer Gruppe, die Reihenfolge innerhalb einer
-  # Spec ueberlebt also.
+  # Spec ueberlebt also. Innerhalb einer Gruppe faehrt Playwright die Dateien
+  # nach Namen sortiert, gleich in welcher Reihenfolge `specs` sie nennt
+  # (Einzelheiten in `scripts/e2e-gruppen.test.ts`); die Specs sind so gebaut,
+  # dass sie allein UND im Verbund gruen sind (geteilte Datenbank,
+  # `docs/design/README.md`).
   #
-  # WARUM JE MODUL UND NICHT `--shard=n/N` — der Grund ist ein Ausfall, keine Rechnung.
+  # ══ NACH LAUFZEIT GESCHNITTEN, NICHT MEHR NACH MODUL (DRK-484) ════════════════
   #
-  # Die alte Begruendung lautete: gemessen 211 Tests in 18:18 bei einem Worker,
-  # ~90-120 s Fixkosten je Shard, 3 Shards ≈ 8 min, 4 ≈ 6,5 min, danach frisst der
-  # Vorspann den Gewinn. Das ist eine Aussage ueber WANDUHRZEIT und bleibt richtig.
-  # Sie war nur nie die einzige Groesse.
+  # „Eine Gruppe je Modul" hatte EINEN Grund, und der war ein Ausfall: solange
+  # jede Gruppe ein eigenes `next dev` fuhr, wuchs dessen Speicher mit jeder
+  # uebersetzten Route und fiel nie zurueck. Mischte eine Gruppe Module, starb
+  # der Runner — gemessen 12 768 MB Spitze gegen 4 258 MB fuer dieselben Faelle
+  # allein, dazu die Turbopack-Panik beim Zurueckholen aus dem Plattencache
+  # (DRK-358; Messung und verworfene Schalter im Kopf von
+  # `scripts/e2e-gruppen.test.ts`).
   #
-  # Am 2026-08-28 hat sich `e2e (2)` zweimal in Folge den Dev-Server zerlegt
-  # (Laeufe 33166458248 und 33170618131, jeweils Test 119 von 132,
-  # `login-dev-gruppen.spec.ts:57`):
+  # ⚠️ DIESER GRUND IST WEG. Seit DRK-415 laedt jede Gruppe den Stand aus
+  # `e2e-build` und faehrt `next start` — es wird nichts mehr uebersetzt.
+  # Gemessen (lokal, 4 Kerne, RSS des `next-server` alle 5 s): die GANZE Suite
+  # am Stueck auf EINEM Server, 520 Faelle, Spitze 485 MB. Ein Modulmix in einer
+  # Gruppe kostet also nichts mehr; geblieben ist nur der geteilte Zustand je
+  # Runner aus dem Absatz oben.
   #
-  #   thread 'tokio-rt-worker' panicked at
-  #   turbopack/crates/turbo-tasks-backend/src/backend/operation/mod.rs:292:17:
-  #   Restore of All for task TaskId 1038233 failed in another thread: restoring failed
-  #   turbo-tasks: an internal panic occurred outside the per-task panic boundary
-  #   Aborting.
+  # DER SCHNITT VOM 2026-09-27: ACHT GRUPPEN STATT ELF, je rund 170 s Testzeit.
+  # Gemessen an den sieben gruenen main-Laeufen 1393 bis 1417 (alle schon gegen
+  # `next start`), je Datei die Zeit von Protokollzeile zu Protokollzeile des
+  # `list`-Reporters — also samt `beforeAll` und Fixtures, nicht nur die Zahl in
+  # Klammern:
   #
-  # Danach fielen die restlichen 15 Tests mit `ERR_CONNECTION_RESET/REFUSED` —
-  # ein Bild, das nach kaputter Anmeldung aussieht und keine ist. `Restore of …`
-  # ist der Rueckweg von Turbopacks Plattencache: der schnappschusst seinen
-  # Aufgabengraphen nach `.next/dev/cache/turbopack` (Vorgabe `true` seit Next
-  # 16.1.0), raeumt unter Speicherdruck die Kopien im Speicher weg
-  # (`turbopackMemoryEviction: 'auto'`) und holt sie bei Bedarf zurueck. Je mehr
-  # Routen EIN Dev-Server uebersetzt hat, desto mehr wird geraeumt und
-  # zurueckgeholt — und desto oefter faellt der Wuerfel auf diesen Pfad.
+  #   vorher   11 Gruppen, Testzeit 24 bis 182 s (lagerbuch-3), Summe ~1 350 s
+  #   nachher   8 Gruppen, 161 bis 172 s gerechnet, dieselbe Summe
+  #   je Runner ~50 s, die kein Fall braucht: Checkout, Install, Build-Download,
+  #            Browser (~41 s) plus Serverstart (~8 s)
   #
-  # ⛔ DEN CACHE ABZUSCHALTEN IST DIE FALSCHE ABHILFE, GEMESSEN UND VERWORFEN
-  # (`fb9fe44e`, zurueckgenommen in `63b5b820`). `turbopackFileSystemCacheForDev:
-  # false` liess den Panic zwar verschwinden — der Shard starb dann aber bei Test
-  # 82 bzw. 84 statt bei 119, weil ohne Platte NICHTS mehr zu raeumen ist und
-  # alles im Speicher bleibt. „In der CI liest den Cache ohnehin niemand" gilt
-  # ZWISCHEN Laeufen und nicht INNERHALB eines Laufs.
+  # WARUM ACHT UND NICHT WENIGER: der kritische Pfad des ganzen Laufs ist
+  # `e2e-build` (~105 s) plus die LANGSAMSTE Gruppe plus ihre ~50 s Vorspann.
+  # Sieben Gruppen hiessen rechnerisch ~193 s je Gruppe — laenger als die 182 s
+  # von vorher, und der Lauf wartete darauf. Acht sind die kleinste Zahl, bei der
+  # die Wanduhr nicht leidet. Gewonnen sind drei Runner je Lauf, also ~150 s
+  # Einrichtung und drei gleichzeitige Jobs weniger — auf einem oeffentlichen
+  # Repo keine Geldfrage, sondern Platz, wenn ein PR- und ein main-Lauf
+  # nebeneinander stehen.
   #
-  # Bleibt die Routenflaeche je Server, und die schrumpft nur ueber die Aufteilung.
+  # ⚠️ UNTER `next start` DARF MAN DATEIZEITEN ADDIEREN — unter `next dev` durfte
+  # man es nicht, und daran hing die alte Regel „den Kandidaten mehrfach fahren".
+  # Damals gehoerte die Erstuebersetzung einer Route dem ersten Fall der GRUPPE,
+  # der sie traf, und eine Gruppe streute ueber drei Laeufe um 78 s (DRK-408).
+  # Jetzt: Spanne je Gruppe ueber die sieben Laeufe 3 bis 32 s, ein Ausreisser
+  # 62 s (lagerbuch-1, einmal). Ob die Zahlen beim Umsortieren halten, zeigt der
+  # erste Lauf dieses Schnitts; DRK-484 traegt ihn nach.
   #
-  # ⚠️ `--shard=n/5` HAT DAS GELEISTET UND IST DANN STILL VERRUTSCHT (DRK-358).
-  # Playwright teilt nach FALLZAHL, nicht nach Modul: was zusammen in einem Shard
-  # landet, ergibt sich aus Dateireihenfolge und Testzahl — also aus etwas, das
-  # JEDER neue Test verschiebt. Bei den 211 Faellen von damals trug der schwerste
-  # Shard NUR lagerbuch; bei 356 Faellen trug Shard 4 acht Dateien aus vier
-  # Modulen (lagerbuch-Reste + portal + qr + radio + das von `mobil-admin`
-  # mitgezogene feedback) — 97 Routeneintraege gegen 13 im leichtesten. Der
-  # Runner starb, und zwar auf `main` genauso wie auf jedem PR.
+  # ⚠️ DIE NAMEN `eimer-N` TRAGEN MIT ABSICHT KEINE BEDEUTUNG. Eine neue Spec
+  # kommt in den Eimer mit der KLEINSTEN Testzeit im letzten gruenen Lauf —
+  # nicht nach Fallzahl (eine Datei braucht 0,4 s, eine andere 127 s) und nicht
+  # nach Modul. `files-*` und `radio-*` bleiben Globs und nehmen neue Dateien
+  # ihres Praefixes von selbst mit; ihr Eimer waechst dann, ohne dass jemand
+  # hinsieht. Wer neu schneidet, holt die Zeiten je Datei aus mehreren Laeufen
+  # und prueft vorher, ob e2e ueberhaupt noch den kritischen Pfad traegt
+  # (`build`, `vitest` laufen daneben).
   #
-  # GEMESSEN (DRK-358), gleicher Commit, gleicher kalter `.next`, RSS des
-  # `next-server` aus `/proc/<pid>/smaps_rollup`:
+  # ⛔ UND TROTZDEM NICHT ZURUECK ZU `--shard=n/N`. Der Speichergrund ist weg,
+  # der zweite nicht: Playwright teilt nach FALLZAHL, und was zusammen in einem
+  # Shard landet, ergibt sich aus Dateireihenfolge und Testzahl — also aus
+  # etwas, das JEDER neue Test verschiebt, still. Eine explizite Liste ist eine
+  # ZUSAGE, keine Nebenwirkung. Den Preis, die vergessene Zeile, zahlt
+  # `scripts/e2e-gruppen.test.ts`: er liest `e2e/` und haelt jede Spec-Datei
+  # gegen die Gruppen, denn eine nicht eingetragene Datei liefe NIE und waere
+  # trotzdem gruen — dieselbe Bauform wie `bootstrap.test.ts` fuer das
+  # Migrations-Dreieck. Derselbe Test haelt fest, dass hier kein `--shard` steht.
   #
-  #   `radio-hosts` + `radio-kiosk` ALLEIN   ->  4 258 MB, alle 12 Faelle gruen
-  #   dieselben Faelle als Teil von Shard 4  -> 12 768 MB, der Shard stirbt
-  #
-  # Faktor 3, und der Fall, der im Verbund rot war, ist allein gruen in 11 s. Der
-  # Speicher haengt an der SUMME der Modulflaechen, nicht an einem Fall. Auf der
-  # Spitze zog der Kernel den gemappten Turbopack-Cache von 1 609 MB auf 0 —
-  # genau die Platte, aus der `auto`-Eviction billig zurueckholt; ab da hilft sie
-  # nicht mehr. `/proc/pressure/memory` stand bei `full avg10 = 96,6 %`.
-  #
-  # ⛔ DIE NAHELIEGENDE ABHILFE IST GEMESSEN UND VERWORFEN:
-  # `turbopackMemoryEviction: "full"` liess die Spitze stehen (12 203 MB gegen
-  # 12 074 MB im selben Fall). Eviction gibt frei, was schon auf der Platte
-  # liegt — die Allokation WAEHREND der Uebersetzung verhindert sie nicht.
-  # `NODE_OPTIONS=--max-old-space-size` greift ebenfalls daneben: Turbopack haelt
-  # seinen Graphen in nativem Rust-Speicher, nicht im V8-Heap.
-  #
-  # DESHALB IST DIE AUFTEILUNG JETZT EXPLIZIT: `e2e/gruppen.json` nennt je Gruppe
-  # ihre Dateien, eine Gruppe traegt moeglichst ein Modul. Das ist eine ZUSAGE
-  # und keine Nebenwirkung der Fallzahl — sie kann nicht mehr verrutschen, wenn
-  # jemand einen Test ergaenzt. Der Preis ist die vergessene Zeile in der Liste,
-  # und den zahlt `scripts/e2e-gruppen.test.ts`: er liest `e2e/` und haelt jede
-  # Spec-Datei gegen die Gruppen. Eine nicht eingetragene Datei liefe sonst NIE
-  # und waere trotzdem gruen — dieselbe Bauform wie `bootstrap.test.ts` fuer das
-  # Migrations-Dreieck.
-  #
-  # Die Wanduhr leidet nicht: der kritische Pfad ist die groesste Gruppe, nicht
-  # die Summe — die Gruppen laufen parallel. Momentaufnahme vom 2026-09-15,
-  # gemessen mit `--list` (449 Faelle in 47 Dateien, die zwei
-  # `testIgnore`-Dateien nicht mitgezaehlt) — eine Auskunft, KEINE Zusage:
-  # die Zahlen wandern mit jedem neuen Fall, und nichts prueft sie nach.
-  #
-  #   lagerbuch 134 · aufgaben-breiten 49 · aufgaben 44 · suite-huelle 60
-  #   files-feedback 54 · radio 42 · suite-verwaltung 42 · uav-zeichen 24
-  #
-  # ⚠️ `lagerbuch` BLEIBT EIN GLOB, die anderen sind Listen. Absicht: in dieses
-  # Modul kommen die meisten neuen Specs (von den ~145 Faellen, die seit der
-  # 5-Shard-Messung dazukamen, fast alle), und ein Glob nimmt sie ohne
-  # Handarbeit in die richtige Gruppe. ⛔ HIER STAND, `aufgaben` sei mit 93
-  # Faellen die Untergrenze des kritischen Pfads, weil 86 davon in EINER Datei
-  # stehen und eine Datei zusammenbleibt. Das galt fuer `--shard`, nicht fuer
-  # den Quelltext: DRK-408 hat die Datei geteilt (8:58 -> 4:20 + 4:20).
-  #
-  # ⚠️ KEIN TOR FINDET DEN AUSFALL, DEN DIESE ZAHL ABWEHRT. `pnpm build` faehrt
-  # `next build` und haengt am ANDEREN Schalter (`…ForBuild`); `typecheck` und
-  # `lint` sehen eine Zahl in einer Konfiguration; Vitest startet keinen
-  # Dev-Server. Sichtbar wird es ausschliesslich in einem e2e-Lauf unter Last —
-  # und dort nicht als gescheiterte Zusicherung, sondern als abgebrochene
-  # Verbindung. Wer die Zahl wieder senken will, prueft zuerst, ob der
-  # Restore-Pfad in einer neueren Next-Version geheilt ist (in 16.3.1 bis 16.3.3
-  # steht dazu nichts).
   # Liest `e2e/gruppen.json` und reicht es als Matrix weiter. Ein eigener Job,
   # weil `fromJSON` eine Datei nicht selbst lesen kann und eine Matrix feststehen
   # muss, bevor der Job startet. Checkout plus `cat`, also ~20 s — der Preis
@@ -342,10 +313,11 @@ jobs:
     # abgebrochenen Gruppe ging erst, nachdem jemand von Hand abgebrochen hatte.
     # Die Vorgabe von GitHub ist 360 Minuten; bis dahin haette niemand
     # hingesehen. DRK-358 fuehrt die Zeile als offene Richtung.
-    # Die Zahl hat Luft: die laengste Gruppe lag gemessen bei 13 Minuten
-    # Schrittzeit plus rund zwei Minuten Einrichtung. Wer sie reissen sieht,
-    # hat einen Haenger oder eine Gruppe, die zu gross geworden ist — beides
-    # will man sehen, nicht aussitzen.
+    # Die Zahl hat reichlich Luft: unter `next dev` lag die laengste Gruppe bei
+    # 13 Minuten Schrittzeit, gegen `next start` (DRK-415, DRK-484) sind es rund
+    # drei Minuten plus eine Minute Einrichtung. Wer sie reissen sieht, hat einen
+    # Haenger oder eine Gruppe, die zu gross geworden ist — beides will man
+    # sehen, nicht aussitzen.
     timeout-minutes: 30
     # GEGEN DEN VORGEBAUTEN STAND AUS `e2e-build`, NICHT GEGEN `next dev` (DRK-415).
     # Was die Variable umschaltet und warum der gebaute Stand dafuer
@@ -354,7 +326,7 @@ jobs:
       E2E_VORGEBAUT: "1"
     steps:
       # BEWUSST OHNE `lfs: true`, anders als `vitest` und `build`: kein e2e-Fall
-      # sichert heute ein Bild zu, und die Objekte fuenfmal — einmal je Shard — zu
+      # sichert heute ein Bild zu, und die Objekte einmal je Gruppe zu
       # holen kostet ohne Gegenwert. Wer hier eine Bildzusicherung ergaenzt, ergaenzt
       # die Zeile mit; sonst laeuft sie gegen eine Zeigerdatei.
       - uses: actions/checkout@v4

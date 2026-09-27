@@ -14,6 +14,7 @@ import {
   toNewUserGroup,
   importFeedback,
   checkFeedbackParity,
+  berichtDoppelteTage,
   groupParityView,
   eveningParityView,
   surveyParityView,
@@ -405,6 +406,37 @@ describe("importFeedback", () => {
     const sourceRows = source.groups.map((r) => groupParityView(toNewGroup(r)));
     const tampered = stored.map((s) => groupParityView({ ...s, name: "CORRUPT" }));
     expect(checkParity(sourceRows, tampered).ok).toBe(false);
+  });
+});
+
+describe("berichtDoppelteTage (DRK-479)", () => {
+  it("meldet nichts, wenn jede Gruppe je Tag höchstens einen Abend hat", () => {
+    const sourceDb = buildSourceDb();
+    const source = readSource(sourceDb);
+    sourceDb.close();
+    const db = freshDb();
+    importFeedback(source, db);
+    expect(berichtDoppelteTage(db)).toBeNull();
+  });
+
+  it("nennt Gruppe, Tag und Abende eines Doppeltags aus dem Altbestand — und importiert ihn trotzdem", () => {
+    const sourceDb = buildSourceDb();
+    // Derselbe Kalendertag wie Abend 12 (2026-04-16 in Berlin), andere Uhrzeit.
+    sourceDb
+      .prepare(
+        `INSERT INTO evenings (id, group_id, date, topic, notes, participant_count, created_at) VALUES (?,?,?,?,?,?,?)`,
+      )
+      .run(13, 2, "2026-04-16 00:00:00 +0000 UTC", "Zweiter Eintrag", null, null, "2026-04-16 07:00:00");
+    const source = readSource(sourceDb);
+    sourceDb.close();
+    const db = freshDb();
+    importFeedback(source, db);
+
+    expect(db.select().from(schema.evenings).all()).toHaveLength(3);
+    expect(berichtDoppelteTage(db)).toBe(
+      "1 Tag(e) mit mehr als einem Dienstabend je Gruppe — bitte von Hand bereinigen:\n" +
+        "  Bereitschaft, 2026-04-16: Abende 13, 12",
+    );
   });
 });
 

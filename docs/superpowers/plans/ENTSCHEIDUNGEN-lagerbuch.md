@@ -110,7 +110,7 @@ Ihre Annahmen sind damit zu **Festlegungen** hochgestuft; an den Plänen ändert
 |---|---|---|
 | D2 | Schriftwahl | Verwaltung auf Geist, Helfer-Weg behält Barlow Condensed |
 | D4 | Alt-Host zeichengleich? | Vor dem Freeze ablesen; weicht er ab, gehört „alle Helfer müssen einmal neu scannen" in die Cutover-Kommunikation |
-| D5 | Aktive Zugangs-Codes | Vor dem Cutover abfragen; oberhalb von ~60 den Stundenwert senken. ⚠️ **Durch D6 aufgewertet** — siehe oben |
+| D5 | Aktive Zugangs-Codes | Vor dem Cutover abfragen; oberhalb von ~60 den Stundenwert senken. ⚠️ **Durch D6 aufgewertet** — siehe oben. **Gemessen 24.09.2026 (DRK-443): K = 54, 300/h bestätigt** (Regel: Stundenwert ≤ 18.000 / K) |
 | D7 | Organisationszeile | Vor dem ersten Etikettendruck ablesen; sie wird Konstante, nicht Env |
 | D9 | Etiketten-Probebogen | Erste und letzte Zeile, 15 cm, zwei Telefone; QR bleibt Level H |
 | D10 | Host-Reihenfolge | Einfrieren, `lagerbuch.iuk-ue.de` auf Index 0 |
@@ -126,7 +126,8 @@ Keine Entscheidungen mehr — Handgriffe. Sie gehören ins Cutover-Runbook.
 - [ ] `OIDC_ADMIN_GROUP` der laufenden Instanz gegen `lagerbuch_nutzer` gegenprüfen — **und einmal
       echt einloggen**, bevor der Router umschwenkt (D3)
 - [ ] `APP_BASE_URL` der laufenden Instanz ablesen und gegen `SUITE_HOST_LAGERBUCH` halten (D4)
-- [ ] `select count(*) from tokens where aktiv = 1` — bei mehr als ~60 den Stundenwert senken (D5)
+- [x] `select count(*) from tokens where aktiv = 1` — bei mehr als ~60 den Stundenwert senken (D5;
+      24.09.2026: K = 54, 300/h bleibt — DRK-443)
 - [ ] `APP_ORG` ablesen und in `_lib/marke.ts` eintragen (D7)
 - [ ] Etiketten-Probebogen drucken und mit zwei Telefonen gegenscannen (D9)
 - [ ] `backups/` aus dem Volume `lagerbuch_data` wegsichern, **vor** dem Abbau (D1)

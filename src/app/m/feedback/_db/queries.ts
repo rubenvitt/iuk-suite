@@ -203,11 +203,20 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
  * Zeitanteil. Die Abfrage grenzt deshalb nur grob über ±2 Tage vor (der
  * Index `idx_evenings_group_date` trägt sie) und entscheidet erst im Code.
  *
- * ⚠️ KEIN DATENBANKRIEGEL: ein `UNIQUE` über `date` meinte den Zeitpunkt, nicht
- * den Kalendertag. Dafür bräuchte es eine gespeicherte Tagesspalte. Die
- * Aufrufer prüfen deshalb in DERSELBEN Transaktion, in der sie schreiben;
+ * ⚠️ KEIN DATENBANKRIEGEL, UND DAS IST ENTSCHIEDEN (DRK-479), nicht vertagt.
+ * Ein `UNIQUE` über `date` meinte den Zeitpunkt, nicht den Kalendertag, und
+ * eine gespeicherte Tagesspalte hinge an der Suite-Zone — die ist einstellbar,
+ * und nach einem Zonenwechsel meldete der Index Tage, die niemand so sieht.
+ * SQLite selbst kennt keine Zone, ein Ausdrucksindex scheidet also auch aus.
+ * Die Aufrufer prüfen deshalb in DERSELBEN Transaktion, in der sie schreiben;
  * SQLite serialisiert Schreibzugriffe, zwei gleichzeitige Absendungen kommen
- * also nicht beide durch.
+ * also nicht beide durch. Dass kein neuer Weg an dieser Stelle vorbeischreibt,
+ * hält `tagesregel.test.ts` fest.
+ *
+ * BESTEHENDE DOPPELTAGE BLEIBEN STEHEN (Bestandsschutz, DRK-479): der
+ * Altbestand darf welche tragen, und zusammenführen lassen sie sich nicht.
+ * Die Regel verhindert nur NEUE — `updateEvening` prüft deshalb nur, wenn
+ * sich der Tag ändert. Welche es gibt, sagt `doppelteTage`.
  *
  * `ausser` nimmt den Abend aus, der gerade verschoben wird — sonst belegte er
  * seinen eigenen Tag.
@@ -232,6 +241,29 @@ export function abendAmTag(
     )
     .all()
     .find((r) => r.id !== ausser && kalendertagInZone(r.date) === tag);
+}
+
+/**
+ * DIE TAGE, AN DENEN EINE GRUPPE MEHR ALS EINEN ABEND HAT — die Liste zur
+ * Handbereinigung (DRK-479). Neu entstehen solche Tage nicht mehr
+ * (`abendAmTag`); im Altbestand kann es sie geben, und der Import kennt die
+ * Regel nicht. Er gibt diese Liste nach dem Lauf aus
+ * (`scripts/import/feedback.ts`), damit die Generalprobe zeigt, ob der
+ * Echtbestand welche hat.
+ *
+ * Liest die ganze Tabelle: der Tag ist erst im Code bekannt, und der Aufruf
+ * läuft einmal je Import, nicht je Seitenaufruf.
+ */
+export function doppelteTage(db: DB): { groupId: number; tag: string; eveningIds: number[] }[] {
+  const jeTag = new Map<string, { groupId: number; tag: string; eveningIds: number[] }>();
+  for (const r of db.select().from(evenings).orderBy(evenings.groupId, evenings.date, evenings.id).all()) {
+    const tag = kalendertagInZone(r.date);
+    const schluessel = `${r.groupId}|${tag}`;
+    const eintrag = jeTag.get(schluessel) ?? { groupId: r.groupId, tag, eveningIds: [] };
+    eintrag.eveningIds.push(r.id);
+    jeTag.set(schluessel, eintrag);
+  }
+  return [...jeTag.values()].filter((e) => e.eveningIds.length > 1);
 }
 
 /**
@@ -363,9 +395,18 @@ export function updateEvening(
     // Ein neues Datum darf nicht auf einen Tag fallen, an dem die Gruppe schon
     // einen ANDEREN Abend hat (`abendAmTag`, DRK-429). Das unveränderte Datum
     // trifft nur den Abend selbst und fällt über `ausser` heraus.
+    //
+    // ⚠️ GEPRÜFT WIRD NUR, WENN SICH DER KALENDERTAG ÄNDERT (DRK-479). Der
+    // Dialog schickt das Datum IMMER mit, auch wenn nur das Thema geändert
+    // wird. Stehen aus dem Altbestand zwei Abende am selben Tag, fand die
+    // Prüfung jeweils den anderen, und keiner der beiden ließ sich mehr
+    // bearbeiten — nicht einmal, um ihn auf den richtigen Tag zu verschieben.
+    // Verglichen wird der Tag, nicht der Zeitpunkt: ein importierter Abend
+    // trägt einen Zeitanteil, das Formular schickt Mitternacht.
     if (patch.date) {
       const eve = tx.select().from(evenings).where(eq(evenings.id, id)).get();
-      const belegt = eve && abendAmTag(tx, eve.groupId, patch.date, id);
+      const verschoben = eve && kalendertagInZone(eve.date) !== kalendertagInZone(patch.date);
+      const belegt = verschoben && abendAmTag(tx, eve.groupId, patch.date, id);
       if (belegt) throw new TagBelegt(belegt);
     }
     tx.update(evenings).set(patch).where(eq(evenings.id, id)).run();

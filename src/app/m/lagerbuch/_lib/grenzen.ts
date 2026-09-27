@@ -81,8 +81,8 @@ const ZAHLEN = {
   // DER tragende Zaehler. 300 = 5/min x 60 — die Zahl stellt genau die Zusage
   // wieder her, die das Per-Absender-Limit nur unter der Annahme einer
   // wahrhaftigen Absenderadresse je hatte.
-  // ⚠️ Runbook: `select count(*) from tokens where aktiv = 1`; liegt die Zahl
-  // oberhalb von etwa 60, gehoert dieser Wert gesenkt.
+  // Regel: Wert <= 18.000 / K, K = `select count(*) from tokens where aktiv = 1`
+  // (Produktion; DRK-443 am 24.09.2026: K = 54, 300 bestaetigt; ab K > 60 senken).
   LAGERBUCH_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: { einheit: "Anzahl/h", min: 1, max: 3600, vorgabe: 300 },
 } as const satisfies Record<string, ZahlRegel>;
 
