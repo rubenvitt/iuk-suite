@@ -342,15 +342,13 @@ export function AufgabeFormular({
         <input type="hidden" name="fuerSichSelbst" value="true" />
       )}
 
-      <Button
-        type="primary"
-        htmlType="submit"
-        loading={isPending}
-        disabled={isPending}
-        style={{ alignSelf: "flex-start" }}
-      >
-        {bestand ? "Änderungen speichern" : "Aufgabe einstellen"}
-      </Button>
+      <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
+        <Button type="primary" htmlType="submit" loading={isPending} disabled={isPending}>
+          {bestand ? "Änderungen speichern" : "Aufgabe einstellen"}
+        </Button>
+        {/* Beim Aendern gibt es einen Ort, an den man zurueckkehrt — beim Einstellen nicht. */}
+        {bestand ? <Button href={`/a/${bestand.id}`}>Abbrechen</Button> : null}
+      </div>
     </form>
   );
 }

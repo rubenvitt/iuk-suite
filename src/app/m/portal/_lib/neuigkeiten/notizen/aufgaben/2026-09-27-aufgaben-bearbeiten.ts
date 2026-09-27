@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Aufgaben nachträglich ändern",
   inhalt: [
     absatz(
-      "Wer eine Aufgabe eingestellt hat, ändert sie jetzt über „Bearbeiten“ in der Aufgabe, " +
+      "Wer eine Aufgabe eingestellt hat, ändert sie jetzt über „Ändern“ oben in der Aufgabe, " +
         "bis sie zur Freigabe gemeldet ist; jede Änderung steht danach im Verlauf. Eine doppelt " +
         "eingestellte Aufgabe lässt sich außerdem zurückziehen, solange niemand daran arbeitet, " +
         "auch wenn sie schon verteilt ist.",

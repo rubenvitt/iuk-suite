@@ -530,7 +530,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
     grenzen: [
       "Du verteilst nicht: den Empfänger bestimmt die Koordinatorin. Der Weg dorthin existiert in dieser Sicht nicht, und /verteilen antwortet dir mit 404.",
       "Fremde Aufträge siehst du nicht — nur deine eigenen und die, in denen du Prüfer bist.",
-      "Ist eine Aufgabe erst in Arbeit, ist Zurückziehen vorbei; bearbeiten kannst du sie bis zur Freigabe weiter.",
+      "Ist eine Aufgabe erst in Arbeit, ist Zurückziehen vorbei; ändern kannst du sie bis zur Freigabe weiter.",
     ],
     verweise: ["einstellen", "freigaben", "aufgabe", "archiv"],
     sichtbar: (akteur) => einstiegsSicht(akteur) === "meine-auftraege",
@@ -1023,7 +1023,7 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         erklaerung:
           "Genau die Aktionen, die du mit dieser Aufgabe in diesem Zustand ausführen darfst — " +
           "höchstens eine davon ist die rote Hauptaktion. Steht dort nichts, ist für dich gerade " +
-          "nichts zu tun.",
+          "nichts zu tun. Ändern und Zurückziehen stehen oben neben dem Titel.",
       },
       {
         form: "liste",
@@ -1051,7 +1051,8 @@ export const HILFE_SICHTEN: Record<SichtSchluessel, HilfeSicht> = {
         titel: "Korrigieren",
         text:
           "Verschrieben, Frist falsch, Nachweispflicht vergessen? Wer die Aufgabe eingestellt hat " +
-          "und die Koordinatorin ändern sie über „Bearbeiten“ — bis sie zur Freigabe gemeldet ist. " +
+          "und die Koordinatorin ändern sie über „Ändern“ oben neben dem Titel — bis sie zur " +
+          "Freigabe gemeldet ist. " +
           "Die Änderung steht danach im Verlauf.",
       },
       {

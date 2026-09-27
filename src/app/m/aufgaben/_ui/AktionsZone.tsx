@@ -17,7 +17,6 @@ import { SPACE } from "@/core/theme/tokens";
 import { FreigabeAktionen } from "./FreigabeZone";
 import { NachweisFormular } from "./NachweisFormular";
 import { UmverteilenKnopf } from "./VerteilenDialog";
-import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
 
 /*
  * DIE AKTIONSZONE VON `/a/<id>` (Spec §8.4, Aufgabe 16) — trägt NUR, was diese Person mit dieser
@@ -38,15 +37,10 @@ import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
  * `TABELLE`: beide Zeilen teilen sich `wer: darfFreigeben`) — die Zone prueft deshalb nur EINES der
  * beiden Felder, um zu entscheiden, ob `FreigabeAktionen` ueberhaupt erscheint.
  *
- * ZURUECKZIEHEN IST BESTAETIGUNGSPFLICHTIG (Spec §9.9) — Vorbild `_ui/PersonenTabelle.tsx`s
- * „Beenden": `Popconfirm` plus ein `ref` aufs Formular, `onConfirm` loest `requestSubmit()` aus.
- * SEIT DER OBERFLAECHEN-SPEC (§6.7) STEHT DIESER KNOPF IN `_ui/ZurueckziehenKnopf.tsx`, weil ihn
- * die Fuehrungskarte des Auftraggebers (Rang 3) ebenfalls braucht — und die ist eine SERVER
- * COMPONENT, aus der ein `onConfirm` nicht ueber die RSC-Grenze darf (Falle 9). Eine zweite
- * Fassung hier waere dieselbe Bestaetigungspflicht an zwei Orten.
- * `zurueckziehenAction` LOESCHT DIE AUFGABE — danach existiert `/a/<id>` fuer diese Id nicht mehr.
- * Seit DRK-487 traegt der Knopf hier deshalb `zurStart`, und die Action leitet auf die Startseite
- * um, statt die geloeschte Seite mit `notFound()` stehen zu lassen.
+ * ZURUECKZIEHEN UND ÄNDERN STEHEN SEIT DRK-487 IM SEITENKOPF VON `a/[id]/page.tsx`, nicht mehr
+ * hier: sie verwalten den Auftrag, diese Zone bringt die Arbeit voran. Der Zurueckziehen-Knopf
+ * bleibt `_ui/ZurueckziehenKnopf.tsx` (bestaetigungspflichtig, Spec §9.9), dieselbe Insel wie auf
+ * der Fuehrungskarte; aus der Detailseite traegt er `zurStart`, weil `/a/<id>` danach fehlt.
  *
  * ══ GENAU EIN PRIMAERKNOPF (Oberflaechen-Spec 2026-08-16 §7 Nr. 2, Schritt 6). Bis dahin rendert
  *    diese Zone JEDES erlaubte `optionen.*` als eigenes Formular, mehrere davon mit
@@ -84,10 +78,14 @@ export function AktionsZone({
   // wurde — heute folgenlos, weil `_lib/lebenszyklus.ts`s `TABELLE` `freigeben`/`zurueckweisen`
   // dasselbe `wer: darfFreigeben` teilt, aber genau die Naht, die in Aufgabe 14 einen Riegel zur
   // Haelfte unbewacht liess. `Object.values` kann nicht veralten, wenn `AktionsOptionen` waechst.
-  const keineAktion = !Object.values(optionen).some(Boolean);
+  // DRK-487: `bearbeiten`/`zurueckziehen` zaehlen nicht mit — sie stehen im Seitenkopf, nicht hier.
+  const { bearbeiten: _imKopf1, zurueckziehen: _imKopf2, ...arbeitsschritte } = optionen;
+  void _imKopf1;
+  void _imKopf2;
+  const keineAktion = !Object.values(arbeitsschritte).some(Boolean);
 
   if (keineAktion) {
-    return <p>Für diese Aufgabe ist derzeit keine Aktion möglich.</p>;
+    return <p>Gerade steht hier kein Arbeitsschritt an.</p>;
   }
 
   // DER ERSTE ERLAUBTE EINTRAG DER VORRANGLISTE IST DER EINE PRIMAERKNOPF — `undefined`, wenn
@@ -145,21 +143,10 @@ export function AktionsZone({
         />
       ) : null}
       {/*
-       * ZURUECKZIEHEN STEHT NICHT IN `VORRANG` UND IMMER GANZ UNTEN (§7 Nr. 2) — s. den Kommentar
-       * an der Liste. Es bleibt sekundaer mit `Popconfirm`, unabhaengig davon, was ueber ihm steht.
+       * ÄNDERN UND ZURUECKZIEHEN STEHEN NICHT HIER, SONDERN IM SEITENKOPF (`a/[id]/page.tsx`,
+       * DRK-487): sie verwalten den Auftrag, sie bringen die Arbeit nicht voran. Hier unter
+       * „Bearbeitung starten" las sich „Bearbeiten" wie derselbe Schritt.
        */}
-      {/*
-       * BEARBEITEN (DRK-487) — ein Verweis auf `/a/<id>/bearbeiten`, nie Primaerknopf: es aendert
-       * den Auftrag, es bringt ihn nicht voran. Deshalb auch nicht in `VORRANG`.
-       */}
-      {optionen.bearbeiten ? (
-        <div>
-          <Button href={`/a/${aufgabe.id}/bearbeiten`} data-testid="bearbeiten">
-            Bearbeiten
-          </Button>
-        </div>
-      ) : null}
-      {optionen.zurueckziehen ? <ZurueckziehenKnopf aufgabeId={aufgabe.id} zurStart /> : null}
     </div>
   );
 }

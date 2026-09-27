@@ -1884,9 +1884,9 @@ test("Bearbeiten und Zurückziehen (DRK-487): Malte korrigiert seinen Auftrag un
   expect(href, "Aufgabe wurde nicht angelegt").toBeTruthy();
 
   await page.goto(`http://${HOST}:${E2E_PORT}${href}`);
-  await klickeWennRuhig(page.getByTestId("bearbeiten"));
+  await klickeWennRuhig(page.getByTestId("aendern"));
   await page.waitForURL(`**${href}/bearbeiten`);
-  await expect(page.getByRole("heading", { name: "Aufgabe bearbeiten", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aufgabe ändern", level: 1 })).toBeVisible();
   await expect(page.locator("#af-titel")).toHaveValue(titel);
 
   await page.locator("#af-titel").fill(korrigiert);

@@ -13,7 +13,8 @@ import { SeitenKopf } from "../../../_ui/SeitenKopf";
 export const dynamic = "force-dynamic";
 
 /*
- * `/a/<id>/bearbeiten` — AUFGABE BEARBEITEN (DRK-487). Dasselbe Formular wie `/neu`, vorbelegt mit
+ * `/a/<id>/bearbeiten` — AUFGABE AENDERN (DRK-487; auf dem Bildschirm „Ändern", damit es nicht wie
+ * „Bearbeitung starten" klingt). Dasselbe Formular wie `/neu`, vorbelegt mit
  * der Aufgabe (`AufgabeFormular`s `bestand`).
  *
  * DAS GATE IST `bearbeitung()` (`_lib/lebenszyklus.ts`) — dieselbe Funktion, die den Knopf in der
@@ -28,9 +29,9 @@ export function bearbeitenInhalt(task: AufgabeRow) {
         brotkrume={[
           { label: "Aufgaben", href: "/" },
           { label: task.titel, href: `/a/${task.id}` },
-          { label: "Bearbeiten" },
+          { label: "Ändern" },
         ]}
-        titel="Aufgabe bearbeiten"
+        titel="Aufgabe ändern"
         hilfe="aufgabe"
         kontext="Zuweisung und Zustand ändern sich hier nicht. Jede Änderung steht danach im Verlauf."
       />

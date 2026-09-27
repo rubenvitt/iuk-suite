@@ -66,7 +66,7 @@ describe("/a/<id>/bearbeiten", () => {
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id, zugewiesenAn: alina.id });
     anmelden(malte);
     await mount(await seite(a.id));
-    expect(query("h1").textContent).toBe("Aufgabe bearbeiten");
+    expect(query("h1").textContent).toBe("Aufgabe ändern");
     expect(query<HTMLInputElement>("#af-titel").value).toBe("Funkgeräte laden");
   });
 
@@ -76,7 +76,7 @@ describe("/a/<id>/bearbeiten", () => {
     const a = legeAufgabe({ erstellerId: malte.id, prueferId: malte.id });
     anmelden(rike, true);
     await mount(await seite(a.id));
-    expect(query("h1").textContent).toBe("Aufgabe bearbeiten");
+    expect(query("h1").textContent).toBe("Aufgabe ändern");
   });
 
   it("die zugewiesene BuFDi einer Fremdaufgabe bekommt notFound()", async () => {
