@@ -1,0 +1,32 @@
+diff --git a/dist/esm/server/body-streams.js b/dist/esm/server/body-streams.js
+index 89344fc1f023913c339c906c98bba51942d27cf2..8301fa6dcba3158cc632ccc0f0f32151a0da92ca 100644
+--- a/dist/esm/server/body-streams.js
++++ b/dist/esm/server/body-streams.js
+@@ -44,6 +44,11 @@ export function getCloneableBody(readable, sizeLimit) {
+                     throw res.error;
+                 }
+                 replaceRequestBody(readable, buffered);
++                // iuk-suite DRK-481: replaceRequestBody kopiert auch `_destroy` und `_events` des
++                // Puffers auf die IncomingMessage. Damit faellt Nodes Regel weg, dass eine abgebrochene
++                // Anfrage (`aborted`, ECONNRESET) nur mit Zuhoerer `error` wirft — ohne Leser des
++                // Koerpers wurde der Abbruch eines Clients zur uncaughtException des ganzen Prozesses.
++                readable.on('error', ()=>{});
+                 buffered = readable;
+             }
+         },
+diff --git a/dist/server/body-streams.js b/dist/server/body-streams.js
+index 0f2d2e93a08d9be66a3a0a651b4a36878339fe44..15fd0f94647df4beedb7dc5711fdbc71bbb02a0a 100644
+--- a/dist/server/body-streams.js
++++ b/dist/server/body-streams.js
+@@ -71,6 +71,11 @@ function getCloneableBody(readable, sizeLimit) {
+                     throw res.error;
+                 }
+                 replaceRequestBody(readable, buffered);
++                // iuk-suite DRK-481: replaceRequestBody kopiert auch `_destroy` und `_events` des
++                // Puffers auf die IncomingMessage. Damit faellt Nodes Regel weg, dass eine abgebrochene
++                // Anfrage (`aborted`, ECONNRESET) nur mit Zuhoerer `error` wirft — ohne Leser des
++                // Koerpers wurde der Abbruch eines Clients zur uncaughtException des ganzen Prozesses.
++                readable.on('error', ()=>{});
+                 buffered = readable;
+             }
+         },
