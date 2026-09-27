@@ -7,6 +7,7 @@ import { vereinigeGruppen } from "@/core/auth/devGroups";
 import { useEffect, useEffectEvent, useState, type CSSProperties } from "react";
 import { Button, Checkbox, Input } from "antd";
 import { HINTERGRUND_STANDARD, type Hintergrund } from "@/app/login/_lib/hintergrund";
+import { IdaLogo } from "./ida-logo";
 import styles from "./login-form.module.css";
 
 /**
@@ -111,19 +112,17 @@ export function LoginForm({
       >
         <div className={styles.bildFlaeche} aria-hidden />
         <div className={styles.bildInhalt}>
-          <span className={styles.marke}>
-            <span className={styles.markeKachel} aria-hidden>
-              IDA
-            </span>
-            I&amp;K-Suite
-          </span>
           <p className={styles.bildTitel}>Interne Dienste und Anwendungen</p>
         </div>
       </section>
 
       <section className={styles.anmeldung}>
         <div className={styles.inhalt}>
-          <p className={styles.kicker}>IDA · Anmeldung</p>
+          <div className={styles.marke}>
+            <IdaLogo className={styles.markeZeichen} />
+            <span>IDA</span>
+          </div>
+          <p className={styles.kicker}>Anmeldung</p>
           <h1 className={styles.titel}>Willkommen zurück</h1>
           <p className={styles.einleitung}>
             Du meldest dich über Pocket ID an – mit deinem Passkey, ohne Passwort. Danach kommst du

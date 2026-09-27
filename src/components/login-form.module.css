@@ -17,6 +17,9 @@
   --an-linie: #d9dde1;
   --an-marke: #c8000f;
   --an-taste: #eef0f1;
+  /* Farben des IDA-Zeichens (`components/ida-logo.tsx`). */
+  --ida-stamm: #1a1d20;
+  --ida-signal: #c8000f;
 
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -35,6 +38,7 @@
   --an-linie: #2c3136;
   --an-marke: #e45a66;
   --an-taste: #1f1f1f;
+  --ida-stamm: #eceef0;
 }
 
 /* ---------- Bildfläche ---------- */
@@ -90,36 +94,8 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  justify-content: space-between;
-  gap: 24px;
+  justify-content: flex-end;
   padding: 24px 24px 48px;
-}
-
-.marke {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-
-.markeKachel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: #c8000f;
-  box-shadow: 0 6px 16px rgba(200, 0, 15, 0.35);
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-shadow: none;
 }
 
 .bildTitel {
@@ -167,6 +143,28 @@
   max-width: 400px;
   margin: 0 auto;
   animation: einblenden 0.5s ease-out 0.1s both;
+}
+
+/* „IDA" steht auf der Unterkante des Stamms, nicht mittig daneben. */
+.marke {
+  display: flex;
+  align-items: flex-end;
+  /* Klein, weil die Wellen nach rechts über den Schriftzug greifen. */
+  gap: 4px;
+  margin-bottom: 40px;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 0.74;
+  letter-spacing: 0.02em;
+  color: var(--an-tinte);
+}
+
+/* Das Zeichen ist hochkant (323 × 820); die Höhe bestimmt, die Breite folgt. */
+.markeZeichen {
+  display: block;
+  width: auto;
+  height: 68px;
 }
 
 .kicker {
