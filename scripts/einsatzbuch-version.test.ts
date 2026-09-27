@@ -6,12 +6,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  artDerAenderung,
   ausManuellemTag,
   berechneEinsatzbuchVersion,
   bericht,
   entscheide,
   loestReleaseAus,
   parseEinsatzbuchTag,
+  releaseNotizen,
 } from "./einsatzbuch-version.mjs";
 import { berechneVersion } from "./version.mjs";
 
@@ -96,6 +98,35 @@ describe("entscheide — Basis plus größter Sprung", () => {
  * Das Wegwerf-Repo. Die Commits ändern echte Dateien, weil der Pfadfilter zählt; `--no-ff`
  * erzwingt den Merge-Commit, den ein GitHub-Merge ebenfalls legt.
  */
+describe("artDerAenderung und releaseNotizen ohne Repo", () => {
+  it("brechend vor dem Typ, alles außer feat/fix/perf ist „sonst“", () => {
+    expect(artDerAenderung("fix(einsatzbuch)!: anders")).toBe("brechend");
+    expect(artDerAenderung("chore: a\n\nBREAKING CHANGE: b")).toBe("brechend");
+    expect(artDerAenderung("feat: a")).toBe("feat");
+    expect(artDerAenderung("perf(einsatzbuch): a")).toBe("perf");
+    expect(artDerAenderung("docs: a")).toBe("sonst");
+    expect(artDerAenderung("Ohne Präfix")).toBe("sonst");
+  });
+
+  it("ohne Release keine Notizen; beim Notfall-Tag nur Kopf und Dateien", () => {
+    expect(releaseNotizen(entscheideLeer())).toBe("");
+    const text = releaseNotizen(ausManuellemTag("einsatzbuch-v2.0.1"), { repo: "o/r" });
+    expect(text).toContain("Version 2.0.1.");
+    expect(text).not.toContain("compare");
+    expect(text).toContain("`Einsatzbuch_2.0.1_universal.dmg`");
+  });
+
+  it("eine PR-Nummer, die schon im Betreff steht (Squash), steht nicht doppelt", () => {
+    const e = { ...ausManuellemTag("einsatzbuch-v2.0.1"), basis: "einsatzbuch-v2.0.0" };
+    e.commits = [{ commit: "a".repeat(40), betreff: "fix(einsatzbuch): Absturz (#9)", loestAus: true, art: "fix", pr: 9 }];
+    expect(releaseNotizen(e)).toContain("- Absturz (#9) (aaaaaaa)\n");
+  });
+});
+
+function entscheideLeer(): ReturnType<typeof ausManuellemTag> {
+  return { ...ausManuellemTag("einsatzbuch-v1.0.0"), release: false, version: null, tag: null };
+}
+
 describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
   let repo: string;
   let zaehler = 0;
@@ -176,6 +207,21 @@ describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
     const e = berechneEinsatzbuchVersion(repo);
     expect(e.version).toBe("1.1.0");
     expect(e.commits).toHaveLength(3);
+  });
+
+  it("Release-Notizen: Commits nach Art, mit Kurz-SHA und PR, Vergleich seit der Basis", () => {
+    const e = berechneEinsatzbuchVersion(repo);
+    const sha = (betreff: string) => e.commits.find((c) => c.betreff === betreff)!.commit.slice(0, 7);
+    const text = releaseNotizen(e, { repo: "o/r" });
+    expect(text).toContain("Desktop-App des Einsatzbuchs, Version 1.1.0.");
+    // Der direkte Push hat keinen PR, die Commits aus dem Merge den des Merges.
+    expect(text).toContain(`### Neu\n\n- Kern kann mehr (${sha("feat(einsatzbuch): Kern kann mehr")}, #3)`);
+    expect(text).toContain(`### Behoben\n\n- Kleinigkeit (${sha("fix(einsatzbuch): Kleinigkeit")})\n`);
+    expect(text).toContain(`### Weitere Änderungen an der App\n\n- dazu (${sha("test(einsatzbuch): dazu")}, #3)`);
+    expect(text).not.toContain("### Brechende");
+    expect(text).toContain("https://github.com/o/r/compare/einsatzbuch-v1.0.0...einsatzbuch-v1.1.0");
+    expect(text).toContain("`Einsatzbuch_1.1.0_x64-setup.exe`");
+    expect(text.indexOf("### Neu")).toBeLessThan(text.indexOf("### Behoben"));
   });
 
   it("feat außerhalb der App-Pfade zählt nicht", () => {
@@ -262,7 +308,7 @@ describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
     }
   });
 
-  it("als Programm schreibt es release, version und tag für die Job-Ausgaben", () => {
+  it("als Programm schreibt es release, version, tag und notizen für die Job-Ausgaben", () => {
     const skript = fileURLToPath(new URL("./einsatzbuch-version.mjs", import.meta.url));
     const ausgabe = path.join(repo, "..", `ausgabe-${path.basename(repo)}`);
     try {
@@ -272,7 +318,11 @@ describe("berechneEinsatzbuchVersion — an einer echten Historie", () => {
         env: { ...process.env, GITHUB_OUTPUT: ausgabe, GITHUB_STEP_SUMMARY: "" },
       });
       expect(lauf.status).toBe(0);
-      expect(readFileSync(ausgabe, "utf8")).toBe("release=true\nversion=2.0.0\ntag=einsatzbuch-v2.0.0\n");
+      const inhalt = readFileSync(ausgabe, "utf8");
+      expect(inhalt.startsWith("release=true\nversion=2.0.0\ntag=einsatzbuch-v2.0.0\n")).toBe(true);
+      // Die Notizen mehrzeilig mit Begrenzer: `name<<ENDE`, Text, `ENDE`.
+      const m = /\nnotizen<<(NOTIZEN_[\w-]+)\n([\s\S]*)\n\1\n$/.exec(inhalt);
+      expect(m?.[2]).toContain("Desktop-App des Einsatzbuchs, Version 2.0.0.");
       const falsch = spawnSync(process.execPath, [skript, "--tag", "einsatzbuch-v2"], { cwd: repo, encoding: "utf8" });
       expect(falsch.status).toBe(1);
       expect(falsch.stdout).toMatch(/^::error::Kein Einsatzbuch-Versionstag/);
