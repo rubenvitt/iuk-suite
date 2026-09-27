@@ -4,24 +4,34 @@ import { useSearchParams } from "next/navigation";
 import { absoluteCallbackUrl } from "@/core/auth/callbackUrl";
 import { suiteRedirect } from "@/core/auth/redirect";
 import { vereinigeGruppen } from "@/core/auth/devGroups";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button, Checkbox, Input } from "antd";
-import { FARBEN, SPACE } from "@/core/theme/tokens";
+import styles from "./login-form.module.css";
 
-// Kleiner, lokaler Helfer: übersetzt einen Suite-Hex-Wert mit Deckkraft in eine
-// CSS-Farbe — Ersatz für Tailwinds Opacity-Modifier (`bg-[..]/NN`), den es
-// für `style`-Objekte nicht gibt.
-function rgba(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+/**
+ * Das Hintergrundbild. Unter `/login/…` und nicht an der Wurzel: `/login` steht
+ * in `core/routing.ts` auf der PASSTHROUGH-Liste, `/login-bg.jpg` stand es
+ * nicht — auf einem Modul-Host (z. B. Lagerbuch) schrieb der Proxy das Bild auf
+ * `/m/<modul>/login-bg.jpg` um, 404, die Seite stand ohne Bild da.
+ */
+const HINTERGRUNDBILD = "/login/hintergrund.jpg";
+
+/**
+ * Enter ohne Fokus auf einem Bedienelement führt zu Pocket ID. Was selbst auf
+ * Enter reagiert, behält die Taste: ein Feld oder Häkchen des Dev-Logins
+ * (dort sendet Enter dessen Formular ab), ein Knopf (der Pocket-ID-Knopf löst
+ * mit Fokus ohnehin selbst aus — sonst liefe die Anmeldung doppelt), ein Link.
+ */
+function behaeltEnter(ziel: EventTarget | null): boolean {
+  return (
+    ziel instanceof Element &&
+    ziel.closest("input, textarea, select, button, a[href], form, [contenteditable], [role='button']") !== null
+  );
 }
 
 function PocketIdLogo() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" width={20} height={20} aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" width={22} height={22} aria-hidden>
       <path
         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm0 13.5c-2.5 0-4.7-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.3 1.94-3.5 3.22-6 3.22Z"
         fill="currentColor"
@@ -47,248 +57,141 @@ export function LoginForm({
   const [email, setEmail] = useState("dev@localtest.me");
   const [groups, setGroups] = useState("");
   const [angehakt, setAngehakt] = useState<string[]>([]);
+  const [weiter, setWeiter] = useState(false);
   const alleAn = gruppenAuswahl.length > 0 && angehakt.length === gruppenAuswahl.length;
   const teilweise = angehakt.length > 0 && !alleAn;
+
+  function zuPocketId() {
+    if (weiter) return;
+    setWeiter(true);
+    // Absolut gegen den Host, auf dem diese Seite läuft — NICHT relativ.
+    // Warum, steht in core/auth/callbackUrl.ts; dass ein präparierter
+    // callbackUrl damit nicht zum offenen Redirector wird, stellt die
+    // Allowlist in core/auth/redirect.ts sicher.
+    signIn("pocket-id", {
+      redirectTo: absoluteCallbackUrl(callbackUrl, window.location.origin),
+    }).catch(() => setWeiter(false));
+  }
+
+  const beiTaste = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key !== "Enter" || e.repeat || e.isComposing || e.defaultPrevented) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (behaeltEnter(e.target)) return;
+    e.preventDefault();
+    zuPocketId();
+  });
+
+  // Zurück aus Pocket ID per Browser-Zurück: der bfcache stellt die Seite mit
+  // drehendem Knopf wieder her. Ohne das hier bliebe sie gesperrt.
+  const beiRueckkehr = useEffectEvent((e: PageTransitionEvent) => {
+    if (e.persisted) setWeiter(false);
+  });
+
+  useEffect(() => {
+    const taste = (e: KeyboardEvent) => beiTaste(e);
+    const rueckkehr = (e: PageTransitionEvent) => beiRueckkehr(e);
+    window.addEventListener("keydown", taste);
+    window.addEventListener("pageshow", rueckkehr);
+    return () => {
+      window.removeEventListener("keydown", taste);
+      window.removeEventListener("pageshow", rueckkehr);
+    };
+  }, []);
+
   return (
-    <main
-      style={{
-        position: "relative",
-        display: "flex",
-        minHeight: "100vh",
-        alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
-        padding: SPACE.xl,
-      }}
-    >
-      {/* Hintergrund: generiertes Bild + weiches Overlay, damit die Karte trägt */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: "url(/login-bg.jpg)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      />
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: `linear-gradient(to bottom right, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.55), ${rgba(FARBEN.rotBg, 0.6)})`,
-          backdropFilter: "blur(2px)",
-        }}
-      />
-      {/* Dekorative Farbakzente */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: -128,
-          right: -128,
-          height: 384,
-          width: 384,
-          borderRadius: 9999,
-          backgroundColor: rgba(FARBEN.rot, 0.1),
-          filter: "blur(64px)",
-        }}
-      />
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          bottom: -160,
-          left: -160,
-          height: 448,
-          width: 448,
-          borderRadius: 9999,
-          backgroundColor: rgba(FARBEN.tinte, 0.05),
-          filter: "blur(64px)",
-        }}
-      />
-
-      <div style={{ position: "relative", width: "100%", maxWidth: 448 }}>
-        <div
-          style={{
-            borderRadius: 24,
-            border: "1px solid rgba(255, 255, 255, 0.6)",
-            backgroundColor: "rgba(255, 255, 255, 0.75)",
-            padding: SPACE.xxl,
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.10)",
-            backdropFilter: "blur(24px)",
-          }}
-        >
-          {/* Markenzeichen */}
-          <div
-            style={{
-              marginBottom: SPACE.xxl,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              textAlign: "center",
-            }}
-          >
-            <div
-              aria-hidden
-              style={{
-                marginBottom: 20,
-                display: "flex",
-                height: 64,
-                width: 64,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 16,
-                backgroundColor: FARBEN.rot,
-                boxShadow: `0 10px 15px -3px ${rgba(FARBEN.rot, 0.3)}, 0 4px 6px -4px ${rgba(FARBEN.rot, 0.3)}`,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 24,
-                  fontWeight: 900,
-                  letterSpacing: 0,
-                  color: "#ffffff",
-                }}
-              >
-                {/* Das ausgeschriebene Wortzeichen, kein Kuerzel mehr: „IDA"
-                    misst bei 24px/900 rund 45px und steht damit im 64px
-                    breiten Feld — die Fuellung steigt von rund 47 % auf 70 %.
-                    Weil die Kachel damit woertlich wiederholt, was 20px
-                    darunter als Ueberschrift steht, ist sie reines Dekor und
-                    `aria-hidden`; den Namen traegt die `<h1>`.
-                    `letterSpacing: 0` ist Absicht, keine Auslassung: bei einem
-                    zweibuchstabigen Kuerzel war negatives Tracking folgenlos,
-                    bei drei Versalien im Gewicht 900 laesst es das Wort
-                    gedraengt wirken. Damit schreiben alle VIER Wortzeichen der
-                    Suite das Wort aus — hier wie in files und feedback (dort
-                    je 13px Text im Kopf). */}
-                IDA
-              </span>
-            </div>
-            <h1
-              style={{
-                fontSize: 24,
-                fontWeight: 700,
-                letterSpacing: "-0.025em",
-                color: FARBEN.tinte,
-              }}
-            >
+    <main className={styles.seite}>
+      <section className={styles.bild}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- `next/image` braucht zur Laufzeit `sharp` im Standalone-Image; ein Bild, eine Größe, dafür lohnt es nicht. */}
+        <img className={styles.bildDatei} src={HINTERGRUNDBILD} alt="" fetchPriority="high" decoding="async" />
+        <div className={styles.bildInhalt}>
+          <span className={styles.marke}>
+            <span className={styles.markeKachel} aria-hidden>
               IDA
-            </h1>
-            <p style={{ marginTop: SPACE.sm, fontSize: 14, color: FARBEN.stahl }}>
-              Interne Dienste und Anwendungen
-            </p>
-          </div>
+            </span>
+            I&amp;K-Suite
+          </span>
+          <p className={styles.bildTitel}>Interne Dienste und Anwendungen</p>
+        </div>
+      </section>
 
-          <Button
-            type="primary"
-            size="large"
-            block
-            icon={<PocketIdLogo />}
-            // Absolut gegen den Host, auf dem diese Seite läuft — NICHT relativ.
-            // Warum, steht in core/auth/callbackUrl.ts; dass ein präparierter
-            // callbackUrl damit nicht zum offenen Redirector wird, stellt die
-            // Allowlist in core/auth/redirect.ts sicher.
-            onClick={() =>
-              signIn("pocket-id", {
-                redirectTo: absoluteCallbackUrl(callbackUrl, window.location.origin),
-              })
-            }
-          >
-            Mit Pocket ID anmelden
+      <section className={styles.anmeldung}>
+        <div className={styles.inhalt}>
+          <p className={styles.kicker}>IDA · Anmeldung</p>
+          <h1 className={styles.titel}>Willkommen zurück</h1>
+          <p className={styles.einleitung}>
+            Du meldest dich über Pocket ID an – mit deinem Passkey, ohne Passwort. Danach kommst du
+            direkt hierher zurück.
+          </p>
+
+          <Button type="primary" block loading={weiter} onClick={zuPocketId}>
+            <span className={styles.knopfInhalt}>
+              {!weiter && <PocketIdLogo />}
+              {weiter ? "Weiter zu Pocket ID …" : "Mit Pocket ID anmelden"}
+            </span>
           </Button>
 
-          <p style={{ marginTop: SPACE.lg, textAlign: "center", fontSize: 12, color: FARBEN.stahl }}>
-            Du wirst zu Pocket ID weitergeleitet und nach der Anmeldung
-            zurückgebracht.
+          <p className={styles.tipp}>
+            Oder einfach <kbd className={styles.taste}>Enter</kbd> drücken.
           </p>
 
           {devLogin && (
             <form
-              style={{
-                marginTop: SPACE.xxl,
-                display: "flex",
-                flexDirection: "column",
-                gap: SPACE.md,
-                borderTop: `1px solid ${FARBEN.linie}`,
-                paddingTop: SPACE.xl,
-              }}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                // Dev-login only: post the credentials WITHOUT letting next-auth perform the
-                // redirect. Auth.js derives its redirect base URL from the server-side request
-                // origin (localhost in dev, since Next's Request doesn't reflect the client Host
-                // header), so its own redirect would bounce the browser off the requesting
-                // *.localtest.me host. With redirect:false the session cookie is set by the fetch
-                // response, and we navigate on the CURRENT origin instead — keeping the browser on
-                // the host that initiated the login. Production-safe (this branch renders only when
-                // dev-login is enabled — dev mode or explicit AUTH_DEV_LOGIN=true, never in production
-                // builds; see core/auth/devLogin.ts) and it leaves the real Pocket-ID button intact.
-                await signIn("dev-login", {
-                  email,
-                  groups: vereinigeGruppen(angehakt, groups),
-                  redirect: false,
-                });
-                // DIE WEICHE: geprueft gegen die Suite-Allowlist, nicht gegen
-                // `startsWith("/")`. Zwei Gruende, beide vorher still:
-                //  - ein ABSOLUTES Ziel auf einem Suite-Host wurde verworfen und
-                //    landete auf der Wurzel. Der Verwaltungsknopf des
-                //    Lagerbuch-Gates traegt genau so einen Wert (Host-Wechsel),
-                //    und der Weg dorthin war in jeder Dev- und E2E-Umgebung tot.
-                //  - `"//boese.example/".startsWith("/")` ist `true`: ein
-                //    protokoll-relativer Wert kam durch, den der Browser als
-                //    FREMDE Origin liest — eine offene Weiterleitung.
-                //
-                // WARUM HIER PRUEFEN, wo `core/auth/callbackUrl.ts` das fuer den
-                // Pocket-ID-Knopf oben ausdruecklich ABLEHNT ("taeuschte einen
-                // Schutz vor, den eine Client-Komponente nicht leisten kann"):
-                // dort geht der Wert an Auth.js, das `suiteRedirect`
-                // SERVERSEITIG faehrt — eine Client-Pruefung waere Theater. Hier
-                // steht `redirect: false`, Auth.js sieht das Ziel nie, und der
-                // Browser navigiert selbst. Es gibt also keine nachgelagerte
-                // Pruefung; diese ist nicht die zweite, sondern die einzige.
-                //
-                // `env: {}` bewusst: im Browser-Bundle gibt es `SUITE_HOST_*`
-                // nicht (nur `NEXT_PUBLIC_*` wird eingesetzt). Der Default
-                // `process.env` saehe unter Vitest die echte Node-Umgebung und
-                // damit ANDERE Hosts als der Browser — der gruene Lauf beschriebe
-                // dann nicht das Verhalten im Browser. Erlaubt bleibt so: die
-                // eigene Origin, `<key>.localtest.me` und die literalen
-                // `prodHosts` der Registry. Das faellt zu, nicht auf — und der
-                // Dev-Login laeuft ohnehin nur in Dev/E2E.
-                window.location.assign(
-                  suiteRedirect({ url: callbackUrl, baseUrl: window.location.origin, env: {} }),
-                );
-              }}
+              className={styles.entwicklung}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              // Dev-login only: post the credentials WITHOUT letting next-auth perform the
+              // redirect. Auth.js derives its redirect base URL from the server-side request
+              // origin (localhost in dev, since Next's Request doesn't reflect the client Host
+              // header), so its own redirect would bounce the browser off the requesting
+              // *.localtest.me host. With redirect:false the session cookie is set by the fetch
+              // response, and we navigate on the CURRENT origin instead — keeping the browser on
+              // the host that initiated the login. Production-safe (this branch renders only when
+              // dev-login is enabled — dev mode or explicit AUTH_DEV_LOGIN=true, never in production
+              // builds; see core/auth/devLogin.ts) and it leaves the real Pocket-ID button intact.
+              await signIn("dev-login", {
+                email,
+                groups: vereinigeGruppen(angehakt, groups),
+                redirect: false,
+              });
+              // DIE WEICHE: geprueft gegen die Suite-Allowlist, nicht gegen
+              // `startsWith("/")`. Zwei Gruende, beide vorher still:
+              //  - ein ABSOLUTES Ziel auf einem Suite-Host wurde verworfen und
+              //    landete auf der Wurzel. Der Verwaltungsknopf des
+              //    Lagerbuch-Gates traegt genau so einen Wert (Host-Wechsel),
+              //    und der Weg dorthin war in jeder Dev- und E2E-Umgebung tot.
+              //  - `"//boese.example/".startsWith("/")` ist `true`: ein
+              //    protokoll-relativer Wert kam durch, den der Browser als
+              //    FREMDE Origin liest — eine offene Weiterleitung.
+              //
+              // WARUM HIER PRUEFEN, wo `core/auth/callbackUrl.ts` das fuer den
+              // Pocket-ID-Knopf oben ausdruecklich ABLEHNT ("taeuschte einen
+              // Schutz vor, den eine Client-Komponente nicht leisten kann"):
+              // dort geht der Wert an Auth.js, das `suiteRedirect`
+              // SERVERSEITIG faehrt — eine Client-Pruefung waere Theater. Hier
+              // steht `redirect: false`, Auth.js sieht das Ziel nie, und der
+              // Browser navigiert selbst. Es gibt also keine nachgelagerte
+              // Pruefung; diese ist nicht die zweite, sondern die einzige.
+              //
+              // `env: {}` bewusst: im Browser-Bundle gibt es `SUITE_HOST_*`
+              // nicht (nur `NEXT_PUBLIC_*` wird eingesetzt). Der Default
+              // `process.env` saehe unter Vitest die echte Node-Umgebung und
+              // damit ANDERE Hosts als der Browser — der gruene Lauf beschriebe
+              // dann nicht das Verhalten im Browser. Erlaubt bleibt so: die
+              // eigene Origin, `<key>.localtest.me` und die literalen
+              // `prodHosts` der Registry. Das faellt zu, nicht auf — und der
+              // Dev-Login laeuft ohnehin nur in Dev/E2E.
+              window.location.assign(
+                suiteRedirect({ url: callbackUrl, baseUrl: window.location.origin, env: {} }),
+              );
+            }}
             >
-              <p
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  letterSpacing: "0.025em",
-                  color: FARBEN.stahl,
-                  textTransform: "uppercase",
-                }}
-              >
-                Entwicklungs-Login
-              </p>
+              <p className={styles.entwicklungTitel}>Entwicklungs-Login</p>
               <Input aria-label="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 
               {gruppenAuswahl.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: SPACE.md,
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 500, color: FARBEN.tinte }}>
-                      Gruppen
-                    </span>
+                <div className={styles.gruppen}>
+                  <div className={styles.gruppenKopf}>
+                    <span>Gruppen</span>
                     {/*
                       „Alle auswählen“ ist bewusst KEIN dritter Zustand zum
                       Anklicken: `indeterminate` zeigt nur an, dass eine Teilmenge
@@ -299,16 +202,7 @@ export function LoginForm({
                       checked={alleAn}
                       onChange={(e) => setAngehakt(e.target.checked ? [...gruppenAuswahl] : [])}
                     >
-                      {/*
-                        Farbe gesetzt, nicht geerbt: die Karte ist in BEIDEN
-                        Themes hell (`rgba(255,255,255,0.75)` weiter oben, fest),
-                        antds `colorText` wird unter `data-theme="dark"` aber
-                        nahezu weiß — die Beschriftung verschwände dann auf dem
-                        hellen Grund. Gemessen im Dunkelmodus, nicht vermutet.
-                        Kein `ConfigProvider` und kein CSS dagegen: das wäre
-                        Falle 5 und träfe die ganze Suite statt dieser Karte.
-                      */}
-                      <span style={{ color: FARBEN.tinte }}>Alle auswählen</span>
+                      Alle auswählen
                     </Checkbox>
                   </div>
                   {/*
@@ -318,20 +212,16 @@ export function LoginForm({
                     Element, dessen Name „groups“ enthält, ließe jeden
                     anmeldenden E2E-Test an dieser Stelle sterben. Die sichtbare
                     Überschrift darüber trägt die Beschriftung.
+
+                    Die Farben der Beschriftungen kommen wieder aus antd: die
+                    Fläche folgt jetzt dem Theme (`--an-flaeche`), statt in
+                    beiden Modi fest hell zu sein.
                   */}
                   <Checkbox.Group
                     value={angehakt}
                     onChange={(werte) => setAngehakt(werte as string[])}
-                    // Farbe wie beim Schalter darüber gesetzt statt geerbt —
-                    // sonst stehen im Dunkelmodus sieben nahezu weiße Namen auf
-                    // der fest hellen Karte. `value` bleibt der nackte Name:
-                    // er geht so an `parseDevGroups`, und `getByLabel` findet
-                    // ihn im E2E über den Text.
-                    options={gruppenAuswahl.map((g) => ({
-                      label: <span style={{ color: FARBEN.tinte }}>{g}</span>,
-                      value: g,
-                    }))}
-                    style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}
+                    options={gruppenAuswahl.map((g) => ({ label: g, value: g }))}
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
                   />
                 </div>
               )}
@@ -342,24 +232,15 @@ export function LoginForm({
                 value={groups}
                 onChange={(e) => setGroups(e.target.value)}
               />
-              <Button htmlType="submit" size="large" block>
+              <Button htmlType="submit" block>
                 Dev-Login
               </Button>
             </form>
           )}
         </div>
 
-        <p
-          style={{
-            marginTop: SPACE.xl,
-            textAlign: "center",
-            fontSize: 12,
-            color: rgba(FARBEN.stahl, 0.8),
-          }}
-        >
-          IDA · Interner Bereich · Zugriff nur für Berechtigte
-        </p>
-      </div>
+        <p className={styles.fuss}>Interner Bereich · Zugriff nur für Berechtigte</p>
+      </section>
     </main>
   );
 }

@@ -151,3 +151,61 @@ describe("Dev-Login: das Navigationsziel nach dem Absenden", () => {
     expect(signInMock.mock.calls[0][1]).toMatchObject({ redirect: false });
   });
 });
+
+/** Enter auf `ziel` drücken — so, wie der Browser es an `window` weiterreicht. */
+function enter(ziel: EventTarget, extra: KeyboardEventInit = {}): KeyboardEvent {
+  const e = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, ...extra });
+  ziel.dispatchEvent(e);
+  return e;
+}
+
+describe("Enter auf der Anmeldeseite führt zu Pocket ID", () => {
+  it("ohne Fokus auf einem Bedienelement: Pocket ID, mit absolutem Rückweg", async () => {
+    suchparameter.wert = new URLSearchParams({ callbackUrl: "/verwaltung" });
+    await mount(<LoginForm devLogin={false} />);
+    const e = enter(document.body);
+    expect(e.defaultPrevented).toBe(true);
+    expect(signInMock).toHaveBeenCalledTimes(1);
+    expect(signInMock.mock.calls[0][0]).toBe("pocket-id");
+    expect(signInMock.mock.calls[0][1]).toEqual({ redirectTo: `${ORIGIN}/verwaltung` });
+  });
+
+  // Ein zweites Enter während der Weiterleitung darf keinen zweiten
+  // Autorisierungsfluss starten (zwei `state`-Cookies, einer läuft ins Leere).
+  it("löst nur einmal aus, auch bei mehrfachem Enter", async () => {
+    await mount(<LoginForm devLogin={false} />);
+    enter(document.body);
+    await Promise.resolve();
+    enter(document.body);
+    expect(signInMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Im Dev-Login gehört Enter dem Formular: es sendet den Dev-Login ab. Ginge
+  // es zusätzlich an Pocket ID, liefe jeder E2E-Login gegen den echten Anbieter.
+  it("nicht aus einem Feld des Dev-Logins heraus", async () => {
+    await mount(<LoginForm devLogin />);
+    enter(document.querySelector("input[aria-label='email']")!);
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  // Ein Knopf mit Fokus löst auf Enter selbst aus; zusätzlich hier wäre doppelt.
+  it("nicht, wenn ein Knopf den Fokus hat", async () => {
+    await mount(<LoginForm devLogin={false} />);
+    enter(document.querySelector("button")!);
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("nicht mit gehaltener Umschalt-, Strg-, Alt- oder Befehlstaste", async () => {
+    await mount(<LoginForm devLogin={false} />);
+    for (const taste of ["shiftKey", "ctrlKey", "altKey", "metaKey"] as const) {
+      enter(document.body, { [taste]: true });
+    }
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("andere Tasten tun nichts", async () => {
+    await mount(<LoginForm devLogin={false} />);
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+});
