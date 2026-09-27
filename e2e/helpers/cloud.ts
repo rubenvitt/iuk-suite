@@ -29,6 +29,11 @@ import type { PlaywrightTestConfig } from "@playwright/test";
  *    ist keiner. Die Suite spricht nur mit eigenen Servern auf 127.0.0.1, also
  *    braucht der Browser keinen Proxy.
  *
+ *    `--proxy-server=direct://`, NICHT `--no-proxy-server` (DRK-489): die
+ *    Headless-Shell hält sich bei `--no-proxy-server` nur für HTTP daran, der
+ *    WebSocket geht weiter über den Proxy (gemessen: 502, im vollen Chromium
+ *    offen). `direct://` öffnet ihn in beiden.
+ *
  * Außerhalb der Cloud (lokal, CI) bleibt die Konfiguration UNVERÄNDERT: dort
  * gilt, was Playwright selbst installiert hat.
  *
@@ -61,7 +66,7 @@ export function cloudHeadlessShell(
 }
 
 /** Das Argument, das Abweichung 2 behebt. */
-export const OHNE_PROXY = "--no-proxy-server";
+export const OHNE_PROXY = "--proxy-server=direct://";
 
 export function istCloudSession(
   env: Record<string, string | undefined> = process.env,
