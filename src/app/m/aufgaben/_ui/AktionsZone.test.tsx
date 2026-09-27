@@ -5,6 +5,7 @@ import {
   clickElement,
   existsPortal,
   mount,
+  query,
   queryAll,
   queryPortal,
   unmount,
@@ -114,6 +115,7 @@ const ALLE_AUS: AktionsOptionen = {
   wiederaufnehmen: false,
   zurueckziehen: false,
   umverteilen: false,
+  bearbeiten: false,
   nachweisHochladen: false,
 };
 
@@ -287,6 +289,43 @@ describe("AktionsZone — Freigeben/Zurückweisen kommen aus FreigabeZone.tsx, k
     );
     expect(queryAll("[data-testid='freigeben-a1']")).toHaveLength(1);
     expect(queryAll("[data-testid='zurueckweisen-a1']")).toHaveLength(1);
+  });
+});
+
+describe("AktionsZone — Bearbeiten (DRK-487)", () => {
+  it("ist ein Verweis auf /a/<id>/bearbeiten, kein Primaerknopf", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a9", status: "in_arbeit" })}
+        optionen={{ ...ALLE_AUS, bearbeiten: true }}
+      />,
+    );
+    const knopf = query<HTMLAnchorElement>("[data-testid='bearbeiten']");
+    expect(knopf.getAttribute("href")).toBe("/a/a9/bearbeiten");
+    expect(knopf.className).not.toContain("ant-btn-primary");
+  });
+
+  it("fehlt, wenn bearbeiten nicht erlaubt ist", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a9", status: "verteilt" })}
+        optionen={{ ...ALLE_AUS, starten: true }}
+      />,
+    );
+    expect(queryAll("[data-testid='bearbeiten']")).toHaveLength(0);
+  });
+
+  it("Zurückziehen aus der Detailseite sendet weiter=start — danach gibt es die Seite nicht mehr", async () => {
+    await mount(
+      <AktionsZone
+        nachweisMaxBytes={MAX_BYTES}
+        aufgabe={aufgabe({ id: "a9", status: "verteilt" })}
+        optionen={{ ...ALLE_AUS, zurueckziehen: true }}
+      />,
+    );
+    expect(query<HTMLInputElement>("input[type='hidden'][name='weiter']").value).toBe("start");
   });
 });
 

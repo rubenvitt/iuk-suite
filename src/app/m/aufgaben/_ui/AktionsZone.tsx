@@ -44,11 +44,9 @@ import { ZurueckziehenKnopf } from "./ZurueckziehenKnopf";
  * die Fuehrungskarte des Auftraggebers (Rang 3) ebenfalls braucht — und die ist eine SERVER
  * COMPONENT, aus der ein `onConfirm` nicht ueber die RSC-Grenze darf (Falle 9). Eine zweite
  * Fassung hier waere dieselbe Bestaetigungspflicht an zwei Orten.
- * `zurueckziehenAction` LOESCHT DIE AUFGABE — nach dem Absenden existiert `/a/<id>` fuer diese Id
- * nicht mehr, und die naechste Revalidierung dieser Route zeigt `notFound()`. Das ist keine
- * Regression dieser Aufgabe: `zurueckziehenAction` (Aufgabe 9) redirectet heute nirgendwohin, und
- * eine solche Aenderung an einer bereits getesteten, modulweiten Action ist NICHT Teil dieses
- * Auftrags — im Bericht als bekannte, kleine Rauheit vermerkt statt still mitgezogen.
+ * `zurueckziehenAction` LOESCHT DIE AUFGABE — danach existiert `/a/<id>` fuer diese Id nicht mehr.
+ * Seit DRK-487 traegt der Knopf hier deshalb `zurStart`, und die Action leitet auf die Startseite
+ * um, statt die geloeschte Seite mit `notFound()` stehen zu lassen.
  *
  * ══ GENAU EIN PRIMAERKNOPF (Oberflaechen-Spec 2026-08-16 §7 Nr. 2, Schritt 6). Bis dahin rendert
  *    diese Zone JEDES erlaubte `optionen.*` als eigenes Formular, mehrere davon mit
@@ -150,7 +148,18 @@ export function AktionsZone({
        * ZURUECKZIEHEN STEHT NICHT IN `VORRANG` UND IMMER GANZ UNTEN (§7 Nr. 2) — s. den Kommentar
        * an der Liste. Es bleibt sekundaer mit `Popconfirm`, unabhaengig davon, was ueber ihm steht.
        */}
-      {optionen.zurueckziehen ? <ZurueckziehenKnopf aufgabeId={aufgabe.id} /> : null}
+      {/*
+       * BEARBEITEN (DRK-487) — ein Verweis auf `/a/<id>/bearbeiten`, nie Primaerknopf: es aendert
+       * den Auftrag, es bringt ihn nicht voran. Deshalb auch nicht in `VORRANG`.
+       */}
+      {optionen.bearbeiten ? (
+        <div>
+          <Button href={`/a/${aufgabe.id}/bearbeiten`} data-testid="bearbeiten">
+            Bearbeiten
+          </Button>
+        </div>
+      ) : null}
+      {optionen.zurueckziehen ? <ZurueckziehenKnopf aufgabeId={aufgabe.id} zurStart /> : null}
     </div>
   );
 }

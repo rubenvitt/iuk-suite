@@ -24,7 +24,7 @@ import type { Akteur } from "./zugang";
  * neue, tatsaechlich zusaetzliche Spec-Zeile, keine Doppelzaehlung. Das Raster hat damit wieder ELF
  * erlaubte Zellen und NEUNUNDVIERZIG abgelehnte — zufaellig dieselbe Zahl, die der Brief-Fehler aus
  * Aufgabe 8 schon einmal (aus falschem Grund) nannte. `ERLAUBTE_UEBERGAENGE.length` wird unten auf
- * genau 11 geprueft, damit diese Zaehlung eine gewachte Tatsache ist und keine Behauptung im Bericht.
+ * genau 11 geprueft (seit DRK-487: 12), damit diese Zaehlung eine gewachte Tatsache ist und keine Behauptung im Bericht.
  */
 
 let seq = 0;
@@ -171,7 +171,7 @@ type ErwarteterUebergang =
   | { von: Status; aktion: Aktion; wirkung: "loeschen" };
 
 /**
- * SPEC §5.2, VON HAND ABGESCHRIEBEN — die elf erlaubten Zellen des 60er-Rasters (Nachtrag vom
+ * SPEC §5.2, VON HAND ABGESCHRIEBEN — die zwoelf erlaubten Zellen des 60er-Rasters (DRK-487: `verteilt`×`zurueckziehen`; Nachtrag vom
  * 2026-08-13: `in_arbeit`×`einplanen` kam hinzu, Aufgabe 10). `fertig` steht hier mit der
  * FREMDAUFGABEN-Ausrichtung (`freigabe_offen`); die Selbstaufgaben-Kurzstrecke ist Sonderregel 1
  * weiter unten, nicht eine zweite Zelle (siehe Kopfkommentar-Befund).
@@ -179,6 +179,8 @@ type ErwarteterUebergang =
 const ERLAUBTE_UEBERGAENGE: ErwarteterUebergang[] = [
   { von: "eingegangen", aktion: "verteilen", wirkung: "aendern", nach: "verteilt" },
   { von: "eingegangen", aktion: "zurueckziehen", wirkung: "loeschen" },
+  // DRK-487: auch aus "verteilt", solange niemand angefangen hat.
+  { von: "verteilt", aktion: "zurueckziehen", wirkung: "loeschen" },
   { von: "verteilt", aktion: "umverteilen", wirkung: "aendern", nach: "verteilt" },
   { von: "verteilt", aktion: "einplanen", wirkung: "aendern", nach: "verteilt" },
   { von: "verteilt", aktion: "starten", wirkung: "aendern", nach: "in_arbeit" },
@@ -191,8 +193,8 @@ const ERLAUBTE_UEBERGAENGE: ErwarteterUebergang[] = [
 ];
 
 describe("uebergang — das 60-Zellen-Raster (6 Zustaende × 10 Aktionen)", () => {
-  it("genau elf Zellen sind erlaubt — die Befund-Zaehlung ist eine gewachte Tatsache", () => {
-    expect(ERLAUBTE_UEBERGAENGE.length).toBe(11);
+  it("genau zwoelf Zellen sind erlaubt — die Befund-Zaehlung ist eine gewachte Tatsache", () => {
+    expect(ERLAUBTE_UEBERGAENGE.length).toBe(12);
   });
 
   it.each(STATUS_WERTE.flatMap((von) => AKTIONEN.map((aktion) => [von, aktion] as const)))(
@@ -340,8 +342,8 @@ describe("Sonderregel 1 — Selbstaufgaben nehmen die Kurzstrecke bei 'fertig'",
   });
 });
 
-describe("Sonderregel 2 — zurueckziehen geht NUR aus 'eingegangen'", () => {
-  it.each(STATUS_WERTE.filter((s) => s !== "eingegangen"))("aus %s: abgelehnt", (status) => {
+describe("Sonderregel 2 — zurueckziehen geht NUR aus 'eingegangen' und 'verteilt' (DRK-487)", () => {
+  it.each(STATUS_WERTE.filter((s) => s !== "eingegangen" && s !== "verteilt"))("aus %s: abgelehnt", (status) => {
     const a = akteure();
     const t = aufgabe({ status, erstellerId: a.ersteller.id });
     const ergebnis = uebergang(t, "zurueckziehen", akteur(a.ersteller), HEUTE);

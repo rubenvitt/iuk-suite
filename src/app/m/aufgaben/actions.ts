@@ -6,6 +6,7 @@ import { isModuleAdmin } from "@/core/groups";
 import { getModule } from "@/core/registry";
 import { TITEL_MAX_LAENGE, titelZuLang } from "@/core/titel";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getDb, type DB } from "./_db/client";
 import {
   aufgabe,
@@ -14,6 +15,7 @@ import {
   aktualisiereRoutine,
   bufdis,
   dateiNachId,
+  dateienFuer,
   erstelleAufgabe,
   erstellePerson,
   erstelleNachweis,
@@ -40,7 +42,8 @@ import {
   istGueltigeUhrzeit,
 } from "./_lib/eingabe";
 import { FORM_START, type FormState } from "./_lib/formState";
-import { anfangsZustand, uebergang, type Aktion } from "./_lib/lebenszyklus";
+import { anfangsZustand, bearbeitung, uebergang, type Aktion } from "./_lib/lebenszyklus";
+import { loescheNachweis } from "./_lib/ablage";
 import { istFreigegeben } from "./_lib/scan";
 import {
   darfPersonenVerwalten,
@@ -118,6 +121,79 @@ function istGesetzt(formData: FormData, name: string): boolean {
  */
 const TITEL_ZU_LANG = `Titel zu lang — hoechstens ${TITEL_MAX_LAENGE} Zeichen.`;
 
+/** Die Inhaltsfelder einer Aufgabe — was „Einstellen" und „Bearbeiten" (DRK-487) gemeinsam schreiben. */
+type AufgabenInhalt = Pick<
+  AufgabeRow,
+  "titel" | "beschreibung" | "prioritaet" | "faelligAm" | "faelligUhrzeit" | "dauerMinuten" | "nachweisPflicht" | "nachweisArt"
+>;
+
+/**
+ * LIEST UND PRUEFT DIE INHALTSFELDER — EINE Fassung fuer Einstellen und Bearbeiten (DRK-487), damit
+ * eine bearbeitete Aufgabe nie etwas tragen kann, das beim Einstellen abgelehnt wuerde. `inhalt` ist
+ * `null`, sobald ein Feldfehler vorliegt; `values` traegt jedes gesendete Feld zurueck.
+ */
+function leseInhalt(formData: FormData): {
+  values: Record<string, string>;
+  fieldErrors: Record<string, string>;
+  inhalt: AufgabenInhalt | null;
+} {
+  const values: Record<string, string> = {
+    titel: feld(formData, "titel"),
+    beschreibung: feld(formData, "beschreibung"),
+    prioritaet: feld(formData, "prioritaet"),
+    faelligAm: feld(formData, "faelligAm"),
+    faelligUhrzeit: feld(formData, "faelligUhrzeit"),
+    dauerMinuten: feld(formData, "dauerMinuten"),
+    nachweisArt: feld(formData, "nachweisArt") || "text",
+    nachweisPflicht: istGesetzt(formData, "nachweisPflicht") ? "true" : "",
+  };
+  const prioritaet = values.prioritaet;
+  const nachweisArt = values.nachweisArt;
+
+  // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet je ein `<select>` mit
+  // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler (Brief, Eingabevalidierung).
+  if (!istGueltigePrioritaet(prioritaet)) {
+    throw new Error(`Unbekannte Prioritaet "${prioritaet}".`);
+  }
+  if (!istGueltigeNachweisArt(nachweisArt)) {
+    throw new Error(`Unbekannte Nachweisart "${nachweisArt}".`);
+  }
+
+  const fieldErrors: Record<string, string> = {};
+  const titel = values.titel.trim();
+  if (titel === "") fieldErrors.titel = "Titel fehlt.";
+  else if (titelZuLang(titel)) fieldErrors.titel = TITEL_ZU_LANG;
+  const beschreibung = values.beschreibung.trim();
+  if (beschreibung === "") fieldErrors.beschreibung = "Erklaerung fehlt.";
+  if (!istGueltigerIsoTag(values.faelligAm)) {
+    fieldErrors.faelligAm = "Frist fehlt oder ist ungueltig.";
+  }
+  const faelligUhrzeit = values.faelligUhrzeit.trim();
+  if (faelligUhrzeit !== "" && !istGueltigeUhrzeit(faelligUhrzeit)) {
+    fieldErrors.faelligUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+  }
+  const dauerMinuten = Number(values.dauerMinuten);
+  if (!istGueltigeDauerMinuten(dauerMinuten)) {
+    fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+  }
+  if (Object.keys(fieldErrors).length > 0) return { values, fieldErrors, inhalt: null };
+
+  return {
+    values,
+    fieldErrors,
+    inhalt: {
+      titel,
+      beschreibung,
+      prioritaet,
+      faelligAm: values.faelligAm,
+      faelligUhrzeit: faelligUhrzeit === "" ? null : faelligUhrzeit,
+      dauerMinuten,
+      nachweisPflicht: values.nachweisPflicht === "true",
+      nachweisArt,
+    },
+  };
+}
+
 /**
  * AUFGABE EINSTELLEN (Spec §5.2, §8.3). Zwei Ausprägungen, beide von `anfangsZustand()`
  * entschieden — diese Action fragt nicht selbst, ob "fuer sich selbst" oder "fuer andere" erlaubt
@@ -144,66 +220,22 @@ export async function aufgabeEinstellenAction(
     const start = anfangsZustand(ersteller, fuerSichSelbst, heute);
     if (!start.erlaubt) { auditDenied("aufgaben", auditActor(ersteller.person)); throw new Error(start.grund); }
 
-    const values = {
-      titel: feld(formData, "titel"),
-      beschreibung: feld(formData, "beschreibung"),
-      prioritaet: feld(formData, "prioritaet"),
-      faelligAm: feld(formData, "faelligAm"),
-      faelligUhrzeit: feld(formData, "faelligUhrzeit"),
-      dauerMinuten: feld(formData, "dauerMinuten"),
-      nachweisArt: feld(formData, "nachweisArt") || "text",
-      // BEIDE SCHALTER GEHOEREN IN `values` (Review Fix-Runde 1, Punkt 2): `feldWert` liefert im
-      // Fehlerzustand NUR, was hier steht, nicht die Vorbelegung — ein fehlendes Feld kommt als LEER
-      // zurueck, nicht als "unveraendert". Bei einem Textfeld ist das harmlos; hier kippt ein
-      // verlorenes `fuerSichSelbst` die Aufgabe beim zweiten Absendeversuch von Selbst- auf
-      // Fremdaufgabe, und eine BuFDi, die `darfEinstellenFuerAndere` nicht erfuellt, wirft dann beim
-      // NAECHSTEN Versuch — auf genau der technischen Fehlerseite, die `FormState` verhindern soll.
-      fuerSichSelbst: istGesetzt(formData, "fuerSichSelbst") ? "true" : "",
-      nachweisPflicht: istGesetzt(formData, "nachweisPflicht") ? "true" : "",
-    };
-
-    // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet je ein `<select>` mit
-    // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler (Brief, Eingabevalidierung).
-    if (!istGueltigePrioritaet(values.prioritaet)) {
-      throw new Error(`Unbekannte Prioritaet "${values.prioritaet}".`);
-    }
-    if (!istGueltigeNachweisArt(values.nachweisArt)) {
-      throw new Error(`Unbekannte Nachweisart "${values.nachweisArt}".`);
-    }
-
-    const fieldErrors: Record<string, string> = {};
-    const titel = values.titel.trim();
-    if (titel === "") fieldErrors.titel = "Titel fehlt.";
-    else if (titelZuLang(titel)) fieldErrors.titel = TITEL_ZU_LANG;
-    const beschreibung = values.beschreibung.trim();
-    if (beschreibung === "") fieldErrors.beschreibung = "Erklaerung fehlt.";
-    if (!istGueltigerIsoTag(values.faelligAm)) {
-      fieldErrors.faelligAm = "Frist fehlt oder ist ungueltig.";
-    }
-    const faelligUhrzeit = values.faelligUhrzeit.trim();
-    if (faelligUhrzeit !== "" && !istGueltigeUhrzeit(faelligUhrzeit)) {
-      fieldErrors.faelligUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
-    }
-    const dauerMinuten = Number(values.dauerMinuten);
-    if (!istGueltigeDauerMinuten(dauerMinuten)) {
-      fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
-    }
-    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
-
-    const nachweisPflicht = values.nachweisPflicht === "true";
+    const { values, fieldErrors, inhalt } = leseInhalt(formData);
+    // AUCH `fuerSichSelbst` GEHOERT IN `values` (Review Fix-Runde 1, Punkt 2; `nachweisPflicht`
+    // traegt `leseInhalt` schon zurueck): `feldWert` liefert im
+    // Fehlerzustand NUR, was hier steht, nicht die Vorbelegung — ein fehlendes Feld kommt als LEER
+    // zurueck, nicht als "unveraendert". Bei einem Textfeld ist das harmlos; hier kippt ein
+    // verlorenes `fuerSichSelbst` die Aufgabe beim zweiten Absendeversuch von Selbst- auf
+    // Fremdaufgabe, und eine BuFDi, die `darfEinstellenFuerAndere` nicht erfuellt, wirft dann beim
+    // NAECHSTEN Versuch — auf genau der technischen Fehlerseite, die `FormState` verhindern soll.
+    values.fuerSichSelbst = fuerSichSelbst ? "true" : "";
+    if (inhalt === null) return { ok: false, fieldErrors, values };
 
     const neue = erstelleAufgabe(db, {
-      titel,
-      beschreibung,
-      prioritaet: values.prioritaet,
+      ...inhalt,
       erstellerId: ersteller.person.id,
       zugewiesenAn: start.zugewiesenAn,
       status: start.status,
-      faelligAm: values.faelligAm,
-      faelligUhrzeit: faelligUhrzeit === "" ? null : faelligUhrzeit,
-      dauerMinuten,
-      nachweisPflicht,
-      nachweisArt: values.nachweisArt,
       // DIE INVARIANTE, AUF DIE `istVertretungsfreigabe` SICH VERLAESST (Brief): eine Fremdaufgabe
       // bekommt hier ihren Pruefer (den Ersteller), eine Selbstaufgabe keinen.
       prueferId: start.istSelbst ? null : ersteller.person.id,
@@ -214,6 +246,76 @@ export async function aufgabeEinstellenAction(
     revalidate();
     return { ok: true };
   });
+}
+
+/** Die Anzeigenamen der Inhaltsfelder fuer die Verlaufsnotiz von „Bearbeiten". */
+const INHALT_FELDNAME: Record<keyof AufgabenInhalt, string> = {
+  titel: "Titel",
+  beschreibung: "Erklärung",
+  prioritaet: "Priorität",
+  faelligAm: "Frist",
+  faelligUhrzeit: "Frist-Uhrzeit",
+  dauerMinuten: "Dauerschätzung",
+  nachweisPflicht: "Nachweispflicht",
+  nachweisArt: "Nachweisform",
+};
+
+/**
+ * AUFGABE BEARBEITEN (DRK-487) — Tippfehler, falsche Frist, vergessene Nachweispflicht. Dieselbe
+ * Kette wie jede Action: Akteur → `bearbeitung()` (Zustand UND Berechtigung, `_lib/lebenszyklus.ts`)
+ * → dieselbe Feldpruefung wie beim Einstellen (`leseInhalt`) → schreiben → Verlaufszeile.
+ *
+ * NICHT BEARBEITBAR: Zuweisung, Pruefer, `istSelbst`, Planung und Zustand — dafuer gibt es die
+ * Uebergaenge. Die Nachweisform darf sich aendern; ein schon hinterlegter Textnachweis erfuellt dann
+ * eine neue Bildpflicht nicht, und `fertigMeldenAction` sagt das als Feldfehler.
+ *
+ * DIE VERLAUFSZEILE NENNT DIE GEAENDERTEN FELDER, NICHT DIE WERTE: der Verlauf ist Leistungs-
+ * dokumentation, kein Versionsarchiv. Ohne Aenderung wird nichts geschrieben.
+ *
+ * ERFOLG LEITET AUF `/a/<id>` UM — die Bearbeiten-Seite ist ein Umweg, kein Arbeitsplatz.
+ */
+export async function aufgabeBearbeitenAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const db = getDb();
+  const akteur = await akteurFuerSession(db);
+  const aufgabeId = feld(formData, "aufgabeId");
+  const ergebnis = await withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
+
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+
+    const darf = bearbeitung(task, akteur, heute);
+    if (!darf.erlaubt) {
+      if (darf.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(darf.grund);
+    }
+
+    const { values, fieldErrors, inhalt } = leseInhalt(formData);
+    values.aufgabeId = aufgabeId;
+    if (inhalt === null) return { ok: false, fieldErrors, values };
+
+    const geaendert = (Object.keys(INHALT_FELDNAME) as (keyof AufgabenInhalt)[]).filter(
+      (k) => inhalt[k] !== task[k],
+    );
+    if (geaendert.length === 0) return { ok: true };
+
+    aktualisiereAufgabe(db, task.id, inhalt);
+    schreibeVerlauf(db, {
+      aufgabeId: task.id,
+      ereignis: "bearbeitet",
+      akteurId: akteur.person.id,
+      notiz: geaendert.map((k) => INHALT_FELDNAME[k]).join(", "),
+    });
+    revalidate();
+    return { ok: true };
+  });
+  // `redirect` AUSSERHALB von `withAuditContext`: es wirft (`NEXT_REDIRECT`), und dieser Wurf soll
+  // nicht als Fehler durch den Audit-Kontext laufen.
+  if (ergebnis.ok) redirect(`/a/${aufgabeId}`);
+  return ergebnis;
 }
 
 /**
@@ -335,7 +437,7 @@ export async function umverteilenAction(_prev: FormState, formData: FormData): P
 }
 
 /**
- * ZURUECKZIEHEN — LOESCHT DIE AUFGABE, NUR AUS `eingegangen` (Spec §5.2, `uebergang()` prueft
+ * ZURUECKZIEHEN — LOESCHT DIE AUFGABE, NUR AUS `eingegangen`/`verteilt` (Spec §5.2, DRK-487; `uebergang()` prueft
  * Zustand UND Berechtigung: Ersteller oder Koordination). Kein `FormState`: es gibt kein Feld,
  * das fehlschlagen koennte (nur eine `aufgabeId`), also keine `useActionState`-Signatur — dieselbe
  * Wahl wie `deleteGroupAction` in `feedback/actions.ts`.
@@ -349,7 +451,7 @@ export async function umverteilenAction(_prev: FormState, formData: FormData): P
 export async function zurueckziehenAction(formData: FormData): Promise<void> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
+  await withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
     const heute = isoTag(new Date());
 
     const aufgabeId = feld(formData, "aufgabeId");
@@ -362,9 +464,16 @@ export async function zurueckziehenAction(formData: FormData): Promise<void> {
       throw new Error(ergebnis.grund);
     }
 
+    // Die Kaskade loescht die Dateizeilen, nicht die Dateien in der Ablage (DRK-487: seit
+    // `verteilt` zurueckziehbar ist, kann eine Aufgabe nach einem Zuruecksetzen Nachweise tragen).
+    const dateiIds = dateienFuer(db, task.id).map((d) => d.id);
     loescheAufgabe(db, task.id);
+    for (const id of dateiIds) await loescheNachweis(id);
     revalidate();
   });
+  // AUS DER DETAILSEITE ZURUECK ZUR STARTSEITE (DRK-487) — `/a/<id>` gibt es danach nicht mehr.
+  // Nur der eine feste Wert, kein frei uebergebener Pfad (kein offener Redirect).
+  if (feld(formData, "weiter") === "start") redirect("/");
 }
 
 /*

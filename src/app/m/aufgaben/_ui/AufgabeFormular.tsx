@@ -2,9 +2,9 @@
 
 import { useActionState, useState } from "react";
 import { Button, Input } from "antd";
-import { aufgabeEinstellenAction } from "../actions";
+import { aufgabeBearbeitenAction, aufgabeEinstellenAction } from "../actions";
 import { NACHWEIS_ART_TEXT } from "../_lib/anzeige";
-import { NACHWEIS_ARTEN, PRIORITAETEN } from "../_db/schema";
+import { NACHWEIS_ARTEN, PRIORITAETEN, type AufgabeRow } from "../_db/schema";
 import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { SPACE } from "@/core/theme/tokens";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
@@ -63,10 +63,25 @@ function checkboxVorbelegt(state: FormState, feld: string, vorgabe: boolean): bo
   return state.values[feld] === "true";
 }
 
-export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean }) {
-  const [state, formAction, isPending] = useActionState(aufgabeEinstellenAction, FORM_START);
+/*
+ * BEARBEITEN (DRK-487) IST DASSELBE FORMULAR MIT `bestand`: die Felder starten mit den Werten der
+ * Aufgabe, die Wahl „fuer mich selbst" entfaellt (die Zuweisung aendert sich beim Bearbeiten nicht),
+ * und abgesendet wird an `aufgabeBearbeitenAction`, die bei Erfolg auf `/a/<id>` umleitet. Ein
+ * zweites Formular hielte jede Feldregel doppelt.
+ */
+export function AufgabeFormular({
+  darfFuerAndere,
+  bestand,
+}: {
+  darfFuerAndere: boolean;
+  bestand?: AufgabeRow;
+}) {
+  const [state, formAction, isPending] = useActionState(
+    bestand ? aufgabeBearbeitenAction : aufgabeEinstellenAction,
+    FORM_START,
+  );
   const [nachweisPflicht, setNachweisPflicht] = useState(() =>
-    checkboxVorbelegt(state, "nachweisPflicht", false),
+    checkboxVorbelegt(state, "nachweisPflicht", bestand?.nachweisPflicht ?? false),
   );
   /*
    * DER ABSENDEZAEHLER LEERT DIE AUSWAHLFELDER NACH EINER ERFOLGREICHEN ANLAGE — dieselbe Bauart
@@ -93,8 +108,8 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
   const faelligUhrzeitFehler = feldFehler(state, "faelligUhrzeit");
   const dauerFehler = feldFehler(state, "dauerMinuten");
 
-  const vorgabePrioritaet = feldWert(state, "prioritaet", "mittel");
-  const vorgabeNachweisArt = feldWert(state, "nachweisArt", "text");
+  const vorgabePrioritaet = feldWert(state, "prioritaet", bestand?.prioritaet ?? "mittel");
+  const vorgabeNachweisArt = feldWert(state, "nachweisArt", bestand?.nachweisArt ?? "text");
   const fuerSichSelbstVorbelegt = checkboxVorbelegt(state, "fuerSichSelbst", false);
 
   return (
@@ -102,6 +117,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
       action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480 }}
     >
+      {bestand ? <input type="hidden" name="aufgabeId" value={bestand.id} /> : null}
       <div>
         <label htmlFor="af-titel" style={{ display: "block", marginBlockEnd: SPACE.xs }}>
           Titel
@@ -110,7 +126,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
           id="af-titel"
           name="titel"
           maxLength={TITEL_MAX_LAENGE}
-          defaultValue={feldWert(state, "titel", "")}
+          defaultValue={feldWert(state, "titel", bestand?.titel ?? "")}
           status={titelFehler ? "error" : undefined}
           aria-invalid={titelFehler ? true : undefined}
           aria-describedby={titelFehler ? "af-titel-err" : undefined}
@@ -130,7 +146,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
           id="af-beschreibung"
           name="beschreibung"
           autoSize={{ minRows: 3, maxRows: 8 }}
-          defaultValue={feldWert(state, "beschreibung", "")}
+          defaultValue={feldWert(state, "beschreibung", bestand?.beschreibung ?? "")}
           status={beschreibungFehler ? "error" : undefined}
           aria-invalid={beschreibungFehler ? true : undefined}
           aria-describedby={beschreibungFehler ? "af-beschreibung-err" : undefined}
@@ -190,7 +206,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         <DatumFeld
           id="af-faelligAm"
           name="faelligAm"
-          wert={feldWert(state, "faelligAm", "")}
+          wert={feldWert(state, "faelligAm", bestand?.faelligAm ?? "")}
           stand={absendeZaehler}
           fehler={faelligAmFehler}
           beschriebenVon={faelligAmFehler ? "af-faelligAm-err" : undefined}
@@ -209,7 +225,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         <ZeitFeld
           id="af-faelligUhrzeit"
           name="faelligUhrzeit"
-          wert={feldWert(state, "faelligUhrzeit", "")}
+          wert={feldWert(state, "faelligUhrzeit", bestand?.faelligUhrzeit ?? "")}
           stand={absendeZaehler}
           fehler={faelligUhrzeitFehler}
           beschriebenVon={faelligUhrzeitFehler ? "af-faelligUhrzeit-err" : undefined}
@@ -230,7 +246,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
           name="dauerMinuten"
           type="number"
           min={1}
-          defaultValue={feldWert(state, "dauerMinuten", "")}
+          defaultValue={feldWert(state, "dauerMinuten", bestand ? String(bestand.dauerMinuten) : "")}
           status={dauerFehler ? "error" : undefined}
           aria-invalid={dauerFehler ? true : undefined}
           aria-describedby={dauerFehler ? "af-dauerMinuten-err" : undefined}
@@ -299,7 +315,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         <input type="hidden" name="nachweisArt" value={vorgabeNachweisArt} />
       )}
 
-      {darfFuerAndere ? (
+      {bestand ? null : darfFuerAndere ? (
         <div>
           {/* NATIV, s. die Begruendung am Kontrollkaestchen „Nachweispflicht" oben. */}
           <label
@@ -333,7 +349,7 @@ export function AufgabeFormular({ darfFuerAndere }: { darfFuerAndere: boolean })
         disabled={isPending}
         style={{ alignSelf: "flex-start" }}
       >
-        Aufgabe einstellen
+        {bestand ? "Änderungen speichern" : "Aufgabe einstellen"}
       </Button>
     </form>
   );

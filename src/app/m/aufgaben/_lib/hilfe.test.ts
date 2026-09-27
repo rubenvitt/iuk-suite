@@ -292,6 +292,7 @@ describe("ZYKLUS_KANTEN gegen _lib/lebenszyklus.ts — das Bild darf nicht still
       "einstellen (für andere)",
       "einstellen (für sich selbst)",
       "zurückziehen (löscht die Aufgabe)",
+      "zurückziehen (löscht die Aufgabe)",
     ]);
     // `einstellen` hat KEINEN Ausgangszustand, `zurueckziehen` KEINEN Zielzustand — beides ist in
     // `lebenszyklus.ts` ausgeschrieben (Entscheidung 1 bzw. `anfangsZustand`).

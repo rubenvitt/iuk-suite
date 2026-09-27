@@ -133,6 +133,7 @@ export const EREIGNIS_TEXT: Record<Ereignis, string> = {
   abgeschlossen: "Abgeschlossen",
   zurueckgewiesen: "Zurückgewiesen",
   wiederaufgenommen: "Bearbeitung wieder aufgenommen",
+  bearbeitet: "Aufgabe geändert",
 };
 
 /**

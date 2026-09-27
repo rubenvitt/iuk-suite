@@ -77,7 +77,7 @@ function aufgabe(over: Partial<AufgabeRow> = {}): AufgabeRow {
 
 const ALLE_AUS: AktionsOptionen = {
   starten: false, zuruecksetzen: false, fertig: false, freigeben: false,
-  zurueckweisen: false, wiederaufnehmen: false, zurueckziehen: false, umverteilen: false,
+  zurueckweisen: false, wiederaufnehmen: false, zurueckziehen: false, umverteilen: false, bearbeiten: false,
   nachweisHochladen: false,
 };
 

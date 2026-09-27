@@ -231,6 +231,14 @@ export function dateiNachId(db: DB, id: string): DateiRow | null {
   return db.select().from(dateien).where(eq(dateien.id, id)).get() ?? null;
 }
 
+/**
+ * Die Dateizeilen einer Aufgabe — fuer `zurueckziehenAction` (DRK-487): die Kaskade loescht die
+ * ZEILEN, nicht die Dateien in der Ablage. Die Action liest sie deshalb VOR dem Loeschen.
+ */
+export function dateienFuer(db: DB, aufgabeId: string): DateiRow[] {
+  return db.select().from(dateien).where(eq(dateien.aufgabeId, aufgabeId)).all();
+}
+
 export function nachweisNachId(db: DB, id: string): NachweisRow | null {
   return db.select().from(nachweise).where(eq(nachweise.id, id)).get() ?? null;
 }
@@ -654,7 +662,7 @@ export function aktualisiereAufgabe(
 
 /**
  * LOESCHT EINE AUFGABE SAMT VERLAUF (und Nachweisen/Dateien) — `zurueckziehenAction`, NUR aus
- * `eingegangen` (das prueft `uebergang()`, nicht diese Funktion). Die Kaskade steht im Schema
+ * `eingegangen`/`verteilt` (das prueft `uebergang()`, nicht diese Funktion). Die Kaskade steht im Schema
  * (`onDelete: "cascade"` auf `verlauf.aufgabeId`/`nachweise.aufgabeId`/`dateien.aufgabeId`, von
  * Aufgabe 2 getestet) — ein zweiter, manueller Loeschlauf hier waere dieselbe Zusage doppelt gehalten.
  */

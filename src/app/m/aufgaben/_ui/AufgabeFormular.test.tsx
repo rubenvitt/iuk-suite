@@ -12,9 +12,10 @@ import { TITEL_MAX_LAENGE } from "@/core/titel";
  * herstellen. `aufgabeEinstellenAction` ist nur ein SENTINEL: dieser Test ruft sie nie auf, ihre
  * eigentliche Logik ist in `actions.test.ts` bewacht.
  */
-const { useActionStateMock, EINSTELLEN_MARKER } = vi.hoisted(() => ({
+const { useActionStateMock, EINSTELLEN_MARKER, BEARBEITEN_MARKER } = vi.hoisted(() => ({
   useActionStateMock: vi.fn(),
   EINSTELLEN_MARKER: Symbol("aufgabeEinstellenAction"),
+  BEARBEITEN_MARKER: Symbol("aufgabeBearbeitenAction"),
 }));
 
 vi.mock("react", async (echt) => {
@@ -22,7 +23,10 @@ vi.mock("react", async (echt) => {
   return { ...react, useActionState: useActionStateMock };
 });
 
-vi.mock("../actions", () => ({ aufgabeEinstellenAction: EINSTELLEN_MARKER }));
+vi.mock("../actions", () => ({
+  aufgabeEinstellenAction: EINSTELLEN_MARKER,
+  aufgabeBearbeitenAction: BEARBEITEN_MARKER,
+}));
 
 import { AufgabeFormular } from "./AufgabeFormular";
 
@@ -232,5 +236,49 @@ describe("AufgabeFormular — waehrend `isPending`", () => {
     stelleZustandEin(FORM_START, true);
     await mount(<AufgabeFormular darfFuerAndere={false} />);
     expect(query<HTMLButtonElement>("button[type='submit']").disabled).toBe(true);
+  });
+});
+
+describe("AufgabeFormular — Bearbeiten (DRK-487)", () => {
+  const BESTAND = {
+    id: "a-7",
+    titel: "Funkgeräte laden",
+    beschreibung: "Alle zwölf, danach Liste abhaken.",
+    prioritaet: "hoch",
+    erstellerId: "p1",
+    zugewiesenAn: "p2",
+    status: "in_arbeit",
+    faelligAm: "2026-08-20",
+    faelligUhrzeit: "14:30",
+    dauerMinuten: 45,
+    nachweisPflicht: true,
+    nachweisArt: "bild",
+    prueferId: "p1",
+    istSelbst: false,
+    planDatum: null,
+    planUhrzeit: null,
+    planRang: 0,
+    vorschlagDatum: null,
+    vorschlagUhrzeit: null,
+    erstelltAm: new Date(0),
+    aktualisiertAm: new Date(0),
+  } as const;
+
+  it("sendet an aufgabeBearbeitenAction, traegt die aufgabeId und ist mit dem Bestand vorbelegt", async () => {
+    await mount(<AufgabeFormular darfFuerAndere bestand={{ ...BESTAND }} />);
+    expect(useActionStateMock).toHaveBeenCalledWith(BEARBEITEN_MARKER, FORM_START);
+    expect(query<HTMLInputElement>("input[type='hidden'][name='aufgabeId']").value).toBe("a-7");
+    expect(query<HTMLInputElement>("#af-titel").value).toBe("Funkgeräte laden");
+    expect(query<HTMLTextAreaElement>("#af-beschreibung").value).toBe("Alle zwölf, danach Liste abhaken.");
+    expect(query<HTMLInputElement>("#af-dauerMinuten").value).toBe("45");
+    expect(query<HTMLInputElement>("input[name='prioritaet'][value='hoch']").checked).toBe(true);
+    expect(query<HTMLInputElement>("#af-nachweispflicht").checked).toBe(true);
+    expect(document.body.textContent).toContain("Änderungen speichern");
+  });
+
+  it("bietet „fuer mich selbst“ nicht an und sendet es auch nicht — die Zuweisung bleibt", async () => {
+    await mount(<AufgabeFormular darfFuerAndere bestand={{ ...BESTAND }} />);
+    expect(queryAll("#af-fuerSichSelbst")).toHaveLength(0);
+    expect(queryAll("input[name='fuerSichSelbst']")).toHaveLength(0);
   });
 });

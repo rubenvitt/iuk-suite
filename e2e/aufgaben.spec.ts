@@ -1858,3 +1858,45 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
     "die Grenze zwischen Vorschlag und Plan ist verwischt — die Marke fehlt",
   ).toContainText("Zeitvorschlag offen");
 });
+
+/*
+ * DRK-487 — BEARBEITEN UND ZURUECKZIEHEN AUS DER DETAILSEITE. Zwei Umleitungen, die nur ein echter
+ * Abruf unter dem Modul-Host sieht: „Änderungen speichern" fuehrt zurueck auf `/a/<id>`,
+ * „Zurückziehen" aus der Detailseite auf die Startseite (die Detailseite gibt es danach nicht mehr).
+ * Die Aufgabe entsteht und verschwindet im selben Testfall, sie hinterlaesst also nichts.
+ */
+test("Bearbeiten und Zurückziehen (DRK-487): Malte korrigiert seinen Auftrag und zieht ihn danach zurück", async ({
+  page,
+}) => {
+  const titel = `E2E-Bearbeiten ${Date.now()}: Funkgeraete lden`;
+  const korrigiert = titel.replace("lden", "laden");
+
+  await wechsleRolle(page, { host: HOST, groups: GRUPPE, email: "malte@localtest.me", callbackPath: "/neu" });
+  await page.goto(`http://${HOST}:${E2E_PORT}/neu`);
+  await page.locator("#af-titel").fill(titel);
+  await page.locator("#af-beschreibung").fill("Vom Bearbeiten-Fall (DRK-487) angelegte Testaufgabe.");
+  await waehleDatum(page, "#af-faelligAm", inTagen(21));
+  await page.locator("#af-dauerMinuten").fill("30");
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
+
+  await page.goto(`http://${HOST}:${E2E_PORT}/`);
+  const href = await page.getByRole("link", { name: titel }).getAttribute("href");
+  expect(href, "Aufgabe wurde nicht angelegt").toBeTruthy();
+
+  await page.goto(`http://${HOST}:${E2E_PORT}${href}`);
+  await klickeWennRuhig(page.getByTestId("bearbeiten"));
+  await page.waitForURL(`**${href}/bearbeiten`);
+  await expect(page.getByRole("heading", { name: "Aufgabe bearbeiten", level: 1 })).toBeVisible();
+  await expect(page.locator("#af-titel")).toHaveValue(titel);
+
+  await page.locator("#af-titel").fill(korrigiert);
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Änderungen speichern" }));
+  await page.waitForURL((url) => url.pathname === href);
+  await expect(page.getByRole("heading", { name: korrigiert, level: 1 })).toBeVisible();
+  await expect(page.getByText("Aufgabe geändert")).toBeVisible();
+
+  await klickeWennRuhig(page.getByTestId("zurueckziehen"));
+  await page.locator(".ant-popconfirm").getByRole("button", { name: "Zurückziehen" }).click();
+  await page.waitForURL((url) => url.pathname === "/");
+  await expect(page.getByRole("link", { name: korrigiert })).toHaveCount(0);
+});

@@ -97,6 +97,9 @@ export const EREIGNISSE = [
   "abgeschlossen",
   "zurueckgewiesen",
   "wiederaufgenommen",
+  // DRK-487: kein Uebergang, sondern eine Inhaltsaenderung (`bearbeitung()`, `_lib/lebenszyklus.ts`).
+  // Die Notiz nennt die geaenderten Felder.
+  "bearbeitet",
 ] as const;
 
 /**
