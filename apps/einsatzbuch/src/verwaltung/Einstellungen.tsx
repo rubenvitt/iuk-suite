@@ -230,7 +230,7 @@ export function Einstellungen(p: EinstellungenProps) {
                 {p.update === null && p.updateFehler === null ? (
                   <div className="neben" role="status">
                     {p.updateGeprueft !== null
-                      ? `Keine neuere Version. Zuletzt gesucht: ${sicherungszeitText(p.updateGeprueft, p.zeitzone)}`
+                      ? `Diese Version ist aktuell. Zuletzt gesucht: ${sicherungszeitText(p.updateGeprueft, p.zeitzone)}`
                       : "Noch nicht nach Updates gesucht."}
                   </div>
                 ) : null}
