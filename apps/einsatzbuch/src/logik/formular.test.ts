@@ -135,8 +135,11 @@ describe("Suche mit Enter", () => {
     expect(fahrzeugTreffer(STAMM.fahrzeuge, "rtw", "Bad Bevensen").map((f) => f.id)).toEqual(["11-84-1"]);
   });
 
-  it("Personensuche über Name, Qualifikation und Ortsverein, gefiltert nach Qualifikation", () => {
+  it("Personensuche über Name und Qualifikation, gefiltert nach Qualifikation", () => {
     expect(personTreffer(STAMM.personal, "dietz", "Alle").map((p) => p.id)).toEqual(["p3"]);
+    expect(personTreffer(STAMM.personal, "notsan", "Alle").map((p) => p.id)).toEqual(["p3"]);
+    // Ein Ortsverein aus einem alten Stammdatenpaket trifft nicht mehr (DRK-488).
+    expect(personTreffer(STAMM.personal, "bevensen", "Alle")).toEqual([]);
     expect(personTreffer(STAMM.personal, "", "RS").map((p) => p.id)).toEqual(["p1", "p2"]);
   });
 });

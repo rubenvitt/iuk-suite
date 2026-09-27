@@ -1,6 +1,6 @@
 import type { FahrzeugDTO, PersonDTO, StichwortDTO } from "./typen";
 
-/** Wörtlich aus der Vorlage (`Einsatzbuch v2.dc.html`, `ORTE`): Standort bzw. Ortsverein → Kennungspräfix. */
+/** Wörtlich aus der Vorlage (`Einsatzbuch v2.dc.html`, `ORTE`): Fahrzeugstandort → Kennungspräfix. */
 export const ORTE = [["Uelzen", 11], ["Bad Bevensen", 12], ["Ebstorf", 13], ["Suderburg", 14], ["Bienenbüttel", 15], ["Rosche", 16], ["Wrestedt", 17], ["Bad Bodenteich", 18]] as const;
 export const GRUPPEN = [
   { name: "Rettungsdienst", items: ["RD 1", "RD 2", "Unterstützung RD"] },
@@ -9,7 +9,18 @@ export const GRUPPEN = [
   { name: "Betreuung", items: ["Betreuung 25", "Betreuung 50", "Evakuierung"] },
   { name: "Sonstiges", items: ["Personensuche", "Sonstiges"] },
 ] as const;
-export const QUALIS = ["NotSan", "RS", "SanH", "BtH", "GF", "ZF", "SprF"] as const;
+/**
+ * Die Qualifikationen des Personals, höchste zuerst (DRK-488). Gespeichert wird die Abkürzung;
+ * sie wandert als Schnappschuss in jeden Einsatz und steht in der App auf dem Auswahlchip.
+ */
+export const QUALIFIKATIONEN = [
+  { kurz: "NotSan", lang: "Notfallsanitäter" },
+  { kurz: "RettAss", lang: "Rettungsassistent" },
+  { kurz: "RS", lang: "Rettungssanitäter" },
+  { kurz: "SiK", lang: "Sanitäter im Katastrophenschutz" },
+  { kurz: "SanH", lang: "Sanitätshelfer" },
+] as const;
+export const QUALIS = QUALIFIKATIONEN.map((q) => q.kurz);
 
 export const VORLAGE_FAHRZEUGE: FahrzeugDTO[] = (() => {
   const T: Record<string, number> = { "ELW 1": 11, RTW: 83, "KTW-B": 85, "GW-San": 64, "GW-Bt": 68, MTF: 19, PKW: 10 };
@@ -27,9 +38,9 @@ export const VORLAGE_FAHRZEUGE: FahrzeugDTO[] = (() => {
 export const VORLAGE_PERSONAL: PersonDTO[] = (() => {
   const nn = ["Albers", "Behrens", "Cordes", "Dierks", "Ehlers", "Fricke", "Garbers", "Hansen", "Isermann", "Jürgens", "Kruse", "Lüders", "Meyer", "Niemann", "Otte", "Peters", "Quast", "Rademacher", "Schulz", "Thies", "Ulrich", "Voß", "Wiebe", "Zander", "Brandt", "Heuer", "Möller", "Schröder"];
   const vn = ["Jana", "Tim", "Lea", "Malte", "Sophie", "Jonas", "Nele", "Ole", "Paula", "Finn", "Marie", "Ben", "Hanna", "Lukas", "Clara", "Henrik", "Emma", "Mats", "Lina", "Jan", "Mia", "Paul", "Ida", "Tom", "Frieda", "Nils", "Greta", "Lars", "Merle", "Hauke", "Svenja", "Arne", "Kira", "Timo", "Wiebke", "Sönke", "Anke", "Jens", "Maren", "Bjarne"];
-  const q = ["SanH", "SanH", "RS", "SanH", "BtH", "RS", "SanH", "NotSan", "BtH", "SanH", "GF", "RS", "SanH", "BtH", "ZF", "SprF", "RS", "SanH"];
+  const q = ["SanH", "SanH", "RS", "SanH", "SiK", "RS", "SanH", "NotSan", "SiK", "SanH", "RettAss", "RS", "SanH", "SiK", "NotSan", "SiK", "RS", "SanH"];
   const out: PersonDTO[] = [];
-  for (let i = 0; i < 112; i++) out.push({ id: "p" + (i + 1), name: `${nn[i % 28]}, ${vn[(i * 7 + Math.floor(i / 28) * 3) % 40]}`, quali: q[i % q.length], ov: ORTE[(i * 5) % 8][0], aktiv: true });
+  for (let i = 0; i < 112; i++) out.push({ id: "p" + (i + 1), name: `${nn[i % 28]}, ${vn[(i * 7 + Math.floor(i / 28) * 3) % 40]}`, quali: q[i % q.length], aktiv: true });
   return out.sort((a, b) => a.name.localeCompare(b.name, "de"));
 })();
 

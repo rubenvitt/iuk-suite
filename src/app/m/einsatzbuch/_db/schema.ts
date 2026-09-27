@@ -16,12 +16,16 @@ export const fahrzeug = sqliteTable("fahrzeug", {
   standort: text("standort").notNull(),
   aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
 });
-/** `name` folgt der Form „Nachname, Vorname“ (Spec §5.1). */
+/**
+ * `name` folgt der Form „Nachname, Vorname“ (Spec §5.1). `ov` ist seit DRK-488 immer leer: Alle
+ * gehören zu Uelzen, der KV unterscheidet keinen Ortsverein mehr. Die Spalte bleibt, weil sie im
+ * Draht zur App und im Einsatzformat steht (`_lib/kern/format.ts`, `PersonStand`).
+ */
 export const person = sqliteTable("person", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   quali: text("quali").notNull(),
-  ov: text("ov").notNull(),
+  ov: text("ov").notNull().$default(() => ""),
   aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
 });
 export const stichwort = sqliteTable("stichwort", {

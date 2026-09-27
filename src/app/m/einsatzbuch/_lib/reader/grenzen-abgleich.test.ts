@@ -156,7 +156,7 @@ describe("Pflege-Schemas der Suite bleiben unter den Reader-Grenzen", () => {
   // `gruppe` wandert nicht in den Einsatz (nur das Stichwort selbst), `aktiv`/`reihenfolge` sind keine Texte.
   const PFLEGE: [string, z.ZodObject, Record<string, (() => number) | null>][] = [
     ["fahrzeugEingabe", fahrzeugEingabe, { typ: () => textMax(FZ.typ), kennung: () => textMax(FZ.kennung), ruf: () => textMax(FZ.ruf), standort: () => textMax(FZ.standort), aktiv: null }],
-    ["personEingabe", personEingabe, { name: () => textMax(PS.name), quali: () => textMax(PS.quali), ov: () => textMax(PS.ov), aktiv: null }],
+    ["personEingabe", personEingabe, { name: () => textMax(PS.name), quali: () => textMax(PS.quali), aktiv: null }],
     ["stichwortEingabe", stichwortEingabe, { name: EINSATZFELD.stichwort, gruppe: null, reihenfolge: null, aktiv: null }],
   ];
   for (const [name, schema, zuordnung] of PFLEGE) {

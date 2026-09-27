@@ -6,8 +6,8 @@
       { "id": "S-Ql3tN7pHT9IHP473Nba", "typ": "KTW", "kennung": "11-85-2", "ruf": "Rotkreuz Uelzen 11-85-2", "standort": "Bad Bevensen" }
     ],
     "personal": [
-      { "id": "_gH6Ga_FOiqlRTSmEoT1c", "name": "Albers, Jana", "quali": "SanH", "ov": "Uelzen" },
-      { "id": "VHUkhKri86Cu_211p60Dd", "name": "Brandt, Ole", "quali": "RS", "ov": "Bad Bevensen" }
+      { "id": "_gH6Ga_FOiqlRTSmEoT1c", "name": "Albers, Jana", "quali": "SanH", "ov": "" },
+      { "id": "VHUkhKri86Cu_211p60Dd", "name": "Brandt, Ole", "quali": "RS", "ov": "" }
     ],
     "stichworte": [
       { "name": "Rettungsdienst", "items": ["RD 1", "RD 2"] },

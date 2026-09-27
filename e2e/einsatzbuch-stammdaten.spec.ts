@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { devLogin, E2E_PORT, klickeWennRuhig } from "./fixtures";
 import { E2E_VORGEBAUT } from "./helpers/server";
 
@@ -83,7 +83,7 @@ test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal
   const name = `Probe${Date.now() % 100000}, Jürgen`;
   await page.getByLabel("CSV-Datei").setInputFiles({
     name: "personal.csv", mimeType: "text/csv",
-    buffer: Buffer.from(`name;quali;ov\n${name};SanH;Uelzen\nOhne Komma;SanH;Uelzen\n`, "utf8"),
+    buffer: Buffer.from(`name;quali\n${name};SanH\nOhne Komma;SanH\n`, "utf8"),
   });
   // Die ganze Zählzeile, exakt: `getByText("1 neu")` träfe als Teilstring auch den Funkrufnamen oben,
   // sobald die zufällige Kennung auf 1 endet („… 99-83-45701 neu“) — gemessen in der CI von #304.
@@ -101,6 +101,32 @@ test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal
   await expect(page).not.toHaveURL(/reiter=/);
   await expect(page.getByRole("tab", { name: /Fahrzeuge/ })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("button", { name: "Fahrzeug anlegen" })).toBeVisible();
+});
+
+test("Person anlegen: Qualifikation aus fester Liste über die volle Breite, kein Ortsverein (DRK-488)", async ({ page }) => {
+  const name = `Probe${Date.now() % 100000}, Sina`;
+  await oeffne(page, "/stammdaten?reiter=personal");
+  await klickeWennRuhig(page.getByRole("button", { name: "Person anlegen" }));
+  const formular = page.getByRole("dialog");
+  await expect(formular.getByText("Ortsverein")).toHaveCount(0);
+  await formular.getByLabel("Name (Nachname, Vorname)").fill(name);
+  // Vorher schrumpfte das Auswahlfeld auf die Breite seines Werts (Screenshot in DRK-488).
+  const breite = async (el: Locator) => (await el.boundingBox())?.width ?? 0;
+  const auswahl = formular.locator(".ant-select").first();
+  expect(await breite(auswahl)).toBeCloseTo(await breite(formular.getByLabel("Name (Nachname, Vorname)")), 0);
+  await auswahl.click();
+  // Die sichtbaren Einträge: `role=option` tragen bei antd nur die zwei Einträge der versteckten
+  // Zugänglichkeitsliste, und die nur mit dem Wert.
+  const optionen = page.locator(".ant-select-item-option");
+  await expect(optionen).toHaveText([
+    "NotSan – Notfallsanitäter", "RettAss – Rettungsassistent", "RS – Rettungssanitäter",
+    "SiK – Sanitäter im Katastrophenschutz", "SanH – Sanitätshelfer",
+  ]);
+  await optionen.filter({ hasText: "SiK – Sanitäter im Katastrophenschutz" }).click();
+  await formular.getByRole("button", { name: "Speichern" }).click();
+  const zeile = page.getByRole("table", { name: "Personal" }).locator("[data-row-key]", { hasText: name });
+  await expect(zeile).toContainText("SiK");
+  await expect(page.getByRole("table", { name: "Personal" }).getByRole("columnheader", { name: /Ortsverein/ })).toHaveCount(0);
 });
 
 test("Einstellungen: speichern, neu laden, ungültige Frist wird abgelehnt", async ({ page }) => {

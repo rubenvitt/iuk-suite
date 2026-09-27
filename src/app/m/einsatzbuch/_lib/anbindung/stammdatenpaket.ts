@@ -31,7 +31,8 @@ export function baueStammdatenpaket(db: Db): Stammdatenpaket {
     version: stammdatenVersion(db),
     stammdaten: {
       fahrzeuge: listeFahrzeuge(db).filter((f) => f.aktiv).map(({ id, typ, kennung, ruf, standort }) => ({ id, typ, kennung, ruf, standort })),
-      personal: listePersonal(db).filter((p) => p.aktiv).map(({ id, name, quali, ov }) => ({ id, name, quali, ov })),
+      // `ov` bleibt im Draht, leer: Die App bis v1.0.0 verlangt das Feld (DRK-488).
+      personal: listePersonal(db).filter((p) => p.aktiv).map(({ id, name, quali }) => ({ id, name, quali, ov: "" })),
       stichworte,
     },
     fristMinuten: e.fristMinuten,

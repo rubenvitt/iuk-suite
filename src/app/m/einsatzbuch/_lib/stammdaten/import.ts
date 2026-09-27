@@ -30,7 +30,7 @@ export function wendeImportAn(db: Db, plan: Extract<Importplan, { ok: true }>) {
         if (istNeu) tx.insert(fahrzeug).values({ id: nanoid(), ...werte }).run();
         else tx.update(fahrzeug).set(werte).where(eq(fahrzeug.id, idVon(z))).run();
       } else if (plan.art === "personal") {
-        const werte = { name: z.werte.name, quali: z.werte.quali, ov: z.werte.ov, aktiv: true };
+        const werte = { name: z.werte.name, quali: z.werte.quali, aktiv: true };
         if (istNeu) tx.insert(person).values({ id: nanoid(), ...werte }).run();
         else tx.update(person).set(werte).where(eq(person.id, idVon(z))).run();
       } else {

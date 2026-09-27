@@ -10,12 +10,14 @@ export interface FahrzeugDTO {
   standort: string;
   aktiv: boolean;
 }
-/** `name` folgt der Form „Nachname, Vorname“ (Spec §5.1). */
+/**
+ * `name` folgt der Form „Nachname, Vorname“ (Spec §5.1). Einen Ortsverein führt die Suite nicht
+ * mehr (DRK-488: alle gehören zu Uelzen); im Draht und im Einsatzformat bleibt `ov` als leeres Feld.
+ */
 export interface PersonDTO {
   id: string;
   name: string;
   quali: string;
-  ov: string;
   aktiv: boolean;
 }
 export interface StichwortDTO {

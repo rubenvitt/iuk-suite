@@ -314,7 +314,6 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
                     <span className="kaestchen">{an ? <Zeichen name="haken" groesse={14} /> : null}</span>
                     <span className="treffer-name">{p.name}</span>
                     <span className="quali">{p.quali}</span>
-                    <span className="treffer-neben">{p.ov}</span>
                   </button>
                 );
               })}

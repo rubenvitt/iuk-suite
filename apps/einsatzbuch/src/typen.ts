@@ -38,6 +38,7 @@ export interface Person {
   id: string;
   name: string;
   quali: string;
+  /** Im Draht und im Einsatzformat Pflicht, seit DRK-488 immer leer. Die App zeigt es nicht. */
   ov: string;
 }
 

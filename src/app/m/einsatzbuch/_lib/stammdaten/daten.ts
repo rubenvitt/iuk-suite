@@ -37,8 +37,10 @@ function eindeutig<T>(feld: "kennung" | "name", schreiben: () => T): T {
 export function listeFahrzeuge(db: Db): FahrzeugDTO[] {
   return db.select().from(fahrzeug).orderBy(asc(fahrzeug.standort), asc(fahrzeug.kennung)).all();
 }
+/** Die Spalten von `PersonDTO`: `ov` bleibt in der Tabelle, verlässt die Datenschicht aber nicht mehr (DRK-488). */
+const PERSON_SPALTEN = { id: person.id, name: person.name, quali: person.quali, aktiv: person.aktiv };
 export function listePersonal(db: Db): PersonDTO[] {
-  return db.select().from(person).all().sort((a, b) => a.name.localeCompare(b.name, "de"));
+  return db.select(PERSON_SPALTEN).from(person).all().sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 export function listeStichworte(db: Db): StichwortDTO[] {
   return db.select().from(stichwort).orderBy(asc(stichwort.gruppe), asc(stichwort.reihenfolge), asc(stichwort.name)).all();
@@ -53,8 +55,8 @@ export function speichereFahrzeug(db: Db, id: string | null, e: FahrzeugEingabe)
   });
 }
 export function speicherePerson(db: Db, id: string | null, e: PersonEingabe): PersonDTO {
-  if (id === null) return db.insert(person).values({ id: nanoid(), ...e }).returning().get();
-  const z = db.update(person).set(e).where(eq(person.id, id)).returning().get();
+  if (id === null) return db.insert(person).values({ id: nanoid(), ...e }).returning(PERSON_SPALTEN).get();
+  const z = db.update(person).set(e).where(eq(person.id, id)).returning(PERSON_SPALTEN).get();
   if (!z) throw new NichtGefunden();
   return z;
 }

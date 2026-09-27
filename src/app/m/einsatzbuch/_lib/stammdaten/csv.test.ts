@@ -39,9 +39,9 @@ describe("planeImport", () => {
       { id: "f2", typ: "KTW-B", kennung: "11-85-1", ruf: "Rotkreuz Uelzen 11-85-1", standort: "Uelzen", aktiv: false },
     ],
     personal: [
-      { id: "p1", name: "Albers, Jana", quali: "ZF", ov: "Uelzen", aktiv: true },
-      { id: "p2", name: "Meyer, Hanna", quali: "BtH", ov: "Rosche", aktiv: true },
-      { id: "p3", name: "Meyer, Hanna", quali: "SanH", ov: "Uelzen", aktiv: true },
+      { id: "p1", name: "Albers, Jana", quali: "NotSan", aktiv: true },
+      { id: "p2", name: "Meyer, Hanna", quali: "SiK", aktiv: true },
+      { id: "p3", name: "Meyer, Hanna", quali: "SanH", aktiv: true },
     ],
   };
   it("klassifiziert neu, geändert (auch reaktiviert), unverändert und Fehler", () => {
@@ -72,16 +72,29 @@ describe("planeImport", () => {
     expect(plan.ok && plan.zeilen[3].fehler).toBe("Kennung steht schon in Zeile 4");
   });
   it("Person: mehrdeutiger Name ist eine Fehlerzeile", () => {
-    const plan = planeImport("personal", "name;quali;ov\nMeyer, Hanna;SanH;Uelzen\nAlbers, Jana;GF;Uelzen", bestand);
+    const plan = planeImport("personal", "name;quali\nMeyer, Hanna;SanH\nAlbers, Jana;RS", bestand);
     expect(plan.ok && plan.zeilen.map((z) => z.klasse)).toEqual(["fehler", "geaendert"]);
     expect(plan.ok && plan.zeilen[0].fehler).toBe("mehrdeutig: 2 Personen heißen so");
   });
+  it("Person: die frühere Kopfzeile mit Ortsverein geht durch, die Spalte fällt weg (DRK-488)", () => {
+    const plan = planeImport("personal", "name;quali;ov\nAlbers, Jana;NotSan;Rosche\nNeu, Nina;SiK;Uelzen\nZu, Kurz;SanH", bestand);
+    expect(plan.ok && plan.zeilen.map((z) => [z.klasse, z.werte])).toEqual([
+      ["unveraendert", { name: "Albers, Jana", quali: "NotSan" }],
+      ["neu", { name: "Neu, Nina", quali: "SiK" }],
+      ["fehler", { name: "Zu, Kurz", quali: "SanH" }],
+    ]);
+    expect(plan.ok && plan.zeilen[2].fehler).toBe("3 Spalten erwartet, 2 gefunden");
+  });
+  it("Person: Qualifikation nur aus der festen Liste", () => {
+    const plan = planeImport("personal", "name;quali\nNeu, Nina;BtH", LEER);
+    expect(plan.ok && plan.zeilen[0].fehler).toBe("Qualifikation bitte aus NotSan, RettAss, RS, SiK, SanH wählen");
+  });
   it("falsche Kopfzeile, falsche Spaltenzahl, leere Datei, zu viele Zeilen", () => {
-    expect(planeImport("personal", "name;ov;quali\nA, B;SanH;Uelzen", LEER)).toEqual({ ok: false, fehler: "Die Kopfzeile muss genau „name;quali;ov“ lauten." });
-    const zu = planeImport("personal", "name;quali;ov\nA, B;SanH", LEER);
-    expect(zu.ok && zu.zeilen[0].fehler).toBe("3 Spalten erwartet, 2 gefunden");
+    expect(planeImport("personal", "quali;name\nSanH;A, B", LEER)).toEqual({ ok: false, fehler: "Die Kopfzeile muss genau „name;quali“ lauten." });
+    const zu = planeImport("personal", "name;quali\nA, B", LEER);
+    expect(zu.ok && zu.zeilen[0].fehler).toBe("2 Spalten erwartet, 1 gefunden");
     expect(planeImport("personal", "", LEER)).toEqual({ ok: false, fehler: "Die Datei ist leer." });
-    const viele = "name;quali;ov\n" + Array.from({ length: 2001 }, (_, i) => `N${i}, V;SanH;Uelzen`).join("\n");
+    const viele = "name;quali\n" + Array.from({ length: 2001 }, (_, i) => `N${i}, V;SanH`).join("\n");
     expect(planeImport("personal", viele, LEER)).toEqual({ ok: false, fehler: "Höchstens 2000 Zeilen je Import." });
   });
   it("Stichwort: Reihenfolge muss eine Zahl sein", () => {

@@ -82,13 +82,6 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
               onFilter: trifftWert<PersonDTO>((p) => p.quali),
               render: (_: unknown, p: PersonDTO) => p.quali,
             },
-            {
-              title: "Ortsverein",
-              key: "ov",
-              filters: werteAlsFilter(props.liste, (p) => p.ov),
-              onFilter: trifftWert<PersonDTO>((p) => p.ov),
-              render: (_: unknown, p: PersonDTO) => p.ov,
-            },
           ]}
         />
       );
