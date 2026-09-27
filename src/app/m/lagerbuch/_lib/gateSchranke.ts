@@ -79,10 +79,10 @@ const bekanntStunde = new RateLimiter({ windowMs: 3_600_000, max: g.gateGesamtPr
  * DIE LESBARE SPERRZEIT — der Speicher, ohne den `gateGesperrt` gar nicht geht.
  * Schluessel → Zeitpunkt in ms, bis zu dem dieser Eimer als erschoepft gilt.
  *
- * `RateLimiter.check()` prueft und BUCHT in einem Zug (`core/ratelimit.ts`,
- * `check`); ein reines Nachsehen gibt es dort nicht. Deshalb merkt sich diese
- * Datei jedes `false` selbst, und `gateGesperrt` liest nur noch diese Zahl —
- * ohne zu buchen und ohne Datenbankzugriff.
+ * `RateLimiter.istGesperrt` sieht zwar ohne Buchung nach, sagt aber nur ja/nein
+ * zum GLEITENDEN Fenster. Die Schranke braucht die Restzeit (`grund=zuviele`)
+ * und eine FESTE Deadline (`bucheKette`). Deshalb merkt sich diese Datei jedes
+ * `false` selbst, und `gateGesperrt` liest nur diese Zahl — ohne DB-Zugriff.
  */
 const gesperrtBis = new Map<string, number>();
 
