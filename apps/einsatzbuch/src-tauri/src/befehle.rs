@@ -34,6 +34,7 @@ use zeroize::Zeroizing;
 
 use crate::abgleich::Anstoss;
 use crate::sicherung::{Sicherungsstand, sicherungsstand};
+use crate::updater::Updatelauf;
 use crate::zustand::{Zustand, oeffne_buch, startfehler_text};
 
 pub(crate) const NICHT_EINGERICHTET: &str = "Dieser Rechner ist noch nicht eingerichtet.";
@@ -150,6 +151,9 @@ pub struct Status {
     /// Wann die letzte Prüfung beim Update-Endpunkt gelang, in der Zone der Einrichtung; `None`,
     /// solange keine gelang, und immer im Debug-Build.
     pub update_geprueft: Option<String>,
+    /// Was der Updater gerade tut (`updater::Updatelauf`); `None`, solange er nichts
+    /// herunterlädt, installiert oder auf den Neustart wartet, und immer im Debug-Build.
+    pub update_lauf: Option<Updatelauf>,
     /// Die installierte Version (`package_info`), gesetzt vom Befehl `status`; `lies_status`
     /// kennt die App nicht.
     pub version: Option<String>,
@@ -261,6 +265,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
             update: None,
             update_fehler: None,
             update_geprueft: None,
+            update_lauf: None,
             version: None,
         },
         Some(buch) => {
@@ -306,6 +311,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
                 update: None,
                 update_fehler: None,
                 update_geprueft: None,
+                update_lauf: None,
                 version: None,
             }
         }
@@ -317,6 +323,7 @@ pub fn lies_status(z: &Zustand) -> Result<Status, String> {
     status.update_fehler = z.update_fehler().anzeige();
     let geprueft = *z.update_geprueft();
     status.update_geprueft = geprueft.map(|g| formatiere_zeitpunkt(g, status.zeitzone.as_deref().unwrap_or("UTC")));
+    status.update_lauf = *z.update_lauf();
     Ok(status)
 }
 

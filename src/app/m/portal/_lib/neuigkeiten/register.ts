@@ -14,6 +14,7 @@ import einsatzdateienImReader from "@/app/m/portal/_lib/neuigkeiten/notizen/eins
 import desktopAppInstallieren from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-25-desktop-app-installieren";
 import personalOhneOrtsverein from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-27-personal-ohne-ortsverein";
 import nachUpdatesSuchen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-27-nach-updates-suchen";
+import updateUntenRechts from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-28-update-unten-rechts";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -179,6 +180,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   desktopAppInstallieren,
   personalOhneOrtsverein,
   nachUpdatesSuchen,
+  updateUntenRechts,
 ];
 
 /**

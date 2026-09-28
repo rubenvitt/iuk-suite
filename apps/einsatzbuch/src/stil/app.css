@@ -580,6 +580,47 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
 .bereit { flex: 1 1 300px; min-width: 0; font-size: 14px; color: var(--verw-text); }
 .bereit-offen { color: var(--verw-text-2); }
 
+/*
+ * Update unten rechts (`bausteine/UpdateAnzeige.tsx`): über der Fußleiste (z 50), unter Dialogen
+ * (z 200). Steht die Fußleiste des Formulars da, sitzt die Anzeige darüber statt auf „Einsatz
+ * absenden“; 69 px sind deren Höhe in einer Zeile (12 + 44 + 12 und die Kante oben). Kein Rot:
+ * Suite-Rot ist die Primäraktion (`docs/design/README.md`).
+ */
+.update-anzeige {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 60;
+  max-width: min(340px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--verw-rand);
+  border-radius: 8px;
+  background: var(--verw-erhoben);
+  color: var(--verw-text);
+  box-shadow: var(--schatten-panel);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.app:has(.fussleiste) .update-anzeige { bottom: calc(69px + 16px); }
+.update-anzeige .zeichen { margin-top: 1px; color: var(--verw-text-2); }
+.update-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-wrap: pretty; }
+.update-titel { font-weight: 600; }
+.update-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 2px solid var(--verw-rand);
+  border-top-color: var(--verw-text);
+  border-radius: 50%;
+  animation: update-dreht 0.9s linear infinite;
+}
+@keyframes update-dreht { to { transform: rotate(360deg); } }
+
 /* Frist */
 .frist-uhr { display: flex; align-items: flex-end; gap: 16px; }
 .frist-rest { font: 700 88px/0.9 var(--font-display); font-variant-numeric: tabular-nums; }

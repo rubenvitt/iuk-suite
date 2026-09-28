@@ -135,3 +135,27 @@ test("„Testbetrieb beenden“ mit Bestätigung führt zur Einrichtungsfrage", 
 
   await expect(page.getByRole("heading", { name: "Diesen Rechner einrichten" })).toBeVisible();
 });
+
+/**
+ * Die Update-Anzeige unten rechts (DRK-497) sitzt im Formular über der Fußleiste und verdeckt
+ * „Einsatz absenden“ nicht; auf der Startseite steht sie in der Ecke.
+ */
+test("Update-Anzeige: auf der Startseite in der Ecke, im Formular über der Fußleiste", async ({ page }) => {
+  await installiereStub(page, { betrieb: "test", update: "1.2.0", updateLauf: "laedt" });
+  await page.goto("/");
+  const anzeige = page.locator(".update-anzeige");
+  await expect(anzeige).toContainText("Update wird installiert");
+  await expect(anzeige.locator(".update-spinner")).toBeVisible();
+  const fenster = page.viewportSize()!;
+  const inDerEcke = (await anzeige.boundingBox())!;
+  expect(Math.round(fenster.width - (inDerEcke.x + inDerEcke.width))).toBe(16);
+  expect(Math.round(fenster.height - (inDerEcke.y + inDerEcke.height))).toBe(16);
+
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Neuer Einsatz" })).toBeVisible();
+  const leiste = (await page.locator(".fussleiste").boundingBox())!;
+  const knopf = (await page.getByRole("button", { name: "Einsatz absenden" }).boundingBox())!;
+  const ueber = (await anzeige.boundingBox())!;
+  expect(ueber.y + ueber.height).toBeLessThanOrEqual(leiste.y);
+  expect(ueber.y + ueber.height).toBeLessThanOrEqual(knopf.y);
+});

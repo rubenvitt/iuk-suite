@@ -11,8 +11,8 @@
 //! einem anderen Lock; es darf über der Datei-I/O im Sicherungsordner gehalten werden, denn es
 //! sperrt nur den zweiten Schreiber, und unter ihm wird `buch` nur kurz genommen. Über der
 //! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung`,
-//! `abgleich`, `update`, `update_fehler` und `update_geprueft` sind Blätter: Wer einen von ihnen
-//! hält, nimmt keinen weiteren Mutex.
+//! `abgleich`, `update`, `update_fehler`, `update_geprueft` und `update_lauf` sind Blätter: Wer
+//! einen von ihnen hält, nimmt keinen weiteren Mutex.
 //! Kein anderer Lock wird über eine Anfrage an die Suite oder den Update-Endpunkt, das Warten auf
 //! den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei außerhalb des
 //! App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
@@ -38,7 +38,7 @@ use einsatzbuch_kern::uhr::Uhr;
 
 use crate::abgleich::Anstoss;
 use crate::befehle::Sitzung;
-use crate::updater::{Updatefehler, Vorgemerkt};
+use crate::updater::{Updatefehler, Updatelauf, Vorgemerkt};
 
 pub struct Zustand {
     /// `app_data_dir`, dort liegen `einsatzbuch.db` bzw. `einsatzbuch-test.db`.
@@ -79,6 +79,9 @@ pub struct Zustand {
     /// Wann die letzte Prüfung beim Update-Endpunkt gelang (`updater::pruefrunde`), automatisch
     /// oder über „Nach Updates suchen“; `None`, solange keine gelang.
     pub update_geprueft: Mutex<Option<DateTime<Utc>>>,
+    /// Was der Updater gerade tut (`updater::Laufanzeige`): herunterladen und installieren oder
+    /// auf den Neustart warten; `None` sonst.
+    pub update_lauf: Mutex<Option<Updatelauf>>,
 }
 
 /// Was die Anbindung an die Suite mitbringt — im Betrieb Netz und Schlüsselbund, in Tests Fakes.
@@ -116,6 +119,7 @@ impl Zustand {
             update: Mutex::new(None),
             update_fehler: Mutex::new(Updatefehler::default()),
             update_geprueft: Mutex::new(None),
+            update_lauf: Mutex::new(None),
         }
     }
 
@@ -176,6 +180,10 @@ impl Zustand {
 
     pub fn update_geprueft(&self) -> MutexGuard<'_, Option<DateTime<Utc>>> {
         self.update_geprueft.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn update_lauf(&self) -> MutexGuard<'_, Option<Updatelauf>> {
+        self.update_lauf.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Sperrt die Sicherung für einen Schreiber (Sperrreihenfolge oben: vor `buch`).

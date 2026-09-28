@@ -37,6 +37,7 @@ import { Karte } from "./bausteine/Karte";
 import { Knopf } from "./bausteine/Knopf";
 import { Kopf } from "./bausteine/Kopf";
 import { Testband } from "./bausteine/Testband";
+import { UpdateAnzeige } from "./bausteine/UpdateAnzeige";
 import { befehle } from "./befehle";
 import { phaseAus, restSekunden, restText, type Lokal } from "./logik/ablauf";
 import { kannAbsenden, leererEntwurf } from "./logik/formular";
@@ -258,7 +259,8 @@ export function App() {
   }, []);
 
   // Der Updater-Thread prüft außerhalb jedes Bedienschritts (zuerst 30 s nach dem Start); ändert
-  // sich dabei der Update-Teil des Status, meldet er das, und die Karte „Einstellungen“ zeigt es.
+  // sich dabei der Update-Teil des Status, meldet er das, und die Karte „Einstellungen“ und die
+  // Anzeige unten rechts (`bausteine/UpdateAnzeige.tsx`) zeigen es.
   const updateStandGeaendert = useEffectEvent(() => {
     if (laeuftRef.current) return;
     laden().catch((e: unknown) => zeigeFehler(e, true));
@@ -736,6 +738,7 @@ export function App() {
         </div>
       ) : null}
       {inhalt}
+      <UpdateAnzeige update={status?.update ?? null} lauf={status?.updateLauf ?? null} />
       {bestaetigen ? (
         <Bestaetigung
           titel="Testbetrieb beenden?"

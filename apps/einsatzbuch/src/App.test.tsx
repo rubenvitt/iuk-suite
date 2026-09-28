@@ -84,6 +84,7 @@ function status(teil: Partial<Status> = {}): Status {
     update: null,
     updateFehler: null,
     updateGeprueft: null,
+    updateLauf: null,
     version: "1.1.0",
     ...teil,
   };
@@ -423,6 +424,32 @@ describe("Update-Stand", () => {
 
     await unmount();
     expect(abmelden).toHaveBeenCalledTimes(1);
+  });
+
+  /** Unten rechts auf der Startseite, ohne Anmeldung: erst „steht an“, dann der Spinner, dann der Neustart. */
+  it("zeigt ein anstehendes und ein laufendes Update auch ohne Anmeldung", async () => {
+    await starte(status({ update: "1.2.0" }));
+    expect(knopf("Einsatz öffnen")).toBeDefined();
+    expect(text()).toContain("Update auf 1.2.0 steht an");
+    expect(queryAll(".update-spinner")).toHaveLength(0);
+
+    const melde = befehle.beiUpdateStand.mock.calls[0][0] as () => void;
+    befehle.status.mockResolvedValue(status({ update: "1.2.0", updateLauf: "laedt" }));
+    await act(async () => melde());
+    await warte();
+    expect(queryAll(".update-spinner")).toHaveLength(1);
+    expect(text()).toContain("Update wird installiert");
+
+    befehle.status.mockResolvedValue(status({ update: "1.2.0", updateLauf: "neustart" }));
+    await act(async () => melde());
+    await warte();
+    expect(queryAll(".update-spinner")).toHaveLength(0);
+    expect(text()).toContain("Update installiert");
+
+    befehle.status.mockResolvedValue(status());
+    await act(async () => melde());
+    await warte();
+    expect(queryAll(".update-anzeige")).toHaveLength(0);
   });
 });
 
