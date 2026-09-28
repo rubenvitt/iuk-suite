@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Barlow, Barlow_Condensed, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { AntdProvider } from "@/core/theme/AntdProvider";
 import { zeitzone } from "@/core/zeit";
+import { faviconFuer } from "@/core/favicon";
+import { moduleForHost } from "@/core/registry";
+import { resolveHost } from "@/core/routing";
 import {
   THEME_PREF_COOKIE,
   THEME_SYSTEM_COOKIE,
@@ -88,10 +91,7 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "IDA",
-  description: "Interne Dienste und Anwendungen",
-};
+// Titel, Beschreibung und Favicon: `generateMetadata` am Dateiende.
 
 /**
  * ZOOM GESPERRT, SUITEWEIT. Bewusste Betreiberentscheidung, keine
@@ -172,4 +172,20 @@ export default async function RootLayout({
       </body>
     </html>
   );
+}
+
+/**
+ * Das Favicon folgt dem HOST, nicht dem Pfad: ein Modul-Host zeigt das Zeichen
+ * seines Moduls (auch auf seiner Anmeldeseite), jeder andere das IDA-Zeichen
+ * (`core/favicon`). Hier und nicht je Modul-Layout, weil `feedback` und `files`
+ * keines haben und die Anmeldeseite unter keinem Modul liegt. Das Layout ist
+ * über `cookies()` ohnehin dynamisch, `headers()` kostet nichts dazu.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const modul = moduleForHost(resolveHost(await headers()));
+  return {
+    title: "IDA",
+    description: "Interne Dienste und Anwendungen",
+    icons: { icon: faviconFuer(modul?.key) },
+  };
 }

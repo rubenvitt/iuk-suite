@@ -15,6 +15,12 @@ describe("decideRoute", () => {
       expect(d.action).toBe("next");
     }
   });
+  it("lässt die Favicons auf jedem Host anonym durch, auch auf auth-pflichtigen", () => {
+    // Sonst liefe `/favicon/<name>.svg` in das Modul des Hosts (404) oder in den Login.
+    for (const host of ["portal.localtest.me", "aufgaben.localtest.me", "qr.localtest.me", "iuk-ue.de"]) {
+      expect(decideRoute({ host, pathname: "/favicon/qr.svg", groups: null }).action).toBe("next");
+    }
+  });
   it("rewrites anonymous module without auth", () => {
     const d = decideRoute({ host: "beta.localtest.me", pathname: "/", groups: null });
     expect(d).toEqual({ action: "rewrite", target: "/m/beta", moduleKey: "beta" });
