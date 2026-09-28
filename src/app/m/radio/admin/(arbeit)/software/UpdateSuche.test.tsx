@@ -88,7 +88,7 @@ import { ohneKommentare } from "../../../_lib/quelltextScan";
 import { SUCHFELDER, UPDATE_SEITENGROESSE, UPDATE_SUCHFELDER } from "../../../_lib/geraeteFelder";
 import { UPDATER_FELDER } from "../../../_lib/rollen";
 import type { UpdateKarteZeile } from "../../../_lib/lesepfade/geraete";
-import { UpdateSuche } from "./UpdateSuche";
+import { BESTAETIGEN_MS, RUECKGAENGIG_MS, UpdateSuche } from "./UpdateSuche";
 
 /** Das Zielversionsfeld und das Suchfeld — ueber `id`, wie `_ui/AusleihVorgang.test.tsx:46`. */
 const ZIELFELD = "#radio-update-ziel";
@@ -122,6 +122,7 @@ function karte(teil: Partial<UpdateKarteZeile> = {}): UpdateKarteZeile {
     hatAbweichung: false,
     letztesUpdateText: "2026-08-03",
     updateAnmerkung: null,
+    letztesUpdateRoh: "2026-08-03",
     ...teil,
   };
 }
@@ -163,6 +164,15 @@ afterEach(async () => {
   await unmount();
   vi.useRealTimers();
 });
+
+/**
+ * DRK-495: ein Tap ist ZWEI Tipps — der erste schaltet scharf, der zweite speichert.
+ * Die Faelle, die „was ein Tap schreibt" messen, gehen durch diese eine Stelle.
+ */
+async function bestaetige(griff = '[data-rolle="radio-update-tap"]'): Promise<void> {
+  await click(griff);
+  await click(griff);
+}
 
 /** Der Patch des einzigen `geraetAendernAction`-Aufrufs. */
 function gesendeterPatch(): Record<string, unknown> {
@@ -325,13 +335,14 @@ describe("radio-Update-Modus: Zielversion und Fortschritt", () => {
      * die nur das Feld beschriftet und beim Tap die Vorbelegung schickt, saehe auf dem
      * Bildschirm richtig aus und schriebe die falsche Version in die Datenbank.
      */
-    await mount(<UpdateSuche {...props()} />);
+    // Das Geraet steht auf 1.9.0 — auf 2.0.0 waere der Knopf sonst gesperrt (DRK-495).
+    await mount(<UpdateSuche {...props({ zeilen: [karte({ softwareVersion: "1.9.0" })] })} />);
     await fill(ZIELFELD, "2.0.0");
 
     expect(query<HTMLInputElement>(ZIELFELD).value).toBe("2.0.0");
     expect(texte("radio-update-tap")).toEqual(["Auf 2.0.0 aktualisiert"]);
 
-    await click('[data-rolle="radio-update-tap"]');
+    await bestaetige();
     expect(gesendeterPatch().softwareVersion, "der Tap schickt die alte Version").toBe("2.0.0");
   });
 
@@ -416,7 +427,7 @@ describe("radio-Update-Modus: was ein Tap schreibt", () => {
     vi.setSystemTime(new Date("2026-08-24T22:30:00Z"));
 
     await mount(<UpdateSuche {...props()} />);
-    await click('[data-rolle="radio-update-tap"]');
+    await bestaetige();
 
     expect(aendernMock, "der Tap hat nichts gesendet").toHaveBeenCalledTimes(1);
     expect(aendernMock.mock.calls[0]![0], "der Tap trifft das falsche Geraet").toBe("g-1");
@@ -441,7 +452,7 @@ describe("radio-Update-Modus: was ein Tap schreibt", () => {
      * umbenanntes Feld den exakten Satz).
      */
     await mount(<UpdateSuche {...props()} />);
-    await click('[data-rolle="radio-update-tap"]');
+    await bestaetige();
 
     const patch = gesendeterPatch();
     expect(Object.keys(patch).sort()).toEqual(["lastUpdatedAt", "softwareVersion"]);
@@ -569,6 +580,105 @@ describe("radio-Update-Modus: was ein Tap schreibt", () => {
         "data-zeichen",
       ),
     ).toBe("plus");
+  });
+});
+
+describe("radio-Update-Modus: zwei Schritte und Rueckgaengig (DRK-495)", () => {
+  const TAP = '[data-rolle="radio-update-tap"]';
+  const RUECK = '[data-rolle="radio-update-rueckgaengig"]';
+
+  it("der erste Tipp schreibt nichts und faellt nach BESTAETIGEN_MS von selbst zurueck", async () => {
+    vi.useFakeTimers();
+    await mount(<UpdateSuche {...props()} />);
+
+    await click(TAP);
+    expect(aendernMock, "schon der erste Tipp schreibt").toHaveBeenCalledTimes(0);
+    expect(texte("radio-update-tap")).toEqual(["Nochmal tippen: auf 3.1.0 setzen"]);
+    expect(query(TAP).getAttribute("data-phase")).toBe("scharf");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BESTAETIGEN_MS);
+    });
+    expect(texte("radio-update-tap")).toEqual(["Auf 3.1.0 aktualisiert"]);
+
+    // Nach dem Zurueckfallen ist der naechste Tipp wieder nur der erste.
+    await click(TAP);
+    expect(aendernMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("ein Wechsel der Zielversion entschaerft den Knopf", async () => {
+    await mount(<UpdateSuche {...props({ zeilen: [karte({ softwareVersion: "1.9.0" })] })} />);
+    await click(TAP);
+    await fill(ZIELFELD, "2.0.0");
+
+    expect(texte("radio-update-tap"), "der zweite Tipp bestaetigte eine andere Version").toEqual([
+      "Auf 2.0.0 aktualisiert",
+    ]);
+    await click(TAP);
+    expect(aendernMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("steht das Geraet schon auf der Zielversion, ist der Knopf gesperrt", async () => {
+    await mount(<UpdateSuche {...props({ zeilen: [karte({ softwareVersion: "3.1.0" })] })} />);
+
+    expect(query<HTMLButtonElement>(TAP).disabled).toBe(true);
+    expect(texte("radio-update-tap")).toEqual(["Bereits auf 3.1.0"]);
+  });
+
+  it("Rueckgaengig schreibt den ROHEN alten Stand zurueck, ueber dieselben zwei Felder", async () => {
+    await mount(<UpdateSuche {...props()} />);
+    await bestaetige();
+
+    expect(texte("radio-update-gesetzt")).toEqual(["Auf 3.1.0 gesetzt"]);
+    expect(exists(TAP), "der Tap-Knopf steht neben dem Rueckgaengig").toBe(false);
+
+    await click(RUECK);
+    expect(aendernMock).toHaveBeenCalledTimes(2);
+    const [id, patch] = aendernMock.mock.calls[1]!;
+    expect(id).toBe("g-1");
+    expect(patch).toEqual({ softwareVersion: "2.0.0", lastUpdatedAt: "2026-08-03" });
+    for (const feld of Object.keys(patch as object)) {
+      expect(UPDATER_FELDER as readonly string[], `${feld} ist fuer die Updater-Stufe gesperrt`)
+        .toContain(feld);
+    }
+    expect(exists(RUECK), "Rueckgaengig bleibt nach dem Zuruecknehmen stehen").toBe(false);
+  });
+
+  it("Rueckgaengig schreibt null zurueck, wo vorher nichts stand — nie den Gedankenstrich", async () => {
+    await mount(
+      <UpdateSuche
+        {...props({
+          zeilen: [karte({ softwareVersion: null, letztesUpdateRoh: null, letztesUpdateText: "—" })],
+        })}
+      />,
+    );
+    await bestaetige();
+    await click(RUECK);
+
+    expect(aendernMock.mock.calls[1]![1]).toEqual({ softwareVersion: null, lastUpdatedAt: null });
+  });
+
+  it("Rueckgaengig verschwindet nach RUECKGAENGIG_MS", async () => {
+    vi.useFakeTimers();
+    await mount(<UpdateSuche {...props()} />);
+    await bestaetige();
+    expect(exists(RUECK)).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RUECKGAENGIG_MS);
+    });
+    expect(exists(RUECK)).toBe(false);
+    expect(exists(TAP)).toBe(true);
+  });
+
+  it("scheitert das Speichern, gibt es kein Rueckgaengig, sondern den Fehlertext", async () => {
+    aendernMock.mockResolvedValueOnce({ ok: false, fehler: "Speichern fehlgeschlagen." });
+    await mount(<UpdateSuche {...props()} />);
+    await bestaetige();
+
+    expect(exists(RUECK)).toBe(false);
+    expect(texte("radio-update-fehler")).toEqual(["Speichern fehlgeschlagen."]);
+    expect(texte("radio-update-tap")).toEqual(["Auf 3.1.0 aktualisiert"]);
   });
 });
 

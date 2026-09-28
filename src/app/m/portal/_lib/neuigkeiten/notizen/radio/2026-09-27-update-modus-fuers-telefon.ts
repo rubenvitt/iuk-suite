@@ -9,9 +9,9 @@ const notiz: Releasenotiz = {
   titel: "Update-Modus für das Telefon",
   inhalt: [
     absatz(
-      "Verwaltung → Update-Modus hat große Felder und Knöpfe und steht in einer Spalte, " +
-        "damit du ihn neben dem Gerät mit dem Daumen bedienen kannst. " +
-        "Jede Karte zeigt jetzt auch die bisherige Version und das letzte Update.",
+      "Verwaltung → Update-Modus hat große Felder und Knöpfe in einer Spalte, damit du ihn " +
+        "am Telefon neben dem Gerät bedienen kannst. Zum Aktualisieren tippst du zweimal und " +
+        "kannst es danach kurz rückgängig machen. Jede Karte zeigt auch die bisherige Version.",
     ),
   ],
 };

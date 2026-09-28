@@ -627,6 +627,11 @@ export function geraeteListe(db: DB, p: GeraetFilter): GeraeteSeite {
 export type UpdateKarteZeile = GeraetZeile & {
   /** Die append-only Update-Anmerkung (`_db/schema.ts:56-59`), roh — `null`, wenn keine steht. */
   updateAnmerkung: string | null;
+  /**
+   * DRK-495: `devices.lastUpdatedAt` ROH, `null` ohne Tag — fuer „Rueckgaengig" nach einem Tap.
+   * ⛔ NICHT aus `letztesUpdateText` zurueckrechnen: dort ist der Nullwert ein Gedankenstrich.
+   */
+  letztesUpdateRoh: string | null;
 };
 
 /**
@@ -651,9 +656,9 @@ export type UpdateKarteZeile = GeraetZeile & {
 export function updateKarten(db: DB, p: GeraetFilter): UpdateKarteZeile[] {
   const { zeilen } = geraeteListe(db, p);
 
-  const anmerkungen = new Map<string, string | null>();
+  const zusatz = new Map<string, { anmerkung: string | null; letztesUpdate: string | null }>();
   for (const z of db
-    .select({ id: devices.id, anmerkung: devices.updateNote })
+    .select({ id: devices.id, anmerkung: devices.updateNote, letztesUpdate: devices.lastUpdatedAt })
     .from(devices)
     .where(
       inArray(
@@ -662,10 +667,14 @@ export function updateKarten(db: DB, p: GeraetFilter): UpdateKarteZeile[] {
       ),
     )
     .all()) {
-    anmerkungen.set(z.id, z.anmerkung);
+    zusatz.set(z.id, { anmerkung: z.anmerkung, letztesUpdate: z.letztesUpdate });
   }
 
-  return zeilen.map((z) => ({ ...z, updateAnmerkung: anmerkungen.get(z.id) ?? null }));
+  return zeilen.map((z) => ({
+    ...z,
+    updateAnmerkung: zusatz.get(z.id)?.anmerkung ?? null,
+    letztesUpdateRoh: zusatz.get(z.id)?.letztesUpdate ?? null,
+  }));
 }
 
 /**

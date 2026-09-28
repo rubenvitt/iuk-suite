@@ -84,6 +84,8 @@ import u from "../../../_ui/update.module.css";
  *     laeuft meist auf einem Telefon oder Tablet neben dem Geraet, nicht am Schreibtisch —
  *     eine Spalte, 56/72 statt 32/40, kein `Alert`, kein `Empty`-Bild. Er BLEIBT in der
  *     Verwaltung (Kopfzeile, Modulnavigation). Das Blatt ist `_ui/update.module.css`.
+ *     Weil der Knopf so gross ist, loest er erst im ZWEITEN Tipp aus, ist auf der Zielversion
+ *     gesperrt und laesst sich danach kurz zuruecknehmen (`UpdateKarte`, `phase`).
  *
  * ✅ DIE ZEICHEN DER ZWEI KNOEPFE SIND ZURUECK (Betreiberentscheidung 2026-08-28): `haken` am
  *     Anwenden (`FiCheck`, `UpdateDeviceCard.tsx:56`) und `warnung` am Anmerkungs-Knopf
@@ -111,6 +113,11 @@ const UPDATE_TEXTE = {
   leerOhneTreffer: "Kein Gerät gefunden",
   /** ⛔ Woertlich `UpdateDeviceCard.tsx:60`. */
   anmerkungKnopf: "ISSI weicht ab / Anmerkung",
+  /** DRK-495 — die zwei Schritte und das Zuruecknehmen. */
+  bestaetigen: "Nochmal tippen: auf",
+  bereits: "Bereits auf",
+  gesetzt: "gesetzt",
+  rueckgaengig: "Rückgängig",
   /** ⛔ Woertlich `UpdateDeviceCard.tsx:66`. */
   anmerkungPlatzhalter: "z. B. echte ISSI am Gerät / Abweichung",
   /** ⛔ Woertlich `UpdateMode.tsx:61` (Platzhalter des Suchfelds). */
@@ -125,6 +132,16 @@ const UPDATE_TEXTE = {
 
 /** ⛔ 300 ms, 1:1 aus `UpdateMode.tsx:25`. */
 const ENTPRELLUNG_MS = 300;
+
+/**
+ * DRK-495: SO LANGE STEHT DER KNOPF NACH DEM ERSTEN TIPP „SCHARF". Kein Doppeltap im
+ * Browser-Sinn (unsichtbares 300-ms-Fenster, kollidiert mit dem Zoom-Doppeltap, per Tastatur
+ * kaum bedienbar), sondern zwei sichtbare Schritte. Danach faellt er von selbst zurueck.
+ */
+export const BESTAETIGEN_MS = 4000;
+
+/** DRK-495: so lange steht „Rueckgaengig" nach einem gespeicherten Tap auf der Karte. */
+export const RUECKGAENGIG_MS = 10000;
 
 /**
  * DIE BEDIENDICHTE DES UPDATE-MODUS — DRK-495. Die Verwaltung faehrt 32/40
@@ -355,13 +372,65 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
   const [text, setText] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  /**
+   * DRK-495: der Tap in zwei Schritten und das Zuruecknehmen danach.
+   *   * `ruhe`        — der Knopf wartet auf den ersten Tipp.
+   *   * `scharf`      — der erste Tipp ist gefallen; der zweite speichert, sonst nach
+   *                     `BESTAETIGEN_MS` zurueck in `ruhe`.
+   *   * `gespeichert` — geschrieben; `vorher` haelt den alten Stand fuer `RUECKGAENGIG_MS`.
+   */
+  const [phase, setPhase] = useState<"ruhe" | "scharf" | "gespeichert">("ruhe");
+  const [vorher, setVorher] = useState<{
+    softwareVersion: string | null;
+    lastUpdatedAt: string | null;
+    gesetzt: string;
+  } | null>(null);
+  const uhr = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stelleUhr = (ms: number, danach: () => void) => {
+    if (uhr.current) clearTimeout(uhr.current);
+    uhr.current = setTimeout(() => {
+      uhr.current = null;
+      danach();
+    }, ms);
+  };
+  useEffect(() => () => {
+    if (uhr.current) clearTimeout(uhr.current);
+  }, []);
+
+  /* Scharf fuer GENAU die Zielversion des ersten Tipps. Wer danach die Zielversion wechselt,
+     bestaetigte sonst eine andere Version, als der Knopf beim ersten Tipp nannte — abgeleitet
+     beim Rendern, nicht per Effekt (react-hooks: kein setState im Effekt). */
+  const [scharfFuer, setScharfFuer] = useState<string | null>(null);
+  const scharf = phase === "scharf" && scharfFuer === ziel;
 
   /** 1:1 `UpdateDeviceCard.tsx:48` — mit `||`, weil alle drei Freitext sind. */
   const name = zeile.rufname || zeile.opta || zeile.issi;
 
+  /**
+   * DRK-495: STEHT DAS GERAET SCHON AUF DER ZIELVERSION, IST DER KNOPF GESPERRT. Ein Tap dort
+   * schriebe nur das Update-Datum neu — genau der Fehlgriff, gegen den die zwei Schritte stehen.
+   */
+  const bereitsAufZiel = ziel !== "" && zeile.softwareVersion === ziel;
+
+  const tippen = () => {
+    if (scharf) {
+      if (uhr.current) clearTimeout(uhr.current);
+      void anwenden();
+      return;
+    }
+    setFehler(null);
+    setPhase("scharf");
+    setScharfFuer(ziel);
+    stelleUhr(BESTAETIGEN_MS, () => setPhase("ruhe"));
+  };
+
   const anwenden = async () => {
     setLaeuft(true);
     setFehler(null);
+    /* Der Stand VOR dem Schreiben — roh, damit „Rueckgaengig" ihn unveraendert zurueckschreibt
+       (`letztesUpdateRoh`, nicht der Anzeigetext mit seinem Gedankenstrich). */
+    const alt = { softwareVersion: zeile.softwareVersion, lastUpdatedAt: zeile.letztesUpdateRoh };
     /*
      * ⛔ **E-V11**: `{ softwareVersion: ziel, lastUpdatedAt: <Berliner Tag> }`. Der Bestand
      * setzt hier `Date.now()` (`UpdateDeviceCard.tsx:24`) — die Suite-Spalte ist
@@ -383,7 +452,40 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
       lastUpdatedAt: tagAusWert(new Date()),
     });
     setLaeuft(false);
-    if (!ergebnis.ok) setFehler(ergebnis.fehler);
+    if (!ergebnis.ok) {
+      setPhase("ruhe");
+      setFehler(ergebnis.fehler);
+      return;
+    }
+    setVorher({ ...alt, gesetzt: ziel });
+    setPhase("gespeichert");
+    stelleUhr(RUECKGAENGIG_MS, () => {
+      setPhase("ruhe");
+      setVorher(null);
+    });
+  };
+
+  /**
+   * DRK-495: SCHREIBT DEN ALTEN STAND ZURUECK, ueber dieselbe Action und dieselben zwei Felder
+   * (beide in `UPDATER_FELDER`) — die Updater-Stufe darf also auch zuruecknehmen. Das
+   * Aenderungsprotokoll haelt beide Schritte fest; das ist gewollt, nicht zu verstecken.
+   */
+  const zuruecknehmen = async () => {
+    if (!vorher) return;
+    if (uhr.current) clearTimeout(uhr.current);
+    setLaeuft(true);
+    setFehler(null);
+    const ergebnis = await geraetAendernAction(zeile.id, {
+      softwareVersion: vorher.softwareVersion,
+      lastUpdatedAt: vorher.lastUpdatedAt,
+    });
+    setLaeuft(false);
+    if (!ergebnis.ok) {
+      setFehler(ergebnis.fehler);
+      return;
+    }
+    setVorher(null);
+    setPhase("ruhe");
   };
 
   const anhaengen = async () => {
@@ -430,19 +532,41 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
         </div>
 
         <div className={u.knoepfe}>
-          {/* ⛔ `disabled={!ziel}`, 1:1 `UpdateDeviceCard.tsx:56`: ohne Zielversion schriebe ein
-              Tap eine LEERE Version, und der Update-Stand fiele danach auf „unbekannt". */}
-          <Button
-            type="primary"
-            block
-            data-rolle="radio-update-tap"
-            loading={laeuft}
-            disabled={!ziel}
-            icon={<VIkone name="haken" />}
-            onClick={anwenden}
-          >
-            Auf {ziel || "—"} aktualisiert
-          </Button>
+          {phase === "gespeichert" && vorher ? (
+            /* DRK-495: statt des Tap-Knopfs die Bestaetigung und das Zuruecknehmen. */
+            <div className={u.gespeichert}>
+              <span role="status" className={u.gespeichertText} data-rolle="radio-update-gesetzt">
+                <VIkone name="haken" /> Auf {vorher.gesetzt} {UPDATE_TEXTE.gesetzt}
+              </span>
+              <Button
+                data-rolle="radio-update-rueckgaengig"
+                loading={laeuft}
+                onClick={zuruecknehmen}
+              >
+                {UPDATE_TEXTE.rueckgaengig}
+              </Button>
+            </div>
+          ) : (
+            /* ⛔ `disabled={!ziel}`, 1:1 `UpdateDeviceCard.tsx:56`: ohne Zielversion schriebe
+               ein Tap eine LEERE Version, und der Update-Stand fiele danach auf „unbekannt".
+               DRK-495: dazu gesperrt, wenn das Geraet schon auf der Zielversion steht. */
+            <Button
+              type="primary"
+              block
+              data-rolle="radio-update-tap"
+              data-phase={scharf ? "scharf" : "ruhe"}
+              loading={laeuft}
+              disabled={!ziel || bereitsAufZiel}
+              icon={<VIkone name="haken" />}
+              onClick={tippen}
+            >
+              {bereitsAufZiel
+                ? `${UPDATE_TEXTE.bereits} ${ziel}`
+                : scharf
+                  ? `${UPDATE_TEXTE.bestaetigen} ${ziel} setzen`
+                  : `Auf ${ziel || "—"} aktualisiert`}
+            </Button>
+          )}
           <Button
             block
             data-rolle="radio-update-anmerkung-knopf"
