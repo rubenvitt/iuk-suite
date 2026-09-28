@@ -1,4 +1,4 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Request } from "@playwright/test";
 import { devLogin, klickeWennRuhig, wechsleAnmeldung, warteAufSpaltenaufteilung, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import {
@@ -1558,15 +1558,75 @@ async function personenZahl(page: import("@playwright/test").Page): Promise<numb
  *
  * DIE RUHEZEILE FILTERT NICHTS WEG. Ein `ClientFetchError` aus der Pruefliste zu streichen waere
  * das Verschweigen des Symptoms und machte die Konsolenpruefung ab sofort blind fuer echte Fehler
- * derselben Form; `networkidle` beseitigt die URSACHE. Bleibt danach ein Konsolenfehler stehen,
+ * derselben Form; die Ruhezeile beseitigt die URSACHE. Bleibt danach ein Konsolenfehler stehen,
  * ist er echt.
  *
  * SIE GEHOERT ANS ENDE DER FUNKTION, DIE NAVIGIERT — nicht vor die naechste Navigation des
  * Aufrufers. Genau daran scheiterte der erste Reparaturversuch: die Ruhezeilen standen im Test,
  * aber `personenZahl` navigiert SELBST, und ihre Seite war es, deren Abruf abbrach.
+ *
+ * ⚠️ `networkidle` ALLEIN REICHT NICHT (DRK-496, 3 von 3 Laeufen rot unter `next dev` in einer
+ * Cloud-Session). `networkidle` feuert EINMAL je Dokument, beim ersten 500-ms-Fenster ohne
+ * Anfrage — und das kann VOR dem Sitzungsabruf liegen: die Seite ist geladen, React hydriert
+ * ohne Netzverkehr, erst der Effekt danach ruft `/api/auth/session`. Gemessen beim ERSTEN Aufruf
+ * von `/personen` (die Route frisch uebersetzt): `networkidle` bei 12 344 ms nach Teststart, die
+ * zwei Sitzungsabrufe brechen bei 12 678 ms ab, die naechste Navigation beginnt bei 12 688 ms.
+ * Beim zweiten Aufruf derselben Seite (warm) liegt der Abruf im ersten Ruhefenster, und alles
+ * ist gruen — deshalb sah es der erste Reparaturversuch nicht.
+ *
+ * DIE PROBE ZAEHLT DESHALB DIE SITZUNGSABRUFE SELBST (`beobachteSitzungsabrufe`): ruhig ist die
+ * Seite erst, wenn seit ihrer Navigation mindestens ein Abruf fertig ist, keiner mehr laeuft und
+ * seit `SITZUNGS_RUHE_MS` keiner mehr begonnen hat. „Mindestens einer" ist keine Schaetzung:
+ * `SessionProvider` sitzt im Wurzel-Layout, jede Seite ruft. Und die Wartezeit nach dem letzten
+ * ist noetig, weil ein Abruf den naechsten nach sich zieht — next-auth meldet jede neue Sitzung
+ * per `BroadcastChannel`, und der Empfaenger auf DERSELBEN Seite ruft erneut (gemessen: vier
+ * Abrufe je Seite unter `next dev`, in Paaren, die Luecken darin unter 50 ms).
  */
+const SITZUNGS_RUHE_MS = 500;
+
+type Sitzungsabrufe = { offen: number; fertig: number; zuletzt: number };
+const SITZUNGSABRUFE = new WeakMap<Page, Sitzungsabrufe>();
+
+/** Muss VOR der ersten Navigation stehen — sonst fehlt der Probe der Abruf der ersten Seite. */
+function beobachteSitzungsabrufe(page: Page): void {
+  const stand: Sitzungsabrufe = { offen: 0, fertig: 0, zuletzt: Date.now() };
+  SITZUNGSABRUFE.set(page, stand);
+  const istSitzungsabruf = (r: Request) => new URL(r.url()).pathname === "/api/auth/session";
+  page.on("request", (r) => {
+    if (r.isNavigationRequest() && r.frame() === page.mainFrame()) {
+      // Neues Dokument: was fertig war, gehoerte zur alten Seite.
+      stand.fertig = 0;
+      stand.zuletzt = Date.now();
+    } else if (istSitzungsabruf(r)) {
+      stand.offen += 1;
+      stand.zuletzt = Date.now();
+    }
+  });
+  page.on("requestfinished", (r) => {
+    if (!istSitzungsabruf(r)) return;
+    stand.offen -= 1;
+    stand.fertig += 1;
+    stand.zuletzt = Date.now();
+  });
+  // Ein abgebrochener Abruf laeuft nicht mehr, ist aber auch nicht „fertig" — sonst hielte die
+  // Probe genau den Fall fuer ruhig, den sie verhindern soll.
+  page.on("requestfailed", (r) => {
+    if (!istSitzungsabruf(r)) return;
+    stand.offen -= 1;
+    stand.zuletzt = Date.now();
+  });
+}
+
 async function ruheVorDerNaechstenNavigation(page: Page): Promise<void> {
+  const stand = SITZUNGSABRUFE.get(page);
+  if (!stand) throw new Error("ruheVorDerNaechstenNavigation ohne beobachteSitzungsabrufe(page) am Testanfang");
   await page.waitForLoadState("networkidle");
+  await expect
+    .poll(
+      () => stand.offen === 0 && stand.fertig > 0 && Date.now() - stand.zuletzt >= SITZUNGS_RUHE_MS,
+      { message: "Der Sitzungsabruf dieser Seite ist nicht zur Ruhe gekommen", intervals: [100], timeout: 15_000 },
+    )
+    .toBe(true);
 }
 
 test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile landet auf der Verteilung, nicht auf der Erklaerseite", async ({
@@ -1577,6 +1637,7 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
     if (msg.type() === "error") konsolenFehler.push(msg.text());
   });
   page.on("pageerror", (err) => konsolenFehler.push(err.message));
+  beobachteSitzungsabrufe(page);
 
   await wechsleRolle(page, {
     host: HOST,
@@ -1584,6 +1645,8 @@ test("Leerer Start: eine Anmeldung mit Koordinationsgruppe ohne personen-Zeile l
     email: LEERER_START_KOORDINATION,
     callbackPath: "/",
   });
+  // Die Anmeldung landet auf `/`, und das `goto` darunter ist die naechste Navigation.
+  await ruheVorDerNaechstenNavigation(page);
 
   const res = await page.goto(`http://${HOST}:${E2E_PORT}/`);
   expect(res?.status()).toBe(200);
