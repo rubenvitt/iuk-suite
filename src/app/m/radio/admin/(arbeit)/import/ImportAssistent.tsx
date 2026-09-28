@@ -436,8 +436,8 @@ export function ImportAssistent() {
             `Alert type="error"` und dem Rotton, weil `colorError === colorPrimary`
             (`src/core/theme/theme.ts:32-33`); `colorWarning` (gelb) und `colorSuccess`
             (gruen) sind davon nicht beruehrt (`:34-35`). Das Vorbild im Modul steht eine
-            Aufgabe zurueck: `software/UpdateSuche.tsx:229-233` (V17) — ⚠️ DORT ABER
-            `type="info"`: `warning` und `success` sind die ERSTEN gelben und gruenen Flaechen
+            Aufgabe zurueck: der Hinweis in `software/UpdateSuche.tsx` (V17; seit DRK-495 kein
+            `Alert` mehr, vorher `type="info"`): `warning` und `success` sind die ERSTEN gelben und gruenen Flaechen
             dieses Moduls.
             ⬜ V18-L2 — WIE SIE IN BEIDEN FARBMODI AUSSEHEN, IST UNGEMESSEN. Vitest kann es
             strukturell nicht (`ant-alert-warning` ist ein Klassenname, kein Ton), und die

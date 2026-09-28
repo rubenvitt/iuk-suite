@@ -2,14 +2,16 @@
 
 // src/app/m/radio/admin/(arbeit)/software/UpdateSuche.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AutoComplete, Button, Card, Empty, Input, Progress, Space, Tag, Typography } from "antd";
+import { AutoComplete, Button, Card, ConfigProvider, Input, Progress, Space, Tag, Typography } from "antd";
+import type { ThemeConfig } from "antd";
 import { usePathname, useRouter } from "next/navigation";
+import { TAP, TAP_XL } from "@/core/theme/tokens";
 import { geraetAendernAction, notizAnfuegenAction } from "../../actions";
 import { tagAusWert } from "../../../_lib/csv/spalten";
 import type { UpdateKarteZeile } from "../../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../../_lib/updateStand";
 import { VIkone } from "../../../_ui/verwaltungIkonen";
-import s from "../../../_ui/verwaltung.module.css";
+import u from "../../../_ui/update.module.css";
 
 /**
  * INSEL 7 — DER UPDATE-MODUS (`Spec:4509`, §5.6.1; Aufgabe V17).
@@ -18,8 +20,8 @@ import s from "../../../_ui/verwaltung.module.css";
  * Pfadnamen. §5.6.1s Insel-Tabelle (`Spec:4509`) traegt noch den alten Namen und ist ueberholt.
  *
  * ⛔ WARUM DIE FLAECHE CLIENT IST — **FALLE 1**, und sie ist hier die ganze Begruendung:
- * `Typography.Title`, `Typography.Text`, `Input.Search` und `Space.Compact` sind
- * Compound-Zugriffe; aus einer Server Component gerendert ist das HTTP 500 beim Abruf
+ * `Typography.Paragraph`, `Input.Search` und `Space.Compact` sind Compound-Zugriffe; aus
+ * einer Server Component gerendert ist das HTTP 500 beim Abruf
  * (`CLAUDE.md`, Falle 1). Dazu haelt die Flaeche drei Zustaende selbst: die gewaehlte
  * Zielversion, den getippten Suchtext und das aufgeklappte Anmerkungsfeld je Karte.
  *
@@ -74,9 +76,16 @@ import s from "../../../_ui/verwaltung.module.css";
  *     steht schon: `e2e/radio-verwaltung.spec.ts`, Fall 6.
  *
  * ⚠️ EINE WEITERE BENANNTE ABWEICHUNG, AUS DER HAUSFORM:
- *   * ⛔ KEIN `size="small"` an der Karte (`UpdateDeviceCard.tsx:44`) — Falle 4: das Mass des
- *     Bestands kommt seit dem 2026-08-28 aus `SCHREIBTISCHDICHTE` (`controlHeight: 32`,
- *     `src/core/theme/theme.ts`), nicht aus einem `size` am Bauteil.
+ *   * ⛔ KEIN `size` an der Karte (`UpdateDeviceCard.tsx:44` trug `size="small"`) — Falle 4:
+ *     das Mass kommt aus dem Theme, nicht aus einem `size` am Bauteil. Seit DRK-495 ist es
+ *     NICHT mehr die `SCHREIBTISCHDICHTE` der Verwaltung, sondern `UPDATE_DICHTE` unten.
+ *
+ * ✅ DRK-495 (Betreiberentscheidung 2026-09-27): KIOSK-ANMUTUNG FUER DIE HAND. Der Update-Modus
+ *     laeuft meist auf einem Telefon oder Tablet neben dem Geraet, nicht am Schreibtisch —
+ *     eine Spalte, 56/72 statt 32/40, kein `Alert`, kein `Empty`-Bild. Er BLEIBT in der
+ *     Verwaltung (Kopfzeile, Modulnavigation). Das Blatt ist `_ui/update.module.css`.
+ *     Weil der Knopf so gross ist, loest er erst im ZWEITEN Tipp aus, ist auf der Zielversion
+ *     gesperrt und laesst sich danach kurz zuruecknehmen (`UpdateKarte`, `phase`).
  *
  * ✅ DIE ZEICHEN DER ZWEI KNOEPFE SIND ZURUECK (Betreiberentscheidung 2026-08-28): `haken` am
  *     Anwenden (`FiCheck`, `UpdateDeviceCard.tsx:56`) und `warnung` am Anmerkungs-Knopf
@@ -104,6 +113,11 @@ const UPDATE_TEXTE = {
   leerOhneTreffer: "Kein Gerät gefunden",
   /** ⛔ Woertlich `UpdateDeviceCard.tsx:60`. */
   anmerkungKnopf: "ISSI weicht ab / Anmerkung",
+  /** DRK-495 — die zwei Schritte und das Zuruecknehmen. */
+  bestaetigen: "Nochmal tippen: auf",
+  bereits: "Bereits auf",
+  gesetzt: "gesetzt",
+  rueckgaengig: "Rückgängig",
   /** ⛔ Woertlich `UpdateDeviceCard.tsx:66`. */
   anmerkungPlatzhalter: "z. B. echte ISSI am Gerät / Abweichung",
   /** ⛔ Woertlich `UpdateMode.tsx:61` (Platzhalter des Suchfelds). */
@@ -118,6 +132,33 @@ const UPDATE_TEXTE = {
 
 /** ⛔ 300 ms, 1:1 aus `UpdateMode.tsx:25`. */
 const ENTPRELLUNG_MS = 300;
+
+/**
+ * DRK-495: SO LANGE STEHT DER KNOPF NACH DEM ERSTEN TIPP „SCHARF". Kein Doppeltap im
+ * Browser-Sinn (unsichtbares 300-ms-Fenster, kollidiert mit dem Zoom-Doppeltap, per Tastatur
+ * kaum bedienbar), sondern zwei sichtbare Schritte. Danach faellt er von selbst zurueck.
+ */
+export const BESTAETIGEN_MS = 4000;
+
+/** DRK-495: so lange steht „Rueckgaengig" nach einem gespeicherten Tap auf der Karte. */
+export const RUECKGAENGIG_MS = 10000;
+
+/**
+ * DIE BEDIENDICHTE DES UPDATE-MODUS — DRK-495. Die Verwaltung faehrt 32/40
+ * (`SCHREIBTISCHDICHTE`, `_ui/RadioVerwaltungsRahmen.tsx`); diese Flaeche nimmt das fuer sich
+ * zurueck und steht wieder auf dem Einsatzmass der Ausleihe, `TAP`/`TAP_XL` (56/72). Sie wird
+ * mit dem Daumen bedient, oft stehend und mit dem Geraet in der anderen Hand.
+ *
+ * ⛔ UEBER DEN TOKEN UND NICHT UEBER CSS (Falle 4 und 5): `ConfigProvider` mischt das innere
+ * Theme in das aeussere (`useTheme.js:44-53`), der innere gewinnt bei `controlHeight`. Die
+ * Kopfzeile und die Modulnavigation stehen ausserhalb und bleiben 44.
+ * ⛔ HIER UND NICHT IN `core/theme`: es gibt genau diesen einen Nutzer (`CLAUDE.md`, „core").
+ * `cssVar.key` ausdruecklich, sonst generiert antd einen Schluessel und warnt.
+ */
+const UPDATE_DICHTE: ThemeConfig = {
+  cssVar: { key: "iuk-radio-update" },
+  token: { controlHeight: TAP, controlHeightLG: TAP_XL },
+};
 
 /**
  * ⛔ DER UPDATE-STAND WANDERT ALS WORT, NICHT ALS FARBE (Falle 3, `Spec:4555-4561`; Regel 4
@@ -226,91 +267,96 @@ export function UpdateSuche({
   }, [getipptes]);
 
   return (
-    <div className={s.abstand} data-rolle="radio-update-flaeche">
-      <Typography.Title level={3} className={s.titel}>
-        {UPDATE_TEXTE.titel}
-      </Typography.Title>
+    <ConfigProvider theme={UPDATE_DICHTE}>
+      <div className={u.flaeche} data-rolle="radio-update-flaeche">
+        <header className={u.kopf}>
+          <h1 className={u.titel}>{UPDATE_TEXTE.titel}</h1>
+          {/* 1:1 `UpdateMode.tsx:38-41` — die fachliche Auflage der Flaeche. Seit DRK-495 ein
+              ruhiger Satz unter dem Titel statt eines `Alert`: er wird einmal gelesen und
+              danach hundertmal uebersprungen. */}
+          <p className={u.hinweis}>
+            <span data-rolle="radio-update-hinweis">{UPDATE_TEXTE.hinweis}</span>
+          </p>
+        </header>
 
-      {/* 1:1 `UpdateMode.tsx:38-41` — die fachliche Auflage der Flaeche. */}
-      <Alert
-        type="info"
-        showIcon
-        message={<span data-rolle="radio-update-hinweis">{UPDATE_TEXTE.hinweis}</span>}
-      />
+        {/* Zielversion und Fortschritt als EIN Block: der Balken misst gegen genau diese Version. */}
+        <section className={u.ziel} aria-label={UPDATE_TEXTE.zielEtikett}>
+          <label htmlFor="radio-update-ziel" className={u.etikett}>
+            {UPDATE_TEXTE.zielEtikett}
+          </label>
+          {/*
+            ⛔ ANTD `AutoComplete` STATT DES EIGENBAU-`Combobox` (antd-Zuordnung; Planteil 3 hat
+            die Form bereits gebaut, `_ui/EntleiherFeld.tsx:137`) — dieselbe Bauform, nicht eine
+            zweite. ⛔ `allowCreate={false}` des Bestands (`UpdateMode.tsx:45`) hat in antd keine
+            Entsprechung und braucht auch keine: die Liste ist ein VORSCHLAG, und der Bestand
+            schreibt den getippten Wert ebenso frei weiter (`:49`).
+          */}
+          <AutoComplete
+            id="radio-update-ziel"
+            className={u.weit}
+            value={ziel}
+            onChange={(wert) => setZiel(wert ?? "")}
+            placeholder={UPDATE_TEXTE.zielPlatzhalter}
+            options={versionen.map((v) => ({ value: v }))}
+            /* jsdom kennt keine Elementhoehen; mit Virtualisierung rendert die Liste in Tests nie
+               (`_ui/EntleiherFeld.tsx`, derselbe Grund). */
+            virtual={false}
+          />
 
-      <div>
-        <Typography.Text strong>{UPDATE_TEXTE.zielEtikett}</Typography.Text>
+          {/*
+            ⛔ NUR WENN ES UEBERHAUPT GERAETE GIBT, 1:1 `UpdateMode.tsx:53`. Ohne die Bedingung
+            rechnete `Math.round((aufZiel / gesamt) * 100)` bei `gesamt === 0` ein `NaN` in den
+            Balken. ⛔ UND DER FORTSCHRITT BLEIBT HIER — „Weitere Auswertungen entstehen nicht"
+            (`Spec:4793-4794`).
+          */}
+          {gesamt > 0 && (
+            <div className={u.fortschritt} data-rolle="radio-update-fortschritt">
+              <span className={u.fortschrittText} data-rolle="radio-update-fortschritt-text">
+                {aufZiel} von {gesamt} auf Zielversion
+              </span>
+              <Progress percent={Math.round((aufZiel / gesamt) * 100)} />
+            </div>
+          )}
+        </section>
+
+        <Input.Search
+          id="radio-update-suche"
+          className={u.weit}
+          allowClear
+          aria-label="Suche"
+          placeholder={UPDATE_TEXTE.suchePlatzhalter}
+          value={getipptes}
+          onChange={(e) => setGetipptes(e.target.value)}
+          onSearch={(wert) => {
+            uebernommen.current = wert.trim();
+            schreibeUrl(wert.trim());
+          }}
+        />
+
         {/*
-          ⛔ ANTD `AutoComplete` STATT DES EIGENBAU-`Combobox` (antd-Zuordnung; Planteil 3 hat
-          die Form bereits gebaut, `_ui/EntleiherFeld.tsx:137`) — dieselbe Bauform, nicht eine
-          zweite. ⛔ `allowCreate={false}` des Bestands (`UpdateMode.tsx:45`) hat in antd keine
-          Entsprechung und braucht auch keine: die Liste ist ein VORSCHLAG, und der Bestand
-          schreibt den getippten Wert ebenso frei weiter (`:49`).
+          ⛔ DIE DREI ZWEIGE IN DIESER REIHENFOLGE, 1:1 `UpdateMode.tsx:65-77` — ohne den
+          `Spin`-Zweig (`:65-66`), der mit TanStack Query entfaellt (`Spec:4583-4593`).
+          ⛔ OHNE SUCHTEXT WIRD NICHTS GEZEIGT, und der Traeger ist der TEXT, nicht die leere
+          Liste: der Bedienende soll aufgefordert werden, nicht ratlos vor einer leeren Flaeche
+          stehen. Seit DRK-495 ohne `Empty`-Bild — nur der Satz.
         */}
-        <AutoComplete
-          id="radio-update-ziel"
-          className={s.filterWeit}
-          value={ziel}
-          onChange={(wert) => setZiel(wert ?? "")}
-          placeholder={UPDATE_TEXTE.zielPlatzhalter}
-          options={versionen.map((v) => ({ value: v }))}
-          /* jsdom kennt keine Elementhoehen; mit Virtualisierung rendert die Liste in Tests nie
-             (`_ui/EntleiherFeld.tsx`, derselbe Grund). */
-          virtual={false}
-        />
+        {suchtext === "" ? (
+          <p className={u.leer}>
+            <span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneSuche}</span>
+          </p>
+        ) : zeilen.length === 0 ? (
+          <p className={u.leer}>
+            <span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneTreffer}</span>
+          </p>
+        ) : (
+          <div className={u.liste}>
+            {zeilen.map((z) => (
+              <UpdateKarte key={z.id} zeile={z} ziel={ziel} />
+            ))}
+          </div>
+        )}
       </div>
-
-      {/*
-        ⛔ NUR WENN ES UEBERHAUPT GERAETE GIBT, 1:1 `UpdateMode.tsx:53`. Ohne die Bedingung
-        rechnete `Math.round((aufZiel / gesamt) * 100)` bei `gesamt === 0` ein `NaN` in den
-        Balken. ⛔ UND DER FORTSCHRITT BLEIBT HIER — „Weitere Auswertungen entstehen nicht"
-        (`Spec:4793-4794`).
-      */}
-      {gesamt > 0 && (
-        <div data-rolle="radio-update-fortschritt">
-          <Typography.Text type="secondary">
-            <span data-rolle="radio-update-fortschritt-text">
-              {aufZiel} von {gesamt} auf Zielversion
-            </span>
-          </Typography.Text>
-          <Progress percent={Math.round((aufZiel / gesamt) * 100)} />
-        </div>
-      )}
-
-      <Input.Search
-        id="radio-update-suche"
-        allowClear
-        aria-label="Suche"
-        placeholder={UPDATE_TEXTE.suchePlatzhalter}
-        value={getipptes}
-        onChange={(e) => setGetipptes(e.target.value)}
-        onSearch={(wert) => {
-          uebernommen.current = wert.trim();
-          schreibeUrl(wert.trim());
-        }}
-      />
-
-      {/*
-        ⛔ DIE DREI ZWEIGE IN DIESER REIHENFOLGE, 1:1 `UpdateMode.tsx:65-77` — ohne den
-        `Spin`-Zweig (`:65-66`), der mit TanStack Query entfaellt (`Spec:4583-4593`).
-        ⛔ OHNE SUCHTEXT WIRD NICHTS GEZEIGT, und der Traeger ist der TEXT, nicht die leere
-        Liste: der Bedienende soll aufgefordert werden, nicht ratlos vor einer leeren Flaeche
-        stehen.
-      */}
-      {suchtext === "" ? (
-        <Empty description={<span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneSuche}</span>} />
-      ) : zeilen.length === 0 ? (
-        <Empty
-          description={<span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneTreffer}</span>}
-        />
-      ) : (
-        <div className={s.abstand}>
-          {zeilen.map((z) => (
-            <UpdateKarte key={z.id} zeile={z} ziel={ziel} />
-          ))}
-        </div>
-      )}
-    </div>
+    </ConfigProvider>
   );
 }
 
@@ -326,13 +372,65 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
   const [text, setText] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  /**
+   * DRK-495: der Tap in zwei Schritten und das Zuruecknehmen danach.
+   *   * `ruhe`        — der Knopf wartet auf den ersten Tipp.
+   *   * `scharf`      — der erste Tipp ist gefallen; der zweite speichert, sonst nach
+   *                     `BESTAETIGEN_MS` zurueck in `ruhe`.
+   *   * `gespeichert` — geschrieben; `vorher` haelt den alten Stand fuer `RUECKGAENGIG_MS`.
+   */
+  const [phase, setPhase] = useState<"ruhe" | "scharf" | "gespeichert">("ruhe");
+  const [vorher, setVorher] = useState<{
+    softwareVersion: string | null;
+    lastUpdatedAt: string | null;
+    gesetzt: string;
+  } | null>(null);
+  const uhr = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stelleUhr = (ms: number, danach: () => void) => {
+    if (uhr.current) clearTimeout(uhr.current);
+    uhr.current = setTimeout(() => {
+      uhr.current = null;
+      danach();
+    }, ms);
+  };
+  useEffect(() => () => {
+    if (uhr.current) clearTimeout(uhr.current);
+  }, []);
+
+  /* Scharf fuer GENAU die Zielversion des ersten Tipps. Wer danach die Zielversion wechselt,
+     bestaetigte sonst eine andere Version, als der Knopf beim ersten Tipp nannte — abgeleitet
+     beim Rendern, nicht per Effekt (react-hooks: kein setState im Effekt). */
+  const [scharfFuer, setScharfFuer] = useState<string | null>(null);
+  const scharf = phase === "scharf" && scharfFuer === ziel;
 
   /** 1:1 `UpdateDeviceCard.tsx:48` — mit `||`, weil alle drei Freitext sind. */
   const name = zeile.rufname || zeile.opta || zeile.issi;
 
+  /**
+   * DRK-495: STEHT DAS GERAET SCHON AUF DER ZIELVERSION, IST DER KNOPF GESPERRT. Ein Tap dort
+   * schriebe nur das Update-Datum neu — genau der Fehlgriff, gegen den die zwei Schritte stehen.
+   */
+  const bereitsAufZiel = ziel !== "" && zeile.softwareVersion === ziel;
+
+  const tippen = () => {
+    if (scharf) {
+      if (uhr.current) clearTimeout(uhr.current);
+      void anwenden();
+      return;
+    }
+    setFehler(null);
+    setPhase("scharf");
+    setScharfFuer(ziel);
+    stelleUhr(BESTAETIGEN_MS, () => setPhase("ruhe"));
+  };
+
   const anwenden = async () => {
     setLaeuft(true);
     setFehler(null);
+    /* Der Stand VOR dem Schreiben — roh, damit „Rueckgaengig" ihn unveraendert zurueckschreibt
+       (`letztesUpdateRoh`, nicht der Anzeigetext mit seinem Gedankenstrich). */
+    const alt = { softwareVersion: zeile.softwareVersion, lastUpdatedAt: zeile.letztesUpdateRoh };
     /*
      * ⛔ **E-V11**: `{ softwareVersion: ziel, lastUpdatedAt: <Berliner Tag> }`. Der Bestand
      * setzt hier `Date.now()` (`UpdateDeviceCard.tsx:24`) — die Suite-Spalte ist
@@ -354,7 +452,40 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
       lastUpdatedAt: tagAusWert(new Date()),
     });
     setLaeuft(false);
-    if (!ergebnis.ok) setFehler(ergebnis.fehler);
+    if (!ergebnis.ok) {
+      setPhase("ruhe");
+      setFehler(ergebnis.fehler);
+      return;
+    }
+    setVorher({ ...alt, gesetzt: ziel });
+    setPhase("gespeichert");
+    stelleUhr(RUECKGAENGIG_MS, () => {
+      setPhase("ruhe");
+      setVorher(null);
+    });
+  };
+
+  /**
+   * DRK-495: SCHREIBT DEN ALTEN STAND ZURUECK, ueber dieselbe Action und dieselben zwei Felder
+   * (beide in `UPDATER_FELDER`) — die Updater-Stufe darf also auch zuruecknehmen. Das
+   * Aenderungsprotokoll haelt beide Schritte fest; das ist gewollt, nicht zu verstecken.
+   */
+  const zuruecknehmen = async () => {
+    if (!vorher) return;
+    if (uhr.current) clearTimeout(uhr.current);
+    setLaeuft(true);
+    setFehler(null);
+    const ergebnis = await geraetAendernAction(zeile.id, {
+      softwareVersion: vorher.softwareVersion,
+      lastUpdatedAt: vorher.lastUpdatedAt,
+    });
+    setLaeuft(false);
+    if (!ergebnis.ok) {
+      setFehler(ergebnis.fehler);
+      return;
+    }
+    setVorher(null);
+    setPhase("ruhe");
   };
 
   const anhaengen = async () => {
@@ -375,88 +506,117 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
   };
 
   return (
-    <Card className={s.mobilKarte} data-rolle="radio-update-karte">
-      <div className={s.mobilKopf}>
-        <div>
-          <Typography.Text strong>
-            <span data-rolle="radio-update-karte-name">{name}</span>
-          </Typography.Text>
-          <div>
-            <Typography.Text type="secondary">
-              {/* 1:1 `UpdateDeviceCard.tsx:49-51`. */}
-              <span data-rolle="radio-update-karte-neben">
-                ISSI {zeile.issi}
-                {zeile.funktion ? ` · ${zeile.funktion}` : ""}
-                {zeile.geraeteTyp ? ` · ${zeile.geraeteTyp}` : ""}
-              </span>
-            </Typography.Text>
+    <Card data-rolle="radio-update-karte">
+      <div className={u.karte}>
+        <div className={u.karteKopf}>
+          <div className={u.karteText}>
+            <span className={u.name} data-rolle="radio-update-karte-name">
+              {name}
+            </span>
+            {/* 1:1 `UpdateDeviceCard.tsx:49-51`. */}
+            <span className={u.neben} data-rolle="radio-update-karte-neben">
+              ISSI {zeile.issi}
+              {zeile.funktion ? ` · ${zeile.funktion}` : ""}
+              {zeile.geraeteTyp ? ` · ${zeile.geraeteTyp}` : ""}
+            </span>
+            {/* DRK-495: der Stand VOR dem Tap. Wer neben dem Geraet steht, will sehen, von wo
+                er aktualisiert — die Marke rechts sagt nur „veraltet", nicht „wovon". */}
+            <span className={u.stand} data-rolle="radio-update-karte-stand">
+              Version <span className={u.standWert}>{zeile.softwareVersion || "—"}</span>
+              {" · "}Letztes Update <span className={u.standWert}>{zeile.letztesUpdateText}</span>
+            </span>
           </div>
+          <Tag color={STAND_TON[zeile.updateStand]} data-rolle="radio-update-stand">
+            {STAND_WORT[zeile.updateStand]}
+          </Tag>
         </div>
-        <Tag color={STAND_TON[zeile.updateStand]} data-rolle="radio-update-stand">
-          {STAND_WORT[zeile.updateStand]}
-        </Tag>
-      </div>
 
-      <Space wrap className={s.notizZeile}>
-        {/* ⛔ `disabled={!ziel}`, 1:1 `UpdateDeviceCard.tsx:56`: ohne Zielversion schriebe ein
-            Tap eine LEERE Version, und der Update-Stand fiele danach auf „unbekannt". */}
-        <Button
-          type="primary"
-          data-rolle="radio-update-tap"
-          loading={laeuft}
-          disabled={!ziel}
-          icon={<VIkone name="haken" />}
-          onClick={anwenden}
-        >
-          Auf {ziel || "—"} aktualisiert
-        </Button>
-        <Button
-          data-rolle="radio-update-anmerkung-knopf"
-          icon={<VIkone name="warnung" />}
-          onClick={() => setOffen((o) => !o)}
-        >
-          {UPDATE_TEXTE.anmerkungKnopf}
-        </Button>
-      </Space>
-
-      {offen && (
-        <Space.Compact className={s.notizZeile}>
-          <Input
-            data-rolle="radio-update-anmerkung-feld"
-            aria-label="Anmerkung"
-            placeholder={UPDATE_TEXTE.anmerkungPlatzhalter}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onPressEnter={anhaengen}
-          />
+        <div className={u.knoepfe}>
+          {phase === "gespeichert" && vorher ? (
+            /* DRK-495: statt des Tap-Knopfs die Bestaetigung und das Zuruecknehmen. */
+            <div className={u.gespeichert}>
+              <span role="status" className={u.gespeichertText} data-rolle="radio-update-gesetzt">
+                <VIkone name="haken" /> Auf {vorher.gesetzt} {UPDATE_TEXTE.gesetzt}
+              </span>
+              <Button
+                data-rolle="radio-update-rueckgaengig"
+                loading={laeuft}
+                onClick={zuruecknehmen}
+              >
+                {UPDATE_TEXTE.rueckgaengig}
+              </Button>
+            </div>
+          ) : (
+            /* ⛔ `disabled={!ziel}`, 1:1 `UpdateDeviceCard.tsx:56`: ohne Zielversion schriebe
+               ein Tap eine LEERE Version, und der Update-Stand fiele danach auf „unbekannt".
+               DRK-495: dazu gesperrt, wenn das Geraet schon auf der Zielversion steht. */
+            <Button
+              type="primary"
+              block
+              data-rolle="radio-update-tap"
+              data-phase={scharf ? "scharf" : "ruhe"}
+              loading={laeuft}
+              disabled={!ziel || bereitsAufZiel}
+              icon={<VIkone name="haken" />}
+              onClick={tippen}
+            >
+              {bereitsAufZiel
+                ? `${UPDATE_TEXTE.bereits} ${ziel}`
+                : scharf
+                  ? `${UPDATE_TEXTE.bestaetigen} ${ziel} setzen`
+                  : `Auf ${ziel || "—"} aktualisiert`}
+            </Button>
+          )}
           <Button
-            data-rolle="radio-update-anmerkung-speichern"
-            loading={laeuft}
-            icon={<VIkone name="plus" />}
-            onClick={anhaengen}
+            block
+            data-rolle="radio-update-anmerkung-knopf"
+            aria-expanded={offen}
+            icon={<VIkone name="warnung" />}
+            onClick={() => setOffen((o) => !o)}
           >
-            Speichern
+            {UPDATE_TEXTE.anmerkungKnopf}
           </Button>
-        </Space.Compact>
-      )}
+        </div>
 
-      {/*
-        ⛔ DIE GESPEICHERTE ANMERKUNG, 1:1 `UpdateDeviceCard.tsx:74-78` — der Posten, den der
-        Port beinahe still verloren haette (Entscheidung **E-V17b**, `_lib/lesepfade/geraete.ts`,
-        `updateKarten`). ⛔ `type="warning"` und nicht `danger`: Rot bleibt den zerstoerenden
-        Knoepfen (Falle 3).
-      */}
-      {zeile.updateAnmerkung && (
-        <Typography.Paragraph type="warning" className={s.notizText}>
-          <span data-rolle="radio-update-anmerkung-text">{zeile.updateAnmerkung}</span>
-        </Typography.Paragraph>
-      )}
+        {offen && (
+          <Space.Compact className={u.anmerkung}>
+            <Input
+              data-rolle="radio-update-anmerkung-feld"
+              aria-label="Anmerkung"
+              placeholder={UPDATE_TEXTE.anmerkungPlatzhalter}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onPressEnter={anhaengen}
+            />
+            <Button
+              data-rolle="radio-update-anmerkung-speichern"
+              loading={laeuft}
+              icon={<VIkone name="plus" />}
+              onClick={anhaengen}
+            >
+              Speichern
+            </Button>
+          </Space.Compact>
+        )}
 
-      {fehler !== null && (
-        <Typography.Text type="danger">
-          <span data-rolle="radio-update-fehler">{fehler}</span>
-        </Typography.Text>
-      )}
+        {/*
+          ⛔ DIE GESPEICHERTE ANMERKUNG, 1:1 `UpdateDeviceCard.tsx:74-78` — der Posten, den der
+          Port beinahe still verloren haette (Entscheidung **E-V17b**, `_lib/lesepfade/geraete.ts`,
+          `updateKarten`). ⛔ `type="warning"` und nicht `danger`: Rot bleibt den zerstoerenden
+          Knoepfen (Falle 3).
+        */}
+        {zeile.updateAnmerkung && (
+          <Typography.Paragraph type="warning" className={u.anmerkungText}>
+            <span data-rolle="radio-update-anmerkung-text">{zeile.updateAnmerkung}</span>
+          </Typography.Paragraph>
+        )}
+
+        {fehler !== null && (
+          <Typography.Paragraph type="danger" className={u.fehler}>
+            <span data-rolle="radio-update-fehler">{fehler}</span>
+          </Typography.Paragraph>
+        )}
+      </div>
     </Card>
   );
 }

@@ -958,6 +958,18 @@ describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
     expect(nachId.get("ohne")).toBeNull();
   });
 
+  it("traegt den ROHEN Tag des letzten Updates, null statt Gedankenstrich (DRK-495)", () => {
+    /*
+     * „Rueckgaengig" schreibt diesen Wert zurueck. Kaeme hier der Gedankenstrich aus
+     * `letztesUpdateText` an, stuende nach dem Zuruecknehmen „—" als Tag in der Datenbank.
+     */
+    lege({ id: "mit", lastUpdatedAt: "2026-08-03" }, { id: "ohne", lastUpdatedAt: null });
+
+    const nachId = new Map(updateKarten(db, {}).map((k) => [k.id, k.letztesUpdateRoh]));
+    expect(nachId.get("mit")).toBe("2026-08-03");
+    expect(nachId.get("ohne")).toBeNull();
+  });
+
   it("uebernimmt Suche, Seitengroesse und Reihenfolge von geraeteListe", () => {
     /*
      * ⛔ SIE BAUT KEINE ZWEITE ABFRAGE — Filter, Freitextsuche, Sortierung und Blaetterung sind
@@ -1021,11 +1033,13 @@ describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
     expect(updateKarten(db, { q: "gibtesnicht" })).toEqual([]);
   });
 
-  it("traegt jedes Feld der Listenzeile weiter — genau eines kommt dazu", () => {
+  it("traegt jedes Feld der Listenzeile weiter — genau zwei kommen dazu", () => {
     /*
      * ⛔ DER WAECHTER GEGEN EINE ZWEITE PROJEKTION: `updateKarten` darf `GeraetZeile` nicht
      * beschneiden (dann fehlte der Karte der Update-Stand oder die ISSI) und nicht um Audit-
-     * oder Rohspalten verbreitern (dann waere sie die Geraeteakte, `Spec:4542-4553`).
+     * oder Rohspalten verbreitern (dann waere sie die Geraeteakte, `Spec:4542-4553`). DIE EINE
+     * AUSNAHME ist `letztesUpdateRoh` (DRK-495): „Rueckgaengig" nach einem Tap muss den alten
+     * Tag zurueckschreiben, und `letztesUpdateText` traegt fuer „kein Tag" einen Gedankenstrich.
      * Gemessen an einer ECHTEN Zeile, nicht am Typ — ein Typ hat zur Laufzeit keine Felder.
      *
      * ⛔ JEDES FELD TRAEGT EINEN EIGENEN, NICHT LEEREN WERT — und das ist erzwungen, nicht
@@ -1058,7 +1072,10 @@ describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
 
     const zeile = geraeteListe(db, {}).zeilen[0]!;
     const karte = updateKarten(db, {})[0]!;
-    expect(Object.keys(karte).sort()).toEqual([...Object.keys(zeile), "updateAnmerkung"].sort());
+    expect(Object.keys(karte).sort()).toEqual(
+      [...Object.keys(zeile), "updateAnmerkung", "letztesUpdateRoh"].sort(),
+    );
+    expect(karte.letztesUpdateRoh).toBe("2026-08-03");
     /*
      * ⛔ UND DIE WERTE DAZU, NICHT NUR DIE SCHLUESSELNAMEN. Sonde S-V17ab (`tei: undefined`
      * ueber die Zeile gelegt): `33 passed`, **0 rot** — `Object.keys` sieht einen auf

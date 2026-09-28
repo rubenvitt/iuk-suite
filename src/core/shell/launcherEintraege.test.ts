@@ -73,6 +73,40 @@ describe("modulEintraege", () => {
   });
 });
 
+describe("modulEintraege: der Verwaltungseinstieg (DRK-495)", () => {
+  it("steht für die Admin-Gruppe von radio direkt hinter der Modulkachel", () => {
+    vi.stubEnv("PORT", "3000");
+    vi.stubEnv("SUITE_ADMIN_GROUP_RADIO", "iuk-radio-admin");
+    const eintraege = modulEintraege(["iuk-radio-admin"]);
+    const keys = eintraege.map((e) => e.key);
+    expect(keys.indexOf("radio:verwaltung")).toBe(keys.indexOf("radio") + 1);
+    const verwaltung = eintraege.find((e) => e.key === "radio:verwaltung");
+    expect(verwaltung).toMatchObject({
+      title: "Funkgeräte-Verwaltung",
+      href: "http://radio.localtest.me:3000/admin",
+      icon: "WifiOutlined",
+      abschnitt: ABSCHNITT_APPS,
+      extern: false,
+    });
+  });
+
+  it("steht auch für die Updater-Gruppe, gelesen wie in radio: ein getrimmter Name", () => {
+    vi.stubEnv("SUITE_UPDATER_GROUP_RADIO", "  funk-updater ");
+    expect(modulEintraege(["funk-updater"]).map((e) => e.key)).toContain("radio:verwaltung");
+    // Kein Komma-Split: radio vergleicht den ganzen Wert, die Kachel darf nicht mehr zeigen.
+    vi.stubEnv("SUITE_UPDATER_GROUP_RADIO", "funk-updater,andere");
+    expect(modulEintraege(["funk-updater"]).map((e) => e.key)).not.toContain("radio:verwaltung");
+  });
+
+  it("fehlt ohne passende Gruppe und ohne Anmeldung — sie führte sonst in ein 404", () => {
+    vi.stubEnv("SUITE_UPDATER_GROUP_RADIO", "");
+    expect(modulEintraege(["lagerbuch_nutzer"]).map((e) => e.key)).not.toContain(
+      "radio:verwaltung",
+    );
+    expect(modulEintraege(null).map((e) => e.key)).toEqual(["qr", "radio"]);
+  });
+});
+
 describe("mischeEintraege", () => {
   it("stellt die Apps voran und ordnet Dienste nach erstem Auftreten ihrer Kategorie", () => {
     // Nicht `module` genannt: eslint (`@next/next/no-assign-module-variable`)

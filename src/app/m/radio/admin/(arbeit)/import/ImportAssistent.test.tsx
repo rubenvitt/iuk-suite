@@ -182,7 +182,7 @@ function text(rolle: string): string {
  * Die Klassen des `Alert`, in dem der Zuordnungshinweis steckt.
  *
  * ⛔ UEBER `closest(".ant-alert")` UND NICHT UEBER DEN GRIFF SELBST: der Griff sitzt am
- * inneren `<span>` der `message` — dieselbe Form wie `UpdateSuche.tsx:229-233` —, damit
+ * inneren `<span>` der `message` — dieselbe Form wie `radio-update-hinweis` in `UpdateSuche.tsx` —, damit
  * `text("radio-import-hinweis")` und der Playwright-Fall (`e2e/radio-verwaltung.spec.ts:1123`)
  * den blanken Satz lesen und nicht das Zeichen daneben. Der TON haengt am aeusseren Kasten.
  */

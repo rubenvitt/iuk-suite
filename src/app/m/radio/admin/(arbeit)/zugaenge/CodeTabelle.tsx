@@ -103,7 +103,7 @@ import s from "../../../_ui/verwaltung.module.css";
  *
  * ⛔ NICHT EXPORTIERT (REVIEW-V17, Fund F4): es gibt keinen Verbraucher — der Test schreibt
  * die Texte bewusst aus, ein Import waere tautologisch. Dieselbe Form und derselbe Grund wie
- * in `software/UpdateSuche.tsx:91` (`UPDATE_TEXTE`) und `versionen/VersionenTabelle.tsx`
+ * in `software/UpdateSuche.tsx` (`UPDATE_TEXTE`) und `versionen/VersionenTabelle.tsx`
  * (`VERSIONEN_TEXTE`).
  */
 const CODE_TEXTE = {

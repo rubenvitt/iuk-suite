@@ -293,7 +293,7 @@ export const ARBEITSDICHTE: ThemeConfig = {
  * REICHWEITE: NUR wo ein Modul sie ausdrücklich anlegt — heute allein
  * `src/app/m/radio/_ui/RadioVerwaltungsRahmen.tsx`. Kein Shell-Pfad zieht sie
  * von selbst; der Ausleih-Zweig von `radio` (56/72, ohne Shell) und jedes andere
- * Modul bleiben unberührt. Damit steht sie in `core`, obwohl heute genau EIN
+ * Modul bleiben unberührt, ebenso der Update-Modus (56/72, DRK-495). Damit steht sie in `core`, obwohl heute genau EIN
  * Modul sie braucht — die Regel „nur was ein zweites Modul braucht" (`CLAUDE.md`)
  * ist hier bewusst zugunsten der Betreiberentscheidung ausgesetzt, weil die
  * Dichte zum Theme gehört und nicht in ein Modul-Stylesheet gehört (Falle 5).
