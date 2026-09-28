@@ -13,7 +13,7 @@
   },
   {
     "name": "eimer-4",
-    "specs": "e2e/lagerbuch-etiketten.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-inventur-mobil.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-ux.spec.ts e2e/lagerbuch-verfall-fahrzeug.spec.ts"
+    "specs": "e2e/datumsfeld-enter.spec.ts e2e/lagerbuch-etiketten.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-inventur-mobil.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-ux.spec.ts e2e/lagerbuch-verfall-fahrzeug.spec.ts"
   },
   {
     "name": "eimer-5",
