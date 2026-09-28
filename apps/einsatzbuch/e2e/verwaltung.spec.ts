@@ -88,9 +88,16 @@ test("Sitzung sperren verwirft den Klartext", async ({ page }) => {
 
   await page.getByRole("button", { name: "Sitzung sperren" }).click();
 
-  await expect(page.getByText("Sitzung gesperrt. Die Einsätze liegen nur noch verschlüsselt vor.")).toBeVisible();
+  const toast = page.getByText("Sitzung gesperrt. Die Einsätze liegen nur noch verschlüsselt vor.");
+  await expect(toast).toBeVisible();
   await expect(page.getByText("MANV 10")).toHaveCount(0);
   expect(await aufrufe(page, "abmelden")).toHaveLength(1);
+
+  // Ein Toast, keine Karte: Er schiebt die Startseite nicht und geht von selbst.
+  const startknopf = page.getByRole("button", { name: "Einsatz öffnen" });
+  const mitToast = await startknopf.boundingBox();
+  await expect(toast).toHaveCount(0);
+  expect(await startknopf.boundingBox()).toEqual(mitToast);
 });
 
 test("Automatische Sperre: 10 Minuten ohne Eingabe sperren app-weit", async ({ page }) => {
