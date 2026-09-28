@@ -32,14 +32,18 @@
 //! - Ändert eine Runde, was der Status über das Update meldet (`Stand`), sendet der Thread das
 //!   Ereignis `STAND_EREIGNIS`, und die Oberfläche liest den Status neu. Sonst sähe niemand das
 //!   Ergebnis der ersten Prüfung, der die App vorher geöffnet hat.
+//! - Herunterladen und Installieren sind sichtbar (`Updatelauf`, `Laufanzeige`): Die Oberfläche
+//!   zeigt unten rechts einen Spinner, danach bis zum Neustart einen Hinweis. Das Ereignis geht
+//!   dafür schon zu Beginn der Installationsrunde hinaus, nicht erst nach dem ganzen Schritt.
 //!
-//! Sperrreihenfolge (`zustand.rs`): `update`, `update_fehler` und `update_geprueft` sind Blätter,
+//! Sperrreihenfolge (`zustand.rs`): `update`, `update_fehler`, `update_geprueft` und `update_lauf` sind Blätter,
 //! keiner wird über einem anderen gehalten. `lage` nimmt das Buch kurz und gibt es vor den Blättern frei; kein Lock
 //! wird über einer Anfrage an GitHub gehalten.
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -65,6 +69,42 @@ pub const STAND_EREIGNIS: &str = "update-stand";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vorgemerkt {
     pub version: String,
+}
+
+/// Was der Updater gerade tut; die Oberfläche zeigt es unten rechts (`bausteine/UpdateAnzeige.tsx`).
+/// Nicht gesetzt heißt: Er tut nichts Sichtbares, ein vorgemerktes Update wartet höchstens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Updatelauf {
+    /// Die Installationsrunde läuft: erneut prüfen, herunterladen, installieren.
+    Laedt,
+    /// Installiert; der Neustart wartet auf einen ruhigen Moment (`Lauf::neustart_faellig`).
+    Neustart,
+}
+
+/// Hält `Zustand::update_lauf` für die Dauer einer Installationsrunde auf `Laedt` und setzt ihn
+/// beim Verlassen auf `danach`, auch nach einem Fehler oder einer Panik (`Drop`). Beide Male
+/// meldet `melde` es der Oberfläche: Sonst stünde der Spinner nach einer Panik für immer da,
+/// oder er erschiene gar nicht, weil der Thread `STAND_EREIGNIS` erst nach dem Schritt sendet.
+struct Laufanzeige<'a> {
+    z: &'a Zustand,
+    melde: &'a dyn Fn(),
+    danach: Option<Updatelauf>,
+}
+
+impl<'a> Laufanzeige<'a> {
+    fn beginne(z: &'a Zustand, melde: &'a dyn Fn()) -> Laufanzeige<'a> {
+        *z.update_lauf() = Some(Updatelauf::Laedt);
+        melde();
+        Laufanzeige { z, melde, danach: None }
+    }
+}
+
+impl Drop for Laufanzeige<'_> {
+    fn drop(&mut self) {
+        *self.z.update_lauf() = self.danach;
+        (self.melde)();
+    }
 }
 
 /// Die letzten Fehler des Updaters, getrennt nach Schritt. Getrennt, weil die Karte
@@ -185,8 +225,10 @@ pub fn pruefrunde(z: &Zustand, q: &dyn Quelle) -> Result<(), String> {
 /// Eine Installationsrunde: nur mit Vormerkung und nur, wenn `darf_installieren` gilt, vor und
 /// nach dem Herunterladen. `Ok(true)` heißt installiert, der Aufrufer startet neu. Ein Fehler
 /// verwirft die Vormerkung (die nächste Prüfung merkt neu vor), steht danach in
-/// `Updatefehler::installation` und geht an den Aufrufer.
-pub fn installationsrunde(z: &Zustand, q: &dyn Quelle) -> Result<bool, String> {
+/// `Updatefehler::installation` und geht an den Aufrufer. Solange sie läuft, steht
+/// `Updatelauf::Laedt` im Status, nach einer Installation `Neustart` (`Laufanzeige`); `melde`
+/// sagt es der Oberfläche.
+pub fn installationsrunde(z: &Zustand, q: &dyn Quelle, melde: &dyn Fn()) -> Result<bool, String> {
     // Eigene Anweisung: Der Guard von `update` darf nicht über `lage` (Buch) gehalten werden.
     let vorgemerkt = z.update().as_ref().map(|v| v.version.clone());
     let Some(version) = vorgemerkt else {
@@ -195,9 +237,11 @@ pub fn installationsrunde(z: &Zustand, q: &dyn Quelle) -> Result<bool, String> {
     if !darf_installieren(&lage(z)) {
         return Ok(false);
     }
+    let mut anzeige = Laufanzeige::beginne(z, melde);
     match q.installiere(&|| darf_installieren(&lage(z))) {
         Ok(Installation::Installiert) => {
             z.update_fehler().installation = None;
+            anzeige.danach = Some(Updatelauf::Neustart);
             Ok(true)
         }
         Ok(Installation::Verschoben) => Ok(false),
@@ -295,6 +339,7 @@ pub struct Stand {
     pub update: Option<String>,
     pub fehler: Option<String>,
     pub geprueft: Option<DateTime<Utc>>,
+    pub lauf: Option<Updatelauf>,
 }
 
 /// Liest die Blätter einzeln, keines über dem anderen (Sperrreihenfolge, `zustand.rs`).
@@ -302,7 +347,8 @@ pub fn stand(z: &Zustand) -> Stand {
     let update = z.update().as_ref().map(|v| v.version.clone());
     let fehler = z.update_fehler().anzeige();
     let geprueft = *z.update_geprueft();
-    Stand { update, fehler, geprueft }
+    let lauf = *z.update_lauf();
+    Stand { update, fehler, geprueft, lauf }
 }
 
 /// Der Zustand der Thread-Schleife: wann die nächste Prüfung fällig ist und ob ein installiertes
@@ -320,7 +366,8 @@ impl Lauf {
         Lauf { naechste_pruefung: jetzt, neustart_faellig: false }
     }
 
-    /// Eine Minute der Schleife. `true` heißt: jetzt neu starten.
+    /// Eine Minute der Schleife. `true` heißt: jetzt neu starten. `melde` geht an die
+    /// Installationsrunde (`Laufanzeige`).
     ///
     /// - Wartet ein installiertes Update auf den Neustart, wird nur `darf_installieren` gefragt:
     ///   Unter macOS ist das Bundle dann schon ersetzt, und zwischen Installation und Neustart kann
@@ -332,13 +379,13 @@ impl Lauf {
     ///   Scheitert sie (Herunterladen, Signatur, Installieren), ist die Vormerkung verworfen, und
     ///   die nächste Prüfung kommt spätestens in 15 Minuten statt erst nach 6 Stunden. Ein
     ///   verschobenes Update (die Lage kippte) zieht die Prüfung nicht vor.
-    pub fn schritt(&mut self, z: &Zustand, q: &dyn Quelle, jetzt: Instant) -> bool {
+    pub fn schritt(&mut self, z: &Zustand, q: &dyn Quelle, jetzt: Instant, melde: &dyn Fn()) -> bool {
         if !self.neustart_faellig {
             if jetzt >= self.naechste_pruefung {
                 let gelungen = fange("Update-Prüfung", || pruefrunde(z, q)).is_some();
                 self.naechste_pruefung = jetzt + if gelungen { PRUEFTAKT } else { WIEDERHOLUNG };
             }
-            match fange("Update-Installation", || installationsrunde(z, q)) {
+            match fange("Update-Installation", || installationsrunde(z, q, melde)) {
                 Some(installiert) => self.neustart_faellig = installiert,
                 None => self.naechste_pruefung = self.naechste_pruefung.min(jetzt + WIEDERHOLUNG),
             }
@@ -351,15 +398,18 @@ impl Lauf {
 pub fn starte(app: AppHandle) -> std::io::Result<()> {
     std::thread::Builder::new().name("updater".into()).spawn(move || {
         let quelle = PluginQuelle { app: app.clone() };
+        // Scheitert das Senden, zeigt die Oberfläche den Stand beim nächsten Neulesen.
+        let melde = || {
+            let _ = app.emit(STAND_EREIGNIS, ());
+        };
         std::thread::sleep(ERSTE_PRUEFUNG);
         let mut lauf = Lauf::neu(Instant::now());
         loop {
             let zustand = app.state::<Zustand>();
             let vorher = stand(&zustand);
-            let neustart = lauf.schritt(&zustand, &quelle, Instant::now());
+            let neustart = lauf.schritt(&zustand, &quelle, Instant::now(), &melde);
             if stand(&zustand) != vorher {
-                // Scheitert das Senden, zeigt die Oberfläche den Stand beim nächsten Neulesen.
-                let _ = app.emit(STAND_EREIGNIS, ());
+                melde();
             }
             if neustart {
                 app.restart();
@@ -373,6 +423,7 @@ pub fn starte(app: AppHandle) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
 
@@ -448,6 +499,9 @@ mod tests {
         }
     }
 
+    /// `melde` für Tests, die die Meldung an die Oberfläche nicht prüfen.
+    fn still() {}
+
     fn vorgemerkt(z: &Zustand) -> Option<String> {
         z.update().as_ref().map(|v| v.version.clone())
     }
@@ -503,13 +557,13 @@ mod tests {
         let ordner = tempfile::tempdir().unwrap();
         let uhr = Stelluhr::neu();
         let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &uhr);
-        assert_eq!(stand(&z), Stand { update: None, fehler: None, geprueft: None });
+        assert_eq!(stand(&z), Stand { update: None, fehler: None, geprueft: None, lauf: None });
         assert_eq!(lies_status(&z).unwrap().update_geprueft, None);
 
         let q = FakeQuelle::mit(None);
         pruefrunde(&z, &q).unwrap();
         let erste = uhr.jetzt();
-        assert_eq!(stand(&z), Stand { update: None, fehler: None, geprueft: Some(erste) });
+        assert_eq!(stand(&z), Stand { update: None, fehler: None, geprueft: Some(erste), lauf: None });
         let s = lies_status(&z).unwrap();
         let zone = s.zeitzone.clone().unwrap();
         assert_eq!(s.update_geprueft, Some(formatiere_zeitpunkt(erste, &zone)));
@@ -524,7 +578,7 @@ mod tests {
 
         *q.version.borrow_mut() = Ok(Some("0.2.0".into()));
         pruefrunde(&z, &q).unwrap();
-        assert_eq!(stand(&z), Stand { update: Some("0.2.0".into()), fehler: None, geprueft: Some(uhr.jetzt()) });
+        assert_eq!(stand(&z), Stand { update: Some("0.2.0".into()), fehler: None, geprueft: Some(uhr.jetzt()), lauf: None });
     }
 
     #[test]
@@ -536,28 +590,88 @@ mod tests {
         let q = FakeQuelle::mit(Some("0.2.0"));
 
         // Ohne Vormerkung geschieht nichts.
-        assert_eq!(installationsrunde(&z, &q), Ok(false));
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false));
         assert_eq!(q.installiert.get(), 0);
 
         pruefrunde(&z, &q).unwrap();
         sende_ab(&z, &entwurf_suite(), false).unwrap();
-        assert_eq!(installationsrunde(&z, &q), Ok(false), "ein Einsatz steht aus");
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "ein Einsatz steht aus");
         assert_eq!(q.installiert.get(), 0);
         assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"), "bleibt vorgemerkt");
 
         versiegele_jetzt(&z).unwrap();
         *z.sitzung() = Some(sitzung_bis(uhr.jetzt().timestamp_millis() + 60_000));
-        assert_eq!(installationsrunde(&z, &q), Ok(false), "jemand ist angemeldet");
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "jemand ist angemeldet");
         assert_eq!(q.installiert.get(), 0);
 
         *z.sitzung() = None;
         *z.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
-        assert_eq!(installationsrunde(&z, &q), Ok(false), "eine Anmeldung läuft");
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "eine Anmeldung läuft");
         assert_eq!(q.installiert.get(), 0);
 
         *z.anmeldung() = None;
-        assert_eq!(installationsrunde(&z, &q), Ok(true));
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(true));
         assert_eq!(q.installiert.get(), 1);
+    }
+
+    /// Während der Installationsrunde steht `Laedt` im Status, danach `Neustart` oder nichts; die
+    /// Oberfläche erfährt beides sofort (`melde`), nicht erst nach dem Schritt.
+    #[test]
+    fn installationsrunde_zeigt_den_lauf_und_meldet_ihn() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        *z.sitzung() = None;
+        let z = Arc::new(z);
+        let q = FakeQuelle::mit(Some("0.2.0"));
+        let beim_herunterladen = Rc::new(Cell::new(None));
+        let (z2, gesehen) = (Arc::clone(&z), Rc::clone(&beim_herunterladen));
+        *q.waehrend_download.borrow_mut() = Some(Box::new(move || gesehen.set(Some(*z2.update_lauf()))));
+        let meldungen = Cell::new(0);
+        let melde = || meldungen.set(meldungen.get() + 1);
+
+        pruefrunde(&z, &q).unwrap();
+        assert_eq!(*z.update_lauf(), None, "vorgemerkt ist noch kein Lauf");
+        assert_eq!(installationsrunde(&z, &q, &melde), Ok(true));
+        assert_eq!(beim_herunterladen.get(), Some(Some(Updatelauf::Laedt)));
+        assert_eq!(*z.update_lauf(), Some(Updatelauf::Neustart));
+        assert_eq!(stand(&z).lauf, Some(Updatelauf::Neustart));
+        assert_eq!(meldungen.get(), 2, "zu Beginn und am Ende der Runde");
+
+        // Ohne Vormerkung oder in einem unruhigen Moment beginnt kein Lauf und nichts wird gemeldet.
+        *z.update_lauf() = None;
+        *z.update() = None;
+        assert_eq!(installationsrunde(&z, &q, &melde), Ok(false));
+        pruefrunde(&z, &q).unwrap();
+        *z.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
+        assert_eq!(installationsrunde(&z, &q, &melde), Ok(false));
+        assert_eq!(meldungen.get(), 2);
+        *z.anmeldung() = None;
+
+        *q.installation.borrow_mut() = Err("Download abgebrochen".into());
+        assert!(installationsrunde(&z, &q, &melde).is_err());
+        assert_eq!(*z.update_lauf(), None, "nach einem Fehler kein Spinner mehr");
+        assert_eq!(meldungen.get(), 4);
+
+        pruefrunde(&z, &q).unwrap();
+        *q.installation.borrow_mut() = Ok(Installation::KeinUpdate);
+        assert_eq!(installationsrunde(&z, &q, &melde), Ok(false));
+        assert_eq!(*z.update_lauf(), None);
+    }
+
+    /// Eine Panik mitten im Herunterladen lässt keinen Spinner stehen.
+    #[test]
+    fn nach_einer_panik_steht_kein_lauf_mehr() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_echter_rechner(ordner.path(), &Stelluhr::neu());
+        *z.sitzung() = None;
+        let q = FakeQuelle::mit(Some("0.2.0"));
+        *q.waehrend_download.borrow_mut() = Some(Box::new(|| panic!("Netz weg")));
+        let meldungen = Cell::new(0);
+        let melde = || meldungen.set(meldungen.get() + 1);
+        pruefrunde(&z, &q).unwrap();
+        assert!(fange("Update-Installation", || installationsrunde(&z, &q, &melde)).is_none());
+        assert_eq!(*z.update_lauf(), None);
+        assert_eq!(meldungen.get(), 2);
     }
 
     #[test]
@@ -573,7 +687,7 @@ mod tests {
         *q.waehrend_download.borrow_mut() = Some(Box::new(move || {
             sende_ab(&z2, &entwurf_suite(), false).unwrap();
         }));
-        assert_eq!(installationsrunde(&z, &q), Ok(false));
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false));
         assert_eq!(q.installiert.get(), 0);
         assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"));
     }
@@ -587,12 +701,12 @@ mod tests {
 
         pruefrunde(&z, &q).unwrap();
         *q.installation.borrow_mut() = Err("Signatur passt nicht".into());
-        assert_eq!(installationsrunde(&z, &q), Err("Signatur passt nicht".into()));
+        assert_eq!(installationsrunde(&z, &q, &still), Err("Signatur passt nicht".into()));
         assert_eq!(vorgemerkt(&z), None, "kein erneuter Download jede Minute");
 
         pruefrunde(&z, &q).unwrap();
         *q.installation.borrow_mut() = Ok(Installation::KeinUpdate);
-        assert_eq!(installationsrunde(&z, &q), Ok(false));
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false));
         assert_eq!(vorgemerkt(&z), None);
     }
 
@@ -612,15 +726,15 @@ mod tests {
         let start = Instant::now();
         let mut lauf = Lauf::neu(start);
 
-        assert!(!lauf.schritt(&z, &q, start), "installiert, aber eine Anmeldung läuft inzwischen");
+        assert!(!lauf.schritt(&z, &q, start, &still), "installiert, aber eine Anmeldung läuft inzwischen");
         assert_eq!(q.installiert.get(), 1);
         assert!(lauf.neustart_faellig);
-        assert!(!lauf.schritt(&z, &q, start + REGELTAKT));
-        assert!(!lauf.schritt(&z, &q, start + PRUEFTAKT), "auch nach 6 Stunden noch nicht ruhig");
+        assert!(!lauf.schritt(&z, &q, start + REGELTAKT, &still));
+        assert!(!lauf.schritt(&z, &q, start + PRUEFTAKT, &still), "auch nach 6 Stunden noch nicht ruhig");
         assert_eq!((q.installiert.get(), q.geprueft.get()), (1, 1), "weder neu installiert noch neu geprüft");
 
         *z.anmeldung() = None;
-        assert!(lauf.schritt(&z, &q, start + PRUEFTAKT + REGELTAKT), "jetzt ruhig: neu starten");
+        assert!(lauf.schritt(&z, &q, start + PRUEFTAKT + REGELTAKT, &still), "jetzt ruhig: neu starten");
         assert_eq!(q.installiert.get(), 1);
     }
 
@@ -631,7 +745,7 @@ mod tests {
         *z.sitzung() = None;
         let q = FakeQuelle::mit(Some("0.2.0"));
         let start = Instant::now();
-        assert!(Lauf::neu(start).schritt(&z, &q, start));
+        assert!(Lauf::neu(start).schritt(&z, &q, start, &still));
     }
 
     /// Scheitert eine Prüfung (etwa offline beim Start), folgt die nächste nach 15 Minuten; nach
@@ -645,19 +759,19 @@ mod tests {
         let start = Instant::now();
         let mut lauf = Lauf::neu(start);
 
-        lauf.schritt(&z, &q, start);
+        lauf.schritt(&z, &q, start, &still);
         assert_eq!(q.geprueft.get(), 1);
-        lauf.schritt(&z, &q, start + WIEDERHOLUNG - REGELTAKT);
+        lauf.schritt(&z, &q, start + WIEDERHOLUNG - REGELTAKT, &still);
         assert_eq!(q.geprueft.get(), 1);
-        lauf.schritt(&z, &q, start + WIEDERHOLUNG);
+        lauf.schritt(&z, &q, start + WIEDERHOLUNG, &still);
         assert_eq!(q.geprueft.get(), 2, "15 Minuten nach dem Fehlschlag");
 
         *q.version.borrow_mut() = Ok(None);
-        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG);
+        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG, &still);
         assert_eq!(q.geprueft.get(), 3);
-        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG + PRUEFTAKT - REGELTAKT);
+        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG + PRUEFTAKT - REGELTAKT, &still);
         assert_eq!(q.geprueft.get(), 3, "nach einem Erfolg erst nach 6 Stunden");
-        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG + PRUEFTAKT);
+        lauf.schritt(&z, &q, start + 2 * WIEDERHOLUNG + PRUEFTAKT, &still);
         assert_eq!(q.geprueft.get(), 4);
     }
 
@@ -678,13 +792,13 @@ mod tests {
 
         let q = FakeQuelle::mit(Some("0.2.0"));
         pruefrunde(&z, &q).unwrap();
-        assert_eq!(installationsrunde(&z, &q), Ok(false), "jemand schreibt gerade");
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(false), "jemand schreibt gerade");
         assert_eq!(q.installiert.get(), 0);
         assert_eq!(vorgemerkt(&z).as_deref(), Some("0.2.0"));
 
         uhr.vor(Dauer::minutes(15));
         assert!(!lage(&z).entwurf_in_arbeit, "seit 20 Minuten unverändert");
-        assert_eq!(installationsrunde(&z, &q), Ok(true));
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(true));
         assert_eq!(q.installiert.get(), 1);
 
         // Jedes Speichern setzt die Ruhezeit neu; ein verworfener Entwurf zählt nicht mehr.
@@ -710,11 +824,11 @@ mod tests {
         }));
         let start = Instant::now();
         let mut lauf = Lauf::neu(start);
-        assert!(!lauf.schritt(&z, &q, start), "installiert, aber jemand schreibt");
+        assert!(!lauf.schritt(&z, &q, start, &still), "installiert, aber jemand schreibt");
         uhr.vor(Dauer::minutes(5));
-        assert!(!lauf.schritt(&z, &q, start + REGELTAKT));
+        assert!(!lauf.schritt(&z, &q, start + REGELTAKT, &still));
         uhr.vor(Dauer::minutes(15));
-        assert!(lauf.schritt(&z, &q, start + 2 * REGELTAKT), "20 Minuten ohne Änderung");
+        assert!(lauf.schritt(&z, &q, start + 2 * REGELTAKT, &still), "20 Minuten ohne Änderung");
     }
 
     #[test]
@@ -746,7 +860,7 @@ mod tests {
 
         pruefrunde(&z, &q).unwrap();
         *q.installation.borrow_mut() = Err("Die Signatur des Updates passt nicht zum Schlüssel dieser App.".into());
-        assert!(installationsrunde(&z, &q).is_err());
+        assert!(installationsrunde(&z, &q, &still).is_err());
         assert_eq!(lies_status(&z).unwrap().update_fehler.as_deref(), Some(TEXT));
 
         pruefrunde(&z, &q).unwrap();
@@ -762,13 +876,13 @@ mod tests {
         *q.version.borrow_mut() = Ok(Some("0.2.0".into()));
         pruefrunde(&z, &q).unwrap();
         *q.installation.borrow_mut() = Ok(Installation::Installiert);
-        assert_eq!(installationsrunde(&z, &q), Ok(true));
+        assert_eq!(installationsrunde(&z, &q, &still), Ok(true));
         assert_eq!(lies_status(&z).unwrap().update_fehler, None);
 
         // Nennt der Endpunkt keine neuere Version mehr, ist ein alter Fehler ebenfalls erledigt.
         *q.installation.borrow_mut() = Err("x".into());
         pruefrunde(&z, &q).unwrap();
-        assert!(installationsrunde(&z, &q).is_err());
+        assert!(installationsrunde(&z, &q, &still).is_err());
         assert!(lies_status(&z).unwrap().update_fehler.is_some());
         *q.version.borrow_mut() = Ok(None);
         pruefrunde(&z, &q).unwrap();
@@ -787,13 +901,13 @@ mod tests {
         let start = Instant::now();
         let mut lauf = Lauf::neu(start);
 
-        assert!(!lauf.schritt(&z, &q, start));
+        assert!(!lauf.schritt(&z, &q, start, &still));
         assert_eq!(q.geprueft.get(), 1);
         assert_eq!(lauf.naechste_pruefung, start + WIEDERHOLUNG);
-        lauf.schritt(&z, &q, start + WIEDERHOLUNG - REGELTAKT);
+        lauf.schritt(&z, &q, start + WIEDERHOLUNG - REGELTAKT, &still);
         assert_eq!(q.geprueft.get(), 1);
         *q.installation.borrow_mut() = Ok(Installation::Installiert);
-        assert!(lauf.schritt(&z, &q, start + WIEDERHOLUNG), "neu vorgemerkt und installiert");
+        assert!(lauf.schritt(&z, &q, start + WIEDERHOLUNG, &still), "neu vorgemerkt und installiert");
         assert_eq!((q.geprueft.get(), q.installiert.get()), (2, 1));
 
         // Verschoben (die Lage kippt beim Herunterladen): die Prüfung bleibt bei 6 Stunden.
@@ -804,7 +918,7 @@ mod tests {
             *z2.anmeldung() = Some(Arc::new(AtomicBool::new(false)));
         }));
         let mut lauf = Lauf::neu(start);
-        assert!(!lauf.schritt(&z, &q, start));
+        assert!(!lauf.schritt(&z, &q, start, &still));
         assert_eq!(lauf.naechste_pruefung, start + PRUEFTAKT);
     }
 
@@ -819,6 +933,11 @@ mod tests {
         let json = serde_json::to_value(&s).unwrap();
         assert_eq!(json.get("update"), Some(&serde_json::json!("0.2.0")));
         assert_eq!(json.get("updateFehler"), Some(&serde_json::Value::Null));
+        assert_eq!(json.get("updateLauf"), Some(&serde_json::Value::Null));
+        *z.update_lauf() = Some(Updatelauf::Laedt);
+        assert_eq!(serde_json::to_value(lies_status(&z).unwrap()).unwrap().get("updateLauf"), Some(&serde_json::json!("laedt")));
+        *z.update_lauf() = Some(Updatelauf::Neustart);
+        assert_eq!(serde_json::to_value(lies_status(&z).unwrap()).unwrap().get("updateLauf"), Some(&serde_json::json!("neustart")));
         z.update_fehler().pruefung = Some("Suche nach Updates gescheitert".into());
         let json = serde_json::to_value(lies_status(&z).unwrap()).unwrap();
         assert_eq!(json.get("updateFehler"), Some(&serde_json::json!("Suche nach Updates gescheitert")));

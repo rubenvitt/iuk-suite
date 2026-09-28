@@ -59,6 +59,9 @@ export interface StubOptionen {
   sicherungsdatei?: Block[];
   /** Der Autostart beim Start des Stubs. */
   autostart?: boolean;
+  /** Ein vorgemerktes Update (`status.update`) und was der Updater gerade tut (`status.updateLauf`). */
+  update?: string | null;
+  updateLauf?: Status["updateLauf"];
 }
 
 /**
@@ -102,6 +105,8 @@ interface Einstellungen {
   sicherungsordnerWahl: string | null;
   sicherungsdatei: Block[] | null;
   autostart: boolean;
+  update: string | null;
+  updateLauf: Status["updateLauf"];
 }
 
 /** Spielt das Fake-Backend ein. Muss vor `page.goto(...)` aufgerufen werden. */
@@ -121,6 +126,8 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
     sicherungsordnerWahl: optionen.sicherungsordnerWahl === undefined ? "/Volumes/Sicherung/Einsatzbuch" : optionen.sicherungsordnerWahl,
     sicherungsdatei: optionen.sicherungsdatei ?? null,
     autostart: optionen.autostart ?? true,
+    update: optionen.update ?? null,
+    updateLauf: optionen.updateLauf ?? null,
   };
 
   await page.addInitScript((einstellungen: Einstellungen) => {
@@ -410,9 +417,10 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
         widerrufen: false,
         sitzung: zustand.sitzung,
         anmeldungLaeuft: false,
-        update: null,
+        update: einstellungen.update,
         updateFehler: null,
         updateGeprueft: null,
+        updateLauf: einstellungen.updateLauf,
         version: "0.1.0",
       };
     }

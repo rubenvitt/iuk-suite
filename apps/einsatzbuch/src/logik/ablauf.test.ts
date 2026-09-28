@@ -36,6 +36,7 @@ function stat(teil: Partial<Status> = {}): Status {
     update: null,
     updateFehler: null,
     updateGeprueft: null,
+    updateLauf: null,
     version: null,
     ...teil,
   };

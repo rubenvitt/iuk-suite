@@ -192,6 +192,10 @@ export interface Status {
   /** Wann die letzte Suche nach Updates gelang, in der Zone der Einrichtung; `null`, solange
    *  keine gelang, und immer im Debug-Build. */
   updateGeprueft: string | null;
+  /** Was der Updater gerade tut (`Updatelauf` in `src-tauri/src/updater.rs`): `laedt` während
+   *  Herunterladen und Installieren, `neustart`, wenn das Update installiert ist und der Neustart
+   *  auf einen ruhigen Moment wartet; sonst `null`, und immer im Debug-Build. */
+  updateLauf: "laedt" | "neustart" | null;
   /** Die installierte Version der App. */
   version: string | null;
 }
