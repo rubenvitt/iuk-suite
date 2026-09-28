@@ -263,7 +263,8 @@ export function BoxAbgabe({
           {rueck.grund === "sitzung" && !kontoZugang && (
             <Link
               className={s.rueckweg}
-              href={`/?returnTo=${encodeURIComponent(`/helfer/box?fz=${einheit.id}`)}`}
+              // DRK-493: die Einheit per `URLSearchParams`, wie im Check-Pfad.
+              href={`/?returnTo=${encodeURIComponent(`/helfer/box?${new URLSearchParams({ fz: einheit.id })}`)}`}
               data-rolle="box-zum-gate"
             >
               Kärtchen erneut eingeben

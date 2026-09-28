@@ -123,11 +123,11 @@ export function ArtikelSuche({
 
         {treffer.map((a) => (
           // AEUSSERER Pfad (§8.1) — bei `basis="/a"` derselbe, der auf dem
-          // Regaletikett steht.
+          // Regaletikett steht. Die Id KODIERT (DRK-493), wie auf dem Etikett:
           <Link
             className={s.zeile}
             key={a.id}
-            href={`${basis}/${a.id}`}
+            href={`${basis}/${encodeURIComponent(a.id)}`}
             data-rolle="artikel-zeile"
           >
             <div className={s.zeileHaupt}>

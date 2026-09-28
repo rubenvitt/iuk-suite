@@ -19,6 +19,7 @@ import type { Ampel } from "../_lib/domain/verfall";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
 // dieselbe Form liest die Server Component, die ihn befüllt.
 import type { ZielAnzeige } from "../_lib/entnahmeZiel";
+import { tokenZielPfad } from "../_lib/tokenZiel";
 export type { ZielAnzeige };
 import s from "./helfer.module.css";
 
@@ -212,9 +213,11 @@ export function Entnahme({
   /*
    * DER WEG ZUR ZIELWAHL UND ZURÜCK. `returnTo` ist keine Bequemlichkeit: ohne
    * ihn stünde die Person nach der Wahl auf der Artikelliste statt vor dem
-   * Regalfach, vor dem sie gerade steht.
+   * Regalfach, vor dem sie gerade steht. Der Artikelpfad kommt kodiert aus
+   * `tokenZielPfad` (DRK-493) und dient auch als Rueckweg ans Gate.
    */
-  const zielWahlWeg = `/helfer/ziel?returnTo=${encodeURIComponent(`/a/${detail.id}`)}`;
+  const artikelPfad = tokenZielPfad("artikel", detail.id);
+  const zielWahlWeg = `/helfer/ziel?returnTo=${encodeURIComponent(artikelPfad)}`;
   const zielName = ziel?.art === "fahrzeug" ? ziel.name : null;
 
   function absenden() {
@@ -425,7 +428,7 @@ export function Entnahme({
               {rueck.grund === "sitzung" && !kontoZugang && (
                 <Link
                   className={s.rueckweg}
-                  href={`/?returnTo=${encodeURIComponent(`/a/${detail.id}`)}`}
+                  href={`/?returnTo=${encodeURIComponent(artikelPfad)}`}
                   data-rolle="entnahme-zum-gate"
                 >
                   Kärtchen erneut eingeben

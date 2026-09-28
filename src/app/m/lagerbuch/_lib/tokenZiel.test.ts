@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { nanoid, urlAlphabet } from "nanoid";
 import { tokenZielPfad, fahrzeugBindungAus } from "./tokenZiel";
 import { sanitizeReturnTo } from "./returnTo";
@@ -151,5 +153,48 @@ describe("fahrzeugBindungAus — woran ein gescanntes Kaertchen haengt (DRK-302)
     }
     // Regel 2: eine Schleife ohne Durchlauf fuehrt null Zusicherungen aus.
     expect(geprueft).toBe(faelle.length);
+  });
+});
+
+/* ------------------------------------------------------------------------- */
+
+const MODUL = join(process.cwd(), "src/app/m/lagerbuch");
+
+function quelldateien(verzeichnis: string): string[] {
+  return readdirSync(verzeichnis).flatMap((name) => {
+    const pfad = join(verzeichnis, name);
+    if (statSync(pfad).isDirectory()) return quelldateien(pfad);
+    return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [pfad] : [];
+  });
+}
+
+/**
+ * Eine Einsetzung als Segment hinter `/a/`, `/o/`, `/auffuellen/` oder dem
+ * Pfadstamm der Artikelsuche, oder als Wert hinter `fz=` — jeweils ohne
+ * `encodeURIComponent`. `URLSearchParams` und `tokenZielPfad` trifft das nicht.
+ */
+const ROHE_HELFER_ID = /(\/(a|o|auffuellen)\/|\$\{basis\}\/|fz=)\$\{(?!encodeURIComponent\()/;
+
+describe("Helfer-Pfade — der Waechter gegen die naechste rohe Zeile (DRK-493)", () => {
+  /**
+   * DRK-394, DRK-477 und DRK-493 haben dasselbe Muster an drei Stellen
+   * ausgeraeumt. Kommentarzeilen zaehlen nicht (sie zitieren die alte Form);
+   * `seedLokal.ts` druckt feste Konstanten auf die Konsole und ist keine Adresse,
+   * der jemand folgt.
+   */
+  it("kein Quelltext im Modul setzt eine Id roh in einen Helfer-Pfad", () => {
+    const funde = quelldateien(MODUL).filter((d) => !d.endsWith("seedLokal.ts")).flatMap((datei) =>
+      readFileSync(datei, "utf8").split("\n").flatMap((zeile, i) =>
+        !/^\s*(\*|\/\/|\/\*)/.test(zeile) && ROHE_HELFER_ID.test(zeile)
+          ? [`${relative(MODUL, datei)}:${i + 1}  ${zeile.trim()}`] : []));
+    expect(funde).toEqual([]);
+  });
+
+  it("die Suche findet die alte Form ueberhaupt — Gegenprobe", () => {
+    expect(ROHE_HELFER_ID.test("href={`${basis}/${a.id}`}")).toBe(true);
+    expect(ROHE_HELFER_ID.test("encodeURIComponent(`/o/${ortId}`)")).toBe(true);
+    expect(ROHE_HELFER_ID.test("encodeURIComponent(`/helfer/box?fz=${einheit.id}`)")).toBe(true);
+    expect(ROHE_HELFER_ID.test("encodeURIComponent(`/o/${encodeURIComponent(ortId)}`)")).toBe(false);
+    expect(ROHE_HELFER_ID.test("`/helfer/check?fz=${encodeURIComponent(fahrzeug.id)}`")).toBe(false);
   });
 });
