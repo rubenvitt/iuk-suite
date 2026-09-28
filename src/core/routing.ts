@@ -7,10 +7,10 @@ export type RouteDecision =
   | { action: "forbidden" }
   | { action: "gone" };
 
-// `/.well-known` ist per Definition öffentlich und host-übergreifend (aktuell:
-// WebFinger für die OIDC-Discovery). Ohne Passthrough liefe es in den
-// Modul-Rewrite und damit für auth-pflichtige Hosts in den Login-Redirect.
-const PASSTHROUGH = ["/api/auth", "/api/health", "/login", "/_next", "/favicon.ico", "/.well-known"];
+// `/.well-known` (WebFinger für die OIDC-Discovery) und `/favicon` (`core/favicon`) sind
+// öffentlich und host-übergreifend. Ohne Passthrough liefen sie in den Modul-Rewrite
+// und damit für auth-pflichtige Hosts in den Login-Redirect.
+const PASSTHROUGH = ["/api/auth", "/api/health", "/login", "/_next", "/favicon.ico", "/favicon", "/.well-known"];
 
 /**
  * Der Host, nach dem das Modul aufgelöst wird: `x-forwarded-host` vor `host`.

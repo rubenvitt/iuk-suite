@@ -15,6 +15,10 @@
     "kind": "excluded",
     "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
   },
+  "src/app/favicon/[datei]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
   "src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET": {
     "kind": "context",
     "via": "GET",
