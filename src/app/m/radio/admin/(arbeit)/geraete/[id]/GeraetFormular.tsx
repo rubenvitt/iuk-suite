@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { AutoComplete, Button, Checkbox, Col, DatePicker, Form, Input, Row, Select } from "antd";
+import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { geraetAendernAction } from "../../../actions";
 import type { GeraetPatch } from "../../../actions";
 import type { GeraetFormWerte, Vorschlagsfeld } from "../../../../_lib/lesepfade/geraete";
@@ -645,7 +646,12 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         </Col>
         <Col {...SPALTE}>
           <Form.Item name="lastUpdatedAt" label="Zuletzt aktualisiert">
-            <DatePicker className={s.feldWeit} disabled={gesperrt("lastUpdatedAt")} />
+            <DatePicker
+              className={s.feldWeit}
+              disabled={gesperrt("lastUpdatedAt")}
+              // DRK-494: Enter uebernimmt das Datum und speichert nicht das ganze Geraet.
+              onKeyDown={enterUebernimmtNurDasFeld}
+            />
           </Form.Item>
         </Col>
       </Row>

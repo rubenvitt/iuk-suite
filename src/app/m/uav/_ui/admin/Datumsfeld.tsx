@@ -5,6 +5,7 @@ import pickerDeDE from "antd/es/date-picker/locale/de_DE";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import "dayjs/locale/de";
+import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 
 /*
  * DAS DATUMSFELD DER VERWALTUNG — antds `DatePicker` statt eines nackten
@@ -77,6 +78,9 @@ export function Datumsfeld({
       value={tag?.isValid() ? tag : null}
       onChange={(gewaehlt) => aufAenderung(gewaehlt ? gewaehlt.format(ISO_TAG) : "")}
       placeholder={platzhalter}
+      // DRK-494: Enter uebernimmt das Datum, angelegt bzw. gespeichert wird erst per Knopf.
+      // Beide Aufrufstellen stehen in einem `<form>` mit eigenem Absendeknopf.
+      onKeyDown={enterUebernimmtNurDasFeld}
       style={{ width: "100%" }}
     />
   );
