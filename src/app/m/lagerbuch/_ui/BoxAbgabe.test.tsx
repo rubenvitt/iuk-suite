@@ -398,6 +398,26 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
     expect(exists("[data-rolle='box-zur-anmeldung']")).toBe(false);
   });
 
+  /**
+   * DRK-493 — das Rueckkehrziel traegt die Einheit KODIERT, gelesen ueber `URL`
+   * wie im Browser. Roh eingesetzt verloere `fz#1&x=2` nach dem Gate ihren Rest
+   * (Fragment bzw. zweiter Parameter), und die Person stuende an der falschen Box.
+   */
+  it("gibt dem Gate eine Einheit mit Trennzeichen vollstaendig mit", async () => {
+    antwortet(async () => ({ ok: false, grund: "sitzung", text: "abgelaufen" }));
+    await mount(
+      <BoxAbgabe einheit={{ ...FAHRZEUG, id: "fz#1&x=2" }} posten={[posten()]} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    await click("[data-rolle='box-posten-knopf']");
+    await click("[data-rolle='box-buchen']");
+
+    const gate = new URL(query("[data-rolle='box-zum-gate']").getAttribute("href")!, "https://lagerbuch.example.org");
+    const rueckkehr = new URL(gate.searchParams.get("returnTo")!, gate);
+    expect(rueckkehr.pathname).toBe("/helfer/box");
+    expect([...rueckkehr.searchParams]).toEqual([["fz", "fz#1&x=2"]]);
+    expect(rueckkehr.hash).toBe("");
+  });
+
   it("fuehrt beim abgelaufenen KONTO zur Anmeldung und sagt einen anderen Satz", async () => {
     // DRK-305: `RIEGEL_TEXTE.sitzung` lautet woertlich „Scanne das Kärtchen
     // erneut" — fuer eine angemeldete Person ist das eine Sackgasse, und der

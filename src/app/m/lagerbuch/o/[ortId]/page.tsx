@@ -100,8 +100,11 @@ export default async function OrtDeepLink({
     /*
      * AUSGANG 3 — Gate MIT returnTo, in AEUSSERER Pfadform (§2.1 g): der Browser
      * steht auf dem Modul-Host, `decideRoute` praefixiert danach.
+     *
+     * DRK-493: `ortId` kommt von Next DEKODIERT herein und wird deshalb hier
+     * kodiert — dieselbe Form wie die gedruckte Etikettenadresse.
      */
-    redirect(`/?returnTo=${encodeURIComponent(`/o/${ortId}`)}`);
+    redirect(`/?returnTo=${encodeURIComponent(`/o/${encodeURIComponent(ortId)}`)}`);
   }
 
   /*

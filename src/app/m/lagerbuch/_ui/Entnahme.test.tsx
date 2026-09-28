@@ -832,6 +832,22 @@ describe("Entnahme — Bauform", () => {
    * darueber („nennt `wählen`") bliebe auch dann gruen, wenn der Link wieder
    * auf Fussnotengroesse schrumpfte; DIESER hier faellt dann.
    */
+  /**
+   * DRK-493 — beide Rueckwege tragen die Artikel-Id KODIERT, gelesen ueber `URL`
+   * wie im Browser. Roh stuende nach Gate bzw. Zielwahl nur noch `/a/rtw` da.
+   */
+  it("fuehrt Gate und Zielwahl mit einer Id mit Trennzeichen vollstaendig zurueck", async () => {
+    antwortet(async () => ({ ok: false, grund: "sitzung", text: "abgelaufen" }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={{ ...DETAIL, id: "rtw#1?x=/2" }} />);
+    await click(BUCHEN);
+    for (const greifer of ["[data-rolle='entnahme-zum-gate']", "[data-rolle='entnahme-ziel'] a"]) {
+      const weg = new URL(query(greifer).getAttribute("href")!, "https://lagerbuch.example.org");
+      const rueckkehr = new URL(weg.searchParams.get("returnTo")!, weg);
+      expect(rueckkehr.pathname, greifer).toBe("/a/rtw%231%3Fx%3D%2F2");
+      expect(rueckkehr.search + rueckkehr.hash, greifer).toBe("");
+    }
+  });
+
   it("bietet die Zielwahl ohne Wahl als vollbreite Handlung an", async () => {
     await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} />);
 

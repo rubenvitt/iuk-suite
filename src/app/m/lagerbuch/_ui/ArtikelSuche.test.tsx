@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { nanoid, urlAlphabet } from "nanoid";
 import { mount, unmount, query, queryAll, exists, fill } from "@/app/m/qr/_lib/test-dom";
 import { ArtikelSuche, type ArtikelZeileHelfer } from "./ArtikelSuche";
 
@@ -100,6 +101,27 @@ describe("ArtikelSuche — die Liste", () => {
       expect(zeile.tagName).toBe("A");
       expect(zeile.getAttribute("href")).toBe(`/a/${LISTE[i].id}`);
     }
+  });
+
+  /**
+   * DRK-493 — die Id wird KODIERT, fuer beide Pfadstaemme. Roh eingesetzt
+   * fuehrte `rtw#1?x=/2` auf `/a/rtw` (Rest als Fragment) — gelesen hier ueber
+   * `URL`, wie der Browser den Link aufloest.
+   */
+  it.each(["/a", "/auffuellen"])("fuehrt unter `%s` eine Id mit Trennzeichen vollstaendig auf ihren Artikel", async (basis) => {
+    const id = "rtw#1?x=/2";
+    await mount(<ArtikelSuche artikel={[{ ...LISTE[0], id }]} basis={basis} />);
+    const ziel = new URL(query("[data-rolle='artikel-zeile']").getAttribute("href")!, "https://lagerbuch.example.org");
+    expect(ziel.pathname).toBe(`${basis}/rtw%231%3Fx%3D%2F2`);
+    expect(decodeURIComponent(ziel.pathname.slice(basis.length + 1))).toBe(id);
+    expect(ziel.search + ziel.hash).toBe("");
+  });
+
+  it("fuer nanoid-Ids bleibt der Link ZEICHENGLEICH mit dem rohen (DRK-493)", async () => {
+    const ids = [urlAlphabet, ...Array.from({ length: 20 }, () => nanoid())];
+    await mount(<ArtikelSuche artikel={ids.map((id) => ({ ...LISTE[0], id }))} basis="/a" />);
+    const zeilen = queryAll("[data-rolle='artikel-zeile']");
+    expect(zeilen.map((z) => z.getAttribute("href"))).toEqual(ids.map((id) => `/a/${id}`));
   });
 
   it("zeigt einen Artikel mit Bestand 0 — er wird NICHT ausgeblendet, und die Null steht da", async () => {

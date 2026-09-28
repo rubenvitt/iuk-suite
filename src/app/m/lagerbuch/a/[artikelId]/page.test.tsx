@@ -360,9 +360,18 @@ describe("/a/<id> — die Rollen-Weiche, drei Ausgaenge", () => {
     expect(umleitungen[0]).not.toContain("/m/lagerbuch");
   });
 
-  it("kodiert eine ID mit Sonderzeichen in der GATE-Umleitung", async () => {
-    await expect(ArtikelDeepLink(params("a b&c"))).rejects.toThrow("NEXT_REDIRECT");
-    expect(umleitungen).toEqual(["/?returnTo=%2Fa%2Fa%20b%26c"]);
+  /**
+   * DRK-493 — gelesen ueber `URL`, so wie der Browser nach dem Gate. Next
+   * reicht `artikelId` DEKODIERT herein; roh eingesetzt hiesse `rtw#1?x=/2`
+   * nach der Anmeldung nur noch `/a/rtw` (Fragment) bzw. ein fremdes Segment.
+   */
+  it("gibt dem Gate eine ID mit Trennzeichen vollstaendig mit", async () => {
+    await expect(ArtikelDeepLink(params("rtw#1?x=/2 &"))).rejects.toThrow("NEXT_REDIRECT");
+    const gate = new URL(umleitungen[0], `https://${HOST}`);
+    const rueckkehr = new URL(gate.searchParams.get("returnTo")!, gate);
+    expect(rueckkehr.pathname.split("/")).toEqual(["", "a", "rtw%231%3Fx%3D%2F2%20%26"]);
+    expect(decodeURIComponent(rueckkehr.pathname.slice("/a/".length))).toBe("rtw#1?x=/2 &");
+    expect(rueckkehr.search + rueckkehr.hash).toBe("");
   });
 
 });

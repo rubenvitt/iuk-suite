@@ -8,6 +8,7 @@ import { sitzungsEtikett, zugangsKennung } from "../../_lib/zugangHerkunft";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
 import { ZIEL_COOKIE } from "../../_lib/entnahmeZiel";
+import { tokenZielPfad } from "../../_lib/tokenZiel";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { Entnahme } from "../../_ui/Entnahme";
@@ -101,8 +102,11 @@ export default async function ArtikelDeepLink({
      * AEUSSERER Pfad (§2.1 g): der Browser steht auf dem Modul-Host,
      * `decideRoute` praefixiert danach; ein innerer `/m/lagerbuch/...` wuerde
      * doppelt praefixiert.
+     *
+     * DRK-493: `artikelId` kommt von Next DEKODIERT herein. Den Pfad baut
+     * `tokenZielPfad` — dieselbe, kodierte Adresse, auf der das Kaertchen landet.
      */
-    redirect(`/?returnTo=${encodeURIComponent(`/a/${artikelId}`)}`);
+    redirect(`/?returnTo=${encodeURIComponent(tokenZielPfad("artikel", artikelId))}`);
   }
 
   // Beim Kaertchen kommen `code` und `label` aus der DB-ZEILE, nicht aus dem
