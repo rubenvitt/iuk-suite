@@ -45,6 +45,7 @@ vi.mock("./befehle", () => ({ befehle }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 import { App } from "./App";
+import { TOAST_DAUER_MS } from "./bausteine/Toast";
 import { Willkommen } from "./seiten/Willkommen";
 
 const BAND = "TESTBETRIEB — nichts hiervon ist ein echter Einsatz";
@@ -491,7 +492,10 @@ describe("Verwaltung", () => {
     expect(befehle.abmelden).toHaveBeenCalledTimes(1);
     for (const e of ["MANV 10", "RD 2", "SanD", "2026-043", "Lindenstraße 8"]) expect(text()).not.toContain(e);
     expect(text()).toContain(GESPERRT);
-    await clickElement(knopf("Entsperren")!);
+    // Nur ein Toast, kein Knopf darin; entsperrt wird über den Fuß der Startseite.
+    expect(queryAll(".toast button")).toHaveLength(0);
+    expect(knopf("Entsperren")).toBeUndefined();
+    await clickElement(knopf("Verwaltung · Anmelden")!);
     expect(text()).toContain("Anmelden, um Einsätze zu lesen");
   });
 
@@ -1072,6 +1076,12 @@ describe("mit gestellter Uhr", () => {
     expect(befehle.abmelden).toHaveBeenCalledTimes(1);
     expect(text()).not.toContain("MANV 10");
     expect(text()).toContain(GESPERRT);
+    // Der Hinweis ist ein Toast: Er geht von selbst, auch wenn die Statusabfrage dazwischen neu rendert.
+    await laufe(TOAST_DAUER_MS - 1);
+    expect(text()).toContain(GESPERRT);
+    await laufe(1);
+    expect(text()).not.toContain(GESPERRT);
+    expect(knopf("Einsatz öffnen")).toBeDefined();
   });
 
   it("startet keine zweite Abfrage, solange eine hängt", async () => {

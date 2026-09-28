@@ -33,10 +33,10 @@ import { useFristUhr, type FristStand } from "./ablauf/fristUhr";
 import { Bestaetigung } from "./bausteine/Bestaetigung";
 import { Fehlergrenze } from "./bausteine/Fehlergrenze";
 import { Hinweis } from "./bausteine/Hinweis";
-import { Karte } from "./bausteine/Karte";
 import { Knopf } from "./bausteine/Knopf";
 import { Kopf } from "./bausteine/Kopf";
 import { Testband } from "./bausteine/Testband";
+import { Toast } from "./bausteine/Toast";
 import { UpdateAnzeige } from "./bausteine/UpdateAnzeige";
 import { befehle } from "./befehle";
 import { phaseAus, restSekunden, restText, type Lokal } from "./logik/ablauf";
@@ -87,7 +87,7 @@ export function App() {
   const [wartetAuf, setWartetAuf] = useState<"einrichten" | "anmelden" | "neuEinrichten" | null>(null);
   /** Uhr von Rust minus Uhr hier, für den Tokenablauf (`useSperre`); als Zustand, weil der Render ihn liest. */
   const [versatz, setVersatz] = useState(0);
-  /** Nach einer Sperre aus der Verwaltung: Hinweis mit „Entsperren“ auf der Startseite. */
+  /** Nach einer Sperre aus der Verwaltung: kurzer Toast auf der Startseite (entsperrt wird über ihren Fuß). */
   const [gesperrtHinweis, setGesperrtHinweis] = useState(false);
 
   const statusRef = useRef<Status | null>(null);
@@ -699,10 +699,18 @@ export function App() {
   }
 
   const mitKopf = status === null || lokal.phase !== "start";
+  // Nur ein Toast, keine Karte mit „Entsperren“ wie in der Vorlage: Ein Dauerhinweis schöbe die
+  // Startseite nach unten, und den Weg zurück zeigt ihr Fuß ohnehin („Verwaltung · Anmelden“).
+  const gesperrtToast =
+    gesperrtHinweis && lokal.phase === "start" ? (
+      <Toast zeichen="schluessel" beiEnde={() => setGesperrtHinweis(false)}>
+        Sitzung gesperrt. Die Einsätze liegen nur noch verschlüsselt vor.
+      </Toast>
+    ) : null;
 
   return (
     <div className="app">
-      {test || mitKopf ? (
+      {test || mitKopf || gesperrtToast ? (
         <div className="oben">
           {test ? <Testband /> : null}
           {mitKopf ? (
@@ -717,6 +725,7 @@ export function App() {
               beiSperren={() => void sperren()}
             />
           ) : null}
+          {gesperrtToast}
         </div>
       ) : null}
       {fehler ? (
@@ -725,18 +734,6 @@ export function App() {
         </div>
       ) : null}
       {widerrufBanner}
-      {gesperrtHinweis && lokal.phase === "start" ? (
-        <div className="fehlerleiste">
-          <Karte>
-            <div className="gesperrt-karte">
-              <Hinweis ton="info">Sitzung gesperrt. Die Einsätze liegen nur noch verschlüsselt vor.</Hinweis>
-              <Knopf variante="primaer" zeichen="schluessel" onClick={oeffneAnmeldung}>
-                Entsperren
-              </Knopf>
-            </div>
-          </Karte>
-        </div>
-      ) : null}
       {inhalt}
       <UpdateAnzeige update={status?.update ?? null} lauf={status?.updateLauf ?? null} />
       {bestaetigen ? (
