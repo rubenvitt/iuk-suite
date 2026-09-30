@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Modul-Admins bearbeiten einen Plan wahlweise im Diagramm oder in einer eingerückten Gliederung — auf denselben Daten, mit derselben Rückgängig- und Autosave-Kette. Die Gliederung kann Enter/Tab/Umschalt+Tab/Alt+↑↓, Titel, Verbindung, Zeichen und Einheiten inline und legt aus mehrzeilig eingefügtem, eingerücktem Text einen Teilbaum an. Am Telefon öffnet der Editor in der Gliederung. Dazu werden die Griffe des Diagramm-Editors kompakter, rücken näher an die Karte, und die Seitengriffe tragen eine Beschriftung.
+**Goal:** Modul-Admins bearbeiten einen Plan wahlweise im Diagramm oder in einer eingerückten Gliederung — auf denselben Daten, mit derselben Rückgängig- und Autosave-Kette. Die Gliederung kann Enter/Tab/Umschalt+Tab/Alt+↑↓, Titel, Verbindung, Zeichen und Einheiten inline und legt aus mehrzeilig eingefügtem, eingerücktem Text einen Teilbaum an. Am Telefon öffnet der Editor in der Gliederung. Dazu verlassen die Griffe des Diagramm-Editors die Zeichnung: sie stehen in einer Auswahlleiste oben in der Fläche, die über keinem Planelement liegt, und die Seitengriffe heißen dort „+ links" / „+ rechts" (Entscheidung 18 — weicht vom Wortlaut des Auftrags „näher an die Karte" und von Spec §6.3 ab; **vom Hauptlauf zu bestätigen**).
 
 **Architecture:** Alles, was die Gliederung am Dokument tut, sind reine Operationen in `_lib/plan/gliederung.ts` (Spec §6.6) plus ein reiner Parser in `_lib/plan/einfuegen.ts`. Die neue Client-Insel `_ui/gliederung/` bekommt vom Editor dieselbe `aendere`-Funktion wie die Flyins; der Editor hält weiter genau einen Verlauf, einen Speicherer und eine Auswahl. Beide Ansichten bleiben montiert; welche zu sehen ist, entscheidet `data-editoransicht` am Editor — mit `?ansicht=` in der Adresse ausdrücklich, ohne Parameter per CSS am Suite-Breakpoint (docs/design/README.md, „Mobil": die Umschaltung ist CSS, nie JavaScript).
 
@@ -23,7 +23,9 @@
 - Neue CSS-Regeln unter einem Breakpoint kommen **in die vorhandenen Blöcke** `@media (max-width: 767.98px)` bzw. `@media (min-width: 768px)` von `_ui/kommplan.css` — `kommplan-css.test.ts` liest jeweils den ersten Block.
 - Tests, die dieser Plan an eine bestehende Testdatei anhängt, bringen ihre Importe mit: in die **vorhandenen** Importzeilen derselben Module zusammenführen (`pnpm lint` meldet doppelte Importe).
 - DOM-Tests nur über das Harness `src/app/m/qr/_lib/test-dom.tsx` (`mount`, `unmount`, `query`, `queryAll`, `exists`, `fill`, `clickElement`, `queryPortal`, `existsPortal`, `clickPortal`), Kopfzeile `// @vitest-environment jsdom`, `afterEach(async () => { await unmount(); … })` (Phase-2-Abweichung U2).
-- Kommentaranker in neuem Code nennen **Namen**, nie Zeilen (`pnpm anker:neu` bricht die CI). **Ankerschritt** vor jedem Commit, der eine bestehende Datei ändert: `git grep -n "<dateiname>:[0-9]" -- src scripts e2e docs` und `pnpm anker:drift <datei>`; ein Anker, der vorher zutraf und hinter der Änderungsstelle liegt, wird in derselben Zeile in die Namensform umgeschrieben. Nie eine Zahl nachziehen, nie eine Zeile dazu oder weg (Kommentaranker-Regel 4). Betroffene bestehende Dateien: `_lib/plan/operationen.ts`, `_lib/plan/einfuegen.ts`, `_lib/plan/einfuegen.test.ts`, `_ui/editor/Editor.tsx`, `_ui/editor/Editor.test.tsx`, `_ui/editor/Griffe.tsx`, `_ui/editor/Kopfleiste.tsx`, `_ui/betrachter/Flaeche.tsx`, `_ui/betrachter/Flaeche.test.tsx`, `_ui/kommplan.css`, `_ui/kommplan-css.test.ts`, `(intern)/p/[id]/page.tsx`, `e2e/kommplan-editor.spec.ts`, `e2e/gruppen.json`, die Release-Notiz, die Spec.
+- Kommentaranker in neuem Code nennen **Namen**, nie Zeilen (`pnpm anker:neu` bricht die CI). **Ankerschritt** vor jedem Commit, der eine bestehende Datei ändert: `git grep -n "<dateiname>:[0-9]" -- src scripts e2e docs` und `pnpm anker:drift <datei>`; ein Anker, der vorher zutraf und hinter der Änderungsstelle liegt, wird in derselben Zeile in die Namensform umgeschrieben. Nie eine Zahl nachziehen, nie eine Zeile dazu oder weg (Kommentaranker-Regel 4). Betroffene bestehende Dateien: `_lib/plan/operationen.ts`, `_lib/plan/einfuegen.ts`, `_lib/plan/einfuegen.test.ts`, `_ui/editor/Editor.tsx`, `_ui/editor/Editor.test.tsx`, `_ui/editor/Griffe.tsx`, `_ui/editor/Kopfleiste.tsx`, `_ui/betrachter/Flaeche.tsx`, `_ui/betrachter/Flaeche.test.tsx`, `_ui/kommplan.css`, `_ui/kommplan-css.test.ts`, `(intern)/p/[id]/page.tsx`, `grenze.test.ts`, `e2e/kommplan-editor.spec.ts`, `e2e/gruppen.json`, die Release-Notiz, die Spec.
+- **Titelfelder gibt es ab Task 9 zweimal im Dokument:** `input[name="titel"]` im Stellen-Flyin **und** in jeder Gliederungszeile (die Gliederung ist auch im Diagramm-Modus montiert, und jsdom wendet kein CSS an). Greifer auf das Flyin-Titelfeld sind deshalb immer eingeschränkt — jsdom: `[data-flyin-stelle] input[name="titel"]`, Playwright: `.kp-flyin` plus `getByLabel("Titel", { exact: true })` (so wie `flyinTitel` schon heute); Greifer auf die Gliederung: `.kp-gliederung [data-zeile…] input[name="titel"]`.
+- **antds `Segmented` im e2e:** nie `getByRole("radio", …).check()` — das echte `input[type=radio]` ist 0 × 0, unsichtbar und ohne Zeiger; Playwright wartet endlos (Repo-Erfahrung: `e2e/lagerbuch-verfall-fahrzeug.spec.ts`, `e2e/lagerbuch-einheitenart.spec.ts`, jeweils Kopfkommentar zum Umschalter). Gegriffen wird das sichtbare Etikett: `klickeWennRuhig(page.getByRole("radiogroup", { name: "Ansicht" }).locator("label", { hasText: "Gliederung" }))`. **Und:** ein schon gewählter Wert löst beim Anklicken kein `onChange` aus (rc-segmented meldet nur das native `change`) — im Automodus ist ab 768 px „Diagramm" bereits gewählt. Wo ein Test ausdrücklich eine Ansicht braucht, öffnet er den Editor mit `?ansicht=…` in der Adresse, statt den gewählten Wert zu klicken.
 - Signierte Commits (`git commit -S`), Kopfzeile nach Conventional Commits: `feat(kommplan): …` für neue Funktion, `fix(kommplan): …`, `test(kommplan): …`, `refactor(kommplan): …`, `docs: …`. Body mit einer Zeile `DRK-500` und am Ende `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Last: andere Sessions laufen parallel. Vor jedem Urteil über einen roten Test `uptime` prüfen; bei Load > 10 die betroffene Datei einzeln fahren oder den CI-Weg (`pnpm e2e:gebaut` bzw. `E2E_VORGEBAUT=1`). Fremde Prozesse nie beenden. Kein `pnpm dev` offen lassen; ein von `next dev` umgeschriebenes `next-env.d.ts` mit `git checkout -- next-env.d.ts` zurücksetzen. `scripts/backup-sidecar.test.ts` ist auf macOS rot (DRK-501) — nicht dein Thema.
 - Tore vor dem Abschluss: `pnpm typecheck` (Exit-Code prüfen) · `pnpm lint` · `pnpm anker:neu` · `pnpm vitest run` · `pnpm build` · `pnpm exec playwright test e2e/kommplan.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan-gliederung.spec.ts`. **Jeder Commit besteht `pnpm typecheck`.** Task 9 (Seite mit `searchParams`) fährt zusätzlich `pnpm build`.
@@ -33,23 +35,25 @@
 ## Entscheidungen dieser Phase (Abweichungen von Spec und früheren Plänen)
 
 1. **Ansicht in der Adresse, sonst per CSS** (ersetzt Phase-2-Entscheidung 13, „Gliederung deaktiviert"): Der Umschalter Diagramm | Gliederung in der Kopfleiste ist aktiv. Eine Wahl setzt `?ansicht=diagramm|gliederung` per `window.history.replaceState` (kein Neuladen, kein neuer Verlaufseintrag) und den Zustand im Editor; die Seite liest den Parameter beim Laden (`searchParams`) und reicht ihn als Prop. **Ohne** Parameter steht `data-editoransicht="auto"` am Editor (nicht `data-ansicht`: das trägt schon die Zeichnung, `<g data-ansicht>` in `Flaeche`, und Phase-1-Tests wie `e2e/kommplan.spec.ts` greifen `[data-ansicht]` ohne Einschränkung), beide Ansichten und **zwei** Umschalter (einer je Breakpoint, Wert „diagramm" bzw. „gliederung") stehen im DOM, und CSS zeigt unter 768 px die Gliederung, darüber das Diagramm. So zeigt der erste Render nie die falsche Variante (docs/design/README.md, „Mobil").
-2. **Beide Ansichten bleiben montiert.** Umschalten verliert weder Zoom noch Einklappen, und Auswahl, Rückgängig-Stapel, offenes Flyin und Autosave hängen ohnehin am Editor. Umschalten speichert nichts.
+2. **Beide Ansichten bleiben montiert.** Umschalten verliert weder Zoom noch Einklappen, und Auswahl, Rückgängig-Stapel, offenes Flyin und Autosave hängen ohnehin am Editor. Umschalten speichert nichts. **Preis und Abhilfe:** die verborgene Gliederung rendert bei jeder Änderung mit — auch beim Tippen im Flyin, während nur das Diagramm zu sehen ist. Damit die Zusage aus Phase 2 (Entscheidung 15: Tippen bleibt auch an großen Plänen flüssig) hält, ist `GliederungZeile` **verbindlich** per `memo` gebunden (Vergleich über `zeile.stelle` — dank `mitFolge` bei unveränderten Stellen dasselbe Objekt —, `ebene`, `seite`, `eltern?.titel`, `gewaehlt`, `aktiv`, offenes Menü, offene Einheiten, `inhalt.verbindungen`), alle Rückrufe einer Zeile sind je ID stabil (ein Ref auf die jeweils aktuellen Funktionen, gesetzt in `useLayoutEffect`, nie im Rendern — `react-hooks/refs`), und nur die **aktive** Zeile rendert ein echtes `Select` (Entscheidung 15). Nachweis: ein Render-Zähler-Test (Task 8) und eine Messung an der großen Stab-Lage (Task 11).
 3. **Spec §6.5 „Am Telefon ist die Gliederung der einzige Bearbeitungsweg"** wird zu „öffnet am Telefon in der Gliederung": das Diagramm bleibt dort über den Umschalter für kleine Korrekturen erreichbar (Phase-2-Entscheidung 13 bleibt insoweit gültig). Der Spec-Satz wird in Task 9 angepasst.
 4. **Reihenfolge der Gliederung = Reihenfolge des Diagramms.** Die Gliederung ist eine Tiefensuche: Stelle, dann ihre Seitenstellen (links, dann rechts; eine Ebene tiefer eingerückt, mit Chip „Seitenstelle links/rechts"), dann ihre Unterstellen in **Anzeigereihenfolge** (`anzeigereihenfolge`, Busgruppen zusammenhängend wie im Layout). Wurzeln in `ordne`-Folge wie im Layout. Die Pfeiltasten ↑/↓ wandern entlang dieser Zeilenfolge.
-5. **Enter** legt eine neue, leere Stelle **direkt nach der Zeile samt ihrem Teilbaum** an: gleiche Elternstelle, gleiche Lage, gleiche Verbindung (sie tritt dem Bus bei, wie Phase-2-Entscheidung 7; eine Wurzel bekommt keine), Fokus in ihren Titel. Die Geschwisterreihe wird dafür in Anzeigereihenfolge neu durchnummeriert (`reihenfolge` 0, 1, 2 …). Enter auf einer Zeile mit **leerem Titel** tut nichts — so entstehen keine Ketten leerer Karten (vgl. Phase-2-Abweichung U28). Enter auf einer Seitenstelle legt eine Seitenstelle auf derselben Seite an.
+5. **Enter** legt eine neue, leere Stelle **direkt nach der Zeile samt ihrem Teilbaum** an: gleiche Elternstelle, gleiche Lage, gleiche Verbindung (sie tritt dem Bus bei, wie Phase-2-Entscheidung 7; eine Wurzel bekommt keine), Fokus in ihren Titel. Die Geschwisterreihe wird dafür in Anzeigereihenfolge neu durchnummeriert (`reihenfolge` 0, 1, 2 …). Enter auf einer Zeile mit **leerem Titel** legt nichts Neues darunter an — so entstehen keine Ketten leerer Karten (vgl. Phase-2-Abweichung U28) —, sondern **rückt aus** wie in gängigen Listeneditoren (wer nach „EA 3" auf der Ebene von „EAL" weiter will, drückt zweimal Enter): Ist die Zeile ein eben per Enter angelegtes, **unberührtes** Element, geschieht das als **ein** Schritt — der Enter-Schritt wird verworfen (`verwirfUnberuehrt`, kein Wiederholen-Schritt) und hinter der Elternstelle eine neue leere Stelle angelegt (`fuegeGeschwisterEin(q, eltern.id, neueId)`), die wiederum als unberührt gilt und beim Verlassen verschwindet. Sonst (Titel geleert, Zeile schon älter) ist es `rueckeAus`. Auf einer leeren Wurzel oder Seitenstelle: Hinweis `MELDUNG.erstTitel`. Enter auf einer Seitenstelle legt eine Seitenstelle auf derselben Seite an. **Strg/Cmd+Enter** öffnet die Details (wie F2, das auf Mac-Tastaturen Fn braucht).
 6. **Tab** hängt die Stelle als **letzte** Unterstelle unter die vorige Geschwisterstelle (Anzeigereihenfolge) und lässt sie deren letztem Bus beitreten (ohne Unterstellen: keine Verbindung). **Umschalt+Tab** stellt sie **direkt hinter** ihre Elternstelle, in deren Busgruppe (Verbindung der Elternstelle; auf oberster Ebene keine); spätere Geschwister bleiben, wo sie sind. Der Teilbaum wandert jeweils mit. Tab auf der ersten Stelle einer Ebene, Umschalt+Tab auf einer Wurzel und beides auf einer Seitenstelle sind ein `PlanFehler` mit Hinweis — das Dokument bleibt, und **der Fokus bleibt im selben Titelfeld** (Tab wird immer abgefangen).
 7. **Alt+↑/↓** tauscht innerhalb der Busgruppe mit dem Nachbarn; steht die Stelle am Rand ihrer Gruppe, wandert die **ganze Gruppe** an der Nachbargruppe vorbei. Grund: Gruppen stehen im Layout immer zusammenhängend (`teile()` in `_lib/layout/gruppen.ts`); ein Tausch der `reihenfolge` über die Gruppengrenze hinweg änderte am Bild nichts, und die Verbindung still zu ändern hieße, Daten zu erfinden. Am Anfang/Ende der Reihe tut Alt+↑/↓ nichts.
-8. **Entf/Rücktaste auf leerem Titel** löscht die Zeile, aber nur ohne Unter- und Seitenstellen (sonst Hinweis „… löschen über „Aktionen“ → „Stelle löschen“"); der Fokus geht bei Rücktaste auf die vorige, bei Entf auf die nächste Zeile. Ein per Enter angelegtes, **unberührtes** Element verschwindet beim Verlassen per ↑/↓, Esc oder Rücktaste ohne Wiederholen-Schritt (dasselbe `verwirf` wie U28).
+8. **Entf/Rücktaste auf leerem Titel** löscht die Zeile, aber nur ohne Unter- und Seitenstellen (sonst Hinweis „… löschen über „Aktionen“ → „Stelle löschen“"); der Fokus geht bei Rücktaste auf die vorige, bei Entf auf die nächste Zeile. Ein per Enter angelegtes, **unberührtes** Element verschwindet beim Verlassen ohne Wiederholen-Schritt (dasselbe `verwirf` wie U28) — per ↑/↓, Esc oder Rücktaste **und** wenn der Fokus die Zeile anders verlässt (Klick oder Tipp auf eine andere Zeile, in die Kopfleiste, ins Leere): `onBlur` am Titel räumt auf, wenn `relatedTarget` weder in derselben `li` noch in einem Portal **derselben Zeile** liegt (Dropdown-Menü, Select-Liste und Popover der Zeile tragen dafür einen Wrapper `data-zeile-portal=<id>` über `popupRender` bzw. den Popover-Inhalt; keine Prüfung gegen `.ant-*`-Namen, Falle 20). Der Ansichtswechsel räumt ebenso auf (`GliederungGriff.raeumeAuf()`). **Gehaltene Tasten:** eine wiederholte Rücktaste/Entf (`repeat`) löscht nie eine Zeile, ein wiederholtes Enter legt nie eine an — sonst fräße der Tastenwiederholer nach dem Leeren eines Titels die Zeilen darüber mit.
 9. **Mehrzeiliges Einfügen** (Spec §6.5): Enthält die Zwischenablage mindestens zwei nicht leere Zeilen, fängt das Titelfeld das Einfügen ab. Parser: Tabs zählen zwei Spalten, Leerzeichen und geschützte Leerzeichen eine; die Ebene folgt einem Einrückungsstapel (tiefer = genau eine Ebene tiefer, gleich = gleiche Ebene, zwischen zwei Stufen = die tiefere von beiden), die erste Zeile ist Ebene 0. Vorn abgestreift werden `-`, `*`, `•`, `‣`, `◦`, `▪`, `–` und Nummern `1.`, `1)`, `2.1.` — jeweils nur mit folgendem Leerraum, also bleiben „112 Leitstelle" und „1.2 Abschnitt" unverändert. **Nichts wird geraten:** auch „RTW RK UE 40-83-5" wird eine Stelle. Zu lange Titel sind ein Fehler mit Zeilennummer, dann wird nichts eingefügt (nie still gekürzt). Ebene-0-Zeilen werden Geschwister **nach** der Cursorzeile samt Teilbaum (Verbindung wie Enter), tiefere Zeilen Unterstellen ohne Verbindung. Ist die Cursorzeile ganz leer (kein Titel, nichts sonst, keine Nachkommen), nimmt die erste Zeile **ihren** Platz ein. In eine Seitenstelle wird nichts eingefügt (Hinweis). Über 500 Stellen → Hinweis mit Zahl. Das Einfügen ist **ein** Rückgängig-Schritt; der Fokus steht danach am Ende der zuletzt eingefügten Zeile.
-10. **Tastatur und Barrierefreiheit der Gliederung:** Roving Tabindex — nur die aktive Zeile (gewählt, sonst die erste) hat ihre Bedienelemente in der Tab-Folge; so führt Tab aus der Liste hinaus, obwohl Tab im Titelfeld einrückt. **Esc** verlässt das Titelfeld auf den Knopf „Aktionen" derselben Zeile (Ausweg nach WCAG 2.1.2, steht in der Bedienzeile). **Strg/Cmd+Z** und Umschalt+Strg/Cmd+Z bzw. Strg+Y im Titelfeld der Gliederung sind das Rückgängig des **Dokuments** (anders als im Flyin, wo Strg+Z dem Feld gehört): in der Gliederung steht der Fokus fast immer in einem Titel, und Tippen ist ohnehin je Feld gebündelt (`titel:<id>`). **F2** öffnet das Flyin der Zeile.
-11. **Touch-Weg:** Am Telefon gibt es kein Tab und kein Alt+Pfeil. Jede Zeile trägt deshalb einen 44-px-Knopf „⋯" (`aria-label` „Aktionen für <Titel>") mit dem Menü „Details …", „Einrücken", „Ausrücken", „Nach oben", „Nach unten", „Stelle löschen" (Tastenkürzel im Menütext, nicht erreichbare Einträge deaktiviert). Das ist zugleich der Mausweg am Desktop und der einzige Weg zum Flyin („Details") neben F2.
-12. **Verbindung inline:** ein `Select` mit Suche. Leere Suche: „keine (dünne Linie)" und alle Verbindungen des Plans. Getippter Text ohne gleichnamige Verbindung derselben Art: je Verbindungsart eine Option „Neu: „<Text>“ als <Art>", die Art der zuletzt angelegten Verbindung zuerst. Anders als das in Phase 2 verworfene Kombifeld (Kritik 29) steht die Art damit **sichtbar** in jeder Option; Spec §6.4 „Bezeichnung + Art" bleibt erfüllt. Gleichnamig vorhanden → die vorhandene wird genommen. Wurzeln haben kein Feld („oberste Ebene"). Kanäle (`kanaele`) bleiben im Flyin.
-13. **Zeichen kompakt:** ein 44-px-Knopf mit dem Zeichen (32 px) oder einem leeren Platzhalter; er öffnet ein `Popover` mit derselben `ZeichenWahl` wie das Flyin. Nach der Wahl schließt es, der Fokus geht zurück in den Titel.
+10. **Tastatur und Barrierefreiheit der Gliederung:** Roving Tabindex — nur die aktive Zeile (gewählt, sonst die erste) hat ihre Bedienelemente in der Tab-Folge; so führt Tab aus der Liste hinaus, obwohl Tab im Titelfeld einrückt. **Esc** verlässt das Titelfeld auf den Knopf „Aktionen" derselben Zeile (Ausweg nach WCAG 2.1.2, steht in der Bedienzeile). **Strg/Cmd+Z** und Umschalt+Strg/Cmd+Z bzw. Strg+Y im Titelfeld der Gliederung sind das Rückgängig des **Dokuments** (anders als im Flyin, wo Strg+Z dem Feld gehört): in der Gliederung steht der Fokus fast immer in einem Titel, und Tippen ist ohnehin je Feld gebündelt (`titel:<id>`). Nach Rückgängig/Wiederholen aus der Gliederung setzt sie den Fokus wieder (`fokussiere(id)`; ist die Zeile weg — etwa ein zurückgenommenes Enter oder Einfügen —, auf den **Nachbarn aus der alten Zeilenfolge**, erst dann die erste Zeile), nie auf `body`. Dasselbe tut der Editor, wenn ein Tastatur-Rückgängig ankommt, während der Fokus auf `body` steht und die Gliederung sichtbar ist. **F2** oder **Strg/Cmd+Enter** öffnet das Flyin der Zeile. **Die übrigen Bedienelemente der Zeile per Tastatur:** Tab gehört im Titel dem Einrücken, der Zeichenknopf steht vor dem Titel — ohne eigene Kürzel wären Zeichen und Verbindung nur über Umwege (Esc, Umschalt+Tab ×2) oder gar nicht erreichbar (WCAG 2.1.1). Deshalb im Titelfeld **Alt+V** → Verbindung (Fokus ins Select, Liste offen, Tippen sucht) und **Alt+Z** → Zeichen (Popover offen, Fokus in „Zeichen suchen"), erkannt über `e.code` (`KeyV`/`KeyZ`), nicht `e.key` (Option+Buchstabe erzeugt auf macOS ein Sonderzeichen). Nach der Wahl, und nach Esc auf dem geschlossenen Feld, springt der Fokus in den Titel zurück (`onFertig` an `VerbindungFeld` **und** `ZeichenKnopf`) — dann legt Enter sofort die nächste Stelle an. Die Kürzel stehen in der Bedienzeile. **Bewusst kein Alt+E / Alt+F:** beide öffnen in Chrome unter Windows das Browsermenü (unverifiziert, weil hier nur macOS läuft — als Risiko vermerkt, Task 11); die Einheiten erreicht man per Tab aus dem Verbindungsfeld. Umschalt+Tab im Titel bleibt Ausrücken (Spec §6.5) — wer aus der Verbindung mit Umschalt+Tab zurück in den Titel geht und ein zweites Mal drückt, rückt aus; das ist ein sichtbarer, rücknehmbarer Schritt und steht in der Bedienzeile.
+11. **Touch-Weg:** Am Telefon gibt es kein Tab und kein Alt+Pfeil. Jede Zeile trägt deshalb einen 44-px-Knopf „⋯" (`aria-label` „Aktionen für <Titel>") mit dem Menü in vier Gruppen: **Anlegen** — „Neue Stelle darunter (Enter)", „Unterstelle anlegen", „Seitenstelle links", „Seitenstelle rechts" (dieselben reinen Operationen `fuegeGeschwisterEin`, `fuegeUnterstelleEin`, `fuegeSeitenstelleEin`; neue Zeile bekommt die Auswahl, unberührt wie nach Enter); **Ebene und Ort** — „Einrücken (Tab)", „Ausrücken (Umschalt+Tab)", „Nach oben (Alt+↑)", „Nach unten (Alt+↓)"; **Angaben** — „Verbindung „…" für Geschwister ohne Verbindung übernehmen" (Entscheidung 12), „Details … (F2)"; **Löschen** — „Stelle löschen". Tastenkürzel stehen im Menütext, nicht erreichbare Einträge sind deaktiviert (Unterstelle/Seitenstelle an einer Seitenstelle usw., `zeilenAktionen`). Ohne die Anlege-Einträge entstünde am Telefon, am Tablet ohne Tastatur und mit der Maus eine Stelle nur per Enter-Taste der Bildschirmtastatur, und eine **Seitenstelle** gar nicht — die Referenz „Fernmeldeskizze Stab" braucht aber welche (KatSL links, LtS rechts). Das Menü ist zugleich der Mausweg am Desktop und neben F2 der Weg zum Flyin („Details").
+12. **Verbindung inline:** ein `Select` mit Suche. Leere Suche: „keine (dünne Linie)" und alle Verbindungen des Plans. Getippter Text ohne gleichnamige Verbindung derselben Art: je Verbindungsart eine Option „Neu: „<Text>“ als <Art>", die Art der zuletzt angelegten Verbindung zuerst. Anders als das in Phase 2 verworfene Kombifeld (Kritik 29) steht die Art damit **sichtbar** in jeder Option; Spec §6.4 „Bezeichnung + Art" bleibt erfüllt. Gleichnamig vorhanden → die vorhandene wird genommen. Wurzeln haben kein Feld („oberste Ebene"). Kanäle (`kanaele`) bleiben im Flyin. **Verbindung für Geschwister übernehmen:** eingefügte tiefere Zeilen und per Tab eingerückte erste Kinder haben keine Verbindung (es wird nichts geraten, Entscheidung 9); damit nicht jede Geschwisterstelle einzeln nachgetragen werden muss, übernimmt der Menüeintrag „Verbindung „R_UE_2" für Geschwister ohne Verbindung übernehmen" die Verbindung der Zeile für **alle** Geschwister derselben Reihe (`lage: "unter"`), die noch keine haben — ausdrücklich, ein Klick, **ein** Rückgängig-Schritt (reine Operation `setzeVerbindungFuerGeschwister`, Task 2). **Die Zeile springt:** weil Busgruppen zusammenhängend angezeigt werden (Entscheidung 4), kann eine neue Verbindung die Zeile an eine andere Stelle der Liste versetzen. Dann holt die Gliederung sie ins Bild (`zeige`), gibt den Fokus in ihren Titel und meldet „„EA 2" steht jetzt in der Gruppe „R_UE_3"." im Meldungsplatz (nur wenn sich ihr Platz in der Zeilenfolge geändert hat).
+13. **Zeichen kompakt:** ein 44-px-Knopf mit dem Zeichen (32 px) oder einem leeren Platzhalter; er öffnet ein `Popover` mit derselben `ZeichenWahl` wie das Flyin. Nach der Wahl schließt es; der Fokus geht dorthin zurück, wo die Aktion begann (Entscheidung 16): per Tastatur (Alt+Z) in den Titel, per Zeiger auf den Zeichenknopf.
 14. **Einheiten als Zähler:** „0 Einheiten", „1 Einheit", „n Einheiten" als Knopf mit `aria-expanded`; er klappt unter der Zeile dieselbe `EinheitenListe` wie im Flyin auf (einzeln, „Liste einfügen"). Aufgeklappt ist Ansichtszustand, kein Dokumentinhalt.
-15. **Telefon-Zeilen:** Unter 768 px zeigt eine Zeile Zeichen, Titel und „⋯"; Verbindung und Einheiten erscheinen nur an der **gewählten** Zeile (CSS). Einrückung 16 px je Ebene, gedeckelt bei 6 Ebenen; darüber 24 px.
-16. **Hinweise und Fokus folgen der sichtbaren Ansicht:** Die Gliederung hat einen eigenen Meldungsplatz (klebt unten im Bild, `position: sticky`), in dem derselbe Editor-Hinweis erscheint wie in der Fläche. Wohin der Fokus nach Flyin-Schließen, Löschen und Rückgängig per Knopf zurückkehrt, entscheidet der Editor **zur Ereigniszeit** (`sichtbareAnsicht`: ausdrückliche Wahl, sonst `matchMedia("(max-width: 767.98px)")`) — nie im Rendern.
+15. **Telefon-Zeilen:** Unter 768 px zeigt eine Zeile Zeichen, Titel und „⋯"; Verbindung und Einheiten erscheinen nur an der **gewählten** Zeile (CSS). Einrückung 16 px je Ebene, gedeckelt bei 6 Ebenen; darüber 24 px. **Last:** nur die aktive Zeile rendert das echte `Select` (mit `verbindungsOptionen`, und die auch nur bei offener Liste); jede andere Zeile zeigt ihre Verbindung als schlichten Textknopf (`tabIndex={-1}`, „R_UE_2 · Digitalfunk TMO" bzw. „keine"), der beim Klick die Zeile wählt und dann das Select geöffnet fokussiert. Das passt zum Roving Tabindex (Entscheidung 10) — nicht aktive Zeilen sind ohnehin nicht in der Tab-Folge — und hält auch an einer Stab-Lage mit 500 Stellen die Zahl der antd-Selects bei eins.
+16. **Hinweise und Fokus folgen der sichtbaren Ansicht:** Die Gliederung hat einen eigenen Meldungsplatz (klebt unten im Bild, `position: sticky`), in dem derselbe Editor-Hinweis erscheint wie in der Fläche. Wohin der Fokus nach Flyin-Schließen, Löschen und Rückgängig per Knopf zurückkehrt, entscheidet der Editor **zur Ereigniszeit** (`sichtbareAnsicht`: ausdrückliche Wahl, sonst `matchMedia("(max-width: 767.98px)")`) — nie im Rendern. **Und wohin in der Zeile:** Fokus in ein Titelfeld öffnet am Telefon die Bildschirmtastatur, die das halbe Bild samt Meldungsplatz verdeckt. Deshalb gilt: der Fokus kehrt dorthin zurück, wo die Aktion begann. Kam sie per **Tastatur** aus dem Titel (Enter, Tab, Alt+Pfeil, F2, Alt+V/Z, Strg+Z), zurück in den Titel. Kam sie per **Zeiger** (Maus, Finger), auf das Bedienelement, von dem sie ausging: nach dem ⋯-Menü auf den ⋯-Knopf, nach der Zeichenwahl auf den Zeichenknopf. Unterschieden wird über ein Merkmal zur Ereigniszeit: `onPointerDownCapture` an der Wurzel der Gliederung setzt `zeiger = true`, `onKeyDownCapture` setzt es zurück (React-Ereignisse laufen durch Portale im React-Baum, Menü und Popover zählen also mit). Nach dem Schließen des Flyins wählt der Editor per Breite: schmal (`SCHMAL`) der ⋯-Knopf der Zeile, breit der Titel (`GliederungGriff.fokus(id, ziel)`).
 17. **Zeichensymbole einmal auf Editor-Ebene:** Die `<symbol>`-Vorräte stehen in einem 0×0-SVG direkt unter `.kp-editor`, außerhalb beider Ansichten; die Fläche des Editors rendert ihren eigenen Vorrat nicht (`defs={false}`). Sonst hinge jede `<use>`-Vorschau (Flyin, Zeichenknopf der Gliederung) an einem womöglich verborgenen Teilbaum, oder es gäbe doppelte IDs (Befund M11).
-18. **Griffe kompakt** (UX-Nacharbeit aus der Sichtprüfung des Hauptlaufs, Fotos `phase2-shots/flyin-stelle-desktop-light.png`, `auswahl-desktop-dark.png`: die Griffe verdeckten Nachbarkarten, die seitlichen „+□–" waren ohne Beschriftung unverständlich): eigene `<button class="kp-griff">` statt antd-`Button` (keine Größenregel gegen antd, Falle 4/5/20), **32 px sichtbar**, 13 px Schrift, Pillenform mit Rand und Schatten; die **Trefferfläche bleibt 44 px** hoch über ein unsichtbares `::before` (je 6 px oben und unten), und jede Pille ist breiter als 44 px. Die Griffleiste („+ Unterstelle", „+ Einheit", „Bearbeiten") hängt 6 px unter der Karte (4 px Auswahlrahmen + 2 px), Zeilenabstand beim Umbruch 12 px (Trefferflächen überlappen nicht). Die Seitengriffe heißen sichtbar **„+ links"** / **„+ rechts"**, sitzen 6 px **über den oberen Ecken** der Karte (dort liegen nur Bus- und Abzweiglinien der eigenen Gruppe, keine Nachbarkarte) und rücken bei schmaler Karte nach außen, statt sich zu überdecken; `aria-label` („Seitenstelle links von <Titel> anlegen") und Tooltip bleiben, das Anbindungssymbol entfällt (die Beschriftung sagt es). Die Seitengriffe haben eine feste Breite `SEITENGRIFF_BREITE = 80` px (Griffe.tsx), damit ihr Überstand an einer schmalen Karte berechenbar ist (höchstens ihre ganze Breite); `GRIFF_RAND` wird daraus neu gerechnet (oben 48, seitlich `8 + SEITENGRIFF_BREITE + 8` = 96, unten 96), und die Fläche bekommt `platzOben`, damit eingepasst weiterhin alle Griffe im Bild sind (Phase-2-Entscheidung 18). **Bewusst hingenommen:** die Seitengriffe können die Bus- oder Sechseckbeschriftung der **eigenen** Gruppe teilweise verdecken, und in einer Kammreihe liegen sie über den Einheiten der Reihe darüber.
+18. **Griffe in einer Auswahlleiste oben in der Fläche** (UX-Nacharbeit aus der Sichtprüfung des Hauptlaufs, Fotos `phase2-shots/flyin-stelle-desktop-light.png`, `auswahl-desktop-dark.png`: die Griffe verdeckten Inhalte der Nachbarkarten, die seitlichen „+□–" waren ohne Beschriftung unverständlich). **Abweichung vom Auftrag und von Spec §6.3 — vom Hauptlauf zu bestätigen.** Der Auftrag lautet „Griffe kompakter und näher an die gewählte Karte"; der Grund dafür ist „verdecken nichts". Beides zugleich geht an der Karte nicht, und das ist Geometrie, keine Geschmacksfrage. Am Seed-Plan OpenR (`_lib/layout/__golden__/beispiel-openr-2022-07-01.json`) sind die EA-Karten 46 mm breit bei 8 mm Abstand; ihre Kanalsechsecke und Einheiten beginnen 2,5 mm unter der Karte (ea1–ea4 Oberkante 121,39 mm, Einheiten ab 162,89 mm). Über der EA-Reihe liegen zwischen der Einheit „KdoW 40-10-1" des Einsatzleiters (Unterkante ≈ 104,7 mm) und den Karten gut 16 mm, und darin das Sechseck „TMO BOS_NI_RES_09" (y 109,39 mm). Bei 1024 × 768 misst die eingepasste Zeichnung ≈ 1,85 px/mm (`auswahl-tablet-light.png`): der Abstand zwischen zwei EA-Karten sind ≈ 15 px, der Streifen darüber ≈ 31 px mit einem Sechseck darin — dort passt kein 44-px-Ziel, ohne ein Planelement zu verdecken. Bei 1440 × 900 (≈ 2,5 px/mm, Karte ≈ 115 px) ist eine Leiste aus drei Pillen (≈ 290 px) breiter als Karte plus beide Abstände und liegt zwangsläufig auf den Einheitenspalten der Nachbarn (im Foto EA 1 und EA 3). Der erste Entwurf dieses Plans (32-px-Pillen 6 px unter der Karte, Seitengriffe über den Ecken) hätte das nur verkleinert: die Leiste bliebe breiter als die Karte, die Seitengriffe lägen auf dem Sechseck des eigenen Busses und bei 1024 auf der Einheit des Einsatzleiters, und die unsichtbare Trefferfläche der Leiste deckte den Einklapp-Umschalter unten rechts an der Karte (`umschalterLage`, Griffradius `UMSCHALTER.griff` 2,6 mm).
+    Deshalb: **An der Karte bleibt nur der Auswahlrahmen** (`.kp-auswahlrahmen`, 4 px außen — er liegt im Abstand zwischen den Karten). **Alle Griffe stehen in einer Auswahlleiste** `.kp-auswahlleiste` (`role="toolbar"`, `aria-label` „Auswahl: <Titel>") **oben links in der Fläche**, 8 px vom Rand, links vom Flyin (Breite der Überlagerung = Fläche minus verdeckter Teil). Inhalt: der Name der gewählten Stelle (gekürzt, `.kp-auswahl-name`), dann „+ Unterstelle", „+ links", „+ rechts", „+ Einheit", „Bearbeiten"; eine Seitenstelle zeigt nur „+ Einheit" und „Bearbeiten" (§4.2). Die Knöpfe sind antd-`Button`s ohne `size` (FullShell 44 px, Falle 4) — keine eigene Größenregel, also weder Falle 5 noch 20. Die Seitengriffe heißen sichtbar **„+ links"** / **„+ rechts"**, `aria-label` „Seitenstelle links von <Titel> anlegen", Tooltip „Seitenstelle links anlegen — waagerecht, ohne Bus"; das Anbindungssymbol entfällt. Die Leiste bricht **nicht** um (`flex-wrap: nowrap`, am Telefon waagerecht scrollbar), damit ihre Höhe fest ist: `AUSWAHLLEISTE = { abstand: 8, hoehe: 56 }` (44 px Knopf + 2 × 6 px Innenabstand). Die Fläche hält beim Einpassen oben `GRIFF_RAND.oben = 8 + 56 + 8 = 72` px frei (`platzOben`), seitlich 16 px (nur der Auswahlrahmen), unten 72 px (der Meldungsplatz unten, 12 px + eine Alert-Zeile + Luft). Eingepasst liegt die Leiste damit über **keinem** Planelement; gezoomt kann sie Teile der Zeichnung verdecken, aber nie die gewählte Karte — `zeige()` hält sie mit `GRIFF_RAND` unter der Leiste. Meldungsplatz (unten) und Leiste (oben) stapeln sich nie. `data-griff`-Werte (`unter`, `links`, `rechts`, `einheit`, `bearbeiten`) und `aria-label`s bleiben, Phase-2-Tests und e2e greifen darüber.
+    **Preis:** die Griffe stehen nicht mehr an der Karte (weiterer Mausweg; Tastatur hat `N`, Enter, Entf). Spec §6.3 („unten „+ Unterstelle", seitlich „+ Seitenstelle", an der Einheitenspalte „+ Einheit"") wird in Task 9 im selben Zeilenumfang angepasst. Soll der Hauptlauf die Griffe an der Karte behalten wollen, ist die Rückfallposition: Leiste auf Kartenbreite gedeckelt und untereinander umgebrochen (berührt nur eigene Inhalte), Seitengriffe nur, wo der Streifen über der Karte ≥ 44 px misst — mit der bei 1024 dokumentierten Überdeckung als „bewusst hingenommen".
 19. **Release-Notiz** (Vorgabe des Hauptlaufs: eine Notiz für das Modul, ehrlich zum Stand nach Phase 3): zwei Absätze; der erste nennt statt „dem seitlichen „+“" die neuen Namen „+ links" und „+ rechts", der zweite die Gliederung. Im Commit von Task 9.
 
 ## Review Focus
@@ -59,6 +63,9 @@
 3. **Tab auf der ersten Unterstelle, Umschalt+Tab auf einer Wurzel, beides auf einer Seitenstelle** → Hinweis im Meldungsplatz, Dokument unverändert, Fokus bleibt im selben Titelfeld. Gepinnt in `gliederung.test.ts` (Task 2), `Gliederung.test.tsx` (Task 7) und e2e (Task 10).
 4. **Einfügen, das 500 Stellen überschreitet, eine überlange Zeile enthält oder in eine Seitenstelle zielt** → abgewiesen, Dokument unverändert, Hinweis mit Zeile bzw. Zahl. Gepinnt in `einfuegen.test.ts` (Task 1), `gliederung.test.ts` (Task 3) und `Gliederung.test.tsx` (Task 8).
 5. **Umschalten der Ansicht mit gewählter Stelle, offenem Flyin und gefülltem Rückgängig-Stapel — auch am Seed-Plan** → Auswahl bleibt, Rückgängig bleibt, kein Neuladen, kein einziger Speicheraufruf. Gepinnt in `Editor.test.tsx` (Task 9) und e2e (Task 10).
+6. **Die Auswahlleiste verdeckt kein Planelement** — eingepasst, bei 1440 × 900 ohne und mit offenem Stellen-Flyin (das Fotoszenario) und bei 1024 × 768, an fuekw (mit Kinderbussen), ea1, ea2, ea4 und der Seitenstelle el: kein `[data-griff]` und nicht die Leiste selbst schneidet ein `[data-karte]`, `[data-einheit]` oder `[data-sechseck]`; der Einklapp-Umschalter der gewählten Karte bleibt treffbar. Gepinnt im e2e (Task 10).
+7. **Aufwand am Referenzplan „Einsatz 22.02.2026"** (A1): Struktur samt Verbindungen in der Gliederung **unter 40 Tasten ohne Titeltext** — per Tippen (Enter/Tab, Alt+V je neuem Bus, Enter übernimmt die Verbindung) und per Einfügen (danach Alt+V an den ersten Kindern und „… für Geschwister übernehmen"). Nachgezählt in Task 11; liegt es darüber, ist das ein Befund.
+8. **Fokus und Bildschirmtastatur** — am Telefon öffnet keine Zeiger-Aktion (⋯-Menü, Zeichenwahl, Flyin schließen) die Bildschirmtastatur; per Tastatur landet der Fokus immer wieder im Titel, nie auf `body` (auch nach Strg+Z, das die Zeile entfernt). Gepinnt in `Gliederung.test.tsx` (Tasks 7, 8) und im Telefon-e2e (Task 10).
 
 ---
 
@@ -73,15 +80,17 @@ K/
 │   ├── editorAnsicht.ts              NEU: EditorAnsicht, leseEditorAnsicht, adresseMitAnsicht, sichtbareAnsicht, SCHMAL
 │   └── plan/
 │       ├── einfuegen.ts              geändert: leseGliederung (Parser „mehrzeilig einfügen“)
-│       ├── operationen.ts            geändert: leer → export leereStelle
+│       ├── operationen.ts            geändert: leer → export leereStelle; Kopfkommentar nennt gliederung.ts
 │       └── gliederung.ts             NEU: reihe, gliederungsZeilen, nachbarZeile, zeilenAktionen, fuegeGeschwisterEin,
-│                                          rueckeEin, rueckeAus, verschiebeInReihe, loescheLeereZeile, fuegeGliederungEin
+│                                          rueckeEin, rueckeAus, verschiebeInReihe, loescheLeereZeile,
+│                                          setzeVerbindungFuerGeschwister, fuegeGliederungEin
+├── grenze.test.ts                    geändert: _lib/editorAnsicht.ts in der Liste der reinen Pfade
 ├── _ui/
 │   ├── kommplan.css                  geändert: Griffe, Gliederung, Ansichtsumschaltung
 │   ├── betrachter/Flaeche.tsx        geändert: platzOben, defs
 │   ├── editor/
 │   │   ├── Editor.tsx                geändert: Symbolvorrat, Ansicht, Gliederung, fokusZurueck
-│   │   ├── Griffe.tsx                geändert: kompakte, beschriftete Griffe
+│   │   ├── Griffe.tsx                geändert: Auswahlrahmen an der Karte, Auswahlleiste oben in der Fläche
 │   │   └── Kopfleiste.tsx            geändert: aktiver Umschalter
 │   └── gliederung/                   NEU
 │       ├── tasten.ts                 gliederungsBefehl (rein)
@@ -106,7 +115,7 @@ Geändert außerhalb des Moduls: `e2e/kommplan-editor.spec.ts`, `e2e/gruppen.jso
 
 **Interfaces:**
 - Consumes: `LAENGE` aus `./schema`.
-- Produces: `export interface GliederungsEintrag { ebene: number; titel: string }`; `export const TAB_BREITE = 2`; `export function leseGliederung(text: string): { eintraege: GliederungsEintrag[]; fehler: string[] }`. Zusicherung: `eintraege[0].ebene === 0` und `eintraege[i+1].ebene <= eintraege[i].ebene + 1`; jeder `titel` ist getrimmt, innerer Leerraum zu einem Leerzeichen zusammengezogen, nicht leer und höchstens `LAENGE.titel` lang.
+- Produces: `export interface GliederungsEintrag { ebene: number; titel: string }`; `export const TAB_BREITE = 2`; `export function leseGliederung(text: string): { eintraege: GliederungsEintrag[]; fehler: string[] }`. Zusicherung — **auch wenn `fehler` nicht leer ist**: `eintraege[0].ebene === 0` und `eintraege[i+1].ebene <= eintraege[i].ebene + 1`. Eine fehlerhafte (zu lange) Zeile beeinflusst die Einrückung nicht: sie wird geprüft, **bevor** ihre Stufe auf den Einrückungsstapel kommt (sonst ergäbe `"A\n\t<zu lang>\n\t\tB"` B auf Ebene 2, und eine zu lange erste Zeile ließe `eintraege` auf Ebene 1 beginnen — `fuegeGliederungEin` setzte dann `stapel[e.ebene - 1] === undefined` als Elternstelle). Jeder `titel` ist getrimmt, innerer Leerraum zu einem Leerzeichen zusammengezogen, nicht leer und höchstens `LAENGE.titel` lang.
 
 - [ ] **Step 1: Die fehlenden Tests schreiben**
 
@@ -146,17 +155,23 @@ describe("leseGliederung (Spec §6.5, Entscheidung 9)", () => {
     expect(r.eintraege.map((e) => e.titel)).toEqual(["EL", "EA"]);
     expect(leseGliederung(`EL\n${"y".repeat(LAENGE.titel)}`).fehler).toEqual([]);
   });
+  it("eine fehlerhafte Zeile verschiebt die Einrückung der übrigen nicht — die Zusicherung gilt auch mit Fehlern", () => {
+    const lang = "x".repeat(LAENGE.titel + 1);
+    expect(ebenen(`A\n\t${lang}\n\t\tB`)).toEqual([[0, "A"], [1, "B"]]);
+    expect(ebenen(`${lang}\n\tA\nB`)).toEqual([[0, "A"], [0, "B"]]);
+  });
   it("leerer Text: nichts", () => {
     expect(leseGliederung("")).toEqual({ eintraege: [], fehler: [] });
     expect(leseGliederung(" \n\t\n")).toEqual({ eintraege: [], fehler: [] });
   });
-  it("Zusicherung: erste Ebene 0, danach höchstens eine Ebene tiefer (Zufallstexte)", () => {
+  it("Zusicherung: erste Ebene 0, danach höchstens eine Ebene tiefer (Zufallstexte, auch mit zu langen Zeilen)", () => {
     let saat = 7;
     const zufall = () => { saat = (saat * 1103515245 + 12345) % 2 ** 31; return saat / 2 ** 31; };
     for (let n = 0; n < 200; n++) {
       const zeilen = Array.from({ length: 1 + Math.floor(zufall() * 12) }, (_, i) =>
-        `${["", "\t", "  ", "    ", "\t  ", " "][Math.floor(zufall() * 6)].repeat(Math.floor(zufall() * 4))}${["- ", "", "1. ", "• "][Math.floor(zufall() * 4)]}S${i}`);
+        `${["", "\t", "  ", "    ", "\t  ", " "][Math.floor(zufall() * 6)].repeat(Math.floor(zufall() * 4))}${["- ", "", "1. ", "• "][Math.floor(zufall() * 4)]}${zufall() < 0.1 ? "x".repeat(LAENGE.titel + 1) : `S${i}`}`); // jede zehnte Zeile zu lang
       const e = leseGliederung(zeilen.join(zufall() < 0.5 ? "\n" : "\r\n")).eintraege;
+      if (e.length === 0) continue;
       expect(e[0].ebene).toBe(0);
       for (let i = 1; i < e.length; i++) expect(e[i].ebene).toBeLessThanOrEqual(e[i - 1].ebene + 1);
     }
@@ -196,11 +211,12 @@ export function leseGliederung(text: string): { eintraege: GliederungsEintrag[];
     const einzug = EINZUG.exec(roh)![0];
     const titel = roh.slice(einzug.length).replace(AUFZAEHLUNG, "").replace(/\s+/g, " ").trim();
     if (titel === "") return;
+    // erst prüfen, dann stapeln: eine fehlerhafte Zeile verschiebt die Einrückung der übrigen nicht
+    if (titel.length > LAENGE.titel) { fehler.push(`Zeile ${i + 1}: Der Titel ist länger als ${LAENGE.titel} Zeichen.`); return; }
     const breite = [...einzug].reduce((n, z) => n + (z === "\t" ? TAB_BREITE : 1), 0);
     while (stufen.length > 0 && stufen[stufen.length - 1] > breite) stufen.pop();
     if (stufen.length === 0 || stufen[stufen.length - 1] < breite) stufen.push(breite);
-    if (titel.length > LAENGE.titel) fehler.push(`Zeile ${i + 1}: Der Titel ist länger als ${LAENGE.titel} Zeichen.`);
-    else eintraege.push({ ebene: stufen.length - 1, titel });
+    eintraege.push({ ebene: stufen.length - 1, titel });
   });
   return { eintraege, fehler };
 }
@@ -237,28 +253,29 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Gliederungs-Operationen — Zeilen, Enter, Tab, Umschalt+Tab, Alt+Pfeil, leere Zeile löschen
 
 **Files:**
-- Modify: `src/app/m/kommplan/_lib/plan/operationen.ts` (nur `function leer(` → `export function leereStelle(` und die drei Aufrufe)
+- Modify: `src/app/m/kommplan/_lib/plan/operationen.ts` (nur `function leer(` → `export function leereStelle(` und die drei Aufrufe, dazu eine Kommentarzeile im Kopf)
 - Create: `src/app/m/kommplan/_lib/plan/gliederung.ts`
 - Test: `src/app/m/kommplan/_lib/plan/gliederung.test.ts`
 
 **Interfaces:**
 - Consumes: `anzeigereihenfolge` (`_lib/layout/gruppen`), `baueBaum`, `nachkommen` (`./baum`), `gueltig`, `leereStelle`, `loescheStelle`, `naechsteReihenfolge`, `PlanFehler`, `stelleOder` (`./operationen`), `GRENZE`, `Lage`, `PlanInhalt`, `Stelle` (`./schema`).
 - Produces (alle rein, Eingabe unverändert, Ausgabe `gueltig` oder `PlanFehler`):
-  - `export const MELDUNG: { ersteEinruecken; wurzelAusruecken; seiteEbene; nichtLeer; mitTitel; inSeitenstelle }` (Zeichenketten), `export function zuVieleStellen(zahl: number): string`
+  - `export const MELDUNG: { ersteEinruecken; wurzelAusruecken; seiteEbene; nichtLeer; mitTitel; inSeitenstelle; erstTitel; ohneVerbindung; keineGeschwister }` (Zeichenketten), `export function zuVieleStellen(zahl: number): string`
   - `export function reihe(inhalt: PlanInhalt, eltern: string | null, lage: Lage): Stelle[]` — Geschwister in Anzeigereihenfolge.
   - `export interface GliederungsZeile { stelle: Stelle; ebene: number; seite: "links" | "rechts" | null; eltern: Stelle | null }`, `export function gliederungsZeilen(inhalt: PlanInhalt): GliederungsZeile[]`
   - `export function nachbarZeile(zeilen: readonly GliederungsZeile[], id: string, richtung: "hoch" | "runter"): string | null`
-  - `export function zeilenAktionen(inhalt: PlanInhalt, id: string): { einruecken: boolean; ausruecken: boolean; hoch: boolean; runter: boolean }`
+  - `export interface ZeilenAktionen { einruecken: boolean; ausruecken: boolean; hoch: boolean; runter: boolean; unterstelle: boolean; seitenstelle: boolean; uebernehmen: boolean }`, `export function zeilenAktionen(inhalt: PlanInhalt, id: string): ZeilenAktionen` (`unterstelle`/`seitenstelle`: die Stelle trägt welche, also `lage === "unter"`; `uebernehmen`: `setzeVerbindungFuerGeschwister` hätte etwas zu tun)
   - `export function fuegeGeschwisterEin(inhalt: PlanInhalt, nachId: string, id: string): PlanInhalt`
   - `export function rueckeEin(inhalt: PlanInhalt, id: string): PlanInhalt`
   - `export function rueckeAus(inhalt: PlanInhalt, id: string): PlanInhalt`
   - `export function verschiebeInReihe(inhalt: PlanInhalt, id: string, richtung: "hoch" | "runter"): PlanInhalt` (am Ende der Reihe: **dasselbe Objekt**)
   - `export function loescheLeereZeile(inhalt: PlanInhalt, id: string): PlanInhalt`
+  - `export function setzeVerbindungFuerGeschwister(inhalt: PlanInhalt, id: string): PlanInhalt` — setzt die Verbindung der Stelle an **allen** Geschwistern derselben Reihe (`lage: "unter"`) ohne Verbindung (Entscheidung 12); ohne eigene Verbindung `PlanFehler(MELDUNG.ohneVerbindung)`, ohne betroffene Geschwister `PlanFehler(MELDUNG.keineGeschwister)`
   - aus `operationen.ts`: `export function leereStelle(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle`
 
 - [ ] **Step 1: `leereStelle` exportieren**
 
-In `src/app/m/kommplan/_lib/plan/operationen.ts` die Zeile `function leer(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {` durch `export function leereStelle(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {` ersetzen und die drei Aufrufe `leer(` in `fuegeWurzelEin`, `fuegeUnterstelleEin`, `fuegeSeitenstelleEin` auf `leereStelle(` umstellen. Keine Zeile dazu oder weg.
+In `src/app/m/kommplan/_lib/plan/operationen.ts` die Zeile `function leer(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {` durch `export function leereStelle(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {` ersetzen und die drei Aufrufe `leer(` in `fuegeWurzelEin`, `fuegeUnterstelleEin`, `fuegeSeitenstelleEin` auf `leereStelle(` umstellen. Außerdem ist der Kopfkommentar nach dieser Phase veraltet („… das Gliederungs-Einfügen folgt in Phase 3 in `einfuegen.ts`."): die Zeile **in derselben Zeile** umschreiben zu „Editor; das Gliederungs-Einfügen (Phase 3) steht in `gliederung.ts`, sein Parser in `einfuegen.ts`." (der Anfang der Zeile bleibt, wie er ist). Keine Zeile dazu oder weg (Kommentaranker-Regel 4).
 
 Run: `pnpm vitest run src/app/m/kommplan/_lib/plan/operationen.test.ts` — Expected: PASS.
 
@@ -269,7 +286,7 @@ Run: `pnpm vitest run src/app/m/kommplan/_lib/plan/operationen.test.ts` — Expe
 ```ts
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
-import { MELDUNG, fuegeGeschwisterEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, reihe, rueckeAus, rueckeEin, verschiebeInReihe, zeilenAktionen, zuVieleStellen } from "./gliederung";
+import { MELDUNG, fuegeGeschwisterEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, reihe, rueckeAus, rueckeEin, setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, zuVieleStellen } from "./gliederung";
 import { PlanFehler } from "./operationen";
 import { GRENZE, leseInhalt, type PlanInhalt } from "./schema";
 
@@ -396,10 +413,10 @@ describe("Alt+↑/↓ (Entscheidung 7, Review Focus 2)", () => {
 
 describe("Zeilenaktionen und leere Zeilen (Entscheidungen 8, 11)", () => {
   it("was im Menü erreichbar ist", () => {
-    expect(zeilenAktionen(PLAN, "x1")).toEqual({ einruecken: false, ausruecken: true, hoch: false, runter: true });
-    expect(zeilenAktionen(PLAN, "el")).toEqual({ einruecken: false, ausruecken: false, hoch: false, runter: true });
-    expect(zeilenAktionen(PLAN, "kat")).toEqual({ einruecken: false, ausruecken: false, hoch: false, runter: false });
-    expect(zeilenAktionen(PLAN, "y4")).toEqual({ einruecken: true, ausruecken: true, hoch: true, runter: false });
+    expect(zeilenAktionen(PLAN, "x1")).toEqual({ einruecken: false, ausruecken: true, hoch: false, runter: true, unterstelle: true, seitenstelle: true, uebernehmen: false });
+    expect(zeilenAktionen(PLAN, "el")).toEqual({ einruecken: false, ausruecken: false, hoch: false, runter: true, unterstelle: true, seitenstelle: true, uebernehmen: false });
+    expect(zeilenAktionen(PLAN, "kat")).toEqual({ einruecken: false, ausruecken: false, hoch: false, runter: false, unterstelle: false, seitenstelle: false, uebernehmen: false });
+    expect(zeilenAktionen(PLAN, "y4")).toEqual({ einruecken: true, ausruecken: true, hoch: true, runter: false, unterstelle: true, seitenstelle: true, uebernehmen: false });
   });
   it("leere Zeile ohne Nachkommen wird gelöscht; mit Nachkommen oder Titel: PlanFehler", () => {
     const mitLeer = fuegeGeschwisterEin(PLAN, "x1", "leer");
@@ -407,6 +424,35 @@ describe("Zeilenaktionen und leere Zeilen (Entscheidungen 8, 11)", () => {
     const leerMitKind = { ...PLAN, stellen: PLAN.stellen.map((x) => (x.id === "x2" ? { ...x, titel: " " } : x)) };
     expect(() => loescheLeereZeile(leerMitKind, "x2")).toThrow(MELDUNG.nichtLeer);
     expect(() => loescheLeereZeile(PLAN, "x1")).toThrow(MELDUNG.mitTitel);
+  });
+});
+
+describe("Verbindung für Geschwister übernehmen (Entscheidung 12)", () => {
+  /** Unter EL: X1 an Bus a, dazu zwei Geschwister ohne Verbindung (wie nach Einfügen) und Y3 an Bus b. */
+  const OHNE = baue({
+    verbindungen: V,
+    stellen: [
+      { id: "el", titel: "EL" },
+      { id: "x1", titel: "X1", eltern: "el", verbindung: "a" },
+      { id: "n1", titel: "N1", eltern: "el" },
+      { id: "n2", titel: "N2", eltern: "el" },
+      { id: "y3", titel: "Y3", eltern: "el", verbindung: "b" },
+      { id: "kat", titel: "KatSL", eltern: "el", lage: "links" },
+    ],
+  });
+  it("alle Geschwister ohne Verbindung bekommen die der Stelle; Geschwister mit Verbindung und Seitenstellen bleiben", () => {
+    expect(zeilenAktionen(OHNE, "x1").uebernehmen).toBe(true);
+    const p = setzeVerbindungFuerGeschwister(OHNE, "x1");
+    gueltig(p);
+    expect(["n1", "n2", "y3", "kat"].map((id) => s(p, id).verbindungId ?? null)).toEqual(["a", "a", "b", null]);
+    expect(titel(p)).toEqual(["EL", "·KatSL(links)", "·X1", "·N1", "·N2", "·Y3"]); // N1, N2 stehen jetzt in Gruppe a
+    expect(zeilenAktionen(p, "x1").uebernehmen).toBe(false);
+  });
+  it("ohne eigene Verbindung, ohne betroffene Geschwister, an einer Wurzel oder Seitenstelle: PlanFehler", () => {
+    expect(() => setzeVerbindungFuerGeschwister(OHNE, "n1")).toThrow(MELDUNG.ohneVerbindung);
+    expect(() => setzeVerbindungFuerGeschwister(PLAN, "x1")).toThrow(MELDUNG.keineGeschwister);
+    expect(() => setzeVerbindungFuerGeschwister(OHNE, "el")).toThrow(MELDUNG.ohneVerbindung);
+    expect(() => setzeVerbindungFuerGeschwister(OHNE, "kat")).toThrow(MELDUNG.ohneVerbindung);
   });
 });
 ```
@@ -438,6 +484,9 @@ export const MELDUNG = {
   nichtLeer: "Diese Zeile hat Unter- oder Seitenstellen — löschen über „Aktionen“ → „Stelle löschen“.",
   mitTitel: "Nur eine Zeile ohne Titel wird so gelöscht.",
   inSeitenstelle: "In eine Seitenstelle lässt sich keine Gliederung einfügen — sie trägt keine Unterstellen.",
+  erstTitel: "Erst einen Titel eingeben — auf der obersten Ebene und an einer Seitenstelle rückt Enter nicht aus.",
+  ohneVerbindung: "Diese Stelle hat selbst keine Verbindung zur Elternstelle.",
+  keineGeschwister: "Alle Geschwister haben schon eine Verbindung.",
 } as const;
 export const zuVieleStellen = (zahl: number) => `Höchstens ${GRENZE.stellen} Stellen je Plan — hier wären es ${zahl}.`;
 
@@ -481,12 +530,24 @@ export function nachbarZeile(zeilen: readonly GliederungsZeile[], id: string, ri
   return zeilen[richtung === "hoch" ? i - 1 : i + 1]?.stelle.id ?? null;
 }
 
-export function zeilenAktionen(inhalt: PlanInhalt, id: string): { einruecken: boolean; ausruecken: boolean; hoch: boolean; runter: boolean } {
+export interface ZeilenAktionen { einruecken: boolean; ausruecken: boolean; hoch: boolean; runter: boolean; unterstelle: boolean; seitenstelle: boolean; uebernehmen: boolean }
+
+export function zeilenAktionen(inhalt: PlanInhalt, id: string): ZeilenAktionen {
   const s = stelleOder(inhalt, id);
   const r = reihe(inhalt, s.eltern, s.lage);
   const i = r.findIndex((x) => x.id === id);
   const unter = s.lage === "unter";
-  return { einruecken: unter && i > 0, ausruecken: unter && s.eltern !== null, hoch: i > 0, runter: i < r.length - 1 };
+  const uebernehmen = unter && s.eltern !== null && s.verbindungId !== null && r.some((x) => x.id !== id && x.verbindungId === null);
+  return { einruecken: unter && i > 0, ausruecken: unter && s.eltern !== null, hoch: i > 0, runter: i < r.length - 1, unterstelle: unter, seitenstelle: unter, uebernehmen };
+}
+
+/** Entscheidung 12: ausdrücklich, nie geraten — die Verbindung der Stelle für alle Geschwister ohne Verbindung. */
+export function setzeVerbindungFuerGeschwister(inhalt: PlanInhalt, id: string): PlanInhalt {
+  const s = stelleOder(inhalt, id);
+  if (s.lage !== "unter" || s.eltern === null || s.verbindungId === null) throw new PlanFehler(MELDUNG.ohneVerbindung);
+  const ziele = new Set(reihe(inhalt, s.eltern, "unter").filter((x) => x.id !== id && x.verbindungId === null).map((x) => x.id));
+  if (ziele.size === 0) throw new PlanFehler(MELDUNG.keineGeschwister);
+  return gueltig({ ...inhalt, stellen: inhalt.stellen.map((x) => (ziele.has(x.id) ? { ...x, verbindungId: s.verbindungId } : x)) });
 }
 
 /** Entscheidung 5. Eine Wurzel bekommt keine Verbindung (die verbindungId einer Wurzel ist kein Weg). */
@@ -731,12 +792,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `src/app/m/kommplan/_lib/editorAnsicht.ts`, Test `src/app/m/kommplan/_lib/editorAnsicht.test.ts`
 - Create: `src/app/m/kommplan/_ui/gliederung/tasten.ts`, Test `src/app/m/kommplan/_ui/gliederung/tasten.test.ts`
 - Create: `src/app/m/kommplan/_ui/gliederung/verbindungsOptionen.ts`, Test `src/app/m/kommplan/_ui/gliederung/verbindungsOptionen.test.ts`
+- Modify: `src/app/m/kommplan/grenze.test.ts` (Test „geteilte Ordner sind rein …": `"_lib/editorAnsicht.ts"` in die Liste der geteilten Pfade aufnehmen — ohne das prüft dort nichts, dass die Datei, die die Server-Seite liest, rein bleibt; eine spätere `"use client"`-Direktive fiele sonst erst als HTTP 500 auf, Falle 6)
 
 **Interfaces:**
 - Consumes: `Taste` (`_ui/editor/tasten`), `ART_NAME`, `LAENGE`, `VERBINDUNGS_ARTEN`, `PlanInhalt`, `VerbindungsArt` (`_lib/plan/schema`), `findeVerbindung` (`_lib/plan/verbindungen`).
 - Produces:
   - `_lib/editorAnsicht.ts` (ohne `"use client"`, Falle 6): `export const EDITOR_ANSICHTEN = ["diagramm", "gliederung"] as const`; `export type EditorAnsicht`; `export const SCHMAL = "(max-width: 767.98px)"`; `export function leseEditorAnsicht(wert: string | string[] | undefined): EditorAnsicht | null`; `export function adresseMitAnsicht(href: string, ansicht: EditorAnsicht): string` (Pfad + Suche + Anker); `export function sichtbareAnsicht(gewaehlt: EditorAnsicht | null, schmal: boolean): EditorAnsicht`.
-  - `_ui/gliederung/tasten.ts`: `export type GliederungsBefehl = { art: "neu" } | { art: "einruecken" } | { art: "ausruecken" } | { art: "verschiebe"; richtung: "hoch" | "runter" } | { art: "wandere"; richtung: "hoch" | "runter" } | { art: "loeschen"; richtung: "hoch" | "runter" } | { art: "verlassen" } | { art: "details" }`; `export function gliederungsBefehl(t: Taste & { isComposing?: boolean }, titelLeer: boolean): GliederungsBefehl | null`.
+  - `_ui/gliederung/tasten.ts`: `export type GliederungsBefehl = { art: "neu" } | { art: "neuLeer" } | { art: "einruecken" } | { art: "ausruecken" } | { art: "verschiebe"; richtung: "hoch" | "runter" } | { art: "wandere"; richtung: "hoch" | "runter" } | { art: "loeschen"; richtung: "hoch" | "runter" } | { art: "verlassen" } | { art: "details" } | { art: "verbindung" } | { art: "zeichen" }`; `export type GliederungsTaste = Taste & { isComposing?: boolean; repeat?: boolean; code?: string }`; `export function gliederungsBefehl(t: GliederungsTaste, titelLeer: boolean): GliederungsBefehl | null`.
   - `_ui/gliederung/verbindungsOptionen.ts`: `export const KEINE = "~keine"`; `export interface VerbindungsOption { value: string; label: string; disabled?: boolean }`; `export function verbindungsOptionen(inhalt: PlanInhalt, suche: string): VerbindungsOption[]`; `export function leseNeu(wert: string): VerbindungsArt | null`.
 
 - [ ] **Step 1: Die fehlenden Tests schreiben**
@@ -773,7 +835,7 @@ describe("Ansicht des Editors (Entscheidung 1)", () => {
 import { describe, expect, it } from "vitest";
 import { gliederungsBefehl } from "./tasten";
 
-const t = (key: string, mehr: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; isComposing: boolean }> = {}) =>
+const t = (key: string, mehr: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; isComposing: boolean; repeat: boolean; code: string }> = {}) =>
   ({ key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mehr });
 
 describe("Tasten der Gliederung (Spec §6.5, Entscheidungen 5–10)", () => {
@@ -788,15 +850,32 @@ describe("Tasten der Gliederung (Spec §6.5, Entscheidungen 5–10)", () => {
     expect(gliederungsBefehl(t("Escape"), false)).toEqual({ art: "verlassen" });
     expect(gliederungsBefehl(t("F2"), false)).toEqual({ art: "details" });
   });
+  it("Enter auf leerem Titel ist „neuLeer“ (rückt aus, Entscheidung 5); Strg/Cmd+Enter öffnet Details", () => {
+    expect(gliederungsBefehl(t("Enter"), true)).toEqual({ art: "neuLeer" });
+    expect(gliederungsBefehl(t("Enter", { ctrlKey: true }), false)).toEqual({ art: "details" });
+    expect(gliederungsBefehl(t("Enter", { metaKey: true }), true)).toEqual({ art: "details" });
+  });
+  it("Alt+V / Alt+Z über e.code — auch wenn Option+Taste auf macOS ein Sonderzeichen liefert (Entscheidung 10)", () => {
+    expect(gliederungsBefehl(t("√", { altKey: true, code: "KeyV" }), false)).toEqual({ art: "verbindung" });
+    expect(gliederungsBefehl(t("Ω", { altKey: true, code: "KeyZ" }), false)).toEqual({ art: "zeichen" });
+    expect(gliederungsBefehl(t("v", { code: "KeyV" }), false)).toBeNull();
+    expect(gliederungsBefehl(t("e", { altKey: true, code: "KeyE" }), false)).toBeNull(); // Alt+E gehört unter Windows dem Browsermenü
+  });
+  it("gehaltene Tasten (repeat) löschen nie eine Zeile und legen nie eine an (Entscheidung 8)", () => {
+    expect(gliederungsBefehl(t("Backspace", { repeat: true }), true)).toBeNull();
+    expect(gliederungsBefehl(t("Delete", { repeat: true }), true)).toBeNull();
+    expect(gliederungsBefehl(t("Enter", { repeat: true }), false)).toBeNull();
+    expect(gliederungsBefehl(t("Enter", { repeat: true }), true)).toBeNull();
+    expect(gliederungsBefehl(t("ArrowDown", { repeat: true }), false)).toEqual({ art: "wandere", richtung: "runter" }); // wandern darf man halten
+  });
   it("Rücktaste und Entf nur auf leerem Titel — sonst gehören sie dem Feld", () => {
     expect(gliederungsBefehl(t("Backspace"), true)).toEqual({ art: "loeschen", richtung: "hoch" });
     expect(gliederungsBefehl(t("Delete"), true)).toEqual({ art: "loeschen", richtung: "runter" });
     expect(gliederungsBefehl(t("Backspace"), false)).toBeNull();
     expect(gliederungsBefehl(t("Delete"), false)).toBeNull();
   });
-  it("während einer Eingabekomposition (IME) und mit Strg/Cmd: nichts; Buchstaben: nichts", () => {
+  it("während einer Eingabekomposition (IME) und mit Strg/Cmd (außer Strg/Cmd+Enter): nichts; Buchstaben: nichts", () => {
     expect(gliederungsBefehl(t("Enter", { isComposing: true }), false)).toBeNull();
-    expect(gliederungsBefehl(t("Enter", { ctrlKey: true }), false)).toBeNull();
     expect(gliederungsBefehl(t("Tab", { metaKey: true }), false)).toBeNull();
     expect(gliederungsBefehl(t("Enter", { shiftKey: true }), false)).toBeNull();
     expect(gliederungsBefehl(t("n"), false)).toBeNull();
@@ -894,28 +973,35 @@ import type { Taste } from "../editor/tasten";
  * TASTATUR DER GLIEDERUNG (Spec §6.5; Umsetzungsplan Phase 3, Entscheidungen 5–10) als reine Abbildung.
  * Sie gilt nur im Titelfeld einer Zeile. Strg/Cmd+Z behandelt die Gliederung vorher über
  * `globalerBefehl(…, false)` (Entscheidung 10). Rücktaste/Entf nur auf leerem Titel — sonst löschen sie
- * Zeichen. Während einer IME-Komposition bestätigt Enter die Komposition, nicht die Zeile.
+ * Zeichen. Während einer IME-Komposition bestätigt Enter die Komposition, nicht die Zeile. Gehaltene
+ * Tasten (`repeat`) löschen und legen nichts an (Entscheidung 8). Alt+V/Alt+Z über `code`: Option+Taste
+ * liefert auf macOS ein Sonderzeichen als `key` (Entscheidung 10); Alt+E/Alt+F bewusst nicht.
  */
 export type GliederungsBefehl =
-  | { art: "neu" } | { art: "einruecken" } | { art: "ausruecken" }
+  | { art: "neu" } | { art: "neuLeer" } | { art: "einruecken" } | { art: "ausruecken" }
   | { art: "verschiebe"; richtung: "hoch" | "runter" } | { art: "wandere"; richtung: "hoch" | "runter" }
-  | { art: "loeschen"; richtung: "hoch" | "runter" } | { art: "verlassen" } | { art: "details" };
+  | { art: "loeschen"; richtung: "hoch" | "runter" } | { art: "verlassen" } | { art: "details" }
+  | { art: "verbindung" } | { art: "zeichen" };
+export type GliederungsTaste = Taste & { isComposing?: boolean; repeat?: boolean; code?: string };
 
-export function gliederungsBefehl(t: Taste & { isComposing?: boolean }, titelLeer: boolean): GliederungsBefehl | null {
-  if (t.isComposing || t.ctrlKey || t.metaKey) return null;
+export function gliederungsBefehl(t: GliederungsTaste, titelLeer: boolean): GliederungsBefehl | null {
+  if (t.isComposing) return null;
+  if (t.ctrlKey || t.metaKey) return t.key === "Enter" && !t.shiftKey && !t.altKey ? { art: "details" } : null;
   if (t.key === "Tab" && !t.altKey) return t.shiftKey ? { art: "ausruecken" } : { art: "einruecken" };
   if (t.shiftKey) return null;
   if (t.altKey) {
     if (t.key === "ArrowUp") return { art: "verschiebe", richtung: "hoch" };
     if (t.key === "ArrowDown") return { art: "verschiebe", richtung: "runter" };
+    if (t.code === "KeyV") return { art: "verbindung" };
+    if (t.code === "KeyZ") return { art: "zeichen" };
     return null;
   }
   switch (t.key) {
-    case "Enter": return { art: "neu" };
+    case "Enter": return t.repeat ? null : titelLeer ? { art: "neuLeer" } : { art: "neu" };
     case "ArrowUp": return { art: "wandere", richtung: "hoch" };
     case "ArrowDown": return { art: "wandere", richtung: "runter" };
-    case "Backspace": return titelLeer ? { art: "loeschen", richtung: "hoch" } : null;
-    case "Delete": return titelLeer ? { art: "loeschen", richtung: "runter" } : null;
+    case "Backspace": return titelLeer && !t.repeat ? { art: "loeschen", richtung: "hoch" } : null;
+    case "Delete": return titelLeer && !t.repeat ? { art: "loeschen", richtung: "runter" } : null;
     case "Escape": return { art: "verlassen" };
     case "F2": return { art: "details" };
     default: return null;
@@ -964,14 +1050,15 @@ export function verbindungsOptionen(inhalt: PlanInhalt, suche: string): Verbindu
 - [ ] **Step 4: Tests laufen lassen**
 
 Run: `pnpm vitest run src/app/m/kommplan/_lib/editorAnsicht.test.ts src/app/m/kommplan/_ui/gliederung/ src/app/m/kommplan/grenze.test.ts`
-Expected: PASS (`grenze.test.ts`: `_lib/editorAnsicht.ts` ist rein).
+Expected: PASS (`grenze.test.ts`: `_lib/editorAnsicht.ts` steht jetzt in der Liste der geteilten Pfade und ist rein — Gegenprobe: vorübergehend `"use client";` an den Dateianfang schreiben, der Test muss rot werden, dann wieder entfernen).
 
 - [ ] **Step 5: Typecheck, Lint, Commit**
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
 pnpm exec eslint src/app/m/kommplan/_lib/editorAnsicht.ts src/app/m/kommplan/_lib/editorAnsicht.test.ts src/app/m/kommplan/_ui/gliederung/
-git add src/app/m/kommplan/_lib/editorAnsicht.ts src/app/m/kommplan/_lib/editorAnsicht.test.ts src/app/m/kommplan/_ui/gliederung/
+git grep -n "grenze.test.ts:[0-9]" -- src scripts e2e docs
+git add src/app/m/kommplan/_lib/editorAnsicht.ts src/app/m/kommplan/_lib/editorAnsicht.test.ts src/app/m/kommplan/_ui/gliederung/ src/app/m/kommplan/grenze.test.ts
 git commit -S -m "feat(kommplan): Bausteine der Gliederung — Ansicht in der Adresse, Tasten, Verbindungsoptionen
 
 DRK-500
@@ -981,46 +1068,56 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Griffe kompakt, nah an der Karte, Seitengriffe beschriftet
+### Task 5: Griffe in eine Auswahlleiste oben in der Fläche, Seitengriffe beschriftet
+
+> **Tor:** Diese Aufgabe erst beginnen, wenn der Hauptlauf Entscheidung 18 bestätigt hat. Ohne Bestätigung hier anhalten und melden: die Rückfallposition aus Entscheidung 18 ist nur beschrieben, nicht ausgeplant, und braucht eine eigene Überarbeitung dieser Aufgabe. Tasks 6–8 hängen nicht an Task 5 und dürfen vorgezogen werden; Task 9 Step 8 (§6.3) und der Auswahlleisten-Test in Task 10 hängen daran.
 
 **Files:**
 - Modify: `src/app/m/kommplan/_ui/editor/Griffe.tsx`
-- Modify: `src/app/m/kommplan/_ui/editor/Editor.tsx` (`GRIFF_RAND`, `platzOben` an die Fläche)
-- Modify: `src/app/m/kommplan/_ui/betrachter/Flaeche.tsx` (Prop `platzOben`)
+- Modify: `src/app/m/kommplan/_ui/editor/Editor.tsx` (`GRIFF_RAND` samt Kommentar, `platzOben` an die Fläche)
+- Modify: `src/app/m/kommplan/_ui/betrachter/Flaeche.tsx` (Prop `platzOben`; `[data-auswahlleiste]` in `ausgenommen`)
 - Modify: `src/app/m/kommplan/_ui/kommplan.css`
-- Test: `src/app/m/kommplan/_ui/kommplan-css.test.ts`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`, `src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`, `e2e/kommplan-editor.spec.ts` (nur `ganzInDerFlaeche`)
+- Modify: `e2e/kommplan-editor.spec.ts` — `ganzInDerFlaeche` (Oberkante), Fototest (Griffe in der Leiste vor der Prüfung ins Bild scrollen, ein veralteter Kommentar in derselben Zeile), Test „gezoomt: Enter holt die Karte an den freien Rand neben dem Flyin …" (**beide** Literale `84` samt Kommentar)
+- Test: `src/app/m/kommplan/_ui/kommplan-css.test.ts`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`, `src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`
 
 **Interfaces:**
 - Consumes: `KarteL`, `Ansicht`.
-- Produces: `Griffe` mit unveränderten Props und unveränderten `data-griff`-Werten und `aria-label`s (e2e und Editor-Tests greifen darüber); `export const GRIFF_LUFT = 6` und `export const SEITENGRIFF_BREITE = 80` (Griffe.tsx); `GRIFF_RAND = { oben: 48, seite: 8 + SEITENGRIFF_BREITE + 8, unten: 96 }` (Editor.tsx); `Flaeche`-Prop `platzOben?: number` (Luft über der obersten Karte beim Einpassen; ohne Angabe 16 wie bisher).
+- Produces: `Griffe` mit unveränderten Props und unveränderten `data-griff`-Werten und Seitengriff-`aria-label`s (e2e und Editor-Tests greifen darüber); neue DOM-Reihenfolge der Griffe `unter`, `links`, `rechts`, `einheit`, `bearbeiten`; `export const AUSWAHLLEISTE = { abstand: 8, hoehe: 56 } as const` (Griffe.tsx); `GRIFF_RAND = { oben: AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8, seite: 16, unten: 72 }` (Editor.tsx, also 72/16/72); `Flaeche`-Prop `platzOben?: number` (Luft über der obersten Karte beim Einpassen; ohne Angabe 16 wie bisher). DOM: `[data-griffe=<id>]` enthält `.kp-griffe-karte` (nur noch `.kp-auswahlrahmen`) und `.kp-auswahlleiste[data-auswahlleiste][role="toolbar"][aria-label="Auswahl: <Titel>"]` mit `.kp-auswahl-name` und den Knöpfen. Ein Zeiger auf der Leiste (auch auf Name und Innenabstand, die weder Knopf noch `[data-griff]` sind) beginnt in der Fläche weder Klick noch Ziehen.
 
 - [ ] **Step 1: Die fehlenden Tests schreiben bzw. anpassen**
 
 In `src/app/m/kommplan/_ui/kommplan-css.test.ts` die zwei Tests „der seitliche Griff bricht nicht um …" und „„+“ und Symbol im seitlichen Griff …" **ersetzen** durch (die Aussage über `.kp-betrachter > svg` bleibt als eigener Test erhalten):
 
 ```ts
-  it("die Zeichnung ist nur das SVG direkt in der Fläche — kein Griff und kein Zeichenknopf erbt ihre Größe", () => {
+  it("die Zeichnung ist nur das SVG direkt in der Fläche — kein Knopf und kein Zeichenknopf erbt ihre Größe", () => {
     expect(css).toMatch(/\.kp-betrachter > svg \{[^}]*width: 100%/);
     expect(css).not.toMatch(/\.kp-betrachter svg \{/);
   });
-  it("Griffe: 32 px sichtbar, einzeilig, Trefferfläche 44 px über ::before (Phase 3, Entscheidung 18)", () => {
-    expect(css).toMatch(/\.kp-griff \{[^}]*height: 32px/);
-    expect(css).toMatch(/\.kp-griff \{[^}]*white-space: nowrap/);
-    expect(css).toMatch(/\.kp-griff::before \{[^}]*inset: -6px 0/);
-    expect(css).toMatch(/\.kp-griff:focus-visible \{[^}]*outline: 2px solid/);
-    expect(css).toMatch(/\.kp-griffleiste \{[^}]*gap: 12px 6px/);
-    expect(css).toMatch(/\.kp-griffe \.kp-griff-seite \{[^}]*bottom: calc\(100% \+ 6px\)/);
+  it("Auswahlleiste oben links in der Fläche, feste Höhe: bricht nie um, scrollt am Telefon waagerecht (Phase 3, Entscheidung 18)", () => {
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*position: absolute; top: 8px; left: 8px/);
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*flex-wrap: nowrap/);
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*overflow-x: auto/);
+    expect(css).toMatch(/\.kp-auswahl-name \{[^}]*text-overflow: ellipsis/);
+    expect(css).not.toMatch(/\.kp-griffleiste|\.kp-griff-seite|\.kp-griff-inhalt/); // die alten Griffe an der Karte sind weg
   });
-  it("Rand der Griffe hebt sich vom Papier ab (WCAG 1.4.11): mindestens 3:1 gegen Weiß", () => {
-    const farbe = /--kp-griff-rand: (#[0-9a-f]{6});/i.exec(css)?.[1];
-    expect(farbe).toBeDefined();
-    expect(kontrast(farbe!, "#ffffff")).toBeGreaterThanOrEqual(3);
+  it("Rand der Auswahlleiste hebt sich ab (WCAG 1.4.11): mindestens 3:1 gegen ihre Fläche, hell und dunkel", () => {
+    const hell = /:root \{[^}]*--kp-leiste-flaeche: (#[0-9a-f]{6});[^}]*--kp-leiste-rand: (#[0-9a-f]{6});/i.exec(css);
+    const dunkel = /:root\[data-theme="dark"\] \{[^}]*--kp-leiste-flaeche: (#[0-9a-f]{6});[^}]*--kp-leiste-rand: (#[0-9a-f]{6});/i.exec(css);
+    expect(hell && dunkel).toBeTruthy();
+    expect(kontrast(hell![2], hell![1])).toBeGreaterThanOrEqual(3);
+    expect(kontrast(dunkel![2], dunkel![1])).toBeGreaterThanOrEqual(3);
   });
 ```
 
-(`kontrast` ist in dieser Testdatei schon definiert — der Auswahlrahmen-Test nutzt es.)
+(`kontrast` ist in dieser Testdatei schon definiert — der Auswahlrahmen-Test nutzt es. Die beiden Variablen stehen in `:root` bzw. `:root[data-theme="dark"]` in dieser Reihenfolge nebeneinander.)
 
-In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` die Importe ergänzen (`GRIFF_RAND` in die Zeile aus `./Editor`, neu `import { SEITENGRIFF_BREITE } from "./Griffe";`) und im ersten Test die Zeilen
+In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` die Importe ergänzen (`GRIFF_RAND` in die Zeile aus `./Editor`, neu `import { AUSWAHLLEISTE } from "./Griffe";`) und im ersten Test die Zeilen
+
+```ts
+    expect(queryAll('[data-griffe="a"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["links", "rechts", "unter", "einheit", "bearbeiten"]);
+```
+
+und
 
 ```ts
     await waehle("a");
@@ -1030,43 +1127,66 @@ In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` die Importe ergänzen (`GRIFF
 ersetzen durch
 
 ```ts
+    expect(queryAll('[data-griffe="a"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["unter", "links", "rechts", "einheit", "bearbeiten"]);
+```
+
+bzw.
+
+```ts
     await waehle("a");
     expect(query('[data-griff="links"]').textContent).toBe("+ links");
     expect(query('[data-griff="rechts"]').textContent).toBe("+ rechts");
     expect(query('[data-griff="links"]').getAttribute("aria-label")).toBe("Seitenstelle links von EA 1 anlegen");
-    expect(query<HTMLElement>('[data-griff="rechts"]').style.width).toBe(`${SEITENGRIFF_BREITE}px`); // berechenbarer Überstand
-    expect(GRIFF_RAND.seite).toBe(8 + SEITENGRIFF_BREITE + 8);
     expect(queryAll("[data-griff]").every((b) => b.tagName === "BUTTON" && b.getAttribute("type") === "button")).toBe(true);
 ```
 
 und anfügen (im `describe("Editor …")`):
 
 ```ts
-  it("Griffleiste hängt 6 px unter der Karte, die Seitengriffe über ihren oberen Ecken (Phase 3, Entscheidung 18)", async () => {
+  it("Griffe stehen in der Auswahlleiste oben in der Fläche, an der Karte nur der Auswahlrahmen (Phase 3, Entscheidung 18)", async () => {
     await zeige();
     await waehle("a");
-    const karte = query<HTMLElement>('[data-griffe="a"] .kp-griffe-karte');
-    const leiste = query<HTMLElement>('[data-griffe="a"] .kp-griffleiste');
-    expect(parseFloat(leiste.style.top)).toBeCloseTo(parseFloat(karte.style.top) + parseFloat(karte.style.height) + 6, 5);
-    expect(query('[data-griff="links"]').closest(".kp-griffe-karte")).toBe(karte);
+    expect(queryAll('[data-griffe="a"] .kp-griffe-karte > *').map((e) => e.className)).toEqual(["kp-auswahlrahmen"]);
+    const leiste = query('[data-griffe="a"] .kp-auswahlleiste');
+    expect(leiste.getAttribute("role")).toBe("toolbar");
+    expect(leiste.getAttribute("aria-label")).toBe("Auswahl: EA 1");
+    expect(leiste.querySelectorAll("[data-griff]")).toHaveLength(5);
+    expect(GRIFF_RAND.oben).toBe(AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8); // eingepasst liegt die Leiste über keiner Karte
   });
 ```
 
 In `src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx` anfügen:
 
 ```ts
-  it("platzOben: die eingepasste Zeichnung beginnt so weit unter der Oberkante (Platz für Griffe über der obersten Karte)", async () => {
-    await zeige({ platzOben: 48 });
-    expect(query("[data-ansicht]").getAttribute("transform")).toMatch(/^translate\([-\d.]+ 48\)/);
+  it("platzOben: die eingepasste Zeichnung beginnt so weit unter der Oberkante (Platz für die Auswahlleiste)", async () => {
+    await zeige({ platzOben: 72 });
+    expect(query("[data-ansicht]").getAttribute("transform")).toMatch(/^translate\([-\d.]+ 72\)/);
   });
 ```
 
-Prüf vorher, dass `einpassen` bei Fläche 0 × 0 (jsdom misst nichts) `y: rand` liefert (`_ui/betrachter/ansicht.ts`, erster Zweig) — dann trägt der Test auch in jsdom.
+In `Editor.test.tsx` zusätzlich anfügen — die Leiste fängt Zeiger als Ganzes (`pointer-events: auto` am Container), ihr Name und ihr Innenabstand sind aber weder Knopf noch `[data-griff]`; ohne Ausnahme in `Flaeche` wäre ein Tipp auf den Namen ein Klick ins Leere (Abwählen, Flyin zu), und am Telefon begänne ein Wischen durch die Leiste ein Verschieben der Zeichnung:
+
+```ts
+  it("ein Zeiger auf Name oder Rand der Auswahlleiste ist kein Klick ins Leere: Auswahl und Flyin bleiben (Phase 3, Entscheidung 18)", async () => {
+    await zeige();
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    expect(flyinOffen()).toBe(true);
+    uhr += 10_000;
+    const name = query(".kp-auswahl-name");
+    await act(async () => { zeiger(name, "pointerdown", uhr); zeiger(name, "pointerup", uhr + 10); });
+    expect(exists('[data-griffe="a"]')).toBe(true);
+    expect(flyinOffen()).toBe(true);
+  });
+```
+
+Prüf vorher, dass `einpassen` bei Fläche 0 × 0 (jsdom misst nichts) `y: rand` liefert (`_ui/betrachter/ansicht.ts`, erster Zweig — Stand der Planung: ja, `{ massstab: 4, x: rand, y: rand }`) — dann trägt der Test auch in jsdom.
 
 - [ ] **Step 2: Tests laufen lassen, sie schlagen fehl**
 
 Run: `pnpm vitest run src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.test.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`
-Expected: FAIL in den neuen/angepassten Fällen (Klassen fehlen, Text ist „+", `platzOben` unbekannt).
+Expected: FAIL in den neuen/angepassten Fällen (Klassen fehlen, Text ist „+", Reihenfolge alt, `platzOben` unbekannt).
 
 - [ ] **Step 3: `Flaeche` bekommt `platzOben`**
 
@@ -1084,6 +1204,8 @@ ersetzen durch
 
 (`rand: undefined` fällt in `einpassen` auf 16 zurück; `seite`/`unten` werden ausdrücklich gereicht, der Rückfall auf `rand` greift dort also nicht.)
 
+In `ausgenommen` (Kommentar „Bedienelemente IN der Fläche … fangen den Zeiger nicht") `[data-auswahlleiste]` neben `[data-meldung]` in den Selektor aufnehmen — dasselbe Muster wie der Meldungsplatz — und im Kommentar „Griffe" durch „Auswahlleiste" ersetzen, in derselben Zeile. Den Kopfkommentar der Fläche, der `platzUnten` „für die Griffleiste" nennt, in derselben Zeile auf „für Meldungsplatz und Auswahlleiste" umschreiben.
+
 - [ ] **Step 4: `Griffe.tsx` neu schreiben**
 
 Die ganze Datei ersetzen:
@@ -1091,158 +1213,145 @@ Die ganze Datei ersetzen:
 ```tsx
 "use client";
 
-import { Tooltip } from "antd";
+import { Button, Tooltip } from "antd";
 import type { KarteL } from "../../_lib/layout/typen";
 import type { Ansicht } from "../betrachter/ansicht";
 
-/** Abstand zwischen Karte und Griff: 4 px Auswahlrahmen außen plus 2 px Luft. */
-export const GRIFF_LUFT = 6;
 /**
- * Feste Breite der Seitengriffe: an einer schmalen Karte rücken sie nach außen, höchstens um ihre ganze
- * Breite — der Editor hält dafür seitlich `GRIFF_RAND.seite` frei (Phase 3, Entscheidung 18).
+ * Lage der Auswahlleiste: `abstand` px vom oberen und linken Rand der Fläche, `hoehe` = 44 px Knopf
+ * (FullShell, Falle 4) + 2 × 6 px Innenabstand. Die Leiste bricht nie um — nur so ist ihre Höhe fest,
+ * und der Editor kann sie beim Einpassen freihalten (`GRIFF_RAND.oben`, Phase 3, Entscheidung 18).
  */
-export const SEITENGRIFF_BREITE = 80;
+export const AUSWAHLLEISTE = { abstand: 8, hoehe: 56 } as const;
 
 /**
- * GRIFFE DER AUSWAHL (Spec §6.3; Phase 2, Entscheidung 5; Phase 3, Entscheidung 18): eine
- * HTML-Überlagerung in Pixeln über dem SVG — die Knöpfe behalten bei jedem Zoom ihre Größe.
+ * GRIFFE DER AUSWAHL (Spec §6.3; Phase 2, Entscheidung 5; Phase 3, Entscheidung 18). An der Karte steht
+ * nur der Auswahlrahmen — er liegt im Abstand zwischen den Karten. Alle Griffe stehen in der
+ * AUSWAHLLEISTE oben links in der Fläche: an der Karte gibt es geometrisch keinen Platz für 44-px-Ziele,
+ * ohne Nachbarkarten, Einheiten oder Kanalsechsecke zu verdecken (am Tablet sind zwei Karten ≈ 15 px
+ * auseinander). Eingepasst hält die Fläche den Streifen der Leiste frei (`platzOben`); gezoomt holt
+ * `zeige()` die gewählte Karte unter die Leiste.
  *
- * KOMPAKT: eigene Knöpfe (`.kp-griff`), 32 px sichtbar, die Trefferfläche 44 px über ein unsichtbares
- * `::before` (Falle 4 und WCAG 2.5.5 ohne eine Größenregel gegen antd, Falle 5/20). Die Leiste hängt
- * `GRIFF_LUFT` unter der Karte; die Seitengriffe tragen „+ links"/„+ rechts" und sitzen über den oberen
- * Ecken — dort liegen Bus- und Abzweiglinien der EIGENEN Gruppe, keine Nachbarkarte. Ist die Karte
- * schmaler als beide Griffe, rücken sie nach außen (`translateX` mit `min`/`max` über die feste Breite
- * `SEITENGRIFF_BREITE` — gemessen wird nichts).
- *
- * DIE GRIFFLEISTE steht in Koordinaten der Überlagerung und wird per `clamp()` im Bild gehalten (Phase 2,
- * Kritik 26); ist sie breiter als die Fläche, bricht sie um (`flex-wrap`, Zeilenabstand 12 px, damit sich
- * die Trefferflächen nicht überlappen). Eine Seitenstelle trägt nichts (§4.2): dort nur „+ Einheit" und
- * „Bearbeiten".
+ * Die Seitengriffe heißen „+ links"/„+ rechts" (vorher ein unbeschriftetes „+" mit Symbol, Sichtprüfung
+ * des Hauptlaufs); Tooltip bei Zeigen und Fokus. Eine Seitenstelle trägt nichts (§4.2): dort nur
+ * „+ Einheit" und „Bearbeiten". antd-`Button` ohne `size` — keine eigene Größenregel (Falle 4, 5, 20).
  */
 export function Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, onSeitenstelle, onEinheit, onBearbeiten }: {
   karte: KarteL; ansicht: Ansicht; flaeche: { breite: number; hoehe: number }; seitenstelle: boolean;
   onUnterstelle: () => void; onSeitenstelle: (seite: "links" | "rechts") => void; onEinheit: () => void; onBearbeiten: () => void;
 }) {
   const m = ansicht.massstab;
-  const links = ansicht.x + karte.x * m, oben = ansicht.y + karte.y * m, breite = karte.breite * m, hoehe = karte.hoehe * m;
-  const mitte = links + breite / 2;
-  const halb = breite / 2 - 2;
   const titel = karte.titelVoll === "" ? "(ohne Titel)" : karte.titelVoll;
   const seitlich = (seite: "links" | "rechts") => (
     <Tooltip title={`Seitenstelle ${seite} anlegen — waagerecht, ohne Bus`} trigger={["hover", "focus"]}>
-      <button type="button" data-griff={seite} className={`kp-griff kp-griff-seite kp-griff-${seite}`}
-        aria-label={`Seitenstelle ${seite} von ${titel} anlegen`} onClick={() => onSeitenstelle(seite)}
-        style={{ width: SEITENGRIFF_BREITE, transform: seite === "links" ? `translateX(min(0px, ${halb - SEITENGRIFF_BREITE}px))` : `translateX(max(0px, ${SEITENGRIFF_BREITE - halb}px))` }}>
-        {`+ ${seite}`}
-      </button>
+      <Button data-griff={seite} aria-label={`Seitenstelle ${seite} von ${titel} anlegen`} onClick={() => onSeitenstelle(seite)}>{`+ ${seite}`}</Button>
     </Tooltip>
   );
   return (
     <div className="kp-griffe" data-griffe={karte.id}>
-      <div className="kp-griffe-karte" style={{ left: links, top: oben, width: breite, height: hoehe }}>
+      <div className="kp-griffe-karte" style={{ left: ansicht.x + karte.x * m, top: ansicht.y + karte.y * m, width: karte.breite * m, height: karte.hoehe * m }}>
         <div className="kp-auswahlrahmen" aria-hidden="true" />
-        {seitenstelle ? null : <>{seitlich("links")}{seitlich("rechts")}</>}
       </div>
-      <div className="kp-griffleiste" role="toolbar" aria-label={`Auswahl: ${titel}`}
-        style={{
-          left: mitte, top: oben + hoehe + GRIFF_LUFT, maxWidth: Math.max(0, flaeche.breite - 16),
-          transform: `translateX(clamp(${8 - mitte}px, -50%, calc(${flaeche.breite - mitte - 8}px - 100%)))`,
-        }}>
-        {seitenstelle ? null : <button type="button" className="kp-griff" data-griff="unter" onClick={onUnterstelle}>+ Unterstelle</button>}
-        <button type="button" className="kp-griff" data-griff="einheit" onClick={onEinheit}>+ Einheit</button>
-        <button type="button" className="kp-griff" data-griff="bearbeiten" onClick={onBearbeiten}>Bearbeiten</button>
+      <div className="kp-auswahlleiste" data-auswahlleiste="" role="toolbar" aria-label={`Auswahl: ${titel}`} style={{ maxWidth: Math.max(0, flaeche.breite - 2 * AUSWAHLLEISTE.abstand) }}>
+        <span className="kp-auswahl-name" title={titel}>{titel}</span>
+        {seitenstelle ? null : <Button data-griff="unter" onClick={onUnterstelle}>+ Unterstelle</Button>}
+        {seitenstelle ? null : <>{seitlich("links")}{seitlich("rechts")}</>}
+        <Button data-griff="einheit" onClick={onEinheit}>+ Einheit</Button>
+        <Button data-griff="bearbeiten" onClick={onBearbeiten}>Bearbeiten</Button>
       </div>
     </div>
   );
 }
 ```
 
+`flaeche.breite` ist die Breite der Überlagerung — schon ohne den vom Flyin verdeckten Teil (`Flaeche`, `ueberlagerung`); die Leiste bleibt also links vom Flyin.
+
 - [ ] **Step 5: `GRIFF_RAND` und `platzOben` im Editor**
 
-In `Editor.tsx` den Kommentar über `GRIFF_RAND` und die Konstante ersetzen (gleiche Zeilenzahl anstreben ist nicht nötig — es ist Code, kein Aufräumen):
+In `Editor.tsx` den Kommentar über `GRIFF_RAND` und die Konstante ersetzen (es ist Code, kein Aufräumen — die Zeilenzahl darf sich ändern; Ankerschritt unten):
 
 ```ts
 /**
- * Luft um eine gezeigte Karte (Phase 3, Entscheidung 18): oben `GRIFF_LUFT` + 32 px Seitengriff + 10;
- * seitlich 8 px + höchstens `SEITENGRIFF_BREITE`, um die ein Seitengriff an einer schmalen Karte nach außen rückt, + 8;
- * unten `GRIFF_LUFT` + zwei Leistenzeilen am Telefon (32 + 12 + 32) + 14. Dieselben Zahlen gibt der
- * Editor der Fläche fürs Einpassen (`platzOben`, `platzSeite`, `platzUnten`): eingepasst liegen die
- * Griffe jeder Karte schon im Bild, `zeige()` verschiebt nichts, die Ansicht bleibt eingepasst
- * (Phase 2, Entscheidung 18).
+ * Luft um eine gezeigte Karte (Phase 3, Entscheidung 18): oben die Auswahlleiste (`AUSWAHLLEISTE`) plus
+ * 8 px, seitlich nur der Auswahlrahmen (4 px außen) plus Luft, unten der Meldungsplatz (12 px + eine
+ * Alert-Zeile + Luft). Dieselben Zahlen gibt der Editor der Fläche fürs Einpassen (`platzOben`,
+ * `platzSeite`, `platzUnten`): eingepasst liegt die Leiste über keiner Karte, `zeige()` verschiebt
+ * nichts, die Ansicht bleibt eingepasst (Phase 2, Entscheidung 18); gezoomt hält `zeige()` die gewählte
+ * Karte unter der Leiste.
  */
-export const GRIFF_RAND = { oben: 48, seite: 8 + SEITENGRIFF_BREITE + 8, unten: 96 };
+export const GRIFF_RAND = { oben: AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8, seite: 16, unten: 72 };
 ```
 
-Import `SEITENGRIFF_BREITE` in die vorhandene Importzeile aus `./Griffe` aufnehmen, und an der `<Flaeche …>` ergänzen: `platzOben={GRIFF_RAND.oben}` (neben `platzSeite`/`platzUnten`).
+Import `AUSWAHLLEISTE` in die vorhandene Importzeile aus `./Griffe` aufnehmen, und an der `<Flaeche …>` ergänzen: `platzOben={GRIFF_RAND.oben}` (neben `platzSeite`/`platzUnten`).
 
 - [ ] **Step 6: CSS**
 
 In `src/app/m/kommplan/_ui/kommplan.css`:
 
-1. In `:root` ergänzen: `--kp-griff-flaeche: #ffffff; --kp-griff-text: #1f2937; --kp-griff-rand: #6b7280;`
-2. In `:root[data-theme="dark"]` ergänzen: `--kp-griff-flaeche: #2a303a; --kp-griff-text: #eef1f5; --kp-griff-rand: #8a94a3;`
-3. Die Regeln `.kp-griffe .kp-griff-seite { … }`, `.kp-griffe .kp-griff-links { … }`, `.kp-griffe .kp-griff-rechts { … }`, `.kp-griff-inhalt { … }`, `.kp-griff-inhalt svg { … }` und `.kp-griffleiste { … }` samt dem Kommentar „„+“ und Symbol in einer Zeile …" ersetzen durch:
+1. In `:root` ergänzen (nebeneinander, in dieser Reihenfolge): `--kp-leiste-flaeche: #ffffff; --kp-leiste-rand: #6b7280;`
+2. In `:root[data-theme="dark"]` ergänzen: `--kp-leiste-flaeche: #1f242c; --kp-leiste-rand: #8a94a3;` (Kontrast gegen die Leistenfläche ≥ 3:1 — der CSS-Test rechnet nach; reicht es nicht, den Rand heller wählen, nicht den Test lockern.)
+3. Den Kommentar „Editor: Griffe über der Fläche …" und die Regeln `.kp-griffe .kp-griff-seite { … }`, `.kp-griffe .kp-griff-links { … }`, `.kp-griffe .kp-griff-rechts { … }`, den Kommentar „„+“ und Symbol in einer Zeile …", `.kp-griff-inhalt { … }`, `.kp-griff-inhalt svg { … }` und `.kp-griffleiste { … }` ersetzen durch (`.kp-griffe`, `.kp-griffe-karte`, `.kp-griffe button` und `.kp-auswahlrahmen` bleiben stehen):
 
 ```css
 /*
- * Griffe (Umsetzungsplan Phase 3, Entscheidung 18): eigene Knöpfe statt antd-Button — 32 px sichtbar,
- * damit sie Nachbarkarten nicht verdecken, die Trefferfläche bleibt 44 px (unsichtbares ::before,
- * WCAG 2.5.5, Falle 4). Keine Regel gegen einen .ant-*-Namen (Falle 20). Die Seitengriffe stehen über
- * den oberen Ecken, die Leiste 6 px unter der Karte (Griffe.tsx, GRIFF_LUFT).
+ * Auswahlleiste (Umsetzungsplan Phase 3, Entscheidung 18): alle Griffe oben links in der Fläche, nie an
+ * der Karte — dort verdeckten sie Nachbarkarten, Einheiten und Kanalsechsecke. Feste Höhe (bricht nie
+ * um, am Telefon waagerecht scrollbar), damit die Fläche sie beim Einpassen freihalten kann
+ * (Griffe.tsx, AUSWAHLLEISTE; Editor.tsx, GRIFF_RAND). Knöpfe sind antd-Buttons ohne size (Falle 4).
  */
-.kp-griff {
-  position: relative; display: inline-flex; align-items: center; height: 32px; padding: 0 12px;
-  font: inherit; font-size: 13px; line-height: 1; white-space: nowrap; cursor: pointer; pointer-events: auto;
-  color: var(--kp-griff-text); background: var(--kp-griff-flaeche); border: 1px solid var(--kp-griff-rand);
-  border-radius: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+.kp-auswahlleiste {
+  position: absolute; top: 8px; left: 8px; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px;
+  padding: 5px 6px; overflow-x: auto; overscroll-behavior-x: contain; pointer-events: auto;
+  background: var(--kp-leiste-flaeche); border: 1px solid var(--kp-leiste-rand); border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
 }
-.kp-griff::before { content: ""; position: absolute; inset: -6px 0; }
-.kp-griff:hover { border-color: var(--kp-auswahl); }
-.kp-griff:focus-visible { outline: 2px solid var(--kp-auswahl); outline-offset: 2px; }
-.kp-griffe .kp-griff-seite { position: absolute; bottom: calc(100% + 6px); justify-content: center; padding: 0; }
-.kp-griffe .kp-griff-links { left: 0; }
-.kp-griffe .kp-griff-rechts { right: 0; }
-.kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 6px; width: max-content; }
+.kp-auswahl-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; padding-inline: 4px; }
 ```
 
-(`.kp-griffe button { pointer-events: auto; }` bleibt stehen.)
+(5 px + 1 px Rand oben und unten + 44 px Knopf = 56 px = `AUSWAHLLEISTE.hoehe`. Falls antd der `Button` in der Leiste schrumpfen lässt, bekommt die Leiste `& > * { flex: none; }` — als eigene Regel `.kp-auswahlleiste > * { flex: none; }`, keine Regel gegen `.ant-btn`.)
 
 - [ ] **Step 7: Tests laufen lassen**
 
 Run: `pnpm vitest run src/app/m/kommplan/_ui/`
 Expected: PASS. Schlägt ein Phase-2-Editor-Test an `GRIFF_RAND` fehl (z. B. eine Erwartung an die eingepasste Lage), die Zahl im Test an die neue Konstante binden, nicht die Konstante an den Test.
 
-- [ ] **Step 7a: Im Browser prüfen, dass die Griffe an den äußersten Karten im Bild bleiben — JETZT, nicht erst in Task 10**
+- [ ] **Step 7a: Die ganze Editor-e2e fahren — JETZT, nicht erst in Task 9/10**
 
-In `e2e/kommplan-editor.spec.ts` in `ganzInDerFlaeche` die Oberkante ergänzen (die Seitengriffe stehen jetzt ÜBER der Karte):
+In `e2e/kommplan-editor.spec.ts`:
 
-```ts
-  expect(b.y, `${was}: oben`).toBeGreaterThanOrEqual(rahmen.y);
-```
+1. `ganzInDerFlaeche`: vor den Messungen `await el.scrollIntoViewIfNeeded();` (die Leiste scrollt am Telefon waagerecht; ein Knopf darin ist erreichbar, sobald er hineingescrollt ist) und die Oberkante ergänzen:
+   ```ts
+   expect(b.y, `${was}: oben`).toBeGreaterThanOrEqual(rahmen.y);
+   ```
+2. Fototest: der Kommentar „Die Griffe der gewählten Karte decken am Telefon Nachbarkarten ab: erst abwählen (Esc), dann" ist veraltet — **in derselben Zeile** kürzen zu „Erst abwählen (Esc), dann" — die Folgezeile („eingepasst (0) — so sind auch die äußeren Karten im Bild und klickbar.") bleibt und schließt den Satz. Die Prüfschleife über `[data-griffe="${id}"] [data-griff]` bleibt: jeder Knopf der Leiste muss ganz in der Fläche liegen.
+3. Test „gezoomt: Enter holt die Karte an den freien Rand neben dem Flyin …": `GRIFF_RAND.seite` ist jetzt 16 statt 84. Im Kommentar „rechte Kante der Karte genau GRIFF_RAND.seite (84 px) …" die Zahl auf 16 ändern und **beide** Literale `84` (im `expect.poll` und in „nicht weiter nach links als nötig") auf `16` — sonst steht die Karte 68 px weiter rechts als erwartet, und der Test wird rot, obwohl alles richtig ist. Die Zusicherung „neben dem Flyin" bleibt.
 
-Dann den CI-Zweig des Fototests fahren — er läuft bei 390 × 844, drückt Esc und 0 (eingepasst), klickt die äußerste linke und rechte Karte von OpenR und prüft JEDEN Griff mit `ganzInDerFlaeche`:
+Dann die ganze Spec fahren (nicht nur den Fototest — der „gezoomt"-Test hängt an `GRIFF_RAND`):
 
 ```bash
 uptime
-pnpm exec playwright test e2e/kommplan-editor.spec.ts -g "Bildschirmfotos"; echo "e2e exit $?"
+pnpm exec playwright test e2e/kommplan-editor.spec.ts; echo "e2e exit $?"
 git checkout -- next-env.d.ts 2>/dev/null || true
 ```
 
-Expected: Exit 0. Rot an „Griff links an <id>: links" bzw. „… rechts: rechts" heißt: `GRIFF_RAND.seite` deckt den Überstand nicht — die Rechnung (`8 + SEITENGRIFF_BREITE + 8`) prüfen, nicht die Zusicherung lockern. (Diese Phase stellt das Telefon erst in Task 9 auf die Gliederung um; bis dahin zeigt 390 px noch das Diagramm, der Test läuft also unverändert.)
+Expected: Exit 0. Rot an „Griff … an <id>: oben/links/rechts" heißt: die Leiste liegt nicht in der Fläche — `maxWidth` und `left` prüfen, nicht die Zusicherung lockern. (Diese Phase stellt das Telefon erst in Task 9 auf die Gliederung um; bis dahin zeigt 390 px noch das Diagramm, der Fototest läuft also unverändert.)
 
 - [ ] **Step 8: Typecheck, Lint, Ankerschritt, Commit**
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
-pnpm exec eslint src/app/m/kommplan/_ui/
+pnpm exec eslint src/app/m/kommplan/_ui/ e2e/kommplan-editor.spec.ts
 for f in Griffe.tsx Editor.tsx Flaeche.tsx kommplan.css kommplan-css.test.ts Editor.test.tsx Flaeche.test.tsx kommplan-editor.spec.ts; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
 pnpm anker:drift src/app/m/kommplan/_ui/kommplan.css
+pnpm anker:drift src/app/m/kommplan/_ui/editor/Editor.tsx
 git add src/app/m/kommplan/_ui/editor/Griffe.tsx src/app/m/kommplan/_ui/editor/Editor.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.tsx src/app/m/kommplan/_ui/kommplan.css src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.test.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx e2e/kommplan-editor.spec.ts
-git commit -S -m "fix(kommplan): Griffe kompakt und nah an der Karte, Seitengriffe beschriftet
+git commit -S -m "fix(kommplan): Griffe in einer Auswahlleiste statt über Nachbarkarten
 
-Die Griffe deckten Nachbarkarten ab, die seitlichen „+“ waren ohne
-Beschriftung unverständlich. Jetzt 32 px sichtbar bei 44 px Trefferfläche,
-die Leiste direkt unter der Karte, „+ links“ und „+ rechts“ über den Ecken.
+Die Griffe an der gewählten Karte deckten Nachbarkarten, Einheiten und
+Kanalsechsecke ab, die seitlichen „+“ waren ohne Beschriftung
+unverständlich. Jetzt stehen alle Griffe in einer Leiste oben in der
+Fläche, die über keinem Planelement liegt; „+ links“ und „+ rechts“ sagen,
+was sie tun. An der Karte bleibt der Auswahlrahmen.
 
 DRK-500
 
@@ -1350,14 +1459,14 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 2 (`gliederungsZeilen`, `nachbarZeile`, `zeilenAktionen`, `fuegeGeschwisterEin`, `rueckeEin`, `rueckeAus`, `verschiebeInReihe`, `loescheLeereZeile`, `GliederungsZeile`), Task 4 (`gliederungsBefehl`), `aendereStelle`, `fuegeWurzelEin` (`_lib/plan/operationen`), `Aendere` (`_ui/editor/aendere`), `neueId` (`_ui/editor/ids`), `globalerBefehl` (`_ui/editor/tasten`).
+- Consumes: Task 2 (`gliederungsZeilen`, `nachbarZeile`, `zeilenAktionen`, `fuegeGeschwisterEin`, `rueckeEin`, `rueckeAus`, `verschiebeInReihe`, `loescheLeereZeile`, `setzeVerbindungFuerGeschwister`, `MELDUNG`, `GliederungsZeile`, `ZeilenAktionen`), Task 4 (`gliederungsBefehl`), `aendereStelle`, `fuegeWurzelEin`, `fuegeUnterstelleEin`, `fuegeSeitenstelleEin` (`_lib/plan/operationen`), `Aendere` (`_ui/editor/aendere`), `neueId` (`_ui/editor/ids`), `globalerBefehl` (`_ui/editor/tasten`).
 - Produces:
-  - `export interface GliederungGriff { fokus(id: string | null): void; zeige(id: string): void }`
-  - `export const GLIEDERUNG_BEDIENZEILE: string`
-  - `export interface GliederungProps { inhalt: PlanInhalt; auswahl: string | null; aendere: Aendere; meldung: ReactNode; griff?: Ref<GliederungGriff>; onAuswahl(id: string): void; onDetails(id: string): void; onLoeschen(id: string): void; onRueck(): void; onWieder(): void; onHinweis(text: string): void; verwirfUnberuehrt(nach: PlanInhalt): boolean; symbole: Symbolsatz; zeichenIndex: readonly ZeichenIndexEintrag[]; ladeSymbole(schluessel: string[]): void }` — die drei letzten nutzt erst Task 8, sie sind aber schon Teil des Vertrags.
+  - `export type FokusZiel = "titel" | "aktionen" | "zeichen" | "verbindung"`; `export interface GliederungGriff { fokus(id: string | null, ziel?: FokusZiel): void; zeige(id: string): void; raeumeAuf(): void }`
+  - `export const GLIEDERUNG_BEDIENZEILE: string`, `export const GLIEDERUNG_BEDIENZEILE_SCHMAL: string`
+  - `export interface GliederungProps { inhalt: PlanInhalt; auswahl: string | null; aendere: Aendere; meldung: ReactNode; griff?: Ref<GliederungGriff>; onAuswahl(id: string): void; onDetails(id: string): void; onLoeschen(id: string): void; onRueck(): void; onWieder(): void; onHinweis(text: string): void; verwirfUnberuehrt(nach: PlanInhalt, dann?: (q: PlanInhalt) => PlanInhalt): PlanInhalt | null; symbole: Symbolsatz; zeichenIndex: readonly ZeichenIndexEintrag[]; ladeSymbole(schluessel: string[]): void }` — die drei letzten nutzt erst Task 8, sie sind aber schon Teil des Vertrags.
   - `export function Gliederung(p: GliederungProps)`
-  - `export type ZeilenAktion = "details" | "einruecken" | "ausruecken" | "hoch" | "runter" | "loeschen"`; `export function GliederungZeile(…)` (siehe Code).
-  - DOM-Vertrag für Tests und e2e: `.kp-gliederung[data-gliederung]`, `ul[aria-label="Gliederung"]`, `li[data-zeile=<id>]` mit `style="--ebene: n"` und `aria-current="true"` an der gewählten Zeile, `input[name="titel"]`, Knopf `Aktionen für <Titel>`, `[data-seite="links|rechts"]`, `[data-meldung]` im Meldungsplatz.
+  - `export type ZeilenAktion = "neu" | "unterstelle" | "links" | "rechts" | "einruecken" | "ausruecken" | "hoch" | "runter" | "uebernehmen" | "details" | "loeschen"`; `export function GliederungZeile(…)` (siehe Code).
+  - DOM-Vertrag für Tests und e2e: `.kp-gliederung[data-gliederung]`, `ul[aria-label="Gliederung"]`, `li[data-zeile=<id>]` mit `style="--ebene: n"` und `aria-current="true"` an der gewählten Zeile, `input[name="titel"]` (**derselbe Name wie im Flyin** — Greifer daher immer über `[data-zeile…]` bzw. `.kp-gliederung` einschränken, Global Constraints), Knopf `Aktionen für <Titel>`, `[data-seite="links|rechts"]`, `[data-meldung]` im Meldungsplatz, `[data-zeile-portal=<id>]` um jeden Portal-Inhalt einer Zeile (Menü, Select-Liste, Popover; Entscheidung 8).
 
 - [ ] **Step 1: Die fehlenden Tests schreiben**
 
@@ -1367,7 +1476,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, useEffect, useState } from "react";
-import { clickElement, clickPortal, existsPortal, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, existsPortal, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 import { baue } from "../../_lib/beispiele/bau";
 import { MELDUNG } from "../../_lib/plan/gliederung";
 import { leererPlan, PlanFehler } from "../../_lib/plan/operationen";
@@ -1404,7 +1513,13 @@ function Pruefstand({ start, index = [] }: { start: PlanInhalt; index?: readonly
     <Gliederung inhalt={v.jetzt} auswahl={auswahl} aendere={aendere} meldung={hinweis ? <p>{hinweis}</p> : null}
       onAuswahl={setAuswahl} onDetails={details} onLoeschen={loeschen} onHinweis={setHinweis}
       onRueck={() => setV(rueckgaengig(v))} onWieder={() => setV(wiederholen(v))}
-      verwirfUnberuehrt={(nach) => { if (v.jetzt !== nach) return false; setV(verwirf(v)); return true; }}
+      verwirfUnberuehrt={(nach, dann) => {
+        if (v.jetzt !== nach) return null;
+        const w = verwirf(v);
+        const x = dann ? tue(w, dann(w.jetzt), new Date().getTime()) : w;
+        setV(x);
+        return x.jetzt;
+      }}
       symbole={{}} zeichenIndex={index} ladeSymbole={() => {}} />
   );
 }
@@ -1422,6 +1537,11 @@ async function schreibe(el: HTMLInputElement, wert: string) {
   await act(async () => { setter.call(el, wert); el.dispatchEvent(new Event("input", { bubbles: true })); });
 }
 const meldung = () => query("[data-meldung]").textContent;
+/** Klick mit Zeiger: erst `pointerdown` (daran erkennt die Gliederung die Herkunft, Entscheidung 16), dann `click`. */
+async function zeigerKlick(el: HTMLElement) {
+  await act(async () => { el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); });
+  await clickElement(el);
+}
 
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
 
@@ -1443,15 +1563,39 @@ describe("Gliederung (Spec §6.5)", () => {
     expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.titel).toBe("EA 1 Nordost");
     expect(stand.vergangen).toHaveLength(1);
   });
-  it("Enter: neue Stelle direkt darunter, gleiche Verbindung, Fokus im neuen Titel; Enter auf leerem Titel tut nichts", async () => {
+  it("Enter: neue Stelle direkt darunter, gleiche Verbindung, Fokus im neuen Titel", async () => {
     await zeige();
     await fokus("ea1");
     await taste(feld("ea1"), "Enter");
     expect(titel()).toEqual(["EL", "KatSL", "EA 1", "", "EA 2"]);
     const neu = aktiv()!.closest("[data-zeile]")!.getAttribute("data-zeile")!;
     expect(stand.jetzt.stellen.find((s) => s.id === neu)).toMatchObject({ eltern: "el", verbindungId: "a" });
+  });
+  it("Enter auf der eben angelegten, leeren Zeile rückt aus — EIN Schritt, keine leere Karte bleibt zurück (Entscheidung 5)", async () => {
+    await zeige();
+    await fokus("ea2");
+    const schritte = stand.vergangen.length;
+    await taste(feld("ea2"), "Enter");
     await taste(aktiv()!, "Enter");
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2", ""]);
+    expect(ebenen()).toEqual(["0", "1", "1", "1", "0"]); // hinter EL, oberste Ebene
+    expect(stand.vergangen.length).toBe(schritte + 1);
+    expect(kannWiederholen(stand)).toBe(false);
+    await taste(aktiv()!, "Enter"); // leere Wurzel: Hinweis, nichts geschieht
+    expect(meldung()).toBe(MELDUNG.erstTitel);
     expect(titel()).toHaveLength(5);
+  });
+  it("gehaltene Enter- und Rücktaste (repeat) legen nichts an und löschen nichts (Entscheidung 8)", async () => {
+    await zeige();
+    await fokus("ea2");
+    await taste(feld("ea2"), "Enter", { repeat: true });
+    expect(titel()).toHaveLength(4);
+    await schreibe(feld("ea2"), "");
+    await taste(feld("ea2"), "Backspace"); // der erste Druck löscht die leere Zeile …
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1"]);
+    await schreibe(feld("ea1"), "");
+    await taste(feld("ea1"), "Backspace", { repeat: true }); // … der gehaltene Rest frisst die Zeile darüber nicht
+    expect(titel()).toEqual(["EL", "KatSL", ""]);
   });
   it("Tab rückt ein, Umschalt+Tab aus; der Fokus bleibt im selben Titel", async () => {
     await zeige();
@@ -1516,7 +1660,26 @@ describe("Gliederung (Spec §6.5)", () => {
     await taste(feld("ea2"), "z", { ctrlKey: true, shiftKey: true });
     expect(ebenen()).toEqual(["0", "1", "1", "2"]);
   });
-  it("Enter während einer IME-Komposition legt nichts an", async () => {
+  it("die unberührte neue Zeile verschwindet auch, wenn der Fokus sie per Klick verlässt — ohne Wiederholen-Schritt", async () => {
+    await zeige();
+    await fokus("ea2");
+    await taste(feld("ea2"), "Enter");
+    expect(titel()).toHaveLength(5);
+    await fokus("ea1"); // blur mit relatedTarget = anderes Titelfeld
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
+    expect(kannWiederholen(stand)).toBe(false);
+    expect(aktiv()).toBe(feld("ea1"));
+  });
+  it("Strg+Z, das die Zeile mit dem Fokus entfernt: der Fokus geht auf den Nachbarn, nie auf body (Entscheidung 10)", async () => {
+    await zeige();
+    await fokus("ea1");
+    await taste(feld("ea1"), "Enter");
+    await schreibe(aktiv()!, "Neu"); // berührt
+    await taste(aktiv()!, "z", { ctrlKey: true }); // Titel zurück
+    await taste(aktiv()!, "z", { ctrlKey: true }); // Zeile zurück
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
+    expect(aktiv()).toBe(feld("ea1"));
+  });
     await zeige();
     await fokus("ea1");
     await taste(feld("ea1"), "Enter", { isComposing: true } as KeyboardEventInit);
@@ -1530,17 +1693,33 @@ describe("Gliederung (Spec §6.5)", () => {
     await taste(feld("ea1"), "Escape");
     expect(aktiv()!.getAttribute("aria-label")).toBe("Aktionen für EA 1");
   });
-  it("Aktionen-Menü: Einrücken per Tipp (Touch-Weg), unerreichbare Einträge deaktiviert, F2 öffnet Details", async () => {
+  it("Aktionen-Menü: Einrücken per Tipp (Touch-Weg), Fokus zurück auf „⋯“ statt in den Titel; unerreichbare Einträge deaktiviert; F2 und Strg+Enter öffnen Details", async () => {
     await zeige();
     await fokus("ea2");
-    await clickElement(query<HTMLElement>('[data-zeile="ea2"] [aria-label="Aktionen für EA 2"]'));
-    await clickPortal('[data-menu-id$="einruecken"]');
+    await zeigerKlick(query<HTMLElement>('[data-zeile="ea2"] [aria-label="Aktionen für EA 2"]'));
+    await zeigerKlick(queryPortal('[data-zeile-portal="ea2"] [data-menu-id$="einruecken"]'));
     expect(ebenen()).toEqual(["0", "1", "1", "2"]);
+    expect(aktiv()!.getAttribute("aria-label")).toBe("Aktionen für EA 2"); // Zeiger: keine Bildschirmtastatur (Entscheidung 16)
     await clickElement(query<HTMLElement>('[data-zeile="ea1"] [aria-label="Aktionen für EA 1"]'));
-    expect(existsPortal('[data-menu-id$="einruecken"][aria-disabled="true"]')).toBe(true);
+    expect(existsPortal('[data-zeile-portal="ea1"] [data-menu-id$="einruecken"][aria-disabled="true"]')).toBe(true);
     await taste(feld("ea1"), "F2");
     expect(details).toHaveBeenCalledWith("ea1");
+    await taste(feld("ea2"), "Enter", { ctrlKey: true });
+    expect(details).toHaveBeenCalledWith("ea2");
   });
+  it("Aktionen-Menü legt an — ohne Tastatur: neue Stelle darunter und Seitenstelle, Fokus im neuen Titel (Entscheidung 11)", async () => {
+    await zeige();
+    await zeigerKlick(query<HTMLElement>('[data-zeile="ea1"] [aria-label="Aktionen für EA 1"]'));
+    await zeigerKlick(queryPortal('[data-zeile-portal="ea1"] [data-menu-id$="rechts"]'));
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "", "EA 2"]);
+    expect(queryAll("[data-zeile] [data-seite]").map((c) => c.textContent)).toEqual(["Seitenstelle links", "Seitenstelle rechts"]);
+    expect(aktiv()!.getAttribute("name")).toBe("titel"); // anlegen: hier wird als Nächstes getippt
+    await zeigerKlick(query<HTMLElement>('[data-zeile="el"] [aria-label="Aktionen für EL"]'));
+    expect(existsPortal('[data-zeile-portal="el"] [data-menu-id$="unterstelle"]:not([aria-disabled="true"])')).toBe(true);
+    await zeigerKlick(query<HTMLElement>('[data-zeile="kat"] [aria-label="Aktionen für KatSL"]'));
+    expect(existsPortal('[data-zeile-portal="kat"] [data-menu-id$="links"][aria-disabled="true"]')).toBe(true);
+  });
+  it("Enter während einer IME-Komposition legt nichts an", async () => {
   it("leerer Plan: „Erste Stelle anlegen“ legt eine Zeile an und setzt den Fokus hinein", async () => {
     await zeige(leererPlan());
     await clickElement([...document.querySelectorAll<HTMLButtonElement>(".kp-gliederung button")].find((b) => b.textContent === "Erste Stelle anlegen")!);
@@ -1550,7 +1729,7 @@ describe("Gliederung (Spec §6.5)", () => {
 });
 ```
 
-Hinweis zur Menü-Greifung: antd rendert Einträge mit `data-menu-id="…-<key>"`; ist das in 6.6.4 anders, auf `li[role="menuitem"]` mit dem Menütext greifen (`[...document.querySelectorAll('li[role="menuitem"]')].find((l) => l.textContent?.startsWith("Einrücken"))`) — nicht den Vertrag ändern.
+Hinweis zur Menü-Greifung: antd rendert Einträge mit `data-menu-id="…-<key>"`; ist das in 6.6.4 anders, auf `li[role="menuitem"]` mit dem Menütext greifen (`[...document.querySelectorAll('[data-zeile-portal="ea2"] li[role="menuitem"]')].find((l) => l.textContent?.startsWith("Einrücken"))`) — nicht den Vertrag ändern. `$="rechts"` trifft nur „Seitenstelle rechts" (Schlüssel `rechts`), nicht „runter". jsdom kennt `PointerEvent` ab Version 22; fehlt es, `new MouseEvent("pointerdown", …)` — React hört auf den Typnamen. `existsPortal` ist nach dem Umbau weiter im Import, `clickPortal` nicht mehr.
 
 - [ ] **Step 2: Tests laufen lassen, sie schlagen fehl**
 
@@ -1562,12 +1741,12 @@ Expected: FAIL — `./Gliederung` fehlt.
 ```tsx
 "use client";
 
-import type { ClipboardEvent, CSSProperties, KeyboardEvent, ReactNode, Ref } from "react";
+import type { ClipboardEvent, CSSProperties, FocusEvent, KeyboardEvent, ReactNode, Ref } from "react";
 import { Button, Dropdown, Input, type InputRef, type MenuProps } from "antd";
 import type { GliederungsZeile } from "../../_lib/plan/gliederung";
 import { LAENGE } from "../../_lib/plan/schema";
 
-export type ZeilenAktion = "details" | "einruecken" | "ausruecken" | "hoch" | "runter" | "loeschen";
+export type ZeilenAktion = "neu" | "unterstelle" | "links" | "rechts" | "einruecken" | "ausruecken" | "hoch" | "runter" | "uebernehmen" | "details" | "loeschen";
 const titelVon = (s: { titel: string } | null) => (s === null ? "" : s.titel.trim() || "(ohne Titel)");
 
 /**
@@ -1576,11 +1755,11 @@ const titelVon = (s: { titel: string } | null) => (s === null ? "" : s.titel.tri
  * Einheiten) blendet CSS am Telefon außer an der gewählten Zeile aus; `vorne` ist der Zeichenknopf,
  * `unten` die aufgeklappten Einheiten (Task 8).
  */
-export function GliederungZeile({ zeile, gewaehlt, aktiv, menue, titelRef, aktionenRef, onTitel, onTaste, onEinfuegen, onFokus, onMenue, onAktion, vorne, neben, unten }: {
+export function GliederungZeile({ zeile, gewaehlt, aktiv, menue, titelRef, aktionenRef, onTitel, onTaste, onEinfuegen, onFokus, onVerlassen, onMenue, onAktion, vorne, neben, unten }: {
   zeile: GliederungsZeile; gewaehlt: boolean; aktiv: boolean; menue: MenuProps["items"];
   titelRef: Ref<InputRef>; aktionenRef: Ref<HTMLButtonElement>;
   onTitel(wert: string): void; onTaste(e: KeyboardEvent<HTMLInputElement>): void; onEinfuegen(e: ClipboardEvent<HTMLInputElement>): void;
-  onFokus(): void; onMenue(offen: boolean): void; onAktion(a: ZeilenAktion): void;
+  onFokus(): void; onVerlassen(e: FocusEvent<HTMLInputElement>): void; onMenue(offen: boolean): void; onAktion(a: ZeilenAktion): void;
   vorne?: ReactNode; neben?: ReactNode; unten?: ReactNode;
 }) {
   const s = zeile.stelle;
@@ -1593,9 +1772,10 @@ export function GliederungZeile({ zeile, gewaehlt, aktiv, menue, titelRef, aktio
         {vorne}
         <Input ref={titelRef} name="titel" className="kp-g-titel" tabIndex={tab} value={s.titel} maxLength={LAENGE.titel}
           placeholder="(ohne Titel)" enterKeyHint="enter" aria-label={`Titel, Ebene ${zeile.ebene + 1}, ${lage}`}
-          onFocus={onFokus} onChange={(e) => onTitel(e.target.value)} onKeyDown={onTaste} onPaste={onEinfuegen} />
+          onFocus={onFokus} onBlur={onVerlassen} onChange={(e) => onTitel(e.target.value)} onKeyDown={onTaste} onPaste={onEinfuegen} />
         {neben ? <div className="kp-g-neben">{neben}</div> : null}
-        <Dropdown trigger={["click"]} onOpenChange={onMenue} menu={{ items: menue, onClick: ({ key }) => onAktion(key as ZeilenAktion) }}>
+        <Dropdown trigger={["click"]} onOpenChange={onMenue} menu={{ items: menue, onClick: ({ key }) => onAktion(key as ZeilenAktion) }}
+          popupRender={(m) => <div data-zeile-portal={s.id}>{m}</div>}>
           <Button ref={aktionenRef} tabIndex={tab} aria-label={`Aktionen für ${titelVon(s)}`}>⋯</Button>
         </Dropdown>
       </div>
@@ -1605,17 +1785,17 @@ export function GliederungZeile({ zeile, gewaehlt, aktiv, menue, titelRef, aktio
 }
 ```
 
-Falls `enterKeyHint` an antds `Input` einen Typfehler meldet, als `{...{ enterKeyHint: "enter" }}` durchreichen — nicht weglassen (Telefon-Tastatur).
+Falls `enterKeyHint` an antds `Input` einen Typfehler meldet, als `{...{ enterKeyHint: "enter" }}` durchreichen — nicht weglassen (Telefon-Tastatur). `popupRender` ist der antd-6-Name (vorher `dropdownRender`, `@deprecated`); im Zweifel per antd-MCP (`antd_doc` „Dropdown") prüfen. Der Wrapper `data-zeile-portal` ist der Anker für das Aufräumen beim Verlassen (Entscheidung 8) und für Test-Greifer.
 
 - [ ] **Step 4: `Gliederung.tsx` schreiben**
 
 ```tsx
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent, type FocusEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { Button, type MenuProps } from "antd";
-import { fuegeGeschwisterEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, rueckeAus, rueckeEin, verschiebeInReihe, zeilenAktionen, type GliederungsZeile } from "../../_lib/plan/gliederung";
-import { aendereStelle, fuegeWurzelEin } from "../../_lib/plan/operationen";
+import { MELDUNG, fuegeGeschwisterEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, rueckeAus, rueckeEin, setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, type GliederungsZeile, type ZeilenAktionen } from "../../_lib/plan/gliederung";
+import { aendereStelle, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
@@ -1625,31 +1805,49 @@ import type { Symbolsatz } from "../zeichnung/Symbole";
 import { GliederungZeile, type ZeilenAktion } from "./GliederungZeile";
 import { gliederungsBefehl } from "./tasten";
 
+export type FokusZiel = "titel" | "aktionen" | "zeichen" | "verbindung";
 export interface GliederungGriff {
-  /** Fokus in den Titel dieser Zeile (fehlt sie: in die aktive; leerer Plan: „Erste Stelle anlegen"). */
-  fokus(id: string | null): void;
+  /** Fokus in diese Zeile (fehlt sie: in die aktive; leerer Plan: „Erste Stelle anlegen"); Vorgabe: der Titel. */
+  fokus(id: string | null, ziel?: FokusZiel): void;
   /** Zeile ins Bild holen, ohne den Fokus zu setzen (am Telefon öffnete Fokus die Tastatur). */
   zeige(id: string): void;
+  /** Ein per Enter angelegtes, unberührtes Element verwerfen — beim Ansichtswechsel (Entscheidung 8). */
+  raeumeAuf(): void;
 }
-export const GLIEDERUNG_BEDIENZEILE = "Enter neue Stelle darunter · Tab / Umschalt+Tab Ebene · Alt+↑/↓ verschieben · ↑/↓ wandern · F2 Details · Esc verlässt das Titelfeld";
+export const GLIEDERUNG_BEDIENZEILE =
+  "Enter neue Stelle darunter, auf leerer Zeile ausrücken · Tab / Umschalt+Tab Ebene · Alt+↑/↓ verschieben · ↑/↓ wandern · " +
+  "Alt+V Verbindung · Alt+Z Zeichen · F2 oder Strg/Cmd+Enter Details · Esc verlässt das Titelfeld · " +
+  "Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
+export const GLIEDERUNG_BEDIENZEILE_SCHMAL = "„⋯“ an jeder Zeile: anlegen, einrücken, verschieben, Details · Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
 const LEER_ZIEL = "~leer";
 
 export interface GliederungProps {
   inhalt: PlanInhalt; auswahl: string | null; aendere: Aendere; meldung: ReactNode; griff?: Ref<GliederungGriff>;
   onAuswahl(id: string): void; onDetails(id: string): void; onLoeschen(id: string): void;
   onRueck(): void; onWieder(): void; onHinweis(text: string): void;
-  /** Verwirft den letzten Schritt, wenn `nach` noch der jetzige Stand ist — ein unberührt angelegtes Element (U28). */
-  verwirfUnberuehrt(nach: PlanInhalt): boolean;
+  /**
+   * Verwirft den letzten Schritt, wenn `nach` noch der jetzige Stand ist — ein unberührt angelegtes Element
+   * (U28) —, und wendet `dann` ATOMAR als neuen Schritt an (Enter auf leerer Zeile, Entscheidung 5): in
+   * einem Aufruf, weil `aendere` danach noch den alten Verlauf sähe. Ergebnis: der neue Stand, sonst null.
+   */
+  verwirfUnberuehrt(nach: PlanInhalt, dann?: (q: PlanInhalt) => PlanInhalt): PlanInhalt | null;
   symbole: Symbolsatz; zeichenIndex: readonly ZeichenIndexEintrag[]; ladeSymbole(schluessel: string[]): void;
 }
 
-function menue(a: ReturnType<typeof zeilenAktionen>): MenuProps["items"] {
+function menue(a: ZeilenAktionen, verbindung: string | null): MenuProps["items"] {
   return [
-    { key: "details", label: "Details … (F2)" },
+    { key: "neu", label: "Neue Stelle darunter (Enter)" },
+    { key: "unterstelle", label: "Unterstelle anlegen", disabled: !a.unterstelle },
+    { key: "links", label: "Seitenstelle links", disabled: !a.seitenstelle },
+    { key: "rechts", label: "Seitenstelle rechts", disabled: !a.seitenstelle },
+    { type: "divider" },
     { key: "einruecken", label: "Einrücken (Tab)", disabled: !a.einruecken },
     { key: "ausruecken", label: "Ausrücken (Umschalt+Tab)", disabled: !a.ausruecken },
     { key: "hoch", label: "Nach oben (Alt+↑)", disabled: !a.hoch },
     { key: "runter", label: "Nach unten (Alt+↓)", disabled: !a.runter },
+    { type: "divider" },
+    { key: "uebernehmen", label: verbindung ? `Verbindung „${verbindung}“ für Geschwister ohne Verbindung übernehmen` : "Verbindung für Geschwister übernehmen", disabled: !a.uebernehmen },
+    { key: "details", label: "Details … (F2)" },
     { type: "divider" },
     { key: "loeschen", label: "Stelle löschen", danger: true },
   ];
@@ -1659,7 +1857,9 @@ function menue(a: ReturnType<typeof zeilenAktionen>): MenuProps["items"] {
  * DIE GLIEDERUNG (Spec §6.5; Umsetzungsplan Phase 3, Entscheidungen 4–16). Dieselben Daten, derselbe
  * Verlauf und derselbe Speicherer wie das Diagramm: jede Änderung ist eine reine Operation über
  * `aendere`. Der Fokus folgt einer Anfrage (`fokus`), die ein Effekt NACH dem Rendern erfüllt — die
- * Zeile kann dabei im DOM umgezogen sein. Kein setState im Effekt-Rumpf.
+ * Zeile kann dabei im DOM umgezogen oder verschwunden sein (dann der Nachbar aus der alten Folge).
+ * Wohin er geht, hängt an der Herkunft der Aktion (Entscheidung 16): Tastatur → Titel, Zeiger → das
+ * Bedienelement, von dem sie ausging. Kein setState im Effekt-Rumpf.
  */
 export function Gliederung(p: GliederungProps) {
   const { inhalt, auswahl, aendere } = p;
@@ -1668,24 +1868,32 @@ export function Gliederung(p: GliederungProps) {
   const aktionen = useRef(new Map<string, HTMLButtonElement>());
   const erste = useRef<HTMLButtonElement>(null);
   const neu = useRef<{ id: string; nach: PlanInhalt } | null>(null);
-  const [fokus, setFokus] = useState<{ id: string; n: number; stelle: number | "ende" } | null>(null);
+  /** Herkunft der laufenden Aktion: gesetzt von pointerdown, gelöscht von keydown (auch aus Portalen der Zeile). */
+  const zeiger = useRef(false);
+  const [fokus, setFokus] = useState<{ id: string; n: number; stelle: number | "ende"; ziel: FokusZiel; ersatz: string[] } | null>(null);
   const [menueOffen, setMenueOffen] = useState<string | null>(null);
   const aktiv = zeilen.some((z) => z.stelle.id === auswahl) ? auswahl : zeilen[0]?.stelle.id ?? null;
 
   useEffect(() => {
     if (!fokus) return;
     if (fokus.id === LEER_ZIEL) { erste.current?.focus(); return; }
-    const el = felder.current.get(fokus.id) ?? felder.current.values().next().value;
-    if (!el) { erste.current?.focus(); return; }
+    const id = [fokus.id, ...fokus.ersatz].find((x) => felder.current.has(x)) ?? felder.current.keys().next().value;
+    if (id === undefined) { erste.current?.focus(); return; }
+    if (fokus.ziel === "aktionen") { aktionen.current.get(id)?.focus(); return; }
+    // „zeichen"/„verbindung" erfüllt Task 8 (Knopf bzw. Select der Zeile); bis dahin der Titel
+    const el = felder.current.get(id)!;
     el.focus();
     const pos = fokus.stelle === "ende" ? el.value.length : Math.min(fokus.stelle, el.value.length);
     el.setSelectionRange(pos, pos);
   }, [fokus]);
 
-  const fokussiere = (id: string, stelle: number | "ende" = "ende") => setFokus((f) => ({ id, n: (f?.n ?? 0) + 1, stelle }));
+  /** `ersatz`: Nachbarn aus der JETZIGEN Zeilenfolge — falls die Zeile nach dem Schritt fehlt (Strg+Z, Löschen). */
+  const fokussiere = (id: string, stelle: number | "ende" = "ende", ziel: FokusZiel = "titel") =>
+    setFokus((f) => ({ id, n: (f?.n ?? 0) + 1, stelle, ziel, ersatz: [nachbarZeile(zeilen, id, "hoch"), nachbarZeile(zeilen, id, "runter")].filter((x): x is string => x !== null) }));
   useImperativeHandle(p.griff, () => ({
-    fokus: (id) => fokussiere(id ?? aktiv ?? LEER_ZIEL),
+    fokus: (id, ziel = "titel") => fokussiere(id ?? aktiv ?? LEER_ZIEL, "ende", ziel),
     zeige: (id) => felder.current.get(id)?.closest("li")?.scrollIntoView?.({ block: "nearest" }),
+    raeumeAuf: () => { const n = neu.current; if (n) raeumeAuf(n.id); },
   }));
 
   function tueMit(op: (q: PlanInhalt) => PlanInhalt): PlanInhalt | null {
@@ -1696,21 +1904,31 @@ export function Gliederung(p: GliederungProps) {
   function raeumeAuf(id: string): boolean {
     const n = neu.current;
     neu.current = null;
-    return n !== null && n.id === id && p.verwirfUnberuehrt(n.nach);
+    return n !== null && n.id === id && p.verwirfUnberuehrt(n.nach) !== null;
   }
-  function ersteStelle() {
+  /** Legt über `op` eine leere Stelle `id` an, merkt sie als unberührt und setzt den Fokus in ihren Titel. */
+  function lege(op: (q: PlanInhalt, id: string) => PlanInhalt) {
     const id = neueId(inhalt, "s");
-    if (tueMit((q) => fuegeWurzelEin(q, id))) fokussiere(id);
+    const nach = tueMit((q) => op(q, id));
+    if (nach) { neu.current = { id, nach }; fokussiere(id); }
   }
+  function ersteStelle() { lege((q, id) => fuegeWurzelEin(q, id)); }
   function aktion(z: GliederungsZeile, a: ZeilenAktion) {
     const id = z.stelle.id;
+    const zurueck: FokusZiel = zeiger.current ? "aktionen" : "titel"; // Entscheidung 16
     setMenueOffen(null);
-    if (a === "details") { p.onDetails(id); return; }
-    if (a === "loeschen") { p.onLoeschen(id); return; }
-    if (a === "einruecken") tueMit((q) => rueckeEin(q, id));
-    else if (a === "ausruecken") tueMit((q) => rueckeAus(q, id));
-    else tueMit((q) => verschiebeInReihe(q, id, a === "hoch" ? "hoch" : "runter"));
-    fokussiere(id);
+    switch (a) {
+      case "details": p.onDetails(id); return;
+      case "loeschen": p.onLoeschen(id); return;
+      case "neu": lege((q, n) => fuegeGeschwisterEin(q, id, n)); return; // anlegen: Fokus in den neuen Titel
+      case "unterstelle": lege((q, n) => fuegeUnterstelleEin(q, id, n)); return;
+      case "links": case "rechts": lege((q, n) => fuegeSeitenstelleEin(q, id, a, n)); return;
+      case "einruecken": tueMit((q) => rueckeEin(q, id)); break;
+      case "ausruecken": tueMit((q) => rueckeAus(q, id)); break;
+      case "uebernehmen": tueMit((q) => setzeVerbindungFuerGeschwister(q, id)); break;
+      default: tueMit((q) => verschiebeInReihe(q, id, a === "hoch" ? "hoch" : "runter"));
+    }
+    fokussiere(id, "ende", zurueck);
   }
   function taste(e: KeyboardEvent<HTMLInputElement>, z: GliederungsZeile) {
     const id = z.stelle.id;
@@ -1719,18 +1937,32 @@ export function Gliederung(p: GliederungProps) {
       e.preventDefault();
       neu.current = null;
       if (g.art === "rueckgaengig") p.onRueck(); else p.onWieder();
+      fokussiere(id); // fehlt die Zeile danach, fängt `ersatz` den Fokus (Entscheidung 10)
       return;
     }
-    const b = gliederungsBefehl({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey, isComposing: e.nativeEvent.isComposing }, e.currentTarget.value.trim() === "");
+    const b = gliederungsBefehl({ key: e.key, code: e.code, repeat: e.repeat, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey, isComposing: e.nativeEvent.isComposing }, e.currentTarget.value.trim() === "");
     if (!b) return;
     e.preventDefault(); // auch Tab ohne Wirkung: der Fokus verlässt das Feld nie (Review Focus 3)
     const caret = e.currentTarget.selectionStart ?? "ende";
     switch (b.art) {
       case "neu": {
-        if (z.stelle.titel.trim() === "") return;
         const neuId = neueId(inhalt, "s");
         const nach = tueMit((q) => fuegeGeschwisterEin(q, id, neuId));
         if (nach) { neu.current = { id: neuId, nach }; fokussiere(neuId); }
+        return;
+      }
+      case "neuLeer": { // Entscheidung 5: ausrücken statt einer Kette leerer Karten
+        if (z.eltern === null || z.seite !== null) { p.onHinweis(MELDUNG.erstTitel); return; }
+        const eltern = z.eltern.id;
+        const n = neu.current;
+        neu.current = null;
+        if (n?.id === id) { // verworfen + neu hinter der Elternstelle: EIN Schritt, wieder unberührt
+          const neuId = neueId(inhalt, "s");
+          const nach = p.verwirfUnberuehrt(n.nach, (q) => fuegeGeschwisterEin(q, eltern, neuId));
+          if (nach) { neu.current = { id: neuId, nach }; fokussiere(neuId); return; }
+        }
+        tueMit((q) => rueckeAus(q, id));
+        fokussiere(id);
         return;
       }
       case "einruecken": tueMit((q) => rueckeEin(q, id)); fokussiere(id, caret); return;
@@ -1755,33 +1987,48 @@ export function Gliederung(p: GliederungProps) {
         return;
       }
       case "details": p.onDetails(id); return;
+      case "verbindung": case "zeichen": fokussiere(id, "ende", b.art); return; // öffnet Task 8
     }
+  }
+  /** Entscheidung 8: verlässt der Fokus die Zeile (Klick, Tipp, Kopfleiste), verschwindet das unberührte Element. */
+  function verlassen(e: FocusEvent<HTMLInputElement>, id: string) {
+    if (neu.current?.id !== id) return;
+    const nach = e.relatedTarget as Element | null;
+    if (nach && (e.currentTarget.closest("li")?.contains(nach) || nach.closest(`[data-zeile-portal="${id}"]`))) return;
+    raeumeAuf(id);
   }
   // Mehrzeiliges Einfügen folgt in Task 8; bis dahin fügt das Feld normal ein.
   const einfuegen = (_e: ClipboardEvent<HTMLInputElement>, _id: string) => {};
 
   return (
-    <div className="kp-gliederung" data-gliederung="">
+    <div className="kp-gliederung" data-gliederung=""
+      onPointerDownCapture={() => { zeiger.current = true; }} onKeyDownCapture={() => { zeiger.current = false; }}>
       {zeilen.length === 0 ? (
-        <div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button ref={erste} type="primary" onClick={ersteStelle}>Erste Stelle anlegen</Button></div>
+        <div className="kp-leer">
+          <p>Dieser Plan hat noch keine Stellen.</p>
+          <Button ref={erste} type="primary" onClick={ersteStelle}>Erste Stelle anlegen</Button>
+          <p className="kp-hilfe">Tipp: Danach eine eingerückte Liste (aus Word, einer E-Mail oder einem Editor) ins Titelfeld einfügen — daraus wird ein ganzer Zweig.</p>
+        </div>
       ) : (
         <ul className="kp-g-liste" aria-label="Gliederung">
           {zeilen.map((z) => {
             const id = z.stelle.id;
+            const verbindung = z.stelle.verbindungId === null ? null : inhalt.verbindungen.find((v) => v.id === z.stelle.verbindungId)?.bezeichnung ?? null;
             return (
               <GliederungZeile key={id} zeile={z} gewaehlt={id === auswahl} aktiv={id === aktiv}
-                menue={menueOffen === id ? menue(zeilenAktionen(inhalt, id)) : []}
+                menue={menueOffen === id ? menue(zeilenAktionen(inhalt, id), verbindung) : []}
                 titelRef={(r) => { const el = r?.input; if (el) felder.current.set(id, el); return () => { felder.current.delete(id); }; }}
                 aktionenRef={(el) => { if (el) aktionen.current.set(id, el); return () => { aktionen.current.delete(id); }; }}
                 onTitel={(wert) => aendere((q) => aendereStelle(q, id, { titel: wert }), `titel:${id}`)}
-                onTaste={(e) => taste(e, z)} onEinfuegen={(e) => einfuegen(e, id)}
+                onTaste={(e) => taste(e, z)} onEinfuegen={(e) => einfuegen(e, id)} onVerlassen={(e) => verlassen(e, id)}
                 onFokus={() => { if (auswahl !== id) p.onAuswahl(id); }}
                 onMenue={(offen) => setMenueOffen(offen ? id : null)} onAktion={(a) => aktion(z, a)} />
             );
           })}
         </ul>
       )}
-      <p className="kp-hilfe kp-bedienhinweis">{GLIEDERUNG_BEDIENZEILE}</p>
+      <p className="kp-hilfe kp-bedienhinweis kp-nur-breit">{GLIEDERUNG_BEDIENZEILE}</p>
+      <p className="kp-hilfe kp-bedienhinweis kp-nur-schmal">{GLIEDERUNG_BEDIENZEILE_SCHMAL}</p>
       {p.meldung ? <div className="kp-g-meldung" data-meldung="">{p.meldung}</div> : null}
     </div>
   );
@@ -1792,6 +2039,10 @@ Hinweise für den Implementierer:
 - `einfuegen` mit den unbenutzten Parametern meldet `pnpm lint` womöglich (`no-unused-vars`); dann `onEinfuegen` in diesem Task gar nicht setzen und die Prop in `GliederungZeile` optional machen (`onEinfuegen?`) — Task 8 setzt sie.
 - Menüeinträge werden nur für die Zeile mit offenem Menü berechnet (`menueOffen`), nicht für alle Zeilen je Render.
 - Rückgaben aus Ref-Callbacks (Aufräumfunktion) sind React 19; der Rückgabetyp muss `void | (() => void)` sein.
+- Die zwei Bedienzeilen tragen `.kp-nur-breit`/`.kp-nur-schmal`; die Regeln dazu (`.kp-editor .kp-nur-…` in den Breakpoint-Blöcken) kommen mit Task 9. Bis dahin stehen beide da — die Gliederung ist noch nicht eingebunden.
+- Setzt antds `Dropdown` beim Schließen den Fokus auf den Auslöser zurück und überschreibt damit den Fokus in einen neu angelegten Titel, gilt die Fokus-Anfrage als erfüllt, wenn sie nach dem Schließen läuft: `fokussiere` erst aus `onOpenChange(false)` bzw. per `requestAnimationFrame` — nicht den Test lockern.
+- `zeiger` ist ein Ref, kein Zustand: er wird im Ereignis gesetzt und im selben Ereignis gelesen; `onPointerDownCapture`/`onKeyDownCapture` an der Wurzel sehen auch Ereignisse aus Portalen der Zeilen (React-Baum).
+- Die Gliederung ist ab hier an die Last-Vorgaben aus Entscheidung 2 und 15 gebunden; die Umsetzung (memo, stabile Rückrufe, nur ein echtes Select) folgt in Task 8 Step 5a, wenn die Plätze der Zeile gefüllt werden.
 
 - [ ] **Step 5: CSS der Gliederung**
 
@@ -1868,16 +2119,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `src/app/m/kommplan/_ui/gliederung/VerbindungFeld.tsx`
 - Create: `src/app/m/kommplan/_ui/gliederung/ZeichenKnopf.tsx`
 - Modify: `src/app/m/kommplan/_ui/gliederung/Gliederung.tsx`
+- Modify: `src/app/m/kommplan/_ui/gliederung/GliederungZeile.tsx` (Step 5a: `memo`, Plätze in der Zeile)
 - Modify: `src/app/m/kommplan/_ui/kommplan.css`
-- Test: `src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx`
+- Test: `src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx`, `src/app/m/kommplan/_ui/gliederung/GliederungLast.test.tsx` (NEU, eigener Datei wegen `vi.mock`)
 
 **Interfaces:**
 - Consumes: Task 1 (`leseGliederung`), Task 3 (`fuegeGliederungEin`), Task 4 (`verbindungsOptionen`, `leseNeu`, `KEINE`), `aendereStelle`, `findeVerbindung`, `legeVerbindungAn`, `neueId`, `neueIds`, `ZeichenWahl` (`_ui/editor/ZeichenWahl`), `EinheitenListe` (`_ui/editor/EinheitenListe`), `leseZuletzt` (`_ui/editor/zuletzt`), `symbolId` (`_ui/zeichnung/Symbole`).
-- Produces: `export function VerbindungFeld({ inhalt, stelle, aendere, tabIndex }: { inhalt: PlanInhalt; stelle: Stelle; aendere: Aendere; tabIndex: number })`; `export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen, aendere, tabIndex, onFertig }: {…})`; DOM-Vertrag: Select mit `aria-label` „Verbindung von <Titel>", Knopf „Zeichen von <Titel>: …", Einheiten-Knopf mit `aria-expanded` und Text „n Einheiten".
+- Produces: `export function VerbindungFeld({ inhalt, stelle, aendere, aktiv, offen, onOffen, onFertig, feldRef }: { inhalt: PlanInhalt; stelle: Stelle; aendere: Aendere; aktiv: boolean; offen: boolean; onOffen(o: boolean): void; onFertig(): void; feldRef: Ref<RefSelectProps> })` (nicht aktiv: schlichter Textknopf, Entscheidung 15; `onFertig` nach Wahl und nach Esc auf der geschlossenen Liste, Entscheidung 10); `export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen, aendere, tabIndex, offen, onOffen, onFertig, knopfRef }: {…; offen: boolean; onOffen(o: boolean): void; onFertig(): void; knopfRef: Ref<HTMLButtonElement> })` (Popover **gesteuert** vom Aufrufer, damit Alt+Z es öffnen kann, ohne `setState` im Effekt); DOM-Vertrag: Select mit `aria-label` „Verbindung von <Titel>" (nur in der aktiven Zeile), sonst Knopf „Verbindung von <Titel>: <Bezeichnung · Art> — ändern" bzw. „… keine — ändern", Knopf „Zeichen von <Titel>: …", Einheiten-Knopf mit `aria-expanded` und Text „n Einheiten"; Select-Liste und Popover-Inhalt in `[data-zeile-portal=<id>]`.
 
 - [ ] **Step 1: Die fehlenden Tests schreiben**
 
-An `Gliederung.test.tsx` anhängen und die Importe in die vorhandenen Zeilen zusammenführen: `queryPortal` (test-dom), `zuVieleStellen` (`../../_lib/plan/gliederung`), `GRENZE, LAENGE` als Wert-Import aus `../../_lib/plan/schema` (die Typzeile `PlanInhalt` bleibt):
+An `Gliederung.test.tsx` anhängen und die Importe in die vorhandenen Zeilen zusammenführen (`queryPortal` und `zeigerKlick` sind seit Task 7 da): `zuVieleStellen` (`../../_lib/plan/gliederung`), `GRENZE, LAENGE` als Wert-Import aus `../../_lib/plan/schema` (die Typzeile `PlanInhalt` bleibt):
 
 ```tsx
 async function fuegeEin(el: HTMLInputElement, text: string): Promise<boolean> {
@@ -1899,6 +2151,7 @@ describe("Gliederung, Teil 2", () => {
     expect(aktiv()!.value).toBe("EA Süd");
     await taste(aktiv()!, "z", { ctrlKey: true });
     expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
+    expect(aktiv()).toBe(feld("ea1")); // die eingefügten Zeilen sind weg — der Fokus steht in der Ausgangszeile, nicht auf body
   });
   it("in eine leere, eben angelegte Zeile: die erste eingefügte Zeile nimmt ihren Platz ein", async () => {
     await zeige();
@@ -1951,19 +2204,117 @@ describe("Gliederung, Teil 2", () => {
     expect(knopf.getAttribute("aria-expanded")).toBe("true");
     expect(queryAll('[data-zeile="el"] [data-einheit-zeile]')).toHaveLength(2);
   });
-  it("Zeichen kompakt: Knopf öffnet die Zeichenwahl, eine Wahl setzt das Zeichen und gibt den Fokus an den Titel", async () => {
+  it("Zeichen kompakt per Zeiger: Knopf öffnet die Zeichenwahl, eine Wahl setzt das Zeichen, der Fokus bleibt am Zeichenknopf (Entscheidung 16)", async () => {
     const index = [{ schluessel: "k1", titel: "Einsatzleitung", suchtext: "einsatzleitung el" }];
     await mount(<PruefstandMitIndex index={index} />);
     await act(async () => {});
     await fokus("ea1");
-    await clickElement(query('[data-zeile="ea1"] [aria-label^="Zeichen von EA 1"]'));
-    await schreibe(queryPortal<HTMLInputElement>('input[aria-label="Zeichen suchen"]'), "Einsatz");
-    await clickPortal('[data-zeichen="k1"]');
+    await zeigerKlick(query('[data-zeile="ea1"] [aria-label^="Zeichen von EA 1"]'));
+    await schreibe(queryPortal<HTMLInputElement>('[data-zeile-portal="ea1"] input[aria-label="Zeichen suchen"]'), "Einsatz");
+    await zeigerKlick(queryPortal('[data-zeile-portal="ea1"] [data-zeichen="k1"]'));
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBe("k1");
+    expect(aktiv()!.getAttribute("aria-label")).toMatch(/^Zeichen von EA 1/);
+  });
+  it("Alt+Z im Titel: Zeichenwahl offen, Fokus in der Suche; Enter wählt den ersten Treffer, der Fokus ist wieder im Titel (Entscheidung 10)", async () => {
+    const index = [{ schluessel: "k1", titel: "Einsatzleitung", suchtext: "einsatzleitung el" }];
+    await mount(<PruefstandMitIndex index={index} />);
+    await act(async () => {});
+    await fokus("ea1");
+    await taste(feld("ea1"), "Ω", { altKey: true, code: "KeyZ" });
+    expect(aktiv()!.getAttribute("aria-label")).toBe("Zeichen suchen");
+    await schreibe(aktiv()!, "Einsatz");
+    await taste(aktiv()!, "Enter");
     expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBe("k1");
     expect(aktiv()).toBe(feld("ea1"));
   });
+  it("Alt+V im Titel: Verbindung per Tastatur; nach der Wahl steht der Fokus im Titel, und Enter legt die nächste Stelle an (Entscheidung 10, A1)", async () => {
+    await zeige();
+    await fokus("ea1");
+    await taste(feld("ea1"), "√", { altKey: true, code: "KeyV" });
+    const eingabe = query<HTMLInputElement>('[data-zeile="ea1"] input[aria-label="Verbindung von EA 1"]');
+    expect(aktiv()).toBe(eingabe);
+    await schreibe(eingabe, "R_UE_3");
+    const erste = queryPortal<HTMLElement>('[data-zeile-portal="ea1"] .ant-select-item-option');
+    await clickElement(erste); // „Neu: „R_UE_3“ als Digitalfunk TMO“
+    expect(aktiv()).toBe(feld("ea1"));
+    await taste(feld("ea1"), "Enter");
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "", "EA 2"]);
+  });
+  it("nur die aktive Zeile trägt ein echtes Select; die übrigen zeigen ihre Verbindung als Knopf, der die Zeile wählt (Entscheidung 15)", async () => {
+    await zeige();
+    await fokus("ea1");
+    expect(queryAll('.kp-gliederung input[aria-label^="Verbindung von"]')).toHaveLength(1);
+    const knopf = query<HTMLButtonElement>('[data-zeile="ea2"] button[aria-label^="Verbindung von EA 2"]');
+    expect(knopf.textContent).toBe("R_UE_2 · Digitalfunk TMO");
+    await zeigerKlick(knopf);
+    expect(query('[data-zeile="ea2"]').getAttribute("aria-current")).toBe("true");
+    expect(aktiv()).toBe(query('[data-zeile="ea2"] input[aria-label="Verbindung von EA 2"]'));
+  });
+  it("versetzt eine neue Verbindung die Zeile, sagt der Meldungsplatz wohin (Entscheidung 12)", async () => {
+    await zeige(baue({
+      verbindungen: [{ id: "a", art: "tmo", bezeichnung: "R_UE_2" }, { id: "b", art: "tmo", bezeichnung: "R_UE_3" }],
+      stellen: [{ id: "el", titel: "EL" }, { id: "ea1", titel: "EA 1", eltern: "el", verbindung: "a" }, { id: "ea2", titel: "EA 2", eltern: "el", verbindung: "a" },
+        { id: "ea3", titel: "EA 3", eltern: "el", verbindung: "b" }, { id: "ea4", titel: "EA 4", eltern: "el", verbindung: "a" }],
+    }));
+    expect(titel()).toEqual(["EL", "EA 1", "EA 2", "EA 4", "EA 3"]); // Gruppen zusammen, in Folge ihres ersten Vorkommens
+    await fokus("ea2");
+    await taste(feld("ea2"), "√", { altKey: true, code: "KeyV" });
+    await schreibe(query<HTMLInputElement>('[data-zeile="ea2"] input[aria-label="Verbindung von EA 2"]'), "R_UE_3");
+    await clickElement([...document.querySelectorAll<HTMLElement>('[data-zeile-portal="ea2"] .ant-select-item-option')].find((o) => o.textContent?.startsWith("R_UE_3"))!);
+    expect(titel()).toEqual(["EL", "EA 1", "EA 4", "EA 2", "EA 3"]);
+    expect(meldung()).toBe("„EA 2“ steht jetzt in der Gruppe „R_UE_3“.");
+    expect(aktiv()).toBe(feld("ea2"));
+  });
 });
 ```
+
+Hinweis: `.ant-select-item-option` ist ein Test-Greifer, keine CSS-Regel (Falle 20 betrifft Stylesheets); er steht schon so in `StelleFlyin.test.tsx`. Die Select-Liste liegt im Portal-Wrapper der Zeile (`popupRender`), daher der Präfix `[data-zeile-portal=…]`.
+
+`src/app/m/kommplan/_ui/gliederung/GliederungLast.test.tsx` (neu; eigene Datei, weil `vi.mock` für die ganze Datei gilt) — Nachweis für Entscheidung 2 und 15:
+
+```tsx
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, useState } from "react";
+import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+import { baue } from "../../_lib/beispiele/bau";
+import { aendereStelle } from "../../_lib/plan/operationen";
+import type { Aendere } from "../editor/aendere";
+import { neuerVerlauf, tue } from "../editor/verlauf";
+import { Gliederung } from "./Gliederung";
+
+/** Jede gerenderte Zeile rendert genau einen Zeichenknopf — sein Aufruf zählt die Zeilen-Renders. */
+const renders = vi.hoisted(() => ({ n: 0 }));
+vi.mock("./ZeichenKnopf", () => ({ ZeichenKnopf: () => { renders.n++; return null; } }));
+
+const VIELE = baue({ stellen: [{ id: "el", titel: "EL" }, ...Array.from({ length: 60 }, (_, i) => ({ id: `s${i}`, titel: `S${i}`, eltern: "el" }))] });
+
+function Pruefstand() {
+  const [v, setV] = useState(() => neuerVerlauf(VIELE));
+  const aendere: Aendere = (op, schluessel) => { setV(tue(v, op(v.jetzt), new Date().getTime(), schluessel)); return null; };
+  return (
+    <>
+      <button type="button" data-flyin-tippen="" onClick={() => aendere((q) => aendereStelle(q, "s5", { titel: `${q.stellen.find((x) => x.id === "s5")!.titel}x` }), "titel:s5")} />
+      <Gliederung inhalt={v.jetzt} auswahl="s3" aendere={aendere} meldung={null} onAuswahl={() => {}} onDetails={() => {}} onLoeschen={() => {}}
+        onRueck={() => {}} onWieder={() => {}} onHinweis={() => {}} verwirfUnberuehrt={() => null} symbole={{}} zeichenIndex={[]} ladeSymbole={() => {}} />
+    </>
+  );
+}
+
+afterEach(async () => { await unmount(); });
+
+describe("Last der Gliederung (Entscheidungen 2, 15)", () => {
+  it("eine Änderung an einer Stelle rendert nur deren Zeile neu — auch wenn `aendere` bei jedem Rendern neu ist", async () => {
+    await mount(<Pruefstand />);
+    await act(async () => {});
+    renders.n = 0;
+    for (let i = 0; i < 5; i++) await act(async () => { query<HTMLButtonElement>("[data-flyin-tippen]").click(); });
+    expect(renders.n).toBeLessThanOrEqual(5); // eine Zeile je Tastendruck, nicht 61
+  });
+});
+```
+
+(Der Knopf `data-flyin-tippen` spielt das Tippen im Flyin nach: eine Titeländerung an `s5`, während die Gliederung nur mitläuft.)
 
 Der Prüfstand braucht für den Zeichentest einen Zeichenindex: in Task 7 bekommt `Pruefstand` dafür gleich die Signatur `function Pruefstand({ start, index = [] }: { start: PlanInhalt; index?: readonly ZeichenIndexEintrag[] })` und reicht `zeichenIndex={index}` durch (Typ aus `../../_lib/zeichen/grundlagen`: `{ schluessel; titel; suchtext }`). Hier: `const PruefstandMitIndex = ({ index }: { index: readonly ZeichenIndexEintrag[] }) => <Pruefstand start={START} index={index} />;`.
 
@@ -1971,28 +2322,42 @@ Zur Select-Bedienung in jsdom: `aria-label` landet bei antds `Select` am Suchein
 
 - [ ] **Step 2: Tests laufen lassen, sie schlagen fehl**
 
-Run: `pnpm vitest run src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx`
-Expected: FAIL in den neuen Fällen.
+Run: `pnpm vitest run src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx src/app/m/kommplan/_ui/gliederung/GliederungLast.test.tsx`
+Expected: FAIL in den neuen Fällen (der Lasttest zählt vor Step 5a 61 Renders je Änderung).
 
 - [ ] **Step 3: `VerbindungFeld.tsx`**
 
 ```tsx
 "use client";
 
-import { useState } from "react";
-import { Select } from "antd";
+import { useState, type Ref } from "react";
+import { Select, type RefSelectProps } from "antd";
 import { aendereStelle } from "../../_lib/plan/operationen";
-import type { PlanInhalt, Stelle } from "../../_lib/plan/schema";
+import { ART_NAME, type PlanInhalt, type Stelle } from "../../_lib/plan/schema";
 import { findeVerbindung, legeVerbindungAn } from "../../_lib/plan/verbindungen";
 import type { Aendere } from "../editor/aendere";
 import { neueId } from "../editor/ids";
 import { KEINE, leseNeu, verbindungsOptionen } from "./verbindungsOptionen";
 
-/** Verbindung zur Elternstelle, inline (Umsetzungsplan Phase 3, Entscheidung 12). Wurzeln haben keine. */
-export function VerbindungFeld({ inhalt, stelle, aendere, tabIndex }: { inhalt: PlanInhalt; stelle: Stelle; aendere: Aendere; tabIndex: number }) {
+/**
+ * Verbindung zur Elternstelle, inline (Umsetzungsplan Phase 3, Entscheidungen 10, 12, 15). Wurzeln haben
+ * keine. Nur die AKTIVE Zeile trägt ein echtes Select (die Optionen nur bei offener Liste); jede andere
+ * zeigt ihre Verbindung als schlichten Knopf, der die Zeile wählt und das Select geöffnet fokussiert
+ * (`onOffen(true)` — der Aufrufer macht die Zeile aktiv und setzt den Fokus). `onFertig` nach der Wahl
+ * und nach Esc auf der geschlossenen Liste: zurück in den Titel.
+ */
+export function VerbindungFeld({ inhalt, stelle, aendere, aktiv, offen, onOffen, onFertig, feldRef }: {
+  inhalt: PlanInhalt; stelle: Stelle; aendere: Aendere; aktiv: boolean; offen: boolean;
+  onOffen(o: boolean): void; onFertig(): void; feldRef: Ref<RefSelectProps>;
+}) {
   const [suche, setSuche] = useState("");
   if (stelle.eltern === null) return <span className="kp-hilfe">oberste Ebene</span>;
   const name = stelle.titel.trim() || "(ohne Titel)";
+  const jetzt = stelle.verbindungId === null ? null : inhalt.verbindungen.find((v) => v.id === stelle.verbindungId) ?? null;
+  const text = jetzt ? `${jetzt.bezeichnung} · ${ART_NAME[jetzt.art]}` : "keine";
+  if (!aktiv) {
+    return <button type="button" className="kp-g-verbindung-text" tabIndex={-1} aria-label={`Verbindung von ${name}: ${text} — ändern`} onClick={() => onOffen(true)}>{text}</button>;
+  }
   const waehle = (wert: string) => {
     const art = leseNeu(wert);
     const bezeichnung = suche.trim();
@@ -2004,22 +2369,29 @@ export function VerbindungFeld({ inhalt, stelle, aendere, tabIndex }: { inhalt: 
       return aendereStelle(mit, stelle.id, { verbindungId: vorhanden?.id ?? id });
     });
     setSuche("");
+    onOffen(false);
+    onFertig();
   };
   return (
-    <Select className="kp-g-verbindung" aria-label={`Verbindung von ${name}`} tabIndex={tabIndex}
+    <Select ref={feldRef} className="kp-g-verbindung" aria-label={`Verbindung von ${name}`}
       value={stelle.verbindungId ?? KEINE} onChange={waehle} popupMatchSelectWidth={false}
-      showSearch={{ searchValue: suche, onSearch: setSuche, filterOption: false }}
-      options={verbindungsOptionen(inhalt, suche)} />
+      open={offen} onOpenChange={onOffen}
+      onKeyDown={(e) => { if (e.key === "Escape" && !offen) { e.preventDefault(); onFertig(); } }}
+      showSearch={{ searchValue: suche, onSearch: (t) => { setSuche(t); if (!offen) onOffen(true); }, filterOption: false }}
+      popupRender={(liste) => <div data-zeile-portal={stelle.id}>{liste}</div>}
+      options={offen ? verbindungsOptionen(inhalt, suche) : [{ value: stelle.verbindungId ?? KEINE, label: text }]} />
   );
 }
 ```
+
+(Geschlossen braucht das Select nur die eine Option, deren Wert es anzeigt — `verbindungsOptionen` läuft erst bei offener Liste. `popupRender`/`onOpenChange` sind die antd-6-Namen; im Zweifel `antd_doc` „Select". `ART_NAME` in die Importzeile aus `schema` aufnehmen — Wert-Import neben den Typen.)
 
 - [ ] **Step 4: `ZeichenKnopf.tsx`**
 
 ```tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, type Ref } from "react";
 import { Popover } from "antd";
 import { aendereStelle } from "../../_lib/plan/operationen";
 import type { Stelle } from "../../_lib/plan/schema";
@@ -2030,24 +2402,28 @@ import { leseZuletzt } from "../editor/zuletzt";
 import { symbolId, type Symbolsatz } from "../zeichnung/Symbole";
 
 /**
- * ZEICHEN KOMPAKT (Umsetzungsplan Phase 3, Entscheidung 13): 44 px, das Zeichen per `<use>` aus dem
- * Symbolvorrat des Editors (Entscheidung 17); das Popover trägt dieselbe `ZeichenWahl` wie das Flyin.
+ * ZEICHEN KOMPAKT (Umsetzungsplan Phase 3, Entscheidungen 13, 16, 17): 44 px, das Zeichen per `<use>`
+ * aus dem Symbolvorrat des Editors; das Popover trägt dieselbe `ZeichenWahl` wie das Flyin. Offen oder zu
+ * bestimmt der Aufrufer (Alt+Z öffnet es aus dem Titel); beim Öffnen geht der Fokus in „Zeichen suchen"
+ * (Fokus im Effekt ist erlaubt, Zustand nicht). Nach der Wahl entscheidet `onFertig` über den Rückweg.
  */
-export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen, aendere, tabIndex, onFertig }: {
+export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen, aendere, tabIndex, offen, onOffen, onFertig, knopfRef }: {
   stelle: Stelle; index: readonly ZeichenIndexEintrag[]; symbole: Symbolsatz; ladeSymbole(schluessel: string[]): void;
-  planZeichen: readonly string[]; aendere: Aendere; tabIndex: number; onFertig(): void;
+  planZeichen: readonly string[]; aendere: Aendere; tabIndex: number;
+  offen: boolean; onOffen(o: boolean): void; onFertig(): void; knopfRef: Ref<HTMLButtonElement>;
 }) {
-  const [offen, setOffen] = useState(false);
+  const inhalt = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (offen) inhalt.current?.querySelector<HTMLInputElement>('input[aria-label="Zeichen suchen"]')?.focus(); }, [offen]);
   const name = stelle.titel.trim() || "(ohne Titel)";
   const zeichen = stelle.zeichen === null ? "keins" : index.find((e) => e.schluessel === stelle.zeichen)?.titel ?? stelle.zeichen;
   return (
     <Popover open={offen} trigger="click" placement="bottomLeft" destroyOnHidden
-      onOpenChange={(o) => { setOffen(o); if (o) ladeSymbole(leseZuletzt()); }}
-      content={<div className="kp-g-zeichenwahl">
+      onOpenChange={(o) => { onOffen(o); if (o) ladeSymbole(leseZuletzt()); }}
+      content={<div ref={inhalt} className="kp-g-zeichenwahl" data-zeile-portal={stelle.id}>
         <ZeichenWahl wert={stelle.zeichen} index={index} symbole={symbole} ladeSymbole={ladeSymbole} planZeichen={planZeichen}
-          onWahl={(k) => { aendere((q) => aendereStelle(q, stelle.id, { zeichen: k })); setOffen(false); onFertig(); }} />
+          onWahl={(k) => { aendere((q) => aendereStelle(q, stelle.id, { zeichen: k })); onOffen(false); onFertig(); }} />
       </div>}>
-      <button type="button" className="kp-g-zeichen" tabIndex={tabIndex} aria-expanded={offen} aria-label={`Zeichen von ${name}: ${zeichen} — ändern`}>
+      <button ref={knopfRef} type="button" className="kp-g-zeichen" tabIndex={tabIndex} aria-expanded={offen} aria-label={`Zeichen von ${name}: ${zeichen} — ändern`}>
         {stelle.zeichen !== null && symbole[stelle.zeichen]
           ? <svg viewBox="0 0 10 10" width={32} height={32} aria-hidden="true"><use href={`#${symbolId(stelle.zeichen)}`} width={10} height={10} /></svg>
           : <span className="kp-g-zeichen-leer" aria-hidden="true" />}
@@ -2057,11 +2433,48 @@ export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen,
 }
 ```
 
+(Öffnet der Aufrufer das Popover per Alt+Z, ruft er `ladeSymbole(leseZuletzt())` selbst — `onOpenChange` meldet nur Klicks.)
+
 - [ ] **Step 5: `Gliederung.tsx` ergänzen**
 
-1. Importe: `leseGliederung` (`../../_lib/plan/einfuegen`), `fuegeGliederungEin` (in die Zeile aus `../../_lib/plan/gliederung`), `neueIds` (in die Zeile aus `../editor/ids`), `EinheitenListe` (`../editor/EinheitenListe`), `VerbindungFeld`, `ZeichenKnopf`.
-2. Zustand der aufgeklappten Einheiten: `const [offeneEinheiten, setOffeneEinheiten] = useState<ReadonlySet<string>>(() => new Set());` und `const planZeichen = [...new Set(inhalt.stellen.map((x) => x.zeichen).filter((z): z is string => z !== null))];`
-3. Die Platzhalter-Funktion `einfuegen` ersetzen:
+1. Importe: `leseGliederung` (`../../_lib/plan/einfuegen`), `fuegeGliederungEin` (in die Zeile aus `../../_lib/plan/gliederung`), `neueIds` (in die Zeile aus `../editor/ids`), `EinheitenListe` (`../editor/EinheitenListe`), `leseZuletzt` (`../editor/zuletzt`), `VerbindungFeld`, `ZeichenKnopf`, `type RefSelectProps` (antd).
+2. Zustand: aufgeklappte Einheiten `const [offeneEinheiten, setOffeneEinheiten] = useState<ReadonlySet<string>>(() => new Set());`, offenes Feld `const [offenBei, setOffenBei] = useState<{ id: string; was: "zeichen" | "verbindung" } | null>(null);`, Registries `const zeichenKnoepfe = useRef(new Map<string, HTMLButtonElement>());` und `const selects = useRef(new Map<string, RefSelectProps>());`, und `const planZeichen = [...new Set(inhalt.stellen.map((x) => x.zeichen).filter((z): z is string => z !== null))];`
+3. Im Fokus-Effekt den Platzhalter „`zeichen`/`verbindung` erfüllt Task 8" ersetzen: `ziel === "zeichen"` → `zeichenKnoepfe.current.get(id)?.focus()` (das Popover fokussiert danach selbst seine Suche); `ziel === "verbindung"` → `selects.current.get(id)?.focus()`.
+4. In `taste()` den Fall `"verbindung"`/`"zeichen"` ersetzen:
+
+```tsx
+      case "verbindung": case "zeichen": {
+        if (b.art === "verbindung" && z.eltern === null) return; // eine Wurzel hat keine Verbindung
+        if (b.art === "zeichen") p.ladeSymbole(leseZuletzt());
+        setOffenBei({ id, was: b.art });
+        fokussiere(id, "ende", b.art);
+        return;
+      }
+```
+
+5. Rückweg nach Zeichen- und Verbindungswahl (Entscheidung 10, 16): `const fertig = (id: string, was: "zeichen" | "verbindung") => fokussiere(id, "ende", zeiger.current ? was : "titel");` — per Tastatur in den Titel, per Zeiger zurück auf das Bedienelement (beim Select also das Select selbst).
+6. Zeile springt nach einer Verbindungsänderung (Entscheidung 12): `VerbindungFeld` bekommt als `aendere` eine Hülle, die die Position vorher und nachher vergleicht:
+
+```tsx
+  /** Entscheidung 12: versetzt die neue Verbindung die Zeile, holt die Gliederung sie ins Bild und sagt, wohin. */
+  const aendereVerbindung = (id: string): Aendere => (op, schluessel) => {
+    const vorher = zeilen.findIndex((z) => z.stelle.id === id);
+    let nach: PlanInhalt | null = null;
+    const fehler = aendere((q) => (nach = op(q)), schluessel);
+    if (fehler === null && nach !== null) {
+      const neu = gliederungsZeilen(nach);
+      const z = neu.find((x) => x.stelle.id === id);
+      if (z && neu.indexOf(z) !== vorher) {
+        const v = nach.verbindungen.find((x) => x.id === z.stelle.verbindungId);
+        p.onHinweis(`„${z.stelle.titel.trim() || "(ohne Titel)"}“ steht jetzt in der Gruppe „${v?.bezeichnung ?? "ohne Verbindung"}“.`);
+        requestAnimationFrame(() => felder.current.get(id)?.closest("li")?.scrollIntoView?.({ block: "nearest" }));
+      }
+    }
+    return fehler;
+  };
+```
+
+7. Die Platzhalter-Funktion `einfuegen` ersetzen:
 
 ```tsx
   /** Entscheidung 9: ab zwei nicht leeren Zeilen fängt das Titelfeld das Einfügen ab — sonst fügt es normal ein. */
@@ -2081,13 +2494,20 @@ export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen,
   }
 ```
 
-4. An `<GliederungZeile …>` die Plätze füllen (`tab = id === aktiv ? 0 : -1`, `n = z.stelle.einheiten.length`, `auf = offeneEinheiten.has(id)`):
+8. An `<GliederungZeile …>` die Plätze füllen (`tab = id === aktiv ? 0 : -1`, `n = z.stelle.einheiten.length`, `auf = offeneEinheiten.has(id)`) — **in Step 5a wandert das in die Zeile selbst**, hier zuerst so, damit die Tests aus Step 1 grün werden:
 
 ```tsx
                 vorne={<ZeichenKnopf stelle={z.stelle} index={p.zeichenIndex} symbole={p.symbole} ladeSymbole={p.ladeSymbole}
-                  planZeichen={planZeichen} aendere={aendere} tabIndex={tab} onFertig={() => fokussiere(id)} />}
+                  planZeichen={planZeichen} aendere={aendere} tabIndex={tab}
+                  offen={offenBei?.id === id && offenBei.was === "zeichen"} onOffen={(o) => setOffenBei(o ? { id, was: "zeichen" } : null)}
+                  onFertig={() => fertig(id, "zeichen")}
+                  knopfRef={(el) => { if (el) zeichenKnoepfe.current.set(id, el); return () => { zeichenKnoepfe.current.delete(id); }; }} />}
                 neben={<>
-                  <VerbindungFeld inhalt={inhalt} stelle={z.stelle} aendere={aendere} tabIndex={tab} />
+                  <VerbindungFeld inhalt={inhalt} stelle={z.stelle} aendere={aendereVerbindung(id)} aktiv={id === aktiv}
+                    offen={offenBei?.id === id && offenBei.was === "verbindung"}
+                    onOffen={(o) => { if (o && id !== aktiv) { p.onAuswahl(id); fokussiere(id, "ende", "verbindung"); } setOffenBei(o ? { id, was: "verbindung" } : null); }}
+                    onFertig={() => fertig(id, "verbindung")}
+                    feldRef={(r) => { if (r) selects.current.set(id, r); return () => { selects.current.delete(id); }; }} />
                   <Button tabIndex={tab} aria-expanded={auf} aria-controls={`kp-g-einheiten-${id}`}
                     onClick={() => setOffeneEinheiten((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x; })}>
                     {n === 1 ? "1 Einheit" : `${n} Einheiten`}
@@ -2099,6 +2519,29 @@ export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen,
 ```
 
 mit `const KEIN_FOKUS = { ziel: "titel" as const, stelle: null, n: 0 };` auf Modulebene. `onEinfuegen={(e) => einfuegen(e, id)}` setzen (falls in Task 7 weggelassen).
+
+- [ ] **Step 5a: Last — `memo`, stabile Rückrufe, Plätze in der Zeile (Entscheidungen 2, 15; verbindlich)**
+
+Step 5 reicht `vorne`/`neben`/`unten` und die Rückrufe als frische Werte je Rendern — so rendert jede Änderung (auch Tippen im Flyin) alle Zeilen neu; der Lasttest aus Step 1 zählt 61 statt ≤ 5. Umbau:
+
+1. **Ein stabiles Befehls-Ref.** In `Gliederung`: `const befehle = useRef<ZeilenBefehle>(null!)` und `useLayoutEffect(() => { befehle.current = { taste, einfuegen, verlassen, aktion, titel: (id, wert) => aendere(…), fokus: (id) => { if (auswahl !== id) p.onAuswahl(id); }, menue: (id, o) => setMenueOffen(o ? id : null), … }; });` — gesetzt im Effekt, nie im Rendern (`react-hooks/refs`); alle Handler der Zeile rufen `befehle.current.…` zur Ereigniszeit. Dasselbe für die Registrierungen (`felder`, `aktionen`, `zeichenKnoepfe`, `selects` — deren Maps sind ohnehin stabile Refs) und für `inhalt`/`aendere`, die `VerbindungFeld` und `EinheitenListe` brauchen (`befehle.current.inhalt()`).
+2. **Die Zeile rendert ihre Plätze selbst.** `GliederungZeile` bekommt statt `vorne`/`neben`/`unten` nur Werte: `zeile`, `gewaehlt`, `aktiv`, `menueOffen: boolean`, `offenBei: "zeichen" | "verbindung" | null`, `einheitenOffen: boolean`, `verbindungen: inhalt.verbindungen`, `symbole`, `zeichenIndex`, `planZeichenSchluessel: string` (die `planZeichen` als sortierte, verbundene Zeichenkette — ein Array wäre je Rendern neu), `befehle`.
+3. **`export const GliederungZeile = memo(ZeileInnen, gleicheZeile)`** mit
+
+```tsx
+/** Entscheidung 2: gleiche Stelle (dank `mitFolge` dasselbe Objekt, solange sie sich nicht ändert), gleiche Lage, gleicher Ansichtszustand. */
+function gleicheZeile(a: ZeilenProps, b: ZeilenProps): boolean {
+  return a.zeile.stelle === b.zeile.stelle && a.zeile.ebene === b.zeile.ebene && a.zeile.seite === b.zeile.seite
+    && (a.zeile.eltern?.titel ?? null) === (b.zeile.eltern?.titel ?? null)
+    && a.gewaehlt === b.gewaehlt && a.aktiv === b.aktiv && a.menueOffen === b.menueOffen && a.offenBei === b.offenBei
+    && !a.einheitenOffen && !b.einheitenOffen // aufgeklappte Einheiten zeigen den ganzen Plan (Bibliothek, Suche): immer neu
+    && a.verbindungen === b.verbindungen && a.symbole === b.symbole && a.zeichenIndex === b.zeichenIndex
+    && a.planZeichenSchluessel === b.planZeichenSchluessel;
+}
+```
+
+   Prüf dabei, dass die Operationen `inhalt.verbindungen` unverändert durchreichen, wenn sich an Verbindungen nichts ändert (`aendereStelle` spreizt `inhalt`, das Array bleibt dasselbe) — sonst trägt der Vergleich nicht.
+4. Der Lasttest aus Step 1 ist das Abnahmekriterium; die Tests aus Task 7 und Step 1 bleiben unverändert grün.
 
 - [ ] **Step 6: CSS**
 
@@ -2115,6 +2558,11 @@ Außerhalb der Media-Blöcke ergänzen:
 .kp-g-zeichen-leer { border: 1px dashed var(--kp-gedaempft); }
 .kp-g-zeichenwahl { width: min(360px, 84vw); }
 .kp-g-haupt .kp-g-verbindung { min-width: 12rem; }
+/* Verbindung nicht aktiver Zeilen: schlichter Textknopf statt Select (Entscheidung 15) — 44 px Ziel, liest sich wie das Feld. */
+.kp-g-verbindung-text {
+  min-height: 44px; min-width: 12rem; padding: 0 11px; text-align: start; cursor: pointer; font: inherit; color: inherit;
+  background: transparent; border: 1px dashed var(--kp-rand); border-radius: 8px;
+}
 .kp-g-einheiten { padding: 0 8px 8px calc(44px + 16px); }
 ```
 
@@ -2151,7 +2599,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/app/m/kommplan/(intern)/p/[id]/page.tsx`
 - Modify: `src/app/m/kommplan/_ui/kommplan.css`, `src/app/m/kommplan/_ui/kommplan-css.test.ts`
 - Modify: `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts`
-- Modify: `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§6.5, letzter Punkt)
+- Modify: `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§6.3, erster Punkt; §6.5, letzter Punkt)
 - Modify: `e2e/kommplan-editor.spec.ts` (Step 9a)
 - Test: `src/app/m/kommplan/_ui/editor/Editor.test.tsx`
 
@@ -2165,7 +2613,16 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 2: Die fehlenden Tests schreiben**
 
-In `Editor.test.tsx`: `zeige` um einen optionalen Parameter erweitern (`const zeige = async (p = plan(), ansicht: EditorAnsicht | null = null) => { await mount(<Editor plan={p} ansicht={ansicht} symbole={{}} zeichenIndex={[]} schrift="Arimo" />); await act(async () => {}); };`, Import `type EditorAnsicht` aus `../../_lib/editorAnsicht`). Die bestehenden Tests bleiben unverändert: im DOM steht die Diagramm-Ansicht **vor** der Gliederung und die Kopfleiste vor beiden, `knopf(text)` findet also weiter den Diagramm-Knopf. Schlägt ein bestehender Test an einem doppelten Knopf fehl, diesen einen Aufruf auf `.kp-ansicht-diagramm` einschränken (`[...document.querySelectorAll<HTMLButtonElement>(".kp-ansicht-diagramm button")].find(…)`), nicht die Reihenfolge ändern.
+In `Editor.test.tsx`: `zeige` um einen optionalen Parameter erweitern (`const zeige = async (p = plan(), ansicht: EditorAnsicht | null = null) => { await mount(<Editor plan={p} ansicht={ansicht} symbole={{}} zeichenIndex={[]} schrift="Arimo" />); await act(async () => {}); };`, Import `type EditorAnsicht` aus `../../_lib/editorAnsicht`).
+
+**Die bestehenden Tests brauchen eine Anpassung** — ab diesem Task steht die Gliederung im DOM (in jsdom auch im Diagramm-Modus, CSS wirkt dort nicht), und ihre Titelfelder heißen `name="titel"` wie das des Stellen-Flyins. Der Wirt des Harness hängt **vor** antds Drawer-Portal im `body`, und `queryPortal` ist `document.body.querySelector` — `queryPortal('input[name="titel"]')` fände also das Titelfeld der ersten Gliederungszeile statt des Flyins. Das bräche „+ Unterstelle" (Wert ''), die Tastaturschleife (`activeElement`), „leerer Plan", Strg+Z im Flyin (das Keydown landete in der Gliederung und würde dort zum Rückgängig des Dokuments), jede Stelle mit `escImFlyin` (Esc ginge an die Gliederung, das Flyin bliebe offen) und die neuen Tests unten. Deshalb im Kopf der Datei einen Helfer einführen
+
+```ts
+/** Das Titelfeld des Stellen-Flyins — nie ungefiltert `input[name="titel"]`: die Gliederung trägt denselben Namen (Phase 3). */
+const flyinFeld = () => queryPortal<HTMLInputElement>('[data-flyin-stelle] input[name="titel"]');
+```
+
+und **jedes** `queryPortal('input[name="titel"]')` bzw. `queryPortal<HTMLInputElement>('input[name="titel"]')` der Datei durch `flyinFeld()` ersetzen — in `escImFlyin` und in den Tests „„+ Unterstelle“: sofort gesetzt …", „Tastaturschleife ohne Maus …", dem Strg+Z-Test mit F2 im Flyin, „die letzte Stelle löschen …", „… mit Eingabe bleibt es stehen …", „… ebenso, wenn Rückgängig die gewählte Stelle entfernt" und dem Hinweis-Test mit „ELX" (Stand der Planung: zwölf Aufrufe; `git grep -n "input\[name=\"titel\"\]" src/app/m/kommplan/_ui/editor/Editor.test.tsx` muss danach nur noch den Helfer, den Planangaben-Greifer `fieldset[aria-label="Planangaben"] …` und die ausdrücklich eingeschränkten Gliederungsgreifer zeigen). Der Planangaben-Greifer ist schon eingeschränkt und bleibt. Doppelte **Knöpfe** sind unkritisch: im DOM steht die Diagramm-Ansicht vor der Gliederung und die Kopfleiste vor beiden, `knopf(text)` findet also weiter den Diagramm-Knopf („Erste Stelle anlegen" gibt es danach zweimal). Schlägt ein bestehender Test an einem doppelten Knopf fehl, diesen einen Aufruf auf `.kp-ansicht-diagramm` einschränken, nicht die Reihenfolge ändern.
 
 Anhängen:
 
@@ -2191,11 +2648,12 @@ describe("Ansichten (Spec §6.2, §6.5; Phase 3, Entscheidungen 1, 2, 16)", () =
     await waehle("a");
     query<HTMLElement>(".kp-betrachter").focus();
     await taste("n"); // neue Unterstelle, Flyin offen
-    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "Neu"); // berührt: Esc verwirft sie nicht
+    await schreibe(flyinFeld(), "Neu"); // berührt: Esc verwirft sie nicht
     await warte(1200); // Autosave erledigt
     aktionen.speichereInhaltAction.mockClear();
     await clickElement(radio("Gliederung"));
     expect(query(".kp-editor").getAttribute("data-editoransicht")).toBe("gliederung");
+    expect(flyinFeld().value).toBe("Neu"); // das Flyin ist dasselbe geblieben
     expect(ersetze).toHaveBeenLastCalledWith(null, "", expect.stringMatching(/\?ansicht=gliederung$/));
     expect(query<HTMLInputElement>('[data-zeile][aria-current="true"] input[name="titel"]').value).toBe("Neu");
     expect(flyinOffen()).toBe(true);
@@ -2219,9 +2677,20 @@ describe("Ansichten (Spec §6.2, §6.5; Phase 3, Entscheidungen 1, 2, 16)", () =
     await act(async () => { feld.focus(); });
     await taste("F2", {}, feld);
     expect(flyinOffen()).toBe(true);
-    await escImFlyin();
+    await escImFlyin(); // Esc an `flyinFeld()` — nicht an die Gliederung
     await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
-    expect(document.activeElement).toBe(query('[data-zeile="a"] input[name="titel"]'));
+    expect(flyinOffen()).toBe(false);
+    expect(document.activeElement).toBe(query('[data-zeile="a"] input[name="titel"]')); // breit (jsdom kennt kein matchMedia): der Titel
+  });
+  it("Ansichtswechsel räumt eine unberührt per Enter angelegte Zeile weg — ohne Wiederholen-Schritt (Entscheidung 8)", async () => {
+    await zeige(plan(), "gliederung");
+    const feld = query<HTMLInputElement>('[data-zeile="a"] input[name="titel"]');
+    await act(async () => { feld.focus(); });
+    await taste("Enter", {}, feld);
+    expect(queryAll("[data-zeile]")).toHaveLength(4);
+    await clickElement(radio("Diagramm"));
+    expect(queryAll("[data-zeile]")).toHaveLength(3);
+    expect(knopf("Wiederholen").disabled).toBe(true);
   });
   it("Einfügen in der Gliederung ist EIN Schritt: „Rückgängig“ der Kopfleiste nimmt den ganzen Teilbaum zurück", async () => {
     await zeige(plan(), "gliederung");
@@ -2290,11 +2759,18 @@ In `Editor.tsx`:
     const schmal = typeof window.matchMedia === "function" && window.matchMedia(SCHMAL).matches;
     return sichtbareAnsicht(ansicht, schmal);
   }
-  /** Fokus zurück in die sichtbare Ansicht: die Fläche oder die Zeile (Phase 2, Entscheidung 17; Phase 3, Entscheidung 16). */
+  /**
+   * Fokus zurück in die sichtbare Ansicht: die Fläche oder die Zeile (Phase 2, Entscheidung 17; Phase 3,
+   * Entscheidung 16). In der Zeile schmal auf „⋯" — ein Titelfeld öffnete am Telefon die Bildschirmtastatur —,
+   * breit in den Titel.
+   */
   function fokusZurueck(id: string | null = gewaehlt) {
-    if (sichtbar() === "diagramm") flaeche.current?.fokus(); else gliederung.current?.fokus(id);
+    if (sichtbar() === "diagramm") { flaeche.current?.fokus(); return; }
+    const schmal = typeof window.matchMedia === "function" && window.matchMedia(SCHMAL).matches;
+    gliederung.current?.fokus(id, schmal ? "aktionen" : "titel");
   }
   function wechsleAnsicht(a: EditorAnsicht) {
+    gliederung.current?.raeumeAuf(); // ein unberührt angelegtes Element verschwindet (Entscheidung 8)
     setAnsicht(a);
     try { window.history.replaceState(null, "", adresseMitAnsicht(window.location.href, a)); } catch { /* ohne Adresse bleibt es Zustand */ }
     if (gewaehlt === null) return;
@@ -2303,7 +2779,7 @@ In `Editor.tsx`:
   }
 ```
 
-5. Jeden bisherigen Aufruf `flaeche.current?.fokus()` in `schliesseFlyin`, `loesche`, `perKnopf` und `nachSchliessen` durch `fokusZurueck()` ersetzen — in `loesche` durch `fokusZurueck(s.eltern)` (die gelöschte Zeile gibt es danach nicht mehr). `lege()` und `taste()` bleiben (sie sind Diagramm-Wege).
+5. Jeden bisherigen Aufruf `flaeche.current?.fokus()` in `schliesseFlyin`, `loesche`, `perKnopf` und `nachSchliessen` durch `fokusZurueck()` ersetzen — in `loesche` durch `fokusZurueck(s.eltern)` (die gelöschte Zeile gibt es danach nicht mehr). `lege()` und `taste()` bleiben (sie sind Diagramm-Wege). Im globalen Tastenhandler des Editors (Strg/Cmd+Z am `document`): steht der Fokus nach dem Schritt auf `body` und ist die Gliederung sichtbar (`sichtbar() === "gliederung"`), `gliederung.current?.fokus(gewaehlt)` — sonst verlöre, wer nach einem Rückgängig per Kopfleiste weitertippt, den Faden (Entscheidung 10).
 6. Den Effekt „Neue, per Pfeil gewählte … Karte in den freien Bereich holen" um `ansicht` in der Abhängigkeitsliste erweitern: `[daten, gewaehlt, flyin, ansicht]`.
 7. JSX: `data-editoransicht={ansicht ?? "auto"}` an `.kp-editor`; `<Kopfleiste … ansicht={ansicht} onAnsicht={wechsleAnsicht} />`; die bisherigen Kinder `<Flaeche …/>`, `<p className="kp-hilfe kp-bedienhinweis">`, `<div className={schriftKlasse}><Legende …/></div>` und `<Button …>Verbindungen bearbeiten</Button>` in `<div className="kp-ansicht-diagramm">…</div>` einschließen und **dahinter**:
 
@@ -2312,7 +2788,13 @@ In `Editor.tsx`:
         <Gliederung griff={gliederung} inhalt={inhalt} auswahl={gewaehlt} aendere={aendere} meldung={meldung}
           onAuswahl={setAuswahl} onDetails={(id) => oeffne(id)} onLoeschen={loesche}
           onRueck={rueck} onWieder={wieder} onHinweis={(text) => setHinweis({ text })}
-          verwirfUnberuehrt={(nach) => { if (verlauf.jetzt !== nach) return false; uebernimm(verwirf(verlauf), true); return true; }}
+          verwirfUnberuehrt={(nach, dann) => {
+            if (verlauf.jetzt !== nach) return null;
+            const w = verwirf(verlauf);
+            const x = dann ? tue(w, dann(w.jetzt), Date.now()) : w;
+            uebernimm(x, true);
+            return x.jetzt;
+          }}
           symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} />
       </div>
 ```
@@ -2374,6 +2856,8 @@ Release-Notiz `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kom
 
 Spec §6.5, letzter Punkt: „Am Telefon ist die Gliederung der einzige Bearbeitungsweg." ersetzen durch „Am Telefon öffnet der Editor in der Gliederung; das Diagramm bleibt über den Umschalter für kleine Korrekturen erreichbar." — eine Zeile, keine Zeile dazu.
 
+Spec §6.3, erster Punkt (zwei Zeilen: „Die ausgewählte Karte zeigt Griffe: unten „+ Unterstelle", seitlich „+ Seitenstelle", an der / Einheitenspalte „+ Einheit".") ersetzen durch — **wieder zwei Zeilen**, keine dazu (Kommentaranker-Regel 4): „Die ausgewählte Karte trägt einen Auswahlrahmen; „+ Unterstelle", „+ links", „+ rechts", „+ Einheit" / und „Bearbeiten" stehen in einer Auswahlleiste oben in der Fläche, nie über dem Plan (Phase 3, E. 18)." Das gilt nur, wenn der Hauptlauf Entscheidung 18 bestätigt hat — dasselbe Tor wie zu Beginn von Task 5.
+
 - [ ] **Step 9: Tests laufen lassen**
 
 Run: `pnpm vitest run src/app/m/kommplan/ src/app/m/portal/_lib/neuigkeiten/`
@@ -2384,12 +2868,13 @@ Expected: PASS.
 Ab diesem Commit öffnet der Editor bei 390 px in der Gliederung, und beide Ansichten stehen im DOM. In `e2e/kommplan-editor.spec.ts`:
 
 1. Seit diesem Task stehen beide Ansichten im DOM, und `getByText`/`getByLabel` sehen auch den verborgenen Teil (docs/design/README.md, Tabelle zu `Schmalkarten.tsx`: `getByRole` lässt Verborgenes aus, `getByText` nicht). In `ersteStelle` wird deshalb `page.getByText("Dieser Plan hat noch keine Stellen.")` zu `page.locator(".kp-betrachter").getByText("Dieser Plan hat noch keine Stellen.")` — sonst bricht jeder Aufruf am strikten Greifer (zwei Treffer). Die übrigen `getByText`/`getByLabel` der beiden kommplan-Specs sind auf Flyin, Formular oder Konflikthinweis eingeschränkt (Stand der Planung: `git grep -n "getByText\|getByLabel" e2e/kommplan*.ts`); neue Greifer auf Texte, die in beiden Ansichten stehen, immer einschränken oder `getByRole` nehmen.
-2. Test „Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon …": direkt nach `neuerPlan(…)` die Diagramm-Ansicht ausdrücklich wählen — sonst zeigt 390 px die Gliederung:
+2. Test „Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon …": direkt nach `neuerPlan(…)` die Diagramm-Ansicht **über die Adresse** öffnen — sonst zeigt 390 px die Gliederung. Nicht den Umschalter anklicken: bei 1280 px Startbreite steht der Automodus, und im sichtbaren Umschalter ist „Diagramm" schon gewählt — ein Klick darauf löst kein `onChange` aus, `replaceState` liefe nie, und `getByRole("radio").check()` wartete ohnehin endlos auf ein 0 × 0-Input (Global Constraints, „antds `Segmented` im e2e"):
    ```ts
-   await page.getByRole("radiogroup", { name: "Ansicht" }).getByRole("radio", { name: "Diagramm" }).check();
-   await expect(page).toHaveURL(/\?ansicht=diagramm$/);
+   const id = await neuerPlan(page, …);
+   await oeffneEditor(page, () => page.goto(url(`/p/${id}?ansicht=diagramm`)));
+   await expect(page.locator(".kp-editor")).toHaveAttribute("data-editoransicht", "diagramm");
    ```
-   (Bei 1280 px Startbreite ist genau ein Umschalter sichtbar; `getByRole` sieht den verborgenen nicht.)
+   Erst danach `ersteStelle`. Dieselbe Falle gilt für jedes künftige „Diagramm wählen" im Automodus ab 768 px.
 3. Fototest „Bildschirmfotos …": jede Navigation in den Editor, auf die ein Diagramm-Schritt folgt (`/p/${leerId}`, `/p/beispiel-openr-2022-07-01`), bekommt `?ansicht=diagramm`. Im Kopfkommentar ergänzen: „Am Telefon öffnet der Editor ohne Parameter in der Gliederung (Phase 3); die Diagrammfotos wählen es ausdrücklich." (Die Oberkante in `ganzInDerFlaeche` prüft der Test seit Task 5.)
 
 Dann einzeln fahren:
@@ -2476,7 +2961,7 @@ In `e2e/kommplan-editor.spec.ts` (die Anpassungen an die Telefon-Vorgabe stehen 
 ```ts
 import { expect, test, type Locator, type Page, type Response } from "@playwright/test";
 import { devLogin, klickeWennRuhig } from "./fixtures";
-import { ADMIN, HOST, istSpeichern, neuerPlan, oeffneEditor, speichertNach, url } from "./kommplan-hilfen";
+import { ADMIN, HOST, flyinTitel, istSpeichern, neuerPlan, oeffneEditor, speichertNach, url } from "./kommplan-hilfen";
 
 /**
  * Kommunikationspläne, Phase 3: die Gliederung (Spec §6.5) und die kompakten Griffe. Jeder bearbeitende
@@ -2494,9 +2979,18 @@ async function fuegeEin(feld: Locator, text: string): Promise<void> {
     el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   }, text);
 }
+/**
+ * Umschalten über das sichtbare ETIKETT des Segmented, nie `getByRole("radio").check()` (0 × 0-Input, wartet
+ * endlos — `lagerbuch-verfall-fahrzeug.spec.ts`, Kopfkommentar zum Umschalter). `getByRole("radiogroup")` sieht
+ * im Automodus nur den sichtbaren der zwei Umschalter. Nur für einen Wert aufrufen, der NICHT schon gewählt ist
+ * — sonst kein `onChange` (Global Constraints).
+ */
+async function schalteAuf(page: Page, name: "Diagramm" | "Gliederung"): Promise<void> {
+  await klickeWennRuhig(page.getByRole("radiogroup", { name: "Ansicht" }).locator("label", { hasText: name }));
+  await expect(page).toHaveURL(new RegExp(`\\?ansicht=${name.toLowerCase()}$`));
+}
 async function zurGliederung(page: Page): Promise<void> {
-  await page.getByRole("radiogroup", { name: "Ansicht" }).getByRole("radio", { name: "Gliederung" }).check();
-  await expect(page).toHaveURL(/\?ansicht=gliederung$/);
+  await schalteAuf(page, "Gliederung");
   await expect(liste(page).or(page.getByRole("button", { name: "Erste Stelle anlegen" }))).toBeVisible();
 }
 
@@ -2518,7 +3012,7 @@ test("Gliederung per Tastatur: Enter, Tab, Umschalt+Tab, Alt+↑, Rücktaste —
   await oeffneEditor(page, () => page.reload());
   await expect(liste(page)).toBeVisible(); // die Adresse trägt ?ansicht=gliederung
   expect(await baum(page)).toEqual(["EL", "·EA 1", "·EA 3", "·RTW", "·EA 2"]);
-  await page.getByRole("radiogroup", { name: "Ansicht" }).getByRole("radio", { name: "Diagramm" }).check();
+  await schalteAuf(page, "Diagramm"); // ausdrücklich „gliederung" gewählt: nur ein Umschalter, „Diagramm" nicht gewählt
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(5);
 });
 
@@ -2554,7 +3048,7 @@ test("Mehrzeiliges Einfügen legt einen Teilbaum an; ein Rückgängig nimmt ihn 
   expect(await baum(page)).toHaveLength(4);
 });
 
-test("Telefon: öffnet in der Gliederung; „⋯“ rückt ein, „Details …“ öffnet das Flyin", async ({ page }) => {
+test("Telefon: öffnet in der Gliederung; „⋯“ legt an, rückt ein und öffnet Details — ohne Tastatur für die Struktur; nach dem Flyin keine Bildschirmtastatur", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const id = await neuerPlan(page, "e2e Gliederung Telefon");
@@ -2568,11 +3062,26 @@ test("Telefon: öffnet in der Gliederung; „⋯“ rückt ein, „Details …�
   await klickeWennRuhig(page.getByRole("button", { name: "Aktionen für EA 1" }));
   await speichertNach(page, () => klickeWennRuhig(page.getByRole("menuitem", { name: /^Einrücken/ })));
   expect(await baum(page)).toEqual(["EL", "·EA 1"]);
+  await expect(page.getByRole("button", { name: "Aktionen für EA 1" })).toBeFocused(); // Tipp → Fokus bleibt auf „⋯“
+  // Anlegen über „⋯“ (Entscheidung 11): eine Seitenstelle und eine Stelle darunter, Titel per Bildschirmtastatur
+  await klickeWennRuhig(page.getByRole("button", { name: "Aktionen für EL" }));
+  await speichertNach(page, async () => {
+    await klickeWennRuhig(page.getByRole("menuitem", { name: "Seitenstelle links" }));
+    await page.keyboard.type("KatSL");
+  });
+  await klickeWennRuhig(page.getByRole("button", { name: "Aktionen für EA 1" }));
+  await speichertNach(page, async () => {
+    await klickeWennRuhig(page.getByRole("menuitem", { name: /^Neue Stelle darunter/ }));
+    await page.keyboard.type("EA 2");
+  });
+  expect(await baum(page)).toEqual(["EL", "·KatSL", "·EA 1", "·EA 2"]);
+  await expect(page.locator(".kp-gliederung [data-zeile] [data-seite='links']")).toHaveText("Seitenstelle links");
   await klickeWennRuhig(page.getByRole("button", { name: "Aktionen für EA 1" }));
   await klickeWennRuhig(page.getByRole("menuitem", { name: /^Details/ }));
   await expect(page.locator(".kp-flyin").getByLabel("Titel", { exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.locator(".kp-gliederung [data-zeile] input[name='titel']").nth(1)).toBeFocused();
+  // schmal: der Fokus kehrt auf „⋯“ der Zeile zurück, nicht in ein Titelfeld (sonst öffnete die Bildschirmtastatur, Entscheidung 16)
+  await expect(page.getByRole("button", { name: "Aktionen für EA 1" })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
 
@@ -2588,46 +3097,69 @@ test("Umschalten am Seed-Plan: Auswahl bleibt, kein Neuladen, kein einziger Spei
   await zurGliederung(page);
   await expect(page.locator('[data-zeile="ea2"]')).toHaveAttribute("aria-current", "true");
   await expect(page.locator('[data-zeile="ea2"]')).toBeInViewport();
-  await page.getByRole("radiogroup", { name: "Ansicht" }).getByRole("radio", { name: "Diagramm" }).check();
+  await schalteAuf(page, "Diagramm");
   await expect(page.getByRole("toolbar", { name: /^Auswahl: EA 2/ })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { marke?: number }).marke)).toBe(42);
   page.off("response", zaehle);
   expect(speicherungen).toEqual([]);
 });
 
-test("Griffe: kompakt, 6 px an der Karte, Seitengriffe beschriftet und ohne Nachbarkarten zu verdecken; Treffer 44 px (Phase 3, Entscheidung 18)", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+test("Auswahlleiste: liegt über keinem Planelement, beschriftete Seitengriffe, Knöpfe 44 px — ohne und mit Flyin, Desktop und Tablet (Phase 3, Entscheidung 18)", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
-  await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=diagramm")));
-  for (const id of ["ea1", "ea2", "ea4"]) {
-    await page.keyboard.press("Escape");
-    await klickeWennRuhig(page.locator(`.kp-betrachter [data-karte="${id}"]`));
-    const karte = (await page.locator(`[data-griffe="${id}"] .kp-griffe-karte`).boundingBox())!;
-    const leiste = (await page.locator(`[data-griffe="${id}"] .kp-griffleiste`).boundingBox())!;
-    expect(leiste.y - (karte.y + karte.height), `${id}: Leiste an der Karte`).toBeLessThanOrEqual(8);
-    const andere = await page.locator(`.kp-betrachter [data-karte]:not([data-karte="${id}"])`).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
-    for (const seite of ["links", "rechts"] as const) {
-      const g = page.locator(`[data-griffe="${id}"] [data-griff="${seite}"]`);
-      await expect(g).toHaveText(`+ ${seite}`);
-      const b = (await g.boundingBox())!;
-      expect(b.height, `${id} ${seite}: sichtbar kompakt`).toBeLessThanOrEqual(33);
-      expect(karte.y - (b.y + b.height), `${id} ${seite}: nah über der Karte`).toBeLessThanOrEqual(8);
-      for (const a of andere) {
-        const schneidet = b.x < a.x + a.width && b.x + b.width > a.x && b.y < a.y + a.height && b.y + b.height > a.y;
-        expect(schneidet, `${id} ${seite} verdeckt eine Nachbarkarte`).toBe(false);
-      }
-      // Trefferfläche 44 px: 5 px über und unter dem sichtbaren Knopf trifft man noch ihn
-      for (const dy of [-5, b.height + 5]) {
-        const trifft = await page.evaluate(([x, y, s]) => document.elementFromPoint(x, y)?.closest(`[data-griff="${s}"]`) !== null, [b.x + b.width / 2, b.y + dy, seite] as const);
-        expect(trifft, `${id} ${seite}: Treffer bei ${dy}`).toBe(true);
+  const speicherungen: string[] = [];
+  const zaehle = (r: Response) => { if (istSpeichern(r)) speicherungen.push(r.url()); };
+  page.on("response", zaehle);
+  for (const [breite, hoehe] of [[1440, 900], [1024, 768]] as const) {
+    await page.setViewportSize({ width: breite, height: hoehe });
+    await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=diagramm")));
+    for (const id of ["fuekw", "ea1", "ea2", "ea4", "el"]) {
+      for (const mitFlyin of [false, true]) {
+        const was = `${breite} ${id}${mitFlyin ? " mit Flyin" : ""}`;
+        await klickeWennRuhig(page.locator(`.kp-betrachter [data-karte="${id}"]`));
+        if (mitFlyin) { await page.keyboard.press("Enter"); await expect(flyinTitel(page)).toBeVisible(); }
+        await expect(page.locator(".kp-betrachter")).toHaveAttribute("data-eingepasst", "true");
+        const leiste = page.locator(`[data-griffe="${id}"] .kp-auswahlleiste`);
+        await expect(leiste).toHaveAttribute("aria-label", /^Auswahl: /);
+        const flaechen = [leiste, ...await page.locator(`[data-griffe="${id}"] [data-griff]`).all()];
+        const plan = await page.locator(".kp-betrachter [data-karte], .kp-betrachter [data-einheit], .kp-betrachter [data-sechseck]")
+          .evaluateAll((els) => els.map((e) => ({ was: e.getAttribute("data-karte") ?? e.getAttribute("data-einheit") ?? e.getAttribute("data-sechseck"), r: e.getBoundingClientRect().toJSON() as DOMRect })));
+        for (const f of flaechen) {
+          const b = (await f.boundingBox())!;
+          for (const { was: element, r } of plan) {
+            const schneidet = b.x < r.x + r.width && b.x + b.width > r.x && b.y < r.y + r.height && b.y + b.height > r.y;
+            expect(schneidet, `${was}: ${await f.getAttribute("data-griff") ?? "Leiste"} liegt über ${element}`).toBe(false);
+          }
+        }
+        for (const g of await page.locator(`[data-griffe="${id}"] [data-griff]`).all()) {
+          expect((await g.boundingBox())!.height, `${was}: Knopf 44 px`).toBeGreaterThanOrEqual(44);
+        }
+        if (id !== "el") {
+          await expect(page.locator(`[data-griffe="${id}"] [data-griff="links"]`)).toHaveText("+ links");
+          await expect(page.locator(`[data-griffe="${id}"] [data-griff="rechts"]`)).toHaveText("+ rechts");
+        } else {
+          await expect(page.locator(`[data-griffe="el"] [data-griff]`)).toHaveCount(2); // Seitenstelle: „+ Einheit", „Bearbeiten"
+        }
+        if (mitFlyin) {
+          const flyin = (await page.locator("[data-flyin-stelle]").boundingBox())!;
+          expect((await leiste.boundingBox())!.x + (await leiste.boundingBox())!.width, `${was}: Leiste links vom Flyin`).toBeLessThanOrEqual(flyin.x);
+          await page.keyboard.press("Escape"); // Flyin zu
+          await expect(flyinTitel(page)).toBeHidden();
+        }
       }
     }
+    // der Einklapp-Umschalter der gewählten Karte bleibt treffbar (vorher lag die Trefferfläche der Griffleiste darauf)
+    await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="fuekw"]'));
+    const u = (await page.locator('.kp-betrachter [data-umschalter="fuekw"]').boundingBox())!;
+    const trifft = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-umschalter="fuekw"]') !== null, [u.x + u.width / 2, u.y + u.height / 2] as const);
+    expect(trifft, `${breite}: Umschalter an fuekw`).toBe(true);
   }
+  page.off("response", zaehle);
+  expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
 });
 ```
 
-Hinweise: `speichertNach` wartet auf die Antwort des Autosave — die Schritte davor (Enter, Tab …) sind reine Client-Änderungen und landen im selben gebündelten Speichern. Trifft `elementFromPoint` bei −5 den Tooltip-Wurzelknoten statt des Knopfs, ist das ein Befund an der Trefferfläche, kein Grund, `dy` zu verkleinern.
+Hinweise: `speichertNach` wartet auf die Antwort des Autosave — die Schritte davor (Enter, Tab …) sind reine Client-Änderungen und landen im selben gebündelten Speichern. Der Auswahlleisten-Test misst **eingepasst** (Klick auf eine Karte ändert den Zoom nicht; öffnet das Flyin, passt die Fläche neu ein, Phase-2-Entscheidung 18) — gezoomt darf die Leiste Teile der Zeichnung verdecken, nie die gewählte Karte. Er misst gegen **alle** Karten, Einheiten und Sechsecke, nicht nur die fremden: die Leiste liegt über keinem Planelement, auch nicht der eigenen Karte. Schlägt „Leiste links vom Flyin" fehl, reicht der Editor der Leiste die Breite ohne den verdeckten Teil nicht durch (`flaeche.breite`). Ein Treffer auf `el` bei 1024 heißt: `GRIFF_RAND.oben` hält den Streifen nicht frei — die Rechnung prüfen, nicht die Zusicherung lockern. `Response` in die Typimporte von `@playwright/test` aufnehmen (steht dort schon), `flyinTitel` aus `./kommplan-hilfen`.
 
 - [ ] **Step 4: Einzeln laufen lassen**
 
@@ -2688,13 +3220,15 @@ Expected: Exit 0; 8 Ansichten der Phase 2 + `gliederung`, `gliederung-auswahl` j
 - [ ] **Step 2: Jedes Foto mit Read ansehen**
 
 Mindestens: `auswahl-*` (alle 6), `flyin-stelle-*` (6), `gliederung-*` und `gliederung-auswahl-*` (je 6), `telefon-standard-*` (2). Prüfliste:
-1. Griffe: kompakt, direkt an der Karte; „+ links"/„+ rechts" lesbar, über den Ecken, ohne Nachbarkarte zu verdecken; im Dunkeln Pillen mit sichtbarem Rand.
+1. Auswahl: an der Karte nur der Rahmen; die Auswahlleiste oben links, über keinem Planelement, „+ links"/„+ rechts" lesbar, der Name der Stelle erkennbar (gekürzt mit „…"); im Dunkeln mit sichtbarem Rand; am Telefon eine Zeile, waagerecht scrollbar, der angeschnittene letzte Knopf verrät das Scrollen. Vergleich mit `phase2-shots/auswahl-*` und `flyin-stelle-*`: nichts verdeckt mehr EA 1/EA 3 oder das Sechseck „TMO BOS_NI_RES_09".
 2. Gliederung: Einrückung klar erkennbar, Seitenstellen-Chip lesbar, gewählte Zeile mit Fläche **und** Randstrich (hell wie dunkel), Titel nicht abgeschnitten bei 1024 px mit Sidebar.
 3. Telefon: eine Zeile = Zeichen, Titel, „⋯"; die gewählte Zeile zeigt Verbindung und Einheiten; kein waagerechtes Überlaufen; Kopfleiste mit Umschalter voll breit.
 4. Umschalter: genau einer sichtbar, der gewählte Wert markiert.
 5. Hinweise (`hinweis-*`): im Bild, nicht über Griffen.
-7. Last: die große Stab-Lage (`/p/beispiel-grosse-stabslage?ansicht=gliederung`, falls der Seed-Schlüssel anders heißt, aus `_lib/beispiele/index.ts`) in der Gliederung öffnen und in einem Titel tippen — jede Zeile trägt `Input`, `Select`, `Dropdown` und `Popover`, und anders als das Layout ist die Liste nicht `useDeferredValue`. Hakt das Tippen spürbar, `GliederungZeile` per `memo` an `zeile.stelle`, `gewaehlt` und `aktiv` binden (die Operationen erhalten unveränderte Stellen als dasselbe Objekt, `mitFolge`) und als Abweichung eintragen.
-6. Zum Vergleich die Referenzbilder der alten Vorlage (`…/scratchpad/referenz/*.png`) daneben lesen: die Gliederung soll dieselbe Hierarchie erkennen lassen wie das Blatt.
+6. Last **messen, nicht schätzen** (Entscheidungen 2, 15): die große Stab-Lage (`/p/beispiel-grosse-stabslage`, falls der Seed-Schlüssel anders heißt, aus `_lib/beispiele/index.ts`) bei 390 × 844 mit `?ansicht=gliederung` **und** bei 1440 × 900 mit `?ansicht=diagramm` und offenem Stellen-Flyin öffnen, per CDP `Emulation.setCPUThrottlingRate { rate: 4 }` drosseln und zehn Zeichen in einen Titel tippen (Gliederungszeile bzw. Flyin). Gemessen wird im Browser je Taste die Zeit von `keydown` bis zum nächsten `requestAnimationFrame` (kleines Skript per `page.evaluate`, das die Werte in `window` sammelt). Schwelle: Median unter 50 ms. Liegt es darüber, ist das ein Befund an Step 5a von Task 8 (`memo` trägt nicht — meist ein Prop, das je Rendern neu ist). Messwerte in „Abweichungen bei der Umsetzung" eintragen; das Skript ist eine einmalige Messung im Scratchpad, **kein** Test in der Suite (unter der Last paralleler Sessions wäre eine Zeitschwelle unzuverlässig).
+7. **Aufwand nachzählen (Review Focus 7):** den Referenzplan „Einsatz 22.02.2026" (`…/scratchpad/referenz/einsatz-2026-02-22.png`) in einem neuen Plan am Desktop in der Gliederung nachbauen — einmal getippt (Enter/Tab, Alt+V je neuem Bus, Enter übernimmt die Verbindung), einmal per Einfügen (danach Alt+V an den ersten Kindern und „… für Geschwister übernehmen"). Tasten und Klicks für Struktur samt Verbindungen **ohne Titeltext** zählen; Soll unter 40. Zahl und Weg in „Abweichungen" eintragen; darüber ist es ein Befund.
+8. **Windows-Kürzel (Risiko aus Entscheidung 10):** hier läuft nur macOS. Im Playwright-Chromium unter macOS prüfen, dass Alt+V/Alt+Z in der Gliederung ankommen und `preventDefault` greift; dass Alt+V in Firefox unter Windows kein Menü öffnet, ist **nicht** geprüft — in „Abweichungen" als offenes Risiko vermerken.
+9. Zum Vergleich die Referenzbilder der alten Vorlage (`…/scratchpad/referenz/*.png`) daneben lesen: die Gliederung soll dieselbe Hierarchie erkennen lassen wie das Blatt.
 
 - [ ] **Step 3: Befunde beheben**
 
@@ -2749,7 +3283,8 @@ Expected: alles Exit 0. Bekannt und nicht Teil dieser Arbeit: `scripts/backup-si
 | §6.6 dieselbe Rückgängig-/Autosave-Kette, reine Operationen in `_lib/plan/` (`fuegeGliederungEin` …) | 2, 3, 7, 9 |
 | §9 `_ui/gliederung/` als Client-Insel | 7, 8 |
 | §10 Einfüge-Parser (Gliederung) getestet; e2e „Gliederung einfügen" | 1, 10 |
-| Hauptlauf: Griffe kompakter und näher, Seitengriffe mit Kurzbeschriftung und `aria-label`, Touch-Ziele ≥ 44 px | 5, 10, 11 |
+| Hauptlauf: Griffe verdecken nichts, Seitengriffe mit Kurzbeschriftung und `aria-label`, Touch-Ziele ≥ 44 px — umgesetzt als Auswahlleiste statt „näher an die Karte" (Entscheidung 18, **vom Hauptlauf zu bestätigen**; Spec §6.3 angepasst) | 5, 9, 10, 11 |
+| §6.5 Telefon als Bearbeitungsweg ohne Tastatur: Anlegen (auch Seitenstellen), Ebene, Verschieben, Details über „⋯" | 7, 10 |
 | Hauptlauf: Release-Notiz ehrlich zum Stand nach Phase 3, eine Notiz | 9, 11 |
 | Hauptlauf: keine Bibliotheks-Suche, kein Briefkopf | Global Constraints (nicht angefasst) |
 | Screenshots hell/dunkel, 1440×900, 1024×768, 390×844 | 10, 11 |
@@ -2760,3 +3295,47 @@ Was sich erst am laufenden Code zeigt. Jede Zeile nennt die Aufgabe, in der die 
 
 | # | Aufgabe | Befund | Entscheidung |
 |---|---|---|---|
+
+## Kritik eingearbeitet/verworfen
+
+Kritik am ersten Stand dieses Plans (29 Befunde, einige doppelt). Jeder Befund ist am Code geprüft; Belege stehen bei der jeweiligen Entscheidung bzw. Aufgabe. Doppelte Befunde sind zusammengefasst (Nummer = Reihenfolge in der Kritik).
+
+### Eingearbeitet
+
+| Befund | Kern | Wo |
+|---|---|---|
+| 1, 8 | `queryPortal('input[name="titel"]')` fände ab Task 9 das Titelfeld der ersten Gliederungszeile statt des Flyins (Wirt vor dem Drawer-Portal im `body`) — bestätigt an `test-dom.tsx` (`queryPortal`) und an den Flyin-Greifern in `Editor.test.tsx` | Global Constraints; Task 7 (DOM-Vertrag); Task 9 Step 2 (`flyinFeld()`, alle Aufrufe samt `escImFlyin`); e2e-Seite geprüft: `flyinTitel` ist schon auf `.kp-flyin` und `exact` eingeschränkt |
+| 2, 9 | `getByRole("radio").check()` am `Segmented` wartet endlos (0 × 0-Input); ein schon gewählter Wert löst kein `onChange` aus — bestätigt an antds Segmented-Stil (`-input` 0 × 0) und `@rc-component/segmented` (`onChange` nur über das native `change`) | Global Constraints; Task 9 Step 9a.2 (Diagramm über `?ansicht=diagramm`); Task 10 (`schalteAuf` klickt das Etikett) |
+| 3 | Test „gezoomt …" hat `GRIFF_RAND.seite` als Literal `84` zweimal | Task 5 (Files, Step 7a.3: jetzt 16; Step 7a fährt die ganze Spec) |
+| 4, 10, 16, 23 | Griffe an der Karte verdecken Nachbarkarten, Einheiten und Kanalsechsecke — bei 1024 ist neben und über einer EA-Karte kein Platz für ein 44-px-Ziel (Golden-Layout OpenR, Foto `auswahl-tablet-light.png`); der e2e prüfte nur Seitengriffe gegen Karten bei 1440 | Entscheidung 18 neu (Auswahlleiste oben in der Fläche); Task 5 neu; Task 9 (Spec §6.3); Task 10 (Test gegen Karten, Einheiten, Sechsecke, bei 1440 ohne/mit Flyin und 1024) |
+| 5 | `grenze.test.ts` prüft `_lib/editorAnsicht.ts` nicht | Task 4 (Liste ergänzt, mit Gegenprobe) |
+| 6 | Parser legt die Stufe einer zu langen Zeile auf den Stapel | Task 1 (erst prüfen, dann stapeln; Test und Zufallstest mit zu langen Zeilen) |
+| 7 | Kopfkommentar von `operationen.ts` kündigt das Gliederungs-Einfügen in `einfuegen.ts` an | Task 2 Step 1 (in derselben Zeile) |
+| 11, 28 | verborgene Gliederung rendert bei jedem Tastendruck alle Zeilen neu; je Zeile ein antd-Select | Entscheidungen 2 und 15; Task 8 Step 5a (`memo`, stabile Rückrufe, Plätze in der Zeile) und `GliederungLast.test.tsx`; nur die aktive Zeile trägt ein Select; Task 11 misst bei 390 px mit CPU-Drosselung 4× |
+| 12, 19 | Fokus in ein Titelfeld öffnet am Telefon die Bildschirmtastatur (nach Flyin, Menü, Zeichenwahl) | Entscheidung 16 (Herkunft Zeiger/Tastatur); Task 7 (`zeiger`, `aktion`); Task 8 (`fertig`); Task 9 (`fokusZurueck` schmal → „⋯"); Tests in Task 7, 8 und Telefon-e2e |
+| 13, 22 | nach Strg+Z im Titel fällt der Fokus auf `body`, wenn die Zeile verschwindet | Entscheidung 10; Task 7 (`fokussiere` mit Nachbarn aus der alten Folge); Task 9 (Editor bei Fokus auf `body`); Tests in Task 7 und 8 |
+| 14 | Trefferfläche der Leiste über dem Einklapp-Umschalter | entfällt mit Entscheidung 18; Task 10 prüft den Umschalter per `elementFromPoint` |
+| 15 | Aufwand am Referenzplan (A1) — Verbindungen dominieren, Einfügen war langsamer als Tippen | Review Focus 7; Alt+V, Enter-Übernahme, „… für Geschwister übernehmen"; Task 11 zählt nach (Soll < 40 Tasten ohne Titeltext) |
+| 17 | Zeichen und Verbindung aus dem Titel per Tastatur kaum oder nicht erreichbar | Entscheidung 10 (Alt+V/Alt+Z über `e.code`, `onFertig` an beiden Feldern); Task 4 (Tasten); Task 8 (Tests: erreichbar, Fokus zurück, Enter legt danach an) |
+| 18 | im ⋯-Menü fehlt jedes Anlegen, Seitenstellen gar nicht anlegbar | Entscheidung 11; Task 2 (`zeilenAktionen`); Task 7 (Menü, `lege`); Tests in Task 7 und Telefon-e2e ohne Tastatur für die Struktur |
+| 20 | unberührte leere Zeile bleibt stehen, wenn man woanders hinklickt oder umschaltet | Entscheidung 8 (`onBlur` mit `relatedTarget`, Portale über `data-zeile-portal`; `raeumeAuf` beim Ansichtswechsel); Tests in Task 7 und 9 |
+| 21 | gehaltene Rücktaste frisst die Zeilen darüber | Entscheidung 8; Task 4 (`repeat`); Tests in Task 4 und 7 |
+| 24 | eingefügte bzw. eingerückte Kinder ohne Verbindung, jede einzeln nachzutragen | Entscheidung 12; Task 2 (`setzeVerbindungFuerGeschwister`, ein Schritt); Menüeintrag in Task 7 |
+| 25 | Enter auf leerer Zeile tut nichts | Entscheidung 5 (rückt aus; bei unberührter Zeile atomar „verwerfen + neu hinter der Elternstelle" über `verwirfUnberuehrt(nach, dann)` — sonst bliebe nach `rueckeAus` eine dauerhafte „(ohne Titel)"-Karte, und ein zweiter `aendere`-Aufruf sähe noch den alten Verlauf); Tests in Task 4 und 7 |
+| 26 | neue Verbindung versetzt die Zeile ohne Rückmeldung | Entscheidung 12; Task 8 Step 5 (`aendereVerbindung`: ins Bild, Hinweis, Fokus im Titel); Test in Task 8 |
+| 27 | Einfügen nirgends genannt, Telefon-Bedienzeile falsch, F2 am Mac schwer | Task 7 (zwei Bedienzeilen, Tipp im leeren Zustand); Entscheidung 5/10 (Strg/Cmd+Enter) |
+
+### Verworfen (ganz oder in Teilen)
+
+- **17, Alt+E für Einheiten:** Alt+E (wie Alt+F) öffnet in Chrome unter Windows das Browsermenü. Die Einheiten erreicht man per Tab aus dem Verbindungsfeld. Auch die Alternative „Esc macht die Zeile zur Werkzeugleiste mit ←/→" ist nicht übernommen, weil Alt+V/Alt+Z plus `onFertig` den Befund mit weniger Zustand lösen. Nicht behoben ist der Teilbefund „Umschalt+Tab aus der Verbindung, dann noch einmal, rückt aus": Umschalt+Tab im Titel ist nach Spec §6.5 Ausrücken; das ist ein sichtbarer, rücknehmbarer Schritt und steht in der Bedienzeile.
+- **24, Knopf im Meldungsplatz („R_UE_2 auch für EA 2, EA 3 übernehmen?"):** Der Editor-Hinweis kennt heute nur die Aktion „Rückgängig". Eine zweite Aktionsart dafür wäre mehr Umbau als der gleichwertige Menüeintrag, der ebenfalls mit einem Klick und in einem Schritt arbeitet.
+- **26, kurze Hervorhebung der versetzten Zeile:** Die Zeile trägt danach den Fokus und die Auswahlfläche samt Randstrich, und der Hinweis nennt die neue Gruppe. Eine Animation käme ohne Mehrwert dazu (und bräuchte einen Zweig für reduzierte Bewegung).
+- **10/16, „mindestens Leiste auf Kartenbreite deckeln", und 4, „Seitengriffe maßstabsabhängig seitlich":** nicht gewählt, weil beides an der Karte nicht jede Überdeckung ausschließt (bei 1024 sind Karten ≈ 15 px auseinander). Als **Rückfallposition** in Entscheidung 18 festgehalten, falls der Hauptlauf die Griffe an der Karte behalten will.
+- **11, Nachweis per e2e an der großen Stab-Lage:** Die Messung wird kein Test der Suite, weil eine Zeitschwelle unter der Last paralleler Sessions unzuverlässig ist. Der verbindliche Nachweis ist der Render-Zähler (`GliederungLast.test.tsx`); gemessen wird einmalig in Task 11.
+- **28, Popover nur an der aktiven Zeile:** nicht nötig. `Popover` mit `destroyOnHidden` rendert seinen Inhalt erst beim Öffnen, und die Zeile ist per `memo` gebunden. Nur das `Select` ist auf die aktive Zeile beschränkt.
+
+### An den Hauptlauf bzw. als neues Ticket vorgeschlagen (ClickUp fasst diese Umsetzung nicht an)
+
+1. **Entscheidung 18 bestätigen:** Die Griffe stehen in einer Auswahlleiste oben in der Fläche statt „näher an der Karte" und weichen damit vom Wortlaut des Auftrags und von Spec §6.3 ab. Der Grund ist geometrisch (siehe Entscheidung 18). Ohne Bestätigung hält die Umsetzung vor Task 5 an (Tor dort). Die Rückfallposition aus Entscheidung 18 ist nur beschrieben, nicht ausgeplant, und bräuchte eine eigene Überarbeitung von Task 5. §6.3 bleibt dann unverändert.
+2. **Neues Ticket „Unterstellen als Einheiten übernehmen" (Befund 29):** Ein ⋯-Eintrag, der Kinder ohne Angaben ausdrücklich per Regel „erstes Wort = Typ, Rest = Rufname" (Spec §6.4) in Einheiten umwandelt, in einem Rückgängig-Schritt. Er widerspricht Entscheidung 9 nicht, weil er nichts rät und der Nutzer ihn ausdrücklich auslöst. Er gehört aber nicht mehr in diese Phase.
+3. **Offenes Risiko Windows-Kürzel:** Ob Alt+V in Firefox unter Windows trotz `preventDefault` das Menü „Ansicht" öffnet, ist ungeprüft, weil hier nur macOS läuft (Task 11, Punkt 8).
