@@ -499,7 +499,7 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
  * `["filesBootFehler", "lagerbuchBootFehler"]`. Ein dritter Haken, der nie
  * eingehaengt wuerde, bliebe darin GRUEN — eine Liste bewacht nur, was jemand
  * daran denkt einzutragen. (Genau der Fall stand an: `radioBootFehler` kam mit
- * Planteil 5 dazu, `src/core/bootstrap.ts:15` und `:103`, Datei 145 Zeilen.)
+ * Planteil 5 dazu, `src/core/bootstrap.ts:15` und `assertHostConfig`, Datei 145 Zeilen.)
  * Spec §7.3.7 verlangt deshalb die ABGELEITETE Form: die Hakenmenge wird aus
  * `src/app/m/<modul>/_lib/boot.ts` gelesen, nicht aufgezaehlt.
  *
@@ -523,7 +523,7 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
  * kennt allein die Zeilenform `//`. Ein Aufruf, der mit den zwei Block-Marken
  * stillgelegt wird, ueberlebt ihn und geht als wirksam durch — nachgemessen am
  * 2026-08-26 (Fix-Runde 1 zu G3), zweimal 23/23 GRUEN, an
- * `src/core/bootstrap.ts:103` und an `:138`.
+ * `bootstrap.ts`, `assertHostConfig` und `shouldSeed`.
  * ⛔ DESHALB WIRD DIESE LUECKE UNTEN NICHT BESCHRIEBEN, SONDERN ZUGESICHERT WEG:
  * der letzte Fall dieses Blocks verbietet in den zwei gelesenen Ausschnitten
  * jeden Blockkommentar. Der Schnitt bleibt der einfache, die Luecke wird laut.
@@ -760,7 +760,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ⛔ DIE RUECKWAERTSRICHTUNG, KLAUSEL (IIb) — und sie ist die einzige Zeile
      * dieses Blocks, die `starteAufgabenScanArbeiter` ueberhaupt SIEHT
      * (`src/app/m/aufgaben/_lib/scan.ts:324`, importiert
-     * `src/core/bootstrap.ts:16`, gerufen `:138`; Datei 145 Zeilen). Der Glob
+     * `src/core/bootstrap.ts:16`, gerufen in `shouldSeed`; Datei 145 Zeilen). Der Glob
      * aus Spec §7.3.7 findet sie strukturell nicht — siehe `hintergrundStarter`.
      *
      * Sie faengt ausserdem einen GELOESCHTEN Aufruf, den Klausel (IIa) nach dem
@@ -790,7 +790,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ueberlebt ihn: die Zeichenkette steht weiter im Ausschnitt, die Klauseln
      * (I), (IIa) und (IIb) finden sie und melden GRUEN, obwohl der Aufruf
      * wirkungslos ist. Gemessen am 2026-08-26 (Fix-Runde 1 zu G3), zweimal
-     * 23/23 gruen: `src/core/bootstrap.ts:103` und `:138` je als Blockkommentar.
+     * 23/23 gruen: `assertHostConfig` und `shouldSeed` je als Blockkommentar.
      *
      * ⛔ WARUM NICHT DER SCHNITT ERWEITERT WIRD: der Auftrag laesst hier
      * ausdruecklich den einfachen Zeilenfilter (siehe Kopfkommentar (a)/(b)),
@@ -812,7 +812,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * Datei. Ein Blockkommentar ausserhalb von `const errors = [ … ];` und
      * ausserhalb des Rumpfs von `startBackgroundWork()` bleibt erlaubt — dort
      * steht heute die Mehrzahl der Kommentare dieser Datei, etwa der JSDoc-Kopf
-     * auf `src/core/bootstrap.ts:125-133`.
+     * auf `migrateAllModules` in `bootstrap.ts`.
      */
     const ausschnitte = [
       ["errors-Array in assertHostConfig()", errorsBlock],

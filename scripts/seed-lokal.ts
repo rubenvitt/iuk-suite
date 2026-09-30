@@ -51,6 +51,8 @@ import * as uavSchema from "@/app/m/uav/_db/schema";
 import { seedLokalUav } from "@/app/m/uav/_lib/seedLokal";
 import * as einsatzbuchSchema from "@/app/m/einsatzbuch/_db/schema";
 import { seedLokalEinsatzbuch } from "@/app/m/einsatzbuch/_lib/seedLokal";
+import * as kommplanSchema from "@/app/m/kommplan/_db/schema";
+import { seedLokalKommplan } from "@/app/m/kommplan/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -67,6 +69,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "radio", lauf: () => seedLokalRadio(getModuleDb("radio", radioSchema)) },
   { key: "uav", lauf: () => seedLokalUav(getModuleDb("uav", uavSchema)) },
   { key: "einsatzbuch", lauf: () => seedLokalEinsatzbuch(getModuleDb("einsatzbuch", einsatzbuchSchema)) },
+  { key: "kommplan", lauf: () => seedLokalKommplan(getModuleDb("kommplan", kommplanSchema)) },
 ];
 
 /**

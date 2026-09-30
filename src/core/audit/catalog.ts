@@ -394,6 +394,45 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "kommplan": {
+    "plan": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "bib_stelle": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "bib_einheit": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "bib_verbindung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "plan_freigabe": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "zuletzt_abgerufen",
+          "abrufe"
+        ],
+        "reason": "Abrufzähler des Token-Links; Ausstellen, Ändern und Widerrufen bleiben auditiert."
+      }
+    }
+  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",
