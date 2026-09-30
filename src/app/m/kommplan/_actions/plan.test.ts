@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { rmSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { migrateAllModules } from "@/core/bootstrap";
 
 const DIR = "./.data/kommplan-actions-plan-test";
@@ -23,8 +23,20 @@ describe("Plan-Actions", () => {
     gruppen = ["iuk-kommplan"];
     await expect(legePlanAnAction(ANGABEN)).rejects.toThrow("Forbidden");
     await expect(speichereInhaltAction({ id: "x", version: 1, inhalt: {} })).rejects.toThrow("Forbidden");
-    const { ladeStandAction } = await import("./plan");
+    const { ladeStandAction, speichereAngabenAction } = await import("./plan");
     await expect(ladeStandAction("x")).rejects.toThrow("Forbidden");
+    await expect(speichereAngabenAction({ id: "x", version: 1, angaben: ANGABEN })).rejects.toThrow("Forbidden");
+    const { ladeZeichenAction } = await import("./zeichen");
+    await expect(ladeZeichenAction(["rezept:F.2.3"])).rejects.toThrow("Forbidden");
+  });
+  it("jede exportierte Action prüft als ERSTE Anweisung den Bearbeitungs-Riegel (per POST direkt erreichbar)", () => {
+    for (const datei of readdirSync("src/app/m/kommplan/_actions").filter((d) => d.endsWith(".ts") && !d.endsWith(".test.ts"))) {
+      const quelle = readFileSync(`src/app/m/kommplan/_actions/${datei}`, "utf8");
+      const actions = [...quelle.matchAll(/export async function (\w+)\([^)]*\)[^{]*\{\n\s*(.*)/g)];
+      expect(actions.length, datei).toBeGreaterThan(0);
+      for (const [, name, erste] of actions) expect(erste, `${datei}: ${name}`).toMatch(/^(const viewer = )?await requireKommplanBearbeitenAktion\(\);$/);
+      expect(quelle.match(/export /g)?.length, `${datei}: nur Actions exportieren`).toBe(actions.length);
+    }
   });
   it("ladeStandAction liefert den Serverstand, unbekannt oder ungültig ist null", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];
