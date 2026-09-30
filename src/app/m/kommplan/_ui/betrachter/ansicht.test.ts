@@ -35,3 +35,17 @@ describe("Ansicht", () => {
     expect(tasteZuAktion("x")).toBeNull();
   });
 });
+
+describe("einpassen mit Optionen (Entscheidung 18)", () => {
+  it("ohne Optionen wie bisher; max deckelt den Maßstab, unten hält Platz frei", () => {
+    expect(einpassen(200, 100, 1000, 600)).toEqual(einpassen(200, 100, 1000, 600, {}));
+    const eine = einpassen(46, 20, 1000, 600, { max: 4 }); // eine einzelne Karte
+    expect(eine.massstab).toBe(4);
+    expect(eine.x).toBeCloseTo((1000 - 46 * 4) / 2, 6);
+    const hoch = einpassen(100, 500, 1000, 600, { unten: 80 });
+    expect(hoch.massstab).toBeCloseTo((600 - 16 - 80) / 500, 6);
+    const breit = einpassen(1000, 100, 1000, 600, { seite: 84 });
+    expect(breit.massstab).toBeCloseTo((1000 - 2 * 84) / 1000, 6);
+    expect(breit.x).toBeCloseTo(84, 6);
+  });
+});

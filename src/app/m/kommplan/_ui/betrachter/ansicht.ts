@@ -9,11 +9,14 @@ const klemme = (m: number, min: number = GRENZEN.min) => Math.min(GRENZEN.max, M
 /**
  * „Einpassen" zeigt immer die GANZE Zeichnung: nach unten klemmt nur `GRENZEN.max`. Eine große
  * Stab-Lage auf Telefonbreite braucht weniger als `GRENZEN.min` (1789 mm auf 343 px ≈ 0,19 px/mm).
- * Wer von dort weiter verkleinert, bekommt dieselbe Untergrenze (`untergrenze`).
+ * Wer von dort weiter verkleinert, bekommt dieselbe Untergrenze (`untergrenze`). `max` deckelt — der
+ * Editor will eine einzelne Karte nicht mit Maßstab 16 sehen; `unten` hält Platz für die Griffleiste
+ * der untersten Karte, `seite` für die seitlichen Griffe.
  */
-export function einpassen(breiteMm: number, hoeheMm: number, vb: number, vh: number, rand = 16): Ansicht {
+export function einpassen(breiteMm: number, hoeheMm: number, vb: number, vh: number, o: { rand?: number; seite?: number; unten?: number; max?: number } = {}): Ansicht {
+  const rand = o.rand ?? 16, seite = o.seite ?? rand, unten = o.unten ?? rand, max = o.max ?? GRENZEN.max;
   if (breiteMm <= 0 || hoeheMm <= 0 || vb <= 0 || vh <= 0) return { massstab: 4, x: rand, y: rand };
-  const m = Math.min(GRENZEN.max, Math.max(1e-3, Math.min((vb - 2 * rand) / breiteMm, (vh - 2 * rand) / hoeheMm)));
+  const m = Math.min(max, Math.max(1e-3, Math.min((vb - 2 * seite) / breiteMm, (vh - rand - unten) / hoeheMm)));
   return { massstab: m, x: (vb - breiteMm * m) / 2, y: rand };
 }
 

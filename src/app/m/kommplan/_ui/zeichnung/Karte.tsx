@@ -3,15 +3,16 @@ import { EINHEIT, KARTE } from "../../_lib/layout/masse";
 import type { AbzeichenL, EinheitL, KarteL } from "../../_lib/layout/typen";
 import { KONTAKT_PIKTOGRAMM } from "../../_lib/zeichen/grundlagen";
 import { FARBE, STRICH } from "./farben";
+import { lage } from "./lage";
 import { symbolId } from "./Symbole";
 import { Text } from "./Text";
 
-export function Karte({ k, zusatz }: { k: KarteL; zusatz?: (k: KarteL) => ReactNode }) {
+export function Karte({ k, zusatz, gleitend = false }: { k: KarteL; zusatz?: (k: KarteL) => ReactNode; gleitend?: boolean }) {
   const tinte = k.art === "anker" ? FARBE.anker : FARBE.tinte;
   const rahmen = k.hervorheben ? STRICH.hervor : STRICH.karte;
   const trenner = (y: number, key?: number) => <line key={key} x1={0} y1={y} x2={k.breite} y2={y} stroke={tinte} strokeWidth={STRICH.karte} />;
   return (
-    <g transform={`translate(${k.x} ${k.y})`} data-karte={k.id} data-art={k.art}>
+    <g {...lage(k.x, k.y, gleitend)} data-karte={k.id} data-art={k.art}>
       {/* Nur Tooltip, nie gedruckt: der Platzhalter steht nicht auf dem Papier (Abweichung 15). */}
       <title>{k.titelVoll === "" ? "(ohne Titel)" : k.titelVoll}</title>
       <rect width={k.breite} height={k.hoehe} fill={FARBE.papier} stroke={tinte} strokeWidth={rahmen} />
@@ -42,9 +43,9 @@ export function Karte({ k, zusatz }: { k: KarteL; zusatz?: (k: KarteL) => ReactN
   );
 }
 
-export function Einheit({ e }: { e: EinheitL }) {
+export function Einheit({ e, gleitend = false }: { e: EinheitL; gleitend?: boolean }) {
   return (
-    <g transform={`translate(${e.x} ${e.y})`} data-einheit={e.id}>
+    <g {...lage(e.x, e.y, gleitend)} data-einheit={e.id}>
       <title>{e.voll}</title>
       <rect width={e.breite} height={e.hoehe} fill={FARBE.papier} stroke={FARBE.tinte} strokeWidth={STRICH.karte} />
       {e.zeichen ? <use href={`#${symbolId(e.zeichen)}`} x={KARTE.rand} y={(e.hoehe - EINHEIT.zeichen) / 2} width={EINHEIT.zeichen} height={EINHEIT.zeichen} /> : null}
@@ -53,9 +54,9 @@ export function Einheit({ e }: { e: EinheitL }) {
   );
 }
 
-export function Abzeichen({ a }: { a: AbzeichenL }) {
+export function Abzeichen({ a, gleitend = false }: { a: AbzeichenL; gleitend?: boolean }) {
   return (
-    <g transform={`translate(${a.x} ${a.y})`} data-abzeichen={a.stelleId}>
+    <g {...lage(a.x, a.y, gleitend)} data-abzeichen={a.stelleId}>
       <rect width={a.breite} height={a.hoehe} rx={a.hoehe / 2} fill={FARBE.abzeichen} stroke={FARBE.tinte} strokeWidth={STRICH.karte} />
       <Text z={a.text} />
     </g>

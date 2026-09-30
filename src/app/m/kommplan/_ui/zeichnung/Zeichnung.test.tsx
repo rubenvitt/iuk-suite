@@ -8,7 +8,7 @@ import { PIKTOGRAMME } from "../../_lib/zeichen/grundlagen";
 import zeichen from "../../_lib/zeichen/zeichen.generiert.json";
 import { FARBE } from "./farben";
 import { symbolId } from "./Symbole";
-import { Zeichnung } from "./Zeichnung";
+import { Zeichnung, ZeichnungInhalt } from "./Zeichnung";
 
 const alle = zeichen.zeichen as Record<string, { viewBox: string; inhalt: string }>;
 const einsatz = BEISPIELE[0];
@@ -68,5 +68,20 @@ describe("Zeichnung", () => {
     expect(einheit).toMatch(/>GW Betreuung<\/text>/);
     expect(einheit).toMatch(/>RK LG 45-74-10<\/text>/);
     expect(einheit).not.toContain("…");
+  });
+});
+
+describe("gleitend (Editor, Spec §6.3)", () => {
+  const daten = zeichne(einsatz.inhalt, "bildschirm");
+  it("ohne gleitend: Lage als SVG-Attribut, wie im Druck", () => {
+    const html = renderToStaticMarkup(<svg><ZeichnungInhalt daten={daten} /></svg>);
+    expect(html).toMatch(/<g transform="translate\([\d.]+ [\d.]+\)" data-karte=/);
+    expect(html).not.toContain("kp-gleitet");
+  });
+  it("gleitend: Karten, Einheiten, Sechsecke und Abzeichen als CSS-Transform mit Klasse; Linien in einer Nachzieh-Gruppe", () => {
+    const html = renderToStaticMarkup(<svg><ZeichnungInhalt daten={daten} gleitend linienSchluessel="3" /></svg>);
+    expect(zaehle(html, 'class="kp-gleitet"')).toBe(daten.karten.length + daten.einheiten.length + daten.sechsecke.length + daten.abzeichen.length);
+    expect(html).toMatch(/style="transform:translate\([\d.]+px, [\d.]+px\)"/);
+    expect(zaehle(html, 'class="kp-nachziehen"')).toBe(1);
   });
 });

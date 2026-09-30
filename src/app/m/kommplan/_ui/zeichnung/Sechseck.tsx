@@ -1,6 +1,7 @@
 import { SECHSECK } from "../../_lib/layout/masse";
 import type { SechseckForm, SechseckL } from "../../_lib/layout/typen";
 import { FARBE, STRICH } from "./farben";
+import { lage } from "./lage";
 import { symbolId } from "./Symbole";
 import { Text } from "./Text";
 
@@ -13,9 +14,9 @@ export function sechseckPunkte(form: SechseckForm, b: number, h: number): string
   return `0,${h / 2} ${s},0 ${b - s},0 ${b},${h / 2} ${b - s},${h} ${s},${h}`;
 }
 
-export function Sechseck({ s }: { s: SechseckL }) {
+export function Sechseck({ s, gleitend = false }: { s: SechseckL; gleitend?: boolean }) {
   return (
-    <g transform={`translate(${s.x} ${s.y})`} data-sechseck={s.verbindungId}>
+    <g {...lage(s.x, s.y, gleitend)} data-sechseck={s.verbindungId}>
       <title>{s.voll}</title>
       <polygon
         points={sechseckPunkte(s.form, s.breite, s.hoehe)} fill={FARBE.papier} stroke={FARBE.tinte}

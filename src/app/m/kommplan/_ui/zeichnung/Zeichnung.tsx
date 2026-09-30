@@ -5,18 +5,34 @@ import { Abzeichen, Einheit, Karte } from "./Karte";
 import { Sechseck } from "./Sechseck";
 import { SymbolDefs, type Symbolsatz } from "./Symbole";
 
-export function ZeichnungInhalt({ daten, zusatz }: { daten: Zeichnungsdaten; zusatz?: (k: KarteL) => ReactNode }) {
+export function ZeichnungInhalt({ daten, zusatz, gleitend = false, linienSchluessel }: {
+  daten: Zeichnungsdaten; zusatz?: (k: KarteL) => ReactNode; gleitend?: boolean; linienSchluessel?: string;
+}) {
+  // Sechseck-Schlüssel: Netz + Verbindung, dazu das n-te Vorkommen JE PAAR — nicht der globale Index,
+  // sonst verschöbe ein neues Sechseck davor die Schlüssel aller späteren, die dann neu eingehängt
+  // würden und sprängen statt zu gleiten. Das Paar ist fast immer eindeutig (`sammler.ts`: Kanäle
+  // tragen das Netz `<stelle>#kanal`).
+  const vorkommen = new Map<string, number>();
+  const sechseckSchluessel = daten.sechsecke.map((s) => {
+    const paar = `${s.netz}:${s.verbindungId}`;
+    const n = vorkommen.get(paar) ?? 0;
+    vorkommen.set(paar, n + 1);
+    return `${paar}:${n}`;
+  });
   return (
     <g>
-      <g fill="none" stroke={FARBE.tinte} strokeLinecap="square">
+      {/* Linien haben keine stabile Identität (Netz + Index): im Editor werden sie nach dem Gleiten
+          neu eingeblendet — der Schlüssel wechselt nur bei strukturellen Änderungen (Editor.tsx). */}
+      <g key={gleitend ? linienSchluessel : undefined} className={gleitend ? "kp-nachziehen" : undefined}
+        fill="none" stroke={FARBE.tinte} strokeLinecap="square">
         {daten.linien.map((l, i) => (
           <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} strokeWidth={l.duenn ? STRICH.duenn : STRICH.linie} data-netz={l.netz} />
         ))}
       </g>
-      {daten.sechsecke.map((s, i) => <Sechseck key={i} s={s} />)}
-      {daten.karten.map((k) => <Karte key={k.id} k={k} zusatz={zusatz} />)}
-      {daten.einheiten.map((e) => <Einheit key={e.id} e={e} />)}
-      {daten.abzeichen.map((a) => <Abzeichen key={a.stelleId} a={a} />)}
+      {daten.sechsecke.map((s, i) => <Sechseck key={sechseckSchluessel[i]} s={s} gleitend={gleitend} />)}
+      {daten.karten.map((k) => <Karte key={k.id} k={k} zusatz={zusatz} gleitend={gleitend} />)}
+      {daten.einheiten.map((e) => <Einheit key={e.id} e={e} gleitend={gleitend} />)}
+      {daten.abzeichen.map((a) => <Abzeichen key={a.stelleId} a={a} gleitend={gleitend} />)}
     </g>
   );
 }
