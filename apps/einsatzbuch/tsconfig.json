@@ -13,7 +13,8 @@
     "types": ["vite/client"],
     "paths": {
       "@kern/*": ["../../src/app/m/einsatzbuch/_lib/kern/*"],
-      "@/core/theme/tokens": ["../../src/core/theme/tokens.ts"]
+      "@/core/theme/tokens": ["../../src/core/theme/tokens.ts"],
+      "@/core/ikonen/Icons8Ikone": ["../../src/core/ikonen/Icons8Ikone.tsx"]
     }
   },
   "include": ["src", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]

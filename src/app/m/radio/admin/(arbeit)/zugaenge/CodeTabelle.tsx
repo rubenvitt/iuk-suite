@@ -85,8 +85,8 @@ import s from "../../../_ui/verwaltung.module.css";
  * `FiPlus`, `:133` `FiKey`). Sie kommen aus `_ui/verwaltungIkonen.tsx`, der ZWEITEN
  * Zeichenquelle des Moduls; `_ui/ikonen.tsx` (zwoelf Inline-SVGs) bleibt der Ausleihflaeche.
  * ⚠️ DER FRUEHERE KOMMENTAR HIER SAGTE „ein `react-icons`-Import waere Falle 7" — DAS WAR
- * SACHLICH FALSCH: Falle 7 gilt `@ant-design/icons`; `react-icons/pi` ist gemessen RSC-sicher
- * (`lagerbuch`, 2026-08-12).
+ * SACHLICH FALSCH: Falle 7 gilt `@ant-design/icons`; die Zeichen kommen heute aus Icons8
+ * (`core/ikonen`, reine Pfaddaten, RSC-sicher).
  */
 
 /**

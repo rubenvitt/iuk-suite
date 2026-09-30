@@ -373,7 +373,7 @@ describe("das Druckblatt ist KEINE Insel — die Bauform, die kein Tor sonst pru
      * ⛔ UEBER DIE SPEZIFIZIERER, NICHT UEBER EINE IMPORTFORM (Fix-Runde 1 zu V21, aus Fund
      * F1 mitgezogen): die erste Fassung suchte `from\s+["']antd` und war damit blind fuer
      * `await import("antd")`. Der Sammler unten ist WORTGLEICH die Hausform aus
-     * `src/core/shell/icons.test.ts:134-137`, deren Kopf dieselbe Messung fuehrt
+     * `src/core/ikonen/ikonen.test.ts`, deren Kopf dieselbe Messung fuehrt
      * (`:122-127`: `await import(…)`, `import "…"` und `require(…)` liessen den Vorgaenger
      * GRUEN). `\b` vor jedem Schluesselwort ist Absicht — sonst faengt `reimport("x")` mit.
      */

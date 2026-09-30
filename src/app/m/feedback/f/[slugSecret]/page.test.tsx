@@ -756,7 +756,7 @@ describe("Danke-Seite (Zustand B)", () => {
    * (Route-JS-Budget < 15 KB gz, `layout.test.tsx`).
    *
    * Geprueft wird hier die WIRKUNG im Server-HTML: das Zeichen steht wirklich
-   * dort. Den Import bewacht `src/core/shell/icons.test.ts` ohnehin repo-weit
+   * dort. Den Import bewacht `src/core/ikonen/ikonen.test.ts` ohnehin repo-weit
    * ueber `src` — eine zweite Zusicherung daneben waere eine Kopie, und Kopien
    * driften.
    */

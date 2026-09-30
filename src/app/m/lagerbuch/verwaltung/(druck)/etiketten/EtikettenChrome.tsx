@@ -28,7 +28,7 @@
  * braucht ausserdem `window.print()`.
  *
  * ZEICHEN UEBER `<Ikone>`: seit Task 2 kommen die Zeichen des Moduls aus
- * `react-icons/pi` ausschliesslich ueber `_ui/ikonen.tsx`, nicht per Direkt-
+ * Icons8 (`core/ikonen`) ausschliesslich ueber `_ui/ikonen.tsx`, nicht per Direkt-
  * import. Die Union fuehrt `pfeil-links` und `drucken` bereits.
  */
 import { Button, Flex } from "antd";

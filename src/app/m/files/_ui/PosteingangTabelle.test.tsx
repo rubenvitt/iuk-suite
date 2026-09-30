@@ -471,7 +471,7 @@ describe("Punkt 4 — AV-Zustand mit Symbol UND Text", () => {
     // BEIDE Haelften einzeln: Bedeutung nie allein ueber ein Symbol, und ein
     // Symbol ohne Text waere fuer eine Sprachausgabe stumm
     // (`docs/design/README.md:133-137`).
-    expect(zelle.querySelector(".anticon-clock-circle"), "kein Uhr-Symbol").not.toBeNull();
+    expect(zelle.querySelector("[data-icons8='clock']"), "kein Uhr-Symbol").not.toBeNull();
     expect(zelle.textContent).toContain("wird geprüft");
   });
 

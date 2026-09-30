@@ -8,7 +8,7 @@ import { join, relative } from "node:path";
  * Sie belegen NICHT, dass etwas wirkt, sondern dass eine BAUFORM eingehalten
  * ist. Genau dafuer sind sie die richtige Ebene — jede Zeile hier faengt einen
  * Fehler, der typkorrekt, lint-sauber und fuer `pnpm build` unsichtbar waere.
- * Vorbild: `src/core/shell/icons.test.ts` riegelt Falle 7 repo-weit ab.
+ * Vorbild: `src/core/ikonen/ikonen.test.ts` riegelt Falle 7 repo-weit ab.
  *
  * DIE SCANS WAREN BIS TEIL 4 DURCHWEG IN DER EIGENSCHAFTSFORM (Festlegung G3):
  * sie tolerieren Dateien, die es noch nicht gibt. Das war noetig, weil `_ui/`,
@@ -1174,7 +1174,7 @@ describe("§7.7 — der Helfer-Weg passt in 390px, weil jedes Stueck nachgeben D
 
 describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
   it("keine Datei auf `_ui/`, `helfer/`, `a/`, `t/` oder `page.tsx` importiert `antd` oder `@ant-design/icons`, ausser den Verwaltungsbausteinen", () => {
-    // `core/shell/icons.test.ts:147-171` faengt repo-weit NUR die Icons. Ein
+    // `core/ikonen/ikonen.test.ts` faengt repo-weit NUR die Icons. Ein
     // `import { Card } from "antd"` in `_ui/Entnahme.tsx` waere typkorrekt,
     // lint-sauber, gebaut — und heraus kaeme eine Verwaltungsanmutung auf einem
     // Telefon, plus 96px Ueberlauf gegen 100dvh (Falle 41).
@@ -1184,7 +1184,7 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // nicht in einer Client-Insel". An der Ordnergrenze `_ui/` zu enden hiesse:
     // ein `import { Card } from "antd"` in `helfer/entnahme/page.tsx`,
     // `a/[artikelId]/page.tsx`, `t/[code]/route.ts` oder `page.tsx` liefe durch
-    // — `core/shell/icons.test.ts` faengt repo-weit nur die ICONS, nicht `antd`
+    // — `core/ikonen/ikonen.test.ts` faengt repo-weit nur die ICONS, nicht `antd`
     // selbst, und `typecheck`, `lint` und `build` sehen nichts. Dieselbe
     // Ast-Liste benutzt der `useSearchParams`-Scan unten.
     //

@@ -2,13 +2,14 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
+import { ICONS8 } from "@/core/ikonen/katalog";
 import { ZEICHEN, type IkonName } from "./ikonen";
 
 const WURZEL = "src/app/m/lagerbuch";
 const IKON_NAMEN = new Set(Object.keys(ZEICHEN));
 const ROHE_SVG_QUELLEN = new Set(["_ui/Plakette.tsx"]);
 // Die EINE erlaubte Zeichenquelle des Moduls.
-const ERLAUBTE_ZEICHENQUELLE = "react-icons/pi";
+const ERLAUBTE_ZEICHENQUELLE = "@/core/ikonen/Icons8Ikone";
 
 function alleDateien(verzeichnis: string, endungen: string[]): string[] {
   const treffer: string[] = [];
@@ -184,12 +185,10 @@ function analysiereQuelle(
       spezifizierer.startsWith("lucide-react/") ||
       spezifizierer === "@/core/shell/icons" ||
       /(?:^|\/)core\/shell\/icons(?:$|\/)/.test(spezifizierer) ||
-      // Der Wurzelimport zieht ALLE Sets (9.072 Zeichen) und umgeht die
-      // Set-Wahl; ein fremdes Set waere ein zweiter Zeichenstil im Modul.
+      // Seit DRK-502 kein Zeichenpaket mehr: jedes Set waere ein zweiter
+      // Zeichenstil neben Icons8 (`core/ikonen`).
       spezifizierer === "react-icons" ||
-      (spezifizierer.startsWith("react-icons/")
-        && spezifizierer !== ERLAUBTE_ZEICHENQUELLE
-        && spezifizierer !== "react-icons/lib")
+      spezifizierer.startsWith("react-icons/")
     );
   }
 
@@ -333,11 +332,11 @@ function modulBefunde(): Befund[] {
 /**
  * DER MODUL-EIGENE RIEGEL — UND WARUM DER VORHANDENE NICHT REICHT.
  *
- * `core/shell/icons.test.ts` erlaubt antd-Icons in einer Client-Insel. Die
- * Lagerbuch-Regel geht weiter: kein fremdes Zeichenpaket im ganzen Modul und
- * kein Laufzeitname ausserhalb von ZEICHEN. Genau eine native SVG-Quelle ist
+ * `core/ikonen/ikonen.test.ts` verbietet Icon-Pakete repo-weit. Die
+ * Lagerbuch-Regel geht weiter: kein Laufzeitname ausserhalb von ZEICHEN, und
+ * AST statt Textregex. Genau eine native SVG-Quelle ist
  * fachlich noch vorgesehen: das Zifferblatt der Plakette. `ikonen.tsx` malt
- * seit der Umstellung auf Phosphor selbst kein rohes `<svg>` mehr. Jede
+ * seit der Umstellung auf ein Zeichenset selbst kein rohes `<svg>` mehr. Jede
  * weitere Quelle bleibt gesperrt.
  */
 describe("Ikonen-Riegel: AST statt Textregex", () => {
@@ -377,7 +376,7 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
     ).toEqual([]);
   });
 
-  it("ikonen.tsx importiert ausschliesslich react-icons und traegt kein use-client", () => {
+  it("ikonen.tsx importiert ausschliesslich core/ikonen und traegt kein use-client", () => {
     const quelle = readFileSync(join(WURZEL, "_ui/ikonen.tsx"), "utf8");
     const source = ts.createSourceFile(
       "ikonen.tsx", quelle, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX,
@@ -385,9 +384,9 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
     const spezifizierer = source.statements
       .filter(ts.isImportDeclaration)
       .map((s) => (ts.isStringLiteral(s.moduleSpecifier) ? s.moduleSpecifier.text : ""));
-    // Genau die zwei erlaubten Quellen, nichts sonst — kein antd, kein CSS-Modul,
+    // Genau die eine erlaubte Quelle, nichts sonst — kein antd, kein CSS-Modul,
     // nichts aus dem Modul selbst (das machte die Datei zyklisch importierbar).
-    expect([...spezifizierer].sort()).toEqual(["react-icons/lib", "react-icons/pi"]);
+    expect([...spezifizierer].sort()).toEqual([ERLAUBTE_ZEICHENQUELLE]);
     expect(source.statements.filter(ts.isImportEqualsDeclaration).length).toBe(0);
     /*
      * DAS "use client"-VERBOT BLEIBT UNVERAENDERT und ist die wichtigste Zeile
@@ -423,9 +422,9 @@ describe("Ikonen: die Union ist die Autoritaet", () => {
     for (const name of fach) expect(ZEICHEN[name], name).toBeTruthy();
   });
 
-  it("bildet jeden Namen auf eine Komponente ab", () => {
-    for (const [name, Zeichen] of Object.entries(ZEICHEN)) {
-      expect(typeof Zeichen, name).toBe("function");
+  it("bildet jeden Namen auf ein Zeichen des Icons8-Katalogs ab", () => {
+    for (const [name, zeichen] of Object.entries(ZEICHEN)) {
+      expect(Object.keys(ICONS8), name).toContain(zeichen);
     }
   });
 
@@ -459,8 +458,13 @@ describe("AST-Riegel — dieselbe Analyse fuer reale Dateien und Negativ-Fixture
       erwartet: "verbotener-import",
     },
     {
-      name: "erlaubte Zeichenquelle react-icons/pi",
+      name: "frueheres Set react-icons/pi",
       quelle: 'import { PiWarning } from "react-icons/pi";',
+      erwartet: "verbotener-import",
+    },
+    {
+      name: "erlaubte Zeichenquelle core/ikonen",
+      quelle: 'import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";',
       erwartet: null,
     },
     { name: "dynamischer Import", quelle: 'void import("lucide-react");', erwartet: "verbotener-import" },

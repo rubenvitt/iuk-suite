@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AppstoreOutlined, LinkOutlined } from "@ant-design/icons";
 import { Card, Col, Empty, Input, Result, Row } from "antd";
 
-import { ICONS } from "@/core/shell/icons";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import type { LauncherEintrag } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -108,7 +107,7 @@ export function DiensteRaster({
             </h2>
             <Row gutter={[SPACE.lg, SPACE.lg]}>
               {liste.map((e) => {
-                const Icon = e.icon ? (ICONS[e.icon] ?? AppstoreOutlined) : LinkOutlined;
+                const zeichen = e.icon ?? "link";
                 return (
                   <Col key={e.key} xs={12} sm={8}>
                     {/* Der Link liegt AUSSEN: antds Card rendert kein <a>, und
@@ -149,7 +148,7 @@ export function DiensteRaster({
                               loading="lazy"
                             />
                           ) : (
-                            <Icon aria-hidden="true" />
+                            <Icons8Ikone name={zeichen} />
                           )}
                           <span style={SCHRIFT.unterTitel}>{e.title}</span>
                         </div>

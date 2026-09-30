@@ -214,7 +214,7 @@ describe("vorgang.ts bleibt in BEIDEN React-Ebenen lesbar", () => {
      * Was Vitest sehen kann, ist der QUELLTEXT — mehr ist hier nicht zu holen.
      *
      * Die zweite Haelfte (kein `@ant-design/icons`) steht hier NICHT: sie ist
-     * repo-weit in `src/core/shell/icons.test.ts` abgeriegelt, das jede Datei
+     * repo-weit in `src/core/ikonen/ikonen.test.ts` abgeriegelt, das jede Datei
      * unter `src` scannt und vier Importformen kennt. Ein zweiter, schwaecherer
      * Scan daneben waere eine zweite Wahrheit — und er schlug prompt an diesem
      * Test-Kommentar selbst an.

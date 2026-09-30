@@ -92,7 +92,7 @@ import u from "../../../_ui/update.module.css";
  *     (`FiAlertTriangle`, `:59`). Der Speichern-Knopf der Anmerkung traegt `plus` — er trug im
  *     Bestand keines (`:73`), und `haken` steht in derselben Karte schon am Anwenden; zwei
  *     gleiche Zeichen nebeneinander waeren keine Aussage, sondern ein Rateschritt.
- *     Quelle ist `_ui/verwaltungIkonen.tsx` (Phosphor), die ZWEITE Zeichenquelle des Moduls;
+ *     Quelle ist `_ui/verwaltungIkonen.tsx` (Icons8), die ZWEITE Zeichentabelle des Moduls;
  *     `_ui/ikonen.tsx` bleibt mit seinen zwoelf Inline-SVGs der Ausleihflaeche.
  *     ⛔ NICHT AN `Input.Search`: das Bauteil bringt sein Lupenzeichen selbst mit.
  */

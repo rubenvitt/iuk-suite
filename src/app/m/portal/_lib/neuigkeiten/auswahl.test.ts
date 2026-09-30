@@ -58,7 +58,7 @@ describe("neuigkeitenFuer", () => {
   it("holt Modultitel und Zeichen aus der Registry, nicht aus der Notiz", () => {
     const [erste] = neuigkeitenFuer([], NOTIZEN, {});
     expect(erste.modulTitel).toBe("Portal");
-    expect(erste.icon).toBe("AppstoreOutlined");
+    expect(erste.icon).toBe("apps");
   });
 
   it("behält die Reihenfolge der Eingabe — sortiert wird im Register", () => {

@@ -121,7 +121,7 @@ describe("SeitenKopf — die Kontextzeile ist nie leer", () => {
  */
 const WURZEL = "src/app/m/aufgaben";
 
-/** Vier Importformen — Muster `core/shell/icons.test.ts`. */
+/** Vier Importformen — Muster `core/ikonen/ikonen.test.ts`. */
 function importSpezifizierer(quelle: string): string[] {
   const muster = /(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g;
   return [...ohneKommentare(quelle).matchAll(muster)].map((m) => m[1]);

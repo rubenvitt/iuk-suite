@@ -1,15 +1,9 @@
 // src/app/m/radio/_ui/verwaltungIkonen.tsx
-import type { IconType } from "react-icons/lib";
-import {
-  PiArrowDown, PiArrowLeft, PiArrowUp, PiCheck, PiCheckCircle, PiColumns,
-  PiCopy, PiDownloadSimple, PiFunnel, PiKey, PiMagnifyingGlass, PiPlus,
-  PiPrinter, PiQuestion, PiRadio, PiSlidersHorizontal, PiTarget, PiTrash,
-  PiUploadSimple, PiWarning,
-} from "react-icons/pi";
+import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
 
 /*
- * DIE ZEICHENQUELLE DES VERWALTUNGSZWEIGS — Phosphor (`react-icons/pi`), Bauform 1:1
- * nach `lagerbuch/_ui/ikonen.tsx` (Betreiberentscheidung E1 vom 2026-08-12).
+ * DIE ZEICHENQUELLE DES VERWALTUNGSZWEIGS — Icons8 ueber `core/ikonen`, Bauform 1:1
+ * nach `lagerbuch/_ui/ikonen.tsx` (bis 2026-09-30 Phosphor, `react-icons/pi`).
  * Angelegt am 2026-08-28: die Alt-Anwendung trug an ihren Verwaltungsknoepfen Zeichen
  * (`react-icons/fi`), der Nachbau trug keine.
  *
@@ -29,11 +23,11 @@ import {
  * falschem Bild — und Vitest kann das strukturell nicht sehen (`CLAUDE.md`, Fallen 6/7;
  * die zwei Ursachen sind GEGENLAEUFIG und werden nicht zusammengelegt).
  *
- * ⚠️ UND DESHALB PHOSPHOR UND NICHT `@ant-design/icons`: dessen nackter Spezifizierer
- * loest in der RSC-Ebene ueber `exports["."].node.import` auf CJS auf und ruft dort
- * `createContext` auf MODULEBENE — HTTP 500 schon beim IMPORT (gemessen,
- * `src/core/shell/icons.test.ts:1-42`). `react-icons/pi` ist davon gemessen NICHT
- * betroffen (`lagerbuch`, Task 1 vom 2026-08-12, echter Abruf).
+ * ⚠️ `Icons8Ikone` ist eine reine Funktion auf ein `<svg>` ohne Context und ohne
+ * Direktive — sicher in Server Components wie in Client-Inseln. Falle 7
+ * (`@ant-design/icons` wirft in RSC schon beim IMPORT) hat mit dem Paket die Suite
+ * verlassen; `core/ikonen/ikonen.test.ts` verbietet jeden Icon-Paket-Import.
+ *
  *
  * DIE UNION IST DIE AUTORITAET. Ein Name ohne Eintrag in `ZEICHEN` ist ein Typfehler,
  * kein stilles `undefined`; `verwaltungIkonen.test.tsx` prueft jeden literal benutzten
@@ -71,32 +65,32 @@ export type VerwaltungsIkonName =
   | "pfeil-links"; // der Zurueck-Weg der Unterseiten
 
 /**
- * Ein Phosphor-Zeichen je Name.
+ * Ein Icons8-Zeichen je Name (`core/ikonen`, Satz „Windows 11 Outline").
  *
- * ⚠️ `PiTarget` EXISTIERT (nachgesehen in `node_modules/react-icons/pi/index.d.ts`, nicht
- * angenommen) — der im Brief vorgesehene Rueckfall auf `PiCrosshair` wird nicht gebraucht.
+ * Die Schluessel rechts sind die des Katalogs `core/ikonen/katalog.ts`; ein Tippfehler
+ * dort ist ein typecheck-Fehler, kein still leeres Zeichen.
  */
-export const ZEICHEN: Record<VerwaltungsIkonName, IconType> = {
-  filter: PiFunnel,
-  herunterladen: PiDownloadSimple,
-  plus: PiPlus,
-  regler: PiSlidersHorizontal,
-  spalten: PiColumns,
-  papierkorb: PiTrash,
-  kopieren: PiCopy,
-  schluessel: PiKey,
-  hochladen: PiUploadSimple,
-  lupe: PiMagnifyingGlass,
-  haken: PiCheck,
-  "haken-kreis": PiCheckCircle,
-  warnung: PiWarning,
-  frage: PiQuestion,
-  "pfeil-oben": PiArrowUp,
-  "pfeil-unten": PiArrowDown,
-  ziel: PiTarget,
-  funk: PiRadio,
-  drucken: PiPrinter,
-  "pfeil-links": PiArrowLeft,
+export const ZEICHEN: Record<VerwaltungsIkonName, Icons8Name> = {
+  filter: "filter",
+  herunterladen: "download",
+  plus: "plus",
+  regler: "sliders",
+  spalten: "columns",
+  papierkorb: "trash",
+  kopieren: "copy",
+  schluessel: "key",
+  hochladen: "upload",
+  lupe: "search",
+  haken: "checkmark",
+  "haken-kreis": "ok",
+  warnung: "warning",
+  frage: "help",
+  "pfeil-oben": "arrow-up",
+  "pfeil-unten": "arrow-down",
+  ziel: "target",
+  funk: "walkie-talkie",
+  drucken: "print",
+  "pfeil-links": "arrow-left",
 };
 
 /**
@@ -121,11 +115,11 @@ export const ZEICHEN: Record<VerwaltungsIkonName, IconType> = {
  * ist es allein der Helfer-Stepper), und ein Regler ohne Aufrufer ist ein zweites Aussehen
  * ohne Grund.
  *
- * ⚠️ `size` IST DER EINZIGE WEG. `react-icons`' `IconBase` setzt `height`/`width` NACH dem
- * Spread der uebrigen Props (`react-icons/lib/iconBase.js`), ein durchgereichtes
- * `width`/`height` waere also wirkungslos. Das ist zugleich der Grund, warum diese Datei in
- * `_ui/AusleihRahmen.test.tsx` namentlich vom `size=`-Scan (Falle 4) ausgenommen ist —
- * dort steht die Begruendung samt Gegenprobe.
+ * `groesse` geht als Pixelzahl an `Icons8Ikone` und von dort an `width`/`height` des
+ * `<svg>` — kein `size` an einem Bedienelement, Falle 4 ist nicht beruehrt.
+ *
+ *
+ *
  */
 export function VIkone({
   name,
@@ -134,14 +128,11 @@ export function VIkone({
   name: VerwaltungsIkonName;
   groesse?: number;
 }) {
-  const Zeichen = ZEICHEN[name];
   return (
-    <Zeichen
-      size={groesse}
-      aria-hidden
-      focusable="false"
+    <Icons8Ikone
+      name={ZEICHEN[name]}
+      groesse={groesse}
       data-zeichen={name}
-      style={{ flex: "none" }}
     />
   );
 }

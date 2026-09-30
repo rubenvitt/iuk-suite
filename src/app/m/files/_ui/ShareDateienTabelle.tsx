@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Button } from "antd";
+import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
 import { Kartentabelle, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
 
 import { avWiederholenAction } from "../(verwaltung)/actions";
@@ -26,62 +27,47 @@ import { avWiederholenAction } from "../(verwaltung)/actions";
  */
 
 /**
- * DIE ZUSTANDSSYMBOLE ALS EIGENES INLINE-SVG. Der Grund lag ursprünglich in der
- * RSC-Umgebung (`@ant-design/icons` ruft `createContext` auf Modulebene, in RSC
- * HTTP 500 — Falle 7); in dieser Insel wären antd-Icons erlaubt. Sie bleiben
- * trotzdem SVG: die Symbole sind hier dieselben wie vor der Umstellung, und ein
- * Wechsel des Symbolsatzes wäre eine Bildänderung ohne Auftrag.
+ * DIE ZUSTANDSSYMBOLE AUS DEM ICONS8-KATALOG (`core/ikonen`), seit 2026-09-30.
+ * Bis dahin stand hier eigenes Inline-SVG (Kreis plus Innenform); die Suite hat
+ * seitdem EINE Zeichenquelle, und die Kreis-Zeichen des Satzes tragen dieselbe
+ * Aussage wie die alte Innenform.
  *
- * Jedes Symbol ist ein Kreis plus eine Innenform, alle in derselben
- * 16er-Zeichenfläche und in `currentColor`, damit sie mit dem Text der Zelle
- * hell/dunkel mitgehen (kein `--ant-*` in eigenem Markup — antd deklariert
- * seine Variablen auf seiner eigenen Scope-Klasse, `docs/design/README.md`,
+ * Alle in `currentColor`, damit sie mit dem Text der Zelle hell/dunkel
+ * mitgehen (kein `--ant-*` in eigenem Markup — antd deklariert seine
+ * Variablen auf seiner eigenen Scope-Klasse, `docs/design/README.md`,
  * Falle 2).
+ *
+ *
+ *
  *
  * DAS SYMBOL IST DIE VERZICHTBARE SCHICHT. Bedeutung nie allein über Farbe oder
  * Form (`docs/design/README.md:133-137`) — der TEXT daneben trägt die Aussage,
  * deshalb steht das SVG auf `aria-hidden`.
  */
-const SYMBOL_INNEN = {
+const SYMBOL_ZEICHEN = {
   /** Haken. */
-  haken: "M5 8.2 l2.2 2.2 L11.2 5.8",
+  haken: "ok",
   /** Uhrzeiger. */
-  uhr: "M8 4.8 V8.2 L10.4 9.6",
+  uhr: "clock",
   /** Querbalken — „gesperrt". */
-  balken: "M4.8 8 H11.2",
-  /** Ausrufezeichen: Strich plus Punkt (zwei Teilpfade). */
-  ruf: "M8 4.6 V8.8 M8 10.8 v0.01",
+  balken: "minus-circle",
+  /** Ausrufezeichen. */
+  ruf: "error",
   /** Schrägstrich — „nicht da". */
-  strich: "M5.2 10.8 L10.8 5.2",
+  strich: "cancel",
   /** Drei Punkte — „noch in Arbeit". */
-  punkte: "M5.4 8 h0.01 M8 8 h0.01 M10.6 8 h0.01",
-} as const;
+  punkte: "more",
+} as const satisfies Record<string, Icons8Name>;
 
 /**
  * NUR DER TYP wandert in die Server Component, nie der Wert: ein WERT aus einem
  * `"use client"`-Modul kommt dort als Client-Referenz an, HTTP 500 für die ganze
  * Seite (`CLAUDE.md`, Falle 6). Ein Typ ist nach dem Übersetzen verschwunden.
  */
-export type SymbolName = keyof typeof SYMBOL_INNEN;
+export type SymbolName = keyof typeof SYMBOL_ZEICHEN;
 
 function Zustandssymbol({ name }: { name: SymbolName }) {
-  return (
-    <svg
-      aria-hidden
-      focusable="false"
-      viewBox="0 0 16 16"
-      width="1em"
-      height="1em"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.4}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="8" cy="8" r="6.6" />
-      <path d={SYMBOL_INNEN[name]} />
-    </svg>
-  );
+  return <Icons8Ikone name={SYMBOL_ZEICHEN[name]} />;
 }
 
 export type ShareDateiZeile = {

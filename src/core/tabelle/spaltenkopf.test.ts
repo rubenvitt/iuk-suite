@@ -43,7 +43,7 @@ import { describe, expect, it } from "vitest";
  * serialisiert ihn klaglos, und Vitest kann die Wirkung STRUKTURELL nicht sehen
  * — unter jsdom gibt es keine RSC-Grenze, das Element ist dort ein gewoehnliches
  * Element und rendert in beiden Stellen. Dieselbe Lage wie bei den Fallen 6 und
- * 7; dort loest `core/shell/icons.test.ts` sie auf demselben Weg.
+ * 7; dort loest `core/ikonen/ikonen.test.ts` sie auf demselben Weg.
  *
  * BEHOBEN IST DIE STELLE SELBST SCHON: seit `97860eb` steht die Dateiliste in
  * der Client-Insel `files/_ui/ShareDateienTabelle.tsx` und uebergibt

@@ -35,7 +35,7 @@ export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
     const eintrag: LauncherEintrag = {
       key: mod.key,
       title: mod.title,
-      // Der NAME, nicht die Komponente — aufgelöst wird nur in Client-Inseln.
+      // Der NAME, nicht die Komponente — ein Name überquert die RSC-Grenze.
       icon: mod.icon,
       href,
       abschnitt: ABSCHNITT_APPS,

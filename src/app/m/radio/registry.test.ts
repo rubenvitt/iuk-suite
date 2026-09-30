@@ -1,19 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { findModule, getModule, moduleForHost, prodHostsFor, requiredGroupsFor } from "@/core/registry";
 import { adminGroupsFor } from "@/core/groups";
-import { ICONS } from "@/core/shell/icons";
+import { ICONS8 } from "@/core/ikonen/katalog";
 
 /**
  * DIE FELDWERTE DER REGISTRY-ZEILE, EINZELN (Spec 1 §1.1, Zeilen 158-180).
  *
- * Praezedenzfall im Repo: `src/app/m/aufgaben/registry.test.ts` — dort steht auch die
- * Begruendung, warum der Import von `ICONS` in einer TESTdatei erlaubt ist, obwohl die
- * Map client-only ist (`aufgaben/registry.test.ts:10-13`): `icons.test.ts` nimmt
- * `*.test.ts`/`*.test.tsx` aus seinem Quelltext-Scan aus („Tests laufen nie in RSC").
- * ⛔ Wer diese Zeile in eine NICHT-Testdatei kopiert, faerbt `src/core/shell/icons.test.ts`
- * rot — zu Recht. Der TIEFERE Grund, warum es dort ueberhaupt gutgeht, steht in
- * `CLAUDE.md`, Falle 7: Vitest laedt `react` ueber die `default`-Bedingung, es gibt keine
- * RSC-Ebene und damit keinen Falle-7-Wurf.
+ * Praezedenzfall im Repo: `src/app/m/aufgaben/registry.test.ts`. Das Modul-Icon ist ein
+ * Schluessel des Icons8-Katalogs (`core/ikonen/katalog.ts`, `aufgaben/registry.test.ts:10-13`);
+ * der Katalog ist reine Daten ohne Direktive und ueberall importierbar.
+ *
+ *
+ *
+ *
+ *
  *
  * `{}` STATT `process.env` UEBERALL, WO ES GEHT — dieselbe Entscheidung wie in
  * `src/core/auth/devGroups.test.ts:13-18`: der Test soll die REGISTRY pruefen, nicht die
@@ -137,18 +137,19 @@ describe("radio: der Registry-Eintrag", () => {
     expect(getModule("radio").switcherGroupSources).toEqual([]);
   });
 
-  it("hat sein Icon in der ICONS-Map — sonst traegt es STILL das Portal-Icon", () => {
+  it("hat sein Icon im Icons8-Katalog — das Handfunkgeraet", () => {
     /*
-     * DIE FALLE, DIE SCHON EINMAL ZUGESCHLAGEN HAT (`core/shell/icons.ts`, Kommentar über `ICONS`;
-     * AppUmschalter.test.tsx:203-215): beim Registry-Eintrag von `files` (2026-07-30)
-     * stand `FolderOutlined` nicht in der Map — der Eintrag trug daraufhin still das
-     * Portal-Icon. Kein Fehler, kein Log, nur ein falsches Bild in JEDER Kopfzeile und in
-     * JEDEM Portal-Raster.
+     * DIE FALLE, DIE SCHON EINMAL ZUGESCHLAGEN HAT (AppUmschalter.test.tsx:203-215): beim
+     * Registry-Eintrag von `files` (2026-07-30) fehlte der Name in der damaligen Icon-Map —
+     * der Eintrag trug still das Portal-Icon. Seit DRK-502 ist `icon` typseitig ein
+     * Katalogschluessel; dieser Test haelt es zusaetzlich zur Laufzeit fest.
      *
-     * `icon` muss ein Schluessel DIESER Map sein, nicht bloss ein existierender
-     * @ant-design/icons-Name.
+     *
+     *
+     *
      */
-    expect(Object.keys(ICONS)).toContain(getModule("radio").icon);
+    expect(getModule("radio").icon).toBe("walkie-talkie");
+    expect(Object.keys(ICONS8)).toContain(getModule("radio").icon);
   });
 });
 

@@ -1,5 +1,6 @@
 import { envHostsFor } from "@/core/hosts";
 import { adminGroupsFor, envAccessGroupsFor, hasAnyGroup } from "@/core/groups";
+import type { Icons8Name } from "@/core/ikonen/katalog";
 
 /** Wie in `hosts.ts`: nur „String rein, String oder undefined raus" — bewusst nicht `NodeJS.ProcessEnv`. */
 type EnvLike = Record<string, string | undefined>;
@@ -10,7 +11,7 @@ export type SwitcherGroupSource = "access" | "admin";
 export interface ModuleDef {
   key: string;
   title: string;
-  icon: string; // @ant-design/icons Komponentenname
+  icon: Icons8Name; // Schlüssel des Icons8-Katalogs (`core/ikonen`)
   shell: ShellVariant;
   requiresAuth: boolean;
   /**
@@ -54,13 +55,13 @@ export const MODULES: ModuleDef[] = [
   // portal: keine modul-eigene Admin-Gruppe — Admin ist hier der Suite-Admin
   // (ADMIN_GROUP). Das ist genau das bisherige Verhalten, nur nicht mehr im
   // Modul dupliziert.
-  { key: "portal", title: "Portal", icon: "AppstoreOutlined", shell: "full",
+  { key: "portal", title: "Portal", icon: "apps", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: ["iuk-ue.de"], showInSwitcher: true, switcherGroupSources: [] },
   // Anonym, weil der Generator ohne Login funktionieren muss (Offline-PWA im
   // Einsatz). Der Admin-Bereich schützt sich selbst über core/auth/guards —
   // requiresAuth: true wäre hier falsch und würde den anonymen Zugang nehmen.
-  { key: "qr", title: "QR-Codes", icon: "QrcodeOutlined", shell: "minimal",
+  { key: "qr", title: "QR-Codes", icon: "qr-code", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-qr-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   // feedback: gemischt wie qr — anonyme Teilnahme (/f/...) braucht keinen Login,
@@ -76,7 +77,7 @@ export const MODULES: ModuleDef[] = [
   // anders benannten SSO-Gruppen setzt SUITE_ACCESS_GROUP_FEEDBACK (Zugang) und
   // SUITE_ADMIN_GROUP_FEEDBACK (Voll-Admin) in der .env. Beide Wege lesen über
   // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
-  { key: "feedback", title: "Feedback", icon: "CommentOutlined", shell: "full",
+  { key: "feedback", title: "Feedback", icon: "comment", shell: "full",
     requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
     adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true,
     switcherGroupSources: ["access", "admin"] },
@@ -90,17 +91,17 @@ export const MODULES: ModuleDef[] = [
   //
   // prodHosts: [] — vor dem Cutover hat das Modul keine Prod-Domain, dieselbe
   // Lage wie bei qr und feedback. In Dev/E2E kommen die Hosts aus SUITE_HOST_FILES.
-  // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
-  // allein die Map ICONS in `core/shell/icons.ts`. Ein Name, der dort FEHLT,
-  // fällt STILL auf AppstoreOutlined zurück (zwei Konsumenten seit dem
-  // Navigations-Umbau: `AppUmschalter.tsx` und `DiensteRaster.tsx`) —
-  // „Dateien" wäre dann vom „Portal" nicht zu unterscheiden, im Umschalter-Panel
-  // UND im Portal-Raster jeder Suite-Seite.
-  // FolderOutlined steht in ICONS, und die Map ist exportiert, damit
-  // `AppUmschalter.test.tsx` sie gegen die echte MODULES-Liste hier prüft: ein
-  // Modul-Icon ohne Eintrag ist ab jetzt ein roter Test statt eines stillen
-  // Duplikats.
-  { key: "files", title: "Dateien", icon: "FolderOutlined", shell: "full",
+  // icon: ein Schlüssel des Icons8-Katalogs (`core/ikonen/katalog.ts`), und
+  // das ist TYPSEITIG erzwungen (`Icons8Name`). Bis 2026-09-30 war `icon` ein
+  // freier String gegen eine Map in `core/shell/icons.ts`, und ein dort
+  // fehlender Name fiel STILL auf das Portal-Zeichen zurück — „Dateien" war
+  // dann vom „Portal" nicht zu unterscheiden, im Umschalter-Panel UND im
+  // Portal-Raster jeder Suite-Seite. Heute ist ein unbekannter Name ein
+  // typecheck-Fehler statt eines stillen Duplikats.
+  //
+  //
+  //
+  { key: "files", title: "Dateien", icon: "folder", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-files-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access", "admin"] },
   // lagerbuch: EIN Host (lagerbuch.iuk-ue.de), aber die Domain steht ausschliesslich
@@ -116,7 +117,7 @@ export const MODULES: ModuleDef[] = [
   // Dadurch liest canAccess() requiredGroups hier NIE (frueher Ausstieg bei
   // !requiresAuth). Durchgesetzt wird der Verwaltungszugang
   // modul-intern in _lib/zugang.ts, der Host in _lib/host.ts.
-  { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", shell: "full",
+  { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch_nutzer"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   // aufgaben: Aufgabenverteilung und Zeitplanung fuer BuFDis
@@ -163,11 +164,11 @@ export const MODULES: ModuleDef[] = [
   // aus Spec §8 stehen, die Modulnavigation baut ihre Eintraege aus denselben Praedikaten, die die
   // Routen gaten). `src/app/m/aufgaben/registry.test.ts` haelt beide Stufen fest.
   //
-  // icon: NICHT „irgendein existierender @ant-design/icons-Name" — wirksam ist
-  // allein die Map ICONS in `core/shell/icons.ts`. Ein dort FEHLENDER Name
-  // faellt STILL auf AppstoreOutlined zurueck, und „Aufgaben" waere vom
-  // „Portal" in Kopfzeile UND Drawer nicht zu unterscheiden.
-  { key: "aufgaben", title: "Aufgaben", icon: "ScheduleOutlined", shell: "full",
+  // icon: ein Schluessel des Icons8-Katalogs (`core/ikonen/katalog.ts`),
+  // typseitig erzwungen — ein unbekannter Name ist ein typecheck-Fehler, kein
+  // stiller Rueckfall auf das Portal-Zeichen.
+  //
+  { key: "aufgaben", title: "Aufgaben", icon: "task", shell: "full",
     requiresAuth: true, requiredGroups: ["iuk-aufgaben-nutzer"],
     adminGroups: ["iuk-aufgaben-koordination"], prodHosts: [],
     showInSwitcher: true, switcherGroupSources: ["access"] },
@@ -194,13 +195,13 @@ export const MODULES: ModuleDef[] = [
   // ueberschreibt sie (adminGroupsFor, core/groups.ts:102-109). "iuk-radio-admin"
   // ist der Vorschlag aus Spec:766; der tatsaechliche Gruppenname in Pocket ID ist
   // offen (⬜ E1, .env.example:74-75) und faellig vor Cut 26.
-  { key: "radio", title: "Funkgeräte", icon: "WifiOutlined", shell: "full",
+  { key: "radio", title: "Funkgeräte", icon: "walkie-talkie", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   // uav: Teilnehmer melden sich mit einem Dauer-Code an (kein SSO) → requiresAuth:false.
   // Die Verwaltung gated `_lib/requireUavAdmin.ts` (Layout UND jeder Handler unter api/admin/).
   // Vorgabe uav-training-admin (Betreiber, 28.08.2026); Instanzwert über SUITE_ADMIN_GROUP_UAV.
-  { key: "uav", title: "Drohnentraining", icon: "RocketOutlined", shell: "minimal",
+  { key: "uav", title: "Drohnentraining", icon: "drone", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: ["uav-training-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   // einsatzbuch: Einsatzbuch v2 (docs/superpowers/specs/2026-09-24-einsatzbuch-v2-design.md).
@@ -209,20 +210,20 @@ export const MODULES: ModuleDef[] = [
   // die Zugangsgruppe, nicht über den Suite-Admin: hier liegt die Freigabe der Einsatz-Schlüssel.
   // Den Host hält `_lib/host.ts`. Im Umschalter nur für die Zugangsgruppe
   // (`switcherGroupSources: ["access"]`).
-  { key: "einsatzbuch", title: "Einsatzbuch", icon: "BookOutlined", shell: "full",
+  { key: "einsatzbuch", title: "Einsatzbuch", icon: "book", shell: "full",
     requiresAuth: false, requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
-  { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
+  { key: "alpha", title: "Alpha", icon: "square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // gamma: authentifiziertes Voll-Shell-Modul ohne Gruppenzwang — SSO-Cross-Ziel im Keystone-E2E.
-  { key: "gamma", title: "Gamma", icon: "CaretUpOutlined", shell: "full",
+  { key: "gamma", title: "Gamma", icon: "chevron-up", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
-  { key: "beta", title: "Beta", icon: "GlobalOutlined", shell: "minimal",
+  { key: "beta", title: "Beta", icon: "globe", shell: "minimal",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
-  { key: "kioskdemo", title: "Kiosk Demo", icon: "DesktopOutlined", shell: "kiosk",
+  { key: "kioskdemo", title: "Kiosk Demo", icon: "monitor", shell: "kiosk",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
   // zeichen: das Modul ist entfernt (DRK-465), das hier ist nur sein Abräum-Rest. Der Host
@@ -230,7 +231,7 @@ export const MODULES: ModuleDef[] = [
   // Grund: installierte PWAs holen den Worker nur über zeichen.<domain>/sw.js — ohne
   // Eintrag gibt es den Pfad nicht, und SUITE_HOST_ZEICHEN bräche als unbekannter Schlüssel
   // den Start ab. Abbau erst, wenn die Geräte durch sind: `docs/runbooks/zeichen-abbau.md`.
-  { key: "zeichen", title: "Taktische Zeichen", icon: "AppstoreOutlined", shell: "kiosk",
+  { key: "zeichen", title: "Taktische Zeichen", icon: "apps", shell: "kiosk",
     requiresAuth: false, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: false, switcherGroupSources: [] },
 ];

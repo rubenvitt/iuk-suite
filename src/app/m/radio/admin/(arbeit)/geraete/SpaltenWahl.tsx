@@ -27,7 +27,7 @@ import { VIkone, type VerwaltungsIkonName } from "../../../_ui/verwaltungIkonen"
  * ⚠️ DIE ZWEI KNOEPFE TRAGEN SEIT DEM 2026-08-28 WIEDER IHR ZEICHEN — die frueher hier
  * benannte Abweichung (E-V7, „eine Zeichenquelle, auf ZWOELF Namen festgenagelt") ist von der
  * Betreiberentscheidung zur Verwaltungsdichte ueberholt: der Verwaltungszweig hat mit
- * `_ui/verwaltungIkonen.tsx` seine EIGENE Zeichenquelle (Phosphor), `_ui/ikonen.tsx` bleibt
+ * `_ui/verwaltungIkonen.tsx` seine EIGENE Zeichentabelle (Icons8), `_ui/ikonen.tsx` bleibt
  * unberuehrt die der Ausleihflaeche. 1:1 zum Bestand: `ColumnPicker.tsx:19` setzt `FiColumns`
  * NEBEN das Wort „Spalten", `SearchFieldPicker.tsx:36` setzt `FiSliders` OHNE Wort.
  *

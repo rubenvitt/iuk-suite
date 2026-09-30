@@ -103,11 +103,11 @@ export function NeuVersion() {
         />
         {/* ✅ DAS PLUSZEICHEN IST ZURUECK — 1:1 `SoftwareVersionsPage.tsx:196`
             (`icon={<FiPlus />}`), Betreiberentscheidung vom 2026-08-28. Es kommt aus
-            `_ui/verwaltungIkonen.tsx`, der zweiten Zeichenquelle des Moduls (Phosphor); die
+            `_ui/verwaltungIkonen.tsx`, der zweiten Zeichentabelle des Moduls (Icons8); die
             zwoelf Inline-SVGs in `_ui/ikonen.tsx` bleiben der Ausleihflaeche.
             ⚠️ HIER STAND „ein `react-icons`-Import waere Falle 7" — DAS WAR SACHLICH FALSCH:
-            Falle 7 gilt `@ant-design/icons`, `react-icons/pi` ist gemessen RSC-sicher
-            (`lagerbuch`, 2026-08-12). */}
+            Falle 7 gilt `@ant-design/icons`; `Icons8Ikone` (`core/ikonen`) ist RSC-sicher
+            (reine Pfaddaten, DRK-502). */}
         <Button
           type="primary"
           loading={laeuft}

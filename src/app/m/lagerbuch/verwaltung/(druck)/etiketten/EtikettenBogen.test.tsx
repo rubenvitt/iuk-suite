@@ -20,7 +20,7 @@ import { EtikettenBogen } from "./EtikettenBogen";
  *
  * Anders als A5/A12 gibt es hier KEINE bereits vorhandene engere Fassung, an
  * die sich der Fall ersatzlos abgeben liesse:
- *   - `src/core/shell/icons.test.ts` prueft NICHT „kein Import von
+ *   - `src/core/ikonen/ikonen.test.ts` prueft NICHT „kein Import von
  *     `@ant-design/icons`" allgemein, sondern nur „jeder Importeur OHNE `use
  *     client` faellt auf" (`if (traegtClientDirektive(quelle)) continue;`).
  *     `EtikettenBogen.tsx` traegt `"use client"` in Zeile 1 — ein Icon-Import

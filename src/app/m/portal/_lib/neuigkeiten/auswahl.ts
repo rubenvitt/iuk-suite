@@ -1,6 +1,7 @@
 import { visibleSwitcherModules } from "@/core/registry";
 import { ALLE_NOTIZEN } from "@/app/m/portal/_lib/neuigkeiten/register";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
+import type { Icons8Name } from "@/core/ikonen/katalog";
 
 /** Wie in `registry.ts`: nur „String rein, String oder undefined raus". */
 type EnvLike = Record<string, string | undefined>;
@@ -9,13 +10,13 @@ type EnvLike = Record<string, string | undefined>;
  * Eine Notiz, angereichert um das, was die Registry über ihr Modul weiß. Der
  * Modultitel und der Icon-Name werden NICHT in der Notiz wiederholt — sie
  * stehen in `core/registry.ts` und wandern von dort mit, wenn ein Modul
- * umbenannt wird. `icon` ist der NAME aus der `ICONS`-Map, nie eine Komponente:
- * aufgelöst wird ausschließlich in Client-Inseln (`docs/design/README.md`,
- * Falle 7).
+ * umbenannt wird. `icon` ist der NAME aus dem Icons8-Katalog (`core/ikonen`),
+ * nie eine Komponente — ein Name ist serialisierbar und überquert die
+ * RSC-Grenze.
  */
 export interface Neuigkeit extends Releasenotiz {
   readonly modulTitel: string;
-  readonly icon: string;
+  readonly icon: Icons8Name;
 }
 
 /**

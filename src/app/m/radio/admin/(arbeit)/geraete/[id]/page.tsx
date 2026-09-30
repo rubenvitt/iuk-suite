@@ -206,8 +206,8 @@ export default async function RadioGeraetAktePage({
               2026-08-28 aus `_ui/verwaltungIkonen.tsx`, der Zeichenquelle des VERWALTUNGSzweigs
               (`_ui/ikonen.tsx` bleibt die der Ausleihflaeche). Dieselbe Marke wie in der
               Abweichungsspalte der Liste (`GeraeteTabelle.tsx`).
-              ⚠️ `react-icons/pi` IN EINER SERVER COMPONENT IST GEMESSEN SICHER (`lagerbuch`,
-              2026-08-12, echter Abruf); Falle 7 ist `@ant-design/icons`, nicht dies hier.
+              ⚠️ `Icons8Ikone` (`core/ikonen`) IST IN EINER SERVER COMPONENT SICHER: reine
+              Pfaddaten, kein Context; Falle 7 ist `@ant-design/icons`, nicht dies hier.
             */}
             {akte.updateAnmerkung && (
               <Tag color="warning" icon={<VIkone name="warnung" />}>
