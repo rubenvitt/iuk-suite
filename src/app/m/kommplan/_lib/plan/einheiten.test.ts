@@ -19,6 +19,8 @@ describe("Einheiten einer Stelle", () => {
   it("mehr als 60 Einheiten: die ganze Liste wird abgewiesen, das Dokument bleibt (Review Focus 2)", () => {
     const viele = Array.from({ length: GRENZE.einheiten }, (_, i) => einheit(`x${i}`));
     expect(() => fuegeEinheitenEin(plan(), "ea", viele)).toThrow(`Höchstens ${GRENZE.einheiten} Einheiten je Stelle — hier wären es ${GRENZE.einheiten + 1}.`);
+    // genau an der Grenze: erlaubt (die Stelle trägt schon eine)
+    expect(fuegeEinheitenEin(plan(), "ea", viele.slice(1)).stellen.find((s) => s.id === "ea")!.einheiten).toHaveLength(GRENZE.einheiten);
   });
   it("unbekannte Einheit oder Stelle: PlanFehler", () => {
     expect(() => aendereEinheit(plan(), "ea", "fehlt", { typ: "X" })).toThrow("Einheit fehlt gibt es an dieser Stelle nicht");

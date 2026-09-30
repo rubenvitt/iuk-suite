@@ -88,7 +88,7 @@ describe("Audit gebündelt (Entscheidung 1)", () => {
     };
     speichere(JANA, T0 + 1_000, 1);
     speichere(JANA, T0 + 60_000, 2);
-    speichere(JANA, T0 + BEARBEITUNGSFENSTER_MS, 3); // 15 min nach T0+1s: noch im Fenster
+    speichere(JANA, T0 + BEARBEITUNGSFENSTER_MS, 3); // 14:59 nach Fensterbeginn (T0+1s): noch im Fenster
     expect(audit(db)).toEqual(["create plan u-jana", "create plan_bearbeitung u-jana"]);
     speichere(JANA, T0 + 1_000 + BEARBEITUNGSFENSTER_MS, 4); // genau 15 min nach Beginn: neues Fenster
     expect(audit(db)).toEqual(["create plan u-jana", "create plan_bearbeitung u-jana", "update plan_bearbeitung u-jana"]);
