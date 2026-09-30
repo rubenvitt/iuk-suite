@@ -6,7 +6,7 @@ import type { PlanInhalt } from "../../_lib/plan/schema";
 import { Speicherer, WARTEZEIT_MS, WIEDERHOLUNG_MS, type SpeicherZustand } from "./speicherer";
 
 const ANGABEN: Planangaben = { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: null };
-const a = leererPlan(), b = fuegeWurzelEin(a, "b"), c = fuegeWurzelEin(b, "c");
+const a = leererPlan(), b = fuegeWurzelEin(a, "b"), c = fuegeWurzelEin(b, "c"), d = fuegeWurzelEin(c, "d");
 
 /** Ein Server mit echter Versionsprüfung; `haenge` hält den nächsten Aufruf fest, bis `los()`. */
 function server(start = 1) {
@@ -140,6 +140,92 @@ describe("Autosave (Spec §6.6)", () => {
     expect(sp.hatUngespeichertes()).toBe(true);
     await sp.erneut();
     expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 2, fehler: null });
+    // … und die nächste Änderung: nach der üblichen Wartezeit, nicht erst nach dem Rückzug
+    s.senden.inhalt.mockRejectedValueOnce(new Error("offline"));
+    sp.aendere(c);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(sp.zustand.status).toBe("fehler");
+    sp.aendere(d);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(4);
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 3, fehler: null });
+  });
+  it("nach einem Fehler zurück auf den gespeicherten Stand: nichts mehr offen, „gespeichert“, Drucken geht (Review Phase 2)", async () => {
+    const s = server();
+    const { sp } = baueSpeicherer(s);
+    s.senden.inhalt.mockRejectedValue(new Error("offline"));
+    sp.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(sp.zustand.status).toBe("fehler");
+    sp.aendere(a);
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", fehler: null });
+    expect(sp.hatUngespeichertes()).toBe(false);
+    expect(await sp.jetzt()).toBe(true);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(1); // kein Wiederholen für nichts
+  });
+  it("ebenso nach „ungültig“ vom Server; nach „weg“ bleibt der Fehler stehen (der Plan ist fort)", async () => {
+    const s = server();
+    const { sp } = baueSpeicherer(s);
+    s.senden.inhalt.mockResolvedValueOnce({ ok: false, grund: "ungueltig", fehler: "Der Plan ist ungültig." });
+    sp.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(sp.zustand).toMatchObject({ status: "fehler", fehler: "Der Plan ist ungültig." });
+    sp.aendere(a);
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", fehler: null });
+
+    const weg = baueSpeicherer(s).sp;
+    s.senden.inhalt.mockResolvedValueOnce({ ok: false, grund: "weg" });
+    weg.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(weg.zustand).toMatchObject({ status: "fehler", fehler: "Diesen Plan gibt es nicht mehr, oder er wurde archiviert." });
+    weg.aendere(a);
+    expect(weg.zustand.status).toBe("fehler");
+    expect(await weg.jetzt()).toBe(false);
+  });
+  it("Antwort verloren, obwohl der Server gespeichert hat: die Wiederholung meldet keinen Konflikt mit der eigenen Fassung", async () => {
+    let version = 1;
+    let gespeichert: PlanInhalt = a;
+    let verlieren = true;
+    const inhalt = vi.fn(async (e: { version: number; inhalt: PlanInhalt }): Promise<SpeicherErgebnis> => {
+      if (e.version !== version) return { ok: false, grund: "konflikt", stand: { version, inhalt: structuredClone(gespeichert), angaben: ANGABEN, aktualisiertAm: 77, aktualisiertVon: "ich" } };
+      version += 1;
+      gespeichert = e.inhalt;
+      if (verlieren) { verlieren = false; throw new Error("Antwort verloren"); }
+      return { ok: true, version, aktualisiertAm: version * 10 };
+    });
+    const sp = new Speicherer({ planId: "p", version: 1, inhalt: a, senden: { inhalt, angaben: vi.fn() }, melde: () => {} });
+    sp.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(sp.zustand.status).toBe("fehler");
+    await vi.advanceTimersByTimeAsync(WIEDERHOLUNG_MS[0]);
+    expect(inhalt).toHaveBeenCalledTimes(2);
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 2, konflikt: null, fehler: null });
+    sp.aendere(c);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(inhalt).toHaveBeenLastCalledWith({ id: "p", version: 2, inhalt: c });
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 3 });
+  });
+  it("… hat danach noch jemand gespeichert (Version weiter als +1), bleibt es ein Konflikt", async () => {
+    let version = 1;
+    let verlieren = true;
+    const inhalt = vi.fn(async (e: { version: number; inhalt: PlanInhalt }): Promise<SpeicherErgebnis> => {
+      if (e.version !== version) return { ok: false, grund: "konflikt", stand: { version, inhalt: structuredClone(b), angaben: ANGABEN, aktualisiertAm: 77, aktualisiertVon: "Ole" } };
+      version += 2; // eigenes Speichern plus eines von Ole
+      if (verlieren) { verlieren = false; throw new Error("Antwort verloren"); }
+      return { ok: true, version, aktualisiertAm: 1 };
+    });
+    const sp = new Speicherer({ planId: "p", version: 1, inhalt: a, senden: { inhalt, angaben: vi.fn() }, melde: () => {} });
+    sp.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS + WIEDERHOLUNG_MS[0]);
+    expect(sp.zustand).toMatchObject({ status: "konflikt", konflikt: { version: 3, aktualisiertVon: "Ole" } });
+  });
+  it("Planangaben „ungültig“: die Feldfehler gehören dem Formular, der Speicherstatus bleibt", async () => {
+    const s = server();
+    const { sp } = baueSpeicherer(s);
+    s.senden.angaben.mockResolvedValueOnce({ ok: false, grund: "ungueltig", fehler: "Titel fehlt.", feldFehler: { titel: "Titel fehlt." } });
+    expect(await sp.angaben({ ...ANGABEN, titel: "" })).toMatchObject({ ok: false, grund: "ungueltig" });
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", fehler: null });
   });
   it("nach einem Wurf versucht er es selbst wieder: 5 s, 15 s, 30 s, dann jede Minute (Entscheidung 11)", async () => {
     const s = server();
@@ -167,6 +253,13 @@ describe("Autosave (Spec §6.6)", () => {
     sp.aendere(b);
     await vi.advanceTimersByTimeAsync(WARTEZEIT_MS + 10 * 60_000);
     expect(s.log).toEqual(["inhalt@1"]);
+    const weg = server();
+    const w = baueSpeicherer(weg).sp;
+    weg.senden.inhalt.mockResolvedValue({ ok: false, grund: "weg" });
+    w.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS + 10 * 60_000);
+    expect(weg.senden.inhalt).toHaveBeenCalledTimes(1);
+    expect(w.zustand).toMatchObject({ status: "fehler", fehler: "Diesen Plan gibt es nicht mehr, oder er wurde archiviert." });
   });
   it("Serverstand beim Montieren (Entscheidung 21): gleich → aktuell; neuer und lokal nichts geändert → still übernommen; sonst Konflikt", () => {
     const s = server();

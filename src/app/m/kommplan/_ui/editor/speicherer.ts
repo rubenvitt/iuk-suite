@@ -26,6 +26,27 @@ export interface Senden {
 
 const NETZFEHLER = "Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist.";
 
+/** Gleich im Sinne des Dokuments: Schlüsselreihenfolge egal (der Server parst mit zod und ordnet neu). */
+export function gleichesDokument(x: unknown, y: unknown): boolean {
+  if (x === y) return true;
+  if (typeof x !== "object" || typeof y !== "object" || x === null || y === null) return false;
+  if (Array.isArray(x) !== Array.isArray(y)) return false;
+  if (Array.isArray(x) && Array.isArray(y)) return x.length === y.length && x.every((v, i) => gleichesDokument(v, y[i]));
+  const kx = Object.keys(x), ky = Object.keys(y);
+  const oy = y as Record<string, unknown>;
+  return kx.length === ky.length && kx.every((k) => Object.prototype.hasOwnProperty.call(oy, k) && gleichesDokument((x as Record<string, unknown>)[k], oy[k]));
+}
+
+/**
+ * Antwort verloren, Speichern aber angekommen (Review Phase 2): die Wiederholung mit der alten Version
+ * trifft dann auf die EIGENE Fassung. Genau eine Version weiter und derselbe Inhalt heißt: das war
+ * unser Speichern — still übernehmen statt „Jemand anderes hat …“. Alles andere bleibt Konflikt.
+ */
+function eigeneFassung(r: SpeicherErgebnis, version: number, senden: PlanInhalt): SpeicherErgebnis {
+  if (r.ok || r.grund !== "konflikt" || r.stand.version !== version + 1 || !gleichesDokument(r.stand.inhalt, senden)) return r;
+  return { ok: true, version: r.stand.version, aktualisiertAm: r.stand.aktualisiertAm };
+}
+
 export class Speicherer {
   private stand: SpeicherZustand;
   /** Was der Server zuletzt bestätigt hat; `null` = unbekannt, also immer senden („Meine Fassung behalten"). */
@@ -34,6 +55,8 @@ export class Speicherer {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private kette: Promise<unknown> = Promise.resolve();
   private versuche = 0;
+  /** Der Server kennt den Plan nicht mehr (archiviert, gelöscht): dieser Fehler bleibt stehen. */
+  private weg = false;
 
   constructor(private readonly o: { planId: string; version: number; inhalt: PlanInhalt; senden: Senden; melde: (z: SpeicherZustand) => void; warte?: number }) {
     this.gespeichert = o.inhalt;
@@ -63,6 +86,11 @@ export class Speicherer {
     return p;
   }
 
+  /** „fehler“, der nur am ungesendeten Inhalt hing (Netz, „ungültig“) — nicht „weg“. */
+  private fehlerOhneFolgen(): boolean {
+    return this.stand.status === "fehler" && !this.weg && this.aktuell === this.gespeichert;
+  }
+
   hatUngespeichertes(): boolean {
     return this.aktuell !== this.gespeichert || this.stand.status === "speichert";
   }
@@ -72,7 +100,8 @@ export class Speicherer {
     if (this.stand.status === "konflikt") return;
     if (inhalt === this.gespeichert) {
       this.abbrechen();
-      if (this.stand.status === "ungespeichert") this.setze({ status: "gespeichert" });
+      // Auch aus „fehler“ (Review Phase 2): es ist nichts mehr offen — sonst verweigerte `jetzt()` das Drucken.
+      if (this.stand.status === "ungespeichert" || this.fehlerOhneFolgen()) this.setze({ status: "gespeichert", fehler: null });
       return;
     }
     if (this.stand.status !== "speichert") this.setze({ status: "ungespeichert", fehler: null });
@@ -84,13 +113,14 @@ export class Speicherer {
       if (this.stand.status === "konflikt") return;
       const senden = this.aktuell;
       if (senden === this.gespeichert) {
-        if (this.timer === null && this.stand.status !== "fehler") this.setze({ status: "gespeichert" });
+        if (this.timer === null && (this.stand.status !== "fehler" || this.fehlerOhneFolgen())) this.setze({ status: "gespeichert", fehler: null });
         return;
       }
       this.setze({ status: "speichert" });
+      const version = this.stand.version;
       let r: SpeicherErgebnis;
       try {
-        r = await this.o.senden.inhalt({ id: this.o.planId, version: this.stand.version, inhalt: senden });
+        r = eigeneFassung(await this.o.senden.inhalt({ id: this.o.planId, version, inhalt: senden }), version, senden);
       } catch {
         this.setze({ status: "fehler", fehler: NETZFEHLER });
         this.planeSenden(WIEDERHOLUNG_MS[Math.min(this.versuche, WIEDERHOLUNG_MS.length - 1)]);
@@ -111,7 +141,7 @@ export class Speicherer {
       return;
     }
     if (r.grund === "konflikt") { this.abbrechen(); this.setze({ status: "konflikt", konflikt: r.stand }); return; }
-    if (r.grund === "weg") { this.setze({ status: "fehler", fehler: "Diesen Plan gibt es nicht mehr, oder er wurde archiviert." }); return; }
+    if (r.grund === "weg") { this.weg = true; this.setze({ status: "fehler", fehler: "Diesen Plan gibt es nicht mehr, oder er wurde archiviert." }); return; }
     this.setze({ status: "fehler", fehler: r.fehler });
   }
 
