@@ -239,7 +239,7 @@ Speicherstatus. Arbeitsfläche füllt den Rest; bearbeitet wird im Flyin rechts 
 - Eingerückte Baumliste; Titel, Verbindung und Einheitenzahl inline bearbeitbar.
 - Enter = Geschwister, Tab/Shift+Tab = Ebene, Alt+↑/↓ = verschieben.
 - **Mehrzeiliges Einfügen** mit Einrückung (Tabs oder je zwei Leerzeichen) legt einen Teilbaum an.
-- Am Telefon ist die Gliederung der einzige Bearbeitungsweg.
+- Am Telefon öffnet der Editor in der Gliederung; das Diagramm bleibt über den Umschalter für kleine Korrekturen erreichbar.
 
 ### 6.6 Speichern und Rückgängig
 

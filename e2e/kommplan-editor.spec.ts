@@ -53,7 +53,7 @@ async function neuerPlan(page: Page, titel: string): Promise<string> {
 }
 
 async function ersteStelle(page: Page, titel: string): Promise<void> {
-  await expect(page.getByText("Dieser Plan hat noch keine Stellen.")).toBeVisible();
+  await expect(page.locator(".kp-betrachter").getByText("Dieser Plan hat noch keine Stellen.")).toBeVisible();
   await klickeWennRuhig(page.getByRole("button", { name: "Erste Stelle anlegen" }));
   await expect(flyinTitel(page)).toBeFocused();
   await speichertNach(page, () => flyinTitel(page).fill(titel));
@@ -145,7 +145,11 @@ test("Schleife N → Titel → Enter → N in Tippgeschwindigkeit: keine Eingabe
 
 test("Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon, auch bei offenem Flyin (Review Phase 2)", async ({ page, context }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
-  await neuerPlan(page, "e2e Hinweise");
+  const id = await neuerPlan(page, "e2e Hinweise");
+  // Ausdrücklich das Diagramm: ohne Parameter zeigt 390 px die Gliederung (Phase 3). Nicht den Umschalter
+  // klicken — im Automodus ist „Diagramm" ab 768 px schon gewählt, ein Klick löste kein onChange aus.
+  await oeffneEditor(page, () => page.goto(url(`/p/${id}?ansicht=diagramm`)));
+  await expect(page.locator(".kp-editor")).toHaveAttribute("data-editoransicht", "diagramm");
   await ersteStelle(page, "EL");
   await page.keyboard.press("Enter");
   await page.keyboard.press("n");
@@ -310,11 +314,11 @@ test("gezoomt: Enter holt die Karte an den freien Rand neben dem Flyin — nicht
   const flyin = (await page.locator("[data-flyin-stelle]").boundingBox())!;
   await expect.poll(async () => {
     const k = (await page.locator(`[data-griffe="${rechts}"] .kp-griffe-karte`).boundingBox())!;
-    // rechte Kante der Karte genau GRIFF_RAND.seite (84 px) vor dem rechten Innenrand der Fläche
-    return Math.round(rahmen.x + rahmen.width - 1 - 84 - (k.x + k.width));
+    // rechte Kante der Karte genau GRIFF_RAND.seite (104 px) vor dem rechten Innenrand der Fläche
+    return Math.round(rahmen.x + rahmen.width - 1 - 104 - (k.x + k.width));
   }).toBeGreaterThanOrEqual(-2);
   const k = (await page.locator(`[data-griffe="${rechts}"] .kp-griffe-karte`).boundingBox())!;
-  expect(rahmen.x + rahmen.width - 1 - 84 - (k.x + k.width), "nicht weiter nach links als nötig").toBeLessThanOrEqual(2);
+  expect(rahmen.x + rahmen.width - 1 - 104 - (k.x + k.width), "nicht weiter nach links als nötig").toBeLessThanOrEqual(2);
   expect(k.x + k.width, "neben dem Flyin").toBeLessThanOrEqual(flyin.x);
   await page.keyboard.press("Escape");
   expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
@@ -340,6 +344,7 @@ test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, c
 /**
  * SICHTPRÜFUNG (Umsetzungsplan Phase 2, Task 16): hell und dunkel über das Cookie `iuk-theme-pref`
  * (nie `emulateMedia({ colorScheme })` — die Suite löst das Thema über `<html data-theme>` auf).
+ * Am Telefon öffnet der Editor ohne Parameter in der Gliederung (Phase 3); die Diagrammfotos wählen es ausdrücklich.
  * Mit `KOMMPLAN_FOTOS=<ordner>` fährt er alle drei Breiten und legt 48 Fotos ab; OHNE (also in der
  * CI) fährt er nur die Telefonbreite in beiden Modi, schießt keine Fotos und sichert nur zu — so
  * bleibt der auf rund 170 s ausbalancierte Eimer (scripts/e2e-gruppen.test.ts) nicht hängen.
@@ -387,7 +392,7 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await expect(page.getByRole("form", { name: "Neuer Plan" })).toBeInViewport({ ratio: 1 });
       await foto(`neu-${n}`);
 
-      await oeffneEditor(page, () => page.goto(url(`/p/${leerId}`)));
+      await oeffneEditor(page, () => page.goto(url(`/p/${leerId}?ansicht=diagramm`)));
       await foto(`leer-${n}`);
       // Hinweis nach Entf IN der Fläche (Entscheidung 19) — am eigenen Plan, der danach wieder leer ist
       await klickeWennRuhig(page.getByRole("button", { name: "Erste Stelle anlegen" }));
@@ -402,7 +407,7 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       const speicherungen: string[] = [];
       const zaehle = (r: Response) => { if (istSpeichern(r)) speicherungen.push(r.url()); };
       page.on("response", zaehle);
-      await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01")));
+      await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=diagramm")));
       await ohneUeberlauf();
       await foto(`editor-${n}`);
       // ea2: Unterstelle mit Geschwistern und Einheiten — zeigt alle Griffe (el wäre eine Seitenstelle)

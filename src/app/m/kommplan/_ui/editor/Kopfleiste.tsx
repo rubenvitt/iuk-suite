@@ -1,9 +1,11 @@
 "use client";
 
+import { useId } from "react";
 import { Alert, Button, Segmented } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { zeitFormat } from "@/core/zeit";
 import { TYP_NAME, tagZuMs, type Planangaben } from "../../_lib/angaben";
+import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { kalendertag } from "../../_lib/rahmen";
 import type { SpeicherZustand } from "./speicherer";
 
@@ -28,18 +30,27 @@ export function statusText(z: SpeicherZustand): string {
 }
 
 /**
- * KOPFLEISTE (Spec §6.2): Titel, Umschalter Diagramm | Gliederung (die Gliederung folgt mit Phase 3
- * und ist bis dahin deaktiviert, Entscheidung 13), Rückgängig/Wiederholen, „Plan und Verbindungen",
+ * KOPFLEISTE (Spec §6.2): Titel, Umschalter Diagramm | Gliederung (ohne Wahl in der Adresse zwei
+ * Umschalter, CSS zeigt je Breakpoint einen — Phase 3, Entscheidung 1), Rückgängig/Wiederholen, „Plan und Verbindungen",
  * „Drucken (A4 quer)" (derselbe Name wie im Betrachter, Entscheidung 20), Speicherstatus (`aria-live`
  * genau hier, docs/design/feedback-admin.md 4.14). `Seitenkopf` trägt weder eine Client-Direktive
  * noch Server-Abhängigkeiten und darf deshalb auch hier rendern. Der Konflikthinweis bleibt im
  * Fluss: er ist ein Zustand, der eine Entscheidung verlangt, kein vorübergehender Hinweis.
  */
-export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder, onRueck, onWieder, onPlan, onDrucken, onNeuLaden, onBehalten }: {
+export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder, ansicht, onAnsicht, onRueck, onWieder, onPlan, onDrucken, onNeuLaden, onBehalten }: {
   angaben: Planangaben; zustand: SpeicherZustand; standSeit: number; kannRueck: boolean; kannWieder: boolean;
+  /** Ausdrücklich gewählte Ansicht; `null` = ohne Wahl (CSS am Breakpoint). */
+  ansicht: EditorAnsicht | null; onAnsicht: (a: EditorAnsicht) => void;
   onRueck: () => void; onWieder: () => void; onPlan: () => void; onDrucken: () => void;
   onNeuLaden: () => void; onBehalten: () => void;
 }) {
+  // Eigener Name je Umschalter: antds Vorgabe (`useId` von rc-util) ist unter NODE_ENV=test für alle gleich,
+  // und zwei Radiogruppen gleichen Namens teilten sich ein „checked" (Automodus: zwei Umschalter im DOM).
+  const basis = useId();
+  const umschalter = (wert: EditorAnsicht, klasse?: string) => (
+    <Segmented<EditorAnsicht> className={klasse} name={`${basis}-${klasse ?? "ansicht"}`} aria-label="Ansicht" value={wert} onChange={onAnsicht}
+      options={[{ value: "diagramm", label: "Diagramm" }, { value: "gliederung", label: "Gliederung" }]} />
+  );
   const stand = zustand.zuletztGespeichert ?? standSeit;
   const beschreibung = [TYP_NAME[angaben.typ], angaben.anlass, angaben.datum ? kalendertag(tagZuMs(angaben.datum)) : null, `Stand ${STAND.format(stand)}`]
     .filter(Boolean).join(" · ");
@@ -48,8 +59,9 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
       <Seitenkopf titel={angaben.titel} zurueck={{ titel: "Alle Pläne", href: "/" }} beschreibung={beschreibung}
         aktionen={
           <div className="kp-kopfwerkzeuge" role="toolbar" aria-label="Plan bearbeiten">
-            <Segmented aria-label="Ansicht" value="diagramm"
-              options={[{ value: "diagramm", label: "Diagramm" }, { value: "gliederung", label: "Gliederung", disabled: true }]} />
+            {ansicht === null
+              ? <>{umschalter("diagramm", "kp-nur-breit")}{umschalter("gliederung", "kp-nur-schmal")}</>
+              : umschalter(ansicht)}
             <Button onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
             <Button onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
             <Button onClick={onPlan}>Plan und Verbindungen</Button>

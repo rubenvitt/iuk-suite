@@ -4,6 +4,7 @@ import { Card } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "@/app/m/kommplan/_db/client";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
+import { leseEditorAnsicht } from "@/app/m/kommplan/_lib/editorAnsicht";
 import { beschreibungFuer, ladePlanOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { symboleFuer, zeichenIndex } from "@/app/m/kommplan/_lib/zeichen/zeichen";
 import { darfKommplanBearbeiten, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
@@ -19,18 +20,22 @@ export const dynamic = "force-dynamic";
  * dasselbe Prädikat, das jede Server Action des Editors prüft. `key={plan.id}`: der Editor sät
  * seinen Zustand einmal aus den Props und prüft beim Montieren den Serverstand (Umsetzungsplan
  * Phase 2, Entscheidung 21 — Browser-Zurück zeigt diese Seite aus dem Client-Cache).
+ * `?ansicht=` wählt die Ansicht des Editors (Phase 3, Entscheidung 1); der Betrachter kennt nur das Diagramm.
  */
-export default async function PlanAnsicht({ params }: { params: Promise<{ id: string }> }) {
+export default async function PlanAnsicht({ params, searchParams }: {
+  params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   requireKommplanHost(await headers());
   const viewer = await requireKommplanZugang();
   const { id } = await params;
   const plan = ladePlanOder404(getDb(), id);
   if (plan.inhalt && darfKommplanBearbeiten(viewer.groups)) {
+    const ansicht = leseEditorAnsicht((await searchParams).ansicht);
     return (
       <Huelle>
         {/* Kein Arimo-Container um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
-        <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className}
+        <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht}
           plan={{ id: plan.id, version: plan.version, angaben: plan.angaben, inhalt: plan.inhalt, aktualisiertAm: plan.aktualisiertAm, aktualisiertVon: plan.aktualisiertVon }} />
       </Huelle>
     );

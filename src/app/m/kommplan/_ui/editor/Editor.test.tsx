@@ -10,6 +10,7 @@ vi.mock("../../_actions/plan", () => aktionen);
 const zeichen = vi.hoisted(() => ({ ladeZeichenAction: vi.fn(async () => ({})) }));
 vi.mock("../../_actions/zeichen", () => zeichen);
 import { baue } from "../../_lib/beispiele/bau";
+import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { leererPlan } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import { Editor, type EditorPlan } from "./Editor";
@@ -19,7 +20,9 @@ const plan = (inhalt: PlanInhalt = INHALT): EditorPlan => ({
   id: "p1", version: 1, inhalt, aktualisiertAm: Date.UTC(2026, 8, 30, 8), aktualisiertVon: "Jana",
   angaben: { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: null },
 });
-const zeige = async (p = plan()) => { await mount(<Editor plan={p} symbole={{}} zeichenIndex={[]} schrift="Arimo" />); await act(async () => {}); };
+const zeige = async (p = plan(), ansicht: EditorAnsicht | null = null) => { await mount(<Editor plan={p} ansicht={ansicht} symbole={{}} zeichenIndex={[]} schrift="Arimo" />); await act(async () => {}); };
+/** Das Titelfeld des Stellen-Flyins — nie ungefiltert `input[name="titel"]`: die Gliederung trägt denselben Namen (Phase 3). */
+const flyinFeld = () => queryPortal<HTMLInputElement>('[data-flyin-stelle] input[name="titel"]');
 const karten = () => queryAll("[data-karte]").map((k) => k.getAttribute("data-karte")!);
 function zeiger(el: Element, typ: string, zeit: number) {
   const e = new MouseEvent(typ, { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
@@ -47,7 +50,7 @@ async function klickeLeer() {
 }
 /** Esc im Flyin: die Schublade schließt über ihre eigene Tastenbehandlung. */
 async function escImFlyin() {
-  await taste("Escape", {}, queryPortal('input[name="titel"]'));
+  await taste("Escape", {}, flyinFeld());
   await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 }
 /** Wie `fill` aus dem Harness, aber für ein Element im Portal (Flyin): `fill` sucht nur im Wirt. */
@@ -84,7 +87,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(neu).toBeDefined();
     expect(exists(`[data-griffe="${neu}"]`)).toBe(true);
     expect(existsPortal(`[data-flyin-stelle="${neu}"]`)).toBe(true);
-    expect(queryPortal<HTMLInputElement>('input[name="titel"]').value).toBe("");
+    expect(flyinFeld().value).toBe("");
   });
   it("Tastaturschleife ohne Maus: N → Titel → Enter → N (Entscheidung 17)", async () => {
     await zeige();
@@ -92,9 +95,9 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     query<HTMLElement>(".kp-betrachter").focus();
     await taste("n");
     expect(karten()).toHaveLength(4);
-    expect(document.activeElement).toBe(queryPortal('input[name="titel"]'));
-    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "EA 2");
-    await taste("Enter", {}, queryPortal('input[name="titel"]'));
+    expect(document.activeElement).toBe(flyinFeld());
+    await schreibe(flyinFeld(), "EA 2");
+    await taste("Enter", {}, flyinFeld());
     expect(flaecheFokussiert()).toBe(true);
     expect(existsPortal("[data-flyin-stelle]")).toBe(false);
     await taste("ArrowUp");
@@ -154,7 +157,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     const neu = karten().find((k) => !["el", "a", "s"].includes(k))!;
     await waehle(neu);
     await taste("F2", {}, query(".kp-betrachter"));
-    await taste("z", { ctrlKey: true }, queryPortal('input[name="titel"]'));
+    await taste("z", { ctrlKey: true }, flyinFeld());
     expect(karten()).toHaveLength(4);
   });
   it("Autosave etwa 1 s nach der letzten Änderung, mit Version; Status kurz und in Worten", async () => {
@@ -234,7 +237,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
   it("die letzte Stelle löschen: der Hinweis mit „Rückgängig“ steht auch im leeren Plan (Entscheidung 19)", async () => {
     await zeige(plan(leererPlan()));
     await clickElement(knopf("Erste Stelle anlegen"));
-    await taste("Enter", {}, queryPortal('input[name="titel"]'));
+    await taste("Enter", {}, flyinFeld());
     await taste("Delete", {}, query(".kp-betrachter"));
     expect(karten()).toHaveLength(0);
     expect(query(".kp-betrachter [data-meldung]").textContent).toContain("gelöscht");
@@ -324,12 +327,12 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "Trupp");
+    await schreibe(flyinFeld(), "Trupp");
     await escImFlyin();
     expect(karten()).toHaveLength(4);
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await taste("Enter", {}, queryPortal('input[name="titel"]'));
+    await taste("Enter", {}, flyinFeld());
     expect(karten()).toHaveLength(5);
   });
   it("Abwählen schließt das Flyin ganz: danach öffnet weder ein Pfeil noch ein Einfachklick es wieder (Review Phase 2)", async () => {
@@ -349,7 +352,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "Neu");
+    await schreibe(flyinFeld(), "Neu");
     expect(flyinOffen()).toBe(true);
     await clickElement(knopf("Rückgängig"));
     await clickElement(knopf("Rückgängig"));
@@ -382,7 +385,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await waehle("el");
     query<HTMLElement>(".kp-betrachter").focus();
     await taste("F2");
-    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "ELX");
+    await schreibe(flyinFeld(), "ELX");
     expect(query(".kp-betrachter [data-meldung]").textContent).toContain("„EA 1“ gelöscht.");
     expect(rueckImHinweis()).toBeUndefined();
     await clickElement(knopf("Rückgängig")); // der Kopfleiste: erst das Tippen, dann die Löschung
@@ -430,5 +433,83 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(ids.length).toBeGreaterThan(0);
     expect(new Set(ids).size).toBe(ids.length);
     expect(query(".kp-symbolvorrat").parentElement!.classList.contains("kp-editor")).toBe(true);
+  });
+});
+
+describe("Ansichten (Spec §6.2, §6.5; Phase 3, Entscheidungen 1, 2, 16)", () => {
+  /** Ein Radio des Umschalters; `gruppe` ist die radiogroup selbst (Vorgabe: die erste — mit ausdrücklicher Ansicht gibt es nur eine). */
+  const radio = (name: string, gruppe: ParentNode = query('[role="radiogroup"][aria-label="Ansicht"]')) =>
+    [...gruppe.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.closest("label")!.textContent === name)!;
+
+  it("ohne Parameter: data-editoransicht=auto, zwei Umschalter (CSS wählt je Breakpoint), beide Ansichten im DOM", async () => {
+    await zeige();
+    expect(query(".kp-editor").getAttribute("data-editoransicht")).toBe("auto");
+    expect(queryAll('[role="radiogroup"][aria-label="Ansicht"]')).toHaveLength(2);
+    expect(radio("Diagramm", query(".kp-nur-breit")).checked).toBe(true);
+    expect(radio("Gliederung", query(".kp-nur-schmal")).checked).toBe(true);
+    expect(exists(".kp-ansicht-diagramm .kp-betrachter")).toBe(true);
+    expect(exists(".kp-ansicht-gliederung [data-gliederung]")).toBe(true);
+  });
+  it("Umschalten: Adresse per replaceState, Auswahl, Rückgängig und Speicherstand bleiben, kein Speichern (Review Focus 5)", async () => {
+    const ersetze = vi.spyOn(window.history, "replaceState");
+    const warte = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+    await zeige(plan(), "diagramm");
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("n"); // neue Unterstelle, Flyin offen
+    await schreibe(flyinFeld(), "Neu"); // berührt: Esc verwirft sie nicht
+    await warte(1200); // Autosave erledigt
+    aktionen.speichereInhaltAction.mockClear();
+    await clickElement(radio("Gliederung"));
+    expect(query(".kp-editor").getAttribute("data-editoransicht")).toBe("gliederung");
+    expect(flyinFeld().value).toBe("Neu"); // das Flyin ist dasselbe geblieben
+    expect(ersetze).toHaveBeenLastCalledWith(null, "", expect.stringMatching(/\?ansicht=gliederung$/));
+    expect(query<HTMLInputElement>('[data-zeile][aria-current="true"] input[name="titel"]').value).toBe("Neu");
+    expect(flyinOffen()).toBe(true);
+    expect(knopf("Rückgängig").disabled).toBe(false);
+    await clickElement(radio("Diagramm"));
+    expect(exists("[data-griffe]")).toBe(true);
+    await warte(1200);
+    expect(aktionen.speichereInhaltAction).not.toHaveBeenCalled();
+  });
+  it("Gliederung: Tab auf der ersten Unterstelle — der Hinweis steht im Meldungsplatz der Gliederung", async () => {
+    await zeige(plan(), "gliederung");
+    const feld = query<HTMLInputElement>('[data-zeile="a"] input[name="titel"]');
+    await act(async () => { feld.focus(); });
+    await taste("Tab", {}, feld);
+    expect(query(".kp-gliederung [data-meldung]").textContent).toContain("Die erste Stelle einer Ebene lässt sich nicht einrücken.");
+    expect(document.activeElement).toBe(feld);
+  });
+  it("Details aus der Gliederung öffnet das Flyin; Schließen gibt den Fokus an die Zeile zurück", async () => {
+    await zeige(plan(), "gliederung");
+    const feld = query<HTMLInputElement>('[data-zeile="a"] input[name="titel"]');
+    await act(async () => { feld.focus(); });
+    await taste("F2", {}, feld);
+    expect(flyinOffen()).toBe(true);
+    await escImFlyin(); // Esc an `flyinFeld()` — nicht an die Gliederung
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+    expect(flyinOffen()).toBe(false);
+    expect(document.activeElement).toBe(query('[data-zeile="a"] input[name="titel"]')); // breit (jsdom kennt kein matchMedia): der Titel
+  });
+  it("Ansichtswechsel räumt eine unberührt per Enter angelegte Zeile weg — ohne Wiederholen-Schritt (Entscheidung 8)", async () => {
+    await zeige(plan(), "gliederung");
+    const feld = query<HTMLInputElement>('[data-zeile="a"] input[name="titel"]');
+    await act(async () => { feld.focus(); });
+    await taste("Enter", {}, feld);
+    expect(queryAll("[data-zeile]")).toHaveLength(4);
+    await clickElement(radio("Diagramm"));
+    expect(queryAll("[data-zeile]")).toHaveLength(3);
+    expect(knopf("Wiederholen").disabled).toBe(true);
+  });
+  it("Einfügen in der Gliederung ist EIN Schritt: „Rückgängig“ der Kopfleiste nimmt den ganzen Teilbaum zurück", async () => {
+    await zeige(plan(), "gliederung");
+    const feld = query<HTMLInputElement>('[data-zeile="a"] input[name="titel"]');
+    await act(async () => { feld.focus(); });
+    const e = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "clipboardData", { value: { getData: () => "X\n\tY\n\tZ" } });
+    await act(async () => { feld.dispatchEvent(e); });
+    expect(queryAll("[data-zeile]")).toHaveLength(6);
+    await clickElement(knopf("Rückgängig"));
+    expect(queryAll("[data-zeile]")).toHaveLength(3);
   });
 });

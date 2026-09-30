@@ -6,6 +6,7 @@ import { flyinBreite } from "@/core/theme/flyin";
 import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
 import { ladeZeichenAction } from "../../_actions/zeichen";
 import { angabenSchema, type Planangaben } from "../../_lib/angaben";
+import { adresseMitAnsicht, SCHMAL, sichtbareAnsicht, type EditorAnsicht } from "../../_lib/editorAnsicht";
 import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
 import { layout } from "../../_lib/layout/layout";
 import { baueSicht } from "../../_lib/layout/sicht";
@@ -17,6 +18,7 @@ import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { Flaeche, type FlaecheGriff } from "../betrachter/Flaeche";
 import { Legende } from "../betrachter/Legende";
 import { Umschalter } from "../betrachter/EinklappKnopf";
+import { Gliederung, type GliederungGriff } from "../gliederung/Gliederung";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
 import { Griffe } from "./Griffe";
@@ -42,12 +44,12 @@ const BEDIENZEILE = "Pfeile wählen · Enter oder F2 bearbeitet · N neue Unters
 export const EDITOR_MASSSTAB = 4;
 /**
  * Luft um eine gezeigte Karte: oben nur der übliche Rand (über einer Karte steht kein Griff); seitlich
- * 8 px + „+"-Knopf mit Symbol (rund 64 px) + 12 px; unten 8 px + Griffleiste, am Telefon zweizeilig
+ * 8 px + Knopf „+ rechts" (gemessen 84 px, Phase 3) + 12 px; unten 8 px + Griffleiste, am Telefon zweizeilig
  * (2 × 44 + 8) + 16 px. Dieselben Zahlen gibt der Editor der Fläche fürs Einpassen (`platzSeite`,
  * `platzUnten`): eingepasst liegen die Griffe jeder Karte schon im Bild, `zeige()` verschiebt dann
  * nichts, und die Ansicht bleibt eingepasst (Entscheidung 18).
  */
-export const GRIFF_RAND = { oben: 16, seite: 84, unten: 120 };
+export const GRIFF_RAND = { oben: 16, seite: 104, unten: 120 };
 
 /** Die Vorfahren einer Stelle (ohne sie selbst) — zum Aufklappen, damit eine bearbeitete Stelle sichtbar bleibt. */
 function vorfahren(p: PlanInhalt, id: string | null): string[] {
@@ -75,9 +77,13 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Nach Flyin-Schließen, Löschen und Rückgängig per Knopf hat die Fläche den Fokus (Entscheidung 17).
  * - Eine bearbeitete oder neue Stelle wird nie von einer eingeklappten Vorfahrin verdeckt: die
  *   Vorfahren werden aufgeklappt (ein Ansichtszustand, kein Rückgängig-Schritt).
+ * - Zwei Ansichten auf denselben Zustand (Phase 3): Diagramm und Gliederung bleiben montiert;
+ *   `data-editoransicht` und CSS entscheiden, was zu sehen ist; Fokus kehrt über `fokusZurueck` in die sichtbare zurück.
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
+  /** Aus `?ansicht=`; `null` = CSS wählt am Breakpoint (Phase 3, Entscheidung 1). */
+  ansicht?: EditorAnsicht | null;
   /** Klasse der Zeichenschrift (next/font) — nur für die Legende, wie im Betrachter; der Rest steht in der Suite-Schrift. */
   schriftKlasse?: string;
 }) {
@@ -93,19 +99,21 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const [hinweis, setHinweis] = useState<Hinweis | null>(null);
   const [symbole, setSymbole] = useState<Symbolsatz>(symboleStart);
   const [linien, setLinien] = useState(0);
+  const [ansicht, setAnsicht] = useState<EditorAnsicht | null>(ansichtStart);
   const [speicherZustand, setSpeicherZustand] = useState<SpeicherZustand>({ status: "gespeichert", version: plan.version, konflikt: null, zuletztGespeichert: null, fehler: null });
   const [speicherer] = useState(() => new Speicherer({
     planId: plan.id, version: plan.version, inhalt: plan.inhalt,
     senden: { inhalt: speichereInhaltAction, angaben: speichereAngabenAction }, melde: setSpeicherZustand,
   }));
   const flaeche = useRef<FlaecheGriff>(null);
+  const gliederung = useRef<GliederungGriff>(null);
   const wurzel = useRef<HTMLDivElement>(null);
   const titelRef = useRef<InputRef>(null);
   const zeigeNach = useRef<string | null>(null);
   const flyinJetzt = useRef(flyin);
   const angabenEntwurf = useRef(false);
   const angelegt = useRef<Angelegt | null>(null);
-  const kuerzel = useRef<{ rueck: () => void; wieder: () => void; pruefeStand: (s: Speicherstand) => void }>({ rueck: () => {}, wieder: () => {}, pruefeStand: () => {} });
+  const kuerzel = useRef<{ rueck: () => void; wieder: () => void; pruefeStand: (s: Speicherstand) => void; nachTaste: () => void }>({ rueck: () => {}, wieder: () => {}, pruefeStand: () => {}, nachTaste: () => {} });
   /** Schlüssel, deren SVG schon unterwegs ist: Server Actions laufen nacheinander, eine Suchsalve stellte sich sonst vor das Autosave. */
   const unterwegs = useRef(new Set<string>());
 
@@ -167,10 +175,31 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     zeigeNach.current = id; // die Karte aus dem Bereich unter dem Flyin holen (Entscheidung 18)
     ladeSymbole(leseZuletzt());
   }
+  /** Welche Ansicht zu sehen ist — zur EREIGNISZEIT gefragt, nie im Rendern (Phase 3, Entscheidung 16). */
+  function schmal(): boolean { return typeof window.matchMedia === "function" && window.matchMedia(SCHMAL).matches; }
+  function sichtbar(): EditorAnsicht { return sichtbareAnsicht(ansicht, schmal()); }
+  /**
+   * Fokus zurück in die sichtbare Ansicht: die Fläche oder die Zeile (Phase 2, Entscheidung 17; Phase 3,
+   * Entscheidung 16). In der Zeile schmal auf „⋯" — ein Titelfeld öffnete am Telefon die Bildschirmtastatur —,
+   * breit in den Titel.
+   */
+  function fokusZurueck(id: string | null = gewaehlt) {
+    if (sichtbar() === "diagramm") { flaeche.current?.fokus(); return; }
+    gliederung.current?.fokus(id, schmal() ? "aktionen" : "titel");
+  }
+  function wechsleAnsicht(a: EditorAnsicht) {
+    gliederung.current?.raeumeAuf(); // ein unberührt angelegtes Element verschwindet (Entscheidung 8)
+    setAnsicht(a);
+    try { window.history.replaceState(null, "", adresseMitAnsicht(window.location.href, a)); } catch { /* ohne Adresse bleibt es Zustand */ }
+    if (gewaehlt === null) return;
+    const id = gewaehlt;
+    if (a === "diagramm") zeigeNach.current = id;
+    else requestAnimationFrame(() => gliederung.current?.zeige(id));
+  }
   function schliesseFlyin() {
     angelegt.current = null;
     setFlyin(null);
-    flaeche.current?.fokus(); // verlässt ein Angaben-Feld → es speichert (Entscheidung 3)
+    fokusZurueck(); // verlässt ein Angaben-Feld → es speichert (Entscheidung 3)
   }
   /** Esc/X am Flyin einer Stelle: ein eben per Griff angelegtes, unberührtes Element war ein Fehlgriff. */
   function brecheAb() {
@@ -209,13 +238,18 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     if (nach === null) return;
     setAuswahl(s.eltern);
     setFlyin(null);
-    flaeche.current?.fokus();
+    fokusZurueck(s.eltern);
     const weitere = r.entfernt - 1;
     setHinweis({ nach, text: `„${s.titel.trim() || "(ohne Titel)"}“ gelöscht${weitere > 0 ? ` samt ${weitere} ${weitere === 1 ? "weiterer Stelle" : "weiteren Stellen"}` : ""}.` });
   }
   function rueck() { if (kannRueckgaengig(verlauf)) uebernimm(rueckgaengig(verlauf), true); }
   function wieder() { if (kannWiederholen(verlauf)) uebernimm(wiederholen(verlauf), true); }
-  function perKnopf(f: () => void) { f(); flaeche.current?.fokus(); }
+  /** Strg/Cmd+Z mit Fokus auf `body` und sichtbarer Gliederung: zurück in die Zeile (Phase 3, Entscheidung 10). */
+  function nachTaste() {
+    if (typeof document === "undefined" || (document.activeElement !== null && document.activeElement !== document.body)) return;
+    if (sichtbar() === "gliederung") gliederung.current?.fokus(gewaehlt);
+  }
+  function perKnopf(f: () => void) { f(); fokusZurueck(); }
   function pruefeStand(s: Speicherstand) {
     if (speicherer.pruefeStand(s) !== "uebernommen") return;
     if (s.inhalt === null) { window.location.reload(); return; }
@@ -224,7 +258,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     setAngaben(s.angaben); setAngabenFremd((n) => n + 1);
     setLinien((n) => n + 1);
   }
-  useEffect(() => { kuerzel.current = { rueck, wieder, pruefeStand }; flyinJetzt.current = flyin; });
+  useEffect(() => { kuerzel.current = { rueck, wieder, pruefeStand, nachTaste }; flyinJetzt.current = flyin; });
 
   // Entscheidung 21: Serverstand beim Montieren — übernommen im `.then`, nie im Effekt-Rumpf.
   useEffect(() => {
@@ -240,6 +274,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
       if (!b) return;
       e.preventDefault();
       if (b.art === "rueckgaengig") kuerzel.current.rueck(); else kuerzel.current.wieder();
+      kuerzel.current.nachTaste();
     };
     document.addEventListener("keydown", beiTaste);
     return () => document.removeEventListener("keydown", beiTaste);
@@ -291,7 +326,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     if (id === null) return;
     const k = daten.karten.find((x) => x.id === id);
     if (k) { zeigeNach.current = null; flaeche.current?.zeige(k, GRIFF_RAND); }
-  }, [daten, gewaehlt, flyin]);
+  }, [daten, gewaehlt, flyin, ansicht]);
 
   function taste(e: KeyboardEvent<HTMLDivElement>): boolean {
     const b = flaechenBefehl(e);
@@ -351,7 +386,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     return neu;
   });
   const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); };
-  const nachSchliessen = () => { if (flyinJetzt.current === null) flaeche.current?.fokus(); };
+  const nachSchliessen = () => { if (flyinJetzt.current === null) fokusZurueck(); };
 
   const meldung = hinweis ? (
     <Alert type="warning" showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
@@ -367,32 +402,47 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const flyinStil = flyinGrund === null ? undefined : ({ "--kp-flyin-breite": flyinBreite(flyinGrund) } as CSSProperties);
 
   return (
-    <div ref={wurzel} className="kp-editor" data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
+    <div ref={wurzel} className="kp-editor" data-editoransicht={ansicht ?? "auto"} data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
       {/* Der Symbolvorrat EINMAL für Zeichnung, Flyin und Gliederung, außerhalb jeder Ansicht (Phase 3,
           Entscheidung 17): eine verborgene Ansicht verbärge sonst die Vorschauen, zwei Vorräte gäben doppelte IDs (M11). */}
       <svg className="kp-symbolvorrat" aria-hidden="true" focusable="false" width={0} height={0} style={{ position: "absolute" }}>
         <SymbolDefs symbole={symbole} />
       </svg>
       <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
-        kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)}
+        kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
         onRueck={() => perKnopf(rueck)} onWieder={() => perKnopf(wieder)}
         onPlan={() => oeffnePlan("angaben")} onDrucken={() => void drucken()}
         onNeuLaden={neuLaden} onBehalten={behalten} />
-      <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
-        griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
-        flyinGrund={flyinGrund} defs={false}
-        zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
-        onKarteKlick={klick} onTaste={taste} meldung={meldung}
-        ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
-          <Griffe karte={auswahlKarte} ansicht={a} flaeche={f} seitenstelle={stelle.lage !== "unter"}
-            onUnterstelle={() => lege("unter", stelle.id)} onSeitenstelle={(seite) => lege(seite, stelle.id)}
-            onEinheit={() => neueEinheit(stelle.id)} onBearbeiten={() => oeffne(stelle.id)} />
-        ) : null)}
-        leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
-        werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
-      <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
-      <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
-      <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
+      <div className="kp-ansicht-diagramm">
+        <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
+          griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
+          flyinGrund={flyinGrund} defs={false}
+          zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
+          onKarteKlick={klick} onTaste={taste} meldung={meldung}
+          ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
+            <Griffe karte={auswahlKarte} ansicht={a} flaeche={f} seitenstelle={stelle.lage !== "unter"}
+              onUnterstelle={() => lege("unter", stelle.id)} onSeitenstelle={(seite) => lege(seite, stelle.id)}
+              onEinheit={() => neueEinheit(stelle.id)} onBearbeiten={() => oeffne(stelle.id)} />
+          ) : null)}
+          leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
+          werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
+        <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
+        <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
+        <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
+      </div>
+      <div className="kp-ansicht-gliederung">
+        <Gliederung griff={gliederung} inhalt={inhalt} auswahl={gewaehlt} aendere={aendere} meldung={meldung}
+          onAuswahl={setAuswahl} onDetails={(id) => oeffne(id)} onLoeschen={loesche}
+          onRueck={rueck} onWieder={wieder} onHinweis={(text) => setHinweis({ text })}
+          verwirfUnberuehrt={(nach, dann) => {
+            if (verlauf.jetzt !== nach) return null;
+            const w = verwirf(verlauf);
+            const x = dann ? tue(w, dann(w.jetzt), new Date().getTime()) : w;
+            uebernimm(x, true);
+            return x.jetzt;
+          }}
+          symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} />
+      </div>
       {gewaehlt !== null ? (
         <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
           symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} fokus={fokus} titelRef={titelRef}

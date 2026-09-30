@@ -155,6 +155,13 @@
   background: transparent; border: 1px dashed var(--kp-rand); border-radius: 8px;
 }
 .kp-g-einheiten { padding: 0 8px 8px calc(44px + 16px); }
+/*
+ * Ansichten des Editors (Umsetzungsplan Phase 3, Entscheidung 1): ausdrücklich über data-editoransicht,
+ * ohne Wahl entscheidet der Suite-Breakpoint — CSS, nie JavaScript (docs/design/README.md, „Mobil").
+ * .kp-editor davor: antds Segmented setzt display selbst, eine Klasse mehr gewinnt (Falle 5).
+ */
+.kp-editor[data-editoransicht="diagramm"] .kp-ansicht-gliederung,
+.kp-editor[data-editoransicht="gliederung"] .kp-ansicht-diagramm { display: none; }
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
    einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
@@ -164,6 +171,8 @@
   .kp-editor div:has(> .kp-kopfwerkzeuge) { flex: 1 1 100%; }
   .kp-g-zeile { padding-inline-start: calc(min(var(--ebene), 6) * 16px); }
   .kp-g-zeile:not([aria-current="true"]) .kp-g-neben { display: none; }
+  .kp-editor[data-editoransicht="auto"] .kp-ansicht-diagramm,
+  .kp-editor .kp-nur-breit { display: none; }
 }
 
 /*
@@ -174,4 +183,6 @@
  */
 @media (min-width: 768px) {
   .kp-editor[data-flyin] { padding-inline-end: var(--kp-flyin-breite); }
+  .kp-editor[data-editoransicht="auto"] .kp-ansicht-gliederung,
+  .kp-editor .kp-nur-schmal { display: none; }
 }
