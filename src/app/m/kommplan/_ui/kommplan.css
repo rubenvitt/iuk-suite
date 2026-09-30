@@ -90,3 +90,6 @@
 .kp-zeichen-knopf:focus-visible { outline: 2px solid var(--kp-auswahl); outline-offset: 2px; }
 /* Zeichen sind Papier: weißer Grund auch im Dunkelmodus (wie die Legende). */
 .kp-zeichen-knopf svg, .kp-zeichen-platz { flex: none; width: 36px; height: 36px; background: #ffffff; border-radius: 4px; }
+
+.kp-schalter { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.kp-verbindung { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
