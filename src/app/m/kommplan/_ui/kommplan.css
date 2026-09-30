@@ -3,12 +3,12 @@
  * (Papier), nur ihr Umfeld folgt Hell/Dunkel über <html data-theme>.
  */
 :root {
-  --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc;
+  --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; --kp-gedaempft: #5b6573;
   --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
   --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
 }
 :root[data-theme="dark"] {
-  --kp-flaeche: #1d2026; --kp-rand: #3a404a;
+  --kp-flaeche: #1d2026; --kp-rand: #3a404a; --kp-gedaempft: #a9b2bf;
   --kp-chip-flaeche: #2a303a; --kp-chip-text: #d6dce5;
   --kp-hinweis-flaeche: #3d2f14; --kp-hinweis-text: #f3cf8e;
 }
@@ -43,3 +43,14 @@
 .kp-legende { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
 .kp-legende li { display: inline-flex; align-items: center; gap: 6px; }
 .kp-legende svg { flex: none; background: #ffffff; }
+
+/* Formulare in Flyins (NeuerPlan, PlanFlyin, StelleFlyin): Beschriftung über dem Feld, Feldfehler als
+   gedämpfter Text, nie rot (Falle 3, docs/design/feedback-admin.md 4.4). Feldnamen tragen eine EIGENE
+   Klasse statt `.kp-formular label`: antd rendert Checkbox, Radio-Knöpfe und Schalter selbst in
+   `<label>`, und (0,1,1) schlüge deren Ein-Klassen-Regeln — versal-graue Radioknöpfe (Falle 5).
+   Die Knopfreihe bricht am KASTEN um (`auto-fit`/`minmax`), nicht am Fenster: ein Flyin ist auch
+   auf breitem Schirm schmal (Falle 13). */
+.kp-formular { display: grid; gap: 8px; }
+.kp-feldname { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--kp-gedaempft); margin-top: 8px; }
+.kp-feldfehler { margin: 0; font-size: 12px; color: var(--kp-gedaempft); }
+.kp-formular-knoepfe { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 16px; }
