@@ -97,7 +97,7 @@ test("anlegen → erste Stelle → Unter- und Seitenstelle per Griff → gespeic
   await expect(page.locator(".kp-speicherstatus")).toHaveText("Gespeichert");
 });
 
-test("Tastatur ohne Maus: N → Titel → Enter → N, Pfeile, Entf, Strg/Cmd+Z (Entscheidung 17)", async ({ page }) => {
+test("Tastatur ohne Maus: Enter → N → Titel → Esc, Pfeile, Entf, Strg/Cmd+Z (Entscheidung 17)", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, "e2e Tastatur");
   await ersteStelle(page, "EL");
@@ -123,6 +123,24 @@ test("Tastatur ohne Maus: N → Titel → Enter → N, Pfeile, Entf, Strg/Cmd+Z 
   await expect(karten(page)).toHaveCount(2);
   await speichertNach(page, () => page.keyboard.press("ControlOrMeta+Shift+z"));
   await expect(karten(page)).toHaveCount(1);
+});
+
+test("Schleife N → Titel → Enter → N in Tippgeschwindigkeit: keine Eingabe geht verloren (Review Phase 2)", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, "e2e Schleife");
+  await ersteStelle(page, "EL");
+  // Bewusst OHNE toBeFocused zwischen den Schritten: N kam früher während der Schließanimation, der
+  // Fokus landete erst rund 530 ms später im Titel, und was dazwischen getippt wurde, war weg.
+  for (const name of ["Nord", "Sued", "West", "Ost"]) {
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(150);
+    await page.keyboard.press("n");
+    await page.keyboard.type(name, { delay: 80 });
+  }
+  await speichertNach(page, () => page.keyboard.press("Enter"));
+  await expect(karten(page)).toHaveCount(5);
+  const titel = await karten(page).evaluateAll((ks) => ks.map((k) => k.textContent ?? ""));
+  for (const name of ["EL", "Nord", "Sued", "West", "Ost"]) expect(titel.some((t) => t.startsWith(name)), `${name} in ${JSON.stringify(titel)}`).toBe(true);
 });
 
 test("Flyin: Zeichen suchen, Verbindung eintippen, Einheiten als Liste — alles steht im Diagramm", async ({ page }) => {
@@ -331,7 +349,7 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       // Hinweis nach Entf IN der Fläche (Entscheidung 19) — am eigenen Plan, der danach wieder leer ist
       await klickeWennRuhig(page.getByRole("button", { name: "Erste Stelle anlegen" }));
       await expect(flyinTitel(page)).toBeFocused();
-      await page.keyboard.press("Escape");
+      await page.keyboard.press("Enter"); // „fertig“ behält die leere Stelle; Esc verwürfe sie (unberührt)
       await expect(page.locator(".kp-betrachter")).toBeFocused();
       await speichertNach(page, () => page.keyboard.press("Delete"));
       await expect(page.locator(".kp-betrachter [data-meldung]")).toContainText("gelöscht");

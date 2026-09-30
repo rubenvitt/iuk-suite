@@ -35,7 +35,10 @@ export const STELLE_FLYIN_GRUND = 520;
 export function StelleFlyin({ offen, onSchliessen, nachSchliessen, ...formular }: StelleFormularProps & { offen: boolean; onSchliessen: () => void; nachSchliessen: () => void }) {
   const s = formular.inhalt.stellen.find((x) => x.id === formular.stelleId);
   return (
-    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(STELLE_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin"
+    // autoFocus={false}: rc-drawer fokussiert sonst beim Öffnen seinen Container — NACH dem Fokus-Effekt
+    // des Formulars. Kam N während der Schließanimation, hing der Fokus ~530 ms am Container, und
+    // Getipptes ging verloren (Review Phase 2). Den Fokus setzt allein die Fokusanfrage des Editors.
+    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(STELLE_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin" autoFocus={false}
       title={s ? (s.titel.trim() || "Neue Stelle") : "Stelle"}
       afterOpenChange={(auf) => { if (auf && formular.fokus.ziel === "titel" && formular.fokus.stelle === formular.stelleId) formular.titelRef.current?.focus(); else if (!auf) nachSchliessen(); }}>
       {offen ? <StelleFormular {...formular} /> : null}
