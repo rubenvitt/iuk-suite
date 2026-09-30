@@ -19,43 +19,51 @@
 - `CLAUDE.md` gilt vollständig. Für diese Phase besonders: Falle 1 (kein antd-Compound in RSC — `Input.TextArea`, `Form.Item` usw. nur in Client-Inseln), 4 (kein `size` auf Bedienelementen; die FullShell gibt 44 px), 5 (eigenes CSS gegen antd nur mit einer Klasse mehr und Kommentar), 6 (Werte für Server Components nie aus `"use client"`-Modulen), 7 (keine `@ant-design/icons` in RSC; im Editor nur in Client-Inseln oder gar nicht), 9 (Server Actions direkt importieren, nie als Prop reichen), 10 (im e2e jede ausgelöste Anfrage per `page.waitForResponse` prüfen, Warmlauf vor dem ersten POST), 12 (`klickeWennRuhig`, `warteAufSpaltenaufteilung`), 13 (`flyinBreite()` für jede `Drawer`, Raster darin per `auto-fit`/`minmax`), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (neue Prüfungen, die ein 404 erzeugen, gehören ins Layout oberhalb jeder `loading.tsx`; diese Phase legt keine `loading.tsx` an).
 - Zugriffsschutz (`CLAUDE.md`): jede Server Action prüft Host, Anmeldung und `darfKommplanBearbeiten` (`isModuleAdmin`) selbst und löst die Plan-ID aus der Datenbank auf (IDOR). Oberfläche und Action wenden **dasselbe** Prädikat auf denselben Viewer an: der Knopf „Neu" und der Editor erscheinen nur bei `darfKommplanBearbeiten(viewer.groups)`.
 - Server-Action-Dateien beginnen **auf Byte 0** mit `"use server";` (doppelte Anführungszeichen, kein Kopfkommentar davor) — `src/core/audit/coverage.test.ts` erkennt sie nur so. Jede exportierte Action steht in `src/core/audit/coverage-manifest.json`: schreibende als `{ "kind": "context", "via": "<Name>" }` mit `withAuditContext` im Rumpf, lesende als `{ "kind": "excluded", "reason": "…" }`. Typen und Schemata liegen in `_lib/`, nie in der Action-Datei (dort wäre jeder Export eine Action).
-- Keine `revalidatePath`-Aufrufe aus dem Autosave: die Editor-Insel ist die Quelle der Wahrheit bis zum Neuladen. Der Editor wird aus den Props **einmal** gesät und über `key={plan.id}` an den Plan gebunden.
+- Keine `revalidatePath`-Aufrufe aus dem Autosave: die Editor-Insel ist die Quelle der Wahrheit bis zum Neuladen. Der Editor wird aus den Props **einmal** gesät und über `key={plan.id}` an den Plan gebunden. Weil Next bei Browser-Zurück/-Vor die Seite aus dem Client-Cache wiederverwendet (`node_modules/next/dist/docs/01-app/04-glossary.md`, „Client Cache": „reused during browser back/forward navigation"; `next.config.ts` hat kein `cacheComponents`), können diese Props veraltet sein: der Editor fragt deshalb beim Montieren den Serverstand ab (Entscheidung 21).
 - React Compiler ist an (`next.config.ts`, `reactCompiler: true`), `react-hooks/set-state-in-effect` ist aktiv: kein `setState` im Effekt-Rumpf; Timer, Speicherläufe und Zustandswechsel gehören in Ereignis-Rückrufe (Vorbild `_ui/betrachter/Betrachter.tsx`, Kopfkommentar).
 - Hell/Dunkel über `<html data-theme>` (Cookie `iuk-theme-pref`), nie `prefers-color-scheme`. Eigenes Markup nimmt `--kp-*`, nie `--ant-*` (Falle 2). Warnungen sind `type="warning"`, nie `type="error"` (Falle 3); Feldfehler als Text plus `aria-invalid`, nicht rot.
 - Nie `timeZone` als Literal auf Modulebene; Uhrzeiten über `zeitFormat("de-DE", …)` aus `core/zeit`. `plan.datum` ist ein Kalendertag als Mitternacht UTC und wird mit `timeZone: "UTC"` im Aufruf formatiert bzw. als `YYYY-MM-DD` über `toISOString().slice(0, 10)` gelesen (Ausnahme aus `CLAUDE.md`).
 - Tests, die dieser Plan an eine bestehende Testdatei „anhängt", bringen ihre Importe mit: diese in die **vorhandenen** Importzeilen derselben Module zusammenführen (keine zweite `import … from "./operationen"`-Zeile; `pnpm lint` meldet doppelte Importe).
 - DOM-Tests nur über das Harness `src/app/m/qr/_lib/test-dom.tsx` (`mount`, `rerender`, `unmount`, `query`, `queryAll`, `fill`, `click`, `clickElement`, `queryPortal`, `clickPortal`, `existsPortal`), Kopfzeile `// @vitest-environment jsdom`.
-- Kommentaranker in neuem Code nennen **Namen**, nie Zeilen (`pnpm anker:neu` bricht die CI). **Ankerschritt** für jede bestehende Datei, in die dieser Plan Zeilen einfügt oder aus der er Zeilen entfernt (`src/core/audit/catalog.ts`, `src/core/audit/coverage-manifest.json`, `src/app/m/kommplan/_db/schema.ts`, `src/app/m/kommplan/_lib/plan/schema.ts`, `src/app/m/kommplan/_lib/plan/operationen.ts`, `src/app/m/kommplan/_lib/zugang.ts`, `src/app/m/kommplan/_lib/plaene.ts`, `src/app/m/kommplan/_lib/zeichen/zeichen.ts`, `src/app/m/kommplan/_lib/zeichen/grundlagen.ts`, `src/app/m/kommplan/_lib/plan/kontakte.ts`, `src/app/m/kommplan/grenze.test.ts`, `src/app/m/kommplan/_ui/betrachter/Betrachter.tsx`, `src/app/m/kommplan/_ui/zeichnung/Karte.tsx`, `src/app/m/kommplan/_ui/zeichnung/Zeichnung.tsx`, `src/app/m/kommplan/_ui/zeichnung/Sechseck.tsx`, `src/app/m/kommplan/_ui/kommplan.css`, `src/app/m/kommplan/(intern)/page.tsx`, `src/app/m/kommplan/(intern)/p/[id]/page.tsx`, `src/app/m/kommplan/_lib/layout/eigenschaften.test.ts`, `e2e/gruppen.json`, `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md`): vor dem Commit `git grep -n "<dateiname>:[0-9]" -- src scripts e2e docs` und `pnpm anker:drift <datei>`. Ein Anker, der **vor** der Änderung zutraf und hinter der Änderungsstelle liegt, wird in derselben Zeile in die Namensform umgeschrieben. Nie eine Zahl nachziehen, nie eine Zeile dazu oder weg (Kommentaranker-Regel 4). Schon vorher veraltete Anker bleiben, wie sie sind. Stand der Planung (`git grep` am 30.09.2026): in keine dieser Dateien zeigt heute ein Zeilenanker — der Schritt ist trotzdem je Commit zu fahren, parallele Arbeit kann einen hinzufügen.
+- Kommentaranker in neuem Code nennen **Namen**, nie Zeilen (`pnpm anker:neu` bricht die CI). **Ankerschritt** für jede bestehende Datei, in die dieser Plan Zeilen einfügt oder aus der er Zeilen entfernt (`src/core/audit/catalog.ts`, `src/core/audit/coverage-manifest.json`, `src/app/m/kommplan/_db/schema.ts`, `src/app/m/kommplan/_lib/plan/schema.ts`, `src/app/m/kommplan/_lib/plan/operationen.ts`, `src/app/m/kommplan/_lib/zugang.ts`, `src/app/m/kommplan/_lib/plaene.ts`, `src/app/m/kommplan/_lib/zeichen/zeichen.ts`, `src/app/m/kommplan/_lib/zeichen/grundlagen.ts`, `src/app/m/kommplan/_lib/plan/kontakte.ts`, `src/app/m/kommplan/grenze.test.ts`, `src/app/m/kommplan/_ui/betrachter/Betrachter.tsx`, `src/app/m/kommplan/_ui/betrachter/ansicht.ts`, `src/app/m/kommplan/_ui/zeichnung/Karte.tsx`, `src/app/m/kommplan/_ui/zeichnung/Zeichnung.tsx`, `src/app/m/kommplan/_ui/zeichnung/Sechseck.tsx`, `src/app/m/kommplan/_ui/kommplan.css`, `src/app/m/kommplan/(intern)/page.tsx`, `src/app/m/kommplan/(intern)/p/[id]/page.tsx`, `src/app/m/kommplan/_lib/layout/eigenschaften.test.ts`, `e2e/gruppen.json`, `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md`): vor dem Commit `git grep -n "<dateiname>:[0-9]" -- src scripts e2e docs` und `pnpm anker:drift <datei>`. Ein Anker, der **vor** der Änderung zutraf und hinter der Änderungsstelle liegt, wird in derselben Zeile in die Namensform umgeschrieben. Nie eine Zahl nachziehen, nie eine Zeile dazu oder weg (Kommentaranker-Regel 4). Schon vorher veraltete Anker bleiben, wie sie sind. Stand der Planung (`git grep` am 30.09.2026): in keine dieser Dateien zeigt heute ein Zeilenanker — der Schritt ist trotzdem je Commit zu fahren, parallele Arbeit kann einen hinzufügen.
 - Signierte Commits (`git commit -S`), Kopfzeile nach Conventional Commits: `feat(kommplan): …` für neue Funktion, `fix(kommplan): …`, `test(kommplan): …`, `refactor(kommplan): …`, `docs: …`. Body mit einer Zeile `DRK-500` und am Ende `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Last: andere Sessions laufen parallel. Vor jedem Urteil über einen roten Test `uptime` prüfen; bei Load > 10 die betroffene Datei einzeln fahren oder den CI-Weg (`pnpm e2e:gebaut` bzw. `E2E_VORGEBAUT=1`). Fremde Prozesse nie beenden. Kein `pnpm dev` offen lassen; ein von `next dev` umgeschriebenes `next-env.d.ts` mit `git checkout -- next-env.d.ts` zurücksetzen. `scripts/backup-sidecar.test.ts` ist auf macOS rot (DRK-501) — nicht dein Thema.
 - Tore vor dem Abschluss: `pnpm typecheck` (Exit-Code prüfen) · `pnpm lint` · `pnpm vitest run` · `pnpm build` · `pnpm exec playwright test e2e/kommplan.spec.ts e2e/kommplan-editor.spec.ts`. **Jeder Commit besteht `pnpm typecheck`.** Aufgaben, die Routen oder Server Actions anlegen, fahren zusätzlich `pnpm build` (die RSC-Grenze und `"use server"`-Exporte prüft nur der Build).
-- Next-Guides vor dem ersten Code, der die API benutzt, lesen: `node_modules/next/dist/docs/01-app/01-getting-started/07-mutating-data.md`, `…/02-guides/server-actions.md` (Abschnitt „Body size limit": 1 MB je Aufruf; Server Actions laufen im Client **nacheinander**), `…/03-api-reference/01-directives/use-server.md`, `…/03-api-reference/04-functions/use-router.md`. antd-6-APIs (`Drawer`, `Segmented`, `Select`, `AutoComplete`, `DatePicker`, `Switch`) im Zweifel über das antd-MCP (`ToolSearch` „antd", dann `antd_doc`/`antd_demo`).
+- Next-Guides vor dem ersten Code, der die API benutzt, lesen: `node_modules/next/dist/docs/01-app/01-getting-started/07-mutating-data.md`, `…/02-guides/server-actions.md` (Abschnitt „Body size limit": 1 MB je Aufruf; Server Actions laufen im Client **nacheinander**), `…/03-api-reference/01-directives/use-server.md`, `…/03-api-reference/04-functions/use-router.md`. antd-6-APIs (`Drawer`, `Segmented`, `Select`, `AutoComplete`, `DatePicker`, `Switch`, `Tooltip`) im Zweifel über das antd-MCP (`ToolSearch` „antd", dann `antd_doc`/`antd_demo`). Abgekündigte Props nie benutzen (installiert ist antd 6.6.4): `Alert` bekommt `title=` statt `message=` und `closable={{ onClose }}` statt `closable onClose=` (`node_modules/antd/es/alert/Alert.d.ts`, `@deprecated`; Vorbild `src/app/m/portal/admin/audit/AuditLog.tsx`).
 
 ## Entscheidungen dieser Phase (Abweichungen von Spec und Phase-1-Plan)
 
 1. **Audit gebündelt statt je Autosave** (ersetzt Abweichung 7 des Phase-1-Plans, Vorgabe des Hauptlaufs): Die Spalten `inhalt`, `version`, `aktualisiert_am`, `aktualisiert_von` der Tabelle `plan` werden `unauditedColumns`; ihr Update-Trigger feuert nur noch für `id`, `titel`, `typ`, `anlass`, `datum`, `ist_vorlage`, `archiviert_am` — Anlegen, Archivieren (Phase 4) und jede Änderung der Planangaben bleiben also je eine Zeile. Inhaltsänderungen protokolliert die neue, auditierte Tabelle `plan_bearbeitung (plan_id, nutzer, seit)`, Primärschlüssel `(plan_id, nutzer)`: das erste Speichern einer Person an einem Plan legt die Zeile an (Audit `create`), ein Speichern **15 Minuten oder mehr** nach `seit` setzt `seit` neu (Audit `update`), alles dazwischen schreibt nichts. So gilt „höchstens eine Audit-Zeile je Person und Plan in einem 15-Minuten-Fenster" auch dann, wenn zwei Personen abwechselnd speichern — ein einzelnes Spaltenpaar am Plan hätte bei jedem Wechsel geschrieben. Migration `0001` (generiert, Trigger von Hand wie `lagerbuch/_db/migrations/0005_artikel_kategorie.sql`).
-2. **Spec §10 „Einfügen verschiebt nichts links davon" ehrlich** (Vorgabe des Hauptlaufs): Die Zusage gilt nur innerhalb einer Ebene bzw. Busgruppe. Das `it.fails` in `_lib/layout/eigenschaften.test.ts` wird ein regulärer Test dessen, was gilt: die früheren Gruppen rücken **starr als Ganzes** (ein gemeinsames dx), kein y ändert sich, und die Elternstelle steht mittig über ihrer neuen Busspanne. Spec §10 bekommt den Satz, dass eine neue Kanalgruppe die Elternstelle neu zentriert.
-3. **Planangaben (Titel, Art, Anlass, Datum) sind Spalten, keine Dokumentfelder** (§4.1): Sie werden im Flyin „Planangaben" mit „Übernehmen" gespeichert (eigene Action, je Übernahme eine Audit-Zeile), laufen aber durch **dieselbe** Speicher-Warteschlange wie der Inhalt, damit die Version nie auseinanderläuft. Sie sind nicht Teil von Rückgängig. Die Optionen `leerzeilen` und `vermerkVsNfD` liegen im Dokument (§4.2) und laufen über Rückgängig und Autosave; `qrAufDruck` und `schwarzweiss` bleiben Phase 5.
+2. **Spec §10 „Einfügen verschiebt nichts links davon" ehrlich** (Vorgabe des Hauptlaufs, nach Kritik geschärft): Der Hauptlauf ging davon aus, die Zusage gelte „nur innerhalb einer Ebene/Gruppe". Nachgerechnet gilt auch das **absolut nicht**: die Elternstelle steht mittig über ihrer Busspanne, eine neue Stelle am Ende verschiebt deshalb auch die früheren Geschwister derselben Gruppe (selbst nachgerechnet per `tsx` nach dem Muster von `einfuegung()`, Variante „ende", Seeds 1–80: 67 wirksame Fälle, in 6 davon rücken die früheren Geschwister der eigenen Gruppe um −27 bis −48 mm). Zugesichert ist nur, was die Tests über `relativ(…)` prüfen, und nur **unter ihrer Vorbedingung** (kein Kamm vorher wie nachher, gleiche Zeilenhöhen und Ebenenlücken — eine Gruppe mehr darf die Lücke wachsen lassen, dann rückt zu Recht alles darunter): **kein y ändert sich**; die früheren Geschwister in der Busgruppe der neuen Stelle und die früheren Gruppen ihrer Ebene bleiben **je untereinander starr**; eine Gruppe als Ganzes darf rücken. Die Vorgabe „ehrlich auf das formulieren, was gilt" hat Vorrang vor ihrer Einschränkung — Spec §10 bekommt diesen Wortlaut (ohne „verschiebt nichts links", auch nicht eingeschränkt) samt dem Satz, dass eine neue Kanalgruppe die Elternstelle neu zentriert. Das `it.fails` wird ein regulärer Test des Seed-70-Falls.
+3. **Planangaben (Titel, Art, Anlass, Datum) sind Spalten, keine Dokumentfelder** (§4.1): Sie speichern sich wie alles andere **selbst** — beim Verlassen eines Textfelds, mit Enter und sofort bei Art und Datum; ein Schließen des Flyins verlässt das Feld und speichert damit ebenfalls. Kein „Übernehmen" (nach Kritik: sonst gingen Angaben beim Schließen still verloren, während die Kopfleiste „gespeichert" meldet). Unveränderte Angaben werden nie gesendet. Sie laufen durch **dieselbe** Speicher-Warteschlange wie der Inhalt (eigene Action, je Speichern eine Audit-Zeile über den Trigger von `plan`), damit die Version nie auseinanderläuft. Sie sind nicht Teil von Rückgängig. Die Optionen `leerzeilen` und `vermerkVsNfD` liegen im Dokument (§4.2) und laufen über Rückgängig und Autosave; `qrAufDruck` und `schwarzweiss` bleiben Phase 5.
 4. **Zeichen-Suche** (§6.4 „Suche über den Katalog-Index"): Das Rezept-Generat bleibt Server-only (Phase-1-Constraint). Die Planseite reicht dem Editor einen schlanken Index (`schluessel`, `titel`, `suchtext`, rund 20 KB) als Prop; die SVGs der gerade sichtbaren Treffer und neu gewählter Zeichen holt eine lesende Server Action `ladeZeichenAction` (höchstens 40 Schlüssel je Aufruf). „Zuletzt genutzt" merkt sich der Browser (`localStorage`, in `try/catch`, höchstens 8), ergänzt um die Zeichen, die der Plan schon benutzt.
-5. **Griffe als HTML-Überlagerung über dem SVG**, nicht im SVG: sie behalten bei jedem Zoom 44 px Tapfläche (Falle 4, ARBEITSDICHTE) und sind echte `<button>`s mit Namen. Seitlich steht ein „+" mit dem Namen „Seitenstelle links von <Titel> anlegen" bzw. „… rechts …" (sichtbarer Text „+ Seitenstelle" wäre an einer Kartenkante zu breit); unten „+ Unterstelle", „+ Einheit" (die Einheitenspalte liegt direkt darunter) und „Bearbeiten". Ein Klick auf eine Karte wählt sie, ein zweiter Klick, ein Doppelklick, Enter oder „Bearbeiten" öffnen das Flyin.
+5. **Griffe als HTML-Überlagerung über dem SVG**, nicht im SVG: sie behalten bei jedem Zoom 44 px Tapfläche (Falle 4, ARBEITSDICHTE) und sind echte `<button>`s mit Namen. Seitlich steht ein „+" mit dem Namen „Seitenstelle links von <Titel> anlegen" bzw. „… rechts …" (sichtbarer Text „+ Seitenstelle" wäre an einer Kartenkante zu breit). Damit Sehende das „+" nicht als „noch eine Stelle am selben Bus" lesen (Kritik), trägt es zusätzlich ein antd-`Tooltip` „Seitenstelle links anlegen — waagerecht, ohne Bus" (zeigt sich bei Zeigen **und** Fokus) und neben dem „+" ein kleines Inline-SVG einer waagerechten Anbindung. Unten die Griffleiste „+ Unterstelle", „+ Einheit" (die Einheitenspalte liegt direkt darunter) und „Bearbeiten"; sie steht auf Höhe der Überlagerung, nicht der Karte, wird per CSS-`clamp()` im Bild gehalten (links und rechts 8 px Rand) und bricht bei schmaler Fläche um (`flex-wrap`). Ein Klick auf eine Karte wählt sie, ein zweiter Klick, ein Doppelklick, Enter, F2 oder „Bearbeiten" öffnen das Flyin.
 6. **Seitenstellen tragen keine Unterstellen** (§4.2): an einer Seitenstelle fehlen die Griffe „+ Unterstelle" und „+ Seitenstelle"; `N` zeigt dort den Hinweis „Eine Seitenstelle trägt keine Unterstellen." und ändert nichts.
 7. **Neue Unterstelle tritt dem Bus bei** (§5.2, bequem nach A1): sie übernimmt die Verbindung der in Anzeigereihenfolge letzten Unterstelle ihrer Elternstelle; ohne Geschwister hat sie keine Verbindung. Eine neue Seitenstelle hat keine Verbindung.
-8. **Löschen entfernt den Teilbaum** samt Seitenstellen und Einheiten; Verbindungen bleiben stehen (unbenutzte werden in der Legende „Reserve"). Rückgängig statt Nachfrage (§6.3); der Hinweis nennt die Zahl der mitgelöschten Stellen und trägt einen Knopf „Rückgängig".
-9. **Pfeiltasten** (§6.3 „Pfeile wandern durch den Baum"): ↑ zur Elternstelle, ↓ zur ersten sichtbaren Unterstelle, ←/→ zum Nachbarn in **Anzeigereihenfolge** der Geschwister (Busgruppen wie im Layout, `anzeigereihenfolge`), wobei jede Stelle von ihren Seitenstellen eingerahmt wird (`[…links, Stelle, …rechts]`). Das trägt auch über Kammreihen und gestapelte Seitenstellen, die keine gemeinsame y-Koordinate haben. Ohne Auswahl wählt die erste Pfeiltaste die erste Wurzel. Verschieben per Tastatur entfällt im Editor (Maus, Touch, Rad bleiben); `+`, `-`, `0` zoomen wie im Betrachter.
+8. **Löschen entfernt den Teilbaum** samt Seitenstellen und Einheiten; Verbindungen bleiben stehen (unbenutzte werden in der Legende „Reserve", dieselbe Regel wie `legende()`: die `verbindungId` einer Wurzel ist kein Weg). Rückgängig statt Nachfrage (§6.3); der Hinweis nennt die Zahl der mitgelöschten Stellen und trägt einen Knopf „Rückgängig". Danach hat die Fläche den Fokus (Entscheidung 17).
+9. **Pfeiltasten** (§6.3 „Pfeile wandern durch den Baum"): ↑ zur Elternstelle, ↓ zur ersten sichtbaren Unterstelle, ←/→ zum Nachbarn in **Anzeigereihenfolge** der Geschwister (Busgruppen wie im Layout, `anzeigereihenfolge`), wobei jede Stelle von ihren Seitenstellen eingerahmt wird (`[…links, Stelle, …rechts]`). Das trägt auch über Kammreihen und gestapelte Seitenstellen, die keine gemeinsame y-Koordinate haben. Ohne Auswahl wählt die erste Pfeiltaste die erste Wurzel. Verschieben per Tastatur entfällt im Editor (Maus, Touch, Rad bleiben); `+`, `-`, `0` zoomen wie im Betrachter. Andere druckbare Tasten tun auf der Fläche nichts — „Tippen bearbeitet den Titel" wie in Excel ist bewusst **nicht** umgesetzt: §6.3 legt `N` als Befehl fest, und dann legte jedes Wort mit N („Notunterkunft") eine Unterstelle an, während jeder andere Anfangsbuchstabe den Titel bearbeitete. Stattdessen wirkt F2 wie Enter, und der Bedienhinweis steht sichtbar als kurze Zeile unter der Fläche (nicht nur im `aria-label`).
 10. **Kanäle einer Stelle** (Phase-1-Abweichung 12, `Stelle.kanaele`) sind im Flyin unter „Verbindung" als Mehrfachauswahl bearbeitbar — sonst ließen sich Pläne wie OpenR im Editor nicht pflegen.
-11. **Autosave** (§6.6): Die Warteschlange sendet ~1 s nach der letzten Änderung den **dann** aktuellen Stand, immer nur einen Aufruf gleichzeitig (Next reiht Server Actions ohnehin). Konflikt → Hinweis `type="warning"` mit „Neu laden" (lokalen Stand und Rückgängig-Stapel verwerfen, Serverstand übernehmen) oder „Meine Fassung behalten" (mit der Serverversion erneut senden, überschreibt). Solange ein Konflikt offen ist, wird nicht automatisch gespeichert. Ungespeicherte Änderungen halten das Schließen des Tabs per `beforeunload` auf.
+11. **Autosave** (§6.6): Die Warteschlange sendet ~1 s nach der letzten Änderung den **dann** aktuellen Stand, immer nur einen Aufruf gleichzeitig (Next reiht Server Actions ohnehin). Konflikt → Hinweis `type="warning"` mit „Neu laden" (lokalen Stand und Rückgängig-Stapel verwerfen, Serverstand übernehmen) oder „Meine Fassung behalten" (mit der Serverversion erneut senden, überschreibt). Solange ein Konflikt offen ist, wird nicht automatisch gespeichert. „Meine Fassung behalten" betrifft nur den Inhalt: die Planangaben der anderen Fassung werden übernommen (der Hinweis sagt das), sonst überschriebe ein späteres Speichern der Angaben sie still. Ungespeicherte Änderungen (auch ein Angaben-Feld, das noch nicht verlassen wurde) halten das Schließen des Tabs per `beforeunload` auf. Nach einem Netzfehler (nicht bei Konflikt oder „weg") versucht der Speicherer es selbst wieder: nach 5 s, 15 s, 30 s, dann jede Minute, und sofort beim Ereignis `online`; „Erneut versuchen" bleibt.
 12. **Drucken aus dem Editor** öffnet das Fenster synchron (`window.open("", "_blank")`, sonst greift der Popup-Blocker), wartet auf das Speichern und setzt dann die Adresse der Druckroute; misslingt das Speichern, schließt es das Fenster und zeigt den Hinweis.
-13. **Telefon**: Die Gliederung (§6.5, einziger Bearbeitungsweg am Telefon) kommt in Phase 3. Bis dahin ist der Diagramm-Editor auch bei 390 px bedienbar (Flyin 92 vw, Griffe 44 px); der Umschalter zeigt „Gliederung" deaktiviert.
+13. **Telefon**: Die Gliederung (§6.5, laut Spec **der einzige Bearbeitungsweg am Telefon**) kommt in Phase 3. Bis dahin taugt der Diagramm-Editor bei 390 px nur für **kleine Korrekturen** (Titel, Kontakt, eine Einheit): jedes Anlegen öffnet ein Flyin von 92 vw, das die Zeichnung verdeckt. Aufgebaut wird ein Plan am Tablet oder Desktop bzw. ab Phase 3 in der Gliederung. Eine untere Schublade am Telefon wäre Vorgriff auf §6.5 und entfällt. Der Umschalter zeigt „Gliederung" deaktiviert.
 14. **Leerer Plan** nach „Neu": statt der Zeichnung steht „Dieser Plan hat noch keine Stellen." mit dem Knopf „Erste Stelle anlegen" (legt eine Wurzel an, wählt sie, öffnet das Flyin mit Fokus im Titel).
-15. **Große Pläne**: Das Layout rechnet aus `useDeferredValue(inhalt)`, damit Tippen im Flyin auch an der großen Stab-Lage flüssig bleibt. Ein Plan an der Schemagrenze (500 Stellen) bleibt unter dem Aufruflimit von 1 MB (gemessen in Task 5, Step 1).
+15. **Große Pläne**: Das Layout rechnet aus `useDeferredValue(inhalt)`, damit Tippen im Flyin auch an der großen Stab-Lage flüssig bleibt. **Größe**: Das Schema erlaubt nach seinen Feldgrenzen Dokumente von rund 9 MB (500 Stellen × rund 19 KB); Server Actions nehmen höchstens 1 MB an (`…/02-guides/server-actions.md`, „Body size limit"), und ein abgelehnter Aufruf sähe im Speicherer aus wie ein Netzfehler — eine Sackgasse. Deshalb bekommt das Schema eine **Gesamtgrenze** `GRENZE.bytes = 800_000` (UTF-8 des JSON, 200 KB Luft für die Kodierung des Aufrufs): jede Operation, die den Plan darüber wachsen ließe, ist ein `PlanFehler` mit eigener Meldung („Der Plan ist zu groß …") und wird gar nicht erst angewandt; der Server prüft dieselbe Grenze. Kosten: ein `JSON.stringify` + `TextEncoder` je Operation, bei der großen Stab-Lage (rund 25 KB) unter 1 ms, bei 800 KB wenige ms — neben dem vollen `safeParse`, das `gueltig` ohnehin macht. Gemessen in Task 2, Step 1.
+16. **Kontakte als feste Zeilen je Art** (nach Kritik, Spec §6.4 „Reihenfolge fest"): Das Flyin zeigt immer ein Wertfeld je `KontaktArt` in der Reihenfolge der Karte (Funkrufname, Digitalfunk, Telefon, Mobil, Fax, E-Mail, Sonstiges). Leer heißt „kein Kontakt dieser Art": Tippen in ein leeres Feld legt den Eintrag an, Leeren des einzigen Eintrags einer Art entfernt ihn. „Weiterer <Art>" legt eine zweite Zeile derselben Art an (Fokus hinein), die einen eigenen „Entfernen"-Knopf hat. Das Datenmodell §4.2 bleibt; die Karte lässt leere Werte ohnehin weg (`kontaktZeilen`). Ein Kontakt kostet damit Tippen plus Tab statt vier Handgriffe.
+17. **Fokus kehrt auf die Fläche zurück** (§6.3, Tastaturschleife): nach dem Schließen eines Flyins (Esc, X), nach „Stelle löschen"/Entf und nach „Erste Stelle anlegen" hat die Zeichenfläche den Fokus (`FlaecheGriff.fokus()`), sonst täten N, Pfeile, Enter und Entf nichts. **Enter im Titelfeld** heißt „fertig": Flyin zu, Fokus auf die Fläche, Auswahl bleibt. Die Schleife lautet damit N → Titel → Enter → N … bzw. ↑ N für die nächste Nachbarstelle.
+18. **Ansicht bleibt eingepasst, bis die Nutzerin selbst zoomt oder verschiebt** (nach Kritik; ersetzt das Einfrieren per `halte()`): Solange die Ansicht „eingepasst" ist, passt sie sich jedem neuen Layout an, im Editor gedeckelt auf den Maßstab `EDITOR_MASSSTAB = 4` px/mm (sonst füllte eine einzelne Karte die Fläche mit Maßstab 16), und gleitet dabei wie die Karten (ohne bei reduzierter Bewegung). Erst Zoom, Verschieben, Rad oder Pinch machen sie zur eigenen Ansicht; „Einpassen" und `0` kehren zurück. Ist ein Flyin offen, rechnet die Fläche mit dem **freien** Bereich links davon (`flyinGrund`), beim Einpassen wie bei `zeige()` — eine neue Karte am rechten Rand landet so nie unter dem Flyin. Eingepasst hält die Fläche seitlich und unten Platz für die Griffe (`platzSeite`/`platzUnten` = `GRIFF_RAND`), sodass `zeige()` eine eingepasste Ansicht nie verschieben muss und sie eingepasst bleibt; `data-eingepasst` an der Fläche macht das im e2e prüfbar.
+19. **Hinweise ohne Umbruch des Flusses**: Hinweise des Editors (Löschen mit „Rückgängig", `PlanFehler`, Speicherfehler mit „Erneut versuchen") liegen als Überlagerung unten mittig in der Fläche (`meldung`-Platz der `Flaeche`, auch beim leeren Plan sichtbar) und schließen erst per X, durch den nächsten Hinweis oder die nächste strukturelle Änderung — nicht beim Tippen. Der Speicherstatus hat kurze Texte in einem Platz fester Mindestbreite (`min-width: 18ch; white-space: nowrap`): „Gespeichert", „Gespeichert 11:05", „Ungespeichert", „Speichert …", „Nicht gespeichert", „Konflikt"; die lange Fehlermeldung steht im Hinweis. So springt die Fläche beim Autosave nicht.
+20. **Druck-Knopf heißt überall „Drucken (A4 quer)"** — im Editor wie im Betrachter, damit die Release-Notiz einen Namen nennen kann. Der Knopf der Planangaben heißt „Plan und Verbindungen" (Reserve, Leerzeilen und VS-NfD-Vermerk stecken dort); zusätzlich öffnet „Verbindungen bearbeiten" unter der Legende dasselbe Flyin am Abschnitt „Verbindungen".
+21. **Veralteter Stand nach Browser-Zurück**: Der Editor ruft beim Montieren die lesende Action `ladeStandAction(id)` und übernimmt das Ergebnis im `.then` (nicht im Effekt-Rumpf): ist die Serverversion neuer und lokal noch nichts geändert, gilt still der Serverstand; wurde lokal schon geändert, öffnet sich der Konflikthinweis. Ohne das zeigte der Editor nach „Alle Pläne" → Zurück den alten Stand, und „Meine Fassung behalten" überschriebe die eigenen neueren Speicherungen.
 
 ## Review Focus
 
 1. **Der frisch angelegte, leere Plan** → keine Karte, keine Griffe, kein Absturz in Layout, Navigation oder Legende; „Erste Stelle anlegen" führt in den Normalfall. Gepinnt in `navigation.test.ts` (Task 8) und `Editor.test.tsx` (Task 14), e2e in Task 15 (`ersteStelle`).
 2. **„Liste einfügen" mit über 60 Einheiten, zu langem Typ oder Rufnamen, Leerzeilen und Tabs** → die gültigen Zeilen werden nicht still gekürzt; die Liste wird abgewiesen, der Hinweis nennt die Zeile bzw. die Grenze, das Dokument bleibt unverändert. Gepinnt in `einfuegen.test.ts` und `einheiten.test.ts` (Task 4) und `StelleFlyin.test.tsx` (Task 12).
 3. **Umhängen einer Stelle mit Unterstellen nach links/rechts, unter sich selbst oder unter einen eigenen Nachkommen** → abgewiesen mit Hinweis, Auswahl bietet solche Ziele gar nicht erst an. Gepinnt in `operationen.test.ts` (Task 3) und `StelleFlyin.test.tsx` (Task 12).
-4. **Eine Verbindung, die nur als Kanal (`kanaele`) benutzt wird** → gilt als benutzt: nicht löschbar, nicht „Reserve". Gepinnt in `verbindungen.test.ts` (Task 3) und `PlanFlyin.test.tsx` (Task 13).
-5. **Zwei Speicherwege gleichzeitig** (Planangaben übernehmen, während eine Inhaltsänderung wartet oder unterwegs ist) → kein falscher Konflikt, beide landen, die Version zählt genau zweimal hoch. Gepinnt in `speichern.test.ts` (Task 5) und `speicherer.test.ts` (Task 9).
+4. **Eine Verbindung, die nur als Kanal (`kanaele`) benutzt wird** → gilt als benutzt: nicht löschbar, nicht „Reserve". Umgekehrt ist die `verbindungId` einer **Wurzel** kein Weg: dieselbe Regel wie `legende()`, sonst zeigte die Legende „Reserve X" und das Plan-Flyin sperrte das Löschen. Gepinnt in `verbindungen.test.ts` (Task 3) und `PlanFlyin.test.tsx` (Task 13).
+5. **Zwei Speicherwege gleichzeitig** (Planangaben speichern, während eine Inhaltsänderung wartet oder unterwegs ist) → kein falscher Konflikt, beide landen, die Version zählt genau zweimal hoch. Gepinnt in `speichern.test.ts` (Task 5) und `speicherer.test.ts` (Task 9).
+6. **Ein Seed-Plan wird nur angesehen, nie geschrieben** — auch nicht durch die neuen Selbst-Speicher-Wege (Angaben beim Verlassen, Kontaktfelder): unveränderte Werte werden nie gesendet. Gepinnt in `PlanFlyin.test.tsx` (Task 13) und im Fototest (Task 16: null Speicheraufrufe am Seed-Plan).
+7. **Wechsel der Auswahl bei offenem Flyin** → kein Zustand der vorigen Stelle wandert mit (offene „Liste einfügen", Entwurf einer neuen Verbindung, Fehlermeldungen, Zeichen-Suche), und keine Fokusanfrage der vorigen Stelle zieht den Fokus in die neue (Anfragen nennen ihre Stelle). Gepinnt in `StelleFlyin.test.tsx` (Task 12).
 
 ---
 
@@ -70,7 +78,7 @@ K/
 │   ├── NeuerPlan.tsx                 NEU "use client": Knopf + Drawer-Formular → Editor
 │   └── p/[id]/page.tsx               geändert: Editor (Admin) oder Betrachter (Zugangsgruppe)
 ├── _actions/                         NEU
-│   ├── plan.ts                       "use server": legePlanAnAction, speichereInhaltAction, speichereAngabenAction
+│   ├── plan.ts                       "use server": legePlanAnAction, speichereInhaltAction, speichereAngabenAction, ladeStandAction (lesend)
 │   └── zeichen.ts                    "use server": ladeZeichenAction (lesend)
 ├── _db/
 │   ├── schema.ts                     geändert: planBearbeitung
@@ -78,20 +86,21 @@ K/
 ├── _lib/
 │   ├── angaben.ts                    NEU: Planangaben (zod), Kalendertag ↔ ms — beide Seiten
 │   ├── ergebnis.ts                   NEU: Rückgabetypen der Actions — beide Seiten
-│   ├── speichern.ts                  NEU (Server): legePlanAn, speichereInhalt, speichereAngaben, merkeBearbeitung
+│   ├── speichern.ts                  NEU (Server): legePlanAn, speichereInhalt, speichereAngaben, ladeStand, merkeBearbeitung
 │   ├── plaene.ts                     geändert: GeladenerPlan trägt version und angaben
 │   ├── zugang.ts                     geändert: requireKommplanBearbeitenAktion
 │   ├── zeichen/zeichen.ts            geändert: zeichenIndex, symboleFuerSchluessel
 │   └── plan/
-│       ├── schema.ts                 geändert: LAENGE (Feldgrenzen als Konstanten)
+│       ├── schema.ts                 geändert: LAENGE, GRENZE (Feldgrenzen als Konstanten, Gesamtgrenze in Byte)
 │       ├── operationen.ts            geändert: Stellen einfügen/ändern/löschen/umhängen, Optionen
+│       ├── kontakte.ts               geändert: KONTAKT_NAME, setzeKontakt (feste Zeile je Art)
 │       ├── verbindungen.ts           NEU: Nutzung, Reserve, anlegen/ändern/löschen, Kanäle
 │       ├── einheiten.ts              NEU: Einheiten einfügen/ändern/löschen
 │       └── einfuegen.ts              NEU: Parser „Liste einfügen" (Phase 3 ergänzt die Gliederung)
 ├── _ui/
 │   ├── kommplan.css                  geändert: Editor, Griffe, Gleiten, reduzierte Bewegung
 │   ├── betrachter/
-│   │   ├── Flaeche.tsx               NEU "use client": Zoom, Verschieben, Pinch, Rad, Klick auf Karte
+│   │   ├── Flaeche.tsx               NEU "use client": Zoom, Verschieben, Pinch, Rad, Klick auf Karte, eingepasste Ansicht, Meldungsplatz
 │   │   ├── Legende.tsx               NEU: Legende unter der Fläche (aus Betrachter herausgelöst)
 │   │   ├── Umschalter.tsx            NEU: Einklapp-Umschalter (aus Betrachter herausgelöst)
 │   │   └── Betrachter.tsx            geändert: nutzt Flaeche, Legende, Umschalter
@@ -110,7 +119,7 @@ K/
 │       ├── Griffe.tsx                Überlagerung mit den Griffen der Auswahl
 │       ├── StelleFlyin.tsx           Flyin einer Stelle (Drawer + StelleFormular)
 │       ├── ZeichenWahl.tsx           Zeichen-Suche im Flyin
-│       ├── KontaktZeilen.tsx         Kontakte im Flyin
+│       ├── KontaktZeilen.tsx         Kontakte im Flyin (ein festes Feld je Art)
 │       ├── StellenLage.tsx           Untersteht/Lage (Umhängen)
 │       ├── VerbindungWahl.tsx        Verbindung zur Elternstelle, Kanäle
 │       ├── EinheitenListe.tsx        Einheiten im Flyin, „Liste einfügen"
@@ -118,7 +127,7 @@ K/
 e2e/kommplan-editor.spec.ts           NEU
 ```
 
-Geändert außerhalb des Moduls: `src/core/audit/catalog.ts`, `src/core/audit/coverage-manifest.json`, `src/app/m/portal/admin/audit/labels.ts` (nur innerhalb der bestehenden kommplan-Zeile), `e2e/gruppen.json`, `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§10), `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` (nur Titel und Text).
+Geändert außerhalb des Moduls: `src/core/audit/catalog.ts`, `src/core/audit/coverage-manifest.json`, `src/app/m/portal/admin/audit/labels.ts` (nur innerhalb der bestehenden kommplan-Zeile), `e2e/gruppen.json`, `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§10), `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` (nur Titel und Text, im Commit von Task 14).
 
 ---
 
@@ -140,14 +149,17 @@ In `K/_lib/layout/eigenschaften.test.ts` den Kommentarblock, der mit `* OFFEN (S
 
 ```ts
 /**
- * Spec §10, wie es gilt (Umsetzungsplan Phase 2, Entscheidung 2): Einfügen verschiebt nichts links
- * der neuen Stelle INNERHALB ihrer Ebene und Busgruppe. Über Gruppengrenzen gilt das nicht: eine
- * NEUE Kanalgruppe unter s14 (Seed 70) zentriert s14 neu über seiner Busspanne, dadurch wächst die
- * linke Kontur der Gruppe von s14 unter s0, und das Gruppenpacken setzt diese Gruppe als GANZES
- * weiter rechts an — samt s12, das links der neuen Stelle steht. Zugesichert wird: kein y ändert
- * sich, die Zeichnung bleibt sauber (Eltern mittig über der Busspanne, keine Überlappung, keine
- * Kreuzung), die früheren Gruppen unter s0 bleiben untereinander starr, und die frühere Gruppe von
- * s14 rückt starr, also mit EINEM gemeinsamen dx.
+ * Spec §10, wie es gilt (Umsetzungsplan Phase 2, Entscheidung 2) — unter der Vorbedingung von
+ * `einfuegung()` (kein Kamm vorher wie nachher, gleiche Zeilen): Einfügen ändert kein y; die
+ * früheren Geschwister in der Busgruppe der neuen Stelle und die früheren Gruppen ihrer Ebene
+ * bleiben je UNTEREINANDER starr (gleiche relative Lage, `describe.each` oben). Absolut rückt dabei
+ * durchaus etwas, das links steht: die Elternstelle steht mittig über ihrer Busspanne. Hier der
+ * Fall über Gruppengrenzen: eine NEUE Kanalgruppe unter s14 (Seed 70) zentriert s14 neu, dadurch
+ * wächst die linke Kontur der Gruppe von s14 unter s0, und das Gruppenpacken setzt diese Gruppe als
+ * GANZES weiter rechts an — samt s12, das links der neuen Stelle steht. Zugesichert wird: kein y
+ * ändert sich, die Zeichnung bleibt sauber (Eltern mittig über der Busspanne, keine Überlappung,
+ * keine Kreuzung), die früheren Gruppen unter s0 bleiben untereinander starr, und die frühere
+ * Gruppe von s14 rückt starr, also mit EINEM gemeinsamen dx.
  */
 it("Seed 70, neue Kanalgruppe unter s14: Eltern neu zentriert, die Gruppe von s14 rückt starr als Ganzes", () => {
   const inhalt = zufallsPlan(70, { stellen: 25 });
@@ -204,11 +216,16 @@ ersetzen durch (gleiche Zeilenzahl ist hier nicht verlangt — die Spec trägt k
 
 ```
   - Eigenschaftstests auf Zufallsbäumen: keine Überlappung, keine Kreuzung, Eltern mittig über der
-    Busspanne, Einfügen einer Stelle verschiebt innerhalb ihrer Ebene und Busgruppe nichts links von
-    ihr, Aufteilung deckt jede Stelle genau einmal ab. Über Gruppengrenzen gilt das nicht: eine neue
-    Kanalgruppe zentriert die Elternstelle neu über ihrer Busspanne, und die frühere Gruppe rückt
-    dabei als Ganzes; y-Koordinaten bleiben.
+    Busspanne, Aufteilung deckt jede Stelle genau einmal ab. Einfügen einer Stelle ändert — solange
+    dadurch keine Gruppe als Kamm umbricht und Zeilenhöhen und Ebenenlücken gleich bleiben — kein
+    y; die früheren Geschwister in ihrer Busgruppe und die früheren Gruppen ihrer Ebene bleiben
+    jeweils untereinander starr (gleiche relative Lage). Als Ganzes kann eine Gruppe rücken, weil
+    die Elternstelle mittig über ihrer Busspanne steht — eine neue Kanalgruppe zentriert die
+    Elternstelle neu, und deren Gruppe rückt gegen die früheren Gruppen. Bricht eine Gruppe als
+    Kamm um oder wächst eine Lücke, ordnet sich zu Recht mehr neu.
 ```
+
+Der Satz „verschiebt nichts links von ihr" verschwindet ganz, auch eingeschränkt (Entscheidung 2: selbst innerhalb einer Busgruppe rücken frühere Geschwister absolut, nachgerechnet in 6 von 29 wirksamen Fällen der Variante „ende").
 
 - [ ] **Step 4: Ganze Datei und Typecheck**
 
@@ -219,11 +236,13 @@ Expected: PASS, kein `it.fails` mehr in der Datei (`grep -c "it.fails" src/app/m
 
 ```bash
 git add docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md src/app/m/kommplan/_lib/layout/eigenschaften.test.ts
-git commit -S -m "test(kommplan): Einfüge-Eigenschaft über Gruppengrenzen ehrlich formuliert
+git commit -S -m "test(kommplan): Einfüge-Eigenschaft ehrlich formuliert
 
-Eine neue Kanalgruppe zentriert die Elternstelle neu; die frühere Gruppe
-rückt starr als Ganzes. Spec §10 nennt das jetzt, das it.fails ist ein
-regulärer Test dessen, was gilt.
+Zugesichert ist — ohne Kamm und bei gleichen Zeilen — Starrheit der
+früheren Geschwister und Gruppen untereinander und kein geändertes y,
+nicht „nichts links rückt“: eine neue Kanalgruppe zentriert die
+Elternstelle neu, deren Gruppe rückt als Ganzes. Spec §10 sagt das
+jetzt; das it.fails ist ein regulärer Test.
 
 DRK-500
 
@@ -235,7 +254,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Feldgrenzen und Stellen-Operationen (einfügen, ändern, löschen, Optionen)
 
 **Files:**
-- Modify: `K/_lib/plan/schema.ts` (Konstanten `LAENGE`, `GRENZE`; Schema nutzt sie)
+- Modify: `K/_lib/plan/schema.ts` (Konstanten `LAENGE`, `GRENZE`; Schema nutzt sie; Gesamtgrenze in Byte, Entscheidung 15)
 - Modify: `K/_lib/plan/operationen.ts`
 - Test: `K/_lib/plan/operationen.test.ts`, `K/_lib/plan/schema.test.ts`
 
@@ -243,7 +262,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: `planInhaltSchema`, `PlanInhalt`, `Stelle`, `Lage`, `PlanOptionen` (schema.ts), `baueBaum`, `nachkommen` (baum.ts), `anzeigereihenfolge` (`_lib/layout/gruppen.ts`, importiert nur Typen aus `plan/` — kein Zyklus).
 - Produces (alle rein, Eingabe unverändert, Ausgabe gültig oder `PlanFehler`):
   - `LAENGE = { titel: 200, leiter: 120, kontakt: 200, typ: 40, rufname: 80, bezeichnung: 60 } as const`
-  - `GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12 } as const`
+  - `GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12, bytes: 800_000 } as const`
+  - `ZU_GROSS = "Der Plan ist zu groß zum Speichern. Teile ihn auf mehrere Pläne auf."` (Meldung der Gesamtgrenze; bewusst anders als der Netzfehler des Speicherers)
+  - `inhaltBytes(inhalt: unknown): number` — UTF-8-Länge von `JSON.stringify(inhalt)`
   - `fuegeWurzelEin(inhalt: PlanInhalt, id: string): PlanInhalt`
   - `fuegeUnterstelleEin(inhalt: PlanInhalt, elternId: string, id: string): PlanInhalt`
   - `fuegeSeitenstelleEin(inhalt: PlanInhalt, elternId: string, seite: "links" | "rechts", id: string): PlanInhalt`
@@ -253,21 +274,61 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `setzeOptionen(inhalt: PlanInhalt, aenderung: Partial<Pick<PlanOptionen, "leerzeilen" | "vermerkVsNfD">>): PlanInhalt`
   - `stelleOder(inhalt: PlanInhalt, id: string): Stelle` (wirft `PlanFehler("Stelle … gibt es nicht")`)
 
+- [ ] **Step 0: Größe messen (Entscheidung 15)**
+
+Nur lesend, im Scratchpad. Gemessen wird dreierlei: der ungünstigste Plan nach den Feldgrenzen, die große Stab-Lage und der größte Seed-Plan. `zufallsPlan(…, { form: "stab" })` ist dafür **kein** Maß: `stellen` ist dort nur eine Obergrenze, der Plan hat bei Seed 4711 nur 75 Stellen (rund 40 KB).
+
+```bash
+pnpm exec tsx -e '
+import { BEISPIELE } from "./src/app/m/kommplan/_lib/beispiele";
+import { zufallsPlan } from "./src/app/m/kommplan/_lib/layout/zufall";
+const b = (x: unknown) => new TextEncoder().encode(JSON.stringify(x)).length;
+const ae = (n: number) => "Ä".repeat(n); // Umlaute: 2 Byte je Zeichen in UTF-8
+const stelle = (i: number) => ({ id: `s-${String(i).padStart(8, "0")}`, eltern: i === 0 ? null : "s-00000000", lage: "unter", reihenfolge: i,
+  zeichen: "rezept:D.1.4", titel: ae(200), leiter: ae(120), hervorheben: false, verbindungId: null,
+  kanaele: Array.from({ length: 12 }, (_, k) => `v-${String(k).padStart(8, "0")}`),
+  kontakte: Array.from({ length: 30 }, () => ({ art: "sonstiges", wert: ae(200) })),
+  einheiten: Array.from({ length: 60 }, (_, k) => ({ id: `e-${i}-${k}`, typ: ae(40), rufname: ae(80), zeichen: "rezept:D.1.4" })) });
+const worst = { schema: 1, optionen: { leerzeilen: true, vermerkVsNfD: true, qrAufDruck: false, schwarzweiss: false },
+  verbindungen: Array.from({ length: 200 }, (_, k) => ({ id: `v-${String(k).padStart(8, "0")}`, art: "tmo", bezeichnung: ae(60) })),
+  stellen: Array.from({ length: 500 }, (_, i) => stelle(i)) };
+console.log("ungünstigster Plan", b(worst), "Byte; je Stelle", Math.round(b(stelle(1)) / 1000), "KB");
+console.log("Stab-Lage 4711", b(zufallsPlan(4711, { stellen: 500, form: "stab" })), "Byte");
+for (const x of BEISPIELE) console.log(x.id, b(x.inhalt), "Byte");'
+```
+
+Expected: ungünstigster Plan weit über 1 000 000 Byte (erwartet rund 18 MB mit Umlauten, rund 9 MB ohne), Stab-Lage und Seed-Pläne im Bereich weniger zehn KB. Die Zahlen in den Kopfkommentar von `speichern.ts` (Task 5, Platzhalter `<gemessen …>`) übernehmen. Liegt ein **Seed-Plan** über `GRENZE.bytes`, anhalten und melden — dann ist die Grenze falsch gewählt.
+
 - [ ] **Step 1: Failing tests**
 
 An `K/_lib/plan/schema.test.ts` anhängen (innerhalb der Datei, eigener `describe`):
 
 ```ts
-import { GRENZE, LAENGE } from "./schema";
+import { GRENZE, inhaltBytes, LAENGE, ZU_GROSS } from "./schema";
 
 describe("Feldgrenzen als Konstanten", () => {
+  const basis = { schema: 1, optionen: { leerzeilen: false, vermerkVsNfD: true, qrAufDruck: false, schwarzweiss: false }, verbindungen: [] };
+  const stelle = (id: string, titel: string, mehr: object = {}) => ({ id, eltern: null, lage: "unter", reihenfolge: 0, zeichen: null, titel, leiter: null,
+    hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...mehr });
   it("das Schema weist genau jenseits der Grenze ab", () => {
-    const basis = { schema: 1, optionen: { leerzeilen: false, vermerkVsNfD: true, qrAufDruck: false, schwarzweiss: false }, verbindungen: [] };
-    const stelle = (titel: string) => ({ id: "w", eltern: null, lage: "unter", reihenfolge: 0, zeichen: null, titel, leiter: null,
-      hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [] });
-    expect(planInhaltSchema.safeParse({ ...basis, stellen: [stelle("x".repeat(LAENGE.titel))] }).success).toBe(true);
-    expect(planInhaltSchema.safeParse({ ...basis, stellen: [stelle("x".repeat(LAENGE.titel + 1))] }).success).toBe(false);
+    expect(planInhaltSchema.safeParse({ ...basis, stellen: [stelle("w", "x".repeat(LAENGE.titel))] }).success).toBe(true);
+    expect(planInhaltSchema.safeParse({ ...basis, stellen: [stelle("w", "x".repeat(LAENGE.titel + 1))] }).success).toBe(false);
     expect(GRENZE.einheiten).toBe(60);
+  });
+  it("Gesamtgrenze in Byte (Entscheidung 15): ein Plan über 800 000 Byte ist ungültig, mit eigener Meldung", () => {
+    // 60 Stellen mit je 30 vollen Kontakten aus Umlauten: rund 60 × 30 × 400 Byte ≈ 720 KB, dazu Einheiten → über der Grenze
+    const voll = (i: number) => stelle(`s${i}`, "T", {
+      reihenfolge: i,
+      kontakte: Array.from({ length: GRENZE.kontakte }, () => ({ art: "sonstiges", wert: "Ä".repeat(LAENGE.kontakt) })),
+      einheiten: Array.from({ length: 20 }, (_, k) => ({ id: `s${i}e${k}`, typ: "RTW", rufname: "Ü".repeat(LAENGE.rufname), zeichen: null })),
+    });
+    const gross = { ...basis, stellen: Array.from({ length: 60 }, (_, i) => voll(i)) };
+    expect(inhaltBytes(gross)).toBeGreaterThan(GRENZE.bytes);
+    const r = planInhaltSchema.safeParse(gross);
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.message)).toContain(ZU_GROSS);
+    const klein = { ...gross, stellen: gross.stellen.slice(0, 10) };
+    expect(planInhaltSchema.safeParse(klein).success).toBe(true);
   });
 });
 ```
@@ -379,10 +440,28 @@ Direkt unter `export type Lage = …;` einfügen:
  * damit Tippen nie in einen Schemafehler läuft (Review Focus Phase 2, Punkt 2).
  */
 export const LAENGE = { titel: 200, leiter: 120, kontakt: 200, typ: 40, rufname: 80, bezeichnung: 60 } as const;
-export const GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12 } as const;
+/**
+ * `bytes`: GESAMTGRENZE des Dokuments (Umsetzungsplan Phase 2, Entscheidung 15). Nach den Feldgrenzen
+ * allein wären rund 9 MB möglich, eine Server Action nimmt aber höchstens 1 MB an — und ein
+ * abgelehnter Aufruf sähe im Editor aus wie ein Netzfehler. 800 000 Byte UTF-8 lassen Luft für die
+ * Kodierung des Aufrufs. Kosten: ein `JSON.stringify` je Prüfung, neben dem vollen `safeParse`.
+ */
+export const GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12, bytes: 800_000 } as const;
+export const ZU_GROSS = "Der Plan ist zu groß zum Speichern. Teile ihn auf mehrere Pläne auf.";
+export const inhaltBytes = (inhalt: unknown): number => new TextEncoder().encode(JSON.stringify(inhalt)).length;
 ```
 
-und die Zahlen im Schema durch die Konstanten ersetzen (gleiche Werte, gleiche Zeilen):
+Hinter `pruefeInvarianten` die Größenprüfung einfügen und am Ende von `planInhaltSchema` anhängen (`….superRefine(pruefeInvarianten).superRefine(pruefeGroesse)`):
+
+```ts
+function pruefeGroesse(p: unknown, ctx: z.RefinementCtx): void {
+  if (inhaltBytes(p) > GRENZE.bytes) ctx.addIssue({ code: "custom", path: [], message: ZU_GROSS });
+}
+```
+
+Die Grenze gilt damit überall, wo das Schema gilt: in jeder Operation (`gueltig`), beim Speichern auf dem Server und beim Laden (`leseInhalt`) — kein heutiger Plan liegt auch nur in der Nähe (Step 0).
+
+Dann die Zahlen im Schema durch die Konstanten ersetzen (gleiche Werte, gleiche Zeilen):
 `kontaktSchema`: `wert: z.string().max(LAENGE.kontakt)`; `einheitSchema`: `typ: z.string().max(LAENGE.typ), rufname: z.string().max(LAENGE.rufname)`; `stelleSchema`: `titel: z.string().max(LAENGE.titel)`, `leiter: z.string().max(LAENGE.leiter).nullable()`, `kanaele: z.array(id).max(GRENZE.kanaele).default([])`, `kontakte: z.array(kontaktSchema).max(GRENZE.kontakte)`, `einheiten: z.array(einheitSchema).max(GRENZE.einheiten)`; `verbindungSchema`: `bezeichnung: z.string().max(LAENGE.bezeichnung)`; `planInhaltSchema`: `stellen: z.array(stelleSchema).max(GRENZE.stellen)`, `verbindungen: z.array(verbindungSchema).max(GRENZE.verbindungen)`.
 
 - [ ] **Step 4: Operationen in `operationen.ts`**
@@ -471,7 +550,8 @@ git commit -S -m "feat(kommplan): Stellen einfügen, ändern und löschen als re
 
 Unterstelle tritt dem Bus der letzten Unterstelle bei, Seitenstellen
 tragen nichts, Löschen nimmt den Teilbaum mit; Feldgrenzen als
-Konstanten für Schema und Eingabefelder.
+Konstanten für Schema und Eingabefelder, dazu eine Gesamtgrenze von
+800 000 Byte unter dem Aufruflimit der Server Actions.
 
 DRK-500
 
@@ -491,8 +571,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: `stelleOder`, `aendereStelle`, `naechsteReihenfolge`, `PlanFehler`, `gueltig` (Task 2; `gueltig` wird dafür exportiert), `baueBaum`, `nachkommen`, `tiefensuche` (baum.ts).
 - Produces:
   - `moeglicheEltern(inhalt: PlanInhalt, id: string): Stelle[]` — alle Stellen mit `lage === "unter"`, ohne die Stelle selbst und ohne ihre Nachkommen, in Tiefensuche-Reihenfolge.
-  - `haengeUm(inhalt: PlanInhalt, id: string, ziel: { eltern: string | null; lage: Lage }): PlanInhalt`
-  - `verbindungen.ts`: `interface Nutzung { eltern: number; kanal: number }`; `verbindungsNutzung(inhalt: PlanInhalt): Map<string, Nutzung>` (jede Verbindung des Plans hat einen Eintrag); `istReserve(inhalt: PlanInhalt, id: string): boolean`; `legeVerbindungAn(inhalt: PlanInhalt, v: Verbindung): PlanInhalt`; `aendereVerbindung(inhalt: PlanInhalt, id: string, aenderung: Partial<Pick<Verbindung, "art" | "bezeichnung">>): PlanInhalt`; `loescheVerbindung(inhalt: PlanInhalt, id: string): PlanInhalt`; `findeVerbindung(inhalt: PlanInhalt, bezeichnung: string, art: VerbindungsArt): Verbindung | undefined` (Bezeichnung getrimmt, Groß-/Kleinschreibung egal).
+  - `haengeUm(inhalt: PlanInhalt, id: string, ziel: { eltern: string | null; lage: Lage }): PlanInhalt` (auf die oberste Ebene: `verbindungId` wird `null`)
+  - `verbindungen.ts`: `interface Nutzung { eltern: number; kanal: number }`; `verbindungsNutzung(inhalt: PlanInhalt): Map<string, Nutzung>` (jede Verbindung des Plans hat einen Eintrag; die `verbindungId` einer Wurzel zählt nicht, wie in `legende()`); `istReserve(inhalt: PlanInhalt, id: string): boolean`; `legeVerbindungAn(inhalt: PlanInhalt, v: Verbindung): PlanInhalt`; `aendereVerbindung(inhalt: PlanInhalt, id: string, aenderung: Partial<Pick<Verbindung, "art" | "bezeichnung">>): PlanInhalt`; `loescheVerbindung(inhalt: PlanInhalt, id: string): PlanInhalt`; `findeVerbindung(inhalt: PlanInhalt, bezeichnung: string, art: VerbindungsArt): Verbindung | undefined` (Bezeichnung getrimmt, Groß-/Kleinschreibung egal).
 
 - [ ] **Step 1: Failing tests**
 
@@ -520,10 +600,11 @@ describe("Umhängen (Spec §6.4 „Untersteht / Lage")", () => {
     const p = haengeUm(plan(), "a", { eltern: "el", lage: "rechts" });
     expect(stelleOder(p, "a")).toMatchObject({ eltern: "el", lage: "rechts" });
   });
-  it("seitlich braucht eine Elternstelle; oberste Ebene heißt immer unter", () => {
+  it("seitlich braucht eine Elternstelle; oberste Ebene heißt immer unter und hat keinen Weg nach oben", () => {
     expect(() => haengeUm(plan(), "a", { eltern: null, lage: "links" })).toThrow("Eine Seitenstelle braucht eine Elternstelle.");
     const p = haengeUm(plan(), "a", { eltern: null, lage: "unter" });
-    expect(stelleOder(p, "a")).toMatchObject({ eltern: null, lage: "unter", reihenfolge: 1 });
+    // Die verbindungId einer Wurzel ist kein Weg (legende()); stehen bliebe sie als unsichtbare Nutzung.
+    expect(stelleOder(p, "a")).toMatchObject({ eltern: null, lage: "unter", reihenfolge: 1, verbindungId: null });
   });
   it("unter eine Seitenstelle: abgewiesen", () => {
     expect(() => haengeUm(plan(), "a", { eltern: "bs", lage: "unter" })).toThrow("Eine Seitenstelle trägt keine Unterstellen.");
@@ -567,6 +648,17 @@ describe("Verbindungen des Plans", () => {
   });
   it("Reserve ist nur, was weder Weg noch Kanal ist (Review Focus 4)", () => {
     expect(["v1", "v2", "v3"].map((id) => istReserve(plan(), id))).toEqual([false, false, true]);
+  });
+  it("die verbindungId einer Wurzel ist kein Weg — Reserve und löschbar wie in legende() (Review Focus 4)", () => {
+    const mitWurzelweg = baue({
+      verbindungen: [{ id: "v9", art: "tmo", bezeichnung: "K_UE_9" }],
+      stellen: [{ id: "w", titel: "Wurzel", verbindung: "v9" }],
+    });
+    expect(verbindungsNutzung(mitWurzelweg).get("v9")).toEqual({ eltern: 0, kanal: 0 });
+    expect(istReserve(mitWurzelweg, "v9")).toBe(true);
+    const ohne = loescheVerbindung(mitWurzelweg, "v9");
+    expect(ohne.verbindungen).toEqual([]);
+    expect(ohne.stellen[0].verbindungId).toBeNull(); // sonst verletzte der Rest die Invariante „Verbindung existiert"
   });
   it("legt an, ändert Art und Bezeichnung; leere oder zu lange Bezeichnung wird abgewiesen", () => {
     let p = legeVerbindungAn(plan(), { id: "v4", art: "draht", bezeichnung: "  Standleitung " });
@@ -622,7 +714,9 @@ export function haengeUm(inhalt: PlanInhalt, id: string, ziel: { eltern: string 
     throw new PlanFehler("Eine Stelle mit Unter- oder Seitenstellen kann nicht seitlich stehen.");
   }
   const reihenfolge = naechsteReihenfolge(inhalt, ziel.eltern, ziel.lage);
-  return gueltig({ ...inhalt, stellen: inhalt.stellen.map((x) => (x.id === id ? { ...x, eltern: ziel.eltern, lage: ziel.lage, reihenfolge } : x)) });
+  // Oberste Ebene: kein Weg nach oben — eine stehengebliebene verbindungId zählte sonst als Nutzung (Review Focus 4).
+  const verbindungId = ziel.eltern === null ? null : s.verbindungId;
+  return gueltig({ ...inhalt, stellen: inhalt.stellen.map((x) => (x.id === id ? { ...x, eltern: ziel.eltern, lage: ziel.lage, reihenfolge, verbindungId } : x)) });
 }
 ```
 
@@ -634,15 +728,16 @@ import type { PlanInhalt, Verbindung, VerbindungsArt } from "./schema";
 
 /**
  * Die Verbindungen EINES Plans (Spec §4.2, §6.4). „Reserve" ist in der Legende, was weder Weg zur
- * Elternstelle (`verbindungId`) noch Kanal einer Stelle (`kanaele`, Phase-1-Abweichung 12) ist —
- * dieselbe Regel wie `legende()` in `_lib/layout/zeichne.ts`.
+ * Elternstelle (`verbindungId` einer Stelle MIT Elternstelle) noch Kanal einer Stelle (`kanaele`,
+ * Phase-1-Abweichung 12) ist — dieselbe Regel wie `legende()` in `_lib/layout/zeichne.ts`, die die
+ * `verbindungId` einer Wurzel ausdrücklich nicht als Weg zählt.
  */
 export interface Nutzung { eltern: number; kanal: number }
 
 export function verbindungsNutzung(inhalt: PlanInhalt): Map<string, Nutzung> {
   const n = new Map(inhalt.verbindungen.map((v) => [v.id, { eltern: 0, kanal: 0 }]));
   for (const s of inhalt.stellen) {
-    if (s.verbindungId !== null) n.get(s.verbindungId)!.eltern += 1;
+    if (s.eltern !== null && s.verbindungId !== null) n.get(s.verbindungId)!.eltern += 1;
     for (const k of s.kanaele) n.get(k)!.kanal += 1;
   }
   return n;
@@ -678,7 +773,12 @@ export function aendereVerbindung(inhalt: PlanInhalt, id: string, aenderung: Par
 export function loescheVerbindung(inhalt: PlanInhalt, id: string): PlanInhalt {
   const v = verbindungOder(inhalt, id);
   if (!istReserve(inhalt, id)) throw new PlanFehler(`„${v.bezeichnung}“ wird noch benutzt und lässt sich nicht löschen.`);
-  return gueltig({ ...inhalt, verbindungen: inhalt.verbindungen.filter((x) => x.id !== id) });
+  // Eine Wurzel darf die Verbindung noch tragen (kein Weg, s. oben) — dort wird sie mit gelöscht.
+  return gueltig({
+    ...inhalt,
+    verbindungen: inhalt.verbindungen.filter((x) => x.id !== id),
+    stellen: inhalt.stellen.map((s) => (s.verbindungId === id ? { ...s, verbindungId: null } : s)),
+  });
 }
 
 export function findeVerbindung(inhalt: PlanInhalt, bez: string, art: VerbindungsArt): Verbindung | undefined {
@@ -900,16 +1000,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Produces:
   - `angaben.ts` (beide Seiten, kein `next/*`): `PLAN_TYPEN = ["kommunikationsplan", "fernmeldeskizze"] as const`; `type PlanTyp`; `TYP_NAME: Record<PlanTyp, string>`; `interface Planangaben { titel: string; typ: PlanTyp; anlass: string | null; datum: string | null /* YYYY-MM-DD */ }`; `angabenSchema` (zod, trimmt, leere Zeichenkette → `null`); `LAENGE_ANLASS = 120`; `tagZuMs(tag: string): number`; `msZuTag(ms: number | null): string | null`; `feldFehlerAus(e: z.ZodError): FeldFehler`.
   - `ergebnis.ts` (nur Typen): `type FeldFehler = Record<string, string>`; `interface Speicherstand { version: number; inhalt: PlanInhalt | null; angaben: Planangaben; aktualisiertAm: number; aktualisiertVon: string }`; `type SpeicherErgebnis = { ok: true; version: number; aktualisiertAm: number } | { ok: false; grund: "konflikt"; stand: Speicherstand } | { ok: false; grund: "weg" } | { ok: false; grund: "ungueltig"; fehler: string; feldFehler?: FeldFehler }`; `type AnlageErgebnis = { ok: true; id: string } | { ok: false; fehler: string; feldFehler: FeldFehler }`.
-  - `speichern.ts` (Server): `BEARBEITUNGSFENSTER_MS = 15 * 60 * 1000`; `interface Bearbeiter { nutzer: string; name: string }`; `merkeBearbeitung(db, planId, nutzer, jetzt: number): void`; `legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number): AnlageErgebnis`; `speichereInhalt(db, eingabe: { id: string; version: number; inhalt: unknown }, wer, jetzt): SpeicherErgebnis`; `speichereAngaben(db, eingabe: { id: string; version: number; angaben: unknown }, wer, jetzt): SpeicherErgebnis`.
+  - `speichern.ts` (Server): `BEARBEITUNGSFENSTER_MS = 15 * 60 * 1000`; `interface Bearbeiter { nutzer: string; name: string }`; `merkeBearbeitung(db, planId, nutzer, jetzt: number): void`; `legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number): AnlageErgebnis`; `speichereInhalt(db, eingabe: { id: string; version: number; inhalt: unknown }, wer, jetzt): SpeicherErgebnis`; `speichereAngaben(db, eingabe: { id: string; version: number; angaben: unknown }, wer, jetzt): SpeicherErgebnis`; `ladeStand(db, id: string): Speicherstand | null` (`null` = unbekannt oder archiviert; Entscheidung 21).
   - `plaene.ts`: `lies(zeile: PlanZeile)` exportiert; `GeladenerPlan` zusätzlich `version: number; angaben: Planangaben`.
 
-- [ ] **Step 1: Größe eines Plans an der Schemagrenze messen (Entscheidung 15)**
-
-Run:
-```bash
-pnpm exec tsx -e 'import { zufallsPlan } from "./src/app/m/kommplan/_lib/layout/zufall"; const p = zufallsPlan(4711, { stellen: 500, form: "stab" }); console.log(JSON.stringify(p).length, "Byte");'
-```
-Expected: deutlich unter 1 000 000 Byte (Aufruflimit der Server Actions laut `node_modules/next/dist/docs/01-app/02-guides/server-actions.md`). Die Zahl in den Kopfkommentar von `speichern.ts` schreiben (Platzhalter `<gemessen>` unten ersetzen). Liegt sie über 500 000 Byte, **anhalten** und dem Hauptlauf melden — dann braucht `next.config.ts` `serverActions.bodySizeLimit`.
+- [ ] **Step 1: (entfällt — die Größe ist in Task 2, Step 0 gemessen und über `GRENZE.bytes` gedeckelt)**
 
 - [ ] **Step 2: Failing tests**
 
@@ -943,7 +1037,7 @@ import { eq, sql } from "drizzle-orm";
 import { withAuditContext } from "@/core/audit/context";
 import { plan } from "../_db/schema";
 import { leererPlan, fuegeWurzelEin } from "./plan/operationen";
-import { BEARBEITUNGSFENSTER_MS, legePlanAn, speichereAngaben, speichereInhalt } from "./speichern";
+import { BEARBEITUNGSFENSTER_MS, ladeStand, legePlanAn, speichereAngaben, speichereInhalt } from "./speichern";
 import { testDb, type TestDb } from "./testDb";
 
 const JANA = { nutzer: "u-jana", name: "Jana Beispiel" };
@@ -996,6 +1090,15 @@ describe("Inhalt speichern mit Versionsprüfung", () => {
     const r = als(OLE, () => speichereInhalt(db, { id, version: 1, inhalt: leererPlan() }, OLE, T0 + 2));
     expect(r).toMatchObject({ ok: false, grund: "konflikt", stand: { version: 2, aktualisiertVon: "Jana Beispiel", angaben: { titel: "Übung", datum: "2026-09-30" } } });
     expect(r.ok ? null : r.grund === "konflikt" ? r.stand.inhalt?.stellen.map((s) => s.id) : null).toEqual(["w"]);
+  });
+  it("ladeStand liest Version, Inhalt und Angaben; unbekannt oder archiviert ist null (Entscheidung 21)", () => {
+    const db = testDb();
+    const id = angelegt(db);
+    als(JANA, () => speichereInhalt(db, { id, version: 1, inhalt: fuegeWurzelEin(leererPlan(), "w") }, JANA, T0 + 1));
+    expect(ladeStand(db, id)).toMatchObject({ version: 2, aktualisiertVon: "Jana Beispiel", angaben: { titel: "Übung" } });
+    expect(ladeStand(db, "gibt-es-nicht")).toBeNull();
+    db.update(plan).set({ archiviertAm: new Date(T0) }).where(eq(plan.id, id)).run();
+    expect(ladeStand(db, id)).toBeNull();
   });
   it("ungültiger Inhalt und unbekannter oder archivierter Plan", () => {
     const db = testDb();
@@ -1275,8 +1378,10 @@ import { lies } from "./plaene";
  * IS NULL`; erst wenn es keine Zeile trifft, wird gelesen, WARUM (Konflikt oder weg). Ein vorheriges
  * SELECT mit anschließendem UPDATE ließe zwei gleichzeitige Speicherungen beide durch.
  *
- * GRÖSSE: ein Plan an der Schemagrenze (500 Stellen, Zufallsplan „stab", Seed 4711) ist <gemessen>
- * Byte JSON — unter dem Aufruflimit der Server Actions von 1 MB.
+ * GRÖSSE: nach den Feldgrenzen allein wäre ein Plan <gemessen: ungünstigster Plan> Byte groß, weit
+ * über dem Aufruflimit der Server Actions von 1 MB; die große Stab-Lage hat <gemessen> Byte. Die
+ * Gesamtgrenze `GRENZE.bytes` im Schema (`plan/schema.ts`) hält jedes gültige Dokument darunter —
+ * `leseInhalt` weist Größeres hier genauso ab wie jede Operation im Editor.
  */
 export const BEARBEITUNGSFENSTER_MS = 15 * 60 * 1000;
 export interface Bearbeiter { nutzer: string; name: string }
@@ -1290,7 +1395,8 @@ export function merkeBearbeitung(db: Schreiber, planId: string, nutzer: string, 
   else if (jetzt - z.seit.getTime() >= BEARBEITUNGSFENSTER_MS) db.update(planBearbeitung).set({ seit: new Date(jetzt) }).where(wo).run();
 }
 
-function stand(db: Schreiber, id: string): Speicherstand | null {
+/** Der Serverstand eines Plans — für den Konflikt und für die Prüfung beim Montieren des Editors (Entscheidung 21). */
+export function ladeStand(db: Schreiber, id: string): Speicherstand | null {
   const z = db.select().from(plan).where(eq(plan.id, id)).get();
   if (!z || z.archiviertAm !== null) return null;
   return {
@@ -1323,7 +1429,7 @@ function bedingtesUpdate(db: KommplanDb, id: string, version: number, werte: Par
       nachErfolg(tx);
       return { ok: true as const, version: version + 1, aktualisiertAm: jetzt };
     }
-    const s = stand(tx, id);
+    const s = ladeStand(tx, id);
     return s ? { ok: false as const, grund: "konflikt" as const, stand: s } : { ok: false as const, grund: "weg" as const };
   });
 }
@@ -1357,8 +1463,8 @@ In `K/_lib/plaene.ts`: `function lies(` → `export function lies(`; `const TYP 
 
 - [ ] **Step 8: Grün sehen**
 
-Run: `pnpm vitest run src/app/m/kommplan src/core/audit && pnpm typecheck; echo "typecheck exit $?"`
-Expected: PASS — auch `src/core/audit/catalog.test.ts` (Tabelle deklariert, Primärschlüssel `plan_id, nutzer`, WHEN von `plan` deckt genau die nicht ausgenommenen Spalten, `plan_bearbeitung` hat create/update/delete) und `K/_db/schema.test.ts`. typecheck exit 0.
+Run: `pnpm vitest run src/app/m/kommplan src/core/audit src/app/m/portal/admin/audit/filters.test.ts && pnpm typecheck; echo "typecheck exit $?"`
+Expected: PASS — auch `filters.test.ts` („names all audited objects": die neue Beschriftung `plan_bearbeitung` ist da, ein Tippfehler im Schlüssel fiele hier auf), `src/core/audit/catalog.test.ts` (Tabelle deklariert, Primärschlüssel `plan_id, nutzer`, WHEN von `plan` deckt genau die nicht ausgenommenen Spalten, `plan_bearbeitung` hat create/update/delete) und `K/_db/schema.test.ts`. typecheck exit 0.
 
 - [ ] **Step 9: Ankerschritt und Commit**
 
@@ -1393,7 +1499,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Produces:
   - `requireKommplanBearbeitenAktion(): Promise<Viewer>` — wirft `Error("Forbidden")` bei fremdem Host, ohne Anmeldung oder ohne `darfKommplanBearbeiten`, jeweils mit Audit-Zeile.
   - `bearbeiterAus(viewer: Viewer): Bearbeiter` — `nutzer` = `auditActor(viewer).id`, `name` = Name, sonst E-Mail, sonst Kennung.
-  - `legePlanAnAction(eingabe: unknown): Promise<AnlageErgebnis>`; `speichereInhaltAction(eingabe: unknown): Promise<SpeicherErgebnis>`; `speichereAngabenAction(eingabe: unknown): Promise<SpeicherErgebnis>`; `ladeZeichenAction(schluessel: unknown): Promise<Record<string, Symbolquelle>>`.
+  - `legePlanAnAction(eingabe: unknown): Promise<AnlageErgebnis>`; `speichereInhaltAction(eingabe: unknown): Promise<SpeicherErgebnis>`; `speichereAngabenAction(eingabe: unknown): Promise<SpeicherErgebnis>`; `ladeStandAction(id: unknown): Promise<Speicherstand | null>` (lesend, Entscheidung 21); `ladeZeichenAction(schluessel: unknown): Promise<Record<string, Symbolquelle>>`.
   - `grundlagen.ts`: `interface ZeichenIndexEintrag { schluessel: string; titel: string; suchtext: string }`.
   - `zeichen.ts` (nur Server): `zeichenIndex(): ZeichenIndexEintrag[]` (nach Titel, `localeCompare(…, "de")`); `symboleFuerSchluessel(schluessel: readonly string[]): Record<string, Symbolquelle>`.
 
@@ -1481,6 +1587,17 @@ describe("Plan-Actions", () => {
     gruppen = ["iuk-kommplan"];
     await expect(legePlanAnAction(ANGABEN)).rejects.toThrow("Forbidden");
     await expect(speichereInhaltAction({ id: "x", version: 1, inhalt: {} })).rejects.toThrow("Forbidden");
+    const { ladeStandAction } = await import("./plan");
+    await expect(ladeStandAction("x")).rejects.toThrow("Forbidden");
+  });
+  it("ladeStandAction liefert den Serverstand, unbekannt oder ungültig ist null", async () => {
+    gruppen = ["iuk-kommplan-bearbeiten"];
+    const { ladeStandAction, legePlanAnAction } = await import("./plan");
+    const neu = await legePlanAnAction(ANGABEN);
+    if (!neu.ok) throw new Error(neu.fehler);
+    expect(await ladeStandAction(neu.id)).toMatchObject({ version: 1, angaben: { titel: "Übung" } });
+    expect(await ladeStandAction("gibt-es-nicht")).toBeNull();
+    expect(await ladeStandAction({ id: 5 })).toBeNull();
   });
   it("anlegen, speichern, Konflikt — mit Audit-Akteur aus der Sitzung", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];
@@ -1602,8 +1719,8 @@ export function symboleFuer(inhalt: PlanInhalt): Record<string, Symbolquelle> {
 import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
-import type { AnlageErgebnis, SpeicherErgebnis } from "../_lib/ergebnis";
-import { legePlanAn, speichereAngaben, speichereInhalt } from "../_lib/speichern";
+import type { AnlageErgebnis, SpeicherErgebnis, Speicherstand } from "../_lib/ergebnis";
+import { ladeStand, legePlanAn, speichereAngaben, speichereInhalt } from "../_lib/speichern";
 import { bearbeiterAus, requireKommplanBearbeitenAktion } from "../_lib/zugang";
 
 // Server Actions des Editors (Spec §6.6). Jede prüft selbst (eine Action ist per POST direkt
@@ -1635,6 +1752,13 @@ export async function speichereAngabenAction(eingabe: unknown): Promise<Speicher
     return speichereAngaben(getDb(), k.data, bearbeiterAus(viewer), Date.now());
   });
 }
+
+/** Lesend (Entscheidung 21): der Editor prüft beim Montieren, ob seine Props veraltet sind (Browser-Zurück). */
+export async function ladeStandAction(id: unknown): Promise<Speicherstand | null> {
+  await requireKommplanBearbeitenAktion();
+  const r = kopf.shape.id.safeParse(id);
+  return r.success ? ladeStand(getDb(), r.data) : null;
+}
 ```
 
 `K/_actions/zeichen.ts`:
@@ -1661,6 +1785,7 @@ export async function ladeZeichenAction(schluessel: unknown): Promise<Record<str
 In `src/core/audit/coverage-manifest.json` in alphabetischer Nachbarschaft der übrigen `src/app/m/…/_actions/…`-Einträge ergänzen:
 
 ```json
+  "src/app/m/kommplan/_actions/plan.ts#ladeStandAction": { "kind": "excluded", "reason": "Liest nur Version, Inhalt und Angaben eines Plans, damit der Editor nach Browser-Zurück keinen veralteten Stand zeigt; schreibt nichts." },
   "src/app/m/kommplan/_actions/plan.ts#legePlanAnAction": { "kind": "context", "via": "legePlanAnAction" },
   "src/app/m/kommplan/_actions/plan.ts#speichereAngabenAction": { "kind": "context", "via": "speichereAngabenAction" },
   "src/app/m/kommplan/_actions/plan.ts#speichereInhaltAction": { "kind": "context", "via": "speichereInhaltAction" },
@@ -1686,7 +1811,7 @@ In `erreichbar` nach `gesehen.add(datei);` einfügen: `if (datei !== start && is
 - [ ] **Step 7: Grün sehen**
 
 Run: `pnpm vitest run src/app/m/kommplan src/core/audit && pnpm typecheck; echo "typecheck exit $?"`
-Expected: PASS (auch `coverage.test.ts` mit den vier neuen Einträgen), exit 0.
+Expected: PASS (auch `coverage.test.ts` mit den fünf neuen Einträgen), exit 0.
 
 Run: `pnpm build`
 Expected: Build grün; `"use server"`-Dateien exportieren nur async-Funktionen (sonst bricht der Build hier).
@@ -1763,6 +1888,17 @@ describe("Neuer Plan", () => {
     expect(query('input[name="titel"]').getAttribute("aria-invalid")).toBe("true");
     expect(document.body.textContent).toContain("Bitte einen Titel eintragen.");
     expect(document.querySelector(".ant-alert-error")).toBeNull();
+  });
+  it("auch das Datum: aria-invalid und aria-describedby zeigen auf den Fehlertext", async () => {
+    aktion.legePlanAnAction.mockResolvedValue({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { datum: "Diesen Tag gibt es nicht." } });
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} />);
+    await fill('input[name="titel"]', "X");
+    await submitForm();
+    await act(async () => {});
+    // antd legt die id des DatePicker auf das <input>; der Greifer geht über die Beschriftung, nicht über eine antd-Klasse
+    const datum = query<HTMLInputElement>(`#${CSS.escape(query("label[for$='-datum']").getAttribute("for")!)}`);
+    expect(datum.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(datum.getAttribute("aria-describedby")!)?.textContent).toBe("Diesen Tag gibt es nicht.");
   });
   it("ein Wurf (keine Verbindung, Recht entzogen) wird ein Hinweis, kein Absturz", async () => {
     aktion.legePlanAnAction.mockRejectedValue(new Error("Forbidden"));
@@ -1851,7 +1987,7 @@ export function NeuerPlanFormular({ onAngelegt, onAbbrechen, titelRef }: {
 
   return (
     <form aria-label="Neuer Plan" onSubmit={absenden} className="kp-formular">
-      {fehler && Object.keys(feldFehler).length === 0 ? <Alert type="warning" showIcon message={fehler} /> : null}
+      {fehler && Object.keys(feldFehler).length === 0 ? <Alert type="warning" showIcon title={fehler} /> : null}
       <label className="kp-feldname" htmlFor={`${basis}-titel`}>Titel</label>
       <Input ref={titelRef} name="titel" value={titel} maxLength={LAENGE.titel} onChange={(e) => setTitel(e.target.value)} {...feld("titel")} />
       {fehlerText("titel")}
@@ -1861,7 +1997,8 @@ export function NeuerPlanFormular({ onAngelegt, onAbbrechen, titelRef }: {
       <Input name="anlass" value={anlass} maxLength={LAENGE_ANLASS} onChange={(e) => setAnlass(e.target.value)} {...feld("anlass")} />
       {fehlerText("anlass")}
       <label className="kp-feldname" htmlFor={`${basis}-datum`}>Datum</label>
-      <DatePicker id={`${basis}-datum`} value={datum} onChange={setDatum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
+      {/* feld() auch hier: aria-invalid UND aria-describedby auf den Fehlertext (docs/design/feedback-admin.md 4.4) */}
+      <DatePicker {...feld("datum")} value={datum} onChange={setDatum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
         status={feldFehler.datum ? "error" : undefined} />
       {fehlerText("datum")}
       <div className="kp-formular-knoepfe">
@@ -1879,12 +2016,13 @@ In `K/_ui/kommplan.css` anhängen:
 /* Formulare in Flyins (NeuerPlan, PlanFlyin, StelleFlyin): Beschriftung über dem Feld, Feldfehler als
    gedämpfter Text, nie rot (Falle 3, docs/design/feedback-admin.md 4.4). Feldnamen tragen eine EIGENE
    Klasse statt `.kp-formular label`: antd rendert Checkbox, Radio-Knöpfe und Schalter selbst in
-   `<label>`, und (0,1,1) schlüge deren Ein-Klassen-Regeln — versal-graue Radioknöpfe (Falle 5). */
+   `<label>`, und (0,1,1) schlüge deren Ein-Klassen-Regeln — versal-graue Radioknöpfe (Falle 5).
+   Die Knopfreihe bricht am KASTEN um (`auto-fit`/`minmax`), nicht am Fenster: ein Flyin ist auch
+   auf breitem Schirm schmal (Falle 13). */
 .kp-formular { display: grid; gap: 8px; }
 .kp-feldname { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--kp-gedaempft); margin-top: 8px; }
 .kp-feldfehler { margin: 0; font-size: 12px; color: var(--kp-gedaempft); }
-.kp-formular-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-@media (max-width: 767.98px) { .kp-formular-knoepfe > * { flex: 1 1 100%; } }
+.kp-formular-knoepfe { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 16px; }
 ```
 
 und in beiden Variablenblöcken (`:root` und `:root[data-theme="dark"]`) je eine Variable ergänzen (hinter `--kp-rand`, gleiche Zeile): hell `--kp-gedaempft: #5b6573;`, dunkel `--kp-gedaempft: #a9b2bf;`.
@@ -2002,6 +2140,8 @@ describe("Tastenbefehle", () => {
     expect(flaechenBefehl(t("ArrowLeft"))).toEqual({ art: "wandere", richtung: "links" });
     expect(flaechenBefehl(t("ArrowDown"))).toEqual({ art: "wandere", richtung: "runter" });
     expect(flaechenBefehl(t("Enter"))).toEqual({ art: "oeffnen" });
+    expect(flaechenBefehl(t("F2"))).toEqual({ art: "oeffnen" }); // wie in Excel (Entscheidung 9)
+    expect(flaechenBefehl(t("a"))).toBeNull(); // Tippen bearbeitet NICHT den Titel (Entscheidung 9)
     expect(flaechenBefehl(t("n"))).toEqual({ art: "neueUnterstelle" });
     expect(flaechenBefehl(t("N", { shiftKey: true }))).toEqual({ art: "neueUnterstelle" });
     expect(flaechenBefehl(t("Delete"))).toEqual({ art: "loeschen" });
@@ -2227,6 +2367,8 @@ export const kannWiederholen = (v: Verlauf) => v.zukunft.length > 0;
  * - Die Flächenbefehle gelten nur, wenn die Zeichenfläche den Fokus hat (das Flyin ist ein Portal
  *   außerhalb der Fläche) — so löscht „Entf" im Titelfeld nie die Karte.
  * - Rücktaste zählt wie Entf: auf Mac-Tastaturen heißt „Entf" so.
+ * - Andere druckbare Tasten bewusst ohne Wirkung (Entscheidung 9): §6.3 legt N als Befehl fest,
+ *   „Tippen bearbeitet den Titel" machte N zur einzigen Ausnahme. F2 öffnet wie Enter.
  */
 export interface Taste { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }
 export type Richtung = "hoch" | "runter" | "links" | "rechts";
@@ -2247,7 +2389,7 @@ const PFEILE: Readonly<Record<string, Richtung>> = { ArrowUp: "hoch", ArrowDown:
 export function flaechenBefehl(t: Taste): Befehl | null {
   if (t.ctrlKey || t.metaKey || t.altKey) return null;
   if (Object.prototype.hasOwnProperty.call(PFEILE, t.key)) return { art: "wandere", richtung: PFEILE[t.key] };
-  if (t.key === "Enter") return { art: "oeffnen" };
+  if (t.key === "Enter" || t.key === "F2") return { art: "oeffnen" };
   if (t.key === "n" || t.key === "N") return { art: "neueUnterstelle" };
   if (t.key === "Delete" || t.key === "Backspace") return { art: "loeschen" };
   if (t.key === "Escape") return { art: "abwaehlen" };
@@ -2402,11 +2544,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `SpeicherErgebnis`, `Speicherstand` (Task 5), `Planangaben` (Task 5), `PlanInhalt`.
 - Produces:
-  - `WARTEZEIT_MS = 1000`
+  - `WARTEZEIT_MS = 1000`; `WIEDERHOLUNG_MS = [5_000, 15_000, 30_000, 60_000] as const` (danach jede Minute; Entscheidung 11)
   - `type SpeicherStatus = "gespeichert" | "ungespeichert" | "speichert" | "fehler" | "konflikt"`
   - `interface SpeicherZustand { status: SpeicherStatus; version: number; konflikt: Speicherstand | null; zuletztGespeichert: number | null; fehler: string | null }`
   - `interface Senden { inhalt(e: { id: string; version: number; inhalt: PlanInhalt }): Promise<SpeicherErgebnis>; angaben(e: { id: string; version: number; angaben: Planangaben }): Promise<SpeicherErgebnis> }`
-  - `class Speicherer` mit `constructor(o: { planId: string; version: number; inhalt: PlanInhalt; senden: Senden; melde: (z: SpeicherZustand) => void; warte?: number })`, `get zustand(): SpeicherZustand`, `aendere(inhalt: PlanInhalt): void`, `angaben(a: Planangaben): Promise<SpeicherErgebnis>`, `jetzt(): Promise<boolean>`, `behalteMeine(): Promise<void>`, `uebernimm(stand: Speicherstand): void`, `erneut(): Promise<void>`, `hatUngespeichertes(): boolean`.
+  - `class Speicherer` mit `constructor(o: { planId: string; version: number; inhalt: PlanInhalt; senden: Senden; melde: (z: SpeicherZustand) => void; warte?: number })`, `get zustand(): SpeicherZustand`, `aendere(inhalt: PlanInhalt): void`, `angaben(a: Planangaben): Promise<SpeicherErgebnis>`, `jetzt(): Promise<boolean>`, `behalteMeine(): Promise<void>`, `uebernimm(stand: Speicherstand): void`, `erneut(): Promise<void>`, `hatUngespeichertes(): boolean`, `pruefeStand(stand: Speicherstand): "aktuell" | "uebernommen" | "konflikt"` (Entscheidung 21: Serverstand beim Montieren).
 
 Kein React: die Editor-Insel hält eine Instanz (`useState(() => new Speicherer(…))`) und ruft `aendere` aus ihren Ereignis-Rückrufen — nicht aus einem Effekt (`set-state-in-effect`).
 
@@ -2420,7 +2562,7 @@ import type { Planangaben } from "../../_lib/angaben";
 import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
 import { fuegeWurzelEin, leererPlan } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
-import { Speicherer, WARTEZEIT_MS, type SpeicherZustand } from "./speicherer";
+import { Speicherer, WARTEZEIT_MS, WIEDERHOLUNG_MS, type SpeicherZustand } from "./speicherer";
 
 const ANGABEN: Planangaben = { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: null };
 const a = leererPlan(), b = fuegeWurzelEin(a, "b"), c = fuegeWurzelEin(b, "c");
@@ -2526,7 +2668,7 @@ describe("Autosave (Spec §6.6)", () => {
     expect(s.senden.inhalt).toHaveBeenLastCalledWith({ id: "p", version: 5, inhalt: b });
     expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 6, konflikt: null });
   });
-  it("„Meine Fassung behalten" sendet auch, wenn der Konflikt beim Übernehmen der Planangaben entstand", async () => {
+  it("„Meine Fassung behalten" sendet auch, wenn der Konflikt beim Speichern der Planangaben entstand", async () => {
     const s = server();
     const { sp } = baueSpeicherer(s);
     s.version = 5;
@@ -2557,6 +2699,45 @@ describe("Autosave (Spec §6.6)", () => {
     expect(sp.hatUngespeichertes()).toBe(true);
     await sp.erneut();
     expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 2, fehler: null });
+  });
+  it("nach einem Wurf versucht er es selbst wieder: 5 s, 15 s, 30 s, dann jede Minute (Entscheidung 11)", async () => {
+    const s = server();
+    const { sp } = baueSpeicherer(s);
+    s.senden.inhalt.mockRejectedValueOnce(new Error("offline")).mockRejectedValueOnce(new Error("offline")).mockRejectedValueOnce(new Error("offline"));
+    sp.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(WIEDERHOLUNG_MS[0] - 1);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(WIEDERHOLUNG_MS[1]);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(WIEDERHOLUNG_MS[2]);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(4);
+    expect(sp.zustand).toMatchObject({ status: "gespeichert", version: 2 });
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(s.senden.inhalt).toHaveBeenCalledTimes(4); // nach Erfolg kein weiterer Versuch
+  });
+  it("bei Konflikt und „weg“ kein Wiederholen", async () => {
+    const s = server();
+    const { sp } = baueSpeicherer(s);
+    s.version = 5;
+    sp.aendere(b);
+    await vi.advanceTimersByTimeAsync(WARTEZEIT_MS + 10 * 60_000);
+    expect(s.log).toEqual(["inhalt@1"]);
+  });
+  it("Serverstand beim Montieren (Entscheidung 21): gleich → aktuell; neuer und lokal nichts geändert → still übernommen; sonst Konflikt", () => {
+    const s = server();
+    const stand = (version: number): Speicherstand => ({ version, inhalt: c, angaben: ANGABEN, aktualisiertAm: 99, aktualisiertVon: "Jana" });
+    expect(baueSpeicherer(s).sp.pruefeStand(stand(1))).toBe("aktuell");
+    const still = baueSpeicherer(s).sp;
+    expect(still.pruefeStand(stand(4))).toBe("uebernommen");
+    expect(still.zustand).toMatchObject({ status: "gespeichert", version: 4, konflikt: null });
+    const geaendert = baueSpeicherer(s).sp;
+    geaendert.aendere(b);
+    expect(geaendert.pruefeStand(stand(4))).toBe("konflikt");
+    expect(geaendert.zustand).toMatchObject({ status: "konflikt", konflikt: { version: 4 } });
   });
   it("vor dem Drucken: wartende Änderung sofort senden", async () => {
     const s = server();
@@ -2595,8 +2776,11 @@ import type { PlanInhalt } from "../../_lib/plan/schema";
  * - Konflikt: kein automatisches Speichern mehr, bis „Neu laden" (`uebernimm`) oder „Meine Fassung
  *   behalten" (`behalteMeine`) entschieden ist.
  * - Timer über `globalThis.setTimeout` JE AUFRUF, nicht gemerkt: so greifen die Fake-Timer im Test.
+ * - Nach einem WURF (Netz weg, Sitzung abgelaufen) versucht er es selbst wieder, mit wachsendem
+ *   Abstand (`WIEDERHOLUNG_MS`); Konflikt und „weg" wiederholen nie — dort entscheidet ein Mensch.
  */
 export const WARTEZEIT_MS = 1000;
+export const WIEDERHOLUNG_MS = [5_000, 15_000, 30_000, 60_000] as const;
 export type SpeicherStatus = "gespeichert" | "ungespeichert" | "speichert" | "fehler" | "konflikt";
 export interface SpeicherZustand { status: SpeicherStatus; version: number; konflikt: Speicherstand | null; zuletztGespeichert: number | null; fehler: string | null }
 export interface Senden {
@@ -2613,6 +2797,7 @@ export class Speicherer {
   private aktuell: PlanInhalt;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private kette: Promise<unknown> = Promise.resolve();
+  private versuche = 0;
 
   constructor(private readonly o: { planId: string; version: number; inhalt: PlanInhalt; senden: Senden; melde: (z: SpeicherZustand) => void; warte?: number }) {
     this.gespeichert = o.inhalt;
@@ -2627,9 +2812,9 @@ export class Speicherer {
     this.o.melde(this.stand);
   }
 
-  private planeSenden(): void {
+  private planeSenden(warte: number = this.o.warte ?? WARTEZEIT_MS): void {
     this.abbrechen();
-    this.timer = globalThis.setTimeout(() => { this.timer = null; void this.sendeInhalt(); }, this.o.warte ?? WARTEZEIT_MS);
+    this.timer = globalThis.setTimeout(() => { this.timer = null; void this.sendeInhalt(); }, warte);
   }
 
   private abbrechen(): void {
@@ -2672,8 +2857,11 @@ export class Speicherer {
         r = await this.o.senden.inhalt({ id: this.o.planId, version: this.stand.version, inhalt: senden });
       } catch {
         this.setze({ status: "fehler", fehler: NETZFEHLER });
+        this.planeSenden(WIEDERHOLUNG_MS[Math.min(this.versuche, WIEDERHOLUNG_MS.length - 1)]);
+        this.versuche += 1;
         return;
       }
+      this.versuche = 0;
       this.verarbeite(r, () => { this.gespeichert = senden; });
     });
   }
@@ -2724,9 +2912,24 @@ export class Speicherer {
     this.setze({ status: "gespeichert", konflikt: null, version: stand.version, fehler: null, zuletztGespeichert: stand.aktualisiertAm });
   }
 
+  /** „Erneut versuchen" und das Fensterereignis `online` (Editor): sofort, der Rückzug beginnt von vorn. */
   erneut(): Promise<void> {
     this.abbrechen();
+    this.versuche = 0;
     return this.sendeInhalt();
+  }
+
+  /**
+   * Entscheidung 21: Serverstand beim Montieren. Next zeigt nach Browser-Zurück die Seite aus dem
+   * Client-Cache, die Props können also veraltet sein. Lokal unverändert → still übernehmen; lokal
+   * schon geändert → derselbe Konflikt wie beim Speichern.
+   */
+  pruefeStand(s: Speicherstand): "aktuell" | "uebernommen" | "konflikt" {
+    if (s.version <= this.stand.version) return "aktuell";
+    if (!this.hatUngespeichertes() && this.stand.status !== "konflikt") { this.uebernimm(s); return "uebernommen"; }
+    this.abbrechen();
+    this.setze({ status: "konflikt", konflikt: s });
+    return "konflikt";
   }
 }
 ```
@@ -2746,7 +2949,7 @@ git commit -S -m "feat(kommplan): Autosave-Warteschlange mit Versionsprüfung un
 
 Ein Aufruf zugleich, Planangaben reihen sich ein; nach einem Konflikt
 wird erst nach „Neu laden“ oder „Meine Fassung behalten“ wieder
-gespeichert.
+gespeichert, nach einem Netzfehler von selbst mit wachsendem Abstand.
 
 DRK-500
 
@@ -2759,14 +2962,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `K/_ui/betrachter/Flaeche.tsx`, `K/_ui/betrachter/Legende.tsx`, `K/_ui/betrachter/Umschalter.tsx`, `K/_ui/zeichnung/lage.ts`
-- Modify: `K/_ui/betrachter/Betrachter.tsx`, `K/_ui/zeichnung/Zeichnung.tsx`, `K/_ui/zeichnung/Karte.tsx`, `K/_ui/zeichnung/Sechseck.tsx`, `K/_ui/kommplan.css`
-- Test: `K/_ui/betrachter/Flaeche.test.tsx` (neu), `K/_ui/betrachter/Betrachter.test.tsx` (unverändert grün), `K/_ui/zeichnung/Zeichnung.test.tsx`, `K/_ui/kommplan-css.test.ts` (neu)
+- Modify: `K/_ui/betrachter/Betrachter.tsx`, `K/_ui/betrachter/ansicht.ts` (`einpassen` mit Optionen), `K/_ui/zeichnung/Zeichnung.tsx`, `K/_ui/zeichnung/Karte.tsx`, `K/_ui/zeichnung/Sechseck.tsx`, `K/_ui/kommplan.css`
+- Test: `K/_ui/betrachter/Flaeche.test.tsx` (neu), `K/_ui/betrachter/ansicht.test.ts`, `K/_ui/betrachter/Betrachter.test.tsx` (unverändert grün), `K/_ui/zeichnung/Zeichnung.test.tsx`, `K/_ui/kommplan-css.test.ts` (neu)
 
 **Interfaces:**
-- Consumes: alles, was `Betrachter.tsx` heute nutzt (`ansicht.ts`, `umschalter.ts`, `layout`, `legende`, `SymbolDefs`, `ZeichnungInhalt`).
+- Consumes: alles, was `Betrachter.tsx` heute nutzt (`ansicht.ts`, `umschalter.ts`, `layout`, `legende`, `SymbolDefs`, `ZeichnungInhalt`), `FLYIN_MAX_ANTEIL_PROZENT` (`@/core/theme/flyin`).
 - Produces:
-  - `Flaeche(props)` (`"use client"`): `{ daten: Zeichnungsdaten; symbole: Symbolsatz; titel: string; schrift: string; bedienhinweis: string; leer: ReactNode; zusatz?: (k: KarteL) => ReactNode; ueberlagerung?: (a: Ansicht) => ReactNode; onTaste?: (e: KeyboardEvent<HTMLDivElement>) => boolean; onKarteKlick?: (id: string | null, doppelt: boolean) => void; gleitend?: boolean; linienSchluessel?: string; griff?: Ref<FlaecheGriff>; werkzeuge?: ReactNode }`
-  - `interface FlaecheGriff { halte(): void; zeige(k: { x: number; y: number; breite: number; hoehe: number }, rand?: number): void }` (`rand` in Pixeln, Vorgabe 24)
+  - `einpassen(breiteMm, hoeheMm, vb, vh, o?: { rand?: number; seite?: number; unten?: number; max?: number })` — `rand` (Vorgabe 16) oben; `seite` (Vorgabe `rand`) links und rechts; `unten` (Vorgabe `rand`) Platz unter der Zeichnung; `max` (Vorgabe `GRENZEN.max`) Deckel des Maßstabs. Ohne Optionen genau das bisherige Verhalten.
+  - `Flaeche(props)` (`"use client"`): `{ daten: Zeichnungsdaten; symbole: Symbolsatz; titel: string; schrift: string; bedienhinweis: string; leer: ReactNode; zusatz?: (k: KarteL) => ReactNode; ueberlagerung?: (a: Ansicht, flaeche: { breite: number; hoehe: number }) => ReactNode; meldung?: ReactNode; onTaste?: (e: KeyboardEvent<HTMLDivElement>) => boolean; onKarteKlick?: (id: string | null, doppelt: boolean) => void; gleitend?: boolean; linienSchluessel?: string; griff?: Ref<FlaecheGriff>; werkzeuge?: ReactNode; maxMassstab?: number; platzSeite?: number; platzUnten?: number; flyinGrund?: number | null }`
+    - `maxMassstab`: Deckel der eingepassten Ansicht (Editor: `EDITOR_MASSSTAB = 4`, Entscheidung 18); `platzSeite`/`platzUnten`: Pixel links/rechts bzw. unter der Zeichnung beim Einpassen (Editor: `GRIFF_RAND` — Platz für die seitlichen „+" der Randkarten und die Griffleiste der untersten Karte; so liegen die Griffe jeder Karte schon eingepasst im Bild, und `zeige()` muss eine eingepasste Ansicht nie verschieben, Entscheidung 18); die Fläche trägt `data-eingepasst="true"|"false"` (für den e2e); `flyinGrund`: Grundbreite eines offenen Flyins ohne Maske (`520`) oder `null` — die Fläche rechnet daraus mit `FLYIN_MAX_ANTEIL_PROZENT` dieselbe `min(…)`-Breite wie `flyinBreite()` und zieht den verdeckten Teil ihrer eigenen Breite ab, beim Einpassen wie bei `zeige()`.
+    - `meldung`: Hinweis unten mittig IN der Fläche (Entscheidung 19), auch beim leeren Plan.
+  - `interface FlaecheGriff { fokus(): void; zeige(k: { x: number; y: number; breite: number; hoehe: number }, rand?: { oben: number; seite: number; unten: number }): void }` (`rand` in Pixeln, Vorgabe je 24; oben braucht der Editor nur 16 — über einer Karte steht kein Griff). `halte()` entfällt (Entscheidung 18).
   - `Legende({ eintraege }: { eintraege: LegendenEintrag[] })` — `null` ohne Einträge.
   - `Umschalter({ k, onUmschalten }: { k: KarteL; onUmschalten: (id: string) => void })` — `null`, wenn `!k.einklappbar`.
   - `lage(x: number, y: number, gleitend: boolean): { transform?: string; style?: CSSProperties; className?: string }`
@@ -2829,6 +3035,46 @@ describe("Fläche", () => {
     await zeige({ ueberlagerung: (a) => <span data-test-ansicht={`${a.x},${a.y},${a.massstab}`} /> });
     expect(query(".kp-betrachter .kp-ueberlagerung [data-test-ansicht]").getAttribute("data-test-ansicht")).toBe("16,16,4");
   });
+  it("die Meldung steht in der Fläche — auch wenn der Plan leer ist (Entscheidung 19)", async () => {
+    await mount(<Flaeche daten={layout(leererPlan(), "bildschirm")} symbole={{}} titel="T" schrift="Arimo" bedienhinweis="Hinweis"
+      leer={<p>leer</p>} meldung={<span data-test-meldung="" />} />);
+    expect(exists(".kp-betrachter [data-test-meldung]")).toBe(true);
+  });
+  it("fokus() setzt den Fokus auf die Fläche (Entscheidung 17)", async () => {
+    const griff = createRef<FlaecheGriff>();
+    await zeige({ griff });
+    (document.activeElement as HTMLElement | null)?.blur();
+    await act(async () => { griff.current!.fokus(); });
+    expect(document.activeElement).toBe(query(".kp-betrachter"));
+  });
+  it("gleitend: die Ansicht trägt zusätzlich einen CSS-Transform; das Attribut bleibt (Phase-1-Tests lesen es)", async () => {
+    await zeige({ gleitend: true });
+    const g = query("[data-ansicht]");
+    expect(g.getAttribute("transform")).toBe("translate(16 16) scale(4)");
+    expect(g.style.transform).toBe("translate(16px, 16px) scale(4)");
+    expect(g.getAttribute("class")).toBe("kp-gleitet"); // eingepasst = automatisch → gleitet
+    // Normalisiert jsdom (cssstyle) den Wert anders, auf toContain("translate(16px") ausweichen — nie die Zusage streichen.
+  });
+});
+```
+
+Die Importe des Tests entsprechend ergänzen (`createRef` aus `react`, `exists` aus dem Harness, `leererPlan` aus `../../_lib/plan/operationen`, Typ `FlaecheGriff` aus `./Flaeche`).
+
+An `K/_ui/betrachter/ansicht.test.ts` anhängen:
+
+```ts
+describe("einpassen mit Optionen (Entscheidung 18)", () => {
+  it("ohne Optionen wie bisher; max deckelt den Maßstab, unten hält Platz frei", () => {
+    expect(einpassen(200, 100, 1000, 600)).toEqual(einpassen(200, 100, 1000, 600, {}));
+    const eine = einpassen(46, 20, 1000, 600, { max: 4 }); // eine einzelne Karte
+    expect(eine.massstab).toBe(4);
+    expect(eine.x).toBeCloseTo((1000 - 46 * 4) / 2, 6);
+    const hoch = einpassen(100, 500, 1000, 600, { unten: 80 });
+    expect(hoch.massstab).toBeCloseTo((600 - 16 - 80) / 500, 6);
+    const breit = einpassen(1000, 100, 1000, 600, { seite: 84 });
+    expect(breit.massstab).toBeCloseTo((1000 - 2 * 84) / 1000, 6);
+    expect(breit.x).toBeCloseTo(84, 6);
+  });
 });
 ```
 
@@ -2879,7 +3125,18 @@ describe("gleitend (Editor, Spec §6.3)", () => {
 - [ ] **Step 2: Rot sehen**
 
 Run: `pnpm vitest run src/app/m/kommplan/_ui`
-Expected: FAIL — `Flaeche` fehlt, `ZeichnungInhalt` kennt `gleitend` nicht, die CSS-Regeln fehlen. `Betrachter.test.tsx` ist noch grün.
+Expected: FAIL — `Flaeche` fehlt, `ZeichnungInhalt` kennt `gleitend` nicht, die CSS-Regeln fehlen, `einpassen` kennt keine Optionen. `Betrachter.test.tsx` ist noch grün.
+
+`einpassen` in `ansicht.ts` (Signatur ändern, Kommentar ergänzen: „`max` deckelt — der Editor will eine einzelne Karte nicht mit Maßstab 16 sehen; `unten` hält Platz für die Griffleiste der untersten Karte"):
+
+```ts
+export function einpassen(breiteMm: number, hoeheMm: number, vb: number, vh: number, o: { rand?: number; seite?: number; unten?: number; max?: number } = {}): Ansicht {
+  const rand = o.rand ?? 16, seite = o.seite ?? rand, unten = o.unten ?? rand, max = o.max ?? GRENZEN.max;
+  if (breiteMm <= 0 || hoeheMm <= 0 || vb <= 0 || vh <= 0) return { massstab: 4, x: rand, y: rand };
+  const m = Math.min(max, Math.max(1e-3, Math.min((vb - 2 * seite) / breiteMm, (vh - rand - unten) / hoeheMm)));
+  return { massstab: m, x: (vb - breiteMm * m) / 2, y: rand };
+}
+```
 
 - [ ] **Step 3: Lage und gleitende Zeichnung**
 
@@ -2907,6 +3164,17 @@ In `Zeichnung.tsx`:
 export function ZeichnungInhalt({ daten, zusatz, gleitend = false, linienSchluessel }: {
   daten: Zeichnungsdaten; zusatz?: (k: KarteL) => ReactNode; gleitend?: boolean; linienSchluessel?: string;
 }) {
+  // Sechseck-Schlüssel: Netz + Verbindung, dazu das n-te Vorkommen JE PAAR — nicht der globale Index,
+  // sonst verschöbe ein neues Sechseck davor die Schlüssel aller späteren, die dann neu eingehängt
+  // würden und sprängen statt zu gleiten. Das Paar ist fast immer eindeutig (`sammler.ts`: Kanäle
+  // tragen das Netz `<stelle>#kanal`).
+  const vorkommen = new Map<string, number>();
+  const sechseckSchluessel = daten.sechsecke.map((s) => {
+    const paar = `${s.netz}:${s.verbindungId}`;
+    const n = vorkommen.get(paar) ?? 0;
+    vorkommen.set(paar, n + 1);
+    return `${paar}:${n}`;
+  });
   return (
     <g>
       {/* Linien haben keine stabile Identität (Netz + Index): im Editor werden sie nach dem Gleiten
@@ -2917,7 +3185,7 @@ export function ZeichnungInhalt({ daten, zusatz, gleitend = false, linienSchlues
           <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} strokeWidth={l.duenn ? STRICH.duenn : STRICH.linie} data-netz={l.netz} />
         ))}
       </g>
-      {daten.sechsecke.map((s, i) => <Sechseck key={`${s.netz}:${s.verbindungId}:${i}`} s={s} gleitend={gleitend} />)}
+      {daten.sechsecke.map((s, i) => <Sechseck key={sechseckSchluessel[i]} s={s} gleitend={gleitend} />)}
       {daten.karten.map((k) => <Karte key={k.id} k={k} zusatz={zusatz} gleitend={gleitend} />)}
       {daten.einheiten.map((e) => <Einheit key={e.id} e={e} gleitend={gleitend} />)}
       {daten.abzeichen.map((a) => <Abzeichen key={a.stelleId} a={a} gleitend={gleitend} />)}
@@ -2926,7 +3194,7 @@ export function ZeichnungInhalt({ daten, zusatz, gleitend = false, linienSchlues
 }
 ```
 
-(Der Sechseck-Schlüssel trägt Netz und Verbindung, damit ein Sechseck beim Einfügen an seiner Identität hängen bleibt und gleitet, statt von einem anderen Index übernommen zu werden.)
+(Der Sechseck-Schlüssel hängt am Paar Netz + Verbindung, nicht am globalen Index — nur so bleibt ein Sechseck beim Einfügen an seiner Identität hängen und gleitet.)
 
 In `K/_ui/kommplan.css` anhängen:
 
@@ -2981,11 +3249,12 @@ export function Umschalter({ k, onUmschalten }: { k: KarteL; onUmschalten: (id: 
 
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { Button } from "antd";
+import { FLYIN_MAX_ANTEIL_PROZENT } from "@/core/theme/flyin";
 import type { KarteL, Zeichnungsdaten } from "../../_lib/layout/typen";
 import { FARBE } from "../zeichnung/farben";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import { ZeichnungInhalt } from "../zeichnung/Zeichnung";
-import { SCHRITT, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome, type Ansicht } from "./ansicht";
+import { GRENZEN, SCHRITT, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome, type Ansicht } from "./ansicht";
 
 /**
  * DIE ZEICHENFLÄCHE von Betrachter und Editor (Spec §5.7, §6.3): Zoom, Verschieben, Pinch, Rad,
@@ -2997,58 +3266,74 @@ import { SCHRITT, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome, type
  * Bewegung über `KLICK_TOLERANZ` ist der Klick; zwei Klicks auf dieselbe Karte binnen `DOPPEL_MS`
  * sind ein Doppelklick.
  *
- * `griff.halte()` friert die eingepasste Ansicht als eigene ein: nach einer Bearbeitung soll nicht
- * das ganze Bild neu eingepasst springen, sondern nur die Karten gleiten.
+ * EINGEPASST BLEIBT EINGEPASST (Umsetzungsplan Phase 2, Entscheidung 18): `eigene === null` heißt
+ * „eingepasst", und die Ansicht folgt jedem neuen Layout — gedeckelt auf `maxMassstab`, mit
+ * `platzUnten` für die Griffleiste und ohne den Teil, den ein offenes Flyin verdeckt (`flyinGrund`,
+ * dieselbe `min(…)`-Regel wie `flyinBreite()`). Erst Zoom, Verschieben, Rad oder Pinch der Nutzerin
+ * machen eine eigene Ansicht daraus (`auto: false`); `zeige()` verschiebt automatisch (`auto: true`).
+ * Automatische Wechsel gleiten im Editor (`kp-gleitet` am `[data-ansicht]`), eigene nie — sonst
+ * hinkte die Zeichnung beim Ziehen dem Finger hinterher.
  */
 export interface FlaecheGriff {
-  halte(): void;
-  /** `rand`: Pixel Luft rundum — der Editor gibt mehr, damit auch die Griffe neben und unter der Karte im Bild sind. */
-  zeige(k: { x: number; y: number; breite: number; hoehe: number }, rand?: number): void;
+  /** Fokus auf die Fläche (Entscheidung 17): nach Flyin-Schließen, Löschen, „Erste Stelle anlegen". */
+  fokus(): void;
+  /** `rand`: Pixel Luft oben, seitlich und unten — der Editor gibt seitlich und unten mehr, damit auch die Griffe im Bild sind. */
+  zeige(k: { x: number; y: number; breite: number; hoehe: number }, rand?: { oben: number; seite: number; unten: number }): void;
 }
 const KLICK_TOLERANZ = 5;
 const DOPPEL_MS = 400;
-const SICHTRAND = 24;
+const SICHTRAND = { oben: 24, seite: 24, unten: 24 };
 
 export function Flaeche({
-  daten, symbole, titel, schrift, bedienhinweis, leer, zusatz, ueberlagerung, onTaste, onKarteKlick,
-  gleitend = false, linienSchluessel, griff, werkzeuge,
+  daten, symbole, titel, schrift, bedienhinweis, leer, zusatz, ueberlagerung, meldung, onTaste, onKarteKlick,
+  gleitend = false, linienSchluessel, griff, werkzeuge, maxMassstab = GRENZEN.max, platzSeite, platzUnten, flyinGrund = null,
 }: {
   daten: Zeichnungsdaten; symbole: Symbolsatz; titel: string; schrift: string; bedienhinweis: string; leer: ReactNode;
-  zusatz?: (k: KarteL) => ReactNode; ueberlagerung?: (a: Ansicht) => ReactNode;
+  zusatz?: (k: KarteL) => ReactNode; ueberlagerung?: (a: Ansicht, flaeche: { breite: number; hoehe: number }) => ReactNode;
+  meldung?: ReactNode;
   onTaste?: (e: KeyboardEvent<HTMLDivElement>) => boolean; onKarteKlick?: (id: string | null, doppelt: boolean) => void;
   gleitend?: boolean; linienSchluessel?: string; griff?: Ref<FlaecheGriff>; werkzeuge?: ReactNode;
+  maxMassstab?: number; platzSeite?: number; platzUnten?: number; flyinGrund?: number | null;
 }) {
   const flaeche = useRef<HTMLDivElement>(null);
-  const [groesse, setGroesse] = useState({ b: 0, h: 0 });
-  const [eigene, setEigene] = useState<Ansicht | null>(null);
+  // Größe, linke Kante und Fensterbreite aus dem ResizeObserver-Rückruf (kein Messen im Rendern).
+  const [groesse, setGroesse] = useState({ b: 0, h: 0, links: 0, fenster: 0 });
+  const [eigene, setEigene] = useState<{ a: Ansicht; auto: boolean } | null>(null);
   const zeiger = useRef(new Map<number, { x: number; y: number }>());
   const start = useRef<{ x: number; y: number; karte: string | null; bewegt: boolean } | null>(null);
   const letzterKlick = useRef<{ karte: string | null; zeit: number } | null>(null);
 
-  const basis = einpassen(daten.breite, daten.hoehe, groesse.b, groesse.h);
-  const a = eigene ?? basis;
-  const basisRef = useRef(basis);
+  // Vom Flyin verdeckter Teil der Fläche, rechts (0 ohne Flyin oder ohne Messung).
+  const flyinPx = flyinGrund === null || groesse.fenster === 0 ? 0 : Math.min(flyinGrund, groesse.fenster * FLYIN_MAX_ANTEIL_PROZENT / 100);
+  const verdeckt = flyinPx === 0 ? 0 : Math.max(0, Math.min(groesse.b, groesse.links + groesse.b - (groesse.fenster - flyinPx)));
+  const basis = einpassen(daten.breite, daten.hoehe, groesse.b - verdeckt, groesse.h, { max: maxMassstab, seite: platzSeite, unten: platzUnten });
+  const a = eigene?.a ?? basis;
+  const automatisch = eigene === null || eigene.auto;
+  const lage = useRef({ basis, verdeckt });
   const untergrenzeJetzt = untergrenze(basis);
-  useEffect(() => { basisRef.current = basis; });
+  useEffect(() => { lage.current = { basis, verdeckt }; });
 
   useImperativeHandle(griff, () => ({
-    halte: () => setEigene((alt) => alt ?? basisRef.current),
+    fokus: () => flaeche.current?.focus({ preventScroll: true }),
     zeige: (k, rand = SICHTRAND) => setEigene((alt) => {
-      const jetzt = alt ?? basisRef.current;
+      const jetzt = alt?.a ?? lage.current.basis;
       const el = flaeche.current;
-      if (!el || el.clientWidth === 0) return jetzt;
-      const m = jetzt.massstab, w = el.clientWidth, h = el.clientHeight;
+      if (!el || el.clientWidth === 0) return alt;
+      const m = jetzt.massstab, w = el.clientWidth - lage.current.verdeckt, h = el.clientHeight;
       const l = jetzt.x + k.x * m, o = jetzt.y + k.y * m, r = l + k.breite * m, u = o + k.hoehe * m;
-      const dx = l < rand ? rand - l : r > w - rand ? w - rand - r : 0;
-      const dy = o < rand ? rand - o : u > h - rand ? h - rand - u : 0;
-      return dx === 0 && dy === 0 ? jetzt : verschiebe(jetzt, dx, dy);
+      const dx = l < rand.seite ? rand.seite - l : r > w - rand.seite ? w - rand.seite - r : 0;
+      const dy = o < rand.oben ? rand.oben - o : u > h - rand.unten ? h - rand.unten - u : 0;
+      if (dx === 0 && dy === 0) return alt;
+      return { a: verschiebe(jetzt, dx, dy), auto: true };
     }),
   }), []);
 
   useEffect(() => {
     const el = flaeche.current;
     if (!el || typeof ResizeObserver === "undefined") return; // jsdom kennt keinen ResizeObserver
-    const beobachter = new ResizeObserver(([e]) => setGroesse({ b: e.contentRect.width, h: e.contentRect.height }));
+    const beobachter = new ResizeObserver(([e]) => setGroesse({
+      b: e.contentRect.width, h: e.contentRect.height, links: el.getBoundingClientRect().left, fenster: window.innerWidth,
+    }));
     beobachter.observe(el);
     return () => beobachter.disconnect();
   }, []);
@@ -3061,25 +3346,29 @@ export function Flaeche({
       e.preventDefault();
       const r = el.getBoundingClientRect();
       setEigene((alt) => {
-        const jetzt = alt ?? basisRef.current;
-        return e.ctrlKey || e.metaKey
-          ? zoome(jetzt, Math.exp(-e.deltaY / 300), e.clientX - r.left, e.clientY - r.top, untergrenze(basisRef.current))
-          : verschiebe(jetzt, -e.deltaX, -e.deltaY);
+        const jetzt = alt?.a ?? lage.current.basis;
+        return {
+          a: e.ctrlKey || e.metaKey
+            ? zoome(jetzt, Math.exp(-e.deltaY / 300), e.clientX - r.left, e.clientY - r.top, untergrenze(lage.current.basis))
+            : verschiebe(jetzt, -e.deltaX, -e.deltaY),
+          auto: false,
+        };
       });
     };
     el.addEventListener("wheel", rad, { passive: false });
     return () => el.removeEventListener("wheel", rad);
   }, []);
 
-  const aendere = (f: (x: Ansicht) => Ansicht) => setEigene((alt) => f(alt ?? basisRef.current));
+  /** Eigene Ansicht der Nutzerin (Zoom, Verschieben): gleitet nie. */
+  const aendere = (f: (x: Ansicht) => Ansicht) => setEigene((alt) => ({ a: f(alt?.a ?? lage.current.basis), auto: false }));
   const zoomUmMitte = (faktor: number) => {
     const el = flaeche.current;
     aendere((x) => zoome(x, faktor, (el?.clientWidth ?? 0) / 2, (el?.clientHeight ?? 0) / 2, untergrenzeJetzt));
   };
-  const ausgenommen = (ziel: EventTarget) => (ziel as Element).closest("[data-umschalter], [data-griff]") !== null;
+  const ausgenommen = (ziel: EventTarget) => (ziel as Element).closest("[data-umschalter], [data-griff], [data-meldung]") !== null;
 
   const unten = (e: PointerEvent<HTMLDivElement>) => {
-    if (ausgenommen(e.target)) return; // Umschalter und Griffe beginnen kein Ziehen und keinen Klick
+    if (ausgenommen(e.target)) return; // Umschalter, Griffe und Meldung beginnen kein Ziehen und keinen Klick
     e.currentTarget.setPointerCapture?.(e.pointerId);
     zeiger.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     start.current = zeiger.current.size === 1
@@ -3089,15 +3378,21 @@ export function Flaeche({
   const bewegt = (e: PointerEvent<HTMLDivElement>) => {
     const alt = zeiger.current.get(e.pointerId);
     if (!alt) return;
-    if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > KLICK_TOLERANZ) start.current.bewegt = true;
+    const s = start.current;
+    const warKlick = s !== null && !s.bewegt;
+    if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > KLICK_TOLERANZ) s.bewegt = true;
     const anderer = [...zeiger.current.entries()].find(([id]) => id !== e.pointerId)?.[1];
     if (anderer) {
       const vorher = Math.hypot(alt.x - anderer.x, alt.y - anderer.y);
       const jetzt = Math.hypot(e.clientX - anderer.x, e.clientY - anderer.y);
       const r = e.currentTarget.getBoundingClientRect();
       if (vorher > 0) aendere((x) => zoome(x, jetzt / vorher, (e.clientX + anderer.x) / 2 - r.left, (e.clientY + anderer.y) / 2 - r.top, untergrenzeJetzt));
-    } else {
-      aendere((x) => verschiebe(x, e.clientX - alt.x, e.clientY - alt.y));
+    } else if (s === null || s.bewegt) {
+      // Unter KLICK_TOLERANZ ist es noch ein Klick: die Ansicht bleibt (eingepasst bleibt eingepasst,
+      // Entscheidung 18). Beim Überschreiten zählt die GANZE Strecke ab dem Druck — verschoben wird
+      // also genau um die Zeigerbewegung (Betrachter.test.tsx, „um genau die Zeigerbewegung").
+      const von = warKlick ? s! : alt;
+      aendere((x) => verschiebe(x, e.clientX - von.x, e.clientY - von.y));
     }
     zeiger.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
@@ -3123,6 +3418,7 @@ export function Flaeche({
     else aendere((x) => verschiebe(x, aktion.dx, aktion.dy));
   };
 
+  const transform = `translate(${a.x} ${a.y}) scale(${a.massstab})`;
   return (
     <div>
       <svg aria-hidden="true" width={0} height={0} style={{ position: "absolute" }}>
@@ -3135,16 +3431,24 @@ export function Flaeche({
         {werkzeuge}
       </div>
       <div ref={flaeche} className="kp-betrachter" tabIndex={0} role="group" aria-label={`${titel} — ${bedienhinweis}`}
+        data-eingepasst={eigene === null ? "true" : "false"}
         onPointerDown={unten} onPointerMove={bewegt} onPointerUp={los} onPointerCancel={los} onKeyDown={taste}>
         {daten.karten.length === 0 ? leer : (
           <svg role="img" aria-label={titel} style={{ fontFamily: schrift }}>
-            <g data-ansicht="" transform={`translate(${a.x} ${a.y}) scale(${a.massstab})`}>
+            {/* Das Attribut bleibt (Phase-1-Tests und e2e lesen es); im Editor setzt der CSS-Transform
+                denselben Wert, damit automatische Wechsel per `transition` gleiten können. */}
+            <g data-ansicht="" transform={transform}
+              style={gleitend ? { transform: `translate(${a.x}px, ${a.y}px) scale(${a.massstab})` } : undefined}
+              className={gleitend && automatisch ? "kp-gleitet" : undefined}>
               <rect width={daten.breite} height={daten.hoehe} fill={FARBE.papier} />
               <ZeichnungInhalt daten={daten} zusatz={zusatz} gleitend={gleitend} linienSchluessel={linienSchluessel} />
             </g>
           </svg>
         )}
-        {ueberlagerung && daten.karten.length > 0 ? <div className="kp-ueberlagerung">{ueberlagerung(a)}</div> : null}
+        {ueberlagerung && daten.karten.length > 0
+          ? <div className="kp-ueberlagerung">{ueberlagerung(a, { breite: groesse.b - verdeckt, hoehe: groesse.h })}</div>
+          : null}
+        {meldung ? <div className="kp-meldungsplatz" data-meldung="">{meldung}</div> : null}
       </div>
     </div>
   );
@@ -3183,7 +3487,13 @@ In `K/_ui/kommplan.css` anhängen:
 ```css
 /* Überlagerung der Fläche (Griffe des Editors): liegt über dem SVG, fängt selbst keine Zeiger. */
 .kp-ueberlagerung { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* Hinweise des Editors IN der Fläche, unten mittig (Entscheidung 19): kein Umbruch des Flusses,
+   die Fläche springt nicht, wenn ein Hinweis kommt oder geht. Nur der Hinweis selbst fängt Zeiger. */
+.kp-meldungsplatz { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); pointer-events: none; }
+.kp-meldungsplatz > * { pointer-events: auto; }
 ```
+
+Die bisherige Sonderzeile `gleitet` der Ansicht braucht keine eigene Regel: `[data-ansicht]` trägt im Editor dieselbe Klasse `kp-gleitet` wie die Karten und damit auch deren Zweig für reduzierte Bewegung.
 
 - [ ] **Step 5: Grün sehen**
 
@@ -3195,14 +3505,14 @@ Expected: 6 passed.
 
 - [ ] **Step 6: Ankerschritt und Commit**
 
-Ankerschritt für `Betrachter.tsx`, `Zeichnung.tsx`, `Karte.tsx`, `Sechseck.tsx`, `kommplan.css`.
+Ankerschritt für `Betrachter.tsx`, `ansicht.ts`, `Zeichnung.tsx`, `Karte.tsx`, `Sechseck.tsx`, `kommplan.css`.
 
 ```bash
 git add src/app/m/kommplan/_ui
 git commit -S -m "refactor(kommplan): Zeichenfläche aus dem Betrachter gelöst, Zeichnung kann gleiten
 
-Die Fläche meldet Klicks auf Karten trotz Pointer-Capture und hält die
-Ansicht nach Bearbeitungen fest; im Editor gleiten Karten per CSS,
+Die Fläche meldet Klicks auf Karten trotz Pointer-Capture und bleibt
+eingepasst, bis selbst gezoomt wird; im Editor gleiten Karten per CSS,
 ohne Bewegung bei prefers-reduced-motion.
 
 DRK-500
@@ -3216,28 +3526,51 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `K/_ui/editor/aendere.ts`, `K/_ui/editor/StelleFlyin.tsx`, `K/_ui/editor/ZeichenWahl.tsx`, `K/_ui/editor/KontaktZeilen.tsx`
-- Modify: `K/_lib/plan/kontakte.ts` (`KONTAKT_NAME`), `K/_ui/kommplan.css`
+- Modify: `K/_lib/plan/kontakte.ts` (`KONTAKT_NAME`, feste Zeilen je Art), `K/_ui/kommplan.css`
 - Test: `K/_ui/editor/StelleFlyin.test.tsx`, `K/_lib/plan/kontakte.test.ts`
 
 **Interfaces:**
 - Consumes: `aendereStelle`, `StellenAenderung`, `LAENGE`, `GRENZE`, `KONTAKT_REIHENFOLGE` (Tasks 2, 3), `sucheZeichen`, `leseZuletzt`, `merkeZuletzt` (Task 8), `symbolId`, `Symbolsatz`, `ZeichenIndexEintrag`, `flyinBreite`.
 - Produces:
-  - `aendere.ts`: `type Aendere = (op: (p: PlanInhalt) => PlanInhalt, schluessel?: string) => string | null` — `null` heißt angewandt, sonst die Meldung des `PlanFehler` (die Editor-Insel zeigt sie zusätzlich oben an).
-  - `kontakte.ts`: `KONTAKT_NAME: Record<KontaktArt, string>`.
-  - `StelleFlyin(props: StelleFormularProps & { offen: boolean; onSchliessen: () => void })` (Drawer, `mask={false}`, `flyinBreite(520)`) und `StelleFormular(props: StelleFormularProps)` mit `interface StelleFormularProps { inhalt: PlanInhalt; stelleId: string; aendere: Aendere; symbole: Symbolsatz; zeichenIndex: readonly ZeichenIndexEintrag[]; ladeSymbole: (schluessel: string[]) => void; fokus: { ziel: "titel" | "einheit"; n: number }; titelRef: RefObject<InputRef | null>; onLoeschen: () => void }`.
-  - `ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, onWahl })`; `KontaktZeilen({ kontakte, onAendere }: { kontakte: readonly Kontakt[]; onAendere: (neu: Kontakt[], schluessel?: string) => void })`.
+  - `aendere.ts`: `type Aendere = (op: (p: PlanInhalt) => PlanInhalt, schluessel?: string) => string | null` — `null` heißt angewandt, sonst die Meldung des `PlanFehler` (die Editor-Insel zeigt sie zusätzlich als Hinweis in der Fläche).
+  - `kontakte.ts` (rein, Entscheidung 16): `KONTAKT_NAME: Record<KontaktArt, string>`; `interface KontaktFeld { art: KontaktArt; n: number; wert: string; vorhanden: boolean }` (`n` = n-tes Vorkommen dieser Art); `kontaktFelder(kontakte): KontaktFeld[]` (je Art mindestens ein Feld, Reihenfolge der Karte); `setzeKontakt(kontakte, art, n, wert): Kontakt[]`; `weitererKontakt(kontakte, art): Kontakt[]`; `entferneKontakt(kontakte, art, n): Kontakt[]`.
+  - `StelleFlyin(props: StelleFormularProps & { offen: boolean; onSchliessen: () => void; nachSchliessen: () => void })` (Drawer, `mask={false}`, `flyinBreite(STELLE_FLYIN_GRUND)`, `STELLE_FLYIN_GRUND = 520` exportiert — die Fläche rechnet mit derselben Zahl, Entscheidung 18) und `StelleFormular(props: StelleFormularProps)` mit `interface StelleFormularProps { inhalt: PlanInhalt; stelleId: string; aendere: Aendere; symbole: Symbolsatz; zeichenIndex: readonly ZeichenIndexEintrag[]; ladeSymbole: (schluessel: string[]) => void; fokus: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef: RefObject<InputRef | null>; onLoeschen: () => void; onFertig: () => void }` (`onFertig`: Enter im Titelfeld, Entscheidung 17).
+  - `ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, onWahl })` (Enter wählt den ersten Treffer, ↓ springt ins Raster); `KontaktZeilen({ kontakte, onAendere }: { kontakte: readonly Kontakt[]; onAendere: (neu: Kontakt[], schluessel?: string) => void })`.
 
 - [ ] **Step 1: Failing tests**
 
 An `K/_lib/plan/kontakte.test.ts` anhängen:
 
 ```ts
-import { KONTAKT_NAME } from "./kontakte";
+import { entferneKontakt, KONTAKT_NAME, kontaktFelder, setzeKontakt, weitererKontakt } from "./kontakte";
 import { KONTAKT_ARTEN } from "./schema";
 
 describe("Namen der Kontaktarten", () => {
   it("jede Art hat einen deutschen Namen", () => {
     expect(KONTAKT_ARTEN.map((a) => KONTAKT_NAME[a])).toEqual(["Funkrufname", "Digitalfunk", "Telefon", "Mobil", "Fax", "E-Mail", "Sonstiges"]);
+  });
+});
+
+describe("Kontakte als feste Zeilen je Art (Entscheidung 16)", () => {
+  const k = [{ art: "email" as const, wert: "ea1@drk.de" }, { art: "funkrufname" as const, wert: "RK UE 40-00" }];
+  it("je Art mindestens ein Feld, in der Reihenfolge der Karte; Doppelte als weitere Felder derselben Art", () => {
+    expect(kontaktFelder(k).map((f) => `${f.art}:${f.n}=${f.wert}`)).toEqual([
+      "funkrufname:0=RK UE 40-00", "digitalfunk:0=", "telefon:0=", "mobil:0=", "fax:0=", "email:0=ea1@drk.de", "sonstiges:0=",
+    ]);
+    const doppelt = weitererKontakt(k, "email");
+    expect(kontaktFelder(doppelt).filter((f) => f.art === "email").map((f) => [f.n, f.wert, f.vorhanden])).toEqual([[0, "ea1@drk.de", true], [1, "", true]]);
+    // ohne Eintrag dieser Art gibt es schon ein (leeres) Feld: nichts anzulegen
+    expect(weitererKontakt(k, "telefon")).toBe(k);
+  });
+  it("Tippen in ein leeres Feld legt an, Leeren des einzigen Eintrags entfernt, sonst wird ersetzt", () => {
+    expect(setzeKontakt(k, "telefon", 0, "0581 1")).toEqual([...k, { art: "telefon", wert: "0581 1" }]);
+    expect(setzeKontakt(k, "telefon", 0, "")).toBe(k); // leeres Feld bleibt leer: keine Änderung
+    expect(setzeKontakt(k, "email", 0, "")).toEqual([k[1]]);
+    expect(setzeKontakt(k, "email", 0, "neu@drk.de")).toEqual([{ art: "email", wert: "neu@drk.de" }, k[1]]);
+    // bei Doppelten wird ein geleertes Feld nicht entfernt (sonst rutschte das nächste in dieses Feld)
+    const doppelt = [...k, { art: "email" as const, wert: "zwei@drk.de" }];
+    expect(setzeKontakt(doppelt, "email", 0, "")).toEqual([{ art: "email", wert: "" }, k[1], doppelt[2]]);
+    expect(entferneKontakt(doppelt, "email", 1)).toEqual(k);
   });
 });
 ```
@@ -3247,7 +3580,7 @@ describe("Namen der Kontaktarten", () => {
 ```tsx
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRef, useState, type RefObject } from "react";
+import { act, createRef, useState, type RefObject } from "react";
 import type { InputRef } from "antd";
 import { clickElement, fill, mount, query, queryAll, rerender, unmount } from "@/app/m/qr/_lib/test-dom";
 import { baue } from "../../_lib/beispiele/bau";
@@ -3270,22 +3603,26 @@ const START = baue({
 let stand: PlanInhalt = START;
 const lade = vi.fn();
 const loesche = vi.fn();
+const fertig = vi.fn();
 // Modulweit, nicht als Vorgabe im Parameter: ein neues Objekt je Rendern löste die Fokus-Effekte bei jeder Eingabe aus.
-const FOKUS0 = { ziel: "titel" as const, n: 0 };
+const FOKUS0 = { ziel: "titel" as const, stelle: "a", n: 0 };
 const REF0 = createRef<InputRef>();
-function Rahmen({ fokus = FOKUS0, titelRef = REF0 }: { fokus?: { ziel: "titel" | "einheit"; n: number }; titelRef?: RefObject<InputRef | null> }) {
+function Rahmen({ fokus = FOKUS0, titelRef = REF0 }: { fokus?: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef?: RefObject<InputRef | null> }) {
   const [inhalt, setInhalt] = useState(START);
   const aendere: Aendere = (op) => {
     try { const neu = op(inhalt); setInhalt(neu); stand = neu; return null; }
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
   return <StelleFormular inhalt={inhalt} stelleId="a" aendere={aendere} symbole={{}} zeichenIndex={INDEX} ladeSymbole={lade}
-    fokus={fokus} titelRef={titelRef} onLoeschen={loesche} />;
+    fokus={fokus} titelRef={titelRef} onLoeschen={loesche} onFertig={fertig} />;
 }
 const stelle = () => stand.stellen.find((s) => s.id === "a")!;
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button").find((b) => b.textContent === text)!;
+async function druecke(el: Element, key: string) {
+  await act(async () => { el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
+}
 
-afterEach(() => { unmount(); stand = START; lade.mockReset(); loesche.mockReset(); window.localStorage.clear(); });
+afterEach(() => { unmount(); stand = START; lade.mockReset(); loesche.mockReset(); fertig.mockReset(); window.localStorage.clear(); });
 
 describe("Flyin einer Stelle (Spec §6.4)", () => {
   it("Titel und Leiter schreiben sofort ins Dokument; ein geleerter Leiter ist null", async () => {
@@ -3312,18 +3649,45 @@ describe("Flyin einer Stelle (Spec §6.4)", () => {
     await clickElement(knopf("Kein Zeichen"));
     expect(stelle().zeichen).toBeNull();
   });
-  it("Kontakte stehen in fester Reihenfolge (◇ vor E-Mail), unabhängig von der Eingabe; hinzufügen, ändern, entfernen", async () => {
+  it("Zeichen: Enter im Suchfeld wählt den ersten Treffer, ↓ springt ins Raster", async () => {
     await mount(<Rahmen />);
-    const werte = () => queryAll<HTMLInputElement>("[data-kontakt-zeile] input.ant-input").map((i) => i.value);
-    expect(werte()).toEqual(["RK UE 40-00", "ea1@drk.de"]);
-    await clickElement(knopf("Kontakt hinzufügen"));
-    expect(stelle().kontakte.at(-1)).toEqual({ art: "telefon", wert: "" });
-    expect(werte()).toEqual(["RK UE 40-00", "", "ea1@drk.de"]); // Telefon steht zwischen Funkrufname und E-Mail
-    const telefon = queryAll<HTMLInputElement>("[data-kontakt-zeile] input.ant-input")[1];
-    await fill(`[data-kontakt-zeile="${telefon.closest("[data-kontakt-zeile]")!.getAttribute("data-kontakt-zeile")}"] input.ant-input`, "0581 1");
-    expect(stelle().kontakte.find((k) => k.art === "telefon")?.wert).toBe("0581 1");
-    await clickElement(query('button[aria-label="E-Mail entfernen"]'));
+    await fill('input[aria-label="Zeichen suchen"]', "e");
+    await druecke(query('input[aria-label="Zeichen suchen"]'), "ArrowDown");
+    expect(document.activeElement).toBe(queryAll("[data-zeichen]")[0]);
+    await fill('input[aria-label="Zeichen suchen"]', "lösch");
+    await druecke(query('input[aria-label="Zeichen suchen"]'), "Enter");
+    expect(stelle().zeichen).toBe("rezept:C.1.1");
+  });
+  it("Enter im Titelfeld heißt „fertig“ (Entscheidung 17)", async () => {
+    await mount(<Rahmen />);
+    await druecke(query('input[name="titel"]'), "Enter");
+    expect(fertig).toHaveBeenCalledTimes(1);
+  });
+  it("Kontakte: ein festes Feld je Art in der Reihenfolge der Karte — Tippen legt an, Leeren entfernt (Entscheidung 16)", async () => {
+    await mount(<Rahmen />);
+    const felder = () => queryAll<HTMLInputElement>("[data-kontakt] input");
+    const namen = () => queryAll("[data-kontakt] .kp-feldname").map((l) => l.textContent);
+    expect(namen()).toEqual(["Funkrufname", "Digitalfunk", "Telefon", "Mobil", "Fax", "E-Mail", "Sonstiges"]);
+    expect(felder().map((i) => i.value)).toEqual(["RK UE 40-00", "", "", "", "", "ea1@drk.de", ""]);
+    // DOM-Reihenfolge = Tab-Reihenfolge: ein Kontakt kostet Tippen plus Tab, keine Auswahl, kein Knopf
+    await fill('[data-kontakt="telefon:0"] input', "0581 1");
+    expect(stelle().kontakte).toContainEqual({ art: "telefon", wert: "0581 1" });
+    await fill('[data-kontakt="email:0"] input', "");
     expect(stelle().kontakte.map((k) => k.art).sort()).toEqual(["funkrufname", "telefon"]);
+    expect(felder()).toHaveLength(7); // das E-Mail-Feld bleibt stehen, jetzt leer
+  });
+  it("Kontakte: „Weiterer Kontakt“ legt eine zweite Zeile derselben Art an (Fokus hinein), sie hat „Entfernen“", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Weiterer Kontakt")); // Art vorbelegt: Telefon; noch keins da → nur Fokus ins leere Feld
+    expect(document.activeElement).toBe(query('[data-kontakt="telefon:0"] input'));
+    expect(stelle().kontakte.some((k) => k.art === "telefon")).toBe(false);
+    await fill('[data-kontakt="telefon:0"] input', "0581 1");
+    await clickElement(knopf("Weiterer Kontakt"));
+    expect(document.activeElement).toBe(query('[data-kontakt="telefon:1"] input'));
+    await fill('[data-kontakt="telefon:1"] input', "0581 2");
+    expect(stelle().kontakte.filter((k) => k.art === "telefon").map((k) => k.wert)).toEqual(["0581 1", "0581 2"]);
+    await clickElement(query('button[aria-label="Telefon 2 entfernen"]'));
+    expect(stelle().kontakte.filter((k) => k.art === "telefon").map((k) => k.wert)).toEqual(["0581 1"]);
   });
   it("Löschen meldet sich beim Editor (Rückgängig statt Nachfrage)", async () => {
     await mount(<Rahmen />);
@@ -3332,9 +3696,9 @@ describe("Flyin einer Stelle (Spec §6.4)", () => {
   });
   it("eine neue Fokusanfrage setzt den Fokus ins Titelfeld", async () => {
     const titelRef = createRef<InputRef>();
-    await mount(<Rahmen titelRef={titelRef} fokus={{ ziel: "titel", n: 0 }} />);
+    await mount(<Rahmen titelRef={titelRef} fokus={{ ziel: "titel", stelle: "a", n: 0 }} />);
     (document.activeElement as HTMLElement | null)?.blur();
-    await rerender(<Rahmen titelRef={titelRef} fokus={{ ziel: "titel", n: 1 }} />);
+    await rerender(<Rahmen titelRef={titelRef} fokus={{ ziel: "titel", stelle: "a", n: 1 }} />);
     expect(document.activeElement).toBe(query('input[name="titel"]'));
   });
 });
@@ -3355,7 +3719,51 @@ export const KONTAKT_NAME: Record<KontaktArt, string> = {
   funkrufname: "Funkrufname", digitalfunk: "Digitalfunk", telefon: "Telefon", mobil: "Mobil",
   fax: "Fax", email: "E-Mail", sonstiges: "Sonstiges",
 };
+
+/**
+ * FESTE ZEILEN JE ART im Flyin (Umsetzungsplan Phase 2, Entscheidung 16) — wie die Excel-Karte eine
+ * Zeile je Art hat. Ein Feld ist (Art, n): das n-te Vorkommen dieser Art im Array. Jede Art hat
+ * mindestens ein Feld; ohne Eintrag ist es leer (`vorhanden: false`). Das Datenmodell (§4.2) bleibt:
+ * ein leeres Feld IST „kein Kontakt dieser Art", die Karte lässt leere Werte ohnehin weg.
+ */
+export interface KontaktFeld { art: KontaktArt; n: number; wert: string; vorhanden: boolean }
+
+const stellenDerArt = (kontakte: readonly Kontakt[], art: KontaktArt) =>
+  kontakte.flatMap((k, i) => (k.art === art ? [i] : []));
+
+export function kontaktFelder(kontakte: readonly Kontakt[]): KontaktFeld[] {
+  return KONTAKT_REIHENFOLGE.flatMap((art) => {
+    const eigene = kontakte.filter((k) => k.art === art);
+    return eigene.length === 0
+      ? [{ art, n: 0, wert: "", vorhanden: false }]
+      : eigene.map((k, n) => ({ art, n, wert: k.wert, vorhanden: true }));
+  });
+}
+
+/**
+ * Tippen in ein leeres Feld legt an; Leeren des EINZIGEN Eintrags einer Art entfernt ihn (das Feld
+ * bleibt als leeres stehen, der Fokus also auch). Bei Doppelten bleibt ein geleerter Eintrag als
+ * leerer stehen — sonst rutschte der nächste in dieses Feld, mitten beim Tippen.
+ */
+export function setzeKontakt(kontakte: readonly Kontakt[], art: KontaktArt, n: number, wert: string): Kontakt[] {
+  const idx = stellenDerArt(kontakte, art);
+  if (n >= idx.length) return wert === "" ? (kontakte as Kontakt[]) : [...kontakte, { art, wert }];
+  if (wert === "" && idx.length === 1) return kontakte.filter((_, i) => i !== idx[0]);
+  return kontakte.map((k, i) => (i === idx[n] ? { ...k, wert } : k));
+}
+
+/** „Weiterer Kontakt": nur wenn es von der Art schon einen gibt — sonst ist das leere Feld schon da. */
+export function weitererKontakt(kontakte: readonly Kontakt[], art: KontaktArt): Kontakt[] {
+  return stellenDerArt(kontakte, art).length === 0 ? (kontakte as Kontakt[]) : [...kontakte, { art, wert: "" }];
+}
+
+export function entferneKontakt(kontakte: readonly Kontakt[], art: KontaktArt, n: number): Kontakt[] {
+  const i = stellenDerArt(kontakte, art)[n];
+  return i === undefined ? (kontakte as Kontakt[]) : kontakte.filter((_, j) => j !== i);
+}
 ```
+
+(Die Rückgabe desselben Objekts bei „nichts zu tun" ist Absicht: `tue()` in `verlauf.ts` und der Speicherer werten „dasselbe Objekt" als „keine Änderung". Der Aufrufer reicht es über `aendereStelle`; dort entsteht zwar ein neues Dokument — deshalb prüft `KontaktZeilen` vorher `neu === kontakte` und ruft dann gar nicht erst `onAendere`.)
 
 `K/_ui/editor/aendere.ts`:
 
@@ -3375,7 +3783,7 @@ export type Aendere = (op: (p: PlanInhalt) => PlanInhalt, schluessel?: string) =
 ```tsx
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Button, Input } from "antd";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { symbolId, type Symbolsatz } from "../zeichnung/Symbole";
@@ -3392,6 +3800,7 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
   ladeSymbole: (schluessel: string[]) => void; planZeichen: readonly string[]; onWahl: (k: string | null) => void;
 }) {
   const basis = useId();
+  const raster = useRef<HTMLDivElement>(null);
   const [anfrage, setAnfrage] = useState("");
   const [zuletzt, setZuletzt] = useState<string[]>(() => leseZuletzt());
   const titel = useMemo(() => new Map(index.map((e) => [e.schluessel, e.titel])), [index]);
@@ -3420,12 +3829,15 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
   return (
     <div className="kp-zeichenwahl">
       <p className="kp-hilfe" id={`${basis}-jetzt`}>{wert ? `Gewählt: ${titel.get(wert) ?? wert}` : "Kein Zeichen gewählt — die Karte trägt dann nur den Titel."}</p>
-      <Input aria-label="Zeichen suchen" aria-describedby={`${basis}-jetzt`} value={anfrage} onChange={(e) => suche(e.target.value)} placeholder="z. B. Einsatzleitung, Rettungswagen, D.1.4" allowClear />
+      {/* Enter wählt den ersten Treffer (leere Anfrage: den ersten Vorschlag), ↓ springt ins Raster (Kritik: sonst Tab für Tab). */}
+      <Input aria-label="Zeichen suchen" aria-describedby={`${basis}-jetzt`} value={anfrage} onChange={(e) => suche(e.target.value)} placeholder="z. B. Einsatzleitung, Rettungswagen, D.1.4" allowClear
+        onPressEnter={(e) => { e.preventDefault(); const erster = anfrage.trim() === "" ? vorschlaege[0] : treffer[0]?.schluessel; if (erster) waehle(erster); }}
+        onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); raster.current?.querySelector<HTMLButtonElement>("[data-zeichen]")?.focus(); } }} />
       {anfrage.trim() === "" && vorschlaege.length > 0 ? (
-        <><p className="kp-hilfe">Zuletzt genutzt</p><div className="kp-zeichen-raster">{vorschlaege.map(knopf)}</div></>
+        <><p className="kp-hilfe">Zuletzt genutzt</p><div className="kp-zeichen-raster" ref={raster}>{vorschlaege.map(knopf)}</div></>
       ) : null}
       {anfrage.trim() !== "" ? (
-        treffer.length > 0 ? <div className="kp-zeichen-raster" aria-live="polite">{treffer.map((e) => knopf(e.schluessel))}</div>
+        treffer.length > 0 ? <div className="kp-zeichen-raster" ref={raster} aria-live="polite">{treffer.map((e) => knopf(e.schluessel))}</div>
           : <p className="kp-hilfe" aria-live="polite">Kein Zeichen passt zu „{anfrage.trim()}“.</p>
       ) : null}
       {wert ? <Button onClick={() => waehle(null)}>Kein Zeichen</Button> : null}
@@ -3439,35 +3851,58 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
 ```tsx
 "use client";
 
-import { useState } from "react";
-import { Button, Input, Select } from "antd";
-import { KONTAKT_NAME, KONTAKT_REIHENFOLGE } from "../../_lib/plan/kontakte";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button, Input, Select, type InputRef } from "antd";
+import { entferneKontakt, KONTAKT_NAME, KONTAKT_REIHENFOLGE, kontaktFelder, setzeKontakt, weitererKontakt } from "../../_lib/plan/kontakte";
 import { GRENZE, LAENGE, type Kontakt, type KontaktArt } from "../../_lib/plan/schema";
 
 const ARTEN = KONTAKT_REIHENFOLGE.map((a) => ({ value: a, label: KONTAKT_NAME[a] }));
 
 /**
- * KONTAKTE (Spec §4.2, §6.4): Zeilen Art + Wert, angezeigt in der FESTEN Reihenfolge der Vorlage —
- * dieselbe wie auf der Karte. Gespeichert wird in Eingabereihenfolge; `i` ist der Index dort.
+ * KONTAKTE (Spec §4.2, §6.4; Umsetzungsplan Phase 2, Entscheidung 16): ein festes Feld je Art in der
+ * Reihenfolge der Karte — Tippen plus Tab statt „Art wählen, hinzufügen, hineinklicken". Leer heißt
+ * „kein Kontakt dieser Art" (`setzeKontakt`). Doppelte über „Weiterer Kontakt" am Ende, damit die
+ * Tab-Folge durch die sieben Felder nicht von Knöpfen unterbrochen wird.
+ *
+ * SCHLÜSSEL: React-`key` und Rückgängig-Bündel hängen an (Art, n), nie am Array-Index — sonst verlöre
+ * ein Feld beim Leeren und Neutippen den Fokus, und Tippen zerfiele in mehrere Rückgängig-Schritte.
  */
 export function KontaktZeilen({ kontakte, onAendere }: { kontakte: readonly Kontakt[]; onAendere: (neu: Kontakt[], schluessel?: string) => void }) {
-  const [neueArt, setNeueArt] = useState<KontaktArt>("telefon");
-  const zeilen = KONTAKT_REIHENFOLGE.flatMap((art) => kontakte.map((k, i) => ({ k, i })).filter((x) => x.k.art === art));
-  const setze = (i: number, teil: Partial<Kontakt>, schluessel?: string) => onAendere(kontakte.map((k, j) => (j === i ? { ...k, ...teil } : k)), schluessel);
+  const basis = useId();
+  const [weitereArt, setWeitereArt] = useState<KontaktArt>("telefon");
+  const [fokusAuf, setFokusAuf] = useState<{ feld: string; n: number } | null>(null);
+  const felderRef = useRef(new Map<string, InputRef | null>());
+  // Fokus nach „Weiterer Kontakt" — nur Fokus, kein setState (set-state-in-effect).
+  useEffect(() => { if (fokusAuf) felderRef.current.get(fokusAuf.feld)?.focus(); }, [fokusAuf]);
+  const felder = kontaktFelder(kontakte);
+  const voll = kontakte.length >= GRENZE.kontakte;
+  const aendere = (neu: Kontakt[], schluessel?: string) => { if (neu !== kontakte) onAendere(neu, schluessel); };
+
   return (
     <fieldset className="kp-abschnitt">
       <legend>Kontakte</legend>
-      {zeilen.length === 0 ? <p className="kp-hilfe">Noch keine Kontakte.</p> : null}
-      {zeilen.map(({ k, i }) => (
-        <div key={i} className="kp-zeile" data-kontakt-zeile={i}>
-          <Select aria-label={`Art von ${KONTAKT_NAME[k.art]}`} value={k.art} onChange={(art: KontaktArt) => setze(i, { art })} options={ARTEN} />
-          <Input aria-label={`${KONTAKT_NAME[k.art]}: Wert`} value={k.wert} maxLength={LAENGE.kontakt} onChange={(e) => setze(i, { wert: e.target.value }, `kontakt:${i}`)} />
-          <Button aria-label={`${KONTAKT_NAME[k.art]} entfernen`} onClick={() => onAendere(kontakte.filter((_, j) => j !== i))}>Entfernen</Button>
-        </div>
-      ))}
+      {felder.map((f) => {
+        const feld = `${f.art}:${f.n}`;
+        const name = f.n === 0 ? KONTAKT_NAME[f.art] : `${KONTAKT_NAME[f.art]} ${f.n + 1}`;
+        return (
+          <div key={feld} className="kp-kontakt" data-kontakt={feld}>
+            <label className="kp-feldname" htmlFor={`${basis}-${feld}`}>{name}</label>
+            <div className="kp-zeile">
+              <Input id={`${basis}-${feld}`} ref={(el) => { felderRef.current.set(feld, el); }} value={f.wert} maxLength={LAENGE.kontakt}
+                disabled={!f.vorhanden && voll}
+                onChange={(e) => aendere(setzeKontakt(kontakte, f.art, f.n, e.target.value), `kontakt:${feld}`)} />
+              {f.n > 0 ? <Button aria-label={`${name} entfernen`} onClick={() => aendere(entferneKontakt(kontakte, f.art, f.n))}>Entfernen</Button> : null}
+            </div>
+          </div>
+        );
+      })}
       <div className="kp-zeile">
-        <Select aria-label="Art des neuen Kontakts" value={neueArt} onChange={(a: KontaktArt) => setNeueArt(a)} options={ARTEN} />
-        <Button onClick={() => onAendere([...kontakte, { art: neueArt, wert: "" }])} disabled={kontakte.length >= GRENZE.kontakte}>Kontakt hinzufügen</Button>
+        <Select aria-label="Art des weiteren Kontakts" value={weitereArt} onChange={(a: KontaktArt) => setWeitereArt(a)} options={ARTEN} />
+        <Button disabled={voll} onClick={() => {
+          const n = kontakte.filter((k) => k.art === weitereArt).length;
+          aendere(weitererKontakt(kontakte, weitereArt));
+          setFokusAuf((alt) => ({ feld: `${weitereArt}:${Math.max(0, n)}`, n: (alt?.n ?? 0) + 1 }));
+        }}>Weiterer Kontakt</Button>
       </div>
     </fieldset>
   );
@@ -3493,20 +3928,27 @@ import { ZeichenWahl } from "./ZeichenWahl";
 export interface StelleFormularProps {
   inhalt: PlanInhalt; stelleId: string; aendere: Aendere; symbole: Symbolsatz;
   zeichenIndex: readonly ZeichenIndexEintrag[]; ladeSymbole: (schluessel: string[]) => void;
-  fokus: { ziel: "titel" | "einheit"; n: number }; titelRef: RefObject<InputRef | null>; onLoeschen: () => void;
+  fokus: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef: RefObject<InputRef | null>; onLoeschen: () => void;
+  /** Enter im Titelfeld: „fertig" — der Editor schließt das Flyin und gibt der Fläche den Fokus (Entscheidung 17). */
+  onFertig: () => void;
 }
+
+/** Grundbreite des Flyins; die Fläche rechnet mit derselben Zahl den verdeckten Teil heraus (Entscheidung 18). */
+export const STELLE_FLYIN_GRUND = 520;
 
 /**
  * DAS FLYIN EINER STELLE (Spec §6.2, §6.4): rechts, `flyinBreite()` (Falle 13), OHNE Maske — die
  * Zeichnung bleibt klickbar, ein Klick auf eine andere Karte wechselt die Stelle im offenen Flyin.
  * Jede Eingabe wirkt sofort auf das Dokument (Autosave, Rückgängig); es gibt kein „Speichern".
+ * `nachSchliessen` läuft NACH der Schließ-Animation: erst dann gibt der Editor der Fläche den Fokus,
+ * sonst holte eine Fokus-Rückgabe der Schublade ihn danach wieder weg.
  */
-export function StelleFlyin({ offen, onSchliessen, ...formular }: StelleFormularProps & { offen: boolean; onSchliessen: () => void }) {
+export function StelleFlyin({ offen, onSchliessen, nachSchliessen, ...formular }: StelleFormularProps & { offen: boolean; onSchliessen: () => void; nachSchliessen: () => void }) {
   const s = formular.inhalt.stellen.find((x) => x.id === formular.stelleId);
   return (
-    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(520)} destroyOnHidden rootClassName="kp-flyin"
+    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(STELLE_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin"
       title={s ? (s.titel.trim() || "Neue Stelle") : "Stelle"}
-      afterOpenChange={(auf) => { if (auf && formular.fokus.ziel === "titel") formular.titelRef.current?.focus(); }}>
+      afterOpenChange={(auf) => { if (auf && formular.fokus.ziel === "titel" && formular.fokus.stelle === formular.stelleId) formular.titelRef.current?.focus(); else if (!auf) nachSchliessen(); }}>
       {offen ? <StelleFormular {...formular} /> : null}
     </Drawer>
   );
@@ -3516,7 +3958,8 @@ export function StelleFormular(p: StelleFormularProps) {
   const { inhalt, stelleId, aendere, fokus, titelRef } = p;
   const basis = useId();
   // Fokusanfrage des Editors (neue Stelle, Enter): auch bei schon offenem Flyin, daher über `fokus.n`.
-  useEffect(() => { if (fokus.ziel === "titel") titelRef.current?.focus(); }, [fokus, titelRef]);
+  // Sie nennt ihre Stelle: eine alte Anfrage gilt nach einem Wechsel der Auswahl nicht für die neue.
+  useEffect(() => { if (fokus.ziel === "titel" && fokus.stelle === stelleId) titelRef.current?.focus(); }, [fokus, titelRef, stelleId]);
   const s = inhalt.stellen.find((x) => x.id === stelleId);
   if (!s) return <p className="kp-hilfe">Diese Stelle gibt es nicht mehr.</p>;
   const setze = (teil: StellenAenderung, schluessel?: string) => aendere((q) => aendereStelle(q, s.id, teil), schluessel);
@@ -3526,19 +3969,24 @@ export function StelleFormular(p: StelleFormularProps) {
     <div className="kp-formular" data-flyin-stelle={s.id}>
       <label className="kp-feldname" htmlFor={`${basis}-titel`}>Titel</label>
       <Input id={`${basis}-titel`} ref={titelRef} name="titel" value={s.titel} maxLength={LAENGE.titel}
-        onChange={(e) => setze({ titel: e.target.value }, `titel:${s.id}`)} />
+        onChange={(e) => setze({ titel: e.target.value }, `titel:${s.id}`)}
+        onPressEnter={(e) => { e.preventDefault(); p.onFertig(); }} />
       <label className="kp-feldname" htmlFor={`${basis}-leiter`}>Leiter</label>
       <Input id={`${basis}-leiter`} name="leiter" value={s.leiter ?? ""} maxLength={LAENGE.leiter}
         onChange={(e) => setze({ leiter: e.target.value === "" ? null : e.target.value }, `leiter:${s.id}`)} />
       <Checkbox className="kp-hervorheben" checked={s.hervorheben} onChange={(e) => setze({ hervorheben: e.target.checked })}>Hervorheben</Checkbox>
 
+      {/* key={s.id} an den Abschnitten mit eigenem Zustand: das Flyin bleibt beim Wechsel der Auswahl
+          dieselbe Instanz — ohne key wanderten Suchanfrage, offene Listen und Fehlermeldungen zur
+          nächsten Stelle mit (Review Focus 7). NICHT das ganze Formular keyen: dessen Fokus-Effekt
+          zöge sonst bei jeder Pfeiltasten-Auswahl den Fokus ins Titelfeld. */}
       <fieldset className="kp-abschnitt">
         <legend>Zeichen</legend>
-        <ZeichenWahl wert={s.zeichen} index={p.zeichenIndex} symbole={p.symbole} ladeSymbole={p.ladeSymbole}
+        <ZeichenWahl key={s.id} wert={s.zeichen} index={p.zeichenIndex} symbole={p.symbole} ladeSymbole={p.ladeSymbole}
           planZeichen={planZeichen} onWahl={(k) => setze({ zeichen: k })} />
       </fieldset>
 
-      <KontaktZeilen kontakte={s.kontakte} onAendere={(neu, sch) => setze({ kontakte: neu }, sch ? `${sch}:${s.id}` : undefined)} />
+      <KontaktZeilen key={s.id} kontakte={s.kontakte} onAendere={(neu, sch) => setze({ kontakte: neu }, sch ? `${sch}:${s.id}` : undefined)} />
 
       {/* TASK-12-EINFUEGESTELLE: Untersteht/Lage, Verbindung, Kanäle, Einheiten */}
 
@@ -3560,6 +4008,7 @@ In `K/_ui/kommplan.css` anhängen:
 .kp-abschnitt > legend { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--kp-gedaempft); padding: 0; }
 .kp-hilfe { margin: 0; font-size: 13px; color: var(--kp-gedaempft); }
 .kp-zeile { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; align-items: center; }
+.kp-kontakt { display: grid; gap: 4px; }
 .kp-zeichen-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
 .kp-zeichen-knopf {
   display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; text-align: start;
@@ -3576,7 +4025,7 @@ und die Variable `--kp-auswahl` in beiden Variablenblöcken ergänzen (gleiche Z
 - [ ] **Step 4: Grün sehen**
 
 Run: `pnpm vitest run src/app/m/kommplan && pnpm typecheck; echo "typecheck exit $?"`
-Expected: PASS, exit 0. Findet der Kontakt-Test das Wertfeld nicht, weil antd das `<input>` anders schachtelt: den Greifer auf `[data-kontakt-zeile] input[aria-label$=": Wert"]` umstellen — nicht auf eine antd-Klasse eines anderen Bauteils.
+Expected: PASS, exit 0. Findet der Kontakt-Test das Feld nicht, weil antd das `<input>` anders schachtelt: den Greifer über die Beschriftung führen (`label[for]` → `#id`) — nie über eine antd-Klasse.
 
 - [ ] **Step 5: Ankerschritt und Commit**
 
@@ -3586,8 +4035,9 @@ Ankerschritt für `kontakte.ts` und `kommplan.css`.
 git add src/app/m/kommplan/_ui/editor src/app/m/kommplan/_lib/plan/kontakte.ts src/app/m/kommplan/_lib/plan/kontakte.test.ts src/app/m/kommplan/_ui/kommplan.css
 git commit -S -m "feat(kommplan): Flyin einer Stelle mit Titel, Leiter, Zeichen-Suche und Kontakten
 
-Jede Eingabe wirkt sofort aufs Dokument; Kontakte stehen in der festen
-Reihenfolge der Vorlage, zuletzt genutzte Zeichen oben.
+Jede Eingabe wirkt sofort aufs Dokument; Kontakte haben ein festes Feld
+je Art in der Reihenfolge der Karte, zuletzt genutzte Zeichen oben,
+Enter im Titel heißt fertig.
 
 DRK-500
 
@@ -3605,7 +4055,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `haengeUm`, `moeglicheEltern`, `aendereStelle` (Tasks 2, 3), `legeVerbindungAn`, `findeVerbindung` (Task 3), `fuegeEinheitenEin`, `aendereEinheit`, `loescheEinheit` (Task 4), `leseEinheitenliste` (Task 4), `neueId`, `neueIds` (Task 8), `ART_NAME`, `VERBINDUNGS_ARTEN`, `GRENZE`, `LAENGE`, `Aendere` (Task 11).
-- Produces: `StellenLage({ inhalt, stelle, aendere })`, `VerbindungWahl({ inhalt, stelle, aendere })`, `EinheitenListe({ inhalt, stelle, aendere, fokus })` — je `stelle: Stelle`, `aendere: Aendere`, `fokus: { ziel: "titel" | "einheit"; n: number }`.
+- Produces: `StellenLage({ inhalt, stelle, aendere })`, `VerbindungWahl({ inhalt, stelle, aendere })`, `EinheitenListe({ inhalt, stelle, aendere, fokus })` — je `stelle: Stelle`, `aendere: Aendere`, `fokus: { ziel: "titel" | "einheit"; stelle: string | null; n: number }`.
 
 - [ ] **Step 1: Failing tests**
 
@@ -3656,6 +4106,37 @@ describe("Flyin einer Stelle, Teil 2", () => {
     expect(stand.verbindungen).toHaveLength(2);
     expect(stelle().verbindungId).toBe("v1");
   });
+  it("neue Verbindung per Tastatur: Fokus im Feld, Enter legt an; die Art ist die zuletzt angelegte", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Neue Verbindung"));
+    const feld = query<HTMLInputElement>('input[aria-label="Bezeichnung der neuen Verbindung"]');
+    expect(document.activeElement).toBe(feld);
+    await fill('input[aria-label="Bezeichnung der neuen Verbindung"]', "R_UE_4");
+    await druecke(feld, "Enter");
+    expect(stand.verbindungen.at(-1)).toMatchObject({ bezeichnung: "R_UE_4", art: "tmo" }); // wie v1, die letzte
+    expect(stelle().verbindungId).toBe(stand.verbindungen.at(-1)!.id);
+  });
+  it("Wechsel der Stelle bei offenem Flyin: offene Liste, Entwurf und Fehler der vorigen Stelle sind weg (Review Focus 7)", async () => {
+    await mount(<Rahmen stelleId="a" />);
+    await clickElement(knopf("Liste einfügen"));
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', `KTW ${"R".repeat(81)}`);
+    await clickElement(knopf("Übernehmen"));
+    expect(document.body.textContent).toContain("Zeile 1: Der Rufname ist länger als 80 Zeichen.");
+    await clickElement(knopf("Neue Verbindung"));
+    await rerender(<Rahmen stelleId="b" />);
+    expect(queryAll("textarea")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain("Zeile 1: Der Rufname");
+    expect(queryAll('input[aria-label="Bezeichnung der neuen Verbindung"]')).toHaveLength(0);
+  });
+  it("eine „+ Einheit“-Anfrage für a zieht nach dem Wechsel zu b den Fokus nicht in b's Typ-Feld", async () => {
+    const mitEinheit = baue({ stellen: [{ id: "el", titel: "EL" }, { id: "a", titel: "A", eltern: "el", einheiten: ["RTW 1"] }, { id: "b", titel: "B", eltern: "el", einheiten: ["KTW 2"] }] });
+    const anfrage = { ziel: "einheit" as const, stelle: "a", n: 1 };
+    await mount(<Rahmen start={mitEinheit} stelleId="a" fokus={anfrage} />);
+    expect(document.activeElement).toBe(query('input[aria-label="Einheit 1: Typ"]'));
+    (document.activeElement as HTMLElement).blur();
+    await rerender(<Rahmen start={mitEinheit} stelleId="b" fokus={anfrage} />);
+    expect(document.activeElement).not.toBe(query('input[aria-label="Einheit 1: Typ"]'));
+  });
   it("Einheiten: einzeln anlegen (Fokus im Typ), ändern, entfernen", async () => {
     await mount(<Rahmen />);
     await clickElement(knopf("+ Einheit"));
@@ -3674,6 +4155,16 @@ describe("Flyin einer Stelle, Teil 2", () => {
     await clickElement(knopf("Übernehmen"));
     expect(stelle().einheiten.map((e) => [e.typ, e.rufname])).toEqual([["RTW", "RK 1"], ["KTW", "RK UE 40-92-1"], ["MTW", "RK UE 40-17-1"]]);
     expect(queryAll("textarea")).toHaveLength(0);
+  });
+  it("Liste einfügen per Tastatur: Fokus in der Textarea, Strg/Cmd+Enter übernimmt, danach Fokus auf „Liste einfügen“", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Liste einfügen"));
+    const ta = query<HTMLTextAreaElement>('textarea[aria-label="Einheiten, je Zeile eine"]');
+    expect(document.activeElement).toBe(ta);
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', "KTW RK 2");
+    await act(async () => { ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true })); });
+    expect(stelle().einheiten.map((e) => e.typ)).toEqual(["RTW", "KTW"]);
+    expect(document.activeElement).toBe(knopf("Liste einfügen"));
   });
   it("Liste einfügen mit Fehlern oder über 60: nichts übernommen, Hinweis bleibt am Feld (Review Focus 2)", async () => {
     await mount(<Rahmen />);
@@ -3766,7 +4257,8 @@ export function VerbindungWahl({ inhalt, stelle, aendere }: { inhalt: PlanInhalt
   const basis = useId();
   const [neu, setNeu] = useState(false);
   const [bezeichnung, setBezeichnung] = useState("");
-  const [art, setArt] = useState<VerbindungsArt>("tmo");
+  // Vorbelegt mit der Art der zuletzt angelegten Verbindung: in einem Plan sind es meist dieselben (Kritik).
+  const [art, setArt] = useState<VerbindungsArt>(() => inhalt.verbindungen.at(-1)?.art ?? "tmo");
   const [fehler, setFehler] = useState<string | null>(null);
   const optionen = inhalt.verbindungen.map((v) => ({ value: v.id, label: `${v.bezeichnung} · ${ART_NAME[v.art]}` }));
 
@@ -3795,7 +4287,9 @@ export function VerbindungWahl({ inhalt, stelle, aendere }: { inhalt: PlanInhalt
           </div>
           {neu ? (
             <div className="kp-zeile">
-              <Input aria-label="Bezeichnung der neuen Verbindung" value={bezeichnung} maxLength={LAENGE.bezeichnung} onChange={(e) => setBezeichnung(e.target.value)} placeholder="z. B. R_UE_2" />
+              {/* autoFocus + Enter: „neu eintippen" (§6.4) ist ein Feld, keine Klickstrecke (Kritik) */}
+              <Input autoFocus aria-label="Bezeichnung der neuen Verbindung" value={bezeichnung} maxLength={LAENGE.bezeichnung} onChange={(e) => setBezeichnung(e.target.value)} placeholder="z. B. R_UE_2"
+                onPressEnter={(e) => { e.preventDefault(); if (bezeichnung.trim() !== "") verbindeNeu(); }} />
               <Select aria-label="Art der neuen Verbindung" value={art} onChange={(a: VerbindungsArt) => setArt(a)} options={VERBINDUNGS_ARTEN.map((a) => ({ value: a, label: ART_NAME[a] }))} />
               <Button type="primary" onClick={verbindeNeu} disabled={bezeichnung.trim() === ""}>Anlegen und verbinden</Button>
             </div>
@@ -3829,15 +4323,19 @@ import { neueId, neueIds } from "./ids";
  * Eine Liste mit Fehlern oder über der Grenze wird ganz abgewiesen, nie still gekürzt (Review Focus 2).
  */
 export function EinheitenListe({ inhalt, stelle, aendere, fokus }: {
-  inhalt: PlanInhalt; stelle: Stelle; aendere: Aendere; fokus: { ziel: "titel" | "einheit"; n: number };
+  inhalt: PlanInhalt; stelle: Stelle; aendere: Aendere; fokus: { ziel: "titel" | "einheit"; stelle: string | null; n: number };
 }) {
   const [liste, setListe] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string[]>([]);
   const [lokal, setLokal] = useState(0);
   const letzterTyp = useRef<InputRef>(null);
+  const listeKnopf = useRef<HTMLButtonElement>(null);
   // Zwei getrennte Anfragen: die des Editors („+ Einheit" am Griff) und die eigene („+ Einheit" hier).
   // Zusammengelegt stähle eine spätere Titel-Anfrage des Editors den Fokus, sobald `lokal > 0` ist.
-  useEffect(() => { if (fokus.ziel === "einheit") letzterTyp.current?.focus(); }, [fokus]);
+  // Nur für DIESE Stelle: der Abschnitt ist per key an die Stelle gebunden und montiert beim Wechsel
+  // der Auswahl neu — eine noch stehende „+ Einheit"-Anfrage der vorigen Stelle zöge sonst den Fokus
+  // in das Typ-Feld der neuen (und bräche die Tastaturschleife, Entscheidung 17).
+  useEffect(() => { if (fokus.ziel === "einheit" && fokus.stelle === stelle.id) letzterTyp.current?.focus(); }, [fokus, stelle.id]);
   useEffect(() => { if (lokal > 0) letzterTyp.current?.focus(); }, [lokal]);
 
   const neu = () => {
@@ -3853,6 +4351,7 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus }: {
     });
     if (f !== null) { setFehler([f]); return; }
     setListe(null); setFehler([]);
+    listeKnopf.current?.focus(); // der Fokus ginge mit der Textarea sonst verloren
   };
 
   return (
@@ -3870,11 +4369,14 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus }: {
       ))}
       <div className="kp-formular-knoepfe">
         <Button onClick={neu} disabled={stelle.einheiten.length >= GRENZE.einheiten}>+ Einheit</Button>
-        <Button onClick={() => { setListe(liste === null ? "" : null); setFehler([]); }}>{liste === null ? "Liste einfügen" : "Liste schließen"}</Button>
+        <Button ref={listeKnopf} onClick={() => { setListe(liste === null ? "" : null); setFehler([]); }}>{liste === null ? "Liste einfügen" : "Liste schließen"}</Button>
       </div>
       {liste !== null ? (
         <>
-          <Input.TextArea aria-label="Einheiten, je Zeile eine" value={liste} onChange={(e) => setListe(e.target.value)} autoSize={{ minRows: 4, maxRows: 12 }}
+          {/* autoFocus: direkt einfügen können; Strg/Cmd+Enter übernimmt (Kritik) */}
+          <Input.TextArea autoFocus aria-label="Einheiten, je Zeile eine" aria-keyshortcuts="Control+Enter Meta+Enter" value={liste}
+            onChange={(e) => setListe(e.target.value)} autoSize={{ minRows: 4, maxRows: 12 }}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); uebernimm(); } }}
             placeholder={"RTW RK UE 40-83-5\nKTW RK UE 40-92-1"} />
           <div className="kp-formular-knoepfe"><Button type="primary" onClick={uebernimm} disabled={(liste ?? "").trim() === ""}>Übernehmen</Button></div>
         </>
@@ -3888,12 +4390,12 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus }: {
 In `StelleFlyin.tsx` die Markierung `{/* TASK-12-EINFUEGESTELLE: … */}` ersetzen durch:
 
 ```tsx
-      <StellenLage inhalt={inhalt} stelle={s} aendere={aendere} />
-      <VerbindungWahl inhalt={inhalt} stelle={s} aendere={aendere} />
-      <EinheitenListe inhalt={inhalt} stelle={s} aendere={aendere} fokus={fokus} />
+      <StellenLage key={s.id} inhalt={inhalt} stelle={s} aendere={aendere} />
+      <VerbindungWahl key={s.id} inhalt={inhalt} stelle={s} aendere={aendere} />
+      <EinheitenListe key={s.id} inhalt={inhalt} stelle={s} aendere={aendere} fokus={fokus} />
 ```
 
-(Importe ergänzen.)
+(Importe ergänzen. `key={s.id}` wie bei Zeichen und Kontakten: lokaler Zustand gehört zur Stelle, nicht zur Flyin-Instanz — Review Focus 7.)
 
 - [ ] **Step 4: Grün sehen**
 
@@ -3925,7 +4427,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `angabenSchema`, `PLAN_TYPEN`, `TYP_NAME`, `LAENGE_ANLASS`, `tagZuMs`, `Planangaben` (Task 5), `SpeicherErgebnis`, `FeldFehler` (Task 5), `setzeOptionen` (Task 2), `verbindungsNutzung`, `istReserve`, `aendereVerbindung`, `loescheVerbindung`, `legeVerbindungAn` (Task 3), `neueId` (Task 8), `Aendere` (Task 11).
-- Produces: `PlanFlyin({ offen, onSchliessen, ...props })` und `PlanFormular(props: PlanFormularProps)` mit `interface PlanFormularProps { angaben: Planangaben; inhalt: PlanInhalt; aendere: Aendere; speichereAngaben: (a: Planangaben) => Promise<SpeicherErgebnis> }`.
+- Produces:
+  - `PLAN_FLYIN_GRUND = 560` (die Fläche rechnet mit derselben Zahl, Entscheidung 18).
+  - `PlanFlyin({ offen, onSchliessen, nachSchliessen, abschnitt, ...props })` — `abschnitt: "angaben" | "verbindungen"` (Entscheidung 20: „Verbindungen bearbeiten" öffnet am Abschnitt Verbindungen).
+  - `PlanFormular(props: PlanFormularProps)` mit `interface PlanFormularProps { angaben: Planangaben; inhalt: PlanInhalt; aendere: Aendere; speichereAngaben: (a: Planangaben) => Promise<SpeicherErgebnis>; onEntwurf: (offen: boolean) => void }` — `onEntwurf(true)`, sobald ein Angaben-Feld vom gespeicherten Stand abweicht, `false` nach dem Speichern (der Editor hält damit `beforeunload` auf, Entscheidung 11).
+
+Planangaben speichern sich selbst (Entscheidung 3): Textfelder beim Verlassen und mit Enter, Art und Datum sofort bei der Wahl. Unverändertes wird nie gesendet (Review Focus 6). Schließt das Flyin, während ein Feld den Fokus hat, verlässt der Fokus das Feld (der Editor setzt ihn auf die Fläche, Entscheidung 17) — damit wird gespeichert, bevor das Formular verschwindet.
 
 - [ ] **Step 1: Failing test**
 
@@ -3952,29 +4459,62 @@ const START = baue({
 const ANGABEN: Planangaben = { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: "2026-09-30" };
 let stand: PlanInhalt = START;
 const speichere = vi.fn();
+const entwurf = vi.fn();
 function Rahmen() {
   const [inhalt, setInhalt] = useState(START);
   const aendere: Aendere = (op) => {
     try { const neu = op(inhalt); setInhalt(neu); stand = neu; return null; }
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
-  return <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} />;
+  return <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} onEntwurf={entwurf} />;
 }
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button").find((b) => b.textContent === text)!;
 const zeile = (id: string) => query(`[data-verbindung-zeile="${id}"]`);
-afterEach(() => { unmount(); stand = START; speichere.mockReset(); });
+/** Feld betreten, Wert setzen, Feld verlassen — so, wie der Browser es tut. */
+async function tippeUndVerlasse(selector: string, wert: string) {
+  const el = query<HTMLInputElement>(selector);
+  await act(async () => { el.focus(); });
+  await fill(selector, wert);
+  await act(async () => { el.blur(); });
+  await act(async () => {});
+}
+async function druecke(el: Element, key: string) {
+  await act(async () => { el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
+  await act(async () => {});
+}
+afterEach(() => { unmount(); stand = START; speichere.mockReset(); entwurf.mockReset(); });
 
 describe("Plan-Flyin", () => {
-  it("Planangaben: Übernehmen sendet die Werte; Feldfehler stehen am Feld", async () => {
+  it("Planangaben speichern sich beim Verlassen des Felds — kein „Übernehmen“ (Entscheidung 3)", async () => {
+    speichere.mockResolvedValue({ ok: true, version: 2, aktualisiertAm: 1 });
+    await mount(<Rahmen />);
+    expect(queryAll("button").some((b) => b.textContent === "Übernehmen")).toBe(false);
+    await tippeUndVerlasse('input[name="anlass"]', "Probe");
+    expect(speichere).toHaveBeenCalledWith({ titel: "Übung", typ: "kommunikationsplan", anlass: "Probe", datum: "2026-09-30" });
+    expect(entwurf).toHaveBeenCalledWith(true);
+    expect(entwurf).toHaveBeenLastCalledWith(false);
+  });
+  it("Enter im Textfeld speichert ebenfalls", async () => {
+    speichere.mockResolvedValue({ ok: true, version: 2, aktualisiertAm: 1 });
+    await mount(<Rahmen />);
+    await fill('input[name="titel"]', "Übung Nord");
+    await druecke(query('input[name="titel"]'), "Enter");
+    expect(speichere).toHaveBeenCalledWith(expect.objectContaining({ titel: "Übung Nord" }));
+  });
+  it("Unverändertes wird nie gesendet — auch nicht beim Verlassen (Review Focus 6: Seed-Pläne bleiben unberührt)", async () => {
+    await mount(<Rahmen />);
+    await tippeUndVerlasse('input[name="titel"]', "Übung");
+    await tippeUndVerlasse('input[name="anlass"]', "  ");
+    expect(speichere).not.toHaveBeenCalled();
+  });
+  it("Feldfehler stehen am Feld: aria-invalid und aria-describedby zeigen auf den Text", async () => {
     speichere.mockResolvedValue({ ok: false, grund: "ungueltig", fehler: "Bitte die markierten Felder prüfen.", feldFehler: { titel: "Bitte einen Titel eintragen." } });
     await mount(<Rahmen />);
-    await fill('input[name="titel"]', "  ");
-    await fill('input[name="anlass"]', "Probe");
-    await clickElement(knopf("Übernehmen"));
-    await act(async () => {});
-    expect(speichere).toHaveBeenCalledWith({ titel: "  ", typ: "kommunikationsplan", anlass: "Probe", datum: "2026-09-30" });
-    expect(query('input[name="titel"]').getAttribute("aria-invalid")).toBe("true");
-    expect(document.body.textContent).toContain("Bitte einen Titel eintragen.");
+    await tippeUndVerlasse('input[name="titel"]', "  ");
+    const titel = query('input[name="titel"]');
+    expect(titel.getAttribute("aria-invalid")).toBe("true");
+    expect(document.getElementById(titel.getAttribute("aria-describedby")!)?.textContent).toBe("Bitte einen Titel eintragen.");
+    expect(entwurf).not.toHaveBeenLastCalledWith(false); // der Entwurf ist nicht gespeichert
   });
   it("Optionen: Leerzeilen und VS-NfD-Vermerk schalten im Dokument", async () => {
     await mount(<Rahmen />);
@@ -4000,12 +4540,15 @@ describe("Plan-Flyin", () => {
     expect(stand.verbindungen[0].bezeichnung).toBe("R_UE_9");
     expect(zeile("v1").textContent).toContain("Die Verbindung braucht eine Bezeichnung.");
   });
-  it("neue Verbindung anlegen — sie ist zunächst Reserve", async () => {
+  it("neue Verbindung anlegen — per Knopf oder Enter; sie ist zunächst Reserve", async () => {
     await mount(<Rahmen />);
     await fill('input[aria-label="Bezeichnung der neuen Verbindung"]', "Standleitung");
     await clickElement(knopf("Verbindung anlegen"));
     expect(stand.verbindungen.at(-1)).toMatchObject({ bezeichnung: "Standleitung", art: "tmo" });
-    expect(queryAll(".kp-chip").map((c) => c.textContent)).toEqual(["Reserve", "Reserve"]);
+    await fill('input[aria-label="Bezeichnung der neuen Verbindung"]', "Reserve 2");
+    await druecke(query('input[aria-label="Bezeichnung der neuen Verbindung"]'), "Enter");
+    expect(stand.verbindungen.at(-1)).toMatchObject({ bezeichnung: "Reserve 2" });
+    expect(queryAll(".kp-chip").map((c) => c.textContent)).toEqual(["Reserve", "Reserve", "Reserve"]);
   });
 });
 ```
@@ -4022,7 +4565,7 @@ Expected: FAIL — Modul fehlt.
 ```tsx
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState } from "react";
 import dayjs, { type Dayjs } from "dayjs";
 import { Alert, Button, DatePicker, Drawer, Input, Select, Switch } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
@@ -4035,24 +4578,37 @@ import { aendereVerbindung, legeVerbindungAn, loescheVerbindung, verbindungsNutz
 import type { Aendere } from "./aendere";
 import { neueId } from "./ids";
 
-export interface PlanFormularProps { angaben: Planangaben; inhalt: PlanInhalt; aendere: Aendere; speichereAngaben: (a: Planangaben) => Promise<SpeicherErgebnis> }
+export const PLAN_FLYIN_GRUND = 560;
+export interface PlanFormularProps {
+  angaben: Planangaben; inhalt: PlanInhalt; aendere: Aendere;
+  speichereAngaben: (a: Planangaben) => Promise<SpeicherErgebnis>; onEntwurf: (offen: boolean) => void;
+}
 
 /**
- * DAS FLYIN DES PLANS (Entscheidung 3): Planangaben sind Spalten und werden mit „Übernehmen"
- * gespeichert (eigene Audit-Zeile); Optionen und Verbindungen sind Dokument und wirken sofort.
+ * DAS FLYIN DES PLANS (Entscheidungen 3, 20): Planangaben sind Spalten und speichern sich selbst —
+ * beim Verlassen eines Textfelds, mit Enter, bei Art und Datum sofort (eigene Action, je Speichern
+ * eine Audit-Zeile); Optionen und Verbindungen sind Dokument und wirken sofort. Ohne Maske wie das
+ * Flyin der Stelle; `nachSchliessen` läuft nach der Schließ-Animation (Fokus auf die Fläche).
  */
-export function PlanFlyin({ offen, onSchliessen, ...p }: PlanFormularProps & { offen: boolean; onSchliessen: () => void }) {
+export function PlanFlyin({ offen, onSchliessen, nachSchliessen, abschnitt, ...p }: PlanFormularProps & {
+  offen: boolean; onSchliessen: () => void; nachSchliessen: () => void; abschnitt: "angaben" | "verbindungen";
+}) {
   return (
-    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(560)} destroyOnHidden rootClassName="kp-flyin" title="Plan">
+    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(PLAN_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin"
+      title="Plan und Verbindungen"
+      afterOpenChange={(auf) => {
+        if (!auf) { nachSchliessen(); return; }
+        if (abschnitt === "verbindungen") document.querySelector('[data-abschnitt="verbindungen"]')?.scrollIntoView({ block: "start" });
+      }}>
       {offen ? <PlanFormular {...p} /> : null}
     </Drawer>
   );
 }
 
-export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben }: PlanFormularProps) {
+export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben, onEntwurf }: PlanFormularProps) {
   return (
     <div className="kp-formular">
-      <Angaben angaben={angaben} speichereAngaben={speichereAngaben} />
+      <Angaben angaben={angaben} speichereAngaben={speichereAngaben} onEntwurf={onEntwurf} />
       <fieldset className="kp-abschnitt">
         <legend>Optionen</legend>
         <label className="kp-schalter"><Switch data-option="leerzeilen" checked={inhalt.optionen.leerzeilen}
@@ -4065,7 +4621,12 @@ export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben }: Pla
   );
 }
 
-function Angaben({ angaben, speichereAngaben }: Pick<PlanFormularProps, "angaben" | "speichereAngaben">) {
+interface Entwurf { titel: string; typ: PlanTyp; anlass: string; datum: string | null }
+/** Wie `angabenSchema` vergleicht: getrimmt, leerer Anlass = null. So wird Unverändertes nie gesendet (Review Focus 6). */
+const gleich = (a: Entwurf, b: Planangaben) =>
+  a.titel.trim() === b.titel && a.typ === b.typ && (a.anlass.trim() || null) === b.anlass && a.datum === b.datum;
+
+function Angaben({ angaben, speichereAngaben, onEntwurf }: Pick<PlanFormularProps, "angaben" | "speichereAngaben" | "onEntwurf">) {
   const basis = useId();
   const [titel, setTitel] = useState(angaben.titel);
   const [typ, setTyp] = useState<PlanTyp>(angaben.typ);
@@ -4073,40 +4634,53 @@ function Angaben({ angaben, speichereAngaben }: Pick<PlanFormularProps, "angaben
   const [datum, setDatum] = useState<Dayjs | null>(angaben.datum ? dayjs(angaben.datum) : null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [meldung, setMeldung] = useState<string | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
+  /** Zuletzt gespeicherter Stand — gesät aus den Props; der Editor keyt diese Komponente neu, wenn die Angaben von außen kommen. */
+  const gespeichert = useRef(angaben);
+  const entwurf = (): Entwurf => ({ titel, typ, anlass, datum: datum ? datum.format("YYYY-MM-DD") : null });
 
-  const absenden = (e?: FormEvent) => {
-    e?.preventDefault();
-    setLaeuft(true); setFeldFehler({}); setMeldung(null);
-    void speichereAngaben({ titel, typ, anlass, datum: datum ? datum.format("YYYY-MM-DD") : null } as Planangaben)
+  const sende = (e: Entwurf) => {
+    if (gleich(e, gespeichert.current)) { setFeldFehler({}); onEntwurf(false); return; }
+    setMeldung(null);
+    void speichereAngaben(e as unknown as Planangaben) // der Server trimmt und macht aus leerem Anlass null (`angabenSchema`)
       .then((r) => {
-        if (r.ok) setMeldung("Übernommen.");
+        if (r.ok) { gespeichert.current = { titel: e.titel.trim(), typ: e.typ, anlass: e.anlass.trim() || null, datum: e.datum }; setFeldFehler({}); onEntwurf(false); }
         else if (r.grund === "ungueltig") setFeldFehler(r.feldFehler ?? {});
-        else if (r.grund === "konflikt") setMeldung("Nicht übernommen: der Plan wurde inzwischen geändert. Entscheide oben, welche Fassung gilt, dann noch einmal übernehmen.");
+        else if (r.grund === "konflikt") setMeldung("Nicht gespeichert: der Plan wurde inzwischen geändert. Entscheide oben, welche Fassung gilt.");
         else setMeldung("Diesen Plan gibt es nicht mehr, oder er wurde archiviert.");
       })
-      .catch(() => setMeldung("Nicht übernommen — prüfe die Verbindung und ob du noch angemeldet bist."))
-      .finally(() => setLaeuft(false));
+      .catch(() => setMeldung("Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist."));
   };
-  const feld = (name: string) => ({ id: `${basis}-${name}`, "aria-invalid": feldFehler[name] ? true : undefined });
-  const fehler = (name: string) => (feldFehler[name] ? <p className="kp-feldfehler">{feldFehler[name]}</p> : null);
+  const geaendert = () => onEntwurf(true);
+  // Dasselbe Paar wie in `NeuerPlan` (docs/design/feedback-admin.md 4.4): aria-invalid UND aria-describedby.
+  const feld = (name: string) => ({
+    id: `${basis}-${name}`, "aria-invalid": feldFehler[name] ? true : undefined,
+    "aria-describedby": feldFehler[name] ? `${basis}-${name}-fehler` : undefined,
+  });
+  const fehlerText = (name: string) => (feldFehler[name] ? <p id={`${basis}-${name}-fehler`} className="kp-feldfehler">{feldFehler[name]}</p> : null);
 
   return (
-    <form className="kp-formular" aria-label="Planangaben" onSubmit={absenden}>
+    <fieldset className="kp-abschnitt" aria-label="Planangaben">
+      <legend>Planangaben</legend>
       <label className="kp-feldname" htmlFor={`${basis}-titel`}>Titel</label>
-      <Input name="titel" value={titel} maxLength={LAENGE.titel} onChange={(e) => setTitel(e.target.value)} {...feld("titel")} />
-      {fehler("titel")}
+      <Input name="titel" value={titel} maxLength={LAENGE.titel} {...feld("titel")}
+        onChange={(e) => { setTitel(e.target.value); geaendert(); }} onBlur={() => sende(entwurf())}
+        onPressEnter={(e) => { e.preventDefault(); sende(entwurf()); }} />
+      {fehlerText("titel")}
       <label className="kp-feldname" htmlFor={`${basis}-typ`}>Art</label>
-      <Select id={`${basis}-typ`} value={typ} onChange={(v: PlanTyp) => setTyp(v)} options={PLAN_TYPEN.map((t) => ({ value: t, label: TYP_NAME[t] }))} />
+      <Select id={`${basis}-typ`} value={typ} options={PLAN_TYPEN.map((t) => ({ value: t, label: TYP_NAME[t] }))}
+        onChange={(v: PlanTyp) => { setTyp(v); sende({ ...entwurf(), typ: v }); }} />
       <label className="kp-feldname" htmlFor={`${basis}-anlass`}>Anlass</label>
-      <Input name="anlass" value={anlass} maxLength={LAENGE_ANLASS} onChange={(e) => setAnlass(e.target.value)} {...feld("anlass")} />
-      {fehler("anlass")}
+      <Input name="anlass" value={anlass} maxLength={LAENGE_ANLASS} {...feld("anlass")}
+        onChange={(e) => { setAnlass(e.target.value); geaendert(); }} onBlur={() => sende(entwurf())}
+        onPressEnter={(e) => { e.preventDefault(); sende(entwurf()); }} />
+      {fehlerText("anlass")}
       <label className="kp-feldname" htmlFor={`${basis}-datum`}>Datum</label>
-      <DatePicker id={`${basis}-datum`} value={datum} onChange={setDatum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld} status={feldFehler.datum ? "error" : undefined} />
-      {fehler("datum")}
-      {meldung ? <Alert type={meldung === "Übernommen." ? "success" : "warning"} showIcon message={meldung} /> : null}
-      <div className="kp-formular-knoepfe"><Button type="primary" htmlType="submit" loading={laeuft} disabled={laeuft}>Übernehmen</Button></div>
-    </form>
+      <DatePicker {...feld("datum")} value={datum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
+        status={feldFehler.datum ? "error" : undefined}
+        onChange={(d: Dayjs | null) => { setDatum(d); sende({ ...entwurf(), datum: d ? d.format("YYYY-MM-DD") : null }); }} />
+      {fehlerText("datum")}
+      {meldung ? <Alert type="warning" showIcon title={meldung} /> : null}
+    </fieldset>
   );
 }
 
@@ -4122,7 +4696,7 @@ function nutzungText(n: { eltern: number; kanal: number }): string {
 function Verbindungen({ inhalt, aendere }: Pick<PlanFormularProps, "inhalt" | "aendere">) {
   const [entwurf, setEntwurf] = useState<Record<string, string>>({});
   const [bezeichnung, setBezeichnung] = useState("");
-  const [art, setArt] = useState<VerbindungsArt>("tmo");
+  const [art, setArt] = useState<VerbindungsArt>(() => inhalt.verbindungen.at(-1)?.art ?? "tmo");
   const [fehler, setFehler] = useState<string | null>(null);
   const nutzung = verbindungsNutzung(inhalt);
   const ARTEN = VERBINDUNGS_ARTEN.map((a) => ({ value: a, label: ART_NAME[a] }));
@@ -4132,13 +4706,14 @@ function Verbindungen({ inhalt, aendere }: Pick<PlanFormularProps, "inhalt" | "a
     if (wert.trim() !== "") aendere((p) => aendereVerbindung(p, id, { bezeichnung: wert }), `verbindung:${id}`);
   };
   const anlegen = () => {
+    if (bezeichnung.trim() === "") return;
     const f = aendere((p) => legeVerbindungAn(p, { id: neueId(p, "v"), art, bezeichnung }));
     setFehler(f);
     if (f === null) setBezeichnung("");
   };
 
   return (
-    <fieldset className="kp-abschnitt">
+    <fieldset className="kp-abschnitt" data-abschnitt="verbindungen">
       <legend>Verbindungen</legend>
       {inhalt.verbindungen.length === 0 ? <p className="kp-hilfe">Noch keine Verbindungen.</p> : null}
       {inhalt.verbindungen.map((v, i) => {
@@ -4163,7 +4738,8 @@ function Verbindungen({ inhalt, aendere }: Pick<PlanFormularProps, "inhalt" | "a
         );
       })}
       <div className="kp-zeile">
-        <Input aria-label="Bezeichnung der neuen Verbindung" value={bezeichnung} maxLength={LAENGE.bezeichnung} onChange={(e) => setBezeichnung(e.target.value)} placeholder="z. B. K_UE_2" />
+        <Input aria-label="Bezeichnung der neuen Verbindung" value={bezeichnung} maxLength={LAENGE.bezeichnung} onChange={(e) => setBezeichnung(e.target.value)} placeholder="z. B. K_UE_2"
+          onPressEnter={(e) => { e.preventDefault(); anlegen(); }} />
         <Select aria-label="Art der neuen Verbindung" value={art} onChange={(a: VerbindungsArt) => setArt(a)} options={ARTEN} />
         <Button onClick={anlegen} disabled={bezeichnung.trim() === ""}>Verbindung anlegen</Button>
       </div>
@@ -4173,7 +4749,7 @@ function Verbindungen({ inhalt, aendere }: Pick<PlanFormularProps, "inhalt" | "a
 }
 ```
 
-Das `as Planangaben` beim Senden ist nötig, weil `anlass` hier eine Zeichenkette ist (der Server macht aus leer `null`, `angabenSchema`); falls `pnpm lint` den unbenutzten Namen `_weg` meldet, stattdessen `const rest = { ...e }; delete rest[v.id]; return rest;`.
+Das `as unknown as Planangaben` beim Senden ist nötig, weil `anlass` hier eine Zeichenkette ist (der Server macht aus leer `null`, `angabenSchema`). Falls `pnpm lint` den unbenutzten Namen `_weg` meldet, stattdessen `const rest = { ...e }; delete rest[v.id]; return rest;`. Das Ref `gespeichert` wird nur in Ereignis- und Versprechens-Rückrufen geschrieben, nie im Rendern (React Compiler).
 
 In `K/_ui/kommplan.css` anhängen:
 
@@ -4185,7 +4761,7 @@ In `K/_ui/kommplan.css` anhängen:
 - [ ] **Step 4: Grün sehen**
 
 Run: `pnpm vitest run src/app/m/kommplan && pnpm typecheck; echo "typecheck exit $?"`
-Expected: PASS, exit 0.
+Expected: PASS, exit 0. Scheitert `tippeUndVerlasse`, weil jsdom beim `blur()` kein `focusout` schickt, das React als `onBlur` liest: zusätzlich `el.dispatchEvent(new FocusEvent("focusout", { bubbles: true }))` im selben `act` — nicht die Zusage „speichert beim Verlassen" aufgeben.
 
 - [ ] **Step 5: Commit**
 
@@ -4193,8 +4769,9 @@ Expected: PASS, exit 0.
 git add src/app/m/kommplan/_ui/editor/PlanFlyin.tsx src/app/m/kommplan/_ui/editor/PlanFlyin.test.tsx src/app/m/kommplan/_ui/kommplan.css
 git commit -S -m "feat(kommplan): Planangaben, Optionen und Verbindungen des Plans im Flyin
 
-Angaben werden mit „Übernehmen“ gespeichert, Optionen und Verbindungen
-wirken sofort; gelöscht wird nur, was weder Weg noch Kanal ist.
+Angaben speichern sich beim Verlassen des Felds selbst, Unverändertes
+wird nie gesendet; Optionen und Verbindungen wirken sofort, gelöscht
+wird nur, was weder Weg noch Kanal ist.
 
 DRK-500
 
@@ -4207,16 +4784,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `K/_ui/editor/Editor.tsx`, `K/_ui/editor/Kopfleiste.tsx`, `K/_ui/editor/Griffe.tsx`
-- Modify: `K/(intern)/p/[id]/page.tsx`, `K/_ui/kommplan.css`
+- Modify: `K/(intern)/p/[id]/page.tsx`, `K/_ui/kommplan.css`, `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` (nur `titel` und `inhalt`, Step 7)
 - Test: `K/_ui/editor/Editor.test.tsx`, `K/_ui/editor/Kopfleiste.test.ts`
 
 **Interfaces:**
-- Consumes: alles aus Tasks 2–13, dazu `speichereInhaltAction`, `speichereAngabenAction`, `ladeZeichenAction` (direkt importiert, Falle 9), `darfKommplanBearbeiten`, `zeichenIndex`, `symboleFuer`, `Seitenkopf`, `zeitFormat`, `kalendertag` (`_lib/rahmen.ts`).
+- Consumes: alles aus Tasks 2–13, dazu `speichereInhaltAction`, `speichereAngabenAction`, `ladeStandAction`, `ladeZeichenAction` (direkt importiert, Falle 9), `darfKommplanBearbeiten`, `zeichenIndex`, `symboleFuer`, `Seitenkopf`, `zeitFormat`, `kalendertag` (`_lib/rahmen.ts`), `STELLE_FLYIN_GRUND` (Task 11), `PLAN_FLYIN_GRUND` (Task 13), `baueBaum`.
 - Produces:
   - `interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }`
   - `Editor({ plan, symbole, zeichenIndex, schrift }: { plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string })`
-  - `Kopfleiste(props)`, `statusText(z: SpeicherZustand): string`
-  - `Griffe({ karte, ansicht, seitenstelle, onUnterstelle, onSeitenstelle, onEinheit, onBearbeiten })`
+  - `Kopfleiste(props)`, `statusText(z: SpeicherZustand): string` (kurze Texte, Entscheidung 19)
+  - `Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, onSeitenstelle, onEinheit, onBearbeiten })` — `flaeche: { breite: number; hoehe: number }` (freie Breite der Überlagerung, für das Klemmen der Griffleiste)
+  - `EDITOR_MASSSTAB = 4`, `GRIFF_RAND = { oben: 16, seite: 84, unten: 120 }` (in `Editor.tsx`)
   - Route `/p/[id]`: Editor für `darfKommplanBearbeiten(viewer.groups)` bei lesbarem Inhalt, sonst Betrachter wie bisher.
 
 - [ ] **Step 1: Failing tests**
@@ -4229,15 +4807,19 @@ import { statusText } from "./Kopfleiste";
 
 const basis = { version: 1, konflikt: null, zuletztGespeichert: null, fehler: null };
 
-describe("Speicherstatus (Spec §6.2)", () => {
-  it("benennt jeden Zustand in Worten, nie nur über Farbe", () => {
-    expect(statusText({ ...basis, status: "gespeichert" })).toBe("Alle Änderungen gespeichert");
-    expect(statusText({ ...basis, status: "gespeichert", zuletztGespeichert: Date.UTC(2026, 8, 30, 9, 5) })).toBe("Gespeichert um 11:05");
-    expect(statusText({ ...basis, status: "ungespeichert" })).toBe("Änderungen noch nicht gespeichert");
+describe("Speicherstatus (Spec §6.2, Entscheidung 19)", () => {
+  it("benennt jeden Zustand in Worten, nie nur über Farbe — kurz, damit die Werkzeugleiste nicht umbricht", () => {
+    expect(statusText({ ...basis, status: "gespeichert" })).toBe("Gespeichert");
+    expect(statusText({ ...basis, status: "gespeichert", zuletztGespeichert: Date.UTC(2026, 8, 30, 9, 5) })).toBe("Gespeichert 11:05");
+    expect(statusText({ ...basis, status: "ungespeichert" })).toBe("Ungespeichert");
     expect(statusText({ ...basis, status: "speichert" })).toBe("Speichert …");
-    expect(statusText({ ...basis, status: "fehler", fehler: "Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist." }))
-      .toBe("Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist.");
-    expect(statusText({ ...basis, status: "konflikt" })).toBe("Nicht gespeichert — Konflikt");
+    expect(statusText({ ...basis, status: "fehler", fehler: "Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist." })).toBe("Nicht gespeichert");
+    expect(statusText({ ...basis, status: "konflikt" })).toBe("Konflikt");
+  });
+  it("kein Text ist länger als der feste Platz (18 Zeichen, CSS `.kp-speicherstatus`)", () => {
+    for (const status of ["gespeichert", "ungespeichert", "speichert", "fehler", "konflikt"] as const) {
+      expect(statusText({ ...basis, status, zuletztGespeichert: Date.UTC(2026, 8, 30, 9, 5) }).length).toBeLessThanOrEqual(18);
+    }
   });
 });
 ```
@@ -4250,7 +4832,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { clickElement, exists, existsPortal, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 
-const aktionen = vi.hoisted(() => ({ speichereInhaltAction: vi.fn(), speichereAngabenAction: vi.fn(), legePlanAnAction: vi.fn() }));
+const aktionen = vi.hoisted(() => ({
+  speichereInhaltAction: vi.fn(), speichereAngabenAction: vi.fn(), legePlanAnAction: vi.fn(), ladeStandAction: vi.fn(),
+}));
 vi.mock("../../_actions/plan", () => aktionen);
 const zeichen = vi.hoisted(() => ({ ladeZeichenAction: vi.fn(async () => ({})) }));
 vi.mock("../../_actions/zeichen", () => zeichen);
@@ -4264,7 +4848,7 @@ const plan = (inhalt: PlanInhalt = INHALT): EditorPlan => ({
   id: "p1", version: 1, inhalt, aktualisiertAm: Date.UTC(2026, 8, 30, 8), aktualisiertVon: "Jana",
   angaben: { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: null },
 });
-const zeige = (p = plan()) => mount(<Editor plan={p} symbole={{}} zeichenIndex={[]} schrift="Arimo" />);
+const zeige = async (p = plan()) => { await mount(<Editor plan={p} symbole={{}} zeichenIndex={[]} schrift="Arimo" />); await act(async () => {}); };
 const karten = () => queryAll("[data-karte]").map((k) => k.getAttribute("data-karte")!);
 function zeiger(el: Element, typ: string, zeit: number) {
   const e = new MouseEvent(typ, { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
@@ -4278,12 +4862,20 @@ async function waehle(id: string) {
   await act(async () => { const k = query(`[data-karte="${id}"] rect`); zeiger(k, "pointerdown", uhr); zeiger(k, "pointerup", uhr + 10); });
 }
 async function taste(key: string, mehr: KeyboardEventInit = {}, ziel?: Element) {
-  await act(async () => { (ziel ?? query(".kp-betrachter")).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...mehr })); });
+  await act(async () => { (ziel ?? document.activeElement ?? query(".kp-betrachter")).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...mehr })); });
 }
 const knopf = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text)!;
+const flaecheFokussiert = () => document.activeElement === query(".kp-betrachter");
+/** Wie `fill` aus dem Harness, aber für ein Element im Portal (Flyin): `fill` sucht nur im Wirt. */
+async function schreibe(el: HTMLInputElement, wert: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  await act(async () => { setter.call(el, wert); el.dispatchEvent(new Event("input", { bubbles: true })); });
+}
 
 beforeEach(() => {
   aktionen.speichereInhaltAction.mockImplementation(async (e: { version: number }) => ({ ok: true, version: e.version + 1, aktualisiertAm: Date.UTC(2026, 8, 30, 9) }));
+  aktionen.speichereAngabenAction.mockImplementation(async (e: { version: number }) => ({ ok: true, version: e.version + 1, aktualisiertAm: Date.UTC(2026, 8, 30, 9) }));
+  aktionen.ladeStandAction.mockResolvedValue(null);
 });
 afterEach(async () => { await unmount(); vi.useRealTimers(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 
@@ -4305,28 +4897,61 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(existsPortal(`[data-flyin-stelle="${neu}"]`)).toBe(true);
     expect(queryPortal<HTMLInputElement>('input[name="titel"]').value).toBe("");
   });
-  it("Tastatur: ↓ wandert, N legt an, Entf löscht mit Rückgängig statt Nachfrage", async () => {
+  it("Tastaturschleife ohne Maus: N → Titel → Enter → N (Entscheidung 17)", async () => {
     await zeige();
     await waehle("el");
-    await taste("ArrowDown");
-    expect(exists('[data-griffe="a"]')).toBe(true);
+    query<HTMLElement>(".kp-betrachter").focus();
     await taste("n");
     expect(karten()).toHaveLength(4);
+    expect(document.activeElement).toBe(queryPortal('input[name="titel"]'));
+    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "EA 2");
+    await taste("Enter", {}, queryPortal('input[name="titel"]'));
+    expect(flaecheFokussiert()).toBe(true);
+    expect(existsPortal("[data-flyin-stelle]")).toBe(false);
+    await taste("ArrowUp");
+    await taste("n");
+    expect(karten()).toHaveLength(5);
+  });
+  it("Tastatur: ↓ wandert, Entf löscht mit Rückgängig statt Nachfrage; danach hat die Fläche den Fokus", async () => {
+    await zeige();
+    await waehle("el");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("ArrowDown");
+    expect(exists('[data-griffe="a"]')).toBe(true);
     await taste("Delete");
-    expect(karten()).toHaveLength(3);
-    expect(document.body.textContent).toContain("„(ohne Titel)“ gelöscht.");
+    expect(karten()).toHaveLength(2);
+    expect(query(".kp-betrachter [data-meldung]").textContent).toContain("„EA 1“ gelöscht.");
+    expect(flaecheFokussiert()).toBe(true);
     await clickElement(knopf("Rückgängig"));
-    expect(karten()).toHaveLength(4);
+    expect(karten()).toHaveLength(3);
+  });
+  it("F2 öffnet wie Enter; andere Buchstaben tun nichts (Entscheidung 9)", async () => {
+    await zeige();
     await waehle("a");
-    await taste("Backspace");
-    expect(document.body.textContent).toContain("„EA 1“ gelöscht samt 1 weiterer Stelle.");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("x");
+    expect(existsPortal("[data-flyin-stelle]")).toBe(false);
+    await taste("F2");
+    expect(existsPortal('[data-flyin-stelle="a"]')).toBe(true);
   });
   it("N an einer Seitenstelle: Hinweis, keine Änderung", async () => {
     await zeige();
     await waehle("s");
+    query<HTMLElement>(".kp-betrachter").focus();
     await taste("n");
     expect(karten()).toHaveLength(3);
     expect(document.body.textContent).toContain("Eine Seitenstelle trägt keine Unterstellen.");
+  });
+  it("N unter einer eingeklappten Stelle klappt sie auf: die neue Karte steht da und hat Griffe", async () => {
+    await zeige();
+    await clickElement(query('[data-umschalter="el"]'));
+    expect(karten()).not.toContain("a");
+    await waehle("el");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("n");
+    const neu = karten().find((k) => !["el", "a", "s"].includes(k))!;
+    expect(neu).toBeDefined();
+    expect(exists(`[data-griffe="${neu}"]`)).toBe(true);
   });
   it("Strg/Cmd+Z und Umschalt+Strg/Cmd+Z außerhalb von Textfeldern; im Titelfeld gehört Strg+Z dem Feld", async () => {
     await zeige();
@@ -4340,17 +4965,17 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await taste("z", { ctrlKey: true }, queryPortal('input[name="titel"]'));
     expect(karten()).toHaveLength(4);
   });
-  it("Autosave etwa 1 s nach der letzten Änderung, mit Version; Status in Worten", async () => {
+  it("Autosave etwa 1 s nach der letzten Änderung, mit Version; Status kurz und in Worten", async () => {
     vi.useFakeTimers();
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    expect(query(".kp-speicherstatus").textContent).toBe("Änderungen noch nicht gespeichert");
+    expect(query(".kp-speicherstatus").textContent).toBe("Ungespeichert");
     await act(async () => { await vi.advanceTimersByTimeAsync(999); });
     expect(aktionen.speichereInhaltAction).not.toHaveBeenCalled();
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(aktionen.speichereInhaltAction).toHaveBeenCalledWith(expect.objectContaining({ id: "p1", version: 1 }));
-    expect(query(".kp-speicherstatus").textContent).toBe("Gespeichert um 11:00");
+    expect(query(".kp-speicherstatus").textContent).toBe("Gespeichert 11:00");
   });
   it("Konflikt: Hinweis mit „Neu laden“ — danach steht der Serverstand da, Rückgängig ist leer", async () => {
     vi.useFakeTimers();
@@ -4367,10 +4992,11 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(karten()).toEqual(["x"]);
     expect(knopf("Rückgängig").disabled).toBe(true);
   });
-  it("Konflikt: „Meine Fassung behalten“ sendet mit der Serverversion", async () => {
+  it("Konflikt: „Meine Fassung behalten“ sendet mit der Serverversion und übernimmt die Planangaben der anderen Fassung", async () => {
     vi.useFakeTimers();
+    const fremdeAngaben = { ...plan().angaben, titel: "Fremdtitel" };
     aktionen.speichereInhaltAction
-      .mockResolvedValueOnce({ ok: false, grund: "konflikt", stand: { version: 7, inhalt: INHALT, angaben: plan().angaben, aktualisiertAm: 0, aktualisiertVon: "Ole" } })
+      .mockResolvedValueOnce({ ok: false, grund: "konflikt", stand: { version: 7, inhalt: INHALT, angaben: fremdeAngaben, aktualisiertAm: 0, aktualisiertVon: "Ole" } })
       .mockResolvedValueOnce({ ok: true, version: 8, aktualisiertAm: 0 });
     await zeige();
     await waehle("a");
@@ -4380,15 +5006,48 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await act(async () => {});
     expect(aktionen.speichereInhaltAction).toHaveBeenLastCalledWith(expect.objectContaining({ version: 7 }));
     expect(document.body.textContent).not.toContain("Jemand anderes hat diesen Plan inzwischen geändert.");
+    expect(query("h1").textContent).toBe("Fremdtitel");
+  });
+  it("Browser-Zurück: ist der Serverstand beim Montieren neuer, gilt er still (Entscheidung 21)", async () => {
+    const neuer = baue({ stellen: [{ id: "el", titel: "EL neu" }] });
+    aktionen.ladeStandAction.mockResolvedValue({ version: 5, inhalt: neuer, angaben: { ...plan().angaben, titel: "Neuer Titel" }, aktualisiertAm: 0, aktualisiertVon: "Jana" });
+    await zeige();
+    expect(aktionen.ladeStandAction).toHaveBeenCalledWith("p1");
+    expect(karten()).toEqual(["el"]);
+    expect(query("h1").textContent).toBe("Neuer Titel");
+    expect(document.body.textContent).not.toContain("Jemand anderes");
+  });
+  it("Planangaben: Titel ändern und das Flyin schließen — gesendet, bevor das Formular verschwindet (Entscheidung 3)", async () => {
+    await zeige();
+    await clickElement(knopf("Plan und Verbindungen"));
+    const titel = queryPortal<HTMLInputElement>('fieldset[aria-label="Planangaben"] input[name="titel"]');
+    await act(async () => { titel.focus(); });
+    await schreibe(titel, "Übung Süd");
+    // Schließen-Knopf der Schublade: Name je nach antd-Sprachpaket
+    await clickElement(queryPortal('.kp-flyin button[aria-label="Close"], .kp-flyin button[aria-label="Schließen"]'));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(aktionen.speichereAngabenAction).toHaveBeenCalledWith(expect.objectContaining({ angaben: expect.objectContaining({ titel: "Übung Süd" }) }));
+    expect(query("h1").textContent).toBe("Übung Süd");
+    expect(flaecheFokussiert()).toBe(true);
   });
   it("leerer Plan: kein Absturz, „Erste Stelle anlegen“ führt in den Normalfall (Review Focus 1)", async () => {
     await zeige(plan(leererPlan()));
     expect(document.body.textContent).toContain("Dieser Plan hat noch keine Stellen.");
     expect(queryAll("[data-griff]")).toHaveLength(0);
-    await taste("ArrowRight");
+    await taste("ArrowRight", {}, query(".kp-betrachter"));
     await clickElement(knopf("Erste Stelle anlegen"));
     expect(karten()).toHaveLength(1);
     expect(existsPortal("[data-flyin-stelle]")).toBe(true);
+  });
+  it("die letzte Stelle löschen: der Hinweis mit „Rückgängig“ steht auch im leeren Plan (Entscheidung 19)", async () => {
+    await zeige(plan(leererPlan()));
+    await clickElement(knopf("Erste Stelle anlegen"));
+    await taste("Enter", {}, queryPortal('input[name="titel"]'));
+    await taste("Delete", {}, query(".kp-betrachter"));
+    expect(karten()).toHaveLength(0);
+    expect(query(".kp-betrachter [data-meldung]").textContent).toContain("gelöscht");
+    await clickElement(knopf("Rückgängig"));
+    expect(karten()).toHaveLength(1);
   });
   it("Drucken öffnet das Fenster sofort und setzt die Druckroute erst nach dem Speichern", async () => {
     const fenster = { location: { href: "" }, close: vi.fn() };
@@ -4396,7 +5055,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await clickElement(knopf("Drucken"));
+    await clickElement(knopf("Drucken (A4 quer)"));
     // mehrere Mikroaufgaben (Warteschlange, Action, Auswertung): eine echte Runde der Ereignisschleife abwarten
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(window.open).toHaveBeenCalledWith("", "_blank");
@@ -4406,6 +5065,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
 });
 ```
 
+(`schreibe` ist `fill` für Portal-Inhalt: das Harness sucht nur im Wirt, das Flyin hängt an `document.body`. Kein zweites Harness — nur ein Hilfsschritt in dieser Testdatei.)
 
 - [ ] **Step 2: Rot sehen**
 
@@ -4430,27 +5090,34 @@ import type { SpeicherZustand } from "./speicherer";
 const UHR = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 const STAND = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** Der Speicherstatus in Worten (docs/design/README.md: Bedeutung nie allein über Farbe). */
+/**
+ * Der Speicherstatus in Worten (docs/design/README.md: Bedeutung nie allein über Farbe) — KURZ und in
+ * einem Platz fester Mindestbreite (Entscheidung 19): wechselnd lange Texte im Sekundentakt ließen
+ * die umbrechende Werkzeugleiste und damit die Fläche springen. Die lange Fehlermeldung steht im
+ * Hinweis in der Fläche.
+ */
 export function statusText(z: SpeicherZustand): string {
   switch (z.status) {
-    case "gespeichert": return z.zuletztGespeichert === null ? "Alle Änderungen gespeichert" : `Gespeichert um ${UHR.format(z.zuletztGespeichert)}`;
-    case "ungespeichert": return "Änderungen noch nicht gespeichert";
+    case "gespeichert": return z.zuletztGespeichert === null ? "Gespeichert" : `Gespeichert ${UHR.format(z.zuletztGespeichert)}`;
+    case "ungespeichert": return "Ungespeichert";
     case "speichert": return "Speichert …";
-    case "fehler": return z.fehler ?? "Nicht gespeichert";
-    case "konflikt": return "Nicht gespeichert — Konflikt";
+    case "fehler": return "Nicht gespeichert";
+    case "konflikt": return "Konflikt";
   }
 }
 
 /**
  * KOPFLEISTE (Spec §6.2): Titel, Umschalter Diagramm | Gliederung (die Gliederung folgt mit Phase 3
- * und ist bis dahin deaktiviert, Entscheidung 13), Rückgängig/Wiederholen, Planangaben, Drucken,
- * Speicherstatus (`aria-live` genau hier, docs/design/feedback-admin.md 4.14). `Seitenkopf` trägt
- * weder eine Client-Direktive noch Server-Abhängigkeiten und darf deshalb auch hier rendern.
+ * und ist bis dahin deaktiviert, Entscheidung 13), Rückgängig/Wiederholen, „Plan und Verbindungen",
+ * „Drucken (A4 quer)" (derselbe Name wie im Betrachter, Entscheidung 20), Speicherstatus (`aria-live`
+ * genau hier, docs/design/feedback-admin.md 4.14). `Seitenkopf` trägt weder eine Client-Direktive
+ * noch Server-Abhängigkeiten und darf deshalb auch hier rendern. Der Konflikthinweis bleibt im
+ * Fluss: er ist ein Zustand, der eine Entscheidung verlangt, kein vorübergehender Hinweis.
  */
-export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder, onRueck, onWieder, onPlan, onDrucken, onNeuLaden, onBehalten, onErneut }: {
+export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder, onRueck, onWieder, onPlan, onDrucken, onNeuLaden, onBehalten }: {
   angaben: Planangaben; zustand: SpeicherZustand; standSeit: number; kannRueck: boolean; kannWieder: boolean;
   onRueck: () => void; onWieder: () => void; onPlan: () => void; onDrucken: () => void;
-  onNeuLaden: () => void; onBehalten: () => void; onErneut: () => void;
+  onNeuLaden: () => void; onBehalten: () => void;
 }) {
   const stand = zustand.zuletztGespeichert ?? standSeit;
   const beschreibung = [TYP_NAME[angaben.typ], angaben.anlass, angaben.datum ? kalendertag(tagZuMs(angaben.datum)) : null, `Stand ${STAND.format(stand)}`]
@@ -4464,15 +5131,14 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
               options={[{ value: "diagramm", label: "Diagramm" }, { value: "gliederung", label: "Gliederung", disabled: true }]} />
             <Button onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
             <Button onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
-            <Button onClick={onPlan}>Planangaben</Button>
-            <Button onClick={onDrucken}>Drucken</Button>
+            <Button onClick={onPlan}>Plan und Verbindungen</Button>
+            <Button onClick={onDrucken}>Drucken (A4 quer)</Button>
             <span className="kp-speicherstatus" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
-            {zustand.status === "fehler" ? <Button onClick={onErneut}>Erneut versuchen</Button> : null}
           </div>
         } />
       {zustand.konflikt ? (
-        <Alert type="warning" showIcon className="kp-hinweis" message="Jemand anderes hat diesen Plan inzwischen geändert."
-          description={`Gespeichert um ${UHR.format(zustand.konflikt.aktualisiertAm)} von ${zustand.konflikt.aktualisiertVon}. Deine letzten Änderungen sind noch nicht gespeichert.`}
+        <Alert type="warning" showIcon className="kp-hinweis" title="Jemand anderes hat diesen Plan inzwischen geändert."
+          description={`Gespeichert um ${UHR.format(zustand.konflikt.aktualisiertAm)} von ${zustand.konflikt.aktualisiertVon}. Deine letzten Änderungen am Diagramm sind noch nicht gespeichert. „Meine Fassung behalten“ überschreibt das Diagramm; die Planangaben der anderen Fassung bleiben.`}
           action={<div className="kp-formular-knoepfe"><Button onClick={onNeuLaden}>Neu laden</Button><Button type="primary" onClick={onBehalten}>Meine Fassung behalten</Button></div>} />
       ) : null}
     </>
@@ -4485,33 +5151,59 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
 ```tsx
 "use client";
 
-import { Button } from "antd";
+import { Button, Tooltip } from "antd";
 import type { KarteL } from "../../_lib/layout/typen";
 import type { Ansicht } from "../betrachter/ansicht";
+
+/** Eine waagerechte Anbindung mit Kästchen — zeigt Sehenden, dass „+" hier eine SEITENstelle ist, keine Stelle am Bus (Kritik). */
+function SeitenSymbol({ seite }: { seite: "links" | "rechts" }) {
+  return (
+    <svg aria-hidden="true" width={16} height={12} viewBox="0 0 16 12" style={seite === "links" ? { transform: "scaleX(-1)" } : undefined}>
+      <line x1={0} y1={6} x2={8} y2={6} stroke="currentColor" strokeWidth={1.5} />
+      <rect x={8.75} y={2.75} width={6.5} height={6.5} fill="none" stroke="currentColor" strokeWidth={1.5} />
+    </svg>
+  );
+}
 
 /**
  * GRIFFE DER AUSWAHL (Spec §6.3, Entscheidung 5): eine HTML-Überlagerung in Pixeln über dem SVG —
  * die Knöpfe behalten bei jedem Zoom ihre 44 px und sind echte Buttons mit Namen. Seitlich „+"
- * (Seitenstelle links/rechts), unten „+ Unterstelle", „+ Einheit", „Bearbeiten". Eine Seitenstelle
- * trägt nichts (§4.2): dort nur „+ Einheit" und „Bearbeiten".
+ * (Seitenstelle links/rechts, mit Tooltip bei Zeigen und Fokus und Symbol), unten die Griffleiste
+ * „+ Unterstelle", „+ Einheit", „Bearbeiten". Eine Seitenstelle trägt nichts (§4.2): dort nur
+ * „+ Einheit" und „Bearbeiten".
+ *
+ * DIE GRIFFLEISTE steht in Koordinaten der Überlagerung, nicht der Karte, und wird per `clamp()` im
+ * `translateX` im Bild gehalten: `-50%` (mittig) zwischen „linke Kante ≥ 8 px" und „rechte Kante ≤
+ * Breite − 8 px"; Prozent im `translate` beziehen sich auf die Leiste selbst, gemessen wird also nichts.
+ * Ist die Leiste breiter als die Fläche, gewinnt der linke Anschlag, und sie bricht um (`flex-wrap`).
  */
-export function Griffe({ karte, ansicht, seitenstelle, onUnterstelle, onSeitenstelle, onEinheit, onBearbeiten }: {
-  karte: KarteL; ansicht: Ansicht; seitenstelle: boolean;
+export function Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, onSeitenstelle, onEinheit, onBearbeiten }: {
+  karte: KarteL; ansicht: Ansicht; flaeche: { breite: number; hoehe: number }; seitenstelle: boolean;
   onUnterstelle: () => void; onSeitenstelle: (seite: "links" | "rechts") => void; onEinheit: () => void; onBearbeiten: () => void;
 }) {
   const m = ansicht.massstab;
+  const links = ansicht.x + karte.x * m, oben = ansicht.y + karte.y * m, breite = karte.breite * m, hoehe = karte.hoehe * m;
+  const mitte = links + breite / 2;
   const titel = karte.titelVoll === "" ? "(ohne Titel)" : karte.titelVoll;
+  const seitlich = (seite: "links" | "rechts") => (
+    <Tooltip title={`Seitenstelle ${seite} anlegen — waagerecht, ohne Bus`} trigger={["hover", "focus"]}>
+      <Button data-griff={seite} className={`kp-griff-seite kp-griff-${seite}`} aria-label={`Seitenstelle ${seite} von ${titel} anlegen`}
+        onClick={() => onSeitenstelle(seite)}>
+        {seite === "links" ? <><span aria-hidden="true">+</span><SeitenSymbol seite="links" /></> : <><SeitenSymbol seite="rechts" /><span aria-hidden="true">+</span></>}
+      </Button>
+    </Tooltip>
+  );
   return (
-    <div className="kp-griffe" data-griffe={karte.id}
-      style={{ left: ansicht.x + karte.x * m, top: ansicht.y + karte.y * m, width: karte.breite * m, height: karte.hoehe * m }}>
-      <div className="kp-auswahlrahmen" aria-hidden="true" />
-      {seitenstelle ? null : (
-        <>
-          <Button data-griff="links" className="kp-griff-seite kp-griff-links" aria-label={`Seitenstelle links von ${titel} anlegen`} onClick={() => onSeitenstelle("links")}>+</Button>
-          <Button data-griff="rechts" className="kp-griff-seite kp-griff-rechts" aria-label={`Seitenstelle rechts von ${titel} anlegen`} onClick={() => onSeitenstelle("rechts")}>+</Button>
-        </>
-      )}
-      <div className="kp-griffleiste" role="toolbar" aria-label={`Auswahl: ${titel}`}>
+    <div className="kp-griffe" data-griffe={karte.id}>
+      <div className="kp-griffe-karte" style={{ left: links, top: oben, width: breite, height: hoehe }}>
+        <div className="kp-auswahlrahmen" aria-hidden="true" />
+        {seitenstelle ? null : <>{seitlich("links")}{seitlich("rechts")}</>}
+      </div>
+      <div className="kp-griffleiste" role="toolbar" aria-label={`Auswahl: ${titel}`}
+        style={{
+          left: mitte, top: oben + hoehe + 8, maxWidth: Math.max(0, flaeche.breite - 16),
+          transform: `translateX(clamp(${8 - mitte}px, -50%, calc(${flaeche.breite - mitte - 8}px - 100%)))`,
+        }}>
         {seitenstelle ? null : <Button data-griff="unter" onClick={onUnterstelle}>+ Unterstelle</Button>}
         <Button data-griff="einheit" onClick={onEinheit}>+ Einheit</Button>
         <Button data-griff="bearbeiten" onClick={onBearbeiten}>Bearbeiten</Button>
@@ -4527,21 +5219,26 @@ In `K/_ui/kommplan.css` anhängen:
 /*
  * Editor: Griffe über der Fläche. `.kp-griffe .kp-griff-seite` mit einer Klasse mehr, weil antds
  * `.ant-btn` (gleiche Spezifität, später geladen) `position: relative` setzt (Falle 5); keine Regel
- * gegen einen `.ant-*`-Namen (Falle 20).
+ * gegen einen `.ant-*`-Namen (Falle 20). Die Griffleiste bricht um statt überzulaufen (Kritik).
  */
-.kp-griffe { position: absolute; }
+.kp-griffe { position: absolute; inset: 0; }
+.kp-griffe-karte { position: absolute; }
 .kp-griffe button { pointer-events: auto; }
 .kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl); border-radius: 4px; pointer-events: none; }
-.kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); }
+.kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; }
 .kp-griffe .kp-griff-links { right: calc(100% + 8px); }
 .kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
-.kp-griffleiste { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; white-space: nowrap; }
+.kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; }
 .kp-leer { padding: 16px; display: grid; gap: 12px; justify-items: start; }
 .kp-hinweis { margin-block-end: 8px; }
 .kp-kopfwerkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.kp-speicherstatus { font-size: 13px; color: var(--kp-gedaempft); }
+/* Fester Platz für den Status (Entscheidung 19): die Leiste bricht beim Autosave nicht um. */
+.kp-speicherstatus { font-size: 13px; color: var(--kp-gedaempft); min-width: 18ch; white-space: nowrap; }
+.kp-bedienhinweis { margin-block: 8px 0; }
 @media (max-width: 767.98px) { .kp-kopfwerkzeuge > * { flex: 1 1 auto; } }
 ```
+
+(Das `@media` in der letzten Zeile misst zu Recht das Fenster: die Kopfleiste steht im Seitenfluss, nicht in einem Flyin — Falle 13 betrifft sie nicht.)
 
 - [ ] **Step 4: Die Editor-Insel**
 
@@ -4552,10 +5249,10 @@ In `K/_ui/kommplan.css` anhängen:
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Alert, Button, type InputRef } from "antd";
-import { speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
+import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
 import { ladeZeichenAction } from "../../_actions/zeichen";
 import { angabenSchema, type Planangaben } from "../../_lib/angaben";
-import type { SpeicherErgebnis } from "../../_lib/ergebnis";
+import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
 import { layout } from "../../_lib/layout/layout";
 import { baueSicht } from "../../_lib/layout/sicht";
 import { legende } from "../../_lib/layout/zeichne";
@@ -4572,37 +5269,65 @@ import { Griffe } from "./Griffe";
 import { neueId } from "./ids";
 import { Kopfleiste } from "./Kopfleiste";
 import { wandere } from "./navigation";
-import { PlanFlyin } from "./PlanFlyin";
+import { PLAN_FLYIN_GRUND, PlanFlyin } from "./PlanFlyin";
 import { Speicherer, type SpeicherZustand } from "./speicherer";
-import { StelleFlyin } from "./StelleFlyin";
+import { STELLE_FLYIN_GRUND, StelleFlyin } from "./StelleFlyin";
 import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
 import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, wiederholen, type Verlauf } from "./verlauf";
 import { leseZuletzt } from "./zuletzt";
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
 interface Hinweis { text: string; rueckgaengig?: boolean }
-const BEDIENHINWEIS = "Pfeiltasten wählen Stellen, Enter bearbeitet, N legt eine Unterstelle an, Entf löscht, Plus und Minus zoomen";
-/** Luft um eine neu gezeigte Karte: Griffleiste 8 + 44 px darunter, seitliche „+" 8 + 44 px daneben, dazu 12 px. */
-const GRIFF_RAND = 64;
+const BEDIENHINWEIS = "Pfeiltasten wählen Stellen, Enter oder F2 bearbeitet, N legt eine Unterstelle an, Entf löscht, Plus und Minus zoomen";
+/** Sichtbar unter der Fläche (Entscheidung 9) — dieselben Befehle wie im `aria-label`, knapper. */
+const BEDIENZEILE = "Pfeile wählen · Enter oder F2 bearbeitet · N neue Unterstelle · Entf löscht · Strg/Cmd+Z nimmt zurück";
+/** Deckel der eingepassten Ansicht (Entscheidung 18): eine einzelne Karte nicht mit Maßstab 16. */
+export const EDITOR_MASSSTAB = 4;
+/**
+ * Luft um eine gezeigte Karte: oben nur der übliche Rand (über einer Karte steht kein Griff); seitlich
+ * 8 px + „+"-Knopf mit Symbol (rund 64 px) + 12 px; unten 8 px + Griffleiste, am Telefon zweizeilig
+ * (2 × 44 + 8) + 16 px. Dieselben Zahlen gibt der Editor der Fläche fürs Einpassen (`platzSeite`,
+ * `platzUnten`): eingepasst liegen die Griffe jeder Karte schon im Bild, `zeige()` verschiebt dann
+ * nichts, und die Ansicht bleibt eingepasst (Entscheidung 18).
+ */
+export const GRIFF_RAND = { oben: 16, seite: 84, unten: 120 };
+
+/** Die Vorfahren einer Stelle (ohne sie selbst) — zum Aufklappen, damit eine bearbeitete Stelle sichtbar bleibt. */
+function vorfahren(p: PlanInhalt, id: string | null): string[] {
+  const nachId = new Map(p.stellen.map((s) => [s.id, s]));
+  const aus: string[] = [];
+  let x = id === null ? undefined : nachId.get(id);
+  while (x && x.eltern !== null) { aus.push(x.eltern); x = nachId.get(x.eltern); }
+  return aus;
+}
 
 /**
  * DER DIAGRAMM-EDITOR (Spec §6.2–6.4, §6.6). Die Insel ist bis zum Neuladen die Quelle der Wahrheit:
- * aus den Props einmal gesät, über `key={plan.id}` an den Plan gebunden, kein `revalidatePath`.
+ * aus den Props einmal gesät, über `key={plan.id}` an den Plan gebunden, kein `revalidatePath`. Beim
+ * Montieren prüft sie den Serverstand (Entscheidung 21: nach Browser-Zurück sind die Props alt).
  *
  * - Jede Änderung ist eine reine Operation (`aendere`); `PlanFehler` wird ein Hinweis, kein Absturz.
  * - Rückgängig ist ein Stapel von Dokumenten (`verlauf.ts`); gespeichert wird über `speicherer.ts`,
  *   aufgerufen aus den Ereignis-Rückrufen, nie aus einem Effekt (`set-state-in-effect`).
  * - Das Layout rechnet aus `useDeferredValue` — Tippen bleibt auch an großen Plänen flüssig (Entscheidung 15).
  * - Linien blenden nur nach STRUKTURELLEN Änderungen neu ein (`linien`), nicht bei jedem Tastendruck.
+ * - Hinweise stehen IN der Fläche und schließen nur bei X, beim nächsten Hinweis oder bei der nächsten
+ *   strukturellen Änderung, nicht beim Tippen (Entscheidung 19).
+ * - Nach Flyin-Schließen, Löschen und Rückgängig per Knopf hat die Fläche den Fokus (Entscheidung 17).
+ * - Eine bearbeitete oder neue Stelle wird nie von einer eingeklappten Vorfahrin verdeckt: die
+ *   Vorfahren werden aufgeklappt (ein Ansichtszustand, kein Rückgängig-Schritt).
  */
 export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
 }) {
   const [verlauf, setVerlauf] = useState<Verlauf>(() => neuerVerlauf(plan.inhalt));
   const [angaben, setAngaben] = useState(plan.angaben);
+  /** Zählt hoch, wenn Angaben VON AUSSEN kommen (Neu laden, Meine Fassung behalten, Serverstand) — keyt das Angaben-Formular neu. */
+  const [angabenFremd, setAngabenFremd] = useState(0);
   const [auswahl, setAuswahl] = useState<string | null>(null);
   const [flyin, setFlyin] = useState<"stelle" | "plan" | null>(null);
-  const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; n: number }>({ ziel: "titel", n: 0 });
+  const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
+  const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
   const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
   const [hinweis, setHinweis] = useState<Hinweis | null>(null);
   const [symbole, setSymbole] = useState<Symbolsatz>(symboleStart);
@@ -4615,7 +5340,9 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   const flaeche = useRef<FlaecheGriff>(null);
   const titelRef = useRef<InputRef>(null);
   const zeigeNach = useRef<string | null>(null);
-  const kuerzel = useRef({ rueck: () => {}, wieder: () => {} });
+  const flyinJetzt = useRef(flyin);
+  const angabenEntwurf = useRef(false);
+  const kuerzel = useRef({ rueck: () => {}, wieder: () => {}, pruefeStand: (_s: Speicherstand) => {} });
   /** Schlüssel, deren SVG schon unterwegs ist: Server Actions laufen nacheinander, eine Suchsalve stellte sich sonst vor das Autosave. */
   const unterwegs = useRef(new Set<string>());
 
@@ -4627,12 +5354,19 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   const stelle = gewaehlt === null ? undefined : inhalt.stellen.find((s) => s.id === gewaehlt);
   const auswahlKarte = gewaehlt === null ? undefined : daten.karten.find((k) => k.id === gewaehlt);
 
+  function klappeAuf(ids: string[]) {
+    setEingeklappt((s) => {
+      if (!ids.some((id) => s.has(id))) return s;
+      const neu = new Set(s);
+      for (const id of ids) neu.delete(id);
+      return neu;
+    });
+  }
   function uebernimm(neu: Verlauf, strukturell: boolean) {
     if (neu === verlauf) return;
-    flaeche.current?.halte();
     setVerlauf(neu);
     speicherer.aendere(neu.jetzt);
-    if (strukturell) setLinien((n) => n + 1);
+    if (strukturell) { setLinien((n) => n + 1); setHinweis(null); }
   }
   const aendere: Aendere = (op, schluessel) => {
     let neu: PlanInhalt;
@@ -4640,8 +5374,9 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
       if (e instanceof PlanFehler) { setHinweis({ text: e.message }); return e.message; }
       throw e;
     }
-    setHinweis(null);
     uebernimm(tue(verlauf, neu, Date.now(), schluessel), schluessel === undefined);
+    // z. B. nach dem Umhängen unter eine eingeklappte Stelle: die gewählte bleibt sichtbar
+    if (gewaehlt !== null) klappeAuf(vorfahren(neu, gewaehlt));
     return null;
   };
 
@@ -4657,15 +5392,20 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   function oeffne(id: string, ziel: "titel" | "einheit" = "titel") {
     setAuswahl(id);
     setFlyin("stelle");
-    setFokus((f) => ({ ziel, n: f.n + 1 }));
+    setFokus((f) => ({ ziel, stelle: id, n: f.n + 1 }));
+    zeigeNach.current = id; // die Karte aus dem Bereich unter dem Flyin holen (Entscheidung 18)
     ladeSymbole(leseZuletzt());
+  }
+  function schliesseFlyin() {
+    setFlyin(null);
+    flaeche.current?.fokus(); // verlässt ein Angaben-Feld → es speichert (Entscheidung 3)
   }
   function lege(art: "unter" | "links" | "rechts" | "wurzel", eltern: string | null) {
     const id = neueId(inhalt, "s");
     const f = aendere((p) => art === "wurzel" ? fuegeWurzelEin(p, id)
       : art === "unter" ? fuegeUnterstelleEin(p, eltern!, id) : fuegeSeitenstelleEin(p, eltern!, art, id));
     if (f !== null) return;
-    zeigeNach.current = id;
+    if (eltern !== null) klappeAuf([eltern, ...vorfahren(inhalt, eltern)]);
     oeffne(id);
   }
   function neueEinheit(stelleId: string) {
@@ -4674,16 +5414,32 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   function loesche(id: string) {
     const s = inhalt.stellen.find((x) => x.id === id);
     if (!s) return;
-    let entfernt = 0;
-    if (aendere((p) => { const r = loescheStelle(p, id); entfernt = r.entfernt; return r.inhalt; }) !== null) return;
+    const r = { entfernt: 0 };
+    if (aendere((p) => { const x = loescheStelle(p, id); r.entfernt = x.entfernt; return x.inhalt; }) !== null) return;
     setAuswahl(s.eltern);
     setFlyin(null);
-    const weitere = entfernt - 1;
+    flaeche.current?.fokus();
+    const weitere = r.entfernt - 1;
     setHinweis({ rueckgaengig: true, text: `„${s.titel.trim() || "(ohne Titel)"}“ gelöscht${weitere > 0 ? ` samt ${weitere} ${weitere === 1 ? "weiterer Stelle" : "weiteren Stellen"}` : ""}.` });
   }
-  function rueck() { if (kannRueckgaengig(verlauf)) { uebernimm(rueckgaengig(verlauf), true); setHinweis(null); } }
-  function wieder() { if (kannWiederholen(verlauf)) { uebernimm(wiederholen(verlauf), true); setHinweis(null); } }
-  useEffect(() => { kuerzel.current = { rueck, wieder }; });
+  function rueck() { if (kannRueckgaengig(verlauf)) uebernimm(rueckgaengig(verlauf), true); }
+  function wieder() { if (kannWiederholen(verlauf)) uebernimm(wiederholen(verlauf), true); }
+  function perKnopf(f: () => void) { f(); flaeche.current?.fokus(); }
+  function pruefeStand(s: Speicherstand) {
+    if (speicherer.pruefeStand(s) !== "uebernommen") return;
+    if (s.inhalt === null) { window.location.reload(); return; }
+    setVerlauf(neuerVerlauf(s.inhalt));
+    setAngaben(s.angaben); setAngabenFremd((n) => n + 1);
+    setLinien((n) => n + 1);
+  }
+  useEffect(() => { kuerzel.current = { rueck, wieder, pruefeStand }; flyinJetzt.current = flyin; });
+
+  // Entscheidung 21: Serverstand beim Montieren — übernommen im `.then`, nie im Effekt-Rumpf.
+  useEffect(() => {
+    let aktiv = true;
+    void ladeStandAction(plan.id).then((s) => { if (aktiv && s) kuerzel.current.pruefeStand(s); }).catch(() => { /* dann zeigt es das nächste Speichern */ });
+    return () => { aktiv = false; };
+  }, [plan.id]);
 
   // Strg/Cmd+Z global, aber nie in einem Textfeld (dort gehört es dem Feld).
   useEffect(() => {
@@ -4697,20 +5453,23 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     return () => document.removeEventListener("keydown", beiTaste);
   }, []);
 
-  // Ungespeichertes hält das Schließen auf (Entscheidung 11).
+  // Ungespeichertes (auch ein Angaben-Feld, das noch nicht verlassen wurde) hält das Schließen auf (Entscheidung 11);
+  // wieder online → sofort erneut senden.
   useEffect(() => {
-    const warne = (e: BeforeUnloadEvent) => { if (speicherer.hatUngespeichertes()) e.preventDefault(); };
+    const warne = (e: BeforeUnloadEvent) => { if (speicherer.hatUngespeichertes() || angabenEntwurf.current) e.preventDefault(); };
+    const online = () => { if (speicherer.zustand.status === "fehler") void speicherer.erneut(); };
     window.addEventListener("beforeunload", warne);
-    return () => window.removeEventListener("beforeunload", warne);
+    window.addEventListener("online", online);
+    return () => { window.removeEventListener("beforeunload", warne); window.removeEventListener("online", online); };
   }, [speicherer]);
 
-  // Neue oder per Pfeil gewählte Karte in den sichtbaren Bereich holen, sobald das Layout sie kennt.
+  // Neue, per Pfeil gewählte oder im Flyin geöffnete Karte in den freien Bereich holen, sobald das Layout sie kennt.
   useEffect(() => {
     const id = zeigeNach.current;
     if (id === null) return;
     const k = daten.karten.find((x) => x.id === id);
     if (k) { zeigeNach.current = null; flaeche.current?.zeige(k, GRIFF_RAND); }
-  }, [daten, gewaehlt]);
+  }, [daten, gewaehlt, flyin]);
 
   function taste(e: KeyboardEvent<HTMLDivElement>): boolean {
     const b = flaechenBefehl(e);
@@ -4729,7 +5488,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   }
   function klick(id: string | null, doppelt: boolean) {
     if (id === null) { setAuswahl(null); return; }
-    if (doppelt || (id === gewaehlt && flyin === null)) oeffne(id); else setAuswahl(id);
+    if (doppelt || (id === gewaehlt && flyin === null)) oeffne(id);
+    else { setAuswahl(id); zeigeNach.current = id; } // jede Auswahl: Karte samt Griffen ins Bild (eingepasst: nichts zu tun)
   }
   function neuLaden() {
     const k = speicherZustand.konflikt;
@@ -4737,9 +5497,16 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     if (k.inhalt === null) { window.location.reload(); return; }
     speicherer.uebernimm(k);
     setVerlauf(neuerVerlauf(k.inhalt));
-    setAngaben(k.angaben);
+    setAngaben(k.angaben); setAngabenFremd((n) => n + 1);
     setAuswahl(null); setFlyin(null); setHinweis(null);
     setLinien((n) => n + 1);
+  }
+  function behalten() {
+    const k = speicherZustand.konflikt;
+    if (!k) return;
+    // Die Angaben sind nicht Teil „meiner Fassung": die der anderen gelten, sonst überschriebe ein späteres Speichern sie still.
+    setAngaben(k.angaben); setAngabenFremd((n) => n + 1);
+    void speicherer.behalteMeine();
   }
   async function speichereAngaben(a: Planangaben): Promise<SpeicherErgebnis> {
     const r = await speicherer.angaben(a);
@@ -4751,7 +5518,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     const fenster = window.open("", "_blank"); // synchron im Klick, sonst greift der Popup-Blocker (Entscheidung 12)
     if (!(await speicherer.jetzt())) {
       fenster?.close();
-      setHinweis({ text: "Vor dem Drucken ließ sich nicht speichern. Gedruckt wird immer der gespeicherte Stand — kläre erst den Hinweis oben." });
+      setHinweis({ text: "Vor dem Drucken ließ sich nicht speichern. Gedruckt wird immer der gespeicherte Stand — kläre erst den Hinweis." });
       return;
     }
     if (fenster) fenster.location.href = ziel; else window.location.assign(ziel);
@@ -4761,44 +5528,58 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     if (neu.has(id)) neu.delete(id); else neu.add(id);
     return neu;
   });
+  const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); };
+  const nachSchliessen = () => { if (flyinJetzt.current === null) flaeche.current?.fokus(); };
+
+  const meldung = hinweis ? (
+    <Alert type="warning" showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
+      action={hinweis.rueckgaengig ? <Button onClick={() => perKnopf(rueck)}>Rückgängig</Button> : undefined} />
+  ) : speicherZustand.status === "fehler" && speicherZustand.fehler ? (
+    <Alert type="warning" showIcon title={speicherZustand.fehler}
+      action={<Button onClick={() => void speicherer.erneut()}>Erneut versuchen</Button>} />
+  ) : null;
 
   return (
     <div className="kp-editor">
       <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
-        kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} onRueck={rueck} onWieder={wieder}
-        onPlan={() => setFlyin("plan")} onDrucken={() => void drucken()}
-        onNeuLaden={neuLaden} onBehalten={() => void speicherer.behalteMeine()} onErneut={() => void speicherer.erneut()} />
-      {hinweis ? (
-        <Alert type="warning" showIcon closable onClose={() => setHinweis(null)} className="kp-hinweis" message={hinweis.text}
-          action={hinweis.rueckgaengig ? <Button onClick={rueck}>Rückgängig</Button> : undefined} />
-      ) : null}
+        kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)}
+        onRueck={() => perKnopf(rueck)} onWieder={() => perKnopf(wieder)}
+        onPlan={() => oeffnePlan("angaben")} onDrucken={() => void drucken()}
+        onNeuLaden={neuLaden} onBehalten={behalten} />
       <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
-        griff={flaeche} gleitend linienSchluessel={String(linien)}
+        griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
+        flyinGrund={flyin === "stelle" ? STELLE_FLYIN_GRUND : flyin === "plan" ? PLAN_FLYIN_GRUND : null}
         zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
-        onKarteKlick={klick} onTaste={taste}
-        ueberlagerung={(a) => (auswahlKarte && stelle ? (
-          <Griffe karte={auswahlKarte} ansicht={a} seitenstelle={stelle.lage !== "unter"}
+        onKarteKlick={klick} onTaste={taste} meldung={meldung}
+        ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
+          <Griffe karte={auswahlKarte} ansicht={a} flaeche={f} seitenstelle={stelle.lage !== "unter"}
             onUnterstelle={() => lege("unter", stelle.id)} onSeitenstelle={(seite) => lege(seite, stelle.id)}
             onEinheit={() => neueEinheit(stelle.id)} onBearbeiten={() => oeffne(stelle.id)} />
         ) : null)}
         leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
         werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
+      <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
       <Legende eintraege={eintraege} />
+      <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
       {gewaehlt !== null ? (
-        <StelleFlyin offen={flyin === "stelle"} onSchliessen={() => setFlyin(null)} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
+        <StelleFlyin offen={flyin === "stelle"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
           symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} fokus={fokus} titelRef={titelRef}
-          onLoeschen={() => loesche(gewaehlt)} />
+          onLoeschen={() => loesche(gewaehlt)} onFertig={schliesseFlyin} />
       ) : null}
-      <PlanFlyin offen={flyin === "plan"} onSchliessen={() => setFlyin(null)} angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben} />
+      <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
+        angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
+        onEntwurf={(offen) => { angabenEntwurf.current = offen; }} />
     </div>
   );
 }
 ```
 
 Hinweise für die Umsetzung:
-- Meldet `pnpm lint` (React Compiler) `let entfernt` in `loesche` als Mutation einer eingefangenen Variable, stattdessen `const r = { entfernt: 0 };` und `r.entfernt = …` schreiben.
 - `flyin === "plan"`: das Plan-Flyin schließt ein offenes Stellen-Flyin (ein Wert, zwei Flyins nie zugleich).
-- Das Flyin schließt nicht, wenn eine andere Karte gewählt wird: es zeigt dann diese Stelle (Spec §6.2 „bearbeitet wird im Flyin rechts").
+- Das Flyin schließt nicht, wenn eine andere Karte gewählt wird: es zeigt dann diese Stelle (Spec §6.2 „bearbeitet wird im Flyin rechts"); die Abschnitte mit eigenem Zustand sind per `key={s.id}` an die Stelle gebunden (Task 11/12).
+- Bei jedem Wechsel der Auswahl (Klick, Pfeil) und beim Öffnen holt `zeigeNach` die Karte samt Griffen in den freien Bereich (`flyinGrund`, Entscheidung 18); in der eingepassten Ansicht ist das dank `platzSeite`/`platzUnten` ein Nichts-Tun, sie bleibt eingepasst.
+- `PlanFlyin key={angabenFremd}`: das Angaben-Formular sät sich aus den Props; nur bei Angaben VON AUSSEN neu montieren, nie nach dem eigenen Speichern (sonst verlöre das nächste Feld beim Tab den Fokus).
+- Fängt die antd-Schublade beim Schließen den Fokus selbst ab und gibt ihn danach an den Auslöser zurück, gewinnt trotzdem die Fläche: `nachSchliessen` läuft über `afterOpenChange(false)` NACH der Animation.
 
 - [ ] **Step 5: Die Weiche auf der Planseite**
 
@@ -4824,7 +5605,8 @@ export const dynamic = "force-dynamic";
 /**
  * Editor für Bearbeitende (`isModuleAdmin`), Betrachter für die Zugangsgruppe (Spec §6.1) —
  * dasselbe Prädikat, das jede Server Action des Editors prüft. `key={plan.id}`: der Editor sät
- * seinen Zustand einmal aus den Props (Entscheidungen des Phase-2-Plans, Global Constraints).
+ * seinen Zustand einmal aus den Props und prüft beim Montieren den Serverstand (Umsetzungsplan
+ * Phase 2, Entscheidung 21 — Browser-Zurück zeigt diese Seite aus dem Client-Cache).
  */
 export default async function PlanAnsicht({ params }: { params: Promise<{ id: string }> }) {
   requireKommplanHost(await headers());
@@ -4869,23 +5651,46 @@ Run: `pnpm vitest run src/app/m/kommplan && pnpm typecheck; echo "typecheck exit
 Expected: PASS, exit 0.
 
 Run: `pnpm lint`
-Expected: keine Befunde (insbesondere `react-hooks/set-state-in-effect`, React Compiler, unbenutzte Importe).
+Expected: keine Befunde (insbesondere `react-hooks/set-state-in-effect`, React Compiler, unbenutzte Importe). Meldet der Compiler den Parameter `_s` im Vorgabewert von `kuerzel`, den Typ als `useRef<{ …; pruefeStand: (s: Speicherstand) => void }>(…)` ausschreiben.
 
 Run: `pnpm build`
 Expected: grün. Der Build prüft die RSC-Grenze (Editor ist `"use client"`, die Seite reicht nur serialisierbare Props: Zahlen, Zeichenketten, das Dokument, der Index) und die `"use server"`-Dateien.
 
-- [ ] **Step 7: Ankerschritt und Commit**
+- [ ] **Step 7: Release-Notiz im selben Commit (CLAUDE.md, „Release Notes")**
+
+Mit diesem Commit kann man Pläne anlegen und bearbeiten — also steht die Notiz hier, nicht in einem eigenen Commit am Ende (Vorgabe des Hauptlaufs: EINE Notiz für das ganze Modul, sie beschreibt ehrlich den Stand nach Phase 2). Zwischenstände vor diesem Commit gehen nicht aus: das Modul wird nach allen Phasen zusammen ausgerollt.
+
+In `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` nur `titel` und `inhalt` ersetzen (Dateiname, `slug`, `datum` und Kopfkommentar bleiben):
+
+```ts
+  titel: "Kommunikationspläne ansehen, bearbeiten und drucken",
+  inhalt: [
+    absatz(
+      "Unter „Kommunikationspläne“ siehst du Pläne und Fernmeldeskizzen als Diagramm und druckst sie über „Drucken (A4 quer)“. " +
+        "Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an und baust ihn mit „+ Unterstelle“, „+ Einheit“ und dem seitlichen „+“ auf. " +
+        "Alles speichert sich selbst, „Rückgängig“ holt Schritte zurück.",
+    ),
+  ],
+```
+
+Gezählt (`node -e`, 30.09.2026): 314 von 320 Zeichen im Absatz, drei Sätze, Titel 51 von 60. Jeder Name steht so am Bildschirm — „Drucken (A4 quer)" im Betrachter wie im Editor (Entscheidung 20), „Neu", „+ Unterstelle", „+ Einheit", das seitliche „+", „Rückgängig".
+
+Run: `pnpm vitest run src/app/m/portal/_lib/neuigkeiten`
+Expected: PASS. Ist der Absatz zu lang, kürzen — nie die Grenze anfassen.
+
+- [ ] **Step 8: Ankerschritt und Commit**
 
 Ankerschritt für `(intern)/p/[id]/page.tsx` und `kommplan.css`.
 
 ```bash
-git add src/app/m/kommplan/_ui/editor "src/app/m/kommplan/(intern)/p/[id]/page.tsx" src/app/m/kommplan/_ui/kommplan.css
+git add src/app/m/kommplan/_ui/editor "src/app/m/kommplan/(intern)/p/[id]/page.tsx" src/app/m/kommplan/_ui/kommplan.css src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts
 git commit -S -m "feat(kommplan): Diagramm-Editor mit Griffen, Tastatur, Autosave und Konflikthinweis
 
 Bearbeitende bekommen auf der Planseite den Editor, die Zugangsgruppe
 weiter den Betrachter. Neue Stellen stehen sofort da, sind gewählt und
-haben den Fokus im Titel; Entf löscht mit Rückgängig statt Nachfrage;
-Drucken speichert vorher.
+haben den Fokus im Titel; Enter heißt fertig, Entf löscht mit
+Rückgängig statt Nachfrage; Drucken speichert vorher. Die Release-Notiz
+beschreibt jetzt Anlegen und Bearbeiten.
 
 DRK-500
 
@@ -4894,17 +5699,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 15: End-to-End — Anlegen, Bearbeiten, Tastatur, Konflikt, Gleiten, Drucken, Zugang
+### Task 15: End-to-End — Anlegen, Bearbeiten, Tastatur, Konflikt, Zurück, Gleiten, Flyin-Lage, Drucken, Zugang
 
 **Files:**
 - Create: `e2e/kommplan-editor.spec.ts`
-- Modify: `e2e/gruppen.json` (Eimer `eimer-2`)
+- Modify: `e2e/gruppen.json` (Eimer nach gemessener Testzeit, Step 2)
 
 **Interfaces:**
 - Consumes: `devLogin`, `E2E_PORT`, `klickeWennRuhig`, `warteAufSpaltenaufteilung`, `warteAufGestreamteInhalte` (`e2e/fixtures.ts`); die Selektoren und Namen aus Tasks 7–14.
 - Produces: nichts für spätere Aufgaben außer der Datei, die Task 16 um die Bildschirmfotos ergänzt.
 
-**Kein Test verändert einen Plan aus dem Seed** (`e2e/kommplan.spec.ts` zählt Karten des Beispiels „Einsatz 22.02.2026"; die Datenbank teilen alle Dateien eines Eimers, docs/design/README.md „Ein e2e-Test darf seinen Zustand nicht vom Seed erben"). Jeder bearbeitende Test legt seinen Plan über „Neu" selbst an.
+**Kein Test verändert einen Plan aus dem Seed** (`e2e/kommplan.spec.ts` zählt Karten des Beispiels „Einsatz 22.02.2026"; die Datenbank teilen alle Dateien eines Eimers, docs/design/README.md „Ein e2e-Test darf seinen Zustand nicht vom Seed erben"). Jeder bearbeitende Test legt seinen Plan über „Neu" selbst an. `e2e/kommplan.spec.ts` zählt keine Zeilen der Planliste (nachgesehen: nur Karten der Seed-Pläne und ein Link per Name) — neue Pläne im selben Eimer stören es also nicht.
 
 - [ ] **Step 1: Die Spec schreiben**
 
@@ -4917,16 +5722,19 @@ import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte, warteAu
 /**
  * Kommunikationspläne, Phase 2: der Diagramm-Editor (Spec §6.1–6.4, §6.6). Jeder bearbeitende Test
  * legt seinen eigenen Plan an — die Seed-Pläne gehören `e2e/kommplan.spec.ts`. Jeder ausgelöste
- * Speicheraufruf wird per `waitForResponse` geprüft (Falle 10); der Speicheraufruf ist der POST einer
- * Server Action, dessen Rumpf `"version"` trägt.
+ * Aufruf einer Server Action wird per `waitForResponse` geprüft (Falle 10): Speichern trägt
+ * `"version"` im Rumpf, die Standabfrage beim Montieren des Editors (Entscheidung 21) trägt weder
+ * `"version"` noch `"titel"`, die Zeichen-Nachladung trägt Zeichenschlüssel.
  */
 const HOST = "kommplan.localtest.me";
 const url = (pfad: string) => `http://${HOST}:${E2E_PORT}${pfad}`;
 const ADMIN = "iuk-kommplan-bearbeiten";
 const EINSATZ = "beispiel-einsatz-2026-02-22";
 
-const istSpeichern = (r: Response) =>
-  r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined && (r.request().postData() ?? "").includes('"version"');
+const istAktion = (r: Response) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined;
+const rumpf = (r: Response) => r.request().postData() ?? "";
+const istSpeichern = (r: Response) => istAktion(r) && rumpf(r).includes('"version"');
+const istStandAbfrage = (r: Response) => istAktion(r) && !rumpf(r).includes('"version"') && !rumpf(r).includes('"titel"') && !rumpf(r).includes(":");
 const flyinTitel = (page: Page) => page.locator(".kp-flyin").getByLabel("Titel", { exact: true });
 const karten = (page: Page) => page.locator(".kp-betrachter [data-karte]");
 
@@ -4934,7 +5742,15 @@ async function speichertNach(page: Page, tu: () => Promise<unknown>): Promise<vo
   const antwort = page.waitForResponse(istSpeichern);
   await tu();
   expect((await antwort).status()).toBe(200);
-  await expect(page.locator(".kp-speicherstatus")).toHaveText(/^Gespeichert um \d\d:\d\d$/);
+  await expect(page.locator(".kp-speicherstatus")).toHaveText(/^Gespeichert \d\d:\d\d$/);
+}
+
+/** Navigation in den Editor: die Standabfrage beim Montieren ist eine ausgelöste Anfrage (Falle 10). */
+async function oeffneEditor(page: Page, navigiere: () => Promise<unknown>): Promise<void> {
+  const stand = page.waitForResponse(istStandAbfrage);
+  await navigiere();
+  expect((await stand).status()).toBe(200);
+  await warteAufSpaltenaufteilung(page);
 }
 
 async function neuerPlan(page: Page, titel: string): Promise<string> {
@@ -4944,11 +5760,12 @@ async function neuerPlan(page: Page, titel: string): Promise<string> {
   const formular = page.getByRole("form", { name: "Neuer Plan" });
   await formular.getByLabel("Titel").fill(titel);
   await formular.getByLabel("Anlass").fill("e2e");
-  const antwort = page.waitForResponse((r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined);
-  await klickeWennRuhig(formular.getByRole("button", { name: "Anlegen und bearbeiten" }));
-  expect((await antwort).status()).toBe(200);
-  await page.waitForURL(/\/p\/[0-9a-f-]{36}$/);
-  await warteAufSpaltenaufteilung(page);
+  const anlage = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"titel"'));
+  await oeffneEditor(page, async () => {
+    await klickeWennRuhig(formular.getByRole("button", { name: "Anlegen und bearbeiten" }));
+    expect((await anlage).status()).toBe(200);
+    await page.waitForURL(/\/p\/[0-9a-f-]{36}$/);
+  });
   return new URL(page.url()).pathname.split("/").pop()!;
 }
 
@@ -4991,34 +5808,34 @@ test("anlegen → erste Stelle → Unter- und Seitenstelle per Griff → gespeic
   await expect(page.getByRole("toolbar", { name: "Auswahl: KatSL" })).toBeVisible();
   await expect(page.locator('[data-griff="unter"], [data-griff="links"], [data-griff="rechts"]')).toHaveCount(0);
 
-  await page.reload();
-  await warteAufSpaltenaufteilung(page);
+  await oeffneEditor(page, () => page.reload());
   await expect(karten(page)).toHaveCount(3);
   await expect(page.locator(".kp-betrachter")).toContainText("EA Nord");
-  await expect(page.locator(".kp-speicherstatus")).toHaveText("Alle Änderungen gespeichert");
+  await expect(page.locator(".kp-speicherstatus")).toHaveText("Gespeichert");
 });
 
-test("Tastatur: N legt an, Pfeile wandern, Entf löscht, Strg/Cmd+Z holt zurück", async ({ page }) => {
+test("Tastatur ohne Maus: N → Titel → Enter → N, Pfeile, Entf, Strg/Cmd+Z (Entscheidung 17)", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, "e2e Tastatur");
   await ersteStelle(page, "EL");
-  await page.keyboard.press("Escape");
-  await expect(flyinTitel(page)).toHaveCount(0);
   const flaeche = page.locator(".kp-betrachter");
-  await flaeche.focus();
+  await page.keyboard.press("Enter"); // „fertig" im Titelfeld
+  await expect(flyinTitel(page)).toHaveCount(0);
+  await expect(flaeche).toBeFocused();
   await page.keyboard.press("n");
   await expect(karten(page)).toHaveCount(2);
   await expect(flyinTitel(page)).toBeFocused();
   await speichertNach(page, () => flyinTitel(page).fill("EA 1"));
   await page.keyboard.press("Escape");
-  await flaeche.focus();
+  await expect(flaeche).toBeFocused(); // kein flaeche.focus() von Hand: das Schließen gibt ihn zurück
   await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("toolbar", { name: "Auswahl: EL" })).toBeVisible();
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("toolbar", { name: "Auswahl: EA 1" })).toBeVisible();
   await speichertNach(page, () => page.keyboard.press("Delete"));
   await expect(karten(page)).toHaveCount(1);
-  await expect(page.getByText("„EA 1“ gelöscht.")).toBeVisible();
+  await expect(page.locator(".kp-betrachter [data-meldung]")).toContainText("„EA 1“ gelöscht.");
+  await expect(flaeche).toBeFocused();
   await speichertNach(page, () => page.keyboard.press("ControlOrMeta+z"));
   await expect(karten(page)).toHaveCount(2);
   await speichertNach(page, () => page.keyboard.press("ControlOrMeta+Shift+z"));
@@ -5033,18 +5850,23 @@ test("Flyin: Zeichen suchen, Verbindung eintippen, Einheiten als Liste — alles
   await speichertNach(page, () => flyinTitel(page).fill("EA 1"));
   const flyin = page.locator(".kp-flyin");
 
+  // Falle 10: die Suche lädt Symbole nach (eigener POST), die Wahl speichert (noch einer) — beide einzeln prüfen
+  const symbole = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes("rezept:D.1.4") && !rumpf(r).includes('"version"'));
   await flyin.getByLabel("Zeichen suchen").fill("d.1.4");
-  await klickeWennRuhig(flyin.locator('[data-zeichen="rezept:D.1.4"]'));
+  expect((await symbole).status()).toBe(200);
+  await speichertNach(page, () => klickeWennRuhig(flyin.locator('[data-zeichen="rezept:D.1.4"]')));
   await expect(karten(page).filter({ hasText: "EA 1" }).locator('use[href="#kp-rezept-D-1-4"]')).toHaveCount(1);
 
   await klickeWennRuhig(flyin.getByRole("button", { name: "Neue Verbindung" }));
+  await expect(flyin.getByLabel("Bezeichnung der neuen Verbindung")).toBeFocused();
   await flyin.getByLabel("Bezeichnung der neuen Verbindung").fill("R_UE_2");
-  await speichertNach(page, () => klickeWennRuhig(flyin.getByRole("button", { name: "Anlegen und verbinden" })));
+  await speichertNach(page, () => page.keyboard.press("Enter"));
   await expect(page.locator(".kp-betrachter [data-sechseck]")).toHaveCount(1);
 
   await klickeWennRuhig(flyin.getByRole("button", { name: "Liste einfügen" }));
+  await expect(flyin.getByLabel("Einheiten, je Zeile eine")).toBeFocused();
   await flyin.getByLabel("Einheiten, je Zeile eine").fill("RTW RK UE 40-83-5\nKTW RK UE 40-92-1");
-  await speichertNach(page, () => klickeWennRuhig(flyin.getByRole("button", { name: "Übernehmen" })));
+  await speichertNach(page, () => page.keyboard.press("ControlOrMeta+Enter"));
   await expect(page.locator(".kp-betrachter [data-einheit]")).toHaveCount(2);
   await expect(page.getByRole("list", { name: "Legende" })).toContainText("Digitalfunk TMO");
 });
@@ -5054,8 +5876,7 @@ test("Konflikt zwischen zwei Fenstern: Hinweis, „Neu laden“ zeigt die andere
   const id = await neuerPlan(page, "e2e Konflikt");
   await ersteStelle(page, "Fassung A");
   const zweite = await context.newPage();
-  await zweite.goto(url(`/p/${id}`));
-  await warteAufSpaltenaufteilung(zweite);
+  await oeffneEditor(zweite, () => zweite.goto(url(`/p/${id}`)));
   await speichertNach(page, () => flyinTitel(page).fill("Fassung A2"));
 
   await klickeWennRuhig(karten(zweite).first());
@@ -5064,11 +5885,27 @@ test("Konflikt zwischen zwei Fenstern: Hinweis, „Neu laden“ zeigt die andere
   await flyinTitel(zweite).fill("Fassung B");
   expect((await antwort).status()).toBe(200);
   await expect(zweite.getByText("Jemand anderes hat diesen Plan inzwischen geändert.")).toBeVisible();
-  await expect(zweite.locator(".kp-speicherstatus")).toHaveText("Nicht gespeichert — Konflikt");
+  await expect(zweite.locator(".kp-speicherstatus")).toHaveText("Konflikt");
   await klickeWennRuhig(zweite.getByRole("button", { name: "Neu laden" }));
   await expect(zweite.locator(".kp-betrachter")).toContainText("Fassung A2");
   await expect(zweite.getByText("Jemand anderes hat diesen Plan inzwischen geändert.")).toHaveCount(0);
   await zweite.close();
+});
+
+test("Browser-Zurück: der Editor zeigt den gespeicherten Stand, die nächste Änderung speichert ohne Konflikt (Entscheidung 21)", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, "e2e Zurück");
+  await ersteStelle(page, "Vorher");
+  await speichertNach(page, () => flyinTitel(page).fill("Nachher"));
+  await page.keyboard.press("Escape");
+  await klickeWennRuhig(page.getByRole("link", { name: /Alle Pläne/ }));
+  await page.waitForURL(url("/"));
+  await oeffneEditor(page, () => page.goBack());
+  await expect(page.locator(".kp-betrachter")).toContainText("Nachher");
+  await klickeWennRuhig(karten(page).first());
+  await klickeWennRuhig(page.locator('[data-griff="bearbeiten"]'));
+  await speichertNach(page, () => flyinTitel(page).fill("Danach"));
+  await expect(page.getByText("Jemand anderes hat diesen Plan inzwischen geändert.")).toHaveCount(0);
 });
 
 test("Karten gleiten — ohne Bewegung bei prefers-reduced-motion", async ({ page }) => {
@@ -5081,14 +5918,44 @@ test("Karten gleiten — ohne Bewegung bei prefers-reduced-motion", async ({ pag
   await expect.poll(() => karte.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe("0s");
 });
 
+test("Tablet: neue Karten liegen nie unter dem Flyin, fünf Stellen passen eingepasst ins Bild (Entscheidung 18)", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.emulateMedia({ reducedMotion: "reduce" }); // Lagen messen ohne laufende Übergänge
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, "e2e Flyinlage");
+  await ersteStelle(page, "EL");
+  for (const titel of ["EA 1", "EA 2", "EA 3", "EA 4"]) {
+    await page.keyboard.press("Enter"); // fertig → Fläche
+    if (titel !== "EA 1") await page.keyboard.press("ArrowUp"); // zurück zur EL
+    await page.keyboard.press("n");
+    await speichertNach(page, () => flyinTitel(page).fill(titel));
+    // die neue Karte steht rechts außen am Bus — und trotzdem links vom Flyin
+    const karte = (await page.locator("[data-griffe] .kp-griffe-karte").boundingBox())!;
+    const flyin = (await page.locator("[data-flyin-stelle]").boundingBox())!;
+    expect(karte.x + karte.width, `${titel} unter dem Flyin`).toBeLessThanOrEqual(flyin.x);
+    // und die Ansicht ist dabei eingepasst geblieben (Kritik: kein Einfrieren beim ersten Anlegen)
+    await expect(page.locator(".kp-betrachter")).toHaveAttribute("data-eingepasst", "true");
+  }
+  await page.keyboard.press("Escape");
+  const rahmen = (await page.locator(".kp-betrachter").boundingBox())!;
+  for (const k of await karten(page).all()) {
+    const b = (await k.boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(rahmen.x);
+    expect(b.x + b.width).toBeLessThanOrEqual(rahmen.x + rahmen.width);
+    expect(b.y + b.height).toBeLessThanOrEqual(rahmen.y + rahmen.height);
+  }
+});
+
 test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, context }) => {
   await context.addInitScript(() => { window.print = () => {}; });
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, "e2e Drucken");
   await ersteStelle(page, "EL");
   await flyinTitel(page).fill("Druckprobe"); // bewusst ohne auf das Autosave zu warten
+  const gespeichert = page.waitForResponse(istSpeichern); // Drucken speichert vorher (Entscheidung 12)
   const neueSeite = context.waitForEvent("page");
-  await klickeWennRuhig(page.getByRole("button", { name: "Drucken" }));
+  await klickeWennRuhig(page.getByRole("button", { name: "Drucken (A4 quer)" }));
+  expect((await gespeichert).status()).toBe(200);
   const druck = await neueSeite;
   await druck.waitForURL(/\/druck\/a4$/);
   await warteAufGestreamteInhalte(druck);
@@ -5097,33 +5964,39 @@ test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, c
 });
 ```
 
-- [ ] **Step 2: In den Eimer eintragen**
+(`istStandAbfrage` schließt über `":"` die Zeichen-Nachladung aus: deren Rumpf trägt Schlüssel wie `rezept:D.1.4`, die Standabfrage nur die Plan-ID, eine UUID bzw. einen Seed-Namen ohne Doppelpunkt.)
 
-In `e2e/gruppen.json`, Eimer `eimer-2`, `e2e/kommplan-editor.spec.ts` in die `specs`-Zeichenkette aufnehmen, in der Sortierung, die `scripts/e2e-gruppen.test.ts` verlangt (`localeCompare` — voraussichtlich direkt **vor** `e2e/kommplan.spec.ts`).
+- [ ] **Step 2: In einen Eimer eintragen — nach Testzeit**
+
+`scripts/e2e-gruppen.test.ts` (Kopfkommentar) verlangt: eine neue Spec kommt in den Eimer mit der **kleinsten Testzeit im letzten grünen Lauf** — nicht nach Modul, nicht nach Name. Eine Reihenfolge innerhalb der Liste prüft der Test nicht (Playwright fährt die Dateien eines Eimers ohnehin nach Namen). Weil dieser Zweig noch nicht auf `main` liegt, gibt es für die neuen Specs keinen grünen Lauf; deshalb so messen:
+1. Testzeit je Eimer im letzten grünen `main`-Lauf: `gh run list --workflow ci.yml --branch main --status success --limit 1`, dann `gh run view <id> --log` und je Eimer die Spanne der Playwright-Ausgabe (erste bis letzte Zeile des `list`-Reporters) ablesen — nicht die Jobdauer, die enthält die Einrichtung.
+2. Die Zeit von `e2e/kommplan.spec.ts` (Phase 1, steht in `eimer-2`, fehlt auf `main` noch) und von `e2e/kommplan-editor.spec.ts` lokal über den CI-Weg messen: `pnpm build && E2E_VORGEBAUT=1 pnpm exec playwright test e2e/kommplan.spec.ts e2e/kommplan-editor.spec.ts --reporter=list` (bei Load > 10 später wiederholen; die Fotos aus Task 16 laufen in der CI nicht mit).
+3. `kommplan.spec.ts` zu `eimer-2` rechnen, dann die neue Spec in den Eimer mit der kleinsten Summe eintragen (ans Ende der `specs`-Zeichenkette). Zahlen und Wahl in den Commit-Body schreiben.
 
 Run: `pnpm vitest run scripts/e2e-gruppen.test.ts`
-Expected: PASS. Meldet der Test eine falsche Reihenfolge, die Stelle nach seiner Meldung verschieben.
+Expected: PASS (jede Spec in genau einem Eimer).
 
 - [ ] **Step 3: Laufen lassen**
 
 Vorher `uptime` prüfen. Bei Load über 10 den CI-Weg nehmen: `pnpm build && E2E_VORGEBAUT=1 pnpm exec playwright test e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts`; sonst:
 
 Run: `pnpm exec playwright test e2e/kommplan-editor.spec.ts e2e/kommplan.spec.ts`
-Expected: alle grün (7 neue + 6 aus Phase 1). Danach `git status`: ein von `next dev` umgeschriebenes `next-env.d.ts` mit `git checkout -- next-env.d.ts` zurücksetzen; kein `pnpm dev` offen lassen.
+Expected: alle grün (9 neue + 6 aus Phase 1). Danach `git status`: ein von `next dev` umgeschriebenes `next-env.d.ts` mit `git checkout -- next-env.d.ts` zurücksetzen; kein `pnpm dev` offen lassen.
 
 Typische Ursachen, wenn etwas rot ist — **nicht** den Test aufweichen:
-- `toBeFocused()` scheitert: die antd-Schublade zieht den Fokus beim Öffnen an sich. Prüfen (antd-MCP, `antd_doc Drawer`), ob die Schublade eine Fokus-Option hat (`autoFocus`/`focusable`), und sie so setzen, dass `afterOpenChange` das Titelfeld fokussiert; sonst den Fokus in `afterOpenChange` mit `requestAnimationFrame` nachziehen.
+- `toBeFocused()` scheitert: die antd-Schublade zieht den Fokus beim Öffnen an sich oder gibt ihn beim Schließen an den Auslöser zurück. Prüfen (antd-MCP, `antd_doc Drawer`), ob die Schublade eine Fokus-Option hat (`autoFocus`/`focusable`), und sie so setzen, dass `afterOpenChange` das Titelfeld bzw. `nachSchliessen` die Fläche fokussiert; sonst den Fokus dort mit `requestAnimationFrame` nachziehen.
 - Das Gleiten misst `0s` auch ohne Emulation: die Klasse `kp-gleitet` sitzt nicht am `[data-karte]`-Element (Task 10, `lage.ts`), oder eine antd-Regel überschreibt `transition` — dann Falle 5.
+- Die Flyin-Lage scheitert: `flyinGrund` kommt nicht an der Fläche an, oder die Fläche kennt ihre linke Kante bzw. die Fensterbreite nicht (ResizeObserver-Rückruf, Task 10).
 - Ein Klick trifft daneben: die Hülle bricht nach `load` um — `warteAufSpaltenaufteilung` vor dem ersten Klick jeder Seite (Falle 12).
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add e2e/kommplan-editor.spec.ts e2e/gruppen.json
-git commit -S -m "test(kommplan): e2e für Anlegen, Griffe, Tastatur, Konflikt, Gleiten und Drucken im Editor
+git commit -S -m "test(kommplan): e2e für Anlegen, Griffe, Tastatur, Konflikt, Zurück, Flyin-Lage und Drucken
 
 Jeder Test legt seinen Plan selbst an; die Zugangsgruppe sieht weder
-„Neu“ noch Griffe.
+„Neu“ noch Griffe. Eimer nach gemessener Testzeit: <Zahlen und Wahl>.
 
 DRK-500
 
@@ -5147,31 +6020,46 @@ Nie Dev-Server plus `curl`: die Fotos macht Playwright über `devLogin` (Projekt
 
 - [ ] **Step 1: Den Fototest anhängen**
 
-An `e2e/kommplan-editor.spec.ts` anhängen (Import `mkdirSync` aus `node:fs`):
+An `e2e/kommplan-editor.spec.ts` anhängen (Import `mkdirSync` aus `node:fs`, Typ `Locator` aus `@playwright/test`):
 
 ```ts
 /**
  * SICHTPRÜFUNG (Umsetzungsplan Phase 2, Task 16): hell und dunkel über das Cookie `iuk-theme-pref`
- * (nie `emulateMedia({ colorScheme })` — die Suite löst das Thema über `<html data-theme>` auf),
- * Desktop, Tablet, Telefon. Mit `KOMMPLAN_FOTOS=<ordner>` landen die Fotos dort, sonst im
- * Ausgabeordner des Laufs. Zugesichert wird zweierlei: kein waagerechtes Überlaufen der Seite und
- * die Griffe der Auswahl im sichtbaren Bereich.
+ * (nie `emulateMedia({ colorScheme })` — die Suite löst das Thema über `<html data-theme>` auf).
+ * Mit `KOMMPLAN_FOTOS=<ordner>` fährt er alle drei Breiten und legt 42 Fotos ab; OHNE (also in der
+ * CI) fährt er nur die Telefonbreite in beiden Modi, schießt keine Fotos und sichert nur zu — so
+ * bleibt der auf rund 170 s ausbalancierte Eimer (scripts/e2e-gruppen.test.ts) nicht hängen.
+ * Zugesichert wird: kein waagerechtes Überlaufen; die Griffe der gewählten Karte GANZ im Bild und
+ * ganz in der Fläche — auch an der äußersten linken und rechten Karte; und am Seed-Plan kein
+ * einziger Speicheraufruf (Review Focus 6: Ansehen und Flyins öffnen schreibt nichts).
  */
 const BREITEN = [{ name: "desktop", width: 1440, height: 900 }, { name: "tablet", width: 1024, height: 768 }, { name: "telefon", width: 390, height: 844 }] as const;
+const FOTOS = process.env.KOMMPLAN_FOTOS;
+
+async function ganzInDerFlaeche(page: Page, el: Locator, was: string): Promise<void> {
+  await expect(el, was).toBeInViewport({ ratio: 1 });
+  const rahmen = (await page.locator(".kp-betrachter").boundingBox())!;
+  const b = (await el.boundingBox())!;
+  expect(b.x, `${was}: links`).toBeGreaterThanOrEqual(rahmen.x);
+  expect(b.x + b.width, `${was}: rechts`).toBeLessThanOrEqual(rahmen.x + rahmen.width);
+  expect(b.y + b.height, `${was}: unten`).toBeLessThanOrEqual(rahmen.y + rahmen.height);
+}
 
 test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, drei Breiten", async ({ page, context }, testInfo) => {
-  test.setTimeout(240_000);
-  const ordner = process.env.KOMMPLAN_FOTOS ?? testInfo.outputPath("fotos");
-  mkdirSync(ordner, { recursive: true });
+  test.setTimeout(FOTOS ? 240_000 : 90_000);
+  const ordner = FOTOS ?? testInfo.outputPath("fotos");
+  if (FOTOS) mkdirSync(ordner, { recursive: true });
+  await page.emulateMedia({ reducedMotion: "reduce" }); // Lagen ohne laufende Übergänge messen
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const leerId = await neuerPlan(page, "e2e Fotos leer");
-  const foto = (name: string) => page.screenshot({ path: `${ordner}/${name}.png`, animations: "disabled" });
+  const foto = async (name: string) => { if (FOTOS) await page.screenshot({ path: `${ordner}/${name}.png`, animations: "disabled" }); };
   const ohneUeberlauf = async () =>
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const breiten = FOTOS ? BREITEN : [BREITEN[2]];
 
   for (const modus of ["light", "dark"] as const) {
     await context.addCookies([{ name: "iuk-theme-pref", value: modus, url: url("/") }]);
-    for (const b of BREITEN) {
+    for (const b of breiten) {
       await page.setViewportSize({ width: b.width, height: b.height });
       const n = `${b.name}-${modus}`;
 
@@ -5184,35 +6072,50 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await expect(page.getByRole("form", { name: "Neuer Plan" })).toBeVisible();
       await foto(`neu-${n}`);
 
-      await page.goto(url(`/p/${leerId}`));
-      await warteAufSpaltenaufteilung(page);
+      await oeffneEditor(page, () => page.goto(url(`/p/${leerId}`)));
       await foto(`leer-${n}`);
 
-      // Seed-Plan nur ANSEHEN und auswählen, nie ändern (Task 15, Kopf)
-      await page.goto(url("/p/beispiel-openr-2022-07-01"));
-      await warteAufSpaltenaufteilung(page);
+      // Seed-Plan nur ANSEHEN und auswählen, nie ändern (Task 15, Kopf) — jeder Speicheraufruf wäre ein Befund
+      const speicherungen: string[] = [];
+      const zaehle = (r: Response) => { if (istSpeichern(r)) speicherungen.push(r.url()); };
+      page.on("response", zaehle);
+      await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01")));
       await ohneUeberlauf();
       await foto(`editor-${n}`);
       // ea2: Unterstelle mit Geschwistern und Einheiten — zeigt alle Griffe (el wäre eine Seitenstelle)
       await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea2"]'));
-      const griffe = page.locator('[data-griffe="ea2"]');
-      await expect(griffe).toBeVisible();
-      await expect(page.getByRole("toolbar", { name: /^Auswahl:/ })).toBeInViewport();
+      await expect(page.locator('[data-griffe="ea2"]')).toBeVisible();
+      await ganzInDerFlaeche(page, page.getByRole("toolbar", { name: /^Auswahl:/ }), "Griffleiste ea2");
       await foto(`auswahl-${n}`);
+      // die äußerste linke und rechte Karte: ihre Griffe (Leiste und seitliche „+") ganz im Bild (Kritik)
+      const lagen = await page.locator(".kp-betrachter [data-karte]").evaluateAll((els) =>
+        els.map((e) => ({ id: e.getAttribute("data-karte")!, x: e.getBoundingClientRect().x })));
+      const aussen = [lagen.reduce((a, c) => (c.x < a.x ? c : a)).id, lagen.reduce((a, c) => (c.x > a.x ? c : a)).id];
+      for (const id of aussen) {
+        await page.keyboard.press("0"); // eingepasst: auch die äußeren Karten sind im Bild und klickbar
+        await klickeWennRuhig(page.locator(`.kp-betrachter [data-karte="${id}"]`));
+        for (const g of await page.locator(`[data-griffe="${id}"] [data-griff]`).all()) {
+          await ganzInDerFlaeche(page, g, `Griff ${await g.getAttribute("data-griff")} an ${id}`);
+        }
+      }
+      await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea2"]'));
       await klickeWennRuhig(page.locator('[data-griff="bearbeiten"]'));
       await expect(flyinTitel(page)).toBeVisible();
       await ohneUeberlauf();
       await foto(`flyin-stelle-${n}`);
       await page.keyboard.press("Escape");
-      await klickeWennRuhig(page.getByRole("button", { name: "Planangaben" }));
-      await expect(page.getByRole("form", { name: "Planangaben" })).toBeVisible();
+      await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+      await expect(page.locator('fieldset[aria-label="Planangaben"]')).toBeVisible();
       await foto(`flyin-plan-${n}`);
+      await page.keyboard.press("Escape");
+      page.off("response", zaehle);
+      expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
     }
   }
 });
 ```
 
-(Im Seed-Plan „OpenR" ist `ea2` „EA 2 Bühne": Unterstelle von `fuekw`, mit Geschwistern, Kanälen und Einheiten — `_lib/beispiele/openr20220701.ts`.)
+(Im Seed-Plan „OpenR" ist `ea2` „EA 2 Bühne": Unterstelle von `fuekw`, mit Geschwistern, Kanälen und Einheiten — `_lib/beispiele/openr20220701.ts`. Die Tastenfolge „0" setzt die Ansicht zurück auf eingepasst, falls ein vorheriger Klick sie verschoben hat.)
 
 - [ ] **Step 2: Fotos erzeugen**
 
@@ -5223,18 +6126,19 @@ mkdir -p /private/tmp/claude-501/-Users-rubeen-dev-personal-drk-iuk-suite--claud
 KOMMPLAN_FOTOS=/private/tmp/claude-501/-Users-rubeen-dev-personal-drk-iuk-suite--claude-worktrees-drk-363-8c5335/c55f577c-bed2-49bc-a649-13521bcc9266/scratchpad/phase2-shots pnpm exec playwright test e2e/kommplan-editor.spec.ts -g "Bildschirmfotos"
 ```
 
-Expected: PASS, 42 PNG-Dateien (7 Ansichten × 3 Breiten × 2 Modi).
+Expected: PASS, 42 PNG-Dateien (7 Ansichten × 3 Breiten × 2 Modi). Ohne `KOMMPLAN_FOTOS` (CI) läuft derselbe Test nur mit den Zusicherungen an der Telefonbreite.
 
 - [ ] **Step 3: Jede Aufnahme mit `Read` ansehen und gegen diese Liste prüfen**
 
 Dazu die Referenzbilder der Excel-Vorlage (`…/scratchpad/referenz/*.png`) einmal öffnen: die Zeichnung selbst soll dort wie in Phase 1 aussehen, nur die Bedienung ist neu.
 
 1. **Dunkel**: Kopfleiste, Speicherstatus, Flyin-Beschriftungen (`--kp-gedaempft`), Chips, Auswahlrahmen (`--kp-auswahl`) lesbar; die Zeichenfläche bleibt Papier (weiß), die Zeichen-Vorschauen im Flyin stehen auf Weiß.
-2. **Griffe**: nicht abgeschnitten, 44 px hoch, überdecken Titel und Kontaktzeilen der gewählten Karte nicht; die seitlichen „+" stehen neben, nicht auf der Karte. Zusätzlich einmal von Hand: eine Unterstelle an der Stelle ganz rechts bzw. ganz unten anlegen — die Griffe der neuen Karte müssen ganz im Bild sein (`GRIFF_RAND` in `Editor.tsx`).
-3. **Telefon 390**: Werkzeugleiste bricht um statt überzulaufen, Knöpfe mindestens 44 px, Flyin höchstens 92 vw mit sichtbarem Schließen-Knopf, Formularzeilen untereinander (`auto-fit`/`minmax`), keine waagerechte Rollleiste.
-4. **Tablet 1024**: Kopfleiste und Status in höchstens zwei Zeilen; das Flyin verdeckt die gewählte Karte nicht vollständig (sonst `zeige()` beim Öffnen in den linken Bereich lenken).
+2. **Griffe**: nicht abgeschnitten (zugesichert für ea2 und die äußersten Karten), 44 px hoch, überdecken Titel und Kontaktzeilen der gewählten Karte nicht; die seitlichen „+" mit Symbol stehen neben, nicht auf der Karte, ihr Tooltip erscheint bei Fokus. Zusätzlich einmal von Hand: eine Unterstelle an der Stelle ganz rechts bzw. ganz unten anlegen — die Griffe der neuen Karte müssen ganz im Bild sein (`GRIFF_RAND` in `Editor.tsx`).
+3. **Telefon 390**: Werkzeugleiste bricht um statt überzulaufen, der Speicherstatus hat seinen festen Platz (die Fläche springt beim Autosave nicht), Knöpfe mindestens 44 px, Flyin höchstens 92 vw mit sichtbarem Schließen-Knopf, Formularzeilen untereinander (`auto-fit`/`minmax`), keine waagerechte Rollleiste. Erwartet und kein Befund: das Flyin verdeckt die Zeichnung fast ganz (Entscheidung 13 — am Telefon nur kleine Korrekturen).
+4. **Tablet 1024**: Kopfleiste und Status in höchstens zwei Zeilen; das Flyin verdeckt die gewählte Karte nicht (zugesichert im e2e „Tablet: neue Karten liegen nie unter dem Flyin", Task 15).
 5. **Leerer Plan**: Hinweis und „Erste Stelle anlegen" deutlich, keine leere graue Fläche ohne Aussage.
-6. **Flyin Plan**: Verbindungen mit Nutzung bzw. Chip „Reserve", Löschen bei benutzten Verbindungen erkennbar deaktiviert.
+6. **Flyin Plan**: Planangaben ohne „Übernehmen"-Knopf, Verbindungen mit Nutzung bzw. Chip „Reserve", Löschen bei benutzten Verbindungen erkennbar deaktiviert.
+7. **Hinweise**: ein Hinweis (etwa nach Entf) liegt unten mittig IN der Fläche und verschiebt sie nicht; die Bedienzeile unter der Fläche ist lesbar.
 
 Jeden Befund beheben (kleinste Änderung am CSS bzw. an der Komponente, mit Test wo möglich — Quelltext-Scan in `kommplan-css.test.ts` oder Zusicherung im Fototest), Fotos neu erzeugen und wieder ansehen, bis die Liste erfüllt ist.
 
@@ -5251,8 +6155,9 @@ Expected: grün, exit 0.
 git add e2e/kommplan-editor.spec.ts src/app/m/kommplan/_ui docs/superpowers/plans/2026-09-30-kommplan-phase-2.md
 git commit -S -m "test(kommplan): Sichtprüfung des Editors hell und dunkel auf drei Breiten
 
-Der Fototest sichert kein waagerechtes Überlaufen und Griffe im Bild;
-Befunde der Sichtprüfung stehen im Umsetzungsplan.
+Der Fototest sichert kein waagerechtes Überlaufen, Griffe ganz im Bild
+auch an den Randkarten und keinen Speicheraufruf am Seed-Plan; in der
+CI nur an der Telefonbreite, Fotos nur mit KOMMPLAN_FOTOS.
 
 DRK-500
 
@@ -5263,41 +6168,19 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 17: Release-Notiz nachziehen und alle Tore
+### Task 17: Alle Tore
 
-**Files:**
-- Modify: `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` (nur `titel` und `inhalt`; Dateiname, `slug` und `datum` bleiben — es gibt am Ende EINE Notiz für das ganze Modul, Vorgabe des Hauptlaufs)
+**Files:** keine neuen Änderungen — die Release-Notiz ist schon im Commit von Task 14 angepasst (CLAUDE.md: „im selben Commit"; Vorgabe des Hauptlaufs: EINE Notiz für das ganze Modul).
 
 **Interfaces:**
 - Consumes: alles.
 - Produces: den abgeschlossenen Stand der Phase 2.
 
-- [ ] **Step 1: Notiz anpassen**
+- [ ] **Step 1: Notiz gegenlesen**
 
-`titel` und `inhalt` ersetzen durch (Du-Form, Wörter vom Bildschirm, kein Markdown, kein Werbewort, höchstens 320 Zeichen je Absatz, 640 gesamt, Titel höchstens 60 — `register.test.ts` prüft das):
+`src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` gegen den fertigen Stand prüfen: ein Absatz, höchstens drei Sätze, jeder genannte Name steht so am Bildschirm (nach der Sichtprüfung aus Task 16 nachsehen, ob ein Knopf umbenannt wurde). Stimmt etwas nicht mehr, die Notiz in einem `fix(kommplan): …`-Commit nachziehen.
 
-```ts
-  titel: "Kommunikationspläne ansehen, bearbeiten und drucken",
-  inhalt: [
-    absatz(
-      "Unter „Kommunikationspläne“ siehst du Kommunikationspläne und Fernmeldeskizzen als Diagramm, das sich selbst anordnet. " +
-        "Du kannst hineinzoomen, Stellen einklappen und jeden Plan über „Drucken“ auf A4 quer ausgeben oder als PDF sichern.",
-    ),
-    absatz(
-      "Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an und baust ihn im Diagramm auf: Stelle anklicken, dann „+ Unterstelle“, „+ Einheit“ oder „+“ für eine Seitenstelle. " +
-        "Rechts trägst du Titel, Zeichen, Kontakte und Verbindungen ein. Jede Änderung speichert sich selbst und lässt sich rückgängig machen.",
-    ),
-  ],
-```
-
-Den Kopfkommentar der Datei (Zielgruppe) unverändert lassen.
-
-- [ ] **Step 2: Notiz-Tests**
-
-Run: `pnpm vitest run src/app/m/portal/_lib/neuigkeiten`
-Expected: PASS. Ist ein Absatz zu lang, kürzen — nie die Grenze anfassen.
-
-- [ ] **Step 3: Alle Tore**
+- [ ] **Step 2: Alle Tore**
 
 Vorher `uptime`. Dann nacheinander, jeweils Exit-Code prüfen:
 
@@ -5312,20 +6195,6 @@ pnpm exec playwright test e2e/kommplan.spec.ts e2e/kommplan-editor.spec.ts; echo
 
 Expected: alles exit 0. Bekannt und nicht Teil dieser Arbeit: `scripts/backup-sidecar.test.ts` auf macOS (DRK-501); `pnpm vitest run` darf ausschließlich daran rot sein. Ein rotes e2e bei hoher Last einzeln bzw. über `pnpm e2e:gebaut` (CI-Weg) nachfahren, bevor es als Befund gilt. `next-env.d.ts` danach zurücksetzen, falls umgeschrieben.
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts
-git commit -S -m "docs(kommplan): Release-Notiz beschreibt den Stand mit Diagramm-Editor
-
-Eine Notiz für das ganze Modul; sie nennt jetzt Anlegen und Bearbeiten
-im Diagramm.
-
-DRK-500
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
 ---
 
 ## Abdeckung der Spec (Selbstprüfung)
@@ -5334,20 +6203,67 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 |---|---|
 | §6.1 Planliste „Neu" (Titel, Art, Anlass, Datum), danach in den Editor | 5, 6, 7 |
 | §6.1 `/p/[id]` Editor (Admin) bzw. Betrachter (Zugangsgruppe); IDOR in jeder Action | 5, 6, 14, 15 |
-| §6.2 Kopfleiste: Titel, Diagramm \| Gliederung (Gliederung deaktiviert), Rückgängig/Wiederholen, Drucken, Speicherstatus; Flyin rechts mit `flyinBreite()` | 11, 13, 14 |
+| §6.2 Kopfleiste: Titel, Diagramm \| Gliederung (Gliederung deaktiviert), Rückgängig/Wiederholen, „Drucken (A4 quer)", Speicherstatus (kurz, fester Platz); Flyin rechts mit `flyinBreite()` | 11, 13, 14 |
 | §6.3 Griffe „+ Unterstelle", „+ Seitenstelle", „+ Einheit"; sofort gesetzt, ausgewählt, Fokus im Titel | 2, 10, 14, 15 |
 | §6.3 gleitende Animation, ohne bei `prefers-reduced-motion` | 10, 15 |
-| §6.3 Tastatur: Pfeile, Enter, N, Entf mit Rückgängig | 8, 14, 15 |
+| §6.3 Tastatur: Pfeile, Enter (auch F2), N, Entf mit Rückgängig; Fokus kehrt auf die Fläche zurück, Enter im Titel = fertig | 8, 10, 11, 14, 15 |
 | §6.4 Zeichen-Suche mit „zuletzt genutzt" | 6, 8, 11, 15 |
-| §6.4 Titel, Leiter, Hervorheben; Kontakte in fester Reihenfolge | 11 |
+| §6.4 Titel, Leiter, Hervorheben; Kontakte in fester Reihenfolge (ein Feld je Art) | 11 |
 | §6.4 Untersteht/Lage (Umhängen, keine Zyklen); Verbindung wählen oder neu tippen; Einheiten einzeln und „Liste einfügen" | 3, 4, 12, 15 |
 | §6.4 „Aus Bibliothek" / „In Bibliothek übernehmen" | bewusst nicht (Phase 4) |
-| Plan-Metadaten und Optionen `leerzeilen`, `vermerkVsNfD` | 5, 13 |
+| Plan-Metadaten (speichern sich selbst) und Optionen `leerzeilen`, `vermerkVsNfD` | 5, 13, 14 |
 | Verbindungen verwalten: umbenennen, Art, löschen nur unbenutzt, unbenutzt = Reserve | 3, 13 |
 | §6.6 Autosave ~1 s mit `version`, Konflikt „Neu laden" / „Meine Fassung behalten", Client-Stapel Rückgängig | 5, 8, 9, 14, 15 |
 | §6.6 reine Operationen in `_lib/plan/` | 2, 3, 4 |
-| §10 Einfüge-Eigenschaft ehrlich, Spec-Satz ergänzt | 1 |
+| §10 Einfüge-Eigenschaft ehrlich: Starrheit und kein geändertes y (ohne Kamm, gleiche Zeilen) statt „nichts links rückt"; Spec-Wortlaut ersetzt | 1 |
 | Hauptlauf (1): Audit gebündelt, 15 Minuten je Person und Plan | 5 |
-| Hauptlauf (3): Release-Notiz beschreibt den Stand nach Phase 2 | 17 |
+| Hauptlauf (3): Release-Notiz beschreibt den Stand nach Phase 2, im Commit der Funktion | 14 (gegengelesen in 17) |
+| Größe: Gesamtgrenze unter dem Aufruflimit der Server Actions | 2, 5 |
+| Ansicht bleibt eingepasst, Flyin verdeckt keine neue Karte, Griffe ganz im Bild | 10, 14, 15, 16 |
+| Veralteter Stand nach Browser-Zurück | 5, 6, 9, 14, 15 |
+| Seed-Pläne werden durch Ansehen nie geschrieben (Review Focus 6) | 13, 16 |
 | e2e und Sichtprüfung (hell/dunkel, 1440×900, 1024×768, 390×844) | 15, 16 |
 
+## Kritik eingearbeitet/verworfen
+
+Kritik zum Planstand vom 30.09.2026, 35 Befunde in der gelieferten Reihenfolge. Jeder Befund ist am Code nachgeprüft (Belege in der Kritik bzw. nachgesehen: `_lib/layout/zufall.ts` `stabStellen`, `_lib/layout/zeichne.ts` `legende()`, `node_modules/antd/es/alert/Alert.d.ts`, `node_modules/next/dist/docs/01-app/04-glossary.md` „Client Cache", `scripts/e2e-gruppen.test.ts`, `e2e/gruppen.json`, `src/app/m/portal/admin/audit/filters.test.ts`, `_ui/betrachter/ansicht.ts` `einpassen`, `src/app/m/portal/_lib/neuigkeiten/register.test.ts`). Doppelte Befunde: 1/13, 2/11, 5/15, 12/22, 19/26 (teilweise).
+
+| # | Befund (kurz) | Ergebnis | Wo | Begründung |
+|---|---|---|---|---|
+| 1 | Spec-§10-Satz „verschiebt innerhalb … nichts links" widerlegt | übernommen | Entscheidung 2, Task 1 | Selbst nachgerechnet (6 Fälle, −27 bis −48 mm). Tests prüfen nur Starrheit über `relativ()` und nur unter ihrer Vorbedingung (kein Kamm, gleiche Zeilen) — beides steht jetzt im Wortlaut. Spec-Wortlaut, Testkommentar und Commit sagen jetzt, was gilt. Die Einschränkung „innerhalb einer Ebene/Gruppe" aus der Vorgabe des Hauptlaufs trägt ebenfalls nicht — sein Ziel „ehrlich formulieren" hat Vorrang, das steht in Entscheidung 2. |
+| 2 | Größenmessung misst keine 500 Stellen; 1-MB-Sackgasse | übernommen | Entscheidung 15, Task 2 (Step 0, `GRENZE.bytes`), Task 5 | `zufallsPlan(…, "stab")` hat 75 Stellen. Statt `bodySizeLimit` eine Gesamtgrenze im Schema: jede Operation, die zu groß würde, ist ein `PlanFehler` mit eigener Meldung und wird gar nicht erst angewandt — so entsteht nie ein unspeicherbarer Stand. |
+| 3 | Zustand der Flyin-Abschnitte wandert zur nächsten Stelle | übernommen | Task 11, Task 12, Review Focus 7 | `key={s.id}` an ZeichenWahl, KontaktZeilen, StellenLage, VerbindungWahl, EinheitenListe, nicht am ganzen Formular; Test „Wechsel der Stelle". Folgeproblem des Keyens (Durchsicht): eine stehende „+ Einheit"-Anfrage zöge beim Neumontieren den Fokus in die neue Stelle — Fokusanfragen nennen deshalb ihre Stelle; eigener DOM-Test. |
+| 4 | Release-Notiz: zwei Absätze, eigener Commit, „speichert sich selbst" falsch, „Drucken" | übernommen | Task 14 Step 7, Entscheidung 20, Task 17 | Ein Absatz, drei Sätze, 314 Zeichen (gezählt), im Commit der Funktion. „Drucken (A4 quer)" heißt jetzt auch der Editor-Knopf; „speichert sich selbst" stimmt, weil auch die Angaben sich selbst speichern (Befund 23). |
+| 5 | `Alert.message` abgekündigt | übernommen | Global Constraints, Tasks 7, 13, 14 | Überall `title=`. |
+| 6 | Sechseck-Schlüssel mit globalem Index | übernommen | Task 10 | n-tes Vorkommen je Paar Netz + Verbindung. |
+| 7 | Eimerwahl nach Modul/Sortierung; Fototest im CI-Eimer | übernommen | Task 15 Step 2, Task 16 | Eimer nach gemessener Testzeit (Messweg beschrieben, weil der Zweig noch keinen grünen Lauf hat); Fototest in der CI nur Telefon, ohne Fotos. `kommplan.spec.ts` zählt keine Listenzeilen — ein gemeinsamer Eimer wäre also auch sicher. |
+| 8 | `filters.test.ts` nicht im Grün-Lauf | übernommen | Task 5 Step 8 | — |
+| 9 | Veralteter Stand nach Browser-Zurück | übernommen | Entscheidung 21, Tasks 5, 6, 9, 14, 15 | `ladeStandAction` beim Montieren, Übernahme im `.then`; still bei unverändertem Stand, sonst Konflikt. e2e „Browser-Zurück". |
+| 10 | Wurzel-`verbindungId` zählt als Weg | übernommen, erweitert | Task 3, Review Focus 4 | Wie `legende()`; `haengeUm` auf die oberste Ebene setzt `verbindungId: null`. Zusätzlich (nicht in der Kritik): `loescheVerbindung` löst die Verbindung auch von einer Wurzel, sonst verletzte das Löschen der „Reserve" die Invariante „Verbindung existiert". |
+| 11 | = 2 | übernommen | wie 2 | Doppelt. |
+| 12 | Flyin verdeckt die neue Karte | übernommen | Entscheidung 18, Tasks 10, 11, 13, 14, 15 | Die Fläche kennt die Grundbreite des offenen Flyins (`flyinGrund`, dieselbe `min(…)`-Regel wie `flyinBreite()`, keine `.ant-*`-Messung) und rechnet beim Einpassen und in `zeige()` mit dem freien Bereich. e2e „Tablet: neue Karten liegen nie unter dem Flyin". |
+| 13 | = 1 | übernommen | wie 1 | Doppelt; `dx === 0` für „ende" gilt nicht und wird nicht zugesichert. |
+| 14 | „Meine Fassung behalten" lässt alte Angaben stehen | übernommen | Entscheidung 11, Task 14 | `behalten()` übernimmt die Angaben der anderen Fassung, der Hinweistext sagt es; Editor-Test mit „Fremdtitel". |
+| 15 | `message=` und `closable onClose` abgekündigt | übernommen | wie 5 | `closable={{ onClose }}`. |
+| 16 | `@media` in `.kp-formular-knoepfe` (Falle 13) | übernommen | Task 7 | `auto-fit`/`minmax(160px, 1fr)`. Das `@media` der Kopfwerkzeuge bleibt: die Kopfleiste steht im Seitenfluss, nicht im Flyin. |
+| 17 | Zwei Anfragen im Flyin-e2e ungeprüft | übernommen | Task 15 | Symbol-Nachladung und Zeichenwahl je mit `waitForResponse`; dazu die Standabfrage jeder Editor-Navigation (`oeffneEditor`). |
+| 18 | `aria-describedby` fehlt (Datum, Plan-Flyin) | übernommen | Tasks 7, 13 | Dasselbe `feld()`/`fehlerText()`-Paar; DOM-Tests. |
+| 19 | `toBeInViewport()` ohne `ratio` | übernommen | Task 16 | `ratio: 1` plus Kasten-in-der-Fläche. |
+| 20 | Kontakteingabe: vier Handgriffe je Kontakt | übernommen | Entscheidung 16, Task 11 | Ein festes Feld je Art; Doppelte über „Weiterer Kontakt" am Ende, damit die Tab-Folge frei bleibt; Schlüssel (Art, n). |
+| 21 | Tastaturschleife bricht nach dem Flyin ab | übernommen | Entscheidung 17, Tasks 10, 11, 14, 15 | `FlaecheGriff.fokus()`, Enter im Titel = fertig, `nachSchliessen` nach der Animation; e2e ohne `flaeche.focus()` von Hand. |
+| 22 | = 12 | übernommen | wie 12 | Doppelt. |
+| 23 | Planangaben gehen beim Schließen verloren | übernommen | Entscheidung 3, Task 13, Task 14 | Kein „Übernehmen" mehr: speichern beim Verlassen, mit Enter, bei Art/Datum sofort; Schließen verlässt das Feld; `beforeunload` kennt den Entwurf. |
+| 24 | Ansicht friert beim ersten Anlegen ein | übernommen | Entscheidung 18, Task 10, Task 15 | Modus „eingepasst" statt `halte()`, gedeckelt auf Maßstab 4, gleitet bei automatischen Wechseln; eingepasst mit Platz für die Griffe, damit `zeige()` sie nicht doch verschiebt; e2e prüft `data-eingepasst`. |
+| 25 | Neue Stelle unter eingeklappter verschwindet | übernommen | Task 14 | Vorfahren werden aufgeklappt (in `lege` und nach jedem `aendere` für die gewählte Stelle); Editor-Test. |
+| 26 | Griffleiste an Randkarten abgeschnitten | übernommen | Entscheidung 5, Task 14, Task 16 | Leiste in Überlagerungs-Koordinaten, per `clamp()` im Bild, `flex-wrap`; `GRIFF_RAND` seitlich und unten; Fototest an den äußersten Karten. |
+| 27 | Seitliches „+" mehrdeutig | teilweise | Entscheidung 5, Task 14 | Übernommen: Tooltip (Zeigen und Fokus) und Symbol einer waagerechten Anbindung. Verworfen: „+ Nachbarstelle"/Umschalt+N — über §6.3 hinaus, das Geschwister-Anlegen per Enter kommt mit der Gliederung (§6.5, Phase 3), und ein vierter Knopf verbreiterte gerade die Leiste, die Befund 26 im Bild halten muss. |
+| 28 | Hinweis und Status lassen die Fläche springen | übernommen | Entscheidung 19, Tasks 10, 14 | Hinweise als Überlagerung in der Fläche, Status kurz mit fester Mindestbreite; der Konflikthinweis bleibt im Fluss (Zustand mit Entscheidung, kein Durchgangshinweis). |
+| 29 | Neue Verbindung braucht drei Klicks | teilweise | Task 12, Task 13 | Übernommen: Autofokus, Enter legt an, Art mit der zuletzt angelegten vorbelegt — ein Klick plus Tippen plus Enter. Verworfen: Kombifeld mit „… als TMO anlegen" — es versteckte die Artwahl in einem Optionstext, und §6.4 verlangt „Bezeichnung + Art". |
+| 30 | Tippen auf der Fläche = Titel bearbeiten | teilweise | Entscheidung 9, Tasks 8, 14 | Übernommen: F2 wie Enter, sichtbare Bedienzeile. Verworfen: Tippen = Titel — §6.3 legt `N` als Befehl fest; dann legte jedes Wort mit N eine Unterstelle an, jedes andere bearbeitete den Titel. |
+| 31 | Telefon-Zusage zu stark | teilweise | Entscheidung 13, Task 16 | Übernommen: Zusage ehrlich („nur kleine Korrekturen"). Verworfen: untere Schublade am Telefon und ein Aufbau-Durchgang im Fototest — §6.5 macht die Gliederung (Phase 3) zum Telefonweg; ein Durchgang prüfte, was nicht zugesagt ist. |
+| 32 | Enter im Zeichen-Suchfeld wählt nichts | übernommen | Task 11 | Enter = erster Treffer bzw. erster Vorschlag, ↓ ins Raster. |
+| 33 | Textarea ohne Fokus | übernommen | Task 12 | Autofokus, Strg/Cmd+Enter, danach Fokus auf „Liste einfügen". |
+| 34 | Kein Wiederholen nach Netzfehler | übernommen | Entscheidung 11, Task 9, Task 14 | 5 s, 15 s, 30 s, dann jede Minute, dazu `online`; nie bei Konflikt oder „weg". |
+| 35 | „Planangaben" verbirgt Reserve und Optionen | übernommen | Entscheidung 20, Tasks 13, 14 | Knopf „Plan und Verbindungen", dazu „Verbindungen bearbeiten" unter der Legende (öffnet am Abschnitt). |
+
+Außerhalb der Befunde ergänzt (Durchsicht): Review Focus 6 — die neuen Selbst-Speicher-Wege dürfen einen Seed-Plan nie schreiben; gepinnt im Plan-Flyin-Test („Unverändertes wird nie gesendet") und im Fototest (null Speicheraufrufe am OpenR-Plan).
