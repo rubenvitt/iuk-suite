@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import { leereElemente, type Zeichnungsdaten } from "./typen";
-import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
+import { pruefeMitte, pruefeTexte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
 import { zeichne } from "./zeichne";
 
 const leer = (): Zeichnungsdaten => ({ ...leereElemente(), breite: 100, hoehe: 100, legende: [] });
@@ -28,9 +28,24 @@ describe("pruefeZeichnung — Kästen", () => {
   });
   it("Kästen derselben Stelle dürfen dicht liegen, nur nicht überlappen", () => {
     const einheit = { id: "e", stelleId: "a", x: 6, y: 13.3, breite: 40, hoehe: 4.2, voll: "RTW", zeichen: null,
-      text: { text: "RTW", x: 20, y: 3, groesse: 8, fett: false, anker: "mitte" as const } };
+      zeilen: [{ text: "RTW", x: 20, y: 3, groesse: 8, fett: false, anker: "mitte" as const }] };
     expect(arten({ ...leer(), karten: [karte("a", 0, 0)], einheiten: [einheit] })).toEqual([]);
     expect(arten({ ...leer(), karten: [karte("a", 0, 0)], einheiten: [{ ...einheit, y: 10 }] })).toEqual(["ueberlappung"]);
+  });
+});
+
+describe("pruefeTexte", () => {
+  const einheit = (text: string, x = 20, anker: "start" | "mitte" | "ende" = "mitte", y = 3) => ({
+    id: "e", stelleId: "a", x: 6, y: 13.3, breite: 40, hoehe: 4.2, voll: text, zeichen: null,
+    zeilen: [{ text, x, y, groesse: 8, fett: false, anker }],
+  });
+  it("ein Text, der in seinen Kasten passt, ist befundfrei", () => {
+    expect(pruefeTexte({ ...leer(), einheiten: [einheit("RTW RK UE 40-83-1")] })).toEqual([]);
+  });
+  it("ein zu breiter oder verrutschter Text ist ein Befund", () => {
+    expect(pruefeTexte({ ...leer(), einheiten: [einheit("GW Betreuung RK LG 45-74-10 Nord")] }).map((b) => b.art)).toEqual(["text"]);
+    expect(pruefeTexte({ ...leer(), einheiten: [einheit("RTW", 39, "start")] })).toHaveLength(1);
+    expect(pruefeTexte({ ...leer(), einheiten: [einheit("RTW", 20, "mitte", 5)] })).toHaveLength(1);
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BEISPIELE } from "../../_lib/beispiele";
+import { baue } from "../../_lib/beispiele/bau";
 import { zeichne } from "../../_lib/layout/zeichne";
 import { PIKTOGRAMME } from "../../_lib/zeichen/grundlagen";
 import zeichen from "../../_lib/zeichen/zeichen.generiert.json";
@@ -39,8 +40,19 @@ describe("Zeichnung", () => {
     const h = renderToStaticMarkup(<Zeichnung daten={zeichne(label.inhalt, "bildschirm")} symbole={{}} titel="x" />);
     expect(h).toContain(FARBE.hervor);
   });
-  it("gekürzte Titel und Einheiten tragen den vollen Text als title", () => {
-    expect(html).toContain("<title>KTW RK UE 41-92-12</title>");
-    expect(html).toContain("<title>EA 2 Notunterkunft 2. Sternschule</title>");
+  it("ein gekürzter Titel zeigt „…\" und trägt den vollen Text als title; eine lange Einheit steht in zwei Zeilen ganz da", () => {
+    const lang = "Bereitstellungsraumkoordinationsstelle Behandlungsplatz Sanitätsdienst Logistik Technik Nord";
+    const inhalt = baue({ stellen: [{ id: "a", titel: lang, einheiten: [["GW Betreuung", "RK LG 45-74-10"]] }] });
+    const d = zeichne(inhalt, "bildschirm");
+    expect(d.karten[0].gekuerzt).toBe(true);
+    const h = renderToStaticMarkup(<Zeichnung daten={d} symbole={{}} titel="x" />);
+    expect(h).toContain(`<title>${lang}</title>`);
+    const karte = h.slice(h.indexOf('data-karte="a"'), h.indexOf("data-einheit="));
+    expect(karte).toContain("…");
+    expect(karte).not.toContain(">Nord<");
+    const einheit = h.slice(h.indexOf("data-einheit="));
+    expect(einheit).toMatch(/>GW Betreuung<\/text>/);
+    expect(einheit).toMatch(/>RK LG 45-74-10<\/text>/);
+    expect(einheit).not.toContain("…");
   });
 });

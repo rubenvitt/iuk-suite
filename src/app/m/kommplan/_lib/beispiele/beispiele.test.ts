@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import zeichen from "../zeichen/zeichen.generiert.json";
 import { MIN_MASSSTAB } from "../layout/masse";
 import { teileAuf } from "../layout/papier";
-import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "../layout/pruefung";
+import { pruefeAlles } from "../layout/pruefung";
 import { zeichne } from "../layout/zeichne";
 import { BEISPIELE } from "./index";
 
@@ -27,11 +27,11 @@ describe("Beispielpläne", () => {
     const inhalt = nach(id).inhalt;
     for (const ziel of ["bildschirm", "a4-quer"] as const) {
       const z = zeichne(inhalt, ziel);
-      expect([...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt)].map((b) => b.text), ziel).toEqual([]);
+      expect(pruefeAlles(z, inhalt).map((b) => b.text), ziel).toEqual([]);
     }
     for (const blatt of teileAuf(inhalt, "a4-quer")) {
       const z = blatt.zeichnung;
-      expect([...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt)].map((b) => b.text), `Blatt ${blatt.nummer}`).toEqual([]);
+      expect(pruefeAlles(z, inhalt).map((b) => b.text), `Blatt ${blatt.nummer}`).toEqual([]);
     }
   });
   /*

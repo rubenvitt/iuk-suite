@@ -17,7 +17,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "@playwright/test";
 import { BEISPIELE, type Beispiel } from "../src/app/m/kommplan/_lib/beispiele";
 import { layout } from "../src/app/m/kommplan/_lib/layout/layout";
-import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "../src/app/m/kommplan/_lib/layout/pruefung";
+import { pruefeAlles } from "../src/app/m/kommplan/_lib/layout/pruefung";
 import { zufallsPlan } from "../src/app/m/kommplan/_lib/layout/zufall";
 import { rahmenFuer } from "../src/app/m/kommplan/_lib/rahmen";
 import { symboleFuer } from "../src/app/m/kommplan/_lib/zeichen/zeichen";
@@ -45,7 +45,7 @@ const dateien: string[] = [];
 for (const b of beispiele) {
   const symbole = symboleFuer(b.inhalt);
   const l = layout(b.inhalt, "a4-quer");
-  const befunde = [...pruefeZeichnung(l), ...pruefeMitte(l), ...pruefeVerbindungen(l, b.inhalt)];
+  const befunde = pruefeAlles(l, b.inhalt);
   bericht.push(`${b.id}: ${l.karten.length} Karten, ${l.breite.toFixed(1)} × ${l.hoehe.toFixed(1)} mm, ${befunde.length} Befunde`);
   for (const f of befunde) bericht.push(`  ! ${f.text}`);
   const bildschirm = renderToStaticMarkup(createElement(Zeichnung, { daten: layout(b.inhalt, "bildschirm"), symbole, titel: b.titel, schrift: "Arimo", kopfStil: STIL }));
@@ -55,7 +55,7 @@ for (const b of beispiele) {
     aktualisiertAm: Date.parse(b.stand), aktualisiertVon: b.bearbeiter, vermerkVsNfD: b.inhalt.optionen.vermerkVsNfD });
   for (const blatt of l.seiten) {
     bericht.push(`  Blatt ${blatt.nummer}/${blatt.von}: Maßstab ${blatt.massstab.toFixed(3)}${blatt.unterMindestschrift ? " (unter 6 pt!)" : ""}`);
-    const blattBefunde = [...pruefeZeichnung(blatt.zeichnung), ...pruefeMitte(blatt.zeichnung), ...pruefeVerbindungen(blatt.zeichnung, b.inhalt)];
+    const blattBefunde = pruefeAlles(blatt.zeichnung, b.inhalt);
     for (const f of blattBefunde) bericht.push(`    ! ${f.text}`);
     const svg = renderToStaticMarkup(createElement(Blattansicht, { blatt, rahmen, symbole, schrift: "Arimo", kopfStil: STIL }));
     writeFileSync(join(ZIEL, `${b.id}-a4-${blatt.nummer}.svg`), svg);

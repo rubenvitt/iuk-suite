@@ -12,7 +12,7 @@ export interface KarteL {
   titel: TextZeile[]; titelVoll: string; gekuerzt: boolean; leiter: TextZeile | null;
   kontakte: KontaktZeileL[]; verweis: TextZeile | null; einklappbar: boolean; eingeklappt: boolean;
 }
-export interface EinheitL { id: string; stelleId: string; x: number; y: number; breite: number; hoehe: number; text: TextZeile; voll: string; zeichen: string | null }
+export interface EinheitL { id: string; stelleId: string; x: number; y: number; breite: number; hoehe: number; zeilen: TextZeile[]; voll: string; zeichen: string | null }
 export interface Strecke { netz: string; x1: number; y1: number; x2: number; y2: number; duenn: boolean }
 export type SechseckForm = "funk" | "leitung" | "mobil";
 export interface SechseckL { netz: string; verbindungId: string; art: VerbindungsArt; form: SechseckForm; x: number; y: number; breite: number; hoehe: number; beschriftung: TextZeile; voll: string; piktogramm: string }

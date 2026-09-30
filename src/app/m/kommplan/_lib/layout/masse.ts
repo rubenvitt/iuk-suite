@@ -20,7 +20,8 @@ export const KARTE = {
   kopfMin: 12, titelZeilenMax: 3, titelMin: 8, titelStufe: 0.5,
   kontaktHoehe: 4.5, piktoSpalte: 8, piktoGroesse: 3.6, wertX: 9.5, kontaktZeilenMax: 2,
 } as const;
-export const EINHEIT = { abstandOben: 2.5, hoehe: 4.2, takt: 5.5, breite: 40, einzugMin: 6, zweiSpaltenAb: 10, spaltenAbstand: 2, zeichen: 3.6 } as const;
+/** `hoehe`/`takt` gelten für einen einzeiligen Kasten; ein zweizeiliger wächst um eine Zeilenhöhe, die Luft dazwischen bleibt. */
+export const EINHEIT = { abstandOben: 2.5, hoehe: 4.2, takt: 5.5, breite: 40, einzugMin: 6, zweiSpaltenAb: 10, spaltenAbstand: 2, zeichen: 3.6, zeilenMax: 2 } as const;
 /** Kanal-Sechsecke einer Stelle (Abweichung 12): untereinander in der Gasse, über den Einheiten. */
 export const KANAL = { takt: 7.5 } as const;
 export const ABZEICHEN = { breite: 22, hoehe: 4.5, abstand: 1.5 } as const;

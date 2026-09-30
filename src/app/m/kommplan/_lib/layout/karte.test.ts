@@ -77,6 +77,37 @@ describe("kartenMass", () => {
     expect(new Set(zehn.einheiten.map((e) => e.x)).size).toBe(2);
     expect(zehn.blockBreite).toBeCloseTo(EINHEIT.einzugMin + 2 * EINHEIT.breite + EINHEIT.spaltenAbstand, 9);
   });
+  it("zu lange Einheit: zwei Zeilen Typ / Rufname statt Kürzung, die Rufnummer bleibt ganz (8 pt, nie kleiner)", () => {
+    const eh = [
+      { id: "a", typ: "ELW", rufname: "RK LG 45-11-1", zeichen: null },
+      { id: "b", typ: "GW Betreuung", rufname: "RK LG 45-74-10", zeichen: null },
+      { id: "c", typ: "MTW", rufname: "RK LG 45-17-12", zeichen: null },
+    ];
+    const m = mass({ einheiten: eh });
+    const [a, b, c] = m.einheiten;
+    expect(a.zeilen.map((z) => z.text)).toEqual(["ELW RK LG 45-11-1"]);
+    expect(b.zeilen.map((z) => z.text)).toEqual(["GW Betreuung", "RK LG 45-74-10"]);
+    expect(b.zeilen.every((z) => z.groesse === SCHRIFT.einheit)).toBe(true);
+    expect(a.hoehe).toBe(EINHEIT.hoehe);
+    expect(b.hoehe).toBeGreaterThan(EINHEIT.hoehe);
+    // der Abstand zwischen den Kästen bleibt der des Takts
+    expect(b.y - (a.y + a.hoehe)).toBeCloseTo(EINHEIT.takt - EINHEIT.hoehe, 9);
+    expect(c.y - (b.y + b.hoehe)).toBeCloseTo(EINHEIT.takt - EINHEIT.hoehe, 9);
+    expect(m.blockHoehe).toBeCloseTo(c.y + c.hoehe, 9);
+    // jede Zeile passt in den Kasten und steht in ihm
+    for (const e of m.einheiten) for (const z of e.zeilen) {
+      expect(textBreite(z.text, z.groesse, z.fett)).toBeLessThanOrEqual(e.breite - 2 * KARTE.rand + 1e-9);
+      expect(z.y).toBeGreaterThan(0);
+      expect(z.y).toBeLessThan(e.hoehe);
+    }
+  });
+  it("zwei Spalten mit zweizeiligen Einheiten: jede Spalte stapelt für sich, der Block reicht bis zur tieferen", () => {
+    const eh = Array.from({ length: 10 }, (_, i) => ({ id: `e${i}`, typ: i === 7 ? "GW Betreuung" : "RTW", rufname: `RK LG 45-74-1${i}`, zeichen: null }));
+    const m = mass({ einheiten: eh });
+    const spalten = [m.einheiten.slice(0, 5), m.einheiten.slice(5)];
+    for (const sp of spalten) for (let i = 1; i < sp.length; i++) expect(sp[i].y - (sp[i - 1].y + sp[i - 1].hoehe)).toBeCloseTo(EINHEIT.takt - EINHEIT.hoehe, 9);
+    expect(m.blockHoehe).toBeCloseTo(Math.max(...m.einheiten.map((e) => e.y + e.hoehe)), 9);
+  });
   it("dreißig Einheiten: zwei Spalten à 15, der Block wächst nach unten", () => {
     const m = mass({ einheiten: einheiten(30) });
     expect(m.blockHoehe).toBeCloseTo(m.hoehe + EINHEIT.abstandOben + 14 * EINHEIT.takt + EINHEIT.hoehe, 9);

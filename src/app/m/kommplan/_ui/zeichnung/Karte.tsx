@@ -48,7 +48,7 @@ export function Einheit({ e }: { e: EinheitL }) {
       <title>{e.voll}</title>
       <rect width={e.breite} height={e.hoehe} fill={FARBE.papier} stroke={FARBE.tinte} strokeWidth={STRICH.karte} />
       {e.zeichen ? <use href={`#${symbolId(e.zeichen)}`} x={KARTE.rand} y={(e.hoehe - EINHEIT.zeichen) / 2} width={EINHEIT.zeichen} height={EINHEIT.zeichen} /> : null}
-      <Text z={e.text} />
+      {e.zeilen.map((z, i) => <Text key={i} z={z} />)}
     </g>
   );
 }

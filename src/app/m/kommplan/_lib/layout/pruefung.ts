@@ -1,7 +1,8 @@
 import { baueBaum } from "../plan/baum";
 import type { PlanInhalt } from "../plan/schema";
 import { MINDEST } from "./masse";
-import type { KarteL, SechseckL, Strecke, Zeichnungsdaten } from "./typen";
+import { textBreite } from "./text";
+import type { KarteL, SechseckL, Strecke, TextZeile, Zeichnungsdaten } from "./typen";
 
 /**
  * Geometrische Zusicherungen an eine fertige Zeichnung (Spec §10), in zwei Hälften:
@@ -16,7 +17,7 @@ import type { KarteL, SechseckL, Strecke, Zeichnungsdaten } from "./typen";
  * (`kontur.ts`, `LUFT_Y`), sonst meldete die Prüfung, was die Engine gebaut hat.
  */
 export interface Befund {
-  art: "ueberlappung" | "abstand" | "kreuzung" | "naehe" | "durchstich" | "kante" | "schraeg" | "mitte" | "verbindung";
+  art: "ueberlappung" | "abstand" | "kreuzung" | "naehe" | "durchstich" | "kante" | "schraeg" | "mitte" | "verbindung" | "text";
   text: string;
 }
 interface Kasten { name: string; besitzer: string; x: number; y: number; b: number; h: number; sechseck?: SechseckL }
@@ -199,4 +200,33 @@ export function pruefeVerbindungen(z: Zeichnungsdaten, inhalt: PlanInhalt): Befu
     if (!linien.some((l) => anKante(p, n, l.x1, l.y1) || anKante(p, n, l.x2, l.y2))) melde(`Netz ${n} beginnt nicht an ${p.id}`);
   }
   return befunde;
+}
+
+/**
+ * Jede Textzeile steht ganz in ihrem Träger (Karte, Einheitenkasten, Sechseck, Abzeichen): waagerecht
+ * nach Arimo-Breite und Anker, die Grundlinie innerhalb der Höhe. Ein Text, der übersteht, ist
+ * am Bildschirm abgeschnitten und auf Papier unleserlich — ohne dass die Geometrie es merkt.
+ */
+export function pruefeTexte(z: Zeichnungsdaten): Befund[] {
+  const befunde: Befund[] = [];
+  const pruefe = (name: string, breite: number, hoehe: number, t: TextZeile) => {
+    const w = textBreite(t.text, t.groesse, t.fett);
+    const links = t.anker === "start" ? t.x : t.anker === "mitte" ? t.x - w / 2 : t.x - w;
+    if (links < -TOL || links + w > breite + TOL) befunde.push({ art: "text", text: `„${t.text}" steht waagerecht über ${name} hinaus` });
+    if (t.y <= 0 || t.y > hoehe + TOL) befunde.push({ art: "text", text: `„${t.text}" steht senkrecht außerhalb von ${name}` });
+  };
+  for (const k of z.karten) {
+    for (const t of [...k.titel, ...(k.leiter ? [k.leiter] : []), ...(k.verweis ? [k.verweis] : []), ...k.kontakte.flatMap((x) => x.zeilen)]) {
+      pruefe(`Karte ${k.id}`, k.breite, k.hoehe, t);
+    }
+  }
+  for (const e of z.einheiten) for (const t of e.zeilen) pruefe(`Einheit ${e.id}`, e.breite, e.hoehe, t);
+  for (const h of z.sechsecke) pruefe(`Sechseck ${h.netz}/${h.verbindungId}`, h.breite, h.hoehe, h.beschriftung);
+  for (const a of z.abzeichen) pruefe(`Abzeichen ${a.stelleId}`, a.breite, a.hoehe, a.text);
+  return befunde;
+}
+
+/** Alle Prüfungen zusammen — Eigenschafts-, Beispiel- und Aufteilungstests und das Vorschau-Skript nehmen dieselbe Liste. */
+export function pruefeAlles(z: Zeichnungsdaten, inhalt: PlanInhalt): Befund[] {
+  return [...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt), ...pruefeTexte(z)];
 }

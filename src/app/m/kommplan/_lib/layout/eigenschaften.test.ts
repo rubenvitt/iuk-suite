@@ -6,7 +6,7 @@ import type { PlanInhalt, Stelle } from "../plan/schema";
 import { OHNE_VERBINDUNG, anzeigereihenfolge, gruppenAnzahl } from "./gruppen";
 import { MIN_MASSSTAB } from "./masse";
 import { offeneSchnitte, teileAuf } from "./papier";
-import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
+import { pruefeAlles } from "./pruefung";
 import { umgebungFuer } from "./teilbaum";
 import type { Zeichnungsdaten, Ziel } from "./typen";
 import { zeichne } from "./zeichne";
@@ -15,8 +15,7 @@ import { alsGliederung, mische, mulberry32, zufallsPlan } from "./zufall";
 const SEEDS = Array.from({ length: 150 }, (_, i) => i + 1);
 const STAB_SEEDS = Array.from({ length: 60 }, (_, i) => 1000 + i);
 const erklaere = (seed: number, inhalt: PlanInhalt, text: string) => `Seed ${seed}: ${text}\n${alsGliederung(inhalt)}`;
-const befundeVon = (z: Zeichnungsdaten, inhalt: PlanInhalt) =>
-  [...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt)];
+const befundeVon = (z: Zeichnungsdaten, inhalt: PlanInhalt) => pruefeAlles(z, inhalt);
 /** Bricht irgendwo in diesem Plan eine Gruppe als Kamm um? */
 function kaemmt(inhalt: PlanInhalt, ziel: Ziel): boolean {
   const u = umgebungFuer(inhalt, ziel);

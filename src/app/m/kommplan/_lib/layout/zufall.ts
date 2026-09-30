@@ -1,4 +1,4 @@
-import { baue, type StelleEingabe } from "../beispiele/bau";
+import { baue, type EinheitEingabe, type StelleEingabe } from "../beispiele/bau";
 import { baueBaum } from "../plan/baum";
 import { KONTAKT_ARTEN, type KontaktArt, type PlanInhalt, type Verbindung } from "../plan/schema";
 
@@ -47,8 +47,18 @@ function kanaele(r: () => number, wahl: Wahl): string[] {
   const zweiter = wahl(VERBINDUNGEN).id;
   return r() < 0.3 && zweiter !== erster ? [erster, zweiter] : [erster];
 }
-function einheiten(r: () => number, n: number): string[] {
-  return Array.from({ length: n }, (_, j) => `${r() < 0.5 ? "RTW" : "KTW"} RK UE 40-83-${j}`);
+/**
+ * Jede fünfte Einheit hat einen langen Typ (zwei Zeilen Typ / Rufname), jede elfte einen, der auch
+ * allein nicht in eine Zeile passt — sonst prüft die Textpassung (`pruefeTexte`) keinen Umbruch.
+ * Ohne zusätzlichen Zufallszug: die übrigen Pläne bleiben dieselben.
+ */
+function einheiten(r: () => number, n: number): EinheitEingabe[] {
+  return Array.from({ length: n }, (_, j): EinheitEingabe => {
+    const typ = r() < 0.5 ? "RTW" : "KTW";
+    if (j % 11 === 10) return ["Gerätewagen Katastrophenschutz", `RK UE 40-74-${j}`];
+    if (j % 5 === 4) return ["GW Betreuung", `RK UE 40-74-${j}`];
+    return `${typ} RK UE 40-83-${j}`;
+  });
 }
 
 /** Zufallsrekursivbaum: jede Stelle an eine zufällige Trägerin — flache Grade, viele Formen. */

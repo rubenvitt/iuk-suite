@@ -39,6 +39,19 @@ const zeile = (text: string, x: number, y: number, groesse: number, fett: boolea
   ({ text, x, y, groesse, fett, anker });
 
 /**
+ * Der Text eines Einheitenkastens: eine Zeile, wenn sie passt; sonst zwei — bevorzugt Typ / Rufname,
+ * sonst nach Wörtern. Nie kleiner als 8 pt (sonst hielte `MIN_MASSSTAB` die 6 pt nicht) und nie am
+ * Ende gekürzt, solange zwei Zeilen reichen: das Ende ist die Rufnummer, der unterscheidende Teil
+ * (Review Phase 1: „GW Betreuung RK LG 45-7…").
+ */
+function einheitenZeilen(typ: string, rufname: string, voll: string, innen: number): string[] {
+  const pt = SCHRIFT.einheit;
+  if (textBreite(voll, pt, false) <= innen) return [voll];
+  if (typ !== "" && rufname !== "" && textBreite(typ, pt, false) <= innen && textBreite(rufname, pt, false) <= innen) return [typ, rufname];
+  return umbrechen(voll, innen, pt, false, EINHEIT.zeilenMax).zeilen;
+}
+
+/**
  * Das Maß einer Karte (Spec §5.1): feste Breite, nur die Höhe wächst. Block = Karte + Kanal-Sechsecke
  * + Einheitenspalte (+ Abzeichen), er ist das, was in der Zeile Platz belegt. `gasse` sind die
  * x-Positionen der Stiele, wenn Kanäle oder Einheiten die Kartenmitte darunter belegen; die
@@ -115,20 +128,26 @@ export function kartenMass(e: KartenEingabe): KartenMass {
     const n = stelle.einheiten.length;
     const spalten = n >= EINHEIT.zweiSpaltenAb ? 2 : 1;
     const proSpalte = Math.ceil(n / spalten);
+    const luft = EINHEIT.takt - EINHEIT.hoehe;
+    const lh = zeilenhoehe(SCHRIFT.einheit);
+    const spaltenY: number[] = [];
     stelle.einheiten.forEach((eh, i) => {
       const spalte = Math.floor(i / proSpalte);
       const x = einzug + spalte * (EINHEIT.breite + EINHEIT.spaltenAbstand);
-      const ey = unterbau + EINHEIT.abstandOben + (i % proSpalte) * EINHEIT.takt;
+      const ey = spaltenY[spalte] ?? unterbau + EINHEIT.abstandOben;
       const voll = `${eh.typ} ${eh.rufname}`.trim();
       const zeichenPlatz = eh.zeichen ? EINHEIT.zeichen + KARTE.rand : 0;
       const innen = EINHEIT.breite - 2 * KARTE.rand - zeichenPlatz;
-      const text = kuerze(voll, innen, SCHRIFT.einheit, false).text;
+      const texte = einheitenZeilen(eh.typ.trim(), eh.rufname.trim(), voll, innen);
+      const eHoehe = EINHEIT.hoehe + (texte.length - 1) * lh;
       const tx = KARTE.rand + zeichenPlatz + innen / 2;
-      einheiten.push({ id: eh.id, x, y: ey, breite: EINHEIT.breite, hoehe: EINHEIT.hoehe, voll, zeichen: eh.zeichen,
-        text: zeile(text, tx, grundlinie(0, EINHEIT.hoehe, SCHRIFT.einheit), SCHRIFT.einheit, false, "mitte") });
+      const oben = (eHoehe - texte.length * lh) / 2;
+      einheiten.push({ id: eh.id, x, y: ey, breite: EINHEIT.breite, hoehe: eHoehe, voll, zeichen: eh.zeichen,
+        zeilen: texte.map((t, j) => zeile(t, tx, grundlinie(oben + j * lh, lh, SCHRIFT.einheit), SCHRIFT.einheit, false, "mitte")) });
+      spaltenY[spalte] = ey + eHoehe + luft;
     });
     blockBreite = Math.max(blockBreite, einzug + spalten * EINHEIT.breite + (spalten - 1) * EINHEIT.spaltenAbstand);
-    blockHoehe = unterbau + EINHEIT.abstandOben + (proSpalte - 1) * EINHEIT.takt + EINHEIT.hoehe;
+    blockHoehe = Math.max(...spaltenY) - luft;
   }
 
   let abzeichen: Omit<AbzeichenL, "stelleId"> | null = null;
