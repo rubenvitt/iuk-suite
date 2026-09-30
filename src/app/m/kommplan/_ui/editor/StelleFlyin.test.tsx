@@ -47,6 +47,21 @@ async function druecke(el: Element, key: string) {
   await act(async () => { el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })); });
 }
 
+const feldZu = (name: string) => document.getElementById([...document.querySelectorAll("label")].find((l) => l.textContent === name)!.htmlFor)!;
+/** antds Select öffnet auf `mousedown`; gewählt wird in der zuletzt geöffneten, sichtbaren Liste (Portal). */
+async function oeffneAuswahl(eingabe: HTMLElement): Promise<HTMLElement> {
+  await act(async () => { eingabe.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+  const liste = [...document.querySelectorAll<HTMLElement>(".ant-select-dropdown")].filter((d) => !d.className.includes("-hidden")).at(-1);
+  if (!liste) throw new Error("keine offene Auswahlliste");
+  return liste;
+}
+const optionen = (liste: HTMLElement) => [...liste.querySelectorAll<HTMLElement>(".ant-select-item-option")].map((o) => o.textContent);
+async function waehleOption(eingabe: HTMLElement, text: string) {
+  const option = [...(await oeffneAuswahl(eingabe)).querySelectorAll<HTMLElement>(".ant-select-item-option")].find((o) => o.textContent === text);
+  if (!option) throw new Error(`Option fehlt: ${text}`);
+  await clickElement(option);
+}
+
 afterEach(async () => { await unmount(); stand = START; lade.mockReset(); loesche.mockReset(); fertig.mockReset(); window.localStorage.clear(); });
 
 describe("Flyin einer Stelle (Spec §6.4)", () => {
@@ -142,6 +157,25 @@ describe("Flyin einer Stelle, Teil 2", () => {
     await mount(<Rahmen stelleId="el" />);
     expect(radio("links daneben").disabled).toBe(true);
     expect(document.body.textContent).toContain("Eine Stelle der obersten Ebene steht immer darunter.");
+  });
+  it("Untersteht: Umhängen über die Auswahl; die Stelle selbst und ihre Nachkommen stehen nicht zur Wahl (Review Focus 3)", async () => {
+    await mount(<Rahmen stelleId="b" />);
+    expect(optionen(await oeffneAuswahl(feldZu("Elternstelle")))).toEqual(["— oberste Ebene —", "EL", "EA 1"]);
+    await unmount();
+    await mount(<Rahmen stelleId="a" />);
+    await waehleOption(feldZu("Elternstelle"), "EA 2");
+    expect(stelle()).toMatchObject({ eltern: "b", lage: "unter" });
+    await waehleOption(feldZu("Elternstelle"), "— oberste Ebene —");
+    expect(stelle()).toMatchObject({ eltern: null, lage: "unter" });
+  });
+  it("Zur Elternstelle: vorhandene Verbindung wählen oder keine; Kanäle als Mehrfachauswahl (Entscheidung 10)", async () => {
+    await mount(<Rahmen />);
+    await waehleOption(feldZu("Zur Elternstelle"), "keine (dünne Linie)");
+    expect(stelle().verbindungId).toBeNull();
+    await waehleOption(feldZu("Zur Elternstelle"), "R_UE_2 · Digitalfunk TMO");
+    expect(stelle().verbindungId).toBe("v1");
+    await waehleOption(feldZu("Kanäle an dieser Stelle (ohne Gegenstelle)"), "R_UE_2 · Digitalfunk TMO");
+    expect(stelle().kanaele).toEqual(["v1"]);
   });
   it("neue Verbindung eintippen: Bezeichnung + Art legt sie an und verbindet; eine gleichnamige wird wiederverwendet", async () => {
     await mount(<Rahmen />);
