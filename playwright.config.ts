@@ -180,8 +180,13 @@ export default cloudTauglich(defineConfig({
        * Ersetzen-Frage braucht aber einen VORHANDENEN echten Rechner, den erst dieses Paar
        * ermöglicht.
        */
+      /*
+       * `scripts/seed-lokal.ts kommplan` (Kommunikationspläne, Phase 1): dasselbe Muster wie `uav` —
+       * kein Boot-Seed, also legt erst diese Zeile die Beispielpläne an, die `e2e/kommplan.spec.ts`
+       * über ihre festen IDs öffnet.
+       */
       command:
-        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx e2e/seed-einsatzbuch.ts && ${nextServerBefehl(E2E_PORTS.web)}`,
+        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx scripts/seed-lokal.ts kommplan && pnpm exec tsx e2e/seed-einsatzbuch.ts && ${nextServerBefehl(E2E_PORTS.web)}`,
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht

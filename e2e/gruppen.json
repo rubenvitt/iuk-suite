@@ -5,7 +5,7 @@
   },
   {
     "name": "eimer-2",
-    "specs": "e2e/aufgaben-breiten.spec.ts e2e/flyin-breite.spec.ts e2e/login-dev-gruppen.spec.ts e2e/theme.spec.ts"
+    "specs": "e2e/aufgaben-breiten.spec.ts e2e/flyin-breite.spec.ts e2e/login-dev-gruppen.spec.ts e2e/theme.spec.ts e2e/kommplan.spec.ts"
   },
   {
     "name": "eimer-3",
