@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import { baueBaum, nachkommen } from "../plan/baum";
-import { fuegeStelleEin } from "../plan/operationen";
-import type { PlanInhalt } from "../plan/schema";
-import { anzeigereihenfolge } from "./gruppen";
+import { fuegeStelleEin, fuegeVerbindungEin } from "../plan/operationen";
+import type { PlanInhalt, Stelle } from "../plan/schema";
+import { OHNE_VERBINDUNG, anzeigereihenfolge, gruppenAnzahl } from "./gruppen";
 import { MIN_MASSSTAB } from "./masse";
 import { offeneSchnitte, teileAuf } from "./papier";
 import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
@@ -71,37 +71,94 @@ function relativ(z: Zeichnungsdaten, ids: string[]): Record<string, [number, num
   return Object.fromEntries(ids.map((id) => { const [x, y] = lage.get(id)!; return [id, [Math.round((x - x0) * 1e6) / 1e6, Math.round((y - y0) * 1e6) / 1e6]]; }));
 }
 
-describe("Einfügen verschiebt nichts, was links steht", () => {
-  it.each(SEEDS.slice(0, 80))("Seed %i", (seed) => {
-    const inhalt = zufallsPlan(seed, { stellen: 25 });
-    const baum = baueBaum(inhalt);
-    const traeger = inhalt.stellen.filter((s) => s.lage === "unter");
-    const p = traeger[Math.floor(mulberry32(seed + 1000)() * traeger.length)];
-    const bisher = anzeigereihenfolge(baum.unter(p.id));
-    const letzte = bisher.at(-1);
-    const neu = fuegeStelleEin(inhalt, {
-      id: "neu", titel: "N", eltern: p.id, verbindungId: letzte?.verbindungId ?? null,
-      reihenfolge: bisher.length === 0 ? 0 : Math.max(...bisher.map((s) => s.reihenfolge)) + 1,
-    });
-    // Vorbedingung (Abweichung 10): kein Kamm, weder vorher noch nachher — ein Kamm verteilt die
-    // Breite der ganzen Kinderreihe neu, auch für frühere Gruppen. Das ist gewollt, kein Befund.
-    if (kaemmt(inhalt, "bildschirm") || kaemmt(neu, "bildschirm")) return;
+type Variante = "ende" | "mitte" | "neue Gruppe";
+interface Einfuegung { inhalt: PlanInhalt; neu: PlanInhalt; wirksam: boolean; geschwister: number; gruppen: number }
+
+/**
+ * Drei Arten einzufügen (Spec §10, Präzisierung im Umsetzungsplan Task 11):
+ * - „ende": letzte Unterstelle, tritt der Verbindung des bisher letzten Kindes bei;
+ * - „mitte": zwischen zwei Geschwister (oder vor das erste), mit der Verbindung des Vorgängers —
+ *   die Gruppenfolge bleibt, frühere Geschwister stehen weiter links;
+ * - „neue Gruppe": letzte Unterstelle mit einer neuen Verbindung, also eine Gruppe mehr.
+ * Wirksam ist ein Fall nur ohne Kamm (vorher wie nachher) und bei gleichen Zeilenhöhen und Lücken:
+ * eine Gruppe mehr darf die Ebenenlücke wachsen lassen, dann rückt zu Recht alles darunter.
+ * Die Trägerin wird bevorzugt unter denen mit Kindern gewählt (bei „neue Gruppe": mit mehreren
+ * Gruppen) — sonst prüft die Geschwister- und Gruppenebene nichts.
+ */
+function einfuegung(seed: number, variante: Variante): Einfuegung {
+  const inhalt = zufallsPlan(seed, { stellen: 25 });
+  const baum = baueBaum(inhalt);
+  const r = mulberry32(seed + 1000);
+  const traeger = inhalt.stellen.filter((s) => s.lage === "unter");
+  const mitKindern = traeger.filter((s) => baum.unter(s.id).length > 0);
+  const mitGruppen = mitKindern.filter((s) => gruppenAnzahl(baum.unter(s.id)) > 1);
+  const auswahl = variante === "ende" ? traeger
+    : variante === "neue Gruppe" && mitGruppen.length > 0 ? mitGruppen
+    : mitKindern.length > 0 ? mitKindern : traeger;
+  const p = auswahl[Math.floor(r() * auswahl.length)];
+  const kinder = baum.unter(p.id);
+  let neu: PlanInhalt;
+  if (variante === "mitte" && kinder.length > 0) {
+    const i = Math.floor(r() * kinder.length);
+    const reihenfolge = i === 0 ? kinder[0].reihenfolge - 1 : (kinder[i - 1].reihenfolge + kinder[i].reihenfolge) / 2;
+    neu = fuegeStelleEin(inhalt, { id: "neu", titel: "N", eltern: p.id, verbindungId: kinder[Math.max(0, i - 1)].verbindungId, reihenfolge });
+  } else {
+    const bisher = anzeigereihenfolge(kinder);
+    const reihenfolge = kinder.length === 0 ? 0 : Math.max(...kinder.map((s) => s.reihenfolge)) + 1;
+    if (variante === "neue Gruppe") {
+      const mitV = fuegeVerbindungEin(inhalt, { id: "vneu", art: "tmo", bezeichnung: "NEU" });
+      neu = fuegeStelleEin(mitV, { id: "neu", titel: "N", eltern: p.id, verbindungId: "vneu", reihenfolge });
+    } else {
+      neu = fuegeStelleEin(inhalt, { id: "neu", titel: "N", eltern: p.id, verbindungId: bisher.at(-1)?.verbindungId ?? null, reihenfolge });
+    }
+  }
+  // Vorbedingung (Abweichung 10): kein Kamm, weder vorher noch nachher — ein Kamm verteilt die
+  // Breite der ganzen Kinderreihe neu, auch für frühere Gruppen. Das ist gewollt, kein Befund.
+  const zeilen = (x: PlanInhalt) => umgebungFuer(x, "bildschirm").zeilen;
+  const wirksam = !kaemmt(inhalt, "bildschirm") && !kaemmt(neu, "bildschirm")
+    && JSON.stringify(zeilen(inhalt)) === JSON.stringify(zeilen(neu));
+  return { inhalt, neu, wirksam, geschwister: kinder.length, gruppen: gruppenAnzahl(kinder) };
+}
+
+const EINFUEGE_SEEDS = SEEDS.slice(0, 80);
+const VARIANTEN: Variante[] = ["ende", "mitte", "neue Gruppe"];
+
+describe.each(VARIANTEN)("Einfügen (%s) verschiebt nichts, was links steht", (variante) => {
+  it.each(EINFUEGE_SEEDS)("Seed %i", (seed) => {
+    const { inhalt, neu, wirksam } = einfuegung(seed, variante);
+    if (!wirksam) return;
     const vorher = zeichne(inhalt, "bildschirm");
     const nachher = zeichne(neu, "bildschirm");
     // keine vorhandene Karte ändert ihr y
     const yVorher = new Map(vorher.karten.map((k) => [k.id, k.y]));
     for (const k of nachher.karten) if (k.id !== "neu") expect(k.y, erklaere(seed, inhalt, `y von ${k.id}`)).toBeCloseTo(yVorher.get(k.id)!, 6);
-    // je Ebene: die Teilbäume der früheren Geschwister behalten ihre Lage zueinander
+    // Je Ebene bleiben zwei Blöcke starr: die früheren Gruppen untereinander und die früheren
+    // Geschwister in der Gruppe von C. Die Gruppe von C als Ganzes darf gegen die früheren Gruppen
+    // rücken: C steht mittig über seinen Kindern, eine Stelle rechts zieht die Kinder von C nach
+    // links, damit wächst die linke Kontur der Gruppe, und das Links-Packen setzt sie weiter
+    // rechts an (Reingold-Tilford; Review Phase 1, Seed 70 „neue Gruppe" unter s14).
     const nachBaum = baueBaum(neu);
+    const teilbaumIds = (gs: Stelle[]) => gs.flatMap((g) => [g.id, ...nachkommen(nachBaum, g.id).map((n) => n.id)]);
     let c = nachBaum.stelle("neu")!;
-    while (true) {
-      const geschwister = c.eltern === null ? nachBaum.wurzeln : anzeigereihenfolge(nachBaum.unter(c.eltern));
+    while (c.eltern !== null) {
+      const geschwister = anzeigereihenfolge(nachBaum.unter(c.eltern));
       const frueher = geschwister.slice(0, geschwister.findIndex((g) => g.id === c.id));
-      const ids = frueher.flatMap((g) => [g.id, ...nachkommen(nachBaum, g.id).map((n) => n.id)]);
-      if (ids.length > 1) expect(relativ(nachher, ids), erklaere(seed, inhalt, `Ebene über ${c.id}`)).toEqual(relativ(vorher, ids));
-      if (c.eltern === null) break;
+      const gruppe = (g: Stelle) => g.verbindungId ?? OHNE_VERBINDUNG;
+      for (const [block, ids] of [
+        ["frühere Gruppen", teilbaumIds(frueher.filter((g) => gruppe(g) !== gruppe(c)))],
+        ["frühere Geschwister in der Gruppe", teilbaumIds(frueher.filter((g) => gruppe(g) === gruppe(c)))],
+      ] as const) {
+        if (ids.length > 1) expect(relativ(nachher, ids), erklaere(seed, inhalt, `Ebene über ${c.id}, ${block}`)).toEqual(relativ(vorher, ids));
+      }
       c = nachBaum.stelle(c.eltern)!;
     }
+  });
+  it("genug wirksame Fälle neben Geschwistern und neben mehreren Gruppen — sonst prüft die Geschwisterebene nichts", () => {
+    const faelle = EINFUEGE_SEEDS.map((seed) => einfuegung(seed, variante)).filter((f) => f.wirksam);
+    // Gemessen (80 Seeds): ende 29/14, mitte 77/42, neue Gruppe 12/12 — eine Gruppe mehr lässt oft die Lücke wachsen.
+    const mindestens = { ende: [20, 10], mitte: [60, 30], "neue Gruppe": [10, 10] }[variante];
+    expect(faelle.filter((f) => f.geschwister > 0).length).toBeGreaterThanOrEqual(mindestens[0]);
+    expect(faelle.filter((f) => f.gruppen > 1).length).toBeGreaterThanOrEqual(mindestens[1]);
   });
 });
 
