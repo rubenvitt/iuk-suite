@@ -33,6 +33,23 @@ describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume (%s)", (ziel) =
 });
 
 /**
+ * EINGEKLAPPT (Spec §5.7): rund 30 % der Stellen mit Unterstellen eingeklappt — Abzeichen unter dem
+ * Block, Kinder weg, Kamm und Stiele neu gerechnet. Dieselben Prüfungen wie oben.
+ */
+describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume eingeklappt (%s)", (ziel) => {
+  it.each(SEEDS.slice(0, 100))("Seed %i", (seed) => {
+    const inhalt = zufallsPlan(seed, { stellen: 5 + (seed % 36), mehrereWurzeln: seed % 7 === 0 });
+    const baum = baueBaum(inhalt);
+    const r = mulberry32(seed + 7);
+    const eingeklappt = new Set(inhalt.stellen.filter((s) => baum.unter(s.id).length > 0 && r() < 0.3).map((s) => s.id));
+    const z = zeichne(inhalt, ziel, { eingeklappt });
+    const befunde = befundeVon(z, inhalt);
+    expect(befunde, erklaere(seed, inhalt, `eingeklappt ${[...eingeklappt].join(",")}: ${befunde.map((b) => b.text).join("; ")}`)).toEqual([]);
+    for (const k of z.karten) if (eingeklappt.has(k.id)) expect(z.abzeichen.some((a) => a.stelleId === k.id)).toBe(k.eingeklappt);
+  });
+});
+
+/**
  * STAB-FÖRMIGE PLÄNE: der freie Generator hängt jede Stelle an eine zufällige Trägerin — flache
  * Grade, fast nie ein Kamm. Hier entstehen breite Ebenen mit Seitenstellen an Kammkindern, zwei
  * Kammgruppen nebeneinander, Kamm unter einer Karte mit Einheiten (Gasse) — die Fälle der großen

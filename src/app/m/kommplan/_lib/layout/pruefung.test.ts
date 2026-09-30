@@ -49,6 +49,20 @@ describe("pruefeTexte", () => {
   });
 });
 
+describe("pruefeZeichnung — Linie neben einem Kasten", () => {
+  it("eine fremde Linie knapp neben einer Kartenkante ist ein Befund, 0,75 mm daneben nicht", () => {
+    const mit = (x: number) => arten({ ...leer(), karten: [karte("a", 0, 10)], linien: [linie("b>v", x, 0, x, 40)] });
+    expect(mit(46.02)).toEqual(["naehe"]);
+    expect(mit(46.5)).toEqual(["naehe"]);
+    expect(mit(46.76)).toEqual([]);
+    expect(mit(46)).toEqual(["kante"]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 10)], linien: [linie("b>v", 0, 9.8, 46, 9.8)] })).toEqual(["naehe"]);
+  });
+  it("ein Ende, das senkrecht an die Kante stößt, läuft nicht daneben", () => {
+    expect(arten({ ...leer(), karten: [karte("a", 0, 10)], linien: [linie("w>v", 23, 6, 23, 10)] })).toEqual([]);
+  });
+});
+
 describe("pruefeZeichnung — Linien", () => {
   it("findet Kreuzungen verschiedener Netze, nicht innerhalb eines Netzes", () => {
     const z = { ...leer(), linien: [linie("a", 0, 5, 10, 5), linie("b", 5, 0, 5, 10), linie("a", 5, 5, 5, 20)] };
@@ -81,10 +95,20 @@ describe("pruefeZeichnung — Linien", () => {
 });
 
 describe("pruefeMitte", () => {
-  it("meldet eine Elternstelle neben ihrer Spanne", () => {
-    const z = { ...leer(), karten: [karte("p", 0, 0)], spannen: [{ stelleId: "p", links: 10, rechts: 50 }] };
-    expect(pruefeMitte(z)).toHaveLength(1);
-    expect(pruefeMitte({ ...z, spannen: [{ stelleId: "p", links: 0, rechts: 46 }] })).toEqual([]);
+  const plan = baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen: [
+    { id: "p", titel: "P" }, { id: "a", titel: "A", eltern: "p", verbindung: "v" }, { id: "b", titel: "B", eltern: "p", verbindung: "v" },
+  ] });
+  const z = zeichne(plan, "bildschirm");
+  it("die Engine stellt die Elternstelle mittig über den Bus", () => expect(pruefeMitte(z, plan)).toEqual([]));
+  it("leitet die Spanne aus den Linien ab: ohne gemeldete Spanne fällt eine verschobene Elternkarte trotzdem auf", () => {
+    const verschoben = { ...z, spannen: [], karten: z.karten.map((k) => (k.id === "p" ? { ...k, x: k.x + 5 } : k)) };
+    expect(pruefeMitte(verschoben, plan).map((b) => b.text)).toEqual(["p steht 5.000 mm neben der Mitte"]);
+  });
+  it("eine gemeldete Spanne, die nicht zu den Linien passt, ist ein Befund", () => {
+    expect(pruefeMitte({ ...z, spannen: [{ stelleId: "p", links: 0, rechts: 46 }] }, plan)).toHaveLength(1);
+  });
+  it("ohne Bus über den Kindern ist das ein Befund", () => {
+    expect(pruefeMitte({ ...z, linien: [] }, plan).map((b) => b.text)).toEqual(["p: kein Bus 4 mm über den Kindern"]);
   });
 });
 
@@ -112,6 +136,16 @@ describe("pruefeVerbindungen", () => {
   });
   it("ohne Linien ist nichts angebunden", () => {
     expect(pruefeVerbindungen({ ...z, linien: [] }, p).length).toBeGreaterThanOrEqual(4);
+  });
+  it("ein Bus mit fremdem Sechseck ist ein Befund, auch wenn alles verbunden ist", () => {
+    const falsch = { ...z, sechsecke: z.sechsecke.map((h) => (h.netz === "w>v" ? { ...h, verbindungId: "k" } : h)) };
+    expect(pruefeVerbindungen(falsch, p).map((b) => b.text)).toEqual([
+      "a hängt an einem Bus mit k, erwartet v", "b hängt an einem Bus mit k, erwartet v",
+    ]);
+  });
+  it("eine Seitenstelle an einem Zweig mit fremdem Sechseck ist ein Befund", () => {
+    const falsch = { ...z, sechsecke: z.sechsecke.map((h) => (h.netz === "w<rechts" ? { ...h, verbindungId: "v" } : h)) };
+    expect(pruefeVerbindungen(falsch, p).map((b) => b.text)).toEqual(["s hängt an einem Zweig mit v, erwartet d"]);
   });
   it("fehlt ein Abwurf, nennt der Befund die Karte", () => {
     const a = k("a");

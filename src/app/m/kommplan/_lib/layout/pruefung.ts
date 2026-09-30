@@ -1,6 +1,6 @@
 import { baueBaum } from "../plan/baum";
 import type { PlanInhalt } from "../plan/schema";
-import { MINDEST } from "./masse";
+import { MINDEST, STIEL } from "./masse";
 import { textBreite } from "./text";
 import type { KarteL, SechseckL, Strecke, TextZeile, Zeichnungsdaten } from "./typen";
 
@@ -23,6 +23,7 @@ export interface Befund {
 interface Kasten { name: string; besitzer: string; x: number; y: number; b: number; h: number; sechseck?: SechseckL }
 
 const TOL = 0.01;
+const gleich = (a: number, b: number) => Math.abs(a - b) < TOL;
 
 /** Wem ein Netz gehört: der Stelle vor `>` (Gruppe), `<` (Seite) oder `#` (Kanäle) — keines davon ist ein ID-Zeichen. */
 export const besitzerVon = (netz: string) => netz.split(/[<>#]/)[0];
@@ -48,6 +49,7 @@ function kastenAbstand(a: Kasten, b: Kasten): number {
 const waagerecht = (l: Strecke) => Math.abs(l.y1 - l.y2) < TOL;
 const senkrecht = (l: Strecke) => Math.abs(l.x1 - l.x2) < TOL;
 const bereich = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
+const endetIn = (l: Strecke, x: number, y: number) => (gleich(l.x1, x) && gleich(l.y1, y)) || (gleich(l.x2, x) && gleich(l.y2, y));
 
 /** Berühren oder kreuzen sich zwei achsenparallele Strecken (T-Stoß und Überdeckung eingeschlossen)? */
 function beruehren(p: Strecke, q: Strecke): boolean {
@@ -97,6 +99,26 @@ function aufKante(l: Strecke, k: Kasten): boolean {
   return false;
 }
 
+/**
+ * Läuft die Strecke ein Stück PARALLEL neben einer Kante des Kastens, außerhalb und näher als
+ * `MINDEST.linie`? Optisch dasselbe wie „auf der Kante". Ein Ende, das senkrecht an die Kante
+ * stößt (Abwurf, Zweig, Stiel), läuft nicht daneben und zählt nicht.
+ */
+function nebenKante(l: Strecke, k: Kasten): boolean {
+  const nah = (d: number) => d > TOL && d < MINDEST.linie - TOL;
+  if (waagerecht(l)) {
+    const [x0, x1] = bereich(l.x1, l.x2);
+    if (Math.min(x1, k.x + k.b) - Math.max(x0, k.x) <= TOL) return false;
+    return nah(k.y - l.y1) || nah(l.y1 - (k.y + k.h));
+  }
+  if (senkrecht(l)) {
+    const [y0, y1] = bereich(l.y1, l.y2);
+    if (Math.min(y1, k.y + k.h) - Math.max(y0, k.y) <= TOL) return false;
+    return nah(k.x - l.x1) || nah(l.x1 - (k.x + k.b));
+  }
+  return false;
+}
+
 /** Die einzige Ausnahme vom Durchstich: der waagerechte Zweig desselben Netzes genau durch die Mitte seines Sechsecks. */
 const traegtSechseck = (l: Strecke, k: Kasten) =>
   k.sechseck !== undefined && k.sechseck.netz === l.netz && waagerecht(l) && Math.abs(l.y1 - (k.y + k.h / 2)) < TOL;
@@ -124,21 +146,41 @@ export function pruefeZeichnung(z: Zeichnungsdaten): Befund[] {
     if (traegtSechseck(l, k)) continue;
     if (durchsticht(l, k)) befunde.push({ art: "durchstich", text: `${l.netz} läuft durch ${k.name}` });
     else if (!(k.sechseck && k.sechseck.netz === l.netz) && aufKante(l, k)) befunde.push({ art: "kante", text: `${l.netz} läuft auf der Kante von ${k.name}` });
+    else if (!(k.sechseck && k.sechseck.netz === l.netz) && nebenKante(l, k)) befunde.push({ art: "naehe", text: `${l.netz} läuft zu nah an ${k.name}` });
   }
   return befunde;
 }
 
-export function pruefeMitte(z: Zeichnungsdaten): Befund[] {
-  return z.spannen.flatMap((s) => {
-    const k = z.karten.find((x) => x.id === s.stelleId);
-    if (!k) return [{ art: "mitte" as const, text: `Spanne ohne Karte: ${s.stelleId}` }];
-    const abweichung = k.x + k.breite / 2 - (s.links + s.rechts) / 2;
-    return Math.abs(abweichung) > 1e-6 ? [{ art: "mitte" as const, text: `${s.stelleId} steht ${abweichung.toFixed(3)} mm neben der Mitte` }] : [];
-  });
+/**
+ * Spec §5.2: jede Elternstelle steht mittig über ihrer Busspanne. Die Spanne wird aus den LINIEN
+ * abgeleitet, nicht aus den `spannen`, die die Engine selbst meldet (sonst prüfte die Engine sich
+ * selbst): alle Punkte der Netze `<id>>…` auf Höhe des ersten Busses — 4 mm über der obersten
+ * Kinderkarte —, also Reihenbus, Abwürfe, Stielende und beim Kamm der Rücken. Meldet die Engine eine
+ * Spanne, muss sie mit der abgeleiteten übereinstimmen.
+ */
+export function pruefeMitte(z: Zeichnungsdaten, inhalt: PlanInhalt): Befund[] {
+  const befunde: Befund[] = [];
+  const baum = baueBaum(inhalt);
+  const karte = new Map(z.karten.map((k) => [k.id, k]));
+  for (const k of z.karten) {
+    const kinder = z.karten.filter((c) => { const s = baum.stelle(c.id); return s?.lage === "unter" && s.eltern === k.id; });
+    if (kinder.length === 0) continue;
+    const busY = Math.min(...kinder.map((c) => c.y)) - STIEL.busZuKarte;
+    const xs = z.linien.filter((l) => l.netz.startsWith(`${k.id}>`))
+      .flatMap((l) => [[l.x1, l.y1], [l.x2, l.y2]]).filter(([, y]) => gleich(y, busY)).map(([x]) => x);
+    if (xs.length === 0) { befunde.push({ art: "mitte", text: `${k.id}: kein Bus 4 mm über den Kindern` }); continue; }
+    const links = Math.min(...xs), rechts = Math.max(...xs);
+    const abweichung = k.x + k.breite / 2 - (links + rechts) / 2;
+    if (Math.abs(abweichung) > 1e-6) befunde.push({ art: "mitte", text: `${k.id} steht ${abweichung.toFixed(3)} mm neben der Mitte` });
+    const gemeldet = z.spannen.find((sp) => sp.stelleId === k.id);
+    if (gemeldet && (!gleich(gemeldet.links, links) || !gleich(gemeldet.rechts, rechts))) {
+      befunde.push({ art: "mitte", text: `${k.id}: gemeldete Spanne weicht von den Linien ab` });
+    }
+  }
+  for (const sp of z.spannen) if (!karte.has(sp.stelleId)) befunde.push({ art: "mitte", text: `Spanne ohne Karte: ${sp.stelleId}` });
+  return befunde;
 }
 
-const gleich = (a: number, b: number) => Math.abs(a - b) < TOL;
-const endetIn = (l: Strecke, x: number, y: number) => (gleich(l.x1, x) && gleich(l.y1, y)) || (gleich(l.x2, x) && gleich(l.y2, y));
 
 /** Hängt das Sechseck an dieser Linie seines Netzes? Mitte oben/unten (Gruppe), Spitze links/rechts (Kanal), Zweig durch die Mitte (Seite). */
 function haengtAn(h: SechseckL, l: Strecke): boolean {
@@ -168,16 +210,21 @@ export function pruefeVerbindungen(z: Zeichnungsdaten, inhalt: PlanInhalt): Befu
   for (const k of z.karten) {
     const s = baum.stelle(k.id);
     if (!s || s.eltern === null || !karte.has(s.eltern)) continue;
+    const soll = s.verbindungId === null ? null : inhalt.verbindungen.some((v) => v.id === s.verbindungId) ? s.verbindungId : null;
+    const zeigt = (hexe: SechseckL[]) => (hexe.length === 1 ? hexe[0].verbindungId : hexe.length === 0 ? null : hexe.map((h) => h.verbindungId).join("+"));
     if (s.lage === "unter") {
       const x = k.x + k.breite / 2;
-      if (!z.linien.some((l) => l.netz.startsWith(`${s.eltern}>`) && senkrecht(l) && endetIn(l, x, k.y))) {
-        melde(`${k.id} hängt an keinem Bus von ${s.eltern}`);
-      }
+      const abwurf = z.linien.find((l) => l.netz.startsWith(`${s.eltern}>`) && senkrecht(l) && endetIn(l, x, k.y));
+      if (!abwurf) { melde(`${k.id} hängt an keinem Bus von ${s.eltern}`); continue; }
+      // Das Sechseck am Bus trägt die Verbindung des Kindes (ohne Verbindung: kein Sechseck).
+      const ist = zeigt(z.sechsecke.filter((h) => h.netz === abwurf.netz));
+      if (ist !== soll) melde(`${k.id} hängt an einem Bus mit ${ist ?? "keinem Sechseck"}, erwartet ${soll ?? "keines"}`);
     } else {
       const x = s.lage === "links" ? k.x + k.breite : k.x;
-      if (!imNetz(`${s.eltern}<${s.lage}`).some((l) => waagerecht(l) && endetIn(l, x, k.y + k.kopfHoehe / 2))) {
-        melde(`${k.id} hängt an keinem Zweig von ${s.eltern}`);
-      }
+      const zweig = imNetz(`${s.eltern}<${s.lage}`).find((l) => waagerecht(l) && endetIn(l, x, k.y + k.kopfHoehe / 2));
+      if (!zweig) { melde(`${k.id} hängt an keinem Zweig von ${s.eltern}`); continue; }
+      const ist = zeigt(z.sechsecke.filter((h) => h.netz === zweig.netz && haengtAn(h, zweig)));
+      if (ist !== soll) melde(`${k.id} hängt an einem Zweig mit ${ist ?? "keinem Sechseck"}, erwartet ${soll ?? "keines"}`);
     }
   }
   // 2. Jedes Sechseck hängt an einer Linie seines Netzes.
@@ -228,5 +275,5 @@ export function pruefeTexte(z: Zeichnungsdaten): Befund[] {
 
 /** Alle Prüfungen zusammen — Eigenschafts-, Beispiel- und Aufteilungstests und das Vorschau-Skript nehmen dieselbe Liste. */
 export function pruefeAlles(z: Zeichnungsdaten, inhalt: PlanInhalt): Befund[] {
-  return [...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt), ...pruefeTexte(z)];
+  return [...pruefeZeichnung(z), ...pruefeMitte(z, inhalt), ...pruefeVerbindungen(z, inhalt), ...pruefeTexte(z)];
 }
