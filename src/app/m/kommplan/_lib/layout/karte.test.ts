@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Stelle, Verbindung } from "../plan/schema";
 import { kartenMass, type KartenEingabe } from "./karte";
-import { EINHEIT, KANAL, KARTE, SECHSECK, STIEL } from "./masse";
+import { EINHEIT, KANAL, KARTE, SCHRIFT, SECHSECK, STIEL } from "./masse";
 import { textBreite } from "./text";
 
 const stelle = (rest: Partial<Stelle> = {}): Stelle => ({
@@ -37,6 +37,21 @@ describe("kartenMass", () => {
     expect(m.titelVoll).toBe(lang);
     for (const z of m.titel) expect(textBreite(z.text, z.groesse, true)).toBeLessThanOrEqual(KARTE.breite - KARTE.titelX - KARTE.innenRechts + 1e-9);
     expect(m.kopfHoehe).toBeGreaterThan(KARTE.kopfMin);
+  });
+  it("ein Einzelwort, das in 9,5 pt nicht passt, verkleinert die Titelschrift bis 8 pt statt hart zu brechen", () => {
+    const breite = KARTE.breite - KARTE.titelX - KARTE.innenRechts;
+    for (const wort of ["Transportorganisation", "Bereitstellungsraum"]) {
+      expect(textBreite(wort, SCHRIFT.titel, true), wort).toBeGreaterThan(breite);
+      const m = mass({ titel: wort });
+      expect(m.titel.map((z) => z.text), wort).toEqual([wort]);
+      expect(m.titel[0].groesse).toBeLessThan(SCHRIFT.titel);
+      expect(m.titel[0].groesse).toBeGreaterThanOrEqual(KARTE.titelMin);
+    }
+    // Kurze Titel bleiben bei 9,5 pt; was selbst bei 8 pt nicht passt, bricht weiter hart um.
+    expect(mass({ titel: "EA 2 Bühne" }).titel[0].groesse).toBe(SCHRIFT.titel);
+    const riese = mass({ titel: "Bereitstellungsraumkoordinationsstelle" });
+    expect(riese.titel.length).toBeGreaterThan(1);
+    expect(riese.titel[0].groesse).toBe(KARTE.titelMin);
   });
   it("eine lange E-Mail-Adresse macht ihre Zeile zweizeilig", () => {
     const m = mass({ kontakte: [{ art: "email", wert: "max.mustermann@drk-kreisverband-uelzen.de" }] });

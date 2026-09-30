@@ -55,6 +55,15 @@ describe("umbrechen", () => {
     expect(r.zeilen.join("")).toBe("Bereitstellungsraumkoordinationsstelle");
     expect(r.gekuerzt).toBe(false);
   });
+  it("mit Trennstrich: ein harter Bruch endet auf „-“, die Zeile passt samt Strich", () => {
+    const r = umbrechen("Katastrophenschutzleitung", 20, 9.5, true, 5, true);
+    expect(r.zeilen.length).toBeGreaterThan(1);
+    for (const z of r.zeilen.slice(0, -1)) expect(z.endsWith("-"), z).toBe(true);
+    for (const z of r.zeilen) expect(textBreite(z, 9.5, true)).toBeLessThanOrEqual(20 + 1e-9);
+    expect(r.zeilen.map((z, i) => (i < r.zeilen.length - 1 ? z.slice(0, -1) : z)).join("")).toBe("Katastrophenschutzleitung");
+    // An einer echten Bruchstelle kommt kein zweiter Strich dazu.
+    expect(umbrechen("fel@landkreis-uelzen.de", 22, 8, false, 2, true).zeilen).toEqual(["fel@landkreis-", "uelzen.de"]);
+  });
   it("kürzt nach maxZeilen mit … und meldet es", () => {
     const r = umbrechen("eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf", 15, 9.5, true, 3);
     expect(r.zeilen).toHaveLength(3);

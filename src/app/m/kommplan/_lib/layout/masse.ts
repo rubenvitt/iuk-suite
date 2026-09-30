@@ -17,7 +17,7 @@ export const MIN_MASSSTAB = MINDESTSCHRIFT_PT / KLEINSTE_SCHRIFT_PT;
 
 export const KARTE = {
   breite: 46, rand: 1.2, zeichen: 10, titelX: 12.5, innenRechts: 1.5,
-  kopfMin: 12, titelZeilenMax: 3,
+  kopfMin: 12, titelZeilenMax: 3, titelMin: 8, titelStufe: 0.5,
   kontaktHoehe: 4.5, piktoSpalte: 8, piktoGroesse: 3.6, wertX: 9.5, kontaktZeilenMax: 2,
 } as const;
 export const EINHEIT = { abstandOben: 2.5, hoehe: 4.2, takt: 5.5, breite: 40, einzugMin: 6, zweiSpaltenAb: 10, spaltenAbstand: 2, zeichen: 3.6 } as const;
@@ -40,7 +40,7 @@ export const ABSTAND = {
  */
 export const MINDEST = { kasten: 2, linie: 0.75 } as const;
 export const PAPIER = { "a4-quer": { breite: 297, hoehe: 210 }, "a3-quer": { breite: 420, hoehe: 297 } } as const;
-export const BLATT = { randX: 10, randOben: 8, randUnten: 8, kopf: 14, fuss: 7, legendeZeile: 5, legendeRand: 2 } as const;
+export const BLATT = { randX: 10, randOben: 8, randUnten: 8, kopf: 14, fuss: 7, legendeZeile: 5, legendeRand: 4 } as const;
 
 export function zeilenhoehe(pt: number): number {
   return pt * PT_IN_MM * ZEILENFAKTOR;

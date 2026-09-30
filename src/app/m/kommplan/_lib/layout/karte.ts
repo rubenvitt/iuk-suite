@@ -2,7 +2,7 @@ import { kontaktZeilen } from "../plan/kontakte";
 import type { Stelle, Verbindung } from "../plan/schema";
 import { ABZEICHEN, EINHEIT, KANAL, KARTE, SCHRIFT, SECHSECK, STIEL, zeilenhoehe } from "./masse";
 import { sechseckMass, type SechseckMass } from "./sechseck";
-import { grundlinie, kuerze, umbrechen } from "./text";
+import { grundlinie, kuerze, textBreite, umbrechen } from "./text";
 import type { AbzeichenL, Darstellung, EinheitL, KarteL, KontaktZeileL, TextZeile } from "./typen";
 
 export interface KartenEingabe {
@@ -21,6 +21,20 @@ export interface KartenMass {
   blockBreite: number; blockHoehe: number; gasse: number[];
 }
 
+/**
+ * Titelschrift: 9,5 pt, solange jedes Wort in die Zeile passt. Ein längeres Einzelwort
+ * („Transportorganisation") verkleinert die Schrift in halben Punkten bis 8 pt, statt mitten im
+ * Wort umzubrechen — wie die Excel-Vorlage, die solche Titel kleiner setzt. Passt es auch bei 8 pt
+ * nicht, bricht `umbrechen` weiter hart (Sichtprüfung Phase 1, Abweichung U3).
+ */
+function titelGroesse(titel: string, breite: number): number {
+  const woerter = titel.split(/\s+/).filter((w) => w.length > 0);
+  for (let pt: number = SCHRIFT.titel; pt > KARTE.titelMin; pt -= KARTE.titelStufe) {
+    if (woerter.every((w) => textBreite(w, pt, true) <= breite)) return pt;
+  }
+  return KARTE.titelMin;
+}
+
 const zeile = (text: string, x: number, y: number, groesse: number, fett: boolean, anker: TextZeile["anker"] = "start"): TextZeile =>
   ({ text, x, y, groesse, fett, anker });
 
@@ -36,19 +50,19 @@ export function kartenMass(e: KartenEingabe): KartenMass {
   const art: KarteL["art"] = e.darstellung === "normal" ? "normal" : e.darstellung === "anker" ? "anker" : "verweis";
   const titelX = stelle.zeichen !== null ? KARTE.titelX : KARTE.rand;
   const titelBreite = KARTE.breite - titelX - KARTE.innenRechts;
-  const lhT = zeilenhoehe(SCHRIFT.titel), lhL = zeilenhoehe(SCHRIFT.leiter), lhK = zeilenhoehe(SCHRIFT.kontakt);
-
   // Ein leerer Titel ist ein Handeintrag-Feld (Spec §2): keine Titelzeile, Mindestkopf, kein Platzhalter.
   const titelVoll = stelle.titel.trim();
+  const ptT = titelGroesse(titelVoll, titelBreite);
+  const lhT = zeilenhoehe(ptT), lhL = zeilenhoehe(SCHRIFT.leiter), lhK = zeilenhoehe(SCHRIFT.kontakt);
   const umbruch = titelVoll === ""
     ? { zeilen: [] as string[], gekuerzt: false }
-    : umbrechen(titelVoll, titelBreite, SCHRIFT.titel, true, KARTE.titelZeilenMax);
+    : umbrechen(titelVoll, titelBreite, ptT, true, KARTE.titelZeilenMax, true);
   const leiterRoh = art === "normal" ? stelle.leiter?.trim() ?? "" : "";
   const leiterText = leiterRoh === "" ? null : kuerze(leiterRoh, titelBreite, SCHRIFT.leiter, false).text;
   const textHoehe = umbruch.zeilen.length * lhT + (leiterText ? lhL : 0);
   const kopfHoehe = Math.max(KARTE.kopfMin, textHoehe + 2 * KARTE.rand);
   let y = (kopfHoehe - textHoehe) / 2;
-  const titel = umbruch.zeilen.map((text) => { const z = zeile(text, titelX, grundlinie(y, lhT, SCHRIFT.titel), SCHRIFT.titel, true); y += lhT; return z; });
+  const titel = umbruch.zeilen.map((text) => { const z = zeile(text, titelX, grundlinie(y, lhT, ptT), ptT, true); y += lhT; return z; });
   const leiter = leiterText ? zeile(leiterText, titelX, grundlinie(y, lhL, SCHRIFT.leiter), SCHRIFT.leiter, false) : null;
 
   let hoehe = kopfHoehe;

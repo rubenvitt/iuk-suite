@@ -40,21 +40,31 @@ export function kuerze(text: string, maxBreite: number, pt: number, fett: boolea
   return { text: zeichen.join("").trimEnd() + AUSLASSUNG, gekuerzt: true };
 }
 
-/** Längstes Präfix von `wort`, das passt — bevorzugt bis einschließlich der letzten Bruchstelle. */
-function teileWort(wort: string, maxBreite: number, pt: number, fett: boolean): [string, string] {
+/**
+ * Längstes Präfix von `wort`, das passt — bevorzugt bis einschließlich der letzten Bruchstelle.
+ * Ohne Bruchstelle wird hart getrennt; mit `trennstrich` endet der Kopf dann auf „-“ (Titel: ein
+ * Bruch mitten im Wort liest sich sonst wie zwei Wörter). Werte wie Rufnummern trennen ohne Strich,
+ * dort wäre ein eingefügter Strich eine falsche Ziffernfolge.
+ */
+function teileWort(wort: string, maxBreite: number, pt: number, fett: boolean, trennstrich: boolean): [string, string] {
   const zeichen = [...wort];
-  let passt = 0;
-  while (passt < zeichen.length && textBreite(zeichen.slice(0, passt + 1).join(""), pt, fett) <= maxBreite) passt++;
+  const passtBis = (anhang: string) => {
+    let n = 0;
+    while (n < zeichen.length && textBreite(zeichen.slice(0, n + 1).join("") + anhang, pt, fett) <= maxBreite) n++;
+    return n;
+  };
+  let passt = passtBis("");
   if (passt === 0) passt = 1; // ein einzelnes Zeichen passt immer „irgendwie" — nie endlos schleifen
-  let schnitt = passt;
   for (let i = passt - 1; i > 0; i--) {
-    if (BRUCHSTELLEN.has(zeichen[i - 1])) { schnitt = i; break; }
+    if (BRUCHSTELLEN.has(zeichen[i - 1])) return [zeichen.slice(0, i).join(""), zeichen.slice(i).join("")];
   }
-  return [zeichen.slice(0, schnitt).join(""), zeichen.slice(schnitt).join("")];
+  if (!trennstrich || passt >= zeichen.length) return [zeichen.slice(0, passt).join(""), zeichen.slice(passt).join("")];
+  const mitStrich = Math.max(1, passtBis("-"));
+  return [`${zeichen.slice(0, mitStrich).join("")}-`, zeichen.slice(mitStrich).join("")];
 }
 
 export function umbrechen(
-  text: string, maxBreite: number, pt: number, fett: boolean, maxZeilen: number,
+  text: string, maxBreite: number, pt: number, fett: boolean, maxZeilen: number, trennstrich = false,
 ): { zeilen: string[]; gekuerzt: boolean } {
   const woerter = text.split(/\s+/).filter((w) => w.length > 0);
   if (woerter.length === 0) return { zeilen: [""], gekuerzt: false };
@@ -66,7 +76,7 @@ export function umbrechen(
     const versuch = aktuell === "" ? wort : `${aktuell} ${wort}`;
     if (textBreite(versuch, pt, fett) <= maxBreite) { aktuell = versuch; continue; }
     if (aktuell !== "") { zeilen.push(aktuell); aktuell = ""; warteschlange.unshift(wort); continue; }
-    const [kopf, rest] = teileWort(wort, maxBreite, pt, fett);
+    const [kopf, rest] = teileWort(wort, maxBreite, pt, fett, trennstrich);
     zeilen.push(kopf);
     if (rest) warteschlange.unshift(rest);
   }

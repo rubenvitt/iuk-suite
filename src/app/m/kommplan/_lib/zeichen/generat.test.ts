@@ -45,6 +45,8 @@ describe("kommplan-Generat", () => {
     expect(eintrag("rezept:D.1.4")).toContain(">EL<");
     expect(eintrag("zusatz:eal")).toContain(">EAL<");
     expect(eintrag("zusatz:eal")).not.toContain("Nord");
+    // Wie das EL-Zeichen: schwarzes Kürzel auf Gelb, nicht Weiß auf Gelb (Abweichung U2).
+    for (const k of ["zusatz:eal", "zusatz:ea", "zusatz:stab", "zusatz:oel"]) expect(eintrag(k)).not.toMatch(/<text[^>]*fill="#ffffff"/);
   });
 
   it("jede SVG-ID ist über beide Generate eindeutig (Befund M11)", () => {

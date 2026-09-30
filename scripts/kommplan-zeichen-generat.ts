@@ -19,6 +19,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import {
   ALL_PICTOGRAMS,
+  ARIMO_TEXT_METRICS,
   RECIPES,
   TEXT_FONT_BOLD_PATH,
   TEXT_FONT_PATH,
@@ -100,10 +101,31 @@ const ZUSATZ = [
   { schluessel: "zusatz:stab", titel: "Stab", text: "Stab" },
   { schluessel: "zusatz:oel", titel: "Örtliche Einsatzleitung", text: "ÖEL" },
 ] as const;
+/**
+ * Die Zusatzzeichen entstehen aus dem Rezept „Einsatzleitung im Einsatz" (D.1.4), nur das Kürzel
+ * wird getauscht. Grund: ein frei komponiertes Führungszeichen (`labels.center`) setzt der Katalog
+ * 1.5.0 weiß auf Gelb und ohne den Balken „im Einsatz" — neben dem EL-Zeichen desselben Plans
+ * sähe es fremd und kaum lesbar aus (Sichtprüfung Phase 1, Abweichung U2 im Umsetzungsplan).
+ */
+const VORLAGE_ZUSATZ = RECIPES["D.1.4"];
+if (!VORLAGE_ZUSATZ) throw new GeneratFehler("Rezept D.1.4 fehlt im Katalog");
+/** Breite des Kürzels in Einheiten der viewBox, gemessen mit Arimo wie beim Zeichnen. */
+const kuerzelBreite = (text: string, groesse: number) =>
+  [...text].reduce((summe, c) => summe + (ARIMO_TEXT_METRICS.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
 for (const z of ZUSATZ) {
-  const spec = { kind: "formation", organization: "fuehrung-leitung", labels: { center: z.text } } as unknown as Spec;
-  const svg = renderSvg(composeFromCatalog(spec, z.titel) as unknown as Zeichnung, { size: 64, idPrefix: praefix(z.schluessel) });
-  zeichen[z.schluessel] = { titel: z.titel, suchtext: `${z.titel} ${z.text}`.toLocaleLowerCase("de-DE"), ...zerlege(svg, z.schluessel) };
+  const svg = renderSvg(
+    composeFromCatalog(VORLAGE_ZUSATZ.spec as Spec, z.titel) as unknown as Zeichnung,
+    { size: 64, idPrefix: praefix(z.schluessel) },
+  );
+  const kuerzel = /<text\b([^>]*)\bfont-size="([\d.]+)"([^>]*)>EL<\/text>/g;
+  const treffer = [...svg.matchAll(kuerzel)];
+  if (treffer.length !== 1) throw new GeneratFehler(`D.1.4 trägt das Kürzel EL nicht genau einmal (${treffer.length})`);
+  const groesse = Number(treffer[0][2]);
+  // Innenbreite des Körpers (85 von 90,7 Einheiten) abzüglich Luft: längere Kürzel („Stab") schrumpfen.
+  const passend = Math.min(groesse, (groesse * 72) / Math.max(1e-9, kuerzelBreite(z.text, groesse)));
+  const ersetzt = svg.replace(kuerzel, (_, vor: string, _g: string, nach: string) =>
+    `<text${vor}font-size="${runde(passend)}"${nach}>${z.text}</text>`);
+  zeichen[z.schluessel] = { titel: z.titel, suchtext: `${z.titel} ${z.text}`.toLocaleLowerCase("de-DE"), ...zerlege(ersetzt, z.schluessel) };
 }
 
 // 2. Piktogramme: Katalog auf seine Box zugeschnitten, dazu fünf eigene für die Kontaktarten.
