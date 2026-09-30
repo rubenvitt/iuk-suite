@@ -179,27 +179,51 @@ describe.each(VARIANTEN)("Einfügen (%s): frühere Gruppen und frühere Geschwis
 });
 
 /**
- * OFFEN (Spec §10 „Einfügen einer Stelle verschiebt nichts links von ihr"): die starke Fassung gilt
- * NICHT. Seed 70, neue Gruppe unter s14: die Kinder von s14 rücken nach links (Mitte über dem Bus),
- * die linke Kontur der Gruppe v1 wächst, das Gruppenpacken setzt die ganze Gruppe 29 mm weiter
- * rechts — samt s12, das links von der neuen Stelle steht. Abhilfe wäre, jedes Kind über die
- * Gruppengrenzen hinweg gegen alles bisher Gesetzte zu packen und Bus und Sechseck danach zu setzen.
- * Wird die Engine so geändert, schlägt dieser Fall um und gehört dann zu den Aussagen oben.
+ * Spec §10, wie es gilt (Umsetzungsplan Phase 2, Entscheidung 2) — unter der Vorbedingung von
+ * `einfuegung()` (kein Kamm vorher wie nachher, gleiche Zeilen): Einfügen ändert kein y; die
+ * früheren Geschwister in der Busgruppe der neuen Stelle und die früheren Gruppen ihrer Ebene
+ * bleiben je UNTEREINANDER starr (gleiche relative Lage, `describe.each` oben). Absolut rückt dabei
+ * durchaus etwas, das links steht: die Elternstelle steht mittig über ihrer Busspanne. Hier der
+ * Fall über Gruppengrenzen: eine NEUE Kanalgruppe unter s14 (Seed 70) zentriert s14 neu, dadurch
+ * wächst die linke Kontur der Gruppe von s14 unter s0, und das Gruppenpacken setzt diese Gruppe als
+ * GANZES weiter rechts an — samt s12, das links der neuen Stelle steht. Zugesichert wird: kein y
+ * ändert sich, die Zeichnung bleibt sauber (Eltern mittig über der Busspanne, keine Überlappung,
+ * keine Kreuzung), die früheren Gruppen unter s0 bleiben untereinander starr, und die frühere
+ * Gruppe von s14 rückt starr, also mit EINEM gemeinsamen dx.
  */
-it.fails("Einfügen verschiebt über Gruppengrenzen nichts, was links steht (Seed 70, neue Gruppe) — offen", () => {
+it("Seed 70, neue Kanalgruppe unter s14: Eltern neu zentriert, die Gruppe von s14 rückt starr als Ganzes", () => {
   const inhalt = zufallsPlan(70, { stellen: 25 });
   const kinder = baueBaum(inhalt).unter("s14");
   const neu = fuegeStelleEin(fuegeVerbindungEin(inhalt, { id: "vneu", art: "tmo", bezeichnung: "NEU" }),
     { id: "neu", titel: "N", eltern: "s14", verbindungId: "vneu", reihenfolge: Math.max(...kinder.map((k) => k.reihenfolge)) + 1 });
-  // Vorbedingungen wie oben: kein Kamm, gleiche Zeilen — der Fall ist also wirksam
-  if (kaemmt(inhalt, "bildschirm") || kaemmt(neu, "bildschirm")) throw new Error("Vorbedingung: Kamm");
-  if (JSON.stringify(umgebungFuer(inhalt, "bildschirm").zeilen) !== JSON.stringify(umgebungFuer(neu, "bildschirm").zeilen)) throw new Error("Vorbedingung: Zeilen");
+  // Vorbedingungen wie in den Fällen darüber: kein Kamm, gleiche Zeilen
+  expect(kaemmt(inhalt, "bildschirm") || kaemmt(neu, "bildschirm")).toBe(false);
+  expect(JSON.stringify(umgebungFuer(neu, "bildschirm").zeilen)).toBe(JSON.stringify(umgebungFuer(inhalt, "bildschirm").zeilen));
+
   const vorher = zeichne(inhalt, "bildschirm"), nachher = zeichne(neu, "bildschirm");
+  expect(befundeVon(nachher, neu).map((b) => b.text), erklaere(70, neu, "nach dem Einfügen")).toEqual([]);
+  const yVorher = new Map(vorher.karten.map((k) => [k.id, k.y]));
+  for (const k of nachher.karten) if (k.id !== "neu") expect(k.y, `y von ${k.id}`).toBeCloseTo(yVorher.get(k.id)!, 6);
+
   const nachBaum = baueBaum(neu);
-  const s14 = anzeigereihenfolge(nachBaum.unter("s0"));
-  const frueher = s14.slice(0, s14.findIndex((g) => g.id === "s14"));
-  const ids = frueher.flatMap((g) => [g.id, ...nachkommen(nachBaum, g.id).map((n) => n.id)]);
-  expect(relativ(nachher, ids)).toEqual(relativ(vorher, ids));
+  const geschwister = anzeigereihenfolge(nachBaum.unter("s0"));
+  const s14 = nachBaum.stelle("s14")!;
+  const frueher = geschwister.slice(0, geschwister.findIndex((g) => g.id === "s14"));
+  const gruppe = (g: Stelle) => g.verbindungId ?? OHNE_VERBINDUNG;
+  const teilbaum = (gs: Stelle[]) => gs.flatMap((g) => [g.id, ...nachkommen(nachBaum, g.id).map((n) => n.id)]);
+  const andere = teilbaum(frueher.filter((g) => gruppe(g) !== gruppe(s14)));
+  const eigene = teilbaum(frueher.filter((g) => gruppe(g) === gruppe(s14)));
+  expect(eigene, "s12 steht links der neuen Stelle in der Gruppe von s14").toContain("s12");
+  expect(andere.length, "es gibt eine frühere Gruppe, gegen die die Gruppe von s14 rückt").toBeGreaterThan(0);
+
+  const x = (z: Zeichnungsdaten, id: string) => z.karten.find((k) => k.id === id)!.x;
+  const dx = (id: string) => x(nachher, id) - x(vorher, id);
+  // frühere Gruppen untereinander starr
+  if (andere.length > 1) expect(relativ(nachher, andere)).toEqual(relativ(vorher, andere));
+  // die frühere Gruppe von s14 starr: EIN gemeinsames dx für alle ihre Karten
+  for (const id of eigene) expect(dx(id), `dx von ${id}`).toBeCloseTo(dx(eigene[0]), 6);
+  // und genau deshalb gilt die starke Fassung nicht: gegenüber den früheren Gruppen rückt sie
+  expect(Math.abs(dx(eigene[0]) - dx(andere[0]))).toBeGreaterThan(1);
 });
 
 describe("Grenzfälle", () => {

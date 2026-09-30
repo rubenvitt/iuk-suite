@@ -309,8 +309,13 @@ Server Components nur als Inline-SVG (Falle 7).
   - Layout-Golden-Tests auf Koordinaten: Nachbau der Vorlagen „Einsatz 22.02.2026", „OpenR
     01.07.2022", „Fernmeldeskizze Stab" und eine große Stab-Lage.
   - Eigenschaftstests auf Zufallsbäumen: keine Überlappung, keine Kreuzung, Eltern mittig über der
-    Busspanne, Einfügen einer Stelle verschiebt nichts links von ihr, Aufteilung deckt jede Stelle
-    genau einmal ab.
+    Busspanne, Aufteilung deckt jede Stelle genau einmal ab. Einfügen einer Stelle ändert — solange
+    dadurch keine Gruppe als Kamm umbricht und Zeilenhöhen und Ebenenlücken gleich bleiben — kein
+    y; die früheren Geschwister in ihrer Busgruppe und die früheren Gruppen ihrer Ebene bleiben
+    jeweils untereinander starr (gleiche relative Lage). Als Ganzes kann eine Gruppe rücken, weil
+    die Elternstelle mittig über ihrer Busspanne steht — eine neue Kanalgruppe zentriert die
+    Elternstelle neu, und deren Gruppe rückt gegen die früheren Gruppen. Bricht eine Gruppe als
+    Kamm um oder wächst eine Lücke, ordnet sich zu Recht mehr neu.
   - Einfüge-Parser (Gliederung, Einheitenliste).
   - Generat-Version und Schrift-SHA (§7).
   - DOM-Tests über das Harness `src/app/m/qr/_lib/test-dom.tsx`.
