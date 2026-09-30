@@ -74,8 +74,9 @@
 /* Überlagerung der Fläche (Griffe des Editors): liegt über dem SVG, fängt selbst keine Zeiger. */
 .kp-ueberlagerung { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 /* Hinweise des Editors IN der Fläche, unten mittig (Entscheidung 19): kein Umbruch des Flusses,
-   die Fläche springt nicht, wenn ein Hinweis kommt oder geht. Nur der Hinweis selbst fängt Zeiger. */
-.kp-meldungsplatz { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); pointer-events: none; }
+   die Fläche springt nicht, wenn ein Hinweis kommt oder geht. Nur der Hinweis selbst fängt Zeiger.
+   `scroll-margin`: „nearest“ (Editor) rollt auf ganze Pixel und ließe sonst Bruchteile unter dem Rand. */
+.kp-meldungsplatz { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); pointer-events: none; scroll-margin: 12px; }
 .kp-meldungsplatz > * { pointer-events: auto; }
 
 /* Abschnitte im Flyin: ein Rahmen ohne Kasten, Zeilen mit Feld und Knopf nebeneinander, am Telefon untereinander. */
