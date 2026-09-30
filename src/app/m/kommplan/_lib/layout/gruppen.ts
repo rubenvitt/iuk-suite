@@ -26,13 +26,13 @@ export function reihenBreite<T>(reihe: readonly T[], breite: (k: T) => number): 
 }
 
 /** Gierig nach Breite: eine neue Reihe, sobald `grenze` überschritten wäre; jede Reihe trägt mindestens ein Kind. */
-export function reihenNachBreite<T>(kinder: readonly T[], breite: (k: T) => number, grenze: number): T[][] {
+export function reihenNachBreite<T>(kinder: readonly T[], breite: (k: T) => number, grenze: number, luecke: number = ABSTAND.geschwister): T[][] {
   const reihen: T[][] = [];
   let aktuell: T[] = [];
   let b = 0;
   for (const k of kinder) {
     const w = breite(k);
-    const mit = aktuell.length === 0 ? w : b + ABSTAND.geschwister + w;
+    const mit = aktuell.length === 0 ? w : b + luecke + w;
     if (aktuell.length > 0 && mit > grenze + EPS) { reihen.push(aktuell); aktuell = [k]; b = w; }
     else { aktuell.push(k); b = mit; }
   }

@@ -64,7 +64,9 @@ export function lesereihenfolge(sicht: Sicht): string[] {
  * Wer auf diesem Blatt zur Verweiskarte werden darf, nach Tiefe: sichtbar, normal, eine Unterstelle
  * mit sichtbaren Kindern, weder Blattwurzel noch Kind des Ankers. Zeigt ein Blatt ohne Anker
  * mehrere Wurzeln, sind auch die Wurzeln Kandidaten (Tiefe 0) — sonst ließen sich zwei
- * nebeneinander zu breite Bäume nie auf zwei Blätter verteilen.
+ * untereinander zu hohe Bäume nie auf zwei Blätter verteilen. Auch dann nur mit sichtbaren
+ * Kindern: die Verweiskarte einer kinderlosen Stelle ist so breit wie die Karte selbst, der
+ * Schnitt spart nichts und hinterließe ein Blatt mit genau einer Karte.
  */
 function kandidaten(sicht: Sicht, auftrag: Auftrag | undefined): Map<number, Stelle[]> {
   const mehrereWurzeln = auftrag === undefined && sicht.wurzeln.length > 1;
@@ -73,7 +75,7 @@ function kandidaten(sicht: Sicht, auftrag: Auftrag | undefined): Map<number, Ste
   const nachTiefe = new Map<number, Stelle[]>();
   for (const s of sicht.sichtbar) {
     if (geschuetzt.has(s.id) || s.lage !== "unter" || sicht.darstellung(s.id) !== "normal") continue;
-    if (s.eltern !== null && sicht.kinder(s.id).length === 0) continue;
+    if (sicht.kinder(s.id).length === 0) continue;
     const t = sicht.tiefe(s.id);
     nachTiefe.set(t, [...(nachTiefe.get(t) ?? []), s]);
   }

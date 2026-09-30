@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import { leererPlan } from "../plan/operationen";
+import { budgetFuer } from "./gruppen";
 import { ABSTAND } from "./masse";
 import { zeichne } from "./zeichne";
 
@@ -32,6 +33,16 @@ describe("zeichne", () => {
     const [a, b] = ["a", "b"].map((id) => z.karten.find((k) => k.id === id)!);
     expect(a.y).toBe(b.y);
     expect(b.x - (a.x + a.breite)).toBeCloseTo(ABSTAND.wurzeln, 6);
+  });
+  it("mehr Wurzeln, als das Budget fasst, brechen in eine zweite Reihe um, 16 mm unter der ersten", () => {
+    const z = zeichne(baue({ stellen: Array.from({ length: 9 }, (_, i) => ({ id: `w${i}`, titel: `W ${i}` })) }), "a4-quer");
+    expect(z.breite).toBeLessThanOrEqual(budgetFuer("a4-quer") + 1e-9);
+    const ys = [...new Set(z.karten.map((k) => k.y))].sort((a, b) => a - b);
+    expect(ys).toHaveLength(2);
+    const ersteReihe = z.karten.filter((k) => k.y === ys[0]);
+    expect(ys[1] - Math.max(...ersteReihe.map((k) => k.y + k.hoehe))).toBeCloseTo(ABSTAND.wurzeln, 6);
+    // Reihenfolge bleibt die Lesereihenfolge: erst die ganze erste Reihe, dann die zweite
+    expect(z.karten.map((k) => k.id)).toEqual(Array.from({ length: 9 }, (_, i) => `w${i}`));
   });
   it("Legende: gezeichnete Arten in fester Reihenfolge, dann Reserve", () => {
     const p = baue({ verbindungen: V, stellen: [

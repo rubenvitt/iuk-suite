@@ -1,5 +1,6 @@
 import { ART_NAME, VERBINDUNGS_ARTEN, type PlanInhalt, type VerbindungsArt } from "../plan/schema";
 import { istLeer, maxX, minX } from "./kontur";
+import { reihenNachBreite } from "./gruppen";
 import { ABSTAND } from "./masse";
 import { Sammler } from "./sammler";
 import type { Sicht } from "./sicht";
@@ -26,13 +27,25 @@ export function legende(inhalt: PlanInhalt, sicht: Sicht): LegendenEintrag[] {
   ];
 }
 
-/** Die ganze Zeichnung einer Sicht: Wurzeln gierig nebeneinander, dann auf 0/0 normiert. */
+/**
+ * Die ganze Zeichnung einer Sicht: Wurzeln gierig nebeneinander, dann auf 0/0 normiert.
+ *
+ * WURZELREIHEN: Wurzeln hängen an keinem Bus, also bricht ihre Reihe nach demselben Budget um wie
+ * eine Kinderreihe (Spec §5.5) — jede weitere Reihe beginnt 16 mm unter dem tiefsten Punkt der
+ * vorigen. Ohne Umbruch wäre ein Plan mit vielen Wurzeln nur durch Schneiden aufs Papier zu
+ * bringen, und eine Wurzel ohne Kinder lässt sich nicht sinnvoll schneiden (Review Phase 1).
+ */
 export function zeichne(inhalt: PlanInhalt, ziel: Ziel, optionen: LayoutOptionen = {}): Zeichnungsdaten {
   const u = umgebungFuer(inhalt, ziel, optionen);
   const teile = u.sicht.wurzeln.map((w) => setzeTeilbaum(w, 0, u));
   const s = new Sammler();
-  const xs = packe(teile.map((t) => t.kontur), ABSTAND.wurzeln);
-  teile.forEach((t, i) => s.uebernimm(t, xs[i], 0));
+  const breite = (i: number) => (istLeer(teile[i].kontur) ? 0 : maxX(teile[i].kontur) - minX(teile[i].kontur));
+  let reiheOben = 0;
+  for (const reihe of reihenNachBreite(teile.map((_, i) => i), breite, u.budget, ABSTAND.wurzeln)) {
+    const xs = packe(reihe.map((i) => teile[i].kontur), ABSTAND.wurzeln);
+    reihe.forEach((i, j) => s.uebernimm(teile[i], xs[j], reiheOben));
+    reiheOben = s.unten + ABSTAND.wurzeln;
+  }
   if (istLeer(s.kontur)) return { ...s.elemente, breite: 0, hoehe: 0, legende: legende(inhalt, u.sicht) };
   const links = minX(s.kontur);
   const oben = Math.min(0, ...s.kontur.links.map((st) => st.y0));

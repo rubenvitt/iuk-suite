@@ -4,6 +4,7 @@ import { leererPlan } from "../plan/operationen";
 import { layout } from "./layout";
 import { BLATT, MIN_MASSSTAB, PAPIER } from "./masse";
 import { legendenZeilen, massstabFuer, teileAuf, zeichenflaeche } from "./papier";
+import { zufallsPlan } from "./zufall";
 
 function grosserPlan() {
   const stellen: StelleEingabe[] = [{ id: "w", titel: "Stab" }];
@@ -92,18 +93,52 @@ describe("Papier", () => {
     expect(nummern).toEqual([...nummern].sort((p, q) => p - q));
     verweise.forEach((k, i) => expect(b[nummern[i] - 1].wurzelId).toBe(k.id));
   });
-  it("mehrere Wurzeln, die zusammen nicht passen: eine Wurzel bekommt ein eigenes Blatt ohne Anker", () => {
-    const stellen: StelleEingabe[] = ["a", "b"].flatMap((w) => [
+  it("neun Wurzeln ohne Kinder: die Wurzelreihe bricht um, ein Blatt ohne Verweise", () => {
+    const inhalt = baue({ stellen: Array.from({ length: 9 }, (_, i) => ({ id: `w${i}`, titel: `W ${i}` })) });
+    const b = teileAuf(inhalt, "a4-quer");
+    expect(b).toHaveLength(1);
+    expect(b[0].massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+    expect(b[0].zeichnung.karten.every((k) => k.art === "normal")).toBe(true);
+  });
+  it.each([7, 8])("%i Wurzeln mit je zwei Kindern: kein Blatt unter 6 pt, keines nur aus Verweisen oder mit einer Karte", (n) => {
+    const stellen: StelleEingabe[] = [];
+    for (let i = 0; i < n; i++) {
+      stellen.push({ id: `w${i}`, titel: `W ${i}` });
+      for (let j = 0; j < 2; j++) stellen.push({ id: `w${i}-${j}`, titel: `K ${j}`, eltern: `w${i}`, verbindung: "v" });
+    }
+    const inhalt = baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen });
+    const b = teileAuf(inhalt, "a4-quer");
+    for (const blatt of b) {
+      expect(blatt.unterMindestschrift, `Blatt ${blatt.nummer}`).toBe(false);
+      expect(blatt.zeichnung.karten.length, `Blatt ${blatt.nummer}`).toBeGreaterThan(1);
+      expect(blatt.zeichnung.karten.some((k) => k.art === "normal"), `Blatt ${blatt.nummer}`).toBe(true);
+    }
+    expect(normaleKarten(b).sort()).toEqual(inhalt.stellen.map((s) => s.id).sort());
+  });
+  it("mehrere Wurzeln, die auch umgebrochen nicht auf ein Blatt passen: eine Wurzel bekommt ein eigenes Blatt ohne Anker", () => {
+    const acht = Array.from({ length: 8 }, (_, i) => `RTW ${i}`);
+    const stellen: StelleEingabe[] = ["a", "b", "c", "d"].flatMap((w) => [
       { id: w, titel: w.toUpperCase() },
-      ...Array.from({ length: 5 }, (_, i) => ({ id: `${w}${i}`, titel: `K${i}`, eltern: w, verbindung: "v" })),
+      ...Array.from({ length: 7 }, (_, i) => ({ id: `${w}${i}`, titel: `K${i}`, eltern: w, verbindung: "v", einheiten: acht })),
     ]);
     const inhalt = baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen });
     const b = teileAuf(inhalt, "a4-quer");
     expect(b.length).toBeGreaterThanOrEqual(2);
     for (const blatt of b) expect(blatt.massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
     expect(b.some((blatt) => blatt.wurzelId !== null && blatt.ankerId === null)).toBe(true);
+    expect(b[0].zeichnung.karten.some((k) => k.art === "normal")).toBe(true);
     expect(normaleKarten(b).sort()).toEqual(inhalt.stellen.map((s) => s.id).sort());
   });
+  it("Zufallspläne mit mehreren Wurzeln: jedes Blatt trägt mehr als eine Karte, Blatt 1 nicht nur Verweise", () => {
+    // Aus den Seeds 41–160 des Reviews; 47 und 57 waren rot (57: 37 Blätter, fünf mit einer Karte).
+    for (const seed of [41, 47, 57, 63, 77, 91, 105, 119, 133, 147, 160]) {
+      const inhalt = zufallsPlan(seed, { stellen: 30 + (seed % 81), mehrereWurzeln: true });
+      const b = teileAuf(inhalt, "a4-quer");
+      if (b.length === 1) continue;
+      for (const blatt of b) expect(blatt.zeichnung.karten.length, `Seed ${seed}, Blatt ${blatt.nummer}`).toBeGreaterThan(1);
+      expect(b[0].zeichnung.karten.some((k) => k.art === "normal"), `Seed ${seed}`).toBe(true);
+    }
+  }, 120_000);
   it("breite Kinderreihen passen durch den Kamm auf EIN Blatt (drei Verbindungen à fünf; sechs breite Kinder und eines mit zwei Seitenstellen)", () => {
     const V = [{ id: "v", art: "tmo" as const, bezeichnung: "R_UE_2" }, { id: "w2", art: "tmo" as const, bezeichnung: "R_UE_3" },
       { id: "x", art: "tmo" as const, bezeichnung: "R_UE_4" }, { id: "d", art: "draht" as const, bezeichnung: "Standleitung" }];
