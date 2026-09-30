@@ -266,6 +266,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(query(".kp-betrachter [data-meldung]").textContent).toContain("Vor dem Drucken ließ sich nicht speichern.");
   });
   it("Ungespeichertes hält das Schließen des Tabs auf (Entscheidung 11); ohne Änderung nicht", async () => {
+    vi.useFakeTimers(); // sonst speichert der Autosave unter Last schon, bevor der Test fragt
     const schliessen = () => { const e = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; };
     await zeige();
     expect(schliessen()).toBe(false);
