@@ -29,6 +29,6 @@
   },
   {
     "name": "eimer-8",
-    "specs": "e2e/anfrageabbruch.spec.ts e2e/einsatzbuch-anbindung.spec.ts e2e/einsatzbuch-reader.spec.ts e2e/einsatzbuch-stammdaten.spec.ts e2e/einsatzbuch.spec.ts e2e/mobil-admin.spec.ts e2e/portal-neuigkeiten.spec.ts e2e/portal.spec.ts e2e/qr.spec.ts e2e/suite-audit.spec.ts e2e/zeitzone.spec.ts"
+    "specs": "e2e/anfrageabbruch.spec.ts e2e/einsatzbuch-anbindung.spec.ts e2e/einsatzbuch-reader.spec.ts e2e/einsatzbuch-stammdaten.spec.ts e2e/einsatzbuch.spec.ts e2e/mobil-admin.spec.ts e2e/portal-neuigkeiten.spec.ts e2e/portal.spec.ts e2e/qr.spec.ts e2e/suite-audit.spec.ts e2e/zeitzone.spec.ts e2e/kommplan-editor.spec.ts"
   }
 ]
