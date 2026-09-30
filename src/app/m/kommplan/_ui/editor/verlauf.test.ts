@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fuegeWurzelEin, leererPlan } from "../../_lib/plan/operationen";
-import { BUENDEL_MS, kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, VERLAUF_TIEFE, wiederholen } from "./verlauf";
+import { BUENDEL_MS, kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, VERLAUF_TIEFE, verwirf, wiederholen } from "./verlauf";
 
 const a = leererPlan(), b = fuegeWurzelEin(a, "b"), c = fuegeWurzelEin(b, "c"), d = fuegeWurzelEin(c, "d");
 
@@ -32,6 +32,16 @@ describe("Rückgängig/Wiederholen (Spec §6.6: Client-Stapel von Dokumenten)", 
     expect(rueckgaengig(getrennt).jetzt).toBe(b);
     const spaeter = tue(tue(neuerVerlauf(a), b, 0, "titel:s1"), c, BUENDEL_MS + 1, "titel:s1");
     expect(rueckgaengig(spaeter).jetzt).toBe(b);
+    const genauAmEnde = tue(tue(neuerVerlauf(a), b, 0, "titel:s1"), c, BUENDEL_MS, "titel:s1"); // die Grenze gehört noch dazu
+    expect(rueckgaengig(genauAmEnde).jetzt).toBe(a);
+  });
+  it("verwerfen nimmt den letzten Schritt zurück, ohne ihn zum Wiederholen anzubieten", () => {
+    const v = verwirf(tue(tue(neuerVerlauf(a), b, 0), c, 5000));
+    expect(v.jetzt).toBe(b);
+    expect(kannWiederholen(v)).toBe(false);
+    expect(rueckgaengig(v).jetzt).toBe(a);
+    const leer = neuerVerlauf(a);
+    expect(verwirf(leer)).toBe(leer);
   });
   it("dasselbe Objekt ist keine Änderung; die Tiefe ist begrenzt", () => {
     const v = tue(neuerVerlauf(a), b, 0);

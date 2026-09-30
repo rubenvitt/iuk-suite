@@ -27,11 +27,14 @@ import { PLAN_FLYIN_GRUND, PlanFlyin } from "./PlanFlyin";
 import { Speicherer, type SpeicherZustand } from "./speicherer";
 import { STELLE_FLYIN_GRUND, StelleFlyin } from "./StelleFlyin";
 import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
-import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, wiederholen, type Verlauf } from "./verlauf";
+import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "./verlauf";
 import { leseZuletzt } from "./zuletzt";
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
-interface Hinweis { text: string; rueckgaengig?: boolean }
+/** `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ im Hinweis gilt nur, solange genau er der jetzige ist. */
+interface Hinweis { text: string; nach?: PlanInhalt }
+/** Ein per Griff angelegtes, noch unberührtes Element: Esc/X verwirft es wieder (Review Phase 2). */
+interface Angelegt { nach: PlanInhalt; stelle: string; zurueck: string | null }
 const BEDIENHINWEIS = "Pfeiltasten wählen Stellen, Enter oder F2 bearbeitet, N legt eine Unterstelle an, Entf löscht, Plus und Minus zoomen";
 /** Sichtbar unter der Fläche (Entscheidung 9) — dieselben Befehle wie im `aria-label`, knapper. */
 const BEDIENZEILE = "Pfeile wählen · Enter oder F2 bearbeitet · N neue Unterstelle · Entf löscht · Strg/Cmd+Z nimmt zurück";
@@ -66,7 +69,9 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Das Layout rechnet aus `useDeferredValue` — Tippen bleibt auch an großen Plänen flüssig (Entscheidung 15).
  * - Linien blenden nur nach STRUKTURELLEN Änderungen neu ein (`linien`), nicht bei jedem Tastendruck.
  * - Hinweise stehen IN der Fläche und schließen nur bei X, beim nächsten Hinweis oder bei der nächsten
- *   strukturellen Änderung, nicht beim Tippen (Entscheidung 19).
+ *   strukturellen Änderung, nicht beim Tippen (Entscheidung 19). „Rückgängig“ im Lösch-Hinweis steht
+ *   nur, solange die Löschung der letzte Schritt ist — sonst nähme er etwas anderes zurück.
+ * - Esc/X nach einem Griff ohne jede Eingabe verwirft das leere Element wieder; Enter behält es.
  * - Nach Flyin-Schließen, Löschen und Rückgängig per Knopf hat die Fläche den Fokus (Entscheidung 17).
  * - Eine bearbeitete oder neue Stelle wird nie von einer eingeklappten Vorfahrin verdeckt: die
  *   Vorfahren werden aufgeklappt (ein Ansichtszustand, kein Rückgängig-Schritt).
@@ -96,6 +101,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   const zeigeNach = useRef<string | null>(null);
   const flyinJetzt = useRef(flyin);
   const angabenEntwurf = useRef(false);
+  const angelegt = useRef<Angelegt | null>(null);
   const kuerzel = useRef<{ rueck: () => void; wieder: () => void; pruefeStand: (s: Speicherstand) => void }>({ rueck: () => {}, wieder: () => {}, pruefeStand: () => {} });
   /** Schlüssel, deren SVG schon unterwegs ist: Server Actions laufen nacheinander, eine Suchsalve stellte sich sonst vor das Autosave. */
   const unterwegs = useRef(new Set<string>());
@@ -116,10 +122,17 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
       return neu;
     });
   }
+  /** Fehlt die gewählte Stelle im neuen Stand, ist auch ihr Flyin zu — sonst öffnete die nächste Auswahl es wieder (Review Phase 2). */
+  function pruefeAuswahl(neu: PlanInhalt) {
+    if (auswahl === null || neu.stellen.some((s) => s.id === auswahl)) return;
+    setAuswahl(null);
+    if (flyin === "stelle") setFlyin(null);
+  }
   function uebernimm(neu: Verlauf, strukturell: boolean) {
     if (neu === verlauf) return;
     setVerlauf(neu);
     speicherer.aendere(neu.jetzt);
+    pruefeAuswahl(neu.jetzt);
     if (strukturell) { setLinien((n) => n + 1); setHinweis(null); }
   }
   const aendere: Aendere = (op, schluessel) => {
@@ -152,30 +165,50 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     ladeSymbole(leseZuletzt());
   }
   function schliesseFlyin() {
+    angelegt.current = null;
     setFlyin(null);
     flaeche.current?.fokus(); // verlässt ein Angaben-Feld → es speichert (Entscheidung 3)
   }
+  /** Esc/X am Flyin einer Stelle: ein eben per Griff angelegtes, unberührtes Element war ein Fehlgriff. */
+  function brecheAb() {
+    const a = angelegt.current;
+    if (a && a.stelle === gewaehlt && a.nach === verlauf.jetzt) {
+      uebernimm(verwirf(verlauf), true);
+      setAuswahl(a.zurueck);
+    }
+    schliesseFlyin();
+  }
+  /** Führt eine Operation aus und liefert den neuen Stand (oder `null` bei `PlanFehler`). */
+  function tueMit(op: (p: PlanInhalt) => PlanInhalt): PlanInhalt | null {
+    let nach: PlanInhalt | null = null;
+    return aendere((p) => (nach = op(p))) === null ? nach : null;
+  }
   function lege(art: "unter" | "links" | "rechts" | "wurzel", eltern: string | null) {
     const id = neueId(inhalt, "s");
-    const f = aendere((p) => art === "wurzel" ? fuegeWurzelEin(p, id)
+    const nach = tueMit((p) => art === "wurzel" ? fuegeWurzelEin(p, id)
       : art === "unter" ? fuegeUnterstelleEin(p, eltern!, id) : fuegeSeitenstelleEin(p, eltern!, art, id));
-    if (f !== null) return;
+    if (nach === null) return;
     if (eltern !== null) klappeAuf([eltern, ...vorfahren(inhalt, eltern)]);
     oeffne(id);
+    angelegt.current = { nach, stelle: id, zurueck: eltern };
   }
   function neueEinheit(stelleId: string) {
-    if (aendere((p) => fuegeEinheitenEin(p, stelleId, [{ id: neueId(p, "e"), typ: "", rufname: "", zeichen: null }])) === null) oeffne(stelleId, "einheit");
+    const nach = tueMit((p) => fuegeEinheitenEin(p, stelleId, [{ id: neueId(p, "e"), typ: "", rufname: "", zeichen: null }]));
+    if (nach === null) return;
+    oeffne(stelleId, "einheit");
+    angelegt.current = { nach, stelle: stelleId, zurueck: stelleId };
   }
   function loesche(id: string) {
     const s = inhalt.stellen.find((x) => x.id === id);
     if (!s) return;
     const r = { entfernt: 0 };
-    if (aendere((p) => { const x = loescheStelle(p, id); r.entfernt = x.entfernt; return x.inhalt; }) !== null) return;
+    const nach = tueMit((p) => { const x = loescheStelle(p, id); r.entfernt = x.entfernt; return x.inhalt; });
+    if (nach === null) return;
     setAuswahl(s.eltern);
     setFlyin(null);
     flaeche.current?.fokus();
     const weitere = r.entfernt - 1;
-    setHinweis({ rueckgaengig: true, text: `„${s.titel.trim() || "(ohne Titel)"}“ gelöscht${weitere > 0 ? ` samt ${weitere} ${weitere === 1 ? "weiterer Stelle" : "weiteren Stellen"}` : ""}.` });
+    setHinweis({ nach, text: `„${s.titel.trim() || "(ohne Titel)"}“ gelöscht${weitere > 0 ? ` samt ${weitere} ${weitere === 1 ? "weiterer Stelle" : "weiteren Stellen"}` : ""}.` });
   }
   function rueck() { if (kannRueckgaengig(verlauf)) uebernimm(rueckgaengig(verlauf), true); }
   function wieder() { if (kannWiederholen(verlauf)) uebernimm(wiederholen(verlauf), true); }
@@ -184,6 +217,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     if (speicherer.pruefeStand(s) !== "uebernommen") return;
     if (s.inhalt === null) { window.location.reload(); return; }
     setVerlauf(neuerVerlauf(s.inhalt));
+    pruefeAuswahl(s.inhalt);
     setAngaben(s.angaben); setAngabenFremd((n) => n + 1);
     setLinien((n) => n + 1);
   }
@@ -246,7 +280,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     return true;
   }
   function klick(id: string | null, doppelt: boolean) {
-    if (id === null) { setAuswahl(null); return; }
+    if (id === null) { setAuswahl(null); if (flyin === "stelle") setFlyin(null); return; }
     if (doppelt || (id === gewaehlt && flyin === null)) oeffne(id);
     else { setAuswahl(id); zeigeNach.current = id; } // jede Auswahl: Karte samt Griffen ins Bild (eingepasst: nichts zu tun)
   }
@@ -292,7 +326,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
 
   const meldung = hinweis ? (
     <Alert type="warning" showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
-      action={hinweis.rueckgaengig ? <Button onClick={() => perKnopf(rueck)}>Rückgängig</Button> : undefined} />
+      action={hinweis.nach !== undefined && hinweis.nach === verlauf.jetzt ? <Button onClick={() => perKnopf(rueck)}>Rückgängig</Button> : undefined} />
   ) : speicherZustand.status === "fehler" && speicherZustand.fehler ? (
     <Alert type="warning" showIcon title={speicherZustand.fehler}
       action={<Button onClick={() => void speicherer.erneut()}>Erneut versuchen</Button>} />
@@ -326,7 +360,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
       <Legende eintraege={eintraege} />
       <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
       {gewaehlt !== null ? (
-        <StelleFlyin offen={flyin === "stelle"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
+        <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
           symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} fokus={fokus} titelRef={titelRef}
           onLoeschen={() => loesche(gewaehlt)} onFertig={schliesseFlyin} />
       ) : null}

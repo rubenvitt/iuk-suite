@@ -37,6 +37,19 @@ async function taste(key: string, mehr: KeyboardEventInit = {}, ziel?: Element) 
 }
 const knopf = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text)!;
 const flaecheFokussiert = () => document.activeElement === query(".kp-betrachter");
+const rueckImHinweis = () => queryAll<HTMLButtonElement>(".kp-betrachter [data-meldung] button").find((b) => b.textContent === "Rückgängig");
+const flyinOffen = () => existsPortal("[data-flyin-stelle]");
+const einheiten = () => queryAll("[data-einheit]").length;
+/** Klick ins Leere der Zeichenfläche (kein Kartenrechteck). */
+async function klickeLeer() {
+  uhr += 10_000;
+  await act(async () => { const f = query(".kp-betrachter svg[role=img]"); zeiger(f, "pointerdown", uhr); zeiger(f, "pointerup", uhr + 10); });
+}
+/** Esc im Flyin: die Schublade schließt über ihre eigene Tastenbehandlung. */
+async function escImFlyin() {
+  await taste("Escape", {}, queryPortal('input[name="titel"]'));
+  await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+}
 /** Wie `fill` aus dem Harness, aber für ein Element im Portal (Flyin): `fill` sucht nur im Wirt. */
 async function schreibe(el: HTMLInputElement, wert: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
@@ -135,6 +148,9 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(karten()).toHaveLength(3);
     await taste("Z", { metaKey: true, shiftKey: true }, document.body);
     expect(karten()).toHaveLength(4);
+    const neu = karten().find((k) => !["el", "a", "s"].includes(k))!;
+    await waehle(neu);
+    await taste("F2", {}, query(".kp-betrachter"));
     await taste("z", { ctrlKey: true }, queryPortal('input[name="titel"]'));
     expect(karten()).toHaveLength(4);
   });
@@ -234,6 +250,154 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(window.open).toHaveBeenCalledWith("", "_blank");
     expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(1);
     expect(fenster.location.href).toBe("/p/p1/druck/a4");
+  });
+  it("Drucken, wenn das Speichern misslingt: Fenster wieder zu, Hinweis, kein Druck des alten Serverstands", async () => {
+    const fenster = { location: { href: "" }, close: vi.fn() };
+    vi.spyOn(window, "open").mockReturnValue(fenster as unknown as Window);
+    aktionen.speichereInhaltAction.mockRejectedValue(new Error("offline"));
+    await zeige();
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    await clickElement(knopf("Drucken (A4 quer)"));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(fenster.close).toHaveBeenCalled();
+    expect(fenster.location.href).toBe("");
+    expect(window.open).toHaveBeenCalledTimes(1);
+    expect(query(".kp-betrachter [data-meldung]").textContent).toContain("Vor dem Drucken ließ sich nicht speichern.");
+  });
+  it("Ungespeichertes hält das Schließen des Tabs auf (Entscheidung 11); ohne Änderung nicht", async () => {
+    const schliessen = () => { const e = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; };
+    await zeige();
+    expect(schliessen()).toBe(false);
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    expect(schliessen()).toBe(true);
+  });
+  it("wieder online nach einem Netzfehler: sofort erneut senden", async () => {
+    vi.useFakeTimers();
+    aktionen.speichereInhaltAction.mockRejectedValueOnce(new Error("offline"));
+    await zeige();
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(query(".kp-speicherstatus").textContent).toBe("Nicht gespeichert");
+    await act(async () => { window.dispatchEvent(new Event("online")); await vi.advanceTimersByTimeAsync(0); });
+    expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(2);
+    expect(query(".kp-speicherstatus").textContent).toBe("Gespeichert 11:00");
+  });
+  it("Griffe „+ Einheit“ und „+“ rechts: legen an, was sie sagen", async () => {
+    await zeige();
+    await waehle("a");
+    expect(einheiten()).toBe(0);
+    await clickElement(query('[data-griff="einheit"]'));
+    expect(einheiten()).toBe(1);
+    expect(existsPortal('[data-flyin-stelle="a"]')).toBe(true);
+    await escImFlyin();
+    await waehle("a");
+    await clickElement(query('[data-griff="rechts"]'));
+    const neu = karten().find((k) => !["el", "a", "s"].includes(k))!;
+    expect(neu).toBeDefined();
+    expect(queryPortal<HTMLInputElement>('input[type="radio"][value="rechts"]').checked).toBe(true);
+    expect(queryPortal("[data-flyin-stelle]").getAttribute("data-flyin-stelle")).toBe(neu);
+  });
+  it("Esc nach einem Griff ohne jede Eingabe: das leere Element verschwindet wieder, ohne Wiederholen-Schritt", async () => {
+    await zeige();
+    await waehle("a");
+    await clickElement(query('[data-griff="einheit"]'));
+    expect(einheiten()).toBe(1);
+    await escImFlyin();
+    expect(einheiten()).toBe(0);
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    expect(karten()).toHaveLength(4);
+    await escImFlyin();
+    expect(karten()).toHaveLength(3);
+    expect(exists('[data-griffe="a"]')).toBe(true); // die Auswahl kehrt zur Elternstelle zurück
+    expect(knopf("Wiederholen").disabled).toBe(true);
+    expect(flyinOffen()).toBe(false);
+  });
+  it("… mit Eingabe bleibt es stehen; Enter („fertig“) behält auch ein leeres", async () => {
+    await zeige();
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "Trupp");
+    await escImFlyin();
+    expect(karten()).toHaveLength(4);
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    await taste("Enter", {}, queryPortal('input[name="titel"]'));
+    expect(karten()).toHaveLength(5);
+  });
+  it("Abwählen schließt das Flyin ganz: danach öffnet weder ein Pfeil noch ein Einfachklick es wieder (Review Phase 2)", async () => {
+    await zeige();
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    expect(flyinOffen()).toBe(true);
+    await klickeLeer();
+    expect(flyinOffen()).toBe(false);
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("ArrowDown");
+    expect(exists('[data-griffe="el"]')).toBe(true);
+    expect(flyinOffen()).toBe(false);
+  });
+  it("… ebenso, wenn Rückgängig die gewählte Stelle entfernt", async () => {
+    await zeige();
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "Neu");
+    expect(flyinOffen()).toBe(true);
+    await clickElement(knopf("Rückgängig"));
+    await clickElement(knopf("Rückgängig"));
+    expect(karten()).toHaveLength(3);
+    expect(flyinOffen()).toBe(false);
+    await waehle("el");
+    expect(flyinOffen()).toBe(false);
+  });
+  it("… ebenso, wenn der Serverstand beim Montieren still übernommen wird und die gewählte Stelle fehlt", async () => {
+    let loese: (s: unknown) => void = () => {};
+    aktionen.ladeStandAction.mockImplementation(() => new Promise((r) => { loese = r; }));
+    await zeige();
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    expect(flyinOffen()).toBe(true);
+    await act(async () => { loese({ version: 5, inhalt: baue({ stellen: [{ id: "el", titel: "EL" }, { id: "b", titel: "EA 2", eltern: "el" }] }), angaben: plan().angaben, aktualisiertAm: 0, aktualisiertVon: "Jana" }); });
+    expect(flyinOffen()).toBe(false);
+    await waehle("b");
+    expect(flyinOffen()).toBe(false);
+  });
+  it("Lösch-Hinweis: „Rückgängig“ nur, solange die Löschung der letzte Schritt ist (Review Phase 2)", async () => {
+    await zeige();
+    expect(rueckImHinweis()).toBeUndefined();
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("Delete");
+    expect(query(".kp-betrachter [data-meldung]").textContent).toContain("„EA 1“ gelöscht.");
+    expect(rueckImHinweis()).toBeDefined();
+    await waehle("el");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    await schreibe(queryPortal<HTMLInputElement>('input[name="titel"]'), "ELX");
+    expect(query(".kp-betrachter [data-meldung]").textContent).toContain("„EA 1“ gelöscht.");
+    expect(rueckImHinweis()).toBeUndefined();
+    await clickElement(knopf("Rückgängig")); // der Kopfleiste: erst das Tippen, dann die Löschung
+    expect(karten()).not.toContain("a");
+    await clickElement(knopf("Rückgängig"));
+    expect(karten()).toContain("a");
+  });
+  it("Umhängen unter eine eingeklappte Stelle klappt sie auf: die bearbeitete Stelle bleibt sichtbar", async () => {
+    const mitTrupp = baue({ stellen: [{ id: "el", titel: "EL" }, { id: "a", titel: "EA 1", eltern: "el" }, { id: "b", titel: "EA 2", eltern: "el" }, { id: "b1", titel: "Trupp", eltern: "b" }] });
+    await zeige(plan(mitTrupp));
+    await clickElement(query('[data-umschalter="b"]'));
+    expect(karten()).not.toContain("b1");
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    const label = [...document.querySelectorAll("label")].find((l) => l.textContent === "Elternstelle")!;
+    await act(async () => { document.getElementById(label.htmlFor)!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+    await clickElement([...document.querySelectorAll<HTMLElement>(".ant-select-item-option")].find((o) => o.textContent === "EA 2")!);
+    expect(karten()).toEqual(expect.arrayContaining(["a", "b1"]));
   });
   it("ein offenes Flyin hält seine Breite im Seitenfluss frei: Kopfleiste und Hinweise bleiben erreichbar", async () => {
     await zeige();

@@ -40,5 +40,11 @@ export function wiederholen(v: Verlauf): Verlauf {
   return { vergangen: [...v.vergangen, v.jetzt], jetzt: v.zukunft[0], zukunft: v.zukunft.slice(1), buendel: null };
 }
 
+/** Den letzten Schritt verwerfen, OHNE ihn zum Wiederholen anzubieten (Esc nach einem unberührten Griff). */
+export function verwirf(v: Verlauf): Verlauf {
+  if (v.vergangen.length === 0) return v;
+  return { vergangen: v.vergangen.slice(0, -1), jetzt: v.vergangen[v.vergangen.length - 1], zukunft: v.zukunft, buendel: null };
+}
+
 export const kannRueckgaengig = (v: Verlauf) => v.vergangen.length > 0;
 export const kannWiederholen = (v: Verlauf) => v.zukunft.length > 0;
