@@ -4,7 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { Button, Input } from "antd";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { symbolId, type Symbolsatz } from "../zeichnung/Symbole";
-import { sucheZeichen } from "./suche";
+import { SUCHBEISPIELE, sucheZeichen } from "./suche";
 import { leseZuletzt, merkeZuletzt } from "./zuletzt";
 
 /**
@@ -47,7 +47,7 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
     <div className="kp-zeichenwahl">
       <p className="kp-hilfe" id={`${basis}-jetzt`}>{wert ? `Gewählt: ${titel.get(wert) ?? wert}` : "Kein Zeichen gewählt — die Karte trägt dann nur den Titel."}</p>
       {/* Enter wählt den ersten Treffer (leere Anfrage: den ersten Vorschlag), ↓ springt ins Raster (Kritik: sonst Tab für Tab). */}
-      <Input aria-label="Zeichen suchen" aria-describedby={`${basis}-jetzt`} value={anfrage} onChange={(e) => suche(e.target.value)} placeholder="z. B. Einsatzleitung, Rettungswagen, D.1.4" allowClear
+      <Input aria-label="Zeichen suchen" aria-describedby={`${basis}-jetzt`} value={anfrage} onChange={(e) => suche(e.target.value)} placeholder={`z. B. ${SUCHBEISPIELE.join(", ")}`} allowClear
         onPressEnter={(e) => { e.preventDefault(); const erster = anfrage.trim() === "" ? vorschlaege[0] : treffer[0]?.schluessel; if (erster) waehle(erster); }}
         onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); raster.current?.querySelector<HTMLButtonElement>("[data-zeichen]")?.focus(); } }} />
       {anfrage.trim() === "" && vorschlaege.length > 0 ? (

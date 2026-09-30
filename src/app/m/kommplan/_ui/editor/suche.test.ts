@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sucheZeichen } from "./suche";
+import { zeichenIndex } from "../../_lib/zeichen/zeichen";
+import { LANGFORMEN, SUCHBEISPIELE, sucheZeichen } from "./suche";
 
 const INDEX = [
   { schluessel: "rezept:D.1.4", titel: "Einsatzleitung im Einsatz", suchtext: "einsatzleitung d.1.4" },
@@ -18,5 +19,16 @@ describe("Zeichen-Suche", () => {
   it("leere Anfrage: nichts; höchstens max Treffer", () => {
     expect(sucheZeichen(INDEX, "   ")).toEqual([]);
     expect(sucheZeichen(INDEX, "e", 2)).toHaveLength(2);
+  });
+  it("jedes Beispiel im Platzhalter findet im echten Index etwas (Review Phase 2: „Rettungswagen“ fand nichts)", () => {
+    const index = zeichenIndex();
+    for (const beispiel of SUCHBEISPIELE) expect(sucheZeichen(index, beispiel).length, beispiel).toBeGreaterThan(0);
+    expect(sucheZeichen(index, "rettungswagen")[0].titel).toBe("RTW");
+    expect(sucheZeichen(index, "RTW")[0].titel).toBe("RTW");
+    expect(sucheZeichen(index, "Krankentransportwagen").map((e) => e.titel)).toEqual(["KTW", "NKTW"]);
+  });
+  it("Langformen nur für Zeichen, die es gibt", () => {
+    const schluessel = new Set(zeichenIndex().map((e) => e.schluessel));
+    for (const k of Object.keys(LANGFORMEN)) expect(schluessel.has(k), k).toBe(true);
   });
 });
