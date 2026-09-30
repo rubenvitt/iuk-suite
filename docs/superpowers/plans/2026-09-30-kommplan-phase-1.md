@@ -7377,3 +7377,11 @@ Zweite Fassung nach dem Review vom 30.09.2026. Jeder Befund ist am Code bzw. am 
 | 20 | Prüfung zu nachsichtig (Berühren, Kante, Mindestabstand, Sechseck-Ausnahme) | `ueberlappen`/`durchsticht` streng, Ausnahme `k.netz === l.netz` für jede Strecke des Netzes | eingearbeitet: 2 mm zwischen Kästen verschiedener Stellen, 0,75 mm zwischen parallelen Linien verschiedener Netze, Linie auf fremder Kante ist ein Befund, Sechseck-Ausnahme nur für den waagerechten Zweig durch seine Mitte (gewählt statt eines Netzes je Seitenzweig — der Zweig hängt an einer Schiene). Damit das Packen die 2 mm selbst einhält, zählt `kontur.abstand` Stufen mit weniger als 2 mm Höhenabstand als überlappend (`LUFT_Y`, Task 6) — sonst meldete die Prüfung, was die Engine baut |
 | 21 | Leerer Titel ungetestet, Platzhalter druckt | `titelVoll = … "(ohne Titel)"` lief in `umbrechen` und damit aufs Papier | eingearbeitet als **Abweichung 15**: leere Titelzeile mit Mindestkopf; Platzhalter nur in `<title>` und `aria-label`; Test mit `""` und `"   "`, Generator erzeugt leere Titel (Task 5, 11, 14, 20) |
 | 22 | Kammkinder mit Teilbäumen landen auf Enkelhöhe; Rücken an der ganzen Kontur | `oben += max(t.unten) + 8`, `ruecken = minX(s.kontur) − 3` | eingearbeitet (erste Alternative): nur Gruppen aus Blattkindern kämmen (`kammfaehig` über die Sicht, auch Verweise und Eingeklappte zählen als Blatt). Damit besteht die Kontur einer Kammgruppe nur aus Zeilenblöcken, der Rücken richtet sich also von selbst an ihnen aus. Test „12 EAL mit je 3 EA auf dem Bildschirm → eine Reihe" (Task 7, 9, 11) |
+
+## Abweichungen bei der Umsetzung
+
+Was sich erst am laufenden Code zeigte. Jede Zeile nennt die Aufgabe, in der die Entscheidung fiel.
+
+| # | Aufgabe | Befund | Entscheidung |
+|---|---|---|---|
+| U1 | 5 | `sechseckMass` kürzt die Beschriftung auf `maxBreite − FEST`; die gekürzte Zeile bleibt je nach Zeichenbreite ein paar Zehntel darunter, das Sechseck also schmaler als 44 mm (Test erwartet genau `maxBreite`) | gekürzt heißt „braucht die ganze Breite": das Sechseck steht dann auf `maxBreite` |
