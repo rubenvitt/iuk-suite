@@ -11,7 +11,7 @@ const notiz: Releasenotiz = {
     absatz(
       "Unter „Kommunikationspläne“ siehst du Kommunikationspläne und Fernmeldeskizzen als Diagramm, das sich selbst anordnet. " +
         "Du kannst hineinzoomen, Stellen einklappen und jeden Plan über „Drucken (A4 quer)“ ausgeben oder als PDF sichern. " +
-        "Anlegen und bearbeiten kannst du Pläne noch nicht; dabei hilft der Betrieb.",
+        "Anlegen und bearbeiten kannst du Pläne noch nicht.",
     ),
   ],
 };
