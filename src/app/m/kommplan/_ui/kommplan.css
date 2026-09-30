@@ -93,3 +93,24 @@
 
 .kp-schalter { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .kp-verbindung { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
+
+/*
+ * Editor: Griffe über der Fläche. `.kp-griffe .kp-griff-seite` mit einer Klasse mehr, weil antds
+ * `.ant-btn` (gleiche Spezifität, später geladen) `position: relative` setzt (Falle 5); keine Regel
+ * gegen einen `.ant-*`-Namen (Falle 20). Die Griffleiste bricht um statt überzulaufen (Kritik).
+ */
+.kp-griffe { position: absolute; inset: 0; }
+.kp-griffe-karte { position: absolute; }
+.kp-griffe button { pointer-events: auto; }
+.kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl); border-radius: 4px; pointer-events: none; }
+.kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; }
+.kp-griffe .kp-griff-links { right: calc(100% + 8px); }
+.kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
+.kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; }
+.kp-leer { padding: 16px; display: grid; gap: 12px; justify-items: start; }
+.kp-hinweis { margin-block-end: 8px; }
+.kp-kopfwerkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Fester Platz für den Status (Entscheidung 19): die Leiste bricht beim Autosave nicht um. */
+.kp-speicherstatus { font-size: 13px; color: var(--kp-gedaempft); min-width: 18ch; white-space: nowrap; }
+.kp-bedienhinweis { margin-block: 8px 0; }
+@media (max-width: 767.98px) { .kp-kopfwerkzeuge > * { flex: 1 1 auto; } }
