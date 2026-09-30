@@ -4,7 +4,7 @@
 
 **Goal:** Das Modul `kommplan` steht mit Registry, Zugang, eigener Datenbank (alle Tabellen aus Spec §4.1), Zeichen-Generat, einer vollständigen, deterministischen Layout-Engine (Spec §5), einem nur lesenden Betrachter mit Zoom/Verschieben/Einklappen, einer Planliste, der Druckroute A4 quer, Beispielplänen im lokalen Seed und einer Release-Notiz.
 
-**Architecture:** Ein Plan ist ein JSON-Dokument (zod, `schema: 1`). `layout(inhalt, ziel)` in `_lib/layout/` ist eine reine, synchrone Funktion, die Server (Druck) und Client (Betrachter) teilen: Textmessung mit Arimo-Metriken → Kartenmaße → Teilbäume mit Skyline-Konturen (Reingold-Tilford, gierig von links) → Busgruppen je Verbindung mit eigenem Stiel → Seitenstellen → Einheitenspalten → Kamm-Umbruch → Papiermaßstab und Aufteilung. Ein reiner SVG-Renderer (`_ui/zeichnung/`, ohne `"use client"`) zeichnet das Ergebnis; Zeichen stehen je einmal als `<symbol>` in `<defs>`. Die `@einsatzzeichen`-Pakete sind nur `devDependencies`: ein Skript erzeugt zwei eingecheckte JSON-Generate (Rezept-SVGs nur für den Server, Metriken und Piktogramme für beide Seiten).
+**Architecture:** Ein Plan ist ein JSON-Dokument (zod, `schema: 1`). `layout(inhalt, ziel)` in `_lib/layout/` ist eine reine, synchrone Funktion, die Server (Druck) und Client (Betrachter) teilen: Textmessung mit Arimo-Metriken → Kartenmaße (samt Kanal-Sechsecken und Einheitenspalte) → Teilbäume mit Skyline-Konturen (Reingold-Tilford, gierig von links) → Busgruppen je Verbindung mit eigenem Stiel → Seitenstellen → Kamm-Umbruch nach Breite über die ganze Kinderreihe einer Stelle → Papiermaßstab und Aufteilung per Ebenenschnitt. Ein reiner SVG-Renderer (`_ui/zeichnung/`, ohne `"use client"`) zeichnet das Ergebnis; Zeichen stehen je einmal als `<symbol>` in `<defs>`. Die `@einsatzzeichen`-Pakete sind nur `devDependencies`: ein Skript erzeugt zwei eingecheckte JSON-Generate (Rezept-SVGs nur für den Server, Metriken und Piktogramme für beide Seiten).
 
 **Tech Stack:** Next.js 16 (App Router, RSC), React 19, TypeScript 6, zod 4, Drizzle + better-sqlite3, antd 6, Vitest 4, Playwright, `@einsatzzeichen/catalog` 1.5.0 / `core` 3.0.0 / `schema` 3.0.0 (dev).
 
@@ -16,36 +16,42 @@
 
 - Arbeitsverzeichnis ausschließlich `/Users/rubeen/dev/personal/drk/iuk-suite/.claude/worktrees/drk-363-8c5335`; nie `cd` ins Haupt-Repo. Nicht pushen.
 - Deutsche Texte mit echten Umlauten; Bezeichner, Datei- und Branchnamen ASCII (`~/.claude/CLAUDE.md`).
-- `CLAUDE.md` gilt vollständig: Fallen 1–23, Dreieck, Zeitzone, Kommentaranker, Release Notes, Tests. Besonders: Falle 1 (kein antd-Compound in RSC), 6 (Werte für Server Components nie aus `"use client"`), 7 (keine `@ant-design/icons` in RSC), 9 (keine `render`-Funktionen über die RSC-Grenze), 14/17 (`Datentabelle`, Spaltentitel als Zeichenkette), 18 (`@page` mit ausgeschriebenen Kantenlängen, benannt), 21 (`NODE_ENV` wird eingebacken), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (Zugang im `layout.tsx` oberhalb jeder `loading.tsx`).
+- `CLAUDE.md` gilt vollständig: Fallen 1–23, Dreieck, Zeitzone, Kommentaranker, Release Notes, Tests. Besonders: Falle 1 (kein antd-Compound in RSC), 6 (Werte für Server Components nie aus `"use client"`), 7 (keine `@ant-design/icons` in RSC), 9 (keine `render`-Funktionen über die RSC-Grenze), 12 (`klickeWennRuhig`/`warteAufSpaltenaufteilung` in der e2e, die Seiten stehen in der FullShell), 14/17 (Listen über `Kartentabelle` aus `core/tabelle`, Spaltentitel als Zeichenkette), 18 (`@page` mit ausgeschriebenen Kantenlängen, benannt, `page:` am gemeinsamen Vorfahren), 21 (`NODE_ENV` wird eingebacken), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (Host, Zugang **und** das objektbezogene 404 eines Plans im `layout.tsx` oberhalb jeder `loading.tsx`: `(intern)/layout.tsx` und `(intern)/p/[id]/layout.tsx`).
+- `docs/design/README.md` gilt für jede Oberfläche: eine Liste von Datensätzen ist eine `Kartentabelle` (`aria-label`, `rowKey`, `leer`), Chips tragen Fläche und Text als Paar (nie antds `Tag`-Vorgabe), eigenes Markup nimmt `--kp-*`/`--iuk-*`, nie `--ant-*`.
 - Vor dem ersten Code, der eine Next-API benutzt, den passenden Guide unter `node_modules/next/dist/docs/` lesen (mindestens `01-app/03-api-reference/02-components/font.md` für `next/font/local`, dazu die Guides zu Route Groups, dynamischen Segmenten und `params` als `Promise`).
-- `@einsatzzeichen/*` sind **nur** `devDependencies`. Keine Laufzeitdatei unter `src/app/m/kommplan` importiert sie (Befund M1: Build bricht). Ausschließlich `scripts/kommplan-zeichen-generat.ts` und `*.test.ts` dürfen es. `src/app/m/kommplan/grenze.test.ts` hält das.
-- `_lib/zeichen/zeichen.generiert.json` (Rezept-SVGs, groß) wird nur von `_lib/zeichen/zeichen.ts` gelesen, und diese Datei nur von Server-Code (Seiten, `_lib`). Der Betrachter bekommt nur die Symbole, die sein Plan benutzt, als Prop.
+- `@einsatzzeichen/*` sind **nur** `devDependencies` (im Workspace-Root: `pnpm add -D -w …`). Keine Laufzeitdatei unter `src/app/m/kommplan` importiert sie, in keiner Form (`from`, Seiteneffekt-`import "…"`, `import(…)`, `require`; Befund M1: Build bricht). Ausschließlich `scripts/kommplan-zeichen-generat.ts` und `*.test.ts` dürfen es. `src/app/m/kommplan/grenze.test.ts` hält das.
+- `_lib/zeichen/zeichen.generiert.json` (Rezept-SVGs, rund 220 KB) wird nur von `_lib/zeichen/zeichen.ts` gelesen, und keine Client-Insel erreicht diese Datei — auch nicht über einen `_lib`-Helfer dazwischen (`grenze.test.ts` verfolgt die Importe transitiv). Der Betrachter bekommt nur die Symbole, die sein Plan benutzt, als Prop.
 - Alle Maße der Layout-Engine sind **Layout-Millimeter bei Maßstab 1**, Schriftgrößen in pt (1 pt = 25,4/72 mm). Kleinste Schrift in der Zeichnung ist 8 pt, Mindestschrift auf Papier 6 pt → Mindestmaßstab 0,75.
 - Die Layout-Engine ist rein und synchron: kein `Date`, kein `Math.random`, kein DOM, keine Zeitzone. Gleiche Daten → gleiches Bild, unabhängig von der Reihenfolge des Arrays `stellen` (sortiert wird nach `reihenfolge`, dann `id`).
 - Alle `notFound()`/`redirect()` stehen in `_lib/*.ts`, nie in `page.tsx`/`layout.tsx` (sonst verlangt `core/audit/coverage`-Manifest Einträge).
-- Kommentaranker in neuem Code nennen **Namen**, nie Zeilen (`pnpm anker:neu` bricht die CI). Beim Einfügen in `src/core/registry.ts` so wenige Zeilen wie möglich hinzufügen; fremde Anker dort **nicht** nachziehen (eine nachgezogene Zahl zählt für `anker:neu` als neu).
+- Kommentaranker in neuem Code nennen **Namen**, nie Zeilen (`pnpm anker:neu` bricht die CI). **Jede Datei, in die dieser Plan Zeilen einfügt** (`src/core/registry.ts`, `src/core/bootstrap.ts`, `src/core/shell/icons.ts`, `src/core/audit/types.ts`, `src/core/audit/catalog.ts`, `src/app/m/portal/admin/audit/labels.ts`, `scripts/seed-lokal.ts`, `playwright.config.ts`, `Dockerfile`, `.env.example`, `src/app/m/portal/_lib/neuigkeiten/register.ts`), bekommt vor ihrem Commit den **Ankerschritt**: `git grep -n "<dateiname>:[0-9]" -- src scripts e2e` sowie `pnpm anker:drift <datei>`; jeder Anker, der **vor** der Einfügung zutraf und hinter der Einfügestelle liegt, wird in derselben Zeile in die Namensform umgeschrieben (`bootstrap.ts`, `assertHostConfig`). Nie eine Zahl nachziehen (zählt für `anker:neu` als neu), nie eine Zeile dazu oder weg (Kommentaranker-Regel 4). Schon vorher veraltete Anker bleiben, wie sie sind — sie sind nicht Teil dieser Arbeit. Stand der Planung: in `registry.ts` trifft hinter der Einfügestelle keiner mehr zu; in `bootstrap.ts` treffen sechs zu (Task 18, Step 4).
 - Nie `timeZone` als Literal auf Modulebene. „Stand" über `zeitFormat("de-DE", …)` aus `core/zeit`; `plan.datum` ist ein Kalendertag (Mitternacht UTC) und wird im Funktionsaufruf mit `timeZone: "UTC"` formatiert (die Ausnahme aus `CLAUDE.md`).
 - Signierte Commits (`git commit -S`), Kopfzeile `feat(kommplan): …` für neue Funktion, sonst `test`/`chore`/`docs`. Body mit Zeile `DRK-500` und am Ende `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Last: andere Sessions laufen parallel. Vor dem Urteil über einen roten Test `uptime` prüfen; bei Load > 10 die betroffene Datei einzeln fahren. Fremde Prozesse nie beenden. Kein `pnpm dev` offen lassen.
-- Tore vor dem Abschluss: `pnpm typecheck` · `pnpm lint` · `pnpm vitest run` · `pnpm build` · `pnpm exec playwright test e2e/kommplan.spec.ts`. Jede Aufgabe, die Routen anlegt, fährt zusätzlich `pnpm build` (Routenbaum-Konflikte sieht nur der Build).
+- Tore vor dem Abschluss: `pnpm typecheck` · `pnpm lint` · `pnpm vitest run` · `pnpm build` · `pnpm exec playwright test e2e/kommplan.spec.ts`. Jede Aufgabe, die Routen anlegt, fährt zusätzlich `pnpm build` (Routenbaum-Konflikte sieht nur der Build). **Jeder Commit besteht `pnpm typecheck`** — keine Aufgabe verschiebt einen roten Typecheck auf eine spätere.
 
 ## Abweichungen von der Spec (bewusst, hier entschieden)
 
-1. **Zwei Generate statt einem** (§7): `zeichen.generiert.json` (alle Rezepte mit SVG, nur Server) und `grundlagen.generiert.json` (Arimo-Metriken, Kommunikations- und Kontaktpiktogramme, klein, Server und Client). Grund: der Betrachter rechnet das Layout im Browser und braucht die Metriken, aber nicht 380 KB Rezept-SVGs (Befund M5).
+1. **Zwei Generate statt einem** (§7): `zeichen.generiert.json` (alle Rezepte mit SVG, nur Server) und `grundlagen.generiert.json` (Arimo-Metriken, Kommunikations- und Kontaktpiktogramme, klein, Server und Client). Grund: der Betrachter rechnet das Layout im Browser und braucht die Metriken, aber nicht rund 220 KB Rezept-SVGs (Befund M5; gemessen mit catalog 1.5.0/core 3.0.0: 222 KB für 232 Hauptrezepte).
 2. **Zusatzzeichen** (§7 „alle Rezepte"): Das Generat trägt zusätzlich vier Zeichen `zusatz:eal`, `zusatz:ea`, `zusatz:stab`, `zusatz:oel`, komponiert aus dem Katalog (`kind: "formation"`, `organization: "fuehrung-leitung"`, Mittenbeschriftung). Der Katalog kennt „EAL" nur als „Einsatzabschnittsleitung **Nord**" (D.1.5) und „Stab" nur als THW-Zeichen (E.1.21); die Vorlagen brauchen beide ohne Zusatz. Die Leitstelle (LtS) hat keine Entsprechung und bleibt ohne Zeichen (§7, letzter Punkt).
 3. **Kontaktpiktogramme** (§7): Digitalfunk (`comms.handheld-radio-terminal`) und Fax (`comms.fax-transmission`) kommen aus dem Katalog; Funkrufname (Raute wie in der Vorlage), Telefon, Mobil, E-Mail und Sonstiges sind fünf kleine, im Generatorskript festgeschriebene SVGs, weil der Katalog dafür nichts hat.
 4. **Mehrere Seitenstellen auf derselben Seite** (§5.3 sagt nur „links oder rechts"): sie stapeln sich untereinander an einer senkrechten Schiene 3 mm neben der Elternstelle; jede hat ihren eigenen Zweig mit eigenem Sechseck.
 5. **Stiel je Gruppe mit gestaffelten Knicken** (§5.2): jede Busgruppe hat einen eigenen Stiel, der an der Kartenunterkante beginnt. Liegt das Sechseck der Gruppe nicht unter ihrem Ansatzpunkt, knickt der Stiel waagerecht ab; äußere Gruppen knicken höher als innere. Hat die Karte Einheiten, laufen die Stiele in einer Gasse links neben der Einheitenspalte (wie in der Vorlage OpenR bei EA 1). Diese Regel schließt Kreuzungen aus (Beweisskizze in Task 9).
-6. **Die Hülle (`Shell`) sitzt in den Seiten, nicht im Layout**: die Druckroute `/[id]/druck/a4` darf keine Hülle haben und teilt sich das Segment `[id]` mit dem Betrachter. Ein gemeinsames Layout `(intern)/layout.tsx` hält nur Host- und Zugangsriegel.
+6. **Die Hülle (`Shell`) sitzt in den Seiten, nicht im Layout**: die Druckroute `/p/[id]/druck/a4` darf keine Hülle haben und teilt sich das Segment `p/[id]` mit dem Betrachter. Ein gemeinsames Layout `(intern)/layout.tsx` hält nur Host- und Zugangsriegel, `(intern)/p/[id]/layout.tsx` dazu das 404 des Plans (Falle 23).
 7. **Audit** (in dieser Migration festgelegt, damit Phase 2 und 5 keine Migration umbauen): `plan` wird vollständig auditiert — jede gespeicherte Änderung, also auch jedes Autosave in Phase 2, ist eine Audit-Zeile (No-op-Updates unterdrückt das Trigger-Prädikat). `freigabe.zuletzt_abgerufen` und `freigabe.abrufe` sind `unauditedColumns` (reine Abrufzähler; Ausstellen und Widerrufen bleiben auditiert).
 8. **Host-Riegel** (nicht in der Spec): wie `einsatzbuch` liefert das Modul nur auf seinem eigenen Host (`kommplan.localtest.me`, `SUITE_HOST_KOMMPLAN`) aus; ein fremder Suite-Host bekommt 404.
 9. **`plan_freigabe` statt `freigabe`** (§4.1): die Audit-Oberfläche benennt Objekte allein über den Tabellennamen (`OBJECT_LABELS`), und `freigabe` heißt dort schon „Schlüsselfreigabe (Einsatzbuch)". Spalten wie in der Spec.
-10. **Einfüge-Eigenschaft präzisiert** (§10 „Einfügen einer Stelle verschiebt nichts links von ihr"): weil jede Elternstelle mittig über ihrer Busspanne steht, bewegt eine Einfügung die Vorfahren. Zugesichert wird: kein vorhandenes y ändert sich, und je Ebene behalten die Teilbäume der früheren Geschwister ihre Lage zueinander (Task 11).
+10. **Einfüge-Eigenschaft präzisiert** (§10 „Einfügen einer Stelle verschiebt nichts links von ihr"): weil jede Elternstelle mittig über ihrer Busspanne steht, bewegt eine Einfügung die Vorfahren. Zugesichert wird: kein vorhandenes y ändert sich, und je Ebene behalten die Teilbäume der früheren Geschwister ihre Lage zueinander — solange weder vorher noch nachher irgendwo ein Kamm umbricht (ein Kamm verteilt die Breite der ganzen Kinderreihe neu, das ist gewollt; Task 11).
+11. **Route `/m/kommplan/p/[id]` statt `/m/kommplan/[id]`** (§6.1): Auf dem eigenen Host schreibt `core/routing.ts` jeden Pfad außerhalb von `PASSTHROUGH` nach `/m/kommplan/<pfad>` um. Ein dynamisches Segment direkt unter der Modulwurzel finge `/robots.txt`, `/apple-touch-icon.png`, `/manifest.webmanifest` usw. ab: anonyme Abrufe liefen in den Zugangsriegel, würden zum Login umgeleitet und schrieben je Abruf eine `login_required`-Auditzeile. Außerdem teilten sich Plan-IDs den Namensraum mit den späteren statischen Segmenten `bibliothek` und `t` (§6.1). Mit dem Präfix `p/` (Vorbild `aufgaben/a/[id]`, `lagerbuch/a/[artikelId]`) gilt: `/p/[id]`, `/p/[id]/druck/a4`, später `/p/[id]/druck/a3`; `bibliothek` und `t/[token]` bleiben wie in der Spec. Kein anderes Modul hat heute ein dynamisches Segment direkt unter `/m/<key>`.
+12. **Kanäle einer Stelle** (§4.2, neues Feld `Stelle.kanaele: string[]`, Vorgabe `[]`): Die Vorlage OpenR hängt unter EA 1 „DMO 608" und „R_UE_2", unter EA 2 „DMO 609" und „R_UE_2", unter EA 3/4 „R_UE_2" — Kanäle, die die Stelle für ihre Fahrzeuge **benutzt**, ohne Gegenstelle. Das Spec-Modell kennt nur `verbindungId` (Weg zur Elternstelle) und nannte alles andere „Reserve"; ein Ausdruck „Reserve DMO 608" wäre fachlich falsch. `kanaele` sind Verbindungs-IDs; das Layout zeichnet sie als Sechsecke in der Gasse unter der Karte, über den Einheiten (wie die Vorlage), an einer eigenen senkrechten Linie (Netz `<stelle>#kanal`) ohne Bus. „Reserve" heißt in der Legende nur noch eine Verbindung, die weder als `verbindungId` noch als Kanal vorkommt. Es ist ein JSON-Feld, keine Migration.
+13. **Kamm präzisiert** (§5.5 „Überschreitet die Kinderreihe einer Stelle ein Breitenbudget …"): (a) gemessen wird die **Breite** (Zeilenblock je Kind: Karte samt Einheitenblock und Seitenstapeln), nicht die Kinderzahl; (b) das Budget gilt für die **ganze Kinderreihe** einer Stelle, über alle Busgruppen; (c) jede Gruppe kämmt unter ihrem eigenen Bus („unter demselben Bus"), die Gruppen stehen weiter nebeneinander; reicht das nicht, schrumpft deterministisch die breiteste Gruppe weiter; (d) es kämmen nur Gruppen, deren Kinder keine sichtbaren Unterstellen haben — eine Kammreihe unter Teilbäumen stünde auf der Höhe fremder Enkel (§5.2 „jede Baumtiefe ist eine Zeile"). Die Regel bleibt lokal (nur Kinderreihe und Budget), also keine globale Optimierung.
+14. **Aufteilung präzisiert** (§5.6 „Blatt 1 zeigt die oberen Ebenen … gierig nach Teilbaumgröße"): geschnitten wird **von der tiefsten Ebene her** — das größte D, bei dem das Blatt passt, gewinnt; innerhalb der Ebene gierig nach Teilbaumgröße. So hält Blatt 1 die oberen Ebenen, statt direkt unter der Wurzel zu schneiden. Blattnummern folgen der **Lesereihenfolge** (Tiefensuche in Anzeigereihenfolge, zweiter Durchlauf), also steigen die Verweisnummern auf einem Blatt von links nach rechts. Hat ein Blatt ohne Anker mehrere Wurzeln, sind die Wurzeln selbst Kandidaten (eigenes Blatt ohne Anker).
+15. **Leerer Titel** (§2 Handeintrag): eine Karte ohne Titel druckt eine leere Titelzeile mit Mindestkopfhöhe; der Platzhalter „(ohne Titel)" erscheint nur im Tooltip (`<title>`) und in Bildschirmbeschriftungen, nie auf dem Papier.
 
 ## Review Focus
 
 1. **Titel und Kontaktwerte ohne Leerzeichen** (E-Mail-Adressen, „Bereitstellungsraumkoordination") und **Zeichen außerhalb des Arimo-Subsets** (Emoji, CJK) → Umbruch an `-`, `/`, `@`, `.`, `_` oder hart, höchstens drei Titelzeilen mit „…", voller Text im Tooltip, kein Wurf; unbekannte Zeichen werden mit der Breite von U+FFFD geschätzt. Gepinnt in `text.test.ts` (Task 2) und `karte.test.ts` (Task 5).
-2. **Eine Stelle mit 30 Einheiten, drei Seitenstellen auf einer Seite oder zwölf Kindern an einer Verbindung** → zwei Einheitenspalten, Seitenstapel, Kamm; nichts überlappt, nichts kreuzt, die Zeile wird höher, das Papier skaliert oder teilt auf. Gepinnt in `teilbaum.test.ts` (Task 9), `eigenschaften.test.ts` (Task 11) und `papier.test.ts` (Task 12).
+2. **Eine Stelle mit 30 Einheiten, drei Seitenstellen auf einer Seite, zwölf Kindern an einer Verbindung, mehreren Verbindungen mit je wenigen Kindern oder breiten Kindern (zwei Einheitenspalten, Seitenstellen)** → zwei Einheitenspalten, Seitenstapel, Kamm nach Breite über die ganze Kinderreihe; nichts überlappt, nichts kreuzt, alles ist angebunden, die Zeile wird höher, das Papier skaliert oder teilt auf. Gepinnt in `gruppen.test.ts` (Task 7), `teilbaum.test.ts` (Task 9), `eigenschaften.test.ts` (Task 11) und `papier.test.ts` (Task 12).
 3. **Leerer Plan, Plan nur mit Reservekanälen, mehrere Wurzeln** → Betrachter und Druck stürzen nicht ab; der Druck liefert genau ein Blatt mit Hinweis und Legende. Gepinnt in `zeichne.test.ts` (Task 10), `papier.test.ts` (Task 12), `Blatt.test.tsx` (Task 14), `Betrachter.test.tsx` (Task 20).
 4. **Ein gespeicherter Inhalt, der das Schema verletzt** (beschädigtes JSON, Zyklus, verwaiste `eltern`) → Liste und Planseite zeigen „nicht lesbar" bzw. „Dieser Plan lässt sich nicht lesen", kein HTTP 500. Gepinnt in `plaene.test.ts` (Task 19).
 5. **Gleiche `reihenfolge`-Werte oder ein umsortiertes Array `stellen`** → identisches Bild. Gepinnt in `eigenschaften.test.ts` (Task 11).
@@ -62,13 +68,14 @@ src/app/m/kommplan/
 ├── (intern)/
 │   ├── layout.tsx                     Host- und Zugangsriegel, OHNE Hülle
 │   ├── page.tsx                       Planliste (mit Hülle)
-│   ├── PlanTabelle.tsx                "use client", Datentabelle
-│   └── [id]/
+│   ├── PlanTabelle.tsx                "use client", Kartentabelle
+│   └── p/[id]/                        Präfix p/ (Abweichung 11)
+│       ├── layout.tsx                 Riegel + Plan laden → 404 oberhalb jeder loading.tsx (Falle 23)
 │       ├── page.tsx                   Betrachter (mit Hülle)
 │       └── druck/a4/
 │           ├── page.tsx               Druckroute A4 quer (ohne Hülle)
 │           ├── Drucken.tsx            "use client": fonts.ready → print()
-│           └── druck.css              @page kommplan-a4
+│           └── druck.css              @page kommplan-a4, page: am gemeinsamen Vorfahren
 ├── _db/ schema.ts · client.ts · drizzle.config.ts · schema.test.ts · migrations/
 ├── _fonts/ Arimo-Variable.ttf · Arimo-Bold.ttf · Arimo-OFL.txt      (vom Generator kopiert)
 ├── _lib/
@@ -95,7 +102,7 @@ e2e/kommplan.spec.ts
 src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts
 ```
 
-Geändert: `package.json`, `pnpm-lock.yaml`, `src/core/registry.ts`, `src/core/shell/icons.ts`, `src/core/bootstrap.ts`, `Dockerfile`, `src/core/audit/types.ts`, `src/core/audit/catalog.ts`, `src/app/m/portal/admin/audit/labels.ts`, `scripts/seed-lokal.ts`, `.env.example`, `playwright.config.ts`, `e2e/gruppen.json`, `src/app/m/portal/_lib/neuigkeiten/register.ts`.
+Geändert: `package.json`, `pnpm-lock.yaml`, `src/core/registry.ts`, `src/core/shell/icons.ts`, `src/core/bootstrap.ts`, `Dockerfile`, `src/core/audit/types.ts`, `src/core/audit/catalog.ts`, `src/app/m/portal/admin/audit/labels.ts`, `scripts/seed-lokal.ts`, `.env.example`, `playwright.config.ts`, `e2e/gruppen.json`, `src/app/m/portal/_lib/neuigkeiten/register.ts`; nur Kommentaranker (Namensform, gleiche Zeilenzahl): `src/core/bootstrap.test.ts`, `src/app/m/radio/_lib/boot.ts`.
 
 Im Folgenden steht `K` für `src/app/m/kommplan`.
 
@@ -116,9 +123,11 @@ Die Referenz-PNGs sind A4 quer mit 150 dpi (1754 × 1240 px, 5,906 px/mm). Gemes
 | Sechseck | Höhe 6, Spitze 3, Piktogramm 7 × 4, Beschriftung 8 pt fett, Breite 26 … 44 |
 | Stiel | erster Knick 2 unter der Zeilenunterkante, Knicktakt 1,5, 1,5 bis zum Sechseck, Sechseck → Bus 2, Bus → Karte 4 |
 | Ebenenlücke | 15,5 + max(0, J − 1) · 1,5 (J = größte Gruppenzahl − 1 der Ebene) |
+| Kanal-Sechsecke | in der Gasse unter der Karte, erstes 2,5 unter der Kartenunterkante, Takt 7,5; Einheiten beginnen 2,5 unter dem letzten |
 | Abstände | Geschwister 8, Gruppen 12, Wurzeln 16, Kammreihen 8, Kammrücken 3 links, Seitenschiene 3, Seitenluft 3, Seitenstapel 4 |
+| Mindestabstände (Prüfung und Packen) | Kästen verschiedener Stellen 2 (auch senkrecht: Konturen gelten schon bei weniger als 2 mm Höhenabstand als überlappend), parallele Linien verschiedener Netze 0,75 |
 | Papier A4 quer | 297 × 210; Rand links/rechts 10, oben/unten 8; Kopf 14; Fuß 7; Legendenzeile 5 (+2) |
-| Kamm-Budget | (Papierbreite − 20) / 0,75 → A4: 6 Kinder je Reihe, A3 und Bildschirm: 10 |
+| Kamm-Budget | Reihenbreite (Papierbreite − 20) / 0,75 → A4: 369,3; A3 und Bildschirm: 533,3 (Layout-mm, über die ganze Kinderreihe einer Stelle) |
 
 ---
 
@@ -138,8 +147,8 @@ Der Worktree hat kein `node_modules`.
 Run: `uptime && pnpm install`
 Expected: Exit 0. Dann die Pakete exakt gepinnt als Entwicklungsabhängigkeit:
 
-Run: `pnpm add -D --save-exact @einsatzzeichen/catalog@1.5.0 @einsatzzeichen/core@3.0.0 @einsatzzeichen/schema@3.0.0`
-Expected: `package.json` führt die drei unter `devDependencies` ohne `^`. `catalog` 1.5.0 bringt seine eigenen `core`/`schema` 1.5.0 verschachtelt mit — das ist bekannt und wird im Generat vermerkt.
+Run: `pnpm add -D -w --save-exact @einsatzzeichen/catalog@1.5.0 @einsatzzeichen/core@3.0.0 @einsatzzeichen/schema@3.0.0`
+Expected: `package.json` (Root) führt die drei unter `devDependencies` ohne `^`. Das `-w` ist Pflicht: das Repo ist seit 0b7733d4 ein pnpm-Workspace (`pnpm-workspace.yaml`, `packages: ["apps/*"]`), und ohne `-w` bricht pnpm mit `ERR_PNPM_ADDING_TO_ROOT` ab (frühere Pläne mit nacktem `pnpm add` stammen aus der Zeit davor). `catalog` 1.5.0 bringt seine eigenen `core`/`schema` 1.5.0 verschachtelt mit — das ist bekannt und wird im Generat vermerkt.
 
 Danach die Next-Guides lesen, die diese Phase braucht: `node_modules/next/dist/docs/01-app/03-api-reference/02-components/font.md` (Abschnitt `next/font/local`, `src`, `variable`, `display`) und `node_modules/next/dist/docs/01-app/01-getting-started/` zu Layouts/Route Groups/dynamischen Segmenten.
 
@@ -149,18 +158,25 @@ Danach die Next-Guides lesen, die diese Phase braucht: `node_modules/next/dist/d
 ```ts
 import { describe, expect, it } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 /**
  * DIE IMPORTGRENZEN DES MODULS — alle strukturell, keine davon sieht `pnpm build` rechtzeitig.
  *
  * 1. `@einsatzzeichen/*` sind devDependencies und brechen jeden Server-Import im Build (Befund M1
- *    der Zeichen-Spec 2026-09-02). Nur das Generatorskript und Tests dürfen sie laden.
- * 2. Das große Rezept-Generat gehört dem Server. Der Betrachter bekommt nur die Symbole seines
- *    Plans als Prop; ein Client-Import zöge rund 400 KB in jedes Bündel.
+ *    der Zeichen-Spec 2026-09-02), auch als Seiteneffekt- oder dynamischer Import und auch in einer
+ *    SSR-gerenderten Client-Insel (M2). Nur das Generatorskript und Tests dürfen sie laden.
+ * 2. Das große Rezept-Generat (rund 220 KB) gehört dem Server. Der Betrachter bekommt nur die
+ *    Symbole seines Plans als Prop. Geprüft wird TRANSITIV: eine Client-Insel, die einen
+ *    `_lib`-Helfer zieht, der seinerseits `zeichen/zeichen` zieht, trüge das Generat still ins
+ *    Bündel — weder build noch typecheck melden das.
  * 3. Layout, Planmodell und Zeichnung laufen auf Server UND Client: kein "use client" (Falle 6),
  *    kein `next/*`, kein `node:*`.
  * 4. Die Layout-Engine ist deterministisch: kein Zufall, keine Uhr.
+ *
+ * Direktive und Importformen erkennt dieser Test wie `core/shell/icons.test.ts`
+ * (`ohneKommentare`, `traegtClientDirektive`, `importSpezifizierer`) — dort steht die Messung,
+ * warum Kommentar-Abzug, beide Anführungszeichen und vier Importformen nötig sind.
  */
 const MODUL = "src/app/m/kommplan";
 
@@ -175,24 +191,75 @@ const quelltext = (pfad: string) => readFileSync(pfad, "utf8");
 const istTest = (pfad: string) => /\.test\.tsx?$/.test(pfad);
 const laufzeit = dateien(MODUL).filter((p) => /\.tsx?$/.test(p) && !istTest(p));
 
+const ohneKommentare = (q: string) => q.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const istClient = (q: string) => /^\s*["']use client["']/.test(ohneKommentare(q));
+/**
+ * Alle LAUFZEIT-Spezifizierer: `from "…"`, `import "…"`, `import("…")`, `require("…")`.
+ * Reine Typ-Importe (`import type …`, `export type … from`) fallen weg — sie verschwinden beim
+ * Übersetzen, und ohne den Abzug wäre `import type { Symbolsatz }` im Betrachter ein Fehlalarm.
+ */
+function spezifizierer(q: string): string[] {
+  const ohneTypen = ohneKommentare(q).replace(/^\s*(?:import|export)\s+type\b[^;]*;/gm, "");
+  return [...ohneTypen.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1]);
+}
+/** Relativ oder `@/…` → Datei im Repo; alles andere (Pakete) → null. */
+function aufloesen(von: string, s: string): string | null {
+  const basis = s.startsWith("@/") ? join("src", s.slice(2)) : s.startsWith(".") ? join(dirname(von), s) : null;
+  if (basis === null) return null;
+  for (const k of [basis, `${basis}.ts`, `${basis}.tsx`, join(basis, "index.ts"), join(basis, "index.tsx")]) {
+    if (existsSync(k) && statSync(k).isFile()) return k;
+  }
+  return null;
+}
+/** Alles, was eine Datei zur Laufzeit zieht — transitiv, innerhalb des Moduls. */
+function erreichbar(start: string): Set<string> {
+  const gesehen = new Set<string>();
+  const offen = [start];
+  while (offen.length > 0) {
+    const datei = offen.pop()!;
+    if (gesehen.has(datei)) continue;
+    gesehen.add(datei);
+    if (!/\.tsx?$/.test(datei)) continue; // JSON hat keine Importe
+    for (const s of spezifizierer(quelltext(datei))) {
+      const ziel = aufloesen(datei, s);
+      if (ziel !== null && ziel.startsWith(MODUL)) offen.push(ziel);
+    }
+  }
+  return gesehen;
+}
+
+describe("kommplan: der Riegel selbst", () => {
+  it("sieht Seiteneffekt-, dynamische und require-Importe, aber keine reinen Typ-Importe", () => {
+    expect(spezifizierer('import "@einsatzzeichen/core";')).toEqual(["@einsatzzeichen/core"]);
+    expect(spezifizierer('const m = await import("@einsatzzeichen/catalog");')).toEqual(["@einsatzzeichen/catalog"]);
+    expect(spezifizierer("const m = require('@einsatzzeichen/schema');")).toEqual(["@einsatzzeichen/schema"]);
+    expect(spezifizierer('import type {\n  A,\n  B,\n} from "./zeichen/zeichen";\nimport { c } from "./c";')).toEqual(["./c"]);
+  });
+  it("erkennt die Direktive auch mit Kopfkommentar und einfachen Anführungszeichen", () => {
+    expect(istClient("/* Kopf */\n'use client';\nexport {}")).toBe(true);
+    expect(istClient('// Kopf\n"use client";')).toBe(true);
+    expect(istClient('export const x = "use client";')).toBe(false);
+  });
+});
+
 describe("kommplan: Importgrenzen", () => {
-  it("keine Laufzeitdatei importiert @einsatzzeichen", () => {
-    const verstoesse = laufzeit.filter((p) => /from\s+["']@einsatzzeichen\//.test(quelltext(p)));
+  it("keine Laufzeitdatei importiert @einsatzzeichen, in keiner Form", () => {
+    const verstoesse = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.startsWith("@einsatzzeichen/")));
     expect(verstoesse).toEqual([]);
   });
 
   it("nur _lib/zeichen/zeichen.ts liest das Rezept-Generat", () => {
-    const leser = laufzeit.filter((p) => quelltext(p).includes("zeichen.generiert.json"));
+    const leser = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.endsWith("zeichen.generiert.json")));
     expect(leser.map((p) => relative(MODUL, p))).toEqual(
       leser.length === 0 ? [] : ["_lib/zeichen/zeichen.ts"],
     );
   });
 
-  it("_lib/zeichen/zeichen.ts wird nur von Server-Code importiert", () => {
-    const importeure = laufzeit.filter((p) => /from\s+["'][^"']*zeichen\/zeichen["']/.test(quelltext(p)));
-    for (const p of importeure) {
-      expect(quelltext(p).startsWith('"use client"'), p).toBe(false);
-      expect(relative(MODUL, p).startsWith("_ui/"), p).toBe(false);
+  it("keine Client-Insel erreicht zeichen.ts oder das Rezept-Generat, auch nicht über Umwege", () => {
+    const verboten = [join(MODUL, "_lib/zeichen/zeichen.ts"), join(MODUL, "_lib/zeichen/zeichen.generiert.json")];
+    for (const p of laufzeit.filter((x) => istClient(quelltext(x)))) {
+      const treffer = [...erreichbar(p)].filter((d) => verboten.includes(d));
+      expect(treffer, `${relative(MODUL, p)} zieht ${treffer.join(", ")}`).toEqual([]);
     }
   });
 
@@ -202,17 +269,19 @@ describe("kommplan: Importgrenzen", () => {
     );
     for (const p of geteilt) {
       const q = quelltext(p);
-      expect(q.startsWith('"use client"'), p).toBe(false);
-      expect(/from\s+["'](next\/|node:|react-dom)/.test(q), p).toBe(false);
+      expect(istClient(q), p).toBe(false);
+      expect(spezifizierer(q).filter((s) => /^(next\/|node:|react-dom)/.test(s)), p).toEqual([]);
     }
   });
 
   it("die Layout-Engine kennt weder Zufall noch Uhr", () => {
     const layout = laufzeit.filter((p) => relative(MODUL, p).startsWith("_lib/layout/") && !p.endsWith("zufall.ts"));
-    for (const p of layout) expect(/Math\.random|Date\.now|new Date\b/.test(quelltext(p)), p).toBe(false);
+    for (const p of layout) expect(/Math\.random|Date\.now|new Date\b/.test(ohneKommentare(quelltext(p))), p).toBe(false);
   });
 });
 ```
+
+(Gegenprobe beim ersten Grünlauf von Task 20: in `Betrachter.tsx` vorübergehend `import { symboleFuer } from "../../_lib/zeichen/zeichen";` ergänzen → der dritte Fall wird rot und nennt die Datei; wieder entfernen.)
 
 `K/_lib/zeichen/generat.test.ts`:
 ```ts
@@ -497,7 +566,7 @@ Run: `pnpm exec tsx scripts/kommplan-zeichen-generat.ts`
 Expected: eine Zeile `src/app/m/kommplan/_lib/zeichen: 236 Zeichen, 13 Piktogramme, Stand {"catalog":"1.5.0","catalogCore":"1.5.0","catalogSchema":"1.5.0","core":"3.0.0","schema":"3.0.0"}` (die Zahl 236 = 232 Hauptrezepte + 4; weicht sie ab, zählt der Test gegen `RECIPES` und nicht gegen diese Zahl). Wirft der Lauf einen `CompositionError` für ein Zusatzzeichen, das Zeichen aus `ZUSATZ` entfernen und in der Abweichungsliste oben nachtragen, nicht den Text kürzen.
 
 Run: `ls -la src/app/m/kommplan/_lib/zeichen src/app/m/kommplan/_fonts`
-Expected: `zeichen.generiert.json` ≈ 350–450 KB, `grundlagen.generiert.json` < 150 KB, drei Schriftdateien.
+Expected: `zeichen.generiert.json` ≈ 200–260 KB (Probelauf der Planung mit derselben Zerlegung: 222 KB für die 232 Hauptrezepte, dazu die vier Zusatzzeichen), `grundlagen.generiert.json` ≈ 20–60 KB (Metriken und 13 Piktogramme; der Probelauf ohne die fünf eigenen Piktogramme: 20 KB), drei Schriftdateien. Weicht die Größe stark ab, zuerst prüfen, ob `<title>`/`<desc>`/`font-family` wirklich entfernt sind — nicht die Erwartung verschieben.
 
 - [ ] **Step 6: Grün sehen**
 
@@ -523,7 +592,7 @@ git commit -S -m "feat(kommplan): Zeichen-Generat mit Arimo-Metriken und Piktogr
 - Consumes: `grundlagen.generiert.json` (Task 1).
 - Produces:
   - `grundlagen.ts`: `METRIK` (Typ `Metrik`), `PIKTOGRAMME: Readonly<Record<string, Symbolquelle>>` mit `Symbolquelle = { viewBox: string; inhalt: string }`, `KONTAKT_PIKTOGRAMM` (Schlüssel = die sieben Kontaktarten), `VERBINDUNG_PIKTOGRAMM` (Schlüssel = die acht Verbindungsarten). Dass die Schlüssel genau zu `KONTAKT_ARTEN`/`VERBINDUNGS_ARTEN` passen, prüft Task 3.
-  - `masse.ts`: `PT_IN_MM`, `SCHRIFT`, `ZEILENFAKTOR`, `MINDESTSCHRIFT_PT`, `KLEINSTE_SCHRIFT_PT`, `MIN_MASSSTAB`, `KARTE`, `EINHEIT`, `ABZEICHEN`, `SECHSECK`, `STIEL`, `ABSTAND`, `PAPIER`, `BLATT`, `zeilenhoehe(pt)`, `lueckeFuer(j)`.
+  - `masse.ts`: `PT_IN_MM`, `SCHRIFT`, `ZEILENFAKTOR`, `MINDESTSCHRIFT_PT`, `KLEINSTE_SCHRIFT_PT`, `MIN_MASSSTAB`, `KARTE`, `EINHEIT`, `KANAL`, `ABZEICHEN`, `SECHSECK`, `STIEL`, `ABSTAND`, `MINDEST`, `PAPIER`, `BLATT`, `zeilenhoehe(pt)`, `lueckeFuer(j)`.
   - `text.ts`: `textBreite(text: string, pt: number, fett?: boolean): number` (mm), `grundlinie(oben: number, hoehe: number, pt: number): number`, `umbrechen(text: string, maxBreite: number, pt: number, fett: boolean, maxZeilen: number): { zeilen: string[]; gekuerzt: boolean }`, `kuerze(text: string, maxBreite: number, pt: number, fett: boolean): { text: string; gekuerzt: boolean }`.
 
 - [ ] **Step 1: Failing tests**
@@ -564,7 +633,9 @@ function referenz(text: string, pt: number, fett = false): number {
   let em = 0;
   cps.forEach((cp, i) => {
     em += m.advanceEm(cp) ?? 0;
-    if (i > 0) em += m.kerningEm(cps[i - 1], cp) ?? 0;
+    // `kerningEm` ist in der Schnittstelle (core 1.5.0, verschachtelt im Katalog) OPTIONAL —
+    // ohne `?.` bricht `pnpm typecheck` mit TS2722, während Vitest grün bleibt.
+    if (i > 0) em += m.kerningEm?.(cps[i - 1], cp) ?? 0;
   });
   return em * pt * PT_IN_MM;
 }
@@ -720,6 +791,8 @@ export const KARTE = {
   kontaktHoehe: 4.5, piktoSpalte: 8, piktoGroesse: 3.6, wertX: 9.5, kontaktZeilenMax: 2,
 } as const;
 export const EINHEIT = { abstandOben: 2.5, hoehe: 4.2, takt: 5.5, breite: 40, einzugMin: 6, zweiSpaltenAb: 10, spaltenAbstand: 2, zeichen: 3.6 } as const;
+/** Kanal-Sechsecke einer Stelle (Abweichung 12): untereinander in der Gasse, über den Einheiten. */
+export const KANAL = { takt: 7.5 } as const;
 export const ABZEICHEN = { breite: 22, hoehe: 4.5, abstand: 1.5 } as const;
 export const SECHSECK = { hoehe: 6, spitze: 3, piktoBreite: 7, piktoHoehe: 4, innen: 1.5, minBreite: 26, maxBreite: 44, fase: 1.5 } as const;
 export const STIEL = {
@@ -730,6 +803,12 @@ export const ABSTAND = {
   geschwister: 8, gruppen: 12, wurzeln: 16, kammReihe: 8, kammEinzug: 3,
   seiteSchiene: 3, seiteLuft: 3, seiteOhneSechseck: 6, seitenStapel: 4,
 } as const;
+/**
+ * Was die Geometrieprüfung (`pruefung.ts`) mindestens verlangt — und was das Packen deshalb
+ * einhält (`kontur.ts`, `LUFT_Y`): Kästen verschiedener Stellen 2 mm, parallele Linien
+ * verschiedener Netze 0,75 mm.
+ */
+export const MINDEST = { kasten: 2, linie: 0.75 } as const;
 export const PAPIER = { "a4-quer": { breite: 297, hoehe: 210 }, "a3-quer": { breite: 420, hoehe: 297 } } as const;
 export const BLATT = { randX: 10, randOben: 8, randUnten: 8, kopf: 14, fuss: 7, legendeZeile: 5, legendeRand: 2 } as const;
 
@@ -865,7 +944,7 @@ import { KONTAKT_ARTEN, VERBINDUNGS_ARTEN, leseInhalt, planInhaltSchema, type Pl
 
 const stelle = (id: string, eltern: string | null, rest: Partial<Stelle> = {}): Stelle => ({
   id, eltern, lage: "unter", reihenfolge: 0, zeichen: null, titel: id, leiter: null, hervorheben: false,
-  verbindungId: null, kontakte: [], einheiten: [], ...rest,
+  verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...rest,
 });
 const plan = (stellen: Stelle[], verbindungen: PlanInhalt["verbindungen"] = []): unknown => ({
   schema: 1,
@@ -906,6 +985,16 @@ describe("planInhaltSchema", () => {
   });
   it("verbindungId zeigt auf eine fehlende Verbindung", () => {
     expect(fehler(plan([stelle("a", null, { verbindungId: "vx" })]))).toContain("Verbindung vx existiert nicht");
+  });
+  it("Kanäle: nur vorhandene Verbindungen, keiner doppelt; fehlt das Feld, gilt []", () => {
+    const v = [{ id: "v1", art: "dmo" as const, bezeichnung: "DMO 608" }];
+    expect(fehler(plan([stelle("a", null, { kanaele: ["v1"] })], v))).toEqual([]);
+    expect(fehler(plan([stelle("a", null, { kanaele: ["vx"] })], v))).toContain("Kanal vx existiert nicht");
+    expect(fehler(plan([stelle("a", null, { kanaele: ["v1", "v1"] })], v))).toContain("Kanal v1 doppelt an a");
+    const ohneFeld = { ...stelle("a", null) } as Partial<Stelle>;
+    delete ohneFeld.kanaele;
+    const r = planInhaltSchema.safeParse(plan([ohneFeld as Stelle]));
+    expect(r.success && r.data.stellen[0].kanaele).toEqual([]);
   });
   it("lehnt falsche Schemaversion, fremde Felder und unbekannte Arten ab", () => {
     expect(fehler({ ...(plan([]) as object), schema: 2 })).not.toEqual([]);
@@ -997,6 +1086,8 @@ export const stelleSchema = z.object({
   leiter: z.string().max(120).nullable(),
   hervorheben: z.boolean(),
   verbindungId: id.nullable(),
+  /** Kanäle, die die Stelle benutzt, ohne Gegenstelle (Abweichung 12) — Sechsecke unter der Karte. */
+  kanaele: z.array(id).max(12).default([]),
   kontakte: z.array(kontaktSchema).max(30),
   einheiten: z.array(einheitSchema).max(60),
 }).strict();
@@ -1033,6 +1124,12 @@ function pruefeInvarianten(p: Roh, ctx: z.RefinementCtx): void {
     if (s.verbindungId !== null && !verbindungen.has(s.verbindungId)) {
       melde(["stellen", i, "verbindungId"], `Verbindung ${s.verbindungId} existiert nicht`);
     }
+    const kanaele = new Set<string>();
+    s.kanaele.forEach((k, j) => {
+      if (!verbindungen.has(k)) melde(["stellen", i, "kanaele", j], `Kanal ${k} existiert nicht`);
+      if (kanaele.has(k)) melde(["stellen", i, "kanaele", j], `Kanal ${k} doppelt an ${s.id}`);
+      kanaele.add(k);
+    });
   });
   for (const s of p.stellen) {
     const gesehen = new Set<string>([s.id]);
@@ -1118,7 +1215,7 @@ git commit -S -m "feat(kommplan): Planschema mit Invarianten und fester Kontaktr
 - Produces:
   - `baum.ts`: `ordne<T extends { reihenfolge: number; id: string }>(liste: readonly T[]): T[]`; `interface Baum { stelle(id: string): Stelle | undefined; wurzeln: Stelle[]; unter(id: string): Stelle[]; seiten(id: string): { links: Stelle[]; rechts: Stelle[] } }`; `baueBaum(inhalt: PlanInhalt): Baum`; `nachkommen(baum: Baum, id: string): Stelle[]` (alle Unter- und Seitenstellen darunter, ohne die Stelle selbst); `versteckteAnzahl(baum: Baum, id: string): number` (was Einklappen verbirgt: alle Unterstellen-Nachkommen samt deren Seitenstellen, nicht die eigenen Seitenstellen); `teilbaumGroesse(baum: Baum, id: string): number` (1 + `nachkommen`); `tiefensuche(baum: Baum): Stelle[]` (Stelle, dann Seitenstellen links, rechts, dann Unterstellen — alle `ordne`t).
   - `operationen.ts`: `class PlanFehler extends Error`; `leererPlan(): PlanInhalt`; `type NeueStelle = Partial<Omit<Stelle, "id" | "titel">> & { id: string; titel: string }`; `fuegeStelleEin(inhalt: PlanInhalt, neu: NeueStelle): PlanInhalt`; `fuegeVerbindungEin(inhalt: PlanInhalt, v: Verbindung): PlanInhalt`; `naechsteReihenfolge(inhalt: PlanInhalt, eltern: string | null, lage: Lage): number`.
-  - `bau.ts`: `type StelleEingabe = { id: string; titel: string; eltern?: string | null; lage?: Lage; zeichen?: string | null; leiter?: string | null; hervorheben?: boolean; verbindung?: string | null; kontakte?: Partial<Record<KontaktArt, string | string[]>>; einheiten?: (string | readonly [typ: string, rufname: string])[] }`; `baue(eingabe: { optionen?: Partial<PlanOptionen>; verbindungen?: Verbindung[]; stellen: StelleEingabe[] }): PlanInhalt` (Reihenfolge = Position unter den Geschwistern gleicher Lage in Eingabereihenfolge; Einheit als String: erstes Wort = Typ, Rest = Rufname — dieselbe Regel wie „Liste einfügen" in Phase 3; Einheiten-IDs `<stelle>-e<n>`; Ergebnis läuft durch `planInhaltSchema.parse`).
+  - `bau.ts`: `type StelleEingabe = { id: string; titel: string; eltern?: string | null; lage?: Lage; zeichen?: string | null; leiter?: string | null; hervorheben?: boolean; verbindung?: string | null; kanaele?: string[]; kontakte?: Partial<Record<KontaktArt, string | string[]>>; einheiten?: (string | readonly [typ: string, rufname: string])[] }`; `baue(eingabe: { optionen?: Partial<PlanOptionen>; verbindungen?: Verbindung[]; stellen: StelleEingabe[] }): PlanInhalt` (Reihenfolge = Position unter den Geschwistern gleicher Lage in Eingabereihenfolge; Einheit als String: erstes Wort = Typ, Rest = Rufname — dieselbe Regel wie „Liste einfügen" in Phase 3; Einheiten-IDs `<stelle>-e<n>`; Ergebnis läuft durch `planInhaltSchema.parse`).
 
 - [ ] **Step 1: Failing tests**
 
@@ -1178,7 +1275,7 @@ describe("Planoperationen", () => {
     p = fuegeStelleEin(p, { id: "a", titel: "A", eltern: "w" });
     p = fuegeStelleEin(p, { id: "b", titel: "B", eltern: "w" });
     expect(p.stellen.map((s) => [s.id, s.reihenfolge])).toEqual([["w", 0], ["a", 0], ["b", 1]]);
-    expect(p.stellen[1]).toMatchObject({ lage: "unter", zeichen: null, kontakte: [], einheiten: [], hervorheben: false });
+    expect(p.stellen[1]).toMatchObject({ lage: "unter", zeichen: null, kanaele: [], kontakte: [], einheiten: [], hervorheben: false });
     expect(naechsteReihenfolge(p, "w", "unter")).toBe(2);
     expect(naechsteReihenfolge(p, "w", "links")).toBe(0);
   });
@@ -1212,17 +1309,18 @@ describe("baue", () => {
     ] });
     expect(Object.fromEntries(p.stellen.map((s) => [s.id, s.reihenfolge]))).toEqual({ w: 0, x: 0, s: 0, y: 1 });
   });
-  it("Kontakte aus einem Record, Einheiten aus Text (erstes Wort = Typ) oder Paar", () => {
+  it("Kontakte aus einem Record, Einheiten aus Text (erstes Wort = Typ) oder Paar, Kanäle durchgereicht", () => {
     const p = baue({
-      verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }],
+      verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }, { id: "k", art: "dmo", bezeichnung: "DMO 608" }],
       stellen: [{
-        id: "ea", titel: "EA", verbindung: "v",
+        id: "ea", titel: "EA", verbindung: "v", kanaele: ["k"],
         kontakte: { telefon: ["1", "2"], digitalfunk: "RK UE 40-05-1" },
         einheiten: ["RTW RK UE 40-83-5", ["Foodtruck", ""]],
       }],
     });
     const ea = p.stellen[0];
     expect(ea.verbindungId).toBe("v");
+    expect(ea.kanaele).toEqual(["k"]);
     expect(ea.kontakte).toEqual([
       { art: "digitalfunk", wert: "RK UE 40-05-1" }, { art: "telefon", wert: "1" }, { art: "telefon", wert: "2" },
     ]);
@@ -1350,7 +1448,7 @@ export function fuegeStelleEin(inhalt: PlanInhalt, neu: NeueStelle): PlanInhalt 
     reihenfolge: neu.reihenfolge ?? naechsteReihenfolge(inhalt, eltern, lage),
     zeichen: neu.zeichen ?? null, titel: neu.titel, leiter: neu.leiter ?? null,
     hervorheben: neu.hervorheben ?? false, verbindungId: neu.verbindungId ?? null,
-    kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [],
+    kanaele: neu.kanaele ?? [], kontakte: neu.kontakte ?? [], einheiten: neu.einheiten ?? [],
   };
   return gueltig({ ...inhalt, stellen: [...inhalt.stellen, stelle] });
 }
@@ -1375,7 +1473,7 @@ import {
 export type EinheitEingabe = string | readonly [typ: string, rufname: string];
 export type StelleEingabe = {
   id: string; titel: string; eltern?: string | null; lage?: Lage; zeichen?: string | null; leiter?: string | null;
-  hervorheben?: boolean; verbindung?: string | null;
+  hervorheben?: boolean; verbindung?: string | null; kanaele?: string[];
   kontakte?: Partial<Record<KontaktArt, string | string[]>>;
   einheiten?: EinheitEingabe[];
 };
@@ -1402,7 +1500,7 @@ export function baue(eingabe: { optionen?: Partial<PlanOptionen>; verbindungen?:
     });
     return {
       id: e.id, eltern, lage, reihenfolge, zeichen: e.zeichen ?? null, titel: e.titel, leiter: e.leiter ?? null,
-      hervorheben: e.hervorheben ?? false, verbindungId: e.verbindung ?? null, kontakte,
+      hervorheben: e.hervorheben ?? false, verbindungId: e.verbindung ?? null, kanaele: e.kanaele ?? [], kontakte,
       einheiten: (e.einheiten ?? []).map((x, i) => einheitAus(e.id, x, i)),
     };
   });
@@ -1474,8 +1572,8 @@ export interface LayoutOptionen {
 export function leereElemente(): Elemente;
 export function verschiebeElemente(e: Elemente, dx: number, dy: number): Elemente;
 ```
-  Absolute Koordinaten (Layout-mm, oben links = 0/0) tragen `KarteL.x/y`, `EinheitL.x/y`, `SechseckL.x/y`, `AbzeichenL.x/y`, `Strecke`, `Spanne`; alle `TextZeile` sind relativ zum Träger.
-- Produces (`karte.ts`): `interface KartenEingabe { stelle: Stelle; leerzeilen: boolean; darstellung: Darstellung; versteckt: number; anzahlGruppen: number }`; `interface KartenMass { breite; hoehe; kopfHoehe; art; titel; titelVoll; gekuerzt; leiter; kontakte; verweis; einheiten: Omit<EinheitL, "stelleId">[] /* relativ zur Kartenecke */; abzeichen: Omit<AbzeichenL, "stelleId"> | null /* relativ */; blockBreite: number; blockHoehe: number; gasse: number[] }`; `kartenMass(e: KartenEingabe): KartenMass`.
+  Absolute Koordinaten (Layout-mm, oben links = 0/0) tragen `KarteL.x/y`, `EinheitL.x/y`, `SechseckL.x/y`, `AbzeichenL.x/y`, `Strecke`, `Spanne`; alle `TextZeile` sind relativ zum Träger. `KarteL.titelVoll` ist der getrimmte Titel und darf leer sein (Abweichung 15) — den Platzhalter „(ohne Titel)" setzt nur, wer ihn am Bildschirm zeigt.
+- Produces (`karte.ts`): `interface KartenEingabe { stelle: Stelle; leerzeilen: boolean; darstellung: Darstellung; versteckt: number; anzahlGruppen: number; kanaele: Verbindung[] /* aufgelöst, in Stellenreihenfolge */ }`; `interface KartenMass { breite; hoehe; kopfHoehe; art; titel; titelVoll; gekuerzt; leiter; kontakte; verweis; einheiten: Omit<EinheitL, "stelleId">[] /* relativ zur Kartenecke */; abzeichen: Omit<AbzeichenL, "stelleId"> | null /* relativ */; kanalSechsecke: { verbindung: Verbindung; mass: SechseckMass; x: number; y: number }[] /* relativ */; kanalLinien: { x1: number; y1: number; x2: number; y2: number }[] /* relativ, Netz <stelle>#kanal */; blockBreite: number; blockHoehe: number; gasse: number[] }`; `kartenMass(e: KartenEingabe): KartenMass`.
 - Produces (`sechseck.ts`): `sechseckForm(art: VerbindungsArt): SechseckForm`; `interface SechseckMass { breite: number; hoehe: number; form: SechseckForm; beschriftung: TextZeile; voll: string; piktogramm: string }`; `sechseckMass(v: Verbindung): SechseckMass`.
 
 - [ ] **Step 1: Failing tests**
@@ -1483,17 +1581,19 @@ export function verschiebeElemente(e: Elemente, dx: number, dy: number): Element
 `K/_lib/layout/karte.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
-import type { Stelle } from "../plan/schema";
+import type { Stelle, Verbindung } from "../plan/schema";
 import { kartenMass, type KartenEingabe } from "./karte";
-import { EINHEIT, KARTE } from "./masse";
+import { EINHEIT, KANAL, KARTE, SECHSECK, STIEL } from "./masse";
 import { textBreite } from "./text";
 
 const stelle = (rest: Partial<Stelle> = {}): Stelle => ({
   id: "s", eltern: null, lage: "unter", reihenfolge: 0, zeichen: "rezept:D.1.4", titel: "Einsatzleitung",
-  leiter: null, hervorheben: false, verbindungId: null, kontakte: [], einheiten: [], ...rest,
+  leiter: null, hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...rest,
 });
 const mass = (s: Partial<Stelle> = {}, e: Partial<Omit<KartenEingabe, "stelle">> = {}) =>
-  kartenMass({ stelle: stelle(s), leerzeilen: false, darstellung: "normal", versteckt: 0, anzahlGruppen: 0, ...e });
+  kartenMass({ stelle: stelle(s), leerzeilen: false, darstellung: "normal", versteckt: 0, anzahlGruppen: 0, kanaele: [], ...e });
+const DMO: Verbindung = { id: "dmo-608", art: "dmo", bezeichnung: "DMO 608" };
+const TMO: Verbindung = { id: "r-ue-2", art: "tmo", bezeichnung: "R_UE_2" };
 const einheiten = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `e${i}`, typ: "RTW", rufname: `RK UE 40-83-${i}`, zeichen: null }));
 
 describe("kartenMass", () => {
@@ -1528,6 +1628,13 @@ describe("kartenMass", () => {
   it("Emoji und CJK im Titel werfen nicht", () => {
     expect(() => mass({ titel: "🚑 救护车 Einsatz" })).not.toThrow();
   });
+  it.each(["", "   "])("leerer Titel %j: keine Titelzeile, Mindestkopf, kein Platzhalter auf dem Papier", (titel) => {
+    const m = mass({ titel });
+    expect(m.titel).toEqual([]);
+    expect(m.titelVoll).toBe("");
+    expect(m.kopfHoehe).toBe(KARTE.kopfMin);
+    expect(JSON.stringify(m)).not.toContain("ohne Titel");
+  });
   it("neun Einheiten: eine Spalte im Takt 5,5 mm; zehn: zwei Spalten, Block breiter als die Karte", () => {
     const neun = mass({ einheiten: einheiten(9) });
     expect(new Set(neun.einheiten.map((e) => e.x)).size).toBe(1);
@@ -1548,11 +1655,35 @@ describe("kartenMass", () => {
     expect(mass({ einheiten: einheiten(3) }, { anzahlGruppen: 4 }).einheiten[0].x).toBeCloseTo(8.5, 9);
     expect(mass({}, { anzahlGruppen: 2 }).gasse).toEqual([]);
   });
+  it("Kanäle: Sechsecke untereinander in der Gasse unter der Karte, an einer eigenen Linie, Einheiten darunter", () => {
+    const m = mass({ einheiten: einheiten(2) }, { kanaele: [DMO, TMO], anzahlGruppen: 1 });
+    expect(m.kanalSechsecke.map((h) => h.verbindung.id)).toEqual(["dmo-608", "r-ue-2"]);
+    expect(m.kanalSechsecke[0].y).toBeCloseTo(m.hoehe + EINHEIT.abstandOben, 9);
+    expect(m.kanalSechsecke[1].y - m.kanalSechsecke[0].y).toBeCloseTo(KANAL.takt, 9);
+    // Stiel-Gasse (eine Gruppe) links, die Kanallinie rechts daneben, die Sechsecke rechts davon
+    const kanalX = STIEL.gasseStart + STIEL.gasseTakt;
+    expect(m.gasse).toEqual([STIEL.gasseStart]);
+    expect(m.kanalLinien[0]).toEqual({ x1: kanalX, y1: m.hoehe, x2: kanalX, y2: m.kanalSechsecke[1].y + SECHSECK.hoehe / 2 });
+    for (const [i, h] of m.kanalSechsecke.entries()) {
+      expect(m.kanalLinien[i + 1]).toEqual({ x1: kanalX, y1: h.y + SECHSECK.hoehe / 2, x2: h.x, y2: h.y + SECHSECK.hoehe / 2 });
+      expect(h.x).toBeGreaterThan(kanalX);
+    }
+    expect(m.einheiten[0].y).toBeCloseTo(m.kanalSechsecke[1].y + SECHSECK.hoehe + EINHEIT.abstandOben, 9);
+    expect(m.blockBreite).toBeGreaterThanOrEqual(Math.max(...m.kanalSechsecke.map((h) => h.x + h.mass.breite)));
+    expect(m.blockHoehe).toBeGreaterThan(m.einheiten[1].y);
+  });
+  it("Kanäle ohne Einheiten und ohne Kinder: die Gasse beginnt bei 1,5 mm", () => {
+    const m = mass({}, { kanaele: [TMO] });
+    expect(m.gasse).toEqual([]);
+    expect(m.kanalLinien[0].x1).toBe(STIEL.gasseStart);
+    expect(m.blockHoehe).toBeCloseTo(m.hoehe + EINHEIT.abstandOben + SECHSECK.hoehe, 9);
+  });
   it("Anker zeigt nur den Kopf; Verweis zeigt „→ Blatt n\"", () => {
     const anker = mass({ einheiten: einheiten(3), kontakte: [{ art: "telefon", wert: "1" }] }, { darstellung: "anker" });
     expect(anker.art).toBe("anker");
     expect(anker.kontakte).toEqual([]);
     expect(anker.einheiten).toEqual([]);
+    expect(mass({}, { darstellung: "anker", kanaele: [TMO] }).kanalSechsecke).toEqual([]);
     const verweis = mass({}, { darstellung: { verweisAufBlatt: 3 } });
     expect(verweis.verweis?.text).toBe("→ Blatt 3");
   });
@@ -1629,18 +1760,25 @@ export function verschiebeElemente(e: Elemente, dx: number, dy: number): Element
 `K/_lib/layout/karte.ts`:
 ```ts
 import { kontaktZeilen } from "../plan/kontakte";
-import type { Stelle } from "../plan/schema";
-import { ABZEICHEN, EINHEIT, KARTE, SCHRIFT, STIEL, zeilenhoehe } from "./masse";
+import type { Stelle, Verbindung } from "../plan/schema";
+import { ABZEICHEN, EINHEIT, KANAL, KARTE, SCHRIFT, SECHSECK, STIEL, zeilenhoehe } from "./masse";
+import { sechseckMass, type SechseckMass } from "./sechseck";
 import { grundlinie, kuerze, umbrechen } from "./text";
 import type { AbzeichenL, Darstellung, EinheitL, KarteL, KontaktZeileL, TextZeile } from "./typen";
 
-export interface KartenEingabe { stelle: Stelle; leerzeilen: boolean; darstellung: Darstellung; versteckt: number; anzahlGruppen: number }
+export interface KartenEingabe {
+  stelle: Stelle; leerzeilen: boolean; darstellung: Darstellung; versteckt: number; anzahlGruppen: number;
+  /** Die Kanäle der Stelle, aufgelöst (unbekannte fallen beim Aufrufer weg). */
+  kanaele: Verbindung[];
+}
 export interface KartenMass {
   breite: number; hoehe: number; kopfHoehe: number; art: KarteL["art"];
   titel: TextZeile[]; titelVoll: string; gekuerzt: boolean; leiter: TextZeile | null;
   kontakte: KontaktZeileL[]; verweis: TextZeile | null;
   einheiten: Omit<EinheitL, "stelleId">[];
   abzeichen: Omit<AbzeichenL, "stelleId"> | null;
+  kanalSechsecke: { verbindung: Verbindung; mass: SechseckMass; x: number; y: number }[];
+  kanalLinien: { x1: number; y1: number; x2: number; y2: number }[];
   blockBreite: number; blockHoehe: number; gasse: number[];
 }
 
@@ -1648,9 +1786,11 @@ const zeile = (text: string, x: number, y: number, groesse: number, fett: boolea
   ({ text, x, y, groesse, fett, anker });
 
 /**
- * Das Maß einer Karte (Spec §5.1): feste Breite, nur die Höhe wächst. Block = Karte + Einheitenspalte
- * (+ Abzeichen), er ist das, was in der Zeile Platz belegt. `gasse` sind die x-Positionen der Stiele,
- * wenn Einheiten die Kartenmitte darunter belegen.
+ * Das Maß einer Karte (Spec §5.1): feste Breite, nur die Höhe wächst. Block = Karte + Kanal-Sechsecke
+ * + Einheitenspalte (+ Abzeichen), er ist das, was in der Zeile Platz belegt. `gasse` sind die
+ * x-Positionen der Stiele, wenn Kanäle oder Einheiten die Kartenmitte darunter belegen; die
+ * Kanallinie läuft im Platz rechts neben dem letzten Stiel, die Sechsecke und Einheiten beginnen
+ * rechts davon (`einzug`). Stiele links, Kanallinie in der Mitte, Kästen rechts: nichts kreuzt.
  */
 export function kartenMass(e: KartenEingabe): KartenMass {
   const { stelle } = e;
@@ -1659,8 +1799,11 @@ export function kartenMass(e: KartenEingabe): KartenMass {
   const titelBreite = KARTE.breite - titelX - KARTE.innenRechts;
   const lhT = zeilenhoehe(SCHRIFT.titel), lhL = zeilenhoehe(SCHRIFT.leiter), lhK = zeilenhoehe(SCHRIFT.kontakt);
 
-  const titelVoll = stelle.titel.trim() === "" ? "(ohne Titel)" : stelle.titel.trim();
-  const umbruch = umbrechen(titelVoll, titelBreite, SCHRIFT.titel, true, KARTE.titelZeilenMax);
+  // Ein leerer Titel ist ein Handeintrag-Feld (Spec §2): keine Titelzeile, Mindestkopf, kein Platzhalter.
+  const titelVoll = stelle.titel.trim();
+  const umbruch = titelVoll === ""
+    ? { zeilen: [] as string[], gekuerzt: false }
+    : umbrechen(titelVoll, titelBreite, SCHRIFT.titel, true, KARTE.titelZeilenMax);
   const leiterRoh = art === "normal" ? stelle.leiter?.trim() ?? "" : "";
   const leiterText = leiterRoh === "" ? null : kuerze(leiterRoh, titelBreite, SCHRIFT.leiter, false).text;
   const textHoehe = umbruch.zeilen.length * lhT + (leiterText ? lhL : 0);
@@ -1689,18 +1832,40 @@ export function kartenMass(e: KartenEingabe): KartenMass {
 
   const einheiten: Omit<EinheitL, "stelleId">[] = [];
   const gasse: number[] = [];
+  const kanalSechsecke: KartenMass["kanalSechsecke"] = [];
+  const kanalLinien: KartenMass["kanalLinien"] = [];
+  const kanaele = art === "normal" ? e.kanaele : [];
   let blockBreite: number = KARTE.breite;
   let blockHoehe = hoehe;
-  if (art === "normal" && stelle.einheiten.length > 0) {
+  let einzug: number = EINHEIT.einzugMin;
+  let unterbau = hoehe; // Unterkante dessen, was bisher unter der Karte steht
+  if (art === "normal" && (stelle.einheiten.length > 0 || kanaele.length > 0)) {
     for (let i = 0; i < e.anzahlGruppen; i++) gasse.push(STIEL.gasseStart + i * STIEL.gasseTakt);
-    const einzug = Math.max(EINHEIT.einzugMin, STIEL.gasseStart + e.anzahlGruppen * STIEL.gasseTakt + 1);
+    const plaetze = e.anzahlGruppen + (kanaele.length > 0 ? 1 : 0);
+    einzug = Math.max(EINHEIT.einzugMin, STIEL.gasseStart + plaetze * STIEL.gasseTakt + 1);
+  }
+  if (kanaele.length > 0) {
+    const kanalX = STIEL.gasseStart + e.anzahlGruppen * STIEL.gasseTakt;
+    kanaele.forEach((v, i) => {
+      const y = hoehe + EINHEIT.abstandOben + i * KANAL.takt;
+      const mass = sechseckMass(v);
+      kanalSechsecke.push({ verbindung: v, mass, x: einzug, y });
+      kanalLinien.push({ x1: kanalX, y1: y + SECHSECK.hoehe / 2, x2: einzug, y2: y + SECHSECK.hoehe / 2 });
+      blockBreite = Math.max(blockBreite, einzug + mass.breite);
+    });
+    const letzte = kanalSechsecke[kanalSechsecke.length - 1];
+    kanalLinien.unshift({ x1: kanalX, y1: hoehe, x2: kanalX, y2: letzte.y + SECHSECK.hoehe / 2 });
+    unterbau = letzte.y + SECHSECK.hoehe;
+    blockHoehe = unterbau;
+  }
+  if (art === "normal" && stelle.einheiten.length > 0) {
     const n = stelle.einheiten.length;
     const spalten = n >= EINHEIT.zweiSpaltenAb ? 2 : 1;
     const proSpalte = Math.ceil(n / spalten);
     stelle.einheiten.forEach((eh, i) => {
       const spalte = Math.floor(i / proSpalte);
       const x = einzug + spalte * (EINHEIT.breite + EINHEIT.spaltenAbstand);
-      const ey = hoehe + EINHEIT.abstandOben + (i % proSpalte) * EINHEIT.takt;
+      const ey = unterbau + EINHEIT.abstandOben + (i % proSpalte) * EINHEIT.takt;
       const voll = `${eh.typ} ${eh.rufname}`.trim();
       const zeichenPlatz = eh.zeichen ? EINHEIT.zeichen + KARTE.rand : 0;
       const innen = EINHEIT.breite - 2 * KARTE.rand - zeichenPlatz;
@@ -1709,8 +1874,8 @@ export function kartenMass(e: KartenEingabe): KartenMass {
       einheiten.push({ id: eh.id, x, y: ey, breite: EINHEIT.breite, hoehe: EINHEIT.hoehe, voll, zeichen: eh.zeichen,
         text: zeile(text, tx, grundlinie(0, EINHEIT.hoehe, SCHRIFT.einheit), SCHRIFT.einheit, false, "mitte") });
     });
-    blockBreite = Math.max(KARTE.breite, einzug + spalten * EINHEIT.breite + (spalten - 1) * EINHEIT.spaltenAbstand);
-    blockHoehe = hoehe + EINHEIT.abstandOben + (proSpalte - 1) * EINHEIT.takt + EINHEIT.hoehe;
+    blockBreite = Math.max(blockBreite, einzug + spalten * EINHEIT.breite + (spalten - 1) * EINHEIT.spaltenAbstand);
+    blockHoehe = unterbau + EINHEIT.abstandOben + (proSpalte - 1) * EINHEIT.takt + EINHEIT.hoehe;
   }
 
   let abzeichen: Omit<AbzeichenL, "stelleId"> | null = null;
@@ -1725,7 +1890,7 @@ export function kartenMass(e: KartenEingabe): KartenMass {
   }
 
   return { breite: KARTE.breite, hoehe, kopfHoehe, art, titel, titelVoll, gekuerzt: umbruch.gekuerzt, leiter,
-    kontakte, verweis, einheiten, abzeichen, blockBreite, blockHoehe, gasse };
+    kontakte, verweis, einheiten, abzeichen, kanalSechsecke, kanalLinien, blockBreite, blockHoehe, gasse };
 }
 ```
 
@@ -1783,7 +1948,9 @@ git commit -S -m "feat(kommplan): Kartenmaß mit Kontaktzeilen, Einheitenspalte 
 - Test: `K/_lib/layout/kontur.test.ts`
 
 **Interfaces:**
-- Produces: `interface Stufe { y0: number; y1: number; x: number }`; `interface Kontur { links: readonly Stufe[]; rechts: readonly Stufe[] }` (beide nach `y0` sortiert, überlappungsfrei; `links` = kleinstes x je Höhe, `rechts` = größtes); `LEER: Kontur`; `LINIEN_LUFT = 0.5`; `rechteck(x, y, b, h): Kontur`; `strecke(x1, y1, x2, y2): Kontur` (Linie als Band ±0,25 mm, damit auch waagerechte Linien Platz belegen); `vereinige(a, b): Kontur`; `verschiebe(k, dx, dy): Kontur`; `abstand(links: Kontur, rechts: Kontur, luecke: number): number` (kleinstes dx, um das `rechts` verschoben werden muss, damit es überall, wo sich beide in der Höhe überlappen, `luecke` rechts von `links` liegt; `-Infinity` ohne Überlappung); `nebeneinander(links, rechts, luecke): number` (wie `abstand`, ohne Überlappung rechts neben das Ganze); `minX(k)`, `maxX(k)`, `istLeer(k)`.
+- Produces: `interface Stufe { y0: number; y1: number; x: number }`; `interface Kontur { links: readonly Stufe[]; rechts: readonly Stufe[] }` (beide nach `y0` sortiert, überlappungsfrei; `links` = kleinstes x je Höhe, `rechts` = größtes); `LEER: Kontur`; `LINIEN_LUFT = 0.5`; `LUFT_Y = MINDEST.kasten` (2 mm); `rechteck(x, y, b, h): Kontur`; `strecke(x1, y1, x2, y2): Kontur` (Linie als Band ±0,25 mm, damit auch waagerechte Linien Platz belegen); `vereinige(a, b): Kontur`; `verschiebe(k, dx, dy): Kontur`; `abstand(links: Kontur, rechts: Kontur, luecke: number): number` (kleinstes dx, um das `rechts` verschoben werden muss, damit es überall, wo sich beide in der Höhe überlappen **oder weniger als `LUFT_Y` auseinanderliegen**, `luecke` rechts von `links` liegt; `-Infinity`, wenn es solche Höhen nicht gibt); `nebeneinander(links, rechts, luecke): number` (wie `abstand`, sonst rechts neben das Ganze); `minX(k)`, `maxX(k)`, `istLeer(k)`.
+
+Warum `LUFT_Y`: die Geometrieprüfung verlangt 2 mm zwischen Kästen verschiedener Stellen, auch senkrecht (Task 11). Zählte das Packen nur echte Höhenüberlappung, dürfte ein Teilbaum 0,3 mm unter einen fremden Kasten rutschen — die Prüfung meldete dann, was das Packen selbst gebaut hat.
 
 Warum Skyline statt Konturen je Ebene: Einheitenspalten, Seitenstapel und Kammreihen machen Teilbäume unterschiedlich hoch; eine Kontur je Baumtiefe sähe die Einheitenspalte des Nachbarn nicht. Die Skyline ist eine Stufenfunktion über y — Packen ist ein linearer Durchlauf.
 
@@ -1828,8 +1995,10 @@ describe("Kontur", () => {
     const schmalTief = vereinige(rechteck(0, 0, 10, 10), rechteck(-40, 30, 10, 10));
     expect(abstand(breitFlach, schmalTief, 8)).toBe(108);
   });
-  it("Berührung ohne Überlappung zählt nicht", () => {
-    expect(abstand(rechteck(0, 0, 10, 10), rechteck(0, 10, 10, 10), 8)).toBe(-Infinity);
+  it("Berührung und weniger als 2 mm Höhenabstand zählen wie Überlappung, ab 2 mm nicht", () => {
+    expect(abstand(rechteck(0, 0, 10, 10), rechteck(0, 10, 10, 10), 8)).toBe(18);
+    expect(abstand(rechteck(0, 0, 10, 10), rechteck(0, 11.5, 10, 10), 8)).toBe(18);
+    expect(abstand(rechteck(0, 0, 10, 10), rechteck(0, 12, 10, 10), 8)).toBe(-Infinity);
   });
   it("nebeneinander ohne Überlappung: rechts neben alles", () => {
     expect(nebeneinander(rechteck(0, 0, 10, 10), rechteck(5, 50, 10, 10), 8)).toBe(13);
@@ -1852,10 +2021,12 @@ Expected: FAIL — `./kontur` fehlt.
 
 `K/_lib/layout/kontur.ts`:
 ```ts
+import { MINDEST } from "./masse";
+
 /**
  * SKYLINE-KONTUREN für das Packen von Teilbäumen (Reingold-Tilford mit gierigem Links-Packen).
- * Eine Kontur ist links wie rechts eine Stufenfunktion über y; Packen, Vereinigen und Verschieben
- * sind lineare Durchläufe. Koordinaten werden auf 1e-6 gerundet, damit Fließkomma-Reste keine
+ * Eine Kontur ist links wie rechts eine Stufenfunktion über y; Vereinigen und Verschieben sind
+ * lineare Durchläufe. Koordinaten werden auf 1e-6 gerundet, damit Fließkomma-Reste keine
  * Splitterstufen erzeugen.
  */
 export interface Stufe { y0: number; y1: number; x: number }
@@ -1865,6 +2036,8 @@ const EPS = 1e-6;
 const rund = (v: number) => Math.round(v * 1e6) / 1e6;
 export const LEER: Kontur = { links: [], rechts: [] };
 export const LINIEN_LUFT = 0.5;
+/** Höhenabstand, unter dem zwei Stufen als überlappend gelten (Mindestabstand der Prüfung, Task 11). */
+export const LUFT_Y = MINDEST.kasten;
 
 export function istLeer(k: Kontur): boolean {
   return k.links.length === 0;
@@ -1911,14 +2084,15 @@ export function verschiebe(k: Kontur, dx: number, dy: number): Kontur {
   return { links: k.links.map(f), rechts: k.rechts.map(f) };
 }
 
+/**
+ * Paarweise statt im Reißverschluss: mit `LUFT_Y` zählen auch Stufen, die sich NICHT überlappen,
+ * und die überspringt ein Reißverschluss-Durchlauf. Konturen haben Dutzende Stufen, nicht Tausende.
+ */
 export function abstand(links: Kontur, rechts: Kontur, luecke: number): number {
-  const A = links.rechts, B = rechts.links;
   let bedarf = -Infinity;
-  let i = 0, j = 0;
-  while (i < A.length && j < B.length) {
-    const ueber = Math.min(A[i].y1, B[j].y1) - Math.max(A[i].y0, B[j].y0);
-    if (ueber > EPS) bedarf = Math.max(bedarf, A[i].x - B[j].x + luecke);
-    if (A[i].y1 < B[j].y1) i++; else j++;
+  for (const a of links.rechts) for (const b of rechts.links) {
+    const ueber = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    if (ueber > EPS - LUFT_Y) bedarf = Math.max(bedarf, a.x - b.x + luecke);
   }
   return bedarf;
 }
@@ -1953,9 +2127,9 @@ git commit -S -m "feat(kommplan): Skyline-Konturen zum Packen von Teilbäumen" -
 - Test: `K/_lib/layout/gruppen.test.ts`, `K/_lib/layout/sicht.test.ts`
 
 **Interfaces:**
-- Consumes: `baueBaum`, `versteckteAnzahl` (Task 4), `Darstellung`, `LayoutOptionen`, `Ziel` (Task 5), `masse.ts`.
+- Consumes: `baueBaum`, `versteckteAnzahl` (Task 4), `Darstellung`, `LayoutOptionen`, `Ziel` (Task 5), `LINIEN_LUFT` (Task 6), `masse.ts`.
 - Produces:
-  - `gruppen.ts`: `OHNE_VERBINDUNG = "~"` (kein gültiges ID-Zeichen, kollidiert also nie); `interface Gruppe { schluessel: string; verbindungId: string | null; kinder: Stelle[]; reihen: Stelle[][] }`; `proReiheFuer(ziel: Ziel): number`; `kammReihen<T>(kinder: readonly T[], proReihe: number): T[][]`; `bildeGruppen(kinder: readonly Stelle[], proReihe: number): Gruppe[]` (Eingabe bereits `ordne`t; Gruppen nach dem ersten Vorkommen = kleinster `reihenfolge`); `gruppenAnzahl(kinder: readonly Stelle[]): number`; `anzeigereihenfolge(kinder: readonly Stelle[]): Stelle[]` (flach, Gruppe für Gruppe).
+  - `gruppen.ts`: `OHNE_VERBINDUNG = "~"` (kein gültiges ID-Zeichen, kollidiert also nie); `interface Gruppe { schluessel: string; verbindungId: string | null; kinder: Stelle[]; reihen: Stelle[][] }`; `budgetFuer(ziel: Ziel): number` (Reihenbreite in Layout-mm); `reihenBreite<T>(reihe, breite): number`; `reihenNachBreite<T>(kinder: readonly T[], breite: (k: T) => number, grenze: number): T[][]` (gierig, jede Reihe mindestens ein Kind); `gruppenBreite<T>(reihen, breite): number` (breiteste Reihe, beim Kamm plus Rücken und Linienluft); `bildeGruppen(kinder: readonly Stelle[], breite: (s: Stelle) => number, budget: number, kammfaehig: (s: Stelle) => boolean): Gruppe[]` (Eingabe bereits `ordne`t; Gruppen nach dem ersten Vorkommen = kleinster `reihenfolge`; Kamm nach Abweichung 13); `gruppenAnzahl(kinder: readonly Stelle[]): number`; `anzeigereihenfolge(kinder: readonly Stelle[]): Stelle[]` (flach, Gruppe für Gruppe).
   - `sicht.ts`: `interface Sicht { wurzeln: Stelle[]; sichtbar: Stelle[]; kinder(id): Stelle[]; seiten(id): { links: Stelle[]; rechts: Stelle[] }; darstellung(id): Darstellung; versteckt(id): number; eingeklappt(id): boolean; einklappbar(id): boolean; verbindung(id: string | null): Verbindung | null; tiefe(id): number }`; `baueSicht(inhalt: PlanInhalt, optionen?: LayoutOptionen): Sicht`.
 
 Regeln der Sicht: Eingeklappt (nur wirksam, wenn die Stelle Unterstellen hat) → keine Kinder, `versteckt` = `versteckteAnzahl`; die eigenen Seitenstellen bleiben. Verweis (`{ verweisAufBlatt }`) → weder Kinder noch Seitenstellen. Mit `blatt: { wurzelId, ankerId }` ist die einzige Wurzel der Anker (Darstellung `anker`, keine Seitenstellen, genau ein Kind: `wurzelId`) bzw. ohne Anker `wurzelId` selbst.
@@ -1967,8 +2141,14 @@ Regeln der Sicht: Eingeklappt (nur wirksam, wenn die Stelle Unterstellen hat) �
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import { baueBaum } from "../plan/baum";
-import { anzeigereihenfolge, bildeGruppen, gruppenAnzahl, kammReihen, proReiheFuer } from "./gruppen";
+import type { Stelle } from "../plan/schema";
+import {
+  anzeigereihenfolge, bildeGruppen, budgetFuer, gruppenAnzahl, gruppenBreite, reihenNachBreite,
+} from "./gruppen";
+import { LINIEN_LUFT } from "./kontur";
+import { ABSTAND } from "./masse";
 
+const V = ["v1", "v2", "v3"].map((id) => ({ id, art: "tmo" as const, bezeichnung: id }));
 const plan = baue({
   verbindungen: [{ id: "v2", art: "tmo", bezeichnung: "R_UE_2" }, { id: "v3", art: "tmo", bezeichnung: "R_UE_3" }],
   stellen: [
@@ -1980,23 +2160,62 @@ const plan = baue({
   ],
 });
 const kinder = baueBaum(plan).unter("el");
+/** n Kinder einer Wurzel; `verbindung(i)` legt die Gruppe fest. */
+function reihe(n: number, verbindung: (i: number) => string): Stelle[] {
+  const p = baue({ verbindungen: V, stellen: [
+    { id: "w", titel: "W" },
+    ...Array.from({ length: n }, (_, i) => ({ id: `k${i}`, titel: `K${i}`, eltern: "w", verbindung: verbindung(i) })),
+  ] });
+  return baueBaum(p).unter("w");
+}
+const B46 = () => 46;
+const immer = () => true;
 
 describe("Busgruppen", () => {
   it("Geschwister mit derselben Verbindung stehen zusammen; Gruppen nach kleinster reihenfolge", () => {
-    const g = bildeGruppen(kinder, 6);
+    const g = bildeGruppen(kinder, B46, Infinity, immer);
     expect(g.map((x) => [x.verbindungId, x.kinder.map((k) => k.id)])).toEqual([["v2", ["a", "c"]], ["v3", ["b"]], [null, ["d"]]]);
+    expect(g.every((x) => x.reihen.length === 1)).toBe(true);
     expect(gruppenAnzahl(kinder)).toBe(3);
     expect(anzeigereihenfolge(kinder).map((k) => k.id)).toEqual(["a", "c", "b", "d"]);
   });
-  it("Kamm: bricht nur nach Anzahl und Budget um", () => {
-    expect(kammReihen([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], 6)).toEqual([[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12], [13]]);
-    expect(kammReihen([1, 2], 6)).toEqual([[1, 2]]);
-    expect(kammReihen([], 6)).toEqual([]);
+});
+
+describe("Kamm nach Breite über die ganze Kinderreihe (Spec §5.5, Abweichung 13)", () => {
+  it("Reihen gierig nach Breite; ein zu breites Kind steht allein, nie gar keins", () => {
+    expect(reihenNachBreite(Array.from({ length: 13 }, (_, i) => i), B46, 316).map((r) => r.length)).toEqual([6, 6, 1]);
+    expect(reihenNachBreite([100, 30, 30], (x) => x, 90)).toEqual([[100], [30, 30]]);
+    expect(reihenNachBreite([], B46, 100)).toEqual([]);
   });
-  it("Budget: A4 quer 6 Kinder je Reihe, A3 quer und Bildschirm 10", () => {
-    expect(proReiheFuer("a4-quer")).toBe(6);
-    expect(proReiheFuer("a3-quer")).toBe(10);
-    expect(proReiheFuer("bildschirm")).toBe(10);
+  it("Budget: A4 quer 369,3 mm, A3 quer und Bildschirm 533,3 mm", () => {
+    expect(budgetFuer("a4-quer")).toBeCloseTo(277 / 0.75, 9);
+    expect(budgetFuer("a3-quer")).toBeCloseTo(400 / 0.75, 9);
+    expect(budgetFuer("bildschirm")).toBe(budgetFuer("a3-quer"));
+  });
+  it("eine Gruppe bricht erst um, wenn ihre Reihe das Budget sprengt — dann mit Kammrücken", () => {
+    const acht = reihe(8, () => "v1");
+    expect(bildeGruppen(acht, B46, 8 * 46 + 7 * 8, immer)[0].reihen.map((r) => r.length)).toEqual([8]);
+    const g = bildeGruppen(acht, B46, 320, immer)[0];
+    expect(g.reihen.map((r) => r.length)).toEqual([6, 2]);
+    expect(gruppenBreite(g.reihen, B46)).toBeCloseTo(6 * 46 + 5 * 8 + ABSTAND.kammEinzug + LINIEN_LUFT / 2, 9);
+  });
+  it("das Budget gilt für ALLE Gruppen einer Stelle: drei Gruppen à fünf Kinder auf A4 kämmen jede", () => {
+    const g = bildeGruppen(reihe(15, (i) => V[Math.floor(i / 5)].id), B46, budgetFuer("a4-quer"), immer);
+    expect(g.map((x) => x.reihen.map((r) => r.length))).toEqual([[2, 2, 1], [2, 2, 1], [2, 2, 1]]);
+    const summe = g.reduce((s, x) => s + gruppenBreite(x.reihen, B46), 0) + 2 * ABSTAND.gruppen;
+    expect(summe).toBeLessThanOrEqual(budgetFuer("a4-quer"));
+  });
+  it("breite Kinder zählen mit ihrem Zeilenblock: sechs à 88 mm (zwei Einheitenspalten) und eines à 208 mm (Seitenstellen)", () => {
+    const breite = (s: Stelle) => (s.id === "k6" ? 208 : 88);
+    const g = bildeGruppen(reihe(7, () => "v1"), breite, budgetFuer("a4-quer"), immer)[0];
+    expect(g.reihen.map((r) => r.length)).toEqual([3, 3, 1]);
+    expect(gruppenBreite(g.reihen, breite)).toBeLessThanOrEqual(budgetFuer("a4-quer"));
+  });
+  it("eine Gruppe, in der ein Kind eigene Unterstellen zeigt, kämmt nie", () => {
+    expect(bildeGruppen(reihe(8, () => "v1"), B46, 100, (s) => s.id !== "k3")[0].reihen).toHaveLength(1);
+  });
+  it("endet, auch wenn nichts mehr schrumpfen kann (jedes Kind allein breiter als das Budget)", () => {
+    expect(bildeGruppen(reihe(8, () => "v1"), () => 500, 100, immer)[0].reihen.map((r) => r.length)).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
   });
 });
 ```
@@ -2068,7 +2287,8 @@ Expected: FAIL — Module fehlen.
 `K/_lib/layout/gruppen.ts`:
 ```ts
 import type { Stelle } from "../plan/schema";
-import { ABSTAND, BLATT, KARTE, MIN_MASSSTAB, PAPIER } from "./masse";
+import { LINIEN_LUFT } from "./kontur";
+import { ABSTAND, BLATT, MIN_MASSSTAB, PAPIER } from "./masse";
 import type { Ziel } from "./typen";
 
 /** Schlüssel der Gruppe „ohne Verbindung" — `~` ist in IDs nicht erlaubt, kollidiert also nie. */
@@ -2076,32 +2296,96 @@ export const OHNE_VERBINDUNG = "~";
 
 export interface Gruppe { schluessel: string; verbindungId: string | null; kinder: Stelle[]; reihen: Stelle[][] }
 
+const EPS = 1e-6;
+/** Die neue Grenze einer schrumpfenden Gruppe liegt so weit unter ihrer heute breitesten Reihe. */
+const SCHRITT = 1e-3;
+
 /**
- * Spec §5.5: das Breitenbudget folgt aus dem Zielformat bei Mindestmaßstab; der Bildschirm nimmt
- * das Budget von A3. Die Regel hängt nur an Kinderzahl und Budget — eine zusätzliche Stelle wirft
- * das Bild nicht um.
+ * Spec §5.5: das Breitenbudget einer Kinderreihe folgt aus dem Zielformat bei Mindestmaßstab;
+ * der Bildschirm nimmt das Budget von A3.
  */
-export function proReiheFuer(ziel: Ziel): number {
+export function budgetFuer(ziel: Ziel): number {
   const format = ziel === "bildschirm" ? "a3-quer" : ziel;
-  const budget = (PAPIER[format].breite - 2 * BLATT.randX) / MIN_MASSSTAB;
-  return Math.max(1, Math.floor((budget + ABSTAND.geschwister) / (KARTE.breite + ABSTAND.geschwister)));
+  return (PAPIER[format].breite - 2 * BLATT.randX) / MIN_MASSSTAB;
 }
 
-export function kammReihen<T>(kinder: readonly T[], proReihe: number): T[][] {
+export function reihenBreite<T>(reihe: readonly T[], breite: (k: T) => number): number {
+  return reihe.reduce((s, k) => s + breite(k), 0) + Math.max(0, reihe.length - 1) * ABSTAND.geschwister;
+}
+
+/** Gierig nach Breite: eine neue Reihe, sobald `grenze` überschritten wäre; jede Reihe trägt mindestens ein Kind. */
+export function reihenNachBreite<T>(kinder: readonly T[], breite: (k: T) => number, grenze: number): T[][] {
   const reihen: T[][] = [];
-  for (let i = 0; i < kinder.length; i += proReihe) reihen.push(kinder.slice(i, i + proReihe));
+  let aktuell: T[] = [];
+  let b = 0;
+  for (const k of kinder) {
+    const w = breite(k);
+    const mit = aktuell.length === 0 ? w : b + ABSTAND.geschwister + w;
+    if (aktuell.length > 0 && mit > grenze + EPS) { reihen.push(aktuell); aktuell = [k]; b = w; }
+    else { aktuell.push(k); b = mit; }
+  }
+  if (aktuell.length > 0) reihen.push(aktuell);
   return reihen;
 }
 
-export function bildeGruppen(kinder: readonly Stelle[], proReihe: number): Gruppe[] {
+/** Breite einer Gruppe: ihre breiteste Reihe; bricht sie um, dazu der Kammrücken links samt Linienluft. */
+export function gruppenBreite<T>(reihen: readonly (readonly T[])[], breite: (k: T) => number): number {
+  const max = Math.max(0, ...reihen.map((r) => reihenBreite(r, breite)));
+  return reihen.length > 1 ? max + ABSTAND.kammEinzug + LINIEN_LUFT / 2 : max;
+}
+
+function teile(kinder: readonly Stelle[]): Omit<Gruppe, "reihen">[] {
   const nachSchluessel = new Map<string, Stelle[]>();
   for (const k of kinder) {
     const s = k.verbindungId ?? OHNE_VERBINDUNG;
     nachSchluessel.set(s, [...(nachSchluessel.get(s) ?? []), k]);
   }
   return [...nachSchluessel].map(([schluessel, ks]) => ({
-    schluessel, verbindungId: schluessel === OHNE_VERBINDUNG ? null : schluessel, kinder: ks, reihen: kammReihen(ks, proReihe),
+    schluessel, verbindungId: schluessel === OHNE_VERBINDUNG ? null : schluessel, kinder: ks,
   }));
+}
+
+/**
+ * DER KAMM (Spec §5.5, Abweichung 13) — über die GANZE Kinderreihe einer Stelle, gemessen in Breite.
+ *
+ * 1. Jede Gruppe steht einreihig; passen alle Gruppen samt Gruppenabständen ins Budget, fertig.
+ * 2. Sonst schrumpft die breiteste kämmbare Gruppe (Gleichstand → die frühere): ihre neue Grenze
+ *    liegt knapp unter ihrer heute breitesten Reihe, und ihre Kinder brechen gierig nach Breite um.
+ *    Das wiederholt sich, bis alles passt oder keine Gruppe mehr schrumpfen kann.
+ *
+ * Jede Gruppe bleibt zusammenhängend unter IHREM Bus („unter demselben Bus") und steht neben den
+ * anderen — so bleibt der Stielbeweis aus Task 9 gültig. Eine Gruppe über mehrere Reihen VERSCHIEDENER
+ * Gruppen zu verteilen hieße, Stiele durch fremde Reihen zu führen.
+ *
+ * Kämmbar ist eine Gruppe nur, wenn keines ihrer Kinder sichtbare Unterstellen hat (`kammfaehig`):
+ * eine Kammreihe unter Teilbäumen stünde auf der Höhe fremder Enkel (§5.2). Eingeklappte Kinder und
+ * Verweiskarten zählen als Blätter — die Sicht entscheidet, also wird nach jedem Schnitt neu gerechnet.
+ *
+ * ENDLICH: ein Schritt macht die breiteste Reihe der gewählten Gruppe echt schmaler — ein einzelnes
+ * Kind, das allein breiter ist als die Grenze, steht allein und war vorher Teil einer breiteren
+ * Reihe. Ist die breiteste Reihe schon ein einzelnes Kind, ist die Gruppe fest. Die möglichen
+ * Reihenbreiten sind endlich. DETERMINISTISCH: nur Kinderfolge, Breiten und Budget gehen ein.
+ */
+export function bildeGruppen(
+  kinder: readonly Stelle[], breite: (s: Stelle) => number, budget: number, kammfaehig: (s: Stelle) => boolean,
+): Gruppe[] {
+  const roh = teile(kinder);
+  const reihen: Stelle[][][] = roh.map((g) => [g.kinder]);
+  const fest = roh.map((g) => g.kinder.length < 2 || !g.kinder.every(kammfaehig));
+  const gesamt = () =>
+    reihen.reduce((s, r) => s + gruppenBreite(r, breite), 0) + Math.max(0, roh.length - 1) * ABSTAND.gruppen;
+  while (gesamt() > budget + EPS) {
+    let wahl = -1;
+    for (let i = 0; i < roh.length; i++) {
+      if (fest[i]) continue;
+      if (wahl < 0 || gruppenBreite(reihen[i], breite) > gruppenBreite(reihen[wahl], breite) + EPS) wahl = i;
+    }
+    if (wahl < 0) break;
+    const breiteste = Math.max(...reihen[wahl].map((r) => reihenBreite(r, breite)));
+    if (reihen[wahl].some((r) => r.length === 1 && reihenBreite(r, breite) >= breiteste - EPS)) { fest[wahl] = true; continue; }
+    reihen[wahl] = reihenNachBreite(roh[wahl].kinder, breite, breiteste - SCHRITT);
+  }
+  return roh.map((g, i) => ({ ...g, reihen: reihen[i] }));
 }
 
 export function gruppenAnzahl(kinder: readonly Stelle[]): number {
@@ -2109,7 +2393,7 @@ export function gruppenAnzahl(kinder: readonly Stelle[]): number {
 }
 
 export function anzeigereihenfolge(kinder: readonly Stelle[]): Stelle[] {
-  return bildeGruppen(kinder, Number.MAX_SAFE_INTEGER).flatMap((g) => g.kinder);
+  return teile(kinder).flatMap((g) => g.kinder);
 }
 ```
 
@@ -2200,10 +2484,10 @@ git commit -S -m "feat(kommplan): Busgruppen je Verbindung, Kamm-Budget und Sich
 - Test: `K/_lib/layout/seiten.test.ts`
 
 **Interfaces:**
-- Consumes: `kontur.ts` (Task 6), `KartenMass` (Task 5), `SechseckMass`/`sechseckMass` (Task 5), `Sicht` (Task 7), `typen.ts`.
+- Consumes: `kontur.ts` (Task 6), `KartenMass` (Task 5), `SechseckMass`/`sechseckMass` (Task 5), `Sicht`, `Gruppe` (Task 7), `typen.ts`.
 - Produces:
-  - `sammler.ts`: `interface Teilbaum { kontur: Kontur; unten: number; elemente: Elemente; mitte: number }` (lokale Koordinaten: Wurzelkarte oben links = 0/0; `mitte` = x der Kartenmitte); `class Sammler` mit `belege(x, y, b, h)`, `karte(stelle, mass, x, y, zustand: { einklappbar: boolean; eingeklappt: boolean })`, `linie(netz, x1, y1, x2, y2, duenn)`, `sechseck(netz, verbindung, mass, x, y)`, `spanne(stelleId, links, rechts)`, `uebernimm(t: Teilbaum, dx, dy)`, `fertig(mitte, mindestUnten): Teilbaum`. Jede Methode, die zeichnet, belegt zugleich Platz in der Kontur.
-  - `seiten.ts`: `interface Umgebung { sicht: Sicht; masse(s: Stelle): KartenMass; zeilen: Zeilen; proReihe: number }` (Typ `Zeilen` aus Task 9 — in diesem Task als `import type` nach vorn deklariert, siehe Step 3); `seitenAbstand(sechsecke: (SechseckMass | null)[]): number`; `stapelOben(eltern: KartenMass, erste: KartenMass): number`; `stapelHoehe(eltern: KartenMass, masse: KartenMass[]): number`; `setzeSeiten(s: Sammler, eltern: Stelle, m: KartenMass, seite: "links" | "rechts", stellen: Stelle[], u: Pick<Umgebung, "sicht" | "masse">): void`.
+  - `sammler.ts`: `interface Teilbaum { kontur: Kontur; unten: number; elemente: Elemente; mitte: number }` (lokale Koordinaten: Wurzelkarte oben links = 0/0; `mitte` = x der Kartenmitte); `class Sammler` mit `belege(x, y, b, h)`, `karte(stelle, mass, x, y, zustand: { einklappbar: boolean; eingeklappt: boolean })` (zeichnet auch die Kanal-Sechsecke und -Linien der Karte, Netz `<stelle>#kanal`), `linie(netz, x1, y1, x2, y2, duenn)`, `sechseck(netz, verbindung, mass, x, y)`, `spanne(stelleId, links, rechts)`, `uebernimm(t: Teilbaum, dx, dy)`, `fertig(mitte, mindestUnten): Teilbaum`. Jede Methode, die zeichnet, belegt zugleich Platz in der Kontur.
+  - `seiten.ts`: `interface Umgebung { sicht: Sicht; masse(s: Stelle): KartenMass; zeilen: Zeilen; budget: number; gruppen(s: Stelle): Gruppe[] }` (Typ `Zeilen` aus Task 9 — in diesem Task als `import type` nach vorn deklariert, siehe Step 3; `Gruppe` aus Task 7); `seitenAbstand(sechsecke: (SechseckMass | null)[]): number`; `seitenBreite(stellen: Stelle[], u: Pick<Umgebung, "sicht" | "masse">): number` (wie weit ein Seitenstapel über die Elternkarte bzw. ihren Block hinausragt; 0 ohne Seitenstellen); `stapelOben(eltern: KartenMass, erste: KartenMass): number`; `stapelHoehe(eltern: KartenMass, masse: KartenMass[]): number`; `setzeSeiten(s: Sammler, eltern: Stelle, m: KartenMass, seite: "links" | "rechts", stellen: Stelle[], u: Pick<Umgebung, "sicht" | "masse">): void`.
 
 Geometrie (Spec §5.3 und Abweichung 4): die erste Seitenstelle sitzt so, dass ihre Kopfmitte auf der Kopfmitte der Elternstelle liegt (nie über der Zeilenoberkante); weitere stapeln sich darunter im Abstand 4. Links liegt der rechte **Block**rand bei `−seitenAbstand`, rechts der linke Kartenrand bei `Elternblockbreite + seitenAbstand` (ein zweispaltiger Einheitenblock der Elternstelle ragt nach rechts). Die Schiene liegt 3 mm außerhalb der Elternkarte (rechts: außerhalb des Elternblocks), jeder Zweig läuft waagerecht auf Kopfmitte der Seitenstelle, das Sechseck sitzt mittig zwischen Schiene und Kartenkante. Der erste Zweig beginnt an der Kante der Elternkarte. Netz: `<eltern><links` bzw. `<eltern><rechts`.
 
@@ -2217,14 +2501,14 @@ import { kartenMass } from "./karte";
 import { ABSTAND, KARTE } from "./masse";
 import { Sammler } from "./sammler";
 import { sechseckMass } from "./sechseck";
-import { seitenAbstand, setzeSeiten, stapelHoehe } from "./seiten";
+import { seitenAbstand, seitenBreite, setzeSeiten, stapelHoehe } from "./seiten";
 import { baueSicht } from "./sicht";
 
 function lege(stellen: StelleEingabe[], seite: "links" | "rechts") {
   const inhalt = baue({ verbindungen: [{ id: "v", art: "draht", bezeichnung: "Standleitung" }], stellen });
   const sicht = baueSicht(inhalt);
   const masse = (s: (typeof inhalt.stellen)[number]) =>
-    kartenMass({ stelle: s, leerzeilen: false, darstellung: "normal", versteckt: 0, anzahlGruppen: 0 });
+    kartenMass({ stelle: s, leerzeilen: false, darstellung: "normal", versteckt: 0, anzahlGruppen: 0, kanaele: [] });
   const eltern = sicht.wurzeln[0];
   const m = masse(eltern);
   const s = new Sammler();
@@ -2246,6 +2530,12 @@ describe("Seitenstellen", () => {
     expect(hex.y + hex.hoehe / 2).toBeCloseTo(linie.y1, 9);
     expect(hex.x).toBeGreaterThan(k.x + k.breite);
     expect(hex.x + hex.breite).toBeLessThan(-ABSTAND.seiteSchiene);
+  });
+  it("seitenBreite: wie weit der Stapel über die Elternstelle hinausragt", () => {
+    const { s, liste, masse, sicht } = lege([{ id: "stab", titel: "Stab" }, { id: "katsl", titel: "KatSL", eltern: "stab", lage: "links", verbindung: "v" }], "links");
+    const k = s.elemente.karten.find((x) => x.id === "katsl")!;
+    expect(seitenBreite(liste, { sicht, masse })).toBeCloseTo(-k.x, 9);
+    expect(seitenBreite([], { sicht, masse })).toBe(0);
   });
   it("ohne Verbindung: dünne Linie, kein Sechseck", () => {
     const { s } = lege([{ id: "a", titel: "A" }, { id: "b", titel: "B", eltern: "a", lage: "rechts" }], "rechts");
@@ -2316,6 +2606,10 @@ export class Sammler {
     });
     for (const e of m.einheiten) this.elemente.einheiten.push({ ...e, stelleId: stelle.id, x: x + e.x, y: y + e.y });
     if (m.abzeichen) this.elemente.abzeichen.push({ ...m.abzeichen, stelleId: stelle.id, x: x + m.abzeichen.x, y: y + m.abzeichen.y });
+    // Kanäle (Abweichung 12): eigenes Netz ohne Bus; Linien und Sechsecke liegen im Block.
+    const kanalNetz = `${stelle.id}#kanal`;
+    for (const l of m.kanalLinien) this.linie(kanalNetz, x + l.x1, y + l.y1, x + l.x2, y + l.y2, false);
+    for (const h of m.kanalSechsecke) this.sechseck(kanalNetz, h.verbindung, h.mass, x + h.x, y + h.y);
     this.belege(x, y, m.blockBreite, m.blockHoehe);
   }
 
@@ -2358,7 +2652,8 @@ export class Sammler {
 
 `K/_lib/layout/seiten.ts`:
 ```ts
-import type { Stelle } from "../plan/schema";
+import type { Stelle, Verbindung } from "../plan/schema";
+import type { Gruppe } from "./gruppen";
 import type { KartenMass } from "./karte";
 import { ABSTAND, SECHSECK } from "./masse";
 import type { Sammler } from "./sammler";
@@ -2366,11 +2661,33 @@ import { sechseckMass, type SechseckMass } from "./sechseck";
 import type { Sicht } from "./sicht";
 import type { Zeilen } from "./zeilen";
 
-export interface Umgebung { sicht: Sicht; masse(s: Stelle): KartenMass; zeilen: Zeilen; proReihe: number }
+/** Alles, was das Teilbaum-Layout über den Plan wissen muss; gebaut von `umgebungFuer` (Task 9). */
+export interface Umgebung {
+  sicht: Sicht;
+  masse(s: Stelle): KartenMass;
+  zeilen: Zeilen;
+  /** Kamm-Budget des Ziels (Layout-mm, `budgetFuer`). */
+  budget: number;
+  /** Die Busgruppen der sichtbaren Kinder samt Kammreihen (`bildeGruppen`), je Stelle einmal gerechnet. */
+  gruppen(s: Stelle): Gruppe[];
+}
 
 export function seitenAbstand(sechsecke: (SechseckMass | null)[]): number {
   const breitestes = Math.max(0, ...sechsecke.map((s) => s?.breite ?? 0));
   return ABSTAND.seiteSchiene + 2 * ABSTAND.seiteLuft + Math.max(breitestes, ABSTAND.seiteOhneSechseck);
+}
+
+function sechseckeDer(stellen: Stelle[], u: Pick<Umgebung, "sicht">): ({ v: Verbindung; m: SechseckMass } | null)[] {
+  return stellen.map((st) => {
+    const v = u.sicht.verbindung(st.verbindungId);
+    return v ? { v, m: sechseckMass(v) } : null;
+  });
+}
+
+/** Wie weit ein Seitenstapel über die Elternkarte (links) bzw. ihren Block (rechts) hinausragt — Teil des Zeilenblocks im Kamm-Budget. */
+export function seitenBreite(stellen: Stelle[], u: Pick<Umgebung, "sicht" | "masse">): number {
+  if (stellen.length === 0) return 0;
+  return seitenAbstand(sechseckeDer(stellen, u).map((x) => x?.m ?? null)) + Math.max(...stellen.map((st) => u.masse(st).blockBreite));
 }
 
 /** Die erste Seitenstelle so tief, dass ihre Kopfmitte auf der Kopfmitte der Elternstelle liegt — nie über der Zeile. */
@@ -2390,10 +2707,7 @@ export function setzeSeiten(
   if (stellen.length === 0) return;
   const netz = `${eltern.id}<${seite}`;
   const masse = stellen.map((st) => u.masse(st));
-  const sechsecke = stellen.map((st) => {
-    const v = u.sicht.verbindung(st.verbindungId);
-    return v ? { v, m: sechseckMass(v) } : null;
-  });
+  const sechsecke = sechseckeDer(stellen, u);
   const abstand = seitenAbstand(sechsecke.map((x) => x?.m ?? null));
   const links = seite === "links";
   const schieneX = links ? -ABSTAND.seiteSchiene : m.blockBreite + ABSTAND.seiteSchiene;
@@ -2447,16 +2761,16 @@ git commit -S -m "feat(kommplan): Seitenstellen auf Kopfhöhe, gestapelt an eine
 - Consumes: alles aus Task 5–8.
 - Produces:
   - `zeilen.ts`: `berechneZeilen(sicht: Sicht, masse: (s: Stelle) => KartenMass): Zeilen` — `hoehe[t]` = größter Zeilenblock der Tiefe t (Kartenblock oder Seitenstapel), `luecke[t]` = `lueckeFuer(größte Gruppenzahl − 1 der Tiefe t)`.
-  - `teilbaum.ts`: `umgebungFuer(inhalt: PlanInhalt, ziel: Ziel, optionen?: LayoutOptionen): Umgebung` (Sicht, gecachte Kartenmaße mit `anzahlGruppen = gruppenAnzahl(sicht.kinder(id))`, Zeilen, `proReihe`); `packe(konturen: readonly Kontur[], luecke: number): number[]`; `setzeTeilbaum(stelle: Stelle, tiefe: number, u: Umgebung): Teilbaum`. Netznamen: Gruppe `<eltern>><schluessel>` (Schlüssel = `verbindungId` oder `~`), Seite `<eltern><links|rechts`.
+  - `teilbaum.ts`: `umgebungFuer(inhalt: PlanInhalt, ziel: Ziel, optionen?: LayoutOptionen, budget?: number): Umgebung` (Sicht, gecachte Kartenmaße mit `anzahlGruppen = gruppenAnzahl(sicht.kinder(id))` und aufgelösten `kanaele`, Zeilen, `budget` = `budgetFuer(ziel)` sofern nicht übergeben, gecachte `gruppen(stelle)` = `bildeGruppen(sicht.kinder(id), zeilenblockBreite, budget, k => sicht.kinder(k.id).length === 0)`); `zeilenblockBreite(s: Stelle, u): number` (Seitenstapel links + Block + Seitenstapel rechts); `packe(konturen: readonly Kontur[], luecke: number): number[]`; `setzeTeilbaum(stelle: Stelle, tiefe: number, u: Umgebung): Teilbaum`. Netznamen: Gruppe `<eltern>><schluessel>` (Schlüssel = `verbindungId` oder `~`), Seite `<eltern><links|rechts`, Kanäle `<stelle>#kanal`.
 
 Der Algorithmus je Stelle P in Tiefe t (lokale Koordinaten, P oben links = 0/0):
 1. Karte, Einheiten, Abzeichen, Seitenstellen links/rechts (Task 8).
 2. Keine sichtbaren Kinder → fertig; `unten` mindestens `zeilen.hoehe[t]`.
-3. Kinderzone oben = `zeilen.hoehe[t] + zeilen.luecke[t]`. Gruppen bilden (Task 7). Je Gruppe: Kammreihen; je Reihe die Kind-Teilbäume gierig von links packen (Lücke 8); Reihe r+1 beginnt 8 mm unter der tiefsten Kante von Reihe r. Bus 4 mm über jeder Reihe (Reihe 0: der Bus; weitere: Zweige am Kammrücken 3 mm links der Gruppe), Abwurf je Kind. Sechseck 2 mm über dem Bus in der Mitte der Busspanne, Linie vom Sechseck zum Bus, und eine freie Bahn von der Zeilenunterkante bis zum Sechseck wird belegt.
+3. Kinderzone oben = `zeilen.hoehe[t] + zeilen.luecke[t]`. Gruppen samt Kammreihen aus `u.gruppen(P)` (Task 7: Budget über die ganze Kinderreihe, nach Breite, nur Blattkinder kämmen). Je Gruppe: je Reihe die Kind-Teilbäume gierig von links packen (Lücke 8); Reihe r+1 beginnt 8 mm unter der tiefsten Kante von Reihe r (Kammkinder sind Blätter, die Kante ist also ihr Zeilenblock). Bus 4 mm über jeder Reihe (Reihe 0: der Bus; weitere: Zweige am Kammrücken 3 mm links der Gruppe), Abwurf je Kind. Sechseck 2 mm über dem Bus in der Mitte der Busspanne, Linie vom Sechseck zum Bus, und eine freie Bahn von der Zeilenunterkante bis zum Sechseck wird belegt.
 4. Gruppen gierig von links packen (Lücke 12). Busspanne = linkes Ende der ersten bis rechtes Ende der letzten Gruppe; P mittig darüber (Spec §5.2).
 5. Stiele: Ansatz `a_i` gleichmäßig über die Kartenunterkante (`breite·(i+1)/(k+1)`) bzw. mit Einheiten in der Gasse (`m.gasse`); Ziel `c_i` = Mitte der Busspanne der Gruppe. `c_i = a_i` → gerade; sonst Knick auf `zeilen.hoehe[t] + 2 + Rang·1,5`, Rang zählt von außen (links ab der kleinsten Gruppe, rechts ab der größten).
 
-**Warum die Stiele kreuzungsfrei sind** (für den Code-Kommentar und die Prüfung): `a` und `c` sind streng steigend (Gruppen sind von links gepackt, Ansätze gleichmäßig verteilt). Für i < j: (1) beide links (`c < a`): die Knicke `[c_i, a_i]` und `[c_j, a_j]` können überlappen; i ist außen und knickt höher, also endet der Stiel von j (bei `a_j > a_i`) unterhalb des Knicks von i nicht auf ihm, und der Abstieg von i (bei `c_i < c_j`) liegt links des Knicks von j. (2) beide rechts: spiegelbildlich. (3) i links, j rechts: `[c_i, a_i]` und `[a_j, c_j]` sind getrennt, weil `a_i < a_j`. (4) i rechts, j links: `[a_i, c_i]` endet bei `c_i < c_j`, also vor `[c_j, a_j]`. Alle Knicke liegen über den Sechsecken (`lueckeFuer`), Sechsecke und Busse verschiedener Gruppen trennt das Gruppenpacken.
+**Warum die Stiele kreuzungsfrei sind** (für den Code-Kommentar und die Prüfung): `a` und `c` sind streng steigend (Gruppen sind von links gepackt, Ansätze gleichmäßig verteilt). Für i < j: (1) beide links (`c < a`): die Knicke `[c_i, a_i]` und `[c_j, a_j]` können überlappen; i ist außen und knickt höher, also endet der Stiel von j (bei `a_j > a_i`) unterhalb des Knicks von i nicht auf ihm, und der Abstieg von i (bei `c_i < c_j`) liegt links des Knicks von j. (2) beide rechts: spiegelbildlich. (3) i links, j rechts: `[c_i, a_i]` und `[a_j, c_j]` sind getrennt, weil `a_i < a_j`. (4) i rechts, j links: `[a_i, c_i]` endet bei `c_i < c_j`, also vor `[c_j, a_j]`. Alle Knicke liegen über den Sechsecken (`lueckeFuer`), Sechsecke und Busse verschiedener Gruppen trennt das Gruppenpacken. **Mehrreihige Gruppen neben anderen Gruppen** (Abweichung 13): der Kammrücken einer Gruppe liegt 3 mm links ihrer eigenen Inhalte und ist Teil ihrer Kontur; die Reihenbusse laufen vom Rücken nach rechts nur über die eigene Gruppe. Das Gruppenpacken hält 12 mm zwischen den Konturen, also schneidet kein Rücken, Reihenbus oder Abwurf einen fremden Bus, Stiel oder Kasten; der Stiel jeder Gruppe endet am Sechseck über ihrer ersten Reihe, oberhalb aller Reihen — für die Stiele ist eine mehrreihige Gruppe dasselbe wie eine einreihige. **Kanäle** (Abweichung 12): die Stiele laufen in der Gasse links der Kanallinie, die Kanalzweige nach rechts; die Knicke liegen unter der Zeilenunterkante, also unter jedem Kanal-Sechseck.
 
 - [ ] **Step 1: Failing test**
 
@@ -2465,17 +2779,20 @@ Der Algorithmus je Stelle P in Tiefe t (lokale Koordinaten, P oben links = 0/0):
 import { describe, expect, it } from "vitest";
 import { baue, type StelleEingabe } from "../beispiele/bau";
 import type { Verbindung } from "../plan/schema";
+import { budgetFuer } from "./gruppen";
+import { maxX, minX } from "./kontur";
 import { ABSTAND, EINHEIT, KARTE, STIEL } from "./masse";
 import { setzeTeilbaum, umgebungFuer } from "./teilbaum";
-import type { KarteL } from "./typen";
+import type { KarteL, Ziel } from "./typen";
 
 const V: Verbindung[] = [
   { id: "v2", art: "tmo", bezeichnung: "R_UE_2" },
   { id: "v3", art: "tmo", bezeichnung: "R_UE_3" },
+  { id: "v4", art: "dmo", bezeichnung: "DMO 608" },
 ];
-function setze(stellen: StelleEingabe[], proReihe = 10) {
-  const u = umgebungFuer(baue({ verbindungen: V, stellen }), "bildschirm");
-  const t = setzeTeilbaum(u.sicht.wurzeln[0], 0, { ...u, proReihe });
+function setze(stellen: StelleEingabe[], budget?: number, ziel: Ziel = "bildschirm") {
+  const u = umgebungFuer(baue({ verbindungen: V, stellen }), ziel, {}, budget);
+  const t = setzeTeilbaum(u.sicht.wurzeln[0], 0, u);
   const karte = (id: string) => t.elemente.karten.find((k) => k.id === id)!;
   return { t, u, karte };
 }
@@ -2514,8 +2831,8 @@ describe("Teilbaum", () => {
     expect(t.elemente.linien.every((l) => l.duenn)).toBe(true);
   });
 
-  it("Kamm: 8 Kinder bei 6 je Reihe → zwei Reihen unter demselben Bus, Rücken links", () => {
-    const { t, karte } = setze([{ id: "r", titel: "R" }, ...kinder("r", 8, "v2")], 6);
+  it("Kamm: 8 Kinder, Budget 320 mm (6 × 46 + 5 × 8 = 316) → zwei Reihen unter demselben Bus, Rücken links", () => {
+    const { t, karte } = setze([{ id: "r", titel: "R" }, ...kinder("r", 8, "v2")], 320);
     const reihe0 = [0, 1, 2, 3, 4, 5].map((i) => karte(`r${i}`));
     const reihe1 = [6, 7].map((i) => karte(`r${i}`));
     expect(new Set(reihe0.map((k) => k.y)).size).toBe(1);
@@ -2527,6 +2844,27 @@ describe("Teilbaum", () => {
     expect(ruecken.y2).toBeCloseTo(reihe1[0].y - STIEL.busZuKarte, 9);
   });
 
+  it("das Budget gilt für die ganze Kinderreihe: drei Verbindungen à fünf Kinder auf A4 kämmen alle", () => {
+    const stellen: StelleEingabe[] = [{ id: "r", titel: "R" },
+      ...["v2", "v3", "v4"].flatMap((v) => kinder(`r-${v}-`, 5, v).map((k) => ({ ...k, eltern: "r" })))];
+    const { t, u, karte } = setze(stellen, undefined, "a4-quer");
+    expect(u.gruppen(u.sicht.wurzeln[0]).map((g) => g.reihen.length)).toEqual([3, 3, 3]);
+    const r = karte("r");
+    const breite = maxX(t.kontur) - minX(t.kontur);
+    expect(breite).toBeLessThanOrEqual(budgetFuer("a4-quer"));
+    expect(breite).toBeGreaterThan(r.breite);
+  });
+
+  it("Kinder mit eigenen Unterstellen kämmen nicht — auch wenn die Reihe das Budget sprengt", () => {
+    const stellen: StelleEingabe[] = [{ id: "r", titel: "R" }];
+    for (let i = 0; i < 12; i++) {
+      stellen.push({ id: `eal${i}`, titel: `EAL ${i}`, eltern: "r", verbindung: "v2" });
+      for (let e = 0; e < 3; e++) stellen.push({ id: `ea-${i}-${e}`, titel: `EA ${e}`, eltern: `eal${i}`, verbindung: "v4" });
+    }
+    const { u } = setze(stellen);
+    expect(u.gruppen(u.sicht.wurzeln[0]).map((g) => g.reihen.length)).toEqual([1]);
+  });
+
   it("Einheiten und Kinder: der Stiel läuft in der Gasse links neben der Einheitenspalte", () => {
     const { t, karte } = setze([{ id: "r", titel: "R", einheiten: ["RTW 1", "RTW 2"] }, ...kinder("r", 2, "v2")]);
     const r = karte("r");
@@ -2535,6 +2873,19 @@ describe("Teilbaum", () => {
     const ersteEinheit = t.elemente.einheiten.find((e) => e.stelleId === "r")!;
     expect(stiel.x1).toBeLessThan(ersteEinheit.x);
     expect(stiel.y2).toBeGreaterThanOrEqual(ersteEinheit.y + EINHEIT.hoehe);
+  });
+
+  it("Kanäle und Kinder: Stiel links in der Gasse, Kanallinie rechts daneben, Sechsecke im Block", () => {
+    const { t, karte } = setze([
+      { id: "r", titel: "R", kanaele: ["v4", "v3"], einheiten: ["RTW 1"] }, ...kinder("r", 2, "v2"),
+    ]);
+    const r = karte("r");
+    const stiel = t.elemente.linien.find((l) => l.netz === "r>v2" && l.x1 === l.x2 && l.y1 === r.hoehe)!;
+    const kanal = t.elemente.linien.find((l) => l.netz === "r#kanal" && l.x1 === l.x2)!;
+    expect(stiel.x1).toBeLessThan(kanal.x1);
+    expect(t.elemente.sechsecke.filter((s) => s.netz === "r#kanal").map((s) => s.verbindungId)).toEqual(["v4", "v3"]);
+    const ersteEinheit = t.elemente.einheiten.find((e) => e.stelleId === "r")!;
+    expect(ersteEinheit.y).toBeGreaterThan(Math.max(...t.elemente.sechsecke.filter((s) => s.netz === "r#kanal").map((s) => s.y)));
   });
 
   it("ein schmaler, tiefer Nachbar rückt an die Karte heran, nicht an die breite Ebene darunter", () => {
@@ -2601,21 +2952,27 @@ export function berechneZeilen(sicht: Sicht, masse: (s: Stelle) => KartenMass): 
 
 `K/_lib/layout/teilbaum.ts`:
 ```ts
-import type { PlanInhalt, Stelle } from "../plan/schema";
-import { bildeGruppen, gruppenAnzahl, proReiheFuer, type Gruppe } from "./gruppen";
+import type { PlanInhalt, Stelle, Verbindung } from "../plan/schema";
+import { bildeGruppen, budgetFuer, gruppenAnzahl, type Gruppe } from "./gruppen";
 import { kartenMass, type KartenMass } from "./karte";
 import { LEER, istLeer, minX, nebeneinander, vereinige, verschiebe, type Kontur } from "./kontur";
 import { ABSTAND, SECHSECK, STIEL } from "./masse";
 import { Sammler, type Teilbaum } from "./sammler";
 import { sechseckMass } from "./sechseck";
-import { setzeSeiten, type Umgebung } from "./seiten";
+import { seitenBreite, setzeSeiten, type Umgebung } from "./seiten";
 import { baueSicht } from "./sicht";
 import type { LayoutOptionen, Ziel } from "./typen";
 import { berechneZeilen } from "./zeilen";
 
 const EPS = 1e-6;
 
-export function umgebungFuer(inhalt: PlanInhalt, ziel: Ziel, optionen: LayoutOptionen = {}): Umgebung {
+/** Der Zeilenblock eines Kindes im Kamm-Budget: Seitenstapel links + Karten-/Einheitenblock + Seitenstapel rechts. */
+export function zeilenblockBreite(st: Stelle, u: Pick<Umgebung, "sicht" | "masse">): number {
+  const seiten = u.sicht.seiten(st.id);
+  return seitenBreite(seiten.links, u) + u.masse(st).blockBreite + seitenBreite(seiten.rechts, u);
+}
+
+export function umgebungFuer(inhalt: PlanInhalt, ziel: Ziel, optionen: LayoutOptionen = {}, budget = budgetFuer(ziel)): Umgebung {
   const sicht = baueSicht(inhalt, optionen);
   const cache = new Map<string, KartenMass>();
   const masse = (st: Stelle): KartenMass => {
@@ -2624,12 +2981,22 @@ export function umgebungFuer(inhalt: PlanInhalt, ziel: Ziel, optionen: LayoutOpt
       m = kartenMass({
         stelle: st, leerzeilen: inhalt.optionen.leerzeilen, darstellung: sicht.darstellung(st.id),
         versteckt: sicht.versteckt(st.id), anzahlGruppen: gruppenAnzahl(sicht.kinder(st.id)),
+        kanaele: st.kanaele.map((id) => sicht.verbindung(id)).filter((v): v is Verbindung => v !== null),
       });
       cache.set(st.id, m);
     }
     return m;
   };
-  return { sicht, masse, zeilen: berechneZeilen(sicht, masse), proReihe: proReiheFuer(ziel) };
+  const gruppenCache = new Map<string, Gruppe[]>();
+  const gruppen = (st: Stelle): Gruppe[] => {
+    let g = gruppenCache.get(st.id);
+    if (!g) {
+      g = bildeGruppen(sicht.kinder(st.id), (k) => zeilenblockBreite(k, { sicht, masse }), budget, (k) => sicht.kinder(k.id).length === 0);
+      gruppenCache.set(st.id, g);
+    }
+    return g;
+  };
+  return { sicht, masse, zeilen: berechneZeilen(sicht, masse), budget, gruppen };
 }
 
 /** Gierig von links: jedes Teil so weit links wie seine Kontur es neben den bisherigen erlaubt. */
@@ -2732,7 +3099,7 @@ export function setzeTeilbaum(stelle: Stelle, tiefe: number, u: Umgebung): Teilb
   if (kinder.length === 0) return s.fertig(m.breite / 2, zeilenUnten);
 
   const kinderOben = zeilenUnten + u.zeilen.luecke[tiefe];
-  const gruppen = bildeGruppen(kinder, u.proReihe).map((g) => setzeGruppe(g, stelle, tiefe, u));
+  const gruppen = u.gruppen(stelle).map((g) => setzeGruppe(g, stelle, tiefe, u));
   const versatz = packe(gruppen.map((g) => g.teil.kontur), ABSTAND.gruppen);
   const spanneL = gruppen[0].busL + versatz[0];
   const spanneR = gruppen[gruppen.length - 1].busR + versatz[gruppen.length - 1];
@@ -2772,7 +3139,7 @@ git commit -S -m "feat(kommplan): Teilbaum-Layout mit Busgruppen, eigenen Stiele
 
 **Interfaces:**
 - Consumes: `umgebungFuer`, `setzeTeilbaum`, `packe` (Task 9), `Sammler` (Task 8), `ART_NAME`, `VERBINDUNGS_ARTEN` (Task 3).
-- Produces: `zeichne(inhalt: PlanInhalt, ziel: Ziel, optionen?: LayoutOptionen): Zeichnungsdaten` (normiert: kleinstes x und y = 0; leerer Plan → `breite = hoehe = 0`); `legende(inhalt: PlanInhalt, sicht: Sicht): LegendenEintrag[]` — erst die Arten der **gezeichneten** Verbindungen (jede sichtbare Stelle außer den Wurzeln der Sicht) in der Reihenfolge von `VERBINDUNGS_ARTEN` mit `ART_NAME`, dann jede Verbindung, auf die im **ganzen** Plan keine Stelle zeigt, als `Reserve <Bezeichnung>` (Spec §4.2, §5.6).
+- Produces: `zeichne(inhalt: PlanInhalt, ziel: Ziel, optionen?: LayoutOptionen): Zeichnungsdaten` (normiert: kleinstes x und y = 0; leerer Plan → `breite = hoehe = 0`); `legende(inhalt: PlanInhalt, sicht: Sicht): LegendenEintrag[]` — erst die Arten der **gezeichneten** Verbindungen (die Verbindung jeder sichtbaren Stelle außer den Wurzeln der Sicht, dazu die Kanäle jeder sichtbaren normalen Karte) in der Reihenfolge von `VERBINDUNGS_ARTEN` mit `ART_NAME`, dann jede Verbindung, die im **ganzen** Plan weder `verbindungId` noch Kanal einer Stelle ist, als `Reserve <Bezeichnung>` (Spec §4.2, §5.6, Abweichung 12).
 
 - [ ] **Step 1: Failing test**
 
@@ -2824,6 +3191,16 @@ describe("zeichne", () => {
       { art: "tmo", text: "Reserve K_UE_2", reserve: true },
     ]);
   });
+  it("ein benutzter Kanal ist keine Reserve, seine Art steht in der Legende", () => {
+    const p = baue({ verbindungen: [...V, { id: "dmo", art: "dmo", bezeichnung: "DMO 608" }], stellen: [
+      { id: "lts", titel: "L" }, { id: "ea", titel: "EA", eltern: "lts", verbindung: "r1", kanaele: ["dmo", "k2"] },
+    ] });
+    expect(zeichne(p, "bildschirm").legende).toEqual([
+      { art: "tmo", text: "Digitalfunk TMO", reserve: false },
+      { art: "dmo", text: "Digitalfunk DMO", reserve: false },
+      { art: "draht", text: "Reserve Standleitung", reserve: true },
+    ]);
+  });
   it("Plan nur mit Reservekanälen: Legende nur Reserve", () => {
     const p = baue({ verbindungen: [V[2]], stellen: [{ id: "a", titel: "A" }] });
     expect(zeichne(p, "a4-quer").legende).toEqual([{ art: "tmo", text: "Reserve K_UE_2", reserve: true }]);
@@ -2859,11 +3236,16 @@ export function legende(inhalt: PlanInhalt, sicht: Sicht): LegendenEintrag[] {
   const wurzeln = new Set(sicht.wurzeln.map((w) => w.id));
   const gezeichnet = new Set<VerbindungsArt>();
   for (const s of sicht.sichtbar) {
-    if (wurzeln.has(s.id)) continue;
-    const v = sicht.verbindung(s.verbindungId);
+    const v = wurzeln.has(s.id) ? null : sicht.verbindung(s.verbindungId);
     if (v) gezeichnet.add(v.art);
+    if (sicht.darstellung(s.id) !== "normal") continue; // Anker und Verweise zeigen keine Kanäle
+    for (const k of s.kanaele) {
+      const kanal = sicht.verbindung(k);
+      if (kanal) gezeichnet.add(kanal.art);
+    }
   }
-  const benutzt = new Set(inhalt.stellen.map((s) => s.verbindungId).filter((x): x is string => x !== null));
+  // „Reserve" = weder Weg zur Elternstelle noch Kanal irgendeiner Stelle (Abweichung 12).
+  const benutzt = new Set(inhalt.stellen.flatMap((s) => [s.verbindungId, ...s.kanaele]).filter((x): x is string => x !== null));
   return [
     ...VERBINDUNGS_ARTEN.filter((a) => gezeichnet.has(a)).map((art) => ({ art, text: ART_NAME[art], reserve: false })),
     ...inhalt.verbindungen.filter((v) => !benutzt.has(v.id)).map((v) => ({ art: v.art, text: `Reserve ${v.bezeichnung}`, reserve: true })),
@@ -2910,53 +3292,84 @@ git commit -S -m "feat(kommplan): ganze Zeichnung mit Wurzeln nebeneinander und 
 - Test: `K/_lib/layout/pruefung.test.ts`, `K/_lib/layout/eigenschaften.test.ts`
 
 **Interfaces:**
-- Consumes: `zeichne` (Task 10), `baue` (Task 4), `fuegeStelleEin`, `baueBaum`, `nachkommen` (Task 4), `anzeigereihenfolge` (Task 7).
+- Consumes: `zeichne` (Task 10), `baue` (Task 4), `fuegeStelleEin`, `baueBaum`, `nachkommen` (Task 4), `anzeigereihenfolge` (Task 7), `umgebungFuer` (Task 9), `MINDEST` (Task 2).
 - Produces:
-  - `pruefung.ts`: `interface Befund { art: "ueberlappung" | "kreuzung" | "durchstich" | "schraeg" | "mitte"; text: string }`; `pruefeZeichnung(z: Zeichnungsdaten): Befund[]` (Kästen = Karten, Einheiten, Sechsecke, Abzeichen: keine zwei überlappen; Strecken verschiedener Netze berühren sich nicht; keine Strecke durchsticht einen Kasten — außer ein Sechseck ihres eigenen Netzes; jede Strecke ist waagerecht oder senkrecht; Toleranz 0,01 mm); `pruefeMitte(z: Zeichnungsdaten): Befund[]` (jede Elternstelle mittig über ihrer Spanne). Wird auch vom Vorschau-Skript (Task 15) benutzt.
-  - `zufall.ts`: `mulberry32(seed: number): () => number`; `zufallsPlan(seed: number, o: { stellen: number; mehrereWurzeln?: boolean; leerzeilen?: boolean }): PlanInhalt`; `mische<T>(liste: readonly T[], seed: number): T[]` (Fisher-Yates); `alsGliederung(inhalt: PlanInhalt): string` (eingerückter Baum für Fehlermeldungen, damit ein roter Seed ohne Shrinking nachvollziehbar bleibt).
+  - `pruefung.ts`: `interface Befund { art: "ueberlappung" | "abstand" | "kreuzung" | "naehe" | "durchstich" | "kante" | "schraeg" | "mitte" | "verbindung"; text: string }`; `besitzerVon(netz: string): string`; `pruefeZeichnung(z: Zeichnungsdaten): Befund[]` — die **negative** Hälfte: Kästen (Karten, Einheiten, Sechsecke, Abzeichen) derselben Stelle überlappen nicht, Kästen verschiedener Stellen halten `MINDEST.kasten` (2 mm, auch schräg); Strecken verschiedener Netze berühren sich nicht und liegen parallel nicht näher als `MINDEST.linie` (0,75 mm); keine Strecke durchsticht einen Kasten — Ausnahme nur für eine **waagerechte** Strecke desselben Netzes genau durch die Mitte ihres Sechsecks; keine Strecke läuft auf der Kante eines Kastens entlang (außer ihres eigenen Sechsecks; ein Ende, das die Kante trifft, ist in Ordnung); jede Strecke ist waagerecht oder senkrecht; Toleranz 0,01 mm. `pruefeMitte(z)` (jede Elternstelle mittig über ihrer Spanne). `pruefeVerbindungen(z: Zeichnungsdaten, inhalt: PlanInhalt): Befund[]` — die **positive** Hälfte: jede gezeichnete Unterstelle, deren Elternstelle gezeichnet ist, hat einen senkrechten Abwurf eines Netzes `<eltern>>…`, der auf der Mitte ihrer Kartenoberkante endet; jede gezeichnete Seitenstelle einen waagerechten Zweig `<eltern><links|rechts>`, der auf Kopfmitte an ihrer Kartenkante endet; jedes Sechseck hängt an einer Linie seines Netzes (Mitte oben/unten, Spitze links/rechts oder eine waagerechte Linie durch seine Mitte); jedes Netz ist zusammenhängend (Sechsecke verbinden, was an ihnen hängt) und beginnt an der Karte seines Besitzers (Unterkante für `>` und `#kanal`, linke/rechte Kante für `<links`/`<rechts`). Alle drei benutzen die Eigenschafts-, Beispiel-, Aufteilungstests und das Vorschau-Skript (Task 15).
+  - `zufall.ts`: `mulberry32(seed: number): () => number`; `zufallsPlan(seed: number, o: { stellen: number; mehrereWurzeln?: boolean; leerzeilen?: boolean; form?: "frei" | "stab" }): PlanInhalt` (`frei`: Zufallsrekursivbaum wie bisher, jetzt auch mit leeren Titeln und Kanälen; `stab`: Stab mit Seitenstellen → TEL → 3–14 EAL an 1–2 Verbindungen → je 0–12 EA an einer Verbindung, Seitenstellen auch an EA, selten Unterstellen an EA — die Form der großen Stab-Lage, in der Kämme entstehen); `mische<T>(liste: readonly T[], seed: number): T[]` (Fisher-Yates); `alsGliederung(inhalt: PlanInhalt): string` (eingerückter Baum für Fehlermeldungen, damit ein roter Seed ohne Shrinking nachvollziehbar bleibt).
 
 **Warum eigener Zufall statt fast-check:** fast-check brächte Shrinking, aber auch eine neue Abhängigkeit und einen zweiten Zufallsbegriff neben dem deterministischen Seed, den Golden- und Vorschau-Skript ohnehin brauchen. Ein fester Seed-Bereich mit `alsGliederung` in der Fehlermeldung macht jeden Fehlschlag reproduzierbar (`zufallsPlan(seed, …)` im Vorschau-Skript öffnen); das genügt für eine reine Funktion ohne Zustand.
 
-**Die Einfüge-Eigenschaft, präzise** (Spec §10 „Einfügen verschiebt nichts links von ihr"): Mit Zentrieren über der Busspanne bewegt jede Einfügung die Vorfahren; ein absoluter Vergleich wäre falsch. Das gierige Links-Packen garantiert dagegen: Für jede Stelle C auf der Kette neu → Elternstelle → … → Wurzel behalten alle Karten in den Teilbäumen der **früheren Geschwister von C** (Anzeigereihenfolge: Gruppe für Gruppe, Kammreihe für Kammreihe) ihre Lage **zueinander**, und keine vorhandene Karte ändert ihr y. Voraussetzung, die der Test herstellt: die neue Stelle ist minimal (keine Kontakte, keine Einheiten), wird letzte Unterstelle ihrer Elternstelle und tritt der Verbindung des bisher letzten Kindes bei (sonst entstünde eine neue Gruppe mit neuem Knick, und die Ebenenlücke wüchse zu Recht). Über Ebenen hinweg gilt die Aussage **nicht**: eine zentrierende Vorfahrin kann ihre früheren Geschwister gegen die Kinder eines Nachbarn verschieben — das ist Absicht (Spec: „jede Elternstelle steht mittig").
+**Die Einfüge-Eigenschaft, präzise** (Spec §10 „Einfügen verschiebt nichts links von ihr"): Mit Zentrieren über der Busspanne bewegt jede Einfügung die Vorfahren; ein absoluter Vergleich wäre falsch. Das gierige Links-Packen garantiert dagegen: Für jede Stelle C auf der Kette neu → Elternstelle → … → Wurzel behalten alle Karten in den Teilbäumen der **früheren Geschwister von C** (Anzeigereihenfolge: Gruppe für Gruppe, Kammreihe für Kammreihe) ihre Lage **zueinander**, und keine vorhandene Karte ändert ihr y. Voraussetzung, die der Test herstellt: die neue Stelle ist minimal (keine Kontakte, keine Einheiten), wird letzte Unterstelle ihrer Elternstelle und tritt der Verbindung des bisher letzten Kindes bei (sonst entstünde eine neue Gruppe mit neuem Knick, und die Ebenenlücke wüchse zu Recht); und **weder vorher noch nachher kämmt irgendeine Gruppe** — ein Kamm verteilt das Budget der ganzen Kinderreihe neu (Abweichung 13), eine zusätzliche Stelle darf dort also auch frühere Gruppen umbrechen.
+Über Ebenen hinweg gilt die Aussage **nicht**: eine zentrierende Vorfahrin kann ihre früheren Geschwister gegen die Kinder eines Nachbarn verschieben — das ist Absicht (Spec: „jede Elternstelle steht mittig").
 
 - [ ] **Step 1: Failing tests**
 
 `K/_lib/layout/pruefung.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
+import { baue } from "../beispiele/bau";
 import { leereElemente, type Zeichnungsdaten } from "./typen";
-import { pruefeMitte, pruefeZeichnung } from "./pruefung";
+import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
+import { zeichne } from "./zeichne";
 
 const leer = (): Zeichnungsdaten => ({ ...leereElemente(), breite: 100, hoehe: 100, legende: [] });
 const karte = (id: string, x: number, y: number) => ({
   id, x, y, breite: 46, hoehe: 12, kopfHoehe: 12, art: "normal" as const, hervorheben: false, zeichen: null,
   titel: [], titelVoll: id, gekuerzt: false, leiter: null, kontakte: [], verweis: null, einklappbar: false, eingeklappt: false,
 });
+const linie = (netz: string, x1: number, y1: number, x2: number, y2: number) => ({ netz, x1, y1, x2, y2, duenn: false });
+const sechseck = (netz: string, x: number, y: number) => ({
+  netz, verbindungId: "v", art: "tmo" as const, form: "funk" as const, x, y, breite: 26, hoehe: 6,
+  beschriftung: { text: "", x: 0, y: 0, groesse: 8, fett: true, anker: "mitte" as const }, voll: "", piktogramm: "comms.voice-radio-tmo",
+});
+const arten = (z: Zeichnungsdaten) => pruefeZeichnung(z).map((b) => b.art);
 
-describe("pruefeZeichnung", () => {
+describe("pruefeZeichnung — Kästen", () => {
   it("findet überlappende Karten", () => {
-    const z = { ...leer(), karten: [karte("a", 0, 0), karte("b", 40, 5)] };
-    expect(pruefeZeichnung(z).map((b) => b.art)).toEqual(["ueberlappung"]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0), karte("b", 40, 5)] })).toEqual(["ueberlappung"]);
   });
-  it("Karten, die sich nur berühren, sind in Ordnung", () => {
-    expect(pruefeZeichnung({ ...leer(), karten: [karte("a", 0, 0), karte("b", 46, 0)] })).toEqual([]);
+  it("Karten verschiedener Stellen, die sich berühren oder weniger als 2 mm Luft haben, sind ein Befund", () => {
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0), karte("b", 46, 0)] })).toEqual(["abstand"]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0), karte("b", 47.5, 0)] })).toEqual(["abstand"]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0), karte("b", 0, 13)] })).toEqual(["abstand"]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0), karte("b", 48, 0)] })).toEqual([]);
   });
+  it("Kästen derselben Stelle dürfen dicht liegen, nur nicht überlappen", () => {
+    const einheit = { id: "e", stelleId: "a", x: 6, y: 13.3, breite: 40, hoehe: 4.2, voll: "RTW", zeichen: null,
+      text: { text: "RTW", x: 20, y: 3, groesse: 8, fett: false, anker: "mitte" as const } };
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0)], einheiten: [einheit] })).toEqual([]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 0)], einheiten: [{ ...einheit, y: 10 }] })).toEqual(["ueberlappung"]);
+  });
+});
+
+describe("pruefeZeichnung — Linien", () => {
   it("findet Kreuzungen verschiedener Netze, nicht innerhalb eines Netzes", () => {
-    const z = { ...leer(), linien: [
-      { netz: "a", x1: 0, y1: 5, x2: 10, y2: 5, duenn: false },
-      { netz: "b", x1: 5, y1: 0, x2: 5, y2: 10, duenn: false },
-      { netz: "a", x1: 5, y1: 5, x2: 5, y2: 20, duenn: false },
-    ] };
+    const z = { ...leer(), linien: [linie("a", 0, 5, 10, 5), linie("b", 5, 0, 5, 10), linie("a", 5, 5, 5, 20)] };
     expect(pruefeZeichnung(z).filter((b) => b.art === "kreuzung")).toHaveLength(2);
+  });
+  it("parallele Linien verschiedener Netze brauchen 0,75 mm", () => {
+    expect(arten({ ...leer(), linien: [linie("a", 0, 5, 10, 5), linie("b", 0, 5.5, 10, 5.5)] })).toEqual(["naehe"]);
+    expect(arten({ ...leer(), linien: [linie("a", 3, 0, 3, 10), linie("b", 3.5, 2, 3.5, 20)] })).toEqual(["naehe"]);
+    expect(arten({ ...leer(), linien: [linie("a", 0, 5, 10, 5), linie("b", 0, 6, 10, 6)] })).toEqual([]);
   });
   it("findet eine Linie durch eine Karte, aber nicht bis an ihre Kante", () => {
     const k = karte("a", 0, 10);
-    expect(pruefeZeichnung({ ...leer(), karten: [k], linien: [{ netz: "n", x1: 20, y1: 0, x2: 20, y2: 10, duenn: false }] })).toEqual([]);
-    expect(pruefeZeichnung({ ...leer(), karten: [k], linien: [{ netz: "n", x1: 20, y1: 0, x2: 20, y2: 15, duenn: false }] })
-      .map((b) => b.art)).toEqual(["durchstich"]);
+    expect(arten({ ...leer(), karten: [k], linien: [linie("n", 20, 0, 20, 10)] })).toEqual([]);
+    expect(arten({ ...leer(), karten: [k], linien: [linie("n", 20, 0, 20, 15)] })).toEqual(["durchstich"]);
+  });
+  it("eine Linie, die auf der Kante eines Kastens entlangläuft, ist ein Befund", () => {
+    expect(arten({ ...leer(), karten: [karte("a", 0, 10)], linien: [linie("n", 5, 10, 30, 10)] })).toEqual(["kante"]);
+    expect(arten({ ...leer(), karten: [karte("a", 0, 10)], linien: [linie("n", 46, 12, 46, 30)] })).toEqual(["kante"]);
+  });
+  it("ein Sechseck lässt nur den waagerechten Zweig seines Netzes durch seine Mitte", () => {
+    const h = sechseck("p<links", 10, 0);
+    expect(arten({ ...leer(), sechsecke: [h], linien: [linie("p<links", 0, 3, 40, 3)] })).toEqual([]);
+    expect(arten({ ...leer(), sechsecke: [h], linien: [linie("p<links", 0, 2, 40, 2)] })).toEqual(["durchstich"]);
+    expect(arten({ ...leer(), sechsecke: [h], linien: [linie("p<links", 20, -5, 20, 10)] })).toEqual(["durchstich"]);
+    expect(arten({ ...leer(), sechsecke: [h], linien: [linie("q<links", 0, 3, 40, 3)] })).toEqual(["durchstich"]);
   });
   it("schräge Linien sind ein Befund", () => {
-    expect(pruefeZeichnung({ ...leer(), linien: [{ netz: "n", x1: 0, y1: 0, x2: 5, y2: 5, duenn: false }] }).map((b) => b.art)).toEqual(["schraeg"]);
+    expect(arten({ ...leer(), linien: [linie("n", 0, 0, 5, 5)] })).toEqual(["schraeg"]);
   });
 });
 
@@ -2965,6 +3378,53 @@ describe("pruefeMitte", () => {
     const z = { ...leer(), karten: [karte("p", 0, 0)], spannen: [{ stelleId: "p", links: 10, rechts: 50 }] };
     expect(pruefeMitte(z)).toHaveLength(1);
     expect(pruefeMitte({ ...z, spannen: [{ stelleId: "p", links: 0, rechts: 46 }] })).toEqual([]);
+  });
+});
+
+/**
+ * DIE POSITIVE HÄLFTE: eine Zeichnung mit weniger Linien hat für `pruefeZeichnung` weniger
+ * Befunde. Jede Mutation hier nimmt der echten Engine-Ausgabe etwas weg und muss rot werden.
+ */
+describe("pruefeVerbindungen", () => {
+  const p = baue({
+    verbindungen: [
+      { id: "v", art: "tmo", bezeichnung: "R_UE_2" }, { id: "d", art: "draht", bezeichnung: "Standleitung" },
+      { id: "k", art: "dmo", bezeichnung: "DMO 608" },
+    ],
+    stellen: [
+      { id: "w", titel: "W", kanaele: ["k"] },
+      { id: "a", titel: "A", eltern: "w", verbindung: "v" }, { id: "b", titel: "B", eltern: "w", verbindung: "v" },
+      { id: "s", titel: "S", eltern: "w", lage: "rechts", verbindung: "d" },
+    ],
+  });
+  const z = zeichne(p, "bildschirm");
+  const k = (id: string) => z.karten.find((x) => x.id === id)!;
+
+  it("die vollständige Zeichnung der Engine ist angebunden", () => {
+    expect(pruefeVerbindungen(z, p)).toEqual([]);
+  });
+  it("ohne Linien ist nichts angebunden", () => {
+    expect(pruefeVerbindungen({ ...z, linien: [] }, p).length).toBeGreaterThanOrEqual(4);
+  });
+  it("fehlt ein Abwurf, nennt der Befund die Karte", () => {
+    const a = k("a");
+    const ohne = z.linien.filter((l) => !(l.netz === "w>v" && l.x1 === l.x2 && Math.abs(l.y2 - a.y) < 1e-6 && Math.abs(l.x1 - (a.x + a.breite / 2)) < 1e-6));
+    expect(ohne).toHaveLength(z.linien.length - 1);
+    expect(pruefeVerbindungen({ ...z, linien: ohne }, p).map((b) => b.text)).toContain("a hängt an keinem Bus von w");
+  });
+  it("fehlt das Stielstück an der Karte, beginnt das Netz nicht an seiner Stelle", () => {
+    const w = k("w");
+    const ohne = z.linien.filter((l) => !(l.netz === "w>v" && Math.abs(Math.min(l.y1, l.y2) - (w.y + w.hoehe)) < 1e-6));
+    expect(pruefeVerbindungen({ ...z, linien: ohne }, p).some((b) => b.text.startsWith("Netz w>v"))).toBe(true);
+  });
+  it("ein Sechseck neben seiner Linie und eine Seitenstelle ohne Zweig sind Befunde", () => {
+    const verschoben = z.sechsecke.map((h) => (h.netz === "w<rechts" ? { ...h, y: h.y + 3 } : h));
+    expect(pruefeVerbindungen({ ...z, sechsecke: verschoben }, p).map((b) => b.art)).toContain("verbindung");
+    const ohneZweig = z.linien.filter((l) => l.netz !== "w<rechts");
+    expect(pruefeVerbindungen({ ...z, linien: ohneZweig }, p).map((b) => b.text)).toContain("s hängt an keinem Zweig von w");
+  });
+  it("ein Kanal-Sechseck ohne seine Linie ist ein Befund", () => {
+    expect(pruefeVerbindungen({ ...z, linien: z.linien.filter((l) => l.netz !== "w#kanal") }, p).length).toBeGreaterThan(0);
   });
 });
 ```
@@ -2976,22 +3436,50 @@ import { baue } from "../beispiele/bau";
 import { baueBaum, nachkommen } from "../plan/baum";
 import { fuegeStelleEin } from "../plan/operationen";
 import type { PlanInhalt } from "../plan/schema";
-import { anzeigereihenfolge, bildeGruppen, proReiheFuer } from "./gruppen";
-import { pruefeMitte, pruefeZeichnung } from "./pruefung";
-import type { Zeichnungsdaten } from "./typen";
+import { anzeigereihenfolge } from "./gruppen";
+import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
+import { umgebungFuer } from "./teilbaum";
+import type { Zeichnungsdaten, Ziel } from "./typen";
 import { zeichne } from "./zeichne";
 import { alsGliederung, mische, mulberry32, zufallsPlan } from "./zufall";
 
 const SEEDS = Array.from({ length: 150 }, (_, i) => i + 1);
+const STAB_SEEDS = Array.from({ length: 60 }, (_, i) => 1000 + i);
 const erklaere = (seed: number, inhalt: PlanInhalt, text: string) => `Seed ${seed}: ${text}\n${alsGliederung(inhalt)}`;
+const befundeVon = (z: Zeichnungsdaten, inhalt: PlanInhalt) =>
+  [...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt)];
+/** Bricht irgendwo in diesem Plan eine Gruppe als Kamm um? */
+function kaemmt(inhalt: PlanInhalt, ziel: Ziel): boolean {
+  const u = umgebungFuer(inhalt, ziel);
+  return u.sicht.sichtbar.some((s) => u.gruppen(s).some((g) => g.reihen.length > 1));
+}
 
 describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume (%s)", (ziel) => {
-  it.each(SEEDS)("Seed %i: keine Überlappung, keine Kreuzung, Eltern mittig über der Busspanne", (seed) => {
+  it.each(SEEDS)("Seed %i: keine Überlappung, keine Kreuzung, alles angebunden, Eltern mittig", (seed) => {
     const inhalt = zufallsPlan(seed, { stellen: 5 + (seed % 36), mehrereWurzeln: seed % 7 === 0 });
     const z = zeichne(inhalt, ziel);
-    const befunde = [...pruefeZeichnung(z), ...pruefeMitte(z)];
+    const befunde = befundeVon(z, inhalt);
     expect(befunde, erklaere(seed, inhalt, befunde.map((b) => b.text).join("; "))).toEqual([]);
     expect(z.karten.map((k) => k.id).sort()).toEqual(inhalt.stellen.map((s) => s.id).sort());
+  });
+});
+
+/**
+ * STAB-FÖRMIGE PLÄNE: der freie Generator hängt jede Stelle an eine zufällige Trägerin — flache
+ * Grade, fast nie ein Kamm. Hier entstehen breite Ebenen mit Seitenstellen an Kammkindern, zwei
+ * Kammgruppen nebeneinander, Kamm unter einer Karte mit Einheiten (Gasse) — die Fälle der großen
+ * Stab-Lage. Dass sie wirklich kämmen, zählt der letzte Fall.
+ */
+describe.each(["bildschirm", "a4-quer"] as const)("Stab-förmige Zufallspläne (%s)", (ziel) => {
+  it.each(STAB_SEEDS)("Seed %i: sauber und angebunden", (seed) => {
+    const inhalt = zufallsPlan(seed, { stellen: 120, form: "stab" });
+    const z = zeichne(inhalt, ziel);
+    const befunde = befundeVon(z, inhalt);
+    expect(befunde, erklaere(seed, inhalt, befunde.map((b) => b.text).join("; "))).toEqual([]);
+  });
+  it("mindestens ein Drittel der Stab-Seeds kämmt irgendwo — sonst prüfen die Fälle darüber keinen Kamm", () => {
+    const mitKamm = STAB_SEEDS.filter((seed) => kaemmt(zufallsPlan(seed, { stellen: 120, form: "stab" }), ziel));
+    expect(mitKamm.length).toBeGreaterThanOrEqual(STAB_SEEDS.length / 3);
   });
 });
 
@@ -3022,15 +3510,13 @@ describe("Einfügen verschiebt nichts, was links steht", () => {
     const p = traeger[Math.floor(mulberry32(seed + 1000)() * traeger.length)];
     const bisher = anzeigereihenfolge(baum.unter(p.id));
     const letzte = bisher.at(-1);
-    // Vorbedingung: die letzte Gruppe wird durch das neue Kind nicht zum Kamm. Sonst entsteht 3 mm
-    // links von ihr der Kammrücken, die Gruppe packt gewollt weiter rechts — das ist kein Befund.
-    const proReihe = proReiheFuer("bildschirm");
-    const letzteGruppe = bildeGruppen(baum.unter(p.id), proReihe).at(-1);
-    if (letzteGruppe && letzteGruppe.kinder.length % proReihe === 0) return;
     const neu = fuegeStelleEin(inhalt, {
       id: "neu", titel: "N", eltern: p.id, verbindungId: letzte?.verbindungId ?? null,
       reihenfolge: bisher.length === 0 ? 0 : Math.max(...bisher.map((s) => s.reihenfolge)) + 1,
     });
+    // Vorbedingung (Abweichung 10): kein Kamm, weder vorher noch nachher — ein Kamm verteilt die
+    // Breite der ganzen Kinderreihe neu, auch für frühere Gruppen. Das ist gewollt, kein Befund.
+    if (kaemmt(inhalt, "bildschirm") || kaemmt(neu, "bildschirm")) return;
     const vorher = zeichne(inhalt, "bildschirm");
     const nachher = zeichne(neu, "bildschirm");
     // keine vorhandene Karte ändert ihr y
@@ -3051,19 +3537,67 @@ describe("Einfügen verschiebt nichts, was links steht", () => {
 });
 
 describe("Grenzfälle", () => {
+  const V = [
+    { id: "v", art: "tmo" as const, bezeichnung: "R_UE_2" }, { id: "w2", art: "tmo" as const, bezeichnung: "R_UE_3" },
+    { id: "x", art: "tmo" as const, bezeichnung: "R_UE_4" }, { id: "d", art: "draht" as const, bezeichnung: "Standleitung" },
+  ];
+  const kinder = (eltern: string, n: number, verbindung: string, rest: object = {}) =>
+    Array.from({ length: n }, (_, i) => ({ id: `${eltern}-${verbindung}-${i}`, titel: `EA ${i}`, eltern, verbindung, ...rest }));
+  function sauber(inhalt: PlanInhalt): void {
+    for (const ziel of ["bildschirm", "a4-quer"] as const) {
+      const befunde = befundeVon(zeichne(inhalt, ziel), inhalt);
+      expect(befunde.map((b) => b.text), ziel).toEqual([]);
+    }
+  }
+
   it("30 Einheiten, drei Seitenstellen links und zwölf Kinder an einer Verbindung — sauber auf Bildschirm und A4", () => {
-    const inhalt = baue({
-      verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }, { id: "d", art: "draht", bezeichnung: "Standleitung" }],
+    sauber(baue({
+      verbindungen: V,
       stellen: [
         { id: "w", titel: "Stab", einheiten: Array.from({ length: 30 }, (_, i) => `ELW ${i}`) },
         ...[1, 2, 3].map((i) => ({ id: `l${i}`, titel: `Links ${i}`, eltern: "w", lage: "links" as const, verbindung: "d" })),
-        ...Array.from({ length: 12 }, (_, i) => ({ id: `k${i}`, titel: `EA ${i}`, eltern: "w", verbindung: "v", einheiten: ["RTW 1"] })),
+        ...kinder("w", 12, "v", { einheiten: ["RTW 1"] }),
       ],
-    });
-    for (const ziel of ["bildschirm", "a4-quer"] as const) {
-      const z = zeichne(inhalt, ziel);
-      expect([...pruefeZeichnung(z), ...pruefeMitte(z)]).toEqual([]);
-    }
+    }));
+  });
+  it("Kamm mit Seitenstellen an Kammkindern, auch links am ersten Kind einer Reihe", () => {
+    const k = kinder("w", 14, "v");
+    const seiten = [0, 3, 5, 6, 7, 12].map((i) => ({ id: `s${i}`, titel: "Seite", eltern: k[i].id, lage: (i % 2 === 0 ? "links" : "rechts") as "links" | "rechts", verbindung: "d" }));
+    const inhalt = baue({ verbindungen: V, stellen: [{ id: "w", titel: "W" }, ...k, ...seiten] });
+    expect(umgebungFuer(inhalt, "a4-quer").gruppen(baueBaum(inhalt).wurzeln[0])[0].reihen.length).toBeGreaterThan(1);
+    sauber(inhalt);
+  });
+  it("zwei Kammgruppen nebeneinander unter einer Karte mit Einheiten und Kanal (Gasse)", () => {
+    const inhalt = baue({ verbindungen: V, stellen: [
+      { id: "w", titel: "W", einheiten: ["ELW 1", "ELW 2"], kanaele: ["x"] }, ...kinder("w", 9, "v"), ...kinder("w", 9, "w2"),
+    ] });
+    const u = umgebungFuer(inhalt, "a4-quer");
+    expect(u.gruppen(u.sicht.wurzeln[0]).map((g) => g.reihen.length > 1)).toEqual([true, true]);
+    sauber(inhalt);
+  });
+  it("drei Verbindungen à fünf Blattkinder: das Budget gilt für die ganze Reihe", () => {
+    const inhalt = baue({ verbindungen: V, stellen: [{ id: "w", titel: "W" }, ...kinder("w", 5, "v"), ...kinder("w", 5, "w2"), ...kinder("w", 5, "x")] });
+    const u = umgebungFuer(inhalt, "a4-quer");
+    expect(u.gruppen(u.sicht.wurzeln[0]).every((g) => g.reihen.length > 1)).toBe(true);
+    sauber(inhalt);
+  });
+  it("sechs Kinder mit je zwölf Einheiten und eines mit zwei Seitenstellen: Kamm nach Breite", () => {
+    const zwoelf = Array.from({ length: 12 }, (_, i) => `RTW ${i}`);
+    const inhalt = baue({ verbindungen: V, stellen: [
+      { id: "w", titel: "W" }, ...kinder("w", 6, "v", { einheiten: zwoelf }),
+      { id: "breit", titel: "Breit", eltern: "w", verbindung: "v" },
+      { id: "bl", titel: "L", eltern: "breit", lage: "links", verbindung: "d" },
+      { id: "br", titel: "R", eltern: "breit", lage: "rechts", verbindung: "d" },
+    ] });
+    expect(umgebungFuer(inhalt, "a4-quer").gruppen(baueBaum(inhalt).wurzeln[0])[0].reihen.length).toBeGreaterThan(1);
+    sauber(inhalt);
+  });
+  it("Kinder mit eigenen Unterstellen kämmen nicht; die Zeichnung bleibt sauber", () => {
+    const stellen: Parameters<typeof baue>[0]["stellen"] = [{ id: "w", titel: "W" }];
+    for (let i = 0; i < 12; i++) stellen.push({ id: `eal${i}`, titel: `EAL ${i}`, eltern: "w", verbindung: "v" }, ...kinder(`eal${i}`, 3, "x"));
+    const inhalt = baue({ verbindungen: V, stellen });
+    expect(umgebungFuer(inhalt, "bildschirm").gruppen(baueBaum(inhalt).wurzeln[0])[0].reihen).toHaveLength(1);
+    sauber(inhalt);
   });
 });
 ```
@@ -3077,34 +3611,57 @@ Expected: FAIL — `./pruefung`, `./zufall` fehlen.
 
 `K/_lib/layout/pruefung.ts`:
 ```ts
-import type { Strecke, Zeichnungsdaten } from "./typen";
+import { baueBaum } from "../plan/baum";
+import type { PlanInhalt } from "../plan/schema";
+import { MINDEST } from "./masse";
+import type { KarteL, SechseckL, Strecke, Zeichnungsdaten } from "./typen";
 
 /**
- * Geometrische Zusicherungen an eine fertige Zeichnung (Spec §10): keine Überlappung, keine
- * Kreuzung, Eltern mittig. Genutzt von den Eigenschaftstests, den Golden-Tests und dem
- * Vorschau-Skript — ein Befund dort ist derselbe wie im Test.
+ * Geometrische Zusicherungen an eine fertige Zeichnung (Spec §10), in zwei Hälften:
+ *
+ * - `pruefeZeichnung` ist NEGATIV: nichts überlappt, nichts kreuzt, nichts kommt sich zu nahe.
+ *   Eine Zeichnung mit weniger Linien hat hier weniger Befunde — und eine ohne Linien keine.
+ * - `pruefeVerbindungen` ist POSITIV: was verbunden sein muss, ist es. Erst beide zusammen sagen
+ *   „sauber UND vollständig".
+ *
+ * Genutzt von den Eigenschafts-, Beispiel- und Aufteilungstests und dem Vorschau-Skript — ein
+ * Befund dort ist derselbe wie im Test. Die Mindestabstände hält das Packen selbst ein
+ * (`kontur.ts`, `LUFT_Y`), sonst meldete die Prüfung, was die Engine gebaut hat.
  */
-export interface Befund { art: "ueberlappung" | "kreuzung" | "durchstich" | "schraeg" | "mitte"; text: string }
-interface Kasten { name: string; x: number; y: number; b: number; h: number; netz?: string }
+export interface Befund {
+  art: "ueberlappung" | "abstand" | "kreuzung" | "naehe" | "durchstich" | "kante" | "schraeg" | "mitte" | "verbindung";
+  text: string;
+}
+interface Kasten { name: string; besitzer: string; x: number; y: number; b: number; h: number; sechseck?: SechseckL }
 
 const TOL = 0.01;
 
+/** Wem ein Netz gehört: der Stelle vor `>` (Gruppe), `<` (Seite) oder `#` (Kanäle) — keines davon ist ein ID-Zeichen. */
+export const besitzerVon = (netz: string) => netz.split(/[<>#]/)[0];
+
 function kaesten(z: Zeichnungsdaten): Kasten[] {
   return [
-    ...z.karten.map((k) => ({ name: `Karte ${k.id}`, x: k.x, y: k.y, b: k.breite, h: k.hoehe })),
-    ...z.einheiten.map((e) => ({ name: `Einheit ${e.id}`, x: e.x, y: e.y, b: e.breite, h: e.hoehe })),
-    ...z.sechsecke.map((s) => ({ name: `Sechseck ${s.netz}`, x: s.x, y: s.y, b: s.breite, h: s.hoehe, netz: s.netz })),
-    ...z.abzeichen.map((a) => ({ name: `Abzeichen ${a.stelleId}`, x: a.x, y: a.y, b: a.breite, h: a.hoehe })),
+    ...z.karten.map((k) => ({ name: `Karte ${k.id}`, besitzer: k.id, x: k.x, y: k.y, b: k.breite, h: k.hoehe })),
+    ...z.einheiten.map((e) => ({ name: `Einheit ${e.id}`, besitzer: e.stelleId, x: e.x, y: e.y, b: e.breite, h: e.hoehe })),
+    ...z.sechsecke.map((s) => ({ name: `Sechseck ${s.netz}/${s.verbindungId}`, besitzer: besitzerVon(s.netz), x: s.x, y: s.y, b: s.breite, h: s.hoehe, sechseck: s })),
+    ...z.abzeichen.map((a) => ({ name: `Abzeichen ${a.stelleId}`, besitzer: a.stelleId, x: a.x, y: a.y, b: a.breite, h: a.hoehe })),
   ];
 }
 
 const ueberlappen = (a: Kasten, b: Kasten) =>
   a.x + TOL < b.x + b.b && b.x + TOL < a.x + a.b && a.y + TOL < b.y + b.h && b.y + TOL < a.y + a.h;
+/** Kleinster Abstand zweier achsenparalleler Rechtecke; 0, wenn sie sich berühren oder überlappen. */
+function kastenAbstand(a: Kasten, b: Kasten): number {
+  const dx = Math.max(0, b.x - (a.x + a.b), a.x - (b.x + b.b));
+  const dy = Math.max(0, b.y - (a.y + a.h), a.y - (b.y + b.h));
+  return Math.hypot(dx, dy);
+}
 
 const waagerecht = (l: Strecke) => Math.abs(l.y1 - l.y2) < TOL;
 const senkrecht = (l: Strecke) => Math.abs(l.x1 - l.x2) < TOL;
 const bereich = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
 
+/** Berühren oder kreuzen sich zwei achsenparallele Strecken (T-Stoß und Überdeckung eingeschlossen)? */
 function beruehren(p: Strecke, q: Strecke): boolean {
   const [px0, px1] = bereich(p.x1, p.x2), [py0, py1] = bereich(p.y1, p.y2);
   const [qx0, qx1] = bereich(q.x1, q.x2), [qy0, qy1] = bereich(q.y1, q.y2);
@@ -3115,6 +3672,20 @@ function beruehren(p: Strecke, q: Strecke): boolean {
   return v.x1 >= hx0 - TOL && v.x1 <= hx1 + TOL && h.y1 >= vy0 - TOL && h.y1 <= vy1 + TOL;
 }
 
+/** Zwei parallele Strecken, die sich (fast) überdecken und näher als `MINDEST.linie` liegen. */
+function zuNah(p: Strecke, q: Strecke): boolean {
+  const d = MINDEST.linie - TOL;
+  if (waagerecht(p) && waagerecht(q)) {
+    const [px0, px1] = bereich(p.x1, p.x2), [qx0, qx1] = bereich(q.x1, q.x2);
+    return Math.abs(p.y1 - q.y1) < d && Math.min(px1, qx1) - Math.max(px0, qx0) > -d;
+  }
+  if (senkrecht(p) && senkrecht(q)) {
+    const [py0, py1] = bereich(p.y1, p.y2), [qy0, qy1] = bereich(q.y1, q.y2);
+    return Math.abs(p.x1 - q.x1) < d && Math.min(py1, qy1) - Math.max(py0, qy0) > -d;
+  }
+  return false;
+}
+
 function durchsticht(l: Strecke, k: Kasten): boolean {
   const [x0, x1] = bereich(l.x1, l.x2), [y0, y1] = bereich(l.y1, l.y2);
   const innenX = (x: number) => x > k.x + TOL && x < k.x + k.b - TOL;
@@ -3123,22 +3694,48 @@ function durchsticht(l: Strecke, k: Kasten): boolean {
   return innenX(l.x1) && Math.min(y1, k.y + k.h - TOL) > Math.max(y0, k.y + TOL);
 }
 
+/** Läuft die Strecke ein Stück AUF einer Kante des Kastens? Ein Ende, das die Kante nur trifft, zählt nicht. */
+function aufKante(l: Strecke, k: Kasten): boolean {
+  if (waagerecht(l)) {
+    const [x0, x1] = bereich(l.x1, l.x2);
+    const aufY = Math.abs(l.y1 - k.y) < TOL || Math.abs(l.y1 - (k.y + k.h)) < TOL;
+    return aufY && Math.min(x1, k.x + k.b) - Math.max(x0, k.x) > TOL;
+  }
+  if (senkrecht(l)) {
+    const [y0, y1] = bereich(l.y1, l.y2);
+    const aufX = Math.abs(l.x1 - k.x) < TOL || Math.abs(l.x1 - (k.x + k.b)) < TOL;
+    return aufX && Math.min(y1, k.y + k.h) - Math.max(y0, k.y) > TOL;
+  }
+  return false;
+}
+
+/** Die einzige Ausnahme vom Durchstich: der waagerechte Zweig desselben Netzes genau durch die Mitte seines Sechsecks. */
+const traegtSechseck = (l: Strecke, k: Kasten) =>
+  k.sechseck !== undefined && k.sechseck.netz === l.netz && waagerecht(l) && Math.abs(l.y1 - (k.y + k.h / 2)) < TOL;
+
 export function pruefeZeichnung(z: Zeichnungsdaten): Befund[] {
   const befunde: Befund[] = [];
   const ks = kaesten(z);
   for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) {
-    if (ueberlappen(ks[i], ks[j])) befunde.push({ art: "ueberlappung", text: `${ks[i].name} überlappt ${ks[j].name}` });
+    const [a, b] = [ks[i], ks[j]];
+    if (ueberlappen(a, b)) befunde.push({ art: "ueberlappung", text: `${a.name} überlappt ${b.name}` });
+    else if (a.besitzer !== b.besitzer && kastenAbstand(a, b) < MINDEST.kasten - TOL) {
+      befunde.push({ art: "abstand", text: `${a.name} liegt ${kastenAbstand(a, b).toFixed(2)} mm neben ${b.name}` });
+    }
   }
   const linien = z.linien;
   for (const l of linien) if (!waagerecht(l) && !senkrecht(l)) befunde.push({ art: "schraeg", text: `Linie in ${l.netz} ist schräg` });
   for (let i = 0; i < linien.length; i++) for (let j = i + 1; j < linien.length; j++) {
-    if (linien[i].netz !== linien[j].netz && beruehren(linien[i], linien[j])) {
-      befunde.push({ art: "kreuzung", text: `${linien[i].netz} kreuzt ${linien[j].netz}` });
-    }
+    const [p, q] = [linien[i], linien[j]];
+    if (p.netz === q.netz) continue;
+    if (beruehren(p, q)) befunde.push({ art: "kreuzung", text: `${p.netz} kreuzt ${q.netz}` });
+    else if (zuNah(p, q)) befunde.push({ art: "naehe", text: `${p.netz} läuft zu nah an ${q.netz}` });
   }
   for (const l of linien) for (const k of ks) {
-    if (k.netz === l.netz) continue;
-    if ((waagerecht(l) || senkrecht(l)) && durchsticht(l, k)) befunde.push({ art: "durchstich", text: `${l.netz} läuft durch ${k.name}` });
+    if (!waagerecht(l) && !senkrecht(l)) continue;
+    if (traegtSechseck(l, k)) continue;
+    if (durchsticht(l, k)) befunde.push({ art: "durchstich", text: `${l.netz} läuft durch ${k.name}` });
+    else if (!(k.sechseck && k.sechseck.netz === l.netz) && aufKante(l, k)) befunde.push({ art: "kante", text: `${l.netz} läuft auf der Kante von ${k.name}` });
   }
   return befunde;
 }
@@ -3150,6 +3747,71 @@ export function pruefeMitte(z: Zeichnungsdaten): Befund[] {
     const abweichung = k.x + k.breite / 2 - (s.links + s.rechts) / 2;
     return Math.abs(abweichung) > 1e-6 ? [{ art: "mitte" as const, text: `${s.stelleId} steht ${abweichung.toFixed(3)} mm neben der Mitte` }] : [];
   });
+}
+
+const gleich = (a: number, b: number) => Math.abs(a - b) < TOL;
+const endetIn = (l: Strecke, x: number, y: number) => (gleich(l.x1, x) && gleich(l.y1, y)) || (gleich(l.x2, x) && gleich(l.y2, y));
+
+/** Hängt das Sechseck an dieser Linie seines Netzes? Mitte oben/unten (Gruppe), Spitze links/rechts (Kanal), Zweig durch die Mitte (Seite). */
+function haengtAn(h: SechseckL, l: Strecke): boolean {
+  const cx = h.x + h.breite / 2, cy = h.y + h.hoehe / 2;
+  const punkte: [number, number][] = [[cx, h.y], [cx, h.y + h.hoehe], [h.x, cy], [h.x + h.breite, cy]];
+  if (punkte.some(([x, y]) => endetIn(l, x, y))) return true;
+  const [x0, x1] = bereich(l.x1, l.x2);
+  return waagerecht(l) && gleich(l.y1, cy) && x0 < h.x + TOL && x1 > h.x + h.breite - TOL;
+}
+
+/** Beginnt das Netz an der Karte seines Besitzers? Gruppen und Kanäle an der Unterkante, Seitenzweige an der Seitenkante. */
+function anKante(p: KarteL, netz: string, x: number, y: number): boolean {
+  const imKopf = y > p.y - TOL && y < p.y + p.hoehe + TOL;
+  if (netz.endsWith("<links")) return gleich(x, p.x) && imKopf;
+  if (netz.endsWith("<rechts")) return gleich(x, p.x + p.breite) && imKopf;
+  return gleich(y, p.y + p.hoehe) && x > p.x + TOL && x < p.x + p.breite - TOL;
+}
+
+export function pruefeVerbindungen(z: Zeichnungsdaten, inhalt: PlanInhalt): Befund[] {
+  const befunde: Befund[] = [];
+  const melde = (text: string) => befunde.push({ art: "verbindung", text });
+  const baum = baueBaum(inhalt);
+  const karte = new Map(z.karten.map((k) => [k.id, k]));
+  const imNetz = (n: string) => z.linien.filter((l) => l.netz === n);
+
+  // 1. Jede gezeichnete Stelle, deren Elternstelle auch gezeichnet ist, hängt an ihr.
+  for (const k of z.karten) {
+    const s = baum.stelle(k.id);
+    if (!s || s.eltern === null || !karte.has(s.eltern)) continue;
+    if (s.lage === "unter") {
+      const x = k.x + k.breite / 2;
+      if (!z.linien.some((l) => l.netz.startsWith(`${s.eltern}>`) && senkrecht(l) && endetIn(l, x, k.y))) {
+        melde(`${k.id} hängt an keinem Bus von ${s.eltern}`);
+      }
+    } else {
+      const x = s.lage === "links" ? k.x + k.breite : k.x;
+      if (!imNetz(`${s.eltern}<${s.lage}`).some((l) => waagerecht(l) && endetIn(l, x, k.y + k.kopfHoehe / 2))) {
+        melde(`${k.id} hängt an keinem Zweig von ${s.eltern}`);
+      }
+    }
+  }
+  // 2. Jedes Sechseck hängt an einer Linie seines Netzes.
+  for (const h of z.sechsecke) {
+    if (!imNetz(h.netz).some((l) => haengtAn(h, l))) melde(`Sechseck ${h.verbindungId} in ${h.netz} hängt an keiner Linie`);
+  }
+  // 3. Jedes Netz ist EIN Stück (Sechsecke verbinden, was an ihnen hängt) und beginnt an seiner Stelle.
+  for (const n of new Set(z.linien.map((l) => l.netz))) {
+    const linien = imNetz(n);
+    const hexe = z.sechsecke.filter((h) => h.netz === n);
+    const eltern = [...linien, ...hexe].map((_, i) => i);
+    const wurzel = (i: number): number => (eltern[i] === i ? i : (eltern[i] = wurzel(eltern[i])));
+    const vereine = (a: number, b: number) => { eltern[wurzel(a)] = wurzel(b); };
+    for (let i = 0; i < linien.length; i++) for (let j = i + 1; j < linien.length; j++) if (beruehren(linien[i], linien[j])) vereine(i, j);
+    hexe.forEach((h, j) => linien.forEach((l, i) => { if (haengtAn(h, l)) vereine(i, linien.length + j); }));
+    const teile = new Set(eltern.map((_, i) => wurzel(i))).size;
+    if (teile > 1) melde(`Netz ${n} zerfällt in ${teile} Teile`);
+    const p = karte.get(besitzerVon(n));
+    if (!p) { melde(`Netz ${n} ohne Karte ${besitzerVon(n)}`); continue; }
+    if (!linien.some((l) => anKante(p, n, l.x1, l.y1) || anKante(p, n, l.x2, l.y2))) melde(`Netz ${n} beginnt nicht an ${p.id}`);
+  }
+  return befunde;
 }
 ```
 
@@ -3191,9 +3853,25 @@ const VERBINDUNGEN: Verbindung[] = [
   { id: "v5", art: "tmo", bezeichnung: "BOS_NI_RES_09" }, { id: "v6", art: "mobil", bezeichnung: "Handy" },
 ];
 
-export function zufallsPlan(seed: number, o: { stellen: number; mehrereWurzeln?: boolean; leerzeilen?: boolean }): PlanInhalt {
-  const r = mulberry32(seed);
-  const wahl = <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)];
+type Wahl = <T>(xs: readonly T[]) => T;
+
+function titel(r: () => number, wahl: Wahl): string {
+  // Leere Titel gibt es: Vorlagen lassen Zeilen für den Handeintrag frei (Abweichung 15).
+  if (r() < 0.05) return wahl(["", "   "]);
+  return Array.from({ length: 1 + Math.floor(r() * 5) }, () => wahl(WOERTER)).join(" ");
+}
+function kanaele(r: () => number, wahl: Wahl): string[] {
+  if (r() >= 0.15) return [];
+  const erster = wahl(VERBINDUNGEN).id;
+  const zweiter = wahl(VERBINDUNGEN).id;
+  return r() < 0.3 && zweiter !== erster ? [erster, zweiter] : [erster];
+}
+function einheiten(r: () => number, n: number): string[] {
+  return Array.from({ length: n }, (_, j) => `${r() < 0.5 ? "RTW" : "KTW"} RK UE 40-83-${j}`);
+}
+
+/** Zufallsrekursivbaum: jede Stelle an eine zufällige Trägerin — flache Grade, viele Formen. */
+function freieStellen(r: () => number, wahl: Wahl, o: { stellen: number; mehrereWurzeln?: boolean }): StelleEingabe[] {
   const stellen: StelleEingabe[] = [];
   const traeger: string[] = [];
   for (let i = 0; i < o.stellen; i++) {
@@ -3207,16 +3885,63 @@ export function zufallsPlan(seed: number, o: { stellen: number; mehrereWurzeln?:
     stellen.push({
       id, lage,
       eltern: wurzel ? null : wahl(traeger),
-      titel: Array.from({ length: 1 + Math.floor(r() * 5) }, () => wahl(WOERTER)).join(" "),
+      titel: titel(r, wahl),
       zeichen: r() < 0.6 ? wahl(["rezept:D.1.4", "zusatz:eal", "zusatz:ea"]) : null,
       verbindung: r() < 0.85 ? wahl(VERBINDUNGEN).id : null,
+      kanaele: kanaele(r, wahl),
       leiter: r() < 0.2 ? "Max Mustermann" : null,
       hervorheben: r() < 0.1,
       kontakte,
-      einheiten: Array.from({ length: r() < 0.6 ? 0 : Math.floor(r() * 13) }, (_, j) => `RTW RK UE 40-83-${j}`),
+      einheiten: einheiten(r, r() < 0.6 ? 0 : Math.floor(r() * 13)),
     });
     if (lage === "unter") traeger.push(id);
   }
+  return stellen;
+}
+
+/**
+ * Die Form der großen Stab-Lage: Stab mit Seitenstellen → TEL → 3–14 EAL an einer oder zwei
+ * Verbindungen → je 0–12 EA, fast alle an EINER Verbindung (daraus werden Kämme), mit Seitenstellen
+ * auch an EA und selten eigenen Unterstellen (dann kämmt die Gruppe nicht, Abweichung 13).
+ */
+function stabStellen(r: () => number, wahl: Wahl, o: { stellen: number }): StelleEingabe[] {
+  const stellen: StelleEingabe[] = [
+    { id: "stab", titel: "Stab", zeichen: "zusatz:stab" },
+    { id: "katsl", titel: "KatSL", eltern: "stab", lage: "links", verbindung: "v4" },
+    { id: "lts", titel: "Leitstelle", eltern: "stab", lage: "rechts", verbindung: "v1" },
+    { id: "tel", titel: "TEL", eltern: "stab", verbindung: "v3", einheiten: einheiten(r, Math.floor(r() * 4)) },
+  ];
+  const ealVerbindungen = r() < 0.5 ? ["v2"] : ["v2", "v5"];
+  const eals = 3 + Math.floor(r() * 12);
+  for (let a = 0; a < eals && stellen.length < o.stellen; a++) {
+    const eal = `eal${a}`;
+    stellen.push({ id: eal, titel: titel(r, wahl), zeichen: "zusatz:eal", eltern: "tel", verbindung: wahl(ealVerbindungen), kanaele: kanaele(r, wahl) });
+    const eaVerbindung = wahl(["v3", "v6", "v2"]);
+    const n = Math.floor(r() * 13);
+    for (let e = 0; e < n && stellen.length < o.stellen; e++) {
+      const ea = `${eal}-${e}`;
+      stellen.push({
+        id: ea, titel: titel(r, wahl), zeichen: "zusatz:ea", eltern: eal,
+        verbindung: r() < 0.9 ? eaVerbindung : wahl(VERBINDUNGEN).id,
+        kontakte: r() < 0.5 ? { digitalfunk: `RK UE 4${a % 10}-${10 + e}-1` } : {},
+        einheiten: einheiten(r, Math.floor(r() * 13)),
+      });
+      if (r() < 0.15) stellen.push({ id: `${ea}-s`, titel: "Seite", eltern: ea, lage: r() < 0.5 ? "links" : "rechts", verbindung: r() < 0.5 ? "v4" : null });
+      if (r() < 0.05) {
+        const u = 1 + Math.floor(r() * 3);
+        for (let x = 0; x < u; x++) stellen.push({ id: `${ea}-u${x}`, titel: `U ${x}`, eltern: ea, verbindung: "v6" });
+      }
+    }
+  }
+  return stellen;
+}
+
+export function zufallsPlan(
+  seed: number, o: { stellen: number; mehrereWurzeln?: boolean; leerzeilen?: boolean; form?: "frei" | "stab" },
+): PlanInhalt {
+  const r = mulberry32(seed);
+  const wahl: Wahl = (xs) => xs[Math.floor(r() * xs.length)];
+  const stellen = o.form === "stab" ? stabStellen(r, wahl, o) : freieStellen(r, wahl, o);
   return baue({ optionen: { leerzeilen: o.leerzeilen ?? r() < 0.3 }, verbindungen: VERBINDUNGEN, stellen });
 }
 
@@ -3225,9 +3950,10 @@ export function alsGliederung(inhalt: PlanInhalt): string {
   const zeilen: string[] = [];
   const zeige = (id: string, tiefe: number) => {
     const s = baum.stelle(id)!;
-    zeilen.push(`${"  ".repeat(tiefe)}- ${s.id} [${s.lage}] (${s.verbindungId ?? "–"}) ${s.titel} · ${s.kontakte.length}K ${s.einheiten.length}E`);
+    const kanal = s.kanaele.length > 0 ? ` ⬡${s.kanaele.join(",")}` : "";
+    zeilen.push(`${"  ".repeat(tiefe)}- ${s.id} [${s.lage}] (${s.verbindungId ?? "–"})${kanal} ${JSON.stringify(s.titel)} · ${s.kontakte.length}K ${s.einheiten.length}E`);
     const seiten = baum.seiten(id);
-    for (const x of [...seiten.links, ...seiten.rechts]) zeilen.push(`${"  ".repeat(tiefe + 1)}- ${x.id} [${x.lage}] (${x.verbindungId ?? "–"}) ${x.titel}`);
+    for (const x of [...seiten.links, ...seiten.rechts]) zeilen.push(`${"  ".repeat(tiefe + 1)}- ${x.id} [${x.lage}] (${x.verbindungId ?? "–"}) ${JSON.stringify(x.titel)}`);
     for (const k of baum.unter(id)) zeige(k.id, tiefe + 1);
   };
   baum.wurzeln.forEach((w) => zeige(w.id, 0));
@@ -3238,30 +3964,35 @@ export function alsGliederung(inhalt: PlanInhalt): string {
 - [ ] **Step 4: Grün sehen — und rote Seeds ernst nehmen**
 
 Run: `uptime && pnpm vitest run src/app/m/kommplan/_lib/layout`
-Expected: PASS. Ist ein Seed rot, ist das ein Befund an der Engine, nicht am Test: die Gliederung aus der Meldung mit `zufallsPlan(<seed>, …)` im Vorschau-Skript (Task 15) rendern, die Ursache in `teilbaum.ts`/`seiten.ts` beheben, den Seed als eigenen, benannten Regressionsfall in `teilbaum.test.ts` festhalten. Toleranzen in `pruefung.ts` nicht lockern.
+Expected: PASS. Ist ein Seed rot, ist das ein Befund an der Engine, nicht am Test: die Gliederung aus der Meldung mit `zufallsPlan(<seed>, …)` im Vorschau-Skript (Task 15, `--zufall <seed> <stellen> [stab]`) rendern, die Ursache in `teilbaum.ts`/`seiten.ts`/`karte.ts` beheben, den Seed als eigenen, benannten Regressionsfall in `teilbaum.test.ts` festhalten. Toleranzen und `MINDEST` nicht lockern. Wird „mindestens ein Drittel der Stab-Seeds kämmt" rot, ist der Generator zu zahm (Kinderzahl je EAL, Anteil der Unterstellen) — den Generator nachschärfen, nicht die Schwelle senken.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/app/m/kommplan/_lib/layout/pruefung.ts src/app/m/kommplan/_lib/layout/zufall.ts src/app/m/kommplan/_lib/layout/pruefung.test.ts src/app/m/kommplan/_lib/layout/eigenschaften.test.ts
-git commit -S -m "test(kommplan): Eigenschaftstests auf Zufallsbäumen mit Geometrieprüfung" -m "Keine Überlappung, keine Kreuzung, Eltern mittig, gleiches Bild bei umsortierten Daten, Einfügen verschiebt die früheren Geschwister nicht gegeneinander — über 150 feste Seeds auf Bildschirm und A4." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git commit -S -m "test(kommplan): Eigenschaftstests auf Zufallsbäumen mit Geometrieprüfung" -m "Keine Überlappung, keine Kreuzung, Mindestabstände, alles angebunden, Eltern mittig, gleiches Bild bei umsortierten Daten, Einfügen verschiebt die früheren Geschwister nicht gegeneinander — über 150 freie und 60 stab-förmige Seeds (mit Kämmen) auf Bildschirm und A4." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 12: Papier — Maßstab, Legendenzeilen, gierige Aufteilung; die Fassade `layout()`
+### Task 12: Papier — Maßstab, Legendenzeilen, Aufteilung per Ebenenschnitt; die Fassade `layout()`
 
 **Files:**
 - Create: `K/_lib/layout/papier.ts`, `K/_lib/layout/layout.ts`
 - Test: `K/_lib/layout/papier.test.ts`
 
 **Interfaces:**
-- Consumes: `zeichne` (Task 10), `baueSicht` (Task 7), `baueBaum`, `teilbaumGroesse` (Task 4), `textBreite` (Task 2).
+- Consumes: `zeichne` (Task 10), `baueSicht`, `anzeigereihenfolge` (Task 7), `baueBaum`, `teilbaumGroesse` (Task 4), `textBreite` (Task 2).
 - Produces:
-  - `papier.ts`: `LEGENDE = { symbolBreite: 9, symbolLuft: 1.5, eintragLuft: 6, schrift: 8 }` (auf dem Blatt, unskaliert); `legendenZeilen(legende: LegendenEintrag[], breite: number): LegendenEintrag[][]`; `zeichenflaeche(format: Papierformat, legendeZeilen: number): { x: number; y: number; breite: number; hoehe: number }`; `massstabFuer(z: Zeichnungsdaten, flaeche: { breite: number; hoehe: number }): number` (≤ 1; leer → 1); `teileAuf(inhalt: PlanInhalt, format: Papierformat): Blatt[]`.
+  - `papier.ts`: `LEGENDE = { symbolBreite: 9, symbolLuft: 1.5, eintragLuft: 6, schrift: 8 }` (auf dem Blatt, unskaliert); `legendenZeilen(legende: LegendenEintrag[], breite: number): LegendenEintrag[][]`; `zeichenflaeche(format: Papierformat, legendeZeilen: number): { x: number; y: number; breite: number; hoehe: number }`; `massstabFuer(z: Zeichnungsdaten, flaeche: { breite: number; hoehe: number }): number` (≤ 1; leer → 1); `lesereihenfolge(sicht: Sicht): string[]`; `teileAuf(inhalt: PlanInhalt, format: Papierformat): Blatt[]`.
   - `layout.ts`: `layout(inhalt: PlanInhalt, ziel: Ziel, optionen?: LayoutOptionen): Layout` — die Signatur aus Spec §5: `{ karten, linien, sechsecke, einheiten, …, seiten }`; `seiten` ist für `bildschirm` leer.
 
-Aufteilung (Spec §5.6): Blatt 1 zeigt den ganzen Plan. Unterschreitet sein Maßstab 0,75, wird der größte Teilbaum (Stellenzahl samt Seitenstellen; Gleichstand → früher in der Tiefensuche) unter den sichtbaren Nicht-Wurzeln mit eigenen Kindern durch eine Verweiskarte „→ Blatt n" ersetzt und als Auftrag angehängt — so lange, bis das Blatt passt oder nichts mehr zu teilen ist (dann `unterMindestschrift: true`). Jeder Auftrag wird ein eigenes Blatt: seine Elternstelle grau als Anker, der Teilbaum darunter, rekursiv gleich behandelt. Nummern in Reihenfolge der Aufträge; deterministisch.
+Aufteilung (Spec §5.6, Abweichung 14) — zwei Durchläufe:
+
+1. **Schneiden** (je Blatt, rekursiv): passt das Blatt (Maßstab ≥ 0,75), gibt es nichts zu tun. Sonst sind Kandidaten die sichtbaren, normalen Unterstellen mit sichtbaren Kindern — außer der Blattwurzel und dem Kind des Ankers; zeigt ein Blatt ohne Anker mehrere Wurzeln, auch die Wurzeln selbst (Tiefe 0). Geschnitten wird **von der tiefsten Kandidatenebene D her**: auf der Ebene D werden, aufbauend auf „alle tieferen Ebenen geschnitten", Kandidaten gierig nach Teilbaumgröße (Gleichstand → früher in der Lesereihenfolge) zu Verweiskarten, bis das Blatt passt. Passt es auch mit der ganzen Ebene D nicht, gilt Ebene D als geschnitten und es geht eine Ebene höher. So gewinnt das **größte D, bei dem das Blatt passt**, und Blatt 1 behält die oberen Ebenen. Schnitte, die in einem anderen Schnitt liegen, fallen weg (ihr Teilbaum steht auf dessen Blatt). Jeder verbleibende Schnitt wird ein Auftrag `{ wurzelId, ankerId: Elternstelle }` (bei einer Wurzel `ankerId: null`) und rekursiv gleich behandelt. Passt ein Blatt selbst mit allen Schnitten nicht, bleibt es `unterMindestschrift`. Beim Messen tragen Verweiskarten einen Platzhalter — die Nummer ändert keine Geometrie.
+2. **Nummerieren**: Blatt 1 ist der ganze Plan; die Blätter folgen in **Tiefensuche**, auf jedem Blatt die Schnitte in Lesereihenfolge (Tiefensuche, Kinder in Anzeigereihenfolge). Dann wird jedes Blatt mit den echten Nummern gezeichnet — die Verweisnummern eines Blatts steigen von links nach rechts.
+
+Beides ist deterministisch: nur Plan, Format und die festen Reihenfolgen gehen ein.
 
 - [ ] **Step 1: Failing test**
 
@@ -3334,6 +4065,64 @@ describe("Papier", () => {
     expect(b).toHaveLength(1);
     expect(b[0].unterMindestschrift).toBe(true);
   });
+  it("Blatt 1 behält die oberen Ebenen: LtS → EL → fünf EAL → je acht EA", () => {
+    const stellen: StelleEingabe[] = [{ id: "lts", titel: "Leitstelle" }, { id: "el", titel: "EL", eltern: "lts", verbindung: "v" }];
+    for (let a = 0; a < 5; a++) {
+      stellen.push({ id: `eal-${a}`, titel: `EAL ${a}`, eltern: "el", verbindung: "v" });
+      for (let e = 0; e < 8; e++) stellen.push({ id: `ea-${a}-${e}`, titel: `EA ${a}.${e}`, eltern: `eal-${a}`, einheiten: ["RTW 1", "KTW 2", "MTW 3"] });
+    }
+    const b = teileAuf(baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen }), "a4-quer");
+    const erstes = b[0].zeichnung.karten;
+    expect(erstes.find((k) => k.id === "el")?.art).toBe("normal"); // früher: EL als Verweis, Blatt 1 fast leer
+    for (let a = 0; a < 5; a++) expect(erstes.some((k) => k.id === `eal-${a}`), `eal-${a} auf Blatt 1`).toBe(true);
+    expect(erstes.some((k) => k.art === "verweis")).toBe(true);
+    for (const blatt of b) expect(blatt.massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+  });
+  it("Verweisnummern steigen von links nach rechts, auch bei ungleich großen Teilbäumen", () => {
+    const stellen: StelleEingabe[] = [{ id: "w", titel: "W" }];
+    [2, 11, 5, 8].forEach((n, i) => {
+      stellen.push({ id: `c${i}`, titel: `C${i}`, eltern: "w", verbindung: "v" });
+      for (let e = 0; e < n; e++) stellen.push({ id: `c${i}-${e}`, titel: `EA ${e}`, eltern: `c${i}`, einheiten: ["RTW 1", "KTW 2", "MTW 3", "ELW 4"] });
+    });
+    const b = teileAuf(baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen }), "a4-quer");
+    const verweise = b[0].zeichnung.karten.filter((k) => k.art === "verweis").sort((p, q) => p.x - q.x);
+    expect(verweise.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(verweise.map((k) => k.y)).size).toBe(1);
+    const nummern = verweise.map((k) => Number(k.verweis!.text.replace("→ Blatt ", "")));
+    expect(nummern).toEqual([...nummern].sort((p, q) => p - q));
+    verweise.forEach((k, i) => expect(b[nummern[i] - 1].wurzelId).toBe(k.id));
+  });
+  it("mehrere Wurzeln, die zusammen nicht passen: eine Wurzel bekommt ein eigenes Blatt ohne Anker", () => {
+    const stellen: StelleEingabe[] = ["a", "b"].flatMap((w) => [
+      { id: w, titel: w.toUpperCase() },
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `${w}${i}`, titel: `K${i}`, eltern: w, verbindung: "v" })),
+    ]);
+    const inhalt = baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen });
+    const b = teileAuf(inhalt, "a4-quer");
+    expect(b.length).toBeGreaterThanOrEqual(2);
+    for (const blatt of b) expect(blatt.massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+    expect(b.some((blatt) => blatt.wurzelId !== null && blatt.ankerId === null)).toBe(true);
+    expect(normaleKarten(b).sort()).toEqual(inhalt.stellen.map((s) => s.id).sort());
+  });
+  it("breite Kinderreihen passen durch den Kamm auf EIN Blatt (drei Verbindungen à fünf; sechs breite Kinder und eines mit zwei Seitenstellen)", () => {
+    const V = [{ id: "v", art: "tmo" as const, bezeichnung: "R_UE_2" }, { id: "w2", art: "tmo" as const, bezeichnung: "R_UE_3" },
+      { id: "x", art: "tmo" as const, bezeichnung: "R_UE_4" }, { id: "d", art: "draht" as const, bezeichnung: "Standleitung" }];
+    const blatt = (n: number, v: string, rest: object = {}) =>
+      Array.from({ length: n }, (_, i) => ({ id: `${v}-${i}`, titel: `EA ${i}`, eltern: "w", verbindung: v, ...rest }));
+    const drei = baue({ verbindungen: V, stellen: [{ id: "w", titel: "W" }, ...blatt(5, "v"), ...blatt(5, "w2"), ...blatt(5, "x")] });
+    const zwoelf = Array.from({ length: 12 }, (_, i) => `RTW ${i}`);
+    const breit = baue({ verbindungen: V, stellen: [
+      { id: "w", titel: "W" }, ...blatt(6, "v", { einheiten: zwoelf }),
+      { id: "breit", titel: "Breit", eltern: "w", verbindung: "v" },
+      { id: "bl", titel: "L", eltern: "breit", lage: "links", verbindung: "d" },
+      { id: "br", titel: "R", eltern: "breit", lage: "rechts", verbindung: "d" },
+    ] });
+    for (const inhalt of [drei, breit]) {
+      const b = teileAuf(inhalt, "a4-quer");
+      expect(b).toHaveLength(1);
+      expect(b[0].massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+    }
+  });
   it("layout(): Bildschirm ohne Seiten, Papier mit", () => {
     const inhalt = grosserPlan();
     expect(layout(inhalt, "bildschirm").seiten).toEqual([]);
@@ -3352,7 +4141,8 @@ Expected: FAIL — `./papier`, `./layout` fehlen.
 `K/_lib/layout/papier.ts`:
 ```ts
 import { baueBaum, teilbaumGroesse, type Baum } from "../plan/baum";
-import type { PlanInhalt } from "../plan/schema";
+import type { PlanInhalt, Stelle } from "../plan/schema";
+import { anzeigereihenfolge } from "./gruppen";
 import { BLATT, MIN_MASSSTAB, PAPIER } from "./masse";
 import { baueSicht, type Sicht } from "./sicht";
 import { textBreite } from "./text";
@@ -3388,7 +4178,9 @@ export function massstabFuer(z: Pick<Zeichnungsdaten, "breite" | "hoehe">, flaec
   return Math.min(1, flaeche.breite / z.breite, flaeche.hoehe / z.hoehe);
 }
 
-function blattAus(nummer: number, format: Papierformat, z: Zeichnungsdaten, auftrag: LayoutOptionen["blatt"]): Blatt {
+type Auftrag = NonNullable<LayoutOptionen["blatt"]>;
+
+function blattAus(nummer: number, format: Papierformat, z: Zeichnungsdaten, auftrag: Auftrag | undefined): Blatt {
   const zeilen = legendenZeilen(z.legende, PAPIER[format].breite - 2 * BLATT.randX);
   const f = zeichenflaeche(format, zeilen.length);
   const massstab = massstabFuer(z, f);
@@ -3399,40 +4191,95 @@ function blattAus(nummer: number, format: Papierformat, z: Zeichnungsdaten, auft
   };
 }
 
-/** Größter auslagerbarer Teilbaum: sichtbar, normal, keine (Blatt-)Wurzel, hat eigene Kinder. */
-function groessterTeilbaum(baum: Baum, sicht: Sicht): string | null {
-  const geschuetzt = new Set(sicht.wurzeln.map((w) => w.id));
-  for (const w of sicht.wurzeln) if (sicht.darstellung(w.id) === "anker") for (const k of sicht.kinder(w.id)) geschuetzt.add(k.id);
-  let bester: { id: string; groesse: number } | null = null;
-  for (const s of sicht.sichtbar) {
-    if (geschuetzt.has(s.id) || s.lage !== "unter" || sicht.darstellung(s.id) !== "normal") continue;
-    if (sicht.kinder(s.id).length === 0) continue;
-    const groesse = teilbaumGroesse(baum, s.id);
-    if (!bester || groesse > bester.groesse) bester = { id: s.id, groesse };
-  }
-  return bester?.id ?? null;
+/** Lesereihenfolge eines Blatts: Tiefensuche, Kinder in Anzeigereihenfolge (Gruppe für Gruppe, Reihe für Reihe). */
+export function lesereihenfolge(sicht: Sicht): string[] {
+  const aus: string[] = [];
+  const besuche = (s: Stelle) => {
+    aus.push(s.id);
+    for (const k of anzeigereihenfolge(sicht.kinder(s.id))) besuche(k);
+  };
+  sicht.wurzeln.forEach(besuche);
+  return aus;
 }
 
+/**
+ * Wer auf diesem Blatt zur Verweiskarte werden darf, nach Tiefe: sichtbar, normal, eine Unterstelle
+ * mit sichtbaren Kindern, weder Blattwurzel noch Kind des Ankers. Zeigt ein Blatt ohne Anker
+ * mehrere Wurzeln, sind auch die Wurzeln Kandidaten (Tiefe 0) — sonst ließen sich zwei
+ * nebeneinander zu breite Bäume nie auf zwei Blätter verteilen.
+ */
+function kandidaten(sicht: Sicht, auftrag: Auftrag | undefined): Map<number, Stelle[]> {
+  const mehrereWurzeln = auftrag === undefined && sicht.wurzeln.length > 1;
+  const geschuetzt = new Set<string>(mehrereWurzeln ? [] : sicht.wurzeln.map((w) => w.id));
+  for (const w of sicht.wurzeln) if (sicht.darstellung(w.id) === "anker") for (const k of sicht.kinder(w.id)) geschuetzt.add(k.id);
+  const nachTiefe = new Map<number, Stelle[]>();
+  for (const s of sicht.sichtbar) {
+    if (geschuetzt.has(s.id) || s.lage !== "unter" || sicht.darstellung(s.id) !== "normal") continue;
+    if (s.eltern !== null && sicht.kinder(s.id).length === 0) continue;
+    const t = sicht.tiefe(s.id);
+    nachTiefe.set(t, [...(nachTiefe.get(t) ?? []), s]);
+  }
+  return nachTiefe;
+}
+
+interface Schnittplan { auftrag: Auftrag | undefined; schnitte: string[]; unter: Schnittplan[] }
+
+/** Beim Messen steht auf jeder Verweiskarte „Blatt 0": die Nummer ändert keine Geometrie (feste Breite, eine Zeile fester Höhe). */
+const PLATZHALTER: Darstellung = { verweisAufBlatt: 0 };
+
+function passt(inhalt: PlanInhalt, format: Papierformat, auftrag: Auftrag | undefined, schnitte: ReadonlySet<string>): boolean {
+  const darstellung = new Map<string, Darstellung>([...schnitte].map((id) => [id, PLATZHALTER]));
+  return !blattAus(0, format, zeichne(inhalt, format, { blatt: auftrag, darstellung }), auftrag).unterMindestschrift;
+}
+
+/**
+ * DURCHLAUF 1: der Schnittplan eines Blatts, rekursiv (Abweichung 14). Von der tiefsten
+ * Kandidatenebene her: jede Ebene baut auf „alles Tiefere geschnitten" auf und schneidet gierig
+ * nach Teilbaumgröße, bis das Blatt passt. Das größte D, bei dem es passt, gewinnt — Blatt 1
+ * behält die oberen Ebenen. Jede Probe zeichnet neu, weil ein Schnitt die Sicht ändert (eine
+ * Verweiskarte ist ein Blatt, ihre Elterngruppe kann danach kämmen).
+ */
+function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag: Auftrag | undefined): Schnittplan {
+  if (passt(inhalt, format, auftrag, new Set())) return { auftrag, schnitte: [], unter: [] };
+  const sicht = baueSicht(inhalt, { blatt: auftrag });
+  const rang = new Map(lesereihenfolge(sicht).map((id, i) => [id, i]));
+  const nachTiefe = kandidaten(sicht, auftrag);
+  let basis = new Set<string>();
+  let gewaehlt: Set<string> | null = null;
+  for (const t of [...nachTiefe.keys()].sort((a, b) => b - a)) {
+    const ebene = [...nachTiefe.get(t)!].sort((a, b) =>
+      teilbaumGroesse(baum, b.id) - teilbaumGroesse(baum, a.id) || rang.get(a.id)! - rang.get(b.id)!);
+    const s = new Set(basis);
+    for (const k of ebene) {
+      s.add(k.id);
+      if (passt(inhalt, format, auftrag, s)) { gewaehlt = s; break; }
+    }
+    if (gewaehlt) break;
+    basis = s;
+  }
+  const alle = gewaehlt ?? basis;
+  const innen = (id: string) => {
+    for (let e = baum.stelle(id)?.eltern ?? null; e !== null; e = baum.stelle(e)?.eltern ?? null) if (alle.has(e)) return true;
+    return false;
+  };
+  const schnitte = [...alle].filter((id) => !innen(id)).sort((a, b) => rang.get(a)! - rang.get(b)!);
+  return {
+    auftrag, schnitte,
+    unter: schnitte.map((id) => schneide(inhalt, format, baum, { wurzelId: id, ankerId: baum.stelle(id)!.eltern })),
+  };
+}
+
+/** DURCHLAUF 2: Blätter in Tiefensuche nummerieren, dann jedes Blatt mit den echten Verweisnummern zeichnen. */
 export function teileAuf(inhalt: PlanInhalt, format: Papierformat): Blatt[] {
   const baum = baueBaum(inhalt);
-  const auftraege: { nummer: number; blatt?: { wurzelId: string; ankerId: string | null } }[] = [{ nummer: 1 }];
-  const blaetter: Blatt[] = [];
-  let naechste = 2;
-  for (let i = 0; i < auftraege.length; i++) {
-    const a = auftraege[i];
-    const verweise = new Map<string, Darstellung>();
-    const optionen = (): LayoutOptionen => ({ blatt: a.blatt, darstellung: verweise });
-    let z = zeichne(inhalt, format, optionen());
-    while (blattAus(a.nummer, format, z, a.blatt).unterMindestschrift) {
-      const kandidat = groessterTeilbaum(baum, baueSicht(inhalt, optionen()));
-      if (kandidat === null) break;
-      verweise.set(kandidat, { verweisAufBlatt: naechste });
-      auftraege.push({ nummer: naechste, blatt: { wurzelId: kandidat, ankerId: baum.stelle(kandidat)!.eltern } });
-      naechste += 1;
-      z = zeichne(inhalt, format, optionen());
-    }
-    blaetter.push(blattAus(a.nummer, format, z, a.blatt));
-  }
+  const reihe: Schnittplan[] = [];
+  const sammle = (p: Schnittplan) => { reihe.push(p); p.unter.forEach(sammle); };
+  sammle(schneide(inhalt, format, baum, undefined));
+  const nummer = new Map(reihe.map((p, i) => [p, i + 1]));
+  const blaetter = reihe.map((p, i) => {
+    const darstellung = new Map<string, Darstellung>(p.schnitte.map((id, j) => [id, { verweisAufBlatt: nummer.get(p.unter[j])! }]));
+    return blattAus(i + 1, format, zeichne(inhalt, format, { blatt: p.auftrag, darstellung }), p.auftrag);
+  });
   return blaetter.map((b) => ({ ...b, von: blaetter.length }));
 }
 ```
@@ -3463,15 +4310,21 @@ Expected: PASS; Exit 0.
 
 In `K/_lib/layout/eigenschaften.test.ts` anhängen (Import `teileAuf` aus `./papier`, `MIN_MASSSTAB` aus `./masse`):
 ```ts
-describe("Aufteilung deckt jede Stelle genau einmal ab", () => {
-  it.each(SEEDS.slice(0, 40))("Seed %i", (seed) => {
-    const inhalt = zufallsPlan(seed, { stellen: 30 + (seed % 50), mehrereWurzeln: seed % 5 === 0 });
+describe("Aufteilung deckt jede Stelle genau einmal ab, jedes Blatt sauber und angebunden", () => {
+  const faelle = [
+    ...SEEDS.slice(0, 40).map((seed) => [seed, zufallsPlan(seed, { stellen: 30 + (seed % 50), mehrereWurzeln: seed % 5 === 0 })] as const),
+    ...STAB_SEEDS.slice(0, 20).map((seed) => [seed, zufallsPlan(seed, { stellen: 120, form: "stab" })] as const),
+  ];
+  it.each(faelle)("Seed %i", (seed, inhalt) => {
     const blaetter = teileAuf(inhalt, "a4-quer");
     const normal = blaetter.flatMap((b) => b.zeichnung.karten.filter((k) => k.art === "normal").map((k) => k.id));
     expect(normal.sort(), erklaere(seed, inhalt, "Abdeckung")).toEqual(inhalt.stellen.map((s) => s.id).sort());
     for (const b of blaetter) {
-      expect([...pruefeZeichnung(b.zeichnung), ...pruefeMitte(b.zeichnung)], erklaere(seed, inhalt, `Blatt ${b.nummer}`)).toEqual([]);
+      expect(befundeVon(b.zeichnung, inhalt).map((x) => x.text), erklaere(seed, inhalt, `Blatt ${b.nummer}`)).toEqual([]);
       if (!b.unterMindestschrift) expect(b.massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+      // Verweisnummern steigen in Lesereihenfolge und zeigen auf das Blatt ihres Teilbaums
+      const verweise = b.zeichnung.karten.filter((k) => k.verweis !== null);
+      for (const k of verweise) expect(blaetter[Number(k.verweis!.text.replace("→ Blatt ", "")) - 1].wurzelId).toBe(k.id);
     }
   });
 });
@@ -3484,7 +4337,7 @@ Expected: PASS.
 
 ```bash
 git add src/app/m/kommplan/_lib/layout/papier.ts src/app/m/kommplan/_lib/layout/layout.ts src/app/m/kommplan/_lib/layout/papier.test.ts src/app/m/kommplan/_lib/layout/eigenschaften.test.ts
-git commit -S -m "feat(kommplan): Papiermaßstab bis 6 pt und gierige, deterministische Aufteilung" -m "Blatt 1 zeigt die oberen Ebenen, große Teilbäume stehen dort als Verweiskarte und bekommen ein eigenes Blatt mit ihrer Elternstelle als grauem Anker." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git commit -S -m "feat(kommplan): Papiermaßstab bis 6 pt und Aufteilung per Ebenenschnitt" -m "Geschnitten wird von der tiefsten Ebene her, damit Blatt 1 die oberen Ebenen behält; große Teilbäume stehen dort als Verweiskarte und bekommen ein eigenes Blatt mit ihrer Elternstelle als grauem Anker. Die Blattnummern folgen der Lesereihenfolge, mehrere zu breite Wurzeln verteilen sich auf eigene Blätter." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -3509,7 +4362,7 @@ import { describe, expect, it } from "vitest";
 import zeichen from "../zeichen/zeichen.generiert.json";
 import { MIN_MASSSTAB } from "../layout/masse";
 import { teileAuf } from "../layout/papier";
-import { pruefeMitte, pruefeZeichnung } from "../layout/pruefung";
+import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "../layout/pruefung";
 import { zeichne } from "../layout/zeichne";
 import { BEISPIELE } from "./index";
 
@@ -3530,10 +4383,15 @@ describe("Beispielpläne", () => {
     const bekannt = new Set(Object.keys(zeichen.zeichen));
     for (const b of BEISPIELE) for (const s of b.inhalt.stellen) if (s.zeichen) expect(bekannt.has(s.zeichen), `${b.id}: ${s.zeichen}`).toBe(true);
   });
-  it.each(BEISPIELE.map((b) => [b.id]))("%s: sauber auf Bildschirm und A4", (id) => {
+  it.each(BEISPIELE.map((b) => [b.id]))("%s: sauber und angebunden auf Bildschirm und A4, jedes Blatt ebenso", (id) => {
+    const inhalt = nach(id).inhalt;
     for (const ziel of ["bildschirm", "a4-quer"] as const) {
-      const z = zeichne(nach(id).inhalt, ziel);
-      expect([...pruefeZeichnung(z), ...pruefeMitte(z)]).toEqual([]);
+      const z = zeichne(inhalt, ziel);
+      expect([...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt)].map((b) => b.text), ziel).toEqual([]);
+    }
+    for (const blatt of teileAuf(inhalt, "a4-quer")) {
+      const z = blatt.zeichnung;
+      expect([...pruefeZeichnung(z), ...pruefeMitte(z), ...pruefeVerbindungen(z, inhalt)].map((b) => b.text), `Blatt ${blatt.nummer}`).toEqual([]);
     }
   });
   /*
@@ -3556,6 +4414,16 @@ describe("Beispielpläne", () => {
     const normal = blaetter.flatMap((bl) => bl.zeichnung.karten.filter((k) => k.art === "normal").map((k) => k.id));
     expect(normal.sort()).toEqual(b.inhalt.stellen.map((s) => s.id).sort());
     expect(zeichne(b.inhalt, "a4-quer").karten.some((k) => k.id.startsWith("ea-4-"))).toBe(true);
+  });
+  it("große Stab-Lage, Blatt 1: Stab, KatSL, Leitstelle und TEL als Karten, die Abschnitte als Karte oder Verweis in steigender Folge", () => {
+    const [erstes] = teileAuf(nach("beispiel-grosse-stabslage").inhalt, "a4-quer");
+    const art = (id: string) => erstes.zeichnung.karten.find((k) => k.id === id)?.art;
+    for (const id of ["stab", "katsl", "lts", "tel"]) expect(art(id), id).toBe("normal"); // früher: TEL als Verweis, Blatt 1 fast leer
+    for (let a = 1; a <= 4; a++) expect(["normal", "verweis"]).toContain(art(`eal-${a}`));
+    const verweise = erstes.zeichnung.karten.filter((k) => k.art === "verweis").sort((p, q) => p.x - q.x);
+    expect(verweise.length).toBeGreaterThan(0);
+    const nummern = verweise.map((k) => Number(k.verweis!.text.replace("→ Blatt ", "")));
+    expect(nummern).toEqual([...nummern].sort((p, q) => p - q));
   });
 });
 ```
@@ -3621,9 +4489,10 @@ import { LTS_KONTAKTE } from "./einsatz20260222";
 import type { Beispiel } from "./index";
 
 /**
- * Nachbau „Kommunikationsplan OpenR 01.07.2022". DMO 608 und DMO 609 hängen in der Vorlage ohne
- * Gegenstelle unter EA 1 und EA 2; das Modell kennt keine Verbindung ohne Gegenstelle — sie
- * erscheinen als Reserve in der Legende, ebenso UE_K_1, das in der Vorlage lose steht.
+ * Nachbau „Kommunikationsplan OpenR 01.07.2022". Unter EA 1 hängen „DMO 608" und „R_UE_2", unter
+ * EA 2 „DMO 609" und „R_UE_2", unter EA 3 und EA 4 „R_UE_2": Kanäle, die der Abschnitt für seine
+ * Fahrzeuge BENUTZT, ohne Gegenstelle — als `kanaele` (Abweichung 12), nicht als Reserve. Reserve
+ * ist allein UE_K_1, das in der Vorlage lose steht.
  */
 export const OPENR_20220701: Beispiel = {
   id: "beispiel-openr-2022-07-01",
@@ -3649,16 +4518,16 @@ export const OPENR_20220701: Beispiel = {
         kontakte: { digitalfunk: "RK UE 97-03", telefon: "0581 0000000", mobil: "0170 0000000", email: "max.mustermann@example.org" },
         einheiten: ["KdoW 40-10-1"] },
       { id: "ea1", titel: "EA 1 Behandlungsplatz", zeichen: "zusatz:eal", eltern: "fuekw", verbindung: "bos-res-09",
-        kontakte: { digitalfunk: "RK UE 40-05-1" },
+        kanaele: ["dmo-608", "r-ue-2"], kontakte: { digitalfunk: "RK UE 40-05-1" },
         einheiten: [["WLF", "40-66-1 AB MANV"], "GW-San 40-96-1", "MTW 40-17-1", ["AB", "Alles"], ["AB", "Sanitätsstation"], "KdoW 40-10-2"] },
       { id: "ea2", titel: "EA 2 Bühne", zeichen: "zusatz:eal", eltern: "fuekw", verbindung: "bos-res-09",
-        kontakte: { funkrufname: "Lüneburg", digitalfunk: "RK LG 45-11-1" },
+        kanaele: ["dmo-609", "r-ue-2"], kontakte: { funkrufname: "Lüneburg", digitalfunk: "RK LG 45-11-1" },
         einheiten: ["ELW RK LG 45-11-1", ["GW Betreuung", "RK LG 45-74-10"], "MTW RK LG 45-17-12"] },
       { id: "ea3", titel: "EA 3 Verpflegung", zeichen: "zusatz:eal", eltern: "fuekw", verbindung: "bos-res-09",
-        kontakte: { digitalfunk: "RK UE 40-05-2" },
+        kanaele: ["r-ue-2"], kontakte: { digitalfunk: "RK UE 40-05-2" },
         einheiten: [["GW Verpflegung", "40-74-1"], ["GW Betreuung", "40-74-2"], "MTW 44-17-1", ["Foodtruck", ""], ["Kühlanhänger", ""]] },
       { id: "ea4", titel: "EA 4 Logistik & Technik", zeichen: "zusatz:eal", eltern: "fuekw", verbindung: "bos-res-09",
-        kontakte: { digitalfunk: "RK UE 40-05-3" },
+        kanaele: ["r-ue-2"], kontakte: { digitalfunk: "RK UE 40-05-3" },
         einheiten: ["MTW 40-17-2", ["NEA", "60 KVA"], ["Teleskoplader", ""]] },
       { id: "rettungsmittel", titel: "Rettungsmittel", zeichen: "zusatz:ea", eltern: "fuekw", verbindung: "r-ue-2",
         einheiten: ["NEF 41-82-2", "RTW 40-83-2", "RTW 40-83-3", "RTW 40-83-4", "RTW 40-83-5", "RTW 40-83-6"] },
@@ -3808,7 +4677,7 @@ export const BEISPIELE: readonly Beispiel[] = [EINSATZ_20260222, OPENR_20220701,
 Run: `uptime && pnpm vitest run src/app/m/kommplan/_lib/beispiele`
 Expected: PASS.
 
-Schlägt die Abnahme „passt auf ein Blatt" fehl, ist das eine Aussage über die Maße aus Task 2, nicht über die Beispiele. Erlaubte Stellschrauben in `masse.ts`, in dieser Reihenfolge und jeweils mit erneutem Lauf aller Layout-Tests: `EINHEIT.takt` bis 5,0; `KARTE.kontaktHoehe` bis 4,3; `ABSTAND.geschwister` bis 6; `ABSTAND.gruppen` bis 10. **Nie** eine Schrift unter 8 pt oder `MIN_MASSSTAB` ändern. Passt OpenR danach immer noch nicht, **anhalten** und dem Hauptlauf melden (Maße, gemessener Maßstab je Achse) — das ist eine Entscheidung über Lesbarkeit gegen Blattzahl, keine Implementierungsfrage.
+Schlägt die Abnahme „passt auf ein Blatt" fehl, ist das eine Aussage über die Maße aus Task 2, nicht über die Beispiele. Erlaubte Stellschrauben in `masse.ts`, in dieser Reihenfolge und jeweils mit erneutem Lauf aller Layout-Tests: `EINHEIT.takt` bis 5,0; `KANAL.takt` bis 7,0; `KARTE.kontaktHoehe` bis 4,3; `ABSTAND.geschwister` bis 6; `ABSTAND.gruppen` bis 10. (Abschätzung der Planung für OpenR mit den Kanal-Sechsecken: ≈ 206 von 215 Layout-mm Höhe und ≈ 324 von 369 mm Breite bei Maßstab 0,75 — knapp, aber innerhalb.) `MINDEST` gehört nicht zu den Stellschrauben. **Nie** eine Schrift unter 8 pt oder `MIN_MASSSTAB` ändern. Passt OpenR danach immer noch nicht, **anhalten** und dem Hauptlauf melden (Maße, gemessener Maßstab je Achse) — das ist eine Entscheidung über Lesbarkeit gegen Blattzahl, keine Implementierungsfrage.
 
 - [ ] **Step 5: Commit**
 
@@ -4009,7 +4878,8 @@ export function Karte({ k, zusatz }: { k: KarteL; zusatz?: (k: KarteL) => ReactN
   const trenner = (y: number, key?: number) => <line key={key} x1={0} y1={y} x2={k.breite} y2={y} stroke={tinte} strokeWidth={STRICH.karte} />;
   return (
     <g transform={`translate(${k.x} ${k.y})`} data-karte={k.id} data-art={k.art}>
-      <title>{k.titelVoll}</title>
+      {/* Nur Tooltip, nie gedruckt: der Platzhalter steht nicht auf dem Papier (Abweichung 15). */}
+      <title>{k.titelVoll === "" ? "(ohne Titel)" : k.titelVoll}</title>
       <rect width={k.breite} height={k.hoehe} fill={FARBE.papier} stroke={tinte} strokeWidth={rahmen} />
       {k.hervorheben ? <rect x={rahmen / 2} y={rahmen / 2} width={k.breite - rahmen} height={k.kopfHoehe - rahmen} fill={FARBE.hervor} /> : null}
       {k.zeichen ? (
@@ -4382,7 +5252,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "@playwright/test";
 import { BEISPIELE, type Beispiel } from "../src/app/m/kommplan/_lib/beispiele";
 import { layout } from "../src/app/m/kommplan/_lib/layout/layout";
-import { pruefeMitte, pruefeZeichnung } from "../src/app/m/kommplan/_lib/layout/pruefung";
+import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "../src/app/m/kommplan/_lib/layout/pruefung";
 import { zufallsPlan } from "../src/app/m/kommplan/_lib/layout/zufall";
 import { rahmenFuer } from "../src/app/m/kommplan/_lib/rahmen";
 import { symboleFuer } from "../src/app/m/kommplan/_lib/zeichen/zeichen";
@@ -4390,6 +5260,7 @@ import { Blattansicht } from "../src/app/m/kommplan/_ui/zeichnung/Blatt";
 import { Zeichnung } from "../src/app/m/kommplan/_ui/zeichnung/Zeichnung";
 
 const args = process.argv.slice(2);
+// --zufall <seed> <stellen> [stab]: ein roter Seed aus eigenschaften.test.ts zum Ansehen.
 const zufallIndex = args.indexOf("--zufall");
 const ZIEL = args[0] && !args[0].startsWith("--") ? args[0] : ".data/kommplan-vorschau";
 const schrift = readFileSync("src/app/m/kommplan/_fonts/Arimo-Variable.ttf").toString("base64");
@@ -4398,8 +5269,9 @@ const STIL = `@font-face{font-family:"Arimo";src:url(data:font/ttf;base64,${schr
 const beispiele: Beispiel[] = [...BEISPIELE];
 if (zufallIndex >= 0) {
   const seed = Number(args[zufallIndex + 1]), stellen = Number(args[zufallIndex + 2] ?? 25);
-  beispiele.push({ id: `zufall-${seed}`, titel: `Zufallsplan ${seed}`, typ: "kommunikationsplan", anlass: null, datum: null,
-    istVorlage: false, stand: "2026-01-01T00:00:00.000Z", bearbeiter: "Vorschau", inhalt: zufallsPlan(seed, { stellen }) });
+  const form = args[zufallIndex + 3] === "stab" ? "stab" : "frei";
+  beispiele.push({ id: `zufall-${form}-${seed}`, titel: `Zufallsplan ${seed} (${form})`, typ: "kommunikationsplan", anlass: null, datum: null,
+    istVorlage: false, stand: "2026-01-01T00:00:00.000Z", bearbeiter: "Vorschau", inhalt: zufallsPlan(seed, { stellen, form }) });
 }
 
 mkdirSync(ZIEL, { recursive: true });
@@ -4408,7 +5280,7 @@ const dateien: string[] = [];
 for (const b of beispiele) {
   const symbole = symboleFuer(b.inhalt);
   const l = layout(b.inhalt, "a4-quer");
-  const befunde = [...pruefeZeichnung(l), ...pruefeMitte(l)];
+  const befunde = [...pruefeZeichnung(l), ...pruefeMitte(l), ...pruefeVerbindungen(l, b.inhalt)];
   bericht.push(`${b.id}: ${l.karten.length} Karten, ${l.breite.toFixed(1)} × ${l.hoehe.toFixed(1)} mm, ${befunde.length} Befunde`);
   for (const f of befunde) bericht.push(`  ! ${f.text}`);
   const bildschirm = renderToStaticMarkup(createElement(Zeichnung, { daten: layout(b.inhalt, "bildschirm"), symbole, titel: b.titel, schrift: "Arimo", kopfStil: STIL }));
@@ -4418,6 +5290,8 @@ for (const b of beispiele) {
     aktualisiertAm: Date.parse(b.stand), aktualisiertVon: b.bearbeiter, vermerkVsNfD: b.inhalt.optionen.vermerkVsNfD });
   for (const blatt of l.seiten) {
     bericht.push(`  Blatt ${blatt.nummer}/${blatt.von}: Maßstab ${blatt.massstab.toFixed(3)}${blatt.unterMindestschrift ? " (unter 6 pt!)" : ""}`);
+    const blattBefunde = [...pruefeZeichnung(blatt.zeichnung), ...pruefeMitte(blatt.zeichnung), ...pruefeVerbindungen(blatt.zeichnung, b.inhalt)];
+    for (const f of blattBefunde) bericht.push(`    ! ${f.text}`);
     const svg = renderToStaticMarkup(createElement(Blattansicht, { blatt, rahmen, symbole, schrift: "Arimo", kopfStil: STIL }));
     writeFileSync(join(ZIEL, `${b.id}-a4-${blatt.nummer}.svg`), svg);
     dateien.push(`${b.id}-a4-${blatt.nummer}`);
@@ -4467,10 +5341,11 @@ Mit dem Read-Werkzeug nebeneinander ansehen:
 
 Abhaken, sonst zurück in die Engine (nie den Golden-Test anpassen, um ein falsches Bild festzuschreiben):
 - Einsatz: Leitstelle oben, R_UE_1-Sechseck auf ihrem Stiel, EL mittig darunter; **zwei getrennte Busse** — R_UE_2 über EA 1–3, R_UE_3 mit eigenem Stiel zu EA 5 rechts; Fahrzeuge als Spalte unter den EAs, EA 5 mit neun Kästen untereinander; Legende „Digitalfunk TMO" und „Reserve K_UE_2"; ein Blatt.
-- OpenR: EL links neben FüKW **auf Kopfhöhe**, BOS_NI_RES_09-Sechseck auf der Verbindung, KdoW unter EL; unter FüKW drei Gruppen mit je eigenem Stiel (BOS_NI_RES_09 → EA 1–4, R_UE_2 → Rettungsmittel, R_UE_3 → Fußstreife); keine Linie kreuzt eine andere.
+- OpenR: EL links neben FüKW **auf Kopfhöhe**, BOS_NI_RES_09-Sechseck auf der Verbindung, KdoW unter EL; unter FüKW drei Gruppen mit je eigenem Stiel (BOS_NI_RES_09 → EA 1–4, R_UE_2 → Rettungsmittel, R_UE_3 → Fußstreife); unter EA 1 die Sechsecke „DMO 608" und „R_UE_2", unter EA 2 „DMO 609" und „R_UE_2", unter EA 3/4 „R_UE_2" — an einer Linie links in der Gasse, über den Fahrzeugen, wie in der Vorlage; Legende „Digitalfunk TMO", „Digitalfunk DMO", „Reserve UE_K_1"; keine Linie kreuzt eine andere.
 - Label: drei EAL-Karten nebeneinander, „Bereitstellungsraum" farbig hervorgehoben.
 - Fernmeldeskizze: KatSL links mit gefaster Leitungsform, Leitstelle rechts mit spitzer Funkform, Stabsbus darunter.
-- Große Stab-Lage: Blatt 1 zeigt Stab, TEL und Verweiskarten „→ Blatt n"; Folgeblätter beginnen mit der grau gezeichneten Elternstelle; Kamm (mehrere Reihen unter einem Bus) bei den großen Abschnitten.
+- Große Stab-Lage: Blatt 1 zeigt Stab mit KatSL und Leitstelle, darunter **TEL als volle Karte** und die Abschnitte (als Karte oder Verweiskarte „→ Blatt n", Nummern von links nach rechts steigend); Folgeblätter beginnen mit der grau gezeichneten Elternstelle; Kamm (mehrere Reihen unter einem Bus) bei den großen Abschnitten, Kammreihen auf eigener Höhe, nicht auf der Höhe fremder Karten.
+- Überall: jede Karte hängt sichtbar an ihrer Elternstelle (kein loser Abwurf, kein Sechseck neben seiner Linie); zwischen Karten verschiedener Stellen mindestens 2 mm Luft.
 - Überall: Schrift Arimo, kein Text läuft aus seiner Karte, nichts abgeschnitten, Zeichen sitzen im Kartenkopf, Piktogramme in Kontaktzeilen und Sechsecken sichtbar.
 
 Befunde als Liste im Commit-Body festhalten (oder „Sichtprüfung ohne Befund").
@@ -4553,8 +5428,19 @@ describe("OpenR 01.07.2022 wie in der Vorlage", () => {
       expect(z.linien.some((l) => l.netz === netz && l.x1 === l.x2 && Math.abs(l.y1 - (fk.y + fk.hoehe)) < 1e-6), netz).toBe(true);
     }
   });
-  it("lose Kanäle stehen als Reserve in der Legende", () => {
-    expect(z.legende.filter((e) => e.reserve).map((e) => e.text)).toEqual(["Reserve UE_K_1", "Reserve DMO 608", "Reserve DMO 609"]);
+  it("die Kanäle der Abschnitte hängen als Sechsecke unter ihnen; Reserve ist nur der lose Kanal", () => {
+    const kanaele = (id: string) => z.sechsecke.filter((s) => s.netz === `${id}#kanal`).map((s) => s.beschriftung.text);
+    expect(kanaele("ea1")).toEqual(["DMO 608", "R_UE_2"]);
+    expect(kanaele("ea2")).toEqual(["DMO 609", "R_UE_2"]);
+    expect(kanaele("ea3")).toEqual(["R_UE_2"]);
+    expect(kanaele("ea4")).toEqual(["R_UE_2"]);
+    const ea1 = k(z, "ea1");
+    for (const s of z.sechsecke.filter((x) => x.netz === "ea1#kanal")) {
+      expect(s.y).toBeGreaterThan(ea1.y + ea1.hoehe);
+      expect(s.y).toBeLessThan(Math.min(...z.einheiten.filter((e) => e.stelleId === "ea1").map((e) => e.y)));
+    }
+    expect(z.legende.filter((e) => e.reserve).map((e) => e.text)).toEqual(["Reserve UE_K_1"]);
+    expect(z.legende.some((e) => e.text === "Digitalfunk DMO" && !e.reserve)).toBe(true);
   });
 });
 
@@ -4637,15 +5523,17 @@ git commit -S -m "test(kommplan): Aussagen aus den Excel-Vorlagen und Golden-Koo
 
 ---
 
-### Task 17: Modulrahmen — Registry, Icon, Host-Riegel, Zugang
+### Task 17: Modulrahmen — Registry, Icon, Host-Riegel
 
 **Files:**
 - Modify: `src/core/registry.ts` (Eintrag nach `einsatzbuch`, vor `alpha`), `src/core/shell/icons.ts`, `.env.example`
-- Create: `K/_lib/host.ts`, `K/_lib/zugang.ts`, `K/layout.tsx`
-- Test: `K/registry.test.ts`, `K/_lib/host.test.ts`, `K/_lib/zugang.test.ts`
+- Create: `K/_lib/host.ts`, `K/layout.tsx`
+- Test: `K/registry.test.ts`, `K/_lib/host.test.ts`
 
 **Interfaces:**
-- Produces: `istKommplanHost(headers: Headers): boolean`; `requireKommplanHost(headers: Headers): void` (wirft `notFound`); `hatKommplanZugang(groups: readonly string[] | null | undefined, env?): boolean` (Zugangsgruppe **oder** Modul-Admin über `isModuleAdmin`, also auch der Suite-Admin); `darfKommplanBearbeiten(groups, env?): boolean` (nur `isModuleAdmin`; Phase 2 nutzt es); `type Viewer = Session["user"]`; `requireKommplanZugang(): Promise<Viewer>` (ohne Sitzung → Login mit Audit, ohne Zugang → 404 mit Audit). `auditLoginRequired("kommplan")` typecheckt erst nach Task 18 (`AUDIT_MODULES`) — in diesem Task nur Vitest, der Typecheck folgt in Task 18.
+- Produces: `istKommplanHost(headers: Headers): boolean`; `requireKommplanHost(headers: Headers): void` (wirft `notFound`).
+
+**Reihenfolge Task 17 → 18, damit jeder Commit alle Tore besteht:** `_lib/zugang.ts` ruft `auditLoginRequired("kommplan")`/`auditDenied("kommplan", …)`, und `"kommplan"` ist erst ab Task 18 ein `AuditModule` — ein Commit mit `zugang.ts` hier bestünde `pnpm typecheck` nicht. `AUDIT_MODULES` lässt sich auch nicht hierher vorziehen: `catalog.ts` verlangt über `satisfies Record<AuditModule, …>` einen `AUDIT_TABLES`-Eintrag, `catalog.test.ts` dazu die Migration, und `labels.ts` (`MODULE_LABELS` über `getModule(key).title`) braucht den Registry-Eintrag aus diesem Task. Deshalb steht `zugang.ts` samt Test am Ende von Task 18.
 
 - [ ] **Step 1: Failing tests**
 
@@ -4704,65 +5592,14 @@ describe("kommplan-Host-Riegel", () => {
 });
 ```
 
-`K/_lib/zugang.test.ts`:
-```ts
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const zustand: { user: { sub: string; name: string; groups: string[] } | null } = { user: null };
-vi.mock("@/core/auth", () => ({ auth: async () => (zustand.user ? { user: zustand.user } : null) }));
-const audit = vi.hoisted(() => ({ denied: vi.fn(), login: vi.fn() }));
-vi.mock("@/core/audit/server", async (orig) => ({
-  ...(await orig<typeof import("@/core/audit/server")>()),
-  auditDenied: audit.denied, auditLoginRequired: audit.login,
-}));
-vi.mock("next/navigation", () => ({
-  notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
-  redirect: (z: string) => { throw new Error(`NEXT_REDIRECT ${z}`); },
-}));
-import { darfKommplanBearbeiten, hatKommplanZugang, requireKommplanZugang } from "./zugang";
-
-describe("Zugang zu kommplan", () => {
-  it("Zugangsgruppe, Admin-Gruppe und Suite-Admin öffnen; andere nicht", () => {
-    expect(hatKommplanZugang(["iuk-kommplan"], {})).toBe(true);
-    expect(hatKommplanZugang(["iuk-kommplan-bearbeiten"], {})).toBe(true);
-    expect(hatKommplanZugang(["dashboard-admins"], {})).toBe(true);
-    expect(hatKommplanZugang(["andere"], {})).toBe(false);
-    expect(hatKommplanZugang(null, {})).toBe(false);
-    expect(hatKommplanZugang([], {})).toBe(false);
-  });
-  it("Bearbeiten nur für Admin-Gruppe und Suite-Admin", () => {
-    expect(darfKommplanBearbeiten(["iuk-kommplan"], {})).toBe(false);
-    expect(darfKommplanBearbeiten(["iuk-kommplan-bearbeiten"], {})).toBe(true);
-    expect(darfKommplanBearbeiten(["dashboard-admins"], {})).toBe(true);
-  });
-  it("SUITE_ACCESS_GROUP_KOMMPLAN ersetzt die Vorgabe", () => {
-    expect(hatKommplanZugang(["plaene"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(true);
-    expect(hatKommplanZugang(["iuk-kommplan"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(false);
-  });
-});
-
-describe("requireKommplanZugang", () => {
-  beforeEach(() => { zustand.user = null; audit.denied.mockClear(); audit.login.mockClear(); });
-  it("ohne Sitzung → Login mit Audit; ohne Gruppe → 404 mit Audit; mit Gruppe → Viewer", async () => {
-    await expect(requireKommplanZugang()).rejects.toThrow("NEXT_REDIRECT /login?callbackUrl=%2Fm%2Fkommplan");
-    expect(audit.login).toHaveBeenCalledWith("kommplan");
-    zustand.user = { sub: "s1", name: "Jana", groups: ["andere"] };
-    await expect(requireKommplanZugang()).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(audit.denied).toHaveBeenCalledTimes(1);
-    zustand.user = { sub: "s2", name: "Kai", groups: ["iuk-kommplan"] };
-    await expect(requireKommplanZugang()).resolves.toMatchObject({ sub: "s2" });
-  });
-});
-```
-
 - [ ] **Step 2: Rot sehen**
 
-Run: `pnpm vitest run src/app/m/kommplan/registry.test.ts src/app/m/kommplan/_lib/host.test.ts src/app/m/kommplan/_lib/zugang.test.ts`
-Expected: FAIL — `Unknown module: kommplan`, `./host`/`./zugang` fehlen.
+Run: `pnpm vitest run src/app/m/kommplan/registry.test.ts src/app/m/kommplan/_lib/host.test.ts`
+Expected: FAIL — `Unknown module: kommplan`, `./host` fehlt.
 
 - [ ] **Step 3: Registry, Icon, Riegel**
 
-`src/core/registry.ts`, direkt nach dem `einsatzbuch`-Eintrag (so wenige Zeilen wie möglich — fremde Zeilenanker in diese Datei nicht nachziehen, siehe Global Constraints):
+`src/core/registry.ts`, direkt nach dem `einsatzbuch`-Eintrag (so wenige Zeilen wie möglich; danach der Ankerschritt aus den Global Constraints — Stand der Planung: hinter der Einfügestelle trifft heute kein Anker mehr zu, alle zeigen schon auf verschobene Zeilen und bleiben, wie sie sind):
 ```ts
   // kommplan: Kommunikationspläne (Spec 2026-09-30). requiresAuth:false für die Token-Ansicht (Phase 5); Zugang und Host in _lib/.
   { key: "kommplan", title: "Kommunikationspläne", icon: "ApartmentOutlined", shell: "full",
@@ -4793,52 +5630,6 @@ export function requireKommplanHost(headers: Headers): void {
 }
 ```
 
-`K/_lib/zugang.ts`:
-```ts
-import { notFound, redirect } from "next/navigation";
-import type { Session } from "next-auth";
-import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
-import { auth } from "@/core/auth";
-import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
-import { getModule, requiredGroupsFor } from "@/core/registry";
-
-export type Viewer = Session["user"];
-type EnvLike = Record<string, string | undefined>;
-
-/**
- * Ansehen und Drucken: die Zugangsgruppe (`SUITE_ACCESS_GROUP_KOMMPLAN`) ODER wer das Modul
- * administriert (`isModuleAdmin`, also auch der Suite-Admin — anders als im Einsatzbuch liegt hier
- * nichts, was der Betrieb nicht sehen dürfte).
- */
-export function hatKommplanZugang(groups: readonly string[] | null | undefined, env: EnvLike = process.env): boolean {
-  const mod = getModule("kommplan");
-  return hasAnyGroup(groups, requiredGroupsFor(mod, env)) || isModuleAdmin(mod, groups ? [...groups] : null, env);
-}
-
-/** Pläne bearbeiten, Bibliothek pflegen, Links ausstellen (ab Phase 2). */
-export function darfKommplanBearbeiten(groups: readonly string[] | null | undefined, env: EnvLike = process.env): boolean {
-  return isModuleAdmin(getModule("kommplan"), groups ? [...groups] : null, env);
-}
-
-/**
- * Riegel für das Layout der Arbeitsrouten UND jede Seite darunter (eine Route Group ist keine
- * Sicherheitsgrenze). `redirect`/`notFound` bleiben hier, damit Seiten keinen Eintrag im
- * Abdeckungsmanifest von `core/audit` brauchen.
- */
-export async function requireKommplanZugang(): Promise<Viewer> {
-  const viewer = (await auth())?.user;
-  if (!viewer) {
-    auditLoginRequired("kommplan");
-    redirect(`/login?callbackUrl=${encodeURIComponent("/m/kommplan")}`);
-  }
-  if (!hatKommplanZugang(viewer.groups)) {
-    auditDenied("kommplan", auditActor(viewer));
-    notFound();
-  }
-  return viewer;
-}
-```
-
 `K/layout.tsx`:
 ```tsx
 /** Kein Riegel hier: die Token-Ansicht (Phase 5, `t/[token]`) ist anonym. Die Arbeitsrouten riegelt `(intern)/layout.tsx`. */
@@ -4857,14 +5648,16 @@ export default function KommplanLayout({ children }: { children: React.ReactNode
 
 - [ ] **Step 4: Grün sehen**
 
-Run: `pnpm vitest run src/app/m/kommplan src/core/shell src/core/registry.test.ts src/core/auth`
-Expected: PASS. `AppUmschalter.test.tsx` prüft, dass jedes Registry-Icon in `ICONS` steht. Hinweis: `pnpm anker:drift src/core/registry.ts` meldet jetzt verschobene Anker — informativ, kein Tor; nicht nachziehen.
+Run: `pnpm vitest run src/app/m/kommplan src/core/shell src/core/registry.test.ts src/core/auth src/core/favicon && pnpm typecheck`
+Expected: PASS; Typecheck Exit 0. `AppUmschalter.test.tsx` prüft, dass jedes Registry-Icon in `ICONS` steht.
+
+Ankerschritt (Global Constraints) für `src/core/registry.ts`, `src/core/shell/icons.ts` und `.env.example`: `git grep -n "registry.ts:[0-9]\|icons.ts:[0-9]\|env.example:[0-9]" -- src scripts e2e` und `pnpm anker:drift src/core/registry.ts`. Nur Anker, die **vor** dieser Änderung zutrafen und hinter der Einfügestelle liegen, werden in derselben Zeile zur Namensform; alle anderen bleiben.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/registry.ts src/core/shell/icons.ts .env.example src/app/m/kommplan/layout.tsx src/app/m/kommplan/registry.test.ts src/app/m/kommplan/_lib/host.ts src/app/m/kommplan/_lib/host.test.ts src/app/m/kommplan/_lib/zugang.ts src/app/m/kommplan/_lib/zugang.test.ts
-git commit -S -m "feat(kommplan): Modul registrieren, Host-Riegel und Zugang" -m "Zugangsgruppe iuk-kommplan zum Ansehen und Drucken, iuk-kommplan-bearbeiten (und der Suite-Admin) zum Bearbeiten; beide per SUITE_ACCESS_GROUP_KOMMPLAN/SUITE_ADMIN_GROUP_KOMMPLAN überschreibbar." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add src/core/registry.ts src/core/shell/icons.ts .env.example src/app/m/kommplan/layout.tsx src/app/m/kommplan/registry.test.ts src/app/m/kommplan/_lib/host.ts src/app/m/kommplan/_lib/host.test.ts
+git commit -S -m "feat(kommplan): Modul registrieren und Host-Riegel" -m "Registry-Eintrag mit Zugangsgruppe iuk-kommplan und Admin-Gruppe iuk-kommplan-bearbeiten, beide per SUITE_ACCESS_GROUP_KOMMPLAN/SUITE_ADMIN_GROUP_KOMMPLAN überschreibbar; das Modul liefert nur auf seinem eigenen Host aus." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -4872,12 +5665,12 @@ git commit -S -m "feat(kommplan): Modul registrieren, Host-Riegel und Zugang" -m
 ### Task 18: Datenbank-Dreieck, alle Tabellen, Audit-Katalog, lokaler Seed
 
 **Files:**
-- Create: `K/_db/schema.ts`, `K/_db/client.ts`, `K/_db/drizzle.config.ts`, `K/_db/migrations/0000_plaene.sql` (erzeugt + Trigger von Hand), `K/_db/migrations/meta/*` (erzeugt), `K/_lib/testDb.ts`, `K/_lib/seedLokal.ts`
+- Create: `K/_db/schema.ts`, `K/_db/client.ts`, `K/_db/drizzle.config.ts`, `K/_db/migrations/0000_plaene.sql` (erzeugt + Trigger von Hand), `K/_db/migrations/meta/*` (erzeugt), `K/_lib/testDb.ts`, `K/_lib/seedLokal.ts`, `K/_lib/zugang.ts` (aus Task 17 hierher verlegt)
 - Modify: `src/core/bootstrap.ts` (`MODULE_MIGRATIONS`), `Dockerfile` (Runner-Stage, nach der einsatzbuch-Zeile), `src/core/audit/types.ts` (`AUDIT_MODULES`), `src/core/audit/catalog.ts` (`AUDIT_TABLES`), `src/app/m/portal/admin/audit/labels.ts` (`OBJECT_LABELS`), `scripts/seed-lokal.ts`
-- Test: `K/_db/schema.test.ts`, `K/_lib/seedLokal.test.ts`; bestehend `src/core/bootstrap.test.ts`, `scripts/seed-lokal.test.ts`, `src/core/audit/catalog.test.ts`
+- Test: `K/_db/schema.test.ts`, `K/_lib/seedLokal.test.ts`, `K/_lib/zugang.test.ts`; bestehend `src/core/bootstrap.test.ts`, `scripts/seed-lokal.test.ts`, `src/core/audit/catalog.test.ts`
 
 **Interfaces:**
-- Produces: Tabellen `plan`, `bib_stelle`, `bib_einheit`, `bib_verbindung`, `plan_freigabe` (Drizzle: `plan`, `bibStelle`, `bibEinheit`, `bibVerbindung`, `planFreigabe`; Typen `PlanZeile`, `NeuePlanZeile`); `getDb()`, `type KommplanDb`; `testDb()`; `seedLokalKommplan(db: KommplanDb): Promise<string[]>`.
+- Produces: Tabellen `plan`, `bib_stelle`, `bib_einheit`, `bib_verbindung`, `plan_freigabe` (Drizzle: `plan`, `bibStelle`, `bibEinheit`, `bibVerbindung`, `planFreigabe`; Typen `PlanZeile`, `NeuePlanZeile`); `getDb()`, `type KommplanDb`; `testDb()`; `seedLokalKommplan(db: KommplanDb): Promise<string[]>`; aus `_lib/zugang.ts`: `hatKommplanZugang(groups: readonly string[] | null | undefined, env?): boolean` (Zugangsgruppe **oder** Modul-Admin über `isModuleAdmin`, also auch der Suite-Admin); `darfKommplanBearbeiten(groups, env?): boolean` (nur `isModuleAdmin`; Phase 2 nutzt es); `type Viewer = Session["user"]`; `requireKommplanZugang(): Promise<Viewer>` (ohne Sitzung → Login mit Audit, ohne Zugang → 404 mit Audit).
 
 **Abweichung 9 (hier entschieden): `plan_freigabe` statt `freigabe`.** Die Audit-Oberfläche benennt Objekte über den Tabellennamen allein (`OBJECT_LABELS` in `portal/admin/audit/labels.ts`), und `freigabe` heißt dort schon „Schlüsselfreigabe (Einsatzbuch)". Die Spalten bleiben die aus Spec §4.1.
 
@@ -5212,6 +6005,16 @@ END;
 ```
 (Das Wort „seedLokal" darf in `bootstrap.ts` nicht vorkommen — `scripts/seed-lokal.test.ts` scannt die Datei.)
 
+**Ankerschritt `src/core/bootstrap.ts`** (Global Constraints): der Eintrag schiebt alles ab heutiger Zeile 69 um zwei Zeilen. Heute zutreffend und danach falsch — in derselben Zeile in die Namensform umschreiben, keine Zahl nachziehen, keine Zeile dazu:
+- `src/core/bootstrap.test.ts`, Kopfkommentar „Planteil 5 dazu …": `` `src/core/bootstrap.ts:15` und `:103` `` → `` `src/core/bootstrap.ts:15` und `assertHostConfig` `` (`:15` liegt vor der Einfügung und bleibt).
+- `src/core/bootstrap.test.ts`, „`` `src/core/bootstrap.ts:103` und an `:138`. ``" → „`` `bootstrap.ts`, `assertHostConfig` und `shouldSeed`. ``".
+- `src/core/bootstrap.test.ts`, „`` gerufen `:138`; ``" → „`` gerufen in `shouldSeed`; ``".
+- `src/core/bootstrap.test.ts`, „`` `src/core/bootstrap.ts:103` und `:138` je als Blockkommentar ``" → „`` `assertHostConfig` und `shouldSeed` je als Blockkommentar ``".
+- `src/core/bootstrap.test.ts`, „`` auf `src/core/bootstrap.ts:125-133`. ``" → „`` auf `migrateAllModules` in `bootstrap.ts`. ``".
+- `src/app/m/radio/_lib/boot.ts`, „`` (`src/core/bootstrap.ts:105-107`) ``" → „`` (die `errors`-Liste in `assertHostConfig`) ``".
+
+Vorher mit `git grep -n "bootstrap.ts:[0-9]" -- src scripts e2e` und `pnpm anker:drift src/core/bootstrap.ts` gegenprüfen, ob seit der Planung weitere zutreffende Anker dazugekommen sind; die schon veralteten (z. B. `:114`, `:90-103`, `:49-56`) bleiben. Dasselbe für `Dockerfile` (die Anker `:25`, `:36`, `:38-39` liegen vor der Einfügung), `src/core/audit/types.ts`, `src/core/audit/catalog.ts`, `src/app/m/portal/admin/audit/labels.ts` und `scripts/seed-lokal.ts`. Die Zeilenzahl jeder so bearbeiteten Datei bleibt gleich (Kommentaranker-Regel 4).
+
 `Dockerfile`, Runner-Stage, nach der einsatzbuch-Zeile:
 ```
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/kommplan/_db/migrations ./src/app/m/kommplan/_db/migrations
@@ -5242,7 +6045,108 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/kommplan/_db/migrations
  plan:"Kommunikationsplan",bib_stelle:"Stelle (Planbibliothek)",bib_einheit:"Einheit (Planbibliothek)",bib_verbindung:"Verbindung (Planbibliothek)",plan_freigabe:"Freigabelink eines Plans",
 ```
 
-- [ ] **Step 5: Seed**
+- [ ] **Step 5: Zugang — jetzt, da `kommplan` ein `AuditModule` ist**
+
+(Aus Task 17 hierher verlegt, siehe dort „Reihenfolge Task 17 → 18".) Erst den Test, rot sehen (`pnpm vitest run src/app/m/kommplan/_lib/zugang.test.ts` → `./zugang` fehlt), dann die Datei.
+
+`K/_lib/zugang.test.ts`:
+```ts
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const zustand: { user: { sub: string; name: string; groups: string[] } | null } = { user: null };
+vi.mock("@/core/auth", () => ({ auth: async () => (zustand.user ? { user: zustand.user } : null) }));
+const audit = vi.hoisted(() => ({ denied: vi.fn(), login: vi.fn() }));
+vi.mock("@/core/audit/server", async (orig) => ({
+  ...(await orig<typeof import("@/core/audit/server")>()),
+  auditDenied: audit.denied, auditLoginRequired: audit.login,
+}));
+vi.mock("next/navigation", () => ({
+  notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
+  redirect: (z: string) => { throw new Error(`NEXT_REDIRECT ${z}`); },
+}));
+import { darfKommplanBearbeiten, hatKommplanZugang, requireKommplanZugang } from "./zugang";
+
+describe("Zugang zu kommplan", () => {
+  it("Zugangsgruppe, Admin-Gruppe und Suite-Admin öffnen; andere nicht", () => {
+    expect(hatKommplanZugang(["iuk-kommplan"], {})).toBe(true);
+    expect(hatKommplanZugang(["iuk-kommplan-bearbeiten"], {})).toBe(true);
+    expect(hatKommplanZugang(["dashboard-admins"], {})).toBe(true);
+    expect(hatKommplanZugang(["andere"], {})).toBe(false);
+    expect(hatKommplanZugang(null, {})).toBe(false);
+    expect(hatKommplanZugang([], {})).toBe(false);
+  });
+  it("Bearbeiten nur für Admin-Gruppe und Suite-Admin", () => {
+    expect(darfKommplanBearbeiten(["iuk-kommplan"], {})).toBe(false);
+    expect(darfKommplanBearbeiten(["iuk-kommplan-bearbeiten"], {})).toBe(true);
+    expect(darfKommplanBearbeiten(["dashboard-admins"], {})).toBe(true);
+  });
+  it("SUITE_ACCESS_GROUP_KOMMPLAN ersetzt die Vorgabe", () => {
+    expect(hatKommplanZugang(["plaene"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(true);
+    expect(hatKommplanZugang(["iuk-kommplan"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(false);
+  });
+});
+
+describe("requireKommplanZugang", () => {
+  beforeEach(() => { zustand.user = null; audit.denied.mockClear(); audit.login.mockClear(); });
+  it("ohne Sitzung → Login mit Audit; ohne Gruppe → 404 mit Audit; mit Gruppe → Viewer", async () => {
+    await expect(requireKommplanZugang()).rejects.toThrow("NEXT_REDIRECT /login?callbackUrl=%2Fm%2Fkommplan");
+    expect(audit.login).toHaveBeenCalledWith("kommplan");
+    zustand.user = { sub: "s1", name: "Jana", groups: ["andere"] };
+    await expect(requireKommplanZugang()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(audit.denied).toHaveBeenCalledTimes(1);
+    zustand.user = { sub: "s2", name: "Kai", groups: ["iuk-kommplan"] };
+    await expect(requireKommplanZugang()).resolves.toMatchObject({ sub: "s2" });
+  });
+});
+```
+
+`K/_lib/zugang.ts`:
+```ts
+import { notFound, redirect } from "next/navigation";
+import type { Session } from "next-auth";
+import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
+import { auth } from "@/core/auth";
+import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
+import { getModule, requiredGroupsFor } from "@/core/registry";
+
+export type Viewer = Session["user"];
+type EnvLike = Record<string, string | undefined>;
+
+/**
+ * Ansehen und Drucken: die Zugangsgruppe (`SUITE_ACCESS_GROUP_KOMMPLAN`) ODER wer das Modul
+ * administriert (`isModuleAdmin`, also auch der Suite-Admin — anders als im Einsatzbuch liegt hier
+ * nichts, was der Betrieb nicht sehen dürfte).
+ */
+export function hatKommplanZugang(groups: readonly string[] | null | undefined, env: EnvLike = process.env): boolean {
+  const mod = getModule("kommplan");
+  return hasAnyGroup(groups, requiredGroupsFor(mod, env)) || isModuleAdmin(mod, groups ? [...groups] : null, env);
+}
+
+/** Pläne bearbeiten, Bibliothek pflegen, Links ausstellen (ab Phase 2). */
+export function darfKommplanBearbeiten(groups: readonly string[] | null | undefined, env: EnvLike = process.env): boolean {
+  return isModuleAdmin(getModule("kommplan"), groups ? [...groups] : null, env);
+}
+
+/**
+ * Riegel für das Layout der Arbeitsrouten UND jede Seite darunter (eine Route Group ist keine
+ * Sicherheitsgrenze). `redirect`/`notFound` bleiben hier, damit Seiten keinen Eintrag im
+ * Abdeckungsmanifest von `core/audit` brauchen.
+ */
+export async function requireKommplanZugang(): Promise<Viewer> {
+  const viewer = (await auth())?.user;
+  if (!viewer) {
+    auditLoginRequired("kommplan");
+    redirect(`/login?callbackUrl=${encodeURIComponent("/m/kommplan")}`);
+  }
+  if (!hatKommplanZugang(viewer.groups)) {
+    auditDenied("kommplan", auditActor(viewer));
+    notFound();
+  }
+  return viewer;
+}
+```
+
+- [ ] **Step 6: Seed**
 
 `K/_lib/seedLokal.ts`:
 ```ts
@@ -5286,19 +6190,19 @@ und in `SEED_MODULE` nach `einsatzbuch`:
   { key: "kommplan", lauf: () => seedLokalKommplan(getModuleDb("kommplan", kommplanSchema)) },
 ```
 
-- [ ] **Step 6: Grün sehen**
+- [ ] **Step 7: Grün sehen**
 
-Run: `pnpm vitest run src/app/m/kommplan src/core/bootstrap.test.ts scripts/seed-lokal.test.ts src/core/audit src/app/m/portal/admin/audit && pnpm typecheck`
-Expected: PASS; Typecheck Exit 0 (jetzt auch `auditLoginRequired("kommplan")` aus Task 17).
+Run: `pnpm vitest run src/app/m/kommplan src/core/bootstrap.test.ts scripts/seed-lokal.test.ts src/core/audit src/app/m/portal/admin/audit src/core/kommentaranker.test.ts && pnpm typecheck && pnpm anker:neu`
+Expected: PASS; Typecheck Exit 0 (auch `auditLoginRequired("kommplan")`/`auditDenied("kommplan", …)` in `_lib/zugang.ts`); `anker:neu` meldet keinen neuen Zeilenanker (die umgeschriebenen sind Namensanker).
 
 Run: `pnpm seed:lokal kommplan && sqlite3 .data/kommplan.db "select id, typ, ist_vorlage from plan"`
 Expected: fünf Zeilen, die zwei Vorlagen mit `ist_vorlage = 1`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/app/m/kommplan/_db src/app/m/kommplan/_lib/testDb.ts src/app/m/kommplan/_lib/seedLokal.ts src/app/m/kommplan/_lib/seedLokal.test.ts src/core/bootstrap.ts Dockerfile src/core/audit/types.ts src/core/audit/catalog.ts src/app/m/portal/admin/audit/labels.ts scripts/seed-lokal.ts
-git commit -S -m "feat(kommplan): eigene Datenbank mit allen Tabellen, Audit und lokalem Seed" -m "Plan, Bibliothek und Freigabelinks stehen schon in Phase 1 in der Migration; der Seed legt die Beispielpläne an. Die Freigabetabelle heißt plan_freigabe, weil die Audit-Oberfläche freigabe schon dem Einsatzbuch zuordnet." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add src/app/m/kommplan/_db src/app/m/kommplan/_lib/testDb.ts src/app/m/kommplan/_lib/seedLokal.ts src/app/m/kommplan/_lib/seedLokal.test.ts src/app/m/kommplan/_lib/zugang.ts src/app/m/kommplan/_lib/zugang.test.ts src/core/bootstrap.ts src/core/bootstrap.test.ts src/app/m/radio/_lib/boot.ts Dockerfile src/core/audit/types.ts src/core/audit/catalog.ts src/app/m/portal/admin/audit/labels.ts scripts/seed-lokal.ts
+git commit -S -m "feat(kommplan): eigene Datenbank mit allen Tabellen, Audit, Zugang und lokalem Seed" -m "Plan, Bibliothek und Freigabelinks stehen schon in Phase 1 in der Migration; der Seed legt die Beispielpläne an. Die Freigabetabelle heißt plan_freigabe, weil die Audit-Oberfläche freigabe schon dem Einsatzbuch zuordnet. Zugangsgruppe iuk-kommplan zum Ansehen und Drucken, iuk-kommplan-bearbeiten (und der Suite-Admin) zum Bearbeiten. Zeilenanker auf bootstrap.ts in die Namensform umgeschrieben." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -5310,7 +6214,7 @@ git commit -S -m "feat(kommplan): eigene Datenbank mit allen Tabellen, Audit und
 - Test: `K/_lib/plaene.test.ts`, `K/(intern)/PlanTabelle.test.tsx`
 
 **Interfaces:**
-- Consumes: `getDb`, `plan` (Task 18), `leseInhalt` (Task 3), `kalendertag` (Task 15), `requireKommplanHost`, `requireKommplanZugang` (Task 17), `Shell`, `Seitenkopf`, `Datentabelle`.
+- Consumes: `getDb`, `plan` (Task 18), `leseInhalt` (Task 3), `kalendertag` (Task 15), `requireKommplanHost` (Task 17), `requireKommplanZugang` (Task 18), `Shell`, `Seitenkopf`, `Kartentabelle`, `nachText` (`core/tabelle`).
 - Produces:
   - `plaene.ts` (Server): `interface Listenzeile { id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean }` (nur serialisierbare Werte, Falle 9); `listePlaene(db: KommplanDb): Listenzeile[]` (nicht archiviert, neueste zuerst, dann id); `interface GeladenerPlan { id: string; titel: string; typ: "kommunikationsplan" | "fernmeldeskizze"; anlass: string | null; datum: number | null; aktualisiertAm: number; aktualisiertVon: string; inhalt: PlanInhalt | null; fehler: string | null }`; `ladePlan(db, id): GeladenerPlan | null` (unbekannt oder archiviert → null; beschädigter Inhalt → `inhalt: null` mit `fehler`, nie ein Wurf); `ladePlanOder404(db, id): GeladenerPlan` (wirft `notFound`); `beschreibungFuer(p: GeladenerPlan): string`.
   - `Huelle({ children })` (Server): `<Shell variant="full" moduleKey="kommplan">`.
@@ -5381,17 +6285,32 @@ import { PlanTabelle } from "./PlanTabelle";
 
 afterEach(() => unmount());
 
+const ZEILEN = [
+  { id: "p1", titel: "Einsatz", typ: "Kommunikationsplan", datum: "22.02.2026", stand: "16.02.2026, 10:00", vorlage: false, lesbar: true },
+  { id: "p2", titel: "Label", typ: "Kommunikationsplan", datum: null, stand: "01.09.2026, 10:00", vorlage: true, lesbar: false },
+];
+
+/**
+ * Kartentabelle rendert Tabelle UND Karten ins DOM (docs/design/README.md, „Mobil"): Tabellenzeilen
+ * tragen `data-row-key`, Karten `data-karte-key`. Deshalb wird je Darstellung geprüft, nicht über alle `a`.
+ */
 describe("PlanTabelle", () => {
-  it("verlinkt jeden Plan auf seine Ansicht und markiert Vorlagen und unlesbare Pläne", async () => {
-    await mount(<PlanTabelle zeilen={[
-      { id: "p1", titel: "Einsatz", typ: "Kommunikationsplan", datum: "22.02.2026", stand: "16.02.2026, 10:00", vorlage: false, lesbar: true },
-      { id: "p2", titel: "Label", typ: "Kommunikationsplan", datum: null, stand: "01.09.2026, 10:00", vorlage: true, lesbar: false },
-    ]} />);
-    const links = queryAll<HTMLAnchorElement>("a");
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/p1", "/p2"]);
-    expect(document.body.textContent).toContain("Vorlage");
-    expect(document.body.textContent).toContain("nicht lesbar");
+  it("verlinkt jeden Plan auf seine Ansicht unter /p/<id> — in der Tabelle und auf den Karten", async () => {
+    await mount(<PlanTabelle zeilen={ZEILEN} />);
+    expect(queryAll<HTMLAnchorElement>("tr[data-row-key] a").map((a) => a.getAttribute("href"))).toEqual(["/p/p1", "/p/p2"]);
+    expect(queryAll("li[data-karte-key]").map((li) => li.getAttribute("data-karte-key"))).toEqual(["p1", "p2"]);
+    expect(queryAll<HTMLAnchorElement>("li[data-karte-key] a").map((a) => a.getAttribute("href"))).toEqual(["/p/p1", "/p/p2"]);
+  });
+  it("Kennzeichen als eigene Chips (Fläche und Text), nie als antd-Tag; fehlendes Datum als —", async () => {
+    await mount(<PlanTabelle zeilen={ZEILEN} />);
+    expect(queryAll("tr[data-row-key] .ant-tag, li[data-karte-key] .ant-tag")).toEqual([]);
+    const chips = queryAll("tr[data-row-key] .kp-chip").map((c) => c.textContent);
+    expect(chips).toEqual(["Vorlage", "nicht lesbar"]);
     expect(document.body.textContent).toContain("—");
+  });
+  it("ohne Pläne steht der Leertext, keine leere Tabelle", async () => {
+    await mount(<PlanTabelle zeilen={[]} />);
+    expect(document.body.textContent).toContain("Noch keine Pläne.");
   });
 });
 ```
@@ -5464,8 +6383,28 @@ export function beschreibungFuer(p: GeladenerPlan): string {
  * Modulvariablen (Falle 2: --ant-* sind nicht global). Die Zeichenfläche selbst bleibt weiß
  * (Papier), nur ihr Umfeld folgt Hell/Dunkel über <html data-theme>.
  */
-:root { --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; }
-:root[data-theme="dark"] { --kp-flaeche: #1d2026; --kp-rand: #3a404a; }
+:root {
+  --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc;
+  --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
+  --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
+}
+:root[data-theme="dark"] {
+  --kp-flaeche: #1d2026; --kp-rand: #3a404a;
+  --kp-chip-flaeche: #2a303a; --kp-chip-text: #d6dce5;
+  --kp-hinweis-flaeche: #3d2f14; --kp-hinweis-text: #f3cf8e;
+}
+
+/*
+ * Chips: Fläche UND Text als Paar, nie antds Tag-Vorgabe (docs/design/README.md, Farbvokabular).
+ * „nicht lesbar" in Bernstein, nicht in Rot (Falle 3: Rot ist die Primärfarbe); die Bedeutung
+ * trägt der Text.
+ */
+.kp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.kp-chip {
+  display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 12px; line-height: 20px;
+  background: var(--kp-chip-flaeche); color: var(--kp-chip-text);
+}
+.kp-chip-hinweis { background: var(--kp-hinweis-flaeche); color: var(--kp-hinweis-text); }
 
 .kp-betrachter {
   position: relative;
@@ -5501,8 +6440,10 @@ import { requireKommplanZugang } from "../_lib/zugang";
 
 /**
  * Host und Zugang OBERHALB jeder künftigen loading.tsx (Falle 23) — sonst wäre ein notFound() ein
- * HTTP 200. Ohne Hülle, weil die Druckroute darunter keine haben darf; Liste und Betrachter setzen
- * sie selbst (`_ui/Huelle.tsx`). Jede Seite ruft die Riegel noch einmal.
+ * HTTP 200. Das objektbezogene 404 eines Plans (unbekannt, archiviert) hält `p/[id]/layout.tsx`
+ * aus demselben Grund. Ohne Hülle, weil die Druckroute darunter keine haben darf; Liste und
+ * Betrachter setzen sie selbst (`_ui/Huelle.tsx`). Jede Seite ruft die Riegel noch einmal — Layouts
+ * und Seiten rendern parallel, ein Layout ist kein Vorab-Riegel.
  */
 export default async function KommplanInternLayout({ children }: { children: React.ReactNode }) {
   requireKommplanHost(await headers());
@@ -5516,32 +6457,46 @@ export default async function KommplanInternLayout({ children }: { children: Rea
 "use client";
 
 import Link from "next/link";
-import { Tag, type TableProps } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import type { TableProps } from "antd";
+import { Kartentabelle, nachText } from "@/core/tabelle";
 import type { Listenzeile } from "../_lib/plaene";
 
-/** Client-Insel, weil die Spalten render-Funktionen tragen (Falle 9); Titel als Zeichenketten (Falle 17). */
+/**
+ * Client-Insel, weil die Spalten render-Funktionen tragen (Falle 9); Titel als Zeichenketten (Falle 17).
+ * `Kartentabelle` statt nackter `Datentabelle`: unter 768px dieselben Spalten als Karten, samt Leiste
+ * für Sortierung (docs/design/README.md, „Mobil", DRK-451). Sie steht auf dem Telefon nicht breit
+ * da, braucht also kein `scroll`. Links auf `/p/<id>` (Abweichung 11).
+ */
 export function PlanTabelle({ zeilen }: { zeilen: Listenzeile[] }) {
   const spalten: NonNullable<TableProps<Listenzeile>["columns"]> = [
-    { key: "titel", title: "Titel", dataIndex: "titel", render: (_: unknown, z: Listenzeile) => (
-      <span>
-        <Link href={`/${z.id}`}>{z.titel}</Link>
-        {z.vorlage ? <Tag style={{ marginInlineStart: 8 }}>Vorlage</Tag> : null}
-        {z.lesbar ? null : <Tag style={{ marginInlineStart: 8 }}>nicht lesbar</Tag>}
+    { key: "titel", title: "Titel", dataIndex: "titel", sorter: nachText<Listenzeile>((z) => z.titel),
+      render: (_: unknown, z: Listenzeile) => <Link href={`/p/${z.id}`}>{z.titel}</Link> },
+    { key: "kennzeichen", title: "Kennzeichen", render: (_: unknown, z: Listenzeile) => (
+      <span className="kp-chips">
+        {z.vorlage ? <span className="kp-chip">Vorlage</span> : null}
+        {z.lesbar ? null : <span className="kp-chip kp-chip-hinweis">nicht lesbar</span>}
       </span>
     ) },
     { key: "typ", title: "Art", dataIndex: "typ" },
     { key: "datum", title: "Datum", dataIndex: "datum", render: (d: string | null) => d ?? "—" },
     { key: "stand", title: "Stand", dataIndex: "stand" },
   ];
-  return <Datentabelle<Listenzeile> rowKey="id" columns={spalten} dataSource={zeilen} />;
+  return (
+    <Kartentabelle<Listenzeile>
+      aria-label="Pläne"
+      rowKey="id"
+      dataSource={zeilen}
+      columns={spalten}
+      leer={{ nichts: "Noch keine Pläne." }}
+      karte={{ titel: "titel", kennzeichen: ["kennzeichen"] }}
+    />
+  );
 }
 ```
 
 `K/(intern)/page.tsx`:
 ```tsx
 import { headers } from "next/headers";
-import { Card } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
 import { requireKommplanHost } from "../_lib/host";
@@ -5559,7 +6514,8 @@ export default async function Planliste() {
   return (
     <Huelle>
       <Seitenkopf titel="Kommunikationspläne" beschreibung="Pläne und Fernmeldeskizzen deiner Einsätze. Öffne einen Plan, um ihn anzusehen oder auf A4 zu drucken." />
-      {zeilen.length === 0 ? <Card>Noch keine Pläne.</Card> : <PlanTabelle zeilen={zeilen} />}
+      {/* Den Leerzustand trägt die Kartentabelle selbst (`leer`). */}
+      <PlanTabelle zeilen={zeilen} />
     </Huelle>
   );
 }
@@ -5585,7 +6541,7 @@ git commit -S -m "feat(kommplan): Planliste hinter Host- und Zugangsriegel" -m "
 ### Task 20: Betrachter mit Zoom, Verschieben und Einklappen
 
 **Files:**
-- Create: `K/_ui/betrachter/ansicht.ts`, `K/_ui/betrachter/Betrachter.tsx`, `K/_ui/schrift.ts`, `K/(intern)/[id]/page.tsx`
+- Create: `K/_ui/betrachter/ansicht.ts`, `K/_ui/betrachter/Betrachter.tsx`, `K/_ui/schrift.ts`, `K/(intern)/p/[id]/layout.tsx`, `K/(intern)/p/[id]/page.tsx`
 - Test: `K/_ui/betrachter/ansicht.test.ts`, `K/_ui/betrachter/Betrachter.test.tsx`
 
 **Interfaces:**
@@ -5594,7 +6550,7 @@ git commit -S -m "feat(kommplan): Planliste hinter Host- und Zugangsriegel" -m "
   - `ansicht.ts` (rein): `interface Ansicht { massstab: number /* px je mm */; x: number; y: number /* px */ }`; `GRENZEN = { min: 0.4, max: 16 }`; `SCHRITT = 1.25`; `PAN = 48`; `einpassen(breiteMm, hoeheMm, viewportB, viewportH, rand = 16): Ansicht`; `zoome(a, faktor, px, py): Ansicht` (Punkt unter dem Zeiger bleibt stehen; geklemmt); `verschiebe(a, dx, dy): Ansicht`; `type Aktion`; `tasteZuAktion(taste: string): Aktion | null` (`+`/`=` vergrößern, `-` verkleinern, `0` einpassen, Pfeile verschieben).
   - `Betrachter({ inhalt, symbole, titel, schrift })` (`"use client"`): rechnet `layout(inhalt, "bildschirm", { eingeklappt })` selbst; Werkzeugleiste „Verkleinern", „Vergrößern", „Einpassen", „Alle ausklappen"; Rad (mit Strg/⌘ zoomen, sonst verschieben), Ziehen mit Maus/Finger, Zwei-Finger-Zoom, Tastatur auf der fokussierbaren Fläche; je einklappbarer Karte ein Umschalter (`role="button"`, `data-umschalter`, Enter/Leertaste). Eingeklappt ist Ansichtszustand, nicht Planinhalt (Spec §5.7).
   - `schrift.ts`: `ARIMO` (`next/font/local`, `display: "block"`).
-  - Route `/[id]`.
+  - Route `/p/[id]` (Abweichung 11) mit `(intern)/p/[id]/layout.tsx`: Riegel, dann `ladePlanOder404` — das 404 eines unbekannten oder archivierten Plans fällt oberhalb jeder künftigen `loading.tsx` unter `p/[id]` (Falle 23), für Betrachter **und** Druck.
 
 - [ ] **Step 1: Failing tests**
 
@@ -5835,7 +6791,7 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
   });
   const zusatz = (k: KarteL) => !k.einklappbar ? null : (
     <g role="button" tabIndex={0} data-umschalter={k.id} aria-expanded={!k.eingeklappt}
-      aria-label={`${k.titelVoll}: Unterstellen ${k.eingeklappt ? "ausklappen" : "einklappen"}`}
+      aria-label={`${k.titelVoll === "" ? "(ohne Titel)" : k.titelVoll}: Unterstellen ${k.eingeklappt ? "ausklappen" : "einklappen"}`}
       style={{ cursor: "pointer" }}
       onClick={(e) => { e.stopPropagation(); umschalten(k.id); }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); umschalten(k.id); } }}>
@@ -5874,7 +6830,36 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
 
 Vor dem Schreiben `pnpm lint` einmal auf eine leere Fassung der Datei laufen lassen und die aktiven `react-hooks/*`-Regeln lesen; meldet `react-hooks/refs` das Schreiben von `basisRef.current` im Effekt, `basisRef` durch `useEffectEvent` ersetzen (React 19.2), nicht die Regel abschalten.
 
-`K/(intern)/[id]/page.tsx`:
+`K/(intern)/p/[id]/layout.tsx`:
+```tsx
+import { headers } from "next/headers";
+import { getDb } from "@/app/m/kommplan/_db/client";
+import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
+import { ladePlanOder404 } from "@/app/m/kommplan/_lib/plaene";
+import { requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
+
+/**
+ * FALLE 23 FÜR DAS OBJEKT (Vorbild `feedback/(admin)/groups/[groupId]/(cockpit)/layout.tsx`): ein
+ * unbekannter oder archivierter Plan ist hier ein echter 404 — oberhalb jeder künftigen
+ * `loading.tsx` unter `p/[id]` (Editor, Autosave ab Phase 2). Stünde `ladePlanOder404` nur in den
+ * Seiten, lieferte die erste Ladegrenze darüber still HTTP 200 (feedback DRK-424, lagerbuch DRK-480).
+ *
+ * Die Riegel stehen VOR dem Laden, weil Layouts und Seiten parallel rendern: ohne sie könnte ein
+ * anonymer Abruf am 404 statt am Login erkennen, ob es einen Plan gibt. Die Seiten darunter
+ * prüfen trotzdem selbst und laden den Plan für ihre Daten erneut.
+ *
+ * ⚠️ DAS LAYOUT LÄUFT AUCH BEIM VORABLADEN (Links aus der Planliste): hier steht nur Lesendes.
+ * `notFound()`/`redirect()` bleiben in `_lib` (kein Eintrag im Abdeckungsmanifest von `core/audit`).
+ */
+export default async function PlanSchutz({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
+  requireKommplanHost(await headers());
+  await requireKommplanZugang();
+  ladePlanOder404(getDb(), (await params).id);
+  return children;
+}
+```
+
+`K/(intern)/p/[id]/page.tsx`:
 ```tsx
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -5902,7 +6887,7 @@ export default async function PlanAnsicht({ params }: { params: Promise<{ id: st
         titel={plan.titel}
         zurueck={{ titel: "Alle Pläne", href: "/" }}
         beschreibung={beschreibungFuer(plan)}
-        aktionen={plan.inhalt ? <Link href={`/${plan.id}/druck/a4`} target="_blank">Drucken (A4 quer)</Link> : undefined}
+        aktionen={plan.inhalt ? <Link href={`/p/${plan.id}/druck/a4`} target="_blank">Drucken (A4 quer)</Link> : undefined}
       />
       {plan.inhalt ? (
         <div className={ARIMO.className}>
@@ -5922,12 +6907,12 @@ Run: `pnpm vitest run src/app/m/kommplan && pnpm typecheck && pnpm lint`
 Expected: PASS; Exit 0.
 
 Run: `uptime && pnpm build`
-Expected: Exit 0, Route `/m/kommplan/[id]` gelistet. `next/font/local` meldet einen falschen Pfad hier und nicht später.
+Expected: Exit 0, Route `/m/kommplan/p/[id]` gelistet. `next/font/local` meldet einen falschen Pfad hier und nicht später.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/app/m/kommplan/_ui/betrachter src/app/m/kommplan/_ui/schrift.ts "src/app/m/kommplan/(intern)/[id]/page.tsx"
+git add src/app/m/kommplan/_ui/betrachter src/app/m/kommplan/_ui/schrift.ts "src/app/m/kommplan/(intern)/p/[id]/layout.tsx" "src/app/m/kommplan/(intern)/p/[id]/page.tsx"
 git commit -S -m "feat(kommplan): Betrachter mit Zoom, Verschieben und Einklappen" -m "Dasselbe Layout wie der Druck, im Browser gerechnet. Maus, Finger und Tastatur; Einklappen ist Ansichtszustand und ändert den Plan nicht." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -5936,16 +6921,16 @@ git commit -S -m "feat(kommplan): Betrachter mit Zoom, Verschieben und Einklappe
 ### Task 21: Druckroute A4 quer
 
 **Files:**
-- Create: `K/(intern)/[id]/druck/a4/page.tsx`, `K/(intern)/[id]/druck/a4/Drucken.tsx`, `K/(intern)/[id]/druck/a4/druck.css`
-- Test: `K/(intern)/[id]/druck/a4/Drucken.test.tsx`
+- Create: `K/(intern)/p/[id]/druck/a4/page.tsx`, `K/(intern)/p/[id]/druck/a4/Drucken.tsx`, `K/(intern)/p/[id]/druck/a4/druck.css`
+- Test: `K/(intern)/p/[id]/druck/a4/Drucken.test.tsx`
 
 **Interfaces:**
 - Consumes: `teileAuf` (Task 12), `Blattansicht`, `SymbolDefs` (Task 14), `rahmenFuer` (Task 15), `symboleFuer` (Task 15), `ladePlanOder404` (Task 19), `ARIMO` (Task 20).
-- Produces: Route `/[id]/druck/a4` — je Blatt ein `<svg class="kp-blatt">` in 297 × 210 mm mit benannter `@page kommplan-a4` (Falle 18), die Symbole einmal in einem unsichtbaren `<svg class="kp-symbole">`; `window.print()` erst nach `document.fonts.ready` (Vorbild `feedback/(print)/aushang`, dort wartet es auf ein Bild).
+- Produces: Route `/p/[id]/druck/a4` — je Blatt ein `<svg class="kp-blatt">` in 297 × 210 mm mit benannter `@page kommplan-a4` (Falle 18; `page:` am gemeinsamen Vorfahren `main.kp-druck`), die Symbole einmal in einem unsichtbaren `<svg class="kp-symbole">`; `window.print()` erst nach `document.fonts.ready` (Vorbild `feedback/(print)/aushang`, dort wartet es auf ein Bild).
 
 - [ ] **Step 1: Failing test**
 
-`K/(intern)/[id]/druck/a4/Drucken.test.tsx`:
+`K/(intern)/p/[id]/druck/a4/Drucken.test.tsx`:
 ```tsx
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -5971,12 +6956,12 @@ describe("Drucken", () => {
 
 - [ ] **Step 2: Rot sehen**
 
-Run: `pnpm vitest run "src/app/m/kommplan/(intern)/[id]/druck"`
+Run: `pnpm vitest run "src/app/m/kommplan/(intern)/p/[id]/druck"`
 Expected: FAIL — `./Drucken` fehlt.
 
 - [ ] **Step 3: Implementieren**
 
-`K/(intern)/[id]/druck/a4/Drucken.tsx`:
+`K/(intern)/p/[id]/druck/a4/Drucken.tsx`:
 ```tsx
 "use client";
 
@@ -6002,7 +6987,7 @@ export function Drucken() {
 }
 ```
 
-`K/(intern)/[id]/druck/a4/druck.css`:
+`K/(intern)/p/[id]/druck/a4/druck.css`:
 ```css
 /*
  * Falle 18: benannte @page mit ausgeschriebenen Kantenlängen. A3 quer wird eine EIGENE Route
@@ -6014,8 +6999,15 @@ export function Drucken() {
   margin: 0;
 }
 
-.kp-druck { background: #e9ebee; color: #000; padding-block: 16px; }
-.kp-druck .kp-blatt { page: kommplan-a4; display: block; margin: 0 auto 16px; background: #fff; break-after: page; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+/*
+ * ⚠️ `page: kommplan-a4` SITZT AM GEMEINSAMEN VORFAHREN, nicht an jedem Blatt (Vorbild
+ * `lagerbuch/verwaltung/(druck)/druck.css`, `.lb-ortbogen`): das ist die Zusage, dass ALLES
+ * Gedruckte dieser Seite auf derselben Seitengröße liegt — auch der Zweig „Dieser Plan lässt sich
+ * nicht lesen." und alles, was Phase 5 ergänzt. Gleichwertigkeit „am Element / am Vorfahren" ist
+ * dort nur für Block-divs gemessen, nicht für ein ersetztes <svg>. Die Blätter tragen nur den Umbruch.
+ */
+.kp-druck { page: kommplan-a4; background: #e9ebee; color: #000; padding-block: 16px; }
+.kp-druck .kp-blatt { display: block; margin: 0 auto 16px; background: #fff; break-after: page; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
 .kp-druck .kp-blatt:last-of-type { break-after: auto; }
 .kp-druck .kp-symbole { position: absolute; width: 0; height: 0; overflow: hidden; }
 .kp-druck .kp-druck-knopf { text-align: center; margin-block-end: 16px; }
@@ -6028,7 +7020,7 @@ export function Drucken() {
 }
 ```
 
-`K/(intern)/[id]/druck/a4/page.tsx`:
+`K/(intern)/p/[id]/druck/a4/page.tsx`:
 ```tsx
 import "./druck.css";
 import { headers } from "next/headers";
@@ -6048,8 +7040,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * DRUCK A4 QUER (Spec §8.1): jedes Blatt als Vektor-SVG in Originalgröße; „Als PDF sichern" im
- * Druckdialog liefert das PDF. Keine Hülle (sie druckte sonst mit, Abweichung 6); Host und Zugang
- * prüfen `(intern)/layout.tsx` UND diese Seite.
+ * Druckdialog liefert das PDF. Keine Hülle (sie druckte sonst mit, Abweichung 6); Host, Zugang und
+ * das 404 des Plans prüfen `(intern)/layout.tsx`, `(intern)/p/[id]/layout.tsx` UND diese Seite.
  */
 export default async function DruckA4({ params }: { params: Promise<{ id: string }> }) {
   requireKommplanHost(await headers());
@@ -6083,12 +7075,12 @@ Run: `pnpm vitest run src/app/m/kommplan && pnpm typecheck && pnpm lint`
 Expected: PASS; Exit 0.
 
 Run: `uptime && pnpm build`
-Expected: Exit 0; `/m/kommplan/[id]/druck/a4` gelistet. Meldet Next einen Konflikt zwischen `[id]/page.tsx` und `[id]/druck/a4/page.tsx`, ist die Route-Group-Struktur falsch (beide liegen unter `(intern)/[id]/` — es gibt nur EIN `[id]`).
+Expected: Exit 0; `/m/kommplan/p/[id]/druck/a4` gelistet. Meldet Next einen Konflikt zwischen `p/[id]/page.tsx` und `p/[id]/druck/a4/page.tsx`, ist die Route-Group-Struktur falsch (beide liegen unter `(intern)/p/[id]/` — es gibt nur EIN `[id]`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add "src/app/m/kommplan/(intern)/[id]/druck"
+git add "src/app/m/kommplan/(intern)/p/[id]/druck"
 git commit -S -m "feat(kommplan): Druckroute A4 quer mit Vektorblättern" -m "Jedes Blatt in Originalgröße mit Kopf, Legende, Fuß und Blattzähler; gedruckt wird erst, wenn Arimo geladen ist." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
@@ -6101,7 +7093,9 @@ git commit -S -m "feat(kommplan): Druckroute A4 quer mit Vektorblättern" -m "Je
 - Modify: `playwright.config.ts` (Seed vor `next dev`), `e2e/gruppen.json`
 
 **Interfaces:**
-- Consumes: `devLogin`, `E2E_PORT`, `warteAufGestreamteInhalte` (`e2e/fixtures.ts`); die Seed-IDs aus Task 13/18; `pdf-lib` (bereits Abhängigkeit).
+- Consumes: `devLogin`, `E2E_PORT`, `klickeWennRuhig`, `warteAufGestreamteInhalte`, `warteAufSpaltenaufteilung` (`e2e/fixtures.ts`); die Seed-IDs aus Task 13/18; `pdf-lib` (bereits Abhängigkeit).
+
+**Falle 12 in beiden Hälften:** Liste und Betrachter stehen in der FullShell (`Huelle`). Die Hülle bricht nach `load` um (Leiste neben statt über dem Inhalt), und der Betrachter passt sich per ResizeObserver neu ein, solange niemand gezoomt hat. Deshalb: vor jeder Messung `warteAufSpaltenaufteilung`, vor jedem Klick `klickeWennRuhig`, und die Zoom-Zusicherung misst den **Faktor** (nachher = vorher × 1,25) gegen eine **ruhige** Ausgangslage — ein bloßes „anders als vorher" wäre schon durch die Einpassung grün. Den Umschalter vor dem Zoomen bedienen: in der eingepassten Fläche liegt er sicher innerhalb von `overflow: hidden`.
 
 Spec §10 nennt für e2e „anlegen → Stelle hinzufügen → Gliederung einfügen" — das gehört zu Phase 2/3. Phase 1 prüft, was sie liefert: Zugang, Liste, Betrachter, Druck (Seitenzahl, kein leeres Blatt), 404 ohne Gruppe.
 
@@ -6122,41 +7116,65 @@ Spec §10 nennt für e2e „anlegen → Stelle hinzufügen → Gliederung einfü
 
 `e2e/kommplan.spec.ts`:
 ```ts
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
-import { devLogin, E2E_PORT, warteAufGestreamteInhalte } from "./fixtures";
+import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 
 /**
  * Kommunikationspläne, Phase 1: Zugang, Liste, Betrachter, Druck. Gemessen wird am echten Abruf,
- * weil die Fallen 1, 6, 7 und 18 nur dort sichtbar werden. Die Pläne legt der Seed an
- * (`playwright.config.ts`, `scripts/seed-lokal.ts kommplan`).
+ * weil die Fallen 1, 6, 7, 18 und 23 nur dort sichtbar werden. Die Pläne legt der Seed an
+ * (`playwright.config.ts`, `scripts/seed-lokal.ts kommplan`). Pläne liegen unter `/p/<id>`
+ * (Abweichung 11 im Umsetzungsplan).
  */
 const HOST = "kommplan.localtest.me";
 const url = (pfad: string) => `http://${HOST}:${E2E_PORT}${pfad}`;
 const EINSATZ = "beispiel-einsatz-2026-02-22";
 const STABSLAGE = "beispiel-grosse-stabslage";
+const SCHRITT = 1.25; // `_ui/betrachter/ansicht.ts`, SCHRITT
 
-test("mit der Zugangsgruppe: Liste, Plan, Zoom und Einklappen", async ({ page }) => {
+const massstab = (transform: string | null) => Number(/scale\(([-\d.e]+)\)/.exec(transform ?? "")?.[1] ?? Number.NaN);
+
+/**
+ * Die Ausgangslage des Betrachters, sobald sie steht: zwei gleiche Werte hintereinander. Vorher
+ * ändert sich das transform schon durch Hydration, Einpassung und den Umbruch der Hülle.
+ */
+async function ruhigeAnsicht(page: Page): Promise<string> {
+  let letzte = "";
+  await expect.poll(async () => {
+    const jetzt = (await page.locator("[data-ansicht]").getAttribute("transform")) ?? "";
+    const ruhig = jetzt !== "" && jetzt === letzte;
+    letzte = jetzt;
+    return ruhig;
+  }, { intervals: [150], message: "Die Ansicht des Betrachters kommt nicht zur Ruhe" }).toBe(true);
+  return letzte;
+}
+
+test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
   const liste = await page.goto(url("/"));
   expect(liste?.status()).toBe(200);
+  await warteAufSpaltenaufteilung(page);
   await expect(page.getByRole("heading", { level: 1, name: "Kommunikationspläne" })).toBeVisible();
+  // getByRole sieht nur die sichtbare Darstellung (Tabelle ODER Karten, docs/design/README.md „Mobil").
   await expect(page.getByRole("link", { name: "Kommunikationsplan Einsatz 22.02.2026" })).toBeVisible();
 
-  const plan = await page.goto(url(`/${EINSATZ}`));
+  const plan = await page.goto(url(`/p/${EINSATZ}`));
   expect(plan?.status()).toBe(200);
-  await warteAufGestreamteInhalte(page);
+  await warteAufSpaltenaufteilung(page);
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(6);
 
-  const vorher = await page.locator("[data-ansicht]").getAttribute("transform");
-  await page.getByRole("button", { name: "Vergrößern" }).click();
-  await expect(page.locator("[data-ansicht]")).not.toHaveAttribute("transform", vorher ?? "");
-
-  await page.locator('[data-umschalter="el"]').click();
+  // Einklappen zuerst — vor dem Zoomen liegt der Umschalter sicher in der eingepassten Fläche.
+  await klickeWennRuhig(page.locator('[data-umschalter="el"]'));
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(2);
   await expect(page.locator("[data-abzeichen]")).toHaveText("+4 Stellen");
-  await page.getByRole("button", { name: "Alle ausklappen" }).click();
+  await klickeWennRuhig(page.getByRole("button", { name: "Alle ausklappen" }));
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(6);
+
+  const vorher = massstab(await ruhigeAnsicht(page));
+  expect(vorher).toBeGreaterThan(0);
+  await klickeWennRuhig(page.getByRole("button", { name: "Vergrößern" }));
+  await expect.poll(async () => massstab(await page.locator("[data-ansicht]").getAttribute("transform")))
+    .toBeCloseTo(vorher * SCHRITT, 6);
 });
 
 test("Druck A4: ein Blatt für den Einsatz, mehrere für die Stab-Lage, keines leer, Druck nach der Schrift", async ({ page }) => {
@@ -6167,7 +7185,7 @@ test("Druck A4: ein Blatt für den Einsatz, mehrere für die Stab-Lage, keines l
   });
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
 
-  const einsatz = await page.goto(url(`/${EINSATZ}/druck/a4`));
+  const einsatz = await page.goto(url(`/p/${EINSATZ}/druck/a4`));
   expect(einsatz?.status()).toBe(200);
   await warteAufGestreamteInhalte(page);
   await expect(page.locator("svg.kp-blatt")).toHaveCount(1);
@@ -6178,7 +7196,7 @@ test("Druck A4: ein Blatt für den Einsatz, mehrere für die Stab-Lage, keines l
   expect(pdfEinsatz.getPageCount()).toBe(1);
   expect(pdfEinsatz.getPage(0).getSize().width).toBeGreaterThan(pdfEinsatz.getPage(0).getSize().height); // quer
 
-  const gross = await page.goto(url(`/${STABSLAGE}/druck/a4`));
+  const gross = await page.goto(url(`/p/${STABSLAGE}/druck/a4`));
   expect(gross?.status()).toBe(200);
   await warteAufGestreamteInhalte(page);
   const blaetter = page.locator("svg.kp-blatt");
@@ -6187,23 +7205,32 @@ test("Druck A4: ein Blatt für den Einsatz, mehrere für die Stab-Lage, keines l
   for (const blatt of await blaetter.all()) expect(await blatt.locator("[data-karte]").count()).toBeGreaterThan(0);
   const pdfGross = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true }));
   expect(pdfGross.getPageCount()).toBe(anzahl);
+  for (const seite of pdfGross.getPages()) expect(seite.getSize().width).toBeGreaterThan(seite.getSize().height);
 });
 
-test("ohne Anmeldung geht es zum Login", async ({ page }) => {
+test("ohne Anmeldung geht es zum Login; Pfade außerhalb von p/ laufen nicht in den Riegel", async ({ page }) => {
   await page.goto(url("/"));
   await expect(page).toHaveURL(/\/login/);
+  // Abweichung 11: /robots.txt u. ä. werden auf /m/kommplan/robots.txt umgeschrieben. Ohne
+  // dynamisches Segment unter der Modulwurzel ist das ein schlichter 404 — kein Login-Umweg,
+  // keine login_required-Auditzeile je Crawler-Abruf.
+  const robots = await page.goto(url("/robots.txt"));
+  expect(robots?.status()).toBe(404);
+  expect(page.url()).not.toMatch(/\/login/);
 });
 
 test("ohne Gruppe: 404 auf Liste, Plan und Druck", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "andere", callbackPath: "/login" });
-  for (const pfad of ["/", `/${EINSATZ}`, `/${EINSATZ}/druck/a4`]) {
+  for (const pfad of ["/", `/p/${EINSATZ}`, `/p/${EINSATZ}/druck/a4`]) {
     expect((await page.goto(url(pfad)))?.status(), pfad).toBe(404);
   }
 });
 
-test("unbekannter Plan: 404; fremder Suite-Host: 404", async ({ page }) => {
+test("unbekannter Plan: 404 auf Betrachter und Druck; fremder Suite-Host: 404", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
-  expect((await page.goto(url("/gibt-es-nicht")))?.status()).toBe(404);
+  for (const pfad of ["/p/gibt-es-nicht", "/p/gibt-es-nicht/druck/a4"]) {
+    expect((await page.goto(url(pfad)))?.status(), pfad).toBe(404);
+  }
   await devLogin(page, { host: "feedback.localtest.me", groups: "iuk-kommplan", callbackPath: "/login" });
   expect((await page.goto(`http://feedback.localtest.me:${E2E_PORT}/m/kommplan`))?.status()).toBe(404);
 });
@@ -6214,13 +7241,15 @@ test("unbekannter Plan: 404; fremder Suite-Host: 404", async ({ page }) => {
 Vorher prüfen, dass kein fremder `pnpm dev` den E2E-Port dieser Arbeitskopie hält (`e2e/helpers/ports.ts`; eine „FREMDE Arbeitskopie" nicht beenden) und die Last ansehen.
 
 Run: `uptime && pnpm vitest run scripts/e2e-gruppen.test.ts && pnpm exec playwright test e2e/kommplan.spec.ts`
-Expected: PASS, 5 Tests. Schlägt der erste mit HTTP 500 fehl, zuerst Fallen 1, 6, 7 prüfen (antd-Compound, Werte aus `"use client"`, Icons in RSC). Zählt der Druck mehr PDF-Seiten als Blätter, ist `break-after`/`@page` falsch (Falle 18) — nicht die Erwartung ändern.
+Expected: PASS, 5 Tests. Schlägt der erste mit HTTP 500 fehl, zuerst Fallen 1, 6, 7 prüfen (antd-Compound, Werte aus `"use client"`, Icons in RSC). Zählt der Druck mehr PDF-Seiten als Blätter, ist `break-after`/`@page` falsch (Falle 18) — nicht die Erwartung ändern. Liefert ein unbekannter Plan 200 statt 404, fehlt `p/[id]/layout.tsx` oder eine `loading.tsx` liegt darüber (Falle 23). Wird der Zoom-Fall nur in der CI rot, zuerst prüfen, ob wirklich jeder Klick über `klickeWennRuhig` läuft (Falle 12).
+
+Ankerschritt (Global Constraints) für `playwright.config.ts`: `git grep -n "playwright.config.ts:[0-9]" -- src scripts e2e`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add e2e/kommplan.spec.ts e2e/gruppen.json playwright.config.ts
-git commit -S -m "test(kommplan): e2e für Zugang, Betrachter und Druck A4" -m "Seitenzahl des PDF gleich der Blattzahl, kein leeres Blatt, Druckdialog erst nach der Schrift; ohne Gruppe, auf fremdem Host und für unbekannte Pläne 404." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git commit -S -m "test(kommplan): e2e für Zugang, Betrachter und Druck A4" -m "Zoom misst den Faktor gegen eine ruhige Ausgangslage, Klicks warten auf die umgebrochene Hülle. Seitenzahl des PDF gleich der Blattzahl, jedes Blatt quer und nicht leer, Druckdialog erst nach der Schrift; ohne Gruppe, auf fremdem Host und für unbekannte Pläne 404 — auch auf der Druckroute; /robots.txt ohne Login-Umweg." -m "DRK-500" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
@@ -6264,7 +7293,7 @@ export default notiz;
 ```ts
 import kommunikationsplaeneAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen";
 ```
-nach den einsatzbuch-Importen, und `kommunikationsplaeneAnsehen,` als letzte Zeile in `NOTIZEN`.
+nach den einsatzbuch-Importen, und `kommunikationsplaeneAnsehen,` als letzte Zeile in `NOTIZEN`. Danach der Ankerschritt (Global Constraints): `git grep -n "register.ts:[0-9]" -- src scripts e2e`.
 
 - [ ] **Step 2: Notiztest**
 
@@ -6282,7 +7311,7 @@ Run: `pnpm vitest run`
 Expected: PASS. Rot in `src/lfs-medien.test.ts` → LFS-Objekte fehlen im Worktree (`git lfs pull`), kein Befund dieser Arbeit. Rot im zip-Route-Test nur lokal auf macOS/Node 24 → bekannt, kein Befund.
 
 Run: `pnpm build`
-Expected: Exit 0; Routen `/m/kommplan`, `/m/kommplan/[id]`, `/m/kommplan/[id]/druck/a4`.
+Expected: Exit 0; Routen `/m/kommplan`, `/m/kommplan/p/[id]`, `/m/kommplan/p/[id]/druck/a4` — und **kein** dynamisches Segment direkt unter `/m/kommplan` (Abweichung 11).
 
 Run: `pnpm exec playwright test e2e/kommplan.spec.ts`
 Expected: PASS. Danach prüfen, dass kein `next dev` aus diesem Lauf offen bleibt.
@@ -6304,17 +7333,47 @@ Nicht pushen; den Stand an den Hauptlauf melden (ClickUp pflegt der Hauptlauf).
 |---|---|
 | §3 Modulrahmen, Dreieck, Registry, Icon, Gruppen, `_lib/zugang.ts`, Audit | 17, 18 |
 | §4.1 Tabellen (alle) | 18 (`freigabe` als `plan_freigabe`, Abweichung 9) |
-| §4.2 Planinhalt, Invarianten, Kontaktreihenfolge | 3 |
+| §4.2 Planinhalt, Invarianten, Kontaktreihenfolge; `kanaele` (Abweichung 12) | 3, 5, 10, 13 |
 | §5.1 Karte, Arimo-Metriken ohne DOM | 2, 5 |
 | §5.2 Ebenen, Busse je Verbindung, Stiele, Reingold-Tilford, keine Kreuzung | 6, 7, 9, 11 |
 | §5.3 Seitenstellen | 8 |
 | §5.4 Einheiten, zwei Spalten ab 10 | 5, 9 |
-| §5.5 Kamm | 7, 9 |
-| §5.6 Papier: 6 pt, gierige Aufteilung, Kopf/Fuß/Legende | 12, 14, 21 |
+| §5.5 Kamm (nach Breite, über die ganze Kinderreihe, Abweichung 13) | 7, 9, 11 |
+| §5.6 Papier: 6 pt, Aufteilung per Ebenenschnitt, Nummern in Lesereihenfolge (Abweichung 14), Kopf/Fuß/Legende | 12, 14, 21 |
 | §5.7 Bildschirm: Zoom, Verschieben, Einklappen | 7, 20 |
 | §6.6 reine Operationen (nur Einfügen in Phase 1) | 4 |
 | §7 Zeichen-Generat, `<symbol>`/`<use>`, Versions- und SHA-Test, Arimo | 1, 14, 20 |
+| §6.1 Routen (`p/[id]` statt `[id]`, Abweichung 11) | 19, 20, 21, 22 |
 | §8.1 Druck A4 (A3, SVG-Export, Schwarzweiß: Phase 5) | 21 |
 | §9 Aufteilung im Modul | Dateistruktur |
 | §10 Tests: Operationen, Golden, Eigenschaften, Generat, DOM, e2e (Phase-1-Teil) | 3–16, 19–22 |
 | §11 Phase 1: Seed, Release-Notiz | 18, 23 |
+
+## Kritik eingearbeitet/verworfen
+
+Zweite Fassung nach dem Review vom 30.09.2026. Jeder Befund ist am Code bzw. am Paketstand nachgeprüft; keiner war widerlegt. Zwei sind bewusst nur teilweise übernommen (Begründung in der Zeile).
+
+| # | Befund | Prüfung | Entscheidung |
+|---|---|---|---|
+| 1 | `kerningEm` ist optional → TS2722 in `text.test.ts` | `catalog/node_modules/@einsatzzeichen/core/dist/text-metrics.d.ts`: `kerningEm?(…)`; `ARIMO_TEXT_METRICS: TextMetrics` aus core 1.5.0 | eingearbeitet: `m.kerningEm?.(…) ?? 0` (Task 2) |
+| 2 | Planliste als nackte `Datentabelle` mit antd-`Tag` | `docs/design/README.md` „Mobil" (DRK-451) und Farbvokabular; Vorbild `portal/admin/service-table.tsx` | eingearbeitet: `Kartentabelle` mit `aria-label`, `rowKey`, `leer`, `karte`; Chips `.kp-chip` mit Fläche/Text-Paar; leerer `Card`-Zweig entfällt; Test je Darstellung (`tr[data-row-key]`, `li[data-karte-key]`) (Task 19) |
+| 3 | `pnpm add` im Workspace-Root ohne `-w` | `pnpm-workspace.yaml` führt `packages: ["apps/*"]` | eingearbeitet: `pnpm add -D -w --save-exact …` (Task 1, Global Constraints) |
+| 4 | Erwartete Generatgröße falsch | eigener Probelauf mit derselben Zerlegung: 232 Rezepte, 222 215 Byte | eingearbeitet: „≈ 200–260 KB" / „≈ 20–60 KB", „rund 220 KB" in Abweichung 1, Kopfkommentar `grenze.test.ts`, Global Constraints |
+| 5 | `/m/kommplan/[id]` fängt `/robots.txt` u. ä. ab | `core/routing.ts`: `PASSTHROUGH` ohne `robots.txt`, Rewrite nach `/m/${mod.key}${rest}`; kein anderes Modul hat `[…]` direkt unter `/m/<key>` | eingearbeitet als **Abweichung 11**: Präfix `p/[id]` (Vorbild `aufgaben/a/[id]`); alle Pfade, Links, `git add`, Build-Erwartungen, e2e; e2e prüft `/robots.txt` anonym → 404 ohne Login-Umweg |
+| 6 | `zugang.ts` in Task 17 besteht `typecheck` erst nach Task 18 | `auditLoginRequired(module: AuditModule)`; `AUDIT_MODULES` ohne `kommplan`; `catalog.ts` mit `satisfies Record<AuditModule, …>`; kein weiterer Test koppelt Registry und `AUDIT_MODULES` (`git grep`) | eingearbeitet: `zugang.ts` samt Test ans Ende von Task 18 (neuer Step 5); Task 17 fährt `pnpm typecheck`; Global Constraint „jeder Commit besteht typecheck" |
+| 7 | e2e-Zoom misst die Einpassung statt des Klicks; Falle 12 | `Betrachter.tsx` leitet die Ansicht per ResizeObserver ab; `klickeWennRuhig`/`warteAufSpaltenaufteilung` in `e2e/fixtures.ts` | eingearbeitet: `warteAufSpaltenaufteilung`, `klickeWennRuhig` für jeden Klick, ruhige Ausgangslage per `expect.poll`, Zusicherung nachher = vorher × 1,25; Umschalter vor dem Zoomen (Task 22) |
+| 8 | Einfügen in `bootstrap.ts` verschiebt zutreffende Anker; weder Nachziehen noch Stehenlassen regelkonform | heute zutreffend: `bootstrap.ts:103` (`assertHostConfig`), `:105-107` (`errors`), `:125-133` (`migrateAllModules`), `:138` (`shouldSeed`); Fundstellen `bootstrap.test.ts` (5×) und `radio/_lib/boot.ts` | eingearbeitet: Ankerschritt als Global Constraint für jede Datei mit Einfügung; in Task 18 die sechs Anker einzeln in Namensform, Zeilenzahl gleich, `pnpm anker:neu` im Grün-Schritt |
+| 9 | Falle 23 nur für Host/Gruppe, nicht für das 404 des Plans | `ladePlanOder404` stand nur in den Seiten; e2e prüfte 404 nur am Betrachter | eingearbeitet: `(intern)/p/[id]/layout.tsx` mit `ladePlanOder404` für Betrachter **und** Druck; zusätzlich die Riegel davor, weil Layouts und Seiten parallel rendern (sonst verriete ein 404 statt Login anonym, ob es den Plan gibt); e2e prüft auch `/p/gibt-es-nicht/druck/a4` |
+| 10 | `grenze.test.ts` lückenhaft (Direktive, Importformen, transitiv) | `core/shell/icons.test.ts` (`ohneKommentare`, `traegtClientDirektive`, vier Importformen); die alte Regex sah nur `from "…"` | eingearbeitet: Direktive mit Kommentar-Abzug und beiden Anführungszeichen, vier Importformen, reine Typ-Importe ausgenommen, transitive Verfolgung von jeder Client-Insel; Selbsttest der Hilfsfunktionen und eine Gegenprobe in Task 20 |
+| 11 | `page:` am `<svg>` statt am gemeinsamen Vorfahren | `docs/design/fallen.md` Nr. 18; `lagerbuch/…/druck.css`, `.lb-ortbogen` | eingearbeitet: `page: kommplan-a4` an `.kp-druck`, Blätter nur `break-after`; e2e prüft jede PDF-Seite quer (Task 21, 22) |
+| 12 | Aufteilung schneidet immer direkt unter der Wurzel | große Stab-Lage: TEL einziges `unter`-Kind → Blatt 1 = Stab + Verweis; ebenso alle drei Kommunikationsplan-Vorlagen | eingearbeitet als **Abweichung 14**: Ebenenschnitt von der tiefsten Ebene her, gierig innerhalb der Ebene, innere Schnitte fallen weg; Tests „LtS → EL → 5 EAL → je 8 EA" und „Stab-Lage: TEL auf Blatt 1 als Karte" (Task 12, 13) |
+| 13 | Kamm-Budget je Busgruppe statt je Kinderreihe | Spec §5.5 „Kinderreihe einer Stelle"; Sackgasse bei drei Gruppen à fünf Blattkindern nachgerechnet (810 mm) | **teilweise**: Budget über alle Gruppen einer Stelle übernommen (breiteste kämmbare Gruppe schrumpft deterministisch, bis die Reihe passt; Terminierung begründet). **Nicht** übernommen: Gruppen über gemeinsame Kammreihen verteilen und nur eine allein zu breite Gruppe teilen — die Stiele späterer Gruppen müssten durch fremde Reihen, kreuzungsfrei nur mit Rücken auf beiden Seiten und ab drei Gruppen in unteren Reihen gar nicht; Spec §5.5 verlangt ausdrücklich „unter demselben Bus". Der Stielbeweis ist für mehrreihige Gruppen neben anderen nachgezogen (Task 7, 9) |
+| 14 | Budget rechnet 46 mm je Kind statt der Blockbreite | zwei Einheitenspalten 88 mm, Seitenstapel 81 mm je Seite nachgerechnet | eingearbeitet: Umbruch nach Breite des Zeilenblocks (`zeilenblockBreite` = Seitenstapel + Block + Seitenstapel); Test „sechs à 88 mm und eines à 208 mm" → Reihen 3/3/1, ein Blatt ≥ 0,75 (Task 7, 9, 12) |
+| 15 | Kanäle unter EA 1/2 als „Reserve" nachgebaut | Referenzbild OpenR: DMO 608/609 und R_UE_2 als Sechsecke in der Gasse unter den Abschnitten | eingearbeitet als **Abweichung 12**: `Stelle.kanaele` (JSON-Feld, Vorgabe `[]`, Invarianten), Sechsecke in der Gasse über den Einheiten, Netz `<stelle>#kanal`; „Reserve" nur ohne jede Verwendung; OpenR-Nachbau und `vorlagen.test.ts` angepasst (Task 3, 4, 5, 8, 10, 13, 16) |
+| 16 | Geometrieprüfung rein negativ | mit `linien: []` keine Befunde | eingearbeitet: `pruefeVerbindungen(z, inhalt)` (Abwürfe, Seitenzweige, Sechsecke an ihrer Linie, Netze zusammenhängend und an ihrer Karte) samt Mutationstests; in Eigenschafts-, Beispiel-, Aufteilungstests und Vorschau (Task 11–13, 15) |
+| 17 | Kein Test erzeugt nachweislich einen Kamm | freier Generator: Zufallsrekursivbaum, flache Grade | eingearbeitet: Generator-Modus `stab`, 60 Seeds je Ziel, eigener Fall „mindestens ein Drittel kämmt"; feste Fälle: Seitenstellen an Kammkindern, zwei Kammgruppen nebeneinander unter Karte mit Einheiten und Kanal, drei Gruppen à fünf, breite Kinder, Kammkinder mit Unterstellen (Task 11) |
+| 18 | Blattnummern in Schnittreihenfolge | große Stab-Lage: „→ Blatt 6, 5, 4, 3" von links nach rechts nachvollzogen | eingearbeitet: zweiter Durchlauf nummeriert in Tiefensuche, Schnitte in Lesereihenfolge; Test mit Teilbäumen 2/11/5/8 (die alte Fassung wäre dort rot) (Task 12) |
+| 19 | Mehrere Wurzeln nie auf eigene Blätter | alle Wurzeln geschützt, Auftrag mit `ankerId: null` nie erzeugt | eingearbeitet: auf einem Blatt ohne Anker mit mehreren Wurzeln sind die Wurzeln Kandidaten (Tiefe 0); Test zwei Wurzeln à ~260 mm (Task 12) |
+| 20 | Prüfung zu nachsichtig (Berühren, Kante, Mindestabstand, Sechseck-Ausnahme) | `ueberlappen`/`durchsticht` streng, Ausnahme `k.netz === l.netz` für jede Strecke des Netzes | eingearbeitet: 2 mm zwischen Kästen verschiedener Stellen, 0,75 mm zwischen parallelen Linien verschiedener Netze, Linie auf fremder Kante ist ein Befund, Sechseck-Ausnahme nur für den waagerechten Zweig durch seine Mitte (gewählt statt eines Netzes je Seitenzweig — der Zweig hängt an einer Schiene). Damit das Packen die 2 mm selbst einhält, zählt `kontur.abstand` Stufen mit weniger als 2 mm Höhenabstand als überlappend (`LUFT_Y`, Task 6) — sonst meldete die Prüfung, was die Engine baut |
+| 21 | Leerer Titel ungetestet, Platzhalter druckt | `titelVoll = … "(ohne Titel)"` lief in `umbrechen` und damit aufs Papier | eingearbeitet als **Abweichung 15**: leere Titelzeile mit Mindestkopf; Platzhalter nur in `<title>` und `aria-label`; Test mit `""` und `"   "`, Generator erzeugt leere Titel (Task 5, 11, 14, 20) |
+| 22 | Kammkinder mit Teilbäumen landen auf Enkelhöhe; Rücken an der ganzen Kontur | `oben += max(t.unten) + 8`, `ruecken = minX(s.kontur) − 3` | eingearbeitet (erste Alternative): nur Gruppen aus Blattkindern kämmen (`kammfaehig` über die Sicht, auch Verweise und Eingeklappte zählen als Blatt). Damit besteht die Kontur einer Kammgruppe nur aus Zeilenblöcken, der Rücken richtet sich also von selbst an ihnen aus. Test „12 EAL mit je 3 EA auf dem Bildschirm → eine Reihe" (Task 7, 9, 11) |
