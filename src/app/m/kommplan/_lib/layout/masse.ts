@@ -27,7 +27,7 @@ export const KANAL = { takt: 7.5 } as const;
 export const ABZEICHEN = { breite: 22, hoehe: 4.5, abstand: 1.5 } as const;
 export const SECHSECK = { hoehe: 6, spitze: 3, piktoBreite: 7, piktoHoehe: 4, innen: 1.5, minBreite: 26, maxBreite: 44, fase: 1.5 } as const;
 export const STIEL = {
-  ersterKnick: 2, knickTakt: 1.5, zuSechseck: 1.5, sechseckZuBus: 2, busZuKarte: 4,
+  ersterKnick: 2, knickTakt: 2.5, zuSechseck: 1.5, sechseckZuBus: 2, busZuKarte: 4,
   gasseStart: 1.5, gasseTakt: 1.5,
 } as const;
 export const ABSTAND = {
