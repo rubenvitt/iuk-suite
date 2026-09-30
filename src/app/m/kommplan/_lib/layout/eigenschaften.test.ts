@@ -4,6 +4,8 @@ import { baueBaum, nachkommen } from "../plan/baum";
 import { fuegeStelleEin } from "../plan/operationen";
 import type { PlanInhalt } from "../plan/schema";
 import { anzeigereihenfolge } from "./gruppen";
+import { MIN_MASSSTAB } from "./masse";
+import { teileAuf } from "./papier";
 import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
 import { umgebungFuer } from "./teilbaum";
 import type { Zeichnungsdaten, Ziel } from "./typen";
@@ -165,5 +167,24 @@ describe("Grenzfälle", () => {
     const inhalt = baue({ verbindungen: V, stellen });
     expect(umgebungFuer(inhalt, "bildschirm").gruppen(baueBaum(inhalt).wurzeln[0])[0].reihen).toHaveLength(1);
     sauber(inhalt);
+  });
+});
+
+describe("Aufteilung deckt jede Stelle genau einmal ab, jedes Blatt sauber und angebunden", () => {
+  const faelle = [
+    ...SEEDS.slice(0, 40).map((seed) => [seed, zufallsPlan(seed, { stellen: 30 + (seed % 50), mehrereWurzeln: seed % 5 === 0 })] as const),
+    ...STAB_SEEDS.slice(0, 20).map((seed) => [seed, zufallsPlan(seed, { stellen: 120, form: "stab" })] as const),
+  ];
+  it.each(faelle)("Seed %i", (seed, inhalt) => {
+    const blaetter = teileAuf(inhalt, "a4-quer");
+    const normal = blaetter.flatMap((b) => b.zeichnung.karten.filter((k) => k.art === "normal").map((k) => k.id));
+    expect(normal.sort(), erklaere(seed, inhalt, "Abdeckung")).toEqual(inhalt.stellen.map((s) => s.id).sort());
+    for (const b of blaetter) {
+      expect(befundeVon(b.zeichnung, inhalt).map((x) => x.text), erklaere(seed, inhalt, `Blatt ${b.nummer}`)).toEqual([]);
+      if (!b.unterMindestschrift) expect(b.massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+      // Verweisnummern steigen in Lesereihenfolge und zeigen auf das Blatt ihres Teilbaums
+      const verweise = b.zeichnung.karten.filter((k) => k.verweis !== null);
+      for (const k of verweise) expect(blaetter[Number(k.verweis!.text.replace("→ Blatt ", "")) - 1].wurzelId).toBe(k.id);
+    }
   });
 });
