@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, useEffect, useState } from "react";
 import { clickElement, existsPortal, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 import { baue } from "../../_lib/beispiele/bau";
-import { MELDUNG } from "../../_lib/plan/gliederung";
+import { MELDUNG, zuVieleStellen } from "../../_lib/plan/gliederung";
 import { leererPlan, PlanFehler } from "../../_lib/plan/operationen";
-import type { PlanInhalt } from "../../_lib/plan/schema";
+import { GRENZE, LAENGE, type PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
 import { kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "../editor/verlauf";
@@ -48,6 +48,7 @@ function Pruefstand({ start, index = [] }: { start: PlanInhalt; index?: readonly
       symbole={{}} zeichenIndex={index} ladeSymbole={() => {}} />
   );
 }
+const PruefstandMitIndex = ({ index }: { index: readonly ZeichenIndexEintrag[] }) => <Pruefstand start={START} index={index} />;
 const zeige = async (start: PlanInhalt = START) => { await mount(<Pruefstand start={start} />); await act(async () => {}); };
 const feld = (id: string) => query<HTMLInputElement>(`[data-zeile="${id}"] input[name="titel"]`);
 const titel = () => queryAll<HTMLInputElement>('[data-zeile] input[name="titel"]').map((i) => i.value);
@@ -251,5 +252,140 @@ describe("Gliederung (Spec §6.5)", () => {
     await clickElement([...document.querySelectorAll<HTMLButtonElement>(".kp-gliederung button")].find((b) => b.textContent === "Erste Stelle anlegen")!);
     expect(titel()).toEqual([""]);
     expect(aktiv()).toBe(queryAll<HTMLInputElement>('input[name="titel"]')[0]);
+  });
+});
+
+async function fuegeEin(el: HTMLInputElement, text: string): Promise<boolean> {
+  const e = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(e, "clipboardData", { value: { getData: (t: string) => (t === "text/plain" ? text : "") } });
+  await act(async () => { el.dispatchEvent(e); });
+  return e.defaultPrevented;
+}
+
+describe("Gliederung, Teil 2", () => {
+  it("mehrzeilig einfügen: Teilbaum nach der Cursorzeile, EIN Rückgängig-Schritt, Fokus am Ende der letzten Zeile", async () => {
+    await zeige();
+    await fokus("ea1");
+    const schritte = stand.vergangen.length;
+    expect(await fuegeEin(feld("ea1"), "EA Nord\n\t- RTW 1\n\t- RTW 2\nEA Süd")).toBe(true);
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA Nord", "RTW 1", "RTW 2", "EA Süd", "EA 2"]);
+    expect(ebenen()).toEqual(["0", "1", "1", "1", "2", "2", "1", "1"]);
+    expect(stand.vergangen.length).toBe(schritte + 1);
+    expect(aktiv()!.value).toBe("EA Süd");
+    await taste(aktiv()!, "z", { ctrlKey: true });
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
+    expect(aktiv()).toBe(feld("ea1")); // die eingefügten Zeilen sind weg — der Fokus steht in der Ausgangszeile, nicht auf body
+  });
+  it("in eine leere, eben angelegte Zeile: die erste eingefügte Zeile nimmt ihren Platz ein", async () => {
+    await zeige();
+    await fokus("ea2");
+    await taste(feld("ea2"), "Enter");
+    await fuegeEin(aktiv()!, "EA 3\n\tRTW");
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2", "EA 3", "RTW"]);
+  });
+  it("eine Zeile: das Feld fügt normal ein (kein Abfangen)", async () => {
+    await zeige();
+    await fokus("ea1");
+    expect(await fuegeEin(feld("ea1"), "nur eine Zeile\n")).toBe(false);
+  });
+  it("fehlerhafte Liste, Seitenstelle, zu viele Stellen: Hinweis, nichts eingefügt (Review Focus 4)", async () => {
+    await zeige();
+    await fokus("ea1");
+    await fuegeEin(feld("ea1"), `A\n\t${"x".repeat(LAENGE.titel + 1)}`);
+    expect(meldung()).toContain("Zeile 2: Der Titel ist länger als");
+    expect(titel()).toHaveLength(4);
+    await fokus("kat");
+    await fuegeEin(feld("kat"), "A\nB");
+    expect(meldung()).toBe(MELDUNG.inSeitenstelle);
+    await fokus("ea1");
+    await fuegeEin(feld("ea1"), Array.from({ length: GRENZE.stellen }, (_, i) => `S${i}`).join("\n"));
+    expect(meldung()).toBe(zuVieleStellen(START.stellen.length + GRENZE.stellen));
+    expect(titel()).toHaveLength(4);
+  });
+  it("Verbindung inline: vorhandene wählen; neu tippen legt mit sichtbarer Art an; Wurzel ohne Feld", async () => {
+    await zeige();
+    await fokus("ea1");
+    expect(query('[data-zeile="el"]').textContent).toContain("oberste Ebene");
+    // Muster aus StelleFlyin.test.tsx (`oeffneAuswahl`): antds Select öffnet auf `mousedown`, die Liste liegt im Portal.
+    const eingabe = query<HTMLInputElement>('[data-zeile="ea1"] [aria-label="Verbindung von EA 1"]');
+    await act(async () => { eingabe.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+    await schreibe(eingabe, "R_UE_3");
+    const liste = [...document.querySelectorAll<HTMLElement>(".ant-select-dropdown")].filter((d) => !d.className.includes("-hidden")).at(-1)!;
+    const texte = [...liste.querySelectorAll<HTMLElement>(".ant-select-item-option")].map((o) => o.textContent);
+    expect(texte[0]).toBe("Neu: „R_UE_3“ als Digitalfunk TMO");
+    expect(texte).toHaveLength(8); // je Art eine Option — die Art steht sichtbar da
+    await clickElement([...liste.querySelectorAll<HTMLElement>(".ant-select-item-option")][0]);
+    const v = stand.jetzt.verbindungen.find((x) => x.bezeichnung === "R_UE_3")!;
+    expect(v.art).toBe("tmo");
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.verbindungId).toBe(v.id);
+  });
+  it("Einheiten als Zähler: klappt dieselbe Einheitenliste wie im Flyin auf", async () => {
+    await zeige(baue({ stellen: [{ id: "el", titel: "EL", einheiten: ["RTW 1", "KTW 2"] }] }));
+    const knopf = [...document.querySelectorAll<HTMLButtonElement>('[data-zeile="el"] button')].find((b) => b.textContent === "2 Einheiten")!;
+    expect(knopf.getAttribute("aria-expanded")).toBe("false");
+    await clickElement(knopf);
+    expect(knopf.getAttribute("aria-expanded")).toBe("true");
+    expect(queryAll('[data-zeile="el"] [data-einheit-zeile]')).toHaveLength(2);
+  });
+  it("Zeichen kompakt per Zeiger: Knopf öffnet die Zeichenwahl, eine Wahl setzt das Zeichen, der Fokus bleibt am Zeichenknopf (Entscheidung 16)", async () => {
+    const index = [{ schluessel: "k1", titel: "Einsatzleitung", suchtext: "einsatzleitung el" }];
+    await mount(<PruefstandMitIndex index={index} />);
+    await act(async () => {});
+    await fokus("ea1");
+    await zeigerKlick(query('[data-zeile="ea1"] [aria-label^="Zeichen von EA 1"]'));
+    await schreibe(queryPortal<HTMLInputElement>('[data-zeile-portal="ea1"] input[aria-label="Zeichen suchen"]'), "Einsatz");
+    await zeigerKlick(queryPortal('[data-zeile-portal="ea1"] [data-zeichen="k1"]'));
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBe("k1");
+    expect(aktiv()!.getAttribute("aria-label")).toMatch(/^Zeichen von EA 1/);
+  });
+  it("Alt+Z im Titel: Zeichenwahl offen, Fokus in der Suche; Enter wählt den ersten Treffer, der Fokus ist wieder im Titel (Entscheidung 10)", async () => {
+    const index = [{ schluessel: "k1", titel: "Einsatzleitung", suchtext: "einsatzleitung el" }];
+    await mount(<PruefstandMitIndex index={index} />);
+    await act(async () => {});
+    await fokus("ea1");
+    await taste(feld("ea1"), "Ω", { altKey: true, code: "KeyZ" });
+    expect(aktiv()!.getAttribute("aria-label")).toBe("Zeichen suchen");
+    await schreibe(aktiv()!, "Einsatz");
+    await taste(aktiv()!, "Enter");
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBe("k1");
+    expect(aktiv()).toBe(feld("ea1"));
+  });
+  it("Alt+V im Titel: Verbindung per Tastatur; nach der Wahl steht der Fokus im Titel, und Enter legt die nächste Stelle an (Entscheidung 10, A1)", async () => {
+    await zeige();
+    await fokus("ea1");
+    await taste(feld("ea1"), "√", { altKey: true, code: "KeyV" });
+    const eingabe = query<HTMLInputElement>('[data-zeile="ea1"] input[aria-label="Verbindung von EA 1"]');
+    expect(aktiv()).toBe(eingabe);
+    await schreibe(eingabe, "R_UE_3");
+    const erste = queryPortal<HTMLElement>('[data-zeile-portal="ea1"] .ant-select-item-option');
+    await clickElement(erste); // „Neu: „R_UE_3“ als Digitalfunk TMO“
+    expect(aktiv()).toBe(feld("ea1"));
+    await taste(feld("ea1"), "Enter");
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "", "EA 2"]);
+  });
+  it("nur die aktive Zeile trägt ein echtes Select; die übrigen zeigen ihre Verbindung als Knopf, der die Zeile wählt (Entscheidung 15)", async () => {
+    await zeige();
+    await fokus("ea1");
+    expect(queryAll('.kp-gliederung input[aria-label^="Verbindung von"]')).toHaveLength(1);
+    const knopf = query<HTMLButtonElement>('[data-zeile="ea2"] button[aria-label^="Verbindung von EA 2"]');
+    expect(knopf.textContent).toBe("R_UE_2 · Digitalfunk TMO");
+    await zeigerKlick(knopf);
+    expect(query('[data-zeile="ea2"]').getAttribute("aria-current")).toBe("true");
+    expect(aktiv()).toBe(query('[data-zeile="ea2"] input[aria-label="Verbindung von EA 2"]'));
+  });
+  it("versetzt eine neue Verbindung die Zeile, sagt der Meldungsplatz wohin (Entscheidung 12)", async () => {
+    await zeige(baue({
+      verbindungen: [{ id: "a", art: "tmo", bezeichnung: "R_UE_2" }, { id: "b", art: "tmo", bezeichnung: "R_UE_3" }],
+      stellen: [{ id: "el", titel: "EL" }, { id: "ea1", titel: "EA 1", eltern: "el", verbindung: "a" }, { id: "ea2", titel: "EA 2", eltern: "el", verbindung: "a" },
+        { id: "ea3", titel: "EA 3", eltern: "el", verbindung: "b" }, { id: "ea4", titel: "EA 4", eltern: "el", verbindung: "a" }],
+    }));
+    expect(titel()).toEqual(["EL", "EA 1", "EA 2", "EA 4", "EA 3"]); // Gruppen zusammen, in Folge ihres ersten Vorkommens
+    await fokus("ea2");
+    await taste(feld("ea2"), "√", { altKey: true, code: "KeyV" });
+    await schreibe(query<HTMLInputElement>('[data-zeile="ea2"] input[aria-label="Verbindung von EA 2"]'), "R_UE_3");
+    await clickElement([...document.querySelectorAll<HTMLElement>('[data-zeile-portal="ea2"] .ant-select-item-option')].find((o) => o.textContent?.startsWith("R_UE_3"))!);
+    expect(titel()).toEqual(["EL", "EA 1", "EA 4", "EA 2", "EA 3"]);
+    expect(meldung()).toBe("„EA 2“ steht jetzt in der Gruppe „R_UE_3“.");
+    expect(aktiv()).toBe(feld("ea2"));
   });
 });

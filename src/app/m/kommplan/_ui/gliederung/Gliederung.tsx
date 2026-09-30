@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type FocusEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { Button, type MenuProps } from "antd";
-import { MELDUNG, fuegeGeschwisterEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, rueckeAus, rueckeEin, setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, type GliederungsZeile, type ZeilenAktionen } from "../../_lib/plan/gliederung";
+import { leseGliederung } from "../../_lib/plan/einfuegen";
+import {
+  MELDUNG, fuegeGeschwisterEin, fuegeGliederungEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, rueckeAus, rueckeEin,
+  setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, type GliederungsZeile, type ZeilenAktionen,
+} from "../../_lib/plan/gliederung";
 import { aendereStelle, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
-import { neueId } from "../editor/ids";
+import { neueId, neueIds } from "../editor/ids";
 import { globalerBefehl } from "../editor/tasten";
+import { leseZuletzt } from "../editor/zuletzt";
 import type { Symbolsatz } from "../zeichnung/Symbole";
-import { GliederungZeile, type ZeilenAktion } from "./GliederungZeile";
+import { GliederungZeile, type OffenesFeld, type ZeilenAktion, type ZeilenBefehle, type ZeilenRegister } from "./GliederungZeile";
 import { gliederungsBefehl } from "./tasten";
 
 export type FokusZiel = "titel" | "aktionen" | "zeichen" | "verbindung";
@@ -28,6 +33,7 @@ export const GLIEDERUNG_BEDIENZEILE =
   "Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
 export const GLIEDERUNG_BEDIENZEILE_SCHMAL = "„⋯“ an jeder Zeile: anlegen, einrücken, verschieben, Details · Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
 const LEER_ZIEL = "~leer";
+const KEIN_MENUE: MenuProps["items"] = [];
 
 export interface GliederungProps {
   inhalt: PlanInhalt; auswahl: string | null; aendere: Aendere; meldung: ReactNode; griff?: Ref<GliederungGriff>;
@@ -61,56 +67,62 @@ function menue(a: ZeilenAktionen, verbindung: string | null): MenuProps["items"]
   ];
 }
 
+/** Ersatzziele in der ALTEN Zeilenfolge: erst die nächsten darüber, dann die darunter (Entscheidung 10). */
+function ersatzFuer(zeilen: readonly GliederungsZeile[], id: string): string[] {
+  const i = zeilen.findIndex((z) => z.stelle.id === id);
+  if (i < 0) return [];
+  return [...zeilen.slice(0, i).reverse(), ...zeilen.slice(i + 1)].map((z) => z.stelle.id);
+}
+
 /**
  * DIE GLIEDERUNG (Spec §6.5; Umsetzungsplan Phase 3, Entscheidungen 4–16). Dieselben Daten, derselbe
  * Verlauf und derselbe Speicherer wie das Diagramm: jede Änderung ist eine reine Operation über
  * `aendere`. Der Fokus folgt einer Anfrage (`fokus`), die ein Effekt NACH dem Rendern erfüllt — die
- * Zeile kann dabei im DOM umgezogen oder verschwunden sein (dann der Nachbar aus der alten Folge).
- * Wohin er geht, hängt an der Herkunft der Aktion (Entscheidung 16): Tastatur → Titel, Zeiger → das
- * Bedienelement, von dem sie ausging. Kein setState im Effekt-Rumpf.
+ * Zeile kann dabei im DOM umgezogen oder verschwunden sein (dann die nächste noch vorhandene aus der
+ * alten Folge, darüber zuerst). Wohin er geht, hängt an der Herkunft der Aktion (Entscheidung 16):
+ * Tastatur → Titel, Zeiger → das Bedienelement, von dem sie ausging. Kein setState im Effekt-Rumpf.
+ *
+ * LAST (Entscheidungen 2, 15): die Zeilen sind per `memo` gebunden und bekommen nur Werte plus ein
+ * stabiles Befehls-Ref (`befehle`, gesetzt nach jedem Rendern); so rendert eine Änderung an einer
+ * Stelle nur deren Zeile neu — auch wenn die Gliederung verborgen mitläuft.
  */
-/**
- * Registriert ein Element je Zeile. antds `Input`/`Button` reichen den Ref über `composeRef` weiter: der
- * ruft den Rückruf beim Abbau mit `null` und übergeht dessen Aufräumfunktion — deshalb beides.
- */
-function merke<T>(karte: Map<string, T>, id: string, el: T | null): () => void {
-  if (el) karte.set(id, el); else karte.delete(id);
-  return () => { if (karte.get(id) === el) karte.delete(id); };
-}
-
 export function Gliederung(p: GliederungProps) {
   const { inhalt, auswahl, aendere } = p;
   const zeilen = gliederungsZeilen(inhalt);
-  const felder = useRef(new Map<string, HTMLInputElement>());
-  const aktionen = useRef(new Map<string, HTMLButtonElement>());
+  const [register] = useState<ZeilenRegister>(() => ({ felder: new Map(), aktionen: new Map(), zeichen: new Map(), selects: new Map() }));
+  const befehle = useRef<ZeilenBefehle | null>(null);
   const erste = useRef<HTMLButtonElement>(null);
   const neu = useRef<{ id: string; nach: PlanInhalt } | null>(null);
   /** Herkunft der laufenden Aktion: gesetzt von pointerdown, gelöscht von keydown (auch aus Portalen der Zeile). */
   const zeiger = useRef(false);
   const [fokus, setFokus] = useState<{ id: string; n: number; stelle: number | "ende"; ziel: FokusZiel; ersatz: string[] } | null>(null);
   const [menueOffen, setMenueOffen] = useState<string | null>(null);
+  const [offenBei, setOffenBei] = useState<{ id: string; was: OffenesFeld } | null>(null);
+  const [offeneEinheiten, setOffeneEinheiten] = useState<ReadonlySet<string>>(() => new Set());
   const aktiv = zeilen.some((z) => z.stelle.id === auswahl) ? auswahl : zeilen[0]?.stelle.id ?? null;
+  const planZeichen = useMemo(() => [...new Set(inhalt.stellen.map((x) => x.zeichen).filter((z): z is string => z !== null))].sort().join("\n"), [inhalt.stellen]);
 
   useEffect(() => {
     if (!fokus) return;
     if (fokus.id === LEER_ZIEL) { erste.current?.focus(); return; }
-    const da = (x: string) => felder.current.get(x)?.isConnected === true;
-    const id = [fokus.id, ...fokus.ersatz].find(da) ?? [...felder.current.keys()].find(da);
+    const da = (x: string) => register.felder.get(x)?.isConnected === true;
+    const id = [fokus.id, ...fokus.ersatz].find(da) ?? [...register.felder.keys()].find(da);
     if (id === undefined) { erste.current?.focus(); return; }
-    if (fokus.ziel === "aktionen") { aktionen.current.get(id)?.focus(); return; }
-    // „zeichen"/„verbindung" erfüllt Task 8 (Knopf bzw. Select der Zeile); bis dahin der Titel
-    const el = felder.current.get(id)!;
+    if (fokus.ziel === "aktionen") { register.aktionen.get(id)?.focus(); return; }
+    if (fokus.ziel === "zeichen") { register.zeichen.get(id)?.focus(); return; }
+    if (fokus.ziel === "verbindung") { register.selects.get(id)?.focus(); return; }
+    const el = register.felder.get(id)!;
     el.focus();
     const pos = fokus.stelle === "ende" ? el.value.length : Math.min(fokus.stelle, el.value.length);
     el.setSelectionRange(pos, pos);
-  }, [fokus]);
+  }, [fokus, register]);
 
-  /** `ersatz`: Nachbarn aus der JETZIGEN Zeilenfolge — falls die Zeile nach dem Schritt fehlt (Strg+Z, Löschen). */
+  /** `ersatz`: Zeilen aus der JETZIGEN Folge — falls die Zeile nach dem Schritt fehlt (Strg+Z, Löschen). */
   const fokussiere = (id: string, stelle: number | "ende" = "ende", ziel: FokusZiel = "titel") =>
-    setFokus((f) => ({ id, n: (f?.n ?? 0) + 1, stelle, ziel, ersatz: [nachbarZeile(zeilen, id, "hoch"), nachbarZeile(zeilen, id, "runter")].filter((x): x is string => x !== null) }));
+    setFokus((f) => ({ id, n: (f?.n ?? 0) + 1, stelle, ziel, ersatz: ersatzFuer(zeilen, id) }));
   useImperativeHandle(p.griff, () => ({
     fokus: (id, ziel = "titel") => fokussiere(id ?? aktiv ?? LEER_ZIEL, "ende", ziel),
-    zeige: (id) => felder.current.get(id)?.closest("li")?.scrollIntoView?.({ block: "nearest" }),
+    zeige: (id) => register.felder.get(id)?.closest("li")?.scrollIntoView?.({ block: "nearest" }),
     raeumeAuf: () => { const n = neu.current; if (n) raeumeAuf(n.id); },
   }));
 
@@ -201,11 +213,19 @@ export function Gliederung(p: GliederungProps) {
       }
       case "verlassen": {
         if (raeumeAuf(id)) { fokussiere(nachbarZeile(zeilen, id, "hoch") ?? nachbarZeile(zeilen, id, "runter") ?? LEER_ZIEL); return; }
-        aktionen.current.get(id)?.focus();
+        register.aktionen.get(id)?.focus();
         return;
       }
       case "details": p.onDetails(id); return;
-      case "verbindung": case "zeichen": fokussiere(id, "ende", b.art); return; // öffnet Task 8
+      case "zeichen": // Popover offen; es setzt den Fokus selbst in „Zeichen suchen" (ZeichenKnopf)
+        p.ladeSymbole(leseZuletzt());
+        setOffenBei({ id, was: "zeichen" });
+        return;
+      case "verbindung":
+        if (z.eltern === null) return; // eine Wurzel hat keine Verbindung
+        setOffenBei({ id, was: "verbindung" });
+        fokussiere(id, "ende", "verbindung");
+        return;
     }
   }
   /** Entscheidung 8: verlässt der Fokus die Zeile (Klick, Tipp, Kopfleiste), verschwindet das unberührte Element. */
@@ -215,7 +235,55 @@ export function Gliederung(p: GliederungProps) {
     if (nach && (e.currentTarget.closest("li")?.contains(nach) || nach.closest(`[data-zeile-portal="${id}"]`))) return;
     raeumeAuf(id);
   }
-  // Mehrzeiliges Einfügen folgt im nächsten Schritt (Umsetzungsplan Phase 3, Task 8); bis dahin fügt das Feld normal ein.
+  /** Entscheidung 9: ab zwei nicht leeren Zeilen fängt das Titelfeld das Einfügen ab — sonst fügt es normal ein. */
+  function einfuegen(e: ClipboardEvent<HTMLInputElement>, id: string) {
+    const r = leseGliederung(e.clipboardData.getData("text/plain"));
+    if (r.eintraege.length + r.fehler.length < 2) return;
+    e.preventDefault();
+    neu.current = null;
+    if (r.fehler.length > 0) {
+      const mehr = r.fehler.length > 3 ? ` (und ${r.fehler.length - 3} weitere)` : "";
+      p.onHinweis(`Nicht eingefügt. ${r.fehler.slice(0, 3).join(" ")}${mehr}`);
+      return;
+    }
+    let ids: string[] = [];
+    const nach = tueMit((q) => { const x = fuegeGliederungEin(q, id, r.eintraege, neueIds(q, "s", r.eintraege.length)); ids = x.zeilenIds; return x.inhalt; });
+    if (nach && ids.length > 0) fokussiere(ids[ids.length - 1]);
+  }
+  /** Entscheidung 12: versetzt die neue Verbindung die Zeile, holt die Gliederung sie ins Bild und sagt, wohin. */
+  const aendereVerbindung = (id: string): Aendere => (op, schluessel) => {
+    const vorher = zeilen.findIndex((z) => z.stelle.id === id);
+    let nach: PlanInhalt | null = null;
+    const fehler = aendere((q) => (nach = op(q)), schluessel);
+    const jetzt = nach as PlanInhalt | null;
+    if (fehler === null && jetzt !== null) {
+      const folge = gliederungsZeilen(jetzt);
+      const z = folge.find((x) => x.stelle.id === id);
+      if (z && folge.indexOf(z) !== vorher) {
+        const v = jetzt.verbindungen.find((x) => x.id === z.stelle.verbindungId);
+        p.onHinweis(`„${z.stelle.titel.trim() || "(ohne Titel)"}“ steht jetzt in der Gruppe „${v?.bezeichnung ?? "ohne Verbindung"}“.`);
+        requestAnimationFrame(() => register.felder.get(id)?.closest("li")?.scrollIntoView?.({ block: "nearest" }));
+      }
+    }
+    return fehler;
+  };
+  /** Rückweg nach Zeichen- und Verbindungswahl (Entscheidungen 10, 16): Tastatur → Titel, Zeiger → das Bedienelement. */
+  const fertig = (id: string, was: OffenesFeld) => fokussiere(id, "ende", zeiger.current ? was : "titel");
+
+  useLayoutEffect(() => {
+    befehle.current = {
+      aendere, aendereVerbindung, taste, einfuegen, verlassen, aktion, fertig,
+      titel: (id, wert) => { aendere((q) => aendereStelle(q, id, { titel: wert }), `titel:${id}`); },
+      fokus: (id) => { if (auswahl !== id) p.onAuswahl(id); },
+      menue: (id, offen) => setMenueOffen(offen ? id : null),
+      offen: (id, was, o) => {
+        if (o && was === "verbindung" && id !== aktiv) { p.onAuswahl(id); fokussiere(id, "ende", "verbindung"); }
+        setOffenBei((alt) => (o ? { id, was } : alt?.id === id && alt.was === was ? null : alt));
+      },
+      einheiten: (id) => setOffeneEinheiten((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x; }),
+      ladeSymbole: p.ladeSymbole,
+    };
+  });
 
   return (
     <div className="kp-gliederung" data-gliederung=""
@@ -230,16 +298,14 @@ export function Gliederung(p: GliederungProps) {
         <ul className="kp-g-liste" aria-label="Gliederung">
           {zeilen.map((z) => {
             const id = z.stelle.id;
+            const mitMenue = menueOffen === id;
             const verbindung = z.stelle.verbindungId === null ? null : inhalt.verbindungen.find((v) => v.id === z.stelle.verbindungId)?.bezeichnung ?? null;
             return (
               <GliederungZeile key={id} zeile={z} gewaehlt={id === auswahl} aktiv={id === aktiv}
-                menue={menueOffen === id ? menue(zeilenAktionen(inhalt, id), verbindung) : []}
-                titelRef={(r) => merke(felder.current, id, r?.input ?? null)}
-                aktionenRef={(el) => merke(aktionen.current, id, el)}
-                onTitel={(wert) => aendere((q) => aendereStelle(q, id, { titel: wert }), `titel:${id}`)}
-                onTaste={(e) => taste(e, z)} onVerlassen={(e) => verlassen(e, id)}
-                onFokus={() => { if (auswahl !== id) p.onAuswahl(id); }}
-                onMenue={(offen) => setMenueOffen(offen ? id : null)} onAktion={(a) => aktion(z, a)} />
+                menue={mitMenue ? menue(zeilenAktionen(inhalt, id), verbindung) : KEIN_MENUE} menueOffen={mitMenue}
+                offenBei={offenBei?.id === id ? offenBei.was : null} einheitenOffen={offeneEinheiten.has(id)}
+                inhalt={inhalt} verbindungen={inhalt.verbindungen} symbole={p.symbole} zeichenIndex={p.zeichenIndex}
+                planZeichen={planZeichen} befehle={befehle} register={register} />
             );
           })}
         </ul>

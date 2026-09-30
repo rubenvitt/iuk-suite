@@ -139,6 +139,22 @@
 .kp-g-haupt .kp-g-titel { flex: 1 1 12rem; min-width: 0; }
 .kp-g-neben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 0 1 auto; }
 .kp-g-meldung { position: sticky; bottom: 12px; margin-top: 8px; z-index: 1; }
+/* Zeichen kompakt (Entscheidung 13): 44 px Ziel, das Zeichen bleibt Papier (weißer Grund auch im Dunkeln). */
+.kp-g-zeichen {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; cursor: pointer;
+  border: 1px solid var(--kp-rand); border-radius: 8px; background: var(--kp-flaeche); color: inherit;
+}
+.kp-g-zeichen:focus-visible { outline: 2px solid var(--kp-auswahl); outline-offset: 2px; }
+.kp-g-zeichen svg, .kp-g-zeichen-leer { width: 32px; height: 32px; background: #ffffff; border-radius: 4px; }
+.kp-g-zeichen-leer { border: 1px dashed var(--kp-gedaempft); }
+.kp-g-zeichenwahl { width: min(360px, 84vw); }
+.kp-g-haupt .kp-g-verbindung { min-width: 12rem; }
+/* Verbindung nicht aktiver Zeilen: schlichter Textknopf statt Select (Entscheidung 15) — 44 px Ziel, liest sich wie das Feld. */
+.kp-g-verbindung-text {
+  min-height: 44px; min-width: 12rem; padding: 0 11px; text-align: start; cursor: pointer; font: inherit; color: inherit;
+  background: transparent; border: 1px dashed var(--kp-rand); border-radius: 8px;
+}
+.kp-g-einheiten { padding: 0 8px 8px calc(44px + 16px); }
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
    einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */

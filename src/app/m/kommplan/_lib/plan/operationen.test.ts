@@ -87,6 +87,12 @@ describe("Stellen ändern und löschen", () => {
     expect(stelleOder(p, "a")).toMatchObject({ titel: "EA Nord", leiter: "Jana", hervorheben: true, verbindungId: "v2" });
     expect(() => aendereStelle(plan(), "x", { titel: "?" })).toThrow("Stelle x gibt es nicht");
   });
+  it("unveränderte Stellen und Verbindungen bleiben dasselbe Objekt — die Gliederung rendert nur geänderte Zeilen neu (Phase 3, Entscheidung 2)", () => {
+    const vorher = plan();
+    const p = aendereStelle(vorher, "a", { titel: "EA Nord" });
+    expect(p.stellen.filter((s, i) => s === vorher.stellen[i]).length).toBe(vorher.stellen.length - 1);
+    expect(p.verbindungen).toBe(vorher.verbindungen);
+  });
   it("prüft die Invarianten: ein unbekannter Kanal oder ein zu langer Titel wird abgewiesen", () => {
     expect(() => aendereStelle(plan(), "a", { kanaele: ["fehlt"] })).toThrow("Kanal fehlt existiert nicht");
     expect(() => aendereStelle(plan(), "a", { titel: "x".repeat(LAENGE.titel + 1) })).toThrow(PlanFehler);

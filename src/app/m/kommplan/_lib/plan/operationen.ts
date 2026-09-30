@@ -20,10 +20,16 @@ export function leererPlan(): PlanInhalt {
   };
 }
 
+/**
+ * Prüft und gibt die EINGABE zurück, nicht zods Kopie: unveränderte Stellen und Verbindungen bleiben so
+ * dasselbe Objekt, und die Gliederung rendert nur geänderte Zeilen neu (Umsetzungsplan Phase 3,
+ * Entscheidung 2). Gleichwertig, weil das Schema nichts umformt — der einzige Vorgabewert (`kanaele`)
+ * greift nur bei fehlendem Feld, und `PlanInhalt` hat es immer.
+ */
 export function gueltig(roh: PlanInhalt): PlanInhalt {
   const r = planInhaltSchema.safeParse(roh);
   if (!r.success) throw new PlanFehler(r.error.issues.map((i) => i.message).join("; "));
-  return r.data;
+  return roh;
 }
 
 export function naechsteReihenfolge(inhalt: PlanInhalt, eltern: string | null, lage: Lage): number {
