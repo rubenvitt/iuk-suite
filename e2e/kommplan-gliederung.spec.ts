@@ -142,3 +142,30 @@ test("Umschalten am Seed-Plan: Auswahl bleibt, kein Neuladen, kein einziger Spei
   page.off("response", zaehle);
   expect(speicherungen).toEqual([]);
 });
+
+test("Referenz „Einsatz 22.02.2026“ per Tastatur: Struktur samt Verbindungen in 14 Tasten ohne Titeltext; Alt+Z öffnet die Zeichensuche (Review Focus 7)", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, "e2e Gliederung Aufwand");
+  await zurGliederung(page);
+  let tasten = 1; // der Klick auf „Erste Stelle anlegen"
+  const k = async (t: string) => { tasten++; await page.keyboard.press(t); };
+  const text = (t: string) => page.keyboard.type(t);
+  await klickeWennRuhig(page.getByRole("button", { name: "Erste Stelle anlegen" }));
+  await text("Leitstelle Uelzen");
+  await k("Enter"); await text("Einsatzleitung"); await k("Tab"); await k("Alt+KeyV"); await text("R_UE_1"); await k("Enter");
+  await k("Enter"); await text("EA 1"); await k("Tab"); await k("Alt+KeyV"); await text("R_UE_2"); await k("Enter");
+  await k("Enter"); await text("EA 2");
+  await k("Enter"); await text("EA 3");
+  await k("Enter"); await text("EA 5");
+  await speichertNach(page, async () => { await k("Alt+KeyV"); await text("R_UE_3"); await k("Enter"); });
+  expect(tasten).toBe(14);
+  const zeilen = await page.locator(".kp-gliederung [data-zeile]").evaluateAll((els) => els.map((e) =>
+    `${"·".repeat(Number((e as HTMLElement).style.getPropertyValue("--ebene")))}${(e.querySelector("input[name='titel']") as HTMLInputElement).value} ${e.querySelector(".kp-g-neben")?.firstElementChild?.textContent?.split(" · ")[0] ?? ""}`.trim()));
+  expect(zeilen).toEqual(["Leitstelle Uelzen oberste Ebene", "·Einsatzleitung R_UE_1", "··EA 1 R_UE_2", "··EA 2 R_UE_2", "··EA 3 R_UE_2", "··EA 5 R_UE_3"]);
+  // Alt+Z kommt im Browser an: die Zeichensuche ist offen und hat den Fokus (rc-trigger montiert den Inhalt verzögert)
+  await page.locator(".kp-gliederung [data-zeile] input[name='titel']").first().focus();
+  await page.keyboard.press("Alt+KeyZ");
+  await expect(page.getByLabel("Zeichen suchen")).toBeFocused();
+  await page.keyboard.press("Escape");
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type Ref } from "react";
+import { useCallback, useEffect, useRef, type Ref } from "react";
 import { Popover } from "antd";
 import { aendereStelle } from "../../_lib/plan/operationen";
 import type { Stelle } from "../../_lib/plan/schema";
@@ -13,16 +13,28 @@ import { symbolId, type Symbolsatz } from "../zeichnung/Symbole";
 /**
  * ZEICHEN KOMPAKT (Umsetzungsplan Phase 3, Entscheidungen 13, 16, 17): 44 px, das Zeichen per `<use>`
  * aus dem Symbolvorrat des Editors; das Popover trägt dieselbe `ZeichenWahl` wie das Flyin. Offen oder zu
- * bestimmt der Aufrufer (Alt+Z öffnet es aus dem Titel); beim Öffnen geht der Fokus in „Zeichen suchen"
- * (Fokus im Effekt ist erlaubt, Zustand nicht). Nach der Wahl entscheidet `onFertig` über den Rückweg.
+ * bestimmt der Aufrufer (Alt+Z öffnet es aus dem Titel); beim Öffnen geht der Fokus in „Zeichen suchen" —
+ * über einen stabilen Ref-Rückruf am Inhalt, nicht im Effekt: rc-trigger montiert den Inhalt erst einen
+ * Rendergang NACH `open` (im Browser gemessen; jsdom zeigt es nicht). Nach der Wahl entscheidet `onFertig`
+ * über den Rückweg.
  */
 export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen, aendere, tabIndex, offen, onOffen, onFertig, knopfRef }: {
   stelle: Stelle; index: readonly ZeichenIndexEintrag[]; symbole: Symbolsatz; ladeSymbole(schluessel: string[]): void;
   planZeichen: readonly string[]; aendere: Aendere; tabIndex: number;
   offen: boolean; onOffen(o: boolean): void; onFertig(): void; knopfRef: Ref<HTMLButtonElement>;
 }) {
-  const inhalt = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (offen) inhalt.current?.querySelector<HTMLInputElement>('input[aria-label="Zeichen suchen"]')?.focus(); }, [offen]);
+  const inhaltEl = useRef<HTMLDivElement | null>(null);
+  // Stabil (leere Abhängigkeiten): der Inhalt montiert je Öffnen einmal (`destroyOnHidden`), also fokussiert
+  // das genau einmal — ein neuer Rückruf je Rendern holte den Fokus sonst aus dem Raster zurück. Hängt der
+  // Portal-Behälter noch nicht im Dokument (erstes Öffnen), einen Frame später.
+  const inhalt = useCallback((el: HTMLDivElement | null) => {
+    inhaltEl.current = el;
+    if (!el) return;
+    const suche = () => el.querySelector<HTMLInputElement>('input[aria-label="Zeichen suchen"]')?.focus({ preventScroll: true });
+    if (el.isConnected) suche(); else requestAnimationFrame(suche);
+  }, []);
+  // Und falls der Inhalt schon stand, als `offen` kam (Fokus im Effekt ist erlaubt, Zustand nicht).
+  useEffect(() => { if (offen) inhaltEl.current?.querySelector<HTMLInputElement>('input[aria-label="Zeichen suchen"]')?.focus({ preventScroll: true }); }, [offen]);
   const name = stelle.titel.trim() || "(ohne Titel)";
   const zeichen = stelle.zeichen === null ? "keins" : index.find((e) => e.schluessel === stelle.zeichen)?.titel ?? stelle.zeichen;
   return (
