@@ -118,7 +118,9 @@ export function Flaeche({
     const el = flaeche.current;
     aendere((x) => zoome(x, faktor, (el?.clientWidth ?? 0) / 2, (el?.clientHeight ?? 0) / 2, untergrenzeJetzt));
   };
-  const ausgenommen = (ziel: EventTarget) => (ziel as Element).closest("[data-umschalter], [data-griff], [data-meldung]") !== null;
+  // Bedienelemente IN der Fläche (Umschalter, Griffe, Hinweise, „Erste Stelle anlegen") fangen den
+  // Zeiger nicht: Pointer-Capture lenkte sonst das `click` vom Knopf auf die Fläche um.
+  const ausgenommen = (ziel: EventTarget) => (ziel as Element).closest("[data-umschalter], [data-griff], [data-meldung], button, a, input, textarea") !== null;
 
   const unten = (e: PointerEvent<HTMLDivElement>) => {
     if (ausgenommen(e.target)) return; // Umschalter, Griffe und Meldung beginnen kein Ziehen und keinen Klick

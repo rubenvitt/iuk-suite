@@ -69,4 +69,14 @@ describe("Fläche", () => {
     expect(g.getAttribute("class")).toBe("kp-gleitet"); // eingepasst = automatisch → gleitet
     // Normalisiert jsdom (cssstyle) den Wert anders, auf toContain("translate(16px") ausweichen — nie die Zusage streichen.
   });
+  it("ein Druck auf einen Knopf in der Fläche fängt den Zeiger nicht — sonst ginge der Klick an die Fläche statt an den Knopf", async () => {
+    const leer = layout(leererPlan(), "bildschirm");
+    await mount(<Flaeche daten={leer} symbole={{}} titel="T" schrift="Arimo" bedienhinweis="Hinweis" leer={<button type="button" data-test-leer="">Erste Stelle anlegen</button>} />);
+    const fang = vi.fn();
+    Object.defineProperty(query(".kp-betrachter"), "setPointerCapture", { value: fang });
+    await act(async () => { zeiger(query("[data-test-leer]"), "pointerdown", 5, 5); zeiger(query("[data-test-leer]"), "pointerup", 5, 5); });
+    expect(fang).not.toHaveBeenCalled();
+    await act(async () => { zeiger(query(".kp-betrachter"), "pointerdown", 5, 5); });
+    expect(fang).toHaveBeenCalledTimes(1);
+  });
 });
