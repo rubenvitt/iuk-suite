@@ -3,7 +3,7 @@ import { baue, type StelleEingabe } from "../beispiele/bau";
 import { leererPlan } from "../plan/operationen";
 import { layout } from "./layout";
 import { BLATT, MIN_MASSSTAB, PAPIER } from "./masse";
-import { legendenZeilen, massstabFuer, teileAuf, zeichenflaeche } from "./papier";
+import { kopflinieY, legendeObenY, legendenZeilen, massstabFuer, teileAuf, zeichenflaeche } from "./papier";
 import { zufallsPlan } from "./zufall";
 
 function grosserPlan() {
@@ -19,8 +19,16 @@ const normaleKarten = (blaetter: ReturnType<typeof teileAuf>) =>
 
 describe("Papier", () => {
   it("Zeichenfläche A4 quer: Ränder, Kopf, Fuß, Legende", () => {
-    expect(zeichenflaeche("a4-quer", 0)).toEqual({ x: 10, y: 22, breite: 277, hoehe: 210 - 22 - 8 - 7 });
-    expect(zeichenflaeche("a4-quer", 2).hoehe).toBeCloseTo(210 - 22 - 8 - 7 - (2 * BLATT.legendeZeile + BLATT.legendeRand), 9);
+    expect(zeichenflaeche("a4-quer", 0)).toEqual({ x: 10, y: 24, breite: 277, hoehe: 210 - 24 - 8 - 7 });
+    expect(zeichenflaeche("a4-quer", 2).hoehe).toBeCloseTo(210 - 24 - 8 - 7 - (2 * BLATT.legendeZeile + BLATT.luft), 9);
+  });
+  it("die Zeichnung hält 3 mm Luft zur Kopflinie und zur Legende (früher 1 und 2 mm)", () => {
+    for (const zeilen of [0, 1, 3]) {
+      const f = zeichenflaeche("a4-quer", zeilen);
+      expect(f.y - kopflinieY()).toBeGreaterThanOrEqual(3);
+      if (zeilen > 0) expect(legendeObenY("a4-quer", zeilen) - (f.y + f.hoehe)).toBeGreaterThanOrEqual(3);
+      if (zeilen > 0) expect(legendeObenY("a4-quer", zeilen) + zeilen * BLATT.legendeZeile).toBeLessThanOrEqual(PAPIER["a4-quer"].hoehe - BLATT.randUnten - BLATT.fuss + 1e-9);
+    }
   });
   it("Legende bricht in Zeilen um", () => {
     const viele = Array.from({ length: 30 }, (_, i) => ({ art: "tmo" as const, text: `Reserve K_UE_${i}`, reserve: true }));

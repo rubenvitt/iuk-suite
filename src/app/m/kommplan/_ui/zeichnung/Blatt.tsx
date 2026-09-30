@@ -1,5 +1,5 @@
 import { BLATT, PAPIER, PT_IN_MM } from "../../_lib/layout/masse";
-import { LEGENDE, zeichenflaeche } from "../../_lib/layout/papier";
+import { LEGENDE, kopflinieY, legendeObenY, zeichenflaeche } from "../../_lib/layout/papier";
 import { textBreite } from "../../_lib/layout/text";
 import type { Blatt } from "../../_lib/layout/typen";
 import { FARBE, STRICH } from "./farben";
@@ -20,7 +20,7 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
   const rechts = p.breite - BLATT.randX;
   const kopfY = BLATT.randOben;
   const fussY = p.hoehe - BLATT.randUnten - 2;
-  const legendeOben = f.y + f.hoehe + BLATT.legendeRand / 2;
+  const legendeOben = legendeObenY("a4-quer", blatt.legendeZeilen.length);
   const leer = blatt.zeichnung.karten.length === 0;
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className="kp-blatt" data-blatt={blatt.nummer} width={`${p.breite}mm`} height={`${p.hoehe}mm`}
@@ -36,7 +36,7 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
         <rect x={rechts - 6} y={kopfY + 3} width={6} height={2} />
         <rect x={rechts - 4} y={kopfY + 1} width={2} height={6} />
       </g>
-      <line x1={BLATT.randX} y1={kopfY + BLATT.kopf - 1} x2={rechts} y2={kopfY + BLATT.kopf - 1} stroke={FARBE.tinte} strokeWidth={STRICH.duenn} />
+      <line x1={BLATT.randX} y1={kopflinieY()} x2={rechts} y2={kopflinieY()} stroke={FARBE.tinte} strokeWidth={STRICH.duenn} />
       {/* Zeichnung */}
       {leer ? (
         <text x={p.breite / 2} y={f.y + f.hoehe / 2} fontSize={pt(12)} textAnchor="middle">Dieser Plan hat noch keine Stellen.</text>

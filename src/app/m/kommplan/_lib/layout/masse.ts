@@ -41,7 +41,8 @@ export const ABSTAND = {
  */
 export const MINDEST = { kasten: 2, linie: 0.75 } as const;
 export const PAPIER = { "a4-quer": { breite: 297, hoehe: 210 }, "a3-quer": { breite: 420, hoehe: 297 } } as const;
-export const BLATT = { randX: 10, randOben: 8, randUnten: 8, kopf: 14, fuss: 7, legendeZeile: 5, legendeRand: 4 } as const;
+/** `luft`: zwischen Kopflinie und Zeichnung und zwischen Zeichnung und Legende (Review Phase 1: 1 und 2 mm klebten). */
+export const BLATT = { randX: 10, randOben: 8, randUnten: 8, kopf: 14, fuss: 7, legendeZeile: 5, luft: 3 } as const;
 
 export function zeilenhoehe(pt: number): number {
   return pt * PT_IN_MM * ZEILENFAKTOR;

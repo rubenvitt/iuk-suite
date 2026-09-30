@@ -1968,7 +1968,7 @@
    "massstab": 0.78,
    "ursprung": {
     "x": 10,
-    "y": 22
+    "y": 24
    },
    "karten": [
     [
@@ -2059,10 +2059,10 @@
   },
   {
    "nummer": 2,
-   "massstab": 0.86,
+   "massstab": 0.85,
    "ursprung": {
-    "x": 11.37,
-    "y": 22
+    "x": 12.2,
+    "y": 24
    },
    "karten": [
     [
@@ -2129,10 +2129,10 @@
   },
   {
    "nummer": 3,
-   "massstab": 0.86,
+   "massstab": 0.85,
    "ursprung": {
-    "x": 11.37,
-    "y": 22
+    "x": 12.2,
+    "y": 24
    },
    "karten": [
     [
@@ -2211,10 +2211,10 @@
   },
   {
    "nummer": 4,
-   "massstab": 0.86,
+   "massstab": 0.85,
    "ursprung": {
-    "x": 11.37,
-    "y": 22
+    "x": 12.2,
+    "y": 24
    },
    "karten": [
     [

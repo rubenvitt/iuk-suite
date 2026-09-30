@@ -24,11 +24,22 @@ export function legendenZeilen(legende: LegendenEintrag[], breite: number): Lege
   return zeilen;
 }
 
+/** Die Linie unter dem Kopf, 1 mm über dessen Unterkante. */
+export function kopflinieY(): number {
+  return BLATT.randOben + BLATT.kopf - 1;
+}
+
+/** Oberkante der ersten Legendenzeile: die Legende steht unten, direkt über dem Fuß. */
+export function legendeObenY(format: Papierformat, legendeZeilen: number): number {
+  return PAPIER[format].hoehe - BLATT.randUnten - BLATT.fuss - legendeZeilen * BLATT.legendeZeile;
+}
+
+/** Wo die Zeichnung stehen darf: unter der Kopflinie, über der Legende, je `BLATT.luft` Abstand. */
 export function zeichenflaeche(format: Papierformat, legendeZeilen: number) {
   const p = PAPIER[format];
-  const legende = legendeZeilen === 0 ? 0 : legendeZeilen * BLATT.legendeZeile + BLATT.legendeRand;
-  const y = BLATT.randOben + BLATT.kopf;
-  return { x: BLATT.randX, y, breite: p.breite - 2 * BLATT.randX, hoehe: p.hoehe - y - BLATT.randUnten - BLATT.fuss - legende };
+  const y = kopflinieY() + BLATT.luft;
+  const unten = legendeZeilen === 0 ? p.hoehe - BLATT.randUnten - BLATT.fuss : legendeObenY(format, legendeZeilen) - BLATT.luft;
+  return { x: BLATT.randX, y, breite: p.breite - 2 * BLATT.randX, hoehe: unten - y };
 }
 
 export function massstabFuer(z: Pick<Zeichnungsdaten, "breite" | "hoehe">, flaeche: { breite: number; hoehe: number }): number {
