@@ -212,6 +212,10 @@ export const MODULES: ModuleDef[] = [
   { key: "einsatzbuch", title: "Einsatzbuch", icon: "BookOutlined", shell: "full",
     requiresAuth: false, requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
+  // kommplan: Kommunikationspläne (Spec 2026-09-30). requiresAuth:false für die Token-Ansicht (Phase 5); Zugang und Host in _lib/.
+  { key: "kommplan", title: "Kommunikationspläne", icon: "ApartmentOutlined", shell: "full",
+    requiresAuth: false, requiredGroups: ["iuk-kommplan"], adminGroups: ["iuk-kommplan-bearbeiten"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access", "admin"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
