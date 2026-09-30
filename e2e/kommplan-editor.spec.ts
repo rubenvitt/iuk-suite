@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { expect, test, type Locator, type Page, type Response } from "@playwright/test";
 import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 
 /**
@@ -243,4 +244,107 @@ test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, c
   await warteAufGestreamteInhalte(druck);
   await expect(druck.locator("svg.kp-blatt")).toContainText("Druckprobe");
   await druck.close();
+});
+
+/**
+ * SICHTPRÜFUNG (Umsetzungsplan Phase 2, Task 16): hell und dunkel über das Cookie `iuk-theme-pref`
+ * (nie `emulateMedia({ colorScheme })` — die Suite löst das Thema über `<html data-theme>` auf).
+ * Mit `KOMMPLAN_FOTOS=<ordner>` fährt er alle drei Breiten und legt 48 Fotos ab; OHNE (also in der
+ * CI) fährt er nur die Telefonbreite in beiden Modi, schießt keine Fotos und sichert nur zu — so
+ * bleibt der auf rund 170 s ausbalancierte Eimer (scripts/e2e-gruppen.test.ts) nicht hängen.
+ * Zugesichert wird: kein waagerechtes Überlaufen; die Griffe der gewählten Karte GANZ im Bild und
+ * ganz in der Fläche — auch an der äußersten linken und rechten Karte; und am Seed-Plan kein
+ * einziger Speicheraufruf (Review Focus 6: Ansehen und Flyins öffnen schreibt nichts).
+ */
+const BREITEN = [{ name: "desktop", width: 1440, height: 900 }, { name: "tablet", width: 1024, height: 768 }, { name: "telefon", width: 390, height: 844 }] as const;
+const FOTOS = process.env.KOMMPLAN_FOTOS;
+
+async function ganzInDerFlaeche(page: Page, el: Locator, was: string): Promise<void> {
+  await expect(el, was).toBeInViewport({ ratio: 1 });
+  const rahmen = (await page.locator(".kp-betrachter").boundingBox())!;
+  const b = (await el.boundingBox())!;
+  expect(b.x, `${was}: links`).toBeGreaterThanOrEqual(rahmen.x);
+  expect(b.x + b.width, `${was}: rechts`).toBeLessThanOrEqual(rahmen.x + rahmen.width);
+  expect(b.y + b.height, `${was}: unten`).toBeLessThanOrEqual(rahmen.y + rahmen.height);
+}
+
+test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, drei Breiten", async ({ page, context }, testInfo) => {
+  test.setTimeout(FOTOS ? 240_000 : 90_000);
+  const ordner = FOTOS ?? testInfo.outputPath("fotos");
+  if (FOTOS) mkdirSync(ordner, { recursive: true });
+  await page.emulateMedia({ reducedMotion: "reduce" }); // Lagen ohne laufende Übergänge messen
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const leerId = await neuerPlan(page, "e2e Fotos leer");
+  const foto = async (name: string) => { if (FOTOS) await page.screenshot({ path: `${ordner}/${name}.png`, animations: "disabled" }); };
+  const ohneUeberlauf = async () =>
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const breiten = FOTOS ? BREITEN : [BREITEN[2]];
+
+  for (const modus of ["light", "dark"] as const) {
+    await context.addCookies([{ name: "iuk-theme-pref", value: modus, url: url("/") }]);
+    for (const b of breiten) {
+      await page.setViewportSize({ width: b.width, height: b.height });
+      const n = `${b.name}-${modus}`;
+
+      await page.goto(url("/"));
+      await warteAufSpaltenaufteilung(page);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", modus);
+      await ohneUeberlauf();
+      await foto(`liste-${n}`);
+      await klickeWennRuhig(page.getByRole("button", { name: "Neu", exact: true }));
+      // ganz eingeschoben, sonst fotografiert der Test die Schublade mitten in der Einblendung
+      await expect(page.getByRole("form", { name: "Neuer Plan" })).toBeInViewport({ ratio: 1 });
+      await foto(`neu-${n}`);
+
+      await oeffneEditor(page, () => page.goto(url(`/p/${leerId}`)));
+      await foto(`leer-${n}`);
+      // Hinweis nach Entf IN der Fläche (Entscheidung 19) — am eigenen Plan, der danach wieder leer ist
+      await klickeWennRuhig(page.getByRole("button", { name: "Erste Stelle anlegen" }));
+      await expect(flyinTitel(page)).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".kp-betrachter")).toBeFocused();
+      await speichertNach(page, () => page.keyboard.press("Delete"));
+      await expect(page.locator(".kp-betrachter [data-meldung]")).toContainText("gelöscht");
+      await foto(`hinweis-${n}`);
+
+      // Seed-Plan nur ANSEHEN und auswählen, nie ändern (Task 15, Kopf) — jeder Speicheraufruf wäre ein Befund
+      const speicherungen: string[] = [];
+      const zaehle = (r: Response) => { if (istSpeichern(r)) speicherungen.push(r.url()); };
+      page.on("response", zaehle);
+      await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01")));
+      await ohneUeberlauf();
+      await foto(`editor-${n}`);
+      // ea2: Unterstelle mit Geschwistern und Einheiten — zeigt alle Griffe (el wäre eine Seitenstelle)
+      await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea2"]'));
+      await expect(page.locator('[data-griffe="ea2"]')).toBeVisible();
+      await ganzInDerFlaeche(page, page.getByRole("toolbar", { name: /^Auswahl:/ }), "Griffleiste ea2");
+      await foto(`auswahl-${n}`);
+      // die äußerste linke und rechte Karte: ihre Griffe (Leiste und seitliche „+") ganz im Bild (Kritik)
+      const lagen = await page.locator(".kp-betrachter [data-karte]").evaluateAll((els) =>
+        els.map((e) => ({ id: e.getAttribute("data-karte")!, x: e.getBoundingClientRect().x })));
+      const aussen = [lagen.reduce((a, c) => (c.x < a.x ? c : a)).id, lagen.reduce((a, c) => (c.x > a.x ? c : a)).id];
+      for (const id of aussen) {
+        // Die Griffe der gewählten Karte decken am Telefon Nachbarkarten ab: erst abwählen (Esc), dann
+        // eingepasst (0) — so sind auch die äußeren Karten im Bild und klickbar.
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("0");
+        await klickeWennRuhig(page.locator(`.kp-betrachter [data-karte="${id}"]`));
+        for (const g of await page.locator(`[data-griffe="${id}"] [data-griff]`).all()) {
+          await ganzInDerFlaeche(page, g, `Griff ${await g.getAttribute("data-griff")} an ${id}`);
+        }
+      }
+      await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea2"]'));
+      await klickeWennRuhig(page.locator('[data-griff="bearbeiten"]'));
+      await expect(flyinTitel(page)).toBeVisible();
+      await ohneUeberlauf();
+      await foto(`flyin-stelle-${n}`);
+      await page.keyboard.press("Escape");
+      await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+      await expect(page.locator('fieldset[aria-label="Planangaben"]')).toBeVisible();
+      await foto(`flyin-plan-${n}`);
+      await page.keyboard.press("Escape");
+      page.off("response", zaehle);
+      expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
+    }
+  }
 });

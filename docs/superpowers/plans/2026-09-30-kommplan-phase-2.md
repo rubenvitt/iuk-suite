@@ -6267,3 +6267,26 @@ Kritik zum Planstand vom 30.09.2026, 35 Befunde in der gelieferten Reihenfolge. 
 | 35 | „Planangaben" verbirgt Reserve und Optionen | übernommen | Entscheidung 20, Tasks 13, 14 | Knopf „Plan und Verbindungen", dazu „Verbindungen bearbeiten" unter der Legende (öffnet am Abschnitt). |
 
 Außerhalb der Befunde ergänzt (Durchsicht): Review Focus 6 — die neuen Selbst-Speicher-Wege dürfen einen Seed-Plan nie schreiben; gepinnt im Plan-Flyin-Test („Unverändertes wird nie gesendet") und im Fototest (null Speicheraufrufe am OpenR-Plan).
+
+## Abweichungen bei der Umsetzung
+
+Was sich erst am laufenden Code zeigte. Jede Zeile nennt die Aufgabe, in der die Entscheidung fiel.
+
+| # | Aufgabe | Befund | Entscheidung |
+|---|---|---|---|
+| U1 | 3, 9, 11–15 | Mehrere Testtitel im Plan schließen „…" mit einem ASCII-Anführungszeichen mitten in einer Zeichenkette — Parserfehler | schließendes `“` gesetzt; die Aussagen der Tests sind unverändert |
+| U2 | 7, 10–13 | `afterEach(() => { unmount(); … })` ohne `await`: das nachlaufende Aufräumen des Harness entfernt den Wirt des nächsten Tests (leerer `body`) | `afterEach(async () => { await unmount(); … })`, ebenso `await unmount()` mitten im Test |
+| U3 | 10 | `_ui/betrachter/Umschalter.tsx` kollidiert auf macOS (Groß-/Kleinschreibung) mit dem vorhandenen `umschalter.ts` | Datei `EinklappKnopf.tsx`, Export bleibt `Umschalter` |
+| U4 | 11 | TypeScript leitet in `kontaktFelder` die beiden Zweige (`vorhanden: true`/`false`) getrennt ab | Rückgabetyp `KontaktFeld[]` am `flatMap`-Rückruf |
+| U5 | 12 | `KontaktZeilen`, `StellenLage`, `VerbindungWahl`, `EinheitenListe` sind Geschwister und trugen alle `key={s.id}` — doppelte Schlüssel, der Entwurf einer neuen Verbindung blieb beim Wechsel der Stelle stehen (Review Focus 7) | Schlüssel je Abschnitt mit Präfix (`lage:${s.id}` …) |
+| U6 | 13 | `const { [v.id]: _weg, ...rest }` meldet `pnpm lint` | Rückfall aus dem Plan: Kopie und `delete` |
+| U7 | 14 | `react-hooks/purity` hält `aendere` für Render-Code und verbietet `Date.now()`; `@next/next/no-location-assign-…` meldet den Rückfall `window.location.assign` beim Drucken | `new Date().getTime()` (Vorbild `lagerbuch/_ui/HelferRahmen.tsx`); bei gesperrtem Popup `window.open(ziel, "_self")` |
+| U8 | 15 | Pointer-Capture der Fläche lenkte den Klick auf „Erste Stelle anlegen" an die Fläche um — im Browser tat der Knopf nichts (jsdom retargetet nicht, die DOM-Tests sahen es nie) | Knöpfe, Links und Eingaben in der Fläche fangen den Zeiger nicht (`Flaeche.tsx`, `ausgenommen`); eigener DOM-Test; eigener `fix`-Commit |
+| U9 | 15 | Tablet-e2e: nach dem Anlegen war die Ansicht nicht mehr eingepasst — `zeige()` verschob, obwohl die eingepasste Ansicht die Griffe schon zeigt (Gleitkommarest an der Randkarte bzw. `clientWidth` gegen `contentRect`, nicht einzeln belegt) | Entscheidung 18 durch Bauart: eingepasst tut `zeige()` nichts; die Verschiebung ist die reine Funktion `nachziehen()` (`ansicht.ts`) mit 1-px-Toleranz und eigenem Test |
+| U10 | 15 | Das Flyin ohne Maske lag über der rechtsbündigen Kopfleiste (Rückgängig, Drucken, Speicherstatus) und über „Neu laden"/„Meine Fassung behalten" — die e2e für Konflikt und Drucken kamen nicht an die Knöpfe | Ab 768 px hält `.kp-editor[data-flyin]` die Flyin-Breite als `padding-inline-end` frei (`--kp-flyin-breite` aus `flyinBreite()`); `flyinGrund` der Fläche bleibt als Sicherung und wird dadurch ≈ 0. Am Telefon unverändert (Entscheidung 13) |
+| U11 | 15 | Eimer nach Testzeit: letzter grüner `main`-Lauf 36558907117, Spanne je Eimer 168/166/175/170/386/164/163/162 s; `kommplan.spec.ts` lokal 9 s (eimer-2 → 175 s), `kommplan-editor.spec.ts` lokal 60 s | `kommplan-editor.spec.ts` in eimer-8 (162 s) |
+| U12 | 16 | Sichtprüfung: `.kp-betrachter svg { width: 100%; height: 100% }` traf auch das Symbol im seitlichen „+" — Plus und Symbol standen untereinander | Regel nur für `.kp-betrachter > svg`; Inhalt des Griffs in `.kp-griff-inhalt` (inline-flex) |
+| U13 | 16 | Sichtprüfung: lange Zeichentitel („Einsatzabschnittsleitung") liefen im Flyin über den Knopfrand | `overflow-wrap: anywhere; hyphens: auto` am Titel im Zeichenknopf |
+| U14 | 16 | Fototest: am Telefon decken die Griffe der gewählten Karte Nachbarkarten ab, der Klick auf die äußere Karte traf den Griff; das Foto „neu" entstand mitten in der Einblendung der Schublade | vor dem Klick auf die äußere Karte abwählen (Esc) — ein echter Bedienweg; vor dem Foto `toBeInViewport({ ratio: 1 })`. Zusätzlich ein Foto „hinweis" (Hinweis nach Entf im leeren Plan, Punkt 7 der Prüfliste) — 48 statt 42 Fotos |
+
+Sichtprüfung am 30.09.2026, 48 Fotos (8 Ansichten × 3 Breiten × 2 Modi) nach U12–U14 erneut angesehen: ohne weiteren Befund. Bewusst hingenommen: die Griffleiste und die seitlichen „+" liegen über Nachbarkarten und Einheiten (Überlagerung, Entscheidung 5); am Telefon ist die Zeichnung bei offenem Flyin fast ganz verdeckt (Entscheidung 13).
