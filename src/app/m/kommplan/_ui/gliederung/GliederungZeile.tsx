@@ -96,7 +96,6 @@ function ZeileInnen(p: ZeilenProps) {
   return (
     <li data-zeile={id} className="kp-g-zeile" aria-current={p.gewaehlt ? "true" : undefined} style={{ "--ebene": zeile.ebene } as CSSProperties}>
       <div className="kp-g-haupt">
-        {zeile.seite ? <span className="kp-chip" data-seite={zeile.seite}>{`Seitenstelle ${zeile.seite}`}</span> : null}
         <ZeichenKnopf stelle={s} index={p.zeichenIndex} symbole={p.symbole} ladeSymbole={(k) => befehle.current!.ladeSymbole(k)}
           planZeichen={p.planZeichen === "" ? [] : p.planZeichen.split("\n")} aendere={aendere} tabIndex={tab}
           offen={p.offenBei === "zeichen"} onOffen={(o) => befehle.current!.offen(id, "zeichen", o)} onFertig={() => befehle.current!.fertig(id, "zeichen")}
@@ -106,6 +105,8 @@ function ZeileInnen(p: ZeilenProps) {
           onFocus={() => befehle.current!.fokus(id)} onBlur={(e) => befehle.current!.verlassen(e, id)}
           onChange={(e) => befehle.current!.titel(id, e.target.value)} onKeyDown={(e) => befehle.current!.taste(e, zeile)}
           onPaste={(e) => befehle.current!.einfuegen(e, id)} />
+        {/* Nach dem Titel, damit Zeichen und Titel mit den Geschwistern fluchten; am Telefon eine eigene Zeile darüber (CSS). */}
+        {zeile.seite ? <span className="kp-g-lage"><span className="kp-chip" data-seite={zeile.seite}>{`Seitenstelle ${zeile.seite}`}</span></span> : null}
         <div className="kp-g-neben">
           <VerbindungFeld inhalt={p.inhalt} stelle={s} aendere={(op, k) => befehle.current!.aendereVerbindung(id)(op, k)} aktiv={p.aktiv}
             offen={p.offenBei === "verbindung"} onOffen={(o) => befehle.current!.offen(id, "verbindung", o)} onFertig={() => befehle.current!.fertig(id, "verbindung")}

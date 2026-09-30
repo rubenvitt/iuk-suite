@@ -60,6 +60,14 @@ describe("kommplan.css", () => {
     const breit = /@media \(min-width: 768px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(breit).toMatch(/\.kp-editor\[data-editoransicht="auto"\] \.kp-ansicht-gliederung,\s*\.kp-editor \.kp-nur-schmal \{ display: none; \}/);
   });
+  it("leerer Zeichenplatz der Gliederung ist kein weißer Block im Dunkeln — nur ein gezeichnetes Zeichen ist Papier (Sichtprüfung Phase 3)", () => {
+    expect(css).toMatch(/\.kp-g-zeichen svg \{[^}]*background: #ffffff/);
+    expect(css).toMatch(/\.kp-g-zeichen-leer \{[^}]*background: transparent/);
+  });
+  it("Seitenstellen-Chip der Gliederung: am Telefon eine eigene Zeile über Zeichen und Titel (Sichtprüfung Phase 3)", () => {
+    const zweig = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(zweig).toMatch(/\.kp-g-lage \{ flex-basis: 100%; order: -1; \}/);
+  });
 });
 
 /** Kontrastverhältnis nach WCAG 2.x (relative Leuchtdichte). */

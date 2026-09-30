@@ -145,8 +145,9 @@
   border: 1px solid var(--kp-rand); border-radius: 8px; background: var(--kp-flaeche); color: inherit;
 }
 .kp-g-zeichen:focus-visible { outline: 2px solid var(--kp-auswahl); outline-offset: 2px; }
-.kp-g-zeichen svg, .kp-g-zeichen-leer { width: 32px; height: 32px; background: #ffffff; border-radius: 4px; }
-.kp-g-zeichen-leer { border: 1px dashed var(--kp-gedaempft); }
+.kp-g-zeichen svg { width: 32px; height: 32px; background: #ffffff; border-radius: 4px; }
+/* Ohne Zeichen kein Papier: ein weißer Block läse sich im Dunkeln wie ein leeres Zeichen (Sichtprüfung Phase 3). */
+.kp-g-zeichen-leer { width: 32px; height: 32px; border-radius: 4px; border: 1px dashed var(--kp-gedaempft); background: transparent; }
 .kp-g-zeichenwahl { width: min(360px, 84vw); }
 .kp-g-haupt .kp-g-verbindung { min-width: 12rem; }
 /* Verbindung nicht aktiver Zeilen: schlichter Textknopf statt Select (Entscheidung 15) — 44 px Ziel, liest sich wie das Feld. */
@@ -171,6 +172,7 @@
   .kp-editor div:has(> .kp-kopfwerkzeuge) { flex: 1 1 100%; }
   .kp-g-zeile { padding-inline-start: calc(min(var(--ebene), 6) * 16px); }
   .kp-g-zeile:not([aria-current="true"]) .kp-g-neben { display: none; }
+  .kp-g-lage { flex-basis: 100%; order: -1; }
   .kp-editor[data-editoransicht="auto"] .kp-ansicht-diagramm,
   .kp-editor .kp-nur-breit { display: none; }
 }

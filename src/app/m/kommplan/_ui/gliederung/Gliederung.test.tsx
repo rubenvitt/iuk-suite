@@ -78,6 +78,9 @@ describe("Gliederung (Spec §6.5)", () => {
     expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
     expect(ebenen()).toEqual(["0", "1", "1", "1"]);
     expect(query('[data-zeile="kat"] [data-seite="links"]').textContent).toBe("Seitenstelle links");
+    // Zeichen und Titel stehen bündig mit den Geschwistern: der Chip folgt dem Titel (Sichtprüfung Phase 3)
+    const teile = [...query('[data-zeile="kat"] .kp-g-haupt').children].map((e) => (e.matches(".kp-g-lage") ? "lage" : e.matches(".kp-g-titel") ? "titel" : e.matches(".kp-g-zeichen") ? "zeichen" : "anderes"));
+    expect(teile.slice(0, 3)).toEqual(["zeichen", "titel", "lage"]);
     expect(feld("kat").getAttribute("aria-label")).toBe("Titel, Ebene 2, Seitenstelle links von EL");
     await fokus("ea1");
     expect(query('[data-zeile="ea1"]').getAttribute("aria-current")).toBe("true");
