@@ -1,5 +1,5 @@
 import { anzeigereihenfolge } from "../layout/gruppen";
-import { baueBaum, nachkommen } from "./baum";
+import { baueBaum, nachkommen, tiefensuche } from "./baum";
 import { planInhaltSchema, type Lage, type PlanInhalt, type PlanOptionen, type Stelle, type Verbindung } from "./schema";
 
 /**
@@ -20,7 +20,7 @@ export function leererPlan(): PlanInhalt {
   };
 }
 
-function gueltig(roh: PlanInhalt): PlanInhalt {
+export function gueltig(roh: PlanInhalt): PlanInhalt {
   const r = planInhaltSchema.safeParse(roh);
   if (!r.success) throw new PlanFehler(r.error.issues.map((i) => i.message).join("; "));
   return r.data;
@@ -103,4 +103,32 @@ export function loescheStelle(inhalt: PlanInhalt, id: string): { inhalt: PlanInh
 
 export function setzeOptionen(inhalt: PlanInhalt, aenderung: Partial<Pick<PlanOptionen, "leerzeilen" | "vermerkVsNfD">>): PlanInhalt {
   return gueltig({ ...inhalt, optionen: { ...inhalt.optionen, ...aenderung } });
+}
+
+/** Ziele für „Untersteht": keine Seitenstelle (trägt nichts), nicht die Stelle selbst, keiner ihrer Nachkommen. */
+export function moeglicheEltern(inhalt: PlanInhalt, id: string): Stelle[] {
+  const baum = baueBaum(inhalt);
+  const aus = new Set([id, ...nachkommen(baum, id).map((s) => s.id)]);
+  return tiefensuche(baum).filter((s) => s.lage === "unter" && !aus.has(s.id));
+}
+
+export function haengeUm(inhalt: PlanInhalt, id: string, ziel: { eltern: string | null; lage: Lage }): PlanInhalt {
+  const s = stelleOder(inhalt, id);
+  if (s.eltern === ziel.eltern && s.lage === ziel.lage) return inhalt;
+  if (ziel.eltern === null && ziel.lage !== "unter") throw new PlanFehler("Eine Seitenstelle braucht eine Elternstelle.");
+  const baum = baueBaum(inhalt);
+  if (ziel.eltern !== null) {
+    const eltern = stelleOder(inhalt, ziel.eltern);
+    if (ziel.eltern === id || nachkommen(baum, id).some((n) => n.id === ziel.eltern)) {
+      throw new PlanFehler("Eine Stelle kann nicht unter sich selbst oder einer eigenen Unterstelle stehen.");
+    }
+    if (eltern.lage !== "unter") throw new PlanFehler("Eine Seitenstelle trägt keine Unterstellen.");
+  }
+  if (ziel.lage !== "unter" && nachkommen(baum, id).length > 0) {
+    throw new PlanFehler("Eine Stelle mit Unter- oder Seitenstellen kann nicht seitlich stehen.");
+  }
+  const reihenfolge = naechsteReihenfolge(inhalt, ziel.eltern, ziel.lage);
+  // Oberste Ebene: kein Weg nach oben — eine stehengebliebene verbindungId zählte sonst als Nutzung (Review Focus 4).
+  const verbindungId = ziel.eltern === null ? null : s.verbindungId;
+  return gueltig({ ...inhalt, stellen: inhalt.stellen.map((x) => (x.id === id ? { ...x, eltern: ziel.eltern, lage: ziel.lage, reihenfolge, verbindungId } : x)) });
 }

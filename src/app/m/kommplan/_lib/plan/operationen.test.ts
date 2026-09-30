@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import {
-  PlanFehler, aendereStelle, fuegeSeitenstelleEin, fuegeStelleEin, fuegeUnterstelleEin, fuegeVerbindungEin, fuegeWurzelEin,
-  leererPlan, loescheStelle, naechsteReihenfolge, setzeOptionen, stelleOder,
+  PlanFehler, aendereStelle, fuegeSeitenstelleEin, fuegeStelleEin, fuegeUnterstelleEin, fuegeVerbindungEin, fuegeWurzelEin, haengeUm,
+  leererPlan, loescheStelle, moeglicheEltern, naechsteReihenfolge, setzeOptionen, stelleOder,
 } from "./operationen";
 import { LAENGE } from "./schema";
 
@@ -111,5 +111,39 @@ describe("Stellen ändern und löschen", () => {
     aendereStelle(vorher, "a", { titel: "X" });
     loescheStelle(vorher, "b");
     expect(vorher).toEqual(kopie);
+  });
+});
+
+describe("Umhängen (Spec §6.4 „Untersteht / Lage“)", () => {
+  it("bietet keine Ziele an, die einen Zyklus bildeten, und keine Seitenstellen", () => {
+    expect(moeglicheEltern(plan(), "b").map((s) => s.id)).toEqual(["el", "a"]);
+    expect(moeglicheEltern(plan(), "a").map((s) => s.id)).toEqual(["el", "b", "b1"]);
+  });
+  it("hängt eine Stelle samt Teilbaum um und setzt sie ans Ende der neuen Geschwister", () => {
+    const p = haengeUm(plan(), "b", { eltern: "a", lage: "unter" });
+    expect(stelleOder(p, "b")).toMatchObject({ eltern: "a", lage: "unter", reihenfolge: 0, verbindungId: "v1" });
+    expect(stelleOder(p, "b1").eltern).toBe("b");
+  });
+  it("unter sich selbst oder einen eigenen Nachkommen: abgewiesen", () => {
+    expect(() => haengeUm(plan(), "b", { eltern: "b", lage: "unter" })).toThrow("Eine Stelle kann nicht unter sich selbst oder einer eigenen Unterstelle stehen.");
+    expect(() => haengeUm(plan(), "b", { eltern: "b1", lage: "unter" })).toThrow("Eine Stelle kann nicht unter sich selbst oder einer eigenen Unterstelle stehen.");
+  });
+  it("eine Stelle mit Unter- oder Seitenstellen kann nicht seitlich stehen", () => {
+    expect(() => haengeUm(plan(), "b", { eltern: "el", lage: "rechts" })).toThrow("Eine Stelle mit Unter- oder Seitenstellen kann nicht seitlich stehen.");
+    const p = haengeUm(plan(), "a", { eltern: "el", lage: "rechts" });
+    expect(stelleOder(p, "a")).toMatchObject({ eltern: "el", lage: "rechts" });
+  });
+  it("seitlich braucht eine Elternstelle; oberste Ebene heißt immer unter und hat keinen Weg nach oben", () => {
+    expect(() => haengeUm(plan(), "a", { eltern: null, lage: "links" })).toThrow("Eine Seitenstelle braucht eine Elternstelle.");
+    const p = haengeUm(plan(), "a", { eltern: null, lage: "unter" });
+    // Die verbindungId einer Wurzel ist kein Weg (legende()); stehen bliebe sie als unsichtbare Nutzung.
+    expect(stelleOder(p, "a")).toMatchObject({ eltern: null, lage: "unter", reihenfolge: 1, verbindungId: null });
+  });
+  it("unter eine Seitenstelle: abgewiesen", () => {
+    expect(() => haengeUm(plan(), "a", { eltern: "bs", lage: "unter" })).toThrow("Eine Seitenstelle trägt keine Unterstellen.");
+  });
+  it("gleiches Ziel wie bisher: unverändert, Reihenfolge bleibt", () => {
+    const vorher = plan();
+    expect(haengeUm(vorher, "a", { eltern: "el", lage: "unter" })).toBe(vorher);
   });
 });
