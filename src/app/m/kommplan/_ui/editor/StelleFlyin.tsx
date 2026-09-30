@@ -8,7 +8,10 @@ import { LAENGE, type PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
+import { EinheitenListe } from "./EinheitenListe";
 import { KontaktZeilen } from "./KontaktZeilen";
+import { StellenLage } from "./StellenLage";
+import { VerbindungWahl } from "./VerbindungWahl";
 import { ZeichenWahl } from "./ZeichenWahl";
 
 export interface StelleFormularProps {
@@ -72,9 +75,11 @@ export function StelleFormular(p: StelleFormularProps) {
           planZeichen={planZeichen} onWahl={(k) => setze({ zeichen: k })} />
       </fieldset>
 
-      <KontaktZeilen key={s.id} kontakte={s.kontakte} onAendere={(neu, sch) => setze({ kontakte: neu }, sch ? `${sch}:${s.id}` : undefined)} />
+      <KontaktZeilen key={`kontakte:${s.id}`} kontakte={s.kontakte} onAendere={(neu, sch) => setze({ kontakte: neu }, sch ? `${sch}:${s.id}` : undefined)} />
 
-      {/* TASK-12-EINFUEGESTELLE: Untersteht/Lage, Verbindung, Kanäle, Einheiten */}
+      <StellenLage key={`lage:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} />
+      <VerbindungWahl key={`verbindung:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} />
+      <EinheitenListe key={`einheiten:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} fokus={fokus} />
 
       <div className="kp-formular-knoepfe">
         <Button danger onClick={p.onLoeschen}>Stelle löschen</Button>

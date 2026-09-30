@@ -14,9 +14,12 @@ const INDEX = [
   { schluessel: "zusatz:eal", titel: "Einsatzabschnittsleitung", suchtext: "eal" },
 ];
 const START = baue({
+  verbindungen: [{ id: "v1", art: "tmo", bezeichnung: "R_UE_2" }],
   stellen: [
     { id: "el", titel: "EL" },
-    { id: "a", titel: "EA 1", eltern: "el", kontakte: { email: "ea1@drk.de", funkrufname: "RK UE 40-00" } },
+    { id: "a", titel: "EA 1", eltern: "el", verbindung: "v1", kontakte: { email: "ea1@drk.de", funkrufname: "RK UE 40-00" }, einheiten: ["RTW RK 1"] },
+    { id: "b", titel: "EA 2", eltern: "el" },
+    { id: "b1", titel: "Trupp", eltern: "b" },
   ],
 });
 
@@ -27,13 +30,15 @@ const fertig = vi.fn();
 // Modulweit, nicht als Vorgabe im Parameter: ein neues Objekt je Rendern löste die Fokus-Effekte bei jeder Eingabe aus.
 const FOKUS0 = { ziel: "titel" as const, stelle: "a", n: 0 };
 const REF0 = createRef<InputRef>();
-function Rahmen({ fokus = FOKUS0, titelRef = REF0 }: { fokus?: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef?: RefObject<InputRef | null> }) {
-  const [inhalt, setInhalt] = useState(START);
+function Rahmen({ start = START, stelleId = "a", fokus = FOKUS0, titelRef = REF0 }: {
+  start?: PlanInhalt; stelleId?: string; fokus?: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef?: RefObject<InputRef | null>;
+}) {
+  const [inhalt, setInhalt] = useState(start);
   const aendere: Aendere = (op) => {
     try { const neu = op(inhalt); setInhalt(neu); stand = neu; return null; }
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
-  return <StelleFormular inhalt={inhalt} stelleId="a" aendere={aendere} symbole={{}} zeichenIndex={INDEX} ladeSymbole={lade}
+  return <StelleFormular inhalt={inhalt} stelleId={stelleId} aendere={aendere} symbole={{}} zeichenIndex={INDEX} ladeSymbole={lade}
     fokus={fokus} titelRef={titelRef} onLoeschen={loesche} onFertig={fertig} />;
 }
 const stelle = () => stand.stellen.find((s) => s.id === "a")!;
@@ -120,5 +125,108 @@ describe("Flyin einer Stelle (Spec §6.4)", () => {
     (document.activeElement as HTMLElement | null)?.blur();
     await rerender(<Rahmen titelRef={titelRef} fokus={{ ziel: "titel", stelle: "a", n: 1 }} />);
     expect(document.activeElement).toBe(query('input[name="titel"]'));
+  });
+});
+
+describe("Flyin einer Stelle, Teil 2", () => {
+  const radio = (text: string) => queryAll<HTMLInputElement>('input[type="radio"]').find((r) => r.closest("label")?.textContent === text)!;
+  it("Lage: seitlich geht nur ohne Unter- und Seitenstellen, oberste Ebene steht immer darunter (Review Focus 3)", async () => {
+    await mount(<Rahmen stelleId="b" />);
+    expect(radio("links daneben").disabled).toBe(true);
+    expect(document.body.textContent).toContain("Eine Stelle mit Unter- oder Seitenstellen kann nicht seitlich stehen.");
+    await unmount();
+    await mount(<Rahmen stelleId="a" />);
+    await clickElement(radio("rechts daneben"));
+    expect(stelle()).toMatchObject({ eltern: "el", lage: "rechts" });
+    await unmount();
+    await mount(<Rahmen stelleId="el" />);
+    expect(radio("links daneben").disabled).toBe(true);
+    expect(document.body.textContent).toContain("Eine Stelle der obersten Ebene steht immer darunter.");
+  });
+  it("neue Verbindung eintippen: Bezeichnung + Art legt sie an und verbindet; eine gleichnamige wird wiederverwendet", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Neue Verbindung"));
+    await fill('input[aria-label="Bezeichnung der neuen Verbindung"]', "R_UE_3");
+    await clickElement(knopf("Anlegen und verbinden"));
+    const neu = stand.verbindungen.find((v) => v.bezeichnung === "R_UE_3")!;
+    expect(neu.art).toBe("tmo");
+    expect(stelle().verbindungId).toBe(neu.id);
+    await clickElement(knopf("Neue Verbindung"));
+    await fill('input[aria-label="Bezeichnung der neuen Verbindung"]', " r_ue_2 ");
+    await clickElement(knopf("Anlegen und verbinden"));
+    expect(stand.verbindungen).toHaveLength(2);
+    expect(stelle().verbindungId).toBe("v1");
+  });
+  it("neue Verbindung per Tastatur: Fokus im Feld, Enter legt an; die Art ist die zuletzt angelegte", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Neue Verbindung"));
+    const feld = query<HTMLInputElement>('input[aria-label="Bezeichnung der neuen Verbindung"]');
+    expect(document.activeElement).toBe(feld);
+    await fill('input[aria-label="Bezeichnung der neuen Verbindung"]', "R_UE_4");
+    await druecke(feld, "Enter");
+    expect(stand.verbindungen.at(-1)).toMatchObject({ bezeichnung: "R_UE_4", art: "tmo" }); // wie v1, die letzte
+    expect(stelle().verbindungId).toBe(stand.verbindungen.at(-1)!.id);
+  });
+  it("Wechsel der Stelle bei offenem Flyin: offene Liste, Entwurf und Fehler der vorigen Stelle sind weg (Review Focus 7)", async () => {
+    await mount(<Rahmen stelleId="a" />);
+    await clickElement(knopf("Liste einfügen"));
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', `KTW ${"R".repeat(81)}`);
+    await clickElement(knopf("Übernehmen"));
+    expect(document.body.textContent).toContain("Zeile 1: Der Rufname ist länger als 80 Zeichen.");
+    await clickElement(knopf("Neue Verbindung"));
+    await rerender(<Rahmen stelleId="b" />);
+    expect(queryAll("textarea")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain("Zeile 1: Der Rufname");
+    expect(queryAll('input[aria-label="Bezeichnung der neuen Verbindung"]')).toHaveLength(0);
+  });
+  it("eine „+ Einheit“-Anfrage für a zieht nach dem Wechsel zu b den Fokus nicht in b's Typ-Feld", async () => {
+    const mitEinheit = baue({ stellen: [{ id: "el", titel: "EL" }, { id: "a", titel: "A", eltern: "el", einheiten: ["RTW 1"] }, { id: "b", titel: "B", eltern: "el", einheiten: ["KTW 2"] }] });
+    const anfrage = { ziel: "einheit" as const, stelle: "a", n: 1 };
+    await mount(<Rahmen start={mitEinheit} stelleId="a" fokus={anfrage} />);
+    expect(document.activeElement).toBe(query('input[aria-label="Einheit 1: Typ"]'));
+    (document.activeElement as HTMLElement).blur();
+    await rerender(<Rahmen start={mitEinheit} stelleId="b" fokus={anfrage} />);
+    expect(document.activeElement).not.toBe(query('input[aria-label="Einheit 1: Typ"]'));
+  });
+  it("Einheiten: einzeln anlegen (Fokus im Typ), ändern, entfernen", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("+ Einheit"));
+    expect(stelle().einheiten).toHaveLength(2);
+    const typ = queryAll<HTMLInputElement>('input[aria-label$=": Typ"]').at(-1)!;
+    expect(document.activeElement).toBe(typ);
+    await fill(`input[aria-label="${typ.getAttribute("aria-label")}"]`, "KTW");
+    expect(stelle().einheiten[1].typ).toBe("KTW");
+    await clickElement(queryAll('button[aria-label$="entfernen"]').filter((b) => b.getAttribute("aria-label")!.startsWith("Einheit")).at(0)!);
+    expect(stelle().einheiten.map((e) => e.typ)).toEqual(["KTW"]);
+  });
+  it("Liste einfügen: je Zeile erstes Wort Typ, Rest Rufname", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Liste einfügen"));
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', "KTW RK UE 40-92-1\n\nMTW RK UE 40-17-1");
+    await clickElement(knopf("Übernehmen"));
+    expect(stelle().einheiten.map((e) => [e.typ, e.rufname])).toEqual([["RTW", "RK 1"], ["KTW", "RK UE 40-92-1"], ["MTW", "RK UE 40-17-1"]]);
+    expect(queryAll("textarea")).toHaveLength(0);
+  });
+  it("Liste einfügen per Tastatur: Fokus in der Textarea, Strg/Cmd+Enter übernimmt, danach Fokus auf „Liste einfügen“", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Liste einfügen"));
+    const ta = query<HTMLTextAreaElement>('textarea[aria-label="Einheiten, je Zeile eine"]');
+    expect(document.activeElement).toBe(ta);
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', "KTW RK 2");
+    await act(async () => { ta.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true })); });
+    expect(stelle().einheiten.map((e) => e.typ)).toEqual(["RTW", "KTW"]);
+    expect(document.activeElement).toBe(knopf("Liste einfügen"));
+  });
+  it("Liste einfügen mit Fehlern oder über 60: nichts übernommen, Hinweis bleibt am Feld (Review Focus 2)", async () => {
+    await mount(<Rahmen />);
+    await clickElement(knopf("Liste einfügen"));
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', `KTW ${"R".repeat(81)}`);
+    await clickElement(knopf("Übernehmen"));
+    expect(document.body.textContent).toContain("Zeile 1: Der Rufname ist länger als 80 Zeichen.");
+    expect(stelle().einheiten).toHaveLength(1);
+    await fill('textarea[aria-label="Einheiten, je Zeile eine"]', Array.from({ length: 60 }, (_, i) => `RTW ${i}`).join("\n"));
+    await clickElement(knopf("Übernehmen"));
+    expect(document.body.textContent).toContain("Höchstens 60 Einheiten je Stelle — hier wären es 61.");
+    expect(stelle().einheiten).toHaveLength(1);
   });
 });
