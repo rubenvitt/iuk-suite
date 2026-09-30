@@ -148,7 +148,10 @@ export function Gliederung(p: GliederungProps) {
     const zurueck: FokusZiel = zeiger.current ? "aktionen" : "titel"; // Entscheidung 16
     setMenueOffen(null);
     switch (a) {
-      case "details": p.onDetails(id); return;
+      // Erst nach dem Schließen des Menüs: rc-portal führt Esc nur an das OBERSTE offene Portal, und das
+      // Menü meldet sich während seiner Schließ-Animation dort neu an — Esc im frisch geöffneten Flyin
+      // schlösse sonst das Menü statt des Flyins (e2e Telefon, Phase 3).
+      case "details": requestAnimationFrame(() => p.onDetails(id)); return;
       case "loeschen": p.onLoeschen(id); return;
       case "neu": lege((q, n) => fuegeGeschwisterEin(q, id, n)); return; // anlegen: Fokus in den neuen Titel
       case "unterstelle": lege((q, n) => fuegeUnterstelleEin(q, id, n)); return;
