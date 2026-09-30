@@ -79,4 +79,11 @@ describe("Fläche", () => {
     await act(async () => { zeiger(query(".kp-betrachter"), "pointerdown", 5, 5); });
     expect(fang).toHaveBeenCalledTimes(1);
   });
+  it("defs={false}: die Fläche bringt keinen eigenen Symbolvorrat mit (der Editor hält ihn, Phase 3, Entscheidung 17)", async () => {
+    await zeige({ defs: false });
+    expect(exists("symbol")).toBe(false);
+    await unmount();
+    await zeige();
+    expect(exists("symbol")).toBe(true);
+  });
 });

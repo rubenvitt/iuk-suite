@@ -38,7 +38,7 @@ const SICHTRAND = { oben: 24, seite: 24, unten: 24 };
 
 export function Flaeche({
   daten, symbole, titel, schrift, bedienhinweis, leer, zusatz, ueberlagerung, meldung, onTaste, onKarteKlick,
-  gleitend = false, linienSchluessel, griff, werkzeuge, maxMassstab = GRENZEN.max, platzSeite, platzUnten, flyinGrund = null,
+  gleitend = false, linienSchluessel, griff, werkzeuge, maxMassstab = GRENZEN.max, platzSeite, platzUnten, flyinGrund = null, defs = true,
 }: {
   daten: Zeichnungsdaten; symbole: Symbolsatz; titel: string; schrift: string; bedienhinweis: string; leer: ReactNode;
   zusatz?: (k: KarteL) => ReactNode; ueberlagerung?: (a: Ansicht, flaeche: { breite: number; hoehe: number }) => ReactNode;
@@ -46,6 +46,8 @@ export function Flaeche({
   onTaste?: (e: KeyboardEvent<HTMLDivElement>) => boolean; onKarteKlick?: (id: string | null, doppelt: boolean) => void;
   gleitend?: boolean; linienSchluessel?: string; griff?: Ref<FlaecheGriff>; werkzeuge?: ReactNode;
   maxMassstab?: number; platzSeite?: number; platzUnten?: number; flyinGrund?: number | null;
+  /** Eigener Symbolvorrat (Vorgabe). Der Editor hält ihn selbst, einmal für alle Ansichten (Phase 3, Entscheidung 17). */
+  defs?: boolean;
 }) {
   const flaeche = useRef<HTMLDivElement>(null);
   // Größe, linke Kante und Fensterbreite aus dem ResizeObserver-Rückruf (kein Messen im Rendern).
@@ -177,9 +179,11 @@ export function Flaeche({
   const transform = `translate(${a.x} ${a.y}) scale(${a.massstab})`;
   return (
     <div>
-      <svg aria-hidden="true" width={0} height={0} style={{ position: "absolute" }}>
-        <SymbolDefs symbole={symbole} />
-      </svg>
+      {defs ? (
+        <svg aria-hidden="true" width={0} height={0} style={{ position: "absolute" }}>
+          <SymbolDefs symbole={symbole} />
+        </svg>
+      ) : null}
       <div className="kp-werkzeuge">
         <Button onClick={() => zoomUmMitte(1 / SCHRITT)} aria-label="Verkleinern">−</Button>
         <Button onClick={() => zoomUmMitte(SCHRITT)} aria-label="Vergrößern">+</Button>

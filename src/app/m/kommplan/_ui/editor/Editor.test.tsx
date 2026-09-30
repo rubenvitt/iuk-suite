@@ -424,4 +424,11 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
     expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(1);
   });
+  it("Symbolvorrat genau einmal im Dokument, direkt unter dem Editor — nie in einer Ansicht (Phase 3, Entscheidung 17)", async () => {
+    await zeige();
+    const ids = [...document.querySelectorAll("symbol")].map((s) => s.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(query(".kp-symbolvorrat").parentElement!.classList.contains("kp-editor")).toBe(true);
+  });
 });

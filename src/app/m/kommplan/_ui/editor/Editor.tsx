@@ -17,7 +17,7 @@ import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { Flaeche, type FlaecheGriff } from "../betrachter/Flaeche";
 import { Legende } from "../betrachter/Legende";
 import { Umschalter } from "../betrachter/EinklappKnopf";
-import type { Symbolsatz } from "../zeichnung/Symbole";
+import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
 import { Griffe } from "./Griffe";
 import { neueId } from "./ids";
@@ -368,6 +368,11 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
 
   return (
     <div ref={wurzel} className="kp-editor" data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
+      {/* Der Symbolvorrat EINMAL für Zeichnung, Flyin und Gliederung, außerhalb jeder Ansicht (Phase 3,
+          Entscheidung 17): eine verborgene Ansicht verbärge sonst die Vorschauen, zwei Vorräte gäben doppelte IDs (M11). */}
+      <svg className="kp-symbolvorrat" aria-hidden="true" focusable="false" width={0} height={0} style={{ position: "absolute" }}>
+        <SymbolDefs symbole={symbole} />
+      </svg>
       <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
         kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)}
         onRueck={() => perKnopf(rueck)} onWieder={() => perKnopf(wieder)}
@@ -375,7 +380,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         onNeuLaden={neuLaden} onBehalten={behalten} />
       <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
         griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
-        flyinGrund={flyinGrund}
+        flyinGrund={flyinGrund} defs={false}
         zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
         onKarteKlick={klick} onTaste={taste} meldung={meldung}
         ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
