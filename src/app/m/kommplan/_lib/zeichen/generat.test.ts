@@ -5,6 +5,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ARIMO_TEXT_METRICS, RECIPES, TEXT_FONT_BOLD_SHA256, TEXT_FONT_SHA256 } from "@einsatzzeichen/catalog";
+import { SECHSECK } from "../layout/masse";
+import { VERBINDUNG_PIKTOGRAMM } from "./grundlagen";
 import zeichen from "./zeichen.generiert.json";
 import grundlagen from "./grundlagen.generiert.json";
 
@@ -64,6 +66,33 @@ describe("kommplan-Generat", () => {
     ]) {
       expect(e.inhalt).not.toMatch(/font-family|<title|<desc/);
     }
+  });
+
+  it("Verbindungs-Piktogramme zeichnen im Sechseck mit mindestens 0,18 mm Strich (Draht war 0,07 mm)", () => {
+    const pikto = grundlagen.piktogramme as Record<string, { viewBox: string; inhalt: string }>;
+    for (const id of new Set(Object.values(VERBINDUNG_PIKTOGRAMM))) {
+      const [, , w, h] = pikto[id].viewBox.split(/\s+/).map(Number);
+      const s = Math.min(SECHSECK.piktoBreite / w, SECHSECK.piktoHoehe / h);
+      for (const m of pikto[id].inhalt.matchAll(/<[^>]*\bstroke-width="([\d.]+)"[^>]*>/g)) {
+        const skala = Number(/transform="scale\(([\d.]+)\)"/.exec(m[0])?.[1] ?? 1);
+        expect(Number(m[1]) * skala * s, `${id}: ${m[0].slice(0, 60)}`).toBeGreaterThanOrEqual(0.18 - 1e-6);
+      }
+    }
+  });
+
+  it("große Kürzel (EL, UEAL, KatSL …) lassen im Führungszeichen Luft zum Rahmen", () => {
+    const breite = (text: string, groesse: number) =>
+      [...text].reduce((summe, c) => summe + (ARIMO_TEXT_METRICS.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
+    let gezaehlt = 0;
+    for (const [k, e] of Object.entries(zeichen.zeichen as Record<string, { inhalt: string }>)) {
+      for (const m of e.inhalt.matchAll(/<text\b[^>]*\bfont-size="([\d.]+)"[^>]*>([^<]*)<\/text>/g)) {
+        if (Number(m[1]) < 25) continue;
+        gezaehlt++;
+        expect(breite(m[2], Number(m[1])), `${k} „${m[2]}"`).toBeLessThanOrEqual(72.01); // Schriftgröße auf 0,001 gerundet
+      }
+    }
+    expect(gezaehlt).toBeGreaterThan(5);
+    expect((zeichen.zeichen as Record<string, { inhalt: string }>)["rezept:D.1.2"].inhalt).toContain(">KatSL<");
   });
 
   it("die kopierten Schriften sind die des Katalogs", () => {

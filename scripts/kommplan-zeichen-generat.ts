@@ -26,6 +26,7 @@ import {
   composeFromCatalog,
 } from "@einsatzzeichen/catalog";
 import { renderSvg } from "@einsatzzeichen/core";
+import { SECHSECK } from "../src/app/m/kommplan/_lib/layout/masse";
 
 const STANDARD_ZIEL = "src/app/m/kommplan/_lib/zeichen";
 const FONT_ZIEL = "src/app/m/kommplan/_fonts";
@@ -80,6 +81,25 @@ const praefix = (roh: string) => `kpz-${roh.replace(/[^A-Za-z0-9]/g, "-")}`;
 type Spec = Parameters<typeof composeFromCatalog>[0];
 type Zeichnung = Parameters<typeof renderSvg>[0];
 
+/** Breite des Kürzels in Einheiten der viewBox, gemessen mit Arimo wie beim Zeichnen. */
+const kuerzelBreite = (text: string, groesse: number) =>
+  [...text].reduce((summe, c) => summe + (ARIMO_TEXT_METRICS.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
+/**
+ * Große Kürzel im Führungszeichen (Schrift ≥ 25 Einheiten, Körper 85 von 90,7 Einheiten breit)
+ * schrumpfen auf höchstens 72 Einheiten Breite: der Katalog setzt jedes Kürzel mit fester Größe,
+ * „KatSL" und „UEAL" stießen links und rechts an den Rahmen (Review Phase 1).
+ */
+const GROSSES_KUERZEL = 25;
+const KUERZEL_MAX = 72;
+function kuerzelMitLuft(svg: string): string {
+  return svg.replace(/<text\b([^>]*)\bfont-size="([\d.]+)"([^>]*)>([^<]*)<\/text>/g, (ganz, vor: string, g: string, nach: string, text: string) => {
+    const groesse = Number(g);
+    if (groesse < GROSSES_KUERZEL) return ganz;
+    const passend = Math.min(groesse, (groesse * KUERZEL_MAX) / Math.max(1e-9, kuerzelBreite(text, groesse)));
+    return passend === groesse ? ganz : `<text${vor}font-size="${runde(passend)}"${nach}>${text}</text>`;
+  });
+}
+
 // 1. Rezepte (ohne #alternative) und Zusatzzeichen.
 const zeichen: Record<string, Symbol & { titel: string; suchtext: string }> = {};
 for (const [abschnitt, rezept] of Object.entries(RECIPES)) {
@@ -88,7 +108,7 @@ for (const [abschnitt, rezept] of Object.entries(RECIPES)) {
   // Katalog 1.5.0 zeichnet mit seinem verschachtelten core 1.5.0, gerendert wird mit core 3.0.0 (Wurzel):
   // zur Laufzeit geprüft (Planungssitzung), die Typen der zwei Major-Stände passen nicht zusammen.
   const zeichnung = composeFromCatalog(rezept.spec as Spec, rezept.title) as unknown as Zeichnung;
-  const svg = renderSvg(zeichnung, { size: 64, idPrefix: praefix(abschnitt) });
+  const svg = kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix: praefix(abschnitt) }));
   zeichen[schluessel] = {
     titel: rezept.title,
     suchtext: `${rezept.title} ${abschnitt}`.toLocaleLowerCase("de-DE"),
@@ -109,9 +129,6 @@ const ZUSATZ = [
  */
 const VORLAGE_ZUSATZ = RECIPES["D.1.4"];
 if (!VORLAGE_ZUSATZ) throw new GeneratFehler("Rezept D.1.4 fehlt im Katalog");
-/** Breite des Kürzels in Einheiten der viewBox, gemessen mit Arimo wie beim Zeichnen. */
-const kuerzelBreite = (text: string, groesse: number) =>
-  [...text].reduce((summe, c) => summe + (ARIMO_TEXT_METRICS.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
 for (const z of ZUSATZ) {
   const svg = renderSvg(
     composeFromCatalog(VORLAGE_ZUSATZ.spec as Spec, z.titel) as unknown as Zeichnung,
@@ -120,12 +137,27 @@ for (const z of ZUSATZ) {
   const kuerzel = /<text\b([^>]*)\bfont-size="([\d.]+)"([^>]*)>EL<\/text>/g;
   const treffer = [...svg.matchAll(kuerzel)];
   if (treffer.length !== 1) throw new GeneratFehler(`D.1.4 trägt das Kürzel EL nicht genau einmal (${treffer.length})`);
-  const groesse = Number(treffer[0][2]);
-  // Innenbreite des Körpers (85 von 90,7 Einheiten) abzüglich Luft: längere Kürzel („Stab") schrumpfen.
-  const passend = Math.min(groesse, (groesse * 72) / Math.max(1e-9, kuerzelBreite(z.text, groesse)));
-  const ersetzt = svg.replace(kuerzel, (_, vor: string, _g: string, nach: string) =>
-    `<text${vor}font-size="${runde(passend)}"${nach}>${z.text}</text>`);
+  // Kürzel tauschen, dann wie jedes Rezept auf Luft zum Rahmen schrumpfen: längere Kürzel („Stab").
+  const ersetzt = kuerzelMitLuft(svg.replace(kuerzel, (_, vor: string, g: string, nach: string) =>
+    `<text${vor}font-size="${g}"${nach}>${z.text}</text>`));
   zeichen[z.schluessel] = { titel: z.titel, suchtext: `${z.titel} ${z.text}`.toLocaleLowerCase("de-DE"), ...zerlege(ersetzt, z.schluessel) };
+}
+
+/**
+ * MINDESTSTRICH im Sechseck: der Katalog zeichnet jedes Piktogramm mit 1,417 Einheiten Strich in
+ * seiner eigenen Box. Eingepasst in den Platz 7 × 4 mm wird ein hochformatiges Piktogramm (Draht,
+ * 51 × 79 Einheiten) so klein, dass der Strich 0,07 mm dünn und fast unsichtbar war, während TMO
+ * 0,2 mm trägt (Review Phase 1). Strichstärken werden deshalb so angehoben, dass jeder Strich im
+ * Sechseck mindestens `MINDESTSTRICH_MM` hat — Form und Maße bleiben.
+ */
+const MINDESTSTRICH_MM = 0.2;
+function mitMindeststrich(inhalt: string, breite: number, hoehe: number): string {
+  const s = Math.min(SECHSECK.piktoBreite / breite, SECHSECK.piktoHoehe / hoehe);
+  return inhalt.replace(/<[^>]*\bstroke-width="([\d.]+)"[^>]*>/g, (element, sw: string) => {
+    const skala = Number(/transform="scale\(([\d.]+)\)"/.exec(element)?.[1] ?? 1);
+    const mm = Number(sw) * skala * s;
+    return mm >= MINDESTSTRICH_MM ? element : element.replace(/\bstroke-width="[\d.]+"/, `stroke-width="${runde((Number(sw) * MINDESTSTRICH_MM) / mm)}"`);
+  });
 }
 
 // 2. Piktogramme: Katalog auf seine Box zugeschnitten, dazu fünf eigene für die Kontaktarten.
@@ -141,10 +173,8 @@ for (const id of KATALOG_PIKTOGRAMME) {
   const roh = zerlege(svg, id);
   const f = Number(roh.viewBox.split(/\s+/)[2]) / p.viewBox.width;
   if (!Number.isFinite(f) || f <= 0) throw new GeneratFehler(`${id}: unerwartete viewBox ${roh.viewBox}`);
-  piktogramme[id] = {
-    viewBox: [p.box.xMm, p.box.yMm, p.box.widthMm, p.box.heightMm].map((v) => runde(v * f)).join(" "),
-    inhalt: roh.inhalt,
-  };
+  const viewBox = [p.box.xMm, p.box.yMm, p.box.widthMm, p.box.heightMm].map((v) => runde(v * f));
+  piktogramme[id] = { viewBox: viewBox.join(" "), inhalt: mitMindeststrich(roh.inhalt, viewBox[2], viewBox[3]) };
 }
 const S = 'stroke="#000" stroke-width="1.5" fill="none"';
 const EIGENE: Record<string, string> = {
