@@ -19,8 +19,10 @@ export function legende(inhalt: PlanInhalt, sicht: Sicht): LegendenEintrag[] {
       if (kanal) gezeichnet.add(kanal.art);
     }
   }
-  // „Reserve" = weder Weg zur Elternstelle noch Kanal irgendeiner Stelle (Abweichung 12).
-  const benutzt = new Set(inhalt.stellen.flatMap((s) => [s.verbindungId, ...s.kanaele]).filter((x): x is string => x !== null));
+  // „Reserve" = weder Weg zur Elternstelle noch Kanal irgendeiner Stelle (Abweichung 12). Die
+  // verbindungId einer Wurzel des Plans ist kein Weg — sie hat keine Elternstelle, gezeichnet wird
+  // sie nie; ohne diese Ausnahme verschwände die Verbindung ganz aus der Legende.
+  const benutzt = new Set(inhalt.stellen.flatMap((s) => [s.eltern === null ? null : s.verbindungId, ...s.kanaele]).filter((x): x is string => x !== null));
   return [
     ...VERBINDUNGS_ARTEN.filter((a) => gezeichnet.has(a)).map((art) => ({ art, text: ART_NAME[art], reserve: false })),
     ...inhalt.verbindungen.filter((v) => !benutzt.has(v.id)).map((v) => ({ art: v.art, text: `Reserve ${v.bezeichnung}`, reserve: true })),

@@ -65,6 +65,15 @@ describe("zeichne", () => {
       { art: "draht", text: "Reserve Standleitung", reserve: true },
     ]);
   });
+  it("eine Verbindung, die nur eine Wurzel als verbindungId trägt, ist nirgends gezeichnet: sie steht als Reserve da", () => {
+    const p = baue({ verbindungen: [{ id: "v", art: "draht", bezeichnung: "Standleitung" }, V[0]], stellen: [
+      { id: "a", titel: "A", verbindung: "v" }, { id: "b", titel: "B", eltern: "a", verbindung: "r1" },
+    ] });
+    expect(zeichne(p, "bildschirm").legende).toEqual([
+      { art: "tmo", text: "Digitalfunk TMO", reserve: false },
+      { art: "draht", text: "Reserve Standleitung", reserve: true },
+    ]);
+  });
   it("Plan nur mit Reservekanälen: Legende nur Reserve", () => {
     const p = baue({ verbindungen: [V[2]], stellen: [{ id: "a", titel: "A" }] });
     expect(zeichne(p, "a4-quer").legende).toEqual([{ art: "tmo", text: "Reserve K_UE_2", reserve: true }]);
