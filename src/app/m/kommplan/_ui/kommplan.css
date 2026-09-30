@@ -38,3 +38,8 @@
 }
 .kp-betrachter svg { display: block; width: 100%; height: 100%; cursor: grab; }
 .kp-werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; margin-block-end: 8px; }
+
+/* Legende unter dem Betrachter: die Symbole bleiben weiß (Papier), der Text folgt dem Thema. */
+.kp-legende { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.kp-legende li { display: inline-flex; align-items: center; gap: 6px; }
+.kp-legende svg { flex: none; background: #ffffff; }

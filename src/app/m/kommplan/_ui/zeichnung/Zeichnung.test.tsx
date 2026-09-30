@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BEISPIELE } from "../../_lib/beispiele";
 import { baue } from "../../_lib/beispiele/bau";
+import { teileAuf } from "../../_lib/layout/papier";
 import { zeichne } from "../../_lib/layout/zeichne";
 import { PIKTOGRAMME } from "../../_lib/zeichen/grundlagen";
 import zeichen from "../../_lib/zeichen/zeichen.generiert.json";
@@ -35,10 +36,23 @@ describe("Zeichnung", () => {
     expect(html).toMatch(/<svg[^>]*style="font-family:Arimo/);
     expect(html).toMatch(/width="[\d.]+mm"/);
   });
-  it("hervorgehobene und Anker-Karten tragen ihre Farben", () => {
+  it("eine hervorgehobene Karte trägt die Hervorhebungsfarbe", () => {
     const label = BEISPIELE.find((b) => b.id === "vorlage-kommunikationsplan-label")!;
     const h = renderToStaticMarkup(<Zeichnung daten={zeichne(label.inhalt, "bildschirm")} symbole={{}} titel="x" />);
     expect(h).toContain(FARBE.hervor);
+  });
+  it("die Anker-Karte eines Folgeblatts ist grau, ihr Zeichen blass; die übrigen Karten schwarz", () => {
+    const stab = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!;
+    const blatt = teileAuf(stab.inhalt, "a4-quer").find((b) => b.ankerId !== null)!;
+    const h = renderToStaticMarkup(<Zeichnung daten={blatt.zeichnung} symbole={{}} titel="x" />);
+    const karte = (id: string) => { const a = h.indexOf(`data-karte="${id}"`); return h.slice(a, h.indexOf("</g>", h.indexOf("</title>", a))); };
+    const anker = h.slice(h.indexOf(`data-karte="${blatt.ankerId}"`), h.indexOf(`data-karte="${blatt.wurzelId}"`));
+    expect(anker).toContain('data-art="anker"');
+    expect(anker).toContain(`stroke="${FARBE.anker}"`);
+    expect(anker).not.toContain(`stroke="${FARBE.tinte}"`);
+    if (stab.inhalt.stellen.find((s) => s.id === blatt.ankerId)?.zeichen) expect(anker).toContain('opacity="0.45"');
+    expect(karte(blatt.wurzelId!)).toContain(`stroke="${FARBE.tinte}"`);
+    expect(karte(blatt.wurzelId!)).not.toContain(FARBE.anker);
   });
   it("ein gekürzter Titel zeigt „…\" und trägt den vollen Text als title; eine lange Einheit steht in zwei Zeilen ganz da", () => {
     const lang = "Bereitstellungsraumkoordinationsstelle Behandlungsplatz Sanitätsdienst Logistik Technik Nord";

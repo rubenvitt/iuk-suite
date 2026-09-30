@@ -1,12 +1,10 @@
-import { BLATT, PAPIER, PT_IN_MM, SECHSECK } from "../../_lib/layout/masse";
+import { BLATT, PAPIER, PT_IN_MM } from "../../_lib/layout/masse";
 import { LEGENDE, zeichenflaeche } from "../../_lib/layout/papier";
-import { sechseckForm } from "../../_lib/layout/sechseck";
 import { textBreite } from "../../_lib/layout/text";
 import type { Blatt } from "../../_lib/layout/typen";
-import { VERBINDUNG_PIKTOGRAMM } from "../../_lib/zeichen/grundlagen";
 import { FARBE, STRICH } from "./farben";
-import { sechseckPunkte } from "./Sechseck";
-import { SymbolDefs, symbolId, type Symbolsatz } from "./Symbole";
+import { LegendenSymbol } from "./LegendenSymbol";
+import { SymbolDefs, type Symbolsatz } from "./Symbole";
 import { ZeichnungInhalt } from "./Zeichnung";
 
 /** Die vom Aufrufer formatierten Rahmentexte — der Renderer kennt weder Uhr noch Zeitzone. */
@@ -58,9 +56,7 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
               x += LEGENDE.symbolBreite + LEGENDE.symbolLuft + textBreite(e.text, LEGENDE.schrift, false) + LEGENDE.eintragLuft;
               return (
                 <g key={ei} transform={`translate(${hx} ${y})`}>
-                  <polygon points={sechseckPunkte(sechseckForm(e.art), LEGENDE.symbolBreite, 3.5)} fill={FARBE.papier} stroke={FARBE.tinte}
-                    strokeWidth={STRICH.duenn} strokeDasharray={sechseckForm(e.art) === "mobil" ? "1 0.6" : undefined} />
-                  <use href={`#${symbolId(VERBINDUNG_PIKTOGRAMM[e.art])}`} x={SECHSECK.spitze / 2 + 0.5} y={0.5} width={LEGENDE.symbolBreite - SECHSECK.spitze - 1} height={2.5} />
+                  <LegendenSymbol art={e.art} />
                   <text x={LEGENDE.symbolBreite + LEGENDE.symbolLuft} y={2.9} fontSize={pt(LEGENDE.schrift)}>{e.text}</text>
                 </g>
               );

@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { GRENZEN, einpassen, tasteZuAktion, verschiebe, zoome } from "./ansicht";
+import { GRENZEN, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome } from "./ansicht";
 
 describe("Ansicht", () => {
   it("einpassen: ganze Zeichnung sichtbar, waagerecht mittig", () => {
     const a = einpassen(200, 100, 1000, 600);
     expect(a.massstab).toBeCloseTo(Math.min(968 / 200, 568 / 100), 9);
     expect(a.x + 200 * a.massstab / 2).toBeCloseTo(500, 9);
+  });
+  it("einpassen: auch eine sehr breite Zeichnung auf Telefonbreite ganz, weiter herauszoomen nicht", () => {
+    // große Stab-Lage am Bildschirm: 1789 × 239 mm, Fenster 375 px
+    const a = einpassen(1789, 239, 375, 600);
+    expect(a.x).toBeGreaterThanOrEqual(16 - 1e-9);
+    expect(a.x + 1789 * a.massstab).toBeLessThanOrEqual(375 - 16 + 1e-9);
+    expect(a.massstab).toBeLessThan(GRENZEN.min);
+    expect(zoome(a, 1 / 1.25, 0, 0, untergrenze(a)).massstab).toBeCloseTo(a.massstab, 9);
+    expect(zoome(a, 1.25, 0, 0, untergrenze(a)).massstab).toBeCloseTo(a.massstab * 1.25, 9);
+    expect(untergrenze(einpassen(200, 100, 1000, 600))).toBe(GRENZEN.min);
   });
   it("einpassen ohne Maße (jsdom, leerer Plan) liefert einen festen Anfang", () => {
     expect(einpassen(0, 0, 0, 0)).toEqual({ massstab: 4, x: 16, y: 16 });

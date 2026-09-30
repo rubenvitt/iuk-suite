@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Button } from "antd";
 import { layout } from "../../_lib/layout/layout";
+import { baueSicht } from "../../_lib/layout/sicht";
 import type { KarteL } from "../../_lib/layout/typen";
+import { legende } from "../../_lib/layout/zeichne";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import { FARBE } from "../zeichnung/farben";
+import { LEGENDEN_SYMBOL, LegendenSymbol } from "../zeichnung/LegendenSymbol";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import { ZeichnungInhalt } from "../zeichnung/Zeichnung";
-import { SCHRITT, einpassen, tasteZuAktion, verschiebe, zoome, type Ansicht } from "./ansicht";
+import { SCHRITT, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome, type Ansicht } from "./ansicht";
+import { UMSCHALTER, umschalterLage } from "./umschalter";
 
 /**
  * Der Betrachter (Spec §5.7): dasselbe Layout wie der Druck, mit Zoom, Verschieben und Einklappen.
@@ -18,10 +22,16 @@ import { SCHRITT, einpassen, tasteZuAktion, verschiebe, zoome, type Ansicht } fr
  * `core/tabelle/useEntprellt.ts`): die eingepasste Ansicht wird beim Rendern aus der gemessenen
  * Flächengröße ABGELEITET; eigener Zustand entsteht erst, wenn jemand zoomt oder verschiebt.
  * „Einpassen" heißt: eigenen Zustand verwerfen. Gemessen wird per ResizeObserver-Rückruf.
+ *
+ * LEGENDE wie auf dem Blatt (Spec §5.6, A3): verwendete Arten und Reservekanäle — die stehen sonst
+ * nirgends am Bildschirm. Sie beschreibt den ganzen Plan, nicht die eingeklappte Sicht: Einklappen
+ * ist Ansichtszustand. Die Symbole stehen in einem eigenen, unsichtbaren <svg>, damit Legende und
+ * Zeichnung sie auch dann finden, wenn der Plan keine Stellen hat.
  */
 export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanInhalt; symbole: Symbolsatz; titel: string; schrift: string }) {
   const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
   const daten = useMemo(() => layout(inhalt, "bildschirm", { eingeklappt }), [inhalt, eingeklappt]);
+  const eintraege = useMemo(() => legende(inhalt, baueSicht(inhalt)), [inhalt]);
   const flaeche = useRef<HTMLDivElement>(null);
   const [groesse, setGroesse] = useState({ b: 0, h: 0 });
   const [eigene, setEigene] = useState<Ansicht | null>(null);
@@ -30,6 +40,7 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
   const basis = einpassen(daten.breite, daten.hoehe, groesse.b, groesse.h);
   const a = eigene ?? basis;
   const basisRef = useRef(basis);
+  const untergrenzeJetzt = untergrenze(basis);
   useEffect(() => { basisRef.current = basis; });
 
   useEffect(() => {
@@ -49,7 +60,9 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
       const r = el.getBoundingClientRect();
       setEigene((alt) => {
         const jetzt = alt ?? basisRef.current;
-        return e.ctrlKey || e.metaKey ? zoome(jetzt, Math.exp(-e.deltaY / 300), e.clientX - r.left, e.clientY - r.top) : verschiebe(jetzt, -e.deltaX, -e.deltaY);
+        return e.ctrlKey || e.metaKey
+          ? zoome(jetzt, Math.exp(-e.deltaY / 300), e.clientX - r.left, e.clientY - r.top, untergrenze(basisRef.current))
+          : verschiebe(jetzt, -e.deltaX, -e.deltaY);
       });
     };
     el.addEventListener("wheel", rad, { passive: false });
@@ -59,7 +72,7 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
   const aendere = (f: (x: Ansicht) => Ansicht) => setEigene((alt) => f(alt ?? basisRef.current));
   const zoomUmMitte = (faktor: number) => {
     const el = flaeche.current;
-    aendere((x) => zoome(x, faktor, (el?.clientWidth ?? 0) / 2, (el?.clientHeight ?? 0) / 2));
+    aendere((x) => zoome(x, faktor, (el?.clientWidth ?? 0) / 2, (el?.clientHeight ?? 0) / 2, untergrenzeJetzt));
   };
 
   const unten = (e: PointerEvent<HTMLDivElement>) => {
@@ -75,7 +88,7 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
       const vorher = Math.hypot(alt.x - anderer.x, alt.y - anderer.y);
       const jetzt = Math.hypot(e.clientX - anderer.x, e.clientY - anderer.y);
       const r = e.currentTarget.getBoundingClientRect();
-      if (vorher > 0) aendere((x) => zoome(x, jetzt / vorher, (e.clientX + anderer.x) / 2 - r.left, (e.clientY + anderer.y) / 2 - r.top));
+      if (vorher > 0) aendere((x) => zoome(x, jetzt / vorher, (e.clientX + anderer.x) / 2 - r.left, (e.clientY + anderer.y) / 2 - r.top, untergrenzeJetzt));
     } else {
       aendere((x) => verschiebe(x, e.clientX - alt.x, e.clientY - alt.y));
     }
@@ -98,19 +111,27 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
     if (neu.has(id)) neu.delete(id); else neu.add(id);
     return neu;
   });
-  const zusatz = (k: KarteL) => !k.einklappbar ? null : (
-    <g role="button" tabIndex={0} data-umschalter={k.id} aria-expanded={!k.eingeklappt}
-      aria-label={`${k.titelVoll === "" ? "(ohne Titel)" : k.titelVoll}: Unterstellen ${k.eingeklappt ? "ausklappen" : "einklappen"}`}
-      style={{ cursor: "pointer" }}
-      onClick={(e) => { e.stopPropagation(); umschalten(k.id); }}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); umschalten(k.id); } }}>
-      <circle cx={k.breite / 2} cy={k.hoehe} r={2.2} fill={FARBE.papier} stroke={FARBE.tinte} strokeWidth={0.25} />
-      <text x={k.breite / 2} y={k.hoehe + 1.1} fontSize={3.2} textAnchor="middle" fill={FARBE.tinte}>{k.eingeklappt ? "+" : "−"}</text>
-    </g>
-  );
+  const zusatz = (k: KarteL) => {
+    if (!k.einklappbar) return null;
+    const u = umschalterLage(k);
+    return (
+      <g role="button" tabIndex={0} data-umschalter={k.id} aria-expanded={!k.eingeklappt}
+        aria-label={`${k.titelVoll === "" ? "(ohne Titel)" : k.titelVoll}: Unterstellen ${k.eingeklappt ? "ausklappen" : "einklappen"}`}
+        style={{ cursor: "pointer" }}
+        onClick={(e) => { e.stopPropagation(); umschalten(k.id); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); umschalten(k.id); } }}>
+        <circle cx={u.cx} cy={u.cy} r={UMSCHALTER.griff} fill="transparent" />
+        <circle cx={u.cx} cy={u.cy} r={u.r} fill={FARBE.papier} stroke={FARBE.tinte} strokeWidth={0.25} />
+        <text x={u.cx} y={u.cy + UMSCHALTER.schrift * 0.35} fontSize={UMSCHALTER.schrift} textAnchor="middle" fill={FARBE.tinte}>{k.eingeklappt ? "+" : "−"}</text>
+      </g>
+    );
+  };
 
   return (
     <div>
+      <svg aria-hidden="true" width={0} height={0} style={{ position: "absolute" }}>
+        <SymbolDefs symbole={symbole} />
+      </svg>
       <div className="kp-werkzeuge">
         <Button onClick={() => zoomUmMitte(1 / SCHRITT)} aria-label="Verkleinern">−</Button>
         <Button onClick={() => zoomUmMitte(SCHRITT)} aria-label="Vergrößern">+</Button>
@@ -124,7 +145,6 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
           <p style={{ padding: 16 }}>Dieser Plan hat noch keine Stellen.</p>
         ) : (
           <svg role="img" aria-label={titel} style={{ fontFamily: schrift }}>
-            <SymbolDefs symbole={symbole} />
             <g data-ansicht="" transform={`translate(${a.x} ${a.y}) scale(${a.massstab})`}>
               <rect width={daten.breite} height={daten.hoehe} fill={FARBE.papier} />
               <ZeichnungInhalt daten={daten} zusatz={zusatz} />
@@ -132,6 +152,18 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
           </svg>
         )}
       </div>
+      {eintraege.length > 0 ? (
+        <ul className="kp-legende" aria-label="Legende">
+          {eintraege.map((e, i) => (
+            <li key={i} data-legende={e.reserve ? "reserve" : e.art}>
+              <svg viewBox={`0 0 ${LEGENDEN_SYMBOL.breite} ${LEGENDEN_SYMBOL.hoehe}`} width={LEGENDEN_SYMBOL.breite * 4} height={LEGENDEN_SYMBOL.hoehe * 4} aria-hidden="true">
+                <LegendenSymbol art={e.art} />
+              </svg>
+              <span>{e.text}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
