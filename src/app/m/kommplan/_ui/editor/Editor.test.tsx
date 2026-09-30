@@ -245,4 +245,15 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await clickElement(knopf("Plan und Verbindungen"));
     expect(query(".kp-editor").style.getPropertyValue("--kp-flyin-breite")).toBe("min(560px, 92vw)");
   });
+  it("Verlassen des Editors (Abbau) sendet eine wartende Änderung sofort — kein Autosave-Timer überlebt den Editor", async () => {
+    vi.useFakeTimers();
+    await zeige();
+    await waehle("a");
+    await clickElement(query('[data-griff="unter"]'));
+    expect(aktionen.speichereInhaltAction).not.toHaveBeenCalled();
+    await unmount();
+    expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(1);
+  });
 });

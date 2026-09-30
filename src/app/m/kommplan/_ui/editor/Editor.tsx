@@ -218,6 +218,10 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     return () => { window.removeEventListener("beforeunload", warne); window.removeEventListener("online", online); };
   }, [speicherer]);
 
+  // Abbau (Client-Navigation weg vom Editor, z. B. „Alle Pläne"): Wartendes sofort senden, statt einen
+  // Autosave-Timer zurückzulassen, der erst nach dem Verlassen feuert.
+  useEffect(() => () => { void speicherer.jetzt(); }, [speicherer]);
+
   // Neue, per Pfeil gewählte oder im Flyin geöffnete Karte in den freien Bereich holen, sobald das Layout sie kennt.
   useEffect(() => {
     const id = zeigeNach.current;
