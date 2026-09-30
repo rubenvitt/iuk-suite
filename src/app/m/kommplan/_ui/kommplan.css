@@ -6,6 +6,7 @@
   --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; --kp-gedaempft: #5b6573; --kp-auswahl: #1f5fbf;
   --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
   --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
+  --kp-auswahl-flaeche: #e8f0fc;
   /* Auswahl AUF DEM PAPIER: das Papier bleibt weiß, also bleibt auch diese Farbe in beiden Modi
      (#7fb0ff auf Weiß hätte nur 2,2:1, Review Phase 2). Nicht im Dunkel-Block überschreiben. */
   --kp-auswahl-papier: #1f5fbf;
@@ -14,6 +15,7 @@
   --kp-flaeche: #1d2026; --kp-rand: #3a404a; --kp-gedaempft: #a9b2bf; --kp-auswahl: #7fb0ff;
   --kp-chip-flaeche: #2a303a; --kp-chip-text: #d6dce5;
   --kp-hinweis-flaeche: #3d2f14; --kp-hinweis-text: #f3cf8e;
+  --kp-auswahl-flaeche: #1c2a40;
 }
 
 /*
@@ -124,6 +126,19 @@
 /* Im Editor endet die Fläche am unteren Bildrand (Editor.tsx misst `--kp-flaeche-oben`); 48 px bleiben
    für die Bedienzeile darunter. So liegen die Hinweise unten IN der Fläche im Bild (Mindesthöhe s. o.). */
 .kp-editor .kp-betrachter { height: calc(100dvh - var(--kp-flaeche-oben, 240px) - 48px); }
+/*
+ * Gliederung (Spec §6.5; Umsetzungsplan Phase 3, Entscheidungen 4, 15, 16): eine Zeile je Stelle,
+ * eingerückt über --ebene (24 px, am Telefon 16 px bis Ebene 6). Die gewählte Zeile trägt Fläche UND
+ * Randstrich (nie nur Farbe). Der Meldungsplatz klebt unten im Bild — die Liste kann länger sein als
+ * der Schirm, der Hinweis muss trotzdem zu sehen sein.
+ */
+.kp-g-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.kp-g-zeile { padding-inline-start: calc(var(--ebene) * 24px); border-radius: 8px; }
+.kp-g-zeile[aria-current="true"] { background: var(--kp-auswahl-flaeche); box-shadow: inset 3px 0 0 var(--kp-auswahl); }
+.kp-g-haupt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px; }
+.kp-g-haupt .kp-g-titel { flex: 1 1 12rem; min-width: 0; }
+.kp-g-neben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 0 1 auto; }
+.kp-g-meldung { position: sticky; bottom: 12px; margin-top: 8px; z-index: 1; }
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
    einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
@@ -131,6 +146,8 @@
   .kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) nimmt die ganze Zeile, sonst bliebe er so schmal wie sein Inhalt. */
   .kp-editor div:has(> .kp-kopfwerkzeuge) { flex: 1 1 100%; }
+  .kp-g-zeile { padding-inline-start: calc(min(var(--ebene), 6) * 16px); }
+  .kp-g-zeile:not([aria-current="true"]) .kp-g-neben { display: none; }
 }
 
 /*
