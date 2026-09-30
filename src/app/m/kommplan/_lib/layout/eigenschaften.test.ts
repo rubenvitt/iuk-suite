@@ -139,7 +139,7 @@ function einfuegung(seed: number, variante: Variante): Einfuegung {
 const EINFUEGE_SEEDS = SEEDS.slice(0, 80);
 const VARIANTEN: Variante[] = ["ende", "mitte", "neue Gruppe"];
 
-describe.each(VARIANTEN)("Einfügen (%s) verschiebt nichts, was links steht", (variante) => {
+describe.each(VARIANTEN)("Einfügen (%s): frühere Gruppen und frühere Geschwister der Gruppe bleiben je starr", (variante) => {
   it.each(EINFUEGE_SEEDS)("Seed %i", (seed) => {
     const { inhalt, neu, wirksam } = einfuegung(seed, variante);
     if (!wirksam) return;
@@ -176,6 +176,30 @@ describe.each(VARIANTEN)("Einfügen (%s) verschiebt nichts, was links steht", (v
     expect(faelle.filter((f) => f.geschwister > 0).length).toBeGreaterThanOrEqual(mindestens[0]);
     expect(faelle.filter((f) => f.gruppen > 1).length).toBeGreaterThanOrEqual(mindestens[1]);
   });
+});
+
+/**
+ * OFFEN (Spec §10 „Einfügen einer Stelle verschiebt nichts links von ihr"): die starke Fassung gilt
+ * NICHT. Seed 70, neue Gruppe unter s14: die Kinder von s14 rücken nach links (Mitte über dem Bus),
+ * die linke Kontur der Gruppe v1 wächst, das Gruppenpacken setzt die ganze Gruppe 29 mm weiter
+ * rechts — samt s12, das links von der neuen Stelle steht. Abhilfe wäre, jedes Kind über die
+ * Gruppengrenzen hinweg gegen alles bisher Gesetzte zu packen und Bus und Sechseck danach zu setzen.
+ * Wird die Engine so geändert, schlägt dieser Fall um und gehört dann zu den Aussagen oben.
+ */
+it.fails("Einfügen verschiebt über Gruppengrenzen nichts, was links steht (Seed 70, neue Gruppe) — offen", () => {
+  const inhalt = zufallsPlan(70, { stellen: 25 });
+  const kinder = baueBaum(inhalt).unter("s14");
+  const neu = fuegeStelleEin(fuegeVerbindungEin(inhalt, { id: "vneu", art: "tmo", bezeichnung: "NEU" }),
+    { id: "neu", titel: "N", eltern: "s14", verbindungId: "vneu", reihenfolge: Math.max(...kinder.map((k) => k.reihenfolge)) + 1 });
+  // Vorbedingungen wie oben: kein Kamm, gleiche Zeilen — der Fall ist also wirksam
+  if (kaemmt(inhalt, "bildschirm") || kaemmt(neu, "bildschirm")) throw new Error("Vorbedingung: Kamm");
+  if (JSON.stringify(umgebungFuer(inhalt, "bildschirm").zeilen) !== JSON.stringify(umgebungFuer(neu, "bildschirm").zeilen)) throw new Error("Vorbedingung: Zeilen");
+  const vorher = zeichne(inhalt, "bildschirm"), nachher = zeichne(neu, "bildschirm");
+  const nachBaum = baueBaum(neu);
+  const s14 = anzeigereihenfolge(nachBaum.unter("s0"));
+  const frueher = s14.slice(0, s14.findIndex((g) => g.id === "s14"));
+  const ids = frueher.flatMap((g) => [g.id, ...nachkommen(nachBaum, g.id).map((n) => n.id)]);
+  expect(relativ(nachher, ids)).toEqual(relativ(vorher, ids));
 });
 
 describe("Grenzfälle", () => {
