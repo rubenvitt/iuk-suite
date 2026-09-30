@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KONTAKT_PIKTOGRAMM, VERBINDUNG_PIKTOGRAMM } from "../zeichen/grundlagen";
-import { KONTAKT_ARTEN, VERBINDUNGS_ARTEN, leseInhalt, planInhaltSchema, type PlanInhalt, type Stelle } from "./schema";
+import { GRENZE, KONTAKT_ARTEN, LAENGE, VERBINDUNGS_ARTEN, ZU_GROSS, inhaltBytes, leseInhalt, planInhaltSchema, type PlanInhalt, type Stelle } from "./schema";
 
 const stelle = (id: string, eltern: string | null, rest: Partial<Stelle> = {}): Stelle => ({
   id, eltern, lage: "unter", reihenfolge: 0, zeichen: null, titel: id, leiter: null, hervorheben: false,
@@ -75,5 +75,31 @@ describe("Arten und Piktogramme passen zusammen", () => {
   it("jede Kontakt- und Verbindungsart hat ein Piktogramm, keine mehr", () => {
     expect(Object.keys(KONTAKT_PIKTOGRAMM).sort()).toEqual([...KONTAKT_ARTEN].sort());
     expect(Object.keys(VERBINDUNG_PIKTOGRAMM).sort()).toEqual([...VERBINDUNGS_ARTEN].sort());
+  });
+});
+
+describe("Feldgrenzen als Konstanten", () => {
+  const basis = { schema: 1, optionen: { leerzeilen: false, vermerkVsNfD: true, qrAufDruck: false, schwarzweiss: false }, verbindungen: [] };
+  const stelle = (id: string, titel: string, mehr: object = {}) => ({ id, eltern: null, lage: "unter", reihenfolge: 0, zeichen: null, titel, leiter: null,
+    hervorheben: false, verbindungId: null, kanaele: [], kontakte: [], einheiten: [], ...mehr });
+  it("das Schema weist genau jenseits der Grenze ab", () => {
+    expect(planInhaltSchema.safeParse({ ...basis, stellen: [stelle("w", "x".repeat(LAENGE.titel))] }).success).toBe(true);
+    expect(planInhaltSchema.safeParse({ ...basis, stellen: [stelle("w", "x".repeat(LAENGE.titel + 1))] }).success).toBe(false);
+    expect(GRENZE.einheiten).toBe(60);
+  });
+  it("Gesamtgrenze in Byte (Entscheidung 15): ein Plan über 800 000 Byte ist ungültig, mit eigener Meldung", () => {
+    // 60 Stellen mit je 30 vollen Kontakten aus Umlauten: rund 60 × 30 × 400 Byte ≈ 720 KB, dazu Einheiten → über der Grenze
+    const voll = (i: number) => stelle(`s${i}`, "T", {
+      reihenfolge: i,
+      kontakte: Array.from({ length: GRENZE.kontakte }, () => ({ art: "sonstiges", wert: "Ä".repeat(LAENGE.kontakt) })),
+      einheiten: Array.from({ length: 20 }, (_, k) => ({ id: `s${i}e${k}`, typ: "RTW", rufname: "Ü".repeat(LAENGE.rufname), zeichen: null })),
+    });
+    const gross = { ...basis, stellen: Array.from({ length: 60 }, (_, i) => voll(i)) };
+    expect(inhaltBytes(gross)).toBeGreaterThan(GRENZE.bytes);
+    const r = planInhaltSchema.safeParse(gross);
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.message)).toContain(ZU_GROSS);
+    const klein = { ...gross, stellen: gross.stellen.slice(0, 10) };
+    expect(planInhaltSchema.safeParse(klein).success).toBe(true);
   });
 });

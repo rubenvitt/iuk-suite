@@ -14,28 +14,42 @@ export const LAGEN = ["unter", "links", "rechts"] as const;
 export type KontaktArt = (typeof KONTAKT_ARTEN)[number];
 export type VerbindungsArt = (typeof VERBINDUNGS_ARTEN)[number];
 export type Lage = (typeof LAGEN)[number];
+/**
+ * Feldgrenzen — dieselben Zahlen im Schema und an den Eingabefeldern des Editors (`maxLength`),
+ * damit Tippen nie in einen Schemafehler läuft (Review Focus Phase 2, Punkt 2).
+ */
+export const LAENGE = { titel: 200, leiter: 120, kontakt: 200, typ: 40, rufname: 80, bezeichnung: 60 } as const;
+/**
+ * `bytes`: GESAMTGRENZE des Dokuments (Umsetzungsplan Phase 2, Entscheidung 15). Nach den Feldgrenzen
+ * allein wären rund 9 MB möglich, eine Server Action nimmt aber höchstens 1 MB an — und ein
+ * abgelehnter Aufruf sähe im Editor aus wie ein Netzfehler. 800 000 Byte UTF-8 lassen Luft für die
+ * Kodierung des Aufrufs. Kosten: ein `JSON.stringify` je Prüfung, neben dem vollen `safeParse`.
+ */
+export const GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12, bytes: 800_000 } as const;
+export const ZU_GROSS = "Der Plan ist zu groß zum Speichern. Teile ihn auf mehrere Pläne auf.";
+export const inhaltBytes = (inhalt: unknown): number => new TextEncoder().encode(JSON.stringify(inhalt)).length;
 
 const id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
 const zeichenSchluessel = z.string().min(1).max(80).nullable();
 
-export const kontaktSchema = z.object({ art: z.enum(KONTAKT_ARTEN), wert: z.string().max(200) }).strict();
-export const einheitSchema = z.object({ id, typ: z.string().max(40), rufname: z.string().max(80), zeichen: zeichenSchluessel }).strict();
+export const kontaktSchema = z.object({ art: z.enum(KONTAKT_ARTEN), wert: z.string().max(LAENGE.kontakt) }).strict();
+export const einheitSchema = z.object({ id, typ: z.string().max(LAENGE.typ), rufname: z.string().max(LAENGE.rufname), zeichen: zeichenSchluessel }).strict();
 export const stelleSchema = z.object({
   id,
   eltern: id.nullable(),
   lage: z.enum(LAGEN),
   reihenfolge: z.number(),
   zeichen: zeichenSchluessel,
-  titel: z.string().max(200),
-  leiter: z.string().max(120).nullable(),
+  titel: z.string().max(LAENGE.titel),
+  leiter: z.string().max(LAENGE.leiter).nullable(),
   hervorheben: z.boolean(),
   verbindungId: id.nullable(),
   /** Kanäle, die die Stelle benutzt, ohne Gegenstelle (Abweichung 12) — Sechsecke unter der Karte. */
-  kanaele: z.array(id).max(12).default([]),
-  kontakte: z.array(kontaktSchema).max(30),
-  einheiten: z.array(einheitSchema).max(60),
+  kanaele: z.array(id).max(GRENZE.kanaele).default([]),
+  kontakte: z.array(kontaktSchema).max(GRENZE.kontakte),
+  einheiten: z.array(einheitSchema).max(GRENZE.einheiten),
 }).strict();
-export const verbindungSchema = z.object({ id, art: z.enum(VERBINDUNGS_ARTEN), bezeichnung: z.string().max(60) }).strict();
+export const verbindungSchema = z.object({ id, art: z.enum(VERBINDUNGS_ARTEN), bezeichnung: z.string().max(LAENGE.bezeichnung) }).strict();
 export const optionenSchema = z.object({
   leerzeilen: z.boolean(), vermerkVsNfD: z.boolean(), qrAufDruck: z.boolean(), schwarzweiss: z.boolean(),
 }).strict();
@@ -86,12 +100,16 @@ function pruefeInvarianten(p: Roh, ctx: z.RefinementCtx): void {
   }
 }
 
+function pruefeGroesse(p: unknown, ctx: z.RefinementCtx): void {
+  if (inhaltBytes(p) > GRENZE.bytes) ctx.addIssue({ code: "custom", path: [], message: ZU_GROSS });
+}
+
 export const planInhaltSchema = z.object({
   schema: z.literal(1),
   optionen: optionenSchema,
-  stellen: z.array(stelleSchema).max(500),
-  verbindungen: z.array(verbindungSchema).max(200),
-}).strict().superRefine(pruefeInvarianten);
+  stellen: z.array(stelleSchema).max(GRENZE.stellen),
+  verbindungen: z.array(verbindungSchema).max(GRENZE.verbindungen),
+}).strict().superRefine(pruefeInvarianten).superRefine(pruefeGroesse);
 
 export type Kontakt = z.infer<typeof kontaktSchema>;
 export type Einheit = z.infer<typeof einheitSchema>;
