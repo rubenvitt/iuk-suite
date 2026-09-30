@@ -3,12 +3,12 @@
  * (Papier), nur ihr Umfeld folgt Hell/Dunkel über <html data-theme>.
  */
 :root {
-  --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; --kp-gedaempft: #5b6573;
+  --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; --kp-gedaempft: #5b6573; --kp-auswahl: #1f5fbf;
   --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
   --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
 }
 :root[data-theme="dark"] {
-  --kp-flaeche: #1d2026; --kp-rand: #3a404a; --kp-gedaempft: #a9b2bf;
+  --kp-flaeche: #1d2026; --kp-rand: #3a404a; --kp-gedaempft: #a9b2bf; --kp-auswahl: #7fb0ff;
   --kp-chip-flaeche: #2a303a; --kp-chip-text: #d6dce5;
   --kp-hinweis-flaeche: #3d2f14; --kp-hinweis-text: #f3cf8e;
 }
@@ -74,3 +74,19 @@
    die Fläche springt nicht, wenn ein Hinweis kommt oder geht. Nur der Hinweis selbst fängt Zeiger. */
 .kp-meldungsplatz { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); pointer-events: none; }
 .kp-meldungsplatz > * { pointer-events: auto; }
+
+/* Abschnitte im Flyin: ein Rahmen ohne Kasten, Zeilen mit Feld und Knopf nebeneinander, am Telefon untereinander. */
+.kp-abschnitt { border: 0; border-top: 1px solid var(--kp-rand); margin: 16px 0 0; padding: 12px 0 0; display: grid; gap: 8px; }
+.kp-abschnitt > legend { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--kp-gedaempft); padding: 0; }
+.kp-hilfe { margin: 0; font-size: 13px; color: var(--kp-gedaempft); }
+.kp-zeile { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; align-items: center; }
+.kp-kontakt { display: grid; gap: 4px; }
+.kp-zeichen-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.kp-zeichen-knopf {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; text-align: start;
+  border: 1px solid var(--kp-rand); border-radius: 8px; background: var(--kp-flaeche); color: inherit; font: inherit; cursor: pointer;
+}
+.kp-zeichen-knopf[aria-pressed="true"] { border-color: var(--kp-auswahl); box-shadow: inset 0 0 0 1px var(--kp-auswahl); }
+.kp-zeichen-knopf:focus-visible { outline: 2px solid var(--kp-auswahl); outline-offset: 2px; }
+/* Zeichen sind Papier: weißer Grund auch im Dunkelmodus (wie die Legende). */
+.kp-zeichen-knopf svg, .kp-zeichen-platz { flex: none; width: 36px; height: 36px; background: #ffffff; border-radius: 4px; }
