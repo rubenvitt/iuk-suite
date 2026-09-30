@@ -82,6 +82,15 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@einsatzzeichen/catalog':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@einsatzzeichen/core':
+        specifier: 3.0.0
+        version: 3.0.0
+      '@einsatzzeichen/schema':
+        specifier: 3.0.0
+        version: 3.0.0
       '@eslint/eslintrc':
         specifier: ^3.3.7
         version: 3.3.7
@@ -386,6 +395,22 @@ packages:
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
+
+  '@einsatzzeichen/catalog@1.5.0':
+    resolution: {integrity: sha512-z9SCTIBxH77agbYIEhAtLEeVEDLp92DG5i9ZC2ov5qbfMOVpLQvTpAOYRXXGgTkTRjpFBQkQ7hblH+3GrDL2xw==}
+    deprecated: Umbenannt in @einsatzzeichen/conformance
+
+  '@einsatzzeichen/core@1.5.0':
+    resolution: {integrity: sha512-7aPoK1STvYz29SFx4yY5vuxnp8HdhNcxam3zYZGTzp2ywkhuT9ntOV69Z0Keft1DPmOvDGK6UfpWrmSmy4qn9Q==}
+
+  '@einsatzzeichen/core@3.0.0':
+    resolution: {integrity: sha512-JYJjiBVbqGk2/Gxt+JdeyKCIqDmnUTzm3FNoXBHUGzvBRt0A210fKQuir2NojxK80iD3HuA3ybzVXTphe+1x+A==}
+
+  '@einsatzzeichen/schema@1.5.0':
+    resolution: {integrity: sha512-GqGZUcF428CRYvKXZOrEG+G23A+4ALDhEE/YrarMp4N2gXLcp/ASbn1pbdtBeo4ySAPB1mP5ppaW8jDJhcCztQ==}
+
+  '@einsatzzeichen/schema@3.0.0':
+    resolution: {integrity: sha512-Jwm+s39uaCbiGD5fBg/UsoFJu6K0GouG+A7lD+DVtfuOtBuhkpkUSZexgZXPH+IeQJSJTqE8pVsWunjNgHXm7A==}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -4408,6 +4433,23 @@ snapshots:
   '@csstools/css-tokenizer@4.0.2': {}
 
   '@drizzle-team/brocli@0.10.2': {}
+
+  '@einsatzzeichen/catalog@1.5.0':
+    dependencies:
+      '@einsatzzeichen/core': 1.5.0
+      '@einsatzzeichen/schema': 1.5.0
+
+  '@einsatzzeichen/core@1.5.0':
+    dependencies:
+      '@einsatzzeichen/schema': 1.5.0
+
+  '@einsatzzeichen/core@3.0.0':
+    dependencies:
+      '@einsatzzeichen/schema': 3.0.0
+
+  '@einsatzzeichen/schema@1.5.0': {}
+
+  '@einsatzzeichen/schema@3.0.0': {}
 
   '@emnapi/core@1.10.0':
     dependencies:
