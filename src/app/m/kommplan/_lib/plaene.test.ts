@@ -30,6 +30,8 @@ describe("Planliste und Laden", () => {
     const p = ladePlan(db, "beispiel-openr-2022-07-01")!;
     expect(p.inhalt?.stellen.length).toBeGreaterThan(5);
     expect(p.fehler).toBeNull();
+    expect(p.version).toBe(1);
+    expect(p.angaben).toEqual({ titel: p.titel, typ: "kommunikationsplan", anlass: "OpenR", datum: "2022-07-01" });
     expect(beschreibungFuer(p)).toContain("OpenR · 01.07.2022");
     expect(ladePlan(db, "gibt-es-nicht")).toBeNull();
     db.update(plan).set({ archiviertAm: new Date() }).where(eq(plan.id, p.id)).run();

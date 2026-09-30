@@ -399,6 +399,22 @@ export const AUDIT_TABLES = {
       "mode": "audited",
       "primaryKey": [
         "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "inhalt",
+          "version",
+          "aktualisiert_am",
+          "aktualisiert_von"
+        ],
+        "reason": "Inhalt und Speichertakt des Editors (Autosave etwa jede Sekunde); gespeicherte Inhaltsänderungen stehen gebündelt in plan_bearbeitung, höchstens eine Zeile je Person, Plan und 15 Minuten."
+      }
+    },
+    "plan_bearbeitung": {
+      "mode": "audited",
+      "primaryKey": [
+        "plan_id",
+        "nutzer"
       ]
     },
     "bib_stelle": {

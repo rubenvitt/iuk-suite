@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Datenbank des Moduls kommplan (Spec §4.1) — alle Tabellen schon in Phase 1, damit spätere Phasen
@@ -18,7 +18,7 @@ export const plan = sqliteTable("plan", {
   datum: integer("datum", { mode: "timestamp_ms" }),
   istVorlage: integer("ist_vorlage", { mode: "boolean" }).notNull().default(false),
   archiviertAm: integer("archiviert_am", { mode: "timestamp_ms" }),
-  /** Optimistisches Sperren (Phase 2, Autosave). */
+  /** Optimistisches Sperren: jedes Speichern zählt hoch (`_lib/speichern.ts`). */
   version: integer("version").notNull().default(1),
   /** Der gedruckte „Stand". */
   aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp_ms" }).notNull(),
@@ -31,6 +31,20 @@ export const plan = sqliteTable("plan", {
   check("plan_version_positiv", sql`${t.version} >= 1`),
   index("plan_liste_idx").on(t.archiviertAm, t.aktualisiertAm),
 ]);
+
+/**
+ * GEBÜNDELTES AUDIT DER INHALTSÄNDERUNGEN (Umsetzungsplan Phase 2, Entscheidung 1). `plan.inhalt`,
+ * `version` und `aktualisiert_*` stehen im Audit-Katalog als `unauditedColumns` — sonst schriebe
+ * jedes Autosave eine Zeile. Stattdessen hält diese Tabelle je Plan und Person den Beginn des
+ * laufenden 15-Minuten-Fensters: Anlegen und jedes Weiterspringen von `seit` sind je EINE
+ * Audit-Zeile, alles dazwischen keine (`_lib/speichern.ts`, `merkeBearbeitung`).
+ */
+export const planBearbeitung = sqliteTable("plan_bearbeitung", {
+  planId: text("plan_id").notNull().references(() => plan.id),
+  /** Kennung der Person (`auditActor(viewer).id`), nicht der Anzeigename. */
+  nutzer: text("nutzer").notNull(),
+  seit: integer("seit", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.planId, t.nutzer] })]);
 
 export const bibStelle = sqliteTable("bib_stelle", {
   id: text("id").primaryKey(),

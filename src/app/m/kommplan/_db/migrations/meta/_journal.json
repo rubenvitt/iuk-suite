@@ -8,6 +8,13 @@
       "when": 1790772744756,
       "tag": "0000_plaene",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790786759738,
+      "tag": "0001_plan_bearbeitung",
+      "breakpoints": true
     }
   ]
 }

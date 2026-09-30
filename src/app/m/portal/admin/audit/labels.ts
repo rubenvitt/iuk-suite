@@ -18,7 +18,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  fahrzeug:"Fahrzeug (Einsatzbuch)",person:"Person (Einsatzbuch)",stichwort:"Alarmstichwort",einstellung:"Einstellung",schluesselpaar:"Schlüsselpaar des Einsatzbuchs",
  rechner:"Einsatzbuch-Rechner",anker_abweichung:"Anker-Abweichung (Einsatzbuch)",freigabe:"Schlüsselfreigabe (Einsatzbuch)",
  einsatzbuch_reader_oeffnen:"Einsatzdatei im Reader geöffnet",einsatzbuch_reader_druck:"Einsatzbericht aus dem Reader gedruckt",
- plan:"Kommunikationsplan",bib_stelle:"Stelle (Planbibliothek)",bib_einheit:"Einheit (Planbibliothek)",bib_verbindung:"Verbindung (Planbibliothek)",plan_freigabe:"Freigabelink eines Plans",
+ plan:"Kommunikationsplan",plan_bearbeitung:"Bearbeitung eines Kommunikationsplans",bib_stelle:"Stelle (Planbibliothek)",bib_einheit:"Einheit (Planbibliothek)",bib_verbindung:"Verbindung (Planbibliothek)",plan_freigabe:"Freigabelink eines Plans",
 };
 export function objectLabel(type: string): string { return OBJECT_LABELS[type] ?? "Weiteres Objekt"; }
 export function actorLabel(event: AuditEvent): string {
