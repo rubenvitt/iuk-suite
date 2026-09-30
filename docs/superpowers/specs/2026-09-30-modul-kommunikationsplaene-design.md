@@ -23,6 +23,7 @@ plus ein Layout, das sich **selbst** anordnet.
 | A7 | Verteilung: Druck/PDF, Ansicht für Angemeldete, zusätzlich Token-Link ohne Anmeldung | Rückfrage 5 |
 | A8 | Taktische Zeichen aus `@einsatzzeichen` | Auftrag |
 | A9 | Eigene, deterministische Layout-Engine (Ansatz A) | Entscheidung |
+| A10 | Logo nicht im Code; hochladbar | Nachtrag |
 
 ## 2. Was die Excel-Vorlage zeigt
 
@@ -70,8 +71,26 @@ nicht in Zellen).
 | `bib_verbindung` | `id`, `art`, `bezeichnung`, `notiz` |
 | `freigabe` | `id`, `plan_id`, `token` (Klartext, eindeutig), `notiz`, `ablauf`, `widerrufen_am`, `erstellt_am`, `erstellt_von`, `zuletzt_abgerufen`, `abrufe` |
 
+| `briefkopf` | genau eine Zeile: `organisation` (Text, leer erlaubt), `logo` (Blob, leer erlaubt), `logo_mime`, `logo_sha256`, `aktualisiert_am`, `aktualisiert_von` |
+
 `aktualisiert_am` ist der gedruckte „Stand". Zeiten rechnen über `core/zeit`; `datum` ist ein
 Kalendertag (Mitternacht UTC).
+
+### 4.4 Briefkopf (Logo und Organisation)
+
+Logo und Organisationsname stehen **nicht im Code**, sondern werden hochgeladen bzw. eingetragen
+(A10). Ohne Eintrag bleibt die Stelle im Kopf leer; es gibt keinen eingebauten Ersatz, auch nicht
+im Seed.
+
+- Seite `/m/kommplan/einstellungen`, nur Modul-Admin: Organisationsname, Logo hochladen,
+  ersetzen, entfernen; Vorschau des Kopfes.
+- Erlaubt: PNG, JPEG, WebP, SVG; höchstens 1 MB. Der Typ wird aus den ersten Bytes bestimmt, nicht
+  aus Dateiname oder `Content-Type`. Jede Datei geht durch den Virenscanner (`core/av`, wie
+  `aufgaben`). SVG wird vor dem Speichern bereinigt (kein `script`, `foreignObject`, keine
+  `on*`-Attribute, keine externen Verweise); was danach nicht mehr gültig ist, wird abgelehnt.
+- Eingebettet wird das Logo als `data:`-URI in einem `<image>` der Zeichnung. So braucht weder der
+  Druck noch die Token-Ansicht eine eigene Bildroute, und ein SVG-Logo führt dort nie Skript aus.
+- Hochladen, Ersetzen und Entfernen gehen ins Audit-Log.
 
 ### 4.2 Planinhalt (JSON, zod, `schema: 1`)
 
@@ -165,7 +184,7 @@ und Budget — keine globale Optimierung, damit eine zusätzliche Stelle das Bil
 2. Reicht das nicht: aufteilen. Blatt 1 zeigt die oberen Ebenen; große Teilbäume erscheinen dort
    als Verweiskarte „→ Blatt n". Jeder solche Teilbaum bekommt ein eigenes Blatt, mit seiner
    Elternstelle grau als Anker. Die Aufteilung ist gierig nach Teilbaumgröße und deterministisch.
-3. Jedes Blatt trägt Kopf (Titel, Anlass, Datum, Organisation/Logo), Fuß (VS-NfD-Vermerk
+3. Jedes Blatt trägt Kopf (Titel, Anlass, Datum, Organisation/Logo aus dem Briefkopf §4.4), Fuß (VS-NfD-Vermerk
    abschaltbar, Stand, Bearbeiter, „Blatt x von y") und die Legende der verwendeten
    Verbindungsarten samt Reservekanälen.
 
@@ -184,6 +203,7 @@ zeigt dann ein Abzeichen „+n Stellen". Eingeklappt ist Ansichtszustand, nicht 
 | `/m/kommplan/[id]` | Editor (Admin) bzw. Betrachter (Zugangsgruppe) |
 | `/m/kommplan/[id]/druck/a4`, `…/a3` | Druckrouten (§8) |
 | `/m/kommplan/bibliothek` | Stellen, Einheiten, Verbindungen |
+| `/m/kommplan/einstellungen` | Briefkopf: Organisation und Logo (§4.4) |
 | `/m/kommplan/t/[token]` | Token-Ansicht (§8) |
 
 Die Plan-ID wird in jeder Server Action und jeder Seite aus der Datenbank aufgelöst (IDOR, `CLAUDE.md`).
@@ -330,7 +350,7 @@ Jede Phase ist einzeln auslieferbar und bekommt einen eigenen Umsetzungsplan.
    Release-Notiz.
 2. Diagramm-Editor: Griffe, Flyin, Autosave, Rückgängig.
 3. Gliederung mit mehrzeiligem Einfügen.
-4. Bibliothek, Vorlagen, Duplizieren, Archiv.
+4. Bibliothek, Vorlagen, Duplizieren, Archiv, Briefkopf mit Logo-Upload (§4.4).
 5. Token-Links, QR auf dem Ausdruck, A3, SVG-Export, Schwarzweiß.
 
 ## 12. Bewusst nicht enthalten
