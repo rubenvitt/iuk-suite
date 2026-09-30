@@ -18,6 +18,8 @@ export interface Metrik {
   readonly fett: Schnitt;
 }
 export interface Symbolquelle { readonly viewBox: string; readonly inhalt: string }
+/** Ein Eintrag des schlanken Zeichen-Index für die Suche im Editor — ohne SVG (Entscheidung 4, Phase 2). */
+export interface ZeichenIndexEintrag { schluessel: string; titel: string; suchtext: string }
 
 export const METRIK: Metrik = roh.metrik as Metrik;
 export const PIKTOGRAMME: Readonly<Record<string, Symbolquelle>> = roh.piktogramme as Record<string, Symbolquelle>;

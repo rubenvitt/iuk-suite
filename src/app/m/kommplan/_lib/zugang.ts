@@ -1,9 +1,12 @@
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
+import { istKommplanHost } from "./host";
+import type { Bearbeiter } from "./speichern";
 
 export type Viewer = Session["user"];
 type EnvLike = Record<string, string | undefined>;
@@ -39,4 +42,26 @@ export async function requireKommplanZugang(): Promise<Viewer> {
     notFound();
   }
   return viewer;
+}
+
+/**
+ * Für Server Actions (Vorbild `einsatzbuch/_lib/zugang.ts`, `requireEinsatzbuchAktion`): Wurf statt
+ * `notFound`, weil eine Action keine Seite ist. Host, Anmeldung und Bearbeiten-Recht — dasselbe
+ * Prädikat wie der Knopf „Neu" und die Editor-Weiche der Planseite (docs/design/README.md,
+ * „Führt kein Weg dorthin, wo die aufrufende Person nicht hindarf?").
+ */
+export async function requireKommplanBearbeitenAktion(): Promise<Viewer> {
+  const kopf = await headers();
+  const viewer = (await auth())?.user;
+  if (!istKommplanHost(kopf)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
+  if (!viewer) { auditLoginRequired("kommplan"); throw new Error("Forbidden"); }
+  if (!darfKommplanBearbeiten(viewer.groups)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
+  return viewer;
+}
+
+/** Kennung für `plan_bearbeitung.nutzer`, Anzeigename für `plan.aktualisiert_von` (gedruckter „Bearbeitung: …"). */
+export function bearbeiterAus(viewer: Viewer): Bearbeiter {
+  const akteur = auditActor(viewer);
+  const nutzer = akteur.kind === "user" ? akteur.id : "unbekannt";
+  return { nutzer, name: viewer.name?.trim() || viewer.email?.trim() || nutzer };
 }

@@ -381,6 +381,26 @@
     "kind": "context",
     "via": "DELETE"
   },
+  "src/app/m/kommplan/_actions/plan.ts#ladeStandAction": {
+    "kind": "excluded",
+    "reason": "Liest nur Version, Inhalt und Angaben eines Plans, damit der Editor nach Browser-Zurück keinen veralteten Stand zeigt; schreibt nichts."
+  },
+  "src/app/m/kommplan/_actions/plan.ts#legePlanAnAction": {
+    "kind": "context",
+    "via": "legePlanAnAction"
+  },
+  "src/app/m/kommplan/_actions/plan.ts#speichereAngabenAction": {
+    "kind": "context",
+    "via": "speichereAngabenAction"
+  },
+  "src/app/m/kommplan/_actions/plan.ts#speichereInhaltAction": {
+    "kind": "context",
+    "via": "speichereInhaltAction"
+  },
+  "src/app/m/kommplan/_actions/zeichen.ts#ladeZeichenAction": {
+    "kind": "excluded",
+    "reason": "Liest nur Zeichen-SVGs aus dem eingecheckten Generat für die Suche im Editor; schreibt nichts."
+  },
   "src/app/m/lagerbuch/_actions/artikel.ts#createArtikel": {
     "kind": "context",
     "via": "createArtikel"

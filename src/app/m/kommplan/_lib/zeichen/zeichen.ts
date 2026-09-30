@@ -1,5 +1,5 @@
 import type { PlanInhalt } from "../plan/schema";
-import type { Symbolquelle } from "./grundlagen";
+import type { Symbolquelle, ZeichenIndexEintrag } from "./grundlagen";
 import roh from "./zeichen.generiert.json";
 
 /**
@@ -15,15 +15,21 @@ export function findeZeichen(schluessel: string): Eintrag | null {
 }
 
 export function symboleFuer(inhalt: PlanInhalt): Record<string, Symbolquelle> {
-  const schluessel = new Set<string>();
-  for (const s of inhalt.stellen) {
-    if (s.zeichen) schluessel.add(s.zeichen);
-    for (const e of s.einheiten) if (e.zeichen) schluessel.add(e.zeichen);
-  }
+  return symboleFuerSchluessel(inhalt.stellen.flatMap((s) => [s.zeichen, ...s.einheiten.map((e) => e.zeichen)]).filter((k): k is string => k !== null));
+}
+
+export function symboleFuerSchluessel(schluessel: readonly string[]): Record<string, Symbolquelle> {
   return Object.fromEntries(
-    [...schluessel].sort().flatMap((k) => {
+    [...new Set(schluessel)].sort().flatMap((k) => {
       const e = findeZeichen(k);
       return e ? [[k, { viewBox: e.viewBox, inhalt: e.inhalt }]] : [];
     }),
   );
+}
+
+/** Der Index für die Suche im Editor: rund 20 KB statt rund 220 KB, weil ohne SVG. */
+export function zeichenIndex(): ZeichenIndexEintrag[] {
+  return Object.keys(ZEICHEN)
+    .map((k) => ({ schluessel: k, titel: ZEICHEN[k].titel, suchtext: ZEICHEN[k].suchtext }))
+    .sort((a, b) => a.titel.localeCompare(b.titel, "de") || (a.schluessel < b.schluessel ? -1 : 1));
 }

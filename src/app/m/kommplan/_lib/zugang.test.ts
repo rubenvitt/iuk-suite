@@ -11,7 +11,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
   redirect: (z: string) => { throw new Error(`NEXT_REDIRECT ${z}`); },
 }));
-import { darfKommplanBearbeiten, hatKommplanZugang, requireKommplanZugang } from "./zugang";
+const kopf = vi.hoisted(() => ({ host: "kommplan.localtest.me" }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: kopf.host }) }));
+import { bearbeiterAus, darfKommplanBearbeiten, hatKommplanZugang, requireKommplanBearbeitenAktion, requireKommplanZugang } from "./zugang";
 
 describe("Zugang zu kommplan", () => {
   it("Zugangsgruppe, Admin-Gruppe und Suite-Admin öffnen; andere nicht", () => {
@@ -43,5 +45,27 @@ describe("requireKommplanZugang", () => {
     expect(audit.denied).toHaveBeenCalledTimes(1);
     zustand.user = { sub: "s2", name: "Kai", groups: ["iuk-kommplan"] };
     await expect(requireKommplanZugang()).resolves.toMatchObject({ sub: "s2" });
+  });
+});
+
+describe("Bearbeiten-Riegel für Server Actions", () => {
+  beforeEach(() => { kopf.host = "kommplan.localtest.me"; audit.denied.mockReset(); audit.login.mockReset(); });
+  it("Admin-Gruppe darf, Zugangsgruppe nicht, ohne Anmeldung nicht, fremder Host nicht — je mit Audit", async () => {
+    zustand.user = { sub: "u1", name: "Jana", groups: ["iuk-kommplan-bearbeiten"] };
+    await expect(requireKommplanBearbeitenAktion()).resolves.toMatchObject({ sub: "u1" });
+    zustand.user = { sub: "u2", name: "Ole", groups: ["iuk-kommplan"] };
+    await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
+    expect(audit.denied).toHaveBeenCalledTimes(1);
+    zustand.user = null;
+    await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
+    expect(audit.login).toHaveBeenCalledTimes(1);
+    zustand.user = { sub: "u1", name: "Jana", groups: ["iuk-kommplan-bearbeiten"] };
+    kopf.host = "feedback.localtest.me";
+    await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
+    expect(audit.denied).toHaveBeenCalledTimes(2);
+  });
+  it("Bearbeiter: Kennung aus dem Audit-Akteur, Name mit Rückfall", () => {
+    expect(bearbeiterAus({ sub: "u1", name: " Jana ", groups: [] } as never)).toEqual({ nutzer: "u1", name: "Jana" });
+    expect(bearbeiterAus({ id: "u2", email: "ole@x.de", groups: [] } as never)).toEqual({ nutzer: "u2", name: "ole@x.de" });
   });
 });
