@@ -5,7 +5,7 @@ import { fuegeStelleEin } from "../plan/operationen";
 import type { PlanInhalt } from "../plan/schema";
 import { anzeigereihenfolge } from "./gruppen";
 import { MIN_MASSSTAB } from "./masse";
-import { teileAuf } from "./papier";
+import { offeneSchnitte, teileAuf } from "./papier";
 import { pruefeMitte, pruefeVerbindungen, pruefeZeichnung } from "./pruefung";
 import { umgebungFuer } from "./teilbaum";
 import type { Zeichnungsdaten, Ziel } from "./typen";
@@ -181,7 +181,9 @@ describe("Aufteilung deckt jede Stelle genau einmal ab, jedes Blatt sauber und a
     expect(normal.sort(), erklaere(seed, inhalt, "Abdeckung")).toEqual(inhalt.stellen.map((s) => s.id).sort());
     for (const b of blaetter) {
       expect(befundeVon(b.zeichnung, inhalt).map((x) => x.text), erklaere(seed, inhalt, `Blatt ${b.nummer}`)).toEqual([]);
-      if (!b.unterMindestschrift) expect(b.massstab).toBeGreaterThanOrEqual(MIN_MASSSTAB);
+      // Spec §5.6: „reicht das nicht: aufteilen" — unter 6 pt bleibt nur ein Blatt, auf dem nichts
+      // mehr zu schneiden ist (heute: durch die Höhe begrenzte Blätter mit vielen Blattkindern).
+      if (b.massstab < MIN_MASSSTAB - 1e-9) expect(offeneSchnitte(inhalt, b), erklaere(seed, inhalt, `Blatt ${b.nummer} unter 6 pt, aber teilbar`)).toEqual([]);
       // Verweisnummern steigen in Lesereihenfolge und zeigen auf das Blatt ihres Teilbaums
       const verweise = b.zeichnung.karten.filter((k) => k.verweis !== null);
       for (const k of verweise) expect(blaetter[Number(k.verweis!.text.replace("→ Blatt ", "")) - 1].wurzelId).toBe(k.id);

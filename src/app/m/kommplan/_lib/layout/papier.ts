@@ -129,6 +129,19 @@ function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag:
   };
 }
 
+/**
+ * Was auf einem fertigen Blatt noch geschnitten werden könnte. Leer heißt: das Blatt ist so weit
+ * aufgeteilt, wie die Regel reicht. Für die Zusicherung „unter 6 pt nur, wenn unteilbar"
+ * (Spec §5.6, `eigenschaften.test.ts`).
+ */
+export function offeneSchnitte(inhalt: PlanInhalt, blatt: Blatt): string[] {
+  const auftrag: Auftrag | undefined = blatt.wurzelId === null ? undefined : { wurzelId: blatt.wurzelId, ankerId: blatt.ankerId };
+  const darstellung = new Map<string, Darstellung>(
+    blatt.zeichnung.karten.filter((k) => k.art === "verweis").map((k) => [k.id, PLATZHALTER]),
+  );
+  return [...kandidaten(baueSicht(inhalt, { blatt: auftrag, darstellung }), auftrag).values()].flat().map((s) => s.id);
+}
+
 /** DURCHLAUF 2: Blätter in Tiefensuche nummerieren, dann jedes Blatt mit den echten Verweisnummern zeichnen. */
 export function teileAuf(inhalt: PlanInhalt, format: Papierformat): Blatt[] {
   const baum = baueBaum(inhalt);
