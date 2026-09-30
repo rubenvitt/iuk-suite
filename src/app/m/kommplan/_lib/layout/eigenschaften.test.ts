@@ -102,6 +102,15 @@ interface Einfuegung { inhalt: PlanInhalt; neu: PlanInhalt; wirksam: boolean; ge
  * Gruppen) — sonst prüft die Geschwister- und Gruppenebene nichts.
  */
 function einfuegung(seed: number, variante: Variante): Einfuegung {
+  // Gemerkt: die Zählprobe unten rechnet sonst alle 80 Fälle ein zweites Mal — unter Last über 5 s.
+  const schluessel = `${variante}:${seed}`;
+  let fall = EINFUEGUNGEN.get(schluessel);
+  if (!fall) EINFUEGUNGEN.set(schluessel, (fall = berechneEinfuegung(seed, variante)));
+  return fall;
+}
+const EINFUEGUNGEN = new Map<string, Einfuegung>();
+
+function berechneEinfuegung(seed: number, variante: Variante): Einfuegung {
   const inhalt = zufallsPlan(seed, { stellen: 25 });
   const baum = baueBaum(inhalt);
   const r = mulberry32(seed + 1000);
