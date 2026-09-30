@@ -36,7 +36,7 @@
   border-radius: 8px;
   outline-offset: 2px;
 }
-.kp-betrachter svg { display: block; width: 100%; height: 100%; cursor: grab; }
+.kp-betrachter > svg { display: block; width: 100%; height: 100%; cursor: grab; }
 .kp-werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; margin-block-end: 8px; }
 
 /* Legende unter dem Betrachter: die Symbole bleiben weiß (Papier), der Text folgt dem Thema. */
@@ -88,6 +88,8 @@
 }
 .kp-zeichen-knopf[aria-pressed="true"] { border-color: var(--kp-auswahl); box-shadow: inset 0 0 0 1px var(--kp-auswahl); }
 .kp-zeichen-knopf:focus-visible { outline: 2px solid var(--kp-auswahl); outline-offset: 2px; }
+/* Lange Titel („Einsatzabschnittsleitung“) brechen im Knopf um statt über den Rand (Sichtprüfung Phase 2). */
+.kp-zeichen-knopf > span:last-child { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
 /* Zeichen sind Papier: weißer Grund auch im Dunkelmodus (wie die Legende). */
 .kp-zeichen-knopf svg, .kp-zeichen-platz { flex: none; width: 36px; height: 36px; background: #ffffff; border-radius: 4px; }
 
@@ -106,6 +108,9 @@
 .kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; width: max-content; }
 .kp-griffe .kp-griff-links { right: calc(100% + 8px); }
 .kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
+/* „+“ und Symbol in einer Zeile (die Zeichnung selbst ist `.kp-betrachter > svg`, nicht jedes SVG in der Fläche). */
+.kp-griff-inhalt { display: inline-flex; align-items: center; gap: 4px; }
+.kp-griff-inhalt svg { display: inline-block; }
 .kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; }
 .kp-leer { padding: 16px; display: grid; gap: 12px; justify-items: start; }
 .kp-hinweis { margin-block-end: 8px; }

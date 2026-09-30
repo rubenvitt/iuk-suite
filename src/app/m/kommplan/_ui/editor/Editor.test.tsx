@@ -57,6 +57,8 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(queryAll('[data-griffe="a"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["links", "rechts", "unter", "einheit", "bearbeiten"]);
     await waehle("s");
     expect(queryAll('[data-griffe="s"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["einheit", "bearbeiten"]);
+    await waehle("a");
+    expect(query('[data-griff="links"] .kp-griff-inhalt svg')).toBeTruthy();
   });
   it("„+ Unterstelle“: sofort gesetzt, ausgewählt, Flyin offen mit leerem Titel", async () => {
     await zeige();

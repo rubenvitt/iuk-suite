@@ -38,7 +38,9 @@ export function Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, o
     <Tooltip title={`Seitenstelle ${seite} anlegen — waagerecht, ohne Bus`} trigger={["hover", "focus"]}>
       <Button data-griff={seite} className={`kp-griff-seite kp-griff-${seite}`} aria-label={`Seitenstelle ${seite} von ${titel} anlegen`}
         onClick={() => onSeitenstelle(seite)}>
-        {seite === "links" ? <><span aria-hidden="true">+</span><SeitenSymbol seite="links" /></> : <><SeitenSymbol seite="rechts" /><span aria-hidden="true">+</span></>}
+        <span className="kp-griff-inhalt">
+          {seite === "links" ? <><span aria-hidden="true">+</span><SeitenSymbol seite="links" /></> : <><SeitenSymbol seite="rechts" /><span aria-hidden="true">+</span></>}
+        </span>
       </Button>
     </Tooltip>
   );

@@ -24,5 +24,14 @@ describe("kommplan.css", () => {
   it("der seitliche Griff bricht nicht um: „+“ und Symbol stehen nebeneinander (absolut neben einer schmalen Karte)", () => {
     expect(css).toMatch(/\.kp-griffe \.kp-griff-seite \{[^}]*width: max-content/);
   });
+  it("„+“ und Symbol im seitlichen Griff stehen in EINER Zeile — die Regel der Zeichnung trifft nur das SVG direkt in der Fläche", () => {
+    expect(css).toMatch(/\.kp-betrachter > svg \{[^}]*width: 100%/);
+    expect(css).not.toMatch(/\.kp-betrachter svg \{/);
+    expect(css).toMatch(/\.kp-griff-inhalt \{[^}]*display: inline-flex/);
+    expect(css).toMatch(/\.kp-griff-inhalt svg \{[^}]*display: inline-block/);
+  });
+  it("lange Zeichentitel brechen im Knopf um, statt über den Rand zu laufen (Sichtprüfung Phase 2)", () => {
+    expect(css).toMatch(/\.kp-zeichen-knopf > span:last-child \{[^}]*overflow-wrap: anywhere/);
+  });
 });
 
