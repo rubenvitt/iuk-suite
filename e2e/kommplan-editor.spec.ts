@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { expect, test, type Locator, type Page, type Response } from "@playwright/test";
-import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
+import { ADMIN, HOST, ersteStelle, flyinTitel, istAktion, istSpeichern, karten, neuerPlan, oeffneEditor, rumpf, speichertNach, url } from "./kommplan-hilfen";
 
 /**
  * Kommunikationspläne, Phase 2: der Diagramm-Editor (Spec §6.1–6.4, §6.6). Jeder bearbeitende Test
@@ -9,55 +10,7 @@ import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte, warteAu
  * `"version"` im Rumpf, die Standabfrage beim Montieren des Editors (Entscheidung 21) trägt weder
  * `"version"` noch `"titel"`, die Zeichen-Nachladung trägt Zeichenschlüssel.
  */
-const HOST = "kommplan.localtest.me";
-const url = (pfad: string) => `http://${HOST}:${E2E_PORT}${pfad}`;
-const ADMIN = "iuk-kommplan-bearbeiten";
 const EINSATZ = "beispiel-einsatz-2026-02-22";
-
-const istAktion = (r: Response) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined;
-const rumpf = (r: Response) => r.request().postData() ?? "";
-const istSpeichern = (r: Response) => istAktion(r) && rumpf(r).includes('"version"');
-const istStandAbfrage = (r: Response) => istAktion(r) && !rumpf(r).includes('"version"') && !rumpf(r).includes('"titel"') && !rumpf(r).includes(":");
-const flyinTitel = (page: Page) => page.locator(".kp-flyin").getByLabel("Titel", { exact: true });
-const karten = (page: Page) => page.locator(".kp-betrachter [data-karte]");
-
-async function speichertNach(page: Page, tu: () => Promise<unknown>): Promise<void> {
-  const antwort = page.waitForResponse(istSpeichern);
-  await tu();
-  expect((await antwort).status()).toBe(200);
-  await expect(page.locator(".kp-speicherstatus")).toHaveText(/^Gespeichert \d\d:\d\d$/);
-}
-
-/** Navigation in den Editor: die Standabfrage beim Montieren ist eine ausgelöste Anfrage (Falle 10). */
-async function oeffneEditor(page: Page, navigiere: () => Promise<unknown>): Promise<void> {
-  const stand = page.waitForResponse(istStandAbfrage);
-  await navigiere();
-  expect((await stand).status()).toBe(200);
-  await warteAufSpaltenaufteilung(page);
-}
-
-async function neuerPlan(page: Page, titel: string): Promise<string> {
-  await page.goto(url("/"));
-  await warteAufSpaltenaufteilung(page);
-  await klickeWennRuhig(page.getByRole("button", { name: "Neu", exact: true }));
-  const formular = page.getByRole("form", { name: "Neuer Plan" });
-  await formular.getByLabel("Titel").fill(titel);
-  await formular.getByLabel("Anlass").fill("e2e");
-  const anlage = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"titel"'));
-  await oeffneEditor(page, async () => {
-    await klickeWennRuhig(formular.getByRole("button", { name: "Anlegen und bearbeiten" }));
-    expect((await anlage).status()).toBe(200);
-    await page.waitForURL(/\/p\/[0-9a-f-]{36}$/);
-  });
-  return new URL(page.url()).pathname.split("/").pop()!;
-}
-
-async function ersteStelle(page: Page, titel: string): Promise<void> {
-  await expect(page.locator(".kp-betrachter").getByText("Dieser Plan hat noch keine Stellen.")).toBeVisible();
-  await klickeWennRuhig(page.getByRole("button", { name: "Erste Stelle anlegen" }));
-  await expect(flyinTitel(page)).toBeFocused();
-  await speichertNach(page, () => flyinTitel(page).fill(titel));
-}
 
 test("Zugangsgruppe: kein „Neu“, der Plan bleibt Betrachter ohne Griffe", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
@@ -439,6 +392,18 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await expect(page.locator('fieldset[aria-label="Planangaben"]')).toBeVisible();
       await foto(`flyin-plan-${n}`);
       await page.keyboard.press("Escape");
+      await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=gliederung")));
+      await expect(page.getByRole("list", { name: "Gliederung" })).toBeVisible();
+      await ohneUeberlauf();
+      await foto(`gliederung-${n}`);
+      await page.locator('[data-zeile="ea2"] input[name="titel"]').focus();
+      await foto(`gliederung-auswahl-${n}`);
+      if (b.name === "telefon") {
+        await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01")));
+        await expect(page.getByRole("list", { name: "Gliederung" })).toBeVisible(); // ohne Parameter: Gliederung
+        await expect(page.locator(".kp-betrachter")).toBeHidden();
+        await foto(`telefon-standard-${n}`);
+      }
       page.off("response", zaehle);
       expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
     }
