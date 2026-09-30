@@ -1,7 +1,8 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Alert, Button, type InputRef } from "antd";
+import { flyinBreite } from "@/core/theme/flyin";
 import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
 import { ladeZeichenAction } from "../../_actions/zeichen";
 import { angabenSchema, type Planangaben } from "../../_lib/angaben";
@@ -293,8 +294,13 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
       action={<Button onClick={() => void speicherer.erneut()}>Erneut versuchen</Button>} />
   ) : null;
 
+  const flyinGrund = flyin === "stelle" && gewaehlt !== null ? STELLE_FLYIN_GRUND : flyin === "plan" ? PLAN_FLYIN_GRUND : null;
+  // Ein offenes Flyin hält seine Breite im Seitenfluss frei (CSS `.kp-editor[data-flyin]`, ab Tablet):
+  // sonst läge es über der rechtsbündigen Kopfleiste und dem Konflikthinweis (e2e, Phase 2).
+  const flyinStil = flyinGrund === null ? undefined : ({ "--kp-flyin-breite": flyinBreite(flyinGrund) } as CSSProperties);
+
   return (
-    <div className="kp-editor">
+    <div className="kp-editor" data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
       <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
         kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)}
         onRueck={() => perKnopf(rueck)} onWieder={() => perKnopf(wieder)}
@@ -302,7 +308,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
         onNeuLaden={neuLaden} onBehalten={behalten} />
       <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
         griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
-        flyinGrund={flyin === "stelle" ? STELLE_FLYIN_GRUND : flyin === "plan" ? PLAN_FLYIN_GRUND : null}
+        flyinGrund={flyinGrund}
         zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
         onKarteKlick={klick} onTaste={taste} meldung={meldung}
         ueberlagerung={(a, f) => (auswahlKarte && stelle ? (

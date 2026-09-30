@@ -233,4 +233,14 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(1);
     expect(fenster.location.href).toBe("/p/p1/druck/a4");
   });
+  it("ein offenes Flyin hält seine Breite im Seitenfluss frei: Kopfleiste und Hinweise bleiben erreichbar", async () => {
+    await zeige();
+    expect(query(".kp-editor").hasAttribute("data-flyin")).toBe(false);
+    await waehle("a");
+    await clickElement(query('[data-griff="bearbeiten"]'));
+    expect(query(".kp-editor").getAttribute("data-flyin")).toBe("stelle");
+    expect(query(".kp-editor").style.getPropertyValue("--kp-flyin-breite")).toBe("min(520px, 92vw)");
+    await clickElement(knopf("Plan und Verbindungen"));
+    expect(query(".kp-editor").style.getPropertyValue("--kp-flyin-breite")).toBe("min(560px, 92vw)");
+  });
 });

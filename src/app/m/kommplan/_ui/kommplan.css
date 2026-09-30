@@ -103,7 +103,7 @@
 .kp-griffe-karte { position: absolute; }
 .kp-griffe button { pointer-events: auto; }
 .kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl); border-radius: 4px; pointer-events: none; }
-.kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; }
+.kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; width: max-content; }
 .kp-griffe .kp-griff-links { right: calc(100% + 8px); }
 .kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
 .kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; }
@@ -114,3 +114,13 @@
 .kp-speicherstatus { font-size: 13px; color: var(--kp-gedaempft); min-width: 18ch; white-space: nowrap; }
 .kp-bedienhinweis { margin-block: 8px 0; }
 @media (max-width: 767.98px) { .kp-kopfwerkzeuge > * { flex: 1 1 auto; } }
+
+/*
+ * Ein offenes Flyin (ohne Maske) hält ab Tablet-Breite seine Breite im Seitenfluss frei: sonst läge
+ * es über der rechtsbündigen Kopfleiste (Rückgängig, Drucken, Speicherstatus) und über dem
+ * Konflikthinweis. Die Breite kommt aus `flyinBreite()` (Editor.tsx, `--kp-flyin-breite`). Am Telefon
+ * deckt das Flyin 92 vw ohnehin (Umsetzungsplan Phase 2, Entscheidung 13).
+ */
+@media (min-width: 768px) {
+  .kp-editor[data-flyin] { padding-inline-end: var(--kp-flyin-breite); }
+}
