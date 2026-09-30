@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
-import { MELDUNG, fuegeGeschwisterEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, reihe, rueckeAus, rueckeEin, setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, zuVieleStellen } from "./gliederung";
+import { MELDUNG, fuegeGeschwisterEin, fuegeGliederungEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, reihe, rueckeAus, rueckeEin, setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, zuVieleStellen } from "./gliederung";
+import { leseGliederung } from "./einfuegen";
 import { PlanFehler } from "./operationen";
 import { GRENZE, leseInhalt, type PlanInhalt } from "./schema";
 
@@ -167,5 +168,48 @@ describe("Verbindung für Geschwister übernehmen (Entscheidung 12)", () => {
     expect(() => setzeVerbindungFuerGeschwister(PLAN, "x1")).toThrow(MELDUNG.keineGeschwister);
     expect(() => setzeVerbindungFuerGeschwister(OHNE, "el")).toThrow(MELDUNG.ohneVerbindung);
     expect(() => setzeVerbindungFuerGeschwister(OHNE, "kat")).toThrow(MELDUNG.ohneVerbindung);
+  });
+});
+
+describe("fuegeGliederungEin (Entscheidung 9, Review Focus 4)", () => {
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `g${i}`);
+  const TEXT = "EA Nord\n\tRTW 1\n\tRTW 2\n\t\tNEF\nEA Süd";
+
+  it("Ebene 0 wird Geschwister NACH der Cursorzeile samt Teilbaum (Verbindung wie Enter), tiefere Zeilen Unterstellen", () => {
+    const { eintraege } = leseGliederung(TEXT);
+    const r = fuegeGliederungEin(PLAN, "x2", eintraege, ids(5));
+    gueltig(r.inhalt);
+    expect(titel(r.inhalt)).toEqual(["EL", "·KatSL(links)", "·X1", "·X2", "··U", "·EA Nord", "··RTW 1", "··RTW 2", "···NEF", "·EA Süd", "·X5", "·Y3", "·Y4", "Wurzel 2"]);
+    expect(s(r.inhalt, "g0").verbindungId).toBe("a");
+    expect(s(r.inhalt, "g1").verbindungId).toBeNull();
+    expect(r.zeilenIds).toEqual(ids(5));
+  });
+  it("eine ganz leere Cursorzeile wird ersetzt: die erste Zeile nimmt ihren Platz ein", () => {
+    const mitLeer = fuegeGeschwisterEin(PLAN, "x1", "leer");
+    const r = fuegeGliederungEin(mitLeer, "leer", leseGliederung("EA\n\tRTW").eintraege, ids(2));
+    expect(r.zeilenIds).toEqual(["leer", "g0"]);
+    expect(s(r.inhalt, "leer").titel).toBe("EA");
+    expect(s(r.inhalt, "g0").eltern).toBe("leer");
+    expect(r.inhalt.stellen).toHaveLength(mitLeer.stellen.length + 1);
+  });
+  it("auf oberster Ebene: neue Wurzeln ohne Verbindung", () => {
+    const r = fuegeGliederungEin(PLAN, "w2", leseGliederung("Stab\n\tS1").eintraege, ids(2));
+    expect(titel(r.inhalt).slice(-3)).toEqual(["Wurzel 2", "Stab", "·S1"]);
+    expect(s(r.inhalt, "g0")).toMatchObject({ eltern: null, verbindungId: null });
+  });
+  it("in eine Seitenstelle: PlanFehler; über 500 Stellen: PlanFehler mit Zahl; das Dokument bleibt", () => {
+    expect(() => fuegeGliederungEin(PLAN, "kat", leseGliederung("A\nB").eintraege, ids(2))).toThrow(MELDUNG.inSeitenstelle);
+    const viele = Array.from({ length: GRENZE.stellen }, (_, i) => ({ ebene: 0, titel: `S${i}` }));
+    expect(() => fuegeGliederungEin(PLAN, "x1", viele, ids(GRENZE.stellen))).toThrow(zuVieleStellen(PLAN.stellen.length + GRENZE.stellen));
+  });
+  it("leere Eingabe: dasselbe Objekt", () => {
+    expect(fuegeGliederungEin(PLAN, "x1", [], []).inhalt).toBe(PLAN);
+  });
+  it("Zusicherung: jede eingefügte Zeile steht mit ihrer Ebene in der Gliederung, relativ zur Cursorzeile", () => {
+    const { eintraege } = leseGliederung("A\n\tB\n\t\tC\n\tD\nE\n\tF");
+    const r = fuegeGliederungEin(PLAN, "y3", eintraege, ids(6));
+    const z = gliederungsZeilen(r.inhalt);
+    const basis = z.find((x) => x.stelle.id === "y3")!.ebene;
+    eintraege.forEach((e, i) => expect(z.find((x) => x.stelle.id === r.zeilenIds[i])).toMatchObject({ ebene: basis + e.ebene, stelle: { titel: e.titel } }));
   });
 });

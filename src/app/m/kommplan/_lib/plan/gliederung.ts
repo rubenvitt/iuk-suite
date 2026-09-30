@@ -1,5 +1,6 @@
 import { anzeigereihenfolge } from "../layout/gruppen";
 import { baueBaum, nachkommen } from "./baum";
+import type { GliederungsEintrag } from "./einfuegen";
 import { gueltig, leereStelle, loescheStelle, naechsteReihenfolge, PlanFehler, stelleOder } from "./operationen";
 import { GRENZE, type Lage, type PlanInhalt, type Stelle } from "./schema";
 
@@ -149,4 +150,49 @@ export function loescheLeereZeile(inhalt: PlanInhalt, id: string): PlanInhalt {
   if (s.titel.trim() !== "") throw new PlanFehler(MELDUNG.mitTitel);
   if (nachkommen(baueBaum(inhalt), id).length > 0) throw new PlanFehler(MELDUNG.nichtLeer);
   return loescheStelle(inhalt, id).inhalt;
+}
+
+/** Nichts an der Zeile außer der Lage: kein Titel, kein Zeichen, keine Angaben, keine Nachkommen. */
+function istLeer(inhalt: PlanInhalt, s: Stelle): boolean {
+  return s.titel.trim() === "" && s.leiter === null && s.zeichen === null && s.kontakte.length === 0
+    && s.einheiten.length === 0 && s.kanaele.length === 0 && nachkommen(baueBaum(inhalt), s.id).length === 0;
+}
+
+/**
+ * MEHRZEILIGES EINFÜGEN (Spec §6.5, Entscheidung 9). Ebene-0-Einträge werden Geschwister nach dem Anker
+ * samt Teilbaum und treten seinem Bus bei (wie Enter); tiefere Einträge werden Unterstellen des letzten
+ * Eintrags eine Ebene höher, ohne Verbindung. Ein ganz leerer Anker wird durch den ersten Eintrag ersetzt.
+ */
+export function fuegeGliederungEin(inhalt: PlanInhalt, ankerId: string, eintraege: readonly GliederungsEintrag[], ids: readonly string[]): { inhalt: PlanInhalt; zeilenIds: string[] } {
+  const anker = stelleOder(inhalt, ankerId);
+  if (anker.lage !== "unter") throw new PlanFehler(MELDUNG.inSeitenstelle);
+  if (eintraege.length === 0) return { inhalt, zeilenIds: [] };
+  const ersetzt = istLeer(inhalt, anker);
+  const dazu = eintraege.length - (ersetzt ? 1 : 0);
+  pruefeAnzahl(inhalt, dazu);
+  if (ids.length < dazu) throw new Error(`fuegeGliederungEin: ${dazu} IDs nötig, ${ids.length} bekommen`);
+  const zeilenIds = ersetzt ? [anker.id, ...ids.slice(0, dazu)] : ids.slice(0, dazu);
+  const stapel: string[] = [];
+  const naechste = new Map<string, number>();
+  const oben: string[] = [];
+  const neu: Stelle[] = [];
+  let stellen = inhalt.stellen;
+  eintraege.forEach((e, i) => {
+    const id = zeilenIds[i];
+    stapel.length = e.ebene;
+    stapel.push(id);
+    if (i === 0 && ersetzt) { stellen = stellen.map((x) => (x.id === id ? { ...x, titel: e.titel } : x)); return; }
+    if (e.ebene === 0) {
+      oben.push(id);
+      neu.push({ ...leereStelle(id, anker.eltern, "unter", 0, anker.eltern === null ? null : anker.verbindungId), titel: e.titel });
+      return;
+    }
+    const eltern = stapel[e.ebene - 1];
+    const r = naechste.get(eltern) ?? 0;
+    naechste.set(eltern, r + 1);
+    neu.push({ ...leereStelle(id, eltern, "unter", r, null), titel: e.titel });
+  });
+  const folge = reihe(inhalt, anker.eltern, "unter").map((x) => x.id);
+  folge.splice(folge.indexOf(anker.id) + 1, 0, ...oben);
+  return { inhalt: gueltig({ ...inhalt, stellen: mitFolge([...stellen, ...neu], folge) }), zeilenIds };
 }
