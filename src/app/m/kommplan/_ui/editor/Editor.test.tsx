@@ -71,7 +71,10 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await waehle("s");
     expect(queryAll('[data-griffe="s"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["einheit", "bearbeiten"]);
     await waehle("a");
-    expect(query('[data-griff="links"] .kp-griff-inhalt svg')).toBeTruthy();
+    expect(query('[data-griff="links"]').textContent).toBe("+ links");
+    expect(query('[data-griff="rechts"]').textContent).toBe("+ rechts");
+    expect(query('[data-griff="links"]').getAttribute("aria-label")).toBe("Seitenstelle links von EA 1 anlegen");
+    expect(queryAll("[data-griff]").every((b) => b.tagName === "BUTTON" && b.getAttribute("type") === "button")).toBe(true);
   });
   it("„+ Unterstelle“: sofort gesetzt, ausgewählt, Flyin offen mit leerem Titel", async () => {
     await zeige();

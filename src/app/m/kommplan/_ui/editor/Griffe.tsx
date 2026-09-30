@@ -4,20 +4,11 @@ import { Button, Tooltip } from "antd";
 import type { KarteL } from "../../_lib/layout/typen";
 import type { Ansicht } from "../betrachter/ansicht";
 
-/** Eine waagerechte Anbindung mit Kästchen — zeigt Sehenden, dass „+" hier eine SEITENstelle ist, keine Stelle am Bus (Kritik). */
-function SeitenSymbol({ seite }: { seite: "links" | "rechts" }) {
-  return (
-    <svg aria-hidden="true" width={16} height={12} viewBox="0 0 16 12" style={seite === "links" ? { transform: "scaleX(-1)" } : undefined}>
-      <line x1={0} y1={6} x2={8} y2={6} stroke="currentColor" strokeWidth={1.5} />
-      <rect x={8.75} y={2.75} width={6.5} height={6.5} fill="none" stroke="currentColor" strokeWidth={1.5} />
-    </svg>
-  );
-}
-
 /**
  * GRIFFE DER AUSWAHL (Spec §6.3, Entscheidung 5): eine HTML-Überlagerung in Pixeln über dem SVG —
- * die Knöpfe behalten bei jedem Zoom ihre 44 px und sind echte Buttons mit Namen. Seitlich „+"
- * (Seitenstelle links/rechts, mit Tooltip bei Zeigen und Fokus und Symbol), unten die Griffleiste
+ * die Knöpfe behalten bei jedem Zoom ihre 44 px und sind echte Buttons mit Namen. Seitlich „+ links"
+ * und „+ rechts" (Seitenstelle, mit Tooltip bei Zeigen und Fokus; vorher ein unbeschriftetes „+" mit
+ * Anbindungssymbol, Sichtprüfung Phase 2 → Umsetzungsplan Phase 3), unten die Griffleiste
  * „+ Unterstelle", „+ Einheit", „Bearbeiten". Eine Seitenstelle trägt nichts (§4.2): dort nur
  * „+ Einheit" und „Bearbeiten".
  *
@@ -37,11 +28,7 @@ export function Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, o
   const seitlich = (seite: "links" | "rechts") => (
     <Tooltip title={`Seitenstelle ${seite} anlegen — waagerecht, ohne Bus`} trigger={["hover", "focus"]}>
       <Button data-griff={seite} className={`kp-griff-seite kp-griff-${seite}`} aria-label={`Seitenstelle ${seite} von ${titel} anlegen`}
-        onClick={() => onSeitenstelle(seite)}>
-        <span className="kp-griff-inhalt">
-          {seite === "links" ? <><span aria-hidden="true">+</span><SeitenSymbol seite="links" /></> : <><SeitenSymbol seite="rechts" /><span aria-hidden="true">+</span></>}
-        </span>
-      </Button>
+        onClick={() => onSeitenstelle(seite)}>{`+ ${seite}`}</Button>
     </Tooltip>
   );
   return (

@@ -113,9 +113,6 @@
 .kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; width: max-content; }
 .kp-griffe .kp-griff-links { right: calc(100% + 8px); }
 .kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
-/* „+“ und Symbol in einer Zeile (die Zeichnung selbst ist `.kp-betrachter > svg`, nicht jedes SVG in der Fläche). */
-.kp-griff-inhalt { display: inline-flex; align-items: center; gap: 4px; }
-.kp-griff-inhalt svg { display: inline-block; }
 .kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; }
 .kp-leer { padding: 16px; display: grid; gap: 12px; justify-items: start; }
 .kp-hinweis { margin-block-end: 8px; }
