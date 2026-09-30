@@ -42,6 +42,23 @@ async function druecke(el: Element, key: string) {
   await act(async () => {});
 }
 afterEach(async () => { await unmount(); stand = START; speichere.mockReset(); entwurf.mockReset(); });
+const OK = { ok: true, version: 2, aktualisiertAm: 1 } as const;
+/** Ein Aufruf, der hängt, bis der Test ihn auflöst — wie eine langsame Action oder eine volle Warteschlange. */
+function haengend() {
+  let loese: (r: unknown) => void = () => {};
+  speichere.mockImplementationOnce(() => new Promise((r) => { loese = r; }));
+  return (r: unknown = OK) => act(async () => { loese(r); });
+}
+/** antds Select öffnet auf `mousedown`; die Liste hängt im Portal (Vorbild JournalFilter.test.tsx). */
+async function waehleOption(eingabe: HTMLElement, text: string) {
+  await act(async () => { eingabe.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+  const option = [...document.querySelectorAll<HTMLElement>(".ant-select-item-option")].filter((o) => o.offsetParent !== undefined)
+    .reverse().find((o) => o.textContent === text);
+  if (!option) throw new Error(`Option fehlt: ${text}`);
+  await clickElement(option);
+  await act(async () => {});
+}
+const feldZu = (name: string) => document.getElementById([...document.querySelectorAll("label")].find((l) => l.textContent === name)!.htmlFor)!;
 
 describe("Plan-Flyin", () => {
   it("Planangaben speichern sich beim Verlassen des Felds — kein „Übernehmen“ (Entscheidung 3)", async () => {
@@ -74,6 +91,59 @@ describe("Plan-Flyin", () => {
     expect(titel.getAttribute("aria-invalid")).toBe("true");
     expect(document.getElementById(titel.getAttribute("aria-describedby")!)?.textContent).toBe("Bitte einen Titel eintragen.");
     expect(entwurf).not.toHaveBeenLastCalledWith(false); // der Entwurf ist nicht gespeichert
+  });
+  it("zurück auf den alten Wert, während das erste Speichern noch läuft: auch das wird gesendet (Review Phase 2)", async () => {
+    const los = haengend();
+    speichere.mockResolvedValue(OK);
+    await mount(<Rahmen />);
+    await tippeUndVerlasse('input[name="anlass"]', "Probe");
+    await tippeUndVerlasse('input[name="anlass"]', "");
+    await los();
+    await act(async () => {});
+    expect(speichere.mock.calls.map((c) => c[0].anlass)).toEqual(["Probe", ""]);
+    expect(entwurf).toHaveBeenLastCalledWith(false);
+  });
+  it("die Antwort auf einen älteren Stand meldet keinen gespeicherten Entwurf, solange Neueres getippt ist", async () => {
+    const los = haengend();
+    await mount(<Rahmen />);
+    await tippeUndVerlasse('input[name="anlass"]', "Probe");
+    await fill('input[name="anlass"]', "Probe 2"); // getippt, Feld nicht verlassen
+    await los();
+    expect(entwurf).toHaveBeenLastCalledWith(true);
+  });
+  it("ein misslungenes Speichern gilt nicht als gesendet: dasselbe Feld noch einmal verlassen sendet erneut", async () => {
+    speichere.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(OK);
+    await mount(<Rahmen />);
+    await tippeUndVerlasse('input[name="anlass"]', "Probe");
+    expect(document.body.textContent).toContain("Nicht gespeichert — prüfe die Verbindung");
+    await tippeUndVerlasse('input[name="anlass"]', "Probe");
+    expect(speichere).toHaveBeenCalledTimes(2);
+    expect(entwurf).toHaveBeenLastCalledWith(false);
+  });
+  it("Art: die Wahl speichert sofort; zwei schnelle Wahlen zurück zum alten Wert senden beide", async () => {
+    const los = haengend();
+    speichere.mockResolvedValue(OK);
+    await mount(<Rahmen />);
+    await waehleOption(feldZu("Art"), "Fernmeldeskizze");
+    expect(speichere).toHaveBeenLastCalledWith(expect.objectContaining({ typ: "fernmeldeskizze" }));
+    await waehleOption(feldZu("Art"), "Kommunikationsplan");
+    await los();
+    await act(async () => {});
+    expect(speichere.mock.calls.map((c) => c[0].typ)).toEqual(["fernmeldeskizze", "kommunikationsplan"]);
+  });
+  it("Datum: die Wahl speichert sofort", async () => {
+    speichere.mockResolvedValue(OK);
+    await mount(<Rahmen />);
+    await clickElement(feldZu("Datum"));
+    const tag = [...document.querySelectorAll<HTMLElement>(".ant-picker-cell")].find((z) => z.getAttribute("title") === "2026-09-15");
+    await clickElement(tag!);
+    await act(async () => {});
+    expect(speichere).toHaveBeenLastCalledWith(expect.objectContaining({ datum: "2026-09-15" }));
+  });
+  it("Verbindung: Art ändern wirkt sofort im Dokument", async () => {
+    await mount(<Rahmen />);
+    await waehleOption(query('[data-verbindung-zeile="v3"] input[aria-label="Verbindung 3: Art"]'), "Digitalfunk DMO");
+    expect(stand.verbindungen.find((v) => v.id === "v3")?.art).toBe("dmo");
   });
   it("Optionen: Leerzeilen und VS-NfD-Vermerk schalten im Dokument", async () => {
     await mount(<Rahmen />);

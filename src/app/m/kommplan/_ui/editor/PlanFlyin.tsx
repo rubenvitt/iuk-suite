@@ -57,9 +57,13 @@ export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben, onEnt
 }
 
 interface Entwurf { titel: string; typ: PlanTyp; anlass: string; datum: string | null }
-/** Wie `angabenSchema` vergleicht: getrimmt, leerer Anlass = null. So wird Unverändertes nie gesendet (Review Focus 6). */
-const gleich = (a: Entwurf, b: Planangaben) =>
-  a.titel.trim() === b.titel && a.typ === b.typ && (a.anlass.trim() || null) === b.anlass && a.datum === b.datum;
+/** Wie `angabenSchema` normiert: getrimmt, leerer Anlass = null. */
+const normiert = (e: Entwurf): Planangaben => ({ titel: e.titel.trim(), typ: e.typ, anlass: e.anlass.trim() || null, datum: e.datum });
+/** So wird Unverändertes nie gesendet (Review Focus 6). */
+const gleich = (a: Entwurf, b: Planangaben) => {
+  const n = normiert(a);
+  return n.titel === b.titel && n.typ === b.typ && n.anlass === b.anlass && n.datum === b.datum;
+};
 
 function Angaben({ angaben, speichereAngaben, onEntwurf }: Pick<PlanFormularProps, "angaben" | "speichereAngaben" | "onEntwurf">) {
   const basis = useId();
@@ -69,23 +73,40 @@ function Angaben({ angaben, speichereAngaben, onEntwurf }: Pick<PlanFormularProp
   const [datum, setDatum] = useState<Dayjs | null>(angaben.datum ? dayjs(angaben.datum) : null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [meldung, setMeldung] = useState<string | null>(null);
-  /** Zuletzt gespeicherter Stand — gesät aus den Props; der Editor keyt diese Komponente neu, wenn die Angaben von außen kommen. */
-  const gespeichert = useRef(angaben);
+  /**
+   * Zuletzt GESENDETER Stand, nicht der zuletzt bestätigte (Review Phase 2): sonst hielte ein Zurücksetzen
+   * auf den alten Wert, solange das erste Speichern noch läuft, sich für „unverändert“, und der Server
+   * behielte den verworfenen Wert. `null` = unbekannt (Senden misslungen) → das nächste Verlassen sendet.
+   * Gesät aus den Props; der Editor keyt diese Komponente neu, wenn die Angaben von außen kommen.
+   */
+  const gesendet = useRef<Planangaben | null>(angaben);
+  /** Zählt Sendungen und Eingaben: nur die Antwort auf die NEUESTE Sendung ohne neuere Eingabe beendet den Entwurf. */
+  const sendung = useRef(0);
+  const eingabe = useRef(0);
+  const unterwegs = useRef(0);
   const entwurf = (): Entwurf => ({ titel, typ, anlass, datum: datum ? datum.format("YYYY-MM-DD") : null });
 
   const sende = (e: Entwurf) => {
-    if (gleich(e, gespeichert.current)) { setFeldFehler({}); onEntwurf(false); return; }
+    if (gesendet.current !== null && gleich(e, gesendet.current)) { setFeldFehler({}); if (unterwegs.current === 0) onEntwurf(false); return; }
     setMeldung(null);
+    gesendet.current = normiert(e);
+    const nr = ++sendung.current;
+    const stand = eingabe.current;
+    const neueste = () => nr === sendung.current;
+    const vergiss = () => { if (neueste()) gesendet.current = null; };
+    unterwegs.current += 1;
     void speichereAngaben(e as unknown as Planangaben) // der Server trimmt und macht aus leerem Anlass null (`angabenSchema`)
       .then((r) => {
-        if (r.ok) { gespeichert.current = { titel: e.titel.trim(), typ: e.typ, anlass: e.anlass.trim() || null, datum: e.datum }; setFeldFehler({}); onEntwurf(false); }
-        else if (r.grund === "ungueltig") setFeldFehler(r.feldFehler ?? {});
+        if (r.ok) { setFeldFehler({}); if (neueste() && stand === eingabe.current) onEntwurf(false); return; }
+        vergiss();
+        if (r.grund === "ungueltig") setFeldFehler(r.feldFehler ?? {});
         else if (r.grund === "konflikt") setMeldung("Nicht gespeichert: der Plan wurde inzwischen geändert. Entscheide oben, welche Fassung gilt.");
         else setMeldung("Diesen Plan gibt es nicht mehr, oder er wurde archiviert.");
       })
-      .catch(() => setMeldung("Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist."));
+      .catch(() => { vergiss(); setMeldung("Nicht gespeichert — prüfe die Verbindung und ob du noch angemeldet bist."); })
+      .finally(() => { unterwegs.current -= 1; });
   };
-  const geaendert = () => onEntwurf(true);
+  const geaendert = () => { eingabe.current += 1; onEntwurf(true); };
   // Dasselbe Paar wie in `NeuerPlan` (docs/design/feedback-admin.md 4.4): aria-invalid UND aria-describedby.
   const feld = (name: string) => ({
     id: `${basis}-${name}`, "aria-invalid": feldFehler[name] ? true : undefined,
@@ -103,7 +124,7 @@ function Angaben({ angaben, speichereAngaben, onEntwurf }: Pick<PlanFormularProp
       {fehlerText("titel")}
       <label className="kp-feldname" htmlFor={`${basis}-typ`}>Art</label>
       <Select id={`${basis}-typ`} value={typ} options={PLAN_TYPEN.map((t) => ({ value: t, label: TYP_NAME[t] }))}
-        onChange={(v: PlanTyp) => { setTyp(v); sende({ ...entwurf(), typ: v }); }} />
+        onChange={(v: PlanTyp) => { eingabe.current += 1; setTyp(v); sende({ ...entwurf(), typ: v }); }} />
       <label className="kp-feldname" htmlFor={`${basis}-anlass`}>Anlass</label>
       <Input name="anlass" value={anlass} maxLength={LAENGE_ANLASS} {...feld("anlass")}
         onChange={(e) => { setAnlass(e.target.value); geaendert(); }} onBlur={() => sende(entwurf())}
@@ -112,7 +133,7 @@ function Angaben({ angaben, speichereAngaben, onEntwurf }: Pick<PlanFormularProp
       <label className="kp-feldname" htmlFor={`${basis}-datum`}>Datum</label>
       <DatePicker {...feld("datum")} value={datum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
         status={feldFehler.datum ? "error" : undefined}
-        onChange={(d: Dayjs | null) => { setDatum(d); sende({ ...entwurf(), datum: d ? d.format("YYYY-MM-DD") : null }); }} />
+        onChange={(d: Dayjs | null) => { eingabe.current += 1; setDatum(d); sende({ ...entwurf(), datum: d ? d.format("YYYY-MM-DD") : null }); }} />
       {fehlerText("datum")}
       {meldung ? <Alert type="warning" showIcon title={meldung} /> : null}
     </fieldset>
