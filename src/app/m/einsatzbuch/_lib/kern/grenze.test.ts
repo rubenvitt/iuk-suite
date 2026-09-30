@@ -6,11 +6,13 @@ import { describe, expect, it } from "vitest";
  * DER KERN LÄUFT AUCH IN DER DESKTOP-APP (Vite + Tauri, kein Next, kein Node).
  * Ein Import aus `next`, `node:*` oder der Suite kompiliert dort nicht — und die Suite-
  * Tore merken es nicht, weil sie die App nicht bauen. Tests dürfen Node benutzen.
- * Einzige Ausnahme: `@/core/theme/tokens` (reine Konstanten, Spec §2.1). Verboten sind
+ * Ausnahmen: `@/core/theme/tokens` (reine Konstanten, Spec §2.1) und
+ * `@/core/ikonen/Icons8Ikone` (reine Pfaddaten plus eine Funktion auf `<svg>`, DRK-502) —
+ * beide mit eigenem Alias in `apps/einsatzbuch/vite.config.ts`. Verboten sind
  * auch relative Pfade, die aus `kern/` herausführen — die Desktop-App löst sie über den
  * echten Pfad auf und würde einem solchen Import in die Suite folgen.
  */
-const ERLAUBT_AUS_SUITE = new Set(["@/core/theme/tokens"]);
+const ERLAUBT_AUS_SUITE = new Set(["@/core/theme/tokens", "@/core/ikonen/Icons8Ikone"]);
 
 function dateien(ordner: string): string[] {
   return readdirSync(ordner).filter((n) => n !== "node_modules").flatMap((n) => {

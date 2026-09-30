@@ -6,7 +6,7 @@ import { join } from "node:path";
 const WURZEL = "src/app/m/radio";
 
 /** Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv. Dieselbe Bauform, mit der
- *  src/core/shell/icons.test.ts:54-63 den Quellbaum abgeht. */
+ *  src/core/ikonen/ikonen.test.ts den Quellbaum abgeht. */
 function sammleQuellen(verzeichnis: string, treffer: string[] = []): string[] {
   for (const eintrag of readdirSync(verzeichnis)) {
     const pfad = join(verzeichnis, eintrag);

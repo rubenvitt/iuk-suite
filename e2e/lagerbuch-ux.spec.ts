@@ -11,7 +11,7 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * tatsaechlich eine dort katalogisierte Falle mit absichert, steht das bei
  * ihm einzeln.
  *
- *  - Ikonen-Migration auf react-icons/pi — jsdom rendert das SVG, aber ein
+ *  - Ikonen-Migration (heute Icons8, `core/ikonen`) — jsdom rendert das SVG, aber ein
  *    Bundle-Sprung durch ein mitgezogenes Barrel zeigt sich erst am
  *    Artefakt (Step 2 im Bericht), nicht in einem Testlauf. Kein Test
  *    dieser Datei deckt das ab.

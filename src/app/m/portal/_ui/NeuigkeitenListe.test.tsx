@@ -10,7 +10,7 @@ const NEUIGKEITEN: Neuigkeit[] = [
   {
     modul: "lagerbuch",
     modulTitel: "Lagerbuch",
-    icon: "ContainerOutlined",
+    icon: "warehouse",
     slug: "checkliste-als-pdf",
     datum: "2026-08-16",
     titel: "Fahrzeug-Checklisten als PDF",
@@ -19,7 +19,7 @@ const NEUIGKEITEN: Neuigkeit[] = [
   {
     modul: "portal",
     modulTitel: "Portal",
-    icon: "AppstoreOutlined",
+    icon: "apps",
     slug: "von-allen-geraeten-abmelden",
     datum: "2026-08-14",
     titel: "Von allen Geräten abmelden",

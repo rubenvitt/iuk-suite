@@ -1,12 +1,12 @@
 /*
  * DIE EINE ZEICHENQUELLE DES MODULS — die Union ist die Autoritaet, die
- * Aufloesung liegt bei Phosphor (react-icons/pi).
+ * Aufloesung liegt bei Icons8 (`core/ikonen`, Satz „Windows 11 Outline").
  *
  * Bis 2026-08-12 malte diese Datei 36 SVG-Pfade selbst, weil das Modul KEIN
  * fremdes Zeichenpaket haben durfte (Falle 7: @ant-design/icons ergibt in
  * einer Server Component HTTP 500 schon beim Import). Betreiberentscheidung
- * E1 kehrt das um; der Beleg, dass react-icons davon nicht betroffen ist,
- * steht in der Spec und wurde in Task 1 an einem echten Abruf gemessen.
+ * E1 kehrte das um (Phosphor, `react-icons/pi`); seit 2026-09-30 loest
+ * Icons8 auf — reine SVG-Daten, kein Paket, kein Context, RSC-sicher.
  *
  * WAS SICH NICHT AENDERT UND SICH NICHT AENDERN DARF:
  *
@@ -22,24 +22,14 @@
  * WAS NEU IST: `data-zeichen`. Das Attribut traegt den Namen ins DOM, damit
  * Tests „an dieser Stelle steht das Warnzeichen" pruefen koennen, ohne an
  * SVG-Pfaddaten zu kleben. Die alten Tests verglichen `PFADE.warnung` gegen
- * ein `d`-Attribut; Phosphor-Zeichen bestehen aus mehreren Pfaden, und ein
+ * ein `d`-Attribut; Icons8-Zeichen bestehen aus mehreren Pfaden, und ein
  * Paket-Update aenderte die Zusicherung still.
  *
- * WER MEHR ZEICHEN BRAUCHT, ALS DIE UNION FUEHRT, importiert direkt aus
- * `react-icons/pi`. Die Union ist nur dort Pflicht, wo ein Name ueber eine
+ * WER MEHR ZEICHEN BRAUCHT, ALS DIE UNION FUEHRT, nimmt `Icons8Ikone` aus
+ * `core/ikonen` direkt. Die Union ist nur dort Pflicht, wo ein Name ueber eine
  * Komponentengrenze wandert.
  */
-import type { IconType } from "react-icons/lib";
-import {
-  PiArchive, PiArrowCounterClockwise, PiArrowLeft, PiArrowRight,
-  PiArrowsClockwise, PiBagSimple, PiBarcode, PiBatteryCharging, PiCalendarX,
-  PiCaretDown, PiCaretLeft, PiCaretRight, PiCaretUp, PiCaretUpDown, PiCheck, PiCopy,
-  PiDownloadSimple, PiFlashlight, PiHandGrabbing, PiHeartbeat, PiInfo,
-  PiKey, PiLink, PiLinkBreak, PiList, PiMagnifyingGlass, PiMinus,
-  PiMinusBold, PiPackage, PiPencilSimple, PiPlus, PiPlusBold, PiPrinter,
-  PiQrCode, PiTable, PiTrash, PiTrayArrowDown, PiTruck, PiUploadSimple, PiWarning,
-  PiWind, PiX,
-} from "react-icons/pi";
+import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
 
 /** 30 reine UI-Zeichen und 10 Fachzeichen. Reihenfolge wie Spec 6.5.2, dahinter Nachtraege. */
 export type IkonName =
@@ -65,50 +55,50 @@ export type IkonName =
   // genau diese Bewegung.
   | "box";
 
-/** Ein Phosphor-Zeichen je Name. Loest `PFADE` ab. */
-export const ZEICHEN: Record<IkonName, IconType> = {
+/** Ein Icons8-Zeichen je Name. Loest `PFADE` ab. */
+export const ZEICHEN: Record<IkonName, Icons8Name> = {
   // ── UI ───────────────────────────────────────────────────────────────────
-  "pfeil-links": PiArrowLeft,
-  "pfeil-rechts": PiArrowRight,
-  "chevron-rechts": PiCaretRight,
-  "chevron-links": PiCaretLeft,
-  plus: PiPlus,
-  minus: PiMinus,
-  kreuz: PiX,
-  haken: PiCheck,
-  stift: PiPencilSimple,
-  papierkorb: PiTrash,
-  archiv: PiArchive,
-  kopieren: PiCopy,
-  herunterladen: PiDownloadSimple,
-  hochladen: PiUploadSimple,
-  drucken: PiPrinter,
-  lupe: PiMagnifyingGlass,
-  info: PiInfo,
-  erneut: PiArrowsClockwise,
-  zuruecksetzen: PiArrowCounterClockwise,
-  verketten: PiLink,
-  entketten: PiLinkBreak,
-  tabelle: PiTable,
-  liste: PiList,
-  scannen: PiBarcode,
-  qr: PiQrCode,
-  schluessel: PiKey,
-  taschenlampe: PiFlashlight,
-  "auf-ab": PiCaretUpDown,
-  aufklappen: PiCaretDown,
-  zuklappen: PiCaretUp,
+  "pfeil-links": "arrow-left",
+  "pfeil-rechts": "arrow-right",
+  "chevron-rechts": "chevron-right",
+  "chevron-links": "chevron-left",
+  plus: "plus",
+  minus: "minus",
+  kreuz: "close",
+  haken: "checkmark",
+  stift: "pencil",
+  papierkorb: "trash",
+  archiv: "archive",
+  kopieren: "copy",
+  herunterladen: "download",
+  hochladen: "upload",
+  drucken: "print",
+  lupe: "search",
+  info: "info",
+  erneut: "refresh",
+  zuruecksetzen: "undo",
+  verketten: "link",
+  entketten: "broken-link",
+  tabelle: "table",
+  liste: "list",
+  scannen: "barcode",
+  qr: "qr-code",
+  schluessel: "key",
+  taschenlampe: "flashlight",
+  "auf-ab": "sort",
+  aufklappen: "chevron-down",
+  zuklappen: "chevron-up",
   // ── Fachzeichen (Spec 6.5.4) ─────────────────────────────────────────────
-  warnung: PiWarning,
-  medizin: PiHeartbeat,
-  objekt: PiPackage,
-  sauerstoff: PiWind,
-  akku: PiBatteryCharging,
-  verfall: PiCalendarX,
-  "handlager-griff": PiHandGrabbing,
-  box: PiTrayArrowDown,
-  fahrzeug: PiTruck,
-  tasche: PiBagSimple,
+  warnung: "warning",
+  medizin: "heart-pulse",
+  objekt: "package",
+  sauerstoff: "wind",
+  akku: "charging-battery",
+  verfall: "calendar-expired",
+  "handlager-griff": "grab",
+  box: "inbox",
+  fahrzeug: "truck",
+  tasche: "bag",
 };
 
 /**
@@ -119,10 +109,10 @@ export const ZEICHEN: Record<IkonName, IconType> = {
  * zweites Aussehen ohne Aufrufer — und die Regel des Moduls ist ein Aussehen
  * je Zeichen, solange nichts anderes belegt ist.
  */
-const ZEICHEN_KRAEFTIG: Partial<Record<IkonName, IconType>> = {
-  plus: PiPlusBold,
-  minus: PiMinusBold,
-};
+const ZEICHEN_KRAEFTIG: ReadonlySet<IkonName> = new Set<IkonName>([
+  "plus",
+  "minus",
+]);
 
 /**
  * Alle Zeichen sind dekorativ. Ein Zeichen ohne sichtbaren Nachbartext wird
@@ -130,21 +120,21 @@ const ZEICHEN_KRAEFTIG: Partial<Record<IkonName, IconType>> = {
  * zusaetzlich `aria-pressed`.
  *
  * `aria-hidden`, `focusable` und `flex:none` stehen HIER und nicht an den 52
- * Aufrufstellen: react-icons setzt keines davon von selbst, und eine Regel,
+ * Aufrufstellen (`Icons8Ikone` setzt sie), und eine Regel,
  * die an 52 Stellen wiederholt werden muss, wird an der 53. vergessen.
  *
- * ⚠️ `staerke` UEBERLEBT DIE PHOSPHOR-UMSTELLUNG, ABER NICHT ALS strokeWidth.
+ * ⚠️ `staerke` UEBERLEBT AUCH DIE ICONS8-UMSTELLUNG, als Kontur um die Fuellung.
  * Die Absicht stammt aus `5a3aa16` und bleibt gueltig: der Helfer-Stepper
  * (`Stepper.tsx:99,129`) zeichnet `minus`/`plus` kraeftiger, weil die 56px-Taste
  * nach dem Button-Reset (`helfer.module.css`) weder Rahmen noch Hintergrund
  * traegt — dann entscheidet das Zeichen selbst, wie deutlich die Flaeche steht.
  *
  * Die alten Pfade waren STRICHzeichnungen, dort war `strokeWidth` der Regler.
- * Phosphor-Zeichen sind GEFUELLT (`strokeWidth: 0`), und ein `strokeWidth` an
- * ihnen ist wirkungslos — es haette den Regler still verschluckt und die Taste
- * waere duenner geworden, ohne dass ein Test es zeigt. Der Regler waehlt
- * deshalb jetzt das GEWICHT: ab `staerke > 2` die Bold-Variante, sofern
- * `ZEICHEN_KRAEFTIG` eine fuehrt.
+ * Icons8-Zeichen sind GEFUELLTE Umrisse, und Icons8 fuehrt fuer diesen Satz
+ * keine Bold-Variante. Der Regler zieht deshalb ab `staerke > 2` eine Kontur
+ * in Textfarbe um die Fuellung (`Icons8Ikone kraeftig`) — das Zeichen wird
+ * sichtbar dicker, ohne einen zweiten Satz zu laden. Nur fuer die Namen in
+ * `ZEICHEN_KRAEFTIG`.
  *
  * Die Tabelle fuehrt bewusst nur die zwei Zeichen, die den Regler heute
  * brauchen — nicht alle 38. Ein Name ohne Eintrag faellt auf sein
@@ -159,14 +149,13 @@ export function Ikone({
   groesse?: number;
   staerke?: number;
 }) {
-  const Zeichen = (staerke > 2 ? ZEICHEN_KRAEFTIG[name] : undefined) ?? ZEICHEN[name];
+  const kraeftig = staerke > 2 && ZEICHEN_KRAEFTIG.has(name);
   return (
-    <Zeichen
-      size={groesse}
-      aria-hidden
-      focusable="false"
+    <Icons8Ikone
+      name={ZEICHEN[name]}
+      groesse={groesse}
+      kraeftig={kraeftig}
       data-zeichen={name}
-      style={{ flex: "none" }}
     />
   );
 }

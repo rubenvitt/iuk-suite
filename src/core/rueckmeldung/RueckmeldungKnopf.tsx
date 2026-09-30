@@ -3,10 +3,10 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Button } from "antd";
 // Dieselbe Zeichenfamilie wie die Navigationseinträge (`navIkonen.tsx`) und das
-// Avatar-Menü (`SuiteNav.tsx`) und NICHT `@ant-design/icons`: zwei
+// Avatar-Menü (`SuiteNav.tsx`): Icons8 aus `core/ikonen`. Zwei
 // Strichstärken nebeneinander sieht man, und der Knopf steht über Flächen, auf
-// denen die Phosphor-Zeichen ohnehin schon stehen.
-import { PiChatTeardropDots, PiX } from "react-icons/pi";
+// denen diese Zeichen ohnehin schon stehen.
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 
 import {
   OFFEN,
@@ -82,7 +82,7 @@ export function RueckmeldungKnopf({ url }: { url: string }) {
         target="_blank"
         rel="noopener noreferrer"
         data-testid="rueckmeldung-knopf"
-        icon={<PiChatTeardropDots aria-hidden="true" />}
+        icon={<Icons8Ikone name="comment" />}
         onClick={erledigen}
       >
         Feedback
@@ -97,7 +97,7 @@ export function RueckmeldungKnopf({ url }: { url: string }) {
         shape="circle"
         aria-label="Feedback-Knopf ausblenden"
         data-testid="rueckmeldung-ausblenden"
-        icon={<PiX aria-hidden="true" />}
+        icon={<Icons8Ikone name="close" />}
         onClick={erledigen}
       />
     </div>

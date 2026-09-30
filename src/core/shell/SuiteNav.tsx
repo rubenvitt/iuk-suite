@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { LoginOutlined, LogoutOutlined, MenuOutlined } from "@ant-design/icons";
 import { Avatar, Button, Drawer, Dropdown, Input } from "antd";
 import type { MenuProps } from "antd";
-// Dieselbe Zeichenfamilie wie die Navigationseintraege selbst (`navIkonen.tsx`)
-// und NICHT `@ant-design/icons`: der Pfeil sitzt neben einem Phosphor-Zeichen,
+// Dieselbe Zeichenfamilie wie die Navigationseintraege selbst (`navIkonen.tsx`):
+// Icons8 aus `core/ikonen` — der Pfeil sitzt neben einem Navigationszeichen,
 // und zwei Strichstaerken nebeneinander sieht man.
-import { PiCaretDown, PiMagnifyingGlass } from "react-icons/pi";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -24,7 +23,7 @@ import {
   schreibeZugeklappt,
 } from "@/core/shell/navZustand";
 import { SCHRIFT } from "@/core/theme/schrift";
-// `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
+// `NavIkone` bleibt: die Modulnavigation traegt seit dem Zeichen-Umbau je
 // Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
 // Modulknopfreihe, und die gibt es nicht mehr; aufgeloest wird sie jetzt
 // ausschliesslich im `AppUmschalter`.
@@ -272,12 +271,11 @@ export function navGruppen(
           aria-controls={listenId}
           onClick={() => aufklapp.umschalten(titel)}
         >
-          <PiCaretDown
-            size={12}
-            aria-hidden
-            focusable="false"
+          <Icons8Ikone
+            name="chevron-down"
+            groesse={12}
             className={s.navPfeil}
-            style={{ flex: "none", transform: zu ? "rotate(-90deg)" : undefined }}
+            style={{ transform: zu ? "rotate(-90deg)" : undefined }}
           />
           {titel}
         </button>
@@ -414,7 +412,7 @@ export function SuiteNav({
    * Domain aufs Portal zeigt. Ein toter Link ist schlimmer als kein Link —
    * dieselbe Regel wie beim Modultitel in `SuiteHeader`.
    *
-   * Bewusst OHNE Zeichen: der `LogoutOutlined` daneben steht fuer die eine
+   * Bewusst OHNE Zeichen: das Abmelde-Zeichen daneben steht fuer die eine
    * folgenschwere Handlung, und ein zweites Zeichen naehme ihm die Betonung.
    */
   const profilEintrag = profilHref
@@ -468,7 +466,7 @@ export function SuiteNav({
 
   const abmeldenEintrag = {
     key: "abmelden",
-    icon: <LogoutOutlined />,
+    icon: <Icons8Ikone name="logout" />,
     label: "Abmelden",
     "data-testid": "abmelden",
     // Ueber `oidc-signout`, damit auch die Sitzung bei Pocket ID endet — sonst
@@ -500,7 +498,7 @@ export function SuiteNav({
           data-testid="menue-knopf"
           aria-label="Menü öffnen"
           aria-expanded={offen}
-          icon={<MenuOutlined />}
+          icon={<Icons8Ikone name="menu" />}
           onClick={() => setOffen(true)}
         />
         {/* Der zweite Umschalter steht im Drawer (unten) und traegt dort eine
@@ -576,7 +574,7 @@ export function SuiteNav({
            * (auf dem man dann schon ist) und `feedback` (Login). Eine Liste mit
            * einem Eintrag, der zum Login fuehrt.
            */
-          <Button type="text" data-testid="anmelden" href="/login" icon={<LoginOutlined />}>
+          <Button type="text" data-testid="anmelden" href="/login" icon={<Icons8Ikone name="login" />}>
             Anmelden
           </Button>
         )}
@@ -836,7 +834,7 @@ export function NavListe({
             aria-label="Menü filtern"
             /* KEIN `size` (Falle 4): `large` waere 72px, und die Vorgabe ist
                bereits die Bediendichte der jeweiligen Huelle. */
-            prefix={<PiMagnifyingGlass size={14} aria-hidden focusable="false" />}
+            prefix={<Icons8Ikone name="search" groesse={14} />}
           />
           {/*
             DIE TREFFERZAHL IST SICHTBAR UND NICHT NUR FUER VORLESEANWENDUNGEN.

@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { Alert, Button, Input } from "antd";
-import { PiArchive, PiArrowLeft, PiKey, PiLinkSimple, PiPrinter, PiUploadSimple, PiX } from "react-icons/pi";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { reportBrowserExport } from "@/core/audit/browser";
 import { zeitzone } from "@/core/zeit";
 import { einsatzTexte } from "../../_lib/kern/bericht";
@@ -142,7 +142,7 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
       <div className={`${s.reader} ${s.kennwortSpalte}`}>
         <section aria-label="Kennwort" className={`${s.karte} ${s.kennwortKarte}`}>
           <div className={s.dateikopf}>
-            <span className={s.dateiZeichen} aria-hidden="true"><PiKey size={22} /></span>
+            <span className={s.dateiZeichen} aria-hidden="true"><Icons8Ikone name="key" groesse={22} /></span>
             <div>
               <div className={s.mono} data-dateiname="">{stufe.name}</div>
               <div className={s.gedaempft} data-kopftext="">{stufe.kopfText}</div>
@@ -165,8 +165,8 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
           </div>
           {beschaedigt && <Alert type="warning" showIcon title={INHALT_BESCHAEDIGT} />}
           <div className={s.knoepfe}>
-            <Button icon={<PiArrowLeft aria-hidden />} onClick={verwerfen}>Andere Datei</Button>
-            <Button type="primary" icon={<PiKey aria-hidden />} disabled={!kennwort || laeuft} onClick={() => void entschluesseln()}>
+            <Button icon={<Icons8Ikone name="arrow-left" />} onClick={verwerfen}>Andere Datei</Button>
+            <Button type="primary" icon={<Icons8Ikone name="key" />} disabled={!kennwort || laeuft} onClick={() => void entschluesseln()}>
               {laeuft ? "Entschlüssele …" : "Entschlüsseln"}
             </Button>
           </div>
@@ -186,10 +186,10 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setZiehen(false); }}
           onDrop={ablegen}
         >
-          <span className={s.zoneZeichen} aria-hidden="true"><PiUploadSimple size={36} /></span>
+          <span className={s.zoneZeichen} aria-hidden="true"><Icons8Ikone name="upload" groesse={36} /></span>
           <div className={s.zoneTitel}>.einsatzbuch-Datei hierher ziehen</div>
           <div className={s.gedaempft}>oder</div>
-          <Button type="primary" icon={<PiArchive aria-hidden />} onClick={() => eingabe.current?.click()}>Datei auswählen</Button>
+          <Button type="primary" icon={<Icons8Ikone name="archive" />} onClick={() => eingabe.current?.click()}>Datei auswählen</Button>
           <input
             ref={eingabe}
             className={s.versteckt}
@@ -210,9 +210,9 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
       )}
       {fehler && <Alert type="warning" showIcon title={fehler} data-testid="reader-fehler" />}
       <ul className={s.hinweise}>
-        <Hinweis zeichen={<PiArchive size={18} />} titel="Nichts wird hochgeladen" text="Die Datei wird nur in diesem Tab gelesen. Schließen oder Neuladen verwirft alles." />
-        <Hinweis zeichen={<PiKey size={18} />} titel="Entschlüsselung mit Kennwort" text="AES-256-GCM. Ohne das richtige Kennwort bleibt der Inhalt unlesbar." />
-        <Hinweis zeichen={<PiLinkSimple size={18} />} titel="Kette wird geprüft" text="Jeder Einsatz wird mit seinem Fingerabdruck und seinem Vorgänger abgeglichen." />
+        <Hinweis zeichen={<Icons8Ikone name="archive" groesse={18} />} titel="Nichts wird hochgeladen" text="Die Datei wird nur in diesem Tab gelesen. Schließen oder Neuladen verwirft alles." />
+        <Hinweis zeichen={<Icons8Ikone name="key" groesse={18} />} titel="Entschlüsselung mit Kennwort" text="AES-256-GCM. Ohne das richtige Kennwort bleibt der Inhalt unlesbar." />
+        <Hinweis zeichen={<Icons8Ikone name="link" groesse={18} />} titel="Kette wird geprüft" text="Jeder Einsatz wird mit seinem Fingerabdruck und seinem Vorgänger abgeglichen." />
       </ul>
     </div>
   );
@@ -288,26 +288,26 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
           <div className={s.dateiname} data-dateiname="">{name}</div>
           <h2 className={s.titel}>{titel}</h2>
         </div>
-        <Button icon={<PiX aria-hidden />} onClick={onSchliessen}>Datei schließen</Button>
+        <Button icon={<Icons8Ikone name="close" />} onClick={onSchliessen}>Datei schließen</Button>
       </div>
 
       <section aria-label="Über diese Datei" className={`${s.karte} ${s.info}`}>
         <div className={s.infoSpalte}>
-          <span className={s.hinweisZeichen} aria-hidden="true"><PiKey size={20} /></span>
+          <span className={s.hinweisZeichen} aria-hidden="true"><Icons8Ikone name="key" groesse={20} /></span>
           <div>
             <div className={s.hinweisTitel}>Nur in diesem Tab entschlüsselt</div>
             <div className={s.hinweisText}>Nichts wurde hochgeladen oder gespeichert. Schließen verwirft den Inhalt.</div>
           </div>
         </div>
         <div className={s.infoSpalte}>
-          <span className={s.hinweisZeichen} aria-hidden="true"><PiArchive size={20} /></span>
+          <span className={s.hinweisZeichen} aria-hidden="true"><Icons8Ikone name="archive" groesse={20} /></span>
           <div>
             <div className={s.hinweisTitel}>Aus der Verwaltung</div>
             <div className={s.hinweisText} data-herkunft="">{herkunft}</div>
           </div>
         </div>
         <div className={s.infoSpalte}>
-          <span className={s.hinweisZeichen} aria-hidden="true"><PiLinkSimple size={20} /></span>
+          <span className={s.hinweisZeichen} aria-hidden="true"><Icons8Ikone name="link" groesse={20} /></span>
           <div>
             <div className={s.hinweisTitel}>Kettenprüfung</div>
             {wert.anker
@@ -330,7 +330,7 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
               dritteKennzahl="gesamt"
               mitDauerzeile
               objektImmer
-              kopfRechts={<Button ref={pdfKnopf} icon={<PiPrinter aria-hidden />} onClick={() => setDruck(true)}>PDF erzeugen</Button>}
+              kopfRechts={<Button ref={pdfKnopf} icon={<Icons8Ikone name="print" />} onClick={() => setDruck(true)}>PDF erzeugen</Button>}
             />
           ) : (
             <section aria-label={`Block ${b.kopf.block}`} className={`${s.karte} ${s.unlesbar}`} data-unlesbar="">

@@ -50,11 +50,11 @@ import s from "../../../_ui/verwaltung.module.css";
  *     `pfeil-oben`/`pfeil-unten` an den Reihenfolge-Knoepfen (`FiArrowUp`/`FiArrowDown`,
  *     `:120`, `:127`), `haken` an „Als Ziel" (`FiCheck`, `:146`), `papierkorb` an BEIDEN
  *     Loeschknoepfen (`FiTrash2`, `:155`, `:167`) und `ziel` an der Ziel-MARKE (`FiTarget`,
- *     `:93`). Sie kommen aus `_ui/verwaltungIkonen.tsx` (Phosphor), der ZWEITEN Zeichenquelle
+ *     `:93`). Sie kommen aus `_ui/verwaltungIkonen.tsx` (Icons8), der ZWEITEN Zeichentabelle
  *     des Moduls; `_ui/ikonen.tsx` bleibt mit seinen zwoelf Inline-SVGs der Ausleihflaeche.
  *     ⚠️ HIER STAND „ein `react-icons`-Import waere Falle 7" — DAS WAR SACHLICH FALSCH: Falle 7
  *     gilt `@ant-design/icons`, dessen nackter Spezifizierer in der RSC-Ebene auf CJS
- *     aufloest; `react-icons/pi` ist gemessen RSC-sicher (`lagerbuch`, 2026-08-12).
+ *     aufloest; `Icons8Ikone` (`core/ikonen`) ist RSC-sicher (reine Pfaddaten, DRK-502).
  *     ⛔ DIE ZEICHEN BLEIBEN DEKORATIV UND ERSETZEN KEINE BESCHRIFTUNG (`aria-hidden` sitzt in
  *     `VIkone`): die zwei Reihenfolge-Knoepfe des Bestands sind reine Zeichenknoepfe mit
  *     `aria-label` (`:121`, `:128`), hier steht das Wort weiterhin SICHTBAR daneben.

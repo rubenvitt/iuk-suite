@@ -30,8 +30,10 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
    — HTTP 500, Vitest sieht es nicht. Werte für Server Components in ein Modul ohne `"use client"`
    (`_lib/`).
 7. **`@ant-design/icons` in einer Server Component = HTTP 500 schon beim Import**, und `"use client"`
-   auf dem Icon-Modul macht es nur still (leere Map → Falle 6). Client-Insel oder Inline-SVG;
-   `core/shell/icons.test.ts` riegelt ab.
+   auf dem Icon-Modul macht es nur still (leere Map → Falle 6). Seit DRK-502 gibt es kein Icon-Paket
+   mehr: jedes Zeichen ist `Icons8Ikone` aus `core/ikonen` (Icons8, „Windows 11 Outline", reine
+   Pfaddaten, RSC-sicher). Fehlt ein Zeichen, kommt es in `core/ikonen/katalog.ts`;
+   `core/ikonen/ikonen.test.ts` riegelt ab.
 8. **`.ant-layout-header` vererbt 64px `line-height` an jedes Kind**, auch an absolut positionierte.
    `line-height: normal` am gemeinsamen Vorfahren.
 9. **`columns[].render` aus einer Server Component geht nicht über die RSC-Grenze.** Tabelle in eine

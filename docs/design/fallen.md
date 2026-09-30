@@ -36,10 +36,10 @@ trifft oder eine Abhilfe umbauen will.
    `TypeError: (0, _react.createContext) is not a function`, **schon beim Import, nicht beim Rendern**.
    `typecheck` und `build` bleiben grün, und **Vitest kann es strukturell nicht sehen** (dort lädt
    `react` über die `default`-Bedingung, die Icons rendern klaglos) — nur ein echter Abruf zeigt den
-   500. Abhilfe: Client-Insel oder eigenes Inline-SVG. Ein Tiefen-Import (`@ant-design/icons/es`) geht
-   gemessen durch, ist aber kein Vertrag, auf den man bauen sollte. `src/core/shell/icons.test.ts`
-   riegelt das repo-weit ab — geht der Test rot, liegt die Ursache fast nie in `core/shell`, sondern
-   in der Datei, die die Fehlermeldung nennt.
+   500. Abhilfe heute: kein Icon-Paket. Jedes Zeichen ist `Icons8Ikone` aus `core/ikonen` (Icons8,
+   reine Pfaddaten in `katalog.ts`, ohne Context und ohne Direktive — RSC-sicher). Ein Tiefen-Import
+   (`@ant-design/icons/es`) ging gemessen durch, war aber kein Vertrag. `src/core/ikonen/ikonen.test.ts`
+   verbietet jeden Icon-Paket-Import repo-weit.
    **Nicht mit Falle 6 zusammenlegen, die Ursachen sind gegenläufig:** dort kommt ein Wert aus einem
    als Client markierten Modul nicht an, hier wertet RSC ein Modul aus, das Client sein müsste. Setzt
    man `"use client"` auf `icons.ts`, verwandelt sich 7 in 6 — HTTP 200 mit **leerer** Map, und der

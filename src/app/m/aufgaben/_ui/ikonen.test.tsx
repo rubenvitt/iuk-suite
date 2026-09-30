@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, afterEach } from "vitest";
 import { mount, unmount, query } from "@/app/m/qr/_lib/test-dom";
 import { ZEICHEN, Ikone, type IkonName } from "./ikonen";
+import { ICONS8 } from "@/core/ikonen/katalog";
 import { alleQuellDateien as alleDateien, ohneKommentare } from "./testQuellscan";
 
 afterEach(async () => {
@@ -50,12 +51,12 @@ describe("Ikonen-Riegel: die Union bindet jede literale Aufrufstelle", () => {
     expect(unbekannt).toEqual([]);
   });
 
-  it("ikonen.tsx importiert ausschliesslich react-icons und traegt kein use-client", () => {
+  it("ikonen.tsx importiert ausschliesslich core/ikonen und traegt kein use-client", () => {
     const quelle = readFileSync(join(WURZEL, "_ui/ikonen.tsx"), "utf8");
     const spezifizierer = [...quelle.matchAll(/\bimport\b[\s\S]*?\bfrom\s*["']([^"']+)["']/g)].map(
       (m) => m[1],
     );
-    expect([...spezifizierer].sort()).toEqual(["react-icons/lib", "react-icons/pi"]);
+    expect([...spezifizierer].sort()).toEqual(["@/core/ikonen/Icons8Ikone"]);
     /*
      * DAS "use client"-VERBOT IST DIE WICHTIGSTE ZEILE DIESES TESTS: die
      * Datei exportiert `IkonName` als Typ, der als Datenfeld in Server
@@ -77,9 +78,9 @@ describe("Ikonen: die Union ist die Autoritaet", () => {
     expect(Object.keys(ZEICHEN).sort()).toEqual([...ERWARTET].sort());
   });
 
-  it("bildet jeden Namen auf eine Komponente ab", () => {
-    for (const [name, Zeichen] of Object.entries(ZEICHEN)) {
-      expect(typeof Zeichen, name).toBe("function");
+  it("bildet jeden Namen auf ein Zeichen des Icons8-Katalogs ab", () => {
+    for (const [name, zeichen] of Object.entries(ZEICHEN)) {
+      expect(zeichen in ICONS8, name).toBe(true);
     }
   });
 

@@ -27,7 +27,7 @@ afterEach(async () => {
  * Component — ein Compound-Zugriff auf antd oder ein Zeichenimport ergaebe dort
  * HTTP 500, und zwar genau in dem Moment, in dem der Ladezustand greifen soll.
  * `typecheck`, `build` und ein DOM-Test sehen das strukturell nicht; nur ein
- * Quelltext-Scan sieht es, dieselbe Bauform wie `core/shell/icons.test.ts`.
+ * Quelltext-Scan sieht es, dieselbe Bauform wie `core/ikonen/ikonen.test.ts`.
  */
 describe("SeiteLaedt: die Bauform", () => {
   it("traegt kein use client — sonst kaeme sie als Client-Referenz an", () => {

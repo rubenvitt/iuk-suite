@@ -2,13 +2,7 @@
 
 import { useActionState, useMemo, useRef, useState } from "react";
 import { Alert, Button, Card, Popconfirm, Radio } from "antd";
-import {
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  ExclamationCircleOutlined,
-  QuestionCircleOutlined,
-  StopOutlined,
-} from "@ant-design/icons";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 
 import {
   inboxLoeschenAction,
@@ -156,11 +150,11 @@ const AV_TEXT: Record<AvStatus, string> = {
 };
 
 const AV_SYMBOL: Record<AvStatus, React.ReactNode> = {
-  clean: <CheckCircleOutlined aria-hidden />,
-  scanning: <ClockCircleOutlined aria-hidden />,
-  infected: <StopOutlined aria-hidden />,
-  error: <ExclamationCircleOutlined aria-hidden />,
-  unscanned: <QuestionCircleOutlined aria-hidden />,
+  clean: <Icons8Ikone name="ok" />,
+  scanning: <Icons8Ikone name="clock" />,
+  infected: <Icons8Ikone name="cancel" />,
+  error: <Icons8Ikone name="error" />,
+  unscanned: <Icons8Ikone name="help" />,
 };
 
 /** Die Filterwerte des AV-Status AUS der Textzuordnung, nie daneben getippt. */

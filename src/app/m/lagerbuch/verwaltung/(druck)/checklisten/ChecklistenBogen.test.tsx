@@ -425,7 +425,7 @@ describe("der PDF-Weg neben dem Druckweg", () => {
 
 /**
  * QUELLTEXT-SCANS. Sie stehen hier aus demselben Grund wie in
- * `EtikettenBogen.test.tsx`: `core/shell/icons.test.ts` ueberspringt jede Datei
+ * `EtikettenBogen.test.tsx`: `core/ikonen/ikonen.test.ts` ueberspringt jede Datei
  * mit `"use client"` (`if (traegtClientDirektive(quelle)) continue;`), und
  * `_lib/bauform.test.ts` schliesst `verwaltung/` ausdruecklich aus („DAS ist
  * der antd-Zweig"). Fuer diese beiden Dateien sind die Scans unten damit heute

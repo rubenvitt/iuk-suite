@@ -2,14 +2,7 @@
 
 import { useActionState, useMemo, useRef, useState } from "react";
 import { Alert, Button, Popconfirm, Skeleton } from "antd";
-import {
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  ExclamationCircleOutlined,
-  MinusCircleOutlined,
-  QuestionCircleOutlined,
-  StopOutlined,
-} from "@ant-design/icons";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import {
   Kartentabelle,
   nachDatum,
@@ -135,12 +128,12 @@ const AV_TEXT: Record<AvSammelwert, string> = {
 
 function AvZustand({ wert }: { wert: AvSammelwert }) {
   const symbol = {
-    leer: <MinusCircleOutlined aria-hidden />,
-    freigegeben: <CheckCircleOutlined aria-hidden />,
-    wirdGeprueft: <ClockCircleOutlined aria-hidden />,
-    gesperrt: <StopOutlined aria-hidden />,
-    pruefungFehlt: <ExclamationCircleOutlined aria-hidden />,
-    ungeprueft: <QuestionCircleOutlined aria-hidden />,
+    leer: <Icons8Ikone name="minus-circle" />,
+    freigegeben: <Icons8Ikone name="ok" />,
+    wirdGeprueft: <Icons8Ikone name="clock" />,
+    gesperrt: <Icons8Ikone name="cancel" />,
+    pruefungFehlt: <Icons8Ikone name="error" />,
+    ungeprueft: <Icons8Ikone name="help" />,
   }[wert];
   return (
     <span>

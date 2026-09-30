@@ -45,7 +45,7 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * SIE BELEGT NICHT, DASS ETWAS WIRKT, sondern dass eine BAUFORM eingehalten ist. Genau
  * dafuer ist sie die richtige Ebene — jede Zeile hier faengt einen Fehler, der typkorrekt,
  * lint-sauber und fuer `pnpm build` unsichtbar waere (Vorbild:
- * `lagerbuch/_lib/bauform.test.ts:6-11`, `src/core/shell/icons.test.ts`).
+ * `lagerbuch/_lib/bauform.test.ts:6-11`, `src/core/ikonen/ikonen.test.ts`).
  *
  * ✅ ⬜ Z-L1 / ⬜ V-L3 IST AM 2026-08-26 ABGELESEN — mit Messwerten, nicht als „geprueft".
  * Bis dahin stand hier: „⚠️ WAS SIE AUSDRUECKLICH NICHT BELEGT: dass ein Riegel bei einem

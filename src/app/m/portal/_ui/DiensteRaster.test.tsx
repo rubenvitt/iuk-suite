@@ -5,7 +5,7 @@ import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
 import type { LauncherEintrag } from "@/core/shell/types";
 
 const EINTRAEGE: LauncherEintrag[] = [
-  { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", href: "https://l", abschnitt: "Apps", extern: false },
+  { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", href: "https://l", abschnitt: "Apps", extern: false },
   { key: "dienst:1", title: "Nextcloud", beschreibung: "Dateiablage", href: "https://n", abschnitt: "Zusammenarbeit", extern: true },
 ];
 

@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { AppstoreOutlined, DownOutlined, LinkOutlined, SearchOutlined } from "@ant-design/icons";
 
-import { ICONS } from "@/core/shell/icons";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { SCHRIFT } from "@/core/theme/schrift";
 import type { LauncherEintrag } from "@/core/shell/types";
 import s from "./shell.module.css";
@@ -124,7 +123,7 @@ export function AppUmschalter({
         >
           {modulTitel}
         </strong>
-        <DownOutlined className={s.umschalterPfeil} aria-hidden="true" />
+        <Icons8Ikone name="chevron-down" className={s.umschalterPfeil} />
       </button>
 
       {offen ? (
@@ -135,7 +134,7 @@ export function AppUmschalter({
           <div className={s.umschalterFang} aria-hidden="true" onClick={schliessen} />
           <div data-testid="app-panel" className={s.umschalterPanel}>
             <label className={s.umschalterSuchfeld}>
-              <SearchOutlined aria-hidden="true" />
+              <Icons8Ikone name="search" />
               <input
                 data-testid="app-suche"
                 type="search"
@@ -183,7 +182,7 @@ export function AppUmschalter({
                   </div>
                   <div className={s.umschalterListe}>
                     {liste.map((e) => {
-                      const Icon = e.icon ? (ICONS[e.icon] ?? AppstoreOutlined) : LinkOutlined;
+                      const zeichen = e.icon ?? "link";
                       return (
                         <a
                           key={e.key}
@@ -204,7 +203,7 @@ export function AppUmschalter({
                               loading="lazy"
                             />
                           ) : (
-                            <Icon aria-hidden="true" />
+                            <Icons8Ikone name={zeichen} />
                           )}
                           {/* Die Klasse ist nicht kosmetisch: sie erlaubt dem
                               Textblock, unter seine Inhaltsbreite zu schrumpfen

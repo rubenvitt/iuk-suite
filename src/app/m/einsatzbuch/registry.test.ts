@@ -11,7 +11,7 @@ describe("Registry-Eintrag einsatzbuch", () => {
   it("ist anonym routbar, trägt die Zugangsgruppe und steht im Umschalter", () => {
     const m = getModule("einsatzbuch");
     expect(m).toMatchObject({
-      title: "Einsatzbuch", icon: "BookOutlined", shell: "full", requiresAuth: false,
+      title: "Einsatzbuch", icon: "book", shell: "full", requiresAuth: false,
       requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [], prodHosts: [],
       showInSwitcher: true, switcherGroupSources: ["access"],
     });

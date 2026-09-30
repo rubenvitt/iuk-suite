@@ -6,6 +6,7 @@ import { join, relative } from "node:path";
 import ts from "typescript";
 import { mount, unmount, queryAll } from "@/app/m/qr/_lib/test-dom";
 import { VIkone, ZEICHEN, type VerwaltungsIkonName } from "./verwaltungIkonen";
+import { ICONS8 } from "@/core/ikonen/katalog";
 
 const QUELLE = "src/app/m/radio/_ui/verwaltungIkonen.tsx";
 /** Die Flaechen, auf denen die Zeichen sitzen — der Verwaltungszweig. */
@@ -106,15 +107,15 @@ afterEach(async () => {
 });
 
 describe("verwaltungIkonen: die Bauform der Zeichenquelle", () => {
-  it("importiert ausschliesslich react-icons und traegt kein use client", () => {
+  it("importiert ausschliesslich core/ikonen und traegt kein use client", () => {
     /*
      * ⛔ ZWEI ZUSICHERUNGEN IN EINEM FALL, weil sie dieselbe Datei tragen.
      *
-     * Die Importliste: genau die zwei erlaubten Quellen, nichts sonst — kein antd, kein
+     * Die Importliste: genau die eine erlaubte Quelle, nichts sonst — kein antd, kein
      * CSS-Modul, nichts aus dem Modul selbst (das machte die Datei zyklisch importierbar).
      * ⛔ SIE IST ZUGLEICH DIE GEGENSICHERUNG ZUR SCAN-AUSNAHME in
      * `_ui/AusleihRahmen.test.tsx`: diese Datei ist dort vom `size=`-Scan (Falle 4)
-     * ausgenommen, weil `react-icons` sein Mass ueber `size` nimmt. Die Ausnahme waere ein
+     * ausgenommen (historisch: `react-icons` nahm sein Mass ueber `size`). Die Ausnahme waere ein
      * Loch, wenn hier je ein antd-Bedienelement entstuende — es kann keines entstehen,
      * solange diese Liste steht.
      *
@@ -127,7 +128,7 @@ describe("verwaltungIkonen: die Bauform der Zeichenquelle", () => {
     const spezifizierer = source.statements
       .filter(ts.isImportDeclaration)
       .map((s) => (ts.isStringLiteral(s.moduleSpecifier) ? s.moduleSpecifier.text : ""));
-    expect([...spezifizierer].sort()).toEqual(["react-icons/lib", "react-icons/pi"]);
+    expect([...spezifizierer].sort()).toEqual(["@/core/ikonen/Icons8Ikone"]);
     expect(source.statements.filter(ts.isImportEqualsDeclaration).length).toBe(0);
     expect(
       source.statements.some(
@@ -177,8 +178,8 @@ describe("verwaltungIkonen: die Union ist die Autoritaet", () => {
     expect(new Set(Object.values(ZEICHEN)).size, "ein Zeichen ist doppelt vergeben").toBe(20);
   });
 
-  it("bildet jeden Namen auf eine Komponente ab", () => {
-    for (const name of NAMEN) expect(typeof ZEICHEN[name], name).toBe("function");
+  it("bildet jeden Namen auf ein Zeichen des Icons8-Katalogs ab", () => {
+    for (const name of NAMEN) expect(ZEICHEN[name] in ICONS8, name).toBe(true);
   });
 
   it("jeder Name rendert ein eigenes SVG mit mindestens einer Zeichenanweisung", async () => {

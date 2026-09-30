@@ -23,7 +23,7 @@ import { OrtsetikettenBogen } from "./OrtsetikettenBogen";
  * genau dieser Begruendung (A4-Prinzip, dieselbe Lage wie bei
  * `EtikettenBogen.test.tsx`).
  *
- * ⚠️ UND SIE SIND NICHT VERZICHTBAR: `src/core/shell/icons.test.ts` ueberspringt
+ * ⚠️ UND SIE SIND NICHT VERZICHTBAR: `src/core/ikonen/ikonen.test.ts` ueberspringt
  * jede Datei mit `"use client"` — ein Icon-Import in DIESER Insel liefe dort
  * gruen durch. `_lib/bauform.test.ts` schliesst `verwaltung/` ausdruecklich aus
  * („DAS ist der antd-Zweig") und deckt das antd-Verbot in dieser `page.tsx`

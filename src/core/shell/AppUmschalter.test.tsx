@@ -3,14 +3,14 @@ import { describe, it, expect, afterEach } from "vitest";
 import type { ComponentProps } from "react";
 import { mount, unmount, query, queryAll, exists, fill, click } from "@/app/m/qr/_lib/test-dom";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
-import { ICONS } from "@/core/shell/icons";
+import { ICONS8 } from "@/core/ikonen/katalog";
 import { MODULES } from "@/core/registry";
 import type { LauncherEintrag } from "@/core/shell/types";
 import s from "./shell.module.css";
 
 const EINTRAEGE: LauncherEintrag[] = [
-  { key: "portal", title: "Portal", icon: "AppstoreOutlined", href: "https://p", abschnitt: "Apps", extern: false },
-  { key: "lagerbuch", title: "Lagerbuch", icon: "ContainerOutlined", href: "https://l", abschnitt: "Apps", extern: false },
+  { key: "portal", title: "Portal", icon: "apps", href: "https://p", abschnitt: "Apps", extern: false },
+  { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", href: "https://l", abschnitt: "Apps", extern: false },
   { key: "dienst:1", title: "Nextcloud", beschreibung: "Dateiablage", href: "https://n", abschnitt: "Zusammenarbeit", extern: true },
 ];
 
@@ -224,21 +224,18 @@ describe("AppUmschalter", () => {
  * derselbe Beweis noch einmal.
  */
 describe("Modul-Icons", () => {
-  it("jedes Modul der Registry hat einen Eintrag in ICONS", () => {
+  it("jedes Modul der Registry hat einen Eintrag im Icons8-Katalog", () => {
     for (const mod of MODULES) {
-      expect(Object.keys(ICONS), `Modul ${mod.key}`).toContain(mod.icon);
+      expect(Object.keys(ICONS8), `Modul ${mod.key}`).toContain(mod.icon);
     }
   });
 
-  it("die Map trägt keine Namen, die kein Modul verlangt", () => {
-    // Kein Selbstzweck: eine verwaiste Zeile hier ist der Hinweis darauf, dass
-    // ein Modul umbenannt oder entfernt wurde, ohne die Kopfzeile nachzuziehen.
-    // AppstoreOutlined ist ausgenommen — es ist der Rückfall und muss stehen,
-    // auch wenn `portal` es einmal nicht mehr verlangen sollte.
-    const verlangt = new Set(MODULES.map((m) => m.icon));
-    const verwaist = Object.keys(ICONS).filter(
-      (name) => name !== "AppstoreOutlined" && !verlangt.has(name),
-    );
-    expect(verwaist).toEqual([]);
+  it("jedes Modul trägt ein eigenes Zeichen (außer den Wegwerf-Kiosken)", () => {
+    // Die alte Falle war das STILLE Duplikat: ein Modul mit dem Portal-Zeichen.
+    // Heute verhindert der Typ den unbekannten Namen; bleibt der bewusste Doppelgänger.
+    // `zeichen` teilt sich `apps` mit dem Portal (Kiosk ohne Umschalter).
+    const sichtbar = MODULES.filter((m) => m.showInSwitcher);
+    const namen = sichtbar.map((m) => m.icon);
+    expect(new Set(namen).size, namen.join(", ")).toBe(namen.length);
   });
 });
