@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRENZEN, einpassen, nachziehen, tasteZuAktion, untergrenze, verschiebe, zoome } from "./ansicht";
+import { GRENZEN, einpassen, nachziehen, tasteZuAktion, untergrenze, verdeckterTeil, verschiebe, zoome } from "./ansicht";
 
 describe("Ansicht", () => {
   it("einpassen: ganze Zeichnung sichtbar, waagerecht mittig", () => {
@@ -65,5 +65,14 @@ describe("nachziehen: wie weit zeige() eine Karte samt Griffrand ins Bild holt (
     expect(nachziehen(a, { x: 450, y: 20, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: -64, dy: 0 });
     expect(nachziehen(a, { x: 100, y: 0, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: 16 });
     expect(nachziehen(a, { x: 100, y: 240, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: -40 });
+  });
+});
+
+describe("verdeckterTeil: wie viel Pixel der Fläche rechts unter einem offenen Flyin liegen (Entscheidung 18)", () => {
+  it("ohne Flyin nichts; ragt die Fläche unter das Flyin, der Überstand; neben dem Flyin nichts", () => {
+    expect(verdeckterTeil(1400, 900, 1440, null)).toBe(0);
+    expect(verdeckterTeil(1400, 900, 1440, 520)).toBe(480); // 1400 − (1440 − 520)
+    expect(verdeckterTeil(900, 400, 1440, 520)).toBe(0); // Editor hält die Flyin-Breite frei (U10)
+    expect(verdeckterTeil(380, 360, 390, 520)).toBeCloseTo(380 - (390 - 390 * 0.92), 6); // Telefon: 92 vw
   });
 });

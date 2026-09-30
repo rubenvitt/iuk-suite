@@ -2,12 +2,11 @@
 
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { Button } from "antd";
-import { FLYIN_MAX_ANTEIL_PROZENT } from "@/core/theme/flyin";
 import type { KarteL, Zeichnungsdaten } from "../../_lib/layout/typen";
 import { FARBE } from "../zeichnung/farben";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import { ZeichnungInhalt } from "../zeichnung/Zeichnung";
-import { GRENZEN, SCHRITT, einpassen, nachziehen, tasteZuAktion, untergrenze, verschiebe, zoome, type Ansicht } from "./ansicht";
+import { GRENZEN, SCHRITT, einpassen, nachziehen, tasteZuAktion, untergrenze, verdeckterTeil, verschiebe, zoome, type Ansicht } from "./ansicht";
 
 /**
  * DIE ZEICHENFLÄCHE von Betrachter und Editor (Spec §5.7, §6.3): Zoom, Verschieben, Pinch, Rad,
@@ -57,14 +56,13 @@ export function Flaeche({
   const letzterKlick = useRef<{ karte: string | null; zeit: number } | null>(null);
 
   // Vom Flyin verdeckter Teil der Fläche, rechts (0 ohne Flyin oder ohne Messung).
-  const flyinPx = flyinGrund === null || groesse.fenster === 0 ? 0 : Math.min(flyinGrund, groesse.fenster * FLYIN_MAX_ANTEIL_PROZENT / 100);
-  const verdeckt = flyinPx === 0 ? 0 : Math.max(0, Math.min(groesse.b, groesse.links + groesse.b - (groesse.fenster - flyinPx)));
+  const verdeckt = verdeckterTeil(groesse.links + groesse.b, groesse.b, groesse.fenster, flyinGrund);
   const basis = einpassen(daten.breite, daten.hoehe, groesse.b - verdeckt, groesse.h, { max: maxMassstab, seite: platzSeite, unten: platzUnten });
   const a = eigene?.a ?? basis;
   const automatisch = eigene === null || eigene.auto;
-  const lage = useRef({ basis, verdeckt });
+  const lage = useRef({ basis, flyinGrund });
   const untergrenzeJetzt = untergrenze(basis);
-  useEffect(() => { lage.current = { basis, verdeckt }; });
+  useEffect(() => { lage.current = { basis, flyinGrund }; });
 
   useImperativeHandle(griff, () => ({
     fokus: () => flaeche.current?.focus({ preventScroll: true }),
@@ -74,7 +72,11 @@ export function Flaeche({
       if (alt === null) return alt;
       const el = flaeche.current;
       if (!el || el.clientWidth === 0) return alt;
-      const { dx, dy } = nachziehen(alt.a, k, el.clientWidth - lage.current.verdeckt, el.clientHeight, rand);
+      // Verdeckter Teil LIVE gemessen: `verdeckt` aus dem Rendern hinkt dem Resize nach, den das Öffnen
+      // eines Flyins auslöst (der Editor hält dessen Breite frei), und zöge sonst doppelt ab.
+      const r = el.getBoundingClientRect();
+      const frei = el.clientWidth - verdeckterTeil(r.right, r.width, window.innerWidth, lage.current.flyinGrund);
+      const { dx, dy } = nachziehen(alt.a, k, frei, el.clientHeight, rand);
       if (dx === 0 && dy === 0) return alt;
       return { a: verschiebe(alt.a, dx, dy), auto: true };
     }),

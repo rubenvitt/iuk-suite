@@ -1,3 +1,5 @@
+import { FLYIN_MAX_ANTEIL_PROZENT } from "@/core/theme/flyin";
+
 /** Zoom und Verschieben als reine Funktionen — der Betrachter hält nur den Zustand. */
 export interface Ansicht { massstab: number; x: number; y: number }
 export const GRENZEN = { min: 0.4, max: 16 } as const;
@@ -48,6 +50,18 @@ export function nachziehen(a: Ansicht, k: { x: number; y: number; breite: number
   const dx = l < rand.seite ? rand.seite - l : r > w - rand.seite ? w - rand.seite - r : 0;
   const dy = o < rand.oben ? rand.oben - o : u > h - rand.unten ? h - rand.unten - u : 0;
   return { dx: Math.abs(dx) < 1 ? 0 : dx, dy: Math.abs(dy) < 1 ? 0 : dy };
+}
+
+/**
+ * Wie viele Pixel am rechten Rand der Fläche unter einem offenen Flyin liegen — dieselbe `min(…)`-Regel
+ * wie `flyinBreite()` (`grund` px, höchstens `FLYIN_MAX_ANTEIL_PROZENT` vw). `rechts`/`breite` sind die
+ * rechte Kante und Breite der Fläche im Fenster. `zeige()` rechnet damit LIVE: ein gemerkter Wert hinkte
+ * einen Resize hinterher, sobald der Editor die Flyin-Breite im Seitenfluss freihält (U10).
+ */
+export function verdeckterTeil(rechts: number, breite: number, fenster: number, grund: number | null): number {
+  if (grund === null || fenster === 0) return 0;
+  const flyin = Math.min(grund, fenster * FLYIN_MAX_ANTEIL_PROZENT / 100);
+  return Math.max(0, Math.min(breite, rechts - (fenster - flyin)));
 }
 
 export type Aktion = { art: "zoom"; faktor: number } | { art: "verschiebe"; dx: number; dy: number } | { art: "einpassen" };

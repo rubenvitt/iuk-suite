@@ -229,6 +229,36 @@ test("Tablet: neue Karten liegen nie unter dem Flyin, fünf Stellen passen einge
   }
 });
 
+test("gezoomt: Enter holt die Karte an den freien Rand neben dem Flyin — nicht weiter (U10, Entscheidung 18)", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" }); // Lagen messen ohne laufende Übergänge
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const speicherungen: string[] = [];
+  page.on("response", (r) => { if (istSpeichern(r)) speicherungen.push(r.url()); });
+  // Seed-Plan nur ansehen: Auswählen, Zoomen und Flyin öffnen schreibt nichts
+  await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01")));
+  const lagen = await karten(page).evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-karte")!, r: e.getBoundingClientRect().right })));
+  const rechts = lagen.reduce((a, c) => (c.r > a.r ? c : a)).id;
+  await klickeWennRuhig(page.locator(`.kp-betrachter [data-karte="${rechts}"]`));
+  await page.keyboard.press("+");
+  await page.keyboard.press("+");
+  await expect(page.locator(".kp-betrachter")).toHaveAttribute("data-eingepasst", "false");
+  await page.keyboard.press("Enter");
+  await expect(flyinTitel(page)).toBeVisible();
+  const rahmen = (await page.locator(".kp-betrachter").boundingBox())!;
+  const flyin = (await page.locator("[data-flyin-stelle]").boundingBox())!;
+  await expect.poll(async () => {
+    const k = (await page.locator(`[data-griffe="${rechts}"] .kp-griffe-karte`).boundingBox())!;
+    // rechte Kante der Karte genau GRIFF_RAND.seite (84 px) vor dem rechten Innenrand der Fläche
+    return Math.round(rahmen.x + rahmen.width - 1 - 84 - (k.x + k.width));
+  }).toBeGreaterThanOrEqual(-2);
+  const k = (await page.locator(`[data-griffe="${rechts}"] .kp-griffe-karte`).boundingBox())!;
+  expect(rahmen.x + rahmen.width - 1 - 84 - (k.x + k.width), "nicht weiter nach links als nötig").toBeLessThanOrEqual(2);
+  expect(k.x + k.width, "neben dem Flyin").toBeLessThanOrEqual(flyin.x);
+  await page.keyboard.press("Escape");
+  expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
+});
+
 test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, context }) => {
   await context.addInitScript(() => { window.print = () => {}; });
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
