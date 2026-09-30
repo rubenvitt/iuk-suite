@@ -44,6 +44,8 @@ test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page })
   expect(plan?.status()).toBe(200);
   await warteAufSpaltenaufteilung(page);
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(6);
+  // Die Legende steht auch am Bildschirm, mit den Reservekanälen (Spec §5.6, A3)
+  await expect(page.getByRole("list", { name: "Legende" })).toContainText("Reserve K_UE_2");
 
   // Einklappen zuerst — vor dem Zoomen liegt der Umschalter sicher in der eingepassten Fläche.
   await klickeWennRuhig(page.locator('[data-umschalter="el"]'));
