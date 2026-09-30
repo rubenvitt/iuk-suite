@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRENZEN, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome } from "./ansicht";
+import { GRENZEN, einpassen, nachziehen, tasteZuAktion, untergrenze, verschiebe, zoome } from "./ansicht";
 
 describe("Ansicht", () => {
   it("einpassen: ganze Zeichnung sichtbar, waagerecht mittig", () => {
@@ -47,5 +47,23 @@ describe("einpassen mit Optionen (Entscheidung 18)", () => {
     const breit = einpassen(1000, 100, 1000, 600, { seite: 84 });
     expect(breit.massstab).toBeCloseTo((1000 - 2 * 84) / 1000, 6);
     expect(breit.x).toBeCloseTo(84, 6);
+  });
+});
+
+describe("nachziehen: wie weit zeige() eine Karte samt Griffrand ins Bild holt (Entscheidung 18)", () => {
+  const rand = { oben: 16, seite: 84, unten: 120 };
+  it("eine Karte genau am Rand der eingepassten Ansicht braucht nichts — auch mit Rundungsrest", () => {
+    const a = einpassen(300, 100, 1000, 600, { seite: 84, unten: 120 });
+    // rechte Randkarte: ihre rechte Kante liegt rechnerisch genau bei w − seite; Gleitkomma darf nicht verschieben
+    expect(nachziehen(a, { x: 254, y: 0, breite: 46, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: 0 });
+    expect(nachziehen(a, { x: 0, y: 80, breite: 46, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: 0 });
+    expect(nachziehen({ ...a, x: a.x + 1e-9 }, { x: 254, y: 0, breite: 46, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: 0 });
+  });
+  it("verschiebt um genau den Überstand, links wie rechts, oben wie unten", () => {
+    const a = { massstab: 2, x: 0, y: 0 };
+    expect(nachziehen(a, { x: 10, y: 20, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 64, dy: 0 });
+    expect(nachziehen(a, { x: 450, y: 20, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: -64, dy: 0 });
+    expect(nachziehen(a, { x: 100, y: 0, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: 16 });
+    expect(nachziehen(a, { x: 100, y: 240, breite: 40, hoehe: 20 }, 1000, 600, rand)).toEqual({ dx: 0, dy: -40 });
   });
 });

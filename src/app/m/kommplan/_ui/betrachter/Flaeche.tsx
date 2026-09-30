@@ -7,7 +7,7 @@ import type { KarteL, Zeichnungsdaten } from "../../_lib/layout/typen";
 import { FARBE } from "../zeichnung/farben";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import { ZeichnungInhalt } from "../zeichnung/Zeichnung";
-import { GRENZEN, SCHRITT, einpassen, tasteZuAktion, untergrenze, verschiebe, zoome, type Ansicht } from "./ansicht";
+import { GRENZEN, SCHRITT, einpassen, nachziehen, tasteZuAktion, untergrenze, verschiebe, zoome, type Ansicht } from "./ansicht";
 
 /**
  * DIE ZEICHENFLÄCHE von Betrachter und Editor (Spec §5.7, §6.3): Zoom, Verschieben, Pinch, Rad,
@@ -69,15 +69,14 @@ export function Flaeche({
   useImperativeHandle(griff, () => ({
     fokus: () => flaeche.current?.focus({ preventScroll: true }),
     zeige: (k, rand = SICHTRAND) => setEigene((alt) => {
-      const jetzt = alt?.a ?? lage.current.basis;
+      // Eingepasst zeigt schon alles samt Griffrand (`platzSeite`/`platzUnten`): nichts zu tun, und die
+      // Ansicht bleibt eingepasst (Entscheidung 18) — durch Bauart, nicht durch Nachrechnen.
+      if (alt === null) return alt;
       const el = flaeche.current;
       if (!el || el.clientWidth === 0) return alt;
-      const m = jetzt.massstab, w = el.clientWidth - lage.current.verdeckt, h = el.clientHeight;
-      const l = jetzt.x + k.x * m, o = jetzt.y + k.y * m, r = l + k.breite * m, u = o + k.hoehe * m;
-      const dx = l < rand.seite ? rand.seite - l : r > w - rand.seite ? w - rand.seite - r : 0;
-      const dy = o < rand.oben ? rand.oben - o : u > h - rand.unten ? h - rand.unten - u : 0;
+      const { dx, dy } = nachziehen(alt.a, k, el.clientWidth - lage.current.verdeckt, el.clientHeight, rand);
       if (dx === 0 && dy === 0) return alt;
-      return { a: verschiebe(jetzt, dx, dy), auto: true };
+      return { a: verschiebe(alt.a, dx, dy), auto: true };
     }),
   }), []);
 

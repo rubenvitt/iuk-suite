@@ -35,6 +35,21 @@ export function verschiebe(a: Ansicht, dx: number, dy: number): Ansicht {
   return { ...a, x: a.x + dx, y: a.y + dy };
 }
 
+/**
+ * Wie weit `zeige()` die Ansicht schieben muss, damit ein Kasten (Layout-mm) samt Rand (px) in einer
+ * Fläche von `w` × `h` px liegt. Unter einem Pixel ist es keine Verschiebung: eine Karte, die in der
+ * eingepassten Ansicht rechnerisch GENAU am Rand liegt, darf nicht an einem Gleitkommarest aus der
+ * Einpassung fallen (Umsetzungsplan Phase 2, Entscheidung 18).
+ */
+export function nachziehen(a: Ansicht, k: { x: number; y: number; breite: number; hoehe: number }, w: number, h: number,
+  rand: { oben: number; seite: number; unten: number }): { dx: number; dy: number } {
+  const m = a.massstab;
+  const l = a.x + k.x * m, o = a.y + k.y * m, r = l + k.breite * m, u = o + k.hoehe * m;
+  const dx = l < rand.seite ? rand.seite - l : r > w - rand.seite ? w - rand.seite - r : 0;
+  const dy = o < rand.oben ? rand.oben - o : u > h - rand.unten ? h - rand.unten - u : 0;
+  return { dx: Math.abs(dx) < 1 ? 0 : dx, dy: Math.abs(dy) < 1 ? 0 : dy };
+}
+
 export type Aktion = { art: "zoom"; faktor: number } | { art: "verschiebe"; dx: number; dy: number } | { art: "einpassen" };
 
 export function tasteZuAktion(taste: string): Aktion | null {
