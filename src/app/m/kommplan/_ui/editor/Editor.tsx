@@ -76,8 +76,10 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Eine bearbeitete oder neue Stelle wird nie von einer eingeklappten Vorfahrin verdeckt: die
  *   Vorfahren werden aufgeklappt (ein Ansichtszustand, kein Rückgängig-Schritt).
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
+  /** Klasse der Zeichenschrift (next/font) — nur für die Legende, wie im Betrachter; der Rest steht in der Suite-Schrift. */
+  schriftKlasse?: string;
 }) {
   const [verlauf, setVerlauf] = useState<Verlauf>(() => neuerVerlauf(plan.inhalt));
   const [angaben, setAngaben] = useState(plan.angaben);
@@ -97,6 +99,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
     senden: { inhalt: speichereInhaltAction, angaben: speichereAngabenAction }, melde: setSpeicherZustand,
   }));
   const flaeche = useRef<FlaecheGriff>(null);
+  const wurzel = useRef<HTMLDivElement>(null);
   const titelRef = useRef<InputRef>(null);
   const zeigeNach = useRef<string | null>(null);
   const flyinJetzt = useRef(flyin);
@@ -256,6 +259,32 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   // Autosave-Timer zurückzulassen, der erst nach dem Verlassen feuert.
   useEffect(() => () => { void speicherer.jetzt(); }, [speicherer]);
 
+  // Höhe der Fläche (Review Phase 2): sie endet am unteren Bildrand, egal wie hoch Kopfleiste und
+  // Werkzeuge darüber umbrechen — sonst lagen die Hinweise unten in der Fläche am Tablet und Telefon
+  // (und bei offenem Flyin, das die Kopfleiste umbricht) unter dem Bildrand. Gemessen wird der
+  // Abstand der Fläche vom Dokumentanfang, bei jeder Größenänderung (die Hülle bricht nach `load` um).
+  useEffect(() => {
+    const el = wurzel.current;
+    if (!el) return;
+    const messe = () => {
+      const f = el.querySelector<HTMLElement>(".kp-betrachter");
+      if (f) el.style.setProperty("--kp-flaeche-oben", `${Math.round(f.getBoundingClientRect().top + window.scrollY)}px`);
+    };
+    messe();
+    const beobachter = new ResizeObserver(messe);
+    beobachter.observe(el);
+    window.addEventListener("resize", messe);
+    return () => { beobachter.disconnect(); window.removeEventListener("resize", messe); };
+  }, []);
+
+  // Ein neuer Hinweis steht im Bild (Review Phase 2): am Telefon reicht die Fläche unter den Rand,
+  // weil die Kopfleiste untereinander steht. „nearest“: liegt er schon im Bild, rollt nichts.
+  const meldungText = hinweis?.text ?? (speicherZustand.status === "fehler" ? speicherZustand.fehler : null);
+  useEffect(() => {
+    if (meldungText === null) return;
+    wurzel.current?.querySelector<HTMLElement>(".kp-meldungsplatz")?.scrollIntoView?.({ block: "nearest" });
+  }, [meldungText]);
+
   // Neue, per Pfeil gewählte oder im Flyin geöffnete Karte in den freien Bereich holen, sobald das Layout sie kennt.
   useEffect(() => {
     const id = zeigeNach.current;
@@ -338,7 +367,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
   const flyinStil = flyinGrund === null ? undefined : ({ "--kp-flyin-breite": flyinBreite(flyinGrund) } as CSSProperties);
 
   return (
-    <div className="kp-editor" data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
+    <div ref={wurzel} className="kp-editor" data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
       <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
         kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)}
         onRueck={() => perKnopf(rueck)} onWieder={() => perKnopf(wieder)}
@@ -357,7 +386,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift }: {
         leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
         werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
       <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
-      <Legende eintraege={eintraege} />
+      <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
       <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
       {gewaehlt !== null ? (
         <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}

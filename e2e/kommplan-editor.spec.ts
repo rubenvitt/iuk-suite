@@ -143,6 +143,49 @@ test("Schleife N → Titel → Enter → N in Tippgeschwindigkeit: keine Eingabe
   for (const name of ["EL", "Nord", "Sued", "West", "Ost"]) expect(titel.some((t) => t.startsWith(name)), `${name} in ${JSON.stringify(titel)}`).toBe(true);
 });
 
+test("Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon, auch bei offenem Flyin (Review Phase 2)", async ({ page, context }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, "e2e Hinweise");
+  await ersteStelle(page, "EL");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("n");
+  await speichertNach(page, () => flyinTitel(page).fill("EA 1"));
+  await page.keyboard.press("Escape");
+  const hinweis = page.locator(".kp-betrachter [data-meldung]");
+  /** Per Tastatur, von EL oder EA 1 aus: ein Klick auf die schon gewählte Karte öffnete das Flyin. */
+  const waehleEa1 = async () => {
+    await page.locator(".kp-betrachter").focus();
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("toolbar", { name: "Auswahl: EA 1" })).toBeVisible();
+  };
+  for (const [breite, hoehe] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+    await page.setViewportSize({ width: breite, height: hoehe });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await waehleEa1();
+    await speichertNach(page, () => page.keyboard.press("Delete"));
+    await expect(hinweis).toContainText("„EA 1“ gelöscht.");
+    await expect(hinweis, `${breite}×${hoehe}`).toBeInViewport({ ratio: 1 });
+    await speichertNach(page, () => klickeWennRuhig(hinweis.getByRole("button", { name: "Rückgängig" })));
+    await expect(karten(page)).toHaveCount(2);
+  }
+  // Speicherfehler bei offenem Flyin: der Hinweis mit „Erneut versuchen“ steht im Bild, nicht unter dem Rand
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await waehleEa1();
+  await page.keyboard.press("Enter");
+  await expect(flyinTitel(page)).toBeFocused();
+  await context.setOffline(true);
+  await flyinTitel(page).fill("EA 1 offline");
+  await expect(page.locator(".kp-speicherstatus")).toHaveText("Nicht gespeichert");
+  await expect(hinweis).toContainText("Nicht gespeichert");
+  await expect(hinweis).toBeInViewport({ ratio: 1 });
+  const wieder = page.waitForResponse(istSpeichern);
+  await context.setOffline(false); // „online“ sendet sofort erneut
+  expect((await wieder).status()).toBe(200);
+  await expect(page.locator(".kp-speicherstatus")).toHaveText(/^Gespeichert \d\d:\d\d$/);
+});
+
 test("Flyin: Zeichen suchen, Verbindung eintippen, Einheiten als Liste — alles steht im Diagramm", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, "e2e Flyin");

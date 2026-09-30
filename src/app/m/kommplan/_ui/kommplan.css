@@ -6,6 +6,9 @@
   --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; --kp-gedaempft: #5b6573; --kp-auswahl: #1f5fbf;
   --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
   --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
+  /* Auswahl AUF DEM PAPIER: das Papier bleibt weiß, also bleibt auch diese Farbe in beiden Modi
+     (#7fb0ff auf Weiß hätte nur 2,2:1, Review Phase 2). Nicht im Dunkel-Block überschreiben. */
+  --kp-auswahl-papier: #1f5fbf;
 }
 :root[data-theme="dark"] {
   --kp-flaeche: #1d2026; --kp-rand: #3a404a; --kp-gedaempft: #a9b2bf; --kp-auswahl: #7fb0ff;
@@ -104,7 +107,8 @@
 .kp-griffe { position: absolute; inset: 0; }
 .kp-griffe-karte { position: absolute; }
 .kp-griffe button { pointer-events: auto; }
-.kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl); border-radius: 4px; pointer-events: none; }
+/* Weißer Außenring: am Rand der Zeichnung liegt der Rahmen auf der (dunklen) Fläche statt auf Papier. */
+.kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl-papier); box-shadow: 0 0 0 2px #ffffff; border-radius: 4px; pointer-events: none; }
 .kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; width: max-content; }
 .kp-griffe .kp-griff-links { right: calc(100% + 8px); }
 .kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
@@ -118,7 +122,18 @@
 /* Fester Platz für den Status (Entscheidung 19): die Leiste bricht beim Autosave nicht um. */
 .kp-speicherstatus { font-size: 13px; color: var(--kp-gedaempft); min-width: 18ch; white-space: nowrap; }
 .kp-bedienhinweis { margin-block: 8px 0; }
-@media (max-width: 767.98px) { .kp-kopfwerkzeuge > * { flex: 1 1 auto; } }
+.kp-konflikt-text { margin: 0; }
+/* Im Editor endet die Fläche am unteren Bildrand (Editor.tsx misst `--kp-flaeche-oben`); 48 px bleiben
+   für die Bedienzeile darunter. So liegen die Hinweise unten IN der Fläche im Bild (Mindesthöhe s. o.). */
+.kp-editor .kp-betrachter { height: calc(100dvh - var(--kp-flaeche-oben, 240px) - 48px); }
+/* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
+   Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
+   einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
+@media (max-width: 767.98px) {
+  .kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
+  /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) nimmt die ganze Zeile, sonst bliebe er so schmal wie sein Inhalt. */
+  .kp-editor div:has(> .kp-kopfwerkzeuge) { flex: 1 1 100%; }
+}
 
 /*
  * Ein offenes Flyin (ohne Maske) hält ab Tablet-Breite seine Breite im Seitenfluss frei: sonst läge
