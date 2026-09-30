@@ -21,7 +21,7 @@ export function Sechseck({ s }: { s: SechseckL }) {
         points={sechseckPunkte(s.form, s.breite, s.hoehe)} fill={FARBE.papier} stroke={FARBE.tinte}
         strokeWidth={STRICH.linie} strokeDasharray={s.form === "mobil" ? "1 0.6" : undefined}
       />
-      <use href={`#${symbolId(s.piktogramm)}`} x={SECHSECK.spitze} y={(s.hoehe - SECHSECK.piktoHoehe) / 2} width={SECHSECK.piktoBreite} height={SECHSECK.piktoHoehe} />
+      <use href={`#${symbolId(s.piktogramm)}`} x={s.pikto.x} y={s.pikto.y} width={s.pikto.breite} height={s.pikto.hoehe} />
       <Text z={s.beschriftung} />
     </g>
   );

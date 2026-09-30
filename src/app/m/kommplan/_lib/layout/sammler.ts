@@ -45,7 +45,7 @@ export class Sammler {
   sechseck(netz: string, v: Verbindung, m: SechseckMass, x: number, y: number): void {
     this.elemente.sechsecke.push({
       netz, verbindungId: v.id, art: v.art, form: m.form, x, y, breite: m.breite, hoehe: m.hoehe,
-      beschriftung: m.beschriftung, voll: m.voll, piktogramm: m.piktogramm,
+      beschriftung: m.beschriftung, voll: m.voll, piktogramm: m.piktogramm, pikto: m.pikto,
     });
     this.belege(x, y, m.breite, m.hoehe);
   }

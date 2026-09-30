@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PIKTOGRAMME } from "../zeichen/grundlagen";
 import { SCHRIFT, SECHSECK } from "./masse";
 import { sechseckForm, sechseckMass } from "./sechseck";
 import { textBreite } from "./text";
@@ -22,6 +23,24 @@ describe("Sechseck", () => {
     expect(["tmo", "dmo", "analogfunk"].map((a) => sechseckForm(a as never))).toEqual(["funk", "funk", "funk"]);
     expect(["draht", "telefon", "fax", "daten"].map((a) => sechseckForm(a as never))).toEqual(["leitung", "leitung", "leitung", "leitung"]);
     expect(sechseckForm("mobil")).toBe("mobil");
+  });
+  it("ein Piktogramm mit Schrift (TMO, DMO, Fax, C) steht auf der Grundlinie der Beschriftung; eines ohne mittig", () => {
+    for (const art of ["tmo", "dmo", "fax", "telefon"] as const) {
+      const s = sechseckMass({ id: "v", art, bezeichnung: "R_UE_1" });
+      const q = PIKTOGRAMME[s.piktogramm];
+      const [, vy, vw, vh] = q.viewBox.split(/\s+/).map(Number);
+      const f = Math.min(s.pikto.breite / vw, s.pikto.hoehe / vh);
+      const textY = Number(/<text\b[^>]*\by="([\d.]+)"/.exec(q.inhalt)![1]);
+      // preserveAspectRatio xMidYMid meet: der Inhalt steht senkrecht mittig im Platz
+      const grundlinie = s.pikto.y + (s.pikto.hoehe - vh * f) / 2 + (textY - vy) * f;
+      // Fax: die Zickzacklinie unter „Fax" stieße unten an den Rand; dort hält der Rand (0,04 mm).
+      expect(Math.abs(grundlinie - s.beschriftung.y), art).toBeLessThan(art === "fax" ? 0.05 : 1e-6);
+      // und bleibt im Sechseck
+      expect(s.pikto.y + (s.pikto.hoehe - vh * f) / 2).toBeGreaterThanOrEqual(0);
+      expect(s.pikto.y + (s.pikto.hoehe + vh * f) / 2).toBeLessThanOrEqual(SECHSECK.hoehe);
+    }
+    const draht = sechseckMass({ id: "v", art: "draht", bezeichnung: "Standleitung" });
+    expect(draht.pikto).toEqual({ x: SECHSECK.spitze, y: (SECHSECK.hoehe - SECHSECK.piktoHoehe) / 2, breite: SECHSECK.piktoBreite, hoehe: SECHSECK.piktoHoehe });
   });
   it("trägt das Piktogramm seiner Art", () => {
     expect(sechseckMass({ id: "v", art: "draht", bezeichnung: "" }).piktogramm).toBe("comms.cable-construction");

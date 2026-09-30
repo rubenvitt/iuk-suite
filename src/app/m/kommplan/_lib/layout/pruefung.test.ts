@@ -13,6 +13,7 @@ const linie = (netz: string, x1: number, y1: number, x2: number, y2: number) => 
 const sechseck = (netz: string, x: number, y: number) => ({
   netz, verbindungId: "v", art: "tmo" as const, form: "funk" as const, x, y, breite: 26, hoehe: 6,
   beschriftung: { text: "", x: 0, y: 0, groesse: 8, fett: true, anker: "mitte" as const }, voll: "", piktogramm: "comms.voice-radio-tmo",
+  pikto: { x: 3, y: 1, breite: 7, hoehe: 4 },
 });
 const arten = (z: Zeichnungsdaten) => pruefeZeichnung(z).map((b) => b.art);
 

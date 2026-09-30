@@ -15,7 +15,12 @@ export interface KarteL {
 export interface EinheitL { id: string; stelleId: string; x: number; y: number; breite: number; hoehe: number; zeilen: TextZeile[]; voll: string; zeichen: string | null }
 export interface Strecke { netz: string; x1: number; y1: number; x2: number; y2: number; duenn: boolean }
 export type SechseckForm = "funk" | "leitung" | "mobil";
-export interface SechseckL { netz: string; verbindungId: string; art: VerbindungsArt; form: SechseckForm; x: number; y: number; breite: number; hoehe: number; beschriftung: TextZeile; voll: string; piktogramm: string }
+export interface SechseckL {
+  netz: string; verbindungId: string; art: VerbindungsArt; form: SechseckForm; x: number; y: number; breite: number; hoehe: number;
+  beschriftung: TextZeile; voll: string; piktogramm: string;
+  /** Platz des Piktogramms relativ zum Sechseck (`sechseck.ts`, `piktoPlatz`). */
+  pikto: { x: number; y: number; breite: number; hoehe: number };
+}
 export interface AbzeichenL { stelleId: string; x: number; y: number; breite: number; hoehe: number; text: TextZeile }
 export interface Spanne { stelleId: string; links: number; rechts: number }
 export interface LegendenEintrag { art: VerbindungsArt; text: string; reserve: boolean }
