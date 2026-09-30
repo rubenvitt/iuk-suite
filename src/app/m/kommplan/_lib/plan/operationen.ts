@@ -5,7 +5,7 @@ import { planInhaltSchema, type Lage, type PlanInhalt, type PlanOptionen, type S
 /**
  * Reine Planoperationen (Spec §6.6): Eingabe bleibt unverändert, Ausgabe ist gültig oder die
  * Operation wirft `PlanFehler`. Phase 2 ergänzt Einfügen, Ändern, Löschen und Umhängen für den
- * Editor; das Gliederungs-Einfügen folgt in Phase 3 in `einfuegen.ts`.
+ * Editor; das Gliederungs-Einfügen (Phase 3) steht in `gliederung.ts`, sein Parser in `einfuegen.ts`.
  */
 export class PlanFehler extends Error {
   constructor(nachricht: string) { super(nachricht); this.name = "PlanFehler"; }
@@ -57,7 +57,7 @@ export function stelleOder(inhalt: PlanInhalt, id: string): Stelle {
 }
 
 /** Eine neue, leere Stelle — der Titel kommt danach im Flyin (Spec §6.3: „sofort gesetzt"). */
-function leer(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {
+export function leereStelle(id: string, eltern: string | null, lage: Lage, reihenfolge: number, verbindungId: string | null): Stelle {
   return {
     id, eltern, lage, reihenfolge, zeichen: null, titel: "", leiter: null, hervorheben: false,
     verbindungId, kanaele: [], kontakte: [], einheiten: [],
@@ -65,7 +65,7 @@ function leer(id: string, eltern: string | null, lage: Lage, reihenfolge: number
 }
 
 export function fuegeWurzelEin(inhalt: PlanInhalt, id: string): PlanInhalt {
-  return gueltig({ ...inhalt, stellen: [...inhalt.stellen, leer(id, null, "unter", naechsteReihenfolge(inhalt, null, "unter"), null)] });
+  return gueltig({ ...inhalt, stellen: [...inhalt.stellen, leereStelle(id, null, "unter", naechsteReihenfolge(inhalt, null, "unter"), null)] });
 }
 
 /**
@@ -77,14 +77,14 @@ export function fuegeUnterstelleEin(inhalt: PlanInhalt, elternId: string, id: st
   const eltern = stelleOder(inhalt, elternId);
   if (eltern.lage !== "unter") throw new PlanFehler("Eine Seitenstelle trägt keine Unterstellen.");
   const letzte = anzeigereihenfolge(baueBaum(inhalt).unter(elternId)).at(-1);
-  const neu = leer(id, elternId, "unter", naechsteReihenfolge(inhalt, elternId, "unter"), letzte?.verbindungId ?? null);
+  const neu = leereStelle(id, elternId, "unter", naechsteReihenfolge(inhalt, elternId, "unter"), letzte?.verbindungId ?? null);
   return gueltig({ ...inhalt, stellen: [...inhalt.stellen, neu] });
 }
 
 export function fuegeSeitenstelleEin(inhalt: PlanInhalt, elternId: string, seite: "links" | "rechts", id: string): PlanInhalt {
   const eltern = stelleOder(inhalt, elternId);
   if (eltern.lage !== "unter") throw new PlanFehler("Eine Seitenstelle trägt keine Seitenstellen.");
-  return gueltig({ ...inhalt, stellen: [...inhalt.stellen, leer(id, elternId, seite, naechsteReihenfolge(inhalt, elternId, seite), null)] });
+  return gueltig({ ...inhalt, stellen: [...inhalt.stellen, leereStelle(id, elternId, seite, naechsteReihenfolge(inhalt, elternId, seite), null)] });
 }
 
 export type StellenAenderung = Partial<Pick<Stelle, "titel" | "leiter" | "hervorheben" | "zeichen" | "kontakte" | "kanaele" | "verbindungId">>;
