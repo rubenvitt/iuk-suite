@@ -88,6 +88,10 @@ describe("kommplan.css", () => {
   it("breit: Verbindung und Einheiten in fester Breite, damit sie über alle Zeilen fluchten (Review Phase 3)", () => {
     const breit = /@media \(min-width: 768px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(breit).toMatch(/\.kp-g-neben \{ flex: 0 0 26rem; flex-wrap: nowrap; \}/);
+    // neben einem Flyin ist die Liste schmal: dort Verbindung und Einheiten in eigener Zeile, „⋯“ bleibt oben
+    expect(css).toMatch(/\.kp-g-liste \{ container-type: inline-size; \}/);
+    const schmaleListe = /@container \(max-width: 44rem\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(schmaleListe).toMatch(/\.kp-g-liste \.kp-g-neben \{ order: 1; flex: 1 1 100%; \}/);
   });
 });
 

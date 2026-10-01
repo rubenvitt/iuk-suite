@@ -144,7 +144,7 @@
 .kp-g-zeile { padding-inline-start: calc(var(--ebene) * 24px); border-radius: 8px; }
 .kp-g-zeile[aria-current="true"] { background: var(--kp-auswahl-flaeche); box-shadow: inset 3px 0 0 var(--kp-auswahl); }
 .kp-g-haupt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px; }
-.kp-g-haupt .kp-g-titel { flex: 1 1 12rem; min-width: 0; }
+.kp-g-haupt .kp-g-titel { flex: 1 1 8rem; min-width: 0; } /* 8rem: auch neben Chip und fester Verbindungsbreite bleibt „⋯“ in der Zeile */
 .kp-g-neben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 0 1 auto; }
 .kp-g-meldung { position: sticky; bottom: 12px; margin-top: 8px; z-index: 3; }
 .kp-g-lage .kp-chip { background: var(--kp-g-chip-flaeche); }
@@ -225,4 +225,16 @@
   .kp-g-einheiten .kp-formular-knoepfe { display: flex; flex-wrap: wrap; }
   .kp-editor[data-editoransicht="auto"] .kp-ansicht-gliederung,
   .kp-editor .kp-nur-schmal { display: none; }
+}
+
+/*
+ * Schmale Gliederung NEBEN einem offenen Flyin (Tablet): die feste Breite von Verbindung und Einheiten
+ * (26rem, oben) passte dort nicht mehr neben Titel und „⋯“ — die Zeile brach dreizeilig um, „⋯“ allein
+ * unten. Gemessen wird die LISTE, nicht das Fenster (wie Falle 13 für Raster im Flyin): unter 44rem
+ * dieselbe Aufteilung wie am Telefon, Verbindung und Einheiten in einer eigenen Zeile darunter (Review Phase 3).
+ */
+.kp-g-liste { container-type: inline-size; }
+@container (max-width: 44rem) {
+  .kp-g-liste .kp-g-haupt .kp-g-titel { flex-basis: 6rem; }
+  .kp-g-liste .kp-g-neben { order: 1; flex: 1 1 100%; }
 }
