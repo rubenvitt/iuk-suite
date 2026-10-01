@@ -7,6 +7,7 @@ import { zeitFormat } from "@/core/zeit";
 import { TYP_NAME, tagZuMs, type Planangaben } from "../../_lib/angaben";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { kalendertag } from "../../_lib/rahmen";
+import { DruckMenue, type DruckWahl } from "../druck/DruckMenue";
 import type { SpeicherZustand } from "./speicherer";
 
 /**
@@ -45,7 +46,7 @@ export function statusText(z: SpeicherZustand): string {
 /**
  * KOPFLEISTE (Spec §6.2): Titel, Umschalter Diagramm | Gliederung (ohne Wahl in der Adresse zwei
  * Umschalter, CSS zeigt je Breakpoint einen — Phase 3, Entscheidung 1), Rückgängig/Wiederholen, „Plan und Verbindungen",
- * „Drucken (A4 quer)" (derselbe Name wie im Betrachter, Entscheidung 20), Speicherstatus (`aria-live`
+ * „Drucken" als geteilter Knopf A4/A3 (Phase 5, Entscheidung 12), Speicherstatus (`aria-live`
  * genau hier, docs/design/feedback-admin.md 4.14). `Seitenkopf` trägt weder eine Client-Direktive
  * noch Server-Abhängigkeiten und darf deshalb auch hier rendern. Der Konflikthinweis bleibt im
  * Fluss: er ist ein Zustand, der eine Entscheidung verlangt, kein vorübergehender Hinweis.
@@ -54,7 +55,7 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
   angaben: Planangaben; zustand: SpeicherZustand; standSeit: number; kannRueck: boolean; kannWieder: boolean;
   /** Ausdrücklich gewählte Ansicht; `null` = ohne Wahl (CSS am Breakpoint). */
   ansicht: EditorAnsicht | null; onAnsicht: (a: EditorAnsicht) => void;
-  onRueck: () => void; onWieder: () => void; onPlan: () => void; onDrucken: () => void;
+  onRueck: () => void; onWieder: () => void; onPlan: () => void; onDrucken: (w: DruckWahl) => void;
   onNeuLaden: () => void; onBehalten: () => void;
 }) {
   // Eigener Name je Umschalter: antds Vorgabe (`useId` von rc-util) ist unter NODE_ENV=test für alle gleich,
@@ -81,7 +82,7 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
             <Button {...VERLAUFSKNOPF} className="kp-nur-breit" onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
             <Button {...VERLAUFSKNOPF} onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
             <Button onClick={onPlan}>Plan und Verbindungen</Button>
-            <Button onClick={onDrucken}>Drucken (A4 quer)</Button>
+            <DruckMenue onWahl={onDrucken} />
             <span className="kp-speicherstatus kp-nur-breit" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
           </div>
         } />

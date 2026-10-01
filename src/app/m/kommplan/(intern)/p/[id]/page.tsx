@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import Link from "next/link";
 import { Card } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "@/app/m/kommplan/_db/client";
@@ -12,6 +11,7 @@ import { kopieHinweis } from "@/app/m/kommplan/_lib/tagesfassung";
 import { symboleFuer, zeichenIndex } from "@/app/m/kommplan/_lib/zeichen/zeichen";
 import { darfKommplanBearbeiten, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
 import { Betrachter } from "@/app/m/kommplan/_ui/betrachter/Betrachter";
+import { DruckMenue } from "@/app/m/kommplan/_ui/druck/DruckMenue";
 import { Editor } from "@/app/m/kommplan/_ui/editor/Editor";
 import { Huelle } from "@/app/m/kommplan/_ui/Huelle";
 import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
@@ -54,7 +54,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
         titel={plan.titel}
         zurueck={{ titel: "Alle Pläne", href: "/" }}
         beschreibung={beschreibungFuer(plan)}
-        aktionen={plan.inhalt ? <Link href={`/p/${plan.id}/druck/a4`} target="_blank">Drucken (A4 quer)</Link> : undefined}
+        aktionen={plan.inhalt ? <DruckMenue basis={`/p/${plan.id}`} /> : undefined}
       />
       {plan.archiviertAm !== null ? (
         <Card className="kp-archivhinweis" role="status" style={{ marginBlockEnd: 12 }} styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}>

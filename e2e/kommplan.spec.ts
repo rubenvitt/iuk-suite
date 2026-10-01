@@ -31,6 +31,9 @@ async function ruhigeAnsicht(page: Page): Promise<string> {
   return letzte;
 }
 
+/** Am echten Menü bestimmt: per Enter geöffnet steht „A4 quer“ schon aktiv, EIN Pfeil wählt „A3 quer“ (zwei liefen herum). */
+const PFEIL_RUNTER_BIS_A3 = 1;
+
 test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
   const liste = await page.goto(url("/"));
@@ -46,6 +49,23 @@ test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page })
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(6);
   // Die Legende steht auch am Bildschirm, mit den Reservekanälen (Spec §5.6, A3)
   await expect(page.getByRole("list", { name: "Legende" })).toContainText("Reserve K_UE_2");
+  // Drucken als geteilter Knopf, die Zugangsgruppe teilt nicht (Umsetzungsplan Phase 5, Entscheidungen 12, 17)
+  await expect(page.getByRole("button", { name: "Drucken", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Teilen" })).toHaveCount(0);
+  // Der echte Tastaturweg: Pfeil fokussieren, Enter öffnet das Menü, Pfeiltasten wählen, Enter druckt.
+  await page.context().addInitScript(() => { window.print = () => {}; });
+  await page.getByRole("button", { name: "Weitere Druckformate" }).focus();
+  await page.keyboard.press("Enter");
+  // Erst wenn der Fokus im Menü steht (autoFocus setzt ihn nach dem Öffnen), führen die Pfeile durch die Punkte.
+  await expect(page.getByRole("menuitem", { name: "A4 quer" })).toBeFocused();
+  const popup = page.waitForEvent("popup");
+  for (let i = 0; i < PFEIL_RUNTER_BIS_A3; i++) await page.keyboard.press("ArrowDown");
+  // rc-menu liest den aktiven Punkt beim Enter aus seinem Zustand: erst drücken, wenn er angekommen ist.
+  await expect(page.getByRole("menuitem", { name: "A3 quer" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  const druck = await popup;
+  await druck.waitForURL(/\/druck\/a3$/);
+  await druck.close();
 
   // Einklappen zuerst — vor dem Zoomen liegt der Umschalter sicher in der eingepassten Fläche.
   await klickeWennRuhig(page.locator('[data-umschalter="el"]'));
@@ -90,6 +110,17 @@ test("Druck A4: ein Blatt für den Einsatz, mehrere für die Stab-Lage, keines l
   const pdfGross = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true }));
   expect(pdfGross.getPageCount()).toBe(anzahl);
   for (const seite of pdfGross.getPages()) expect(seite.getSize().width).toBeGreaterThan(seite.getSize().height);
+
+  // A3 quer: eigene Route mit eigenem benannten @page (Falle 18; Umsetzungsplan Phase 5, Entscheidung 13)
+  const a3 = await page.goto(url(`/p/${EINSATZ}/druck/a3`));
+  expect(a3?.status()).toBe(200);
+  await warteAufGestreamteInhalte(page);
+  await expect(page.locator("main.kp-druck")).toHaveAttribute("data-format", "a3-quer");
+  const pdfA3 = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true }));
+  const groesse = pdfA3.getPage(0).getSize();
+  // 420 × 297 mm in pt; Chromium rundet die Seite auf ganze CSS-Pixel (gemessen 1191,12 × 841,92)
+  expect(Math.abs(groesse.width - 1190.55)).toBeLessThan(1);
+  expect(Math.abs(groesse.height - 841.89)).toBeLessThan(1);
 });
 
 test("ohne Anmeldung geht es zum Login; Pfade außerhalb von p/ laufen nicht in den Riegel", async ({ page }) => {
@@ -105,14 +136,14 @@ test("ohne Anmeldung geht es zum Login; Pfade außerhalb von p/ laufen nicht in 
 
 test("ohne Gruppe: 404 auf Liste, Plan und Druck", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "andere", callbackPath: "/login" });
-  for (const pfad of ["/", `/p/${EINSATZ}`, `/p/${EINSATZ}/druck/a4`]) {
+  for (const pfad of ["/", `/p/${EINSATZ}`, `/p/${EINSATZ}/druck/a4`, `/p/${EINSATZ}/druck/a3`]) {
     expect((await page.goto(url(pfad)))?.status(), pfad).toBe(404);
   }
 });
 
 test("unbekannter Plan: 404 auf Betrachter und Druck", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
-  for (const pfad of ["/p/gibt-es-nicht", "/p/gibt-es-nicht/druck/a4"]) {
+  for (const pfad of ["/p/gibt-es-nicht", "/p/gibt-es-nicht/druck/a4", "/p/gibt-es-nicht/druck/a3"]) {
     expect((await page.goto(url(pfad)))?.status(), pfad).toBe(404);
   }
 });

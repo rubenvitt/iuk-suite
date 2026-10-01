@@ -42,6 +42,12 @@ async function taste(key: string, mehr: KeyboardEventInit = {}, ziel?: Element) 
   await act(async () => { (ziel ?? document.activeElement ?? query(".kp-betrachter")).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...mehr })); });
 }
 const knopf = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text)!;
+async function druckeIn(format: "A4 quer" | "A3 quer") {
+  if (format === "A4 quer") { await clickElement(knopf("Drucken")); return; } // der Hauptknopf druckt A4 quer
+  await clickElement(query('button[aria-label="Weitere Druckformate"]'));
+  await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  await clickElement([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((e) => e.textContent === format)!);
+}
 const flaecheFokussiert = () => document.activeElement === query(".kp-betrachter");
 const rueckImHinweis = () => queryAll<HTMLButtonElement>(".kp-betrachter [data-meldung] button").find((b) => b.textContent === "Rückgängig");
 const flyinOffen = () => existsPortal("[data-flyin-stelle]");
@@ -253,12 +259,12 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await clickElement(knopf("Drucken (A4 quer)"));
+    await druckeIn("A3 quer");
     // mehrere Mikroaufgaben (Warteschlange, Action, Auswertung): eine echte Runde der Ereignisschleife abwarten
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(window.open).toHaveBeenCalledWith("", "_blank");
     expect(aktionen.speichereInhaltAction).toHaveBeenCalledTimes(1);
-    expect(fenster.location.href).toBe("/p/p1/druck/a4");
+    expect(fenster.location.href).toBe("/p/p1/druck/a3");
   });
   it("Drucken, wenn das Speichern misslingt: Fenster wieder zu, Hinweis, kein Druck des alten Serverstands", async () => {
     const fenster = { location: { href: "" }, close: vi.fn() };
@@ -267,7 +273,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await clickElement(knopf("Drucken (A4 quer)"));
+    await druckeIn("A4 quer");
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(fenster.close).toHaveBeenCalled();
     expect(fenster.location.href).toBe("");

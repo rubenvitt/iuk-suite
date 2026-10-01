@@ -19,6 +19,7 @@ import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { Flaeche, type FlaecheGriff } from "../betrachter/Flaeche";
 import { Legende } from "../betrachter/Legende";
 import { Umschalter } from "../betrachter/EinklappKnopf";
+import { druckZiel, type DruckWahl } from "../druck/DruckMenue";
 import { Gliederung, type GliederungGriff } from "../gliederung/Gliederung";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
@@ -393,8 +394,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     if (r.ok) setAngaben(angabenSchema.parse(a));
     return r;
   }
-  async function drucken() {
-    const ziel = `/p/${plan.id}/druck/a4`;
+  async function drucken(wahl: DruckWahl) {
+    const ziel = druckZiel(`/p/${plan.id}`, wahl);
     const fenster = window.open("", "_blank"); // synchron im Klick, sonst greift der Popup-Blocker (Entscheidung 12)
     if (!(await speicherer.jetzt())) {
       fenster?.close();
@@ -437,7 +438,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
           kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
           onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
-          onPlan={() => oeffnePlan("angaben")} onDrucken={() => void drucken()}
+          onPlan={() => oeffnePlan("angaben")} onDrucken={(w) => void drucken(w)}
           onNeuLaden={neuLaden} onBehalten={behalten} />
         <div className="kp-ansicht-diagramm">
           <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}

@@ -244,6 +244,8 @@
 .kp-kopfaktionen { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .kp-kopfaktionen > a { min-height: 44px; display: inline-flex; align-items: center; }
 .kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+/* Pfeil des geteilten Druckknopfs (Inline-SVG, Falle 7) ohne Grundlinienversatz. */
+.kp-druckmenue-pfeil { display: block; }
 
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
@@ -260,6 +262,9 @@
   .kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   .kp-kopfaktionen > a { justify-content: center; }
   .kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
+  /* Geteilter Druckknopf volle Breite: „Drucken“ wächst, der Pfeil bleibt schmal (Kindkombinator, Falle 20). */
+  .kp-druckmenue { width: 100%; }
+  .kp-druckmenue > :first-child { flex: 1 1 auto; }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) nimmt die ganze Zeile, sonst bliebe er so schmal wie sein Inhalt. */
   .kp-editor div:has(> .kp-kopfwerkzeuge) { flex: 1 1 100%; }
   .kp-g-zeile { padding-inline-start: calc(min(var(--ebene), 6) * 16px); }
