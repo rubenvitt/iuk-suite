@@ -63,7 +63,7 @@ export function EinheitenBereich({ einheiten, zeichenIndex, symbole, ladeSymbole
   return (
     <section aria-label="Einheiten der Bibliothek" className="kp-bib-bereich">
       <div className="kp-bib-werkzeuge">
-        <Input aria-label="Einheiten suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
+        <Input className="kp-bib-suche" aria-label="Einheiten suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
         <Button type="primary" onClick={() => setOffen("neu")}>Neue Einheit</Button>
         <Button onClick={() => setListe("")}>Liste einfügen</Button>
         <Button onClick={() => csv.current?.click()}>CSV importieren</Button>

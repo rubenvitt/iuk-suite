@@ -204,6 +204,36 @@
  */
 .kp-editor[data-editoransicht="diagramm"] .kp-ansicht-gliederung,
 .kp-editor[data-editoransicht="gliederung"] .kp-ansicht-diagramm { display: none; }
+/* Phase 4 — VOR den Breakpoint-Blöcken, damit deren Regeln bei gleicher Spezifität gewinnen. */
+/* Einstellungen (Phase 4): der Kopf in Seitenbreite, Papier auch im Dunkeln; das Dateifeld ist nur Mittel zum Zweck. */
+.kp-kopfvorschau { display: block; width: 100%; height: auto; border: 1px solid var(--kp-rand); border-radius: 4px; }
+.kp-dateifeld { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.kp-einstellungen { max-width: 40rem; }
+/* Planliste (Phase 4): Rückmeldung nach einer Aktion, mit „Rückgängig“ nach dem Archivieren. */
+.kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
+.kp-archivhinweis { margin-block-end: 12px; }
+/* Bibliothek (Phase 4, Entscheidung 11). */
+.kp-bib-werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
+.kp-bib-werkzeuge > .kp-hilfe { flex: 1 1 100%; margin: 0; }
+/* Das Suchfeld nimmt ab 768 px nicht die ganze Zeile: „Neue …“ steht daneben (eine Klasse mehr als antds Wrapper, Falle 5). */
+.kp-bib-werkzeuge > .kp-bib-suche { flex: 0 1 24rem; width: auto; }
+.kp-bib-bereich { display: grid; gap: 8px; }
+/* Ein Titel als Link-Knopf in der Zelle: Text bricht um statt die Spalte zu sprengen. */
+.kp-bib-bereich .kp-zeilenlink { padding-inline: 0; height: auto; white-space: normal; text-align: start; }
+/* Bibliothek im Flyin (Phase 4, Entscheidung 13). Eigene Klassen, nie `kp-zeile` (dessen Raster in der Gliederung dreispaltig ist). */
+.kp-aus-bibliothek { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
+/* Auswahl und „Hinzufügen" nebeneinander, bei Platzmangel umbrechend — per flex-wrap, nicht per @media (Falle 13). */
+.kp-bib-einheiten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kp-bib-einheiten > .kp-bib-einheiten-wahl { flex: 1 1 14rem; min-width: 0; }
+/*
+ * Titelvorschläge (Phase 4, Entscheidung 14), in der Gliederung unter der aktiven Zeile und im Flyin unter dem
+ * Titel. KEIN Ebenenterm: die Vorschläge stehen IN `.kp-g-zeile`, die schon um die Ebene eingerückt ist — ein
+ * zweiter Ebenenterm rückte doppelt ein (am Telefon bei Ebene 10 fast die ganze Breite). Einzeilig mit fester
+ * Höhe und waagerecht scrollbar: die Zeilen darunter springen beim Tippen nicht um Knopfzeilen.
+ */
+.kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; }
+.kp-g-vorschlaege > * { flex: none; }
+
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
    einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
@@ -219,7 +249,7 @@
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne
      diese Regel bliebe auch das Raster darin schmal (Gegenstück zur Regel für .kp-kopfwerkzeuge im Editor). */
   div:has(> .kp-kopfaktionen) { flex: 1 1 100%; }
-  .kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   .kp-kopfaktionen > a { justify-content: center; }
   .kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) nimmt die ganze Zeile, sonst bliebe er so schmal wie sein Inhalt. */
@@ -270,29 +300,3 @@
   .kp-g-liste .kp-g-haupt .kp-g-titel { flex-basis: 6rem; }
   .kp-g-liste .kp-g-neben { order: 1; flex: 1 1 100%; }
 }
-/* Einstellungen (Phase 4): der Kopf in Seitenbreite, Papier auch im Dunkeln; das Dateifeld ist nur Mittel zum Zweck. */
-.kp-kopfvorschau { display: block; width: 100%; height: auto; border: 1px solid var(--kp-rand); border-radius: 4px; }
-.kp-dateifeld { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.kp-einstellungen { max-width: 40rem; }
-/* Planliste (Phase 4): Rückmeldung nach einer Aktion, mit „Rückgängig“ nach dem Archivieren. */
-.kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
-.kp-archivhinweis { margin-block-end: 12px; }
-/* Bibliothek (Phase 4, Entscheidung 11). */
-.kp-bib-werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
-.kp-bib-werkzeuge > .kp-hilfe { flex: 1 1 100%; margin: 0; }
-.kp-bib-bereich { display: grid; gap: 8px; }
-/* Ein Titel als Link-Knopf in der Zelle: Text bricht um statt die Spalte zu sprengen. */
-.kp-bib-bereich .kp-zeilenlink { padding-inline: 0; height: auto; white-space: normal; text-align: start; }
-/* Bibliothek im Flyin (Phase 4, Entscheidung 13). Eigene Klassen, nie `kp-zeile` (dessen Raster in der Gliederung dreispaltig ist). */
-.kp-aus-bibliothek { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
-/* Auswahl und „Hinzufügen" nebeneinander, bei Platzmangel umbrechend — per flex-wrap, nicht per @media (Falle 13). */
-.kp-bib-einheiten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.kp-bib-einheiten > .kp-bib-einheiten-wahl { flex: 1 1 14rem; min-width: 0; }
-/*
- * Titelvorschläge (Phase 4, Entscheidung 14), in der Gliederung unter der aktiven Zeile und im Flyin unter dem
- * Titel. KEIN Ebenenterm: die Vorschläge stehen IN `.kp-g-zeile`, die schon um die Ebene eingerückt ist — ein
- * zweiter Ebenenterm rückte doppelt ein (am Telefon bei Ebene 10 fast die ganze Breite). Einzeilig mit fester
- * Höhe und waagerecht scrollbar: die Zeilen darunter springen beim Tippen nicht um Knopfzeilen.
- */
-.kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; }
-.kp-g-vorschlaege > * { flex: none; }

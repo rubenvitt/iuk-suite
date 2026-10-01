@@ -39,7 +39,7 @@ export function StellenBereich({ stellen, zeichenIndex, symbole, ladeSymbole }: 
   return (
     <section aria-label="Stellen der Bibliothek" className="kp-bib-bereich">
       <div className="kp-bib-werkzeuge">
-        <Input aria-label="Stellen suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
+        <Input className="kp-bib-suche" aria-label="Stellen suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
         <Button type="primary" onClick={() => setOffen("neu")}>Neue Stelle</Button>
       </div>
       {meldung ? <p className="kp-hinweis" role="status">{meldung}</p> : null}

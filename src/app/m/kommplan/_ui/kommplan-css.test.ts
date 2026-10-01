@@ -127,3 +127,19 @@ describe("Bibliothek in der Gliederung (Phase 4)", () => {
     expect(css).toMatch(/@media \(max-width: 767\.98px\) \{[\s\S]*\.kp-vorschlag-hinweis \{ display: none; \}/);
   });
 });
+
+describe("Sichtprüfung Phase 4", () => {
+  it("Regeln der Phase 4 stehen VOR den Breakpoint-Blöcken — sonst schlügen sie deren Telefonregeln bei gleicher Spezifität", () => {
+    const telefon = css.indexOf("@media (max-width: 767.98px)");
+    for (const regel of [".kp-bib-werkzeuge {", ".kp-g-vorschlaege {", ".kp-kopfvorschau {", ".kp-listenhinweis {", ".kp-bib-einheiten {"]) {
+      expect(css.indexOf(regel), regel).toBeGreaterThan(-1);
+      expect(css.indexOf(regel), regel).toBeLessThan(telefon);
+    }
+  });
+  it("Seitenkopf der Planliste am Telefon: die Aktionen selbst nehmen die volle Breite (sie sind Flex-Kind des Kern-Behälters)", () => {
+    expect(css).toMatch(/@media \(max-width: 767\.98px\) \{[\s\S]*\.kp-kopfaktionen \{[^}]*flex: 1 1 100%/);
+  });
+  it("Suchfeld der Bibliothek ab 768 px nicht zeilenfüllend: „Neue …“ steht daneben", () => {
+    expect(css).toMatch(/\.kp-bib-werkzeuge > \.kp-bib-suche \{[^}]*flex: 0 1 24rem/);
+  });
+});
