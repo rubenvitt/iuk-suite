@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
@@ -302,4 +302,90 @@ test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige
   await page.evaluate(() => document.fonts.ready);
   await expect.poll(() => page.evaluate(() => (window as unknown as { gedruckt: number }).gedruckt)).toBe(1);
   await druck.close();
+});
+
+const BREITEN = [{ name: "desktop", width: 1440, height: 900 }, { name: "tablet", width: 1024, height: 768 }, { name: "telefon", width: 390, height: 844 }] as const;
+const FOTOS = process.env.KOMMPLAN_FOTOS;
+/** Höhe der Editor-Kopfleiste bei 390 × 844 im Stand vor Phase 5 — gemessen in Task 5 (Kritik: „Teilen" darf sie nicht wachsen lassen). */
+const KOPFLEISTE_TELEFON_VORHER = 204; // px, gemessen vor Phase 5 bei 390 × 844 (`/p/beispiel-openr-2022-07-01?ansicht=diagramm`)
+
+test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht und 404 — hell und dunkel, drei Breiten", async ({ page, browser, context }, testInfo) => {
+  test.setTimeout(FOTOS ? 300_000 : 120_000);
+  const ordner = FOTOS ?? testInfo.outputPath("fotos");
+  if (FOTOS) mkdirSync(ordner, { recursive: true });
+  await context.addInitScript(() => { window.print = () => {}; });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
+  const id = await neuerPlan(page, `e2e Fotos Teilen ${neu()}`);
+  await ersteStelle(page, "Einsatzleitung");
+  await page.keyboard.press("Escape");
+  await setzeOption(page, "qrAufDruck"); // QR an: Plan- und Teilen-Flyin zeigen den Satz, der Druck den Code (Prüfliste 2, 6)
+  await page.keyboard.press("Escape");
+  await oeffneTeilen(page);
+  const link = await stelleAus(page, "7 Tage", "Leitstelle Nord — Lagekarte im Führungsraum");
+  await stelleAus(page, "Unbegrenzt", "Aushang");
+  await page.keyboard.press("Escape");
+  const anon = await anonym(browser, ip(55));
+  const foto = async (p: Page, name: string) => { if (FOTOS) await p.screenshot({ path: `${ordner}/${name}.png`, animations: "disabled" }); };
+  const ohneUeberlauf = async (p: Page) =>
+    expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  // Token-Ansicht: keine senkrechte Seitenrolle — sonst schiebt jedes Wischen auf dem Betrachter das Diagramm statt der Seite (Entscheidung 8)
+  const ohneSeitenrolle = async (p: Page) =>
+    expect(await p.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
+  const breiten = FOTOS ? BREITEN : [BREITEN[2]];
+
+  for (const modus of ["light", "dark"] as const) {
+    await context.addCookies([{ name: "iuk-theme-pref", value: modus, url: url("/") }]);
+    await anon.context().addCookies([{ name: "iuk-theme-pref", value: modus, url: url("/") }]);
+    for (const b of breiten) {
+      await page.setViewportSize({ width: b.width, height: b.height });
+      await anon.setViewportSize({ width: b.width, height: b.height });
+      const n = `${b.name}-${modus}`;
+      await page.goto(url(`/p/${id}?ansicht=diagramm`));
+      await warteAufSpaltenaufteilung(page);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", modus);
+      if (b.name === "telefon") {
+        const hoehe = await page.locator(".kp-kopfwerkzeuge").evaluate((e) => e.getBoundingClientRect().height);
+        expect(hoehe, "Kopfleiste am Telefon nicht höher als vor Phase 5").toBeLessThanOrEqual(KOPFLEISTE_TELEFON_VORHER + 0.5);
+      }
+      await oeffneTeilen(page);
+      await ohneUeberlauf(page);
+      await foto(page, `teilen-${n}`);
+      await page.keyboard.press("Escape");
+      await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+      await page.locator('.kp-flyin [data-option="qrAufDruck"]').scrollIntoViewIfNeeded();
+      await foto(page, `plan-optionen-${n}`);
+      await page.keyboard.press("Escape");
+      // der Pfeil, nicht „Drucken“: der Hauptknopf druckt sofort A4 quer (Entscheidung 12)
+      await klickeWennRuhig(page.getByRole("button", { name: "Weitere Druckformate" }));
+      await expect(page.getByRole("menuitem", { name: "A3 quer", exact: true })).toBeVisible();
+      await foto(page, `druckmenue-${n}`);
+      await page.keyboard.press("Escape");
+
+      expect((await anon.goto(link))?.status()).toBe(200);
+      await warteAufGestreamteInhalte(anon);
+      await expect(anon.locator("html")).toHaveAttribute("data-theme", modus);
+      await ohneUeberlauf(anon);
+      await ohneSeitenrolle(anon);
+      // ohne Hülle gilt 56/72 (README, Falle 4) — auch für die antd-Inseln der Token-Ansicht (Entscheidung 8)
+      expect(await anon.getByRole("button", { name: "Drucken", exact: true }).evaluate((e) => e.getBoundingClientRect().height)).toBeCloseTo(56, 0);
+      await foto(anon, `token-${n}`);
+      if (b.name === "desktop") {
+        await anon.getByRole("button", { name: "Drucken", exact: true }).hover();
+        await foto(anon, `token-hover-${n}`); // Rot nur als Hover-Rahmen/Text, keine Fläche (Entscheidung 8)
+      }
+      expect((await anon.goto(url(`/t/${"Z".repeat(43)}`)))?.status()).toBe(404);
+      await expect(anon.getByRole("heading", { level: 1 })).toHaveText("Dieser Link gilt nicht (mehr).");
+      await foto(anon, `token-404-${n}`);
+      if (FOTOS && b.name === "desktop" && modus === "light") {
+        await anon.goto(`${link}/druck/a3`);
+        await warteAufGestreamteInhalte(anon);
+        await foto(anon, "druck-token-a3-desktop-light");
+        await page.goto(url(`/p/${id}/druck/a4`));
+        await warteAufGestreamteInhalte(page);
+        await foto(page, "druck-qr-desktop-light");
+      }
+    }
+  }
+  await anon.context().close();
 });
