@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 import type { KommplanDb } from "../_db/client";
-import { plan } from "../_db/schema";
+import { plan, planFreigabe } from "../_db/schema";
 import { tagZuMs, type PlanTyp } from "./angaben";
 import type { DuplikatErgebnis, EinfachErgebnis } from "./ergebnis";
 import { lies } from "./plaene";
@@ -9,7 +9,7 @@ import type { Bearbeiter } from "./speichern";
 import { heuteIso, titelFuerKopie } from "./tagesfassung";
 
 /**
- * PLANVERWALTUNG (Spec §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10) — nur Server. Jede ID wird hier
+ * PLANVERWALTUNG (Spec §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10; Phase 5 Entscheidung 3) — nur Server. Jede ID wird hier
  * gegen die Datenbank aufgelöst (IDOR); jeder Schreibvorgang ist eine Audit-Zeile über den Trigger von `plan`
  * (`ist_vorlage`, `archiviert_am`, Anlegen). Archivieren und Vorlage ändern den „Stand" NICHT — der Stand ist der
  * Inhalt, nicht seine Ablage. „Jetzt" kommt als Argument.
@@ -43,9 +43,21 @@ export function setzeVorlage(db: KommplanDb, id: string, vorlage: boolean): Einf
   return r.changes === 1 ? { ok: true } : { ok: false, fehler: PLAN_WEG };
 }
 
+/**
+ * Archivieren widerruft die gültigen Links des Plans in DERSELBEN Transaktion (Umsetzungsplan Phase 5,
+ * Entscheidung 3): Wiederherstellen erweckt keinen wieder. Je Link eine Audit-Zeile über den Trigger von
+ * `plan_freigabe`; abgelaufene und schon widerrufene bleiben, wie sie sind.
+ */
 export function archiviere(db: KommplanDb, id: string, jetzt: number): EinfachErgebnis {
-  const r = db.update(plan).set({ archiviertAm: new Date(jetzt) }).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).run();
-  return r.changes === 1 ? { ok: true } : { ok: false, fehler: PLAN_WEG };
+  return db.transaction((tx): EinfachErgebnis => {
+    const r = tx.update(plan).set({ archiviertAm: new Date(jetzt) }).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).run();
+    if (r.changes !== 1) return { ok: false, fehler: PLAN_WEG };
+    tx.update(planFreigabe).set({ widerrufenAm: new Date(jetzt) }).where(and(
+      eq(planFreigabe.planId, id), isNull(planFreigabe.widerrufenAm),
+      or(isNull(planFreigabe.ablauf), gt(planFreigabe.ablauf, new Date(jetzt))),
+    )).run();
+    return { ok: true };
+  });
 }
 
 export function stelleWiederHer(db: KommplanDb, id: string): EinfachErgebnis {

@@ -1,5 +1,6 @@
 import type { Planangaben } from "./angaben";
 import type { BibEinheit, BibStelle, BibVerbindung } from "./bibliothek/typen";
+import type { FreigabeZeile } from "./freigabe/regeln";
 import type { PlanInhalt } from "./plan/schema";
 import type { LogoTyp } from "./logo/logoTyp";
 import type { KopieTitelArt } from "./tagesfassung";
@@ -28,3 +29,5 @@ export type BibEinheitErgebnis = BibErgebnis<BibEinheit>;
 export type BibVerbindungErgebnis = BibErgebnis<BibVerbindung>;
 export type ImportErgebnis<T = BibEinheit> = { ok: true; angelegt: number; uebersprungen: number; eintraege: T[] } | { ok: false; fehler: string };
 export type VerbindungsImportErgebnis = ImportErgebnis<BibVerbindung>;
+/** Ausstellen und Widerrufen geben die ganze Liste mit serverseitig berechnetem Status zurück (Entscheidung 17). */
+export type FreigabeErgebnis = { ok: true; neu: string | null; freigaben: FreigabeZeile[] } | { ok: false; fehler: string; feldFehler: FeldFehler };

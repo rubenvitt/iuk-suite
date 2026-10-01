@@ -65,4 +65,12 @@ describe("kommplan-Datenbank", () => {
     db.update(briefkopf).set({ logo: Buffer.from("y"), logoSha256: "b" }).where(eq(briefkopf.id, 1)).run();
     expect(outbox(db).filter((z) => z.object_type === "briefkopf").map((z) => z.action)).toEqual(["create", "update", "update"]);
   });
+  it("Freigabe: Spalten aus Spec §8.2 vorhanden — Phase 5 braucht keine Migration (Entscheidung 1)", () => {
+    const db = testDb();
+    const spalten = (db.all(sql`PRAGMA table_info(plan_freigabe)`) as { name: string; notnull: number }[]).map((s) => [s.name, s.notnull]);
+    expect(spalten).toEqual([
+      ["id", 1], ["plan_id", 1], ["token", 1], ["notiz", 0], ["ablauf", 0], ["widerrufen_am", 0],
+      ["erstellt_am", 1], ["erstellt_von", 1], ["zuletzt_abgerufen", 0], ["abrufe", 1],
+    ]);
+  });
 });
