@@ -3,7 +3,7 @@ import { and, asc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 import type { KommplanDb } from "../_db/client";
 import { plan, planFreigabe } from "../_db/schema";
 import { tagZuMs, type PlanTyp } from "./angaben";
-import type { AnlageErgebnis, DuplikatErgebnis, EinfachErgebnis } from "./ergebnis";
+import type { DuplikatErgebnis, EinfachErgebnis, VorlageErgebnis } from "./ergebnis";
 import { lies } from "./plaene";
 import type { Bearbeiter } from "./speichern";
 import { heuteIso, titelFuerKopie } from "./tagesfassung";
@@ -43,12 +43,19 @@ export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: n
  * ein laufender Plan soll nicht unbemerkt in die Vorlagenliste wandern, und spätere Korrekturen am Einsatz sollen die
  * Vorlage nicht still ändern. Titel bleibt, Datum leer (eine Vorlage hat keinen Einsatztag; „Neu aus Vorlage" setzt
  * heute), Links werden nicht kopiert. Nur aus einem aktiven Plan, der selbst keine Vorlage ist.
+ * Gibt es schon eine aktive Vorlage gleichen Titels, legt erst `trotzdem` eine zweite an (Review Phase 5): zwei
+ * Vorlagen mit gleichem Titel und Datum „—“ sind in der Vorlagenliste und bei „Neu aus Vorlage“ nicht zu unterscheiden.
  */
-export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number): AnlageErgebnis {
+export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number, trotzdem = false): VorlageErgebnis {
   const q = db.select().from(plan).where(and(eq(plan.id, id), isNull(plan.archiviertAm), eq(plan.istVorlage, false))).get();
   if (!q) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
   const inhalt = lies(q).inhalt;
   if (!inhalt) return { ok: false, fehler: "Dieser Plan lässt sich nicht lesen und deshalb nicht als Vorlage speichern.", feldFehler: {} };
+  if (!trotzdem) {
+    const da = db.select({ id: plan.id }).from(plan)
+      .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm), eq(plan.titel, q.titel))).orderBy(plan.id).get();
+    if (da) return { ok: false, fehler: `Eine Vorlage „${q.titel}“ gibt es schon — sie steht unter „Vorlagen“.`, feldFehler: {}, vorhanden: da.id };
+  }
   const neu = randomUUID();
   db.insert(plan).values({
     id: neu, titel: q.titel, typ: q.typ, anlass: q.anlass, datum: null, istVorlage: true,

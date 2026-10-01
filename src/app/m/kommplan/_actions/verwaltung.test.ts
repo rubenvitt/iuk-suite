@@ -34,6 +34,9 @@ describe("Actions der Planverwaltung", () => {
     expect(await a.stelleWiederHerAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
     const v = await a.speichereAlsVorlageAction("beispiel-openr-2022-07-01");
     expect(v).toMatchObject({ ok: true, id: expect.any(String) });
+    expect(await a.speichereAlsVorlageAction("beispiel-openr-2022-07-01")).toMatchObject({ ok: false, vorhanden: v.ok ? v.id : "" });
+    expect(await a.speichereAlsVorlageAction("beispiel-openr-2022-07-01", true)).toMatchObject({ ok: true });
+    expect(await a.speichereAlsVorlageAction("beispiel-openr-2022-07-01", "ja")).toEqual({ ok: false, fehler: "Ungültige Anfrage.", feldFehler: {} });
     expect(await a.speichereAlsVorlageAction({ id: "x" })).toEqual({ ok: false, fehler: "Ungültige Anfrage.", feldFehler: {} });
     expect(await a.archiviereAction(5)).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
     expect(await a.dupliziereAction({})).toMatchObject({ ok: false });

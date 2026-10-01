@@ -18,6 +18,8 @@ export type SpeicherErgebnis =
   | { ok: false; grund: "weg" }
   | { ok: false; grund: "ungueltig"; fehler: string; feldFehler?: FeldFehler };
 export type AnlageErgebnis = { ok: true; id: string } | { ok: false; fehler: string; feldFehler: FeldFehler };
+/** „Als Vorlage speichern“: `vorhanden` ist die ID einer aktiven Vorlage gleichen Titels — erst nach Rückfrage eine zweite (Review Phase 5). */
+export type VorlageErgebnis = AnlageErgebnis | { ok: false; fehler: string; feldFehler: FeldFehler; vorhanden: string };
 /** Duplizieren: dazu, was mit dem Titel geschah — der Kopie-Hinweis bestätigt nur ein wirklich ersetztes Datum. */
 export type DuplikatErgebnis = { ok: true; id: string; titel: KopieTitelArt } | { ok: false; fehler: string; feldFehler: FeldFehler };
 /** Für Actions ohne eigenen Rückgabewert. Benannt, weil ein `{` in der Signatur den Riegel-Test der Actions bricht. */

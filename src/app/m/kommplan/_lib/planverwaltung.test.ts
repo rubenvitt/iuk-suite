@@ -81,6 +81,24 @@ describe("Vorlagen (Entscheidungen 7, 8)", () => {
     expect(v.inhalt).toEqual(vorher.inhalt);
     expect(vorlagenZurAuswahl(db).map((x) => x.id)).toContain(r.id);
   });
+  it("gleicher Titel schon als aktive Vorlage: nichts angelegt, die vorhandene genannt — erst `trotzdem` legt eine zweite an", async () => {
+    const db = await mitSeed();
+    const erste = speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT);
+    if (!erste.ok) throw new Error(erste.fehler);
+    const anzahl = () => vorlagenZurAuswahl(db).length;
+    const vorher = anzahl();
+    const zweite = speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT);
+    expect(zweite).toEqual({ ok: false, fehler: `Eine Vorlage „${ladePlan(db, OPENR)!.titel}“ gibt es schon — sie steht unter „Vorlagen“.`, feldFehler: {}, vorhanden: erste.id });
+    expect(anzahl()).toBe(vorher);
+    expect(speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT, true).ok).toBe(true);
+    expect(anzahl()).toBe(vorher + 1);
+    // Eine archivierte Vorlage gleichen Titels zählt nicht.
+    const db2 = await mitSeed();
+    const alt = speichereAlsVorlage(db2, OPENR, WER, NACH_MITTERNACHT);
+    if (!alt.ok) throw new Error(alt.fehler);
+    archiviere(db2, alt.id, NACH_MITTERNACHT);
+    expect(speichereAlsVorlage(db2, OPENR, WER, NACH_MITTERNACHT).ok).toBe(true);
+  });
   it("aus einer Vorlage, einem archivierten oder unbekannten Plan wird keine Vorlage", async () => {
     const db = await mitSeed();
     const vorlage = vorlagenZurAuswahl(db)[0];

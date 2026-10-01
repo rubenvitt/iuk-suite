@@ -27,9 +27,10 @@ const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 /**
  * `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body).
- * `oeffnen`: die ID einer eben angelegten Vorlage — „Vorlage öffnen“ (Phase 5, Entscheidung 16).
+ * `oeffnen`: die ID einer eben angelegten Vorlage — „Vorlage öffnen“ (Phase 5, Entscheidung 16) — oder der schon
+ * vorhandenen gleichen Titels; dann bietet `trotzdem` „Trotzdem anlegen“ für die Zeile (Review Phase 5).
  */
-interface Hinweis { text: string; zurueck?: string; oeffnen?: string; fokus?: boolean }
+interface Hinweis { text: string; zurueck?: string; oeffnen?: string; trotzdem?: Listenzeile; fokus?: boolean }
 
 /**
  * DIE DREI LISTEN DER PLANLISTE (Spec §6.1, §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10).
@@ -53,7 +54,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
   // Nach Archivieren auf „Rückgängig“, nach „Als Vorlage speichern“ auf „Vorlage öffnen“, sonst auf die Meldung selbst (Review Phase 4).
   useEffect(() => { if (hinweis?.fokus) (zurueckRef.current ?? oeffnenRef.current ?? hinweisRef.current)?.focus(); }, [hinweis]);
 
-  async function fuehreAus(z: Listenzeile, a: Aktion) {
+  async function fuehreAus(z: Listenzeile, a: Aktion, trotzdem = false) {
     if (a === "ausVorlage") { setAusVorlage(z.id); return; }
     if (sperre.current !== null) return;
     setzeLauf(z.id);
@@ -66,9 +67,10 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
       return;
     }
     let neueVorlage: string | undefined;
+    let vorhanden: string | undefined;
     const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren">, () => Promise<EinfachErgebnis>> = {
-      vorlage: () => speichereAlsVorlageAction(z.id).then((r): EinfachErgebnis => {
-        if (!r.ok) return { ok: false, fehler: r.fehler };
+      vorlage: () => speichereAlsVorlageAction(z.id, trotzdem).then((r): EinfachErgebnis => {
+        if (!r.ok) { if ("vorhanden" in r) vorhanden = r.vorhanden; return { ok: false, fehler: r.fehler }; }
         neueVorlage = r.id;
         return { ok: true };
       }),
@@ -78,7 +80,8 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     };
     const r = await lauf[a]().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
     setzeLauf(null);
-    if (!r.ok) { setHinweis({ text: r.fehler, fokus: true }); return; }
+    // Gleicher Titel schon als Vorlage: nichts angelegt — „Vorlage öffnen“ (die vorhandene) oder „Trotzdem anlegen“.
+    if (!r.ok) { setHinweis(vorhanden ? { text: r.fehler, oeffnen: vorhanden, trotzdem: z, fokus: true } : { text: r.fehler, fokus: true }); return; }
     const text = {
       vorlage: `Vorlage „${z.titel}“ angelegt — sie steht unter „Vorlagen“.`,
       vorlageArchivieren: `Vorlage „${z.titel}“ archiviert.`,
@@ -132,6 +135,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
           {hinweis.text}
           {hinweis.zurueck ? <Button ref={zurueckRef} onClick={() => void zurueck(hinweis.zurueck!)} loading={laeuft === hinweis.zurueck}>Rückgängig</Button> : null}
           {hinweis.oeffnen ? <Button ref={oeffnenRef} href={`/p/${hinweis.oeffnen}`}>Vorlage öffnen</Button> : null}
+          {hinweis.trotzdem ? <Button onClick={() => void fuehreAus(hinweis.trotzdem!, "vorlage", true)} loading={laeuft === hinweis.trotzdem.id}>Trotzdem anlegen</Button> : null}
         </p>
       ) : null}
       <Kartentabelle<Listenzeile>

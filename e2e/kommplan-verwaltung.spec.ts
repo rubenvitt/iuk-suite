@@ -44,13 +44,21 @@ test("Vorlage: als Kopie speichern, Neu aus Vorlage übernimmt den Inhalt, Vorla
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${titel}` }));
-  const v = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id]));
+  const v = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id, false]));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Als Vorlage speichern" }));
   expect((await v).status()).toBe(200);
   await expect(page.locator(".kp-listenhinweis")).toContainText(`Vorlage „${titel}“ angelegt`);
   await expect(page.locator(".kp-listenhinweis").getByRole("link", { name: "Vorlage öffnen" })).toHaveAttribute("href", /\/p\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
   await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible(); // der Plan bleibt
+  // Ein zweites Mal: keine zweite, ununterscheidbare Vorlage ohne Rückfrage (Review Phase 5)
+  await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${titel}` }));
+  const nochmal = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id, false]));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Als Vorlage speichern" }));
+  expect((await nochmal).status()).toBe(200);
+  await expect(page.locator(".kp-listenhinweis")).toContainText(`Eine Vorlage „${titel}“ gibt es schon`);
+  await expect(page.locator(".kp-listenhinweis").getByRole("button", { name: "Trotzdem anlegen" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toHaveCount(1);
   await klickeWennRuhig(page.getByRole("table", { name: "Vorlagen" }).getByRole("button", { name: `Aktionen für ${titel}` }));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Neu aus Vorlage" }));
   const formular = page.getByRole("form", { name: "Neuer Plan" });

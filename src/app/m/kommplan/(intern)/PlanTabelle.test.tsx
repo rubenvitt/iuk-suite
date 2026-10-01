@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
-import { clickElement, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, exists, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 const aktion = vi.hoisted(() => ({ dupliziere: vi.fn(), vorlage: vi.fn(), archiviere: vi.fn(), wiederher: vi.fn() }));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("../_actions/verwaltung", () => ({ dupliziereAction: aktion.dupliziere, speichereAlsVorlageAction: aktion.vorlage, archiviereAction: aktion.archiviere, stelleWiederHerAction: aktion.wiederher }));
@@ -103,7 +103,7 @@ describe("PlanTabelle", () => {
     await abwarten();
     await clickElement(knopf("Als Vorlage speichern"));
     await abwarten();
-    expect(aktion.vorlage).toHaveBeenCalledWith("p1");
+    expect(aktion.vorlage).toHaveBeenCalledWith("p1", false);
     expect(query(".kp-listenhinweis").textContent).toContain("Vorlage „Einsatz“ angelegt — sie steht unter „Vorlagen“.");
     const oeffnen = query<HTMLAnchorElement>(".kp-listenhinweis a");
     expect(oeffnen.textContent).toBe("Vorlage öffnen");
@@ -111,6 +111,27 @@ describe("PlanTabelle", () => {
     expect(document.activeElement).toBe(oeffnen);
     expect(router.refresh).toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
+  });
+  it("gleicher Titel schon als Vorlage: nichts angelegt, „Vorlage öffnen“ führt zur vorhandenen, „Trotzdem anlegen“ legt die zweite an", async () => {
+    aktion.vorlage
+      .mockResolvedValueOnce({ ok: false, fehler: "Eine Vorlage „Einsatz“ gibt es schon — sie steht unter „Vorlagen“.", feldFehler: {}, vorhanden: "v1" })
+      .mockResolvedValueOnce({ ok: true, id: "v2" });
+    await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
+    await abwarten();
+    await clickElement(knopf("Als Vorlage speichern"));
+    await abwarten();
+    expect(query(".kp-listenhinweis").textContent).toContain("Eine Vorlage „Einsatz“ gibt es schon");
+    const oeffnen = query<HTMLAnchorElement>(".kp-listenhinweis a");
+    expect(oeffnen.getAttribute("href")).toBe("/p/v1");
+    expect(document.activeElement).toBe(oeffnen);
+    expect(router.refresh).not.toHaveBeenCalled();
+    await clickElement(knopf("Trotzdem anlegen"));
+    await abwarten();
+    expect(aktion.vorlage).toHaveBeenLastCalledWith("p1", true);
+    expect(query(".kp-listenhinweis").textContent).toContain("Vorlage „Einsatz“ angelegt");
+    expect(query<HTMLAnchorElement>(".kp-listenhinweis a").getAttribute("href")).toBe("/p/v2");
+    expect(exists(".kp-listenhinweis button")).toBe(false);
   });
   it("Vorlagenliste: „Neu aus Vorlage“ und „Vorlage archivieren“ (mit Rückgängig) — kein „Keine Vorlage mehr“, kein zweites „Archivieren“", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });

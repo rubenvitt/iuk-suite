@@ -253,7 +253,7 @@ Speicherstatus. Arbeitsfläche füllt den Rest; bearbeitet wird im Flyin rechts 
 ### 6.7 Vorlagen und Duplizieren
 
 „Duplizieren" kopiert den Plan, setzt das Datum auf heute (Suite-Zone) und ersetzt das erste Datum im Titel in derselben Schreibweise (sonst „ (Kopie)"). „Als Vorlage speichern" legt
-eine Kopie als Vorlage an (Titel gleich, ohne Datum; der Plan bleibt unter „Pläne"); „Vorlage archivieren" archiviert sie; „Neu aus Vorlage" legt eine Kopie an.
+eine Kopie als Vorlage an (Titel gleich, ohne Datum; der Plan bleibt unter „Pläne"); gibt es schon eine Vorlage gleichen Titels, fragt die Liste erst nach („Vorlage öffnen" oder „Trotzdem anlegen"); „Vorlage archivieren" archiviert sie; „Neu aus Vorlage" legt eine Kopie an.
 
 ## 7. Taktische Zeichen
 
