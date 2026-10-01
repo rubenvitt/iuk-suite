@@ -252,6 +252,19 @@ test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbeg
   await expect(seite.locator("[data-qr]")).toHaveCount(tokenBlaetter);
   for (const z of await seite.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel"), "nie der bessere Link").toBe(kurz);
   await seite.context().close();
+
+  // Nur Zugangsgruppe: der interne Druck trägt keinen QR — der Code wäre der Link, und er überdauerte den Entzug der Gruppe.
+  const leseKontext = await browser.newContext();
+  await leseKontext.addInitScript(() => { window.print = () => {}; });
+  const leser = await leseKontext.newPage();
+  await devLogin(leser, { host: "kommplan.localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
+  expect((await leser.goto(url(`/p/${id}/druck/a4`)))?.status()).toBe(200);
+  await warteAufGestreamteInhalte(leser);
+  await expect(leser.locator("svg.kp-blatt")).not.toHaveCount(0);
+  await expect(leser.locator("[data-qr]")).toHaveCount(0);
+  await expect(leser.locator("[data-qr-satz]")).toHaveCount(0);
+  expect(await leser.content()).not.toContain(lang.slice(-43));
+  await leseKontext.close();
 });
 
 test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige Datei mit ASCII-Namen, SVG-Weg ohne Druckdialog (Review Focus 6, 8)", async ({ page, context }) => {

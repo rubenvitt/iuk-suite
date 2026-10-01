@@ -63,11 +63,12 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     const db = await mitSeed();
     const ohne = ladePlanLesend(db, "beispiel-openr-2022-07-01")!;
     aus(db, ohne.id, "24h");
-    expect(qrZielIntern(db, ohne, JETZT, BASIS)).toBeNull(); // Option aus
+    expect(qrZielIntern(db, ohne, true, JETZT, BASIS)).toBeNull(); // Option aus
     const p = mitQrOption(db, ohne.id);
     const unbegrenzt = aus(db, p.id, "unbegrenzt");
-    expect(qrZielIntern(db, p, JETZT, BASIS)).toEqual({ url: `${BASIS}/t/${unbegrenzt.token}`, notiz: null, ablauf: null });
-    expect(qrZielIntern(db, p, JETZT, null)).toBeNull(); // keine Adresse eingerichtet
+    expect(qrZielIntern(db, p, true, JETZT, BASIS)).toEqual({ url: `${BASIS}/t/${unbegrenzt.token}`, notiz: null, ablauf: null });
+    expect(qrZielIntern(db, p, true, JETZT, null)).toBeNull(); // keine Adresse eingerichtet
+    expect(qrZielIntern(db, p, false, JETZT, BASIS)).toBeNull(); // nur Zugangsgruppe: kein QR, der Code wäre der Link
   });
   it("Token-Druck: IMMER der benutzte Token, nie der beste Link des Plans (Review Focus 1)", async () => {
     const db = await mitSeed();
@@ -87,7 +88,7 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     const p = mitQrOption(db, "beispiel-openr-2022-07-01");
     const kurz = aus(db, p.id, "24h");
     aus(db, p.id, "unbegrenzt");
-    const ziele = [qrZielIntern(db, p, JETZT, BASIS)!.url, qrUrlFuerToken(p, kurz.token, BASIS)!];
+    const ziele = [qrZielIntern(db, p, true, JETZT, BASIS)!.url, qrUrlFuerToken(p, kurz.token, BASIS)!];
     expect(new Set(ziele).size).toBe(2);
     for (const url of ziele) {
       const d = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: url });
@@ -98,7 +99,7 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     const db = await mitSeed();
     const p = mitQrOption(db, "beispiel-einsatz-2026-02-22");
     aus(db, p.id, "unbegrenzt");
-    const ziel = qrZielIntern(db, p, JETZT, BASIS)!;
+    const ziel = qrZielIntern(db, p, true, JETZT, BASIS)!;
     const mit = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: ziel.url, qrSatz: "Der QR-Code führt auf …" });
     expect(mit.rahmen.qr).toMatchObject({ ziel: ziel.url, module: expect.any(Number) });
     expect(mit.qrSatz).toBe("Der QR-Code führt auf …");
@@ -106,7 +107,7 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     expect(ohne.rahmen.qr).toBeNull();
     expect(ohne.qrSatz).toBeNull();
     archiviere(db, p.id, JETZT);
-    expect(qrZielIntern(db, ladePlanLesend(db, p.id)!, JETZT, BASIS)).toBeNull();
+    expect(qrZielIntern(db, ladePlanLesend(db, p.id)!, true, JETZT, BASIS)).toBeNull();
   });
   it("Schwarzweiß-Option: graue Symbole und Rahmen mit schwarzweiss", async () => {
     const db = await mitSeed();

@@ -299,7 +299,7 @@ Server-Import im Build.
   `layout.tsx` oberhalb jeder `loading.tsx` (Falle 23).
 - Je Abruf `zuletzt_abgerufen` und `abrufe` (dieselbe Adresse und derselbe Link zählen binnen einer Minute einmal). Ausstellen und Widerrufen gehen ins Audit-Log. Dreißig Fehlversuche je Minute und Adresse sperren die Adresse (404 ohne Datenbankabfrage). `X-Robots-Tag`, `Referrer-Policy: no-referrer` und `Cache-Control: no-store` setzt der Proxy.
 - **QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt jedes Blatt unten rechts
-  einen QR-Code „Aktuelle Fassung" (24 mm) — intern auf den Link mit dem spätesten Ablauf (unbegrenzt zuerst), im Token-Druck immer auf den benutzten Link; Plan-Flyin, Teilen-Flyin und Druckseite sagen, auf welchen Link und wie lange. Basis ist die Adresse des Moduls aus der Suite-Konfiguration.
+  einen QR-Code „Aktuelle Fassung" (24 mm) — intern auf den Link mit dem spätesten Ablauf (unbegrenzt zuerst), im Token-Druck immer auf den benutzten Link; Plan-Flyin, Teilen-Flyin und Druckseite sagen, auf welchen Link und wie lange. Basis ist die Adresse des Moduls aus der Suite-Konfiguration. Den internen Ausdruck mit QR erhalten nur Bearbeitende: Der Code ist selbst der Link, und wer nur ansehen darf, behielte damit über den Entzug seiner Gruppe hinaus anonymen Zugang. Die Zugangsgruppe druckt intern ohne QR.
 
 ### 8.3 Archiv
 
