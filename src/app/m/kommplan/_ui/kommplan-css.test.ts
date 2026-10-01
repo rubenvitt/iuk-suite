@@ -165,6 +165,14 @@ describe("Sichtprüfung Phase 4", () => {
     const druck = /@media print \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(druck).not.toMatch(/max-width/);
   });
+  it("Druck am Bildschirm: das Umfeld folgt Hell/Dunkel wie die Knöpfe, das Blatt bleibt weiß mit schwarzer Schrift (Abnahme)", () => {
+    const css = readFileSync("src/app/m/kommplan/_ui/druck/druck.css", "utf8");
+    expect(css).toMatch(/:root\[data-theme="dark"\] \{[^}]*--kp-druck-umfeld:/);
+    expect(css).toMatch(/\.kp-druck \{ background: var\(--kp-druck-umfeld\); color: var\(--kp-druck-text\);/);
+    expect(css).toMatch(/\.kp-druck \.kp-blatt \{[^}]*background: #fff; color: #000;/);
+    const druck = /@media print \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(druck).toMatch(/\.kp-druck \{ background: #fff; color: #000;/);
+  });
   it("Token-Ansicht am Telefon: der umrandete VS-NfD-Vermerk bricht nicht in sich um (Sichtprüfung Phase 5)", () => {
     const token = readFileSync("src/app/m/kommplan/_ui/token/token.css", "utf8");
     const zweig = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(token)?.[1] ?? "";

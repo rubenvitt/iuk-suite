@@ -3,8 +3,12 @@
  * Seitengrößen in einem Dokument verwirft Chromium ganz). Beide Größen stehen in DIESEM einen Stylesheet:
  * so können zwei geladene Stylesheets (Client-Navigation behält CSS) einander nicht überschreiben, und jedes
  * Dokument wählt über `data-format` am gemeinsamen Vorfahren genau eine Seite (Umsetzungsplan Phase 5,
- * Entscheidung 13). Papier kennt keinen Dunkelmodus: Blätter und Umfeld sind hell, unabhängig von data-theme.
+ * Entscheidung 13). Papier kennt keinen Dunkelmodus: die Blätter sind weiß, unabhängig von data-theme. Ihr Umfeld am
+ * Bildschirm folgt Hell/Dunkel wie die Knöpfe darauf (Abnahme kommplan: dunkle antd-Knöpfe auf fest hellgrauem Grund);
+ * gedruckt ist es weiß. Eigene Variablen (Falle 2).
  */
+:root { --kp-druck-umfeld: #e9ebee; --kp-druck-text: #000; }
+:root[data-theme="dark"] { --kp-druck-umfeld: #1d2026; --kp-druck-text: #d6dce5; }
 @page kommplan-a4 {
   size: 297mm 210mm;
   margin: 0;
@@ -19,10 +23,10 @@
  * `lagerbuch/verwaltung/(druck)/druck.css`, `.lb-ortbogen`): ALLES Gedruckte dieser Seite liegt auf derselben
  * Seitengröße — auch der Zweig „Dieser Plan lässt sich nicht lesen.". Die Blätter tragen nur den Umbruch.
  */
-.kp-druck { background: #e9ebee; color: #000; padding-block: 16px; }
+.kp-druck { background: var(--kp-druck-umfeld); color: var(--kp-druck-text); padding-block: 16px; }
 .kp-druck[data-format="a4-quer"] { page: kommplan-a4; }
 .kp-druck[data-format="a3-quer"] { page: kommplan-a3; }
-.kp-druck .kp-blatt { display: block; margin: 0 auto 16px; background: #fff; break-after: page; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+.kp-druck .kp-blatt { display: block; margin: 0 auto 16px; background: #fff; color: #000; break-after: page; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
 .kp-druck .kp-blatt:last-of-type { break-after: auto; }
 .kp-druck .kp-symbole { position: absolute; width: 0; height: 0; overflow: hidden; }
 .kp-druck .kp-druck-knopf { text-align: center; margin-block-end: 16px; }
@@ -43,7 +47,7 @@
 
 @media print {
   body { background: #fff; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .kp-druck { background: #fff; padding: 0; }
+  .kp-druck { background: #fff; color: #000; padding: 0; }
   .kp-druck .kp-blatt { margin: 0; box-shadow: none; }
   .kp-druck .noprint { display: none; }
 }

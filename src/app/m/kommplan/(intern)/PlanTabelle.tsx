@@ -102,15 +102,17 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     if (r.ok) router.refresh();
   }
 
+  const mitKennzeichen = zeilen.some((z) => !z.lesbar || (liste === "archiv" && z.vorlage));
   const spalten: NonNullable<TableProps<Listenzeile>["columns"]> = [
     { key: "titel", title: "Titel", dataIndex: "titel", sorter: nachText<Listenzeile>((z) => z.titel),
       render: (_: unknown, z: Listenzeile) => <Link href={`/p/${z.id}`}>{z.titel}</Link> },
-    { key: "kennzeichen", title: "Kennzeichen", render: (_: unknown, z: Listenzeile) => (
+    // Nur, wenn eine Zeile ein Kennzeichen trägt — sonst stand eine leere Spalte da (Abnahme kommplan).
+    ...(mitKennzeichen ? [{ key: "kennzeichen", title: "Kennzeichen", render: (_: unknown, z: Listenzeile) => (
       <span className="kp-chips">
         {z.lesbar ? null : <span className="kp-chip kp-chip-hinweis">nicht lesbar</span>}
         {liste === "archiv" && z.vorlage ? <span className="kp-chip">Vorlage</span> : null}
       </span>
-    ) },
+    ) }] : []),
     { key: "typ", title: "Art", dataIndex: "typ" },
     { key: "datum", title: "Datum", dataIndex: "datum", render: (d: string | null) => d ?? "—" },
     liste === "archiv"
@@ -140,7 +142,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
       ) : null}
       <Kartentabelle<Listenzeile>
         aria-label={NAME[liste]} rowKey="id" dataSource={zeilen} columns={spalten}
-        leer={{ nichts: LEER[liste] }} karte={{ titel: "titel", kennzeichen: ["kennzeichen"] }}
+        leer={{ nichts: LEER[liste] }} karte={{ titel: "titel", kennzeichen: mitKennzeichen ? ["kennzeichen"] : [] }}
       />
       {liste === "vorlagen" ? (
         // Fokus ins Titelfeld wie bei „Neu“ (NeuerPlan.tsx, afterOpenChange) — vorher blieb er am Container (Review Phase 4).

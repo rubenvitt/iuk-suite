@@ -38,6 +38,13 @@ describe("PlanTabelle", () => {
     expect(chips).toEqual(["nicht lesbar"]);
     expect(document.body.textContent).toContain("—");
   });
+  it("ohne ein Kennzeichen in der Liste keine Spalte „Kennzeichen“ (Abnahme: sie stand im Normalbetrieb immer leer)", async () => {
+    await mount(<PlanTabelle zeilen={ZEILEN.map((z) => ({ ...z, lesbar: true }))} liste="plaene" darfBearbeiten={false} />);
+    expect(queryAll("th").map((th) => th.textContent)).not.toContain("Kennzeichen");
+    await unmount();
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten={false} />);
+    expect(queryAll("th").map((th) => th.textContent).join("|")).toContain("Kennzeichen");
+  });
   it("ohne Pläne steht der Leertext, keine leere Tabelle", async () => {
     await mount(<PlanTabelle zeilen={[]} liste="plaene" darfBearbeiten={false} />);
     expect(document.body.textContent).toContain("Noch keine Pläne.");
