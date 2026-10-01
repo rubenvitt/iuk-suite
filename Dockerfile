@@ -81,7 +81,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/core/audit/_db/migrations ./s
 # scheitert, sobald `files_data:/data/files` als eigener Mount dazukommt. Weil
 # `/data` selbst weiter beschreibbar bleibt, sähe das nach einem Rechte-Rätsel
 # aus statt nach einer fehlenden Zeile (gemessen 30.07.2026, Docker 29.4.0).
-RUN mkdir -p /data/files && chown nextjs:nodejs /data /data/files
+# `/data/kommplan-scan` aus demselben Grund (Logo-Scan der Kommunikationspläne, Volume `kommplan_scan`).
+RUN mkdir -p /data/files /data/kommplan-scan && chown nextjs:nodejs /data /data/files /data/kommplan-scan
 VOLUME /data
 
 # Der Commit, aus dem dieses Image gebaut wurde — von `/api/health/<modul>` ausgegeben

@@ -275,6 +275,11 @@ export default cloudTauglich(defineConfig({
         AUFGABEN_AV_HOST: "127.0.0.1",
         AUFGABEN_AV_PORT: String(E2E_PORTS.clamd),
         AUFGABEN_AV_TIMEOUT_MS: "2000",
+        // Logo-Upload der Kommunikationspläne (Phase 4): dasselbe Fake-clamd, eigene Variablen (`kommplan/_lib/logoScan.ts`).
+        // Ohne sie liefe jeder Upload gegen den Host „clamav" und scheiterte fail-closed.
+        KOMMPLAN_AV_HOST: "127.0.0.1",
+        KOMMPLAN_AV_PORT: String(E2E_PORTS.clamd),
+        KOMMPLAN_AV_TIMEOUT_MS: "2000",
         /*
          * DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE (Quellenwechsel 2026-08-15) —
          * dieselbe Bauform wie `...LAGERBUCH_ENV` weiter unten, aus demselben

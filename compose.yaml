@@ -119,6 +119,11 @@ services:
       # loest `DATA_DIR/aufgaben` auf — mit `DATA_DIR=/data` (oben) ist das exakt `/data/aufgaben`,
       # der rechte Teil dieser Zeile.
       - aufgaben_data:/data/aufgaben
+      # Wegwerfdateien des Logo-Scans der Kommunikationspläne (kommplan Phase 4): der Upload liegt hier nur,
+      # solange clamd ihn per `zSCAN` liest, und wird danach gelöscht; das Logo selbst steht in kommplan.db.
+      # Derselbe Name wie unter `clamav` (lesend) — sonst sieht clamd ein leeres Verzeichnis, und JEDER
+      # Logo-Upload scheitert fail-closed mit „Die Virenprüfung ist gerade nicht möglich".
+      - kommplan_scan:/data/kommplan-scan
     # `av` MUSS hier stehen: ohne dieses Netz erreicht die Suite clamd nicht,
     # jeder Scan läuft in ECONNREFUSED und nach FILES_AV_VERSUCHE in
     # `av_status = 'error'`. Das ist fail-closed und richtig, sieht aber wie ein
@@ -232,6 +237,8 @@ services:
       # file ERROR" → dauerhaft `scan_status: 'fehler'`, nie eine Auslieferung, nie eine
       # bildpflichtige Aufgabe abgeschlossen. Lokal (Fake-clamd, kein Compose) faellt das nicht auf.
       - aufgaben_data:/data/aufgaben:ro
+      # Logo-Scan der Kommunikationspläne — dasselbe Volume wie unter `suite`, nur lesend.
+      - kommplan_scan:/data/kommplan-scan:ro
       # Ohne diesen Mount ist `clamd.files.conf` ein Repo-Schmuckstück und eine
       # Übergröße bleibt ein stilles `OK` (siehe Kopf der Datei).
       #
@@ -422,6 +429,8 @@ volumes:
     name: files_data
   aufgaben_data:
     name: aufgaben_data
+  kommplan_scan:
+    name: kommplan_scan
   backup_data:
     name: backup_data
   clamav_db:

@@ -211,6 +211,17 @@ describe("compose.yaml — der clamav-Sidecar sitzt abgeschottet (Spec §6.5)", 
     );
   });
 
+  it("Punkt 9b: kommplan_scan — suite schreibt, clamav liest denselben Pfad, das Backup mountet es nicht (Logo-Scan, kommplan Phase 4)", () => {
+    expect(liste(suite, "volumes", 4)).toContain("kommplan_scan:/data/kommplan-scan");
+    expect(liste(clamav, "volumes", 4)).toContain("kommplan_scan:/data/kommplan-scan:ro");
+    // Nur Wegwerfdateien: das Logo selbst liegt in kommplan.db, die das Backup über suite_data sichert.
+    expect(liste(rumpf(services, "backup", 2), "volumes", 4).filter((m) => m.startsWith("kommplan_scan:"))).toEqual([]);
+    expect(rumpf(composeZeilen, "volumes", 0).join("\n")).toMatch(/^\s{2}kommplan_scan:/m);
+    // Ohne diese Zeile gehört der Mountpunkt root, und jeder Logo-Upload scheitert (Dockerfile, Kommentar über /data/files).
+    expect(readFileSync(path.join(WURZEL, "Dockerfile"), "utf8")).toMatch(/^RUN mkdir -p [^\n]*\/data\/kommplan-scan[^\n]*&& chown nextjs:nodejs [^\n]*\/data\/kommplan-scan/m);
+    expect(readFileSync(path.join(WURZEL, "src/app/m/kommplan/_lib/logoScan.ts"), "utf8")).toContain('resolve(env.DATA_DIR ?? "./.data", "kommplan-scan")');
+  });
+
   it("die Konfigurationsdatei erreicht clamd ueberhaupt (Mount auf clamd.conf)", () => {
     // Ohne diesen Mount ist `clamd.files.conf` ein Repo-Schmuckstueck und die
     // Uebergrosse bleibt ein stilles `OK`.
