@@ -619,4 +619,11 @@ describe("Gliederung im Editor, Review Phase 3", () => {
       delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }
   });
+  it("eine frische Kopie meldet sich einmal: Datum auf heute, „Angaben ändern“ öffnet die Angaben (Entscheidung 9)", async () => {
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" kopieHinweis="Kopie angelegt — Titel und Datum stehen auf 01.10.2026." />);
+    await act(async () => {});
+    expect(document.body.textContent).toContain("Kopie angelegt — Titel und Datum stehen auf 01.10.2026.");
+    await clickElement(knopf("Angaben ändern"));
+    expect(existsPortal('.kp-flyin [data-abschnitt="verbindungen"]')).toBe(true); // das Flyin „Plan und Verbindungen" ist offen
+  });
 });

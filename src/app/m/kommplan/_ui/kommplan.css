@@ -252,3 +252,6 @@
 .kp-kopfvorschau { display: block; width: 100%; height: auto; border: 1px solid var(--kp-rand); border-radius: 4px; }
 .kp-dateifeld { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .kp-einstellungen { max-width: 40rem; }
+/* Planliste (Phase 4): Rückmeldung nach einer Aktion, mit „Rückgängig“ nach dem Archivieren. */
+.kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
+.kp-archivhinweis { margin-block-end: 12px; }

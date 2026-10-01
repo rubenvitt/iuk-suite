@@ -25,7 +25,7 @@ describe("Neuer Plan", () => {
     await fill('input[name="anlass"]', "Probe");
     await submitForm();
     await act(async () => {});
-    expect(aktion.legePlanAnAction).toHaveBeenCalledWith({ titel: "Übung Nord", typ: "kommunikationsplan", anlass: "Probe", datum: null });
+    expect(aktion.legePlanAnAction).toHaveBeenCalledWith({ titel: "Übung Nord", typ: "kommunikationsplan", anlass: "Probe", datum: null, vorlage: null });
     expect(angelegt).toHaveBeenCalledWith("p-neu");
   });
   it("Feldfehler stehen am Feld, nicht rot, mit aria-invalid", async () => {
@@ -55,5 +55,30 @@ describe("Neuer Plan", () => {
     await submitForm();
     await act(async () => {});
     expect(document.body.textContent).toContain("Der Plan ließ sich nicht anlegen.");
+  });
+  it("Vorlage wählen: Art und Anlass übernommen, Datum heute, Datum im Titel ersetzt, die Vorlage geht mit", async () => {
+    aktion.legePlanAnAction.mockResolvedValue({ ok: true, id: "neu" });
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} heute="2026-10-01" startVorlage="v1"
+      vorlagen={[{ id: "v1", titel: "Kommunikationsplan Einsatz 22.02.2026", typ: "fernmeldeskizze", anlass: "Großübung" }]} />);
+    expect(query<HTMLInputElement>('input[name="titel"]').value).toBe("Kommunikationsplan Einsatz 01.10.2026");
+    expect(query<HTMLInputElement>('input[name="anlass"]').value).toBe("Großübung");
+    await submitForm('form[aria-label="Neuer Plan"]');
+    await act(async () => {});
+    expect(aktion.legePlanAnAction).toHaveBeenCalledWith({
+      titel: "Kommunikationsplan Einsatz 01.10.2026", typ: "fernmeldeskizze", anlass: "Großübung", datum: "2026-10-01", vorlage: "v1",
+    });
+  });
+  it("eine Vorlage ohne Datum im Titel behält ihren Titel — kein „ (Kopie)“", async () => {
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} heute="2026-10-01" startVorlage="v1"
+      vorlagen={[{ id: "v1", titel: "Fernmeldeskizze Stab", typ: "fernmeldeskizze", anlass: null }]} />);
+    expect(query<HTMLInputElement>('input[name="titel"]').value).toBe("Fernmeldeskizze Stab");
+  });
+  it("ohne Vorlage: vorlage null, Datum leer, wie bisher", async () => {
+    aktion.legePlanAnAction.mockResolvedValue({ ok: true, id: "neu" });
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} vorlagen={[]} heute="2026-10-01" />);
+    await fill('input[name="titel"]', "Leer");
+    await submitForm('form[aria-label="Neuer Plan"]');
+    await act(async () => {});
+    expect(aktion.legePlanAnAction).toHaveBeenCalledWith(expect.objectContaining({ vorlage: null, datum: null }));
   });
 });

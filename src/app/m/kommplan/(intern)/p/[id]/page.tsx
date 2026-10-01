@@ -5,13 +5,15 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "@/app/m/kommplan/_db/client";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { leseEditorAnsicht } from "@/app/m/kommplan/_lib/editorAnsicht";
-import { beschreibungFuer, ladePlanOder404 } from "@/app/m/kommplan/_lib/plaene";
+import { archivTag, beschreibungFuer, ladePlanLesendOder404 } from "@/app/m/kommplan/_lib/plaene";
+import { kalendertag } from "@/app/m/kommplan/_lib/rahmen";
 import { symboleFuer, zeichenIndex } from "@/app/m/kommplan/_lib/zeichen/zeichen";
 import { darfKommplanBearbeiten, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
 import { Betrachter } from "@/app/m/kommplan/_ui/betrachter/Betrachter";
 import { Editor } from "@/app/m/kommplan/_ui/editor/Editor";
 import { Huelle } from "@/app/m/kommplan/_ui/Huelle";
 import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
+import { Wiederherstellen } from "./Wiederherstellen";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +30,18 @@ export default async function PlanAnsicht({ params, searchParams }: {
   requireKommplanHost(await headers());
   const viewer = await requireKommplanZugang();
   const { id } = await params;
-  const plan = ladePlanOder404(getDb(), id);
-  if (plan.inhalt && darfKommplanBearbeiten(viewer.groups)) {
-    const ansicht = leseEditorAnsicht((await searchParams).ansicht);
+  const plan = ladePlanLesendOder404(getDb(), id);
+  const darf = darfKommplanBearbeiten(viewer.groups);
+  // Archiviert ist nur lesbar (Phase 4, Entscheidung 10): Betrachter mit Hinweis, auch für Bearbeitende.
+  if (plan.archiviertAm === null && plan.inhalt && darf) {
+    const suche = await searchParams;
+    const ansicht = leseEditorAnsicht(suche.ansicht);
+    const kopieHinweis = suche.kopie === "1" ? `Kopie angelegt — Titel und Datum stehen auf ${kalendertag(plan.datum) ?? "heute"}.` : undefined;
     return (
       <Huelle>
         {/* Kein Arimo-Container um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
-        <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht}
+        <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht} kopieHinweis={kopieHinweis}
           plan={{ id: plan.id, version: plan.version, angaben: plan.angaben, inhalt: plan.inhalt, aktualisiertAm: plan.aktualisiertAm, aktualisiertVon: plan.aktualisiertVon }} />
       </Huelle>
     );
@@ -48,6 +54,12 @@ export default async function PlanAnsicht({ params, searchParams }: {
         beschreibung={beschreibungFuer(plan)}
         aktionen={plan.inhalt ? <Link href={`/p/${plan.id}/druck/a4`} target="_blank">Drucken (A4 quer)</Link> : undefined}
       />
+      {plan.archiviertAm !== null ? (
+        <Card className="kp-archivhinweis" role="status" styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}>
+          {`Archiviert am ${archivTag(plan.archiviertAm)} — nur lesbar.`}
+          {darf ? <Wiederherstellen id={plan.id} /> : null}
+        </Card>
+      ) : null}
       {plan.inhalt ? (
         <div className={ARIMO.className}>
           <Betrachter inhalt={plan.inhalt} symbole={symboleFuer(plan.inhalt)} titel={plan.titel} schrift={ARIMO.style.fontFamily} />

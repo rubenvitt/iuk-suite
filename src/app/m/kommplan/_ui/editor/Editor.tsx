@@ -34,7 +34,9 @@ import { leseZuletzt } from "./zuletzt";
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
 /** `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ im Hinweis gilt nur, solange genau er der jetzige ist. */
-interface Hinweis { text: string; nach?: PlanInhalt }
+interface Hinweis { text: string; nach?: PlanInhalt; aktion?: HinweisAktion }
+/** Ein Knopf im Hinweis statt „Rückgängig“ (Phase 4: „Angaben ändern“ nach dem Duplizieren, „Angaben übernehmen“ nach dem Einfügen). */
+export interface HinweisAktion { text: string; tu(): void }
 /** Ein per Griff angelegtes, noch unberührtes Element: Esc/X verwirft es wieder (Review Phase 2). */
 interface Angelegt { nach: PlanInhalt; stelle: string; zurueck: string | null }
 const BEDIENHINWEIS = "Pfeiltasten wählen Stellen, Enter oder F2 bearbeitet, N legt eine Unterstelle an, Entf löscht, Plus und Minus zoomen";
@@ -80,12 +82,14 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Zwei Ansichten auf denselben Zustand (Phase 3): Diagramm und Gliederung bleiben montiert;
  *   `data-editoransicht` und CSS entscheiden, was zu sehen ist; Fokus kehrt über `fokusZurueck` in die sichtbare zurück.
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
   /** Aus `?ansicht=`; `null` = CSS wählt am Breakpoint (Phase 3, Entscheidung 1). */
   ansicht?: EditorAnsicht | null;
   /** Klasse der Zeichenschrift (next/font) — nur für die Legende, wie im Betrachter; der Rest steht in der Suite-Schrift. */
   schriftKlasse?: string;
+  /** Nach „Duplizieren“ (`?kopie=1`, Phase 4, Entscheidung 9): einmal angezeigt, mit „Angaben ändern“. */
+  kopieHinweis?: string;
 }) {
   const [verlauf, setVerlauf] = useState<Verlauf>(() => neuerVerlauf(plan.inhalt));
   const [angaben, setAngaben] = useState(plan.angaben);
@@ -96,7 +100,17 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
   const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
   const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
-  const [hinweis, setHinweis] = useState<Hinweis | null>(null);
+  const [hinweis, setHinweis] = useState<Hinweis | null>(() => (kopieHinweis
+    ? { text: kopieHinweis, aktion: { text: "Angaben ändern", tu: () => { setPlanAbschnitt("angaben"); setFlyin("plan"); } } }
+    : null));
+  // `?kopie=1` aus der Adresse nehmen (ohne setState): ein Neuladen zeigt den Kopie-Hinweis nicht noch einmal.
+  useEffect(() => {
+    if (!kopieHinweis) return;
+    const adresse = new URL(window.location.href);
+    if (!adresse.searchParams.has("kopie")) return;
+    adresse.searchParams.delete("kopie");
+    window.history.replaceState(window.history.state, "", adresse.toString());
+  }, [kopieHinweis]);
   const [symbole, setSymbole] = useState<Symbolsatz>(symboleStart);
   const [linien, setLinien] = useState(0);
   const [ansicht, setAnsicht] = useState<EditorAnsicht | null>(ansichtStart);
@@ -394,7 +408,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
 
   const meldung = hinweis ? (
     <Alert type="warning" showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
-      action={hinweis.nach !== undefined && hinweis.nach === verlauf.jetzt ? <Button onClick={() => perKnopf(rueck)}>Rückgängig</Button> : undefined} />
+      action={hinweis.aktion ? <Button onClick={() => { hinweis.aktion!.tu(); setHinweis(null); }}>{hinweis.aktion.text}</Button>
+        : hinweis.nach !== undefined && hinweis.nach === verlauf.jetzt ? <Button onClick={() => perKnopf(rueck)}>Rückgängig</Button> : undefined} />
   ) : speicherZustand.status === "fehler" && speicherZustand.fehler ? (
     <Alert type="warning" showIcon title={speicherZustand.fehler}
       action={<Button onClick={() => void speicherer.erneut()}>Erneut versuchen</Button>} />
@@ -437,7 +452,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
       <div className="kp-ansicht-gliederung">
         <Gliederung griff={gliederung} inhalt={inhalt} auswahl={gewaehlt} aendere={aendere} meldung={meldung}
           onAuswahl={setAuswahl} onDetails={(id) => oeffne(id)} onLoeschen={loesche}
-          onRueck={rueck} onWieder={wieder} onHinweis={(text) => setHinweis({ text })}
+          onRueck={rueck} onWieder={wieder} onHinweis={(text, aktion?: HinweisAktion) => setHinweis({ text, aktion })}
           verwirfUnberuehrt={(nach, dann) => {
             if (verlauf.jetzt !== nach) return null;
             const w = verwirf(verlauf);
