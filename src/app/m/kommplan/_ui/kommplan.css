@@ -64,9 +64,10 @@
    `<label>`, und (0,1,1) schlüge deren Ein-Klassen-Regeln — versal-graue Radioknöpfe (Falle 5).
    Die Knopfreihe bricht am KASTEN um (`auto-fit`/`minmax`), nicht am Fenster: ein Flyin ist auch
    auf breitem Schirm schmal (Falle 13). */
-.kp-formular { display: grid; gap: 8px; }
+.kp-formular { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } /* minmax: eine breite Tabelle sprengt das Flyin nicht */
 .kp-feldname { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--kp-gedaempft); margin-top: 8px; }
 .kp-feldfehler { margin: 0; font-size: 12px; color: var(--kp-gedaempft); }
+.kp-fehlerliste { margin: 0; padding-inline-start: 1.2em; }
 .kp-formular-knoepfe { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 16px; }
 
 /*

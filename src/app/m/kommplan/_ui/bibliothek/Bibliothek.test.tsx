@@ -124,5 +124,90 @@ describe("Bibliothek", () => {
     await clickElement(knopf("Vorschau"));
     expect(document.body.textContent).toContain("Zeile 2: Der Rufname fehlt.");
     expect(knopf("1 übernehmen").hasAttribute("disabled")).toBe(true);
+    // deutlich (Warnstil, nicht gedämpfte Kleinschrift) und mit dem Grund für den gesperrten Knopf (Review Phase 4)
+    expect(queryPortal(".kp-flyin .ant-alert-warning").textContent).toContain("Zeile 2: Der Rufname fehlt.");
+    expect(document.body.textContent).toContain("Gesperrt, bis die Fehler oben behoben sind");
+  });
+});
+
+/** Ein antd-Select im Flyin per Beschriftung öffnen und eine Option wählen (Muster `oeffneAuswahl`, StelleFlyin.test.tsx). */
+async function waehleImFlyin(beschriftung: string, option: string) {
+  const label = [...document.querySelectorAll<HTMLLabelElement>(".kp-flyin label")].find((l) => l.textContent === beschriftung)!;
+  await act(async () => { document.getElementById(label.htmlFor)!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+  const liste = [...document.querySelectorAll<HTMLElement>(".ant-select-dropdown")].filter((d) => !d.className.includes("-hidden")).at(-1)!;
+  await clickElement([...liste.querySelectorAll<HTMLElement>(".ant-select-item-option")].find((o) => o.textContent === option)!);
+}
+async function bestaetigeLoeschen() {
+  await clickElement(knopf("Löschen"));
+  await clickElement([...document.querySelectorAll<HTMLElement>(".ant-popconfirm button, .ant-popover button")].find((b) => b.textContent?.trim() === "Löschen")!);
+  await abwarten();
+}
+
+describe("Bibliothek — Bearbeiten speichert unter derselben ID, je Bereich (Review Phase 4)", () => {
+  it("Stelle bearbeiten: Speichern ruft die Action mit der ID des Eintrags, nicht als Neuanlage", async () => {
+    aktion.stelle.mockResolvedValue({ ok: true, eintrag: { ...BIB.stellen[1], leiter: "Ole" } });
+    await zeige();
+    await clickElement(knopf("EAL Nord"));
+    await fillPortal('.kp-flyin input[name="leiter"]', "Ole");
+    await submitPortal('.kp-flyin form[aria-label="Stelle der Bibliothek"]');
+    await abwarten();
+    expect(aktion.stelle).toHaveBeenCalledWith(expect.objectContaining({ id: "s2", titel: "EAL Nord", leiter: "Ole" }));
+    expect(query('section[aria-label="Stellen der Bibliothek"] [role="status"]').textContent).toBe("„EAL Nord“ gespeichert.");
+  });
+  it("Einheit bearbeiten und löschen", async () => {
+    aktion.einheit.mockResolvedValue({ ok: true, eintrag: { ...BIB.einheiten[0], rufname: "RK UE 40-83-6" } });
+    aktion.loesche.mockResolvedValue({ ok: true });
+    await zeige();
+    await clickElement(knopf("Einheiten (1)"));
+    await clickElement(knopf("RTW"));
+    expect(queryPortal<HTMLInputElement>('.kp-flyin input[name="rufname"]').value).toBe("RK UE 40-83-5");
+    await fillPortal('.kp-flyin input[name="rufname"]', "RK UE 40-83-6");
+    await submitPortal('.kp-flyin form[aria-label="Einheit der Bibliothek"]');
+    await abwarten();
+    expect(aktion.einheit).toHaveBeenCalledWith(expect.objectContaining({ id: "e1", typ: "RTW", rufname: "RK UE 40-83-6" }));
+    await clickElement(knopf("RTW"));
+    await bestaetigeLoeschen();
+    expect(aktion.loesche).toHaveBeenCalledWith({ art: "einheit", id: "e1" });
+  });
+});
+
+describe("Bibliothek — Verbindungen (Review Phase 4: bisher nur die Zahl am Reiter geprüft)", () => {
+  it("anlegen mit gewählter Art", async () => {
+    aktion.verbindung.mockResolvedValue({ ok: true, eintrag: { id: "v2", art: "dmo", bezeichnung: "DMO 608", notiz: null } });
+    await zeige();
+    await clickElement(knopf("Verbindungen (1)"));
+    await clickElement(knopf("Neue Verbindung"));
+    await fillPortal('.kp-flyin input[name="bezeichnung"]', "DMO 608");
+    await waehleImFlyin("Art", "Digitalfunk DMO");
+    await submitPortal('.kp-flyin form[aria-label="Verbindung der Bibliothek"]');
+    await abwarten();
+    expect(aktion.verbindung).toHaveBeenCalledWith({ id: null, art: "dmo", bezeichnung: "DMO 608", notiz: "" });
+    expect(query('section[aria-label="Verbindungen der Bibliothek"] [role="status"]').textContent).toBe("„DMO 608“ gespeichert.");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+  it("bearbeiten unter derselben ID, löschen mit Nachfrage", async () => {
+    aktion.verbindung.mockResolvedValue({ ok: true, eintrag: { ...BIB.verbindungen[0], art: "dmo" } });
+    aktion.loesche.mockResolvedValue({ ok: true });
+    await zeige();
+    await clickElement(knopf("Verbindungen (1)"));
+    await clickElement(knopf("R_UE_1"));
+    await waehleImFlyin("Art", "Digitalfunk DMO");
+    await submitPortal('.kp-flyin form[aria-label="Verbindung der Bibliothek"]');
+    await abwarten();
+    expect(aktion.verbindung).toHaveBeenCalledWith(expect.objectContaining({ id: "v1", art: "dmo", bezeichnung: "R_UE_1" }));
+    await clickElement(knopf("R_UE_1"));
+    await bestaetigeLoeschen();
+    expect(aktion.loesche).toHaveBeenCalledWith({ art: "verbindung", id: "v1" });
+  });
+  it("Suche nach Bezeichnung und Art; ohne Treffer „passt zur Suche“", async () => {
+    await mount(<Bibliothek bibliothek={{ ...BIB, verbindungen: [...BIB.verbindungen, { id: "v2", art: "dmo", bezeichnung: "DMO 608", notiz: null }] }} zeichenIndex={[]} symbole={{}} />);
+    await clickElement(knopf("Verbindungen (2)"));
+    const zeilen = () => queryAll('section[aria-label="Verbindungen der Bibliothek"] tr[data-row-key]').map((r) => r.getAttribute("data-row-key"));
+    await fill('input[aria-label="Verbindungen suchen"]', "r_ue");
+    expect(zeilen()).toEqual(["v1"]);
+    await fill('input[aria-label="Verbindungen suchen"]', "DMO");
+    expect(zeilen()).toEqual(["v2"]);
+    await fill('input[aria-label="Verbindungen suchen"]', "gibtsnicht");
+    expect(query('section[aria-label="Verbindungen der Bibliothek"]').textContent).toContain("Keine Verbindung passt zur Suche.");
   });
 });
