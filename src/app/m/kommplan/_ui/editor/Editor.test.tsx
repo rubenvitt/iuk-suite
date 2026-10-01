@@ -9,7 +9,9 @@ const aktionen = vi.hoisted(() => ({
 vi.mock("../../_actions/plan", () => aktionen);
 const zeichen = vi.hoisted(() => ({ ladeZeichenAction: vi.fn(async () => ({})) }));
 vi.mock("../../_actions/zeichen", () => zeichen);
+vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
 import { baue } from "../../_lib/beispiele/bau";
+import { LEERE_BIBLIOTHEK } from "../../_lib/bibliothek/typen";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { leererPlan } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
@@ -625,5 +627,32 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     expect(document.body.textContent).toContain("Kopie angelegt — Titel und Datum stehen auf 01.10.2026.");
     await clickElement(knopf("Angaben ändern"));
     expect(existsPortal('.kp-flyin [data-abschnitt="verbindungen"]')).toBe(true); // das Flyin „Plan und Verbindungen" ist offen
+  });
+  it("eine Kopie aus der Bibliothek bringt ein Zeichen mit: der Editor lädt das SVG nach (Entscheidung 13)", async () => {
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo"
+      bibliothek={{ stellen: [{ id: "b1", titel: "Leitstelle", zeichen: "zusatz:eal", leiter: null, kontakte: [], notiz: null }], einheiten: [], verbindungen: [] }} />);
+    await act(async () => {});
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    expect(flyinOffen()).toBe(true);
+    zeichen.ladeZeichenAction.mockClear();
+    const feld = document.getElementById([...document.querySelectorAll("label")].find((l) => l.textContent === "Aus Bibliothek")!.htmlFor)!;
+    await act(async () => { feld.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+    const option = [...document.querySelectorAll<HTMLElement>(".ant-select-item-option")].find((o) => o.textContent === "Leitstelle")!;
+    await clickElement(option);
+    expect(zeichen.ladeZeichenAction).toHaveBeenCalledWith(["zusatz:eal"]);
+  });
+  it("Tippen ohne Kopie löst keinen Zeichen-Abruf aus — auch nicht bei einem unbekannten Zeichenschlüssel im Plan", async () => {
+    const mitUnbekannt = plan();
+    mitUnbekannt.inhalt!.stellen[0].zeichen = "gibt-es:nicht";
+    await mount(<Editor plan={mitUnbekannt} symbole={{}} zeichenIndex={[]} schrift="Arimo" bibliothek={LEERE_BIBLIOTHEK} />);
+    await act(async () => {});
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    zeichen.ladeZeichenAction.mockClear();
+    for (const t of ["E", "EA", "EA 9"]) await schreibe(flyinFeld(), t);
+    expect(zeichen.ladeZeichenAction).not.toHaveBeenCalled();
   });
 });

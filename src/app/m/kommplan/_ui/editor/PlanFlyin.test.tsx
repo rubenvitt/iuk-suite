@@ -8,6 +8,12 @@ import { PlanFehler } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { Aendere } from "./aendere";
 import { PlanFormular } from "./PlanFlyin";
+import { BibliothekKontext } from "./bibliothekKontext";
+import { LEERE_BIBLIOTHEK } from "../../_lib/bibliothek/typen";
+
+const bibAktion = vi.hoisted(() => ({ verbindungen: vi.fn() }));
+vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: bibAktion.verbindungen }));
+const merke = vi.fn();
 
 const START = baue({
   verbindungen: [
@@ -25,7 +31,11 @@ function Rahmen() {
     try { const neu = op(inhalt); setInhalt(neu); stand = neu; return null; }
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
-  return <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} onEntwurf={entwurf} />;
+  return (
+    <BibliothekKontext.Provider value={{ aktiv: true, bib: LEERE_BIBLIOTHEK, merke }}>
+      <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} onEntwurf={entwurf} />
+    </BibliothekKontext.Provider>
+  );
 }
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button").find((b) => b.textContent === text)!;
 const zeile = (id: string) => query(`[data-verbindung-zeile="${id}"]`);
@@ -178,5 +188,15 @@ describe("Plan-Flyin", () => {
     await druecke(query('input[aria-label="Bezeichnung der neuen Verbindung"]'), "Enter");
     expect(stand.verbindungen.at(-1)).toMatchObject({ bezeichnung: "Reserve 2" });
     expect(queryAll(".kp-chip").map((c) => c.textContent)).toEqual(["Reserve", "Reserve", "Reserve"]);
+  });
+  it("„Verbindungen in Bibliothek übernehmen“: alle Verbindungen des Plans in EINEM Aufruf, Kontext ergänzt (Entscheidung 13)", async () => {
+    bibAktion.verbindungen.mockResolvedValue({ ok: true, angelegt: 3, uebersprungen: 0, eintraege: [{ id: "n1", art: "tmo", bezeichnung: "R_UE_2", notiz: null }] });
+    await mount(<Rahmen />);
+    await clickElement(knopf("Verbindungen in Bibliothek übernehmen"));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(bibAktion.verbindungen).toHaveBeenCalledTimes(1);
+    expect(bibAktion.verbindungen).toHaveBeenCalledWith([{ art: "tmo", bezeichnung: "R_UE_2" }, { art: "dmo", bezeichnung: "DMO 608" }, { art: "tmo", bezeichnung: "K_UE_2" }]);
+    expect(merke).toHaveBeenCalledWith({ verbindungen: [expect.objectContaining({ id: "n1" })] });
+    expect(document.body.textContent).toContain("3 angelegt, 0 schon vorhanden.");
   });
 });

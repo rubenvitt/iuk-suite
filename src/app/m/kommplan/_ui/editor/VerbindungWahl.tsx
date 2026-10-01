@@ -2,10 +2,12 @@
 
 import { useId, useState } from "react";
 import { Button, Input, Select } from "antd";
+import { BIB_OPTION, bibVerbindungenFuerPlan, verbindeMitBibVerbindung } from "../../_lib/plan/bibliothek";
 import { aendereStelle } from "../../_lib/plan/operationen";
 import { ART_NAME, GRENZE, LAENGE, VERBINDUNGS_ARTEN, type PlanInhalt, type Stelle, type VerbindungsArt } from "../../_lib/plan/schema";
 import { findeVerbindung, legeVerbindungAn } from "../../_lib/plan/verbindungen";
 import type { Aendere } from "./aendere";
+import { useBibliothek } from "./bibliothekKontext";
 import { neueId } from "./ids";
 
 const KEINE = "~keine";
@@ -22,6 +24,8 @@ export function VerbindungWahl({ inhalt, stelle, aendere }: { inhalt: PlanInhalt
   // Vorbelegt mit der Art der zuletzt angelegten Verbindung: in einem Plan sind es meist dieselben (Kritik).
   const [art, setArt] = useState<VerbindungsArt>(() => inhalt.verbindungen.at(-1)?.art ?? "tmo");
   const [fehler, setFehler] = useState<string | null>(null);
+  const { aktiv, bib } = useBibliothek();
+  const ausBib = aktiv ? bibVerbindungenFuerPlan(inhalt, bib.verbindungen) : [];
   const optionen = inhalt.verbindungen.map((v) => ({ value: v.id, label: `${v.bezeichnung} · ${ART_NAME[v.art]}` }));
 
   const verbindeNeu = () => {
@@ -43,8 +47,13 @@ export function VerbindungWahl({ inhalt, stelle, aendere }: { inhalt: PlanInhalt
           <label className="kp-feldname" htmlFor={`${basis}-weg`}>Zur Elternstelle</label>
           <div className="kp-zeile">
             <Select id={`${basis}-weg`} value={stelle.verbindungId ?? KEINE}
-              onChange={(v: string) => setFehler(aendere((p) => aendereStelle(p, stelle.id, { verbindungId: v === KEINE ? null : v })))}
-              options={[{ value: KEINE, label: "keine (dünne Linie)" }, ...optionen]} />
+              onChange={(v: string) => {
+                const b = v.startsWith(BIB_OPTION) ? bib.verbindungen.find((x) => `${BIB_OPTION}${x.id}` === v) : undefined;
+                if (b) { setFehler(aendere((p) => verbindeMitBibVerbindung(p, stelle.id, b, neueId(p, "v")))); return; }
+                setFehler(aendere((p) => aendereStelle(p, stelle.id, { verbindungId: v === KEINE ? null : v })));
+              }}
+              options={[{ value: KEINE, label: "keine (dünne Linie)" }, ...optionen,
+                ...(ausBib.length > 0 ? [{ label: "Aus der Bibliothek", options: ausBib.map((b) => ({ value: `${BIB_OPTION}${b.id}`, label: `${b.bezeichnung} · ${ART_NAME[b.art]}` })) }] : [])]} />
             <Button onClick={() => setNeu(true)} disabled={neu}>Neue Verbindung</Button>
           </div>
           {neu ? (

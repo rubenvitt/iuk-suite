@@ -262,3 +262,8 @@
 .kp-bib-bereich { display: grid; gap: 8px; }
 /* Ein Titel als Link-Knopf in der Zelle: Text bricht um statt die Spalte zu sprengen. */
 .kp-bib-bereich .kp-zeilenlink { padding-inline: 0; height: auto; white-space: normal; text-align: start; }
+/* Bibliothek im Flyin (Phase 4, Entscheidung 13). Eigene Klassen, nie `kp-zeile` (dessen Raster in der Gliederung dreispaltig ist). */
+.kp-aus-bibliothek { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
+/* Auswahl und „Hinzufügen" nebeneinander, bei Platzmangel umbrechend — per flex-wrap, nicht per @media (Falle 13). */
+.kp-bib-einheiten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kp-bib-einheiten > .kp-bib-einheiten-wahl { flex: 1 1 14rem; min-width: 0; }

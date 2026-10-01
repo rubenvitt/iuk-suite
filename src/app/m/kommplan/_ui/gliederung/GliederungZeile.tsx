@@ -126,7 +126,7 @@ function ZeileInnen(p: ZeilenProps) {
       </div>
       {p.einheitenOffen ? (
         <div id={`kp-g-einheiten-${id}`} className="kp-g-einheiten">
-          <EinheitenListe key={`einheiten:${id}`} inhalt={p.inhalt} stelle={s} aendere={aendere} fokus={KEIN_FOKUS} />
+          <EinheitenListe key={`einheiten:${id}`} inhalt={p.inhalt} stelle={s} aendere={aendere} fokus={KEIN_FOKUS} ladeSymbole={(k) => befehle.current!.ladeSymbole(k)} />
         </div>
       ) : null}
     </li>

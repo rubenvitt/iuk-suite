@@ -7,6 +7,7 @@ import { aendereStelle } from "../../_lib/plan/operationen";
 import type { Aendere } from "../editor/aendere";
 import { neuerVerlauf, tue } from "../editor/verlauf";
 import { Gliederung } from "./Gliederung";
+vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
 
 /** Jede gerenderte Zeile rendert genau einen Zeichenknopf — sein Aufruf zählt die Zeilen-Renders. */
 const renders = vi.hoisted(() => ({ n: 0 }));

@@ -6,6 +6,7 @@ import { flyinBreite } from "@/core/theme/flyin";
 import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
 import { ladeZeichenAction } from "../../_actions/zeichen";
 import { angabenSchema, type Planangaben } from "../../_lib/angaben";
+import { LEERE_BIBLIOTHEK, type Bibliothek } from "../../_lib/bibliothek/typen";
 import { adresseMitAnsicht, SCHMAL, sichtbareAnsicht, type EditorAnsicht } from "../../_lib/editorAnsicht";
 import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
 import { layout } from "../../_lib/layout/layout";
@@ -21,6 +22,7 @@ import { Umschalter } from "../betrachter/EinklappKnopf";
 import { Gliederung, type GliederungGriff } from "../gliederung/Gliederung";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
+import { BibliothekAnbieter } from "./bibliothekKontext";
 import { Griffe } from "./Griffe";
 import { neueId } from "./ids";
 import { Kopfleiste, statusText, VERLAUFSKNOPF } from "./Kopfleiste";
@@ -82,7 +84,7 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Zwei Ansichten auf denselben Zustand (Phase 3): Diagramm und Gliederung bleiben montiert;
  *   `data-editoransicht` und CSS entscheiden, was zu sehen ist; Fokus kehrt über `fokusZurueck` in die sichtbare zurück.
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
   /** Aus `?ansicht=`; `null` = CSS wählt am Breakpoint (Phase 3, Entscheidung 1). */
   ansicht?: EditorAnsicht | null;
@@ -90,6 +92,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   schriftKlasse?: string;
   /** Nach „Duplizieren“ (`?kopie=1`, Phase 4, Entscheidung 9): einmal angezeigt, mit „Angaben ändern“. */
   kopieHinweis?: string;
+  /** Die Bibliothek für Kopien in den Plan (Phase 4, Entscheidung 13); nur für Bearbeitende geladen. */
+  bibliothek?: Bibliothek;
 }) {
   const [verlauf, setVerlauf] = useState<Verlauf>(() => neuerVerlauf(plan.inhalt));
   const [angaben, setAngaben] = useState(plan.angaben);
@@ -421,59 +425,61 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const flyinStil = flyinGrund === null ? undefined : ({ "--kp-flyin-breite": flyinBreite(flyinGrund) } as CSSProperties);
 
   return (
-    <div ref={wurzel} className="kp-editor" data-editoransicht={ansicht ?? "auto"} data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
-      {/* Der Symbolvorrat EINMAL für Zeichnung, Flyin und Gliederung, außerhalb jeder Ansicht (Phase 3,
-          Entscheidung 17): eine verborgene Ansicht verbärge sonst die Vorschauen, zwei Vorräte gäben doppelte IDs (M11). */}
-      <svg className="kp-symbolvorrat" aria-hidden="true" focusable="false" width={0} height={0} style={{ position: "absolute" }}>
-        <SymbolDefs symbole={symbole} />
-      </svg>
-      <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
-        kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
-        onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
-        onPlan={() => oeffnePlan("angaben")} onDrucken={() => void drucken()}
-        onNeuLaden={neuLaden} onBehalten={behalten} />
-      <div className="kp-ansicht-diagramm">
-        <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
-          griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
-          flyinGrund={flyinGrund} defs={false}
-          zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
-          onKarteKlick={klick} onTaste={taste} meldung={meldung}
-          ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
-            <Griffe karte={auswahlKarte} ansicht={a} flaeche={f} seitenstelle={stelle.lage !== "unter"}
-              onUnterstelle={() => lege("unter", stelle.id)} onSeitenstelle={(seite) => lege(seite, stelle.id)}
-              onEinheit={() => neueEinheit(stelle.id)} onBearbeiten={() => oeffne(stelle.id)} />
-          ) : null)}
-          leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
-          werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
-        <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
-        <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
-        <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
+    <BibliothekAnbieter start={bibliothek}>
+      <div ref={wurzel} className="kp-editor" data-editoransicht={ansicht ?? "auto"} data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
+        {/* Der Symbolvorrat EINMAL für Zeichnung, Flyin und Gliederung, außerhalb jeder Ansicht (Phase 3,
+            Entscheidung 17): eine verborgene Ansicht verbärge sonst die Vorschauen, zwei Vorräte gäben doppelte IDs (M11). */}
+        <svg className="kp-symbolvorrat" aria-hidden="true" focusable="false" width={0} height={0} style={{ position: "absolute" }}>
+          <SymbolDefs symbole={symbole} />
+        </svg>
+        <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
+          kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
+          onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
+          onPlan={() => oeffnePlan("angaben")} onDrucken={() => void drucken()}
+          onNeuLaden={neuLaden} onBehalten={behalten} />
+        <div className="kp-ansicht-diagramm">
+          <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
+            griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
+            flyinGrund={flyinGrund} defs={false}
+            zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
+            onKarteKlick={klick} onTaste={taste} meldung={meldung}
+            ueberlagerung={(a, f) => (auswahlKarte && stelle ? (
+              <Griffe karte={auswahlKarte} ansicht={a} flaeche={f} seitenstelle={stelle.lage !== "unter"}
+                onUnterstelle={() => lege("unter", stelle.id)} onSeitenstelle={(seite) => lege(seite, stelle.id)}
+                onEinheit={() => neueEinheit(stelle.id)} onBearbeiten={() => oeffne(stelle.id)} />
+            ) : null)}
+            leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
+            werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
+          <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
+          <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
+          <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
+        </div>
+        <div className="kp-ansicht-gliederung">
+          <Gliederung griff={gliederung} inhalt={inhalt} auswahl={gewaehlt} aendere={aendere} meldung={meldung}
+            onAuswahl={setAuswahl} onDetails={(id) => oeffne(id)} onLoeschen={loesche}
+            onRueck={rueck} onWieder={wieder} onHinweis={(text, aktion?: HinweisAktion) => setHinweis({ text, aktion })}
+            verwirfUnberuehrt={(nach, dann) => {
+              if (verlauf.jetzt !== nach) return null;
+              const w = verwirf(verlauf);
+              const x = dann ? tue(w, dann(w.jetzt), new Date().getTime()) : w;
+              uebernimm(x, true);
+              return x.jetzt;
+            }}
+            symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} />
+        </div>
+        <div className="kp-verlaufsleiste kp-nur-schmal" role="toolbar" aria-label="Verlauf">
+          <span className="kp-verlaufsstatus" role="status" aria-live="polite">{statusText(speicherZustand)}</span>
+          <Button {...VERLAUFSKNOPF} onClick={() => perVerlaufsknopf(rueck)} disabled={!kannRueckgaengig(verlauf)}>Rückgängig</Button>
+        </div>
+        {gewaehlt !== null ? (
+          <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
+            symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} fokus={fokus} titelRef={titelRef}
+            onLoeschen={() => loesche(gewaehlt)} onFertig={schliesseFlyin} />
+        ) : null}
+        <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
+          angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
+          onEntwurf={(offen) => { angabenEntwurf.current = offen; }} />
       </div>
-      <div className="kp-ansicht-gliederung">
-        <Gliederung griff={gliederung} inhalt={inhalt} auswahl={gewaehlt} aendere={aendere} meldung={meldung}
-          onAuswahl={setAuswahl} onDetails={(id) => oeffne(id)} onLoeschen={loesche}
-          onRueck={rueck} onWieder={wieder} onHinweis={(text, aktion?: HinweisAktion) => setHinweis({ text, aktion })}
-          verwirfUnberuehrt={(nach, dann) => {
-            if (verlauf.jetzt !== nach) return null;
-            const w = verwirf(verlauf);
-            const x = dann ? tue(w, dann(w.jetzt), new Date().getTime()) : w;
-            uebernimm(x, true);
-            return x.jetzt;
-          }}
-          symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} />
-      </div>
-      <div className="kp-verlaufsleiste kp-nur-schmal" role="toolbar" aria-label="Verlauf">
-        <span className="kp-verlaufsstatus" role="status" aria-live="polite">{statusText(speicherZustand)}</span>
-        <Button {...VERLAUFSKNOPF} onClick={() => perVerlaufsknopf(rueck)} disabled={!kannRueckgaengig(verlauf)}>Rückgängig</Button>
-      </div>
-      {gewaehlt !== null ? (
-        <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
-          symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} fokus={fokus} titelRef={titelRef}
-          onLoeschen={() => loesche(gewaehlt)} onFertig={schliesseFlyin} />
-      ) : null}
-      <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
-        angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
-        onEntwurf={(offen) => { angabenEntwurf.current = offen; }} />
-    </div>
+    </BibliothekAnbieter>
   );
 }

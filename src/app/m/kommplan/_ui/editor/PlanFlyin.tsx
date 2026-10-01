@@ -10,7 +10,9 @@ import type { FeldFehler, SpeicherErgebnis } from "../../_lib/ergebnis";
 import { setzeOptionen } from "../../_lib/plan/operationen";
 import { ART_NAME, LAENGE, VERBINDUNGS_ARTEN, type PlanInhalt, type VerbindungsArt } from "../../_lib/plan/schema";
 import { aendereVerbindung, legeVerbindungAn, loescheVerbindung, verbindungsNutzung } from "../../_lib/plan/verbindungen";
+import { importiereBibVerbindungenAction } from "../../_actions/bibliothek";
 import type { Aendere } from "./aendere";
+import { useBibliothek } from "./bibliothekKontext";
 import { neueId } from "./ids";
 
 export const PLAN_FLYIN_GRUND = 560;
@@ -200,6 +202,34 @@ function Verbindungen({ inhalt, aendere }: Pick<PlanFormularProps, "inhalt" | "a
         <Button onClick={anlegen} disabled={bezeichnung.trim() === ""}>Verbindung anlegen</Button>
       </div>
       {fehler ? <p className="kp-feldfehler" role="status">{fehler}</p> : null}
+      <VerbindungenInBibliothek inhalt={inhalt} />
     </fieldset>
+  );
+}
+
+/**
+ * „Verbindungen in Bibliothek übernehmen" (Entscheidung 13): alle Verbindungen des Plans in EINEM Aufruf — Server
+ * Actions laufen nacheinander, eine Schleife einzelner Aufrufe stellte sich vor das Autosave (`unterwegs` im Editor).
+ */
+function VerbindungenInBibliothek({ inhalt }: { inhalt: PlanInhalt }) {
+  const { aktiv, merke } = useBibliothek();
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const zeilen = inhalt.verbindungen.filter((v) => v.bezeichnung.trim() !== "");
+  if (!aktiv || zeilen.length === 0) return null;
+  async function uebernimm() {
+    if (laeuft) return;
+    setLaeuft(true);
+    const r = await importiereBibVerbindungenAction(zeilen.map((v) => ({ art: v.art, bezeichnung: v.bezeichnung })))
+      .catch(() => ({ ok: false as const, fehler: "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal." }));
+    setLaeuft(false);
+    if (r.ok) { merke({ verbindungen: r.eintraege }); setMeldung(`${r.angelegt} angelegt, ${r.uebersprungen} schon vorhanden.`); }
+    else setMeldung(r.fehler);
+  }
+  return (
+    <div className="kp-formular-knoepfe">
+      <Button onClick={() => void uebernimm()} loading={laeuft}>Verbindungen in Bibliothek übernehmen</Button>
+      {meldung ? <p className="kp-hilfe" role="status">{meldung}</p> : null}
+    </div>
   );
 }

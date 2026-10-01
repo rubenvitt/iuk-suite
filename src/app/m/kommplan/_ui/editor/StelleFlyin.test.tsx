@@ -8,6 +8,25 @@ import { PlanFehler } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { Aendere } from "./aendere";
 import { StelleFormular } from "./StelleFlyin";
+import { BibliothekKontext } from "./bibliothekKontext";
+import type { Bibliothek } from "../../_lib/bibliothek/typen";
+
+const bibAktion = vi.hoisted(() => ({ stelle: vi.fn(), einheiten: vi.fn() }));
+vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: bibAktion.stelle, importiereBibEinheitenAction: bibAktion.einheiten, importiereBibVerbindungenAction: vi.fn() }));
+const BIB: Bibliothek = {
+  stellen: [
+    { id: "b1", titel: "Leitstelle Uelzen", zeichen: "zusatz:eal", leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }], notiz: null },
+    { id: "b2", titel: "EA 1", zeichen: null, leiter: null, kontakte: [], notiz: "intern" },
+  ],
+  einheiten: [
+    { id: "be0", typ: "RTW", rufname: "RK 1", zeichen: null, notiz: null },
+    { id: "be1", typ: "KTW", rufname: "RK 2", zeichen: null, notiz: null }, { id: "be2", typ: "NEF", rufname: "RK 3", zeichen: null, notiz: null },
+  ],
+  verbindungen: [{ id: "bv1", art: "dmo", bezeichnung: "DMO 608", notiz: null }],
+};
+const merke = vi.fn();
+const schritte: (string | undefined)[] = [];
+const warte = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
 const INDEX = [
   { schluessel: "rezept:C.1.1", titel: "Löschstaffel", suchtext: "löschstaffel c.1.1" },
@@ -34,12 +53,17 @@ function Rahmen({ start = START, stelleId = "a", fokus = FOKUS0, titelRef = REF0
   start?: PlanInhalt; stelleId?: string; fokus?: { ziel: "titel" | "einheit"; stelle: string | null; n: number }; titelRef?: RefObject<InputRef | null>;
 }) {
   const [inhalt, setInhalt] = useState(start);
-  const aendere: Aendere = (op) => {
+  const aendere: Aendere = (op, schluessel) => {
+    schritte.push(schluessel);
     try { const neu = op(inhalt); setInhalt(neu); stand = neu; return null; }
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
-  return <StelleFormular inhalt={inhalt} stelleId={stelleId} aendere={aendere} symbole={{}} zeichenIndex={INDEX} ladeSymbole={lade}
-    fokus={fokus} titelRef={titelRef} onLoeschen={loesche} onFertig={fertig} />;
+  return (
+    <BibliothekKontext.Provider value={{ aktiv: true, bib: BIB, merke }}>
+      <StelleFormular inhalt={inhalt} stelleId={stelleId} aendere={aendere} symbole={{}} zeichenIndex={INDEX} ladeSymbole={lade}
+        fokus={fokus} titelRef={titelRef} onLoeschen={loesche} onFertig={fertig} />
+    </BibliothekKontext.Provider>
+  );
 }
 const stelle = () => stand.stellen.find((s) => s.id === "a")!;
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button").find((b) => b.textContent === text)!;
@@ -62,7 +86,10 @@ async function waehleOption(eingabe: HTMLElement, text: string) {
   await clickElement(option);
 }
 
-afterEach(async () => { await unmount(); stand = START; lade.mockReset(); loesche.mockReset(); fertig.mockReset(); window.localStorage.clear(); });
+afterEach(async () => {
+  await unmount(); stand = START; lade.mockReset(); loesche.mockReset(); fertig.mockReset(); window.localStorage.clear();
+  schritte.length = 0; merke.mockReset(); bibAktion.stelle.mockReset(); bibAktion.einheiten.mockReset();
+});
 
 describe("Flyin einer Stelle (Spec §6.4)", () => {
   it("Titel und Leiter schreiben sofort ins Dokument; ein geleerter Leiter ist null", async () => {
@@ -262,5 +289,99 @@ describe("Flyin einer Stelle, Teil 2", () => {
     await clickElement(knopf("Übernehmen"));
     expect(document.body.textContent).toContain("Höchstens 60 Einheiten je Stelle — hier wären es 61.");
     expect(stelle().einheiten).toHaveLength(1);
+  });
+});
+
+describe("Bibliothek im Flyin (Entscheidung 13)", () => {
+  it("„Aus Bibliothek“ füllt Titel, Zeichen, Leiter, Kontakte in EINEM Schritt, lädt das Zeichen nach; danach Fokus im Titel", async () => {
+    await mount(<Rahmen />);
+    await waehleOption(feldZu("Aus Bibliothek"), "Leitstelle Uelzen · Disponent");
+    expect(stelle()).toMatchObject({ titel: "Leitstelle Uelzen", zeichen: "zusatz:eal", leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }] });
+    expect(stelle().einheiten).toHaveLength(1);
+    expect(schritte).toEqual([undefined]); // ohne Bündelschlüssel = ein eigener Rückgängig-Schritt
+    expect(lade).toHaveBeenCalledWith(["zusatz:eal"]); // der Kopierweg lädt selbst nach, nicht jedes `aendere`
+    await warte();
+    expect(document.activeElement).toBe(REF0.current?.input); // das Select montiert neu — der Fokus fällt nicht auf body
+  });
+  it("Titelvorschläge auch im Flyin: Tippen zeigt sie (Tabstopps), Alt+Enter füllt in EINEM Schritt, Fokus bleibt, kein „fertig“", async () => {
+    await mount(<Rahmen />);
+    await fill('[data-flyin-stelle] input[name="titel"]', "Leit");
+    const gruppe = query('[role="group"][aria-label="Vorschläge aus der Bibliothek"]');
+    expect(gruppe.textContent).toContain("Leitstelle Uelzen · Disponent");
+    expect(gruppe.querySelector("[data-vorschlag]")!.getAttribute("tabindex")).not.toBe("-1");
+    schritte.length = 0;
+    const feld = query<HTMLInputElement>('[data-flyin-stelle] input[name="titel"]');
+    feld.focus();
+    await act(async () => { feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", altKey: true, bubbles: true, cancelable: true })); });
+    expect(stelle().titel).toBe("Leitstelle Uelzen");
+    expect(schritte).toEqual([undefined]);
+    expect(document.activeElement).toBe(feld);
+    expect(fertig).not.toHaveBeenCalled(); // Alt+Enter ist nicht das Enter, das das Flyin schließt
+  });
+  it("„In Bibliothek übernehmen“: Angaben der Stelle, Kontext ergänzt; Dublette bietet „aktualisieren“ an (Notiz bleibt); Fokus bleibt am Knopf", async () => {
+    bibAktion.stelle
+      .mockResolvedValueOnce({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { titel: "„EA 1“ steht schon in der Bibliothek." } })
+      .mockResolvedValueOnce({ ok: true, eintrag: { id: "b2", titel: "EA 1", zeichen: null, leiter: null, kontakte: [], notiz: "intern" } });
+    await mount(<Rahmen />);
+    const uebernehmen = knopf("In Bibliothek übernehmen");
+    uebernehmen.focus();
+    await clickElement(uebernehmen);
+    await warte();
+    expect(bibAktion.stelle).toHaveBeenCalledWith(expect.objectContaining({ id: null, titel: "EA 1", kontakte: expect.arrayContaining([{ art: "email", wert: "ea1@drk.de" }]) }));
+    expect(document.body.textContent).toContain("„EA 1“ steht schon in der Bibliothek.");
+    expect(document.activeElement).toBe(uebernehmen); // nur `loading`, nie gesperrt — der Fokus fällt nicht auf body
+    await clickElement(knopf("Eintrag in der Bibliothek aktualisieren"));
+    await warte();
+    expect(bibAktion.stelle).toHaveBeenLastCalledWith(expect.objectContaining({ id: "b2", titel: "EA 1", notiz: "intern" }));
+    expect(merke).toHaveBeenCalledWith({ stellen: [expect.objectContaining({ id: "b2" })] });
+    expect(document.body.textContent).toContain("„EA 1“ in der Bibliothek aktualisiert.");
+  });
+  it("ohne Titel ist „In Bibliothek übernehmen“ gesperrt", async () => {
+    await mount(<Rahmen />);
+    await fill('[data-flyin-stelle] input[name="titel"]', "");
+    expect(knopf("In Bibliothek übernehmen").disabled).toBe(true);
+  });
+  it("Einheiten aus der Bibliothek: freie zuerst, hier vorhandene gesperrt, anderswo eingesetzte mit Hinweis; der Suchtext bleibt", async () => {
+    await mount(<Rahmen stelleId="b" />);
+    const auswahl = query<HTMLInputElement>('input[aria-label="Einheiten aus der Bibliothek"]');
+    const liste = await oeffneAuswahl(auswahl);
+    expect(optionen(liste)).toEqual(["KTW RK 2", "NEF RK 3", "RTW RK 1 — schon bei EA 1"]);
+    await fill('input[aria-label="Einheiten aus der Bibliothek"]', "RK");
+    await waehleOption(auswahl, "KTW RK 2");
+    expect(auswahl.value).toBe("RK"); // autoClearSearchValue: false — einmal tippen, mehrere wählen
+  });
+  it("Einheiten aus der Bibliothek: an DIESER Stelle schon vorhandene sind gesperrt; „Hinzufügen“ ist EIN Schritt, danach Fokus zurück in die Auswahl", async () => {
+    await mount(<Rahmen />);
+    const auswahl = query<HTMLInputElement>('input[aria-label="Einheiten aus der Bibliothek"]');
+    const liste = await oeffneAuswahl(auswahl);
+    const gesperrt = [...liste.querySelectorAll<HTMLElement>(".ant-select-item-option-disabled")].map((o) => o.textContent);
+    expect(gesperrt).toEqual(["RTW RK 1 — steht schon hier"]);
+    await waehleOption(auswahl, "KTW RK 2");
+    await waehleOption(auswahl, "NEF RK 3");
+    schritte.length = 0;
+    await clickElement(knopf("Hinzufügen"));
+    expect(stelle().einheiten.map((e) => `${e.typ} ${e.rufname}`)).toEqual(["RTW RK 1", "KTW RK 2", "NEF RK 3"]);
+    expect(schritte).toEqual([undefined]);
+    await warte();
+    expect(document.activeElement).toBe(auswahl);
+  });
+  it("„Einheiten in Bibliothek übernehmen“: alle Einheiten der Stelle in EINEM Aufruf, Meldung mit Zahlen", async () => {
+    bibAktion.einheiten.mockResolvedValue({ ok: true, angelegt: 0, uebersprungen: 1, eintraege: [] });
+    await mount(<Rahmen />);
+    await clickElement(knopf("Einheiten in Bibliothek übernehmen"));
+    await warte();
+    expect(bibAktion.einheiten).toHaveBeenCalledWith([{ typ: "RTW", rufname: "RK 1", notiz: null, zeichen: null }]);
+    expect(document.body.textContent).toContain("0 angelegt, 1 schon vorhanden.");
+  });
+  it("Verbindung aus der Bibliothek: eigene Gruppe, Wahl legt eine Kopie an und verbindet", async () => {
+    await mount(<Rahmen />);
+    const liste = await oeffneAuswahl(feldZu("Zur Elternstelle"));
+    expect(liste.textContent).toContain("Aus der Bibliothek");
+    expect(optionen(liste)).toContain("DMO 608 · Digitalfunk DMO");
+    // Die Liste steht schon offen — ein zweites mousedown (waehleOption) schlösse sie wieder.
+    await clickElement([...liste.querySelectorAll<HTMLElement>(".ant-select-item-option")].find((o) => o.textContent === "DMO 608 · Digitalfunk DMO")!);
+    const v = stand.verbindungen.find((x) => x.bezeichnung === "DMO 608")!;
+    expect(v.art).toBe("dmo");
+    expect(stelle().verbindungId).toBe(v.id);
   });
 });

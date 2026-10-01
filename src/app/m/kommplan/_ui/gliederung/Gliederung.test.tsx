@@ -10,6 +10,7 @@ import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
 import { kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "../editor/verlauf";
 import { Gliederung } from "./Gliederung";
+vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
 
 const START = baue({
   verbindungen: [{ id: "a", art: "tmo", bezeichnung: "R_UE_2" }],
