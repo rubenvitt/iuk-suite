@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -98,7 +98,7 @@ test("ohne Navigation: keine Leiste, und der Inhalt behaelt die volle Breite", a
    * statt darunter.
    */
   await devLogin(page, { host: "alpha.localtest.me", groups: "alpha-users" });
-  const { kontext, seite } = await ohneJavaScript(browser, page, "http://alpha.localtest.me:3100/");
+  const { kontext, seite } = await ohneJavaScript(browser, page, `http://alpha.localtest.me:${E2E_PORT}/`);
   try {
     const r = await raster(seite);
     expect(r.leisteRechts, JSON.stringify(r)).toBeNull();
