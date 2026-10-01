@@ -5,6 +5,7 @@ import { leererPlan } from "../plan/operationen";
 import { layout } from "./layout";
 import { BLATT, MIN_MASSSTAB, PAPIER, QR_BOX } from "./masse";
 import { AUFTEILUNG, kopflinieY, LEGENDE, legendeObenY, legendenBreite, legendenZeilen, massstabFuer, qrBox, teileAuf, zeichenflaeche } from "./papier";
+import { pruefeQrAbstand } from "./pruefung";
 import { textBreite } from "./text";
 import { zufallsPlan } from "./zufall";
 
@@ -193,10 +194,18 @@ describe("Platz für den QR (Phase 5, Entscheidung 11)", () => {
       expect(legendenBreite(format, true)).toBeCloseTo(legendenBreite(format) - QR_BOX.kante - QR_BOX.luft, 9);
     }
   });
+  it("mit QR nur die Ecke gesperrt, kein Streifen über die Breite (Abnahme): Einsatz bleibt auf einem Blatt, die Stabslage über 6 pt", () => {
+    const einsatz = BEISPIELE.find((b) => b.id === "beispiel-einsatz-2026-02-22")!.inhalt;
+    const ohne = teileAuf(einsatz, "a4-quer");
+    const mit = teileAuf(einsatz, "a4-quer", { qr: true });
+    expect(mit.map((b) => b.massstab)).toEqual(ohne.map((b) => b.massstab));
+    expect(mit).toHaveLength(1);
+    for (const b of teileAuf(gross, "a4-quer", { qr: true })) expect(b.unterMindestschrift, `Blatt ${b.nummer}`).toBe(false);
+  });
   it("mit QR: keine Zeichnung reicht in die QR-Box, keine Legendenzeile ist breiter als erlaubt", () => {
     for (const format of ["a4-quer", "a3-quer"] as const) {
       for (const b of teileAuf(gross, format, { qr: true })) {
-        expect(b.ursprung.y + b.zeichnung.hoehe * b.massstab).toBeLessThanOrEqual(qrBox(format).oben - BLATT.luft + 1e-6);
+        expect(pruefeQrAbstand(b, format).map((x) => x.text)).toEqual([]);
         for (const zeile of b.legendeZeilen) {
           const breite = zeile.reduce((s, e) => s + LEGENDE.symbolBreite + LEGENDE.symbolLuft + textBreite(e.text, LEGENDE.schrift, false) + LEGENDE.eintragLuft, 0) - LEGENDE.eintragLuft;
           expect(breite).toBeLessThanOrEqual(legendenBreite(format, true) + 1e-6);

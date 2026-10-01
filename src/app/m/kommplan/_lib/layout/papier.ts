@@ -60,7 +60,10 @@ export function legendenBreite(format: Papierformat, qr = false): number {
   return PAPIER[format].breite - 2 * BLATT.randX - (qr ? QR_BOX.kante + QR_BOX.luft : 0);
 }
 
-/** Wo die Zeichnung stehen darf: unter der Kopflinie, über der Legende (und mit QR über dessen Beschriftung), je `BLATT.luft` Abstand. */
+/**
+ * Wo die Zeichnung stehen darf: unter der Kopflinie, über der Legende, je `BLATT.luft` Abstand. Mit `qr` zusätzlich über
+ * der Beschriftung der QR-Box, über die volle Breite — das ist nur noch die sichere Untergrenze für `massstabMitQr`.
+ */
 export function zeichenflaeche(format: Papierformat, legendeZeilen: number, qr = false) {
   const p = PAPIER[format];
   const y = kopflinieY() + BLATT.luft;
@@ -76,10 +79,46 @@ export function massstabFuer(z: Pick<Zeichnungsdaten, "breite" | "hoehe">, flaec
 
 type Auftrag = NonNullable<LayoutOptionen["blatt"]>;
 
+/** Wo mit QR nichts von der Zeichnung stehen darf: die Box samt Beschriftung, links und oben `BLATT.luft` Abstand. */
+export function qrSperre(format: Papierformat): { x: number; y: number } {
+  const b = qrBox(format);
+  return { x: b.x - BLATT.luft, y: b.oben - BLATT.luft };
+}
+
+/** Berührt die Zeichnung bei Maßstab `m`, waagerecht mittig in `f`, die QR-Sperre? Jedes Element einzeln, als Kasten. */
+function trifftQr(z: Zeichnungsdaten, m: number, f: { x: number; y: number; breite: number }, sperre: { x: number; y: number }): boolean {
+  const ox = f.x + (f.breite - z.breite * m) / 2;
+  const rein = (x: number, y: number, b: number, h: number) => ox + (x + b) * m > sperre.x && f.y + (y + h) * m > sperre.y;
+  return z.karten.some((k) => rein(k.x, k.y, k.breite, k.hoehe))
+    || z.einheiten.some((e) => rein(e.x, e.y, e.breite, e.hoehe))
+    || z.sechsecke.some((s) => rein(s.x, s.y, s.breite, s.hoehe))
+    || z.abzeichen.some((a) => rein(a.x, a.y, a.breite, a.hoehe))
+    || z.linien.some((l) => rein(Math.min(l.x1, l.x2), Math.min(l.y1, l.y2), Math.abs(l.x2 - l.x1), Math.abs(l.y2 - l.y1)));
+}
+
+/**
+ * DER MASSSTAB EINES BLATTS. Mit QR (Abnahme kommplan, Befund „Der QR-Code nimmt der Zeichnung einen Streifen über die
+ * ganze Blattbreite"): die Box belegt nur die Ecke unten rechts. Also zuerst die volle Fläche; berührt ein Element die
+ * Sperre, der größte Maßstab dazwischen, bei dem keines sie berührt — gesucht per Halbierung zwischen dem vollen und dem
+ * Maßstab über dem Streifen (`zeichenflaeche(…, qr)`), der sie nie berührt. Ohne QR wie bisher.
+ */
+function massstabMitQr(z: Zeichnungsdaten, format: Papierformat, zeilen: number, f: ReturnType<typeof zeichenflaeche>): number {
+  const voll = massstabFuer(z, f);
+  const sperre = qrSperre(format);
+  if (!trifftQr(z, voll, f, sperre)) return voll;
+  let frei = massstabFuer(z, zeichenflaeche(format, zeilen, true));
+  let trifft = voll;
+  for (let i = 0; i < 16 && trifft - frei > 1e-4; i++) {
+    const m = (frei + trifft) / 2;
+    if (trifftQr(z, m, f, sperre)) trifft = m; else frei = m;
+  }
+  return frei;
+}
+
 function blattAus(nummer: number, format: Papierformat, z: Zeichnungsdaten, auftrag: Auftrag | undefined, qr: boolean): Blatt {
   const zeilen = legendenZeilen(z.legende, legendenBreite(format, qr));
-  const f = zeichenflaeche(format, zeilen.length, qr);
-  const massstab = massstabFuer(z, f);
+  const f = zeichenflaeche(format, zeilen.length);
+  const massstab = qr ? massstabMitQr(z, format, zeilen.length, f) : massstabFuer(z, f);
   return {
     nummer, von: 0, wurzelId: auftrag?.wurzelId ?? null, ankerId: auftrag?.ankerId ?? null,
     zeichnung: z, massstab, legendeZeilen: zeilen, unterMindestschrift: massstab < MIN_MASSSTAB - 1e-9,

@@ -4,9 +4,9 @@ import { baueBaum, nachkommen } from "../plan/baum";
 import { fuegeStelleEin, fuegeVerbindungEin } from "../plan/operationen";
 import type { PlanInhalt, Stelle } from "../plan/schema";
 import { OHNE_VERBINDUNG, anzeigereihenfolge, gruppenAnzahl } from "./gruppen";
-import { BLATT, MIN_MASSSTAB } from "./masse";
-import { offeneSchnitte, qrBox, teileAuf } from "./papier";
-import { pruefeAlles } from "./pruefung";
+import { MIN_MASSSTAB } from "./masse";
+import { offeneSchnitte, teileAuf } from "./papier";
+import { pruefeAlles, pruefeQrAbstand } from "./pruefung";
 import { umgebungFuer } from "./teilbaum";
 import type { Zeichnungsdaten, Ziel } from "./typen";
 import { zeichne } from "./zeichne";
@@ -319,8 +319,7 @@ describe.each(["a4-quer", "a3-quer"] as const)("Aufteilung deckt jede Stelle gen
       for (const k of verweise) expect(blaetter[Number(k.verweis!.text.replace("→ Blatt ", "")) - 1].wurzelId).toBe(k.id);
     }
     for (const b of teileAuf(inhalt, format, { qr: true })) {
-      expect(b.ursprung.y + b.zeichnung.hoehe * b.massstab, erklaere(seed, inhalt, `QR: Blatt ${b.nummer} reicht in die QR-Box`))
-        .toBeLessThanOrEqual(qrBox(format).oben - BLATT.luft + 1e-6);
+      expect(pruefeQrAbstand(b, format).map((x) => x.text), erklaere(seed, inhalt, `QR: Blatt ${b.nummer}`)).toEqual([]);
     }
   });
 });

@@ -1,8 +1,9 @@
 import { baueBaum } from "../plan/baum";
 import type { PlanInhalt } from "../plan/schema";
-import { MINDEST, STIEL } from "./masse";
+import { BLATT, MINDEST, STIEL } from "./masse";
+import { qrBox } from "./papier";
 import { textBreite } from "./text";
-import type { KarteL, SechseckL, Strecke, TextZeile, Zeichnungsdaten } from "./typen";
+import type { Blatt, KarteL, Papierformat, SechseckL, Strecke, TextZeile, Zeichnungsdaten } from "./typen";
 
 /**
  * Geometrische Zusicherungen an eine fertige Zeichnung (Spec §10), in zwei Hälften:
@@ -274,6 +275,27 @@ export function pruefeTexte(z: Zeichnungsdaten): Befund[] {
 }
 
 /** Alle Prüfungen zusammen — Eigenschafts-, Beispiel- und Aufteilungstests und das Vorschau-Skript nehmen dieselbe Liste. */
+/**
+ * Mit QR: kein Element der Zeichnung (Karte, Einheit, Sechseck, Abzeichen, Linie) kommt der QR-Box samt Beschriftung
+ * näher als `BLATT.luft` — in Blattkoordinaten, also nach Maßstab und Ursprung. Der Kasten der GANZEN Zeichnung darf
+ * in die Ecke ragen, solange dort nichts steht (Abnahme kommplan: früher ein Streifen über die volle Breite).
+ */
+export function pruefeQrAbstand(blatt: Blatt, format: Papierformat): Befund[] {
+  const q = qrBox(format);
+  const { zeichnung: z, massstab: m, ursprung: o } = blatt;
+  const kaesten: [string, number, number, number, number][] = [
+    ...z.karten.map((k): [string, number, number, number, number] => [`Karte ${k.id}`, k.x, k.y, k.breite, k.hoehe]),
+    ...z.einheiten.map((e): [string, number, number, number, number] => [`Einheit ${e.id}`, e.x, e.y, e.breite, e.hoehe]),
+    ...z.sechsecke.map((x): [string, number, number, number, number] => [`Sechseck ${x.netz}`, x.x, x.y, x.breite, x.hoehe]),
+    ...z.abzeichen.map((a): [string, number, number, number, number] => [`Abzeichen ${a.stelleId}`, a.x, a.y, a.breite, a.hoehe]),
+    ...z.linien.map((l): [string, number, number, number, number] => [`Linie ${l.netz}`, Math.min(l.x1, l.x2), Math.min(l.y1, l.y2), Math.abs(l.x2 - l.x1), Math.abs(l.y2 - l.y1)]),
+  ];
+  return kaesten.flatMap(([name, x, y, b, h]) => {
+    const rechts = o.x + (x + b) * m, unten = o.y + (y + h) * m;
+    return rechts > q.x - BLATT.luft + 1e-6 && unten > q.oben - BLATT.luft + 1e-6 ? [{ art: "abstand" as const, text: `${name} reicht an die QR-Box` }] : [];
+  });
+}
+
 export function pruefeAlles(z: Zeichnungsdaten, inhalt: PlanInhalt): Befund[] {
   return [...pruefeZeichnung(z), ...pruefeMitte(z, inhalt), ...pruefeVerbindungen(z, inhalt), ...pruefeTexte(z)];
 }
