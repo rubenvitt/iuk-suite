@@ -6,10 +6,10 @@ const notiz: Releasenotiz = {
   modul: "kommplan",
   slug: "kommunikationsplaene-ansehen",
   datum: "2026-09-30",
-  titel: "Kommunikationspläne ansehen, bearbeiten und drucken",
+  titel: "Pläne und Fernmeldeskizzen bearbeiten und drucken",
   inhalt: [
     absatz(
-      "Unter „Kommunikationspläne“ siehst du Pläne und Fernmeldeskizzen als Diagramm und druckst sie über „Drucken (A4 quer)“. " +
+      "Pläne und Fernmeldeskizzen siehst du als Diagramm und druckst sie über „Drucken (A4 quer)“. " +
         "Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an und baust ihn mit „+ Unterstelle“, „+ Einheit“, „+ links“ und „+ rechts“ auf. " +
         "Alles speichert sich selbst, „Rückgängig“ holt Schritte zurück.",
     ),
