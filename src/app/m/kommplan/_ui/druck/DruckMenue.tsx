@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Button, Dropdown, Space, type MenuProps } from "antd";
 
 export type DruckFormatKurz = "a4" | "a3";
@@ -38,11 +39,28 @@ export function DruckMenue({ basis, onWahl, mitSvg = false }: { basis?: string; 
     if (basis) window.open(druckZiel(basis, w), "_blank", "noopener");
     else onWahl?.(w);
   };
+  const [offen, setOffen] = useState(false);
+  const pfeil = useRef<HTMLButtonElement>(null);
+  // Escape gibt den Fokus an den Pfeil zurück (Review Phase 5): rc-dropdown will das selbst, aber schließt das Popup
+  // vorher anderswo, fällt sein Fensterhorcher mit dem Effekt weg — der Fokus lag dann auf body, und der nächste Tab
+  // begann oben auf der Seite. Eigener Horcher in der Capture-Phase, Fokus im nächsten Frame, NACH dem Schließen.
+  // Nur bei Escape: ein Klick daneben lässt den Fokus, wo er hinwollte.
+  useEffect(() => {
+    if (!offen) return;
+    const beiTaste = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOffen(false);
+      requestAnimationFrame(() => pfeil.current?.focus());
+    };
+    window.addEventListener("keydown", beiTaste, true);
+    return () => window.removeEventListener("keydown", beiTaste, true);
+  }, [offen]);
   return (
     <Space.Compact className="kp-druckmenue">
       <Button onClick={() => waehle({ format: "a4", svg: false })}>Drucken</Button>
-      <Dropdown trigger={["click"]} autoFocus menu={{ items, onClick: ({ key }) => { const [format, art] = key.split("-"); waehle({ format: format as DruckFormatKurz, svg: art === "svg" }); } }}>
-        <Button aria-label="Weitere Druckformate" aria-haspopup="menu"><Pfeil /></Button>
+      <Dropdown trigger={["click"]} autoFocus open={offen} onOpenChange={setOffen}
+        menu={{ items, onClick: ({ key }) => { setOffen(false); const [format, art] = key.split("-"); waehle({ format: format as DruckFormatKurz, svg: art === "svg" }); } }}>
+        <Button ref={pfeil} aria-label="Weitere Druckformate" aria-haspopup="menu"><Pfeil /></Button>
       </Dropdown>
     </Space.Compact>
   );

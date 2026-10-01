@@ -42,6 +42,20 @@ describe("DruckMenue (Entscheidung 12)", () => {
     expect(auf).toHaveBeenLastCalledWith("/t/TOKEN/druck/a4", "_blank", "noopener");
     auf.mockRestore();
   });
+  it("Escape schließt das Menü und gibt den Fokus an den Pfeil zurück — nie an body (Review Phase 5)", async () => {
+    await mount(<DruckMenue basis="/t/TOKEN" />);
+    await oeffne();
+    expect(punkte()).toHaveLength(2);
+    // rc-dropdown fokussiert das Menü per `autoFocus` erst nach drei Frames — vorher gedrückt, holte es den Fokus zurück.
+    await act(async () => { await new Promise((r) => setTimeout(r, 100)); });
+    expect(document.activeElement?.closest('[role="menu"]')).not.toBeNull();
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(document.activeElement).toBe(pfeil());
+    expect(document.querySelector(".ant-dropdown:not(.ant-dropdown-hidden)")).toBeNull();
+  });
   it("mit onWahl: der Aufrufer entscheidet (Editor speichert vorher)", async () => {
     const wahl = vi.fn();
     await mount(<DruckMenue onWahl={wahl} />);

@@ -54,7 +54,17 @@ test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page })
   await expect(page.getByRole("button", { name: "Teilen" })).toHaveCount(0);
   // Der echte Tastaturweg: Pfeil fokussieren, Enter öffnet das Menü, Pfeiltasten wählen, Enter druckt.
   await page.context().addInitScript(() => { window.print = () => {}; });
-  await page.getByRole("button", { name: "Weitere Druckformate" }).focus();
+  const pfeil = page.getByRole("button", { name: "Weitere Druckformate" });
+  // Escape gibt den Fokus an den Pfeil zurück, nach Maus wie nach Tastatur — nie an body (Review Phase 5).
+  await klickeWennRuhig(pfeil);
+  await expect(page.getByRole("menuitem", { name: "A4 quer", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(pfeil).toBeFocused();
+  await expect(page.getByRole("menuitem", { name: "A4 quer", exact: true })).toBeHidden();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "A4 quer", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(pfeil).toBeFocused();
   await page.keyboard.press("Enter");
   // Erst wenn der Fokus im Menü steht (autoFocus setzt ihn nach dem Öffnen), führen die Pfeile durch die Punkte.
   await expect(page.getByRole("menuitem", { name: "A4 quer", exact: true })).toBeFocused();
