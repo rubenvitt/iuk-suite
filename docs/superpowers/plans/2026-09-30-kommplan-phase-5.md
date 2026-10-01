@@ -16,7 +16,7 @@
 
 - Arbeitsverzeichnis ausschließlich `/Users/rubeen/dev/personal/drk/iuk-suite/.claude/worktrees/drk-363-8c5335`; nie `cd` ins Haupt-Repo. Nicht pushen. ClickUp nicht anfassen.
 - Deutsche Texte mit echten Umlauten (`ä ö ü Ä Ö Ü ß`); Bezeichner, Datei- und Branchnamen ASCII (`~/.claude/CLAUDE.md`). Dateinamen der SVG-Downloads sind Bezeichner: ASCII.
-- `CLAUDE.md` gilt vollständig. Für diese Phase besonders: Falle 1 (kein antd-Compound in RSC — `Radio.Group`, `Input.TextArea`, `Popconfirm`, `Dropdown` nur in Client-Inseln; Token-Rahmen, Token-Kopf und Druckseite sind Server-Komponenten **ohne** antd), 2 (eigenes Markup nimmt `--kp-*`, nie `--ant-*`), 3 (Rot nie auf der Datenfläche — der VS-NfD-Vermerk der Token-Ansicht ist neutral, nicht rot; Suite-Rot nur Fahne und Wortzeichen des Token-Rahmens, docs/design/feedback-oeffentliche-ansicht.md), 4 (kein `size`), 5, 6 (Werte für Server Components nie aus `"use client"`-Modulen — `TEILEN_FLYIN_GRUND` steht im Client-Modul, wird aber nur von Client-Modulen gelesen), 7 (keine `@ant-design/icons`; der Pfeil am Druckmenü ist Inline-SVG), 9 (Server Actions direkt importieren, nie als Prop), 10 (jede ausgelöste Anfrage im e2e per `waitForResponse`), 12 (`klickeWennRuhig`, `warteAufSpaltenaufteilung`), 13 (`flyinBreite()` für jede `Drawer`), 18 (benanntes `@page` mit ausgeschriebenen Kantenlängen, A3 eigene Route), 20 (keine Regel gegen einen `.ant-*`-Namen), 21 (`NODE_ENV` eingebacken — Header- und Downloadtests über `pnpm e2e:gebaut`), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (Token-404 im `layout.tsx`, keine `loading.tsx` unter `t/`).
+- `CLAUDE.md` gilt vollständig. Für diese Phase besonders: Falle 1 (kein antd-Compound in RSC — `Radio.Group`, `Input.TextArea`, `Popconfirm`, `Dropdown` nur in Client-Inseln; Token-Rahmen, Token-Kopf, Token-404 und Druckseite sind Server-Komponenten **ohne** antd; antd kommt auf der Token-Route nur über die Client-Inseln `Betrachter` und `DruckMenue`, Entscheidung 8), 2 (eigenes Markup nimmt `--kp-*`, nie `--ant-*`), 3 (Rot nie auf der Datenfläche — der VS-NfD-Vermerk der Token-Ansicht ist neutral, nicht rot; im **eigenen Markup** der Token-Ansicht Suite-Rot nur Fahne und Wortzeichen, docs/design/feedback-oeffentliche-ansicht.md; die antd-Bedienknöpfe von Betrachter und Druckmenü behalten das Suite-Thema und färben Hover und Fokus rot — keine rote Fläche, kein `type="primary"` auf der Token-Route, Entscheidung 8), 4 (kein `size`; auf der Token-Route ohne Hülle gilt 56/72), 5, 6 (Werte für Server Components nie aus `"use client"`-Modulen — `TEILEN_FLYIN_GRUND` steht im Client-Modul, wird aber nur von Client-Modulen gelesen), 7 (keine `@ant-design/icons`; der Pfeil am Druckmenü ist Inline-SVG), 9 (Server Actions direkt importieren, nie als Prop), 10 (jede ausgelöste Anfrage im e2e per `waitForResponse`), 12 (`klickeWennRuhig`, `warteAufSpaltenaufteilung`), 13 (`flyinBreite()` für jede `Drawer`), 18 (benanntes `@page` mit ausgeschriebenen Kantenlängen, A3 eigene Route), 20 (keine Regel gegen einen `.ant-*`-Namen), 21 (`NODE_ENV` eingebacken — Header- und Downloadtests über `pnpm e2e:gebaut`), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (Token-404 im `layout.tsx`, keine `loading.tsx` unter `t/`).
 - **Zugriffsschutz:** Jede neue Seite unter `(intern)` ruft `requireKommplanHost(await headers())` und `await requireKommplanZugang()` je genau einmal (`riegel.test.ts`). Jede Datei unter `t/[token]/` ruft `requireKommplanHost(await headers())` und `await tokenPlanOder404(` je genau einmal, **nie** `requireKommplanZugang`, `auth(`, `ladePlan…` oder etwas aus `_actions/` (Task 8 hält das fest). Jede Server Action beginnt mit `const viewer = await requireKommplanBearbeitenAktion();` als **erster** Anweisung und löst jede ID in der Datenbank auf (IDOR) — ein Link wird immer über **(id, planId)** gefunden, nie über die ID allein. Oberfläche und Riegel wenden dasselbe Prädikat an: „Teilen" gibt es nur im Editor (`darfKommplanBearbeiten`, nicht archiviert).
 - **Sicherheit der Token-Route hat Vorrang vor Bequemlichkeit** (Vorgabe des Hauptlaufs): kein Planinhalt, kein Briefkopf, keine Plan-ID kommt ohne gültigen Token heraus; Plan-IDs stehen nie in der Token-URL und nie im HTML oder in den Flight-Daten der Token-Seiten.
 - **Bauform der Action-Dateien** (`_actions/plan.test.ts`): Datei beginnt auf Byte 0 mit `"use server";`; nur Actions exportiert; Parameterliste ohne `)`; Signatur ohne `{` vor dem Rumpf — Rückgabetypen als benannte Typen aus `_lib/ergebnis.ts`. Jede Action steht in `src/core/audit/coverage-manifest.json` (`{ "kind": "context", "via": "<Name>" }`, Rumpf mit `withAuditContext`).
@@ -32,28 +32,28 @@
 - Signierte Commits (`git commit -S`), Kopfzeile nach Conventional Commits: `feat(kommplan): …` für neue Funktion, `fix(kommplan): …`, `test(kommplan): …`, `refactor(kommplan): …`, `docs: …`, `feat(core): …` nur für die Proxy-Köpfe (Task 6). Body mit einer Zeile `DRK-500` und am Ende `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. **Jeder Commit besteht `pnpm typecheck`** (Exit-Code prüfen).
 - Last: andere Sessions laufen parallel (Load oft zweistellig). Vor jedem Urteil über einen roten Test `uptime`; bei Load > 10 die betroffene Datei einzeln oder den CI-Weg (`pnpm e2e:gebaut` bzw. `E2E_VORGEBAUT=1`). Fremde Prozesse nie beenden. Kein `pnpm dev` offen lassen; `git checkout -- next-env.d.ts` nach jedem e2e-Lauf. `scripts/backup-sidecar.test.ts` ist auf macOS rot (DRK-501) — nicht dein Thema. Funde außerhalb von kommplan nur beheben, wenn sie ein Tor blockieren, und in „Abweichungen bei der Umsetzung" als **Ticketkandidat** eintragen.
 - Aufgaben, die Routen, Route Handler, Server Actions oder den Proxy anlegen oder ändern, fahren zusätzlich `pnpm build`. Unter Dauerlast dürfen benachbarte Aufgaben sich einen Build über den gemeinsamen Endstand teilen (Vorbild Phase-1-U6, Phase-4-U3) — vermerken.
-- **e2e und die Fehlversuchs-Schranke:** die Schranke lebt im Prozessspeicher des einen Servers einer Gruppe (`workers: 1`). Ohne `cf-connecting-ip` zählen alle Anfragen gegen den Sammeleimer `"unknown"`. Jeder anonyme Kontext im e2e setzt deshalb **eigene** `extraHTTPHeaders: { "cf-connecting-ip": "203.0.113.<n>" }` (Dokumentationsnetz, RFC 5737), je Test eine andere Adresse.
+- **e2e und die Fehlversuchs-Schranke:** die Schranke lebt im Prozessspeicher des einen Servers einer Gruppe (`workers: 1`). Ohne `cf-connecting-ip` zählen alle Anfragen gegen den Sammeleimer `"unknown"`. Jeder anonyme Kontext im e2e setzt deshalb **eigene** `extraHTTPHeaders: { "cf-connecting-ip": ip(n) }` mit `ip(n) = 2001:db8:<LAUF>::<n>` (IPv6-Dokumentationsnetz, RFC 3849; `LAUF` = vier Zufalls-Hexziffern, beim Laden der Spec-Datei gezogen): **je Test UND je Versuch eine andere Adresse** — ein CI-Wiederholungslauf (`retries: 1`) startet einen neuen Worker und zieht damit ein neues `LAUF`, ebenso ein zweiter lokaler Lauf gegen einen wiederverwendeten Server; sonst träfe er die Fehlversuche des ersten Versuchs, und ein Flake würde sicher rot. `clientIpAus` prüft die Form nicht, der Schlüssel bleibt unter `SCHLUESSEL_MAX_ZEICHEN` (64). Kein `203.0.113.x`-Literal in den e2e-Specs (die Unit-Tests der Schranke in Task 7 haben ihren eigenen Speicher und dürfen feste Adressen nehmen).
 - Tore vor dem Abschluss: `pnpm typecheck` · `pnpm lint` · `pnpm anker:neu` · `pnpm vitest run` · `pnpm build` · `pnpm exec playwright test e2e/kommplan.spec.ts e2e/kommplan-editor.spec.ts e2e/kommplan-gliederung.spec.ts e2e/kommplan-bibliothek.spec.ts e2e/kommplan-verwaltung.spec.ts e2e/kommplan-teilen.spec.ts` (Header-, PDF- und Downloadfälle zusätzlich über `pnpm e2e:gebaut`).
 
 ## Entscheidungen dieser Phase (Abweichungen von Spec und früheren Plänen)
 
 1. **Keine Migration.** `plan_freigabe` (Phase 1, Abweichung 9) trägt alle Spalten aus Spec §8.2: `token` eindeutig (`plan_freigabe_token_idx`), `plan_id` mit Fremdschlüssel und Index, `ablauf` null = unbegrenzt, `widerrufen_am`, `erstellt_*`, `zuletzt_abgerufen`, `abrufe`; im Audit-Katalog sind `zuletzt_abgerufen` und `abrufe` schon `unauditedColumns` (Ausstellen = `create`, Widerrufen = `update`, Zählen = nichts). Grenzen, die die Datenbank nicht braucht, hält der Code: Notiz höchstens 200 Zeichen, höchstens 20 **gültige** Links je Plan (Schutz gegen versehentliche Massenausstellung; abgelaufene und widerrufene zählen nicht). `schema.test.ts` bekommt einen Fall, der die Annahme festhält (Spalten, Eindeutigkeit, Audit).
 2. **Token:** `randomBytes(32).toString("base64url")` — genau 43 Zeichen `[A-Za-z0-9_-]`, im Klartext gespeichert (Spec §8.2). Vor jeder Datenbankabfrage prüft `istTokenForm` die Form; eine falsche Form ist ein Fehlversuch wie ein unbekannter Token.
-3. **Gültig** heißt: nicht widerrufen, `ablauf` null oder **größer** als jetzt (genau an der Grenze abgelaufen), Plan nicht archiviert. Ablauf wird als Dauer ab „jetzt" gerechnet (24 h, 7 × 24 h, 30 × 24 h), nicht als Kalendertag — ein am Abend ausgestellter 24-h-Link gilt bis zum nächsten Abend. Abgelaufene und widerrufene Links bleiben in der Liste sichtbar (unter „Abgelaufen und widerrufen", ohne „Link kopieren"), gelöscht wird nie.
-4. **Ein Tokenabruf wird je Anfrage genau einmal aufgelöst** (`tokenAbruf = cache(…)` in `_lib/tokenZugang.ts`): Layout und Seite rendern parallel und fragen beide; Fehlversuch und Abrufzählung buchen nur im ersten Aufruf. Die gecachte Funktion gibt `null` zurück, `notFound()` rufen Layout und Seite selbst (`tokenPlanOder404`) — keine im Cache gespeicherte Ausnahme. Unter `t/` gibt es **keine** `loading.tsx` (Falle 23); die Prüfung steht trotzdem im `layout.tsx`, damit eine spätere Ladegrenze das 404 nicht still zu 200 macht.
-5. **Fehlversuchs-Schranke** (`core/ratelimit`, Vorbild `feedback` `tokenGuard`): je Absender (`clientIpAus`) höchstens 10 Fehlversuche (unbekannt, falsche Form, abgelaufen, widerrufen, archiviert) je Minute. **Gesperrt heißt 404 ohne Datenbankabfrage — auch für einen gültigen Token derselben Adresse** (Sicherheit vor Bequemlichkeit: sonst wäre die Sperre ein Orakel). Gültige Abrufe buchen nichts. Preis, bewusst hingenommen und riskante Annahme: ohne `cf-connecting-ip` (lokal, Direktzugriff am Proxy vorbei) teilen sich alle den Eimer `"unknown"` — wer dann zehnmal rät, sperrt eine Minute lang alle Token-Ansichten dieses Prozesses. Auf dem Zielhost kommt `cf-connecting-ip` laut `src/proxy.ts` (Rewrite intern, Messbericht 2026-08-22) unverfälscht an.
+3. **Gültig** heißt: nicht widerrufen, `ablauf` null oder **größer** als jetzt (genau an der Grenze abgelaufen), Plan nicht archiviert. Ablauf wird als Dauer ab „jetzt" gerechnet (24 h, 7 × 24 h, 30 × 24 h), nicht als Kalendertag — ein am Abend ausgestellter 24-h-Link gilt bis zum nächsten Abend. Abgelaufene und widerrufene Links bleiben in der Liste sichtbar (unter „Abgelaufen und widerrufen", ohne „Link kopieren"), gelöscht wird nie. **Archivieren widerruft** (Kritik, Sicherheit vor Bequemlichkeit): `archiviere` setzt in derselben Transaktion `widerrufen_am = jetzt` an allen gültigen Links des Plans (je Link eine Audit-Zeile `update`; schon widerrufene behalten ihren Zeitpunkt). Wiederherstellen erweckt also **keinen** Link wieder — sonst würden alte, auch unbegrenzte Links still wieder gültig, die während der Archivzeit niemand sehen oder widerrufen konnte (archiviert gibt es kein „Teilen"). Der Preis, bewusst: „Rückgängig" direkt nach dem Archivieren holt den Plan zurück, die Links nicht; wer weiter teilen will, stellt neue aus (das Flyin zeigt die alten unter „Abgelaufen und widerrufen"). Der Listenhinweis bleibt dafür ohne Zusatz — die Zahl der widerrufenen Links bräuchte einen neuen Ergebnistyp für eine seltene Lage. `loeseToken` prüft `archiviert_am` trotzdem weiter (doppelter Boden).
+4. **Ein Tokenabruf wird je Anfrage genau einmal aufgelöst** (`tokenAbruf = cache(…)` in `_lib/tokenZugang.ts`): Layout und Seite rendern parallel und fragen beide; Fehlversuch und Abrufzählung buchen nur im ersten Aufruf. Die gecachte Funktion gibt `null` zurück, `notFound()` rufen Layout und Seite selbst (`tokenPlanOder404`) — keine im Cache gespeicherte Ausnahme. Unter `t/` gibt es **keine** `loading.tsx` (Falle 23); die Prüfung steht trotzdem im `layout.tsx`, damit eine spätere Ladegrenze das 404 nicht still zu 200 macht. **Eigene 404-Seite** `t/not-found.tsx` (Kritik; Muster Zustand F in docs/design/feedback-oeffentliche-ansicht.md): sie ist die Not-Found-Grenze des Segments `t` und fängt damit das `notFound()` aus `t/[token]/layout.tsx` (das Kind-Segment liegt innerhalb ihrer Grenze) — sonst landete der Empfänger auf der Suite-404 mit „wende dich an die Administration" und „Zur Startseite", also bei einer Anmeldung, die er nicht hat. Inhalt, für alle Fälle gleich: im `TokenRahmen` H1 „Dieser Link gilt nicht (mehr)." und „Vielleicht ist er abgelaufen, widerrufen oder unvollständig kopiert. Bitte die Person, die ihn dir geschickt hat, um einen neuen." — kein Knopf, kein Link auf `/`, keine Anmeldung, nichts aus der Datenbank. Status 404 und die Proxy-Köpfe bleiben; dass die Grenze das Layout-`notFound()` wirklich fängt, belegt `pnpm e2e:gebaut` (Task 15).
+5. **Fehlversuchs-Schranke** (`core/ratelimit`, Vorbild `feedback` `tokenGuard`): je Absender (`clientIpAus`) höchstens 30 Fehlversuche (unbekannt, falsche Form, abgelaufen, widerrufen, archiviert) je Minute. **Gesperrt heißt 404 ohne Datenbankabfrage — auch für einen gültigen Token derselben Adresse** (Sicherheit vor Bequemlichkeit: sonst wäre die Sperre ein Orakel). Gültige Abrufe buchen nichts. **Warum 30 und nicht 10** (Kritik): der Schutz kommt aus der Entropie (2^256), die Schranke bremst nur; ein abgeschnittener Link, den eine ganze Führungsstelle hinter derselben öffentlichen Adresse ein paar Mal neu lädt, soll nicht für eine Minute auch alle gültigen Links dieser Adresse sperren. 60 wäre ebenso sicher, verlängert aber den e2e-Schrankentest so, dass er unter Last das gleitende 60-s-Fenster überschreiten kann. Preis, bewusst hingenommen und riskante Annahme: ohne `cf-connecting-ip` (lokal, http im LAN, Direktzugriff am Proxy vorbei) teilen sich alle den Eimer `"unknown"` — wer dann dreißigmal rät, sperrt eine Minute lang alle Token-Ansichten dieses Prozesses; das ist eine Rollout-Bedingung („An den Hauptlauf" 2), kein eigener Eimer. Auf dem Zielhost kommt `cf-connecting-ip` laut `src/proxy.ts` (Rewrite intern, Messbericht 2026-08-22) unverfälscht an.
 6. **Abrufe zählen ohne Schreiblast:** ein `UPDATE plan_freigabe SET abrufe = abrufe + 1, zuletzt_abgerufen = ?` (ein Statement, kein Lesen davor, keine Audit-Zeile) je Seitenabruf (Ansicht **oder** Druck); dieselbe Adresse und derselbe Link zählen binnen 60 s nur einmal (zweiter `RateLimiter` mit `max: 1` als Entpreller). Neuladen, ein Druck direkt nach dem Ansehen oder ein Bot im Takt schreiben also höchstens einmal je Minute und Adresse. `zuletzt_abgerufen` kann dadurch bis zu 60 s alt sein; „Abrufe" ist eine Größenordnung, keine Zählung einzelner Klicks — so steht es im Flyin („Abrufe" ohne Zusatz).
-7. **Antwortköpfe im Proxy** (Spec §8.2 `noindex`, `Cache-Control: no-store`; dazu `Referrer-Policy: no-referrer`, damit der Token nicht per `Referer` an verlinkte Seiten geht): eine Seite kann keine Köpfe setzen. `src/core/routing.ts` bekommt am Dateiende `antwortKoepfeFuer(internerPfad)` (eine Liste vertraulicher Ansichten, heute nur `/m/kommplan/t/`), `src/proxy.ts` am Dateiende `mitVertraulichenKoepfen(antwort, anfragePfad)` und ruft sie in `proxy()` nach dem Rewrite-Rückschreiben. Gemessen wird am **internen** Pfad (Rewrite-Ziel, sonst Anfragepfad), damit `/t/x` auf dem Modul-Host und `/m/kommplan/t/x` gleich behandelt werden — auch beim 404. Köpfe: `x-robots-tag: noindex, nofollow, noarchive`, `referrer-policy: no-referrer`, `cache-control: no-store` (Next setzt bei dynamischen Seiten selbst `private, no-cache, no-store, …`; zugesichert wird „enthält `no-store`"). Dazu statische Metadaten an jeder Token-Seite (`robots: { index: false, follow: false, nocache: true }`, `referrer: "no-referrer"`, Titel „Kommunikationsplan" ohne Plantitel) — **kein** `generateMetadata`, das die Datenbank anfasst. Kein Registry-Feld: `registry.ts` trägt Dutzende Zeilenanker in fremden Dokumenten, und eine einzelne Ansicht rechtfertigt kein neues Modulfeld.
-8. **Token-Ansicht** `/t/[token]`: eigener Rahmen `_ui/token/TokenRahmen.tsx` nach docs/design/feedback-oeffentliche-ansicht.md (3-px-Fahne und Wortzeichen „IDA" als einzige Suite-Rot-Stellen, Kicker „KOMMUNIKATIONSPLAN"), **keine** Suite-Hülle, kein App-Umschalter, kein Login-Hinweis. Darunter ein HTML-Kopf (`TokenKopf`): Organisation und Logo aus dem Briefkopf (Logo als `<image>` mit `data:`-URI in einem kleinen Inline-SVG — kein `<img>`, keine Bildroute, ein SVG-Logo führt dort kein Skript aus), Plantitel als `h1`, „Art · Anlass · Datum", „Stand 30.09.2026, 14:05 · Bearbeitung: …", der VS-NfD-Vermerk als neutral umrandete Zeile (wenn die Option an ist) und das Druckmenü (A4/A3, Ziel `/t/<token>/druck/…`). Darunter **derselbe** `Betrachter` (Zoom, Verschieben, Einklappen, Legende) mit dem aktuellen Stand. Der Rahmen ist eine eigene Datei im Modul statt `files/_ui/OeffentlicherRahmen.tsx` (kein Modul importiert aus einem anderen) — **Ticketkandidat:** öffentlichen Rahmen nach `core` heben, sobald beide ihn teilen sollen.
+7. **Antwortköpfe im Proxy** (Spec §8.2 `noindex`, `Cache-Control: no-store`; dazu `Referrer-Policy: no-referrer`, damit der Token nicht per `Referer` an verlinkte Seiten geht): eine Seite kann keine Köpfe setzen. `src/core/routing.ts` bekommt am Dateiende `antwortKoepfeFuer(internerPfad)` (eine Liste vertraulicher Ansichten, heute nur `/m/kommplan/t/`), `src/proxy.ts` am Dateiende `mitVertraulichenKoepfen(antwort, anfragePfad)` und ruft sie in `proxy()` nach dem Rewrite-Rückschreiben. Gemessen wird am **internen** Pfad (Rewrite-Ziel, sonst Anfragepfad), damit `/t/x` auf dem Modul-Host und `/m/kommplan/t/x` gleich behandelt werden — auch beim 404. Köpfe: `x-robots-tag: noindex, nofollow, noarchive`, `referrer-policy: no-referrer`, `cache-control: no-store` (Next setzt bei dynamischen Seiten selbst `private, no-cache, no-store, …`; zugesichert wird „enthält `no-store`"). Dazu statische Metadaten an jeder Token-Seite (`robots: { index: false, follow: false, nocache: true }`, `referrer: "no-referrer"`, Titel „Kommunikationspläne" — der Modulname, typneutral, ohne Plantitel; eine Fernmeldeskizze hieße sonst im Tab „Kommunikationsplan") — **kein** `generateMetadata`, das die Datenbank anfasst. Kein Registry-Feld: `registry.ts` trägt Dutzende Zeilenanker in fremden Dokumenten, und eine einzelne Ansicht rechtfertigt kein neues Modulfeld.
+8. **Token-Ansicht** `/t/[token]`: eigener Rahmen `_ui/token/TokenRahmen.tsx` nach docs/design/feedback-oeffentliche-ansicht.md (3-px-Fahne und Wortzeichen „IDA" als einzige Suite-Rot-Stellen des eigenen Markups, Kicker „KOMMUNIKATIONSPLÄNE" — der Modulname, typneutral wie der `<title>`; die Art steht in der Angabenzeile), **keine** Suite-Hülle, kein App-Umschalter, kein Login-Hinweis. **Abweichung vom Abendzettel** (Kritik): jener ist „ohne antd" gebaut; die Token-Ansicht lädt antd über den `Betrachter` (die Spec verlangt **denselben** Betrachter) und über das `DruckMenue`. Der Rahmen selbst, `TokenKopf` und die 404-Seite bleiben ohne antd. Folgen: ohne Hülle gilt die Bediendichte 56/72 (README, Falle 4) — Task 16 misst die Knopfhöhen; die antd-Knöpfe färben Hover und Fokus in Suite-Rot (`colorPrimary`), keine Fläche, kein `type="primary"`. Neutrale Bedienknöpfe für öffentliche Ansichten wären ein `ConfigProvider` mit eigenem Hell/Dunkel-Satz — **Ticketkandidat** (öffentliche Ansichten mit antd-Inseln, zusammen mit dem Rahmen unten). **Höhe** (Kritik): die Seite ist eine `100dvh`-Spalte (`.kp-token-seite`/`.kp-token-blatt` als Raster mit `grid-template-rows: auto auto minmax(0, 1fr)`), der Betrachter füllt den Rest (`.kp-token-flaeche` mit `min-height: 0`, `.kp-token-flaeche .kp-betrachter { height: 100%; min-height: 320px }`) — sonst ist die Seite am Telefon höher als der Schirm, und jede Wischbewegung auf dem Betrachter verschiebt das Diagramm statt der Seite. Am Telefon stehen Angaben und Stand in einer Zeile, der Vermerk inline. Darunter ein HTML-Kopf (`TokenKopf`): Organisation und Logo aus dem Briefkopf (Logo als `<image>` mit `data:`-URI in einem kleinen Inline-SVG — kein `<img>`, keine Bildroute, ein SVG-Logo führt dort kein Skript aus), Plantitel als `h1`, „Art · Anlass · Datum", „Stand 30.09.2026, 14:05 · Bearbeitung: …", der VS-NfD-Vermerk als neutral umrandete Zeile (wenn die Option an ist) und das Druckmenü (A4/A3, Ziel `/t/<token>/druck/…`). Darunter **derselbe** `Betrachter` (Zoom, Verschieben, Einklappen, Legende) mit dem aktuellen Stand. Der Rahmen ist eine eigene Datei im Modul statt `files/_ui/OeffentlicherRahmen.tsx` (kein Modul importiert aus einem anderen) — **Ticketkandidat:** öffentlichen Rahmen nach `core` heben, sobald beide ihn teilen sollen.
 9. **Token-Druck** `/t/[token]/druck/a4` und `…/a3`: dieselbe Druckseite ohne SVG-Export. Der QR-Code auf dem Token-Druck codiert **den benutzten Token** — nie den „besten" Link des Plans: sonst bekäme, wer einen 24-h-Link hat, beim Drucken den unbegrenzten (Review Focus 1).
-10. **QR auf dem internen Druck** (Option `qrAufDruck`, Spec §8.2): unter den gültigen Links des Plans gewinnt „unbegrenzt", sonst der späteste Ablauf, bei Gleichstand der zuletzt ausgestellte (`waehleQrFreigabe`). Basis-URL ist `moduleUrl("kommplan")` (aus `SUITE_HOST_KOMMPLAN` über `prodHostsFor`, lokal `http://kommplan.localtest.me:<PORT>`) — nie der Request-Host (Vorbild `radio/admin/(druck)/zugaenge/blatt/page.tsx`). Liefert `moduleUrl` `null`, gibt es keinen QR, und „Link ausstellen" ist gesperrt mit dem Hinweis „Für die Kommunikationspläne ist keine Adresse eingerichtet. Links lassen sich erst ausstellen, wenn der Betrieb sie festlegt." Ohne gültigen Link kein QR, und im Flyin „Plan und Verbindungen" steht unter dem Schalter „Ohne gültigen Link druckt der Plan keinen QR-Code. Stelle unter „Teilen“ einen Link aus."
-11. **Platz für den QR** (Spec §5.6 nennt ihn nicht): `QR_BOX = { kante: 20, beschriftung: 4, luft: 3 }` mm unten rechts, direkt über der Fußzeile; darüber die Beschriftung „Aktuelle Fassung" (7 pt). Gemessen mit `qrSvg` (Fehlerkorrektur H, Rand 4, `core/qr` unverändert): eine 72-Zeichen-URL `https://kommplan.iuk-ue.de/t/<43>` ergibt Version 7 = 45 Module + 8 Rand = 53 → 0,38 mm je Modul bei 20 mm. Reserviert wird **nur**, wenn tatsächlich ein QR gedruckt wird (`teileAuf(inhalt, format, { qr: true })`); dann endet die Zeichenfläche über der QR-Box, und die Legende wird um `kante + luft` schmaler. Ohne QR ist alles bytegleich zu vorher (Golden-Tests unverändert). Preis: einen Link auszustellen kann Maßstab und Blattzahl des Drucks ändern (Review Focus 5).
-12. **„Drucken" als Menü** (ersetzt Phase-2-Entscheidung 20): ein Knopf „Drucken" mit Pfeil öffnet „A4 quer" und „A3 quer" — im Editor (vorher speichern, `window.open` synchron im Menü-Klick wie bisher), im Betrachter und in der Token-Ansicht (`window.open(…, "_blank", "noopener")` im Menü-Klick — keine Anker im Menü, sonst bliebe die Wahl per Enter wirkungslos). Der alte Name „Drucken (A4 quer)" verschwindet überall (DOM-Tests, e2e, Release-Notiz).
+10. **QR auf dem internen Druck** (Option `qrAufDruck`, Spec §8.2): unter den gültigen Links des Plans gewinnt „unbegrenzt", sonst der späteste Ablauf, bei Gleichstand der zuletzt ausgestellte (`waehleQrFreigabe`). Basis-URL ist `moduleUrl("kommplan")` (aus `SUITE_HOST_KOMMPLAN` über `prodHostsFor`, lokal `http://kommplan.localtest.me:<PORT>`) — nie der Request-Host (Vorbild `radio/admin/(druck)/zugaenge/blatt/page.tsx`). Liefert `moduleUrl` `null`, gibt es keinen QR, und „Link ausstellen" ist gesperrt mit dem Hinweis „Für die Kommunikationspläne ist keine Adresse eingerichtet. Links lassen sich erst ausstellen, wenn der Betrieb sie festlegt." Ohne gültigen Link kein QR, und im Flyin „Plan und Verbindungen" steht unter dem Schalter „Ohne gültigen Link druckt der Plan keinen QR-Code." mit dem Knopf „Link ausstellen", der direkt auf das Flyin „Teilen" umschaltet (Kritik: vorher reiner Text, zwei getrennte Flyins). **Wohin der QR führt, steht da, wo man ihn einschaltet** (Kritik — ein einziger 24-h-Link hinge sonst am nächsten Tag als toter QR im Führungsraum): bei eingeschaltetem QR und gültigem Link sagt `qrZielSatz` „Der QR-Code führt auf „Aushang“ – unbegrenzt gültig." bzw. „… – gültig bis 02.10.2026, 20:00; danach führt der Ausdruck ins Leere." — im Plan-Flyin, im Teilen-Flyin und in der `noprint`-Leiste der internen Druckseite. Der Editor wählt dafür aus seinem Freigaben-Zustand mit `besteFreigabe` (dieselbe Rangfolge wie `waehleQrFreigabe`, aber ohne Uhr über den vom Server berechneten Status — kein `Date.now()` im Rendern); die Druckseite rechnet frisch. Das Teilen-Flyin trägt denselben Schalter „QR-Code „Aktuelle Fassung“ auf dem Ausdruck" (dieselbe Option `qrAufDruck`, eine Quelle, zwei Orte) — wer einen Link ausstellt, sieht dort, ob der Ausdruck ihn trägt.
+11. **Platz für den QR** (Spec §5.6 nennt ihn nicht): `QR_BOX = { kante: 24, beschriftung: 4, luft: 3 }` mm unten rechts, direkt über der Fußzeile; darüber die Beschriftung „Aktuelle Fassung" (7 pt). Gemessen mit `qrcode` (Fehlerkorrektur H, Rand 4, `core/qr` unverändert) an **echten** Tokens (`randomBytes(32).toString("base64url")`, 300 Läufe; Kritik: `"A".repeat(43)` kodiert alphanumerisch und täuscht Version 7 vor): eine 72-Zeichen-URL `https://kommplan.iuk-ue.de/t/<43>` wird als Byte-Segment kodiert und ergibt **immer Version 8 = 49 Module + 8 Rand = 57** → bei 20 mm nur 0,35 mm je Modul, deshalb 24 mm → **0,42 mm**. Ein längerer Produktionshost (ab ≈ 87 Zeichen URL) ergibt Version 9 = 61 → 0,39 mm. Reserviert wird **nur**, wenn tatsächlich ein QR gedruckt wird (`teileAuf(inhalt, format, { qr: true })`); dann endet die Zeichenfläche über der QR-Box, und die Legende wird um `kante + luft` schmaler. Ohne QR ist alles bytegleich zu vorher (Golden-Tests unverändert). Preis: einen Link auszustellen kann Maßstab und Blattzahl des Drucks ändern (Review Focus 5).
+12. **„Drucken" als geteilter Knopf** (ersetzt Phase-2-Entscheidung 20; Kritik: ein reines Menü kostete im Regelfall A4 zwei Klicks, und per Tastatur blieb der Fokus nach Enter am Knopf): `Space.Compact` aus dem Knopf „Drucken", der **direkt A4 quer** druckt, und einem Pfeilknopf „Weitere Druckformate" (`Dropdown` mit `autoFocus`, `trigger={["click"]}`) mit „A4 quer" und „A3 quer" — intern zusätzlich die Gruppe „SVG-Dateien" (Entscheidung 15). `Dropdown.Button` ist in antd 6 veraltet (`devUseWarning`: „Space.Compact + Dropdown + Button"). Im Editor (vorher speichern, `window.open` synchron im Klick wie bisher), im Betrachter und in der Token-Ansicht (`window.open(…, "_blank", "noopener")` im Klick — keine Anker im Menü, sonst bliebe die Wahl per Enter wirkungslos: `@rc-component/menu` aktiviert nur bei `e.which === 13`). Die Blattzahl je Format im Menü („A4 quer · 3 Blätter") entfällt: sie hängt am QR (Option, gültiger Link) und kostete je Öffnen eine Aufteilung im Client; die Druckseite zeigt die Blätter. Der alte Name „Drucken (A4 quer)" verschwindet überall (DOM-Tests, e2e, Release-Notiz).
 13. **A3 quer** als eigene Routen `/p/[id]/druck/a3` und `/t/[token]/druck/a3` (Falle 18). **Ein** Stylesheet `_ui/druck/druck.css` mit `@page kommplan-a4 { size: 297mm 210mm }` und `@page kommplan-a3 { size: 420mm 297mm }`; die Seite wählt per `.kp-druck[data-format="a4-quer"|"a3-quer"]` — so liegt jedes Dokument auf genau einer benannten Seite, und zwei geladene Stylesheets können sich nicht überschreiben. Die Druckseite ist eine gemeinsame Server-Komponente `_ui/druck/Druckseite.tsx` (ohne Riegel — die Routen riegeln), die Daten baut `_lib/druckdaten.ts`. `Drucken.tsx` zieht nach `_ui/druck/`.
 14. **Schwarzweiß** (`optionen.schwarzweiss`, Spec §8.1): wirkt auf **Druck** (A4/A3, intern und Token) und **SVG-Export**; **Bildschirm bleibt farbig** (Editor, Betrachter, Token-Ansicht). Begründung: die Organisationsfarbe der Taktischen Zeichen ist am Bildschirm die schnellste Erkennung; Schwarzweiß ist eine Eigenschaft von Drucker und Kopierer, nicht der Planansicht — und ein grauer Bildschirm ließe die Bearbeitenden glauben, der Plan habe seine Farben verloren. Umsetzung: zweites Rezept-Generat `_lib/zeichen/zeichen-sw.generiert.json` aus demselben Generatorlauf mit `renderSvg(…, { theme: PRINT_MONOCHROME_THEME })` (inklusive der Zusatzzeichen aus D.1.4) — Grauwerte **und** Strichmuster der Organisationen, die eine reine Farbersetzung nicht hätte (Probelauf in der Planung mit catalog 1.5.0/core 3.0.0: 232 Hauptrezepte, 0 mit Buntton, 207 mit `stroke-dasharray`, 11 unverändert, weil schon schwarz-weiß); `symboleFuer(inhalt, { schwarzweiss })`. Auf dem Blatt: `data-sw` am `<svg>`, ein `<style>` setzt hervorgehobene Kartenköpfe (`[data-hervor]`) auf `#e6e6e6`, das Logo bekommt einen Graufilter (`<filter id="kp-grau">` mit `feColorMatrix saturate 0`). Kommunikations- und Kontaktpiktogramme sind schon schwarz. Im Flyin „Plan und Verbindungen" der Schalter „Schwarzweiß drucken" mit dem Satz „Gilt für Ausdruck und SVG-Datei; am Bildschirm bleibt der Plan farbig."
-15. **SVG herunterladen** (Spec §8.1 „je Seite"): auf den **internen** Druckseiten über jedem Blatt ein Knopf „SVG herunterladen (Blatt n von y)" (nicht gedruckt). Die Datei ist eigenständig: das Blatt plus der Abschluss aller per `href="#…"`/`xlink:href`/`url(#…)` erreichten `<defs>`-Einträge aus dem gemeinsamen Vorrat (Symbole, Piktogramme, Logo, Graufilter), Breite und Höhe in mm, Hintergrund weiß, ein `<style>` mit `@font-face { font-family: "Arimo"; src: url(data:font/ttf;base64,…) }` und als Schriftliste `Arimo, Arial, "Liberation Sans", Helvetica, sans-serif` — Arimo ist metrisch gleich mit Arial und Liberation Sans, also setzen auch Programme ohne `@font-face`-Unterstützung (Inkscape, Illustrator) die Zeilen gleich breit. Die Schriftbytes kommen aus einem dritten, eingecheckten Generat `_lib/zeichen/schrift.generiert.json` (Base64 von `Arimo-Variable.ttf`, ≈ 110 KB), das die Insel **erst beim Klick** per dynamischem `import()` lädt — kein `fs` zur Laufzeit (unter `output: "standalone"` wäre `_fonts/` nicht mitkopiert), kein Ballast auf jeder Druckseite. Dateiname `<titel>_<YYYY-MM-DD>_blatt-<n>-von-<y>_<a4|a3>.svg`: Titel mit ä→ae, ö→oe, ü→ue, ß→ss, sonst Diakritika weg, alles außer `A–Z a–z 0–9` → „-", höchstens 60 Zeichen, leer → „kommunikationsplan"; Datum = Plandatum, sonst der Tag des Stands in der Suite-Zone. Der Token-Druck hat keinen SVG-Export (Weiterverarbeitung ist Sache der Bearbeitenden; die Token-Ansicht ist Lesen und Drucken).
-16. **„Als Vorlage speichern" legt eine Kopie an** (ändert Phase-4-Entscheidung 7, Vorgabe des Hauptlaufs: ein laufender Plan soll nicht unbemerkt in die Vorlagenliste wandern): neue ID, Titel **unverändert**, Art, Anlass und Inhalt kopiert, **Datum leer** (eine Vorlage hat keinen Einsatztag; „Neu aus Vorlage" setzt heute, Phase-4-Entscheidung 8), `ist_vorlage = 1`, Version 1, Stand jetzt. Der Ausgangsplan bleibt unverändert in „Pläne"; Links werden nicht mitkopiert. Hinweis: „Vorlage „<Titel>“ angelegt — sie steht unter „Vorlagen“." **„Keine Vorlage mehr" archiviert die Vorlage** (wiederherstellbar, mit „Rückgängig" im Hinweis „„<Titel>“ ist keine Vorlage mehr und liegt im Archiv."); der Menüpunkt „Archivieren" entfällt in der Vorlagen-Liste (sonst zwei Wege zu derselben Wirkung). Löschen gibt es weiterhin nicht (Spec §8.3). Im Archiv trägt eine Vorlage das Kennzeichen „Vorlage" und kehrt beim Wiederherstellen unter „Vorlagen" zurück. `setzeVorlage`/`setzeVorlageAction` entfallen; neu ist `speichereAlsVorlage`/`speichereAlsVorlageAction`. Eine Vorlage lässt sich nicht noch einmal „als Vorlage speichern" (der Menüpunkt steht nur in „Pläne").
-17. **Teilen-Flyin** (`_ui/teilen/Teilen.tsx`, `Drawer` `flyinBreite(520)`, ohne Maske wie die übrigen Flyins, freigehalten über `flyinGrund`): oben „Neuen Link ausstellen" mit „Gültig für" (24 Stunden · 7 Tage · 30 Tage · Unbegrenzt; Vorgabe 7 Tage) und „Notiz (wofür, für wen)", Knopf „Link ausstellen"; der neue Link steht danach zuoberst, hervorgehoben, mit „Link kopieren" im Fokus. Darunter „Gültige Links" (je Eintrag: Notiz oder „ohne Notiz", „gültig bis …"/„unbegrenzt gültig", „ausgestellt … von …", „noch nie abgerufen"/„n Abrufe, zuletzt …", die URL in Kleinschrift, „Link kopieren", „Widerrufen" mit `Popconfirm` „Link widerrufen? Wer ihn hat, sieht den Plan danach nicht mehr."), dann eingeklappt „Abgelaufen und widerrufen (n)". **Kopieren:** `navigator.clipboard.writeText` nur im sicheren Kontext; sonst (http im LAN, `*.localtest.me`) ein unsichtbares `textarea` mit `document.execCommand("copy")`, Fokus danach zurück; schlägt beides fehl, erscheint die URL markiert in einem Lesefeld mit „Kopieren ging hier nicht von selbst — der Link ist markiert. Kopiere ihn mit Strg+C bzw. ⌘C." Meldungen in einem `role="status"`. Die Actions geben die **ganze** Liste mit serverseitig berechnetem Status zurück; der Editor hält sie im Zustand, damit der QR-Hinweis im Plan-Flyin nach Ausstellen und Widerrufen stimmt (kein `Date.now()` im Rendern).
+15. **SVG herunterladen** (Spec §8.1 „je Seite"): auf den **internen** Druckseiten über jedem Blatt ein Knopf „SVG herunterladen (Blatt n von y)" (nicht gedruckt). **Erreichbar ohne Druckdialog** (Kritik: vorher nur über Drucken → Format → Dialog abbrechen): das interne Druckmenü trägt die Gruppe „SVG-Dateien" mit „SVG – A4 quer" und „SVG – A3 quer"; sie öffnen `…/druck/<format>?export=svg`. Die Seite liest `searchParams` und reicht `automatisch={false}` an `Drucken` — kein `window.print()` beim Laden, oben steht „Zum Herunterladen: je Blatt ein Knopf. Drucken geht weiter über „Drucken“." Die Datei ist eigenständig: das Blatt plus der Abschluss aller per `href="#…"`/`xlink:href`/`url(#…)` erreichten `<defs>`-Einträge aus dem gemeinsamen Vorrat (Symbole, Piktogramme, Logo, Graufilter), Breite und Höhe in mm, Hintergrund weiß, ein `<style>` mit `@font-face { font-family: "Arimo"; src: url(data:font/ttf;base64,…) }` und als Schriftliste `Arimo, Arial, "Liberation Sans", Helvetica, sans-serif` — Arimo ist metrisch gleich mit Arial und Liberation Sans, also setzen auch Programme ohne `@font-face`-Unterstützung (Inkscape, Illustrator) die Zeilen gleich breit. Die Schriftbytes kommen aus einem dritten, eingecheckten Generat `_lib/zeichen/schrift.generiert.json` (Base64 von `Arimo-Variable.ttf`, ≈ 110 KB), das die Insel **erst beim Klick** per dynamischem `import()` lädt — kein `fs` zur Laufzeit (unter `output: "standalone"` wäre `_fonts/` nicht mitkopiert), kein Ballast auf jeder Druckseite. Dateiname `<titel>_<YYYY-MM-DD>_blatt-<n>-von-<y>_<a4|a3>.svg`: Titel mit ä→ae, ö→oe, ü→ue, ß→ss, sonst Diakritika weg, alles außer `A–Z a–z 0–9` → „-", höchstens 60 Zeichen, leer → „kommunikationsplan"; Datum = Plandatum, sonst der Tag des Stands in der Suite-Zone. Der Token-Druck hat keinen SVG-Export (Weiterverarbeitung ist Sache der Bearbeitenden; die Token-Ansicht ist Lesen und Drucken).
+16. **„Als Vorlage speichern" legt eine Kopie an** (ändert Phase-4-Entscheidung 7, Vorgabe des Hauptlaufs: ein laufender Plan soll nicht unbemerkt in die Vorlagenliste wandern): neue ID, Titel **unverändert**, Art, Anlass und Inhalt kopiert, **Datum leer** (eine Vorlage hat keinen Einsatztag; „Neu aus Vorlage" setzt heute, Phase-4-Entscheidung 8), `ist_vorlage = 1`, Version 1, Stand jetzt. Der Ausgangsplan bleibt unverändert in „Pläne"; Links werden nicht mitkopiert. Hinweis: „Vorlage „<Titel>“ angelegt — sie steht unter „Vorlagen“." Der Hinweis trägt den Knopf „Vorlage öffnen" (`/p/<neue id>`, aus `AnlageErgebnis.id`; Kritik: meist will man die Kopie sofort von Namen und Nummern des Einsatzes bereinigen). **In der Vorlagenliste heißt der Punkt „Vorlage archivieren"** (Kritik: „Keine Vorlage mehr" versprach, der Eintrag werde ein normaler Plan; dasselbe Verb wie in „Pläne") und archiviert die Vorlage (wiederherstellbar, mit „Rückgängig" im Hinweis „Vorlage „<Titel>“ archiviert."); ein zweiter Punkt „Archivieren" entfällt dort (ein Weg zu einer Wirkung). Den Namen „Keine Vorlage mehr" gibt es danach nicht mehr. Löschen gibt es weiterhin nicht (Spec §8.3). Im Archiv trägt eine Vorlage das Kennzeichen „Vorlage" und kehrt beim Wiederherstellen unter „Vorlagen" zurück. `setzeVorlage`/`setzeVorlageAction` entfallen; neu ist `speichereAlsVorlage`/`speichereAlsVorlageAction`. Eine Vorlage lässt sich nicht noch einmal „als Vorlage speichern" (der Menüpunkt steht nur in „Pläne").
+17. **Teilen-Flyin** (`_ui/teilen/Teilen.tsx`, `Drawer` `flyinBreite(520)`, ohne Maske wie die übrigen Flyins, freigehalten über `flyinGrund`; `autoFocus={basis === null}` und die Notiz mit `autoFocus` — Kritik: sonst fokussierte rc-drawer seinen Container, Vorbild `StelleFlyin`; Tastaturweg „Teilen" → Notiz tippen → Enter → Enter = kopiert): oben „Neuen Link ausstellen" mit „Gültig für" (24 Stunden · 7 Tage · 30 Tage · Unbegrenzt; Vorgabe 7 Tage) und „Notiz (wofür, für wen)", Knopf „Link ausstellen"; der neue Link steht danach zuoberst, hervorgehoben, mit „Link kopieren" im Fokus. Darunter „Gültige Links" (je Eintrag: Notiz oder „ohne Notiz", „gültig bis …"/„unbegrenzt gültig", „ausgestellt … von …", „noch nie abgerufen"/„n Abrufe, zuletzt …", die URL in Kleinschrift, „Link kopieren", „Widerrufen" mit `Popconfirm` „Link widerrufen? Wer ihn hat, sieht den Plan danach nicht mehr."), dann eingeklappt „Abgelaufen und widerrufen (n)". **Kopieren:** `navigator.clipboard.writeText` nur im sicheren Kontext; sonst (http im LAN, `*.localtest.me`) ein unsichtbares `textarea` mit `document.execCommand("copy")`, Fokus danach zurück; schlägt beides fehl, erscheint die URL markiert in einem Lesefeld mit „Kopieren ging hier nicht von selbst — der Link ist markiert. Kopiere ihn mit Strg+C bzw. ⌘C." Meldungen in einem `role="status"` (für Screenreader); **sichtbar antwortet der Eintrag selbst** (Kritik): „Link kopieren" zeigt für etwa 2 s „Kopiert", und das markierte Lesefeld des Rückfalls erscheint **im betroffenen Eintrag**, nicht oben. Nach „Widerrufen" geht der Fokus auf den nächsten gültigen Eintrag („Link kopieren"), sonst auf die Legende „Gültige Links (0)" (`tabIndex={-1}`) — der Popconfirm-Knopf ist mit dem Eintrag verschwunden. Der neue Link trägt den Rahmen in `--kp-auswahl` (Bildschirmfarbe, hell und dunkel definiert), nicht `--kp-auswahl-papier`. Darunter der QR-Schalter (Entscheidung 10). Die Actions geben die **ganze** Liste mit serverseitig berechnetem Status zurück; der Editor hält sie im Zustand, damit der QR-Hinweis im Plan-Flyin nach Ausstellen und Widerrufen stimmt (kein `Date.now()` im Rendern).
 18. **Release-Notiz** (Vorgabe des Hauptlaufs: endgültige Notiz für das ganze Modul): dieselbe Datei, **ein** Absatz, ein bis drei Sätze, höchstens 320 Zeichen, Du-Form, nur Namen vom Bildschirm. Wortlaut in Task 14; die Länge wird dort per `node` gezählt.
 
 ## Review Focus
@@ -64,7 +64,8 @@
 4. **Plan-ID in den Flight-Daten** — die Token-Seite reicht nur Planinhalt (Stellen-IDs), Titel und Token an Client-Inseln; die Plan-ID steht weder im HTML noch im RSC-Payload. Gepinnt im e2e mit einem frisch angelegten Plan (UUID, nicht Seed-ID) gegen den ganzen Antworttext (Task 15) und in `riegel.test.ts` (keine `id` aus `params`, Task 8).
 5. **Ein neuer Link verändert den Druck** — mit QR wird die Zeichenfläche kürzer, ein knapp passender Plan bekommt ein zweites Blatt oder einen kleineren Maßstab; nie überdeckt die Zeichnung den QR, nie läuft die Legende hinein. Gepinnt in `_lib/layout/papier.test.ts` und `eigenschaften.test.ts` (Task 10, Zufallsbäume, beide Formate).
 6. **Die SVG-Datei taugt allein** — jede `#id`-Referenz der Datei löst in der Datei auf, Arimo ist eingebettet, Titel mit Umlauten, Schrägstrichen, Anführungszeichen oder Emoji ergeben einen ASCII-Dateinamen. Gepinnt in `_lib/dateiname.test.ts`, `_ui/druck/svgExport.test.ts` (Task 12) und im e2e-Download (Task 15).
-7. **Archivieren oder Widerrufen bei offener Token-Ansicht** — die nächste Anfrage (Neuladen, Druck) ist 404, auch wenn dieselbe Adresse den Link eben noch zählen ließ (Entpreller zählt, prüft aber nicht). Gepinnt in `_lib/tokenZugang.test.ts` (Task 7) und im e2e (Task 15).
+7. **Archivieren oder Widerrufen bei offener Token-Ansicht** — die nächste Anfrage (Neuladen, Druck) ist 404, auch wenn dieselbe Adresse den Link eben noch zählen ließ (Entpreller zählt, prüft aber nicht). Gepinnt in `_lib/tokenZugang.test.ts` (Task 7) und im e2e (Task 15). **Archivieren widerruft** die Links, Wiederherstellen erweckt keinen (Entscheidung 3) — gepinnt in `_lib/freigaben.test.ts` (Task 2).
+8. **Der Verteilweg bleibt kurz** (Kritik; Bilanz am Referenzplan „Einsatz 22.02.2026"). Der Aufbau des Plans selbst kostet ≈ 100 Schritte (Kontakte und Zeichen, außerhalb dieser Phase). Phase 5 nach dem ersten Planstand hätte den Weg danach — teilen, QR, drucken, SVG — auf ≈ 15 Schritte über zwei Flyins, ein Menü und einen Druckdialog verlängert. Nach der Kritik: **Teilen → Notiz → Enter → Enter** (Link ausgestellt und kopiert, Fokus folgt; Entscheidung 17) · QR im selben Flyin einschalten, 1 Schritt (Entscheidung 10) · **Drucken** = 1 Klick für A4 quer, A3 über den Pfeil 2 (Entscheidung 12) · SVG direkt aus dem Menü ohne Druckdialog, 2 Schritte plus 1 je Blatt (Entscheidung 15) — zusammen ≈ 7–8. Gepinnt in `Teilen.test.tsx` (Anfangsfokus, Fokus nach Ausstellen), `DruckMenue.test.tsx` (Hauptknopf druckt A4) und im e2e-Tastaturweg (Task 5).
 
 ---
 
@@ -76,22 +77,21 @@ Im Folgenden steht `K` für `src/app/m/kommplan`.
 K/
 ├── _lib/
 │   ├── freigabe/regeln.ts              NEU, rein: FREIGABE_DAUERN, DAUER_NAME, DAUER_VORGABE, FREIGABE_GRENZE, TOKEN_MUSTER,
-│   │                                              istTokenForm, ablaufFuer, freigabeStatus, waehleQrFreigabe, tokenPfad,
+│   │                                              istTokenForm, ablaufFuer, freigabeStatus, besteFreigabe, waehleQrFreigabe, tokenPfad,
 │   │                                              tokenUrl, ausstellenSchema, widerrufenSchema, FreigabeZeile, FreigabeStatus
+│   ├── freigabe/texte.ts               NEU, rein: ZEIT, ablaufText, abrufText, qrZielSatz (Teilen, PlanFlyin, Druckdaten)
 │   ├── freigaben.ts                    NEU (Server): neuesToken, freigabenFuer, stelleFreigabeAus, widerrufeFreigabe,
 │   │                                                 loeseToken, zaehleAbruf, qrTokenFuer, TokenTreffer
 │   ├── tokenZugang.ts                  NEU (Server): TOKEN_SCHRANKE, neueSchranken, pruefeTokenAbruf, tokenAbruf, tokenPlanOder404
 │   ├── tokenMetadaten.ts               NEU (rein, Typ-Import aus next): TOKEN_METADATEN
-│   ├── druckdaten.ts                   NEU (Server): druckseitenDaten, qrUrlIntern, qrUrlFuerToken
+│   ├── druckdaten.ts                   NEU (Server): druckseitenDaten, qrZielIntern, qrUrlFuerToken
 │   ├── qrGrafik.ts                     NEU, rein: QrGrafik, qrGrafikAus
 │   ├── dateiname.ts                    NEU, rein: asciiTeil, svgDateiname
 │   ├── ergebnis.ts                     geändert: FreigabeErgebnis
 │   ├── layout/masse.ts                 geändert: QR_BOX (Dateiende)
 │   ├── layout/papier.ts                geändert: PapierOptionen, qrBox, legendenBreite; zeichenflaeche/teileAuf mit qr
 │   ├── plan/operationen.ts             geändert: setzeOptionen nimmt alle vier Optionen
-│   ├── planverwaltung.ts               geändert: speichereAlsVorlage statt setzeVorlage
-│   ├── plaene.ts                       geändert: Listenzeile im Archiv mit Vorlage-Kennzeichen (vorhandenes Feld `vorlage`)
-│   ├── rahmen.ts                       geändert: rahmenFuer reicht qr und schwarzweiss durch
+│   ├── planverwaltung.ts               geändert: archiviere widerruft die Links (Task 2), speichereAlsVorlage statt setzeVorlage (Task 13)
 │   └── zeichen/
 │       ├── zeichen.ts                  geändert: symboleFuer(…, { schwarzweiss })
 │       ├── zeichen-sw.generiert.json   NEU (generiert)
@@ -102,30 +102,32 @@ K/
 ├── _ui/
 │   ├── druck/                          NEU
 │   │   ├── druck.css                   (verschoben aus (intern)/p/[id]/druck/a4/, zwei benannte @page)
-│   │   ├── Drucken.tsx, Drucken.test.tsx  (verschoben)
-│   │   ├── Druckseite.tsx              Server, ohne antd: Knopf, Blätter, SVG-Knöpfe
-│   │   ├── DruckMenue.tsx              "use client": Drucken ▾ A4 quer / A3 quer
+│   │   ├── Drucken.tsx, Drucken.test.tsx  (verschoben; Prop `automatisch` für den SVG-Weg)
+│   │   ├── Druckseite.tsx              Server, ohne antd: Knopf, QR-Satz, Blätter, SVG-Knöpfe
+│   │   ├── DruckMenue.tsx              "use client": geteilter Knopf „Drucken" (A4) + Pfeil: A4 quer / A3 quer (intern: SVG-Dateien)
 │   │   ├── SvgHerunterladen.tsx        "use client": ein Knopf je Blatt
 │   │   └── svgExport.ts                DOM: verweiseIn, eigenstaendigesSvg, SCHRIFTLISTE
 │   ├── teilen/                         NEU ("use client")
 │   │   ├── Teilen.tsx                  TeilenFlyin, Teilen, TEILEN_FLYIN_GRUND
 │   │   └── zwischenablage.ts           kopiere
-│   ├── token/                          NEU (Server, ohne antd)
+│   ├── token/                          NEU (Server, ohne antd — antd nur in den Inseln Betrachter/DruckMenue)
 │   │   ├── TokenRahmen.tsx, token.css
-│   │   └── TokenKopf.tsx
+│   │   ├── TokenKopf.tsx
+│   │   └── TokenUngueltig.tsx          Inhalt der 404-Seite (testbar ohne Route)
 │   ├── zeichnung/Blatt.tsx             geändert: format, QR, Schwarzweiß, Logo-Graufilter
 │   ├── zeichnung/Druckblaetter.tsx     geändert: format, schwarzweiss an LogoDefs
 │   ├── zeichnung/Karte.tsx             geändert: data-hervor
 │   ├── editor/Editor.tsx               geändert: Flyin „teilen", Freigaben-Zustand, drucken(format), Hinweise an PlanFlyin
-│   ├── editor/Kopfleiste.tsx           geändert: „Teilen", DruckMenue
-│   ├── editor/PlanFlyin.tsx            geändert: Schalter QR und Schwarzweiß, Hinweise
-│   └── kommplan.css                    geändert: Teilen-Liste, Druckmenü
+│   ├── editor/Kopfleiste.tsx           geändert: „Teilen", DruckMenue, Telefon zweispaltig
+│   ├── editor/PlanFlyin.tsx            geändert: Schalter QR und Schwarzweiß, QR-Satz, „Link ausstellen"
+│   └── kommplan.css                    geändert: Teilen-Liste, Druckmenü, Kopfleiste am Telefon
 ├── (intern)/
 │   ├── page.tsx                        unverändert
-│   ├── PlanTabelle.tsx                 geändert: Vorlage als Kopie, Keine Vorlage mehr = archivieren, Kennzeichen „Vorlage"
+│   ├── PlanTabelle.tsx                 geändert: Vorlage als Kopie mit „Vorlage öffnen", „Vorlage archivieren", Kennzeichen „Vorlage"
 │   ├── p/[id]/page.tsx                 geändert: DruckMenue, Teilen-Daten an den Editor
-│   ├── p/[id]/druck/a4/page.tsx        geändert: Druckseite
+│   ├── p/[id]/druck/a4/page.tsx        geändert: Druckseite, `?export=svg`
 │   └── p/[id]/druck/a3/page.tsx        NEU
+├── t/not-found.tsx                     NEU: 404 der Token-Ansicht (Grenze über t/[token]/layout.tsx)
 ├── t/[token]/                          NEU
 │   ├── layout.tsx                      Host + Token (Falle 23)
 │   ├── page.tsx                        Token-Ansicht
@@ -142,7 +144,7 @@ e2e/kommplan.spec.ts                    geändert (A3-Seitengröße, Betrachter-
 e2e/gruppen.json                        geändert (neue Spec)
 ```
 
-Geändert außerhalb des Moduls außerdem: `src/core/audit/coverage-manifest.json`, `src/core/routing.test.ts`, `src/proxy.test.ts`, die Spec (§6.1, §6.2, §6.7, §8.1, §8.2), die Release-Notiz.
+Unverändert, obwohl naheliegend: `_lib/rahmen.ts` (`qr` und `schwarzweiss` setzt `druckseitenDaten` per Spread) und `_lib/plaene.ts` (`Listenzeile.vorlage` gibt es schon). Geändert außerhalb des Moduls außerdem: `src/core/audit/coverage-manifest.json`, `src/core/routing.test.ts`, `src/proxy.test.ts`, die Spec (§6.1, §6.2, §6.7, §8.1, §8.2, §8.3), die Release-Notiz.
 
 ---
 
@@ -162,6 +164,7 @@ Geändert außerhalb des Moduls außerdem: `src/core/audit/coverage-manifest.jso
   - `ablaufFuer(dauer: FreigabeDauer, jetzt: number): number | null`
   - `type FreigabeStatus = "gueltig" | "abgelaufen" | "widerrufen"`, `freigabeStatus(f: { ablauf: number | null; widerrufenAm: number | null }, jetzt: number): FreigabeStatus`
   - `interface FreigabeZeile { id; token; notiz: string | null; ablauf: number | null; widerrufenAm: number | null; erstelltAm: number; erstelltVon: string; zuletztAbgerufen: number | null; abrufe: number; status: FreigabeStatus }`
+  - `besteFreigabe<T extends { erstelltAm: number; ablauf: number | null }>(zeilen: readonly T[]): T | null` (Rangfolge ohne Uhr — für den Editor, der den Status vom Server hat)
   - `waehleQrFreigabe<T extends { token: string; erstelltAm: number; ablauf: number | null; widerrufenAm: number | null }>(zeilen: readonly T[], jetzt: number): T | null`
   - `tokenPfad(token: string): string` (`/t/<token>`), `tokenUrl(basis: string, token: string): string`
   - `ausstellenSchema` (zod: `{ planId, dauer, notiz }`), `widerrufenSchema` (zod: `{ planId, freigabeId }`)
@@ -173,7 +176,7 @@ Geändert außerhalb des Moduls außerdem: `src/core/audit/coverage-manifest.jso
 import { describe, expect, it } from "vitest";
 import { randomBytes } from "node:crypto";
 import {
-  ablaufFuer, ausstellenSchema, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, freigabeStatus, istTokenForm,
+  ablaufFuer, ausstellenSchema, besteFreigabe, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, freigabeStatus, istTokenForm,
   tokenPfad, tokenUrl, waehleQrFreigabe, widerrufenSchema,
 } from "./regeln";
 
@@ -227,6 +230,11 @@ describe("QR-Wahl (Entscheidung 10)", () => {
     expect(waehleQrFreigabe([z("a", null, 1), z("b", null, 2)], JETZT)?.token).toBe("b");
     expect(waehleQrFreigabe([z("a", null, 1, JETZT - 1), z("b", JETZT, 2), z("c", JETZT - 1, 3)], JETZT)).toBeNull();
     expect(waehleQrFreigabe([], JETZT)).toBeNull();
+  });
+  it("besteFreigabe: dieselbe Rangfolge ohne Uhr — der Editor reicht nur die schon gültigen", () => {
+    expect(besteFreigabe([z("a", JETZT + STUNDE, 1), z("b", null, 2), z("c", JETZT + 2 * STUNDE, 3)])?.token).toBe("b");
+    expect(besteFreigabe([z("a", JETZT + STUNDE, 5), z("b", JETZT + STUNDE, 6)])?.token).toBe("b");
+    expect(besteFreigabe([])).toBeNull();
   });
 });
 
@@ -307,10 +315,14 @@ export interface FreigabeZeile {
  * der zuletzt ausgestellte. Der Token-Druck nimmt nie diesen, sondern den benutzten (Entscheidung 9).
  */
 export function waehleQrFreigabe<T extends Zustand & { token: string; erstelltAm: number }>(zeilen: readonly T[], jetzt: number): T | null {
+  return besteFreigabe(zeilen.filter((z) => freigabeStatus(z, jetzt) === "gueltig"));
+}
+
+/** Dieselbe Rangfolge ohne Uhr: der Aufrufer reicht nur gültige Zeilen (der Editor nimmt den Status vom Server). */
+export function besteFreigabe<T extends { erstelltAm: number; ablauf: number | null }>(zeilen: readonly T[]): T | null {
   const rang = (z: T) => z.ablauf ?? Number.POSITIVE_INFINITY;
   let best: T | null = null;
   for (const z of zeilen) {
-    if (freigabeStatus(z, jetzt) !== "gueltig") continue;
     if (best === null || rang(z) > rang(best) || (rang(z) === rang(best) && z.erstelltAm > best.erstelltAm)) best = z;
   }
   return best;
@@ -364,6 +376,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `src/app/m/kommplan/_lib/freigaben.test.ts`
 - Modify: `src/app/m/kommplan/_lib/ergebnis.ts` (Typ `FreigabeErgebnis`)
 - Modify: `src/app/m/kommplan/_db/schema.test.ts` (Annahme „keine Migration nötig", Entscheidung 1)
+- Modify: `src/app/m/kommplan/_lib/planverwaltung.ts` (`archiviere` widerruft die gültigen Links, Entscheidung 3)
 
 **Interfaces:**
 - Consumes: Task 1 (`ausstellenSchema`, `widerrufenSchema`, `ablaufFuer`, `freigabeStatus`, `istTokenForm`, `waehleQrFreigabe`, `FREIGABE_GRENZE`, `FreigabeZeile`); `ladePlanLesend`, `LesbarerPlan` aus `_lib/plaene.ts`; `feldFehlerAus` aus `_lib/angaben.ts`; `PLAN_WEG` aus `_lib/planverwaltung.ts`; `Bearbeiter` aus `_lib/speichern.ts`.
@@ -376,6 +389,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `interface TokenTreffer { freigabeId: string; token: string; plan: LesbarerPlan }`, `loeseToken(db: KommplanDb, token: string, jetzt: number): TokenTreffer | null`
   - `zaehleAbruf(db: KommplanDb, freigabeId: string, jetzt: number): void`
   - `qrTokenFuer(db: KommplanDb, planId: string, jetzt: number): string | null`
+  - `archiviere(db, id, jetzt)` (Signatur unverändert) widerruft in derselben Transaktion alle gültigen Links des Plans
 
 - [ ] **Step 1: Write the failing test**
 
@@ -383,10 +397,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 // src/app/m/kommplan/_lib/freigaben.test.ts
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { planFreigabe } from "../_db/schema";
+import { plan, planFreigabe } from "../_db/schema";
 import { FREIGABE_GRENZE } from "./freigabe/regeln";
 import { freigabenFuer, loeseToken, neuesToken, qrTokenFuer, stelleFreigabeAus, widerrufeFreigabe, zaehleAbruf } from "./freigaben";
-import { archiviere, PLAN_WEG } from "./planverwaltung";
+import { archiviere, PLAN_WEG, stelleWiederHer } from "./planverwaltung";
 import { seedLokalKommplan } from "./seedLokal";
 import { testDb } from "./testDb";
 
@@ -484,13 +498,40 @@ describe("Auflösen (Spec §8.2: unbekannt, abgelaufen, widerrufen, archiviert �
     widerrufeFreigabe(db, { planId: OPENR, freigabeId: g.id }, JETZT);
     expect(loeseToken(db, g.token, JETZT)).toBeNull();
     const h = aus(db, EINSATZ, "unbegrenzt");
-    archiviere(db, EINSATZ, JETZT);
+    // Archiv OHNE Widerruf (direkt in der Spalte): `archiviere` widerruft die Links selbst (Entscheidung 3) — dann
+    // prüfte dieser Fall nur den Widerruf, und die Archiv-Bedingung in `loeseToken` (doppelter Boden) bliebe ungetestet.
+    db.update(plan).set({ archiviertAm: new Date(JETZT) }).where(eq(plan.id, EINSATZ)).run();
+    expect(freigabenFuer(db, EINSATZ, JETZT).find((f) => f.id === h.id)?.status).toBe("gueltig");
     expect(loeseToken(db, h.token, JETZT)).toBeNull();
   });
   it("falsche Form fragt die Datenbank gar nicht erst (kein Wurf bei SQL-artigem Text)", async () => {
     const db = await mitSeed();
     expect(loeseToken(db, "' OR 1=1 --", JETZT)).toBeNull();
     expect(loeseToken(db, "", JETZT)).toBeNull();
+  });
+});
+
+describe("Archivieren widerruft (Entscheidung 3, Review Focus 7)", () => {
+  it("gültige Links werden widerrufen — je eine Audit-Zeile; widerrufene behalten ihren Zeitpunkt, abgelaufene bleiben abgelaufen; Wiederherstellen erweckt keinen", async () => {
+    const db = await mitSeed();
+    const a = aus(db, EINSATZ, "unbegrenzt", "a");
+    const b = aus(db, EINSATZ, "7d", "b");
+    const alt = aus(db, EINSATZ, "24h", "alt", JETZT - 48 * STUNDE);
+    const weg = aus(db, EINSATZ, "7d", "weg");
+    widerrufeFreigabe(db, { planId: EINSATZ, freigabeId: weg.id }, JETZT - 5);
+    const andere = aus(db, OPENR, "unbegrenzt", "anderer Plan");
+    const vorher = audit(db).length;
+    expect(archiviere(db, EINSATZ, JETZT)).toEqual({ ok: true });
+    const nach = new Map(freigabenFuer(db, EINSATZ, JETZT).map((f) => [f.id, f]));
+    expect(nach.get(a.id)).toMatchObject({ status: "widerrufen", widerrufenAm: JETZT });
+    expect(nach.get(b.id)).toMatchObject({ status: "widerrufen", widerrufenAm: JETZT });
+    expect(nach.get(weg.id)?.widerrufenAm).toBe(JETZT - 5);
+    expect(nach.get(alt.id)).toMatchObject({ status: "abgelaufen", widerrufenAm: null });
+    expect(audit(db).slice(vorher)).toEqual([{ action: "update" }, { action: "update" }]);
+    expect(loeseToken(db, andere.token, JETZT)).not.toBeNull(); // nur DIESER Plan
+    expect(stelleWiederHer(db, EINSATZ)).toEqual({ ok: true });
+    expect(loeseToken(db, a.token, JETZT + 1)).toBeNull();
+    expect(qrTokenFuer(db, EINSATZ, JETZT + 1)).toBeNull();
   });
 });
 
@@ -657,23 +698,47 @@ export function qrTokenFuer(db: KommplanDb, planId: string, jetzt: number): stri
 }
 ```
 
+`_lib/planverwaltung.ts` — `archiviere` ersetzen (Importe: `planFreigabe` in die vorhandene `../_db/schema`-Zeile, `gt`, `or` in die `drizzle-orm`-Zeile; **nichts** aus `freigaben.ts`, das umgekehrt `PLAN_WEG` von hier holt) und im Kopfkommentar „Entscheidungen 7–10" → „Entscheidungen 7–10; Phase 5 Entscheidung 3" **in derselben Zeile**:
+
+```ts
+/**
+ * Archivieren widerruft die gültigen Links des Plans in DERSELBEN Transaktion (Umsetzungsplan Phase 5,
+ * Entscheidung 3): Wiederherstellen erweckt keinen wieder. Je Link eine Audit-Zeile über den Trigger von
+ * `plan_freigabe`; abgelaufene und schon widerrufene bleiben, wie sie sind.
+ */
+export function archiviere(db: KommplanDb, id: string, jetzt: number): EinfachErgebnis {
+  return db.transaction((tx): EinfachErgebnis => {
+    const r = tx.update(plan).set({ archiviertAm: new Date(jetzt) }).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).run();
+    if (r.changes !== 1) return { ok: false, fehler: PLAN_WEG };
+    tx.update(planFreigabe).set({ widerrufenAm: new Date(jetzt) }).where(and(
+      eq(planFreigabe.planId, id), isNull(planFreigabe.widerrufenAm),
+      or(isNull(planFreigabe.ablauf), gt(planFreigabe.ablauf, new Date(jetzt))),
+    )).run();
+    return { ok: true };
+  });
+}
+```
+
+(Transaktion wie `bibliothekDb.ts`. Die vorhandenen Tests von `archiviere` in `planverwaltung.test.ts` bleiben grün — Pläne ohne Links ändern sich nicht.)
+
 Hinweis zum Import von `PLAN_WEG`: `planverwaltung.ts` importiert nichts aus `freigaben.ts` — kein Kreis.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/app/m/kommplan/_lib/freigaben.test.ts src/app/m/kommplan/_db/schema.test.ts`
-Expected: PASS. Gegenproben: `gt(…)` → `gte(…)` macht „genau an der Grenze" rot; `eq(planFreigabe.planId, planId)` aus dem Widerruf entfernt macht den IDOR-Fall rot; je zurück.
+Expected: PASS (dazu `pnpm vitest run src/app/m/kommplan/_lib/planverwaltung.test.ts`). Gegenproben: `gt(…)` → `gte(…)` macht „genau an der Grenze" rot; `eq(planFreigabe.planId, planId)` aus dem Widerruf entfernt macht den IDOR-Fall rot; das Widerrufen in `archiviere` entfernt macht „Wiederherstellen erweckt keinen" rot; `isNull(plan.archiviertAm)` in `loeseToken` entfernt macht den Auflösen-Fall rot (Archiv ohne Widerruf); je zurück.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm typecheck; echo "exit $?"
-git grep -n "ergebnis.ts:[0-9]\|schema.test.ts:[0-9]" -- src scripts e2e docs; pnpm anker:drift src/app/m/kommplan/_lib/ergebnis.ts
-git add src/app/m/kommplan/_lib/freigaben.ts src/app/m/kommplan/_lib/freigaben.test.ts src/app/m/kommplan/_lib/ergebnis.ts src/app/m/kommplan/_db/schema.test.ts
+git grep -n "ergebnis.ts:[0-9]\|schema.test.ts:[0-9]\|planverwaltung.ts:[0-9]" -- src scripts e2e docs; pnpm anker:drift src/app/m/kommplan/_lib/ergebnis.ts; pnpm anker:drift src/app/m/kommplan/_lib/planverwaltung.ts
+git add src/app/m/kommplan/_lib/freigaben.ts src/app/m/kommplan/_lib/freigaben.test.ts src/app/m/kommplan/_lib/ergebnis.ts src/app/m/kommplan/_db/schema.test.ts src/app/m/kommplan/_lib/planverwaltung.ts
 git commit -S -m "feat(kommplan): Token-Links ausstellen, widerrufen, auflösen und zählen
 
 Ohne Migration (plan_freigabe seit Phase 1): Notiz und Menge im Code,
-Widerruf nur über Link und Plan, Zähler ohne Audit.
+Widerruf nur über Link und Plan, Zähler ohne Audit. Archivieren
+widerruft die gültigen Links; Wiederherstellen erweckt keinen.
 
 DRK-500
 
@@ -1118,18 +1183,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: „Drucken" als Menü A4 quer / A3 quer
+### Task 5: „Drucken" als geteilter Knopf — A4 quer mit einem Klick, A3 quer über den Pfeil
 
 **Files:**
 - Create: `src/app/m/kommplan/_ui/druck/DruckMenue.tsx`, `src/app/m/kommplan/_ui/druck/DruckMenue.test.tsx`
-- Modify: `src/app/m/kommplan/_ui/editor/Kopfleiste.tsx`, `src/app/m/kommplan/_ui/editor/Editor.tsx` (`drucken(format)`)
+- Modify: `src/app/m/kommplan/_ui/editor/Kopfleiste.tsx`, `src/app/m/kommplan/_ui/editor/Editor.tsx` (`drucken(wahl)`)
 - Modify: `src/app/m/kommplan/_ui/editor/Editor.test.tsx` (zwei Druck-Fälle)
 - Modify: `src/app/m/kommplan/(intern)/p/[id]/page.tsx` (Betrachter-Zweig)
-- Modify: `e2e/kommplan-editor.spec.ts` (Test „Drucken aus dem Editor …"), `e2e/kommplan.spec.ts` (A3-Seitengröße)
+- Modify: `src/app/m/kommplan/_ui/kommplan.css`
+- Modify: `e2e/kommplan-editor.spec.ts` (Test „Drucken aus dem Editor …"), `e2e/kommplan.spec.ts` (A3-Seitengröße, A3 in den 404-Schleifen, Tastaturweg)
 
 **Interfaces:**
 - Consumes: Task 4 (Route `…/druck/a3`).
-- Produces: `type DruckFormatKurz = "a4" | "a3"`, `DRUCKFORMATE: readonly { key: DruckFormatKurz; label: string }[]`, `DruckMenue({ basis?: string; onWahl?: (f: DruckFormatKurz) => void })`. `Kopfleiste` nimmt `onDrucken: (f: DruckFormatKurz) => void`.
+- Produces: `type DruckFormatKurz = "a4" | "a3"`, `interface DruckWahl { format: DruckFormatKurz; svg: boolean }`, `DRUCKFORMATE: readonly { key: DruckFormatKurz; label: string }[]`, `druckZiel(basis: string, w: DruckWahl): string`, `DruckMenue({ basis?: string; onWahl?: (w: DruckWahl) => void })` (Task 12 ergänzt `mitSvg?: boolean`). `Kopfleiste` nimmt `onDrucken: (w: DruckWahl) => void`.
+
+**Vorher messen (für Task 9 und 16):** Höhe der Kopfleiste am Telefon im **Stand vor Phase 5**, einmal mit einem Playwright-Skript im Scratchpad (kein Suite-Test; `devLogin`, 390 × 844, `/p/beispiel-openr-2022-07-01?ansicht=diagramm`, `page.locator(".kp-kopfwerkzeuge").evaluate((e) => e.getBoundingClientRect().height)`). Die Zahl steht danach als `KOPFLEISTE_TELEFON_VORHER` in „Abweichungen bei der Umsetzung" und im Fototest (Task 16).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1138,35 +1206,45 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
-import { clickElement, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { DruckMenue } from "./DruckMenue";
 
 afterEach(async () => { await unmount(); });
 const punkte = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+const pfeil = () => query<HTMLButtonElement>('button[aria-label="Weitere Druckformate"]');
 async function oeffne() {
-  await clickElement(query("button"));
+  await clickElement(pfeil());
   await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 }
+// rc-menu aktiviert einen Punkt per Enter nur bei `e.which === 13` (@rc-component/menu, MenuItem); React leitet
+// `which` aus `keyCode` ab, und jsdom setzt keyCode bei `{ key: "Enter" }` allein auf 0 — also beides angeben.
+const enter = () => new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true, cancelable: true });
 
 describe("DruckMenue (Entscheidung 12)", () => {
-  it("ein Knopf „Drucken“, zwei Formate in fester Reihenfolge", async () => {
-    await mount(<DruckMenue basis="/p/x" />);
-    expect(query("button").textContent).toBe("Drucken");
-    expect(query("button").getAttribute("aria-haspopup")).toBe("menu");
+  it("„Drucken“ druckt A4 quer mit EINEM Klick; der Pfeil öffnet die zwei Formate in fester Reihenfolge", async () => {
+    const wahl = vi.fn();
+    await mount(<DruckMenue onWahl={wahl} />);
+    expect(queryAll<HTMLButtonElement>("button").map((b) => b.textContent || b.getAttribute("aria-label"))).toEqual(["Drucken", "Weitere Druckformate"]);
+    await clickElement(queryAll<HTMLButtonElement>("button")[0]);
+    expect(wahl).toHaveBeenLastCalledWith({ format: "a4", svg: false });
+    expect(pfeil().getAttribute("aria-haspopup")).toBe("menu");
     await oeffne();
     expect(punkte().map((p) => p.textContent)).toEqual(["A4 quer", "A3 quer"]);
   });
-  it("mit basis: die Wahl öffnet …/druck/a4 bzw. …/druck/a3 in einem neuen Tab — per Klick und per Enter", async () => {
+  it("mit basis: …/druck/a4 bzw. …/druck/a3 in einem neuen Tab — Hauptknopf, Klick und Enter im Menü", async () => {
     const auf = vi.spyOn(window, "open").mockReturnValue(null);
     await mount(<DruckMenue basis="/t/TOKEN" />);
-    await oeffne();
-    expect(punkte().some((p) => p.querySelector("a"))).toBe(false); // keine Anker: antd aktiviert per Enter nur onClick
-    await clickElement(punkte()[0]);
+    await clickElement(queryAll<HTMLButtonElement>("button")[0]);
     expect(auf).toHaveBeenLastCalledWith("/t/TOKEN/druck/a4", "_blank", "noopener");
     await oeffne();
-    await act(async () => { punkte()[1].dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
-    await act(async () => {});
+    expect(punkte().some((p) => p.querySelector("a"))).toBe(false); // keine Anker: antd aktiviert per Enter nur onClick
+    await clickElement(punkte()[1]);
     expect(auf).toHaveBeenLastCalledWith("/t/TOKEN/druck/a3", "_blank", "noopener");
+    auf.mockClear();
+    await oeffne();
+    await act(async () => { punkte()[0].dispatchEvent(enter()); });
+    await act(async () => {});
+    expect(auf).toHaveBeenLastCalledWith("/t/TOKEN/druck/a4", "_blank", "noopener");
     auf.mockRestore();
   });
   it("mit onWahl: der Aufrufer entscheidet (Editor speichert vorher)", async () => {
@@ -1174,7 +1252,7 @@ describe("DruckMenue (Entscheidung 12)", () => {
     await mount(<DruckMenue onWahl={wahl} />);
     await oeffne();
     await clickElement(punkte()[1]);
-    expect(wahl).toHaveBeenCalledWith("a3");
+    expect(wahl).toHaveBeenCalledWith({ format: "a3", svg: false });
   });
 });
 ```
@@ -1183,7 +1261,8 @@ describe("DruckMenue (Entscheidung 12)", () => {
 
 ```ts
 async function druckeIn(format: "A4 quer" | "A3 quer") {
-  await clickElement(knopf("Drucken"));
+  if (format === "A4 quer") { await clickElement(knopf("Drucken")); return; } // der Hauptknopf druckt A4 quer
+  await clickElement(query('button[aria-label="Weitere Druckformate"]'));
   await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   await clickElement([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((e) => e.textContent === format)!);
 }
@@ -1202,15 +1281,18 @@ Expected: FAIL — `./DruckMenue` nicht auflösbar; im Editor kein Knopf „Druc
 // src/app/m/kommplan/_ui/druck/DruckMenue.tsx
 "use client";
 
-import { Button, Dropdown, type MenuProps } from "antd";
+import { Button, Dropdown, Space, type MenuProps } from "antd";
 
 export type DruckFormatKurz = "a4" | "a3";
+export interface DruckWahl { format: DruckFormatKurz; svg: boolean }
 export const DRUCKFORMATE: readonly { key: DruckFormatKurz; label: string }[] = [
   { key: "a4", label: "A4 quer" },
   { key: "a3", label: "A3 quer" },
 ];
+/** Das Ziel einer Wahl unter `basis` (`/p/<id>` oder `/t/<token>`); `svg` öffnet die Druckseite ohne Druckdialog (Task 12). */
+export const druckZiel = (basis: string, w: DruckWahl): string => `${basis}/druck/${w.format}${w.svg ? "?export=svg" : ""}`;
 
-/** Pfeil als Inline-SVG (Falle 7: keine @ant-design/icons) — Schmuck, der Name des Knopfs bleibt „Drucken". */
+/** Pfeil als Inline-SVG (Falle 7: keine @ant-design/icons) — Schmuck; der Knopf heißt über aria-label. */
 function Pfeil() {
   return (
     <svg aria-hidden="true" focusable="false" width="10" height="10" viewBox="0 0 10 10" className="kp-druckmenue-pfeil">
@@ -1220,45 +1302,47 @@ function Pfeil() {
 }
 
 /**
- * „DRUCKEN" ALS MENÜ (Umsetzungsplan Phase 5, Entscheidung 12; ersetzt Phase-2-Entscheidung 20). Mit `basis` (Pfad
- * ohne `/druck/…`, z. B. `/p/<id>` oder `/t/<token>`) öffnet die Wahl die Druckroute in einem neuen Tab — Betrachter
- * und Token-Ansicht. KEINE Anker im Menü: antd aktiviert einen Punkt per Enter nur über `onClick`, ein `<a>` im Label
- * bliebe für die Tastatur tot. Der Tastendruck ist eine Nutzergeste, der Popup-Blocker lässt `window.open` durch. Mit
- * `onWahl` entscheidet der Aufrufer: der Editor speichert erst und öffnet das Fenster synchron im Klick
- * (Phase-2-Entscheidung 12).
+ * „DRUCKEN" ALS GETEILTER KNOPF (Umsetzungsplan Phase 5, Entscheidung 12; ersetzt Phase-2-Entscheidung 20): der
+ * Hauptknopf druckt A4 quer mit einem Klick, der Pfeil öffnet die Formate. `Space.Compact` statt des in antd 6
+ * veralteten `Dropdown.Button`. `autoFocus` am Dropdown: per Enter am Pfeil steht der Fokus danach im Menü, die
+ * Pfeiltasten wählen. Mit `basis` (Pfad ohne `/druck/…`) öffnet die Wahl die Druckroute in einem neuen Tab —
+ * Betrachter und Token-Ansicht. KEINE Anker im Menü: rc-menu aktiviert einen Punkt per Enter nur über `onClick`,
+ * ein `<a>` im Label bliebe für die Tastatur tot. Mit `onWahl` entscheidet der Aufrufer: der Editor speichert erst
+ * und öffnet das Fenster synchron im Klick (Phase-2-Entscheidung 12).
  */
-export function DruckMenue({ basis, onWahl }: { basis?: string; onWahl?: (f: DruckFormatKurz) => void }) {
+export function DruckMenue({ basis, onWahl }: { basis?: string; onWahl?: (w: DruckWahl) => void }) {
   const items: MenuProps["items"] = DRUCKFORMATE.map((f) => ({ key: f.key, label: f.label }));
-  const waehle = (f: DruckFormatKurz) => {
-    if (basis) window.open(`${basis}/druck/${f}`, "_blank", "noopener");
-    else onWahl?.(f);
+  const waehle = (w: DruckWahl) => {
+    if (basis) window.open(druckZiel(basis, w), "_blank", "noopener");
+    else onWahl?.(w);
   };
   return (
-    <Dropdown trigger={["click"]} menu={{ items, onClick: ({ key }) => waehle(key as DruckFormatKurz) }}>
-      <Button aria-haspopup="menu" className="kp-druckmenue">Drucken<Pfeil /></Button>
-    </Dropdown>
+    <Space.Compact className="kp-druckmenue">
+      <Button onClick={() => waehle({ format: "a4", svg: false })}>Drucken</Button>
+      <Dropdown trigger={["click"]} autoFocus menu={{ items, onClick: ({ key }) => waehle({ format: key as DruckFormatKurz, svg: false }) }}>
+        <Button aria-label="Weitere Druckformate" aria-haspopup="menu"><Pfeil /></Button>
+      </Dropdown>
+    </Space.Compact>
   );
 }
 ```
 
-(Der Knopfname „Drucken" entsteht aus dem Text; das SVG ist `aria-hidden`. Prüft `textContent` den Pfeil mit — er hat keinen Text —, bleibt es „Drucken".)
-
-`Kopfleiste.tsx`: Import `import { DruckMenue, type DruckFormatKurz } from "../druck/DruckMenue";`, Prop-Typ `onDrucken: (f: DruckFormatKurz) => void`, Knopf ersetzen:
+`Kopfleiste.tsx`: Import `import { DruckMenue, type DruckWahl } from "../druck/DruckMenue";`, Prop-Typ `onDrucken: (w: DruckWahl) => void`, Knopf ersetzen:
 
 ```tsx
             <DruckMenue onWahl={onDrucken} />
 ```
 
-und im Kopfkommentar „„Drucken (A4 quer)" (derselbe Name wie im Betrachter, Entscheidung 20)" ersetzen durch „„Drucken" als Menü A4/A3 (Phase 5, Entscheidung 12)" — **in derselben Zeile**, keine Zeile dazu oder weg.
+und im Kopfkommentar „„Drucken (A4 quer)" (derselbe Name wie im Betrachter, Entscheidung 20)" ersetzen durch „„Drucken" als geteilter Knopf A4/A3 (Phase 5, Entscheidung 12)" — **in derselben Zeile**, keine Zeile dazu oder weg.
 
 `Editor.tsx`:
 
 ```tsx
-  async function drucken(format: DruckFormatKurz) {
-    const ziel = `/p/${plan.id}/druck/${format}`;
+  async function drucken(wahl: DruckWahl) {
+    const ziel = druckZiel(`/p/${plan.id}`, wahl);
 ```
 
-(Rest unverändert), Aufruf `onDrucken={(f) => void drucken(f)}`, Import `type DruckFormatKurz` aus `../druck/DruckMenue`.
+(Rest unverändert), Aufruf `onDrucken={(w) => void drucken(w)}`, Import `druckZiel, type DruckWahl` aus `../druck/DruckMenue`.
 
 `(intern)/p/[id]/page.tsx` im Betrachter-Zweig: `import Link from "next/link";` entfällt (sonst unbenutzt), dazu `import { DruckMenue } from "@/app/m/kommplan/_ui/druck/DruckMenue";` und
 
@@ -1266,18 +1350,20 @@ und im Kopfkommentar „„Drucken (A4 quer)" (derselbe Name wie im Betrachter, 
         aktionen={plan.inhalt ? <DruckMenue basis={`/p/${plan.id}`} /> : undefined}
 ```
 
-`kommplan.css` (vor den Media-Blöcken): `.kp-druckmenue { display: inline-flex; align-items: center; gap: 6px; }`.
+`kommplan.css` (vor den Media-Blöcken): `.kp-druckmenue-pfeil { display: block; }`; im Block `@media (max-width: 767.98px)`: `.kp-druckmenue { width: 100%; } .kp-druckmenue > :first-child { flex: 1 1 auto; }` (Kindkombinator statt `.ant-*`-Namen, Falle 20).
 
 e2e `kommplan-editor.spec.ts`, Test „Drucken aus dem Editor zeigt den gerade getippten Stand": den Klick ersetzen durch
 
 ```ts
-  await klickeWennRuhig(page.getByRole("button", { name: "Drucken", exact: true }));
+  await klickeWennRuhig(page.getByRole("button", { name: "Weitere Druckformate" }));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "A3 quer" }));
 ```
 
 und `await druck.waitForURL(/\/druck\/a4$/);` durch `/\/druck\/a3$/`.
 
-e2e `kommplan.spec.ts`, im Test „Druck A4: …" nach dem Einsatz-PDF ergänzen:
+e2e `kommplan.spec.ts`:
+- Tests „ohne Gruppe: 404 auf Liste, Plan und Druck" und „unbekannter Plan: 404 auf Betrachter und Druck": die Pfadlisten um `` `/p/${EINSATZ}/druck/a3` `` bzw. `"/p/gibt-es-nicht/druck/a3"` erweitern (Kritik: sonst belegt die Wirkung des Riegels an der neuen Route nur die Bauform in `riegel.test.ts`).
+- im Test „Druck A4: …" nach dem Einsatz-PDF ergänzen:
 
 ```ts
   const a3 = await page.goto(url(`/p/${EINSATZ}/druck/a3`));
@@ -1290,7 +1376,22 @@ e2e `kommplan.spec.ts`, im Test „Druck A4: …" nach dem Einsatz-PDF ergänzen
   expect(groesse.height).toBeCloseTo(841.89, 0); // 297 mm in pt
 ```
 
-und im Test „mit der Zugangsgruppe …" nach dem Plan-Abruf: `await expect(page.getByRole("button", { name: "Drucken", exact: true })).toBeVisible();` sowie `await expect(page.getByRole("button", { name: "Teilen" })).toHaveCount(0);` (die Zugangsgruppe teilt nicht, Entscheidung 17).
+- im Test „mit der Zugangsgruppe …" nach dem Plan-Abruf: `await expect(page.getByRole("button", { name: "Drucken", exact: true })).toBeVisible();`, `await expect(page.getByRole("button", { name: "Teilen" })).toHaveCount(0);` (die Zugangsgruppe teilt nicht, Entscheidung 17) und der **echte Tastaturweg** (Kritik: der DOM-Test löst Enter direkt am Menüpunkt aus, ohne dass er je den Fokus hatte):
+
+```ts
+  await page.context().addInitScript(() => { window.print = () => {}; });
+  await page.getByRole("button", { name: "Weitere Druckformate" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitem", { name: "A3 quer" })).toBeVisible();
+  const popup = page.waitForEvent("popup");
+  for (let i = 0; i < PFEIL_RUNTER_BIS_A3; i++) await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  const druck = await popup;
+  await druck.waitForURL(/\/druck\/a3$/);
+  await druck.close();
+```
+
+mit `const PFEIL_RUNTER_BIS_A3 = 2;` über dem Test — die Zahl einmal am echten Menü bestimmen (fokussiert `autoFocus` das Menü ohne aktiven Punkt, wählt der erste Pfeil „A4 quer") und in „Abweichungen" vermerken, falls sie abweicht. Geht der Weg ohne Tab gar nicht, ist das ein Befund für Entscheidung 12, kein Anlass, den Test auf Klicks umzustellen.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1304,10 +1405,11 @@ pnpm typecheck; echo "exit $?"
 git grep -n "Kopfleiste.tsx:[0-9]\|Editor.tsx:[0-9]\|p/\[id\]/page.tsx:[0-9]\|kommplan.css:[0-9]\|kommplan-editor.spec.ts:[0-9]\|kommplan.spec.ts:[0-9]" -- src scripts e2e docs
 pnpm anker:drift src/app/m/kommplan/_ui/editor/Editor.tsx
 git add src/app/m/kommplan e2e/kommplan.spec.ts e2e/kommplan-editor.spec.ts
-git commit -S -m "feat(kommplan): Drucken als Menü A4 quer und A3 quer
+git commit -S -m "feat(kommplan): Drucken als geteilter Knopf, A3 quer über den Pfeil
 
 Ersetzt den Knopf „Drucken (A4 quer)“ (Phase-2-Entscheidung 20) im
-Editor und im Betrachter; der Editor speichert weiter vorher.
+Editor und im Betrachter: „Drucken“ druckt A4 quer mit einem Klick,
+der Pfeil öffnet A4 quer und A3 quer; der Editor speichert vorher.
 
 DRK-500
 
@@ -1454,7 +1556,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: Task 2 (`loeseToken`, `zaehleAbruf`, `TokenTreffer`); `RateLimiter`, `clientIpAus` aus `core/ratelimit`.
 - Produces:
-  - `TOKEN_SCHRANKE = { fehlversucheJeMinute: 10, abrufFensterMs: 60_000 }`
+  - `TOKEN_SCHRANKE = { fehlversucheJeMinute: 30, abrufFensterMs: 60_000 }`
   - `interface Schranken { fehlversuche: RateLimiter; abrufe: RateLimiter }`, `neueSchranken(now?: () => number): Schranken`
   - `pruefeTokenAbruf(db: KommplanDb, token: string, absender: string, jetzt: number, s: Schranken): TokenTreffer | null`
   - `tokenAbruf: (token: string) => Promise<TokenTreffer | null>` (React `cache`), `tokenPlanOder404(token: string): Promise<TokenTreffer>`
@@ -1495,9 +1597,10 @@ describe("Tokenabruf (Spec §8.2; Entscheidungen 4–6)", () => {
     pruefeTokenAbruf(db, f.token, "203.0.113.1", weiter(TOKEN_SCHRANKE.abrufFensterMs), s); // Fenster vorbei
     expect(zeile(db, f.id).abrufe).toBe(3);
   });
-  it("nach 9 Fehlversuchen geht ein gültiger Token noch, nach dem 10. ist die Adresse gesperrt — ohne Datenbankabfrage, auch für gültige", async () => {
+  it("nach 29 Fehlversuchen geht ein gültiger Token noch, nach dem 30. ist die Adresse gesperrt — ohne Datenbankabfrage, auch für gültige", async () => {
     const { db, s, f, jetzt, weiter } = await aufbau();
-    for (let i = 0; i < 9; i++) expect(pruefeTokenAbruf(db, "B".repeat(43), "203.0.113.9", jetzt(), s)).toBeNull();
+    expect(TOKEN_SCHRANKE.fehlversucheJeMinute).toBe(30);
+    for (let i = 0; i < TOKEN_SCHRANKE.fehlversucheJeMinute - 1; i++) expect(pruefeTokenAbruf(db, "B".repeat(43), "203.0.113.9", jetzt(), s)).toBeNull();
     expect(pruefeTokenAbruf(db, f.token, "203.0.113.9", jetzt(), s)).not.toBeNull();
     expect(pruefeTokenAbruf(db, "falsch", "203.0.113.9", jetzt(), s)).toBeNull(); // falsche Form zählt mit
     expect(pruefeTokenAbruf(db, f.token, "203.0.113.9", jetzt(), s)).toBeNull();
@@ -1537,7 +1640,7 @@ import { loeseToken, zaehleAbruf, type TokenTreffer } from "./freigaben";
 /**
  * DER RIEGEL DER TOKEN-ANSICHT (Spec §8.2; Umsetzungsplan Phase 5, Entscheidungen 4–6) — nur Server.
  *
- * - Fehlversuche (unbekannt, falsche Form, abgelaufen, widerrufen, archiviert) zählen je Absender; zehn in einer
+ * - Fehlversuche (unbekannt, falsche Form, abgelaufen, widerrufen, archiviert) zählen je Absender; dreißig in einer
  *   Minute sperren die Adresse. Gesperrt heißt 404 OHNE Datenbankabfrage — auch für einen gültigen Token derselben
  *   Adresse, sonst wäre die Sperre ein Orakel. Gültige Abrufe buchen nichts. VORBEHALT (mitgehoben aus
  *   `core/ratelimit`): Prozessspeicher; ohne `cf-connecting-ip` teilen sich alle den Eimer "unknown".
@@ -1545,7 +1648,7 @@ import { loeseToken, zaehleAbruf, type TokenTreffer } from "./freigaben";
  * - Layout und Seite rendern parallel und fragen beide: `tokenAbruf` ist je Anfrage gecacht (React `cache`), also
  *   bucht genau der erste Aufruf. Er gibt `null` zurück; `notFound()` rufen die Aufrufer — keine gecachte Ausnahme.
  */
-export const TOKEN_SCHRANKE = { fehlversucheJeMinute: 10, abrufFensterMs: 60_000 } as const;
+export const TOKEN_SCHRANKE = { fehlversucheJeMinute: 30, abrufFensterMs: 60_000 } as const;
 export interface Schranken { fehlversuche: RateLimiter; abrufe: RateLimiter }
 export function neueSchranken(now?: () => number): Schranken {
   return {
@@ -1582,7 +1685,7 @@ export async function tokenPlanOder404(token: string): Promise<TokenTreffer> {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/app/m/kommplan/_lib/tokenZugang.test.ts`
-Expected: PASS. Gegenproben: `istGesperrt`-Zeile entfernt → „gesperrt — auch für gültige" rot; Entpreller entfernt → `abrufe` 4 statt 3, rot; je zurück. Die Deduplizierung über React `cache` belegt erst der e2e (Task 15: neun Fehlversuche über Seiten mit Layout **und** Seite sperren noch nicht — bei doppelter Buchung wären es 18).
+Expected: PASS. Gegenproben: `istGesperrt`-Zeile entfernt → „gesperrt — auch für gültige" rot; Entpreller entfernt → `abrufe` 4 statt 3, rot; je zurück. Die Deduplizierung über React `cache` belegt erst der e2e (Task 15: 29 Fehlversuche über Seiten mit Layout **und** Seite sperren noch nicht — bei doppelter Buchung wären es 58).
 
 - [ ] **Step 5: Commit**
 
@@ -1591,7 +1694,7 @@ pnpm typecheck; echo "exit $?"
 git add src/app/m/kommplan/_lib/tokenZugang.ts src/app/m/kommplan/_lib/tokenZugang.test.ts
 git commit -S -m "feat(kommplan): Tokenabruf je Anfrage einmal auflösen, Fehlversuche sperren
 
-Zehn Fehlversuche je Minute und Adresse sperren ohne Datenbankabfrage;
+Dreißig Fehlversuche je Minute und Adresse sperren ohne Datenbankabfrage;
 Abrufe zählen entprellt (eine Adresse, ein Link, eine Minute).
 
 DRK-500
@@ -1608,11 +1711,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `src/app/m/kommplan/t/[token]/druck/a4/page.tsx`, `src/app/m/kommplan/t/[token]/druck/a3/page.tsx`
 - Create: `src/app/m/kommplan/_lib/tokenMetadaten.ts`
 - Create: `src/app/m/kommplan/_ui/token/TokenRahmen.tsx`, `src/app/m/kommplan/_ui/token/token.css`, `src/app/m/kommplan/_ui/token/TokenKopf.tsx`, `src/app/m/kommplan/_ui/token/TokenKopf.test.tsx`
+- Create: `src/app/m/kommplan/t/not-found.tsx`, `src/app/m/kommplan/_ui/token/TokenUngueltig.tsx`, `src/app/m/kommplan/_ui/token/TokenUngueltig.test.tsx` (eigene 404, Entscheidung 4)
 - Modify: `src/app/m/kommplan/riegel.test.ts`, `src/app/m/kommplan/grenze.test.ts`
+- Modify: `src/app/m/kommplan/_ui/betrachter/Betrachter.tsx`, `src/app/m/kommplan/_ui/betrachter/Flaeche.tsx` (nur `className="kp-betrachter-wurzel"` bzw. `"kp-flaeche-wurzel"` am klassenlosen Wurzel-`div`, in derselben Zeile — Haken für die Höhenkette der Token-Ansicht, ohne Wirkung im Editor)
 
 **Interfaces:**
 - Consumes: Task 4 (`Druckseite`, `druckseitenDaten`), Task 5 (`DruckMenue`), Task 7 (`tokenPlanOder404`), Task 1 (`tokenPfad`); `Betrachter`, `kopfFuerZeichnung`, `symboleFuer`, `ARIMO`, `TYP_NAME`, `kalendertag`.
-- Produces: `TOKEN_METADATEN: Metadata`; `TokenRahmen({ children })`; `TokenKopf({ plan, kopf, token })` mit `plan: { titel; typ; anlass; datum; aktualisiertAm; aktualisiertVon; vermerkVsNfD }`.
+- Produces: `TOKEN_METADATEN: Metadata`; `TokenRahmen({ children })`; `TokenUngueltig()`; `TokenKopf({ plan, kopf, token })` mit `plan: { titel; typ; anlass; datum; aktualisiertAm; aktualisiertVon; vermerkVsNfD }`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1653,7 +1758,9 @@ describe("kommplan: die Token-Routen tragen ihren eigenen Riegel und nichts Inte
 ```ts
   it("keine Token-Route erreicht eine Server Action, den Editor oder die Planliste — auch nicht über Umwege", () => {
     const routen = laufzeit.filter((p) => relative(MODUL, p).startsWith("t/"));
-    expect(routen.length).toBe(4);
+    expect(routen.map((p) => relative(MODUL, p)).sort()).toEqual([
+      "t/[token]/druck/a3/page.tsx", "t/[token]/druck/a4/page.tsx", "t/[token]/layout.tsx", "t/[token]/page.tsx", "t/not-found.tsx",
+    ]); // die 404-Seite ist keine ROUTENDATEI für riegel.test.ts, zählt hier aber mit: auch sie erreicht nichts Internes
     for (const r of routen) {
       const treffer = [...erreichbar(r)].map((d) => relative(MODUL, d))
         .filter((d) => d.startsWith("_actions/") || d.startsWith("_ui/editor/") || d.startsWith("_ui/teilen/") || d.startsWith("(intern)/"));
@@ -1700,6 +1807,25 @@ describe("TokenKopf (Entscheidung 8)", () => {
 
 (Die Uhrzeit 14:05 gilt für `Europe/Berlin`, die Vorgabe der Suite-Zone in Tests — Vorbild `Kopfleiste.test.ts`, „Gespeichert 11:05".)
 
+```tsx
+// src/app/m/kommplan/_ui/token/TokenUngueltig.test.tsx
+import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TokenUngueltig } from "./TokenUngueltig";
+
+describe("404 der Token-Ansicht (Entscheidung 4)", () => {
+  it("ein Satz für alle Fälle, im Token-Rahmen, ohne Weg zur Startseite oder Anmeldung", () => {
+    const html = renderToStaticMarkup(<TokenUngueltig />);
+    expect(html).toContain("<h1>Dieser Link gilt nicht (mehr).</h1>");
+    expect(html).toContain("Bitte die Person, die ihn dir geschickt hat, um einen neuen.");
+    expect(html).toContain("kp-token-fahne");
+    expect(html).not.toMatch(/<a\b|<button|href=|Anmeld|Startseite|Administration/);
+  });
+});
+```
+
+`TokenKopf.test.tsx` zusätzlich (Kritik zum Raster): `expect(query("[data-token-stand]").closest(".kp-token-links")).not.toBeNull();` — Titel, Angaben, Stand und Vermerk stehen in einem eigenen linken Block, der Briefkopf rechts daneben.
+
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/app/m/kommplan/riegel.test.ts src/app/m/kommplan/grenze.test.ts src/app/m/kommplan/_ui/token`
@@ -1717,7 +1843,7 @@ import type { Metadata } from "next";
  * parallel zum Riegel und dürfte die Datenbank nicht anfassen.
  */
 export const TOKEN_METADATEN: Metadata = {
-  title: "Kommunikationsplan",
+  title: "Kommunikationspläne",
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
   referrer: "no-referrer",
 };
@@ -1775,7 +1901,7 @@ export default async function TokenAnsicht({ params }: { params: Promise<{ token
         aktualisiertVon: plan.aktualisiertVon, vermerkVsNfD: plan.inhalt?.optionen.vermerkVsNfD ?? false,
       }} />
       {plan.inhalt ? (
-        <div className={ARIMO.className}>
+        <div className={`kp-token-flaeche ${ARIMO.className}`}>
           <Betrachter inhalt={plan.inhalt} symbole={symboleFuer(plan.inhalt)} titel={plan.titel} schrift={ARIMO.style.fontFamily} />
         </div>
       ) : (
@@ -1822,15 +1948,16 @@ import "./token.css";
 /**
  * DER RAHMEN DER TOKEN-ANSICHT (Entscheidung 8; Muster docs/design/feedback-oeffentliche-ansicht.md und
  * `files/_ui/OeffentlicherRahmen.tsx`): 3-px-Fahne und Wortzeichen „IDA" — die einzigen zwei Stellen mit
- * Suite-Rot —, Kicker, darunter der Inhalt. KEINE Shell, kein App-Umschalter, kein antd (Falle 1 ist hier
- * strukturell ausgeschlossen), kein Request-Zustand. Breiter als die Feedback-Ansicht: der Betrachter braucht Fläche.
+ * Suite-Rot im eigenen Markup —, Kicker mit dem Modulnamen (typneutral), darunter der Inhalt. KEINE Shell, kein
+ * App-Umschalter, kein Request-Zustand; der Rahmen SELBST ohne antd (antd kommt nur über die Inseln Betrachter und
+ * DruckMenue, dort Dichte 56/72 ohne Hülle). Breiter als die Feedback-Ansicht: der Betrachter braucht Fläche.
  */
 export function TokenRahmen({ children }: { children: ReactNode }) {
   return (
     <div className="kp-token-seite">
       <div className="kp-token-fahne" aria-hidden="true" />
       <main className="kp-token-blatt">
-        <p className="kp-token-kicker">KOMMUNIKATIONSPLAN<span className="kp-token-wortzeichen">IDA</span></p>
+        <p className="kp-token-kicker">KOMMUNIKATIONSPLÄNE<span className="kp-token-wortzeichen">IDA</span></p>
         {children}
       </main>
     </div>
@@ -1852,23 +1979,42 @@ export function TokenRahmen({ children }: { children: ReactNode }) {
   --kp-token-leise: #b8b8b8;
   --kp-token-linie: #3a3a3a;
 }
-.kp-token-seite { min-height: 100dvh; background: var(--kp-token-grund); color: var(--kp-token-text); }
+.kp-token-seite { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--kp-token-grund); color: var(--kp-token-text); }
 /* Suite-Rot nur hier und am Wortzeichen (feedback-oeffentliche-ansicht.md, Entscheidung 1) — nie als Fläche im Inhalt. */
 .kp-token-fahne { height: 3px; background: #c8000f; }
-.kp-token-blatt { max-width: 1600px; margin-inline: auto; padding: 16px; display: grid; gap: 12px; }
+/* Die Seite ist eine 100dvh-Spalte, der Betrachter füllt den Rest (Kritik: sonst ist die Seite am Telefon höher als
+   der Schirm, und jedes Wischen auf dem Betrachter verschiebt das Diagramm statt der Seite). min-height: 0 an JEDEM
+   Glied der Kette, sonst wächst das Raster mit dem Inhalt. Die 404-Seite hat keinen Betrachter: dort ist die letzte
+   Zeile einfach leer. */
+.kp-token-blatt { width: 100%; max-width: 1600px; margin-inline: auto; padding: 16px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; min-height: 0; box-sizing: border-box; }
 .kp-token-kicker { margin: 0; font-size: 11px; letter-spacing: .08em; color: var(--kp-token-leise); display: flex; justify-content: space-between; }
 .kp-token-wortzeichen { color: #c8000f; font-weight: 700; font-size: 13px; letter-spacing: .10em; }
+/* Zwei Spalten: links ein eigener Block (Titel, Angaben, Stand, Vermerk), rechts der Briefkopf; die Aktionen darunter
+   über die ganze Breite (Kritik: ohne eigenen Block legte die automatische Platzierung Zeilen in die schmale Spalte). */
 .kp-token-kopf { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; line-height: normal; }
+.kp-token-links { display: grid; gap: 4px; min-width: 0; }
 .kp-token-kopf h1 { margin: 0; font-size: 22px; line-height: 1.25; overflow-wrap: anywhere; }
 .kp-token-briefkopf { display: flex; align-items: center; gap: 8px; justify-self: end; }
 .kp-token-briefkopf svg { width: 120px; height: 33px; }
 .kp-token-zeile { margin: 0; color: var(--kp-token-leise); }
 .kp-token-vermerk { justify-self: start; margin: 0; padding: 2px 8px; border: 1px solid var(--kp-token-text); border-radius: 4px; font-weight: 600; }
 .kp-token-aktionen { grid-column: 1 / -1; }
+.kp-token-flaeche, .kp-token-flaeche .kp-betrachter-wurzel, .kp-token-flaeche .kp-flaeche-wurzel { min-height: 0; display: flex; flex-direction: column; }
+.kp-token-flaeche .kp-betrachter-wurzel, .kp-token-flaeche .kp-flaeche-wurzel { flex: 1 1 auto; }
+/* Überschreibt die Grundhöhe calc(100dvh - 240px) des Betrachters: hier füllt er, was Kopf, Werkzeuge und Legende lassen. */
+.kp-token-flaeche .kp-betrachter { flex: 1 1 auto; height: auto; min-height: 320px; }
+.kp-token-ungueltig h1 { margin: 0; font-size: 22px; line-height: 1.25; }
+.kp-token-ungueltig p { margin: 8px 0 0; color: var(--kp-token-leise); max-width: 60ch; }
 @media (max-width: 767.98px) {
-  .kp-token-kopf { grid-template-columns: minmax(0, 1fr); }
+  .kp-token-blatt { padding: 12px 16px; gap: 8px; }
+  .kp-token-kopf { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .kp-token-kopf h1 { font-size: 19px; }
   .kp-token-briefkopf { justify-self: start; }
-  .kp-token-aktionen .kp-druckmenue { width: 100%; }
+  /* Angaben und Stand in EINER Zeile, der Vermerk inline dahinter — der Kopf darf den Betrachter nicht verdrängen. */
+  .kp-token-links { display: block; }
+  .kp-token-links .kp-token-zeile, .kp-token-links .kp-token-vermerk { display: inline; font-size: 13px; }
+  .kp-token-links .kp-token-zeile + .kp-token-zeile::before { content: " · "; }
+  .kp-token-links .kp-token-vermerk { margin-inline-start: 6px; padding: 0 4px; }
 }
 ```
 
@@ -1898,7 +2044,12 @@ export function TokenKopf({ plan, kopf, token }: { plan: TokenKopfPlan; kopf: Ko
   const angaben = [TYP_NAME[plan.typ], plan.anlass?.trim() || null, kalendertag(plan.datum)].filter(Boolean).join(" · ");
   return (
     <header className="kp-token-kopf">
-      <h1>{plan.titel}</h1>
+      <div className="kp-token-links">
+        <h1>{plan.titel}</h1>
+        <p className="kp-token-zeile" data-token-angaben="">{angaben}</p>
+        <p className="kp-token-zeile" data-token-stand="">{`Stand ${STAND.format(plan.aktualisiertAm)} · Bearbeitung: ${plan.aktualisiertVon}`}</p>
+        {plan.vermerkVsNfD ? <p className="kp-token-vermerk" data-vermerk="">VS – nur für den Dienstgebrauch</p> : null}
+      </div>
       {kopf.organisation || kopf.logo ? (
         <div className="kp-token-briefkopf">
           {kopf.organisation ? <span data-organisation="">{kopf.organisation}</span> : null}
@@ -1909,9 +2060,6 @@ export function TokenKopf({ plan, kopf, token }: { plan: TokenKopfPlan; kopf: Ko
           ) : null}
         </div>
       ) : null}
-      <p className="kp-token-zeile" data-token-angaben="">{angaben}</p>
-      <p className="kp-token-zeile" data-token-stand="">{`Stand ${STAND.format(plan.aktualisiertAm)} · Bearbeitung: ${plan.aktualisiertVon}`}</p>
-      {plan.vermerkVsNfD ? <p className="kp-token-vermerk" data-vermerk="">VS – nur für den Dienstgebrauch</p> : null}
       <div className="kp-token-aktionen"><DruckMenue basis={tokenPfad(token)} /></div>
     </header>
   );
@@ -1919,6 +2067,42 @@ export function TokenKopf({ plan, kopf, token }: { plan: TokenKopfPlan; kopf: Ko
 ```
 
 (`KopfAngaben` ist in `_lib/briefkopf.ts` exportiert; der Import ist reiner Typ — `TokenKopf` zieht kein `node:*`. Der Test montiert den Kopf in jsdom: `zeitFormat` liest dort `<html data-zeitzone>` und fällt auf `Europe/Berlin` zurück.)
+
+```tsx
+// src/app/m/kommplan/_ui/token/TokenUngueltig.tsx
+import { TokenRahmen } from "./TokenRahmen";
+
+/**
+ * DIE 404 DER TOKEN-ANSICHT (Entscheidung 4; Muster Zustand F in docs/design/feedback-oeffentliche-ansicht.md):
+ * EIN Text für unbekannt, falsch geformt, abgelaufen, widerrufen und archiviert — nach außen kein Unterschied.
+ * Kein Knopf, kein Link auf „/" (dort wartet eine Anmeldung, die der Empfänger nicht hat), nichts aus der Datenbank.
+ */
+export function TokenUngueltig() {
+  return (
+    <TokenRahmen>
+      <section className="kp-token-ungueltig">
+        <h1>Dieser Link gilt nicht (mehr).</h1>
+        <p>Vielleicht ist er abgelaufen, widerrufen oder unvollständig kopiert. Bitte die Person, die ihn dir geschickt hat, um einen neuen.</p>
+      </section>
+    </TokenRahmen>
+  );
+}
+```
+
+```tsx
+// src/app/m/kommplan/t/not-found.tsx
+import { TokenUngueltig } from "@/app/m/kommplan/_ui/token/TokenUngueltig";
+
+/**
+ * Not-Found-Grenze des Segments `t` — sie fängt das `notFound()` aus `t/[token]/layout.tsx` und jeder Seite darunter
+ * (Entscheidung 4). Ohne sie fiele die Antwort auf die Suite-404 (`src/app/not-found.tsx`) mit Weg zur Anmeldung.
+ */
+export default function TokenNichtGefunden() {
+  return <TokenUngueltig />;
+}
+```
+
+(`not-found.tsx` ist keine `ROUTENDATEI` in `riegel.test.ts` und braucht keinen Eintrag in `AUSSERHALB`; `grenze.test.ts` zählt sie oben mit. Vor dem Code `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/not-found.md` lesen: die Datei rendert innerhalb der Grenzen ihres Segments, eine `loading.tsx` in `t/` machte sie zu einem 200 — es gibt keine.)
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1932,13 +2116,14 @@ uptime
 pnpm typecheck; echo "exit $?"
 pnpm lint; echo "lint exit $?"
 pnpm build; echo "build exit $?"   # Routen /t/[token], /t/[token]/druck/a4|a3
-git grep -n "riegel.test.ts:[0-9]\|grenze.test.ts:[0-9]" -- src scripts e2e docs
+git grep -n "riegel.test.ts:[0-9]\|grenze.test.ts:[0-9]\|Betrachter.tsx:[0-9]\|Flaeche.tsx:[0-9]" -- src scripts e2e docs
 git add src/app/m/kommplan
 git commit -S -m "feat(kommplan): Token-Ansicht und Token-Druck ohne Anmeldung
 
 /t/<token> mit eigenem Rahmen, Briefkopf, Stand, VS-NfD-Vermerk und
 demselben Betrachter; Druck A4/A3. Unbekannt, abgelaufen, widerrufen
-oder archiviert ist ein echtes 404 im Layout (Falle 23).
+oder archiviert ist ein echtes 404 im Layout (Falle 23), mit eigener
+Seite ohne Weg zur Anmeldung.
 
 DRK-500
 
@@ -1951,9 +2136,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `src/app/m/kommplan/_ui/teilen/zwischenablage.ts`, `src/app/m/kommplan/_ui/teilen/zwischenablage.test.ts`
-- Create: `src/app/m/kommplan/_ui/teilen/Teilen.tsx`, `src/app/m/kommplan/_ui/teilen/Teilen.test.tsx`
+- Create: `src/app/m/kommplan/_ui/teilen/Teilen.tsx`, `src/app/m/kommplan/_ui/teilen/Teilen.test.tsx`, `src/app/m/kommplan/_lib/freigabe/texte.ts` (rein — liegt im geteilten Ordner `_lib/freigabe/` aus Task 1)
 - Modify: `src/app/m/kommplan/_ui/editor/Editor.tsx` (Flyin „teilen", Zustand `freigaben`, Prop `teilen`)
-- Modify: `src/app/m/kommplan/_ui/editor/Kopfleiste.tsx` (Knopf „Teilen", Prop `onTeilen`)
+- Modify: `src/app/m/kommplan/_ui/editor/Kopfleiste.tsx` (Knopf „Teilen", Prop `onTeilen`, Klasse `kp-ganze-zeile` für Umschalter, „Wiederholen" und „Plan und Verbindungen")
 - Modify: `src/app/m/kommplan/_ui/editor/Editor.test.tsx` (Mock der neuen Actions, ein Fall)
 - Modify: `src/app/m/kommplan/(intern)/p/[id]/page.tsx` (Teilen-Daten an den Editor)
 - Modify: `src/app/m/kommplan/_ui/kommplan.css`
@@ -1962,8 +2147,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: Task 1 (`FreigabeZeile`, `FREIGABE_DAUERN`, `DAUER_NAME`, `DAUER_VORGABE`, `FREIGABE_GRENZE`, `tokenUrl`), Task 2 (`freigabenFuer`), Task 3 (`stelleFreigabeAusAction`, `widerrufeFreigabeAction`); `moduleUrl` aus `core/shell/moduleUrl`.
 - Produces:
   - `kopiere(text: string): Promise<"kopiert" | "manuell">`
+  - `ZEIT`, `ablaufText(f)`, `abrufText(f)` in `_lib/freigabe/texte.ts` (Task 10 ergänzt `qrZielSatz`)
   - `TEILEN_FLYIN_GRUND = 520`, `TeilenFlyin({ offen, onSchliessen, nachSchliessen, planId, basis, freigaben, onFreigaben })`, `Teilen({ planId, basis, freigaben, onFreigaben })`
-  - `Editor`-Prop `teilen?: { freigaben: FreigabeZeile[]; basis: string | null }` (Vorgabe `{ freigaben: [], basis: null }`); Editor-Zustand `freigaben` — Task 10 liest daraus `gueltigerLink`.
+  - `Editor`-Prop `teilen?: { freigaben: FreigabeZeile[]; basis: string | null }` (Vorgabe `{ freigaben: [], basis: null }`); Editor-Zustand `freigaben` — Task 10 wählt daraus `qrLink` (`besteFreigabe`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2009,7 +2195,7 @@ describe("kopiere (Review Focus 3)", () => {
 // src/app/m/kommplan/_ui/teilen/Teilen.test.tsx
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act } from "react";
+import { act, useState } from "react";
 import { clickElement, exists, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { FreigabeZeile } from "../../_lib/freigabe/regeln";
 import { Teilen } from "./Teilen";
@@ -2026,10 +2212,20 @@ const Z = (o: Partial<FreigabeZeile>): FreigabeZeile => ({
   erstelltVon: "Jana", zuletztAbgerufen: null, abrufe: 0, status: "gueltig", ...o,
 });
 const knopf = (text: string) => queryAll<HTMLButtonElement>("button").find((b) => b.textContent === text)!;
+const imEintrag = (id: string, text: string) => [...query(`[data-freigabe="${id}"]`).querySelectorAll("button")].find((b) => b.textContent === text)!;
 const neue = vi.fn();
+/** Hält die Liste wie der Editor im Zustand — für Fälle, in denen die Liste nach einer Action wechselt. */
+function Wirt({ start }: { start: FreigabeZeile[] }) {
+  const [f, setF] = useState(start);
+  return <Teilen planId="p1" basis={BASIS} freigaben={f} onFreigaben={(n) => { neue(n); setF(n); }} />;
+}
 afterEach(async () => { await unmount(); aktion.aus.mockReset(); aktion.weg.mockReset(); ablage.kopiere.mockReset(); neue.mockReset(); });
 
 describe("Teilen (Spec §8.2; Entscheidung 17)", () => {
+  it("beim Öffnen steht der Fokus in der Notiz (Tastaturweg: Notiz, Enter, Enter)", async () => {
+    await mount(<Teilen planId="p1" basis={BASIS} freigaben={[]} onFreigaben={neue} />);
+    expect(document.activeElement?.id).toBe("kp-teilen-notiz");
+  });
   it("Vorgabe 7 Tage; Ausstellen schickt Dauer und Notiz, übernimmt die Liste, fokussiert „Link kopieren“ am neuen Link", async () => {
     aktion.aus.mockResolvedValue({ ok: true, neu: "f2", freigaben: [Z({ id: "f2", token: T("B"), notiz: "Presse" }), Z({})] });
     await mount(<Teilen planId="p1" basis={BASIS} freigaben={[Z({})]} onFreigaben={neue} />);
@@ -2053,13 +2249,43 @@ describe("Teilen (Spec §8.2; Entscheidung 17)", () => {
     await act(async () => {});
     expect(ablage.kopiere).toHaveBeenCalledWith(`${BASIS}/t/${T("A")}`);
     expect(query('[role="status"]').textContent).toBe("Link kopiert.");
+    expect(imEintrag("f1", "Kopiert")).toBeTruthy(); // sichtbar am Eintrag, nicht nur oben
   });
-  it("Kopieren geht nicht von selbst: der Link steht markiert in einem Lesefeld mit Anleitung", async () => {
+  it("zwei Links: Kopieren am zweiten antwortet am zweiten — „Kopiert“ und das Lesefeld stehen dort", async () => {
+    ablage.kopiere.mockResolvedValueOnce("kopiert").mockResolvedValueOnce("manuell");
+    await mount(<Teilen planId="p1" basis={BASIS} freigaben={[Z({}), Z({ id: "f2", token: T("B"), notiz: "Presse" })]} onFreigaben={neue} />);
+    await clickElement(imEintrag("f2", "Link kopieren"));
+    await act(async () => {});
+    expect(imEintrag("f2", "Kopiert")).toBeTruthy();
+    expect(imEintrag("f1", "Link kopieren")).toBeTruthy();
+    await clickElement(imEintrag("f2", "Kopiert"));
+    await act(async () => {});
+    expect(query('[data-freigabe="f2"] input[data-manuell]').getAttribute("value")).toBe(`${BASIS}/t/${T("B")}`);
+    expect(exists('[data-freigabe="f1"] input[data-manuell]')).toBe(false);
+    expect(document.activeElement?.closest("[data-freigabe]")?.getAttribute("data-freigabe")).toBe("f2");
+  });
+  it("nach dem Widerrufen steht der Fokus am nächsten gültigen Link, beim letzten an „Gültige Links (0)“", async () => {
+    aktion.weg.mockResolvedValueOnce({ ok: true, neu: null, freigaben: [Z({ id: "f2", token: T("B") }), Z({ status: "widerrufen", widerrufenAm: 1 })] });
+    await mount(<Wirt start={[Z({}), Z({ id: "f2", token: T("B") })]} />);
+    const bestaetige = async () => {
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+      await clickElement([...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Widerrufen" && !b.closest("[data-freigabe]"))!);
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    };
+    await clickElement(imEintrag("f1", "Widerrufen"));
+    await bestaetige();
+    expect(document.activeElement?.closest("[data-freigabe]")?.getAttribute("data-freigabe")).toBe("f2");
+    aktion.weg.mockResolvedValueOnce({ ok: true, neu: null, freigaben: [Z({ id: "f2", token: T("B"), status: "widerrufen", widerrufenAm: 2 }), Z({ status: "widerrufen", widerrufenAm: 1 })] });
+    await clickElement(imEintrag("f2", "Widerrufen"));
+    await bestaetige();
+    expect(document.activeElement?.textContent).toBe("Gültige Links (0)");
+  });
+  it("Kopieren geht nicht von selbst: der Link steht markiert in einem Lesefeld mit Anleitung — im Eintrag", async () => {
     ablage.kopiere.mockResolvedValue("manuell");
     await mount(<Teilen planId="p1" basis={BASIS} freigaben={[Z({})]} onFreigaben={neue} />);
     await clickElement(knopf("Link kopieren"));
     await act(async () => {});
-    const feld = query<HTMLInputElement>("input[data-manuell]");
+    const feld = query<HTMLInputElement>('[data-freigabe="f1"] input[data-manuell]');
     expect(feld.readOnly).toBe(true);
     expect(feld.value).toBe(`${BASIS}/t/${T("A")}`);
     expect(document.activeElement).toBe(feld);
@@ -2153,6 +2379,26 @@ export async function kopiere(text: string): Promise<"kopiert" | "manuell"> {
 }
 ```
 
+```ts
+// src/app/m/kommplan/_lib/freigabe/texte.ts
+import { zeitFormat } from "@/core/zeit";
+import type { FreigabeZeile } from "./regeln";
+
+// zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
+export const ZEIT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** Texte eines Links — geteilt von Teilen-Flyin, (Task 10) Plan-Flyin und Druckdaten. Rein; der Status kommt vom Server. */
+export function ablaufText(f: Pick<FreigabeZeile, "status" | "ablauf" | "widerrufenAm">): string {
+  if (f.status === "widerrufen") return `widerrufen am ${ZEIT.format(f.widerrufenAm!)}`;
+  if (f.status === "abgelaufen") return `abgelaufen am ${ZEIT.format(f.ablauf!)}`;
+  return f.ablauf === null ? "unbegrenzt gültig" : `gültig bis ${ZEIT.format(f.ablauf)}`;
+}
+export function abrufText(f: Pick<FreigabeZeile, "abrufe" | "zuletztAbgerufen">): string {
+  if (f.abrufe === 0 || f.zuletztAbgerufen === null) return "noch nie abgerufen";
+  return `${f.abrufe} ${f.abrufe === 1 ? "Abruf" : "Abrufe"}, zuletzt ${ZEIT.format(f.zuletztAbgerufen)}`;
+}
+```
+
 ```tsx
 // src/app/m/kommplan/_ui/teilen/Teilen.tsx
 "use client";
@@ -2160,44 +2406,39 @@ export async function kopiere(text: string): Promise<"kopiert" | "manuell"> {
 import { useEffect, useRef, useState } from "react";
 import { Button, Drawer, Input, Popconfirm, Radio, type InputRef } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
-import { zeitFormat } from "@/core/zeit";
 import { stelleFreigabeAusAction, widerrufeFreigabeAction } from "../../_actions/freigabe";
 import type { FreigabeErgebnis } from "../../_lib/ergebnis";
 import { DAUER_NAME, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, tokenUrl, type FreigabeDauer, type FreigabeZeile } from "../../_lib/freigabe/regeln";
+import { ablaufText, abrufText, ZEIT } from "../../_lib/freigabe/texte";
 import { kopiere } from "./zwischenablage";
 
 export const TEILEN_FLYIN_GRUND = 520;
-// zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
-const ZEIT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 const KEINE_ADRESSE = "Für die Kommunikationspläne ist keine Adresse eingerichtet. Links lassen sich erst ausstellen, wenn der Betrieb sie festlegt.";
+const KOPIERT_MS = 2000;
 
 interface Props { planId: string; basis: string | null; freigaben: FreigabeZeile[]; onFreigaben: (f: FreigabeZeile[]) => void }
 
-/** Das Flyin (Entscheidung 17): ohne Maske wie die übrigen Flyins; `nachSchliessen` gibt den Fokus an die Fläche zurück. */
+/**
+ * Das Flyin (Entscheidung 17): ohne Maske wie die übrigen Flyins; `nachSchliessen` gibt den Fokus an die Fläche zurück.
+ * `autoFocus` nur ohne Adresse: sonst fokussiert sich die Notiz selbst, und rc-drawer fokussierte seinen Container
+ * NACH ihr (wie StelleFlyin).
+ */
 export function TeilenFlyin({ offen, onSchliessen, nachSchliessen, ...p }: Props & { offen: boolean; onSchliessen: () => void; nachSchliessen: () => void }) {
   return (
     <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(TEILEN_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin"
-      title="Teilen" afterOpenChange={(auf) => { if (!auf) nachSchliessen(); }}>
+      autoFocus={p.basis === null} title="Teilen" afterOpenChange={(auf) => { if (!auf) nachSchliessen(); }}>
       {offen ? <Teilen {...p} /> : null}
     </Drawer>
   );
 }
 
-function ablaufText(f: FreigabeZeile): string {
-  if (f.status === "widerrufen") return `widerrufen am ${ZEIT.format(f.widerrufenAm!)}`;
-  if (f.status === "abgelaufen") return `abgelaufen am ${ZEIT.format(f.ablauf!)}`;
-  return f.ablauf === null ? "unbegrenzt gültig" : `gültig bis ${ZEIT.format(f.ablauf)}`;
-}
-function abrufText(f: FreigabeZeile): string {
-  if (f.abrufe === 0 || f.zuletztAbgerufen === null) return "noch nie abgerufen";
-  return `${f.abrufe} ${f.abrufe === 1 ? "Abruf" : "Abrufe"}, zuletzt ${ZEIT.format(f.zuletztAbgerufen)}`;
-}
-
 /**
  * TOKEN-LINKS AUSSTELLEN, KOPIEREN, WIDERRUFEN (Spec §8.2; Umsetzungsplan Phase 5, Entscheidung 17). Die Liste kommt
  * vom Server mit fertigem Status und geht nach jeder Action ganz zurück an den Editor (`onFreigaben`) — hier rechnet
- * niemand mit der Uhr. Meldungen in EINEM `role="status"`. Der neue Link steht oben, „Link kopieren" daran bekommt den Fokus.
+ * niemand mit der Uhr. Rückmeldung am Eintrag selbst („Kopiert", Lesefeld), dazu EIN `role="status"` für Screenreader.
+ * Fokus: beim Öffnen die Notiz, nach dem Ausstellen „Link kopieren" am neuen Link, nach dem Widerrufen der nächste
+ * gültige Link oder die Legende „Gültige Links (0)" — der Knopf, auf den Popconfirm zurückwollte, ist dann weg.
  */
 export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
   const [dauer, setDauer] = useState<FreigabeDauer>(DAUER_VORGABE);
@@ -2205,33 +2446,48 @@ export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [neu, setNeu] = useState<string | null>(null);
-  const [manuell, setManuell] = useState<string | null>(null);
+  const [kopiert, setKopiert] = useState<string | null>(null);
+  const [manuell, setManuell] = useState<{ id: string; url: string } | null>(null);
   const neuKnopf = useRef<HTMLButtonElement>(null);
   const manuellFeld = useRef<InputRef>(null);
+  const gueltigeListe = useRef<HTMLFieldSetElement>(null);
+  const nachWiderruf = useRef(false);
   useEffect(() => { if (neu) neuKnopf.current?.focus(); }, [neu]);
   // `focus({ cursor: "all" })` fokussiert UND markiert (antds InputRef) — `select()` allein bewegt den Fokus nicht verlässlich.
   useEffect(() => { if (manuell) manuellFeld.current?.focus({ cursor: "all" }); }, [manuell]);
+  useEffect(() => {
+    if (!nachWiderruf.current) return;
+    nachWiderruf.current = false;
+    const feld = gueltigeListe.current;
+    (feld?.querySelector<HTMLElement>("[data-freigabe] button") ?? feld?.querySelector<HTMLElement>("legend"))?.focus();
+  }, [freigaben]);
 
   async function lauf(schluessel: string, tu: () => Promise<FreigabeErgebnis>, erfolg: (r: Extract<FreigabeErgebnis, { ok: true }>) => void) {
     if (laeuft !== null) return;
-    setLaeuft(schluessel); setMeldung(null); setManuell(null);
+    setLaeuft(schluessel); setMeldung(null); setManuell(null); setKopiert(null);
     const r = await tu().catch((): FreigabeErgebnis => ({ ok: false, fehler: NETZ, feldFehler: {} }));
     setLaeuft(null);
     if (!r.ok) { setMeldung(r.feldFehler.notiz ?? r.fehler); return; }
+    erfolg(r);              // vor onFreigaben: die Fokusregel nach dem Widerrufen hängt an der neuen Liste
     onFreigaben(r.freigaben);
-    erfolg(r);
   }
   const ausstellen = () => lauf("neu", () => stelleFreigabeAusAction({ planId, dauer, notiz }), (r) => {
     setNotiz(""); setNeu(r.neu); setMeldung("Link ausgestellt.");
   });
   const widerrufe = (f: FreigabeZeile) => lauf(f.id, () => widerrufeFreigabeAction({ planId, freigabeId: f.id }), () => {
+    nachWiderruf.current = true;
     setMeldung("Link widerrufen. Wer ihn hat, sieht den Plan nicht mehr.");
   });
   async function kopiereLink(f: FreigabeZeile) {
     if (!basis) return;
     const url = tokenUrl(basis, f.token);
-    if ((await kopiere(url)) === "kopiert") { setManuell(null); setMeldung("Link kopiert."); return; }
-    setManuell(url);
+    if ((await kopiere(url)) === "kopiert") {
+      setManuell(null); setKopiert(f.id); setMeldung("Link kopiert.");
+      setTimeout(() => setKopiert((k) => (k === f.id ? null : k)), KOPIERT_MS);
+      return;
+    }
+    setKopiert(null);
+    setManuell({ id: f.id, url });
     setMeldung("Kopieren ging hier nicht von selbst — der Link ist markiert. Kopiere ihn mit Strg+C bzw. ⌘C.");
   }
 
@@ -2245,13 +2501,16 @@ export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
       {basis ? <p className="kp-freigabe-link" data-link="">{tokenUrl(basis, f.token)}</p> : null}
       {f.status === "gueltig" ? (
         <div className="kp-formular-knoepfe">
-          <Button ref={f.id === neu ? neuKnopf : undefined} onClick={() => void kopiereLink(f)} disabled={!basis}>Link kopieren</Button>
+          <Button ref={f.id === neu ? neuKnopf : undefined} onClick={() => void kopiereLink(f)} disabled={!basis}>
+            {kopiert === f.id ? "Kopiert" : "Link kopieren"}
+          </Button>
           <Popconfirm title="Link widerrufen?" description="Wer ihn hat, sieht den Plan danach nicht mehr." okText="Widerrufen" cancelText="Abbrechen"
             onConfirm={() => widerrufe(f)}>
             <Button loading={laeuft === f.id}>Widerrufen</Button>
           </Popconfirm>
         </div>
       ) : null}
+      {manuell?.id === f.id ? <Input ref={manuellFeld} data-manuell="" readOnly value={manuell.url} aria-label="Link zum Kopieren" /> : null}
     </li>
   );
 
@@ -2264,15 +2523,14 @@ export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
         <Radio.Group aria-labelledby="kp-teilen-dauer" optionType="button" value={dauer} onChange={(e) => setDauer(e.target.value as FreigabeDauer)}
           options={FREIGABE_DAUERN.map((d) => ({ value: d, label: DAUER_NAME[d] }))} />
         <label className="kp-feldname" htmlFor="kp-teilen-notiz">Notiz (wofür, für wen)</label>
-        <Input id="kp-teilen-notiz" value={notiz} maxLength={FREIGABE_GRENZE.notiz} showCount onChange={(e) => setNotiz(e.target.value)}
+        <Input id="kp-teilen-notiz" autoFocus={basis !== null} value={notiz} maxLength={FREIGABE_GRENZE.notiz} showCount onChange={(e) => setNotiz(e.target.value)}
           onPressEnter={() => { if (basis) void ausstellen(); }} />
         {basis ? null : <p className="kp-hilfe" data-keine-adresse="">{KEINE_ADRESSE}</p>}
         <Button type="primary" onClick={() => void ausstellen()} loading={laeuft === "neu"} disabled={!basis}>Link ausstellen</Button>
       </fieldset>
       <p className="kp-teilen-meldung" role="status">{meldung ?? ""}</p>
-      {manuell ? <Input ref={manuellFeld} data-manuell="" readOnly value={manuell} aria-label="Link zum Kopieren" /> : null}
-      <fieldset className="kp-abschnitt">
-        <legend>{`Gültige Links (${gueltig.length})`}</legend>
+      <fieldset className="kp-abschnitt" ref={gueltigeListe} data-gueltige="">
+        <legend tabIndex={-1}>{`Gültige Links (${gueltig.length})`}</legend>
         {gueltig.length === 0 ? <p className="kp-hilfe">Noch kein gültiger Link.</p> : <ul className="kp-freigaben">{gueltig.map(eintrag)}</ul>}
       </fieldset>
       {vorbei.length > 0 ? (
@@ -2286,7 +2544,7 @@ export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
 }
 ```
 
-Hinweis zur Fokusregel: der Effekt fokussiert nur (erlaubt), `setState` passiert in Ereignis-Rückrufen. `Input` mit `ref` und `.focus({ cursor: "all" })` ist antds `InputRef`. Das Widerrufen über `Popconfirm` prüft der e2e (Task 15) — der DOM-Test bleibt bei Ausstellen, Kopieren, Liste und Fehlern.
+Hinweis zur Fokusregel: die Effekte fokussieren nur (erlaubt) bzw. setzen eine Ref zurück; `setState` passiert in Ereignis-Rückrufen und im `setTimeout` des Kopierens (kein Effekt). `Input` mit `ref` und `.focus({ cursor: "all" })` ist antds `InputRef`. Das Widerrufen samt Fokus prüft der DOM-Test über den echten `Popconfirm` (Bestätigen-Knopf außerhalb der Einträge) und zusätzlich der e2e (Task 15). Läuft der DOM-Fall wegen der Popconfirm-Animation in jsdom nicht stabil, trägt der e2e allein — dann in „Abweichungen" vermerken.
 
 `kommplan.css` (vor den Media-Blöcken):
 
@@ -2294,20 +2552,31 @@ Hinweis zur Fokusregel: der Effekt fokussiert nur (erlaubt), `setState` passiert
 /* Teilen-Flyin (Phase 5, Entscheidung 17) */
 .kp-freigaben { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .kp-freigabe { border: 1px solid var(--kp-rand); border-radius: 6px; padding: 8px 12px; display: grid; gap: 4px; }
-.kp-freigabe[data-neu] { border-color: var(--kp-auswahl-papier); box-shadow: 0 0 0 1px var(--kp-auswahl-papier); }
+.kp-freigabe[data-neu] { border-color: var(--kp-auswahl); box-shadow: 0 0 0 1px var(--kp-auswahl); } /* Bildschirmfarbe, nicht die Papierfarbe (Kritik: #1f5fbf hätte dunkel ≈ 2,5:1) */
 .kp-freigabe-notiz { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .kp-freigabe-link { margin: 0; font-size: 12px; color: var(--kp-gedaempft); overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
 .kp-teilen-meldung { margin: 0; min-height: 1.5em; }
 .kp-teilen details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 ```
 
-(`--kp-rand`, `--kp-gedaempft`, `--kp-auswahl-papier` und die Klasse `.kp-feldname` gibt es in `kommplan.css` schon, für hell und dunkel.)
+(`--kp-rand`, `--kp-gedaempft`, `--kp-auswahl` und die Klasse `.kp-feldname` gibt es in `kommplan.css` schon, für hell und dunkel.)
+
+Im Block `@media (max-width: 767.98px)` die vorhandene Zeile `.kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }` **in derselben Zeile** ersetzen und direkt danach eine Zeile ergänzen (Kritik: sonst wächst die Kopfleiste am Telefon um eine volle Zeile auf fünf):
+
+```css
+  .kp-kopfwerkzeuge { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 100%; }
+  .kp-kopfwerkzeuge > .kp-ganze-zeile { grid-column: 1 / -1; } /* Umschalter, „Wiederholen", „Plan und Verbindungen"; „Teilen" und „Drucken" teilen sich die letzte Zeile */
+```
+
+Ergibt am Telefon vier Zeilen wie vor Phase 5 (Umschalter · Wiederholen · Plan und Verbindungen · Teilen | Drucken) in **DOM-Reihenfolge** — kein `grid-auto-flow: dense`, sonst liefe der Tab-Fokus „Wiederholen → Plan → Teilen" eine Zeile hinab und wieder hinauf (WCAG 2.4.3). `kp-nur-breit` ist dort `display: none` und belegt keine Zelle. Der geteilte Knopf „Drucken" | Pfeil braucht ≈ 130 px und passt in die halbe Zeile (≈ 175 px bei 390 px Breite). Gemessen wird gegen `KOPFLEISTE_TELEFON_VORHER` (Task 5) im Fototest (Task 16).
 
 `Kopfleiste.tsx`: Prop `onTeilen: () => void`, Knopf direkt vor dem Druckmenü:
 
 ```tsx
             <Button onClick={onTeilen}>Teilen</Button>
 ```
+
+dazu die Klasse `kp-ganze-zeile` am Umschalter — in `umschalter` selbst, nicht über den Parameter `klasse` (der bildet auch den `name` des `Segmented`): `className={klasse ? `${klasse} kp-ganze-zeile` : "kp-ganze-zeile"}` —, an „Wiederholen" und an „Plan und Verbindungen" (`className="kp-ganze-zeile"`; „Rückgängig" ist am Telefon ausgeblendet und braucht sie nicht). Prüfen, dass `Kopfleiste.test.ts` keine Klasse exakt vergleicht.
 
 `Editor.tsx`:
 - Import `import { TEILEN_FLYIN_GRUND, TeilenFlyin } from "../teilen/Teilen";` und `import type { FreigabeZeile } from "../../_lib/freigabe/regeln";`
@@ -2363,40 +2632,50 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/app/m/kommplan/_lib/layout/masse.ts` (Dateiende: `QR_BOX`), `src/app/m/kommplan/_lib/layout/papier.ts`
 - Modify: `src/app/m/kommplan/_lib/layout/papier.test.ts`, `src/app/m/kommplan/_lib/layout/eigenschaften.test.ts`
 - Modify: `src/app/m/kommplan/_ui/zeichnung/Blatt.tsx` (`Rahmen.qr`, `QrAufBlatt`), `src/app/m/kommplan/_ui/zeichnung/Blatt.test.tsx`
-- Modify: `src/app/m/kommplan/_lib/druckdaten.ts` (`qrUrl`, `qrUrlIntern`, `qrUrlFuerToken`), `src/app/m/kommplan/_lib/druckdaten.test.ts`
+- Modify: `src/app/m/kommplan/_lib/druckdaten.ts` (`qrUrl`, `qrSatz`, `qrZielIntern`, `qrUrlFuerToken`), `src/app/m/kommplan/_lib/druckdaten.test.ts`
+- Modify: `src/app/m/kommplan/_ui/druck/Druckseite.tsx` (`qrSatz` in der `noprint`-Leiste), `src/app/m/kommplan/_ui/druck/Druckseite.test.tsx`
+- Modify: `src/app/m/kommplan/_lib/freigabe/texte.ts` (`qrZielSatz`), `src/app/m/kommplan/_lib/freigabe/regeln.test.ts` (Fall dazu)
+- Modify: `src/app/m/kommplan/_ui/teilen/Teilen.tsx` (QR-Schalter samt Satz), `src/app/m/kommplan/_ui/teilen/Teilen.test.tsx`
 - Modify: die vier Druckseiten (`(intern)/p/[id]/druck/a4|a3/page.tsx`, `t/[token]/druck/a4|a3/page.tsx`)
 - Modify: `src/app/m/kommplan/_lib/plan/operationen.ts` (`setzeOptionen` nimmt alle vier Optionen), `src/app/m/kommplan/_lib/plan/operationen.test.ts`
 - Modify: `src/app/m/kommplan/_ui/editor/PlanFlyin.tsx` (Schalter, Hinweise), `src/app/m/kommplan/_ui/editor/PlanFlyin.test.tsx`, `src/app/m/kommplan/_ui/editor/Editor.tsx` (Hinweisdaten durchreichen)
 - Modify: `src/app/m/kommplan/grenze.test.ts` (`"_lib/qrGrafik.ts"` in die Liste der geteilten Ordner)
 
 **Interfaces:**
-- Consumes: Task 1 (`tokenUrl`), Task 2 (`qrTokenFuer`), Task 4 (`druckseitenDaten`), Task 9 (Editor-Zustand `freigaben`, `teilen.basis`); `qrSvg` aus `core/qr`; `moduleUrl`.
+- Consumes: Task 1 (`tokenUrl`, `besteFreigabe`, `waehleQrFreigabe`), Task 2 (`freigabenFuer`), Task 4 (`druckseitenDaten`), Task 9 (Editor-Zustand `freigaben`, `teilen.basis`, `_lib/freigabe/texte.ts`); `qrSvg` aus `core/qr`; `moduleUrl`.
 - Produces:
-  - `QR_BOX = { kante: 20, beschriftung: 4, luft: 3 }`
+  - `QR_BOX = { kante: 24, beschriftung: 4, luft: 3 }`
   - `interface PapierOptionen { qr?: boolean }`, `qrBox(format): { x: number; y: number; kante: number; oben: number }`, `legendenBreite(format, qr?: boolean): number`, `zeichenflaeche(format, legendeZeilen, qr?: boolean)`, `teileAuf(inhalt, format, optionen?: PapierOptionen)`
   - `interface QrGrafik { module: number; pfad: string; ziel: string }`, `qrGrafikAus(svg: string, ziel: string): QrGrafik`
   - `Rahmen.qr?: QrGrafik | null`
-  - `DruckAuftrag = { format: Papierformat; qrUrl: string | null }`, `qrUrlIntern(db, plan: LesbarerPlan, jetzt: number, basis?: string | null): string | null`, `qrUrlFuerToken(plan: LesbarerPlan, token: string, basis?: string | null): string | null`
-  - `PlanFormularProps.gueltigerLink?: boolean` (Vorgabe `false`), `PlanFormularProps.linkAdresse?: boolean` (Vorgabe `true`)
+  - `DruckAuftrag = { format: Papierformat; qrUrl: string | null; qrSatz?: string | null }`, `DruckseiteDaten.qrSatz: string | null`
+  - `QrZiel = { url: string; notiz: string | null; ablauf: number | null }`, `qrZielIntern(db, plan: LesbarerPlan, jetzt: number, basis?: string | null): QrZiel | null`, `qrUrlFuerToken(plan: LesbarerPlan, token: string, basis?: string | null): string | null`
+  - `qrZielSatz(f: { notiz: string | null; ablauf: number | null }): string` in `_lib/freigabe/texte.ts`
+  - `PlanFormularProps.qrLink?: { notiz: string | null; ablauf: number | null } | null` (Vorgabe `null`), `PlanFormularProps.linkAdresse?: boolean` (Vorgabe `true`), `PlanFormularProps.onTeilen?: () => void`
+  - `Teilen`/`TeilenFlyin`-Prop `qr?: { an: boolean; onAendern: (an: boolean) => void }`
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // src/app/m/kommplan/_lib/qrGrafik.test.ts
 import { describe, expect, it } from "vitest";
+import { randomBytes } from "node:crypto";
 import { qrSvg } from "@/core/qr";
+import { QR_BOX } from "./layout/masse";
 import { qrGrafikAus } from "./qrGrafik";
 
-const URL_ = `https://kommplan.iuk-ue.de/t/${"A".repeat(43)}`;
+// Ein ECHTER Token (Kritik): "A".repeat(43) kodiert qrcode alphanumerisch und kommt mit Version 7 aus; base64url mit
+// Groß- und Kleinbuchstaben ist ein Byte-Segment und braucht bei Fehlerkorrektur H Version 8.
+const URL_ = `https://kommplan.iuk-ue.de/t/${randomBytes(32).toString("base64url")}`;
 
 describe("QR-Grafik aus core/qr (Entscheidung 11)", () => {
-  it("liest Modulzahl samt Rand und den Pfad der dunklen Module — 72 Zeichen ergeben 53 × 53", async () => {
+  it("liest Modulzahl samt Rand und den Pfad der dunklen Module — 72 Zeichen ergeben 57 × 57", async () => {
     const g = qrGrafikAus(await qrSvg(URL_), URL_);
     expect(URL_).toHaveLength(72);
-    expect(g.module).toBe(53);
+    expect(g.module).toBe(57); // Version 8: 49 Module + 2 × 4 Rand
     expect(g.pfad).toMatch(/^M\d/);
     expect(g.ziel).toBe(URL_);
-    expect(20 / g.module).toBeGreaterThanOrEqual(0.33); // mm je Modul bei 20 mm Kante
+    expect(QR_BOX.kante / g.module).toBeGreaterThanOrEqual(0.4); // mm je Modul (24 mm → 0,42)
   });
   it("unerwartete Form wirft — lieber kein Druck als ein falscher Code", () => {
     expect(() => qrGrafikAus("<svg/>", URL_)).toThrow();
@@ -2457,17 +2736,17 @@ describe("Platz für den QR (Phase 5, Entscheidung 11)", () => {
 ```ts
   it("mit QR: Gruppe unten rechts mit Ziel, Beschriftung „Aktuelle Fassung“ und einem Pfad; ohne QR nichts davon", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer", { qr: true });
-    const qr = { module: 53, pfad: "M4 4.5h7", ziel: "https://kommplan.iuk-ue.de/t/abc" };
+    const qr = { module: 57, pfad: "M4 4.5h7", ziel: "https://kommplan.iuk-ue.de/t/abc" };
     const html = renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, qr }} symbole={{}} />);
     expect(html).toContain('data-qr-ziel="https://kommplan.iuk-ue.de/t/abc"');
     expect(html).toContain("Aktuelle Fassung");
-    expect(html).toMatch(/<svg x="267" y="175" width="20" height="20" viewBox="0 0 53 53"/);
+    expect(html).toMatch(/<svg x="263" y="171" width="24" height="24" viewBox="0 0 57 57"/);
     expect(html).toContain('d="M4 4.5h7"');
     expect(renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={rahmen} symbole={{}} />)).not.toContain("data-qr");
   });
 ```
 
-(A4: x = 297 − 10 − 20 = 267, y = 210 − 8 − 7 − 20 = 175.)
+(A4: x = 297 − 10 − 24 = 263, y = 210 − 8 − 7 − 24 = 171.)
 
 `druckdaten.test.ts`:
 
@@ -2475,7 +2754,7 @@ describe("Platz für den QR (Phase 5, Entscheidung 11)", () => {
 import { eq } from "drizzle-orm";
 import { plan as planTabelle } from "../_db/schema";
 import { stelleFreigabeAus } from "./freigaben";
-import { druckseitenDaten, qrUrlFuerToken, qrUrlIntern } from "./druckdaten";
+import { druckseitenDaten, qrUrlFuerToken, qrZielIntern } from "./druckdaten";
 import { setzeOptionen } from "./plan/operationen";
 import { archiviere } from "./planverwaltung";
 
@@ -2494,15 +2773,15 @@ const aus = (db: ReturnType<typeof testDb>, planId: string, dauer: string) => {
 };
 
 describe("QR-Ziel (Entscheidungen 9, 10)", () => {
-  it("intern: nur mit Option, Adresse und gültigem Link — dann der beste", async () => {
+  it("intern: nur mit Option, Adresse und gültigem Link — dann der beste, mit Notiz und Ablauf für den Satz", async () => {
     const db = await mitSeed();
     const ohne = ladePlanLesend(db, "beispiel-openr-2022-07-01")!;
     aus(db, ohne.id, "24h");
-    expect(qrUrlIntern(db, ohne, JETZT, BASIS)).toBeNull(); // Option aus
+    expect(qrZielIntern(db, ohne, JETZT, BASIS)).toBeNull(); // Option aus
     const p = mitQrOption(db, ohne.id);
     const unbegrenzt = aus(db, p.id, "unbegrenzt");
-    expect(qrUrlIntern(db, p, JETZT, BASIS)).toBe(`${BASIS}/t/${unbegrenzt.token}`);
-    expect(qrUrlIntern(db, p, JETZT, null)).toBeNull(); // keine Adresse eingerichtet
+    expect(qrZielIntern(db, p, JETZT, BASIS)).toEqual({ url: `${BASIS}/t/${unbegrenzt.token}`, notiz: null, ablauf: null });
+    expect(qrZielIntern(db, p, JETZT, null)).toBeNull(); // keine Adresse eingerichtet
   });
   it("Token-Druck: IMMER der benutzte Token, nie der beste Link des Plans (Review Focus 1)", async () => {
     const db = await mitSeed();
@@ -2515,13 +2794,15 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     const db = await mitSeed();
     const p = mitQrOption(db, "beispiel-einsatz-2026-02-22");
     aus(db, p.id, "unbegrenzt");
-    const url = qrUrlIntern(db, p, JETZT, BASIS)!;
-    const mit = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: url });
-    expect(mit.rahmen.qr).toMatchObject({ ziel: url, module: expect.any(Number) });
+    const ziel = qrZielIntern(db, p, JETZT, BASIS)!;
+    const mit = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: ziel.url, qrSatz: "Der QR-Code führt auf …" });
+    expect(mit.rahmen.qr).toMatchObject({ ziel: ziel.url, module: expect.any(Number) });
+    expect(mit.qrSatz).toBe("Der QR-Code führt auf …");
     const ohne = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null });
     expect(ohne.rahmen.qr).toBeNull();
+    expect(ohne.qrSatz).toBeNull();
     archiviere(db, p.id, JETZT);
-    expect(qrUrlIntern(db, ladePlanLesend(db, p.id)!, JETZT, BASIS)).toBeNull();
+    expect(qrZielIntern(db, ladePlanLesend(db, p.id)!, JETZT, BASIS)).toBeNull();
   });
 });
 ```
@@ -2534,32 +2815,64 @@ und im vorhandenen Fall „A3 teilt …" die beiden Aufrufe auf `{ format: …, 
     expect(setzeOptionen(leererPlan(), { qrAufDruck: true, schwarzweiss: true }).optionen).toEqual({ leerzeilen: false, vermerkVsNfD: true, qrAufDruck: true, schwarzweiss: true });
 ```
 
-`PlanFlyin.test.tsx` — `Rahmen` bekommt optionale Props (`function Rahmen({ gueltigerLink = false, linkAdresse = true }: { gueltigerLink?: boolean; linkAdresse?: boolean })` und reicht sie an `PlanFormular` durch), dann:
+`PlanFlyin.test.tsx` — `Rahmen` bekommt optionale Props (`function Rahmen({ qrLink = null, linkAdresse = true, onTeilen }: { qrLink?: { notiz: string | null; ablauf: number | null } | null; linkAdresse?: boolean; onTeilen?: () => void })` und reicht sie an `PlanFormular` durch), dann:
 
 ```ts
-  it("QR-Schalter: an ohne gültigen Link → Hinweis auf „Teilen“; mit Link kein Hinweis; ohne Adresse eigener Hinweis", async () => {
-    await mount(<Rahmen />);
+  it("QR-Schalter: ohne gültigen Link Hinweis mit Knopf zu „Teilen“; mit Link der Satz, wohin er führt; ohne Adresse eigener Hinweis", async () => {
+    const teilen = vi.fn();
+    await mount(<Rahmen onTeilen={teilen} />);
     expect(exists("[data-qr-hinweis]")).toBe(false);
     await clickElement(query('[data-option="qrAufDruck"]'));
     expect(stand.optionen.qrAufDruck).toBe(true);
-    expect(query("[data-qr-hinweis]").textContent).toBe("Ohne gültigen Link druckt der Plan keinen QR-Code. Stelle unter „Teilen“ einen Link aus.");
+    expect(query("[data-qr-hinweis]").textContent).toContain("Ohne gültigen Link druckt der Plan keinen QR-Code.");
+    await clickElement(query("[data-qr-hinweis] button"));
+    expect(teilen).toHaveBeenCalled(); // „Link ausstellen“ schaltet auf das Flyin „Teilen“
     await unmount();
-    await mount(<Rahmen gueltigerLink />);
+    await mount(<Rahmen qrLink={{ notiz: "Aushang", ablauf: Date.UTC(2026, 9, 2, 18, 0) }} />);
     await clickElement(query('[data-option="qrAufDruck"]'));
     expect(exists("[data-qr-hinweis]")).toBe(false);
+    expect(query("[data-qr-ziel-satz]").textContent).toBe("Der QR-Code führt auf „Aushang“ – gültig bis 02.10.2026, 20:00; danach führt der Ausdruck ins Leere.");
     await unmount();
-    await mount(<Rahmen gueltigerLink linkAdresse={false} />);
+    await mount(<Rahmen qrLink={{ notiz: null, ablauf: null }} linkAdresse={false} />);
     await clickElement(query('[data-option="qrAufDruck"]'));
     expect(query("[data-qr-hinweis]").textContent).toContain("keine Adresse eingerichtet");
   });
 ```
 
+`regeln.test.ts` bekommt einen Fall für `qrZielSatz` (die Uhrzeit gilt für `Europe/Berlin`, die Suite-Zone in Tests):
+
+```ts
+// am Ende von src/app/m/kommplan/_lib/freigabe/regeln.test.ts (Import aus "./texte" als eigene Zeile)
+describe("qrZielSatz (Entscheidung 10)", () => {
+  it("sagt Notiz und Ablauf; unbegrenzt ohne Warnung, befristet mit", () => {
+    expect(qrZielSatz({ notiz: "Aushang", ablauf: null })).toBe("Der QR-Code führt auf „Aushang“ – unbegrenzt gültig.");
+    expect(qrZielSatz({ notiz: null, ablauf: null })).toBe("Der QR-Code führt auf den Link ohne Notiz – unbegrenzt gültig.");
+    expect(qrZielSatz({ notiz: "Leitstelle", ablauf: Date.UTC(2026, 9, 2, 18, 0) })).toBe("Der QR-Code führt auf „Leitstelle“ – gültig bis 02.10.2026, 20:00; danach führt der Ausdruck ins Leere.");
+  });
+});
+```
+
+`Teilen.test.tsx`:
+
+```ts
+  it("QR-Schalter im Teilen-Flyin: dieselbe Option; an mit Link → der Satz zum besten Link", async () => {
+    const aendern = vi.fn();
+    await mount(<Teilen planId="p1" basis={BASIS} onFreigaben={neue} qr={{ an: true, onAendern: aendern }}
+      freigaben={[Z({ notiz: "kurz" }), Z({ id: "f2", token: T("B"), notiz: "Aushang", ablauf: null })]} />);
+    expect(query("[data-qr-ziel-satz]").textContent).toBe("Der QR-Code führt auf „Aushang“ – unbegrenzt gültig.");
+    await clickElement(query('[data-option="qrAufDruck"]'));
+    expect(aendern).toHaveBeenCalledWith(false);
+  });
+```
+
+`Druckseite.test.tsx`: die vorhandenen `daten`-Literale bekommen `qrSatz: null`, dazu `expect(renderToStaticMarkup(<Druckseite … daten={{ …, qrSatz: "Der QR-Code führt auf „Aushang“ – unbegrenzt gültig." }} />)).toMatch(/class="noprint[^"]*"[^>]*data-qr-satz=""[^>]*>Der QR-Code führt auf/)`.
+
 (`exists` in den vorhandenen Import aus `test-dom` aufnehmen.)
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm vitest run src/app/m/kommplan/_lib/qrGrafik.test.ts src/app/m/kommplan/_lib/layout/papier.test.ts src/app/m/kommplan/_ui/zeichnung/Blatt.test.tsx src/app/m/kommplan/_lib/druckdaten.test.ts src/app/m/kommplan/_ui/editor/PlanFlyin.test.tsx src/app/m/kommplan/_lib/plan/operationen.test.ts`
-Expected: FAIL — `./qrGrafik` nicht auflösbar, `qrBox`/`legendenBreite` nicht exportiert, `qrAufDruck` in `setzeOptionen` ein Typfehler, kein Schalter `qrAufDruck`.
+Run: `pnpm vitest run src/app/m/kommplan/_lib/qrGrafik.test.ts src/app/m/kommplan/_lib/layout/papier.test.ts src/app/m/kommplan/_ui/zeichnung/Blatt.test.tsx src/app/m/kommplan/_lib/druckdaten.test.ts src/app/m/kommplan/_ui/editor/PlanFlyin.test.tsx src/app/m/kommplan/_lib/plan/operationen.test.ts src/app/m/kommplan/_lib/freigabe src/app/m/kommplan/_ui/teilen src/app/m/kommplan/_ui/druck`
+Expected: FAIL — `./qrGrafik` nicht auflösbar, `qrBox`/`legendenBreite`/`qrZielSatz`/`qrZielIntern` nicht exportiert, `qrAufDruck` in `setzeOptionen` ein Typfehler, kein Schalter `qrAufDruck`, kein `qrSatz`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -2569,9 +2882,10 @@ Expected: FAIL — `./qrGrafik` nicht auflösbar, `qrBox`/`legendenBreite` nicht
 
 /**
  * QR „Aktuelle Fassung" unten rechts über dem Fuß (Umsetzungsplan Phase 5, Entscheidung 11). Gemessen mit `core/qr`
- * (Fehlerkorrektur H, Rand 4): eine 72-Zeichen-URL ergibt 53 × 53 Module, bei 20 mm also 0,38 mm je Modul.
+ * (Fehlerkorrektur H, Rand 4) an echten base64url-Tokens: eine 72-Zeichen-URL ergibt Version 8 = 57 × 57 Module,
+ * bei 24 mm also 0,42 mm je Modul (20 mm hätten nur 0,35 mm).
  */
-export const QR_BOX = { kante: 20, beschriftung: 4, luft: 3 } as const;
+export const QR_BOX = { kante: 24, beschriftung: 4, luft: 3 } as const;
 ```
 
 `_lib/layout/papier.ts` — Import `QR_BOX` in die vorhandene `./masse`-Zeile, dann:
@@ -2673,17 +2987,21 @@ in `Blattansicht` `zeichenflaeche(format, blatt.legendeZeilen.length, Boolean(ra
 ```ts
 import { qrSvg } from "@/core/qr";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { tokenUrl } from "./freigabe/regeln";
-import { qrTokenFuer } from "./freigaben";
+import { tokenUrl, waehleQrFreigabe } from "./freigabe/regeln";
+import { freigabenFuer } from "./freigaben";
 import { qrGrafikAus } from "./qrGrafik";
 …
-export interface DruckAuftrag { format: Papierformat; qrUrl: string | null }
+export interface DruckAuftrag { format: Papierformat; qrUrl: string | null; qrSatz?: string | null }
+export interface QrZiel { url: string; notiz: string | null; ablauf: number | null }
 
-/** QR des INTERNEN Drucks (Entscheidung 10): Option an, nicht archiviert, Adresse eingerichtet, gültiger Link — der beste. */
-export function qrUrlIntern(db: KommplanDb, plan: LesbarerPlan, jetzt: number, basis: string | null = moduleUrl("kommplan")): string | null {
+/**
+ * QR des INTERNEN Drucks (Entscheidung 10): Option an, nicht archiviert, Adresse eingerichtet, gültiger Link — der
+ * beste. Notiz und Ablauf gehen in den Satz der `noprint`-Leiste („Der QR-Code führt auf …").
+ */
+export function qrZielIntern(db: KommplanDb, plan: LesbarerPlan, jetzt: number, basis: string | null = moduleUrl("kommplan")): QrZiel | null {
   if (!plan.inhalt?.optionen.qrAufDruck || plan.archiviertAm !== null || !basis) return null;
-  const token = qrTokenFuer(db, plan.id, jetzt);
-  return token ? tokenUrl(basis, token) : null;
+  const f = waehleQrFreigabe(freigabenFuer(db, plan.id, jetzt), jetzt);
+  return f ? { url: tokenUrl(basis, f.token), notiz: f.notiz, ablauf: f.ablauf } : null;
 }
 
 /** QR des TOKEN-Drucks (Entscheidung 9): der benutzte Token, nie ein anderer Link des Plans (Review Focus 1). */
@@ -2701,35 +3019,73 @@ und in `druckseitenDaten`:
     blaetter: inhalt ? teileAuf(inhalt, auftrag.format, { qr: qr !== null }) : null,
     rahmen: { ...rahmen, qr },
     symbole: inhalt ? symboleFuer(inhalt) : {},
+    qrSatz: qr ? auftrag.qrSatz ?? null : null,
   };
 ```
 
+(`qrTokenFuer` aus Task 2 bleibt für `freigaben.test.ts`; `qrZielIntern` braucht die ganze Zeile.)
+
+`_lib/freigabe/texte.ts` ergänzen:
+
+```ts
+/** Wohin der QR des Ausdrucks führt (Entscheidung 10) — Plan-Flyin, Teilen-Flyin und Druckseite sagen es gleich. */
+export function qrZielSatz(f: { notiz: string | null; ablauf: number | null }): string {
+  const name = f.notiz ? `„${f.notiz}“` : "den Link ohne Notiz";
+  return f.ablauf === null
+    ? `Der QR-Code führt auf ${name} – unbegrenzt gültig.`
+    : `Der QR-Code führt auf ${name} – gültig bis ${ZEIT.format(f.ablauf)}; danach führt der Ausdruck ins Leere.`;
+}
+```
+
+`_ui/druck/Druckseite.tsx`: `DruckseiteDaten` um `qrSatz: string | null`; im lesbaren Zweig direkt nach `<Drucken />`: `{daten.qrSatz ? <p className="noprint kp-druck-qr-satz" data-qr-satz="">{daten.qrSatz}</p> : null}`; `druck.css` (vor `@media print`): `.kp-druck .kp-druck-qr-satz { text-align: center; margin: 0 0 8px; }`. Der Zweig „nicht lesbar" bleibt ohne.
+
 Die vier Druckseiten:
-- intern (a4, a3): `daten={await druckseitenDaten(db, plan, { format: "a4-quer", qrUrl: qrUrlIntern(db, plan, new Date().getTime()) })}` (Import `qrUrlIntern` in die `druckdaten`-Zeile).
+- intern (a4, a3): `const ziel = qrZielIntern(db, plan, new Date().getTime());` und `daten={await druckseitenDaten(db, plan, { format: "a4-quer", qrUrl: ziel?.url ?? null, qrSatz: ziel ? qrZielSatz(ziel) : null })}` (Import `qrZielIntern` in die `druckdaten`-Zeile, `qrZielSatz` aus `@/app/m/kommplan/_lib/freigabe/texte`).
 - Token (a4, a3): auf die zweizeilige Form umstellen (`const { token } = await params;` / `const { plan } = await tokenPlanOder404(token);`) und `daten={await druckseitenDaten(getDb(), plan, { format: "a4-quer", qrUrl: qrUrlFuerToken(plan, token) })}`.
 
 `_lib/plan/operationen.ts`: `export function setzeOptionen(inhalt: PlanInhalt, aenderung: Partial<PlanOptionen>): PlanInhalt {` (Rumpf unverändert).
 
-`_ui/editor/PlanFlyin.tsx`: `PlanFormularProps` um `gueltigerLink?: boolean; linkAdresse?: boolean;` erweitern, `PlanFormular({ …, gueltigerLink = false, linkAdresse = true })`, im Abschnitt „Optionen" nach dem VS-NfD-Schalter:
+`_ui/editor/PlanFlyin.tsx`: `PlanFormularProps` um `qrLink?: { notiz: string | null; ablauf: number | null } | null; linkAdresse?: boolean; onTeilen?: () => void;` erweitern, `PlanFormular({ …, qrLink = null, linkAdresse = true, onTeilen })`, im Abschnitt „Optionen" nach dem VS-NfD-Schalter:
 
 ```tsx
         <label className="kp-schalter"><Switch data-option="qrAufDruck" checked={inhalt.optionen.qrAufDruck}
           onChange={(v) => aendere((q) => setzeOptionen(q, { qrAufDruck: v }))} /> QR-Code „Aktuelle Fassung“ auf dem Ausdruck</label>
-        {inhalt.optionen.qrAufDruck && !linkAdresse ? (
+        {!inhalt.optionen.qrAufDruck ? null : !linkAdresse ? (
           <p className="kp-hilfe" data-qr-hinweis="">Für die Kommunikationspläne ist keine Adresse eingerichtet — der Ausdruck trägt keinen QR-Code.</p>
-        ) : inhalt.optionen.qrAufDruck && !gueltigerLink ? (
-          <p className="kp-hilfe" data-qr-hinweis="">Ohne gültigen Link druckt der Plan keinen QR-Code. Stelle unter „Teilen“ einen Link aus.</p>
-        ) : null}
+        ) : qrLink === null ? (
+          <div className="kp-hilfe" data-qr-hinweis="">
+            <p>Ohne gültigen Link druckt der Plan keinen QR-Code.</p>
+            {onTeilen ? <Button onClick={onTeilen}>Link ausstellen</Button> : null}
+          </div>
+        ) : (
+          <p className="kp-hilfe" data-qr-ziel-satz="">{qrZielSatz(qrLink)}</p>
+        )}
 ```
 
-`PlanFlyin` reicht die beiden Props über `...p` schon durch. `Editor.tsx` am `<PlanFlyin …>`: `gueltigerLink={freigaben.some((f) => f.status === "gueltig")} linkAdresse={teilen.basis !== null}`.
+(Import `qrZielSatz` aus `../../_lib/freigabe/texte`; `Button` ist in `PlanFlyin.tsx` schon importiert — sonst ergänzen.) `PlanFlyin` reicht die drei Props über `...p` schon durch.
+
+`_ui/teilen/Teilen.tsx`: `Props` um `qr?: { an: boolean; onAendern: (an: boolean) => void }`; am Ende des Formulars (nach den Listen) ein eigener Abschnitt — derselbe Schalter wie im Plan-Flyin (eine Option, zwei Orte; Entscheidung 10):
+
+```tsx
+      {qr ? (
+        <fieldset className="kp-abschnitt">
+          <legend>Ausdruck</legend>
+          <label className="kp-schalter"><Switch data-option="qrAufDruck" checked={qr.an} onChange={qr.onAendern} /> QR-Code „Aktuelle Fassung“ auf dem Ausdruck</label>
+          {qr.an ? <p className="kp-hilfe" data-qr-ziel-satz="">{qrBester ? qrZielSatz(qrBester) : "Ohne gültigen Link druckt der Plan keinen QR-Code."}</p> : null}
+        </fieldset>
+      ) : null}
+```
+
+mit `const qrBester = besteFreigabe(gueltig);` (Importe `Switch` aus antd, `besteFreigabe` aus `regeln`, `qrZielSatz` aus `texte`).
+
+`Editor.tsx`: `const qrLink = besteFreigabe(freigaben.filter((f) => f.status === "gueltig"));` (Status vom Server, keine Uhr im Rendern — Entscheidung 10); am `<PlanFlyin …>`: `qrLink={qrLink} linkAdresse={teilen.basis !== null} onTeilen={() => setFlyin("teilen")}`; am `<TeilenFlyin …>`: `qr={{ an: <Inhalt>.optionen.qrAufDruck, onAendern: (v) => <aendere>((q) => setzeOptionen(q, { qrAufDruck: v })) }}` — `<Inhalt>` und `<aendere>` sind dieselben Werte, die der Editor schon an `PlanFlyin` reicht (`inhalt`, `aendere`).
 
 `grenze.test.ts`: `"_lib/qrGrafik.ts"` an die Liste der geteilten Ordner anhängen.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/app/m/kommplan`
-Expected: PASS — auch `golden.test.ts` und `eigenschaften.test.ts` (ohne QR bytegleich; mit QR keine Überdeckung). Gegenprobe: in `zeichenflaeche` das `Math.min(…)` weglassen → der QR-Fall in `papier.test.ts` und in `eigenschaften.test.ts` rot; zurück.
+Expected: PASS — auch `golden.test.ts` und `eigenschaften.test.ts` (ohne QR bytegleich; mit QR keine Überdeckung). Gegenprobe: in `zeichenflaeche` das `Math.min(…)` weglassen → der QR-Fall in `papier.test.ts` und in `eigenschaften.test.ts` rot; zurück. Der Fall „große Stab-Lage passt mit QR" ist mit 24 mm Kante strenger als mit 20 — bleibt er grün, ist der Preis (Review Focus 5) tragbar; sonst Befund in „Abweichungen", nicht die Kante zurückdrehen.
 
 - [ ] **Step 5: Build, Ankerschritt, Commit**
 
@@ -2737,13 +3093,14 @@ Expected: PASS — auch `golden.test.ts` und `eigenschaften.test.ts` (ohne QR by
 uptime
 pnpm typecheck; echo "exit $?"
 pnpm build; echo "build exit $?"
-git grep -n "masse.ts:[0-9]\|papier.ts:[0-9]\|Blatt.tsx:[0-9]\|operationen.ts:[0-9]\|PlanFlyin.tsx:[0-9]" -- src scripts e2e docs
+git grep -n "masse.ts:[0-9]\|papier.ts:[0-9]\|Blatt.tsx:[0-9]\|operationen.ts:[0-9]\|PlanFlyin.tsx:[0-9]\|Teilen.tsx:[0-9]\|Druckseite.tsx:[0-9]" -- src scripts e2e docs
 pnpm anker:drift src/app/m/kommplan/_lib/layout/papier.ts
 git add src/app/m/kommplan
 git commit -S -m "feat(kommplan): QR „Aktuelle Fassung“ auf dem Ausdruck
 
 Intern der beste gültige Link, im Token-Druck immer der benutzte Token.
-Platz nur, wenn ein QR gedruckt wird; ohne Link ein Hinweis im Flyin.
+Platz nur, wenn ein QR gedruckt wird (24 mm); Plan-Flyin, Teilen-Flyin
+und Druckseite sagen, wohin er führt; ohne Link ein Knopf zu „Teilen“.
 
 DRK-500
 
@@ -3011,7 +3368,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Create: `src/app/m/kommplan/_ui/druck/svgExport.ts`, `src/app/m/kommplan/_ui/druck/svgExport.test.ts`
 - Create: `src/app/m/kommplan/_ui/druck/SvgHerunterladen.tsx`, `src/app/m/kommplan/_ui/druck/SvgHerunterladen.test.tsx`
 - Modify: `src/app/m/kommplan/_ui/druck/Druckseite.tsx`, `src/app/m/kommplan/_ui/druck/Druckseite.test.tsx`, `src/app/m/kommplan/_ui/zeichnung/Druckblaetter.tsx` (`vorBlatt`), `src/app/m/kommplan/_ui/druck/druck.css`
-- Modify: `src/app/m/kommplan/_lib/druckdaten.ts` (`mitSvgExport`), `src/app/m/kommplan/_lib/druckdaten.test.ts`, die beiden internen Druckseiten
+- Modify: `src/app/m/kommplan/_lib/druckdaten.ts` (`mitSvgExport`), `src/app/m/kommplan/_lib/druckdaten.test.ts`, die beiden internen Druckseiten (`searchParams.export`)
+- Modify: `src/app/m/kommplan/_ui/druck/Drucken.tsx` (`automatisch`), `src/app/m/kommplan/_ui/druck/Drucken.test.tsx`
+- Modify: `src/app/m/kommplan/_ui/druck/DruckMenue.tsx` (`mitSvg`), `src/app/m/kommplan/_ui/druck/DruckMenue.test.tsx`, `src/app/m/kommplan/_ui/editor/Kopfleiste.tsx`, `src/app/m/kommplan/(intern)/p/[id]/page.tsx` (Betrachter: `mitSvg`)
 - Modify: `src/app/m/kommplan/_lib/zeichen/generat.test.ts`, `src/app/m/kommplan/grenze.test.ts`
 
 **Interfaces:**
@@ -3022,6 +3381,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `SvgHerunterladen({ nummer, von, dateiname })`
   - `DruckseiteDaten.svgExport: { titel: string; tag: string } | null`; `DruckAuftrag.mitSvgExport?: boolean`
   - `Druckblaetter({ …, vorBlatt?: (b: Blatt) => ReactNode })`
+  - `Drucken({ automatisch?: boolean })` (Vorgabe `true`), `Druckseite({ daten, schrift, automatisch? })`
+  - `DruckMenue({ …, mitSvg?: boolean })` — Gruppe „SVG-Dateien" mit „SVG – A4 quer"/„SVG – A3 quer", Wahl `{ format, svg: true }` → `…/druck/<format>?export=svg` (Entscheidung 15)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3154,7 +3515,7 @@ describe("SvgHerunterladen", () => {
   it("mit SVG-Export: über jedem Blatt ein Knopf mit ASCII-Dateinamen; ohne (Token-Druck) keiner", () => {
     const gross = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!;
     const blaetter = teileAuf(gross.inhalt, "a4-quer");
-    const daten = { format: "a4-quer" as const, blaetter, rahmen: RAHMEN, symbole: {} };
+    const daten = { format: "a4-quer" as const, blaetter, rahmen: RAHMEN, symbole: {}, qrSatz: null };
     const mit = renderToStaticMarkup(<Druckseite schrift={SCHRIFT} daten={{ ...daten, svgExport: { titel: "Große Stab-Lage", tag: "2026-10-01" } }} />);
     expect(mit.split("SVG herunterladen (Blatt").length - 1).toBe(blaetter.length);
     expect(mit).toContain(`SVG herunterladen (Blatt 1 von ${blaetter.length})`);
@@ -3163,7 +3524,39 @@ describe("SvgHerunterladen", () => {
   });
 ```
 
-(und die beiden vorhandenen Fälle bekommen `svgExport: null` in `daten`).
+(und die vorhandenen Fälle bekommen `svgExport: null` in `daten`).
+
+`Drucken.test.tsx` (verschoben in Task 4) — neuer Fall:
+
+```ts
+  it("automatisch={false} (SVG-Weg): kein Druckdialog beim Laden, der Knopf druckt weiter", async () => {
+    const drucke = vi.spyOn(window, "print").mockImplementation(() => {});
+    await mount(<Drucken automatisch={false} />);
+    await act(async () => { await document.fonts?.ready; });
+    expect(drucke).not.toHaveBeenCalled();
+    await clickElement(query("button"));
+    expect(drucke).toHaveBeenCalledTimes(1);
+    drucke.mockRestore();
+  });
+```
+
+(Importe in die vorhandenen Zeilen zusammenführen; liefert jsdom kein `document.fonts`, stubbt der vorhandene Test es schon — dasselbe Muster nehmen.)
+
+`DruckMenue.test.tsx` — neuer Fall:
+
+```ts
+  it("mitSvg (intern): Gruppe „SVG-Dateien“ öffnet die Druckroute mit ?export=svg — ohne Druckdialog", async () => {
+    const auf = vi.spyOn(window, "open").mockReturnValue(null);
+    await mount(<DruckMenue basis="/p/x" mitSvg />);
+    await oeffne();
+    expect(punkte().map((p) => p.textContent)).toEqual(["A4 quer", "A3 quer", "SVG – A4 quer", "SVG – A3 quer"]);
+    await clickElement(punkte()[3]);
+    expect(auf).toHaveBeenLastCalledWith("/p/x/druck/a3?export=svg", "_blank", "noopener");
+    auf.mockRestore();
+  });
+```
+
+und im ersten Fall bleibt ohne `mitSvg` die Liste `["A4 quer", "A3 quer"]` (Token-Ansicht: kein SVG).
 
 `druckdaten.test.ts`:
 
@@ -3359,7 +3752,9 @@ export function SvgHerunterladen({ nummer, von, dateiname }: { nummer: number; v
       ))}
 ```
 
-`_ui/druck/Druckseite.tsx`: `DruckseiteDaten` um `svgExport: { titel: string; tag: string } | null` erweitern; Import `svgDateiname` aus `../../_lib/dateiname`, `SvgHerunterladen` aus `./SvgHerunterladen`; am `Druckblaetter`:
+`_ui/druck/Drucken.tsx`: `export function Drucken({ automatisch = true }: { automatisch?: boolean })`, im Effekt `if (!automatisch) return;` als erste Anweisung, Abhängigkeit `[automatisch]`; Kopfkommentar um „`automatisch={false}` auf dem SVG-Weg (`?export=svg`, Phase 5, Entscheidung 15)" ergänzen — in einer vorhandenen Zeile.
+
+`_ui/druck/Druckseite.tsx`: Prop `automatisch?: boolean` (Vorgabe `true`), `<Drucken automatisch={automatisch} />`; ohne Automatik steht über den Blättern `<p className="noprint kp-druck-svg-hinweis">Zum Herunterladen: je Blatt ein Knopf. Drucken geht weiter über „Drucken“.</p>`. `DruckseiteDaten` um `svgExport: { titel: string; tag: string } | null` erweitern; Import `svgDateiname` aus `../../_lib/dateiname`, `SvgHerunterladen` aus `./SvgHerunterladen`; am `Druckblaetter`:
 
 ```tsx
         vorBlatt={daten.svgExport ? (b) => (
@@ -3382,12 +3777,23 @@ export function SvgHerunterladen({ nummer, von, dateiname }: { nummer: number; v
       : null,
 ```
 
-Interne Druckseiten (a4, a3): Auftrag um `mitSvgExport: true`. Die Token-Druckseiten bleiben ohne (Entscheidung 15).
+Interne Druckseiten (a4, a3): Auftrag um `mitSvgExport: true`; dazu `searchParams` lesen (Next 16: `searchParams: Promise<{ export?: string | string[] }>` — vorher `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/page.md` lesen) und `<Druckseite … automatisch={(await searchParams).export !== "svg"} />`. Die Token-Druckseiten bleiben ohne SVG und ohne `searchParams` (Entscheidung 15).
+
+`_ui/druck/DruckMenue.tsx`: Prop `mitSvg?: boolean`; die Einträge
+
+```tsx
+  const items: MenuProps["items"] = [
+    ...DRUCKFORMATE.map((f) => ({ key: f.key, label: f.label })),
+    ...(mitSvg ? [{ type: "group" as const, label: "SVG-Dateien", children: DRUCKFORMATE.map((f) => ({ key: `${f.key}-svg`, label: `SVG – ${f.label}` })) }] : []),
+  ];
+```
+
+und im `onClick`: `const [format, art] = key.split("-"); waehle({ format: format as DruckFormatKurz, svg: art === "svg" });`. Kopfkommentar um „Intern (`mitSvg`) zusätzlich die SVG-Dateien ohne Druckdialog (Entscheidung 15)" ergänzen. Aufrufer: `Kopfleiste` (`<DruckMenue onWahl={onDrucken} mitSvg />`) und der Betrachter-Zweig von `(intern)/p/[id]/page.tsx` (`mitSvg`); die Token-Ansicht nicht.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/app/m/kommplan`
-Expected: PASS. Gegenprobe: in `eigenstaendigesSvg` die Kette (`offen.push(...)` für den Klon) entfernen → „jeder Verweis löst auf" rot (`kp-innen` fehlt); zurück.
+Expected: PASS. Gegenprobe: in `eigenstaendigesSvg` die Kette (`offen.push(...)` für den Klon) entfernen → „jeder Verweis löst auf" rot (`kp-innen` fehlt); zurück. Gegenprobe zum SVG-Weg: `if (!automatisch) return;` entfernen → `Drucken.test.tsx` rot; zurück.
 
 - [ ] **Step 5: Build, Ankerschritt, Commit**
 
@@ -3396,13 +3802,14 @@ uptime
 pnpm typecheck; echo "exit $?"
 pnpm lint; echo "lint exit $?"
 pnpm build; echo "build exit $?"
-git grep -n "kommplan-zeichen-generat.ts:[0-9]\|Druckblaetter.tsx:[0-9]\|Druckseite.tsx:[0-9]\|druckdaten.ts:[0-9]" -- src scripts e2e docs
+git grep -n "kommplan-zeichen-generat.ts:[0-9]\|Druckblaetter.tsx:[0-9]\|Druckseite.tsx:[0-9]\|druckdaten.ts:[0-9]\|Drucken.tsx:[0-9]\|DruckMenue.tsx:[0-9]\|Kopfleiste.tsx:[0-9]" -- src scripts e2e docs
 git add scripts/kommplan-zeichen-generat.ts src/app/m/kommplan
 git commit -S -m "feat(kommplan): SVG herunterladen je Blatt
 
 Eigenständige Datei mit den erreichten Symbolen, Logo und Graufilter,
 Arimo als @font-face (erst beim Klick geladen) und metrisch gleicher
 Schriftliste; ASCII-Dateiname aus Titel, Datum, Blatt und Format.
+Im Druckmenü „SVG-Dateien“: die Druckseite ohne Druckdialog.
 
 DRK-500
 
@@ -3411,7 +3818,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 13: „Als Vorlage speichern" legt eine Kopie an; „Keine Vorlage mehr" archiviert die Vorlage
+### Task 13: „Als Vorlage speichern" legt eine Kopie an; „Vorlage archivieren" ersetzt „Keine Vorlage mehr"
 
 **Files:**
 - Modify: `src/app/m/kommplan/_lib/planverwaltung.ts` (`speichereAlsVorlage` statt `setzeVorlage`), `src/app/m/kommplan/_lib/planverwaltung.test.ts`
@@ -3426,7 +3833,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-`planverwaltung.test.ts` — Importzeile: `setzeVorlage` → `speichereAlsVorlage`; den Fall „„Als Vorlage speichern“ verschiebt den Plan …" ersetzen:
+`planverwaltung.test.ts` — Importzeile: `setzeVorlage` → `speichereAlsVorlage`. **Alle vier** Aufrufe von `setzeVorlage` in der Datei verschwinden (Kritik: zwei stehen außerhalb des ersetzten Falls):
+- im Block „Planverwaltung — Grenzfälle (Review Phase 4)", Fall „die Kopie einer Vorlage ist ein Plan, keine zweite Vorlage": auf eine Seed-Vorlage umstellen —
+
+```ts
+  it("die Kopie einer Vorlage ist ein Plan, keine zweite Vorlage", async () => {
+    const db = await mitSeed();
+    const v = vorlagenZurAuswahl(db)[0];
+    const r = dupliziere(db, v.id, WER, NACH_MITTERNACHT);
+    if (!r.ok) throw new Error(r.fehler);
+    expect(ladePlanLesend(db, r.id)).toMatchObject({ istVorlage: false });
+  });
+```
+
+- im selben Block den Fall „ein archivierter Plan wird nicht zur Vorlage (und nicht zurück)" **streichen** — den Inhalt deckt der neue Fall „aus einer Vorlage, einem archivierten oder unbekannten Plan wird keine Vorlage" unten ab;
+- den Fall „„Als Vorlage speichern“ verschiebt den Plan …" (Block „Vorlagen") ersetzen:
 
 ```ts
   it("„Als Vorlage speichern“ legt eine KOPIE als Vorlage an — Titel gleich, Datum leer, Ausgangsplan unverändert (Phase 5, Entscheidung 16)", async () => {
@@ -3450,7 +3871,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     expect(speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT).ok).toBe(false);
     expect(speichereAlsVorlage(db, "gibt-es-nicht", WER, NACH_MITTERNACHT).ok).toBe(false);
   });
-  it("„Keine Vorlage mehr“ = archivieren: die Vorlage verschwindet aus der Auswahl und kehrt beim Wiederherstellen als Vorlage zurück", async () => {
+  it("„Vorlage archivieren“ = archivieren: die Vorlage verschwindet aus der Auswahl und kehrt beim Wiederherstellen als Vorlage zurück", async () => {
     const db = await mitSeed();
     const vorlage = vorlagenZurAuswahl(db)[0];
     archiviere(db, vorlage.id, NACH_MITTERNACHT);
@@ -3477,7 +3898,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - neu:
 
 ```ts
-  it("„Als Vorlage speichern“ legt eine Kopie an und sagt, wo sie steht — der Plan bleibt in der Liste", async () => {
+  it("„Als Vorlage speichern“ legt eine Kopie an, sagt, wo sie steht, und bietet „Vorlage öffnen“ — der Plan bleibt in der Liste", async () => {
     aktion.vorlage.mockResolvedValue({ ok: true, id: "v9" });
     await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" darfBearbeiten />);
     await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
@@ -3485,7 +3906,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     await clickElement(knopf("Als Vorlage speichern"));
     await abwarten();
     expect(aktion.vorlage).toHaveBeenCalledWith("p1");
-    expect(query(".kp-listenhinweis").textContent).toBe("Vorlage „Einsatz“ angelegt — sie steht unter „Vorlagen“.");
+    expect(query(".kp-listenhinweis").textContent).toContain("Vorlage „Einsatz“ angelegt — sie steht unter „Vorlagen“.");
+    const oeffnen = query<HTMLAnchorElement>(".kp-listenhinweis a");
+    expect(oeffnen.textContent).toBe("Vorlage öffnen");
+    expect(oeffnen.getAttribute("href")).toBe("/p/v9");
+    expect(document.activeElement).toBe(oeffnen);
     expect(router.refresh).toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
   });
@@ -3494,16 +3919,16 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - den Fall „Vorlagenliste: „Keine Vorlage mehr“ setzt vorlage:false …" ersetzen:
 
 ```ts
-  it("Vorlagenliste: „Neu aus Vorlage“ und „Keine Vorlage mehr“ (archiviert, mit Rückgängig) — kein zweites „Archivieren“", async () => {
+  it("Vorlagenliste: „Neu aus Vorlage“ und „Vorlage archivieren“ (mit Rückgängig) — kein „Keine Vorlage mehr“, kein zweites „Archivieren“", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });
     await mount(<PlanTabelle zeilen={[ZEILEN[1]]} liste="vorlagen" darfBearbeiten />);
     await clickElement(query('button[aria-label="Aktionen für Label"]'));
     await abwarten();
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Keine Vorlage mehr"]);
-    await clickElement(knopf("Keine Vorlage mehr"));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Vorlage archivieren"]);
+    await clickElement(knopf("Vorlage archivieren"));
     await abwarten();
     expect(aktion.archiviere).toHaveBeenCalledWith("p2");
-    expect(query(".kp-listenhinweis").textContent).toContain("„Label“ ist keine Vorlage mehr und liegt im Archiv.");
+    expect(query(".kp-listenhinweis").textContent).toContain("Vorlage „Label“ archiviert.");
     expect(knopf("Rückgängig")).toBeTruthy();
   });
   it("Archiv: eine Vorlage trägt das Kennzeichen „Vorlage“; Wiederherstellen sagt, wohin sie zurückkehrt", async () => {
@@ -3523,7 +3948,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/app/m/kommplan/_lib/planverwaltung.test.ts src/app/m/kommplan/_actions/verwaltung.test.ts "src/app/m/kommplan/(intern)/PlanTabelle.test.tsx"`
-Expected: FAIL — `speichereAlsVorlage` und `speichereAlsVorlageAction` nicht exportiert, Menü der Vorlagen hat noch „Archivieren".
+Expected: FAIL — `speichereAlsVorlage` und `speichereAlsVorlageAction` nicht exportiert, Menü der Vorlagen hat noch „Keine Vorlage mehr" und „Archivieren".
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -3550,7 +3975,7 @@ export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter,
 }
 ```
 
-und im Kopfkommentar der Datei „(`ist_vorlage`, `archiviert_am`, Anlegen)" stehen lassen; „Entscheidungen 7–10" → „Entscheidungen 7–10, Phase 5 Entscheidung 16" **in derselben Zeile**.
+und im Kopfkommentar der Datei „(`ist_vorlage`, `archiviert_am`, Anlegen)" stehen lassen; „Entscheidungen 7–10; Phase 5 Entscheidung 3" (so steht es seit Task 2) → „Entscheidungen 7–10; Phase 5 Entscheidungen 3, 16" **in derselben Zeile**.
 
 `_actions/verwaltung.ts` — `setzeVorlageAction` ersetzen (Import `AnlageErgebnis` in die Typzeile, `speichereAlsVorlage` statt `setzeVorlage`):
 
@@ -3587,28 +4012,35 @@ const LEER: Record<Liste, string> = {
 …
 const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
   plaene: [{ key: "duplizieren", label: "Duplizieren" }, { key: "vorlage", label: "Als Vorlage speichern" }, { key: "archivieren", label: "Archivieren" }],
-  vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "keineVorlage", label: "Keine Vorlage mehr" }],
+  vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "vorlageArchivieren", label: "Vorlage archivieren" }],
   archiv: [{ key: "wiederherstellen", label: "Wiederherstellen" }],
 };
 ```
 
+(Der Schlüssel `keineVorlage` heißt jetzt `vorlageArchivieren` — im Typ `Aktion` mitziehen.) `Hinweis` bekommt ein zweites Ziel: `interface Hinweis { text: string; zurueck?: string; oeffnen?: string; fokus?: boolean }`, gerendert nach dem „Rückgängig"-Knopf als `{hinweis.oeffnen ? <Button ref={oeffnenRef} href={`/p/${hinweis.oeffnen}`}>Vorlage öffnen</Button> : null}` (`useRef<HTMLAnchorElement>` — antd rendert `Button` mit `href` als `<a>`), und der Fokus-Effekt nimmt `(zurueckRef.current ?? oeffnenRef.current ?? hinweisRef.current)?.focus()`.
+
 in `fuehreAus`:
 
 ```ts
+    let neueVorlage: string | undefined;
     const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren">, () => Promise<EinfachErgebnis>> = {
-      vorlage: () => speichereAlsVorlageAction(z.id).then((r): EinfachErgebnis => (r.ok ? { ok: true } : { ok: false, fehler: r.fehler })),
-      keineVorlage: () => archiviereAction(z.id),
+      vorlage: () => speichereAlsVorlageAction(z.id).then((r): EinfachErgebnis => {
+        if (!r.ok) return { ok: false, fehler: r.fehler };
+        neueVorlage = r.id;
+        return { ok: true };
+      }),
+      vorlageArchivieren: () => archiviereAction(z.id),
       archivieren: () => archiviereAction(z.id),
       wiederherstellen: () => stelleWiederHerAction(z.id),
     };
     …
     const text = {
       vorlage: `Vorlage „${z.titel}“ angelegt — sie steht unter „Vorlagen“.`,
-      keineVorlage: `„${z.titel}“ ist keine Vorlage mehr und liegt im Archiv.`,
+      vorlageArchivieren: `Vorlage „${z.titel}“ archiviert.`,
       archivieren: `„${z.titel}“ archiviert.`,
       wiederherstellen: z.vorlage ? `„${z.titel}“ wiederhergestellt — sie steht wieder unter „Vorlagen“.` : `„${z.titel}“ wiederhergestellt.`,
     }[a];
-    setHinweis({ text, zurueck: a === "archivieren" || a === "keineVorlage" ? z.id : undefined, fokus: true });
+    setHinweis({ text, zurueck: a === "archivieren" || a === "vorlageArchivieren" ? z.id : undefined, oeffnen: neueVorlage, fokus: true });
 ```
 
 und in der Spalte „Kennzeichen":
@@ -3620,13 +4052,14 @@ und in der Spalte „Kennzeichen":
       </span>
 ```
 
-e2e `kommplan-verwaltung.spec.ts`, Test „Vorlage: …" — umbenennen in „Vorlage: als Kopie speichern, Neu aus Vorlage übernimmt den Inhalt, Keine Vorlage mehr archiviert" und anpassen:
+e2e `kommplan-verwaltung.spec.ts`, Test „Vorlage: …" — umbenennen in „Vorlage: als Kopie speichern, Neu aus Vorlage übernimmt den Inhalt, Vorlage archivieren" und anpassen:
 
 ```ts
   const v = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id]));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Als Vorlage speichern" }));
   expect((await v).status()).toBe(200);
   await expect(page.locator(".kp-listenhinweis")).toContainText(`Vorlage „${titel}“ angelegt`);
+  await expect(page.locator(".kp-listenhinweis").getByRole("link", { name: "Vorlage öffnen" })).toHaveAttribute("href", /\/p\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
   await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible(); // der Plan bleibt
 ```
@@ -3634,14 +4067,14 @@ e2e `kommplan-verwaltung.spec.ts`, Test „Vorlage: …" — umbenennen in „Vo
 (`id` aus `const id = await neuerPlan(page, titel);` — die bisherige Zeile `await neuerPlan(page, titel);` entsprechend fassen.) Der Abschnitt „Neu aus Vorlage" bleibt. Der Schluss:
 
 ```ts
-  // Keine Vorlage mehr: die Vorlage geht ins Archiv, der Plan bleibt unter „Pläne“
+  // Vorlage archivieren: die Vorlage geht ins Archiv, der Plan bleibt unter „Pläne“
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Vorlagen" }).getByRole("button", { name: `Aktionen für ${titel}` }));
   const keine = page.waitForResponse((r) => istAktion(r));
-  await klickeWennRuhig(page.getByRole("menuitem", { name: "Keine Vorlage mehr" }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Vorlage archivieren" }));
   expect((await keine).status()).toBe(200);
-  await expect(page.locator(".kp-listenhinweis")).toContainText(`„${titel}“ ist keine Vorlage mehr und liegt im Archiv.`);
+  await expect(page.locator(".kp-listenhinweis")).toContainText(`Vorlage „${titel}“ archiviert.`);
   await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toHaveCount(0);
   await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
   await page.goto(url("/archiv"));
@@ -3652,7 +4085,7 @@ e2e `kommplan-verwaltung.spec.ts`, Test „Vorlage: …" — umbenennen in „Vo
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run src/app/m/kommplan src/core/audit` und `pnpm exec playwright test e2e/kommplan-verwaltung.spec.ts -g "Vorlage"; git checkout -- next-env.d.ts`
-Expected: PASS. `git grep -n "setzeVorlage" -- src e2e` liefert nichts mehr.
+Expected: PASS. `git grep -n "setzeVorlage\|Keine Vorlage mehr\|keineVorlage" -- src e2e` liefert nichts mehr (Prüfschritt, Kritik: sonst bleibt ein Aufruf in `planverwaltung.test.ts` stehen, und `pnpm typecheck` wird rot).
 
 - [ ] **Step 5: Commit**
 
@@ -3664,8 +4097,9 @@ git add src/app/m/kommplan src/core/audit/coverage-manifest.json e2e/kommplan-ve
 git commit -S -m "feat(kommplan): Als Vorlage speichern legt eine Kopie an
 
 Der Ausgangsplan bleibt unter „Pläne“; die Vorlage ist eine Kopie ohne
-Datum. „Keine Vorlage mehr“ archiviert die Vorlage (wiederherstellbar).
-Ändert Phase-4-Entscheidung 7.
+Datum, der Hinweis bietet „Vorlage öffnen“. In der Vorlagenliste heißt
+der Punkt „Vorlage archivieren“ (wiederherstellbar). Ändert
+Phase-4-Entscheidung 7.
 
 DRK-500
 
@@ -3677,7 +4111,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 14: Spec nachziehen und die endgültige Release-Notiz
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§6.1, §6.2, §6.7, §8.1, §8.2)
+- Modify: `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§6.1, §6.2, §6.7, §8.1, §8.2, §8.3)
 - Modify: `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts`
 
 **Interfaces:** keine Code-Schnittstellen.
@@ -3694,40 +4128,56 @@ Jeder Treffer, der hinter einer Änderungsstelle liegt, wird in derselben Zeile 
 - [ ] **Step 2: Spec ändern (Edit-Werkzeug, Wortlaut wie folgt)**
 
 - §6.1, Tabellenzeile `/m/kommplan/t/[token]`: Inhalt „Token-Ansicht (§8)" → „Token-Ansicht (§8.2); Druck unter `…/druck/a4` und `…/druck/a3`".
-- §6.2, Satz „Kopfleiste: Titel, Umschalter **Diagramm | Gliederung**, Rückgängig/Wiederholen, Drucken, Teilen," → „Kopfleiste: Titel, Umschalter **Diagramm | Gliederung**, Rückgängig/Wiederholen, Teilen, Drucken (Menü A4 quer / A3 quer),".
-- §6.7, der Satzteil „„Als Vorlage speichern" setzt `ist_vorlage` am Plan (er steht dann unter „Vorlagen"; „Keine Vorlage mehr" nimmt es zurück); „Neu aus Vorlage" legt eine Kopie an." → „„Als Vorlage speichern" legt eine Kopie als Vorlage an (Titel gleich, ohne Datum; der Plan bleibt unter „Pläne"); „Keine Vorlage mehr" archiviert die Vorlage; „Neu aus Vorlage" legt eine Kopie an."
+- §6.2, Satz „Kopfleiste: Titel, Umschalter **Diagramm | Gliederung**, Rückgängig/Wiederholen, Drucken, Teilen," → „Kopfleiste: Titel, Umschalter **Diagramm | Gliederung**, Rückgängig/Wiederholen, Teilen, Drucken (A4 quer; über den Pfeil A3 quer und SVG-Dateien),".
+- §6.7 — der Satzteil läuft über **zwei** Zeilen (Kritik; Zeilenende nach „setzt"). Suchtext für das Edit-Werkzeug, genau so:
+
+  ```
+  „Als Vorlage speichern" setzt
+  `ist_vorlage` am Plan (er steht dann unter „Vorlagen"; „Keine Vorlage mehr" nimmt es zurück); „Neu aus Vorlage" legt eine Kopie an.
+  ```
+
+  ersetzen durch — wieder mit dem Umbruch nach dem ersten Satzteil, damit die Spec ihre Zeilenzahl behält (Kommentaranker, Regel 4):
+
+  ```
+  „Als Vorlage speichern" legt
+  eine Kopie als Vorlage an (Titel gleich, ohne Datum; der Plan bleibt unter „Pläne"); „Vorlage archivieren" archiviert sie; „Neu aus Vorlage" legt eine Kopie an.
+  ```
+
+- §8.3 — ebenfalls zweizeilig (Zeilenende nach „macht"): „Ein archivierter Plan macht⏎seine Token-Links sofort ungültig." → „Ein archivierter Plan macht⏎seine Token-Links sofort ungültig: Archivieren widerruft sie, Wiederherstellen erweckt keinen wieder." (der Umbruch bleibt an derselben Stelle).
 - §8.1, Punkt „Option Schwarzweiß (`PRINT_MONOCHROME_THEME`)." → „Option Schwarzweiß (`PRINT_MONOCHROME_THEME` als zweites Rezept-Generat): gilt für Ausdruck und SVG-Datei, am Bildschirm bleibt der Plan farbig."
 - §8.1, Punkt „„SVG herunterladen" je Seite." → „„SVG herunterladen" je Blatt auf den internen Druckseiten: eigenständige Datei mit Symbolen, Logo und Arimo als `@font-face`; Dateiname aus Titel, Datum, Blatt und Format in ASCII."
-- §8.2, Punkt „Je Abruf `zuletzt_abgerufen` und `abrufe`. Ausstellen und Widerrufen gehen ins Audit-Log." → „Je Abruf `zuletzt_abgerufen` und `abrufe` (dieselbe Adresse und derselbe Link zählen binnen einer Minute einmal). Ausstellen und Widerrufen gehen ins Audit-Log. Zehn Fehlversuche je Minute und Adresse sperren die Adresse (404 ohne Datenbankabfrage). `X-Robots-Tag`, `Referrer-Policy: no-referrer` und `Cache-Control: no-store` setzt der Proxy."
-- §8.2, Punkt „**QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt der Druck unten rechts einen QR-Code „aktuelle Fassung" (`qrcode` ist bereits Abhängigkeit)." → „**QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt jedes Blatt unten rechts einen QR-Code „Aktuelle Fassung" — intern auf den Link mit dem spätesten Ablauf (unbegrenzt zuerst), im Token-Druck immer auf den benutzten Link. Basis ist die Adresse des Moduls aus der Suite-Konfiguration."
+- §8.2, Punkt „Je Abruf `zuletzt_abgerufen` und `abrufe`. Ausstellen und Widerrufen gehen ins Audit-Log." → „Je Abruf `zuletzt_abgerufen` und `abrufe` (dieselbe Adresse und derselbe Link zählen binnen einer Minute einmal). Ausstellen und Widerrufen gehen ins Audit-Log. Dreißig Fehlversuche je Minute und Adresse sperren die Adresse (404 ohne Datenbankabfrage). `X-Robots-Tag`, `Referrer-Policy: no-referrer` und `Cache-Control: no-store` setzt der Proxy."
+- §8.2, Punkt „**QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt der Druck unten rechts einen QR-Code „aktuelle Fassung" (`qrcode` ist bereits Abhängigkeit)." → „**QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt jedes Blatt unten rechts einen QR-Code „Aktuelle Fassung" (24 mm) — intern auf den Link mit dem spätesten Ablauf (unbegrenzt zuerst), im Token-Druck immer auf den benutzten Link; Plan-Flyin, Teilen-Flyin und Druckseite sagen, auf welchen Link und wie lange. Basis ist die Adresse des Moduls aus der Suite-Konfiguration."
 
 - [ ] **Step 3: Release-Notiz ersetzen und zählen**
 
 Datei `src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts` — `titel` und `inhalt` ersetzen (Kopf, `modul`, `slug`, `datum` bleiben; den Rollout-Tag setzt der Hauptlauf):
 
 ```ts
-  titel: "Kommunikationspläne erstellen, drucken und teilen",
+  titel: "Kommunikationspläne ansehen, erstellen, drucken und teilen",
   inhalt: [
     absatz(
-      "Mit Bearbeitungsrecht baust du Pläne und Fernmeldeskizzen als Diagramm oder in der „Gliederung“ auf, " +
-        "holst Stellen, Einheiten und Verbindungen „Aus Bibliothek“ und stellst über „Teilen“ Links aus, " +
-        "unter denen andere den aktuellen Stand ohne Anmeldung sehen. Über „Drucken“ druckst du in A4 oder A3.",
+      "Unter „Kommunikationspläne“ siehst du Pläne und Fernmeldeskizzen als Diagramm und druckst sie über „Drucken“ in A4 oder A3. " +
+        "Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an, baust ihn in Diagramm oder „Gliederung“ auf " +
+        "und gibst ihn über „Teilen“ als Link weiter, der ohne Anmeldung den aktuellen Stand zeigt.",
     ),
   ],
 ```
 
-Länge prüfen (Grenze 320 je Block, ein Absatz, zwei Sätze):
+(Kritik: zuerst der Einstieg für **alle** Empfänger der Notiz — die Zugangsgruppe bekommt sie laut Kopfzeile der Datei mit —, dann Bearbeitende samt „Neu". „Kommunikationspläne" ist der Name im App-Umschalter (`registry.ts`, `title`), „Neu" der Knopf der Planliste (`NeuerPlan.tsx`). „Aus Bibliothek" fällt dafür heraus — Bibliothek und Vorlagen stehen in den Menüs, die Notiz nennt die Wege, die man suchen würde.)
+
+Länge prüfen (Grenze 320 je Block, ein Absatz, zwei Sätze; Titel gegen `NOTIZ_GRENZEN.zeichenImTitel`):
 
 ```bash
-node -e 'const t="Mit Bearbeitungsrecht baust du Pläne und Fernmeldeskizzen als Diagramm oder in der „Gliederung“ auf, holst Stellen, Einheiten und Verbindungen „Aus Bibliothek“ und stellst über „Teilen“ Links aus, unter denen andere den aktuellen Stand ohne Anmeldung sehen. Über „Drucken“ druckst du in A4 oder A3."; console.log(t.length)'
+node -e 'const t="Unter „Kommunikationspläne“ siehst du Pläne und Fernmeldeskizzen als Diagramm und druckst sie über „Drucken“ in A4 oder A3. Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an, baust ihn in Diagramm oder „Gliederung“ auf und gibst ihn über „Teilen“ als Link weiter, der ohne Anmeldung den aktuellen Stand zeigt."; console.log(t.length)'
 ```
 
-Expected: `298`.
+Expected: `315`.
 
 - [ ] **Step 4: Tests**
 
 Run: `pnpm vitest run src/app/m/portal/_lib/neuigkeiten src/core/kommentaranker.test.ts`
-Expected: PASS (Grenzen, Werbewörter, kein Markdown; alle Zeilenanker zeigen auf existierende Zeilen). Jeder Name in Anführungszeichen steht so am Bildschirm: „Gliederung" (Umschalter), „Aus Bibliothek" (Flyin, Gliederung), „Teilen" (Kopfleiste), „Drucken" (Menüknopf) — gegenlesen in Task 16.
+Expected: PASS (Grenzen, Werbewörter, kein Markdown; alle Zeilenanker zeigen auf existierende Zeilen). Jeder Name in Anführungszeichen steht so am Bildschirm: „Kommunikationspläne" (App-Umschalter), „Drucken" (Hauptknopf), „Neu" (Planliste), „Gliederung" (Umschalter), „Teilen" (Kopfleiste) — gegenlesen in Task 16.
 
 - [ ] **Step 5: Commit**
 
@@ -3736,8 +4186,9 @@ pnpm anker:neu; echo "anker exit $?"
 git add docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md src/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-09-30-kommunikationsplaene-ansehen.ts
 git commit -S -m "docs: Spec und Release-Notiz der Kommunikationspläne nach Phase 5
 
-Token-Links, A3, Schwarzweiß, SVG-Datei, QR und Vorlage als Kopie in
-der Spec; die Notiz ist jetzt die eine Notiz des Moduls.
+Token-Links, A3, Schwarzweiß, SVG-Datei, QR, Vorlage als Kopie und
+Archivieren widerruft in der Spec; die Notiz ist jetzt die eine Notiz
+des Moduls, zuerst für alle, dann für Bearbeitende.
 
 DRK-500
 
@@ -3754,14 +4205,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: alles aus Tasks 1–13; Helfer aus `e2e/kommplan-hilfen.ts` (`HOST`, `url`, `ADMIN`, `istAktion`, `rumpf`, `istSpeichern`, `neuerPlan`, `ersteStelle`, `speichertNach`) und `e2e/fixtures.ts` (`devLogin`, `klickeWennRuhig`, `warteAufGestreamteInhalte`, `warteAufSpaltenaufteilung`).
-- Produces: e2e-Abdeckung der Review-Focus-Punkte 1–4, 6, 7 am echten Abruf.
+- Produces: e2e-Abdeckung der Review-Focus-Punkte 1–4, 6, 7, 8 am echten Abruf.
 
-Regeln für diese Spec (Falle 10, 21, 22; Global Constraints): jede ausgelöste Action per `waitForResponse`; Köpfe, PDF und Download zusätzlich gegen den gebauten Stand (`pnpm e2e:gebaut`); jeder anonyme Kontext mit **eigener** `cf-connecting-ip` aus 203.0.113.0/24; `window.print` in jedem Kontext per `addInitScript` stillgelegt; nie an einem Seed-Plan tippen oder ihn umstellen (eigene Pläne oder ein Duplikat).
+Regeln für diese Spec (Falle 10, 21, 22; Global Constraints): jede ausgelöste Action per `waitForResponse`; Köpfe, PDF und Download zusätzlich gegen den gebauten Stand (`pnpm e2e:gebaut`); jeder anonyme Kontext mit **eigener** `cf-connecting-ip` `ip(n)` aus `2001:db8:<LAUF>::/48` — je Test und je Versuch verschieden (Global Constraints); `window.print` in jedem Kontext per `addInitScript` stillgelegt; nie an einem Seed-Plan tippen oder ihn umstellen (eigene Pläne oder ein Duplikat).
 
 - [ ] **Step 1: Write the spec**
 
 ```ts
 // e2e/kommplan-teilen.spec.ts
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
@@ -3775,6 +4227,13 @@ import { ADMIN, ersteStelle, istAktion, istSpeichern, neuerPlan, rumpf, url } fr
  * Entscheidung 5).
  */
 const neu = () => Math.random().toString(36).slice(2, 7);
+/**
+ * Absenderadressen der anonymen Kontexte: IPv6-Dokumentationsnetz (RFC 3849), `LAUF` je Laden dieser Datei neu —
+ * ein CI-Wiederholungslauf (neuer Worker) und ein zweiter lokaler Lauf gegen einen wiederverwendeten Server treffen
+ * so nie die Fehlversuche eines früheren Versuchs (Kritik).
+ */
+const LAUF = randomBytes(2).toString("hex");
+const ip = (n: number) => `2001:db8:${LAUF}::${n}`;
 const TOKEN_URL = new RegExp(`^${url("/t/").replace(/[.]/g, "\\.")}[A-Za-z0-9_-]{43}$`);
 
 async function anonym(browser: Browser, ip: string): Promise<Page> {
@@ -3786,6 +4245,7 @@ async function oeffneTeilen(page: Page) {
   await klickeWennRuhig(page.getByRole("button", { name: "Teilen", exact: true }));
   const flyin = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
   await expect(flyin).toBeVisible();
+  await expect(flyin.getByLabel("Notiz (wofür, für wen)")).toBeFocused(); // Anfangsfokus (Entscheidung 17)
   return flyin;
 }
 async function stelleAus(page: Page, dauer: "24 Stunden" | "7 Tage" | "30 Tage" | "Unbegrenzt", notiz: string): Promise<string> {
@@ -3828,11 +4288,13 @@ test("Teilen: ausstellen, kopieren, anonym ansehen und drucken, Abrufe zählen, 
   const link = await stelleAus(page, "7 Tage", "Leitstelle");
   await expect(flyin.locator("[data-freigabe][data-neu]")).toContainText("gültig bis");
   await expect(flyin.locator("[data-freigabe][data-neu]").getByRole("button", { name: "Link kopieren" })).toBeFocused();
-  await klickeWennRuhig(flyin.locator("[data-freigabe][data-neu]").getByRole("button", { name: "Link kopieren" }));
+  await page.keyboard.press("Enter"); // Tastaturweg (Review Focus 8): der Fokus steht schon am Knopf
   // http ist kein sicherer Kontext: der Rückfall kopiert oder zeigt den Link markiert — nie ein stiller Fehlschlag (Review Focus 3)
   await expect(flyin.getByRole("status")).toHaveText(/^(Link kopiert\.|Kopieren ging hier nicht von selbst.*)$/);
+  // die sichtbare Antwort steht am Eintrag: „Kopiert“ oder das markierte Lesefeld
+  await expect(flyin.locator("[data-freigabe][data-neu]").locator('input[data-manuell], button:has-text("Kopiert")')).toHaveCount(1);
 
-  const seite = await anonym(browser, "203.0.113.11");
+  const seite = await anonym(browser, ip(11));
   const antwort = (await seite.goto(link))!;
   expect(antwort.status()).toBe(200);
   const koepfe = antwort.headers();
@@ -3848,6 +4310,8 @@ test("Teilen: ausstellen, kopieren, anonym ansehen und drucken, Abrufe zählen, 
   await expect(seite.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   await expect(seite.getByRole("button", { name: "Teilen" })).toHaveCount(0);
   await expect(seite.getByRole("link", { name: /Alle Pläne/ })).toHaveCount(0); // keine Wege ins Innere
+  await expect(seite.locator(".kp-token-kicker")).toContainText("KOMMUNIKATIONSPLÄNE");
+  await expect(seite).toHaveTitle("Kommunikationspläne"); // typneutral, kein Plantitel
 
   // immer der aktuelle Stand (Spec §8.2): eine Änderung im Editor steht nach dem Neuladen in der Token-Ansicht
   await page.keyboard.press("Escape"); // Teilen-Flyin zu
@@ -3885,6 +4349,7 @@ test("Teilen: ausstellen, kopieren, anonym ansehen und drucken, Abrufe zählen, 
   await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Widerrufen" }));
   expect((await weg).status()).toBe(200);
   await expect(wieder.getByRole("status")).toHaveText("Link widerrufen. Wer ihn hat, sieht den Plan nicht mehr.");
+  await expect(wieder.locator("[data-gueltige] legend")).toBeFocused(); // der letzte gültige Link ist weg (Entscheidung 17)
   expect((await seite.goto(link))?.status()).toBe(404);
   expect((await seite.goto(`${link}/druck/a4`))?.status()).toBe(404);
   await seite.context().close();
@@ -3908,9 +4373,10 @@ test("404 ist ununterscheidbar: unbekannt, falsch geformt, widerrufen, archivier
   const archiviert = await stelleAus(page, "Unbegrenzt", "archiv");
   await archiviereUeberListe(page, titelA);
 
-  const seite = await anonym(browser, "203.0.113.22");
+  const seite = await anonym(browser, ip(22));
   const faelle = { unbekannt: url(`/t/${"Q".repeat(43)}`), falsch: url("/t/kurz"), widerrufen, archiviert };
   const texte: string[] = [];
+  const htmls: string[] = [];
   for (const [fall, ziel] of Object.entries(faelle)) {
     const r = (await seite.goto(ziel))!;
     expect(r.status(), fall).toBe(404);
@@ -3918,25 +4384,36 @@ test("404 ist ununterscheidbar: unbekannt, falsch geformt, widerrufen, archivier
     expect(r.headers()["referrer-policy"], fall).toBe("no-referrer");
     const html = await r.text();
     for (const geheim of [titelW, titelA, idA, "Musterorganisation"]) expect(html, `${fall}: ${geheim}`).not.toContain(geheim);
+    await expect(seite.getByRole("heading", { level: 1 }), fall).toHaveText("Dieser Link gilt nicht (mehr)."); // t/not-found.tsx, nicht die Suite-404
+    expect(await seite.locator('a[href="/"], a[href$="/login"]').count(), `${fall}: kein Weg zur Anmeldung`).toBe(0);
     const token = new URL(ziel).pathname.split("/").pop()!;
     texte.push((await seite.locator("body").innerText()).replaceAll(token, "<T>"));
+    htmls.push(html.replaceAll(token, "<T>"));
   }
   expect(new Set(texte).size, "alle vier 404 sehen gleich aus").toBe(1);
+  // Auch der Quelltext unterscheidet die Fälle nicht: nach dem Ersetzen des Tokens gleich lang (eine Längendifferenz
+  // wäre ein Orakel). Setzt Next je Antwort eigene IDs oder Nonces und bricht DAS die Gleichheit, ist das ein Befund
+  // in „Abweichungen" — dann den Vergleich auf die Differenz dieser Stellen beschränken, nie ganz streichen.
+  expect(new Set(htmls.map((h) => h.length)).size, "404-Antworten gleich lang nach Ersetzen des Tokens").toBe(1);
   await seite.context().close();
 });
 
-test("Fehlversuchs-Schranke: neun Fehlversuche sperren nicht (Layout und Seite buchen einmal), der zehnte sperrt die Adresse — nur sie", async ({ page, browser }) => {
+test("Fehlversuchs-Schranke: 29 Fehlversuche sperren nicht (Layout und Seite buchen einmal), der dreißigste sperrt die Adresse — nur sie", async ({ page, browser }) => {
   test.setTimeout(120_000);
   await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, `e2e Schranke ${neu()}`);
   await oeffneTeilen(page);
   const link = await stelleAus(page, "7 Tage", "schranke");
-  const rater = await anonym(browser, "203.0.113.33");
-  for (let i = 0; i < 9; i++) expect((await rater.goto(url(`/t/${"R".repeat(42)}${i}`)))?.status()).toBe(404);
-  expect((await rater.goto(link))?.status(), "nach neun Fehlversuchen noch offen — sonst bucht die Anfrage doppelt").toBe(200);
-  expect((await rater.goto(url(`/t/${"R".repeat(42)}X`)))?.status()).toBe(404);
-  expect((await rater.goto(link))?.status(), "nach dem zehnten gesperrt, auch für einen gültigen Link").toBe(404);
-  const andere = await anonym(browser, "203.0.113.34");
+  const rater = await anonym(browser, ip(33));
+  // `request.get` statt `goto`: rendert Layout UND Seite ebenso (sonst prüfte der Test die Doppelbuchung nicht), ist
+  // aber schnell genug, dass 29 Abrufe unter Last im gleitenden 60-s-Fenster bleiben (Entscheidung 5). Der Kopf
+  // `cf-connecting-ip` kommt aus den extraHTTPHeaders des Kontexts; hier zur Sicherheit noch einmal ausdrücklich.
+  const kopf = { headers: { "cf-connecting-ip": ip(33) } };
+  for (let i = 0; i < 29; i++) expect((await rater.request.get(url(`/t/${"R".repeat(41)}${String(i).padStart(2, "0")}`), kopf)).status()).toBe(404);
+  expect((await rater.goto(link))?.status(), "nach 29 Fehlversuchen noch offen — sonst bucht die Anfrage doppelt").toBe(200);
+  expect((await rater.request.get(url(`/t/${"R".repeat(42)}X`), kopf)).status()).toBe(404);
+  expect((await rater.goto(link))?.status(), "nach dem dreißigsten gesperrt, auch für einen gültigen Link").toBe(404);
+  const andere = await anonym(browser, ip(34));
   expect((await andere.goto(link))?.status()).toBe(200);
   await rater.context().close();
   await andere.context().close();
@@ -3950,34 +4427,46 @@ test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbeg
   await ersteStelle(page, "EL QR");
   await page.keyboard.press("Escape");
   await setzeOption(page, "qrAufDruck");
-  await expect(page.locator(".kp-flyin [data-qr-hinweis]")).toHaveText("Ohne gültigen Link druckt der Plan keinen QR-Code. Stelle unter „Teilen“ einen Link aus.");
+  await expect(page.locator(".kp-flyin [data-qr-hinweis]")).toContainText("Ohne gültigen Link druckt der Plan keinen QR-Code.");
   await page.keyboard.press("Escape");
   await page.goto(url(`/p/${id}/druck/a4`));
   await warteAufGestreamteInhalte(page);
   await expect(page.locator("svg.kp-blatt")).not.toHaveCount(0);
   await expect(page.locator("[data-qr]")).toHaveCount(0);
+  await expect(page.locator("[data-qr-satz]")).toHaveCount(0);
 
+  // „Link ausstellen“ im Hinweis führt direkt ins Flyin „Teilen“ (Entscheidung 10)
   await page.goto(url(`/p/${id}`));
   await warteAufSpaltenaufteilung(page);
-  await oeffneTeilen(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+  await klickeWennRuhig(page.locator(".kp-flyin [data-qr-hinweis]").getByRole("button", { name: "Link ausstellen" }));
+  const teilen = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
+  await expect(teilen).toBeVisible();
   const kurz = await stelleAus(page, "24 Stunden", "kurz");
+  await expect(teilen.locator("[data-qr-ziel-satz]")).toContainText("„kurz“ – gültig bis"); // befristet: mit Warnung
+  await expect(teilen.locator("[data-qr-ziel-satz]")).toContainText("danach führt der Ausdruck ins Leere");
   const lang = await stelleAus(page, "Unbegrenzt", "lang");
+  await expect(teilen.locator("[data-qr-ziel-satz]")).toHaveText("Der QR-Code führt auf „lang“ – unbegrenzt gültig.");
   await page.goto(url(`/p/${id}/druck/a4`));
   await warteAufGestreamteInhalte(page);
   const blaetter = await page.locator("svg.kp-blatt").count();
   await expect(page.locator("[data-qr]")).toHaveCount(blaetter);
   for (const z of await page.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel")).toBe(lang);
+  await expect(page.locator("[data-qr-satz]")).toHaveText("Der QR-Code führt auf „lang“ – unbegrenzt gültig.");
 
-  const seite = await anonym(browser, "203.0.113.44");
+  const seite = await anonym(browser, ip(44));
   expect((await seite.goto(`${kurz}/druck/a4`))?.status()).toBe(200);
   await warteAufGestreamteInhalte(seite);
   for (const z of await seite.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel"), "nie der bessere Link").toBe(kurz);
   await seite.context().close();
 });
 
-test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige Datei mit ASCII-Namen (Review Focus 6)", async ({ page, context }) => {
+test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige Datei mit ASCII-Namen, SVG-Weg ohne Druckdialog (Review Focus 6, 8)", async ({ page, context }) => {
   test.setTimeout(150_000);
-  await context.addInitScript(() => { window.print = () => {}; });
+  await context.addInitScript(() => {
+    (window as unknown as { gedruckt: number }).gedruckt = 0;
+    window.print = () => { (window as unknown as { gedruckt: number }).gedruckt++; };
+  });
   await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
   // ein Duplikat der Seed-Vorlage OpenR (Zeichen in Farbe) — nie den Seed-Plan selbst umstellen
   await page.goto(url("/"));
@@ -3991,15 +4480,22 @@ test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige
   await warteAufSpaltenaufteilung(page);
   await setzeOption(page, "schwarzweiss");
   await page.keyboard.press("Escape");
-  await page.goto(url(`/p/${id}/druck/a4`));
-  await warteAufGestreamteInhalte(page);
-  await expect(page.locator("svg.kp-blatt").first()).toHaveAttribute("data-sw", "");
-  const bunt = await page.locator("svg.kp-symbole").evaluate((s) => [...s.innerHTML.matchAll(/#([0-9a-f]{6})\b/gi)]
+  // der SVG-Weg aus dem Druckmenü: neues Fenster mit ?export=svg, KEIN Druckdialog (Entscheidung 15)
+  const fenster = page.waitForEvent("popup");
+  await klickeWennRuhig(page.getByRole("button", { name: "Weitere Druckformate" }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "SVG – A4 quer" }));
+  const druck = await fenster;
+  await druck.waitForURL(/\/druck\/a4\?export=svg$/);
+  await warteAufGestreamteInhalte(druck);
+  await druck.evaluate(() => document.fonts.ready);
+  expect(await druck.evaluate(() => (window as unknown as { gedruckt: number }).gedruckt), "kein window.print() auf dem SVG-Weg").toBe(0);
+  await expect(druck.locator("svg.kp-blatt").first()).toHaveAttribute("data-sw", "");
+  const bunt = await druck.locator("svg.kp-symbole").evaluate((s) => [...s.innerHTML.matchAll(/#([0-9a-f]{6})\b/gi)]
     .map((m) => m[1].toLowerCase()).filter((h) => !(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6))));
   expect(bunt).toEqual([]);
 
-  const runter = page.waitForEvent("download");
-  await klickeWennRuhig(page.getByRole("button", { name: /^SVG herunterladen \(Blatt 1 von \d+\)$/ }));
+  const runter = druck.waitForEvent("download");
+  await klickeWennRuhig(druck.getByRole("button", { name: /^SVG herunterladen \(Blatt 1 von \d+\)$/ }));
   const datei = await runter;
   expect(datei.suggestedFilename()).toMatch(/^[A-Za-z0-9-]+_\d{4}-\d{2}-\d{2}_blatt-1-von-\d+_a4\.svg$/);
   const text = readFileSync((await datei.path())!, "utf8");
@@ -4011,7 +4507,13 @@ test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige
   expect(verweise.length).toBeGreaterThan(0);
   for (const v of verweise) expect(ids.has(v), `#${v} löst in der Datei auf`).toBe(true);
   // wohlgeformt — sonst öffnet die Datei nirgends, und alle Prüfungen darüber wären trotzdem grün
-  expect(await page.evaluate((t) => new DOMParser().parseFromString(t, "image/svg+xml").querySelector("parsererror") === null, text)).toBe(true);
+  expect(await druck.evaluate((t) => new DOMParser().parseFromString(t, "image/svg+xml").querySelector("parsererror") === null, text)).toBe(true);
+  // der normale Druck ruft den Dialog weiter von selbst
+  await page.goto(url(`/p/${id}/druck/a4`));
+  await warteAufGestreamteInhalte(page);
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { gedruckt: number }).gedruckt)).toBe(1);
+  await druck.close();
 });
 ```
 
@@ -4035,7 +4537,7 @@ git checkout -- next-env.d.ts 2>/dev/null || true
 pnpm vitest run scripts/e2e-gruppen.test.ts
 ```
 
-Expected: alle grün; `e2e-gruppen.test.ts` grün (jede Spec in genau einer Gruppe). Liefert `cache-control` gegen den gebauten Stand **kein** `no-store`, ist das ein Befund für Entscheidung 7 (Next überschreibt den Proxy-Kopf) — eintragen, nicht die Zusicherung lockern.
+Expected: alle grün; `e2e-gruppen.test.ts` grün (jede Spec in genau einer Gruppe). Liefert `cache-control` gegen den gebauten Stand **kein** `no-store`, ist das ein Befund für Entscheidung 7 (Next überschreibt den Proxy-Kopf) — eintragen, nicht die Zusicherung lockern. Zeigt der gebaute Stand für einen der 404-Fälle die Suite-404 statt „Dieser Link gilt nicht (mehr).", fängt `t/not-found.tsx` das Layout-`notFound()` nicht (Entscheidung 4) — Befund, nicht die Zusicherung lockern.
 
 - [ ] **Step 4: Commit**
 
@@ -4068,6 +4570,8 @@ import { mkdirSync } from "node:fs"; // in die vorhandene node:fs-Importzeile au
 
 const BREITEN = [{ name: "desktop", width: 1440, height: 900 }, { name: "tablet", width: 1024, height: 768 }, { name: "telefon", width: 390, height: 844 }] as const;
 const FOTOS = process.env.KOMMPLAN_FOTOS;
+/** Höhe der Editor-Kopfleiste bei 390 × 844 im Stand vor Phase 5 — gemessen in Task 5 (Kritik: „Teilen" darf sie nicht wachsen lassen). */
+const KOPFLEISTE_TELEFON_VORHER = 0; // ← Messwert aus Task 5 eintragen; 0 lässt den Test absichtlich rot
 
 test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht und 404 — hell und dunkel, drei Breiten", async ({ page, browser, context }, testInfo) => {
   test.setTimeout(FOTOS ? 300_000 : 120_000);
@@ -4083,10 +4587,13 @@ test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht 
   const link = await stelleAus(page, "7 Tage", "Leitstelle Nord — Lagekarte im Führungsraum");
   await stelleAus(page, "Unbegrenzt", "Aushang");
   await page.keyboard.press("Escape");
-  const anon = await anonym(browser, "203.0.113.55");
+  const anon = await anonym(browser, ip(55));
   const foto = async (p: Page, name: string) => { if (FOTOS) await p.screenshot({ path: `${ordner}/${name}.png`, animations: "disabled" }); };
   const ohneUeberlauf = async (p: Page) =>
     expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  // Token-Ansicht: keine senkrechte Seitenrolle — sonst schiebt jedes Wischen auf dem Betrachter das Diagramm statt der Seite (Entscheidung 8)
+  const ohneSeitenrolle = async (p: Page) =>
+    expect(await p.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
   const breiten = FOTOS ? BREITEN : [BREITEN[2]];
 
   for (const modus of ["light", "dark"] as const) {
@@ -4099,6 +4606,10 @@ test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht 
       await page.goto(url(`/p/${id}?ansicht=diagramm`));
       await warteAufSpaltenaufteilung(page);
       await expect(page.locator("html")).toHaveAttribute("data-theme", modus);
+      if (b.name === "telefon") {
+        const hoehe = await page.locator(".kp-kopfwerkzeuge").evaluate((e) => e.getBoundingClientRect().height);
+        expect(hoehe, "Kopfleiste am Telefon nicht höher als vor Phase 5").toBeLessThanOrEqual(KOPFLEISTE_TELEFON_VORHER + 0.5);
+      }
       await oeffneTeilen(page);
       await ohneUeberlauf(page);
       await foto(page, `teilen-${n}`);
@@ -4107,7 +4618,8 @@ test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht 
       await page.locator('.kp-flyin [data-option="qrAufDruck"]').scrollIntoViewIfNeeded();
       await foto(page, `plan-optionen-${n}`);
       await page.keyboard.press("Escape");
-      await klickeWennRuhig(page.getByRole("button", { name: "Drucken", exact: true }));
+      // der Pfeil, nicht „Drucken“: der Hauptknopf druckt sofort A4 quer (Entscheidung 12)
+      await klickeWennRuhig(page.getByRole("button", { name: "Weitere Druckformate" }));
       await expect(page.getByRole("menuitem", { name: "A3 quer" })).toBeVisible();
       await foto(page, `druckmenue-${n}`);
       await page.keyboard.press("Escape");
@@ -4116,8 +4628,16 @@ test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht 
       await warteAufGestreamteInhalte(anon);
       await expect(anon.locator("html")).toHaveAttribute("data-theme", modus);
       await ohneUeberlauf(anon);
+      await ohneSeitenrolle(anon);
+      // ohne Hülle gilt 56/72 (README, Falle 4) — auch für die antd-Inseln der Token-Ansicht (Entscheidung 8)
+      expect(await anon.getByRole("button", { name: "Drucken", exact: true }).evaluate((e) => e.getBoundingClientRect().height)).toBeCloseTo(56, 0);
       await foto(anon, `token-${n}`);
+      if (b.name === "desktop") {
+        await anon.getByRole("button", { name: "Drucken", exact: true }).hover();
+        await foto(anon, `token-hover-${n}`); // Rot nur als Hover-Rahmen/Text, keine Fläche (Entscheidung 8)
+      }
       expect((await anon.goto(url(`/t/${"Z".repeat(43)}`)))?.status()).toBe(404);
+      await expect(anon.getByRole("heading", { level: 1 })).toHaveText("Dieser Link gilt nicht (mehr).");
       await foto(anon, `token-404-${n}`);
       if (FOTOS && b.name === "desktop" && modus === "light") {
         await anon.goto(`${link}/druck/a3`);
@@ -4142,16 +4662,16 @@ git checkout -- next-env.d.ts 2>/dev/null || true
 ls /private/tmp/claude-501/-Users-rubeen-dev-personal-drk-iuk-suite--claude-worktrees-drk-363-8c5335/c55f577c-bed2-49bc-a649-13521bcc9266/scratchpad/phase5-shots | wc -l
 ```
 
-Expected: 30 Fotos aus dem Test (5 Ansichten × 3 Breiten × 2 Modi) plus 2 Druckfotos, plus die zwei von Hand.
+Expected: 30 Fotos aus dem Test (5 Ansichten × 3 Breiten × 2 Modi) plus 2 Hover-Fotos und 2 Druckfotos, plus die zwei von Hand. Außerdem einmal von Hand: die Token-Ansicht eines Plans **mit** und **ohne** Briefkopf bei 1440 × 900 (`token-briefkopf-mit`/`-ohne`) — Kritik zum Kopfraster.
 
 - [ ] **Step 2: Jedes Foto mit Read ansehen**
 
 Prüfliste:
-1. **Teilen-Flyin** (`teilen-*`): Abschnitt „Neuen Link ausstellen" oben; „Gültig für" als vier Knöpfe, am Telefon umbrechend, nie aus dem Bild; Notiz mit Zähler; „Link ausstellen" primär; Liste mit Notiz fett, Ablauf, „ausgestellt … von …", Abrufe, URL klein und umbrechend; „Link kopieren"/„Widerrufen" je 44 px; der neue Link mit Rand in `--kp-auswahl-papier`; im Dunkeln lesbar (Kontrast der kleinen URL).
-2. **Plan-Optionen** (`plan-optionen-*`): Schalter QR und Schwarzweiß mit Sätzen darunter; der QR-Hinweis erscheint nicht (der Plan hat Links) — einmal ohne Link gegenprüfen (Foto aus Task 15 nicht vorhanden: von Hand).
-3. **Druckmenü** (`druckmenue-*`): „Drucken" mit Pfeil, Menü „A4 quer", „A3 quer"; am Telefon der Knopf voll breit in der Kopfleiste (Phase-2-U23), Menü im Bild.
-4. **Token-Ansicht** (`token-*`): Fahne 3 px rot, Kicker mit „IDA" rechts, Titel als Überschrift, Angaben- und Standzeile, VS-NfD-Vermerk neutral umrandet (nicht rot), Organisation „Musterorganisation" rechts (am Telefon darunter), „Drucken"; darunter der Betrachter mit Legende, eingepasst; kein App-Umschalter, keine Suite-Kopfzeile; dunkel: Grund dunkel, Zeichnung weißes Papier.
-5. **Token-404** (`token-404-*`): Next-404 der Suite, nichts vom Plan, kein Rahmen der Token-Ansicht (das Layout bricht vorher ab).
+1. **Teilen-Flyin** (`teilen-*`): Abschnitt „Neuen Link ausstellen" oben, der Fokusring in der Notiz; „Gültig für" als vier Knöpfe, am Telefon umbrechend, nie aus dem Bild; Notiz mit Zähler; „Link ausstellen" primär; Liste mit Notiz fett, Ablauf, „ausgestellt … von …", Abrufe, URL klein und umbrechend; „Link kopieren"/„Widerrufen" je 44 px; der neue Link mit Rand in `--kp-auswahl` (dunkel `#7fb0ff`, ≥ 3:1 gegen den Flyin-Grund); der Abschnitt „Ausdruck" mit QR-Schalter und Satz; im Dunkeln lesbar (Kontrast der kleinen URL).
+2. **Plan-Optionen** (`plan-optionen-*`): Schalter QR und Schwarzweiß mit Sätzen darunter; bei QR an der Satz „Der QR-Code führt auf „Aushang“ – unbegrenzt gültig." (der Plan hat Links) — einmal ohne Link gegenprüfen: Hinweis mit Knopf „Link ausstellen" (von Hand).
+3. **Druckmenü** (`druckmenue-*`): geteilter Knopf „Drucken" | Pfeil, Menü „A4 quer", „A3 quer", Gruppe „SVG-Dateien"; am Telefon „Teilen" und der geteilte Knopf nebeneinander in der letzten Zeile, Tab-Reihenfolge gleich der Lesereihenfolge (einmal per Tastatur durchgehen), die Kopfleiste nicht höher als vorher (Zusicherung im Test), Menü im Bild.
+4. **Token-Ansicht** (`token-*`): Fahne 3 px rot, Kicker „KOMMUNIKATIONSPLÄNE" mit „IDA" rechts, links der Block aus Titel, Angaben-, Standzeile und VS-NfD-Vermerk (neutral umrandet, nicht rot), rechts daneben Organisation „Musterorganisation" (am Telefon darunter, Angaben und Stand in einer Zeile), „Drucken" | Pfeil in 56 px; darunter der Betrachter mit Legende, eingepasst, **füllt den Rest der Höhe ohne Seitenrolle** (Zusicherung im Test); kein App-Umschalter, keine Suite-Kopfzeile; dunkel: Grund dunkel, Zeichnung weißes Papier. `token-hover-*`: Rot nur als Rahmen/Text des gehoverten Knopfs, keine rote Fläche. `token-briefkopf-mit`/`-ohne`: keine Zeile in der schmalen rechten Spalte.
+5. **Token-404** (`token-404-*`): eigene Seite im Token-Rahmen (Fahne, Kicker), H1 „Dieser Link gilt nicht (mehr).", der Satz darunter; kein Knopf, kein Link zur Startseite, nichts vom Plan; hell und dunkel.
 6. **Druck** (`druck-token-a3-*`, `druck-qr-*`, `druck-sw-*`): A3 mit größerem Maßstab als A4; QR unten rechts über „Blatt x von y", Beschriftung „Aktuelle Fassung" darüber, Legende links daneben, keine Karte in der QR-Ecke; Schwarzweiß ohne Farbe, Zeichen mit Strichmustern, Logo (falls hochgeladen) grau.
 7. **SVG allein** (`svg-allein-*`): sieht aus wie das Blatt im Druck — Zeichen, Sechsecke, Logo, Schrift Arimo (keine Ersatzschrift-Verschiebung in Karten).
 8. Vergleich mit den Referenzbildern (`…/scratchpad/referenz/*.png`): Position des QR stört die Vorlage-Optik nicht (Fuß unverändert).
@@ -4162,7 +4682,7 @@ Je Befund: kleinster Eingriff, ein Test, der ihn festhält (Quelltext-Scan für 
 
 - [ ] **Step 4: Release-Notiz gegenlesen**
 
-Jeder Name der Notiz steht so am Bildschirm (Fotos): „Gliederung", „Aus Bibliothek", „Teilen", „Drucken". Weicht etwas ab, Notiz oder Oberfläche in einem `fix(kommplan): …`-Commit nachziehen.
+Jeder Name der Notiz steht so am Bildschirm (Fotos): „Kommunikationspläne" (App-Umschalter — einmal die Planliste mit offenem Umschalter fotografieren), „Drucken", „Neu", „Gliederung", „Teilen". Weicht etwas ab, Notiz oder Oberfläche in einem `fix(kommplan): …`-Commit nachziehen.
 
 - [ ] **Step 5: Commit des Fototests**
 
@@ -4201,7 +4721,7 @@ Expected: alles Exit 0. Bekannt und nicht Teil dieser Arbeit: `scripts/backup-si
 
 - [ ] **Step 2: Stand festhalten**
 
-`git status` sauber (außer `next-env.d.ts`, zurückgesetzt); `git log --oneline main..HEAD` zeigt die Commits dieser Phase signiert (`git log --show-signature -1`). `git grep -n "setzeVorlage\|Drucken (A4 quer)" -- src e2e` liefert nichts. Im Bericht an den Hauptlauf: Ticketkandidaten aus „Abweichungen", offene Annahmen (unten „An den Hauptlauf").
+`git status` sauber (außer `next-env.d.ts`, zurückgesetzt); `git log --oneline main..HEAD` zeigt die Commits dieser Phase signiert (`git log --show-signature -1`). `git grep -n "setzeVorlage\|Drucken (A4 quer)\|Keine Vorlage mehr\|keineVorlage" -- src e2e` liefert nichts. Im Bericht an den Hauptlauf: Ticketkandidaten aus „Abweichungen", offene Annahmen (unten „An den Hauptlauf").
 
 ---
 
@@ -4222,7 +4742,7 @@ Expected: alles Exit 0. Bekannt und nicht Teil dieser Arbeit: `scripts/backup-si
 | §8.2 | unbekannt/abgelaufen/widerrufen/archiviert → 404 im Layout oberhalb `loading.tsx` | 2, 7, 8, 15 |
 | §8.2 | `zuletzt_abgerufen`, `abrufe`; Audit für Ausstellen/Widerrufen | 2, 3, 7 |
 | §8.2 | QR auf dem Ausdruck bei gültigem Link | 10 |
-| §8.3 | archivierter Plan macht Links sofort ungültig | 2, 7, 15 |
+| §8.3 | archivierter Plan macht Links sofort ungültig — Archivieren widerruft, Wiederherstellen erweckt keinen | 2, 7, 14, 15 |
 | §10 | e2e: Token-Link 200, nach Widerruf 404 | 15 |
 | §11 | Lieferphase 5 vollständig | 1–17 |
 | Auftrag | Rate-Limit gegen Token-Raten (`core/ratelimit`) | 7, 15 |
@@ -4231,6 +4751,8 @@ Expected: alles Exit 0. Bekannt und nicht Teil dieser Arbeit: `scripts/backup-si
 | Auftrag | Basis-URL aus der Suite-Konfiguration | 9, 10 (`moduleUrl`) |
 | Auftrag | Release-Notiz endgültig, ein Absatz | 14 |
 | Auftrag | Screenshots hell/dunkel, drei Breiten | 16 |
+| Kritik | eigene 404 der Token-Ansicht ohne Weg zur Anmeldung | 8, 15, 16 |
+| Kritik | Verteilweg kurz: Anfangsfokus, geteilter Druckknopf, SVG ohne Druckdialog, QR-Satz | 5, 9, 10, 12, 15 |
 
 ## Abweichungen bei der Umsetzung
 
@@ -4242,16 +4764,46 @@ Was sich erst am laufenden Code zeigt. Jede Zeile nennt die Aufgabe, in der die 
 ## An den Hauptlauf (offene Annahmen, ClickUp fasst diese Umsetzung nicht an)
 
 1. **Köpfe aus dem Proxy erreichen die Antwort** (Entscheidung 7), auch beim 404 und auch `cache-control` neben Nexts eigenem Wert — belegt erst der e2e gegen den gebauten Stand (Task 15, Schritt 3). Trägt es nicht, wäre der Ausweg ein `headers()`-Eintrag in `next.config.ts` mit `source: "/t/:token*"` und `has: [{ type: "host", … }]` — aber der Host steht erst zur Laufzeit fest (`SUITE_HOST_KOMMPLAN`), und `next.config` wird beim Build gelesen.
-2. **Client-Adresse auf dem Modul-Host** (Entscheidung 5): die Schranke rechnet mit `cf-connecting-ip` als echter Client-Adresse. Seit dem internen Rewrite (`src/proxy.ts`, Messbericht 2026-08-22) gilt das laut Kommentar; der ältere Vorbehalt in `core/ratelimit.ts` („auf Modul-Hosts die Egress-Adresse") steht dort noch. Trifft der Vorbehalt doch zu, sperren zehn geratene Tokens eine Minute lang **alle** Token-Ansichten. Nach dem Rollout einmal mit zwei Geräten gegenprüfen. Ticketkandidat: den Kommentar in `core/ratelimit.ts` nachziehen.
+2. **Client-Adresse auf dem Modul-Host** (Entscheidung 5): die Schranke rechnet mit `cf-connecting-ip` als echter Client-Adresse. Seit dem internen Rewrite (`src/proxy.ts`, Messbericht 2026-08-22) gilt das laut Kommentar; der ältere Vorbehalt in `core/ratelimit.ts` („auf Modul-Hosts die Egress-Adresse") steht dort noch. Trifft der Vorbehalt doch zu — oder kommen Anfragen ohne `cf-connecting-ip` an (http im LAN, Direktzugriff) —, sperren dreißig geratene Tokens eine Minute lang **alle** Token-Ansichten dieses Eimers. **Rollout-Bedingung:** nach dem Rollout einmal mit zwei Geräten gegenprüfen, dass `cf-connecting-ip` je Gerät verschieden ankommt; trägt es nicht, braucht der Eimer `"unknown"` eine eigene, großzügigere Schranke (eigene Aufgabe). Ticketkandidat: den Kommentar in `core/ratelimit.ts` nachziehen.
 3. **Basis-URL** (`moduleUrl("kommplan")`): in Produktion `https://<SUITE_HOST_KOMMPLAN>`; fehlt die Variable, gibt es weder Links noch QR (laut, mit Hinweis). Vor dem Rollout `SUITE_HOST_KOMMPLAN` setzen und einen gedruckten QR scannen.
-4. **Lesbarkeit des QR** bei 20 mm (0,38 mm je Modul, Fehlerkorrektur H) — gemessen am SVG, nicht am Papier. Einmal ausdrucken und mit zwei Telefonen scannen; bei Problemen `QR_BOX.kante` auf 24 mm (Kosten: 4 mm Zeichenfläche).
+4. **Lesbarkeit des QR** bei 24 mm (Version 8 = 57 Module an echten Tokens, also 0,42 mm je Modul, Fehlerkorrektur H) — gemessen am SVG, nicht am Papier. Ein Produktionshost, dessen URL länger als ≈ 86 Zeichen wird, hebt den Code auf Version 9 (61 Module, 0,39 mm). Einmal ausdrucken und mit zwei Telefonen scannen; reicht es nicht, ist die nächste Stellschraube die Kante (Kosten: Zeichenfläche), nicht die Fehlerkorrektur (`core/qr` ist für alle Module einheitlich).
 5. **Entscheidung 14 bestätigen:** Schwarzweiß nur für Druck und SVG, Bildschirm farbig. Die Alternative (auch der Bildschirm grau) wäre eine Zeile im Betrachter, aber eine Annahme über die Erwartung der Bearbeitenden.
 6. **Die Zugangsgruppe sieht den besten Link im internen Druck:** wer nur ansehen darf, druckt intern den QR des Plans — samt `data-qr-ziel` — und hält damit womöglich den unbegrenzten Link in der Hand, obwohl er selbst keine Links ausstellen darf. Spec §8.2 legt das nahe (der Ausdruck soll auf die aktuelle Fassung führen); hier ausdrücklich zur Bestätigung. Die Alternative wäre „QR nur im Druck von Bearbeitenden".
-7. **Entscheidung 16 umgesetzt wie vorgegeben;** „Keine Vorlage mehr" archiviert. Wer eine Vorlage ändern will, öffnet sie wie jeden Plan im Editor — das bleibt unverändert.
+7. **Entscheidung 16 umgesetzt wie vorgegeben;** in der Vorlagenliste heißt der Punkt jetzt „Vorlage archivieren" (statt „Keine Vorlage mehr"), der Hinweis nach „Als Vorlage speichern" bietet „Vorlage öffnen". Wer eine Vorlage ändern will, öffnet sie wie jeden Plan im Editor — das bleibt unverändert.
+8. **Archivieren widerruft die Links** (Entscheidung 3, Kritik): „Rückgängig" direkt nach dem Archivieren holt den Plan zurück, die Links nicht. Zur Bestätigung — die Alternative (Wiederbelebung mit Hinweis „n Links sind wieder gültig") wäre bequemer, ließe aber Links aufleben, die während der Archivzeit niemand sehen konnte.
+9. **Rot auf der Token-Route** (Entscheidung 8): die antd-Knöpfe von Betrachter und Druckmenü färben Hover und Fokus in Suite-Rot; das Rot-Budget des Abendzettels gilt nur für das eigene Markup. Ticketkandidat: neutrale Bedienknöpfe und gemeinsamer öffentlicher Rahmen in `core`.
 
 ## Kritik eingearbeitet/verworfen
 
-(Bei Planstand leer — wird nach dem Review des Plans gefüllt.)
+Jeder Befund wurde vor der Übernahme am Code bzw. an der Bibliothek geprüft (Spalte „Geprüft"). Widerlegt wurde keiner; „teilweise" heißt: der Kern übernommen, ein Nebenvorschlag mit Grund nicht.
 
-| # | Befund | Ergebnis | Wo / Begründung |
-|---|---|---|---|
+| # | Befund | Geprüft | Ergebnis | Wo / Begründung |
+|---|---|---|---|---|
+| 1 | Enter-Fall im `DruckMenue.test` scheitert (`e.which`) | `@rc-component/menu` 1.5.0 `MenuItem.js`: `if (e.which === KeyCode.ENTER)`; antd 6.6.4 bindet `~1.5.0` | übernommen | Task 5: Ereignis mit `keyCode: 13`, Kommentar dazu; Komponente unverändert ohne Anker |
+| 2 | `setzeVorlage` steht noch in zwei weiteren Fällen | `planverwaltung.test.ts` ruft es viermal (Grenzfälle-Block und Vorlagen-Block) | übernommen | Task 13: „Kopie einer Vorlage" auf Seed-Vorlage, „archivierter Plan wird nicht zur Vorlage" gestrichen (deckt der neue Fall), `git grep` als Prüfschritt |
+| 3 | §6.7-Satz läuft über zwei Zeilen | Spec: Umbruch nach „setzt" | übernommen | Task 14: zweizeiliger Suchtext und zweizeilige Ersetzung; §8.3 ebenso |
+| 4 | `rahmen.ts`/`plaene.ts` als geändert gelistet, keine Aufgabe ändert sie | `plaene.ts`: `Listenzeile.vorlage` existiert; Spread in `druckdaten.ts` | übernommen | Dateistruktur: beide Zeilen gestrichen, Satz „Unverändert, obwohl naheliegend" |
+| 5 | antd-Knöpfe färben Hover/Fokus rot — Rot-Zusage stimmt nicht | `theme.ts`: `colorPrimary: FARBEN.rot` | übernommen (Variante „Zusage einschränken") | Global Constraints, Entscheidung 8, Hauptlauf 9: Rot-Budget gilt für das eigene Markup, kein `type="primary"`, Task 16 fotografiert den Hover. Neutrale Knöpfe per `ConfigProvider` bräuchten einen eigenen Hell/Dunkel-Satz — Ticketkandidat |
+| 6 | A3-Route fehlt in den 404-Schleifen des e2e | `e2e/kommplan.spec.ts`: beide Schleifen nur `/druck/a4` | übernommen | Task 5: beide Pfadlisten um `/druck/a3` |
+| 7 | Wiederherstellen belebt alte Links still wieder | `stelleWiederHer` setzt nur `archiviertAm: null`; `loeseToken` prüft nur das Archiv | übernommen (sicherer Weg) | Entscheidung 3, Task 2: `archiviere` widerruft in einer Transaktion (Audit je Link), Test „Wiederherstellen erweckt keinen"; Spec §8.3 in Task 14; Preis „Rückgängig" in Hauptlauf 8 |
+| 8 | QR-Messung mit `"A".repeat(43)` zu günstig | Nachgemessen: 300 echte Tokens → immer Version 8 = 57 Module | übernommen | Entscheidung 11, `QR_BOX.kante` 24 mm (0,42 mm/Modul), Test mit `randomBytes`, Blatt-Literale 263/171/24/57, Hauptlauf 4 (Version 9 bei langem Host) |
+| 9 | Kopfraster legt Zeilen in die schmale Spalte | Kinderfolge h1, Briefkopf, p, p, Vermerk, Aktionen; nur Aktionen mit `grid-column` | übernommen | Task 8: linker Block `.kp-token-links`, DOM-Fall dazu; Task 16 fotografiert mit/ohne Briefkopf |
+| 10 | Feste `cf-connecting-ip` machen Retry sicher rot | `playwright.config.ts`: `retries: CI ? 1 : 0`, `workers: 1` | übernommen | Global Constraints, Task 15/16: `ip(n) = 2001:db8:<LAUF>::<n>`, `LAUF` je Laden der Datei (neuer Worker je Retry, auch lokaler Zweitlauf) |
+| 11 | `--kp-auswahl-papier` im Flyin dunkel zu schwach | `kommplan.css`: „Nicht im Dunkel-Block überschreiben" | übernommen | Task 9 CSS `--kp-auswahl`, Entscheidung 17, Prüfliste Task 16 |
+| 12 | Fokus geht nach dem Widerrufen verloren | Eintrag samt Knopf wandert in `<details>` | übernommen | Task 9: Ref + Effekt auf `freigaben`, nächster gültiger Link oder Legende; DOM-Fall über echten `Popconfirm`, e2e (Legende fokussiert) |
+| 13 | Kicker/Titel „Kommunikationsplan" auch für Fernmeldeskizzen | `TYP_NAME` in der Angabenzeile, Kicker statisch | übernommen | Entscheidungen 7, 8, Task 8: „KOMMUNIKATIONSPLÄNE"/„Kommunikationspläne" (Modulname, `registry.ts`); e2e prüft Kicker und `<title>` |
+| 14 | A3-Route ohne Wirkungstest (Duplikat zu 6) | wie 6 | übernommen | mit 6 erledigt |
+| 15 | Token-Route lädt antd — Abweichung vom Abendzettel nicht festgehalten | README: Abendzettel „ohne antd", 56/72 ohne Shell | übernommen | Entscheidung 8, Global Constraints (Falle 1, 4), Rahmen-Kommentar „der Rahmen selbst ohne antd"; Task 16 misst 56 px. Ein antd-freies Druckmenü nur für die Token-Ansicht nicht: der Betrachter bringt antd ohnehin mit |
+| 16 | Keine Klickbilanz; Verteilweg ≈ 15 Schritte | Wege im Plan nachgezählt | übernommen | Review Focus 8 mit Bilanz vorher/nachher (≈ 7–8), umgesetzt über 17–20 |
+| 17 | Teilen-Flyin ohne Anfangsfokus | `StelleFlyin`/`BibFlyin`: `autoFocus={false}` + eigener Fokus | übernommen | Task 9: `autoFocus={basis === null}`, Notiz `autoFocus`; DOM-Fall und e2e (`oeffneTeilen`) |
+| 18 | „Drucken" kostet zwei Klicks; Menü per Tastatur nicht erreichbar | `useAccessibility.js`: Menüfokus nur bei `autoFocus` oder Tab; `Dropdown.Button` in antd 6 veraltet | teilweise | Entscheidung 12, Task 5: geteilter Knopf (`Space.Compact`), `autoFocus`, e2e-Tastaturweg. **Nicht** die Blattzahl je Format im Menü: sie hängt am QR (Option und gültiger Link) und kostete je Öffnen eine Aufteilung im Client |
+| 19 | „SVG herunterladen" nur über den Druckdialog erreichbar | `Drucken.tsx` druckt im Effekt; SVG-Knöpfe nur auf der Druckseite | übernommen | Entscheidung 15, Task 12: Gruppe „SVG-Dateien" im internen Menü → `?export=svg`, `Drucken automatisch={false}`; e2e zählt `window.print` |
+| 20 | QR-Hinweis ohne Weg zu „Teilen", Ziel des QR unsichtbar | Hinweis ist reiner Text; `waehleQrFreigabe` wählt still | übernommen | Entscheidung 10, Task 10: (a) Knopf „Link ausstellen", (b) `qrZielSatz` mit Ablauf-Warnung, (c) derselbe Schalter im Teilen-Flyin, (d) Satz in der `noprint`-Leiste; ohne Uhr im Rendern über `besteFreigabe` (Task 1) |
+| 21 | „Teilen" verlängert die Kopfleiste am Telefon um eine Zeile | Media-Regel: eine Spalte; vier sichtbare Knöpfe heute | übernommen | Task 9: zwei Spalten in DOM-Reihenfolge (kein `dense`, sonst springt der Tab-Fokus), ganze Zeilen für Umschalter/Wiederholen/Plan, „Teilen" und „Drucken" nebeneinander; Messung vorher (Task 5), Zusicherung im Fototest (Task 16) |
+| 22 | Token-404 führt zur Suite-404 mit Weg zur Anmeldung | Nur `src/app/not-found.tsx` im Repo; Next-Doku: Grenze je Segment | übernommen | Entscheidung 4, Task 8: `t/not-found.tsx` + `TokenUngueltig`; Task 15 prüft Text, keinen Link auf `/`, gleiche Länge der vier 404; Beleg der Grenze über `pnpm e2e:gebaut` |
+| 23 | Schranke 10/min zu knapp | `clientIpAus`: ohne Kopf `"unknown"` | teilweise | Entscheidung 5: 30 statt 60 — 60 verlängert den e2e so, dass er unter Last das gleitende 60-s-Fenster überschreiten kann; e2e mit `request.get`. Kein eigener Eimer für `"unknown"`: Rollout-Bedingung in Hauptlauf 2 |
+| 24 | Rückmeldung fern vom Knopf; Fokus nach Widerruf (zweiter Teil = 12) | `role="status"` und Lesefeld zwischen Formular und Liste | übernommen | Task 9: „Kopiert" am Knopf für 2 s, Lesefeld im Eintrag, DOM-Fall mit zwei Links |
+| 25 | Token-Ansicht am Telefon höher als der Schirm (Scroll-Falle) | `.kp-betrachter { height: calc(100dvh - 240px) }`, Token-Kopf größer | übernommen | Entscheidung 8, Task 8: `100dvh`-Raster, Flex-Kette über `kp-betrachter-wurzel`/`kp-flaeche-wurzel`, Kopf am Telefon verdichtet; Task 16 sichert `scrollHeight ≤ innerHeight` |
+| 26 | Release-Notiz ohne Einstieg für die Zugangsgruppe und ohne „Neu" | Kopfzeile der Notiz: Zugangs- und Admin-Gruppe; Vorschlag hat 322 Zeichen | übernommen (gekürzt) | Task 14: „Unter „Kommunikationspläne" …" zuerst, dann „Neu", „Gliederung", „Teilen"; 315 Zeichen (Vorschlag lag über 320), „Aus Bibliothek" fällt heraus |
+| 27 | „Keine Vorlage mehr" verspricht etwas anderes; kein Weg zur neuen Vorlage | Menü in `PlanTabelle.tsx`; `AnlageErgebnis.id` vorhanden; `Hinweis` hat nur `zurueck` | übernommen | Entscheidung 16, Task 13: „Vorlage archivieren", `Hinweis.oeffnen` mit „Vorlage öffnen" (Fokus darauf), Spec §6.7, e2e |
+| 28 | Kicker für Fernmeldeskizze (Duplikat zu 13) | wie 13 | übernommen | mit 13 erledigt |
