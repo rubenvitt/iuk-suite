@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
-import type { AnlageErgebnis, EinfachErgebnis } from "../_lib/ergebnis";
+import type { DuplikatErgebnis, EinfachErgebnis } from "../_lib/ergebnis";
 import { archiviere, dupliziere, setzeVorlage, stelleWiederHer } from "../_lib/planverwaltung";
 import { bearbeiterAus, requireKommplanBearbeitenAktion } from "../_lib/zugang";
 
@@ -13,7 +13,7 @@ import { bearbeiterAus, requireKommplanBearbeitenAktion } from "../_lib/zugang";
 const ID = z.string().min(1).max(64);
 const UNGUELTIG = { ok: false, fehler: "Ungültige Anfrage." } as const;
 
-export async function dupliziereAction(id: unknown): Promise<AnlageErgebnis> {
+export async function dupliziereAction(id: unknown): Promise<DuplikatErgebnis> {
   const viewer = await requireKommplanBearbeitenAktion();
   const r = ID.safeParse(id);
   if (!r.success) return { ...UNGUELTIG, feldFehler: {} };

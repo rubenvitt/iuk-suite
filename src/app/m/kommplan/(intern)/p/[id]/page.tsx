@@ -8,6 +8,7 @@ import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { leseEditorAnsicht } from "@/app/m/kommplan/_lib/editorAnsicht";
 import { archivTag, beschreibungFuer, ladePlanLesendOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { kalendertag } from "@/app/m/kommplan/_lib/rahmen";
+import { kopieHinweis } from "@/app/m/kommplan/_lib/tagesfassung";
 import { symboleFuer, zeichenIndex } from "@/app/m/kommplan/_lib/zeichen/zeichen";
 import { darfKommplanBearbeiten, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
 import { Betrachter } from "@/app/m/kommplan/_ui/betrachter/Betrachter";
@@ -37,12 +38,12 @@ export default async function PlanAnsicht({ params, searchParams }: {
   if (plan.archiviertAm === null && plan.inhalt && darf) {
     const suche = await searchParams;
     const ansicht = leseEditorAnsicht(suche.ansicht);
-    const kopieHinweis = suche.kopie === "1" ? `Kopie angelegt — Titel und Datum stehen auf ${kalendertag(plan.datum) ?? "heute"}.` : undefined;
+    const kopie = kopieHinweis(typeof suche.kopie === "string" ? suche.kopie : undefined, kalendertag(plan.datum) ?? "heute");
     return (
       <Huelle>
         {/* Kein Arimo-Container um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
-        <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht} kopieHinweis={kopieHinweis} bibliothek={ladeBibliothek(getDb())}
+        <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht} kopieHinweis={kopie} bibliothek={ladeBibliothek(getDb())}
           plan={{ id: plan.id, version: plan.version, angaben: plan.angaben, inhalt: plan.inhalt, aktualisiertAm: plan.aktualisiertAm, aktualisiertVon: plan.aktualisiertVon }} />
       </Huelle>
     );

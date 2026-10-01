@@ -26,7 +26,7 @@ test("Duplizieren: Kopie mit heutigem Datum im Titel, direkt im Editor, mit Hinw
   const stand = page.waitForResponse((r) => istStandAbfrage(r) && !rumpf(r).includes(id));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Duplizieren" }));
   expect((await kopie).status()).toBe(200);
-  await page.waitForURL(/\/p\/[0-9a-f-]{36}\?kopie=1$/);
+  await page.waitForURL(/\/p\/[0-9a-f-]{36}\?kopie=datum$/);
   expect((await stand).status()).toBe(200);
   await warteAufSpaltenaufteilung(page);
   // Der Hinweis steht in Diagramm UND Gliederung (eine davon per CSS verborgen): die sichtbare zählt.

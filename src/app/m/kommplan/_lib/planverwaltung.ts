@@ -3,7 +3,7 @@ import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { KommplanDb } from "../_db/client";
 import { plan } from "../_db/schema";
 import { tagZuMs, type PlanTyp } from "./angaben";
-import type { AnlageErgebnis, EinfachErgebnis } from "./ergebnis";
+import type { DuplikatErgebnis, EinfachErgebnis } from "./ergebnis";
 import { lies } from "./plaene";
 import type { Bearbeiter } from "./speichern";
 import { heuteIso, titelFuerKopie } from "./tagesfassung";
@@ -23,18 +23,19 @@ export function vorlagenZurAuswahl(db: KommplanDb): VorlageWahl[] {
     .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm))).orderBy(asc(plan.titel), plan.id).all();
 }
 
-export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number): AnlageErgebnis {
+export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number): DuplikatErgebnis {
   const q = db.select().from(plan).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).get();
   if (!q) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
   const inhalt = lies(q).inhalt;
   if (!inhalt) return { ok: false, fehler: "Dieser Plan lässt sich nicht lesen und deshalb nicht duplizieren.", feldFehler: {} };
   const heute = heuteIso(jetzt);
   const neu = randomUUID();
+  const titel = titelFuerKopie(q.titel, heute);
   db.insert(plan).values({
-    id: neu, titel: titelFuerKopie(q.titel, heute), typ: q.typ, anlass: q.anlass, datum: new Date(tagZuMs(heute)),
+    id: neu, titel: titel.titel, typ: q.typ, anlass: q.anlass, datum: new Date(tagZuMs(heute)),
     istVorlage: false, aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt),
   }).run();
-  return { ok: true, id: neu };
+  return { ok: true, id: neu, titel: titel.art };
 }
 
 export function setzeVorlage(db: KommplanDb, id: string, vorlage: boolean): EinfachErgebnis {

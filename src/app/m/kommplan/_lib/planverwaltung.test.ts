@@ -26,6 +26,17 @@ describe("Duplizieren (Spec §6.7; Entscheidung 9)", () => {
     expect(kopie).toMatchObject({ version: 1, typ: quelle.typ, anlass: quelle.anlass, aktualisiertVon: "Jana", aktualisiertAm: NACH_MITTERNACHT });
     expect(ladePlanLesend(db, r.id)).toMatchObject({ istVorlage: false, archiviertAm: null });
   });
+  it("meldet, was mit dem Titel geschah: ersetzt, „(Kopie)“ angehängt — auch am selben Tag", async () => {
+    const db = await mitSeed();
+    const r = dupliziere(db, OPENR, WER, NACH_MITTERNACHT);
+    expect(r).toMatchObject({ ok: true, titel: "datum" });
+    if (!r.ok) return;
+    // Die Kopie trägt schon das heutige Datum: noch einmal duplizieren hieße sonst gleich.
+    const zweite = dupliziere(db, r.id, WER, NACH_MITTERNACHT);
+    expect(zweite).toMatchObject({ ok: true, titel: "zusatz" });
+    if (!zweite.ok) return;
+    expect(ladePlan(db, zweite.id)!.titel).toBe(`${ladePlan(db, r.id)!.titel} (Kopie)`);
+  });
   it("unbekannt, archiviert oder nicht lesbar: nicht dupliziert", async () => {
     const db = await mitSeed();
     expect(dupliziere(db, "gibt-es-nicht", WER, NACH_MITTERNACHT)).toMatchObject({ ok: false, fehler: PLAN_WEG });

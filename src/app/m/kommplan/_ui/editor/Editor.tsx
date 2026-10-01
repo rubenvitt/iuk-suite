@@ -36,7 +36,8 @@ import { leseZuletzt } from "./zuletzt";
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
 /** `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ im Hinweis gilt nur, solange genau er der jetzige ist. */
-interface Hinweis { text: string; nach?: PlanInhalt; aktion?: HinweisAktion }
+/** `bestaetigt`: eine Erfolgsmeldung (grün statt Warnstil) — bisher nur der Kopie-Hinweis mit ersetztem Datum. */
+interface Hinweis { text: string; nach?: PlanInhalt; aktion?: HinweisAktion; bestaetigt?: boolean }
 /** Ein Knopf im Hinweis statt „Rückgängig“ (Phase 4: „Angaben ändern“ nach dem Duplizieren, „Angaben übernehmen“ nach dem Einfügen). */
 export interface HinweisAktion { text: string; tu(): void }
 /** Ein per Griff angelegtes, noch unberührtes Element: Esc/X verwirft es wieder (Review Phase 2). */
@@ -90,8 +91,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   ansicht?: EditorAnsicht | null;
   /** Klasse der Zeichenschrift (next/font) — nur für die Legende, wie im Betrachter; der Rest steht in der Suite-Schrift. */
   schriftKlasse?: string;
-  /** Nach „Duplizieren“ (`?kopie=1`, Phase 4, Entscheidung 9): einmal angezeigt, mit „Angaben ändern“. */
-  kopieHinweis?: string;
+  /** Nach „Duplizieren“ (`?kopie=<art>`, Phase 4, Entscheidung 9; Text aus `kopieHinweis`): einmal angezeigt, mit „Angaben ändern“. */
+  kopieHinweis?: { text: string; bestaetigt: boolean };
   /** Die Bibliothek für Kopien in den Plan (Phase 4, Entscheidung 13); nur für Bearbeitende geladen. */
   bibliothek?: Bibliothek;
 }) {
@@ -105,9 +106,9 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
   const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
   const [hinweis, setHinweis] = useState<Hinweis | null>(() => (kopieHinweis
-    ? { text: kopieHinweis, aktion: { text: "Angaben ändern", tu: () => { setPlanAbschnitt("angaben"); setFlyin("plan"); } } }
+    ? { text: kopieHinweis.text, bestaetigt: kopieHinweis.bestaetigt, aktion: { text: "Angaben ändern", tu: () => { setPlanAbschnitt("angaben"); setFlyin("plan"); } } }
     : null));
-  // `?kopie=1` aus der Adresse nehmen (ohne setState): ein Neuladen zeigt den Kopie-Hinweis nicht noch einmal.
+  // `?kopie=` aus der Adresse nehmen (ohne setState): ein Neuladen zeigt den Kopie-Hinweis nicht noch einmal.
   useEffect(() => {
     if (!kopieHinweis) return;
     const adresse = new URL(window.location.href);
@@ -411,8 +412,9 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const nachSchliessen = () => { if (flyinJetzt.current === null) fokusZurueck(); };
 
   const meldung = hinweis ? (
-    <Alert type="warning" showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
-      action={hinweis.aktion ? <Button onClick={() => { hinweis.aktion!.tu(); setHinweis(null); }}>{hinweis.aktion.text}</Button>
+    <Alert type={hinweis.bestaetigt ? "success" : "warning"} showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
+      // Erst schließen, dann tun: meldet die Aktion selbst etwas (ein Fehler aus `aendere`), bleibt das stehen.
+      action={hinweis.aktion ? <Button onClick={() => { const a = hinweis.aktion!; setHinweis(null); a.tu(); }}>{hinweis.aktion.text}</Button>
         : hinweis.nach !== undefined && hinweis.nach === verlauf.jetzt ? <Button onClick={() => perKnopf(rueck)}>Rückgängig</Button> : undefined} />
   ) : speicherZustand.status === "fehler" && speicherZustand.fehler ? (
     <Alert type="warning" showIcon title={speicherZustand.fehler}

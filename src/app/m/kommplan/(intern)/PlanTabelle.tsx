@@ -50,7 +50,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     if (a === "duplizieren") {
       const r = await dupliziereAction(z.id).catch(() => ({ ok: false as const, fehler: NETZ, feldFehler: {} }));
       // Bei Erfolg bleibt die Zeile „laufend", bis der Editor der Kopie steht — sonst wäre ein zweiter Klick frei.
-      if (r.ok) { router.push(`/p/${r.id}?kopie=1`); return; }
+      if (r.ok) { router.push(`/p/${r.id}?kopie=${r.titel}`); return; }
       setzeLauf(null);
       setHinweis({ text: r.fehler });
       return;

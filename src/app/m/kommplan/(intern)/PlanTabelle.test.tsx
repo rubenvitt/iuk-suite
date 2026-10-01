@@ -62,10 +62,10 @@ describe("PlanTabelle", () => {
     const nochmal = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((e) => e.textContent === "Duplizieren");
     if (nochmal) await clickElement(nochmal);
     expect(aktion.dupliziere).toHaveBeenCalledTimes(1);
-    await act(async () => { fertig({ ok: true, id: "neu-1" }); });
+    await act(async () => { fertig({ ok: true, id: "neu-1", titel: "zusatz" }); });
     await abwarten();
     expect(aktion.dupliziere).toHaveBeenCalledWith("p1");
-    expect(router.push).toHaveBeenCalledWith("/p/neu-1?kopie=1");
+    expect(router.push).toHaveBeenCalledWith("/p/neu-1?kopie=zusatz"); // was mit dem Titel geschah, geht an den Kopie-Hinweis
   });
   it("Archivieren meldet sich mit „Rückgängig“, das wiederherstellt", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });
