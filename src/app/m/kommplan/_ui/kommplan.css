@@ -159,7 +159,7 @@
  * Randstrich (nie nur Farbe). Der Meldungsplatz klebt unten im Bild — die Liste kann länger sein als
  * der Schirm, der Hinweis muss trotzdem zu sehen sein.
  */
-.kp-g-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.kp-g-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; grid-template-columns: minmax(0, 1fr); }
 .kp-g-zeile { padding-inline-start: calc(var(--ebene) * 24px); border-radius: 8px; }
 .kp-g-zeile[aria-current="true"] { background: var(--kp-auswahl-flaeche); box-shadow: inset 3px 0 0 var(--kp-auswahl); }
 .kp-g-haupt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px; }

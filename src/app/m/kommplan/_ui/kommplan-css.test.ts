@@ -129,6 +129,9 @@ describe("Bibliothek in der Gliederung (Phase 4)", () => {
 });
 
 describe("Sichtprüfung Phase 4", () => {
+  it("die Spalte der Gliederung wächst nicht mit den Vorschlägen: drei lange Vorschläge scrollen in ihrer Leiste statt die Seite zu verbreitern", () => {
+    expect(css).toMatch(/\.kp-g-liste \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  });
   it("Regeln der Phase 4 stehen VOR den Breakpoint-Blöcken — sonst schlügen sie deren Telefonregeln bei gleicher Spezifität", () => {
     const telefon = css.indexOf("@media (max-width: 767.98px)");
     for (const regel of [".kp-bib-werkzeuge {", ".kp-g-vorschlaege {", ".kp-kopfvorschau {", ".kp-listenhinweis {", ".kp-bib-einheiten {"]) {
