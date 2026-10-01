@@ -68,6 +68,27 @@ describe("kommplan.css", () => {
     const zweig = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(zweig).toMatch(/\.kp-g-lage \{ flex-basis: 100%; order: -1; \}/);
   });
+  it("Seitenstellen-Chip der Gliederung hebt sich vom Seitengrund der Shell ab, hell wie dunkel (Review Phase 3)", () => {
+    const hell = /:root \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    const dunkel = /:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    const wert = (block: string, name: string) => new RegExp(`--${name}: (#[0-9a-f]{6});`, "i").exec(block)?.[1] ?? "";
+    expect(css).toMatch(/\.kp-g-lage \.kp-chip \{ background: var\(--kp-g-chip-flaeche\); \}/);
+    expect(kontrast(wert(hell, "kp-g-chip-flaeche"), "#eef0f1")).toBeGreaterThanOrEqual(1.35); // Layout.bodyBg hell
+    expect(kontrast(wert(dunkel, "kp-g-chip-flaeche"), "#000000")).toBeGreaterThanOrEqual(1.35); // Layout.bodyBg dunkel
+    expect(kontrast(wert(hell, "kp-g-chip-flaeche"), wert(hell, "kp-chip-text"))).toBeGreaterThanOrEqual(4.5);
+    expect(kontrast(wert(dunkel, "kp-g-chip-flaeche"), wert(dunkel, "kp-chip-text"))).toBeGreaterThanOrEqual(4.5);
+  });
+  it("Telefon: Leerzustand mit vollbreitem Knopf; Titel gibt nach, „⋯“ bleibt in der Zeile; Verlaufsleiste klebt unten (Review Phase 3)", () => {
+    const schmal = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(schmal).toMatch(/\.kp-leer \{ justify-items: stretch; \}/);
+    expect(schmal).toMatch(/\.kp-g-haupt \.kp-g-titel \{ flex-basis: 6rem; \}/);
+    expect(schmal).toMatch(/\.kp-g-neben \{ order: 1; flex-basis: 100%; \}/);
+    expect(css).toMatch(/\.kp-verlaufsleiste \{[^}]*position: sticky; bottom: 0;/);
+  });
+  it("breit: Verbindung und Einheiten in fester Breite, damit sie über alle Zeilen fluchten (Review Phase 3)", () => {
+    const breit = /@media \(min-width: 768px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(breit).toMatch(/\.kp-g-neben \{ flex: 0 0 26rem; flex-wrap: nowrap; \}/);
+  });
 });
 
 /** Kontrastverhältnis nach WCAG 2.x (relative Leuchtdichte). */

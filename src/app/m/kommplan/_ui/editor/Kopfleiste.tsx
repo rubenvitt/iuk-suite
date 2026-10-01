@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { Alert, Button, Segmented } from "antd";
+import { Alert, Button, ConfigProvider, Segmented, type ThemeConfig } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { zeitFormat } from "@/core/zeit";
 import { TYP_NAME, tagZuMs, type Planangaben } from "../../_lib/angaben";
@@ -16,6 +16,12 @@ import type { SpeicherZustand } from "./speicherer";
  * erkennt die Gliederung, wo der Fokus trotzdem hierher wandert.
  */
 export const VERLAUFSKNOPF = { "data-verlauf": "", onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() } as const;
+/**
+ * Der Umschalter ist am Telefon der einzige Weg ins Diagramm: antd zieht vom `controlHeight` je 2 px
+ * Spurrand ab, die Segmente wären 40 px hoch. 48 ergibt 44 px je Segment (WCAG 2.5.5, Falle 4) — per
+ * Token, nicht per CSS (Falle 5; Review Phase 3).
+ */
+const UMSCHALTER_DICHTE: ThemeConfig = { components: { Segmented: { controlHeight: 48 } } };
 // zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
 const UHR = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 const STAND = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -55,8 +61,10 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
   // und zwei Radiogruppen gleichen Namens teilten sich ein „checked" (Automodus: zwei Umschalter im DOM).
   const basis = useId();
   const umschalter = (wert: EditorAnsicht, klasse?: string) => (
-    <Segmented<EditorAnsicht> className={klasse} name={`${basis}-${klasse ?? "ansicht"}`} aria-label="Ansicht" value={wert} onChange={onAnsicht}
-      options={[{ value: "diagramm", label: "Diagramm" }, { value: "gliederung", label: "Gliederung" }]} />
+    <ConfigProvider theme={UMSCHALTER_DICHTE}>
+      <Segmented<EditorAnsicht> className={klasse} name={`${basis}-${klasse ?? "ansicht"}`} aria-label="Ansicht" value={wert} onChange={onAnsicht}
+        options={[{ value: "diagramm", label: "Diagramm" }, { value: "gliederung", label: "Gliederung" }]} />
+    </ConfigProvider>
   );
   const stand = zustand.zuletztGespeichert ?? standSeit;
   const beschreibung = [TYP_NAME[angaben.typ], angaben.anlass, angaben.datum ? kalendertag(tagZuMs(angaben.datum)) : null, `Stand ${STAND.format(stand)}`]
@@ -69,11 +77,12 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
             {ansicht === null
               ? <>{umschalter("diagramm", "kp-nur-breit")}{umschalter("gliederung", "kp-nur-schmal")}</>
               : umschalter(ansicht)}
-            <Button {...VERLAUFSKNOPF} onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
+            {/* Am Telefon steht „Rückgängig“ samt Status in der klebenden Verlaufsleiste des Editors (Review Phase 3). */}
+            <Button {...VERLAUFSKNOPF} className="kp-nur-breit" onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
             <Button {...VERLAUFSKNOPF} onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
             <Button onClick={onPlan}>Plan und Verbindungen</Button>
             <Button onClick={onDrucken}>Drucken (A4 quer)</Button>
-            <span className="kp-speicherstatus" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
+            <span className="kp-speicherstatus kp-nur-breit" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
           </div>
         } />
       {zustand.konflikt ? (

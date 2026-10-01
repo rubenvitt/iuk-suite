@@ -7,6 +7,11 @@
   --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
   --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
   --kp-auswahl-flaeche: #e8f0fc;
+  /* Chip direkt auf dem Seitengrund der Shell (#eef0f1 hell, #000 dunkel), nicht auf Papier: die Fläche der
+     übrigen Chips (#eef1f5) wäre dort unsichtbar (Review Phase 3). 1,4:1 gegen den Grund, Text 7,9:1. */
+  --kp-g-chip-flaeche: #c4cdd9;
+  /* Seitengrund der Shell (Layout.bodyBg, core/theme/theme.ts) — für die klebende Verlaufsleiste am Telefon. */
+  --kp-seitengrund: #eef0f1;
   /* Auswahl AUF DEM PAPIER: das Papier bleibt weiß, also bleibt auch diese Farbe in beiden Modi
      (#7fb0ff auf Weiß hätte nur 2,2:1, Review Phase 2). Nicht im Dunkel-Block überschreiben. */
   --kp-auswahl-papier: #1f5fbf;
@@ -16,6 +21,8 @@
   --kp-chip-flaeche: #2a303a; --kp-chip-text: #d6dce5;
   --kp-hinweis-flaeche: #3d2f14; --kp-hinweis-text: #f3cf8e;
   --kp-auswahl-flaeche: #1c2a40;
+  --kp-g-chip-flaeche: #2a303a;
+  --kp-seitengrund: #000000;
 }
 
 /*
@@ -112,10 +119,11 @@
 .kp-griffe button { pointer-events: auto; }
 /* Weißer Außenring: am Rand der Zeichnung liegt der Rahmen auf der (dunklen) Fläche statt auf Papier. */
 .kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl-papier); box-shadow: 0 0 0 2px #ffffff; border-radius: 4px; pointer-events: none; }
-.kp-griffe .kp-griff-seite { position: absolute; top: 50%; transform: translateY(-50%); gap: 4px; width: max-content; }
+/* `top` setzt Griffe.tsx (mittig, aber nie unter der Kartenunterkante — dort beginnt die Griffleiste). */
+.kp-griffe .kp-griff-seite { position: absolute; gap: 4px; width: max-content; }
 .kp-griffe .kp-griff-links { right: calc(100% + 8px); }
 .kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
-.kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; }
+.kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; width: max-content; }
 .kp-leer { padding: 16px; display: grid; gap: 12px; justify-items: start; }
 .kp-hinweis { margin-block-end: 8px; }
 .kp-kopfwerkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -138,7 +146,8 @@
 .kp-g-haupt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px; }
 .kp-g-haupt .kp-g-titel { flex: 1 1 12rem; min-width: 0; }
 .kp-g-neben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 0 1 auto; }
-.kp-g-meldung { position: sticky; bottom: 12px; margin-top: 8px; z-index: 1; }
+.kp-g-meldung { position: sticky; bottom: 12px; margin-top: 8px; z-index: 3; }
+.kp-g-lage .kp-chip { background: var(--kp-g-chip-flaeche); }
 /* Zeichen kompakt (Entscheidung 13): 44 px Ziel, das Zeichen bleibt Papier (weißer Grund auch im Dunkeln). */
 .kp-g-zeichen {
   display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; cursor: pointer;
@@ -154,7 +163,20 @@
 .kp-g-verbindung-text {
   min-height: 44px; min-width: 12rem; padding: 0 11px; text-align: start; cursor: pointer; font: inherit; color: inherit;
   background: transparent; border: 1px dashed var(--kp-rand); border-radius: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.kp-g-neben .kp-g-einheitenzahl { flex: none; min-width: 7rem; } /* „1 Einheit“ so breit wie „12 Einheiten“: die Spalte fluchtet */
+/*
+ * Verlaufsleiste am Telefon (Review Phase 3): „Rückgängig“ und der Speicherstatus kleben unten im Bild —
+ * ohne Hardwaretastatur gibt es kein Strg+Z, und die Kopfleiste steht beim Bearbeiten weiter unten außer
+ * Sicht. Unten statt oben: oben müsste die Leiste die Höhe der Shell-Kopfzeile kennen (`--iuk-kopf` gehört
+ * `.sider`). Ab 768 px ausgeblendet (`.kp-nur-schmal`); dort stehen beide in der Kopfleiste.
+ */
+.kp-verlaufsleiste {
+  position: sticky; bottom: 0; z-index: 2; display: grid; gap: 4px; margin-top: 8px; padding: 8px 0;
+  background: var(--kp-seitengrund); border-top: 1px solid var(--kp-rand);
+}
+.kp-verlaufsstatus { font-size: 13px; line-height: 16px; color: var(--kp-gedaempft); }
 .kp-g-einheiten { padding: 0 8px 8px calc(44px + 16px); }
 /*
  * Ansichten des Editors (Umsetzungsplan Phase 3, Entscheidung 1): ausdrücklich über data-editoransicht,
@@ -173,6 +195,15 @@
   .kp-g-zeile { padding-inline-start: calc(min(var(--ebene), 6) * 16px); }
   .kp-g-zeile:not([aria-current="true"]) .kp-g-neben { display: none; }
   .kp-g-lage { flex-basis: 100%; order: -1; }
+  /* Zeichen, Titel und „⋯“ bleiben auch tief eingerückt in EINER Zeile: der Titel gibt nach (Review Phase 3);
+     Verbindung und Einheiten der gewählten Zeile stehen darunter, nicht zwischen Titel und „⋯“. */
+  .kp-g-haupt .kp-g-titel { flex-basis: 6rem; }
+  .kp-g-neben { order: 1; flex-basis: 100%; }
+  /* Leerzustand: Handlungsknopf volle Breite (docs/design/README.md, Mobil). */
+  .kp-leer { justify-items: stretch; }
+  /* Die klebende Verlaufsleiste (≈ 70 px) liegt unten über dem Inhalt: Hinweise rücken darüber. */
+  .kp-g-meldung { bottom: 84px; }
+  .kp-meldungsplatz { scroll-margin-bottom: 96px; }
   .kp-editor[data-editoransicht="auto"] .kp-ansicht-diagramm,
   .kp-editor .kp-nur-breit { display: none; }
 }
@@ -185,6 +216,13 @@
  */
 @media (min-width: 768px) {
   .kp-editor[data-flyin] { padding-inline-end: var(--kp-flyin-breite); }
+  /* Verbindung und Einheiten in fester Breite: Titelende und Verbindung fluchten über alle Zeilen (Review Phase 3). */
+  .kp-g-neben { flex: 0 0 26rem; flex-wrap: nowrap; }
+  .kp-g-neben > :first-child { flex: 1 1 0; min-width: 0; }
+  .kp-g-haupt .kp-g-neben > .kp-g-verbindung, .kp-g-neben > .kp-g-verbindung-text { min-width: 0; }
+  /* Aufgeklappte Einheiten: Typ schmal, Rufname breit, „Entfernen“ so breit wie seine Beschriftung. */
+  .kp-g-einheiten .kp-zeile { grid-template-columns: minmax(6rem, 10rem) minmax(0, 24rem) auto; justify-content: start; }
+  .kp-g-einheiten .kp-formular-knoepfe { display: flex; flex-wrap: wrap; }
   .kp-editor[data-editoransicht="auto"] .kp-ansicht-gliederung,
   .kp-editor .kp-nur-schmal { display: none; }
 }

@@ -54,7 +54,10 @@ export function merke<T>(karte: Map<string, T>, id: string, el: T | null): () =>
 export interface ZeilenProps {
   zeile: GliederungsZeile; gewaehlt: boolean; aktiv: boolean;
   /** Einträge nur für die Zeile mit offenem Menü (sonst dieselbe leere Liste). */
-  menue: MenuProps["items"]; menueOffen: boolean; offenBei: OffenesFeld | null; einheitenOffen: boolean;
+  menue: MenuProps["items"]; menueOffen: boolean;
+  /** Höchsthöhe des offenen Menüs (gemessen beim Öffnen): es scrollt, statt über den Bildrand zu ragen. */
+  menueHoehe?: number;
+  offenBei: OffenesFeld | null; einheitenOffen: boolean;
   /** Nur gelesen, solange ein Feld der Zeile offen ist — dann rendert sie ohnehin bei jeder Änderung neu. */
   inhalt: PlanInhalt;
   verbindungen: PlanInhalt["verbindungen"]; symbole: Symbolsatz; zeichenIndex: readonly ZeichenIndexEintrag[];
@@ -111,12 +114,12 @@ function ZeileInnen(p: ZeilenProps) {
           <VerbindungFeld inhalt={p.inhalt} stelle={s} aendere={(op, k) => befehle.current!.aendereVerbindung(id)(op, k)} aktiv={p.aktiv}
             offen={p.offenBei === "verbindung"} onOffen={(o) => befehle.current!.offen(id, "verbindung", o)} onFertig={() => befehle.current!.fertig(id, "verbindung")}
             feldRef={(r) => merke(register.selects, id, r)} />
-          <Button tabIndex={tab} aria-expanded={p.einheitenOffen} aria-controls={`kp-g-einheiten-${id}`} onClick={() => befehle.current!.einheiten(id)}>
+          <Button className="kp-g-einheitenzahl" tabIndex={tab} aria-expanded={p.einheitenOffen} aria-controls={`kp-g-einheiten-${id}`} onClick={() => befehle.current!.einheiten(id)}>
             {n === 1 ? "1 Einheit" : `${n} Einheiten`}
           </Button>
         </div>
         <Dropdown trigger={["click"]} onOpenChange={(o) => befehle.current!.menue(id, o)}
-          menu={{ items: p.menue, onClick: ({ key }) => befehle.current!.aktion(zeile, key as ZeilenAktion) }}
+          menu={{ items: p.menue, onClick: ({ key }) => befehle.current!.aktion(zeile, key as ZeilenAktion), style: p.menueHoehe ? { maxHeight: p.menueHoehe, overflowY: "auto" } : undefined }}
           popupRender={(m) => <div data-zeile-portal={id}>{m}</div>}>
           <Button ref={(el) => merke(register.aktionen, id, el)} tabIndex={tab} aria-label={`Aktionen für ${titelVon(s)}`}>⋯</Button>
         </Dropdown>

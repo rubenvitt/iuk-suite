@@ -103,6 +103,7 @@ export function Gliederung(p: GliederungProps) {
   const zeiger = useRef(false);
   const [fokus, setFokus] = useState<{ id: string; n: number; stelle: number | "ende"; ziel: FokusZiel; ersatz: string[] } | null>(null);
   const [menueOffen, setMenueOffen] = useState<string | null>(null);
+  const [menueHoehe, setMenueHoehe] = useState<number | undefined>(undefined);
   const [offenBei, setOffenBei] = useState<{ id: string; was: OffenesFeld } | null>(null);
   const [offeneEinheiten, setOffeneEinheiten] = useState<ReadonlySet<string>>(() => new Set());
   const aktiv = zeilen.some((z) => z.stelle.id === auswahl) ? auswahl : zeilen[0]?.stelle.id ?? null;
@@ -289,7 +290,13 @@ export function Gliederung(p: GliederungProps) {
       aendere, aendereVerbindung, taste, einfuegen, verlassen, aktion, fertig,
       titel: (id, wert) => { aendere((q) => aendereStelle(q, id, { titel: wert }), `titel:${id}`); },
       fokus: (id) => { if (auswahl !== id) p.onAuswahl(id); },
-      menue: (id, offen) => setMenueOffen(offen ? id : null),
+      menue: (id, offen) => {
+        // Das Menü (≈ 520 px) passt am Tablet weder über noch unter eine Zeile in der Bildmitte; antd klappte es
+        // dann über den oberen Rand. Höchstens so hoch wie der größere freie Platz — dann scrollt es (Review Phase 3).
+        const r = offen ? register.aktionen.get(id)?.getBoundingClientRect() : undefined;
+        setMenueHoehe(r ? Math.max(200, Math.max(window.innerHeight - r.bottom, r.top) - 16) : undefined);
+        setMenueOffen(offen ? id : null);
+      },
       offen: (id, was, o) => {
         if (o && was === "verbindung" && id !== aktiv) { p.onAuswahl(id); fokussiere(id, "ende", "verbindung"); }
         setOffenBei((alt) => (o ? { id, was } : alt?.id === id && alt.was === was ? null : alt));
@@ -316,7 +323,7 @@ export function Gliederung(p: GliederungProps) {
             const verbindung = z.stelle.verbindungId === null ? null : inhalt.verbindungen.find((v) => v.id === z.stelle.verbindungId)?.bezeichnung ?? null;
             return (
               <GliederungZeile key={id} zeile={z} gewaehlt={id === auswahl} aktiv={id === aktiv}
-                menue={mitMenue ? menue(zeilenAktionen(inhalt, id), verbindung) : KEIN_MENUE} menueOffen={mitMenue}
+                menue={mitMenue ? menue(zeilenAktionen(inhalt, id), verbindung) : KEIN_MENUE} menueOffen={mitMenue} menueHoehe={mitMenue ? menueHoehe : undefined}
                 offenBei={offenBei?.id === id ? offenBei.was : null} einheitenOffen={offeneEinheiten.has(id)}
                 inhalt={inhalt} verbindungen={inhalt.verbindungen} symbole={p.symbole} zeichenIndex={p.zeichenIndex}
                 planZeichen={planZeichen} befehle={befehle} register={register} />

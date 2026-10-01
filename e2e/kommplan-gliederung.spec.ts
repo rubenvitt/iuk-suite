@@ -53,6 +53,15 @@ test("Gliederung per Tastatur: Enter, Tab, Umschalt+Tab, Alt+↑, Rücktaste —
   expect(await baum(page)).toEqual(["EL", "·EA 1", "·EA 3", "·RTW", "·EA 2"]);
   await schalteAuf(page, "Diagramm"); // ausdrücklich „gliederung" gewählt: nur ein Umschalter, „Diagramm" nicht gewählt
   await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(5);
+  // derselbe Baum: EL oben, darunter die vier Unterstellen in einer Reihe, in der Folge der Gliederung
+  const lagen = await page.locator(".kp-betrachter [data-karte]").evaluateAll((els) => els.map((e) => {
+    const r = e.querySelector("rect")!.getBoundingClientRect();
+    return { titel: e.querySelector("title")!.textContent, x: r.x, y: r.y };
+  }));
+  const el = lagen.find((l) => l.titel === "EL")!;
+  const reihe = lagen.filter((l) => l !== el).sort((a, b) => a.x - b.x);
+  expect(reihe.map((l) => l.titel)).toEqual(["EA 1", "EA 3", "RTW", "EA 2"]);
+  for (const l of reihe) { expect(l.y).toBeGreaterThan(el.y); expect(Math.abs(l.y - reihe[0].y)).toBeLessThan(1); }
 });
 
 test("Tab auf der ersten Unterstelle: Hinweis in der Gliederung, der Fokus bleibt im Titel (Review Focus 3)", async ({ page }) => {
@@ -139,6 +148,8 @@ test("Umschalten am Seed-Plan: Auswahl bleibt, kein Neuladen, kein einziger Spei
   await schalteAuf(page, "Diagramm");
   await expect(page.locator('[data-griffe="ea2"]')).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { marke?: number }).marke)).toBe(42);
+  // Das Autosave feuerte erst 1 s nach einer Änderung: so lange warten, sonst wäre „keine Speicherung“ leer.
+  await page.waitForTimeout(1500);
   page.off("response", zaehle);
   expect(speicherungen).toEqual([]);
 });
@@ -168,4 +179,55 @@ test("Referenz „Einsatz 22.02.2026“ per Tastatur: Struktur samt Verbindungen
   await page.keyboard.press("Alt+KeyZ");
   await expect(page.getByLabel("Zeichen suchen")).toBeFocused();
   await page.keyboard.press("Escape");
+});
+
+test("Umschalten an der großen Stab-Lage holt die gewählte Zeile weit unten ins Bild (zeige)", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await oeffneEditor(page, () => page.goto(url("/p/beispiel-grosse-stabslage?ansicht=diagramm")));
+  await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea-4-12"]'));
+  await zurGliederung(page);
+  const zeile = page.locator('.kp-gliederung [data-zeile="ea-4-12"]');
+  await expect(zeile).toHaveAttribute("aria-current", "true");
+  await expect(zeile).toBeInViewport();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0); // die 44. Zeile liegt ohne Rollen nicht im Bild
+});
+
+test("Tablet: das Aktionen-Menü einer Zeile in der Bildmitte bleibt erreichbar — es scrollt, statt über den Rand zu ragen", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=gliederung")));
+  const knopf = page.getByRole("button", { name: "Aktionen für EA 2 Bühne" });
+  await knopf.scrollIntoViewIfNeeded();
+  const k = (await knopf.boundingBox())!;
+  await page.evaluate((y) => window.scrollBy(0, y - 384), k.y + k.height / 2); // Knopf in die Bildmitte
+  await klickeWennRuhig(knopf);
+  await expect(page.getByRole("menuitem", { name: /^Neue Stelle darunter/ })).toBeInViewport({ ratio: 1 });
+  const menue = (await page.getByRole("menu").boundingBox())!;
+  expect(menue.y).toBeGreaterThanOrEqual(0);
+  expect(menue.y + menue.height).toBeLessThanOrEqual(768);
+  await page.keyboard.press("Escape");
+});
+
+test("Telefon: Umschalter mit 44-px-Segmenten, Leerzustand mit vollbreitem Knopf, „Rückgängig“ klebt unten, „⋯“ bleibt auch tief eingerückt in der Zeile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, "e2e Gliederung Telefon 2");
+  const erste = page.getByRole("button", { name: "Erste Stelle anlegen" });
+  await expect(erste).toBeVisible();
+  const liste = (await page.locator(".kp-ansicht-gliederung").boundingBox())!;
+  expect((await erste.boundingBox())!.width).toBeGreaterThan(liste.width - 40);
+  for (const l of await page.getByRole("radiogroup", { name: "Ansicht" }).locator("label").all()) {
+    expect((await l.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  await oeffneEditor(page, () => page.goto(url("/p/beispiel-grosse-stabslage")));
+  const tief = page.locator('.kp-gliederung [data-zeile="ea-4-12"]');
+  await tief.scrollIntoViewIfNeeded();
+  const titel = (await tief.locator("input[name='titel']").boundingBox())!;
+  const mehr = (await tief.getByRole("button", { name: /^Aktionen für/ }).boundingBox())!;
+  expect(Math.abs(mehr.y - titel.y)).toBeLessThan(4); // dieselbe Zeile
+  const leiste = page.getByRole("toolbar", { name: "Verlauf" });
+  await expect(leiste.getByRole("button", { name: "Rückgängig" })).toBeInViewport({ ratio: 1 });
+  await expect(leiste.getByRole("status")).toHaveText("Gespeichert");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });

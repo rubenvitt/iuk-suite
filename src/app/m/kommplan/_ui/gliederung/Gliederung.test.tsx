@@ -504,3 +504,13 @@ describe("Gliederung, Review Phase 3", () => {
     expect(aktiv()).toBe(feld("ea2"));
   });
 });
+
+describe("Gliederung, Aktionen-Menü am Bildrand (Review Phase 3)", () => {
+  it("das Menü bekommt beim Öffnen eine Höchsthöhe aus dem freien Platz und scrollt statt über den Rand zu ragen", async () => {
+    await zeige();
+    await zeigerKlick(query<HTMLElement>('[data-zeile="ea1"] [aria-label="Aktionen für EA 1"]'));
+    const menue = queryPortal<HTMLElement>('[data-zeile-portal="ea1"] [role="menu"]');
+    expect(menue.style.overflowY).toBe("auto");
+    expect(menue.style.maxHeight).toBe(`${window.innerHeight - 16}px`); // jsdom: Rechteck 0 — Platz darunter = Fensterhöhe
+  });
+});

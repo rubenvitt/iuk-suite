@@ -23,7 +23,7 @@ import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
 import { Griffe } from "./Griffe";
 import { neueId } from "./ids";
-import { Kopfleiste } from "./Kopfleiste";
+import { Kopfleiste, statusText, VERLAUFSKNOPF } from "./Kopfleiste";
 import { wandere } from "./navigation";
 import { PLAN_FLYIN_GRUND, PlanFlyin } from "./PlanFlyin";
 import { Speicherer, type SpeicherZustand } from "./speicherer";
@@ -44,7 +44,7 @@ const BEDIENZEILE = "Pfeile wählen · Enter oder F2 bearbeitet · N neue Unters
 export const EDITOR_MASSSTAB = 4;
 /**
  * Luft um eine gezeigte Karte: oben nur der übliche Rand (über einer Karte steht kein Griff); seitlich
- * 8 px + Knopf „+ rechts" (gemessen 84 px, Phase 3) + 12 px; unten 8 px + Griffleiste, am Telefon zweizeilig
+ * 8 px + Knopf „+ rechts" (gemessen 84 px, Phase 3; kompakt seit dem Review 73 px — Reserve) + 12 px; unten 8 px + Griffleiste, am Telefon zweizeilig
  * (2 × 44 + 8) + 16 px. Dieselben Zahlen gibt der Editor der Fläche fürs Einpassen (`platzSeite`,
  * `platzUnten`): eingepasst liegen die Griffe jeder Karte schon im Bild, `zeige()` verschiebt dann
  * nichts, und die Ansicht bleibt eingepasst (Entscheidung 18).
@@ -446,6 +446,10 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
             return x.jetzt;
           }}
           symbole={symbole} zeichenIndex={zeichenIndex} ladeSymbole={ladeSymbole} />
+      </div>
+      <div className="kp-verlaufsleiste kp-nur-schmal" role="toolbar" aria-label="Verlauf">
+        <span className="kp-verlaufsstatus" role="status" aria-live="polite">{statusText(speicherZustand)}</span>
+        <Button {...VERLAUFSKNOPF} onClick={() => perVerlaufsknopf(rueck)} disabled={!kannRueckgaengig(verlauf)}>Rückgängig</Button>
       </div>
       {gewaehlt !== null ? (
         <StelleFlyin offen={flyin === "stelle"} onSchliessen={brecheAb} nachSchliessen={nachSchliessen} inhalt={inhalt} stelleId={gewaehlt} aendere={aendere}
