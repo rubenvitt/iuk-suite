@@ -248,6 +248,10 @@ function reinigeAttribut(element: string, name: string, wert: string): string | 
   if (!ATTRIBUTE.has(name)) return null;
   if (verdichtet(wert).includes("javascript:")) return null;
   if (name === "style") { const r = bereinigeDeklarationen(wert); return r === "" ? null : r; }
+  // Ein Backslash ist ein CSS-Escape: `\75 rl(…)` liest der Browser in fill, mask, clip-path … als `url(…)`, und
+  // `nurLokaleUrls` sucht „url" im Klartext. Kein Attribut eines Logos braucht ihn (Review Phase 4);
+  // `style` filtert dasselbe je Deklaration (`bereinigeDeklarationen`).
+  if (wert.includes("\\")) return null;
   if (!nurLokaleUrls(wert)) return null;
   return wert;
 }
@@ -303,6 +307,10 @@ export function bereinigeSvg(eingabe: string): SvgErgebnis {
       attr.set("viewBox", `0 0 ${parseFloat(b)} ${parseFloat(h)}`);
     }
     if (!zeichnet(wurzel)) throw new Ungueltig("Nach der Bereinigung bleibt nichts zu zeichnen.");
+    // Rechtsbündig in der Logo-Box des Kopfs (`Blatt.tsx`, `LogoDefs`): Chromium richtet ein SVG im `<image>` nach
+    // dem preserveAspectRatio SEINER Wurzel aus und übergeht das des `<image>` — auch mit width/height (gemessen,
+    // Review Phase 4). Ohne diese Zeile stand ein SVG-Logo mittig in der Box, ein PNG rechtsbündig.
+    attr.set("preserveAspectRatio", "xMaxYMid meet");
     attr.set("xmlns", SVG_NS);
     if (nutztXlink(wurzel)) attr.set("xmlns:xlink", XLINK_NS); else attr.delete("xmlns:xlink");
     wurzel.attribute = [...attr];

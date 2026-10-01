@@ -40,12 +40,29 @@ describe("bereinigeSvg — was gefährlich ist, fällt", () => {
     ["url() nach außen im style-Attribut", svg(`<rect width="10" height="10" style="fill:url(http://evil.example/p.svg#x);stroke:#000"/>`)],
     ["url() nach außen im fill", svg(`${RECT}<rect width="1" height="1" fill="url('https://evil.example/#g')"/>`)],
     ["xml-stylesheet", `<?xml version="1.0"?><?xml-stylesheet href="http://evil.example/x.css"?>${svg(RECT)}`],
+    // CSS-Escape: der Browser liest „\75 rl(“ als „url(“ — in allen drei Wegen (Review Phase 4)
+    ["CSS-escaptes url() im fill", svg(`${RECT}<rect width="1" height="1" fill="\\75 rl(https://evil.example/p.svg#a)"/>`)],
+    ["CSS-escaptes url() im mask", svg(`${RECT}<rect width="1" height="1" mask="\\000075rl(https://evil.example/m.svg#a)"/>`)],
+    ["CSS-escaptes url() im style-Attribut", svg(`${RECT}<rect width="1" height="1" style="fill:\\75 rl(https://evil.example/p.svg#a)"/>`)],
+    ["CSS-escaptes url() im style-Element", svg(`<style>.a{fill:\\75 rl(https://evil.example/p.svg#a)}</style>${RECT}`)],
   ])("%s", (_name, eingabe) => {
     const aus = gut(eingabe);
     expect(aus).not.toMatch(SCHAEDLICH);
     expect(aus).toContain("<rect");
   });
 
+  it("ein Backslash (CSS-Escape) nimmt die Deklaration bzw. das Attribut ganz heraus, nicht nur das Zeichen", () => {
+    for (const eingabe of [
+      svg(`${RECT}<rect width="1" height="1" fill="\\75 rl(https://evil.example/p.svg#a)"/>`),
+      svg(`${RECT}<rect width="1" height="1" style="fill:\\75 rl(https://evil.example/p.svg#a);stroke:#000"/>`),
+      svg(`<style>.a{fill:\\75 rl(https://evil.example/p.svg#a);stroke:#000}</style>${RECT}`),
+    ]) {
+      const aus = gut(eingabe);
+      expect(aus).not.toContain("\\");
+      expect(aus).not.toContain("evil");
+    }
+    expect(gut(svg(`${RECT}<rect width="1" height="1" style="fill:\\75 rl(x);stroke:#000"/>`))).toContain('style="stroke:#000"');
+  });
   it("javascript: mit Steuerzeichen dazwischen: das Attribut fällt ganz, nicht nur das Wort", () => {
     const aus = gut(svg(`<rect width="10" height="10" fill="java&#9;scr&#10;ipt:alert(1)"/>`));
     expect(aus).not.toContain("alert");
@@ -122,6 +139,12 @@ describe("bereinigeSvg — ein echtes Logo bleibt, wie es aussieht (Review Focus
   it("eingebettetes PNG als data:-URI bleibt", () => {
     const aus = gut(svg('<image width="10" height="10" href="data:image/png;base64,iVBORw0KGgo="/>'));
     expect(aus).toContain('href="data:image/png;base64,iVBORw0KGgo="');
+  });
+  it("die Wurzel steht rechtsbündig in ihrer Box (Kopf der Zeichnung): Chromium richtet ein SVG im <image> nach DESSEN preserveAspectRatio aus, nicht nach dem des <image>", () => {
+    expect(gut(svg(RECT))).toContain('preserveAspectRatio="xMaxYMid meet"');
+    const aus = gut(svg(RECT, 'viewBox="0 0 10 10" preserveAspectRatio="none"'));
+    expect(aus).toContain('preserveAspectRatio="xMaxYMid meet"');
+    expect(aus).not.toContain('"none"');
   });
   it("Text wird für XML maskiert ausgegeben", () => {
     expect(gut(svg(`<text>&lt;b&gt; &quot;x&quot;</text>${RECT}`))).toContain("<text>&lt;b&gt; \"x\"</text>");
