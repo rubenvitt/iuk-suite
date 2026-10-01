@@ -57,7 +57,12 @@ nicht in Zellen).
   `iuk-kommplan-bearbeiten` über `isModuleAdmin` (Pläne bearbeiten, Bibliothek pflegen, Token-Links
   ausstellen). Beide per `SUITE_ACCESS_GROUP_KOMMPLAN`/`SUITE_ADMIN_GROUP_KOMMPLAN` überschreibbar.
   `switcherGroupSources: ["access", "admin"]`.
-- Nach `core` kommt nichts: kein zweites Modul braucht Layout, Zeichen oder Planmodell.
+- **Host-Riegel:** Das Modul liefert nur auf seinem eigenen Host aus (`SUITE_HOST_KOMMPLAN`, lokal
+  `kommplan.localtest.me`); jede Seite, jede Route und jede Action prüft das (`_lib/host.ts`), ein anderer
+  Suite-Host bekommt 404. Ist keine Moduladresse eingerichtet (`moduleUrl` leer), stellt „Teilen" keine
+  Links aus und der Druck trägt keinen QR (§8.2).
+- Nach `core` kommt nichts: kein zweites Modul braucht Layout, Zeichen oder Planmodell. Einzige,
+  begründete Ausnahme: die Antwortköpfe der Token-Ansicht setzt der Proxy (`core/routing.ts`).
 
 ## 4. Datenmodell
 
@@ -69,18 +74,31 @@ nicht in Zellen).
 | `bib_stelle` | `id`, `titel`, `zeichen`, `leiter`, `kontakte` (JSON), `notiz` |
 | `bib_einheit` | `id`, `typ`, `rufname`, `zeichen`, `notiz` |
 | `bib_verbindung` | `id`, `art`, `bezeichnung`, `notiz` |
-| `freigabe` | `id`, `plan_id`, `token` (Klartext, eindeutig), `notiz`, `ablauf`, `widerrufen_am`, `erstellt_am`, `erstellt_von`, `zuletzt_abgerufen`, `abrufe` |
-
+| `plan_freigabe` | `id`, `plan_id`, `token` (Klartext, eindeutig), `notiz`, `ablauf`, `widerrufen_am`, `erstellt_am`, `erstellt_von`, `zuletzt_abgerufen`, `abrufe` |
+| `plan_bearbeitung` | `plan_id`, `nutzer`, `seit` — eine Zeile je Person und Plan (gebündeltes Audit, s. u.) |
 | `briefkopf` | genau eine Zeile (`id` = 1, Primärschlüssel): `organisation` (Text, leer erlaubt), `logo` (Blob, leer erlaubt), `logo_mime`, `logo_sha256`, `aktualisiert_am`, `aktualisiert_von` |
 
 `aktualisiert_am` ist der gedruckte „Stand". Zeiten rechnen über `core/zeit`; `datum` ist ein
-Kalendertag (Mitternacht UTC).
+Kalendertag (Mitternacht UTC). `aktualisiert_von` und `erstellt_von` tragen nur einen echten Anzeigenamen,
+sonst bleiben sie leer — nie E-Mail-Adresse oder Kennung, denn der Name steht auf jedem Ausdruck und in der
+login-freien Token-Ansicht.
+
+`plan_freigabe` statt `freigabe`: die Audit-Oberfläche benennt Objekte nur über den Tabellennamen, und
+`freigabe` gehört dort dem Einsatzbuch (Schlüsselfreigabe).
+
+**Audit beim Autosave (gebündelt):** `inhalt`, `version`, `aktualisiert_am` und `aktualisiert_von` von `plan`
+sind nicht auditiert — sonst schriebe jeder Autosave eine Zeile. Stattdessen legt das Speichern je Person und
+Plan eine Zeile in der auditierten Tabelle `plan_bearbeitung` an und rückt ihr `seit` höchstens alle
+15 Minuten nach — so entsteht je Person und Viertelstunde höchstens eine Audit-Zeile. Titel, Art, Anlass,
+Datum, Vorlage und Archiv bleiben einzeln auditiert. Die Tabelle
+und der umgebaute Trigger kamen mit Migration 0001, der Briefkopf mit 0002.
 
 ### 4.4 Briefkopf (Logo und Organisation)
 
 Logo und Organisationsname stehen **nicht im Code**, sondern werden hochgeladen bzw. eingetragen
-(A10). Ohne Eintrag bleibt die Stelle im Kopf leer; es gibt keinen eingebauten Ersatz, auch nicht
-im Seed.
+(A10). Ohne Eintrag bleibt die Stelle im Kopf leer; es gibt keinen eingebauten Ersatz. Einzige
+Ausnahme ist der lokale Seed (`pnpm seed:lokal`, e2e): er trägt den Namen „Musterorganisation" ohne Logo ein,
+damit lokale Ausdrucke den Kopf zeigen. Am Boot-Pfad läuft er nie.
 
 - Seite `/m/kommplan/einstellungen`, nur Modul-Admin: Organisationsname, Logo hochladen,
   ersetzen, entfernen; Vorschau des Kopfes.
@@ -103,13 +121,14 @@ type PlanInhalt = {
   schema: 1;
   optionen: { leerzeilen: boolean; vermerkVsNfD: boolean; qrAufDruck: boolean; schwarzweiss: boolean };
   stellen: Stelle[];          // Baum über `eltern`; genau eine Wurzel oder mehrere Wurzeln nebeneinander
-  verbindungen: Verbindung[]; // ohne zugeordnete Stelle = „Reserve" in der Legende
+  verbindungen: Verbindung[]; // weder Weg zu einer Elternstelle noch Kanal einer Stelle = „Reserve" in der Legende
 };
 type Stelle = {
   id: string; eltern: string | null; lage: "unter" | "links" | "rechts"; reihenfolge: number;
   zeichen: string | null;     // Rezeptschlüssel aus dem Zeichen-Generat
   titel: string; leiter: string | null; hervorheben: boolean;
-  verbindungId: string | null; // Weg zur Elternstelle
+  verbindungId: string | null; // Weg zur Elternstelle (an einer Wurzel kein Weg, gezeichnet wird er nie)
+  kanaele: string[];           // Kanäle ohne Gegenstelle, die die Stelle benutzt — Sechsecke unter der Karte
   kontakte: { art: KontaktArt; wert: string }[];
   einheiten: { id: string; typ: string; rufname: string; zeichen: string | null }[];
 };
@@ -120,7 +139,14 @@ type VerbindungsArt = "tmo" | "dmo" | "analogfunk" | "draht" | "telefon" | "mobi
 
 **Invarianten** (zod-`superRefine`, geprüft beim Speichern): IDs eindeutig; `eltern` zeigt auf eine
 existierende Stelle; kein Zyklus; Seitenstellen (`lage ≠ "unter"`) haben keine Kinder und nie
-`eltern = null`; `verbindungId` zeigt auf eine existierende Verbindung.
+`eltern = null`; `verbindungId` und jeder Eintrag von `kanaele` zeigen auf eine existierende Verbindung,
+kein Kanal steht doppelt an einer Stelle.
+
+**Grenzen** (`GRENZE` in `_lib/plan/schema.ts`, dieselben Zahlen an den Eingabefeldern): 500 Stellen,
+200 Verbindungen, je Stelle 30 Kontakte, 60 Einheiten und 12 Kanäle, höchstens 15 Ebenen (Seitenstellen
+zählen als eigene Ebene) und 800 000 Byte für das ganze Dokument — eine Server Action nimmt höchstens 1 MB an.
+Die Ebenengrenze hält die Aufteilung aufs Papier bezahlbar (§5.6). Eine Operation, die eine Grenze
+überschritte, scheitert mit einem Hinweis, nie als Speicherfehler.
 
 Die Anzeigereihenfolge der Kontaktarten ist fest (wie die Vorlage) und unabhängig von der
 Eingabereihenfolge.
@@ -160,12 +186,18 @@ sie. Gleiche Daten ergeben immer dasselbe Bild. `ziel` ist `bildschirm` oder ein
 - Teilbäume nach Reingold-Tilford mit Konturen: schmale, tiefe Teilbäume schieben sich zusammen;
   jede Elternstelle steht mittig über ihrer Busspanne. Kreuzungen sind konstruktionsbedingt
   ausgeschlossen.
+- Mehrere Gruppen: jede hat ab der Kartenunterkante einen eigenen Stiel; die Stiele knicken
+  gestaffelt (äußere Gruppen höher), damit sie sich nicht kreuzen. Tragen Kanäle oder Einheiten die
+  Kartenmitte darunter, laufen die Stiele in einer Gasse links unter der Piktogrammspalte; Kanäle und
+  Einheiten beginnen rechts davon. Die Linie der Kanal-Sechsecke steht dort deutlich abgesetzt
+  neben den Busstielen, damit sie nicht als weiterer Bus liest.
 
 ### 5.3 Seitenstellen
 
 Links oder rechts auf Kopfhöhe der Elternstelle, verbunden über eine waagerechte Linie mit dem
 Sechseck in der Mitte. Seitenstellen sind Blätter (§4.2). Ihr Platzbedarf geht in die Kontur des
-Teilbaums ein, damit Nachbarn nicht hineinragen.
+Teilbaums ein, damit Nachbarn nicht hineinragen. Mehrere Seitenstellen derselben Seite stehen
+untereinander an einer gemeinsamen senkrechten Schiene; die erste auf Kopfhöhe der Elternstelle.
 
 ### 5.4 Einheiten
 
@@ -174,24 +206,38 @@ Spalten.
 
 ### 5.5 Breite Ebenen
 
-Überschreitet die Kinderreihe einer Stelle ein Breitenbudget (abgeleitet vom Zielformat), brechen
-die Kinder **in mehrere Reihen unter demselben Bus** um (Kamm). Die Regel hängt nur an Kinderzahl
-und Budget — keine globale Optimierung, damit eine zusätzliche Stelle das Bild nicht umwirft.
+Überschreitet die Kinderreihe einer Stelle ein Breitenbudget, brechen Kinder **in mehrere Reihen
+unter demselben Bus** um (Kamm). Gemessen wird die Breite der ganzen Kinderreihe über alle Busgruppen
+(samt Seitenstellen und Einheitenspalten der Kinder); solange sie das Budget überschreitet, schrumpft
+die breiteste kämmbare Gruppe (Gleichstand: die frühere). Kämmen dürfen nur Gruppen, deren Kinder keine
+sichtbaren Unterstellen haben. Das Budget ist die Blattbreite bei Mindestmaßstab; der Bildschirm nimmt
+das von A3. Ein A3-Blatt probiert zusätzlich das Budget von A4 und nimmt den größeren Maßstab — sonst
+bliebe eine breite Ebene auf A3 einreihig bis genau zur Mindestschrift und druckte kleiner als auf A4.
+Keine globale Optimierung, damit eine zusätzliche Stelle das Bild nicht umwirft.
 
 ### 5.6 Papier
 
 1. Auf die Seite skalieren, bis zur Mindestschrift von 6 pt.
 2. Reicht das nicht: aufteilen. Blatt 1 zeigt die oberen Ebenen; große Teilbäume erscheinen dort
    als Verweiskarte „→ Blatt n". Jeder solche Teilbaum bekommt ein eigenes Blatt, mit seiner
-   Elternstelle grau als Anker. Die Aufteilung ist gierig nach Teilbaumgröße und deterministisch.
+   Elternstelle grau als Anker. Geschnitten wird von der tiefsten Ebene her, je Ebene gierig nach
+   Teilbaumgröße, bis das Blatt passt; das gilt rekursiv für jedes Teilblatt. Die Blätter sind in
+   Lesereihenfolge nummeriert. Die Aufteilung ist deterministisch; ihren Aufwand begrenzt ein Budget
+   gezeichneter Karten je Plan (ist es aufgebraucht, bleibt der Rest ungeteilt), das Ergebnis merkt
+   sich der Server je Inhalt, Format und QR.
 3. Jedes Blatt trägt Kopf (Titel, Anlass, Datum, Organisation/Logo aus dem Briefkopf §4.4), Fuß (VS-NfD-Vermerk
    abschaltbar, Stand, Bearbeiter, „Blatt x von y") und die Legende der verwendeten
    Verbindungsarten samt Reservekanälen.
+4. Mit QR (§8.2) ist nur die Ecke unten rechts gesperrt (24 mm samt Beschriftung): berührt ein Element
+   der Zeichnung sie, wird so weit verkleinert, bis keines sie berührt. Einen Link auszustellen kann
+   deshalb Maßstab und Blattzahl eines Ausdrucks ändern.
 
 ### 5.7 Bildschirm
 
-Dasselbe Layout mit Zoom und Verschieben (Maus, Touch, Tastatur). Jede Stelle ist einklappbar und
-zeigt dann ein Abzeichen „+n Stellen". Eingeklappt ist Ansichtszustand, nicht Planinhalt.
+Dasselbe Layout mit Zoom und Verschieben (Maus, Touch, Tastatur). Im Editor gehören die Pfeiltasten dem
+Wandern durch den Baum (§6.3); per Tastatur bleiben dort Zoom (+, −, 0) und dass die gewählte Stelle ins
+Bild rückt. Jede Stelle ist einklappbar und zeigt dann ein Abzeichen „+n Stellen". Eingeklappt ist
+Ansichtszustand, nicht Planinhalt.
 
 ## 6. Editor
 
@@ -200,12 +246,16 @@ zeigt dann ein Abzeichen „+n Stellen". Eingeklappt ist Ansichtszustand, nicht 
 | Route | Inhalt |
 |---|---|
 | `/m/kommplan` | Planliste: Titel, Typ, Datum, Stand; Neu / Aus Vorlage / Duplizieren; Archiv; Vorlagen getrennt |
-| `/m/kommplan/[id]` | Editor (Admin) bzw. Betrachter (Zugangsgruppe) |
-| `/m/kommplan/[id]/druck/a4`, `…/a3` | Druckrouten (§8) |
+| `/m/kommplan/p/[id]` | Editor (Admin) bzw. Betrachter (Zugangsgruppe) |
+| `/m/kommplan/p/[id]/druck/a4`, `…/a3` | Druckrouten (§8) |
 | `/m/kommplan/bibliothek` | Stellen, Einheiten, Verbindungen |
 | `/m/kommplan/einstellungen` | Briefkopf: Organisation und Logo (§4.4) |
 | `/m/kommplan/archiv` | Archiv: archivierte Pläne, nur lesbar; Wiederherstellen (Bearbeitende) |
 | `/m/kommplan/t/[token]` | Token-Ansicht (§8.2); Druck unter `…/druck/a4` und `…/druck/a3` |
+| `POST /m/kommplan/logo` | Route Handler: Logo hochladen oder ersetzen (§4.4). Liegt außerhalb der Routengruppe und prüft selbst: Host, Anmeldung, Bearbeitungsrecht (sonst 404), gleiche Herkunft, Größe, Typ aus den ersten Bytes, Virenscan |
+
+Am Modul-Host fehlt das Präfix `/m/kommplan` (die Planseite ist dort `/p/[id]`); die Planseiten liegen
+unter `p/`, damit eine Plan-ID nie mit `bibliothek`, `archiv` oder `einstellungen` kollidiert.
 
 Die Plan-ID wird in jeder Server Action und jeder Seite aus der Datenbank aufgelöst (IDOR, `CLAUDE.md`).
 
@@ -262,18 +312,21 @@ eine Kopie als Vorlage an (Titel gleich, ohne Datum; der Plan bleibt unter „Pl
 `catalog/dist/src/fonts.js` ruft `fileURLToPath(new URL(…))` auf Modulebene auf und bricht jeden
 Server-Import im Build.
 
-- `scripts/kommplan-zeichen-generat.ts` erzeugt eine eingecheckte Datei unter
-  `kommplan/_lib/zeichen/` mit: allen Rezepten (Schlüssel, Titel, Suchtext, fertiges SVG), den
-  Kommunikationspiktogrammen für die Sechsecke (`comms.voice-radio-tmo`, `…-dmo`,
-  `comms.cable-construction`, `comms.fax-transmission`, `comms.data-transmission` …), den
-  Piktogrammen der Kontaktarten und `ARIMO_TEXT_METRICS`.
+- `scripts/kommplan-zeichen-generat.ts` erzeugt vier eingecheckte Dateien unter
+  `kommplan/_lib/zeichen/`: `zeichen.generiert.json` (alle Rezepte mit Schlüssel, Titel, Suchtext und
+  fertigem SVG; nur Server), `zeichen-sw.generiert.json` (dieselben im Druckthema, §8.1; nur Server),
+  `grundlagen.generiert.json` (Kommunikationspiktogramme für die Sechsecke — `comms.voice-radio-tmo`,
+  `…-dmo`, `comms.cable-construction`, `comms.fax-transmission`, `comms.data-transmission` … —, die
+  Piktogramme der Kontaktarten und `ARIMO_TEXT_METRICS`; auch Browser, weil der Betrachter selbst
+  rechnet) und `schrift.generiert.json` (Arimo als Base64 für den SVG-Export).
 - Im SVG steht jedes Zeichen **einmal** als `<symbol>` in `<defs>` und wird per `<use>`
   referenziert. Das löst M11 (doppelte IDs) ohne Präfixe je Instanz.
-- Ein Test vergleicht die im Generat vermerkte Paketversion mit der installierten: nach einem
+- Ein Test erzeugt alle vier Dateien neu und vergleicht sie Byte für Byte: nach einem
   Dependabot-Update ist die CI rot, bis das Generat neu erzeugt ist.
 - Arimo per `next/font/local`; ein Test prüft die SHA der Schriftdatei gegen die des Katalogs.
 - Wo der Katalog ein Zeichen der Vorlage nicht kennt, bleibt die Karte ohne Zeichen; der Titel
-  trägt die Aussage.
+  trägt die Aussage. Ausnahme: vier Zusatzzeichen (`zusatz:eal`, `zusatz:ea`, `zusatz:stab`,
+  `zusatz:oel`), die das Generat nach Rezept D.1.4 zusammensetzt (EAL, EA, Stab, ÖEL der Vorlagen).
 
 ## 8. Ausgabe und Freigabe
 
@@ -294,7 +347,9 @@ Server-Import im Build.
   kopieren lässt. Wer die Datenbank liest, liest ohnehin die Pläne; ein Hash schützt hier nichts.
 - `/m/kommplan/t/[token]`: minimale Hülle, nur lesend, derselbe Betrachter (Zoom, Einklappen), immer
   aktueller Stand, `noindex`, `Cache-Control: no-store`, VS-NfD-Vermerk und „Stand …" sichtbar.
-  Muster: `docs/design/feedback-oeffentliche-ansicht.md`.
+  Muster: `docs/design/feedback-oeffentliche-ansicht.md` — mit einer bewussten Abweichung: Betrachter und
+  Druckmenü sind dieselben antd-Inseln wie intern, also Bediendichte 56/72 ohne Hülle und Hover/Fokus in
+  Suite-Rot; der Rahmen ist eine eigene Datei im Modul (`_ui/token/TokenRahmen.tsx`).
 - Unbekannt, abgelaufen, widerrufen oder Plan archiviert → echtes 404; die Prüfung liegt im
   `layout.tsx` oberhalb jeder `loading.tsx` (Falle 23).
 - Je Abruf `zuletzt_abgerufen` und `abrufe` (dieselbe Adresse und derselbe Link zählen binnen einer Minute einmal). Ausstellen und Widerrufen gehen ins Audit-Log. Eine Fehlversuchs-Sperre gibt es nicht: ein Token hat 256 Bit, eine Sperre schützte nichts und sperrte gültige Links mit (Abnahme). `X-Robots-Tag`, `Referrer-Policy: no-referrer` und `Cache-Control: no-store` setzt der Proxy.
@@ -318,6 +373,11 @@ seine Token-Links sofort ungültig: Archivieren widerruft sie, Wiederherstellen 
 | `_ui/zeichnung/` | SVG-Renderer, rein darstellend, ohne `"use client"` | beide |
 | `_ui/betrachter/` | Zoom, Verschieben, Einklappen | Client-Insel |
 | `_ui/editor/`, `_ui/gliederung/` | Bearbeitung | Client-Inseln |
+| `_ui/druck/` | Druckseite, Druckmenü, SVG-Export | Server, Client-Inseln |
+| `_ui/token/` | Rahmen und Kopf der Token-Ansicht | Server, Client-Insel (Druckmenü) |
+| `_ui/teilen/` | Links ausstellen und widerrufen | Client-Insel |
+| `_ui/bibliothek/`, `_ui/einstellungen/` | Bibliothek, Briefkopf | Client-Inseln |
+| `logo/route.ts` | Upload des Logos (§6.1) | Server |
 | `_actions/` | Server Actions mit `isModuleAdmin`-Prüfung | Server |
 
 Werte, die Server Components brauchen, liegen in Modulen ohne `"use client"` (Falle 6); Icons in
