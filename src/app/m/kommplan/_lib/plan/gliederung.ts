@@ -12,6 +12,7 @@ import { GRENZE, type Lage, type PlanInhalt, type Stelle } from "./schema";
  * zusammen und die Gruppenfolge = Folge des ersten Vorkommens.
  */
 export const MELDUNG = {
+  keinVorschlag: "Kein Vorschlag aus der Bibliothek.",
   ersteEinruecken: "Die erste Stelle einer Ebene lässt sich nicht einrücken.",
   wurzelAusruecken: "Eine Stelle der obersten Ebene lässt sich nicht ausrücken.",
   seiteEbene: "Eine Seitenstelle wechselt ihre Ebene nicht in der Gliederung — dafür „Details“ → „Untersteht“.",

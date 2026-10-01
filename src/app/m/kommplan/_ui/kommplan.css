@@ -194,6 +194,7 @@
 .kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
 
 @media (max-width: 767.98px) {
+  .kp-vorschlag-hinweis { display: none; }
   .kp-bib-werkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne
      diese Regel bliebe auch das Raster darin schmal (Gegenstück zur Regel für .kp-kopfwerkzeuge im Editor). */
@@ -267,3 +268,11 @@
 /* Auswahl und „Hinzufügen" nebeneinander, bei Platzmangel umbrechend — per flex-wrap, nicht per @media (Falle 13). */
 .kp-bib-einheiten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .kp-bib-einheiten > .kp-bib-einheiten-wahl { flex: 1 1 14rem; min-width: 0; }
+/*
+ * Titelvorschläge (Phase 4, Entscheidung 14), in der Gliederung unter der aktiven Zeile und im Flyin unter dem
+ * Titel. KEIN Ebenenterm: die Vorschläge stehen IN `.kp-g-zeile`, die schon um die Ebene eingerückt ist — ein
+ * zweiter Ebenenterm rückte doppelt ein (am Telefon bei Ebene 10 fast die ganze Breite). Einzeilig mit fester
+ * Höhe und waagerecht scrollbar: die Zeilen darunter springen beim Tippen nicht um Knopfzeilen.
+ */
+.kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; }
+.kp-g-vorschlaege > * { flex: none; }

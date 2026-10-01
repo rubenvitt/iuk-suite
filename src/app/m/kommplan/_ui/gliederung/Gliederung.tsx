@@ -7,10 +7,13 @@ import {
   MELDUNG, fuegeGeschwisterEin, fuegeGliederungEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, rueckeAus, rueckeEin,
   setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, type GliederungsZeile, type ZeilenAktionen,
 } from "../../_lib/plan/gliederung";
+import type { BibStelle } from "../../_lib/bibliothek/typen";
+import { bibStellenTreffer, stelleVorschlaege, uebernimmBibStelle } from "../../_lib/plan/bibliothek";
 import { aendereStelle, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
+import { useBibliothek } from "../editor/bibliothekKontext";
 import { neueId, neueIds } from "../editor/ids";
 import { globalerBefehl } from "../editor/tasten";
 import { leseZuletzt } from "../editor/zuletzt";
@@ -36,7 +39,7 @@ export interface GliederungGriff {
 export const GLIEDERUNG_BEDIENZEILE =
   "Enter neue Stelle darunter, auf leerer Zeile ausrücken · Tab / Umschalt+Tab Ebene · Alt+↑/↓ verschieben · ↑/↓ wandern · " +
   "Alt+V Verbindung · Alt+Z Zeichen · F2 oder Strg/Cmd+Enter Details · Esc verlässt das Titelfeld · " +
-  "Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
+  "Eine eingerückte Liste einfügen legt einen ganzen Zweig an · Alt+Enter übernimmt den ersten Vorschlag aus der Bibliothek";
 export const GLIEDERUNG_BEDIENZEILE_SCHMAL = "„⋯“ an jeder Zeile: anlegen, einrücken, verschieben, Details · Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
 const LEER_ZIEL = "~leer";
 const KEIN_MENUE: MenuProps["items"] = [];
@@ -44,7 +47,9 @@ const KEIN_MENUE: MenuProps["items"] = [];
 export interface GliederungProps {
   inhalt: PlanInhalt; auswahl: string | null; aendere: Aendere; meldung: ReactNode; griff?: Ref<GliederungGriff>;
   onAuswahl(id: string): void; onDetails(id: string): void; onLoeschen(id: string): void;
-  onRueck(): void; onWieder(): void; onHinweis(text: string): void;
+  onRueck(): void; onWieder(): void;
+  /** `aktion`: ein Knopf im Hinweis (Phase 4, Entscheidung 14 — „Angaben übernehmen“ nach dem Einfügen). */
+  onHinweis(text: string, aktion?: { text: string; tu(): void }): void;
   /**
    * Verwirft den letzten Schritt, wenn `nach` noch der jetzige Stand ist — ein unberührt angelegtes Element
    * (U28) —, und wendet `dann` ATOMAR als neuen Schritt an (Enter auf leerer Zeile, Entscheidung 5): in
@@ -97,6 +102,7 @@ export function Gliederung(p: GliederungProps) {
   const zeilen = gliederungsZeilen(inhalt);
   const [register] = useState<ZeilenRegister>(() => ({ felder: new Map(), aktionen: new Map(), zeichen: new Map(), selects: new Map() }));
   const befehle = useRef<ZeilenBefehle | null>(null);
+  const { bib } = useBibliothek();
   const erste = useRef<HTMLButtonElement>(null);
   const neu = useRef<{ id: string; nach: PlanInhalt } | null>(null);
   /** Herkunft der laufenden Aktion: gesetzt von pointerdown, gelöscht von keydown (auch aus Portalen der Zeile). */
@@ -149,6 +155,12 @@ export function Gliederung(p: GliederungProps) {
     const id = neueId(inhalt, "s");
     const nach = tueMit((q) => op(q, id));
     if (nach) { neu.current = { id, nach }; fokussiere(id); }
+  }
+  /** Eine Stelle aus der Bibliothek übernehmen — EIN Schritt; das mitgebrachte Zeichen lädt der Kopierweg selbst (Entscheidung 13). */
+  function uebernimmBib(id: string, b: BibStelle) {
+    if (tueMit((q) => uebernimmBibStelle(q, id, b)) === null) return;
+    if (b.zeichen) p.ladeSymbole([b.zeichen]);
+    fokussiere(id, "ende");
   }
   function ersteStelle() { lege((q, id) => fuegeWurzelEin(q, id)); }
   function aktion(z: GliederungsZeile, a: ZeilenAktion) {
@@ -240,6 +252,12 @@ export function Gliederung(p: GliederungProps) {
         setOffenBei({ id, was: "verbindung" });
         fokussiere(id, "ende", "verbindung");
         return;
+      case "bibliothek": {
+        const v = stelleVorschlaege(bib.stellen, z.stelle)[0];
+        if (!v) { p.onHinweis(MELDUNG.keinVorschlag); return; }
+        uebernimmBib(id, v);
+        return;
+      }
     }
   }
   /** Entscheidung 8: verlässt der Fokus die Zeile (Klick, Tipp, Kopfleiste), verschwindet das unberührte Element. */
@@ -264,6 +282,19 @@ export function Gliederung(p: GliederungProps) {
     let ids: string[] = [];
     const nach = tueMit((q) => { const x = fuegeGliederungEin(q, id, r.eintraege, neueIds(q, "s", r.eintraege.length)); ids = x.zeilenIds; return x.inhalt; });
     if (nach && ids.length > 0) fokussiere(ids[ids.length - 1]);
+    // Entscheidung 14: eingefügte Titel, die genau so in der Bibliothek stehen, blieben sonst leer — und nichts wiese darauf hin.
+    const treffer = nach && ids.length > 0 ? bibStellenTreffer(nach, ids, bib.stellen) : [];
+    if (treffer.length > 0) {
+      p.onHinweis(`${treffer.length} ${treffer.length === 1 ? "Stelle steht" : "Stellen stehen"} so in der Bibliothek.`, {
+        text: "Angaben übernehmen",
+        // Über `befehle` (nach jedem Rendern neu gesetzt): der Knopf wird erst später gedrückt — ein hier gefangenes
+        // `aendere` sähe noch den Stand VOR dem Einfügen und fände die neuen Stellen nicht.
+        tu: () => {
+          if (befehle.current!.aendere((q) => treffer.reduce((x, t) => uebernimmBibStelle(x, t.stelleId, t.b), q)) !== null) return;
+          p.ladeSymbole(treffer.flatMap((t) => (t.b.zeichen ? [t.b.zeichen] : [])));
+        },
+      });
+    }
   }
   /** Entscheidung 12: versetzt die neue Verbindung die Zeile, holt die Gliederung sie ins Bild und sagt, wohin. */
   const aendereVerbindung = (id: string): Aendere => (op, schluessel) => {
@@ -303,6 +334,7 @@ export function Gliederung(p: GliederungProps) {
       },
       einheiten: (id) => setOffeneEinheiten((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x; }),
       ladeSymbole: p.ladeSymbole,
+      bibliothek: (id, b) => uebernimmBib(id, b),
     };
   });
 

@@ -46,4 +46,10 @@ describe("Tasten der Gliederung (Spec §6.5, Entscheidungen 5–10)", () => {
     expect(gliederungsBefehl(t("Enter", { shiftKey: true }), false)).toBeNull();
     expect(gliederungsBefehl(t("n"), false)).toBeNull();
   });
+  it("Alt+Enter übernimmt den ersten Bibliotheksvorschlag (Entscheidung 14) — gehalten nicht, mit Umschalt nicht; Enter bleibt Enter", () => {
+    expect(gliederungsBefehl(t("Enter", { altKey: true }), false)).toEqual({ art: "bibliothek" });
+    expect(gliederungsBefehl(t("Enter", { altKey: true, repeat: true }), false)).toBeNull();
+    expect(gliederungsBefehl(t("Enter", { altKey: true, shiftKey: true }), false)).toBeNull();
+    expect(gliederungsBefehl(t("Enter"), false)).toEqual({ art: "neu" });
+  });
 });

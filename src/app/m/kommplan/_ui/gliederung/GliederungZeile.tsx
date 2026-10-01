@@ -2,12 +2,14 @@
 
 import { memo, type ClipboardEvent, type CSSProperties, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
 import { Button, Dropdown, Input, type MenuProps, type RefSelectProps } from "antd";
+import type { BibStelle } from "../../_lib/bibliothek/typen";
 import type { GliederungsZeile } from "../../_lib/plan/gliederung";
 import { LAENGE, type PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
 import { EinheitenListe } from "../editor/EinheitenListe";
 import type { Symbolsatz } from "../zeichnung/Symbole";
+import { TitelVorschlaege } from "./TitelVorschlaege";
 import { VerbindungFeld } from "./VerbindungFeld";
 import { ZeichenKnopf } from "./ZeichenKnopf";
 
@@ -35,6 +37,8 @@ export interface ZeilenBefehle {
   fertig(id: string, was: OffenesFeld): void;
   einheiten(id: string): void;
   ladeSymbole(schluessel: string[]): void;
+  /** Eine Stelle aus der Bibliothek in diese Zeile übernehmen (Phase 4, Entscheidung 14). */
+  bibliothek(id: string, b: BibStelle): void;
 }
 /** Bedienelemente je Zeile, damit die Gliederung den Fokus nach einem Schritt setzen kann. Stabil über die Lebenszeit. */
 export interface ZeilenRegister {
@@ -124,6 +128,7 @@ function ZeileInnen(p: ZeilenProps) {
           <Button ref={(el) => merke(register.aktionen, id, el)} tabIndex={tab} aria-label={`Aktionen für ${titelVon(s)}`}>⋯</Button>
         </Dropdown>
       </div>
+      {p.aktiv ? <TitelVorschlaege stelle={s} onWahl={(b) => befehle.current!.bibliothek(id, b)} /> : null}
       {p.einheitenOffen ? (
         <div id={`kp-g-einheiten-${id}`} className="kp-g-einheiten">
           <EinheitenListe key={`einheiten:${id}`} inhalt={p.inhalt} stelle={s} aendere={aendere} fokus={KEIN_FOKUS} ladeSymbole={(k) => befehle.current!.ladeSymbole(k)} />

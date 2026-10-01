@@ -37,4 +37,17 @@ describe("Verbindung inline (Entscheidung 12)", () => {
     expect(leseNeu("~neu:quatsch")).toBeNull();
     expect(leseNeu("a")).toBeNull();
   });
+  it("Bibliotheksverbindungen, die der Plan nicht hat, stehen als „Aus Bibliothek“ da — gefiltert wie die übrigen", () => {
+    const bib = [
+      { id: "b1", art: "tmo" as const, bezeichnung: "R_UE_2", notiz: null }, // hat der Plan genau so → keine Option
+      { id: "b2", art: "dmo" as const, bezeichnung: "DMO 609", notiz: null }, // hat der Plan nicht → Option
+      { id: "b3", art: "tmo" as const, bezeichnung: "DMO 608", notiz: null }, // gleiche Bezeichnung, andere Art → Option
+    ];
+    const alle = verbindungsOptionen(PLAN, "", bib).map((o) => o.label);
+    expect(alle).toContain("Aus Bibliothek: DMO 609 · Digitalfunk DMO");
+    expect(alle).toContain("Aus Bibliothek: DMO 608 · Digitalfunk TMO");
+    expect(alle.some((l) => l.startsWith("Aus Bibliothek: R_UE_2"))).toBe(false);
+    expect(verbindungsOptionen(PLAN, "609", bib).map((o) => o.value)).toContain("~bib:b2");
+    expect(verbindungsOptionen(PLAN, "xyz", bib).some((o) => o.value.startsWith("~bib:"))).toBe(false);
+  });
 });

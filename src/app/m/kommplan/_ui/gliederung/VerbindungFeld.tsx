@@ -2,10 +2,12 @@
 
 import { useState, type Ref } from "react";
 import { Select, type RefSelectProps } from "antd";
+import { BIB_OPTION, verbindeMitBibVerbindung } from "../../_lib/plan/bibliothek";
 import { aendereStelle } from "../../_lib/plan/operationen";
 import { ART_NAME, type PlanInhalt, type Stelle } from "../../_lib/plan/schema";
 import { findeVerbindung, legeVerbindungAn } from "../../_lib/plan/verbindungen";
 import type { Aendere } from "../editor/aendere";
+import { useBibliothek } from "../editor/bibliothekKontext";
 import { neueId } from "../editor/ids";
 import { KEINE, leseNeu, verbindungsOptionen } from "./verbindungsOptionen";
 
@@ -21,6 +23,8 @@ export function VerbindungFeld({ inhalt, stelle, aendere, aktiv, offen, onOffen,
   onOffen(o: boolean): void; onFertig(): void; feldRef: Ref<RefSelectProps>;
 }) {
   const [suche, setSuche] = useState("");
+  // Vor dem frühen Rücksprung: dahinter wäre es ein bedingter Hook (Phase 4, Task 20).
+  const { aktiv: mitBib, bib } = useBibliothek();
   if (stelle.eltern === null) return <span className="kp-hilfe">oberste Ebene</span>;
   const name = stelle.titel.trim() || "(ohne Titel)";
   const jetzt = stelle.verbindungId === null ? null : inhalt.verbindungen.find((v) => v.id === stelle.verbindungId) ?? null;
@@ -29,6 +33,12 @@ export function VerbindungFeld({ inhalt, stelle, aendere, aktiv, offen, onOffen,
     return <button type="button" className="kp-g-verbindung-text" tabIndex={-1} aria-label={`Verbindung von ${name}: ${text} — ändern`} onClick={() => onOffen(true)}>{text}</button>;
   }
   const waehle = (wert: string) => {
+    const ausBib = wert.startsWith(BIB_OPTION) ? bib.verbindungen.find((b) => `${BIB_OPTION}${b.id}` === wert) : undefined;
+    if (ausBib) {
+      aendere((q) => verbindeMitBibVerbindung(q, stelle.id, ausBib, neueId(q, "v")));
+      setSuche(""); onOffen(false); onFertig();
+      return;
+    }
     const art = leseNeu(wert);
     const bezeichnung = suche.trim();
     const id = neueId(inhalt, "v");
@@ -49,6 +59,6 @@ export function VerbindungFeld({ inhalt, stelle, aendere, aktiv, offen, onOffen,
       onKeyDown={(e) => { if (e.key === "Escape" && !offen) { e.preventDefault(); onFertig(); } }}
       showSearch={{ searchValue: suche, onSearch: (t) => { setSuche(t); if (!offen) onOffen(true); }, filterOption: false }}
       popupRender={(liste) => <div data-zeile-portal={stelle.id}>{liste}</div>}
-      options={offen ? verbindungsOptionen(inhalt, suche) : [{ value: stelle.verbindungId ?? KEINE, label: text }]} />
+      options={offen ? verbindungsOptionen(inhalt, suche, mitBib ? bib.verbindungen : []) : [{ value: stelle.verbindungId ?? KEINE, label: text }]} />
   );
 }

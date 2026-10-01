@@ -104,3 +104,13 @@ function kontrast(a: string, b: string): number {
   const [hell, dunkel] = [l(a), l(b)].sort((x, y) => y - x);
   return (hell + 0.05) / (dunkel + 0.05);
 }
+
+describe("Bibliothek in der Gliederung (Phase 4)", () => {
+  it("Titelvorschläge: ohne Ebenenterm (stehen schon in der eingerückten Zeile), einzeilig, am Telefon ohne Alt-Hinweis", () => {
+    const regel = /\.kp-g-vorschlaege \{([^}]*)\}/.exec(css)![1];
+    expect(regel).not.toMatch(/--ebene/);
+    expect(regel).toMatch(/flex-wrap: nowrap/);
+    expect(regel).toMatch(/overflow-x: auto/);
+    expect(css).toMatch(/@media \(max-width: 767\.98px\) \{[\s\S]*\.kp-vorschlag-hinweis \{ display: none; \}/);
+  });
+});

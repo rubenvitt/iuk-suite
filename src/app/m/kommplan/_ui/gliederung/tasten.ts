@@ -6,13 +6,13 @@ import type { Taste } from "../editor/tasten";
  * `globalerBefehl(…, false)` (Entscheidung 10). Rücktaste/Entf nur auf leerem Titel — sonst löschen sie
  * Zeichen. Während einer IME-Komposition bestätigt Enter die Komposition, nicht die Zeile. Gehaltene
  * Tasten (`repeat`) löschen und legen nichts an (Entscheidung 8). Alt+V/Alt+Z über `code`: Option+Taste
- * liefert auf macOS ein Sonderzeichen als `key` (Entscheidung 10); Alt+E/Alt+F bewusst nicht.
+ * liefert auf macOS ein Sonderzeichen als `key` (Entscheidung 10); Alt+E/Alt+F bewusst nicht; Alt+Enter übernimmt den ersten Bibliotheksvorschlag (Phase 4).
  */
 export type GliederungsBefehl =
   | { art: "neu" } | { art: "neuLeer" } | { art: "einruecken" } | { art: "ausruecken" }
   | { art: "verschiebe"; richtung: "hoch" | "runter" } | { art: "wandere"; richtung: "hoch" | "runter" }
   | { art: "loeschen"; richtung: "hoch" | "runter" } | { art: "verlassen" } | { art: "details" }
-  | { art: "verbindung" } | { art: "zeichen" };
+  | { art: "verbindung" } | { art: "zeichen" } | { art: "bibliothek" };
 export type GliederungsTaste = Taste & { isComposing?: boolean; repeat?: boolean; code?: string };
 
 export function gliederungsBefehl(t: GliederungsTaste, titelLeer: boolean): GliederungsBefehl | null {
@@ -21,6 +21,7 @@ export function gliederungsBefehl(t: GliederungsTaste, titelLeer: boolean): Glie
   if (t.key === "Tab" && !t.altKey) return t.shiftKey ? { art: "ausruecken" } : { art: "einruecken" };
   if (t.shiftKey) return null;
   if (t.altKey) {
+    if (t.key === "Enter") return t.repeat ? null : { art: "bibliothek" };
     if (t.key === "ArrowUp") return { art: "verschiebe", richtung: "hoch" };
     if (t.key === "ArrowDown") return { art: "verschiebe", richtung: "runter" };
     if (t.code === "KeyV") return { art: "verbindung" };

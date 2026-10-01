@@ -10,6 +10,8 @@ import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
 import { kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "../editor/verlauf";
 import { Gliederung } from "./Gliederung";
+import { BibliothekKontext } from "../editor/bibliothekKontext";
+import { LEERE_BIBLIOTHEK, type Bibliothek } from "../../_lib/bibliothek/typen";
 vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
 
 const START = baue({
@@ -26,18 +28,21 @@ const details = vi.fn();
 const loeschen = vi.fn();
 
 /** Prüfstand wie der Editor: ein Verlauf, `aendere` mit PlanFehler → Hinweis im Meldungsplatz. */
-function Pruefstand({ start, index = [] }: { start: PlanInhalt; index?: readonly ZeichenIndexEintrag[] }) {
+function Pruefstand({ start, index = [], bib }: { start: PlanInhalt; index?: readonly ZeichenIndexEintrag[]; bib?: Bibliothek }) {
   const [v, setV] = useState(() => neuerVerlauf(start));
   const [auswahl, setAuswahl] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
+  const [hinweisAktion, setHinweisAktion] = useState<{ text: string; tu(): void } | null>(null);
   useEffect(() => { stand = v; });
   const aendere: Aendere = (op, schluessel) => {
     try { setV(tue(v, op(v.jetzt), new Date().getTime(), schluessel)); setHinweis(null); return null; }
     catch (e) { if (e instanceof PlanFehler) { setHinweis(e.message); return e.message; } throw e; }
   };
   return (
-    <Gliederung inhalt={v.jetzt} auswahl={auswahl} aendere={aendere} meldung={hinweis ? <p>{hinweis}</p> : null}
-      onAuswahl={setAuswahl} onDetails={details} onLoeschen={loeschen} onHinweis={setHinweis}
+    <BibliothekKontext.Provider value={{ aktiv: bib !== undefined, bib: bib ?? LEERE_BIBLIOTHEK, merke: () => {} }}>
+    <Gliederung inhalt={v.jetzt} auswahl={auswahl} aendere={aendere}
+      meldung={hinweis ? <p>{hinweis}{hinweisAktion ? <button type="button" onClick={() => { hinweisAktion.tu(); setHinweisAktion(null); }}>{hinweisAktion.text}</button> : null}</p> : null}
+      onAuswahl={setAuswahl} onDetails={details} onLoeschen={loeschen} onHinweis={(text, aktion) => { setHinweis(text); setHinweisAktion(aktion ?? null); }}
       onRueck={() => setV(rueckgaengig(v))} onWieder={() => setV(wiederholen(v))}
       verwirfUnberuehrt={(nach, dann) => {
         if (v.jetzt !== nach) return null;
@@ -47,6 +52,7 @@ function Pruefstand({ start, index = [] }: { start: PlanInhalt; index?: readonly
         return x.jetzt;
       }}
       symbole={{}} zeichenIndex={index} ladeSymbole={() => {}} />
+    </BibliothekKontext.Provider>
   );
 }
 const PruefstandMitIndex = ({ index }: { index: readonly ZeichenIndexEintrag[] }) => <Pruefstand start={START} index={index} />;
@@ -513,5 +519,62 @@ describe("Gliederung, Aktionen-Menü am Bildrand (Review Phase 3)", () => {
     const menue = queryPortal<HTMLElement>('[data-zeile-portal="ea1"] [role="menu"]');
     expect(menue.style.overflowY).toBe("auto");
     expect(menue.style.maxHeight).toBe(`${window.innerHeight - 16}px`); // jsdom: Rechteck 0 — Platz darunter = Fensterhöhe
+  });
+});
+
+const BIB = { stellen: [
+  { id: "b1", titel: "Leitstelle Uelzen", zeichen: null, leiter: "Disponent", kontakte: [{ art: "telefon" as const, wert: "0581 1" }], notiz: null },
+  { id: "b2", titel: "Feuerwehr-Leitstelle", zeichen: null, leiter: null, kontakte: [], notiz: null },
+], einheiten: [], verbindungen: [] };
+const einfuegen = (el: HTMLInputElement, text: string) => fuegeEin(el, text);
+const knopf = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text)!;
+
+describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
+  it("Vorschläge nur an der aktiven Zeile, ab 2 Zeichen; Enter legt trotzdem die nächste Stelle an", async () => {
+    await mount(<Pruefstand start={START} bib={BIB} />);
+    await fokus("ea1");
+    await schreibe(feld("ea1"), "Leit");
+    expect(queryAll('[role="group"][aria-label="Vorschläge aus der Bibliothek"]')).toHaveLength(1);
+    expect(query('[data-zeile="ea1"] .kp-g-vorschlaege').textContent).toContain("Leitstelle Uelzen · Disponent");
+    const vorher = titel().length;
+    await taste(feld("ea1"), "Enter");
+    expect(titel().length).toBe(vorher + 1); // Enter gehört weiter dem Anlegen
+  });
+  it("Klick auf einen Vorschlag: mousedown wird verhindert (Fokus bleibt im Titel), die Stelle wird in EINEM Schritt gefüllt", async () => {
+    await mount(<Pruefstand start={START} bib={BIB} />);
+    await fokus("ea1");
+    await schreibe(feld("ea1"), "Leit");
+    const knopf = query<HTMLButtonElement>('[data-vorschlag="b1"]');
+    const unten = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    await act(async () => { knopf.dispatchEvent(unten); });
+    expect(unten.defaultPrevented).toBe(true);
+    await clickElement(knopf);
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")).toMatchObject({ titel: "Leitstelle Uelzen", leiter: "Disponent" });
+    expect(aktiv()).toBe(feld("ea1"));
+    expect(queryAll('[data-zeile="ea1"] .kp-g-vorschlaege')).toHaveLength(0); // trägt ihn jetzt
+    await taste(feld("ea1"), "z", { ctrlKey: true }); // EIN Schritt: Strg+Z holt das Getippte zurück, nicht weniger
+    expect(feld("ea1").value).toBe("Leit");
+  });
+  it("Alt+Enter nimmt den ersten Vorschlag; ohne Vorschlag ein Hinweis", async () => {
+    await mount(<Pruefstand start={START} bib={BIB} />);
+    await fokus("ea2");
+    await schreibe(feld("ea2"), "leitst");
+    await taste(feld("ea2"), "Enter", { altKey: true });
+    expect(feld("ea2").value).toBe("Leitstelle Uelzen");
+    await schreibe(feld("ea2"), "zz");
+    await taste(feld("ea2"), "Enter", { altKey: true });
+    expect(meldung()).toContain("Kein Vorschlag aus der Bibliothek.");
+  });
+  it("eingefügte Gliederung: Titel, die genau so in der Bibliothek stehen und deren Angaben noch fehlen, werden angeboten — „Angaben übernehmen“ füllt alle in EINEM Schritt", async () => {
+    await mount(<Pruefstand start={START} bib={BIB} />);
+    await fokus("ea1");
+    await einfuegen(feld("ea1"), "Leitstelle Uelzen\n\tFeuerwehr-Leitstelle\n\tTrupp");
+    // „Feuerwehr-Leitstelle“ steht auch in der Bibliothek, trägt dort aber nichts, was die eingefügte Zeile nicht schon trägt.
+    expect(meldung()).toContain("1 Stelle steht so in der Bibliothek.");
+    await clickElement(knopf("Angaben übernehmen"));
+    const leit = stand.jetzt.stellen.find((s) => s.titel === "Leitstelle Uelzen")!;
+    expect(leit).toMatchObject({ leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }] });
+    await taste(feld(leit.id), "z", { ctrlKey: true }); // EIN Schritt zurück: die Angaben fallen, die eingefügten Zeilen bleiben
+    expect(stand.jetzt.stellen.find((s) => s.id === leit.id)).toMatchObject({ titel: "Leitstelle Uelzen", leiter: null });
   });
 });
