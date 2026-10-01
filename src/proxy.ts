@@ -4,7 +4,7 @@ import { auditDenied, auditActor } from "@/core/audit/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import type { NextAuthRequest } from "next-auth";
 import { auth } from "@/core/auth";
-import { decideRoute, resolveHost } from "@/core/routing";
+import { antwortKoepfeFuer, decideRoute, resolveHost } from "@/core/routing";
 
 /**
  * BEIDE Parameter sind absichtlich benannt, obwohl die Weiche nur den ersten
@@ -219,9 +219,20 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
   // die einzige Stelle, an der die von Next selbst gebaute Origin noch heil ist.
   // `req` traegt bereits die gegen AUTH_URL getauschte Origin — wer sie hier
   // nimmt, schreibt `iuk-ue.de` auf `iuk-ue.de` und hat nichts geaendert.
-  return rewriteZielAufAnfrageOrigin(antwort, request.nextUrl.origin);
+  return mitVertraulichenKoepfen(rewriteZielAufAnfrageOrigin(antwort, request.nextUrl.origin), request.nextUrl.pathname);
 }
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
+
+/**
+ * Vertrauliche Köpfe an die Antwort (kommplan Phase 5, Entscheidung 7; `antwortKoepfeFuer` in `core/routing`).
+ * Erst NACH `rewriteZielAufAnfrageOrigin`: das Rewrite-Ziel ist der interne Pfad, an dem gemessen wird.
+ */
+export function mitVertraulichenKoepfen(antwort: Response, anfragePfad: string): Response {
+  const ziel = antwort.headers.get(REWRITE_KOPF);
+  const koepfe = antwortKoepfeFuer(ziel ? new URL(ziel).pathname : anfragePfad);
+  if (koepfe) for (const [name, wert] of Object.entries(koepfe)) antwort.headers.set(name, wert);
+  return antwort;
+}

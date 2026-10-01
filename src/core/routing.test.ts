@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { decideRoute, resolveHost } from "@/core/routing";
+import { antwortKoepfeFuer, decideRoute, resolveHost } from "@/core/routing";
 
 describe("decideRoute", () => {
   it("passes through next-auth, health, login, next-internal", () => {
@@ -209,4 +209,17 @@ it.each(["qr.localtest.me:3100", "uav.localtest.me:3100"])("passes only the brow
   expect(decideRoute({host,pathname:"/api/audit/browser",groups:null})).toEqual({action:"next"});
   expect(decideRoute({host,pathname:"/api/audit/browser/extra",groups:null})).not.toEqual({action:"next"});
   expect(decideRoute({host,pathname:"/api/audit/data",groups:null})).not.toEqual({action:"next"});
+});
+
+describe("antwortKoepfeFuer — vertrauliche Ansichten (kommplan Phase 5, Entscheidung 7)", () => {
+  it("die Token-Ansicht und ihre Druckrouten bekommen noindex, no-referrer, no-store", () => {
+    for (const p of ["/m/kommplan/t/abc", "/m/kommplan/t/abc/druck/a4", "/m/kommplan/t/abc/druck/a3"]) {
+      expect(antwortKoepfeFuer(p)).toEqual({ "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer", "cache-control": "no-store" });
+    }
+  });
+  it("nichts sonst — auch nicht die /t/-Pfade anderer Module oder die Arbeitsrouten", () => {
+    for (const p of ["/m/kommplan", "/m/kommplan/p/abc", "/m/kommplan/tt/abc", "/m/lagerbuch/t/abc", "/m/radio/t/abc", "/t/abc", "/m/kommplan/t"]) {
+      expect(antwortKoepfeFuer(p), p).toBeNull();
+    }
+  });
 });
