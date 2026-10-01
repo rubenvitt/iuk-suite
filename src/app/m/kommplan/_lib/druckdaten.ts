@@ -1,13 +1,15 @@
+import { createHash } from "node:crypto";
 import { qrSvg } from "@/core/qr";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import type { KommplanDb } from "../_db/client";
 import type { DruckseiteDaten } from "../_ui/druck/Druckseite";
 import { msZuTag } from "./angaben";
+import type { PlanInhalt } from "./plan/schema";
 import { kopfFuerZeichnung } from "./briefkopf";
 import { tokenUrl, waehleQrFreigabe } from "./freigabe/regeln";
 import { freigabenFuer } from "./freigaben";
 import { teileAuf } from "./layout/papier";
-import type { Papierformat } from "./layout/typen";
+import type { Blatt, Papierformat } from "./layout/typen";
 import type { LesbarerPlan } from "./plaene";
 import { qrGrafikAus } from "./qrGrafik";
 import { rahmenFuer } from "./rahmen";
@@ -38,6 +40,28 @@ export function qrUrlFuerToken(plan: LesbarerPlan, token: string, basis: string 
   return plan.inhalt?.optionen.qrAufDruck && basis ? tokenUrl(basis, token) : null;
 }
 
+/**
+ * DIE AUFTEILUNG JE INHALT, gemerkt (Abnahme kommplan, Befund „Token-Druck blockiert"): die Druckrouten sind
+ * `force-dynamic`, und wer einen Link hat, kann sie beliebig oft abrufen. Schlüssel ist der Inhalt selbst (SHA-256
+ * über das JSON) mit Format und QR — nicht Plan-ID und Version, denn eine ID wird nach dem Löschen wieder frei.
+ * Prozessspeicher, die letzten `GEMERKT` Aufteilungen; die Blätter sind reine Daten und werden nie verändert.
+ */
+const GEMERKT = 16;
+const aufteilungen = new Map<string, Blatt[]>();
+export function blaetterFuer(inhalt: PlanInhalt, format: Papierformat, qr: boolean): Blatt[] {
+  const schluessel = `${format}|${qr ? "qr" : "-"}|${createHash("sha256").update(JSON.stringify(inhalt)).digest("base64url")}`;
+  const da = aufteilungen.get(schluessel);
+  if (da) {
+    aufteilungen.delete(schluessel);
+    aufteilungen.set(schluessel, da);
+    return da;
+  }
+  const neu = teileAuf(inhalt, format, { qr });
+  aufteilungen.set(schluessel, neu);
+  if (aufteilungen.size > GEMERKT) aufteilungen.delete(aufteilungen.keys().next().value!);
+  return neu;
+}
+
 export async function druckseitenDaten(db: KommplanDb, plan: LesbarerPlan, auftrag: DruckAuftrag): Promise<DruckseiteDaten> {
   const inhalt = plan.inhalt;
   const rahmen = rahmenFuer({
@@ -48,7 +72,7 @@ export async function druckseitenDaten(db: KommplanDb, plan: LesbarerPlan, auftr
   const qr = inhalt && auftrag.qrUrl ? qrGrafikAus(await qrSvg(auftrag.qrUrl), auftrag.qrUrl) : null;
   return {
     format: auftrag.format,
-    blaetter: inhalt ? teileAuf(inhalt, auftrag.format, { qr: qr !== null }) : null,
+    blaetter: inhalt ? blaetterFuer(inhalt, auftrag.format, qr !== null) : null,
     rahmen: { ...rahmen, qr, schwarzweiss: sw },
     symbole: inhalt ? symboleFuer(inhalt, { schwarzweiss: sw }) : {},
     qrSatz: qr ? auftrag.qrSatz ?? null : null,

@@ -25,8 +25,14 @@ export const LAENGE = { titel: 200, leiter: 120, kontakt: 200, typ: 40, rufname:
  * abgelehnter Aufruf sähe im Editor aus wie ein Netzfehler. 800 000 Byte UTF-8 lassen Luft für die
  * Kodierung des Aufrufs. Kosten: ein `JSON.stringify` je Prüfung, neben dem vollen `safeParse`.
  */
-export const GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12, bytes: 800_000 } as const;
+export const GRENZE = { stellen: 500, verbindungen: 200, kontakte: 30, einheiten: 60, kanaele: 12, ebenen: 15, bytes: 800_000 } as const;
 export const ZU_GROSS = "Der Plan ist zu groß zum Speichern. Teile ihn auf mehrere Pläne auf.";
+/**
+ * `ebenen` (Abnahme kommplan, Befund „Token-Druck blockiert"): die Aufteilung aufs Papier zeichnet je Probe den
+ * ganzen Teilbaum, und eine tiefe Kette kostet je Zeichnung quadratisch in der Tiefe — 500 Ebenen hielten den
+ * Suite-Prozess minutenlang fest. Echte Pläne haben selten mehr als acht. Seitenstellen zählen als eigene Ebene.
+ */
+export const ZU_TIEF = `Höchstens ${GRENZE.ebenen} Ebenen je Plan. Teile ihn auf mehrere Pläne auf.`;
 export const inhaltBytes = (inhalt: unknown): number => new TextEncoder().encode(JSON.stringify(inhalt)).length;
 
 const id = z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
@@ -89,6 +95,7 @@ function pruefeInvarianten(p: Roh, ctx: z.RefinementCtx): void {
       kanaele.add(k);
     });
   });
+  let zuTief = false;
   for (const s of p.stellen) {
     const gesehen = new Set<string>([s.id]);
     let eltern = s.eltern === null ? undefined : stellen.get(s.eltern);
@@ -97,6 +104,7 @@ function pruefeInvarianten(p: Roh, ctx: z.RefinementCtx): void {
       gesehen.add(eltern.id);
       eltern = eltern.eltern === null ? undefined : stellen.get(eltern.eltern);
     }
+    if (!zuTief && gesehen.size > GRENZE.ebenen) { zuTief = true; melde(["stellen"], ZU_TIEF); }
   }
 }
 

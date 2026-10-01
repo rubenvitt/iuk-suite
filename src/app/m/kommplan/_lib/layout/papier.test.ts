@@ -4,7 +4,7 @@ import { baue, type StelleEingabe } from "../beispiele/bau";
 import { leererPlan } from "../plan/operationen";
 import { layout } from "./layout";
 import { BLATT, MIN_MASSSTAB, PAPIER, QR_BOX } from "./masse";
-import { kopflinieY, LEGENDE, legendeObenY, legendenBreite, legendenZeilen, massstabFuer, qrBox, teileAuf, zeichenflaeche } from "./papier";
+import { AUFTEILUNG, kopflinieY, LEGENDE, legendeObenY, legendenBreite, legendenZeilen, massstabFuer, qrBox, teileAuf, zeichenflaeche } from "./papier";
 import { textBreite } from "./text";
 import { zufallsPlan } from "./zufall";
 
@@ -203,5 +203,42 @@ describe("Platz für den QR (Phase 5, Entscheidung 11)", () => {
         }
       }
     }
+  });
+});
+
+describe("Aufwandsgrenze der Aufteilung (Abnahme: Token-Druck blockiert den Prozess)", () => {
+  /** 500 Stellen in drei Ebenen unter einer Wurzel, 81 Blätter auf A4 — das Größte, was das Schema in der Breite zulässt. */
+  function breiterPlan() {
+    const stellen: StelleEingabe[] = [{ id: "w", titel: "Stab" }];
+    for (let i = 0; i < 10; i++) {
+      stellen.push({ id: `a${i}`, titel: `Abschnitt ${i}`, eltern: "w", verbindung: "v" });
+      for (let j = 0; j < 7; j++) stellen.push({ id: `a${i}b${j}`, titel: `Unterabschnitt ${i}.${j}`, eltern: `a${i}`, verbindung: "v" });
+    }
+    for (let k = 0; stellen.length < 500; k++) stellen.push({ id: `c${k}`, titel: `Einsatzstelle ${k}`, eltern: `a${k % 10}b${k % 7}`, verbindung: "v", kontakte: { telefon: "0581 123456" } });
+    return baue({ verbindungen: [{ id: "v", art: "tmo", bezeichnung: "R_UE_2" }], stellen });
+  }
+  it("die Beispielpläne bleiben weit unter dem Budget und teilen auf wie ohne Grenze", () => {
+    for (const b of BEISPIELE) for (const format of ["a4-quer", "a3-quer"] as const) {
+      const aufwand = { karten: 0 };
+      expect(teileAuf(b.inhalt, format, { aufwand })).toEqual(teileAuf(b.inhalt, format, { budget: Infinity }));
+      expect(aufwand.karten).toBeLessThan(AUFTEILUNG.kartenProben / 50);
+    }
+  });
+  it("ein Plan mit 500 Stellen zeichnet in allen Proben zusammen höchstens das Budget und eine Probe darüber", () => {
+    const inhalt = breiterPlan();
+    const aufwand = { karten: 0 };
+    teileAuf(inhalt, "a4-quer", { qr: true, aufwand });
+    expect(aufwand.karten).toBeGreaterThan(0);
+    expect(aufwand.karten).toBeLessThanOrEqual(AUFTEILUNG.kartenProben + inhalt.stellen.length);
+  });
+  it("ist das Budget aufgebraucht, bleibt der Rest ungeteilt — jede Stelle genau einmal, gleicher Inhalt gleiche Blätter", () => {
+    const inhalt = breiterPlan();
+    const aufwand = { karten: 0 };
+    const knapp = teileAuf(inhalt, "a4-quer", { budget: 2_000, aufwand });
+    expect(aufwand.karten).toBeLessThanOrEqual(2_000 + inhalt.stellen.length);
+    expect(knapp.length).toBeLessThan(teileAuf(inhalt, "a4-quer").length);
+    expect(knapp.some((b) => b.unterMindestschrift)).toBe(true);
+    expect(normaleKarten(knapp).sort()).toEqual(inhalt.stellen.map((s) => s.id).sort());
+    expect(teileAuf(inhalt, "a4-quer", { budget: 2_000 })).toEqual(knapp);
   });
 });

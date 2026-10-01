@@ -34,7 +34,18 @@ export function legendeObenY(format: Papierformat, legendeZeilen: number): numbe
   return PAPIER[format].hoehe - BLATT.randUnten - BLATT.fuss - legendeZeilen * BLATT.legendeZeile;
 }
 
-export interface PapierOptionen { qr?: boolean }
+/**
+ * AUFWANDSGRENZE DER AUFTEILUNG (Abnahme kommplan, Befund „Token-Druck blockiert"): jede Probe in `schneide` zeichnet
+ * den Teilbaum neu, synchron auf dem einen Node-Thread, und die Druckrouten rufen das bei jeder Anfrage. Gezählt
+ * werden gezeichnete Karten über alle Proben eines Plans; ist das Budget aufgebraucht, schneidet kein weiteres Blatt
+ * mehr — der Rest bleibt ungeteilt, notfalls unter 6 pt. Die Beispielpläne brauchen unter 200, ein breiter Plan mit
+ * 500 Stellen rund 24 000. Mit der Tiefengrenze des Schemas (`GRENZE.ebenen`) hält das jeden gültigen Plan bei
+ * etwa einer Sekunde; `druckdaten.ts` merkt sich das Ergebnis je Inhalt.
+ */
+export const AUFTEILUNG = { kartenProben: 30_000 } as const;
+
+/** `aufwand`: zählt die gezeichneten Karten aller Proben mit (für Tests); `budget` ersetzt `AUFTEILUNG.kartenProben`. */
+export interface PapierOptionen { qr?: boolean; budget?: number; aufwand?: { karten: number } }
 
 /** Die QR-Box unten rechts, direkt über der Fußzeile; `oben` schließt die Beschriftung ein. */
 export function qrBox(format: Papierformat): { x: number; y: number; kante: number; oben: number } {
@@ -114,9 +125,16 @@ interface Schnittplan { auftrag: Auftrag | undefined; schnitte: string[]; unter:
 /** Beim Messen steht auf jeder Verweiskarte „Blatt 0": die Nummer ändert keine Geometrie (feste Breite, eine Zeile fester Höhe). */
 const PLATZHALTER: Darstellung = { verweisAufBlatt: 0 };
 
-function passt(inhalt: PlanInhalt, format: Papierformat, auftrag: Auftrag | undefined, schnitte: ReadonlySet<string>, qr: boolean): boolean {
+interface Lauf { inhalt: PlanInhalt; format: Papierformat; baum: Baum; qr: boolean; rest: number; aufwand?: { karten: number } }
+
+/** `null`: das Budget ist aufgebraucht, es wurde nicht mehr gezeichnet. */
+function passt(l: Lauf, auftrag: Auftrag | undefined, schnitte: ReadonlySet<string>): boolean | null {
+  if (l.rest <= 0) return null;
   const darstellung = new Map<string, Darstellung>([...schnitte].map((id) => [id, PLATZHALTER]));
-  return !blattAus(0, format, zeichne(inhalt, format, { blatt: auftrag, darstellung }), auftrag, qr).unterMindestschrift;
+  const z = zeichne(l.inhalt, l.format, { blatt: auftrag, darstellung });
+  l.rest -= Math.max(1, z.karten.length);
+  if (l.aufwand) l.aufwand.karten += z.karten.length;
+  return !blattAus(0, l.format, z, auftrag, l.qr).unterMindestschrift;
 }
 
 /**
@@ -124,10 +142,13 @@ function passt(inhalt: PlanInhalt, format: Papierformat, auftrag: Auftrag | unde
  * Kandidatenebene her: jede Ebene baut auf „alles Tiefere geschnitten" auf und schneidet gierig
  * nach Teilbaumgröße, bis das Blatt passt. Das größte D, bei dem es passt, gewinnt — Blatt 1
  * behält die oberen Ebenen. Jede Probe zeichnet neu, weil ein Schnitt die Sicht ändert (eine
- * Verweiskarte ist ein Blatt, ihre Elterngruppe kann danach kämmen).
+ * Verweiskarte ist ein Blatt, ihre Elterngruppe kann danach kämmen). Ist das Budget (`AUFTEILUNG`) aufgebraucht,
+ * bleibt dieses und jedes weitere Blatt ungeteilt — deterministisch, derselbe Inhalt teilt immer gleich auf.
  */
-function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag: Auftrag | undefined, qr: boolean): Schnittplan {
-  if (passt(inhalt, format, auftrag, new Set(), qr)) return { auftrag, schnitte: [], unter: [] };
+function schneide(l: Lauf, auftrag: Auftrag | undefined): Schnittplan {
+  const ungeteilt: Schnittplan = { auftrag, schnitte: [], unter: [] };
+  if (passt(l, auftrag, new Set()) !== false) return ungeteilt;
+  const { inhalt, baum } = l;
   const sicht = baueSicht(inhalt, { blatt: auftrag });
   const rang = new Map(lesereihenfolge(sicht).map((id, i) => [id, i]));
   const nachTiefe = kandidaten(sicht, auftrag);
@@ -139,7 +160,9 @@ function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag:
     const s = new Set(basis);
     for (const k of ebene) {
       s.add(k.id);
-      if (passt(inhalt, format, auftrag, s, qr)) { gewaehlt = s; break; }
+      const p = passt(l, auftrag, s);
+      if (p === null) return ungeteilt;
+      if (p) { gewaehlt = s; break; }
     }
     if (gewaehlt) break;
     basis = s;
@@ -152,7 +175,7 @@ function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag:
   const schnitte = [...alle].filter((id) => !innen(id)).sort((a, b) => rang.get(a)! - rang.get(b)!);
   return {
     auftrag, schnitte,
-    unter: schnitte.map((id) => schneide(inhalt, format, baum, { wurzelId: id, ankerId: baum.stelle(id)!.eltern }, qr)),
+    unter: schnitte.map((id) => schneide(l, { wurzelId: id, ankerId: baum.stelle(id)!.eltern })),
   };
 }
 
@@ -172,10 +195,10 @@ export function offeneSchnitte(inhalt: PlanInhalt, blatt: Blatt): string[] {
 /** DURCHLAUF 2: Blätter in Tiefensuche nummerieren, dann jedes Blatt mit den echten Verweisnummern zeichnen. */
 export function teileAuf(inhalt: PlanInhalt, format: Papierformat, optionen: PapierOptionen = {}): Blatt[] {
   const qr = optionen.qr ?? false;
-  const baum = baueBaum(inhalt);
+  const lauf: Lauf = { inhalt, format, baum: baueBaum(inhalt), qr, rest: optionen.budget ?? AUFTEILUNG.kartenProben, aufwand: optionen.aufwand };
   const reihe: Schnittplan[] = [];
   const sammle = (p: Schnittplan) => { reihe.push(p); p.unter.forEach(sammle); };
-  sammle(schneide(inhalt, format, baum, undefined, qr));
+  sammle(schneide(lauf, undefined));
   const nummer = new Map(reihe.map((p, i) => [p, i + 1]));
   const blaetter = reihe.map((p, i) => {
     const darstellung = new Map<string, Darstellung>(p.schnitte.map((id, j) => [id, { verweisAufBlatt: nummer.get(p.unter[j])! }]));

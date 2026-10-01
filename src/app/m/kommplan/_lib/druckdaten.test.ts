@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { qrSvg } from "@/core/qr";
 import { plan as planTabelle } from "../_db/schema";
 import { stelleFreigabeAus } from "./freigaben";
-import { druckseitenDaten, qrUrlFuerToken, qrZielIntern } from "./druckdaten";
+import { blaetterFuer, druckseitenDaten, qrUrlFuerToken, qrZielIntern } from "./druckdaten";
 import { BLATT } from "./layout/masse";
 import { qrBox, teileAuf } from "./layout/papier";
+import { BEISPIELE } from "./beispiele";
 import { qrGrafikAus } from "./qrGrafik";
 import { setzeOptionen } from "./plan/operationen";
 import { archiviere } from "./planverwaltung";
@@ -127,5 +128,19 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     expect((await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport).toEqual({ titel: p.titel, tag: "2026-02-22" });
     const ohneDatum = { ...p, datum: null, aktualisiertAm: Date.UTC(2026, 8, 30, 22, 30) }; // 01.10.2026, 00:30 in Berlin
     expect((await druckseitenDaten(db, ohneDatum, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport?.tag).toBe("2026-10-01");
+  });
+});
+
+describe("blaetterFuer: die Aufteilung je Inhalt gemerkt (Abnahme: Token-Druck blockiert den Prozess)", () => {
+  const gross = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!.inhalt;
+  it("gleicher Inhalt (auch als Kopie) liefert dieselben Blätter ohne neue Rechnung; Format, QR und Inhalt trennen", () => {
+    const erst = blaetterFuer(gross, "a4-quer", false);
+    expect(erst).toEqual(teileAuf(gross, "a4-quer"));
+    expect(blaetterFuer(structuredClone(gross), "a4-quer", false)).toBe(erst);
+    expect(blaetterFuer(gross, "a3-quer", false)).not.toBe(erst);
+    expect(blaetterFuer(gross, "a4-quer", true)).toEqual(teileAuf(gross, "a4-quer", { qr: true }));
+    const anders = { ...gross, stellen: gross.stellen.map((s, i) => (i === 0 ? { ...s, titel: `${s.titel} neu` } : s)) };
+    expect(blaetterFuer(anders, "a4-quer", false)).toEqual(teileAuf(anders, "a4-quer"));
+    expect(blaetterFuer(anders, "a4-quer", false)).not.toBe(erst);
   });
 });

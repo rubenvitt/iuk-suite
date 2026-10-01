@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KONTAKT_PIKTOGRAMM, VERBINDUNG_PIKTOGRAMM } from "../zeichen/grundlagen";
-import { GRENZE, KONTAKT_ARTEN, LAENGE, VERBINDUNGS_ARTEN, ZU_GROSS, inhaltBytes, leseInhalt, planInhaltSchema, type PlanInhalt, type Stelle } from "./schema";
+import { GRENZE, KONTAKT_ARTEN, LAENGE, VERBINDUNGS_ARTEN, ZU_GROSS, ZU_TIEF, inhaltBytes, leseInhalt, planInhaltSchema, type PlanInhalt, type Stelle } from "./schema";
 
 const stelle = (id: string, eltern: string | null, rest: Partial<Stelle> = {}): Stelle => ({
   id, eltern, lage: "unter", reihenfolge: 0, zeichen: null, titel: id, leiter: null, hervorheben: false,
@@ -37,6 +37,14 @@ describe("planInhaltSchema", () => {
   });
   it("Zyklus", () => {
     expect(fehler(plan([stelle("a", "b"), stelle("b", "a")])).some((m) => m.startsWith("Zyklus"))).toBe(true);
+  });
+  it(`höchstens ${GRENZE.ebenen} Ebenen; eine Seitenstelle zählt als eigene Ebene; gemeldet wird einmal`, () => {
+    const kette = (n: number) => Array.from({ length: n }, (_, i) => stelle(`s${i}`, i === 0 ? null : `s${i - 1}`));
+    expect(fehler(plan(kette(GRENZE.ebenen)))).toEqual([]);
+    expect(fehler(plan(kette(GRENZE.ebenen + 3)))).toEqual([ZU_TIEF]);
+    const mitSeite = [...kette(GRENZE.ebenen - 1), stelle("seite", `s${GRENZE.ebenen - 2}`, { lage: "rechts" })];
+    expect(fehler(plan(mitSeite))).toEqual([]);
+    expect(fehler(plan([...kette(GRENZE.ebenen), stelle("seite", `s${GRENZE.ebenen - 1}`, { lage: "links" })]))).toEqual([ZU_TIEF]);
   });
   it("Seitenstelle ohne Eltern und Seitenstelle mit Kindern", () => {
     expect(fehler(plan([stelle("a", null, { lage: "rechts" })]))).toContain("Eine Seitenstelle braucht eine Elternstelle");
