@@ -139,4 +139,15 @@ describe("kommplan: Importgrenzen", () => {
       expect(istServerAktion(quelltext(p)), p).toBe(true);
     }
   });
+  it("keine Token-Route erreicht eine Server Action, den Editor oder die Planliste — auch nicht über Umwege", () => {
+    const routen = laufzeit.filter((p) => relative(MODUL, p).startsWith("t/"));
+    expect(routen.map((p) => relative(MODUL, p)).sort()).toEqual([
+      "t/[token]/druck/a3/page.tsx", "t/[token]/druck/a4/page.tsx", "t/[token]/layout.tsx", "t/[token]/page.tsx", "t/not-found.tsx",
+    ]); // die 404-Seite ist keine ROUTENDATEI für riegel.test.ts, zählt hier aber mit: auch sie erreicht nichts Internes
+    for (const r of routen) {
+      const treffer = [...erreichbar(r)].map((d) => relative(MODUL, d))
+        .filter((d) => d.startsWith("_actions/") || d.startsWith("_ui/editor/") || d.startsWith("_ui/teilen/") || d.startsWith("(intern)/"));
+      expect(treffer, `${relative(MODUL, r)} zieht ${treffer.join(", ")}`).toEqual([]);
+    }
+  });
 });

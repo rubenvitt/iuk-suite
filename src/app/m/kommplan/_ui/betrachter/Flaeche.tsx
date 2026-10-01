@@ -178,7 +178,7 @@ export function Flaeche({
 
   const transform = `translate(${a.x} ${a.y}) scale(${a.massstab})`;
   return (
-    <div>
+    <div className="kp-flaeche-wurzel">
       {defs ? (
         <svg aria-hidden="true" width={0} height={0} style={{ position: "absolute" }}>
           <SymbolDefs symbole={symbole} />

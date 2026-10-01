@@ -35,7 +35,7 @@ export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanIn
     return neu;
   });
   return (
-    <div>
+    <div className="kp-betrachter-wurzel">
       <Flaeche daten={daten} symbole={symbole} titel={titel} schrift={schrift}
         bedienhinweis="Pfeiltasten verschieben, Plus und Minus zoomen, 0 passt ein"
         zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}

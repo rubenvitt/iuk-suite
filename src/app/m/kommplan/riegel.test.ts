@@ -38,6 +38,10 @@ const zaehle = (q: string, muster: RegExp) => (q.match(new RegExp(muster.source,
 const AUSSERHALB: Record<string, string> = {
   "layout.tsx": "Modulwurzel, bewusst ohne Riegel: die Token-Ansicht ist anonym",
   "logo/route.ts": "Route Handler für den Logo-Upload (Server Actions nehmen höchstens 1 MB): eigener Riegel und Herkunftsprüfung, Antwort statt notFound",
+  "t/[token]/layout.tsx": "Token-Ansicht (Spec §8.2): anonym; Riegel ist der Token selbst — Host und tokenPlanOder404 oberhalb jeder loading.tsx (Falle 23)",
+  "t/[token]/page.tsx": "Token-Ansicht: prüft Host und Token selbst noch einmal (Layouts und Seiten rendern parallel)",
+  "t/[token]/druck/a4/page.tsx": "Token-Druck A4 quer: wie die Token-Ansicht",
+  "t/[token]/druck/a3/page.tsx": "Token-Druck A3 quer: wie die Token-Ansicht",
 };
 
 describe("kommplan: jede Fläche trägt ihren Riegel", () => {
@@ -69,5 +73,24 @@ describe("kommplan: jede Fläche trägt ihren Riegel", () => {
   });
   it("die Verwaltungsgruppe gibt es und sie ist nicht leer (sonst wäre der Fall darüber leer-grün)", () => {
     expect(routen.filter((p) => p.startsWith("(intern)/(verwaltung)/")).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("kommplan: die Token-Routen tragen ihren eigenen Riegel und nichts Internes (Phase 5)", () => {
+  const token = routen.filter((p) => p.startsWith("t/"));
+  it("genau die vier Dateien (sonst wäre unten alles leer-grün)", () => {
+    expect(token).toEqual(["t/[token]/druck/a3/page.tsx", "t/[token]/druck/a4/page.tsx", "t/[token]/layout.tsx", "t/[token]/page.tsx"]);
+  });
+  it.each(token)("%s: Host-Riegel und Token-Riegel je genau einmal; kein Anmelde-Riegel, keine Plan-ID, keine Action", (datei) => {
+    const q = code(datei);
+    expect(zaehle(q, /requireKommplanHost\(await headers\(\)\)/), "Host-Riegel").toBe(1);
+    expect(zaehle(q, /await tokenPlanOder404\(/), "Token-Riegel").toBe(1);
+    expect(q).not.toMatch(/requireKommplanZugang|\bauth\(|ladePlan|_actions|\.id\b.*params|params[^;]*\bid\b/);
+    expect(q.indexOf("tokenPlanOder404(")).toBeLessThan(q.indexOf("return"));
+  });
+  it.each(token.filter((p) => p.endsWith("page.tsx")))("%s: statische Metadaten (noindex) und kein generateMetadata", (datei) => {
+    const q = code(datei);
+    expect(q).toMatch(/export const metadata = TOKEN_METADATEN;/);
+    expect(q).not.toMatch(/generateMetadata/);
   });
 });
