@@ -4760,6 +4760,21 @@ Was sich erst am laufenden Code zeigt. Jede Zeile nennt die Aufgabe, in der die 
 
 | # | Aufgabe | Befund | Entscheidung |
 |---|---|---|---|
+| U1 | 4, 5, 9 | `pnpm build` je Aufgabe hätte unter Dauerlast (Load 12–56) je Lauf Minuten gekostet | Gemeinsame Builds über die Endstände von Task 4–8, 9–10, 11, 12 und 13 (Vorbild Phase-1-U6, Phase-4-U3); jeder grün |
+| U2 | 5 | `KOPFLEISTE_TELEFON_VORHER` gemessen | 204 px (390 × 844, `/p/beispiel-openr-2022-07-01?ansicht=diagramm`, Stand vor Phase 5); der Fototest sichert ihn, die zweispaltige Kopfleiste hält ihn |
+| U3 | 5 | `PFEIL_RUNTER_BIS_A3` ist 1, nicht 2: per Enter geöffnet steht „A4 quer“ schon aktiv, zwei Pfeile liefen herum | 1; der e2e wartet vor dem Pfeil auf den Fokus im Menü und vor Enter auf den Fokus an „A3 quer“ — rc-menu liest den aktiven Punkt aus seinem Zustand, ohne Warten druckte Enter unter Last A4 |
+| U4 | 5, 15 | A3-PDF misst 1191,12 × 841,92 pt statt 1190,55 × 841,89 (Chromium rundet auf ganze CSS-Pixel) | Toleranz < 1 pt statt `toBeCloseTo(…, 0)` |
+| U5 | 8 | Im Planwortlaut von `TokenKopf.test.tsx` stand `token="T".repeat(43)` — kein gültiges JSX | `token={"T".repeat(43)}` |
+| U6 | 9 | `kopiere`: `select()` allein fokussiert das versteckte Textfeld nicht überall (jsdom nie), `execCommand("copy")` kopiert die Auswahl im fokussierten Feld | `feld.focus({ preventScroll: true })` vor `select()`; der Fokus kehrt wie geplant zurück |
+| U7 | 9 | `kommplan-css.test.ts` sicherte die einspaltige Telefon-Kopfleiste zu | Fall auf die zweispaltige Kopfleiste mit `kp-ganze-zeile` umgestellt |
+| U8 | 10 | antds `Switch.onChange` liefert `(checked, event)`; `onChange={qr.onAendern}` reichte das Ereignis mit durch | `onChange={(v) => qr.onAendern(v)}`. Der Fall „Optionen: nur leerzeilen und vermerkVsNfD“ heißt jetzt „Optionen: alle vier schaltbar (Phase 5)“. Mit 24 mm QR bleiben alle Eigenschaftsfälle grün (Review Focus 5) |
+| U9 | 12 | Der dynamische `import()` der Schrift braucht in Vitest mehr als eine Runde der Ereignisschleife | `SvgHerunterladen.test.tsx` wartet per `vi.waitFor` (bis 5 s); der neue `Drucken`-Fall stubbt `document.fonts` selbst; `asciiTeil` schreibt die Kombinationszeichen als `\u0300-\u036f` |
+| U10 | 15 | Unter `next dev` steht in `cache-control` kein `no-store`: der Dev-Server setzt „no-cache, must-revalidate“ und überschreibt den Proxy-Kopf. Der gebaute Stand liefert `private, no-cache, no-store, …` | Zusicherung hinter `E2E_VORGEBAUT` (Falle 21; CI fährt den gebauten Stand); `x-robots-tag` und `referrer-policy` gelten in beiden Wegen. „An den Hauptlauf“ 1 ist damit belegt: die Proxy-Köpfe erreichen die Antwort, auch beim 404 |
+| U11 | 15 | Seit „SVG – A4 quer“/„SVG – A3 quer“ im Menü stehen (Task 12), traf `getByRole("menuitem", { name: "A3 quer" })` zwei Punkte (strict mode) — `kommplan.spec.ts` und `kommplan-editor.spec.ts` liefen bis dahin nur mit `-g` | `exact: true` an allen Formatpunkten der e2e |
+| U12 | 16 | Sichtprüfung: am Telefon zerfiel der umrandete VS-NfD-Vermerk der Token-Ansicht in zwei Rahmenstücke | `white-space: nowrap` (Telefon-Block von `token.css`), Quelltext-Fall in `kommplan-css.test.ts`; Foto neu |
+| U13 | 16 | Der Fototest des Plans schaltete den QR nie ein — `druck-qr-*` zeigte keinen Code, die Flyins keinen Satz | Der Fototest setzt `qrAufDruck` vor dem Ausstellen. Die Handfotos (Schwarzweiß, SVG allein, Briefkopf mit Logo/ohne, Planliste mit Umschalter) kamen aus einem Wegwerf-Spec im Scratchpad-Lauf, danach gelöscht; der Briefkopf ist auf den Seed-Stand zurückgesetzt |
+| U14 | 16 | Unter `next dev` meldet jede 404 aus einem `layout.tsx` („Encountered a script tag while rendering React component“, das Theme-Skript in `src/app/layout.tsx`) — auch das vorhandene `/p/gibt-es-nicht`, also nicht aus Phase 5 | **Ticketkandidat** (außerhalb von kommplan, kein Tor betroffen) |
+| U15 | 16 | Release-Notiz gegen den Bildschirm gelesen: „Kommunikationspläne“ (App-Umschalter), „Drucken“, „Neu“, „Gliederung“, „Teilen“ stehen so da | keine Änderung; `datum` bleibt 2026-09-30, den Rollout-Tag setzt der Hauptlauf |
 
 ## An den Hauptlauf (offene Annahmen, ClickUp fasst diese Umsetzung nicht an)
 
