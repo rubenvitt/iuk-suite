@@ -1,11 +1,11 @@
 [
   {
     "name": "eimer-1",
-    "specs": "e2e/aufgaben-anleitung.spec.ts e2e/aufgaben.spec.ts e2e/feedback.spec.ts"
+    "specs": "e2e/aufgaben-anleitung.spec.ts e2e/aufgaben.spec.ts e2e/feedback.spec.ts e2e/kommplan-bibliothek.spec.ts"
   },
   {
     "name": "eimer-2",
-    "specs": "e2e/aufgaben-breiten.spec.ts e2e/flyin-breite.spec.ts e2e/login-dev-gruppen.spec.ts e2e/theme.spec.ts e2e/kommplan.spec.ts"
+    "specs": "e2e/aufgaben-breiten.spec.ts e2e/flyin-breite.spec.ts e2e/login-dev-gruppen.spec.ts e2e/theme.spec.ts e2e/kommplan.spec.ts e2e/kommplan-verwaltung.spec.ts"
   },
   {
     "name": "eimer-3",
