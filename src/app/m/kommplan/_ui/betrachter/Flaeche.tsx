@@ -20,7 +20,7 @@ import { GRENZEN, SCHRITT, einpassen, nachziehen, tasteZuAktion, untergrenze, ve
  *
  * EINGEPASST BLEIBT EINGEPASST (Umsetzungsplan Phase 2, Entscheidung 18): `eigene === null` heißt
  * „eingepasst", und die Ansicht folgt jedem neuen Layout — gedeckelt auf `maxMassstab`, mit
- * `platzUnten` für die Griffleiste und ohne den Teil, den ein offenes Flyin verdeckt (`flyinGrund`,
+ * `platzUnten` für Meldungsplatz und Auswahlleiste und ohne den Teil, den ein offenes Flyin verdeckt (`flyinGrund`,
  * dieselbe `min(…)`-Regel wie `flyinBreite()`). Erst Zoom, Verschieben, Rad oder Pinch der Nutzerin
  * machen eine eigene Ansicht daraus (`auto: false`); `zeige()` verschiebt automatisch (`auto: true`).
  * Automatische Wechsel gleiten im Editor (`kp-gleitet` am `[data-ansicht]`), eigene nie — sonst
@@ -38,14 +38,14 @@ const SICHTRAND = { oben: 24, seite: 24, unten: 24 };
 
 export function Flaeche({
   daten, symbole, titel, schrift, bedienhinweis, leer, zusatz, ueberlagerung, meldung, onTaste, onKarteKlick,
-  gleitend = false, linienSchluessel, griff, werkzeuge, maxMassstab = GRENZEN.max, platzSeite, platzUnten, flyinGrund = null, defs = true,
+  gleitend = false, linienSchluessel, griff, werkzeuge, maxMassstab = GRENZEN.max, platzOben, platzSeite, platzUnten, flyinGrund = null, defs = true,
 }: {
   daten: Zeichnungsdaten; symbole: Symbolsatz; titel: string; schrift: string; bedienhinweis: string; leer: ReactNode;
   zusatz?: (k: KarteL) => ReactNode; ueberlagerung?: (a: Ansicht, flaeche: { breite: number; hoehe: number }) => ReactNode;
   meldung?: ReactNode;
   onTaste?: (e: KeyboardEvent<HTMLDivElement>) => boolean; onKarteKlick?: (id: string | null, doppelt: boolean) => void;
   gleitend?: boolean; linienSchluessel?: string; griff?: Ref<FlaecheGriff>; werkzeuge?: ReactNode;
-  maxMassstab?: number; platzSeite?: number; platzUnten?: number; flyinGrund?: number | null;
+  maxMassstab?: number; platzOben?: number; platzSeite?: number; platzUnten?: number; flyinGrund?: number | null;
   /** Eigener Symbolvorrat (Vorgabe). Der Editor hält ihn selbst, einmal für alle Ansichten (Phase 3, Entscheidung 17). */
   defs?: boolean;
 }) {
@@ -59,7 +59,7 @@ export function Flaeche({
 
   // Vom Flyin verdeckter Teil der Fläche, rechts (0 ohne Flyin oder ohne Messung).
   const verdeckt = verdeckterTeil(groesse.links + groesse.b, groesse.b, groesse.fenster, flyinGrund);
-  const basis = einpassen(daten.breite, daten.hoehe, groesse.b - verdeckt, groesse.h, { max: maxMassstab, seite: platzSeite, unten: platzUnten });
+  const basis = einpassen(daten.breite, daten.hoehe, groesse.b - verdeckt, groesse.h, { rand: platzOben, max: maxMassstab, seite: platzSeite, unten: platzUnten });
   const a = eigene?.a ?? basis;
   const automatisch = eigene === null || eigene.auto;
   const lage = useRef({ basis, flyinGrund });
@@ -123,7 +123,7 @@ export function Flaeche({
   };
   // Bedienelemente IN der Fläche (Umschalter, Griffe, Hinweise, „Erste Stelle anlegen") fangen den
   // Zeiger nicht: Pointer-Capture lenkte sonst das `click` vom Knopf auf die Fläche um.
-  const ausgenommen = (ziel: EventTarget) => (ziel as Element).closest("[data-umschalter], [data-griff], [data-meldung], button, a, input, textarea") !== null;
+  const ausgenommen = (ziel: EventTarget) => (ziel as Element).closest("[data-umschalter], [data-griff], [data-meldung], [data-auswahlleiste], button, a, input, textarea") !== null;
 
   const unten = (e: PointerEvent<HTMLDivElement>) => {
     if (ausgenommen(e.target)) return; // Umschalter, Griffe und Meldung beginnen kein Ziehen und keinen Klick

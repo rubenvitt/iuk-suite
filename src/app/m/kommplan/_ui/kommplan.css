@@ -4,6 +4,7 @@
  */
 :root {
   --kp-flaeche: #eef0f3; --kp-rand: #d0d5dc; --kp-gedaempft: #5b6573; --kp-auswahl: #1f5fbf;
+  --kp-leiste-flaeche: #ffffff; --kp-leiste-rand: #6b7280; --kp-leiste-schatten: rgba(0, 0, 0, .28);
   --kp-chip-flaeche: #eef1f5; --kp-chip-text: #2b3440;
   --kp-hinweis-flaeche: #fdf1dc; --kp-hinweis-text: #6b4200;
   --kp-auswahl-flaeche: #e8f0fc;
@@ -18,6 +19,7 @@
 }
 :root[data-theme="dark"] {
   --kp-flaeche: #1d2026; --kp-rand: #3a404a; --kp-gedaempft: #a9b2bf; --kp-auswahl: #7fb0ff;
+  --kp-leiste-flaeche: #1f242c; --kp-leiste-rand: #8a94a3; --kp-leiste-schatten: rgba(0, 0, 0, .7);
   --kp-chip-flaeche: #2a303a; --kp-chip-text: #d6dce5;
   --kp-hinweis-flaeche: #3d2f14; --kp-hinweis-text: #f3cf8e;
   --kp-auswahl-flaeche: #1c2a40;
@@ -110,20 +112,37 @@
 .kp-verbindung { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
 
 /*
- * Editor: Griffe über der Fläche. `.kp-griffe .kp-griff-seite` mit einer Klasse mehr, weil antds
- * `.ant-btn` (gleiche Spezifität, später geladen) `position: relative` setzt (Falle 5); keine Regel
- * gegen einen `.ant-*`-Namen (Falle 20). Die Griffleiste bricht um statt überzulaufen (Kritik).
+ * Editor: Griffe der Auswahl. An der Karte nur der Auswahlrahmen, alle Knöpfe in der Auswahlleiste (unten).
+ * Keine Regel gegen einen `.ant-*`-Namen (Falle 20); wo antd gewinnen würde, eine Klasse mehr (Falle 5).
  */
 .kp-griffe { position: absolute; inset: 0; }
 .kp-griffe-karte { position: absolute; }
 .kp-griffe button { pointer-events: auto; }
 /* Weißer Außenring: am Rand der Zeichnung liegt der Rahmen auf der (dunklen) Fläche statt auf Papier. */
 .kp-auswahlrahmen { position: absolute; inset: -4px; border: 2px solid var(--kp-auswahl-papier); box-shadow: 0 0 0 2px #ffffff; border-radius: 4px; pointer-events: none; }
-/* `top` setzt Griffe.tsx (mittig, aber nie unter der Kartenunterkante — dort beginnt die Griffleiste). */
-.kp-griffe .kp-griff-seite { position: absolute; gap: 4px; width: max-content; }
-.kp-griffe .kp-griff-links { right: calc(100% + 8px); }
-.kp-griffe .kp-griff-rechts { left: calc(100% + 8px); }
-.kp-griffleiste { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; width: max-content; }
+/*
+ * Auswahlleiste (Phase 3, Entscheidung 18; Phase 4, Entscheidung 15): alle Griffe oben links in der Fläche, nie
+ * an der Karte. Feste Höhe (bricht nie um, am Telefon waagerecht scrollbar), damit die Fläche sie beim
+ * Einpassen freihalten kann (Griffe.tsx, AUSWAHLLEISTE; Editor.tsx, GRIFF_RAND). Knöpfe ohne size (Falle 4).
+ */
+.kp-auswahlleiste {
+  position: absolute; top: 8px; left: 8px; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
+  padding: 5px 6px; overflow-x: auto; overscroll-behavior-x: contain; pointer-events: auto;
+  border: 1px solid var(--kp-leiste-rand); border-radius: 8px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  /* Schattenkante, solange waagerecht etwas verborgen ist: zwei Deckflächen wandern mit dem Inhalt (local),
+     zwei Schatten bleiben am Rand (scroll) — reines CSS, kein Skript. */
+  background:
+    linear-gradient(to right, var(--kp-leiste-flaeche) 30%, transparent),
+    linear-gradient(to left, var(--kp-leiste-flaeche) 30%, transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%, var(--kp-leiste-schatten), transparent),
+    radial-gradient(farthest-side at 100% 50%, var(--kp-leiste-schatten), transparent) 100% 0;
+  background-color: var(--kp-leiste-flaeche);
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 12px 100%, 12px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+.kp-auswahlleiste > * { flex: none; }
+.kp-auswahl-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; padding-inline: 4px; }
 .kp-leer { padding: 16px; display: grid; gap: 12px; justify-items: start; }
 .kp-hinweis { margin-block-end: 8px; }
 .kp-kopfwerkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -194,6 +213,7 @@
 .kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
 
 @media (max-width: 767.98px) {
+  .kp-auswahl-name { display: none; }
   .kp-vorschlag-hinweis { display: none; }
   .kp-bib-werkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne

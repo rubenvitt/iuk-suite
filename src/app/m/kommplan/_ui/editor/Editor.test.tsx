@@ -15,7 +15,8 @@ import { LEERE_BIBLIOTHEK } from "../../_lib/bibliothek/typen";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { leererPlan } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
-import { Editor, type EditorPlan } from "./Editor";
+import { Editor, GRIFF_RAND, type EditorPlan } from "./Editor";
+import { AUSWAHLLEISTE } from "./Griffe";
 
 const INHALT = baue({ stellen: [{ id: "el", titel: "EL" }, { id: "a", titel: "EA 1", eltern: "el" }, { id: "s", titel: "KatSL", eltern: "el", lage: "links" }] });
 const plan = (inhalt: PlanInhalt = INHALT): EditorPlan => ({
@@ -72,9 +73,9 @@ describe("Editor (Spec §6.2, §6.3)", () => {
   it("Klick wählt eine Karte und zeigt ihre Griffe; eine Seitenstelle hat nur „+ Einheit“ und „Bearbeiten“", async () => {
     await zeige();
     await waehle("a");
-    expect(queryAll('[data-griffe="a"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["links", "rechts", "unter", "einheit", "bearbeiten"]);
+    expect(queryAll('[data-griffe="a"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["bearbeiten", "unter", "einheit", "links", "rechts"]);
     await waehle("s");
-    expect(queryAll('[data-griffe="s"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["einheit", "bearbeiten"]);
+    expect(queryAll('[data-griffe="s"] [data-griff]').map((g) => g.getAttribute("data-griff"))).toEqual(["bearbeiten", "einheit"]);
     await waehle("a");
     expect(query('[data-griff="links"]').textContent).toBe("+ links");
     expect(query('[data-griff="rechts"]').textContent).toBe("+ rechts");
@@ -654,5 +655,28 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     zeichen.ladeZeichenAction.mockClear();
     for (const t of ["E", "EA", "EA 9"]) await schreibe(flyinFeld(), t);
     expect(zeichen.ladeZeichenAction).not.toHaveBeenCalled();
+  });
+  it("Griffe stehen in der Auswahlleiste oben in der Fläche, an der Karte nur der Auswahlrahmen (Phase 4, Entscheidung 15)", async () => {
+    await zeige();
+    await waehle("a");
+    expect(queryAll('[data-griffe="a"] .kp-griffe-karte > *').map((e) => e.className)).toEqual(["kp-auswahlrahmen"]);
+    const leiste = query('[data-griffe="a"] .kp-auswahlleiste');
+    expect(leiste.getAttribute("role")).toBe("group"); // jeder Knopf ein Tabstopp — keine Pfeiltasten-Bedienung, die „toolbar" verspräche
+    expect(leiste.getAttribute("aria-label")).toBe("Auswahl: EA 1");
+    expect(leiste.querySelector(".kp-auswahl-name")!.textContent).toBe("EA 1");
+    expect(leiste.querySelectorAll("[data-griff]")).toHaveLength(5);
+    expect(GRIFF_RAND).toEqual({ oben: AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8, seite: 16, unten: 72 });
+  });
+  it("ein Zeiger auf Name oder Rand der Auswahlleiste ist kein Klick ins Leere: Auswahl und Flyin bleiben", async () => {
+    await zeige();
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    expect(flyinOffen()).toBe(true);
+    uhr += 10_000;
+    const name = query(".kp-auswahl-name");
+    await act(async () => { zeiger(name, "pointerdown", uhr); zeiger(name, "pointerup", uhr + 10); });
+    expect(exists('[data-griffe="a"]')).toBe(true);
+    expect(flyinOffen()).toBe(true);
   });
 });

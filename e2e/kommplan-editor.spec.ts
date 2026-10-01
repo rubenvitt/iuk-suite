@@ -41,7 +41,7 @@ test("anlegen → erste Stelle → Unter- und Seitenstelle per Griff → gespeic
   await klickeWennRuhig(page.getByRole("button", { name: "Seitenstelle links von Einsatzleitung anlegen" }));
   await expect(karten(page)).toHaveCount(3);
   await speichertNach(page, () => flyinTitel(page).fill("KatSL"));
-  await expect(page.getByRole("toolbar", { name: "Auswahl: KatSL" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Auswahl: KatSL" })).toBeVisible();
   await expect(page.locator('[data-griff="unter"], [data-griff="links"], [data-griff="rechts"]')).toHaveCount(0);
 
   await oeffneEditor(page, () => page.reload());
@@ -65,9 +65,9 @@ test("Tastatur ohne Maus: Enter → N → Titel → Esc, Pfeile, Entf, Strg/Cmd+
   await page.keyboard.press("Escape");
   await expect(flaeche).toBeFocused(); // kein flaeche.focus() von Hand: das Schließen gibt ihn zurück
   await page.keyboard.press("ArrowUp");
-  await expect(page.getByRole("toolbar", { name: "Auswahl: EL" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Auswahl: EL" })).toBeVisible();
   await page.keyboard.press("ArrowDown");
-  await expect(page.getByRole("toolbar", { name: "Auswahl: EA 1" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Auswahl: EA 1" })).toBeVisible();
   await speichertNach(page, () => page.keyboard.press("Delete"));
   await expect(karten(page)).toHaveCount(1);
   await expect(page.locator(".kp-betrachter [data-meldung]")).toContainText("„EA 1“ gelöscht.");
@@ -114,7 +114,7 @@ test("Hinweise in der Fläche liegen im Bild — Desktop, Tablet, Telefon, auch 
     await page.locator(".kp-betrachter").focus();
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowDown");
-    await expect(page.getByRole("toolbar", { name: "Auswahl: EA 1" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Auswahl: EA 1" })).toBeVisible();
   };
   for (const [breite, hoehe] of [[1440, 900], [1024, 768], [390, 844]] as const) {
     await page.setViewportSize({ width: breite, height: hoehe });
@@ -267,14 +267,62 @@ test("gezoomt: Enter holt die Karte an den freien Rand neben dem Flyin — nicht
   const flyin = (await page.locator("[data-flyin-stelle]").boundingBox())!;
   await expect.poll(async () => {
     const k = (await page.locator(`[data-griffe="${rechts}"] .kp-griffe-karte`).boundingBox())!;
-    // rechte Kante der Karte genau GRIFF_RAND.seite (104 px) vor dem rechten Innenrand der Fläche
-    return Math.round(rahmen.x + rahmen.width - 1 - 104 - (k.x + k.width));
+    // rechte Kante der Karte genau GRIFF_RAND.seite (16 px) vor dem rechten Innenrand der Fläche
+    return Math.round(rahmen.x + rahmen.width - 1 - 16 - (k.x + k.width));
   }).toBeGreaterThanOrEqual(-2);
   const k = (await page.locator(`[data-griffe="${rechts}"] .kp-griffe-karte`).boundingBox())!;
-  expect(rahmen.x + rahmen.width - 1 - 104 - (k.x + k.width), "nicht weiter nach links als nötig").toBeLessThanOrEqual(2);
+  expect(rahmen.x + rahmen.width - 1 - 16 - (k.x + k.width), "nicht weiter nach links als nötig").toBeLessThanOrEqual(2);
   expect(k.x + k.width, "neben dem Flyin").toBeLessThanOrEqual(flyin.x);
   await page.keyboard.press("Escape");
   expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
+});
+
+test("Auswahlleiste: eingepasst über keinem Planelement — Desktop ohne und mit Flyin, Tablet (Phase 4, Entscheidung 15)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const speicherungen: string[] = [];
+  page.on("response", (r) => { if (istSpeichern(r)) speicherungen.push(r.url()); });
+  type Kasten = { x: number; y: number; width: number; height: number };
+  const schneidet = (a: Kasten, b: Kasten) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  for (const fall of [{ width: 1440, height: 900, flyin: false }, { width: 1440, height: 900, flyin: true }, { width: 1024, height: 768, flyin: false }]) {
+    await page.setViewportSize({ width: fall.width, height: fall.height });
+    await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=diagramm")));
+    for (const id of ["fuekw", "ea1", "ea2", "ea4", "el"]) {
+      const was = `${id} bei ${fall.width}${fall.flyin ? " mit Flyin" : ""}`;
+      await klickeWennRuhig(page.locator(`.kp-betrachter [data-karte="${id}"]`));
+      if (fall.flyin) { await klickeWennRuhig(page.locator('[data-griff="bearbeiten"]')); await expect(flyinTitel(page)).toBeVisible(); }
+      await expect(page.locator(".kp-betrachter")).toHaveAttribute("data-eingepasst", "true");
+      const leiste = (await page.locator(".kp-auswahlleiste").boundingBox())!;
+      const elemente = await page.locator(".kp-betrachter [data-karte], .kp-betrachter [data-einheit], .kp-betrachter [data-sechseck]").evaluateAll((els) =>
+        els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, name: e.getAttribute("data-karte") ?? e.getAttribute("data-einheit") ?? e.getAttribute("data-sechseck") ?? "?" }; }));
+      for (const e of elemente) expect(schneidet(leiste, e), `Auswahlleiste über ${e.name} (${was})`).toBe(false);
+      const umschalter = page.locator(`.kp-betrachter [data-karte="${id}"] [data-umschalter], .kp-betrachter [data-umschalter="${id}"]`).first();
+      if (await umschalter.count()) {
+        const u = (await umschalter.boundingBox())!;
+        const trifft = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest("[data-umschalter]") !== null, [u.x + u.width / 2, u.y + u.height / 2]);
+        expect(trifft, `Einklapp-Umschalter treffbar (${was})`).toBe(true);
+      }
+      await page.keyboard.press("Escape");
+      if (fall.flyin) await page.keyboard.press("Escape");
+    }
+  }
+  expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
+});
+
+test("Auswahlleiste am Telefon: „Bearbeiten“ und „+ Unterstelle“ liegen ganz im Bildschirm (Phase 4, Entscheidung 15)", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=diagramm")));
+  await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea1"]'));
+  for (const griff of ["bearbeiten", "unter"]) {
+    const b = (await page.locator(`.kp-auswahlleiste [data-griff="${griff}"]`).boundingBox())!;
+    expect(b.x, `${griff}: links`).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width, `${griff}: rechts`).toBeLessThanOrEqual(390);
+  }
+  await expect(page.locator(".kp-auswahl-name")).toBeHidden();
+  await page.keyboard.press("Escape");
 });
 
 test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, context }) => {
@@ -309,9 +357,11 @@ const BREITEN = [{ name: "desktop", width: 1440, height: 900 }, { name: "tablet"
 const FOTOS = process.env.KOMMPLAN_FOTOS;
 
 async function ganzInDerFlaeche(page: Page, el: Locator, was: string): Promise<void> {
+  await el.scrollIntoViewIfNeeded(); // die Auswahlleiste scrollt am Telefon waagerecht (Phase 4, Entscheidung 15)
   await expect(el, was).toBeInViewport({ ratio: 1 });
   const rahmen = (await page.locator(".kp-betrachter").boundingBox())!;
   const b = (await el.boundingBox())!;
+  expect(b.y, `${was}: oben`).toBeGreaterThanOrEqual(rahmen.y);
   expect(b.x, `${was}: links`).toBeGreaterThanOrEqual(rahmen.x);
   expect(b.x + b.width, `${was}: rechts`).toBeLessThanOrEqual(rahmen.x + rahmen.width);
   expect(b.y + b.height, `${was}: unten`).toBeLessThanOrEqual(rahmen.y + rahmen.height);
@@ -366,14 +416,14 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       // ea2: Unterstelle mit Geschwistern und Einheiten — zeigt alle Griffe (el wäre eine Seitenstelle)
       await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea2"]'));
       await expect(page.locator('[data-griffe="ea2"]')).toBeVisible();
-      await ganzInDerFlaeche(page, page.getByRole("toolbar", { name: /^Auswahl:/ }), "Griffleiste ea2");
+      await ganzInDerFlaeche(page, page.getByRole("group", { name: /^Auswahl:/ }), "Auswahlleiste ea2");
       await foto(`auswahl-${n}`);
-      // die äußerste linke und rechte Karte: ihre Griffe (Leiste und seitliche „+") ganz im Bild (Kritik)
+      // die äußerste linke und rechte Karte: ihre Griffe in der Auswahlleiste ganz im Bild (Kritik)
       const lagen = await page.locator(".kp-betrachter [data-karte]").evaluateAll((els) =>
         els.map((e) => ({ id: e.getAttribute("data-karte")!, x: e.getBoundingClientRect().x })));
       const aussen = [lagen.reduce((a, c) => (c.x < a.x ? c : a)).id, lagen.reduce((a, c) => (c.x > a.x ? c : a)).id];
       for (const id of aussen) {
-        // Die Griffe der gewählten Karte decken am Telefon Nachbarkarten ab: erst abwählen (Esc), dann
+        // Erst abwählen (Esc), dann
         // eingepasst (0) — so sind auch die äußeren Karten im Bild und klickbar.
         await page.keyboard.press("Escape");
         await page.keyboard.press("0");

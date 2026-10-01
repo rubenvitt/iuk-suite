@@ -21,8 +21,21 @@ describe("kommplan.css", () => {
     const zweig = /@media \(min-width: 768px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(zweig).toMatch(/\.kp-editor\[data-flyin\] \{[^}]*padding-inline-end: var\(--kp-flyin-breite\)/);
   });
-  it("der seitliche Griff bricht nicht um: „+ links“ steht in einer Zeile (absolut neben einer schmalen Karte)", () => {
-    expect(css).toMatch(/\.kp-griffe \.kp-griff-seite \{[^}]*width: max-content/);
+  it("Auswahlleiste oben links in der Fläche, feste Höhe: bricht nie um, scrollt am Telefon waagerecht mit Schattenkante, Name dort ausgeblendet (Phase 3, Entscheidung 18)", () => {
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*position: absolute; top: 8px; left: 8px/);
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*flex-wrap: nowrap/);
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*overflow-x: auto/);
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*background-attachment: local, local, scroll, scroll/); // Schattenkante nur, solange etwas verborgen ist
+    expect(css).toMatch(/\.kp-auswahl-name \{[^}]*text-overflow: ellipsis/);
+    expect(css).toMatch(/@media \(max-width: 767\.98px\) \{[\s\S]*\.kp-auswahl-name \{ display: none; \}/);
+    expect(css).not.toMatch(/\.kp-griffleiste|\.kp-griff-seite|\.kp-griff-links|\.kp-griff-rechts/);
+  });
+  it("Rand der Auswahlleiste hebt sich ab (WCAG 1.4.11): mindestens 3:1 gegen ihre Fläche, hell und dunkel", () => {
+    const hell = /:root \{[^}]*--kp-leiste-flaeche: (#[0-9a-f]{6});[^}]*--kp-leiste-rand: (#[0-9a-f]{6});/i.exec(css);
+    const dunkel = /:root\[data-theme="dark"\] \{[^}]*--kp-leiste-flaeche: (#[0-9a-f]{6});[^}]*--kp-leiste-rand: (#[0-9a-f]{6});/i.exec(css);
+    expect(hell && dunkel).toBeTruthy();
+    expect(kontrast(hell![2], hell![1])).toBeGreaterThanOrEqual(3);
+    expect(kontrast(dunkel![2], dunkel![1])).toBeGreaterThanOrEqual(3);
   });
   it("die Zeichnung ist nur das SVG direkt in der Fläche — kein Knopf und kein Zeichenknopf erbt ihre Größe", () => {
     expect(css).toMatch(/\.kp-betrachter > svg \{[^}]*width: 100%/);

@@ -215,8 +215,8 @@ Speicherstatus. Arbeitsfläche füllt den Rest; bearbeitet wird im Flyin rechts 
 
 ### 6.3 Diagramm-Ansicht
 
-- Die ausgewählte Karte zeigt Griffe: unten „+ Unterstelle", seitlich „+ Seitenstelle", an der
-  Einheitenspalte „+ Einheit".
+- Die ausgewählte Karte trägt einen Auswahlrahmen; ihre Griffe („Bearbeiten", „+ Unterstelle", „+ Einheit", „+ links", „+ rechts")
+  stehen in einer Auswahlleiste oben in der Fläche, die eingepasst über keinem Planelement liegt (an der Karte verdeckten 44-px-Griffe Nachbarn).
 - Neues Element wird sofort gesetzt, ausgewählt, Fokus im Titelfeld. Das Layout gleitet an die neue
   Position (kurze Animation, ohne bei `prefers-reduced-motion`).
 - Tastatur: Pfeile wandern durch den Baum, Enter öffnet das Flyin, `N` neue Unterstelle, Entf

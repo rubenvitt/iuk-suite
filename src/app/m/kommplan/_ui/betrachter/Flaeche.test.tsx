@@ -86,4 +86,8 @@ describe("Fläche", () => {
     await zeige();
     expect(exists("symbol")).toBe(true);
   });
+  it("platzOben: die eingepasste Zeichnung beginnt so weit unter der Oberkante (Platz für die Auswahlleiste)", async () => {
+    await zeige({ platzOben: 72 });
+    expect(query("[data-ansicht]").getAttribute("transform")).toMatch(/^translate\([-\d.]+ 72\)/);
+  });
 });

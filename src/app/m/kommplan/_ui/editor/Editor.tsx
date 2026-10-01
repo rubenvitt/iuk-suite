@@ -23,7 +23,7 @@ import { Gliederung, type GliederungGriff } from "../gliederung/Gliederung";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
 import { BibliothekAnbieter } from "./bibliothekKontext";
-import { Griffe } from "./Griffe";
+import { AUSWAHLLEISTE, Griffe } from "./Griffe";
 import { neueId } from "./ids";
 import { Kopfleiste, statusText, VERLAUFSKNOPF } from "./Kopfleiste";
 import { wandere } from "./navigation";
@@ -47,13 +47,13 @@ const BEDIENZEILE = "Pfeile wählen · Enter oder F2 bearbeitet · N neue Unters
 /** Deckel der eingepassten Ansicht (Entscheidung 18): eine einzelne Karte nicht mit Maßstab 16. */
 export const EDITOR_MASSSTAB = 4;
 /**
- * Luft um eine gezeigte Karte: oben nur der übliche Rand (über einer Karte steht kein Griff); seitlich
- * 8 px + Knopf „+ rechts" (gemessen 84 px, Phase 3; kompakt seit dem Review 73 px — Reserve) + 12 px; unten 8 px + Griffleiste, am Telefon zweizeilig
- * (2 × 44 + 8) + 16 px. Dieselben Zahlen gibt der Editor der Fläche fürs Einpassen (`platzSeite`,
- * `platzUnten`): eingepasst liegen die Griffe jeder Karte schon im Bild, `zeige()` verschiebt dann
- * nichts, und die Ansicht bleibt eingepasst (Entscheidung 18).
+ * Luft um eine gezeigte Karte (Phase 3, Entscheidung 18; Phase 4, Entscheidung 15): oben die Auswahlleiste
+ * (`AUSWAHLLEISTE`) plus 8 px, seitlich nur der Auswahlrahmen (4 px außen) plus Luft, unten der Meldungsplatz
+ * (12 px + eine Alert-Zeile + Luft). Dieselben Zahlen gibt der Editor der Fläche fürs Einpassen (`platzOben`,
+ * `platzSeite`, `platzUnten`): eingepasst liegt die Leiste über keiner Karte, `zeige()` verschiebt nichts,
+ * die Ansicht bleibt eingepasst (Phase 2, Entscheidung 18); gezoomt hält `zeige()` die Karte unter der Leiste.
  */
-export const GRIFF_RAND = { oben: 16, seite: 104, unten: 120 };
+export const GRIFF_RAND = { oben: AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8, seite: 16, unten: 72 };
 
 /** Die Vorfahren einer Stelle (ohne sie selbst) — zum Aufklappen, damit eine bearbeitete Stelle sichtbar bleibt. */
 function vorfahren(p: PlanInhalt, id: string | null): string[] {
@@ -439,7 +439,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
           onNeuLaden={neuLaden} onBehalten={behalten} />
         <div className="kp-ansicht-diagramm">
           <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
-            griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
+            griff={flaeche} gleitend linienSchluessel={String(linien)} maxMassstab={EDITOR_MASSSTAB} platzOben={GRIFF_RAND.oben} platzSeite={GRIFF_RAND.seite} platzUnten={GRIFF_RAND.unten}
             flyinGrund={flyinGrund} defs={false}
             zusatz={(k) => <Umschalter k={k} onUmschalten={umschalten} />}
             onKarteKlick={klick} onTaste={taste} meldung={meldung}
