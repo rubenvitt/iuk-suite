@@ -381,6 +381,14 @@
     "kind": "context",
     "via": "DELETE"
   },
+  "src/app/m/kommplan/_actions/briefkopf.ts#entferneLogoAction": {
+    "kind": "context",
+    "via": "entferneLogoAction"
+  },
+  "src/app/m/kommplan/_actions/briefkopf.ts#speichereOrganisationAction": {
+    "kind": "context",
+    "via": "speichereOrganisationAction"
+  },
   "src/app/m/kommplan/_actions/plan.ts#ladeStandAction": {
     "kind": "excluded",
     "reason": "Liest nur Version, Inhalt und Angaben eines Plans, damit der Editor nach Browser-Zurück keinen veralteten Stand zeigt; schreibt nichts."
@@ -400,6 +408,14 @@
   "src/app/m/kommplan/_actions/zeichen.ts#ladeZeichenAction": {
     "kind": "excluded",
     "reason": "Liest nur Zeichen-SVGs aus dem eingecheckten Generat für die Suche im Editor; schreibt nichts."
+  },
+  "src/app/m/kommplan/logo/route.ts#POST": {
+    "kind": "context",
+    "via": "POST",
+    "denial": {
+      "via": "POST",
+      "reason": "Local nonthrowing origin (CSRF) rejection records access_denied; permission denials throw inside requireKommplanBearbeitenAktion and are audited there."
+    }
   },
   "src/app/m/lagerbuch/_actions/artikel.ts#createArtikel": {
     "kind": "context",

@@ -37,6 +37,7 @@ const zaehle = (q: string, muster: RegExp) => (q.match(new RegExp(muster.source,
  */
 const AUSSERHALB: Record<string, string> = {
   "layout.tsx": "Modulwurzel, bewusst ohne Riegel: die Token-Ansicht ist anonym",
+  "logo/route.ts": "Route Handler für den Logo-Upload (Server Actions nehmen höchstens 1 MB): eigener Riegel und Herkunftsprüfung, Antwort statt notFound",
 };
 
 describe("kommplan: jede Fläche trägt ihren Riegel", () => {
@@ -56,5 +57,11 @@ describe("kommplan: jede Fläche trägt ihren Riegel", () => {
     const q = code("layout.tsx");
     expect(q).not.toMatch(/_db|getDb|ladePlan|plaene/);
     expect(q).toMatch(/return children;/);
+  });
+  it("logo/route.ts trägt seinen Riegel selbst: Bearbeiten-Riegel und Herkunft je genau einmal, kein Datenbankzugriff davor", () => {
+    const q = code("logo/route.ts");
+    expect(zaehle(q, /await requireKommplanBearbeitenAktion\(\)/)).toBe(1);
+    expect(zaehle(q, /gleicheHerkunft\(request\.headers\)/)).toBe(1);
+    expect(q.indexOf("requireKommplanBearbeitenAktion()")).toBeLessThan(q.indexOf("getDb()"));
   });
 });
