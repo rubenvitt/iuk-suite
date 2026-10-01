@@ -58,6 +58,78 @@ describe("Druckdaten (Spec §5.6, §8.1)", () => {
   });
 });
 
+describe("QR-Ziel (Entscheidungen 9, 10)", () => {
+  it("intern: nur mit Option, Adresse und gültigem Link — dann der beste, mit Notiz und Ablauf für den Satz", async () => {
+    const db = await mitSeed();
+    const ohne = ladePlanLesend(db, "beispiel-openr-2022-07-01")!;
+    aus(db, ohne.id, "24h");
+    expect(qrZielIntern(db, ohne, true, JETZT, BASIS)).toBeNull(); // Option aus
+    const p = mitQrOption(db, ohne.id);
+    const unbegrenzt = aus(db, p.id, "unbegrenzt");
+    expect(qrZielIntern(db, p, true, JETZT, BASIS)).toEqual({ url: `${BASIS}/t/${unbegrenzt.token}`, notiz: null, ablauf: null });
+    expect(qrZielIntern(db, p, true, JETZT, null)).toBeNull(); // keine Adresse eingerichtet
+    expect(qrZielIntern(db, p, false, JETZT, BASIS)).toBeNull(); // nur Zugangsgruppe: kein QR, der Code wäre der Link
+  });
+  it("Token-Druck: IMMER der benutzte Token, nie der beste Link des Plans (Review Focus 1)", async () => {
+    const db = await mitSeed();
+    const p = mitQrOption(db, "beispiel-openr-2022-07-01");
+    const kurz = aus(db, p.id, "24h");
+    aus(db, p.id, "unbegrenzt");
+    expect(qrUrlFuerToken(p, kurz.token, BASIS)).toBe(`${BASIS}/t/${kurz.token}`);
+  });
+  it("Token-Druck ohne die Option qrAufDruck: kein QR, auch mit gültigem Token", async () => {
+    const db = await mitSeed();
+    const p = ladePlanLesend(db, "beispiel-openr-2022-07-01")!;
+    expect(p.inhalt!.optionen.qrAufDruck).toBe(false);
+    expect(qrUrlFuerToken(p, aus(db, p.id, "unbegrenzt").token, BASIS)).toBeNull();
+  });
+  it("der gedruckte Code kodiert genau das Ziel — nicht nur das Attribut daneben (intern und Token)", async () => {
+    const db = await mitSeed();
+    const p = mitQrOption(db, "beispiel-openr-2022-07-01");
+    const kurz = aus(db, p.id, "24h");
+    aus(db, p.id, "unbegrenzt");
+    const ziele = [qrZielIntern(db, p, true, JETZT, BASIS)!.url, qrUrlFuerToken(p, kurz.token, BASIS)!];
+    expect(new Set(ziele).size).toBe(2);
+    for (const url of ziele) {
+      const d = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: url });
+      expect(d.rahmen.qr).toEqual(qrGrafikAus(await qrSvg(url), url));
+    }
+  });
+  it("archiviert: kein QR; Druckdaten tragen den QR nur, wenn ein Ziel da ist", async () => {
+    const db = await mitSeed();
+    const p = mitQrOption(db, "beispiel-einsatz-2026-02-22");
+    aus(db, p.id, "unbegrenzt");
+    const ziel = qrZielIntern(db, p, true, JETZT, BASIS)!;
+    const mit = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: ziel.url, qrSatz: "Der QR-Code führt auf …" });
+    expect(mit.rahmen.qr).toMatchObject({ ziel: ziel.url, module: expect.any(Number) });
+    expect(mit.qrSatz).toBe("Der QR-Code führt auf …");
+    const ohne = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null });
+    expect(ohne.rahmen.qr).toBeNull();
+    expect(ohne.qrSatz).toBeNull();
+    archiviere(db, p.id, JETZT);
+    expect(qrZielIntern(db, ladePlanLesend(db, p.id)!, true, JETZT, BASIS)).toBeNull();
+  });
+  it("Schwarzweiß-Option: graue Symbole und Rahmen mit schwarzweiss", async () => {
+    const db = await mitSeed();
+    const p0 = ladePlanLesend(db, "beispiel-einsatz-2026-02-22")!;
+    db.update(planTabelle).set({ inhalt: JSON.stringify(setzeOptionen(p0.inhalt!, { schwarzweiss: true })) }).where(eq(planTabelle.id, p0.id)).run();
+    const d = await druckseitenDaten(db, ladePlanLesend(db, p0.id)!, { format: "a4-quer", qrUrl: null });
+    expect(d.rahmen.schwarzweiss).toBe(true);
+    for (const s of Object.values(d.symbole)) for (const m of s.inhalt.matchAll(/#([0-9a-f]{6})\b/gi)) {
+      const h = m[1].toLowerCase();
+      expect(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6), `#${h}`).toBe(true);
+    }
+  });
+  it("SVG-Export nur auf Wunsch; Tag = Plandatum, sonst der Tag des Stands in der Suite-Zone", async () => {
+    const db = await mitSeed();
+    const p = ladePlanLesend(db, "beispiel-einsatz-2026-02-22")!;
+    expect((await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null })).svgExport).toBeNull();
+    expect((await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport).toEqual({ titel: p.titel, tag: "2026-02-22" });
+    const ohneDatum = { ...p, datum: null, aktualisiertAm: Date.UTC(2026, 8, 30, 22, 30) }; // 01.10.2026, 00:30 in Berlin
+    expect((await druckseitenDaten(db, ohneDatum, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport?.tag).toBe("2026-10-01");
+  });
+});
+
 describe("blaetterFuer: die Aufteilung je Inhalt gemerkt (Abnahme: Token-Druck blockiert den Prozess)", () => {
   const gross = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!.inhalt;
   it("gleicher Inhalt (auch als Kopie) liefert dieselben Blätter ohne neue Rechnung; Format, QR und Inhalt trennen", () => {
