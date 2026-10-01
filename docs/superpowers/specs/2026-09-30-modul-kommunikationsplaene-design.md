@@ -71,7 +71,7 @@ nicht in Zellen).
 | `bib_verbindung` | `id`, `art`, `bezeichnung`, `notiz` |
 | `freigabe` | `id`, `plan_id`, `token` (Klartext, eindeutig), `notiz`, `ablauf`, `widerrufen_am`, `erstellt_am`, `erstellt_von`, `zuletzt_abgerufen`, `abrufe` |
 
-| `briefkopf` | genau eine Zeile: `organisation` (Text, leer erlaubt), `logo` (Blob, leer erlaubt), `logo_mime`, `logo_sha256`, `aktualisiert_am`, `aktualisiert_von` |
+| `briefkopf` | genau eine Zeile (`id` = 1, Primärschlüssel): `organisation` (Text, leer erlaubt), `logo` (Blob, leer erlaubt), `logo_mime`, `logo_sha256`, `aktualisiert_am`, `aktualisiert_von` |
 
 `aktualisiert_am` ist der gedruckte „Stand". Zeiten rechnen über `core/zeit`; `datum` ist ein
 Kalendertag (Mitternacht UTC).
@@ -86,8 +86,8 @@ im Seed.
   ersetzen, entfernen; Vorschau des Kopfes.
 - Erlaubt: PNG, JPEG, WebP, SVG; höchstens 1 MB. Der Typ wird aus den ersten Bytes bestimmt, nicht
   aus Dateiname oder `Content-Type`. Jede Datei geht durch den Virenscanner (`core/av`, wie
-  `aufgaben`). SVG wird vor dem Speichern bereinigt (kein `script`, `foreignObject`, keine
-  `on*`-Attribute, keine externen Verweise); was danach nicht mehr gültig ist, wird abgelehnt.
+  `aufgaben` — per Pfad über eine Wegwerfdatei auf dem Volume `kommplan_scan`). SVG wird vor dem Speichern bereinigt (kein `script`, `foreignObject`, keine
+  `on*`-Attribute, keine externen Verweise, keine `javascript:`-URLs; `<style>` bleibt bereinigt erhalten); was danach nicht mehr gültig ist, wird abgelehnt.
 - Eingebettet wird das Logo als `data:`-URI in einem `<image>` der Zeichnung. So braucht weder der
   Druck noch die Token-Ansicht eine eigene Bildroute, und ein SVG-Logo führt dort nie Skript aus.
 - Hochladen, Ersetzen und Entfernen gehen ins Audit-Log.
@@ -199,11 +199,12 @@ zeigt dann ein Abzeichen „+n Stellen". Eingeklappt ist Ansichtszustand, nicht 
 
 | Route | Inhalt |
 |---|---|
-| `/m/kommplan` | Planliste: Titel, Typ, Datum, Stand; Neu / Aus Vorlage / Duplizieren; Archiv |
+| `/m/kommplan` | Planliste: Titel, Typ, Datum, Stand; Neu / Aus Vorlage / Duplizieren; Archiv; Vorlagen getrennt |
 | `/m/kommplan/[id]` | Editor (Admin) bzw. Betrachter (Zugangsgruppe) |
 | `/m/kommplan/[id]/druck/a4`, `…/a3` | Druckrouten (§8) |
 | `/m/kommplan/bibliothek` | Stellen, Einheiten, Verbindungen |
 | `/m/kommplan/einstellungen` | Briefkopf: Organisation und Logo (§4.4) |
+| `/m/kommplan/archiv` | Archiv: archivierte Pläne, nur lesbar; Wiederherstellen (Bearbeitende) |
 | `/m/kommplan/t/[token]` | Token-Ansicht (§8) |
 
 Die Plan-ID wird in jeder Server Action und jeder Seite aus der Datenbank aufgelöst (IDOR, `CLAUDE.md`).
@@ -251,8 +252,8 @@ Speicherstatus. Arbeitsfläche füllt den Rest; bearbeitet wird im Flyin rechts 
 
 ### 6.7 Vorlagen und Duplizieren
 
-„Duplizieren" kopiert den Plan, setzt das Datum auf heute und ersetzt ein Datum im Titel. „Als
-Vorlage speichern" setzt `ist_vorlage`; „Aus Vorlage" legt eine Kopie an.
+„Duplizieren" kopiert den Plan, setzt das Datum auf heute (Suite-Zone) und ersetzt das erste Datum im Titel in derselben Schreibweise (sonst „ (Kopie)"). „Als Vorlage speichern" setzt
+`ist_vorlage` am Plan (er steht dann unter „Vorlagen"; „Keine Vorlage mehr" nimmt es zurück); „Neu aus Vorlage" legt eine Kopie an.
 
 ## 7. Taktische Zeichen
 
@@ -302,7 +303,7 @@ Server-Import im Build.
 
 ### 8.3 Archiv
 
-Pläne werden archiviert, nicht gelöscht, und sind wiederherstellbar. Ein archivierter Plan macht
+Pläne werden archiviert, nicht gelöscht, und sind wiederherstellbar; archiviert sind sie nur lesbar (ansehen, drucken). Ein archivierter Plan macht
 seine Token-Links sofort ungültig.
 
 ## 9. Aufteilung im Modul

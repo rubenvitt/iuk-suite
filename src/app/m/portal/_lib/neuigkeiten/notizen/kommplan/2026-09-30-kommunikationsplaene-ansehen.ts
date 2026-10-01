@@ -10,12 +10,14 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Pläne und Fernmeldeskizzen siehst du als Diagramm und druckst sie über „Drucken (A4 quer)“. " +
-        "Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an und baust ihn mit „+ Unterstelle“, „+ Einheit“, „+ links“ und „+ rechts“ auf. " +
-        "Alles speichert sich selbst, „Rückgängig“ holt Schritte zurück.",
+        "Mit Bearbeitungsrecht legst du über „Neu“ einen Plan an und baust ihn mit „+ Unterstelle“, „+ links“, „+ rechts“ und „+ Einheit“ auf. " +
+        "Alles speichert sich selbst.",
     ),
+    absatz("In der „Gliederung“ legt Enter die nächste Stelle an, Tab rückt ein; eine eingefügte, eingerückte Liste wird ein ganzer Zweig."),
     absatz(
-      "Unter „Gliederung“ bearbeitest du denselben Plan als eingerückte Liste: Enter legt die nächste Stelle an, Tab rückt ein, Umschalt+Tab rückt aus. " +
-        "Fügst du eine eingerückte Liste ein, entsteht daraus ein ganzer Zweig. Am Telefon öffnet der Plan direkt in der Gliederung.",
+      "Unter „Bibliothek“ pflegst du Stellen, Einheiten und Verbindungen für „Aus Bibliothek“. " +
+        "Unter „Aktionen“ findest du „Duplizieren“, „Archivieren“ und „Als Vorlage speichern“. " +
+        "Organisation und Logo stehen unter „Einstellungen“.",
     ),
   ],
 };
