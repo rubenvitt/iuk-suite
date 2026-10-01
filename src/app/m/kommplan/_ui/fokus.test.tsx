@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
-import { fokussiereWennFrei } from "./fokus";
+import { fokussiereWennFrei, fokusVerloren } from "./fokus";
 
 afterEach(async () => { await unmount(); });
 
@@ -33,5 +33,17 @@ describe("fokussiereWennFrei (Abnahme: verspäteter Autofokus nahm Eingaben weg)
   });
   it("ohne Ziel passiert nichts", () => {
     expect(() => fokussiereWennFrei(null)).not.toThrow();
+  });
+});
+
+describe("fokusVerloren (nach dem Schließen eines Flyins)", () => {
+  it("body und alles in einer Schublade gilt als verloren, ein Feld außerhalb nicht", async () => {
+    await mount(schublade);
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(fokusVerloren()).toBe(true);
+    query("[aria-label='Telefon']").focus();
+    expect(fokusVerloren()).toBe(true);
+    query("[data-aussen]").focus();
+    expect(fokusVerloren()).toBe(false);
   });
 });
