@@ -29,7 +29,7 @@ async function lausche(reagiere: (pfad: string) => string) {
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "kommplan-scan-")); vi.stubEnv("DATA_DIR", dir); });
-afterEach(() => { vi.unstubAllEnvs(); rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); rmSync(dir, { recursive: true, force: true }); });
 
 describe("scanneLogo (Umsetzungsplan Phase 4, Entscheidung 4)", () => {
   it("schreibt die Bytes unter $DATA_DIR/kommplan-scan (0640), clamd liest sie per zSCAN, danach ist die Datei weg", async () => {
@@ -48,16 +48,22 @@ describe("scanneLogo (Umsetzungsplan Phase 4, Entscheidung 4)", () => {
   it("ein Befund kommt als infected zurück, die Datei ist trotzdem weg", async () => {
     const l = await lausche((pfad) => `${pfad}: Win.Test.EICAR_HDB-1 FOUND`);
     try {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
       expect(await scanneLogo(new Uint8Array([1]), { host: "127.0.0.1", port: l.port, timeoutMs: 2000 })).toEqual({ art: "infected", signatur: "Win.Test.EICAR_HDB-1" });
       expect(readdirSync(scanWurzel())).toEqual([]);
+      // Der Betrieb erfährt vom Fund (Muster aufgaben/files; Review Phase 4) — die Nutzerin sieht nur die 422.
+      expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[kommplan\]\[logo-scan\] Fund im Logo-Upload: Win\.Test\.EICAR_HDB-1$/));
     } finally { await l.stoppe(); }
   });
   it("kein Scanner erreichbar: error (fail-closed), die Datei ist weg", async () => {
     const l = await lausche(() => "");
     const port = l.port;
     await l.stoppe();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const r = await scanneLogo(new Uint8Array([1]), { host: "127.0.0.1", port, timeoutMs: 2000 });
     expect(r.art).toBe("error");
+    // Ein dauerhaft fehlender Scanner lässt JEDEN Upload scheitern — das muss im Log stehen (Review Phase 4).
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[kommplan\]\[logo-scan\] Prüfung nicht möglich: /));
     expect(readdirSync(scanWurzel())).toEqual([]);
   });
   it("liest nur die eigenen Variablen KOMMPLAN_AV_* — Vorgaben clamav, 3310, 30 s", () => {

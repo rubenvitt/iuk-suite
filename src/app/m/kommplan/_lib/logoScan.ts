@@ -41,7 +41,12 @@ export async function scanneLogo(bytes: Uint8Array, konfig: AvKonfig = avKonfigA
   try {
     await mkdir(ordner, { recursive: true, mode: 0o750 });
     await writeFile(pfad, bytes, { mode: 0o640, flag: "wx" });
-    return await scanne(pfad, konfig);
+    const r = await scanne(pfad, konfig);
+    // `scanne` wirft bei Befund und Verbindungsfehler nicht, es gibt sie zurück: hier ins Log, sonst erführe der
+    // Betrieb weder von einem Fund noch von einem dauerhaft fehlenden Scanner (Muster aufgaben/_lib/scan.ts).
+    if (r.art === "infected") console.error(`[kommplan][logo-scan] Fund im Logo-Upload: ${r.signatur}`);
+    if (r.art === "error") console.error(`[kommplan][logo-scan] Prüfung nicht möglich: ${r.grund}`);
+    return r;
   } catch (fehler) {
     const grund = fehler instanceof Error ? fehler.message : String(fehler);
     console.error(`[kommplan][logo-scan] Prüfung nicht möglich: ${grund}`);
