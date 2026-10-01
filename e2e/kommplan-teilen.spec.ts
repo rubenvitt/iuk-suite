@@ -8,15 +8,15 @@ import { ADMIN, ersteStelle, istAktion, istSpeichern, neuerPlan, rumpf, url } fr
 
 /**
  * Kommunikationspläne, Phase 5: Token-Links (Spec §8.2), Druck A3, QR, Schwarzweiß, SVG-Datei. Die anonymen
- * Kontexte tragen je eine eigene `cf-connecting-ip` — die Fehlversuchs-Schranke lebt im Prozessspeicher des
+ * Kontexte tragen je eine eigene `cf-connecting-ip` — der Entpreller der Abrufzählung lebt im Prozessspeicher des
  * einen Servers dieser Gruppe, und ohne Kopf teilten sich alle den Eimer "unknown" (Umsetzungsplan Phase 5,
- * Entscheidung 5).
+ * Entscheidung 5; die Fehlversuchs-Sperre fiel in der Abnahme weg).
  */
 const neu = () => Math.random().toString(36).slice(2, 7);
 /**
  * Absenderadressen der anonymen Kontexte: IPv6-Dokumentationsnetz (RFC 3849), `LAUF` je Laden dieser Datei neu —
  * ein CI-Wiederholungslauf (neuer Worker) und ein zweiter lokaler Lauf gegen einen wiederverwendeten Server treffen
- * so nie die Fehlversuche eines früheren Versuchs (Kritik).
+ * so nie die gezählten Abrufe eines früheren Versuchs (Kritik).
  */
 const LAUF = randomBytes(2).toString("hex");
 const ip = (n: number) => `2001:db8:${LAUF}::${n}`;
@@ -186,25 +186,19 @@ test("404 ist ununterscheidbar: unbekannt, falsch geformt, widerrufen, archivier
   await seite.context().close();
 });
 
-test("Fehlversuchs-Schranke: 29 Fehlversuche sperren nicht (Layout und Seite buchen einmal), der dreißigste sperrt die Adresse — nur sie", async ({ page, browser }) => {
+test("keine Fehlversuchs-Sperre (Abnahme): vierzig Fehlversuche derselben Adresse — der gültige Link bleibt offen", async ({ page, browser }) => {
   test.setTimeout(120_000);
   await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
   await neuerPlan(page, `e2e Schranke ${neu()}`);
   await oeffneTeilen(page);
   const link = await stelleAus(page, "7 Tage", "schranke");
   const rater = await anonym(browser, ip(33));
-  // `request.get` statt `goto`: rendert Layout UND Seite ebenso (sonst prüfte der Test die Doppelbuchung nicht), ist
-  // aber schnell genug, dass 29 Abrufe unter Last im gleitenden 60-s-Fenster bleiben (Entscheidung 5). Der Kopf
-  // `cf-connecting-ip` kommt aus den extraHTTPHeaders des Kontexts; hier zur Sicherheit noch einmal ausdrücklich.
+  // `request.get` statt `goto`: rendert Layout UND Seite ebenso, ist aber schnell genug, dass alle Fehlversuche unter
+  // Last in eine Minute fallen — so prüft der Test eine Sperre, wie sie früher griff (dreißig je Minute).
   const kopf = { headers: { "cf-connecting-ip": ip(33) } };
-  for (let i = 0; i < 29; i++) expect((await rater.request.get(url(`/t/${"R".repeat(41)}${String(i).padStart(2, "0")}`), kopf)).status()).toBe(404);
-  expect((await rater.goto(link))?.status(), "nach 29 Fehlversuchen noch offen — sonst bucht die Anfrage doppelt").toBe(200);
-  expect((await rater.request.get(url(`/t/${"R".repeat(42)}X`), kopf)).status()).toBe(404);
-  expect((await rater.goto(link))?.status(), "nach dem dreißigsten gesperrt, auch für einen gültigen Link").toBe(404);
-  const andere = await anonym(browser, ip(34));
-  expect((await andere.goto(link))?.status()).toBe(200);
+  for (let i = 0; i < 40; i++) expect((await rater.request.get(url(`/t/${"R".repeat(41)}${String(i).padStart(2, "0")}`), kopf)).status()).toBe(404);
+  expect((await rater.goto(link))?.status(), "nach vierzig Fehlversuchen derselben Adresse").toBe(200);
   await rater.context().close();
-  await andere.context().close();
 });
 
 test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbegrenzte Link; im Token-Druck der benutzte (Review Focus 1)", async ({ page, browser, context }) => {
