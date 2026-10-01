@@ -49,4 +49,13 @@ describe("DruckMenue (Entscheidung 12)", () => {
     await clickElement(punkte()[1]);
     expect(wahl).toHaveBeenCalledWith({ format: "a3", svg: false });
   });
+  it("mitSvg (intern): Gruppe „SVG-Dateien“ öffnet die Druckroute mit ?export=svg — ohne Druckdialog", async () => {
+    const auf = vi.spyOn(window, "open").mockReturnValue(null);
+    await mount(<DruckMenue basis="/p/x" mitSvg />);
+    await oeffne();
+    expect(punkte().map((p) => p.textContent)).toEqual(["A4 quer", "A3 quer", "SVG – A4 quer", "SVG – A3 quer"]);
+    await clickElement(punkte()[3]);
+    expect(auf).toHaveBeenLastCalledWith("/p/x/druck/a3?export=svg", "_blank", "noopener");
+    auf.mockRestore();
+  });
 });

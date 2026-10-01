@@ -83,7 +83,7 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
             <Button {...VERLAUFSKNOPF} className="kp-ganze-zeile" onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
             <Button className="kp-ganze-zeile" onClick={onPlan}>Plan und Verbindungen</Button>
             <Button onClick={onTeilen}>Teilen</Button>
-            <DruckMenue onWahl={onDrucken} />
+            <DruckMenue onWahl={onDrucken} mitSvg />
             <span className="kp-speicherstatus kp-nur-breit" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
           </div>
         } />

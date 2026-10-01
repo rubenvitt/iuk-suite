@@ -222,6 +222,9 @@ function schreibe(datei: string, wert: unknown): void {
 mkdirSync(ZIEL, { recursive: true });
 schreibe("zeichen.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichen) });
 schreibe("zeichen-sw.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichenSw) });
+// Die Schrift für den SVG-Export (Phase 5, Entscheidung 15): als Base64, damit sie gebündelt wird — unter
+// `output: "standalone"` ist `_fonts/` zur Laufzeit nicht mitkopiert. Gelesen nur beim Klick (`SvgHerunterladen`).
+schreibe("schrift.generiert.json", { stand: STAND, arimoVariable: readFileSync(TEXT_FONT_PATH).toString("base64") });
 schreibe("grundlagen.generiert.json", { stand: STAND, metrik, piktogramme: nachSchluessel(piktogramme) });
 
 // 5. Arimo kopieren — nur im kanonischen Lauf, ein Probelauf fasst den Arbeitsbaum nicht an.

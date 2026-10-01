@@ -9,6 +9,7 @@ import { SECHSECK } from "../layout/masse";
 import { VERBINDUNG_PIKTOGRAMM } from "./grundlagen";
 import zeichen from "./zeichen.generiert.json";
 import zeichenSw from "./zeichen-sw.generiert.json";
+import schrift from "./schrift.generiert.json";
 import grundlagen from "./grundlagen.generiert.json";
 
 const ORDNER = "src/app/m/kommplan/_lib/zeichen";
@@ -21,7 +22,7 @@ describe("kommplan-Generat", () => {
     const ziel = mkdtempSync(join(tmpdir(), "kommplan-generat-"));
     try {
       execFileSync("pnpm", ["exec", "tsx", "scripts/kommplan-zeichen-generat.ts", ziel], { stdio: "pipe" });
-      for (const datei of ["zeichen.generiert.json", "zeichen-sw.generiert.json", "grundlagen.generiert.json"]) {
+      for (const datei of ["zeichen.generiert.json", "zeichen-sw.generiert.json", "grundlagen.generiert.json", "schrift.generiert.json"]) {
         expect(
           readFileSync(join(ziel, datei), "utf8") === readFileSync(join(ORDNER, datei), "utf8"),
           `${datei} ist veraltet — pnpm exec tsx scripts/kommplan-zeichen-generat.ts`,
@@ -131,5 +132,11 @@ describe("kommplan-Generat", () => {
       expect(normal[String(cp)] / upem).toBeCloseTo(erwartet, 12);
       expect(fett[String(cp)] / upem).toBeCloseTo(ARIMO_TEXT_METRICS.bold!.advanceEm(cp)!, 12);
     }
+  });
+  it("die Schrift für den SVG-Export ist Arimo-Variable des Katalogs, byteweise (Entscheidung 15)", () => {
+    const bytes = Buffer.from(schrift.arimoVariable, "base64");
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(TEXT_FONT_SHA256);
+    expect(sha("src/app/m/kommplan/_fonts/Arimo-Variable.ttf")).toBe(TEXT_FONT_SHA256);
+    expect(schrift.stand).toEqual(zeichen.stand);
   });
 });

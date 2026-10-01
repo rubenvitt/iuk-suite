@@ -119,7 +119,7 @@ describe("kommplan: Importgrenzen", () => {
 
   it("geteilte Ordner sind rein: kein use client, kein next/*, kein node:*, kein react-dom", () => {
     const geteilt = laufzeit.filter((p) =>
-      ["_lib/layout/", "_lib/plan/", "_lib/beispiele/", "_ui/zeichnung/", "_lib/angaben.ts", "_lib/ergebnis.ts", "_lib/editorAnsicht.ts", "_lib/logo/", "_lib/bibliothek/", "_lib/tagesfassung.ts", "_lib/herkunft.ts", "_lib/freigabe/", "_lib/qrGrafik.ts"].some((o) => relative(MODUL, p).startsWith(o)),
+      ["_lib/layout/", "_lib/plan/", "_lib/beispiele/", "_ui/zeichnung/", "_lib/angaben.ts", "_lib/ergebnis.ts", "_lib/editorAnsicht.ts", "_lib/logo/", "_lib/bibliothek/", "_lib/tagesfassung.ts", "_lib/herkunft.ts", "_lib/freigabe/", "_lib/qrGrafik.ts", "_lib/dateiname.ts"].some((o) => relative(MODUL, p).startsWith(o)),
     );
     for (const p of geteilt) {
       const q = quelltext(p);
@@ -149,5 +149,12 @@ describe("kommplan: Importgrenzen", () => {
         .filter((d) => d.startsWith("_actions/") || d.startsWith("_ui/editor/") || d.startsWith("_ui/teilen/") || d.startsWith("(intern)/"));
       expect(treffer, `${relative(MODUL, r)} zieht ${treffer.join(", ")}`).toEqual([]);
     }
+  });
+  it("die Schrift-Generat lädt nur SvgHerunterladen, und nur per dynamischem import() — nie im Bündel jeder Druckseite", () => {
+    const leser = laufzeit.filter((p) => /schrift\.generiert\.json/.test(ohneKommentare(quelltext(p))));
+    expect(leser.map((p) => relative(MODUL, p))).toEqual(["_ui/druck/SvgHerunterladen.tsx"]);
+    const q = ohneKommentare(quelltext(leser[0]));
+    expect(q).toMatch(/await import\(\s*["'][^"']*schrift\.generiert\.json["']\s*\)/);
+    expect(q).not.toMatch(/from\s+["'][^"']*schrift\.generiert\.json["']/);
   });
 });

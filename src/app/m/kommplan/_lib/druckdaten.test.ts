@@ -79,4 +79,12 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
       expect(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6), `#${h}`).toBe(true);
     }
   });
+  it("SVG-Export nur auf Wunsch; Tag = Plandatum, sonst der Tag des Stands in der Suite-Zone", async () => {
+    const db = await mitSeed();
+    const p = ladePlanLesend(db, "beispiel-einsatz-2026-02-22")!;
+    expect((await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null })).svgExport).toBeNull();
+    expect((await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport).toEqual({ titel: p.titel, tag: "2026-02-22" });
+    const ohneDatum = { ...p, datum: null, aktualisiertAm: Date.UTC(2026, 8, 30, 22, 30) }; // 01.10.2026, 00:30 in Berlin
+    expect((await druckseitenDaten(db, ohneDatum, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport?.tag).toBe("2026-10-01");
+  });
 });

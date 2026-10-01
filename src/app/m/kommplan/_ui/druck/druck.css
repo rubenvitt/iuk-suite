@@ -28,6 +28,8 @@
 .kp-druck .kp-druck-knopf { text-align: center; margin-block-end: 16px; }
 
 .kp-druck .kp-druck-qr-satz { text-align: center; margin: 0 0 8px; }
+.kp-druck .kp-druck-svg-hinweis { text-align: center; margin: 0 0 8px; }
+.kp-druck .kp-blatt-werkzeug { text-align: center; margin-block-end: 8px; }
 
 @media print {
   body { background: #fff; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

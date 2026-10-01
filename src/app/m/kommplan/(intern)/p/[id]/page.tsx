@@ -57,7 +57,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
         titel={plan.titel}
         zurueck={{ titel: "Alle Pläne", href: "/" }}
         beschreibung={beschreibungFuer(plan)}
-        aktionen={plan.inhalt ? <DruckMenue basis={`/p/${plan.id}`} /> : undefined}
+        aktionen={plan.inhalt ? <DruckMenue basis={`/p/${plan.id}`} mitSvg /> : undefined}
       />
       {plan.archiviertAm !== null ? (
         <Card className="kp-archivhinweis" role="status" style={{ marginBlockEnd: 12 }} styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}>

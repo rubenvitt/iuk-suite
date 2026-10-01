@@ -27,10 +27,13 @@ function Pfeil() {
  * Pfeiltasten wählen. Mit `basis` (Pfad ohne `/druck/…`) öffnet die Wahl die Druckroute in einem neuen Tab —
  * Betrachter und Token-Ansicht. KEINE Anker im Menü: rc-menu aktiviert einen Punkt per Enter nur über `onClick`,
  * ein `<a>` im Label bliebe für die Tastatur tot. Mit `onWahl` entscheidet der Aufrufer: der Editor speichert erst
- * und öffnet das Fenster synchron im Klick (Phase-2-Entscheidung 12).
+ * und öffnet das Fenster synchron im Klick (Phase-2-Entscheidung 12). Intern (`mitSvg`) zusätzlich die SVG-Dateien ohne Druckdialog (Entscheidung 15).
  */
-export function DruckMenue({ basis, onWahl }: { basis?: string; onWahl?: (w: DruckWahl) => void }) {
-  const items: MenuProps["items"] = DRUCKFORMATE.map((f) => ({ key: f.key, label: f.label }));
+export function DruckMenue({ basis, onWahl, mitSvg = false }: { basis?: string; onWahl?: (w: DruckWahl) => void; mitSvg?: boolean }) {
+  const items: MenuProps["items"] = [
+    ...DRUCKFORMATE.map((f) => ({ key: f.key, label: f.label })),
+    ...(mitSvg ? [{ type: "group" as const, label: "SVG-Dateien", children: DRUCKFORMATE.map((f) => ({ key: `${f.key}-svg`, label: `SVG – ${f.label}` })) }] : []),
+  ];
   const waehle = (w: DruckWahl) => {
     if (basis) window.open(druckZiel(basis, w), "_blank", "noopener");
     else onWahl?.(w);
@@ -38,7 +41,7 @@ export function DruckMenue({ basis, onWahl }: { basis?: string; onWahl?: (w: Dru
   return (
     <Space.Compact className="kp-druckmenue">
       <Button onClick={() => waehle({ format: "a4", svg: false })}>Drucken</Button>
-      <Dropdown trigger={["click"]} autoFocus menu={{ items, onClick: ({ key }) => waehle({ format: key as DruckFormatKurz, svg: false }) }}>
+      <Dropdown trigger={["click"]} autoFocus menu={{ items, onClick: ({ key }) => { const [format, art] = key.split("-"); waehle({ format: format as DruckFormatKurz, svg: art === "svg" }); } }}>
         <Button aria-label="Weitere Druckformate" aria-haspopup="menu"><Pfeil /></Button>
       </Dropdown>
     </Space.Compact>
