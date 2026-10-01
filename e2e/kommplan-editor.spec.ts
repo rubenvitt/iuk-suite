@@ -334,7 +334,7 @@ test("Drucken aus dem Editor zeigt den gerade getippten Stand", async ({ page, c
   const gespeichert = page.waitForResponse(istSpeichern); // Drucken speichert vorher (Entscheidung 12)
   const neueSeite = context.waitForEvent("page");
   await klickeWennRuhig(page.getByRole("button", { name: "Weitere Druckformate" }));
-  await klickeWennRuhig(page.getByRole("menuitem", { name: "A3 quer" }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "A3 quer", exact: true }));
   expect((await gespeichert).status()).toBe(200);
   const druck = await neueSeite;
   await druck.waitForURL(/\/druck\/a3$/);

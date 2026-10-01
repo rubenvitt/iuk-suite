@@ -57,11 +57,11 @@ test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page })
   await page.getByRole("button", { name: "Weitere Druckformate" }).focus();
   await page.keyboard.press("Enter");
   // Erst wenn der Fokus im Menü steht (autoFocus setzt ihn nach dem Öffnen), führen die Pfeile durch die Punkte.
-  await expect(page.getByRole("menuitem", { name: "A4 quer" })).toBeFocused();
+  await expect(page.getByRole("menuitem", { name: "A4 quer", exact: true })).toBeFocused();
   const popup = page.waitForEvent("popup");
   for (let i = 0; i < PFEIL_RUNTER_BIS_A3; i++) await page.keyboard.press("ArrowDown");
   // rc-menu liest den aktiven Punkt beim Enter aus seinem Zustand: erst drücken, wenn er angekommen ist.
-  await expect(page.getByRole("menuitem", { name: "A3 quer" })).toBeFocused();
+  await expect(page.getByRole("menuitem", { name: "A3 quer", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   const druck = await popup;
   await druck.waitForURL(/\/druck\/a3$/);
