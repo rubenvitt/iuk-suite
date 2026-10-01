@@ -180,8 +180,13 @@ export default cloudTauglich(defineConfig({
        * Ersetzen-Frage braucht aber einen VORHANDENEN echten Rechner, den erst dieses Paar
        * ermöglicht.
        */
+      /*
+       * `scripts/seed-lokal.ts kommplan` (Kommunikationspläne, Phase 1): dasselbe Muster wie `uav` —
+       * kein Boot-Seed, also legt erst diese Zeile die Beispielpläne an, die `e2e/kommplan.spec.ts`
+       * über ihre festen IDs öffnet.
+       */
       command:
-        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx e2e/seed-einsatzbuch.ts && ${nextServerBefehl(E2E_PORTS.web)}`,
+        `rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx scripts/seed-lokal.ts kommplan && pnpm exec tsx e2e/seed-einsatzbuch.ts && ${nextServerBefehl(E2E_PORTS.web)}`,
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -270,6 +275,11 @@ export default cloudTauglich(defineConfig({
         AUFGABEN_AV_HOST: "127.0.0.1",
         AUFGABEN_AV_PORT: String(E2E_PORTS.clamd),
         AUFGABEN_AV_TIMEOUT_MS: "2000",
+        // Logo-Upload der Kommunikationspläne (Phase 4): dasselbe Fake-clamd, eigene Variablen (`kommplan/_lib/logoScan.ts`).
+        // Ohne sie liefe jeder Upload gegen den Host „clamav" und scheiterte fail-closed.
+        KOMMPLAN_AV_HOST: "127.0.0.1",
+        KOMMPLAN_AV_PORT: String(E2E_PORTS.clamd),
+        KOMMPLAN_AV_TIMEOUT_MS: "2000",
         /*
          * DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE (Quellenwechsel 2026-08-15) —
          * dieselbe Bauform wie `...LAGERBUCH_ENV` weiter unten, aus demselben

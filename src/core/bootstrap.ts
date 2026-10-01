@@ -66,6 +66,8 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // ein Seed in einer Generalprobe (SUITE_SEED=1) legte ein bekanntes Test-Paar an. Das lokale
   // Seed-Skript deckt Dev ab.
   { key: "einsatzbuch", migrationsFolder: "src/app/m/einsatzbuch/_db/migrations" },
+  // kommplan: OHNE Boot-Seed — die Beispielpläne sind Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
+  { key: "kommplan", migrationsFolder: "src/app/m/kommplan/_db/migrations" },
 ];
 
 /**

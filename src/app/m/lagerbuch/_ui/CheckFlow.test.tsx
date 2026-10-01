@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, onTestFinished, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   mount,
@@ -573,6 +573,15 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // die Angabe bereits und ist in JEDER Zeile desselben Artikels sichtbar —
     // das ist die Bedingung, unter der der Wegfall vertretbar ist, und genau
     // sie wird hier zugesichert.
+    //
+    // Die Uhr steht fest vor dem Verfallsmonat 2026-09: ab Oktober 2026 zeigte
+    // der Chip „abgelaufen" statt „09/26", und der Test fiel am Kalender, nicht
+    // am Code. Nur `Date` wird gefälscht, antds Timer laufen weiter.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-15T10:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     await mount(
       <CheckFlow
     kontoZugang={false}

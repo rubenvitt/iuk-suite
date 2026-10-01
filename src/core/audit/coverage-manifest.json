@@ -381,6 +381,94 @@
     "kind": "context",
     "via": "DELETE"
   },
+  "src/app/m/kommplan/_actions/bibliothek.ts#importiereBibEinheitenAction": {
+    "kind": "context",
+    "via": "importiereBibEinheitenAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#importiereBibVerbindungenAction": {
+    "kind": "context",
+    "via": "importiereBibVerbindungenAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#loescheBibEintragAction": {
+    "kind": "context",
+    "via": "loescheBibEintragAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#speichereBibEinheitAction": {
+    "kind": "context",
+    "via": "speichereBibEinheitAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#speichereBibStelleAction": {
+    "kind": "context",
+    "via": "speichereBibStelleAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#speichereBibVerbindungAction": {
+    "kind": "context",
+    "via": "speichereBibVerbindungAction"
+  },
+  "src/app/m/kommplan/_actions/briefkopf.ts#entferneLogoAction": {
+    "kind": "context",
+    "via": "entferneLogoAction"
+  },
+  "src/app/m/kommplan/_actions/briefkopf.ts#speichereOrganisationAction": {
+    "kind": "context",
+    "via": "speichereOrganisationAction"
+  },
+  "src/app/m/kommplan/_actions/freigabe.ts#ladeFreigabenAction": {
+    "kind": "excluded",
+    "reason": "Liest nur die Links eines Plans mit Status, damit Teilen-Flyin und QR-Hinweis im Editor keinen veralteten Stand zeigen; schreibt nichts."
+  },
+  "src/app/m/kommplan/_actions/freigabe.ts#stelleFreigabeAusAction": {
+    "kind": "context",
+    "via": "stelleFreigabeAusAction"
+  },
+  "src/app/m/kommplan/_actions/freigabe.ts#widerrufeFreigabeAction": {
+    "kind": "context",
+    "via": "widerrufeFreigabeAction"
+  },
+  "src/app/m/kommplan/_actions/plan.ts#ladeStandAction": {
+    "kind": "excluded",
+    "reason": "Liest nur Version, Inhalt und Angaben eines Plans, damit der Editor nach Browser-Zurück keinen veralteten Stand zeigt; schreibt nichts."
+  },
+  "src/app/m/kommplan/_actions/plan.ts#legePlanAnAction": {
+    "kind": "context",
+    "via": "legePlanAnAction"
+  },
+  "src/app/m/kommplan/_actions/plan.ts#speichereAngabenAction": {
+    "kind": "context",
+    "via": "speichereAngabenAction"
+  },
+  "src/app/m/kommplan/_actions/plan.ts#speichereInhaltAction": {
+    "kind": "context",
+    "via": "speichereInhaltAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#archiviereAction": {
+    "kind": "context",
+    "via": "archiviereAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#dupliziereAction": {
+    "kind": "context",
+    "via": "dupliziereAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#speichereAlsVorlageAction": {
+    "kind": "context",
+    "via": "speichereAlsVorlageAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#stelleWiederHerAction": {
+    "kind": "context",
+    "via": "stelleWiederHerAction"
+  },
+  "src/app/m/kommplan/_actions/zeichen.ts#ladeZeichenAction": {
+    "kind": "excluded",
+    "reason": "Liest nur Zeichen-SVGs aus dem eingecheckten Generat für die Suche im Editor; schreibt nichts."
+  },
+  "src/app/m/kommplan/logo/route.ts#POST": {
+    "kind": "context",
+    "via": "POST",
+    "denial": {
+      "via": "POST",
+      "reason": "Local nonthrowing origin (CSRF) rejection records access_denied; permission denials throw inside requireKommplanBearbeitenAktion and are audited there."
+    }
+  },
   "src/app/m/lagerbuch/_actions/artikel.ts#createArtikel": {
     "kind": "context",
     "via": "createArtikel"

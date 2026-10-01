@@ -116,9 +116,9 @@ services:
       # muss. `suite_data` MITZUMOUNTEN waere die falsche Abkuerzung — der Kommentar bei Zeile 49
       # nennt den Grund (ein volllaufendes Upload-Volume erzeugte sonst ENOSPC genau dort, wo auch
       # die vier Modul-DBs liegen), und er gilt hier unveraendert. `_lib/ablage.ts`s `ablageWurzel()`
-      # loest `DATA_DIR/aufgaben` auf — mit `DATA_DIR=/data` (oben) ist das exakt `/data/aufgaben`,
-      # der rechte Teil dieser Zeile.
+      # loest `DATA_DIR/aufgaben` auf — mit `DATA_DIR=/data` (oben) ist das exakt `/data/aufgaben`, der rechte Teil dieser Zeile.
       - aufgaben_data:/data/aufgaben
+      - kommplan_scan:/data/kommplan-scan
     # `av` MUSS hier stehen: ohne dieses Netz erreicht die Suite clamd nicht,
     # jeder Scan läuft in ECONNREFUSED und nach FILES_AV_VERSUCHE in
     # `av_status = 'error'`. Das ist fail-closed und richtig, sieht aber wie ein
@@ -224,14 +224,14 @@ services:
       # hier zeigte clamd ein LEERES Verzeichnis, und er antwortete auf jeden
       # `zSCAN` mit „Can't access file ERROR" — für jede Datei.
       #
-      # `suite_data` ist bewusst NICHT gemountet: die vier Modul-Datenbanken
-      # gehen den Scanner nichts an.
+      # `suite_data` ist bewusst NICHT gemountet: die vier Modul-Datenbanken gehen den Scanner nichts an.
       - files_data:/data/files:ro
       # DASSELBE benannte Volume wie unter `suite`, nur lesend (Aufgabe 19) — ohne diese Zeile sieht
       # clamd das Ablageverzeichnis von `aufgaben` gar nicht, und jeder Scan endet mit „Can't access
       # file ERROR" → dauerhaft `scan_status: 'fehler'`, nie eine Auslieferung, nie eine
       # bildpflichtige Aufgabe abgeschlossen. Lokal (Fake-clamd, kein Compose) faellt das nicht auf.
       - aufgaben_data:/data/aufgaben:ro
+      - kommplan_scan:/data/kommplan-scan:ro
       # Ohne diesen Mount ist `clamd.files.conf` ein Repo-Schmuckstück und eine
       # Übergröße bleibt ein stilles `OK` (siehe Kopf der Datei).
       #
@@ -422,6 +422,14 @@ volumes:
     name: files_data
   aufgaben_data:
     name: aufgaben_data
+  # Wegwerfdateien des Logo-Scans der Kommunikationspläne (kommplan Phase 4): `suite` schreibt den Upload nach
+  # /data/kommplan-scan, solange clamd ihn per `zSCAN` liest, und löscht ihn danach; das Logo selbst steht in
+  # kommplan.db. `clamav` mountet dasselbe Volume lesend — ein anderer Name dort zeigte clamd ein leeres
+  # Verzeichnis, und JEDER Logo-Upload scheiterte fail-closed mit „Die Virenprüfung ist gerade nicht möglich".
+  # Die Begründung steht HIER und nicht an den Mount-Zeilen: Zeilen weiter oben verschöben die Zeilenanker
+  # anderer Dateien in diese Datei (Review Phase 4).
+  kommplan_scan:
+    name: kommplan_scan
   backup_data:
     name: backup_data
   clamav_db:

@@ -210,10 +210,10 @@ function hostsInTraefikRegel(regel: string): string[] {
  * irgendetwas rendert (`:2`). Vorbild und Begruendung: `src/app/m/lagerbuch/_lib/boot.ts:1-27`.
  *
  * ⚠️ SIE WIRFT NIE. `assertHostConfig()` sammelt die Meldungen ALLER Module ein und
- * entscheidet EINMAL, ob daraus ein Abbruch wird (`src/core/bootstrap.ts:105-107`). Ein Wurf
+ * entscheidet EINMAL, ob daraus ein Abbruch wird (die `errors`-Liste in `assertHostConfig`). Ein Wurf
  * von hier braeche die Kette mit einem fremden Fehler ab — und `assertHostConfig()` laeuft
- * fuer alle ELF Eintraege aus `src/core/registry.ts:53-213` (Spec:5909-5911 zaehlt an dieser
- * Stelle sechs; selbst nachgezaehlt sind es elf — Ruling R-G1-1). „Und die Meldung naennte
+ * fuer ALLE Eintraege von `MODULES` in `src/core/registry.ts` (Spec:5909-5911 zaehlt an dieser
+ * Stelle sechs; beim Ruling R-G1-1 waren es elf, seither mehr). „Und die Meldung naennte
  * nicht einmal das ausloesende Modul."
  *
  * ⛔ SIE LIEST KEINE TABELLE. Sie laeuft VOR `migrateAllModules()`

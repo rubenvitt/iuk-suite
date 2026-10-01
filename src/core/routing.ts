@@ -111,3 +111,25 @@ export function decideRoute(input: {
   const rest = pathname === "/" ? "" : pathname;
   return { action: "rewrite", target: `/m/${mod.key}${rest}`, moduleKey: mod.key };
 }
+
+/**
+ * VERTRAULICHE ANSICHTEN (kommplan Phase 5, Entscheidung 7): anonyme Pfade, deren Inhalt nur der Linkinhaber
+ * sehen soll. Eine Seite kann keine Antwortköpfe setzen — nur der Proxy. Gemessen wird am INTERNEN Pfad
+ * (Rewrite-Ziel oder `/m/<key>/…`), damit `/t/x` auf dem Modul-Host und `/m/kommplan/t/x` gleich behandelt
+ * werden, auch beim 404. `cache-control` setzt Next bei dynamischen Seiten zusätzlich selbst; zugesichert wird
+ * „enthält no-store". Kein Registry-Feld: eine einzelne Ansicht rechtfertigt kein neues Modulfeld.
+ *
+ * AUSNAHME VON „nach core nur, was ein zweites Modul braucht" (CLAUDE.md, Review kommplan Phase 5), bewusst:
+ * Antwortköpfe setzt nur der Proxy, und der Proxy importiert aus `core`, nie aus einem Modul. Die Mechanik
+ * (`antwortKoepfeFuer`) ist modulneutral; modulspezifisch ist allein die Musterliste. Braucht ein zweites Modul
+ * eine vertrauliche Ansicht, wandert die Liste als Feld in `registry.ts` — dann nicht hier eine zweite Zeile anfügen.
+ */
+const VERTRAULICHE_ANSICHTEN: readonly RegExp[] = [/^\/m\/kommplan\/t\/[^/]/];
+export const VERTRAULICHE_KOEPFE: Readonly<Record<string, string>> = {
+  "x-robots-tag": "noindex, nofollow, noarchive",
+  "referrer-policy": "no-referrer",
+  "cache-control": "no-store",
+};
+export function antwortKoepfeFuer(internerPfad: string): Readonly<Record<string, string>> | null {
+  return VERTRAULICHE_ANSICHTEN.some((m) => m.test(internerPfad)) ? VERTRAULICHE_KOEPFE : null;
+}

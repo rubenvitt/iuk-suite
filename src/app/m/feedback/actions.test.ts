@@ -2321,7 +2321,7 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
       a.updateGroupAction(LEER, form({ id: l.groupId, name: "Übernommen", closeAfterHours: 72 })),
     regenerateSecretAction: (a, l) => a.regenerateSecretAction(form({ id: l.groupId })),
     createEveningAction: (a, l) =>
-      a.createEveningAction(FORM_START, form({ groupId: l.groupId, date: "2026-10-01", topic: "Neu" })),
+      a.createEveningAction(FORM_START, form({ groupId: l.groupId, date: "2026-07-01", topic: "Neu" })),
     updateEveningAction: (a, l) => a.updateEveningAction(FORM_START, form({ id: l.heldId, topic: "Geändert" })),
     deleteEveningAction: (a, l) => a.deleteEveningAction(form({ id: l.heldId })),
     activateSurveyAction: (a, l) => a.activateSurveyAction(form({ id: l.draftSurveyId })),

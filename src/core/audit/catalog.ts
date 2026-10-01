@@ -394,6 +394,67 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "kommplan": {
+    "plan": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "inhalt",
+          "version",
+          "aktualisiert_am",
+          "aktualisiert_von"
+        ],
+        "reason": "Inhalt und Speichertakt des Editors (Autosave etwa jede Sekunde); gespeicherte Inhaltsänderungen stehen gebündelt in plan_bearbeitung, höchstens eine Zeile je Person, Plan und 15 Minuten."
+      }
+    },
+    "plan_bearbeitung": {
+      "mode": "audited",
+      "primaryKey": [
+        "plan_id",
+        "nutzer"
+      ]
+    },
+    "bib_stelle": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "bib_einheit": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "bib_verbindung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "plan_freigabe": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "zuletzt_abgerufen",
+          "abrufe"
+        ],
+        "reason": "Abrufzähler des Token-Links; Ausstellen, Ändern und Widerrufen bleiben auditiert."
+      }
+    },
+    "briefkopf": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    }
+  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",

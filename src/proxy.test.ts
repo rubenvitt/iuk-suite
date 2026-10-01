@@ -179,3 +179,20 @@ describe("rewriteZielAufAnfrageOrigin — das Rewrite-Ziel auf die Anfrage-Origi
     expect(antwort.headers.get(proxyModul.REWRITE_KOPF)).toBe("https://iuk-ue.de/m/files");
   });
 });
+
+describe("mitVertraulichenKoepfen — gemessen am INTERNEN Pfad", () => {
+  const { mitVertraulichenKoepfen } = proxyModul;
+  it("Rewrite auf dem Modul-Host (/t/x → /m/kommplan/t/x): Köpfe gesetzt, auch wenn die Seite später 404 sagt", () => {
+    const a = mitVertraulichenKoepfen(NextResponse.rewrite(new URL("http://kommplan.localtest.me:3000/m/kommplan/t/x")), "/t/x");
+    expect(a.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+    expect(a.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(a.headers.get("cache-control")).toBe("no-store");
+  });
+  it("Direktpfad ohne Rewrite: der Anfragepfad zählt", () => {
+    expect(mitVertraulichenKoepfen(NextResponse.next(), "/m/kommplan/t/x").headers.get("x-robots-tag")).toContain("noindex");
+  });
+  it("andere Pfade bleiben unberührt — auch ein /t/ eines anderen Moduls hinter einem Rewrite", () => {
+    expect(mitVertraulichenKoepfen(NextResponse.rewrite(new URL("http://x/m/lagerbuch/t/abc")), "/t/abc").headers.get("x-robots-tag")).toBeNull();
+    expect(mitVertraulichenKoepfen(NextResponse.next(), "/m/kommplan/p/abc").headers.get("referrer-policy")).toBeNull();
+  });
+});

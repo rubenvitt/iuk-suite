@@ -80,6 +80,11 @@ umbaust. Die Nummern sind stabil; der Code verweist darauf („Falle 6, `CLAUDE.
 23. **Unter einer `loading.tsx` ist ein `notFound()` der Seite ein HTTP 200** — der Ladezustand ist
     mit Status 200 schon gestreamt. Zugriffsprüfung und `notFound()` in ein `layout.tsx` oberhalb
     der Grenze (Vorbild `feedback/…/(cockpit)/layout.tsx`); nur e2e oder `build`/`start` sieht es.
+24. **Eine `Drawer` stiehlt den Fokus, zeitversetzt:** beim Öffnen nimmt ihn ihr Container nach den Effekten des
+    Inhalts, `afterOpenChange` kommt unter Last eine halbe Sekunde später, und beim Schließen geht er synchron an
+    das Element vom Öffnen zurück. Getipptes landet dann woanders. Jsdom und `toBeFocused` sehen das nicht.
+    Abhilfe: `autoFocus={false}` und `focusable={{ focusTriggerAfterClose: false }}`, den Fokus nur setzen, wenn er
+    frei bzw. verloren ist (Vorbild `kommplan/_ui/fokus.ts`).
 
 ### Hell/Dunkel und `core`
 

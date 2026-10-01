@@ -1,0 +1,167 @@
+{
+ "breite": 215.76,
+ "hoehe": 93.5,
+ "karten": [
+  [
+   "stab",
+   "normal",
+   88.09,
+   0,
+   46,
+   39
+  ],
+  [
+   "katsl",
+   "normal",
+   0,
+   0,
+   46,
+   39
+  ],
+  [
+   "lts",
+   "normal",
+   169.76,
+   0,
+   46,
+   39
+  ],
+  [
+   "ea-nord",
+   "normal",
+   61.09,
+   54.5,
+   46,
+   39
+  ],
+  [
+   "ea-sued",
+   "normal",
+   115.09,
+   54.5,
+   46,
+   39
+  ]
+ ],
+ "einheiten": [],
+ "sechsecke": [
+  [
+   "stab<links",
+   49,
+   3,
+   33.09
+  ],
+  [
+   "stab<rechts",
+   140.09,
+   3,
+   26.67
+  ],
+  [
+   "stab>stabsfunk",
+   92.58,
+   42.5,
+   37.01
+  ]
+ ],
+ "linien": [
+  [
+   "stab<links",
+   88.09,
+   6,
+   46,
+   6,
+   false
+  ],
+  [
+   "stab<rechts",
+   134.09,
+   6,
+   169.76,
+   6,
+   false
+  ],
+  [
+   "stab>stabsfunk",
+   84.09,
+   50.5,
+   138.09,
+   50.5,
+   false
+  ],
+  [
+   "stab>stabsfunk",
+   84.09,
+   50.5,
+   84.09,
+   54.5,
+   false
+  ],
+  [
+   "stab>stabsfunk",
+   138.09,
+   50.5,
+   138.09,
+   54.5,
+   false
+  ],
+  [
+   "stab>stabsfunk",
+   111.09,
+   48.5,
+   111.09,
+   50.5,
+   false
+  ],
+  [
+   "stab>stabsfunk",
+   111.09,
+   39,
+   111.09,
+   42.5,
+   false
+  ]
+ ],
+ "a4": [
+  {
+   "nummer": 1,
+   "massstab": 1,
+   "ursprung": {
+    "x": 40.62,
+    "y": 24
+   },
+   "karten": [
+    [
+     "stab",
+     "normal",
+     88.09,
+     0
+    ],
+    [
+     "katsl",
+     "normal",
+     0,
+     0
+    ],
+    [
+     "lts",
+     "normal",
+     169.76,
+     0
+    ],
+    [
+     "ea-nord",
+     "normal",
+     61.09,
+     54.5
+    ],
+    [
+     "ea-sued",
+     "normal",
+     115.09,
+     54.5
+    ]
+   ]
+  }
+ ]
+}
