@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import type { BibStelle } from "../bibliothek/typen";
-import { bibStellenTreffer, bibStelleAus, bibVerbindungenFuerPlan, einsatzOrte, fuegeBibEinheitenEin, stelleVorschlaege, uebernimmBibStelle, verbindeMitBibVerbindung } from "./bibliothek";
+import { bibStellenTreffer, bibStelleAus, bibVerbindungenFuerPlan, einsatzOrte, fuegeBibEinheitenEin, stelleVorschlaege, uebernimmBibStelle, unberuehrteTreffer, verbindeMitBibVerbindung } from "./bibliothek";
+import { aendereStelle, loescheStelle } from "./operationen";
 import { PlanFehler } from "./operationen";
 
 const PLAN = baue({
@@ -48,7 +49,19 @@ describe("Kopien aus der Bibliothek (Spec §4.3, §6.4; Entscheidung 13)", () =>
     expect(stelleVorschlaege(bib, { ...leer, titel: "leit" }).map((b) => b.titel)).toEqual(["Leitstelle Uelzen", "Leitung Sanität", "Leitstelle Celle"]);
     expect(stelleVorschlaege(bib, { ...leer, titel: "leitstelle" }).map((b) => b.titel)).toEqual(["Leitstelle Uelzen", "Leitstelle Celle", "FW-Leitstelle"]);
     expect(stelleVorschlaege(bib, { ...leer, titel: "Leitstelle Celle" }).map((b) => b.titel)).toEqual([]); // trägt ihn schon (gleiche Angaben)
-    expect(stelleVorschlaege(bib, { ...leer, titel: "Leitstelle Celle", leiter: "Jana" }).map((b) => b.titel)).toEqual(["Leitstelle Celle"]);
+    expect(stelleVorschlaege(bib, { ...leer, titel: "Leitstelle Celle", zeichen: "zusatz:eal" }).map((b) => b.titel)).toEqual(["Leitstelle Celle"]);
+  });
+  it("gleicher Titel, aber eigene Leitung oder Kontakte: kein Vorschlag — ein Tipp ersetzte sie still (Review Phase 4, OpenR)", () => {
+    // Bibliothek: Telefon, Fax, E-Mail; die Plankarte trägt zusätzlich Digitalfunk und Mobil.
+    const lts: BibStelle = { id: "b1", titel: "Leitstelle Uelzen", zeichen: null, leiter: null, notiz: null,
+      kontakte: [{ art: "telefon", wert: "0581 1" }, { art: "fax", wert: "0581 2" }, { art: "email", wert: "lts@example.org" }] };
+    const plan = { titel: "Leitstelle Uelzen", zeichen: null, leiter: null,
+      kontakte: [...lts.kontakte, { art: "digitalfunk" as const, wert: "Leitstelle" }, { art: "mobil" as const, wert: "0581 / 19222" }] };
+    expect(stelleVorschlaege([lts], plan)).toEqual([]);
+    expect(stelleVorschlaege([lts], { ...plan, kontakte: [], leiter: "Jana" })).toEqual([]);
+    // leere Kontaktzeilen sind keine eigenen Angaben; ein anderer Titel bleibt ein Vorschlag (die Person tippt etwas anderes)
+    expect(stelleVorschlaege([lts], { ...plan, kontakte: [{ art: "telefon", wert: " " }] }).map((b) => b.id)).toEqual(["b1"]);
+    expect(stelleVorschlaege([lts], { ...plan, titel: "Leitst" }).map((b) => b.id)).toEqual(["b1"]);
   });
   it("In Bibliothek übernehmen: getrimmter Titel, leere Kontakte fallen, neu (id null)", () => {
     const s = { ...PLAN.stellen[1], titel: "  EA 1 ", kontakte: [{ art: "telefon" as const, wert: " " }, { art: "fax" as const, wert: "1" }] };
@@ -60,6 +73,13 @@ describe("Kopien aus der Bibliothek (Spec §4.3, §6.4; Entscheidung 13)", () =>
     const gefuellt = uebernimmBibStelle(mit, "n1", LTS);
     expect(bibStellenTreffer(gefuellt, ["n1", "n2"], [LTS])).toEqual([]);
     expect(bibStellenTreffer(mit, ["a"], [LTS])).toEqual([]); // nur die neuen IDs zählen
+  });
+  it("unberuehrteTreffer: nur Stellen, die seit dem Einfügen niemand angefasst hat (Titel, Zeichen, Leitung, Kontakte)", () => {
+    const treffer = [{ stelleId: "a" }, { stelleId: "a1" }, { stelleId: "el" }];
+    const jetzt = aendereStelle(aendereStelle(PLAN, "a", { titel: "EA 1 Süd" }), "el", { leiter: "Jana" });
+    expect(unberuehrteTreffer(jetzt, PLAN, treffer)).toEqual([{ stelleId: "a1" }]);
+    expect(unberuehrteTreffer(aendereStelle(PLAN, "a1", { kontakte: [{ art: "telefon", wert: "1" }] }), PLAN, treffer).map((t) => t.stelleId)).toEqual(["a", "el"]);
+    expect(unberuehrteTreffer(loescheStelle(PLAN, "a1").inhalt, PLAN, [{ stelleId: "a1" }])).toEqual([]);
   });
   it("einsatzOrte: Rufname (Vergleichsform) → Stelle, an der das Fahrzeug steht", () => {
     expect(einsatzOrte(PLAN).get("rk 1")).toEqual({ stelleId: "a", titel: "EA 1" });

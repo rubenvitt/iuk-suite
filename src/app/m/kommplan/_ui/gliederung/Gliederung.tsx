@@ -8,8 +8,8 @@ import {
   setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, type GliederungsZeile, type ZeilenAktionen,
 } from "../../_lib/plan/gliederung";
 import type { BibStelle } from "../../_lib/bibliothek/typen";
-import { bibStellenTreffer, stelleVorschlaege, uebernimmBibStelle } from "../../_lib/plan/bibliothek";
-import { aendereStelle, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin } from "../../_lib/plan/operationen";
+import { bibStellenTreffer, stelleVorschlaege, uebernimmBibStelle, unberuehrteTreffer } from "../../_lib/plan/bibliothek";
+import { aendereStelle, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin, PlanFehler } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import type { Aendere } from "../editor/aendere";
@@ -284,14 +284,24 @@ export function Gliederung(p: GliederungProps) {
     if (nach && ids.length > 0) fokussiere(ids[ids.length - 1]);
     // Entscheidung 14: eingefügte Titel, die genau so in der Bibliothek stehen, blieben sonst leer — und nichts wiese darauf hin.
     const treffer = nach && ids.length > 0 ? bibStellenTreffer(nach, ids, bib.stellen) : [];
-    if (treffer.length > 0) {
+    if (nach && treffer.length > 0) {
+      const eingefuegt: PlanInhalt = nach;
       p.onHinweis(`${treffer.length} ${treffer.length === 1 ? "Stelle steht" : "Stellen stehen"} so in der Bibliothek.`, {
         text: "Angaben übernehmen",
         // Über `befehle` (nach jedem Rendern neu gesetzt): der Knopf wird erst später gedrückt — ein hier gefangenes
-        // `aendere` sähe noch den Stand VOR dem Einfügen und fände die neuen Stellen nicht.
+        // `aendere` sähe noch den Stand VOR dem Einfügen und fände die neuen Stellen nicht. Der Hinweis bleibt beim
+        // Tippen stehen: nur Stellen, die seitdem niemand angefasst hat, bekommen die Angaben (Review Phase 4).
         tu: () => {
-          if (befehle.current!.aendere((q) => treffer.reduce((x, t) => uebernimmBibStelle(x, t.stelleId, t.b), q)) !== null) return;
-          p.ladeSymbole(treffer.flatMap((t) => (t.b.zeichen ? [t.b.zeichen] : [])));
+          let gilt = treffer;
+          const f = befehle.current!.aendere((q) => {
+            gilt = unberuehrteTreffer(q, eingefuegt, treffer);
+            if (gilt.length === 0) throw new PlanFehler("Nichts übernommen: die eingefügten Stellen wurden inzwischen geändert. Einzeln geht es über „Aus Bibliothek“ im Flyin.");
+            return gilt.reduce((x, t) => uebernimmBibStelle(x, t.stelleId, t.b), q);
+          });
+          if (f !== null) return;
+          p.ladeSymbole(gilt.flatMap((t) => (t.b.zeichen ? [t.b.zeichen] : [])));
+          const aus = treffer.length - gilt.length;
+          if (aus > 0) p.onHinweis(`Angaben für ${gilt.length} ${gilt.length === 1 ? "Stelle" : "Stellen"} übernommen; ${aus} inzwischen ${aus === 1 ? "geänderte blieb" : "geänderte blieben"} unberührt.`);
         },
       });
     }

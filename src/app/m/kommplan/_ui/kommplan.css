@@ -231,7 +231,7 @@
  * zweiter Ebenenterm rückte doppelt ein (am Telefon bei Ebene 10 fast die ganze Breite). Einzeilig mit fester
  * Höhe und waagerecht scrollbar: die Zeilen darunter springen beim Tippen nicht um Knopfzeilen.
  */
-.kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; }
+.kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; min-height: 52px; box-sizing: border-box; }
 .kp-g-vorschlaege > * { flex: none; }
 
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die

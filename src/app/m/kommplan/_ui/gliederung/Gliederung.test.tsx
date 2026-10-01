@@ -24,6 +24,8 @@ const START = baue({
   ],
 });
 let stand: Verlauf = neuerVerlauf(START);
+/** Die zuletzt angebotene Hinweis-Aktion — im Editor bleibt der Hinweis beim Tippen stehen, im Prüfstand nicht. */
+let letzteAktion: { text: string; tu(): void } | null = null;
 const details = vi.fn();
 const loeschen = vi.fn();
 
@@ -42,7 +44,7 @@ function Pruefstand({ start, index = [], bib }: { start: PlanInhalt; index?: rea
     <BibliothekKontext.Provider value={{ aktiv: bib !== undefined, bib: bib ?? LEERE_BIBLIOTHEK, merke: () => {} }}>
     <Gliederung inhalt={v.jetzt} auswahl={auswahl} aendere={aendere}
       meldung={hinweis ? <p>{hinweis}{hinweisAktion ? <button type="button" onClick={() => { hinweisAktion.tu(); setHinweisAktion(null); }}>{hinweisAktion.text}</button> : null}</p> : null}
-      onAuswahl={setAuswahl} onDetails={details} onLoeschen={loeschen} onHinweis={(text, aktion) => { setHinweis(text); setHinweisAktion(aktion ?? null); }}
+      onAuswahl={setAuswahl} onDetails={details} onLoeschen={loeschen} onHinweis={(text, aktion) => { setHinweis(text); setHinweisAktion(aktion ?? null); letzteAktion = aktion ?? null; }}
       onRueck={() => setV(rueckgaengig(v))} onWieder={() => setV(wiederholen(v))}
       verwirfUnberuehrt={(nach, dann) => {
         if (v.jetzt !== nach) return null;
@@ -551,7 +553,7 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
     await clickElement(knopf);
     expect(stand.jetzt.stellen.find((s) => s.id === "ea1")).toMatchObject({ titel: "Leitstelle Uelzen", leiter: "Disponent" });
     expect(aktiv()).toBe(feld("ea1"));
-    expect(queryAll('[data-zeile="ea1"] .kp-g-vorschlaege')).toHaveLength(0); // trägt ihn jetzt
+    expect(queryAll('[data-zeile="ea1"] [data-vorschlag]')).toHaveLength(0); // trägt ihn jetzt (der Streifen bleibt stehen: feste Höhe)
     await taste(feld("ea1"), "z", { ctrlKey: true }); // EIN Schritt: Strg+Z holt das Getippte zurück, nicht weniger
     expect(feld("ea1").value).toBe("Leit");
   });
@@ -576,5 +578,31 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
     expect(leit).toMatchObject({ leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }] });
     await taste(feld(leit.id), "z", { ctrlKey: true }); // EIN Schritt zurück: die Angaben fallen, die eingefügten Zeilen bleiben
     expect(stand.jetzt.stellen.find((s) => s.id === leit.id)).toMatchObject({ titel: "Leitstelle Uelzen", leiter: null });
+  });
+  it("„Angaben übernehmen“ nach einer Titeländerung: die geänderte Stelle bleibt, wie sie ist, und das wird gesagt (Review Phase 4)", async () => {
+    const BIB2 = { ...BIB, stellen: [...BIB.stellen, { id: "b3", titel: "EAL Süd", zeichen: null, leiter: "Ole", kontakte: [], notiz: null }] };
+    await mount(<Pruefstand start={START} bib={BIB2} />);
+    await fokus("ea1");
+    await einfuegen(feld("ea1"), "Leitstelle Uelzen\nEAL Süd");
+    expect(meldung()).toContain("2 Stellen stehen so in der Bibliothek.");
+    const aktion = letzteAktion!;
+    const sued = stand.jetzt.stellen.find((s) => s.titel === "EAL Süd")!;
+    await schreibe(feld(sued.id), "EAL Süd 2");
+    await act(async () => { aktion.tu(); });
+    expect(stand.jetzt.stellen.find((s) => s.id === sued.id)).toMatchObject({ titel: "EAL Süd 2", leiter: null });
+    expect(stand.jetzt.stellen.find((s) => s.titel === "Leitstelle Uelzen")).toMatchObject({ leiter: "Disponent" });
+    expect(meldung()).toContain("Angaben für 1 Stelle übernommen; 1 inzwischen geänderte blieb unberührt.");
+  });
+  it("„Angaben übernehmen“, wenn alle eingefügten Stellen geändert sind: nichts übernommen, ein sichtbarer Hinweis", async () => {
+    await mount(<Pruefstand start={START} bib={BIB} />);
+    await fokus("ea1");
+    await einfuegen(feld("ea1"), "Leitstelle Uelzen\n\tTrupp");
+    const aktion = letzteAktion!;
+    const leit = stand.jetzt.stellen.find((s) => s.titel === "Leitstelle Uelzen")!;
+    await schreibe(feld(leit.id), "Leitstelle Uelzen 2");
+    const vorher = stand.jetzt;
+    await act(async () => { aktion.tu(); });
+    expect(stand.jetzt).toBe(vorher);
+    expect(meldung()).toContain("Nichts übernommen: die eingefügten Stellen wurden inzwischen geändert.");
   });
 });

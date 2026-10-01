@@ -630,6 +630,24 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     await clickElement(knopf("Angaben ändern"));
     expect(existsPortal('.kp-flyin [data-abschnitt="verbindungen"]')).toBe(true); // das Flyin „Plan und Verbindungen" ist offen
   });
+  it("„Angaben übernehmen“ nach Titeländerung: der Hinweis blieb beim Tippen stehen, der Klick überschreibt nichts und meldet sich sichtbar (Review Phase 4)", async () => {
+    await mount(<Editor plan={plan()} ansicht="gliederung" symbole={{}} zeichenIndex={[]} schrift="Arimo"
+      bibliothek={{ stellen: [{ id: "b1", titel: "EAL Süd", zeichen: null, leiter: "Ole", kontakte: [], notiz: null }], einheiten: [], verbindungen: [] }} />);
+    await act(async () => {});
+    const feld = query<HTMLInputElement>('[data-zeile="a"] input[name="titel"]');
+    await act(async () => { feld.focus(); });
+    const e = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "clipboardData", { value: { getData: (t: string) => (t === "text/plain" ? "EAL Süd\n\tTrupp" : "") } });
+    await act(async () => { feld.dispatchEvent(e); });
+    const meldung = () => query(".kp-gliederung [data-meldung]").textContent;
+    expect(meldung()).toContain("1 Stelle steht so in der Bibliothek.");
+    const sued = queryAll<HTMLInputElement>('.kp-gliederung input[name="titel"]').find((i) => i.value === "EAL Süd")!;
+    await schreibe(sued, "EAL Süd 2");
+    expect(meldung()).toContain("1 Stelle steht so in der Bibliothek."); // Tippen räumt den Hinweis nicht weg
+    await clickElement(knopf("Angaben übernehmen"));
+    expect(sued.value).toBe("EAL Süd 2");
+    expect(meldung()).toContain("Nichts übernommen: die eingefügten Stellen wurden inzwischen geändert.");
+  });
   it("eine Kopie aus der Bibliothek bringt ein Zeichen mit: der Editor lädt das SVG nach (Entscheidung 13)", async () => {
     await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo"
       bibliothek={{ stellen: [{ id: "b1", titel: "Leitstelle", zeichen: "zusatz:eal", leiter: null, kontakte: [], notiz: null }], einheiten: [], verbindungen: [] }} />);

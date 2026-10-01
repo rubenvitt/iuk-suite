@@ -36,12 +36,18 @@ export function bibVerbindungenFuerPlan(inhalt: PlanInhalt, bib: readonly BibVer
 const gleicheKontakte = (a: readonly Kontakt[], b: readonly Kontakt[]) =>
   a.length === b.length && a.every((k, i) => k.art === b[i].art && k.wert === b[i].wert);
 
-/** Titelvorschläge der Gliederung (Entscheidung 14). */
+/**
+ * Titelvorschläge der Gliederung und des Flyins (Entscheidung 14). Ein Eintrag mit GENAU dem Titel der Stelle wird
+ * nur angeboten, solange die Stelle keine eigene Leitung und keine Kontakte trägt: sonst stünde da ein Knopf mit dem
+ * Text, der schon im Feld steht, und ein Tipp ersetzte die Kontakte still (Review Phase 4). Gezielt überschreiben
+ * bleibt „Aus Bibliothek" im Flyin.
+ */
 export function stelleVorschlaege(bib: readonly BibStelle[], stelle: Pick<Stelle, "titel" | "zeichen" | "leiter" | "kontakte">, max = 3): BibStelle[] {
   const text = vergleichsform(stelle.titel);
   if (text.length < 2) return [];
-  const traegtSchon = (b: BibStelle) => vergleichsform(b.titel) === text && b.zeichen === stelle.zeichen
-    && (b.leiter ?? null) === (stelle.leiter ?? null) && gleicheKontakte(b.kontakte, stelle.kontakte);
+  const eigeneAngaben = (stelle.leiter ?? "").trim() !== "" || stelle.kontakte.some((k) => k.wert.trim() !== "");
+  const traegtSchon = (b: BibStelle) => vergleichsform(b.titel) === text && (eigeneAngaben || (b.zeichen === stelle.zeichen
+    && (b.leiter ?? null) === (stelle.leiter ?? null) && gleicheKontakte(b.kontakte, stelle.kontakte)));
   const titel = (b: BibStelle) => vergleichsform(b.titel);
   const beginnt = bib.filter((b) => titel(b).startsWith(text));
   const enthaelt = bib.filter((b) => !titel(b).startsWith(text) && titel(b).includes(text));
@@ -66,6 +72,20 @@ export function bibStellenTreffer(inhalt: PlanInhalt, ids: readonly string[], bi
     if (!s || !b) return [];
     const traegt = b.zeichen === s.zeichen && (b.leiter ?? null) === (s.leiter ?? null) && gleicheKontakte(b.kontakte, s.kontakte);
     return traegt ? [] : [{ stelleId: id, b }];
+  });
+}
+
+/**
+ * „Angaben übernehmen" wird erst später gedrückt (Entscheidung 14): nur die Treffer, deren Stelle seit dem Einfügen
+ * (`vorher`) unberührt ist — sonst setzte der Knopf einen danach getippten Titel oder eine Leitung still auf den Stand
+ * der Bibliothek zurück (Review Phase 4). Gelöschte Stellen fallen ebenso heraus.
+ */
+export function unberuehrteTreffer<T extends { stelleId: string }>(jetzt: PlanInhalt, vorher: PlanInhalt, treffer: readonly T[]): T[] {
+  return treffer.filter((t) => {
+    const a = jetzt.stellen.find((s) => s.id === t.stelleId);
+    const b = vorher.stellen.find((s) => s.id === t.stelleId);
+    return a !== undefined && b !== undefined && a.titel === b.titel && a.zeichen === b.zeichen
+      && (a.leiter ?? null) === (b.leiter ?? null) && gleicheKontakte(a.kontakte, b.kontakte);
   });
 }
 
