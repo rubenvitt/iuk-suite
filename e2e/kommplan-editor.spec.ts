@@ -374,6 +374,8 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
   await page.emulateMedia({ reducedMotion: "reduce" }); // Lagen ohne laufende Übergänge messen
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const leerId = await neuerPlan(page, "e2e Fotos leer");
+  // Eigener Plan für die Titelvorschläge der Gliederung — nie am Seed-Plan tippen (Review Focus 6, Phase 2).
+  const vorschlagId = await neuerPlan(page, "e2e Fotos Vorschläge");
   const foto = async (name: string) => { if (FOTOS) await page.screenshot({ path: `${ordner}/${name}.png`, animations: "disabled" }); };
   const ohneUeberlauf = async () =>
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
@@ -390,6 +392,56 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await expect(page.locator("html")).toHaveAttribute("data-theme", modus);
       await ohneUeberlauf();
       await foto(`liste-${n}`);
+      // Phase 4: Archiv, Bibliothek, Einstellungen — je ohne waagerechten Überlauf
+      await page.goto(url("/archiv"));
+      await warteAufSpaltenaufteilung(page);
+      await ohneUeberlauf();
+      await foto(`archiv-${n}`);
+      await page.goto(url("/bibliothek"));
+      await warteAufSpaltenaufteilung(page);
+      await ohneUeberlauf();
+      await foto(`bibliothek-stellen-${n}`);
+      await klickeWennRuhig(page.getByRole("tab", { name: /^Einheiten/ }));
+      await expect(page.getByRole("button", { name: "CSV importieren" })).toBeVisible();
+      await ohneUeberlauf();
+      await foto(`bibliothek-einheiten-${n}`);
+      await klickeWennRuhig(page.getByRole("tab", { name: /^Stellen/ }));
+      await klickeWennRuhig(page.getByRole("button", { name: "Neue Stelle" }));
+      await expect(page.locator(".kp-flyin").getByRole("form", { name: "Stelle der Bibliothek" })).toBeInViewport({ ratio: 0.5 });
+      await expect(page.locator(".kp-flyin").getByLabel("Titel", { exact: true })).toBeFocused();
+      await ohneUeberlauf();
+      await foto(`bibliothek-flyin-${n}`);
+      await page.keyboard.press("Escape");
+      if (FOTOS && n === "desktop-light") {
+        // eine Stelle mit 500 Zeichen Notiz: keine Spalte rutscht aus dem Bild (Zellentext); danach wieder gelöscht
+        const lang = `e2e Lang ${Math.random().toString(36).slice(2, 7)}`;
+        await klickeWennRuhig(page.getByRole("button", { name: "Neue Stelle" }));
+        const formular = page.locator(".kp-flyin").getByRole("form", { name: "Stelle der Bibliothek" });
+        await formular.getByLabel("Titel", { exact: true }).fill(lang);
+        await formular.getByLabel("Notiz", { exact: true }).fill("Notiz ".repeat(84).slice(0, 500));
+        const anlage = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(lang));
+        await klickeWennRuhig(formular.getByRole("button", { name: "Speichern", exact: true }));
+        await anlage;
+        await expect(page.getByRole("table", { name: "Stellen" }).getByText(lang)).toBeVisible();
+        await ohneUeberlauf();
+        await foto("bibliothek-lang-desktop");
+        await klickeWennRuhig(page.getByRole("table", { name: "Stellen" }).getByRole("button", { name: lang }));
+        await klickeWennRuhig(page.locator(".kp-flyin").getByRole("button", { name: "Löschen" }));
+        const weg = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"stelle"'));
+        await klickeWennRuhig(page.locator(".ant-popover, .ant-popconfirm").getByRole("button", { name: "Löschen" }));
+        await weg;
+      }
+      await page.goto(url("/einstellungen"));
+      await warteAufSpaltenaufteilung(page);
+      await ohneUeberlauf();
+      await foto(`einstellungen-${n}`);
+      if (FOTOS && b.name === "desktop") {
+        await page.goto(url("/p/beispiel-openr-2022-07-01/druck/a4"));
+        await expect(page.locator("svg.kp-blatt").first()).toBeVisible();
+        await foto(`druck-${n}`);
+      }
+      await page.goto(url("/"));
+      await warteAufSpaltenaufteilung(page);
       await klickeWennRuhig(page.getByRole("button", { name: "Neu", exact: true }));
       // ganz eingeschoben, sonst fotografiert der Test die Schublade mitten in der Einblendung
       await expect(page.getByRole("form", { name: "Neuer Plan" })).toBeInViewport({ ratio: 1 });
@@ -418,6 +470,11 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await expect(page.locator('[data-griffe="ea2"]')).toBeVisible();
       await ganzInDerFlaeche(page, page.getByRole("group", { name: /^Auswahl:/ }), "Auswahlleiste ea2");
       await foto(`auswahl-${n}`);
+      // Phase 4: die Auswahlleiste neben dem offenen Flyin
+      await klickeWennRuhig(page.locator('[data-griff="bearbeiten"]'));
+      await expect(flyinTitel(page)).toBeVisible();
+      await foto(`auswahl-flyin-${n}`);
+      await page.keyboard.press("Escape");
       // die äußerste linke und rechte Karte: ihre Griffe in der Auswahlleiste ganz im Bild (Kritik)
       const lagen = await page.locator(".kp-betrachter [data-karte]").evaluateAll((els) =>
         els.map((e) => ({ id: e.getAttribute("data-karte")!, x: e.getBoundingClientRect().x })));
@@ -437,6 +494,9 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await expect(flyinTitel(page)).toBeVisible();
       await ohneUeberlauf();
       await foto(`flyin-stelle-${n}`);
+      // Phase 4: „Aus Bibliothek" oben im Flyin
+      await page.locator(".kp-flyin").getByText("Aus Bibliothek", { exact: true }).scrollIntoViewIfNeeded();
+      await foto(`flyin-stelle-bibliothek-${n}`);
       await page.keyboard.press("Escape");
       await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
       await expect(page.locator('fieldset[aria-label="Planangaben"]')).toBeVisible();
@@ -448,6 +508,41 @@ test("Bildschirmfotos: Liste, Editor mit Auswahl, Flyins — hell und dunkel, dr
       await foto(`gliederung-${n}`);
       await page.locator('[data-zeile="ea2"] input[name="titel"]').focus();
       await foto(`gliederung-auswahl-${n}`);
+      // Phase 4: Titelvorschläge aus der Bibliothek — am EIGENEN Plan (dessen Speicherungen zählen nicht gegen den Seed-Plan)
+      page.off("response", zaehle);
+      await oeffneEditor(page, () => page.goto(url(`/p/${vorschlagId}?ansicht=gliederung`)));
+      const erste = page.getByRole("button", { name: "Erste Stelle anlegen" });
+      if (await erste.isVisible()) await klickeWennRuhig(erste);
+      const titelErste = page.locator('.kp-gliederung [data-zeile] input[name="titel"]').first();
+      await titelErste.click();
+      // jede Runde ein anderer Text, sonst speichert die zweite Runde nichts (gleicher Stand)
+      const tipp = (await titelErste.inputValue()) === "Leit" ? "Leits" : "Leit";
+      await speichertNach(page, () => titelErste.fill(tipp));
+      await expect(page.locator(".kp-gliederung .kp-g-vorschlaege")).toBeVisible();
+      await ohneUeberlauf();
+      await foto(`gliederung-vorschlag-${n}`);
+      const einheitenKnopf = page.locator(".kp-gliederung [data-zeile] .kp-g-einheitenzahl").first();
+      await klickeWennRuhig(einheitenKnopf);
+      await expect(page.getByLabel("Einheiten aus der Bibliothek").first()).toBeVisible();
+      await ohneUeberlauf();
+      await foto(`gliederung-einheiten-bib-${n}`);
+      await klickeWennRuhig(einheitenKnopf);
+      if (b.name === "telefon") {
+        // eine Zeile der Ebene 8 per eingefügter, eingerückter Liste — die Vorschläge rücken nicht doppelt ein
+        const liste = Array.from({ length: 8 }, (_, i) => `${"\t".repeat(i)}Ebene ${i + 1}`).join("\n");
+        await titelErste.click();
+        await speichertNach(page, () => titelErste.evaluate((el, text) => {
+          const dt = new DataTransfer();
+          dt.setData("text/plain", text);
+          el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+        }, liste));
+        await expect(page.locator(".kp-gliederung input:focus")).toHaveValue("Ebene 8");
+        await speichertNach(page, () => page.locator(".kp-gliederung input:focus").fill("Leit"));
+        await expect(page.locator(".kp-gliederung .kp-g-vorschlaege")).toBeVisible();
+        await ohneUeberlauf();
+        await foto(`gliederung-vorschlag-tief-${n}`);
+      }
+      page.on("response", zaehle);
       if (b.name === "telefon") {
         await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01")));
         await expect(page.getByRole("list", { name: "Gliederung" })).toBeVisible(); // ohne Parameter: Gliederung
