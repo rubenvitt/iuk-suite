@@ -188,6 +188,20 @@ describe("Bibliothek — Fokus nach dem Flyin (Review Phase 4)", () => {
   });
 });
 
+describe("Bibliothek — Fokus nach dem Import (Review Phase 4)", () => {
+  it("„Liste einfügen“ → Vorschau → Abbrechen: der Fokus kehrt auf „Liste einfügen“ zurück", async () => {
+    await zeige();
+    await clickElement(knopf("Einheiten (1)"));
+    await clickElement(knopf("Liste einfügen"));
+    await fillPortal('.kp-flyin textarea[aria-label="Einheiten, je Zeile eine"]', "KTW RK 2");
+    await clickElement(knopf("Vorschau"));
+    await abwarten();
+    await clickElement([...document.querySelectorAll<HTMLElement>(".kp-flyin button")].find((b) => b.textContent?.trim() === "Abbrechen")!);
+    await abwarten();
+    expect(document.activeElement).toBe(knopf("Liste einfügen"));
+  });
+});
+
 describe("Bibliothek — Verbindungen (Review Phase 4: bisher nur die Zahl am Reiter geprüft)", () => {
   it("anlegen mit gewählter Art", async () => {
     aktion.verbindung.mockResolvedValue({ ok: true, eintrag: { id: "v2", art: "dmo", bezeichnung: "DMO 608", notiz: null } });

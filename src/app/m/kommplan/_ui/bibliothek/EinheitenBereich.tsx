@@ -32,9 +32,13 @@ export function EinheitenBereich({ einheiten, zeichenIndex, symbole, ladeSymbole
   /** Zählt „Speichern und nächste": jede Runde montiert ein leeres Formular neu (Fokus wieder im ersten Feld). */
   const [runde, setRunde] = useState(0);
   const [lesung, setLesung] = useState<ImportLesung | null>(null);
+  const [quelle, setQuelle] = useState<"liste" | "csv">("liste");
   const [liste, setListe] = useState<string | null>(null);
   const [importLaeuft, setImportLaeuft] = useState(false);
   const csv = useRef<HTMLInputElement>(null);
+  // Nach „Liste einfügen“/„CSV importieren“ samt Vorschau: Fokus zurück auf den Knopf, mit dem es begann (Review Phase 4).
+  const listeKnopf = useFokusNachFlyin(liste !== null || (lesung !== null && quelle === "liste"));
+  const csvKnopf = useFokusNachFlyin(lesung !== null && quelle === "csv");
   const titelVon = new Map(zeichenIndex.map((e) => [e.schluessel, e.titel]));
   const sichtbar = einheiten.filter((e) => passt(suche, [e.typ, e.rufname, e.notiz]));
 
@@ -66,8 +70,8 @@ export function EinheitenBereich({ einheiten, zeichenIndex, symbole, ladeSymbole
       <div className="kp-bib-werkzeuge">
         <Input className="kp-bib-suche" aria-label="Einheiten suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
         <Button ref={neuKnopf} type="primary" onClick={() => setOffen("neu")}>Neue Einheit</Button>
-        <Button onClick={() => setListe("")}>Liste einfügen</Button>
-        <Button onClick={() => csv.current?.click()}>CSV importieren</Button>
+        <Button ref={listeKnopf} onClick={() => { setQuelle("liste"); setListe(""); }}>Liste einfügen</Button>
+        <Button ref={csvKnopf} onClick={() => { setQuelle("csv"); csv.current?.click(); }}>CSV importieren</Button>
         <input ref={csv} className="kp-dateifeld" type="file" name="csv" accept=".csv,text/csv,text/plain" tabIndex={-1} aria-hidden="true"
           onChange={(e) => { const d = e.target.files?.[0]; if (d) void liesCsv(d); }} />
         <p className="kp-hilfe">„Liste einfügen“: je Zeile erst der Typ, dann der Rufname (RTW RK UE 40-83-5). CSV mit Semikolon: Typ;Rufname;Notiz — die Notiz darf fehlen, eine Kopfzeile auch.</p>
