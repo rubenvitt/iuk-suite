@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDb } from "../_lib/testDb";
-import { bibVerbindung, plan, planFreigabe } from "./schema";
+import { bibVerbindung, briefkopf, plan, planFreigabe } from "./schema";
 
 const PLAN = {
   id: "p1", titel: "Plan", typ: "kommunikationsplan" as const, anlass: null, datum: null,
@@ -45,5 +45,24 @@ describe("kommplan-Datenbank", () => {
     const db = testDb();
     db.insert(bibVerbindung).values({ id: "v", art: "tmo", bezeichnung: "R_UE_1" }).run();
     expect(() => db.insert(bibVerbindung).values({ id: "w", art: "brieftaube" as never, bezeichnung: "x" }).run()).toThrow();
+  });
+  it("Briefkopf: genau eine Zeile (id = 1), Logo nur vollständig und höchstens 1 MB", () => {
+    const db = testDb();
+    const basis = { id: 1, organisation: null, aktualisiertAm: new Date(0), aktualisiertVon: "Alice" };
+    db.insert(briefkopf).values(basis).run();
+    expect(() => db.insert(briefkopf).values({ ...basis, id: 2 }).run()).toThrow();
+    expect(() => db.update(briefkopf).set({ logo: Buffer.from("x") }).where(eq(briefkopf.id, 1)).run()).toThrow(); // ohne Typ und SHA
+    expect(() => db.update(briefkopf).set({ logo: Buffer.from("x"), logoMime: "image/gif", logoSha256: "a" }).where(eq(briefkopf.id, 1)).run()).toThrow();
+    expect(() => db.update(briefkopf).set({ logo: Buffer.alloc(1024 * 1024 + 1), logoMime: "image/png", logoSha256: "a" }).where(eq(briefkopf.id, 1)).run()).toThrow();
+    db.update(briefkopf).set({ logo: Buffer.from("x"), logoMime: "image/png", logoSha256: "a" }).where(eq(briefkopf.id, 1)).run();
+    expect(db.select().from(briefkopf).get()?.logo?.toString()).toBe("x");
+  });
+  it("Briefkopf: Anlegen, Logo und Name je eine Audit-Zeile; ein No-op nicht", () => {
+    const db = testDb();
+    db.insert(briefkopf).values({ id: 1, organisation: "Muster", aktualisiertAm: new Date(0), aktualisiertVon: "Alice" }).run();
+    db.update(briefkopf).set({ organisation: "Muster" }).where(eq(briefkopf.id, 1)).run();
+    db.update(briefkopf).set({ logo: Buffer.from("x"), logoMime: "image/png", logoSha256: "a" }).where(eq(briefkopf.id, 1)).run();
+    db.update(briefkopf).set({ logo: Buffer.from("y"), logoSha256: "b" }).where(eq(briefkopf.id, 1)).run();
+    expect(outbox(db).filter((z) => z.object_type === "briefkopf").map((z) => z.action)).toEqual(["create", "update", "update"]);
   });
 });

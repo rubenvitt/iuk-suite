@@ -447,6 +447,12 @@ export const AUDIT_TABLES = {
         ],
         "reason": "Abrufzähler des Token-Links; Ausstellen, Ändern und Widerrufen bleiben auditiert."
       }
+    },
+    "briefkopf": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "konto": {
