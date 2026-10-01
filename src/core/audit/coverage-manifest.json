@@ -405,6 +405,22 @@
     "kind": "context",
     "via": "speichereInhaltAction"
   },
+  "src/app/m/kommplan/_actions/verwaltung.ts#archiviereAction": {
+    "kind": "context",
+    "via": "archiviereAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#dupliziereAction": {
+    "kind": "context",
+    "via": "dupliziereAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#setzeVorlageAction": {
+    "kind": "context",
+    "via": "setzeVorlageAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#stelleWiederHerAction": {
+    "kind": "context",
+    "via": "stelleWiederHerAction"
+  },
   "src/app/m/kommplan/_actions/zeichen.ts#ladeZeichenAction": {
     "kind": "excluded",
     "reason": "Liest nur Zeichen-SVGs aus dem eingecheckten Generat für die Suche im Editor; schreibt nichts."
