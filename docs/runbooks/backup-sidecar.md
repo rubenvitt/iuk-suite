@@ -333,8 +333,8 @@ docker compose run --rm backup /bin/sh -c \
 ```
 
 Im Tarball müssen stehen: **jede** `*.db` aus `MODULE_MIGRATIONS` und `CORE_MIGRATIONS`
-(heute u. a. `portal.db`, `qr.db`, `feedback.db`, `files.db`, `lagerbuch.db`,
-`aufgaben.db`, `radio.db`, `uav.db`, `zeichen.db`, `konto.db`, `audit.db`) — **und** ein
+(heute u. a. `portal.db`, `qr.db`, `feedback.db`, `files.db`, `lagerbuch.db`, `aufgaben.db`,
+`radio.db`, `uav.db`, `kommplan.db`, `zeichen.db`, `konto.db`, `audit.db`) — **und** ein
 Verzeichnis `files/` mit Blobs, sofern im Modul `files` überhaupt welche liegen, und ein
 Verzeichnis `aufgaben/` mit den Bildnachweisen, sofern es welche gibt.
 
