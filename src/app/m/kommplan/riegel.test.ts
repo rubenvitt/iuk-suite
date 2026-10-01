@@ -64,4 +64,10 @@ describe("kommplan: jede Fläche trägt ihren Riegel", () => {
     expect(zaehle(q, /gleicheHerkunft\(request\.headers\)/)).toBe(1);
     expect(q.indexOf("requireKommplanBearbeitenAktion()")).toBeLessThan(q.indexOf("getDb()"));
   });
+  it.each(routen.filter((p) => p.startsWith("(intern)/(verwaltung)/")))("%s prüft zusätzlich das Bearbeitungsrecht (pruefeKommplanBearbeiten(viewer))", (datei) => {
+    expect(zaehle(code(datei), /pruefeKommplanBearbeiten\(viewer\)/)).toBe(1);
+  });
+  it("die Verwaltungsgruppe gibt es und sie ist nicht leer (sonst wäre der Fall darüber leer-grün)", () => {
+    expect(routen.filter((p) => p.startsWith("(intern)/(verwaltung)/")).length).toBeGreaterThanOrEqual(1);
+  });
 });

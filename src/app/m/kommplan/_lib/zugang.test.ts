@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 const kopf = vi.hoisted(() => ({ host: "kommplan.localtest.me" }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: kopf.host }) }));
-import { bearbeiterAus, darfKommplanBearbeiten, hatKommplanZugang, requireKommplanBearbeitenAktion, requireKommplanZugang } from "./zugang";
+import { bearbeiterAus, darfKommplanBearbeiten, hatKommplanZugang, pruefeKommplanBearbeiten, requireKommplanBearbeitenAktion, requireKommplanZugang } from "./zugang";
 
 describe("Zugang zu kommplan", () => {
   it("Zugangsgruppe, Admin-Gruppe und Suite-Admin öffnen; andere nicht", () => {
@@ -67,5 +67,14 @@ describe("Bearbeiten-Riegel für Server Actions", () => {
   it("Bearbeiter: Kennung aus dem Audit-Akteur, Name mit Rückfall", () => {
     expect(bearbeiterAus({ sub: "u1", name: " Jana ", groups: [] } as never)).toEqual({ nutzer: "u1", name: "Jana" });
     expect(bearbeiterAus({ id: "u2", email: "ole@x.de", groups: [] } as never)).toEqual({ nutzer: "u2", name: "ole@x.de" });
+  });
+});
+
+describe("Seitenriegel der Verwaltungsseiten (Phase 4, Entscheidung 16)", () => {
+  beforeEach(() => { audit.denied.mockReset(); });
+  it("Bearbeitende kommen durch; die Zugangsgruppe bekommt 404 mit Audit", () => {
+    expect(() => pruefeKommplanBearbeiten({ sub: "u1", groups: ["iuk-kommplan-bearbeiten"] } as never)).not.toThrow();
+    expect(() => pruefeKommplanBearbeiten({ sub: "u2", groups: ["iuk-kommplan"] } as never)).toThrow("NEXT_NOT_FOUND");
+    expect(audit.denied).toHaveBeenCalledTimes(1);
   });
 });

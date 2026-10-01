@@ -188,7 +188,17 @@
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
    einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
+/* Seitenkopf der Planliste (Phase 4, Entscheidung 1): „Neu" und die Wege zu Bibliothek, Einstellungen, Archiv. */
+.kp-kopfaktionen { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.kp-kopfaktionen > a { min-height: 44px; display: inline-flex; align-items: center; }
+.kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+
 @media (max-width: 767.98px) {
+  /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne
+     diese Regel bliebe auch das Raster darin schmal (Gegenstück zur Regel für .kp-kopfwerkzeuge im Editor). */
+  div:has(> .kp-kopfaktionen) { flex: 1 1 100%; }
+  .kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .kp-kopfaktionen > a { justify-content: center; }
   .kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) nimmt die ganze Zeile, sonst bliebe er so schmal wie sein Inhalt. */
   .kp-editor div:has(> .kp-kopfwerkzeuge) { flex: 1 1 100%; }
