@@ -567,6 +567,23 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
     await taste(feld("ea2"), "Enter", { altKey: true });
     expect(meldung()).toContain("Kein Vorschlag aus der Bibliothek.");
   });
+  it("Verbindung aus der Bibliothek in der Gliederung: Wahl legt eine Kopie an (Art wie in der Bibliothek) und verbindet; gleichnamige derselben Art wird nicht doppelt angelegt", async () => {
+    const mitVerb = { ...BIB, verbindungen: [{ id: "bv1", art: "dmo" as const, bezeichnung: "DMO 608", notiz: null }, { id: "bv2", art: "dmo" as const, bezeichnung: "R_UE_2", notiz: null }] };
+    await mount(<Pruefstand start={START} bib={mitVerb} />);
+    await fokus("ea1");
+    const eingabe = query<HTMLInputElement>('[data-zeile="ea1"] [aria-label="Verbindung von EA 1"]');
+    await act(async () => { eingabe.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+    const texte = () => [...document.querySelectorAll<HTMLElement>('[data-zeile-portal="ea1"] .ant-select-item-option')];
+    // R_UE_2 als DMO ist eine ANDERE Verbindung als R_UE_2 (TMO) im Plan: beide stehen da, mit Art unterscheidbar.
+    expect(texte().map((o) => o.textContent)).toEqual(expect.arrayContaining(["R_UE_2 · Digitalfunk TMO", "Aus Bibliothek: R_UE_2 · Digitalfunk DMO", "Aus Bibliothek: DMO 608 · Digitalfunk DMO"]));
+    const vorher = stand.jetzt.verbindungen.length;
+    await clickElement(texte().find((o) => o.textContent === "Aus Bibliothek: DMO 608 · Digitalfunk DMO")!);
+    const v = stand.jetzt.verbindungen.find((x) => x.bezeichnung === "DMO 608")!;
+    expect(v).toMatchObject({ art: "dmo" });
+    expect(stand.jetzt.verbindungen).toHaveLength(vorher + 1);
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.verbindungId).toBe(v.id);
+    expect(aktiv()).toBe(feld("ea1")); // zurück in den Titel
+  });
   it("eingefügte Gliederung: Titel, die genau so in der Bibliothek stehen und deren Angaben noch fehlen, werden angeboten — „Angaben übernehmen“ füllt alle in EINEM Schritt", async () => {
     await mount(<Pruefstand start={START} bib={BIB} />);
     await fokus("ea1");

@@ -46,7 +46,9 @@ export function VerbindungWahl({ inhalt, stelle, aendere }: { inhalt: PlanInhalt
         <>
           <label className="kp-feldname" htmlFor={`${basis}-weg`}>Zur Elternstelle</label>
           <div className="kp-zeile">
-            <Select id={`${basis}-weg`} value={stelle.verbindungId ?? KEINE}
+            {/* popupMatchSelectWidth={false}: die Liste so breit wie die längste Option — im halben Rasterfeld des Flyins
+                kürzte sie sonst genau die Art (TMO/DMO), die gleichnamige Verbindungen unterscheidet (Review Phase 4). */}
+            <Select id={`${basis}-weg`} value={stelle.verbindungId ?? KEINE} popupMatchSelectWidth={false}
               onChange={(v: string) => {
                 const b = v.startsWith(BIB_OPTION) ? bib.verbindungen.find((x) => `${BIB_OPTION}${x.id}` === v) : undefined;
                 if (b) { setFehler(aendere((p) => verbindeMitBibVerbindung(p, stelle.id, b, neueId(p, "v")))); return; }
@@ -68,7 +70,7 @@ export function VerbindungWahl({ inhalt, stelle, aendere }: { inhalt: PlanInhalt
         </>
       ) : <p className="kp-hilfe">Eine Stelle der obersten Ebene hat keine Elternstelle.</p>}
       <label className="kp-feldname" htmlFor={`${basis}-kanaele`}>Kanäle an dieser Stelle (ohne Gegenstelle)</label>
-      <Select id={`${basis}-kanaele`} mode="multiple" value={stelle.kanaele} maxCount={GRENZE.kanaele} placeholder="keine"
+      <Select id={`${basis}-kanaele`} mode="multiple" popupMatchSelectWidth={false} value={stelle.kanaele} maxCount={GRENZE.kanaele} placeholder="keine"
         onChange={(k: string[]) => setFehler(aendere((p) => aendereStelle(p, stelle.id, { kanaele: k })))} options={optionen} />
       {fehler ? <p className="kp-feldfehler" role="status">{fehler}</p> : null}
     </fieldset>
