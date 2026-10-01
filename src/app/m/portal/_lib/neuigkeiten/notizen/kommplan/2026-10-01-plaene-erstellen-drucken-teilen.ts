@@ -4,8 +4,8 @@ import { absatz, type Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen
 
 const notiz: Releasenotiz = {
   modul: "kommplan",
-  slug: "kommunikationsplaene-ansehen",
-  datum: "2026-09-30",
+  slug: "plaene-erstellen-drucken-teilen",
+  datum: "2026-10-01",
   titel: "Pläne und Fernmeldeskizzen erstellen, drucken und teilen",
   inhalt: [
     absatz(
