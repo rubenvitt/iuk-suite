@@ -38,6 +38,7 @@ import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
 import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "./verlauf";
 import { leseZuletzt } from "./zuletzt";
 import { useEingeklappt } from "../betrachter/einklappen";
+import { fokusVerloren } from "../fokus";
 
 const KEIN_TEILEN: { freigaben: FreigabeZeile[]; basis: string | null } = { freigaben: [], basis: null };
 
@@ -142,15 +143,6 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const titelRef = useRef<InputRef>(null);
   const zeigeNach = useRef<string | null>(null);
   const flyinJetzt = useRef(flyin);
-  /** `true` vom Schließen eines Flyins bis zum nächsten Klick oder Tastendruck — dann gehört der Fokus der Bearbeitenden. */
-  const fokusFrei = useRef(false);
-  useEffect(() => { if (flyin === null) fokusFrei.current = true; }, [flyin]);
-  useEffect(() => {
-    const belegt = () => { fokusFrei.current = false; };
-    window.addEventListener("pointerdown", belegt, true);
-    window.addEventListener("keydown", belegt, true);
-    return () => { window.removeEventListener("pointerdown", belegt, true); window.removeEventListener("keydown", belegt, true); };
-  }, []);
   const angabenEntwurf = useRef(false);
   const angelegt = useRef<Angelegt | null>(null);
   const kuerzel = useRef<{ rueck: () => void; wieder: () => void; pruefeStand: (s: Speicherstand) => void; nachTaste: () => void }>({ rueck: () => {}, wieder: () => {}, pruefeStand: () => {}, nachTaste: () => {} });
@@ -444,11 +436,12 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); gleicheFreigabenAb(); };
   const oeffneTeilen = () => { setFlyin("teilen"); gleicheFreigabenAb(); };
   /**
-   * Nach der Schließanimation den Fokus zurück — aber nur, wenn seit dem Schließen niemand geklickt oder getippt hat
-   * (Abnahme kommplan): wer in der Gliederung gleich die nächste Zeile anklickt und Alt+Z drückt, verlöre sonst die
-   * Zeichensuche an den Titel, und Enter legte eine leere Stelle an.
+   * Nach der Schließanimation den Fokus zurück — aber nur, wenn er verloren ist (Abnahme kommplan): auf `body` oder
+   * noch in der schließenden Schublade. Steht er schon auf einem Element außerhalb, hat die Bearbeitende ihn dorthin
+   * gesetzt (eine andere Zeile angeklickt, Alt+Z) — sonst verlöre sie die Zeichensuche an den Titel, und Enter legte
+   * eine leere Stelle an.
    */
-  const nachSchliessen = () => { if (flyinJetzt.current === null && fokusFrei.current) fokusZurueck(); fokusFrei.current = false; };
+  const nachSchliessen = () => { if (flyinJetzt.current === null && fokusVerloren()) fokusZurueck(); };
 
   const meldung = hinweis ? (
     <Alert type={hinweis.bestaetigt ? "success" : "warning"} showIcon title={hinweis.text} closable={{ onClose: () => setHinweis(null) }}
