@@ -413,6 +413,14 @@
     "kind": "context",
     "via": "speichereOrganisationAction"
   },
+  "src/app/m/kommplan/_actions/freigabe.ts#stelleFreigabeAusAction": {
+    "kind": "context",
+    "via": "stelleFreigabeAusAction"
+  },
+  "src/app/m/kommplan/_actions/freigabe.ts#widerrufeFreigabeAction": {
+    "kind": "context",
+    "via": "widerrufeFreigabeAction"
+  },
   "src/app/m/kommplan/_actions/plan.ts#ladeStandAction": {
     "kind": "excluded",
     "reason": "Liest nur Version, Inhalt und Angaben eines Plans, damit der Editor nach Browser-Zurück keinen veralteten Stand zeigt; schreibt nichts."
