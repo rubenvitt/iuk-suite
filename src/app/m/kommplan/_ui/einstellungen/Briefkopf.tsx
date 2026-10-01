@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Popconfirm } from "antd";
+import { Alert, Button, Input, Popconfirm } from "antd";
 import { entferneLogoAction, speichereOrganisationAction } from "../../_actions/briefkopf";
 import { LAENGE_ORGANISATION } from "../../_lib/angaben";
 import type { EinfachErgebnis, LogoErgebnis } from "../../_lib/ergebnis";
@@ -14,19 +14,20 @@ const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch e
  * BRIEFKOPF BEARBEITEN (Spec §4.4; Umsetzungsplan Phase 4, Entscheidungen 3–6). Organisation per Server
  * Action; das Logo geht an den Route Handler `POST /logo` (Server Actions nehmen höchstens 1 MB). Nach
  * jedem Erfolg `router.refresh()` — die Vorschau darüber ist eine Server Component. Meldungen stehen in
- * EINEM Statusplatz unter dem Formular; Warnungen nie rot (Falle 3).
+ * EINEM Statusplatz unter dem Formular; eine Ablehnung als Warnung (nie rot, Falle 3), ein Erfolg als Text —
+ * vorher sahen beide gleich aus (Review Phase 4).
  */
 export function BriefkopfFormular({ organisation, logo }: { organisation: string | null; logo: { typ: LogoTyp; bytes: number } | null }) {
   const router = useRouter();
   const basis = useId();
   const datei = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(organisation ?? "");
-  const [meldung, setMeldung] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<{ text: string; ok: boolean } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
 
   const nach = (r: EinfachErgebnis | LogoErgebnis, gut: string) => {
     setLaeuft(false);
-    setMeldung(r.ok ? gut : r.fehler);
+    setMeldung(r.ok ? { text: gut, ok: true } : { text: r.fehler, ok: false });
     if (r.ok) router.refresh();
   };
   async function speichereName(e: FormEvent<HTMLFormElement>) {
@@ -58,7 +59,7 @@ export function BriefkopfFormular({ organisation, logo }: { organisation: string
       </form>
       <section aria-label="Logo" className="kp-formular">
         <p className="kp-feldname">Logo</p>
-        <p>{logo ? `Logo: ${LOGO_TYP_NAME[logo.typ]}, ${Math.max(1, Math.round(logo.bytes / 1024))} KB` : "Kein Logo hinterlegt."}</p>
+        <p className="kp-logo-stand">{logo ? `Logo: ${LOGO_TYP_NAME[logo.typ]}, ${Math.max(1, Math.round(logo.bytes / 1024))} KB` : "Kein Logo hinterlegt."}</p>
         <p className="kp-hilfe">PNG, JPEG, WebP oder SVG, höchstens 1 MB. Es steht rechts oben auf jedem gedruckten Blatt; ein SVG wird vorher bereinigt.</p>
         <input ref={datei} id={`${basis}-datei`} className="kp-dateifeld" type="file" name="logo" accept={LOGO_ANNAHME} tabIndex={-1} aria-hidden="true"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void lade(f); }} />
@@ -71,7 +72,8 @@ export function BriefkopfFormular({ organisation, logo }: { organisation: string
           ) : null}
         </div>
       </section>
-      {meldung ? <p className="kp-hinweis" role="status">{meldung}</p> : null}
+      {meldung?.ok ? <p className="kp-hinweis" role="status">{meldung.text}</p> : null}
+      {meldung && !meldung.ok ? <Alert type="warning" showIcon role="status" title={meldung.text} /> : null}
     </div>
   );
 }

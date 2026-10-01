@@ -52,10 +52,12 @@ describe("BriefkopfFormular", () => {
     expect(abruf.mock.calls[0][0]).toBe("/logo");
     expect((abruf.mock.calls[0][1].body as FormData).get("logo")).toBeInstanceOf(File);
     expect(query('[role="status"]').textContent).toBe("Erlaubt sind PNG, JPEG, WebP und SVG.");
+    expect(query('[role="status"]').className).toContain("ant-alert-warning"); // eine Ablehnung sieht anders aus als ein Erfolg
     expect(router.refresh).not.toHaveBeenCalled();
     await waehle(new File(["<svg/>"], "logo.svg"));
     await abwarten();
     expect(query('[role="status"]').textContent).toBe("Logo übernommen (SVG).");
+    expect(query('[role="status"]').className).not.toContain("ant-alert");
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });
   it("mit Logo: Typ und Größe, „Logo ersetzen“; „Logo entfernen“ fragt nach und entfernt", async () => {

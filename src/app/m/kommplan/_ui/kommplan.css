@@ -207,9 +207,12 @@
 .kp-editor[data-editoransicht="gliederung"] .kp-ansicht-diagramm { display: none; }
 /* Phase 4 — VOR den Breakpoint-Blöcken, damit deren Regeln bei gleicher Spezifität gewinnen. */
 /* Einstellungen (Phase 4): der Kopf in Seitenbreite, Papier auch im Dunkeln; das Dateifeld ist nur Mittel zum Zweck. */
-.kp-kopfvorschau { display: block; width: 100%; height: auto; border: 1px solid var(--kp-rand); border-radius: 4px; }
+.kp-kopfvorschau { display: block; width: 100%; height: auto; border: 1px solid var(--kp-rand); border-radius: 4px; direction: ltr; }
+.kp-kopfvorschau-rahmen { overflow-x: auto; direction: rtl; }
 .kp-dateifeld { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .kp-einstellungen { max-width: 40rem; }
+/* Absätze im Raster: der Abstand kommt aus dem gap, nicht aus dem Standardrand von <p> (Review Phase 4). */
+.kp-einstellungen p { margin-block-end: 0; } .kp-einstellungen p:not(.kp-feldname) { margin-block-start: 0; }
 /* Planliste (Phase 4): Rückmeldung nach einer Aktion, mit „Rückgängig“ nach dem Archivieren. */
 .kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
 /* Bibliothek (Phase 4, Entscheidung 11). */
@@ -245,6 +248,7 @@
 
 @media (max-width: 767.98px) {
   .kp-auswahl-name { display: none; }
+  .kp-kopfvorschau { min-width: 1100px; } /* ≈ 12 px Organisationsname; der Rahmen scrollt */
   .kp-vorschlag-hinweis { display: none; }
   .kp-bib-werkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne

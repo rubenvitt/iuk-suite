@@ -10,6 +10,10 @@ describe("KopfVorschau", () => {
     expect(html).toContain('href="#kp-logo"');
     expect(html).toContain("Musterorganisation");
   });
+  it("steht in einem waagerecht scrollenden Rahmen (am Telefon hat das Blatt eine Mindestbreite)", () => {
+    const html = renderToStaticMarkup(<KopfVorschau kopf={{ organisation: null, logo: null }} />);
+    expect(html.startsWith('<div class="kp-kopfvorschau-rahmen"><svg')).toBe(true);
+  });
   it("ohne Briefkopf: leerer Platz, ausdrücklich so benannt", () => {
     const html = renderToStaticMarkup(<KopfVorschau kopf={{ organisation: null, logo: null }} />);
     expect(html).toContain('aria-label="Vorschau des Kopfs: ohne Organisation, ohne Logo"');
