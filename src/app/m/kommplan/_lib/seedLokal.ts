@@ -1,5 +1,5 @@
 import type { KommplanDb } from "../_db/client";
-import { bibEinheit, bibStelle, bibVerbindung, plan } from "../_db/schema";
+import { bibEinheit, bibStelle, bibVerbindung, briefkopf, plan } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
 
 /**
@@ -24,5 +24,8 @@ export async function seedLokalKommplan(db: KommplanDb): Promise<string[]> {
   }));
   const verbindungen = zaehle(["R_UE_1", "R_UE_2", "R_UE_3"].map((bezeichnung, i) =>
     db.insert(bibVerbindung).values({ id: `bib-verbindung-${i + 1}`, art: "tmo", bezeichnung }).onConflictDoNothing().run()));
-  return [`kommplan: ${plaene} Pläne angelegt, Bibliothek ${stellen} Stellen, ${einheiten} Einheiten, ${verbindungen} Verbindungen`];
+  // Briefkopf (Spec §4.4, Entscheidung 6): ein NEUTRALER Name für die lokale Ansicht, nie ein Logo und nie
+  // eine echte Organisation — das trägt der Betrieb unter „Einstellungen" ein.
+  const kopf = db.insert(briefkopf).values({ id: 1, organisation: "Musterorganisation", aktualisiertAm: new Date(0), aktualisiertVon: "Seed" }).onConflictDoNothing().run().changes;
+  return [`kommplan: ${plaene} Pläne angelegt, Bibliothek ${stellen} Stellen, ${einheiten} Einheiten, ${verbindungen} Verbindungen, Briefkopf ${kopf}`];
 }

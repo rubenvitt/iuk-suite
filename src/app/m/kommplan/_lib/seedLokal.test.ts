@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { plan } from "../_db/schema";
+import { briefkopf, plan } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
 import { leseInhalt } from "./plan/schema";
 import { seedLokalKommplan } from "./seedLokal";
@@ -31,5 +31,13 @@ describe("seedLokalKommplan", () => {
     db.update(plan).set({ titel: "lokal" }).where(eq(plan.id, BEISPIELE[0].id)).run();
     await seedLokalKommplan(db);
     expect(db.select().from(plan).where(eq(plan.id, BEISPIELE[0].id)).get()!.titel).toBe("lokal");
+  });
+  it("Briefkopf: höchstens ein neutraler Organisationsname, KEIN Logo (Entscheidung 6)", async () => {
+    const db = testDb();
+    await seedLokalKommplan(db);
+    expect(db.select().from(briefkopf).get()).toMatchObject({ organisation: "Musterorganisation", logo: null, logoMime: null });
+    db.update(briefkopf).set({ organisation: "lokal" }).run();
+    await seedLokalKommplan(db);
+    expect(db.select().from(briefkopf).get()?.organisation).toBe("lokal");
   });
 });

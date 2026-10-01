@@ -52,7 +52,7 @@ for (const b of beispiele) {
   writeFileSync(join(ZIEL, `${b.id}-bildschirm.svg`), bildschirm);
   dateien.push(`${b.id}-bildschirm`);
   const rahmen = rahmenFuer({ titel: b.titel, anlass: b.anlass, datum: b.datum ? Date.parse(`${b.datum}T00:00:00Z`) : null,
-    aktualisiertAm: Date.parse(b.stand), aktualisiertVon: b.bearbeiter, vermerkVsNfD: b.inhalt.optionen.vermerkVsNfD });
+    aktualisiertAm: Date.parse(b.stand), aktualisiertVon: b.bearbeiter, vermerkVsNfD: b.inhalt.optionen.vermerkVsNfD, kopf: { organisation: null, logo: null } });
   for (const blatt of l.seiten) {
     bericht.push(`  Blatt ${blatt.nummer}/${blatt.von}: Maßstab ${blatt.massstab.toFixed(3)}${blatt.unterMindestschrift ? " (unter 6 pt!)" : ""}`);
     const blattBefunde = pruefeAlles(blatt.zeichnung, b.inhalt);

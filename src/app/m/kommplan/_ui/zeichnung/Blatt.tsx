@@ -1,16 +1,65 @@
-import { BLATT, PAPIER, PT_IN_MM } from "../../_lib/layout/masse";
+import { BLATT, LOGO_BOX, PAPIER, PT_IN_MM } from "../../_lib/layout/masse";
 import { LEGENDE, kopflinieY, legendeObenY, zeichenflaeche } from "../../_lib/layout/papier";
-import { textBreite } from "../../_lib/layout/text";
+import { kuerze, textBreite } from "../../_lib/layout/text";
 import type { Blatt } from "../../_lib/layout/typen";
 import { FARBE, STRICH } from "./farben";
 import { LegendenSymbol } from "./LegendenSymbol";
 import { SymbolDefs, type Symbolsatz } from "./Symbole";
 import { ZeichnungInhalt } from "./Zeichnung";
 
-/** Die vom Aufrufer formatierten Rahmentexte — der Renderer kennt weder Uhr noch Zeitzone. */
-export interface Rahmen { titel: string; untertitel: string | null; stand: string; bearbeiter: string; vermerkVsNfD: boolean; organisation: string }
-
 const pt = (p: number) => p * PT_IN_MM;
+
+/** Die vom Aufrufer formatierten Rahmentexte — der Renderer kennt weder Uhr noch Zeitzone. Organisation und
+ *  Logo kommen aus dem Briefkopf (Spec §4.4), nie aus dem Code; `null` = die Stelle bleibt leer. */
+export interface Rahmen {
+  titel: string; untertitel: string | null; stand: string; bearbeiter: string; vermerkVsNfD: boolean;
+  organisation: string | null; logo: { href: string } | null;
+}
+
+export const LOGO_ID = "kp-logo";
+/**
+ * Das Logo EINMAL je Dokument (Umsetzungsplan Phase 4, Entscheidung 6): als `<image>` mit `data:`-URI —
+ * keine Bildroute, und ein SVG-Logo führt im Bildkontext nie Skript aus. Jedes Blatt verweist per `<use>`
+ * darauf; die Druckseite stellt es mit den Symbolen in ein gemeinsames `<defs>` (`Druckblaetter`).
+ * `meet` hält das Seitenverhältnis in der festen Box, rechtsbündig.
+ */
+export function LogoDefs({ logo }: { logo: Rahmen["logo"] }) {
+  return logo ? <image id={LOGO_ID} width={LOGO_BOX.breite} height={LOGO_BOX.hoehe} preserveAspectRatio="xMaxYMid meet" href={logo.href} /> : null;
+}
+
+/** Höchstbreite des Organisationsnamens im Kopf (mm) — ein langer Vereinsname drückt den Titel nicht weg. */
+export const ORGANISATION_MAX = 80;
+const TITEL_PT = { start: 14, min: 10 } as const;
+
+/**
+ * Der Plantitel im Kopf (bis 200 Zeichen) passt in `platz` mm: erst in halben Punkten bis 10 pt kleiner (wie
+ * die Kartentitel in `karte.ts`), dann mit „…" gekürzt. Nie läuft er in Organisation oder Logo-Box (Kritik).
+ */
+export function kopfTitel(titel: string, platz: number): { text: string; groesse: number } {
+  for (let g: number = TITEL_PT.start; g >= TITEL_PT.min; g -= 0.5) if (textBreite(titel, g, true) <= platz) return { text: titel, groesse: g };
+  return { text: kuerze(titel, platz, TITEL_PT.min, true).text, groesse: TITEL_PT.min };
+}
+
+export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }) {
+  const rechts = breite - BLATT.randX;
+  const kopfY = BLATT.randOben;
+  const logoX = rechts - LOGO_BOX.breite;
+  const orgRechts = rahmen.logo ? logoX - LOGO_BOX.luft : rechts;
+  const org = rahmen.organisation ? kuerze(rahmen.organisation, ORGANISATION_MAX, 9, true).text : null;
+  const belegtAb = org ? orgRechts - textBreite(org, 9, true) : rahmen.logo ? logoX : rechts;
+  const titel = kopfTitel(rahmen.titel, belegtAb - LOGO_BOX.luft - BLATT.randX);
+  return (
+    <g data-kopf="">
+      <text x={BLATT.randX} y={kopfY + 6} fontSize={pt(titel.groesse)} fontWeight={700}>{titel.text}</text>
+      {rahmen.untertitel ? <text x={BLATT.randX} y={kopfY + 11.5} fontSize={pt(9)}>{rahmen.untertitel}</text> : null}
+      {rahmen.logo ? <use href={`#${LOGO_ID}`} x={logoX} y={kopfY} data-logo="" /> : null}
+      {org ? (
+        <text x={orgRechts} y={kopfY + 6} fontSize={pt(9)} fontWeight={700} textAnchor="end" data-organisation="">{org}</text>
+      ) : null}
+      <line x1={BLATT.randX} y1={kopflinieY()} x2={rechts} y2={kopflinieY()} stroke={FARBE.tinte} strokeWidth={STRICH.duenn} />
+    </g>
+  );
+}
 
 export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDefs = true }: {
   blatt: Blatt; rahmen: Rahmen; symbole: Symbolsatz; schrift?: string; kopfStil?: string; mitDefs?: boolean;
@@ -18,7 +67,6 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
   const p = PAPIER["a4-quer"];
   const f = zeichenflaeche("a4-quer", blatt.legendeZeilen.length);
   const rechts = p.breite - BLATT.randX;
-  const kopfY = BLATT.randOben;
   const fussY = p.hoehe - BLATT.randUnten - 2;
   const legendeOben = legendeObenY("a4-quer", blatt.legendeZeilen.length);
   const leer = blatt.zeichnung.karten.length === 0;
@@ -28,15 +76,8 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
       style={{ fontFamily: schrift, background: FARBE.papier }}>
       {kopfStil ? <style>{kopfStil}</style> : null}
       {mitDefs ? <SymbolDefs symbole={symbole} /> : null}
-      {/* Kopf */}
-      <text x={BLATT.randX} y={kopfY + 6} fontSize={pt(14)} fontWeight={700}>{rahmen.titel}</text>
-      {rahmen.untertitel ? <text x={BLATT.randX} y={kopfY + 11.5} fontSize={pt(9)}>{rahmen.untertitel}</text> : null}
-      <text x={rechts - 9} y={kopfY + 6} fontSize={pt(9)} fontWeight={700} textAnchor="end">{rahmen.organisation}</text>
-      <g aria-hidden="true" fill={FARBE.marke}>
-        <rect x={rechts - 6} y={kopfY + 3} width={6} height={2} />
-        <rect x={rechts - 4} y={kopfY + 1} width={2} height={6} />
-      </g>
-      <line x1={BLATT.randX} y1={kopflinieY()} x2={rechts} y2={kopflinieY()} stroke={FARBE.tinte} strokeWidth={STRICH.duenn} />
+      {mitDefs && rahmen.logo ? <defs><LogoDefs logo={rahmen.logo} /></defs> : null}
+      <BlattKopf rahmen={rahmen} breite={p.breite} />
       {/* Zeichnung */}
       {leer ? (
         <text x={p.breite / 2} y={f.y + f.hoehe / 2} fontSize={pt(12)} textAnchor="middle">Dieser Plan hat noch keine Stellen.</text>

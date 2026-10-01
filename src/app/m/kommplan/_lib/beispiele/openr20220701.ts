@@ -12,7 +12,7 @@ export const OPENR_20220701: Beispiel = {
   id: "beispiel-openr-2022-07-01",
   titel: "Kommunikationsplan OpenR 01.07.2022",
   typ: "kommunikationsplan", anlass: "OpenR", datum: "2022-07-01", istVorlage: false,
-  stand: "2022-06-28T10:00:00.000Z", bearbeiter: "KBL DRK Kreisverband Uelzen e. V.",
+  stand: "2022-06-28T10:00:00.000Z", bearbeiter: "KBL",
   inhalt: baue({
     optionen: { leerzeilen: true },
     verbindungen: [

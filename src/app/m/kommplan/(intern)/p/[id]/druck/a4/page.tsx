@@ -1,6 +1,7 @@
 import "./druck.css";
 import { headers } from "next/headers";
 import { getDb } from "@/app/m/kommplan/_db/client";
+import { kopfFuerZeichnung } from "@/app/m/kommplan/_lib/briefkopf";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { teileAuf } from "@/app/m/kommplan/_lib/layout/papier";
 import { ladePlanOder404 } from "@/app/m/kommplan/_lib/plaene";
@@ -8,8 +9,7 @@ import { rahmenFuer } from "@/app/m/kommplan/_lib/rahmen";
 import { symboleFuer } from "@/app/m/kommplan/_lib/zeichen/zeichen";
 import { requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
 import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
-import { Blattansicht } from "@/app/m/kommplan/_ui/zeichnung/Blatt";
-import { SymbolDefs } from "@/app/m/kommplan/_ui/zeichnung/Symbole";
+import { Druckblaetter } from "@/app/m/kommplan/_ui/zeichnung/Druckblaetter";
 import { Drucken } from "./Drucken";
 
 export const dynamic = "force-dynamic";
@@ -30,16 +30,12 @@ export default async function DruckA4({ params }: { params: Promise<{ id: string
   const rahmen = rahmenFuer({
     titel: plan.titel, anlass: plan.anlass, datum: plan.datum, aktualisiertAm: plan.aktualisiertAm,
     aktualisiertVon: plan.aktualisiertVon, vermerkVsNfD: plan.inhalt.optionen.vermerkVsNfD,
+    kopf: kopfFuerZeichnung(getDb()),
   });
   return (
     <main className={`kp-druck ${ARIMO.className}`}>
       <Drucken />
-      <svg className="kp-symbole" width="0" height="0" aria-hidden="true" focusable="false">
-        <SymbolDefs symbole={symbole} />
-      </svg>
-      {blaetter.map((b) => (
-        <Blattansicht key={b.nummer} blatt={b} rahmen={rahmen} symbole={symbole} schrift={ARIMO.style.fontFamily} mitDefs={false} />
-      ))}
+      <Druckblaetter blaetter={blaetter} rahmen={rahmen} symbole={symbole} schrift={ARIMO.style.fontFamily} />
     </main>
   );
 }

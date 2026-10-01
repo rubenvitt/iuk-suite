@@ -7,7 +7,7 @@ export const LABEL: Beispiel = {
   id: "vorlage-kommunikationsplan-label",
   titel: "Kommunikationsplan Label",
   typ: "kommunikationsplan", anlass: "Label", datum: null, istVorlage: true,
-  stand: "2026-09-01T08:00:00.000Z", bearbeiter: "DRK Kreisverband Uelzen e. V. · Der Kreisbereitschaftsleiter",
+  stand: "2026-09-01T08:00:00.000Z", bearbeiter: "Kreisbereitschaftsleitung",
   inhalt: baue({
     optionen: { leerzeilen: true },
     verbindungen: [{ id: "r-ue-1", art: "tmo", bezeichnung: "R_UE_1" }, { id: "r-ue-2", art: "tmo", bezeichnung: "R_UE_2" }],

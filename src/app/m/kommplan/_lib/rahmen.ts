@@ -12,6 +12,7 @@ export function kalendertag(ms: number | null): string | null {
 
 export function rahmenFuer(p: {
   titel: string; anlass: string | null; datum: number | null; aktualisiertAm: number; aktualisiertVon: string; vermerkVsNfD: boolean;
+  kopf: Pick<Rahmen, "organisation" | "logo">;
 }): Rahmen {
   const teile = [p.anlass?.trim() || null, kalendertag(p.datum)].filter((t): t is string => t !== null);
   return {
@@ -20,6 +21,7 @@ export function rahmenFuer(p: {
     stand: `Stand: ${STAND.format(p.aktualisiertAm)}`,
     bearbeiter: `Bearbeitung: ${p.aktualisiertVon}`,
     vermerkVsNfD: p.vermerkVsNfD,
-    organisation: "Deutsches Rotes Kreuz",
+    organisation: p.kopf.organisation,
+    logo: p.kopf.logo,
   };
 }
