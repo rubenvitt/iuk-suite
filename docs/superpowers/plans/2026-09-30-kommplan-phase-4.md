@@ -16,7 +16,7 @@
 
 - Arbeitsverzeichnis ausschließlich `/Users/rubeen/dev/personal/drk/iuk-suite/.claude/worktrees/drk-363-8c5335`; nie `cd` ins Haupt-Repo. Nicht pushen. ClickUp nicht anfassen.
 - Deutsche Texte mit echten Umlauten (`ä ö ü Ä Ö Ü ß`); Bezeichner, Datei- und Branchnamen ASCII (`~/.claude/CLAUDE.md`).
-- `CLAUDE.md` gilt vollständig. Für diese Phase besonders: Falle 1 (kein antd-Compound in RSC — `Tabs`, `Input.TextArea`, `Popconfirm` nur in Client-Inseln; in Server Components nur `Card`, `Tag`, `Table` u. ä.), 2 (eigenes Markup nimmt `--kp-*`), 3 (Warnungen `type="warning"`, Rot nie auf der Datenfläche — auch nicht im Kopf der Zeichnung), 4 (kein `size`), 5 (eigenes CSS gegen antd nur mit einer Klasse mehr), 6 (Werte für Server Components nie aus `"use client"`-Modulen), 7 (keine `@ant-design/icons`), 9 (Spalten mit `render` nur in Client-Inseln; Server Actions direkt importieren, nie als Prop), 10 (im e2e jede ausgelöste Anfrage per `waitForResponse`), 12 (`klickeWennRuhig`, `warteAufSpaltenaufteilung`), 13 (`flyinBreite()` für jede `Drawer`), 14/17 (Listen über `Kartentabelle` aus `core/tabelle`, Spaltentitel als Zeichenkette), 20 (keine Regel gegen einen `.ant-*`-Namen), 21 (`NODE_ENV` eingebacken), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (objektbezogene 404 im `layout.tsx`).
+- `CLAUDE.md` gilt vollständig. Für diese Phase besonders: Falle 1 (kein antd-Compound in RSC — `Tabs`, `Input.TextArea`, `Popconfirm` nur in Client-Inseln; in Server Components nur `Card`, `Tag`, `Table` u. ä.), 2 (eigenes Markup nimmt `--kp-*`), 3 (Warnungen `type="warning"`, Rot nie auf der Datenfläche — auch nicht im Kopf der Zeichnung), 4 (kein `size`), 5 (eigenes CSS gegen antd nur mit einer Klasse mehr), 6 (Werte für Server Components nie aus `"use client"`-Modulen), 7 (keine `@ant-design/icons`), 9 (Spalten mit `render` nur in Client-Inseln; Server Actions direkt importieren, nie als Prop), 10 (im e2e jede ausgelöste Anfrage per `waitForResponse`; vor dem ersten POST auf den neuen Route Handler `/logo` ein Warmlauf-GET, der 405 liefert — Vorbild der Warmlauf im Import-Test von `e2e/radio-verwaltung.spec.ts`), 12 (`klickeWennRuhig`, `warteAufSpaltenaufteilung`), 13 (`flyinBreite()` für jede `Drawer`), 14/17 (Listen über `Kartentabelle` aus `core/tabelle`, Spaltentitel als Zeichenkette), 20 (keine Regel gegen einen `.ant-*`-Namen), 21 (`NODE_ENV` eingebacken), 22 (`warteAufGestreamteInhalte` vor Zählungen), 23 (objektbezogene 404 im `layout.tsx`).
 - **Zugriffsschutz:** Jede neue Seite unter `(intern)` ruft `requireKommplanHost(await headers())` und `await requireKommplanZugang()` je genau einmal (`riegel.test.ts`); Seiten der Gruppe `(intern)/(verwaltung)` (Bibliothek, Einstellungen) zusätzlich `pruefeKommplanBearbeiten(viewer)` (Task 8). Jede Server Action beginnt mit `const viewer = await requireKommplanBearbeitenAktion();` oder `await requireKommplanBearbeitenAktion();` als **erster** Anweisung und löst jede ID in der Datenbank auf (IDOR). Oberfläche und Riegel wenden **dasselbe** Prädikat an: Knöpfe und Links zu Bibliothek, Einstellungen, Duplizieren, Vorlage, Archivieren und Wiederherstellen erscheinen nur bei `darfKommplanBearbeiten(viewer.groups)`.
 - **Bauform der Action-Dateien** (`_actions/plan.test.ts`, Test „jede exportierte Action prüft als ERSTE Anweisung …"): Datei beginnt auf Byte 0 mit `"use server";`; sie exportiert **nur** Actions; die Parameterliste enthält kein `)` (keine Vorgabewerte mit Klammern); die Signatur enthält **kein `{`** vor dem Rumpf — Rückgabetypen deshalb als benannte Typen aus `_lib/ergebnis.ts` (`Promise<EinfachErgebnis>`), nie inline `Promise<{ ok: true } | …>`. Jede Action steht in `src/core/audit/coverage-manifest.json` (`{ "kind": "context", "via": "<Name>" }`, Rumpf mit `withAuditContext`); Typen und Schemata liegen in `_lib/`.
 - Neue reine Module (`_lib/logo/`, `_lib/bibliothek/`, `_lib/tagesfassung.ts`, `_lib/plan/bibliothek.ts`) sind ohne `"use client"`, ohne `next/*`, `node:*`, `react-dom` — `grenze.test.ts` bekommt die Pfade in die Liste der geteilten Ordner (Task 2, Task 14, Task 10). Datenbank- und Dateisystemcode steht **nicht** in diesen Ordnern, sondern in `_lib/briefkopf.ts`, `_lib/logoScan.ts`, `_lib/bibliothekDb.ts`, `_lib/planverwaltung.ts`.
@@ -24,7 +24,8 @@
 - Hell/Dunkel über `<html data-theme>`, nie `prefers-color-scheme`. Neue Farben als `--kp-*` in `:root` **und** `:root[data-theme="dark"]` (`_ui/kommplan.css`); neue Regeln unter einem Breakpoint in die **vorhandenen** Blöcke `@media (max-width: 767.98px)` bzw. `@media (min-width: 768px)`.
 - **Zeit:** nie `timeZone` als Literal auf Modulebene, nie `new Intl.DateTimeFormat({ timeZone })` auf Modulebene. „Heute" ist `heuteIso(jetzt)` aus `_lib/tagesfassung.ts` (`zeitFormat("en-CA", …)` aus `core/zeit`); `plan.datum` bleibt Kalendertag als Mitternacht UTC (`tagZuMs`). **Jede Funktion, die „heute" braucht, bekommt `jetzt: number` als Argument**; Tests nutzen feste Zeitpunkte über die Berliner Mitternacht (zwei datumsabhängige Tests anderer Module wurden gerade repariert — kein dritter).
 - Tests, die dieser Plan an eine bestehende Testdatei anhängt, führen ihre Importe in die **vorhandenen** Importzeilen zusammen (`pnpm lint` meldet doppelte Importe).
-- DOM-Tests nur über das Harness `src/app/m/qr/_lib/test-dom.tsx` (`mount`, `rerender`, `unmount`, `query`, `queryAll`, `exists`, `fill`, `click`, `clickElement`, `submitForm`, `queryPortal`, `existsPortal`, `clickPortal(selektor)` — ohne Textsuche; für Knöpfe nach Text in Portalen den Testhelfer `knopf(text)` aus Task 9 kopieren), Kopfzeile `// @vitest-environment jsdom`, `afterEach(async () => { await unmount(); … })`.
+- DOM-Tests nur über das Harness `src/app/m/qr/_lib/test-dom.tsx` (`mount`, `rerender`, `unmount`, `query`, `queryAll`, `exists`, `fill`, `click`, `clickElement`, `submitForm`, `queryPortal`, `existsPortal`, `clickPortal(selektor)` — ohne Textsuche; für Knöpfe nach Text in Portalen den Testhelfer `knopf(text)` aus Task 9 kopieren), Kopfzeile `// @vitest-environment jsdom`, `afterEach(async () => { await unmount(); … })`. **`query`, `fill` und `submitForm` suchen nur im Mount-Wirt** — antds `Drawer` rendert per Portal nach `document.body`, Flyin-Inhalt also immer über `queryPortal`; zum Füllen und Absenden im Flyin die lokalen Testhelfer `fillPortal`/`submitPortal` (Task 17) in die Testdatei kopieren. Das Harness selbst bleibt unverändert.
+- **Zeitgrenzen in Tests** (Angriffstests gegen Rückverfolgung): Eingaben so groß wählen, dass der alte, quadratische oder exponentielle Weg viele Sekunden bräuchte, und die Grenze bei etwa 1 s setzen — nie 100 ms (Load hier oft zweistellig).
 - **Titelfelder gibt es im Editor zweimal** (Flyin und Gliederung, Phase-3-Constraint): Greifer auf das Flyin immer eingeschränkt (`[data-flyin-stelle] …` in jsdom, `.kp-flyin` + `getByLabel(…, { exact: true })` im e2e).
 - antd 6.6.4: `Select` nimmt Suche **nur** als `showSearch={{ searchValue, onSearch, filterOption }}` bzw. `showSearch={{ filterOption: … }}`; `Alert` mit `title=`; `Drawer` mit `size={flyinBreite(n)}`; `Dropdown` mit `menu={{ items, onClick }}`. Im Zweifel antd-MCP (`ToolSearch` „antd", dann `antd_doc`/`antd_demo`).
 - Next-Guides vor dem ersten Code, der die API benutzt, lesen: `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route.md` (Route Handler, `request.formData()`), `…/01-app/02-guides/server-actions.md` (Abschnitt „Body size limit" und „CSRF check" — gilt **nur** für Actions, nicht für Route Handler), `…/01-app/02-guides/data-security.md` („Allowed origins"), `…/01-app/03-api-reference/03-file-conventions/route-groups.md`, `…/01-app/03-api-reference/04-functions/use-router.md` (`router.refresh()`).
@@ -41,17 +42,17 @@
 2. **Briefkopf als eine Zeile mit Primärschlüssel `id = 1`** (Abweichung von Spec §4.1, die keine ID nennt): `id INTEGER PRIMARY KEY` mit `CHECK (id = 1)` — der Audit-Katalog braucht einen Primärschlüssel, und „genau eine Zeile" wird so von der Datenbank erzwungen. Ein zweiter `CHECK` hält das Logo vollständig (Blob, Typ und SHA-256 alle gesetzt oder alle leer) und unter 1 MB. **Alle** Spalten sind auditiert, auch der Blob (der Trigger vergleicht `OLD."logo" IS NOT NEW."logo"`): Hochladen, Ersetzen, Entfernen und jede Namensänderung sind je eine Audit-Zeile (`update briefkopf`, beim ersten Eintrag `create`). Ein leerer Organisationsname wird `NULL` gespeichert.
 3. **Logo-Upload als Route Handler** `POST /logo` (Datei `src/app/m/kommplan/logo/route.ts`, außerhalb von `(intern)`): Server Actions nehmen höchstens 1 MB an (`server-actions.md`, „Body size limit"), ein 1-MB-Logo samt Multipart-Rahmen also nicht; `serverActions.bodySizeLimit` ist suiteweit und bleibt unangetastet (Vorbild `aufgaben/a/[id]/nachweis/hochladen/route.ts`, Kopfkommentar). Der Handler prüft selbst: Host, Anmeldung, `isModuleAdmin` (`requireKommplanBearbeitenAktion`, Wurf → 404), **gleiche Herkunft** (`Origin` gegen `x-forwarded-host`/`host`, `_lib/herkunft.ts` — Route Handler haben Nexts CSRF-Prüfung der Actions nicht, und die Sitzung gilt suiteweit für alle `*.iuk-ue.de`) und früh die `content-length` (höchstens 1 MB + 16 KB Multipart-Rand), bevor er puffert — fehlt sie, wird gelesen und an den Bytes gemessen (wie `aufgaben`, `inhaltZuGross`). Die Herkunftsprüfung ist neu in der Suite (weder `aufgaben` noch `files` haben eine) und hinter dem Reverse-Proxy des Zielhosts unbelegt — riskante Annahme. Organisationsname und „Logo entfernen" sind Server Actions (`_actions/briefkopf.ts`).
 4. **Virenscan per Pfad wie in `aufgaben`**, nicht per INSTREAM: `core/av` bleibt unverändert (sonst auch `scripts/fake-clamd.mjs` und dessen Quelltext-Tests). Die hochgeladenen Bytes werden für den Scan in eine Wegwerfdatei unter `$DATA_DIR/kommplan-scan/<uuid>` geschrieben (Verzeichnis 0750, Datei 0640, `flag: "wx"`), `scanne(pfad, konfig)` aufgerufen und die Datei im `finally` gelöscht. Dafür bekommt der Stack ein **neues benanntes Volume `kommplan_scan`**: `suite` schreibend auf `/data/kommplan-scan`, `clamav` lesend (`:ro`); das Backup mountet es **nicht** (das Logo selbst liegt in `kommplan.db`). Das `Dockerfile` legt `/data/kommplan-scan` an und übereignet es (wie `/data/files`, Kommentar dort: ein leeres benanntes Volume übernimmt Eigentümer und Modus des Mountpunkts aus dem Image). Eigene Variablen `KOMMPLAN_AV_HOST`/`_PORT`/`_TIMEOUT_MS` (Vorgaben `clamav`, `3310`, `30000`); `playwright.config.ts` zeigt sie auf den Fake-clamd. Der Scan läuft **synchron** im Upload; „befund" und „fehler" lehnen ab (fail-closed). Gescannt werden die hochgeladenen Bytes, gespeichert die bereinigten (bei SVG).
-5. **Logo-Prüfung:** Größe 1 MB = **1 048 576 Byte**; der Typ kommt allein aus den Bytes (`erkenneLogoTyp`: PNG-, JPEG-, WebP-Signatur; SVG = gültiges UTF-8, dessen erstes Element nach Leerraum, `<?xml …?>`, Kommentaren und einem DOCTYPE `<svg` ist), nie aus Dateiname oder `Content-Type`. **SVG-Bereinigung** (`bereinigeSvg`, rein, ohne DOM) arbeitet mit **Allowlist**: ein eigener, strikter XML-Zerleger (Attribute nur in Anführungszeichen, keine doppelten Attribute, nur die fünf XML-Entitäten und Zeichenreferenzen, Verschachtelung höchstens 256); **DOCTYPE/ENTITY → Ablehnung**; Kommentare und Verarbeitungsanweisungen (auch `<?xml-stylesheet?>`) fallen weg; CDATA wird zu Text. Erlaubt sind nur die Elemente `svg g defs symbol use path rect circle ellipse line polyline polygon text tspan title desc linearGradient radialGradient stop clipPath mask pattern image style` — alles andere (`script`, `foreignObject` in jeder Schreibweise, `a`, `animate`, `set`, `iframe`, jedes Element mit Präfix wie `svg:script`, `sodipodi:namedview`) fällt **samt Inhalt** weg. Attribute: `on*` fallen weg; `href`/`xlink:href` nur `#id` (an `use`, Verläufen, `pattern`) bzw. Rasterbilder `data:image/png|jpeg|webp;base64,…` (an `image`), sonst fällt das Attribut und ein `use`/`image` ohne Verweis ganz; `url(…)` nur lokal (`url(#id)`); jeder Wert, der nach Entfernen von Leer- und Steuerzeichen `javascript:` enthält, fällt; `style`-Attribut und `<style>`-Inhalt werden je Deklaration gefiltert (Eigenschaften-Allowlist, kein `@`, kein `\`, kein `expression(`, nur lokale `url()`). **Ungültig nach der Bereinigung** (→ Ablehnung): kein `svg`-Wurzelelement, weder `viewBox` noch Breite und Höhe als Zahlen (dann wird `viewBox="0 0 B H"` ergänzt), nichts mehr zu zeichnen. `<style>` bleibt (bereinigt) erhalten, weil Illustrator-Logos ihre Farben über Klassen setzen — ohne ihn wäre das Logo schwarz (Review Focus 1). Die Ausgabe ist idempotent: `bereinigeSvg(aus) === aus`.
-6. **Logo im Kopf der Zeichnung:** genau ein `<image id="kp-logo" … preserveAspectRatio="xMaxYMid meet" href="data:…">` je Dokument in `<defs>`, jedes Blatt verweist per `<use href="#kp-logo">` darauf — die Druckroute rendert viele Blätter, und ein 1-MB-Logo (≈ 1,33 MB Base64) je Blatt wäre ein Vielfaches davon. Feste Kopf-Box `LOGO_BOX = { breite: 40, hoehe: 11, luft: 3 }` mm rechts oben (`x = 287 − 40`, `y = BLATT.randOben`); das Seitenverhältnis hält der Browser (`meet`). Die Organisation steht rechtsbündig links neben der Box (ohne Logo am rechten Rand). **Ohne Eintrag steht nichts da** — kein `<image>`, kein `<use>`, kein leerer Text, kein Rahmen. Das rote Kreuz (`Blatt.tsx`) und `FARBE.marke` (`#c8000f`) entfallen ersatzlos; `rahmenFuer` kennt keinen Organisationsnamen mehr. Der lokale Seed trägt den neutralen Namen „Musterorganisation", **kein** Logo. Der Bildschirm (Betrachter, Editor) hat keinen Kopf — unverändert.
-7. **„Als Vorlage speichern" setzt `ist_vorlage` am Plan selbst** (Spec §6.7 wörtlich): der Plan wandert aus der Liste „Pläne" in die Liste „Vorlagen" und bleibt im Editor bearbeitbar; „Keine Vorlage mehr" nimmt das zurück. **Vom Hauptlauf zu bestätigen** (riskante Annahme): die Alternative „Kopie als Vorlage anlegen" wäre eine Zeile in `planverwaltung.ts` (`dupliziere` mit `istVorlage: true`), Oberfläche und Tests müssten den Wortlaut nachziehen.
-8. **„Neu aus Vorlage"**: das Formular „Neuer Plan" bekommt das Feld „Vorlage" (Vorgabe „Leerer Plan"); die Zeilenaktion „Neu aus Vorlage" in der Vorlagen-Liste öffnet dasselbe Formular mit der Vorlage vorbelegt. Wahl einer Vorlage setzt die Art der Vorlage und — nur wenn der Titel noch leer ist — deren Titel. Der Server kopiert den Inhalt der Vorlage (nur eine nicht archivierte Vorlage; sonst Feldfehler „Diese Vorlage gibt es nicht mehr.").
-9. **Duplizieren** (Spec §6.7): neue ID, Inhalt, Art und Anlass kopiert; `datum` = heute in der Suite-Zone (`heuteIso(jetzt)`); im Titel wird das **erste** vollständige Datum ersetzt, in **derselben** Schreibweise (`TT.MM.JJJJ`, `T.M.JJJJ`, `TT.MM.JJ`, `JJJJ-MM-TT`; Monat 1–12, Tag 1–31, sonst kein Datum). Ohne Datum im Titel wird „ (Kopie)" angehängt; würde der Titel dadurch länger als 200 Zeichen, bleibt er unverändert. Die Kopie ist keine Vorlage, nicht archiviert, Version 1, „Stand" = jetzt. Danach geht es direkt in den Editor der Kopie. Ein nicht lesbarer Plan wird nicht dupliziert.
+5. **Logo-Prüfung:** Größe 1 MB = **1 048 576 Byte**; der Typ kommt allein aus den Bytes (`erkenneLogoTyp`: PNG-, JPEG-, WebP-Signatur; SVG = gültiges UTF-8, dessen erstes Element nach Leerraum, `<?xml …?>`, Kommentaren und einem DOCTYPE `<svg` ist), nie aus Dateiname oder `Content-Type`. **SVG-Bereinigung** (`bereinigeSvg`, rein, ohne DOM) arbeitet mit **Allowlist**: ein eigener, strikter XML-Zerleger (Attribute nur in Anführungszeichen, keine doppelten Attribute, nur die fünf XML-Entitäten und Zeichenreferenzen, Verschachtelung höchstens 256); **DOCTYPE/ENTITY → Ablehnung**; Kommentare und Verarbeitungsanweisungen (auch `<?xml-stylesheet?>`) fallen weg; CDATA wird zu Text. Erlaubt sind nur die Elemente `svg g defs symbol use path rect circle ellipse line polyline polygon text tspan title desc linearGradient radialGradient stop clipPath mask pattern image style` — alles andere (`script`, `foreignObject` in jeder Schreibweise, `a`, `animate`, `set`, `iframe`, jedes Element mit Präfix wie `svg:script`, `sodipodi:namedview`) fällt **samt Inhalt** weg. Attribute: `on*` fallen weg; `href`/`xlink:href` nur `#id` (an `use`, Verläufen, `pattern`) bzw. Rasterbilder `data:image/png|jpeg|webp;base64,…` (an `image`), sonst fällt das Attribut und ein `use`/`image` ohne Verweis ganz; `url(…)` nur lokal (`url(#id)`); jeder Wert, der nach Entfernen von Leer- und Steuerzeichen `javascript:` enthält, fällt; `style`-Attribut und `<style>`-Inhalt werden je Deklaration gefiltert (Eigenschaften-Allowlist, kein `@`, kein `\`, kein `expression(`, nur lokale `url()`). **Ungültig nach der Bereinigung** (→ Ablehnung): kein `svg`-Wurzelelement, weder `viewBox` noch Breite und Höhe als Zahlen (dann wird `viewBox="0 0 B H"` ergänzt), nichts mehr zu zeichnen. `<style>` bleibt (bereinigt) erhalten, weil Illustrator-Logos ihre Farben über Klassen setzen — ohne ihn wäre das Logo schwarz (Review Focus 1). Die Ausgabe ist idempotent: `bereinigeSvg(aus) === aus`. **Lineare Laufzeit** (Kritik): Typprüfung und Bereinigung laufen synchron im Upload auf dem einzigen Node-Thread, mit bis zu 1 MB Eingabe — darum kein Regex mit geschachteltem Quantor oder offenem Suchlauf je Startposition: der Vorspann vor `<svg` wird mit `indexOf` übersprungen, `<style>` mit einem Zeichen-für-Zeichen-Zerleger gelesen, `url(` je Fundstelle per `indexOf` geprüft; `<style>`-Inhalt über 64 KB wird abgelehnt („zu groß"). Attributwerte bleiben ungedeckelt (ein `d` oder ein eingebettetes PNG ist legitim groß), alle Prüfungen darauf sind linear.
+6. **Logo im Kopf der Zeichnung:** genau ein `<image id="kp-logo" … preserveAspectRatio="xMaxYMid meet" href="data:…">` je Dokument in `<defs>`, jedes Blatt verweist per `<use href="#kp-logo">` darauf — die Druckroute rendert viele Blätter, und ein 1-MB-Logo (≈ 1,33 MB Base64) je Blatt wäre ein Vielfaches davon. Feste Kopf-Box `LOGO_BOX = { breite: 40, hoehe: 11, luft: 3 }` mm rechts oben (`x = 287 − 40`, `y = BLATT.randOben`); das Seitenverhältnis hält der Browser (`meet`). Die Organisation steht rechtsbündig links neben der Box (ohne Logo am rechten Rand), auf höchstens `ORGANISATION_MAX = 80` mm gekürzt; der Plantitel (bis 200 Zeichen) wird mit `textBreite` auf den Raum bis dorthin begrenzt — erst in halben Punkten bis 10 pt kleiner, dann mit „…" gekürzt —, damit er nie in Organisation oder Logo-Box läuft. **Ohne Eintrag steht nichts da** — kein `<image>`, kein `<use>`, kein leerer Text, kein Rahmen. Das rote Kreuz (`Blatt.tsx`) und `FARBE.marke` (`#c8000f`) entfallen ersatzlos; `rahmenFuer` kennt keinen Organisationsnamen mehr. Der lokale Seed trägt den neutralen Namen „Musterorganisation", **kein** Logo; auch die Bearbeiterangaben der Beispielpläne (im Fuß „Bearbeitung: …" gedruckt) nennen keine Organisation mehr („Kreisbereitschaftsleitung", „KBL"). Der Bildschirm (Betrachter, Editor) hat keinen Kopf — unverändert.
+7. **„Als Vorlage speichern" setzt `ist_vorlage` am Plan selbst** (Spec §6.7 wörtlich): der Plan wandert aus der Liste „Pläne" in die Liste „Vorlagen" und bleibt im Editor bearbeitbar; „Keine Vorlage mehr" nimmt das zurück. **Vom Hauptlauf zu bestätigen** (riskante Annahme): die Alternative „Kopie als Vorlage anlegen" wäre eine Zeile in `planverwaltung.ts` (`dupliziere` mit `istVorlage: true`), Oberfläche und Tests müssten den Wortlaut nachziehen. Die Kritik empfiehlt die Kopie (siehe „An den Hauptlauf", Punkt 2); dieser Plan bleibt beim Wortlaut der Spec, bis der Hauptlauf entscheidet.
+8. **„Neu aus Vorlage"**: das Formular „Neuer Plan" bekommt das Feld „Vorlage" (Vorgabe „Leerer Plan"); die Zeilenaktion „Neu aus Vorlage" in der Vorlagen-Liste öffnet dasselbe Formular mit der Vorlage vorbelegt. Wahl einer Vorlage setzt die Art und den Anlass der Vorlage, das Datum auf heute (Suite-Zone; `heute` kommt als Prop von der Seite, `heuteIso(Date.now())` auf dem Server) und — nur wenn der Titel noch leer ist — deren Titel **mit ersetztem Datum** (`ersetzeDatumImTitel(v.titel, heute) ?? v.titel`, dieselbe Regel wie beim Duplizieren, aber ohne „ (Kopie)"): eine Vorlage, die aus einem echten Einsatzplan entstand, trägt sonst ein altes Datum in jeden neuen Plan (Kritik). Ohne Vorlage bleibt das Formular wie bisher (Datum leer). Der Server kopiert den Inhalt der Vorlage (nur eine nicht archivierte Vorlage; sonst Feldfehler „Diese Vorlage gibt es nicht mehr.").
+9. **Duplizieren** (Spec §6.7): neue ID, Inhalt, Art und Anlass kopiert; `datum` = heute in der Suite-Zone (`heuteIso(jetzt)`); im Titel wird das **erste** vollständige Datum ersetzt, in **derselben** Schreibweise (`TT.MM.JJJJ`, `T.M.JJJJ`, `TT.MM.JJ`, `JJJJ-MM-TT`; Monat 1–12, Tag 1–31, sonst kein Datum). Ohne Datum im Titel wird „ (Kopie)" angehängt; würde der Titel dadurch länger als 200 Zeichen, bleibt er unverändert. Die Kopie ist keine Vorlage, nicht archiviert, Version 1, „Stand" = jetzt. Danach geht es direkt in den Editor der Kopie (`/p/<neu>?kopie=1`); dort steht einmal der Hinweis „Kopie angelegt — Titel und Datum stehen auf <heute>." mit dem Knopf „Angaben ändern" (öffnet das vorhandene Flyin „Plan und Verbindungen", Abschnitt Angaben) — wer am Vorabend die Fassung für morgen vorbereitet, sieht sofort, dass „heute" gesetzt ist. Während das Duplizieren läuft, trägt der Knopf „Aktionen" der Zeile `loading`, und jede weitere Aktion an derselben Zeile ist gesperrt (kein zweites Duplikat per Doppelklick). Ein nicht lesbarer Plan wird nicht dupliziert.
 10. **Archiv** (Spec §8.3): „Archivieren" setzt `archiviert_am`, „Wiederherstellen" nimmt es zurück; beides ändert den „Stand" nicht und ist je eine Audit-Zeile (Trigger auf `archiviert_am`). Die Archivansicht ist eine eigene Seite `/archiv` für alle mit Zugang; „Wiederherstellen" nur für Bearbeitende. Ein archivierter Plan unter `/p/[id]` ist **nur lesbar**: Betrachter statt Editor, darüber „Archiviert am … — nur lesbar" (für Bearbeitende mit „Wiederherstellen"); Drucken bleibt erlaubt. `ladePlan`/`ladeStand` bleiben „nur aktive" (Editor, Speichern, später Token-Links, Phase 5); neu ist `ladePlanLesend` für Layout, Planseite und Druck. Ein im Editor offener Plan, der in einem anderen Fenster archiviert wird, bekommt beim nächsten Speichern „weg" (vorhandener Pfad).
-11. **Bibliotheksseite** `/bibliothek` (nur Bearbeitende): drei Bereiche als Reiter „Stellen | Einheiten | Verbindungen" (antd `Tabs`, Client-Insel). Je Bereich ein Suchfeld (clientseitig über alle Textfelder), „Neu", eine **`Kartentabelle`** (nicht die nackte `Datentabelle` des Auftragswortlauts: docs/design/README.md „Mobil", DRK-451 und Phase-1-Kritik 2 — die Kartentabelle *ist* die Datentabelle mit der Telefonform) und Bearbeiten im Flyin (`Drawer`, `flyinBreite(520)`). Gespeichert wird hier **ausdrücklich** („Speichern"/„Abbrechen"): Bibliothekspflege ist Stammdatenpflege ohne Rückgängig-Stapel. Löschen mit `Popconfirm` („Aus der Bibliothek löschen? Pläne behalten ihre Kopien."). **Dubletten** (Vergleich getrimmt, Leerraum zusammengezogen, ohne Groß/Klein): Stelle nach Titel, Einheit nach Rufname, Verbindung nach Bezeichnung **und** Art — Anlegen oder Umbenennen auf eine Dublette wird mit Feldfehler abgewiesen. Höchstens 2000 Einträge je Bereich, Notiz höchstens 500 Zeichen.
+11. **Bibliotheksseite** `/bibliothek` (nur Bearbeitende): drei Bereiche als Reiter „Stellen | Einheiten | Verbindungen" (antd `Tabs`, Client-Insel). Je Bereich ein Suchfeld (clientseitig über alle Textfelder), „Neu", eine **`Kartentabelle`** (nicht die nackte `Datentabelle` des Auftragswortlauts: docs/design/README.md „Mobil", DRK-451 und Phase-1-Kritik 2 — die Kartentabelle *ist* die Datentabelle mit der Telefonform) und Bearbeiten im Flyin (`Drawer`, `flyinBreite(520)`). Gespeichert wird hier **ausdrücklich** („Speichern"/„Abbrechen"): Bibliothekspflege ist Stammdatenpflege ohne Rückgängig-Stapel. Beim Öffnen steht der Fokus im ersten Feld (wie „Neuer Plan"); beim Anlegen gibt es zusätzlich „Speichern und nächste" — speichert, meldet, leert das Formular und lässt es offen, Fokus wieder im ersten Feld (mehrere Einträge hintereinander ohne Mausweg). Freitextspalten (Notiz, Kontakte) über `Zellentext` aus `core/tabelle` (Lesebreite, docs/design/README.md „Mobil"). Löschen mit `Popconfirm` („Aus der Bibliothek löschen? Pläne behalten ihre Kopien."). **Dubletten** (Vergleich getrimmt, Leerraum zusammengezogen, ohne Groß/Klein): Stelle nach Titel, Einheit nach Rufname, Verbindung nach Bezeichnung **und** Art — Anlegen oder Umbenennen auf eine Dublette wird mit Feldfehler abgewiesen. Höchstens 2000 Einträge je Bereich, Notiz höchstens 500 Zeichen.
 12. **Einheiten importieren:** „Liste einfügen" (gleicher Parser wie im Flyin, `leseEinheitenliste`) und „CSV importieren" (`Typ;Rufname[;Notiz]`, Semikolon, Felder in Anführungszeichen mit `""`, CRLF/LF/CR, BOM, Kopfzeile `Typ;Rufname[;Notiz]` wird erkannt, leere Zeilen übersprungen; Kodierung UTF-8, sonst **Windows-1252** — Excel speichert deutsche CSV so). Beide führen in **dieselbe Vorschau**: je Zeile Typ, Rufname, Notiz und Status „neu", „schon in der Bibliothek" oder „doppelt in der Liste"; Fehler mit Zeilennummer verhindern die Übernahme ganz (nichts still gekürzt). „N übernehmen" schickt nur die neuen Zeilen; der Server prüft Dubletten in einer Transaktion erneut und meldet „N angelegt, M übersprungen". Höchstens 500 Zeilen je Import (Server-Action-Grenze 1 MB).
-13. **Bibliothek im Editor** per React-Kontext `BibliothekKontext` (die Planseite lädt die Bibliothek nur für Bearbeitende; der Wert ist stabil, solange sich die Bibliothek nicht ändert). Jede Kopie ist **ein** Rückgängig-Schritt (`aendere` ohne Bündelschlüssel); Zeichen der Kopie werden nachgeladen. Im Stellen-Flyin oben „Aus Bibliothek" (Auswahl mit Suche; ersetzt Titel, Zeichen, Leiter und Kontakte — Einheiten, Lage und Verbindung bleiben), unten „In Bibliothek übernehmen" (Titel, Zeichen, Leiter, Kontakte; ohne Titel deaktiviert; Dublette → Hinweis „steht schon in der Bibliothek"). Im Einheitenfeld (Flyin und aufgeklappte Einheiten der Gliederung) „Aus Bibliothek" als Mehrfachauswahl mit Suche und „Hinzufügen" (Grenze 60 je Stelle gilt, sonst nichts übernommen). In der Verbindungsauswahl (Flyin „Zur Elternstelle" und Verbindungsfeld der Gliederung) stehen Bibliotheksverbindungen, die der Plan noch nicht hat (gleiche Bezeichnung **und** Art), als eigene Optionen „Aus Bibliothek: R_UE_1 · Digitalfunk TMO"; die Wahl legt eine Kopie im Plan an und verbindet. Kanäle (`kanaele`) bleiben ohne Bibliothek.
-14. **Titelvorschläge in der Gliederung** — „ohne den Tippfluss zu stören": nur an der **aktiven** Zeile, unter ihr, ab 2 Zeichen, höchstens 3 (zuerst Titel, die mit dem Getippten beginnen, dann solche, die es enthalten; nicht, wenn die Stelle den Eintrag schon genau trägt). Kein Popup, kein Abfangen von Enter, Tab, Pfeilen oder Esc. Übernehmen per Klick/Tipp auf einen Vorschlag (die Knöpfe verhindern `mousedown`, der Fokus bleibt im Titel, eine unberührt angelegte Zeile verschwindet nicht) oder per **Alt+Enter** (erster Vorschlag; `e.key === "Enter"` mit `altKey`; kein Browser belegt Alt+Enter im Seiteninhalt — auf Windows ungeprüft, Risiko wie Phase-3-U16). Ohne Vorschlag meldet Alt+Enter „Kein Vorschlag aus der Bibliothek." Die Vorschläge sind eine eigene Kindkomponente der Zeile, die als einzige den Kontext liest — die `memo`-Bindung der übrigen Zeilen bleibt (Phase-3-Entscheidung 2).
-15. **Auswahlleiste** (Phase-3-Entscheidung 18, **vom Hauptlauf bestätigt**; Begründung: die Messung im Phase-3-Plan zeigt, dass Griffe an der Karte bei 1024 px zwangsläufig Planelemente verdecken): An der Karte bleibt nur der Auswahlrahmen. Alle Griffe stehen in `.kp-auswahlleiste` (`role="toolbar"`, `aria-label` „Auswahl: <Titel>") oben links in der Fläche, 8 px vom Rand, nie umbrechend (am Telefon waagerecht scrollbar): Name der Stelle (gekürzt), „+ Unterstelle", „+ links", „+ rechts", „+ Einheit", „Bearbeiten" (Seitenstelle: nur die letzten zwei). Höhe fest `AUSWAHLLEISTE = { abstand: 8, hoehe: 56 }`. Die Ränder beim Einpassen werden zurückgenommen: `GRIFF_RAND = { oben: 72, seite: 16, unten: 72 }` (oben Leiste + Luft, seitlich nur Auswahlrahmen, unten Meldungsplatz); `Flaeche` bekommt `platzOben`. Das `KOMPAKT`-Token (`paddingInline: 10`) bleibt — die Leiste ist so am Telefon kürzer. Spec §6.3 wird angepasst (Task 21).
+13. **Bibliothek im Editor** per React-Kontext `BibliothekKontext` (die Planseite lädt die Bibliothek nur für Bearbeitende; der Wert ist stabil, solange sich die Bibliothek nicht ändert). Jede Kopie ist **ein** Rückgängig-Schritt (`aendere` ohne Bündelschlüssel); Zeichen der Kopie lädt **der Kopierweg selbst** nach (`ladeSymbole` mit den mitgebrachten Schlüsseln — nicht nach jedem `aendere`, sonst löste ein unbekannter Schlüssel bei jedem Tastendruck einen Abruf aus). Der Kontext trägt `merke(teil)`: neue oder geänderte Einträge (nach ID ersetzt oder ergänzt), damit Übernahmen sofort auswählbar sind. Im Stellen-Flyin oben „Aus Bibliothek" (Auswahl mit Suche; ersetzt Titel, Zeichen, Leiter und Kontakte — Einheiten, Lage und Verbindung bleiben; danach Fokus ins Titelfeld), unter dem Titelfeld dieselben Titelvorschläge wie in der Gliederung (Entscheidung 14), unten „In Bibliothek übernehmen" (Titel, Zeichen, Leiter, Kontakte; ohne Titel deaktiviert; während des Laufs nur `loading`, nicht gesperrt — der Fokus bliebe sonst nicht am Knopf; Dublette → Hinweis „steht schon in der Bibliothek" **mit dem Knopf „Eintrag in der Bibliothek aktualisieren"**, der den vorhandenen Eintrag mit den Angaben der Stelle überschreibt, Notiz bleibt). Im Einheitenfeld (Flyin und aufgeklappte Einheiten der Gliederung) „Aus Bibliothek" als Mehrfachauswahl mit Suche, deren Suchtext nach einer Wahl stehen bleibt (`autoClearSearchValue: false` — „41-92" einmal tippen, dann ↓/Enter je Fahrzeug); an dieser Stelle schon vorhandene Fahrzeuge (gleicher Rufname) sind gesperrt, an einer anderen Stelle eingesetzte tragen „— schon bei <Stelle>" und stehen hinter den freien; „Hinzufügen" (Grenze 60 je Stelle gilt, sonst nichts übernommen; danach Fokus zurück in die Auswahl). Dazu „Einheiten in Bibliothek übernehmen" für alle Einheiten der Stelle (die Import-Action, Dubletten übersprungen, Meldung „n angelegt, m schon vorhanden"). In der Verbindungsauswahl (Flyin „Zur Elternstelle" und Verbindungsfeld der Gliederung) stehen Bibliotheksverbindungen, die der Plan noch nicht hat (gleiche Bezeichnung **und** Art), als eigene Optionen „Aus Bibliothek: R_UE_1 · Digitalfunk TMO"; die Wahl legt eine Kopie im Plan an und verbindet. Im Flyin „Plan und Verbindungen" (Abschnitt Verbindungen) übernimmt „Verbindungen in Bibliothek übernehmen" alle Verbindungen des Plans in **einem** Aufruf (`importiereBibVerbindungenAction`, Dubletten nach Bezeichnung und Art übersprungen) — Server Actions laufen nacheinander, eine Schleife einzelner Aufrufe stellte sich vor das Autosave. So füllt der erste echte Plan die Bibliothek, statt dass man Fahrzeuge und Verbindungen ein zweites Mal tippt. Kanäle (`kanaele`) bleiben ohne Bibliothek.
+14. **Titelvorschläge in der Gliederung** — „ohne den Tippfluss zu stören": nur an der **aktiven** Zeile, unter ihr, ab 2 Zeichen, höchstens 3 (zuerst Titel, die mit dem Getippten beginnen, dann solche, die es enthalten; nicht, wenn die Stelle den Eintrag schon genau trägt). Kein Popup, kein Abfangen von Enter, Tab, Pfeilen oder Esc. Übernehmen per Klick/Tipp auf einen Vorschlag (die Knöpfe verhindern `mousedown`, der Fokus bleibt im Titel, eine unberührt angelegte Zeile verschwindet nicht) oder per **Alt+Enter** (erster Vorschlag; `e.key === "Enter"` mit `altKey`; kein Browser belegt Alt+Enter im Seiteninhalt — auf Windows ungeprüft, Risiko wie Phase-3-U16). Ohne Vorschlag meldet Alt+Enter „Kein Vorschlag aus der Bibliothek." Die Vorschläge sind eine eigene Kindkomponente der Zeile, die als einzige den Kontext liest — die `memo`-Bindung der übrigen Zeilen bleibt (Phase-3-Entscheidung 2). **Tastaturweg zum 2. und 3. Vorschlag:** in der Gliederung gehört Tab dem Einrücken, die Vorschlagsknöpfe bleiben dort `tabIndex={-1}`; im Stellen-Flyin (dieselbe Komponente unter dem Titelfeld, Alt+Enter ebenso) sind sie gewöhnliche Tabstopps, und „Aus Bibliothek" sucht gezielt — beides ist der dokumentierte Weg ohne Zeiger. Kein Alt+1…3: Alt+Ziffer wechselt in Chrome/Firefox unter Linux den Tab und erreicht die Seite nicht verlässlich. Die Leiste der Vorschläge ist einzeilig und waagerecht scrollbar (feste Höhe), damit die Zeilen darunter beim Tippen nicht springen; der Hinweis „Alt+Enter nimmt den ersten" steht unter 768 px nicht da (Bildschirmtastaturen haben kein Alt). **Nach dem Einfügen einer Gliederung** (mehrzeiliges Einfügen, Phase 3) werden die neuen Titel exakt (`vergleichsform`) gegen die Bibliothek geprüft; bei Treffern meldet der Editor „2 Stellen stehen so in der Bibliothek." mit dem Knopf „Angaben übernehmen", der alle Treffer in **einem** Rückgängig-Schritt füllt.
+15. **Auswahlleiste** (Phase-3-Entscheidung 18, **vom Hauptlauf bestätigt**; Begründung: die Messung im Phase-3-Plan zeigt, dass Griffe an der Karte bei 1024 px zwangsläufig Planelemente verdecken): An der Karte bleibt nur der Auswahlrahmen. Alle Griffe stehen in `.kp-auswahlleiste` (`role="group"`, `aria-label` „Auswahl: <Titel>" — ehrlich: jeder Knopf ein eigener Tabstopp, keine Pfeiltasten-Bedienung, die `role="toolbar"` versprechen würde) oben links in der Fläche, 8 px vom Rand, nie umbrechend (am Telefon waagerecht scrollbar, mit Schattenkante, solange weiterer Inhalt verborgen ist): Name der Stelle (gekürzt; unter 768 px ausgeblendet, das `aria-label` trägt ihn), „Bearbeiten", „+ Unterstelle", „+ Einheit", „+ links", „+ rechts" (Seitenstelle: nur „Bearbeiten" und „+ Einheit"). „Bearbeiten" steht vorn, weil das Diagramm am Telefon für kleine Korrekturen da ist (Spec §6.5) und das Ende der Leiste bei 390 px außerhalb des Bildes liegt. Höhe fest `AUSWAHLLEISTE = { abstand: 8, hoehe: 56 }`. Die Ränder beim Einpassen werden zurückgenommen: `GRIFF_RAND = { oben: 72, seite: 16, unten: 72 }` (oben Leiste + Luft, seitlich nur Auswahlrahmen, unten Meldungsplatz); `Flaeche` bekommt `platzOben`. Das `KOMPAKT`-Token (`paddingInline: 10`) bleibt — die Leiste ist so am Telefon kürzer. Spec §6.3 wird angepasst (Task 21).
 16. **Zugang der Verwaltungsseiten:** neue Routengruppe `(intern)/(verwaltung)` mit eigenem `layout.tsx` (Host, Zugang, **Bearbeiten** — oberhalb jeder künftigen `loading.tsx`, Falle 23); `pruefeKommplanBearbeiten(viewer)` in `_lib/zugang.ts` wirft `notFound()` mit Audit-Ablehnung. Die Seiten rufen alle drei Riegel selbst noch einmal (Layouts und Seiten rendern parallel).
 17. **Release-Notiz** (Vorgabe des Hauptlaufs: eine Notiz für das Modul, ehrlich zum Stand nach Phase 4): dieselbe Datei, drei Absätze innerhalb der Grenzen (3 Blöcke, je ≤ 320 Zeichen, zusammen ≤ 640). Wortlaut in Task 22.
 
@@ -64,7 +65,8 @@
 5. **Bibliothek in einen vollen oder konfliktträchtigen Plan** — Verbindung „R_UE_1" gibt es im Plan schon als TMO, in der Bibliothek als DMO; eine Stelle mit 58 Einheiten bekommt 3 aus der Bibliothek; „Aus Bibliothek" auf eine Stelle mit Einheiten und Unterstellen → Kopie der gleichnamigen **anderen** Art, Abweisung ohne Teilübernahme, Einheiten/Unterstellen/Verbindung bleiben; jeweils **ein** Rückgängig-Schritt. Gepinnt in `_lib/plan/bibliothek.test.ts` (Task 18) und `StelleFlyin.test.tsx` (Task 19).
 6. **Ein archivierter Plan, der noch in einem zweiten Fenster im Editor offen ist** → dort meldet das nächste Speichern „weg" (kein stilles Überschreiben, kein Wiederbeleben); `/p/<id>` zeigt den Betrachter mit Archivhinweis, nie den Editor, auch nicht für Bearbeitende; Drucken geht. Gepinnt in `planverwaltung.test.ts` (Task 11) und `e2e/kommplan-verwaltung.spec.ts` (Task 23).
 7. **Tippen in der Gliederung mit Bibliotheksvorschlägen** → Enter legt weiter die nächste Stelle an, Tab rückt ein, ↑/↓ wandern, Esc verlässt; ein Klick auf einen Vorschlag lässt den Fokus im Titel und verwirft die eben per Enter angelegte Zeile nicht; Alt+Enter übernimmt; die verborgene Gliederung rendert beim Tippen im Flyin nicht mehr Zeilen als vorher. Gepinnt in `Gliederung.test.tsx`, `GliederungLast.test.tsx` (Task 20) und `e2e/kommplan-bibliothek.spec.ts` (Task 23).
-8. **Die Auswahlleiste verdeckt kein Planelement** — eingepasst bei 1440 × 900 ohne und mit offenem Stellen-Flyin und bei 1024 × 768, an fuekw, ea1, ea2, ea4 und der Seitenstelle el des Seed-Plans OpenR: kein `[data-griff]` und nicht die Leiste schneidet `[data-karte]`, `[data-einheit]` oder `[data-sechseck]`; der Einklapp-Umschalter der gewählten Karte bleibt treffbar (Phase-3 Review Focus 6, dort in U1 entfallen). Gepinnt im e2e (Task 21).
+8. **Die Auswahlleiste verdeckt kein Planelement** — eingepasst bei 1440 × 900 ohne und mit offenem Stellen-Flyin und bei 1024 × 768, an fuekw, ea1, ea2, ea4 und der Seitenstelle el des Seed-Plans OpenR: kein `[data-griff]` und nicht die Leiste schneidet `[data-karte]`, `[data-einheit]` oder `[data-sechseck]`; der Einklapp-Umschalter der gewählten Karte bleibt treffbar (Phase-3 Review Focus 6, dort in U1 entfallen). Bei 390 × 844 liegen „Bearbeiten" und „+ Unterstelle" ganz im Bildschirm. Gepinnt im e2e (Task 21).
+9. **Angriffe auf die Laufzeit des Uploads** — eine Datei mit 100 000 Leerzeichen oder 100 000 Kommentaren vor einem Nicht-SVG, ein `<style>` aus 60 000 Zeichen ohne Klammer, ein Attribut aus `url(`-Wiederholungen → jeweils Ablehnung bzw. Ergebnis in unter einer Sekunde, nie Minuten auf dem Request-Thread. Gepinnt in `logoTyp.test.ts` (Task 2) und `svg.test.ts` (Task 3).
 
 ---
 
@@ -92,27 +94,29 @@ K/
 │   ├── ergebnis.ts                     geändert: EinfachErgebnis, LogoErgebnis, BibErgebnis, ImportErgebnis
 │   ├── zugang.ts                       geändert: pruefeKommplanBearbeiten
 │   ├── seedLokal.ts                    geändert: Briefkopf „Musterorganisation", kein Logo
+│   ├── beispiele/label.ts, openr20220701.ts  geändert: Bearbeiter ohne Organisationsnamen
 │   ├── bibliothek/                     NEU, rein
 │   │   ├── typen.ts                    BibStelle, BibEinheit, BibVerbindung, Bibliothek, LEERE_BIBLIOTHEK, vergleichsform, passt
 │   │   ├── schema.ts                   BIB_GRENZE, bibStelleSchema, bibEinheitSchema, bibVerbindungSchema, bibImportSchema
 │   │   ├── csv.ts                      dekodiereText, leseCsv, leseEinheitenCsv, einheitenAusListe
 │   │   └── vorschau.ts                 importVorschau
-│   ├── bibliothekDb.ts                 NEU (Server): ladeBibliothek, speichereBib*, loescheBibEintrag, importiereBibEinheiten
+│   ├── bibliothekDb.ts                 NEU (Server): ladeBibliothek, speichereBib*, loescheBibEintrag, importiereBibEinheiten,
+│   │                                                  importiereBibVerbindungen
 │   └── plan/bibliothek.ts              NEU (rein): uebernimmBibStelle, fuegeBibEinheitenEin, verbindeMitBibVerbindung,
 │                                                   bibVerbindungenFuerPlan, stelleVorschlaege, bibStelleAus
 ├── _actions/
 │   ├── briefkopf.ts                    NEU: speichereOrganisationAction, entferneLogoAction
 │   ├── verwaltung.ts                   NEU: dupliziereAction, setzeVorlageAction, archiviereAction, stelleWiederHerAction
 │   └── bibliothek.ts                   NEU: speichereBibStelleAction, speichereBibEinheitAction, speichereBibVerbindungAction,
-│                                            loescheBibEintragAction, importiereBibEinheitenAction
+│                                            loescheBibEintragAction, importiereBibEinheitenAction, importiereBibVerbindungenAction
 ├── logo/route.ts                       NEU: POST /logo (Upload/Ersetzen)
 ├── (intern)/
 │   ├── page.tsx                        geändert: Pläne + Vorlagen, Links im Seitenkopf
 │   ├── PlanTabelle.tsx                 geändert: Liste, Aktionen-Menü je Zeile, Hinweis
-│   ├── NeuerPlan.tsx                   geändert: Feld „Vorlage"
+│   ├── NeuerPlan.tsx                   geändert: Feld „Vorlage", Prop heute
 │   ├── archiv/page.tsx                 NEU
 │   ├── p/[id]/layout.tsx               geändert: ladePlanLesendOder404
-│   ├── p/[id]/page.tsx                 geändert: archiviert → Betrachter mit Hinweis; Bibliothek an den Editor
+│   ├── p/[id]/page.tsx                 geändert: archiviert → Betrachter mit Hinweis; Bibliothek an den Editor; ?kopie=1
 │   ├── p/[id]/Wiederherstellen.tsx     NEU ("use client")
 │   ├── p/[id]/druck/a4/page.tsx        geändert: Briefkopf, Druckblaetter
 │   └── (verwaltung)/                   NEU
@@ -132,11 +136,12 @@ K/
 │   │   ├── EinheitenBereich.tsx        inkl. Liste einfügen, CSV, Vorschau
 │   │   ├── VerbindungenBereich.tsx
 │   │   └── ImportVorschau.tsx
-│   ├── editor/bibliothekKontext.tsx    NEU ("use client"): BibliothekKontext, BibliothekAnbieter
-│   ├── editor/Editor.tsx               geändert: Bibliothek, GRIFF_RAND, platzOben
-│   ├── editor/Griffe.tsx               geändert: Auswahlrahmen + Auswahlleiste
-│   ├── editor/StelleFlyin.tsx          geändert: Aus Bibliothek, In Bibliothek übernehmen
-│   ├── editor/EinheitenListe.tsx       geändert: Aus Bibliothek
+│   ├── editor/bibliothekKontext.tsx    NEU ("use client"): BibliothekKontext, BibliothekAnbieter (bib, merke)
+│   ├── editor/Editor.tsx               geändert: Bibliothek, GRIFF_RAND, platzOben, Hinweis mit Aktion, startHinweis
+│   ├── editor/Griffe.tsx               geändert: Auswahlrahmen + Auswahlleiste (Griffe.test.tsx ersetzt)
+│   ├── editor/StelleFlyin.tsx          geändert: Aus Bibliothek, Titelvorschläge, In Bibliothek übernehmen/aktualisieren
+│   ├── editor/EinheitenListe.tsx       geändert: Aus Bibliothek, Einheiten in Bibliothek übernehmen
+│   ├── editor/PlanFlyin.tsx            geändert: Verbindungen in Bibliothek übernehmen
 │   ├── editor/VerbindungWahl.tsx       geändert: Bibliotheksverbindungen
 │   ├── betrachter/Flaeche.tsx          geändert: platzOben, Auswahlleiste in `ausgenommen`
 │   └── gliederung/
@@ -145,7 +150,7 @@ K/
 │       ├── VerbindungFeld.tsx          geändert: ~bib:-Wahl
 │       ├── TitelVorschlaege.tsx        NEU
 │       ├── GliederungZeile.tsx         geändert: Vorschläge an der aktiven Zeile
-│       └── Gliederung.tsx              geändert: Befehl bibliothek
+│       └── Gliederung.tsx              geändert: Befehl bibliothek, Abgleich nach dem Einfügen
 ├── grenze.test.ts, riegel.test.ts      geändert
 e2e/kommplan-bibliothek.spec.ts         NEU
 e2e/kommplan-verwaltung.spec.ts         NEU (Vorlagen, Duplizieren, Archiv, Briefkopf)
@@ -358,6 +363,16 @@ describe("Logo-Typ allein aus den Bytes (Spec §4.4)", () => {
     expect(pruefeLogoDatei(genau)).toEqual({ ok: true, typ: "image/png" });
     expect(pruefeLogoDatei(text("GIF89a"))).toEqual({ ok: false, fehler: LOGO_FEHLER.typ });
   });
+  it("Vorspann in linearer Zeit: viel Leerraum, viele Kommentare oder Deklarationen vor einem Nicht-SVG blockieren den Server nicht", () => {
+    // Ein Regex mit wiederholter Gruppe über `\s+` oder `<!--[\s\S]*?-->` läuft hier exponentiell (Kritik: 26 Leerzeichen
+    // ≈ 0,5 s; selbst gemessen: 30 000 Kommentare lief nach zwei Minuten noch). Die Größen sind so gewählt, dass der alte Weg viele Sekunden bräuchte.
+    for (const eingabe of [" ".repeat(100_000) + "x", "<!-- a -->".repeat(100_000) + "x", "<?xml ?>".repeat(100_000) + "x", "<!--".repeat(100_000)]) {
+      const start = performance.now();
+      expect(erkenneLogoTyp(text(eingabe))).toBeNull();
+      expect(performance.now() - start).toBeLessThan(1000);
+    }
+    expect(erkenneLogoTyp(text(`${"<!-- a -->\n".repeat(1000)}<svg/>`))).toBe("image/svg+xml");
+  });
 });
 ```
 
@@ -393,8 +408,26 @@ const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG = [0xff, 0xd8, 0xff];
 const RIFF = [0x52, 0x49, 0x46, 0x46];
 const WEBP = [0x57, 0x45, 0x42, 0x50];
-/** Vor dem ersten Element dürfen nur Leerraum, die XML-Deklaration, Kommentare und ein DOCTYPE stehen. */
-const SVG_ANFANG = /^(?:\s+|<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)*<svg[\s>/]/;
+const LEER = /\s/;
+
+/**
+ * Vor dem ersten Element dürfen nur Leerraum, die XML-Deklaration, Kommentare und ein DOCTYPE stehen. Bewusst
+ * KEIN Regex: eine wiederholte Gruppe über `\s+` oder `<!--[\s\S]*?-->` verfolgt bei einer Datei, die am Ende
+ * doch nicht passt, exponentiell viele Zerlegungen — synchron, vor dem Scan, auf dem einzigen Node-Thread. Hier
+ * springt `indexOf` von Ende zu Ende: linear in der Länge (`logoTyp.test.ts`, „Vorspann in linearer Zeit").
+ */
+function beginntMitSvg(text: string): boolean {
+  let i = 0;
+  for (;;) {
+    while (i < text.length && LEER.test(text[i])) i++;
+    const ende = text.startsWith("<?xml", i) ? "?>" : text.startsWith("<!--", i) ? "-->"
+      : text.slice(i, i + 9).toUpperCase() === "<!DOCTYPE" ? ">" : null;
+    if (ende === null) return text.startsWith("<svg", i) && /[\s>/]/.test(text[i + 4] ?? "");
+    const e = text.indexOf(ende, i + 2);
+    if (e < 0) return false;
+    i = e + ende.length;
+  }
+}
 
 function beginntMit(b: Uint8Array, signatur: number[], ab = 0): boolean {
   return b.length >= ab + signatur.length && signatur.every((x, i) => b[ab + i] === x);
@@ -403,7 +436,7 @@ function beginntMit(b: Uint8Array, signatur: number[], ab = 0): boolean {
 function istSvg(b: Uint8Array): boolean {
   let text: string;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(b); } catch { return false; } // BOM fällt dabei weg
-  return SVG_ANFANG.test(text);
+  return beginntMitSvg(text);
 }
 
 export function erkenneLogoTyp(b: Uint8Array): LogoTyp | null {
@@ -533,6 +566,25 @@ describe("bereinigeSvg — was gefährlich ist, fällt", () => {
   });
 });
 
+describe("bereinigeSvg — lineare Laufzeit (Upload-Thread; Review Focus 9)", () => {
+  // Die Größen sind so gewählt, dass die alten Regexe (`([^{}]+)\{…\}`, `/\*[\s\S]*?\*\/`, `url\s*\(…\)`) quadratisch
+  // viele Sekunden bräuchten (gemessen: 40 000 Zeichen ohne Klammer ≈ 0,8 s, 10 000 × `url(` ≈ 0,7 s — 250 000 × ein
+  // Vielfaches); die Grenze von 1 s hält auch unter hoher Last.
+  const schnell = (f: () => void) => { const t = performance.now(); f(); expect(performance.now() - t).toBeLessThan(1000); };
+  it("kaputtes <style> ohne Klammern, mit offenem Kommentar und offenen @-Regeln", () => {
+    for (const css of ["a".repeat(60_000), "/*".repeat(30_000), "@".repeat(60_000), "a{".repeat(30_000)]) {
+      schnell(() => { const r = bereinigeSvg(svg(`<style>${css}</style>${RECT}`)); expect(r.ok).toBe(true); });
+    }
+  });
+  it("<style> über 64 KB: abgelehnt mit Grund", () => {
+    expect(abgelehnt(svg(`<style>.a{fill:#000}${" ".repeat(64 * 1024)}</style>${RECT}`))).toMatch(/style.*64 KB/);
+  });
+  it("Attribut aus 250 000 × „url(“ und ein riesiges d bleiben linear", () => {
+    schnell(() => { expect(gut(svg(`<rect width="1" height="1" fill="${"url(".repeat(250_000)}"/>${RECT}`))).not.toContain("url("); });
+    schnell(() => { expect(gut(svg(`<path d="M0 0${" l1 1".repeat(150_000)}"/>`))).toContain("<path"); });
+  });
+});
+
 describe("bereinigeSvg — ein echtes Logo bleibt, wie es aussieht (Review Focus 1)", () => {
   it("Illustrator: style-Element mit Klassen und CDATA, Metadaten, Kommentar, BOM", () => {
     const ai = `﻿<?xml version="1.0" encoding="UTF-8"?>
@@ -623,7 +675,9 @@ const ATTRIBUTE = new Set([
 const RASTER_DATA = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=\s]+$/;
 const LOKAL = /^#[A-Za-z_][\w.:-]*$/;
 const NAME = /[A-Za-z_][\w.:-]*/y;
-const URL_FN = /url\s*\(\s*(['"]?)([^'")]*)\1\s*\)/gi;
+const LEERZEICHEN = /\s/;
+/** Deckel für `<style>`-Inhalt: Illustrator-Klassen brauchen ein paar hundert Byte; mehr ist kein Logo. */
+const MAX_CSS = 64 * 1024;
 
 class Ungueltig extends Error {}
 interface Knoten { name: string; attribute: [string, string][]; kinder: (Knoten | string)[] }
@@ -730,10 +784,26 @@ function zerlege(text: string): Knoten {
 /** Ohne Leer- und Steuerzeichen, klein — die Form, in der `java\tscript:` als `javascript:` erkannt wird. */
 const verdichtet = (w: string) => w.replace(/[\u0000- \u007f-\u009f]+/g, "").toLowerCase();
 
+/**
+ * Nur `url(#id)` (oder gar kein `url(`). Jede Fundstelle von „url" einzeln per `indexOf` — linear auch bei
+ * `url(url(url(…` ohne „)" (ein Regex `url\s*\(…\)` suchte von jeder Fundstelle bis zum Textende: quadratisch).
+ */
 function nurLokaleUrls(w: string): boolean {
-  const alle = [...w.matchAll(URL_FN)];
-  const anzahl = (w.match(/url\s*\(/gi) ?? []).length;
-  return alle.length === anzahl && alle.every((m) => LOKAL.test(m[2].trim()));
+  const k = w.toLowerCase();
+  let i = 0;
+  for (;;) {
+    const a = k.indexOf("url", i);
+    if (a < 0) return true;
+    let j = a + 3;
+    while (j < k.length && LEERZEICHEN.test(k[j])) j++;
+    if (k[j] !== "(") { i = a + 3; continue; }
+    const e = k.indexOf(")", j + 1);
+    if (e < 0) return false;
+    let innen = w.slice(j + 1, e).trim();
+    if (innen.length >= 2 && (innen[0] === '"' || innen[0] === "'") && innen.at(-1) === innen[0]) innen = innen.slice(1, -1).trim();
+    if (!LOKAL.test(innen)) return false;
+    i = e + 1;
+  }
 }
 
 function bereinigeDeklarationen(css: string): string {
@@ -744,17 +814,54 @@ function bereinigeDeklarationen(css: string): string {
     const wert = d.slice(i + 1).trim();
     if (!PRAESENTATION.has(prop) || wert === "") return [];
     if (/[\\@<>]|expression\s*\(/i.test(wert) || verdichtet(wert).includes("javascript:")) return [];
-    if (/url\s*\(/i.test(wert) && !nurLokaleUrls(wert)) return [];
+    if (!nurLokaleUrls(wert)) return [];
     return [`${prop}:${wert}`];
   }).join(";");
 }
 
-/** `<style>`: Kommentare und @-Anweisungen fallen, Regeln nur mit einfachen Selektoren, Deklarationen gefiltert. */
+/** CSS-Kommentare heraus, per `indexOf` (linear; ein offener Kommentar nimmt den Rest mit). */
+function ohneCssKommentare(css: string): string {
+  let aus = "";
+  let i = 0;
+  for (;;) {
+    const a = css.indexOf("/*", i);
+    if (a < 0) return aus + css.slice(i);
+    aus += css.slice(i, a);
+    const e = css.indexOf("*/", a + 2);
+    if (e < 0) return aus;
+    i = e + 2;
+  }
+}
+
+/**
+ * `<style>`: Kommentare und @-Anweisungen fallen, Regeln nur mit einfachen Selektoren, Deklarationen gefiltert.
+ * Ein Zerleger, der Zeichen für Zeichen Klammern und Semikolons zählt — EIN Durchlauf. Die frühere Form mit
+ * `matchAll(/([^{}]+)\{([^{}]*)\}/g)` lief bei fehlender Klammer von jeder Startposition bis zum Ende
+ * (quadratisch; `svg.test.ts`, „lineare Laufzeit"). Verschachtelte Blöcke (`@media {…{…}}`) fallen ganz.
+ */
 function bereinigeCss(css: string): string {
-  const ohne = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@[^;{}]*;/g, "");
-  return [...ohne.matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(([, sel, decl]) => {
+  if (css.length > MAX_CSS) throw new Ungueltig("Der style-Inhalt ist größer als 64 KB.");
+  const c = ohneCssKommentare(css);
+  const regeln: [string, string][] = [];
+  let tiefe = 0;
+  let start = 0;
+  let selektor = "";
+  for (let j = 0; j < c.length; j++) {
+    const z = c[j];
+    if (z === "{") {
+      if (tiefe === 0) { selektor = c.slice(start, j); start = j + 1; }
+      tiefe++;
+    } else if (z === "}") {
+      if (tiefe === 0) { start = j + 1; continue; } // verirrte Klammer: was davor steht, fällt
+      tiefe--;
+      if (tiefe === 0) { regeln.push([selektor, c.slice(start, j)]); start = j + 1; }
+    } else if (z === ";" && tiefe === 0) {
+      start = j + 1; // `@import …;` und Reste zwischen den Regeln fallen
+    }
+  }
+  return regeln.flatMap(([sel, decl]) => {
     const s = sel.trim();
-    if (s === "" || !/^[\w\s.#,:>*+~-]+$/.test(s)) return [];
+    if (s === "" || decl.includes("{") || !/^[\w\s.#,:>*+~-]+$/.test(s)) return [];
     const d = bereinigeDeklarationen(decl);
     return d === "" ? [] : [`${s}{${d}}`];
   }).join("");
@@ -775,7 +882,7 @@ function reinigeAttribut(element: string, name: string, wert: string): string | 
   if (!ATTRIBUTE.has(name)) return null;
   if (verdichtet(wert).includes("javascript:")) return null;
   if (name === "style") { const r = bereinigeDeklarationen(wert); return r === "" ? null : r; }
-  if (/url\s*\(/i.test(wert) && !nurLokaleUrls(wert)) return null;
+  if (!nurLokaleUrls(wert)) return null;
   return wert;
 }
 
@@ -841,14 +948,14 @@ export function bereinigeSvg(eingabe: string): SvgErgebnis {
 }
 ```
 
-Hinweis zur Prüfung: `schreibe` und `reinige` sind rekursiv, aber durch `MAX_TIEFE` im Zerleger begrenzt.
+Hinweis zur Prüfung: `schreibe` und `reinige` sind rekursiv, aber durch `MAX_TIEFE` im Zerleger begrenzt. Kein Regex dieser Datei darf von mehreren Startpositionen bis zum Textende suchen (Entscheidung 5, „Lineare Laufzeit"): die verbliebenen (`dekodiere`, `verdichtet`, `LOKAL`, `RASTER_DATA`, die Selektorprüfung) sind verankert oder brechen an der ersten Fundstelle ab.
 
 - [ ] **Step 4: Grün sehen, Gegenproben**
 
 Run: `pnpm vitest run src/app/m/kommplan/_lib/logo/svg.test.ts`
 Expected: PASS.
 
-Gegenproben (jede einzeln, danach zurücknehmen; jede muss mindestens einen Test rot machen): `"style"` aus `ELEMENTE` streichen (Illustrator-Test); `verdichtet(...)` durch `wert.toLowerCase()` ersetzen (Tab-Test); `/^on/i` durch `/^on/` ersetzen (ONCLICK); den DOCTYPE-Vorabtest entfernen (der Zerleger muss allein ablehnen); `RASTER_DATA` um `svg\+xml` erweitern. Ergebnis in der Commit-Botschaft nicht erwähnen, aber im Bericht der Aufgabe.
+Gegenproben (jede einzeln, danach zurücknehmen; jede muss mindestens einen Test rot machen): `bereinigeCss` vorübergehend auf die alte `matchAll`-Form zurückstellen (Laufzeittest); `MAX_CSS` entfernen (64-KB-Test); `"style"` aus `ELEMENTE` streichen (Illustrator-Test); `verdichtet(...)` durch `wert.toLowerCase()` ersetzen (Tab-Test); `/^on/i` durch `/^on/` ersetzen (ONCLICK); den DOCTYPE-Vorabtest entfernen (der Zerleger muss allein ablehnen); `RASTER_DATA` um `svg\+xml` erweitern. Ergebnis in der Commit-Botschaft nicht erwähnen, aber im Bericht der Aufgabe.
 
 - [ ] **Step 5: Commit**
 
@@ -1348,10 +1455,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Files:**
 - Create: `src/app/m/kommplan/_lib/herkunft.ts`, `src/app/m/kommplan/logo/route.ts`, `src/app/m/kommplan/_actions/briefkopf.ts`
 - Test: `src/app/m/kommplan/_lib/herkunft.test.ts`, `src/app/m/kommplan/logo/route.test.ts`, `src/app/m/kommplan/_actions/briefkopf.test.ts`
-- Modify: `src/app/m/kommplan/riegel.test.ts` (`AUSSERHALB` + eigener Fall), `src/core/audit/coverage-manifest.json`
+- Modify: `src/app/m/kommplan/riegel.test.ts` (`AUSSERHALB` + eigener Fall), `src/core/audit/coverage-manifest.json`, `src/core/audit/coverage.test.ts` (Liste `expected` im Fall „keeps local masked denials covered …")
 
 **Interfaces:**
-- Consumes: `speichereLogo`, `setzeOrganisation`, `entferneLogo` (Task 5), `scanneLogo` (Task 4), `requireKommplanBearbeitenAktion`, `bearbeiterAus` (`_lib/zugang.ts`), `withAuditContext`, `auditActor` (`@/core/audit/server`), `LOGO_MAX_BYTES`.
+- Consumes: `speichereLogo`, `setzeOrganisation`, `entferneLogo` (Task 5), `scanneLogo` (Task 4), `requireKommplanBearbeitenAktion`, `bearbeiterAus` (`_lib/zugang.ts`), `withAuditContext`, `auditActor`, `auditDenied` (`@/core/audit/server`), `queryAuditEvents` (`@/core/audit/storage`, nur Test), `LOGO_MAX_BYTES`.
 - Produces: `gleicheHerkunft(kopf: Headers): boolean`; `POST /logo` (Feld `logo`, Antwort JSON `LogoErgebnis`, Status 200/400/403/404/413/422); `speichereOrganisationAction(eingabe: unknown): Promise<EinfachErgebnis>`; `entferneLogoAction(): Promise<EinfachErgebnis>`.
 
 - [ ] **Step 1: Guides lesen**
@@ -1387,6 +1494,7 @@ describe("gleicheHerkunft — der CSRF-Riegel der Route Handler (Entscheidung 3)
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rmSync } from "node:fs";
 import { sql } from "drizzle-orm";
+import { queryAuditEvents } from "@/core/audit/storage";
 import type { AvErgebnis } from "@/core/av/scanner";
 import { migrateAllModules } from "@/core/bootstrap";
 
@@ -1430,10 +1538,14 @@ describe("POST /logo", () => {
     expect(scans).toBe(0);
     expect(await logo()).toBeNull();
   });
-  it("fremde Herkunft (anderer Suite-Host): 403", async () => {
+  it("fremde Herkunft (anderer Suite-Host): 403 und eine access_denied-Zeile — der CSRF-Versuch hinterlässt eine Spur", async () => {
     const { POST } = await import("./route");
     expect((await POST(await anfrage(new Blob([PNG]), { origin: "http://files.localtest.me" }))).status).toBe(403);
     expect(scans).toBe(0);
+    // Muster: aufgaben, hochladen/route.test.ts, describe „persisted upload denials …"
+    const events = queryAuditEvents().events.filter((e) => e.action === "access_denied");
+    expect(events).toHaveLength(1);
+    expect(events[0].actor).toEqual({ kind: "user", id: "u1" });
   });
   it("zu groß laut content-length: 413, bevor gelesen wird; ohne Längenangabe (HTTP/2, Proxy) wird gelesen und an den Bytes gemessen", async () => {
     const { POST } = await import("./route");
@@ -1553,7 +1665,7 @@ export function gleicheHerkunft(kopf: Headers): boolean {
 `src/app/m/kommplan/logo/route.ts`:
 
 ```ts
-import { auditActor, withAuditContext } from "@/core/audit/server";
+import { auditActor, auditDenied, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import { speichereLogo } from "../_lib/briefkopf";
 import { gleicheHerkunft } from "../_lib/herkunft";
@@ -1581,7 +1693,11 @@ const antwort = (status: number, koerper: unknown) => new Response(JSON.stringif
 export async function POST(request: Request): Promise<Response> {
   let viewer: Viewer;
   try { viewer = await requireKommplanBearbeitenAktion(); } catch { return antwort(404, { ok: false, fehler: "Nicht gefunden." }); }
-  if (!gleicheHerkunft(request.headers)) return antwort(403, { ok: false, fehler: "Hochladen geht nur aus der Seite „Einstellungen“." });
+  if (!gleicheHerkunft(request.headers)) {
+    // Lokale Abweisung ohne Wurf → access_denied (Suite-Regel für Route Handler, Manifest-Eintrag `denial`).
+    auditDenied("kommplan", auditActor(viewer));
+    return antwort(403, { ok: false, fehler: "Hochladen geht nur aus der Seite „Einstellungen“." });
+  }
   const roh = request.headers.get("content-length");
   if (roh !== null && Number.isFinite(Number(roh)) && Number(roh) > LOGO_MAX_BYTES + MULTIPART_RAND) {
     return antwort(413, { ok: false, fehler: LOGO_FEHLER.gross });
@@ -1627,10 +1743,13 @@ export async function entferneLogoAction(): Promise<EinfachErgebnis> {
 ```json
   "src/app/m/kommplan/_actions/briefkopf.ts#entferneLogoAction": { "kind": "context", "via": "entferneLogoAction" },
   "src/app/m/kommplan/_actions/briefkopf.ts#speichereOrganisationAction": { "kind": "context", "via": "speichereOrganisationAction" },
-  "src/app/m/kommplan/logo/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/kommplan/logo/route.ts#POST": {
+    "kind": "context", "via": "POST",
+    "denial": { "via": "POST", "reason": "Local nonthrowing origin (CSRF) rejection records access_denied; permission denials throw inside requireKommplanBearbeitenAktion and are audited there." }
+  },
 ```
 
-(In der Datei mehrzeilig formatiert wie die Nachbarn.)
+(In der Datei mehrzeilig formatiert wie die Nachbarn.) In `src/core/audit/coverage.test.ts`, Fall „keeps local masked denials covered independently of successful-read exclusions", die Liste `expected` um `"src/app/m/kommplan/logo/route.ts#POST"` ergänzen — der Fall prüft dann auch, dass `POST` `auditDenied(` enthält. (`requireKommplanBearbeitenAktion` auditiert Host- und Rechte-Ablehnung schon selbst — `auditDenied` bzw. `auditLoginRequired` vor dem Wurf —, der 404-Zweig braucht also keine zweite Zeile.)
 
 - [ ] **Step 5: Grün sehen**
 
@@ -1650,8 +1769,8 @@ Expected: Exit 0; in der Routenliste `ƒ /m/kommplan/logo`.
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
-for f in riegel.test.ts coverage-manifest.json; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
-git add src/app/m/kommplan/_lib/herkunft.ts src/app/m/kommplan/_lib/herkunft.test.ts src/app/m/kommplan/logo src/app/m/kommplan/_actions/briefkopf.ts src/app/m/kommplan/_actions/briefkopf.test.ts src/app/m/kommplan/riegel.test.ts src/core/audit/coverage-manifest.json
+for f in riegel.test.ts coverage-manifest.json coverage.test.ts; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
+git add src/app/m/kommplan/_lib/herkunft.ts src/app/m/kommplan/_lib/herkunft.test.ts src/app/m/kommplan/logo src/app/m/kommplan/_actions/briefkopf.ts src/app/m/kommplan/_actions/briefkopf.test.ts src/app/m/kommplan/riegel.test.ts src/core/audit/coverage-manifest.json src/core/audit/coverage.test.ts
 git commit -S -m "feat(kommplan): Logo hochladen, Organisation setzen, Logo entfernen
 
 Upload als Route Handler mit eigenem Riegel, Herkunftsprüfung und früher
@@ -1673,19 +1792,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/app/m/kommplan/_ui/zeichnung/farben.ts` (`marke` weg, Kommentar in derselben Zeile)
 - Create: `src/app/m/kommplan/_ui/zeichnung/Druckblaetter.tsx`
 - Modify: `src/app/m/kommplan/_lib/rahmen.ts` (Organisation/Logo als Argument), `src/app/m/kommplan/(intern)/p/[id]/druck/a4/page.tsx`, `scripts/kommplan-vorschau.ts`, `src/app/m/kommplan/_lib/seedLokal.ts`
+- Modify: `src/app/m/kommplan/_lib/beispiele/label.ts`, `src/app/m/kommplan/_lib/beispiele/openr20220701.ts` (Feld `bearbeiter` ohne Organisationsnamen)
 - Test: `src/app/m/kommplan/_ui/zeichnung/Blatt.test.tsx`, `src/app/m/kommplan/_ui/zeichnung/Druckblaetter.test.tsx` (neu), `src/app/m/kommplan/_lib/rahmen.test.ts`, `src/app/m/kommplan/_lib/seedLokal.test.ts`
 
 **Interfaces:**
 - Consumes: `KopfAngaben`, `kopfFuerZeichnung` (Task 5).
-- Produces: `Rahmen` = `{ titel; untertitel: string | null; stand; bearbeiter; vermerkVsNfD: boolean; organisation: string | null; logo: { href: string } | null }`; `LOGO_ID = "kp-logo"`; `LogoDefs({ logo })` (ein `<image>` ohne `<defs>`-Hülle); `BlattKopf({ rahmen, breite })`; `Druckblaetter({ blaetter, rahmen, symbole, schrift })`; `LOGO_BOX = { breite: 40, hoehe: 11, luft: 3 }`; `rahmenFuer(p: { …wie bisher…; kopf: KopfAngaben }): Rahmen`.
+- Produces: `Rahmen` = `{ titel; untertitel: string | null; stand; bearbeiter; vermerkVsNfD: boolean; organisation: string | null; logo: { href: string } | null }`; `LOGO_ID = "kp-logo"`; `LogoDefs({ logo })` (ein `<image>` ohne `<defs>`-Hülle); `BlattKopf({ rahmen, breite })`; `kopfTitel(titel, platz): { text; groesse }`; `ORGANISATION_MAX = 80` (mm); `Druckblaetter({ blaetter, rahmen, symbole, schrift })`; `LOGO_BOX = { breite: 40, hoehe: 11, luft: 3 }`; `rahmenFuer(p: { …wie bisher…; kopf: KopfAngaben }): Rahmen`.
 
 - [ ] **Step 1: Alle Verbraucher finden (Typänderung in einem Commit)**
 
 ```bash
 git grep -n "rahmenFuer\|Rahmen\b\|organisation\|FARBE.marke\|Rotes Kreuz" -- src scripts e2e
+git grep -n -i "DRK\|Kreisverband" -- src/app/m/kommplan scripts/kommplan-vorschau.ts e2e/kommplan* | grep -v "DRK-[0-9]"
 ```
 
-Expected (Stand der Planung): `rahmen.ts`, `rahmen.test.ts`, `Blatt.tsx`, `Blatt.test.tsx`, `druck/a4/page.tsx`, `scripts/kommplan-vorschau.ts`, `farben.ts`. Jede Fundstelle wird in dieser Aufgabe angepasst. Golden-Dateien (`_lib/layout/__golden__`) tragen keinen Kopf — prüfen mit `git grep -n "Rotes\|c8000f" -- src/app/m/kommplan` (nach der Aufgabe leer).
+Expected (Stand der Planung): `rahmen.ts`, `rahmen.test.ts`, `Blatt.tsx`, `Blatt.test.tsx`, `druck/a4/page.tsx`, `scripts/kommplan-vorschau.ts`, `farben.ts`. Die zweite Suche findet außerdem das Feld `bearbeiter` der Beispiele `label.ts` („DRK Kreisverband Uelzen e. V. · Der Kreisbereitschaftsleiter") und `openr20220701.ts` („KBL DRK Kreisverband Uelzen e. V.") — es wird im Fuß als „Bearbeitung: …" gedruckt und trägt so eine echte Organisation auf das Blatt der Seed-Pläne; beide werden neutral („Kreisbereitschaftsleitung" bzw. „KBL"). Kontaktwerte in Beispielen, Zufallsplänen und Tests (E-Mail-Adressen mit „drk") sind Inhalt eines Plans, kein Briefkopf, und bleiben. Jede Fundstelle wird in dieser Aufgabe angepasst. Golden-Dateien (`_lib/layout/__golden__`) tragen keinen Kopf — prüfen mit `git grep -n "Rotes\|c8000f" -- src/app/m/kommplan` (nach der Aufgabe leer).
 
 - [ ] **Step 2: Failing Tests schreiben**
 
@@ -1697,6 +1818,20 @@ Expected (Stand der Planung): `rahmen.ts`, `rahmen.test.ts`, `Blatt.tsx`, `Blatt
     const html = renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={rahmen} symbole={{}} />);
     expect(html).not.toMatch(/data-organisation|data-logo|<image|kp-logo/);
     expect(html.toLowerCase()).not.toContain("#c8000f");
+  });
+  it("ein 200-Zeichen-Titel läuft nie in Organisation oder Logo-Box: erst kleiner, dann gekürzt (Kritik)", () => {
+    const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
+    const lang = "Kommunikationsplan Großeinsatz ".repeat(7).slice(0, 200);
+    const logo = { href: "data:image/png;base64,iVBORw0KGgo=" };
+    const html = renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, titel: lang, organisation: "Musterorganisation", logo }} symbole={{}} />);
+    const platz = 244 - textBreite("Musterorganisation", 9, true) - 3 - 10; // Organisation links von der Box, Luft, Rand
+    const k = kopfTitel(lang, platz);
+    expect(k.groesse).toBe(10);
+    expect(k.text.endsWith("…")).toBe(true);
+    expect(textBreite(k.text, k.groesse, true)).toBeLessThanOrEqual(platz);
+    expect(html).toContain(`>${k.text}</text>`);
+    expect(kopfTitel("Kurz", 100)).toEqual({ text: "Kurz", groesse: 14 });
+    expect(kopfTitel("Ein mittellanger Plantitel", textBreite("Ein mittellanger Plantitel", 12, true)).groesse).toBe(12);
   });
   it("nur Organisation: rechtsbündig am Rand; mit Logo: links neben der Logo-Box, Logo per <use>", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
@@ -1711,7 +1846,7 @@ Expected (Stand der Planung): `rahmen.ts`, `rahmen.test.ts`, `Blatt.tsx`, `Blatt
   });
 ```
 
-(Spaltenwerte: `rechts = 297 − BLATT.randX (10) = 287`, `logoX = 287 − 40 = 247`, Name bei `247 − 3 = 244`; `y = BLATT.randOben = 8`. Ändert sich ein Maß, die Erwartung aus den Konstanten nachrechnen, nicht die Konstante an den Test binden. Reihenfolge der Attribute im Regex an React anpassen, falls es anders serialisiert — Aussage bleibt.)
+(Importe `kopfTitel` aus `./Blatt` und `textBreite` aus `../../_lib/layout/text` in die vorhandenen Zeilen. Spaltenwerte: `rechts = 297 − BLATT.randX (10) = 287`, `logoX = 287 − 40 = 247`, Name bei `247 − 3 = 244`; `y = BLATT.randOben = 8`. Ändert sich ein Maß, die Erwartung aus den Konstanten nachrechnen, nicht die Konstante an den Test binden. Reihenfolge der Attribute im Regex an React anpassen, falls es anders serialisiert — Aussage bleibt.)
 
 `src/app/m/kommplan/_ui/zeichnung/Druckblaetter.test.tsx`:
 
@@ -1794,7 +1929,7 @@ export const LOGO_BOX = { breite: 40, hoehe: 11, luft: 3 } as const;
 
 `_ui/zeichnung/farben.ts`: `marke: "#c8000f"` aus `FARBE` streichen; im Kommentar **in derselben Zeile** „Suite-Rot nur als Marke im Kopf," durch „kein Suite-Rot, auch nicht im Kopf," ersetzen.
 
-`_ui/zeichnung/Blatt.tsx`: Import `LOGO_BOX` aus `masse` ergänzen; `Rahmen` und Kopf ersetzen:
+`_ui/zeichnung/Blatt.tsx`: Import `LOGO_BOX` aus `masse` und `kuerze`, `textBreite` aus `../../_lib/layout/text` ergänzen; `Rahmen` und Kopf ersetzen:
 
 ```tsx
 /** Die vom Aufrufer formatierten Rahmentexte — der Renderer kennt weder Uhr noch Zeitzone. Organisation und
@@ -1815,17 +1950,34 @@ export function LogoDefs({ logo }: { logo: Rahmen["logo"] }) {
   return logo ? <image id={LOGO_ID} width={LOGO_BOX.breite} height={LOGO_BOX.hoehe} preserveAspectRatio="xMaxYMid meet" href={logo.href} /> : null;
 }
 
+/** Höchstbreite des Organisationsnamens im Kopf (mm) — ein langer Vereinsname drückt den Titel nicht weg. */
+export const ORGANISATION_MAX = 80;
+const TITEL_PT = { start: 14, min: 10 } as const;
+
+/**
+ * Der Plantitel im Kopf (bis 200 Zeichen) passt in `platz` mm: erst in halben Punkten bis 10 pt kleiner (wie
+ * die Kartentitel in `karte.ts`), dann mit „…" gekürzt. Nie läuft er in Organisation oder Logo-Box (Kritik).
+ */
+export function kopfTitel(titel: string, platz: number): { text: string; groesse: number } {
+  for (let g: number = TITEL_PT.start; g >= TITEL_PT.min; g -= 0.5) if (textBreite(titel, g, true) <= platz) return { text: titel, groesse: g };
+  return { text: kuerze(titel, platz, TITEL_PT.min, true).text, groesse: TITEL_PT.min };
+}
+
 export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }) {
   const rechts = breite - BLATT.randX;
   const kopfY = BLATT.randOben;
   const logoX = rechts - LOGO_BOX.breite;
+  const orgRechts = rahmen.logo ? logoX - LOGO_BOX.luft : rechts;
+  const org = rahmen.organisation ? kuerze(rahmen.organisation, ORGANISATION_MAX, 9, true).text : null;
+  const belegtAb = org ? orgRechts - textBreite(org, 9, true) : rahmen.logo ? logoX : rechts;
+  const titel = kopfTitel(rahmen.titel, belegtAb - LOGO_BOX.luft - BLATT.randX);
   return (
     <g data-kopf="">
-      <text x={BLATT.randX} y={kopfY + 6} fontSize={pt(14)} fontWeight={700}>{rahmen.titel}</text>
+      <text x={BLATT.randX} y={kopfY + 6} fontSize={pt(titel.groesse)} fontWeight={700}>{titel.text}</text>
       {rahmen.untertitel ? <text x={BLATT.randX} y={kopfY + 11.5} fontSize={pt(9)}>{rahmen.untertitel}</text> : null}
       {rahmen.logo ? <use href={`#${LOGO_ID}`} x={logoX} y={kopfY} data-logo="" /> : null}
-      {rahmen.organisation ? (
-        <text x={rahmen.logo ? logoX - LOGO_BOX.luft : rechts} y={kopfY + 6} fontSize={pt(9)} fontWeight={700} textAnchor="end" data-organisation="">{rahmen.organisation}</text>
+      {org ? (
+        <text x={orgRechts} y={kopfY + 6} fontSize={pt(9)} fontWeight={700} textAnchor="end" data-organisation="">{org}</text>
       ) : null}
       <line x1={BLATT.randX} y1={kopflinieY()} x2={rechts} y2={kopflinieY()} stroke={FARBE.tinte} strokeWidth={STRICH.duenn} />
     </g>
@@ -1881,11 +2033,13 @@ export function Druckblaetter({ blaetter, rahmen, symbole, schrift }: { blaetter
 
 und die Rückgabezeile um `, Briefkopf ${kopf}` ergänzen.
 
+`_lib/beispiele/label.ts`: `bearbeiter: "Kreisbereitschaftsleitung"`; `_lib/beispiele/openr20220701.ts`: `bearbeiter: "KBL"` (je in derselben Zeile; Tests, die den alten Wortlaut erwarten, gibt es laut Suche nicht — sonst mitziehen).
+
 - [ ] **Step 5: Grün sehen, Rest suchen**
 
 ```bash
 pnpm vitest run src/app/m/kommplan/
-git grep -n -i "rotes kreuz\|c8000f\|FARBE.marke" -- src/app/m/kommplan scripts/kommplan-vorschau.ts e2e/kommplan*
+git grep -n -i "rotes kreuz\|c8000f\|FARBE.marke\|Kreisverband" -- src/app/m/kommplan scripts/kommplan-vorschau.ts e2e/kommplan*
 ```
 
 Expected: PASS; die Suche ist leer. (Fundstellen in Plänen/Specs unter `docs/` bleiben — sie beschreiben die Geschichte.)
@@ -1894,8 +2048,8 @@ Expected: PASS; die Suche ist leer. (Fundstellen in Plänen/Specs unter `docs/` 
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
-for f in Blatt.tsx farben.ts masse.ts rahmen.ts seedLokal.ts kommplan-vorschau.ts page.tsx; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
-git add src/app/m/kommplan/_ui/zeichnung src/app/m/kommplan/_lib/layout/masse.ts src/app/m/kommplan/_lib/rahmen.ts src/app/m/kommplan/_lib/rahmen.test.ts src/app/m/kommplan/_lib/seedLokal.ts src/app/m/kommplan/_lib/seedLokal.test.ts "src/app/m/kommplan/(intern)/p/[id]/druck/a4/page.tsx" scripts/kommplan-vorschau.ts
+for f in Blatt.tsx farben.ts masse.ts rahmen.ts seedLokal.ts label.ts openr20220701.ts kommplan-vorschau.ts page.tsx; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
+git add src/app/m/kommplan/_ui/zeichnung src/app/m/kommplan/_lib/layout/masse.ts src/app/m/kommplan/_lib/rahmen.ts src/app/m/kommplan/_lib/rahmen.test.ts src/app/m/kommplan/_lib/seedLokal.ts src/app/m/kommplan/_lib/seedLokal.test.ts src/app/m/kommplan/_lib/beispiele/label.ts src/app/m/kommplan/_lib/beispiele/openr20220701.ts "src/app/m/kommplan/(intern)/p/[id]/druck/a4/page.tsx" scripts/kommplan-vorschau.ts
 git commit -S -m "feat(kommplan): Kopf der Zeichnung mit Logo und Name aus dem Briefkopf
 
 Das fest eingebaute rote Kreuz und der Organisationsname im Code sind
@@ -2013,7 +2167,17 @@ mit `const darf = darfKommplanBearbeiten(viewer.groups);` und `import Link from 
 .kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
 ```
 
-und im vorhandenen Block `@media (max-width: 767.98px)`: `.kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); }` (Handlungsknöpfe unter 768 px untereinander, docs/design/README.md „Mobil").
+und im vorhandenen Block `@media (max-width: 767.98px)`:
+
+```css
+  /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne
+     diese Regel bliebe auch das Raster darin schmal (Gegenstück zur Regel für .kp-kopfwerkzeuge im Editor). */
+  div:has(> .kp-kopfaktionen) { flex: 1 1 100%; }
+  .kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .kp-kopfaktionen > a { justify-content: center; }
+```
+
+(Handlungsknöpfe unter 768 px voll breit und untereinander, docs/design/README.md „Mobil". Rasterkinder strecken sich von selbst; keine Regel gegen `.ant-btn`, Falle 20.) Task 24 misst am Foto `liste-telefon` die Breite von „Neu" und „Archiv": ≈ Inhaltsbreite.
 
 Hinweis: `(intern)/(verwaltung)/layout.tsx` allein ist keine Route; `riegel.test.ts` zählt es trotzdem mit (`ROUTENDATEI` schließt `layout` ein) — darum ist die Gruppe ab hier „nicht leer". Die Seiten folgen in Task 9 und 17.
 
@@ -2487,7 +2651,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `titelFuerKopie`, `heuteIso` (Task 10), `tagZuMs` (`angaben.ts`), `lies`, `EinfachErgebnis`, `AnlageErgebnis`.
 - Produces (`plaene.ts`): `type Liste = "plaene" | "vorlagen" | "archiv"`; `archivTag(ms: number): string`; `Listenzeile` + `archiviert: string | null`; `listePlaene(db, liste: Liste = "plaene"): Listenzeile[]` (plaene: nicht archiviert, keine Vorlage; vorlagen: nicht archiviert, Vorlage; archiv: archiviert, neueste Archivierung zuerst); `interface LesbarerPlan extends GeladenerPlan { archiviertAm: number | null; istVorlage: boolean }`; `ladePlanLesend(db, id): LesbarerPlan | null`; `ladePlanLesendOder404(db, id): LesbarerPlan`. `ladePlan`/`ladePlanOder404` bleiben unverändert „nur aktive".
-- Produces (`planverwaltung.ts`): `interface VorlageWahl { id: string; titel: string; typ: PlanTyp }`; `vorlagenZurAuswahl(db): VorlageWahl[]`; `dupliziere(db, id: string, wer: Bearbeiter, jetzt: number): AnlageErgebnis`; `setzeVorlage(db, id, vorlage: boolean): EinfachErgebnis`; `archiviere(db, id, jetzt): EinfachErgebnis`; `stelleWiederHer(db, id): EinfachErgebnis`; `PLAN_WEG = "Diesen Plan gibt es nicht mehr."`.
+- Produces (`planverwaltung.ts`): `interface VorlageWahl { id: string; titel: string; typ: PlanTyp; anlass: string | null }`; `vorlagenZurAuswahl(db): VorlageWahl[]`; `dupliziere(db, id: string, wer: Bearbeiter, jetzt: number): AnlageErgebnis`; `setzeVorlage(db, id, vorlage: boolean): EinfachErgebnis`; `archiviere(db, id, jetzt): EinfachErgebnis`; `stelleWiederHer(db, id): EinfachErgebnis`; `PLAN_WEG = "Diesen Plan gibt es nicht mehr."`.
 - Produces (`speichern.ts`): `legePlanAn(db, eingabe, wer, jetzt)` nimmt zusätzlich `vorlage: string | null` (optional) und kopiert dann deren Inhalt.
 
 - [ ] **Step 1: Failing Tests schreiben**
@@ -2582,7 +2746,12 @@ describe("Archiv (Spec §8.3; Entscheidung 10)", () => {
 });
 ```
 
-In `src/app/m/kommplan/_lib/plaene.test.ts`: den Fall „listet nicht archivierte Pläne, neueste zuerst …" an die Trennung anpassen — `listePlaene(db)` enthält keine Vorlagen mehr; die Erwartung `liste[0].id` = `"vorlage-fernmeldeskizze-stab"` wird `listePlaene(db, "vorlagen")[0].id`, und für `listePlaene(db)[0]` gilt der neueste Nicht-Vorlage-Plan (aus den Seed-Ständen ablesen). Der Fall „unbekannt und archiviert → null" bleibt unverändert (`ladePlan`). Anfügen:
+In `src/app/m/kommplan/_lib/plaene.test.ts`:
+1. Fall „listet nicht archivierte Pläne, neueste zuerst …" an die Trennung anpassen — `listePlaene(db)` enthält keine Vorlagen mehr: `toHaveLength(BEISPIELE.length)` wird `toHaveLength(BEISPIELE.filter((b) => !b.istVorlage).length)`; die Erwartung `liste[0].id` = `"vorlage-fernmeldeskizze-stab"` wird `listePlaene(db, "vorlagen")[0].id`, und für `listePlaene(db)[0]` gilt der neueste Nicht-Vorlage-Plan (aus den Seed-Ständen ablesen).
+2. Fall „ein beschädigter Inhalt wirft nicht …": die beschädigte Zeile ist die Vorlage `vorlage-kommunikationsplan-label` — sie steht jetzt nur in `listePlaene(db, "vorlagen")`; dort suchen, sonst liefert `find` `undefined` und die Zusicherung `?.lesbar === false` scheitert an etwas anderem, als sie prüft.
+3. Der Fall „unbekannt und archiviert → null" bleibt unverändert (`ladePlan`).
+
+Anfügen:
 
 ```ts
   it("ladePlanLesend: auch archiviert, mit Archivzeitpunkt; unbekannt null", async () => {
@@ -2719,10 +2888,11 @@ import { heuteIso, titelFuerKopie } from "./tagesfassung";
  * Inhalt, nicht seine Ablage. „Jetzt" kommt als Argument.
  */
 export const PLAN_WEG = "Diesen Plan gibt es nicht mehr.";
-export interface VorlageWahl { id: string; titel: string; typ: PlanTyp }
+/** Was „Neuer Plan" zum Vorbelegen braucht (Entscheidung 8): Art, Anlass und Titel der Vorlage. */
+export interface VorlageWahl { id: string; titel: string; typ: PlanTyp; anlass: string | null }
 
 export function vorlagenZurAuswahl(db: KommplanDb): VorlageWahl[] {
-  return db.select({ id: plan.id, titel: plan.titel, typ: plan.typ }).from(plan)
+  return db.select({ id: plan.id, titel: plan.titel, typ: plan.typ, anlass: plan.anlass }).from(plan)
     .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm))).orderBy(asc(plan.titel), plan.id).all();
 }
 
@@ -2908,12 +3078,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `src/app/m/kommplan/(intern)/PlanTabelle.tsx`, `src/app/m/kommplan/(intern)/NeuerPlan.tsx`, `src/app/m/kommplan/(intern)/page.tsx`
 - Create: `src/app/m/kommplan/(intern)/archiv/page.tsx`, `src/app/m/kommplan/(intern)/p/[id]/Wiederherstellen.tsx`
-- Modify: `src/app/m/kommplan/(intern)/p/[id]/page.tsx`
-- Test: `src/app/m/kommplan/(intern)/PlanTabelle.test.tsx`, `src/app/m/kommplan/(intern)/NeuerPlan.test.tsx`
+- Modify: `src/app/m/kommplan/(intern)/p/[id]/page.tsx`, `src/app/m/kommplan/_ui/editor/Editor.tsx` (Hinweis mit Aktion, Prop `kopieHinweis`)
+- Test: `src/app/m/kommplan/(intern)/PlanTabelle.test.tsx`, `src/app/m/kommplan/(intern)/NeuerPlan.test.tsx`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`
 
 **Interfaces:**
 - Consumes: `listePlaene(db, liste)`, `Liste`, `VorlageWahl`, `vorlagenZurAuswahl`, `ladePlanLesendOder404` (Task 11), Actions aus Task 12, `legePlanAnAction` (nimmt jetzt `vorlage`).
-- Produces: `PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen? })` — DOM: `Kartentabelle` mit `aria-label` „Pläne" / „Vorlagen" / „Archivierte Pläne"; bei `darfBearbeiten` je Zeile ein Knopf „Aktionen" (`aria-label` „Aktionen für <Titel>") mit Menüeinträgen (plaene: „Duplizieren", „Als Vorlage speichern", „Archivieren"; vorlagen: „Neu aus Vorlage", „Keine Vorlage mehr", „Archivieren"; archiv: „Wiederherstellen"); Hinweis in `.kp-listenhinweis[role="status"]` mit Knopf „Rückgängig" nach dem Archivieren. `NeuerPlan({ vorlagen })`, `NeuerPlanFormular({ …, vorlagen, startVorlage? })` mit Feld „Vorlage" (`Select`, Vorgabe „Leerer Plan").
+- Produces: `PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen?, heute? })` — DOM: `Kartentabelle` mit `aria-label` „Pläne" / „Vorlagen" / „Archivierte Pläne"; bei `darfBearbeiten` je Zeile ein Knopf „Aktionen" (`aria-label` „Aktionen für <Titel>") mit Menüeinträgen (plaene: „Duplizieren", „Als Vorlage speichern", „Archivieren"; vorlagen: „Neu aus Vorlage", „Keine Vorlage mehr", „Archivieren"; archiv: „Wiederherstellen"); Hinweis in `.kp-listenhinweis[role="status"]` mit Knopf „Rückgängig" nach dem Archivieren. `NeuerPlan({ vorlagen, heute })`, `NeuerPlanFormular({ …, vorlagen, startVorlage?, heute? })` mit Feld „Vorlage" (`Select`, Vorgabe „Leerer Plan"). Editor: `Hinweis` bekommt `aktion?: { text: string; tu(): void }` (Knopf im Alert statt „Rückgängig"); Prop `kopieHinweis?: string` (einmal angezeigt, mit „Angaben ändern"); `onHinweis` der Gliederung nimmt optional eine `aktion` (Task 20).
 
 - [ ] **Step 1: Failing Tests schreiben**
 
@@ -2938,14 +3108,22 @@ und anfügen:
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
     expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Duplizieren", "Als Vorlage speichern", "Archivieren"]);
   });
-  it("Duplizieren führt in den Editor der Kopie", async () => {
-    aktion.dupliziere.mockResolvedValue({ ok: true, id: "neu-1" });
+  it("Duplizieren führt in den Editor der Kopie (mit Hinweis); solange es läuft, löst ein zweiter Klick nichts aus", async () => {
+    let fertig!: (r: unknown) => void;
+    aktion.dupliziere.mockReturnValue(new Promise((r) => { fertig = r; }));
     await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten />);
-    await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
+    const aktionen = query<HTMLButtonElement>('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]');
+    await clickElement(aktionen);
     await clickElement(knopf("Duplizieren"));
+    // zweiter Versuch, solange der erste läuft: über das (evtl. noch im Portal stehende) Menü oder gar nicht
+    await clickElement(aktionen);
+    const nochmal = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((e) => e.textContent === "Duplizieren");
+    if (nochmal) await clickElement(nochmal);
+    expect(aktion.dupliziere).toHaveBeenCalledTimes(1);
+    await act(async () => { fertig({ ok: true, id: "neu-1" }); });
     await abwarten();
     expect(aktion.dupliziere).toHaveBeenCalledWith("p1");
-    expect(router.push).toHaveBeenCalledWith("/p/neu-1");
+    expect(router.push).toHaveBeenCalledWith("/p/neu-1?kopie=1");
   });
   it("Archivieren meldet sich mit „Rückgängig“, das wiederherstellt", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });
@@ -2971,28 +3149,49 @@ und anfügen:
 
 (`ZEILEN` ist das vorhandene Testarray, um `archiviert: null` ergänzt; `abwarten` und `knopf` wie in Task 9 — in diese Datei kopieren.)
 
-In `src/app/m/kommplan/(intern)/NeuerPlan.test.tsx` anfügen:
+In `src/app/m/kommplan/(intern)/NeuerPlan.test.tsx`: im bestehenden Fall „sendet Titel, Art, Anlass und Datum und meldet die neue ID" die exakte Erwartung um `vorlage: null` ergänzen (`{ titel: "Übung Nord", typ: "kommunikationsplan", anlass: "Probe", datum: null, vorlage: null }`) — ohne Vorlage ändert sich sonst nichts. Anfügen (der Mock heißt in dieser Datei `aktion.legePlanAnAction`; gewartet wird wie in der Datei üblich mit `await act(async () => {})`):
 
 ```tsx
-  it("Vorlage wählen: Art übernommen, leerer Titel vorbelegt, die Vorlage geht mit", async () => {
-    anlegen.mockResolvedValue({ ok: true, id: "neu" });
-    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} vorlagen={[{ id: "v1", titel: "Fernmeldeskizze Stab", typ: "fernmeldeskizze" }]} startVorlage="v1" />);
-    expect((query('input[name="titel"]') as HTMLInputElement).value).toBe("Fernmeldeskizze Stab");
+  it("Vorlage wählen: Art und Anlass übernommen, Datum heute, Datum im Titel ersetzt, die Vorlage geht mit", async () => {
+    aktion.legePlanAnAction.mockResolvedValue({ ok: true, id: "neu" });
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} heute="2026-10-01" startVorlage="v1"
+      vorlagen={[{ id: "v1", titel: "Kommunikationsplan Einsatz 22.02.2026", typ: "fernmeldeskizze", anlass: "Großübung" }]} />);
+    expect(query<HTMLInputElement>('input[name="titel"]').value).toBe("Kommunikationsplan Einsatz 01.10.2026");
+    expect(query<HTMLInputElement>('input[name="anlass"]').value).toBe("Großübung");
     await submitForm('form[aria-label="Neuer Plan"]');
-    await abwarten();
-    expect(anlegen).toHaveBeenCalledWith(expect.objectContaining({ typ: "fernmeldeskizze", vorlage: "v1", titel: "Fernmeldeskizze Stab" }));
+    await act(async () => {});
+    expect(aktion.legePlanAnAction).toHaveBeenCalledWith({
+      titel: "Kommunikationsplan Einsatz 01.10.2026", typ: "fernmeldeskizze", anlass: "Großübung", datum: "2026-10-01", vorlage: "v1",
+    });
   });
-  it("ohne Vorlage: vorlage null, wie bisher", async () => {
-    anlegen.mockResolvedValue({ ok: true, id: "neu" });
-    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} vorlagen={[]} />);
+  it("eine Vorlage ohne Datum im Titel behält ihren Titel — kein „ (Kopie)“", async () => {
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} heute="2026-10-01" startVorlage="v1"
+      vorlagen={[{ id: "v1", titel: "Fernmeldeskizze Stab", typ: "fernmeldeskizze", anlass: null }]} />);
+    expect(query<HTMLInputElement>('input[name="titel"]').value).toBe("Fernmeldeskizze Stab");
+  });
+  it("ohne Vorlage: vorlage null, Datum leer, wie bisher", async () => {
+    aktion.legePlanAnAction.mockResolvedValue({ ok: true, id: "neu" });
+    await mount(<NeuerPlanFormular onAngelegt={() => {}} onAbbrechen={() => {}} vorlagen={[]} heute="2026-10-01" />);
     await fill('input[name="titel"]', "Leer");
     await submitForm('form[aria-label="Neuer Plan"]');
-    await abwarten();
-    expect(anlegen).toHaveBeenCalledWith(expect.objectContaining({ vorlage: null }));
+    await act(async () => {});
+    expect(aktion.legePlanAnAction).toHaveBeenCalledWith(expect.objectContaining({ vorlage: null, datum: null }));
   });
 ```
 
-(Mockname `anlegen` an den vorhandenen Mock von `legePlanAnAction` in dieser Datei anpassen.)
+In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` anfügen (Importe zusammenführen):
+
+```tsx
+  it("eine frische Kopie meldet sich einmal: Datum auf heute, „Angaben ändern“ öffnet die Angaben (Entscheidung 9)", async () => {
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" kopieHinweis="Kopie angelegt — Titel und Datum stehen auf 01.10.2026." />);
+    await act(async () => {});
+    expect(document.body.textContent).toContain("Kopie angelegt — Titel und Datum stehen auf 01.10.2026.");
+    await clickElement(knopf("Angaben ändern"));
+    expect(existsPortal('.kp-flyin [data-abschnitt="verbindungen"]')).toBe(true); // das Flyin „Plan und Verbindungen" ist offen
+  });
+```
+
+(`knopf` wie in Task 9 kopieren, falls die Datei ihn nicht hat; den Greifer für das offene Plan-Flyin an `PlanFlyin.test.tsx` angleichen.)
 
 - [ ] **Step 2: Rot sehen**
 
@@ -3039,16 +3238,23 @@ interface Hinweis { text: string; zurueck?: string }
  * `Kartentabelle` (docs/design/README.md „Mobil"). Das Aktionen-Menü erscheint nur bei `darfBearbeiten` —
  * dasselbe Prädikat wie jede Action. Nach einer Aktion `router.refresh()`; Duplizieren führt in den Editor.
  */
-export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [] }: { zeilen: Listenzeile[]; liste: Liste; darfBearbeiten: boolean; vorlagen?: VorlageWahl[] }) {
+export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heute }: { zeilen: Listenzeile[]; liste: Liste; darfBearbeiten: boolean; vorlagen?: VorlageWahl[]; heute?: string }) {
   const router = useRouter();
   const [hinweis, setHinweis] = useState<Hinweis | null>(null);
   const [ausVorlage, setAusVorlage] = useState<string | null>(null);
+  /** ID der Zeile, deren Aktion gerade läuft: ihr „Aktionen" lädt, alle anderen sind gesperrt (kein zweites Duplikat). */
+  const [laeuft, setLaeuft] = useState<string | null>(null);
 
   async function fuehreAus(z: Listenzeile, a: Aktion) {
     if (a === "ausVorlage") { setAusVorlage(z.id); return; }
+    if (laeuft !== null) return;
+    setLaeuft(z.id);
     if (a === "duplizieren") {
       const r = await dupliziereAction(z.id).catch(() => ({ ok: false as const, fehler: NETZ, feldFehler: {} }));
-      if (r.ok) router.push(`/p/${r.id}`); else setHinweis({ text: r.fehler });
+      // Bei Erfolg bleibt die Zeile „laufend", bis der Editor der Kopie steht — sonst wäre ein zweiter Klick frei.
+      if (r.ok) { router.push(`/p/${r.id}?kopie=1`); return; }
+      setLaeuft(null);
+      setHinweis({ text: r.fehler });
       return;
     }
     const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren">, () => Promise<EinfachErgebnis>> = {
@@ -3058,6 +3264,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [] }: { 
       wiederherstellen: () => stelleWiederHerAction(z.id),
     };
     const r = await lauf[a]().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
+    setLaeuft(null);
     if (!r.ok) { setHinweis({ text: r.fehler }); return; }
     const text = { vorlage: `„${z.titel}“ steht jetzt unter „Vorlagen“.`, keineVorlage: `„${z.titel}“ steht wieder unter „Pläne“.`,
       archivieren: `„${z.titel}“ archiviert.`, wiederherstellen: `„${z.titel}“ wiederhergestellt.` }[a];
@@ -3087,7 +3294,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [] }: { 
           items: MENUE[liste].map((m) => ({ key: m.key, label: m.label })) as MenuProps["items"],
           onClick: ({ key }) => void fuehreAus(z, key as Aktion),
         }}>
-          <Button aria-label={`Aktionen für ${z.titel}`}>Aktionen</Button>
+          <Button aria-label={`Aktionen für ${z.titel}`} loading={laeuft === z.id} disabled={laeuft !== null && laeuft !== z.id}>Aktionen</Button>
         </Dropdown>
       ),
     }] : []),
@@ -3107,7 +3314,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [] }: { 
       />
       {liste === "vorlagen" ? (
         <Drawer open={vorlage !== undefined} onClose={() => setAusVorlage(null)} title="Neuer Plan aus Vorlage" size={flyinBreite(480)} destroyOnHidden>
-          {vorlage ? <NeuerPlanFormular vorlagen={vorlagen} startVorlage={vorlage.id} onAngelegt={(id) => router.push(`/p/${id}`)} onAbbrechen={() => setAusVorlage(null)} /> : null}
+          {vorlage ? <NeuerPlanFormular vorlagen={vorlagen} startVorlage={vorlage.id} heute={heute} onAngelegt={(id) => router.push(`/p/${id}`)} onAbbrechen={() => setAusVorlage(null)} /> : null}
         </Drawer>
       ) : null}
     </>
@@ -3116,19 +3323,28 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [] }: { 
 ```
 
 `src/app/m/kommplan/(intern)/NeuerPlan.tsx`:
-1. `import type { VorlageWahl } from "../_lib/planverwaltung";` (nur Typ — `planverwaltung.ts` zieht `node:crypto` und die Datenbank). `NeuerPlan({ vorlagen = [] }: { vorlagen?: VorlageWahl[] })` reicht `vorlagen` an `NeuerPlanFormular`.
-2. `NeuerPlanFormular` bekommt `vorlagen?: VorlageWahl[]` und `startVorlage?: string`; Zustand:
+1. `import type { VorlageWahl } from "../_lib/planverwaltung";` (nur Typ — `planverwaltung.ts` zieht `node:crypto` und die Datenbank); `import { ersetzeDatumImTitel } from "../_lib/tagesfassung";` (rein); `import dayjs, { type Dayjs } from "dayjs";` (statt des reinen Typ-Imports). `NeuerPlan({ vorlagen = [], heute }: { vorlagen?: VorlageWahl[]; heute?: string })` reicht beides an `NeuerPlanFormular`.
+2. `NeuerPlanFormular` bekommt `vorlagen?: VorlageWahl[]`, `startVorlage?: string` und `heute?: string` (`"YYYY-MM-DD"` in der Suite-Zone, vom Server — der Browser rechnet kein „heute"); Zustand:
    ```tsx
+   /** Titel einer Vorlage für den neuen Plan (Entscheidung 8): ein Datum darin wird heute, sonst bleibt er — kein „ (Kopie)". */
+   const titelAus = (v: VorlageWahl) => (heute ? ersetzeDatumImTitel(v.titel, heute) ?? v.titel : v.titel);
    const start = vorlagen.find((v) => v.id === startVorlage) ?? null;
    const [vorlage, setVorlage] = useState<string>(start?.id ?? "");
-   const [titel, setTitel] = useState(start?.titel ?? "");
+   const [titel, setTitel] = useState(start ? titelAus(start) : "");
    const [typ, setTyp] = useState<PlanTyp>(start?.typ ?? "kommunikationsplan");
+   const [anlass, setAnlass] = useState(start?.anlass ?? "");
+   const [datum, setDatum] = useState<Dayjs | null>(start && heute ? dayjs(heute) : null);
    const waehleVorlage = (id: string) => {
      setVorlage(id);
      const v = vorlagen.find((x) => x.id === id);
-     if (v) { setTyp(v.typ); if (titel.trim() === "") setTitel(v.titel); }
+     if (!v) return;
+     setTyp(v.typ);
+     if (anlass.trim() === "") setAnlass(v.anlass ?? "");
+     if (heute && datum === null) setDatum(dayjs(heute));
+     if (titel.trim() === "") setTitel(titelAus(v));
    };
    ```
+   (Die vorhandenen `useState`-Zeilen für `titel`, `typ`, `anlass`, `datum` werden durch diese ersetzt, nicht verdoppelt.)
 3. Als erstes Feld vor „Titel" (nur wenn `vorlagen.length > 0`):
    ```tsx
       <label className="kp-feldname" htmlFor={`${basis}-vorlage`}>Vorlage</label>
@@ -3137,6 +3353,13 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [] }: { 
       {fehlerText("vorlage")}
    ```
 4. Im Aufruf `legePlanAnAction({ titel, typ, anlass, datum: …, vorlage: vorlage === "" ? null : vorlage })`.
+
+`Editor.tsx` (Hinweis mit Aktion, Kopie-Hinweis):
+1. Typ `Hinweis` um `aktion?: { text: string; tu(): void }` erweitern; im Alert `action={hinweis.aktion ? <Button onClick={() => { hinweis.aktion!.tu(); setHinweis(null); }}>{hinweis.aktion.text}</Button> : <vorhandene Rückgängig-Bedingung>}`.
+2. Prop `kopieHinweis?: string`; der Startwert des Hinweis-Zustands ist `kopieHinweis ? { text: kopieHinweis, aktion: { text: "Angaben ändern", tu: () => oeffnePlan("angaben") } } : null` (Lazy-Initialisierer; `oeffnePlan` dort über eine Funktion, die erst beim Klick aufgerufen wird). Ein Effekt ohne `setState` nimmt `kopie` per `window.history.replaceState` aus der Adresse — ein Neuladen zeigt den Hinweis nicht noch einmal.
+3. Der `onHinweis`-Rückruf an die Gliederung nimmt `(text, aktion?)` und reicht beides in den Zustand (Task 20 nutzt es).
+
+`(intern)/page.tsx` (unten) gibt `heute={heuteIso(Date.now())}` an `NeuerPlan` und an die Vorlagen-`PlanTabelle` (Import `heuteIso` aus `../_lib/tagesfassung`).
 
 `src/app/m/kommplan/(intern)/page.tsx` (Importe: `Link` aus `next/link`, `listePlaene` aus `../_lib/plaene`, `vorlagenZurAuswahl` aus `../_lib/planverwaltung`):
 
@@ -3147,12 +3370,13 @@ export default async function Planliste() {
   const db = getDb();
   const darf = darfKommplanBearbeiten(viewer.groups);
   const vorlagen = vorlagenZurAuswahl(db);
+  const heute = heuteIso(Date.now());
   return (
     <Huelle>
       <Seitenkopf titel="Kommunikationspläne" beschreibung="Pläne und Fernmeldeskizzen deiner Einsätze. Öffne einen Plan, um ihn anzusehen, zu bearbeiten oder auf A4 zu drucken."
         aktionen={
           <div className="kp-kopfaktionen">
-            {darf ? <NeuerPlan vorlagen={vorlagen} /> : null}
+            {darf ? <NeuerPlan vorlagen={vorlagen} heute={heute} /> : null}
             {darf ? <Link href="/bibliothek">Bibliothek</Link> : null}
             {darf ? <Link href="/einstellungen">Einstellungen</Link> : null}
             <Link href="/archiv">Archiv</Link>
@@ -3161,7 +3385,7 @@ export default async function Planliste() {
       {/* Den Leerzustand trägt die Kartentabelle selbst (`leer`). */}
       <PlanTabelle zeilen={listePlaene(db, "plaene")} liste="plaene" darfBearbeiten={darf} />
       <h2 className="kp-abschnittstitel">Vorlagen</h2>
-      <PlanTabelle zeilen={listePlaene(db, "vorlagen")} liste="vorlagen" darfBearbeiten={darf} vorlagen={vorlagen} />
+      <PlanTabelle zeilen={listePlaene(db, "vorlagen")} liste="vorlagen" darfBearbeiten={darf} vorlagen={vorlagen} heute={heute} />
     </Huelle>
   );
 }
@@ -3229,7 +3453,8 @@ export function Wiederherstellen({ id }: { id: string }) {
         </Card>
    ```
    `archivTag` kommt aus `_lib/plaene.ts` (Task 11, dieselbe Formatierung wie die Archivspalte).
-4. `Card` ist RSC-sicher (Falle 1). CSS: `.kp-archivhinweis { margin-block-end: 12px; } .kp-archivhinweis .ant-card-body` — **nein**, keine `.ant-*`-Regel (Falle 20); `Card` bekommt `styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}` als Prop.
+4. Im Editor-Zweig: ist `(await searchParams).kopie === "1"`, bekommt der `Editor` `kopieHinweis={`Kopie angelegt — Titel und Datum stehen auf ${tagText}.`}` (`tagText` = `plan.datum` als `TT.MM.JJJJ`, wie die Datumsspalte der Liste; ohne Datum „heute").
+5. `Card` ist RSC-sicher (Falle 1). CSS: `.kp-archivhinweis { margin-block-end: 12px; } .kp-archivhinweis .ant-card-body` — **nein**, keine `.ant-*`-Regel (Falle 20); `Card` bekommt `styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}` als Prop.
 
 `_ui/kommplan.css`: `.kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }`.
 
@@ -3256,8 +3481,8 @@ Expected: Exit 0. Rot an einem Greifer auf einen Vorlagen-Plan in „Pläne" hei
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
-for f in PlanTabelle.tsx NeuerPlan.tsx page.tsx plaene.ts kommplan.css; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
-git add "src/app/m/kommplan/(intern)" src/app/m/kommplan/_lib/plaene.ts src/app/m/kommplan/_ui/kommplan.css
+for f in PlanTabelle.tsx NeuerPlan.tsx page.tsx plaene.ts kommplan.css Editor.tsx; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
+git add "src/app/m/kommplan/(intern)" src/app/m/kommplan/_lib/plaene.ts src/app/m/kommplan/_ui/kommplan.css src/app/m/kommplan/_ui/editor/Editor.tsx src/app/m/kommplan/_ui/editor/Editor.test.tsx
 git commit -S -m "feat(kommplan): Planliste mit Vorlagen, Archiv und Aktionen je Plan
 
 Duplizieren führt in den Editor der Kopie, Archivieren lässt sich
@@ -3281,9 +3506,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Produces (`typen.ts`): `interface BibStelle { id; titel; zeichen: string | null; leiter: string | null; kontakte: Kontakt[]; notiz: string | null }`; `interface BibEinheit { id; typ; rufname; zeichen: string | null; notiz: string | null }`; `interface BibVerbindung { id; art: VerbindungsArt; bezeichnung; notiz: string | null }`; `interface Bibliothek { stellen: BibStelle[]; einheiten: BibEinheit[]; verbindungen: BibVerbindung[] }`; `LEERE_BIBLIOTHEK`; `vergleichsform(s: string): string`; `passt(anfrage: string, felder: readonly (string | null | undefined)[]): boolean`.
-- Produces (`schema.ts`): `BIB_GRENZE = { eintraege: 2000, notiz: 500, import: 500 }`; `bibStelleSchema`, `bibEinheitSchema`, `bibVerbindungSchema` (je mit `id: string | null`; `null` = neu), `bibImportSchema` (Array von `{ typ, rufname, notiz }`), `bibLoeschSchema` (`{ art: "stelle" | "einheit" | "verbindung", id }`).
-- Produces (`ergebnis.ts`): `type BibErgebnis<T> = { ok: true; eintrag: T } | { ok: false; fehler: string; feldFehler?: FeldFehler }`; `type BibStelleErgebnis = BibErgebnis<BibStelle>` (ebenso Einheit, Verbindung); `type ImportErgebnis = { ok: true; angelegt: number; uebersprungen: number } | { ok: false; fehler: string }`.
-- Produces (`bibliothekDb.ts`): `EINTRAG_WEG`; `ladeBibliothek(db): Bibliothek` (sortiert: Stellen nach Titel, Einheiten nach Typ, dann Rufname, Verbindungen nach Bezeichnung — jeweils `localeCompare("de")`); `speichereBibStelle(db, eingabe: unknown): BibStelleErgebnis`; `speichereBibEinheit(db, eingabe): BibEinheitErgebnis`; `speichereBibVerbindung(db, eingabe): BibVerbindungErgebnis`; `loescheBibEintrag(db, eingabe: unknown): EinfachErgebnis`; `importiereBibEinheiten(db, eingabe: unknown): ImportErgebnis`.
+- Produces (`schema.ts`): `BIB_GRENZE = { eintraege: 2000, notiz: 500, import: 500 }`; `bibStelleSchema`, `bibEinheitSchema`, `bibVerbindungSchema` (je mit `id: string | null`; `null` = neu), `bibImportSchema` (Array von `{ typ, rufname, notiz, zeichen? }` — `zeichen` optional, damit „Einheiten in Bibliothek übernehmen" aus dem Plan die Zeichen mitnimmt), `bibVerbindungsImportSchema` (Array von `{ art, bezeichnung }`), `bibLoeschSchema` (`{ art: "stelle" | "einheit" | "verbindung", id }`).
+- Produces (`ergebnis.ts`): `type BibErgebnis<T> = { ok: true; eintrag: T } | { ok: false; fehler: string; feldFehler?: FeldFehler }`; `type BibStelleErgebnis = BibErgebnis<BibStelle>` (ebenso Einheit, Verbindung); `type ImportErgebnis<T = BibEinheit> = { ok: true; angelegt: number; uebersprungen: number; eintraege: T[] } | { ok: false; fehler: string }` (`eintraege` = die angelegten, damit der Editor seinen Kontext ergänzen kann); `type VerbindungsImportErgebnis = ImportErgebnis<BibVerbindung>`.
+- Produces (`bibliothekDb.ts`): `EINTRAG_WEG`; `ladeBibliothek(db): Bibliothek` (sortiert: Stellen nach Titel, Einheiten nach Typ, dann Rufname, Verbindungen nach Bezeichnung — jeweils `localeCompare("de")`); `speichereBibStelle(db, eingabe: unknown): BibStelleErgebnis`; `speichereBibEinheit(db, eingabe): BibEinheitErgebnis`; `speichereBibVerbindung(db, eingabe): BibVerbindungErgebnis`; `loescheBibEintrag(db, eingabe: unknown): EinfachErgebnis`; `importiereBibEinheiten(db, eingabe: unknown): ImportErgebnis`; `importiereBibVerbindungen(db, eingabe: unknown): VerbindungsImportErgebnis` (Dubletten nach Bezeichnung **und** Art gegen Bibliothek und Liste übersprungen, eine Transaktion).
 
 - [ ] **Step 1: Failing Tests schreiben**
 
@@ -3312,7 +3537,7 @@ describe("Vergleichsform und Suche der Bibliothek", () => {
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { bibStelle } from "../_db/schema";
-import { EINTRAG_WEG, importiereBibEinheiten, ladeBibliothek, loescheBibEintrag, speichereBibEinheit, speichereBibStelle, speichereBibVerbindung } from "./bibliothekDb";
+import { EINTRAG_WEG, importiereBibEinheiten, importiereBibVerbindungen, ladeBibliothek, loescheBibEintrag, speichereBibEinheit, speichereBibStelle, speichereBibVerbindung } from "./bibliothekDb";
 import { BIB_GRENZE } from "./bibliothek/schema";
 import { seedLokalKommplan } from "./seedLokal";
 import { testDb } from "./testDb";
@@ -3372,8 +3597,17 @@ describe("Bibliothek in der Datenbank (Spec §4.3; Entscheidung 11)", () => {
       { typ: "KTW", rufname: "RK UE 41-92-8", notiz: "Reserve" },
       { typ: "KTW", rufname: "rk ue 41-92-8 ", notiz: null },
     ]);
-    expect(r).toEqual({ ok: true, angelegt: 1, uebersprungen: 2 });
+    expect(r).toEqual({ ok: true, angelegt: 1, uebersprungen: 2, eintraege: [expect.objectContaining({ typ: "KTW", rufname: "RK UE 41-92-8", notiz: "Reserve", zeichen: null })] });
     expect(ladeBibliothek(db).einheiten.find((e) => e.rufname === "RK UE 41-92-8")).toMatchObject({ typ: "KTW", notiz: "Reserve" });
+    expect(importiereBibEinheiten(db, [{ typ: "NEF", rufname: "RK UE 40-82-1", notiz: null, zeichen: "rezept:F.2.3" }])).toMatchObject({ ok: true, eintraege: [{ zeichen: "rezept:F.2.3" }] });
+  });
+  it("Verbindungen importieren (aus dem Plan): Dubletten nach Bezeichnung UND Art übersprungen, angelegte zurück", async () => {
+    const db = await mitSeed();
+    const r = importiereBibVerbindungen(db, [
+      { art: "tmo", bezeichnung: " r_ue_1 " }, { art: "dmo", bezeichnung: "R_UE_1" }, { art: "dmo", bezeichnung: "r_ue_1" },
+    ]);
+    expect(r).toEqual({ ok: true, angelegt: 1, uebersprungen: 2, eintraege: [expect.objectContaining({ art: "dmo", bezeichnung: "R_UE_1", notiz: null })] });
+    expect(importiereBibVerbindungen(db, [{ art: "funk", bezeichnung: "X" }])).toMatchObject({ ok: false });
   });
   it("Import: leer, über 500 Zeilen oder mit ungültiger Zeile — nichts angelegt, Meldung mit Zeilennummer", () => {
     const db = testDb();
@@ -3455,7 +3689,11 @@ export const bibVerbindungSchema = z.object({
 }).strict();
 export const bibImportSchema = z.array(z.object({
   typ: pflicht(LAENGE.typ, "Bitte einen Typ eintragen."), rufname: pflicht(LAENGE.rufname, "Bitte einen Rufnamen eintragen."), notiz,
+  zeichen: zeichen.optional(),
 }).strict()).min(1, "Die Liste ist leer.").max(BIB_GRENZE.import, `Höchstens ${BIB_GRENZE.import} Zeilen je Import.`);
+export const bibVerbindungsImportSchema = z.array(z.object({
+  art: z.enum(VERBINDUNGS_ARTEN, { error: "Bitte eine Art wählen." }), bezeichnung: pflicht(LAENGE.bezeichnung, "Bitte eine Bezeichnung eintragen."),
+}).strict()).min(1, "Der Plan hat keine Verbindungen.").max(BIB_GRENZE.import, `Höchstens ${BIB_GRENZE.import} Zeilen je Import.`);
 export const bibLoeschSchema = z.object({ art: z.enum(["stelle", "einheit", "verbindung"]), id: z.string().min(1).max(64) }).strict();
 ```
 
@@ -3466,7 +3704,8 @@ export type BibErgebnis<T> = { ok: true; eintrag: T } | { ok: false; fehler: str
 export type BibStelleErgebnis = BibErgebnis<BibStelle>;
 export type BibEinheitErgebnis = BibErgebnis<BibEinheit>;
 export type BibVerbindungErgebnis = BibErgebnis<BibVerbindung>;
-export type ImportErgebnis = { ok: true; angelegt: number; uebersprungen: number } | { ok: false; fehler: string };
+export type ImportErgebnis<T = BibEinheit> = { ok: true; angelegt: number; uebersprungen: number; eintraege: T[] } | { ok: false; fehler: string };
+export type VerbindungsImportErgebnis = ImportErgebnis<BibVerbindung>;
 ```
 
 `src/app/m/kommplan/_lib/bibliothekDb.ts`:
@@ -3478,9 +3717,9 @@ import { z } from "zod";
 import type { KommplanDb } from "../_db/client";
 import { bibEinheit, bibStelle, bibVerbindung } from "../_db/schema";
 import { feldFehlerAus } from "./angaben";
-import { BIB_GRENZE, bibEinheitSchema, bibImportSchema, bibLoeschSchema, bibStelleSchema, bibVerbindungSchema } from "./bibliothek/schema";
+import { BIB_GRENZE, bibEinheitSchema, bibImportSchema, bibLoeschSchema, bibStelleSchema, bibVerbindungSchema, bibVerbindungsImportSchema } from "./bibliothek/schema";
 import { vergleichsform, type BibEinheit, type BibStelle, type BibVerbindung, type Bibliothek } from "./bibliothek/typen";
-import type { BibEinheitErgebnis, BibStelleErgebnis, BibVerbindungErgebnis, EinfachErgebnis, ImportErgebnis } from "./ergebnis";
+import type { BibEinheitErgebnis, BibStelleErgebnis, BibVerbindungErgebnis, EinfachErgebnis, ImportErgebnis, VerbindungsImportErgebnis } from "./ergebnis";
 import { kontaktSchema, type VerbindungsArt } from "./plan/schema";
 
 /**
@@ -3587,20 +3826,39 @@ export function loescheBibEintrag(db: KommplanDb, eingabe: unknown): EinfachErge
   return d.changes === 1 ? { ok: true } : { ok: false, fehler: EINTRAG_WEG };
 }
 
+function importFehler(fehler: z.ZodError): { ok: false; fehler: string } {
+  const i = fehler.issues[0];
+  const zeile = typeof i?.path[0] === "number" ? `Zeile ${i.path[0] + 1}: ` : "";
+  return { ok: false, fehler: `${zeile}${i?.message ?? "Ungültige Liste."}` };
+}
+
 export function importiereBibEinheiten(db: KommplanDb, eingabe: unknown): ImportErgebnis {
   const r = bibImportSchema.safeParse(eingabe);
-  if (!r.success) {
-    const i = r.error.issues[0];
-    const zeile = typeof i?.path[0] === "number" ? `Zeile ${i.path[0] + 1}: ` : "";
-    return { ok: false, fehler: `${zeile}${i?.message ?? "Ungültige Liste."}` };
-  }
+  if (!r.success) return importFehler(r.error);
   return db.transaction((tx): ImportErgebnis => {
     const bekannt = new Set(tx.select({ r: bibEinheit.rufname }).from(bibEinheit).all().map((x) => vergleichsform(x.r)));
     const vorher = bekannt.size;
     const neu = r.data.filter((z) => { const k = vergleichsform(z.rufname); if (bekannt.has(k)) return false; bekannt.add(k); return true; });
     if (vorher + neu.length > BIB_GRENZE.eintraege) return { ok: false, fehler: ZU_VIELE("Einheiten") };
-    for (const z of neu) tx.insert(bibEinheit).values({ id: randomUUID(), typ: z.typ, rufname: z.rufname, zeichen: null, notiz: z.notiz }).run();
-    return { ok: true, angelegt: neu.length, uebersprungen: r.data.length - neu.length };
+    const eintraege = neu.map((z): BibEinheit => ({ id: randomUUID(), typ: z.typ, rufname: z.rufname, zeichen: z.zeichen ?? null, notiz: z.notiz }));
+    for (const e of eintraege) tx.insert(bibEinheit).values(e).run();
+    return { ok: true, angelegt: neu.length, uebersprungen: r.data.length - neu.length, eintraege };
+  });
+}
+
+/** „Verbindungen in Bibliothek übernehmen" (Entscheidung 13): alle Verbindungen eines Plans in EINEM Aufruf. */
+export function importiereBibVerbindungen(db: KommplanDb, eingabe: unknown): VerbindungsImportErgebnis {
+  const r = bibVerbindungsImportSchema.safeParse(eingabe);
+  if (!r.success) return importFehler(r.error);
+  return db.transaction((tx): VerbindungsImportErgebnis => {
+    const schluessel = (art: string, bezeichnung: string) => `${art}\u0000${vergleichsform(bezeichnung)}`;
+    const bekannt = new Set(tx.select().from(bibVerbindung).all().map((x) => schluessel(x.art, x.bezeichnung)));
+    const vorher = bekannt.size;
+    const neu = r.data.filter((v) => { const k = schluessel(v.art, v.bezeichnung); if (bekannt.has(k)) return false; bekannt.add(k); return true; });
+    if (vorher + neu.length > BIB_GRENZE.eintraege) return { ok: false, fehler: ZU_VIELE("Verbindungen") };
+    const eintraege = neu.map((v): BibVerbindung => ({ id: randomUUID(), art: v.art, bezeichnung: v.bezeichnung, notiz: null }));
+    for (const e of eintraege) tx.insert(bibVerbindung).values(e).run();
+    return { ok: true, angelegt: neu.length, uebersprungen: r.data.length - neu.length, eintraege };
   });
 }
 ```
@@ -3902,7 +4160,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/core/audit/coverage-manifest.json`
 
 **Interfaces:**
-- Produces: `speichereBibStelleAction(eingabe: unknown): Promise<BibStelleErgebnis>`; `speichereBibEinheitAction(eingabe: unknown): Promise<BibEinheitErgebnis>`; `speichereBibVerbindungAction(eingabe: unknown): Promise<BibVerbindungErgebnis>`; `loescheBibEintragAction(eingabe: unknown): Promise<EinfachErgebnis>`; `importiereBibEinheitenAction(eingabe: unknown): Promise<ImportErgebnis>`.
+- Produces: `speichereBibStelleAction(eingabe: unknown): Promise<BibStelleErgebnis>`; `speichereBibEinheitAction(eingabe: unknown): Promise<BibEinheitErgebnis>`; `speichereBibVerbindungAction(eingabe: unknown): Promise<BibVerbindungErgebnis>`; `loescheBibEintragAction(eingabe: unknown): Promise<EinfachErgebnis>`; `importiereBibEinheitenAction(eingabe: unknown): Promise<ImportErgebnis>`; `importiereBibVerbindungenAction(eingabe: unknown): Promise<VerbindungsImportErgebnis>`.
 
 - [ ] **Step 1: Failing Test schreiben**
 
@@ -3918,13 +4176,15 @@ describe("Bibliotheks-Actions", () => {
     await expect(a.speichereBibVerbindungAction({})).rejects.toThrow("Forbidden");
     await expect(a.loescheBibEintragAction({})).rejects.toThrow("Forbidden");
     await expect(a.importiereBibEinheitenAction([])).rejects.toThrow("Forbidden");
+    await expect(a.importiereBibVerbindungenAction([])).rejects.toThrow("Forbidden");
   });
   it("anlegen, importieren, löschen — Audit nennt die Person", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];
     const a = await import("./bibliothek");
     const s = await a.speichereBibStelleAction({ id: null, titel: "EAL Süd", zeichen: null, leiter: null, kontakte: [], notiz: null });
     if (!s.ok) throw new Error(s.fehler);
-    expect(await a.importiereBibEinheitenAction([{ typ: "RTW", rufname: "RK 1", notiz: null }])).toEqual({ ok: true, angelegt: 1, uebersprungen: 0 });
+    expect(await a.importiereBibEinheitenAction([{ typ: "RTW", rufname: "RK 1", notiz: null }])).toMatchObject({ ok: true, angelegt: 1, uebersprungen: 0 });
+    expect(await a.importiereBibVerbindungenAction([{ art: "tmo", bezeichnung: "R_UE_9" }])).toMatchObject({ ok: true, angelegt: 1 });
     expect(await a.loescheBibEintragAction({ art: "stelle", id: s.eintrag.id })).toEqual({ ok: true });
     const { getDb } = await import("../_db/client");
     const { sql } = await import("drizzle-orm");
@@ -3948,8 +4208,8 @@ Expected: FAIL.
 
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
-import { importiereBibEinheiten, loescheBibEintrag, speichereBibEinheit, speichereBibStelle, speichereBibVerbindung } from "../_lib/bibliothekDb";
-import type { BibEinheitErgebnis, BibStelleErgebnis, BibVerbindungErgebnis, EinfachErgebnis, ImportErgebnis } from "../_lib/ergebnis";
+import { importiereBibEinheiten, importiereBibVerbindungen, loescheBibEintrag, speichereBibEinheit, speichereBibStelle, speichereBibVerbindung } from "../_lib/bibliothekDb";
+import type { BibEinheitErgebnis, BibStelleErgebnis, BibVerbindungErgebnis, EinfachErgebnis, ImportErgebnis, VerbindungsImportErgebnis } from "../_lib/ergebnis";
 import { requireKommplanBearbeitenAktion } from "../_lib/zugang";
 
 // Bibliothek (Spec §4.3, §6.1): jede Action prüft selbst; Schema, Dubletten und IDs in `_lib/bibliothekDb.ts`.
@@ -3979,9 +4239,14 @@ export async function importiereBibEinheitenAction(eingabe: unknown): Promise<Im
   const viewer = await requireKommplanBearbeitenAktion();
   return withAuditContext({ actor: auditActor(viewer) }, async () => importiereBibEinheiten(getDb(), eingabe));
 }
+
+export async function importiereBibVerbindungenAction(eingabe: unknown): Promise<VerbindungsImportErgebnis> {
+  const viewer = await requireKommplanBearbeitenAktion();
+  return withAuditContext({ actor: auditActor(viewer) }, async () => importiereBibVerbindungen(getDb(), eingabe));
+}
 ```
 
-`coverage-manifest.json`: fünf Einträge `"src/app/m/kommplan/_actions/bibliothek.ts#<Name>": { "kind": "context", "via": "<Name>" }`.
+`coverage-manifest.json`: sechs Einträge `"src/app/m/kommplan/_actions/bibliothek.ts#<Name>": { "kind": "context", "via": "<Name>" }`.
 
 - [ ] **Step 4: Grün sehen**
 
@@ -4012,7 +4277,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `ladeBibliothek` (Task 14), Actions (Task 16), `einheitenAusListe`, `leseEinheitenCsv`, `dekodiereText`, `importVorschau`, `STATUS_TEXT` (Task 15), `passt`, `ZeichenWahl`, `KontaktZeilen` (Editor), `ladeZeichenAction`, `zeichenIndex`, `symboleFuerSchluessel`.
-- Produces: DOM-Vertrag: Reiter „Stellen (n)", „Einheiten (n)", „Verbindungen (n)" (`role="tab"`); je Bereich `section[aria-label="Stellen der Bibliothek"]` usw. mit Suchfeld (`aria-label` „Stellen suchen" usw.), Knopf „Neue Stelle"/„Neue Einheit"/„Neue Verbindung", `Kartentabelle` (`aria-label` „Stellen"/„Einheiten"/„Verbindungen"); Flyin `.kp-flyin` mit Formular (`aria-label` „Stelle der Bibliothek" usw.), Knöpfe „Speichern", „Abbrechen", beim Bearbeiten „Löschen" (Popconfirm „Löschen"); im Einheiten-Bereich Knöpfe „Liste einfügen" und „CSV importieren" (Dateifeld `input[type=file][name=csv]`), Vorschau-Flyin mit `Kartentabelle` `aria-label="Vorschau"`, Fehlerliste `.kp-feldfehler`, Knopf „<n> übernehmen"; Meldungen je Bereich in `[role="status"]`.
+- Produces: DOM-Vertrag: Reiter „Stellen (n)", „Einheiten (n)", „Verbindungen (n)" (`role="tab"`); je Bereich `section[aria-label="Stellen der Bibliothek"]` usw. mit Suchfeld (`aria-label` „Stellen suchen" usw.), Knopf „Neue Stelle"/„Neue Einheit"/„Neue Verbindung", `Kartentabelle` (`aria-label` „Stellen"/„Einheiten"/„Verbindungen"); Flyin `.kp-flyin` (Portal am `body`) mit Formular (`aria-label` „Stelle der Bibliothek" usw.), Fokus beim Öffnen im ersten Feld, Knöpfe „Speichern", beim Anlegen zusätzlich „Speichern und nächste", „Abbrechen", beim Bearbeiten „Löschen" (Popconfirm „Löschen"); Spalten „Notiz" und „Kontakte" über `Zellentext`; im Einheiten-Bereich Knöpfe „Liste einfügen" und „CSV importieren" (Dateifeld `input[type=file][name=csv]`), Vorschau-Flyin mit `Kartentabelle` `aria-label="Vorschau"`, Fehlerliste `.kp-feldfehler`, Knopf „<n> übernehmen"; Meldungen je Bereich in `[role="status"]`.
 
 - [ ] **Step 1: Failing Tests schreiben**
 
@@ -4022,7 +4287,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
-import { clickElement, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, fill, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { Bibliothek as BibliothekDaten } from "../../_lib/bibliothek/typen";
 
 const aktion = vi.hoisted(() => ({ stelle: vi.fn(), einheit: vi.fn(), verbindung: vi.fn(), loesche: vi.fn(), importiere: vi.fn() }));
@@ -4044,6 +4309,20 @@ const BIB: BibliothekDaten = {
 const abwarten = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 const knopf = (text: string) => [...document.querySelectorAll<HTMLElement>("button, [role='menuitem'], [role='tab']")].find((b) => b.textContent?.trim() === text)!;
 const zeige = () => mount(<Bibliothek bibliothek={BIB} zeichenIndex={[]} symbole={{}} />);
+/**
+ * `fill`/`submitForm` des Harness suchen nur im Mount-Wirt — das Flyin (antd `Drawer`) hängt per Portal am
+ * `body`. Dieselbe Mechanik wie `fill` (Prototyp-Setter, sonst bliebe onChange aus), nur über `queryPortal`.
+ */
+async function fillPortal(selektor: string, wert: string) {
+  const feld = queryPortal<HTMLInputElement | HTMLTextAreaElement>(selektor);
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(feld), "value")?.set;
+  if (!setter) throw new Error(`Kein value-Setter an ${feld.tagName}`);
+  await act(async () => { setter.call(feld, wert); feld.dispatchEvent(new Event("input", { bubbles: true })); });
+}
+async function submitPortal(selektor: string) {
+  const form = queryPortal<HTMLFormElement>(selektor);
+  await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+}
 beforeEach(() => { Object.values(aktion).forEach((f) => f.mockReset()); router.refresh.mockReset(); });
 afterEach(async () => { await unmount(); });
 
@@ -4061,24 +4340,43 @@ describe("Bibliothek", () => {
       .mockResolvedValueOnce({ ok: true, eintrag: { id: "s3", titel: "EAL Süd", zeichen: null, leiter: null, kontakte: [], notiz: null } });
     await zeige();
     await clickElement(knopf("Neue Stelle"));
-    await fill('.kp-flyin form[aria-label="Stelle der Bibliothek"] input[name="titel"]', "Leitstelle Uelzen");
-    await submitForm('.kp-flyin form[aria-label="Stelle der Bibliothek"]');
+    await fillPortal('.kp-flyin form[aria-label="Stelle der Bibliothek"] input[name="titel"]', "Leitstelle Uelzen");
+    await submitPortal('.kp-flyin form[aria-label="Stelle der Bibliothek"]');
     await abwarten();
     expect(aktion.stelle).toHaveBeenCalledWith(expect.objectContaining({ id: null, titel: "Leitstelle Uelzen" }));
-    const titel = query<HTMLInputElement>('.kp-flyin input[name="titel"]');
+    const titel = queryPortal<HTMLInputElement>('.kp-flyin input[name="titel"]');
     expect(titel.getAttribute("aria-invalid")).toBe("true");
     expect(document.body.textContent).toContain("„Leitstelle Uelzen“ steht schon in der Bibliothek.");
-    await fill('.kp-flyin input[name="titel"]', "EAL Süd");
-    await submitForm('.kp-flyin form[aria-label="Stelle der Bibliothek"]');
+    await fillPortal('.kp-flyin input[name="titel"]', "EAL Süd");
+    await submitPortal('.kp-flyin form[aria-label="Stelle der Bibliothek"]');
     await abwarten();
     expect(query('section[aria-label="Stellen der Bibliothek"] [role="status"]').textContent).toBe("„EAL Süd“ gespeichert.");
     expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+  it("Neue Stelle: Fokus im Titel; „Speichern und nächste“ lässt das Flyin leer offen, Fokus wieder im Titel", async () => {
+    aktion.stelle.mockResolvedValue({ ok: true, eintrag: { id: "s3", titel: "EAL Süd", zeichen: null, leiter: null, kontakte: [], notiz: null } });
+    await zeige();
+    await clickElement(knopf("Neue Stelle"));
+    await abwarten();
+    expect(document.activeElement).toBe(queryPortal('.kp-flyin input[name="titel"]'));
+    await fillPortal('.kp-flyin input[name="titel"]', "EAL Süd");
+    await clickElement(knopf("Speichern und nächste"));
+    await abwarten();
+    expect(query('section[aria-label="Stellen der Bibliothek"] [role="status"]').textContent).toBe("„EAL Süd“ gespeichert.");
+    const leer = queryPortal<HTMLInputElement>('.kp-flyin input[name="titel"]');
+    expect(leer.value).toBe("");
+    expect(document.activeElement).toBe(leer);
+  });
+  it("eine lange Notiz steht in einer Zelle mit Lesebreite (Zellentext), nicht als nackter Text", async () => {
+    await mount(<Bibliothek bibliothek={{ ...BIB, stellen: [{ ...BIB.stellen[0], notiz: "Wort ".repeat(100) }] }} zeichenIndex={[]} symbole={{}} />);
+    const zelle = query('section[aria-label="Stellen der Bibliothek"] tr[data-row-key="s1"]');
+    expect(zelle.querySelector("[data-zellentext]")?.textContent).toBe("Wort ".repeat(100)); // der Testgriff von core/tabelle/Zellentext
   });
   it("Bearbeiten und Löschen mit Nachfrage", async () => {
     aktion.loesche.mockResolvedValue({ ok: true });
     await zeige();
     await clickElement(knopf("EAL Nord"));
-    expect(query<HTMLInputElement>('.kp-flyin input[name="leiter"]').value).toBe("Jana");
+    expect(queryPortal<HTMLInputElement>('.kp-flyin input[name="leiter"]').value).toBe("Jana");
     await clickElement(knopf("Löschen"));
     await clickElement([...document.querySelectorAll<HTMLElement>(".ant-popconfirm button, .ant-popover button")].find((b) => b.textContent?.trim() === "Löschen")!);
     await abwarten();
@@ -4095,7 +4393,7 @@ describe("Bibliothek", () => {
       feld.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await abwarten();
-    const vorschau = query('[aria-label="Vorschau"]').closest(".kp-flyin")!;
+    const vorschau = queryPortal('[aria-label="Vorschau"]').closest(".kp-flyin")!;
     expect(vorschau.textContent).toContain("RK Großenkneten 1");
     expect(vorschau.textContent).toContain("schon in der Bibliothek");
     await clickElement(knopf("1 übernehmen"));
@@ -4107,7 +4405,7 @@ describe("Bibliothek", () => {
     await zeige();
     await clickElement(knopf("Einheiten (1)"));
     await clickElement(knopf("Liste einfügen"));
-    await fill('.kp-flyin textarea[aria-label="Einheiten, je Zeile eine"]', "KTW RK 2\nNEF");
+    await fillPortal('.kp-flyin textarea[aria-label="Einheiten, je Zeile eine"]', "KTW RK 2\nNEF");
     await clickElement(knopf("Vorschau"));
     expect(document.body.textContent).toContain("Zeile 2: Der Rufname fehlt.");
     expect(knopf("1 übernehmen").hasAttribute("disabled")).toBe(true);
@@ -4115,7 +4413,7 @@ describe("Bibliothek", () => {
 });
 ```
 
-(Antds Popconfirm-Knöpfe liegen in einem Portal am `body`; der Greifer auf `.ant-popconfirm`/`.ant-popover` ist nur Test-Greifer, keine Stilregel — Falle 20 betrifft CSS. Findet er in antd 6.6.4 nichts, über `knopf` den **zweiten** „Löschen"-Knopf im Dokument nehmen.)
+(Antds Popconfirm-Knöpfe liegen in einem Portal am `body`; der Greifer auf `.ant-popconfirm`/`.ant-popover` ist nur Test-Greifer, keine Stilregel — Falle 20 betrifft CSS. Findet er in antd 6.6.4 nichts, über `knopf` den **zweiten** „Löschen"-Knopf im Dokument nehmen. `knopf` sucht schon im ganzen Dokument, findet also auch Flyin-Knöpfe. `[data-zellentext]` ist der dokumentierte Testgriff von `core/tabelle/Zellentext.tsx`; liegt die Telefonform der Kartentabelle in jsdom vorn, den Greifer auf deren Zeile umstellen, die Aussage bleibt.)
 
 - [ ] **Step 2: Rot sehen**
 
@@ -4137,19 +4435,21 @@ import { flyinBreite } from "@/core/theme/flyin";
  * FLYIN EINES BIBLIOTHEKSEINTRAGS (Entscheidung 11): ausdrücklich speichern — Stammdaten, kein Rückgängig.
  * `flyinBreite` (Falle 13); Löschen mit Nachfrage, weil es nichts zurückholt (Pläne behalten ihre Kopien).
  */
-export function BibFlyin({ offen, titel, formName, fehler, laeuft, onSchliessen, onSpeichern, onLoeschen, children }: {
+export function BibFlyin({ offen, titel, formName, fehler, laeuft, onSchliessen, onSpeichern, onWeiter, onLoeschen, children }: {
   offen: boolean; titel: string; formName: string; fehler: string | null; laeuft: boolean;
-  onSchliessen: () => void; onSpeichern: () => void; onLoeschen?: () => void; children: ReactNode;
+  onSchliessen: () => void; onSpeichern: () => void; onWeiter?: () => void; onLoeschen?: () => void; children: ReactNode;
 }) {
   const absenden = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); if (!laeuft) onSpeichern(); };
+  // autoFocus={false}: rc-drawer fokussierte sonst NACH dem Fokus-Effekt des Formulars seinen Container (wie StelleFlyin des Editors).
   return (
-    <Drawer open={offen} onClose={onSchliessen} title={titel} size={flyinBreite(520)} destroyOnHidden rootClassName="kp-flyin">
+    <Drawer open={offen} onClose={onSchliessen} title={titel} size={flyinBreite(520)} destroyOnHidden rootClassName="kp-flyin" autoFocus={false}>
       {offen ? (
         <form aria-label={formName} onSubmit={absenden} className="kp-formular">
           {fehler ? <Alert type="warning" showIcon title={fehler} /> : null}
           {children}
           <div className="kp-formular-knoepfe">
-            <Button type="primary" htmlType="submit" loading={laeuft} disabled={laeuft}>Speichern</Button>
+            <Button type="primary" htmlType="submit" loading={laeuft}>Speichern</Button>
+            {onWeiter ? <Button onClick={() => { if (!laeuft) onWeiter(); }}>Speichern und nächste</Button> : null}
             <Button onClick={onSchliessen}>Abbrechen</Button>
             {onLoeschen ? (
               <Popconfirm title="Aus der Bibliothek löschen?" description="Pläne behalten ihre Kopien." okText="Löschen" cancelText="Abbrechen" onConfirm={onLoeschen}>
@@ -4178,10 +4478,10 @@ export function feldHilfe(basis: string, feldFehler: Record<string, string>, nam
 ```tsx
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, type TableProps } from "antd";
-import { Kartentabelle, nachText } from "@/core/tabelle";
+import { Button, Input, type InputRef, type TableProps } from "antd";
+import { Kartentabelle, nachText, Zellentext } from "@/core/tabelle";
 import { loescheBibEintragAction, speichereBibStelleAction } from "../../_actions/bibliothek";
 import { passt, type BibStelle } from "../../_lib/bibliothek/typen";
 import { KONTAKT_NAME } from "../../_lib/plan/kontakte";
@@ -4201,6 +4501,8 @@ export function StellenBereich({ stellen, zeichenIndex, symbole, ladeSymbole }: 
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<BibStelle | "neu" | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  /** Zählt „Speichern und nächste": jede Runde montiert ein leeres Formular neu (Fokus wieder im Titel). */
+  const [runde, setRunde] = useState(0);
   const titelVon = new Map(zeichenIndex.map((e) => [e.schluessel, e.titel]));
   const sichtbar = stellen.filter((s) => passt(suche, [s.titel, s.leiter, s.notiz, ...s.kontakte.map((k) => k.wert)]));
   const spalten: NonNullable<TableProps<BibStelle>["columns"]> = [
@@ -4208,8 +4510,9 @@ export function StellenBereich({ stellen, zeichenIndex, symbole, ladeSymbole }: 
       render: (_: unknown, s: BibStelle) => <Button type="link" className="kp-zeilenlink" onClick={() => setOffen(s)}>{s.titel}</Button> },
     { key: "zeichen", title: "Zeichen", render: (_: unknown, s: BibStelle) => (s.zeichen ? titelVon.get(s.zeichen) ?? s.zeichen : "—") },
     { key: "leiter", title: "Leiter", render: (_: unknown, s: BibStelle) => s.leiter ?? "—" },
-    { key: "kontakte", title: "Kontakte", render: (_: unknown, s: BibStelle) => (s.kontakte.length === 0 ? "—" : s.kontakte.map((k) => `${KONTAKT_NAME[k.art]} ${k.wert}`).join(" · ")) },
-    { key: "notiz", title: "Notiz", render: (_: unknown, s: BibStelle) => s.notiz ?? "—" },
+    // Freitext über Zellentext (docs/design/README.md „Mobil"): EIN langer Eintrag schöbe sonst alle Spalten dahinter aus dem Bild.
+    { key: "kontakte", title: "Kontakte", render: (_: unknown, s: BibStelle) => <Zellentext text={s.kontakte.length === 0 ? "—" : s.kontakte.map((k) => `${KONTAKT_NAME[k.art]} ${k.wert}`).join(" · ")} /> },
+    { key: "notiz", title: "Notiz", render: (_: unknown, s: BibStelle) => <Zellentext text={s.notiz ?? "—"} /> },
   ];
   return (
     <section aria-label="Stellen der Bibliothek" className="kp-bib-bereich">
@@ -4221,17 +4524,21 @@ export function StellenBereich({ stellen, zeichenIndex, symbole, ladeSymbole }: 
       <Kartentabelle<BibStelle> aria-label="Stellen" rowKey="id" dataSource={sichtbar} columns={spalten}
         leer={{ nichts: "Noch keine Stellen in der Bibliothek.", gefiltert: "Keine Stelle passt zur Suche.", aktiv: suche.trim() !== "" }}
         karte={{ titel: "titel" }} />
-      <StelleFlyin key={offen === null ? "zu" : offen === "neu" ? "neu" : offen.id} eintrag={offen} zeichenIndex={zeichenIndex} symbole={symbole} ladeSymbole={ladeSymbole}
-        onSchliessen={() => setOffen(null)} onFertig={(text) => { setOffen(null); setMeldung(text); router.refresh(); }} />
+      <StelleFlyin key={offen === null ? "zu" : offen === "neu" ? `neu:${runde}` : offen.id} eintrag={offen} zeichenIndex={zeichenIndex} symbole={symbole} ladeSymbole={ladeSymbole}
+        onSchliessen={() => setOffen(null)} onFertig={(text) => { setOffen(null); setMeldung(text); router.refresh(); }}
+        onWeiter={(text) => { setMeldung(text); setRunde((n) => n + 1); router.refresh(); }} />
     </section>
   );
 }
 
-function StelleFlyin({ eintrag, zeichenIndex, symbole, ladeSymbole, onSchliessen, onFertig }: {
+function StelleFlyin({ eintrag, zeichenIndex, symbole, ladeSymbole, onSchliessen, onFertig, onWeiter }: {
   eintrag: BibStelle | "neu" | null; zeichenIndex: readonly ZeichenIndexEintrag[]; symbole: Symbolsatz; ladeSymbole: (k: string[]) => void;
-  onSchliessen: () => void; onFertig: (meldung: string) => void;
+  onSchliessen: () => void; onFertig: (meldung: string) => void; onWeiter: (meldung: string) => void;
 }) {
   const basis = useId();
+  const titelFeld = useRef<InputRef>(null);
+  // Fokus beim Öffnen ins erste Feld (wie „Neuer Plan"); nach „Speichern und nächste" montiert das Formular neu (key) — derselbe Effekt.
+  useEffect(() => { if (eintrag !== null) titelFeld.current?.focus(); }, [eintrag]);
   const alt = eintrag !== null && eintrag !== "neu" ? eintrag : null;
   const [titel, setTitel] = useState(alt?.titel ?? "");
   const [zeichen, setZeichen] = useState<string | null>(alt?.zeichen ?? null);
@@ -4242,12 +4549,12 @@ function StelleFlyin({ eintrag, zeichenIndex, symbole, ladeSymbole, onSchliessen
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
   const [laeuft, setLaeuft] = useState(false);
   const f = (name: string) => feldHilfe(basis, feldFehler, name);
-  async function speichern() {
+  async function speichern(weiter: boolean) {
     setLaeuft(true);
     const r = await speichereBibStelleAction({ id: alt?.id ?? null, titel, zeichen, leiter, kontakte, notiz })
       .catch(() => ({ ok: false as const, fehler: NETZ }));
     setLaeuft(false);
-    if (r.ok) { onFertig(`„${r.eintrag.titel}“ gespeichert.`); return; }
+    if (r.ok) { (weiter ? onWeiter : onFertig)(`„${r.eintrag.titel}“ gespeichert.`); return; }
     setFehler(r.fehler); setFeldFehler("feldFehler" in r && r.feldFehler ? r.feldFehler : {});
   }
   async function loeschen() {
@@ -4259,9 +4566,10 @@ function StelleFlyin({ eintrag, zeichenIndex, symbole, ladeSymbole, onSchliessen
   }
   return (
     <BibFlyin offen={eintrag !== null} titel={alt ? "Stelle bearbeiten" : "Neue Stelle"} formName="Stelle der Bibliothek" fehler={fehler} laeuft={laeuft}
-      onSchliessen={onSchliessen} onSpeichern={() => void speichern()} onLoeschen={alt ? () => void loeschen() : undefined}>
+      onSchliessen={onSchliessen} onSpeichern={() => void speichern(false)} onWeiter={alt ? undefined : () => void speichern(true)}
+      onLoeschen={alt ? () => void loeschen() : undefined}>
       <label className="kp-feldname" htmlFor={`${basis}-titel`}>Titel</label>
-      <Input id={`${basis}-titel`} name="titel" value={titel} maxLength={LAENGE.titel} onChange={(e) => setTitel(e.target.value)} {...f("titel").attr} />
+      <Input ref={titelFeld} id={`${basis}-titel`} name="titel" value={titel} maxLength={LAENGE.titel} onChange={(e) => setTitel(e.target.value)} {...f("titel").attr} />
       {f("titel").text}
       <fieldset className="kp-abschnitt"><legend>Zeichen</legend>
         <ZeichenWahl wert={zeichen} index={zeichenIndex} symbole={symbole} ladeSymbole={ladeSymbole} planZeichen={[]} onWahl={setZeichen} />
@@ -4285,7 +4593,7 @@ function StelleFlyin({ eintrag, zeichenIndex, symbole, ladeSymbole, onSchliessen
   { key: "bezeichnung", title: "Bezeichnung", dataIndex: "bezeichnung", sorter: nachText<BibVerbindung>((v) => v.bezeichnung),
     render: (_: unknown, v: BibVerbindung) => <Button type="link" className="kp-zeilenlink" onClick={() => setOffen(v)}>{v.bezeichnung}</Button> },
   { key: "art", title: "Art", render: (_: unknown, v: BibVerbindung) => ART_NAME[v.art] },
-  { key: "notiz", title: "Notiz", render: (_: unknown, v: BibVerbindung) => v.notiz ?? "—" },
+  { key: "notiz", title: "Notiz", render: (_: unknown, v: BibVerbindung) => <Zellentext text={v.notiz ?? "—"} /> },
   // Suche über [v.bezeichnung, ART_NAME[v.art], v.notiz]; Texte: section „Verbindungen der Bibliothek", Suchfeld „Verbindungen suchen",
   // Knopf „Neue Verbindung", Tabelle „Verbindungen", leer „Noch keine Verbindungen in der Bibliothek." / „Keine Verbindung passt zur Suche."
   // Flyin: formName „Verbindung der Bibliothek", Felder name="bezeichnung" (maxLength LAENGE.bezeichnung),
@@ -4293,7 +4601,7 @@ function StelleFlyin({ eintrag, zeichenIndex, symbole, ladeSymbole, onSchliessen
   // Speichern: speichereBibVerbindungAction({ id: alt?.id ?? null, art, bezeichnung, notiz }); Löschen: { art: "verbindung", id }.
 ```
 
-Die Datei vollständig nach dem Muster von `StellenBereich.tsx` ausschreiben (kein gemeinsamer generischer Baustein über `BibFlyin` hinaus — drei Formulare mit verschiedenen Feldern sind klarer als ein Konfigurationsobjekt).
+Die Datei vollständig nach dem Muster von `StellenBereich.tsx` ausschreiben (kein gemeinsamer generischer Baustein über `BibFlyin` hinaus — drei Formulare mit verschiedenen Feldern sind klarer als ein Konfigurationsobjekt) — **samt** Fokus aufs erste Feld beim Öffnen, `runde` und „Speichern und nächste" beim Anlegen.
 
 `src/app/m/kommplan/_ui/bibliothek/ImportVorschau.tsx`:
 
@@ -4302,7 +4610,7 @@ Die Datei vollständig nach dem Muster von `StellenBereich.tsx` ausschreiben (ke
 
 import { Button, Drawer, type TableProps } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
-import { Kartentabelle } from "@/core/tabelle";
+import { Kartentabelle, Zellentext } from "@/core/tabelle";
 import type { ImportLesung, ImportZeile } from "../../_lib/bibliothek/csv";
 import type { BibEinheit } from "../../_lib/bibliothek/typen";
 import { importVorschau, STATUS_TEXT, type VorschauZeile } from "../../_lib/bibliothek/vorschau";
@@ -4311,7 +4619,7 @@ const SPALTEN: NonNullable<TableProps<VorschauZeile>["columns"]> = [
   { key: "zeile", title: "Zeile", dataIndex: "zeile" },
   { key: "typ", title: "Typ", dataIndex: "typ" },
   { key: "rufname", title: "Rufname", dataIndex: "rufname" },
-  { key: "notiz", title: "Notiz", render: (_: unknown, z: VorschauZeile) => z.notiz ?? "—" },
+  { key: "notiz", title: "Notiz", render: (_: unknown, z: VorschauZeile) => <Zellentext text={z.notiz ?? "—"} /> },
   { key: "status", title: "Status", render: (_: unknown, z: VorschauZeile) => <span className={`kp-chip${z.status === "neu" ? "" : " kp-chip-hinweis"}`}>{STATUS_TEXT[z.status]}</span> },
 ];
 
@@ -4344,7 +4652,7 @@ export function ImportVorschau({ lesung, vorhanden, laeuft, onUebernehmen, onSch
 }
 ```
 
-`src/app/m/kommplan/_ui/bibliothek/EinheitenBereich.tsx` — Bauform wie `StellenBereich` (Spalten Typ — als Link zum Flyin —, Rufname, Zeichen, Notiz; Suche über Typ, Rufname, Notiz; Texte „Einheiten der Bibliothek", „Einheiten suchen", „Neue Einheit", Tabelle „Einheiten", leer „Noch keine Einheiten in der Bibliothek." / „Keine Einheit passt zur Suche."; Flyin „Einheit der Bibliothek" mit `name="typ"`, `name="rufname"`, `ZeichenWahl`, `name="notiz"`; `speichereBibEinheitAction`, Löschen `{ art: "einheit", id }`), zusätzlich in der Werkzeugleiste:
+`src/app/m/kommplan/_ui/bibliothek/EinheitenBereich.tsx` — Bauform wie `StellenBereich` samt Fokus, `runde` und „Speichern und nächste" (Spalten Typ — als Link zum Flyin —, Rufname, Zeichen, Notiz über `Zellentext`; Suche über Typ, Rufname, Notiz; Texte „Einheiten der Bibliothek", „Einheiten suchen", „Neue Einheit", Tabelle „Einheiten", leer „Noch keine Einheiten in der Bibliothek." / „Keine Einheit passt zur Suche."; Flyin „Einheit der Bibliothek" mit `name="typ"`, `name="rufname"`, `ZeichenWahl`, `name="notiz"`; `speichereBibEinheitAction`, Löschen `{ art: "einheit", id }`), zusätzlich in der Werkzeugleiste:
 
 ```tsx
   const [lesung, setLesung] = useState<ImportLesung | null>(null);
@@ -4516,7 +4824,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `aendereStelle`, `stelleOder`, `PlanFehler` (`operationen.ts`), `fuegeEinheitenEin` (`einheiten.ts`), `findeVerbindung`, `legeVerbindungAn` (`verbindungen.ts`), `BibStelle`, `BibEinheit`, `BibVerbindung`, `vergleichsform` (Task 14).
-- Produces: `BIB_OPTION = "~bib:"` (Wertpräfix der Bibliotheksoptionen in Verbindungsauswahlen); `uebernimmBibStelle(inhalt, stelleId, b: BibStelle): PlanInhalt`; `fuegeBibEinheitenEin(inhalt, stelleId, eintraege: readonly BibEinheit[], ids: readonly string[]): PlanInhalt`; `verbindeMitBibVerbindung(inhalt, stelleId, b: BibVerbindung, neueId: string): PlanInhalt`; `bibVerbindungenFuerPlan(inhalt, bib: readonly BibVerbindung[]): BibVerbindung[]`; `stelleVorschlaege(bib: readonly BibStelle[], stelle: Pick<Stelle, "titel" | "zeichen" | "leiter" | "kontakte">, max?: number): BibStelle[]`; `bibStelleAus(s: Stelle): { id: null; titel; zeichen; leiter; kontakte; notiz: null }`; `zeichenImPlan(inhalt): string[]`.
+- Produces: `BIB_OPTION = "~bib:"` (Wertpräfix der Bibliotheksoptionen in Verbindungsauswahlen); `uebernimmBibStelle(inhalt, stelleId, b: BibStelle): PlanInhalt`; `fuegeBibEinheitenEin(inhalt, stelleId, eintraege: readonly BibEinheit[], ids: readonly string[]): PlanInhalt`; `verbindeMitBibVerbindung(inhalt, stelleId, b: BibVerbindung, neueId: string): PlanInhalt`; `bibVerbindungenFuerPlan(inhalt, bib: readonly BibVerbindung[]): BibVerbindung[]`; `stelleVorschlaege(bib: readonly BibStelle[], stelle: Pick<Stelle, "titel" | "zeichen" | "leiter" | "kontakte">, max?: number): BibStelle[]`; `bibStelleAus(s: Stelle): { id: null; titel; zeichen; leiter; kontakte; notiz: null }`; `bibStellenTreffer(inhalt, ids: readonly string[], bib: readonly BibStelle[]): { stelleId: string; b: BibStelle }[]` (exakter Titel in Vergleichsform, nur Stellen, die die Angaben noch nicht tragen — für den Abgleich nach dem Einfügen einer Gliederung); `einsatzOrte(inhalt): Map<string, { stelleId: string; titel: string }>` (Vergleichsform des Rufnamens → Stelle, an der das Fahrzeug steht). `zeichenImPlan` entfällt (Kritik: das Nachladen gehört in die Kopierwege, nicht hinter jedes `aendere`).
 
 - [ ] **Step 1: Failing Test schreiben**
 
@@ -4526,7 +4834,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 import { describe, expect, it } from "vitest";
 import { baue } from "../beispiele/bau";
 import type { BibStelle } from "../bibliothek/typen";
-import { bibStelleAus, bibVerbindungenFuerPlan, fuegeBibEinheitenEin, stelleVorschlaege, uebernimmBibStelle, verbindeMitBibVerbindung, zeichenImPlan } from "./bibliothek";
+import { bibStellenTreffer, bibStelleAus, bibVerbindungenFuerPlan, einsatzOrte, fuegeBibEinheitenEin, stelleVorschlaege, uebernimmBibStelle, verbindeMitBibVerbindung } from "./bibliothek";
 import { PlanFehler } from "./operationen";
 
 const PLAN = baue({
@@ -4579,9 +4887,16 @@ describe("Kopien aus der Bibliothek (Spec §4.3, §6.4; Entscheidung 13)", () =>
     const s = { ...PLAN.stellen[1], titel: "  EA 1 ", kontakte: [{ art: "telefon" as const, wert: " " }, { art: "fax" as const, wert: "1" }] };
     expect(bibStelleAus(s)).toEqual({ id: null, titel: "EA 1", zeichen: null, leiter: null, kontakte: [{ art: "fax", wert: "1" }], notiz: null });
   });
-  it("zeichenImPlan: Zeichen von Stellen und Einheiten, ohne Doppelte", () => {
-    const mit = uebernimmBibStelle(fuegeBibEinheitenEin(PLAN, "a", [{ id: "x", typ: "RTW", rufname: "R", zeichen: "rezept:F.2.3", notiz: null }], ["e-9"]), "el", LTS);
-    expect(zeichenImPlan(mit).sort()).toEqual(["rezept:F.2.3", "zusatz:eal"]);
+  it("Abgleich nach dem Einfügen: nur exakte Titel (Vergleichsform) unter den neuen IDs, nicht, was die Angaben schon trägt", () => {
+    const mit = { ...PLAN, stellen: [...PLAN.stellen, { ...PLAN.stellen[2], id: "n1", titel: " leitstelle  UELZEN" }, { ...PLAN.stellen[2], id: "n2", titel: "Leitstelle" }] };
+    expect(bibStellenTreffer(mit, ["n1", "n2"], [LTS]).map((t) => [t.stelleId, t.b.id])).toEqual([["n1", "b1"]]);
+    const gefuellt = uebernimmBibStelle(mit, "n1", LTS);
+    expect(bibStellenTreffer(gefuellt, ["n1", "n2"], [LTS])).toEqual([]);
+    expect(bibStellenTreffer(mit, ["a"], [LTS])).toEqual([]); // nur die neuen IDs zählen
+  });
+  it("einsatzOrte: Rufname (Vergleichsform) → Stelle, an der das Fahrzeug steht", () => {
+    expect(einsatzOrte(PLAN).get("rk 1")).toEqual({ stelleId: "a", titel: "EA 1" });
+    expect(einsatzOrte(PLAN).has("rk 2")).toBe(false);
   });
 });
 ```
@@ -4653,14 +4968,30 @@ export function bibStelleAus(s: Stelle): { id: null; titel: string; zeichen: str
   return { id: null, titel: s.titel.trim(), zeichen: s.zeichen, leiter: s.leiter, kontakte: s.kontakte.filter((k) => k.wert.trim() !== ""), notiz: null };
 }
 
-/** Alle Zeichen im Plan (Stellen und Einheiten) — der Editor lädt fehlende SVGs nach, wenn eine Kopie welche mitbringt. */
-export function zeichenImPlan(inhalt: PlanInhalt): string[] {
-  const alle = new Set<string>();
-  for (const s of inhalt.stellen) {
-    if (s.zeichen) alle.add(s.zeichen);
-    for (const e of s.einheiten) if (e.zeichen) alle.add(e.zeichen);
+/**
+ * Abgleich nach dem Einfügen einer Gliederung (Entscheidung 14): welche der NEUEN Stellen heißen genau wie ein
+ * Bibliothekseintrag (Vergleichsform) und tragen dessen Angaben noch nicht? Der Editor bietet „Angaben übernehmen"
+ * für alle Treffer in einem Schritt an.
+ */
+export function bibStellenTreffer(inhalt: PlanInhalt, ids: readonly string[], bib: readonly BibStelle[]): { stelleId: string; b: BibStelle }[] {
+  const nachTitel = new Map(bib.map((b) => [vergleichsform(b.titel), b]));
+  return ids.flatMap((id) => {
+    const s = inhalt.stellen.find((x) => x.id === id);
+    const b = s ? nachTitel.get(vergleichsform(s.titel)) : undefined;
+    if (!s || !b) return [];
+    const traegt = b.zeichen === s.zeichen && (b.leiter ?? null) === (s.leiter ?? null) && gleicheKontakte(b.kontakte, s.kontakte);
+    return traegt ? [] : [{ stelleId: id, b }];
+  });
+}
+
+/** Wo steht welches Fahrzeug? Vergleichsform des Rufnamens → Stelle — für „schon bei …" in der Einheitenauswahl. */
+export function einsatzOrte(inhalt: PlanInhalt): Map<string, { stelleId: string; titel: string }> {
+  const orte = new Map<string, { stelleId: string; titel: string }>();
+  for (const s of inhalt.stellen) for (const e of s.einheiten) {
+    const k = vergleichsform(e.rufname);
+    if (!orte.has(k)) orte.set(k, { stelleId: s.id, titel: s.titel.trim() || "(ohne Titel)" });
   }
-  return [...alle];
+  return orte;
 }
 ```
 
@@ -4690,71 +5021,125 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 19: Bibliothek im Editor — Flyin, Einheiten, Verbindung
 
 **Files:**
-- Create: `src/app/m/kommplan/_ui/editor/bibliothekKontext.tsx`
-- Modify: `src/app/m/kommplan/_ui/editor/Editor.tsx` (Prop `bibliothek`, Anbieter, fehlende Zeichen nachladen), `src/app/m/kommplan/_ui/editor/StelleFlyin.tsx`, `src/app/m/kommplan/_ui/editor/EinheitenListe.tsx`, `src/app/m/kommplan/_ui/editor/VerbindungWahl.tsx`, `src/app/m/kommplan/(intern)/p/[id]/page.tsx` (Bibliothek laden)
-- Modify: `src/app/m/kommplan/_ui/kommplan.css` (`.kp-aus-bibliothek`)
-- Test: `src/app/m/kommplan/_ui/editor/StelleFlyin.test.tsx`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`
+- Create: `src/app/m/kommplan/_ui/editor/bibliothekKontext.tsx`, `src/app/m/kommplan/_ui/gliederung/TitelVorschlaege.tsx`
+- Modify: `src/app/m/kommplan/_ui/editor/Editor.tsx` (Prop `bibliothek`, Anbieter), `src/app/m/kommplan/_ui/editor/StelleFlyin.tsx`, `src/app/m/kommplan/_ui/editor/EinheitenListe.tsx`, `src/app/m/kommplan/_ui/editor/VerbindungWahl.tsx`, `src/app/m/kommplan/_ui/editor/PlanFlyin.tsx`, `src/app/m/kommplan/_ui/gliederung/GliederungZeile.tsx` (`ladeSymbole` an `EinheitenListe`), `src/app/m/kommplan/(intern)/p/[id]/page.tsx` (Bibliothek laden)
+- Modify: `src/app/m/kommplan/_ui/kommplan.css` (`.kp-aus-bibliothek`, `.kp-bib-einheiten`)
+- Test: `src/app/m/kommplan/_ui/editor/StelleFlyin.test.tsx`, `src/app/m/kommplan/_ui/editor/PlanFlyin.test.tsx`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`; Mock-Ergänzung in `src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx`, `GliederungLast.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 18; `speichereBibStelleAction` (Task 16); `LEERE_BIBLIOTHEK`, `passt` (Task 14); `ladeBibliothek` (Task 14).
-- Produces: `BibliothekKontext` (`createContext<BibliothekImEditor>`), `interface BibliothekImEditor { bib: Bibliothek; merkeStelle(s: BibStelle): void }`, `useBibliothek()`, `BibliothekAnbieter({ start, children })`; `Editor`-Prop `bibliothek?: Bibliothek` (Vorgabe `LEERE_BIBLIOTHEK`). DOM im Flyin: Feld „Aus Bibliothek" (`Select`, Platzhalter „Stelle aus der Bibliothek suchen") oben, Knopf „In Bibliothek übernehmen" neben „Stelle löschen", Meldung `[role="status"]`; im Einheitenfeld `Select` `aria-label="Einheiten aus der Bibliothek"` + Knopf „Hinzufügen"; in „Zur Elternstelle" eine Gruppe „Aus der Bibliothek".
+- Consumes: Task 18 (`uebernimmBibStelle`, `fuegeBibEinheitenEin`, `verbindeMitBibVerbindung`, `bibVerbindungenFuerPlan`, `stelleVorschlaege`, `bibStelleAus`, `einsatzOrte`, `BIB_OPTION`); `speichereBibStelleAction`, `importiereBibEinheitenAction`, `importiereBibVerbindungenAction` (Task 16); `LEERE_BIBLIOTHEK`, `passt`, `vergleichsform` (Task 14); `ladeBibliothek` (Task 14); `TitelVorschlaege` (entsteht hier, Task 20 hängt ihn zusätzlich in die Gliederung).
+- Produces: `BibliothekKontext` (`createContext<BibliothekImEditor>`), `interface BibTeil { stellen?; einheiten?; verbindungen? }`, `interface BibliothekImEditor { aktiv: boolean; bib: Bibliothek; merke(teil: BibTeil): void }` (`aktiv` = ein Anbieter ist da; ohne ihn erscheinen die neuen Felder nicht), `useBibliothek()`, `BibliothekAnbieter({ start, children })`; `TitelVorschlaege({ stelle, onWahl, tabStopps? })` (`_ui/gliederung/TitelVorschlaege.tsx`); `Editor`-Prop `bibliothek?: Bibliothek` (Vorgabe `LEERE_BIBLIOTHEK`); `EinheitenListe`-Prop `ladeSymbole?`. DOM im Flyin: Feld „Aus Bibliothek" (`Select`, Platzhalter „Stelle aus der Bibliothek suchen") oben, Titelvorschläge `.kp-g-vorschlaege` unter dem Titelfeld, Knopf „In Bibliothek übernehmen" neben „Stelle löschen" (bei Dublette zusätzlich „Eintrag in der Bibliothek aktualisieren"), Meldung `[role="status"]`; im Einheitenfeld `.kp-bib-einheiten` mit `Select` `aria-label="Einheiten aus der Bibliothek"` + Knopf „Hinzufügen" und Knopf „Einheiten in Bibliothek übernehmen"; in „Zur Elternstelle" eine Gruppe „Aus der Bibliothek"; im Flyin „Plan und Verbindungen" Knopf „Verbindungen in Bibliothek übernehmen".
 
 - [ ] **Step 1: Failing Tests schreiben**
+
+**Mocks zuerst:** `StelleFlyin.tsx`, `EinheitenListe.tsx` und `PlanFlyin.tsx` importieren ab jetzt `_actions/bibliothek` — der echte Modulbaum zöge Datenbank und Auth in jsdom. Jede Testdatei, die eine davon rendert, mockt das Modul (Vorbild `NeuerPlan.test.tsx`): `StelleFlyin.test.tsx`, `PlanFlyin.test.tsx`, `Editor.test.tsx`, `_ui/gliederung/Gliederung.test.tsx`, `_ui/gliederung/GliederungLast.test.tsx` (dort reicht `vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }))`, Pfad je Datei anpassen).
 
 In `src/app/m/kommplan/_ui/editor/StelleFlyin.test.tsx`:
 1. Mocks und Importe ergänzen:
    ```tsx
-   const bibAktion = vi.hoisted(() => ({ stelle: vi.fn() }));
-   vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: bibAktion.stelle }));
+   const bibAktion = vi.hoisted(() => ({ stelle: vi.fn(), einheiten: vi.fn() }));
+   vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: bibAktion.stelle, importiereBibEinheitenAction: bibAktion.einheiten, importiereBibVerbindungenAction: vi.fn() }));
    import { BibliothekKontext } from "./bibliothekKontext";
    import type { Bibliothek } from "../../_lib/bibliothek/typen";
    const BIB: Bibliothek = {
-     stellen: [{ id: "b1", titel: "Leitstelle Uelzen", zeichen: "zusatz:eal", leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }], notiz: null }],
-     einheiten: [{ id: "be1", typ: "KTW", rufname: "RK 2", zeichen: null, notiz: null }, { id: "be2", typ: "NEF", rufname: "RK 3", zeichen: null, notiz: null }],
+     stellen: [
+       { id: "b1", titel: "Leitstelle Uelzen", zeichen: "zusatz:eal", leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }], notiz: null },
+       { id: "b2", titel: "EA 1", zeichen: null, leiter: null, kontakte: [], notiz: "intern" },
+     ],
+     einheiten: [
+       { id: "be0", typ: "RTW", rufname: "RK 1", zeichen: null, notiz: null },
+       { id: "be1", typ: "KTW", rufname: "RK 2", zeichen: null, notiz: null }, { id: "be2", typ: "NEF", rufname: "RK 3", zeichen: null, notiz: null },
+     ],
      verbindungen: [{ id: "bv1", art: "dmo", bezeichnung: "DMO 608", notiz: null }],
    };
    const merke = vi.fn();
    const schritte: (string | undefined)[] = [];
+   const warte = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
    ```
-2. In `Rahmen` den `aendere`-Rückruf um `schritte.push(schluessel);` (Parameter `schluessel` ergänzen) erweitern und das Formular in `<BibliothekKontext.Provider value={{ bib: BIB, merkeStelle: merke }}>…</BibliothekKontext.Provider>` legen; im `afterEach` `schritte.length = 0; merke.mockReset(); bibAktion.stelle.mockReset();`.
+2. In `Rahmen` den `aendere`-Rückruf um `schritte.push(schluessel);` (Parameter `schluessel` ergänzen) erweitern und das Formular in `<BibliothekKontext.Provider value={{ aktiv: true, bib: BIB, merke }}>…</BibliothekKontext.Provider>` legen; im `afterEach` `schritte.length = 0; merke.mockReset(); bibAktion.stelle.mockReset(); bibAktion.einheiten.mockReset(); lade.mockReset(); fertig.mockReset();` (sofern nicht schon vorhanden).
 3. Anfügen:
 
 ```tsx
 describe("Bibliothek im Flyin (Entscheidung 13)", () => {
-  it("„Aus Bibliothek“ füllt Titel, Zeichen, Leiter, Kontakte in EINEM Schritt; Einheiten bleiben", async () => {
+  it("„Aus Bibliothek“ füllt Titel, Zeichen, Leiter, Kontakte in EINEM Schritt, lädt das Zeichen nach; danach Fokus im Titel", async () => {
     await mount(<Rahmen />);
     await waehleOption(feldZu("Aus Bibliothek"), "Leitstelle Uelzen · Disponent");
     expect(stelle()).toMatchObject({ titel: "Leitstelle Uelzen", zeichen: "zusatz:eal", leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }] });
     expect(stelle().einheiten).toHaveLength(1);
     expect(schritte).toEqual([undefined]); // ohne Bündelschlüssel = ein eigener Rückgängig-Schritt
+    expect(lade).toHaveBeenCalledWith(["zusatz:eal"]); // der Kopierweg lädt selbst nach, nicht jedes `aendere`
+    await warte();
+    expect(document.activeElement).toBe(REF0.current?.input); // das Select montiert neu — der Fokus fällt nicht auf body
   });
-  it("„In Bibliothek übernehmen“: Action mit den Angaben der Stelle; Erfolg ergänzt den Kontext, Dublette meldet sich", async () => {
-    bibAktion.stelle.mockResolvedValueOnce({ ok: true, eintrag: { id: "neu", titel: "EA 1", zeichen: null, leiter: null, kontakte: [], notiz: null } })
-      .mockResolvedValueOnce({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { titel: "„EA 1“ steht schon in der Bibliothek." } });
+  it("Titelvorschläge auch im Flyin: Tippen zeigt sie (Tabstopps), Alt+Enter füllt in EINEM Schritt, Fokus bleibt, kein „fertig“", async () => {
     await mount(<Rahmen />);
-    await clickElement(knopf("In Bibliothek übernehmen"));
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await fill('[data-flyin-stelle] input[name="titel"]', "Leit");
+    const gruppe = query('[role="group"][aria-label="Vorschläge aus der Bibliothek"]');
+    expect(gruppe.textContent).toContain("Leitstelle Uelzen · Disponent");
+    expect(gruppe.querySelector("[data-vorschlag]")!.getAttribute("tabindex")).not.toBe("-1");
+    schritte.length = 0;
+    const feld = query<HTMLInputElement>('[data-flyin-stelle] input[name="titel"]');
+    feld.focus();
+    await act(async () => { feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", altKey: true, bubbles: true, cancelable: true })); });
+    expect(stelle().titel).toBe("Leitstelle Uelzen");
+    expect(schritte).toEqual([undefined]);
+    expect(document.activeElement).toBe(feld);
+    expect(fertig).not.toHaveBeenCalled(); // Alt+Enter ist nicht das Enter, das das Flyin schließt
+  });
+  it("„In Bibliothek übernehmen“: Angaben der Stelle, Kontext ergänzt; Dublette bietet „aktualisieren“ an (Notiz bleibt); Fokus bleibt am Knopf", async () => {
+    bibAktion.stelle
+      .mockResolvedValueOnce({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { titel: "„EA 1“ steht schon in der Bibliothek." } })
+      .mockResolvedValueOnce({ ok: true, eintrag: { id: "b2", titel: "EA 1", zeichen: null, leiter: null, kontakte: [], notiz: "intern" } });
+    await mount(<Rahmen />);
+    const uebernehmen = knopf("In Bibliothek übernehmen");
+    uebernehmen.focus();
+    await clickElement(uebernehmen);
+    await warte();
     expect(bibAktion.stelle).toHaveBeenCalledWith(expect.objectContaining({ id: null, titel: "EA 1", kontakte: expect.arrayContaining([{ art: "email", wert: "ea1@drk.de" }]) }));
-    expect(merke).toHaveBeenCalledWith(expect.objectContaining({ id: "neu" }));
-    expect(document.body.textContent).toContain("„EA 1“ steht jetzt in der Bibliothek.");
-    await clickElement(knopf("In Bibliothek übernehmen"));
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(document.body.textContent).toContain("„EA 1“ steht schon in der Bibliothek.");
+    expect(document.activeElement).toBe(uebernehmen); // nur `loading`, nie gesperrt — der Fokus fällt nicht auf body
+    await clickElement(knopf("Eintrag in der Bibliothek aktualisieren"));
+    await warte();
+    expect(bibAktion.stelle).toHaveBeenLastCalledWith(expect.objectContaining({ id: "b2", titel: "EA 1", notiz: "intern" }));
+    expect(merke).toHaveBeenCalledWith({ stellen: [expect.objectContaining({ id: "b2" })] });
+    expect(document.body.textContent).toContain("„EA 1“ in der Bibliothek aktualisiert.");
   });
   it("ohne Titel ist „In Bibliothek übernehmen“ gesperrt", async () => {
     await mount(<Rahmen />);
     await fill('[data-flyin-stelle] input[name="titel"]', "");
     expect(knopf("In Bibliothek übernehmen").disabled).toBe(true);
   });
-  it("Einheiten aus der Bibliothek: Mehrfachauswahl, „Hinzufügen“ als ein Schritt", async () => {
+  it("Einheiten aus der Bibliothek: freie zuerst, hier vorhandene gesperrt, anderswo eingesetzte mit Hinweis; der Suchtext bleibt", async () => {
+    await mount(<Rahmen stelleId="b" />);
+    const auswahl = query<HTMLInputElement>('input[aria-label="Einheiten aus der Bibliothek"]');
+    const liste = await oeffneAuswahl(auswahl);
+    expect(optionen(liste)).toEqual(["KTW RK 2", "NEF RK 3", "RTW RK 1 — schon bei EA 1"]);
+    await fill('input[aria-label="Einheiten aus der Bibliothek"]', "RK");
+    await waehleOption(auswahl, "KTW RK 2");
+    expect(auswahl.value).toBe("RK"); // autoClearSearchValue: false — einmal tippen, mehrere wählen
+  });
+  it("Einheiten aus der Bibliothek: an DIESER Stelle schon vorhandene sind gesperrt; „Hinzufügen“ ist EIN Schritt, danach Fokus zurück in die Auswahl", async () => {
     await mount(<Rahmen />);
-    const auswahl = query('[aria-label="Einheiten aus der Bibliothek"]');
+    const auswahl = query<HTMLInputElement>('input[aria-label="Einheiten aus der Bibliothek"]');
+    const liste = await oeffneAuswahl(auswahl);
+    const gesperrt = [...liste.querySelectorAll<HTMLElement>(".ant-select-item-option-disabled")].map((o) => o.textContent);
+    expect(gesperrt).toEqual(["RTW RK 1 — steht schon hier"]);
     await waehleOption(auswahl, "KTW RK 2");
     await waehleOption(auswahl, "NEF RK 3");
     schritte.length = 0;
     await clickElement(knopf("Hinzufügen"));
     expect(stelle().einheiten.map((e) => `${e.typ} ${e.rufname}`)).toEqual(["RTW RK 1", "KTW RK 2", "NEF RK 3"]);
     expect(schritte).toEqual([undefined]);
+    await warte();
+    expect(document.activeElement).toBe(auswahl);
+  });
+  it("„Einheiten in Bibliothek übernehmen“: alle Einheiten der Stelle in EINEM Aufruf, Meldung mit Zahlen", async () => {
+    bibAktion.einheiten.mockResolvedValue({ ok: true, angelegt: 0, uebersprungen: 1, eintraege: [] });
+    await mount(<Rahmen />);
+    await clickElement(knopf("Einheiten in Bibliothek übernehmen"));
+    await warte();
+    expect(bibAktion.einheiten).toHaveBeenCalledWith([{ typ: "RTW", rufname: "RK 1", notiz: null, zeichen: null }]);
+    expect(document.body.textContent).toContain("0 angelegt, 1 schon vorhanden.");
   });
   it("Verbindung aus der Bibliothek: eigene Gruppe, Wahl legt eine Kopie an und verbindet", async () => {
     await mount(<Rahmen />);
@@ -4769,9 +5154,24 @@ describe("Bibliothek im Flyin (Entscheidung 13)", () => {
 });
 ```
 
-(Ob `feldZu("Aus Bibliothek")` das Eingabefeld des `Select` trifft, hängt am `id` — wie bei „Zur Elternstelle", `htmlFor` auf die `id` des `Select`. `[aria-label=…]` am `Select` landet in antd 6 am inneren `input`; trifft der Greifer den Wrapper, den Selektor auf `input[aria-label="Einheiten aus der Bibliothek"]` einschränken.)
+(Ob `feldZu("Aus Bibliothek")` das Eingabefeld des `Select` trifft, hängt am `id` — wie bei „Zur Elternstelle", `htmlFor` auf die `id` des `Select`. `aria-label` am `Select` landet in antd 6 am inneren `input`. `.ant-select-item-option-disabled` ist ein Test-Greifer wie `.ant-select-item-option` in `optionen`, keine Stilregel. `Rahmen` bekommt die Prop `stelleId` schon heute. Den Ausgangsplan nicht ändern: die Einheit „RTW RK 1" an „EA 1" ist der Fall „anderswo eingesetzt" bzw. „hier vorhanden".)
 
-In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` anfügen (Importe zusammenführen):
+In `src/app/m/kommplan/_ui/editor/PlanFlyin.test.tsx` (Mock wie oben, `bibAktion.verbindungen` für `importiereBibVerbindungenAction`; `Rahmen` legt das Formular in `<BibliothekKontext.Provider value={{ aktiv: true, bib: LEERE_BIBLIOTHEK, merke }}>`) anfügen:
+
+```tsx
+  it("„Verbindungen in Bibliothek übernehmen“: alle Verbindungen des Plans in EINEM Aufruf, Kontext ergänzt (Entscheidung 13)", async () => {
+    bibAktion.verbindungen.mockResolvedValue({ ok: true, angelegt: 3, uebersprungen: 0, eintraege: [{ id: "n1", art: "tmo", bezeichnung: "R_UE_2", notiz: null }] });
+    await mount(<Rahmen />);
+    await clickElement(knopf("Verbindungen in Bibliothek übernehmen"));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(bibAktion.verbindungen).toHaveBeenCalledTimes(1);
+    expect(bibAktion.verbindungen).toHaveBeenCalledWith([{ art: "tmo", bezeichnung: "R_UE_2" }, { art: "dmo", bezeichnung: "DMO 608" }, { art: "tmo", bezeichnung: "K_UE_2" }]);
+    expect(merke).toHaveBeenCalledWith({ verbindungen: [expect.objectContaining({ id: "n1" })] });
+    expect(document.body.textContent).toContain("3 angelegt, 0 schon vorhanden.");
+  });
+```
+
+In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` anfügen (Importe zusammenführen; Mock von `_actions/bibliothek` ergänzen):
 
 ```tsx
   it("eine Kopie aus der Bibliothek bringt ein Zeichen mit: der Editor lädt das SVG nach (Entscheidung 13)", async () => {
@@ -4789,9 +5189,21 @@ In `src/app/m/kommplan/_ui/editor/Editor.test.tsx` anfügen (Importe zusammenfü
     await clickElement(option);
     expect(zeichen.ladeZeichenAction).toHaveBeenCalledWith(["zusatz:eal"]);
   });
+  it("Tippen ohne Kopie löst keinen Zeichen-Abruf aus — auch nicht bei einem unbekannten Zeichenschlüssel im Plan", async () => {
+    const mitUnbekannt = plan();
+    mitUnbekannt.inhalt!.stellen[0].zeichen = "gibt-es:nicht";
+    await mount(<Editor plan={mitUnbekannt} symbole={{}} zeichenIndex={[]} schrift="Arimo" bibliothek={LEERE_BIBLIOTHEK} />);
+    await act(async () => {});
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("F2");
+    zeichen.ladeZeichenAction.mockClear();
+    for (const t of ["E", "EA", "EA 9"]) await schreibe(flyinFeld(), t);
+    expect(zeichen.ladeZeichenAction).not.toHaveBeenCalled();
+  });
 ```
 
-(`plan`, `waehle`, `taste`, `flyinOffen` und der Mock `zeichen.ladeZeichenAction` sind die vorhandenen Helfer der Datei; `clickElement` in die Importzeile aus dem Harness aufnehmen, falls er fehlt.)
+(`plan`, `waehle`, `taste`, `flyinOffen`, `flyinFeld`, `schreibe` und der Mock `zeichen.ladeZeichenAction` sind die vorhandenen Helfer der Datei — sie greifen das Flyin schon über das Portal; `clickElement` in die Importzeile aus dem Harness aufnehmen, falls er fehlt. Die Form von `plan()` — wo `inhalt` hängt — an die Datei angleichen. Der zweite Fall ist die Gegenprobe zur verworfenen Fassung „`ladeSymbole(zeichenImPlan(neu))` nach jedem `aendere`": mit ihr wird er rot.)
 
 - [ ] **Step 2: Rot sehen**
 
@@ -4806,54 +5218,121 @@ Expected: FAIL.
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { LEERE_BIBLIOTHEK, type BibStelle, type Bibliothek } from "../../_lib/bibliothek/typen";
+import { LEERE_BIBLIOTHEK, type BibEinheit, type BibStelle, type BibVerbindung, type Bibliothek } from "../../_lib/bibliothek/typen";
 
 /**
  * DIE BIBLIOTHEK IM EDITOR (Umsetzungsplan Phase 4, Entscheidung 13): ein Kontext statt Props durch Flyin,
- * Einheitenliste und Gliederung. Der Wert ändert sich nur, wenn die Bibliothek sich ändert („In Bibliothek
- * übernehmen") — die `memo`-gebundenen Gliederungszeilen rendern beim Tippen deshalb nicht mit
- * (Phase 3, Entscheidung 2; `GliederungLast.test.tsx`). Ohne Anbieter: leere Bibliothek, kein Absturz.
+ * Einheitenliste und Gliederung. Der Wert ändert sich nur, wenn die Bibliothek sich ändert (eine Übernahme
+ * per `merke`) — die `memo`-gebundenen Gliederungszeilen rendern beim Tippen deshalb nicht mit (Phase 3,
+ * Entscheidung 2; `GliederungLast.test.tsx`). Ohne Anbieter: `aktiv: false`, leere Bibliothek — die neuen
+ * Felder erscheinen nicht, kein Absturz.
  */
-export interface BibliothekImEditor { bib: Bibliothek; merkeStelle(s: BibStelle): void }
-export const BibliothekKontext = createContext<BibliothekImEditor>({ bib: LEERE_BIBLIOTHEK, merkeStelle: () => {} });
+export interface BibTeil { stellen?: readonly BibStelle[]; einheiten?: readonly BibEinheit[]; verbindungen?: readonly BibVerbindung[] }
+export interface BibliothekImEditor { aktiv: boolean; bib: Bibliothek; merke(teil: BibTeil): void }
+export const BibliothekKontext = createContext<BibliothekImEditor>({ aktiv: false, bib: LEERE_BIBLIOTHEK, merke: () => {} });
 export const useBibliothek = () => useContext(BibliothekKontext);
+
+const de = (a: string, b: string) => a.localeCompare(b, "de");
+/** Neue oder geänderte Einträge nach ID ersetzen bzw. ergänzen, sortiert wie `ladeBibliothek`. */
+function fuegeZu<T extends { id: string }>(alt: T[], neu: readonly T[] | undefined, ordnung: (a: T, b: T) => number): T[] {
+  if (!neu || neu.length === 0) return alt;
+  const ids = new Set(neu.map((n) => n.id));
+  return [...alt.filter((x) => !ids.has(x.id)), ...neu].sort(ordnung);
+}
 
 export function BibliothekAnbieter({ start, children }: { start: Bibliothek; children: ReactNode }) {
   const [bib, setBib] = useState(start);
   const wert = useMemo<BibliothekImEditor>(() => ({
+    aktiv: true,
     bib,
-    merkeStelle: (s) => setBib((b) => ({ ...b, stellen: [...b.stellen, s].sort((x, y) => x.titel.localeCompare(y.titel, "de")) })),
+    merke: (t) => setBib((b) => ({
+      stellen: fuegeZu(b.stellen, t.stellen, (x, y) => de(x.titel, y.titel)),
+      einheiten: fuegeZu(b.einheiten, t.einheiten, (x, y) => de(x.typ, y.typ) || de(x.rufname, y.rufname)),
+      verbindungen: fuegeZu(b.verbindungen, t.verbindungen, (x, y) => de(x.bezeichnung, y.bezeichnung) || de(x.art, y.art)),
+    })),
   }), [bib]);
   return <BibliothekKontext.Provider value={wert}>{children}</BibliothekKontext.Provider>;
 }
 ```
 
+`src/app/m/kommplan/_ui/gliederung/TitelVorschlaege.tsx` (hier angelegt, weil das Flyin ihn zuerst braucht; Task 20 hängt ihn in die Gliederung):
+
+```tsx
+"use client";
+
+import { Button } from "antd";
+import type { BibStelle } from "../../_lib/bibliothek/typen";
+import { stelleVorschlaege } from "../../_lib/plan/bibliothek";
+import type { Stelle } from "../../_lib/plan/schema";
+import { useBibliothek } from "../editor/bibliothekKontext";
+
+/**
+ * TITELVORSCHLÄGE (Umsetzungsplan Phase 4, Entscheidung 14) — ohne den Tippfluss zu stören: kein Popup, keine
+ * Taste außer Alt+Enter (beim Aufrufer). Die Knöpfe verhindern `mousedown`, damit der Fokus im Titel bleibt —
+ * sonst verwürfe das Verlassen eine eben angelegte, unberührte Zeile (Phase 3, Entscheidung 8). Einzeilig,
+ * waagerecht scrollbar, feste Höhe: die Zeilen darunter springen beim Tippen nicht. `tabStopps`: im Flyin
+ * erreicht Tab die Vorschläge (Weg ohne Zeiger zum 2. und 3.); in der Gliederung gehört Tab dem Einrücken.
+ * Liest als EINZIGE Komponente der Zeile den Kontext; die übrigen Zeilen bleiben `memo`.
+ */
+export function TitelVorschlaege({ stelle, onWahl, tabStopps = false }: { stelle: Stelle; onWahl: (b: BibStelle) => void; tabStopps?: boolean }) {
+  const { aktiv, bib } = useBibliothek();
+  const vorschlaege = aktiv ? stelleVorschlaege(bib.stellen, stelle) : [];
+  if (vorschlaege.length === 0) return null;
+  return (
+    <div className="kp-g-vorschlaege" role="group" aria-label="Vorschläge aus der Bibliothek">
+      <span className="kp-hilfe kp-vorschlag-hinweis">Aus Bibliothek (Alt+Enter nimmt den ersten):</span>
+      {vorschlaege.map((b) => (
+        <Button key={b.id} data-vorschlag={b.id} tabIndex={tabStopps ? undefined : -1} onMouseDown={(e) => e.preventDefault()} onClick={() => onWahl(b)}>
+          {b.leiter ? `${b.titel} · ${b.leiter}` : b.titel}
+        </Button>
+      ))}
+    </div>
+  );
+}
+```
+
 `Editor.tsx`:
-1. Prop `bibliothek = LEERE_BIBLIOTHEK` (Typ `Bibliothek`) in Destrukturierung und Typ; Importe `LEERE_BIBLIOTHEK`, `type Bibliothek` aus `../../_lib/bibliothek/typen`, `zeichenImPlan` aus `../../_lib/plan/bibliothek`, `BibliothekAnbieter` aus `./bibliothekKontext`.
-2. In `aendere` nach erfolgreichem `uebernimm(…)` ergänzen: `ladeSymbole(zeichenImPlan(neu));` (filtert selbst Vorhandenes und Unterwegs; leer → kein Aufruf). Kommentar dazu: „Kopien aus der Bibliothek bringen Zeichen mit, die keine Zeichenwahl geladen hat (Phase 4, Entscheidung 13)."
+1. Prop `bibliothek = LEERE_BIBLIOTHEK` (Typ `Bibliothek`) in Destrukturierung und Typ; Importe `LEERE_BIBLIOTHEK`, `type Bibliothek` aus `../../_lib/bibliothek/typen`, `BibliothekAnbieter` aus `./bibliothekKontext`.
+2. **Kein** Nachladen hinter `aendere` (Kritik: ein unbekannter Schlüssel im Plan löste sonst bei jedem Tastendruck einen `ladeZeichenAction`-Aufruf aus, `unterwegs` schützt nur, solange er läuft). Die Kopierwege rufen `ladeSymbole` mit den mitgebrachten Schlüsseln selbst: das Flyin über seine vorhandene Prop `ladeSymbole`, die Gliederung über ihre (`p.ladeSymbole`), die Einheitenliste über die neue Prop.
 3. Das zurückgegebene `<div ref={wurzel} className="kp-editor" …>…</div>` in `<BibliothekAnbieter start={bibliothek}>…</BibliothekAnbieter>` legen (der `ref` bleibt am `div`).
 
 `StelleFlyin.tsx`:
-1. Importe: `useState` ergänzen; `Select` zu den antd-Importen; `speichereBibStelleAction` aus `../../_actions/bibliothek`; `passt` aus `../../_lib/bibliothek/typen`; `bibStelleAus`, `uebernimmBibStelle` aus `../../_lib/plan/bibliothek`; `useBibliothek` aus `./bibliothekKontext`.
-2. In `StelleFormular` als **erstes** Kind von `.kp-formular` (vor dem Titel-Label): `<AusBibliothek key={`bib:${s.id}`} stelleId={s.id} aendere={aendere} />`; in `.kp-formular-knoepfe` vor „Stelle löschen": `<InBibliothek key={`inbib:${s.id}`} stelle={s} />` (Schlüssel je Stelle wie U5 der Phase 2: kein Zustand wandert beim Wechsel der Auswahl mit).
+1. Importe: `useRef`, `useState` ergänzen; `Select`, `type RefSelectProps` zu den antd-Importen; `speichereBibStelleAction` aus `../../_actions/bibliothek`; `passt`, `vergleichsform`, `type BibStelle` aus `../../_lib/bibliothek/typen`; `bibStelleAus`, `stelleVorschlaege`, `uebernimmBibStelle` aus `../../_lib/plan/bibliothek`; `useBibliothek` aus `./bibliothekKontext`; `TitelVorschlaege` aus `../gliederung/TitelVorschlaege`.
+2. In `StelleFormular`:
+   - `const { aktiv, bib } = useBibliothek();` und
+     ```tsx
+     /** Eine Stelle aus der Bibliothek übernehmen — EIN Rückgängig-Schritt; das mitgebrachte Zeichen lädt dieser Weg selbst nach. */
+     const uebernimm = (b: BibStelle) => {
+       const f = aendere((q) => uebernimmBibStelle(q, s.id, b));
+       if (f === null && b.zeichen) p.ladeSymbole([b.zeichen]);
+       return f;
+     };
+     ```
+   - als **erstes** Kind von `.kp-formular` (vor dem Titel-Label): `{aktiv ? <AusBibliothek key={`bib:${s.id}`} uebernimm={uebernimm} titelRef={titelRef} /> : null}`;
+   - am Titel-`Input`: `onPressEnter` beginnt mit `if (e.altKey) return;` (Alt+Enter ist nicht das Enter, das fertig meldet; antd ruft `onPressEnter` vor `onKeyDown`), dazu `onKeyDown={(e) => { if (e.key === "Enter" && e.altKey && !e.repeat) { e.preventDefault(); const v = stelleVorschlaege(bib.stellen, s)[0]; if (v) uebernimm(v); } }}`;
+   - direkt unter dem Titelfeld (nach seinem Fehlertext): `<TitelVorschlaege stelle={s} tabStopps onWahl={(b) => { uebernimm(b); titelRef.current?.focus(); }} />`;
+   - in `.kp-formular-knoepfe` vor „Stelle löschen": `{aktiv ? <InBibliothek key={`inbib:${s.id}`} stelle={s} /> : null}` (Schlüssel je Stelle wie U5 der Phase 2: kein Zustand wandert beim Wechsel der Auswahl mit);
+   - an `EinheitenListe` zusätzlich `ladeSymbole={p.ladeSymbole}`.
 3. Unten in der Datei:
 
 ```tsx
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
 /** „Aus Bibliothek" (Spec §6.4): füllt die Stelle per Kopie, EIN Rückgängig-Schritt; Einheiten, Lage und Verbindung bleiben. */
-function AusBibliothek({ stelleId, aendere }: { stelleId: string; aendere: Aendere }) {
+function AusBibliothek({ uebernimm, titelRef }: { uebernimm: (b: BibStelle) => string | null; titelRef: RefObject<InputRef | null> }) {
   const basis = useId();
   const { bib } = useBibliothek();
   const [meldung, setMeldung] = useState<string | null>(null);
   // Nach jeder Wahl leer neu montiert (`key`): ein festes `value={null}` zeigte in antd je nach Fassung nicht den Platzhalter.
   const [runde, setRunde] = useState(0);
+  // Mit dem Select ginge der Fokus verloren (Flyin ohne Maske: Esc, Tab, Enter erreichten das Formular nicht mehr) — er geht ins Titelfeld.
+  useEffect(() => { if (runde > 0) titelRef.current?.focus(); }, [runde, titelRef]);
   if (bib.stellen.length === 0) return null;
   const waehle = (id: string) => {
     setRunde((n) => n + 1);
     const b = bib.stellen.find((x) => x.id === id);
     if (!b) return;
-    const f = aendere((q) => uebernimmBibStelle(q, stelleId, b));
+    const f = uebernimm(b);
     setMeldung(f ?? `„${b.titel}“ übernommen. „Rückgängig“ holt die vorigen Angaben zurück.`);
   };
   return (
@@ -4867,57 +5346,126 @@ function AusBibliothek({ stelleId, aendere }: { stelleId: string; aendere: Aende
   );
 }
 
-/** „In Bibliothek übernehmen" (Spec §4.3): Titel, Zeichen, Leiter, Kontakte als neuer Eintrag; eine Dublette meldet sich. */
+/**
+ * „In Bibliothek übernehmen" (Spec §4.3): Titel, Zeichen, Leiter, Kontakte als neuer Eintrag. Eine Dublette meldet
+ * sich und bietet „Eintrag in der Bibliothek aktualisieren" an (die Notiz des Eintrags bleibt). Während des Laufs
+ * nur `loading`, nie `disabled` — ein gesperrter Knopf verlöre den Fokus; Doppelauslösung fängt `laeuft` ab.
+ */
 function InBibliothek({ stelle }: { stelle: Stelle }) {
-  const { merkeStelle } = useBibliothek();
+  const { bib, merke } = useBibliothek();
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [vorhanden, setVorhanden] = useState<BibStelle | null>(null);
   const [laeuft, setLaeuft] = useState(false);
-  async function uebernimm() {
+  async function sende(ziel: BibStelle | null) {
+    if (laeuft) return;
     setLaeuft(true);
-    const r = await speichereBibStelleAction(bibStelleAus(stelle)).catch(() => ({ ok: false as const, fehler: NETZ }));
+    const r = await speichereBibStelleAction({ ...bibStelleAus(stelle), id: ziel?.id ?? null, notiz: ziel?.notiz ?? null })
+      .catch(() => ({ ok: false as const, fehler: NETZ }));
     setLaeuft(false);
-    if (r.ok) { merkeStelle(r.eintrag); setMeldung(`„${r.eintrag.titel}“ steht jetzt in der Bibliothek.`); return; }
-    setMeldung("feldFehler" in r && r.feldFehler?.titel ? r.feldFehler.titel : r.fehler);
+    if (r.ok) {
+      merke({ stellen: [r.eintrag] });
+      setVorhanden(null);
+      setMeldung(ziel ? `„${r.eintrag.titel}“ in der Bibliothek aktualisiert.` : `„${r.eintrag.titel}“ steht jetzt in der Bibliothek.`);
+      return;
+    }
+    const titelFehler = "feldFehler" in r ? r.feldFehler?.titel : undefined;
+    setMeldung(titelFehler ?? r.fehler);
+    // Den vorhandenen Eintrag nur anbieten, wenn der Editor ihn kennt (sonst bleibt es bei der Meldung).
+    setVorhanden(titelFehler ? bib.stellen.find((b) => vergleichsform(b.titel) === vergleichsform(stelle.titel)) ?? null : null);
   }
   return (
     <>
-      <Button onClick={() => void uebernimm()} disabled={laeuft || stelle.titel.trim() === ""}>In Bibliothek übernehmen</Button>
+      <Button onClick={() => void sende(null)} loading={laeuft} disabled={stelle.titel.trim() === ""}>In Bibliothek übernehmen</Button>
+      {vorhanden ? <Button onClick={() => void sende(vorhanden)} loading={laeuft}>Eintrag in der Bibliothek aktualisieren</Button> : null}
       {meldung ? <p className="kp-hilfe" role="status">{meldung}</p> : null}
     </>
   );
 }
 ```
 
-(Typ `Stelle` aus `../../_lib/plan/schema` importieren.)
+(Typ `Stelle` aus `../../_lib/plan/schema`, `RefObject` aus `react`, `InputRef` aus `antd` importieren, soweit nicht vorhanden.)
 
-`EinheitenListe.tsx` — vor `.kp-formular-knoepfe` (nur wenn `bib.einheiten.length > 0`):
+`EinheitenListe.tsx`:
+1. Signatur: `inhalt` mit destrukturieren, neue optionale Prop `ladeSymbole?: (schluessel: string[]) => void`. Importe: `Select`, `type RefSelectProps` (antd); `importiereBibEinheitenAction` aus `../../_actions/bibliothek`; `passt`, `vergleichsform` aus `../../_lib/bibliothek/typen`; `einsatzOrte`, `fuegeBibEinheitenEin` aus `../../_lib/plan/bibliothek`; `useBibliothek` aus `./bibliothekKontext`.
+2. Zustand und Wege (Hooks oben, vor jedem Rücksprung):
 
 ```tsx
-      {bib.einheiten.length > 0 ? (
-        <div className="kp-zeile kp-aus-bibliothek">
-          <Select mode="multiple" aria-label="Einheiten aus der Bibliothek" value={bibWahl} onChange={setBibWahl} placeholder="Aus Bibliothek suchen"
-            showSearch={{ filterOption: (eingabe, o) => passt(eingabe, [String(o?.label ?? "")]) }}
-            options={bib.einheiten.map((e) => ({ value: e.id, label: `${e.typ} ${e.rufname}` }))} />
+  const { aktiv, bib, merke } = useBibliothek();
+  const [bibWahl, setBibWahl] = useState<string[]>([]);
+  const [bibRunde, setBibRunde] = useState(0);
+  const [bibMeldung, setBibMeldung] = useState<string | null>(null);
+  const [bibLaeuft, setBibLaeuft] = useState(false);
+  const bibFeld = useRef<RefSelectProps>(null);
+  // Nach „Hinzufügen" sperrt sich der Knopf (Auswahl leer) — der Fokus geht zurück in die Auswahl, nicht auf body.
+  useEffect(() => { if (bibRunde > 0) bibFeld.current?.focus(); }, [bibRunde]);
+
+  const ausBib = () => {
+    const gewaehlt = bib.einheiten.filter((e) => bibWahl.includes(e.id));
+    const f = aendere((p) => fuegeBibEinheitenEin(p, stelle.id, gewaehlt, neueIds(p, "e", gewaehlt.length)));
+    if (f !== null) { setFehler([f]); return; }
+    const zeichen = gewaehlt.flatMap((e) => (e.zeichen ? [e.zeichen] : []));
+    if (zeichen.length > 0) ladeSymbole?.(zeichen);
+    setBibWahl([]); setFehler([]); setBibRunde((n) => n + 1);
+  };
+  async function inBibliothek() {
+    if (bibLaeuft) return;
+    const zeilen = stelle.einheiten.filter((e) => e.typ.trim() !== "" && e.rufname.trim() !== "");
+    if (zeilen.length === 0) return;
+    setBibLaeuft(true);
+    const r = await importiereBibEinheitenAction(zeilen.map((e) => ({ typ: e.typ, rufname: e.rufname, notiz: null, zeichen: e.zeichen })))
+      .catch(() => ({ ok: false as const, fehler: NETZ }));
+    setBibLaeuft(false);
+    if (r.ok) { merke({ einheiten: r.eintraege }); setBibMeldung(`${r.angelegt} angelegt, ${r.uebersprungen} schon vorhanden.`); }
+    else setBibMeldung(r.fehler);
+  }
+```
+
+3. Vor `.kp-formular-knoepfe` (nur bei `aktiv`):
+
+```tsx
+      {aktiv && bib.einheiten.length > 0 ? (
+        // Eigene Klasse, NICHT `kp-zeile`: in den aufgeklappten Einheiten der Gliederung gälte sonst ab 768 px das
+        // dreispaltige Raster der Einheitenzeilen (`.kp-g-einheiten .kp-zeile`) — das Select läge in der Typspalte.
+        <div className="kp-bib-einheiten">
+          <Select ref={bibFeld} className="kp-bib-einheiten-wahl" mode="multiple" aria-label="Einheiten aus der Bibliothek" value={bibWahl} onChange={setBibWahl}
+            placeholder="Aus Bibliothek suchen"
+            showSearch={{ autoClearSearchValue: false, filterOption: (eingabe, o) => passt(eingabe, [String(o?.label ?? "")]) }}
+            options={bibOptionen(bib.einheiten, inhalt, stelle)} />
           <Button onClick={ausBib} disabled={bibWahl.length === 0}>Hinzufügen</Button>
         </div>
       ) : null}
 ```
 
-mit `const { bib } = useBibliothek(); const [bibWahl, setBibWahl] = useState<string[]>([]);` und
+und in `.kp-formular-knoepfe` nach „Liste einfügen": `{aktiv && stelle.einheiten.length > 0 ? <Button onClick={() => void inBibliothek()} loading={bibLaeuft}>Einheiten in Bibliothek übernehmen</Button> : null}`, darunter `{bibMeldung ? <p className="kp-hilfe" role="status">{bibMeldung}</p> : null}`.
+
+4. Unten in der Datei (rein, ohne Zustand):
 
 ```tsx
-  const ausBib = () => {
-    const gewaehlt = bib.einheiten.filter((e) => bibWahl.includes(e.id));
-    const f = aendere((p) => fuegeBibEinheitenEin(p, stelle.id, gewaehlt, neueIds(p, "e", gewaehlt.length)));
-    if (f !== null) { setFehler([f]); return; }
-    setBibWahl([]); setFehler([]);
-  };
+const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
+
+/**
+ * Optionen der Einheitenauswahl (Entscheidung 13): an DIESER Stelle schon vorhandene Fahrzeuge gesperrt, an einer
+ * anderen eingesetzte mit „— schon bei …" und hinter den freien — so entstehen doppelte Fahrzeuge nicht unbemerkt.
+ */
+function bibOptionen(einheiten: readonly BibEinheit[], inhalt: PlanInhalt, stelle: Stelle) {
+  const orte = einsatzOrte(inhalt);
+  const hier = new Set(stelle.einheiten.map((e) => vergleichsform(e.rufname)));
+  return einheiten.map((e) => {
+    const k = vergleichsform(e.rufname);
+    const ort = orte.get(k);
+    const name = `${e.typ} ${e.rufname}`;
+    if (hier.has(k)) return { value: e.id, label: `${name} — steht schon hier`, disabled: true, rang: 2 };
+    return ort ? { value: e.id, label: `${name} — schon bei ${ort.titel}`, rang: 1 } : { value: e.id, label: name, rang: 0 };
+  }).sort((a, b) => a.rang - b.rang); // stabil: innerhalb eines Rangs bleibt die Reihenfolge der Bibliothek
+}
 ```
 
-(Importe: `Select`, `useBibliothek`, `passt`, `fuegeBibEinheitenEin`.)
+(Import `type BibEinheit` aus `../../_lib/bibliothek/typen`. Die Hilfseigenschaft `rang` stört antd nicht; wer sie nicht durchreichen will, entfernt sie nach dem Sortieren per `map`.)
+
+`GliederungZeile.tsx`: an `EinheitenListe` zusätzlich `ladeSymbole={(k) => befehle.current!.ladeSymbole(k)}` (derselbe stabile Weg wie am `ZeichenKnopf`).
 
 `VerbindungWahl.tsx`:
-1. `const { bib } = useBibliothek(); const ausBib = bibVerbindungenFuerPlan(inhalt, bib.verbindungen);`
+1. `const { aktiv, bib } = useBibliothek(); const ausBib = aktiv ? bibVerbindungenFuerPlan(inhalt, bib.verbindungen) : [];` (oben, vor jedem Rücksprung)
 2. `options` des „Zur Elternstelle"-`Select`:
    ```tsx
    options={[{ value: KEINE, label: "keine (dünne Linie)" }, ...optionen,
@@ -4932,26 +5480,70 @@ mit `const { bib } = useBibliothek(); const [bibWahl, setBibWahl] = useState<str
    }}
    ```
 
+`PlanFlyin.tsx` — im Abschnitt Verbindungen (`fieldset[data-abschnitt="verbindungen"]`) am Ende `<VerbindungenInBibliothek inhalt={inhalt} />`, unten in der Datei:
+
+```tsx
+/**
+ * „Verbindungen in Bibliothek übernehmen" (Entscheidung 13): alle Verbindungen des Plans in EINEM Aufruf — Server
+ * Actions laufen nacheinander, eine Schleife einzelner Aufrufe stellte sich vor das Autosave (`unterwegs` im Editor).
+ */
+function VerbindungenInBibliothek({ inhalt }: { inhalt: PlanInhalt }) {
+  const { aktiv, merke } = useBibliothek();
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const zeilen = inhalt.verbindungen.filter((v) => v.bezeichnung.trim() !== "");
+  if (!aktiv || zeilen.length === 0) return null;
+  async function uebernimm() {
+    if (laeuft) return;
+    setLaeuft(true);
+    const r = await importiereBibVerbindungenAction(zeilen.map((v) => ({ art: v.art, bezeichnung: v.bezeichnung })))
+      .catch(() => ({ ok: false as const, fehler: "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal." }));
+    setLaeuft(false);
+    if (r.ok) { merke({ verbindungen: r.eintraege }); setMeldung(`${r.angelegt} angelegt, ${r.uebersprungen} schon vorhanden.`); }
+    else setMeldung(r.fehler);
+  }
+  return (
+    <div className="kp-formular-knoepfe">
+      <Button onClick={() => void uebernimm()} loading={laeuft}>Verbindungen in Bibliothek übernehmen</Button>
+      {meldung ? <p className="kp-hilfe" role="status">{meldung}</p> : null}
+    </div>
+  );
+}
+```
+
+(Importe `importiereBibVerbindungenAction`, `useBibliothek`; `useState` ist schon da.)
+
 `(intern)/p/[id]/page.tsx`: im Editor-Zweig `bibliothek={ladeBibliothek(getDb())}` an den `Editor` reichen (Import aus `@/app/m/kommplan/_lib/bibliothekDb`).
 
-`_ui/kommplan.css`: `.kp-aus-bibliothek { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }`
+`_ui/kommplan.css` (außerhalb der Media-Blöcke):
+
+```css
+/* Bibliothek im Flyin (Phase 4, Entscheidung 13). Eigene Klassen, nie `kp-zeile` (dessen Raster in der Gliederung dreispaltig ist). */
+.kp-aus-bibliothek { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
+/* Auswahl und „Hinzufügen" nebeneinander, bei Platzmangel umbrechend — per flex-wrap, nicht per @media (Falle 13). */
+.kp-bib-einheiten { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kp-bib-einheiten > .kp-bib-einheiten-wahl { flex: 1 1 14rem; min-width: 0; }
+```
+
+(`.kp-bib-einheiten > .kp-bib-einheiten-wahl` sind zwei eigene Klassen am Wurzelelement des `Select` — keine Regel gegen einen `.ant-*`-Namen, Falle 20.)
 
 - [ ] **Step 4: Grün sehen**
 
 Run: `pnpm vitest run src/app/m/kommplan/`
-Expected: PASS — auch die vorhandenen Flyin-, Editor- und Gliederungstests (ohne Anbieter gilt die leere Bibliothek, die neuen Felder erscheinen nicht).
+Expected: PASS — auch die vorhandenen Flyin-, Editor- und Gliederungstests (ohne Anbieter `aktiv: false`, die neuen Felder erscheinen nicht).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
-for f in Editor.tsx StelleFlyin.tsx EinheitenListe.tsx VerbindungWahl.tsx page.tsx kommplan.css; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
+for f in Editor.tsx StelleFlyin.tsx EinheitenListe.tsx VerbindungWahl.tsx PlanFlyin.tsx GliederungZeile.tsx page.tsx kommplan.css; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
 pnpm anker:drift src/app/m/kommplan/_ui/editor/Editor.tsx
-git add src/app/m/kommplan/_ui/editor "src/app/m/kommplan/(intern)/p/[id]/page.tsx" src/app/m/kommplan/_ui/kommplan.css
+git add src/app/m/kommplan/_ui/editor src/app/m/kommplan/_ui/gliederung "src/app/m/kommplan/(intern)/p/[id]/page.tsx" src/app/m/kommplan/_ui/kommplan.css
 git commit -S -m "feat(kommplan): Bibliothek im Flyin einer Stelle
 
-Aus Bibliothek füllt die Stelle, In Bibliothek übernehmen legt sie dort
-an; Einheiten und Verbindungen lassen sich aus der Bibliothek holen.
+Aus Bibliothek und Titelvorschläge füllen die Stelle, In Bibliothek
+übernehmen legt sie dort an oder aktualisiert sie; Einheiten und
+Verbindungen lassen sich aus der Bibliothek holen und in sie übernehmen.
 Jede Kopie ist ein Rückgängig-Schritt.
 
 DRK-500
@@ -4964,15 +5556,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 20: Gliederung — Bibliothek im Verbindungsfeld, Titelvorschläge, Alt+Enter
 
 **Files:**
-- Modify: `src/app/m/kommplan/_ui/gliederung/tasten.ts`, `verbindungsOptionen.ts`, `VerbindungFeld.tsx`, `GliederungZeile.tsx`, `Gliederung.tsx`
-- Create: `src/app/m/kommplan/_ui/gliederung/TitelVorschlaege.tsx`
+- Modify: `src/app/m/kommplan/_ui/gliederung/tasten.ts`, `verbindungsOptionen.ts`, `VerbindungFeld.tsx`, `GliederungZeile.tsx`, `Gliederung.tsx` (Befehl, Abgleich nach dem Einfügen, `onHinweis` mit Aktion)
+- Modify: `src/app/m/kommplan/_ui/editor/Editor.tsx` (`onHinweis` reicht die Aktion durch — die Form steht seit Task 13)
 - Modify: `src/app/m/kommplan/_lib/plan/gliederung.ts` (`MELDUNG.keinVorschlag`), `src/app/m/kommplan/_ui/kommplan.css` (`.kp-g-vorschlaege`)
 - Modify: Bedienzeile der Gliederung (`GLIEDERUNG_BEDIENZEILE` in `Gliederung.tsx`) — „Alt+Enter übernimmt den ersten Vorschlag aus der Bibliothek" anhängen
-- Test: `tasten.test.ts`, `verbindungsOptionen.test.ts`, `Gliederung.test.tsx`, `GliederungLast.test.tsx`
+- Test: `tasten.test.ts`, `verbindungsOptionen.test.ts`, `Gliederung.test.tsx`, `GliederungLast.test.tsx`, `src/app/m/kommplan/_ui/kommplan-css.test.ts`
 
 **Interfaces:**
-- Consumes: `stelleVorschlaege`, `uebernimmBibStelle`, `verbindeMitBibVerbindung`, `bibVerbindungenFuerPlan`, `BIB_OPTION` (Task 18); `useBibliothek`, `BibliothekKontext` (Task 19).
-- Produces: `GliederungsBefehl` um `{ art: "bibliothek" }`; `verbindungsOptionen(inhalt, suche, bib?: readonly BibVerbindung[])`; `ZeilenBefehle.bibliothek(id: string, b: BibStelle): void`; `TitelVorschlaege({ stelle, onWahl })` mit DOM `.kp-g-vorschlaege[role="group"][aria-label="Vorschläge aus der Bibliothek"]` und Knöpfen `data-vorschlag=<bibId>`.
+- Consumes: `stelleVorschlaege`, `uebernimmBibStelle`, `verbindeMitBibVerbindung`, `bibVerbindungenFuerPlan`, `bibStellenTreffer`, `BIB_OPTION` (Task 18); `useBibliothek`, `BibliothekKontext`, `BibliothekAnbieter`, `TitelVorschlaege` (Task 19); `Hinweis.aktion` (Task 13).
+- Produces: `GliederungsBefehl` um `{ art: "bibliothek" }`; `verbindungsOptionen(inhalt, suche, bib?: readonly BibVerbindung[])`; `ZeilenBefehle.bibliothek(id: string, b: BibStelle): void`; `onHinweis(text, aktion?: { text: string; tu(): void })` der Gliederung. DOM: `TitelVorschlaege` an der aktiven Zeile (`.kp-g-vorschlaege[role="group"][aria-label="Vorschläge aus der Bibliothek"]`, Knöpfe `data-vorschlag=<bibId>` mit `tabIndex=-1`).
 
 - [ ] **Step 1: Failing Tests schreiben**
 
@@ -4993,19 +5585,24 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ```ts
   it("Bibliotheksverbindungen, die der Plan nicht hat, stehen als „Aus Bibliothek“ da — gefiltert wie die übrigen", () => {
-    const bib = [{ id: "b1", art: "tmo" as const, bezeichnung: "R_UE_2", notiz: null }, { id: "b2", art: "dmo" as const, bezeichnung: "DMO 608", notiz: null }];
+    const bib = [
+      { id: "b1", art: "tmo" as const, bezeichnung: "R_UE_2", notiz: null }, // hat der Plan genau so → keine Option
+      { id: "b2", art: "dmo" as const, bezeichnung: "DMO 609", notiz: null }, // hat der Plan nicht → Option
+      { id: "b3", art: "tmo" as const, bezeichnung: "DMO 608", notiz: null }, // gleiche Bezeichnung, andere Art → Option
+    ];
     const alle = verbindungsOptionen(PLAN, "", bib).map((o) => o.label);
-    expect(alle).toContain("Aus Bibliothek: DMO 608 · Digitalfunk DMO");
-    expect(alle.some((l) => l.startsWith("Aus Bibliothek: R_UE_2"))).toBe(false); // der Plan hat R_UE_2 als TMO
-    expect(verbindungsOptionen(PLAN, "608", bib).map((o) => o.value)).toContain("~bib:b2");
+    expect(alle).toContain("Aus Bibliothek: DMO 609 · Digitalfunk DMO");
+    expect(alle).toContain("Aus Bibliothek: DMO 608 · Digitalfunk TMO");
+    expect(alle.some((l) => l.startsWith("Aus Bibliothek: R_UE_2"))).toBe(false);
+    expect(verbindungsOptionen(PLAN, "609", bib).map((o) => o.value)).toContain("~bib:b2");
     expect(verbindungsOptionen(PLAN, "xyz", bib).some((o) => o.value.startsWith("~bib:"))).toBe(false);
   });
 ```
 
-(`PLAN` = der Testplan der Datei; trägt er R_UE_2 nicht als TMO, die Erwartung auf eine Verbindung des Testplans umstellen.)
+(`PLAN` = der Testplan der Datei: R_UE_2 als TMO und DMO 608 als DMO — deshalb ist `b2` eine Verbindung, die er nicht hat, und `b3` prüft „andere Art → Option".)
 
 In `src/app/m/kommplan/_ui/gliederung/Gliederung.test.tsx`:
-1. `Pruefstand` bekommt eine optionale Prop `bib` und legt die Gliederung in `<BibliothekKontext.Provider value={{ bib: bib ?? LEERE_BIBLIOTHEK, merkeStelle: () => {} }}>`; `zeigeMitBib` mountet mit
+1. Mock von `_actions/bibliothek` ergänzen (Task 19, „Mocks zuerst"). `Pruefstand` bekommt eine optionale Prop `bib` und legt die Gliederung in `<BibliothekKontext.Provider value={{ aktiv: bib !== undefined, bib: bib ?? LEERE_BIBLIOTHEK, merke: () => {} }}>`; die Fälle unten mounten mit
    ```ts
    const BIB = { stellen: [
      { id: "b1", titel: "Leitstelle Uelzen", zeichen: null, leiter: "Disponent", kontakte: [{ art: "telefon" as const, wert: "0581 1" }], notiz: null },
@@ -5051,8 +5648,22 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
     await taste(feld("ea2"), "Enter", { altKey: true });
     expect(meldung()).toContain("Kein Vorschlag aus der Bibliothek.");
   });
+  it("eingefügte Gliederung: Titel, die genau so in der Bibliothek stehen und deren Angaben noch fehlen, werden angeboten — „Angaben übernehmen“ füllt alle in EINEM Schritt", async () => {
+    await mount(<Pruefstand start={START} bib={BIB} />);
+    await fokus("ea1");
+    await einfuegen(feld("ea1"), "Leitstelle Uelzen\n\tFeuerwehr-Leitstelle\n\tTrupp");
+    // „Feuerwehr-Leitstelle“ steht auch in der Bibliothek, trägt dort aber nichts, was die eingefügte Zeile nicht schon trägt.
+    expect(meldung()).toContain("1 Stelle steht so in der Bibliothek.");
+    await clickElement(knopf("Angaben übernehmen"));
+    const leit = stand.jetzt.stellen.find((s) => s.titel === "Leitstelle Uelzen")!;
+    expect(leit).toMatchObject({ leiter: "Disponent", kontakte: [{ art: "telefon", wert: "0581 1" }] });
+    await taste(feld(leit.id), "z", { ctrlKey: true }); // EIN Schritt zurück: die Angaben fallen, die eingefügten Zeilen bleiben
+    expect(stand.jetzt.stellen.find((s) => s.id === leit.id)).toMatchObject({ titel: "Leitstelle Uelzen", leiter: null });
+  });
 });
 ```
+
+(`einfuegen` und `knopf` sind die Helfer der Datei für das mehrzeilige Einfügen aus Phase 3 bzw. aus Task 9 — sonst nach deren Muster ein `paste`-Ereignis mit `clipboardData` absetzen. `meldung()` liest den Hinweis samt Aktionsknopf; `Pruefstand` muss `onHinweis` mit `aktion` an seine Meldung reichen — die vorhandene Hilfe um den Knopf erweitern.)
 
 (Strg+Z im Titel ist in der Gliederung das Rückgängig des Dokuments, Phase-3-Entscheidung 10; das Tippen von „Leit" ist ein gebündelter Schritt, die Übernahme ein zweiter.)
 
@@ -5072,7 +5683,7 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
   });
 ```
 
-Dazu oben in der Datei `renders` um `bib: 0` erweitern und `useBibliothek` zählen, ohne den Kontext zu ersetzen:
+Dazu oben in der Datei den Mock von `_actions/bibliothek` ergänzen (Task 19), `renders` um `bib: 0` erweitern und `useBibliothek` zählen, ohne den Kontext zu ersetzen:
 
 ```tsx
 vi.mock("../editor/bibliothekKontext", async (orig) => {
@@ -5082,7 +5693,7 @@ vi.mock("../editor/bibliothekKontext", async (orig) => {
 import { BibliothekAnbieter } from "../editor/bibliothekKontext";
 ```
 
-(Jeder Leser — `Gliederung`, `VerbindungFeld`, `TitelVorschlaege`, `EinheitenListe` — ruft `useBibliothek`; der Zähler zählt also genau deren Renders. Gegenprobe: `BibliothekAnbieter` ohne `useMemo` — ein neuer Wert je Rendern — macht den Fall rot.)
+(Jeder Leser — `Gliederung`, `VerbindungFeld`, `TitelVorschlaege`, `EinheitenListe`, `VerbindungWahl`, `StelleFormular` — ruft `useBibliothek`; der Zähler zählt also genau deren Renders. Gegenprobe: `BibliothekAnbieter` ohne `useMemo` — ein neuer Wert je Rendern — macht den Fall rot.)
 
 - [ ] **Step 2: Rot sehen**
 
@@ -5104,7 +5715,7 @@ Expected: FAIL.
 
 und im Rückgabewert am Ende `[...keine, ...vorhanden, ...ausBib, ...neu]`.
 
-`VerbindungFeld.tsx`: oben im Rumpf (vor dem `if (!aktiv)`-Zweig — Hooks unbedingt) `const { bib } = useBibliothek();`; im `options`-Aufruf `verbindungsOptionen(inhalt, suche, bib.verbindungen)`; am Anfang von `waehle`:
+`VerbindungFeld.tsx`: `const { aktiv: mitBib, bib } = useBibliothek();` **direkt nach** `const [suche, setSuche] = useState("");` und damit **vor** dem frühen Rücksprung `if (stelle.eltern === null) return …` — dahinter wäre es ein bedingter Hook (`react-hooks/rules-of-hooks`) und brächte die Zählung in `GliederungLast.test.tsx` durcheinander; im `options`-Aufruf `verbindungsOptionen(inhalt, suche, mitBib ? bib.verbindungen : [])`; am Anfang von `waehle`:
 
 ```tsx
     const ausBib = wert.startsWith(BIB_OPTION) ? bib.verbindungen.find((b) => `${BIB_OPTION}${b.id}` === wert) : undefined;
@@ -5115,39 +5726,7 @@ und im Rückgabewert am Ende `[...keine, ...vorhanden, ...ausBib, ...neu]`.
     }
 ```
 
-`TitelVorschlaege.tsx`:
-
-```tsx
-"use client";
-
-import { Button } from "antd";
-import type { BibStelle } from "../../_lib/bibliothek/typen";
-import { stelleVorschlaege } from "../../_lib/plan/bibliothek";
-import type { Stelle } from "../../_lib/plan/schema";
-import { useBibliothek } from "../editor/bibliothekKontext";
-
-/**
- * TITELVORSCHLÄGE (Umsetzungsplan Phase 4, Entscheidung 14) — nur an der aktiven Zeile, ohne den Tippfluss zu
- * stören: kein Popup, keine Taste außer Alt+Enter (in `Gliederung`). Die Knöpfe verhindern `mousedown`, damit
- * der Fokus im Titel bleibt — sonst verwürfe das Verlassen eine eben angelegte, unberührte Zeile (Phase 3,
- * Entscheidung 8). Diese Komponente liest als EINZIGE der Zeile den Kontext; die übrigen Zeilen bleiben `memo`.
- */
-export function TitelVorschlaege({ stelle, onWahl }: { stelle: Stelle; onWahl: (b: BibStelle) => void }) {
-  const { bib } = useBibliothek();
-  const vorschlaege = stelleVorschlaege(bib.stellen, stelle);
-  if (vorschlaege.length === 0) return null;
-  return (
-    <div className="kp-g-vorschlaege" role="group" aria-label="Vorschläge aus der Bibliothek">
-      <span className="kp-hilfe">Aus Bibliothek (Alt+Enter nimmt den ersten):</span>
-      {vorschlaege.map((b) => (
-        <Button key={b.id} data-vorschlag={b.id} tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => onWahl(b)}>
-          {b.leiter ? `${b.titel} · ${b.leiter}` : b.titel}
-        </Button>
-      ))}
-    </div>
-  );
-}
-```
+`TitelVorschlaege.tsx` steht seit Task 19 (Vorgabe `tabStopps = false` — in der Gliederung gehört Tab dem Einrücken).
 
 `GliederungZeile.tsx`: `ZeilenBefehle` um `bibliothek(id: string, b: BibStelle): void` ergänzen; in `ZeileInnen` direkt nach dem schließenden `</div>` von `.kp-g-haupt`:
 
@@ -5157,28 +5736,58 @@ export function TitelVorschlaege({ stelle, onWahl }: { stelle: Stelle; onWahl: (
 
 `Gliederung.tsx`:
 1. `const { bib } = useBibliothek();`
-2. Im `befehle`-Objekt: `bibliothek: (id, b) => { if (tueMit((q) => uebernimmBibStelle(q, id, b)) !== null) fokussiere(id, "ende"); },`
+2. Eine Hilfe `uebernimmBib(id, b)`: `if (tueMit((q) => uebernimmBibStelle(q, id, b)) === null) return; if (b.zeichen) p.ladeSymbole([b.zeichen]); fokussiere(id, "ende");` — das mitgebrachte Zeichen lädt der Kopierweg selbst (Entscheidung 13). Im `befehle`-Objekt: `bibliothek: (id, b) => uebernimmBib(id, b),`
 3. In `taste` im `switch (b.art)`:
    ```tsx
       case "bibliothek": {
         const v = stelleVorschlaege(bib.stellen, z.stelle)[0];
         if (!v) { p.onHinweis(MELDUNG.keinVorschlag); return; }
-        if (tueMit((q) => uebernimmBibStelle(q, id, v)) !== null) fokussiere(id, "ende");
+        uebernimmBib(id, v);
         return;
       }
    ```
+3a. **Abgleich nach dem Einfügen** (in der Einfüge-Behandlung, nach `fuegeGliederungEin` und dem Fokus auf die letzte neue Zeile):
+   ```tsx
+    // Entscheidung 14: eingefügte Titel, die genau so in der Bibliothek stehen, blieben sonst leer — und nichts wiese darauf hin.
+    const treffer = nach && ids.length > 0 ? bibStellenTreffer(nach, ids, bib.stellen) : [];
+    if (treffer.length > 0) {
+      p.onHinweis(`${treffer.length} ${treffer.length === 1 ? "Stelle steht" : "Stellen stehen"} so in der Bibliothek.`, {
+        text: "Angaben übernehmen",
+        tu: () => { tueMit((q) => treffer.reduce((x, t) => uebernimmBibStelle(x, t.stelleId, t.b), q)); p.ladeSymbole(treffer.flatMap((t) => (t.b.zeichen ? [t.b.zeichen] : []))); },
+      });
+    }
+   ```
+   (`tueMit` ist ein `aendere` ohne Bündelschlüssel — alle Treffer sind EIN Rückgängig-Schritt. Die Prop `onHinweis` bekommt den optionalen zweiten Parameter; `Editor.tsx` reicht ihn als `aktion` in den Hinweis, Task 13.)
 4. `GLIEDERUNG_BEDIENZEILE` um „ · Alt+Enter übernimmt den ersten Vorschlag aus der Bibliothek" ergänzen (Zeichenkette in derselben Zeile; die Telefonzeile bleibt).
 
 `_lib/plan/gliederung.ts`, `MELDUNG`: `keinVorschlag: "Kein Vorschlag aus der Bibliothek.",` ergänzen.
 
-`_ui/kommplan.css`:
+`_ui/kommplan.css` (außerhalb der Media-Blöcke):
 
 ```css
-/* Titelvorschläge der Gliederung (Phase 4, Entscheidung 14): unter der aktiven Zeile, eingerückt wie sie. */
-.kp-g-vorschlaege { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; padding-inline-start: calc(var(--ebene, 0) * 24px + 52px); padding-block: 4px; }
+/*
+ * Titelvorschläge (Phase 4, Entscheidung 14), in der Gliederung unter der aktiven Zeile und im Flyin unter dem
+ * Titel. KEIN Ebenenterm: die Vorschläge stehen IN `.kp-g-zeile`, die schon um die Ebene eingerückt ist — ein
+ * zweiter Ebenenterm rückte doppelt ein (am Telefon bei Ebene 10 fast die ganze Breite). Einzeilig mit fester
+ * Höhe und waagerecht scrollbar: die Zeilen darunter springen beim Tippen nicht um Knopfzeilen.
+ */
+.kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; }
+.kp-g-vorschlaege > * { flex: none; }
 ```
 
-(Den Einzug an die vorhandene Einrückungsregel der Zeile angleichen — dieselbe Rechnung wie `.kp-g-haupt`, im Telefon-Block gedeckelt wie dort.)
+und im vorhandenen Block `@media (max-width: 767.98px)`: `.kp-vorschlag-hinweis { display: none; }` (Bildschirmtastaturen haben kein Alt; die Knöpfe sprechen für sich — kein eigener `(pointer: coarse)`-Block, Global Constraints). Fluchten die Vorschläge in der Gliederung sichtbar schlecht mit dem Titelfeld, den Einzug als feste Zahl aus `.kp-g-haupt` ableiten (Innenabstand plus Breite des Zeichenknopfs und Lücke) — nie mit `--ebene`.
+
+`src/app/m/kommplan/_ui/kommplan-css.test.ts` anfügen:
+
+```ts
+  it("Titelvorschläge: ohne Ebenenterm (stehen schon in der eingerückten Zeile), einzeilig, am Telefon ohne Alt-Hinweis", () => {
+    const regel = /\.kp-g-vorschlaege \{([^}]*)\}/.exec(css)![1];
+    expect(regel).not.toMatch(/--ebene/);
+    expect(regel).toMatch(/flex-wrap: nowrap/);
+    expect(regel).toMatch(/overflow-x: auto/);
+    expect(css).toMatch(/@media \(max-width: 767\.98px\) \{[\s\S]*\.kp-vorschlag-hinweis \{ display: none; \}/);
+  });
+```
 
 - [ ] **Step 4: Grün sehen**
 
@@ -5189,14 +5798,16 @@ Expected: PASS.
 
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
-for f in tasten.ts verbindungsOptionen.ts VerbindungFeld.tsx GliederungZeile.tsx Gliederung.tsx gliederung.ts kommplan.css; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
+for f in tasten.ts verbindungsOptionen.ts VerbindungFeld.tsx GliederungZeile.tsx Gliederung.tsx gliederung.ts kommplan.css kommplan-css.test.ts Editor.tsx; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
 pnpm anker:drift src/app/m/kommplan/_ui/gliederung/Gliederung.tsx
-git add src/app/m/kommplan/_ui/gliederung src/app/m/kommplan/_lib/plan/gliederung.ts src/app/m/kommplan/_ui/kommplan.css
+git add src/app/m/kommplan/_ui/gliederung src/app/m/kommplan/_lib/plan/gliederung.ts src/app/m/kommplan/_ui/kommplan.css src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.tsx
 git commit -S -m "feat(kommplan): Bibliothek in der Gliederung — Vorschläge und Verbindungen
 
 Beim Tippen eines Titels stehen passende Stellen aus der Bibliothek unter
 der Zeile; ein Klick oder Alt+Enter übernimmt sie, Enter und Tab bleiben
-unberührt. Das Verbindungsfeld bietet Verbindungen aus der Bibliothek an.
+unberührt. Nach dem Einfügen einer Gliederung lassen sich die Angaben
+gleichnamiger Bibliotheksstellen in einem Schritt übernehmen. Das
+Verbindungsfeld bietet Verbindungen aus der Bibliothek an.
 
 DRK-500
 
@@ -5213,21 +5824,23 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `src/app/m/kommplan/_ui/editor/Griffe.tsx` (ganz), `src/app/m/kommplan/_ui/editor/Editor.tsx` (`GRIFF_RAND` samt Kommentar, `platzOben`), `src/app/m/kommplan/_ui/betrachter/Flaeche.tsx` (`platzOben`, `[data-auswahlleiste]` in `ausgenommen`), `src/app/m/kommplan/_ui/kommplan.css`
 - Modify: `e2e/kommplan-editor.spec.ts` (`ganzInDerFlaeche`, Fototest, „gezoomt …", neuer Fall Auswahlleiste)
 - Modify: `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` (§6.3, erster Punkt)
-- Test: `src/app/m/kommplan/_ui/kommplan-css.test.ts`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`, `src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`
+- Test: `src/app/m/kommplan/_ui/kommplan-css.test.ts`, `src/app/m/kommplan/_ui/editor/Editor.test.tsx`, `src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`, `src/app/m/kommplan/_ui/editor/Griffe.test.tsx` (**ganz ersetzt** — die heutigen Fälle prüfen `.kp-griffleiste` und das Inline-`top` der Seitengriffe, beides gibt es danach nicht mehr)
 
 **Interfaces:**
-- Produces: `AUSWAHLLEISTE = { abstand: 8, hoehe: 56 } as const` (`Griffe.tsx`); `GRIFF_RAND = { oben: AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8, seite: 16, unten: 72 }` (also 72/16/72); `Flaeche`-Prop `platzOben?: number`. DOM: `[data-griffe=<id>]` enthält `.kp-griffe-karte` (nur `.kp-auswahlrahmen`) und `.kp-auswahlleiste[data-auswahlleiste][role="toolbar"][aria-label="Auswahl: <Titel>"]` mit `.kp-auswahl-name` und den Knöpfen in der Reihenfolge `unter`, `links`, `rechts`, `einheit`, `bearbeiten`. `data-griff`-Werte und Seitengriff-`aria-label`s bleiben.
+- Produces: `AUSWAHLLEISTE = { abstand: 8, hoehe: 56 } as const` (`Griffe.tsx`); `GRIFF_RAND = { oben: AUSWAHLLEISTE.abstand + AUSWAHLLEISTE.hoehe + 8, seite: 16, unten: 72 }` (also 72/16/72); `Flaeche`-Prop `platzOben?: number`. DOM: `[data-griffe=<id>]` enthält `.kp-griffe-karte` (nur `.kp-auswahlrahmen`) und `.kp-auswahlleiste[data-auswahlleiste][role="group"][aria-label="Auswahl: <Titel>"]` mit `.kp-auswahl-name` und den Knöpfen in der Reihenfolge `bearbeiten`, `unter`, `einheit`, `links`, `rechts` (Seitenstelle: `bearbeiten`, `einheit`). `data-griff`-Werte und Seitengriff-`aria-label`s bleiben.
 
 - [ ] **Step 1: Tests anpassen bzw. schreiben**
 
 `src/app/m/kommplan/_ui/kommplan-css.test.ts`: den Fall „der seitliche Griff bricht nicht um …" ersetzen durch
 
 ```ts
-  it("Auswahlleiste oben links in der Fläche, feste Höhe: bricht nie um, scrollt am Telefon waagerecht (Phase 3, Entscheidung 18)", () => {
+  it("Auswahlleiste oben links in der Fläche, feste Höhe: bricht nie um, scrollt am Telefon waagerecht mit Schattenkante, Name dort ausgeblendet (Phase 3, Entscheidung 18)", () => {
     expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*position: absolute; top: 8px; left: 8px/);
     expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*flex-wrap: nowrap/);
     expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*overflow-x: auto/);
+    expect(css).toMatch(/\.kp-auswahlleiste \{[^}]*background-attachment: local, local, scroll, scroll/); // Schattenkante nur, solange etwas verborgen ist
     expect(css).toMatch(/\.kp-auswahl-name \{[^}]*text-overflow: ellipsis/);
+    expect(css).toMatch(/@media \(max-width: 767\.98px\) \{[\s\S]*\.kp-auswahl-name \{ display: none; \}/);
     expect(css).not.toMatch(/\.kp-griffleiste|\.kp-griff-seite|\.kp-griff-links|\.kp-griff-rechts/);
   });
   it("Rand der Auswahlleiste hebt sich ab (WCAG 1.4.11): mindestens 3:1 gegen ihre Fläche, hell und dunkel", () => {
@@ -5241,7 +5854,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 (`kontrast` steht schon in der Datei. Steht `:root[data-theme="dark"]` dort in anderer Form, den Regex an die Datei anpassen, nicht die Datei an den Regex.)
 
-`src/app/m/kommplan/_ui/editor/Editor.test.tsx`: Importe ergänzen (`GRIFF_RAND` in die Zeile aus `./Editor`, neu `import { AUSWAHLLEISTE } from "./Griffe";`); im Fall „Klick wählt eine Karte und zeigt ihre Griffe …" die Reihenfolge auf `["unter", "links", "rechts", "einheit", "bearbeiten"]` ändern; anfügen:
+`src/app/m/kommplan/_ui/editor/Editor.test.tsx`: Importe ergänzen (`GRIFF_RAND` in die Zeile aus `./Editor`, neu `import { AUSWAHLLEISTE } from "./Griffe";`); im Fall „Klick wählt eine Karte und zeigt ihre Griffe …" die Reihenfolge auf `["bearbeiten", "unter", "einheit", "links", "rechts"]` ändern; anfügen:
 
 ```tsx
   it("Griffe stehen in der Auswahlleiste oben in der Fläche, an der Karte nur der Auswahlrahmen (Phase 4, Entscheidung 15)", async () => {
@@ -5249,7 +5862,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     await waehle("a");
     expect(queryAll('[data-griffe="a"] .kp-griffe-karte > *').map((e) => e.className)).toEqual(["kp-auswahlrahmen"]);
     const leiste = query('[data-griffe="a"] .kp-auswahlleiste');
-    expect(leiste.getAttribute("role")).toBe("toolbar");
+    expect(leiste.getAttribute("role")).toBe("group"); // jeder Knopf ein Tabstopp — keine Pfeiltasten-Bedienung, die „toolbar" verspräche
     expect(leiste.getAttribute("aria-label")).toBe("Auswahl: EA 1");
     expect(leiste.querySelector(".kp-auswahl-name")!.textContent).toBe("EA 1");
     expect(leiste.querySelectorAll("[data-griff]")).toHaveLength(5);
@@ -5269,6 +5882,49 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   });
 ```
 
+`src/app/m/kommplan/_ui/editor/Griffe.test.tsx` **ganz ersetzen**:
+
+```tsx
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from "vitest";
+import { act } from "react";
+import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import type { KarteL } from "../../_lib/layout/typen";
+import type { Ansicht } from "../betrachter/ansicht";
+import { AUSWAHLLEISTE, Griffe } from "./Griffe";
+
+const KARTE = { id: "a", x: 100, y: 50, breite: 60, hoehe: 20, titelVoll: "EA 1" } as unknown as KarteL;
+const zeige = async (seitenstelle = false, breite = 800) => {
+  await mount(<Griffe karte={KARTE} ansicht={{ x: 0, y: 0, massstab: 1 } as Ansicht} flaeche={{ breite, hoehe: 600 }} seitenstelle={seitenstelle}
+    onUnterstelle={() => {}} onSeitenstelle={() => {}} onEinheit={() => {}} onBearbeiten={() => {}} />);
+  await act(async () => {});
+};
+const griffe = () => queryAll("[data-griff]").map((g) => g.getAttribute("data-griff"));
+
+afterEach(async () => { await unmount(); });
+
+describe("Griffe in der Auswahlleiste (Phase 3, Entscheidung 18; Phase 4, Entscheidung 15)", () => {
+  it("Reihenfolge: Bearbeiten zuerst (am Telefon im Bild), dann + Unterstelle, + Einheit, + links, + rechts", async () => {
+    await zeige();
+    expect(griffe()).toEqual(["bearbeiten", "unter", "einheit", "links", "rechts"]);
+  });
+  it("eine Seitenstelle trägt nichts (§4.2): nur Bearbeiten und + Einheit", async () => {
+    await zeige(true);
+    expect(griffe()).toEqual(["bearbeiten", "einheit"]);
+  });
+  it("die Leiste ist höchstens so breit wie die Fläche abzüglich beider Abstände", async () => {
+    await zeige(false, 390);
+    expect(query(".kp-auswahlleiste").style.maxWidth).toBe(`${390 - 2 * AUSWAHLLEISTE.abstand}px`);
+  });
+  it("an der Karte hängt nur der Auswahlrahmen; die Leiste ist eine Gruppe mit dem Namen der Stelle", async () => {
+    await zeige();
+    expect(queryAll(".kp-griffe-karte > *").map((e) => e.className)).toEqual(["kp-auswahlrahmen"]);
+    expect(query(".kp-auswahlleiste").getAttribute("role")).toBe("group");
+    expect(query(".kp-auswahlleiste").getAttribute("aria-label")).toBe("Auswahl: EA 1");
+  });
+});
+```
+
 `src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx` anfügen:
 
 ```tsx
@@ -5282,7 +5938,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 2: Rot sehen**
 
-Run: `pnpm vitest run src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.test.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`
+Run: `pnpm vitest run src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.test.tsx src/app/m/kommplan/_ui/editor/Griffe.test.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx`
 Expected: FAIL.
 
 - [ ] **Step 3: `Flaeche` bekommt `platzOben`**
@@ -5314,7 +5970,10 @@ const KOMPAKT: ThemeConfig = { components: { Button: { paddingInline: 10 } } };
  * Nachbarkarten, Einheiten oder Kanalsechsecke zu verdecken (am Tablet sind zwei Karten ≈ 15 px auseinander).
  * Eingepasst hält die Fläche den Streifen der Leiste frei (`platzOben`); gezoomt holt `zeige()` die gewählte
  * Karte unter die Leiste. Seitengriffe „+ links"/„+ rechts" mit Tooltip bei Zeigen und Fokus; eine
- * Seitenstelle trägt nichts (§4.2): dort nur „+ Einheit" und „Bearbeiten".
+ * Seitenstelle trägt nichts (§4.2): dort nur „Bearbeiten" und „+ Einheit". „Bearbeiten" steht VORN: am Telefon
+ * liegt das Ende der Leiste außerhalb des Bildes, und dort ist das Diagramm für kleine Korrekturen da (§6.5).
+ * `role="group"`, nicht „toolbar": jeder Knopf ist ein eigener Tabstopp, Pfeiltasten tun nichts — eine Toolbar
+ * verspräche Screenreadern ein Bedienmuster, das hier nicht gebaut ist.
  */
 export function Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, onSeitenstelle, onEinheit, onBearbeiten }: {
   karte: KarteL; ansicht: Ansicht; flaeche: { breite: number; hoehe: number }; seitenstelle: boolean;
@@ -5333,13 +5992,13 @@ export function Griffe({ karte, ansicht, flaeche, seitenstelle, onUnterstelle, o
         <div className="kp-griffe-karte" style={{ left: ansicht.x + karte.x * m, top: ansicht.y + karte.y * m, width: karte.breite * m, height: karte.hoehe * m }}>
           <div className="kp-auswahlrahmen" aria-hidden="true" />
         </div>
-        <div className="kp-auswahlleiste" data-auswahlleiste="" role="toolbar" aria-label={`Auswahl: ${titel}`}
+        <div className="kp-auswahlleiste" data-auswahlleiste="" role="group" aria-label={`Auswahl: ${titel}`}
           style={{ maxWidth: Math.max(0, flaeche.breite - 2 * AUSWAHLLEISTE.abstand) }}>
           <span className="kp-auswahl-name" title={titel}>{titel}</span>
-          {seitenstelle ? null : <Button data-griff="unter" onClick={onUnterstelle}>+ Unterstelle</Button>}
-          {seitenstelle ? null : <>{seitlich("links")}{seitlich("rechts")}</>}
-          <Button data-griff="einheit" onClick={onEinheit}>+ Einheit</Button>
           <Button data-griff="bearbeiten" onClick={onBearbeiten}>Bearbeiten</Button>
+          {seitenstelle ? null : <Button data-griff="unter" onClick={onUnterstelle}>+ Unterstelle</Button>}
+          <Button data-griff="einheit" onClick={onEinheit}>+ Einheit</Button>
+          {seitenstelle ? null : <>{seitlich("links")}{seitlich("rechts")}</>}
         </div>
       </div>
     </ConfigProvider>
@@ -5369,8 +6028,8 @@ Import: `import { AUSWAHLLEISTE, Griffe } from "./Griffe";`. An der `<Flaeche �
 - [ ] **Step 6: CSS**
 
 In `src/app/m/kommplan/_ui/kommplan.css`:
-1. In `:root` (nebeneinander, in dieser Reihenfolge): `--kp-leiste-flaeche: #ffffff; --kp-leiste-rand: #6b7280;`
-2. In `:root[data-theme="dark"]`: `--kp-leiste-flaeche: #1f242c; --kp-leiste-rand: #8a94a3;` (reicht der Kontrast nicht, den Rand heller wählen, nicht den Test lockern).
+1. In `:root` (nebeneinander, in dieser Reihenfolge): `--kp-leiste-flaeche: #ffffff; --kp-leiste-rand: #6b7280; --kp-leiste-schatten: rgba(0, 0, 0, .28);`
+2. In `:root[data-theme="dark"]`: `--kp-leiste-flaeche: #1f242c; --kp-leiste-rand: #8a94a3; --kp-leiste-schatten: rgba(0, 0, 0, .7);` (reicht der Kontrast nicht, den Rand heller wählen, nicht den Test lockern).
 3. Den Kommentarblock „Editor: Griffe über der Fläche …" so umschreiben, dass er die Auswahlleiste nennt (Falle 5/20 bleiben erwähnt); die Regeln `.kp-griffe .kp-griff-seite`, `.kp-griffe .kp-griff-links`, `.kp-griffe .kp-griff-rechts`, `.kp-griffleiste` und den Kommentar „`top` setzt Griffe.tsx …" entfernen; `.kp-griffe`, `.kp-griffe-karte`, `.kp-griffe button` und `.kp-auswahlrahmen` bleiben. Neu:
 
 ```css
@@ -5382,12 +6041,24 @@ In `src/app/m/kommplan/_ui/kommplan.css`:
 .kp-auswahlleiste {
   position: absolute; top: 8px; left: 8px; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
   padding: 5px 6px; overflow-x: auto; overscroll-behavior-x: contain; pointer-events: auto;
-  background: var(--kp-leiste-flaeche); border: 1px solid var(--kp-leiste-rand); border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  border: 1px solid var(--kp-leiste-rand); border-radius: 8px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  /* Schattenkante, solange waagerecht etwas verborgen ist: zwei Deckflächen wandern mit dem Inhalt (local),
+     zwei Schatten bleiben am Rand (scroll) — reines CSS, kein Skript. */
+  background:
+    linear-gradient(to right, var(--kp-leiste-flaeche) 30%, transparent),
+    linear-gradient(to left, var(--kp-leiste-flaeche) 30%, transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%, var(--kp-leiste-schatten), transparent),
+    radial-gradient(farthest-side at 100% 50%, var(--kp-leiste-schatten), transparent) 100% 0;
+  background-color: var(--kp-leiste-flaeche);
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 12px 100%, 12px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 .kp-auswahlleiste > * { flex: none; }
 .kp-auswahl-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; padding-inline: 4px; }
 ```
+
+und im vorhandenen Block `@media (max-width: 767.98px)`: `.kp-auswahl-name { display: none; }` (das `aria-label` der Leiste trägt den Namen weiter; am Telefon zählt jeder Pixel der Leiste).
 
 - [ ] **Step 7: Unit-Tests grün**
 
@@ -5435,6 +6106,21 @@ test("Auswahlleiste: eingepasst über keinem Planelement — Desktop ohne und mi
   }
   expect(speicherungen, "am Seed-Plan wurde gespeichert").toEqual([]);
 });
+
+test("Auswahlleiste am Telefon: „Bearbeiten“ und „+ Unterstelle“ liegen ganz im Bildschirm (Phase 4, Entscheidung 15)", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await oeffneEditor(page, () => page.goto(url("/p/beispiel-openr-2022-07-01?ansicht=diagramm")));
+  await klickeWennRuhig(page.locator('.kp-betrachter [data-karte="ea1"]'));
+  for (const griff of ["bearbeiten", "unter"]) {
+    const b = (await page.locator(`.kp-auswahlleiste [data-griff="${griff}"]`).boundingBox())!;
+    expect(b.x, `${griff}: links`).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width, `${griff}: rechts`).toBeLessThanOrEqual(390);
+  }
+  await expect(page.locator(".kp-auswahl-name")).toBeHidden();
+  await page.keyboard.press("Escape");
+});
 ```
 
 (Greifer `[data-einheit]`, `[data-sechseck]`, `[data-umschalter]` vorher in `_ui/zeichnung/Karte.tsx`, `Sechseck.tsx`, `_ui/betrachter/EinklappKnopf.tsx` prüfen und angleichen; liegt der Umschalter der Karte anders im DOM, den Greifer anpassen, nicht die Zusicherung.)
@@ -5451,10 +6137,11 @@ Expected: Exit 0. Rot an „Griff … : oben/links/rechts" heißt: die Leiste li
 
 - [ ] **Step 9: Spec §6.3 anpassen**
 
-In `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` §6.3 den ersten Punkt („Die ausgewählte Karte zeigt Griffe: unten „+ Unterstelle", seitlich „+ Seitenstelle", an der Einheitenspalte „+ Einheit".") ersetzen durch — **eine** Zeile, damit die Zeilenzahl der Spec gleich bleibt:
+In `docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md` §6.3 den ersten Punkt — heute **zwei** Zeilen („- Die ausgewählte Karte zeigt Griffe: unten „+ Unterstelle", seitlich „+ Seitenstelle", an der" / „  Einheitenspalte „+ Einheit".") — durch wieder **zwei** Zeilen ersetzen, damit die Zeilenzahl der Spec gleich bleibt (heute zeigt kein Zeilenanker in die Spec, die Regel gilt trotzdem):
 
 ```
-- Die ausgewählte Karte trägt einen Auswahlrahmen; ihre Griffe („+ Unterstelle", „+ links", „+ rechts", „+ Einheit", „Bearbeiten") stehen in einer Auswahlleiste oben in der Fläche, die beim Einpassen über keinem Planelement liegt (an der Karte verdeckten 44-px-Griffe zwangsläufig Nachbarn).
+- Die ausgewählte Karte trägt einen Auswahlrahmen; ihre Griffe („Bearbeiten", „+ Unterstelle", „+ Einheit", „+ links", „+ rechts")
+  stehen in einer Auswahlleiste oben in der Fläche, die eingepasst über keinem Planelement liegt (an der Karte verdeckten 44-px-Griffe Nachbarn).
 ```
 
 Ankerschritt: `git grep -n "modul-kommunikationsplaene-design.md:[0-9]" -- src scripts e2e docs`.
@@ -5464,9 +6151,9 @@ Ankerschritt: `git grep -n "modul-kommunikationsplaene-design.md:[0-9]" -- src s
 ```bash
 pnpm typecheck; echo "typecheck exit $?"
 pnpm exec eslint src/app/m/kommplan/_ui/ e2e/kommplan-editor.spec.ts
-for f in Griffe.tsx Editor.tsx Flaeche.tsx kommplan.css kommplan-css.test.ts Editor.test.tsx Flaeche.test.tsx kommplan-editor.spec.ts; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
+for f in Griffe.tsx Griffe.test.tsx Editor.tsx Flaeche.tsx kommplan.css kommplan-css.test.ts Editor.test.tsx Flaeche.test.tsx kommplan-editor.spec.ts; do git grep -n "$f:[0-9]" -- src scripts e2e docs; done
 pnpm anker:drift src/app/m/kommplan/_ui/kommplan.css; pnpm anker:drift src/app/m/kommplan/_ui/editor/Editor.tsx
-git add src/app/m/kommplan/_ui/editor/Griffe.tsx src/app/m/kommplan/_ui/editor/Editor.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.tsx src/app/m/kommplan/_ui/kommplan.css src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.test.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx e2e/kommplan-editor.spec.ts docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md
+git add src/app/m/kommplan/_ui/editor/Griffe.tsx src/app/m/kommplan/_ui/editor/Griffe.test.tsx src/app/m/kommplan/_ui/editor/Editor.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.tsx src/app/m/kommplan/_ui/kommplan.css src/app/m/kommplan/_ui/kommplan-css.test.ts src/app/m/kommplan/_ui/editor/Editor.test.tsx src/app/m/kommplan/_ui/betrachter/Flaeche.test.tsx e2e/kommplan-editor.spec.ts docs/superpowers/specs/2026-09-30-modul-kommunikationsplaene-design.md
 git commit -S -m "fix(kommplan): Griffe in einer Auswahlleiste statt über Nachbarkarten
 
 Die Griffe an der gewählten Karte verdeckten Nachbarkarten, Einheiten und
@@ -5555,12 +6242,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `HOST`, `url`, `ADMIN`, `istAktion`, `rumpf`, `istSpeichern`, `speichertNach`, `oeffneEditor`, `neuerPlan`, `ersteStelle`, `flyinTitel`, `karten` (`e2e/kommplan-hilfen.ts`); `devLogin`, `klickeWennRuhig`, `warteAufSpaltenaufteilung`, `warteAufGestreamteInhalte` (`e2e/fixtures.ts`); `setzeAvModus` (`e2e/helpers/avModus.ts`).
 
-Regeln: jeder ausgelöste Server-Action-Aufruf und jeder Upload per `waitForResponse` (Falle 10); jeder Test stellt seinen Zustand selbst her (docs/design/README.md „Ein e2e-Test darf seinen Zustand nicht vom Seed erben") — eigene Pläne, eindeutige Namen mit Zufallsanteil; Seed-Pläne nur ansehen.
+Regeln: jeder ausgelöste Server-Action-Aufruf und jeder Upload per `waitForResponse` (Falle 10), vor dem ersten POST auf `/logo` ein Warmlauf-GET; jeder Test stellt seinen Zustand selbst her (docs/design/README.md „Ein e2e-Test darf seinen Zustand nicht vom Seed erben") — eigene Pläne **und eigene Bibliothekseinträge**, eindeutige Namen mit Zufallsanteil; Seed-Pläne und Seed-Bibliothek nur ansehen. Optionen eines antd-`Select` immer über `.ant-select-item-option` wählen, nie über `getByRole("option")`: in antd 6 (`@rc-component/select`, `virtual` als Vorgabe) tragen nur die Einträge einer 0×0-Hilfsliste um den aktiven Index `role="option"` (Vorbild: die übrigen Specs der Suite, etwa die Lagerbuch-Kategorien). Knöpfe „Speichern" im Bibliotheks-Flyin mit `exact: true` greifen — daneben steht „Speichern und nächste".
 
 - [ ] **Step 1: `e2e/kommplan-bibliothek.spec.ts` schreiben**
 
 ```ts
-import { expect, test, type Response } from "@playwright/test";
+import { expect, test, type Page, type Response } from "@playwright/test";
 import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 import { ADMIN, HOST, ersteStelle, flyinTitel, istAktion, neuerPlan, oeffneEditor, rumpf, speichertNach, url } from "./kommplan-hilfen";
 
@@ -5570,7 +6257,22 @@ import { ADMIN, HOST, ersteStelle, flyinTitel, istAktion, neuerPlan, oeffneEdito
  */
 const neu = () => Math.random().toString(36).slice(2, 7);
 const istBib = (teil: string) => (r: Response) => istAktion(r) && rumpf(r).includes(teil);
-const stellenStatus = (page: import("@playwright/test").Page) => page.locator('section[aria-label="Stellen der Bibliothek"] [role="status"]');
+const stellenStatus = (page: Page) => page.locator('section[aria-label="Stellen der Bibliothek"] [role="status"]');
+
+/** Eine eigene Bibliotheksstelle anlegen — der Test erbt nie die Seed-Bibliothek. */
+async function legeBibStelleAn(page: Page, titel: string, leiter: string, telefon: string) {
+  await page.goto(url("/bibliothek"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Neue Stelle" }));
+  const formular = page.locator(".kp-flyin").getByRole("form", { name: "Stelle der Bibliothek" });
+  await formular.getByLabel("Titel", { exact: true }).fill(titel);
+  await formular.getByLabel("Leiter", { exact: true }).fill(leiter);
+  await formular.getByLabel("Telefon", { exact: true }).fill(telefon);
+  const anlage = page.waitForResponse(istBib(titel));
+  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern", exact: true }));
+  expect((await anlage).status()).toBe(200);
+  await expect(stellenStatus(page)).toContainText(`„${titel}“ gespeichert.`);
+}
 
 test("Zugangsgruppe: kein Weg zur Bibliothek, /bibliothek ist 404", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
@@ -5591,7 +6293,7 @@ test("Stelle anlegen, suchen, Dublette abgewiesen, löschen", async ({ page }) =
   await formular.getByLabel("Titel", { exact: true }).fill(titel);
   await formular.getByLabel("Leiter", { exact: true }).fill("Jana");
   const anlage = page.waitForResponse(istBib(titel));
-  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern" }));
+  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern", exact: true }));
   expect((await anlage).status()).toBe(200);
   await expect(stellenStatus(page)).toContainText(`„${titel}“ gespeichert.`);
   await warteAufGestreamteInhalte(page);
@@ -5601,7 +6303,7 @@ test("Stelle anlegen, suchen, Dublette abgewiesen, löschen", async ({ page }) =
   await klickeWennRuhig(page.getByRole("button", { name: "Neue Stelle" }));
   await formular.getByLabel("Titel", { exact: true }).fill(titel.toUpperCase());
   const doppelt = page.waitForResponse(istBib(titel.toUpperCase()));
-  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern" }));
+  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern", exact: true }));
   expect((await doppelt).status()).toBe(200);
   await expect(page.locator(".kp-flyin")).toContainText("steht schon in der Bibliothek");
   await klickeWennRuhig(formular.getByRole("button", { name: "Abbrechen" }));
@@ -5620,28 +6322,45 @@ test("CSV importieren: Vorschau mit Umlauten aus Windows-1252, Dublette überspr
   await page.goto(url("/bibliothek"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("tab", { name: /^Einheiten/ }));
-  const csv = `Typ;Rufname;Notiz\r\nKTW;${ruf} Großenkneten;Übung\r\nKTW;${ruf.toLowerCase()} großenkneten;\r\nRTW;RK UE 40-83-5;\r\n`;
+  // Zustand selbst herstellen: die Einheit, gegen die die CSV eine Dublette trägt (nie eine Seed-Einheit).
+  await klickeWennRuhig(page.getByRole("button", { name: "Neue Einheit" }));
+  const formular = page.locator(".kp-flyin").getByRole("form", { name: "Einheit der Bibliothek" });
+  await formular.getByLabel("Typ", { exact: true }).fill("RTW");
+  await formular.getByLabel("Rufname", { exact: true }).fill(`${ruf} Basis`);
+  const anlage = page.waitForResponse(istBib(`${ruf} Basis`));
+  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern", exact: true }));
+  expect((await anlage).status()).toBe(200);
+  // Die Vorschau vergleicht gegen die Einheiten aus den Server-Props — erst nach dem `router.refresh()` steht die neue
+  // Einheit darin. Ohne dieses Warten liefe die Vorschau gelegentlich gegen den alten Stand („2 übernehmen").
+  await expect(page.getByRole("table", { name: "Einheiten" })).toContainText(`${ruf} Basis`);
+  await warteAufGestreamteInhalte(page);
+  const csv = `Typ;Rufname;Notiz\r\nKTW;${ruf} Großenkneten;Übung\r\nKTW;${ruf.toLowerCase()} großenkneten;\r\nRTW;${ruf.toLowerCase()}  basis ;\r\n`;
   const bytes = Buffer.from([...csv].map((c) => c.charCodeAt(0))); // Latin-1 = Windows-1252 für diese Zeichen
   await page.locator('input[type="file"][name="csv"]').setInputFiles({ name: "einheiten.csv", mimeType: "text/csv", buffer: bytes });
   const vorschau = page.locator(".kp-flyin").filter({ has: page.getByRole("table", { name: "Vorschau" }) });
   await expect(vorschau).toContainText(`${ruf} Großenkneten`);
   await expect(vorschau).toContainText("doppelt in der Liste");
   await expect(vorschau).toContainText("schon in der Bibliothek");
-  const imp = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(ruf));
+  const imp = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(`${ruf} Großenkneten`));
   await klickeWennRuhig(vorschau.getByRole("button", { name: "1 übernehmen" }));
   expect((await imp).status()).toBe(200);
   await expect(page.locator('section[aria-label="Einheiten der Bibliothek"] [role="status"]')).toContainText("1 angelegt, 0 übersprungen.");
 });
 
 test("Editor: Aus Bibliothek füllt die Stelle, ein Schritt zurück; Gliederung schlägt beim Tippen vor", async ({ page }) => {
+  const leit = `Leitstelle e2e ${neu()}`;
+  const telefon = `0581 ${10_000 + Math.floor(Math.random() * 89_999)}`;
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await legeBibStelleAn(page, leit, "Disponent", telefon); // eigener Eintrag, nie der Seed
   await neuerPlan(page, `e2e Bibliothek ${neu()}`);
   await ersteStelle(page, "EL");
   const auswahl = page.locator(".kp-flyin").getByLabel("Aus Bibliothek", { exact: true });
   await klickeWennRuhig(auswahl);
-  await speichertNach(page, () => klickeWennRuhig(page.getByRole("option", { name: "Leitstelle Uelzen" })));
-  await expect(flyinTitel(page)).toHaveValue("Leitstelle Uelzen");
-  await expect(page.locator(".kp-betrachter")).toContainText("0581 / 82 266");
+  await auswahl.fill(leit.slice(-5)); // gezielt suchen: andere Läufe legen ähnliche Einträge an
+  await speichertNach(page, () => klickeWennRuhig(page.locator(".ant-select-item-option", { hasText: leit })));
+  await expect(flyinTitel(page)).toHaveValue(leit);
+  await expect(flyinTitel(page)).toBeFocused(); // die Wahl lässt den Fokus nicht auf body fallen
+  await expect(page.locator(".kp-betrachter")).toContainText(telefon);
   await page.keyboard.press("Escape");
   await speichertNach(page, () => page.keyboard.press("ControlOrMeta+z"));
   await expect(page.locator(".kp-betrachter")).toContainText("EL");
@@ -5651,15 +6370,37 @@ test("Editor: Aus Bibliothek füllt die Stelle, ein Schritt zurück; Gliederung 
   const titelFeld = page.locator('.kp-gliederung [data-zeile] input[name="titel"]').first();
   await titelFeld.click();
   await titelFeld.fill("");
-  await speichertNach(page, () => titelFeld.pressSequentially("Leit"));
-  await expect(page.getByRole("group", { name: "Vorschläge aus der Bibliothek" })).toContainText("Leitstelle Uelzen");
+  // Bis auf das letzte Zeichen tippen: der eigene Eintrag ist dann der einzige (und erste) Vorschlag.
+  await speichertNach(page, () => titelFeld.pressSequentially(leit.slice(0, -1)));
+  await expect(page.getByRole("group", { name: "Vorschläge aus der Bibliothek" })).toContainText(leit);
   await speichertNach(page, () => titelFeld.press("Alt+Enter"));
-  await expect(titelFeld).toHaveValue("Leitstelle Uelzen");
+  await expect(titelFeld).toHaveValue(leit);
   await expect(titelFeld).toBeFocused();
+});
+
+test.describe("Telefon mit Touch", () => {
+  // `test.use` statt eines eigenen `browser.newContext`: so bleiben alle `use`-Vorgaben aus `playwright.config.ts`
+  // (Basis, Sprache, Zeitzone, Cloud-Einstellungen) erhalten — nur Größe und Touch kommen dazu.
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test("Gliederung am Telefon: Vorschlag per Tippen übernehmen — Titel gefüllt, Feld fokussiert, keine Zeile verloren", async ({ page }) => {
+    const leit = `Leitstelle e2e ${neu()}`;
+    await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+    await legeBibStelleAn(page, leit, "Disponent", "0581 1");
+    await neuerPlan(page, `e2e Telefon ${neu()}`); // am Telefon öffnet der Editor in der Gliederung (Phase 3)
+    const titelFeld = page.locator('.kp-gliederung [data-zeile] input[name="titel"]').first();
+    await titelFeld.tap();
+    const zeilen = await page.locator(".kp-gliederung [data-zeile]").count();
+    await speichertNach(page, () => titelFeld.pressSequentially(leit.slice(0, -1)));
+    await expect(page.locator(".kp-vorschlag-hinweis")).toBeHidden(); // kein Alt-Hinweis ohne Alt-Taste
+    await speichertNach(page, () => page.locator(`[data-vorschlag]`, { hasText: leit }).tap());
+    await expect(titelFeld).toHaveValue(leit);
+    await expect(titelFeld).toBeFocused();
+    await expect(page.locator(".kp-gliederung [data-zeile]")).toHaveCount(zeilen);
+  });
 });
 ```
 
-(Die Greifer auf die Gliederung — `.kp-gliederung`, `[data-zeile]` — aus `e2e/kommplan-gliederung.spec.ts` übernehmen; die Navigation in die Gliederung über `oeffneEditor` führen, wie dort, damit die Standabfrage beim Montieren abgewartet wird.)
+(Die Greifer auf die Gliederung — `.kp-gliederung`, `[data-zeile]` — aus `e2e/kommplan-gliederung.spec.ts` übernehmen; die Navigation in die Gliederung über `oeffneEditor` führen, wie dort, damit die Standabfrage beim Montieren abgewartet wird. Der Telefonfall: ob `neuerPlan` am Telefon ohne Anpassung durchläuft und wo die erste Zeile steht, an `e2e/kommplan-gliederung.spec.ts` (Telefonfälle) angleichen; geprüft wird das Antippen echt mit Touch, nicht nur in jsdom.)
 
 - [ ] **Step 2: `e2e/kommplan-verwaltung.spec.ts` schreiben**
 
@@ -5667,7 +6408,7 @@ test("Editor: Aus Bibliothek füllt die Stelle, ein Schritt zurück; Gliederung 
 import { expect, test } from "@playwright/test";
 import { devLogin, klickeWennRuhig, warteAufSpaltenaufteilung } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
-import { ADMIN, HOST, istAktion, neuerPlan, oeffneEditor, rumpf, url } from "./kommplan-hilfen";
+import { ADMIN, HOST, istAktion, istStandAbfrage, neuerPlan, oeffneEditor, rumpf, url } from "./kommplan-hilfen";
 
 /**
  * Kommunikationspläne, Phase 4: Duplizieren, Vorlagen, Archiv (Spec §6.7, §8.3) und Briefkopf (Spec §4.4).
@@ -5678,19 +6419,24 @@ const neu = () => Math.random().toString(36).slice(2, 7);
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 1" onload="alert(1)"><rect width="4" height="1" fill="#123456"/><script>alert(1)</script></svg>');
 
-test("Duplizieren: Kopie mit heutigem Datum im Titel, direkt im Editor", async ({ page }) => {
+test("Duplizieren: Kopie mit heutigem Datum im Titel, direkt im Editor, mit Hinweis", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const titel = `e2e Tag 01.07.2022 ${neu()}`;
   const id = await neuerPlan(page, titel);
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${titel}` }));
-  const kopie = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(id));
-  await oeffneEditor(page, async () => {
-    await klickeWennRuhig(page.getByRole("menuitem", { name: "Duplizieren" }));
-    expect((await kopie).status()).toBe(200);
-    await page.waitForURL(/\/p\/[0-9a-f-]{36}$/);
-  });
+  const kopie = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id]));
+  // NICHT `oeffneEditor`: dessen `istStandAbfrage` (Action ohne „version", „titel" und „:") passt auch auf den Rumpf
+  // der Duplizieren-Action (`["<id>"]`) und löste an IHR aus statt an der Standabfrage des Editors der Kopie
+  // (Familie der Fallen 10–12). Gezielt: eine Standabfrage, die NICHT die ID des Originals trägt.
+  const stand = page.waitForResponse((r) => istStandAbfrage(r) && !rumpf(r).includes(id));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Duplizieren" }));
+  expect((await kopie).status()).toBe(200);
+  await page.waitForURL(/\/p\/[0-9a-f-]{36}\?kopie=1$/);
+  expect((await stand).status()).toBe(200);
+  await warteAufSpaltenaufteilung(page);
+  await expect(page.getByText(/Kopie angelegt — Titel und Datum stehen auf/)).toBeVisible();
   const heute = await page.evaluate(() => new Intl.DateTimeFormat("de-DE", { timeZone: document.documentElement.dataset.zeitzone || "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date()));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titel.replace("01.07.2022", heute));
 });
@@ -5783,6 +6529,10 @@ test("Briefkopf: ohne Eintrag leer; SVG hochladen wird bereinigt und gedruckt; B
   await page.goto(url("/einstellungen"));
   await speichereName("Musterorganisation e2e");
   setzeAvModus("ok");
+  // Falle 10: ein POST in die Erstkompilierung eines Route Handlers wird unter `next dev` abgebrochen. Der Warmlauf-GET
+  // übersetzt den Handler; 405 ist die Antwort eines übersetzten POST-Handlers (Vorbild: Import-Test der Funkverwaltung).
+  const warmlauf = await page.request.get(url("/logo"));
+  expect(warmlauf.status(), "der Logo-Handler antwortet nicht — der erste echte POST liefe in Falle 10").toBe(405);
   const hoch = page.waitForResponse((r) => r.url().endsWith("/logo") && r.request().method() === "POST");
   await page.locator('input[type="file"][name="logo"]').setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: SVG }); // Name und Typ lügen
   expect((await hoch).status()).toBe(200);
@@ -5856,7 +6606,9 @@ Im Fototest von `e2e/kommplan-editor.spec.ts` je Breite und Modus ergänzen (nur
 - nach `liste-${n}`: `archiv-${n}` (`/archiv`), `bibliothek-stellen-${n}` (`/bibliothek`), `bibliothek-einheiten-${n}` (Reiter „Einheiten"), `bibliothek-flyin-${n}` („Neue Stelle"), `einstellungen-${n}` (`/einstellungen`) — je `await ohneUeberlauf()`;
 - nach `auswahl-${n}`: `auswahl-flyin-${n}` (ea2 gewählt, „Bearbeiten" offen — Auswahlleiste neben dem Flyin);
 - nach `flyin-stelle-${n}`: `flyin-stelle-bibliothek-${n}` (das Flyin nach oben gescrollt, Feld „Aus Bibliothek" sichtbar);
-- `gliederung-vorschlag-${n}`: im Editor eines **eigenen** Plans (`neuerPlan` vor der Schleife) in der Gliederung „Leit" tippen — Vorschläge unter der Zeile (nie am Seed-Plan tippen: Review Focus 6 der Phase 2);
+- `gliederung-vorschlag-${n}`: im Editor eines **eigenen** Plans (`neuerPlan` vor der Schleife) in der Gliederung „Leit" tippen — Vorschläge unter der Zeile (nie am Seed-Plan tippen: Review Focus 6 der Phase 2); dazu am Telefon `gliederung-vorschlag-tief-${n}` an einer Zeile der Ebene 8 (per eingefügter, eingerückter Liste angelegt) — die Vorschläge rücken nicht doppelt ein;
+- `gliederung-einheiten-bib-${n}`: dieselbe Gliederung mit aufgeklappten Einheiten einer Stelle bei gefüllter Bibliothek — Auswahl „Einheiten aus der Bibliothek" und „Hinzufügen" nebeneinander bzw. umgebrochen, nie in der Typspalte;
+- `bibliothek-lang-desktop`: Stellen-Tabelle bei 1440 px mit einer Stelle, deren Notiz 500 Zeichen hat (vorher über die Seite angelegt, danach gelöscht) — keine Spalte rutscht aus dem Bild;
 - `druck-${n}` nur einmal je Modus (Desktop): `/p/beispiel-openr-2022-07-01/druck/a4` mit Briefkopf aus dem Seed („Musterorganisation", ohne Logo).
 
 ```bash
@@ -5871,14 +6623,15 @@ Zusätzlich ein Logo-Foto: einmal von Hand (Playwright-Skript im Scratchpad, **k
 - [ ] **Step 2: Jedes Foto mit Read ansehen**
 
 Prüfliste:
-1. **Auswahlleiste** (`auswahl-*`, `auswahl-flyin-*`): oben links, über keinem Planelement, „+ links"/„+ rechts" lesbar, Name gekürzt mit „…"; im Dunkeln mit sichtbarem Rand; am Telefon eine Zeile, waagerecht scrollbar; neben offenem Flyin ganz links davon. Vergleich mit `phase3-shots/auswahl-*`: nichts verdeckt mehr EA 1/EA 3 oder das Sechseck „TMO BOS_NI_RES_09".
-2. **Planliste/Archiv**: zwei Tabellen mit Überschrift „Vorlagen", Knopf „Aktionen" je Zeile 44 px, Seitenkopf-Links lesbar; Telefon: Karten, Aktionen voll breit, kein Überlauf.
-3. **Bibliothek**: Reiter mit Zahl, Suchfeld und „Neue …" in einer Zeile ab 768 px, untereinander am Telefon; Flyin mit Zeichenwahl und Kontakten; Einheiten-Werkzeuge („Liste einfügen", „CSV importieren") mit Hilfetext.
+1. **Auswahlleiste** (`auswahl-*`, `auswahl-flyin-*`): oben links, über keinem Planelement, Reihenfolge „Bearbeiten", „+ Unterstelle", „+ Einheit", „+ links", „+ rechts", Name gekürzt mit „…"; im Dunkeln mit sichtbarem Rand und sichtbarer Schattenkante; am Telefon eine Zeile ohne Namen, „Bearbeiten" und „+ Unterstelle" ganz im Bild, Schattenkante rechts; neben offenem Flyin ganz links davon. Vergleich mit `phase3-shots/auswahl-*`: nichts verdeckt mehr EA 1/EA 3 oder das Sechseck „TMO BOS_NI_RES_09".
+2. **Planliste/Archiv**: zwei Tabellen mit Überschrift „Vorlagen", Knopf „Aktionen" je Zeile 44 px, Seitenkopf-Links lesbar; Telefon: Karten, „Neu", „Bibliothek", „Einstellungen", „Archiv" voll breit untereinander (am Foto `liste-telefon` gemessen: Breite ≈ Inhaltsbreite), kein Überlauf.
+3. **Bibliothek**: Reiter mit Zahl, Suchfeld und „Neue …" in einer Zeile ab 768 px, untereinander am Telefon; Flyin mit Zeichenwahl und Kontakten, „Speichern und nächste" beim Anlegen; Einheiten-Werkzeuge („Liste einfügen", „CSV importieren") mit Hilfetext; lange Notiz in Lesebreite (`bibliothek-lang-desktop`).
 4. **Einstellungen**: Vorschau des Kopfs als weißes Papier auch im Dunkeln, Logo rechts in der Box, Seitenverhältnis gehalten, Name links daneben, keine Überlappung mit dem Titel; ohne Logo nichts als Platzhalter.
 5. **Druck**: Kopf wie Vorschau; kein rotes Kreuz, kein Rot.
-6. **Gliederung mit Vorschlägen**: unter der aktiven Zeile, eingerückt wie sie, nicht über der nächsten Zeile.
-7. **Flyin einer Stelle**: „Aus Bibliothek" oben, „In Bibliothek übernehmen" unten neben „Stelle löschen", Feld der Einheiten-Bibliothek nicht breiter als das Flyin.
+6. **Gliederung mit Vorschlägen**: unter der aktiven Zeile, eingerückt wie sie (nicht doppelt — auch `gliederung-vorschlag-tief-telefon`), eine Zeile hoch, nicht über der nächsten Zeile; am Telefon ohne Alt-Hinweis.
+7. **Flyin einer Stelle**: „Aus Bibliothek" oben, Titelvorschläge unter dem Titel, „In Bibliothek übernehmen" unten neben „Stelle löschen", Feld der Einheiten-Bibliothek nicht breiter als das Flyin; in der Gliederung (`gliederung-einheiten-bib-*`) dieselbe Auswahl außerhalb des dreispaltigen Einheitenrasters.
 8. Zum Vergleich die Referenzbilder (`…/scratchpad/referenz/*.png`): der Kopf trägt das Logo dort, wo die Vorlage es hatte (rechts oben).
+9. **Durchlauf mit Zählung** (Akzeptanz A1, Kritik): den Plan „Einsatz 22.02.2026" (Referenzbild) einmal von Hand über die Gliederung nachbauen — einmal mit leerer, einmal mit gefüllter Bibliothek (Leitstelle und EAL als Stellen, R_UE_1–3, die 19 Fahrzeuge) — und die Bedienschritte (Klicks plus Tasten außerhalb des reinen Texttippens) zählen. Die Kritik schätzt etwa 105–110 ohne und 60–65 mit Bibliothek nach den Änderungen dieser Fassung; die gemessenen Zahlen mit dem Weg (wo die Schritte hingehen) in „Abweichungen bei der Umsetzung" eintragen. Liegt „mit Bibliothek" nicht deutlich darunter, ist das ein Befund für den Hauptlauf, kein Grund, die Zählung zu schönen.
 
 - [ ] **Step 3: Befunde beheben**
 
@@ -5943,6 +6696,8 @@ Expected: alles Exit 0. Bekannt und nicht Teil dieser Arbeit: `scripts/backup-si
 | Hauptlauf: Release-Notiz ehrlich zum Stand nach Phase 4, eine Notiz | 22, 24 |
 | Hauptlauf: Screenshots hell/dunkel, 1440×900, 1024×768, 390×844 | 24 |
 | Hauptlauf: Phase 5 (Token, QR, A3, SVG-Export, Schwarzweiß) nicht angefasst | Global Constraints |
+| Kritik: Upload in linearer Zeit (Typprüfung, SVG-Bereinigung), Review Focus 9 | 2, 3 |
+| Kritik: Bedienaufwand (Akzeptanz A1) als gezählter Durchlauf | 24 |
 
 ## Abweichungen bei der Umsetzung
 
@@ -5954,8 +6709,48 @@ Was sich erst am laufenden Code zeigt. Jede Zeile nennt die Aufgabe, in der die 
 ## An den Hauptlauf (offene Annahmen, ClickUp fasst diese Umsetzung nicht an)
 
 1. **Volume `kommplan_scan` auf dem Zielhost** (Entscheidung 4): lokal und in der CI liest der Fake-clamd den Pfad selbst; ob das neue benannte Volume auf dem Server den Eigentümer aus dem Image übernimmt (Dockerfile `mkdir`/`chown`, wie `/data/files`) und clamd es lesen darf (gemeinsame gid, `SUITE_USER`), sieht erst der Rollout. Fehlt es, scheitert **jeder** Logo-Upload laut mit „Die Virenprüfung ist gerade nicht möglich" (fail-closed), sonst bleibt alles heil. Nach dem Rollout einmal ein Logo hochladen. Nebenbefund zur Prüfung: `aufgaben_data` wird im `Dockerfile` nicht angelegt — ob dort derselbe Eigentümer-Effekt greift, ist hier nicht geprüft (Ticketkandidat, falls der Rollout es bestätigt).
-2. **Entscheidung 7 bestätigen:** „Als Vorlage speichern" setzt `ist_vorlage` am Plan selbst (Spec §6.7 wörtlich); die Alternative „Kopie als Vorlage" ist eine Zeile in `planverwaltung.ts` plus Wortlaut in Oberfläche, Tests und Notiz.
+2. **Entscheidung 7 bestätigen:** „Als Vorlage speichern" setzt `ist_vorlage` am Plan selbst (Spec §6.7 wörtlich); die Alternative „Kopie als Vorlage" ist eine Zeile in `planverwaltung.ts` plus Wortlaut in Oberfläche, Tests und Notiz. **Die Kritik empfiehlt die Kopie:** heute wandert der echte Einsatzplan (samt Datum im Titel) aus „Pläne" in „Vorlagen", und spätere Korrekturen am Einsatz verändern die Vorlage still. Entscheidung 8 dieser Fassung (Datum im Titel beim „Neu aus Vorlage" ersetzt, Datum heute) mildert den ersten Teil, nicht den zweiten.
 3. **Alt+Enter unter Windows** (Entscheidung 14) ist ungeprüft (hier läuft nur macOS), wie Alt+V/Alt+Z in Phase 3 (U16).
 4. **Kopfzeilen am Route Handler** (Entscheidung 3): die Herkunftsprüfung setzt voraus, dass hinter dem Reverse-Proxy `Origin` und `x-forwarded-host` (bzw. `host`) dieselbe Domain tragen; lokal und in der e2e ist das so, auf dem Zielhost unbelegt. Trifft es nicht zu, lehnt jeder Upload mit 403 ab (laut, nicht still). Nach dem Rollout einmal hochladen.
 5. **`<image>` per `<use>` aus einem anderen Inline-SVG im Druck** (Entscheidung 6): dass `<use>` über SVG-Grenzen eines Dokuments trägt, belegen bisher nur `<symbol>`s; für ein `<image>` mit `data:`-URI im Chrome-Druck/„Als PDF sichern" belegt es erst die Sichtprüfung (Task 24, Foto `druck-logo-…`) bzw. ein Blick ins PDF. Trägt es nicht, je Blatt ein eigenes `<image>` (Größe × Blattzahl) oder das Logo in `<defs>` jedes Blatts — Entscheidung im Befund.
 6. **Keine Modulnavigation** (Entscheidung 1): Bibliothek, Einstellungen und Archiv hängen an Links im Seitenkopf der Planliste. Eine Seitenleiste wäre konsistenter mit anderen Verwaltungsmodulen, verkleinerte aber die Editorfläche bei 1024 px um 218 px und machte die Geometrie aus Phase 2/3 ungültig.
+
+## Kritik eingearbeitet/verworfen
+
+Jeder Befund wurde am Code bzw. am Plantext geprüft, bevor er übernommen wurde. „Teilweise" heißt: Problem bestätigt, Abhilfe anders als vorgeschlagen.
+
+| # | Befund | Ergebnis | Wo / Begründung |
+|---|---|---|---|
+| 1 | `SVG_ANFANG` mit geschachteltem Quantor läuft exponentiell | teilweise | Problem bestätigt (selbst gemessen: 24 Leerzeichen ≈ 15 ms, Verdopplung je zwei Zeichen; die Kritik nennt 26 ≈ 0,5 s). Der vorgeschlagene Ersatz-Regex mit einzelnem `\s` hängt aber weiter: `"<!-- a -->".repeat(30000)+"x"` lief nach Minuten noch, weil `<!--[\s\S]*?-->` über mehrere Kommentare reichen kann. Stattdessen ein Vorspann-Scanner mit `indexOf` (Task 2), Tests mit 100 000 Leerzeichen, Kommentaren und Deklarationen, Grenze 1 s statt 100 ms (Load). |
+| 2 | CSS-Regexe und `URL_FN` quadratisch | eingearbeitet | Selbst gemessen (40 000 Zeichen ohne Klammer ≈ 0,8 s, 10 000 × `url(` ≈ 0,7 s, 40 000 × `@` ≈ 0,9 s). Linearer Zerleger für `<style>`, Kommentare und `url(` per `indexOf`, `<style>` über 64 KB abgelehnt (Task 3); Gegenprobe mit der alten Form macht den Laufzeittest rot. Den vorgeschlagenen Deckel für **Attributwerte** nicht übernommen: ein Pfad-`d` oder ein eingebettetes PNG ist legitim größer als 64 KB; alle Prüfungen darauf sind linear und mit 250 000 × `url(` und 150 000 Pfadsegmenten getestet. |
+| 3 | `Bibliothek.test.tsx` sucht Flyin-Inhalt im Mount-Wirt | eingearbeitet | `query`/`fill`/`submitForm` des Harness suchen nur im Wirt (bestätigt). Lokale `fillPortal`/`submitPortal`, `queryPortal` für Flyin-Inhalt (Task 17); Regel in den Global Constraints. |
+| 4 | `Griffe.test.tsx` fehlt in Task 21 | eingearbeitet | Die Datei prüft `.kp-griffleiste` und Inline-`top` (bestätigt). Ganz ersetzt: Reihenfolge, Seitenstelle, `maxWidth`, nur Auswahlrahmen an der Karte; Ankerschritt ergänzt. |
+| 5 | `verbindungsOptionen.test`: „DMO 608" steht im Testplan | eingearbeitet | Bestätigt. `b2` ist jetzt „DMO 609", zusätzlich `b3` „DMO 608" als TMO für „andere Art → Option" (Task 20). |
+| 6 | `oeffneEditor` löst an der Duplizieren-Antwort aus | eingearbeitet | `istStandAbfrage` passt auf `["<id>"]` (bestätigt). Im e2e gezielt auf eine Standabfrage ohne die Original-ID gewartet, die Action-Signatur bleibt (Task 23). |
+| 7 | `getByRole("option")` trifft in antd 6 nicht | eingearbeitet | Bestätigt (`@rc-component/select`, virtuelle Liste); `.ant-select-item-option` wie in den übrigen Specs, Regel im Kopf von Task 23. |
+| 8, 21 | e2e erbt Seed-Bibliothek | eingearbeitet | Beide Tests legen ihre Einheit bzw. Stelle (mit Leiter und Telefon) über die Bibliotheksseite selbst an; Helfer `legeBibStelleAn` (Task 23). |
+| 9 | `plaene.test.ts`: dritter Fall und Länge | eingearbeitet | Bestätigt; Vorlage in `listePlaene(db, "vorlagen")` suchen, Länge gegen Nicht-Vorlagen (Task 11). |
+| 10 | `NeuerPlan.test.tsx`: exakte Erwartung ohne `vorlage`, Mockname, `abwarten` | eingearbeitet | Bestätigt; bestehender Fall um `vorlage: null` ergänzt, neue Fälle mit `aktion.legePlanAnAction` und `await act(async () => {})` (Task 13). |
+| 11 | `ladeSymbole(zeichenImPlan(neu))` nach jedem `aendere` | eingearbeitet | `symboleFuerSchluessel` lässt Unbekanntes weg (bestätigt) → Abruf je Taste. Nachladen nur in den Kopierwegen über die vorhandenen `ladeSymbole`-Props von Flyin und Gliederung (kein Kontext nötig, kein instabiler Wert im Kontext); `zeichenImPlan` entfällt; Editor-Test „Tippen löst keinen Abruf aus" als Gegenprobe (Tasks 18, 19). |
+| 12 | Seed druckt „DRK Kreisverband …" als Bearbeiter | eingearbeitet | Bestätigt in den Beispielen „Label" und „OpenR"; neutral „Kreisbereitschaftsleitung"/„KBL", Suche um „DRK\|Kreisverband" erweitert. Kontaktwerte mit „drk" in Beispielen und Tests bleiben — Planinhalt, kein Briefkopf (Task 7). |
+| 13 | Spec §6.3: Punkt ist zweizeilig | eingearbeitet | Bestätigt; Ersatz auf zwei Zeilen (Task 21). |
+| 14 | `useBibliothek` in `VerbindungFeld` wäre ein bedingter Hook | eingearbeitet | Bestätigt (früher Rücksprung für die oberste Ebene); Platz direkt nach `useState` (Task 20). |
+| 15 | Warmlauf-GET vor dem ersten POST auf `/logo` fehlt | eingearbeitet | Global Constraints und Briefkopf-e2e (405 erwartet, Task 23). |
+| 16 | 403 der Herkunftsprüfung ohne `access_denied` | eingearbeitet | Bestätigt gegen die Route von `aufgaben` und `coverage.test.ts`. `auditDenied` im 403-Zweig, Manifest-Eintrag mit `denial`, Liste `expected` ergänzt, Zusicherung im Routentest nach dem Muster von `aufgaben` (Task 6). Die Rechte-Ablehnung auditiert `requireKommplanBearbeitenAktion` schon selbst. |
+| 17 | `kp-zeile` an der Bibliothekszeile der Einheiten | eingearbeitet | Bestätigt (`.kp-g-einheiten .kp-zeile` dreispaltig ab 768 px). Eigene Klasse `.kp-bib-einheiten` mit `flex-wrap`, Foto der Gliederung mit aufgeklappten Einheiten (Tasks 19, 24). |
+| 18 | Kopfaktionen am Telefon nicht voll breit | eingearbeitet | Bestätigt (Aktionsbehälter des Kern-`Seitenkopf` ohne Klasse). `div:has(> .kp-kopfaktionen)` im Telefon-Block, Messung am Foto (Tasks 8, 24). |
+| 19 | Freitextspalten ohne `Zellentext` | eingearbeitet | Notiz (drei Bereiche, Vorschau) und Kontakte über `Zellentext` — API ist die Prop `text`, nicht Kinder; Test über den Testgriff `data-zellentext`, Foto mit 500-Zeichen-Notiz (Tasks 17, 24). |
+| 20 | `.kp-g-vorschlaege` rückt doppelt ein | eingearbeitet | Bestätigt (`.kp-g-zeile` ist schon eingerückt). Regel ohne Ebenenterm, CSS-Test, Foto an tiefer Zeile am Telefon (Tasks 20, 24). |
+| 21a | `role="toolbar"` ohne Pfeiltasten | eingearbeitet | `role="group"` (Task 21). |
+| 21b | 2./3. Titelvorschlag ohne Tastatur unerreichbar | teilweise | Alt+1…3 **verworfen**: Alt+Ziffer wechselt in Chrome und Firefox unter Linux den Browser-Tab und erreicht die Seite nicht verlässlich; Alt+Enter-Weiterschalten trägt nicht, weil die Vorschläge nach der ersten Übernahme neu berechnet werden. Stattdessen: im Stellen-Flyin dieselben Vorschläge als echte Tabstopps plus die gezielte Suche „Aus Bibliothek" — der dokumentierte Weg ohne Zeiger (Entscheidung 14, Task 19). In der Gliederung bleibt Tab dem Einrücken. |
+| 22 | Langer Titel läuft in Organisation/Logo | eingearbeitet | `kopfTitel` (halbe Punkte bis 10 pt, dann „…"), Organisation auf 80 mm gedeckelt, Test mit 200-Zeichen-Titel (Task 7). |
+| 23 | Gesamtaufwand (A1) | eingearbeitet | Über die Einzelbefunde 24–31 und einen gezählten Durchlauf in Task 24; die Schätzung der Kritik ist dort als Vergleich genannt, nicht als Zusage. |
+| 24 | „Neu aus Vorlage" übernimmt altes Datum | eingearbeitet | Titel per `ersetzeDatumImTitel(…) ?? titel` (nicht `titelFuerKopie`, das „ (Kopie)" anhinge), Datum heute, Anlass übernommen — nur bei gewählter Vorlage (Entscheidung 8, Task 13). Die Empfehlung „Als Vorlage speichern = Kopie" steht bei „An den Hauptlauf", Punkt 2; Entscheidung 7 bleibt bis dahin beim Wortlaut der Spec. |
+| 25 | Mehrfachauswahl leert die Suche, keine Doppel-Warnung | eingearbeitet | `autoClearSearchValue: false` (in `@rc-component/select` 1.10.1 Teil von `showSearch`, bestätigt); hier vorhandene gesperrt, anderswo eingesetzte mit „— schon bei …" und hinten; `einsatzOrte` als reine Funktion (Tasks 18, 19). |
+| 26 | Fokusverlust an drei Stellen | eingearbeitet | „Aus Bibliothek" → Fokus ins Titelfeld (Effekt nach der Neumontage), „Hinzufügen" → zurück in die Auswahl, „In Bibliothek übernehmen" nur `loading`; je ein DOM-Test auf `document.activeElement` (Task 19). |
+| 27 | Auswahlleiste am Telefon, „Bearbeiten" außerhalb | eingearbeitet | Reihenfolge „Bearbeiten" zuerst, Name unter 768 px ausgeblendet, Schattenkante per reinem CSS mit `--kp-*`-Token für hell/dunkel, e2e bei 390 × 844 (Entscheidung 15, Task 21). |
+| 28 | Titelvorschläge nur in der Gliederung | eingearbeitet | Dieselbe Komponente unter dem Titelfeld des Flyins, Alt+Enter dort ebenso (`onPressEnter` ignoriert Alt), Test (Task 19). |
+| 29 | „In Bibliothek übernehmen" nur für Stellen | teilweise | Eingearbeitet: Einheiten der Stelle über die Import-Action (`ImportErgebnis` trägt jetzt `eintraege`), Verbindungen des Plans über **eine** neue Action `importiereBibVerbindungenAction` (keine Schleife einzelner Aufrufe — Server Actions laufen nacheinander und stellten sich vor das Autosave), Stellen-Dublette mit „Eintrag in der Bibliothek aktualisieren" (Tasks 14, 16, 19). Verworfen: „Aus einem Plan übernehmen" auf der Bibliotheksseite — die Wege im Editor decken denselben Zweck, ein zweiter Importweg wäre eine weitere Oberfläche ohne neuen Nutzen. |
+| 30 | Eingefügte Gliederung gleicht nicht mit der Bibliothek ab | eingearbeitet | `bibStellenTreffer` (rein) und Hinweis mit „Angaben übernehmen" in einem Rückgängig-Schritt; der Hinweis des Editors bekommt dafür eine Aktion (Tasks 13, 18, 20). |
+| 31 | Duplizieren ohne Rückmeldung, Doppelklick | eingearbeitet | „Aktionen" der Zeile `loading`, andere gesperrt bis zur Navigation; `?kopie=1` zeigt im Editor einmal den Hinweis mit „Angaben ändern" (Entscheidung 9, Task 13). „Duplizieren" in der Kopfleiste des Editors nicht übernommen (optional in der Kritik; die Kopfleiste ist am Telefon schon voll). |
+| 32 | Bibliotheks-Flyin ohne Fokus, kein „Speichern und nächste" | eingearbeitet | Fokus im ersten Feld (Effekt, `autoFocus={false}` am `Drawer` wie im Editor), „Speichern und nächste" beim Anlegen, DOM-Test (Entscheidung 11, Task 17). |
