@@ -11,6 +11,8 @@ import type { KopieTitelArt } from "./tagesfassung";
  * Zurückgegeben statt geworfen, weil Next Fehlermeldungen aus Actions im Produktionsbau ersetzt.
  */
 export type FeldFehler = Record<string, string>;
+/** Was die Oberfläche zeigt, wenn ein Action-Aufruf gar nicht ankommt (`.catch`) — ein Text für alle Flächen. */
+export const NETZFEHLER = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 export interface Speicherstand { version: number; inhalt: PlanInhalt | null; angaben: Planangaben; aktualisiertAm: number; aktualisiertVon: string }
 export type SpeicherErgebnis =
   | { ok: true; version: number; aktualisiertAm: number }

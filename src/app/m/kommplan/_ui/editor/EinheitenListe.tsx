@@ -11,6 +11,7 @@ import { GRENZE, LAENGE, type PlanInhalt, type Stelle } from "../../_lib/plan/sc
 import type { Aendere } from "./aendere";
 import { useBibliothek } from "./bibliothekKontext";
 import { neueId, neueIds } from "./ids";
+import { NETZFEHLER } from "../../_lib/ergebnis";
 
 /**
  * EINHEITEN (Spec §6.4): einzeln oder „Liste einfügen" (je Zeile erstes Wort Typ, Rest Rufname).
@@ -56,7 +57,7 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus, ladeSymbole }: 
     if (zeilen.length === 0) return;
     setBibLaeuft(true);
     const r = await importiereBibEinheitenAction(zeilen.map((e) => ({ typ: e.typ, rufname: e.rufname, notiz: null, zeichen: e.zeichen })))
-      .catch(() => ({ ok: false as const, fehler: NETZ }));
+      .catch(() => ({ ok: false as const, fehler: NETZFEHLER }));
     setBibLaeuft(false);
     if (r.ok) { merke({ einheiten: r.eintraege }); setBibMeldung(`${r.angelegt} angelegt, ${r.uebersprungen} schon vorhanden.`); }
     else setBibMeldung(r.fehler);
@@ -123,7 +124,6 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus, ladeSymbole }: 
   );
 }
 
-const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
 /**
  * Optionen der Einheitenauswahl (Entscheidung 13): an DIESER Stelle schon vorhandene Fahrzeuge gesperrt, an einer

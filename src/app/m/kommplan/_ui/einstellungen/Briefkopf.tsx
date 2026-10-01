@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Input, Popconfirm } from "antd";
 import { entferneLogoAction, speichereOrganisationAction } from "../../_actions/briefkopf";
 import { LAENGE_ORGANISATION } from "../../_lib/angaben";
-import type { EinfachErgebnis, LogoErgebnis } from "../../_lib/ergebnis";
+import { NETZFEHLER, type EinfachErgebnis, type LogoErgebnis } from "../../_lib/ergebnis";
 import { LOGO_ANNAHME, LOGO_TYP_NAME, type LogoTyp } from "../../_lib/logo/logoTyp";
 
-const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
 /**
  * BRIEFKOPF BEARBEITEN (Spec §4.4; Umsetzungsplan Phase 4, Entscheidungen 3–6). Organisation per Server
@@ -33,20 +32,20 @@ export function BriefkopfFormular({ organisation, logo }: { organisation: string
   async function speichereName(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLaeuft(true);
-    nach(await speichereOrganisationAction({ organisation: name }).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ })), "Organisation gespeichert.");
+    nach(await speichereOrganisationAction({ organisation: name }).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZFEHLER })), "Organisation gespeichert.");
   }
   async function lade(f: File) {
     setLaeuft(true);
     const fd = new FormData();
     fd.set("logo", f);
     let r: LogoErgebnis;
-    try { r = await (await fetch("/logo", { method: "POST", body: fd })).json(); } catch { r = { ok: false, fehler: NETZ }; }
+    try { r = await (await fetch("/logo", { method: "POST", body: fd })).json(); } catch { r = { ok: false, fehler: NETZFEHLER }; }
     if (datei.current) datei.current.value = ""; // dieselbe Datei darf gleich noch einmal gewählt werden
     nach(r, r.ok ? `Logo übernommen (${LOGO_TYP_NAME[r.typ]}).` : "");
   }
   async function entferne() {
     setLaeuft(true);
-    nach(await entferneLogoAction().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ })), "Logo entfernt.");
+    nach(await entferneLogoAction().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZFEHLER })), "Logo entfernt.");
   }
 
   return (

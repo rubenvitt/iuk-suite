@@ -4,9 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "antd";
 import { stelleWiederHerAction } from "../../../_actions/verwaltung";
-import type { EinfachErgebnis } from "../../../_lib/ergebnis";
+import { NETZFEHLER, type EinfachErgebnis } from "../../../_lib/ergebnis";
 
-const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
 /**
  * „Wiederherstellen" am archivierten Plan (Entscheidung 10) — danach öffnet die Seite neu im Editor. Eine Laufsperre
@@ -23,7 +22,7 @@ export function Wiederherstellen({ id }: { id: string }) {
     sperre.current = true;
     setLaeuft(true);
     setFehler(null);
-    const r = await stelleWiederHerAction(id).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
+    const r = await stelleWiederHerAction(id).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZFEHLER }));
     if (r.ok) { router.refresh(); return; } // bleibt gesperrt, bis die Seite als Editor neu steht
     sperre.current = false;
     setLaeuft(false);
