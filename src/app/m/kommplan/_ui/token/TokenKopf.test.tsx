@@ -21,6 +21,10 @@ describe("TokenKopf (Entscheidung 8)", () => {
     expect(query("button").textContent).toBe("Drucken");
     expect(query("[data-token-stand]").closest(".kp-token-links")).not.toBeNull();
   });
+  it("ohne Namen der bearbeitenden Person nur der Stand (Abnahme: keine E-Mail-Adresse auf der login-freien Seite)", async () => {
+    await mount(<TokenKopf plan={{ ...PLAN, aktualisiertVon: "" }} kopf={{ organisation: null, logo: null }} token={"T".repeat(43)} />);
+    expect(query("[data-token-stand]").textContent).toBe("Stand 30.09.2026, 14:05");
+  });
   it("„Drucken“ öffnet den Druck DIESES Tokens — nie einen Planpfad", async () => {
     const auf = vi.spyOn(window, "open").mockReturnValue(null);
     const token = "Ab_-".repeat(10) + "xyz";

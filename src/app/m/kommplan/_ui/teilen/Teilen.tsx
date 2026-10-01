@@ -99,7 +99,7 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
     // Hervorgehoben nur, solange er gültig ist: widerrufen wanderte der Rahmen sonst mit nach „Abgelaufen und widerrufen“.
     <li key={f.id} className="kp-freigabe" data-freigabe={f.id} data-neu={f.id === neu && f.status === "gueltig" ? "" : undefined}>
       <p className="kp-freigabe-notiz">{f.notiz ?? "ohne Notiz"}</p>
-      <p className="kp-hilfe">{`${ablaufText(f)} · ausgestellt ${ZEIT.format(f.erstelltAm)} von ${f.erstelltVon}`}</p>
+      <p className="kp-hilfe">{`${ablaufText(f)} · ausgestellt ${ZEIT.format(f.erstelltAm)}${f.erstelltVon.trim() ? ` von ${f.erstelltVon}` : ""}`}</p>
       <p className="kp-hilfe">{abrufText(f)}</p>
       {basis ? <p className="kp-freigabe-link" data-link="">{tokenUrl(basis, f.token)}</p> : null}
       {f.status === "gueltig" ? (

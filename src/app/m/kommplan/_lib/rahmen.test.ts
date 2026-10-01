@@ -14,6 +14,9 @@ describe("Rahmentexte", () => {
       vermerkVsNfD: true, organisation: "Musterorganisation", logo: null,
     });
   });
+  it("ohne Namen (leer gespeichert) keine Angabe „Bearbeitung“ — nie E-Mail oder Kennung (Abnahme)", () => {
+    expect(rahmenFuer({ titel: "T", anlass: null, datum: null, aktualisiertAm: 0, aktualisiertVon: "", vermerkVsNfD: false, kopf: { organisation: null, logo: null } }).bearbeiter).toBe("");
+  });
   it("ohne Anlass und Datum kein Untertitel", () => {
     expect(rahmenFuer({ titel: "T", anlass: null, datum: null, aktualisiertAm: 0, aktualisiertVon: "x", vermerkVsNfD: false, kopf: { organisation: null, logo: null } }).untertitel).toBeNull();
   });

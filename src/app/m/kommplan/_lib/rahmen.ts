@@ -19,7 +19,7 @@ export function rahmenFuer(p: {
     titel: p.titel,
     untertitel: teile.length > 0 ? teile.join(" · ") : null,
     stand: `Stand: ${STAND.format(p.aktualisiertAm)}`,
-    bearbeiter: `Bearbeitung: ${p.aktualisiertVon}`,
+    bearbeiter: p.aktualisiertVon.trim() === "" ? "" : `Bearbeitung: ${p.aktualisiertVon}`,
     vermerkVsNfD: p.vermerkVsNfD,
     organisation: p.kopf.organisation,
     logo: p.kopf.logo,

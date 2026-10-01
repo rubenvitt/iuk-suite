@@ -54,6 +54,13 @@ describe("Blattansicht", () => {
     }
     expect(html).toMatch(/transform="translate\([\d.]+ [\d.]+\) scale\([\d.]+\)"/);
   });
+  it("Fuß: Stand · Bearbeitung; ohne Namen nur der Stand, ohne leeren Trenner (Abnahme)", () => {
+    const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
+    expect(renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={rahmen} symbole={{}} />))
+      .toContain(">Stand: 30.09.2026, 11:56 · Bearbeitung: Kreisbereitschaftsleiter<");
+    expect(renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, bearbeiter: "" }} symbole={{}} />))
+      .toContain(">Stand: 30.09.2026, 11:56<");
+  });
   it("ohne VS-NfD-Vermerk steht er nicht da", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
     expect(renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, vermerkVsNfD: false }} symbole={{}} />))

@@ -92,7 +92,7 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
           // Knöpfe UNTER dem Text, nicht als `action` daneben: am Telefon blieb dem Text sonst eine Spalte von
           // rund 80 px (Review Phase 2); `kp-formular-knoepfe` stellt sie schmal untereinander, breit nebeneinander.
           description={<>
-            <p className="kp-konflikt-text">{`Gespeichert um ${UHR.format(zustand.konflikt.aktualisiertAm)} von ${zustand.konflikt.aktualisiertVon}. Deine letzten Änderungen am Diagramm sind noch nicht gespeichert. „Meine Fassung behalten“ überschreibt das Diagramm; die Planangaben der anderen Fassung bleiben.`}</p>
+            <p className="kp-konflikt-text">{`Gespeichert um ${UHR.format(zustand.konflikt.aktualisiertAm)}${zustand.konflikt.aktualisiertVon.trim() ? ` von ${zustand.konflikt.aktualisiertVon}` : " von jemand anderem"}. Deine letzten Änderungen am Diagramm sind noch nicht gespeichert. „Meine Fassung behalten“ überschreibt das Diagramm; die Planangaben der anderen Fassung bleiben.`}</p>
             <div className="kp-formular-knoepfe"><Button onClick={onNeuLaden}>Neu laden</Button><Button type="primary" onClick={onBehalten}>Meine Fassung behalten</Button></div>
           </>} />
       ) : null}

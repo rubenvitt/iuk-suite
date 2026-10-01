@@ -66,7 +66,9 @@ describe("Bearbeiten-Riegel für Server Actions", () => {
   });
   it("Bearbeiter: Kennung aus dem Audit-Akteur, Name mit Rückfall", () => {
     expect(bearbeiterAus({ sub: "u1", name: " Jana ", groups: [] } as never)).toEqual({ nutzer: "u1", name: "Jana" });
-    expect(bearbeiterAus({ id: "u2", email: "ole@x.de", groups: [] } as never)).toEqual({ nutzer: "u2", name: "ole@x.de" });
+    // Ohne Namen bleibt die Angabe leer — nie E-Mail oder Kennung (Ausdruck, Token-Ansicht; Abnahme)
+    expect(bearbeiterAus({ id: "u2", email: "ole@x.de", groups: [] } as never)).toEqual({ nutzer: "u2", name: "" });
+    expect(bearbeiterAus({ sub: "u3", name: "  ", email: "x@y.de", groups: [] } as never)).toEqual({ nutzer: "u3", name: "" });
   });
 });
 

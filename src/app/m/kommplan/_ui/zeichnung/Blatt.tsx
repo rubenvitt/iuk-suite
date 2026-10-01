@@ -139,7 +139,7 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
       {/* Fuß */}
       {rahmen.vermerkVsNfD ? <text x={BLATT.randX} y={fussY} fontSize={pt(8)}>VS – nur für den Dienstgebrauch</text> : null}
       <text x={p.breite / 2} y={fussY} fontSize={pt(8)} textAnchor="middle">
-        {`${rahmen.stand} · ${rahmen.bearbeiter}${blatt.unterMindestschrift ? " · Schrift unter 6 pt" : ""}`}
+        {[rahmen.stand, rahmen.bearbeiter, blatt.unterMindestschrift ? "Schrift unter 6 pt" : ""].filter((t) => t !== "").join(" · ")}
       </text>
       <text x={rechts} y={fussY} fontSize={pt(8)} textAnchor="end">{`Blatt ${blatt.nummer} von ${blatt.von}`}</text>
     </svg>

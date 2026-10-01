@@ -25,7 +25,7 @@ export function TokenKopf({ plan, kopf, token }: { plan: TokenKopfPlan; kopf: Ko
       <div className="kp-token-links">
         <h1>{plan.titel}</h1>
         <p className="kp-token-zeile" data-token-angaben="">{angaben}</p>
-        <p className="kp-token-zeile" data-token-stand="">{`Stand ${STAND.format(plan.aktualisiertAm)} · Bearbeitung: ${plan.aktualisiertVon}`}</p>
+        <p className="kp-token-zeile" data-token-stand="">{`Stand ${STAND.format(plan.aktualisiertAm)}${plan.aktualisiertVon.trim() ? ` · Bearbeitung: ${plan.aktualisiertVon}` : ""}`}</p>
         {plan.vermerkVsNfD ? <p className="kp-token-vermerk" data-vermerk="">VS – nur für den Dienstgebrauch</p> : null}
       </div>
       {kopf.organisation || kopf.logo ? (

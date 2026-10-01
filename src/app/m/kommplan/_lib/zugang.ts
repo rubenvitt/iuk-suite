@@ -70,9 +70,14 @@ export async function requireKommplanBearbeitenAktion(): Promise<Viewer> {
   return viewer;
 }
 
-/** Kennung für `plan_bearbeitung.nutzer`, Anzeigename für `plan.aktualisiert_von` (gedruckter „Bearbeitung: …"). */
+/**
+ * Kennung für `plan_bearbeitung.nutzer`, Anzeigename für `plan.aktualisiert_von` (gedruckter „Bearbeitung: …").
+ * NUR EIN ECHTER NAME, sonst leer (Abnahme kommplan): der Name steht auf jedem Ausdruck und in der login-freien
+ * Token-Ansicht — ersatzweise E-Mail-Adresse oder `sub` wären dort ein personenbezogenes Datum. Leer lassen die
+ * Leser die Angabe weg (`rahmen.ts`, `TokenKopf`, Konflikt in der Kopfleiste, Teilen).
+ */
 export function bearbeiterAus(viewer: Viewer): Bearbeiter {
   const akteur = auditActor(viewer);
   const nutzer = akteur.kind === "user" ? akteur.id : "unbekannt";
-  return { nutzer, name: viewer.name?.trim() || viewer.email?.trim() || nutzer };
+  return { nutzer, name: viewer.name?.trim() ?? "" };
 }
