@@ -20,7 +20,7 @@ const neu = () => Math.random().toString(36).slice(2, 7);
  */
 const LAUF = randomBytes(2).toString("hex");
 const ip = (n: number) => `2001:db8:${LAUF}::${n}`;
-const TOKEN_URL = new RegExp(`^${url("/t/").replace(/[.]/g, "\\.")}[A-Za-z0-9_-]{43}$`);
+const TOKEN_URL = new RegExp(`^${url("/t/").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[A-Za-z0-9_-]{43}$`);
 
 async function anonym(browser: Browser, ip: string): Promise<Page> {
   const kontext = await browser.newContext({ extraHTTPHeaders: { "cf-connecting-ip": ip } });
