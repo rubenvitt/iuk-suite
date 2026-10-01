@@ -86,5 +86,39 @@ describe("PlanTabelle", () => {
     expect(document.body.textContent).toContain("01.10.2026");
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
     expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Wiederherstellen"]);
+    // Der Eintrag ruft wirklich die Wiederherstellung (Review Phase 4: ein vertauschter Aufruf blieb unbemerkt).
+    aktion.wiederher.mockResolvedValue({ ok: true });
+    await clickElement(knopf("Wiederherstellen"));
+    await abwarten();
+    expect(aktion.wiederher).toHaveBeenCalledWith("p1");
+    expect(aktion.archiviere).not.toHaveBeenCalled();
+    expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("„Einsatz“ wiederhergestellt.");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+  it("Vorlagenliste: „Keine Vorlage mehr“ setzt vorlage:false und meldet die Rückkehr unter „Pläne“", async () => {
+    aktion.vorlage.mockResolvedValue({ ok: true });
+    await mount(<PlanTabelle zeilen={[ZEILEN[1]]} liste="vorlagen" darfBearbeiten />);
+    await clickElement(query('tr[data-row-key="p2"] button[aria-label="Aktionen für Label"]'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Keine Vorlage mehr", "Archivieren"]);
+    await clickElement(knopf("Keine Vorlage mehr"));
+    await abwarten();
+    expect(aktion.vorlage).toHaveBeenCalledWith({ id: "p2", vorlage: false });
+    expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("„Label“ steht wieder unter „Pläne“.");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+  it("„Rückgängig“ nach dem Archivieren: ein Doppelklick schickt EINE Wiederherstellung (sonst „gibt es nicht mehr“ über dem Erfolg)", async () => {
+    aktion.archiviere.mockResolvedValue({ ok: true });
+    let fertig!: (r: unknown) => void;
+    aktion.wiederher.mockReturnValue(new Promise((r) => { fertig = r; }));
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten />);
+    await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
+    await clickElement(knopf("Archivieren"));
+    await abwarten();
+    await clickElement(knopf("Rückgängig"));
+    await clickElement(knopf("Rückgängig"));
+    await act(async () => { fertig({ ok: true }); });
+    await abwarten();
+    expect(aktion.wiederher).toHaveBeenCalledTimes(1);
+    expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("Wiederhergestellt.");
   });
 });

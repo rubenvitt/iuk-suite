@@ -69,8 +69,13 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     setHinweis({ text, zurueck: a === "archivieren" ? z.id : undefined });
     router.refresh();
   }
+  /** „Rückgängig" nach dem Archivieren — unter derselben Sperre wie das Menü: ein Doppelklick schickte sonst eine zweite
+   *  Wiederherstellung, die keinen archivierten Plan mehr fände und den Erfolg mit „gibt es nicht mehr" überschriebe. */
   async function zurueck(id: string) {
+    if (sperre.current !== null) return;
+    setzeLauf(id);
     const r = await stelleWiederHerAction(id).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
+    setzeLauf(null);
     setHinweis(r.ok ? { text: "Wiederhergestellt." } : { text: r.fehler });
     if (r.ok) router.refresh();
   }
@@ -103,7 +108,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
       {hinweis ? (
         <p className="kp-listenhinweis" role="status">
           {hinweis.text}
-          {hinweis.zurueck ? <Button onClick={() => void zurueck(hinweis.zurueck!)}>Rückgängig</Button> : null}
+          {hinweis.zurueck ? <Button onClick={() => void zurueck(hinweis.zurueck!)} loading={laeuft === hinweis.zurueck}>Rückgängig</Button> : null}
         </p>
       ) : null}
       <Kartentabelle<Listenzeile>
