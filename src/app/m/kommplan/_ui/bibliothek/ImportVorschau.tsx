@@ -9,11 +9,13 @@ import { importVorschau, STATUS_TEXT, type VorschauZeile } from "../../_lib/bibl
 
 const SPALTEN: NonNullable<TableProps<VorschauZeile>["columns"]> = [
   { key: "zeile", title: "Zeile", dataIndex: "zeile" },
+  // Status VOR den Freitextspalten: er ist der Grund für die Vorschau und darf nie hinter einem langen Rufnamen aus dem
+  // sichtbaren Bereich rutschen (Review Phase 4).
+  { key: "status", title: "Status", render: (_: unknown, z: VorschauZeile) => <span className={`kp-chip${z.status === "neu" ? "" : " kp-chip-hinweis"}`}>{STATUS_TEXT[z.status]}</span> },
   { key: "typ", title: "Typ", dataIndex: "typ" },
   // Zellentext: ein langer Rufname bricht um, statt Status und „Abbrechen“ aus dem Flyin zu schieben (Review Phase 4).
   { key: "rufname", title: "Rufname", render: (_: unknown, z: VorschauZeile) => <Zellentext text={z.rufname} /> },
   { key: "notiz", title: "Notiz", render: (_: unknown, z: VorschauZeile) => <Zellentext text={z.notiz ?? "—"} /> },
-  { key: "status", title: "Status", render: (_: unknown, z: VorschauZeile) => <span className={`kp-chip${z.status === "neu" ? "" : " kp-chip-hinweis"}`}>{STATUS_TEXT[z.status]}</span> },
 ];
 
 /**

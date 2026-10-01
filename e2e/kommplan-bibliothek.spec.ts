@@ -96,6 +96,8 @@ test("CSV importieren: Vorschau mit Umlauten aus Windows-1252, Dublette überspr
   await expect(vorschau).toContainText("schon in der Bibliothek");
   const koerper = vorschau.locator(".ant-drawer-body");
   expect(await koerper.evaluate((el) => el.scrollWidth - el.clientWidth), "die Vorschau ragt aus dem Flyin").toBeLessThanOrEqual(0);
+  // … und der Status, um den es in der Vorschau geht, steht im sichtbaren Bereich (nicht hinter dem Rufnamen)
+  await expect(koerper.getByRole("table", { name: "Vorschau" }).getByText("schon in der Bibliothek")).toBeInViewport({ ratio: 1 });
   const imp = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(`${ruf} Großenkneten`));
   await klickeWennRuhig(vorschau.getByRole("button", { name: "1 übernehmen" }));
   expect((await imp).status()).toBe(200);

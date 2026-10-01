@@ -21,7 +21,7 @@ export function TitelVorschlaege({ stelle, onWahl, tabStopps = false }: { stelle
   const { aktiv, bib } = useBibliothek();
   if (!aktiv || bib.stellen.length === 0) return null;
   const vorschlaege = stelleVorschlaege(bib.stellen, stelle);
-  const leer = vergleichsform(stelle.titel).length < 2 ? "Titel tippen" : "kein passender Eintrag";
+  const leer = vergleichsform(stelle.titel).length < 2 ? "Titel tippen" : "kein Vorschlag";
   return (
     <div className="kp-g-vorschlaege" role="group" aria-label="Vorschläge aus der Bibliothek">
       <span className="kp-hilfe">{vorschlaege.length > 0 ? "Aus Bibliothek:" : `Aus Bibliothek: ${leer}`}</span>
