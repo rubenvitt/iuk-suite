@@ -99,8 +99,9 @@ export function StelleFormular(p: StelleFormularProps) {
       <VerbindungWahl key={`verbindung:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} />
       <EinheitenListe key={`einheiten:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} fokus={fokus} ladeSymbole={p.ladeSymbole} />
 
+      {aktiv ? <InBibliothek key={`inbib:${s.id}`} stelle={s} /> : null}
+      {/* Eine eigene Zeile: Meldungen von „In Bibliothek übernehmen“ verschieben den Löschknopf nicht (Review Phase 4). */}
       <div className="kp-formular-knoepfe">
-        {aktiv ? <InBibliothek key={`inbib:${s.id}`} stelle={s} /> : null}
         <Button danger onClick={p.onLoeschen}>Stelle löschen</Button>
       </div>
     </div>
@@ -164,11 +165,15 @@ function InBibliothek({ stelle }: { stelle: Stelle }) {
     // Den vorhandenen Eintrag nur anbieten, wenn der Editor ihn kennt (sonst bleibt es bei der Meldung).
     setVorhanden(titelFehler ? bib.stellen.find((b) => vergleichsform(b.titel) === vergleichsform(stelle.titel)) ?? null : null);
   }
+  // Knöpfe in ihrem eigenen Raster, die Meldung DARUNTER über die ganze Breite — als Rasterzelle neben den Knöpfen
+  // stand sie in einer halben Spalte und schob „Stelle löschen“ in die nächste Zeile (Review Phase 4).
   return (
-    <>
-      <Button onClick={() => void sende(null)} loading={laeuft} disabled={stelle.titel.trim() === ""}>In Bibliothek übernehmen</Button>
-      {vorhanden ? <Button onClick={() => void sende(vorhanden)} loading={laeuft}>Eintrag in der Bibliothek aktualisieren</Button> : null}
+    <div className="kp-in-bibliothek">
+      <div className="kp-formular-knoepfe">
+        <Button onClick={() => void sende(null)} loading={laeuft} disabled={stelle.titel.trim() === ""}>In Bibliothek übernehmen</Button>
+        {vorhanden ? <Button className="kp-knopf-umbruch" onClick={() => void sende(vorhanden)} loading={laeuft}>Eintrag in der Bibliothek aktualisieren</Button> : null}
+      </div>
       {meldung ? <p className="kp-hilfe" role="status">{meldung}</p> : null}
-    </>
+    </div>
   );
 }

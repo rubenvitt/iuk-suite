@@ -69,6 +69,9 @@
 .kp-feldfehler { margin: 0; font-size: 12px; color: var(--kp-gedaempft); }
 .kp-fehlerliste { margin: 0; padding-inline-start: 1.2em; }
 .kp-formular-knoepfe { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 16px; }
+/* Lange Beschriftung bricht im Knopf um statt über seine Kante; 44 px bleiben (Falle 4). Zwei Klassen gegen antd (Falle 5). */
+.kp-formular .kp-knopf-umbruch { white-space: normal; height: auto; min-height: 44px; padding-block: 4px; line-height: 1.3; }
+.kp-in-bibliothek { display: grid; gap: 8px; }
 
 /*
  * Gleiten im Editor (Spec §6.3): Karten, Einheiten, Sechsecke und Abzeichen gleiten an die neue Lage

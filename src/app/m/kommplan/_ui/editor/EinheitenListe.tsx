@@ -105,7 +105,7 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus, ladeSymbole }: 
       <div className="kp-formular-knoepfe">
         <Button onClick={neu} disabled={stelle.einheiten.length >= GRENZE.einheiten}>+ Einheit</Button>
         <Button ref={listeKnopf} onClick={() => { setListe(liste === null ? "" : null); setFehler([]); }}>{liste === null ? "Liste einfügen" : "Liste schließen"}</Button>
-        {aktiv && stelle.einheiten.length > 0 ? <Button onClick={() => void inBibliothek()} loading={bibLaeuft}>Einheiten in Bibliothek übernehmen</Button> : null}
+        {aktiv && stelle.einheiten.length > 0 ? <Button className="kp-knopf-umbruch" onClick={() => void inBibliothek()} loading={bibLaeuft}>Einheiten in Bibliothek übernehmen</Button> : null}
       </div>
       {bibMeldung ? <p className="kp-hilfe" role="status">{bibMeldung}</p> : null}
       {liste !== null ? (
