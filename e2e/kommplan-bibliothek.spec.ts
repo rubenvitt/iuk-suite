@@ -85,17 +85,25 @@ test("CSV importieren: Vorschau mit Umlauten aus Windows-1252, Dublette überspr
   // Einheit darin. Ohne dieses Warten liefe die Vorschau gelegentlich gegen den alten Stand („2 übernehmen").
   await expect(page.getByRole("table", { name: "Einheiten" })).toContainText(`${ruf} Basis`);
   await warteAufGestreamteInhalte(page);
-  const csv = `Typ;Rufname;Notiz\r\nKTW;${ruf} Großenkneten;Übung\r\nKTW;${ruf.toLowerCase()} großenkneten;\r\nRTW;${ruf.toLowerCase()}  basis ;\r\n`;
+  // Langer Rufname: die Vorschau darf nicht breiter werden als das Flyin (Review Phase 4)
+  const lang = "mit sehr langem Rufnamen der hier steht";
+  const csv = `Typ;Rufname;Notiz\r\nKTW;${ruf} Großenkneten ${lang};Übung\r\nKTW;${ruf.toLowerCase()} großenkneten ${lang.toLowerCase()};\r\nRTW;${ruf.toLowerCase()}  basis ;\r\n`;
   const bytes = Buffer.from([...csv].map((c) => c.charCodeAt(0))); // Latin-1 = Windows-1252 für diese Zeichen
   await page.locator('input[type="file"][name="csv"]').setInputFiles({ name: "einheiten.csv", mimeType: "text/csv", buffer: bytes });
   const vorschau = page.locator(".kp-flyin").filter({ has: page.getByRole("table", { name: "Vorschau" }) });
   await expect(vorschau).toContainText(`${ruf} Großenkneten`);
   await expect(vorschau).toContainText("doppelt in der Liste");
   await expect(vorschau).toContainText("schon in der Bibliothek");
+  const koerper = vorschau.locator(".ant-drawer-body");
+  expect(await koerper.evaluate((el) => el.scrollWidth - el.clientWidth), "die Vorschau ragt aus dem Flyin").toBeLessThanOrEqual(0);
   const imp = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(`${ruf} Großenkneten`));
   await klickeWennRuhig(vorschau.getByRole("button", { name: "1 übernehmen" }));
   expect((await imp).status()).toBe(200);
   await expect(page.locator('section[aria-label="Einheiten der Bibliothek"] [role="status"]')).toContainText("1 angelegt, 0 übersprungen.");
+  // Der Link-Knopf ins Bearbeiten ist ein 44-px-Ziel (Falle 4; Review Phase 4: er war ~22 px hoch)
+  const ziel = (await page.getByRole("table", { name: "Einheiten" }).getByRole("button", { name: "RTW" }).first().boundingBox())!;
+  expect(ziel.height).toBeGreaterThanOrEqual(44);
+  expect(ziel.width).toBeGreaterThanOrEqual(44);
 });
 
 test("Editor: Aus Bibliothek füllt die Stelle, ein Schritt zurück; Gliederung schlägt beim Tippen vor", async ({ page }) => {
@@ -115,6 +123,7 @@ test("Editor: Aus Bibliothek füllt die Stelle, ein Schritt zurück; Gliederung 
   await page.keyboard.press("Escape");
   await speichertNach(page, () => page.keyboard.press("ControlOrMeta+z"));
   await expect(page.locator(".kp-betrachter")).toContainText("EL");
+  await expect(page.locator(".kp-betrachter")).not.toContainText(telefon); // EIN Schritt nahm die ganze Kopie zurück
   // Gliederung: Vorschlag beim Tippen (Taste für Taste), Alt+Enter übernimmt, der Fokus bleibt
   const pfad = new URL(page.url()).pathname;
   await oeffneEditor(page, () => page.goto(url(`${pfad}?ansicht=gliederung`)));

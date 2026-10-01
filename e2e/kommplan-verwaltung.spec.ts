@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { devLogin, klickeWennRuhig, warteAufSpaltenaufteilung } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
-import { ADMIN, HOST, istAktion, istStandAbfrage, neuerPlan, oeffneEditor, rumpf, url } from "./kommplan-hilfen";
+import { ADMIN, ersteStelle, HOST, istAktion, istStandAbfrage, karten, neuerPlan, oeffneEditor, rumpf, url } from "./kommplan-hilfen";
 
 /**
  * Kommunikationspläne, Phase 4: Duplizieren, Vorlagen, Archiv (Spec §6.7, §8.3) und Briefkopf (Spec §4.4).
@@ -38,7 +38,9 @@ test("Duplizieren: Kopie mit heutigem Datum im Titel, direkt im Editor, mit Hinw
 test("Vorlage: als Vorlage speichern, Neu aus Vorlage übernimmt den Inhalt, Keine Vorlage mehr", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const titel = `e2e Vorlage ${neu()}`;
+  const stelle = `Vorlagenstelle ${neu()}`;
   await neuerPlan(page, titel);
+  await ersteStelle(page, stelle); // mit Inhalt: sonst sähe ein „Neu aus Vorlage“, das nichts kopiert, genauso aus (Review Phase 4)
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${titel}` }));
@@ -51,6 +53,7 @@ test("Vorlage: als Vorlage speichern, Neu aus Vorlage übernimmt den Inhalt, Kei
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Neu aus Vorlage" }));
   const formular = page.getByRole("form", { name: "Neuer Plan" });
   await expect(formular.getByLabel("Titel")).toHaveValue(titel);
+  await expect(formular.getByLabel("Titel")).toBeFocused(); // wie „Neu“ (Review Phase 4)
   await formular.getByLabel("Titel").fill(`${titel} Einsatz`);
   const anlage = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"vorlage":"'));
   await oeffneEditor(page, async () => {
@@ -59,6 +62,17 @@ test("Vorlage: als Vorlage speichern, Neu aus Vorlage übernimmt den Inhalt, Kei
     await page.waitForURL(/\/p\/[0-9a-f-]{36}$/);
   });
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${titel} Einsatz`);
+  await expect(karten(page).filter({ hasText: stelle })).toHaveCount(1); // der Inhalt DIESER Vorlage
+  // Keine Vorlage mehr: die Vorlage kehrt unter „Pläne“ zurück
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Vorlagen" }).getByRole("button", { name: `Aktionen für ${titel}` }));
+  const keine = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"vorlage":false'));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Keine Vorlage mehr" }));
+  expect((await keine).status()).toBe(200);
+  await expect(page.locator(".kp-listenhinweis")).toContainText(`„${titel}“ steht wieder unter „Pläne“.`);
+  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toHaveCount(0);
 });
 
 test("Archiv: archivieren, Rückgängig, nur lesbar unter /p/<id>, wiederherstellen", async ({ page }) => {
@@ -85,6 +99,10 @@ test("Archiv: archivieren, Rückgängig, nur lesbar unter /p/<id>, wiederherstel
   const r = await page.goto(url(`/p/${id}`));
   expect(r?.status()).toBe(200);
   await expect(page.locator(".kp-archivhinweis")).toContainText("nur lesbar");
+  // Abstand zur Zoomleiste darunter (Review Phase 4: die Klasse kam gegen antds Card nicht an)
+  const hinweis = (await page.locator(".kp-archivhinweis").boundingBox())!;
+  const einpassen = (await page.getByRole("button", { name: "Einpassen" }).first().boundingBox())!;
+  expect(einpassen.y - (hinweis.y + hinweis.height)).toBeGreaterThanOrEqual(8);
   await expect(page.getByRole("button", { name: "Rückgängig" })).toHaveCount(0); // kein Editor
   expect((await page.goto(url(`/p/${id}/druck/a4`)))?.status()).toBe(200);
   await page.goto(url("/archiv"));
@@ -93,6 +111,11 @@ test("Archiv: archivieren, Rückgängig, nur lesbar unter /p/<id>, wiederherstel
   a = archiv();
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Wiederherstellen" }));
   expect((await a).status()).toBe(200);
+  // HTTP 200 sagt nichts: auch {ok:false} kommt so (Review Phase 4) — Meldung und Zeile unter „Pläne“ zählen.
+  await expect(page.locator(".kp-listenhinweis")).toContainText(`„${titel}“ wiederhergestellt.`);
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
 });
 
 test("Briefkopf: ohne Eintrag leer; SVG hochladen wird bereinigt und gedruckt; Befund abgelehnt; Logo entfernen", async ({ page }) => {
