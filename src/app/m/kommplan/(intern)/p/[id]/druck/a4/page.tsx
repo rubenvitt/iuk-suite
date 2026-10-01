@@ -4,7 +4,7 @@ import { getDb } from "@/app/m/kommplan/_db/client";
 import { kopfFuerZeichnung } from "@/app/m/kommplan/_lib/briefkopf";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { teileAuf } from "@/app/m/kommplan/_lib/layout/papier";
-import { ladePlanOder404 } from "@/app/m/kommplan/_lib/plaene";
+import { ladePlanLesendOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { rahmenFuer } from "@/app/m/kommplan/_lib/rahmen";
 import { symboleFuer } from "@/app/m/kommplan/_lib/zeichen/zeichen";
 import { requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
@@ -23,7 +23,7 @@ export default async function DruckA4({ params }: { params: Promise<{ id: string
   requireKommplanHost(await headers());
   await requireKommplanZugang();
   const { id } = await params;
-  const plan = ladePlanOder404(getDb(), id);
+  const plan = ladePlanLesendOder404(getDb(), id);
   if (!plan.inhalt) return <main className="kp-druck"><p>Dieser Plan lässt sich nicht lesen.</p></main>;
   const blaetter = teileAuf(plan.inhalt, "a4-quer");
   const symbole = symboleFuer(plan.inhalt);

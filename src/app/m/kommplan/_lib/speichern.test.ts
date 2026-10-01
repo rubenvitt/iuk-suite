@@ -39,6 +39,18 @@ describe("Plan anlegen", () => {
     const r = legePlanAn(testDb(), { ...ANGABEN, titel: "   " }, JANA, T0);
     expect(r).toEqual({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { titel: "Bitte einen Titel eintragen." } });
   });
+  it("ohne vorlage und mit vorlage: null wie bisher — ein leerer Plan (Phase 4, Entscheidung 8)", () => {
+    const db = testDb();
+    for (const eingabe of [ANGABEN, { ...ANGABEN, vorlage: null }]) {
+      const r = legePlanAn(db, eingabe, JANA, T0);
+      if (!r.ok) throw new Error(r.fehler);
+      expect(JSON.parse(db.select().from(plan).where(eq(plan.id, r.id)).get()!.inhalt)).toEqual(leererPlan());
+    }
+  });
+  it("vorlage kein String: Feldfehler an „vorlage“", () => {
+    expect(legePlanAn(testDb(), { ...ANGABEN, vorlage: 42 }, JANA, T0))
+      .toEqual({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { vorlage: "Diese Vorlage gibt es nicht mehr." } });
+  });
 });
 
 describe("Inhalt speichern mit Versionsprüfung", () => {

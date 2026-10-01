@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { KommplanDb } from "../_db/client";
 import { plan, planBearbeitung } from "../_db/schema";
 import { angabenSchema, feldFehlerAus, msZuTag, tagZuMs } from "./angaben";
@@ -46,14 +47,33 @@ export function ladeStand(db: Schreiber, id: string): Speicherstand | null {
 
 const FELDER = "Bitte die markierten Felder prüfen.";
 
+const VORLAGE_WEG = "Diese Vorlage gibt es nicht mehr.";
+const vorlageFeld = z.string().min(1).max(64).nullable().optional();
+
+/**
+ * Neu, leer oder aus einer Vorlage (Spec §6.7; Umsetzungsplan Phase 4, Entscheidung 8): die Angaben kommen aus
+ * dem Formular, der Inhalt aus der Vorlage — nur aus einer NICHT archivierten Vorlage (`ist_vorlage`), deren
+ * Inhalt lesbar ist; die ID wird gegen die Datenbank aufgelöst (IDOR).
+ */
 export function legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number): AnlageErgebnis {
-  const a = angabenSchema.safeParse(eingabe);
-  if (!a.success) return { ok: false, fehler: FELDER, feldFehler: feldFehlerAus(a.error) };
+  const { vorlage, ...angaben } = (typeof eingabe === "object" && eingabe !== null ? eingabe : {}) as Record<string, unknown>;
+  const a = angabenSchema.safeParse(angaben);
+  const v = vorlageFeld.safeParse(vorlage);
+  if (!a.success || !v.success) {
+    return { ok: false, fehler: FELDER, feldFehler: { ...(a.success ? {} : feldFehlerAus(a.error)), ...(v.success ? {} : { vorlage: VORLAGE_WEG }) } };
+  }
+  let inhalt = JSON.stringify(leererPlan());
+  if (v.data) {
+    const q = db.select().from(plan).where(and(eq(plan.id, v.data), eq(plan.istVorlage, true), isNull(plan.archiviertAm))).get();
+    const gelesen = q ? lies(q).inhalt : null;
+    if (!gelesen) return { ok: false, fehler: FELDER, feldFehler: { vorlage: VORLAGE_WEG } };
+    inhalt = JSON.stringify(gelesen);
+  }
   const id = randomUUID();
   db.insert(plan).values({
     id, titel: a.data.titel, typ: a.data.typ, anlass: a.data.anlass,
     datum: a.data.datum === null ? null : new Date(tagZuMs(a.data.datum)),
-    aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(leererPlan()),
+    aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt,
   }).run();
   return { ok: true, id };
 }
