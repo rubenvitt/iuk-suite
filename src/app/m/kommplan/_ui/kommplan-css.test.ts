@@ -53,9 +53,9 @@ describe("kommplan.css", () => {
     expect(farbe).toBeDefined();
     expect(kontrast(farbe!, "#ffffff")).toBeGreaterThanOrEqual(3);
   });
-  it("Handlungsknöpfe der Kopfleiste stehen unter 768 px untereinander in voller Breite (docs/design/README.md, Mobil)", () => {
+  it("Handlungsknöpfe der Kopfleiste stehen unter 768 px untereinander in voller Breite; nur „Teilen“ und „Drucken“ teilen sich die letzte Zeile (Phase 5)", () => {
     const zweig = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(zweig).toMatch(/\.kp-kopfwerkzeuge \{ display: grid; grid-template-columns: minmax\(0, 1fr\);/);
+    expect(zweig).toMatch(/\.kp-kopfwerkzeuge \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*\.kp-kopfwerkzeuge > \.kp-ganze-zeile \{ grid-column: 1 \/ -1; \}/);
   });
   it("die Fläche des Editors endet am Bildrand, gemessen statt geschätzt (Hinweise unten bleiben im Bild)", () => {
     expect(css).toMatch(/\.kp-editor \.kp-betrachter \{ height: calc\(100dvh - var\(--kp-flaeche-oben, 240px\) - 48px\); \}/);

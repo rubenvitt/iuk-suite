@@ -9,6 +9,7 @@ import { angabenSchema, type Planangaben } from "../../_lib/angaben";
 import { LEERE_BIBLIOTHEK, type Bibliothek } from "../../_lib/bibliothek/typen";
 import { adresseMitAnsicht, SCHMAL, sichtbareAnsicht, type EditorAnsicht } from "../../_lib/editorAnsicht";
 import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
+import type { FreigabeZeile } from "../../_lib/freigabe/regeln";
 import { layout } from "../../_lib/layout/layout";
 import { baueSicht } from "../../_lib/layout/sicht";
 import { legende } from "../../_lib/layout/zeichne";
@@ -21,6 +22,7 @@ import { Legende } from "../betrachter/Legende";
 import { Umschalter } from "../betrachter/EinklappKnopf";
 import { druckZiel, type DruckWahl } from "../druck/DruckMenue";
 import { Gliederung, type GliederungGriff } from "../gliederung/Gliederung";
+import { TEILEN_FLYIN_GRUND, TeilenFlyin } from "../teilen/Teilen";
 import { SymbolDefs, type Symbolsatz } from "../zeichnung/Symbole";
 import type { Aendere } from "./aendere";
 import { BibliothekAnbieter } from "./bibliothekKontext";
@@ -34,6 +36,8 @@ import { STELLE_FLYIN_GRUND, StelleFlyin } from "./StelleFlyin";
 import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
 import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "./verlauf";
 import { leseZuletzt } from "./zuletzt";
+
+const KEIN_TEILEN: { freigaben: FreigabeZeile[]; basis: string | null } = { freigaben: [], basis: null };
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
 /** `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ im Hinweis gilt nur, solange genau er der jetzige ist. */
@@ -86,7 +90,7 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Zwei Ansichten auf denselben Zustand (Phase 3): Diagramm und Gliederung bleiben montiert;
  *   `data-editoransicht` und CSS entscheiden, was zu sehen ist; Fokus kehrt über `fokusZurueck` in die sichtbare zurück.
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK, teilen = KEIN_TEILEN }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
   /** Aus `?ansicht=`; `null` = CSS wählt am Breakpoint (Phase 3, Entscheidung 1). */
   ansicht?: EditorAnsicht | null;
@@ -96,13 +100,16 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   kopieHinweis?: { text: string; bestaetigt: boolean };
   /** Die Bibliothek für Kopien in den Plan (Phase 4, Entscheidung 13); nur für Bearbeitende geladen. */
   bibliothek?: Bibliothek;
+  /** Nur für Bearbeitende und nicht archivierte Pläne — die Seite lädt sie (Phase 5, Entscheidung 17). */
+  teilen?: { freigaben: FreigabeZeile[]; basis: string | null };
 }) {
   const [verlauf, setVerlauf] = useState<Verlauf>(() => neuerVerlauf(plan.inhalt));
   const [angaben, setAngaben] = useState(plan.angaben);
   /** Zählt hoch, wenn Angaben VON AUSSEN kommen (Neu laden, Meine Fassung behalten, Serverstand) — keyt das Angaben-Formular neu. */
   const [angabenFremd, setAngabenFremd] = useState(0);
   const [auswahl, setAuswahl] = useState<string | null>(null);
-  const [flyin, setFlyin] = useState<"stelle" | "plan" | null>(null);
+  const [flyin, setFlyin] = useState<"stelle" | "plan" | "teilen" | null>(null);
+  const [freigaben, setFreigaben] = useState<FreigabeZeile[]>(teilen.freigaben);
   const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
   const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
   const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
@@ -422,7 +429,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
       action={<Button onClick={() => void speicherer.erneut()}>Erneut versuchen</Button>} />
   ) : null;
 
-  const flyinGrund = flyin === "stelle" && gewaehlt !== null ? STELLE_FLYIN_GRUND : flyin === "plan" ? PLAN_FLYIN_GRUND : null;
+  const flyinGrund = flyin === "stelle" && gewaehlt !== null ? STELLE_FLYIN_GRUND : flyin === "plan" ? PLAN_FLYIN_GRUND : flyin === "teilen" ? TEILEN_FLYIN_GRUND : null;
   // Ein offenes Flyin hält seine Breite im Seitenfluss frei (CSS `.kp-editor[data-flyin]`, ab Tablet):
   // sonst läge es über der rechtsbündigen Kopfleiste und dem Konflikthinweis (e2e, Phase 2).
   const flyinStil = flyinGrund === null ? undefined : ({ "--kp-flyin-breite": flyinBreite(flyinGrund) } as CSSProperties);
@@ -438,7 +445,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
           kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
           onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
-          onPlan={() => oeffnePlan("angaben")} onDrucken={(w) => void drucken(w)}
+          onPlan={() => oeffnePlan("angaben")} onTeilen={() => setFlyin("teilen")} onDrucken={(w) => void drucken(w)}
           onNeuLaden={neuLaden} onBehalten={behalten} />
         <div className="kp-ansicht-diagramm">
           <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
@@ -482,6 +489,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
           angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
           onEntwurf={(offen) => { angabenEntwurf.current = offen; }} />
+        <TeilenFlyin offen={flyin === "teilen"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen}
+          planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={setFreigaben} />
       </div>
     </BibliothekAnbieter>
   );

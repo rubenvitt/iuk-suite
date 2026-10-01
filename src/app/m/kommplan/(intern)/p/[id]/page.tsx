@@ -1,8 +1,10 @@
 import { headers } from "next/headers";
+import { moduleUrl } from "@/core/shell/moduleUrl";
 import { Card } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "@/app/m/kommplan/_db/client";
 import { ladeBibliothek } from "@/app/m/kommplan/_lib/bibliothekDb";
+import { freigabenFuer } from "@/app/m/kommplan/_lib/freigaben";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { leseEditorAnsicht } from "@/app/m/kommplan/_lib/editorAnsicht";
 import { archivTag, beschreibungFuer, ladePlanLesendOder404 } from "@/app/m/kommplan/_lib/plaene";
@@ -44,6 +46,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
         {/* Kein Arimo-Container um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
         <Editor key={plan.id} symbole={symboleFuer(plan.inhalt)} zeichenIndex={zeichenIndex()} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht} kopieHinweis={kopie} bibliothek={ladeBibliothek(getDb())}
+          teilen={{ freigaben: freigabenFuer(getDb(), plan.id, new Date().getTime()), basis: moduleUrl("kommplan") }}
           plan={{ id: plan.id, version: plan.version, angaben: plan.angaben, inhalt: plan.inhalt, aktualisiertAm: plan.aktualisiertAm, aktualisiertVon: plan.aktualisiertVon }} />
       </Huelle>
     );

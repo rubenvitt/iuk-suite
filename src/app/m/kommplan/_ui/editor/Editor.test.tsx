@@ -10,6 +10,8 @@ vi.mock("../../_actions/plan", () => aktionen);
 const zeichen = vi.hoisted(() => ({ ladeZeichenAction: vi.fn(async () => ({})) }));
 vi.mock("../../_actions/zeichen", () => zeichen);
 vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
+const freigabeAktion = vi.hoisted(() => ({ aus: vi.fn(), weg: vi.fn() }));
+vi.mock("../../_actions/freigabe", () => ({ stelleFreigabeAusAction: freigabeAktion.aus, widerrufeFreigabeAction: freigabeAktion.weg }));
 import { baue } from "../../_lib/beispiele/bau";
 import { LEERE_BIBLIOTHEK } from "../../_lib/bibliothek/typen";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
@@ -703,5 +705,14 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     await act(async () => { zeiger(name, "pointerdown", uhr); zeiger(name, "pointerup", uhr + 10); });
     expect(exists('[data-griffe="a"]')).toBe(true);
     expect(flyinOffen()).toBe(true);
+  });
+  it("„Teilen“ öffnet das Flyin mit den Links des Plans und hält seine Breite frei", async () => {
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo"
+      teilen={{ basis: "http://kommplan.localtest.me:3000", freigaben: [{ id: "f1", token: "A".repeat(43), notiz: "Leitstelle", ablauf: null, widerrufenAm: null, erstelltAm: 1, erstelltVon: "Jana", zuletztAbgerufen: null, abrufe: 0, status: "gueltig" }] }} />);
+    await act(async () => {});
+    await clickElement(knopf("Teilen"));
+    await act(async () => {});
+    expect(document.querySelector('[data-freigabe="f1"]')?.textContent).toContain("Leitstelle");
+    expect(query(".kp-editor").getAttribute("data-flyin")).toBe("teilen");
   });
 });
