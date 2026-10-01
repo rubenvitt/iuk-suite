@@ -96,6 +96,25 @@ describe("Teilen (Spec §8.2; Entscheidung 17)", () => {
     expect(document.activeElement).toBe(feld);
     expect(query('[role="status"]').textContent).toContain("Kopiere ihn mit Strg+C");
   });
+  it("Dauer als einfache Radios im eigenen Raster (kein Rot auf der gewählten Dauer, kein Zerreißen am Telefon)", async () => {
+    await mount(<Teilen planId="p1" basis={BASIS} freigaben={[]} onFreigaben={neue} />);
+    expect(queryAll(".kp-dauer .kp-dauer-wahl input[type=\"radio\"]").map((i) => i.getAttribute("value"))).toEqual(["24h", "7d", "30d", "unbegrenzt"]);
+    expect(exists(".ant-radio-button-wrapper")).toBe(false);
+  });
+  it("widerruft man den eben ausgestellten Link, verliert er die Hervorhebung", async () => {
+    aktion.aus.mockResolvedValue({ ok: true, neu: "f2", freigaben: [Z({ id: "f2", token: T("B") })] });
+    aktion.weg.mockResolvedValue({ ok: true, neu: null, freigaben: [Z({ id: "f2", token: T("B"), status: "widerrufen", widerrufenAm: 1 })] });
+    await mount(<Wirt start={[]} />);
+    await clickElement(knopf("Link ausstellen"));
+    await act(async () => {});
+    expect(exists('[data-freigabe="f2"][data-neu]')).toBe(true);
+    await clickElement(imEintrag("f2", "Widerrufen"));
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await clickElement([...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Widerrufen" && !b.closest("[data-freigabe]"))!);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(exists('details [data-freigabe="f2"]')).toBe(true);
+    expect(exists("[data-neu]")).toBe(false);
+  });
   it("abgelaufene und widerrufene stehen eingeklappt darunter, ohne „Link kopieren“", async () => {
     await mount(<Teilen planId="p1" basis={BASIS} onFreigaben={neue} freigaben={[
       Z({}), Z({ id: "f3", token: T("C"), status: "abgelaufen" }), Z({ id: "f4", token: T("D"), status: "widerrufen", widerrufenAm: Date.UTC(2026, 9, 1, 17, 0) }),

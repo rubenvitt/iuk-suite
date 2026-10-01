@@ -96,7 +96,8 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
   const vorbei = freigaben.filter((f) => f.status !== "gueltig");
   const qrBester = besteFreigabe(gueltig);
   const eintrag = (f: FreigabeZeile) => (
-    <li key={f.id} className="kp-freigabe" data-freigabe={f.id} data-neu={f.id === neu ? "" : undefined}>
+    // Hervorgehoben nur, solange er gültig ist: widerrufen wanderte der Rahmen sonst mit nach „Abgelaufen und widerrufen“.
+    <li key={f.id} className="kp-freigabe" data-freigabe={f.id} data-neu={f.id === neu && f.status === "gueltig" ? "" : undefined}>
       <p className="kp-freigabe-notiz">{f.notiz ?? "ohne Notiz"}</p>
       <p className="kp-hilfe">{`${ablaufText(f)} · ausgestellt ${ZEIT.format(f.erstelltAm)} von ${f.erstelltVon}`}</p>
       <p className="kp-hilfe">{abrufText(f)}</p>
@@ -122,8 +123,10 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
         <legend>Neuen Link ausstellen</legend>
         <p className="kp-hilfe">Wer den Link hat, sieht den aktuellen Stand dieses Plans ohne Anmeldung und kann ihn drucken — nicht bearbeiten.</p>
         <span className="kp-feldname" id="kp-teilen-dauer">Gültig für</span>
-        <Radio.Group aria-labelledby="kp-teilen-dauer" optionType="button" value={dauer} onChange={(e) => setDauer(e.target.value as FreigabeDauer)}
-          options={FREIGABE_DAUERN.map((d) => ({ value: d, label: DAUER_NAME[d] }))} />
+        {/* Einfache Radios statt Knopfgruppe (Review Phase 5): die gewählte Dauer stand dunkel in Suite-Rot auf Schwarz
+            (≈ 2,5:1), und am Telefon zerriss die verbundene Gruppe in zwei Zeilen. Das Raster (`.kp-dauer`) bricht 4 → 2 × 2. */}
+        <Radio.Group className="kp-dauer" aria-labelledby="kp-teilen-dauer" value={dauer} onChange={(e) => setDauer(e.target.value as FreigabeDauer)}
+          options={FREIGABE_DAUERN.map((d) => ({ value: d, label: DAUER_NAME[d], className: "kp-dauer-wahl" }))} />
         <label className="kp-feldname" htmlFor="kp-teilen-notiz">Notiz (wofür, für wen)</label>
         <Input id="kp-teilen-notiz" autoFocus={basis !== null} value={notiz} maxLength={FREIGABE_GRENZE.notiz} showCount onChange={(e) => setNotiz(e.target.value)}
           onPressEnter={() => { if (basis) void ausstellen(); }} />

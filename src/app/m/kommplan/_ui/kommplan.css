@@ -253,7 +253,14 @@
 .kp-freigabe-notiz { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .kp-freigabe-link { margin: 0; font-size: 12px; color: var(--kp-gedaempft); overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
 .kp-teilen-meldung { margin: 0; min-height: 1.5em; }
-.kp-teilen details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+/* `display: flex` nimmt dem summary in Chromium sein Dreieck: ein eigener Pfeil zeigt, dass sich hier etwas aufklappt (Review Phase 5). */
+.kp-teilen details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; list-style: none; }
+.kp-teilen details > summary::-webkit-details-marker { display: none; }
+.kp-teilen details > summary::before { content: ""; flex: none; border-block: 5px solid transparent; border-inline-start: 7px solid currentColor; }
+.kp-teilen details[open] > summary::before { transform: rotate(90deg); }
+/* Dauer: eigenes Raster am Wurzelelement der Gruppe (eigene Klasse, Falle 20) — breit vier nebeneinander, am Telefon 2 × 2. */
+.kp-teilen .kp-dauer { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0 8px; }
+.kp-teilen .kp-dauer-wahl { min-height: 44px; align-items: center; margin-inline-end: 0; }
 
 /* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
    Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
