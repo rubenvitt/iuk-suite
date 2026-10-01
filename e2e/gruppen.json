@@ -1,7 +1,7 @@
 [
   {
     "name": "eimer-1",
-    "specs": "e2e/aufgaben-anleitung.spec.ts e2e/aufgaben.spec.ts e2e/feedback.spec.ts e2e/kommplan-bibliothek.spec.ts"
+    "specs": "e2e/aufgaben-anleitung.spec.ts e2e/aufgaben.spec.ts e2e/feedback.spec.ts e2e/kommplan-bibliothek.spec.ts e2e/kommplan-teilen.spec.ts"
   },
   {
     "name": "eimer-2",

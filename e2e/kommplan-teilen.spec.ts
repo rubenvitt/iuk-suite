@@ -1,0 +1,305 @@
+import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import { PDFDocument } from "pdf-lib";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
+import { E2E_VORGEBAUT } from "./helpers/server";
+import { ADMIN, ersteStelle, istAktion, istSpeichern, neuerPlan, rumpf, url } from "./kommplan-hilfen";
+
+/**
+ * Kommunikationspläne, Phase 5: Token-Links (Spec §8.2), Druck A3, QR, Schwarzweiß, SVG-Datei. Die anonymen
+ * Kontexte tragen je eine eigene `cf-connecting-ip` — die Fehlversuchs-Schranke lebt im Prozessspeicher des
+ * einen Servers dieser Gruppe, und ohne Kopf teilten sich alle den Eimer "unknown" (Umsetzungsplan Phase 5,
+ * Entscheidung 5).
+ */
+const neu = () => Math.random().toString(36).slice(2, 7);
+/**
+ * Absenderadressen der anonymen Kontexte: IPv6-Dokumentationsnetz (RFC 3849), `LAUF` je Laden dieser Datei neu —
+ * ein CI-Wiederholungslauf (neuer Worker) und ein zweiter lokaler Lauf gegen einen wiederverwendeten Server treffen
+ * so nie die Fehlversuche eines früheren Versuchs (Kritik).
+ */
+const LAUF = randomBytes(2).toString("hex");
+const ip = (n: number) => `2001:db8:${LAUF}::${n}`;
+const TOKEN_URL = new RegExp(`^${url("/t/").replace(/[.]/g, "\\.")}[A-Za-z0-9_-]{43}$`);
+
+async function anonym(browser: Browser, ip: string): Promise<Page> {
+  const kontext = await browser.newContext({ extraHTTPHeaders: { "cf-connecting-ip": ip } });
+  await kontext.addInitScript(() => { window.print = () => {}; });
+  return kontext.newPage();
+}
+async function oeffneTeilen(page: Page) {
+  await klickeWennRuhig(page.getByRole("button", { name: "Teilen", exact: true }));
+  const flyin = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
+  await expect(flyin).toBeVisible();
+  await expect(flyin.getByLabel("Notiz (wofür, für wen)")).toBeFocused(); // Anfangsfokus (Entscheidung 17)
+  return flyin;
+}
+async function stelleAus(page: Page, dauer: "24 Stunden" | "7 Tage" | "30 Tage" | "Unbegrenzt", notiz: string): Promise<string> {
+  const flyin = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
+  await klickeWennRuhig(flyin.getByText(dauer, { exact: true }));
+  await flyin.getByLabel("Notiz (wofür, für wen)").fill(notiz);
+  const aus = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(`"notiz":"${notiz}"`));
+  await klickeWennRuhig(flyin.getByRole("button", { name: "Link ausstellen" }));
+  expect((await aus).status()).toBe(200);
+  const eintrag = flyin.locator("[data-freigabe][data-neu]");
+  await expect(eintrag).toContainText(notiz);
+  const link = (await eintrag.locator("[data-link]").textContent())!;
+  expect(link).toMatch(TOKEN_URL);
+  return link;
+}
+async function archiviereUeberListe(page: Page, titel: string) {
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${titel}` }));
+  const weg = page.waitForResponse((r) => istAktion(r));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Archivieren" }));
+  expect((await weg).status()).toBe(200);
+}
+async function setzeOption(page: Page, option: "qrAufDruck" | "schwarzweiss") {
+  await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+  const gespeichert = page.waitForResponse(istSpeichern);
+  await klickeWennRuhig(page.locator(`.kp-flyin [data-option="${option}"]`));
+  expect((await gespeichert).status()).toBe(200);
+}
+
+test("Teilen: ausstellen, kopieren, anonym ansehen und drucken, Abrufe zählen, widerrufen → 404", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
+  const titel = `e2e Teilen ${neu()}`;
+  const id = await neuerPlan(page, titel);
+  await ersteStelle(page, "EL Teilen");
+  await page.keyboard.press("Escape");
+  const flyin = await oeffneTeilen(page);
+  await expect(flyin.locator('input[type="radio"][value="7d"]')).toBeChecked(); // Vorgabe
+  const link = await stelleAus(page, "7 Tage", "Leitstelle");
+  await expect(flyin.locator("[data-freigabe][data-neu]")).toContainText("gültig bis");
+  await expect(flyin.locator("[data-freigabe][data-neu]").getByRole("button", { name: "Link kopieren" })).toBeFocused();
+  await page.keyboard.press("Enter"); // Tastaturweg (Review Focus 8): der Fokus steht schon am Knopf
+  // http ist kein sicherer Kontext: der Rückfall kopiert oder zeigt den Link markiert — nie ein stiller Fehlschlag (Review Focus 3)
+  await expect(flyin.getByRole("status")).toHaveText(/^(Link kopiert\.|Kopieren ging hier nicht von selbst.*)$/);
+  // die sichtbare Antwort steht am Eintrag: „Kopiert“ oder das markierte Lesefeld
+  await expect(flyin.locator("[data-freigabe][data-neu]").locator('input[data-manuell], button:has-text("Kopiert")')).toHaveCount(1);
+
+  const seite = await anonym(browser, ip(11));
+  const antwort = (await seite.goto(link))!;
+  expect(antwort.status()).toBe(200);
+  const koepfe = antwort.headers();
+  expect(koepfe["x-robots-tag"]).toContain("noindex");
+  expect(koepfe["referrer-policy"]).toBe("no-referrer");
+  // `next dev` setzt `cache-control` selbst („no-cache, must-revalidate“) und überschreibt den Proxy; der gebaute Stand
+  // (CI, `pnpm e2e:gebaut`) liefert `private, no-cache, no-store, …` — zugesichert wird dort (Falle 21).
+  if (E2E_VORGEBAUT) expect(koepfe["cache-control"]).toContain("no-store");
+  expect(await antwort.text(), "keine Plan-ID in HTML oder Flight-Daten (Review Focus 4)").not.toContain(id);
+  await warteAufGestreamteInhalte(seite);
+  await expect(seite.getByRole("heading", { level: 1 })).toHaveText(titel);
+  await expect(seite.locator("[data-token-stand]")).toHaveText(/^Stand \d\d\.\d\d\.\d{4}, \d\d:\d\d · Bearbeitung: /);
+  await expect(seite.locator("[data-vermerk]")).toHaveText("VS – nur für den Dienstgebrauch");
+  await expect(seite.locator(".kp-betrachter [data-karte]")).toHaveCount(1);
+  await expect(seite.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  await expect(seite.getByRole("button", { name: "Teilen" })).toHaveCount(0);
+  await expect(seite.getByRole("link", { name: /Alle Pläne/ })).toHaveCount(0); // keine Wege ins Innere
+  await expect(seite.locator(".kp-token-kicker")).toContainText("KOMMUNIKATIONSPLÄNE");
+  await expect(seite).toHaveTitle("Kommunikationspläne"); // typneutral, kein Plantitel
+
+  // immer der aktuelle Stand (Spec §8.2): eine Änderung im Editor steht nach dem Neuladen in der Token-Ansicht
+  await page.keyboard.press("Escape"); // Teilen-Flyin zu
+  await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+  const titelFeld = page.locator(".kp-flyin").getByLabel("Titel", { exact: true });
+  const angaben = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(`${titel} neu`));
+  await titelFeld.fill(`${titel} neu`);
+  await titelFeld.press("Enter");
+  expect((await angaben).status()).toBe(200);
+  await page.keyboard.press("Escape");
+  expect((await seite.goto(link))?.status()).toBe(200);
+  await warteAufGestreamteInhalte(seite);
+  await expect(seite.getByRole("heading", { level: 1 })).toHaveText(`${titel} neu`);
+
+  // Druck aus der Token-Ansicht: A3 quer, eigene Seitengröße
+  const druck = (await seite.goto(`${link}/druck/a3`))!;
+  expect(druck.status()).toBe(200);
+  expect(druck.headers()["x-robots-tag"]).toContain("noindex");
+  expect(await druck.text()).not.toContain(id);
+  await warteAufGestreamteInhalte(seite);
+  await expect(seite.locator("main.kp-druck")).toHaveAttribute("data-format", "a3-quer");
+  await expect(seite.getByRole("button", { name: /SVG herunterladen/ })).toHaveCount(0); // nur intern (Entscheidung 15)
+  const pdf = await PDFDocument.load(await seite.pdf({ preferCSSPageSize: true }));
+  expect(Math.abs(pdf.getPage(0).getSize().width - 1190.55)).toBeLessThan(1); // Chromium rundet auf ganze CSS-Pixel
+
+  // Abrufe: im Flyin nach Neuladen sichtbar (≥ 1 — dieselbe Adresse zählt binnen einer Minute einmal)
+  await page.reload();
+  await warteAufSpaltenaufteilung(page);
+  const wieder = await oeffneTeilen(page);
+  await expect(wieder.locator("[data-freigabe]").first()).toContainText(/\d+ Abrufe?, zuletzt/);
+
+  // Widerrufen → die nächste Anfrage ist 404 (Review Focus 7)
+  await klickeWennRuhig(wieder.locator("[data-freigabe]").first().getByRole("button", { name: "Widerrufen" }));
+  const weg = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"freigabeId"'));
+  await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Widerrufen" }));
+  expect((await weg).status()).toBe(200);
+  await expect(wieder.getByRole("status")).toHaveText("Link widerrufen. Wer ihn hat, sieht den Plan nicht mehr.");
+  await expect(wieder.locator("[data-gueltige] legend")).toBeFocused(); // der letzte gültige Link ist weg (Entscheidung 17)
+  expect((await seite.goto(link))?.status()).toBe(404);
+  expect((await seite.goto(`${link}/druck/a4`))?.status()).toBe(404);
+  await seite.context().close();
+});
+
+test("404 ist ununterscheidbar: unbekannt, falsch geformt, widerrufen, archiviert (Review Focus 2)", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
+  const titelW = `e2e Widerruf ${neu()}`;
+  await neuerPlan(page, titelW);
+  await oeffneTeilen(page);
+  const widerrufen = await stelleAus(page, "24 Stunden", "weg");
+  const flyin = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
+  await klickeWennRuhig(flyin.locator("[data-freigabe]").first().getByRole("button", { name: "Widerrufen" }));
+  const w = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"freigabeId"'));
+  await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Widerrufen" }));
+  expect((await w).status()).toBe(200);
+  const titelA = `e2e Archiv-Link ${neu()}`;
+  const idA = await neuerPlan(page, titelA);
+  await oeffneTeilen(page);
+  const archiviert = await stelleAus(page, "Unbegrenzt", "archiv");
+  await archiviereUeberListe(page, titelA);
+
+  const seite = await anonym(browser, ip(22));
+  const faelle = { unbekannt: url(`/t/${"Q".repeat(43)}`), falsch: url("/t/kurz"), widerrufen, archiviert };
+  const texte: string[] = [];
+  const htmls: string[] = [];
+  for (const [fall, ziel] of Object.entries(faelle)) {
+    const r = (await seite.goto(ziel))!;
+    expect(r.status(), fall).toBe(404);
+    expect(r.headers()["x-robots-tag"], fall).toContain("noindex");
+    expect(r.headers()["referrer-policy"], fall).toBe("no-referrer");
+    const html = await r.text();
+    for (const geheim of [titelW, titelA, idA, "Musterorganisation"]) expect(html, `${fall}: ${geheim}`).not.toContain(geheim);
+    await expect(seite.getByRole("heading", { level: 1 }), fall).toHaveText("Dieser Link gilt nicht (mehr)."); // t/not-found.tsx, nicht die Suite-404
+    expect(await seite.locator('a[href="/"], a[href$="/login"]').count(), `${fall}: kein Weg zur Anmeldung`).toBe(0);
+    const token = new URL(ziel).pathname.split("/").pop()!;
+    texte.push((await seite.locator("body").innerText()).replaceAll(token, "<T>"));
+    htmls.push(html.replaceAll(token, "<T>"));
+  }
+  expect(new Set(texte).size, "alle vier 404 sehen gleich aus").toBe(1);
+  // Auch der Quelltext unterscheidet die Fälle nicht: nach dem Ersetzen des Tokens gleich lang (eine Längendifferenz
+  // wäre ein Orakel). Setzt Next je Antwort eigene IDs oder Nonces und bricht DAS die Gleichheit, ist das ein Befund
+  // in „Abweichungen" — dann den Vergleich auf die Differenz dieser Stellen beschränken, nie ganz streichen.
+  expect(new Set(htmls.map((h) => h.length)).size, "404-Antworten gleich lang nach Ersetzen des Tokens").toBe(1);
+  await seite.context().close();
+});
+
+test("Fehlversuchs-Schranke: 29 Fehlversuche sperren nicht (Layout und Seite buchen einmal), der dreißigste sperrt die Adresse — nur sie", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
+  await neuerPlan(page, `e2e Schranke ${neu()}`);
+  await oeffneTeilen(page);
+  const link = await stelleAus(page, "7 Tage", "schranke");
+  const rater = await anonym(browser, ip(33));
+  // `request.get` statt `goto`: rendert Layout UND Seite ebenso (sonst prüfte der Test die Doppelbuchung nicht), ist
+  // aber schnell genug, dass 29 Abrufe unter Last im gleitenden 60-s-Fenster bleiben (Entscheidung 5). Der Kopf
+  // `cf-connecting-ip` kommt aus den extraHTTPHeaders des Kontexts; hier zur Sicherheit noch einmal ausdrücklich.
+  const kopf = { headers: { "cf-connecting-ip": ip(33) } };
+  for (let i = 0; i < 29; i++) expect((await rater.request.get(url(`/t/${"R".repeat(41)}${String(i).padStart(2, "0")}`), kopf)).status()).toBe(404);
+  expect((await rater.goto(link))?.status(), "nach 29 Fehlversuchen noch offen — sonst bucht die Anfrage doppelt").toBe(200);
+  expect((await rater.request.get(url(`/t/${"R".repeat(42)}X`), kopf)).status()).toBe(404);
+  expect((await rater.goto(link))?.status(), "nach dem dreißigsten gesperrt, auch für einen gültigen Link").toBe(404);
+  const andere = await anonym(browser, ip(34));
+  expect((await andere.goto(link))?.status()).toBe(200);
+  await rater.context().close();
+  await andere.context().close();
+});
+
+test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbegrenzte Link; im Token-Druck der benutzte (Review Focus 1)", async ({ page, browser, context }) => {
+  test.setTimeout(150_000);
+  await context.addInitScript(() => { window.print = () => {}; });
+  await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
+  const id = await neuerPlan(page, `e2e QR ${neu()}`);
+  await ersteStelle(page, "EL QR");
+  await page.keyboard.press("Escape");
+  await setzeOption(page, "qrAufDruck");
+  await expect(page.locator(".kp-flyin [data-qr-hinweis]")).toContainText("Ohne gültigen Link druckt der Plan keinen QR-Code.");
+  await page.keyboard.press("Escape");
+  await page.goto(url(`/p/${id}/druck/a4`));
+  await warteAufGestreamteInhalte(page);
+  await expect(page.locator("svg.kp-blatt")).not.toHaveCount(0);
+  await expect(page.locator("[data-qr]")).toHaveCount(0);
+  await expect(page.locator("[data-qr-satz]")).toHaveCount(0);
+
+  // „Link ausstellen“ im Hinweis führt direkt ins Flyin „Teilen“ (Entscheidung 10)
+  await page.goto(url(`/p/${id}`));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Plan und Verbindungen" }));
+  await klickeWennRuhig(page.locator(".kp-flyin [data-qr-hinweis]").getByRole("button", { name: "Link ausstellen" }));
+  const teilen = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
+  await expect(teilen).toBeVisible();
+  const kurz = await stelleAus(page, "24 Stunden", "kurz");
+  await expect(teilen.locator("[data-qr-ziel-satz]")).toContainText("„kurz“ – gültig bis"); // befristet: mit Warnung
+  await expect(teilen.locator("[data-qr-ziel-satz]")).toContainText("danach führt der Ausdruck ins Leere");
+  const lang = await stelleAus(page, "Unbegrenzt", "lang");
+  await expect(teilen.locator("[data-qr-ziel-satz]")).toHaveText("Der QR-Code führt auf „lang“ – unbegrenzt gültig.");
+  await page.goto(url(`/p/${id}/druck/a4`));
+  await warteAufGestreamteInhalte(page);
+  const blaetter = await page.locator("svg.kp-blatt").count();
+  await expect(page.locator("[data-qr]")).toHaveCount(blaetter);
+  for (const z of await page.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel")).toBe(lang);
+  await expect(page.locator("[data-qr-satz]")).toHaveText("Der QR-Code führt auf „lang“ – unbegrenzt gültig.");
+
+  const seite = await anonym(browser, ip(44));
+  expect((await seite.goto(`${kurz}/druck/a4`))?.status()).toBe(200);
+  await warteAufGestreamteInhalte(seite);
+  for (const z of await seite.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel"), "nie der bessere Link").toBe(kurz);
+  await seite.context().close();
+});
+
+test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige Datei mit ASCII-Namen, SVG-Weg ohne Druckdialog (Review Focus 6, 8)", async ({ page, context }) => {
+  test.setTimeout(150_000);
+  await context.addInitScript(() => {
+    (window as unknown as { gedruckt: number }).gedruckt = 0;
+    window.print = () => { (window as unknown as { gedruckt: number }).gedruckt++; };
+  });
+  await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
+  // ein Duplikat der Seed-Vorlage OpenR (Zeichen in Farbe) — nie den Seed-Plan selbst umstellen
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: "Aktionen für Kommunikationsplan OpenR 01.07.2022", exact: true })); // exakt: Duplikate anderer Läufe tragen ein neues Datum
+  const kopie = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify(["beispiel-openr-2022-07-01"]));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Duplizieren" }));
+  expect((await kopie).status()).toBe(200);
+  await page.waitForURL(/\/p\/[0-9a-f-]{36}\?kopie=/);
+  const id = new URL(page.url()).pathname.split("/").pop()!;
+  await warteAufSpaltenaufteilung(page);
+  await setzeOption(page, "schwarzweiss");
+  await page.keyboard.press("Escape");
+  // der SVG-Weg aus dem Druckmenü: neues Fenster mit ?export=svg, KEIN Druckdialog (Entscheidung 15)
+  const fenster = page.waitForEvent("popup");
+  await klickeWennRuhig(page.getByRole("button", { name: "Weitere Druckformate" }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "SVG – A4 quer" }));
+  const druck = await fenster;
+  await druck.waitForURL(/\/druck\/a4\?export=svg$/);
+  await warteAufGestreamteInhalte(druck);
+  await druck.evaluate(() => document.fonts.ready);
+  expect(await druck.evaluate(() => (window as unknown as { gedruckt: number }).gedruckt), "kein window.print() auf dem SVG-Weg").toBe(0);
+  await expect(druck.locator("svg.kp-blatt").first()).toHaveAttribute("data-sw", "");
+  const bunt = await druck.locator("svg.kp-symbole").evaluate((s) => [...s.innerHTML.matchAll(/#([0-9a-f]{6})\b/gi)]
+    .map((m) => m[1].toLowerCase()).filter((h) => !(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6))));
+  expect(bunt).toEqual([]);
+
+  const runter = druck.waitForEvent("download");
+  await klickeWennRuhig(druck.getByRole("button", { name: /^SVG herunterladen \(Blatt 1 von \d+\)$/ }));
+  const datei = await runter;
+  expect(datei.suggestedFilename()).toMatch(/^[A-Za-z0-9-]+_\d{4}-\d{2}-\d{2}_blatt-1-von-\d+_a4\.svg$/);
+  const text = readFileSync((await datei.path())!, "utf8");
+  expect(text.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+  expect(text).toContain("@font-face");
+  expect(text).toContain("<symbol");
+  const ids = new Set([...text.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  const verweise = [...text.matchAll(/(?:\bhref|xlink:href)="#([^"]+)"|url\(#([^)"']+)\)/g)].map((m) => m[1] ?? m[2]);
+  expect(verweise.length).toBeGreaterThan(0);
+  for (const v of verweise) expect(ids.has(v), `#${v} löst in der Datei auf`).toBe(true);
+  // wohlgeformt — sonst öffnet die Datei nirgends, und alle Prüfungen darüber wären trotzdem grün
+  expect(await druck.evaluate((t) => new DOMParser().parseFromString(t, "image/svg+xml").querySelector("parsererror") === null, text)).toBe(true);
+  // der normale Druck ruft den Dialog weiter von selbst
+  await page.goto(url(`/p/${id}/druck/a4`));
+  await warteAufGestreamteInhalte(page);
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { gedruckt: number }).gedruckt)).toBe(1);
+  await druck.close();
+});
