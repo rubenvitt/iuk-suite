@@ -55,6 +55,19 @@ export function kopfTitel(titel: string, platz: number): { text: string; groesse
   return { text: kuerze(titel, platz, TITEL_PT.min, true).text, groesse: TITEL_PT.min };
 }
 
+/**
+ * Der Untertitel (Anlass · Datum, `rahmen.ts`) passt in `platz` mm (Abnahme kommplan: ein langer Anlass lief auf A4 unter
+ * die Logo-Box, die ihn nach ihm zeichnet). Gekürzt wird der Anlass; das Datum nach dem letzten „ · " bleibt stehen.
+ */
+export function kopfUntertitel(untertitel: string, platz: number): string {
+  const pt = 9;
+  if (textBreite(untertitel, pt, false) <= platz) return untertitel;
+  const schnitt = untertitel.lastIndexOf(" · ");
+  if (schnitt < 0) return kuerze(untertitel, platz, pt, false).text;
+  const ende = untertitel.slice(schnitt);
+  return kuerze(untertitel.slice(0, schnitt), Math.max(0, platz - textBreite(ende, pt, false)), pt, false).text + ende;
+}
+
 export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }) {
   const rechts = breite - BLATT.randX;
   const kopfY = BLATT.randOben;
@@ -66,7 +79,9 @@ export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }
   return (
     <g data-kopf="">
       <text x={BLATT.randX} y={kopfY + 6} fontSize={pt(titel.groesse)} fontWeight={700}>{titel.text}</text>
-      {rahmen.untertitel ? <text x={BLATT.randX} y={kopfY + 11.5} fontSize={pt(9)}>{rahmen.untertitel}</text> : null}
+      {rahmen.untertitel ? (
+        <text x={BLATT.randX} y={kopfY + 11.5} fontSize={pt(9)}>{kopfUntertitel(rahmen.untertitel, (rahmen.logo ? logoX - LOGO_BOX.luft : rechts) - BLATT.randX)}</text>
+      ) : null}
       {rahmen.logo ? <use href={`#${LOGO_ID}`} x={logoX} y={kopfY} data-logo="" filter={rahmen.schwarzweiss ? `url(#${GRAU_FILTER_ID})` : undefined} /> : null}
       {org ? (
         <text x={orgRechts} y={kopfY + 6} fontSize={pt(9)} fontWeight={700} textAnchor="end" data-organisation="">{org}</text>

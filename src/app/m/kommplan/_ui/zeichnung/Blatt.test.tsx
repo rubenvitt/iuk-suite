@@ -4,7 +4,7 @@ import { BEISPIELE } from "../../_lib/beispiele";
 import { teileAuf } from "../../_lib/layout/papier";
 import { leererPlan } from "../../_lib/plan/operationen";
 import { textBreite } from "../../_lib/layout/text";
-import { Blattansicht, kopfTitel, type Rahmen } from "./Blatt";
+import { Blattansicht, kopfTitel, kopfUntertitel, type Rahmen } from "./Blatt";
 
 const rahmen: Rahmen = {
   titel: "Kommunikationsplan Label", untertitel: "Label", stand: "Stand: 30.09.2026, 11:56",
@@ -93,6 +93,20 @@ describe("Blattansicht", () => {
     expect(html).toContain(`>${k.text}</text>`);
     expect(kopfTitel("Kurz", 100)).toEqual({ text: "Kurz", groesse: 14 });
     expect(kopfTitel("Ein mittellanger Plantitel", textBreite("Ein mittellanger Plantitel", 12, true)).groesse).toBe(12);
+  });
+  it("ein langer Anlass läuft nicht unter die Logo-Box: gekürzt wird der Anlass, das Datum bleibt (Abnahme)", () => {
+    const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
+    const lang = `${"KREISBEREITSCHAFTSÜBUNG KATASTROPHENSCHUTZ LANDKREIS UELZEN ".repeat(2).slice(0, 119)} · 22.02.2026`;
+    const logo = { href: "data:image/png;base64,iVBORw0KGgo=" };
+    const platz = 297 - 10 - 40 - 3 - 10; // vor der Logo-Box (ab 247 mm), Luft, Rand
+    const u = kopfUntertitel(lang, platz);
+    expect(textBreite(u, 9, false)).toBeLessThanOrEqual(platz);
+    expect(u.endsWith("… · 22.02.2026")).toBe(true);
+    expect(renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, untertitel: lang, logo }} symbole={{}} />)).toContain(`>${u}</text>`);
+    // ohne Logo die volle Breite; was passt, bleibt; ohne Datum wird der ganze Text gekürzt
+    expect(textBreite(kopfUntertitel(lang, 277), 9, false)).toBeLessThanOrEqual(277);
+    expect(kopfUntertitel("Einsatz · 22.02.2026", platz)).toBe("Einsatz · 22.02.2026");
+    expect(kopfUntertitel("X".repeat(200), 50).endsWith("…")).toBe(true);
   });
   it("nur Organisation: rechtsbündig am Rand; mit Logo: links neben der Logo-Box, Logo per <use>", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
