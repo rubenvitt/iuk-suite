@@ -381,6 +381,30 @@
     "kind": "context",
     "via": "DELETE"
   },
+  "src/app/m/kommplan/_actions/bibliothek.ts#importiereBibEinheitenAction": {
+    "kind": "context",
+    "via": "importiereBibEinheitenAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#importiereBibVerbindungenAction": {
+    "kind": "context",
+    "via": "importiereBibVerbindungenAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#loescheBibEintragAction": {
+    "kind": "context",
+    "via": "loescheBibEintragAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#speichereBibEinheitAction": {
+    "kind": "context",
+    "via": "speichereBibEinheitAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#speichereBibStelleAction": {
+    "kind": "context",
+    "via": "speichereBibStelleAction"
+  },
+  "src/app/m/kommplan/_actions/bibliothek.ts#speichereBibVerbindungAction": {
+    "kind": "context",
+    "via": "speichereBibVerbindungAction"
+  },
   "src/app/m/kommplan/_actions/briefkopf.ts#entferneLogoAction": {
     "kind": "context",
     "via": "entferneLogoAction"
