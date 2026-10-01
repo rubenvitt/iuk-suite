@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Alert, Button, type InputRef } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
+import { ladeFreigabenAction } from "../../_actions/freigabe";
 import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
 import { ladeZeichenAction } from "../../_actions/zeichen";
 import { angabenSchema, type Planangaben } from "../../_lib/angaben";
@@ -110,6 +111,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const [auswahl, setAuswahl] = useState<string | null>(null);
   const [flyin, setFlyin] = useState<"stelle" | "plan" | "teilen" | null>(null);
   const [freigaben, setFreigaben] = useState<FreigabeZeile[]>(teilen.freigaben);
+  /** Jede neue Liste zählt hoch: ein Abgleich, der eine jüngere Liste (Ausstellen, Widerrufen) überholt, verfällt. */
+  const freigabenStand = useRef(0);
   const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
   const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
   const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
@@ -298,6 +301,23 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     return () => { aktiv = false; };
   }, [plan.id]);
 
+  /**
+   * Die Links vom Server (Review Phase 5): beim Montieren und beim Öffnen von „Teilen“ und „Plan und Verbindungen“ —
+   * sonst stünde ein inzwischen abgelaufener Link als gültig da (kopierbar, QR-Hinweis falsch), nach Browser-Zurück
+   * oder aus einem zweiten Tab ein alter Stand. Ein Abgleich, den eine jüngere Liste überholt hat, verfällt.
+   */
+  function gleicheFreigabenAb() {
+    const nr = ++freigabenStand.current;
+    void ladeFreigabenAction(plan.id).then((f) => { if (f && nr === freigabenStand.current) setFreigaben(f); }).catch(() => { /* dann bleibt die Liste */ });
+  }
+  const uebernimmFreigaben = (f: FreigabeZeile[]) => { freigabenStand.current++; setFreigaben(f); };
+  useEffect(() => {
+    const nr = ++freigabenStand.current;
+    let aktiv = true;
+    void ladeFreigabenAction(plan.id).then((f) => { if (aktiv && f && nr === freigabenStand.current) setFreigaben(f); }).catch(() => { /* dann bleibt die Liste */ });
+    return () => { aktiv = false; };
+  }, [plan.id]);
+
   // Strg/Cmd+Z global, aber nie in einem Textfeld (dort gehört es dem Feld).
   useEffect(() => {
     const beiTaste = (e: globalThis.KeyboardEvent) => {
@@ -416,7 +436,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     if (neu.has(id)) neu.delete(id); else neu.add(id);
     return neu;
   });
-  const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); };
+  const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); gleicheFreigabenAb(); };
+  const oeffneTeilen = () => { setFlyin("teilen"); gleicheFreigabenAb(); };
   const nachSchliessen = () => { if (flyinJetzt.current === null) fokusZurueck(); };
 
   const meldung = hinweis ? (
@@ -447,7 +468,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
           kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
           onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
-          onPlan={() => oeffnePlan("angaben")} onTeilen={() => setFlyin("teilen")} onDrucken={(w) => void drucken(w)}
+          onPlan={() => oeffnePlan("angaben")} onTeilen={oeffneTeilen} onDrucken={(w) => void drucken(w)}
           onNeuLaden={neuLaden} onBehalten={behalten} />
         <div className="kp-ansicht-diagramm">
           <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
@@ -491,9 +512,9 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
           angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
           onEntwurf={(offen) => { angabenEntwurf.current = offen; }}
-          qrLink={qrLink} linkAdresse={teilen.basis !== null} onTeilen={() => setFlyin("teilen")} />
+          qrLink={qrLink} linkAdresse={teilen.basis !== null} onTeilen={oeffneTeilen} />
         <TeilenFlyin offen={flyin === "teilen"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen}
-          planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={setFreigaben}
+          planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={uebernimmFreigaben}
           qr={{ an: inhalt.optionen.qrAufDruck, onAendern: (v) => aendere((q) => setzeOptionen(q, { qrAufDruck: v })) }} />
       </div>
     </BibliothekAnbieter>

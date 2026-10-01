@@ -38,6 +38,18 @@ describe("Actions der Token-Links", () => {
     const akteure = getDb().all(sql`SELECT DISTINCT json_extract(actor, '$.id') AS id FROM audit_outbox WHERE object_type = 'plan_freigabe'`) as { id: string }[];
     expect(akteure).toEqual([{ id: "u1" }]);
   });
+  it("Liste lesen: nur mit Bearbeitungsrecht, nur die Links dieses Plans, Status vom Server", async () => {
+    const a = await import("./freigabe");
+    await expect(a.ladeFreigabenAction(OPENR)).rejects.toThrow("Forbidden");
+    gruppen = ["iuk-kommplan"];
+    await expect(a.ladeFreigabenAction(OPENR)).rejects.toThrow("Forbidden");
+    gruppen = ["iuk-kommplan-bearbeiten"];
+    const r = await a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "Leitstelle" });
+    if (!r.ok) throw new Error(r.fehler);
+    await a.stelleFreigabeAusAction({ planId: "beispiel-einsatz-2026-02-22", dauer: "7d", notiz: "anderer Plan" });
+    expect(await a.ladeFreigabenAction(OPENR)).toEqual([expect.objectContaining({ id: r.neu, notiz: "Leitstelle", status: "gueltig" })]);
+    expect(await a.ladeFreigabenAction({ id: 5 })).toBeNull();
+  });
   it("Unsinn wird abgewiesen, nicht geworfen", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];
     const a = await import("./freigabe");

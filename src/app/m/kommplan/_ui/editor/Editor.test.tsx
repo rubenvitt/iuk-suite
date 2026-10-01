@@ -10,12 +10,13 @@ vi.mock("../../_actions/plan", () => aktionen);
 const zeichen = vi.hoisted(() => ({ ladeZeichenAction: vi.fn(async () => ({})) }));
 vi.mock("../../_actions/zeichen", () => zeichen);
 vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
-const freigabeAktion = vi.hoisted(() => ({ aus: vi.fn(), weg: vi.fn() }));
-vi.mock("../../_actions/freigabe", () => ({ stelleFreigabeAusAction: freigabeAktion.aus, widerrufeFreigabeAction: freigabeAktion.weg }));
+const freigabeAktion = vi.hoisted(() => ({ aus: vi.fn(), weg: vi.fn(), lade: vi.fn() }));
+vi.mock("../../_actions/freigabe", () => ({ stelleFreigabeAusAction: freigabeAktion.aus, widerrufeFreigabeAction: freigabeAktion.weg, ladeFreigabenAction: freigabeAktion.lade }));
 import { baue } from "../../_lib/beispiele/bau";
 import { LEERE_BIBLIOTHEK } from "../../_lib/bibliothek/typen";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
-import { leererPlan } from "../../_lib/plan/operationen";
+import type { FreigabeZeile } from "../../_lib/freigabe/regeln";
+import { leererPlan, setzeOptionen } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import { Editor, GRIFF_RAND, type EditorPlan } from "./Editor";
 import { AUSWAHLLEISTE } from "./Griffe";
@@ -74,6 +75,7 @@ beforeEach(() => {
   aktionen.speichereInhaltAction.mockImplementation(async (e: { version: number }) => ({ ok: true, version: e.version + 1, aktualisiertAm: Date.UTC(2026, 8, 30, 9) }));
   aktionen.speichereAngabenAction.mockImplementation(async (e: { version: number }) => ({ ok: true, version: e.version + 1, aktualisiertAm: Date.UTC(2026, 8, 30, 9) }));
   aktionen.ladeStandAction.mockResolvedValue(null);
+  freigabeAktion.lade.mockResolvedValue(null);
 });
 afterEach(async () => { await unmount(); vi.useRealTimers(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 
@@ -714,5 +716,44 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     await act(async () => {});
     expect(document.querySelector('[data-freigabe="f1"]')?.textContent).toContain("Leitstelle");
     expect(query(".kp-editor").getAttribute("data-flyin")).toBe("teilen");
+  });
+  const BASIS = "http://kommplan.localtest.me:3000";
+  const Z = (o: Partial<FreigabeZeile>): FreigabeZeile => ({
+    id: "f1", token: "A".repeat(43), notiz: "Leitstelle", ablauf: Date.UTC(2026, 8, 30, 9), widerrufenAm: null, erstelltAm: 1,
+    erstelltVon: "Jana", zuletztAbgerufen: null, abrufe: 0, status: "gueltig", ...o,
+  });
+  it("gleicht die Links beim Montieren und beim Öffnen von „Teilen“ ab — ein inzwischen abgelaufener Link ist nicht mehr kopierbar (Review Phase 5)", async () => {
+    freigabeAktion.lade.mockResolvedValueOnce(null).mockResolvedValueOnce([Z({ status: "abgelaufen" })]);
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ basis: BASIS, freigaben: [Z({})] }} />);
+    await act(async () => {});
+    expect(freigabeAktion.lade).toHaveBeenCalledWith("p1");
+    await clickElement(knopf("Teilen"));
+    await act(async () => {});
+    expect(freigabeAktion.lade).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('details [data-freigabe="f1"]')?.textContent).toContain("abgelaufen am");
+    expect(knopf("Link kopieren")).toBeUndefined();
+  });
+  it("Browser-Zurück: der Abgleich beim Montieren bringt einen eben ausgestellten Link in den QR-Hinweis", async () => {
+    freigabeAktion.lade.mockResolvedValueOnce([Z({ ablauf: null, notiz: "Aushang" })]);
+    const mitQr = setzeOptionen(INHALT, { qrAufDruck: true });
+    await mount(<Editor plan={plan(mitQr)} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ basis: BASIS, freigaben: [] }} />);
+    await act(async () => {});
+    await clickElement(knopf("Plan und Verbindungen"));
+    await act(async () => {});
+    expect(document.querySelector("[data-qr-ziel-satz]")?.textContent).toBe("Der QR-Code führt auf „Aushang“ – unbegrenzt gültig.");
+  });
+  it("ein Abgleich, den eine jüngere Liste überholt hat, verfällt", async () => {
+    let loese: (f: FreigabeZeile[]) => void = () => {};
+    freigabeAktion.lade.mockResolvedValueOnce(null).mockImplementationOnce(() => new Promise((r) => { loese = r; }));
+    freigabeAktion.aus.mockResolvedValue({ ok: true, neu: "f2", freigaben: [Z({ id: "f2", token: "B".repeat(43), notiz: "Presse" }), Z({})] });
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ basis: BASIS, freigaben: [Z({})] }} />);
+    await act(async () => {});
+    await clickElement(knopf("Teilen"));
+    await act(async () => {});
+    await clickElement(knopf("Link ausstellen"));
+    await act(async () => {});
+    expect(document.querySelector('[data-freigabe="f2"]')).not.toBeNull();
+    await act(async () => { loese([Z({})]); });
+    expect(document.querySelector('[data-freigabe="f2"]')).not.toBeNull();
   });
 });
