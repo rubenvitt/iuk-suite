@@ -22,7 +22,7 @@ function kaemmt(inhalt: PlanInhalt, ziel: Ziel): boolean {
   return u.sicht.sichtbar.some((s) => u.gruppen(s).some((g) => g.reihen.length > 1));
 }
 
-describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume (%s)", (ziel) => {
+describe.each(["bildschirm", "a4-quer", "a3-quer"] as const)("Zufallsbäume (%s)", (ziel) => {
   it.each(SEEDS)("Seed %i: keine Überlappung, keine Kreuzung, alles angebunden, Eltern mittig", (seed) => {
     const inhalt = zufallsPlan(seed, { stellen: 5 + (seed % 36), mehrereWurzeln: seed % 7 === 0 });
     const z = zeichne(inhalt, ziel);
@@ -36,7 +36,7 @@ describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume (%s)", (ziel) =
  * EINGEKLAPPT (Spec §5.7): rund 30 % der Stellen mit Unterstellen eingeklappt — Abzeichen unter dem
  * Block, Kinder weg, Kamm und Stiele neu gerechnet. Dieselben Prüfungen wie oben.
  */
-describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume eingeklappt (%s)", (ziel) => {
+describe.each(["bildschirm", "a4-quer", "a3-quer"] as const)("Zufallsbäume eingeklappt (%s)", (ziel) => {
   it.each(SEEDS.slice(0, 100))("Seed %i", (seed) => {
     const inhalt = zufallsPlan(seed, { stellen: 5 + (seed % 36), mehrereWurzeln: seed % 7 === 0 });
     const baum = baueBaum(inhalt);
@@ -55,7 +55,7 @@ describe.each(["bildschirm", "a4-quer"] as const)("Zufallsbäume eingeklappt (%s
  * Kammgruppen nebeneinander, Kamm unter einer Karte mit Einheiten (Gasse) — die Fälle der großen
  * Stab-Lage. Dass sie wirklich kämmen, zählt der letzte Fall.
  */
-describe.each(["bildschirm", "a4-quer"] as const)("Stab-förmige Zufallspläne (%s)", (ziel) => {
+describe.each(["bildschirm", "a4-quer", "a3-quer"] as const)("Stab-förmige Zufallspläne (%s)", (ziel) => {
   it.each(STAB_SEEDS)("Seed %i: sauber und angebunden", (seed) => {
     const inhalt = zufallsPlan(seed, { stellen: 120, form: "stab" });
     const z = zeichne(inhalt, ziel);
@@ -300,13 +300,13 @@ describe("Grenzfälle", () => {
   });
 });
 
-describe("Aufteilung deckt jede Stelle genau einmal ab, jedes Blatt sauber und angebunden", () => {
+describe.each(["a4-quer", "a3-quer"] as const)("Aufteilung deckt jede Stelle genau einmal ab, jedes Blatt sauber und angebunden (%s)", (format) => {
   const faelle = [
     ...SEEDS.slice(0, 40).map((seed) => [seed, zufallsPlan(seed, { stellen: 30 + (seed % 50), mehrereWurzeln: seed % 5 === 0 })] as const),
     ...STAB_SEEDS.slice(0, 20).map((seed) => [seed, zufallsPlan(seed, { stellen: 120, form: "stab" })] as const),
   ];
   it.each(faelle)("Seed %i", (seed, inhalt) => {
-    const blaetter = teileAuf(inhalt, "a4-quer");
+    const blaetter = teileAuf(inhalt, format);
     const normal = blaetter.flatMap((b) => b.zeichnung.karten.filter((k) => k.art === "normal").map((k) => k.id));
     expect(normal.sort(), erklaere(seed, inhalt, "Abdeckung")).toEqual(inhalt.stellen.map((s) => s.id).sort());
     for (const b of blaetter) {

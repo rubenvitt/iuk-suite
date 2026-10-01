@@ -1,7 +1,7 @@
 import { BLATT, LOGO_BOX, PAPIER, PT_IN_MM } from "../../_lib/layout/masse";
 import { LEGENDE, kopflinieY, legendeObenY, zeichenflaeche } from "../../_lib/layout/papier";
 import { kuerze, textBreite } from "../../_lib/layout/text";
-import type { Blatt } from "../../_lib/layout/typen";
+import type { Blatt, Papierformat } from "../../_lib/layout/typen";
 import { FARBE, STRICH } from "./farben";
 import { LegendenSymbol } from "./LegendenSymbol";
 import { SymbolDefs, type Symbolsatz } from "./Symbole";
@@ -61,14 +61,14 @@ export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }
   );
 }
 
-export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDefs = true }: {
-  blatt: Blatt; rahmen: Rahmen; symbole: Symbolsatz; schrift?: string; kopfStil?: string; mitDefs?: boolean;
+export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDefs = true, format = "a4-quer" }: {
+  blatt: Blatt; rahmen: Rahmen; symbole: Symbolsatz; schrift?: string; kopfStil?: string; mitDefs?: boolean; format?: Papierformat;
 }) {
-  const p = PAPIER["a4-quer"];
-  const f = zeichenflaeche("a4-quer", blatt.legendeZeilen.length);
+  const p = PAPIER[format];
+  const f = zeichenflaeche(format, blatt.legendeZeilen.length);
   const rechts = p.breite - BLATT.randX;
   const fussY = p.hoehe - BLATT.randUnten - 2;
-  const legendeOben = legendeObenY("a4-quer", blatt.legendeZeilen.length);
+  const legendeOben = legendeObenY(format, blatt.legendeZeilen.length);
   const leer = blatt.zeichnung.karten.length === 0;
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className="kp-blatt" data-blatt={blatt.nummer} width={`${p.breite}mm`} height={`${p.hoehe}mm`}

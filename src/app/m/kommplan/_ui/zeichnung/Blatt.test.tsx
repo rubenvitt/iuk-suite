@@ -12,6 +12,15 @@ const rahmen: Rahmen = {
 };
 
 describe("Blattansicht", () => {
+  it("A3 quer: 420 × 297 mm, Fuß und Legende am unteren Rand des A3-Blatts", () => {
+    const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a3-quer");
+    const html = renderToStaticMarkup(<Blattansicht format="a3-quer" blatt={blatt} rahmen={rahmen} symbole={{}} />);
+    expect(html).toContain('width="420mm"');
+    expect(html).toContain('height="297mm"');
+    expect(html).toContain('viewBox="0 0 420 297"');
+    const fussY = Number(/<text x="410"[^>]*y="([\d.]+)"[^>]*>Blatt 1 von 1/.exec(html)?.[1]);
+    expect(fussY).toBeCloseTo(297 - 8 - 2, 6); // BLATT.randUnten + 2 über der Unterkante, rechts bei 420 − randX
+  });
   it("A4 quer mit Kopf, Legende, Fuß und Blattzähler", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
     const html = renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={rahmen} symbole={{}} />);

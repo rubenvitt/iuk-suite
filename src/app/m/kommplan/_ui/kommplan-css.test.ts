@@ -145,4 +145,12 @@ describe("Sichtprüfung Phase 4", () => {
   it("Suchfeld der Bibliothek ab 768 px nicht zeilenfüllend: „Neue …“ steht daneben", () => {
     expect(css).toMatch(/\.kp-bib-werkzeuge > \.kp-bib-suche \{[^}]*flex: 0 1 24rem/);
   });
+  it("Druck: EIN Stylesheet, zwei benannte @page mit ausgeschriebenen Kanten, Wahl am gemeinsamen Vorfahren (Falle 18)", () => {
+    const css = readFileSync("src/app/m/kommplan/_ui/druck/druck.css", "utf8");
+    expect(css).toMatch(/@page kommplan-a4\s*\{\s*size:\s*297mm 210mm;/);
+    expect(css).toMatch(/@page kommplan-a3\s*\{\s*size:\s*420mm 297mm;/);
+    expect(css).toMatch(/\.kp-druck\[data-format="a4-quer"\]\s*\{\s*page:\s*kommplan-a4;\s*\}/);
+    expect(css).toMatch(/\.kp-druck\[data-format="a3-quer"\]\s*\{\s*page:\s*kommplan-a3;\s*\}/);
+    expect(css).not.toMatch(/size:\s*A[3-8]/i);
+  });
 });
