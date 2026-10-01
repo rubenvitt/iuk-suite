@@ -513,3 +513,110 @@ describe("Ansichten (Spec §6.2, §6.5; Phase 3, Entscheidungen 1, 2, 16)", () =
     expect(queryAll("[data-zeile]")).toHaveLength(3);
   });
 });
+
+describe("Gliederung im Editor, Review Phase 3", () => {
+  const radio = (name: string) =>
+    [...query('[role="radiogroup"][aria-label="Ansicht"]').querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.closest("label")!.textContent === name)!;
+  const titelFeld = (id: string) => query<HTMLInputElement>(`.kp-gliederung [data-zeile="${id}"] input[name="titel"]`);
+  const zeilen = () => queryAll(".kp-gliederung [data-zeile]").length;
+  const warte = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+
+  it("F2 und Strg+Enter auf einer eben per Enter angelegten Zeile öffnen ihre Details — die Zeile bleibt", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await taste("Enter", {}, titelFeld("a"));
+    expect(zeilen()).toBe(4);
+    await taste("F2", {}, document.activeElement!);
+    await warte(400);
+    expect(zeilen()).toBe(4);
+    expect(flyinOffen()).toBe(true);
+    expect(document.activeElement).toBe(flyinFeld());
+  });
+  it("… ebenso Strg+Enter", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await taste("Enter", {}, titelFeld("a"));
+    await taste("Enter", { ctrlKey: true }, document.activeElement!);
+    await warte(400);
+    expect(zeilen()).toBe(4);
+    expect(flyinOffen()).toBe(true);
+  });
+  it("„Rückgängig“ der Kopfleiste direkt nach Enter nimmt genau EINEN Schritt zurück — wie Strg+Z im Titel", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await schreibe(titelFeld("a"), "EA 1 geändert");
+    await taste("Enter", {}, titelFeld("a"));
+    expect(zeilen()).toBe(4);
+    await act(async () => { knopf("Rückgängig").focus(); }); // Chrome: der Knopf nimmt beim Klick den Fokus
+    await clickElement(knopf("Rückgängig"));
+    expect(zeilen()).toBe(3);
+    expect(titelFeld("a").value).toBe("EA 1 geändert");
+    // „Wiederholen“ holt die leere Zeile zurück — und das nächste Verlassen verwirft den wiederholten Schritt nicht still
+    await clickElement(knopf("Wiederholen"));
+    expect(zeilen()).toBe(4);
+    const neu = queryAll<HTMLInputElement>(".kp-gliederung [data-zeile] input[name='titel']").find((i) => i.value === "")!;
+    await act(async () => { neu.focus(); });
+    await act(async () => { titelFeld("el").focus(); });
+    expect(zeilen()).toBe(4);
+  });
+  it("… ebenso ohne Fokuswechsel auf den Knopf (Safari): EIN Schritt, und ein wiederholter Enter-Schritt bleibt beim Verlassen stehen", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await schreibe(titelFeld("a"), "EA 1 geändert");
+    await taste("Enter", {}, titelFeld("a"));
+    await clickElement(knopf("Rückgängig")); // der Titel behält den Fokus bis zum Klick
+    expect(zeilen()).toBe(3);
+    expect(titelFeld("a").value).toBe("EA 1 geändert");
+    await clickElement(knopf("Wiederholen"));
+    const neu = queryAll<HTMLInputElement>(".kp-gliederung [data-zeile] input[name='titel']").find((i) => i.value === "")!;
+    await act(async () => { neu.focus(); });
+    await act(async () => { titelFeld("el").focus(); });
+    expect(zeilen()).toBe(4);
+  });
+  it("„Rückgängig“ und „Wiederholen“ nehmen dem Titel beim Zeigerdruck nicht den Fokus (Safari fokussiert Knöpfe beim Klick nicht)", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await schreibe(titelFeld("a"), "EA 1 neu"); // sonst ist „Rückgängig“ deaktiviert
+    const e = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    await act(async () => { knopf("Rückgängig").dispatchEvent(e); });
+    expect(e.defaultPrevented).toBe(true);
+  });
+  it("Ansichtswechsel verwirft einen reinen Bedienhinweis der Gliederung; ein Lösch-Hinweis mit „Rückgängig“ bleibt", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await taste("Tab", {}, titelFeld("a"));
+    expect(query(".kp-gliederung [data-meldung]").textContent).toContain("nicht einrücken");
+    await clickElement(radio("Diagramm"));
+    expect(exists(".kp-betrachter [data-meldung]")).toBe(false);
+    await waehle("a");
+    query<HTMLElement>(".kp-betrachter").focus();
+    await taste("Delete");
+    expect(query(".kp-betrachter [data-meldung]").textContent).toContain("gelöscht");
+    await clickElement(radio("Gliederung"));
+    expect(query(".kp-gliederung [data-meldung]").textContent).toContain("gelöscht");
+  });
+  it("Strg/Cmd+Z mit Fokus auf body bei sichtbarer Gliederung holt den Fokus in die Zeile zurück (Entscheidung 10)", async () => {
+    await zeige(plan(), "gliederung");
+    await act(async () => { titelFeld("a").focus(); });
+    await schreibe(titelFeld("a"), "EA 1 neu");
+    await act(async () => { (document.activeElement as HTMLElement).blur(); });
+    expect(document.activeElement).toBe(document.body);
+    await taste("z", { ctrlKey: true }, document.body);
+    expect(titelFeld("a").value).toBe("EA 1");
+    expect(document.activeElement).toBe(titelFeld("a"));
+  });
+  it("Umschalten in die Gliederung holt die gewählte Zeile ins Bild (zeige)", async () => {
+    const gerollt = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", { value: gerollt, configurable: true, writable: true });
+    try {
+      await zeige(plan(), "diagramm");
+      await waehle("s");
+      gerollt.mockClear();
+      await clickElement(radio("Gliederung"));
+      await warte(50);
+      expect(gerollt.mock.contexts).toContain(query('.kp-gliederung [data-zeile="s"]'));
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+});

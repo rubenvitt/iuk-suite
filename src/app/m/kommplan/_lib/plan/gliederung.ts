@@ -16,6 +16,9 @@ export const MELDUNG = {
   wurzelAusruecken: "Eine Stelle der obersten Ebene lässt sich nicht ausrücken.",
   seiteEbene: "Eine Seitenstelle wechselt ihre Ebene nicht in der Gliederung — dafür „Details“ → „Untersteht“.",
   nichtLeer: "Diese Zeile hat Unter- oder Seitenstellen — löschen über „Aktionen“ → „Stelle löschen“.",
+  mitAngaben: "Diese Zeile trägt noch Einheiten oder andere Angaben — löschen über „Aktionen“ → „Stelle löschen“.",
+  reiheAnfang: "Die Stelle steht schon ganz oben in ihrer Reihe.",
+  reiheEnde: "Die Stelle steht schon ganz unten in ihrer Reihe.",
   mitTitel: "Nur eine Zeile ohne Titel wird so gelöscht.",
   inSeitenstelle: "In eine Seitenstelle lässt sich keine Gliederung einfügen — sie trägt keine Unterstellen.",
   erstTitel: "Erst einen Titel eingeben — auf der obersten Ebene und an einer Seitenstelle rückt Enter nicht aus.",
@@ -144,11 +147,16 @@ export function verschiebeInReihe(inhalt: PlanInhalt, id: string, richtung: "hoc
   return gueltig({ ...inhalt, stellen: mitFolge(inhalt.stellen, gruppen.flat().map((x) => x.id)) });
 }
 
-/** Entscheidung 8: nur eine Zeile ohne Titel und ohne Unter- oder Seitenstellen. */
+/**
+ * Entscheidung 8: nur eine Zeile ohne Titel, ohne Unter- oder Seitenstellen und ohne Angaben (Einheiten,
+ * Kontakte, Leiter, Zeichen, Kanäle) — die Rücktaste nach dem Leeren eines Titels fräße sonst still eine
+ * ganze Stelle samt Fahrzeugen (Review Phase 3). Gelöscht wird so etwas über „Stelle löschen“ mit Hinweis.
+ */
 export function loescheLeereZeile(inhalt: PlanInhalt, id: string): PlanInhalt {
   const s = stelleOder(inhalt, id);
   if (s.titel.trim() !== "") throw new PlanFehler(MELDUNG.mitTitel);
   if (nachkommen(baueBaum(inhalt), id).length > 0) throw new PlanFehler(MELDUNG.nichtLeer);
+  if (!istLeer(inhalt, s)) throw new PlanFehler(MELDUNG.mitAngaben);
   return loescheStelle(inhalt, id).inhalt;
 }
 

@@ -3,7 +3,7 @@ import { baue } from "../beispiele/bau";
 import { MELDUNG, fuegeGeschwisterEin, fuegeGliederungEin, gliederungsZeilen, loescheLeereZeile, nachbarZeile, reihe, rueckeAus, rueckeEin, setzeVerbindungFuerGeschwister, verschiebeInReihe, zeilenAktionen, zuVieleStellen } from "./gliederung";
 import { leseGliederung } from "./einfuegen";
 import { PlanFehler } from "./operationen";
-import { GRENZE, leseInhalt, type PlanInhalt } from "./schema";
+import { GRENZE, leseInhalt, type PlanInhalt, type Stelle } from "./schema";
 
 const V = [{ id: "a", art: "tmo" as const, bezeichnung: "A" }, { id: "b", art: "dmo" as const, bezeichnung: "B" }];
 /** EL mit Seitenstelle links, fünf Unterstellen in zwei Busgruppen (A: x1, x2, x5 — B: y3, y4) und einer Unterunterstelle. */
@@ -139,6 +139,14 @@ describe("Zeilenaktionen und leere Zeilen (Entscheidungen 8, 11)", () => {
     const leerMitKind = { ...PLAN, stellen: PLAN.stellen.map((x) => (x.id === "x2" ? { ...x, titel: " " } : x)) };
     expect(() => loescheLeereZeile(leerMitKind, "x2")).toThrow(MELDUNG.nichtLeer);
     expect(() => loescheLeereZeile(PLAN, "x1")).toThrow(MELDUNG.mitTitel);
+  });
+  it("eine Zeile ohne Titel, aber mit Einheiten, Kontakten, Leiter, Zeichen oder Kanälen: PlanFehler statt stillem Verlust (Review Phase 3)", () => {
+    const mitLeer = fuegeGeschwisterEin(PLAN, "x1", "leer");
+    const mit = (feld: Partial<Stelle>) => ({ ...mitLeer, stellen: mitLeer.stellen.map((x) => (x.id === "leer" ? { ...x, ...feld } : x)) });
+    for (const feld of [
+      { einheiten: [{ id: "e1", typ: "RTW", rufname: "RK 1", zeichen: null }] }, { kontakte: [{ art: "telefon" as const, wert: "0581" }] },
+      { leiter: "Müller" }, { zeichen: "k1" }, { kanaele: ["TMO 1"] },
+    ]) expect(() => loescheLeereZeile(mit(feld), "leer")).toThrow(MELDUNG.mitAngaben);
   });
 });
 

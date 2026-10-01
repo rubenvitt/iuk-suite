@@ -40,7 +40,10 @@ export function ZeichenKnopf({ stelle, index, symbole, ladeSymbole, planZeichen,
   return (
     <Popover open={offen} trigger="click" placement="bottomLeft" destroyOnHidden
       onOpenChange={(o) => { onOffen(o); if (o) ladeSymbole(leseZuletzt()); }}
-      content={<div ref={inhalt} className="kp-g-zeichenwahl" data-zeile-portal={stelle.id}>
+      // Esc in der Suche: der fokussierte Inhalt verschwindet mit dem Popover (`destroyOnHidden`) — ohne
+      // Rückweg fiele der Fokus auf body (Review Phase 3). `onFertig` entscheidet wie nach einer Wahl.
+      content={<div ref={inhalt} className="kp-g-zeichenwahl" data-zeile-portal={stelle.id}
+        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onOffen(false); onFertig(); } }}>
         <ZeichenWahl wert={stelle.zeichen} index={index} symbole={symbole} ladeSymbole={ladeSymbole} planZeichen={planZeichen}
           onWahl={(k) => { aendere((q) => aendereStelle(q, stelle.id, { zeichen: k })); onOffen(false); onFertig(); }} />
       </div>}>

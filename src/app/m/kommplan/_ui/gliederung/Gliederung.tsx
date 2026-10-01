@@ -26,6 +26,12 @@ export interface GliederungGriff {
   zeige(id: string): void;
   /** Ein per Enter angelegtes, unberührtes Element verwerfen — beim Ansichtswechsel (Entscheidung 8). */
   raeumeAuf(): void;
+  /**
+   * Das unberührte Element als behalten markieren, OHNE es zu verwerfen — vor Rückgängig/Wiederholen per
+   * Knopf: der Knopf nimmt den Schritt selbst zurück (wie Strg+Z im Titel), und ein wiederholter Enter-Schritt
+   * ist danach kein „unberührtes“ Element mehr, das das nächste Verlassen still verwürfe (Review Phase 3).
+   */
+  vergiss(): void;
 }
 export const GLIEDERUNG_BEDIENZEILE =
   "Enter neue Stelle darunter, auf leerer Zeile ausrücken · Tab / Umschalt+Tab Ebene · Alt+↑/↓ verschieben · ↑/↓ wandern · " +
@@ -124,6 +130,7 @@ export function Gliederung(p: GliederungProps) {
     fokus: (id, ziel = "titel") => fokussiere(id ?? aktiv ?? LEER_ZIEL, "ende", ziel),
     zeige: (id) => register.felder.get(id)?.closest("li")?.scrollIntoView?.({ block: "nearest" }),
     raeumeAuf: () => { const n = neu.current; if (n) raeumeAuf(n.id); },
+    vergiss: () => { neu.current = null; },
   }));
 
   function tueMit(op: (q: PlanInhalt) => PlanInhalt): PlanInhalt | null {
@@ -151,7 +158,7 @@ export function Gliederung(p: GliederungProps) {
       // Erst nach dem Schließen des Menüs: rc-portal führt Esc nur an das OBERSTE offene Portal, und das
       // Menü meldet sich während seiner Schließ-Animation dort neu an — Esc im frisch geöffneten Flyin
       // schlösse sonst das Menü statt des Flyins (e2e Telefon, Phase 3).
-      case "details": requestAnimationFrame(() => p.onDetails(id)); return;
+      case "details": neu.current = null; requestAnimationFrame(() => p.onDetails(id)); return; // Details öffnen heißt behalten
       case "loeschen": p.onLoeschen(id); return;
       case "neu": lege((q, n) => fuegeGeschwisterEin(q, id, n)); return; // anlegen: Fokus in den neuen Titel
       case "unterstelle": lege((q, n) => fuegeUnterstelleEin(q, id, n)); return;
@@ -200,7 +207,10 @@ export function Gliederung(p: GliederungProps) {
       }
       case "einruecken": tueMit((q) => rueckeEin(q, id)); fokussiere(id, caret); return;
       case "ausruecken": tueMit((q) => rueckeAus(q, id)); fokussiere(id, caret); return;
-      case "verschiebe": tueMit((q) => verschiebeInReihe(q, id, b.richtung)); fokussiere(id, caret); return;
+      case "verschiebe": // am Ende der Reihe: dasselbe Objekt, kein Schritt — aber eine Rückmeldung wie bei Tab
+        if (tueMit((q) => verschiebeInReihe(q, id, b.richtung)) === inhalt) p.onHinweis(b.richtung === "hoch" ? MELDUNG.reiheAnfang : MELDUNG.reiheEnde);
+        fokussiere(id, caret);
+        return;
       case "wandere": {
         const ziel = nachbarZeile(zeilen, id, b.richtung);
         if (ziel === null) return;
@@ -219,7 +229,7 @@ export function Gliederung(p: GliederungProps) {
         register.aktionen.get(id)?.focus();
         return;
       }
-      case "details": p.onDetails(id); return;
+      case "details": neu.current = null; p.onDetails(id); return; // sonst verwürfe der Fokuswechsel ins Flyin die Zeile
       case "zeichen": // Popover offen; es setzt den Fokus selbst in „Zeichen suchen" (ZeichenKnopf)
         p.ladeSymbole(leseZuletzt());
         setOffenBei({ id, was: "zeichen" });
@@ -236,6 +246,7 @@ export function Gliederung(p: GliederungProps) {
     if (neu.current?.id !== id) return;
     const nach = e.relatedTarget as Element | null;
     if (nach && (e.currentTarget.closest("li")?.contains(nach) || nach.closest(`[data-zeile-portal="${id}"]`))) return;
+    if (nach?.closest("[data-verlauf]")) { neu.current = null; return; } // Rückgängig/Wiederholen: der Knopf nimmt den Schritt selbst zurück
     raeumeAuf(id);
   }
   /** Entscheidung 9: ab zwei nicht leeren Zeilen fängt das Titelfeld das Einfügen ab — sonst fügt es normal ein. */

@@ -190,6 +190,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   function wechsleAnsicht(a: EditorAnsicht) {
     gliederung.current?.raeumeAuf(); // ein unberührt angelegtes Element verschwindet (Entscheidung 8)
     setAnsicht(a);
+    // Ein reiner Bedienhinweis gehört zur Tastenaktion der anderen Ansicht; einer mit „Rückgängig“ bleibt (Review Phase 3).
+    setHinweis((h) => (h?.nach !== undefined ? h : null));
     try { window.history.replaceState(null, "", adresseMitAnsicht(window.location.href, a)); } catch { /* ohne Adresse bleibt es Zustand */ }
     if (gewaehlt === null) return;
     const id = gewaehlt;
@@ -250,6 +252,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     if (sichtbar() === "gliederung") gliederung.current?.fokus(gewaehlt);
   }
   function perKnopf(f: () => void) { f(); fokusZurueck(); }
+  /** Rückgängig/Wiederholen per Knopf: ein unberührt angelegtes Element nimmt der Knopf selbst zurück (Review Phase 3). */
+  function perVerlaufsknopf(f: () => void) { gliederung.current?.vergiss(); perKnopf(f); }
   function pruefeStand(s: Speicherstand) {
     if (speicherer.pruefeStand(s) !== "uebernommen") return;
     if (s.inhalt === null) { window.location.reload(); return; }
@@ -410,7 +414,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
       </svg>
       <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
         kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
-        onRueck={() => perKnopf(rueck)} onWieder={() => perKnopf(wieder)}
+        onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
         onPlan={() => oeffnePlan("angaben")} onDrucken={() => void drucken()}
         onNeuLaden={neuLaden} onBehalten={behalten} />
       <div className="kp-ansicht-diagramm">

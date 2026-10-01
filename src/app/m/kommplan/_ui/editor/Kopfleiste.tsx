@@ -9,6 +9,13 @@ import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { kalendertag } from "../../_lib/rahmen";
 import type { SpeicherZustand } from "./speicherer";
 
+/**
+ * Rückgängig/Wiederholen nehmen dem Titelfeld der Gliederung beim Zeigerdruck nicht den Fokus: sonst
+ * verwürfe dessen Verlassen eine eben angelegte, unberührte Zeile, und der Klick nähme danach noch einen
+ * Schritt zurück (Review Phase 3). Safari fokussiert Knöpfe beim Klick ohnehin nicht; `data-verlauf`
+ * erkennt die Gliederung, wo der Fokus trotzdem hierher wandert.
+ */
+export const VERLAUFSKNOPF = { "data-verlauf": "", onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() } as const;
 // zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
 const UHR = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 const STAND = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -62,8 +69,8 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
             {ansicht === null
               ? <>{umschalter("diagramm", "kp-nur-breit")}{umschalter("gliederung", "kp-nur-schmal")}</>
               : umschalter(ansicht)}
-            <Button onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
-            <Button onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
+            <Button {...VERLAUFSKNOPF} onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
+            <Button {...VERLAUFSKNOPF} onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
             <Button onClick={onPlan}>Plan und Verbindungen</Button>
             <Button onClick={onDrucken}>Drucken (A4 quer)</Button>
             <span className="kp-speicherstatus" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>

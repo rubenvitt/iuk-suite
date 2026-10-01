@@ -392,3 +392,115 @@ describe("Gliederung, Teil 2", () => {
     expect(aktiv()).toBe(feld("ea2"));
   });
 });
+
+/** Wie `taste`, meldet aber, ob die Gliederung die Standardaktion verhindert hat (jsdom führt Tab selbst nicht aus). */
+async function tasteVerhindert(el: Element, key: string, mehr: KeyboardEventInit = {}): Promise<boolean> {
+  const e = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...mehr });
+  await act(async () => { el.dispatchEvent(e); });
+  return e.defaultPrevented;
+}
+
+describe("Gliederung, Review Phase 3", () => {
+  it("Entf auf leerem Titel löscht, der Fokus geht nach UNTEN; auf der letzten Zeile nach oben (Entscheidung 8)", async () => {
+    await zeige();
+    await fokus("ea1");
+    await schreibe(feld("ea1"), "");
+    await taste(feld("ea1"), "Delete");
+    expect(titel()).toEqual(["EL", "KatSL", "EA 2"]);
+    expect(aktiv()).toBe(feld("ea2"));
+    await schreibe(feld("ea2"), "");
+    await taste(feld("ea2"), "Delete");
+    expect(titel()).toEqual(["EL", "KatSL"]);
+    expect(aktiv()).toBe(feld("kat"));
+  });
+  it("Rücktaste auf leerem Titel löscht keine Stelle mit Einheiten oder anderen Angaben — Hinweis statt stillem Verlust", async () => {
+    await zeige(baue({ stellen: [{ id: "el", titel: "EL" }, { id: "a", titel: "", eltern: "el", leiter: "Müller", einheiten: ["RTW RK 1"] }] }));
+    await fokus("a");
+    const vorher = stand.jetzt;
+    await taste(feld("a"), "Backspace");
+    expect(stand.jetzt).toBe(vorher);
+    expect(titel()).toEqual(["EL", ""]);
+    expect(meldung()).toBe(MELDUNG.mitAngaben);
+    expect(aktiv()).toBe(feld("a"));
+  });
+  it("Menü „Verbindung … für Geschwister übernehmen“ setzt sie an allen Geschwistern ohne Verbindung — EIN Schritt", async () => {
+    await zeige(baue({
+      verbindungen: [{ id: "a", art: "tmo", bezeichnung: "R_UE_2" }],
+      stellen: [{ id: "el", titel: "EL" }, { id: "ea1", titel: "EA 1", eltern: "el", verbindung: "a" }, { id: "ea2", titel: "EA 2", eltern: "el" }, { id: "ea3", titel: "EA 3", eltern: "el" }],
+    }));
+    const schritte = stand.vergangen.length;
+    await zeigerKlick(query<HTMLElement>('[data-zeile="ea1"] [aria-label="Aktionen für EA 1"]'));
+    await zeigerKlick(queryPortal('[data-zeile-portal="ea1"] [data-menu-id$="uebernehmen"]'));
+    expect(stand.jetzt.stellen.filter((s) => s.eltern === "el").map((s) => s.verbindungId)).toEqual(["a", "a", "a"]);
+    expect(stand.vergangen.length).toBe(schritte + 1);
+  });
+  it("Verbindung inline auf „keine (dünne Linie)“ setzen entfernt sie", async () => {
+    await zeige();
+    await fokus("ea1");
+    await taste(feld("ea1"), "√", { altKey: true, code: "KeyV" });
+    const keine = [...document.querySelectorAll<HTMLElement>('[data-zeile-portal="ea1"] .ant-select-item-option')].find((o) => o.textContent?.startsWith("keine"))!;
+    await clickElement(keine);
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.verbindungId).toBeNull();
+    expect(queryAll("[data-meldung]")).toHaveLength(0); // kein PlanFehler (der Sentinel wäre keine gültige Verbindung)
+  });
+  it("eine eben angelegte Zeile bleibt, wenn der Fokus in ihre eigenen Bedienelemente wandert (Alt+V, Alt+Z, „⋯“)", async () => {
+    const index = [{ schluessel: "k1", titel: "Einsatzleitung", suchtext: "einsatzleitung el" }];
+    await mount(<PruefstandMitIndex index={index} />);
+    await act(async () => {});
+    await fokus("ea2");
+    await taste(feld("ea2"), "Enter");
+    const neu = () => aktiv()!.closest("[data-zeile]")!.getAttribute("data-zeile")!;
+    const id = neu();
+    await taste(feld(id), "√", { altKey: true, code: "KeyV" }); // Fokus ins Select derselben Zeile
+    expect(titel()).toHaveLength(5);
+    await fokus(id);
+    await taste(feld(id), "Ω", { altKey: true, code: "KeyZ" }); // Fokus in die Zeichensuche (Portal der Zeile)
+    expect(aktiv()!.getAttribute("aria-label")).toBe("Zeichen suchen");
+    expect(titel()).toHaveLength(5);
+    await taste(aktiv()!, "Escape");
+    await fokus(id);
+    await act(async () => { query<HTMLButtonElement>(`[data-zeile="${id}"] [aria-label="Aktionen für (ohne Titel)"]`).focus(); });
+    expect(titel()).toHaveLength(5);
+  });
+  it("Esc auf einer eben angelegten, unberührten Zeile räumt sie weg; der Fokus geht auf den Nachbarn darüber", async () => {
+    await zeige();
+    await fokus("ea1");
+    await taste(feld("ea1"), "Enter");
+    expect(titel()).toHaveLength(5);
+    await taste(aktiv()!, "Escape");
+    expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
+    expect(aktiv()).toBe(feld("ea1"));
+    expect(kannWiederholen(stand)).toBe(false);
+  });
+  it("Esc in der Zeichensuche (nach Alt+Z) gibt den Fokus an den Titel zurück, nicht an body (Entscheidung 16)", async () => {
+    const index = [{ schluessel: "k1", titel: "Einsatzleitung", suchtext: "einsatzleitung el" }];
+    await mount(<PruefstandMitIndex index={index} />);
+    await act(async () => {});
+    await fokus("ea1");
+    await taste(feld("ea1"), "Ω", { altKey: true, code: "KeyZ" });
+    expect(aktiv()!.getAttribute("aria-label")).toBe("Zeichen suchen");
+    await taste(aktiv()!, "Escape");
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(aktiv()).toBe(feld("ea1"));
+    expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBeNull();
+  });
+  it("Tab ohne Wirkung und Umschalt+Tab ohne Wirkung verhindern die Standardaktion — der Fokus verlässt das Feld nie (Review Focus 3)", async () => {
+    await zeige();
+    await fokus("ea1");
+    expect(await tasteVerhindert(feld("ea1"), "Tab")).toBe(true);
+    await fokus("el");
+    expect(await tasteVerhindert(feld("el"), "Tab", { shiftKey: true })).toBe(true);
+  });
+  it("Alt+↑/↓ am Ende der Reihe: Hinweis statt Stille, das Dokument bleibt", async () => {
+    await zeige();
+    await fokus("ea1");
+    const vorher = stand.jetzt;
+    await taste(feld("ea1"), "ArrowUp", { altKey: true });
+    expect(stand.jetzt).toBe(vorher);
+    expect(meldung()).toBe(MELDUNG.reiheAnfang);
+    await fokus("ea2");
+    await taste(feld("ea2"), "ArrowDown", { altKey: true });
+    expect(meldung()).toBe(MELDUNG.reiheEnde);
+    expect(aktiv()).toBe(feld("ea2"));
+  });
+});
