@@ -30,13 +30,13 @@ export function leseEinheitenliste(text: string): { einheiten: ListenEinheit[]; 
  * Mischungen daraus, und ein Sprung über mehrere Stufen ist genau eine Ebene tiefer.
  *
  * NICHTS WIRD GERATEN: auch „RTW RK UE 40-83-5" wird eine Stelle — Einheiten entstehen nur über
- * „Liste einfügen". Aufzählungszeichen und Nummern fallen nur mit folgendem Leerraum weg, damit
+ * „Liste einfügen". Aufzählungszeichen und Nummern fallen nur mit folgendem Leerraum (oder allein) weg, damit
  * „112 Leitstelle" und „1.2 Abschnitt" ihre Zahl behalten.
  */
 export interface GliederungsEintrag { ebene: number; titel: string }
 export const TAB_BREITE = 2;
 const EINZUG = /^[\t  ]*/;
-const AUFZAEHLUNG = /^(?:[-*•‣◦▪–]|\d+(?:\.\d+)*[.)])[\t  ]+/u;
+const AUFZAEHLUNG = /^(?:[-*•‣◦▪–]|\d+(?:\.\d+)*[.)])(?:[\t  ]+|$)/u; // `$`: auch ein leerer Punkt ohne Leerzeichen dahinter (Review Phase 3)
 
 export function leseGliederung(text: string): { eintraege: GliederungsEintrag[]; fehler: string[] } {
   const eintraege: GliederungsEintrag[] = [];

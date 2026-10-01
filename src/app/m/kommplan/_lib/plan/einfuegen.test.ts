@@ -56,6 +56,9 @@ describe("leseGliederung (Spec §6.5, Entscheidung 9)", () => {
   it("CRLF, CR, Leerzeilen und reine Leerraumzeilen; innerer Leerraum wird ein Leerzeichen", () => {
     expect(ebenen("EL\r\n\r\n\tEA  1\r   \n\t- \nStab")).toEqual([[0, "EL"], [1, "EA 1"], [0, "Stab"]]);
   });
+  it("ein leerer Listenpunkt ohne Leerzeichen dahinter (vom Editor beim Speichern gekappt) wird keine Stelle „-“ (Review Phase 3)", () => {
+    expect(ebenen("EL\n\t-\n\tEA\n  •\n  *\n  1.\n  2)")).toEqual([[0, "EL"], [1, "EA"]]);
+  });
   it("ein zu langer Titel ist ein Fehler mit Zeilennummer — nie still gekürzt", () => {
     const r = leseGliederung(`EL\n\t${"x".repeat(LAENGE.titel + 1)}\n\tEA`);
     expect(r.fehler).toEqual([`Zeile 2: Der Titel ist länger als ${LAENGE.titel} Zeichen.`]);
