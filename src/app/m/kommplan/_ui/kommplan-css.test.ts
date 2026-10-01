@@ -159,6 +159,11 @@ describe("Sichtprüfung Phase 4", () => {
     expect(css).toMatch(/\.kp-druck\[data-format="a4-quer"\]\s*\{\s*page:\s*kommplan-a4;\s*\}/);
     expect(css).toMatch(/\.kp-druck\[data-format="a3-quer"\]\s*\{\s*page:\s*kommplan-a3;\s*\}/);
     expect(css).not.toMatch(/size:\s*A[3-8]/i);
+    // Vorschau passt in die Fensterbreite — nur am Bildschirm, der Druck behält die mm-Kanten (Review Phase 5)
+    const schirm = /@media screen \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(schirm).toMatch(/\.kp-druck \.kp-blatt \{ max-width: 100%; height: auto; \}/);
+    const druck = /@media print \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(druck).not.toMatch(/max-width/);
   });
   it("Token-Ansicht am Telefon: der umrandete VS-NfD-Vermerk bricht nicht in sich um (Sichtprüfung Phase 5)", () => {
     const token = readFileSync("src/app/m/kommplan/_ui/token/token.css", "utf8");

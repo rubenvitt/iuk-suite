@@ -31,6 +31,16 @@
 .kp-druck .kp-druck-svg-hinweis { text-align: center; margin: 0 0 8px; }
 .kp-druck .kp-blatt-werkzeug { text-align: center; margin-block-end: 8px; }
 
+/*
+ * Bildschirmvorschau: das Blatt passt in die Fensterbreite (Review Phase 5: A3 quer ist ≈ 1587 CSS-px breit und ragte
+ * bei 1440 px samt Briefkopf rechts hinaus; A4 quer ≈ 1123 px ebenso bei 1024 px). NUR am Bildschirm: der Ausdruck
+ * nimmt die Kanten aus den width/height-Attributen in mm, die SVG-Datei serialisiert die Attribute.
+ */
+@media screen {
+  .kp-druck { padding-inline: 16px; }
+  .kp-druck .kp-blatt { max-width: 100%; height: auto; }
+}
+
 @media print {
   body { background: #fff; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .kp-druck { background: #fff; padding: 0; }
