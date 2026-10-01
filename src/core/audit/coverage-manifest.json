@@ -445,9 +445,9 @@
     "kind": "context",
     "via": "dupliziereAction"
   },
-  "src/app/m/kommplan/_actions/verwaltung.ts#setzeVorlageAction": {
+  "src/app/m/kommplan/_actions/verwaltung.ts#speichereAlsVorlageAction": {
     "kind": "context",
-    "via": "setzeVorlageAction"
+    "via": "speichereAlsVorlageAction"
   },
   "src/app/m/kommplan/_actions/verwaltung.ts#stelleWiederHerAction": {
     "kind": "context",

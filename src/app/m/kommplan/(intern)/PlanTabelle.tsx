@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, Drawer, Dropdown, type InputRef, type MenuProps, type TableProps } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 import { Kartentabelle, nachText } from "@/core/tabelle";
-import { archiviereAction, dupliziereAction, setzeVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
+import { archiviereAction, dupliziereAction, speichereAlsVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
 import type { EinfachErgebnis } from "../_lib/ergebnis";
 import type { Liste, Listenzeile } from "../_lib/plaene";
 import type { VorlageWahl } from "../_lib/planverwaltung";
@@ -15,18 +15,21 @@ import { NeuerPlanFormular } from "./NeuerPlan";
 const NAME: Record<Liste, string> = { plaene: "Pläne", vorlagen: "Vorlagen", archiv: "Archivierte Pläne" };
 const LEER: Record<Liste, string> = {
   plaene: "Noch keine Pläne.",
-  vorlagen: "Noch keine Vorlagen. „Als Vorlage speichern“ im Menü eines Plans macht ihn zur Vorlage.",
+  vorlagen: "Noch keine Vorlagen. „Als Vorlage speichern“ im Menü eines Plans legt eine Kopie als Vorlage an.",
   archiv: "Das Archiv ist leer.",
 };
-type Aktion = "duplizieren" | "vorlage" | "keineVorlage" | "archivieren" | "wiederherstellen" | "ausVorlage";
+type Aktion = "duplizieren" | "vorlage" | "vorlageArchivieren" | "archivieren" | "wiederherstellen" | "ausVorlage";
 const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
   plaene: [{ key: "duplizieren", label: "Duplizieren" }, { key: "vorlage", label: "Als Vorlage speichern" }, { key: "archivieren", label: "Archivieren" }],
-  vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "keineVorlage", label: "Keine Vorlage mehr" }, { key: "archivieren", label: "Archivieren" }],
+  vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "vorlageArchivieren", label: "Vorlage archivieren" }],
   archiv: [{ key: "wiederherstellen", label: "Wiederherstellen" }],
 };
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
-/** `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body). */
-interface Hinweis { text: string; zurueck?: string; fokus?: boolean }
+/**
+ * `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body).
+ * `oeffnen`: die ID einer eben angelegten Vorlage — „Vorlage öffnen“ (Phase 5, Entscheidung 16).
+ */
+interface Hinweis { text: string; zurueck?: string; oeffnen?: string; fokus?: boolean }
 
 /**
  * DIE DREI LISTEN DER PLANLISTE (Spec §6.1, §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10).
@@ -45,9 +48,10 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
   const setzeLauf = (id: string | null) => { sperre.current = id; setLaeuft(id); };
   const hinweisRef = useRef<HTMLParagraphElement>(null);
   const zurueckRef = useRef<HTMLButtonElement>(null);
+  const oeffnenRef = useRef<HTMLAnchorElement>(null);
   const titelRef = useRef<InputRef>(null);
-  // Nach Archivieren auf „Rückgängig“, sonst auf die Meldung selbst (Review Phase 4).
-  useEffect(() => { if (hinweis?.fokus) (zurueckRef.current ?? hinweisRef.current)?.focus(); }, [hinweis]);
+  // Nach Archivieren auf „Rückgängig“, nach „Als Vorlage speichern“ auf „Vorlage öffnen“, sonst auf die Meldung selbst (Review Phase 4).
+  useEffect(() => { if (hinweis?.fokus) (zurueckRef.current ?? oeffnenRef.current ?? hinweisRef.current)?.focus(); }, [hinweis]);
 
   async function fuehreAus(z: Listenzeile, a: Aktion) {
     if (a === "ausVorlage") { setAusVorlage(z.id); return; }
@@ -61,18 +65,27 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
       setHinweis({ text: r.fehler });
       return;
     }
+    let neueVorlage: string | undefined;
     const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren">, () => Promise<EinfachErgebnis>> = {
-      vorlage: () => setzeVorlageAction({ id: z.id, vorlage: true }),
-      keineVorlage: () => setzeVorlageAction({ id: z.id, vorlage: false }),
+      vorlage: () => speichereAlsVorlageAction(z.id).then((r): EinfachErgebnis => {
+        if (!r.ok) return { ok: false, fehler: r.fehler };
+        neueVorlage = r.id;
+        return { ok: true };
+      }),
+      vorlageArchivieren: () => archiviereAction(z.id),
       archivieren: () => archiviereAction(z.id),
       wiederherstellen: () => stelleWiederHerAction(z.id),
     };
     const r = await lauf[a]().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
     setzeLauf(null);
     if (!r.ok) { setHinweis({ text: r.fehler, fokus: true }); return; }
-    const text = { vorlage: `„${z.titel}“ steht jetzt unter „Vorlagen“.`, keineVorlage: `„${z.titel}“ steht wieder unter „Pläne“.`,
-      archivieren: `„${z.titel}“ archiviert.`, wiederherstellen: `„${z.titel}“ wiederhergestellt.` }[a];
-    setHinweis({ text, zurueck: a === "archivieren" ? z.id : undefined, fokus: true });
+    const text = {
+      vorlage: `Vorlage „${z.titel}“ angelegt — sie steht unter „Vorlagen“.`,
+      vorlageArchivieren: `Vorlage „${z.titel}“ archiviert.`,
+      archivieren: `„${z.titel}“ archiviert.`,
+      wiederherstellen: z.vorlage ? `„${z.titel}“ wiederhergestellt — sie steht wieder unter „Vorlagen“.` : `„${z.titel}“ wiederhergestellt.`,
+    }[a];
+    setHinweis({ text, zurueck: a === "archivieren" || a === "vorlageArchivieren" ? z.id : undefined, oeffnen: neueVorlage, fokus: true });
     router.refresh();
   }
   /** „Rückgängig" nach dem Archivieren — unter derselben Sperre wie das Menü: ein Doppelklick schickte sonst eine zweite
@@ -90,7 +103,10 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     { key: "titel", title: "Titel", dataIndex: "titel", sorter: nachText<Listenzeile>((z) => z.titel),
       render: (_: unknown, z: Listenzeile) => <Link href={`/p/${z.id}`}>{z.titel}</Link> },
     { key: "kennzeichen", title: "Kennzeichen", render: (_: unknown, z: Listenzeile) => (
-      <span className="kp-chips">{z.lesbar ? null : <span className="kp-chip kp-chip-hinweis">nicht lesbar</span>}</span>
+      <span className="kp-chips">
+        {z.lesbar ? null : <span className="kp-chip kp-chip-hinweis">nicht lesbar</span>}
+        {liste === "archiv" && z.vorlage ? <span className="kp-chip">Vorlage</span> : null}
+      </span>
     ) },
     { key: "typ", title: "Art", dataIndex: "typ" },
     { key: "datum", title: "Datum", dataIndex: "datum", render: (d: string | null) => d ?? "—" },
@@ -115,6 +131,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
         <p ref={hinweisRef} className="kp-listenhinweis" role="status" tabIndex={-1}>
           {hinweis.text}
           {hinweis.zurueck ? <Button ref={zurueckRef} onClick={() => void zurueck(hinweis.zurueck!)} loading={laeuft === hinweis.zurueck}>Rückgängig</Button> : null}
+          {hinweis.oeffnen ? <Button ref={oeffnenRef} href={`/p/${hinweis.oeffnen}`}>Vorlage öffnen</Button> : null}
         </p>
       ) : null}
       <Kartentabelle<Listenzeile>

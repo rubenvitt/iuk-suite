@@ -35,20 +35,22 @@ test("Duplizieren: Kopie mit heutigem Datum im Titel, direkt im Editor, mit Hinw
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(titel.replace("01.07.2022", heute));
 });
 
-test("Vorlage: als Vorlage speichern, Neu aus Vorlage übernimmt den Inhalt, Keine Vorlage mehr", async ({ page }) => {
+test("Vorlage: als Kopie speichern, Neu aus Vorlage übernimmt den Inhalt, Vorlage archivieren", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const titel = `e2e Vorlage ${neu()}`;
   const stelle = `Vorlagenstelle ${neu()}`;
-  await neuerPlan(page, titel);
+  const id = await neuerPlan(page, titel);
   await ersteStelle(page, stelle); // mit Inhalt: sonst sähe ein „Neu aus Vorlage“, das nichts kopiert, genauso aus (Review Phase 4)
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${titel}` }));
-  const v = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"vorlage":true'));
+  const v = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id]));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Als Vorlage speichern" }));
   expect((await v).status()).toBe(200);
-  await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel })).toBeVisible();
-  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel })).toHaveCount(0);
+  await expect(page.locator(".kp-listenhinweis")).toContainText(`Vorlage „${titel}“ angelegt`);
+  await expect(page.locator(".kp-listenhinweis").getByRole("link", { name: "Vorlage öffnen" })).toHaveAttribute("href", /\/p\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible(); // der Plan bleibt
   await klickeWennRuhig(page.getByRole("table", { name: "Vorlagen" }).getByRole("button", { name: `Aktionen für ${titel}` }));
   await klickeWennRuhig(page.getByRole("menuitem", { name: "Neu aus Vorlage" }));
   const formular = page.getByRole("form", { name: "Neuer Plan" });
@@ -63,16 +65,19 @@ test("Vorlage: als Vorlage speichern, Neu aus Vorlage übernimmt den Inhalt, Kei
   });
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${titel} Einsatz`);
   await expect(karten(page).filter({ hasText: stelle })).toHaveCount(1); // der Inhalt DIESER Vorlage
-  // Keine Vorlage mehr: die Vorlage kehrt unter „Pläne“ zurück
+  // Vorlage archivieren: die Vorlage geht ins Archiv, der Plan bleibt unter „Pläne“
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Vorlagen" }).getByRole("button", { name: `Aktionen für ${titel}` }));
-  const keine = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes('"vorlage":false'));
-  await klickeWennRuhig(page.getByRole("menuitem", { name: "Keine Vorlage mehr" }));
+  const keine = page.waitForResponse((r) => istAktion(r));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Vorlage archivieren" }));
   expect((await keine).status()).toBe(200);
-  await expect(page.locator(".kp-listenhinweis")).toContainText(`„${titel}“ steht wieder unter „Pläne“.`);
-  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
+  await expect(page.locator(".kp-listenhinweis")).toContainText(`Vorlage „${titel}“ archiviert.`);
   await expect(page.getByRole("table", { name: "Vorlagen" }).getByRole("link", { name: titel, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
+  await page.goto(url("/archiv"));
+  await warteAufSpaltenaufteilung(page);
+  await expect(page.getByRole("table", { name: "Archivierte Pläne" }).getByRole("row").filter({ hasText: titel }).locator(".kp-chip")).toHaveText("Vorlage");
 });
 
 test("Archiv: archivieren, Rückgängig, nur lesbar unter /p/<id>, wiederherstellen", async ({ page }) => {

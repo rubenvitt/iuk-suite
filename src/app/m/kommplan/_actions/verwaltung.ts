@@ -3,8 +3,8 @@
 import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
-import type { DuplikatErgebnis, EinfachErgebnis } from "../_lib/ergebnis";
-import { archiviere, dupliziere, setzeVorlage, stelleWiederHer } from "../_lib/planverwaltung";
+import type { AnlageErgebnis, DuplikatErgebnis, EinfachErgebnis } from "../_lib/ergebnis";
+import { archiviere, dupliziere, speichereAlsVorlage, stelleWiederHer } from "../_lib/planverwaltung";
 import { bearbeiterAus, requireKommplanBearbeitenAktion } from "../_lib/zugang";
 
 // Planverwaltung (Spec §6.7, §8.3): jede Action prüft selbst, die ID wird in `_lib/planverwaltung.ts` gegen die
@@ -20,11 +20,11 @@ export async function dupliziereAction(id: unknown): Promise<DuplikatErgebnis> {
   return withAuditContext({ actor: auditActor(viewer) }, async () => dupliziere(getDb(), r.data, bearbeiterAus(viewer), Date.now()));
 }
 
-export async function setzeVorlageAction(eingabe: unknown): Promise<EinfachErgebnis> {
+export async function speichereAlsVorlageAction(id: unknown): Promise<AnlageErgebnis> {
   const viewer = await requireKommplanBearbeitenAktion();
-  const r = z.object({ id: ID, vorlage: z.boolean() }).strict().safeParse(eingabe);
-  if (!r.success) return UNGUELTIG;
-  return withAuditContext({ actor: auditActor(viewer) }, async () => setzeVorlage(getDb(), r.data.id, r.data.vorlage));
+  const r = ID.safeParse(id);
+  if (!r.success) return { ...UNGUELTIG, feldFehler: {} };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => speichereAlsVorlage(getDb(), r.data, bearbeiterAus(viewer), Date.now()));
 }
 
 export async function archiviereAction(id: unknown): Promise<EinfachErgebnis> {

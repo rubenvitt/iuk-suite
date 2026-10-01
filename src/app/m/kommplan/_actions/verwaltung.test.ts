@@ -21,7 +21,7 @@ describe("Actions der Planverwaltung", () => {
     gruppen = ["iuk-kommplan"];
     const a = await import("./verwaltung");
     await expect(a.dupliziereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.setzeVorlageAction({ id: "beispiel-openr-2022-07-01", vorlage: true })).rejects.toThrow("Forbidden");
+    await expect(a.speichereAlsVorlageAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
     await expect(a.archiviereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
     await expect(a.stelleWiederHerAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
   });
@@ -32,8 +32,9 @@ describe("Actions der Planverwaltung", () => {
     expect(r.ok).toBe(true);
     expect(await a.archiviereAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
     expect(await a.stelleWiederHerAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
-    expect(await a.setzeVorlageAction({ id: "beispiel-openr-2022-07-01", vorlage: true })).toEqual({ ok: true });
-    expect(await a.setzeVorlageAction({ id: "x", vorlage: "ja" })).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
+    const v = await a.speichereAlsVorlageAction("beispiel-openr-2022-07-01");
+    expect(v).toMatchObject({ ok: true, id: expect.any(String) });
+    expect(await a.speichereAlsVorlageAction({ id: "x" })).toEqual({ ok: false, fehler: "Ungültige Anfrage.", feldFehler: {} });
     expect(await a.archiviereAction(5)).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
     expect(await a.dupliziereAction({})).toMatchObject({ ok: false });
   });

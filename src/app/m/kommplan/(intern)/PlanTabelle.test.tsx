@@ -4,7 +4,7 @@ import { act } from "react";
 import { clickElement, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 const aktion = vi.hoisted(() => ({ dupliziere: vi.fn(), vorlage: vi.fn(), archiviere: vi.fn(), wiederher: vi.fn() }));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
-vi.mock("../_actions/verwaltung", () => ({ dupliziereAction: aktion.dupliziere, setzeVorlageAction: aktion.vorlage, archiviereAction: aktion.archiviere, stelleWiederHerAction: aktion.wiederher }));
+vi.mock("../_actions/verwaltung", () => ({ dupliziereAction: aktion.dupliziere, speichereAlsVorlageAction: aktion.vorlage, archiviereAction: aktion.archiviere, stelleWiederHerAction: aktion.wiederher }));
 vi.mock("../_actions/plan", () => ({ legePlanAnAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 import { PlanTabelle } from "./PlanTabelle";
@@ -96,17 +96,43 @@ describe("PlanTabelle", () => {
     expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("„Einsatz“ wiederhergestellt.");
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });
-  it("Vorlagenliste: „Keine Vorlage mehr“ setzt vorlage:false und meldet die Rückkehr unter „Pläne“", async () => {
-    aktion.vorlage.mockResolvedValue({ ok: true });
-    await mount(<PlanTabelle zeilen={[ZEILEN[1]]} liste="vorlagen" darfBearbeiten />);
-    await clickElement(query('tr[data-row-key="p2"] button[aria-label="Aktionen für Label"]'));
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Keine Vorlage mehr", "Archivieren"]);
-    await clickElement(knopf("Keine Vorlage mehr"));
+  it("„Als Vorlage speichern“ legt eine Kopie an, sagt, wo sie steht, und bietet „Vorlage öffnen“ — der Plan bleibt in der Liste", async () => {
+    aktion.vorlage.mockResolvedValue({ ok: true, id: "v9" });
+    await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
     await abwarten();
-    expect(aktion.vorlage).toHaveBeenCalledWith({ id: "p2", vorlage: false });
-    expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("„Label“ steht wieder unter „Pläne“.");
-    expect(document.activeElement).toBe(query(".kp-listenhinweis"));
-    expect(router.refresh).toHaveBeenCalledTimes(1);
+    await clickElement(knopf("Als Vorlage speichern"));
+    await abwarten();
+    expect(aktion.vorlage).toHaveBeenCalledWith("p1");
+    expect(query(".kp-listenhinweis").textContent).toContain("Vorlage „Einsatz“ angelegt — sie steht unter „Vorlagen“.");
+    const oeffnen = query<HTMLAnchorElement>(".kp-listenhinweis a");
+    expect(oeffnen.textContent).toBe("Vorlage öffnen");
+    expect(oeffnen.getAttribute("href")).toBe("/p/v9");
+    expect(document.activeElement).toBe(oeffnen);
+    expect(router.refresh).toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+  it("Vorlagenliste: „Neu aus Vorlage“ und „Vorlage archivieren“ (mit Rückgängig) — kein „Keine Vorlage mehr“, kein zweites „Archivieren“", async () => {
+    aktion.archiviere.mockResolvedValue({ ok: true });
+    await mount(<PlanTabelle zeilen={[ZEILEN[1]]} liste="vorlagen" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Label"]'));
+    await abwarten();
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Vorlage archivieren"]);
+    await clickElement(knopf("Vorlage archivieren"));
+    await abwarten();
+    expect(aktion.archiviere).toHaveBeenCalledWith("p2");
+    expect(query(".kp-listenhinweis").textContent).toContain("Vorlage „Label“ archiviert.");
+    expect(knopf("Rückgängig")).toBeTruthy();
+  });
+  it("Archiv: eine Vorlage trägt das Kennzeichen „Vorlage“; Wiederherstellen sagt, wohin sie zurückkehrt", async () => {
+    aktion.wiederher.mockResolvedValue({ ok: true });
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[1], lesbar: true, archiviert: "01.10.2026" }]} liste="archiv" darfBearbeiten />);
+    expect(queryAll("tr[data-row-key] .kp-chip").map((c) => c.textContent)).toEqual(["Vorlage"]);
+    await clickElement(query('button[aria-label="Aktionen für Label"]'));
+    await abwarten();
+    await clickElement(knopf("Wiederherstellen"));
+    await abwarten();
+    expect(query(".kp-listenhinweis").textContent).toBe("„Label“ wiederhergestellt — sie steht wieder unter „Vorlagen“.");
   });
   it("„Rückgängig“ nach dem Archivieren: ein Doppelklick schickt EINE Wiederherstellung (sonst „gibt es nicht mehr“ über dem Erfolg)", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });

@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { plan } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
 import { ladePlan, ladePlanLesend, listePlaene } from "./plaene";
-import { archiviere, dupliziere, PLAN_WEG, setzeVorlage, stelleWiederHer, vorlagenZurAuswahl } from "./planverwaltung";
+import { archiviere, dupliziere, PLAN_WEG, speichereAlsVorlage, stelleWiederHer, vorlagenZurAuswahl } from "./planverwaltung";
 import { seedLokalKommplan } from "./seedLokal";
 import { legePlanAn, speichereInhalt } from "./speichern";
 import { testDb } from "./testDb";
@@ -50,16 +50,10 @@ describe("Duplizieren (Spec §6.7; Entscheidung 9)", () => {
 describe("Planverwaltung — Grenzfälle (Review Phase 4)", () => {
   it("die Kopie einer Vorlage ist ein Plan, keine zweite Vorlage", async () => {
     const db = await mitSeed();
-    setzeVorlage(db, OPENR, true);
-    const r = dupliziere(db, OPENR, WER, NACH_MITTERNACHT);
+    const v = vorlagenZurAuswahl(db)[0];
+    const r = dupliziere(db, v.id, WER, NACH_MITTERNACHT);
     if (!r.ok) throw new Error(r.fehler);
     expect(ladePlanLesend(db, r.id)).toMatchObject({ istVorlage: false });
-  });
-  it("ein archivierter Plan wird nicht zur Vorlage (und nicht zurück)", async () => {
-    const db = await mitSeed();
-    archiviere(db, OPENR, NACH_MITTERNACHT);
-    expect(setzeVorlage(db, OPENR, true)).toEqual({ ok: false, fehler: PLAN_WEG });
-    expect(ladePlanLesend(db, OPENR)).toMatchObject({ istVorlage: false });
   });
   it("das Archiv ordnet nach dem Archivzeitpunkt (zuletzt archiviert zuerst), nicht nach dem Stand", async () => {
     const db = await mitSeed();
@@ -74,14 +68,35 @@ describe("Planverwaltung — Grenzfälle (Review Phase 4)", () => {
 });
 
 describe("Vorlagen (Entscheidungen 7, 8)", () => {
-  it("„Als Vorlage speichern“ verschiebt den Plan in die Vorlagen, „Keine Vorlage mehr“ zurück", async () => {
+  it("„Als Vorlage speichern“ legt eine KOPIE als Vorlage an — Titel gleich, Datum leer, Ausgangsplan unverändert (Phase 5, Entscheidung 16)", async () => {
     const db = await mitSeed();
-    expect(setzeVorlage(db, OPENR, true)).toEqual({ ok: true });
-    expect(listePlaene(db, "plaene").map((z) => z.id)).not.toContain(OPENR);
-    expect(listePlaene(db, "vorlagen").map((z) => z.id)).toContain(OPENR);
-    expect(vorlagenZurAuswahl(db).map((v) => v.id)).toContain(OPENR);
-    expect(setzeVorlage(db, OPENR, false)).toEqual({ ok: true });
+    const vorher = ladePlanLesend(db, OPENR)!;
+    const r = speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT);
+    if (!r.ok) throw new Error(r.fehler);
+    expect(r.id).not.toBe(OPENR);
+    expect(ladePlanLesend(db, OPENR)).toEqual(vorher); // Ausgangsplan unberührt, auch der Stand
     expect(listePlaene(db, "plaene").map((z) => z.id)).toContain(OPENR);
+    const v = ladePlanLesend(db, r.id)!;
+    expect(v).toMatchObject({ titel: vorher.titel, typ: vorher.typ, anlass: vorher.anlass, datum: null, istVorlage: true, archiviertAm: null, version: 1, aktualisiertAm: NACH_MITTERNACHT, aktualisiertVon: "Jana" });
+    expect(v.inhalt).toEqual(vorher.inhalt);
+    expect(vorlagenZurAuswahl(db).map((x) => x.id)).toContain(r.id);
+  });
+  it("aus einer Vorlage, einem archivierten oder unbekannten Plan wird keine Vorlage", async () => {
+    const db = await mitSeed();
+    const vorlage = vorlagenZurAuswahl(db)[0];
+    expect(speichereAlsVorlage(db, vorlage.id, WER, NACH_MITTERNACHT)).toEqual({ ok: false, fehler: PLAN_WEG, feldFehler: {} });
+    archiviere(db, OPENR, NACH_MITTERNACHT);
+    expect(speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT).ok).toBe(false);
+    expect(speichereAlsVorlage(db, "gibt-es-nicht", WER, NACH_MITTERNACHT).ok).toBe(false);
+  });
+  it("„Vorlage archivieren“ = archivieren: die Vorlage verschwindet aus der Auswahl und kehrt beim Wiederherstellen als Vorlage zurück", async () => {
+    const db = await mitSeed();
+    const vorlage = vorlagenZurAuswahl(db)[0];
+    archiviere(db, vorlage.id, NACH_MITTERNACHT);
+    expect(vorlagenZurAuswahl(db).map((x) => x.id)).not.toContain(vorlage.id);
+    expect(listePlaene(db, "archiv").find((z) => z.id === vorlage.id)?.vorlage).toBe(true);
+    stelleWiederHer(db, vorlage.id);
+    expect(listePlaene(db, "vorlagen").map((z) => z.id)).toContain(vorlage.id);
   });
   it("Neu aus Vorlage: Angaben aus dem Formular, Inhalt aus der Vorlage; archivierte Vorlage abgewiesen", async () => {
     const db = await mitSeed();
