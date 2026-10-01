@@ -12,7 +12,7 @@ export function Druckblaetter({ format, blaetter, rahmen, symbole, schrift }: { 
     <>
       <svg className="kp-symbole" width="0" height="0" aria-hidden="true" focusable="false">
         <SymbolDefs symbole={symbole} />
-        {rahmen.logo ? <defs><LogoDefs logo={rahmen.logo} /></defs> : null}
+        {rahmen.logo ? <defs><LogoDefs logo={rahmen.logo} schwarzweiss={rahmen.schwarzweiss} /></defs> : null}
       </svg>
       {blaetter.map((b) => <Blattansicht key={b.nummer} format={format} blatt={b} rahmen={rahmen} symbole={symbole} schrift={schrift} mitDefs={false} />)}
     </>

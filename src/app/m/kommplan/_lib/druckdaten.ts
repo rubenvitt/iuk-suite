@@ -40,12 +40,13 @@ export async function druckseitenDaten(db: KommplanDb, plan: LesbarerPlan, auftr
     titel: plan.titel, anlass: plan.anlass, datum: plan.datum, aktualisiertAm: plan.aktualisiertAm,
     aktualisiertVon: plan.aktualisiertVon, vermerkVsNfD: inhalt?.optionen.vermerkVsNfD ?? false, kopf: kopfFuerZeichnung(db),
   });
+  const sw = inhalt?.optionen.schwarzweiss ?? false;
   const qr = inhalt && auftrag.qrUrl ? qrGrafikAus(await qrSvg(auftrag.qrUrl), auftrag.qrUrl) : null;
   return {
     format: auftrag.format,
     blaetter: inhalt ? teileAuf(inhalt, auftrag.format, { qr: qr !== null }) : null,
-    rahmen: { ...rahmen, qr },
-    symbole: inhalt ? symboleFuer(inhalt) : {},
+    rahmen: { ...rahmen, qr, schwarzweiss: sw },
+    symbole: inhalt ? symboleFuer(inhalt, { schwarzweiss: sw }) : {},
     qrSatz: qr ? auftrag.qrSatz ?? null : null,
   };
 }

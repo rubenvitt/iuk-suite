@@ -6,7 +6,7 @@
  * `catalog/dist/src/fonts.js` ruft `fileURLToPath(new URL(…))` auf Modulebene). Drift fängt
  * `_lib/zeichen/generat.test.ts`: er erzeugt neu in einen Wegwerfordner und vergleicht byteweise.
  *
- * WARUM ZWEI DATEIEN: `zeichen.generiert.json` (alle Rezepte als fertiges SVG) liest nur der Server;
+ * WARUM ZWEI DATEIEN: `zeichen.generiert.json` (alle Rezepte als fertiges SVG) liest nur der Server; `zeichen-sw.generiert.json` (dieselben Rezepte im Druckthema `PRINT_MONOCHROME_THEME`, Phase 5) liest ebenfalls nur der Server;
  * `grundlagen.generiert.json` (Arimo-Metriken, Piktogramme) braucht auch der Browser, weil der
  * Betrachter das Layout selbst rechnet.
  *
@@ -25,7 +25,7 @@ import {
   TEXT_FONT_PATH,
   composeFromCatalog,
 } from "@einsatzzeichen/catalog";
-import { renderSvg } from "@einsatzzeichen/core";
+import { PRINT_MONOCHROME_THEME, renderSvg } from "@einsatzzeichen/core";
 import { SECHSECK } from "../src/app/m/kommplan/_lib/layout/masse";
 
 const STANDARD_ZIEL = "src/app/m/kommplan/_lib/zeichen";
@@ -102,6 +102,8 @@ function kuerzelMitLuft(svg: string): string {
 
 // 1. Rezepte (ohne #alternative) und Zusatzzeichen.
 const zeichen: Record<string, Symbol & { titel: string; suchtext: string }> = {};
+/** Dieselben Schlüssel im Druckthema (Phase 5, Entscheidung 14): Grauwerte und Strichmuster der Organisationen. */
+const zeichenSw: Record<string, Symbol> = {};
 for (const [abschnitt, rezept] of Object.entries(RECIPES)) {
   if (abschnitt.includes("#")) continue;
   const schluessel = `rezept:${abschnitt}`;
@@ -114,6 +116,7 @@ for (const [abschnitt, rezept] of Object.entries(RECIPES)) {
     suchtext: `${rezept.title} ${abschnitt}`.toLocaleLowerCase("de-DE"),
     ...zerlege(svg, schluessel),
   };
+  zeichenSw[schluessel] = zerlege(kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix: praefix(abschnitt), theme: PRINT_MONOCHROME_THEME })), schluessel);
 }
 const ZUSATZ = [
   { schluessel: "zusatz:eal", titel: "Einsatzabschnittsleitung", text: "EAL" },
@@ -129,18 +132,21 @@ const ZUSATZ = [
  */
 const VORLAGE_ZUSATZ = RECIPES["D.1.4"];
 if (!VORLAGE_ZUSATZ) throw new GeneratFehler("Rezept D.1.4 fehlt im Katalog");
-for (const z of ZUSATZ) {
+type Thema = NonNullable<NonNullable<Parameters<typeof renderSvg>[1]>["theme"]>;
+function zusatzSvg(z: (typeof ZUSATZ)[number], theme: Thema | undefined): string {
   const svg = renderSvg(
-    composeFromCatalog(VORLAGE_ZUSATZ.spec as Spec, z.titel) as unknown as Zeichnung,
-    { size: 64, idPrefix: praefix(z.schluessel) },
+    composeFromCatalog(VORLAGE_ZUSATZ!.spec as Spec, z.titel) as unknown as Zeichnung,
+    { size: 64, idPrefix: praefix(z.schluessel), ...(theme ? { theme } : {}) },
   );
   const kuerzel = /<text\b([^>]*)\bfont-size="([\d.]+)"([^>]*)>EL<\/text>/g;
   const treffer = [...svg.matchAll(kuerzel)];
   if (treffer.length !== 1) throw new GeneratFehler(`D.1.4 trägt das Kürzel EL nicht genau einmal (${treffer.length})`);
   // Kürzel tauschen, dann wie jedes Rezept auf Luft zum Rahmen schrumpfen: längere Kürzel („Stab").
-  const ersetzt = kuerzelMitLuft(svg.replace(kuerzel, (_, vor: string, g: string, nach: string) =>
-    `<text${vor}font-size="${g}"${nach}>${z.text}</text>`));
-  zeichen[z.schluessel] = { titel: z.titel, suchtext: `${z.titel} ${z.text}`.toLocaleLowerCase("de-DE"), ...zerlege(ersetzt, z.schluessel) };
+  return kuerzelMitLuft(svg.replace(kuerzel, (_, vor: string, g: string, nach: string) => `<text${vor}font-size="${g}"${nach}>${z.text}</text>`));
+}
+for (const z of ZUSATZ) {
+  zeichen[z.schluessel] = { titel: z.titel, suchtext: `${z.titel} ${z.text}`.toLocaleLowerCase("de-DE"), ...zerlege(zusatzSvg(z, undefined), z.schluessel) };
+  zeichenSw[z.schluessel] = zerlege(zusatzSvg(z, PRINT_MONOCHROME_THEME), z.schluessel);
 }
 
 /**
@@ -215,6 +221,7 @@ function schreibe(datei: string, wert: unknown): void {
 }
 mkdirSync(ZIEL, { recursive: true });
 schreibe("zeichen.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichen) });
+schreibe("zeichen-sw.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichenSw) });
 schreibe("grundlagen.generiert.json", { stand: STAND, metrik, piktogramme: nachSchluessel(piktogramme) });
 
 // 5. Arimo kopieren — nur im kanonischen Lauf, ein Probelauf fasst den Arbeitsbaum nicht an.

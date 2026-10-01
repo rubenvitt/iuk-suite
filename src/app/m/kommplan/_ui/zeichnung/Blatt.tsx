@@ -17,6 +17,8 @@ export interface Rahmen {
   organisation: string | null; logo: { href: string } | null;
   /** QR „Aktuelle Fassung“ (Phase 5, Entscheidung 11); nur, wenn er tatsächlich gedruckt wird. */
   qr?: QrGrafik | null;
+  /** Druck im Druckthema (Phase 5, Entscheidung 14): graue Köpfe, Logo über den Graufilter; der Bildschirm bleibt farbig. */
+  schwarzweiss?: boolean;
 }
 
 export const LOGO_ID = "kp-logo";
@@ -26,8 +28,18 @@ export const LOGO_ID = "kp-logo";
  * darauf; die Druckseite stellt es mit den Symbolen in ein gemeinsames `<defs>` (`Druckblaetter`).
  * `meet` hält das Seitenverhältnis in der festen Box, rechtsbündig.
  */
-export function LogoDefs({ logo }: { logo: Rahmen["logo"] }) {
-  return logo ? <image id={LOGO_ID} width={LOGO_BOX.breite} height={LOGO_BOX.hoehe} preserveAspectRatio="xMaxYMid meet" href={logo.href} /> : null;
+export const GRAU_FILTER_ID = "kp-grau";
+/** Hervorgehobene Köpfe im Schwarzweißdruck hellgrau statt hellorange (Entscheidung 14) — im Blatt selbst, damit die SVG-Datei es mitnimmt. */
+const SW_STIL = "svg[data-sw] [data-hervor]{fill:#e6e6e6}";
+
+export function LogoDefs({ logo, schwarzweiss = false }: { logo: Rahmen["logo"]; schwarzweiss?: boolean }) {
+  if (!logo) return null;
+  return (
+    <>
+      <image id={LOGO_ID} width={LOGO_BOX.breite} height={LOGO_BOX.hoehe} preserveAspectRatio="xMaxYMid meet" href={logo.href} />
+      {schwarzweiss ? <filter id={GRAU_FILTER_ID} colorInterpolationFilters="sRGB"><feColorMatrix type="saturate" values="0" /></filter> : null}
+    </>
+  );
 }
 
 /** Höchstbreite des Organisationsnamens im Kopf (mm) — ein langer Vereinsname drückt den Titel nicht weg. */
@@ -55,7 +67,7 @@ export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }
     <g data-kopf="">
       <text x={BLATT.randX} y={kopfY + 6} fontSize={pt(titel.groesse)} fontWeight={700}>{titel.text}</text>
       {rahmen.untertitel ? <text x={BLATT.randX} y={kopfY + 11.5} fontSize={pt(9)}>{rahmen.untertitel}</text> : null}
-      {rahmen.logo ? <use href={`#${LOGO_ID}`} x={logoX} y={kopfY} data-logo="" /> : null}
+      {rahmen.logo ? <use href={`#${LOGO_ID}`} x={logoX} y={kopfY} data-logo="" filter={rahmen.schwarzweiss ? `url(#${GRAU_FILTER_ID})` : undefined} /> : null}
       {org ? (
         <text x={orgRechts} y={kopfY + 6} fontSize={pt(9)} fontWeight={700} textAnchor="end" data-organisation="">{org}</text>
       ) : null}
@@ -88,12 +100,13 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
   const legendeOben = legendeObenY(format, blatt.legendeZeilen.length);
   const leer = blatt.zeichnung.karten.length === 0;
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" className="kp-blatt" data-blatt={blatt.nummer} width={`${p.breite}mm`} height={`${p.hoehe}mm`}
+    <svg xmlns="http://www.w3.org/2000/svg" className="kp-blatt" data-blatt={blatt.nummer} data-sw={rahmen.schwarzweiss ? "" : undefined} width={`${p.breite}mm`} height={`${p.hoehe}mm`}
       viewBox={`0 0 ${p.breite} ${p.hoehe}`} role="img" aria-label={`${rahmen.titel}, Blatt ${blatt.nummer} von ${blatt.von}`}
       style={{ fontFamily: schrift, background: FARBE.papier }}>
       {kopfStil ? <style>{kopfStil}</style> : null}
+      {rahmen.schwarzweiss ? <style>{SW_STIL}</style> : null}
       {mitDefs ? <SymbolDefs symbole={symbole} /> : null}
-      {mitDefs && rahmen.logo ? <defs><LogoDefs logo={rahmen.logo} /></defs> : null}
+      {mitDefs && rahmen.logo ? <defs><LogoDefs logo={rahmen.logo} schwarzweiss={rahmen.schwarzweiss} /></defs> : null}
       <BlattKopf rahmen={rahmen} breite={p.breite} />
       {/* Zeichnung */}
       {leer ? (

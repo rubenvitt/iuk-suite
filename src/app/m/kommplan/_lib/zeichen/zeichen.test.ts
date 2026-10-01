@@ -14,6 +14,15 @@ describe("Zeichen-Zugriff", () => {
     const unbekannt = baue({ stellen: [{ id: "a", titel: "A", zeichen: "rezept:ZZZ" }] });
     expect(symboleFuer(unbekannt)).toEqual({});
   });
+  it("symboleFuer mit schwarzweiss: dieselben Schlüssel, grauer Inhalt", () => {
+    const inhalt = baue({ stellen: [{ id: "a", titel: "A", zeichen: "rezept:C.1.1" }] });
+    const farbig = symboleFuer(inhalt);
+    const sw = symboleFuer(inhalt, { schwarzweiss: true });
+    expect(Object.keys(sw)).toEqual(Object.keys(farbig));
+    expect(farbig["rezept:C.1.1"].inhalt).toContain("#fa1919");
+    expect(sw["rezept:C.1.1"].inhalt).not.toContain("#fa1919");
+    expect(symboleFuerSchluessel(["gibt:es-nicht"], { schwarzweiss: true })).toEqual({});
+  });
 });
 
 describe("Zeichen-Index für den Editor (Entscheidung 4)", () => {

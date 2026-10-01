@@ -8,6 +8,7 @@ import { ARIMO_TEXT_METRICS, RECIPES, TEXT_FONT_BOLD_SHA256, TEXT_FONT_SHA256 } 
 import { SECHSECK } from "../layout/masse";
 import { VERBINDUNG_PIKTOGRAMM } from "./grundlagen";
 import zeichen from "./zeichen.generiert.json";
+import zeichenSw from "./zeichen-sw.generiert.json";
 import grundlagen from "./grundlagen.generiert.json";
 
 const ORDNER = "src/app/m/kommplan/_lib/zeichen";
@@ -20,7 +21,7 @@ describe("kommplan-Generat", () => {
     const ziel = mkdtempSync(join(tmpdir(), "kommplan-generat-"));
     try {
       execFileSync("pnpm", ["exec", "tsx", "scripts/kommplan-zeichen-generat.ts", ziel], { stdio: "pipe" });
-      for (const datei of ["zeichen.generiert.json", "grundlagen.generiert.json"]) {
+      for (const datei of ["zeichen.generiert.json", "zeichen-sw.generiert.json", "grundlagen.generiert.json"]) {
         expect(
           readFileSync(join(ziel, datei), "utf8") === readFileSync(join(ORDNER, datei), "utf8"),
           `${datei} ist veraltet — pnpm exec tsx scripts/kommplan-zeichen-generat.ts`,
@@ -33,6 +34,7 @@ describe("kommplan-Generat", () => {
 
   it("vermerkt fünf aufgelöste Paketversionen, in beiden Dateien gleich", () => {
     expect(zeichen.stand).toEqual(grundlagen.stand);
+    expect(zeichenSw.stand).toEqual(zeichen.stand);
     for (const v of Object.values(zeichen.stand)) expect(v).toMatch(/^\d+\.\d+\.\d+/);
     expect(Object.keys(zeichen.stand).sort()).toEqual(["catalog", "catalogCore", "catalogSchema", "core", "schema"]);
   });
@@ -51,6 +53,25 @@ describe("kommplan-Generat", () => {
     for (const k of ["zusatz:eal", "zusatz:ea", "zusatz:stab", "zusatz:oel"]) expect(eintrag(k)).not.toMatch(/<text[^>]*fill="#ffffff"/);
   });
 
+  it("Schwarzweiß (Phase 5, Entscheidung 14): dieselben Schlüssel, kein Buntton, Strichmuster der Organisationen", () => {
+    const farbe = zeichen.zeichen as Record<string, { inhalt: string }>;
+    const sw = zeichenSw.zeichen as Record<string, { viewBox: string; inhalt: string }>;
+    expect(Object.keys(sw)).toEqual(Object.keys(farbe));
+    const bunt = Object.entries(sw).flatMap(([k, e]) => [...e.inhalt.matchAll(/#([0-9a-f]{6})\b/gi)]
+      .map((m) => m[1].toLowerCase()).filter((h) => !(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6))).map((h) => `${k}: #${h}`));
+    expect(bunt).toEqual([]);
+    expect(Object.values(sw).some((e) => /rgb\(|hsl\(/.test(e.inhalt))).toBe(false);
+    expect(Object.values(sw).filter((e) => e.inhalt.includes("stroke-dasharray")).length).toBeGreaterThan(100);
+    expect(sw["rezept:C.1.1"].inhalt).not.toBe(farbe["rezept:C.1.1"].inhalt); // Löschstaffel: in Farbe rot
+    for (const k of ["zusatz:eal", "zusatz:ea", "zusatz:stab", "zusatz:oel"]) expect(sw[k].inhalt).toContain(`>${k === "zusatz:oel" ? "ÖEL" : k === "zusatz:stab" ? "Stab" : k.slice(7).toUpperCase()}<`);
+  });
+  it("jede SVG-ID ist im SW-Satz samt Piktogrammen eindeutig (ein Druck lädt nur einen der beiden Sätze)", () => {
+    const alle = [
+      ...Object.values(zeichenSw.zeichen as Record<string, { inhalt: string }>),
+      ...Object.values(grundlagen.piktogramme as Record<string, { inhalt: string }>),
+    ].flatMap((e) => [...e.inhalt.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+    expect(new Set(alle).size).toBe(alle.length);
+  });
   it("jede SVG-ID ist über beide Generate eindeutig (Befund M11)", () => {
     const alle = [
       ...Object.values(zeichen.zeichen as Record<string, { inhalt: string }>),

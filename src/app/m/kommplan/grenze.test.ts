@@ -103,14 +103,14 @@ describe("kommplan: Importgrenzen", () => {
   });
 
   it("nur _lib/zeichen/zeichen.ts liest das Rezept-Generat", () => {
-    const leser = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.endsWith("zeichen.generiert.json")));
+    const leser = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => /(^|\/)zeichen(-sw)?\.generiert\.json$/.test(s)));
     expect(leser.map((p) => relative(MODUL, p))).toEqual(
       leser.length === 0 ? [] : ["_lib/zeichen/zeichen.ts"],
     );
   });
 
   it("keine Client-Insel erreicht zeichen.ts oder das Rezept-Generat, auch nicht über Umwege", () => {
-    const verboten = [join(MODUL, "_lib/zeichen/zeichen.ts"), join(MODUL, "_lib/zeichen/zeichen.generiert.json")];
+    const verboten = [join(MODUL, "_lib/zeichen/zeichen.ts"), join(MODUL, "_lib/zeichen/zeichen.generiert.json"), join(MODUL, "_lib/zeichen/zeichen-sw.generiert.json")];
     for (const p of laufzeit.filter((x) => istClient(quelltext(x)))) {
       const treffer = [...erreichbar(p)].filter((d) => verboten.includes(d));
       expect(treffer, `${relative(MODUL, p)} zieht ${treffer.join(", ")}`).toEqual([]);

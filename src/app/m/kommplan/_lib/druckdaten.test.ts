@@ -68,4 +68,15 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     archiviere(db, p.id, JETZT);
     expect(qrZielIntern(db, ladePlanLesend(db, p.id)!, JETZT, BASIS)).toBeNull();
   });
+  it("Schwarzweiß-Option: graue Symbole und Rahmen mit schwarzweiss", async () => {
+    const db = await mitSeed();
+    const p0 = ladePlanLesend(db, "beispiel-einsatz-2026-02-22")!;
+    db.update(planTabelle).set({ inhalt: JSON.stringify(setzeOptionen(p0.inhalt!, { schwarzweiss: true })) }).where(eq(planTabelle.id, p0.id)).run();
+    const d = await druckseitenDaten(db, ladePlanLesend(db, p0.id)!, { format: "a4-quer", qrUrl: null });
+    expect(d.rahmen.schwarzweiss).toBe(true);
+    for (const s of Object.values(d.symbole)) for (const m of s.inhalt.matchAll(/#([0-9a-f]{6})\b/gi)) {
+      const h = m[1].toLowerCase();
+      expect(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6), `#${h}`).toBe(true);
+    }
+  });
 });

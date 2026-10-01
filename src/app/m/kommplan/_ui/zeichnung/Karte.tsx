@@ -16,7 +16,7 @@ export function Karte({ k, zusatz, gleitend = false }: { k: KarteL; zusatz?: (k:
       {/* Nur Tooltip, nie gedruckt: der Platzhalter steht nicht auf dem Papier (Abweichung 15). */}
       <title>{k.titelVoll === "" ? "(ohne Titel)" : k.titelVoll}</title>
       <rect width={k.breite} height={k.hoehe} fill={FARBE.papier} stroke={tinte} strokeWidth={rahmen} />
-      {k.hervorheben ? <rect x={rahmen / 2} y={rahmen / 2} width={k.breite - rahmen} height={k.kopfHoehe - rahmen} fill={FARBE.hervor} /> : null}
+      {k.hervorheben ? <rect x={rahmen / 2} y={rahmen / 2} width={k.breite - rahmen} height={k.kopfHoehe - rahmen} fill={FARBE.hervor} data-hervor="" /> : null}
       {k.zeichen ? (
         <use href={`#${symbolId(k.zeichen)}`} x={KARTE.rand} y={KARTE.rand} width={KARTE.zeichen} height={KARTE.zeichen} opacity={k.art === "anker" ? 0.45 : 1} />
       ) : null}
