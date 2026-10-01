@@ -507,3 +507,30 @@ trifft oder eine Abhilfe umbauen will.
     `feedback/(admin)/groups/[groupId]/(cockpit)/layout.tsx`). Das Layout läuft dann auch beim
     Vorabladen, dort gehört also nur Lesendes hin. Vitest und `next build` sehen den Status nicht;
     nur ein e2e-Lauf oder `build`/`start` sieht ihn.
+
+24. **Eine `Drawer` (rc-drawer) verschiebt den Fokus zeitversetzt — beim Öffnen und beim Schließen**
+    (kommplan, DRK-500: in Phase 2, Phase 4 und zweimal in der Abnahme getroffen, jedes Mal mit einem
+    anderen Gesicht). Drei Mechanismen, alle still:
+    - **Öffnen, `autoFocus` (Vorgabe an):** rc-drawer fokussiert seinen Container, und zwar **nach** den
+      Effekten des Inhalts. Ein Formular, das im Effekt seinen Titel fokussiert, verliert den Fokus gleich
+      wieder an den Container. Gemessen im gebauten Stand: rund 530 ms nach dem Öffnen gingen Tasten ins
+      Leere — die Schleife „N → Titel → Enter → N" verlor in Tippgeschwindigkeit Eingaben.
+    - **Öffnen, `afterOpenChange`:** der naheliegende Ersatz läuft erst nach der Öffnungsanimation, unter
+      Last eine halbe Sekunde später. Wer bis dahin schon in ein anderes Feld der Schublade geklickt hat
+      (Telefonnummer, Vorlage-Auswahl), tippt ab dem zweiten Zeichen in den Titel, und eine aufgeklappte
+      Auswahl klappt wieder zu. Der Fokus-Effekt allein reicht auch nicht: er läuft, bevor das Portal der
+      Schublade steht (DOM-Test rot).
+    - **Schließen, `focusTriggerAfterClose` (Vorgabe an):** die Schublade gibt den Fokus synchron an das
+      Element zurück, das beim Öffnen fokussiert war — auch wenn die Bearbeitende inzwischen eine andere
+      Zeile angeklickt hat. Ein Editor, der danach selbst „den Fokus zurückholt", stiehlt ihn ein zweites
+      Mal: Alt+Z nach einem Klick fand die Zeichensuche nicht, Enter legte eine leere Stelle an.
+    ⚠️ **Kein Tor sieht es.** Jsdom kennt keine Animation und kein Timing; Playwrights `toBeFocused`
+    wartet, bis der Fokus irgendwann stimmt, und ist damit genau der Test, der grün bleibt. Gefunden
+    haben es nur Abläufe mit festen Verzögerungen (Klick, dann 0/250/500 ms, dann tippen) gegen den
+    gebauten Stand.
+    **Abhilfe** (Vorbild `kommplan/_ui/fokus.ts`): `autoFocus={false}` an der `Drawer`, den Titel über
+    `afterOpenChange` fokussieren, aber nur, wenn in der Schublade noch kein Feld den Fokus hat
+    (`fokussiereWennFrei`); `focusable={{ focusTriggerAfterClose: false }}`, und nach dem Schließen den
+    Fokus nur zurückholen, wenn er verloren ist — auf `body` oder noch in der schließenden Schublade
+    (`fokusVerloren`). Ein Merker „seit dem Schließen geklickt" reicht nicht: eine Taste während der
+    Schließanimation (Esc, dann ↓) landete damit doch auf `body`.
