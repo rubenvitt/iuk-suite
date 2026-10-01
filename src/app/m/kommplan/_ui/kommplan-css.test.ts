@@ -53,9 +53,16 @@ describe("kommplan.css", () => {
     expect(farbe).toBeDefined();
     expect(kontrast(farbe!, "#ffffff")).toBeGreaterThanOrEqual(3);
   });
-  it("Handlungsknöpfe der Kopfleiste stehen unter 768 px untereinander in voller Breite; nur „Teilen“ und „Drucken“ teilen sich die letzte Zeile (Phase 5)", () => {
+  it("Handlungsknöpfe der Kopfleiste stehen unter 768 px untereinander in voller Breite — auch „Teilen“ und „Drucken“ (README „Mobil“, Review Phase 5)", () => {
     const zweig = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(zweig).toMatch(/\.kp-kopfwerkzeuge \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*\.kp-kopfwerkzeuge > \.kp-ganze-zeile \{ grid-column: 1 \/ -1; \}/);
+    expect(zweig).toMatch(/\.kp-kopfwerkzeuge \{ display: grid; grid-template-columns: minmax\(0, 1fr\); flex: 1 1 100%; \}/);
+    expect(css).not.toMatch(/kp-ganze-zeile/);
+  });
+  it("Teilen-Flyin: „Abgelaufen und widerrufen“ zeigt einen eigenen Aufklapp-Pfeil; die Dauer bricht im eigenen Raster", () => {
+    expect(css).toMatch(/\.kp-teilen details > summary::before \{[^}]*border-inline-start: 7px solid currentColor;/);
+    expect(css).toMatch(/\.kp-teilen details\[open\] > summary::before \{ transform: rotate\(90deg\); \}/);
+    expect(css).toMatch(/\.kp-teilen details > summary::-webkit-details-marker \{ display: none; \}/);
+    expect(css).toMatch(/\.kp-teilen \.kp-dauer \{ display: grid; grid-template-columns: repeat\(auto-fit, minmax\(6\.5rem, 1fr\)\);/);
   });
   it("die Fläche des Editors endet am Bildrand, gemessen statt geschätzt (Hinweise unten bleiben im Bild)", () => {
     expect(css).toMatch(/\.kp-editor \.kp-betrachter \{ height: calc\(100dvh - var\(--kp-flaeche-oben, 240px\) - 48px\); \}/);

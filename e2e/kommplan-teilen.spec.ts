@@ -324,8 +324,6 @@ test("Schwarzweiß und SVG herunterladen: graue Symbole im Druck, eigenständige
 
 const BREITEN = [{ name: "desktop", width: 1440, height: 900 }, { name: "tablet", width: 1024, height: 768 }, { name: "telefon", width: 390, height: 844 }] as const;
 const FOTOS = process.env.KOMMPLAN_FOTOS;
-/** Höhe der Editor-Kopfleiste bei 390 × 844 im Stand vor Phase 5 — gemessen in Task 5 (Kritik: „Teilen" darf sie nicht wachsen lassen). */
-const KOPFLEISTE_TELEFON_VORHER = 204; // px, gemessen vor Phase 5 bei 390 × 844 (`/p/beispiel-openr-2022-07-01?ansicht=diagramm`)
 
 test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht und 404 — hell und dunkel, drei Breiten", async ({ page, browser, context }, testInfo) => {
   test.setTimeout(FOTOS ? 300_000 : 120_000);
@@ -363,8 +361,16 @@ test("Bildschirmfotos Phase 5: Teilen, Plan-Optionen, Druckmenü, Token-Ansicht 
       await warteAufSpaltenaufteilung(page);
       await expect(page.locator("html")).toHaveAttribute("data-theme", modus);
       if (b.name === "telefon") {
-        const hoehe = await page.locator(".kp-kopfwerkzeuge").evaluate((e) => e.getBoundingClientRect().height);
-        expect(hoehe, "Kopfleiste am Telefon nicht höher als vor Phase 5").toBeLessThanOrEqual(KOPFLEISTE_TELEFON_VORHER + 0.5);
+        // README „Mobil“: jeder sichtbare Handlungsknopf eine eigene Zeile in voller Breite — auch „Teilen“ und „Drucken“
+        // (Review Phase 5 nimmt die zwei Spalten aus Kritik 21 zurück; „Teilen“ kostet eine Zeile).
+        const zeilen = await page.locator(".kp-kopfwerkzeuge").evaluate((leiste) => {
+          const breite = leiste.getBoundingClientRect().width;
+          return [...leiste.children].map((k) => k.getBoundingClientRect()).filter((r) => r.height > 0)
+            .map((r) => ({ top: Math.round(r.top), voll: Math.abs(r.width - breite) < 1 }));
+        });
+        expect(zeilen.length).toBeGreaterThanOrEqual(5);
+        expect(zeilen.every((z) => z.voll), "volle Breite").toBe(true);
+        expect(new Set(zeilen.map((z) => z.top)).size, "untereinander, nie nebeneinander").toBe(zeilen.length);
       }
       await oeffneTeilen(page);
       await ohneUeberlauf(page);

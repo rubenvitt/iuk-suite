@@ -276,8 +276,8 @@
   div:has(> .kp-kopfaktionen) { flex: 1 1 100%; }
   .kp-kopfaktionen { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   .kp-kopfaktionen > a { justify-content: center; }
-  .kp-kopfwerkzeuge { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 100%; }
-  .kp-kopfwerkzeuge > .kp-ganze-zeile { grid-column: 1 / -1; } /* Umschalter, „Wiederholen", „Plan und Verbindungen"; „Teilen" und „Drucken" teilen sich die letzte Zeile */
+  /* Eine Spalte, auch für „Teilen“ und „Drucken“ (README „Mobil“ ist verbindlich; Review Phase 5 nimmt die zwei Spalten zurück). */
+  .kp-kopfwerkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1 1 100%; }
   /* Geteilter Druckknopf volle Breite: „Drucken“ wächst, der Pfeil bleibt schmal (Kindkombinator, Falle 20). */
   .kp-druckmenue { width: 100%; }
   .kp-druckmenue > :first-child { flex: 1 1 auto; }

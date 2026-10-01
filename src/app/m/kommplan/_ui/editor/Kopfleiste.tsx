@@ -63,7 +63,7 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
   const basis = useId();
   const umschalter = (wert: EditorAnsicht, klasse?: string) => (
     <ConfigProvider theme={UMSCHALTER_DICHTE}>
-      <Segmented<EditorAnsicht> className={klasse ? `${klasse} kp-ganze-zeile` : "kp-ganze-zeile"} name={`${basis}-${klasse ?? "ansicht"}`} aria-label="Ansicht" value={wert} onChange={onAnsicht}
+      <Segmented<EditorAnsicht> className={klasse} name={`${basis}-${klasse ?? "ansicht"}`} aria-label="Ansicht" value={wert} onChange={onAnsicht}
         options={[{ value: "diagramm", label: "Diagramm" }, { value: "gliederung", label: "Gliederung" }]} />
     </ConfigProvider>
   );
@@ -80,8 +80,8 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
               : umschalter(ansicht)}
             {/* Am Telefon steht „Rückgängig“ samt Status in der klebenden Verlaufsleiste des Editors (Review Phase 3). */}
             <Button {...VERLAUFSKNOPF} className="kp-nur-breit" onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
-            <Button {...VERLAUFSKNOPF} className="kp-ganze-zeile" onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
-            <Button className="kp-ganze-zeile" onClick={onPlan}>Plan und Verbindungen</Button>
+            <Button {...VERLAUFSKNOPF} onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
+            <Button onClick={onPlan}>Plan und Verbindungen</Button>
             <Button onClick={onTeilen}>Teilen</Button>
             <DruckMenue onWahl={onDrucken} mitSvg />
             <span className="kp-speicherstatus kp-nur-breit" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
