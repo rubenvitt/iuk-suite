@@ -105,13 +105,13 @@ export function kartenMass(e: KartenEingabe): KartenMass {
   let blockHoehe = hoehe;
   let einzug: number = EINHEIT.einzugMin;
   let unterbau = hoehe; // Unterkante dessen, was bisher unter der Karte steht
+  const kanalX = STIEL.gasseStart + e.anzahlGruppen * STIEL.gasseTakt + (e.anzahlGruppen > 0 ? KANAL.abseits : 0);
   if (art === "normal" && (stelle.einheiten.length > 0 || kanaele.length > 0)) {
     for (let i = 0; i < e.anzahlGruppen; i++) gasse.push(STIEL.gasseStart + i * STIEL.gasseTakt);
-    const plaetze = e.anzahlGruppen + (kanaele.length > 0 ? 1 : 0);
-    einzug = Math.max(EINHEIT.einzugMin, STIEL.gasseStart + plaetze * STIEL.gasseTakt + 1);
+    const belegt = kanaele.length > 0 ? kanalX + STIEL.gasseTakt : STIEL.gasseStart + e.anzahlGruppen * STIEL.gasseTakt;
+    einzug = Math.max(EINHEIT.einzugMin, belegt + 1);
   }
   if (kanaele.length > 0) {
-    const kanalX = STIEL.gasseStart + e.anzahlGruppen * STIEL.gasseTakt;
     kanaele.forEach((v, i) => {
       const y = hoehe + EINHEIT.abstandOben + i * KANAL.takt;
       const mass = sechseckMass(v);

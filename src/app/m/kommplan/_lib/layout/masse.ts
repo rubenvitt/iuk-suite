@@ -22,8 +22,12 @@ export const KARTE = {
 } as const;
 /** `hoehe`/`takt` gelten für einen einzeiligen Kasten; ein zweizeiliger wächst um eine Zeilenhöhe, die Luft dazwischen bleibt. */
 export const EINHEIT = { abstandOben: 2.5, hoehe: 4.2, takt: 5.5, breite: 40, einzugMin: 6, zweiSpaltenAb: 10, spaltenAbstand: 2, zeichen: 3.6, zeilenMax: 2 } as const;
-/** Kanal-Sechsecke einer Stelle (Abweichung 12): untereinander in der Gasse, über den Einheiten. */
-export const KANAL = { takt: 7.5 } as const;
+/**
+ * Kanal-Sechsecke einer Stelle (Abweichung 12): untereinander in der Gasse, über den Einheiten. `abseits`: so viel
+ * weiter rechts als ein weiterer Stiel steht die Kanallinie, wenn links Busstiele laufen — im gleichen Takt las sie sich
+ * als fünfter Busstiel, die Kanäle als Abzweig eines Busses (Abnahme kommplan).
+ */
+export const KANAL = { takt: 7.5, abseits: 3 } as const;
 export const ABZEICHEN = { breite: 22, hoehe: 4.5, abstand: 1.5 } as const;
 export const SECHSECK = { hoehe: 6, spitze: 3, piktoBreite: 7, piktoHoehe: 4, innen: 1.5, minBreite: 26, maxBreite: 44, fase: 1.5 } as const;
 export const STIEL = {

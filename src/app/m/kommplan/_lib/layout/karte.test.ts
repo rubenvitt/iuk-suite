@@ -124,8 +124,10 @@ describe("kartenMass", () => {
     expect(m.kanalSechsecke.map((h) => h.verbindung.id)).toEqual(["dmo-608", "r-ue-2"]);
     expect(m.kanalSechsecke[0].y).toBeCloseTo(m.hoehe + EINHEIT.abstandOben, 9);
     expect(m.kanalSechsecke[1].y - m.kanalSechsecke[0].y).toBeCloseTo(KANAL.takt, 9);
-    // Stiel-Gasse (eine Gruppe) links, die Kanallinie rechts daneben, die Sechsecke rechts davon
-    const kanalX = STIEL.gasseStart + STIEL.gasseTakt;
+    // Stiel-Gasse (eine Gruppe) links, die Kanallinie rechts daneben — abgesetzt, damit sie nicht als weiterer Busstiel
+    // liest (Abnahme) —, die Sechsecke rechts davon
+    const kanalX = STIEL.gasseStart + STIEL.gasseTakt + KANAL.abseits;
+    expect(kanalX - m.gasse[0]).toBeGreaterThanOrEqual(3 * STIEL.gasseTakt);
     expect(m.gasse).toEqual([STIEL.gasseStart]);
     expect(m.kanalLinien[0]).toEqual({ x1: kanalX, y1: m.hoehe, x2: kanalX, y2: m.kanalSechsecke[1].y + SECHSECK.hoehe / 2 });
     for (const [i, h] of m.kanalSechsecke.entries()) {
