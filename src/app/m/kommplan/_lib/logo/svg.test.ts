@@ -45,6 +45,14 @@ describe("bereinigeSvg — was gefährlich ist, fällt", () => {
     ["CSS-escaptes url() im mask", svg(`${RECT}<rect width="1" height="1" mask="\\000075rl(https://evil.example/m.svg#a)"/>`)],
     ["CSS-escaptes url() im style-Attribut", svg(`${RECT}<rect width="1" height="1" style="fill:\\75 rl(https://evil.example/p.svg#a)"/>`)],
     ["CSS-escaptes url() im style-Element", svg(`<style>.a{fill:\\75 rl(https://evil.example/p.svg#a)}</style>${RECT}`)],
+    // Bildfunktionen mit der URL als String: kein „url(" darin (Abnahme kommplan)
+    ["image-set im mask-Attribut", svg(`${RECT}<rect width="1" height="1" mask="image-set('https://evil.example/t.png' 1x)"/>`)],
+    ["image-set im style-Attribut", svg(`${RECT}<rect width="1" height="1" style="mask:image-set('https://evil.example/t.png' 1x)"/>`)],
+    ["image-set im style-Element", svg(`<style>.a{mask:image-set("https://evil.example/t.png" 1x)}</style>${RECT}`)],
+    ["-webkit-image-set, groß geschrieben", svg(`${RECT}<rect width="1" height="1" mask="-WEBKIT-IMAGE-SET('https://evil.example/t.png' 1x)"/>`)],
+    ["cross-fade und src", svg(`<style>.a{mask:cross-fade('https://evil.example' 50%, red)}.b{fill:src('https://evil.example')}</style>${RECT}`)],
+    ["Kommentar zwischen Name und Klammer", svg(`${RECT}<rect width="1" height="1" style="mask:image-set/**/('https://evil.example/t.png' 1x)"/>`)],
+    ["image-set in einer erlaubten Funktion versteckt", svg(`${RECT}<rect width="1" height="1" fill="rgb(image-set('https://evil.example/t.png'))"/>`)],
   ])("%s", (_name, eingabe) => {
     const aus = gut(eingabe);
     expect(aus).not.toMatch(SCHAEDLICH);
@@ -154,6 +162,17 @@ describe("bereinigeSvg — ein echtes Logo bleibt, wie es aussieht (Review Focus
     const aus = gut(svg(RECT, 'viewBox="0 0 10 10" preserveAspectRatio="none"'));
     expect(aus).toContain('preserveAspectRatio="xMaxYMid meet"');
     expect(aus).not.toContain('"none"');
+  });
+  it("Farb- und Transformationsfunktionen bleiben, eine unbekannte Funktion nimmt nur ihre Deklaration bzw. ihr Attribut heraus", () => {
+    const aus = gut(svg(`<style>.a{fill:rgb(227 6 19);stroke:HSLA(0, 0%, 10%, .5)}.b{fill:image-set('x' 1x);stroke:#000}</style>`
+      + `<g transform="translate(2 3) rotate(45) scale(.5) skewX(4) matrix(1 0 0 1 0 0)"><rect class="a" width="5" height="5" fill="oklch(60% .2 30)"/></g>`
+      + `<rect width="1" height="1" mask="image-set('x' 1x)" fill="#000"/>`));
+    expect(aus).toContain(".a{fill:rgb(227 6 19);stroke:HSLA(0, 0%, 10%, .5)}");
+    expect(aus).toContain(".b{stroke:#000}");
+    expect(aus).toContain('transform="translate(2 3) rotate(45) scale(.5) skewX(4) matrix(1 0 0 1 0 0)"');
+    expect(aus).toContain('fill="oklch(60% .2 30)"');
+    expect(aus).toContain('<rect width="1" height="1" fill="#000"/>');
+    expect(aus).not.toContain("image-set");
   });
   it("Text wird für XML maskiert ausgegeben", () => {
     expect(gut(svg(`<text>&lt;b&gt; &quot;x&quot;</text>${RECT}`))).toContain("<text>&lt;b&gt; \"x\"</text>");

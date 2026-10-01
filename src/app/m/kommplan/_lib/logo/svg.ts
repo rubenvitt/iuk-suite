@@ -172,6 +172,28 @@ function nurLokaleUrls(w: string): boolean {
   }
 }
 
+/**
+ * FUNKTIONEN NUR AUS DER ALLOWLIST (Abnahme kommplan): `image-set('https://…')`, `cross-fade(…)` und `src(…)` nehmen
+ * eine URL als String — „url(" kommt darin nicht vor, und als Dokument geöffnet lud Chromium sie (gemessen). Darum
+ * muss vor JEDER „(" ein erlaubter Name stehen: `url` (geprüft von `nurLokaleUrls`), Farben, Transformationen.
+ * Eine nackte „(" oder ein Kommentar davor (`image-set/∗∗/(`) fällt ebenso. Ein Rückwärtsschritt je Klammer: linear.
+ */
+const FUNKTIONEN = new Set([
+  "url", "rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color",
+  "matrix", "translate", "translatex", "translatey", "rotate", "scale", "scalex", "scaley", "skewx", "skewy",
+]);
+const NAMENSZEICHEN = /[A-Za-z0-9_-]/;
+function nurErlaubteFunktionen(w: string): boolean {
+  for (let i = w.indexOf("("); i >= 0; i = w.indexOf("(", i + 1)) {
+    let j = i;
+    while (j > 0 && LEERZEICHEN.test(w[j - 1])) j--;
+    const ende = j;
+    while (j > 0 && NAMENSZEICHEN.test(w[j - 1])) j--;
+    if (!FUNKTIONEN.has(w.slice(j, ende).toLowerCase())) return false;
+  }
+  return true;
+}
+
 function bereinigeDeklarationen(css: string): string {
   return css.split(";").flatMap((d) => {
     const i = d.indexOf(":");
@@ -180,7 +202,7 @@ function bereinigeDeklarationen(css: string): string {
     const wert = d.slice(i + 1).trim();
     if (!PRAESENTATION.has(prop) || wert === "") return [];
     if (/[\\@<>]|expression\s*\(/i.test(wert) || verdichtet(wert).includes("javascript:")) return [];
-    if (!nurLokaleUrls(wert)) return [];
+    if (!nurLokaleUrls(wert) || !nurErlaubteFunktionen(wert)) return [];
     return [`${prop}:${wert}`];
   }).join(";");
 }
@@ -252,7 +274,7 @@ function reinigeAttribut(element: string, name: string, wert: string): string | 
   // `nurLokaleUrls` sucht „url" im Klartext. Kein Attribut eines Logos braucht ihn (Review Phase 4);
   // `style` filtert dasselbe je Deklaration (`bereinigeDeklarationen`).
   if (wert.includes("\\")) return null;
-  if (!nurLokaleUrls(wert)) return null;
+  if (!nurLokaleUrls(wert) || !nurErlaubteFunktionen(wert)) return null;
   return wert;
 }
 
