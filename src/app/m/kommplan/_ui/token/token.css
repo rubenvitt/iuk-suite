@@ -46,5 +46,6 @@
   .kp-token-links { display: block; }
   .kp-token-links .kp-token-zeile, .kp-token-links .kp-token-vermerk { display: inline; font-size: 13px; }
   .kp-token-links .kp-token-zeile + .kp-token-zeile::before { content: " · "; }
-  .kp-token-links .kp-token-vermerk { margin-inline-start: 6px; padding: 0 4px; }
+  /* Der umrandete Vermerk bricht nie in sich um (Sichtprüfung Phase 5: Rahmenstücke auf zwei Zeilen) — er rückt als Ganzes. */
+  .kp-token-links .kp-token-vermerk { margin-inline-start: 6px; padding: 0 4px; white-space: nowrap; }
 }

@@ -153,4 +153,9 @@ describe("Sichtprüfung Phase 4", () => {
     expect(css).toMatch(/\.kp-druck\[data-format="a3-quer"\]\s*\{\s*page:\s*kommplan-a3;\s*\}/);
     expect(css).not.toMatch(/size:\s*A[3-8]/i);
   });
+  it("Token-Ansicht am Telefon: der umrandete VS-NfD-Vermerk bricht nicht in sich um (Sichtprüfung Phase 5)", () => {
+    const token = readFileSync("src/app/m/kommplan/_ui/token/token.css", "utf8");
+    const zweig = /@media \(max-width: 767\.98px\) \{([\s\S]*?)\n\}/.exec(token)?.[1] ?? "";
+    expect(zweig).toMatch(/\.kp-token-links \.kp-token-vermerk \{[^}]*white-space: nowrap;/);
+  });
 });
