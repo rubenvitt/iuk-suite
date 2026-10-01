@@ -7,9 +7,10 @@ import { Button, Drawer, Dropdown, type InputRef, type MenuProps, type TableProp
 import { flyinBreite } from "@/core/theme/flyin";
 import { Kartentabelle, nachText } from "@/core/tabelle";
 import { archiviereAction, dupliziereAction, speichereAlsVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
-import type { EinfachErgebnis } from "../_lib/ergebnis";
+import { NETZFEHLER, type EinfachErgebnis } from "../_lib/ergebnis";
 import type { Liste, Listenzeile } from "../_lib/plaene";
 import type { VorlageWahl } from "../_lib/planverwaltung";
+import { fokussiereWennFrei } from "../_ui/fokus";
 import { NeuerPlanFormular } from "./NeuerPlan";
 
 const NAME: Record<Liste, string> = { plaene: "Pläne", vorlagen: "Vorlagen", archiv: "Archivierte Pläne" };
@@ -24,7 +25,6 @@ const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
   vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "vorlageArchivieren", label: "Vorlage archivieren" }],
   archiv: [{ key: "wiederherstellen", label: "Wiederherstellen" }],
 };
-const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 /**
  * `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body).
  * `oeffnen`: die ID einer eben angelegten Vorlage — „Vorlage öffnen“ (Phase 5, Entscheidung 16) — oder der schon
@@ -59,7 +59,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     if (sperre.current !== null) return;
     setzeLauf(z.id);
     if (a === "duplizieren") {
-      const r = await dupliziereAction(z.id).catch(() => ({ ok: false as const, fehler: NETZ, feldFehler: {} }));
+      const r = await dupliziereAction(z.id).catch(() => ({ ok: false as const, fehler: NETZFEHLER, feldFehler: {} }));
       // Bei Erfolg bleibt die Zeile „laufend", bis der Editor der Kopie steht — sonst wäre ein zweiter Klick frei.
       if (r.ok) { router.push(`/p/${r.id}?kopie=${r.titel}`); return; }
       setzeLauf(null);
@@ -78,7 +78,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
       archivieren: () => archiviereAction(z.id),
       wiederherstellen: () => stelleWiederHerAction(z.id),
     };
-    const r = await lauf[a]().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
+    const r = await lauf[a]().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZFEHLER }));
     setzeLauf(null);
     // Gleicher Titel schon als Vorlage: nichts angelegt — „Vorlage öffnen“ (die vorhandene) oder „Trotzdem anlegen“.
     if (!r.ok) { setHinweis(vorhanden ? { text: r.fehler, oeffnen: vorhanden, trotzdem: z, fokus: true } : { text: r.fehler, fokus: true }); return; }
@@ -96,7 +96,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
   async function zurueck(id: string) {
     if (sperre.current !== null) return;
     setzeLauf(id);
-    const r = await stelleWiederHerAction(id).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
+    const r = await stelleWiederHerAction(id).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZFEHLER }));
     setzeLauf(null);
     setHinweis(r.ok ? { text: "Wiederhergestellt.", fokus: true } : { text: r.fehler, fokus: true });
     if (r.ok) router.refresh();
@@ -145,7 +145,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
       {liste === "vorlagen" ? (
         // Fokus ins Titelfeld wie bei „Neu“ (NeuerPlan.tsx, afterOpenChange) — vorher blieb er am Container (Review Phase 4).
         <Drawer open={vorlage !== undefined} onClose={() => setAusVorlage(null)} title="Neuer Plan aus Vorlage" size={flyinBreite(480)} destroyOnHidden
-          afterOpenChange={(auf) => { if (auf) titelRef.current?.focus(); }}>
+          afterOpenChange={(auf) => { if (auf) fokussiereWennFrei(titelRef.current?.input); }}>
           {vorlage ? <NeuerPlanFormular titelRef={titelRef} vorlagen={vorlagen} startVorlage={vorlage.id} heute={heute} onAngelegt={(id) => router.push(`/p/${id}`)} onAbbrechen={() => setAusVorlage(null)} /> : null}
         </Drawer>
       ) : null}

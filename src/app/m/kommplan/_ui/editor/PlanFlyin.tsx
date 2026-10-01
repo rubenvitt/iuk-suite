@@ -6,7 +6,7 @@ import { Alert, Button, DatePicker, Drawer, Input, Select, Switch } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { flyinBreite } from "@/core/theme/flyin";
 import { LAENGE_ANLASS, PLAN_TYPEN, TYP_NAME, type Planangaben, type PlanTyp } from "../../_lib/angaben";
-import type { FeldFehler, SpeicherErgebnis } from "../../_lib/ergebnis";
+import { NETZFEHLER, type FeldFehler, type SpeicherErgebnis } from "../../_lib/ergebnis";
 import { qrZielSatz } from "../../_lib/freigabe/texte";
 import { setzeOptionen } from "../../_lib/plan/operationen";
 import { ART_NAME, LAENGE, VERBINDUNGS_ARTEN, type PlanInhalt, type VerbindungsArt } from "../../_lib/plan/schema";
@@ -15,6 +15,7 @@ import { importiereBibVerbindungenAction } from "../../_actions/bibliothek";
 import type { Aendere } from "./aendere";
 import { useBibliothek } from "./bibliothekKontext";
 import { neueId } from "./ids";
+import { OHNE_FOKUSRUECKGABE } from "../fokus";
 
 export const PLAN_FLYIN_GRUND = 560;
 export interface PlanFormularProps {
@@ -38,7 +39,7 @@ export function PlanFlyin({ offen, onSchliessen, nachSchliessen, abschnitt, ...p
   offen: boolean; onSchliessen: () => void; nachSchliessen: () => void; abschnitt: "angaben" | "verbindungen";
 }) {
   return (
-    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(PLAN_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin"
+    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(PLAN_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin" focusable={OHNE_FOKUSRUECKGABE}
       title="Plan und Verbindungen"
       afterOpenChange={(auf) => {
         if (!auf) { nachSchliessen(); return; }
@@ -243,7 +244,7 @@ function VerbindungenInBibliothek({ inhalt }: { inhalt: PlanInhalt }) {
     if (laeuft) return;
     setLaeuft(true);
     const r = await importiereBibVerbindungenAction(zeilen.map((v) => ({ art: v.art, bezeichnung: v.bezeichnung })))
-      .catch(() => ({ ok: false as const, fehler: "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal." }));
+      .catch(() => ({ ok: false as const, fehler: NETZFEHLER }));
     setLaeuft(false);
     if (r.ok) { merke({ verbindungen: r.eintraege }); setMeldung(`${r.angelegt} angelegt, ${r.uebersprungen} schon vorhanden.`); }
     else setMeldung(r.fehler);

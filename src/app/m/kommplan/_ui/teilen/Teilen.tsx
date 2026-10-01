@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Drawer, Input, Popconfirm, Radio, Switch, type InputRef } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 import { stelleFreigabeAusAction, widerrufeFreigabeAction } from "../../_actions/freigabe";
-import type { FreigabeErgebnis } from "../../_lib/ergebnis";
+import { NETZFEHLER, type FreigabeErgebnis } from "../../_lib/ergebnis";
 import { besteFreigabe, DAUER_NAME, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, tokenUrl, type FreigabeDauer, type FreigabeZeile } from "../../_lib/freigabe/regeln";
 import { ablaufText, abrufText, qrZielSatz, ZEIT } from "../../_lib/freigabe/texte";
 import { kopiere } from "./zwischenablage";
+import { OHNE_FOKUSRUECKGABE } from "../fokus";
 
 export const TEILEN_FLYIN_GRUND = 520;
-const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 const KEINE_ADRESSE = "Für die Kommunikationspläne ist keine Adresse eingerichtet. Links lassen sich erst ausstellen, wenn der Betrieb sie festlegt.";
 const KOPIERT_MS = 2000;
 
@@ -27,7 +27,7 @@ interface Props {
  */
 export function TeilenFlyin({ offen, onSchliessen, nachSchliessen, ...p }: Props & { offen: boolean; onSchliessen: () => void; nachSchliessen: () => void }) {
   return (
-    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(TEILEN_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin"
+    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(TEILEN_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin" focusable={OHNE_FOKUSRUECKGABE}
       autoFocus={p.basis === null} title="Teilen" afterOpenChange={(auf) => { if (!auf) nachSchliessen(); }}>
       {offen ? <Teilen {...p} /> : null}
     </Drawer>
@@ -66,7 +66,7 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
   async function lauf(schluessel: string, tu: () => Promise<FreigabeErgebnis>, erfolg: (r: Extract<FreigabeErgebnis, { ok: true }>) => void) {
     if (laeuft !== null) return;
     setLaeuft(schluessel); setMeldung(null); setManuell(null); setKopiert(null);
-    const r = await tu().catch((): FreigabeErgebnis => ({ ok: false, fehler: NETZ, feldFehler: {} }));
+    const r = await tu().catch((): FreigabeErgebnis => ({ ok: false, fehler: NETZFEHLER, feldFehler: {} }));
     setLaeuft(null);
     if (!r.ok) { setMeldung(r.feldFehler.notiz ?? r.fehler); return; }
     erfolg(r);              // vor onFreigaben: die Fokusregel nach dem Widerrufen hängt an der neuen Liste

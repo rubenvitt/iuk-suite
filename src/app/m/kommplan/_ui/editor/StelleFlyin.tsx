@@ -9,6 +9,7 @@ import { bibStelleAus, stelleVorschlaege, uebernimmBibStelle } from "../../_lib/
 import { aendereStelle, type StellenAenderung } from "../../_lib/plan/operationen";
 import { LAENGE, type PlanInhalt, type Stelle } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
+import { fokussiereWennFrei, OHNE_FOKUSRUECKGABE } from "../fokus";
 import type { Symbolsatz } from "../zeichnung/Symbole";
 import { TitelVorschlaege } from "../gliederung/TitelVorschlaege";
 import type { Aendere } from "./aendere";
@@ -18,6 +19,7 @@ import { KontaktZeilen } from "./KontaktZeilen";
 import { StellenLage } from "./StellenLage";
 import { VerbindungWahl } from "./VerbindungWahl";
 import { ZeichenWahl } from "./ZeichenWahl";
+import { NETZFEHLER } from "../../_lib/ergebnis";
 
 export interface StelleFormularProps {
   inhalt: PlanInhalt; stelleId: string; aendere: Aendere; symbole: Symbolsatz;
@@ -43,9 +45,9 @@ export function StelleFlyin({ offen, onSchliessen, nachSchliessen, ...formular }
     // autoFocus={false}: rc-drawer fokussiert sonst beim Öffnen seinen Container — NACH dem Fokus-Effekt
     // des Formulars. Kam N während der Schließanimation, hing der Fokus ~530 ms am Container, und
     // Getipptes ging verloren (Review Phase 2). Den Fokus setzt allein die Fokusanfrage des Editors.
-    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(STELLE_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin" autoFocus={false}
+    <Drawer open={offen} onClose={onSchliessen} mask={false} size={flyinBreite(STELLE_FLYIN_GRUND)} destroyOnHidden rootClassName="kp-flyin" autoFocus={false} focusable={OHNE_FOKUSRUECKGABE}
       title={s ? (s.titel.trim() || "Neue Stelle") : "Stelle"}
-      afterOpenChange={(auf) => { if (auf && formular.fokus.ziel === "titel" && formular.fokus.stelle === formular.stelleId) formular.titelRef.current?.focus(); else if (!auf) nachSchliessen(); }}>
+      afterOpenChange={(auf) => { if (auf && formular.fokus.ziel === "titel" && formular.fokus.stelle === formular.stelleId) fokussiereWennFrei(formular.titelRef.current?.input); else if (!auf) nachSchliessen(); }}>
       {offen ? <StelleFormular {...formular} /> : null}
     </Drawer>
   );
@@ -108,7 +110,6 @@ export function StelleFormular(p: StelleFormularProps) {
   );
 }
 
-const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
 /** „Aus Bibliothek" (Spec §6.4): füllt die Stelle per Kopie, EIN Rückgängig-Schritt; Einheiten, Lage und Verbindung bleiben. */
 function AusBibliothek({ uebernimm, titelRef }: { uebernimm: (b: BibStelle) => string | null; titelRef: RefObject<InputRef | null> }) {
@@ -152,7 +153,7 @@ function InBibliothek({ stelle }: { stelle: Stelle }) {
     if (laeuft) return;
     setLaeuft(true);
     const r = await speichereBibStelleAction({ ...bibStelleAus(stelle), id: ziel?.id ?? null, notiz: ziel?.notiz ?? null })
-      .catch(() => ({ ok: false as const, fehler: NETZ }));
+      .catch(() => ({ ok: false as const, fehler: NETZFEHLER }));
     setLaeuft(false);
     if (r.ok) {
       merke({ stellen: [r.eintrag] });

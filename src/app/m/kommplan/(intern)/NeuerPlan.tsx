@@ -12,6 +12,7 @@ import type { FeldFehler } from "../_lib/ergebnis";
 import { LAENGE } from "../_lib/plan/schema";
 import type { VorlageWahl } from "../_lib/planverwaltung";
 import { ersetzeDatumImTitel } from "../_lib/tagesfassung";
+import { fokussiereWennFrei } from "../_ui/fokus";
 
 /**
  * „Neu" in der Planliste (Spec §6.1): Titel, Art, Anlass, Datum — danach direkt in den Editor.
@@ -27,7 +28,7 @@ export function NeuerPlan({ vorlagen = [], heute }: { vorlagen?: VorlageWahl[]; 
     <>
       <Button type="primary" data-neu="" onClick={() => setOffen(true)}>Neu</Button>
       <Drawer open={offen} onClose={() => setOffen(false)} title="Neuer Plan" size={flyinBreite(480)} destroyOnHidden
-        afterOpenChange={(auf) => { if (auf) titelRef.current?.focus(); }}>
+        afterOpenChange={(auf) => { if (auf) fokussiereWennFrei(titelRef.current?.input); }}>
         {offen ? <NeuerPlanFormular titelRef={titelRef} vorlagen={vorlagen} heute={heute} onAngelegt={(id) => router.push(`/p/${id}`)} onAbbrechen={() => setOffen(false)} /> : null}
       </Drawer>
     </>
