@@ -1,4 +1,5 @@
 import type { Planangaben } from "./angaben";
+import type { BibEinheit, BibStelle, BibVerbindung } from "./bibliothek/typen";
 import type { PlanInhalt } from "./plan/schema";
 import type { LogoTyp } from "./logo/logoTyp";
 
@@ -18,3 +19,9 @@ export type AnlageErgebnis = { ok: true; id: string } | { ok: false; fehler: str
 /** Für Actions ohne eigenen Rückgabewert. Benannt, weil ein `{` in der Signatur den Riegel-Test der Actions bricht. */
 export type EinfachErgebnis = { ok: true } | { ok: false; fehler: string };
 export type LogoErgebnis = { ok: true; typ: LogoTyp } | { ok: false; fehler: string };
+export type BibErgebnis<T> = { ok: true; eintrag: T } | { ok: false; fehler: string; feldFehler?: FeldFehler };
+export type BibStelleErgebnis = BibErgebnis<BibStelle>;
+export type BibEinheitErgebnis = BibErgebnis<BibEinheit>;
+export type BibVerbindungErgebnis = BibErgebnis<BibVerbindung>;
+export type ImportErgebnis<T = BibEinheit> = { ok: true; angelegt: number; uebersprungen: number; eintraege: T[] } | { ok: false; fehler: string };
+export type VerbindungsImportErgebnis = ImportErgebnis<BibVerbindung>;
