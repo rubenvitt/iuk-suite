@@ -109,8 +109,18 @@ describe("Auflösen (Spec §8.2: unbekannt, abgelaufen, widerrufen, archiviert �
   });
   it("falsche Form fragt die Datenbank gar nicht erst (kein Wurf bei SQL-artigem Text)", async () => {
     const db = await mitSeed();
-    expect(loeseToken(db, "' OR 1=1 --", JETZT)).toBeNull();
-    expect(loeseToken(db, "", JETZT)).toBeNull();
+    let abfragen = 0;
+    // Methoden an der echten Datenbank gebunden (drizzle braucht `this`); gezählt wird jede Abfrage.
+    const gezaehlt = new Proxy(db, {
+      get(ziel, name) {
+        const wert = Reflect.get(ziel, name, ziel) as unknown;
+        return typeof wert === "function" ? (...a: unknown[]) => { abfragen++; return (wert as (...x: unknown[]) => unknown).apply(ziel, a); } : wert;
+      },
+    });
+    for (const t of ["' OR 1=1 --", "", "A".repeat(42), `${"A".repeat(43)}=`]) expect(loeseToken(gezaehlt, t, JETZT)).toBeNull();
+    expect(abfragen).toBe(0);
+    expect(loeseToken(gezaehlt, "A".repeat(43), JETZT)).toBeNull(); // richtige Form: erst DANN fragt sie
+    expect(abfragen).toBeGreaterThan(0);
   });
 });
 
@@ -147,6 +157,16 @@ describe("Zählen (Entscheidung 6)", () => {
     zaehleAbruf(db, f.id, JETZT + 9);
     expect(db.select().from(planFreigabe).where(eq(planFreigabe.id, f.id)).get()).toMatchObject({ abrufe: 2, zuletztAbgerufen: new Date(JETZT + 9) });
     expect(audit(db)).toHaveLength(vorher);
+  });
+  it("zählt NUR den abgerufenen Link — andere Links desselben und eines anderen Plans bleiben unberührt", async () => {
+    const db = await mitSeed();
+    const f = aus(db);
+    const nachbar = aus(db, OPENR, "unbegrenzt");
+    const fremd = aus(db, EINSATZ);
+    zaehleAbruf(db, f.id, JETZT + 5);
+    for (const z of [nachbar, fremd]) {
+      expect(db.select().from(planFreigabe).where(eq(planFreigabe.id, z.id)).get()).toMatchObject({ abrufe: 0, zuletztAbgerufen: null });
+    }
   });
 });
 

@@ -238,6 +238,7 @@ test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbeg
   await page.goto(url(`/p/${id}/druck/a4`));
   await warteAufGestreamteInhalte(page);
   const blaetter = await page.locator("svg.kp-blatt").count();
+  expect(blaetter).toBeGreaterThan(0);
   await expect(page.locator("[data-qr]")).toHaveCount(blaetter);
   for (const z of await page.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel")).toBe(lang);
   await expect(page.locator("[data-qr-satz]")).toHaveText("Der QR-Code führt auf „lang“ – unbegrenzt gültig.");
@@ -245,6 +246,10 @@ test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbeg
   const seite = await anonym(browser, ip(44));
   expect((await seite.goto(`${kurz}/druck/a4`))?.status()).toBe(200);
   await warteAufGestreamteInhalte(seite);
+  // Erst die Zahl: ohne einen einzigen QR liefe die Schleife nie und bewiese nichts (Review Phase 5).
+  const tokenBlaetter = await seite.locator("svg.kp-blatt").count();
+  expect(tokenBlaetter).toBeGreaterThan(0);
+  await expect(seite.locator("[data-qr]")).toHaveCount(tokenBlaetter);
   for (const z of await seite.locator("[data-qr]").all()) expect(await z.getAttribute("data-qr-ziel"), "nie der bessere Link").toBe(kurz);
   await seite.context().close();
 });

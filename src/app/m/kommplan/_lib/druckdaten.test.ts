@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { qrSvg } from "@/core/qr";
 import { plan as planTabelle } from "../_db/schema";
 import { stelleFreigabeAus } from "./freigaben";
 import { druckseitenDaten, qrUrlFuerToken, qrZielIntern } from "./druckdaten";
+import { BLATT } from "./layout/masse";
+import { qrBox, teileAuf } from "./layout/papier";
+import { qrGrafikAus } from "./qrGrafik";
 import { setzeOptionen } from "./plan/operationen";
 import { archiviere } from "./planverwaltung";
 import { ladePlanLesend } from "./plaene";
@@ -33,6 +37,24 @@ describe("Druckdaten (Spec §5.6, §8.1)", () => {
     expect(a3.format).toBe("a3-quer");
     expect(a3.blaetter!.length).toBeLessThanOrEqual(a4.blaetter!.length);
     expect(a3.rahmen).toMatchObject({ titel: plan.titel, organisation: "Musterorganisation" });
+    // Die Blätter kommen aus dem A3-Aufteiler, nicht aus dem A4-Layout auf A3-Papier (Review Phase 5) — und die
+    // beiden Layouts unterscheiden sich an diesem Plan, sonst bewiese die Gleichheit nichts.
+    expect(teileAuf(plan.inhalt!, "a3-quer")).not.toEqual(teileAuf(plan.inhalt!, "a4-quer"));
+    expect(a3.blaetter).toEqual(teileAuf(plan.inhalt!, "a3-quer", { qr: false }));
+    expect(a4.blaetter).toEqual(teileAuf(plan.inhalt!, "a4-quer", { qr: false }));
+  });
+  it("mit QR hält jedes Blatt die QR-Box frei — in beiden Formaten (Review Focus 5, verdrahtet)", async () => {
+    const db = await mitSeed();
+    const plan = ladePlanLesend(db, "beispiel-grosse-stabslage")!;
+    for (const format of ["a4-quer", "a3-quer"] as const) {
+      const d = await druckseitenDaten(db, plan, { format, qrUrl: `${BASIS}/t/${"Q".repeat(43)}` });
+      // An A4 verschiebt der QR die Aufteilung dieses Plans (sonst bewiese die Gleichheit nichts); an A3 bleibt Platz genug.
+      if (format === "a4-quer") expect(teileAuf(plan.inhalt!, format, { qr: true })).not.toEqual(teileAuf(plan.inhalt!, format, { qr: false }));
+      expect(d.blaetter).toEqual(teileAuf(plan.inhalt!, format, { qr: true }));
+      for (const b of d.blaetter!) {
+        expect(b.ursprung.y + b.zeichnung.hoehe * b.massstab, `${format} Blatt ${b.nummer}`).toBeLessThanOrEqual(qrBox(format).oben - BLATT.luft + 1e-6);
+      }
+    }
   });
 });
 
@@ -53,6 +75,24 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     const kurz = aus(db, p.id, "24h");
     aus(db, p.id, "unbegrenzt");
     expect(qrUrlFuerToken(p, kurz.token, BASIS)).toBe(`${BASIS}/t/${kurz.token}`);
+  });
+  it("Token-Druck ohne die Option qrAufDruck: kein QR, auch mit gültigem Token", async () => {
+    const db = await mitSeed();
+    const p = ladePlanLesend(db, "beispiel-openr-2022-07-01")!;
+    expect(p.inhalt!.optionen.qrAufDruck).toBe(false);
+    expect(qrUrlFuerToken(p, aus(db, p.id, "unbegrenzt").token, BASIS)).toBeNull();
+  });
+  it("der gedruckte Code kodiert genau das Ziel — nicht nur das Attribut daneben (intern und Token)", async () => {
+    const db = await mitSeed();
+    const p = mitQrOption(db, "beispiel-openr-2022-07-01");
+    const kurz = aus(db, p.id, "24h");
+    aus(db, p.id, "unbegrenzt");
+    const ziele = [qrZielIntern(db, p, JETZT, BASIS)!.url, qrUrlFuerToken(p, kurz.token, BASIS)!];
+    expect(new Set(ziele).size).toBe(2);
+    for (const url of ziele) {
+      const d = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: url });
+      expect(d.rahmen.qr).toEqual(qrGrafikAus(await qrSvg(url), url));
+    }
   });
   it("archiviert: kein QR; Druckdaten tragen den QR nur, wenn ein Ziel da ist", async () => {
     const db = await mitSeed();
