@@ -7,6 +7,7 @@ import { msZuTag } from "./angaben";
 import type { PlanInhalt } from "./plan/schema";
 import { kopfFuerZeichnung } from "./briefkopf";
 import { tokenUrl, waehleQrFreigabe } from "./freigabe/regeln";
+import { qrZielSatz } from "./freigabe/texte";
 import { freigabenFuer } from "./freigaben";
 import { teileAuf } from "./layout/papier";
 import type { Blatt, Papierformat } from "./layout/typen";
@@ -80,4 +81,16 @@ export async function druckseitenDaten(db: KommplanDb, plan: LesbarerPlan, auftr
       ? { titel: plan.titel, tag: plan.datum !== null ? msZuTag(plan.datum)! : heuteIso(plan.aktualisiertAm) }
       : null,
   };
+}
+
+/**
+ * Die Daten der INTERNEN Druckrouten A4 und A3 (Falle 18: eine Route je Format, aber ein Rumpf — Abnahme kommplan):
+ * QR nach `qrZielIntern` samt Satz für die `noprint`-Leiste, SVG-Export. Die Riegel bleiben in den Seiten
+ * (`riegel.test.ts`).
+ */
+export async function interneDruckdaten(
+  db: KommplanDb, plan: LesbarerPlan, darfBearbeiten: boolean, format: Papierformat, jetzt: number, basis: string | null = moduleUrl("kommplan"),
+): Promise<DruckseiteDaten> {
+  const ziel = qrZielIntern(db, plan, darfBearbeiten, jetzt, basis);
+  return druckseitenDaten(db, plan, { format, qrUrl: ziel?.url ?? null, qrSatz: ziel ? qrZielSatz(ziel) : null, mitSvgExport: true });
 }

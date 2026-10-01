@@ -137,7 +137,11 @@ export function exists(selector: string): boolean {
  * nach Fehler im Harness und nicht nach Fehler im Feld aussieht.
  */
 export async function fill(selector: string, value: string): Promise<void> {
-  const input = query<HTMLInputElement | HTMLTextAreaElement>(selector);
+  await fillElement(query<HTMLInputElement | HTMLTextAreaElement>(selector), value);
+}
+
+/** Wie `fill`, aber für ein schon gefundenes Element — etwa in einem Portal (Flyin), das `fill` im Wirt nicht findet. */
+export async function fillElement(input: HTMLInputElement | HTMLTextAreaElement, value: string): Promise<void> {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
   if (!setter) throw new Error(`Kein value-Setter am Prototyp von ${input.tagName}`);
   await act(async () => {

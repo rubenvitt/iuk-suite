@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
-import { clickElement, exists, existsPortal, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, exists, existsPortal, mount, query, queryAll, queryPortal, unmount, fillElement } from "@/app/m/qr/_lib/test-dom";
 
 const aktionen = vi.hoisted(() => ({
   speichereInhaltAction: vi.fn(), speichereAngabenAction: vi.fn(), legePlanAnAction: vi.fn(), ladeStandAction: vi.fn(),
@@ -65,11 +65,6 @@ async function escImFlyin() {
   await taste("Escape", {}, flyinFeld());
   await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 }
-/** Wie `fill` aus dem Harness, aber für ein Element im Portal (Flyin): `fill` sucht nur im Wirt. */
-async function schreibe(el: HTMLInputElement, wert: string) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-  await act(async () => { setter.call(el, wert); el.dispatchEvent(new Event("input", { bubbles: true })); });
-}
 
 beforeEach(() => {
   aktionen.speichereInhaltAction.mockImplementation(async (e: { version: number }) => ({ ok: true, version: e.version + 1, aktualisiertAm: Date.UTC(2026, 8, 30, 9) }));
@@ -109,7 +104,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await taste("n");
     expect(karten()).toHaveLength(4);
     expect(document.activeElement).toBe(flyinFeld());
-    await schreibe(flyinFeld(), "EA 2");
+    await fillElement(flyinFeld(), "EA 2");
     await taste("Enter", {}, flyinFeld());
     expect(flaecheFokussiert()).toBe(true);
     expect(existsPortal("[data-flyin-stelle]")).toBe(false);
@@ -230,7 +225,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await clickElement(knopf("Plan und Verbindungen"));
     const titel = queryPortal<HTMLInputElement>('fieldset[aria-label="Planangaben"] input[name="titel"]');
     await act(async () => { titel.focus(); });
-    await schreibe(titel, "Übung Süd");
+    await fillElement(titel, "Übung Süd");
     // Schließen-Knopf der Schublade: Name je nach antd-Sprachpaket
     await clickElement(queryPortal('.kp-flyin button[aria-label="Close"], .kp-flyin button[aria-label="Schließen"]'));
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
@@ -340,7 +335,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await schreibe(flyinFeld(), "Trupp");
+    await fillElement(flyinFeld(), "Trupp");
     await escImFlyin();
     expect(karten()).toHaveLength(4);
     await waehle("a");
@@ -365,7 +360,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await zeige();
     await waehle("a");
     await clickElement(query('[data-griff="unter"]'));
-    await schreibe(flyinFeld(), "Neu");
+    await fillElement(flyinFeld(), "Neu");
     expect(flyinOffen()).toBe(true);
     await clickElement(knopf("Rückgängig"));
     await clickElement(knopf("Rückgängig"));
@@ -398,7 +393,7 @@ describe("Editor (Spec §6.2, §6.3)", () => {
     await waehle("el");
     query<HTMLElement>(".kp-betrachter").focus();
     await taste("F2");
-    await schreibe(flyinFeld(), "ELX");
+    await fillElement(flyinFeld(), "ELX");
     expect(query(".kp-betrachter [data-meldung]").textContent).toContain("„EA 1“ gelöscht.");
     expect(rueckImHinweis()).toBeUndefined();
     await clickElement(knopf("Rückgängig")); // der Kopfleiste: erst das Tippen, dann die Löschung
@@ -470,7 +465,7 @@ describe("Ansichten (Spec §6.2, §6.5; Phase 3, Entscheidungen 1, 2, 16)", () =
     await waehle("a");
     query<HTMLElement>(".kp-betrachter").focus();
     await taste("n"); // neue Unterstelle, Flyin offen
-    await schreibe(flyinFeld(), "Neu"); // berührt: Esc verwirft sie nicht
+    await fillElement(flyinFeld(), "Neu"); // berührt: Esc verwirft sie nicht
     await warte(1200); // Autosave erledigt
     aktionen.speichereInhaltAction.mockClear();
     await clickElement(radio("Gliederung"));
@@ -557,7 +552,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
   it("„Rückgängig“ der Kopfleiste direkt nach Enter nimmt genau EINEN Schritt zurück — wie Strg+Z im Titel", async () => {
     await zeige(plan(), "gliederung");
     await act(async () => { titelFeld("a").focus(); });
-    await schreibe(titelFeld("a"), "EA 1 geändert");
+    await fillElement(titelFeld("a"), "EA 1 geändert");
     await taste("Enter", {}, titelFeld("a"));
     expect(zeilen()).toBe(4);
     await act(async () => { knopf("Rückgängig").focus(); }); // Chrome: der Knopf nimmt beim Klick den Fokus
@@ -575,7 +570,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
   it("… ebenso ohne Fokuswechsel auf den Knopf (Safari): EIN Schritt, und ein wiederholter Enter-Schritt bleibt beim Verlassen stehen", async () => {
     await zeige(plan(), "gliederung");
     await act(async () => { titelFeld("a").focus(); });
-    await schreibe(titelFeld("a"), "EA 1 geändert");
+    await fillElement(titelFeld("a"), "EA 1 geändert");
     await taste("Enter", {}, titelFeld("a"));
     await clickElement(knopf("Rückgängig")); // der Titel behält den Fokus bis zum Klick
     expect(zeilen()).toBe(3);
@@ -589,7 +584,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
   it("„Rückgängig“ und „Wiederholen“ nehmen dem Titel beim Zeigerdruck nicht den Fokus (Safari fokussiert Knöpfe beim Klick nicht)", async () => {
     await zeige(plan(), "gliederung");
     await act(async () => { titelFeld("a").focus(); });
-    await schreibe(titelFeld("a"), "EA 1 neu"); // sonst ist „Rückgängig“ deaktiviert
+    await fillElement(titelFeld("a"), "EA 1 neu"); // sonst ist „Rückgängig“ deaktiviert
     const e = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     await act(async () => { knopf("Rückgängig").dispatchEvent(e); });
     expect(e.defaultPrevented).toBe(true);
@@ -611,7 +606,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
   it("Strg/Cmd+Z mit Fokus auf body bei sichtbarer Gliederung holt den Fokus in die Zeile zurück (Entscheidung 10)", async () => {
     await zeige(plan(), "gliederung");
     await act(async () => { titelFeld("a").focus(); });
-    await schreibe(titelFeld("a"), "EA 1 neu");
+    await fillElement(titelFeld("a"), "EA 1 neu");
     await act(async () => { (document.activeElement as HTMLElement).blur(); });
     expect(document.activeElement).toBe(document.body);
     await taste("z", { ctrlKey: true }, document.body);
@@ -652,7 +647,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     const meldung = () => query(".kp-gliederung [data-meldung]").textContent;
     expect(meldung()).toContain("1 Stelle steht so in der Bibliothek.");
     const sued = queryAll<HTMLInputElement>('.kp-gliederung input[name="titel"]').find((i) => i.value === "EAL Süd")!;
-    await schreibe(sued, "EAL Süd 2");
+    await fillElement(sued, "EAL Süd 2");
     expect(meldung()).toContain("1 Stelle steht so in der Bibliothek."); // Tippen räumt den Hinweis nicht weg
     await clickElement(knopf("Angaben übernehmen"));
     expect(sued.value).toBe("EAL Süd 2");
@@ -682,7 +677,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     query<HTMLElement>(".kp-betrachter").focus();
     await taste("F2");
     zeichen.ladeZeichenAction.mockClear();
-    for (const t of ["E", "EA", "EA 9"]) await schreibe(flyinFeld(), t);
+    for (const t of ["E", "EA", "EA 9"]) await fillElement(flyinFeld(), t);
     expect(zeichen.ladeZeichenAction).not.toHaveBeenCalled();
   });
   it("Griffe stehen in der Auswahlleiste oben in der Fläche, an der Karte nur der Auswahlrahmen (Phase 4, Entscheidung 15)", async () => {

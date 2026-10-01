@@ -37,6 +37,7 @@ import { STELLE_FLYIN_GRUND, StelleFlyin } from "./StelleFlyin";
 import { flaechenBefehl, globalerBefehl, istTextfeld } from "./tasten";
 import { kannRueckgaengig, kannWiederholen, neuerVerlauf, rueckgaengig, tue, verwirf, wiederholen, type Verlauf } from "./verlauf";
 import { leseZuletzt } from "./zuletzt";
+import { useEingeklappt } from "../betrachter/einklappen";
 
 const KEIN_TEILEN: { freigaben: FreigabeZeile[]; basis: string | null } = { freigaben: [], basis: null };
 
@@ -115,7 +116,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const freigabenStand = useRef(0);
   const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
   const [fokus, setFokus] = useState<{ ziel: "titel" | "einheit"; stelle: string | null; n: number }>({ ziel: "titel", stelle: null, n: 0 });
-  const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
+  const { eingeklappt, setEingeklappt, umschalten } = useEingeklappt();
   const [hinweis, setHinweis] = useState<Hinweis | null>(() => (kopieHinweis
     ? { text: kopieHinweis.text, bestaetigt: kopieHinweis.bestaetigt, aktion: { text: "Angaben ändern", tu: () => { setPlanAbschnitt("angaben"); setFlyin("plan"); } } }
     : null));
@@ -440,11 +441,6 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     }
     if (fenster) fenster.location.href = ziel; else window.open(ziel, "_self"); // Popup gesperrt: dann im selben Tab
   }
-  const umschalten = (id: string) => setEingeklappt((s) => {
-    const neu = new Set(s);
-    if (neu.has(id)) neu.delete(id); else neu.add(id);
-    return neu;
-  });
   const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); gleicheFreigabenAb(); };
   const oeffneTeilen = () => { setFlyin("teilen"); gleicheFreigabenAb(); };
   /**

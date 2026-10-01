@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Button } from "antd";
 import { layout } from "../../_lib/layout/layout";
 import { baueSicht } from "../../_lib/layout/sicht";
@@ -10,6 +10,7 @@ import type { Symbolsatz } from "../zeichnung/Symbole";
 import { Flaeche } from "./Flaeche";
 import { Legende } from "./Legende";
 import { Umschalter } from "./EinklappKnopf";
+import { useEingeklappt } from "./einklappen";
 
 /**
  * Der Betrachter (Spec §5.7): dasselbe Layout wie der Druck, mit Zoom, Verschieben und Einklappen.
@@ -26,14 +27,9 @@ import { Umschalter } from "./EinklappKnopf";
  * Zeichnung sie auch dann finden, wenn der Plan keine Stellen hat.
  */
 export function Betrachter({ inhalt, symbole, titel, schrift }: { inhalt: PlanInhalt; symbole: Symbolsatz; titel: string; schrift: string }) {
-  const [eingeklappt, setEingeklappt] = useState<ReadonlySet<string>>(() => new Set());
+  const { eingeklappt, setEingeklappt, umschalten } = useEingeklappt();
   const daten = useMemo(() => layout(inhalt, "bildschirm", { eingeklappt }), [inhalt, eingeklappt]);
   const eintraege = useMemo(() => legende(inhalt, baueSicht(inhalt)), [inhalt]);
-  const umschalten = (id: string) => setEingeklappt((s) => {
-    const neu = new Set(s);
-    if (neu.has(id)) neu.delete(id); else neu.add(id);
-    return neu;
-  });
   return (
     <div className="kp-betrachter-wurzel">
       <Flaeche daten={daten} symbole={symbole} titel={titel} schrift={schrift}

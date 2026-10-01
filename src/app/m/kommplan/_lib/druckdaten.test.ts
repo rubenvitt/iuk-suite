@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { qrSvg } from "@/core/qr";
 import { plan as planTabelle } from "../_db/schema";
 import { stelleFreigabeAus } from "./freigaben";
-import { blaetterFuer, druckseitenDaten, qrUrlFuerToken, qrZielIntern } from "./druckdaten";
+import { blaetterFuer, druckseitenDaten, interneDruckdaten, qrUrlFuerToken, qrZielIntern } from "./druckdaten";
 import { teileAuf } from "./layout/papier";
 import { pruefeQrAbstand } from "./layout/pruefung";
 import { BEISPIELE } from "./beispiele";
@@ -127,6 +127,23 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     expect((await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport).toEqual({ titel: p.titel, tag: "2026-02-22" });
     const ohneDatum = { ...p, datum: null, aktualisiertAm: Date.UTC(2026, 8, 30, 22, 30) }; // 01.10.2026, 00:30 in Berlin
     expect((await druckseitenDaten(db, ohneDatum, { format: "a4-quer", qrUrl: null, mitSvgExport: true })).svgExport?.tag).toBe("2026-10-01");
+  });
+});
+
+describe("interneDruckdaten: ein Rumpf für die internen Routen A4 und A3 (Abnahme)", () => {
+  it("QR samt Satz nur für Bearbeitende, im gewünschten Format, mit SVG-Export", async () => {
+    const db = await mitSeed();
+    const plan = mitQrOption(db, "beispiel-openr-2022-07-01");
+    const f = aus(db, plan.id, "unbegrenzt");
+    for (const format of ["a4-quer", "a3-quer"] as const) {
+      const mit = await interneDruckdaten(db, plan, true, format, JETZT, BASIS);
+      expect(mit.format).toBe(format);
+      expect(mit.rahmen.qr?.ziel).toBe(`${BASIS}/t/${f.token}`);
+      expect(mit.qrSatz).not.toBeNull();
+      expect(mit.svgExport).not.toBeNull();
+      const ohne = await interneDruckdaten(db, plan, false, format, JETZT, BASIS);
+      expect([ohne.rahmen.qr, ohne.qrSatz]).toEqual([null, null]);
+    }
   });
 });
 

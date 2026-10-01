@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { getDb } from "@/app/m/kommplan/_db/client";
-import { druckseitenDaten, qrZielIntern } from "@/app/m/kommplan/_lib/druckdaten";
-import { qrZielSatz } from "@/app/m/kommplan/_lib/freigabe/texte";
+import { interneDruckdaten } from "@/app/m/kommplan/_lib/druckdaten";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { ladePlanLesendOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { darfKommplanBearbeiten, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
@@ -22,7 +21,6 @@ export default async function DruckA4({ params, searchParams }: {
   const { id } = await params;
   const db = getDb();
   const plan = ladePlanLesendOder404(db, id);
-  const ziel = qrZielIntern(db, plan, darfKommplanBearbeiten(viewer.groups), new Date().getTime());
-  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await druckseitenDaten(db, plan, { format: "a4-quer", qrUrl: ziel?.url ?? null, qrSatz: ziel ? qrZielSatz(ziel) : null, mitSvgExport: true })}
+  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await interneDruckdaten(db, plan, darfKommplanBearbeiten(viewer.groups), "a4-quer", new Date().getTime())}
     automatisch={(await searchParams).export !== "svg"} />;
 }

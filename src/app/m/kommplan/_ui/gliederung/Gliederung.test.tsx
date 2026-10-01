@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, useEffect, useState } from "react";
-import { clickElement, existsPortal, mount, query, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, existsPortal, mount, query, queryAll, queryPortal, unmount, fillElement } from "@/app/m/qr/_lib/test-dom";
 import { baue } from "../../_lib/beispiele/bau";
 import { MELDUNG, zuVieleStellen } from "../../_lib/plan/gliederung";
 import { leererPlan, PlanFehler } from "../../_lib/plan/operationen";
@@ -67,10 +67,6 @@ async function taste(el: Element, key: string, mehr: KeyboardEventInit = {}) {
   await act(async () => { el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...mehr })); });
 }
 async function fokus(id: string) { await act(async () => { feld(id).focus(); }); }
-async function schreibe(el: HTMLInputElement, wert: string) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-  await act(async () => { setter.call(el, wert); el.dispatchEvent(new Event("input", { bubbles: true })); });
-}
 const meldung = () => query("[data-meldung]").textContent;
 /** Klick mit Zeiger: erst `pointerdown` (daran erkennt die Gliederung die Herkunft, Entscheidung 16), dann `click`. */
 async function zeigerKlick(el: HTMLElement) {
@@ -97,8 +93,8 @@ describe("Gliederung (Spec §6.5)", () => {
   it("Tippen ändert den Titel — ein Rückgängig-Schritt je Feld und Bündel", async () => {
     await zeige();
     await fokus("ea1");
-    await schreibe(feld("ea1"), "EA 1 Nord");
-    await schreibe(feld("ea1"), "EA 1 Nordost");
+    await fillElement(feld("ea1"), "EA 1 Nord");
+    await fillElement(feld("ea1"), "EA 1 Nordost");
     expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.titel).toBe("EA 1 Nordost");
     expect(stand.vergangen).toHaveLength(1);
   });
@@ -129,10 +125,10 @@ describe("Gliederung (Spec §6.5)", () => {
     await fokus("ea2");
     await taste(feld("ea2"), "Enter", { repeat: true });
     expect(titel()).toHaveLength(4);
-    await schreibe(feld("ea2"), "");
+    await fillElement(feld("ea2"), "");
     await taste(feld("ea2"), "Backspace"); // der erste Druck löscht die leere Zeile …
     expect(titel()).toEqual(["EL", "KatSL", "EA 1"]);
-    await schreibe(feld("ea1"), "");
+    await fillElement(feld("ea1"), "");
     await taste(feld("ea1"), "Backspace", { repeat: true }); // … der gehaltene Rest frisst die Zeile darüber nicht
     expect(titel()).toEqual(["EL", "KatSL", ""]);
   });
@@ -181,12 +177,12 @@ describe("Gliederung (Spec §6.5)", () => {
   it("Rücktaste auf leerem Titel löscht die Zeile, der Fokus geht nach oben; mit Unterstellen: Hinweis", async () => {
     await zeige();
     await fokus("ea1");
-    await schreibe(feld("ea1"), "");
+    await fillElement(feld("ea1"), "");
     await taste(feld("ea1"), "Backspace");
     expect(titel()).toEqual(["EL", "KatSL", "EA 2"]);
     expect(aktiv()).toBe(feld("kat"));
     await fokus("el");
-    await schreibe(feld("el"), "");
+    await fillElement(feld("el"), "");
     await taste(feld("el"), "Backspace");
     expect(meldung()).toBe(MELDUNG.nichtLeer);
   });
@@ -213,7 +209,7 @@ describe("Gliederung (Spec §6.5)", () => {
     await zeige();
     await fokus("ea1");
     await taste(feld("ea1"), "Enter");
-    await schreibe(aktiv()!, "Neu"); // berührt
+    await fillElement(aktiv()!, "Neu"); // berührt
     await taste(aktiv()!, "z", { ctrlKey: true }); // Titel zurück
     await taste(aktiv()!, "z", { ctrlKey: true }); // Zeile zurück
     expect(titel()).toEqual(["EL", "KatSL", "EA 1", "EA 2"]);
@@ -321,7 +317,7 @@ describe("Gliederung, Teil 2", () => {
     // Muster aus StelleFlyin.test.tsx (`oeffneAuswahl`): antds Select öffnet auf `mousedown`, die Liste liegt im Portal.
     const eingabe = query<HTMLInputElement>('[data-zeile="ea1"] [aria-label="Verbindung von EA 1"]');
     await act(async () => { eingabe.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
-    await schreibe(eingabe, "R_UE_3");
+    await fillElement(eingabe, "R_UE_3");
     const liste = [...document.querySelectorAll<HTMLElement>(".ant-select-dropdown")].filter((d) => !d.className.includes("-hidden")).at(-1)!;
     const texte = [...liste.querySelectorAll<HTMLElement>(".ant-select-item-option")].map((o) => o.textContent);
     expect(texte[0]).toBe("Neu: „R_UE_3“ als Digitalfunk TMO");
@@ -345,7 +341,7 @@ describe("Gliederung, Teil 2", () => {
     await act(async () => {});
     await fokus("ea1");
     await zeigerKlick(query('[data-zeile="ea1"] [aria-label^="Zeichen von EA 1"]'));
-    await schreibe(queryPortal<HTMLInputElement>('[data-zeile-portal="ea1"] input[aria-label="Zeichen suchen"]'), "Einsatz");
+    await fillElement(queryPortal<HTMLInputElement>('[data-zeile-portal="ea1"] input[aria-label="Zeichen suchen"]'), "Einsatz");
     await zeigerKlick(queryPortal('[data-zeile-portal="ea1"] [data-zeichen="k1"]'));
     expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBe("k1");
     expect(aktiv()!.getAttribute("aria-label")).toMatch(/^Zeichen von EA 1/);
@@ -357,7 +353,7 @@ describe("Gliederung, Teil 2", () => {
     await fokus("ea1");
     await taste(feld("ea1"), "Ω", { altKey: true, code: "KeyZ" });
     expect(aktiv()!.getAttribute("aria-label")).toBe("Zeichen suchen");
-    await schreibe(aktiv()!, "Einsatz");
+    await fillElement(aktiv()!, "Einsatz");
     await taste(aktiv()!, "Enter");
     expect(stand.jetzt.stellen.find((s) => s.id === "ea1")!.zeichen).toBe("k1");
     expect(aktiv()).toBe(feld("ea1"));
@@ -368,7 +364,7 @@ describe("Gliederung, Teil 2", () => {
     await taste(feld("ea1"), "√", { altKey: true, code: "KeyV" });
     const eingabe = query<HTMLInputElement>('[data-zeile="ea1"] input[aria-label="Verbindung von EA 1"]');
     expect(aktiv()).toBe(eingabe);
-    await schreibe(eingabe, "R_UE_3");
+    await fillElement(eingabe, "R_UE_3");
     const erste = queryPortal<HTMLElement>('[data-zeile-portal="ea1"] .ant-select-item-option');
     await clickElement(erste); // „Neu: „R_UE_3“ als Digitalfunk TMO“
     expect(aktiv()).toBe(feld("ea1"));
@@ -394,7 +390,7 @@ describe("Gliederung, Teil 2", () => {
     expect(titel()).toEqual(["EL", "EA 1", "EA 2", "EA 4", "EA 3"]); // Gruppen zusammen, in Folge ihres ersten Vorkommens
     await fokus("ea2");
     await taste(feld("ea2"), "√", { altKey: true, code: "KeyV" });
-    await schreibe(query<HTMLInputElement>('[data-zeile="ea2"] input[aria-label="Verbindung von EA 2"]'), "R_UE_3");
+    await fillElement(query<HTMLInputElement>('[data-zeile="ea2"] input[aria-label="Verbindung von EA 2"]'), "R_UE_3");
     await clickElement([...document.querySelectorAll<HTMLElement>('[data-zeile-portal="ea2"] .ant-select-item-option')].find((o) => o.textContent?.startsWith("R_UE_3"))!);
     expect(titel()).toEqual(["EL", "EA 1", "EA 4", "EA 2", "EA 3"]);
     expect(meldung()).toBe("„EA 2“ steht jetzt in der Gruppe „R_UE_3“.");
@@ -413,11 +409,11 @@ describe("Gliederung, Review Phase 3", () => {
   it("Entf auf leerem Titel löscht, der Fokus geht nach UNTEN; auf der letzten Zeile nach oben (Entscheidung 8)", async () => {
     await zeige();
     await fokus("ea1");
-    await schreibe(feld("ea1"), "");
+    await fillElement(feld("ea1"), "");
     await taste(feld("ea1"), "Delete");
     expect(titel()).toEqual(["EL", "KatSL", "EA 2"]);
     expect(aktiv()).toBe(feld("ea2"));
-    await schreibe(feld("ea2"), "");
+    await fillElement(feld("ea2"), "");
     await taste(feld("ea2"), "Delete");
     expect(titel()).toEqual(["EL", "KatSL"]);
     expect(aktiv()).toBe(feld("kat"));
@@ -535,7 +531,7 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
   it("Vorschläge nur an der aktiven Zeile, ab 2 Zeichen; Enter legt trotzdem die nächste Stelle an", async () => {
     await mount(<Pruefstand start={START} bib={BIB} />);
     await fokus("ea1");
-    await schreibe(feld("ea1"), "Leit");
+    await fillElement(feld("ea1"), "Leit");
     expect(queryAll('[role="group"][aria-label="Vorschläge aus der Bibliothek"]')).toHaveLength(1);
     expect(query('[data-zeile="ea1"] .kp-g-vorschlaege').textContent).toContain("Leitstelle Uelzen · Disponent");
     const vorher = titel().length;
@@ -545,7 +541,7 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
   it("Klick auf einen Vorschlag: mousedown wird verhindert (Fokus bleibt im Titel), die Stelle wird in EINEM Schritt gefüllt", async () => {
     await mount(<Pruefstand start={START} bib={BIB} />);
     await fokus("ea1");
-    await schreibe(feld("ea1"), "Leit");
+    await fillElement(feld("ea1"), "Leit");
     const knopf = query<HTMLButtonElement>('[data-vorschlag="b1"]');
     const unten = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     await act(async () => { knopf.dispatchEvent(unten); });
@@ -560,10 +556,10 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
   it("Alt+Enter nimmt den ersten Vorschlag; ohne Vorschlag ein Hinweis", async () => {
     await mount(<Pruefstand start={START} bib={BIB} />);
     await fokus("ea2");
-    await schreibe(feld("ea2"), "leitst");
+    await fillElement(feld("ea2"), "leitst");
     await taste(feld("ea2"), "Enter", { altKey: true });
     expect(feld("ea2").value).toBe("Leitstelle Uelzen");
-    await schreibe(feld("ea2"), "zz");
+    await fillElement(feld("ea2"), "zz");
     await taste(feld("ea2"), "Enter", { altKey: true });
     expect(meldung()).toContain("Kein Vorschlag aus der Bibliothek.");
   });
@@ -604,7 +600,7 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
     expect(meldung()).toContain("2 Stellen stehen so in der Bibliothek.");
     const aktion = letzteAktion!;
     const sued = stand.jetzt.stellen.find((s) => s.titel === "EAL Süd")!;
-    await schreibe(feld(sued.id), "EAL Süd 2");
+    await fillElement(feld(sued.id), "EAL Süd 2");
     await act(async () => { aktion.tu(); });
     expect(stand.jetzt.stellen.find((s) => s.id === sued.id)).toMatchObject({ titel: "EAL Süd 2", leiter: null });
     expect(stand.jetzt.stellen.find((s) => s.titel === "Leitstelle Uelzen")).toMatchObject({ leiter: "Disponent" });
@@ -616,7 +612,7 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
     await einfuegen(feld("ea1"), "Leitstelle Uelzen\n\tTrupp");
     const aktion = letzteAktion!;
     const leit = stand.jetzt.stellen.find((s) => s.titel === "Leitstelle Uelzen")!;
-    await schreibe(feld(leit.id), "Leitstelle Uelzen 2");
+    await fillElement(feld(leit.id), "Leitstelle Uelzen 2");
     const vorher = stand.jetzt;
     await act(async () => { aktion.tu(); });
     expect(stand.jetzt).toBe(vorher);
