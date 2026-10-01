@@ -57,8 +57,8 @@ import s from "../../_ui/verwaltung.module.css";
  * dort umgedreht, nicht entfernt.
  *
  * ⛔ DIE ZEICHEN STEHEN SEIT DEM 2026-08-28 IN DER KOPFZEILE DER KARTE (Titel links,
- * Zeichen rechts), nicht mehr als `Statistic prefix=`. ⚠️ `react-icons/pi` ist in einer
- * Server Component gemessen sicher (`lagerbuch`, 2026-08-12); Falle 7 gilt `@ant-design/icons`.
+ * Zeichen rechts), nicht mehr als `Statistic prefix=`. ⚠️ `Icons8Ikone` (`core/ikonen`) ist in
+ * einer Server Component sicher (reine Pfaddaten); Falle 7 gilt `@ant-design/icons`.
  *
  * ⚠️ BENANNTE ABWEICHUNG BEI DER PFADFORM: `Spec:4788` schreibt
  * `/m/radio/admin/geraete?updateStand=veraltet` — die INNERE Form. Sie ist hier falsch.

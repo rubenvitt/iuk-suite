@@ -1,3 +1,5 @@
+import type { Icons8Name } from "@/core/ikonen/katalog";
+
 /**
  * Die Datenformen der Suite-Kopfzeile. Eigene Datei, weil `launcherEintraege.ts`
  * (Server) und `SuiteNav.tsx` (Client) beide darauf zugreifen — laege der Typ
@@ -90,7 +92,7 @@ export type NavIkonName =
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.
  * Beide Icon-Felder sind optional; der Umschalter fällt in dieser Reihenfolge
- * zurück: `iconUrl` → `ICONS[icon]` → neutrales Link-Icon. Ein Union-Typ zwänge
+ * zurück: `iconUrl` → Icons8-Zeichen `icon` → neutrales Link-Icon. Ein Union-Typ zwänge
  * jede Aufrufstelle zu einer Fallunterscheidung, die genau diesen Rückfall
  * nachbaut.
  */
@@ -99,8 +101,8 @@ export interface LauncherEintrag {
   key: string;
   title: string;
   beschreibung?: string;
-  /** Schlüssel der ICONS-Map — nur Suite-Module. Auflösung NUR in Client-Inseln. */
-  icon?: string;
+  /** Schlüssel des Icons8-Katalogs (`core/ikonen`) — nur Suite-Module. */
+  icon?: Icons8Name;
   /** Bild-URL — nur externe Dienste. */
   iconUrl?: string | null;
   href: string;

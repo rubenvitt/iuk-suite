@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "antd";
-import { PiPrinter } from "react-icons/pi";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { reportBrowserExport } from "@/core/audit/browser";
 import { bericht } from "../../_lib/kern/bericht";
 import type { Block, Einsatz } from "../../_lib/kern/format";
@@ -66,7 +66,7 @@ export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, b
           <span className={s.steuerHinweis}>Im Druckdialog „Als PDF speichern“ wählen.</span>
         </div>
         <Button onClick={onSchliessen}>Schließen</Button>
-        <Button type="primary" icon={<PiPrinter aria-hidden />} onClick={drucken} ref={speichern}>Als PDF speichern</Button>
+        <Button type="primary" icon={<Icons8Ikone name="print" />} onClick={drucken} ref={speichern}>Als PDF speichern</Button>
       </div>
       <div className={s.blattRahmen}>
         <Berichtsblatt daten={daten} bereitschaft={bereitschaft} unveraendert={unveraendert} />

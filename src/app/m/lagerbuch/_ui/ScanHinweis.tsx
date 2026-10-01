@@ -7,7 +7,7 @@ import s from "./helfer.module.css";
  *
  * KEIN "use client": eine Server Component, kein antd (§7.1). Sie steht auf dem
  * oeffentlichen Ast, den `_lib/bauform.test.ts` antd-frei haelt — `Ikone` ist
- * `react-icons`, nicht `@ant-design/icons` (Falle 7).
+ * Icons8 (`core/ikonen`), kein Icon-Paket (Falle 7).
  *
  * DER FALL, DEN SIE SICHTBAR MACHT: jemand mit einem auf Einheit A gebundenen
  * Kaertchen scannt das Ortsetikett von Einheit B. Die Bindung gewinnt

@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AppstoreOutlined } from "@ant-design/icons";
 import { Alert, Card, Result, Segmented } from "antd";
 
-import { ICONS } from "@/core/shell/icons";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { formatiereDatum } from "@/app/m/portal/_lib/neuigkeiten/datum";
@@ -91,7 +90,6 @@ export function NeuigkeitenListe({ neuigkeiten }: { neuigkeiten: Neuigkeit[] }) 
       ) : null}
 
       {sichtbar.map((n) => {
-        const Icon = ICONS[n.icon] ?? AppstoreOutlined;
         return (
           // `id` = Sprungmarke: `/neuigkeiten#checkliste-als-pdf` führt auf
           // genau diese Notiz, und damit lässt sich eine einzelne Änderung
@@ -107,7 +105,7 @@ export function NeuigkeitenListe({ neuigkeiten }: { neuigkeiten: Neuigkeit[] }) 
                 marginBlockEnd: SPACE.xs,
               }}
             >
-              <Icon aria-hidden="true" />
+              <Icons8Ikone name={n.icon} />
               <span>{n.modulTitel}</span>
               <span aria-hidden="true">·</span>
               {/* `<time>` mit Maschinendatum: die Anzeige ist ausgeschrieben

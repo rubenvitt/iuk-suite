@@ -7,68 +7,60 @@
  *
  * DIESE DATEI IST CLIENT, weil SuiteNav es ist. Sie liegt bewusst NEBEN
  * `core/shell/icons.ts` und nicht darin: jene Map bedient den Modulwechsler
- * mit @ant-design/icons und traegt einen eigenen, repo-weiten Riegel
- * (icons.test.ts). Beides zu vermengen brauchte ein Modul, das beide Quellen
- * gleichzeitig will — das gibt es heute nicht.
+ * und traegt einen eigenen Test. Beide loesen auf dieselbe Quelle auf
+ * (`core/ikonen`, Icons8); getrennt sind nur die Schluessel: Registry-Icons
+ * hier, Navigationsnamen dort.
  */
-import type { IconType } from "react-icons/lib";
-import {
-  PiSquaresFour, PiPackage, PiCalendarX, PiTruck, PiLayout, PiCheckSquare, PiHeartbeat,
-  PiWind, PiCube, PiShoppingCart, PiClipboardText, PiClockCounterClockwise, PiKey,
-  PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
-  PiUsersThree, PiListChecks, PiDrone,
-  PiLockers, PiHandArrowDown, PiHandArrowUp, PiNotePencil, PiMapPinArea, PiTrayArrowDown,
-  PiAddressBook, PiGearSix, PiBookOpenText, PiDesktopTower,
-} from "react-icons/pi";
+import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
 import type { NavIkonName } from "./types";
 
-export const NAV_IKONEN: Record<NavIkonName, IconType> = {
-  uebersicht: PiSquaresFour,
-  artikel: PiPackage,
-  verfall: PiCalendarX,
-  fahrzeuge: PiTruck,
-  vorlagen: PiLayout,
-  checks: PiCheckSquare,
-  bz: PiHeartbeat,
-  sauerstoff: PiWind,
-  geraete: PiCube,
-  bestellung: PiShoppingCart,
-  inventur: PiClipboardText,
-  journal: PiClockCounterClockwise,
-  tokens: PiKey,
-  etiketten: PiQrCode,
-  import: PiUploadSimple,
+export const NAV_IKONEN: Record<NavIkonName, Icons8Name> = {
+  uebersicht: "apps",
+  artikel: "package",
+  verfall: "calendar-expired",
+  fahrzeuge: "truck",
+  vorlagen: "layout",
+  checks: "checked-checkbox",
+  bz: "heart-pulse",
+  sauerstoff: "wind",
+  geraete: "cube",
+  bestellung: "shopping-cart",
+  inventur: "clipboard",
+  journal: "history",
+  tokens: "key",
+  etiketten: "qr-code",
+  import: "upload",
   // Drei Zeichen fuer die Verwaltung des Moduls `radio` (Spec:4218-4221). Sie stehen in
-  // dieser Map UND in der Union `NavIkonName` — `Record<NavIkonName, IconType>` erzwingt
+  // dieser Map UND in der Union `NavIkonName` — `Record<NavIkonName, Icons8Name>` erzwingt
   // beide Haelften typseitig, ein Union-Mitglied ohne Eintrag hier ist ein typecheck-Fehler.
-  ausleihen: PiArrowsLeftRight,
-  update: PiArrowsClockwise,
-  versionen: PiListNumbers,
+  ausleihen: "swap",
+  update: "refresh",
+  versionen: "numbered-list",
   // Drei Zeichen fuer die Verwaltung des Moduls `uav` (Drohnentraining) — die
   // Begruendung, warum es neue sind und keine geliehenen, steht an der Union in
   // `types.ts`. `PiDrone` steht fuer den Weg zurueck in die Trainingsansicht, also
   // fuer das Modul selbst, nicht fuer eine Verwaltungsflaeche.
-  teilnehmer: PiUsersThree,
-  katalog: PiListChecks,
-  training: PiDrone,
-  lagerorte: PiLockers,
+  teilnehmer: "people",
+  katalog: "checklist",
+  training: "drone",
+  lagerorte: "lockers",
   // DRK-305 — Begruendung an der Union in `types.ts`.
-  entnahme: PiHandArrowDown,
+  entnahme: "receive",
   // DRK-313 — die Spiegelung von `entnahme`; Begruendung ebenfalls dort.
-  auffuellen: PiHandArrowUp,
-  pruefen: PiNotePencil,
+  auffuellen: "give",
+  pruefen: "edit-note",
   // DRK-312 — Begruendung an der Union in `types.ts`.
-  ortsetiketten: PiMapPinArea,
+  ortsetiketten: "marker",
   // DRK-314 — Begruendung an der Union in `types.ts`. Der Pfeil nach unten in
   // die Schale ist die Bewegung, die die Box beschreibt: sie NIMMT AUF.
-  entnahmebox: PiTrayArrowDown,
+  entnahmebox: "inbox",
   // DRK-471 — Begründung an der Union in `types.ts`.
-  stammdaten: PiAddressBook,
-  einstellungen: PiGearSix,
-  reader: PiBookOpenText,
+  stammdaten: "address-book",
+  einstellungen: "settings",
+  reader: "open-book",
   // DRK-471 (Stufe 5) — Begründung an der Union in `types.ts`. Der Rechnerturm trägt das
   // physische Gerät der Einsatzstelle, nicht seine Daten.
-  rechner: PiDesktopTower,
+  rechner: "computer",
 };
 
 /**
@@ -78,7 +70,7 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
  */
 export function NavIkone({ name }: { name?: NavIkonName }) {
   if (!name) return null;
-  const Zeichen = NAV_IKONEN[name];
-  if (!Zeichen) return null;
-  return <Zeichen size={16} aria-hidden focusable="false" style={{ flex: "none" }} />;
+  const zeichen = NAV_IKONEN[name];
+  if (!zeichen) return null;
+  return <Icons8Ikone name={zeichen} groesse={16} />;
 }

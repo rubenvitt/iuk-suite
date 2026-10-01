@@ -151,15 +151,17 @@ Der nackte Spezifizierer löst über `exports["."].node.import` in den CJS-Zweig
 über die `default`-Bedingung, `createContext` IST eine Funktion, die Icons rendern klaglos. Nur ein
 echter Abruf zeigt den 500.
 
-**Regel:** Client-Insel oder eigenes Inline-SVG. Ein Tiefen-Import (`@ant-design/icons/es`) geht
-gemessen durch, ist aber kein Vertrag, auf den man bauen sollte.
+**Regel:** kein Icon-Paket. Jedes Zeichen ist `Icons8Ikone` aus `core/ikonen` (Icons8, Satz
+„Windows 11 Outline"); die Pfade stehen als Daten in `core/ikonen/katalog.ts`, die Komponente ist eine
+reine Funktion ohne Context und ohne Direktive und damit in Server Components sicher. Ein fehlendes
+Zeichen wird im Katalog ergänzt, nicht per Paket nachgeladen.
 
 **Nicht mit Falle 6 zusammenlegen — die Ursachen sind gegenläufig.** Dort kommt ein Wert aus einem als
 Client markierten Modul nicht an; hier wertet RSC ein Modul aus, das Client sein müsste. Wer `"use
 client"` auf eine Icon-Sammelstelle setzt, verwandelt 7 in 6: HTTP 200 mit **leerer** Map, und der
 Rückfall trägt still das falsche Icon. Laut ist besser als still.
-`src/core/shell/icons.test.ts` riegelt das repo-weit ab — geht der Test rot, liegt die Ursache fast
-nie in `core/shell`, sondern in der Datei, die die Fehlermeldung nennt.
+`src/core/ikonen/ikonen.test.ts` verbietet jeden Icon-Paket-Import repo-weit — geht der Test rot,
+liegt die Ursache in der Datei, die die Fehlermeldung nennt.
 
 **8. Die geerbte Zeilenhöhe der Kopfzeile — sie steht in keiner Datei dieses Repos.**
 `antd/es/layout/style/index.js:50` setzt auf `.ant-layout-header` ein `lineHeight` in

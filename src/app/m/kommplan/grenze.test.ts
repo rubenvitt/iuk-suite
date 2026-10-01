@@ -16,9 +16,9 @@ import { dirname, join, relative } from "node:path";
  *    kein `next/*`, kein `node:*`.
  * 4. Die Layout-Engine ist deterministisch: kein Zufall, keine Uhr.
  *
- * Direktive und Importformen erkennt dieser Test wie `core/shell/icons.test.ts`
- * (`ohneKommentare`, `traegtClientDirektive`, `importSpezifizierer`) — dort steht die Messung,
- * warum Kommentar-Abzug, beide Anführungszeichen und vier Importformen nötig sind.
+ * Direktive und Importformen erkennt dieser Test wie `core/ikonen/ikonen.test.ts` (`ohneKommentare`,
+ * `importSpezifizierer`; die Messung, warum Kommentar-Abzug, beide Anführungszeichen und vier
+ * Importformen nötig sind, stand im bis DRK-502 bestehenden `core/shell/icons.test.ts`).
  */
 const MODUL = "src/app/m/kommplan";
 

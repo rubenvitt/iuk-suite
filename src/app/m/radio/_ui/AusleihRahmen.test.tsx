@@ -37,26 +37,15 @@ const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
 const MODUL = "src/app/m/radio";
 
 /**
- * ⛔ DIE EINE NAMENTLICHE AUSNAHME VOM `size=`-SCAN, seit dem 2026-08-28.
+ * ⛔ KEINE AUSNAHME VOM `size=`-SCAN, seit DRK-502 (2026-09-30).
  *
- * `_ui/verwaltungIkonen.tsx` ist die Phosphor-Zeichenquelle des Verwaltungszweigs. Sie
- * reicht ihre Kantenlaenge als `size` an `react-icons` durch, und das ist der EINZIGE Weg:
- * `IconBase` setzt `height`/`width` NACH dem Spread der uebrigen Props
- * (`node_modules/react-icons/lib/iconBase.js`) — ein durchgereichtes `width`/`height` waere
- * wirkungslos. Es ist eine PIXELZAHL an einem `<svg>`, nicht antds Groessenwort an einem
- * Bedienelement; Falle 4 ist hier gar nicht beruehrt.
- *
- * ⛔ AUSNAHME AM BLATT, NICHT AM MUSTER: die naheliegende „Reparatur" waere gewesen, den
- * Scan auf `size="large"` zu verengen. Das haette ihn fuer alle uebrigen ~70 `.tsx` des
- * Moduls geschwaecht, um eine Datei zu entlasten.
- *
- * ⛔ UND SIE IST KEIN LOCH: `_ui/verwaltungIkonen.test.tsx` sichert, dass jene Datei GENAU
- * `react-icons/lib` und `react-icons/pi` importiert — ein antd-Bedienelement kann dort
- * nicht entstehen. Der Fall unten fuehrt zusaetzlich die Gegenprobe, dass die Ausnahme
- * ueberhaupt noch gebraucht wird (Vorbild `lagerbuch/_ui/ikonen.test.ts`, „braucht keine
- * SVG-Ausnahme mehr").
+ * Bis dahin stand hier `_ui/verwaltungIkonen.tsx`: die Phosphor-Zeichenquelle reichte ihre
+ * Kantenlaenge als `size` an `react-icons` durch. Seit der Umstellung auf Icons8
+ * (`core/ikonen`) geht die Pixelzahl als `groesse` an `Icons8Ikone`; die Datei steht wieder
+ * im Scan. Die Menge bleibt als Stelle stehen, an der eine kuenftige Ausnahme NAMENTLICH
+ * eingetragen wuerde — der Fall unten verlangt, dass sie leer ist.
  */
-const FALLE4_AUSNAHMEN = new Set([join(MODUL, "_ui", "verwaltungIkonen.tsx")]);
+const FALLE4_AUSNAHMEN = new Set<string>([]);
 
 /**
  * ⛔ ERZEUGT, NICHT AUFGEZAEHLT — und das ist die Behebung eines gemessenen Lochs
@@ -295,21 +284,15 @@ describe("radio-AusleihRahmen: die Bauform", () => {
     }
   });
 
-  it("die Falle-4-Ausnahme wird noch gebraucht — sonst faellt sie", () => {
+  it("es gibt keine Falle-4-Ausnahme mehr — auch die Verwaltungszeichen stehen im Scan", () => {
     /*
      * ⛔ DIE GEGENPROBE ZUR AUSNAHMELISTE (Vorbild `lagerbuch/_ui/ikonen.test.ts`, „braucht
      * keine SVG-Ausnahme mehr"). Eine Ausnahme, die niemand mehr braucht, ist ein
-     * unbewachtes Loch, das aussieht wie eine Regel. Faellt `size=` in
-     * `_ui/verwaltungIkonen.tsx` je weg, wird dieser Fall rot und die Datei gehoert zurueck
-     * in den Scan — nicht die Zusicherung gelockert.
+     * unbewachtes Loch, das aussieht wie eine Regel. Seit DRK-502 traegt
+     * `_ui/verwaltungIkonen.tsx` kein `size=` mehr und steht wieder im Scan.
      */
-    expect([...FALLE4_AUSNAHMEN].sort()).toEqual([join(MODUL, "_ui", "verwaltungIkonen.tsx")]);
-    for (const pfad of FALLE4_AUSNAHMEN) {
-      expect(
-        ohneKommentare(readFileSync(pfad, "utf8")),
-        `${pfad} braucht keine Falle-4-Ausnahme mehr`,
-      ).toMatch(/\bsize=/);
-    }
+    expect([...FALLE4_AUSNAHMEN]).toEqual([]);
+    expect(FALLE4_DATEIEN()).toContain(join(MODUL, "_ui", "verwaltungIkonen.tsx"));
   });
 
   it("der Abmeldeweg ist ein form action, kein Link auf /abmelden", () => {

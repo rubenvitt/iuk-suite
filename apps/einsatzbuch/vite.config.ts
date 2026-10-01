@@ -15,6 +15,7 @@ export default defineConfig({
     alias: {
       "@kern": path.join(WURZEL, "src/app/m/einsatzbuch/_lib/kern"),
       "@/core/theme/tokens": path.join(WURZEL, "src/core/theme/tokens.ts"),
+      "@/core/ikonen/Icons8Ikone": path.join(WURZEL, "src/core/ikonen/Icons8Ikone.tsx"),
     },
     // Die Kern-Dateien liegen unter `src/` der Suite, außerhalb dieses Workspace-Mitglieds —
     // React muss trotzdem EINE Instanz bleiben (sonst brechen Hooks mit „invalid hook call“).

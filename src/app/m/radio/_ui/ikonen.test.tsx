@@ -11,7 +11,7 @@ const MODUL = "src/app/m/radio";
 
 /**
  * ⛔ DER SPEZIFIZIERER STEHT NUR HIER ZUSAMMENGESETZT, NICHT AM STUECK. Diese Datei ist
- * selbst eine Quelldatei unter `m/radio/`, und `src/core/shell/icons.test.ts` scannt
+ * selbst eine Quelldatei unter `m/radio/`, und `src/core/ikonen/ikonen.test.ts` scannt
  * `.test.tsx` zwar nicht mit (`icons.test.ts:70`) — der Scan UNTEN aber schon, wenn ihn
  * jemand spaeter auf Testdateien ausweitet. Ein Wert, der sich selbst ausloest, wird
  * abgeschaltet statt repariert.
@@ -83,7 +83,7 @@ describe("radio-ikonen: Falle 7 — kein fremdes Zeichenpaket unter m/radio/", (
      *
      * ⚠️ DIESER SCAN LAEUFT MODULWEIT, NICHT NUR UEBER `_ui/`. Der Brief verlangt `_ui/`
      * UND `_lib/` (`briefs/A16.md:96`); modulweit ist die enthaltende Menge und kostet
-     * nichts. `src/core/shell/icons.test.ts` riegelt dieselbe Sache repo-weit ab und
+     * nichts. `src/core/ikonen/ikonen.test.ts` riegelt dieselbe Sache repo-weit ab und
      * laeuft im Tor mit — dieser Fall ist die MODULEIGENE Meldung dafuer, damit ein roter
      * Lauf nicht erst in `core/shell` gesucht wird.
      */

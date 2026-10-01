@@ -219,24 +219,24 @@ describe("Stepper — Benennung und Mass", () => {
    */
   it("zeichnet die Stepper-Tasten kraeftiger als das Normalgewicht", async () => {
     await mount(<Stepper wert={1} setWert={() => {}} />);
-    const ausStepper = query(`${PLUS} svg`).innerHTML;
+    // Die Kontur sitzt am `<svg>` selbst (`Icons8Ikone kraeftig`), deshalb outerHTML.
+    const ausStepper = query(`${PLUS} svg`);
+    expect(ausStepper.getAttribute("stroke")).toBe("currentColor");
     await unmount();
 
     // Dieselbe Ikone ohne Regler — der Default aus `_ui/ikonen.tsx`.
     await mount(<Ikone name="plus" groesse={20} />);
-    const normal = query("svg").innerHTML;
-
-    expect(ausStepper).not.toBe(normal);
+    expect(query("svg").getAttribute("stroke")).toBeNull();
   });
 
   it("faellt fuer ein Zeichen ohne kraeftige Fassung auf sein Normalgewicht zurueck", async () => {
     // `haken` hat keinen Eintrag in ZEICHEN_KRAEFTIG. Der Regler darf dort
     // nichts tun — und vor allem nicht werfen.
     await mount(<Ikone name="haken" groesse={20} staerke={2.5} />);
-    const mitRegler = query("svg").innerHTML;
+    const mitRegler = query("svg").outerHTML;
     await unmount();
 
     await mount(<Ikone name="haken" groesse={20} />);
-    expect(query("svg").innerHTML).toBe(mitRegler);
+    expect(query("svg").outerHTML).toBe(mitRegler);
   });
 });

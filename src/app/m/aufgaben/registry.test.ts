@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { canAccess, findModule, requiredGroupsFor } from "@/core/registry";
-import { ICONS } from "@/core/shell/icons";
+import { ICONS8 } from "@/core/ikonen/katalog";
 
 /**
  * `SuiteNav.test.tsx` prueft schon, dass KEIN Modul-Icon fehlt. Dieser Test
  * prueft, dass DIESES Modul so registriert ist, wie das Spec §3 es sagt — der
  * erste wird gruen, sobald irgendein Icon eingetragen ist.
  *
- * DER IMPORT VON `ICONS` IST HIER ERLAUBT, obwohl die Map client-only ist:
- * `icons.test.ts` nimmt `*.test.ts`/`*.test.tsx` aus seinem Quelltext-Scan aus
- * („Tests laufen nie in RSC"). Wer diese Zeile in eine NICHT-Testdatei
- * kopiert, faerbt `src/core/shell/icons.test.ts` rot — und zwar zu Recht.
+ * Das Icon ist ein Schluessel des Icons8-Katalogs (`core/ikonen/katalog.ts`);
+ * `ModuleDef.icon` erzwingt das typseitig, der Test unten haelt es zur
+ * Laufzeit fest. Der Katalog ist reine Daten ohne Direktive — in Server-
+ * wie Client-Code importierbar.
  */
 describe("Registrierung des Moduls aufgaben", () => {
   it("steht in der Registry mit den Werten aus Spec §3", () => {
     const mod = findModule("aufgaben");
     expect(mod).not.toBeNull();
     expect(mod!.title).toBe("Aufgaben");
-    expect(mod!.icon).toBe("ScheduleOutlined");
+    expect(mod!.icon).toBe("task");
     expect(mod!.shell).toBe("full");
     expect(mod!.requiresAuth).toBe(true);
     expect(mod!.prodHosts).toEqual([]);
@@ -50,7 +50,7 @@ describe("Registrierung des Moduls aufgaben", () => {
     expect(canAccess(mod, ["andere-gruppe"], env)).toBe(true);
   });
 
-  it("hat sein Icon in der ICONS-Map — sonst traegt es still das Portal-Icon", () => {
-    expect(findModule("aufgaben")!.icon in ICONS).toBe(true);
+  it("hat sein Icon im Icons8-Katalog", () => {
+    expect(findModule("aufgaben")!.icon in ICONS8).toBe(true);
   });
 });

@@ -104,7 +104,7 @@ import type { HochladenAntwort } from "./hochladen/route";
  * tragen die Schrittknoepfe `pfeil-links` (zurueck), `haken` (weiter/importieren) und `funk`
  * (zu den Geraeten — `FiRadio` ist im Bestand das Zeichen der Geraete, `Dashboard.tsx:28`).
  * ⚠️ HIER STAND, `@ant-design/icons` SEI DER GRUND — das stimmt fuer jenes Paket (Falle 7)
- * und NICHT fuer `react-icons/pi`, das gemessen RSC-sicher ist (`lagerbuch`, 2026-08-12).
+ * und NICHT fuer `Icons8Ikone` (`core/ikonen`), das RSC-sicher ist (reine Pfaddaten).
  * Quelle ist `_ui/verwaltungIkonen.tsx`; `_ui/ikonen.tsx` bleibt der Ausleihflaeche.
  *
  * ⚠️ WAS DIESE DATEI NICHT LIEST: `_lib/csv/einlesen.ts`. Dort laufen die Node-Bausteine —

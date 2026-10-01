@@ -64,9 +64,9 @@ describe("modulEintraege", () => {
     vi.stubEnv("PORT", "3000");
     const portal = modulEintraege([]).find((e) => e.key === "portal");
     expect(portal?.abschnitt).toBe(ABSCHNITT_APPS);
-    // Der NAME, nicht die Komponente: die Auflösung gehört in die Client-Insel
-    // (`@ant-design/icons` in RSC ist HTTP 500, den kein Gate sieht).
-    expect(portal?.icon).toBe("AppstoreOutlined");
+    // Der NAME, nicht die Komponente: ein Name ist serialisierbar und
+    // überquert die RSC-Grenze (Schlüssel des Icons8-Katalogs).
+    expect(portal?.icon).toBe("apps");
     // Module bleiben im selben Tab — sie liegen zwar auf fremden Hosts, gehören
     // aber zur Suite.
     expect(portal?.extern).toBe(false);
@@ -84,7 +84,7 @@ describe("modulEintraege: der Verwaltungseinstieg (DRK-495)", () => {
     expect(verwaltung).toMatchObject({
       title: "Funkgeräte-Verwaltung",
       href: "http://radio.localtest.me:3000/admin",
-      icon: "WifiOutlined",
+      icon: "walkie-talkie",
       abschnitt: ABSCHNITT_APPS,
       extern: false,
     });

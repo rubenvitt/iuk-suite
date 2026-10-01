@@ -58,7 +58,7 @@ import { basename, dirname, extname, relative, resolve } from "node:path";
  * ⚠️ KEIN TOR SIEHT DAS SONST: es steht in einem KOMMENTAR. `typecheck` liest
  * ihn nicht, `lint` hat keine Regel dafuer, `build` serialisiert ihn mit, und
  * kein Verhaltenstest kann eine Behauptung ueber eine Zeilennummer pruefen. Nur
- * ein Scan sieht es. Dieselbe Bauform wie `core/shell/icons.test.ts` und
+ * ein Scan sieht es. Dieselbe Bauform wie `core/ikonen/ikonen.test.ts` und
  * `core/tabelle/spaltenkopf.test.ts`.
  *
  * WAS ER NICHT SIEHT, ausgeschrieben statt verschwiegen — der Riegel ist ein

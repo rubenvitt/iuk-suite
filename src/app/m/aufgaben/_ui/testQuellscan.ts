@@ -10,7 +10,7 @@ import { join } from "node:path";
  * der Massstab, den `docs/design/README.md` fuer eine Extraktion verlangt
  * (ein zweiter, HEUTE belegbarer Nutzer), ist damit erfuellt.
  *
- * BEWUSST NICHT nach `src/core` gehoben, obwohl `core/shell/icons.test.ts`
+ * BEWUSST NICHT nach `src/core` gehoben, obwohl `core/ikonen/ikonen.test.ts`
  * denselben Helfer ein drittes Mal traegt (dort `sammleQuellen`): ein Umzug
  * dorthin zoege jenen Test in denselben Umbau, und er bewacht eine gemessene
  * Falle (Falle 7, halbe Arbeitstage Messaufwand), keine Stilfrage. Wer ihn

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Tooltip } from "antd";
-import { BulbFilled, BulbOutlined, DesktopOutlined } from "@ant-design/icons";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { useThemeMode } from "@/core/theme/AntdProvider";
 import type { ThemePreference } from "@/core/theme/theme";
 
@@ -27,14 +27,13 @@ const KURZ: Record<ThemePreference, string> = {
 };
 
 /**
- * Das Icon zeigt, was GILT — nicht, was der Klick tut. Die Glühbirnen sind aus
- * dem Zwei-Zustands-Umschalter übernommen; `DesktopOutlined` für `auto` sagt
- * „das Gerät entscheidet".
+ * Das Icon zeigt, was GILT — nicht, was der Klick tut: Sonne für hell, Mond
+ * für dunkel, der Bildschirm für `auto` sagt „das Gerät entscheidet".
  */
 const ICON: Record<ThemePreference, React.ReactNode> = {
-  auto: <DesktopOutlined />,
-  light: <BulbOutlined />,
-  dark: <BulbFilled />,
+  auto: <Icons8Ikone name="monitor" />,
+  light: <Icons8Ikone name="sun" />,
+  dark: <Icons8Ikone name="moon" />,
 };
 
 export function ThemeToggle({ testId = "theme-toggle" }: { testId?: string } = {}) {

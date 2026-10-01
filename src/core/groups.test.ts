@@ -14,7 +14,7 @@ import type { ModuleDef } from "@/core/registry";
 const mod = (over: Partial<ModuleDef> = {}): ModuleDef => ({
   key: "qr",
   title: "QR",
-  icon: "QrCode",
+  icon: "qr-code",
   shell: "minimal",
   requiresAuth: false,
   requiredGroups: [],

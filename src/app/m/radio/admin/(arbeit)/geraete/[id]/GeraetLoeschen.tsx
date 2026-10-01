@@ -41,8 +41,8 @@ import { VIkone } from "../../../../_ui/verwaltungIkonen";
  * ⛔ DER FRUEHERE KOMMENTAR AN DIESER STELLE WAR SACHLICH FALSCH: er nannte einen
  * `react-icons`-Import „Falle 7". Falle 7 ist `@ant-design/icons` — dessen nackter
  * Spezifizierer loest in der RSC-Ebene auf CJS auf und ruft `createContext` auf Modulebene.
- * `react-icons/pi` ist davon gemessen NICHT betroffen (`lagerbuch`, 2026-08-12, echter
- * Abruf), und diese Datei ist ohnehin eine `"use client"`-Insel.
+ * Die Zeichen kommen heute aus Icons8 (`core/ikonen`, kein Paket, RSC-sicher), und diese
+ * Datei ist ohnehin eine `"use client"`-Insel.
  *
  * ⛔ KEIN TOAST — Entscheidung E6: das „Gerät gelöscht" aus `DeviceDetailDrawer.tsx:54` faellt
  * als benannte Abweichung weg. Es waere ohnehin unsichtbar: die Action endet in einem

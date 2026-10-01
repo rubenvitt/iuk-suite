@@ -165,8 +165,8 @@
 /*
  * Die Zuordnungszeile des Import-Assistenten (V18): das Auswahlfeld fuellt seine Spalte.
  * ⛔ 1:1 `style={{ width: '100%' }}` aus `ImportWizard.tsx:189` — als Klasse und nicht inline,
- * weil dieses Modul seine Masze im Blatt fuehrt (`_ui/ikonen.tsx:185` ist die einzige
- * Ausnahme, und sie ist eine Zeichenhuelle, keine Flaeche).
+ * weil dieses Modul seine Masze im Blatt fuehrt (die Zeichenhuelle `Icons8Ikone` aus
+ * `core/ikonen` ist die einzige Ausnahme, und sie ist keine Flaeche).
  */
 .importWeit {
   width: 100%;

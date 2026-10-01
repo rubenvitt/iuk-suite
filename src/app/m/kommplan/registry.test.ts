@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { ICONS } from "@/core/shell/icons";
+import { ICONS8 } from "@/core/ikonen/katalog";
 import { canAccess, getModule, moduleForHost, requiredGroupsFor, visibleSwitcherModules } from "@/core/registry";
 import { adminGroupsFor } from "@/core/groups";
 
 describe("Registry-Eintrag kommplan", () => {
   it("anonym routbar (Token-Ansicht in Phase 5), mit Zugangs- und Admin-Gruppe", () => {
     expect(getModule("kommplan")).toMatchObject({
-      title: "Kommunikationspläne", icon: "ApartmentOutlined", shell: "full", requiresAuth: false,
+      title: "Kommunikationspläne", icon: "genealogy", shell: "full", requiresAuth: false,
       requiredGroups: ["iuk-kommplan"], adminGroups: ["iuk-kommplan-bearbeiten"], prodHosts: [],
       showInSwitcher: true, switcherGroupSources: ["access", "admin"],
     });
-    expect(ICONS.ApartmentOutlined).toBeDefined();
+    expect(ICONS8.genealogy).toBeDefined();
   });
   it("Dev-Host und SUITE_HOST_KOMMPLAN", () => {
     expect(moduleForHost("kommplan.localtest.me", {})?.key).toBe("kommplan");
