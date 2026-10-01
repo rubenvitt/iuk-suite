@@ -499,7 +499,7 @@ describe("die Reihenfolge im Boot (src/instrumentation.ts)", () => {
  * `["filesBootFehler", "lagerbuchBootFehler"]`. Ein dritter Haken, der nie
  * eingehaengt wuerde, bliebe darin GRUEN — eine Liste bewacht nur, was jemand
  * daran denkt einzutragen. (Genau der Fall stand an: `radioBootFehler` kam mit
- * Planteil 5 dazu, `src/core/bootstrap.ts:15` und `assertHostConfig`, Datei 145 Zeilen.)
+ * Planteil 5 dazu: Import in `src/core/bootstrap.ts`, Aufruf in `assertHostConfig`.)
  * Spec §7.3.7 verlangt deshalb die ABGELEITETE Form: die Hakenmenge wird aus
  * `src/app/m/<modul>/_lib/boot.ts` gelesen, nicht aufgezaehlt.
  *
@@ -760,7 +760,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ⛔ DIE RUECKWAERTSRICHTUNG, KLAUSEL (IIb) — und sie ist die einzige Zeile
      * dieses Blocks, die `starteAufgabenScanArbeiter` ueberhaupt SIEHT
      * (`src/app/m/aufgaben/_lib/scan.ts:324`, importiert
-     * `src/core/bootstrap.ts:16`, gerufen in `shouldSeed`; Datei 145 Zeilen). Der Glob
+     * in `src/core/bootstrap.ts`, gerufen in `shouldSeed`). Der Glob
      * aus Spec §7.3.7 findet sie strukturell nicht — siehe `hintergrundStarter`.
      *
      * Sie faengt ausserdem einen GELOESCHTEN Aufruf, den Klausel (IIa) nach dem

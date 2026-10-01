@@ -2,8 +2,8 @@ import { sql } from "drizzle-orm";
 import { blob, check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
- * Datenbank des Moduls kommplan (Spec §4.1) — alle Tabellen schon in Phase 1, damit spätere Phasen
- * keine Migration umbauen. Oberfläche für Bibliothek (Phase 4) und Freigaben (Phase 5); der Briefkopf kam in Phase 4 dazu.
+ * Datenbank des Moduls kommplan (Spec §4.1). 0000 legt Plan, Bibliothek und Freigaben an; 0001 `plan_bearbeitung` und
+ * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4). Neues braucht eine Migration.
  * `plan_freigabe` statt `freigabe`: die Audit-Oberfläche benennt Objekte nur über den
  * Tabellennamen, und `freigabe` gehört dort dem Einsatzbuch.
  */

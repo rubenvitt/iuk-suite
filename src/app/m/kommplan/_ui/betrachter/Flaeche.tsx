@@ -20,7 +20,7 @@ import { GRENZEN, SCHRITT, einpassen, nachziehen, tasteZuAktion, untergrenze, ve
  *
  * EINGEPASST BLEIBT EINGEPASST (Umsetzungsplan Phase 2, Entscheidung 18): `eigene === null` heißt
  * „eingepasst", und die Ansicht folgt jedem neuen Layout — gedeckelt auf `maxMassstab`, mit
- * `platzUnten` für Meldungsplatz und Auswahlleiste und ohne den Teil, den ein offenes Flyin verdeckt (`flyinGrund`,
+ * `platzOben` für die Auswahlleiste, `platzUnten` für den Meldungsplatz, ohne den Teil, den ein offenes Flyin verdeckt (`flyinGrund`,
  * dieselbe `min(…)`-Regel wie `flyinBreite()`). Erst Zoom, Verschieben, Rad oder Pinch der Nutzerin
  * machen eine eigene Ansicht daraus (`auto: false`); `zeige()` verschiebt automatisch (`auto: true`).
  * Automatische Wechsel gleiten im Editor (`kp-gleitet` am `[data-ansicht]`), eigene nie — sonst
@@ -29,7 +29,7 @@ import { GRENZEN, SCHRITT, einpassen, nachziehen, tasteZuAktion, untergrenze, ve
 export interface FlaecheGriff {
   /** Fokus auf die Fläche (Entscheidung 17): nach Flyin-Schließen, Löschen, „Erste Stelle anlegen". */
   fokus(): void;
-  /** `rand`: Pixel Luft oben, seitlich und unten — der Editor gibt seitlich und unten mehr, damit auch die Griffe im Bild sind. */
+  /** `rand`: Pixel Luft oben, seitlich und unten — der Editor gibt oben mehr (Auswahlleiste) und unten (Meldungsplatz), seitlich weniger. */
   zeige(k: { x: number; y: number; breite: number; hoehe: number }, rand?: { oben: number; seite: number; unten: number }): void;
 }
 const KLICK_TOLERANZ = 5;

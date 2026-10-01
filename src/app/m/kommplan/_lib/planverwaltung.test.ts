@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { plan } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
-import { ladePlan, ladePlanLesend, listePlaene } from "./plaene";
+import { ladePlanLesend, listePlaene } from "./plaene";
 import { archiviere, dupliziere, PLAN_WEG, speichereAlsVorlage, stelleWiederHer, vorlagenZurAuswahl } from "./planverwaltung";
 import { seedLokalKommplan } from "./seedLokal";
 import { legePlanAn, speichereInhalt } from "./speichern";
@@ -12,6 +12,11 @@ const WER = { nutzer: "u1", name: "Jana" };
 const NACH_MITTERNACHT = Date.UTC(2026, 8, 30, 22, 30); // 01.10.2026, 00:30 in Berlin
 const OPENR = "beispiel-openr-2022-07-01";
 async function mitSeed() { const db = testDb(); await seedLokalKommplan(db); return db; }
+/** Nur aktive Pläne — wie früher `ladePlan`, das kein Produktionspfad mehr brauchte (Abnahme). */
+function ladePlan(db: ReturnType<typeof testDb>, id: string) {
+  const p = ladePlanLesend(db, id);
+  return p && p.archiviertAm === null ? p : null;
+}
 
 describe("Duplizieren (Spec §6.7; Entscheidung 9)", () => {
   it("Kopie mit heutigem Berliner Datum, Datum im Titel ersetzt, Inhalt gleich, Version 1, keine Vorlage", async () => {

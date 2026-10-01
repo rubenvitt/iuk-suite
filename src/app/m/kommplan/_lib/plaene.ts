@@ -5,9 +5,8 @@ import type { KommplanDb } from "../_db/client";
 import { plan, type PlanZeile } from "../_db/schema";
 import { msZuTag, TYP_NAME, type Planangaben } from "./angaben";
 import { leseInhalt, type PlanInhalt } from "./plan/schema";
-import { kalendertag } from "./rahmen";
+import { kalendertag, planAngabenZeile, STAND_ZEIT } from "./rahmen";
 
-const STAND = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export interface Listenzeile { id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean; archiviert: string | null }
 export interface GeladenerPlan {
@@ -33,7 +32,7 @@ export function listePlaene(db: KommplanDb, liste: Liste = "plaene"): Listenzeil
   const reihe = liste === "archiv" ? [desc(plan.archiviertAm), plan.id] : [desc(plan.aktualisiertAm), plan.id];
   return db.select().from(plan).where(wo).orderBy(...reihe).all().map((z) => ({
     id: z.id, titel: z.titel, typ: TYP_NAME[z.typ],
-    datum: kalendertag(z.datum?.getTime() ?? null), stand: STAND.format(z.aktualisiertAm),
+    datum: kalendertag(z.datum?.getTime() ?? null), stand: STAND_ZEIT.format(z.aktualisiertAm),
     vorlage: z.istVorlage, lesbar: lies(z).inhalt !== null,
     archiviert: z.archiviertAm ? archivTag(z.archiviertAm.getTime()) : null,
   }));
@@ -44,29 +43,14 @@ export function archivTag(ms: number): string {
   return TAG.format(ms);
 }
 
-export function ladePlan(db: KommplanDb, id: string): GeladenerPlan | null {
-  const z = db.select().from(plan).where(eq(plan.id, id)).get();
-  if (!z || z.archiviertAm !== null) return null;
-  return {
-    id: z.id, titel: z.titel, typ: z.typ, anlass: z.anlass, datum: z.datum?.getTime() ?? null,
-    aktualisiertAm: z.aktualisiertAm.getTime(), aktualisiertVon: z.aktualisiertVon, ...lies(z),
-    version: z.version,
-    angaben: { titel: z.titel, typ: z.typ, anlass: z.anlass, datum: msZuTag(z.datum?.getTime() ?? null) },
-  };
-}
-
-/** Plan-ID aus der URL, aufgelöst gegen die Datenbank; unbekannt oder archiviert → 404 (notFound bleibt in _lib). */
-export function ladePlanOder404(db: KommplanDb, id: string): GeladenerPlan {
-  const p = ladePlan(db, id);
-  if (!p) notFound();
-  return p;
-}
-
 export interface LesbarerPlan extends GeladenerPlan { archiviertAm: number | null; istVorlage: boolean }
 
 /**
- * NUR LESEN, auch archiviert (Entscheidung 10): für das objektbezogene 404 im Layout, die Planseite (Betrachter
- * mit Archivhinweis) und den Druck. Editor, Speichern und später Token-Links bleiben bei `ladePlan` (nur aktive).
+ * DER EINZIGE LESEWEG EINES PLANS, auch archiviert (Entscheidung 10): objektbezogenes 404 im Layout, Planseite
+ * (Betrachter mit Archivhinweis), Druck, Token-Links. „Nur aktive" sichert JEDER Aufrufer selbst, nie diese Funktion:
+ * Speichern über `ladeStand` und das bedingte UPDATE (`isNull(plan.archiviertAm)`), Token-Links in `loeseToken`
+ * (Join und erneute Prüfung), der interne QR in `qrZielIntern`. Das frühere `ladePlan` (nur aktive) benutzte seit
+ * Phase 4 kein Produktionspfad mehr und ist entfernt (Abnahme).
  */
 export function ladePlanLesend(db: KommplanDb, id: string): LesbarerPlan | null {
   const z = db.select().from(plan).where(eq(plan.id, id)).get();
@@ -87,5 +71,5 @@ export function ladePlanLesendOder404(db: KommplanDb, id: string): LesbarerPlan 
 }
 
 export function beschreibungFuer(p: GeladenerPlan): string {
-  return [TYP_NAME[p.typ], p.anlass, kalendertag(p.datum), `Stand ${STAND.format(p.aktualisiertAm)}`].filter(Boolean).join(" · ");
+  return planAngabenZeile(p, p.aktualisiertAm);
 }

@@ -4,9 +4,9 @@ import { useId } from "react";
 import { Alert, Button, ConfigProvider, Segmented, type ThemeConfig } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { zeitFormat } from "@/core/zeit";
-import { TYP_NAME, tagZuMs, type Planangaben } from "../../_lib/angaben";
+import { tagZuMs, type Planangaben } from "../../_lib/angaben";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
-import { kalendertag } from "../../_lib/rahmen";
+import { planAngabenZeile } from "../../_lib/rahmen";
 import { DruckMenue, type DruckWahl } from "../druck/DruckMenue";
 import type { SpeicherZustand } from "./speicherer";
 
@@ -25,7 +25,6 @@ export const VERLAUFSKNOPF = { "data-verlauf": "", onMouseDown: (e: { preventDef
 const UMSCHALTER_DICHTE: ThemeConfig = { components: { Segmented: { controlHeight: 48 } } };
 // zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
 const UHR = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
-const STAND = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /**
  * Der Speicherstatus in Worten (docs/design/README.md: Bedeutung nie allein über Farbe) — KURZ und in
@@ -68,8 +67,7 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
     </ConfigProvider>
   );
   const stand = zustand.zuletztGespeichert ?? standSeit;
-  const beschreibung = [TYP_NAME[angaben.typ], angaben.anlass, angaben.datum ? kalendertag(tagZuMs(angaben.datum)) : null, `Stand ${STAND.format(stand)}`]
-    .filter(Boolean).join(" · ");
+  const beschreibung = planAngabenZeile({ typ: angaben.typ, anlass: angaben.anlass, datum: angaben.datum ? tagZuMs(angaben.datum) : null }, stand);
   return (
     <>
       <Seitenkopf titel={angaben.titel} zurueck={{ titel: "Alle Pläne", href: "/" }} beschreibung={beschreibung}

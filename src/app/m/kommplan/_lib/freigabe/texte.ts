@@ -1,8 +1,8 @@
-import { zeitFormat } from "@/core/zeit";
+import { STAND_ZEIT } from "../rahmen";
 import type { FreigabeZeile } from "./regeln";
 
 // zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
-export const ZEIT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+export const ZEIT = STAND_ZEIT;
 
 /** Texte eines Links — geteilt von Teilen-Flyin, (Task 10) Plan-Flyin und Druckdaten. Rein; der Status kommt vom Server. */
 export function ablaufText(f: Pick<FreigabeZeile, "status" | "ablauf" | "widerrufenAm">): string {

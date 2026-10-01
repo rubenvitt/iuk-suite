@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { plan, planFreigabe } from "../_db/schema";
-import { FREIGABE_GRENZE } from "./freigabe/regeln";
-import { freigabenFuer, loeseToken, neuesToken, qrTokenFuer, stelleFreigabeAus, widerrufeFreigabe, zaehleAbruf } from "./freigaben";
+import { FREIGABE_GRENZE, waehleQrFreigabe } from "./freigabe/regeln";
+import { freigabenFuer, loeseToken, neuesToken, stelleFreigabeAus, widerrufeFreigabe, zaehleAbruf } from "./freigaben";
 import { archiviere, PLAN_WEG, stelleWiederHer } from "./planverwaltung";
 import { seedLokalKommplan } from "./seedLokal";
 import { testDb } from "./testDb";
@@ -13,6 +13,8 @@ const STUNDE = 3_600_000;
 const OPENR = "beispiel-openr-2022-07-01";
 const EINSATZ = "beispiel-einsatz-2026-02-22";
 async function mitSeed() { const db = testDb(); await seedLokalKommplan(db); return db; }
+/** Der Link, den der interne Druck als QR nähme — derselbe Weg wie `qrZielIntern` in `druckdaten.ts`. */
+const qrTokenFuer = (db: ReturnType<typeof testDb>, planId: string, jetzt: number) => waehleQrFreigabe(freigabenFuer(db, planId, jetzt), jetzt)?.token ?? null;
 const audit = (db: ReturnType<typeof testDb>) =>
   db.all(sql`SELECT action FROM audit_outbox WHERE object_type = 'plan_freigabe' ORDER BY rowid`) as { action: string }[];
 function aus(db: ReturnType<typeof testDb>, planId = OPENR, dauer = "7d", notiz = "Leitstelle", jetzt = JETZT) {

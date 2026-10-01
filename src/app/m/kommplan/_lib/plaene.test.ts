@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND"); } }));
 import { plan } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
-import { beschreibungFuer, ladePlan, ladePlanLesend, ladePlanOder404, listePlaene } from "./plaene";
+import { beschreibungFuer, ladePlanLesend, ladePlanLesendOder404, listePlaene } from "./plaene";
 import { seedLokalKommplan } from "./seedLokal";
 import { testDb } from "./testDb";
 
@@ -26,25 +26,26 @@ describe("Planliste und Laden", () => {
     db.update(plan).set({ archiviertAm: new Date() }).where(eq(plan.id, einsatz.id)).run();
     expect(listePlaene(db).map((z) => z.id)).not.toContain(einsatz.id);
   });
-  it("lädt einen Plan samt geprüftem Inhalt; unbekannt und archiviert → null", async () => {
+  it("lädt einen Plan samt geprüftem Inhalt; unbekannt → null bzw. 404, archiviert bleibt lesbar mit archiviertAm", async () => {
     const db = await mitBeispielen();
-    const p = ladePlan(db, "beispiel-openr-2022-07-01")!;
+    const p = ladePlanLesend(db, "beispiel-openr-2022-07-01")!;
     expect(p.inhalt?.stellen.length).toBeGreaterThan(5);
     expect(p.fehler).toBeNull();
     expect(p.version).toBe(1);
     expect(p.angaben).toEqual({ titel: p.titel, typ: "kommunikationsplan", anlass: "OpenR", datum: "2022-07-01" });
     expect(beschreibungFuer(p)).toContain("OpenR · 01.07.2022");
-    expect(ladePlan(db, "gibt-es-nicht")).toBeNull();
+    expect(p.archiviertAm).toBeNull();
+    expect(ladePlanLesend(db, "gibt-es-nicht")).toBeNull();
+    expect(() => ladePlanLesendOder404(db, "gibt-es-nicht")).toThrow("NEXT_NOT_FOUND");
     db.update(plan).set({ archiviertAm: new Date() }).where(eq(plan.id, p.id)).run();
-    expect(ladePlan(db, p.id)).toBeNull();
-    expect(() => ladePlanOder404(db, p.id)).toThrow("NEXT_NOT_FOUND");
+    expect(ladePlanLesend(db, p.id)!.archiviertAm).not.toBeNull();
   });
   it("ein beschädigter Inhalt wirft nicht: Liste markiert ihn, Laden liefert den Fehler", async () => {
     const db = await mitBeispielen();
     db.update(plan).set({ inhalt: JSON.stringify({ schema: 1, optionen: {}, stellen: [{ id: "a" }], verbindungen: [] }) })
       .where(eq(plan.id, "vorlage-kommunikationsplan-label")).run();
     expect(listePlaene(db, "vorlagen").find((z) => z.id === "vorlage-kommunikationsplan-label")?.lesbar).toBe(false);
-    const p = ladePlan(db, "vorlage-kommunikationsplan-label")!;
+    const p = ladePlanLesend(db, "vorlage-kommunikationsplan-label")!;
     expect(p.inhalt).toBeNull();
     expect(p.fehler).not.toBeNull();
   });

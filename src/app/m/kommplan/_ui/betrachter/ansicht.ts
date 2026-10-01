@@ -12,8 +12,8 @@ const klemme = (m: number, min: number = GRENZEN.min) => Math.min(GRENZEN.max, M
  * „Einpassen" zeigt immer die GANZE Zeichnung: nach unten klemmt nur `GRENZEN.max`. Eine große
  * Stab-Lage auf Telefonbreite braucht weniger als `GRENZEN.min` (1789 mm auf 343 px ≈ 0,19 px/mm).
  * Wer von dort weiter verkleinert, bekommt dieselbe Untergrenze (`untergrenze`). `max` deckelt — der
- * Editor will eine einzelne Karte nicht mit Maßstab 16 sehen; `unten` hält Platz für die Griffleiste
- * der untersten Karte, `seite` für die seitlichen Griffe.
+ * Editor will eine einzelne Karte nicht mit Maßstab 16 sehen; `unten` hält Platz für den Meldungsplatz,
+ * `seite` für den Auswahlrahmen — die Griffe stehen in der Auswahlleiste oben (Phase 3, Entscheidung 18).
  */
 export function einpassen(breiteMm: number, hoeheMm: number, vb: number, vh: number, o: { rand?: number; seite?: number; unten?: number; max?: number } = {}): Ansicht {
   const rand = o.rand ?? 16, seite = o.seite ?? rand, unten = o.unten ?? rand, max = o.max ?? GRENZEN.max;

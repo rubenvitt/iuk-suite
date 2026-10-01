@@ -41,8 +41,8 @@ import { leseZuletzt } from "./zuletzt";
 const KEIN_TEILEN: { freigaben: FreigabeZeile[]; basis: string | null } = { freigaben: [], basis: null };
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
-/** `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ im Hinweis gilt nur, solange genau er der jetzige ist. */
-/** `bestaetigt`: eine Erfolgsmeldung (grün statt Warnstil) — bisher nur der Kopie-Hinweis mit ersetztem Datum. */
+/** Hinweis unter der Fläche. `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ gilt nur, solange genau er der jetzige ist;
+ * `bestaetigt`: eine Erfolgsmeldung (grün statt Warnstil) — bisher nur der Kopie-Hinweis mit ersetztem Datum. */
 interface Hinweis { text: string; nach?: PlanInhalt; aktion?: HinweisAktion; bestaetigt?: boolean }
 /** Ein Knopf im Hinweis statt „Rückgängig“ (Phase 4: „Angaben ändern“ nach dem Duplizieren, „Angaben übernehmen“ nach dem Einfügen). */
 export interface HinweisAktion { text: string; tu(): void }

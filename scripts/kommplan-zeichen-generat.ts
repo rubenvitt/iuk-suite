@@ -1,14 +1,14 @@
 /**
- * Erzeugt die zwei eingecheckten Generate des Moduls kommplan und kopiert Arimo.
+ * Erzeugt die vier eingecheckten Generate des Moduls kommplan und kopiert Arimo.
  *
  * WARUM EINGECHECKT: eine frische Arbeitskopie muss ohne Vorlauf `typecheck` und `vitest` bestehen,
  * und `@einsatzzeichen/*` sind devDependencies — der Server-Graph darf sie nie laden (Befund M1:
  * `catalog/dist/src/fonts.js` ruft `fileURLToPath(new URL(…))` auf Modulebene). Drift fängt
  * `_lib/zeichen/generat.test.ts`: er erzeugt neu in einen Wegwerfordner und vergleicht byteweise.
  *
- * WARUM ZWEI DATEIEN: `zeichen.generiert.json` (alle Rezepte als fertiges SVG) liest nur der Server; `zeichen-sw.generiert.json` (dieselben Rezepte im Druckthema `PRINT_MONOCHROME_THEME`, Phase 5) liest ebenfalls nur der Server;
- * `grundlagen.generiert.json` (Arimo-Metriken, Piktogramme) braucht auch der Browser, weil der
- * Betrachter das Layout selbst rechnet.
+ * WARUM VIER DATEIEN: `zeichen.generiert.json` (alle Rezepte als fertiges SVG) und `zeichen-sw.generiert.json` (dieselben im Druckthema `PRINT_MONOCHROME_THEME`, Phase 5) liest nur der Server;
+ * `grundlagen.generiert.json` (Arimo-Metriken, Piktogramme) braucht auch der Browser, weil der Betrachter das Layout
+ * selbst rechnet; `schrift.generiert.json` (Arimo als Base64) lädt nur der SVG-Export beim Klick.
  *
  * KEIN DATUM IM GENERAT: sonst wäre der Drift-Vergleich am nächsten Tag rot.
  *

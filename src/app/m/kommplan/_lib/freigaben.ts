@@ -5,7 +5,7 @@ import { plan, planFreigabe } from "../_db/schema";
 import { feldFehlerAus } from "./angaben";
 import type { FreigabeErgebnis } from "./ergebnis";
 import {
-  ablaufFuer, ausstellenSchema, FREIGABE_GRENZE, freigabeStatus, istTokenForm, waehleQrFreigabe, widerrufenSchema,
+  ablaufFuer, ausstellenSchema, FREIGABE_GRENZE, freigabeStatus, istTokenForm, widerrufenSchema,
   type FreigabeZeile,
 } from "./freigabe/regeln";
 import { ladePlanLesend, type LesbarerPlan } from "./plaene";
@@ -95,6 +95,3 @@ export function zaehleAbruf(db: KommplanDb, freigabeId: string, jetzt: number): 
     .where(eq(planFreigabe.id, freigabeId)).run();
 }
 
-export function qrTokenFuer(db: KommplanDb, planId: string, jetzt: number): string | null {
-  return waehleQrFreigabe(freigabenFuer(db, planId, jetzt), jetzt)?.token ?? null;
-}

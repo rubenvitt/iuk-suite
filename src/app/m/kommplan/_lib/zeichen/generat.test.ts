@@ -33,9 +33,10 @@ describe("kommplan-Generat", () => {
     }
   }, 120_000);
 
-  it("vermerkt fünf aufgelöste Paketversionen, in beiden Dateien gleich", () => {
+  it("vermerkt fünf aufgelöste Paketversionen, in allen vier Dateien gleich", () => {
     expect(zeichen.stand).toEqual(grundlagen.stand);
     expect(zeichenSw.stand).toEqual(zeichen.stand);
+    expect(schrift.stand).toEqual(zeichen.stand);
     for (const v of Object.values(zeichen.stand)) expect(v).toMatch(/^\d+\.\d+\.\d+/);
     expect(Object.keys(zeichen.stand).sort()).toEqual(["catalog", "catalogCore", "catalogSchema", "core", "schema"]);
   });

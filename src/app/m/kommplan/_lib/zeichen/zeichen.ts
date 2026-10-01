@@ -9,7 +9,6 @@ import rohSw from "./zeichen-sw.generiert.json";
  */
 interface Eintrag extends Symbolquelle { titel: string; suchtext: string }
 const ZEICHEN = roh.zeichen as unknown as Readonly<Record<string, Eintrag>>;
-export const ZEICHEN_STAND = roh.stand;
 /** Derselbe Satz im Druckthema (Phase 5, Entscheidung 14) — nur für Druck und SVG-Export, nie für den Bildschirm. */
 const ZEICHEN_SW = rohSw.zeichen as unknown as Readonly<Record<string, Symbolquelle>>;
 export interface SymbolOptionen { schwarzweiss?: boolean }

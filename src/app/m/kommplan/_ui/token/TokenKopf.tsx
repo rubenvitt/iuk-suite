@@ -1,12 +1,10 @@
-import { zeitFormat } from "@/core/zeit";
-import { TYP_NAME, type PlanTyp } from "../../_lib/angaben";
+import type { PlanTyp } from "../../_lib/angaben";
 import type { KopfAngaben } from "../../_lib/briefkopf";
 import { tokenPfad } from "../../_lib/freigabe/regeln";
-import { kalendertag } from "../../_lib/rahmen";
+import { planAngabenZeile, STAND_ZEIT } from "../../_lib/rahmen";
 import { DruckMenue } from "../druck/DruckMenue";
 
 // zeitFormat löst die Zone erst beim Formatieren auf — auf Modulebene erlaubt (CLAUDE.md, „Zeitzone").
-const STAND = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export interface TokenKopfPlan {
   titel: string; typ: PlanTyp; anlass: string | null; datum: number | null; aktualisiertAm: number; aktualisiertVon: string; vermerkVsNfD: boolean;
@@ -19,13 +17,13 @@ export interface TokenKopfPlan {
  * Der VS-NfD-Vermerk neutral umrandet, nie rot (Falle 3). Keine Server-Abhängigkeit außer der Uhrformatierung.
  */
 export function TokenKopf({ plan, kopf, token }: { plan: TokenKopfPlan; kopf: KopfAngaben; token: string }) {
-  const angaben = [TYP_NAME[plan.typ], plan.anlass?.trim() || null, kalendertag(plan.datum)].filter(Boolean).join(" · ");
+  const angaben = planAngabenZeile(plan);
   return (
     <header className="kp-token-kopf">
       <div className="kp-token-links">
         <h1>{plan.titel}</h1>
         <p className="kp-token-zeile" data-token-angaben="">{angaben}</p>
-        <p className="kp-token-zeile" data-token-stand="">{`Stand ${STAND.format(plan.aktualisiertAm)}${plan.aktualisiertVon.trim() ? ` · Bearbeitung: ${plan.aktualisiertVon}` : ""}`}</p>
+        <p className="kp-token-zeile" data-token-stand="">{`Stand ${STAND_ZEIT.format(plan.aktualisiertAm)}${plan.aktualisiertVon.trim() ? ` · Bearbeitung: ${plan.aktualisiertVon}` : ""}`}</p>
         {plan.vermerkVsNfD ? <p className="kp-token-vermerk" data-vermerk="">VS – nur für den Dienstgebrauch</p> : null}
       </div>
       {kopf.organisation || kopf.logo ? (
