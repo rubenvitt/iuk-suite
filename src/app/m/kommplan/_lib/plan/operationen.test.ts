@@ -106,9 +106,10 @@ describe("Stellen ändern und löschen", () => {
   it("löscht die Wurzel samt allem", () => {
     expect(loescheStelle(plan(), "el")).toEqual({ inhalt: { ...plan(), stellen: [] }, entfernt: 6 });
   });
-  it("Optionen: nur leerzeilen und vermerkVsNfD", () => {
+  it("Optionen: alle vier schaltbar (Phase 5)", () => {
     const p = setzeOptionen(plan(), { leerzeilen: true, vermerkVsNfD: false });
     expect(p.optionen).toEqual({ leerzeilen: true, vermerkVsNfD: false, qrAufDruck: false, schwarzweiss: false });
+    expect(setzeOptionen(leererPlan(), { qrAufDruck: true, schwarzweiss: true }).optionen).toEqual({ leerzeilen: false, vermerkVsNfD: true, qrAufDruck: true, schwarzweiss: true });
   });
   it("ist rein", () => {
     const vorher = plan();

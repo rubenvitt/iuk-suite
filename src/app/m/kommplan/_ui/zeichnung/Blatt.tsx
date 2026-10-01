@@ -1,7 +1,8 @@
 import { BLATT, LOGO_BOX, PAPIER, PT_IN_MM } from "../../_lib/layout/masse";
-import { LEGENDE, kopflinieY, legendeObenY, zeichenflaeche } from "../../_lib/layout/papier";
+import { LEGENDE, kopflinieY, legendeObenY, qrBox, zeichenflaeche } from "../../_lib/layout/papier";
 import { kuerze, textBreite } from "../../_lib/layout/text";
 import type { Blatt, Papierformat } from "../../_lib/layout/typen";
+import type { QrGrafik } from "../../_lib/qrGrafik";
 import { FARBE, STRICH } from "./farben";
 import { LegendenSymbol } from "./LegendenSymbol";
 import { SymbolDefs, type Symbolsatz } from "./Symbole";
@@ -14,6 +15,8 @@ const pt = (p: number) => p * PT_IN_MM;
 export interface Rahmen {
   titel: string; untertitel: string | null; stand: string; bearbeiter: string; vermerkVsNfD: boolean;
   organisation: string | null; logo: { href: string } | null;
+  /** QR „Aktuelle Fassung“ (Phase 5, Entscheidung 11); nur, wenn er tatsächlich gedruckt wird. */
+  qr?: QrGrafik | null;
 }
 
 export const LOGO_ID = "kp-logo";
@@ -61,11 +64,25 @@ export function BlattKopf({ rahmen, breite }: { rahmen: Rahmen; breite: number }
   );
 }
 
+/** QR „Aktuelle Fassung" unten rechts (Entscheidung 11). `data-qr-ziel` trägt die URL — dieselbe, die der Code trägt. */
+function QrAufBlatt({ qr, format }: { qr: QrGrafik; format: Papierformat }) {
+  const b = qrBox(format);
+  return (
+    <g data-qr="" data-qr-ziel={qr.ziel}>
+      <text x={b.x + b.kante / 2} y={b.y - 1} fontSize={pt(7)} textAnchor="middle">Aktuelle Fassung</text>
+      <svg x={b.x} y={b.y} width={b.kante} height={b.kante} viewBox={`0 0 ${qr.module} ${qr.module}`} shapeRendering="crispEdges">
+        <rect width={qr.module} height={qr.module} fill="#ffffff" />
+        <path d={qr.pfad} stroke="#000000" />
+      </svg>
+    </g>
+  );
+}
+
 export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDefs = true, format = "a4-quer" }: {
   blatt: Blatt; rahmen: Rahmen; symbole: Symbolsatz; schrift?: string; kopfStil?: string; mitDefs?: boolean; format?: Papierformat;
 }) {
   const p = PAPIER[format];
-  const f = zeichenflaeche(format, blatt.legendeZeilen.length);
+  const f = zeichenflaeche(format, blatt.legendeZeilen.length, Boolean(rahmen.qr));
   const rechts = p.breite - BLATT.randX;
   const fussY = p.hoehe - BLATT.randUnten - 2;
   const legendeOben = legendeObenY(format, blatt.legendeZeilen.length);
@@ -105,6 +122,7 @@ export function Blattansicht({ blatt, rahmen, symbole, schrift, kopfStil, mitDef
           </g>
         );
       })}
+      {rahmen.qr ? <QrAufBlatt qr={rahmen.qr} format={format} /> : null}
       {/* Fuß */}
       {rahmen.vermerkVsNfD ? <text x={BLATT.randX} y={fussY} fontSize={pt(8)}>VS – nur für den Dienstgebrauch</text> : null}
       <text x={p.breite / 2} y={fussY} fontSize={pt(8)} textAnchor="middle">

@@ -6,7 +6,7 @@ import type { Symbolsatz } from "../zeichnung/Symbole";
 import { Drucken } from "./Drucken";
 
 /** Was eine Druckroute braucht — gebaut von `_lib/druckdaten.ts`, gleich für intern und Token. */
-export interface DruckseiteDaten { format: Papierformat; blaetter: Blatt[] | null; rahmen: Rahmen; symbole: Symbolsatz }
+export interface DruckseiteDaten { format: Papierformat; blaetter: Blatt[] | null; rahmen: Rahmen; symbole: Symbolsatz; qrSatz: string | null }
 
 /**
  * DIE DRUCKSEITE für vier Routen (intern/Token × A4/A3; Umsetzungsplan Phase 5, Entscheidung 13): jedes Blatt als
@@ -21,6 +21,7 @@ export function Druckseite({ daten, schrift }: { daten: DruckseiteDaten; schrift
   return (
     <main className={`kp-druck ${schrift.klasse}`} data-format={daten.format}>
       <Drucken />
+      {daten.qrSatz ? <p className="noprint kp-druck-qr-satz" data-qr-satz="">{daten.qrSatz}</p> : null}
       <Druckblaetter format={daten.format} blaetter={daten.blaetter} rahmen={daten.rahmen} symbole={daten.symbole} schrift={schrift.familie} />
     </main>
   );

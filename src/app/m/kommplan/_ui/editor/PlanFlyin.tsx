@@ -7,6 +7,7 @@ import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { flyinBreite } from "@/core/theme/flyin";
 import { LAENGE_ANLASS, PLAN_TYPEN, TYP_NAME, type Planangaben, type PlanTyp } from "../../_lib/angaben";
 import type { FeldFehler, SpeicherErgebnis } from "../../_lib/ergebnis";
+import { qrZielSatz } from "../../_lib/freigabe/texte";
 import { setzeOptionen } from "../../_lib/plan/operationen";
 import { ART_NAME, LAENGE, VERBINDUNGS_ARTEN, type PlanInhalt, type VerbindungsArt } from "../../_lib/plan/schema";
 import { aendereVerbindung, legeVerbindungAn, loescheVerbindung, verbindungsNutzung } from "../../_lib/plan/verbindungen";
@@ -19,6 +20,12 @@ export const PLAN_FLYIN_GRUND = 560;
 export interface PlanFormularProps {
   angaben: Planangaben; inhalt: PlanInhalt; aendere: Aendere;
   speichereAngaben: (a: Planangaben) => Promise<SpeicherErgebnis>; onEntwurf: (offen: boolean) => void;
+  /** Der beste gültige Link (Status vom Server) für den Satz unter dem QR-Schalter; `null` = keiner (Phase 5, Entscheidung 10). */
+  qrLink?: { notiz: string | null; ablauf: number | null } | null;
+  /** `false`, wenn `moduleUrl("kommplan")` keine Adresse kennt — dann gibt es weder Links noch QR. */
+  linkAdresse?: boolean;
+  /** „Link ausstellen“ im QR-Hinweis schaltet auf das Flyin „Teilen“. */
+  onTeilen?: () => void;
 }
 
 /**
@@ -42,7 +49,7 @@ export function PlanFlyin({ offen, onSchliessen, nachSchliessen, abschnitt, ...p
   );
 }
 
-export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben, onEntwurf }: PlanFormularProps) {
+export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben, onEntwurf, qrLink = null, linkAdresse = true, onTeilen }: PlanFormularProps) {
   return (
     <div className="kp-formular">
       <Angaben angaben={angaben} speichereAngaben={speichereAngaben} onEntwurf={onEntwurf} />
@@ -52,6 +59,18 @@ export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben, onEnt
           onChange={(v) => aendere((q) => setzeOptionen(q, { leerzeilen: v }))} /> Leerzeilen für den Handeintrag</label>
         <label className="kp-schalter"><Switch data-option="vermerkVsNfD" checked={inhalt.optionen.vermerkVsNfD}
           onChange={(v) => aendere((q) => setzeOptionen(q, { vermerkVsNfD: v }))} /> Vermerk „VS – Nur für den Dienstgebrauch“</label>
+        <label className="kp-schalter"><Switch data-option="qrAufDruck" checked={inhalt.optionen.qrAufDruck}
+          onChange={(v) => aendere((q) => setzeOptionen(q, { qrAufDruck: v }))} /> QR-Code „Aktuelle Fassung“ auf dem Ausdruck</label>
+        {!inhalt.optionen.qrAufDruck ? null : !linkAdresse ? (
+          <p className="kp-hilfe" data-qr-hinweis="">Für die Kommunikationspläne ist keine Adresse eingerichtet — der Ausdruck trägt keinen QR-Code.</p>
+        ) : qrLink === null ? (
+          <div className="kp-hilfe" data-qr-hinweis="">
+            <p>Ohne gültigen Link druckt der Plan keinen QR-Code.</p>
+            {onTeilen ? <Button onClick={onTeilen}>Link ausstellen</Button> : null}
+          </div>
+        ) : (
+          <p className="kp-hilfe" data-qr-ziel-satz="">{qrZielSatz(qrLink)}</p>
+        )}
       </fieldset>
       <Verbindungen inhalt={inhalt} aendere={aendere} />
     </div>

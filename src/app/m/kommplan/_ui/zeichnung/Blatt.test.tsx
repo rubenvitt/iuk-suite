@@ -12,6 +12,16 @@ const rahmen: Rahmen = {
 };
 
 describe("Blattansicht", () => {
+  it("mit QR: Gruppe unten rechts mit Ziel, Beschriftung „Aktuelle Fassung“ und einem Pfad; ohne QR nichts davon", () => {
+    const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer", { qr: true });
+    const qr = { module: 57, pfad: "M4 4.5h7", ziel: "https://kommplan.iuk-ue.de/t/abc" };
+    const html = renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, qr }} symbole={{}} />);
+    expect(html).toContain('data-qr-ziel="https://kommplan.iuk-ue.de/t/abc"');
+    expect(html).toContain("Aktuelle Fassung");
+    expect(html).toMatch(/<svg x="263" y="171" width="24" height="24" viewBox="0 0 57 57"/);
+    expect(html).toContain('d="M4 4.5h7"');
+    expect(renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={rahmen} symbole={{}} />)).not.toContain("data-qr");
+  });
   it("A3 quer: 420 × 297 mm, Fuß und Legende am unteren Rand des A3-Blatts", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a3-quer");
     const html = renderToStaticMarkup(<Blattansicht format="a3-quer" blatt={blatt} rahmen={rahmen} symbole={{}} />);

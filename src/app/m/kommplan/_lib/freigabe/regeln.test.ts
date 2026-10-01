@@ -4,6 +4,7 @@ import {
   ablaufFuer, ausstellenSchema, besteFreigabe, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, freigabeStatus, istTokenForm,
   tokenPfad, tokenUrl, waehleQrFreigabe, widerrufenSchema,
 } from "./regeln";
+import { qrZielSatz } from "./texte";
 
 const JETZT = Date.UTC(2026, 9, 1, 18, 0); // 01.10.2026, 20:00 in Berlin
 const STUNDE = 3_600_000;
@@ -81,5 +82,13 @@ describe("Eingaben der Actions", () => {
   it("Widerrufen braucht Plan UND Link", () => {
     expect(widerrufenSchema.safeParse({ freigabeId: "f" }).success).toBe(false);
     expect(widerrufenSchema.parse({ planId: "p", freigabeId: "f" })).toEqual({ planId: "p", freigabeId: "f" });
+  });
+});
+
+describe("qrZielSatz (Entscheidung 10)", () => {
+  it("sagt Notiz und Ablauf; unbegrenzt ohne Warnung, befristet mit", () => {
+    expect(qrZielSatz({ notiz: "Aushang", ablauf: null })).toBe("Der QR-Code führt auf „Aushang“ – unbegrenzt gültig.");
+    expect(qrZielSatz({ notiz: null, ablauf: null })).toBe("Der QR-Code führt auf den Link ohne Notiz – unbegrenzt gültig.");
+    expect(qrZielSatz({ notiz: "Leitstelle", ablauf: Date.UTC(2026, 9, 2, 18, 0) })).toBe("Der QR-Code führt auf „Leitstelle“ – gültig bis 02.10.2026, 20:00; danach führt der Ausdruck ins Leere.");
   });
 });

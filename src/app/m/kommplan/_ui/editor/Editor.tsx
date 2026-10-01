@@ -9,12 +9,12 @@ import { angabenSchema, type Planangaben } from "../../_lib/angaben";
 import { LEERE_BIBLIOTHEK, type Bibliothek } from "../../_lib/bibliothek/typen";
 import { adresseMitAnsicht, SCHMAL, sichtbareAnsicht, type EditorAnsicht } from "../../_lib/editorAnsicht";
 import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
-import type { FreigabeZeile } from "../../_lib/freigabe/regeln";
+import { besteFreigabe, type FreigabeZeile } from "../../_lib/freigabe/regeln";
 import { layout } from "../../_lib/layout/layout";
 import { baueSicht } from "../../_lib/layout/sicht";
 import { legende } from "../../_lib/layout/zeichne";
 import { fuegeEinheitenEin } from "../../_lib/plan/einheiten";
-import { PlanFehler, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin, loescheStelle } from "../../_lib/plan/operationen";
+import { PlanFehler, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin, loescheStelle, setzeOptionen } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { Flaeche, type FlaecheGriff } from "../betrachter/Flaeche";
@@ -429,6 +429,8 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
       action={<Button onClick={() => void speicherer.erneut()}>Erneut versuchen</Button>} />
   ) : null;
 
+  // Status vom Server, keine Uhr im Rendern (Phase 5, Entscheidung 10).
+  const qrLink = besteFreigabe(freigaben.filter((f) => f.status === "gueltig"));
   const flyinGrund = flyin === "stelle" && gewaehlt !== null ? STELLE_FLYIN_GRUND : flyin === "plan" ? PLAN_FLYIN_GRUND : flyin === "teilen" ? TEILEN_FLYIN_GRUND : null;
   // Ein offenes Flyin hält seine Breite im Seitenfluss frei (CSS `.kp-editor[data-flyin]`, ab Tablet):
   // sonst läge es über der rechtsbündigen Kopfleiste und dem Konflikthinweis (e2e, Phase 2).
@@ -488,9 +490,11 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         ) : null}
         <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
           angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
-          onEntwurf={(offen) => { angabenEntwurf.current = offen; }} />
+          onEntwurf={(offen) => { angabenEntwurf.current = offen; }}
+          qrLink={qrLink} linkAdresse={teilen.basis !== null} onTeilen={() => setFlyin("teilen")} />
         <TeilenFlyin offen={flyin === "teilen"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen}
-          planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={setFreigaben} />
+          planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={setFreigaben}
+          qr={{ an: inhalt.optionen.qrAufDruck, onAendern: (v) => aendere((q) => setzeOptionen(q, { qrAufDruck: v })) }} />
       </div>
     </BibliothekAnbieter>
   );

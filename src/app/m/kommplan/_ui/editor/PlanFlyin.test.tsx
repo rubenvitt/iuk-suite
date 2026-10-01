@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, useState } from "react";
-import { clickElement, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, exists, fill, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { Planangaben } from "../../_lib/angaben";
 import { baue } from "../../_lib/beispiele/bau";
 import { PlanFehler } from "../../_lib/plan/operationen";
@@ -25,7 +25,7 @@ const ANGABEN: Planangaben = { titel: "Übung", typ: "kommunikationsplan", anlas
 let stand: PlanInhalt = START;
 const speichere = vi.fn();
 const entwurf = vi.fn();
-function Rahmen() {
+function Rahmen({ qrLink = null, linkAdresse = true, onTeilen }: { qrLink?: { notiz: string | null; ablauf: number | null } | null; linkAdresse?: boolean; onTeilen?: () => void }) {
   const [inhalt, setInhalt] = useState(START);
   const aendere: Aendere = (op) => {
     try { const neu = op(inhalt); setInhalt(neu); stand = neu; return null; }
@@ -33,7 +33,7 @@ function Rahmen() {
   };
   return (
     <BibliothekKontext.Provider value={{ aktiv: true, bib: LEERE_BIBLIOTHEK, merke }}>
-      <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} onEntwurf={entwurf} />
+      <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} onEntwurf={entwurf} qrLink={qrLink} linkAdresse={linkAdresse} onTeilen={onTeilen} />
     </BibliothekKontext.Provider>
   );
 }
@@ -198,5 +198,24 @@ describe("Plan-Flyin", () => {
     expect(bibAktion.verbindungen).toHaveBeenCalledWith([{ art: "tmo", bezeichnung: "R_UE_2" }, { art: "dmo", bezeichnung: "DMO 608" }, { art: "tmo", bezeichnung: "K_UE_2" }]);
     expect(merke).toHaveBeenCalledWith({ verbindungen: [expect.objectContaining({ id: "n1" })] });
     expect(document.body.textContent).toContain("3 angelegt, 0 schon vorhanden.");
+  });
+  it("QR-Schalter: ohne gültigen Link Hinweis mit Knopf zu „Teilen“; mit Link der Satz, wohin er führt; ohne Adresse eigener Hinweis", async () => {
+    const teilen = vi.fn();
+    await mount(<Rahmen onTeilen={teilen} />);
+    expect(exists("[data-qr-hinweis]")).toBe(false);
+    await clickElement(query('[data-option="qrAufDruck"]'));
+    expect(stand.optionen.qrAufDruck).toBe(true);
+    expect(query("[data-qr-hinweis]").textContent).toContain("Ohne gültigen Link druckt der Plan keinen QR-Code.");
+    await clickElement(query("[data-qr-hinweis] button"));
+    expect(teilen).toHaveBeenCalled(); // „Link ausstellen“ schaltet auf das Flyin „Teilen“
+    await unmount();
+    await mount(<Rahmen qrLink={{ notiz: "Aushang", ablauf: Date.UTC(2026, 9, 2, 18, 0) }} />);
+    await clickElement(query('[data-option="qrAufDruck"]'));
+    expect(exists("[data-qr-hinweis]")).toBe(false);
+    expect(query("[data-qr-ziel-satz]").textContent).toBe("Der QR-Code führt auf „Aushang“ – gültig bis 02.10.2026, 20:00; danach führt der Ausdruck ins Leere.");
+    await unmount();
+    await mount(<Rahmen qrLink={{ notiz: null, ablauf: null }} linkAdresse={false} />);
+    await clickElement(query('[data-option="qrAufDruck"]'));
+    expect(query("[data-qr-hinweis]").textContent).toContain("keine Adresse eingerichtet");
   });
 });

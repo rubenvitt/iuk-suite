@@ -1,7 +1,7 @@
 import { baueBaum, teilbaumGroesse, type Baum } from "../plan/baum";
 import type { PlanInhalt, Stelle } from "../plan/schema";
 import { anzeigereihenfolge } from "./gruppen";
-import { BLATT, MIN_MASSSTAB, PAPIER } from "./masse";
+import { BLATT, MIN_MASSSTAB, PAPIER, QR_BOX } from "./masse";
 import { baueSicht, type Sicht } from "./sicht";
 import { textBreite } from "./text";
 import type { Blatt, Darstellung, LayoutOptionen, LegendenEintrag, Papierformat, Zeichnungsdaten } from "./typen";
@@ -34,11 +34,27 @@ export function legendeObenY(format: Papierformat, legendeZeilen: number): numbe
   return PAPIER[format].hoehe - BLATT.randUnten - BLATT.fuss - legendeZeilen * BLATT.legendeZeile;
 }
 
-/** Wo die Zeichnung stehen darf: unter der Kopflinie, über der Legende, je `BLATT.luft` Abstand. */
-export function zeichenflaeche(format: Papierformat, legendeZeilen: number) {
+export interface PapierOptionen { qr?: boolean }
+
+/** Die QR-Box unten rechts, direkt über der Fußzeile; `oben` schließt die Beschriftung ein. */
+export function qrBox(format: Papierformat): { x: number; y: number; kante: number; oben: number } {
+  const p = PAPIER[format];
+  const x = p.breite - BLATT.randX - QR_BOX.kante;
+  const y = p.hoehe - BLATT.randUnten - BLATT.fuss - QR_BOX.kante;
+  return { x, y, kante: QR_BOX.kante, oben: y - QR_BOX.beschriftung };
+}
+
+/** Breite einer Legendenzeile; mit QR steht die Legende links neben der Box. */
+export function legendenBreite(format: Papierformat, qr = false): number {
+  return PAPIER[format].breite - 2 * BLATT.randX - (qr ? QR_BOX.kante + QR_BOX.luft : 0);
+}
+
+/** Wo die Zeichnung stehen darf: unter der Kopflinie, über der Legende (und mit QR über dessen Beschriftung), je `BLATT.luft` Abstand. */
+export function zeichenflaeche(format: Papierformat, legendeZeilen: number, qr = false) {
   const p = PAPIER[format];
   const y = kopflinieY() + BLATT.luft;
-  const unten = legendeZeilen === 0 ? p.hoehe - BLATT.randUnten - BLATT.fuss : legendeObenY(format, legendeZeilen) - BLATT.luft;
+  const ohneQr = legendeZeilen === 0 ? p.hoehe - BLATT.randUnten - BLATT.fuss : legendeObenY(format, legendeZeilen) - BLATT.luft;
+  const unten = qr ? Math.min(ohneQr, qrBox(format).oben - BLATT.luft) : ohneQr;
   return { x: BLATT.randX, y, breite: p.breite - 2 * BLATT.randX, hoehe: unten - y };
 }
 
@@ -49,9 +65,9 @@ export function massstabFuer(z: Pick<Zeichnungsdaten, "breite" | "hoehe">, flaec
 
 type Auftrag = NonNullable<LayoutOptionen["blatt"]>;
 
-function blattAus(nummer: number, format: Papierformat, z: Zeichnungsdaten, auftrag: Auftrag | undefined): Blatt {
-  const zeilen = legendenZeilen(z.legende, PAPIER[format].breite - 2 * BLATT.randX);
-  const f = zeichenflaeche(format, zeilen.length);
+function blattAus(nummer: number, format: Papierformat, z: Zeichnungsdaten, auftrag: Auftrag | undefined, qr: boolean): Blatt {
+  const zeilen = legendenZeilen(z.legende, legendenBreite(format, qr));
+  const f = zeichenflaeche(format, zeilen.length, qr);
   const massstab = massstabFuer(z, f);
   return {
     nummer, von: 0, wurzelId: auftrag?.wurzelId ?? null, ankerId: auftrag?.ankerId ?? null,
@@ -98,9 +114,9 @@ interface Schnittplan { auftrag: Auftrag | undefined; schnitte: string[]; unter:
 /** Beim Messen steht auf jeder Verweiskarte „Blatt 0": die Nummer ändert keine Geometrie (feste Breite, eine Zeile fester Höhe). */
 const PLATZHALTER: Darstellung = { verweisAufBlatt: 0 };
 
-function passt(inhalt: PlanInhalt, format: Papierformat, auftrag: Auftrag | undefined, schnitte: ReadonlySet<string>): boolean {
+function passt(inhalt: PlanInhalt, format: Papierformat, auftrag: Auftrag | undefined, schnitte: ReadonlySet<string>, qr: boolean): boolean {
   const darstellung = new Map<string, Darstellung>([...schnitte].map((id) => [id, PLATZHALTER]));
-  return !blattAus(0, format, zeichne(inhalt, format, { blatt: auftrag, darstellung }), auftrag).unterMindestschrift;
+  return !blattAus(0, format, zeichne(inhalt, format, { blatt: auftrag, darstellung }), auftrag, qr).unterMindestschrift;
 }
 
 /**
@@ -110,8 +126,8 @@ function passt(inhalt: PlanInhalt, format: Papierformat, auftrag: Auftrag | unde
  * behält die oberen Ebenen. Jede Probe zeichnet neu, weil ein Schnitt die Sicht ändert (eine
  * Verweiskarte ist ein Blatt, ihre Elterngruppe kann danach kämmen).
  */
-function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag: Auftrag | undefined): Schnittplan {
-  if (passt(inhalt, format, auftrag, new Set())) return { auftrag, schnitte: [], unter: [] };
+function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag: Auftrag | undefined, qr: boolean): Schnittplan {
+  if (passt(inhalt, format, auftrag, new Set(), qr)) return { auftrag, schnitte: [], unter: [] };
   const sicht = baueSicht(inhalt, { blatt: auftrag });
   const rang = new Map(lesereihenfolge(sicht).map((id, i) => [id, i]));
   const nachTiefe = kandidaten(sicht, auftrag);
@@ -123,7 +139,7 @@ function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag:
     const s = new Set(basis);
     for (const k of ebene) {
       s.add(k.id);
-      if (passt(inhalt, format, auftrag, s)) { gewaehlt = s; break; }
+      if (passt(inhalt, format, auftrag, s, qr)) { gewaehlt = s; break; }
     }
     if (gewaehlt) break;
     basis = s;
@@ -136,7 +152,7 @@ function schneide(inhalt: PlanInhalt, format: Papierformat, baum: Baum, auftrag:
   const schnitte = [...alle].filter((id) => !innen(id)).sort((a, b) => rang.get(a)! - rang.get(b)!);
   return {
     auftrag, schnitte,
-    unter: schnitte.map((id) => schneide(inhalt, format, baum, { wurzelId: id, ankerId: baum.stelle(id)!.eltern })),
+    unter: schnitte.map((id) => schneide(inhalt, format, baum, { wurzelId: id, ankerId: baum.stelle(id)!.eltern }, qr)),
   };
 }
 
@@ -154,15 +170,16 @@ export function offeneSchnitte(inhalt: PlanInhalt, blatt: Blatt): string[] {
 }
 
 /** DURCHLAUF 2: Blätter in Tiefensuche nummerieren, dann jedes Blatt mit den echten Verweisnummern zeichnen. */
-export function teileAuf(inhalt: PlanInhalt, format: Papierformat): Blatt[] {
+export function teileAuf(inhalt: PlanInhalt, format: Papierformat, optionen: PapierOptionen = {}): Blatt[] {
+  const qr = optionen.qr ?? false;
   const baum = baueBaum(inhalt);
   const reihe: Schnittplan[] = [];
   const sammle = (p: Schnittplan) => { reihe.push(p); p.unter.forEach(sammle); };
-  sammle(schneide(inhalt, format, baum, undefined));
+  sammle(schneide(inhalt, format, baum, undefined, qr));
   const nummer = new Map(reihe.map((p, i) => [p, i + 1]));
   const blaetter = reihe.map((p, i) => {
     const darstellung = new Map<string, Darstellung>(p.schnitte.map((id, j) => [id, { verweisAufBlatt: nummer.get(p.unter[j])! }]));
-    return blattAus(i + 1, format, zeichne(inhalt, format, { blatt: p.auftrag, darstellung }), p.auftrag);
+    return blattAus(i + 1, format, zeichne(inhalt, format, { blatt: p.auftrag, darstellung }), p.auftrag, qr);
   });
   return blaetter.map((b) => ({ ...b, von: blaetter.length }));
 }

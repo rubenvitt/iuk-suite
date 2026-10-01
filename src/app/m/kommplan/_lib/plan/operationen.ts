@@ -107,7 +107,7 @@ export function loescheStelle(inhalt: PlanInhalt, id: string): { inhalt: PlanInh
   return { inhalt: gueltig({ ...inhalt, stellen: inhalt.stellen.filter((s) => !weg.has(s.id)) }), entfernt: weg.size };
 }
 
-export function setzeOptionen(inhalt: PlanInhalt, aenderung: Partial<Pick<PlanOptionen, "leerzeilen" | "vermerkVsNfD">>): PlanInhalt {
+export function setzeOptionen(inhalt: PlanInhalt, aenderung: Partial<PlanOptionen>): PlanInhalt {
   return gueltig({ ...inhalt, optionen: { ...inhalt.optionen, ...aenderung } });
 }
 

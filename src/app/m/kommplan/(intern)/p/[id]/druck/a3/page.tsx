@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { getDb } from "@/app/m/kommplan/_db/client";
-import { druckseitenDaten } from "@/app/m/kommplan/_lib/druckdaten";
+import { druckseitenDaten, qrZielIntern } from "@/app/m/kommplan/_lib/druckdaten";
+import { qrZielSatz } from "@/app/m/kommplan/_lib/freigabe/texte";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { ladePlanLesendOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
@@ -19,5 +20,6 @@ export default async function DruckA3({ params }: { params: Promise<{ id: string
   const { id } = await params;
   const db = getDb();
   const plan = ladePlanLesendOder404(db, id);
-  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await druckseitenDaten(db, plan, { format: "a3-quer" })} />;
+  const ziel = qrZielIntern(db, plan, new Date().getTime());
+  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await druckseitenDaten(db, plan, { format: "a3-quer", qrUrl: ziel?.url ?? null, qrSatz: ziel ? qrZielSatz(ziel) : null })} />;
 }

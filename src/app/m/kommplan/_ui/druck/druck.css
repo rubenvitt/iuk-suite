@@ -27,6 +27,8 @@
 .kp-druck .kp-symbole { position: absolute; width: 0; height: 0; overflow: hidden; }
 .kp-druck .kp-druck-knopf { text-align: center; margin-block-end: 16px; }
 
+.kp-druck .kp-druck-qr-satz { text-align: center; margin: 0 0 8px; }
+
 @media print {
   body { background: #fff; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .kp-druck { background: #fff; padding: 0; }

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { BEISPIELE } from "../beispiele";
 import { baue, type StelleEingabe } from "../beispiele/bau";
 import { leererPlan } from "../plan/operationen";
 import { layout } from "./layout";
-import { BLATT, MIN_MASSSTAB, PAPIER } from "./masse";
-import { kopflinieY, legendeObenY, legendenZeilen, massstabFuer, teileAuf, zeichenflaeche } from "./papier";
+import { BLATT, MIN_MASSSTAB, PAPIER, QR_BOX } from "./masse";
+import { kopflinieY, LEGENDE, legendeObenY, legendenBreite, legendenZeilen, massstabFuer, qrBox, teileAuf, zeichenflaeche } from "./papier";
+import { textBreite } from "./text";
 import { zufallsPlan } from "./zufall";
 
 function grosserPlan() {
@@ -170,5 +172,36 @@ describe("Papier", () => {
     const inhalt = grosserPlan();
     expect(layout(inhalt, "bildschirm").seiten).toEqual([]);
     expect(layout(inhalt, "a4-quer").seiten).toHaveLength(6);
+  });
+});
+
+describe("Platz für den QR (Phase 5, Entscheidung 11)", () => {
+  const gross = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!.inhalt;
+  it("ohne QR alles wie bisher — bytegleich", () => {
+    expect(teileAuf(gross, "a4-quer", { qr: false })).toEqual(teileAuf(gross, "a4-quer"));
+    expect(zeichenflaeche("a4-quer", 2, false)).toEqual(zeichenflaeche("a4-quer", 2));
+  });
+  it("QR-Box unten rechts über dem Fuß; die Zeichenfläche endet über ihrer Beschriftung, die Legende ist schmaler", () => {
+    for (const format of ["a4-quer", "a3-quer"] as const) {
+      const b = qrBox(format);
+      const p = PAPIER[format];
+      expect(b.x + b.kante).toBeCloseTo(p.breite - BLATT.randX, 9);
+      expect(b.y + b.kante).toBeCloseTo(p.hoehe - BLATT.randUnten - BLATT.fuss, 9);
+      expect(b.oben).toBeCloseTo(b.y - QR_BOX.beschriftung, 9);
+      const f = zeichenflaeche(format, 1, true);
+      expect(f.y + f.hoehe).toBeLessThanOrEqual(b.oben - BLATT.luft + 1e-9);
+      expect(legendenBreite(format, true)).toBeCloseTo(legendenBreite(format) - QR_BOX.kante - QR_BOX.luft, 9);
+    }
+  });
+  it("mit QR: keine Zeichnung reicht in die QR-Box, keine Legendenzeile ist breiter als erlaubt", () => {
+    for (const format of ["a4-quer", "a3-quer"] as const) {
+      for (const b of teileAuf(gross, format, { qr: true })) {
+        expect(b.ursprung.y + b.zeichnung.hoehe * b.massstab).toBeLessThanOrEqual(qrBox(format).oben - BLATT.luft + 1e-6);
+        for (const zeile of b.legendeZeilen) {
+          const breite = zeile.reduce((s, e) => s + LEGENDE.symbolBreite + LEGENDE.symbolLuft + textBreite(e.text, LEGENDE.schrift, false) + LEGENDE.eintragLuft, 0) - LEGENDE.eintragLuft;
+          expect(breite).toBeLessThanOrEqual(legendenBreite(format, true) + 1e-6);
+        }
+      }
+    }
   });
 });

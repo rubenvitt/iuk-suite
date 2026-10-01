@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Drawer, Input, Popconfirm, Radio, type InputRef } from "antd";
+import { Button, Drawer, Input, Popconfirm, Radio, Switch, type InputRef } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 import { stelleFreigabeAusAction, widerrufeFreigabeAction } from "../../_actions/freigabe";
 import type { FreigabeErgebnis } from "../../_lib/ergebnis";
-import { DAUER_NAME, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, tokenUrl, type FreigabeDauer, type FreigabeZeile } from "../../_lib/freigabe/regeln";
-import { ablaufText, abrufText, ZEIT } from "../../_lib/freigabe/texte";
+import { besteFreigabe, DAUER_NAME, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, tokenUrl, type FreigabeDauer, type FreigabeZeile } from "../../_lib/freigabe/regeln";
+import { ablaufText, abrufText, qrZielSatz, ZEIT } from "../../_lib/freigabe/texte";
 import { kopiere } from "./zwischenablage";
 
 export const TEILEN_FLYIN_GRUND = 520;
@@ -14,7 +14,11 @@ const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch e
 const KEINE_ADRESSE = "Für die Kommunikationspläne ist keine Adresse eingerichtet. Links lassen sich erst ausstellen, wenn der Betrieb sie festlegt.";
 const KOPIERT_MS = 2000;
 
-interface Props { planId: string; basis: string | null; freigaben: FreigabeZeile[]; onFreigaben: (f: FreigabeZeile[]) => void }
+interface Props {
+  planId: string; basis: string | null; freigaben: FreigabeZeile[]; onFreigaben: (f: FreigabeZeile[]) => void;
+  /** Derselbe Schalter wie im Plan-Flyin (eine Option `qrAufDruck`, zwei Orte; Entscheidung 10). */
+  qr?: { an: boolean; onAendern: (an: boolean) => void };
+}
 
 /**
  * Das Flyin (Entscheidung 17): ohne Maske wie die übrigen Flyins; `nachSchliessen` gibt den Fokus an die Fläche zurück.
@@ -37,7 +41,7 @@ export function TeilenFlyin({ offen, onSchliessen, nachSchliessen, ...p }: Props
  * Fokus: beim Öffnen die Notiz, nach dem Ausstellen „Link kopieren" am neuen Link, nach dem Widerrufen der nächste
  * gültige Link oder die Legende „Gültige Links (0)" — der Knopf, auf den Popconfirm zurückwollte, ist dann weg.
  */
-export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
+export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
   const [dauer, setDauer] = useState<FreigabeDauer>(DAUER_VORGABE);
   const [notiz, setNotiz] = useState("");
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -90,6 +94,7 @@ export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
 
   const gueltig = freigaben.filter((f) => f.status === "gueltig");
   const vorbei = freigaben.filter((f) => f.status !== "gueltig");
+  const qrBester = besteFreigabe(gueltig);
   const eintrag = (f: FreigabeZeile) => (
     <li key={f.id} className="kp-freigabe" data-freigabe={f.id} data-neu={f.id === neu ? "" : undefined}>
       <p className="kp-freigabe-notiz">{f.notiz ?? "ohne Notiz"}</p>
@@ -135,6 +140,13 @@ export function Teilen({ planId, basis, freigaben, onFreigaben }: Props) {
           <summary>{`Abgelaufen und widerrufen (${vorbei.length})`}</summary>
           <ul className="kp-freigaben">{vorbei.map(eintrag)}</ul>
         </details>
+      ) : null}
+      {qr ? (
+        <fieldset className="kp-abschnitt">
+          <legend>Ausdruck</legend>
+          <label className="kp-schalter"><Switch data-option="qrAufDruck" checked={qr.an} onChange={(v) => qr.onAendern(v)} /> QR-Code „Aktuelle Fassung“ auf dem Ausdruck</label>
+          {qr.an ? <p className="kp-hilfe" data-qr-ziel-satz="">{qrBester ? qrZielSatz(qrBester) : "Ohne gültigen Link druckt der Plan keinen QR-Code."}</p> : null}
+        </fieldset>
       ) : null}
     </div>
   );

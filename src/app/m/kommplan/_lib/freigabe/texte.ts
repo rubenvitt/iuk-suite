@@ -14,3 +14,11 @@ export function abrufText(f: Pick<FreigabeZeile, "abrufe" | "zuletztAbgerufen">)
   if (f.abrufe === 0 || f.zuletztAbgerufen === null) return "noch nie abgerufen";
   return `${f.abrufe} ${f.abrufe === 1 ? "Abruf" : "Abrufe"}, zuletzt ${ZEIT.format(f.zuletztAbgerufen)}`;
 }
+
+/** Wohin der QR des Ausdrucks führt (Entscheidung 10) — Plan-Flyin, Teilen-Flyin und Druckseite sagen es gleich. */
+export function qrZielSatz(f: { notiz: string | null; ablauf: number | null }): string {
+  const name = f.notiz ? `„${f.notiz}“` : "den Link ohne Notiz";
+  return f.ablauf === null
+    ? `Der QR-Code führt auf ${name} – unbegrenzt gültig.`
+    : `Der QR-Code führt auf ${name} – gültig bis ${ZEIT.format(f.ablauf)}; danach führt der Ausdruck ins Leere.`;
+}

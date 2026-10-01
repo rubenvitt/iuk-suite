@@ -59,3 +59,10 @@ export function lueckeFuer(j: number): number {
   return STIEL.ersterKnick + Math.max(0, j - 1) * STIEL.knickTakt + STIEL.zuSechseck
     + SECHSECK.hoehe + STIEL.sechseckZuBus + STIEL.busZuKarte;
 }
+
+/**
+ * QR „Aktuelle Fassung" unten rechts über dem Fuß (Umsetzungsplan Phase 5, Entscheidung 11). Gemessen mit `core/qr`
+ * (Fehlerkorrektur H, Rand 4) an echten base64url-Tokens: eine 72-Zeichen-URL ergibt Version 8 = 57 × 57 Module,
+ * bei 24 mm also 0,42 mm je Modul (20 mm hätten nur 0,35 mm).
+ */
+export const QR_BOX = { kante: 24, beschriftung: 4, luft: 3 } as const;

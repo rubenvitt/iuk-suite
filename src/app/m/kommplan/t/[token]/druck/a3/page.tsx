@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getDb } from "@/app/m/kommplan/_db/client";
-import { druckseitenDaten } from "@/app/m/kommplan/_lib/druckdaten";
+import { druckseitenDaten, qrUrlFuerToken } from "@/app/m/kommplan/_lib/druckdaten";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { TOKEN_METADATEN } from "@/app/m/kommplan/_lib/tokenMetadaten";
 import { tokenPlanOder404 } from "@/app/m/kommplan/_lib/tokenZugang";
@@ -13,6 +13,7 @@ export const metadata = TOKEN_METADATEN;
 /** TOKEN-DRUCK A3 QUER (Falle 18: eigene Route; Entscheidung 9): dieselbe Druckseite, ohne SVG-Export. */
 export default async function TokenDruckA3({ params }: { params: Promise<{ token: string }> }) {
   requireKommplanHost(await headers());
-  const { plan } = await tokenPlanOder404((await params).token);
-  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await druckseitenDaten(getDb(), plan, { format: "a3-quer" })} />;
+  const { token } = await params;
+  const { plan } = await tokenPlanOder404(token);
+  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await druckseitenDaten(getDb(), plan, { format: "a3-quer", qrUrl: qrUrlFuerToken(plan, token) })} />;
 }

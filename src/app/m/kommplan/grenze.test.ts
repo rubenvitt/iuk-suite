@@ -119,7 +119,7 @@ describe("kommplan: Importgrenzen", () => {
 
   it("geteilte Ordner sind rein: kein use client, kein next/*, kein node:*, kein react-dom", () => {
     const geteilt = laufzeit.filter((p) =>
-      ["_lib/layout/", "_lib/plan/", "_lib/beispiele/", "_ui/zeichnung/", "_lib/angaben.ts", "_lib/ergebnis.ts", "_lib/editorAnsicht.ts", "_lib/logo/", "_lib/bibliothek/", "_lib/tagesfassung.ts", "_lib/herkunft.ts", "_lib/freigabe/"].some((o) => relative(MODUL, p).startsWith(o)),
+      ["_lib/layout/", "_lib/plan/", "_lib/beispiele/", "_ui/zeichnung/", "_lib/angaben.ts", "_lib/ergebnis.ts", "_lib/editorAnsicht.ts", "_lib/logo/", "_lib/bibliothek/", "_lib/tagesfassung.ts", "_lib/herkunft.ts", "_lib/freigabe/", "_lib/qrGrafik.ts"].some((o) => relative(MODUL, p).startsWith(o)),
     );
     for (const p of geteilt) {
       const q = quelltext(p);

@@ -12,15 +12,19 @@ describe("Druckseite (Entscheidung 13)", () => {
   it("trägt das Format am gemeinsamen Vorfahren (benanntes @page) und alle Blätter", () => {
     const gross = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!;
     const blaetter = teileAuf(gross.inhalt, "a3-quer");
-    const html = renderToStaticMarkup(<Druckseite schrift={SCHRIFT} daten={{ format: "a3-quer", blaetter, rahmen: RAHMEN, symbole: {} }} />);
+    const html = renderToStaticMarkup(<Druckseite schrift={SCHRIFT} daten={{ format: "a3-quer", blaetter, rahmen: RAHMEN, symbole: {}, qrSatz: null }} />);
     expect(html).toMatch(/<main class="kp-druck arimo" data-format="a3-quer">/);
     expect(html.split('class="kp-blatt"').length - 1).toBe(blaetter.length);
     expect(html).toContain('width="420mm"');
   });
   it("nicht lesbar: ein Satz, kein Druckanstoß, dasselbe Format", () => {
-    const html = renderToStaticMarkup(<Druckseite schrift={SCHRIFT} daten={{ format: "a4-quer", blaetter: null, rahmen: RAHMEN, symbole: {} }} />);
+    const html = renderToStaticMarkup(<Druckseite schrift={SCHRIFT} daten={{ format: "a4-quer", blaetter: null, rahmen: RAHMEN, symbole: {}, qrSatz: null }} />);
     expect(html).toContain('data-format="a4-quer"');
     expect(html).toContain("Dieser Plan lässt sich nicht lesen.");
     expect(html).not.toContain("kp-druck-knopf");
+  });
+  it("QR-Satz in der noprint-Leiste (Entscheidung 10)", () => {
+    const html = renderToStaticMarkup(<Druckseite schrift={SCHRIFT} daten={{ format: "a4-quer", blaetter: [], rahmen: RAHMEN, symbole: {}, qrSatz: "Der QR-Code führt auf „Aushang“ – unbegrenzt gültig." }} />);
+    expect(html).toMatch(/class="noprint[^"]*"[^>]*data-qr-satz=""[^>]*>Der QR-Code führt auf/);
   });
 });

@@ -119,4 +119,12 @@ describe("Teilen (Spec §8.2; Entscheidung 17)", () => {
     expect(neue).not.toHaveBeenCalled();
     expect(exists('[data-freigabe="f1"]')).toBe(true);
   });
+  it("QR-Schalter im Teilen-Flyin: dieselbe Option; an mit Link → der Satz zum besten Link", async () => {
+    const aendern = vi.fn();
+    await mount(<Teilen planId="p1" basis={BASIS} onFreigaben={neue} qr={{ an: true, onAendern: aendern }}
+      freigaben={[Z({ notiz: "kurz" }), Z({ id: "f2", token: T("B"), notiz: "Aushang", ablauf: null })]} />);
+    expect(query("[data-qr-ziel-satz]").textContent).toBe("Der QR-Code führt auf „Aushang“ – unbegrenzt gültig.");
+    await clickElement(query('[data-option="qrAufDruck"]'));
+    expect(aendern).toHaveBeenCalledWith(false);
+  });
 });
