@@ -1,6 +1,6 @@
 import { baueBaum, teilbaumGroesse, type Baum } from "../plan/baum";
 import type { PlanInhalt, Stelle } from "../plan/schema";
-import { anzeigereihenfolge } from "./gruppen";
+import { anzeigereihenfolge, budgetFuer } from "./gruppen";
 import { BLATT, MIN_MASSSTAB, PAPIER, QR_BOX } from "./masse";
 import { baueSicht, type Sicht } from "./sicht";
 import { textBreite } from "./text";
@@ -37,10 +37,11 @@ export function legendeObenY(format: Papierformat, legendeZeilen: number): numbe
 /**
  * AUFWANDSGRENZE DER AUFTEILUNG (Abnahme kommplan, Befund „Token-Druck blockiert"): jede Probe in `schneide` zeichnet
  * den Teilbaum neu, synchron auf dem einen Node-Thread, und die Druckrouten rufen das bei jeder Anfrage. Gezählt
- * werden gezeichnete Karten über alle Proben eines Plans; ist das Budget aufgebraucht, schneidet kein weiteres Blatt
- * mehr — der Rest bleibt ungeteilt, notfalls unter 6 pt. Die Beispielpläne brauchen unter 200, ein breiter Plan mit
- * 500 Stellen rund 24 000. Mit der Tiefengrenze des Schemas (`GRENZE.ebenen`) hält das jeden gültigen Plan bei
- * etwa einer Sekunde; `druckdaten.ts` merkt sich das Ergebnis je Inhalt.
+ * werden gezeichnete Karten über alle Proben eines Plans (je Kamm-Budget aus `budgetsFuer` einmal `kartenProben`, A3 also
+ * das Doppelte); ist das Budget aufgebraucht, schneidet kein weiteres Blatt
+ * mehr — der Rest bleibt ungeteilt, notfalls unter 6 pt. Die Beispielpläne brauchen unter 400, ein breiter Plan mit
+ * 500 Stellen rund 24 000 (A3: 47 000). Mit der Tiefengrenze des Schemas (`GRENZE.ebenen`) hält das jeden gültigen
+ * Plan bei ein bis drei Sekunden unter Last; `druckdaten.ts` merkt sich das Ergebnis je Inhalt.
  */
 export const AUFTEILUNG = { kartenProben: 30_000 } as const;
 
@@ -166,14 +167,39 @@ const PLATZHALTER: Darstellung = { verweisAufBlatt: 0 };
 
 interface Lauf { inhalt: PlanInhalt; format: Papierformat; baum: Baum; qr: boolean; rest: number; aufwand?: { karten: number } }
 
+/**
+ * DIE KAMM-BUDGETS EINES BLATTS (Abnahme kommplan, Befund „A3 druckt kleiner als A4"): das Budget folgt aus der
+ * Blattbreite bei Mindestmaßstab (Spec §5.5), die Höhe geht nicht ein. Auf A3 blieb eine breite Ebene darum einreihig,
+ * bis die Zeichnung genau auf 6 pt stand — kleiner als dieselbe Ebene auf A4, umgebrochen. A3 probiert deshalb auch das
+ * Budget von A4 und nimmt den größeren Maßstab (Gleichstand: das eigene). So ist A3 nie kleiner als A4: dieselbe
+ * Zeichnung hat auf A3 in beiden Richtungen mehr Platz. A4 und der Bildschirm bleiben bei einem Budget.
+ */
+export function budgetsFuer(format: Papierformat): number[] {
+  return format === "a3-quer" ? [budgetFuer("a3-quer"), budgetFuer("a4-quer")] : [budgetFuer(format)];
+}
+
+/**
+ * Ein Blatt mit dem besten Budget aus `budgetsFuer`; zählt die Karten jeder Zeichnung ins Budget der Aufteilung.
+ * `genuegt`: die Probe fragt nur „passt es?" — sie hört beim ersten Budget auf, das reicht.
+ */
+function zeichneBlatt(l: Lauf, nummer: number, auftrag: Auftrag | undefined, darstellung: ReadonlyMap<string, Darstellung>, genuegt = false): Blatt {
+  let bestes: Blatt | null = null;
+  for (const budget of budgetsFuer(l.format)) {
+    if (genuegt && bestes !== null && !bestes.unterMindestschrift) break;
+    const z = zeichne(l.inhalt, l.format, { blatt: auftrag, darstellung }, budget);
+    l.rest -= Math.max(1, z.karten.length);
+    if (l.aufwand) l.aufwand.karten += z.karten.length;
+    const b = blattAus(nummer, l.format, z, auftrag, l.qr);
+    if (bestes === null || b.massstab > bestes.massstab + 1e-9) bestes = b;
+  }
+  return bestes!;
+}
+
 /** `null`: das Budget ist aufgebraucht, es wurde nicht mehr gezeichnet. */
 function passt(l: Lauf, auftrag: Auftrag | undefined, schnitte: ReadonlySet<string>): boolean | null {
   if (l.rest <= 0) return null;
   const darstellung = new Map<string, Darstellung>([...schnitte].map((id) => [id, PLATZHALTER]));
-  const z = zeichne(l.inhalt, l.format, { blatt: auftrag, darstellung });
-  l.rest -= Math.max(1, z.karten.length);
-  if (l.aufwand) l.aufwand.karten += z.karten.length;
-  return !blattAus(0, l.format, z, auftrag, l.qr).unterMindestschrift;
+  return !zeichneBlatt(l, 0, auftrag, darstellung, true).unterMindestschrift;
 }
 
 /**
@@ -234,14 +260,16 @@ export function offeneSchnitte(inhalt: PlanInhalt, blatt: Blatt): string[] {
 /** DURCHLAUF 2: Blätter in Tiefensuche nummerieren, dann jedes Blatt mit den echten Verweisnummern zeichnen. */
 export function teileAuf(inhalt: PlanInhalt, format: Papierformat, optionen: PapierOptionen = {}): Blatt[] {
   const qr = optionen.qr ?? false;
-  const lauf: Lauf = { inhalt, format, baum: baueBaum(inhalt), qr, rest: optionen.budget ?? AUFTEILUNG.kartenProben, aufwand: optionen.aufwand };
+  // Je probiertem Kamm-Budget einmal `kartenProben`: A3 zeichnet eine Probe, die nicht passt, zweimal (`budgetsFuer`).
+  const rest = optionen.budget ?? AUFTEILUNG.kartenProben * budgetsFuer(format).length;
+  const lauf: Lauf = { inhalt, format, baum: baueBaum(inhalt), qr, rest, aufwand: optionen.aufwand };
   const reihe: Schnittplan[] = [];
   const sammle = (p: Schnittplan) => { reihe.push(p); p.unter.forEach(sammle); };
   sammle(schneide(lauf, undefined));
   const nummer = new Map(reihe.map((p, i) => [p, i + 1]));
   const blaetter = reihe.map((p, i) => {
     const darstellung = new Map<string, Darstellung>(p.schnitte.map((id, j) => [id, { verweisAufBlatt: nummer.get(p.unter[j])! }]));
-    return blattAus(i + 1, format, zeichne(inhalt, format, { blatt: p.auftrag, darstellung }), p.auftrag, qr);
+    return zeichneBlatt({ ...lauf, aufwand: undefined }, i + 1, p.auftrag, darstellung);
   });
   return blaetter.map((b) => ({ ...b, von: blaetter.length }));
 }

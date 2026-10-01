@@ -4,7 +4,7 @@ import { baue, type StelleEingabe } from "../beispiele/bau";
 import { leererPlan } from "../plan/operationen";
 import { layout } from "./layout";
 import { BLATT, MIN_MASSSTAB, PAPIER, QR_BOX } from "./masse";
-import { AUFTEILUNG, kopflinieY, LEGENDE, legendeObenY, legendenBreite, legendenZeilen, massstabFuer, qrBox, teileAuf, zeichenflaeche } from "./papier";
+import { AUFTEILUNG, budgetsFuer, kopflinieY, LEGENDE, legendeObenY, legendenBreite, legendenZeilen, massstabFuer, qrBox, teileAuf, zeichenflaeche } from "./papier";
 import { pruefeQrAbstand } from "./pruefung";
 import { textBreite } from "./text";
 import { zufallsPlan } from "./zufall";
@@ -236,9 +236,13 @@ describe("Aufwandsgrenze der Aufteilung (Abnahme: Token-Druck blockiert den Proz
   it("ein Plan mit 500 Stellen zeichnet in allen Proben zusammen höchstens das Budget und eine Probe darüber", () => {
     const inhalt = breiterPlan();
     const aufwand = { karten: 0 };
-    teileAuf(inhalt, "a4-quer", { qr: true, aufwand });
-    expect(aufwand.karten).toBeGreaterThan(0);
-    expect(aufwand.karten).toBeLessThanOrEqual(AUFTEILUNG.kartenProben + inhalt.stellen.length);
+    for (const format of ["a4-quer", "a3-quer"] as const) {
+      aufwand.karten = 0;
+      const blaetter = teileAuf(inhalt, format, { qr: true, aufwand });
+      expect(aufwand.karten).toBeGreaterThan(0);
+      expect(aufwand.karten).toBeLessThanOrEqual(AUFTEILUNG.kartenProben * budgetsFuer(format).length + 2 * inhalt.stellen.length);
+      expect(blaetter.length, `${format}: das Budget reicht für diesen Plan noch`).toBeGreaterThan(50);
+    }
   });
   it("ist das Budget aufgebraucht, bleibt der Rest ungeteilt — jede Stelle genau einmal, gleicher Inhalt gleiche Blätter", () => {
     const inhalt = breiterPlan();
@@ -249,5 +253,24 @@ describe("Aufwandsgrenze der Aufteilung (Abnahme: Token-Druck blockiert den Proz
     expect(knapp.some((b) => b.unterMindestschrift)).toBe(true);
     expect(normaleKarten(knapp).sort()).toEqual(inhalt.stellen.map((s) => s.id).sort());
     expect(teileAuf(inhalt, "a4-quer", { budget: 2_000 })).toEqual(knapp);
+  });
+});
+
+describe("A3 nie kleiner als A4 (Abnahme: A3 druckte kleiner und ließ den Bogen halb leer)", () => {
+  it("A3 probiert auch das Kamm-Budget von A4; A4 bleibt bei seinem", () => {
+    expect(budgetsFuer("a4-quer")).toHaveLength(1);
+    expect(budgetsFuer("a3-quer")).toEqual([expect.any(Number), budgetsFuer("a4-quer")[0]]);
+    expect(budgetsFuer("a3-quer")[0]).toBeGreaterThan(budgetsFuer("a4-quer")[0]);
+  });
+  it("je Beispielplan: der kleinste Maßstab auf A3 ist mindestens der auf A4, mit und ohne QR", () => {
+    for (const b of BEISPIELE) for (const qr of [false, true]) {
+      const min = (format: "a4-quer" | "a3-quer") => Math.min(...teileAuf(b.inhalt, format, { qr }).map((x) => x.massstab));
+      expect(min("a3-quer"), `${b.id}${qr ? " mit QR" : ""}`).toBeGreaterThanOrEqual(min("a4-quer") - 1e-9);
+    }
+  });
+  it("die Stabslage, Blatt 3 (EAL mit zehn EA): auf A3 nicht mehr einreihig auf Mindestschrift", () => {
+    const gross = BEISPIELE.find((b) => b.id === "beispiel-grosse-stabslage")!.inhalt;
+    const blatt = (format: "a4-quer" | "a3-quer") => teileAuf(gross, format).find((x) => x.nummer === 3)!;
+    expect(blatt("a3-quer").massstab).toBeGreaterThan(blatt("a4-quer").massstab);
   });
 });

@@ -36,9 +36,10 @@ export function legende(inhalt: PlanInhalt, sicht: Sicht): LegendenEintrag[] {
  * eine Kinderreihe (Spec §5.5) — jede weitere Reihe beginnt 16 mm unter dem tiefsten Punkt der
  * vorigen. Ohne Umbruch wäre ein Plan mit vielen Wurzeln nur durch Schneiden aufs Papier zu
  * bringen, und eine Wurzel ohne Kinder lässt sich nicht sinnvoll schneiden (Review Phase 1).
+ * `budget` ersetzt das Kamm-Budget des Ziels (`budgetFuer`) — nur die Aufteilung aufs Papier probiert andere.
  */
-export function zeichne(inhalt: PlanInhalt, ziel: Ziel, optionen: LayoutOptionen = {}): Zeichnungsdaten {
-  const u = umgebungFuer(inhalt, ziel, optionen);
+export function zeichne(inhalt: PlanInhalt, ziel: Ziel, optionen: LayoutOptionen = {}, budget?: number): Zeichnungsdaten {
+  const u = umgebungFuer(inhalt, ziel, optionen, budget);
   const teile = u.sicht.wurzeln.map((w) => setzeTeilbaum(w, 0, u));
   const s = new Sammler();
   const breite = (i: number) => (istLeer(teile[i].kontur) ? 0 : maxX(teile[i].kontur) - minX(teile[i].kontur));
