@@ -39,7 +39,7 @@
 
 1. **Keine Modulnavigation (`nav`) in der Hülle.** Bibliothek, Einstellungen und Archiv erreicht man über Links im Seitenkopf der Planliste („Bibliothek" und „Einstellungen" nur für Bearbeitende, „Archiv" für alle mit Zugang); jede dieser Seiten führt mit `zurueck={{ titel: "Alle Pläne", href: "/" }}` zurück. Grund: eine Seitenleiste nähme bei 1024 px 218 px Breite und machte die in Phase 2/3 gemessene Geometrie des Editors (Einpassen, Griffe, Flyin-Lage, Fotos) ungültig. Gegenprobe docs/design/README.md „Führt jede Seite zurück": ja, über `zurueck`.
 2. **Briefkopf als eine Zeile mit Primärschlüssel `id = 1`** (Abweichung von Spec §4.1, die keine ID nennt): `id INTEGER PRIMARY KEY` mit `CHECK (id = 1)` — der Audit-Katalog braucht einen Primärschlüssel, und „genau eine Zeile" wird so von der Datenbank erzwungen. Ein zweiter `CHECK` hält das Logo vollständig (Blob, Typ und SHA-256 alle gesetzt oder alle leer) und unter 1 MB. **Alle** Spalten sind auditiert, auch der Blob (der Trigger vergleicht `OLD."logo" IS NOT NEW."logo"`): Hochladen, Ersetzen, Entfernen und jede Namensänderung sind je eine Audit-Zeile (`update briefkopf`, beim ersten Eintrag `create`). Ein leerer Organisationsname wird `NULL` gespeichert.
-3. **Logo-Upload als Route Handler** `POST /logo` (Datei `src/app/m/kommplan/logo/route.ts`, außerhalb von `(intern)`): Server Actions nehmen höchstens 1 MB an (`server-actions.md`, „Body size limit"), ein 1-MB-Logo samt Multipart-Rahmen also nicht; `serverActions.bodySizeLimit` ist suiteweit und bleibt unangetastet (Vorbild `aufgaben/a/[id]/nachweis/hochladen/route.ts`, Kopfkommentar). Der Handler prüft selbst: Host, Anmeldung, `isModuleAdmin` (`requireKommplanBearbeitenAktion`, Wurf → 404), **gleiche Herkunft** (`Origin` gegen `x-forwarded-host`/`host`, `_lib/herkunft.ts` — Route Handler haben Nexts CSRF-Prüfung der Actions nicht, und die Sitzung gilt suiteweit für alle `*.iuk-ue.de`) und früh die `content-length` (höchstens 1 MB + 16 KB Multipart-Rand), bevor er puffert. Organisationsname und „Logo entfernen" sind Server Actions (`_actions/briefkopf.ts`).
+3. **Logo-Upload als Route Handler** `POST /logo` (Datei `src/app/m/kommplan/logo/route.ts`, außerhalb von `(intern)`): Server Actions nehmen höchstens 1 MB an (`server-actions.md`, „Body size limit"), ein 1-MB-Logo samt Multipart-Rahmen also nicht; `serverActions.bodySizeLimit` ist suiteweit und bleibt unangetastet (Vorbild `aufgaben/a/[id]/nachweis/hochladen/route.ts`, Kopfkommentar). Der Handler prüft selbst: Host, Anmeldung, `isModuleAdmin` (`requireKommplanBearbeitenAktion`, Wurf → 404), **gleiche Herkunft** (`Origin` gegen `x-forwarded-host`/`host`, `_lib/herkunft.ts` — Route Handler haben Nexts CSRF-Prüfung der Actions nicht, und die Sitzung gilt suiteweit für alle `*.iuk-ue.de`) und früh die `content-length` (höchstens 1 MB + 16 KB Multipart-Rand), bevor er puffert — fehlt sie, wird gelesen und an den Bytes gemessen (wie `aufgaben`, `inhaltZuGross`). Die Herkunftsprüfung ist neu in der Suite (weder `aufgaben` noch `files` haben eine) und hinter dem Reverse-Proxy des Zielhosts unbelegt — riskante Annahme. Organisationsname und „Logo entfernen" sind Server Actions (`_actions/briefkopf.ts`).
 4. **Virenscan per Pfad wie in `aufgaben`**, nicht per INSTREAM: `core/av` bleibt unverändert (sonst auch `scripts/fake-clamd.mjs` und dessen Quelltext-Tests). Die hochgeladenen Bytes werden für den Scan in eine Wegwerfdatei unter `$DATA_DIR/kommplan-scan/<uuid>` geschrieben (Verzeichnis 0750, Datei 0640, `flag: "wx"`), `scanne(pfad, konfig)` aufgerufen und die Datei im `finally` gelöscht. Dafür bekommt der Stack ein **neues benanntes Volume `kommplan_scan`**: `suite` schreibend auf `/data/kommplan-scan`, `clamav` lesend (`:ro`); das Backup mountet es **nicht** (das Logo selbst liegt in `kommplan.db`). Das `Dockerfile` legt `/data/kommplan-scan` an und übereignet es (wie `/data/files`, Kommentar dort: ein leeres benanntes Volume übernimmt Eigentümer und Modus des Mountpunkts aus dem Image). Eigene Variablen `KOMMPLAN_AV_HOST`/`_PORT`/`_TIMEOUT_MS` (Vorgaben `clamav`, `3310`, `30000`); `playwright.config.ts` zeigt sie auf den Fake-clamd. Der Scan läuft **synchron** im Upload; „befund" und „fehler" lehnen ab (fail-closed). Gescannt werden die hochgeladenen Bytes, gespeichert die bereinigten (bei SVG).
 5. **Logo-Prüfung:** Größe 1 MB = **1 048 576 Byte**; der Typ kommt allein aus den Bytes (`erkenneLogoTyp`: PNG-, JPEG-, WebP-Signatur; SVG = gültiges UTF-8, dessen erstes Element nach Leerraum, `<?xml …?>`, Kommentaren und einem DOCTYPE `<svg` ist), nie aus Dateiname oder `Content-Type`. **SVG-Bereinigung** (`bereinigeSvg`, rein, ohne DOM) arbeitet mit **Allowlist**: ein eigener, strikter XML-Zerleger (Attribute nur in Anführungszeichen, keine doppelten Attribute, nur die fünf XML-Entitäten und Zeichenreferenzen, Verschachtelung höchstens 256); **DOCTYPE/ENTITY → Ablehnung**; Kommentare und Verarbeitungsanweisungen (auch `<?xml-stylesheet?>`) fallen weg; CDATA wird zu Text. Erlaubt sind nur die Elemente `svg g defs symbol use path rect circle ellipse line polyline polygon text tspan title desc linearGradient radialGradient stop clipPath mask pattern image style` — alles andere (`script`, `foreignObject` in jeder Schreibweise, `a`, `animate`, `set`, `iframe`, jedes Element mit Präfix wie `svg:script`, `sodipodi:namedview`) fällt **samt Inhalt** weg. Attribute: `on*` fallen weg; `href`/`xlink:href` nur `#id` (an `use`, Verläufen, `pattern`) bzw. Rasterbilder `data:image/png|jpeg|webp;base64,…` (an `image`), sonst fällt das Attribut und ein `use`/`image` ohne Verweis ganz; `url(…)` nur lokal (`url(#id)`); jeder Wert, der nach Entfernen von Leer- und Steuerzeichen `javascript:` enthält, fällt; `style`-Attribut und `<style>`-Inhalt werden je Deklaration gefiltert (Eigenschaften-Allowlist, kein `@`, kein `\`, kein `expression(`, nur lokale `url()`). **Ungültig nach der Bereinigung** (→ Ablehnung): kein `svg`-Wurzelelement, weder `viewBox` noch Breite und Höhe als Zahlen (dann wird `viewBox="0 0 B H"` ergänzt), nichts mehr zu zeichnen. `<style>` bleibt (bereinigt) erhalten, weil Illustrator-Logos ihre Farben über Klassen setzen — ohne ihn wäre das Logo schwarz (Review Focus 1). Die Ausgabe ist idempotent: `bereinigeSvg(aus) === aus`.
 6. **Logo im Kopf der Zeichnung:** genau ein `<image id="kp-logo" … preserveAspectRatio="xMaxYMid meet" href="data:…">` je Dokument in `<defs>`, jedes Blatt verweist per `<use href="#kp-logo">` darauf — die Druckroute rendert viele Blätter, und ein 1-MB-Logo (≈ 1,33 MB Base64) je Blatt wäre ein Vielfaches davon. Feste Kopf-Box `LOGO_BOX = { breite: 40, hoehe: 11, luft: 3 }` mm rechts oben (`x = 287 − 40`, `y = BLATT.randOben`); das Seitenverhältnis hält der Browser (`meet`). Die Organisation steht rechtsbündig links neben der Box (ohne Logo am rechten Rand). **Ohne Eintrag steht nichts da** — kein `<image>`, kein `<use>`, kein leerer Text, kein Rahmen. Das rote Kreuz (`Blatt.tsx`) und `FARBE.marke` (`#c8000f`) entfallen ersatzlos; `rahmenFuer` kennt keinen Organisationsnamen mehr. Der lokale Seed trägt den neutralen Namen „Musterorganisation", **kein** Logo. Der Bildschirm (Betrachter, Editor) hat keinen Kopf — unverändert.
@@ -1352,7 +1352,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `speichereLogo`, `setzeOrganisation`, `entferneLogo` (Task 5), `scanneLogo` (Task 4), `requireKommplanBearbeitenAktion`, `bearbeiterAus` (`_lib/zugang.ts`), `withAuditContext`, `auditActor` (`@/core/audit/server`), `LOGO_MAX_BYTES`.
-- Produces: `gleicheHerkunft(kopf: Headers): boolean`; `POST /logo` (Feld `logo`, Antwort JSON `LogoErgebnis`, Status 200/400/403/404/411/413/422); `speichereOrganisationAction(eingabe: unknown): Promise<EinfachErgebnis>`; `entferneLogoAction(): Promise<EinfachErgebnis>`.
+- Produces: `gleicheHerkunft(kopf: Headers): boolean`; `POST /logo` (Feld `logo`, Antwort JSON `LogoErgebnis`, Status 200/400/403/404/413/422); `speichereOrganisationAction(eingabe: unknown): Promise<EinfachErgebnis>`; `entferneLogoAction(): Promise<EinfachErgebnis>`.
 
 - [ ] **Step 1: Guides lesen**
 
@@ -1435,12 +1435,15 @@ describe("POST /logo", () => {
     expect((await POST(await anfrage(new Blob([PNG]), { origin: "http://files.localtest.me" }))).status).toBe(403);
     expect(scans).toBe(0);
   });
-  it("zu groß laut content-length: 413, bevor gelesen wird; fehlende Länge: 411", async () => {
+  it("zu groß laut content-length: 413, bevor gelesen wird; ohne Längenangabe (HTTP/2, Proxy) wird gelesen und an den Bytes gemessen", async () => {
     const { POST } = await import("./route");
     const r = await anfrage(new Blob([PNG]), { "content-length": String(2 * 1024 * 1024) });
     expect((await POST(r)).status).toBe(413);
-    const ohne = new Request("http://kommplan.localtest.me/logo", { method: "POST", headers: { origin: "http://kommplan.localtest.me", "x-forwarded-host": "kommplan.localtest.me" } });
-    expect((await POST(ohne)).status).toBe(411);
+    expect(scans).toBe(0);
+    const mit = await anfrage(new Blob([PNG]));
+    const kopf = new Headers(mit.headers); kopf.delete("content-length");
+    const ohne = new Request(mit.url, { method: "POST", headers: kopf, body: await mit.arrayBuffer() });
+    expect((await POST(ohne)).status).toBe(200);
   });
   it("Typ aus den Bytes: ein PNG namens logo.svg mit Content-Type text/plain wird als PNG gespeichert", async () => {
     const { POST } = await import("./route");
@@ -1567,8 +1570,9 @@ import { bearbeiterAus, requireKommplanBearbeitenAktion, type Viewer } from "../
  * Anmeldung und Bearbeitungsrecht über `requireKommplanBearbeitenAktion` — ihr Wurf wird ein 404, damit
  * die Route sich nicht verrät —, dann die gleiche Herkunft (Nexts CSRF-Prüfung gilt nur für Actions), dann
  * früh die `content-length`: ohne den 1-MB-Deckel der Actions ist sie die einzige Bremse gegen eine Anfrage,
- * die absichtlich Gigabytes puffern lässt. Die maßgebliche Größenprüfung bleibt `pruefeLogoDatei` an den
- * tatsächlich gelesenen Bytes; `MULTIPART_RAND` ist keine zweite Grenze, nur Platz für den Rahmen.
+ * die absichtlich Gigabytes puffern lässt. Fehlt die Angabe (HTTP/2, ein Proxy mit chunked body), wird gelesen —
+ * wie in `aufgaben` (`inhaltZuGross`); die maßgebliche Größenprüfung bleibt `pruefeLogoDatei` an den tatsächlich
+ * gelesenen Bytes. `MULTIPART_RAND` ist keine zweite Grenze, nur Platz für den Rahmen.
  */
 const KOPF = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } as const;
 const MULTIPART_RAND = 16 * 1024;
@@ -1578,9 +1582,10 @@ export async function POST(request: Request): Promise<Response> {
   let viewer: Viewer;
   try { viewer = await requireKommplanBearbeitenAktion(); } catch { return antwort(404, { ok: false, fehler: "Nicht gefunden." }); }
   if (!gleicheHerkunft(request.headers)) return antwort(403, { ok: false, fehler: "Hochladen geht nur aus der Seite „Einstellungen“." });
-  const laenge = Number(request.headers.get("content-length") ?? Number.NaN);
-  if (!Number.isFinite(laenge) || laenge <= 0) return antwort(411, { ok: false, fehler: "Die Anfrage nennt keine Größe." });
-  if (laenge > LOGO_MAX_BYTES + MULTIPART_RAND) return antwort(413, { ok: false, fehler: LOGO_FEHLER.gross });
+  const roh = request.headers.get("content-length");
+  if (roh !== null && Number.isFinite(Number(roh)) && Number(roh) > LOGO_MAX_BYTES + MULTIPART_RAND) {
+    return antwort(413, { ok: false, fehler: LOGO_FEHLER.gross });
+  }
   let datei: FormDataEntryValue | null;
   try { datei = (await request.formData()).get("logo"); } catch { return antwort(400, { ok: false, fehler: "Die Anfrage ließ sich nicht lesen." }); }
   if (!(datei instanceof File)) return antwort(400, { ok: false, fehler: "Keine Datei erhalten." });
@@ -1700,8 +1705,9 @@ Expected (Stand der Planung): `rahmen.ts`, `rahmen.test.ts`, `Blatt.tsx`, `Blatt
     const logo = { href: "data:image/png;base64,iVBORw0KGgo=" };
     const mit = renderToStaticMarkup(<Blattansicht blatt={blatt} rahmen={{ ...rahmen, organisation: "Musterorganisation", logo }} symbole={{}} />);
     expect(mit).toMatch(/<text x="244"[^>]*data-organisation="">Musterorganisation/);
-    expect(mit).toMatch(/<use href="#kp-logo" x="247" y="8" data-logo=""\/>/);
-    expect(mit).toMatch(/<image id="kp-logo" width="40" height="11" preserveAspectRatio="xMaxYMid meet" href="data:image\/png;base64,iVBORw0KGgo="\/>/);
+    // renderToStaticMarkup schließt SVG-Elemente mit eigenem End-Tag (`<use …></use>`), nicht mit `/>` — deshalb `[^>]*>`.
+    expect(mit).toMatch(/<use href="#kp-logo" x="247" y="8" data-logo=""[^>]*>/);
+    expect(mit).toMatch(/<image id="kp-logo" width="40" height="11" preserveAspectRatio="xMaxYMid meet" href="data:image\/png;base64,iVBORw0KGgo="[^>]*>/);
   });
 ```
 
@@ -4840,8 +4846,11 @@ function AusBibliothek({ stelleId, aendere }: { stelleId: string; aendere: Aende
   const basis = useId();
   const { bib } = useBibliothek();
   const [meldung, setMeldung] = useState<string | null>(null);
+  // Nach jeder Wahl leer neu montiert (`key`): ein festes `value={null}` zeigte in antd je nach Fassung nicht den Platzhalter.
+  const [runde, setRunde] = useState(0);
   if (bib.stellen.length === 0) return null;
   const waehle = (id: string) => {
+    setRunde((n) => n + 1);
     const b = bib.stellen.find((x) => x.id === id);
     if (!b) return;
     const f = aendere((q) => uebernimmBibStelle(q, stelleId, b));
@@ -4850,7 +4859,7 @@ function AusBibliothek({ stelleId, aendere }: { stelleId: string; aendere: Aende
   return (
     <div className="kp-aus-bibliothek">
       <label className="kp-feldname" htmlFor={`${basis}-bib`}>Aus Bibliothek</label>
-      <Select id={`${basis}-bib`} value={null} placeholder="Stelle aus der Bibliothek suchen" onChange={waehle}
+      <Select key={runde} id={`${basis}-bib`} placeholder="Stelle aus der Bibliothek suchen" onChange={waehle}
         showSearch={{ filterOption: (eingabe, o) => passt(eingabe, [String(o?.label ?? "")]) }}
         options={bib.stellen.map((b) => ({ value: b.id, label: b.leiter ? `${b.titel} · ${b.leiter}` : b.titel }))} />
       {meldung ? <p className="kp-hilfe" role="status">{meldung}</p> : null}
@@ -5050,15 +5059,30 @@ describe("Bibliothek in der Gliederung (Entscheidung 14)", () => {
 `src/app/m/kommplan/_ui/gliederung/GliederungLast.test.tsx` anfügen:
 
 ```tsx
-  it("mit Bibliothek im Kontext: Tippen im Flyin rendert weiter nur die eine Zeile (Entscheidung 14)", async () => {
+  it("mit Bibliothek im Kontext: Tippen im Flyin rendert weiter nur die eine Zeile — auch die Kontext-Leser (Entscheidung 14)", async () => {
     const BIB = { stellen: Array.from({ length: 50 }, (_, i) => ({ id: `b${i}`, titel: `Bib ${i}`, zeichen: null, leiter: null, kontakte: [], notiz: null })), einheiten: [], verbindungen: [{ id: "bv", art: "dmo" as const, bezeichnung: "DMO 1", notiz: null }] };
     await mount(<BibliothekAnbieter start={BIB}><Pruefstand /></BibliothekAnbieter>);
     await act(async () => {});
     renders.n = 0;
+    renders.bib = 0;
     for (let i = 0; i < 5; i++) await act(async () => { query<HTMLButtonElement>("[data-flyin-tippen]").click(); });
     expect(renders.n).toBeLessThanOrEqual(5);
+    // Kontext-Leser: je Taste die Gliederung selbst und das Verbindungsfeld der geänderten Zeile — nicht 61 Felder.
+    expect(renders.bib).toBeLessThanOrEqual(10);
   });
 ```
+
+Dazu oben in der Datei `renders` um `bib: 0` erweitern und `useBibliothek` zählen, ohne den Kontext zu ersetzen:
+
+```tsx
+vi.mock("../editor/bibliothekKontext", async (orig) => {
+  const m = await orig<typeof import("../editor/bibliothekKontext")>();
+  return { ...m, useBibliothek: () => { renders.bib++; return m.useBibliothek(); } };
+});
+import { BibliothekAnbieter } from "../editor/bibliothekKontext";
+```
+
+(Jeder Leser — `Gliederung`, `VerbindungFeld`, `TitelVorschlaege`, `EinheitenListe` — ruft `useBibliothek`; der Zähler zählt also genau deren Renders. Gegenprobe: `BibliothekAnbieter` ohne `useMemo` — ein neuer Wert je Rendern — macht den Fall rot.)
 
 - [ ] **Step 2: Rot sehen**
 
@@ -5932,4 +5956,6 @@ Was sich erst am laufenden Code zeigt. Jede Zeile nennt die Aufgabe, in der die 
 1. **Volume `kommplan_scan` auf dem Zielhost** (Entscheidung 4): lokal und in der CI liest der Fake-clamd den Pfad selbst; ob das neue benannte Volume auf dem Server den Eigentümer aus dem Image übernimmt (Dockerfile `mkdir`/`chown`, wie `/data/files`) und clamd es lesen darf (gemeinsame gid, `SUITE_USER`), sieht erst der Rollout. Fehlt es, scheitert **jeder** Logo-Upload laut mit „Die Virenprüfung ist gerade nicht möglich" (fail-closed), sonst bleibt alles heil. Nach dem Rollout einmal ein Logo hochladen. Nebenbefund zur Prüfung: `aufgaben_data` wird im `Dockerfile` nicht angelegt — ob dort derselbe Eigentümer-Effekt greift, ist hier nicht geprüft (Ticketkandidat, falls der Rollout es bestätigt).
 2. **Entscheidung 7 bestätigen:** „Als Vorlage speichern" setzt `ist_vorlage` am Plan selbst (Spec §6.7 wörtlich); die Alternative „Kopie als Vorlage" ist eine Zeile in `planverwaltung.ts` plus Wortlaut in Oberfläche, Tests und Notiz.
 3. **Alt+Enter unter Windows** (Entscheidung 14) ist ungeprüft (hier läuft nur macOS), wie Alt+V/Alt+Z in Phase 3 (U16).
-4. **Keine Modulnavigation** (Entscheidung 1): Bibliothek, Einstellungen und Archiv hängen an Links im Seitenkopf der Planliste. Eine Seitenleiste wäre konsistenter mit anderen Verwaltungsmodulen, verkleinerte aber die Editorfläche bei 1024 px um 218 px und machte die Geometrie aus Phase 2/3 ungültig.
+4. **Kopfzeilen am Route Handler** (Entscheidung 3): die Herkunftsprüfung setzt voraus, dass hinter dem Reverse-Proxy `Origin` und `x-forwarded-host` (bzw. `host`) dieselbe Domain tragen; lokal und in der e2e ist das so, auf dem Zielhost unbelegt. Trifft es nicht zu, lehnt jeder Upload mit 403 ab (laut, nicht still). Nach dem Rollout einmal hochladen.
+5. **`<image>` per `<use>` aus einem anderen Inline-SVG im Druck** (Entscheidung 6): dass `<use>` über SVG-Grenzen eines Dokuments trägt, belegen bisher nur `<symbol>`s; für ein `<image>` mit `data:`-URI im Chrome-Druck/„Als PDF sichern" belegt es erst die Sichtprüfung (Task 24, Foto `druck-logo-…`) bzw. ein Blick ins PDF. Trägt es nicht, je Blatt ein eigenes `<image>` (Größe × Blattzahl) oder das Logo in `<defs>` jedes Blatts — Entscheidung im Befund.
+6. **Keine Modulnavigation** (Entscheidung 1): Bibliothek, Einstellungen und Archiv hängen an Links im Seitenkopf der Planliste. Eine Seitenleiste wäre konsistenter mit anderen Verwaltungsmodulen, verkleinerte aber die Editorfläche bei 1024 px um 218 px und machte die Geometrie aus Phase 2/3 ungültig.
