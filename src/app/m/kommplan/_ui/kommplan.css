@@ -194,6 +194,7 @@
 .kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
 
 @media (max-width: 767.98px) {
+  .kp-bib-werkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne
      diese Regel bliebe auch das Raster darin schmal (Gegenstück zur Regel für .kp-kopfwerkzeuge im Editor). */
   div:has(> .kp-kopfaktionen) { flex: 1 1 100%; }
@@ -255,3 +256,9 @@
 /* Planliste (Phase 4): Rückmeldung nach einer Aktion, mit „Rückgängig“ nach dem Archivieren. */
 .kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
 .kp-archivhinweis { margin-block-end: 12px; }
+/* Bibliothek (Phase 4, Entscheidung 11). */
+.kp-bib-werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
+.kp-bib-werkzeuge > .kp-hilfe { flex: 1 1 100%; margin: 0; }
+.kp-bib-bereich { display: grid; gap: 8px; }
+/* Ein Titel als Link-Knopf in der Zelle: Text bricht um statt die Spalte zu sprengen. */
+.kp-bib-bereich .kp-zeilenlink { padding-inline: 0; height: auto; white-space: normal; text-align: start; }
