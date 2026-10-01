@@ -171,6 +171,23 @@ describe("Bibliothek — Bearbeiten speichert unter derselben ID, je Bereich (Re
   });
 });
 
+describe("Bibliothek — Fokus nach dem Flyin (Review Phase 4)", () => {
+  it("Abbrechen und Speichern geben den Fokus an „Neue …“ zurück, nicht an body", async () => {
+    aktion.verbindung.mockResolvedValue({ ok: true, eintrag: { id: "v2", art: "tmo", bezeichnung: "R_UE_9", notiz: null } });
+    await zeige();
+    await clickElement(knopf("Verbindungen (1)"));
+    await clickElement(knopf("Neue Verbindung"));
+    await clickElement(knopf("Abbrechen"));
+    await abwarten();
+    expect(document.activeElement).toBe(knopf("Neue Verbindung"));
+    await clickElement(knopf("Neue Verbindung"));
+    await fillPortal('.kp-flyin input[name="bezeichnung"]', "R_UE_9");
+    await submitPortal('.kp-flyin form[aria-label="Verbindung der Bibliothek"]');
+    await abwarten();
+    expect(document.activeElement).toBe(knopf("Neue Verbindung"));
+  });
+});
+
 describe("Bibliothek — Verbindungen (Review Phase 4: bisher nur die Zahl am Reiter geprüft)", () => {
   it("anlegen mit gewählter Art", async () => {
     aktion.verbindung.mockResolvedValue({ ok: true, eintrag: { id: "v2", art: "dmo", bezeichnung: "DMO 608", notiz: null } });

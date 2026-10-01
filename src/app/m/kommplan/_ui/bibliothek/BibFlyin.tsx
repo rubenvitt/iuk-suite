@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent, ReactNode } from "react";
+import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { Alert, Button, Drawer, Popconfirm } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 
@@ -37,6 +37,23 @@ export function BibFlyin({ offen, titel, formName, fehler, laeuft, onSchliessen,
       ) : null}
     </Drawer>
   );
+}
+
+/**
+ * Nach dem Schließen des Flyins (Esc, Abbrechen, Speichern, Löschen) den Fokus auf „Neue …“ — sonst fiel er auf
+ * `body`, und wer per Tastatur arbeitet, begann am Seitenanfang (Review Phase 4). Das Flyin ist je Eintrag gekeyt
+ * und schließt deshalb ohne `afterOpenChange`; der Bereich merkt den Übergang offen → zu selbst.
+ */
+export function useFokusNachFlyin(offen: boolean) {
+  const ziel = useRef<HTMLButtonElement>(null);
+  const war = useRef(false);
+  useEffect(() => {
+    if (offen) { war.current = true; return; }
+    if (!war.current) return;
+    war.current = false;
+    ziel.current?.focus();
+  }, [offen]);
+  return ziel;
 }
 
 /** Feldfehler am Feld (docs/design/feedback-admin.md 4.4): Text plus `aria-invalid`/`aria-describedby`, nie rot. */

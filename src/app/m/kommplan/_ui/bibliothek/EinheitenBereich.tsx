@@ -12,7 +12,7 @@ import { LAENGE } from "../../_lib/plan/schema";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { ZeichenWahl } from "../editor/ZeichenWahl";
 import type { Symbolsatz } from "../zeichnung/Symbole";
-import { BibFlyin, feldHilfe } from "./BibFlyin";
+import { BibFlyin, feldHilfe, useFokusNachFlyin } from "./BibFlyin";
 import { ImportVorschau } from "./ImportVorschau";
 
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
@@ -27,6 +27,7 @@ export function EinheitenBereich({ einheiten, zeichenIndex, symbole, ladeSymbole
   const router = useRouter();
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<BibEinheit | "neu" | null>(null);
+  const neuKnopf = useFokusNachFlyin(offen !== null);
   const [meldung, setMeldung] = useState<string | null>(null);
   /** Zählt „Speichern und nächste": jede Runde montiert ein leeres Formular neu (Fokus wieder im ersten Feld). */
   const [runde, setRunde] = useState(0);
@@ -64,7 +65,7 @@ export function EinheitenBereich({ einheiten, zeichenIndex, symbole, ladeSymbole
     <section aria-label="Einheiten der Bibliothek" className="kp-bib-bereich">
       <div className="kp-bib-werkzeuge">
         <Input className="kp-bib-suche" aria-label="Einheiten suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
-        <Button type="primary" onClick={() => setOffen("neu")}>Neue Einheit</Button>
+        <Button ref={neuKnopf} type="primary" onClick={() => setOffen("neu")}>Neue Einheit</Button>
         <Button onClick={() => setListe("")}>Liste einfügen</Button>
         <Button onClick={() => csv.current?.click()}>CSV importieren</Button>
         <input ref={csv} className="kp-dateifeld" type="file" name="csv" accept=".csv,text/csv,text/plain" tabIndex={-1} aria-hidden="true"

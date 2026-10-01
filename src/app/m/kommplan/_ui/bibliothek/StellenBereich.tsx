@@ -12,7 +12,7 @@ import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { KontaktZeilen } from "../editor/KontaktZeilen";
 import { ZeichenWahl } from "../editor/ZeichenWahl";
 import type { Symbolsatz } from "../zeichnung/Symbole";
-import { BibFlyin, feldHilfe } from "./BibFlyin";
+import { BibFlyin, feldHilfe, useFokusNachFlyin } from "./BibFlyin";
 
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
@@ -22,6 +22,7 @@ export function StellenBereich({ stellen, zeichenIndex, symbole, ladeSymbole }: 
   const router = useRouter();
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<BibStelle | "neu" | null>(null);
+  const neuKnopf = useFokusNachFlyin(offen !== null);
   const [meldung, setMeldung] = useState<string | null>(null);
   /** Zählt „Speichern und nächste": jede Runde montiert ein leeres Formular neu (Fokus wieder im Titel). */
   const [runde, setRunde] = useState(0);
@@ -40,7 +41,7 @@ export function StellenBereich({ stellen, zeichenIndex, symbole, ladeSymbole }: 
     <section aria-label="Stellen der Bibliothek" className="kp-bib-bereich">
       <div className="kp-bib-werkzeuge">
         <Input className="kp-bib-suche" aria-label="Stellen suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
-        <Button type="primary" onClick={() => setOffen("neu")}>Neue Stelle</Button>
+        <Button ref={neuKnopf} type="primary" onClick={() => setOffen("neu")}>Neue Stelle</Button>
       </div>
       {meldung ? <p className="kp-hinweis" role="status">{meldung}</p> : null}
       <Kartentabelle<BibStelle> aria-label="Stellen" rowKey="id" dataSource={sichtbar} columns={spalten}

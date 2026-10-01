@@ -75,6 +75,7 @@ describe("PlanTabelle", () => {
     await clickElement(knopf("Archivieren"));
     await abwarten();
     expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("„Einsatz“ archiviert.");
+    expect(document.activeElement).toBe(knopf("Rückgängig")); // die Zeile ist weg: der Fokus steht im Hinweis, nicht auf body
     await clickElement(knopf("Rückgängig"));
     await abwarten();
     expect(aktion.wiederher).toHaveBeenCalledWith("p1");
@@ -104,6 +105,7 @@ describe("PlanTabelle", () => {
     await abwarten();
     expect(aktion.vorlage).toHaveBeenCalledWith({ id: "p2", vorlage: false });
     expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("„Label“ steht wieder unter „Pläne“.");
+    expect(document.activeElement).toBe(query(".kp-listenhinweis"));
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });
   it("„Rückgängig“ nach dem Archivieren: ein Doppelklick schickt EINE Wiederherstellung (sonst „gibt es nicht mehr“ über dem Erfolg)", async () => {

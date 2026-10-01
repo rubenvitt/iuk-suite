@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Drawer, Dropdown, type MenuProps, type TableProps } from "antd";
+import { Button, Drawer, Dropdown, type InputRef, type MenuProps, type TableProps } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 import { Kartentabelle, nachText } from "@/core/tabelle";
 import { archiviereAction, dupliziereAction, setzeVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
@@ -25,7 +25,8 @@ const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
   archiv: [{ key: "wiederherstellen", label: "Wiederherstellen" }],
 };
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
-interface Hinweis { text: string; zurueck?: string }
+/** `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body). */
+interface Hinweis { text: string; zurueck?: string; fokus?: boolean }
 
 /**
  * DIE DREI LISTEN DER PLANLISTE (Spec §6.1, §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10).
@@ -42,6 +43,11 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
   /** Dieselbe Sperre synchron: ein Menü im Portal kann noch den Rückruf des vorigen Renders tragen (Doppelklick). */
   const sperre = useRef<string | null>(null);
   const setzeLauf = (id: string | null) => { sperre.current = id; setLaeuft(id); };
+  const hinweisRef = useRef<HTMLParagraphElement>(null);
+  const zurueckRef = useRef<HTMLButtonElement>(null);
+  const titelRef = useRef<InputRef>(null);
+  // Nach Archivieren auf „Rückgängig“, sonst auf die Meldung selbst (Review Phase 4).
+  useEffect(() => { if (hinweis?.fokus) (zurueckRef.current ?? hinweisRef.current)?.focus(); }, [hinweis]);
 
   async function fuehreAus(z: Listenzeile, a: Aktion) {
     if (a === "ausVorlage") { setAusVorlage(z.id); return; }
@@ -63,10 +69,10 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     };
     const r = await lauf[a]().catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
     setzeLauf(null);
-    if (!r.ok) { setHinweis({ text: r.fehler }); return; }
+    if (!r.ok) { setHinweis({ text: r.fehler, fokus: true }); return; }
     const text = { vorlage: `„${z.titel}“ steht jetzt unter „Vorlagen“.`, keineVorlage: `„${z.titel}“ steht wieder unter „Pläne“.`,
       archivieren: `„${z.titel}“ archiviert.`, wiederherstellen: `„${z.titel}“ wiederhergestellt.` }[a];
-    setHinweis({ text, zurueck: a === "archivieren" ? z.id : undefined });
+    setHinweis({ text, zurueck: a === "archivieren" ? z.id : undefined, fokus: true });
     router.refresh();
   }
   /** „Rückgängig" nach dem Archivieren — unter derselben Sperre wie das Menü: ein Doppelklick schickte sonst eine zweite
@@ -76,7 +82,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     setzeLauf(id);
     const r = await stelleWiederHerAction(id).catch((): EinfachErgebnis => ({ ok: false, fehler: NETZ }));
     setzeLauf(null);
-    setHinweis(r.ok ? { text: "Wiederhergestellt." } : { text: r.fehler });
+    setHinweis(r.ok ? { text: "Wiederhergestellt.", fokus: true } : { text: r.fehler, fokus: true });
     if (r.ok) router.refresh();
   }
 
@@ -106,9 +112,9 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
   return (
     <>
       {hinweis ? (
-        <p className="kp-listenhinweis" role="status">
+        <p ref={hinweisRef} className="kp-listenhinweis" role="status" tabIndex={-1}>
           {hinweis.text}
-          {hinweis.zurueck ? <Button onClick={() => void zurueck(hinweis.zurueck!)} loading={laeuft === hinweis.zurueck}>Rückgängig</Button> : null}
+          {hinweis.zurueck ? <Button ref={zurueckRef} onClick={() => void zurueck(hinweis.zurueck!)} loading={laeuft === hinweis.zurueck}>Rückgängig</Button> : null}
         </p>
       ) : null}
       <Kartentabelle<Listenzeile>
@@ -116,8 +122,10 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
         leer={{ nichts: LEER[liste] }} karte={{ titel: "titel", kennzeichen: ["kennzeichen"] }}
       />
       {liste === "vorlagen" ? (
-        <Drawer open={vorlage !== undefined} onClose={() => setAusVorlage(null)} title="Neuer Plan aus Vorlage" size={flyinBreite(480)} destroyOnHidden>
-          {vorlage ? <NeuerPlanFormular vorlagen={vorlagen} startVorlage={vorlage.id} heute={heute} onAngelegt={(id) => router.push(`/p/${id}`)} onAbbrechen={() => setAusVorlage(null)} /> : null}
+        // Fokus ins Titelfeld wie bei „Neu“ (NeuerPlan.tsx, afterOpenChange) — vorher blieb er am Container (Review Phase 4).
+        <Drawer open={vorlage !== undefined} onClose={() => setAusVorlage(null)} title="Neuer Plan aus Vorlage" size={flyinBreite(480)} destroyOnHidden
+          afterOpenChange={(auf) => { if (auf) titelRef.current?.focus(); }}>
+          {vorlage ? <NeuerPlanFormular titelRef={titelRef} vorlagen={vorlagen} startVorlage={vorlage.id} heute={heute} onAngelegt={(id) => router.push(`/p/${id}`)} onAbbrechen={() => setAusVorlage(null)} /> : null}
         </Drawer>
       ) : null}
     </>

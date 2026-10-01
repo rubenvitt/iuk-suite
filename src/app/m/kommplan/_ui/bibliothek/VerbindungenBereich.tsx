@@ -7,7 +7,7 @@ import { Kartentabelle, nachText, Zellentext } from "@/core/tabelle";
 import { loescheBibEintragAction, speichereBibVerbindungAction } from "../../_actions/bibliothek";
 import { passt, type BibVerbindung } from "../../_lib/bibliothek/typen";
 import { ART_NAME, LAENGE, VERBINDUNGS_ARTEN, type VerbindungsArt } from "../../_lib/plan/schema";
-import { BibFlyin, feldHilfe } from "./BibFlyin";
+import { BibFlyin, feldHilfe, useFokusNachFlyin } from "./BibFlyin";
 
 const NETZ = "Das ging nicht durch. Prüfe die Verbindung und versuche es noch einmal.";
 
@@ -16,6 +16,7 @@ export function VerbindungenBereich({ verbindungen }: { verbindungen: BibVerbind
   const router = useRouter();
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<BibVerbindung | "neu" | null>(null);
+  const neuKnopf = useFokusNachFlyin(offen !== null);
   const [meldung, setMeldung] = useState<string | null>(null);
   /** Zählt „Speichern und nächste": jede Runde montiert ein leeres Formular neu (Fokus wieder im ersten Feld). */
   const [runde, setRunde] = useState(0);
@@ -30,7 +31,7 @@ export function VerbindungenBereich({ verbindungen }: { verbindungen: BibVerbind
     <section aria-label="Verbindungen der Bibliothek" className="kp-bib-bereich">
       <div className="kp-bib-werkzeuge">
         <Input className="kp-bib-suche" aria-label="Verbindungen suchen" placeholder="Suchen" allowClear value={suche} onChange={(e) => setSuche(e.target.value)} />
-        <Button type="primary" onClick={() => setOffen("neu")}>Neue Verbindung</Button>
+        <Button ref={neuKnopf} type="primary" onClick={() => setOffen("neu")}>Neue Verbindung</Button>
       </div>
       {meldung ? <p className="kp-hinweis" role="status">{meldung}</p> : null}
       <Kartentabelle<BibVerbindung> aria-label="Verbindungen" rowKey="id" dataSource={sichtbar} columns={spalten}
