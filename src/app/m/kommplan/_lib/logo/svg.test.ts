@@ -63,6 +63,15 @@ describe("bereinigeSvg — was gefährlich ist, fällt", () => {
     }
     expect(gut(svg(`${RECT}<rect width="1" height="1" style="fill:\\75 rl(x);stroke:#000"/>`))).toContain('style="stroke:#000"');
   });
+  it("javascript: in einer Deklaration, fremder Namensraum, Attributselektor im <style>: fallen", () => {
+    expect(gut(svg(`<rect width="10" height="10" style="fill:javascript:alert(1);stroke:#000"/>`))).not.toContain("javascript");
+    expect(gut(svg(`<style>.a{fill:java\tscript:alert(1)}.b{fill:#000}</style>${RECT}`))).not.toMatch(/java/);
+    const ns = gut(svg(`<g xmlns="http://evil.example/ns">${RECT}</g>`));
+    expect(ns).not.toContain("evil");
+    const sel = gut(svg(`<style>image[href]{fill:#000}.a{fill:#e30613}</style>${RECT}`));
+    expect(sel).not.toContain("[href]");
+    expect(sel).toContain(".a{fill:#e30613}");
+  });
   it("javascript: mit Steuerzeichen dazwischen: das Attribut fällt ganz, nicht nur das Wort", () => {
     const aus = gut(svg(`<rect width="10" height="10" fill="java&#9;scr&#10;ipt:alert(1)"/>`));
     expect(aus).not.toContain("alert");

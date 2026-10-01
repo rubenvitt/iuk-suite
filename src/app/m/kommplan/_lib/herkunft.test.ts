@@ -12,5 +12,8 @@ describe("gleicheHerkunft — der CSRF-Riegel der Route Handler (Entscheidung 3)
     expect(gleicheHerkunft(h({ host: "kommplan.iuk-ue.de" }))).toBe(false);
     expect(gleicheHerkunft(h({ origin: "null", host: "kommplan.iuk-ue.de" }))).toBe(false);
     expect(gleicheHerkunft(h({ origin: "https://kommplan.iuk-ue.de" }))).toBe(false);
+    // gleicher Hostname, anderer Port: ein anderer Origin (Review Phase 4)
+    expect(gleicheHerkunft(h({ origin: "http://kommplan.localtest.me:3101", host: "kommplan.localtest.me:3100" }))).toBe(false);
+    expect(gleicheHerkunft(h({ origin: "http://kommplan.localtest.me", host: "kommplan.localtest.me:3100" }))).toBe(false);
   });
 });

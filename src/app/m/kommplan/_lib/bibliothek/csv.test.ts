@@ -13,13 +13,17 @@ describe("dekodiereText — Excel speichert deutsche CSV als Windows-1252", () =
 
 describe("leseCsv — Semikolon, Anführungszeichen, Zeilenenden", () => {
   it("Felder in Anführungszeichen mit ; und \"\", CRLF und CR, Startzeile je Datensatz", () => {
-    const r = leseCsv('Typ;Rufname;Notiz\r\nRTW;"RK UE; 40-83-5";"sagt ""hallo"""\rKTW;"zwei\nZeilen";x\n');
+    const r = leseCsv('Typ;Rufname;Notiz\r\nRTW;"RK UE; 40-83-5";"sagt ""hallo"""\rKTW;"zwei\nZeilen";x\nNEF;RK 3;\n');
     expect(r.fehler).toBeNull();
     expect(r.saetze).toEqual([
       { zeile: 1, felder: ["Typ", "Rufname", "Notiz"] },
       { zeile: 2, felder: ["RTW", "RK UE; 40-83-5", 'sagt "hallo"'] },
       { zeile: 3, felder: ["KTW", "zwei\nZeilen", "x"] },
+      { zeile: 5, felder: ["NEF", "RK 3", ""] }, // der Umbruch IM Feld zählt mit (Review Phase 4)
     ]);
+  });
+  it("ein Anführungszeichen MITTEN im Feld ist Text, kein Feldanfang", () => {
+    expect(leseCsv('RTW;RK "Nord" 1;x').saetze).toEqual([{ zeile: 1, felder: ["RTW", 'RK "Nord" 1', "x"] }]);
   });
   it("ein nicht geschlossenes Anführungszeichen ist ein Fehler mit Zeile", () => {
     expect(leseCsv('RTW;"offen\nKTW;x').fehler).toBe("Zeile 1: Ein Anführungszeichen wird nicht geschlossen.");
@@ -38,6 +42,8 @@ describe("leseEinheitenCsv — Typ;Rufname[;Notiz] (Entscheidung 12)", () => {
   });
   it("ohne Kopfzeile ist die erste Zeile Daten", () => {
     expect(leseEinheitenCsv("RTW;RK 1").zeilen).toEqual([{ zeile: 1, typ: "RTW", rufname: "RK 1", notiz: null }]);
+    // Kopfzeile nur, wenn BEIDE Spalten so heißen — „Typ“ allein in Spalte 1 ist kein Beleg
+    expect(leseEinheitenCsv("Typ;RK 1").zeilen).toEqual([{ zeile: 1, typ: "Typ", rufname: "RK 1", notiz: null }]);
   });
   it("Fehler je Zeile: vier Spalten mit Inhalt, Rufname fehlt (Komma statt Semikolon), Typ fehlt, zu lang", () => {
     const r = leseEinheitenCsv(`RTW;RK 1;a;b\nKTW,RK 2\n;RK 3\nRTW;${"x".repeat(81)}`);

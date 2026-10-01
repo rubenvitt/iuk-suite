@@ -47,6 +47,32 @@ describe("Duplizieren (Spec §6.7; Entscheidung 9)", () => {
   });
 });
 
+describe("Planverwaltung — Grenzfälle (Review Phase 4)", () => {
+  it("die Kopie einer Vorlage ist ein Plan, keine zweite Vorlage", async () => {
+    const db = await mitSeed();
+    setzeVorlage(db, OPENR, true);
+    const r = dupliziere(db, OPENR, WER, NACH_MITTERNACHT);
+    if (!r.ok) throw new Error(r.fehler);
+    expect(ladePlanLesend(db, r.id)).toMatchObject({ istVorlage: false });
+  });
+  it("ein archivierter Plan wird nicht zur Vorlage (und nicht zurück)", async () => {
+    const db = await mitSeed();
+    archiviere(db, OPENR, NACH_MITTERNACHT);
+    expect(setzeVorlage(db, OPENR, true)).toEqual({ ok: false, fehler: PLAN_WEG });
+    expect(ladePlanLesend(db, OPENR)).toMatchObject({ istVorlage: false });
+  });
+  it("das Archiv ordnet nach dem Archivzeitpunkt (zuletzt archiviert zuerst), nicht nach dem Stand", async () => {
+    const db = await mitSeed();
+    const [a, b] = BEISPIELE.map((x) => x.id).filter((id) => id !== OPENR).slice(0, 2);
+    // a hat den jüngeren Stand, wird aber ZUERST archiviert
+    db.update(plan).set({ aktualisiertAm: new Date(NACH_MITTERNACHT) }).where(eq(plan.id, a)).run();
+    db.update(plan).set({ aktualisiertAm: new Date(NACH_MITTERNACHT - 86_400_000) }).where(eq(plan.id, b)).run();
+    archiviere(db, a, NACH_MITTERNACHT + 1000);
+    archiviere(db, b, NACH_MITTERNACHT + 2000);
+    expect(listePlaene(db, "archiv").map((z) => z.id)).toEqual([b, a]);
+  });
+});
+
 describe("Vorlagen (Entscheidungen 7, 8)", () => {
   it("„Als Vorlage speichern“ verschiebt den Plan in die Vorlagen, „Keine Vorlage mehr“ zurück", async () => {
     const db = await mitSeed();

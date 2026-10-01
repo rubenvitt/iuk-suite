@@ -73,6 +73,19 @@ describe("Bibliothek in der Datenbank (Spec §4.3; Entscheidung 11)", () => {
     expect(r).toEqual({ ok: true, angelegt: 1, uebersprungen: 2, eintraege: [expect.objectContaining({ art: "dmo", bezeichnung: "R_UE_1", notiz: null })] });
     expect(importiereBibVerbindungen(db, [{ art: "funk", bezeichnung: "X" }])).toMatchObject({ ok: false });
   });
+  it("Grenze 2000 Einheiten: weder einzeln noch per Import darüber; Ändern bleibt möglich (Review Phase 4)", () => {
+    const db = testDb();
+    for (let block = 0; block < 4; block++) {
+      expect(importiereBibEinheiten(db, Array.from({ length: 500 }, (_, i) => ({ typ: "KTW", rufname: `K ${block}-${i}`, notiz: null })))).toMatchObject({ ok: true, angelegt: 500 });
+    }
+    expect(ladeBibliothek(db).einheiten).toHaveLength(BIB_GRENZE.eintraege);
+    const zuViele = { ok: false, fehler: `Höchstens ${BIB_GRENZE.eintraege} Einheiten in der Bibliothek.` };
+    expect(speichereBibEinheit(db, { id: null, typ: "RTW", rufname: "Einer zu viel", zeichen: null, notiz: null })).toEqual(zuViele);
+    expect(importiereBibEinheiten(db, [{ typ: "RTW", rufname: "Einer zu viel", notiz: null }])).toEqual(zuViele);
+    const erste = ladeBibliothek(db).einheiten[0];
+    expect(speichereBibEinheit(db, { ...erste, notiz: "geändert" })).toMatchObject({ ok: true });
+    expect(ladeBibliothek(db).einheiten).toHaveLength(BIB_GRENZE.eintraege);
+  });
   it("Import: leer, über 500 Zeilen oder mit ungültiger Zeile — nichts angelegt, Meldung mit Zeilennummer", () => {
     const db = testDb();
     expect(importiereBibEinheiten(db, [])).toEqual({ ok: false, fehler: "Die Liste ist leer." });

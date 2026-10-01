@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { queryAuditEvents } from "@/core/audit/storage";
 import type { AvErgebnis } from "@/core/av/scanner";
 import { migrateAllModules } from "@/core/bootstrap";
+import { LOGO_FEHLER } from "../_lib/logo/logoTyp";
 
 const DIR = "./.data/kommplan-logo-route-test";
 let gruppen: string[] | null = null;
@@ -63,6 +64,15 @@ describe("POST /logo", () => {
     const kopf = new Headers(mit.headers); kopf.delete("content-length");
     const ohne = new Request(mit.url, { method: "POST", headers: kopf, body: await mit.arrayBuffer() });
     expect((await POST(ohne)).status).toBe(200);
+    // … und eine zu große Datei ohne Längenangabe fällt an den gelesenen Bytes, nicht erst gar nicht (Review Phase 4)
+    const gross = new Uint8Array(1024 * 1024 + 1); gross.set(PNG);
+    const mitGross = await anfrage(new Blob([gross]));
+    const kopfGross = new Headers(mitGross.headers); kopfGross.delete("content-length");
+    const antwort = await POST(new Request(mitGross.url, { method: "POST", headers: kopfGross, body: await mitGross.arrayBuffer() }));
+    expect(antwort.status).toBe(422);
+    expect(await antwort.json()).toEqual({ ok: false, fehler: LOGO_FEHLER.gross });
+    expect(scans).toBe(1); // nur die kleine Datei oben wurde gescannt
+    expect(await logo()).toMatchObject({ bytes: PNG.length });
   });
   it("Typ aus den Bytes: ein PNG namens logo.svg mit Content-Type text/plain wird als PNG gespeichert", async () => {
     const { POST } = await import("./route");

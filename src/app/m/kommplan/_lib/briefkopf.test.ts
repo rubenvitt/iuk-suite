@@ -44,6 +44,16 @@ describe("Briefkopf (Spec §4.4)", () => {
     expect(gespeichert).toContain("<rect");
     expect(gespeichert).not.toMatch(/script|onload/);
   });
+  it("ein SVG unter 1 MB, das durch die Bereinigung darüber wächst (&quot;), wird abgelehnt (Review Phase 4)", async () => {
+    const db = testDb();
+    const kopf = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" class=\'';
+    const fuss = "'/></svg>";
+    const quoten = 1024 * 1024 - kopf.length - fuss.length; // genau 1 MB vor der Bereinigung; jedes " wird zu &quot;
+    const svg = new TextEncoder().encode(kopf + '"'.repeat(quoten) + fuss);
+    expect(svg.length).toBe(1024 * 1024);
+    expect(await speichereLogo(db, svg, WER, T, sauber)).toEqual({ ok: false, fehler: LOGO_MELDUNG.grossNachBereinigung });
+    expect(ladeBriefkopf(db).logo).toBeNull();
+  });
   it("Befund und Scanfehler lehnen ab — nichts gespeichert (fail-closed)", async () => {
     const db = testDb();
     expect(await speichereLogo(db, PNG, WER, T, async () => ({ art: "infected", signatur: "Eicar" }))).toEqual({ ok: false, fehler: LOGO_MELDUNG.befund });
