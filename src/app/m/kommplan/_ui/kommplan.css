@@ -211,15 +211,15 @@
 .kp-einstellungen { max-width: 40rem; }
 /* Planliste (Phase 4): Rückmeldung nach einer Aktion, mit „Rückgängig“ nach dem Archivieren. */
 .kp-listenhinweis { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
-.kp-archivhinweis { margin-block-end: 12px; }
 /* Bibliothek (Phase 4, Entscheidung 11). */
 .kp-bib-werkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-block-end: 8px; }
 .kp-bib-werkzeuge > .kp-hilfe { flex: 1 1 100%; margin: 0; }
 /* Das Suchfeld nimmt ab 768 px nicht die ganze Zeile: „Neue …“ steht daneben (eine Klasse mehr als antds Wrapper, Falle 5). */
 .kp-bib-werkzeuge > .kp-bib-suche { flex: 0 1 24rem; width: auto; }
 .kp-bib-bereich { display: grid; gap: 8px; }
-/* Ein Titel als Link-Knopf in der Zelle: Text bricht um statt die Spalte zu sprengen. */
-.kp-bib-bereich .kp-zeilenlink { padding-inline: 0; height: auto; white-space: normal; text-align: start; }
+/* Ein Titel als Link-Knopf in der Zelle: Text bricht um statt die Spalte zu sprengen. `height: auto` allein schrumpfte
+   ihn auf die Textzeile (antd 6: buttonPaddingVertical 0) — er ist der einzige Weg ins Bearbeiten, also 44 px (Falle 4). */
+.kp-bib-bereich .kp-zeilenlink { padding-inline: 0; padding-block: 4px; height: auto; min-height: 44px; min-width: 44px; justify-content: flex-start; white-space: normal; text-align: start; }
 /* Bibliothek im Flyin (Phase 4, Entscheidung 13). Eigene Klassen, nie `kp-zeile` (dessen Raster in der Gliederung dreispaltig ist). */
 .kp-aus-bibliothek { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
 /* Auswahl und „Hinzufügen" nebeneinander, bei Platzmangel umbrechend — per flex-wrap, nicht per @media (Falle 13). */
@@ -233,14 +233,14 @@
  */
 .kp-g-vorschlaege { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; overflow-x: auto; overscroll-behavior-x: contain; padding: 4px 8px; min-height: 52px; box-sizing: border-box; }
 .kp-g-vorschlaege > * { flex: none; }
-
-/* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
-   Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
-   einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
 /* Seitenkopf der Planliste (Phase 4, Entscheidung 1): „Neu" und die Wege zu Bibliothek, Einstellungen, Archiv. */
 .kp-kopfaktionen { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .kp-kopfaktionen > a { min-height: 44px; display: inline-flex; align-items: center; }
 .kp-abschnittstitel { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+
+/* Unter 768 px: Handlungsknöpfe volle Breite und untereinander (docs/design/README.md, Mobil). Die
+   Kopfleiste wird dadurch so hoch, dass die Fläche mit ihrer Mindesthöhe unter den Bildrand reicht;
+   einen neuen Hinweis holt der Editor deshalb ins Bild (`scrollIntoView`, Editor.tsx). */
 
 @media (max-width: 767.98px) {
   .kp-auswahl-name { display: none; }

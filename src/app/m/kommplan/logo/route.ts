@@ -12,12 +12,12 @@ import { bearbeiterAus, requireKommplanBearbeitenAktion, type Viewer } from "../
  * suiteweit ist (Vorbild `aufgaben/a/[id]/nachweis/hochladen/route.ts`).
  *
  * DER RIEGEL STEHT HIER (Route Handler haben kein Layout darüber; `riegel.test.ts` hält ihn): Host,
- * Anmeldung und Bearbeitungsrecht über `requireKommplanBearbeitenAktion` — ihr Wurf wird ein 404, damit
- * die Route sich nicht verrät —, dann die gleiche Herkunft (Nexts CSRF-Prüfung gilt nur für Actions), dann
+ * Anmeldung und Bearbeitungsrecht über `requireKommplanBearbeitenAktion` — ein POST ohne Recht wird ein 404 (jede
+ * andere Methode beantwortet Next mit 405, auch anonym: der Pfad ist ohnehin bekannt, und der e2e-Warmlauf baut darauf,
+ * Falle 10) —, dann die gleiche Herkunft (Nexts CSRF-Prüfung gilt nur für Actions), dann
  * früh die `content-length`: ohne den 1-MB-Deckel der Actions ist sie die einzige Bremse gegen eine Anfrage,
- * die absichtlich Gigabytes puffern lässt. Fehlt die Angabe (HTTP/2, ein Proxy mit chunked body), wird gelesen —
- * wie in `aufgaben` (`inhaltZuGross`); die maßgebliche Größenprüfung bleibt `pruefeLogoDatei` an den tatsächlich
- * gelesenen Bytes. `MULTIPART_RAND` ist keine zweite Grenze, nur Platz für den Rahmen.
+ * die absichtlich Gigabytes puffern lässt. Fehlt die Angabe (HTTP/2, chunked body), wird gelesen — wie in `aufgaben`
+ * (`inhaltZuGross`); maßgeblich bleibt `pruefeLogoDatei` an den gelesenen Bytes. `MULTIPART_RAND` ist nur Platz für den Rahmen.
  */
 const KOPF = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } as const;
 const MULTIPART_RAND = 16 * 1024;

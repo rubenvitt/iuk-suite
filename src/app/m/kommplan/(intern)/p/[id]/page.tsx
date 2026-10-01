@@ -57,7 +57,7 @@ export default async function PlanAnsicht({ params, searchParams }: {
         aktionen={plan.inhalt ? <Link href={`/p/${plan.id}/druck/a4`} target="_blank">Drucken (A4 quer)</Link> : undefined}
       />
       {plan.archiviertAm !== null ? (
-        <Card className="kp-archivhinweis" role="status" styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}>
+        <Card className="kp-archivhinweis" role="status" style={{ marginBlockEnd: 12 }} styles={{ body: { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } }}>
           {`Archiviert am ${archivTag(plan.archiviertAm)} — nur lesbar.`}
           {darf ? <Wiederherstellen id={plan.id} /> : null}
         </Card>
