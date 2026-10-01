@@ -23,7 +23,7 @@ export default async function Planliste() {
   const heute = heuteIso(new Date().getTime());
   return (
     <Huelle>
-      <Seitenkopf titel="Kommunikationspläne" beschreibung="Pläne und Fernmeldeskizzen deiner Einsätze. Öffne einen Plan, um ihn anzusehen, zu bearbeiten oder auf A4 zu drucken."
+      <Seitenkopf titel="Kommunikationspläne" beschreibung="Pläne und Fernmeldeskizzen deiner Einsätze. Öffne einen Plan, um ihn anzusehen, zu bearbeiten oder zu drucken."
         aktionen={
           <div className="kp-kopfaktionen">
             {darf ? <NeuerPlan vorlagen={vorlagen} heute={heute} /> : null}
