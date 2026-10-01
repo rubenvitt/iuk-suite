@@ -248,3 +248,7 @@
   .kp-g-liste .kp-g-haupt .kp-g-titel { flex-basis: 6rem; }
   .kp-g-liste .kp-g-neben { order: 1; flex: 1 1 100%; }
 }
+/* Einstellungen (Phase 4): der Kopf in Seitenbreite, Papier auch im Dunkeln; das Dateifeld ist nur Mittel zum Zweck. */
+.kp-kopfvorschau { display: block; width: 100%; height: auto; border: 1px solid var(--kp-rand); border-radius: 4px; }
+.kp-dateifeld { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.kp-einstellungen { max-width: 40rem; }
