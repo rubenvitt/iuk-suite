@@ -14,6 +14,7 @@ export const PLAN_TYPEN = ["kommunikationsplan", "fernmeldeskizze"] as const;
 export type PlanTyp = (typeof PLAN_TYPEN)[number];
 export const TYP_NAME: Record<PlanTyp, string> = { kommunikationsplan: "Kommunikationsplan", fernmeldeskizze: "Fernmeldeskizze" };
 export const LAENGE_ANLASS = 120;
+/** Organisationsname im Briefkopf (Spec §4.4). */ export const LAENGE_ORGANISATION = 120;
 export interface Planangaben { titel: string; typ: PlanTyp; anlass: string | null; datum: string | null }
 
 export function tagZuMs(tag: string): number {
