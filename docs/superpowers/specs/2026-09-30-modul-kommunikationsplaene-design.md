@@ -205,13 +205,13 @@ zeigt dann ein Abzeichen „+n Stellen". Eingeklappt ist Ansichtszustand, nicht 
 | `/m/kommplan/bibliothek` | Stellen, Einheiten, Verbindungen |
 | `/m/kommplan/einstellungen` | Briefkopf: Organisation und Logo (§4.4) |
 | `/m/kommplan/archiv` | Archiv: archivierte Pläne, nur lesbar; Wiederherstellen (Bearbeitende) |
-| `/m/kommplan/t/[token]` | Token-Ansicht (§8) |
+| `/m/kommplan/t/[token]` | Token-Ansicht (§8.2); Druck unter `…/druck/a4` und `…/druck/a3` |
 
 Die Plan-ID wird in jeder Server Action und jeder Seite aus der Datenbank aufgelöst (IDOR, `CLAUDE.md`).
 
 ### 6.2 Rahmen
 
-Kopfleiste: Titel, Umschalter **Diagramm | Gliederung**, Rückgängig/Wiederholen, Drucken, Teilen,
+Kopfleiste: Titel, Umschalter **Diagramm | Gliederung**, Rückgängig/Wiederholen, Teilen, Drucken (A4 quer; über den Pfeil A3 quer und SVG-Dateien),
 Speicherstatus. Arbeitsfläche füllt den Rest; bearbeitet wird im Flyin rechts (`flyinBreite()`).
 
 ### 6.3 Diagramm-Ansicht
@@ -252,8 +252,8 @@ Speicherstatus. Arbeitsfläche füllt den Rest; bearbeitet wird im Flyin rechts 
 
 ### 6.7 Vorlagen und Duplizieren
 
-„Duplizieren" kopiert den Plan, setzt das Datum auf heute (Suite-Zone) und ersetzt das erste Datum im Titel in derselben Schreibweise (sonst „ (Kopie)"). „Als Vorlage speichern" setzt
-`ist_vorlage` am Plan (er steht dann unter „Vorlagen"; „Keine Vorlage mehr" nimmt es zurück); „Neu aus Vorlage" legt eine Kopie an.
+„Duplizieren" kopiert den Plan, setzt das Datum auf heute (Suite-Zone) und ersetzt das erste Datum im Titel in derselben Schreibweise (sonst „ (Kopie)"). „Als Vorlage speichern" legt
+eine Kopie als Vorlage an (Titel gleich, ohne Datum; der Plan bleibt unter „Pläne"); „Vorlage archivieren" archiviert sie; „Neu aus Vorlage" legt eine Kopie an.
 
 ## 7. Taktische Zeichen
 
@@ -283,8 +283,8 @@ Server-Import im Build.
   (Vorbild `feedback/(print)/aushang`). „Als PDF sichern" liefert das PDF.
 - A4 quer und A3 quer sind **eigene Routen** (Falle 18: gemischte Seitengrößen verwirft Chromium),
   jede mit benanntem `@page` und ausgeschriebenen Kantenlängen (`297mm 210mm`, `420mm 297mm`).
-- Option Schwarzweiß (`PRINT_MONOCHROME_THEME`).
-- „SVG herunterladen" je Seite.
+- Option Schwarzweiß (`PRINT_MONOCHROME_THEME` als zweites Rezept-Generat): gilt für Ausdruck und SVG-Datei, am Bildschirm bleibt der Plan farbig.
+- „SVG herunterladen" je Blatt auf den internen Druckseiten: eigenständige Datei mit Symbolen, Logo und Arimo als `@font-face`; Dateiname aus Titel, Datum, Blatt und Format in ASCII.
 
 ### 8.2 Token-Link
 
@@ -297,14 +297,14 @@ Server-Import im Build.
   Muster: `docs/design/feedback-oeffentliche-ansicht.md`.
 - Unbekannt, abgelaufen, widerrufen oder Plan archiviert → echtes 404; die Prüfung liegt im
   `layout.tsx` oberhalb jeder `loading.tsx` (Falle 23).
-- Je Abruf `zuletzt_abgerufen` und `abrufe`. Ausstellen und Widerrufen gehen ins Audit-Log.
-- **QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt der Druck unten rechts
-  einen QR-Code „aktuelle Fassung" (`qrcode` ist bereits Abhängigkeit).
+- Je Abruf `zuletzt_abgerufen` und `abrufe` (dieselbe Adresse und derselbe Link zählen binnen einer Minute einmal). Ausstellen und Widerrufen gehen ins Audit-Log. Dreißig Fehlversuche je Minute und Adresse sperren die Adresse (404 ohne Datenbankabfrage). `X-Robots-Tag`, `Referrer-Policy: no-referrer` und `Cache-Control: no-store` setzt der Proxy.
+- **QR auf dem Ausdruck** (Option): hat der Plan einen gültigen Link, trägt jedes Blatt unten rechts
+  einen QR-Code „Aktuelle Fassung" (24 mm) — intern auf den Link mit dem spätesten Ablauf (unbegrenzt zuerst), im Token-Druck immer auf den benutzten Link; Plan-Flyin, Teilen-Flyin und Druckseite sagen, auf welchen Link und wie lange. Basis ist die Adresse des Moduls aus der Suite-Konfiguration.
 
 ### 8.3 Archiv
 
 Pläne werden archiviert, nicht gelöscht, und sind wiederherstellbar; archiviert sind sie nur lesbar (ansehen, drucken). Ein archivierter Plan macht
-seine Token-Links sofort ungültig.
+seine Token-Links sofort ungültig: Archivieren widerruft sie, Wiederherstellen erweckt keinen wieder.
 
 ## 9. Aufteilung im Modul
 
