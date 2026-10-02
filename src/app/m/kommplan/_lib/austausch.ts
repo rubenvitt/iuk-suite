@@ -78,7 +78,7 @@ export function importierePlan(db: KommplanDb, roh: unknown, wer: Bearbeiter, je
   db.insert(plan).values({
     id, titel: r.angaben.titel, typ: r.angaben.typ, anlass: r.angaben.anlass,
     datum: r.angaben.datum === null ? null : new Date(tagZuMs(r.angaben.datum)), istVorlage: r.vorlage,
-    aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(r.inhalt),
+    erstelltAm: new Date(jetzt), aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(r.inhalt),
     eigentuemer: wer.nutzer, sichtbarkeit: "privat",
   }).run();
   return { ok: true, id, vorlage: r.vorlage };

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6c36c011-fe77-4c2d-b9ae-300e11972208",
-  "prevId": "59fb883d-c933-44fc-be5c-bdf5a9b72c87",
+  "id": "00350158-d767-405e-92fa-37c457121ccc",
+  "prevId": "631b7736-e38f-41eb-94dd-4c1f5ae3fbbc",
   "tables": {
     "audit_outbox": {
       "name": "audit_outbox",
@@ -366,6 +366,30 @@
         }
       }
     },
+    "kommplan_person": {
+      "name": "kommplan_person",
+      "columns": {
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "plan": {
       "name": "plan",
       "columns": {
@@ -419,6 +443,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -447,6 +478,21 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "eigentuemer": {
+          "name": "eigentuemer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sichtbarkeit": {
+          "name": "sichtbarkeit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'organisation'"
         }
       },
       "indexes": {
@@ -455,6 +501,13 @@
           "columns": [
             "archiviert_am",
             "aktualisiert_am"
+          ],
+          "isUnique": false
+        },
+        "plan_eigentuemer_idx": {
+          "name": "plan_eigentuemer_idx",
+          "columns": [
+            "eigentuemer"
           ],
           "isUnique": false
         }
@@ -466,6 +519,14 @@
         "plan_typ_check": {
           "name": "plan_typ_check",
           "value": "\"plan\".\"typ\" IN ('kommunikationsplan','fernmeldeskizze')"
+        },
+        "plan_sichtbarkeit_check": {
+          "name": "plan_sichtbarkeit_check",
+          "value": "\"plan\".\"sichtbarkeit\" IN ('privat','organisation')"
+        },
+        "plan_privat_hat_eigentuemer": {
+          "name": "plan_privat_hat_eigentuemer",
+          "value": "\"plan\".\"sichtbarkeit\" <> 'privat' OR \"plan\".\"eigentuemer\" IS NOT NULL"
         },
         "plan_inhalt_json": {
           "name": "plan_inhalt_json",
@@ -637,6 +698,81 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan_mitglied": {
+      "name": "plan_mitglied",
+      "columns": {
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eingeladen_am": {
+          "name": "eingeladen_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eingeladen_von": {
+          "name": "eingeladen_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "plan_mitglied_nutzer_idx": {
+          "name": "plan_mitglied_nutzer_idx",
+          "columns": [
+            "nutzer"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "plan_mitglied_plan_id_plan_id_fk": {
+          "name": "plan_mitglied_plan_id_plan_id_fk",
+          "tableFrom": "plan_mitglied",
+          "tableTo": "plan",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plan_mitglied_plan_id_nutzer_pk": {
+          "columns": [
+            "plan_id",
+            "nutzer"
+          ],
+          "name": "plan_mitglied_plan_id_nutzer_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     }

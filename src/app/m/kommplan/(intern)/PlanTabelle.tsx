@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Drawer, Dropdown, type InputRef, type MenuProps, type TableProps } from "antd";
+import { Button, Drawer, Dropdown, Modal, type InputRef, type MenuProps, type TableProps } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 import { Kartentabelle, nachText } from "@/core/tabelle";
-import { archiviereAction, dupliziereAction, speichereAlsVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
+import { archiviereAction, dupliziereAction, loescheEndgueltigAction, loescheOhneArchivAction, speichereAlsVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
 import { NETZFEHLER, type EinfachErgebnis } from "../_lib/ergebnis";
 import { exportiere } from "../_ui/austausch/herunterladen";
 import type { Liste, Listenzeile } from "../_lib/plaene";
 import type { VorlageWahl } from "../_lib/planverwaltung";
-import { fokussiereWennFrei } from "../_ui/fokus";
+import { fokussiereWennFrei, fokusVerloren, OHNE_FOKUSRUECKGABE } from "../_ui/fokus";
 import { NeuerPlanFormular } from "./NeuerPlan";
 
 const NAME: Record<Liste, string> = { plaene: "Pläne", vorlagen: "Vorlagen", archiv: "Archivierte Pläne" };
@@ -20,19 +20,32 @@ const LEER: Record<Liste, string> = {
   vorlagen: "Noch keine Vorlagen. „Als Vorlage speichern“ im Menü eines Plans legt eine Kopie als Vorlage an.",
   archiv: "Das Archiv ist leer.",
 };
-type Aktion = "duplizieren" | "vorlage" | "vorlageArchivieren" | "archivieren" | "wiederherstellen" | "ausVorlage" | "exportieren";
+type Aktion = "duplizieren" | "vorlage" | "vorlageArchivieren" | "archivieren" | "wiederherstellen" | "ausVorlage" | "exportieren" | "loeschen" | "endgueltig";
+type Loeschen = Extract<Aktion, "loeschen" | "endgueltig">;
 /** `verwalten`: nur, wer den Plan verwaltet (`_lib/rechte.ts`) — sonst steht der Eintrag nicht im Menü. Der Rest geht für jeden, der die Zeile sieht. */
 const MENUE: Record<Liste, { key: Aktion; label: string; verwalten?: true }[]> = {
   plaene: [{ key: "duplizieren", label: "Duplizieren" }, { key: "vorlage", label: "Als Vorlage speichern" }, { key: "exportieren", label: "Exportieren" }, { key: "archivieren", label: "Archivieren", verwalten: true }],
   vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "exportieren", label: "Exportieren" }, { key: "vorlageArchivieren", label: "Vorlage archivieren", verwalten: true }],
-  archiv: [{ key: "exportieren", label: "Exportieren" }, { key: "wiederherstellen", label: "Wiederherstellen", verwalten: true }],
+  archiv: [{ key: "exportieren", label: "Exportieren" }, { key: "wiederherstellen", label: "Wiederherstellen", verwalten: true }, { key: "endgueltig", label: "Endgültig löschen", verwalten: true }],
 };
+/**
+ * LÖSCHEN (Auftrag 2026-10-02): im Archiv immer „Endgültig löschen"; unter „Pläne" und „Vorlagen" ZUSÄTZLICH zum
+ * Archivieren nur bei einer frischen Zeile (`frisch`, Serveruhr beim Laden der Seite). Ob es gilt, entscheidet die
+ * Action noch einmal — eine länger offene Seite bietet den Eintrag an, der Server lehnt mit Begründung ab.
+ */
+function menue(liste: Liste, z: Listenzeile): { key: Aktion; label: string }[] {
+  const erlaubt = MENUE[liste].filter((m) => !m.verwalten || z.darf.verwalten);
+  if (liste === "archiv" || !z.frisch || !z.darf.verwalten) return erlaubt;
+  return [...erlaubt, { key: "loeschen", label: liste === "vorlagen" ? "Vorlage löschen" : "Löschen" }];
+}
 /**
  * `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body).
  * `oeffnen`: die ID einer eben angelegten Vorlage — „Vorlage öffnen“ (Phase 5, Entscheidung 16) — oder der schon
  * vorhandenen gleichen Titels; dann bietet `trotzdem` „Trotzdem anlegen“ für die Zeile (Review Phase 5).
  */
 interface Hinweis { text: string; zurueck?: string; oeffnen?: string; trotzdem?: Listenzeile; fokus?: boolean }
+/** Die offene Rückfrage vor einem Löschen — ein Dialog statt Popconfirm, weil der Eintrag in einem Menü sitzt, das beim Klick schließt. */
+interface Frage { zeile: Listenzeile; art: Loeschen }
 
 /**
  * DIE DREI LISTEN DER PLANLISTE (Spec §6.1, §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10).
@@ -53,12 +66,16 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
   const zurueckRef = useRef<HTMLButtonElement>(null);
   const oeffnenRef = useRef<HTMLAnchorElement>(null);
   const titelRef = useRef<InputRef>(null);
+  const [frage, setFrage] = useState<Frage | null>(null);
+  /** Der „Aktionen"-Knopf, aus dessen Menü die Rückfrage kam: Abbrechen gibt ihm den Fokus zurück (das Menü ist dann zu). */
+  const ausloeser = useRef<HTMLElement | null>(null);
   // Nach Archivieren auf „Rückgängig“, nach „Als Vorlage speichern“ auf „Vorlage öffnen“, sonst auf die Meldung selbst (Review Phase 4).
   useEffect(() => { if (hinweis?.fokus) (zurueckRef.current ?? oeffnenRef.current ?? hinweisRef.current)?.focus(); }, [hinweis]);
 
   async function fuehreAus(z: Listenzeile, a: Aktion, trotzdem = false) {
     if (a === "ausVorlage") { setAusVorlage(z.id); return; }
     if (sperre.current !== null) return;
+    if (a === "loeschen" || a === "endgueltig") { setFrage({ zeile: z, art: a }); return; }
     setzeLauf(z.id);
     if (a === "exportieren") {
       const fehler = await exportiere(z.id);
@@ -76,7 +93,7 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
     }
     let neueVorlage: string | undefined;
     let vorhanden: string | undefined;
-    const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren" | "exportieren">, () => Promise<EinfachErgebnis>> = {
+    const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren" | "exportieren" | Loeschen>, () => Promise<EinfachErgebnis>> = {
       vorlage: () => speichereAlsVorlageAction(z.id, trotzdem).then((r): EinfachErgebnis => {
         if (!r.ok) { if ("vorhanden" in r) vorhanden = r.vorhanden; return { ok: false, fehler: r.fehler }; }
         neueVorlage = r.id;
@@ -98,6 +115,17 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
     }[a];
     setHinweis({ text, zurueck: a === "archivieren" || a === "vorlageArchivieren" ? z.id : undefined, oeffnen: neueVorlage, fokus: true });
     router.refresh();
+  }
+  /** Nach „Löschen" im Dialog: unter derselben Sperre wie das Menü; danach ist die Zeile weg, der Fokus geht in den Hinweis. */
+  async function loesche({ zeile: z, art }: Frage) {
+    if (sperre.current !== null) return;
+    setzeLauf(z.id);
+    const r = await (art === "endgueltig" ? loescheEndgueltigAction(z.id) : loescheOhneArchivAction(z.id))
+      .catch((): EinfachErgebnis => ({ ok: false, fehler: NETZFEHLER }));
+    setzeLauf(null);
+    setFrage(null);
+    setHinweis({ text: r.ok ? `${z.vorlage ? "Vorlage " : ""}„${z.titel}“ gelöscht.` : r.fehler, fokus: true });
+    if (r.ok) router.refresh();
   }
   /** „Rückgängig" nach dem Archivieren — unter derselben Sperre wie das Menü: ein Doppelklick schickte sonst eine zweite
    *  Wiederherstellung, die keinen archivierten Plan mehr fände und den Erfolg mit „gibt es nicht mehr" überschriebe. */
@@ -130,10 +158,11 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
     {
       key: "aktionen", title: "Aktionen", render: (_: unknown, z: Listenzeile) => (
         <Dropdown trigger={["click"]} menu={{
-          items: MENUE[liste].filter((m) => !m.verwalten || z.darf.verwalten).map((m) => ({ key: m.key, label: m.label })) as MenuProps["items"],
+          items: menue(liste, z).map((m) => ({ key: m.key, label: m.label, danger: m.key === "loeschen" || m.key === "endgueltig" })) as MenuProps["items"],
           onClick: ({ key }) => void fuehreAus(z, key as Aktion),
         }}>
-          <Button aria-label={`Aktionen für ${z.titel}`} loading={laeuft === z.id} disabled={laeuft !== null && laeuft !== z.id}>Aktionen</Button>
+          <Button aria-label={`Aktionen für ${z.titel}`} loading={laeuft === z.id} disabled={laeuft !== null && laeuft !== z.id}
+            onClick={(e) => { ausloeser.current = e.currentTarget; }}>Aktionen</Button>
         </Dropdown>
       ),
     },
@@ -153,6 +182,14 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
         aria-label={NAME[liste]} rowKey="id" dataSource={zeilen} columns={spalten}
         leer={{ nichts: LEER[liste] }} karte={{ titel: "titel", kennzeichen: mitKennzeichen ? ["kennzeichen"] : [] }}
       />
+      {/* Kein Fokus-Rückweg des Dialogs (er ginge an den verborgenen Menüeintrag, Falle 24): nach dem Löschen steht er
+          im Hinweis, nach „Abbrechen" wieder am „Aktionen"-Knopf der Zeile. */}
+      <Modal open={frage !== null} title="Unwiderruflich löschen?" okText={frage?.art === "endgueltig" ? "Endgültig löschen" : "Löschen"} cancelText="Abbrechen"
+        okButtonProps={{ danger: true }} confirmLoading={frage !== null && laeuft === frage.zeile.id} focusable={OHNE_FOKUSRUECKGABE}
+        onOk={() => { if (frage) void loesche(frage); }} onCancel={() => { if (sperre.current === null) setFrage(null); }}
+        afterClose={() => { if (fokusVerloren()) ausloeser.current?.focus(); }}>
+        {frage ? loeschText(frage) : null}
+      </Modal>
       {liste === "vorlagen" ? (
         // Fokus ins Titelfeld wie bei „Neu“ (NeuerPlan.tsx, afterOpenChange) — vorher blieb er am Container (Review Phase 4).
         <Drawer open={vorlage !== undefined} onClose={() => setAusVorlage(null)} title="Neuer Plan aus Vorlage" size={flyinBreite(480)} destroyOnHidden
@@ -162,4 +199,12 @@ export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: L
       ) : null}
     </>
   );
+}
+
+/** Was weg ist, und was mit den Links geschieht — beides steht im Dialog, bevor jemand bestätigt. */
+function loeschText({ zeile: z, art }: Frage): string {
+  const was = z.vorlage ? `Die Vorlage „${z.titel}“` : `„${z.titel}“`;
+  const wie = art === "endgueltig" ? "wird endgültig gelöscht und lässt sich nicht wiederherstellen." : "ist noch keine Stunde alt und wird ohne Archiv gelöscht — es gibt kein Rückgängig.";
+  const vorlage = z.vorlage ? " Pläne, die aus ihr entstanden sind, bleiben erhalten." : "";
+  return `${was} ${wie} Freigabe-Links funktionieren danach nicht mehr.${vorlage}`;
 }

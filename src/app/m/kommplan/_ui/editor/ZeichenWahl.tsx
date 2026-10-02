@@ -57,6 +57,8 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
         treffer.length > 0 ? <div className="kp-zeichen-raster" ref={raster} aria-live="polite">{treffer.map((e) => knopf(e.schluessel))}</div>
           : <p className="kp-hilfe" aria-live="polite">Kein Zeichen passt zu „{anfrage.trim()}“.</p>
       ) : null}
+      {/* Eigener Tab: der Editor speichert selbst, aber wer gerade ein Flyin offen hat, soll es nicht verlieren. */}
+      <p className="kp-hilfe">Fehlt ein Zeichen, etwa für eine Leitstelle? <a href="/bibliothek?reiter=zeichen" target="_blank" rel="noopener">Eigene Zeichen bauen</a> (Bibliothek, neuer Tab).</p>
       {wert ? <Button onClick={() => waehle(null)}>Kein Zeichen</Button> : null}
     </div>
   );

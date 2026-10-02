@@ -10,7 +10,7 @@ import { plan, planMitglied } from "../_db/schema";
  *   anderen ist der Plan ein 404, nie ein „kein Zugriff": sonst verriete die Antwort, dass es ihn gibt.
  * - ORGANISATION: sehen und drucken alle mit Modulzugang (den prüft `requireKommplanZugang` vorher); bearbeiten
  *   Eigentümer, Modul-Admins und die eingeladenen Bearbeitenden (`plan_mitglied`); verwalten — teilen, Links
- *   ausstellen, einladen, archivieren — nur Eigentümer und Modul-Admins.
+ *   ausstellen, einladen, archivieren, löschen — nur Eigentümer und Modul-Admins.
  * - ALTBESTAND ohne Eigentümer ist geteilt und gehört den Modul-Admins (Migration 0003).
  *
  * Ein Token-Link ist davon unabhängig: wer ihn hat, sieht den Plan ohne Anmeldung, auch einen privaten — das ist
@@ -40,14 +40,17 @@ export const sichtbarFuer = (wer: Person) => (wer.nutzer === null ? eq(plan.sich
 export const NICHT_ERLAUBT = "Das dürfen bei diesem Plan nur sein Eigentümer und die Modul-Admins.";
 
 /** Die Pläne, in die diese Person eingeladen ist — einmal je Liste, nicht je Zeile. */
-export function mitgliedIn(db: KommplanDb, nutzer: string | null, planIds?: readonly string[]): Set<string> {
+/** Lesend genügt — auch eine laufende Transaktion (`planverwaltung.ts`, `entferne`). */
+type Leser = Pick<KommplanDb, "select">;
+
+export function mitgliedIn(db: Leser, nutzer: string | null, planIds?: readonly string[]): Set<string> {
   if (nutzer === null || planIds?.length === 0) return new Set();
   const wo = planIds ? and(eq(planMitglied.nutzer, nutzer), inArray(planMitglied.planId, [...planIds])) : eq(planMitglied.nutzer, nutzer);
   return new Set(db.select({ planId: planMitglied.planId }).from(planMitglied).where(wo).all().map((z) => z.planId));
 }
 
 /** Die Rechte an EINEM Plan, aus der Datenbank aufgelöst (IDOR: nie aus der Anfrage). Unbekannt → keine. */
-export function rechteAn(db: KommplanDb, planId: string, wer: Person): PlanRechte {
+export function rechteAn(db: Leser, planId: string, wer: Person): PlanRechte {
   const z = db.select({ sichtbarkeit: plan.sichtbarkeit, eigentuemer: plan.eigentuemer }).from(plan).where(eq(plan.id, planId)).get();
   if (!z) return KEINE_RECHTE;
   return rechteFuer({ ...z, mitglied: mitgliedIn(db, wer.nutzer, [planId]).has(planId) }, wer);

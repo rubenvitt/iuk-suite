@@ -23,7 +23,8 @@ export default async function Planliste() {
   const wer = personAus(viewer);
   const vorlagen = vorlagenZurAuswahl(db, wer);
   // `new Date()` statt `Date.now()`: `react-hooks/purity` (Vorbild `files/(verwaltung)/posteingang/page.tsx`).
-  const heute = heuteIso(new Date().getTime());
+  const jetzt = new Date().getTime();
+  const heute = heuteIso(jetzt);
   return (
     <Huelle>
       <Seitenkopf titel="Kommunikationspläne"
@@ -38,9 +39,9 @@ export default async function Planliste() {
           </div>
         } />
       {/* Den Leerzustand trägt die Kartentabelle selbst (`leer`). */}
-      <PlanTabelle zeilen={listePlaene(db, "plaene", wer)} liste="plaene" />
+      <PlanTabelle zeilen={listePlaene(db, "plaene", wer, jetzt)} liste="plaene" />
       <h2 className="kp-abschnittstitel">Vorlagen</h2>
-      <PlanTabelle zeilen={listePlaene(db, "vorlagen", wer)} liste="vorlagen" vorlagen={vorlagen} heute={heute} />
+      <PlanTabelle zeilen={listePlaene(db, "vorlagen", wer, jetzt)} liste="vorlagen" vorlagen={vorlagen} heute={heute} />
     </Huelle>
   );
 }

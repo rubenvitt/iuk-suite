@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import type { DirectoryResult } from "@/core/directory";
-import { kommplanPerson, plan } from "../_db/schema";
+import { kommplanPerson, plan, planMitglied } from "../_db/schema";
 import { entferneMitglied, ladeEin, merkePerson, mitgliederVon, teileInOrganisation, vorschlaege } from "./mitglieder";
-import { archiviere } from "./planverwaltung";
+import { archiviere, loescheEndgueltig } from "./planverwaltung";
 import { NICHT_ERLAUBT, rechteAn, type Person } from "./rechte";
 import { seedLokalKommplan } from "./seedLokal";
 import { legePlanAn } from "./speichern";
@@ -76,6 +76,19 @@ describe("einladen", () => {
     expect(entferneMitglied(db, { planId: id, nutzer: "u-bodo" }, ALS_BODO)).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
     expect(entferneMitglied(db, { planId: id, nutzer: "u-bodo" }, ALS_ANNA)).toEqual({ ok: true, mitglieder: [] });
     expect(rechteAn(db, id, ALS_BODO)).toEqual({ sehen: true, bearbeiten: false, verwalten: false });
+    expect(audit(db, "plan_mitglied")).toEqual(["create", "delete"]);
+  });
+});
+
+describe("löschen mit Eingeladenen", () => {
+  it("endgültig löschen nimmt die Einladungen mit (Fremdschlüssel) — und darf nur, wer verwaltet", () => {
+    const { db, id } = aufbau();
+    teileInOrganisation(db, id, ALS_ANNA);
+    ladeEin(db, { planId: id, nutzer: "u-bodo" }, ANNA, ALS_ANNA, T0, LEER);
+    expect(archiviere(db, id, T0, ALS_ANNA)).toEqual({ ok: true });
+    expect(loescheEndgueltig(db, id, ALS_BODO)).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    expect(loescheEndgueltig(db, id, ALS_ANNA)).toEqual({ ok: true });
+    expect(db.select().from(planMitglied).all()).toEqual([]);
     expect(audit(db, "plan_mitglied")).toEqual(["create", "delete"]);
   });
 });

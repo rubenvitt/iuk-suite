@@ -8,9 +8,11 @@ import { leseInhalt, type PlanInhalt } from "./plan/schema";
 import { kalendertag, planAngabenZeile, STAND_ZEIT } from "./rahmen";
 import { mitgliedIn, rechteFuer, sichtbarFuer, type Person, type PlanRechte, type Sichtbarkeit } from "./rechte";
 
+
+/** `frisch`: jünger als `FRISCH_MS` — die Liste bietet dann „Löschen" ohne Archiv an; die Action prüft selbst noch einmal. */
 export interface Listenzeile {
   id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean; archiviert: string | null;
-  privat: boolean; darf: Pick<PlanRechte, "bearbeiten" | "verwalten">;
+  frisch: boolean; privat: boolean; darf: Pick<PlanRechte, "bearbeiten" | "verwalten">;
 }
 export interface GeladenerPlan {
   id: string; titel: string; typ: PlanZeile["typ"]; anlass: string | null; datum: number | null;
@@ -28,12 +30,19 @@ export function lies(zeile: PlanZeile): { inhalt: PlanInhalt | null; fehler: str
 export type Liste = "plaene" | "vorlagen" | "archiv";
 const TAG = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+/** Wie lange ein Plan nach dem Anlegen ohne Archiv gelöscht werden darf (`planverwaltung.ts`, `loescheOhneArchiv`). */
+export const FRISCH_MS = 60 * 60 * 1000;
+/** Ohne Anlagezeitpunkt (vor Migration 0004 angelegt) ist ein Plan nie frisch. */
+export function istFrisch(erstelltAm: number | null, jetzt: number): boolean {
+  return erstelltAm !== null && jetzt - erstelltAm < FRISCH_MS;
+}
+
 /**
  * Drei Listen (Entscheidungen 7, 10): Pläne und Vorlagen getrennt, das Archiv für sich — neueste Archivierung zuerst.
  * Nur, was `wer` sehen darf (`_lib/rechte.ts`): die geteilten und die eigenen privaten; schon in der Abfrage, damit
- * kein fremder privater Titel je die Datenbank verlässt.
+ * kein fremder privater Titel je die Datenbank verlässt. `jetzt` (Serveruhr) nur für `frisch`; ohne ist keine Zeile frisch.
  */
-export function listePlaene(db: KommplanDb, liste: Liste, wer: Person): Listenzeile[] {
+export function listePlaene(db: KommplanDb, liste: Liste, wer: Person, jetzt?: number): Listenzeile[] {
   const wo = and(sichtbarFuer(wer), liste === "archiv" ? isNotNull(plan.archiviertAm)
     : and(isNull(plan.archiviertAm), eq(plan.istVorlage, liste === "vorlagen")));
   const reihe = liste === "archiv" ? [desc(plan.archiviertAm), plan.id] : [desc(plan.aktualisiertAm), plan.id];
@@ -46,6 +55,7 @@ export function listePlaene(db: KommplanDb, liste: Liste, wer: Person): Listenze
       datum: kalendertag(z.datum?.getTime() ?? null), stand: STAND_ZEIT.format(z.aktualisiertAm),
       vorlage: z.istVorlage, lesbar: lies(z).inhalt !== null,
       archiviert: z.archiviertAm ? archivTag(z.archiviertAm.getTime()) : null,
+      frisch: jetzt !== undefined && z.archiviertAm === null && istFrisch(z.erstelltAm?.getTime() ?? null, jetzt),
       privat: z.sichtbarkeit === "privat", darf: { bearbeiten: r.bearbeiten, verwalten: r.verwalten },
     };
   });

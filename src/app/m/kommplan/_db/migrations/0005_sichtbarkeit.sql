@@ -11,10 +11,11 @@
 -- ein Plan, den niemand mehr sieht. Neue Pläne legt der Code ausdrücklich als `privat` an.
 ALTER TABLE `plan` ADD `eigentuemer` text;--> statement-breakpoint
 ALTER TABLE `plan` ADD `sichtbarkeit` text DEFAULT 'organisation' NOT NULL CHECK (`sichtbarkeit` IN ('privat','organisation') AND (`sichtbarkeit` <> 'privat' OR `eigentuemer` IS NOT NULL));--> statement-breakpoint
--- Der Update-Trigger zählt seine Spalten auf (0001): ohne die zwei neuen liefe ein Teilen still am Audit vorbei.
+-- Der Update-Trigger zählt seine Spalten auf (0001, zuletzt 0004 mit `erstellt_am`): ohne die zwei neuen liefe ein
+-- Teilen still am Audit vorbei.
 DROP TRIGGER audit_plan_update;--> statement-breakpoint
 CREATE TRIGGER audit_plan_update AFTER UPDATE ON "plan"
-WHEN OLD."id" IS NOT NEW."id" OR OLD."titel" IS NOT NEW."titel" OR OLD."typ" IS NOT NEW."typ" OR OLD."anlass" IS NOT NEW."anlass" OR OLD."datum" IS NOT NEW."datum" OR OLD."ist_vorlage" IS NOT NEW."ist_vorlage" OR OLD."archiviert_am" IS NOT NEW."archiviert_am" OR OLD."eigentuemer" IS NOT NEW."eigentuemer" OR OLD."sichtbarkeit" IS NOT NEW."sichtbarkeit"
+WHEN OLD."id" IS NOT NEW."id" OR OLD."titel" IS NOT NEW."titel" OR OLD."typ" IS NOT NEW."typ" OR OLD."anlass" IS NOT NEW."anlass" OR OLD."datum" IS NOT NEW."datum" OR OLD."ist_vorlage" IS NOT NEW."ist_vorlage" OR OLD."archiviert_am" IS NOT NEW."archiviert_am" OR OLD."erstellt_am" IS NOT NEW."erstellt_am" OR OLD."eigentuemer" IS NOT NEW."eigentuemer" OR OLD."sichtbarkeit" IS NOT NEW."sichtbarkeit"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
   VALUES (suite_audit_id(), suite_audit_now(), 'kommplan', 'update', 'plan', suite_audit_reference(NEW.id), suite_audit_actor(), 'success', 'database', suite_audit_correlation());

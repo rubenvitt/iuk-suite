@@ -9,14 +9,14 @@ import { PlanTabelle } from "../PlanTabelle";
 
 export const dynamic = "force-dynamic";
 
-/** Archiv (Spec §8.3; Entscheidung 10): was du sehen darfst; „Wiederherstellen" nur, wer den Plan verwaltet (`_lib/rechte.ts`). */
+/** Archiv (Spec §8.3; Entscheidung 10): was du sehen darfst; „Wiederherstellen" und „Endgültig löschen" nur, wer den Plan verwaltet (`_lib/rechte.ts`). */
 export default async function Archiv() {
   requireKommplanHost(await headers());
   const viewer = await requireKommplanZugang();
   return (
     <Huelle>
       <Seitenkopf titel="Archiv" zurueck={{ titel: "Alle Pläne", href: "/" }}
-        beschreibung="Archivierte Pläne lassen sich ansehen und drucken, aber nicht bearbeiten. Wiederhergestellt stehen sie wieder in der Liste." />
+        beschreibung="Archivierte Pläne lassen sich ansehen und drucken, aber nicht bearbeiten. Wiederhergestellt stehen sie wieder in der Liste. Endgültig gelöscht sind sie samt ihrer Links weg." />
       <PlanTabelle zeilen={listePlaene(getDb(), "archiv", personAus(viewer))} liste="archiv" />
     </Huelle>
   );

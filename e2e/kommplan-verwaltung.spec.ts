@@ -131,6 +131,46 @@ test("Archiv: archivieren, Rückgängig, nur lesbar unter /p/<id>, wiederherstel
   await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
 });
 
+test("Löschen: ein frischer Plan ohne Archiv, ein archivierter endgültig — danach 404", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  const frisch = `e2e Versehen ${neu()}`;
+  const alt = `e2e Endgültig ${neu()}`;
+  const frischId = await neuerPlan(page, frisch);
+  const altId = await neuerPlan(page, alt);
+  const bestaetige = async (id: string, okText: string) => {
+    const dialog = page.getByRole("dialog").filter({ hasText: "Unwiderruflich löschen?" });
+    await expect(dialog).toContainText("Freigabe-Links funktionieren danach nicht mehr.");
+    const l = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([id]));
+    await klickeWennRuhig(dialog.getByRole("button", { name: okText, exact: true }));
+    expect((await l).status()).toBe(200);
+  };
+  // frisch: „Löschen“ steht neben „Archivieren“ und braucht kein Archiv
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${frisch}` }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Löschen" }));
+  await bestaetige(frischId, "Löschen");
+  // HTTP 200 sagt nichts: auch {ok:false} kommt so — Meldung und verschwundene Zeile zählen.
+  await expect(page.locator(".kp-listenhinweis")).toHaveText(`„${frisch}“ gelöscht.`);
+  await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: frisch, exact: true })).toHaveCount(0);
+  expect((await page.goto(url(`/p/${frischId}`)))?.status()).toBe(404);
+  // archiviert: im Archiv „Endgültig löschen“
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: `Aktionen für ${alt}` }));
+  const a = page.waitForResponse((r) => istAktion(r) && rumpf(r) === JSON.stringify([altId]));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Archivieren" }));
+  expect((await a).status()).toBe(200);
+  await page.goto(url("/archiv"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Archivierte Pläne" }).getByRole("button", { name: `Aktionen für ${alt}` }));
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Endgültig löschen" }));
+  await bestaetige(altId, "Endgültig löschen");
+  await expect(page.locator(".kp-listenhinweis")).toHaveText(`„${alt}“ gelöscht.`);
+  await expect(page.getByRole("table", { name: "Archivierte Pläne" }).getByRole("link", { name: alt, exact: true })).toHaveCount(0);
+  expect((await page.goto(url(`/p/${altId}`)))?.status()).toBe(404);
+});
+
 test("Briefkopf: ohne Eintrag leer; SVG hochladen wird bereinigt und gedruckt; Befund abgelehnt; Logo entfernen", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
   const id = await neuerPlan(page, `e2e Kopf ${neu()}`);

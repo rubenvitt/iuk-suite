@@ -589,7 +589,7 @@ Nachtrag 2026-10-02. Jeder mit Zugang legt eigene Pläne an. **Privat ist die Vo
 „Als Vorlage speichern" und Importieren legen einen privaten Plan an, der dem gehört, der ihn anlegt. Die Rechte
 stehen an genau einer Stelle (`_lib/rechte.ts`):
 
-| | sehen, drucken, exportieren | bearbeiten | verwalten (teilen, Links, einladen, archivieren) |
+| | sehen, drucken, exportieren | bearbeiten | verwalten (teilen, Links, einladen, archivieren, löschen) |
 |---|---|---|---|
 | privat | Eigentümer | Eigentümer | Eigentümer |
 | geteilt | alle mit Zugang | Eigentümer, Modul-Admins, Eingeladene | Eigentümer, Modul-Admins |

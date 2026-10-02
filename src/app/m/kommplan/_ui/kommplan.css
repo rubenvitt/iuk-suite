@@ -112,6 +112,17 @@
 /* Zeichen sind Papier: weißer Grund auch im Dunkelmodus (wie die Legende). */
 .kp-zeichen-knopf svg, .kp-zeichen-platz { flex: none; width: 36px; height: 36px; background: #ffffff; border-radius: 4px; }
 
+/* Baukasten eigener Zeichen (Bibliothek, Reiter „Zeichen“): Vorschau auf Papierweiß neben Bedeutung und Regeltext;
+   die Felder untereinander, die Beschriftungszonen per auto-fit (Falle 13: kein @media im Flyin). */
+.kp-zeichen-mini { flex: none; background: #ffffff; border-radius: 4px; }
+.kp-baukasten { display: grid; gap: 12px; margin-top: 8px; }
+.kp-baukasten-vorschau { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+.kp-baukasten-vorschau > svg, .kp-baukasten-leer { display: block; width: 128px; height: 128px; background: #ffffff; border: 1px solid var(--kp-rand); border-radius: 8px; }
+.kp-baukasten-vorschau > div { display: grid; gap: 8px; }
+.kp-baukasten-achse { display: grid; gap: 4px; }
+.kp-baukasten-achse > .kp-feldname { margin-top: 0; }
+.kp-baukasten-zonen { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 8px; }
+
 .kp-schalter { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .kp-verbindung { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--kp-rand); }
 

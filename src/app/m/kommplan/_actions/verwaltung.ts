@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import type { DuplikatErgebnis, EinfachErgebnis, VorlageErgebnis } from "../_lib/ergebnis";
-import { archiviere, dupliziere, speichereAlsVorlage, stelleWiederHer } from "../_lib/planverwaltung";
+import { archiviere, dupliziere, loescheEndgueltig, loescheOhneArchiv, speichereAlsVorlage, stelleWiederHer } from "../_lib/planverwaltung";
 import { bearbeiterAus, personAus, requireKommplanAktion } from "../_lib/zugang";
 
 // Planverwaltung (Spec §6.7, §8.3): jede Action prüft selbst, die ID und das Recht daran werden in
@@ -41,4 +41,20 @@ export async function stelleWiederHerAction(id: unknown): Promise<EinfachErgebni
   const r = ID.safeParse(id);
   if (!r.success) return UNGUELTIG;
   return withAuditContext({ actor: auditActor(viewer) }, async () => stelleWiederHer(getDb(), r.data, personAus(viewer)));
+}
+
+/** Nur ein archivierter Plan — geprüft in `_lib/planverwaltung.ts`, nicht hier und nicht in der Liste. */
+export async function loescheEndgueltigAction(id: unknown): Promise<EinfachErgebnis> {
+  const viewer = await requireKommplanAktion();
+  const r = ID.safeParse(id);
+  if (!r.success) return UNGUELTIG;
+  return withAuditContext({ actor: auditActor(viewer) }, async () => loescheEndgueltig(getDb(), r.data, personAus(viewer)));
+}
+
+/** Nur ein frischer, nicht archivierter Plan; das Alter misst die Serveruhr, nie der Client. */
+export async function loescheOhneArchivAction(id: unknown): Promise<EinfachErgebnis> {
+  const viewer = await requireKommplanAktion();
+  const r = ID.safeParse(id);
+  if (!r.success) return UNGUELTIG;
+  return withAuditContext({ actor: auditActor(viewer) }, async () => loescheOhneArchiv(getDb(), r.data, Date.now(), personAus(viewer)));
 }

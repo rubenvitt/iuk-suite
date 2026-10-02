@@ -35,3 +35,5 @@ export type ImportErgebnis<T = BibEinheit> = { ok: true; angelegt: number; ueber
 export type VerbindungsImportErgebnis = ImportErgebnis<BibVerbindung>;
 /** Ausstellen und Widerrufen geben die ganze Liste mit serverseitig berechnetem Status zurück (Entscheidung 17). */
 export type FreigabeErgebnis = { ok: true; neu: string | null; freigaben: FreigabeZeile[] } | { ok: false; fehler: string; feldFehler: FeldFehler };
+/** Eigenes Zeichen gespeichert: Schlüssel und Titel, damit Editor und Bibliothek es sofort wählen können. */
+export type EigenesZeichenErgebnis = { ok: true; id: string; schluessel: string; titel: string } | { ok: false; fehler: string; feldFehler?: FeldFehler };

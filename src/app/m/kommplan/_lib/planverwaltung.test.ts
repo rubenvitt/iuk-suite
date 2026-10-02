@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { plan } from "../_db/schema";
+import { plan, planBearbeitung, planFreigabe } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
-import { ladePlanLesend, listePlaene } from "./plaene";
-import { archiviere, dupliziere, PLAN_WEG, speichereAlsVorlage, stelleWiederHer, vorlagenZurAuswahl } from "./planverwaltung";
+import { loeseToken, stelleFreigabeAus } from "./freigaben";
+import { FRISCH_MS, ladePlanLesend, listePlaene } from "./plaene";
+import {
+  archiviere, dupliziere, loescheEndgueltig, loescheOhneArchiv, NICHT_MEHR_FRISCH, NUR_ARCHIVIERT, PLAN_WEG, SCHON_ARCHIVIERT,
+  speichereAlsVorlage, stelleWiederHer, vorlagenZurAuswahl,
+} from "./planverwaltung";
 import { seedLokalKommplan } from "./seedLokal";
 import { legePlanAn, speichereInhalt } from "./speichern";
 import { TEST_ADMIN, testDb } from "./testDb";
@@ -156,5 +160,106 @@ describe("Archiv (Spec §8.3; Entscheidung 10)", () => {
     expect(listePlaene(db, "plaene", TEST_ADMIN).map((z) => z.id)).toContain(OPENR);
     expect(stelleWiederHer(db, OPENR, TEST_ADMIN)).toEqual({ ok: false, fehler: PLAN_WEG });
     expect(zaehle() - start).toBe(2);
+  });
+});
+
+describe("Löschen (Auftrag 2026-10-02): endgültig nur aus dem Archiv, ohne Archiv nur frisch", () => {
+  const ANLAGE = { titel: "Versehen", typ: "kommunikationsplan", anlass: "", datum: null };
+  function lege(db: ReturnType<typeof testDb>, jetzt = NACH_MITTERNACHT): string {
+    const r = legePlanAn(db, ANLAGE, WER, jetzt, TEST_ADMIN);
+    if (!r.ok) throw new Error(r.fehler);
+    return r.id;
+  }
+  /** Ein Link und eine Bearbeitungszeile: beides zeigt per Fremdschlüssel auf den Plan. */
+  function mitAnhang(db: ReturnType<typeof testDb>, id: string, jetzt = NACH_MITTERNACHT): string {
+    const f = stelleFreigabeAus(db, { planId: id, dauer: "7d", notiz: "" }, WER, jetzt, TEST_ADMIN);
+    if (!f.ok) throw new Error(f.fehler);
+    const p = ladePlan(db, id)!;
+    expect(speichereInhalt(db, { id, version: p.version, inhalt: p.inhalt }, WER, jetzt).ok).toBe(true);
+    return f.freigaben[0].token;
+  }
+  const zeilen = (db: ReturnType<typeof testDb>, id: string) => ({
+    plan: db.select().from(plan).where(eq(plan.id, id)).all().length,
+    freigaben: db.select().from(planFreigabe).where(eq(planFreigabe.planId, id)).all().length,
+    bearbeitung: db.select().from(planBearbeitung).where(eq(planBearbeitung.planId, id)).all().length,
+  });
+  const geloeschtImAudit = (db: ReturnType<typeof testDb>) =>
+    (db.all(sql`SELECT object_type AS t FROM audit_outbox WHERE action = 'delete' ORDER BY object_type`) as { t: string }[]).map((z) => z.t);
+
+  it("Anlegen, Duplizieren und „Als Vorlage speichern“ tragen den Anlagezeitpunkt; der Seed seinen Stand", async () => {
+    const db = await mitSeed();
+    const erstellt = (id: string) => db.select({ e: plan.erstelltAm }).from(plan).where(eq(plan.id, id)).get()!.e?.getTime();
+    expect(erstellt(lege(db))).toBe(NACH_MITTERNACHT);
+    const d = dupliziere(db, OPENR, WER, NACH_MITTERNACHT + 1, TEST_ADMIN);
+    const v = speichereAlsVorlage(db, OPENR, WER, NACH_MITTERNACHT + 2, TEST_ADMIN);
+    if (!d.ok || !v.ok) throw new Error("nicht angelegt");
+    expect([erstellt(d.id), erstellt(v.id)]).toEqual([NACH_MITTERNACHT + 1, NACH_MITTERNACHT + 2]);
+    expect(erstellt(OPENR)).toBe(new Date(BEISPIELE.find((b) => b.id === OPENR)!.stand).getTime());
+  });
+
+  it("ohne Archiv: frisch gelöscht — mit Links und Bearbeitungszeilen in einem Zug, je Zeile eine Audit-Zeile; der Link ist tot", async () => {
+    const db = await mitSeed();
+    const id = lege(db);
+    const token = mitAnhang(db, id);
+    expect(zeilen(db, id)).toEqual({ plan: 1, freigaben: 1, bearbeitung: 1 });
+    const vorher = geloeschtImAudit(db);
+    expect(loescheOhneArchiv(db, id, NACH_MITTERNACHT + FRISCH_MS - 1, TEST_ADMIN)).toEqual({ ok: true });
+    expect(zeilen(db, id)).toEqual({ plan: 0, freigaben: 0, bearbeitung: 0 });
+    expect(geloeschtImAudit(db)).toEqual([...vorher, "plan", "plan_bearbeitung", "plan_freigabe"].sort());
+    expect(loeseToken(db, token, NACH_MITTERNACHT + 1)).toBeNull();
+    expect(ladePlanLesend(db, id)).toBeNull();
+    expect(loescheOhneArchiv(db, id, NACH_MITTERNACHT, TEST_ADMIN)).toEqual({ ok: false, fehler: PLAN_WEG }); // zweimal ist kein zweites Mal
+  });
+
+  it("ohne Archiv: ab einer Stunde, ohne Anlagezeitpunkt (Altbestand) und archiviert abgelehnt — der Plan bleibt", async () => {
+    const db = await mitSeed();
+    const id = lege(db);
+    expect(loescheOhneArchiv(db, id, NACH_MITTERNACHT + FRISCH_MS, TEST_ADMIN)).toEqual({ ok: false, fehler: NICHT_MEHR_FRISCH }); // genau an der Grenze
+    expect(loescheOhneArchiv(db, OPENR, NACH_MITTERNACHT, TEST_ADMIN)).toEqual({ ok: false, fehler: NICHT_MEHR_FRISCH }); // Seed: alt
+    db.update(plan).set({ erstelltAm: null }).where(eq(plan.id, id)).run();
+    expect(loescheOhneArchiv(db, id, NACH_MITTERNACHT, TEST_ADMIN)).toEqual({ ok: false, fehler: NICHT_MEHR_FRISCH });
+    const jung = lege(db);
+    archiviere(db, jung, NACH_MITTERNACHT, TEST_ADMIN);
+    expect(loescheOhneArchiv(db, jung, NACH_MITTERNACHT, TEST_ADMIN)).toEqual({ ok: false, fehler: SCHON_ARCHIVIERT });
+    expect(loescheOhneArchiv(db, "gibt-es-nicht", NACH_MITTERNACHT, TEST_ADMIN)).toEqual({ ok: false, fehler: PLAN_WEG });
+    expect([zeilen(db, id).plan, zeilen(db, jung).plan, zeilen(db, OPENR).plan]).toEqual([1, 1, 1]);
+  });
+
+  it("endgültig: nur archiviert — dann samt widerrufener Links und Bearbeitungszeilen, gleich wie alt", async () => {
+    const db = await mitSeed();
+    const id = lege(db);
+    mitAnhang(db, id);
+    expect(loescheEndgueltig(db, id, TEST_ADMIN)).toEqual({ ok: false, fehler: NUR_ARCHIVIERT });
+    expect(zeilen(db, id)).toEqual({ plan: 1, freigaben: 1, bearbeitung: 1 });
+    archiviere(db, id, NACH_MITTERNACHT, TEST_ADMIN);
+    archiviere(db, OPENR, NACH_MITTERNACHT, TEST_ADMIN);
+    expect(loescheEndgueltig(db, id, TEST_ADMIN)).toEqual({ ok: true });
+    expect(loescheEndgueltig(db, OPENR, TEST_ADMIN)).toEqual({ ok: true }); // alt ist hier kein Hindernis
+    expect(zeilen(db, id)).toEqual({ plan: 0, freigaben: 0, bearbeitung: 0 });
+    expect(listePlaene(db, "archiv", TEST_ADMIN).map((z) => z.id)).not.toContain(OPENR);
+    expect(loescheEndgueltig(db, id, TEST_ADMIN)).toEqual({ ok: false, fehler: PLAN_WEG });
+  });
+
+  it("eine Vorlage zu löschen lässt die Pläne aus ihr stehen — sie tragen eine Kopie des Inhalts", async () => {
+    const db = await mitSeed();
+    const vorlage = vorlagenZurAuswahl(db, TEST_ADMIN)[0];
+    const r = legePlanAn(db, { ...ANLAGE, vorlage: vorlage.id }, WER, NACH_MITTERNACHT, TEST_ADMIN);
+    if (!r.ok) throw new Error(r.fehler);
+    const inhalt = ladePlan(db, r.id)!.inhalt;
+    archiviere(db, vorlage.id, NACH_MITTERNACHT, TEST_ADMIN);
+    expect(loescheEndgueltig(db, vorlage.id, TEST_ADMIN)).toEqual({ ok: true });
+    expect(ladePlan(db, r.id)!.inhalt).toEqual(inhalt);
+  });
+
+  it("die Liste markiert frische Zeilen nach der übergebenen Serveruhr — archivierte und ohne Uhr nie", async () => {
+    const db = await mitSeed();
+    const id = lege(db);
+    const frisch = (liste: "plaene" | "archiv", jetzt?: number) => listePlaene(db, liste, TEST_ADMIN, jetzt).find((z) => z.id === id)?.frisch;
+    expect(frisch("plaene", NACH_MITTERNACHT + FRISCH_MS - 1)).toBe(true);
+    expect(frisch("plaene", NACH_MITTERNACHT + FRISCH_MS)).toBe(false);
+    expect(frisch("plaene")).toBe(false);
+    expect(listePlaene(db, "plaene", TEST_ADMIN, NACH_MITTERNACHT).filter((z) => z.frisch).map((z) => z.id)).toEqual([id]);
+    archiviere(db, id, NACH_MITTERNACHT, TEST_ADMIN);
+    expect(frisch("archiv", NACH_MITTERNACHT)).toBe(false);
   });
 });

@@ -162,3 +162,45 @@ test.describe("Telefon mit Touch", () => {
     await expect(page.locator(".kp-gliederung [data-zeile]")).toHaveCount(zeilen);
   });
 });
+
+test("Eigenes Zeichen: im Baukasten bauen, im Editor wählen — Diagramm und Druck zeichnen es vom Server", async ({ page }) => {
+  const name = `ILS e2e ${neu()}`;
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  await page.goto(url("/bibliothek?reiter=zeichen"));
+  await warteAufSpaltenaufteilung(page);
+  await expect(page.getByRole("tab", { name: /^Zeichen/ })).toHaveAttribute("aria-selected", "true");
+  await klickeWennRuhig(page.getByRole("button", { name: "Neues Zeichen" }));
+  const formular = page.locator(".kp-flyin").getByRole("form", { name: "Eigenes Zeichen" });
+  // Der Baukasten kommt per import() nach; seine Vorschau zeichnet im Browser.
+  const vorschau = formular.locator(".kp-baukasten-vorschau > svg");
+  await expect(vorschau).toBeVisible();
+  await formular.getByLabel("Name", { exact: true }).fill(name);
+  await formular.getByLabel("Unten rechts", { exact: true }).fill("SW");
+  await expect(vorschau.locator("text", { hasText: "SW" })).toHaveAttribute("fill", "#000000"); // schwarz auf Gelb
+  const anlage = page.waitForResponse((r) => istAktion(r) && rumpf(r).includes(name));
+  await klickeWennRuhig(formular.getByRole("button", { name: "Speichern", exact: true }));
+  expect((await anlage).status()).toBe(200);
+  await expect(page.locator('section[aria-label="Eigene Zeichen"] [role="status"]')).toContainText(`„${name}“ gespeichert.`);
+  await expect(page.getByRole("table", { name: "Eigene Zeichen" })).toContainText(name);
+
+  await neuerPlan(page, `e2e Zeichen ${neu()}`);
+  await ersteStelle(page, "Leitstelle");
+  const flyin = page.locator(".kp-flyin");
+  await flyin.getByLabel("Zeichen suchen").fill(name);
+  const knopfImFlyin = flyin.locator('[data-zeichen^="eigen:"]', { hasText: name });
+  await expect(knopfImFlyin.locator("svg use")).toBeVisible(); // das Bild kam über ladeZeichenAction
+  const schluessel = (await knopfImFlyin.getAttribute("data-zeichen"))!;
+  await speichertNach(page, () => klickeWennRuhig(knopfImFlyin));
+  const symbol = `#kp-${schluessel.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+  // Der Symbolvorrat steht EINMAL je Seite (M11), im Editor neben der Fläche; die Karte verweist per <use>.
+  await expect(page.locator(`symbol${symbol} text`, { hasText: "ILS" })).toHaveCount(1);
+  await expect(page.locator(`.kp-betrachter use[href="${symbol}"]`)).not.toHaveCount(0);
+
+  // Nach dem Neuladen kommt das Symbol aus der Server Component, nicht mehr aus der Action.
+  const pfad = new URL(page.url()).pathname;
+  await oeffneEditor(page, () => page.reload());
+  await expect(page.locator(`symbol${symbol} text`, { hasText: "SW" })).toHaveCount(1);
+  const druck = await page.goto(url(`${pfad}/druck/a4`));
+  expect(druck?.status()).toBe(200);
+  await expect(page.locator(`symbol${symbol} text`, { hasText: "ILS" }).first()).toBeAttached();
+});

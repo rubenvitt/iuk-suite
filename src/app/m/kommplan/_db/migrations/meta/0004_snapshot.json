@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6c36c011-fe77-4c2d-b9ae-300e11972208",
-  "prevId": "59fb883d-c933-44fc-be5c-bdf5a9b72c87",
+  "id": "631b7736-e38f-41eb-94dd-4c1f5ae3fbbc",
+  "prevId": "6c36c011-fe77-4c2d-b9ae-300e11972208",
   "tables": {
     "audit_outbox": {
       "name": "audit_outbox",
@@ -414,6 +414,13 @@
         },
         "archiviert_am": {
           "name": "archiviert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
