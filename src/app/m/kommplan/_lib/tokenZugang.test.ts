@@ -4,7 +4,7 @@ import { planFreigabe } from "../_db/schema";
 import { stelleFreigabeAus, widerrufeFreigabe } from "./freigaben";
 import { archiviere } from "./planverwaltung";
 import { seedLokalKommplan } from "./seedLokal";
-import { testDb } from "./testDb";
+import { TEST_ADMIN, testDb } from "./testDb";
 import { neueSchranken, pruefeTokenAbruf, TOKEN_SCHRANKE } from "./tokenZugang";
 
 const JETZT = Date.UTC(2026, 9, 1, 18, 0);
@@ -12,7 +12,7 @@ const OPENR = "beispiel-openr-2022-07-01";
 async function aufbau() {
   const db = testDb();
   await seedLokalKommplan(db);
-  const r = stelleFreigabeAus(db, { planId: OPENR, dauer: "7d", notiz: "" }, { nutzer: "u1", name: "Jana" }, JETZT);
+  const r = stelleFreigabeAus(db, { planId: OPENR, dauer: "7d", notiz: "" }, { nutzer: "u1", name: "Jana" }, JETZT, TEST_ADMIN);
   if (!r.ok) throw new Error(r.fehler);
   let uhr = JETZT;
   const s = neueSchranken(() => uhr);
@@ -43,7 +43,7 @@ describe("Tokenabruf (Spec §8.2; Entscheidungen 4–6)", () => {
   });
   it("der Entpreller gilt je Adresse UND Link: zwei Links von derselben Adresse zählen beide", async () => {
     const { db, s, f, jetzt } = await aufbau();
-    const r = stelleFreigabeAus(db, { planId: OPENR, dauer: "24h", notiz: "" }, { nutzer: "u1", name: "Jana" }, jetzt());
+    const r = stelleFreigabeAus(db, { planId: OPENR, dauer: "24h", notiz: "" }, { nutzer: "u1", name: "Jana" }, jetzt(), TEST_ADMIN);
     if (!r.ok) throw new Error(r.fehler);
     const g = r.freigaben.find((x) => x.id === r.neu)!;
     expect(pruefeTokenAbruf(db, f.token, "203.0.113.30", jetzt(), s)).not.toBeNull();
@@ -53,12 +53,12 @@ describe("Tokenabruf (Spec §8.2; Entscheidungen 4–6)", () => {
   it("widerrufen oder archiviert: die NÄCHSTE Anfrage ist null, obwohl der Entpreller den Link eben noch kannte", async () => {
     const { db, s, f, jetzt } = await aufbau();
     expect(pruefeTokenAbruf(db, f.token, "203.0.113.3", jetzt(), s)).not.toBeNull();
-    widerrufeFreigabe(db, { planId: OPENR, freigabeId: f.id }, jetzt());
+    widerrufeFreigabe(db, { planId: OPENR, freigabeId: f.id }, jetzt(), TEST_ADMIN);
     expect(pruefeTokenAbruf(db, f.token, "203.0.113.3", jetzt(), s)).toBeNull();
-    const r = stelleFreigabeAus(db, { planId: OPENR, dauer: "unbegrenzt", notiz: "" }, { nutzer: "u1", name: "Jana" }, jetzt());
+    const r = stelleFreigabeAus(db, { planId: OPENR, dauer: "unbegrenzt", notiz: "" }, { nutzer: "u1", name: "Jana" }, jetzt(), TEST_ADMIN);
     if (!r.ok) throw new Error(r.fehler);
     expect(pruefeTokenAbruf(db, r.freigaben[0].token, "203.0.113.4", jetzt(), s)).not.toBeNull();
-    archiviere(db, OPENR, jetzt());
+    archiviere(db, OPENR, jetzt(), TEST_ADMIN);
     expect(pruefeTokenAbruf(db, r.freigaben[0].token, "203.0.113.4", jetzt(), s)).toBeNull();
   });
 });

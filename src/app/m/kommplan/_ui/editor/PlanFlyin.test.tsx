@@ -32,7 +32,7 @@ function Rahmen({ qrLink = null, linkAdresse = true, onTeilen }: { qrLink?: { no
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
   return (
-    <BibliothekKontext.Provider value={{ aktiv: true, bib: LEERE_BIBLIOTHEK, merke }}>
+    <BibliothekKontext.Provider value={{ aktiv: true, pflegen: true, bib: LEERE_BIBLIOTHEK, merke }}>
       <PlanFormular angaben={ANGABEN} inhalt={inhalt} aendere={aendere} speichereAngaben={speichere} onEntwurf={entwurf} qrLink={qrLink} linkAdresse={linkAdresse} onTeilen={onTeilen} />
     </BibliothekKontext.Provider>
   );

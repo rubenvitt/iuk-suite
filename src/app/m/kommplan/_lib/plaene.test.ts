@@ -4,9 +4,9 @@ import { eq } from "drizzle-orm";
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND"); } }));
 import { plan } from "../_db/schema";
 import { BEISPIELE } from "./beispiele";
-import { beschreibungFuer, ladePlanLesend, ladePlanLesendOder404, listePlaene } from "./plaene";
+import { beschreibungFuer, ladePlanFuerOder404, ladePlanLesend, listePlaene } from "./plaene";
 import { seedLokalKommplan } from "./seedLokal";
-import { testDb } from "./testDb";
+import { TEST_ADMIN, testDb } from "./testDb";
 
 async function mitBeispielen() {
   const db = testDb();
@@ -17,14 +17,14 @@ async function mitBeispielen() {
 describe("Planliste und Laden", () => {
   it("listet nicht archivierte Pläne, neueste zuerst, mit lesbaren Texten", async () => {
     const db = await mitBeispielen();
-    const liste = listePlaene(db);
+    const liste = listePlaene(db, "plaene", TEST_ADMIN);
     expect(liste).toHaveLength(BEISPIELE.filter((b) => !b.istVorlage).length);
     expect(liste[0].id).toBe("beispiel-grosse-stabslage");
-    expect(listePlaene(db, "vorlagen")[0].id).toBe("vorlage-fernmeldeskizze-stab");
+    expect(listePlaene(db, "vorlagen", TEST_ADMIN)[0].id).toBe("vorlage-fernmeldeskizze-stab");
     const einsatz = liste.find((z) => z.id === "beispiel-einsatz-2026-02-22")!;
     expect(einsatz).toMatchObject({ typ: "Kommunikationsplan", datum: "22.02.2026", vorlage: false, lesbar: true });
     db.update(plan).set({ archiviertAm: new Date() }).where(eq(plan.id, einsatz.id)).run();
-    expect(listePlaene(db).map((z) => z.id)).not.toContain(einsatz.id);
+    expect(listePlaene(db, "plaene", TEST_ADMIN).map((z) => z.id)).not.toContain(einsatz.id);
   });
   it("lädt einen Plan samt geprüftem Inhalt; unbekannt → null bzw. 404, archiviert bleibt lesbar mit archiviertAm", async () => {
     const db = await mitBeispielen();
@@ -36,7 +36,7 @@ describe("Planliste und Laden", () => {
     expect(beschreibungFuer(p)).toContain("OpenR · 01.07.2022");
     expect(p.archiviertAm).toBeNull();
     expect(ladePlanLesend(db, "gibt-es-nicht")).toBeNull();
-    expect(() => ladePlanLesendOder404(db, "gibt-es-nicht")).toThrow("NEXT_NOT_FOUND");
+    expect(() => ladePlanFuerOder404(db, "gibt-es-nicht", TEST_ADMIN)).toThrow("NEXT_NOT_FOUND");
     db.update(plan).set({ archiviertAm: new Date() }).where(eq(plan.id, p.id)).run();
     expect(ladePlanLesend(db, p.id)!.archiviertAm).not.toBeNull();
   });
@@ -44,7 +44,7 @@ describe("Planliste und Laden", () => {
     const db = await mitBeispielen();
     db.update(plan).set({ inhalt: JSON.stringify({ schema: 1, optionen: {}, stellen: [{ id: "a" }], verbindungen: [] }) })
       .where(eq(plan.id, "vorlage-kommunikationsplan-label")).run();
-    expect(listePlaene(db, "vorlagen").find((z) => z.id === "vorlage-kommunikationsplan-label")?.lesbar).toBe(false);
+    expect(listePlaene(db, "vorlagen", TEST_ADMIN).find((z) => z.id === "vorlage-kommunikationsplan-label")?.lesbar).toBe(false);
     const p = ladePlanLesend(db, "vorlage-kommunikationsplan-label")!;
     expect(p.inhalt).toBeNull();
     expect(p.fehler).not.toBeNull();

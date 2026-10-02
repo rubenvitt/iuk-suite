@@ -1,0 +1,790 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "00350158-d767-405e-92fa-37c457121ccc",
+  "prevId": "631b7736-e38f-41eb-94dd-4c1f5ae3fbbc",
+  "tables": {
+    "audit_outbox": {
+      "name": "audit_outbox",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "module": {
+          "name": "module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_type": {
+          "name": "object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_ref": {
+          "name": "object_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "audit_outbox_occurred_idx": {
+          "name": "audit_outbox_occurred_idx",
+          "columns": [
+            "occurred_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_outbox_actor_json": {
+          "name": "audit_outbox_actor_json",
+          "value": "json_valid(\"audit_outbox\".\"actor\")"
+        }
+      }
+    },
+    "bib_einheit": {
+      "name": "bib_einheit",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rufname": {
+          "name": "rufname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zeichen": {
+          "name": "zeichen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bib_stelle": {
+      "name": "bib_stelle",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zeichen": {
+          "name": "zeichen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "leiter": {
+          "name": "leiter",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kontakte": {
+          "name": "kontakte",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "bib_stelle_kontakte_json": {
+          "name": "bib_stelle_kontakte_json",
+          "value": "json_valid(\"bib_stelle\".\"kontakte\")"
+        }
+      }
+    },
+    "bib_verbindung": {
+      "name": "bib_verbindung",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art": {
+          "name": "art",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bezeichnung": {
+          "name": "bezeichnung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "bib_verbindung_art_check": {
+          "name": "bib_verbindung_art_check",
+          "value": "\"bib_verbindung\".\"art\" IN ('tmo','dmo','analogfunk','draht','telefon','mobil','fax','daten')"
+        }
+      }
+    },
+    "briefkopf": {
+      "name": "briefkopf",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "organisation": {
+          "name": "organisation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "logo": {
+          "name": "logo",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "logo_mime": {
+          "name": "logo_mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "logo_sha256": {
+          "name": "logo_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_von": {
+          "name": "aktualisiert_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "briefkopf_eine_zeile": {
+          "name": "briefkopf_eine_zeile",
+          "value": "\"briefkopf\".\"id\" = 1"
+        },
+        "briefkopf_logo_vollstaendig": {
+          "name": "briefkopf_logo_vollstaendig",
+          "value": "(\"briefkopf\".\"logo\" IS NULL AND \"briefkopf\".\"logo_mime\" IS NULL AND \"briefkopf\".\"logo_sha256\" IS NULL) OR (\"briefkopf\".\"logo\" IS NOT NULL AND \"briefkopf\".\"logo_mime\" IN ('image/png','image/jpeg','image/webp','image/svg+xml') AND \"briefkopf\".\"logo_sha256\" IS NOT NULL)"
+        },
+        "briefkopf_logo_groesse": {
+          "name": "briefkopf_logo_groesse",
+          "value": "\"briefkopf\".\"logo\" IS NULL OR length(\"briefkopf\".\"logo\") <= 1048576"
+        }
+      }
+    },
+    "eigenes_zeichen": {
+      "name": "eigenes_zeichen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "spec": {
+          "name": "spec",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_von": {
+          "name": "aktualisiert_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "eigenes_zeichen_spec_json": {
+          "name": "eigenes_zeichen_spec_json",
+          "value": "json_valid(\"eigenes_zeichen\".\"spec\") AND length(\"eigenes_zeichen\".\"spec\") <= 4000"
+        }
+      }
+    },
+    "kommplan_person": {
+      "name": "kommplan_person",
+      "columns": {
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan": {
+      "name": "plan",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "anlass": {
+          "name": "anlass",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "datum": {
+          "name": "datum",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ist_vorlage": {
+          "name": "ist_vorlage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "archiviert_am": {
+          "name": "archiviert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_von": {
+          "name": "aktualisiert_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "inhalt": {
+          "name": "inhalt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eigentuemer": {
+          "name": "eigentuemer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sichtbarkeit": {
+          "name": "sichtbarkeit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'organisation'"
+        }
+      },
+      "indexes": {
+        "plan_liste_idx": {
+          "name": "plan_liste_idx",
+          "columns": [
+            "archiviert_am",
+            "aktualisiert_am"
+          ],
+          "isUnique": false
+        },
+        "plan_eigentuemer_idx": {
+          "name": "plan_eigentuemer_idx",
+          "columns": [
+            "eigentuemer"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "plan_typ_check": {
+          "name": "plan_typ_check",
+          "value": "\"plan\".\"typ\" IN ('kommunikationsplan','fernmeldeskizze')"
+        },
+        "plan_sichtbarkeit_check": {
+          "name": "plan_sichtbarkeit_check",
+          "value": "\"plan\".\"sichtbarkeit\" IN ('privat','organisation')"
+        },
+        "plan_privat_hat_eigentuemer": {
+          "name": "plan_privat_hat_eigentuemer",
+          "value": "\"plan\".\"sichtbarkeit\" <> 'privat' OR \"plan\".\"eigentuemer\" IS NOT NULL"
+        },
+        "plan_inhalt_json": {
+          "name": "plan_inhalt_json",
+          "value": "json_valid(\"plan\".\"inhalt\")"
+        },
+        "plan_version_positiv": {
+          "name": "plan_version_positiv",
+          "value": "\"plan\".\"version\" >= 1"
+        }
+      }
+    },
+    "plan_bearbeitung": {
+      "name": "plan_bearbeitung",
+      "columns": {
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seit": {
+          "name": "seit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plan_bearbeitung_plan_id_plan_id_fk": {
+          "name": "plan_bearbeitung_plan_id_plan_id_fk",
+          "tableFrom": "plan_bearbeitung",
+          "tableTo": "plan",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plan_bearbeitung_plan_id_nutzer_pk": {
+          "columns": [
+            "plan_id",
+            "nutzer"
+          ],
+          "name": "plan_bearbeitung_plan_id_nutzer_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan_freigabe": {
+      "name": "plan_freigabe",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ablauf": {
+          "name": "ablauf",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "widerrufen_am": {
+          "name": "widerrufen_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "erstellt_von": {
+          "name": "erstellt_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zuletzt_abgerufen": {
+          "name": "zuletzt_abgerufen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "abrufe": {
+          "name": "abrufe",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "plan_freigabe_token_idx": {
+          "name": "plan_freigabe_token_idx",
+          "columns": [
+            "token"
+          ],
+          "isUnique": true
+        },
+        "plan_freigabe_plan_idx": {
+          "name": "plan_freigabe_plan_idx",
+          "columns": [
+            "plan_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "plan_freigabe_plan_id_plan_id_fk": {
+          "name": "plan_freigabe_plan_id_plan_id_fk",
+          "tableFrom": "plan_freigabe",
+          "tableTo": "plan",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan_mitglied": {
+      "name": "plan_mitglied",
+      "columns": {
+        "plan_id": {
+          "name": "plan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nutzer": {
+          "name": "nutzer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eingeladen_am": {
+          "name": "eingeladen_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eingeladen_von": {
+          "name": "eingeladen_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "plan_mitglied_nutzer_idx": {
+          "name": "plan_mitglied_nutzer_idx",
+          "columns": [
+            "nutzer"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "plan_mitglied_plan_id_plan_id_fk": {
+          "name": "plan_mitglied_plan_id_plan_id_fk",
+          "tableFrom": "plan_mitglied",
+          "tableTo": "plan",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plan_mitglied_plan_id_nutzer_pk": {
+          "columns": [
+            "plan_id",
+            "nutzer"
+          ],
+          "name": "plan_mitglied_plan_id_nutzer_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

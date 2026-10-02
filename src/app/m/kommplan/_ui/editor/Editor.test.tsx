@@ -12,6 +12,10 @@ vi.mock("../../_actions/zeichen", () => zeichen);
 vi.mock("../../_actions/bibliothek", () => ({ speichereBibStelleAction: vi.fn(), importiereBibEinheitenAction: vi.fn(), importiereBibVerbindungenAction: vi.fn() }));
 const freigabeAktion = vi.hoisted(() => ({ aus: vi.fn(), weg: vi.fn(), lade: vi.fn() }));
 vi.mock("../../_actions/freigabe", () => ({ stelleFreigabeAusAction: freigabeAktion.aus, widerrufeFreigabeAction: freigabeAktion.weg, ladeFreigabenAction: freigabeAktion.lade }));
+const teilenAktion = vi.hoisted(() => ({ ladeMitgliederAction: vi.fn(async () => []), teileInOrganisationAction: vi.fn(), ladeEinAction: vi.fn(), entferneMitgliedAction: vi.fn(), suchePersonenAction: vi.fn(async () => []) }));
+vi.mock("../../_actions/teilen", () => teilenAktion);
+const austauschAktion = vi.hoisted(() => ({ exportierePlanAction: vi.fn(), importierePlanAction: vi.fn() }));
+vi.mock("../../_actions/austausch", () => austauschAktion);
 import { baue } from "../../_lib/beispiele/bau";
 import { LEERE_BIBLIOTHEK } from "../../_lib/bibliothek/typen";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
@@ -703,9 +707,24 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     expect(exists('[data-griffe="a"]')).toBe(true);
     expect(flyinOffen()).toBe(true);
   });
+  it("ohne Verwaltungsrecht kein „Teilen“ und kein Abgleich der Links (_lib/rechte.ts); „Exportieren“ steht immer", async () => {
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" />);
+    await act(async () => {});
+    expect(knopf("Teilen")).toBeUndefined();
+    expect(knopf("Exportieren")).toBeDefined();
+    expect(freigabeAktion.lade).not.toHaveBeenCalled();
+  });
+  it("„Teilen“ zeigt oben die Sichtbarkeit — privat mit „In der Organisation teilen“", async () => {
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ sichtbarkeit: "privat", mitglieder: [], basis: "http://kommplan.localtest.me:3000", freigaben: [] }} />);
+    await act(async () => {});
+    await clickElement(knopf("Teilen"));
+    await act(async () => {});
+    expect(document.querySelector('[data-sichtbarkeit="privat"]')).not.toBeNull();
+    expect(teilenAktion.ladeMitgliederAction).toHaveBeenCalledWith("p1");
+  });
   it("„Teilen“ öffnet das Flyin mit den Links des Plans und hält seine Breite frei", async () => {
     await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo"
-      teilen={{ basis: "http://kommplan.localtest.me:3000", freigaben: [{ id: "f1", token: "A".repeat(43), notiz: "Leitstelle", ablauf: null, widerrufenAm: null, erstelltAm: 1, erstelltVon: "Jana", zuletztAbgerufen: null, abrufe: 0, status: "gueltig" }] }} />);
+      teilen={{ sichtbarkeit: "organisation", mitglieder: [], basis: "http://kommplan.localtest.me:3000", freigaben: [{ id: "f1", token: "A".repeat(43), notiz: "Leitstelle", ablauf: null, widerrufenAm: null, erstelltAm: 1, erstelltVon: "Jana", zuletztAbgerufen: null, abrufe: 0, status: "gueltig" }] }} />);
     await act(async () => {});
     await clickElement(knopf("Teilen"));
     await act(async () => {});
@@ -719,7 +738,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
   });
   it("gleicht die Links beim Montieren und beim Öffnen von „Teilen“ ab — ein inzwischen abgelaufener Link ist nicht mehr kopierbar (Review Phase 5)", async () => {
     freigabeAktion.lade.mockResolvedValueOnce(null).mockResolvedValueOnce([Z({ status: "abgelaufen" })]);
-    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ basis: BASIS, freigaben: [Z({})] }} />);
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ sichtbarkeit: "organisation", mitglieder: [], basis: BASIS, freigaben: [Z({})] }} />);
     await act(async () => {});
     expect(freigabeAktion.lade).toHaveBeenCalledWith("p1");
     await clickElement(knopf("Teilen"));
@@ -731,7 +750,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
   it("Browser-Zurück: der Abgleich beim Montieren bringt einen eben ausgestellten Link in den QR-Hinweis", async () => {
     freigabeAktion.lade.mockResolvedValueOnce([Z({ ablauf: null, notiz: "Aushang" })]);
     const mitQr = setzeOptionen(INHALT, { qrAufDruck: true });
-    await mount(<Editor plan={plan(mitQr)} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ basis: BASIS, freigaben: [] }} />);
+    await mount(<Editor plan={plan(mitQr)} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ sichtbarkeit: "organisation", mitglieder: [], basis: BASIS, freigaben: [] }} />);
     await act(async () => {});
     await clickElement(knopf("Plan und Verbindungen"));
     await act(async () => {});
@@ -741,7 +760,7 @@ describe("Gliederung im Editor, Review Phase 3", () => {
     let loese: (f: FreigabeZeile[]) => void = () => {};
     freigabeAktion.lade.mockResolvedValueOnce(null).mockImplementationOnce(() => new Promise((r) => { loese = r; }));
     freigabeAktion.aus.mockResolvedValue({ ok: true, neu: "f2", freigaben: [Z({ id: "f2", token: "B".repeat(43), notiz: "Presse" }), Z({})] });
-    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ basis: BASIS, freigaben: [Z({})] }} />);
+    await mount(<Editor plan={plan()} symbole={{}} zeichenIndex={[]} schrift="Arimo" teilen={{ sichtbarkeit: "organisation", mitglieder: [], basis: BASIS, freigaben: [Z({})] }} />);
     await act(async () => {});
     await clickElement(knopf("Teilen"));
     await act(async () => {});

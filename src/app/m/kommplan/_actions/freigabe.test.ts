@@ -18,12 +18,13 @@ beforeEach(async () => {
 const OPENR = "beispiel-openr-2022-07-01";
 
 describe("Actions der Token-Links", () => {
-  it("ohne Bearbeitungsrecht: Forbidden — auch mit Zugangsgruppe, auch anonym", async () => {
+  it("anonym: Forbidden; mit Zugangsgruppe an einem geteilten Plan, den sie nicht verwaltet: abgewiesen", async () => {
     const a = await import("./freigabe");
     await expect(a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "" })).rejects.toThrow("Forbidden");
     gruppen = ["iuk-kommplan"];
-    await expect(a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "" })).rejects.toThrow("Forbidden");
-    await expect(a.widerrufeFreigabeAction({ planId: OPENR, freigabeId: "x" })).rejects.toThrow("Forbidden");
+    const { NICHT_ERLAUBT } = await import("../_lib/rechte");
+    expect(await a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "" })).toEqual({ ok: false, fehler: NICHT_ERLAUBT, feldFehler: {} });
+    expect(await a.widerrufeFreigabeAction({ planId: OPENR, freigabeId: "x" })).toEqual({ ok: false, fehler: NICHT_ERLAUBT, feldFehler: {} });
   });
   it("ausstellen und widerrufen mit Audit-Akteur aus der Sitzung", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];
@@ -38,11 +39,11 @@ describe("Actions der Token-Links", () => {
     const akteure = getDb().all(sql`SELECT DISTINCT json_extract(actor, '$.id') AS id FROM audit_outbox WHERE object_type = 'plan_freigabe'`) as { id: string }[];
     expect(akteure).toEqual([{ id: "u1" }]);
   });
-  it("Liste lesen: nur mit Bearbeitungsrecht, nur die Links dieses Plans, Status vom Server", async () => {
+  it("Liste lesen: nur wer den Plan verwaltet, nur die Links dieses Plans, Status vom Server", async () => {
     const a = await import("./freigabe");
     await expect(a.ladeFreigabenAction(OPENR)).rejects.toThrow("Forbidden");
     gruppen = ["iuk-kommplan"];
-    await expect(a.ladeFreigabenAction(OPENR)).rejects.toThrow("Forbidden");
+    expect(await a.ladeFreigabenAction(OPENR)).toBeNull();
     gruppen = ["iuk-kommplan-bearbeiten"];
     const r = await a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "Leitstelle" });
     if (!r.ok) throw new Error(r.fehler);

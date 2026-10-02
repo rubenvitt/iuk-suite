@@ -7,6 +7,7 @@ import { stelleFreigabeAusAction, widerrufeFreigabeAction } from "../../_actions
 import { NETZFEHLER, type FreigabeErgebnis } from "../../_lib/ergebnis";
 import { besteFreigabe, DAUER_NAME, DAUER_VORGABE, FREIGABE_DAUERN, FREIGABE_GRENZE, tokenUrl, type FreigabeDauer, type FreigabeZeile } from "../../_lib/freigabe/regeln";
 import { ablaufText, abrufText, qrZielSatz, ZEIT } from "../../_lib/freigabe/texte";
+import { Organisation, type OrganisationProps } from "./Organisation";
 import { kopiere } from "./zwischenablage";
 import { OHNE_FOKUSRUECKGABE } from "../fokus";
 
@@ -18,6 +19,8 @@ interface Props {
   planId: string; basis: string | null; freigaben: FreigabeZeile[]; onFreigaben: (f: FreigabeZeile[]) => void;
   /** Derselbe Schalter wie im Plan-Flyin (eine Option `qrAufDruck`, zwei Orte; Entscheidung 10). */
   qr?: { an: boolean; onAendern: (an: boolean) => void };
+  /** Sichtbarkeit und Einladungen (`Organisation.tsx`) — oben im Flyin, die Links darunter. */
+  organisation?: Omit<OrganisationProps, "planId">;
 }
 
 /**
@@ -41,7 +44,7 @@ export function TeilenFlyin({ offen, onSchliessen, nachSchliessen, ...p }: Props
  * Fokus: beim Öffnen die Notiz, nach dem Ausstellen „Link kopieren" am neuen Link, nach dem Widerrufen der nächste
  * gültige Link oder die Legende „Gültige Links (0)" — der Knopf, auf den Popconfirm zurückwollte, ist dann weg.
  */
-export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
+export function Teilen({ planId, basis, freigaben, onFreigaben, qr, organisation }: Props) {
   const [dauer, setDauer] = useState<FreigabeDauer>(DAUER_VORGABE);
   const [notiz, setNotiz] = useState("");
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -119,6 +122,7 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr }: Props) {
 
   return (
     <div className="kp-formular kp-teilen">
+      {organisation ? <Organisation planId={planId} {...organisation} onMeldung={setMeldung} /> : null}
       <fieldset className="kp-abschnitt">
         <legend>Neuen Link ausstellen</legend>
         <p className="kp-hilfe">Wer den Link hat, sieht den aktuellen Stand dieses Plans ohne Anmeldung und kann ihn drucken — nicht bearbeiten.</p>

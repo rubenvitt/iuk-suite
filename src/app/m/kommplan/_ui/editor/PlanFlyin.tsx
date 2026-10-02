@@ -235,11 +235,11 @@ function Verbindungen({ inhalt, aendere }: Pick<PlanFormularProps, "inhalt" | "a
  * Actions laufen nacheinander, eine Schleife einzelner Aufrufe stellte sich vor das Autosave (`unterwegs` im Editor).
  */
 function VerbindungenInBibliothek({ inhalt }: { inhalt: PlanInhalt }) {
-  const { aktiv, merke } = useBibliothek();
+  const { aktiv, pflegen, merke } = useBibliothek();
   const [meldung, setMeldung] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const zeilen = inhalt.verbindungen.filter((v) => v.bezeichnung.trim() !== "");
-  if (!aktiv || zeilen.length === 0) return null;
+  if (!aktiv || !pflegen || zeilen.length === 0) return null;
   async function uebernimm() {
     if (laeuft) return;
     setLaeuft(true);

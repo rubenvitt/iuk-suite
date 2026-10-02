@@ -12,7 +12,7 @@ import { setzeOptionen } from "./plan/operationen";
 import { archiviere } from "./planverwaltung";
 import { ladePlanLesend } from "./plaene";
 import { seedLokalKommplan } from "./seedLokal";
-import { testDb } from "./testDb";
+import { TEST_ADMIN, testDb } from "./testDb";
 
 async function mitSeed() { const db = testDb(); await seedLokalKommplan(db); return db; }
 const BASIS = "https://kommplan.iuk-ue.de";
@@ -24,7 +24,7 @@ function mitQrOption(db: ReturnType<typeof testDb>, id: string) {
   return ladePlanLesend(db, id)!;
 }
 const aus = (db: ReturnType<typeof testDb>, planId: string, dauer: string) => {
-  const r = stelleFreigabeAus(db, { planId, dauer, notiz: "" }, WER, JETZT);
+  const r = stelleFreigabeAus(db, { planId, dauer, notiz: "" }, WER, JETZT, TEST_ADMIN);
   if (!r.ok) throw new Error(r.fehler);
   return r.freigaben.find((f) => f.id === r.neu)!;
 };
@@ -106,7 +106,7 @@ describe("QR-Ziel (Entscheidungen 9, 10)", () => {
     const ohne = await druckseitenDaten(db, p, { format: "a4-quer", qrUrl: null });
     expect(ohne.rahmen.qr).toBeNull();
     expect(ohne.qrSatz).toBeNull();
-    archiviere(db, p.id, JETZT);
+    archiviere(db, p.id, JETZT, TEST_ADMIN);
     expect(qrZielIntern(db, ladePlanLesend(db, p.id)!, true, JETZT, BASIS)).toBeNull();
   });
   it("Schwarzweiß-Option: graue Symbole und Rahmen mit schwarzweiss", async () => {

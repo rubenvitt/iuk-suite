@@ -17,15 +17,21 @@ beforeEach(async () => {
 });
 
 describe("Actions der Planverwaltung", () => {
-  it("ohne Bearbeitungsrecht: Forbidden, auch mit Zugangsgruppe", async () => {
-    gruppen = ["iuk-kommplan"];
+  it("ohne Zugang: Forbidden; mit Zugangsgruppe kopieren ja (privat), verwalten eines geteilten Plans nein", async () => {
     const a = await import("./verwaltung");
     await expect(a.dupliziereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.speichereAlsVorlageAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+    gruppen = ["andere"];
     await expect(a.archiviereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.stelleWiederHerAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.loescheEndgueltigAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.loescheOhneArchivAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+    gruppen = ["iuk-kommplan"];
+    const kopie = await a.dupliziereAction("beispiel-openr-2022-07-01");
+    expect(kopie.ok).toBe(true);
+    const { NICHT_ERLAUBT } = await import("../_lib/rechte");
+    expect(await a.archiviereAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    expect(await a.stelleWiederHerAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    expect(await a.loescheEndgueltigAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    expect(await a.loescheOhneArchivAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    // Die eigene Kopie verwaltet die Person selbst — auch das Löschen ohne Archiv, solange sie frisch ist.
+    if (kopie.ok) expect(await a.loescheOhneArchivAction(kopie.id)).toEqual({ ok: true });
   });
   it("löschen: ohne Archiv nur frisch, endgültig nur archiviert — die Uhr ist die des Servers", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];
@@ -42,7 +48,7 @@ describe("Actions der Planverwaltung", () => {
     expect(await a.loescheOhneArchivAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_MEHR_FRISCH });
     expect(await a.archiviereAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
     expect(await a.loescheEndgueltigAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
-    expect(listePlaene(getDb(), "archiv").map((z) => z.id)).not.toContain("beispiel-openr-2022-07-01");
+    expect(listePlaene(getDb(), "archiv", { nutzer: "u1", admin: true }).map((z) => z.id)).not.toContain("beispiel-openr-2022-07-01");
     expect(await a.loescheEndgueltigAction(5)).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
     expect(await a.loescheOhneArchivAction("")).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
   });

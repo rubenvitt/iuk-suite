@@ -85,7 +85,7 @@ test("Vorlage: als Kopie speichern, Neu aus Vorlage übernimmt den Inhalt, Vorla
   await expect(page.getByRole("table", { name: "Pläne" }).getByRole("link", { name: titel, exact: true })).toBeVisible();
   await page.goto(url("/archiv"));
   await warteAufSpaltenaufteilung(page);
-  await expect(page.getByRole("table", { name: "Archivierte Pläne" }).getByRole("row").filter({ hasText: titel }).locator(".kp-chip")).toHaveText("Vorlage");
+  await expect(page.getByRole("table", { name: "Archivierte Pläne" }).getByRole("row").filter({ hasText: titel }).locator(".kp-chip")).toHaveText(["Privat", "Vorlage"]); // eine eigene Vorlage ist privat (_lib/rechte.ts)
 });
 
 test("Archiv: archivieren, Rückgängig, nur lesbar unter /p/<id>, wiederherstellen", async ({ page }) => {

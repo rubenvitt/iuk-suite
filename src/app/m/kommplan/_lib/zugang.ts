@@ -6,6 +6,7 @@ import { auth } from "@/core/auth";
 import { hasAnyGroup, isModuleAdmin } from "@/core/groups";
 import { getModule, requiredGroupsFor } from "@/core/registry";
 import { istKommplanHost } from "./host";
+import type { Person } from "./rechte";
 import type { Bearbeiter } from "./speichern";
 
 export type Viewer = Session["user"];
@@ -21,7 +22,10 @@ export function hatKommplanZugang(groups: readonly string[] | null | undefined, 
   return hasAnyGroup(groups, requiredGroupsFor(mod, env)) || isModuleAdmin(mod, groups ? [...groups] : null, env);
 }
 
-/** Pläne bearbeiten, Bibliothek pflegen, Links ausstellen (ab Phase 2). */
+/**
+ * Modul-Admin: Bibliothek und Einstellungen pflegen, jeden GETEILTEN Plan bearbeiten und verwalten. Private Pläne
+ * anderer sieht auch ein Admin nicht — was an einem einzelnen Plan erlaubt ist, entscheidet `_lib/rechte.ts`.
+ */
 export function darfKommplanBearbeiten(groups: readonly string[] | null | undefined, env: EnvLike = process.env): boolean {
   return isModuleAdmin(getModule("kommplan"), groups ? [...groups] : null, env);
 }
@@ -68,6 +72,26 @@ export async function requireKommplanBearbeitenAktion(): Promise<Viewer> {
   if (!viewer) { auditLoginRequired("kommplan"); throw new Error("Forbidden"); }
   if (!darfKommplanBearbeiten(viewer.groups)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
+}
+
+/**
+ * Für die Server Actions an Plänen: Host, Anmeldung und Modulzugang — Anlegen und Importieren darf jeder mit
+ * Zugang, alles an einem bestehenden Plan prüft die Action danach über `rechteAn` (`_lib/rechte.ts`). Wurf statt
+ * `notFound`, weil eine Action keine Seite ist.
+ */
+export async function requireKommplanAktion(): Promise<Viewer> {
+  const kopf = await headers();
+  const viewer = (await auth())?.user;
+  if (!istKommplanHost(kopf)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
+  if (!viewer) { auditLoginRequired("kommplan"); throw new Error("Forbidden"); }
+  if (!hatKommplanZugang(viewer.groups)) { auditDenied("kommplan", auditActor(viewer)); throw new Error("Forbidden"); }
+  return viewer;
+}
+
+/** Wer fragt, für `rechteFuer`: dieselbe Kennung wie `bearbeiterAus` (Eigentümer, Einladung) und das Admin-Recht. */
+export function personAus(viewer: Viewer): Person {
+  const akteur = auditActor(viewer);
+  return { nutzer: akteur.kind === "user" ? akteur.id : null, admin: darfKommplanBearbeiten(viewer.groups) };
 }
 
 /**

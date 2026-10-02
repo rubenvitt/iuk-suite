@@ -18,23 +18,35 @@ beforeEach(() => {
 const ANGABEN = { titel: "Übung", typ: "kommunikationsplan", anlass: "", datum: "2026-09-30" };
 
 describe("Plan-Actions", () => {
-  it("ohne Admin-Gruppe: Forbidden, auch mit Zugangsgruppe", async () => {
-    const { legePlanAnAction, speichereInhaltAction } = await import("./plan");
-    gruppen = ["iuk-kommplan"];
+  it("ohne Zugangsgruppe: Forbidden; mit ihr legt jede Person eigene private Pläne an", async () => {
+    const { legePlanAnAction, speichereInhaltAction, ladeStandAction, speichereAngabenAction } = await import("./plan");
+    const { ladeZeichenAction } = await import("./zeichen");
+    gruppen = ["andere"];
     await expect(legePlanAnAction(ANGABEN)).rejects.toThrow("Forbidden");
     await expect(speichereInhaltAction({ id: "x", version: 1, inhalt: {} })).rejects.toThrow("Forbidden");
-    const { ladeStandAction, speichereAngabenAction } = await import("./plan");
     await expect(ladeStandAction("x")).rejects.toThrow("Forbidden");
-    await expect(speichereAngabenAction({ id: "x", version: 1, angaben: ANGABEN })).rejects.toThrow("Forbidden");
-    const { ladeZeichenAction } = await import("./zeichen");
     await expect(ladeZeichenAction(["rezept:F.2.3"])).rejects.toThrow("Forbidden");
+    gruppen = ["iuk-kommplan"];
+    const neu = await legePlanAnAction(ANGABEN);
+    if (!neu.ok) throw new Error(neu.fehler);
+    const { getDb } = await import("../_db/client");
+    const { ladePlanLesend } = await import("../_lib/plaene");
+    expect(ladePlanLesend(getDb(), neu.id)).toMatchObject({ sichtbarkeit: "privat", eigentuemer: "u1" });
+    const { leererPlan } = await import("../_lib/plan/operationen");
+    expect(await speichereInhaltAction({ id: neu.id, version: 1, inhalt: leererPlan() })).toMatchObject({ ok: true, version: 2 });
+    expect(await ladeZeichenAction(["rezept:F.2.3"])).toBeTypeOf("object");
+    // Ein geteilter Plan ohne Einladung bleibt für sie „weg" — Admins und Eigentümer bearbeiten ihn.
+    const { seedLokalKommplan } = await import("../_lib/seedLokal");
+    await seedLokalKommplan(getDb());
+    expect(await speichereAngabenAction({ id: "beispiel-openr-2022-07-01", version: 1, angaben: ANGABEN })).toEqual({ ok: false, grund: "weg" });
+    expect(await ladeStandAction("beispiel-openr-2022-07-01")).toBeNull();
   });
   it("jede exportierte Action prüft als ERSTE Anweisung den Bearbeitungs-Riegel (per POST direkt erreichbar)", () => {
     for (const datei of readdirSync("src/app/m/kommplan/_actions").filter((d) => d.endsWith(".ts") && !d.endsWith(".test.ts"))) {
       const quelle = readFileSync(`src/app/m/kommplan/_actions/${datei}`, "utf8");
       const actions = [...quelle.matchAll(/export async function (\w+)\([^)]*\)[^{]*\{\n\s*(.*)/g)];
       expect(actions.length, datei).toBeGreaterThan(0);
-      for (const [, name, erste] of actions) expect(erste, `${datei}: ${name}`).toMatch(/^(const viewer = )?await requireKommplanBearbeitenAktion\(\);$/);
+      for (const [, name, erste] of actions) expect(erste, `${datei}: ${name}`).toMatch(/^(const viewer = )?await requireKommplan(Bearbeiten)?Aktion\(\);$/);
       expect(quelle.match(/export /g)?.length, `${datei}: nur Actions exportieren`).toBe(actions.length);
     }
   });

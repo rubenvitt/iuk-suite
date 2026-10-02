@@ -8,6 +8,7 @@ import type { AnlageErgebnis, SpeicherErgebnis, Speicherstand } from "./ergebnis
 import { leererPlan } from "./plan/operationen";
 import { leseInhalt } from "./plan/schema";
 import { lies } from "./plaene";
+import { rechteAn, type Person } from "./rechte";
 
 /**
  * SPEICHERN (Spec §6.6) — nur Server. Die Actions in `_actions/plan.ts` prüfen Zugang und setzen
@@ -53,9 +54,10 @@ const vorlageFeld = z.string().min(1).max(64).nullable().optional();
 /**
  * Neu, leer oder aus einer Vorlage (Spec §6.7; Umsetzungsplan Phase 4, Entscheidung 8): die Angaben kommen aus
  * dem Formular, der Inhalt aus der Vorlage — nur aus einer NICHT archivierten Vorlage (`ist_vorlage`), deren
- * Inhalt lesbar ist; die ID wird gegen die Datenbank aufgelöst (IDOR).
+ * Inhalt lesbar ist und die `person` sehen darf; die ID wird gegen die Datenbank aufgelöst (IDOR).
+ * Ein neuer Plan ist PRIVAT und gehört `wer` (`_lib/rechte.ts`) — geteilt wird er erst ausdrücklich.
  */
-export function legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number): AnlageErgebnis {
+export function legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number, person: Person): AnlageErgebnis {
   const { vorlage, ...angaben } = (typeof eingabe === "object" && eingabe !== null ? eingabe : {}) as Record<string, unknown>;
   const a = angabenSchema.safeParse(angaben);
   const v = vorlageFeld.safeParse(vorlage);
@@ -65,7 +67,7 @@ export function legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, je
   let inhalt = JSON.stringify(leererPlan());
   if (v.data) {
     const q = db.select().from(plan).where(and(eq(plan.id, v.data), eq(plan.istVorlage, true), isNull(plan.archiviertAm))).get();
-    const gelesen = q ? lies(q).inhalt : null;
+    const gelesen = q && rechteAn(db, q.id, person).sehen ? lies(q).inhalt : null;
     if (!gelesen) return { ok: false, fehler: FELDER, feldFehler: { vorlage: VORLAGE_WEG } };
     inhalt = JSON.stringify(gelesen);
   }
@@ -73,7 +75,7 @@ export function legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, je
   db.insert(plan).values({
     id, titel: a.data.titel, typ: a.data.typ, anlass: a.data.anlass,
     datum: a.data.datum === null ? null : new Date(tagZuMs(a.data.datum)),
-    erstelltAm: new Date(jetzt), aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt,
+    erstelltAm: new Date(jetzt), aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt, eigentuemer: wer.nutzer, sichtbarkeit: "privat",
   }).run();
   return { ok: true, id };
 }

@@ -5,22 +5,26 @@ import { Alert, Button, type InputRef } from "antd";
 import { flyinBreite } from "@/core/theme/flyin";
 import { ladeFreigabenAction } from "../../_actions/freigabe";
 import { ladeStandAction, speichereAngabenAction, speichereInhaltAction } from "../../_actions/plan";
+import { ladeMitgliederAction } from "../../_actions/teilen";
 import { ladeZeichenAction } from "../../_actions/zeichen";
 import { angabenSchema, type Planangaben } from "../../_lib/angaben";
 import { LEERE_BIBLIOTHEK, type Bibliothek } from "../../_lib/bibliothek/typen";
 import { adresseMitAnsicht, SCHMAL, sichtbareAnsicht, type EditorAnsicht } from "../../_lib/editorAnsicht";
 import type { SpeicherErgebnis, Speicherstand } from "../../_lib/ergebnis";
 import { besteFreigabe, type FreigabeZeile } from "../../_lib/freigabe/regeln";
+import type { Mitglied } from "../../_lib/mitglieder";
 import { layout } from "../../_lib/layout/layout";
 import { baueSicht } from "../../_lib/layout/sicht";
 import { legende } from "../../_lib/layout/zeichne";
 import { fuegeEinheitenEin } from "../../_lib/plan/einheiten";
 import { PlanFehler, fuegeSeitenstelleEin, fuegeUnterstelleEin, fuegeWurzelEin, loescheStelle, setzeOptionen } from "../../_lib/plan/operationen";
 import type { PlanInhalt } from "../../_lib/plan/schema";
+import type { Sichtbarkeit } from "../../_lib/rechte";
 import type { ZeichenIndexEintrag } from "../../_lib/zeichen/grundlagen";
 import { Flaeche, type FlaecheGriff } from "../betrachter/Flaeche";
 import { Legende } from "../betrachter/Legende";
 import { Umschalter } from "../betrachter/EinklappKnopf";
+import { exportiere } from "../austausch/herunterladen";
 import { druckZiel, type DruckWahl } from "../druck/DruckMenue";
 import { Gliederung, type GliederungGriff } from "../gliederung/Gliederung";
 import { TEILEN_FLYIN_GRUND, TeilenFlyin } from "../teilen/Teilen";
@@ -40,7 +44,9 @@ import { leseZuletzt } from "./zuletzt";
 import { useEingeklappt } from "../betrachter/einklappen";
 import { fokusVerloren } from "../fokus";
 
-const KEIN_TEILEN: { freigaben: FreigabeZeile[]; basis: string | null } = { freigaben: [], basis: null };
+/** Was „Teilen" braucht — nur für wer den Plan verwaltet (`_lib/rechte.ts`); ohne steht der Knopf nicht da. */
+export interface EditorTeilen { freigaben: FreigabeZeile[]; basis: string | null; sichtbarkeit: Sichtbarkeit; mitglieder: Mitglied[] }
+const KEINE_FREIGABEN: FreigabeZeile[] = [];
 
 export interface EditorPlan { id: string; version: number; angaben: Planangaben; inhalt: PlanInhalt; aktualisiertAm: number; aktualisiertVon: string }
 /** Hinweis unter der Fläche. `nach`: der Stand direkt nach dem Löschen — „Rückgängig“ gilt nur, solange genau er der jetzige ist;
@@ -93,7 +99,7 @@ function vorfahren(p: PlanInhalt, id: string | null): string[] {
  * - Zwei Ansichten auf denselben Zustand (Phase 3): Diagramm und Gliederung bleiben montiert;
  *   `data-editoransicht` und CSS entscheiden, was zu sehen ist; Fokus kehrt über `fokusZurueck` in die sichtbare zurück.
  */
-export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK, teilen = KEIN_TEILEN }: {
+export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, schriftKlasse, ansicht: ansichtStart = null, kopieHinweis, bibliothek = LEERE_BIBLIOTHEK, bibliothekPflegen = true, teilen }: {
   plan: EditorPlan; symbole: Symbolsatz; zeichenIndex: ZeichenIndexEintrag[]; schrift: string;
   /** Aus `?ansicht=`; `null` = CSS wählt am Breakpoint (Phase 3, Entscheidung 1). */
   ansicht?: EditorAnsicht | null;
@@ -103,8 +109,10 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   kopieHinweis?: { text: string; bestaetigt: boolean };
   /** Die Bibliothek für Kopien in den Plan (Phase 4, Entscheidung 13); nur für Bearbeitende geladen. */
   bibliothek?: Bibliothek;
-  /** Nur für Bearbeitende und nicht archivierte Pläne — die Seite lädt sie (Phase 5, Entscheidung 17). */
-  teilen?: { freigaben: FreigabeZeile[]; basis: string | null };
+  /** Einträge in die Bibliothek übernehmen — nur Modul-Admins (`darfKommplanBearbeiten`); kopieren daraus darf jeder. */
+  bibliothekPflegen?: boolean;
+  /** Nur für wer den Plan verwaltet und nicht archivierte Pläne — die Seite lädt sie (Phase 5, Entscheidung 17). */
+  teilen?: EditorTeilen;
 }) {
   const [verlauf, setVerlauf] = useState<Verlauf>(() => neuerVerlauf(plan.inhalt));
   const [angaben, setAngaben] = useState(plan.angaben);
@@ -112,7 +120,10 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const [angabenFremd, setAngabenFremd] = useState(0);
   const [auswahl, setAuswahl] = useState<string | null>(null);
   const [flyin, setFlyin] = useState<"stelle" | "plan" | "teilen" | null>(null);
-  const [freigaben, setFreigaben] = useState<FreigabeZeile[]>(teilen.freigaben);
+  const [freigaben, setFreigaben] = useState<FreigabeZeile[]>(teilen?.freigaben ?? KEINE_FREIGABEN);
+  const [sichtbarkeit, setSichtbarkeit] = useState<Sichtbarkeit | null>(teilen?.sichtbarkeit ?? null);
+  const [mitglieder, setMitglieder] = useState<Mitglied[]>(teilen?.mitglieder ?? []);
+  const darfTeilen = teilen !== undefined;
   /** Jede neue Liste zählt hoch: ein Abgleich, der eine jüngere Liste (Ausstellen, Widerrufen) überholt, verfällt. */
   const freigabenStand = useRef(0);
   const [planAbschnitt, setPlanAbschnitt] = useState<"angaben" | "verbindungen">("angaben");
@@ -309,16 +320,18 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
    * oder aus einem zweiten Tab ein alter Stand. Ein Abgleich, den eine jüngere Liste überholt hat, verfällt.
    */
   function gleicheFreigabenAb() {
+    if (!darfTeilen) return;
     const nr = ++freigabenStand.current;
     void ladeFreigabenAction(plan.id).then((f) => { if (f && nr === freigabenStand.current) setFreigaben(f); }).catch(() => { /* dann bleibt die Liste */ });
   }
   const uebernimmFreigaben = (f: FreigabeZeile[]) => { freigabenStand.current++; setFreigaben(f); };
   useEffect(() => {
+    if (!darfTeilen) return;
     const nr = ++freigabenStand.current;
     let aktiv = true;
     void ladeFreigabenAction(plan.id).then((f) => { if (aktiv && f && nr === freigabenStand.current) setFreigaben(f); }).catch(() => { /* dann bleibt die Liste */ });
     return () => { aktiv = false; };
-  }, [plan.id]);
+  }, [plan.id, darfTeilen]);
 
   // Strg/Cmd+Z global, aber nie in einem Textfeld (dort gehört es dem Feld).
   useEffect(() => {
@@ -434,7 +447,15 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
     if (fenster) fenster.location.href = ziel; else window.open(ziel, "_self"); // Popup gesperrt: dann im selben Tab
   }
   const oeffnePlan = (abschnitt: "angaben" | "verbindungen") => { setPlanAbschnitt(abschnitt); setFlyin("plan"); gleicheFreigabenAb(); };
-  const oeffneTeilen = () => { setFlyin("teilen"); gleicheFreigabenAb(); };
+  const oeffneTeilen = () => {
+    setFlyin("teilen"); gleicheFreigabenAb();
+    void ladeMitgliederAction(plan.id).then((m) => { if (m) setMitglieder(m); }).catch(() => { /* dann bleibt die Liste */ });
+  };
+  /** Exportiert wird der gespeicherte Stand (`_lib/austausch.ts`) — also erst speichern, wie vor dem Drucken. */
+  async function exportieren(): Promise<string | null> {
+    if (!(await speicherer.jetzt())) return "Vor dem Export ließ sich nicht speichern. Exportiert wird immer der gespeicherte Stand — kläre erst den Hinweis.";
+    return exportiere(plan.id);
+  }
   /**
    * Nach der Schließanimation den Fokus zurück — aber nur, wenn er verloren ist (Abnahme kommplan): auf `body` oder
    * noch in der schließenden Schublade. Steht er schon auf einem Element außerhalb, hat die Bearbeitende ihn dorthin
@@ -461,7 +482,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
   const flyinStil = flyinGrund === null ? undefined : ({ "--kp-flyin-breite": flyinBreite(flyinGrund) } as CSSProperties);
 
   return (
-    <BibliothekAnbieter start={bibliothek}>
+    <BibliothekAnbieter start={bibliothek} pflegen={bibliothekPflegen}>
       <div ref={wurzel} className="kp-editor" data-editoransicht={ansicht ?? "auto"} data-flyin={flyinGrund === null ? undefined : flyin ?? undefined} style={flyinStil}>
         {/* Der Symbolvorrat EINMAL für Zeichnung, Flyin und Gliederung, außerhalb jeder Ansicht (Phase 3,
             Entscheidung 17): eine verborgene Ansicht verbärge sonst die Vorschauen, zwei Vorräte gäben doppelte IDs (M11). */}
@@ -471,7 +492,7 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <Kopfleiste angaben={angaben} zustand={speicherZustand} standSeit={plan.aktualisiertAm}
           kannRueck={kannRueckgaengig(verlauf)} kannWieder={kannWiederholen(verlauf)} ansicht={ansicht} onAnsicht={wechsleAnsicht}
           onRueck={() => perVerlaufsknopf(rueck)} onWieder={() => perVerlaufsknopf(wieder)}
-          onPlan={() => oeffnePlan("angaben")} onTeilen={oeffneTeilen} onDrucken={(w) => void drucken(w)}
+          onPlan={() => oeffnePlan("angaben")} onTeilen={darfTeilen ? oeffneTeilen : undefined} onDrucken={(w) => void drucken(w)} onExportieren={exportieren}
           onNeuLaden={neuLaden} onBehalten={behalten} />
         <div className="kp-ansicht-diagramm">
           <Flaeche daten={daten} symbole={symbole} titel={angaben.titel} schrift={schrift} bedienhinweis={BEDIENHINWEIS}
@@ -515,10 +536,13 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
         <PlanFlyin key={angabenFremd} offen={flyin === "plan"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen} abschnitt={planAbschnitt}
           angaben={angaben} inhalt={inhalt} aendere={aendere} speichereAngaben={speichereAngaben}
           onEntwurf={(offen) => { angabenEntwurf.current = offen; }}
-          qrLink={qrLink} linkAdresse={teilen.basis !== null} onTeilen={oeffneTeilen} />
-        <TeilenFlyin offen={flyin === "teilen"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen}
-          planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={uebernimmFreigaben}
-          qr={{ an: inhalt.optionen.qrAufDruck, onAendern: (v) => aendere((q) => setzeOptionen(q, { qrAufDruck: v })) }} />
+          qrLink={qrLink} linkAdresse={teilen ? teilen.basis !== null : true} onTeilen={darfTeilen ? oeffneTeilen : undefined} />
+        {teilen && sichtbarkeit ? (
+          <TeilenFlyin offen={flyin === "teilen"} onSchliessen={schliesseFlyin} nachSchliessen={nachSchliessen}
+            planId={plan.id} basis={teilen.basis} freigaben={freigaben} onFreigaben={uebernimmFreigaben}
+            qr={{ an: inhalt.optionen.qrAufDruck, onAendern: (v) => aendere((q) => setzeOptionen(q, { qrAufDruck: v })) }}
+            organisation={{ sichtbarkeit, mitglieder, onSichtbarkeit: setSichtbarkeit, onMitglieder: setMitglieder }} />
+        ) : null}
       </div>
     </BibliothekAnbieter>
   );

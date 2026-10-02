@@ -8,6 +8,7 @@ import { flyinBreite } from "@/core/theme/flyin";
 import { Kartentabelle, nachText } from "@/core/tabelle";
 import { archiviereAction, dupliziereAction, loescheEndgueltigAction, loescheOhneArchivAction, speichereAlsVorlageAction, stelleWiederHerAction } from "../_actions/verwaltung";
 import { NETZFEHLER, type EinfachErgebnis } from "../_lib/ergebnis";
+import { exportiere } from "../_ui/austausch/herunterladen";
 import type { Liste, Listenzeile } from "../_lib/plaene";
 import type { VorlageWahl } from "../_lib/planverwaltung";
 import { fokussiereWennFrei, fokusVerloren, OHNE_FOKUSRUECKGABE } from "../_ui/fokus";
@@ -19,12 +20,13 @@ const LEER: Record<Liste, string> = {
   vorlagen: "Noch keine Vorlagen. „Als Vorlage speichern“ im Menü eines Plans legt eine Kopie als Vorlage an.",
   archiv: "Das Archiv ist leer.",
 };
-type Aktion = "duplizieren" | "vorlage" | "vorlageArchivieren" | "archivieren" | "wiederherstellen" | "ausVorlage" | "loeschen" | "endgueltig";
+type Aktion = "duplizieren" | "vorlage" | "vorlageArchivieren" | "archivieren" | "wiederherstellen" | "ausVorlage" | "exportieren" | "loeschen" | "endgueltig";
 type Loeschen = Extract<Aktion, "loeschen" | "endgueltig">;
-const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
-  plaene: [{ key: "duplizieren", label: "Duplizieren" }, { key: "vorlage", label: "Als Vorlage speichern" }, { key: "archivieren", label: "Archivieren" }],
-  vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "vorlageArchivieren", label: "Vorlage archivieren" }],
-  archiv: [{ key: "wiederherstellen", label: "Wiederherstellen" }, { key: "endgueltig", label: "Endgültig löschen" }],
+/** `verwalten`: nur, wer den Plan verwaltet (`_lib/rechte.ts`) — sonst steht der Eintrag nicht im Menü. Der Rest geht für jeden, der die Zeile sieht. */
+const MENUE: Record<Liste, { key: Aktion; label: string; verwalten?: true }[]> = {
+  plaene: [{ key: "duplizieren", label: "Duplizieren" }, { key: "vorlage", label: "Als Vorlage speichern" }, { key: "exportieren", label: "Exportieren" }, { key: "archivieren", label: "Archivieren", verwalten: true }],
+  vorlagen: [{ key: "ausVorlage", label: "Neu aus Vorlage" }, { key: "exportieren", label: "Exportieren" }, { key: "vorlageArchivieren", label: "Vorlage archivieren", verwalten: true }],
+  archiv: [{ key: "exportieren", label: "Exportieren" }, { key: "wiederherstellen", label: "Wiederherstellen", verwalten: true }, { key: "endgueltig", label: "Endgültig löschen", verwalten: true }],
 };
 /**
  * LÖSCHEN (Auftrag 2026-10-02): im Archiv immer „Endgültig löschen"; unter „Pläne" und „Vorlagen" ZUSÄTZLICH zum
@@ -32,8 +34,9 @@ const MENUE: Record<Liste, { key: Aktion; label: string }[]> = {
  * Action noch einmal — eine länger offene Seite bietet den Eintrag an, der Server lehnt mit Begründung ab.
  */
 function menue(liste: Liste, z: Listenzeile): { key: Aktion; label: string }[] {
-  if (liste === "archiv" || !z.frisch) return MENUE[liste];
-  return [...MENUE[liste], { key: "loeschen", label: liste === "vorlagen" ? "Vorlage löschen" : "Löschen" }];
+  const erlaubt = MENUE[liste].filter((m) => !m.verwalten || z.darf.verwalten);
+  if (liste === "archiv" || !z.frisch || !z.darf.verwalten) return erlaubt;
+  return [...erlaubt, { key: "loeschen", label: liste === "vorlagen" ? "Vorlage löschen" : "Löschen" }];
 }
 /**
  * `fokus`: nach einer Aktion aus dem Menü — die Zeile ist weg, der Fokus kommt in den Hinweis (sonst fiel er auf body).
@@ -47,10 +50,10 @@ interface Frage { zeile: Listenzeile; art: Loeschen }
 /**
  * DIE DREI LISTEN DER PLANLISTE (Spec §6.1, §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10).
  * Client-Insel, weil die Spalten render-Funktionen tragen (Falle 9); Titel als Zeichenketten (Falle 17);
- * `Kartentabelle` (docs/design/README.md „Mobil"). Das Aktionen-Menü erscheint nur bei `darfBearbeiten` —
- * dasselbe Prädikat wie jede Action. Nach einer Aktion `router.refresh()`; Duplizieren führt in den Editor.
+ * `Kartentabelle` (docs/design/README.md „Mobil"). Das Aktionen-Menü trägt je Zeile, was ihre Rechte erlauben
+ * (`Listenzeile.darf`) — dasselbe Prädikat wie jede Action. Nach einer Aktion `router.refresh()`; Duplizieren führt in den Editor.
  */
-export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heute }: { zeilen: Listenzeile[]; liste: Liste; darfBearbeiten: boolean; vorlagen?: VorlageWahl[]; heute?: string }) {
+export function PlanTabelle({ zeilen, liste, vorlagen = [], heute }: { zeilen: Listenzeile[]; liste: Liste; vorlagen?: VorlageWahl[]; heute?: string }) {
   const router = useRouter();
   const [hinweis, setHinweis] = useState<Hinweis | null>(null);
   const [ausVorlage, setAusVorlage] = useState<string | null>(null);
@@ -74,6 +77,12 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     if (sperre.current !== null) return;
     if (a === "loeschen" || a === "endgueltig") { setFrage({ zeile: z, art: a }); return; }
     setzeLauf(z.id);
+    if (a === "exportieren") {
+      const fehler = await exportiere(z.id);
+      setzeLauf(null);
+      if (fehler) setHinweis({ text: fehler, fokus: true });
+      return;
+    }
     if (a === "duplizieren") {
       const r = await dupliziereAction(z.id).catch(() => ({ ok: false as const, fehler: NETZFEHLER, feldFehler: {} }));
       // Bei Erfolg bleibt die Zeile „laufend", bis der Editor der Kopie steht — sonst wäre ein zweiter Klick frei.
@@ -84,7 +93,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     }
     let neueVorlage: string | undefined;
     let vorhanden: string | undefined;
-    const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren" | Loeschen>, () => Promise<EinfachErgebnis>> = {
+    const lauf: Record<Exclude<Aktion, "ausVorlage" | "duplizieren" | "exportieren" | Loeschen>, () => Promise<EinfachErgebnis>> = {
       vorlage: () => speichereAlsVorlageAction(z.id, trotzdem).then((r): EinfachErgebnis => {
         if (!r.ok) { if ("vorhanden" in r) vorhanden = r.vorhanden; return { ok: false, fehler: r.fehler }; }
         neueVorlage = r.id;
@@ -129,13 +138,14 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     if (r.ok) router.refresh();
   }
 
-  const mitKennzeichen = zeilen.some((z) => !z.lesbar || (liste === "archiv" && z.vorlage));
+  const mitKennzeichen = zeilen.some((z) => z.privat || !z.lesbar || (liste === "archiv" && z.vorlage));
   const spalten: NonNullable<TableProps<Listenzeile>["columns"]> = [
     { key: "titel", title: "Titel", dataIndex: "titel", sorter: nachText<Listenzeile>((z) => z.titel),
       render: (_: unknown, z: Listenzeile) => <Link href={`/p/${z.id}`}>{z.titel}</Link> },
     // Nur, wenn eine Zeile ein Kennzeichen trägt — sonst stand eine leere Spalte da (Abnahme kommplan).
     ...(mitKennzeichen ? [{ key: "kennzeichen", title: "Kennzeichen", render: (_: unknown, z: Listenzeile) => (
       <span className="kp-chips">
+        {z.privat ? <span className="kp-chip">Privat</span> : null}
         {z.lesbar ? null : <span className="kp-chip kp-chip-hinweis">nicht lesbar</span>}
         {liste === "archiv" && z.vorlage ? <span className="kp-chip">Vorlage</span> : null}
       </span>
@@ -145,7 +155,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
     liste === "archiv"
       ? { key: "archiviert", title: "Archiviert", dataIndex: "archiviert", render: (d: string | null) => d ?? "—" }
       : { key: "stand", title: "Stand", dataIndex: "stand" },
-    ...(darfBearbeiten ? [{
+    {
       key: "aktionen", title: "Aktionen", render: (_: unknown, z: Listenzeile) => (
         <Dropdown trigger={["click"]} menu={{
           items: menue(liste, z).map((m) => ({ key: m.key, label: m.label, danger: m.key === "loeschen" || m.key === "endgueltig" })) as MenuProps["items"],
@@ -155,7 +165,7 @@ export function PlanTabelle({ zeilen, liste, darfBearbeiten, vorlagen = [], heut
             onClick={(e) => { ausloeser.current = e.currentTarget; }}>Aktionen</Button>
         </Dropdown>
       ),
-    }] : []),
+    },
   ];
   const vorlage = vorlagen.find((v) => v.id === ausVorlage);
   return (

@@ -41,7 +41,7 @@ function Pruefstand({ start, index = [], bib }: { start: PlanInhalt; index?: rea
     catch (e) { if (e instanceof PlanFehler) { setHinweis(e.message); return e.message; } throw e; }
   };
   return (
-    <BibliothekKontext.Provider value={{ aktiv: bib !== undefined, bib: bib ?? LEERE_BIBLIOTHEK, merke: () => {} }}>
+    <BibliothekKontext.Provider value={{ aktiv: bib !== undefined, pflegen: true, bib: bib ?? LEERE_BIBLIOTHEK, merke: () => {} }}>
     <Gliederung inhalt={v.jetzt} auswahl={auswahl} aendere={aendere}
       meldung={hinweis ? <p>{hinweis}{hinweisAktion ? <button type="button" onClick={() => { hinweisAktion.tu(); setHinweisAktion(null); }}>{hinweisAktion.text}</button> : null}</p> : null}
       onAuswahl={setAuswahl} onDetails={details} onLoeschen={loeschen} onHinweis={(text, aktion) => { setHinweis(text); setHinweisAktion(aktion ?? null); letzteAktion = aktion ?? null; }}

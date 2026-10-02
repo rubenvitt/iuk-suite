@@ -18,7 +18,7 @@ import { fokussiereWennFrei } from "../_ui/fokus";
  * „Neu" in der Planliste (Spec §6.1): Titel, Art, Anlass, Datum — danach direkt in den Editor.
  * Eigenes `<form>` mit `useState`, kein antd-`Form` (Vorbild `einsatzbuch/_ui/stammdaten/
  * StammdatenFormular.tsx`); Feldfehler als Text am Feld (docs/design/feedback-admin.md 4.4).
- * Die Seite rendert diese Insel nur für `darfKommplanBearbeiten` — dasselbe Prädikat prüft die Action.
+ * Anlegen darf jeder mit Zugang — dasselbe Prädikat prüft die Action; der neue Plan ist privat (`_lib/rechte.ts`).
  */
 export function NeuerPlan({ vorlagen = [], heute }: { vorlagen?: VorlageWahl[]; heute?: string }) {
   const router = useRouter();

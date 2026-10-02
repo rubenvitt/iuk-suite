@@ -16,6 +16,7 @@ import personalOhneOrtsverein from "@/app/m/portal/_lib/neuigkeiten/notizen/eins
 import nachUpdatesSuchen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-27-nach-updates-suchen";
 import updateUntenRechts from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-09-28-update-unten-rechts";
 import plaeneErstellenDruckenTeilen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-01-plaene-erstellen-drucken-teilen";
+import eigenePlaeneUndPlandateien from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-02-eigene-plaene-und-plandateien";
 import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-02-eigene-zeichen-bauen";
 import plaeneLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-02-plaene-loeschen";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
@@ -185,6 +186,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   nachUpdatesSuchen,
   updateUntenRechts,
   plaeneErstellenDruckenTeilen,
+  eigenePlaeneUndPlandateien,
   eigeneZeichenBauen,
   plaeneLoeschen,
 ];

@@ -4,7 +4,7 @@ import { eigenesZeichen } from "../_db/schema";
 import { ZEICHEN_WEG, ladeEigeneZeichen, loescheEigenesZeichen, speichereEigenesZeichen } from "./eigeneZeichenDb";
 import { BEISPIELE } from "./beispiele";
 import { legePlanAn, speichereInhalt } from "./speichern";
-import { testDb } from "./testDb";
+import { TEST_ADMIN, testDb } from "./testDb";
 import { symboleFuerPlan, zeichenIndexMitEigenen } from "./zeichen/symbole";
 
 const WER = { nutzer: "u1", name: "Jana" };
@@ -41,7 +41,7 @@ describe("eigene Zeichen in der Datenbank", () => {
     const db = testDb();
     const z = speichereEigenesZeichen(db, neu("ILS Schweinfurt"), WER, 1);
     if (!z.ok) throw new Error(z.fehler);
-    const p = legePlanAn(db, { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: null }, WER, 1);
+    const p = legePlanAn(db, { titel: "Übung", typ: "kommunikationsplan", anlass: null, datum: null }, WER, 1, TEST_ADMIN);
     if (!p.ok) throw new Error(p.fehler);
     const inhalt = structuredClone(BEISPIELE[0].inhalt);
     inhalt.stellen[0].zeichen = z.schluessel;

@@ -27,11 +27,11 @@ export interface QrZiel { url: string; notiz: string | null; ablauf: number | nu
 /**
  * QR des INTERNEN Drucks (Entscheidung 10): Option an, nicht archiviert, Adresse eingerichtet, gültiger Link — der
  * beste. Notiz und Ablauf gehen in den Satz der `noprint`-Leiste („Der QR-Code führt auf …").
- * NUR FÜR BEARBEITENDE (Review Phase 5): der Code IST der Link. Wer nur ansehen darf, behielte mit einem Ausdruck
- * anonymen Zugang über den Entzug seiner Gruppe hinaus — und Links ausstellen oder sehen darf er ohnehin nicht.
+ * NUR FÜR VERWALTENDE (Review Phase 5; `_lib/rechte.ts`): der Code IST der Link. Wer nur ansehen oder bearbeiten
+ * darf, behielte mit einem Ausdruck anonymen Zugang über den Entzug hinaus — Links sehen darf er ohnehin nicht.
  */
-export function qrZielIntern(db: KommplanDb, plan: LesbarerPlan, darfBearbeiten: boolean, jetzt: number, basis: string | null = moduleUrl("kommplan")): QrZiel | null {
-  if (!darfBearbeiten || !plan.inhalt?.optionen.qrAufDruck || plan.archiviertAm !== null || !basis) return null;
+export function qrZielIntern(db: KommplanDb, plan: LesbarerPlan, darfVerwalten: boolean, jetzt: number, basis: string | null = moduleUrl("kommplan")): QrZiel | null {
+  if (!darfVerwalten || !plan.inhalt?.optionen.qrAufDruck || plan.archiviertAm !== null || !basis) return null;
   const f = waehleQrFreigabe(freigabenFuer(db, plan.id, jetzt), jetzt);
   return f ? { url: tokenUrl(basis, f.token), notiz: f.notiz, ablauf: f.ablauf } : null;
 }
@@ -89,8 +89,8 @@ export async function druckseitenDaten(db: KommplanDb, plan: LesbarerPlan, auftr
  * (`riegel.test.ts`).
  */
 export async function interneDruckdaten(
-  db: KommplanDb, plan: LesbarerPlan, darfBearbeiten: boolean, format: Papierformat, jetzt: number, basis: string | null = moduleUrl("kommplan"),
+  db: KommplanDb, plan: LesbarerPlan, darfVerwalten: boolean, format: Papierformat, jetzt: number, basis: string | null = moduleUrl("kommplan"),
 ): Promise<DruckseiteDaten> {
-  const ziel = qrZielIntern(db, plan, darfBearbeiten, jetzt, basis);
+  const ziel = qrZielIntern(db, plan, darfVerwalten, jetzt, basis);
   return druckseitenDaten(db, plan, { format, qrUrl: ziel?.url ?? null, qrSatz: ziel ? qrZielSatz(ziel) : null, mitSvgExport: true });
 }

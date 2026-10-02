@@ -417,6 +417,17 @@ export const AUDIT_TABLES = {
         "nutzer"
       ]
     },
+    "plan_mitglied": {
+      "mode": "audited",
+      "primaryKey": [
+        "plan_id",
+        "nutzer"
+      ]
+    },
+    "kommplan_person": {
+      "mode": "excluded",
+      "reason": "Anzeigenamen-Cache bei Seitenaufrufen (Quelle der Einladungs-Suche); Rechte stehen in plan_mitglied."
+    },
     "bib_stelle": {
       "mode": "audited",
       "primaryKey": [
