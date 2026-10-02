@@ -6,6 +6,7 @@ const aktion = vi.hoisted(() => ({ dupliziere: vi.fn(), vorlage: vi.fn(), archiv
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("../_actions/verwaltung", () => ({ dupliziereAction: aktion.dupliziere, speichereAlsVorlageAction: aktion.vorlage, archiviereAction: aktion.archiviere, stelleWiederHerAction: aktion.wiederher }));
 vi.mock("../_actions/plan", () => ({ legePlanAnAction: vi.fn() }));
+vi.mock("../_actions/austausch", () => ({ exportierePlanAction: vi.fn(), importierePlanAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 import { PlanTabelle } from "./PlanTabelle";
 
@@ -16,8 +17,8 @@ const knopf = (text: string) => [...document.querySelectorAll<HTMLElement>("butt
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
 
 const ZEILEN = [
-  { id: "p1", titel: "Einsatz", typ: "Kommunikationsplan", datum: "22.02.2026", stand: "16.02.2026, 10:00", vorlage: false, lesbar: true, archiviert: null },
-  { id: "p2", titel: "Label", typ: "Kommunikationsplan", datum: null, stand: "01.09.2026, 10:00", vorlage: true, lesbar: false, archiviert: null },
+  { id: "p1", titel: "Einsatz", typ: "Kommunikationsplan", datum: "22.02.2026", stand: "16.02.2026, 10:00", vorlage: false, lesbar: true, archiviert: null, privat: false, darf: { bearbeiten: true, verwalten: true } },
+  { id: "p2", titel: "Label", typ: "Kommunikationsplan", datum: null, stand: "01.09.2026, 10:00", vorlage: true, lesbar: false, archiviert: null, privat: false, darf: { bearbeiten: true, verwalten: true } },
 ];
 
 /**
@@ -26,41 +27,46 @@ const ZEILEN = [
  */
 describe("PlanTabelle", () => {
   it("verlinkt jeden Plan auf seine Ansicht unter /p/<id> — in der Tabelle und auf den Karten", async () => {
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten={false} />);
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
     expect(queryAll<HTMLAnchorElement>("tr[data-row-key] a").map((a) => a.getAttribute("href"))).toEqual(["/p/p1", "/p/p2"]);
     expect(queryAll("li[data-karte-key]").map((li) => li.getAttribute("data-karte-key"))).toEqual(["p1", "p2"]);
     expect(queryAll<HTMLAnchorElement>("li[data-karte-key] a").map((a) => a.getAttribute("href"))).toEqual(["/p/p1", "/p/p2"]);
   });
   it("Kennzeichen als eigene Chips (Fläche und Text), nie als antd-Tag; fehlendes Datum als —", async () => {
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten={false} />);
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
     expect(queryAll("tr[data-row-key] .ant-tag, li[data-karte-key] .ant-tag")).toEqual([]);
     const chips = queryAll("tr[data-row-key] .kp-chip").map((c) => c.textContent);
     expect(chips).toEqual(["nicht lesbar"]);
     expect(document.body.textContent).toContain("—");
   });
   it("ohne ein Kennzeichen in der Liste keine Spalte „Kennzeichen“ (Abnahme: sie stand im Normalbetrieb immer leer)", async () => {
-    await mount(<PlanTabelle zeilen={ZEILEN.map((z) => ({ ...z, lesbar: true }))} liste="plaene" darfBearbeiten={false} />);
+    await mount(<PlanTabelle zeilen={ZEILEN.map((z) => ({ ...z, lesbar: true }))} liste="plaene" />);
     expect(queryAll("th").map((th) => th.textContent)).not.toContain("Kennzeichen");
     await unmount();
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten={false} />);
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
     expect(queryAll("th").map((th) => th.textContent).join("|")).toContain("Kennzeichen");
   });
   it("ohne Pläne steht der Leertext, keine leere Tabelle", async () => {
-    await mount(<PlanTabelle zeilen={[]} liste="plaene" darfBearbeiten={false} />);
+    await mount(<PlanTabelle zeilen={[]} liste="plaene" />);
     expect(document.body.textContent).toContain("Noch keine Pläne.");
   });
-  it("ohne Bearbeitungsrecht keine Aktionen; mit: ein Menü je Zeile, Einträge je Liste", async () => {
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten={false} />);
-    expect(queryAll('button[aria-label^="Aktionen für"]')).toHaveLength(0);
-    await unmount();
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten />);
+  it("ein Menü je Zeile, Einträge je Liste; Archivieren nur, wer den Plan verwaltet (_lib/rechte.ts)", async () => {
+    await mount(<PlanTabelle zeilen={ZEILEN.map((z) => ({ ...z, darf: { bearbeiten: false, verwalten: false } }))} liste="plaene" />);
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Duplizieren", "Als Vorlage speichern", "Archivieren"]);
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Duplizieren", "Als Vorlage speichern", "Exportieren"]);
+    await unmount();
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
+    await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Duplizieren", "Als Vorlage speichern", "Exportieren", "Archivieren"]);
+  });
+  it("ein privater Plan trägt das Kennzeichen „Privat“", async () => {
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], privat: true }]} liste="plaene" />);
+    expect(queryAll("tr[data-row-key] .kp-chip").map((c) => c.textContent)).toEqual(["Privat"]);
   });
   it("Duplizieren führt in den Editor der Kopie (mit Hinweis); solange es läuft, löst ein zweiter Klick nichts aus", async () => {
     let fertig!: (r: unknown) => void;
     aktion.dupliziere.mockReturnValue(new Promise((r) => { fertig = r; }));
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
     const aktionen = query<HTMLButtonElement>('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]');
     await clickElement(aktionen);
     await clickElement(knopf("Duplizieren"));
@@ -77,7 +83,7 @@ describe("PlanTabelle", () => {
   it("Archivieren meldet sich mit „Rückgängig“, das wiederherstellt", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });
     aktion.wiederher.mockResolvedValue({ ok: true });
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
     await clickElement(knopf("Archivieren"));
     await abwarten();
@@ -89,11 +95,11 @@ describe("PlanTabelle", () => {
     expect(router.refresh).toHaveBeenCalledTimes(2);
   });
   it("Archivliste: Spalte „Archiviert“, nur „Wiederherstellen“", async () => {
-    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], archiviert: "01.10.2026" }]} liste="archiv" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], archiviert: "01.10.2026" }]} liste="archiv" />);
     expect(query('table[aria-label="Archivierte Pläne"], [aria-label="Archivierte Pläne"]')).toBeTruthy();
     expect(document.body.textContent).toContain("01.10.2026");
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Wiederherstellen"]);
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Exportieren", "Wiederherstellen"]);
     // Der Eintrag ruft wirklich die Wiederherstellung (Review Phase 4: ein vertauschter Aufruf blieb unbemerkt).
     aktion.wiederher.mockResolvedValue({ ok: true });
     await clickElement(knopf("Wiederherstellen"));
@@ -105,7 +111,7 @@ describe("PlanTabelle", () => {
   });
   it("„Als Vorlage speichern“ legt eine Kopie an, sagt, wo sie steht, und bietet „Vorlage öffnen“ — der Plan bleibt in der Liste", async () => {
     aktion.vorlage.mockResolvedValue({ ok: true, id: "v9" });
-    await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" />);
     await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
     await abwarten();
     await clickElement(knopf("Als Vorlage speichern"));
@@ -123,7 +129,7 @@ describe("PlanTabelle", () => {
     aktion.vorlage
       .mockResolvedValueOnce({ ok: false, fehler: "Eine Vorlage „Einsatz“ gibt es schon — sie steht unter „Vorlagen“.", feldFehler: {}, vorhanden: "v1" })
       .mockResolvedValueOnce({ ok: true, id: "v2" });
-    await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={[ZEILEN[0]]} liste="plaene" />);
     await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
     await abwarten();
     await clickElement(knopf("Als Vorlage speichern"));
@@ -142,10 +148,10 @@ describe("PlanTabelle", () => {
   });
   it("Vorlagenliste: „Neu aus Vorlage“ und „Vorlage archivieren“ (mit Rückgängig) — kein „Keine Vorlage mehr“, kein zweites „Archivieren“", async () => {
     aktion.archiviere.mockResolvedValue({ ok: true });
-    await mount(<PlanTabelle zeilen={[ZEILEN[1]]} liste="vorlagen" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={[ZEILEN[1]]} liste="vorlagen" />);
     await clickElement(query('button[aria-label="Aktionen für Label"]'));
     await abwarten();
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Vorlage archivieren"]);
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Exportieren", "Vorlage archivieren"]);
     await clickElement(knopf("Vorlage archivieren"));
     await abwarten();
     expect(aktion.archiviere).toHaveBeenCalledWith("p2");
@@ -154,7 +160,7 @@ describe("PlanTabelle", () => {
   });
   it("Archiv: eine Vorlage trägt das Kennzeichen „Vorlage“; Wiederherstellen sagt, wohin sie zurückkehrt", async () => {
     aktion.wiederher.mockResolvedValue({ ok: true });
-    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[1], lesbar: true, archiviert: "01.10.2026" }]} liste="archiv" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[1], lesbar: true, archiviert: "01.10.2026" }]} liste="archiv" />);
     expect(queryAll("tr[data-row-key] .kp-chip").map((c) => c.textContent)).toEqual(["Vorlage"]);
     await clickElement(query('button[aria-label="Aktionen für Label"]'));
     await abwarten();
@@ -166,7 +172,7 @@ describe("PlanTabelle", () => {
     aktion.archiviere.mockResolvedValue({ ok: true });
     let fertig!: (r: unknown) => void;
     aktion.wiederher.mockReturnValue(new Promise((r) => { fertig = r; }));
-    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" darfBearbeiten />);
+    await mount(<PlanTabelle zeilen={ZEILEN} liste="plaene" />);
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
     await clickElement(knopf("Archivieren"));
     await abwarten();

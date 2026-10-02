@@ -5,6 +5,7 @@ import { plan, planFreigabe } from "../_db/schema";
 import { tagZuMs, type PlanTyp } from "./angaben";
 import type { DuplikatErgebnis, EinfachErgebnis, VorlageErgebnis } from "./ergebnis";
 import { lies } from "./plaene";
+import { NICHT_ERLAUBT, rechteAn, sichtbarFuer, type Person } from "./rechte";
 import type { Bearbeiter } from "./speichern";
 import { heuteIso, titelFuerKopie } from "./tagesfassung";
 
@@ -18,14 +19,20 @@ export const PLAN_WEG = "Diesen Plan gibt es nicht mehr.";
 /** Was „Neuer Plan" zum Vorbelegen braucht (Entscheidung 8): Art, Anlass und Titel der Vorlage. */
 export interface VorlageWahl { id: string; titel: string; typ: PlanTyp; anlass: string | null }
 
-export function vorlagenZurAuswahl(db: KommplanDb): VorlageWahl[] {
+export function vorlagenZurAuswahl(db: KommplanDb, person: Person): VorlageWahl[] {
   return db.select({ id: plan.id, titel: plan.titel, typ: plan.typ, anlass: plan.anlass }).from(plan)
-    .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm))).orderBy(asc(plan.titel), plan.id).all();
+    .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm), sichtbarFuer(person))).orderBy(asc(plan.titel), plan.id).all();
 }
 
-export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number): DuplikatErgebnis {
+/**
+ * Jede Kopie (Duplizieren, Als Vorlage speichern) ist PRIVAT und gehört dem, der kopiert — auch die Kopie eines
+ * geteilten Plans: wer kopiert, will damit erst einmal allein arbeiten. Kopieren darf, wer den Plan sehen darf.
+ */
+const kopieVon = (wer: Bearbeiter) => ({ eigentuemer: wer.nutzer, sichtbarkeit: "privat" as const });
+
+export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number, person: Person): DuplikatErgebnis {
   const q = db.select().from(plan).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).get();
-  if (!q) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
+  if (!q || !rechteAn(db, id, person).sehen) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
   const inhalt = lies(q).inhalt;
   if (!inhalt) return { ok: false, fehler: "Dieser Plan lässt sich nicht lesen und deshalb nicht duplizieren.", feldFehler: {} };
   const heute = heuteIso(jetzt);
@@ -33,7 +40,7 @@ export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: n
   const titel = titelFuerKopie(q.titel, heute);
   db.insert(plan).values({
     id: neu, titel: titel.titel, typ: q.typ, anlass: q.anlass, datum: new Date(tagZuMs(heute)),
-    istVorlage: false, aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt),
+    istVorlage: false, aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt), ...kopieVon(wer),
   }).run();
   return { ok: true, id: neu, titel: titel.art };
 }
@@ -45,21 +52,22 @@ export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: n
  * heute), Links werden nicht kopiert. Nur aus einem aktiven Plan, der selbst keine Vorlage ist.
  * Gibt es schon eine aktive Vorlage gleichen Titels, legt erst `trotzdem` eine zweite an (Review Phase 5): zwei
  * Vorlagen mit gleichem Titel und Datum „—“ sind in der Vorlagenliste und bei „Neu aus Vorlage“ nicht zu unterscheiden.
+ * Verglichen wird nur mit Vorlagen, die `person` sieht — sonst verriete die Rückfrage eine fremde private.
  */
-export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number, trotzdem = false): VorlageErgebnis {
+export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: number, person: Person, trotzdem = false): VorlageErgebnis {
   const q = db.select().from(plan).where(and(eq(plan.id, id), isNull(plan.archiviertAm), eq(plan.istVorlage, false))).get();
-  if (!q) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
+  if (!q || !rechteAn(db, id, person).sehen) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
   const inhalt = lies(q).inhalt;
   if (!inhalt) return { ok: false, fehler: "Dieser Plan lässt sich nicht lesen und deshalb nicht als Vorlage speichern.", feldFehler: {} };
   if (!trotzdem) {
     const da = db.select({ id: plan.id }).from(plan)
-      .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm), eq(plan.titel, q.titel))).orderBy(plan.id).get();
+      .where(and(eq(plan.istVorlage, true), isNull(plan.archiviertAm), eq(plan.titel, q.titel), sichtbarFuer(person))).orderBy(plan.id).get();
     if (da) return { ok: false, fehler: `Eine Vorlage „${q.titel}“ gibt es schon — sie steht unter „Vorlagen“.`, feldFehler: {}, vorhanden: da.id };
   }
   const neu = randomUUID();
   db.insert(plan).values({
     id: neu, titel: q.titel, typ: q.typ, anlass: q.anlass, datum: null, istVorlage: true,
-    aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt),
+    aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt), ...kopieVon(wer),
   }).run();
   return { ok: true, id: neu };
 }
@@ -69,7 +77,9 @@ export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter,
  * Entscheidung 3): Wiederherstellen erweckt keinen wieder. Je Link eine Audit-Zeile über den Trigger von
  * `plan_freigabe`; abgelaufene und schon widerrufene bleiben, wie sie sind.
  */
-export function archiviere(db: KommplanDb, id: string, jetzt: number): EinfachErgebnis {
+export function archiviere(db: KommplanDb, id: string, jetzt: number, person: Person): EinfachErgebnis {
+  const r = rechteAn(db, id, person);
+  if (!r.verwalten) return { ok: false, fehler: r.sehen ? NICHT_ERLAUBT : PLAN_WEG };
   return db.transaction((tx): EinfachErgebnis => {
     const r = tx.update(plan).set({ archiviertAm: new Date(jetzt) }).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).run();
     if (r.changes !== 1) return { ok: false, fehler: PLAN_WEG };
@@ -81,7 +91,9 @@ export function archiviere(db: KommplanDb, id: string, jetzt: number): EinfachEr
   });
 }
 
-export function stelleWiederHer(db: KommplanDb, id: string): EinfachErgebnis {
+export function stelleWiederHer(db: KommplanDb, id: string, person: Person): EinfachErgebnis {
+  const recht = rechteAn(db, id, person);
+  if (!recht.verwalten) return { ok: false, fehler: recht.sehen ? NICHT_ERLAUBT : PLAN_WEG };
   const r = db.update(plan).set({ archiviertAm: null }).where(and(eq(plan.id, id), isNotNull(plan.archiviertAm))).run();
   return r.changes === 1 ? { ok: true } : { ok: false, fehler: PLAN_WEG };
 }

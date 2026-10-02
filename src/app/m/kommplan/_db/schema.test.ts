@@ -21,6 +21,18 @@ describe("kommplan-Datenbank", () => {
     expect(() => db.insert(plan).values({ ...PLAN, inhalt: "{kaputt" }).run()).toThrow();
     expect(() => db.insert(plan).values({ ...PLAN, id: "p2", typ: "skizze" as never }).run()).toThrow();
   });
+  it("Sichtbarkeit: Vorgabe geteilt (Altbestand), privat nur mit Eigentümer, nur die zwei Werte; Teilen ist eine Audit-Zeile", () => {
+    const db = testDb();
+    db.insert(plan).values(PLAN).run();
+    expect(db.select().from(plan).get()).toMatchObject({ sichtbarkeit: "organisation", eigentuemer: null });
+    expect(() => db.insert(plan).values({ ...PLAN, id: "p2", sichtbarkeit: "privat" }).run()).toThrow();
+    expect(() => db.insert(plan).values({ ...PLAN, id: "p3", sichtbarkeit: "geheim" as never, eigentuemer: "u" }).run()).toThrow();
+    db.insert(plan).values({ ...PLAN, id: "p4", sichtbarkeit: "privat", eigentuemer: "u" }).run();
+    expect(() => db.update(plan).set({ eigentuemer: null }).where(eq(plan.id, "p4")).run()).toThrow();
+    const vorher = outbox(db).length;
+    db.update(plan).set({ sichtbarkeit: "organisation" }).where(eq(plan.id, "p4")).run();
+    expect(outbox(db).slice(vorher)).toEqual([{ action: "update", object_type: "plan" }]);
+  });
   it("Anlegen und echte Änderung landen im Audit, ein No-op-Update nicht", () => {
     const db = testDb();
     db.insert(plan).values(PLAN).run();

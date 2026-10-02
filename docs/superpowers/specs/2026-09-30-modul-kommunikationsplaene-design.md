@@ -61,9 +61,10 @@ nicht in Zellen).
   Einstellungen liegen darunter in `(intern)/(verwaltung)`, deren Layout zusätzlich das
   Bearbeitungsrecht prüft; jede Seite ruft ihre Riegel trotzdem selbst noch einmal (Layouts und Seiten
   rendern parallel). Wer nicht hindarf, bekommt 404, nie 403.
-- **Gruppen:** Zugangsgruppe `iuk-kommplan` (ansehen, drucken); Admin-Gruppe
-  `iuk-kommplan-bearbeiten` über `isModuleAdmin` (Pläne bearbeiten, Bibliothek pflegen, Briefkopf,
-  Token-Links ausstellen). Die Admin-Gruppe genügt auch für den Zugang, der Suite-Admin darf beides.
+- **Gruppen:** Zugangsgruppe `iuk-kommplan` (geteilte Pläne ansehen und drucken, eigene Pläne anlegen,
+  bearbeiten, teilen); Admin-Gruppe `iuk-kommplan-bearbeiten` über `isModuleAdmin` (jeden geteilten Plan
+  bearbeiten und verwalten, Bibliothek pflegen, Briefkopf). Was an einem einzelnen Plan erlaubt ist, entscheidet
+  §8.4. Die Admin-Gruppe genügt auch für den Zugang, der Suite-Admin darf beides.
   Beide per `SUITE_ACCESS_GROUP_KOMMPLAN`/`SUITE_ADMIN_GROUP_KOMMPLAN` überschreibbar.
   `switcherGroupSources: ["access", "admin"]`.
 - **Host-Riegel:** Das Modul liefert nur auf seinem eigenen Host aus (`SUITE_HOST_KOMMPLAN`, lokal
@@ -83,7 +84,9 @@ nicht in Zellen).
 
 | Tabelle | Spalten | Schlüssel und Prüfungen |
 |---|---|---|
-| `plan` | `id`, `titel`, `typ` (`kommunikationsplan` \| `fernmeldeskizze`), `anlass`, `datum` (Kalendertag), `ist_vorlage`, `archiviert_am`, `version` (int, optimistisches Sperren), `aktualisiert_am`, `aktualisiert_von`, `inhalt` (JSON) | `typ` per `CHECK`; `inhalt` muss gültiges JSON sein; `version ≥ 1`; Index über (`archiviert_am`, `aktualisiert_am`) |
+| `plan` | `id`, `titel`, `typ` (`kommunikationsplan` \| `fernmeldeskizze`), `anlass`, `datum` (Kalendertag), `ist_vorlage`, `archiviert_am`, `version` (int, optimistisches Sperren), `aktualisiert_am`, `aktualisiert_von`, `inhalt` (JSON), `eigentuemer` (Kennung, leer nur beim Altbestand), `sichtbarkeit` (`privat` \| `organisation`) | `typ` und `sichtbarkeit` per `CHECK`, privat nur mit Eigentümer; `inhalt` muss gültiges JSON sein; `version ≥ 1`; Index über (`archiviert_am`, `aktualisiert_am`) und `eigentuemer` |
+| `plan_mitglied` | `plan_id`, `nutzer` (Kennung), `name` (Anzeigename beim Einladen), `eingeladen_am`, `eingeladen_von` — wer einen geteilten Plan mitbearbeiten darf (§8.4) | Primärschlüssel (`plan_id`, `nutzer`); Index über `nutzer` |
+| `kommplan_person` | `nutzer` (Kennung), `name` — wer das Modul mit Zugang geöffnet hat; Quelle der Einladungs-Suche, im Audit ausgenommen | Primärschlüssel `nutzer` |
 | `bib_stelle` | `id`, `titel`, `zeichen`, `leiter`, `kontakte` (JSON), `notiz` | `kontakte` gültiges JSON |
 | `bib_einheit` | `id`, `typ`, `rufname`, `zeichen`, `notiz` | — |
 | `bib_verbindung` | `id`, `art`, `bezeichnung`, `notiz` | `art` per `CHECK` (die acht Arten aus §4.2) |
@@ -579,6 +582,38 @@ Hinweis nach dem Archivieren holt den Plan zurück, die Links nicht. Unter `/p/[
 den Betrachter mit „Archiviert am … — nur lesbar" (für Bearbeitende mit „Wiederherstellen"). Im Archiv trägt
 eine Vorlage das Kennzeichen „Vorlage" und kehrt beim Wiederherstellen unter „Vorlagen" zurück. Ein im Editor
 offener Plan, der anderswo archiviert wird, kann danach nicht mehr gespeichert werden und sagt das.
+
+### 8.4 Persönliche Pläne, Teilen in der Organisation, Einladen
+
+Nachtrag 2026-10-02. Jeder mit Zugang legt eigene Pläne an. **Privat ist die Vorgabe**: Anlegen, Duplizieren,
+„Als Vorlage speichern" und Importieren legen einen privaten Plan an, der dem gehört, der ihn anlegt. Die Rechte
+stehen an genau einer Stelle (`_lib/rechte.ts`):
+
+| | sehen, drucken, exportieren | bearbeiten | verwalten (teilen, Links, einladen, archivieren) |
+|---|---|---|---|
+| privat | Eigentümer | Eigentümer | Eigentümer |
+| geteilt | alle mit Zugang | Eigentümer, Modul-Admins, Eingeladene | Eigentümer, Modul-Admins |
+| Altbestand (ohne Eigentümer, geteilt) | alle mit Zugang | Modul-Admins | Modul-Admins |
+
+- Auch ein Modul-Admin sieht einen fremden privaten Plan nicht. Für jeden anderen ist er ein 404 wie ein Plan,
+  den es nicht gibt — in der Liste, unter `/p/[id]`, im Druck, in jeder Action. Bestehende Pläne vor dem Nachtrag
+  sind geteilt (Migration 0003).
+- **Teilen ist eine Einbahnstraße** (privat → organisation, mit Rückfrage): zurück hieße, allen, die ihn
+  inzwischen kennen, still den Plan wegzunehmen; dafür gibt es Archivieren.
+- **Veröffentlichen über einen Link** (§8.2) geht auch für einen privaten Plan; ausstellen darf, wer verwaltet.
+- **Einladen** gibt einer Person das Bearbeiten eines geteilten Plans. Gespeichert wird die Kennung; einladbar ist,
+  wen das Modul (`kommplan_person`) oder das Personenverzeichnis (`core/directory`) kennt. Die Suche liefert ab zwei
+  Zeichen höchstens zwanzig Treffer und fragt das Verzeichnis erst nach der Rechteprüfung.
+- Bibliothek und Einstellungen bleiben den Modul-Admins; aus der Bibliothek in einen Plan kopieren darf jeder, der
+  ihn bearbeitet, „In die Bibliothek übernehmen" nur der Admin.
+
+### 8.5 Austauschformat (`.kommplan.json`)
+
+„Exportieren" (Planliste, Betrachter, Editor nach dem Speichern) legt eine Datei mit genau einem Plan ab:
+`format: "iuk-kommplan-plan"`, `version: 1`, `exportiertAm`, `plan` mit Titel, Art, Anlass, Datum, `vorlage` und dem
+Inhalt wie in §4.2. Nicht in der Datei: Eigentümer, Sichtbarkeit, Eingeladene, Links, Version und „Stand".
+„Importieren" in der Planliste prüft die Datei mit denselben Schemata wie das Speichern und legt immer einen
+neuen privaten Plan an, nie ein Überschreiben. Eine neuere Formatversion wird mit Hinweis abgewiesen.
 
 ## 9. Aufteilung im Modul
 

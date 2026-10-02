@@ -34,7 +34,7 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus, ladeSymbole }: 
   // in das Typ-Feld der neuen (und bräche die Tastaturschleife, Entscheidung 17).
   useEffect(() => { if (fokus.ziel === "einheit" && fokus.stelle === stelle.id) letzterTyp.current?.focus(); }, [fokus, stelle.id]);
   useEffect(() => { if (lokal > 0) letzterTyp.current?.focus(); }, [lokal]);
-  const { aktiv, bib, merke } = useBibliothek();
+  const { aktiv, pflegen, bib, merke } = useBibliothek();
   const [bibWahl, setBibWahl] = useState<string[]>([]);
   const [bibRunde, setBibRunde] = useState(0);
   const [bibMeldung, setBibMeldung] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export function EinheitenListe({ inhalt, stelle, aendere, fokus, ladeSymbole }: 
       <div className="kp-formular-knoepfe">
         <Button onClick={neu} disabled={stelle.einheiten.length >= GRENZE.einheiten}>+ Einheit</Button>
         <Button ref={listeKnopf} onClick={() => { setListe(liste === null ? "" : null); setFehler([]); }}>{liste === null ? "Liste einfügen" : "Liste schließen"}</Button>
-        {aktiv && stelle.einheiten.length > 0 ? <Button className="kp-knopf-umbruch" onClick={() => void inBibliothek()} loading={bibLaeuft}>Einheiten in Bibliothek übernehmen</Button> : null}
+        {aktiv && pflegen && stelle.einheiten.length > 0 ? <Button className="kp-knopf-umbruch" onClick={() => void inBibliothek()} loading={bibLaeuft}>Einheiten in Bibliothek übernehmen</Button> : null}
       </div>
       {bibMeldung ? <p className="kp-hilfe" role="status">{bibMeldung}</p> : null}
       {liste !== null ? (

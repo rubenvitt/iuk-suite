@@ -34,6 +34,16 @@ async function oeffneTeilen(page: Page) {
   await expect(flyin.getByLabel("Notiz (wofür, für wen)")).toBeFocused(); // Anfangsfokus (Entscheidung 17)
   return flyin;
 }
+/** „Teilen“ → „In der Organisation teilen“ → Rückfrage bestätigen; wartet auf die Action (Falle 10). */
+async function teileInOrganisation(page: Page) {
+  const flyin = await oeffneTeilen(page);
+  await klickeWennRuhig(flyin.getByRole("button", { name: "In der Organisation teilen" }));
+  const antwort = page.waitForResponse(istAktion);
+  await klickeWennRuhig(page.locator(".ant-popconfirm").getByRole("button", { name: "Teilen", exact: true }));
+  expect((await antwort).status()).toBe(200);
+  await expect(flyin.locator('[data-sichtbarkeit="organisation"]')).toBeVisible();
+  return flyin;
+}
 async function stelleAus(page: Page, dauer: "24 Stunden" | "7 Tage" | "30 Tage" | "Unbegrenzt", notiz: string): Promise<string> {
   const flyin = page.locator(".kp-flyin").filter({ has: page.getByText("Neuen Link ausstellen") });
   await klickeWennRuhig(flyin.getByText(dauer, { exact: true }));
@@ -143,6 +153,80 @@ test("Teilen: ausstellen, kopieren, anonym ansehen und drucken, Abrufe zählen, 
   await seite.context().close();
 });
 
+/**
+ * PERSÖNLICHE PLÄNE (`_lib/rechte.ts`): drei Personen mit festen Adressen — fest, damit die Einladungs-Suche über
+ * wiederholte Läufe gegen denselben Server nicht immer mehr gleichnamige „Dev User“ sammelt.
+ */
+const ANNA = "anna@localtest.me";
+const BODO = "bodo@localtest.me";
+async function alsPerson(browser: Browser, email: string, groups: string): Promise<Page> {
+  const seite = await (await browser.newContext()).newPage();
+  await devLogin(seite, { host: "kommplan.localtest.me", email, groups, callbackPath: "/" });
+  return seite;
+}
+
+test("privat ist Vorgabe: nur die Eigentümerin sieht ihn — geteilt sehen ihn alle, eingeladen bearbeitet Bodo", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const anna = await alsPerson(browser, ANNA, "iuk-kommplan");
+  const bodo = await alsPerson(browser, BODO, "iuk-kommplan");
+  const admin = await alsPerson(browser, "admin@localtest.me", ADMIN);
+  const titel = `e2e privat ${neu()}`;
+  const id = await neuerPlan(anna, titel);
+  await ersteStelle(anna, "EL privat");
+  await anna.keyboard.press("Escape");
+  await anna.goto(url("/"));
+  await warteAufSpaltenaufteilung(anna);
+  await expect(anna.getByRole("table", { name: "Pläne" }).getByRole("row", { name: new RegExp(titel) })).toContainText("Privat");
+
+  // Weder Bodo noch der Modul-Admin: kein Eintrag in der Liste, die Adresse ist ein 404 wie ein Plan, den es nicht gibt.
+  for (const fremd of [bodo, admin]) {
+    await fremd.goto(url("/"));
+    await warteAufSpaltenaufteilung(fremd);
+    await expect(fremd.getByRole("link", { name: titel })).toHaveCount(0);
+    for (const pfad of [`/p/${id}`, `/p/${id}/druck/a4`]) expect((await fremd.goto(url(pfad)))?.status(), pfad).toBe(404);
+  }
+
+  await anna.goto(url(`/p/${id}`));
+  await warteAufSpaltenaufteilung(anna);
+  const flyin = await teileInOrganisation(anna);
+  expect((await bodo.goto(url(`/p/${id}`)))?.status()).toBe(200);
+  await warteAufSpaltenaufteilung(bodo);
+  await expect(bodo.getByRole("button", { name: "Plan und Verbindungen" })).toHaveCount(0); // Betrachter
+
+  // Einladen: Bodo hat das Modul geöffnet, also schlägt die Suche ihn vor.
+  const suche = flyin.locator('[data-sichtbarkeit="organisation"] input');
+  await suche.fill("Dev");
+  await klickeWennRuhig(anna.locator(`[data-vorschlag="dev:${BODO}"]`));
+  await expect(flyin.locator(`[data-mitglied="dev:${BODO}"]`)).toBeVisible();
+  await bodo.reload();
+  await warteAufSpaltenaufteilung(bodo);
+  await expect(bodo.getByRole("button", { name: "Plan und Verbindungen" })).toBeVisible(); // Editor
+  await expect(bodo.getByRole("button", { name: "Teilen", exact: true })).toHaveCount(0); // verwalten nur Anna und die Admins
+  for (const s of [anna, bodo, admin]) await s.context().close();
+});
+
+test("Exportieren und Importieren: die Datei wird ein neuer privater Plan mit demselben Inhalt", async ({ page }) => {
+  await devLogin(page, { host: "kommplan.localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
+  await page.goto(url("/"));
+  await warteAufSpaltenaufteilung(page);
+  await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: "Aktionen für Kommunikationsplan Einsatz 22.02.2026", exact: true }));
+  const download = page.waitForEvent("download");
+  await klickeWennRuhig(page.getByRole("menuitem", { name: "Exportieren" }));
+  const datei = await download;
+  expect(datei.suggestedFilename()).toMatch(/^Kommunikationsplan-Einsatz-22-02-2026_2026-02-22\.kommplan\.json$/);
+  const pfad = test.info().outputPath(datei.suggestedFilename());
+  await datei.saveAs(pfad);
+  expect(JSON.parse(readFileSync(pfad, "utf8"))).toMatchObject({ format: "iuk-kommplan-plan", version: 1, plan: { titel: "Kommunikationsplan Einsatz 22.02.2026" } });
+
+  const anlage = page.waitForResponse(istAktion);
+  await page.locator("input[data-import]").setInputFiles(pfad);
+  expect((await anlage).status()).toBe(200);
+  await page.waitForURL(/\/p\/[0-9a-f-]{36}$/);
+  await warteAufSpaltenaufteilung(page);
+  await expect(page.locator(".kp-betrachter [data-karte]")).toHaveCount(6);
+  await expect(page.getByRole("button", { name: "Plan und Verbindungen" })).toBeVisible(); // die eigene Kopie bearbeitet sie
+});
+
 test("404 ist ununterscheidbar: unbekannt, falsch geformt, widerrufen, archiviert (Review Focus 2)", async ({ page, browser }) => {
   test.setTimeout(120_000);
   await devLogin(page, { host: "kommplan.localtest.me", groups: ADMIN, callbackPath: "/" });
@@ -248,10 +332,14 @@ test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbeg
   await seite.context().close();
 
   // Nur Zugangsgruppe: der interne Druck trägt keinen QR — der Code wäre der Link, und er überdauerte den Entzug der Gruppe.
+  // Eine ANDERE Person an einem GETEILTEN Plan: der neue Plan ist privat, und unter derselben Adresse wäre sie seine Eigentümerin.
+  await page.goto(url(`/p/${id}`));
+  await warteAufSpaltenaufteilung(page);
+  await teileInOrganisation(page);
   const leseKontext = await browser.newContext();
   await leseKontext.addInitScript(() => { window.print = () => {}; });
   const leser = await leseKontext.newPage();
-  await devLogin(leser, { host: "kommplan.localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(leser, { host: "kommplan.localtest.me", email: "leser@localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
   expect((await leser.goto(url(`/p/${id}/druck/a4`)))?.status()).toBe(200);
   await warteAufGestreamteInhalte(leser);
   await expect(leser.locator("svg.kp-blatt")).not.toHaveCount(0);

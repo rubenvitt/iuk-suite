@@ -17,13 +17,19 @@ beforeEach(async () => {
 });
 
 describe("Actions der Planverwaltung", () => {
-  it("ohne Bearbeitungsrecht: Forbidden, auch mit Zugangsgruppe", async () => {
-    gruppen = ["iuk-kommplan"];
+  it("ohne Zugang: Forbidden; mit Zugangsgruppe kopieren ja (privat), verwalten eines geteilten Plans nein", async () => {
     const a = await import("./verwaltung");
     await expect(a.dupliziereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.speichereAlsVorlageAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+    gruppen = ["andere"];
     await expect(a.archiviereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    await expect(a.stelleWiederHerAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+    gruppen = ["iuk-kommplan"];
+    const kopie = await a.dupliziereAction("beispiel-openr-2022-07-01");
+    expect(kopie.ok).toBe(true);
+    const { NICHT_ERLAUBT } = await import("../_lib/rechte");
+    expect(await a.archiviereAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    expect(await a.stelleWiederHerAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_ERLAUBT });
+    // Die eigene Kopie verwaltet die Person selbst.
+    if (kopie.ok) expect(await a.archiviereAction(kopie.id)).toEqual({ ok: true });
   });
   it("duplizieren, archivieren, wiederherstellen, Vorlage — ungültige Eingaben ohne Wurf", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];

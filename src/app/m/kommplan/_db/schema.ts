@@ -3,7 +3,8 @@ import { blob, check, index, integer, primaryKey, sqliteTable, text, uniqueIndex
 
 /**
  * Datenbank des Moduls kommplan (Spec §4.1). 0000 legt Plan, Bibliothek und Freigaben an; 0001 `plan_bearbeitung` und
- * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4). Neues braucht eine Migration.
+ * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4); 0003 Eigentum und Sichtbarkeit
+ * (`plan.eigentuemer`, `plan.sichtbarkeit`, `plan_mitglied`, `kommplan_person`). Neues braucht eine Migration.
  * `plan_freigabe` statt `freigabe`: die Audit-Oberfläche benennt Objekte nur über den
  * Tabellennamen, und `freigabe` gehört dort dem Einsatzbuch.
  */
@@ -25,11 +26,21 @@ export const plan = sqliteTable("plan", {
   aktualisiertVon: text("aktualisiert_von").notNull(),
   /** PlanInhalt als JSON (`_lib/plan/schema.ts`). */
   inhalt: text("inhalt").notNull(),
+  /**
+   * Kennung (`sub`) der Person, die den Plan angelegt hat (`_lib/rechte.ts`). Leer nur beim Altbestand vor
+   * Migration 0003 — der ist geteilt, und ihn verwalten die Modul-Admins.
+   */
+  eigentuemer: text("eigentuemer"),
+  /** `privat`: nur der Eigentümer sieht ihn (Vorgabe beim Anlegen); `organisation`: alle mit Zugang. */
+  sichtbarkeit: text("sichtbarkeit", { enum: ["privat", "organisation"] }).notNull().default("organisation"),
 }, (t) => [
   check("plan_typ_check", sql`${t.typ} IN ('kommunikationsplan','fernmeldeskizze')`),
+  check("plan_sichtbarkeit_check", sql`${t.sichtbarkeit} IN ('privat','organisation')`),
+  check("plan_privat_hat_eigentuemer", sql`${t.sichtbarkeit} <> 'privat' OR ${t.eigentuemer} IS NOT NULL`),
   check("plan_inhalt_json", sql`json_valid(${t.inhalt})`),
   check("plan_version_positiv", sql`${t.version} >= 1`),
   index("plan_liste_idx").on(t.archiviertAm, t.aktualisiertAm),
+  index("plan_eigentuemer_idx").on(t.eigentuemer),
 ]);
 
 /**
@@ -45,6 +56,29 @@ export const planBearbeitung = sqliteTable("plan_bearbeitung", {
   nutzer: text("nutzer").notNull(),
   seit: integer("seit", { mode: "timestamp_ms" }).notNull(),
 }, (t) => [primaryKey({ columns: [t.planId, t.nutzer] })]);
+
+/**
+ * EINGELADENE BEARBEITENDE eines geteilten Plans (`_lib/mitglieder.ts`): je Zeile darf diese Person den Plan
+ * bearbeiten, zusätzlich zu Eigentümer und Modul-Admins. Ansehen dürfen ihn ohnehin alle mit Zugang. `name` ist
+ * der Anzeigename beim Einladen — die Kennung entscheidet, der Name steht nur in der Liste.
+ */
+export const planMitglied = sqliteTable("plan_mitglied", {
+  planId: text("plan_id").notNull().references(() => plan.id),
+  nutzer: text("nutzer").notNull(),
+  name: text("name").notNull(),
+  eingeladenAm: integer("eingeladen_am", { mode: "timestamp_ms" }).notNull(),
+  eingeladenVon: text("eingeladen_von").notNull(),
+}, (t) => [primaryKey({ columns: [t.planId, t.nutzer] }), index("plan_mitglied_nutzer_idx").on(t.nutzer)]);
+
+/**
+ * BEKANNTE PERSONEN (Vorbild `feedback.known_users`): wer das Modul mit Zugang geöffnet hat, mit Anzeigenamen —
+ * die Quelle der Einladungs-Suche, wenn das Personenverzeichnis fehlt, und der Beleg, dass jemand das Modul
+ * überhaupt öffnen kann. Ein Namens-Cache, keine Rechte; im Audit-Katalog ausgenommen.
+ */
+export const kommplanPerson = sqliteTable("kommplan_person", {
+  nutzer: text("nutzer").primaryKey(),
+  name: text("name").notNull(),
+});
 
 export const bibStelle = sqliteTable("bib_stelle", {
   id: text("id").primaryKey(),
@@ -107,4 +141,5 @@ export const briefkopf = sqliteTable("briefkopf", {
 export type BriefkopfZeile = typeof briefkopf.$inferSelect;
 
 export type PlanZeile = typeof plan.$inferSelect;
+export type PlanMitgliedZeile = typeof planMitglied.$inferSelect;
 export type NeuePlanZeile = typeof plan.$inferInsert;

@@ -6,9 +6,12 @@ import { plan, type PlanZeile } from "../_db/schema";
 import { msZuTag, TYP_NAME, type Planangaben } from "./angaben";
 import { leseInhalt, type PlanInhalt } from "./plan/schema";
 import { kalendertag, planAngabenZeile, STAND_ZEIT } from "./rahmen";
+import { mitgliedIn, rechteFuer, sichtbarFuer, type Person, type PlanRechte, type Sichtbarkeit } from "./rechte";
 
-
-export interface Listenzeile { id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean; archiviert: string | null }
+export interface Listenzeile {
+  id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean; archiviert: string | null;
+  privat: boolean; darf: Pick<PlanRechte, "bearbeiten" | "verwalten">;
+}
 export interface GeladenerPlan {
   id: string; titel: string; typ: PlanZeile["typ"]; anlass: string | null; datum: number | null;
   aktualisiertAm: number; aktualisiertVon: string; inhalt: PlanInhalt | null; fehler: string | null;
@@ -25,17 +28,27 @@ export function lies(zeile: PlanZeile): { inhalt: PlanInhalt | null; fehler: str
 export type Liste = "plaene" | "vorlagen" | "archiv";
 const TAG = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-/** Drei Listen (Entscheidungen 7, 10): Pläne und Vorlagen getrennt, das Archiv für sich — neueste Archivierung zuerst. */
-export function listePlaene(db: KommplanDb, liste: Liste = "plaene"): Listenzeile[] {
-  const wo = liste === "archiv" ? isNotNull(plan.archiviertAm)
-    : and(isNull(plan.archiviertAm), eq(plan.istVorlage, liste === "vorlagen"));
+/**
+ * Drei Listen (Entscheidungen 7, 10): Pläne und Vorlagen getrennt, das Archiv für sich — neueste Archivierung zuerst.
+ * Nur, was `wer` sehen darf (`_lib/rechte.ts`): die geteilten und die eigenen privaten; schon in der Abfrage, damit
+ * kein fremder privater Titel je die Datenbank verlässt.
+ */
+export function listePlaene(db: KommplanDb, liste: Liste, wer: Person): Listenzeile[] {
+  const wo = and(sichtbarFuer(wer), liste === "archiv" ? isNotNull(plan.archiviertAm)
+    : and(isNull(plan.archiviertAm), eq(plan.istVorlage, liste === "vorlagen")));
   const reihe = liste === "archiv" ? [desc(plan.archiviertAm), plan.id] : [desc(plan.aktualisiertAm), plan.id];
-  return db.select().from(plan).where(wo).orderBy(...reihe).all().map((z) => ({
-    id: z.id, titel: z.titel, typ: TYP_NAME[z.typ],
-    datum: kalendertag(z.datum?.getTime() ?? null), stand: STAND_ZEIT.format(z.aktualisiertAm),
-    vorlage: z.istVorlage, lesbar: lies(z).inhalt !== null,
-    archiviert: z.archiviertAm ? archivTag(z.archiviertAm.getTime()) : null,
-  }));
+  const zeilen = db.select().from(plan).where(wo).orderBy(...reihe).all();
+  const mitglied = mitgliedIn(db, wer.nutzer);
+  return zeilen.map((z) => {
+    const r = rechteFuer({ sichtbarkeit: z.sichtbarkeit, eigentuemer: z.eigentuemer, mitglied: mitglied.has(z.id) }, wer);
+    return {
+      id: z.id, titel: z.titel, typ: TYP_NAME[z.typ],
+      datum: kalendertag(z.datum?.getTime() ?? null), stand: STAND_ZEIT.format(z.aktualisiertAm),
+      vorlage: z.istVorlage, lesbar: lies(z).inhalt !== null,
+      archiviert: z.archiviertAm ? archivTag(z.archiviertAm.getTime()) : null,
+      privat: z.sichtbarkeit === "privat", darf: { bearbeiten: r.bearbeiten, verwalten: r.verwalten },
+    };
+  });
 }
 
 /** Tag der Archivierung in der Suite-Zone — Archivspalte und Hinweis am archivierten Plan (Task 13). */
@@ -43,7 +56,7 @@ export function archivTag(ms: number): string {
   return TAG.format(ms);
 }
 
-export interface LesbarerPlan extends GeladenerPlan { archiviertAm: number | null; istVorlage: boolean }
+export interface LesbarerPlan extends GeladenerPlan { archiviertAm: number | null; istVorlage: boolean; sichtbarkeit: Sichtbarkeit; eigentuemer: string | null }
 
 /**
  * DER EINZIGE LESEWEG EINES PLANS, auch archiviert (Entscheidung 10): objektbezogenes 404 im Layout, Planseite
@@ -61,11 +74,26 @@ export function ladePlanLesend(db: KommplanDb, id: string): LesbarerPlan | null 
     version: z.version,
     angaben: { titel: z.titel, typ: z.typ, anlass: z.anlass, datum: msZuTag(z.datum?.getTime() ?? null) },
     archiviertAm: z.archiviertAm?.getTime() ?? null, istVorlage: z.istVorlage,
+    sichtbarkeit: z.sichtbarkeit, eigentuemer: z.eigentuemer,
   };
 }
 
-export function ladePlanLesendOder404(db: KommplanDb, id: string): LesbarerPlan {
+export interface PlanMitRechten { plan: LesbarerPlan; rechte: PlanRechte }
+
+/**
+ * DER LESEWEG DER ANGEMELDETEN FLÄCHEN: `ladePlanLesend` plus die Rechte von `wer`. Was `wer` nicht sehen darf,
+ * ist `null` — derselbe Ausgang wie ein Plan, den es nicht gibt (ein fremder privater Plan verrät sich nicht).
+ * Die Token-Ansicht liest weiter über `ladePlanLesend`: dort ist der Link das Recht.
+ */
+export function ladePlanFuer(db: KommplanDb, id: string, wer: Person): PlanMitRechten | null {
   const p = ladePlanLesend(db, id);
+  if (!p) return null;
+  const rechte = rechteFuer({ sichtbarkeit: p.sichtbarkeit, eigentuemer: p.eigentuemer, mitglied: mitgliedIn(db, wer.nutzer, [id]).has(id) }, wer);
+  return rechte.sehen ? { plan: p, rechte } : null;
+}
+
+export function ladePlanFuerOder404(db: KommplanDb, id: string, wer: Person): PlanMitRechten {
+  const p = ladePlanFuer(db, id, wer);
   if (!p) notFound();
   return p;
 }

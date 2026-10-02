@@ -12,12 +12,12 @@ import { ADMIN, HOST, ersteStelle, flyinTitel, istAktion, istSpeichern, karten, 
  */
 const EINSATZ = "beispiel-einsatz-2026-02-22";
 
-test("Zugangsgruppe: kein „Neu“, der Plan bleibt Betrachter ohne Griffe", async ({ page }) => {
+test("Zugangsgruppe: „Neu“ für eigene Pläne, ein geteilter Plan ohne Einladung bleibt Betrachter ohne Griffe", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await expect(page.getByRole("heading", { level: 1, name: "Kommunikationspläne" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Neu", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Neu", exact: true })).toBeVisible();
   await page.goto(url(`/p/${EINSATZ}`));
   await warteAufSpaltenaufteilung(page);
   await expect(page.getByRole("button", { name: "Rückgängig" })).toHaveCount(0);

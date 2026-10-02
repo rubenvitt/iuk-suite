@@ -10,6 +10,7 @@ import {
 } from "./freigabe/regeln";
 import { ladePlanLesend, type LesbarerPlan } from "./plaene";
 import { PLAN_WEG } from "./planverwaltung";
+import { NICHT_ERLAUBT, rechteAn, type Person } from "./rechte";
 import type { Bearbeiter } from "./speichern";
 
 /**
@@ -41,10 +42,18 @@ export function freigabenFuer(db: KommplanDb, planId: string, jetzt: number): Fr
 const istAktiv = (db: KommplanDb, id: string) =>
   db.select({ id: plan.id }).from(plan).where(and(eq(plan.id, id), isNull(plan.archiviertAm))).get() !== undefined;
 
-export function stelleFreigabeAus(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number): FreigabeErgebnis {
+/** Links sehen, ausstellen und widerrufen darf nur, wer den Plan verwaltet (`_lib/rechte.ts`) — der Link ist ein Zugang. */
+function verweigert(db: KommplanDb, planId: string, person: Person): FreigabeErgebnis | null {
+  const r = rechteAn(db, planId, person);
+  return r.verwalten ? null : { ok: false, fehler: r.sehen ? NICHT_ERLAUBT : PLAN_WEG, feldFehler: {} };
+}
+
+export function stelleFreigabeAus(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, jetzt: number, person: Person): FreigabeErgebnis {
   const r = ausstellenSchema.safeParse(eingabe);
   if (!r.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: feldFehlerAus(r.error) };
   const { planId, dauer, notiz } = r.data;
+  const nein = verweigert(db, planId, person);
+  if (nein) return nein;
   if (!istAktiv(db, planId)) return { ok: false, fehler: PLAN_WEG, feldFehler: {} };
   const gueltig = freigabenFuer(db, planId, jetzt).filter((f) => f.status === "gueltig").length;
   if (gueltig >= FREIGABE_GRENZE.gueltigJePlan) {
@@ -59,10 +68,12 @@ export function stelleFreigabeAus(db: KommplanDb, eingabe: unknown, wer: Bearbei
   return { ok: true, neu: id, freigaben: freigabenFuer(db, planId, jetzt) };
 }
 
-export function widerrufeFreigabe(db: KommplanDb, eingabe: unknown, jetzt: number): FreigabeErgebnis {
+export function widerrufeFreigabe(db: KommplanDb, eingabe: unknown, jetzt: number, person: Person): FreigabeErgebnis {
   const r = widerrufenSchema.safeParse(eingabe);
   if (!r.success) return UNGUELTIG;
   const { planId, freigabeId } = r.data;
+  const nein = verweigert(db, planId, person);
+  if (nein) return nein;
   const da = db.select({ widerrufenAm: planFreigabe.widerrufenAm }).from(planFreigabe)
     .where(and(eq(planFreigabe.id, freigabeId), eq(planFreigabe.planId, planId))).get();
   if (!da) return { ok: false, fehler: "Diesen Link gibt es nicht.", feldFehler: {} };

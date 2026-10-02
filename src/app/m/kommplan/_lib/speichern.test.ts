@@ -4,7 +4,7 @@ import { withAuditContext } from "@/core/audit/context";
 import { plan } from "../_db/schema";
 import { leererPlan, fuegeWurzelEin } from "./plan/operationen";
 import { BEARBEITUNGSFENSTER_MS, ladeStand, legePlanAn, speichereAngaben, speichereInhalt } from "./speichern";
-import { testDb, type TestDb } from "./testDb";
+import { TEST_ADMIN, testDb, type TestDb } from "./testDb";
 
 const JANA = { nutzer: "u-jana", name: "Jana Beispiel" };
 const OLE = { nutzer: "u-ole", name: "Ole Beispiel" };
@@ -20,7 +20,7 @@ function audit(db: TestDb): string[] {
 const als = <T,>(wer: typeof JANA, f: () => T) => withAuditContext({ actor: { kind: "user", id: wer.nutzer, name: wer.name } }, f);
 
 function angelegt(db: TestDb): string {
-  const r = als(JANA, () => legePlanAn(db, ANGABEN, JANA, T0));
+  const r = als(JANA, () => legePlanAn(db, ANGABEN, JANA, T0, TEST_ADMIN));
   if (!r.ok) throw new Error(r.fehler);
   return r.id;
 }
@@ -36,19 +36,19 @@ describe("Plan anlegen", () => {
     expect(audit(db)).toEqual(["create plan u-jana"]);
   });
   it("meldet Feldfehler statt zu werfen", () => {
-    const r = legePlanAn(testDb(), { ...ANGABEN, titel: "   " }, JANA, T0);
+    const r = legePlanAn(testDb(), { ...ANGABEN, titel: "   " }, JANA, T0, TEST_ADMIN);
     expect(r).toEqual({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { titel: "Bitte einen Titel eintragen." } });
   });
   it("ohne vorlage und mit vorlage: null wie bisher — ein leerer Plan (Phase 4, Entscheidung 8)", () => {
     const db = testDb();
     for (const eingabe of [ANGABEN, { ...ANGABEN, vorlage: null }]) {
-      const r = legePlanAn(db, eingabe, JANA, T0);
+      const r = legePlanAn(db, eingabe, JANA, T0, TEST_ADMIN);
       if (!r.ok) throw new Error(r.fehler);
       expect(JSON.parse(db.select().from(plan).where(eq(plan.id, r.id)).get()!.inhalt)).toEqual(leererPlan());
     }
   });
   it("vorlage kein String: Feldfehler an „vorlage“", () => {
-    expect(legePlanAn(testDb(), { ...ANGABEN, vorlage: 42 }, JANA, T0))
+    expect(legePlanAn(testDb(), { ...ANGABEN, vorlage: 42 }, JANA, T0, TEST_ADMIN))
       .toEqual({ ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: { vorlage: "Diese Vorlage gibt es nicht mehr." } });
   });
 });

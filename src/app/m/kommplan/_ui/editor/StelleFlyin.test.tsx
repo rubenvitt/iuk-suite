@@ -59,7 +59,7 @@ function Rahmen({ start = START, stelleId = "a", fokus = FOKUS0, titelRef = REF0
     catch (e) { if (e instanceof PlanFehler) return e.message; throw e; }
   };
   return (
-    <BibliothekKontext.Provider value={{ aktiv: true, bib: BIB, merke }}>
+    <BibliothekKontext.Provider value={{ aktiv: true, pflegen: true, bib: BIB, merke }}>
       <StelleFormular inhalt={inhalt} stelleId={stelleId} aendere={aendere} symbole={{}} zeichenIndex={INDEX} ladeSymbole={lade}
         fokus={fokus} titelRef={titelRef} onLoeschen={loesche} onFertig={fertig} />
     </BibliothekKontext.Provider>

@@ -7,6 +7,7 @@ import { zeitFormat } from "@/core/zeit";
 import { tagZuMs, type Planangaben } from "../../_lib/angaben";
 import type { EditorAnsicht } from "../../_lib/editorAnsicht";
 import { planAngabenZeile } from "../../_lib/rahmen";
+import { ExportKnopf } from "../austausch/ExportKnopf";
 import { DruckMenue, type DruckWahl } from "../druck/DruckMenue";
 import type { SpeicherZustand } from "./speicherer";
 
@@ -50,11 +51,13 @@ export function statusText(z: SpeicherZustand): string {
  * noch Server-Abhängigkeiten und darf deshalb auch hier rendern. Der Konflikthinweis bleibt im
  * Fluss: er ist ein Zustand, der eine Entscheidung verlangt, kein vorübergehender Hinweis.
  */
-export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder, ansicht, onAnsicht, onRueck, onWieder, onPlan, onTeilen, onDrucken, onNeuLaden, onBehalten }: {
+export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder, ansicht, onAnsicht, onRueck, onWieder, onPlan, onTeilen, onDrucken, onExportieren, onNeuLaden, onBehalten }: {
   angaben: Planangaben; zustand: SpeicherZustand; standSeit: number; kannRueck: boolean; kannWieder: boolean;
   /** Ausdrücklich gewählte Ansicht; `null` = ohne Wahl (CSS am Breakpoint). */
   ansicht: EditorAnsicht | null; onAnsicht: (a: EditorAnsicht) => void;
-  onRueck: () => void; onWieder: () => void; onPlan: () => void; onTeilen: () => void; onDrucken: (w: DruckWahl) => void;
+  /** `onTeilen` fehlt, wer den Plan nicht verwaltet (`_lib/rechte.ts`); `onExportieren` speichert erst und meldet einen Fehlersatz. */
+  onRueck: () => void; onWieder: () => void; onPlan: () => void; onTeilen?: () => void; onDrucken: (w: DruckWahl) => void;
+  onExportieren?: () => Promise<string | null>;
   onNeuLaden: () => void; onBehalten: () => void;
 }) {
   // Eigener Name je Umschalter: antds Vorgabe (`useId` von rc-util) ist unter NODE_ENV=test für alle gleich,
@@ -80,8 +83,9 @@ export function Kopfleiste({ angaben, zustand, standSeit, kannRueck, kannWieder,
             <Button {...VERLAUFSKNOPF} className="kp-nur-breit" onClick={onRueck} disabled={!kannRueck}>Rückgängig</Button>
             <Button {...VERLAUFSKNOPF} onClick={onWieder} disabled={!kannWieder}>Wiederholen</Button>
             <Button onClick={onPlan}>Plan und Verbindungen</Button>
-            <Button onClick={onTeilen}>Teilen</Button>
+            {onTeilen ? <Button onClick={onTeilen}>Teilen</Button> : null}
             <DruckMenue onWahl={onDrucken} mitSvg />
+            {onExportieren ? <ExportKnopf tu={onExportieren} /> : null}
             <span className="kp-speicherstatus kp-nur-breit" role="status" aria-live="polite" data-status={zustand.status}>{statusText(zustand)}</span>
           </div>
         } />

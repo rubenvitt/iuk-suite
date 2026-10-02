@@ -59,7 +59,7 @@ export function StelleFormular(p: StelleFormularProps) {
   // Fokusanfrage des Editors (neue Stelle, Enter): auch bei schon offenem Flyin, daher über `fokus.n`.
   // Sie nennt ihre Stelle: eine alte Anfrage gilt nach einem Wechsel der Auswahl nicht für die neue.
   useEffect(() => { if (fokus.ziel === "titel" && fokus.stelle === stelleId) titelRef.current?.focus(); }, [fokus, titelRef, stelleId]);
-  const { aktiv, bib } = useBibliothek();
+  const { aktiv, pflegen, bib } = useBibliothek();
   const s = inhalt.stellen.find((x) => x.id === stelleId);
   if (!s) return <p className="kp-hilfe">Diese Stelle gibt es nicht mehr.</p>;
   /** Eine Stelle aus der Bibliothek übernehmen — EIN Rückgängig-Schritt; das mitgebrachte Zeichen lädt dieser Weg selbst nach. */
@@ -101,7 +101,7 @@ export function StelleFormular(p: StelleFormularProps) {
       <VerbindungWahl key={`verbindung:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} />
       <EinheitenListe key={`einheiten:${s.id}`} inhalt={inhalt} stelle={s} aendere={aendere} fokus={fokus} ladeSymbole={p.ladeSymbole} />
 
-      {aktiv ? <InBibliothek key={`inbib:${s.id}`} stelle={s} /> : null}
+      {aktiv && pflegen ? <InBibliothek key={`inbib:${s.id}`} stelle={s} /> : null}
       {/* Eine eigene Zeile: Meldungen von „In Bibliothek übernehmen“ verschieben den Löschknopf nicht (Review Phase 4). */}
       <div className="kp-formular-knoepfe">
         <Button danger onClick={p.onLoeschen}>Stelle löschen</Button>

@@ -10,3 +10,9 @@ export function testDb() {
   return db;
 }
 export type TestDb = ReturnType<typeof testDb>;
+
+/**
+ * Ein Modul-Admin mit der Kennung `u1` — wie `WER` in den Tests der Planverwaltung: er verwaltet jeden geteilten Plan
+ * (der Seed ist geteilt) und besitzt die privaten Kopien, die `WER` anlegt (`_lib/rechte.ts`).
+ */
+export const TEST_ADMIN = { nutzer: "u1", admin: true } as const;

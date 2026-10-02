@@ -381,6 +381,14 @@
     "kind": "context",
     "via": "DELETE"
   },
+  "src/app/m/kommplan/_actions/austausch.ts#exportierePlanAction": {
+    "kind": "excluded",
+    "reason": "Liest einen sichtbaren Plan und gibt ihn als Austauschdatei zurück; schreibt nichts."
+  },
+  "src/app/m/kommplan/_actions/austausch.ts#importierePlanAction": {
+    "kind": "context",
+    "via": "importierePlanAction"
+  },
   "src/app/m/kommplan/_actions/bibliothek.ts#importiereBibEinheitenAction": {
     "kind": "context",
     "via": "importiereBibEinheitenAction"
@@ -440,6 +448,26 @@
   "src/app/m/kommplan/_actions/plan.ts#speichereInhaltAction": {
     "kind": "context",
     "via": "speichereInhaltAction"
+  },
+  "src/app/m/kommplan/_actions/teilen.ts#entferneMitgliedAction": {
+    "kind": "context",
+    "via": "entferneMitgliedAction"
+  },
+  "src/app/m/kommplan/_actions/teilen.ts#ladeEinAction": {
+    "kind": "context",
+    "via": "ladeEinAction"
+  },
+  "src/app/m/kommplan/_actions/teilen.ts#ladeMitgliederAction": {
+    "kind": "excluded",
+    "reason": "Liest nur die Eingeladenen eines Plans für das Teilen-Flyin; schreibt nichts."
+  },
+  "src/app/m/kommplan/_actions/teilen.ts#suchePersonenAction": {
+    "kind": "excluded",
+    "reason": "Liest Vorschläge für die Einladung (bekannte Personen und Personenverzeichnis, höchstens 20); schreibt nichts."
+  },
+  "src/app/m/kommplan/_actions/teilen.ts#teileInOrganisationAction": {
+    "kind": "context",
+    "via": "teileInOrganisationAction"
   },
   "src/app/m/kommplan/_actions/verwaltung.ts#archiviereAction": {
     "kind": "context",
