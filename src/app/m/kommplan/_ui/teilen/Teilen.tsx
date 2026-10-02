@@ -122,7 +122,7 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr, organisation
 
   return (
     <div className="kp-formular kp-teilen">
-      {organisation ? <Organisation planId={planId} {...organisation} /> : null}
+      {organisation ? <Organisation planId={planId} {...organisation} onMeldung={setMeldung} /> : null}
       <fieldset className="kp-abschnitt">
         <legend>Neuen Link ausstellen</legend>
         <p className="kp-hilfe">Wer den Link hat, sieht den aktuellen Stand dieses Plans ohne Anmeldung und kann ihn drucken — nicht bearbeiten.</p>

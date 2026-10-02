@@ -10,6 +10,8 @@ import type { Sichtbarkeit } from "../../_lib/rechte";
 export interface OrganisationProps {
   planId: string; sichtbarkeit: Sichtbarkeit; mitglieder: Mitglied[];
   onSichtbarkeit: (s: Sichtbarkeit) => void; onMitglieder: (m: Mitglied[]) => void;
+  /** Im Flyin „Teilen“ gehen Meldungen in dessen EINEN `role="status"` (Teilen.tsx); ohne steht ein eigener hier. */
+  onMeldung?: (text: string | null) => void;
 }
 /** Wie `_lib/mitglieder.ts` (`SUCHE_MIN_ZEICHEN`); hier noch einmal, weil die Datei die Datenbank liest. */
 const MIN_ZEICHEN = 2;
@@ -20,9 +22,12 @@ const MIN_ZEICHEN = 2;
  * (eine Einbahnstraße). Geteilt: die Eingeladenen mit „Entfernen" und die Suche zum Einladen. Jede Action gibt die
  * ganze Liste zurück; hier wird nichts selbst gezählt.
  */
-export function Organisation({ planId, sichtbarkeit, mitglieder, onSichtbarkeit, onMitglieder }: OrganisationProps) {
+export function Organisation({ planId, sichtbarkeit, mitglieder, onSichtbarkeit, onMitglieder, onMeldung }: OrganisationProps) {
   const [laeuft, setLaeuft] = useState<string | null>(null);
-  const [meldung, setMeldung] = useState<string | null>(null);
+  const [eigene, setEigene] = useState<string | null>(null);
+  const setMeldung = onMeldung ?? setEigene;
+  const meldung = onMeldung ? null : eigene;
+  const statuszeile = onMeldung ? null : <p className="kp-teilen-meldung" role="status">{meldung ?? ""}</p>;
   const [begriff, setBegriff] = useState("");
   const [vorschlaege, setVorschlaege] = useState<PersonVorschlag[]>([]);
   /** Nur die Antwort auf die NEUESTE Suche zählt — eine langsame ältere überschriebe sonst die Treffer. */
@@ -60,7 +65,7 @@ export function Organisation({ planId, sichtbarkeit, mitglieder, onSichtbarkeit,
           okText="Teilen" cancelText="Abbrechen" onConfirm={() => void teilen()}>
           <Button loading={laeuft === "teilen"}>In der Organisation teilen</Button>
         </Popconfirm>
-        <p className="kp-teilen-meldung" role="status">{meldung ?? ""}</p>
+        {statuszeile}
       </fieldset>
     );
   }
@@ -76,7 +81,7 @@ export function Organisation({ planId, sichtbarkeit, mitglieder, onSichtbarkeit,
         onSearch={(q) => { setBegriff(q); if (q.trim().length < MIN_ZEICHEN) setVorschlaege([]); }}
         onSelect={(nutzer: string) => { const v = vorschlaege.find((x) => x.nutzer === nutzer); if (v) void einladen(v); }}
         notFoundContent={begriff.trim().length >= MIN_ZEICHEN ? "Niemand gefunden. Wer eingeladen werden soll, muss die Kommunikationspläne einmal geöffnet haben." : null} />
-      <p className="kp-teilen-meldung" role="status">{meldung ?? ""}</p>
+      {statuszeile}
       {mitglieder.length === 0 ? <p className="kp-hilfe">Noch niemand eingeladen.</p> : (
         <ul className="kp-freigaben" data-mitglieder="">
           {mitglieder.map((m) => (

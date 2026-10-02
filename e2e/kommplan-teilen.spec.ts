@@ -206,7 +206,9 @@ test("privat ist Vorgabe: nur die Eigentümerin sieht ihn — geteilt sehen ihn 
 });
 
 test("Exportieren und Importieren: die Datei wird ein neuer privater Plan mit demselben Inhalt", async ({ page }) => {
-  await devLogin(page, { host: "kommplan.localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
+  // Eigene Adresse: die importierte Kopie trägt den Titel des Seed-Plans und ist privat — unter der Vorgabe-Adresse
+  // stünde sie in jeder späteren Spec ein zweites Mal in der Liste.
+  await devLogin(page, { host: "kommplan.localtest.me", email: "import@localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: "Aktionen für Kommunikationsplan Einsatz 22.02.2026", exact: true }));

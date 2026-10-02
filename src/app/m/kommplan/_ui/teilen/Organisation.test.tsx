@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { clickElement, exists, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { Organisation } from "./Organisation";
+import { Teilen } from "./Teilen";
 
 const aktion = vi.hoisted(() => ({ teilen: vi.fn(), ein: vi.fn(), weg: vi.fn(), suche: vi.fn() }));
+vi.mock("../../_actions/freigabe", () => ({ stelleFreigabeAusAction: vi.fn(), widerrufeFreigabeAction: vi.fn() }));
 vi.mock("../../_actions/teilen", () => ({
   teileInOrganisationAction: aktion.teilen, ladeEinAction: aktion.ein, entferneMitgliedAction: aktion.weg, suchePersonenAction: aktion.suche,
 }));
@@ -51,5 +53,15 @@ describe("Organisation im Flyin „Teilen“", () => {
     await abwarten();
     expect(aktion.weg).toHaveBeenCalledWith({ planId: "p1", nutzer: "u-bodo" });
     expect(mitglieder).toHaveBeenCalledWith([]);
+  });
+  it("im Flyin „Teilen“ steht genau EIN role=status — die Meldungen des Abschnitts gehen dorthin", async () => {
+    aktion.teilen.mockResolvedValue({ ok: true, mitglieder: [] });
+    await mount(<Teilen planId="p1" basis="http://kommplan.localtest.me:3000" freigaben={[]} onFreigaben={() => {}}
+      organisation={{ sichtbarkeit: "privat", mitglieder: [], onSichtbarkeit: sichtbarkeit, onMitglieder: mitglieder }} />);
+    expect(queryAll('[role="status"]')).toHaveLength(1);
+    await clickElement(knopf("In der Organisation teilen"));
+    await clickElement(knopf("Teilen"));
+    await abwarten();
+    expect(query('[role="status"]').textContent).toContain("Geteilt.");
   });
 });
