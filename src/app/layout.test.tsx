@@ -23,14 +23,20 @@ import type { ReactElement } from "react";
  * dieser Mock — und damit der Test — gruen: gueltiges CSS/JSX, alle Gates
  * gruen, Bruch still (Falle 2, ganzer Fliesstext in Barlow Condensed).
  *
- * Der Mock echot deshalb sein Argument, und `vi.fn()` haelt fest, WELCHER
+ * Der Mock echot deshalb sein Argument, und `fontMocks.aufrufe` haelt fest, WELCHER
  * Aufruf welche Variable bekam — die Assertion unten prueft die Paarung
  * Familie ↔ Variable, nicht nur, dass beide Werte irgendwo auftauchen.
  */
-const fontMocks = vi.hoisted(() => ({
-  barlow: vi.fn((optionen: { variable: string }) => ({ variable: optionen.variable })),
-  barlowCondensed: vi.fn((optionen: { variable: string }) => ({ variable: optionen.variable })),
-}));
+const fontMocks = vi.hoisted(() => {
+  // Eigene Liste statt `mock.calls`: seit vitest 5 ist `clearMocks` Standard und
+  // leert die Historie vor jedem Test, der Aufruf geschah aber beim Import.
+  const aufrufe: Record<"barlow" | "barlowCondensed", { variable: string }[]> = { barlow: [], barlowCondensed: [] };
+  const familie = (name: keyof typeof aufrufe) => (optionen: { variable: string }) => {
+    aufrufe[name].push(optionen);
+    return { variable: optionen.variable };
+  };
+  return { aufrufe, barlow: familie("barlow"), barlowCondensed: familie("barlowCondensed") };
+});
 
 vi.mock("next/font/google", () => ({
   Geist: () => ({ variable: "--font-geist-sans" }),
@@ -177,8 +183,8 @@ describe("Wurzel-Layout: Theme-Signal fuer CSS", () => {
     // truege Barlow wieder die Fliesztext-ROLLE der Suite — und dann stritten
     // `layout.tsx` und `globals.css` um dieselbe Variable, entschieden durch
     // die Stylesheet-Reihenfolge (Falle 5, still).
-    expect(fontMocks.barlow).toHaveBeenCalledWith(expect.objectContaining({ variable: "--font-barlow" }));
-    expect(fontMocks.barlowCondensed).toHaveBeenCalledWith(
+    expect(fontMocks.aufrufe.barlow).toContainEqual(expect.objectContaining({ variable: "--font-barlow" }));
+    expect(fontMocks.aufrufe.barlowCondensed).toContainEqual(
       expect.objectContaining({ variable: "--font-barlow-condensed" }),
     );
   });
