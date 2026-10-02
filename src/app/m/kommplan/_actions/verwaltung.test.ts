@@ -24,6 +24,27 @@ describe("Actions der Planverwaltung", () => {
     await expect(a.speichereAlsVorlageAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
     await expect(a.archiviereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
     await expect(a.stelleWiederHerAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+    await expect(a.loescheEndgueltigAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+    await expect(a.loescheOhneArchivAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
+  });
+  it("löschen: ohne Archiv nur frisch, endgültig nur archiviert — die Uhr ist die des Servers", async () => {
+    gruppen = ["iuk-kommplan-bearbeiten"];
+    const a = await import("./verwaltung");
+    const { listePlaene } = await import("../_lib/plaene");
+    const { getDb } = await import("../_db/client");
+    const { NICHT_MEHR_FRISCH, NUR_ARCHIVIERT, PLAN_WEG } = await import("../_lib/planverwaltung");
+    const kopie = await a.dupliziereAction("beispiel-openr-2022-07-01");
+    if (!kopie.ok) throw new Error(kopie.fehler);
+    expect(await a.loescheEndgueltigAction(kopie.id)).toEqual({ ok: false, fehler: NUR_ARCHIVIERT });
+    expect(await a.loescheOhneArchivAction(kopie.id)).toEqual({ ok: true });
+    expect(await a.loescheOhneArchivAction(kopie.id)).toEqual({ ok: false, fehler: PLAN_WEG });
+    // Der Seed ist alt: ohne Archiv abgelehnt, nach dem Archivieren endgültig gelöscht.
+    expect(await a.loescheOhneArchivAction("beispiel-openr-2022-07-01")).toEqual({ ok: false, fehler: NICHT_MEHR_FRISCH });
+    expect(await a.archiviereAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
+    expect(await a.loescheEndgueltigAction("beispiel-openr-2022-07-01")).toEqual({ ok: true });
+    expect(listePlaene(getDb(), "archiv").map((z) => z.id)).not.toContain("beispiel-openr-2022-07-01");
+    expect(await a.loescheEndgueltigAction(5)).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
+    expect(await a.loescheOhneArchivAction("")).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
   });
   it("duplizieren, archivieren, wiederherstellen, Vorlage — ungültige Eingaben ohne Wurf", async () => {
     gruppen = ["iuk-kommplan-bearbeiten"];

@@ -8,7 +8,8 @@ import { leseInhalt, type PlanInhalt } from "./plan/schema";
 import { kalendertag, planAngabenZeile, STAND_ZEIT } from "./rahmen";
 
 
-export interface Listenzeile { id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean; archiviert: string | null }
+/** `frisch`: jünger als `FRISCH_MS` — die Liste bietet dann „Löschen" ohne Archiv an; die Action prüft selbst noch einmal. */
+export interface Listenzeile { id: string; titel: string; typ: string; datum: string | null; stand: string; vorlage: boolean; lesbar: boolean; archiviert: string | null; frisch: boolean }
 export interface GeladenerPlan {
   id: string; titel: string; typ: PlanZeile["typ"]; anlass: string | null; datum: number | null;
   aktualisiertAm: number; aktualisiertVon: string; inhalt: PlanInhalt | null; fehler: string | null;
@@ -25,8 +26,18 @@ export function lies(zeile: PlanZeile): { inhalt: PlanInhalt | null; fehler: str
 export type Liste = "plaene" | "vorlagen" | "archiv";
 const TAG = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-/** Drei Listen (Entscheidungen 7, 10): Pläne und Vorlagen getrennt, das Archiv für sich — neueste Archivierung zuerst. */
-export function listePlaene(db: KommplanDb, liste: Liste = "plaene"): Listenzeile[] {
+/** Wie lange ein Plan nach dem Anlegen ohne Archiv gelöscht werden darf (`planverwaltung.ts`, `loescheOhneArchiv`). */
+export const FRISCH_MS = 60 * 60 * 1000;
+/** Ohne Anlagezeitpunkt (vor Migration 0004 angelegt) ist ein Plan nie frisch. */
+export function istFrisch(erstelltAm: number | null, jetzt: number): boolean {
+  return erstelltAm !== null && jetzt - erstelltAm < FRISCH_MS;
+}
+
+/**
+ * Drei Listen (Entscheidungen 7, 10): Pläne und Vorlagen getrennt, das Archiv für sich — neueste Archivierung zuerst.
+ * `jetzt` (Serveruhr) nur für `frisch`; ohne ist keine Zeile frisch.
+ */
+export function listePlaene(db: KommplanDb, liste: Liste = "plaene", jetzt?: number): Listenzeile[] {
   const wo = liste === "archiv" ? isNotNull(plan.archiviertAm)
     : and(isNull(plan.archiviertAm), eq(plan.istVorlage, liste === "vorlagen"));
   const reihe = liste === "archiv" ? [desc(plan.archiviertAm), plan.id] : [desc(plan.aktualisiertAm), plan.id];
@@ -35,6 +46,7 @@ export function listePlaene(db: KommplanDb, liste: Liste = "plaene"): Listenzeil
     datum: kalendertag(z.datum?.getTime() ?? null), stand: STAND_ZEIT.format(z.aktualisiertAm),
     vorlage: z.istVorlage, lesbar: lies(z).inhalt !== null,
     archiviert: z.archiviertAm ? archivTag(z.archiviertAm.getTime()) : null,
+    frisch: jetzt !== undefined && z.archiviertAm === null && istFrisch(z.erstelltAm?.getTime() ?? null, jetzt),
   }));
 }
 

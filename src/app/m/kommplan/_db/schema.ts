@@ -3,8 +3,8 @@ import { blob, check, index, integer, primaryKey, sqliteTable, text, uniqueIndex
 
 /**
  * Datenbank des Moduls kommplan (Spec §4.1). 0000 legt Plan, Bibliothek und Freigaben an; 0001 `plan_bearbeitung` und
- * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4); 0003 `eigenes_zeichen`.
- * Neues braucht eine Migration.
+ * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4); 0003 `eigenes_zeichen`;
+ * 0004 `plan.erstellt_am`. Neues braucht eine Migration.
  * `plan_freigabe` statt `freigabe`: die Audit-Oberfläche benennt Objekte nur über den
  * Tabellennamen, und `freigabe` gehört dort dem Einsatzbuch.
  */
@@ -19,6 +19,11 @@ export const plan = sqliteTable("plan", {
   datum: integer("datum", { mode: "timestamp_ms" }),
   istVorlage: integer("ist_vorlage", { mode: "boolean" }).notNull().default(false),
   archiviertAm: integer("archiviert_am", { mode: "timestamp_ms" }),
+  /**
+   * Anlagezeitpunkt: entscheidet, ob ein Plan ohne Archiv gelöscht werden darf (`_lib/planverwaltung.ts`,
+   * `loescheOhneArchiv`). NULL bei allem, was vor der Spalte angelegt wurde — „unbekannt" ist nie frisch.
+   */
+  erstelltAm: integer("erstellt_am", { mode: "timestamp_ms" }),
   /** Optimistisches Sperren: jedes Speichern zählt hoch (`_lib/speichern.ts`). */
   version: integer("version").notNull().default(1),
   /** Der gedruckte „Stand". */

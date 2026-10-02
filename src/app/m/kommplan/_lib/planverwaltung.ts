@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, isNotNull, isNull, or } from "drizzle-orm";
 import type { KommplanDb } from "../_db/client";
-import { plan, planFreigabe } from "../_db/schema";
+import { plan, planBearbeitung, planFreigabe } from "../_db/schema";
 import { tagZuMs, type PlanTyp } from "./angaben";
 import type { DuplikatErgebnis, EinfachErgebnis, VorlageErgebnis } from "./ergebnis";
-import { lies } from "./plaene";
+import { istFrisch, lies } from "./plaene";
 import type { Bearbeiter } from "./speichern";
 import { heuteIso, titelFuerKopie } from "./tagesfassung";
 
 /**
  * PLANVERWALTUNG (Spec §6.7, §8.3; Umsetzungsplan Phase 4, Entscheidungen 7–10; Phase 5 Entscheidungen 3, 16) — nur Server. Jede ID wird hier
  * gegen die Datenbank aufgelöst (IDOR); jeder Schreibvorgang ist eine Audit-Zeile über den Trigger von `plan`
- * (`ist_vorlage`, `archiviert_am`, Anlegen). Archivieren und Vorlage ändern den „Stand" NICHT — der Stand ist der
+ * (`ist_vorlage`, `archiviert_am`, Anlegen, Löschen). Archivieren und Vorlage ändern den „Stand" NICHT — der Stand ist der
  * Inhalt, nicht seine Ablage. „Jetzt" kommt als Argument.
  */
 export const PLAN_WEG = "Diesen Plan gibt es nicht mehr.";
@@ -33,7 +33,7 @@ export function dupliziere(db: KommplanDb, id: string, wer: Bearbeiter, jetzt: n
   const titel = titelFuerKopie(q.titel, heute);
   db.insert(plan).values({
     id: neu, titel: titel.titel, typ: q.typ, anlass: q.anlass, datum: new Date(tagZuMs(heute)),
-    istVorlage: false, aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt),
+    istVorlage: false, erstelltAm: new Date(jetzt), aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt),
   }).run();
   return { ok: true, id: neu, titel: titel.art };
 }
@@ -58,7 +58,7 @@ export function speichereAlsVorlage(db: KommplanDb, id: string, wer: Bearbeiter,
   }
   const neu = randomUUID();
   db.insert(plan).values({
-    id: neu, titel: q.titel, typ: q.typ, anlass: q.anlass, datum: null, istVorlage: true,
+    id: neu, titel: q.titel, typ: q.typ, anlass: q.anlass, datum: null, istVorlage: true, erstelltAm: new Date(jetzt),
     aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt: JSON.stringify(inhalt),
   }).run();
   return { ok: true, id: neu };
@@ -84,4 +84,40 @@ export function archiviere(db: KommplanDb, id: string, jetzt: number): EinfachEr
 export function stelleWiederHer(db: KommplanDb, id: string): EinfachErgebnis {
   const r = db.update(plan).set({ archiviertAm: null }).where(and(eq(plan.id, id), isNotNull(plan.archiviertAm))).run();
   return r.changes === 1 ? { ok: true } : { ok: false, fehler: PLAN_WEG };
+}
+
+/**
+ * LÖSCHEN, ZWEI WEGE (Auftrag 2026-10-02): endgültig nur aus dem Archiv; ohne Archiv nur, solange der Plan frisch ist —
+ * ein eben versehentlich angelegter Plan soll nicht erst durchs Archiv. Maßgeblich ist `erstellt_am` (Migration 0004),
+ * nie der Stand (`istFrisch` in `plaene.ts`, dort auch für die Liste). Die Uhr ist die des Servers (`jetzt`).
+ */
+export const NUR_ARCHIVIERT = "Endgültig löschen geht nur im Archiv — archiviere den Plan zuerst.";
+export const NICHT_MEHR_FRISCH = "Dieser Plan ist älter als eine Stunde und lässt sich nicht mehr direkt löschen. Archiviere ihn; im Archiv kannst du ihn endgültig löschen.";
+export const SCHON_ARCHIVIERT = "Dieser Plan ist schon archiviert — endgültig löschen kannst du ihn im Archiv.";
+
+/**
+ * Entfernt den Plan samt allem, was auf ihn zeigt (`plan_freigabe`, `plan_bearbeitung`; Fremdschlüssel sind an), in
+ * EINER Transaktion. Je Zeile eine Audit-Zeile über die Lösch-Trigger. Die Links sind danach tot: `loeseToken` findet
+ * kein Token mehr. Eine Vorlage hängt an keinem Plan — was aus ihr entstand, trägt eine Kopie ihres Inhalts.
+ */
+function entferne(db: KommplanDb, id: string, darf: (z: { archiviertAm: Date | null; erstelltAm: Date | null }) => string | null): EinfachErgebnis {
+  return db.transaction((tx): EinfachErgebnis => {
+    const z = tx.select({ archiviertAm: plan.archiviertAm, erstelltAm: plan.erstelltAm }).from(plan).where(eq(plan.id, id)).get();
+    if (!z) return { ok: false, fehler: PLAN_WEG };
+    const nein = darf(z);
+    if (nein) return { ok: false, fehler: nein };
+    tx.delete(planFreigabe).where(eq(planFreigabe.planId, id)).run();
+    tx.delete(planBearbeitung).where(eq(planBearbeitung.planId, id)).run();
+    tx.delete(plan).where(eq(plan.id, id)).run();
+    return { ok: true };
+  });
+}
+
+export function loescheEndgueltig(db: KommplanDb, id: string): EinfachErgebnis {
+  return entferne(db, id, (z) => (z.archiviertAm === null ? NUR_ARCHIVIERT : null));
+}
+
+export function loescheOhneArchiv(db: KommplanDb, id: string, jetzt: number): EinfachErgebnis {
+  return entferne(db, id, (z) => z.archiviertAm !== null ? SCHON_ARCHIVIERT
+    : istFrisch(z.erstelltAm?.getTime() ?? null, jetzt) ? null : NICHT_MEHR_FRISCH);
 }

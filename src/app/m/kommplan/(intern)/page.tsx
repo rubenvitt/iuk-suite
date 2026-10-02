@@ -20,7 +20,8 @@ export default async function Planliste() {
   const darf = darfKommplanBearbeiten(viewer.groups);
   const vorlagen = vorlagenZurAuswahl(db);
   // `new Date()` statt `Date.now()`: `react-hooks/purity` (Vorbild `files/(verwaltung)/posteingang/page.tsx`).
-  const heute = heuteIso(new Date().getTime());
+  const jetzt = new Date().getTime();
+  const heute = heuteIso(jetzt);
   return (
     <Huelle>
       <Seitenkopf titel="Kommunikationspläne"
@@ -34,9 +35,9 @@ export default async function Planliste() {
           </div>
         } />
       {/* Den Leerzustand trägt die Kartentabelle selbst (`leer`). */}
-      <PlanTabelle zeilen={listePlaene(db, "plaene")} liste="plaene" darfBearbeiten={darf} />
+      <PlanTabelle zeilen={listePlaene(db, "plaene", jetzt)} liste="plaene" darfBearbeiten={darf} />
       <h2 className="kp-abschnittstitel">Vorlagen</h2>
-      <PlanTabelle zeilen={listePlaene(db, "vorlagen")} liste="vorlagen" darfBearbeiten={darf} vorlagen={vorlagen} heute={heute} />
+      <PlanTabelle zeilen={listePlaene(db, "vorlagen", jetzt)} liste="vorlagen" darfBearbeiten={darf} vorlagen={vorlagen} heute={heute} />
     </Huelle>
   );
 }
