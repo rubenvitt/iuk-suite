@@ -41,9 +41,9 @@ beforeEach(() => { Object.values(aktion).forEach((f) => f.mockReset()); router.r
 afterEach(async () => { await unmount(); });
 
 describe("Bibliothek", () => {
-  it("drei Reiter mit Anzahl; Suche filtert und sagt „nichts passt“ statt „nichts angelegt“", async () => {
+  it("vier Reiter mit Anzahl; Suche filtert und sagt „nichts passt“ statt „nichts angelegt“", async () => {
     await zeige();
-    expect(queryAll('[role="tab"]').map((t) => t.textContent)).toEqual(["Stellen (2)", "Einheiten (1)", "Verbindungen (1)"]);
+    expect(queryAll('[role="tab"]').map((t) => t.textContent)).toEqual(["Stellen (2)", "Einheiten (1)", "Verbindungen (1)", "Zeichen (0)"]);
     await fill('input[aria-label="Stellen suchen"]', "nord");
     expect(queryAll('section[aria-label="Stellen der Bibliothek"] tr[data-row-key]').map((r) => r.getAttribute("data-row-key"))).toEqual(["s2"]);
     await fill('input[aria-label="Stellen suchen"]', "gibtsnicht");

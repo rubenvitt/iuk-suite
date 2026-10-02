@@ -15,10 +15,10 @@ import type { LesbarerPlan } from "./plaene";
 import { qrGrafikAus } from "./qrGrafik";
 import { rahmenFuer } from "./rahmen";
 import { heuteIso } from "./tagesfassung";
-import { symboleFuer } from "./zeichen/zeichen";
+import { symboleFuerPlan } from "./zeichen/symbole";
 
 /**
- * DIE DATEN EINER DRUCKSEITE (Umsetzungsplan Phase 5, Entscheidung 13) — nur Server (liest das Rezept-Generat).
+ * DIE DATEN EINER DRUCKSEITE (Umsetzungsplan Phase 5, Entscheidung 13) — nur Server (Rezept-Generat, eigene Zeichen).
  * Gleich für die internen und die Token-Druckrouten; was sich unterscheidet (QR-Ziel, SVG-Export), kommt als Auftrag.
  */
 export interface DruckAuftrag { format: Papierformat; qrUrl: string | null; qrSatz?: string | null; mitSvgExport?: boolean }
@@ -75,7 +75,7 @@ export async function druckseitenDaten(db: KommplanDb, plan: LesbarerPlan, auftr
     format: auftrag.format,
     blaetter: inhalt ? blaetterFuer(inhalt, auftrag.format, qr !== null) : null,
     rahmen: { ...rahmen, qr, schwarzweiss: sw },
-    symbole: inhalt ? symboleFuer(inhalt, { schwarzweiss: sw }) : {},
+    symbole: inhalt ? symboleFuerPlan(db, inhalt, { schwarzweiss: sw }) : {},
     qrSatz: qr ? auftrag.qrSatz ?? null : null,
     svgExport: auftrag.mitSvgExport
       ? { titel: plan.titel, tag: plan.datum !== null ? msZuTag(plan.datum)! : heuteIso(plan.aktualisiertAm) }

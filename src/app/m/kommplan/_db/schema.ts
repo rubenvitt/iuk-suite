@@ -3,7 +3,8 @@ import { blob, check, index, integer, primaryKey, sqliteTable, text, uniqueIndex
 
 /**
  * Datenbank des Moduls kommplan (Spec §4.1). 0000 legt Plan, Bibliothek und Freigaben an; 0001 `plan_bearbeitung` und
- * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4). Neues braucht eine Migration.
+ * baut den Trigger `audit_plan_update` um (gebündeltes Audit, Phase 2); 0002 `briefkopf` (Phase 4); 0003 `eigenes_zeichen`.
+ * Neues braucht eine Migration.
  * `plan_freigabe` statt `freigabe`: die Audit-Oberfläche benennt Objekte nur über den
  * Tabellennamen, und `freigabe` gehört dort dem Einsatzbuch.
  */
@@ -69,6 +70,22 @@ export const bibVerbindung = sqliteTable("bib_verbindung", {
   bezeichnung: text("bezeichnung").notNull(),
   notiz: text("notiz"),
 }, (t) => [check("bib_verbindung_art_check", sql`${t.art} IN ('tmo','dmo','analogfunk','draht','telefon','mobil','fax','daten')`)]);
+
+/**
+ * EIGENE ZEICHEN aus dem Baukasten (Bibliothek, Reiter „Zeichen"). Gespeichert wird NUR die Zusammenstellung
+ * (`spec`, kanonisch aus `parseSpec`), nie ein Bild: gezeichnet wird bei jedem Abruf auf dem Server
+ * (`_lib/zeichen/eigen/zeichne.ts`). Pläne verweisen per `eigen:<id>` — eine Änderung hier ändert jeden Plan.
+ */
+export const eigenesZeichen = sqliteTable("eigenes_zeichen", {
+  id: text("id").primaryKey(),
+  titel: text("titel").notNull(),
+  spec: text("spec").notNull(),
+  aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp_ms" }).notNull(),
+  aktualisiertVon: text("aktualisiert_von").notNull(),
+}, (t) => [
+  check("eigenes_zeichen_spec_json", sql`json_valid(${t.spec}) AND length(${t.spec}) <= 4000`),
+]);
+export type EigenesZeichenZeile = typeof eigenesZeichen.$inferSelect;
 
 export const planFreigabe = sqliteTable("plan_freigabe", {
   id: text("id").primaryKey(),

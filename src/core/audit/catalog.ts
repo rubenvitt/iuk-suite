@@ -453,6 +453,12 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "eigenes_zeichen": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "konto": {

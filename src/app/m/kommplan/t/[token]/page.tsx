@@ -4,7 +4,7 @@ import { kopfFuerZeichnung } from "@/app/m/kommplan/_lib/briefkopf";
 import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { TOKEN_METADATEN } from "@/app/m/kommplan/_lib/tokenMetadaten";
 import { tokenPlanOder404 } from "@/app/m/kommplan/_lib/tokenZugang";
-import { symboleFuer } from "@/app/m/kommplan/_lib/zeichen/zeichen";
+import { symboleFuerPlan } from "@/app/m/kommplan/_lib/zeichen/symbole";
 import { Betrachter } from "@/app/m/kommplan/_ui/betrachter/Betrachter";
 import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
 import { TokenKopf } from "@/app/m/kommplan/_ui/token/TokenKopf";
@@ -30,7 +30,7 @@ export default async function TokenAnsicht({ params }: { params: Promise<{ token
       }} />
       {plan.inhalt ? (
         <div className={`kp-token-flaeche ${ARIMO.className}`}>
-          <Betrachter inhalt={plan.inhalt} symbole={symboleFuer(plan.inhalt)} titel={plan.titel} schrift={ARIMO.style.fontFamily} />
+          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ARIMO.style.fontFamily} />
         </div>
       ) : (
         <p className="kp-token-hinweis">Dieser Plan lässt sich gerade nicht anzeigen.</p>
