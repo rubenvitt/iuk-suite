@@ -2,9 +2,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { clickElement, exists, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
-const aktion = vi.hoisted(() => ({ dupliziere: vi.fn(), vorlage: vi.fn(), archiviere: vi.fn(), wiederher: vi.fn() }));
+const aktion = vi.hoisted(() => ({ dupliziere: vi.fn(), vorlage: vi.fn(), archiviere: vi.fn(), wiederher: vi.fn(), endgueltig: vi.fn(), ohneArchiv: vi.fn() }));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
-vi.mock("../_actions/verwaltung", () => ({ dupliziereAction: aktion.dupliziere, speichereAlsVorlageAction: aktion.vorlage, archiviereAction: aktion.archiviere, stelleWiederHerAction: aktion.wiederher }));
+vi.mock("../_actions/verwaltung", () => ({ dupliziereAction: aktion.dupliziere, speichereAlsVorlageAction: aktion.vorlage, archiviereAction: aktion.archiviere, stelleWiederHerAction: aktion.wiederher, loescheEndgueltigAction: aktion.endgueltig, loescheOhneArchivAction: aktion.ohneArchiv }));
 vi.mock("../_actions/plan", () => ({ legePlanAnAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 import { PlanTabelle } from "./PlanTabelle";
@@ -16,8 +16,8 @@ const knopf = (text: string) => [...document.querySelectorAll<HTMLElement>("butt
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
 
 const ZEILEN = [
-  { id: "p1", titel: "Einsatz", typ: "Kommunikationsplan", datum: "22.02.2026", stand: "16.02.2026, 10:00", vorlage: false, lesbar: true, archiviert: null },
-  { id: "p2", titel: "Label", typ: "Kommunikationsplan", datum: null, stand: "01.09.2026, 10:00", vorlage: true, lesbar: false, archiviert: null },
+  { id: "p1", titel: "Einsatz", typ: "Kommunikationsplan", datum: "22.02.2026", stand: "16.02.2026, 10:00", vorlage: false, lesbar: true, archiviert: null, frisch: false },
+  { id: "p2", titel: "Label", typ: "Kommunikationsplan", datum: null, stand: "01.09.2026, 10:00", vorlage: true, lesbar: false, archiviert: null, frisch: false },
 ];
 
 /**
@@ -88,12 +88,12 @@ describe("PlanTabelle", () => {
     expect(aktion.wiederher).toHaveBeenCalledWith("p1");
     expect(router.refresh).toHaveBeenCalledTimes(2);
   });
-  it("Archivliste: Spalte „Archiviert“, nur „Wiederherstellen“", async () => {
+  it("Archivliste: Spalte „Archiviert“, „Wiederherstellen“ und „Endgültig löschen“", async () => {
     await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], archiviert: "01.10.2026" }]} liste="archiv" darfBearbeiten />);
     expect(query('table[aria-label="Archivierte Pläne"], [aria-label="Archivierte Pläne"]')).toBeTruthy();
     expect(document.body.textContent).toContain("01.10.2026");
     await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Wiederherstellen"]);
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Wiederherstellen", "Endgültig löschen"]);
     // Der Eintrag ruft wirklich die Wiederherstellung (Review Phase 4: ein vertauschter Aufruf blieb unbemerkt).
     aktion.wiederher.mockResolvedValue({ ok: true });
     await clickElement(knopf("Wiederherstellen"));
@@ -176,5 +176,72 @@ describe("PlanTabelle", () => {
     await abwarten();
     expect(aktion.wiederher).toHaveBeenCalledTimes(1);
     expect(query('.kp-listenhinweis[role="status"]').textContent).toContain("Wiederhergestellt.");
+  });
+});
+
+/** Der Knopf im Rückfragedialog — nicht der gleichnamige Menüeintrag, der noch verborgen im Portal steht. */
+const imDialog = (text: string) => [...document.querySelectorAll<HTMLElement>('[role="dialog"] button')].find((b) => b.textContent?.trim() === text)!;
+const dialogText = () => [...document.querySelectorAll('[role="dialog"]')].map((d) => d.textContent).join(" ");
+
+describe("PlanTabelle — Löschen (Auftrag 2026-10-02)", () => {
+  it("„Löschen“ zusätzlich zum Archivieren nur an einer frischen Zeile; unter „Vorlagen“ heißt es „Vorlage löschen“", async () => {
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], frisch: true }, ZEILEN[1]]} liste="plaene" darfBearbeiten />);
+    await clickElement(query('tr[data-row-key="p1"] button[aria-label="Aktionen für Einsatz"]'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Duplizieren", "Als Vorlage speichern", "Archivieren", "Löschen"]);
+    await unmount();
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[1], frisch: true }]} liste="vorlagen" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Label"]'));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((e) => e.textContent)).toEqual(["Neu aus Vorlage", "Vorlage archivieren", "Vorlage löschen"]);
+  });
+  it("frisch: erst die Rückfrage, dann „Löschen“ ohne Archiv — Meldung ohne „Rückgängig“, Fokus im Hinweis", async () => {
+    aktion.ohneArchiv.mockResolvedValue({ ok: true });
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], frisch: true }]} liste="plaene" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
+    await clickElement(knopf("Löschen"));
+    await abwarten();
+    expect(dialogText()).toContain("Unwiderruflich löschen?");
+    expect(dialogText()).toContain("„Einsatz“ ist noch keine Stunde alt und wird ohne Archiv gelöscht");
+    expect(dialogText()).toContain("Freigabe-Links funktionieren danach nicht mehr.");
+    expect(aktion.ohneArchiv).not.toHaveBeenCalled();
+    await clickElement(imDialog("Löschen"));
+    await abwarten();
+    expect(aktion.ohneArchiv).toHaveBeenCalledWith("p1");
+    expect(aktion.endgueltig).not.toHaveBeenCalled();
+    expect(aktion.archiviere).not.toHaveBeenCalled();
+    const hinweis = query('.kp-listenhinweis[role="status"]');
+    expect(hinweis.textContent).toBe("„Einsatz“ gelöscht.");
+    expect(document.activeElement).toBe(hinweis);
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+  it("Archiv: „Endgültig löschen“ fragt nach; „Abbrechen“ löscht nichts, Bestätigen ruft die endgültige Löschung", async () => {
+    aktion.endgueltig.mockResolvedValue({ ok: true });
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[1], lesbar: true, archiviert: "01.10.2026" }]} liste="archiv" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Label"]'));
+    await clickElement(knopf("Endgültig löschen"));
+    await abwarten();
+    expect(dialogText()).toContain("Die Vorlage „Label“ wird endgültig gelöscht und lässt sich nicht wiederherstellen. Freigabe-Links funktionieren danach nicht mehr. Pläne, die aus ihr entstanden sind, bleiben erhalten.");
+    await clickElement(imDialog("Abbrechen"));
+    await abwarten();
+    expect(aktion.endgueltig).not.toHaveBeenCalled();
+    await clickElement(query('button[aria-label="Aktionen für Label"]'));
+    await clickElement(knopf("Endgültig löschen"));
+    await abwarten();
+    await clickElement(imDialog("Endgültig löschen"));
+    await abwarten();
+    expect(aktion.endgueltig).toHaveBeenCalledWith("p2");
+    expect(aktion.wiederher).not.toHaveBeenCalled();
+    expect(query(".kp-listenhinweis").textContent).toBe("Vorlage „Label“ gelöscht.");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+  it("lehnt der Server ab (Seite länger offen als eine Stunde), steht sein Grund im Hinweis — keine Aktualisierung", async () => {
+    aktion.ohneArchiv.mockResolvedValue({ ok: false, fehler: "Dieser Plan ist älter als eine Stunde und lässt sich nicht mehr direkt löschen." });
+    await mount(<PlanTabelle zeilen={[{ ...ZEILEN[0], frisch: true }]} liste="plaene" darfBearbeiten />);
+    await clickElement(query('button[aria-label="Aktionen für Einsatz"]'));
+    await clickElement(knopf("Löschen"));
+    await abwarten();
+    await clickElement(imDialog("Löschen"));
+    await abwarten();
+    expect(query(".kp-listenhinweis").textContent).toContain("älter als eine Stunde");
+    expect(router.refresh).not.toHaveBeenCalled();
   });
 });

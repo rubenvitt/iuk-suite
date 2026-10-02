@@ -5,9 +5,12 @@ import { dirname, join, relative } from "node:path";
 /**
  * DIE IMPORTGRENZEN DES MODULS — alle strukturell, keine davon sieht `pnpm build` rechtzeitig.
  *
- * 1. `@einsatzzeichen/*` sind devDependencies und brechen jeden Server-Import im Build (Befund M1
- *    der Zeichen-Spec 2026-09-02), auch als Seiteneffekt- oder dynamischer Import und auch in einer
- *    SSR-gerenderten Client-Insel (M2). Nur das Generatorskript und Tests dürfen sie laden.
+ * 1. `@einsatzzeichen/catalog` bricht jeden Server-Import im Build (Befund M1 der Zeichen-Spec
+ *    2026-09-02), auch als Seiteneffekt- oder dynamischer Import und auch in einer SSR-gerenderten
+ *    Client-Insel (M2). Nur das Generatorskript und Tests dürfen ihn laden. `core`/`schema` 3.0.0 sind
+ *    rein (JSON-Importe, kein `fileURLToPath`) und zeichnen eigene Zeichen — aber nur an ZWEI Stellen
+ *    (`_lib/zeichen/eigen/`), und in den Browser kommen sie nur mit dem Baukasten, per `import()`:
+ *    statisch gezogen läge der Kern (rund 1,7 MB) in jedem Bündel, das die Bibliothek lädt.
  * 2. Das große Rezept-Generat (rund 220 KB) gehört dem Server. Der Betrachter bekommt nur die
  *    Symbole seines Plans als Prop. Geprüft wird TRANSITIV: eine Client-Insel, die einen
  *    `_lib`-Helfer zieht, der seinerseits `zeichen/zeichen` zieht, trüge das Generat still ins
@@ -33,6 +36,10 @@ const quelltext = (pfad: string) => readFileSync(pfad, "utf8");
 const istTest = (pfad: string) => /\.test\.tsx?$/.test(pfad);
 const laufzeit = dateien(MODUL).filter((p) => /\.tsx?$/.test(p) && !istTest(p));
 
+/** Die einzigen Laufzeitdateien mit `@einsatzzeichen/core`/`schema` (Klausel 1). */
+const KERNLESER = ["_lib/zeichen/eigen/vokabular.ts", "_lib/zeichen/eigen/zeichne.ts"];
+const BAUKASTEN = join(MODUL, "_ui/bibliothek/Baukasten.tsx");
+
 const ohneKommentare = (q: string) => q.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const istClient = (q: string) => /^\s*["']use client["']/.test(ohneKommentare(q));
 /**
@@ -47,9 +54,10 @@ const istServerAktion = (q: string) => q.startsWith('"use server"');
  * Reine Typ-Importe (`import type …`, `export type … from`) fallen weg — sie verschwinden beim
  * Übersetzen, und ohne den Abzug wäre `import type { Symbolsatz }` im Betrachter ein Fehlalarm.
  */
-function spezifizierer(q: string): string[] {
+function spezifizierer(q: string, dynamisch = true): string[] {
   const ohneTypen = ohneKommentare(q).replace(/^\s*(?:import|export)\s+type\b[^;]*;/gm, "");
-  return [...ohneTypen.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1]);
+  const muster = dynamisch ? /(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g : /(?:\bfrom|\bimport(?!\s*\()|\brequire)\s*\(?\s*["']([^"']+)["']/g;
+  return [...ohneTypen.matchAll(muster)].map((m) => m[1]);
 }
 /** Relativ oder `@/…` → Datei im Repo; alles andere (Pakete) → null. */
 function aufloesen(von: string, s: string): string | null {
@@ -60,8 +68,8 @@ function aufloesen(von: string, s: string): string | null {
   }
   return null;
 }
-/** Alles, was eine Datei zur Laufzeit zieht — transitiv, innerhalb des Moduls. */
-function erreichbar(start: string): Set<string> {
+/** Alles, was eine Datei zur Laufzeit zieht — transitiv, innerhalb des Moduls; `dynamisch = false` ohne `import()`. */
+function erreichbar(start: string, dynamisch = true): Set<string> {
   const gesehen = new Set<string>();
   const offen = [start];
   while (offen.length > 0) {
@@ -70,7 +78,7 @@ function erreichbar(start: string): Set<string> {
     gesehen.add(datei);
     if (datei !== start && istServerAktion(quelltext(datei))) continue; // Grenze: nur Aufrufverweis
     if (!/\.tsx?$/.test(datei)) continue; // JSON hat keine Importe
-    for (const s of spezifizierer(quelltext(datei))) {
+    for (const s of spezifizierer(quelltext(datei), dynamisch)) {
       const ziel = aufloesen(datei, s);
       if (ziel !== null && ziel.startsWith(MODUL)) offen.push(ziel);
     }
@@ -84,6 +92,7 @@ describe("kommplan: der Riegel selbst", () => {
     expect(spezifizierer('const m = await import("@einsatzzeichen/catalog");')).toEqual(["@einsatzzeichen/catalog"]);
     expect(spezifizierer("const m = require('@einsatzzeichen/schema');")).toEqual(["@einsatzzeichen/schema"]);
     expect(spezifizierer('import type {\n  A,\n  B,\n} from "./zeichen/zeichen";\nimport { c } from "./c";')).toEqual(["./c"]);
+    expect(spezifizierer('import { a } from "./a";\nimport "./b";\nconst C = dynamic(() => import("./Baukasten"));', false)).toEqual(["./a", "./b"]);
   });
   it("erkennt die Direktive auch mit Kopfkommentar und einfachen Anführungszeichen", () => {
     expect(istClient("/* Kopf */\n'use client';\nexport {}")).toBe(true);
@@ -97,9 +106,24 @@ describe("kommplan: der Riegel selbst", () => {
 });
 
 describe("kommplan: Importgrenzen", () => {
-  it("keine Laufzeitdatei importiert @einsatzzeichen, in keiner Form", () => {
-    const verstoesse = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.startsWith("@einsatzzeichen/")));
+  it("keine Laufzeitdatei importiert @einsatzzeichen/catalog, in keiner Form", () => {
+    const verstoesse = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.startsWith("@einsatzzeichen/catalog")));
     expect(verstoesse).toEqual([]);
+  });
+
+  it("nur der Zeichner und das Vokabular eigener Zeichen laden @einsatzzeichen/core und /schema", () => {
+    const leser = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.startsWith("@einsatzzeichen/")));
+    expect(leser.map((p) => relative(MODUL, p)).sort()).toEqual(KERNLESER);
+  });
+
+  it("in den Browser kommt der Kern nur mit dem Baukasten, und der nur per import() von genau einer Stelle", () => {
+    const kern = KERNLESER.map((d) => join(MODUL, d));
+    for (const p of laufzeit.filter((x) => istClient(quelltext(x)) && x !== BAUKASTEN)) {
+      const treffer = [...erreichbar(p, false)].filter((d) => kern.includes(d) || d === BAUKASTEN);
+      expect(treffer, `${relative(MODUL, p)} zieht ${treffer.map((d) => relative(MODUL, d)).join(", ")} statisch`).toEqual([]);
+    }
+    const lader = laufzeit.filter((p) => /import\(\s*["'][^"']*\/Baukasten["']\s*\)/.test(ohneKommentare(quelltext(p))));
+    expect(lader.map((p) => relative(MODUL, p))).toEqual(["_ui/bibliothek/ZeichenBereich.tsx"]);
   });
 
   it("nur _lib/zeichen/zeichen.ts liest das Rezept-Generat", () => {

@@ -8,7 +8,7 @@ export function symbolId(schluessel: string): string {
 
 /**
  * Jedes Zeichen EINMAL als <symbol>, referenziert per <use> — löst Befund M11 (doppelte IDs) ohne
- * Präfix je Instanz. Der Inhalt stammt aus dem eingecheckten Generat, nicht aus Nutzereingaben.
+ * Präfix je Instanz. Inhalt: Generat oder serverseitig gezeichnete eigene Zeichen (`eigen/zeichne.ts`), nie Nutzer-Markup.
  */
 export function SymbolDefs({ symbole }: { symbole: Symbolsatz }) {
   const alle = { ...symbole, ...PIKTOGRAMME };

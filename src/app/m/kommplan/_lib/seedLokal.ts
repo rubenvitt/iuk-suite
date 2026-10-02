@@ -11,7 +11,7 @@ export async function seedLokalKommplan(db: KommplanDb): Promise<string[]> {
   const plaene = zaehle(BEISPIELE.map((b) => db.insert(plan).values({
     id: b.id, titel: b.titel, typ: b.typ, anlass: b.anlass,
     datum: b.datum === null ? null : new Date(`${b.datum}T00:00:00.000Z`),
-    istVorlage: b.istVorlage, aktualisiertAm: new Date(b.stand), aktualisiertVon: b.bearbeiter,
+    istVorlage: b.istVorlage, erstelltAm: new Date(b.stand), aktualisiertAm: new Date(b.stand), aktualisiertVon: b.bearbeiter,
     inhalt: JSON.stringify(b.inhalt),
   }).onConflictDoNothing().run()));
   const stellen = zaehle([db.insert(bibStelle).values({

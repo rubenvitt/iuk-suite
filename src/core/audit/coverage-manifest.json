@@ -413,6 +413,14 @@
     "kind": "context",
     "via": "speichereOrganisationAction"
   },
+  "src/app/m/kommplan/_actions/eigeneZeichen.ts#loescheEigenesZeichenAction": {
+    "kind": "context",
+    "via": "loescheEigenesZeichenAction"
+  },
+  "src/app/m/kommplan/_actions/eigeneZeichen.ts#speichereEigenesZeichenAction": {
+    "kind": "context",
+    "via": "speichereEigenesZeichenAction"
+  },
   "src/app/m/kommplan/_actions/freigabe.ts#ladeFreigabenAction": {
     "kind": "excluded",
     "reason": "Liest nur die Links eines Plans mit Status, damit Teilen-Flyin und QR-Hinweis im Editor keinen veralteten Stand zeigen; schreibt nichts."
@@ -448,6 +456,14 @@
   "src/app/m/kommplan/_actions/verwaltung.ts#dupliziereAction": {
     "kind": "context",
     "via": "dupliziereAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#loescheEndgueltigAction": {
+    "kind": "context",
+    "via": "loescheEndgueltigAction"
+  },
+  "src/app/m/kommplan/_actions/verwaltung.ts#loescheOhneArchivAction": {
+    "kind": "context",
+    "via": "loescheOhneArchivAction"
   },
   "src/app/m/kommplan/_actions/verwaltung.ts#speichereAlsVorlageAction": {
     "kind": "context",

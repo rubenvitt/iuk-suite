@@ -73,7 +73,7 @@ export function legePlanAn(db: KommplanDb, eingabe: unknown, wer: Bearbeiter, je
   db.insert(plan).values({
     id, titel: a.data.titel, typ: a.data.typ, anlass: a.data.anlass,
     datum: a.data.datum === null ? null : new Date(tagZuMs(a.data.datum)),
-    aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt,
+    erstelltAm: new Date(jetzt), aktualisiertAm: new Date(jetzt), aktualisiertVon: wer.name, inhalt,
   }).run();
   return { ok: true, id };
 }
