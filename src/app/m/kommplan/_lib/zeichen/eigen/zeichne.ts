@@ -7,7 +7,7 @@ import type { Symbolquelle } from "../grundlagen";
  * DER ZEICHNER EIGENER ZEICHEN — Server UND Baukasten im Browser, damit die Vorschau genau das Bild ist, das später
  * in Plan, Druck und Freigabe-Link steht.
  *
- * WARUM `@einsatzzeichen/core` 3.0.0 UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
+ * WARUM `@einsatzzeichen/core` (4.0.0) UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
  * selbst mit (`drawSymbol`, `checkSpec`, `vocabulary`) und lädt seine Metriken als JSON-Import — kein
  * `fileURLToPath` auf Modulebene, also nicht Befund M1, der `@einsatzzeichen/catalog` aus jedem Server-Graph
  * verbannt (`grenze.test.ts`). Damit zeichnet der SERVER aus der gespeicherten Zusammenstellung; ein SVG aus dem
@@ -21,8 +21,12 @@ import type { Symbolquelle } from "../grundlagen";
 /** Obergrenze der gespeicherten Spec: eine echte Zusammenstellung braucht wenige hundert Zeichen. */
 export const SPEC_MAX_ZEICHEN = 4000;
 
+/**
+ * `abgeleitet`: die Spec-Dimensionen (`capabilities`, `bodyMarks`, `labels.center` …), deren Zeichnung kein Original
+ * belegt — seit core 4.0.0 überträgt oder konstruiert das Paket sie aus vermessenen Nachbarn (`Drawing.derivations`, DRK-507).
+ */
 export type Zeichnung =
-  | { ok: true; quelle: Symbolquelle; beschreibung: string }
+  | { ok: true; quelle: Symbolquelle; beschreibung: string; abgeleitet: readonly string[] }
   | { ok: false; art: "regel"; hinweise: readonly Regelhinweis[] }
   | { ok: false; art: "unvermessen"; meldung: string };
 
@@ -130,5 +134,6 @@ export function zeichneEigenes(spec: SymbolSpec, idPraefix: string, optionen: { 
   const svg = renderSvg(lesbar(r.drawing), { idPrefix: idPraefix, ...(optionen.schwarzweiss ? { theme: PRINT_MONOCHROME_THEME } : {}) });
   const quelle = zerlege(svg);
   if (!istSicheresSymbol(quelle.inhalt, idPraefix)) throw new Error("renderSvg lieferte unerwartetes Markup");
-  return { ok: true, quelle, beschreibung: describeSymbolSpec(spec) };
+  const abgeleitet = [...new Set((r.drawing.derivations ?? []).map((d) => d.dimension))];
+  return { ok: true, quelle, beschreibung: describeSymbolSpec(spec), abgeleitet };
 }

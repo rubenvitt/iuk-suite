@@ -8,6 +8,7 @@ import {
   TECHNICAL_HEAD_MARK_LABELS,
   UNIT_GROUPING_LABELS,
   VEHICLE_CATEGORY_LABELS,
+  checkSpec,
   functionRole,
   symbolKindLabel,
   vocabulary,
@@ -20,7 +21,8 @@ import type { SymbolSpec } from "@einsatzzeichen/schema";
  *
  * Gemessen trug im Katalog 1.1.0 nur 0,4 % aller Kombinationen der Hauptachsen (M16) — der Baukasten SPERRT
  * deshalb, statt hinterher zu meckern. Welche Werte passen, sagt seit core 3.0.0 das Paket selbst
- * (`vocabulary`: jeder Kandidat wird gezeichnet); die frühere Eigenbau-Probe entfällt.
+ * (`vocabulary`: jeder Kandidat wird gezeichnet). Seit core 4.0.0 leitet es ab statt abzulehnen (DRK-507): eine
+ * Fähigkeit oder Körpermarke ohne vermessene Fassung an dieser Körperform überträgt es und meldet `derived`.
  *
  * ⛔ EIN BEDIENFELD JE ACHSE, NICHT JE SPEC-FELD. Drei Achsen bündeln Felder, die sich denselben Platz teilen:
  * Zugehörigkeit (`organization`/`technicalFill`, technical-fill-organization-conflict), Kopfzone (Stärke,
@@ -50,7 +52,7 @@ export const ACHSEN: readonly Achse[] = [
   { key: "funktion", titel: "Funktion", felder: ["functionRole"], art: "einzeln", hilfe: "Führungs- und Funktionszeichen mit festem Kürzel." },
   { key: "koerperform", titel: "Körperform", felder: ["bodyVariant"], art: "einzeln", hilfe: "Eine zweite, belegte Zeichnung desselben Grundzeichens." },
   { key: "unten", titel: "Unter dem Körper", felder: ["vehicleCategory"], art: "einzeln", hilfe: "Fahrzeugkategorie — oder unten ein eigener Text." },
-  { key: "faehigkeit", titel: "Fähigkeit", felder: ["capabilities"], art: "einzeln", hilfe: "Ein Piktogramm im Körper." },
+  { key: "faehigkeit", titel: "Fähigkeiten", felder: ["capabilities"], art: "mehrfach", hilfe: "Piktogramme im Körper, mehrere stehen nebeneinander." },
   { key: "koerpermarken", titel: "Körpermarken", felder: ["bodyMarks"], art: "mehrfach", hilfe: "Mehrere möglich." },
 ];
 
@@ -121,12 +123,13 @@ export function bezeichnung(feld: WahlFeld, id: string): string {
   }
 }
 
-export interface Wertbefund { wert: string; frei: boolean; grund?: string }
+/** `abgeleitet`: frei, aber an keinem Original vermessen — das Paket hat eine Nachbarfassung übertragen (core 4.0.0). */
+export interface Wertbefund { wert: string; frei: boolean; grund?: string; abgeleitet?: true }
 
 /**
  * Welche Werte eines Feldes zur übrigen Auswahl passen — `vocabulary` zeichnet jeden Kandidaten. Bei einer Achse mit
  * EINEM Wert wird gegen die Spec OHNE diese Achse geprobt (gefragt ist „ersetzen", nicht „dazu"); bei den
- * Körpermarken gegen die volle Liste („anhängen"). Der gesetzte Wert wird nie gesperrt, sonst ließe er sich nicht
+ * Fähigkeiten und Körpermarken gegen die volle Liste („anhängen"). Der gesetzte Wert wird nie gesperrt, sonst ließe er sich nicht
  * mehr abwählen. Für `kind` fragt das Paket, welche Grundform die übrige Auswahl trägt.
  *
  * ⛔ GEPROBT WIRD OHNE FREIE TEXTE (`ohneTexte`): ein zu langer Text ließe sonst jede Probe mit `label-too-wide`
@@ -138,16 +141,28 @@ export function befunde(spec: SymbolSpec, achse: Achse, feld: WahlFeld): Wertbef
   const probe = achse.art === "einzeln" && feld !== "kind" ? setze(ohne, achse.felder.map((f) => [f, undefined] as const)) : ohne;
   const jetzt = gewaehlt(spec, achse);
   const liste = LISTENFELDER.includes(feld) ? ((spec as unknown as Record<string, unknown>)[feld] as string[] | undefined) ?? [] : [];
+  // `derived` gilt der ganzen Zeichnung: ist schon die Probe ohne Kandidat abgeleitet, trüge JEDER Kandidat die Marke.
+  const vorher = abgeleitet(probe);
   try {
     return vocabulary(probe as never, feld as never).map((o) => {
       const wert = String(o.value);
-      if (o.status === "allowed" || jetzt === `${feld}:${wert}` || liste.includes(wert)) return { wert, frei: true };
+      if (o.status === "allowed") return o.derived && !vorher ? { wert, frei: true, abgeleitet: true } : { wert, frei: true };
+      if (jetzt === `${feld}:${wert}` || liste.includes(wert)) return { wert, frei: true };
       return { wert, frei: false, grund: o.reason === "rule" ? (o.issues[0]?.title ?? "Passt hier nicht") : "Nicht vermessen" };
     });
   } catch {
     // Ein Programmfehler beim Zeichnen eines Kandidaten (das Paket wirft dann): lieber alles anbieten und die
     // Vorschau urteilen lassen, als die Achse leer zu zeigen.
     return kandidaten(feld).map((wert) => ({ wert, frei: true }));
+  }
+}
+
+function abgeleitet(spec: SymbolSpec): boolean {
+  try {
+    const r = checkSpec(spec);
+    return r.ok && (r.drawing.derivations?.length ?? 0) > 0;
+  } catch {
+    return false;
   }
 }
 
@@ -199,6 +214,20 @@ export function gewaehlt(spec: SymbolSpec, achse: Achse): string | null {
     if (Array.isArray(wert) && wert.length > 0) return `${feld}:${String(wert[0])}`;
   }
   return null;
+}
+
+/**
+ * Die abgeleiteten Teile einer Zeichnung (`Zeichnung.abgeleitet`) in Wörtern vom Bildschirm. Das Paket schreibt die
+ * Dimension mal als Spec-Feld (`bodyMarks`), mal als Kebab (`body-marks`), Texte als `labels.<zone>`.
+ */
+export function abgeleiteteTeile(dimensionen: readonly string[]): string[] {
+  const namen = dimensionen.map((d) => {
+    if (d === "label" || d.startsWith("labels")) return "Beschriftung";
+    if (d === "head") return "Über dem Körper";
+    const feld = d.replace(/-(\w)/g, (_, c: string) => c.toUpperCase()) as WahlFeld;
+    return feld in FELDTITEL ? FELDTITEL[feld] : "Weitere Teile";
+  });
+  return [...new Set(namen)];
 }
 
 /** Erklärtexte des Pakets ohne Sätze mit Feldnamen in Backticks („Setze `technicalFill` …") — die sagen Anwendern nichts. */

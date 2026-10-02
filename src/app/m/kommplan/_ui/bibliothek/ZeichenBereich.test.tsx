@@ -80,6 +80,21 @@ describe("Bibliothek — eigene Zeichen", () => {
     expect(document.querySelector(".kp-flyin .kp-baukasten-vorschau > svg")).toBeNull();
     expect(document.querySelectorAll(".kp-flyin .ant-select-disabled")).toHaveLength(0);
   });
+  it("ein abgeleitetes Zeichen sagt es an der Vorschau; die Auswahl prüft erst beim Öffnen", async () => {
+    const thw: EigenesZeichen = { ...ILS, titel: "Pumpe", spec: { kind: "vehicle-land", organization: "thw", capabilities: ["fire-fighting", "pumping"] } as SymbolSpec };
+    await zeige([thw]);
+    await clickElement(knopf("Pumpe"));
+    const vorschau = await baukastenDa();
+    expect(vorschau.querySelector(".ant-alert-info")!.textContent).toContain("Abgeleitet: Fähigkeit");
+    const auswahl = queryPortal('.kp-flyin [data-achse="koerperform"] .ant-select');
+    expect(document.querySelector(".ant-select-dropdown")).toBeNull(); // nichts geprüft, solange keine Liste offen ist
+    await act(async () => { auswahl.querySelector(".ant-select-content, .ant-select-selector")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
+    for (let i = 0; i < 100 && !document.querySelector(".ant-select-dropdown .ant-select-item-option"); i++) {
+      await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    }
+    const namen = [...document.querySelectorAll(".ant-select-dropdown .ant-select-item-option")].map((o) => o.textContent);
+    expect(namen.length).toBeGreaterThan(0);
+  });
   it("Bearbeiten zeigt die gespeicherte Zusammenstellung; Löschen nennt die Pläne, die das Zeichen nutzen", async () => {
     aktion.loesche.mockResolvedValue({ ok: true });
     await zeige();

@@ -1,16 +1,16 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Alert, Input, Select } from "antd";
 import type { SymbolSpec } from "@einsatzzeichen/schema";
 import {
-  ACHSEN, FELDTITEL, ZONEN, ZONENNAMEN, befunde, bezeichnung, gewaehlt, ohneFeldnamen, setze, setzeAchse, setzeZone,
+  ACHSEN, FELDTITEL, ZONEN, ZONENNAMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt, ohneFeldnamen, ohneTexte, setze, setzeAchse, setzeZone,
   type Achse, type WahlFeld, type Wertbefund,
 } from "../../_lib/zeichen/eigen/vokabular";
 import { zeichneEigenes } from "../../_lib/zeichen/eigen/zeichne";
 import { passt } from "../../_lib/bibliothek/typen";
 
-/** Suche in langen Auswahlen (88 Fähigkeiten, 133 Körpermarken): jedes Wort im Namen, wie in der übrigen Bibliothek. */
+/** Suche in langen Auswahlen (88 Fähigkeiten, 134 Körpermarken): jedes Wort im Namen, wie in der übrigen Bibliothek. */
 const SUCHE = { filterOption: (eingabe: string, o?: { label?: unknown }) => passt(eingabe, [String(o?.label ?? "")]) };
 
 /**
@@ -21,12 +21,14 @@ const SUCHE = { filterOption: (eingabe: string, o?: { label?: unknown }) => pass
  * Die Vorschau zeichnet mit DERSELBEN Funktion wie der Server (`zeichneEigenes`) — was hier steht, steht im Plan.
  * Gespeichert wird nur `spec`; der Server prüft und zeichnet selbst. Gesperrte Werte stehen ausgegraut mit Grund
  * in der Auswahl, statt erst nach dem Klick zu scheitern.
+ *
+ * GEPRÜFT WIRD ERST BEIM ÖFFNEN EINER AUSWAHL (DRK-507): seit core 4.0.0 leitet `vocabulary` fehlende Fassungen ab,
+ * und die Körpermarken kosten je neuer Kombination ~1,5 s (Node; core 3.0.0: ~20 ms). Alle Achsen bei jeder
+ * Änderung zu prüfen, fror die Seite ein. Texte ändern die Prüfung nicht (`ohneTexte`), also prüfen sie nicht neu.
  */
 export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec; onSpec(neu: SymbolSpec): void; schrift: string }) {
   const basis = useId();
   const bild = useMemo(() => zeichneEigenes(spec, "kpe-vorschau"), [spec]);
-  // Alle Achsen auf einmal und gemerkt: rund 40 ms für ~330 Kandidaten (gemessen in Node, `vocabulary` zeichnet je Wert).
-  const sperren = useMemo(() => new Map(ACHSEN.flatMap((a) => a.felder.map((f) => [f, befunde(spec, a, f)] as const))), [spec]);
   const hinweise = bild.ok ? [] : bild.art === "regel" ? bild.hinweise : [{ titel: "Nicht vermessen", erklaerung: bild.meldung, feld: null }];
 
   return (
@@ -38,6 +40,10 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
         ) : <span className="kp-baukasten-leer" aria-hidden="true" />}
         <div>
           {bild.ok ? <p className="kp-hilfe">{bild.beschreibung}</p> : null}
+          {bild.ok && bild.abgeleitet.length > 0 ? (
+            <Alert type="info" showIcon title={`Abgeleitet: ${abgeleiteteTeile(bild.abgeleitet).join(", ")}`}
+              description="Diese Teile sind nicht an der Vorschrift vermessen, sondern aus vermessenen Nachbarformen abgeleitet." />
+          ) : null}
           {hinweise.map((h) => (
             <Alert key={h.titel} type="warning" showIcon title={h.titel} description={ohneFeldnamen(h.erklaerung) || undefined} />
           ))}
@@ -45,7 +51,7 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
       </div>
 
       {ACHSEN.map((achse) => (
-        <AchsenFeld key={achse.key} basis={basis} achse={achse} spec={spec} sperren={sperren} onSpec={onSpec} />
+        <AchsenFeld key={achse.key} basis={basis} achse={achse} spec={spec} onSpec={onSpec} />
       ))}
 
       <fieldset className="kp-abschnitt"><legend>Beschriftung</legend>
@@ -70,7 +76,8 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
 
 function optionen(feld: WahlFeld, befund: readonly Wertbefund[], mitFeld: boolean) {
   return befund.map((b) => {
-    const label = b.frei ? bezeichnung(feld, b.wert) : `${bezeichnung(feld, b.wert)} — ${b.grund ?? "passt hier nicht"}`;
+    const name = bezeichnung(feld, b.wert);
+    const label = !b.frei ? `${name} — ${b.grund ?? "passt hier nicht"}` : b.abgeleitet ? `${name} (abgeleitet)` : name;
     // `title`: am Telefon kürzt die Liste den Sperrgrund ab; so steht er wenigstens im Tooltip ganz.
     return { value: mitFeld ? `${feld}:${b.wert}` : b.wert, label, title: label, disabled: !b.frei };
   });
@@ -80,10 +87,9 @@ function optionen(feld: WahlFeld, befund: readonly Wertbefund[], mitFeld: boolea
  * EIN BEDIENFELD JE ACHSE (`vokabular.ts`): mehrere Quellen stehen als Gruppen in derselben Auswahl, der Wert trägt
  * `feld:wert`. Wer die Quelle wechselt, leert die anderen derselben Achse im selben Schritt (`setzeAchse`).
  */
-function AchsenFeld({ basis, achse, spec, sperren, onSpec }: {
-  basis: string; achse: Achse; spec: SymbolSpec; sperren: Map<WahlFeld, Wertbefund[]>; onSpec(neu: SymbolSpec): void;
-}) {
+function AchsenFeld({ basis, achse, spec, onSpec }: { basis: string; achse: Achse; spec: SymbolSpec; onSpec(neu: SymbolSpec): void }) {
   const id = `${basis}-${achse.key}`;
+  const { sperren, pruefe, prueft } = usePruefung(achse, spec);
   const mehrere = achse.felder.length > 1;
   const kopf = (
     <>
@@ -98,17 +104,24 @@ function AchsenFeld({ basis, achse, spec, sperren, onSpec }: {
       <div className="kp-baukasten-achse" data-achse={achse.key}>
         {kopf}
         <Select id={id} aria-describedby={`${id}-hilfe`} mode="multiple" allowClear showSearch={SUCHE} placeholder="— ohne —"
-          value={liste} options={optionen(feld, sperren.get(feld) ?? [], false)} onChange={(werte: string[]) => onSpec(setze(spec, [[feld, werte]]))} />
+          value={liste} options={optionen(feld, sperren?.get(feld) ?? liste.map((wert) => ({ wert, frei: true })), false)}
+          onOpenChange={pruefe} loading={prueft} notFoundContent={prueft ? PRUEFT : undefined}
+          onChange={(werte: string[]) => onSpec(setze(spec, [[feld, werte]]))} />
       </div>
     );
   }
   const wert = gewaehlt(spec, achse);
-  const gruppen = achse.felder.map((f) => ({ label: FELDTITEL[f], title: FELDTITEL[f], options: optionen(f, sperren.get(f) ?? [], true) }));
+  // Noch ungeprüft trägt die Auswahl nur den gesetzten Wert — sonst stünde dort die rohe Kennung statt des Namens.
+  const vorlaeufig = (f: WahlFeld): Wertbefund[] => (wert?.startsWith(`${f}:`) ? [{ wert: wert.slice(f.length + 1), frei: true }] : []);
+  const gruppen = achse.felder
+    .map((f) => ({ label: FELDTITEL[f], title: FELDTITEL[f], options: optionen(f, sperren?.get(f) ?? vorlaeufig(f), true) }))
+    .filter((g) => sperren || g.options.length > 0);
   return (
     <div className="kp-baukasten-achse" data-achse={achse.key}>
       {kopf}
       <Select id={id} aria-describedby={`${id}-hilfe`} allowClear={achse.key !== "grundzeichen"} showSearch={SUCHE} placeholder="— ohne —"
-        value={wert ?? undefined} options={mehrere ? gruppen : gruppen[0].options}
+        value={wert ?? undefined} options={mehrere ? gruppen : (gruppen[0]?.options ?? [])}
+        onOpenChange={pruefe} loading={prueft} notFoundContent={prueft ? PRUEFT : undefined}
         onChange={(roh: string | undefined) => {
           if (!roh) { onSpec(setzeAchse(spec, achse, null, null)); return; }
           const i = roh.indexOf(":");
@@ -116,4 +129,24 @@ function AchsenFeld({ basis, achse, spec, sperren, onSpec }: {
         }} />
     </div>
   );
+}
+
+const PRUEFT = "Prüfe, was passt …";
+
+/**
+ * Die Befunde einer Achse, erst nach dem Öffnen und eine Runde später gerechnet: so malt die Liste zuerst „Prüfe …“,
+ * statt beim Klick einzufrieren. Bis eine neue Prüfung fertig ist, bleiben die letzten Befunde stehen (Ladeanzeige
+ * daneben) — wer mehrere Körpermarken nacheinander wählt, sieht die Liste nicht bei jedem Klick verschwinden.
+ */
+function usePruefung(achse: Achse, spec: SymbolSpec) {
+  const [offen, setOffen] = useState(false);
+  const [stand, setStand] = useState<{ schluessel: string; sperren: Map<WahlFeld, Wertbefund[]> } | null>(null);
+  const schluessel = useMemo(() => JSON.stringify(ohneTexte(spec)), [spec]);
+  const aktuell = stand?.schluessel === schluessel;
+  useEffect(() => {
+    if (!offen || aktuell) return;
+    const t = setTimeout(() => setStand({ schluessel, sperren: new Map(achse.felder.map((f) => [f, befunde(spec, achse, f)])) }), 0);
+    return () => clearTimeout(t);
+  }, [offen, aktuell, schluessel, spec, achse]);
+  return { sperren: stand?.sperren ?? null, pruefe: setOffen, prueft: offen && !aktuell };
 }

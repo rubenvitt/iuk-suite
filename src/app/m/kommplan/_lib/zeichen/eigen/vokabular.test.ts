@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SymbolSpec } from "@einsatzzeichen/schema";
-import { ACHSEN, FARBWORTE, KOERPERFORMEN, befunde, bezeichnung, gewaehlt, kandidaten, ohneFeldnamen, setze, setzeAchse, setzeZone } from "./vokabular";
+import { ACHSEN, FARBWORTE, KOERPERFORMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt, kandidaten, ohneFeldnamen, setze, setzeAchse, setzeZone } from "./vokabular";
 
 const spec = (s: object) => s as SymbolSpec;
 const achse = (key: string) => ACHSEN.find((a) => a.key === key)!;
@@ -38,6 +38,22 @@ describe("Vokabular des Baukastens", () => {
     const funktion = befunde(s, achse("funktion"), "functionRole");
     expect(funktion.some((b) => !b.frei)).toBe(true);
     expect(funktion.filter((b) => !b.frei).every((b) => typeof b.grund === "string" && b.grund.length > 0)).toBe(true);
+  });
+  it("Fähigkeiten sind eine Liste: neben einer gesetzten ist eine zweite frei (core 4.0.0)", () => {
+    expect(achse("faehigkeit").art).toBe("mehrfach");
+    const zweite = befunde(spec({ kind: "formation", capabilities: ["water-rescue"] }), achse("faehigkeit"), "capabilities");
+    expect(zweite.filter((b) => b.frei && b.wert !== "water-rescue").length).toBeGreaterThan(50);
+  });
+  it("„abgeleitet“ markiert nur Werte, die die Ableitung selbst auslösen — nicht jeden, weil die Probe schon abgeleitet ist", () => {
+    const nackt = befunde(spec({ kind: "formation", organization: "thw" }), achse("koerperform"), "bodyVariant");
+    expect(nackt.filter((b) => b.abgeleitet).length).toBeGreaterThan(0);
+    expect(nackt.some((b) => b.frei && !b.abgeleitet)).toBe(true);
+    const schonAbgeleitet = spec({ kind: "formation", organization: "thw", capabilities: ["fire-fighting", "pumping"] });
+    expect(befunde(schonAbgeleitet, achse("koerperform"), "bodyVariant").some((b) => b.abgeleitet)).toBe(false);
+  });
+  it("abgeleitete Teile in Wörtern vom Bildschirm, gleich ob Feld- oder Kebab-Schreibweise", () => {
+    expect(abgeleiteteTeile(["capabilities", "bodyMarks", "body-marks", "labels.center", "head", "gibt-es-nicht"]))
+      .toEqual(["Fähigkeit", "Körpermarke", "Beschriftung", "Über dem Körper", "Weitere Teile"]);
   });
   it("Erklärtexte ohne Sätze mit Feldnamen", () => {
     expect(ohneFeldnamen("Die Fläche ist gelb. Setze `technicalFill` oder `organization`, nicht beides.")).toBe("Die Fläche ist gelb.");
