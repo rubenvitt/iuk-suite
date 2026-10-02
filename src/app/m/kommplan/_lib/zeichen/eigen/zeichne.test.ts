@@ -60,6 +60,13 @@ describe("eigene Zeichen zeichnen", () => {
       }
     }
     expect(geprueft).toBeGreaterThan(100);
+  }, 120_000); // seit core 4.0.0 gut 1 500 statt ~250 freie Werte, je zweimal gezeichnet (DRK-507)
+  it("ein abgeleitetes Zeichen nennt, welcher Teil abgeleitet ist; ein vermessenes nennt nichts", () => {
+    const zwei = zeichneEigenes(spec({ kind: "vehicle-land", organization: "thw", capabilities: ["fire-fighting", "pumping"] }), "kpe-t");
+    expect(zwei).toMatchObject({ ok: true, abgeleitet: ["capabilities"] });
+    expect(zeichneEigenes(spec({ kind: "formation", organization: "feuerwehr" }), "kpe-t")).toMatchObject({ ok: true, abgeleitet: [] });
+    // Text im Kreis setzt core 4.0.0 nach einer Regel (Versalmitte auf Kreismitte) — konstruiert, nicht vermessen.
+    expect(zeichneEigenes(ILS, "kpe-t")).toMatchObject({ ok: true, abgeleitet: ["labels.center", "labels.corner"] });
   });
 });
 

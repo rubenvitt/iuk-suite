@@ -19,11 +19,11 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0(@ant-design/cssinjs@2.1.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(antd@6.6.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(next@16.3.3(patch_hash=494d042809a8d7d9cbfa264ab7555cb822301e9c7d290a02d4b93991ae56fd03)(@playwright/test@1.63.0)(@types/node@26.2.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@einsatzzeichen/core':
-        specifier: 3.0.0
-        version: 3.0.0
+        specifier: 4.0.0
+        version: 4.0.0
       '@einsatzzeichen/schema':
-        specifier: 3.0.0
-        version: 3.0.0
+        specifier: 4.0.0
+        version: 4.0.0
       '@zxing/browser':
         specifier: ^0.2.1
         version: 0.2.1(@zxing/library@0.23.0)
@@ -397,14 +397,14 @@ packages:
   '@einsatzzeichen/core@1.5.0':
     resolution: {integrity: sha512-7aPoK1STvYz29SFx4yY5vuxnp8HdhNcxam3zYZGTzp2ywkhuT9ntOV69Z0Keft1DPmOvDGK6UfpWrmSmy4qn9Q==}
 
-  '@einsatzzeichen/core@3.0.0':
-    resolution: {integrity: sha512-JYJjiBVbqGk2/Gxt+JdeyKCIqDmnUTzm3FNoXBHUGzvBRt0A210fKQuir2NojxK80iD3HuA3ybzVXTphe+1x+A==}
+  '@einsatzzeichen/core@4.0.0':
+    resolution: {integrity: sha512-kQFV+haB+dOK826bBEc2gRz7gZ32rQJeJ+Qe7pF7XHMFEB9NelrWlbJKKUmu3Pocem6z+ZG/TqwY8uFczOeTOg==}
 
   '@einsatzzeichen/schema@1.5.0':
     resolution: {integrity: sha512-GqGZUcF428CRYvKXZOrEG+G23A+4ALDhEE/YrarMp4N2gXLcp/ASbn1pbdtBeo4ySAPB1mP5ppaW8jDJhcCztQ==}
 
-  '@einsatzzeichen/schema@3.0.0':
-    resolution: {integrity: sha512-Jwm+s39uaCbiGD5fBg/UsoFJu6K0GouG+A7lD+DVtfuOtBuhkpkUSZexgZXPH+IeQJSJTqE8pVsWunjNgHXm7A==}
+  '@einsatzzeichen/schema@4.0.0':
+    resolution: {integrity: sha512-fBRjMzVRrckrfOcdP0CRiyRxLqW4SzXsBCzU+7EHOUdSMJsNFc6rRBTXALemG93lqB5ku7g68U2uZq+M/bvSfw==}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -4405,13 +4405,13 @@ snapshots:
     dependencies:
       '@einsatzzeichen/schema': 1.5.0
 
-  '@einsatzzeichen/core@3.0.0':
+  '@einsatzzeichen/core@4.0.0':
     dependencies:
-      '@einsatzzeichen/schema': 3.0.0
+      '@einsatzzeichen/schema': 4.0.0
 
   '@einsatzzeichen/schema@1.5.0': {}
 
-  '@einsatzzeichen/schema@3.0.0': {}
+  '@einsatzzeichen/schema@4.0.0': {}
 
   '@emnapi/core@1.10.0':
     dependencies:
