@@ -199,7 +199,8 @@ nimmt dort wie die CI die vorinstallierte Headless-Shell (vollen Chromium nur be
 DRK-489: der fragt `/favicon.ico` an, der 404 steht in der Konsole) und schaltet den Proxy per
 `--proxy-server=direct://` ab (sonst endet jeder `devLogin` nach 45 s auf `/login` — das ist kein
 Anmeldefehler; `--no-proxy-server` reicht der Shell nicht, ihr WebSocket bleibt am Proxy). Ein neues Playwright-Profil
-geht ebenfalls durch `cloudTauglich(defineConfig(…))`; `scripts/e2e-cloud.test.ts` prüft das.
+geht ebenfalls durch `cloudTauglich(defineConfig(…))`, ein `test.use` mit `launchOptions`/`channel` durch
+`cloudTauglichUse(…)` (sonst ersetzt es den Cloud-Browser, DRK-503); `scripts/e2e-cloud.test.ts` prüft beides.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
