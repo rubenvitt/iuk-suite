@@ -86,18 +86,32 @@ export function cloudTauglich(
   findeShell: () => string | undefined = cloudHeadlessShell,
 ): PlaywrightTestConfig {
   if (!cloud) return config;
-  const use = config.use ?? {};
+  return { ...config, use: cloudTauglichUse(config.use ?? {}, cloud, findeShell) };
+}
+
+/**
+ * Dasselbe für ein `test.use` im Spec (DRK-503). Playwright führt Optionen nicht
+ * zusammen: ein `test.use({ launchOptions })` ERSETZT die der Config samt
+ * Cloud-Browser, und der Lauf sucht wieder die nicht installierte Revision.
+ * Wer im Spec Startoptionen oder `channel` setzt, reicht sie deshalb hier durch;
+ * `scripts/e2e-cloud.test.ts` verlangt das.
+ */
+export function cloudTauglichUse<T extends Use>(
+  use: T,
+  cloud = istCloudSession(),
+  findeShell: () => string | undefined = cloudHeadlessShell,
+): T {
+  if (!cloud) return use;
   const start = use.launchOptions ?? {};
   const browser = use.channel === "chromium" ? CLOUD_CHROMIUM : (findeShell() ?? CLOUD_CHROMIUM);
   return {
-    ...config,
-    use: {
-      ...use,
-      launchOptions: {
-        ...start,
-        executablePath: browser,
-        args: [...(start.args ?? []), OHNE_PROXY],
-      },
+    ...use,
+    launchOptions: {
+      ...start,
+      executablePath: browser,
+      args: [...(start.args ?? []), OHNE_PROXY],
     },
   };
 }
+
+type Use = NonNullable<PlaywrightTestConfig["use"]>;

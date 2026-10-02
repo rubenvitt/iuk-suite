@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { devLogin, E2E_PORT, klickeWennRuhig } from "./fixtures";
+import { cloudTauglichUse } from "./helpers/cloud";
 import { entschluesseleExport, verschluesseleExport } from "../src/app/m/einsatzbuch/_lib/kern/export";
 import { versiegele } from "../src/app/m/einsatzbuch/_lib/kern/block";
 import { erzeugeSchluesselpaar, schluesselIdVon } from "../src/app/m/einsatzbuch/_lib/kern/umschlag";
@@ -39,7 +40,7 @@ const HOST = "einsatzbuch.localtest.me";
 const url = (p: string) => `http://${HOST}:${E2E_PORT}${p}`;
 const KW = "testvektor-kennwort";
 const ENTSCHLUESSELT = { timeout: 30_000 };
-test.use({ channel: "chromium", launchOptions: { args: [`--unsafely-treat-insecure-origin-as-secure=${url("")}`] } });
+test.use(cloudTauglichUse({ channel: "chromium", launchOptions: { args: [`--unsafely-treat-insecure-origin-as-secure=${url("")}`] } }));
 
 const vektor = (JSON.parse(readFileSync("src/app/m/einsatzbuch/_lib/kern/testvektoren/erwartet.json", "utf8")) as { export: Exportdatei }).export;
 

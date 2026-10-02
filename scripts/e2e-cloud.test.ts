@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -7,6 +7,7 @@ import {
   OHNE_PROXY,
   cloudHeadlessShell,
   cloudTauglich,
+  cloudTauglichUse,
   istCloudSession,
 } from "../e2e/helpers/cloud";
 
@@ -14,7 +15,8 @@ import {
  * PLAYWRIGHT IN DER CLOUD-SESSION (DRK-473). Die Wirkung sieht nur ein echter
  * Lauf dort; hier steht, was sich ohne ihn beweisen lässt: wann der Helfer
  * greift, dass er nichts Vorhandenes verdrängt, und dass alle drei Profile
- * durch ihn gehen — ein vergessenes Profil wäre in der Cloud still rot.
+ * und jedes `test.use` mit eigenen Startoptionen durch ihn gehen — ein
+ * vergessenes wäre in der Cloud still rot.
  */
 
 describe("istCloudSession", () => {
@@ -93,4 +95,34 @@ describe("die drei Playwright-Profile", () => {
       expect(quelle).toContain("export default cloudTauglich(defineConfig({");
     },
   );
+});
+
+describe("cloudTauglichUse (DRK-503)", () => {
+  const SHELL = "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell";
+
+  it("lässt die Optionen außerhalb der Cloud unangetastet", () => {
+    const use = { channel: "chromium", launchOptions: { args: ["--a"] } };
+    expect(cloudTauglichUse(use, false)).toBe(use);
+  });
+
+  it("führt Spec-eigene Startoptionen mit dem Cloud-Browser zusammen", () => {
+    const aus = cloudTauglichUse({ channel: "chromium", launchOptions: { args: ["--a"] } }, true, () => SHELL);
+    expect(aus).toEqual({
+      channel: "chromium",
+      launchOptions: { executablePath: CLOUD_CHROMIUM, args: ["--a", OHNE_PROXY] },
+    });
+  });
+});
+
+describe("Startoptionen im Spec", () => {
+  const e2e = path.join(__dirname, "..", "e2e");
+  const specs = readdirSync(e2e).filter((datei) => datei.endsWith(".spec.ts"));
+
+  it.each(specs)("%s: test.use mit launchOptions oder channel geht durch cloudTauglichUse", (datei) => {
+    const quelle = readFileSync(path.join(e2e, datei), "utf8");
+    const aufrufe = [...quelle.matchAll(/test\.use\(([\s\S]*?)\);/g)].map((treffer) => treffer[1]);
+    for (const aufruf of aufrufe.filter((a) => /launchOptions|channel/.test(a))) {
+      expect(aufruf.trimStart()).toMatch(/^cloudTauglichUse\(/);
+    }
+  });
 });
