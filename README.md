@@ -160,8 +160,8 @@ und kosten je einen halben Tag, wenn man sie nicht kennt. Vor Oberflächenarbeit
   Conventional-Commit-Präfixe entscheiden über Major/Minor/Patch), erstellt Tag und Release und
   rollt nach Freigabe über einen selbst gehosteten Runner aus (`scripts/deploy.sh`).
 * **Stack:** `compose.yaml` mit den Diensten `suite`, `clamav` und `backup` hinter Traefik. Der
-  Rollout prüft `compose.yaml`, `clamd.files.conf` und die beiden Backup-Skripte auf Gleichstand
-  mit dem Repo und bricht bei Abweichung ab, statt sie zu überschreiben.
+  Rollout tauscht `compose.yaml`, `clamd.files.conf` und die beiden Backup-Skripte gegen den
+  Repo-Stand aus, bricht aber ab, wenn eine davon auf dem Server von Hand geändert wurde.
 * **Datenbanken** liegen im Volume `/data`; Migrationen laufen beim Start des Containers nach
   vorn (`src/core/bootstrap.ts`). Ein Image-Rollback rollt Migrationen nicht zurück.
 * **Backup:** der Dienst `backup` im Compose-Stack ruft `scripts/backup.sh` täglich, lagert das

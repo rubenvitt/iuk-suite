@@ -3221,8 +3221,11 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
     // Sie liegen ab jetzt per Bind-Mount auf dem Server, sind also dieselbe Art Datei
     // wie `clamd.files.conf`. Ohne den Vergleich driftet die Server-Fassung von der
     // getesteten weg, und kein Tor sieht es — am wenigsten dieses Repo.
-    const zeile = deploySh.split("\n").find((z) => z.trim().startsWith("for datei in"));
+    // Seit DRK-509 steht die Liste in `STACK_DATEIEN`, weil Schritt 1 sie vergleicht und
+    // Schritt 5 sie ablegt — zwei Stellen, eine Liste.
+    const zeile = deploySh.split("\n").find((z) => z.trim().startsWith("STACK_DATEIEN=("));
     expect(zeile, "`scripts/deploy.sh` fuehrt eine Dateiliste in Schritt 1").toBeTruthy();
+    expect(deploySh).toContain('for datei in "${STACK_DATEIEN[@]}"; do');
     expect(zeile).toContain("compose.yaml");
     expect(zeile).toContain("clamd.files.conf");
     expect(zeile).toContain("scripts/backup.sh");
