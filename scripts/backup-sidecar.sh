@@ -354,7 +354,9 @@ vorbereiten() {
   # Hier wird deshalb nur die eine Lage behandelt, die ohne Rechteabbau feststellbar
   # ist: das Verzeichnis gehoert root, der Lauf aber nicht.
   if [ -d "$DATA_DIR" ]; then
-    eigner_uid="$(stat -c %u "$DATA_DIR" 2>/dev/null || true)"
+    # `stat -f %u` ist der BSD-Rueckfall, wie bei `verzeichnis_alter`.
+    eigner_uid="$(stat -c %u "$DATA_DIR" 2>/dev/null \
+      || stat -f %u "$DATA_DIR" 2>/dev/null || true)"
     if [ "${eigner_uid:-}" = "0" ] && [ "${NUTZER%%:*}" != "0" ]; then
       protokoll "$DATA_DIR gehoert root — Eigentuemer wird auf $NUTZER gesetzt, BEVOR
   irgendetwas Netz braucht."
@@ -1154,8 +1156,14 @@ auslagern() {
 # braucht dafuer nicht einmal eine verwaiste Sperre, der Fall trifft die GEWOEHNLICHE
 # erste Belegung. `mkdir` setzt die mtime in derselben Operation, mit der es das
 # Verzeichnis anlegt.
+#
+# `stat -c %Y` ist GNU/busybox (der Container), `stat -f %m` dieselbe mtime unter
+# BSD/macOS — ohne den Rueckfall laesen die Faelle in `backup-sidecar.test.ts` dort jede
+# Sperre als „gibt es nicht" (DRK-501; dieselbe Wendung wie `backup_skripte_neuer_als`
+# in `scripts/deploy.sh`). GNU liest `-f` als Dateisystem-Modus: erreicht wird das nur,
+# wenn schon `-c` am Pfad scheiterte, und was dann kommt, faengt die Ziffernpruefung ab.
 verzeichnis_alter() {
-  m="$(stat -c %Y "$1" 2>/dev/null || echo '')"
+  m="$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo '')"
   case "$m" in '' | *[!0-9]*) echo -1; return 0 ;; esac
   echo $(( $(date +%s) - m ))
 }

@@ -937,6 +937,45 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(befehle).not.toMatch(/>"?\$SPERRVERZEICHNIS\/seit/);
   });
 
+  it("das Alter der Sperre misst auch ein BSD-`stat` (macOS), nicht nur GNU/busybox", () => {
+    // ⚠️ GEMESSEN auf macOS (DRK-501): `stat -c` gibt es dort nicht, `verzeichnis_alter`
+    // las jede Sperre als -1 („gibt es nicht"), und 5–6 Faelle dieser Datei standen rot —
+    // auf der Linux-CI gruen. Die Attrappe stellt die BSD-Lage hier nach, damit der
+    // Rueckfall auch dort abgeriegelt ist, wo es kein BSD-`stat` gibt: `-c` scheitert,
+    // `-f %m` liefert die mtime.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-bsd-stat-"));
+    try {
+      const stubs = path.join(kladde, "bin");
+      const sperre = path.join(kladde, "sperre");
+      mkdirSync(stubs);
+      mkdirSync(sperre);
+      const vorFuenfMinuten = Math.floor(Date.now() / 1000) - 300;
+      writeFileSync(
+        path.join(stubs, "stat"),
+        [
+          "#!/bin/sh",
+          '[ "$1" = "-c" ] && { echo "stat: illegal option -- c" >&2; exit 1; }',
+          `[ "$1" = "-f" ] && [ "$2" = "%m" ] && [ -e "$3" ] && { echo ${vorFuenfMinuten}; exit 0; }`,
+          "exit 1",
+          "",
+        ].join("\n"),
+      );
+      chmodSync(path.join(stubs, "stat"), 0o755);
+      const alter = (pfad: string) =>
+        execFileSync(
+          "sh",
+          ["-c", `${shellQuelle("verzeichnis_alter")}\nverzeichnis_alter "$1"`, "sh", pfad],
+          { encoding: "utf8", env: { ...process.env, PATH: `${stubs}:${process.env.PATH}` } },
+        ).trim();
+      const gemessen = Number(alter(sperre));
+      expect(gemessen, "die Sperre ist fuenf Minuten alt, nicht -1").toBeGreaterThanOrEqual(300);
+      expect(gemessen).toBeLessThan(330);
+      expect(alter(path.join(kladde, "fehlt")), "eine fehlende Sperre bleibt -1").toBe("-1");
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  });
+
   it("in der Sperre liegt NUR ihre Marke — sonst altert sie nie", () => {
     // ⚠️ Die Kehrseite der mtime: wer dort etwas ablegt, setzt sie neu. Die Marke tut das
     // genau einmal, bei der Belegung — danach hebt sie allein der Herzschlag. Kaeme
