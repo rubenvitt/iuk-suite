@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { ARIMO_TEXT_METRICS, RECIPES, TEXT_FONT_BOLD_SHA256, TEXT_FONT_SHA256 } from "@einsatzzeichen/catalog";
+import { createRequire } from "node:module";
+import { join, resolve } from "node:path";
+import { ARIMO_TEXT_METRICS, RECIPES } from "@einsatzzeichen/catalog";
+import { ARIMO_TEXT_METRICS as CORE_METRIK } from "@einsatzzeichen/core";
 import { SECHSECK } from "../layout/masse";
 import { VERBINDUNG_PIKTOGRAMM } from "./grundlagen";
 import zeichen from "./zeichen.generiert.json";
@@ -13,7 +14,6 @@ import schrift from "./schrift.generiert.json";
 import grundlagen from "./grundlagen.generiert.json";
 
 const ORDNER = "src/app/m/kommplan/_lib/zeichen";
-const sha = (pfad: string) => createHash("sha256").update(readFileSync(pfad)).digest("hex");
 
 describe("kommplan-Generat", () => {
   it("entspricht dem installierten Paketstand (neu erzeugt, byteweise verglichen)", () => {
@@ -118,11 +118,6 @@ describe("kommplan-Generat", () => {
     expect((zeichen.zeichen as Record<string, { inhalt: string }>)["rezept:D.1.2"].inhalt).toContain(">KatSL<");
   });
 
-  it("die kopierten Schriften sind die des Katalogs", () => {
-    expect(sha("src/app/m/kommplan/_fonts/Arimo-Variable.ttf")).toBe(TEXT_FONT_SHA256);
-    expect(sha("src/app/m/kommplan/_fonts/Arimo-Bold.ttf")).toBe(TEXT_FONT_BOLD_SHA256);
-  });
-
   it("die Vorschübe stimmen mit ARIMO_TEXT_METRICS überein (normal und fett)", () => {
     const upem = grundlagen.metrik.einheitenProEm;
     const normal = grundlagen.metrik.normal.vorschub as Record<string, number>;
@@ -134,10 +129,37 @@ describe("kommplan-Generat", () => {
       expect(fett[String(cp)] / upem).toBeCloseTo(ARIMO_TEXT_METRICS.bold!.advanceEm(cp)!, 12);
     }
   });
-  it("die Schrift für den SVG-Export ist Arimo-Variable des Katalogs, byteweise (Entscheidung 15)", () => {
-    const bytes = Buffer.from(schrift.arimoVariable, "base64");
-    expect(createHash("sha256").update(bytes).digest("hex")).toBe(TEXT_FONT_SHA256);
-    expect(sha("src/app/m/kommplan/_fonts/Arimo-Variable.ttf")).toBe(TEXT_FONT_SHA256);
+  it("Browser und SVG-Export setzen Arimo aus @einsatzzeichen/core, byteweise und nur 400 und 700", () => {
+    const paket = (stufe: string) => readFileSync(createRequire(import.meta.url).resolve(`@einsatzzeichen/core/fonts/text-${stufe}.woff2`));
+    expect(Buffer.from(schrift.regular, "base64").equals(paket("regular"))).toBe(true);
+    expect(Buffer.from(schrift.fett, "base64").equals(paket("bold"))).toBe(true);
+    const quelle = readFileSync("src/app/m/kommplan/_ui/schrift.ts", "utf8");
+    const pfade = [...quelle.matchAll(/path: "([^"]+)", weight: "(\d+)"/g)].map((m) => [resolve("src/app/m/kommplan/_ui", m[1]), m[2]]);
+    expect(pfade.map(([, gewicht]) => gewicht)).toEqual(["400", "700"]);
+    expect(readFileSync(pfade[0][0]).equals(paket("regular"))).toBe(true);
+    expect(readFileSync(pfade[1][0]).equals(paket("bold"))).toBe(true);
     expect(schrift.stand).toEqual(zeichen.stand);
+  });
+  it("die Paket-Schrift hat die Vorschübe, mit denen das Layout misst (normal und fett)", () => {
+    const upem = grundlagen.metrik.einheitenProEm;
+    const normal = grundlagen.metrik.normal.vorschub as Record<string, number>;
+    const fett = grundlagen.metrik.fett.vorschub as Record<string, number>;
+    for (let cp = 32; cp < 0x250; cp++) {
+      const erwartet = CORE_METRIK.advanceEm(cp);
+      expect(normal[String(cp)] === undefined ? undefined : normal[String(cp)] / upem).toBe(erwartet);
+      if (erwartet !== undefined) expect(fett[String(cp)] / upem).toBe(CORE_METRIK.bold!.advanceEm(cp));
+    }
+  });
+  it("die Zeichen fordern keinen Schnitt an, den die Seite nicht lädt: nur 400 (ohne Angabe) und 700, nie kursiv", () => {
+    const gewichte = new Set<string>();
+    for (const e of [
+      ...Object.values(zeichen.zeichen as Record<string, { inhalt: string }>),
+      ...Object.values(zeichenSw.zeichen as Record<string, { inhalt: string }>),
+      ...Object.values(grundlagen.piktogramme as Record<string, { inhalt: string }>),
+    ]) {
+      for (const m of e.inhalt.matchAll(/\bfont-weight="([^"]*)"/g)) gewichte.add(m[1]);
+      expect(e.inhalt).not.toMatch(/font-style/);
+    }
+    expect([...gewichte]).toEqual(["700"]); // TMO, DMO, HRT, Fax, C in den Piktogrammen
   });
 });

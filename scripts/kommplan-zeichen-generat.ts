@@ -1,5 +1,5 @@
 /**
- * Erzeugt die vier eingecheckten Generate des Moduls kommplan und kopiert Arimo.
+ * Erzeugt die vier eingecheckten Generate des Moduls kommplan.
  *
  * WARUM EINGECHECKT: eine frische Arbeitskopie muss ohne Vorlauf `typecheck` und `vitest` bestehen,
  * und `@einsatzzeichen/*` sind devDependencies — der Server-Graph darf sie nie laden (Befund M1:
@@ -8,30 +8,26 @@
  *
  * WARUM VIER DATEIEN: `zeichen.generiert.json` (alle Rezepte als fertiges SVG) und `zeichen-sw.generiert.json` (dieselben im Druckthema `PRINT_MONOCHROME_THEME`, Phase 5) liest nur der Server;
  * `grundlagen.generiert.json` (Arimo-Metriken, Piktogramme) braucht auch der Browser, weil der Betrachter das Layout
- * selbst rechnet; `schrift.generiert.json` (Arimo als Base64) lädt nur der SVG-Export beim Klick.
+ * selbst rechnet; `schrift.generiert.json` (Arimo 400 und 700 aus `@einsatzzeichen/core/fonts`, Base64) lädt nur der SVG-Export beim Klick.
  *
  * KEIN DATUM IM GENERAT: sonst wäre der Drift-Vergleich am nächsten Tag rot.
  *
  * Lauf: pnpm exec tsx scripts/kommplan-zeichen-generat.ts [zielordner]
  */
-import { copyFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import {
   ALL_PICTOGRAMS,
   ARIMO_TEXT_METRICS,
   RECIPES,
-  TEXT_FONT_BOLD_PATH,
-  TEXT_FONT_PATH,
   composeFromCatalog,
 } from "@einsatzzeichen/catalog";
 import { PRINT_MONOCHROME_THEME, renderSvg } from "@einsatzzeichen/core";
 import { SECHSECK } from "../src/app/m/kommplan/_lib/layout/masse";
 
 const STANDARD_ZIEL = "src/app/m/kommplan/_lib/zeichen";
-const FONT_ZIEL = "src/app/m/kommplan/_fonts";
 const ZIEL = process.argv[2] ?? STANDARD_ZIEL;
-const istProbelauf = process.argv[2] !== undefined;
 
 export class GeneratFehler extends Error {
   constructor(nachricht: string) {
@@ -222,16 +218,11 @@ function schreibe(datei: string, wert: unknown): void {
 mkdirSync(ZIEL, { recursive: true });
 schreibe("zeichen.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichen) });
 schreibe("zeichen-sw.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichenSw) });
-// Die Schrift für den SVG-Export (Phase 5, Entscheidung 15): als Base64, damit sie gebündelt wird — unter
-// `output: "standalone"` ist `_fonts/` zur Laufzeit nicht mitkopiert. Gelesen nur beim Klick (`SvgHerunterladen`).
-schreibe("schrift.generiert.json", { stand: STAND, arimoVariable: readFileSync(TEXT_FONT_PATH).toString("base64") });
+// Die Schrift für den SVG-Export (Phase 5, Entscheidung 15): dieselben zwei WOFF2 wie im Browser (`_ui/schrift.ts`),
+// als Base64, damit sie gebündelt wird — unter `output: "standalone"` liegt `node_modules` zur Laufzeit nicht vollständig
+// vor. Gelesen nur beim Klick (`SvgHerunterladen`).
+const coreSchrift = (stufe: "regular" | "bold") => readFileSync(hier.resolve(`@einsatzzeichen/core/fonts/text-${stufe}.woff2`)).toString("base64");
+schreibe("schrift.generiert.json", { stand: STAND, regular: coreSchrift("regular"), fett: coreSchrift("bold") });
 schreibe("grundlagen.generiert.json", { stand: STAND, metrik, piktogramme: nachSchluessel(piktogramme) });
 
-// 5. Arimo kopieren — nur im kanonischen Lauf, ein Probelauf fasst den Arbeitsbaum nicht an.
-if (!istProbelauf) {
-  mkdirSync(FONT_ZIEL, { recursive: true });
-  copyFileSync(TEXT_FONT_PATH, join(FONT_ZIEL, "Arimo-Variable.ttf"));
-  copyFileSync(TEXT_FONT_BOLD_PATH, join(FONT_ZIEL, "Arimo-Bold.ttf"));
-  copyFileSync(join(KATALOG, "dist/assets/Arimo-OFL.txt"), join(FONT_ZIEL, "Arimo-OFL.txt"));
-}
 console.log(`${ZIEL}: ${Object.keys(zeichen).length} Zeichen, ${Object.keys(piktogramme).length} Piktogramme, Stand ${JSON.stringify(STAND)}`);

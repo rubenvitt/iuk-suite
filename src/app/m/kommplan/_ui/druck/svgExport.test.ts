@@ -25,13 +25,14 @@ describe("eigenständiges SVG (Entscheidung 15, Review Focus 6)", () => {
       <svg class="kp-blatt" data-blatt="1" width="297mm" height="210mm" viewBox="0 0 297 210" style="font-family: __Arimo_abc; background: rgb(255, 255, 255);">
         <use href="#kp-rezept-A"></use><use href="#kp-logo" filter="url(#kp-grau)"></use><text>Stand</text>
       </svg>`);
-    const text = eigenstaendigesSvg(w.querySelector("svg.kp-blatt") as SVGSVGElement, [w.querySelector("svg.kp-symbole")!], "QUJD");
+    const text = eigenstaendigesSvg(w.querySelector("svg.kp-blatt") as SVGSVGElement, [w.querySelector("svg.kp-symbole")!], { regular: "QUJD", fett: "REVG" });
     expect(text.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
     for (const id of ["kp-rezept-A", "kp-innen", "kp-logo", "kp-grau"]) expect(text).toContain(`id="${id}"`);
     expect(text).not.toContain("kp-unbenutzt");
     const ids = new Set([...text.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
     for (const ref of verweiseIn(text)) expect(ids.has(ref), ref).toBe(true);
-    expect(text).toContain('@font-face{font-family:"Arimo";src:url(data:font/ttf;base64,QUJD) format("truetype")');
+    expect(text).toContain('@font-face{font-family:"Arimo";src:url(data:font/woff2;base64,QUJD) format("woff2");font-weight:400;');
+    expect(text).toContain('@font-face{font-family:"Arimo";src:url(data:font/woff2;base64,REVG) format("woff2");font-weight:700;');
     expect(text).toContain(`font-family="${SCHRIFTLISTE.replace(/"/g, "&quot;")}"`);
     expect(text).toContain('style="background:#ffffff"');
     expect(text).not.toContain("__Arimo_abc");
@@ -44,7 +45,7 @@ describe("eigenständiges SVG (Entscheidung 15, Review Focus 6)", () => {
   it("die Datei ist wohlgeformtes XML im SVG-Namensraum — mit und ohne xmlns am Blatt", () => {
     for (const kopf of ['<svg class="kp-blatt" data-blatt="1">', '<svg xmlns="http://www.w3.org/2000/svg" class="kp-blatt" data-blatt="1">']) {
       const w = baue(`<svg class="kp-symbole"><defs><symbol id="kp-a"></symbol></defs></svg>${kopf}<use href="#kp-a"></use><text>Ä &amp; Ö</text></svg>`);
-      const text = eigenstaendigesSvg(w.querySelector("svg.kp-blatt") as SVGSVGElement, [w.querySelector("svg.kp-symbole")!], "QUJD");
+      const text = eigenstaendigesSvg(w.querySelector("svg.kp-blatt") as SVGSVGElement, [w.querySelector("svg.kp-symbole")!], { regular: "QUJD", fett: "REVG" });
       const dok = new DOMParser().parseFromString(text, "image/svg+xml");
       expect(dok.querySelector("parsererror"), text.slice(0, 300)).toBeNull();
       expect(dok.documentElement.namespaceURI).toBe("http://www.w3.org/2000/svg");

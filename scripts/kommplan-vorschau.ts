@@ -23,13 +23,14 @@ import { rahmenFuer } from "../src/app/m/kommplan/_lib/rahmen";
 import { symboleFuer } from "../src/app/m/kommplan/_lib/zeichen/zeichen";
 import { Blattansicht } from "../src/app/m/kommplan/_ui/zeichnung/Blatt";
 import { Zeichnung } from "../src/app/m/kommplan/_ui/zeichnung/Zeichnung";
+import { schriftStil } from "../src/app/m/kommplan/_ui/druck/svgExport";
+import schrift from "../src/app/m/kommplan/_lib/zeichen/schrift.generiert.json";
 
 const args = process.argv.slice(2);
 // --zufall <seed> <stellen> [stab]: ein roter Seed aus eigenschaften.test.ts zum Ansehen.
 const zufallIndex = args.indexOf("--zufall");
 const ZIEL = args[0] && !args[0].startsWith("--") ? args[0] : ".data/kommplan-vorschau";
-const schrift = readFileSync("src/app/m/kommplan/_fonts/Arimo-Variable.ttf").toString("base64");
-const STIL = `@font-face{font-family:"Arimo";src:url(data:font/ttf;base64,${schrift}) format("truetype");font-weight:400 700}`;
+const STIL = schriftStil(schrift);
 
 const beispiele: Beispiel[] = [...BEISPIELE];
 if (zufallIndex >= 0) {

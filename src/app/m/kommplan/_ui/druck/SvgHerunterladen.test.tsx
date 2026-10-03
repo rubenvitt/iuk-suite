@@ -5,7 +5,7 @@ import { act } from "react";
 import { clickElement, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 import { SvgHerunterladen } from "./SvgHerunterladen";
 
-vi.mock("../../_lib/zeichen/schrift.generiert.json", () => ({ default: { stand: {}, arimoVariable: "QUJD" } }));
+vi.mock("../../_lib/zeichen/schrift.generiert.json", () => ({ default: { stand: {}, regular: "QUJD", fett: "REVG" } }));
 afterEach(async () => { await unmount(); vi.restoreAllMocks(); document.body.querySelectorAll("svg").forEach((s) => s.remove()); });
 
 describe("SvgHerunterladen", () => {
@@ -30,7 +30,8 @@ describe("SvgHerunterladen", () => {
     expect(blob!.type).toBe("image/svg+xml");
     const text = await blob!.text();
     expect(text).toContain('id="kp-x"');
-    expect(text).toContain("@font-face");
+    expect(text).toContain("base64,QUJD");
+    expect(text).toContain("base64,REVG");
   });
   it("fehlt das Blatt: eine Meldung, kein Wurf", async () => {
     await mount(<SvgHerunterladen nummer={9} von={9} dateiname="x.svg" />);
