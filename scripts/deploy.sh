@@ -14,8 +14,10 @@
 # ohne Aufsicht laufen darf:
 #
 #  1. ES PRÜFT VOR DEM ANFASSEN. Passt der Stand im Registry nicht zum Commit dieses
-#     Laufs oder weicht die `compose.yaml` des Servers von der des Repos ab, bricht es
-#     ab, BEVOR ein Container ausgetauscht wird. Ein Abbruch hier ist folgenlos.
+#     Laufs, wurde eine Stack-Datei (`compose.yaml` & Co.) auf dem Server VON HAND
+#     geändert oder bräuchte die neue `compose.yaml` eine Variable, die in der `.env`
+#     fehlt, bricht es ab, BEVOR ein Container ausgetauscht wird. Ein Abbruch hier ist
+#     folgenlos.
 #     Eine Ausnahme endet grün statt rot: liegt auf dem Tag BEWEISBAR ein Nachfolger
 #     des erwarteten Commits, ist dieser Lauf überholt und der neuere erledigt den
 #     Rollout (Schritt 2) — auch dann wird nichts angefasst.
@@ -23,14 +25,16 @@
 #     geprüft, sondern „antwortet DIESER Commit?" (`revision` aus
 #     `/api/health/portal`). Ein hängengebliebener alter Container ist von einem
 #     erfolgreichen Rollout sonst nicht zu unterscheiden.
-#  3. ES HAT EINEN RÜCKWEG. Vor dem Austausch merkt es sich den laufenden Digest; jeder
-#     Fehlschlag danach setzt ihn zurück und wartet erneut auf `healthy`.
+#  3. ES HAT EINEN RÜCKWEG. Vor dem Austausch merkt es sich den laufenden Digest und legt
+#     die alten Stack-Dateien beiseite; jeder Fehlschlag danach setzt beides zurück und
+#     wartet erneut auf `healthy`.
 #
 # WAS ES AUSDRÜCKLICH NICHT TUT — beides ist Runbook-Arbeit, siehe Teil E des Runbooks:
-#   * `compose.yaml`, `clamd.files.conf` oder `.env` inhaltlich ausrollen. Es prüft die
-#     ersten beiden auf Gleichstand und bricht bei Abweichung ab, statt zu überschreiben:
-#     die Server-`.env` führte am 19.07.2026 ein `ADMIN_GROUP`, das die Repo-Vorlage nie
-#     hatte — wer solche Dateien ungeprüft übernimmt, verliert stille Einstellungen.
+#   * Die `.env` inhaltlich ausrollen, und eine von Hand geänderte Stack-Datei
+#     überschreiben. Die Server-`.env` führte am 19.07.2026 ein `ADMIN_GROUP`, das die
+#     Repo-Vorlage nie hatte — wer solche Dateien ungeprüft übernimmt, verliert stille
+#     Einstellungen. Die Stack-Dateien tauscht es seit DRK-509 aus, aber nur, wenn sie
+#     noch genau der Stand sind, den ein früherer Rollout dort abgelegt hat (Schritt 1).
 #   * Migrationen zurückrollen. Die Boot-Instrumentation migriert beim Start nach vorn;
 #     ein Image-Rollback macht das NICHT rückgängig.
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -76,6 +80,12 @@ melde "Schritt 0: Voraussetzungen"
 [ -f "$STACK_DIR/compose.yaml" ] || abbruch "$STACK_DIR/compose.yaml fehlt."
 [ -f "$ENV_DATEI" ] || abbruch "$ENV_DATEI fehlt — ohne sie startet die Suite ohne AUTH_SECRET."
 [ -w "$ENV_DATEI" ] || abbruch "$ENV_DATEI ist für $(id -un) nicht schreibbar; der Rollout pinnt dort das Image."
+# Seit DRK-509 legt der Rollout dort auch Stack-Dateien und seine Merkliste ab. Hier
+# geprüft, weil ein Schreibfehler erst in Schritt 5 mitten im Austausch läge.
+for verzeichnis in "$STACK_DIR" "$STACK_DIR/scripts"; do
+  [ ! -d "$verzeichnis" ] || [ -w "$verzeichnis" ] \
+    || abbruch "$verzeichnis ist für $(id -un) nicht schreibbar; der Rollout legt dort die Stack-Dateien ab."
+done
 command -v docker >/dev/null || abbruch "docker nicht im PATH."
 docker compose version >/dev/null 2>&1 || abbruch "docker compose (v2) nicht verfügbar."
 cd "$STACK_DIR"
@@ -83,41 +93,127 @@ echo "Stack:     $STACK_DIR"
 echo "Erwartet:  $ERWARTET"
 echo "Image:     $BASIS:$TAG"
 
-# ══ Schritt 1 — Stack-Dateien müssen zum Repo passen ═════════════════════════════════
+# ══ Schritt 1 — Stack-Dateien gegen das Repo prüfen ══════════════════════════════════
 # Ein Image, das ein neues Volume oder ein neues Netz braucht, gegen eine alte
 # `compose.yaml` ausgerollt, ergibt KEINE klare Fehlermeldung: das Modul `aufgaben` etwa
 # schriebe seine Bildnachweise in das Container-Dateisystem statt in `aufgaben_data`, und
 # clamd fände sie nie — sichtbar erst als dauerhaft `scan_status: 'fehler'`, Tage später.
-# Deshalb Gleichstand als Vorbedingung, und Abbruch statt Überschreiben.
-melde "Schritt 1: Stack-Dateien gegen das Repo pruefen"
-abweichung=0
+# Deshalb rollt der Rollout die Stack-Dateien des Repos MIT aus (DRK-509; bis dahin brach
+# er bei jeder Abweichung ab, und jede Änderung an ihnen hiess: Job rot, von Hand angleichen).
+#
+# ⚠️ AUSGETAUSCHT WIRD NUR, WAS NIEMAND VON HAND ANGEFASST HAT. Der Grund für den alten
+# Abbruch gilt weiter: eine Server-Datei kann Einträge führen, die die Repo-Vorlage nie
+# hatte (ADMIN_GROUP, 19.07.2026), und Überschreiben verlöre sie still. Unterschieden wird
+# über eine Merkliste ($STAND_DATEI) mit der Prüfsumme jeder Datei, die ein Rollout
+# selbst abgelegt hat:
+#   * Server = Repo                   → nichts zu tun.
+#   * Server = Merkliste, ≠ Repo      → nur das Repo hat sich bewegt: austauschen.
+#   * Server ≠ Merkliste (oder keine) → Handänderung, oder noch nie über den Rollout
+#                                       abgelegt: Abbruch wie früher, Runbook E2.
+# Die erste Merkliste schreibt der erste Lauf, in dem alle vier Dateien identisch sind.
+#
 # ⚠️ SEIT DRK-185 SIND ES VIER, NICHT ZWEI. Der Backup-Sidecar reicht `backup.sh` und
 # `backup-sidecar.sh` per Bind-Mount in seinen Container — sie liegen damit auf dem
-# Server und sind dieselbe Art Datei wie `clamd.files.conf`. Ohne den Vergleich driftet
-# die Server-Fassung von der getesteten weg, und das sieht niemand: das Repo am
-# wenigsten, und der Sidecar meldet sich erst, wenn eine Sicherung gebraucht wird.
-for datei in compose.yaml clamd.files.conf scripts/backup.sh scripts/backup-sidecar.sh; do
+# Server und sind dieselbe Art Datei wie `clamd.files.conf`.
+melde "Schritt 1: Stack-Dateien gegen das Repo pruefen"
+STACK_DATEIEN=(compose.yaml clamd.files.conf scripts/backup.sh scripts/backup-sidecar.sh)
+STAND_DATEI="$STACK_DIR/.rollout-stack.sha256"
+VORHER_DIR="$STACK_DIR/.rollout-vorher"
+AUSTAUSCH=()
+STACK_GETAUSCHT=0
+
+pruefsumme() {
+  # `sha256sum` ist GNU (der Server), `shasum -a 256` dasselbe unter macOS (DRK-450).
+  { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{ print $1 }'
+}
+gemerkt() {
+  [ -f "$STAND_DATEI" ] || return 0
+  awk -v d="$1" '$2 == d { s = $1 } END { print s }' "$STAND_DATEI"
+}
+
+abweichung=0
+for datei in "${STACK_DATEIEN[@]}"; do
+  merke="$(gemerkt "$datei")"
   if [ ! -f "$STACK_DIR/$datei" ]; then
-    warne "$datei fehlt auf dem Server."
-    abweichung=1
+    # Fehlt sie, obwohl die Merkliste existiert und sie NICHT kennt, ist sie neu im Repo.
+    # Kennt die Merkliste sie, hat jemand sie gelöscht — das ist eine Handänderung.
+    if [ -f "$STAND_DATEI" ] && [ -z "$merke" ]; then
+      echo "  $datei: neu im Repo — wird abgelegt"
+      AUSTAUSCH+=("$datei")
+    else
+      warne "$datei fehlt auf dem Server."
+      abweichung=1
+    fi
     continue
   fi
   if diff -u "$STACK_DIR/$datei" "$REPO_WURZEL/$datei" >/tmp/iuk-deploy-diff.$$ 2>&1; then
     echo "  $datei: identisch"
+  elif [ -n "$merke" ] && [ "$merke" = "$(pruefsumme "$STACK_DIR/$datei")" ]; then
+    echo "  $datei: geändert im Repo — wird ausgetauscht (links Server, rechts Repo):"
+    cat /tmp/iuk-deploy-diff.$$
+    AUSTAUSCH+=("$datei")
   else
-    warne "$datei weicht ab (links Server, rechts Repo):"
+    if [ -f "$STAND_DATEI" ]; then
+      warne "$datei wurde auf dem Server VON HAND geändert (links Server, rechts Repo):"
+    else
+      warne "$datei weicht ab, und es gibt noch keine Merkliste $STAND_DATEI (links Server, rechts Repo):"
+    fi
     cat /tmp/iuk-deploy-diff.$$ >&2
     abweichung=1
   fi
   rm -f /tmp/iuk-deploy-diff.$$
 done
+rm -f /tmp/iuk-deploy-diff.$$
 if [ "$abweichung" -ne 0 ]; then
-  abbruch "Stack-Dateien weichen ab. Sie werden BEWUSST nicht automatisch übernommen —
-  eine Änderung an compose.yaml, clamd.files.conf oder den beiden Backup-Skripten ist
-  Runbook-Arbeit (Diff gegen die Server-Datei, Einträge in die .env retten, siehe
-  docs/runbooks/auto-rollout.md Teil E; für die Backup-Skripte zusätzlich
+  abbruch "Stack-Dateien weichen ab, und mindestens eine davon hat KEIN Rollout dort
+  abgelegt. Sie wird BEWUSST nicht überschrieben — eine Handänderung (etwa eine
+  environment-Zeile, die nur der Server kennt) ginge sonst still verloren. Diff gegen
+  die Server-Datei, Einträge in die .env retten, Repo-Datei übernehmen: siehe
+  docs/runbooks/auto-rollout.md Teil E2 (für die Backup-Skripte zusätzlich
   docs/runbooks/backup-sidecar.md). Danach diesen Job erneut laufen lassen."
 fi
+
+# Die neue `compose.yaml` VOR dem Austausch gegen die Server-`.env` auflösen. Zwei Fälle,
+# die sonst erst nach `up -d` auffielen: eine Pflichtvariable (`${X:?…}`), die die `.env`
+# nicht hat — dann scheitert `config` —, und eine neue Variable ohne Vorbelegung, aus der
+# Compose still einen LEEREN String macht (gemessen, Compose v5.3: nur eine Warnung,
+# Exit 0). Verglichen wird mit der laufenden Datei: was dort schon leer war, ist kein
+# neuer Befund. Die Probe liegt im Stack-Verzeichnis, damit `./…`-Pfade und die `.env`
+# genauso aufgelöst werden wie später; ihre Ausgabe geht nach /dev/null, denn sie trägt
+# die aufgelösten Werte der `.env` — ins Protokoll kommen nur die Meldungen.
+leere_variablen() {
+  grep -oE '[A-Za-z_][A-Za-z0-9_]*\\?" variable is not set' "$1" \
+    | grep -oE '^[A-Za-z_][A-Za-z0-9_]*' | sort -u || true
+}
+for datei in ${AUSTAUSCH[@]+"${AUSTAUSCH[@]}"}; do
+  [ "$datei" = "compose.yaml" ] || continue
+  probe="$STACK_DIR/.compose.rollout-probe.yaml"
+  cp "$REPO_WURZEL/compose.yaml" "$probe"
+  status=0
+  docker compose -f "$probe" config >/dev/null 2>/tmp/iuk-deploy-neu.$$ || status=$?
+  rm -f "$probe"
+  docker compose config >/dev/null 2>/tmp/iuk-deploy-alt.$$ || true
+  neu_leer="$(comm -13 <(leere_variablen /tmp/iuk-deploy-alt.$$) <(leere_variablen /tmp/iuk-deploy-neu.$$))"
+  # ⚠️ NUR DIE VARIABLENNAMEN INS PROTOKOLL, nicht die rohe Meldung: das Protokoll ist
+  # öffentlich, und eine Validierungsmeldung von Compose kann einen AUFGELÖSTEN Wert
+  # zitieren. Die Pflichtvariable steht in „required variable X is missing a value".
+  meldungen="$(grep -oE 'required variable [A-Za-z_][A-Za-z0-9_]* is missing a value' /tmp/iuk-deploy-neu.$$ || true)"
+  [ -n "$meldungen" ] || meldungen="  (keine fehlende Variable erkannt — Ursache am Server:
+  docker compose -f <Repo>/compose.yaml --project-directory $STACK_DIR config)"
+  rm -f /tmp/iuk-deploy-neu.$$ /tmp/iuk-deploy-alt.$$
+  if [ "$status" -ne 0 ]; then
+    abbruch "Die neue compose.yaml lässt sich gegen die Server-.env nicht auflösen:
+$meldungen
+  Fehlende Werte in die .env eintragen und den Job erneut laufen lassen. Nichts angefasst."
+  fi
+  if [ -n "$neu_leer" ]; then
+    abbruch "Die neue compose.yaml braucht Variablen, die in der Server-.env fehlen:
+$(printf '    %s\n' $neu_leer)
+  Compose machte daraus still einen leeren Wert. Eintragen (oder in der compose.yaml
+  eine Vorbelegung geben) und den Job erneut laufen lassen. Nichts angefasst."
+  fi
+  echo "  neue compose.yaml löst sich gegen die Server-.env auf."
+done
 
 # ══ Schritt 2 — Image ziehen und die Revision prüfen, BEVOR etwas ausgetauscht wird ═══
 # `docker pull` auf das TAG, nicht `docker compose pull`: in der .env kann bereits ein
@@ -486,22 +582,100 @@ backup_skripte_neuer_als() {
   return 1
 }
 
-melde "Schritt 5: Image pinnen und Stack neu starten"
-setze_pin "$NEUES_IMAGE"
-docker compose config >/dev/null || abbruch "docker compose config ist nach dem Pinnen ungültig — .env prüfen."
-docker compose up -d
+# Legt eine Datei atomar ab: in eine Kladde daneben schreiben, Rechte setzen, umbenennen.
+# Ein halb geschriebenes `clamd.files.conf` sähe clamd sonst beim nächsten Start.
+# `mktemp` legt mit 0600 an — clamd und der Sidecar lesen aber als eigener Nutzer, also
+# die Rechte der bisherigen Datei übernehmen, sonst 0644.
+lege_ab() {
+  local quelle="$1" ziel="$2" tmp
+  mkdir -p "$(dirname "$ziel")"
+  # Ausdrücklich mit `|| return`: gerufen wird sie hinter `||`, und dort greift `set -e`
+  # nicht — ein gescheitertes `cat` legte sonst eine leere Datei ab.
+  tmp="$(mktemp "$ziel.rollout.XXXXXX")" || return 1
+  cat "$quelle" >"$tmp" || { rm -f "$tmp"; return 1; }
+  if [ -f "$ziel" ]; then
+    chmod --reference="$ziel" "$tmp" 2>/dev/null || chmod 644 "$tmp"
+  else
+    chmod 644 "$tmp"
+  fi
+  mv "$tmp" "$ziel"
+}
+
+# Schreibt die Merkliste aus Schritt 1 neu: die Prüfsumme jeder Stack-Datei, so wie sie
+# JETZT auf dem Server liegt.
+schreibe_stand() {
+  local tmp datei
+  tmp="$(mktemp "$STAND_DATEI.XXXXXX")"
+  {
+    echo "# von scripts/deploy.sh gesetzt — NICHT von Hand pflegen (docs/runbooks/auto-rollout.md, E2)"
+    for datei in "${STACK_DATEIEN[@]}"; do
+      if [ -f "$STACK_DIR/$datei" ]; then
+        printf '%s  %s\n' "$(pruefsumme "$STACK_DIR/$datei")" "$datei"
+      fi
+    done
+  } >"$tmp"
+  chmod 644 "$tmp"
+  mv "$tmp" "$STAND_DATEI"
+}
+
+ausgetauscht() {
+  local datei
+  for datei in ${AUSTAUSCH[@]+"${AUSTAUSCH[@]}"}; do
+    [ "$datei" = "$1" ] && return 0
+  done
+  return 1
+}
+
+# Ein Bind-Mount bringt den neuen Inhalt in den Container, aber nicht in den laufenden
+# Prozess: clamd liest seine Konfiguration nur beim Start, und `up -d` sieht an einer
+# geänderten Datei hinter einem unveränderten Pfad keinen Grund zum Austausch (dieselbe
+# Falle wie beim Sidecar, Schritt 8b). Also clamav ausdrücklich neu erzeugen. VOR dem
+# `up -d` der Suite, damit deren `depends_on: service_healthy` auf den neuen clamd wartet.
+clamav_nachziehen() {
+  ausgetauscht clamd.files.conf || return 0
+  echo "  clamd.files.conf ist neu — clamav wird neu erzeugt."
+  docker compose up -d --no-deps --force-recreate clamav
+}
+
+stack_zuruecklegen() {
+  local datei
+  [ "$STACK_GETAUSCHT" -eq 1 ] || return 0
+  melde "Stack-Dateien zurücklegen: ${AUSTAUSCH[*]}"
+  for datei in "${AUSTAUSCH[@]}"; do
+    if [ -f "$VORHER_DIR/$datei" ]; then
+      lege_ab "$VORHER_DIR/$datei" "$STACK_DIR/$datei"
+    else
+      rm -f "$STACK_DIR/$datei"
+    fi
+  done
+  if [ -f "$VORHER_DIR/.rollout-stack.sha256" ]; then
+    lege_ab "$VORHER_DIR/.rollout-stack.sha256" "$STAND_DATEI"
+  fi
+  STACK_GETAUSCHT=0
+}
 
 # ── Ab hier ist Produktion angefasst: jeder Fehlschlag geht über zurueck_und_raus ──────
+# Die Funktion steht VOR dem Austausch, nicht dahinter: sonst endete ein gescheitertes
+# `up -d` in Schritt 5 per `set -e`, und weder Image noch Stack-Dateien kämen zurück.
 zurueck_und_raus() {
   local grund="$1"
   warne "$grund"
   if [ -z "$RUECKWEG" ]; then
+    # Die Stack-Dateien bleiben dann bewusst auf dem neuen Stand: zurückgelegt passten
+    # sie nicht mehr zu dem Image, das weiterläuft.
     abbruch "$grund — und es ist KEIN Rückweg bekannt. Der Stack läuft auf $NEUES_IMAGE.
+  Die vorherigen Stack-Dateien liegen in $VORHER_DIR, falls ausgetauscht.
   Von Hand: Teil D des Runbooks (docs/runbooks/auto-rollout.md)."
   fi
   melde "ROLLBACK auf $RUECKWEG"
+  stack_zuruecklegen
   setze_pin "$RUECKWEG"
-  docker compose up -d
+  clamav_nachziehen || warne "clamav liess sich nicht neu erzeugen."
+  docker compose up -d || warne "docker compose up -d ist auch beim Rollback gescheitert."
+  if ausgetauscht scripts/backup-sidecar.sh || ausgetauscht scripts/backup.sh; then
+    docker compose up -d --no-deps --force-recreate backup \
+      || warne "Der Dienst backup liess sich nicht neu erzeugen — von Hand nachholen."
+  fi
   if warte_gesund; then
     abbruch "$grund — Rollback auf $RUECKWEG gelaufen, der Stack ist wieder healthy.
   Der Fehler steckt im ausgerollten Stand, nicht im Server."
@@ -518,6 +692,34 @@ zurueck_und_raus() {
   Das ist kein Image-Problem mehr: erster Blick ist \"docker compose ps clamav\"
   (die Suite startet wegen depends_on nicht ohne ihn), dann \"docker compose logs suite\"."
 }
+
+melde "Schritt 5: Stack-Dateien ablegen, Image pinnen, Stack neu starten"
+if [ "${#AUSTAUSCH[@]}" -gt 0 ]; then
+  # Erst beiseitelegen, dann ablegen — der Rückweg muss stehen, bevor die erste Datei
+  # ersetzt ist.
+  rm -rf "$VORHER_DIR"
+  mkdir -p "$VORHER_DIR"
+  for datei in "${AUSTAUSCH[@]}"; do
+    if [ -f "$STACK_DIR/$datei" ]; then
+      mkdir -p "$(dirname "$VORHER_DIR/$datei")"
+      cp -p "$STACK_DIR/$datei" "$VORHER_DIR/$datei"
+    fi
+  done
+  [ ! -f "$STAND_DATEI" ] || cp -p "$STAND_DATEI" "$VORHER_DIR/.rollout-stack.sha256"
+  STACK_GETAUSCHT=1
+  for datei in "${AUSTAUSCH[@]}"; do
+    lege_ab "$REPO_WURZEL/$datei" "$STACK_DIR/$datei" \
+      || zurueck_und_raus "Konnte $datei nicht ablegen."
+    echo "  $datei: ausgetauscht"
+  done
+fi
+# Auch ohne Austausch: so entsteht die erste Merkliste, und eine Datei, die von Hand auf
+# den Repo-Stand gebracht wurde, gilt danach wieder als „vom Rollout abgelegt".
+schreibe_stand
+setze_pin "$NEUES_IMAGE"
+docker compose config >/dev/null || zurueck_und_raus "docker compose config ist nach dem Austausch ungültig — .env prüfen."
+clamav_nachziehen || zurueck_und_raus "clamav liess sich mit der neuen clamd.files.conf nicht neu erzeugen."
+docker compose up -d || zurueck_und_raus "docker compose up -d ist gescheitert."
 
 # ══ Schritt 6 — auf `healthy` warten ═════════════════════════════════════════════════
 melde "Schritt 6: auf healthy warten (bis zu ${FRIST}s)"
@@ -658,6 +860,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| Commit | \`$ERWARTET\` |"
     echo "| Image | \`$NEUES_IMAGE\` |"
     echo "| Rückweg | \`${RUECKWEG:-— (erster Rollout)}\` |"
+    echo "| Stack-Dateien | ${AUSTAUSCH[*]:-unverändert} |"
     echo "| Stack | \`$STACK_DIR\` |"
     echo
     echo "Rollback: \`SUITE_IMAGE\` in der \`.env\` auf den Rückweg setzen und"

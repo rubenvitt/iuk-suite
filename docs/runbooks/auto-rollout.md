@@ -15,12 +15,15 @@ derselben Reihenfolge, nur jedes Mal gleich.
   wie man zurückgeht.
 - **Teil E–F — Störungen und das Abschalten.**
 
-> **Was der Rollout ausdrücklich NICHT ausrollt:** `compose.yaml`, `clamd.files.conf` und
-> `.env`. Er *prüft* die ersten beiden auf Gleichstand mit dem Repo und **bricht bei
-> Abweichung ab, bevor er etwas anfasst** — statt sie zu überschreiben. Der Grund steht
-> in `suite-update-webfinger.md` (A2): die Server-`.env` führte am 19.07.2026 ein
-> `ADMIN_GROUP`, das die Repo-Vorlage nie hatte; wer solche Dateien ungeprüft übernimmt,
-> verliert stille Einstellungen. Stack-Änderungen bleiben Runbook-Arbeit — siehe **E2**.
+> **Was der Rollout mit ausrollt, und was nicht:** Die vier Stack-Dateien
+> (`compose.yaml`, `clamd.files.conf`, `scripts/backup.sh`, `scripts/backup-sidecar.sh`)
+> tauscht er seit DRK-509 **selbst** gegen den Repo-Stand aus — aber nur, solange sie auf
+> dem Server noch genau so liegen, wie ein früherer Rollout sie abgelegt hat. Eine **von
+> Hand geänderte** Datei überschreibt er nicht, er **bricht ab, bevor er etwas anfasst**.
+> Der Grund steht in `suite-update-webfinger.md` (A2): die Server-`.env` führte am
+> 19.07.2026 ein `ADMIN_GROUP`, das die Repo-Vorlage nie hatte; wer solche Dateien
+> ungeprüft übernimmt, verliert stille Einstellungen. Die **`.env`** rollt er nie aus —
+> eine neue Variable ohne Wert dort ist ein Abbruch vor dem Austausch. Siehe **E2**.
 
 ---
 
@@ -67,10 +70,12 @@ Zwei weitere Punkte derselben Art, kürzer, aber nicht optional:
 
 ## A1. Stack-Verzeichnis mit dem Repo angleichen
 
-Der Rollout vergleicht **vier Dateien byteweise** mit dem Repo und bricht bei Abweichung
-ab: `compose.yaml`, `clamd.files.conf` und — seit dem Backup-Sidecar (DRK-185) —
-`scripts/backup.sh` und `scripts/backup-sidecar.sh`. Das ist gewollt (E2 erklärt, warum),
-heißt aber: einmal sauber angleichen, sonst scheitert jeder Lauf in Schritt 1.
+Der Rollout gleicht **vier Dateien** mit dem Repo ab: `compose.yaml`, `clamd.files.conf`
+und — seit dem Backup-Sidecar (DRK-185) — `scripts/backup.sh` und
+`scripts/backup-sidecar.sh`. Austauschen darf er sie nur, wenn er sie selbst dort abgelegt
+hat; das merkt er sich in **`.rollout-stack.sha256`** im Stack-Verzeichnis (E2). Diese
+Merkliste schreibt der erste Lauf, in dem alle vier **identisch** mit dem Repo sind — bis
+dahin bricht jeder abweichende Lauf in Schritt 1 ab. Also einmal sauber angleichen.
 
 > ⚠️ **Die beiden Backup-Skripte liegen in einem Unterverzeichnis**
 > (`$SUITE_STACK_DIR/scripts/`), weil die `compose.yaml` sie von dort per Bind-Mount in
@@ -233,11 +238,11 @@ einschließlich Schritt 4 ist ein Abbruch folgenlos**, danach greift der Rollbac
 | # | Schritt | Bei Fehlschlag |
 |---|---|---|
 | 0 | Voraussetzungen (Verzeichnis, `.env` schreibbar, Compose v2) | Abbruch, nichts angefasst |
-| 1 | `compose.yaml` + `clamd.files.conf` gegen das Repo | Abbruch mit Diff → **E2** |
+| 1 | Die vier Stack-Dateien gegen Repo und Merkliste; neue `compose.yaml` gegen die `.env` auflösen | von Hand geändert oder Variable fehlt → Abbruch → **E2** |
 | 2 | `docker pull :latest`, Revision aus **Label und ENV** prüfen | überholt → **grün beendet**, sonst Abbruch → **E3/E4** |
 | 3 | Rückweg festhalten (gepinnter Digest, sonst laufender Container) | Warnung, kein Abbruch |
 | 4 | `SUITE_BACKUP_CMD`, falls gesetzt | Abbruch — kein Rollout ohne Sicherung |
-| 5 | Digest in die `.env` pinnen, `docker compose up -d` | ab hier: Rollback |
+| 5 | Alte Stack-Dateien nach `.rollout-vorher/`, neue ablegen, Merkliste schreiben, Digest pinnen, `up -d` (bei neuer `clamd.files.conf` vorher clamav neu) | ab hier: Rollback von Image **und** Stack-Dateien |
 | 6 | Auf `healthy` warten (bis 300 s) | Rollback → **E5** |
 | 7 | `revision` aus `/api/health/portal` **im Container** vergleichen | Rollback → **E6** |
 | 8 | Öffentliche Gegenprobe über Traefik | nur Warnung → **E7** |
@@ -284,7 +289,8 @@ ist die Gegenprobe.
 
 ## D1. Automatisch
 
-Scheitert Schritt 6 oder 7, setzt das Skript den vorherigen Digest zurück, startet neu
+Scheitert Schritt 5, 6 oder 7, legt das Skript die ausgetauschten Stack-Dateien aus
+`.rollout-vorher/` zurück (samt Merkliste), setzt den vorherigen Digest, startet neu
 und wartet erneut auf `healthy`. Der Job ist danach **rot** — das ist richtig: der
 Rollout ist gescheitert, auch wenn der Server wieder läuft. Im Protokoll steht dann
 `ROLLBACK auf ghcr.io/rubenvitt/iuk-suite@sha256:…`.
@@ -317,9 +323,14 @@ zusätzlich das Tag `:X.Y.Z` (`docs/runbooks/versionierung.md`, Teil D). Dann ge
 Rollback über das Skript selbst, mit allen seinen Prüfungen:
 
 ```bash
+git -C /pfad/zum/repo checkout v1.3.0     # die Stack-Dateien DIESES Standes (E2)
 SUITE_STACK_DIR=$PWD SUITE_IMAGE_TAG=1.3.0 SUITE_REVISION_ERWARTET=<Commit zu v1.3.0> \
   /pfad/zum/repo/scripts/deploy.sh
 ```
+
+> ⚠️ **Der Checkout muss auf dem Stand der Version stehen.** Seit DRK-509 legt das Skript
+> die Stack-Dateien aus dem Repo ab, in dem es liegt — aus einem neueren Checkout käme
+> eine `compose.yaml`, die nicht zum alten Image passt.
 
 Die Zeile ganz zu **entfernen** ist ebenfalls gültig: dann greift wieder `:latest` aus
 der `compose.yaml`. Das ist allerdings der Zustand, in dem ein späteres `up -d` von Hand
@@ -336,16 +347,43 @@ und in **Settings → Actions → Runners** muss er **Idle** sein und `iuk-suite
 tragen. Ein Job wartet hier stundenlang, ohne rot zu werden — er meldet sich also nicht
 von selbst.
 
-### E2 — Abbruch in Schritt 1: „Stack-Dateien weichen ab"
+### E2 — Stack-Dateien: Austausch und Abbruch in Schritt 1
 
-Der erwartete Fall, sobald ein PR eine der **vier** verglichenen Dateien anfasst — etwa
-weil ein neues Modul ein Volume braucht oder ein Backup-Skript nachgezogen wird. Der Abbruch ist folgenlos; Produktion läuft
-weiter auf dem alten Stand.
+**Der Normalfall braucht keinen Handgriff (seit DRK-509).** Fasst ein PR eine der vier
+Dateien an — etwa weil ein neues Modul ein Volume braucht —, steht im Protokoll
+„geändert im Repo — wird ausgetauscht" samt Diff, und Schritt 5 legt die neue Fassung ab.
+Die alte liegt danach in `.rollout-vorher/`; scheitert der Rollout, kommt sie von dort
+zurück. Ändert sich `clamd.files.conf`, wird clamav vor der Suite neu erzeugt — clamd liest
+seine Konfiguration nur beim Start.
 
-Der Diff steht im Protokoll (links Server, rechts Repo). Ablauf: Repo-Datei übernehmen,
-dabei **jede `environment:`-Zeile, die nur die Server-Datei hatte, in die `.env`
-retten** (A1), dann den `deploy`-Job des Laufs neu starten (**Re-run failed jobs** —
-er fordert die Freigabe erneut an).
+**Woran der Rollout „von Hand" erkennt:** an der Merkliste `.rollout-stack.sha256` im
+Stack-Verzeichnis. Sie trägt die Prüfsumme jeder Datei, so wie der letzte Rollout sie
+abgelegt hat. Weicht eine Server-Datei vom Repo ab, gilt:
+
+| Server-Datei | Folge |
+|---|---|
+| = Merkliste | nur das Repo hat sich bewegt → austauschen |
+| ≠ Merkliste | **von Hand geändert** → Abbruch |
+| keine Merkliste | noch nie über den Rollout abgelegt → Abbruch |
+| fehlt, Merkliste kennt sie nicht | neu im Repo → ablegen |
+| fehlt, Merkliste kennt sie | von Hand gelöscht → Abbruch |
+
+Die Merkliste ist **nicht von Hand zu pflegen.** Sie entsteht von selbst beim ersten Lauf,
+in dem alle vier Dateien identisch sind.
+
+**Abbruch „VON HAND geändert" oder „noch keine Merkliste".** Folgenlos; Produktion läuft
+weiter auf dem alten Stand. Der Diff steht im Protokoll (links Server, rechts Repo).
+Ablauf: Repo-Datei übernehmen, dabei **jede `environment:`-Zeile, die nur die Server-Datei
+hatte, in die `.env` retten** (A1), dann den `deploy`-Job des Laufs neu starten (**Re-run
+failed jobs** — er fordert die Freigabe erneut an). Der nächste Lauf findet die Dateien
+identisch vor und schreibt die Merkliste neu; ab da tauscht er wieder selbst aus.
+
+**Abbruch „braucht Variablen, die in der Server-.env fehlen".** Schritt 1 löst die neue
+`compose.yaml` vor dem Austausch gegen die Server-`.env` auf. Eine fehlende
+Pflichtvariable (`${X:?…}`) lässt das scheitern; eine neue Variable **ohne** Vorbelegung
+machte Compose still zu einem leeren Wert — beides bricht ab, und nichts ist angefasst.
+Variablen, die schon in der laufenden Datei leer waren, zählen nicht. Abhilfe: Wert in die
+`.env`, Job neu starten.
 
 > ⚠️ **Ein nachgezogenes `backup-sidecar.sh` wirkt erst nach einem Austausch des
 > Containers — der Rollout erledigt das selbst.** Der Dienst `backup` läuft als **ein**
@@ -402,7 +440,8 @@ er fordert die Freigabe erneut an).
 > von Hand nach.** Der Satz „Zeile in die `.env` retten" weiter oben gilt nur für
 > `environment:`-Einträge; ein Service-Schlüssel wie `user:` lässt sich so nicht retten.
 >
-> Warum hier nicht automatisch überschrieben wird: ein Image gegen eine alte
+> Warum die Stack-Dateien überhaupt zum Image passen müssen — und der Rollout sie deshalb
+> mit ausrollt, statt sie liegen zu lassen: ein Image gegen eine alte
 > `compose.yaml` ausgerollt gibt **keine klare Fehlermeldung**. Fehlt etwa der Mount
 > `aufgaben_data`, schreibt das Modul seine Bildnachweise in das Container-Dateisystem,
 > clamd findet sie nie, und sichtbar wird das Tage später als dauerhaft
@@ -496,9 +535,10 @@ Drei Ursachen in dieser Reihenfolge:
 ### E8 — „Rollback ebenfalls nicht gesund geworden"
 
 Die eine Meldung, die keinen Aufschub verträgt: weder der neue noch der alte Stand läuft.
-Das ist dann kein Image-Problem mehr — Reihenfolge wie in E5 (clamav zuerst), und der
-schnellste Rückweg auf einen bekannten Zustand ist die `compose.yaml.bak-<datum>` aus A1
-plus der zuletzt bekannte Digest.
+Das ist dann kein Image-Problem mehr — Reihenfolge wie in E5 (clamav zuerst). Die
+Stack-Dateien hat der Rollback bereits aus `.rollout-vorher/` zurückgelegt; der älteste
+bekannte Zustand ist die `compose.yaml.bak-<datum>` aus A1 plus der zuletzt bekannte
+Digest.
 
 ---
 
@@ -525,7 +565,8 @@ sudo -u <runner-nutzer> ./config.sh remove --token <Token von der Runner-Seite>
 
 - **Kein Domain-Umschwenk, kein Modul-Cutover.** Dafür gilt weiter `Teil C` in
   `suite-update-webfinger.md` — eine `.env`-Zeile plus `docker compose up -d`.
-- **Keine automatische Übernahme von `compose.yaml`/`.env`.** Siehe E2.
+- **Keine automatische Übernahme der `.env`, und keine einer von Hand geänderten
+  Stack-Datei.** Siehe E2.
 - **Keine Rücknahme von Migrationen.** Siehe A4 und D2.
 - **Kein zweiter Weg auf den Server.** Kein SSH-Zugang aus der Action, kein PAT auf der
   Platte, kein Portainer-Webhook — die Alternativen aus der Entscheidung vom 16.08.2026

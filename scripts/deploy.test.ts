@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -497,5 +507,242 @@ describe("scripts/deploy.sh", () => {
     expect(deploySh).not.toMatch(/cat\s+"?\$ENV_DATEI/);
     expect(deploySh).not.toMatch(/cat\s+\.env/);
     expect(deploySh).toMatch(/docker compose config >\/dev\/null/);
+  });
+});
+
+/*
+ * DRK-509: der Rollout tauscht die Stack-Dateien selbst aus — aber nur, wenn die
+ * Server-Datei noch der Stand ist, den ein früherer Rollout dort abgelegt hat. Geprüft
+ * am GANZEN Skript gegen eine Docker-Attrappe, nicht an Zeichenketten: die Eigenschaft,
+ * um die es geht, ist eine Reihenfolge (erst prüfen, dann beiseitelegen, dann ablegen,
+ * im Fehlerfall zurücklegen), und die sieht man nur im Lauf.
+ */
+describe("scripts/deploy.sh — Stack-Dateien ausrollen (DRK-509)", () => {
+  const ERWARTET = "a".repeat(40);
+  const BASIS = "ghcr.io/rubenvitt/iuk-suite";
+  const STACK = ["compose.yaml", "clamd.files.conf", "scripts/backup.sh", "scripts/backup-sidecar.sh"];
+  const sha = (t: string) => createHash("sha256").update(t).digest("hex");
+
+  /*
+   * Die Attrappe beantwortet genau die Aufrufe, die deploy.sh macht. Gesund ist der
+   * Stack nur, solange in der .env NICHT der neue Digest steht und GESUND=nein gesetzt
+   * ist — so lässt sich ein Rollout erzwingen, der zurückrollen muss. `compose config`
+   * ahmt die beiden Meldungen nach, die Compose v5.3 wirklich ausgibt (gemessen):
+   * `level=warning msg="The \"X\" variable is not set. …"` (Exit 0) und
+   * `required variable X is missing a value` (Exit 1). Gesteuert über Marken in der
+   * compose-Datei: `# braucht: X` und `# pflicht: X`.
+   */
+  const ATTRAPPE = String.raw`#!/bin/bash
+echo "$*" >>"$KLADDE/docker.log"
+neu_gepinnt() { grep -q '^SUITE_IMAGE=.*@sha256:neu' .env 2>/dev/null; }
+case "$1" in
+  pull) exit 0 ;;
+  logout) exit 0 ;;
+  image)
+    case "$*" in
+      *revision*) echo "$ERWARTET" ;;
+      *Config.Env*) echo "SUITE_REVISION=$ERWARTET" ;;
+      *RepoDigests*) echo "$BASIS@sha256:neu" ;;
+    esac
+    exit 0 ;;
+  inspect)
+    case "$*" in
+      *Health*)
+        if neu_gepinnt && [ "$GESUND" = "nein" ]; then echo unhealthy; else echo healthy; fi ;;
+      *StartedAt*) echo "2000-01-01T00:00:00Z" ;;
+      *State.Status*) echo running ;;
+      *) echo bild ;;
+    esac
+    exit 0 ;;
+  compose)
+    shift
+    datei=compose.yaml
+    if [ "$1" = "-f" ]; then datei="$2"; shift 2; fi
+    case "$1" in
+      version) exit 0 ;;
+      config)
+        for v in $(sed -n 's/^# braucht: //p' "$datei"); do
+          grep -q "^$v=" .env || echo "time=\"x\" level=warning msg=\"The \\\"$v\\\" variable is not set. Defaulting to a blank string.\"" >&2
+        done
+        for v in $(sed -n 's/^# pflicht: //p' "$datei"); do
+          # Dahinter ein Wert aus der .env: Compose zitiert in Validierungsmeldungen
+          # aufgelöste Werte, und das Protokoll ist öffentlich.
+          grep -q "^$v=" .env || { echo "required variable $v is missing a value: $v must be set" >&2; echo "user: geheim-geheim" >&2; exit 1; }
+        done
+        exit 0 ;;
+      ps) echo cid ;;
+      up) echo "up $*" >>"$KLADDE/up.log"; exit 0 ;;
+      exec)
+        if neu_gepinnt; then r="$ERWARTET"; else r=alt; fi
+        echo "{\"status\":\"ok\",\"revision\":\"$r\"}" ;;
+      logs) echo "log" ;;
+    esac
+    exit 0 ;;
+esac
+exit 0
+`;
+
+  type Lage = {
+    repo?: Record<string, string>;
+    server?: Record<string, string | null>;
+    merkliste?: Record<string, string> | null;
+    env?: string;
+    gesund?: boolean;
+  };
+
+  function fahre(lage: Lage) {
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "deploy-stack-"));
+    const repo = path.join(kladde, "repo");
+    const stack = path.join(kladde, "stack");
+    const bin = path.join(kladde, "bin");
+    for (const d of [path.join(repo, "scripts"), path.join(stack, "scripts"), bin]) mkdirSync(d, { recursive: true });
+    writeFileSync(path.join(repo, "scripts/deploy.sh"), deploySh);
+    const repoDateien: Record<string, string> = {};
+    for (const d of STACK) repoDateien[d] = lage.repo?.[d] ?? `${d} v1\n`;
+    for (const [d, t] of Object.entries(repoDateien)) writeFileSync(path.join(repo, d), t);
+    const server: Record<string, string | null> = {};
+    for (const d of STACK) server[d] = lage.server && d in lage.server ? lage.server[d] : `${d} v1\n`;
+    for (const [d, t] of Object.entries(server)) if (t !== null) writeFileSync(path.join(stack, d), t);
+    if (lage.merkliste !== null) {
+      const liste = lage.merkliste ?? Object.fromEntries(STACK.map((d) => [d, `${d} v1\n`]));
+      writeFileSync(
+        path.join(stack, ".rollout-stack.sha256"),
+        Object.entries(liste)
+          .map(([d, t]) => `${sha(t)}  ${d}\n`)
+          .join(""),
+      );
+    }
+    writeFileSync(path.join(stack, ".env"), lage.env ?? `AUTH_SECRET=geheim-geheim\nSUITE_IMAGE=${BASIS}@sha256:alt\n`);
+    writeFileSync(path.join(bin, "docker"), ATTRAPPE);
+    chmodSync(path.join(bin, "docker"), 0o755);
+    const p = spawnSync("bash", [path.join(repo, "scripts/deploy.sh")], {
+      encoding: "utf8",
+      timeout: 60_000,
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        KLADDE: kladde,
+        ERWARTET,
+        BASIS,
+        GESUND: lage.gesund === false ? "nein" : "ja",
+        SUITE_STACK_DIR: stack,
+        SUITE_REVISION_ERWARTET: ERWARTET,
+        SUITE_HEALTH_URL: "aus",
+        SUITE_BACKUP_CMD: "",
+        SUITE_BACKUP_GESUND_FRIST: "0",
+        GITHUB_STEP_SUMMARY: "",
+      },
+    });
+    const lies = (d: string) => (existsSync(path.join(stack, d)) ? readFileSync(path.join(stack, d), "utf8") : null);
+    const up = existsSync(path.join(kladde, "up.log")) ? readFileSync(path.join(kladde, "up.log"), "utf8") : "";
+    return { code: p.status, aus: `${p.stdout}${p.stderr}`, lies, up, stack, aufraeumen: () => rmSync(kladde, { recursive: true, force: true }) };
+  }
+
+  it("alles gleich: Rollout läuft, und die erste Merkliste entsteht", () => {
+    const l = fahre({ merkliste: null });
+    try {
+      expect(l.code, l.aus).toBe(0);
+      expect(l.lies(".rollout-stack.sha256")).toContain(`${sha("compose.yaml v1\n")}  compose.yaml`);
+      expect(l.up).not.toContain("force-recreate clamav");
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("nur das Repo hat sich bewegt: die Datei wird ausgetauscht, der alte Stand beiseitegelegt", () => {
+    const l = fahre({ repo: { "compose.yaml": "compose v2\n", "clamd.files.conf": "clamd v2\n" } });
+    try {
+      expect(l.code, l.aus).toBe(0);
+      expect(l.lies("compose.yaml")).toBe("compose v2\n");
+      expect(l.lies("clamd.files.conf")).toBe("clamd v2\n");
+      expect(l.lies(".rollout-vorher/compose.yaml")).toBe("compose.yaml v1\n");
+      expect(l.lies(".rollout-stack.sha256")).toContain(`${sha("compose v2\n")}  compose.yaml`);
+      // clamd liest seine Konfiguration nur beim Start — und zwar VOR dem `up -d` der Suite.
+      expect(l.up).toMatch(/--force-recreate clamav[\s\S]*\bup -d\s*$/m);
+      // Was in den Container kommt, muss clamd lesen können, nicht nur der Runner-Nutzer.
+      expect(statSync(path.join(l.stack, "clamd.files.conf")).mode & 0o777).toBe(0o644);
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("von Hand geändert: Abbruch, und die Server-Datei bleibt, wie sie ist", () => {
+    const l = fahre({
+      repo: { "compose.yaml": "compose v2\n" },
+      server: { "compose.yaml": "compose.yaml v1\n      - ADMIN_GROUP=nur-hier\n" },
+    });
+    try {
+      expect(l.code).not.toBe(0);
+      expect(l.aus).toMatch(/VON HAND geändert/);
+      expect(l.lies("compose.yaml")).toContain("ADMIN_GROUP=nur-hier");
+      expect(l.up, "kein Container angefasst").toBe("");
+      expect(l.lies(".env")).toContain("@sha256:alt");
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("ohne Merkliste und abweichend: Abbruch wie vor DRK-509", () => {
+    const l = fahre({ repo: { "compose.yaml": "compose v2\n" }, merkliste: null });
+    try {
+      expect(l.code).not.toBe(0);
+      expect(l.aus).toMatch(/noch keine Merkliste/);
+      expect(l.lies("compose.yaml")).toBe("compose.yaml v1\n");
+      expect(l.up).toBe("");
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("die neue compose.yaml braucht eine Variable, die die .env nicht hat: Abbruch vorher", () => {
+    for (const marke of ["braucht", "pflicht"]) {
+      const l = fahre({ repo: { "compose.yaml": `compose v2\n# ${marke}: NEUE_VARIABLE\n` } });
+      try {
+        expect(l.code, marke).not.toBe(0);
+        expect(l.aus, marke).toContain("NEUE_VARIABLE");
+        expect(l.aus, marke).toContain("Nichts angefasst");
+        expect(l.aus, marke).not.toContain("geheim-geheim");
+        expect(l.lies("compose.yaml"), marke).toBe("compose.yaml v1\n");
+        expect(l.up, marke).toBe("");
+      } finally {
+        l.aufraeumen();
+      }
+    }
+  });
+
+  it("… steht sie in der .env, läuft der Rollout", () => {
+    const l = fahre({
+      repo: { "compose.yaml": "compose v2\n# braucht: NEUE_VARIABLE\n" },
+      env: `AUTH_SECRET=geheim-geheim\nNEUE_VARIABLE=x\nSUITE_IMAGE=${BASIS}@sha256:alt\n`,
+    });
+    try {
+      expect(l.code, l.aus).toBe(0);
+      expect(l.lies("compose.yaml")).toBe("compose v2\n# braucht: NEUE_VARIABLE\n");
+    } finally {
+      l.aufraeumen();
+    }
+  });
+
+  it("wird der neue Stand nicht gesund, kommen Image UND Stack-Dateien zurück", () => {
+    const l = fahre({
+      repo: { "compose.yaml": "compose v2\n", "clamd.files.conf": "clamd v2\n", "scripts/backup.sh": "backup v2\n" },
+      gesund: false,
+    });
+    try {
+      expect(l.code).not.toBe(0);
+      expect(l.aus).toMatch(/ROLLBACK/);
+      expect(l.aus).toMatch(/wieder healthy/);
+      expect(l.lies("compose.yaml")).toBe("compose.yaml v1\n");
+      expect(l.lies("clamd.files.conf")).toBe("clamd.files.conf v1\n");
+      expect(l.lies("scripts/backup.sh")).toBe("scripts/backup.sh v1\n");
+      expect(l.lies(".rollout-stack.sha256")).toContain(`${sha("compose.yaml v1\n")}  compose.yaml`);
+      expect(l.lies(".env")).toContain("@sha256:alt");
+      // Der zurückgelegte clamd-Stand und das alte Backup-Skript erreichen die Prozesse nur
+      // über einen neuen Container.
+      expect((l.up.match(/--force-recreate clamav/g) ?? []).length).toBe(2);
+      expect(l.up).toMatch(/--force-recreate backup/);
+    } finally {
+      l.aufraeumen();
+    }
   });
 });

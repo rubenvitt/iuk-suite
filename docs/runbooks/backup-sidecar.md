@@ -52,10 +52,11 @@ $STACK_DIR/scripts/backup.sh
 $STACK_DIR/scripts/backup-sidecar.sh
 ```
 
-> ⚠️ **`scripts/deploy.sh` (Schritt 1) vergleicht ab jetzt alle vier byteweise mit dem
-> Repo und bricht bei Abweichung ab.** Der erste Rollout nach diesem Merge schlägt also
-> fehl, bis die Dateien liegen — das ist gewollt und folgenlos (Schritt 1 fasst noch
-> nichts an). Diesen Abschnitt **vor** der nächsten Freigabe abarbeiten.
+> ⚠️ **`scripts/deploy.sh` (Schritt 1) gleicht alle vier mit dem Repo ab.** Seit DRK-509
+> legt er eine fehlende oder nur im Repo geänderte Datei selbst ab — aber nur, wenn es
+> auf dem Server schon seine Merkliste gibt (`auto-rollout.md`, E2). Ohne sie, oder bei
+> einer Datei, die von Hand geändert wurde, bricht er ab, bevor er etwas anfasst. Auf
+> einem solchen Server diesen Abschnitt **vor** der nächsten Freigabe abarbeiten.
 
 ```bash
 cd /opt/iuk-suite          # bzw. das Verzeichnis mit compose.yaml und .env

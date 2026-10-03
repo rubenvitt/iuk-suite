@@ -40,10 +40,10 @@ services:
     # clamd.files.conf und verliert dabei die Zusatzgruppen.
     #
     # WARUM UEBERHAUPT EINE VARIABLE UND NICHT DER WERT: seit dem automatischen Rollout
-    # vergleicht `scripts/deploy.sh` (Schritt 1) diese Datei BYTEWEISE mit der des Servers
-    # und bricht bei Abweichung ab. Ein Host, der die gid anpassen muss, haette damit eine
-    # dauerhaft abweichende compose.yaml — also entweder nie einen gruenen Rollout oder,
-    # schlimmer, eine Angleichung an die Vorlage, die die Korrektur still herausreisst.
+    # rollt `scripts/deploy.sh` (Schritt 1) diese Datei aus und bricht ab, wenn die des
+    # Servers VON HAND geaendert wurde (DRK-509). Ein Host, der die gid anpassen muss,
+    # haette damit entweder nie einen gruenen Rollout oder, schlimmer, eine Angleichung
+    # an die Vorlage, die die Korrektur still herausreisst.
     # Der Ausweg aus Runbook E2 ("Zeile in die .env retten") traegt hier nicht: `user:`
     # ist ein Service-Schluessel, keine Umgebungsvariable.
     #
@@ -357,8 +357,8 @@ services:
       # MUSS — bisher war es allein `clamd.files.conf`. Fehlt eine, legt Docker an ihrer
       # Stelle ein leeres VERZEICHNIS an; `/bin/sh` scheitert dann mit „Is a directory"
       # und der Container laeuft in die Neustartschleife. Laut, aber nur, wenn man
-      # hinsieht — deshalb vergleicht `scripts/deploy.sh` (Schritt 1) beide Dateien
-      # byteweise mit dem Repo und bricht bei Abweichung ab.
+      # hinsieht — deshalb rollt `scripts/deploy.sh` (Schritt 1) beide Dateien mit aus
+      # und bricht ab, wenn eine fehlt oder von Hand geaendert wurde (DRK-509).
       - ./scripts/backup.sh:/opt/backup/backup.sh:ro
       - ./scripts/backup-sidecar.sh:/opt/backup/backup-sidecar.sh:ro
     # Eigenes Netz, NICHT `proxy` und NICHT `av`. Nach aussen braucht der Dienst eine
