@@ -116,9 +116,10 @@
    die Felder untereinander, die Beschriftungszonen per auto-fit (Falle 13: kein @media im Flyin). */
 .kp-zeichen-mini { flex: none; background: #ffffff; border-radius: 4px; }
 .kp-baukasten { display: grid; gap: 12px; margin-top: 8px; }
-.kp-baukasten-vorschau { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
-.kp-baukasten-vorschau > svg, .kp-baukasten-leer { display: block; width: 128px; height: 128px; background: #ffffff; border: 1px solid var(--kp-rand); border-radius: 8px; }
-.kp-baukasten-vorschau > div { display: grid; gap: 8px; }
+/* Die Vorschau so groß wie im Einsatzzeichen-Baukasten; der Text daneben, im schmalen Flyin darunter (flex-wrap). */
+.kp-baukasten-vorschau { display: flex; flex-wrap: wrap; gap: 12px; align-items: start; }
+.kp-baukasten-vorschau > svg, .kp-baukasten-leer { display: block; flex: none; width: 192px; height: 192px; padding: 8px; box-sizing: border-box; background: #ffffff; border: 1px solid var(--kp-rand); border-radius: 8px; }
+.kp-baukasten-vorschau > div { display: grid; gap: 8px; flex: 1 1 14rem; min-width: 0; }
 .kp-baukasten-achse { display: grid; gap: 4px; }
 .kp-baukasten-achse > .kp-feldname { margin-top: 0; }
 .kp-baukasten-zonen { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 8px; }
