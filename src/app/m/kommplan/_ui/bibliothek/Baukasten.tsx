@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { Alert, Input, Select } from "antd";
+import { Alert, Input, Segmented, Select } from "antd";
 import type { SymbolSpec } from "@einsatzzeichen/schema";
 import {
-  ACHSEN, FELDTITEL, ZONEN, ZONENNAMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt, ohneFeldnamen, ohneTexte, setze, setzeAchse, setzeZone,
-  type Achse, type WahlFeld, type Wertbefund,
+  ACHSEN, FELDTITEL, MITTELGROESSEN, ZONEN_AUSSEN, ZONEN_IM_KOERPER, ZONENNAMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt,
+  mittelgroesse, ohneFeldnamen, ohneTexte, setze, setzeAchse, setzeMittelgroesse, setzeZone,
+  type Achse, type Mittelgroesse, type WahlFeld, type Wertbefund, type Zone,
 } from "../../_lib/zeichen/eigen/vokabular";
 import { zeichneEigenes } from "../../_lib/zeichen/eigen/zeichne";
 import { passt } from "../../_lib/bibliothek/typen";
@@ -31,18 +32,28 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
   const bild = useMemo(() => zeichneEigenes(spec, "kpe-vorschau"), [spec]);
   const hinweise = bild.ok ? [] : bild.art === "regel" ? bild.hinweise : [{ titel: "Nicht vermessen", erklaerung: bild.meldung, feld: null }];
 
+  const zone = (z: Zone) => (
+    <div key={z}>
+      <label className="kp-feldname" htmlFor={`${basis}-zone-${z}`}>{ZONENNAMEN[z]}</label>
+      <Input id={`${basis}-zone-${z}`} value={spec.labels?.[z] ?? ""} maxLength={24} onChange={(e) => onSpec(setzeZone(spec, z, e.target.value))} />
+    </div>
+  );
+  const mitte = (spec.labels?.center ?? "") !== "";
+
   return (
     <div className="kp-baukasten">
       <div className="kp-baukasten-vorschau" aria-live="polite">
         {bild.ok ? (
-          <svg role="img" aria-label={bild.beschreibung} viewBox={bild.quelle.viewBox} width={128} height={128} style={{ fontFamily: schrift }}
+          <svg role="img" aria-label={bild.beschreibung} viewBox={bild.quelle.viewBox} style={{ fontFamily: schrift }}
             dangerouslySetInnerHTML={{ __html: bild.quelle.inhalt }} />
         ) : <span className="kp-baukasten-leer" aria-hidden="true" />}
         <div>
           {bild.ok ? <p className="kp-hilfe">{bild.beschreibung}</p> : null}
           {bild.ok && bild.abgeleitet.length > 0 ? (
-            <Alert type="info" showIcon title={`Abgeleitet: ${abgeleiteteTeile(bild.abgeleitet).join(", ")}`}
-              description="Diese Teile sind nicht an der Vorschrift vermessen, sondern aus vermessenen Nachbarformen abgeleitet." />
+            <p className="kp-hilfe kp-baukasten-abgeleitet">
+              Abgeleitet: {abgeleiteteTeile(bild.abgeleitet).join(", ")}. Diese Teile sind nicht an der Vorschrift vermessen,
+              sondern aus vermessenen Nachbarformen abgeleitet.
+            </p>
           ) : null}
           {hinweise.map((h) => (
             <Alert key={h.titel} type="warning" showIcon title={h.titel} description={ohneFeldnamen(h.erklaerung) || undefined} />
@@ -54,15 +65,23 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
         <AchsenFeld key={achse.key} basis={basis} achse={achse} spec={spec} onSpec={onSpec} />
       ))}
 
-      <fieldset className="kp-abschnitt"><legend>Beschriftung</legend>
-        <p className="kp-hilfe">Text im Körper, etwa „ILS“ in der Mitte und das Kreiskürzel unten rechts. Zu lange Texte meldet die Vorschau.</p>
+      <fieldset className="kp-abschnitt"><legend>Beschriftung im Körper</legend>
+        <p className="kp-hilfe">Text im Körper, etwa „ILS“ in der Mitte. Zu lange Texte meldet die Vorschau.</p>
         <div className="kp-baukasten-zonen">
-          {ZONEN.map((zone) => (
-            <div key={zone}>
-              <label className="kp-feldname" htmlFor={`${basis}-zone-${zone}`}>{ZONENNAMEN[zone]}</label>
-              <Input id={`${basis}-zone-${zone}`} value={spec.labels?.[zone] ?? ""} maxLength={24} onChange={(e) => onSpec(setzeZone(spec, zone, e.target.value))} />
-            </div>
-          ))}
+          {ZONEN_IM_KOERPER.map(zone)}
+          <div>
+            <span className="kp-feldname" id={`${basis}-groesse`}>Größe des mittigen Textes</span>
+            <Segmented aria-labelledby={`${basis}-groesse`} disabled={!mitte} value={mittelgroesse(spec)}
+              options={MITTELGROESSEN.map((g) => ({ value: g.wert, label: g.name }))}
+              onChange={(g) => onSpec(setzeMittelgroesse(spec, g as Mittelgroesse))} />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="kp-abschnitt"><legend>Beschriftung außerhalb</legend>
+        <p className="kp-hilfe">Text neben dem Zeichen, etwa das Kreiskürzel unter dem Zeichen rechts.</p>
+        <div className="kp-baukasten-zonen">
+          {ZONEN_AUSSEN.map(zone)}
           <div>
             <label className="kp-feldname" htmlFor={`${basis}-unten`}>Unter dem Körper</label>
             <Input id={`${basis}-unten`} value={spec.designation ?? ""} maxLength={24}
@@ -77,9 +96,11 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
 function optionen(feld: WahlFeld, befund: readonly Wertbefund[], mitFeld: boolean) {
   return befund.map((b) => {
     const name = bezeichnung(feld, b.wert);
-    const label = !b.frei ? `${name} — ${b.grund ?? "passt hier nicht"}` : b.abgeleitet ? `${name} (abgeleitet)` : name;
-    // `title`: am Telefon kürzt die Liste den Sperrgrund ab; so steht er wenigstens im Tooltip ganz.
-    return { value: mitFeld ? `${feld}:${b.wert}` : b.wert, label, title: label, disabled: !b.frei };
+    const label = !b.frei ? `${name} — ${b.grund ?? "passt hier nicht"}` : name;
+    // `title`: am Telefon kürzt die Liste den Sperrgrund ab; so steht er wenigstens im Tooltip ganz. „Abgeleitet" steht
+    // nur dort (wie im Einsatzzeichen-Baukasten seit 4.2.0) — als Zusatz an jedem zweiten Eintrag machte es die Liste unlesbar.
+    const title = b.frei && b.abgeleitet ? `${name} (abgeleitet, nicht vermessen)` : label;
+    return { value: mitFeld ? `${feld}:${b.wert}` : b.wert, label, title, disabled: !b.frei };
   });
 }
 

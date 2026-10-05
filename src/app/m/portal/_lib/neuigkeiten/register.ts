@@ -20,6 +20,7 @@ import eigenePlaeneUndPlandateien from "@/app/m/portal/_lib/neuigkeiten/notizen/
 import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-02-eigene-zeichen-bauen";
 import plaeneLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-02-plaene-loeschen";
 import zeichenBaukastenMehrOptionen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-02-zeichen-baukasten-mehr-optionen";
+import zeichenGrosserTextUndBeschriftungAussen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-05-zeichen-grosser-text-und-beschriftung-aussen";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -191,6 +192,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   eigeneZeichenBauen,
   plaeneLoeschen,
   zeichenBaukastenMehrOptionen,
+  zeichenGrosserTextUndBeschriftungAussen,
 ];
 
 /**

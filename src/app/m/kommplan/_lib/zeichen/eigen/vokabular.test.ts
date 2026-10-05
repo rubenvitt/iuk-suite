@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SymbolSpec } from "@einsatzzeichen/schema";
-import { ACHSEN, FARBWORTE, KOERPERFORMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt, kandidaten, ohneFeldnamen, setze, setzeAchse, setzeZone } from "./vokabular";
+import { ACHSEN, FARBWORTE, KOERPERFORMEN, abgeleiteteTeile, befunde, bezeichnung, gewaehlt, kandidaten, mittelgroesse, ohneFeldnamen, setze, setzeAchse, setzeMittelgroesse, setzeZone } from "./vokabular";
 
 const spec = (s: object) => s as SymbolSpec;
 const achse = (key: string) => ACHSEN.find((a) => a.key === key)!;
@@ -29,6 +29,16 @@ describe("Vokabular des Baukastens", () => {
     expect(s).toEqual({ kind: "post", labels: { center: "ILS", bottomRight: "SW" } });
     expect(setzeZone(setzeZone(s, "center", " "), "bottomRight", "")).toEqual({ kind: "post" });
     expect(setze(spec({ kind: "post", bodyMarks: ["a"] }), [["bodyMarks", []], ["designation", ""]])).toEqual({ kind: "post" });
+  });
+  it("Größe des mittigen Textes: „Groß“ setzt 7,3 mm, „Normal“ nichts; ohne mittigen Text fällt sie mit weg", () => {
+    const s = setzeMittelgroesse(setzeZone(spec({ kind: "circle-12" }), "center", "LST"), "gross");
+    expect(s).toEqual({ kind: "circle-12", labels: { center: "LST", centerCapHeightMm: 7.3 } });
+    expect(mittelgroesse(s)).toBe("gross");
+    expect(setzeMittelgroesse(s, "normal")).toEqual({ kind: "circle-12", labels: { center: "LST" } });
+    expect(setzeZone(setzeZone(s, "belowRight", "Uel"), "center", "")).toEqual({ kind: "circle-12", labels: { belowRight: "Uel" } });
+  });
+  it("Körperformen tragen die Namen des Pakets, großgeschrieben", () => {
+    expect(KOERPERFORMEN["raised-gable"]).toBe("Ortsgebunden (Giebel)");
   });
   it("Sperren: der gesetzte Wert ist nie gesperrt, ein langer Text sperrt keine Achse, gesperrte tragen einen Grund", () => {
     const s = spec({ kind: "formation", organization: "fuehrung-leitung", strength: "gruppe", labels: { center: "Viel zu langer Text für die Mitte" } });

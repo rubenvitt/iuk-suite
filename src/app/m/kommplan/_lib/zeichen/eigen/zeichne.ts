@@ -7,7 +7,7 @@ import type { Symbolquelle } from "../grundlagen";
  * DER ZEICHNER EIGENER ZEICHEN — Server UND Baukasten im Browser, damit die Vorschau genau das Bild ist, das später
  * in Plan, Druck und Freigabe-Link steht.
  *
- * WARUM `@einsatzzeichen/core` (4.0.0) UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
+ * WARUM `@einsatzzeichen/core` (4.2.0) UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
  * selbst mit (`drawSymbol`, `checkSpec`, `vocabulary`) und lädt seine Metriken als JSON-Import — kein
  * `fileURLToPath` auf Modulebene, also nicht Befund M1, der `@einsatzzeichen/catalog` aus jedem Server-Graph
  * verbannt (`grenze.test.ts`). Damit zeichnet der SERVER aus der gespeicherten Zusammenstellung; ein SVG aus dem
@@ -112,11 +112,19 @@ export function istSicheresSymbol(inhalt: string, idPraefix: string): boolean {
   return !/<!|<\?/.test(inhalt);
 }
 
+/**
+ * ALTBESTAND: bis core 4.1.0 bot der Baukasten die Schrifttoken `funktionslauf-kontrast` und `koerperlauf-kontrast`
+ * als technische Füllung an; seit 4.2.0 zeichnet das Paket sie dort nicht mehr. Beide sind Schwarz (`PALETTE`) —
+ * gelesen wird deshalb `schwarz`, damit ein so gespeichertes Zeichen im Plan bleibt.
+ */
+const ALTE_FUELLUNGEN = new Set(["funktionslauf-kontrast", "koerperlauf-kontrast"]);
+
 /** Form prüfen (unbekannte Felder, falsche Werte): `parseSpec` liefert die kanonische Spec oder einen Satz. */
 export function liesSpec(roh: unknown): { ok: true; spec: SymbolSpec } | { ok: false; fehler: string } {
   try {
     if (JSON.stringify(roh ?? null).length > SPEC_MAX_ZEICHEN) return { ok: false, fehler: "Die Zusammenstellung ist zu groß." };
-    return { ok: true, spec: parseSpec(roh) };
+    const spec = parseSpec(roh);
+    return { ok: true, spec: spec.technicalFill && ALTE_FUELLUNGEN.has(spec.technicalFill) ? { ...spec, technicalFill: "schwarz" } : spec };
   } catch (e) {
     if (e instanceof SpecParseError) return { ok: false, fehler: `Die Zusammenstellung lässt sich nicht lesen (${e.message}).` };
     throw e;

@@ -1,6 +1,8 @@
 import {
   ADMIN_LEVEL_LABELS,
   ALL_PICTOGRAMS,
+  BODY_VARIANT_LABELS,
+  LARGE_CENTER_CAP_HEIGHT_MM,
   ORGANIZATION_LABELS,
   SPEC_FIELD_VALUES,
   STRENGTH_LABELS,
@@ -64,36 +66,55 @@ export const FELDTITEL: Record<WahlFeld, string> = {
 
 export const LISTENFELDER: readonly WahlFeld[] = ["capabilities", "bodyMarks"];
 
-/** Die fünf Beschriftungszonen im Körper. */
-export const ZONEN = ["center", "topLeft", "bottomLeft", "bottomCenter", "bottomRight"] as const;
+/**
+ * Die Beschriftungszonen, wie der Einsatzzeichen-Baukasten sie anbietet (`builder-state.ts`, `LABEL_ZONES`): fünf im
+ * Körper, vier außerhalb. Die Lage leitet das Paket ab; was nicht passt, meldet die Vorschau.
+ */
+export const ZONEN_IM_KOERPER = ["center", "topLeft", "bottomLeft", "bottomCenter", "bottomRight"] as const;
+export const ZONEN_AUSSEN = ["aboveLeft", "belowRight", "surfaceBelowLeft", "surfaceBelowRight"] as const;
+export const ZONEN = [...ZONEN_IM_KOERPER, ...ZONEN_AUSSEN] as const;
 export type Zone = (typeof ZONEN)[number];
 export const ZONENNAMEN: Record<Zone, string> = {
   center: "Mitte", topLeft: "Oben links", bottomLeft: "Unten links", bottomCenter: "Unten mittig", bottomRight: "Unten rechts",
+  aboveLeft: "Über dem Zeichen links", belowRight: "Unter dem Zeichen rechts", surfaceBelowLeft: "Darunter links", surfaceBelowRight: "Darunter rechts",
 };
+
+/**
+ * GRÖSSE DES MITTIGEN TEXTES (core 4.2.0): keine freie Zahl, sondern die belegten Stufen. „Normal" setzt nichts (Normhöhe
+ * 4,87 mm), „Groß" die Versalhöhe 7,3 mm der Ortszeichen D.2.3 bis D.2.5 („LtS" an der Leitstelle).
+ */
+export const MITTELGROESSEN = [
+  { wert: "normal", name: "Normal", hoehe: undefined },
+  { wert: "gross", name: "Groß", hoehe: LARGE_CENTER_CAP_HEIGHT_MM },
+] as const;
+export type Mittelgroesse = (typeof MITTELGROESSEN)[number]["wert"];
+
+/** Die Stufe der Spec; eine fremde Höhe (aus einem Rezept) zählt als „Normal", sie wird beim Umschalten ersetzt. */
+export function mittelgroesse(spec: SymbolSpec): Mittelgroesse {
+  return spec.labels?.centerCapHeightMm === LARGE_CENTER_CAP_HEIGHT_MM ? "gross" : "normal";
+}
+
+export function setzeMittelgroesse(spec: SymbolSpec, groesse: Mittelgroesse): SymbolSpec {
+  const hoehe = MITTELGROESSEN.find((g) => g.wert === groesse)?.hoehe;
+  const labels: Record<string, unknown> = { ...(spec.labels ?? {}) };
+  if (hoehe === undefined) delete labels.centerCapHeightMm;
+  else labels.centerCapHeightMm = hoehe;
+  return setze(spec, [["labels", Object.keys(labels).length ? labels : undefined]]);
+}
 
 /**
  * Deutsche Wörter für die Farbtoken. Das Paket führt dafür kein Register; ein Token wie `funktionslauf-kontrast`
  * hat in einer Auswahl nichts verloren (`vokabular.test.ts` hält die Liste gegen den Wertevorrat).
  */
 export const FARBWORTE: Record<string, string> = {
-  schwarz: "Schwarz", "funktionslauf-kontrast": "Schwarz (Funktionslauf)", "koerperlauf-kontrast": "Schwarz (Körperlauf)",
-  weiss: "Weiß", rot: "Rot", blau: "Blau", gelb: "Gelb", gruen: "Grün", hellgruen: "Hellgrün", orange: "Orange",
+  schwarz: "Schwarz", weiss: "Weiß", rot: "Rot", blau: "Blau", gelb: "Gelb", gruen: "Grün", hellgruen: "Hellgrün", orange: "Orange",
   braun: "Braun", grau: "Grau", hellgrau: "Hellgrau", hellblau: "Hellblau",
 };
 
-/** Körperformen: das Paket exportiert keine Namen (Liste aus dem früheren Modul `zeichen`, `_lib/bezeichnungen.ts`). */
-export const KOERPERFORMEN: Record<string, string> = {
-  "raised-hull": "Angehobener Rumpf",
-  "inset-hull": "Eingesenkter Rumpf",
-  "foot-band": "Fußband",
-  "plain-wheel-pair": "Radpaar ohne Zusatz",
-  "raised-gable": "Kreis mit Giebel",
-  "inverted-hull-track": "Umgekehrter Rumpf mit Kette",
-  "fixed-wing-hull": "Starrflügelrumpf",
-  "raised-circle-1mm": "Um 1 mm angehobener Kreis",
-  "compact-person-diamond-26mm": "Kompakte Personenraute 26 mm",
-  "compact-person-diamond-26mm-lowered-2mm": "Kompakte Personenraute 26 mm, 2 mm tiefer",
-};
+/** Körperformen: seit core 4.2.0 benennt das Paket sie selbst (dieselben Wörter wie im Einsatzzeichen-Baukasten). */
+export const KOERPERFORMEN: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(BODY_VARIANT_LABELS as Readonly<Record<string, string>>).map(([id, name]) => [id, name.charAt(0).toUpperCase() + name.slice(1)]),
+);
 
 const PIKTOGRAMMTITEL = new Map<string, string>(ALL_PICTOGRAMS.filter((p) => p.variant === "primary").map((p) => [p.id, p.title]));
 
@@ -186,11 +207,13 @@ export function setze(spec: SymbolSpec, paare: readonly (readonly [string, unkno
   return neu as unknown as SymbolSpec;
 }
 
-/** Eine Beschriftungszone setzen oder leeren. */
+/** Eine Beschriftungszone setzen oder leeren. Mit dem mittigen Text fällt auch seine Größe weg (sonst lehnt das Paket ab). */
 export function setzeZone(spec: SymbolSpec, zone: Zone, text: string): SymbolSpec {
   const labels: Record<string, unknown> = { ...(spec.labels ?? {}) };
-  if (text.trim() === "") delete labels[zone];
-  else labels[zone] = text;
+  if (text.trim() === "") {
+    delete labels[zone];
+    if (zone === "center") delete labels.centerCapHeightMm;
+  } else labels[zone] = text;
   return setze(spec, [["labels", Object.keys(labels).length ? labels : undefined]]);
 }
 

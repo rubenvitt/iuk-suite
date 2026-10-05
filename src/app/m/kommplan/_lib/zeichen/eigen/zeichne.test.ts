@@ -16,6 +16,23 @@ describe("eigene Zeichen zeichnen", () => {
     expect(r.quelle.inhalt).toMatch(/fill="#000000">SW<\/text>/);
     expect(r.beschreibung).toContain("Kürzel: ILS");
   });
+  it("Leitstelle wie im Einsatzzeichen-Baukasten: großer Mitteltext und Kürzel unter dem Zeichen rechts (core 4.2.0)", () => {
+    const lst = spec({ kind: "circle-12", organization: "fuehrung-leitung", administrativeLevel: "kreis", bodyMarks: ["circle-solid-cap-4mm"],
+      labels: { center: "LST", belowRight: "Uel", centerCapHeightMm: 7.3 } });
+    const gross = zeichneEigenes(lst, "kpe-t");
+    const normal = zeichneEigenes(spec({ ...lst, labels: { center: "LST", belowRight: "Uel" } }), "kpe-t");
+    if (!gross.ok || !normal.ok) throw new Error(JSON.stringify({ gross, normal }));
+    expect(gross.quelle.inhalt).toMatch(/>Uel<\/text>/);
+    const groesse = (inhalt: string) => Number(/font-size="([\d.]+)"[^>]*>LST</.exec(inhalt)![1]);
+    expect(groesse(gross.quelle.inhalt)).toBeGreaterThan(groesse(normal.quelle.inhalt) * 1.4);
+  });
+  it("alte Füllungen aus core 4.1.0 (Schrifttoken) lesen sich als Schwarz und zeichnen weiter", () => {
+    for (const technicalFill of ["funktionslauf-kontrast", "koerperlauf-kontrast"]) {
+      const r = liesSpec({ kind: "formation", technicalFill });
+      expect(r).toEqual({ ok: true, spec: { kind: "formation", technicalFill: "schwarz" } });
+      expect(r.ok && zeichneEigenes(r.spec, "kpe-t").ok).toBe(true);
+    }
+  });
   it("auf Rot, Blau und Grün bleibt die Beschriftung weiß wie in der Vorschrift; getauscht wird nur unter 3:1", () => {
     for (const organization of ["feuerwehr", "thw", "polizei"]) {
       const r = zeichneEigenes(spec({ kind: "formation", organization, labels: { center: "X" } }), "kpe-t");

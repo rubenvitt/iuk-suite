@@ -85,7 +85,7 @@ describe("Bibliothek — eigene Zeichen", () => {
     await zeige([thw]);
     await clickElement(knopf("Pumpe"));
     const vorschau = await baukastenDa();
-    expect(vorschau.querySelector(".ant-alert-info")!.textContent).toContain("Abgeleitet: Fähigkeit");
+    expect(vorschau.querySelector(".kp-baukasten-abgeleitet")!.textContent).toContain("Abgeleitet: Fähigkeit");
     const auswahl = queryPortal('.kp-flyin [data-achse="koerperform"] .ant-select');
     expect(document.querySelector(".ant-select-dropdown")).toBeNull(); // nichts geprüft, solange keine Liste offen ist
     await act(async () => { auswahl.querySelector(".ant-select-content, .ant-select-selector")!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); });
