@@ -469,6 +469,8 @@ export function paritaetsSichtGeraet(r: schema.NeuesGeraet | schema.Geraet) {
     alamosIntegrated: r.alamosIntegrated ?? null,
     loanable: r.loanable ?? null,
     updateNote: r.updateNote ?? null,
+    // Die Quelle kennt keinen offenen Update-Fehler; beide Arme tragen `null`.
+    updateFehler: r.updateFehler ?? null,
     createdAt: sekunden(r.createdAt),
     updatedAt: sekunden(r.updatedAt),
     createdBy: r.createdBy ?? null,

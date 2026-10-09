@@ -16,6 +16,7 @@ import {
   geraeteFuerExport,
   geraeteKennzahlen,
   geraeteListe,
+  updateFahrzeuge,
   updateKarten,
   vorschlaege,
   SORTIER_SCHLUESSEL,
@@ -1033,7 +1034,7 @@ describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
     expect(updateKarten(db, { q: "gibtesnicht" })).toEqual([]);
   });
 
-  it("traegt jedes Feld der Listenzeile weiter — genau zwei kommen dazu", () => {
+  it("traegt jedes Feld der Listenzeile weiter — genau drei kommen dazu", () => {
     /*
      * ⛔ DER WAECHTER GEGEN EINE ZWEITE PROJEKTION: `updateKarten` darf `GeraetZeile` nicht
      * beschneiden (dann fehlte der Karte der Update-Stand oder die ISSI) und nicht um Audit-
@@ -1073,7 +1074,7 @@ describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
     const zeile = geraeteListe(db, {}).zeilen[0]!;
     const karte = updateKarten(db, {})[0]!;
     expect(Object.keys(karte).sort()).toEqual(
-      [...Object.keys(zeile), "updateAnmerkung", "letztesUpdateRoh"].sort(),
+      [...Object.keys(zeile), "updateAnmerkung", "letztesUpdateRoh", "updateFehler"].sort(),
     );
     expect(karte.letztesUpdateRoh).toBe("2026-08-03");
     /*
@@ -1085,5 +1086,48 @@ describe("updateKarten — die Karten des Update-Modus (E-V17b)", () => {
     for (const [feld, wert] of Object.entries(zeile)) {
       expect(karte[feld as keyof typeof karte], `${feld} kommt nicht durch`).toEqual(wert);
     }
+  });
+});
+
+describe("updateFahrzeuge — die Fahrzeuguebersicht des Update-Modus", () => {
+  it("zaehlt je Lagerort gegen die Zielversion und ordnet angefangen, offen, fertig", () => {
+    db.insert(softwareVersions).values([version("2.0", true), version("1.0")]).run();
+    lege(
+      { id: "a1", location: "RTW 1", softwareVersion: "2.0" },
+      { id: "a2", location: "RTW 1", softwareVersion: "1.0", updateFehler: "Akku leer" },
+      { id: "b1", location: "ELW", softwareVersion: "2.0" },
+      { id: "c1", location: "KTW 10", softwareVersion: "1.0" },
+      { id: "c2", location: "KTW 10" },
+      { id: "c3", location: "KTW 2", softwareVersion: "1.0" },
+      { id: "o1", location: null, softwareVersion: "1.0" },
+      { id: "o2", location: "  ", softwareVersion: "2.0" },
+    );
+
+    expect(updateFahrzeuge(db)).toEqual([
+      { ort: "RTW 1", gesamt: 2, aufZiel: 1, mitFehler: 1, fortschritt: "teilweise" },
+      { ort: "KTW 2", gesamt: 1, aufZiel: 0, mitFehler: 0, fortschritt: "offen" },
+      { ort: "KTW 10", gesamt: 2, aufZiel: 0, mitFehler: 0, fortschritt: "offen" },
+      { ort: "ELW", gesamt: 1, aufZiel: 1, mitFehler: 0, fortschritt: "fertig" },
+      // Leerer und fehlender Lagerort sind EINE Gruppe, und sie steht zuletzt.
+      { ort: null, gesamt: 2, aufZiel: 1, mitFehler: 0, fortschritt: "teilweise" },
+    ]);
+  });
+
+  it("laesst ausgemusterte Geraete aus — sie hielten ihr Fahrzeug sonst auf teilweise", () => {
+    db.insert(softwareVersions).values(version("2.0", true)).run();
+    lege(
+      { id: "a1", location: "RTW 1", softwareVersion: "2.0" },
+      { id: "a2", location: "RTW 1", softwareVersion: "1.0", status: "Ausgemustert" },
+    );
+
+    expect(updateFahrzeuge(db)).toEqual([
+      { ort: "RTW 1", gesamt: 1, aufZiel: 1, mitFehler: 0, fortschritt: "fertig" },
+    ]);
+  });
+
+  it("ohne markierte Zielversion ist jedes Fahrzeug offen", () => {
+    lege({ id: "a1", location: "RTW 1", softwareVersion: "2.0" });
+
+    expect(updateFahrzeuge(db).map((f) => f.fortschritt)).toEqual(["offen"]);
   });
 });

@@ -1,14 +1,18 @@
 "use client";
 
 // src/app/m/radio/admin/(arbeit)/software/UpdateSuche.tsx
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AutoComplete, Button, Card, ConfigProvider, Input, Progress, Space, Tag, Typography } from "antd";
 import type { ThemeConfig } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import { TAP, TAP_XL } from "@/core/theme/tokens";
-import { geraetAendernAction, notizAnfuegenAction } from "../../actions";
+import { geraetAendernAction, notizAnfuegenAction, updateFehlerAction } from "../../actions";
 import { tagAusWert } from "../../../_lib/csv/spalten";
-import type { UpdateKarteZeile } from "../../../_lib/lesepfade/geraete";
+import type {
+  FahrzeugFortschritt,
+  FahrzeugStand,
+  UpdateKarteZeile,
+} from "../../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../../_lib/updateStand";
 import { VIkone } from "../../../_ui/verwaltungIkonen";
 import u from "../../../_ui/update.module.css";
@@ -128,7 +132,56 @@ const UPDATE_TEXTE = {
   zielPlatzhalter: "Zielversion wählen",
   /** ⛔ Woertlich `UpdateMode.tsx:37`. */
   titel: "Update-Modus",
+  /** Die Fahrzeuguebersicht und die Ansicht eines Fahrzeugs (Lagerorts). */
+  fahrzeuge: "Fahrzeuge",
+  alleFahrzeuge: "Alle Fahrzeuge",
+  ohneOrt: "Ohne Lagerort",
+  leerOrt: "Kein Gerät an diesem Lagerort",
+  /** Der Fehlerweg: „Nicht aktualisiert" mit Grund. */
+  nichtAktualisiert: "Nicht aktualisiert",
+  fehlerPlatzhalter: "Was ist schiefgegangen? z. B. Gerät startet nicht",
+  fehlerSpeichern: "Fehler speichern",
+  /** Ein Wurf der Action (Funkloch, neuer Stand ausgerollt) — sonst dreht der Knopf ewig. */
+  keineVerbindung: "Nicht gespeichert: keine Verbindung. Bitte nochmal versuchen.",
 } as const;
+
+const FORTSCHRITT_WORT: Record<FahrzeugFortschritt, string> = {
+  offen: "Offen",
+  teilweise: "Teilweise",
+  fertig: "Fertig",
+};
+
+/** Wie `STAND_TON`: das Wort traegt, die Farbe begleitet nur — und nie Rot (Falle 3). */
+const FORTSCHRITT_TON: Record<FahrzeugFortschritt, "success" | "warning" | undefined> = {
+  offen: undefined,
+  teilweise: "warning",
+  fertig: "success",
+};
+
+/** Ausgemusterte Geraete zaehlen im Fortschritt nicht mit — wie in `updateFahrzeuge`. */
+function zaehltMit(z: UpdateKarteZeile): boolean {
+  return (z.status ?? "").trim().toLowerCase() !== "ausgemustert";
+}
+
+/** Prozent fuer den Balken; ohne Geraete 0 statt `NaN`. */
+function prozent(teil: number, gesamt: number): number {
+  return gesamt > 0 ? Math.round((teil / gesamt) * 100) : 0;
+}
+
+/**
+ * Ruft eine Action und faengt den WURF ab. Ohne das blieb der Knopf bei einem Funkloch oder
+ * nach einem Rollout (die Action-ID des alten Stands gibt es nicht mehr) fuer immer im
+ * Ladezustand, und nichts sagte, dass nichts gespeichert wurde.
+ */
+async function sicher<T extends { ok: boolean }>(
+  aufruf: () => Promise<T>,
+): Promise<T | { ok: false; fehler: string }> {
+  try {
+    return await aufruf();
+  } catch {
+    return { ok: false, fehler: UPDATE_TEXTE.keineVerbindung };
+  }
+}
 
 /** ⛔ 300 ms, 1:1 aus `UpdateMode.tsx:25`. */
 const ENTPRELLUNG_MS = 300;
@@ -197,6 +250,10 @@ export type UpdateSucheProps = {
   zeilen: UpdateKarteZeile[];
   /** ⛔ **E-V17**: der Suchtext, wie er in der Adresszeile steht — der Traeger des Leerzweigs. */
   suchtext: string;
+  /** Das angetippte Fahrzeug (Lagerort) aus `?ort=`; dann sind `zeilen` seine Geraete. */
+  ort?: string | null;
+  /** Die Fahrzeuguebersicht (`updateFahrzeuge`) — nur ohne Suchtext und ohne Fahrzeug gefuellt. */
+  fahrzeuge?: FahrzeugStand[];
 };
 
 export function UpdateSuche({
@@ -206,6 +263,8 @@ export function UpdateSuche({
   aufZiel,
   zeilen,
   suchtext,
+  ort = null,
+  fahrzeuge = [],
 }: UpdateSucheProps) {
   const router = useRouter();
   const pfad = usePathname();
@@ -340,10 +399,25 @@ export function UpdateSuche({
           Liste: der Bedienende soll aufgefordert werden, nicht ratlos vor einer leeren Flaeche
           stehen. Seit DRK-495 ohne `Empty`-Bild — nur der Satz.
         */}
-        {suchtext === "" ? (
-          <p className={u.leer}>
-            <span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneSuche}</span>
-          </p>
+        {ort !== null ? (
+          <OrtAnsicht
+            ort={ort}
+            zeilen={zeilen}
+            ziel={ziel}
+            zurueck={() => router.push(pfad)}
+          />
+        ) : suchtext === "" ? (
+          <>
+            <p className={fahrzeuge.length > 0 ? u.leerKnapp : u.leer}>
+              <span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneSuche}</span>
+            </p>
+            {fahrzeuge.length > 0 && (
+              <FahrzeugUebersicht
+                fahrzeuge={fahrzeuge}
+                waehle={(o) => router.push(`${pfad}?ort=${encodeURIComponent(o)}`)}
+              />
+            )}
+          </>
         ) : zeilen.length === 0 ? (
           <p className={u.leer}>
             <span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOhneTreffer}</span>
@@ -361,6 +435,146 @@ export function UpdateSuche({
 }
 
 /**
+ * DIE FAHRZEUGUEBERSICHT — je Lagerort ein Balken: welche Fahrzeuge noch offen, welche
+ * angefangen und welche fertig sind. Angefangene stehen oben, fertige unten
+ * (`updateFahrzeuge`). Ein Tipp oeffnet die Geraete des Fahrzeugs.
+ *
+ * ⛔ GEMESSEN WIRD GEGEN DIE MARKIERTE ZIELVERSION DES SERVERS, nicht gegen die im Feld oben
+ * gewaehlte — dieselbe Zahl wie „x von y auf Zielversion" darueber.
+ */
+function FahrzeugUebersicht({
+  fahrzeuge,
+  waehle,
+}: {
+  fahrzeuge: FahrzeugStand[];
+  waehle: (ort: string) => void;
+}) {
+  const anzahl = (f: FahrzeugFortschritt) => fahrzeuge.filter((x) => x.fortschritt === f).length;
+  return (
+    <section
+      className={u.fahrzeuge}
+      aria-labelledby="radio-update-fahrzeuge-titel"
+      data-rolle="radio-update-fahrzeuge"
+    >
+      <div className={u.fahrzeugeKopf}>
+        <h2 id="radio-update-fahrzeuge-titel" className={u.etikett}>
+          {UPDATE_TEXTE.fahrzeuge}
+        </h2>
+        <span className={u.fortschrittText} data-rolle="radio-update-fahrzeuge-summe">
+          {anzahl("fertig")} fertig · {anzahl("teilweise")} teilweise · {anzahl("offen")} offen
+        </span>
+      </div>
+      <ul className={u.fahrzeugListe}>
+        {fahrzeuge.map((f) => {
+          const name = f.ort ?? UPDATE_TEXTE.ohneOrt;
+          const oeffnen = f.ort === null ? undefined : () => waehle(f.ort!);
+          return (
+            <li key={f.ort ?? "ohne-lagerort"}>
+              {/* Die ganze Kachel ist das Tippziel, auch per Tastatur. Ohne Lagerort laesst
+                  sich nicht filtern — die Kachel zeigt dann nur den Stand. */}
+              <Card
+                hoverable={oeffnen !== undefined}
+                className={oeffnen ? u.fahrzeugTippbar : undefined}
+                data-rolle="radio-update-fahrzeug"
+                data-fortschritt={f.fortschritt}
+                {...(oeffnen
+                  ? {
+                      role: "button",
+                      tabIndex: 0,
+                      "aria-label": `${name}: ${f.aufZiel} von ${f.gesamt} aktuell, ${FORTSCHRITT_WORT[f.fortschritt]}`,
+                      onClick: oeffnen,
+                      onKeyDown: (e: KeyboardEvent) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          oeffnen();
+                        }
+                      },
+                    }
+                  : {})}
+              >
+                <div className={u.fahrzeug}>
+                  <div className={u.fahrzeugZeile}>
+                    <span className={u.fahrzeugName} data-rolle="radio-update-fahrzeug-name">
+                      {name}
+                    </span>
+                    <Tag color={FORTSCHRITT_TON[f.fortschritt]} data-rolle="radio-update-fahrzeug-stand">
+                      {FORTSCHRITT_WORT[f.fortschritt]}
+                    </Tag>
+                  </div>
+                  <span className={u.fortschrittText} data-rolle="radio-update-fahrzeug-zahl">
+                    {f.aufZiel} von {f.gesamt} aktuell
+                    {f.mitFehler > 0 ? ` · ${f.mitFehler} nicht aktualisiert` : ""}
+                  </span>
+                  <Progress
+                    percent={prozent(f.aufZiel, f.gesamt)}
+                    status={f.fortschritt === "fertig" ? "success" : "normal"}
+                    showInfo={false}
+                  />
+                </div>
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * DIE GERAETE EINES FAHRZEUGS — der Kopf mit dem Rueckweg und dem Balken gegen die oben
+ * gewaehlte Zielversion, darunter dieselben Karten wie bei der Suche.
+ */
+function OrtAnsicht({
+  ort,
+  zeilen,
+  ziel,
+  zurueck,
+}: {
+  ort: string;
+  zeilen: UpdateKarteZeile[];
+  ziel: string;
+  zurueck: () => void;
+}) {
+  const zaehlen = zeilen.filter(zaehltMit);
+  const aufZiel = ziel === "" ? 0 : zaehlen.filter((z) => z.softwareVersion === ziel).length;
+  return (
+    <>
+      <section className={u.ortKopf} data-rolle="radio-update-ort">
+        <Button
+          data-rolle="radio-update-alle-fahrzeuge"
+          icon={<VIkone name="pfeil-links" />}
+          onClick={zurueck}
+        >
+          {UPDATE_TEXTE.alleFahrzeuge}
+        </Button>
+        <h2 className={u.ortTitel} data-rolle="radio-update-ort-name">
+          {ort}
+        </h2>
+        {zaehlen.length > 0 && (
+          <div className={u.fortschritt}>
+            <span className={u.fortschrittText} data-rolle="radio-update-ort-fortschritt">
+              {aufZiel} von {zaehlen.length} auf {ziel || "—"}
+            </span>
+            <Progress percent={prozent(aufZiel, zaehlen.length)} />
+          </div>
+        )}
+      </section>
+      {zeilen.length === 0 ? (
+        <p className={u.leer}>
+          <span data-rolle="radio-update-leer">{UPDATE_TEXTE.leerOrt}</span>
+        </p>
+      ) : (
+        <div className={u.liste}>
+          {zeilen.map((z) => (
+            <UpdateKarte key={z.id} zeile={z} ziel={ziel} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
  * EINE KARTE — 1:1 `UpdateDeviceCard.tsx`.
  *
  * ⛔ KEINE EIGENE DATEI: die Insel hat GENAU EINE Grenze (Entscheidung E-V6), und
@@ -370,6 +584,9 @@ export function UpdateSuche({
 function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string }) {
   const [offen, setOffen] = useState(false);
   const [text, setText] = useState("");
+  /** Der Fehlerweg: „Nicht aktualisiert" aufgeklappt und sein Grund. */
+  const [fehlerOffen, setFehlerOffen] = useState(false);
+  const [grund, setGrund] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   /**
@@ -383,6 +600,7 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
   const [vorher, setVorher] = useState<{
     softwareVersion: string | null;
     lastUpdatedAt: string | null;
+    updateFehler: string | null;
     gesetzt: string;
   } | null>(null);
   const uhr = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -430,7 +648,11 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
     setFehler(null);
     /* Der Stand VOR dem Schreiben — roh, damit „Rueckgaengig" ihn unveraendert zurueckschreibt
        (`letztesUpdateRoh`, nicht der Anzeigetext mit seinem Gedankenstrich). */
-    const alt = { softwareVersion: zeile.softwareVersion, lastUpdatedAt: zeile.letztesUpdateRoh };
+    const alt = {
+      softwareVersion: zeile.softwareVersion,
+      lastUpdatedAt: zeile.letztesUpdateRoh,
+      updateFehler: zeile.updateFehler,
+    };
     /*
      * ⛔ **E-V11**: `{ softwareVersion: ziel, lastUpdatedAt: <Berliner Tag> }`. Der Bestand
      * setzt hier `Date.now()` (`UpdateDeviceCard.tsx:24`) — die Suite-Spalte ist
@@ -447,16 +669,34 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
      * Genau deshalb darf die Zeile hier im Browser stehen: sie liefert denselben Tag,
      * gleichgueltig wie der Rechner des Bedienenden gestellt ist.
      */
-    const ergebnis = await geraetAendernAction(zeile.id, {
-      softwareVersion: ziel,
-      lastUpdatedAt: tagAusWert(new Date()),
-    });
-    setLaeuft(false);
+    const ergebnis = await sicher(() =>
+      geraetAendernAction(zeile.id, {
+        softwareVersion: ziel,
+        lastUpdatedAt: tagAusWert(new Date()),
+      }),
+    );
     if (!ergebnis.ok) {
+      setLaeuft(false);
       setPhase("ruhe");
       setFehler(ergebnis.fehler);
       return;
     }
+    /*
+     * DER KOMMENTAR GEHT MIT. Wer die Anmerkung aufklappt, etwas eintippt und dann das Update
+     * bestaetigt, meint beides — bis hierher blieb der Text still im Feld liegen und ging mit
+     * dem naechsten Neuladen verloren.
+     */
+    const kommentar = offen ? text.trim() : "";
+    if (kommentar !== "") {
+      const notiz = await sicher(() => notizAnfuegenAction(zeile.id, kommentar));
+      if (notiz.ok) {
+        setText("");
+        setOffen(false);
+      } else {
+        setFehler(notiz.fehler);
+      }
+    }
+    setLaeuft(false);
     setVorher({ ...alt, gesetzt: ziel });
     setPhase("gespeichert");
     stelleUhr(RUECKGAENGIG_MS, () => {
@@ -475,15 +715,24 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
     if (uhr.current) clearTimeout(uhr.current);
     setLaeuft(true);
     setFehler(null);
-    const ergebnis = await geraetAendernAction(zeile.id, {
-      softwareVersion: vorher.softwareVersion,
-      lastUpdatedAt: vorher.lastUpdatedAt,
-    });
-    setLaeuft(false);
+    const ergebnis = await sicher(() =>
+      geraetAendernAction(zeile.id, {
+        softwareVersion: vorher.softwareVersion,
+        lastUpdatedAt: vorher.lastUpdatedAt,
+      }),
+    );
     if (!ergebnis.ok) {
+      setLaeuft(false);
       setFehler(ergebnis.fehler);
       return;
     }
+    /* Das Update hatte einen offenen Fehler geleert (`geraetAendernAction`); zuruecknehmen
+       heisst, ihn wiederherzustellen — ohne eine zweite Anmerkungszeile. */
+    if (vorher.updateFehler !== null) {
+      const wieder = await sicher(() => updateFehlerAction(zeile.id, vorher.updateFehler, true));
+      if (!wieder.ok) setFehler(wieder.fehler);
+    }
+    setLaeuft(false);
     setVorher(null);
     setPhase("ruhe");
   };
@@ -495,11 +744,33 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
     if (sauber === "") return;
     setLaeuft(true);
     setFehler(null);
-    const ergebnis = await notizAnfuegenAction(zeile.id, sauber);
+    const ergebnis = await sicher(() => notizAnfuegenAction(zeile.id, sauber));
     setLaeuft(false);
     if (ergebnis.ok) {
       setText("");
       setOffen(false);
+      return;
+    }
+    setFehler(ergebnis.fehler);
+  };
+
+  /**
+   * „NICHT AKTUALISIERT" MIT GRUND — setzt den offenen Fehler und haengt die Zeile an die
+   * Update-Anmerkung an (`updateFehlerAction`). Ein spaeteres erfolgreiches Update leert ihn.
+   */
+  const fehlerErfassen = async () => {
+    const sauber = grund.trim();
+    if (sauber === "") return;
+    if (uhr.current) clearTimeout(uhr.current);
+    setPhase("ruhe");
+    setVorher(null);
+    setLaeuft(true);
+    setFehler(null);
+    const ergebnis = await sicher(() => updateFehlerAction(zeile.id, sauber));
+    setLaeuft(false);
+    if (ergebnis.ok) {
+      setGrund("");
+      setFehlerOffen(false);
       return;
     }
     setFehler(ergebnis.fehler);
@@ -526,10 +797,25 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
               {" · "}Letztes Update <span className={u.standWert}>{zeile.letztesUpdateText}</span>
             </span>
           </div>
-          <Tag color={STAND_TON[zeile.updateStand]} data-rolle="radio-update-stand">
-            {STAND_WORT[zeile.updateStand]}
-          </Tag>
+          <div className={u.marken}>
+            <Tag color={STAND_TON[zeile.updateStand]} data-rolle="radio-update-stand">
+              {STAND_WORT[zeile.updateStand]}
+            </Tag>
+            {zeile.updateFehler !== null && (
+              <Tag data-rolle="radio-update-fehler-marke">{UPDATE_TEXTE.nichtAktualisiert}</Tag>
+            )}
+          </div>
         </div>
+
+        {/* Der offene Fehler steht ueber den Knoepfen: wer neben dem Geraet steht, soll ihn
+            sehen, bevor er es erneut versucht. ⛔ `warning`, nicht `danger` (Falle 3). */}
+        {zeile.updateFehler !== null && (
+          <Typography.Paragraph type="warning" className={u.anmerkungText}>
+            <span data-rolle="radio-update-fehlerstand">
+              {UPDATE_TEXTE.nichtAktualisiert}: {zeile.updateFehler}
+            </span>
+          </Typography.Paragraph>
+        )}
 
         <div className={u.knoepfe}>
           {phase === "gespeichert" && vorher ? (
@@ -567,16 +853,49 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
                   : `Auf ${ziel || "—"} aktualisiert`}
             </Button>
           )}
-          <Button
-            block
-            data-rolle="radio-update-anmerkung-knopf"
-            aria-expanded={offen}
-            icon={<VIkone name="warnung" />}
-            onClick={() => setOffen((o) => !o)}
-          >
-            {UPDATE_TEXTE.anmerkungKnopf}
-          </Button>
+          <div className={u.knoepfeNeben}>
+            <Button
+              block
+              data-rolle="radio-update-nicht-knopf"
+              aria-expanded={fehlerOffen}
+              icon={<VIkone name="abbruch" />}
+              onClick={() => setFehlerOffen((o) => !o)}
+            >
+              {UPDATE_TEXTE.nichtAktualisiert}
+            </Button>
+            <Button
+              block
+              data-rolle="radio-update-anmerkung-knopf"
+              aria-expanded={offen}
+              icon={<VIkone name="warnung" />}
+              onClick={() => setOffen((o) => !o)}
+            >
+              {UPDATE_TEXTE.anmerkungKnopf}
+            </Button>
+          </div>
         </div>
+
+        {fehlerOffen && (
+          <Space.Compact className={u.anmerkung}>
+            <Input
+              data-rolle="radio-update-nicht-feld"
+              aria-label="Grund"
+              placeholder={UPDATE_TEXTE.fehlerPlatzhalter}
+              value={grund}
+              onChange={(e) => setGrund(e.target.value)}
+              onPressEnter={fehlerErfassen}
+            />
+            <Button
+              data-rolle="radio-update-nicht-speichern"
+              loading={laeuft}
+              disabled={grund.trim() === ""}
+              icon={<VIkone name="plus" />}
+              onClick={fehlerErfassen}
+            >
+              {UPDATE_TEXTE.fehlerSpeichern}
+            </Button>
+          </Space.Compact>
+        )}
 
         {offen && (
           <Space.Compact className={u.anmerkung}>

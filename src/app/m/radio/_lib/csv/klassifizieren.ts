@@ -240,6 +240,7 @@ function leeresGeraet(issi: string): Geraet {
     alamosIntegrated: null,
     loanable: null,
     updateNote: null,
+    updateFehler: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
     createdBy: null,

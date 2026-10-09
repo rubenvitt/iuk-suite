@@ -1,7 +1,11 @@
 // src/app/m/radio/admin/(arbeit)/software/page.tsx
 import { getDb } from "../../../_db/client";
-import { UPDATE_SEITENGROESSE, UPDATE_SUCHFELDER } from "../../../_lib/geraeteFelder";
-import { geraeteKennzahlen, updateKarten } from "../../../_lib/lesepfade/geraete";
+import {
+  UPDATE_ORT_SEITENGROESSE,
+  UPDATE_SEITENGROESSE,
+  UPDATE_SUCHFELDER,
+} from "../../../_lib/geraeteFelder";
+import { geraeteKennzahlen, updateFahrzeuge, updateKarten } from "../../../_lib/lesepfade/geraete";
 import { versionenMitGeraetezahl, zielVersion } from "../../../_lib/lesepfade/versionen";
 import type { RohSuchparameter } from "../../../_lib/suchparameter";
 import { requireRadioVerwaltung } from "../../../_lib/zugang";
@@ -80,10 +84,14 @@ export default async function RadioSoftwareSeite({
 }) {
   await requireRadioVerwaltung();
 
-  const roh = (await searchParams).q;
+  const parameter = await searchParams;
+  const roh = parameter.q;
   /* Ein mehrfach gesetzter Parameter kommt als Feld — dieselbe Faltung wie in
      `geraeteParameterAus` (`_lib/suchparameter.ts:207`). */
   const suchtext = (Array.isArray(roh) ? roh[0] : roh)?.trim() ?? "";
+  /* Das angetippte Fahrzeug der Uebersicht (ein Lagerort). Der Suchtext geht vor. */
+  const ortRoh = parameter.ort;
+  const ort = suchtext === "" ? (Array.isArray(ortRoh) ? ortRoh[0] : ortRoh)?.trim() || null : null;
 
   const db = getDb();
   const zeilen =
@@ -95,6 +103,10 @@ export default async function RadioSoftwareSeite({
           seite: 1,
           seitenGroesse: UPDATE_SEITENGROESSE,
         });
+  const ortZeilen =
+    ort === null
+      ? []
+      : updateKarten(db, { lagerort: [ort], seite: 1, seitenGroesse: UPDATE_ORT_SEITENGROESSE });
   const kennzahlen = geraeteKennzahlen(db);
   /*
    * ⛔ DIE LISTE ENTSTEHT HIER UND NICHT IN DER PROP-KLAMMER. Der Grund ist gemessen, nicht
@@ -112,8 +124,10 @@ export default async function RadioSoftwareSeite({
       zielVersion={zielVersion(db)}
       gesamt={kennzahlen.gesamt}
       aufZiel={kennzahlen.aktuell}
-      zeilen={zeilen}
+      zeilen={ort === null ? zeilen : ortZeilen}
       suchtext={suchtext}
+      ort={ort}
+      fahrzeuge={suchtext === "" && ort === null ? updateFahrzeuge(db) : []}
     />
   );
 }

@@ -56,8 +56,10 @@ const DATEI = join(MODUL, "admin/actions.ts");
  *   DRK-335 legt die zwei LESENDEN Nachschlag-Actions des Nachladens beim Scrollen an
  *       (`geraeteNachladenAction`, `ausleihenNachladenAction`), beide auf der
  *       Verwaltungs-Stufe ihrer Seiten                              -> 11
+ *   „Nicht aktualisiert" im Update-Modus (`updateFehlerAction`), auf der
+ *       Verwaltungs-Stufe wie die Anmerkung                          -> 12
  */
-const ACTION_ANZAHL = 11;
+const ACTION_ANZAHL = 12;
 
 /**
  * DIE AUFRUFTABELLE AUS §5.4, NAMENTLICH — `Spec:4655-4664`, um `importVorschauAction`
@@ -88,6 +90,8 @@ const VERWALTUNGS_ACTIONS = [
   // DRK-335: die Nachschlaege der Geraete- und der Ausleihenliste — dieselbe Stufe wie die Seiten.
   "geraeteNachladenAction",
   "ausleihenNachladenAction",
+  // „Nicht aktualisiert" mit Grund — der Fehlerweg des Update-Modus.
+  "updateFehlerAction",
 ] as const;
 
 const RIEGEL_ADMIN = /\brequireRadioAdmin\s*\(/;
@@ -423,7 +427,7 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
     expect(verstoesse).toEqual([]);
   });
 
-  it("die sieben Admin-Actions nennen requireRadioAdmin, die vier uebrigen requireRadioVerwaltung", () => {
+  it("die sieben Admin-Actions nennen requireRadioAdmin, die fuenf uebrigen requireRadioVerwaltung", () => {
     /*
      * ⛔ NAMENTLICH JE ACTION, UND ZWEI `toBe` STATT EINEM. Die Zuordnung steht in
      * `Spec:4655-4664` (um `importVorschauAction` gekuerzt, E-V16); ein pfad- oder
@@ -489,7 +493,7 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
     const aufAdmin = [...ersteVon.values()].filter((e) => RIEGEL_ADMIN.test(e)).length;
     const aufVerwaltung = [...ersteVon.values()].filter((e) => RIEGEL_VERWALTUNG.test(e)).length;
     expect(aufAdmin, "SIEBEN Actions auf der Admin-Stufe (Spec:4655-4664)").toBe(7);
-    expect(aufVerwaltung, "VIER Actions auf der Verwaltungs-Stufe (Spec:4655-4664, DRK-335)").toBe(4);
+    expect(aufVerwaltung, "FUENF Actions auf der Verwaltungs-Stufe (Spec:4655-4664, DRK-335, Fehlerweg)").toBe(5);
   });
 });
 

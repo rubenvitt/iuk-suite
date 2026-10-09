@@ -36,13 +36,15 @@ import { dirname, join, normalize } from "node:path";
  * (Bauform-Zulaessigkeitstafel Nr. 6, `Spec:4495-4497`) — deshalb ist der Modulersatz der
  * einzige Weg, sie im Test abzugreifen.
  */
-const { aendernMock, notizMock } = vi.hoisted(() => ({
+const { aendernMock, notizMock, fehlerMock } = vi.hoisted(() => ({
   aendernMock: vi.fn(),
   notizMock: vi.fn(),
+  fehlerMock: vi.fn(),
 }));
 vi.mock("../../actions", () => ({
   geraetAendernAction: aendernMock,
   notizAnfuegenAction: notizMock,
+  updateFehlerAction: fehlerMock,
 }));
 
 /*
@@ -50,9 +52,9 @@ vi.mock("../../actions", () => ({
  * mounted`: die Insel schreibt ihren Suchtext ueber `router.replace` in die Adresszeile
  * (Regime B, E-V17).
  */
-const { replaceMock } = vi.hoisted(() => ({ replaceMock: vi.fn() }));
+const { replaceMock, pushMock } = vi.hoisted(() => ({ replaceMock: vi.fn(), pushMock: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: replaceMock, push: vi.fn() }),
+  useRouter: () => ({ replace: replaceMock, push: pushMock }),
   usePathname: () => "/admin/software",
 }));
 
@@ -123,6 +125,7 @@ function karte(teil: Partial<UpdateKarteZeile> = {}): UpdateKarteZeile {
     letztesUpdateText: "2026-08-03",
     updateAnmerkung: null,
     letztesUpdateRoh: "2026-08-03",
+    updateFehler: null,
     ...teil,
   };
 }
@@ -153,6 +156,9 @@ function texte(rolle: string): string[] {
  */
 beforeEach(() => {
   replaceMock.mockReset();
+  pushMock.mockReset();
+  fehlerMock.mockReset();
+  fehlerMock.mockResolvedValue({ ok: true });
   aendernMock.mockReset();
   aendernMock.mockResolvedValue({ ok: true });
   notizMock.mockReset();
@@ -679,6 +685,145 @@ describe("radio-Update-Modus: zwei Schritte und Rueckgaengig (DRK-495)", () => {
     expect(exists(RUECK)).toBe(false);
     expect(texte("radio-update-fehler")).toEqual(["Speichern fehlgeschlagen."]);
     expect(texte("radio-update-tap")).toEqual(["Auf 3.1.0 aktualisiert"]);
+  });
+});
+
+describe("radio-Update-Modus: Kommentar und Fehlerweg", () => {
+  const TAP = '[data-rolle="radio-update-tap"]';
+  const RUECK = '[data-rolle="radio-update-rueckgaengig"]';
+
+  it("ein eingetippter Kommentar geht mit dem Update mit, statt still liegen zu bleiben", async () => {
+    await mount(<UpdateSuche {...props()} />);
+    await click('[data-rolle="radio-update-anmerkung-knopf"]');
+    await fill('[data-rolle="radio-update-anmerkung-feld"]', "  Antenne getauscht  ");
+
+    await bestaetige();
+
+    expect(aendernMock).toHaveBeenCalledTimes(1);
+    expect(notizMock.mock.calls).toEqual([["g-1", "Antenne getauscht"]]);
+    expect(exists('[data-rolle="radio-update-anmerkung-feld"]'), "das Feld bleibt offen stehen").toBe(
+      false,
+    );
+  });
+
+  it("ohne Kommentar schreibt das Update keine Anmerkung", async () => {
+    await mount(<UpdateSuche {...props()} />);
+    await click('[data-rolle="radio-update-anmerkung-knopf"]');
+    await fill('[data-rolle="radio-update-anmerkung-feld"]', "   ");
+
+    await bestaetige();
+
+    expect(aendernMock).toHaveBeenCalledTimes(1);
+    expect(notizMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("wirft eine Action, steht die Meldung da und der Knopf dreht nicht weiter", async () => {
+    notizMock.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await mount(<UpdateSuche {...props()} />);
+    await click('[data-rolle="radio-update-anmerkung-knopf"]');
+    await fill('[data-rolle="radio-update-anmerkung-feld"]', "Antenne getauscht");
+    await click('[data-rolle="radio-update-anmerkung-speichern"]');
+
+    expect(texte("radio-update-fehler")).toEqual([
+      "Nicht gespeichert: keine Verbindung. Bitte nochmal versuchen.",
+    ]);
+    expect(
+      query('[data-rolle="radio-update-anmerkung-speichern"]').classList.contains("ant-btn-loading"),
+    ).toBe(false);
+    expect(
+      (query('[data-rolle="radio-update-anmerkung-feld"]') as HTMLInputElement).value,
+      "der Text ist weg, obwohl nichts gespeichert wurde",
+    ).toBe("Antenne getauscht");
+  });
+
+  it("„Nicht aktualisiert“ sendet den getrimmten Grund an updateFehlerAction", async () => {
+    await mount(<UpdateSuche {...props()} />);
+    await click('[data-rolle="radio-update-nicht-knopf"]');
+
+    await fill('[data-rolle="radio-update-nicht-feld"]', "   ");
+    await click('[data-rolle="radio-update-nicht-speichern"]');
+    expect(fehlerMock).toHaveBeenCalledTimes(0);
+
+    await fill('[data-rolle="radio-update-nicht-feld"]', "  Gerät startet nicht ");
+    await click('[data-rolle="radio-update-nicht-speichern"]');
+    expect(fehlerMock.mock.calls).toEqual([["g-1", "Gerät startet nicht"]]);
+    expect(aendernMock, "der Fehlerweg setzt keine Version").toHaveBeenCalledTimes(0);
+    expect(exists('[data-rolle="radio-update-nicht-feld"]')).toBe(false);
+  });
+
+  it("ein offener Fehler steht auf der Karte, als Wort und mit Grund", async () => {
+    await mount(<UpdateSuche {...props({ zeilen: [karte({ updateFehler: "Akku leer" })] })} />);
+
+    expect(texte("radio-update-fehler-marke")).toEqual(["Nicht aktualisiert"]);
+    expect(texte("radio-update-fehlerstand")).toEqual(["Nicht aktualisiert: Akku leer"]);
+  });
+
+  it("Rueckgaengig stellt einen vom Update geleerten Fehler wieder her, ohne neue Anmerkung", async () => {
+    await mount(<UpdateSuche {...props({ zeilen: [karte({ updateFehler: "Akku leer" })] })} />);
+    await bestaetige(TAP);
+    await click(RUECK);
+
+    expect(fehlerMock.mock.calls).toEqual([["g-1", "Akku leer", true]]);
+  });
+});
+
+describe("radio-Update-Modus: die Fahrzeuguebersicht", () => {
+  const FAHRZEUGE = [
+    { ort: "RTW 1", gesamt: 2, aufZiel: 1, mitFehler: 1, fortschritt: "teilweise" as const },
+    { ort: "KTW 2", gesamt: 3, aufZiel: 0, mitFehler: 0, fortschritt: "offen" as const },
+    { ort: "ELW", gesamt: 1, aufZiel: 1, mitFehler: 0, fortschritt: "fertig" as const },
+    { ort: null, gesamt: 1, aufZiel: 0, mitFehler: 0, fortschritt: "offen" as const },
+  ];
+
+  it("steht ohne Suchtext unter dem Aufruf, je Fahrzeug Name, Stand und Zahl", async () => {
+    await mount(<UpdateSuche {...props({ suchtext: "", zeilen: [], fahrzeuge: FAHRZEUGE })} />);
+
+    expect(texte("radio-update-leer")).toEqual(["Gerät suchen, um es zu aktualisieren"]);
+    expect(texte("radio-update-fahrzeuge-summe")).toEqual(["1 fertig · 1 teilweise · 2 offen"]);
+    expect(texte("radio-update-fahrzeug-name")).toEqual(["RTW 1", "KTW 2", "ELW", "Ohne Lagerort"]);
+    expect(texte("radio-update-fahrzeug-stand")).toEqual(["Teilweise", "Offen", "Fertig", "Offen"]);
+    expect(texte("radio-update-fahrzeug-zahl")).toEqual([
+      "1 von 2 aktuell · 1 nicht aktualisiert",
+      "0 von 3 aktuell",
+      "1 von 1 aktuell",
+      "0 von 1 aktuell",
+    ]);
+  });
+
+  it("ein Tipp auf ein Fahrzeug oeffnet seine Geraete; ohne Lagerort ist die Kachel nicht tippbar", async () => {
+    await mount(<UpdateSuche {...props({ suchtext: "", zeilen: [], fahrzeuge: FAHRZEUGE })} />);
+    const kacheln = queryAll('[data-rolle="radio-update-fahrzeug"]');
+
+    await act(async () => kacheln[1]!.click());
+    expect(pushMock.mock.calls).toEqual([["/admin/software?ort=KTW%202"]]);
+
+    expect(kacheln[3]!.getAttribute("role"), "die Kachel ohne Lagerort tut, als waere sie tippbar").toBeNull();
+    await act(async () => kacheln[3]!.click());
+    expect(pushMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("die Ansicht eines Fahrzeugs zaehlt gegen die gewaehlte Zielversion und fuehrt zurueck", async () => {
+    await mount(
+      <UpdateSuche
+        {...props({
+          suchtext: "",
+          ort: "RTW 1",
+          zeilen: [
+            karte({ id: "a", softwareVersion: "3.1.0" }),
+            karte({ id: "b", softwareVersion: "2.0.0" }),
+            karte({ id: "c", softwareVersion: "2.0.0", status: "ausgemustert" }),
+          ],
+        })}
+      />,
+    );
+
+    expect(texte("radio-update-ort-name")).toEqual(["RTW 1"]);
+    expect(texte("radio-update-ort-fortschritt")).toEqual(["1 von 2 auf 3.1.0"]);
+    expect(queryAll('[data-rolle="radio-update-karte"]')).toHaveLength(3);
+    expect(exists('[data-rolle="radio-update-fahrzeuge"]')).toBe(false);
+
+    await click('[data-rolle="radio-update-alle-fahrzeuge"]');
+    expect(pushMock.mock.calls).toEqual([["/admin/software"]]);
   });
 });
 

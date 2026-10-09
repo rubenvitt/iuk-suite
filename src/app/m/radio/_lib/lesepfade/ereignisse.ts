@@ -83,6 +83,14 @@ export const FELD_ETIKETTEN: Record<string, string> = {
 };
 
 /**
+ * Felder, die nur im Update-Modus geschrieben werden und deshalb nicht im Formular stehen
+ * (`FELD_ETIKETTEN` haelt genau die Formularfelder, `GeraetFormular.test.tsx`).
+ */
+const UPDATE_ETIKETTEN: Record<string, string> = {
+  updateFehler: "Update-Fehler",
+};
+
+/**
  * Die VIER Quellwerte mit ihrem Klartextwort (`Spec:4772-4773`).
  *
  * ⛔ DIE VIER WERTE SIND ABSCHLIESSEND (`radio-admin/server/src/repos/deviceRepo.ts:219`,
@@ -248,7 +256,7 @@ export function ereignisseFuerGeraet(
     // Zeitstempel selbst, und die Sortierung darf nicht an einer Zonenumstellung haengen.
     zeitIso: e.changedAt.toISOString(),
     // Rueckfall = roher Feldname: ein neu erfasstes Feld erzeugt so keine leere Spalte.
-    feldEtikett: FELD_ETIKETTEN[e.field] ?? e.field,
+    feldEtikett: FELD_ETIKETTEN[e.field] ?? UPDATE_ETIKETTEN[e.field] ?? e.field,
     alt: wertText(e.oldValue),
     neu: wertText(e.newValue),
     // Rueckfall = roher `sub`, „so the field is never blank" (`devices.ts:70-71`); ohne jeden

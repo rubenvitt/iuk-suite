@@ -146,6 +146,7 @@ const ISSI_VERGEBEN = "ISSI bereits vergeben"; // DeviceEditForm.tsx:98, DeviceF
 const SPEICHERN_FEHLER = "Speichern fehlgeschlagen"; // DeviceEditForm.tsx:100
 const LOESCHEN_FEHLER = "Löschen fehlgeschlagen"; // DeviceDetailDrawer.tsx:57
 const ANMERKUNG_FEHLER = "Anmerkung fehlgeschlagen"; // UpdateNotePanel.tsx:23
+const UPDATE_FEHLER_FEHLER = "Fehler konnte nicht gespeichert werden";
 const VERSION_VORHANDEN = "Diese Version existiert bereits"; // SoftwareVersionsPage.tsx:37
 const VERSION_ANLEGEN_FEHLER = "Version konnte nicht angelegt werden"; // SoftwareVersionsPage.tsx:38
 const ZIEL_FEHLER = "Zielversion konnte nicht gesetzt werden"; // SoftwareVersionsPage.tsx:48
@@ -543,6 +544,17 @@ export async function geraetAendernAction(id: string, patch: GeraetPatch): Promi
     const diffs = diffGeraet(bestehend, erlaubt);
     if (diffs.length === 0) return { ok: true };
 
+    // Ein neuer Update-Stand (Version oder Datum) erledigt einen offenen Update-Fehler. Er wird
+    // hier geleert und nicht vom Aufrufer, weil `updateFehler` nicht in `UPDATER_FELDER` steht.
+    if (
+      bestehend.updateFehler !== null &&
+      erlaubt.updateFehler === undefined &&
+      diffs.some((d) => d.feld === "softwareVersion" || d.feld === "lastUpdatedAt")
+    ) {
+      erlaubt.updateFehler = null;
+      diffs.push({ feld: "updateFehler", alt: bestehend.updateFehler, neu: null });
+    }
+
     try {
       db.transaction((tx) => {
         if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
@@ -692,6 +704,73 @@ export async function notizAnfuegenAction(id: string, text: string): Promise<Erg
       });
     } catch {
       return { ok: false, fehler: ANMERKUNG_FEHLER };
+    }
+
+    revalidatePath(`${GERAETELISTE}/${id}`);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(SOFTWARE);
+    return { ok: true };
+  });
+}
+
+/**
+ * „NICHT AKTUALISIERT" ERFASSEN — der Fehlerweg des Update-Modus.
+ *
+ * Mit Text setzt sie `updateFehler` und haengt die Zeile `Nicht aktualisiert: <Grund>` an die
+ * Update-Anmerkung an (dieselbe gezeichnete Form wie `notizAnfuegenAction`), beides in EINER
+ * Transaktion. Mit `null` leert sie den Fehler, ohne Anmerkung.
+ *
+ * `alsRuecknahme` stellt einen Fehler nach „Rueckgaengig" wieder her: dann OHNE neue
+ * Anmerkungszeile, weil die alte noch dasteht. Die Ereigniszeile entsteht trotzdem.
+ *
+ * ⛔ VERWALTUNGS-STUFE wie `notizAnfuegenAction`: genau dafuer gibt es die Updater-Stufe.
+ */
+export async function updateFehlerAction(
+  id: string,
+  fehler: string | null,
+  alsRuecknahme = false,
+): Promise<Ergebnis> {
+  const { viewer } = await requireRadioVerwaltung();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis> => {
+    if (fehler !== null && typeof fehler !== "string") return { ok: false, fehler: UPDATE_FEHLER_FEHLER };
+    // Eine Zeile, getrimmt — derselbe Faelschungsschutz wie in `haengeNotizAn`.
+    const grund = fehler === null ? null : fehler.replace(/[\r\n]+/g, " ").trim();
+    if (grund === "") return { ok: false, fehler: UPDATE_FEHLER_FEHLER };
+
+    const db = getDb();
+    const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
+    if (!bestehend) return { ok: false, fehler: UPDATE_FEHLER_FEHLER };
+    if (bestehend.updateFehler === grund) return { ok: true };
+
+    const jetzt = new Date();
+    const mitNotiz = grund !== null && !alsRuecknahme;
+    const text = `Nicht aktualisiert: ${grund}`;
+    const autor = autorName(viewer);
+    const neueNotiz = mitNotiz
+      ? haengeNotizAn(bestehend.updateNote, text, autor, jetzt)
+      : bestehend.updateNote;
+
+    try {
+      db.transaction((tx) => {
+        tx.update(devices)
+          .set({ updateFehler: grund, updateNote: neueNotiz, updatedAt: jetzt, updatedBy: viewer.sub })
+          .where(eq(devices.id, id))
+          .run();
+        schreibeEreignisse(
+          tx,
+          id,
+          [
+            { feld: "updateFehler", alt: bestehend.updateFehler, neu: grund },
+            ...(mitNotiz
+              ? [{ feld: "updateNote", alt: bestehend.updateNote, neu: haengeNotizAn("", text, autor, jetzt) }]
+              : []),
+          ],
+          viewer.sub,
+          "update-note",
+        );
+      });
+    } catch {
+      return { ok: false, fehler: UPDATE_FEHLER_FEHLER };
     }
 
     revalidatePath(`${GERAETELISTE}/${id}`);
