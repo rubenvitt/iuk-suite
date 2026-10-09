@@ -93,6 +93,7 @@ import {
   geraetLoeschenAction,
   importSchreibenAction,
   notizAnfuegenAction,
+  updateFehlerAction,
   versionAnlegenAction,
   versionLoeschenAction,
   versionZielSetzenAction,
@@ -1320,5 +1321,76 @@ describe("die zwei Nachschlag-Actions (DRK-335)", () => {
       cursor: { wert: "Ruf 20", id: "g-20" },
     });
     expect(antwort.ok).toBe(true);
+  });
+});
+
+describe("updateFehlerAction — der Fehlerweg des Update-Modus", () => {
+  it("setzt den Fehler und haengt EINE gezeichnete Zeile an die Anmerkung an", async () => {
+    geraet({ id: "g-1", issi: "1000001", updateNote: "[2026-01-01 · Alt] frueher" });
+
+    expect(await updateFehlerAction("g-1", "  Geraet startet\nnicht  ")).toEqual({ ok: true });
+
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.updateFehler).toBe("Geraet startet nicht");
+    const notiz = (zeile.updateNote ?? "").split("\n");
+    expect(notiz).toHaveLength(2);
+    expect(notiz[0]).toBe("[2026-01-01 · Alt] frueher");
+    expect(notiz[1]).toMatch(/^\[\d{4}-\d{2}-\d{2} · Adam Admin\] Nicht aktualisiert: Geraet startet nicht$/);
+    expect(ereignisse().map((e) => [e.field, e.source]).sort()).toEqual([
+      ["updateFehler", "update-note"],
+      ["updateNote", "update-note"],
+    ]);
+    expect(entwertetePfade).toContain("/m/radio/admin/software");
+  });
+
+  it("steht der Updater-Stufe offen", async () => {
+    sitzung = UPDATER_SITZUNG;
+    geraet({ id: "g-1", issi: "1000001" });
+
+    expect(await updateFehlerAction("g-1", "Akku leer")).toEqual({ ok: true });
+    expect(geraeteZeilen()[0].updateFehler).toBe("Akku leer");
+  });
+
+  it("lehnt einen leeren Grund und ein unbekanntes Geraet ab", async () => {
+    geraet({ id: "g-1", issi: "1000001" });
+    const abgelehnt = { ok: false, fehler: "Fehler konnte nicht gespeichert werden" };
+
+    expect(await updateFehlerAction("g-1", "   ")).toEqual(abgelehnt);
+    expect(await updateFehlerAction("g-unbekannt", "Akku leer")).toEqual(abgelehnt);
+    expect(geraeteZeilen()[0].updateFehler).toBeNull();
+    expect(ereignisse()).toEqual([]);
+  });
+
+  it("stellt als Ruecknahme wieder her, OHNE eine zweite Anmerkungszeile", async () => {
+    geraet({ id: "g-1", issi: "1000001", updateNote: "[2026-01-01 · Alt] Nicht aktualisiert: Akku leer" });
+
+    expect(await updateFehlerAction("g-1", "Akku leer", true)).toEqual({ ok: true });
+
+    const zeile = geraeteZeilen()[0];
+    expect(zeile.updateFehler).toBe("Akku leer");
+    expect(zeile.updateNote).toBe("[2026-01-01 · Alt] Nicht aktualisiert: Akku leer");
+    expect(ereignisse().map((e) => e.field)).toEqual(["updateFehler"]);
+  });
+
+  it("ein Update (Version oder Datum) leert einen offenen Fehler und protokolliert es", async () => {
+    sitzung = UPDATER_SITZUNG;
+    geraet({ id: "g-1", issi: "1000001", softwareVersion: "1.0", updateFehler: "Akku leer" });
+
+    expect(
+      await geraetAendernAction("g-1", { softwareVersion: "2.0", lastUpdatedAt: "2026-10-09" }),
+    ).toEqual({ ok: true });
+
+    expect(geraeteZeilen()[0].updateFehler).toBeNull();
+    const geleert = ereignisse().find((e) => e.field === "updateFehler");
+    expect(geleert?.oldValue).toBe("Akku leer");
+    expect(geleert?.newValue).toBeNull();
+  });
+
+  it("eine Aenderung ohne Update-Stand laesst den Fehler stehen", async () => {
+    geraet({ id: "g-1", issi: "1000001", updateFehler: "Akku leer" });
+
+    expect(await geraetAendernAction("g-1", { notes: "neue Bemerkung" })).toEqual({ ok: true });
+
+    expect(geraeteZeilen()[0].updateFehler).toBe("Akku leer");
   });
 });

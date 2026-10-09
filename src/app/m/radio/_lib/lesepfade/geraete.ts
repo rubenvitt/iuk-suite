@@ -632,6 +632,8 @@ export type UpdateKarteZeile = GeraetZeile & {
    * ⛔ NICHT aus `letztesUpdateText` zurueckrechnen: dort ist der Nullwert ein Gedankenstrich.
    */
   letztesUpdateRoh: string | null;
+  /** Der offene Update-Fehler („Nicht aktualisiert" mit Grund), sonst `null`. */
+  updateFehler: string | null;
 };
 
 /**
@@ -656,9 +658,17 @@ export type UpdateKarteZeile = GeraetZeile & {
 export function updateKarten(db: DB, p: GeraetFilter): UpdateKarteZeile[] {
   const { zeilen } = geraeteListe(db, p);
 
-  const zusatz = new Map<string, { anmerkung: string | null; letztesUpdate: string | null }>();
+  const zusatz = new Map<
+    string,
+    { anmerkung: string | null; letztesUpdate: string | null; fehler: string | null }
+  >();
   for (const z of db
-    .select({ id: devices.id, anmerkung: devices.updateNote, letztesUpdate: devices.lastUpdatedAt })
+    .select({
+      id: devices.id,
+      anmerkung: devices.updateNote,
+      letztesUpdate: devices.lastUpdatedAt,
+      fehler: devices.updateFehler,
+    })
     .from(devices)
     .where(
       inArray(
@@ -667,14 +677,80 @@ export function updateKarten(db: DB, p: GeraetFilter): UpdateKarteZeile[] {
       ),
     )
     .all()) {
-    zusatz.set(z.id, { anmerkung: z.anmerkung, letztesUpdate: z.letztesUpdate });
+    zusatz.set(z.id, { anmerkung: z.anmerkung, letztesUpdate: z.letztesUpdate, fehler: z.fehler });
   }
 
   return zeilen.map((z) => ({
     ...z,
     updateAnmerkung: zusatz.get(z.id)?.anmerkung ?? null,
     letztesUpdateRoh: zusatz.get(z.id)?.letztesUpdate ?? null,
+    updateFehler: zusatz.get(z.id)?.fehler ?? null,
   }));
+}
+
+/** Wie weit ein Fahrzeug (ein Lagerort) auf der Zielversion steht. */
+export type FahrzeugFortschritt = "offen" | "teilweise" | "fertig";
+
+/** Eine Zeile der Fahrzeuguebersicht im Update-Modus. */
+export type FahrzeugStand = {
+  /** Der Lagerort; `null` fasst die Geraete ohne Lagerort zusammen. */
+  ort: string | null;
+  gesamt: number;
+  aufZiel: number;
+  /** Geraete mit offenem Update-Fehler. */
+  mitFehler: number;
+  fortschritt: FahrzeugFortschritt;
+};
+
+const FORTSCHRITT_REIHENFOLGE: Record<FahrzeugFortschritt, number> = {
+  teilweise: 0,
+  offen: 1,
+  fertig: 2,
+};
+
+/**
+ * Die Fahrzeuguebersicht des Update-Modus: je Lagerort, wie viele Geraete auf der Zielversion
+ * stehen. Ein Fahrzeug ist ein Lagerort — die Geraete kennen kein eigenes Fahrzeugfeld, und die
+ * Ausleihe gruppiert nach demselben Feld.
+ *
+ * ⛔ AUSGEMUSTERTE GERAETE ZAEHLEN NICHT: sie werden nie mehr aktualisiert und hielten ihr
+ * Fahrzeug sonst fuer immer auf „teilweise".
+ *
+ * Gruppiert wird ueber `updateStandAusdruck`, dieselbe Quelle wie Liste und Kennzahlen (E-V8).
+ * Ohne Zielversion steht jedes Fahrzeug auf „offen".
+ *
+ * Reihenfolge: angefangene vor offenen vor fertigen, darin nach Name; ohne Lagerort zuletzt.
+ */
+export function updateFahrzeuge(db: DB): FahrzeugStand[] {
+  const stand = updateStandAusdruck(zielVersion(db));
+  // Leerer und fehlender Lagerort sind EINE Gruppe.
+  const ortAusdruck = sql<string | null>`NULLIF(TRIM(${devices.location}), '')`;
+  const zeilen = db
+    .select({
+      ort: ortAusdruck,
+      gesamt: count(),
+      aufZiel: sql<number>`SUM(CASE WHEN ${stand} = 'aktuell' THEN 1 ELSE 0 END)`,
+      mitFehler: sql<number>`SUM(CASE WHEN ${devices.updateFehler} IS NOT NULL THEN 1 ELSE 0 END)`,
+    })
+    .from(devices)
+    .where(sql`LOWER(TRIM(COALESCE(${devices.status}, ''))) <> 'ausgemustert'`)
+    .groupBy(ortAusdruck)
+    .all();
+
+  return zeilen
+    .map((z): FahrzeugStand => {
+      const ort = z.ort ?? null;
+      const aufZiel = Number(z.aufZiel ?? 0);
+      const fortschritt: FahrzeugFortschritt =
+        aufZiel === 0 ? "offen" : aufZiel >= z.gesamt ? "fertig" : "teilweise";
+      return { ort, gesamt: z.gesamt, aufZiel, mitFehler: Number(z.mitFehler ?? 0), fortschritt };
+    })
+    .sort((a, b) => {
+      if ((a.ort === null) !== (b.ort === null)) return a.ort === null ? 1 : -1;
+      const nachStand = FORTSCHRITT_REIHENFOLGE[a.fortschritt] - FORTSCHRITT_REIHENFOLGE[b.fortschritt];
+      if (nachStand !== 0) return nachStand;
+      return (a.ort ?? "").localeCompare(b.ort ?? "", "de", { numeric: true });
+    });
 }
 
 /**
@@ -855,7 +931,8 @@ export function geraeteFuerExport(db: DB): Geraet[] {
  */
 export type GeraetFormWerte = Omit<
   Geraet,
-  "createdAt" | "updatedAt" | "createdBy" | "updatedBy"
+  // `updateFehler` schreibt nur der Update-Modus (`updateFehlerAction`), das Formular nicht.
+  "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "updateFehler"
 > & { updateStand: UpdateStand };
 
 /**

@@ -58,6 +58,11 @@ export const devices = sqliteTable("devices", {
   // ueberschreibt nie (radio-admin/server/src/db/schema.ts:33-36). ⚠️ Genau diese Spalte
   // walzt ein `onConflictDoUpdate` beim Zweitimport platt (§2.8.4).
   updateNote: text("update_note"),
+  // DER OFFENE UPDATE-FEHLER: gesetzt, wenn im Update-Modus „Nicht aktualisiert" mit Grund
+  // erfasst wurde; ein spaeteres erfolgreiches Update leert ihn. Die Historie steht nicht hier,
+  // sondern als Zeile in `updateNote` und in `device_events` (`admin/actions.ts`,
+  // `updateFehlerAction`).
+  updateFehler: text("update_fehler"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   // OIDC-`sub`, OHNE FK auf users.sub (§2.3).

@@ -49,6 +49,7 @@ function bestehendesGeraet(felder: Partial<Geraet> = {}): Geraet {
     alamosIntegrated: true,
     loanable: true,
     updateNote: null,
+    updateFehler: null,
     createdAt: new Date(1_700_000_000_000),
     updatedAt: new Date(1_700_000_000_000),
     createdBy: null,

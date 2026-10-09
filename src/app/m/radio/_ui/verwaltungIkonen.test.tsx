@@ -174,8 +174,8 @@ describe("verwaltungIkonen: die Union ist die Autoritaet", () => {
   it("fuehrt genau zwanzig Zeichen, doppelfrei", () => {
     // Zwanzig — die achtzehn Zeichen der Alt-Anwendung plus `pfeil-links` und `lupe`, die
     // dort keine eigenen Zeichen waren, hier aber Knoepfe mit klarer Semantik tragen.
-    expect(NAMEN.length).toBe(20);
-    expect(new Set(Object.values(ZEICHEN)).size, "ein Zeichen ist doppelt vergeben").toBe(20);
+    expect(NAMEN.length).toBe(21);
+    expect(new Set(Object.values(ZEICHEN)).size, "ein Zeichen ist doppelt vergeben").toBe(21);
   });
 
   it("bildet jeden Namen auf ein Zeichen des Icons8-Katalogs ab", () => {

@@ -193,6 +193,13 @@ export const UPDATE_SUCHFELDER = ["issi", "rufname", "opta"] as const;
 export const UPDATE_SEITENGROESSE = 25;
 
 /**
+ * Der Deckel fuer die Geraete EINES Fahrzeugs (Lagerorts) im Update-Modus — derselbe Deckel wie
+ * die Geraeteliste (`seitenGroesse`, Vorgabe 25, Deckel 200). Ein Fahrzeug hat nie annaehernd so
+ * viele Geraete; der Deckel haelt nur einen Lagerort wie „Lager" im Rahmen.
+ */
+export const UPDATE_ORT_SEITENGROESSE = 200;
+
+/**
  * DAS WORT UND DER TON DES UPDATE-STANDS — ⛔ EINE QUELLE, NACHDEM ES ZWEI WAREN
  * (DRK-462; der Posten stand als ⬜ **V14-L1** in `GeraetFormular.tsx` und in
  * `admin/(arbeit)/geraete/GeraeteTabelle.tsx` notiert, jeweils mit einer eigenen Abschrift

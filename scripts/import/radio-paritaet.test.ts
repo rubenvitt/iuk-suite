@@ -69,7 +69,7 @@ function vollzeile(sp: SpaltenListe): Record<string, unknown> {
 }
 
 const SICHTEN = [
-  { name: "devices", tabelle: schema.devices, sicht: paritaetsSichtGeraet, spaltenzahl: 25 },
+  { name: "devices", tabelle: schema.devices, sicht: paritaetsSichtGeraet, spaltenzahl: 26 },
   { name: "software_versions", tabelle: schema.softwareVersions, sicht: paritaetsSichtSoftwareVersion, spaltenzahl: 6 },
   { name: "users", tabelle: schema.users, sicht: paritaetsSichtBenutzer, spaltenzahl: 3 },
   { name: "device_events", tabelle: schema.deviceEvents, sicht: paritaetsSichtGeraeteEreignis, spaltenzahl: 8 },

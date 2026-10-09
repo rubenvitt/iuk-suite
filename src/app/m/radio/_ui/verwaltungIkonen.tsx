@@ -55,6 +55,7 @@ export type VerwaltungsIkonName =
   | "haken" // FiCheck
   | "haken-kreis" // FiCheckCircle
   | "warnung" // FiAlertTriangle
+  | "abbruch" // „Nicht aktualisiert" im Update-Modus
   | "frage" // FiHelpCircle
   // ── Fachzeichen und Navigation ───────────────────────────────────────────
   | "pfeil-oben" // FiArrowUp
@@ -84,6 +85,7 @@ export const ZEICHEN: Record<VerwaltungsIkonName, Icons8Name> = {
   haken: "checkmark",
   "haken-kreis": "ok",
   warnung: "warning",
+  abbruch: "cancel",
   frage: "help",
   "pfeil-oben": "arrow-up",
   "pfeil-unten": "arrow-down",
