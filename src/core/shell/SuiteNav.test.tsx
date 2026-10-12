@@ -13,6 +13,7 @@ import {
   existsPortal,
   clickPortal,
 } from "@/app/m/qr/_lib/test-dom";
+import { liesFlyinStand, schliesseRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
 import { SuiteNav, aktiverEintrag, navGruppen } from "./SuiteNav";
 import type { SuiteNavItem } from "./types";
 import s from "./shell.module.css";
@@ -48,6 +49,8 @@ const { signOutMock, pathnameMock } = vi.hoisted(() => ({
 vi.mock("next-auth/react", () => ({ signOut: signOutMock }));
 vi.mock("next/navigation", () => ({ usePathname: pathnameMock }));
 vi.mock("@/core/theme/ThemeToggle", () => ({ ThemeToggle: () => null }));
+// Die Server Action zieht Auth.js nach; im Nutzermenü geht es nur ums Öffnen.
+vi.mock("@/core/rueckmeldung/senden", () => ({ sendeRueckmeldung: vi.fn() }));
 
 const NAV: SuiteNavItem[] = [
   { key: "start", title: "Uebersicht", href: "/" },
@@ -73,7 +76,7 @@ async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
       userName="Ruben Vitt"
       angemeldet
       profilHref="http://portal.localtest.me:3000"
-      feedbackHref="https://forms.example.test/f/abc"
+      rueckmeldeweg={{ art: "link", url: "https://forms.example.test/f/abc" }}
       {...props}
     />,
   );
@@ -154,14 +157,24 @@ describe("SuiteNav — angemeldet", () => {
 
   it("laesst den Feedback-Eintrag weg, wenn kein Formular eingerichtet ist", async () => {
     /*
-     * `rueckmeldungUrl()` liefert `null`, solange `SUITE_RUECKMELDUNG_URL`
-     * nicht (oder unbrauchbar) gesetzt ist. Dieselbe Regel wie beim Profil: ein
+     * `rueckmeldeweg()` liefert `null`, solange weder Zunder-Eingang noch
+     * `SUITE_RUECKMELDUNG_URL` (brauchbar) gesetzt ist. Dieselbe Regel wie beim Profil: ein
      * Eintrag ohne Ziel waere ein toter Link.
      */
-    await zeichne({ feedbackHref: null });
+    await zeichne({ rueckmeldeweg: null });
     await oeffneNutzermenue();
     expect(existsPortal('[data-testid="feedback-link"]')).toBe(false);
     expect(existsPortal('[data-testid="abmelden"]')).toBe(true);
+  });
+
+  it("oeffnet im Formular-Weg das Flyin statt eines Tabs (IDA-214)", async () => {
+    await zeichne({ rueckmeldeweg: { art: "formular" } });
+    await oeffneNutzermenue();
+    const eintrag = queryPortal('[data-testid="feedback-link"]');
+    expect(eintrag.closest("a")).toBeNull();
+    await clickPortal('[data-testid="feedback-link"]');
+    expect(liesFlyinStand()).toBe("offen");
+    schliesseRueckmeldung();
   });
 
   it("laesst Abmelden NICHT zusaetzlich im Drawer stehen", async () => {

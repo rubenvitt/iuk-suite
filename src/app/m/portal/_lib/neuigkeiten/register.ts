@@ -7,6 +7,7 @@ import feedbackGeben from "./notizen/portal/2026-09-22-feedback-geben";
 import zeichenEntfernt from "./notizen/portal/2026-09-23-zeichen-entfernt";
 import zeitzoneEinstellen from "./notizen/portal/2026-09-23-zeitzone-einstellen";
 import anmeldenMitEnter from "./notizen/portal/2026-09-27-anmelden-mit-enter";
+import feedbackInDerSuite from "./notizen/portal/2026-10-12-feedback-in-der-suite";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
@@ -172,6 +173,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   zeichenEntfernt,
   zeitzoneEinstellen,
   anmeldenMitEnter,
+  feedbackInDerSuite,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   listenNachladen,

@@ -12,6 +12,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
+import { oeffneRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
+import type { Rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
+import { RueckmeldungFlyin } from "@/core/rueckmeldung/RueckmeldungFlyin";
 import { initialen } from "@/core/shell/initialen";
 import { gruppiereNav } from "@/core/shell/navAbschnitte";
 import { filtereNav, istLangeNav } from "@/core/shell/navFilter";
@@ -327,7 +330,7 @@ export function SuiteNav({
   userBild = null,
   angemeldet,
   profilHref,
-  feedbackHref,
+  rueckmeldeweg,
 }: {
   nav: SuiteNavItem[];
   /** Namensraum des gemerkten Aufklappzustands — siehe `NavListe`. */
@@ -342,10 +345,10 @@ export function SuiteNav({
   /** Basis-URL des Portals, oder `null`, wenn es keine gibt. Siehe `profilEintrag`. */
   profilHref: string | null;
   /**
-   * Adresse des externen Rückmeldeformulars, oder `null` — nicht eingerichtet
-   * oder anonym. Siehe `feedbackEintrag`.
+   * Der Rückmeldeweg (`core/rueckmeldung/konfiguration.ts`), oder `null` —
+   * nicht eingerichtet oder anonym. Siehe `feedbackEintrag`.
    */
-  feedbackHref: string | null;
+  rueckmeldeweg: Rueckmeldeweg | null;
 }) {
   const [offen, setOffen] = useState(false);
   /*
@@ -446,23 +449,36 @@ export function SuiteNav({
    * KEIN ZIEL, KEIN EINTRAG — dieselbe Regel wie beim Profil: ein toter Link
    * ist schlimmer als kein Link.
    */
-  const feedbackEintrag = feedbackHref
-    ? [
-        {
-          key: "feedback",
-          label: (
-            <a
-              data-testid="feedback-link"
-              href={feedbackHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Feedback geben
-            </a>
-          ),
-        },
-      ]
-    : [];
+  const feedbackEintrag = !rueckmeldeweg
+    ? []
+    : rueckmeldeweg.art === "link"
+      ? [
+          {
+            key: "feedback",
+            label: (
+              <a
+                data-testid="feedback-link"
+                href={rueckmeldeweg.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Feedback geben
+              </a>
+            ),
+          },
+        ]
+      : [
+          {
+            // IDA-214: derselbe Eintrag öffnet das Flyin der Suite statt eines Tabs.
+            key: "feedback",
+            label: "Feedback geben",
+            "data-testid": "feedback-link",
+            onClick: () => {
+              setNutzerMenueOffen(false);
+              oeffneRueckmeldung();
+            },
+          },
+        ];
 
   const abmeldenEintrag = {
     key: "abmelden",
@@ -652,6 +668,12 @@ export function SuiteNav({
           </div>
         </Drawer>
       ) : null}
+
+      {/* Das Rückmelde-Flyin hängt genau hier, weil die Kopfzeile auf jeder
+          angemeldeten Seite steht; Knopf und Portal-Kachel öffnen es über
+          `flyinZustand.ts`. Erst nach der Hydration, aus demselben Grund wie
+          der Drawer darüber. */}
+      {montiert && rueckmeldeweg?.art === "formular" ? <RueckmeldungFlyin modulKey={modulKey} /> : null}
     </>
   );
 }

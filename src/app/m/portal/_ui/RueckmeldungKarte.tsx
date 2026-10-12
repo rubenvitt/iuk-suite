@@ -1,5 +1,8 @@
 import { Card } from "antd";
 
+import type { Rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
+import { RueckmeldungKachelKnopf } from "@/app/m/portal/_ui/RueckmeldungKachelKnopf";
+
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 
@@ -34,7 +37,7 @@ import { SPACE } from "@/core/theme/tokens";
  * `Card.Meta`). Es gibt hier auch nichts zu bedienen — ein Link braucht keinen
  * Zustand.
  */
-export function RueckmeldungKarte({ url }: { url: string }) {
+export function RueckmeldungKarte({ weg }: { weg: Rueckmeldeweg }) {
   return (
     /*
      * ⚠️ DER ABSTAND NACH OBEN GEHÖRT HIERHER, NICHT AUF DIE SEITE.
@@ -56,33 +59,46 @@ export function RueckmeldungKarte({ url }: { url: string }) {
       >
         Rückmeldung
       </h2>
-      <a
-        href={url}
-        target="_blank"
-        /* `rel` gehört zu `target="_blank"`: ohne `noopener` bekäme die fremde
-           Seite über `window.opener` einen Griff auf das Fenster der Suite. */
-        rel="noopener noreferrer"
-        data-testid="portal-feedback"
-        className="portal-kachel-link"
-        style={{ display: "block" }}
-      >
-        <Card hoverable size="small" className="portal-kachel">
-          <span style={SCHRIFT.unterTitel}>Feedback geben</span>
-          <div
-            style={{
-              ...SCHRIFT.neben,
-              color: "var(--iuk-gedaempft)",
-              marginBlockStart: SPACE.xs,
-            }}
-          >
-            {/* ⚠️ „öffnet in einem neuen Tab" steht da, weil es stimmt und weil
-                ein Link, der unangekündigt das Fenster wechselt, für jeden ein
-                Bruch ist, der gerade nicht hinsieht. */}
-            Etwas klappt nicht, fehlt oder geht besser? Schreib es auf — das Formular öffnet in
-            einem neuen Tab.
-          </div>
-        </Card>
-      </a>
+      {weg.art === "link" ? (
+        <a
+          href={weg.url}
+          target="_blank"
+          /* `rel` gehört zu `target="_blank"`: ohne `noopener` bekäme die fremde
+             Seite über `window.opener` einen Griff auf das Fenster der Suite. */
+          rel="noopener noreferrer"
+          data-testid="portal-feedback"
+          className="portal-kachel-link"
+          style={{ display: "block" }}
+        >
+          {/* ⚠️ „öffnet in einem neuen Tab" steht da, weil es stimmt und weil
+              ein Link, der unangekündigt das Fenster wechselt, für jeden ein
+              Bruch ist, der gerade nicht hinsieht. */}
+          <Kachel text="Etwas klappt nicht, fehlt oder geht besser? Schreib es auf — das Formular öffnet in einem neuen Tab." />
+        </a>
+      ) : (
+        /* IDA-214: im Formular-Weg öffnet die Kachel das Flyin der Suite. Ein
+           Knopf in einer Client-Insel, die Kachel selbst bleibt hier. */
+        <RueckmeldungKachelKnopf>
+          <Kachel text="Etwas klappt nicht, fehlt oder geht besser? Schreib es auf — direkt hier in der Suite." />
+        </RueckmeldungKachelKnopf>
+      )}
     </section>
+  );
+}
+
+function Kachel({ text }: { text: string }) {
+  return (
+    <Card hoverable size="small" className="portal-kachel">
+      <span style={SCHRIFT.unterTitel}>Feedback geben</span>
+      <div
+        style={{
+          ...SCHRIFT.neben,
+          color: "var(--iuk-gedaempft)",
+          marginBlockStart: SPACE.xs,
+        }}
+      >
+        {text}
+      </div>
+    </Card>
   );
 }

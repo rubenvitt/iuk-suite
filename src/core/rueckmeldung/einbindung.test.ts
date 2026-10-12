@@ -76,7 +76,7 @@ describe("Reichweite des schwebenden Knopfes", () => {
   it("hängt in FullShell", () => {
     const quelle = lies("src/core/shell/FullShell.tsx");
     expect(quelle).toContain("RueckmeldungKnopf");
-    expect(quelle).toContain("rueckmeldungUrl");
+    expect(quelle).toContain("rueckmeldeweg");
   });
 
   /**
@@ -104,8 +104,8 @@ describe("Reichweite des schwebenden Knopfes", () => {
    * niemand sieht.
    */
   it("der Menüeintrag hängt in SuiteHeader, nicht im Knopf", () => {
-    expect(lies("src/core/shell/SuiteHeader.tsx")).toContain("rueckmeldungUrl");
-    expect(lies("src/core/shell/SuiteNav.tsx")).toContain("feedbackHref");
+    expect(lies("src/core/shell/SuiteHeader.tsx")).toContain("rueckmeldeweg");
+    expect(lies("src/core/shell/SuiteNav.tsx")).toContain("rueckmeldeweg");
   });
 
   it.each([
@@ -119,18 +119,44 @@ describe("Reichweite des schwebenden Knopfes", () => {
 });
 
 describe("Die Server-/Client-Grenze", () => {
-  it.each(["konfiguration.ts", "zustand.ts"])(
+  it.each(["konfiguration.ts", "zustand.ts", "eingang.ts", "eingabe.ts", "flyinZustand.ts", "vorlage.ts", "zunder.ts", "takt.ts"])(
     "hält %s frei von `use client` (Falle 6)",
     (datei) => {
       expect(lies(`src/core/rueckmeldung/${datei}`)).not.toContain('"use client"');
     },
   );
 
-  it("markiert die Insel als Client-Komponente", () => {
+  it.each(["RueckmeldungKnopf.tsx", "RueckmeldungFlyin.tsx"])("markiert %s als Client-Komponente", (datei) => {
     // Am ROHTEXT: die Direktive muss die erste Anweisung der Datei sein, und
     // genau das prüft diese Zusicherung mit.
-    const roh = readFileSync("src/core/rueckmeldung/RueckmeldungKnopf.tsx", "utf8");
+    const roh = readFileSync(`src/core/rueckmeldung/${datei}`, "utf8");
     expect(roh.trimStart()).toMatch(/^"use client";/);
+  });
+
+  it("markiert senden.ts als Server Action", () => {
+    expect(readFileSync("src/core/rueckmeldung/senden.ts", "utf8").trimStart()).toMatch(/^"use server";/);
+  });
+
+  /**
+   * ⚠️ DER ZUNDER-TOKEN (IDA-214). `eingang.ts` liest ihn; nur die
+   * Konfiguration (für „eingerichtet?") und die Server Action dürfen die Datei
+   * laden. Ein Client-Modul, das sie importierte, zöge `process.env` in das
+   * Bundle — und mit einem künftigen `NEXT_PUBLIC_` den Token gleich mit.
+   */
+  it("lässt den Zunder-Eingang nur von Konfiguration und Server Action laden", () => {
+    const lader = sammleQuellen("src")
+      // Ein reiner Typ-Import (`zunder.ts`) lädt nichts und zählt nicht.
+      .filter((pfad) => /import\s+(?!type\b)[^;]*from\s+"@\/core\/rueckmeldung\/eingang"/.test(lies(pfad)))
+      .map((pfad) => pfad.split(join("src", "core", "rueckmeldung") + "/")[1] ?? pfad)
+      .sort();
+    expect(lader).toEqual(["konfiguration.ts", "senden.ts"]);
+  });
+
+  it("lässt Client-Module die Konfiguration nur als Typ importieren", () => {
+    const falsch = sammleQuellen("src")
+      .filter((pfad) => readFileSync(pfad, "utf8").trimStart().startsWith('"use client"'))
+      .filter((pfad) => /import\s+\{[^}]*\}\s+from\s+"@\/core\/rueckmeldung\/konfiguration"/.test(lies(pfad)));
+    expect(falsch).toEqual([]);
   });
 
   it("belegt die Adresse NICHT mit NEXT_PUBLIC_ — sonst stünde sie im Bundle", () => {
@@ -172,5 +198,10 @@ describe("Der Knopf auf dem Papier (Falle 18)", () => {
 describe("Abschaltung in E2E", () => {
   it("setzt SUITE_RUECKMELDUNG_URL leer", () => {
     expect(lies("playwright.config.ts")).toMatch(/SUITE_RUECKMELDUNG_URL:\s*""/);
+  });
+
+  it("setzt den Zunder-Eingang leer", () => {
+    expect(lies("playwright.config.ts")).toMatch(/SUITE_RUECKMELDUNG_ZUNDER_URL:\s*""/);
+    expect(lies("playwright.config.ts")).toMatch(/SUITE_RUECKMELDUNG_ZUNDER_TOKEN:\s*""/);
   });
 });

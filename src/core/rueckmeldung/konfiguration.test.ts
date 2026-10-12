@@ -3,8 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   RUECKMELDUNG_URL_ENV,
   _warnsperreZuruecksetzen,
+  rueckmeldeweg,
   rueckmeldungUrl,
 } from "@/core/rueckmeldung/konfiguration";
+import { ZUNDER_TOKEN_ENV, ZUNDER_URL_ENV, zunderEingang } from "@/core/rueckmeldung/eingang";
 
 /**
  * Die Vorgabe ist AUS, und das ist der wichtigste Fall in dieser Datei: ohne
@@ -116,5 +118,84 @@ describe("rueckmeldungUrl", () => {
   it("heißt bewusst nicht wie die drei Variablen des Moduls `feedback`", () => {
     expect(RUECKMELDUNG_URL_ENV).toBe("SUITE_RUECKMELDUNG_URL");
     expect(RUECKMELDUNG_URL_ENV).not.toContain("FEEDBACK");
+  });
+});
+
+describe("rueckmeldeweg", () => {
+  const still = () => {};
+  const TOKEN = "zi_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG";
+  const ZUNDER = {
+    [ZUNDER_URL_ENV]: "https://zunder.example.test",
+    [ZUNDER_TOKEN_ENV]: TOKEN,
+  };
+  const LINK = "https://forms.example.test/f/abc";
+
+  beforeEach(_warnsperreZuruecksetzen);
+
+  it("ist ohne jede Einrichtung aus", () => {
+    expect(rueckmeldeweg({}, still)).toBeNull();
+  });
+
+  it("nimmt den Zunder-Eingang, wenn er eingerichtet ist — auch wenn der Link noch steht", () => {
+    expect(rueckmeldeweg({ ...ZUNDER, [RUECKMELDUNG_URL_ENV]: LINK }, still)).toEqual({
+      art: "formular",
+    });
+  });
+
+  /**
+   * ⚠️ DAS ERGEBNIS GEHT ALS PROP IN DEN BROWSER. Stünde der Token darin, läge
+   * er im HTML jeder angemeldeten Seite.
+   */
+  it("trägt den Token nicht im Ergebnis", () => {
+    expect(JSON.stringify(rueckmeldeweg(ZUNDER, still))).not.toContain(TOKEN);
+  });
+
+  it("fällt ohne Zunder auf den Link zurück", () => {
+    expect(rueckmeldeweg({ [RUECKMELDUNG_URL_ENV]: LINK }, still)).toEqual({ art: "link", url: LINK });
+  });
+
+  it("fällt bei halber Zunder-Einrichtung auf den Link zurück und warnt einmal", () => {
+    const warnen = vi.fn();
+    const env = { [ZUNDER_URL_ENV]: "https://zunder.example.test", [RUECKMELDUNG_URL_ENV]: LINK };
+    expect(rueckmeldeweg(env, warnen)).toEqual({ art: "link", url: LINK });
+    rueckmeldeweg(env, warnen);
+    expect(warnen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("zunderEingang", () => {
+  const TOKEN = "zi_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG";
+
+  beforeEach(_warnsperreZuruecksetzen);
+
+  it("liefert Basis ohne Schrägstrich und Token", () => {
+    expect(
+      zunderEingang({ [ZUNDER_URL_ENV]: "https://zunder.example.test/", [ZUNDER_TOKEN_ENV]: TOKEN }, vi.fn()),
+    ).toEqual({ basis: "https://zunder.example.test", token: TOKEN });
+  });
+
+  it("erlaubt http nur auf dem eigenen Rechner (Zunder-Ersatz der e2e)", () => {
+    const warnen = vi.fn();
+    expect(zunderEingang({ [ZUNDER_URL_ENV]: "http://127.0.0.1:3109", [ZUNDER_TOKEN_ENV]: TOKEN }, warnen)).not.toBeNull();
+    expect(zunderEingang({ [ZUNDER_URL_ENV]: "http://zunder.example.test", [ZUNDER_TOKEN_ENV]: TOKEN }, warnen)).toBeNull();
+    expect(warnen).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * ⚠️ DER WICHTIGSTE FALL DIESES BLOCKS. Ein voller API-Token dürfte in Zunder
+   * alles lesen und schreiben; er gehört nicht auf den Suite-Server, auch nicht
+   * aus Versehen.
+   */
+  it("lehnt einen vollen API-Token ab", () => {
+    const warnen = vi.fn();
+    const voll = "zt_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG";
+    expect(zunderEingang({ [ZUNDER_URL_ENV]: "https://zunder.example.test", [ZUNDER_TOKEN_ENV]: voll }, warnen)).toBeNull();
+    expect(warnen.mock.calls[0]?.[0]).toContain("voller API-Token");
+  });
+
+  it("lehnt einen Token ohne Präfix ab", () => {
+    expect(
+      zunderEingang({ [ZUNDER_URL_ENV]: "https://zunder.example.test", [ZUNDER_TOKEN_ENV]: "geheim" }, vi.fn()),
+    ).toBeNull();
   });
 });

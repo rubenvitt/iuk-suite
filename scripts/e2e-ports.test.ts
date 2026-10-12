@@ -33,6 +33,7 @@ describe("ermittlePorts", () => {
       pwa: 3101,
       rueckmeldung: 3102,
       clamd: 3310,
+      zunder: 3103,
     });
   });
 
@@ -41,7 +42,7 @@ describe("ermittlePorts", () => {
     expect(a.web % 10).toBe(0);
     expect(a.web).toBeGreaterThanOrEqual(WORKTREE_BASIS);
     expect(a.web).toBeLessThan(WORKTREE_BASIS + 10 * WORKTREE_BLOECKE);
-    expect(a).toEqual({ web: a.web, pwa: a.web + 1, rueckmeldung: a.web + 2, clamd: a.web + 3 });
+    expect(a).toEqual({ web: a.web, pwa: a.web + 1, rueckmeldung: a.web + 2, clamd: a.web + 3, zunder: a.web + 4 });
     // Stabil: jeder Prozess (Hauptprozess, Arbeiter, Vitest) muss dieselbe Zahl sehen.
     expect(ermittlePorts({ wurzel: WT_A, istWorktree: true })).toEqual(a);
     expect(ermittlePorts({ wurzel: WT_B, istWorktree: true }).web).not.toBe(a.web);
@@ -51,7 +52,7 @@ describe("ermittlePorts", () => {
     const alle = Object.values(HAUPTCHECKOUT_PORTS);
     for (let i = 0; i < WORKTREE_BLOECKE; i++) {
       const web = WORKTREE_BASIS + 10 * i;
-      for (const p of [web, web + 1, web + 2, web + 3]) expect(alle).not.toContain(p);
+      for (const p of [web, web + 1, web + 2, web + 3, web + 4]) expect(alle).not.toContain(p);
     }
   });
 
@@ -61,6 +62,7 @@ describe("ermittlePorts", () => {
       pwa: 4501,
       rueckmeldung: 4502,
       clamd: 4503,
+      zunder: 4504,
     });
     expect(ermittlePorts({ wurzel: WT_A, istWorktree: true, vorgabe: "3100" })).toEqual(HAUPTCHECKOUT_PORTS);
     // Leer zählt als nicht gesetzt, wie überall in der Suite.
@@ -85,13 +87,25 @@ describe("die drei Profile hängen an derselben Quelle", () => {
 
   it("die Server der Nebenprofile lauschen, wo ihre baseURL hinzeigt", () => {
     for (const konfig of [pwa, rueckmeldung]) {
-      const ws = konfig.webServer;
-      if (!ws || Array.isArray(ws)) throw new Error("Nebenprofil ohne einzelnen webServer");
+      // Das Rückmeldungs-Profil fährt zusätzlich einen Zunder-Ersatz (IDA-214);
+      // geprüft wird hier der Server, auf den die baseURL zeigt.
+      const alle = Array.isArray(konfig.webServer) ? konfig.webServer : [konfig.webServer];
+      const ws = alle.find((w) => w?.command.includes("next "));
+      if (!ws) throw new Error("Nebenprofil ohne next-Server");
       const erwartet = port(konfig.use?.baseURL);
       expect(ws.env?.PORT).toBe(String(erwartet));
       expect(ws.command).toContain(`-p ${erwartet}`);
       expect(port(ws.url)).toBe(erwartet);
     }
+  });
+});
+
+describe("der Zunder-Ersatz des Rückmeldungs-Profils", () => {
+  it("lauscht auf seinem eigenen Port aus E2E_PORTS", () => {
+    const alle = Array.isArray(rueckmeldung.webServer) ? rueckmeldung.webServer : [];
+    const ersatz = alle.find((w) => w.command.includes("fake-zunder"));
+    expect(ersatz?.env?.PORT).toBe(String(E2E_PORTS.zunder));
+    expect(Number(new URL(String(ersatz?.url)).port)).toBe(E2E_PORTS.zunder);
   });
 });
 

@@ -15,6 +15,8 @@ import {
   liesRueckmeldungStand,
   merkeRueckmeldungErledigt,
 } from "@/core/rueckmeldung/zustand";
+import { oeffneRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
+import type { Rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import s from "./rueckmeldung.module.css";
 
 /**
@@ -50,7 +52,7 @@ import s from "./rueckmeldung.module.css";
  * Tab ist hier ausserdem die freundlichere Wahl: wer mitten in einer Buchung
  * oder einer Inventur etwas melden will, verliert seine Fläche nicht.
  */
-export function RueckmeldungKnopf({ url }: { url: string }) {
+export function RueckmeldungKnopf({ weg }: { weg: Rueckmeldeweg }) {
   const stand = useSyncExternalStore(
     abonniereRueckmeldung,
     liesRueckmeldungStand,
@@ -65,6 +67,12 @@ export function RueckmeldungKnopf({ url }: { url: string }) {
    * mehr hin).
    */
   const erledigen = useCallback(() => merkeRueckmeldungErledigt(), []);
+  // Im Formular-Weg (IDA-214) öffnet derselbe Klick das Flyin statt eines Tabs;
+  // erledigt ist der Knopf danach genauso.
+  const oeffnen = useCallback(() => {
+    merkeRueckmeldungErledigt();
+    oeffneRueckmeldung();
+  }, []);
 
   /*
    * ⚠️ GEGEN `OFFEN` UND NICHT GEGEN `ERLEDIGT` — das ist die sichere
@@ -77,16 +85,22 @@ export function RueckmeldungKnopf({ url }: { url: string }) {
 
   return (
     <div className={s.schweber} data-testid="rueckmeldung-schweber">
-      <Button
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        data-testid="rueckmeldung-knopf"
-        icon={<Icons8Ikone name="comment" />}
-        onClick={erledigen}
-      >
-        Feedback
-      </Button>
+      {weg.art === "link" ? (
+        <Button
+          href={weg.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="rueckmeldung-knopf"
+          icon={<Icons8Ikone name="comment" />}
+          onClick={erledigen}
+        >
+          Feedback
+        </Button>
+      ) : (
+        <Button data-testid="rueckmeldung-knopf" icon={<Icons8Ikone name="comment" />} onClick={oeffnen}>
+          Feedback
+        </Button>
+      )}
       {/*
        * ⚠️ `aria-label` IST HIER PFLICHT, NICHT KÜR: der Knopf trägt nur ein
        * Zeichen, und ein Zeichen liest sich nicht vor. „Ausblenden" allein wäre

@@ -34,6 +34,8 @@
  * (`playwright.config.ts`) erreichte den gebauten Stand nicht mehr.
  */
 
+import { _eingangWarnsperreZuruecksetzen, zunderEingang } from "@/core/rueckmeldung/eingang";
+
 /**
  * ⚠️ `SUITE_RUECKMELDUNG_URL` UND NICHT `SUITE_FEEDBACK_URL`, obwohl die
  * Oberfläche „Feedback" sagt — das Wort ist in der `.env` bereits dreifach
@@ -75,6 +77,7 @@ let schonGewarnt = false;
 /** Nur für Tests: die Sperre zurücknehmen. */
 export function _warnsperreZuruecksetzen(): void {
   schonGewarnt = false;
+  _eingangWarnsperreZuruecksetzen();
 }
 
 /**
@@ -112,4 +115,29 @@ export function rueckmeldungUrl(
   }
 
   return roh;
+}
+
+/**
+ * WELCHER RÜCKMELDEWEG GILT (IDA-214) — die eine Frage, die `FullShell`,
+ * `SuiteHeader` und das Portal stellen.
+ *
+ * - Zunder-Eingang eingerichtet → `formular`: das Flyin der Suite, die Server
+ *   Action schickt an Zunder.
+ * - Sonst `SUITE_RUECKMELDUNG_URL` → `link`: das externe Formular wie bisher.
+ *   Der Zweig bleibt nur für den Übergang und fällt mit dem ClickUp-Formular weg.
+ * - Sonst `null`: aus.
+ *
+ * ⚠️ `formular` TRÄGT KEINEN TOKEN, und das ist der Grund für die Form dieses
+ * Typs. Das Ergebnis geht als Prop an Client-Inseln und landet damit im HTML;
+ * den Token liest allein die Server Action (`senden.ts` über `eingang.ts`).
+ */
+export type Rueckmeldeweg = { art: "formular" } | { art: "link"; url: string };
+
+export function rueckmeldeweg(
+  env: Record<string, string | undefined> = process.env,
+  warnen: (meldung: string) => void = console.warn,
+): Rueckmeldeweg | null {
+  if (zunderEingang(env, warnen)) return { art: "formular" };
+  const url = rueckmeldungUrl(env, warnen);
+  return url ? { art: "link", url } : null;
 }
