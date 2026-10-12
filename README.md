@@ -206,6 +206,7 @@ Ein Modul, das Anwender sehen, ist ein neues Feature und bekommt im selben Commi
 | `docs/runbooks/` | Betriebsanleitungen |
 | `docs/spikes/`, `docs/abnahme/` | Technische Vorversuche und Abnahmeprotokolle |
 
-Aufgaben werden auf dem ClickUp-Board „I&K Suite" als `DRK-<n>` geführt; die Nummer steht im
-Commit-Body. Release Notes für Anwender liegen als Code unter
-`src/app/m/portal/_lib/neuigkeiten/` und erscheinen im Portal.
+Aufgaben werden in Zunder im Projekt „IDA" geführt; der Link
+`https://zunder.rubeen.dev/#/aufgabe/<uuid>` steht im Commit-Body (ältere Commits nennen
+`DRK-<n>`). Release Notes für Anwender liegen als Code unter `src/app/m/portal/_lib/neuigkeiten/`
+und erscheinen im Portal.

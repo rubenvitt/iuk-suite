@@ -32,7 +32,7 @@
  *
  * ⚠️ WAS DIESE DATEI AUSDRUECKLICH NICHT EINSAMMELT: die zwei bereits reparierten Kopien in
  * `_lib/bauform.test.ts` und `_actions/guards.test.ts` (`6331e77`, `4ed3410`). Ob die vier
- * Scans spaeter einer werden, ist ⬜ **V-L9** mit Eigentuemer ClickUp-Board
+ * Scans spaeter einer werden, ist ⬜ **V-L9** mit Eigentuemer Zunder-Projekt IDA
  * (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „Offen, aber NICHT bau-blockierend") —
  * ⛔ kein Bauwert in diesem Fenster. Der Zaehlfall in `admin/actions.test.ts` haelt sie
  * solange SICHTBAR bewacht.

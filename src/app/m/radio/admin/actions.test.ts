@@ -17,7 +17,7 @@ import { bereinigt, ohneKommentare } from "../_lib/quelltextScan";
  *
  * ⛔ ER ERSETZT `_actions/guards.test.ts` NICHT und aendert dort KEINE Zahl. Zwei Scans, weil
  * zwei Ordner. Ob die vier Scans dieses Moduls spaeter einer werden, ist ⬜ **V-L9** mit
- * Eigentuemer ClickUp-Board (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „Offen, aber
+ * Eigentuemer Zunder-Projekt IDA (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „Offen, aber
  * NICHT bau-blockierend") — kein Bauwert in diesem Fenster.
  *
  * ⛔ DIE DREITEILIGE BEREINIGUNG WIRD IMPORTIERT, NICHT KOPIERT (Entscheidung **E-V13**,

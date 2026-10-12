@@ -127,7 +127,7 @@ const QUELLE_SEITE = `${INSEL_ORDNER}/page.tsx`;
  * `software/UpdateSuche.test.tsx`, `versionen/VersionenTabelle.test.tsx` und
  * `import/ImportAssistent.test.tsx`. ⛔ EIN WORTGLEICHES NACHZIEHEN GENUEGT DORT NICHT — die
  * `geraete/`-Kopie braucht den Routenschnitt oben, sonst zieht sie `[id]/` herein.
- * **Eigentuemer: ClickUp-Board** (kein Bauwert in V20s Fenster; V20 fasst keine fremde
+ * **Eigentuemer: Zunder-Projekt IDA** (kein Bauwert in V20s Fenster; V20 fasst keine fremde
  * Inseldatei an, und ein Wachstum von `VersionenTabelle.test.tsx` verschoebe SECHS
  * Belegzeilen: `:24-30`, `:101-107`, `:110-144`, `:157-173` und `:729` von hier,
  * `:611-620` aus `_lib/lesepfade/codes.test.ts`).
@@ -661,7 +661,7 @@ describe("radio-Zugaenge: das Anlegefeld", () => {
      * NICHT GEBAUT — `erstelleCode` prueft `bezeichnung` nicht (`_actions/codes.ts:78-104`,
      * gemessen), und V20 fasst `_actions/` nicht an
      * (`.superpowers/sdd/planteil4/VORABSCAN.md:640`). ⬜ **Benannte Leerstelle, Eigentuemer
-     * ClickUp-Board:** der serverseitige Riegel gehoert in dieselbe Aufgabe, die `_actions/`
+     * Zunder-Projekt IDA:** der serverseitige Riegel gehoert in dieselbe Aufgabe, die `_actions/`
      * ohnehin oeffnet.
      */
     await mount(<CodeTabelle zeilen={[]} />);
