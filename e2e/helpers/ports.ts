@@ -54,10 +54,12 @@ export interface E2EPorts {
   readonly rueckmeldung: number;
   /** Der Fake-clamd aus `scripts/fake-clamd.mjs`, Haupt-Profil. */
   readonly clamd: number;
+  /** Der Zunder-Ersatz aus `scripts/fake-zunder.mjs`, Rückmeldungs-Profil (IDA-214). */
+  readonly zunder: number;
 }
 
 /** Die Zahlen des Hauptcheckouts — so, wie sie vor DRK-346 überall standen. */
-export const HAUPTCHECKOUT_PORTS: E2EPorts = { web: 3100, pwa: 3101, rueckmeldung: 3102, clamd: 3310 };
+export const HAUPTCHECKOUT_PORTS: E2EPorts = { web: 3100, pwa: 3101, rueckmeldung: 3102, clamd: 3310, zunder: 3103 };
 
 /** Erster Web-Port eines Worktree-Blocks. */
 export const WORKTREE_BASIS = 4100;
@@ -65,7 +67,7 @@ export const WORKTREE_BASIS = 4100;
 export const WORKTREE_BLOECKE = 90;
 
 function blockAb(web: number): E2EPorts {
-  return { web, pwa: web + 1, rueckmeldung: web + 2, clamd: web + 3 };
+  return { web, pwa: web + 1, rueckmeldung: web + 2, clamd: web + 3, zunder: web + 4 };
 }
 
 /** Der Block eines Worktrees — stabil für denselben Pfad, gestreut über alle. */
@@ -88,8 +90,8 @@ export function ermittlePorts(eingabe: {
     const web = Number(roh);
     // Laut statt still: ein Tippfehler hier ergäbe sonst `NaN` in jeder URL,
     // und jeder Test scheiterte an einer Meldung, die nach DNS klingt.
-    if (!Number.isInteger(web) || web < 1024 || web > 65532) {
-      throw new Error(`E2E_PORT="${roh}" ist kein Port zwischen 1024 und 65532.`);
+    if (!Number.isInteger(web) || web < 1024 || web > 65531) {
+      throw new Error(`E2E_PORT="${roh}" ist kein Port zwischen 1024 und 65531.`);
     }
     return web === HAUPTCHECKOUT_PORTS.web ? HAUPTCHECKOUT_PORTS : blockAb(web);
   }

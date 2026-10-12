@@ -1,6 +1,6 @@
 import { SuiteRahmen } from "@/core/shell/SuiteRahmen";
 import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
-import { rueckmeldungUrl } from "@/core/rueckmeldung/konfiguration";
+import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { RueckmeldungKnopf } from "@/core/rueckmeldung/RueckmeldungKnopf";
 import type { SuiteNavItem } from "@/core/shell/types";
 
@@ -65,13 +65,13 @@ export async function FullShell({
   nav?: SuiteNavItem[];
   children: React.ReactNode;
 }) {
-  const rueckmeldung = rueckmeldungUrl();
+  const rueckmeldung = rueckmeldeweg();
 
   return (
     <SuiteRahmen moduleKey={moduleKey} nav={nav}>
       <Arbeitsdichte>
         {children}
-        {rueckmeldung && <RueckmeldungKnopf url={rueckmeldung} />}
+        {rueckmeldung && <RueckmeldungKnopf weg={rueckmeldung} />}
       </Arbeitsdichte>
     </SuiteRahmen>
   );

@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud";
+import { defineConfig } from "@playwright/test"; import { E2E_PORTS, pruefePortsFrei } from "./e2e/helpers/ports"; import { cloudTauglich } from "./e2e/helpers/cloud"; import { E2E_ZUNDER_TOKEN } from "./e2e/helpers/zunder";
 
 /**
  * Eigene Config für die Rückmelde-Einbindung (Port 3102, neben 3100/3101).
@@ -38,33 +38,47 @@ export default cloudTauglich(defineConfig({
     baseURL: `http://portal.localtest.me:${E2E_PORTS.rueckmeldung}`,
     trace: "on-first-retry",
   },
-  webServer: {
-    command: `rm -rf ./.data/rueckmeldung && next dev -p ${E2E_PORTS.rueckmeldung}`,
-    // Wartet auf die Anmeldeseite und übersetzt damit die teuerste Hülle der
-    // Suite, bevor der erste Fall läuft — dieselbe Begründung wie im Dev-Profil.
-    url: `http://portal.localtest.me:${E2E_PORTS.rueckmeldung}/login`,
-    reuseExistingServer: false,
-    timeout: 180_000,
-    env: {
-      AUTH_SECRET: "test-secret",
-      AUTH_DEV_LOGIN: "true",
-      AUTH_COOKIE_DOMAIN: ".localtest.me",
-      DATA_DIR: "./.data/rueckmeldung",
-      PORT: String(E2E_PORTS.rueckmeldung),
-      NODE_ENV: "development",
-      POCKET_ID_API_KEY: "",
-      /*
-       * ⚠️ DIE ADRESSE IST ERFUNDEN UND SOLL ES SEIN. Kein Fall dieses Profils
-       * ruft sie ab — geprüft wird, WO der Weg steht und ob er wieder
-       * verschwindet, nicht was am anderen Ende liegt. Eine echte Adresse
-       * machte den Lauf von der Erreichbarkeit eines fremden Servers abhängig,
-       * ohne dass er dadurch mehr prüfte. `.invalid` ist dafür reserviert
-       * (RFC 2606) und löst nirgends auf.
-       */
-      SUITE_RUECKMELDUNG_URL: "https://formular.invalid/f/e2e",
+  /*
+   * ZWEI SERVER (IDA-214): vorne der Zunder-Ersatz, dahinter die Suite. Die
+   * Suite schickt Rückmeldungen serverseitig dorthin; der Token ist erfunden
+   * und gilt nur zwischen diesen beiden Prozessen.
+   */
+  webServer: [
+    {
+      command: "node scripts/fake-zunder.mjs",
+      url: `http://127.0.0.1:${E2E_PORTS.zunder}/healthz`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      env: { PORT: String(E2E_PORTS.zunder), FAKE_ZUNDER_TOKEN: E2E_ZUNDER_TOKEN },
     },
-  },
+    {
+      command: `rm -rf ./.data/rueckmeldung && next dev -p ${E2E_PORTS.rueckmeldung}`,
+      // Wartet auf die Anmeldeseite und übersetzt damit die teuerste Hülle der
+      // Suite, bevor der erste Fall läuft — dieselbe Begründung wie im Dev-Profil.
+      url: `http://portal.localtest.me:${E2E_PORTS.rueckmeldung}/login`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+      env: {
+        AUTH_SECRET: "test-secret",
+        AUTH_DEV_LOGIN: "true",
+        AUTH_COOKIE_DOMAIN: ".localtest.me",
+        DATA_DIR: "./.data/rueckmeldung",
+        PORT: String(E2E_PORTS.rueckmeldung),
+        NODE_ENV: "development",
+        POCKET_ID_API_KEY: "",
+        /*
+         * Der Formular-Weg (IDA-214). Der alte Link-Weg ist in Vitest geprüft
+         * (`konfiguration.test.ts`, `RueckmeldungKnopf.test.tsx`) und fällt mit
+         * dem ClickUp-Formular weg; ihn hier zusätzlich zu fahren hieße, ein
+         * zweites Profil für einen Übergangszustand zu pflegen.
+         */
+        SUITE_RUECKMELDUNG_URL: "",
+        SUITE_RUECKMELDUNG_ZUNDER_URL: `http://127.0.0.1:${E2E_PORTS.zunder}`,
+        SUITE_RUECKMELDUNG_ZUNDER_TOKEN: E2E_ZUNDER_TOKEN,
+      },
+    },
+  ],
 }));
 
 // Nennt den Halter eines belegten Ports (DRK-346, `e2e/helpers/ports.ts`).
-pruefePortsFrei([E2E_PORTS.rueckmeldung]);
+pruefePortsFrei([E2E_PORTS.rueckmeldung, E2E_PORTS.zunder]);

@@ -1,9 +1,10 @@
 # Rückmeldungen nach Zunder statt ins ClickUp-Formular — Konzept
 
 - **Datum:** 2026-10-12
-- **Status:** Entwurf, wartet auf Freigabe
+- **Status:** freigegeben (12.10.2026)
 - **Bezug:** `core/rueckmeldung` (DRK-453), Zunder-Spec `rubenvitt/zunder:docs/superpowers/specs/2026-10-11-zunder-design.md`,
   Zunder-Vertrag `rubenvitt/zunder:docs/superpowers/plans/2026-10-11-zunder-implementation.md`
+- **Aufgabe:** IDA-214, https://zunder.rubeen.dev/#/aufgabe/xhmv7vsbsr2kpuh54o8kxzvh
 - **Frist:** ClickUp wird Ende November 2026 gekündigt; bis dahin muss der Rückmeldeweg ohne ClickUp laufen.
 
 ## 1. Ausgangslage
@@ -61,7 +62,7 @@ Browser), und die Person bekommt eine Nummer zurück, auf die sie sich beziehen 
 
 **Nicht-Ziele (erste Ausbaustufe):** Anhänge und Bildschirmfotos, Rückmeldungen von anonymen Seiten
 (öffentliches Feedback, Freigaben, Kiosk), eine Statusanzeige „Meine Rückmeldungen" (Etappe 4),
-Rückfragen per E-Mail aus Zunder heraus.
+Rückfragen per E-Mail (es wird keine E-Mail-Adresse mitgeschickt).
 
 ## 3. Überblick
 
@@ -71,100 +72,38 @@ Rückfragen per E-Mail aus Zunder heraus.
  │ Flyin „Feedback"     │──Action────▶│ sendeRueckmeldung()      │─────────▶│ POST /intake/v1/tasks   │
  │ (Menü, Knopf, Kachel)│             │ • Sitzung prüfen         │ Bearer   │ • nur Eingangs-Token zi_│
  │ Art, Titel, Text,    │◀────────────│ • Grenzen, Takt          │  zi_…    │ • feste Stelle: Projekt │
- │ Rückfrage erlaubt?   │ {ok, ref}   │ • Kontext anreichern     │◀─────────│   „IDA Eingang"         │
- └──────────────────────┘             │ • Audit-Ereignis         │ {id,ref} │ • Quelle intake:suite   │
+ │                      │ {ok, ref}   │ • Kontext anreichern     │◀─────────│   „IDA Eingang"         │
+ └──────────────────────┘             │                          │ {id,ref} │ • Quelle intake:suite   │
                                       └──────────────────────────┘          └─────────────────────────┘
                                                                                  │ Triage (Ruben):
                                                                                  ▼ verschieben nach „IDA"
                                                                                    oder verwerfen
 ```
 
-Zwei Änderungen, je eine pro Repo:
+Die Suite schickt an einen **Eingang** in Zunder: eine eigene Adresse mit eigenem Token, die nur
+anlegen kann, nichts lesen, und nur an einer festen Stelle (Projekt „IDA Eingang", Schlüssel `IDAE`).
+Wie Zunder das baut, steht in Zunder, nicht hier. Dieser Abschnitt hält nur fest, worauf sich die Suite
+verlässt.
 
-- **Zunder:** ein Eingangs-Endpunkt mit eigenem, schreibgeschränktem Token (Abschnitt 4).
-- **Suite:** ein eigenes Formular statt des Links, eine Server Action, die an den Eingang schickt
-  (Abschnitt 5).
+## 4. Was die Suite vom Zunder-Eingang erwartet
 
-## 4. Zunder: der Eingang
+`POST <SUITE_RUECKMELDUNG_ZUNDER_URL>/intake/v1/tasks`, `Authorization: Bearer zi_…`, JSON:
 
-> Dieser Abschnitt ist die Vorlage für eine Aufgabe im Projekt „Zunder" (`ZUN`) und gehört nach der
-> Freigabe in dessen Vertrag. Hier steht er, damit beide Seiten in einem Dokument abgestimmt werden.
+| Feld | Pflicht | Was die Suite schickt |
+|---|---|---|
+| `external_id` | ja | ID der Rückmeldung aus der Suite, `[A-Za-z0-9_-]`, ≤ 128 Zeichen |
+| `title` | ja | Titel aus dem Formular, ≤ 200 Zeichen |
+| `description` | nein | Markdown nach Vorlage 5.4 |
+| `type` | nein | `bug`, `feature` oder `aufgabe` |
+| `links` | nein | genau ein Link: die Seite, von der aus gemeldet wurde |
 
-### 4.1 Entscheidungen
-
-| Entscheidung | Grund |
+| Antwort | Bedeutung für die Suite |
 |---|---|
-| **Eigene Tabelle `intake_channels`, eigenes Präfix `zi_`**, nicht eine Spalte `scope` an `api_tokens` | Die Middleware für `/api/*` und `/mcp` liest nur `api_tokens`. Ein Eingangs-Token kann dort gar nicht erst angenommen werden; die Sicherheit hängt nicht an einer Abfrage, die jemand später vergisst. |
-| **Eigener Pfad `/intake/v1/…`**, nicht unter `/api` | Hält ihn aus der Session- und CSRF-Logik von `/api` heraus und macht ihn für Traefik einzeln regelbar. |
-| **Die Stelle steht am Kanal, nicht in der Anfrage** | Wer den Token hat, kann trotzdem nur in das eine Projekt schreiben, keine Bereiche sehen und keine Aufgaben verschieben. |
-| **Nur anlegen, nie lesen, nie ändern** | Was die Suite nicht braucht, kann ein Angreifer nicht missbrauchen. Statusabfrage kommt erst in Etappe 4 und auch dann nur für eigene Einwürfe. |
-| **Idempotent über `external_id`** | Die Suite darf nach einem Zeitüberschreitungs-Fehler wiederholen, ohne doppelte Aufgaben zu erzeugen. |
-| **Ziel ist ein eigenes Dev-Projekt „IDA Eingang"**, nicht die Inbox | Die persönliche Inbox soll auf null; Ehrenamtsrückmeldungen gehören nicht in die private Triage. Ein Dev-Projekt erlaubt `bug`/`feature`, und Verschieben zwischen Dev-Projekten erlaubt der Kern (Vertrag 2.5). |
-
-### 4.2 Datenmodell
-
-Migration `0007_intake.sql`:
-
-```sql
-CREATE TABLE intake_channels (
-    id           TEXT PRIMARY KEY,           -- CUID2
-    user_id      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name         TEXT    NOT NULL,           -- z. B. "iuk-suite"; Quelle im Protokoll: intake:<name>
-    token_hash   TEXT    NOT NULL UNIQUE,    -- SHA-256 von zi_<32 Byte base64url>
-    project_id   TEXT    NOT NULL,           -- feste Zielstelle, muss ein lebendes Projekt sein
-    created_at   INTEGER NOT NULL,
-    last_used_at INTEGER,
-    revoked_at   INTEGER
-);
-CREATE TABLE intake_submissions (            -- Idempotenz und späterer Statusabruf
-    channel_id   TEXT NOT NULL REFERENCES intake_channels(id),
-    external_id  TEXT NOT NULL,              -- ≤ 128 Zeichen, vom Einwerfer vergeben
-    task_id      TEXT NOT NULL,
-    created_at   INTEGER NOT NULL,
-    PRIMARY KEY (channel_id, external_id)
-);
-```
-
-### 4.3 Endpunkt
-
-`POST /intake/v1/tasks`, `Authorization: Bearer zi_…`, JSON:
-
-| Feld | Pflicht | Regel |
-|---|---|---|
-| `external_id` | ja | 1–128 Zeichen `[A-Za-z0-9_-]` |
-| `title` | ja | getrimmt, 1–200 Zeichen (Kern erlaubt 500; der Eingang ist strenger) |
-| `description` | nein | Markdown, ≤ 20 000 Zeichen |
-| `type` | nein | `aufgabe` (Default), `bug`, `feature` |
-| `links` | nein | wie Kernfeld `links`, höchstens 5, nur `http`/`https` |
-
-Der Server baut daraus einen Push mit der Server-Uhr (`title`, `description`, `type`, `status: open`,
-`location: {kind: project, id: <project_id des Kanals>}`, `links`), Quelle `intake:<name>`, und lässt
-ihn durch dieselbe Validierung wie jeden anderen Push. Alles andere (Status, Fälligkeit, Reservierung,
-Unteraufgabe) ist über diesen Weg nicht setzbar.
-
-Antworten:
-
-| Status | Body | Wann |
-|---|---|---|
-| `201` | `{"id","ref"}` | angelegt |
-| `200` | `{"id","ref"}` | `external_id` schon bekannt → bestehende Aufgabe, nichts geschrieben |
-| `400` | `{"error":{"code":"invalid_request","message"}}` | Feldregeln verletzt, deutsche Meldung |
-| `401` | | Token fehlt, unbekannt oder widerrufen |
-| `409` | `{"error":{"code":"conflict"}}` | Zielprojekt gelöscht oder abgeschlossen |
-| `429` | `Retry-After` | mehr als 30 Einwürfe je Kanal und Stunde |
-
-### 4.4 Verwaltung
-
-In der Web-UI unter **Tokens** ein zweiter Abschnitt **Eingänge**: anlegen mit Name und Zielprojekt
-(Token wird einmal angezeigt), Liste mit `last_used_at`, widerrufen. Nur mit Browser-Sitzung, wie die
-API-Tokens. Kein MCP-Werkzeug dafür.
-
-### 4.5 Tests in Zunder
-
-- Server-Integrationstests: Anlegen, Wiederholung mit gleicher `external_id`, Token an `/api/snapshot`
-  und `/mcp` → `401`, normaler `zt_`-Token an `/intake` → `401`, widerrufener Kanal, gelöschtes
-  Zielprojekt, Takt-Grenze.
-- Verlauf zeigt die Quelle `intake:<name>`.
+| `201` / `200` `{"id","ref"}` | angenommen; `200` heißt „diese `external_id` kannte Zunder schon", also eine Wiederholung |
+| `400` | Eingabe abgelehnt; die Meldung wird nicht angezeigt, der Text bleibt stehen |
+| `401` / `409` | Eingang falsch eingerichtet; Warnung ins Serverlog |
+| `429` | zu viele Einwürfe; „später noch einmal" |
+| `5xx`, Zeitüberschreitung | einmal wiederholen mit derselben `external_id`, dann Fehler anzeigen |
 
 ## 5. Suite: Formular statt Link
 
@@ -206,11 +145,13 @@ Neue Datei `core/rueckmeldung/senden.ts` mit `"use server"`. Ablauf:
    ein Doppelklick dieselbe ID trägt.
 5. **An Zunder schicken** mit 8 s Zeitlimit, bei Netzfehler oder `5xx` einmal wiederholen (gleiche
    `external_id`).
-6. **Audit-Ereignis** `rueckmeldung.gesendet` (`core/audit`) mit Person, Kennung und Modul, ohne Text.
-   Damit ist in der Suite nachvollziehbar, wer was gemeldet hat, ohne in Zunder nachzusehen.
-7. Ergebnis `{ ok: true, ref }` oder `{ ok: false, grund }` mit einem deutschen Satz für die Oberfläche.
+6. Ergebnis `{ ok: true, ref }` oder `{ ok: false, grund }` mit einem deutschen Satz für die Oberfläche.
 
 Die Action wird im Client direkt importiert, nie als Prop gereicht (Falle 9).
+
+Bewusst **kein Audit-Ereignis**: das Audit-Protokoll kennt nur feste Aktionsarten, und eine neue
+hieße Katalog, Beschriftungen und Abdeckungsliste mit umzubauen. Wer was gemeldet hat, steht in der
+Zunder-Aufgabe.
 
 ### 5.3 Oberfläche
 
@@ -235,7 +176,6 @@ aus dem der Link heute einen neuen Tab öffnet).
 | Art | `Segmented` oder Radio: „Etwas klappt nicht" / „Idee oder Wunsch" / „Sonstiges" |
 | Worum geht's? | `Input`, Pflicht, 120 Zeichen |
 | Beschreibung | `Input.TextArea` mit Zählerangabe; Platzhalter „Was hast du gemacht, was ist passiert, was hättest du erwartet?" |
-| Rückfrage | Kontrollkästchen „Ihr dürft mich bei Rückfragen per E-Mail ansprechen" (aus) |
 | Hinweis | „Bitte keine Patienten- oder Einsatzdaten eintragen." |
 | Mitgeschickt | aufklappbar: Modul, Seite, Version, Browser — genau das, was in Zunder ankommt |
 | Senden | Primärknopf; während des Sendens gesperrt |
@@ -263,7 +203,7 @@ aus dem der Link heute einen neuen Tab öffnet).
 
 ---
 
-**Gemeldet von:** Max Mustermann · Rückfragen per E-Mail: ja (max@example.org)
+**Gemeldet von:** Max Mustermann
 **Modul:** Lagerbuch (`lagerbuch`) · **Seite:** `/m/lagerbuch/inventur`
 **Version:** 1.42.0 (`a1b2c3d`) · **Zeit:** 12.10.2026, 18:04
 **Browser:** Firefox 141 · 1280×800 · Dunkel
@@ -278,20 +218,25 @@ Regeln für den Kontext:
 - **Zeit** über `zeitFormat()` aus `core/zeit`, nie mit festem `timeZone`.
 - **Version** aus `laufendeVersion()`/`laufendeRevision()` (`core/version.ts`), serverseitig, nicht
   aus dem Browser.
-- **E-Mail nur mit Häkchen.** Ohne Häkchen steht nur der Anzeigename da.
+- **Nur der Anzeigename**, nie die E-Mail-Adresse (Entscheidung vom 12.10.2026). Rückfragen laufen
+  persönlich über die Bereitschaft.
 
 ### 5.5 Tests in der Suite
 
-- `konfiguration.test.ts`: drei Zustände, Teilkonfiguration, Warnsperre, Token taucht im Ergebnis
-  nicht auf.
-- `senden.test.ts`: ohne Sitzung, Feldgrenzen, Takt, Zunder antwortet `201`/`200`/`400`/`429`/`5xx`
-  und Zeitüberschreitung (mit `fetch`-Attrappe), eine Wiederholung mit gleicher `external_id`.
-- `vorlage.test.ts`: Beschreibung, Query-String fällt weg, E-Mail nur mit Häkchen.
-- `einbindung.test.ts`: weiterhin kein `"use client"` in `konfiguration.ts`; kein `zi_` und kein
-  `SUITE_RUECKMELDUNG_ZUNDER_TOKEN` in Client-Modulen.
-- e2e `rueckmeldung.spec.ts`: ein kleiner Zunder-Ersatz auf einem Port aus `E2E_PORTS`; Menü →
-  Flyin → senden → Nummer sichtbar; Fehlerfall behält den Text; das ausgelieferte HTML enthält den
-  Token nicht. Warmlauf vor dem ersten POST (Falle 10), Antworten per `page.waitForResponse` (Falle 10).
+- `konfiguration.test.ts`: drei Zustände, halbe Einrichtung, Warnsperre, voller `zt_`-Token wird
+  abgelehnt, der Token steht nicht im Ergebnis.
+- `eingabe.test.ts`, `vorlage.test.ts`, `takt.test.ts`: Feldgrenzen, Vorlage (Query fällt weg, keine
+  E-Mail-Adresse), 5 je Person und Stunde.
+- `zunder.test.ts`: `201`/`200`/`400`/`401`/`409`/`429`/`5xx`, Zeitlimit, eine Wiederholung mit
+  derselben `external_id`.
+- `senden.test.ts`: ohne Sitzung, ohne Eingang, Name aus der Sitzung statt aus der Eingabe, Takt.
+- `RueckmeldungFlyin.test.tsx`, `RueckmeldungKnopf.test.tsx`, `SuiteNav.test.tsx`: Öffnen, Senden,
+  Fehler behält den Text, Entwurf, dieselbe ID beim zweiten Versuch.
+- `einbindung.test.ts`: Direktiven, `eingang.ts` nur von Konfiguration und Server Action geladen,
+  Client-Module importieren die Konfiguration nur als Typ, Abschaltung in der normalen e2e.
+- e2e `rueckmeldung.spec.ts` mit `scripts/fake-zunder.mjs` (Port `E2E_PORTS.zunder`): drei
+  Einstiege, Einwurf kommt an (Name ja, E-Mail nein, Query nein), Ausfall behält den Text, Token nicht
+  im HTML, sofortiges Tippen landet im Titel (Falle 24), 320px (Falle 13).
 
 ### 5.6 Release Notes
 
@@ -304,7 +249,7 @@ Ein neues Feature, also Pflicht (Datei unter `notizen/portal/`), etwa:
 
 1. Neue Rückmeldungen stehen im Projekt **„IDA Eingang"** (Board, Status `open`).
 2. Je Rückmeldung: übernehmen → `move_task` nach „IDA" (Kennung bleibt, z. B. `IDAE-12`); doppelt oder
-   nicht umsetzbar → `dropped` mit kurzem Kommentar; unklar → `blocked` und Rückfrage, sofern erlaubt.
+   nicht umsetzbar → `dropped` mit kurzem Kommentar; unklar → `blocked` und persönlich nachfragen.
 3. Ein Eingang mit null offenen Aufgaben ist das Ziel, wie bei der Inbox. Eine wöchentliche Sichtung
    reicht; Ehrenamt-Rückmeldungen sind wichtig, aber selten dringend.
 
@@ -315,7 +260,7 @@ Schlüssel `IDAE` (Vorschlag), Ansicht Board.
 
 | Etappe | Repo | Inhalt | Größe |
 |---|---|---|---|
-| **E0** | Zunder | Eingang (Abschnitt 4), Projekt „IDA Eingang", Kanal `iuk-suite` anlegen | S |
+| **E0** | Zunder | Eingang nach Abschnitt 4, Projekt „IDA Eingang" (`IDAE`), Kanal `iuk-suite` anlegen | S |
 | **E1** | Suite | `rueckmeldeweg()`, Server Action, Flyin, drei Einstiege, Tests, Release Note. Hinter den neuen Variablen; ohne sie bleibt der Link | M |
 | **E2** | Betrieb | Zunder-Variablen in der `.env` setzen, `SUITE_RUECKMELDUNG_URL` entfernen, ClickUp-Formular abschalten. Vor Ende November | — |
 | **E3** | Suite | Link-Zweig und `SUITE_RUECKMELDUNG_URL` aus Code und `.env.example` entfernen; Kommentare, die das ClickUp-Formular nennen, nachziehen | S |
@@ -337,12 +282,13 @@ wurden beim ClickUp-Import mit übernommen.
 | **Rückmeldungen nur in einer Suite-Datenbank** | Zweites Ticketsystem neben Zunder; geplant wird dort, wo die Arbeit steht. |
 | **Ein Formular-Dienst eines Dritten** (Tally, Formbricks …) | Wieder ein fremdes Formular ohne Dunkelmodus und ohne Kontext; Formbricks wurde aus genau diesem Grund schon einmal abgelöst (`konfiguration.ts`). |
 
-## 9. Offene Fragen
+## 9. Entscheidungen vom 12.10.2026
 
-1. **Name immer mitschicken?** Vorschlag: ja, der Anzeigename steht immer da (die Bereitschaft kennt
-   sich, und ohne Namen sind Rückfragen unmöglich), die E-Mail nur mit Häkchen. Alternative: nur ein
-   Pseudonym in Zunder, Zuordnung allein über das Audit-Ereignis in der Suite.
-2. **Schlüssel des Eingangsprojekts:** `IDAE` oder etwas anderes?
-3. **Takt-Grenzen** (5 je Person und Stunde in der Suite, 30 je Kanal und Stunde in Zunder): passend?
-4. **Bekommt die meldende Person eine Benachrichtigung, wenn ihre Rückmeldung erledigt ist?** Gehört zu
-   E4; braucht dann einen Weg zurück (E-Mail aus der Suite oder eine Anzeige im Portal).
+1. **Von der meldenden Person kommt nur der Anzeigename an**, keine E-Mail-Adresse und kein
+   Rückfrage-Häkchen.
+2. **Schlüssel des Eingangsprojekts:** `IDAE`.
+3. **Grenzen:** 5 Rückmeldungen je Person und Stunde in der Suite, 30 je Kanal und Stunde in Zunder.
+4. **Oberfläche:** seitliches Flyin.
+
+Offen bleibt nur, ob die meldende Person benachrichtigt wird, wenn ihre Rückmeldung erledigt ist —
+das gehört zu E4.

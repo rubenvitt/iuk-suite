@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { RueckmeldungKnopf } from "@/core/rueckmeldung/RueckmeldungKnopf";
 import { vergissRueckmeldungStand } from "@/core/rueckmeldung/zustand";
+import { liesFlyinStand, schliesseRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
 import { click, exists, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 
 /**
@@ -18,16 +19,18 @@ import { click, exists, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
  * (dieselbe Klasse wie die Fallen 8 und 18 in `CLAUDE.md`).
  */
 const URL_ = "https://forms.example.test/f/abc";
+const LINK = { art: "link", url: URL_ } as const;
 
 afterEach(async () => {
   await unmount();
   vergissRueckmeldungStand();
   localStorage.clear();
+  schliesseRueckmeldung();
 });
 
 describe("RueckmeldungKnopf", () => {
   it("steht da, solange niemand ihn erledigt hat", async () => {
-    await mount(<RueckmeldungKnopf url={URL_} />);
+    await mount(<RueckmeldungKnopf weg={LINK} />);
     const link = query<HTMLAnchorElement>('[data-testid="rueckmeldung-knopf"]');
     expect(link.getAttribute("href")).toBe(URL_);
     /*
@@ -41,7 +44,7 @@ describe("RueckmeldungKnopf", () => {
   });
 
   it("verschwindet, sobald jemand ihn benutzt", async () => {
-    await mount(<RueckmeldungKnopf url={URL_} />);
+    await mount(<RueckmeldungKnopf weg={LINK} />);
     await click('[data-testid="rueckmeldung-knopf"]');
     expect(exists('[data-testid="rueckmeldung-schweber"]')).toBe(false);
   });
@@ -52,20 +55,20 @@ describe("RueckmeldungKnopf", () => {
    * müsste erst so tun als ob.
    */
   it("verschwindet auch, wenn jemand ihn wegklickt", async () => {
-    await mount(<RueckmeldungKnopf url={URL_} />);
+    await mount(<RueckmeldungKnopf weg={LINK} />);
     await click('[data-testid="rueckmeldung-ausblenden"]');
     expect(exists('[data-testid="rueckmeldung-schweber"]')).toBe(false);
   });
 
   it("kommt nach einem Seitenwechsel nicht wieder", async () => {
-    await mount(<RueckmeldungKnopf url={URL_} />);
+    await mount(<RueckmeldungKnopf weg={LINK} />);
     await click('[data-testid="rueckmeldung-ausblenden"]');
     await unmount();
     // Der Prozesszustand geht mit einem harten Seitenwechsel verloren; der
     // Eintrag in `localStorage` nicht. Genau das ist der Unterschied zwischen
     // „für diesen Aufruf weg" und „weg".
     vergissRueckmeldungStand();
-    await mount(<RueckmeldungKnopf url={URL_} />);
+    await mount(<RueckmeldungKnopf weg={LINK} />);
     expect(exists('[data-testid="rueckmeldung-schweber"]')).toBe(false);
   });
 
@@ -76,8 +79,24 @@ describe("RueckmeldungKnopf", () => {
    * das, was man am wenigsten treffen will.
    */
   it("gibt dem Ausblenden-Knopf einen Namen", async () => {
-    await mount(<RueckmeldungKnopf url={URL_} />);
+    await mount(<RueckmeldungKnopf weg={LINK} />);
     const zu = query('[data-testid="rueckmeldung-ausblenden"]');
     expect(zu.getAttribute("aria-label")).toBe("Feedback-Knopf ausblenden");
+  });
+
+  describe("im Formular-Weg (IDA-214)", () => {
+    it("ist ein Knopf ohne Link und öffnet das Flyin", async () => {
+      await mount(<RueckmeldungKnopf weg={{ art: "formular" }} />);
+      const knopf = query('[data-testid="rueckmeldung-knopf"]');
+      expect(knopf.getAttribute("href")).toBeNull();
+      await click('[data-testid="rueckmeldung-knopf"]');
+      expect(liesFlyinStand()).toBe("offen");
+    });
+
+    it("ist nach dem Öffnen erledigt wie im Link-Weg", async () => {
+      await mount(<RueckmeldungKnopf weg={{ art: "formular" }} />);
+      await click('[data-testid="rueckmeldung-knopf"]');
+      expect(exists('[data-testid="rueckmeldung-schweber"]')).toBe(false);
+    });
   });
 });

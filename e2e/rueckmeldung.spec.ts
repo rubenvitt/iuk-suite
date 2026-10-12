@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-import { E2E_PORTS, devLogin, klickeWennRuhig, messeWennRuhig } from "./fixtures";
+import { E2E_PORTS, devLogin, klickeWennRuhig, messeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
+import { E2E_ZUNDER_TOKEN } from "./helpers/zunder";
 
 /**
  * DIE RÜCKMELDE-EINBINDUNG IM ECHTEN BROWSER (DRK-453).
@@ -29,8 +30,8 @@ import { E2E_PORTS, devLogin, klickeWennRuhig, messeWennRuhig } from "./fixtures
  */
 
 const PORT = E2E_PORTS.rueckmeldung;
-/** Dieselbe erfundene Adresse wie in `webServer.env` der Config. */
-const FORMULAR = "https://formular.invalid/f/e2e";
+/** Der Zunder-Ersatz dieses Profils (`scripts/fake-zunder.mjs`). */
+const ZUNDER = `http://127.0.0.1:${E2E_PORTS.zunder}`;
 
 const portal = (pfad = "/") => `http://portal.localtest.me:${PORT}${pfad}`;
 
@@ -44,9 +45,6 @@ test("Arbeitsfläche: der schwebende Knopf steht unten rechts im Bild", async ({
 
   const knopf = page.getByTestId("rueckmeldung-knopf");
   await expect(knopf).toBeVisible();
-  await expect(knopf).toHaveAttribute("href", FORMULAR);
-  await expect(knopf).toHaveAttribute("target", "_blank");
-  await expect(knopf).toHaveAttribute("rel", "noopener noreferrer");
 
   /*
    * ⚠️ DIE LAGE IST DIE ZUSAGE, NICHT DIE EXISTENZ. „Soll nicht stören" heißt
@@ -93,16 +91,118 @@ test("weggeklickt bleibt weggeklickt — auch nach dem Neuladen", async ({ page 
   await expect(page.getByTestId("portal-feedback")).toBeVisible();
 });
 
-test("der Weg steht auch im Nutzermenü und auf der Portal-Kachel", async ({ page }) => {
+test("Nutzermenü, Kachel und Knopf öffnen dasselbe Flyin (IDA-214)", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", port: PORT });
   await page.goto(portal());
-
-  await expect(page.getByTestId("portal-feedback")).toHaveAttribute("href", FORMULAR);
+  await warteAufGestreamteInhalte(page);
+  const formular = page.getByTestId("rueckmeldung-formular");
+  /*
+   * Escape erst, wenn die Schublade steht: während der Öffnungsanimation nimmt
+   * rc-drawer die Taste noch nicht an (gemessen: sofort gedrückt bleibt das
+   * Flyin offen, nach dem Einschwingen schließt es). `messeWennRuhig` wartet
+   * genau darauf.
+   */
+  const schliesseMitEscape = async () => {
+    await messeWennRuhig(formular);
+    await page.keyboard.press("Escape");
+    await expect(formular).toHaveCount(0);
+  };
 
   await klickeWennRuhig(page.getByTestId("nutzermenue"));
-  const eintrag = page.getByTestId("feedback-link");
-  await expect(eintrag).toBeVisible();
-  await expect(eintrag).toHaveAttribute("href", FORMULAR);
+  await klickeWennRuhig(page.getByTestId("feedback-link"));
+  await schliesseMitEscape();
+
+  await klickeWennRuhig(page.getByTestId("portal-feedback"));
+  await schliesseMitEscape();
+
+  await klickeWennRuhig(page.getByTestId("rueckmeldung-knopf"));
+  await expect(formular).toBeVisible();
+});
+
+test("eine Rückmeldung kommt in Zunder an — mit Name, ohne E-Mail, ohne Query", async ({ page, request }) => {
+  await devLogin(page, { host: "portal.localtest.me", port: PORT });
+  await page.goto(portal("/?geheim=abc"));
+  await warteAufGestreamteInhalte(page);
+
+  await klickeWennRuhig(page.getByTestId("portal-feedback"));
+  await page.getByText("Idee oder Wunsch", { exact: true }).click();
+  await page.getByTestId("rueckmeldung-titel").fill("Sortierung der Dienste merken");
+  await page.getByTestId("rueckmeldung-text").fill("Wäre praktisch.");
+  // Falle 10: die ausgelöste Anfrage prüfen, nicht nur das Bild danach.
+  const antwort = page.waitForResponse((r) => r.request().method() === "POST" && r.url().startsWith(portal()));
+  await page.getByTestId("rueckmeldung-senden").click();
+  expect((await antwort).status()).toBe(200);
+
+  const kennung = page.getByTestId("rueckmeldung-kennung");
+  await expect(kennung).toHaveText(/^IDAE-\d+$/);
+
+  const einwuerfe = (await (await request.get(`${ZUNDER}/__test/einwuerfe`)).json()) as {
+    ref: string;
+    aufgabe: { title: string; description: string; type: string; links: { url: string }[] };
+  }[];
+  const ref = await kennung.textContent();
+  const eintrag = einwuerfe.find((e) => e.ref === ref);
+  expect(eintrag, "Einwurf mit der angezeigten Kennung").toBeDefined();
+  expect(eintrag?.aufgabe.type).toBe("feature");
+  expect(eintrag?.aufgabe.title).toBe("Sortierung der Dienste merken");
+  expect(eintrag?.aufgabe.description).toContain("**Gemeldet von:**");
+  expect(eintrag?.aufgabe.description).not.toContain("@");
+  expect(eintrag?.aufgabe.description).not.toContain("geheim");
+  expect(eintrag?.aufgabe.links[0]?.url).toBe(portal("/"));
+});
+
+test("fällt Zunder aus, bleibt der Text stehen", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", port: PORT });
+  await page.goto(portal());
+  await warteAufGestreamteInhalte(page);
+
+  await klickeWennRuhig(page.getByTestId("portal-feedback"));
+  await page.getByText("Etwas klappt nicht", { exact: true }).click();
+  await page.getByTestId("rueckmeldung-titel").fill("Speichern hängt [zunder-weg]");
+  await page.getByTestId("rueckmeldung-senden").click();
+
+  await expect(page.getByTestId("rueckmeldung-fehler")).toBeVisible();
+  await expect(page.getByTestId("rueckmeldung-titel")).toHaveValue("Speichern hängt [zunder-weg]");
+});
+
+/**
+ * ⚠️ DER TOKEN GEHÖRT AUF DEN SERVER. Vitest prüft die Form des Props
+ * (`konfiguration.test.ts`); ob er trotzdem irgendwo ins HTML oder in die
+ * RSC-Nutzlast rutscht, sieht nur ein echter Abruf.
+ */
+test("der Zunder-Token steht nicht im ausgelieferten HTML", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", port: PORT });
+  const antwort = await page.goto(portal());
+  expect(await antwort?.text()).not.toContain(E2E_ZUNDER_TOKEN);
+  await klickeWennRuhig(page.getByTestId("portal-feedback"));
+  await expect(page.getByTestId("rueckmeldung-formular")).toBeVisible();
+  expect(await page.content()).not.toContain(E2E_ZUNDER_TOKEN);
+});
+
+/**
+ * FALLE 24: die Schublade stiehlt den Fokus zeitversetzt. Wer sofort nach dem
+ * Öffnen tippt, muss im Titelfeld landen — jsdom und `toBeFocused` sehen den
+ * Raub nicht, nur das Ergebnis des Tippens.
+ */
+test("wer sofort tippt, schreibt in den Titel", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", port: PORT });
+  await page.goto(portal());
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByTestId("portal-feedback"));
+  await page.keyboard.type("Sofort getippt");
+  await expect(page.getByTestId("rueckmeldung-titel")).toHaveValue("Sofort getippt");
+});
+
+/** FALLE 13: auf einem schmalen Telefon ragt die Schublade nicht über den Rand. */
+test("das Flyin passt auf 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await devLogin(page, { host: "portal.localtest.me", port: PORT });
+  await page.goto(portal());
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByTestId("portal-feedback"));
+  const kasten = await messeWennRuhig(page.getByTestId("rueckmeldung-formular"));
+  expect(kasten.x).toBeGreaterThanOrEqual(0);
+  expect(kasten.x + kasten.width).toBeLessThanOrEqual(320);
 });
 
 /**

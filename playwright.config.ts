@@ -358,6 +358,9 @@ export default cloudTauglich(defineConfig({
          * Profil; das ist heute keines.
          */
         SUITE_RUECKMELDUNG_URL: "",
+        // Dasselbe für den Zunder-Eingang (IDA-214): ohne beide steht kein Knopf.
+        SUITE_RUECKMELDUNG_ZUNDER_URL: "",
+        SUITE_RUECKMELDUNG_ZUNDER_TOKEN: "",
         ...AUFGABEN_ENV,
         /*
          * Die neun Lagerbuch-Zeilen kommen aus EINER Quelle (Festlegung H9,
