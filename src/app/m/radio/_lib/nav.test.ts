@@ -40,7 +40,7 @@ import { VERWALTUNGS_PFADE } from "./routen";
  * ⛔ IHRE ALTE BEGRUENDUNG („die zehn `page.tsx` entstehen erst in V12–V21, es gibt heute
  * keine Datei, gegen die man scannen koennte") IST SEIT V21 UEBERHOLT: alle zehn stehen,
  * und `admin/actions.test.ts` FINDET die Admin-Stufen-Menge mechanisch (Fall „genau VIER
- * Verwaltungsseiten nennen requireRadioAdmin"). ⬜ Die Kopplung der zwei Tafeln: ClickUp.
+ * Verwaltungsseiten nennen requireRadioAdmin"). ⬜ Die Kopplung der zwei Tafeln: Zunder-Projekt IDA.
  */
 const NUR_ADMIN_SEITEN = [
   "/admin/import",

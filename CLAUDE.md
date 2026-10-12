@@ -132,12 +132,15 @@ nicht am Boot-Pfad:** `SUITE_SEED=1` ist der Generalproben-Schalter, ein Boot-Se
 nur lokal. `scripts/seed-lokal.test.ts` verlangt einen Seed je Modul und verbietet die Verdrahtung in
 `bootstrap.ts`/`instrumentation.ts`.
 
-## Ticket-Board (ClickUp)
+## Ticket-Board (Zunder)
 
-Aufgaben stehen als `DRK-<n>` auf dem Board „I&K Suite" (`901524923921`). Nachziehen **während** der
-Arbeit: `in progress` beim Start, ein Kommentar bei jeder Entscheidung zu einer offenen Frage,
-`review` bei offenem PR, `Closed` erst nach dem Merge. Ticketnummer in den Commit-Body. Funde außerhalb
-des Auftrags werden ein neues Ticket, kein `TODO`. Details: Skill `.claude/skills/clickup/SKILL.md`.
+Aufgaben stehen in Zunder im Projekt „IDA" (`faf4cc4e-98a6-53ae-8322-64426b8cdac1`). Nachziehen
+**während** der Arbeit: `claim_task` und `in_progress` mit `branch` beim Start, jede Entscheidung zu
+einer offenen Frage als datierter Eintrag unter `## Notizen` in der Beschreibung, `review` mit
+`pr_url` bei offenem PR, `done` erst nach dem Merge, nie löschen (`dropped`). In den Commit-Body:
+`Zunder: https://zunder.rubeen.dev/#/aufgabe/<uuid>`; Branch mit den ersten 8 Hex-Zeichen der UUID.
+Alte `DRK-<n>`-Verweise sind historisch. Funde außerhalb des Auftrags werden eine neue Aufgabe, kein
+`TODO`. Details: Skill `.claude/skills/zunder/SKILL.md`.
 
 ## Release Notes
 

@@ -206,7 +206,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
      * ⚠️ DIE WAHRHEIT WAERE DIE SERVERSEITIGE PRUEFUNG („eine Regel, die nur im Client steht,
      * ist keine Regel", `Spec:3583-3585`). ⛔ SIE IST HEUTE NICHT GEBAUT: `erstelleCode`
      * prueft `bezeichnung` nicht (`_actions/codes.ts:78-104`), und V20 fasst `_actions/` nicht
-     * an. ⬜ Benannte Leerstelle, Eigentuemer ClickUp-Board — sie gehoert in die Aufgabe, die
+     * an. ⬜ Benannte Leerstelle, Eigentuemer Zunder-Projekt IDA — sie gehoert in die Aufgabe, die
      * `_actions/` ohnehin oeffnet.
      */
     const sauber = name.trim();

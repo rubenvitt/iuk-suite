@@ -87,7 +87,7 @@ import { ohneKommentare } from "./quelltextScan";
  * ⬜ V-L9 IST HIER BEWUSST NICHT ERLEDIGT (E-G6). `_lib/bauform.test.ts` und
  * `_actions/guards.test.ts` tragen die reparierte Bereinigung weiterhin als eigene Kopie;
  * sie umzustellen waere eine Aenderung an drei fremden Waechtern fuer einen Nutzen, den kein
- * Tor misst. Eigentuemer bleibt das ClickUp-Board.
+ * Tor misst. Eigentuemer bleibt das Zunder-Projekt IDA.
  *
  * ════════════════════════════════════════════════════════════════════════════════════════
  * ⛔ BAUFORM 28 — `isDirectory()` STEHT VOR DEM ENDUNGSFILTER, UND HIER HAENGT ES AN EINEM
