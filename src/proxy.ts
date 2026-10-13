@@ -53,11 +53,6 @@ const weiche: Weiche = (req) => {
       auditDenied(auditModule as AuditModule, auditActor(req.auth?.user));
       return new NextResponse("Forbidden", { status: 403 });
     }
-    case "gone":
-      return new NextResponse("Taktische Zeichen gibt es nicht mehr.", {
-        status: 410,
-        headers: { "cache-control": "no-store" },
-      });
   }
 };
 

@@ -233,7 +233,6 @@ describe("Modul-Icons", () => {
   it("jedes Modul trägt ein eigenes Zeichen (außer den Wegwerf-Kiosken)", () => {
     // Die alte Falle war das STILLE Duplikat: ein Modul mit dem Portal-Zeichen.
     // Heute verhindert der Typ den unbekannten Namen; bleibt der bewusste Doppelgänger.
-    // `zeichen` teilt sich `apps` mit dem Portal (Kiosk ohne Umschalter).
     const sichtbar = MODULES.filter((m) => m.showInSwitcher);
     const namen = sichtbar.map((m) => m.icon);
     expect(new Set(namen).size, namen.join(", ")).toBe(namen.length);
