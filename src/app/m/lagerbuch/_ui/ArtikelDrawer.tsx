@@ -122,6 +122,7 @@ type UmlagerWerte = {
 };
 
 type ArtikelPatch = Partial<{
+  name: string;
   mindestbestand: number;
   fach: string;
   einheit: string;
@@ -155,6 +156,7 @@ export function ArtikelDrawer({
 
   const [busy, setBusy] = useState(false);
   const [mindestbestand, setMindestbestand] = useState<number | null>(null);
+  const [name, setName] = useState("");
   const [fach, setFach] = useState("");
   const [einheit, setEinheit] = useState("");
   const [kategorie, setKategorie] = useState("");
@@ -205,6 +207,7 @@ export function ArtikelDrawer({
         }
         setDetail(ergebnis.wert);
         setMindestbestand(ergebnis.wert.artikel.mindestbestand);
+        setName(ergebnis.wert.artikel.name);
         setFach(ergebnis.wert.artikel.fach);
         setEinheit(ergebnis.wert.artikel.einheit);
         setKategorie(ergebnis.wert.artikel.kategorie ?? "");
@@ -285,6 +288,23 @@ export function ArtikelDrawer({
     mindestTimer.current = null;
     if (mindestbestand === null) return;
     void artikelFeldSpeichern({ mindestbestand });
+  }
+
+  /**
+   * Wie Fach und Einheit, mit einem Unterschied: ein geleertes Feld springt auf
+   * den gespeicherten Namen zurück. Ein leerer Titel neben einem Artikel, der
+   * weiter seinen alten Namen trägt, sähe wie ein gespeicherter Löschvorgang aus.
+   */
+  function nameSpeichern(): void {
+    const wert = name.trim();
+    if (!wert) {
+      setName(detail?.artikel.name ?? "");
+      return;
+    }
+    if (wert !== detail?.artikel.name) {
+      setName(wert);
+      void artikelFeldSpeichern({ name: wert });
+    }
   }
 
   function fachSpeichern(): void {
@@ -610,6 +630,15 @@ export function ArtikelDrawer({
                 gap: 12,
               }}
             >
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div style={SCHRIFT.feldname}>Name</div>
+                <Input
+                  value={name}
+                  onChange={(ereignis) => setName(ereignis.target.value)}
+                  onBlur={nameSpeichern}
+                  aria-label="Name"
+                />
+              </div>
               <div>
                 <div style={SCHRIFT.feldname}>Mindestbestand</div>
                 <div data-rolle="mindestbestand">

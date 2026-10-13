@@ -144,9 +144,23 @@ describe("updateArtikel", () => {
     expect(revalidiert).toEqual([ARTIKEL_PFAD]);
   });
 
+  it("benennt einen Artikel um und trimmt den Namen", async () => {
+    artikelAnlegen();
+
+    const erg = await updateArtikel("art-1", { name: "  Mullbinde 8 cm " }, t.db);
+
+    expect(erg).toEqual({ ok: true });
+    expect(artikelMitId("art-1")).toMatchObject({
+      name: "Mullbinde 8 cm",
+      einheit: "Stk",
+    });
+    expect(revalidiert).toEqual([ARTIKEL_PFAD]);
+  });
+
   it.each([
     [{ mindestbestand: -1 }, "mindestbestand"],
     [{ fach: "   " }, "fach"],
+    [{ name: "   " }, "name"],
   ])("weist ungültige Änderungen zurück, ohne den Artikel zu verändern", async (eingabe, feld) => {
     artikelAnlegen();
     const vorher = artikelMitId("art-1");
@@ -170,13 +184,15 @@ describe("updateArtikel", () => {
     expect(revalidiert).toEqual([]);
   });
 
-  it("erlaubt nicht, den Namen über die eingeschränkte Update-Eingabe zu ändern", async () => {
+  // Der Name ist seit IDA-215 änderbar; `aktiv` läuft weiter nur über
+  // `setArtikelAktiv` — ein unbekanntes Feld rutscht hier nicht durch.
+  it("erlaubt nicht, den Aktiv-Status über die eingeschränkte Update-Eingabe zu ändern", async () => {
     artikelAnlegen();
 
-    const erg = await updateArtikel("art-1", { name: "Manipuliert" }, t.db);
+    const erg = await updateArtikel("art-1", { aktiv: false }, t.db);
 
     expect(erg).toEqual({ ok: true });
-    expect(artikelMitId("art-1")?.name).toBe("Mullbinde");
+    expect(artikelMitId("art-1")?.aktiv).toBe(true);
     expect(revalidiert).toEqual([]);
   });
 });

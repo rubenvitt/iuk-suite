@@ -485,6 +485,48 @@ describe("ArtikelDrawer: Kategorie", () => {
   });
 });
 
+describe("ArtikelDrawer: Name", () => {
+  async function nameVerlassen(): Promise<void> {
+    const input = queryPortal<HTMLInputElement>("[aria-label='Name']");
+    await act(async () => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    await warte();
+  }
+
+  it("speichert einen getrimmten neuen Namen und zeigt ihn danach im Titel", async () => {
+    mocks.getDetail
+      .mockResolvedValueOnce({ ok: true, wert: DETAIL })
+      .mockResolvedValue({
+        ok: true, wert: { ...DETAIL, artikel: { ...DETAIL.artikel, name: "Kompressen 10x10" } },
+      });
+    await drawerMounten();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Name']").value).toBe("Kompressen steril");
+
+    await nameVerlassen();
+    expect(mocks.updateArtikel, "unveraendert → kein Schreibvorgang").not.toHaveBeenCalled();
+
+    await fillPortal("[aria-label='Name']", "  Kompressen 10x10 ");
+    await nameVerlassen();
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherter Name");
+    expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { name: "Kompressen 10x10" });
+    await warteAuf(
+      () => queryPortal(".ant-drawer-title").textContent === "Kompressen 10x10",
+      "neuer Titel",
+    );
+  });
+
+  it("speichert keinen leeren Namen und stellt den gespeicherten wieder her", async () => {
+    await drawerMounten();
+
+    await fillPortal("[aria-label='Name']", "   ");
+    await nameVerlassen();
+
+    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Name']").value).toBe("Kompressen steril");
+  });
+});
+
 describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
   it("deaktiviert die Zugangsform waehrend einer laufenden Buchung und gibt sie danach wieder frei", async () => {
     let zugangBeenden!: (ergebnis: { ok: true }) => void;
