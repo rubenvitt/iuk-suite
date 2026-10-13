@@ -4,8 +4,7 @@ export type RouteDecision =
   | { action: "next" }
   | { action: "rewrite"; target: string; moduleKey: string }
   | { action: "login"; callbackUrl: string }
-  | { action: "forbidden" }
-  | { action: "gone" };
+  | { action: "forbidden" };
 
 // `/.well-known` (WebFinger für die OIDC-Discovery) und `/favicon` (`core/favicon`) sind
 // öffentlich und host-übergreifend. Ohne Passthrough liefen sie in den Modul-Rewrite
@@ -79,16 +78,6 @@ export function decideRoute(input: {
   // Begründung und Beleg: `docs/superpowers/plans/2026-08-22-modul-host-rewrite-intern.md`,
   // Kapitel 3.
   const internal = pathname.match(/^\/m\/([^/]+)(?:\/.*)?$/);
-  // zeichen ist entfernt; nur der Abräum-Worker bleibt erreichbar (registry.ts, Eintrag
-  // `zeichen`). Worker-Updates tragen keine Sitzung, deshalb vor jedem Login-Riegel.
-  const ziel = internal ? findModule(internal[1]) : moduleForHost(host);
-  if (ziel?.key === "zeichen") {
-    if (pathname === "/m/zeichen/sw.js") return { action: "next" };
-    if (!internal && pathname === "/sw.js") {
-      return { action: "rewrite", target: "/m/zeichen/sw.js", moduleKey: "zeichen" };
-    }
-    return { action: "gone" };
-  }
   if (internal) {
     const target = findModule(internal[1]);
     if (!target) return { action: "next" }; // unbekanntes Modul → 404, kein 500
