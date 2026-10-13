@@ -9,7 +9,7 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Du kannst den Namen eines Artikels jetzt nachträglich ändern. Öffne unter „Artikel“ " +
-        "den Artikel und schreib den neuen Namen unter „Stammdaten“ in das Feld „Name“. " +
+        "den Artikel, klick oben auf den Stift neben dem Namen und bestätige mit Enter. " +
         "Bestand und bisherige Buchungen bleiben erhalten und zeigen dann den neuen Namen.",
     ),
   ],

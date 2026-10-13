@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clickElement,
+  clickPortal,
   existsPortal,
   mount,
   queryPortal,
@@ -485,29 +486,39 @@ describe("ArtikelDrawer: Kategorie", () => {
   });
 });
 
-describe("ArtikelDrawer: Name", () => {
-  async function nameVerlassen(): Promise<void> {
-    const input = queryPortal<HTMLInputElement>("[aria-label='Name']");
+/**
+ * IDA-215. Der Name wird im Titel bearbeitet (antds `Typography` mit
+ * `editable`): Stift → Textfeld → Verlassen speichert. Kein Feld unter
+ * „Stammdaten", das kostete auf 1280x720 den Blick auf „Entnahme buchen".
+ */
+describe("ArtikelDrawer: Name im Titel", () => {
+  async function nameBearbeiten(wert: string): Promise<void> {
+    await clickPortal("[aria-label='Name ändern']");
+    await fillPortal(".ant-drawer-title textarea", wert);
+    const feld = queryPortal<HTMLTextAreaElement>(".ant-drawer-title textarea");
     await act(async () => {
-      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      feld.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
     await warte();
   }
 
-  it("speichert einen getrimmten neuen Namen und zeigt ihn danach im Titel", async () => {
+  it("liegt nicht unter den Stammdaten", async () => {
+    await drawerMounten();
+
+    expect(existsPortal("[aria-label='Name']")).toBe(false);
+    expect(existsPortal(".ant-drawer-title [aria-label='Name ändern']")).toBe(true);
+  });
+
+  it("speichert einen getrimmten neuen Namen und zeigt ihn im Titel", async () => {
     mocks.getDetail
       .mockResolvedValueOnce({ ok: true, wert: DETAIL })
       .mockResolvedValue({
         ok: true, wert: { ...DETAIL, artikel: { ...DETAIL.artikel, name: "Kompressen 10x10" } },
       });
     await drawerMounten();
-    expect(queryPortal<HTMLInputElement>("[aria-label='Name']").value).toBe("Kompressen steril");
 
-    await nameVerlassen();
-    expect(mocks.updateArtikel, "unveraendert → kein Schreibvorgang").not.toHaveBeenCalled();
+    await nameBearbeiten("  Kompressen 10x10 ");
 
-    await fillPortal("[aria-label='Name']", "  Kompressen 10x10 ");
-    await nameVerlassen();
     await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherter Name");
     expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { name: "Kompressen 10x10" });
     await warteAuf(
@@ -516,14 +527,28 @@ describe("ArtikelDrawer: Name", () => {
     );
   });
 
-  it("speichert keinen leeren Namen und stellt den gespeicherten wieder her", async () => {
+  it("speichert weder einen leeren noch einen unveraenderten Namen", async () => {
     await drawerMounten();
 
-    await fillPortal("[aria-label='Name']", "   ");
-    await nameVerlassen();
+    await nameBearbeiten("   ");
+    await nameBearbeiten("Kompressen steril");
 
     expect(mocks.updateArtikel).not.toHaveBeenCalled();
-    expect(queryPortal<HTMLInputElement>("[aria-label='Name']").value).toBe("Kompressen steril");
+    expect(queryPortal(".ant-drawer-title").textContent).toBe("Kompressen steril");
+  });
+
+  it("zeigt nach einem abgewiesenen Speichern wieder den alten Namen", async () => {
+    mocks.updateArtikel.mockResolvedValueOnce({ ok: false, fehler: "Nicht gespeichert." });
+    await drawerMounten();
+
+    await nameBearbeiten("Kompressen 10x10");
+
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "Speicherversuch");
+    await warteAuf(
+      () => queryPortal(".ant-drawer-title").textContent === "Kompressen steril",
+      "alter Titel",
+    );
+    expect(document.body.textContent).toContain("Nicht gespeichert.");
   });
 });
 
