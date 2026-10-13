@@ -19,6 +19,7 @@ import {
   Select,
   Space,
   Switch,
+  Typography,
 } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { Kartentabelle, nachRang, nachText, nachZahl, Zellentext } from "@/core/tabelle";
@@ -43,6 +44,7 @@ import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
 import { fmtTs } from "../_lib/zeit";
 import { Chip } from "./Chip";
+import { Ikone } from "./ikonen";
 import { KategorieEingabe } from "./KategorieEingabe";
 import { LoeschButton } from "./LoeschButton";
 import { monatAusPicker } from "./monat";
@@ -122,6 +124,7 @@ type UmlagerWerte = {
 };
 
 type ArtikelPatch = Partial<{
+  name: string;
   mindestbestand: number;
   fach: string;
   einheit: string;
@@ -155,6 +158,7 @@ export function ArtikelDrawer({
 
   const [busy, setBusy] = useState(false);
   const [mindestbestand, setMindestbestand] = useState<number | null>(null);
+  const [name, setName] = useState("");
   const [fach, setFach] = useState("");
   const [einheit, setEinheit] = useState("");
   const [kategorie, setKategorie] = useState("");
@@ -205,6 +209,7 @@ export function ArtikelDrawer({
         }
         setDetail(ergebnis.wert);
         setMindestbestand(ergebnis.wert.artikel.mindestbestand);
+        setName(ergebnis.wert.artikel.name);
         setFach(ergebnis.wert.artikel.fach);
         setEinheit(ergebnis.wert.artikel.einheit);
         setKategorie(ergebnis.wert.artikel.kategorie ?? "");
@@ -249,18 +254,23 @@ export function ArtikelDrawer({
     throw new Error("Die Löschaktion ist fachlich fehlgeschlagen.");
   }
 
-  function artikelFeldSpeichern(aenderung: ArtikelPatch): Promise<void> {
+  function artikelFeldSpeichern(
+    aenderung: ArtikelPatch,
+    beiFehler?: () => void,
+  ): Promise<void> {
     return mutationSerialisieren(async () => {
       setFehler(null);
       try {
         const ergebnis = await updateArtikel(id, aenderung);
         if (!ergebnis.ok) {
           setFehler(ergebnis.fehler);
+          beiFehler?.();
           return;
         }
         await laden();
       } catch {
         setFehler("Artikeldaten konnten nicht gespeichert werden.");
+        beiFehler?.();
       }
     });
   }
@@ -285,6 +295,21 @@ export function ArtikelDrawer({
     mindestTimer.current = null;
     if (mindestbestand === null) return;
     void artikelFeldSpeichern({ mindestbestand });
+  }
+
+  /**
+   * IDA-215. Der Name wird IM TITEL bearbeitet, nicht als Feld unter
+   * „Stammdaten": eine eigene Zeile dort kostete 70 px Höhe und schob
+   * „Entnahme buchen" auf 1280x720 unter die Sichtkante (DRK-296,
+   * `e2e/flyin-breite.spec.ts`). antd übergibt den Wert schon getrimmt; ein
+   * leerer Name wird verworfen, der Titel zeigt dann weiter den alten. Schlägt
+   * das Speichern fehl, springt der Titel auf den gespeicherten Namen zurück.
+   */
+  function nameAendern(wert: string): void {
+    const bisher = detail?.artikel.name ?? "";
+    if (!wert || wert === bisher) return;
+    setName(wert);
+    void artikelFeldSpeichern({ name: wert }, () => setName(bisher));
   }
 
   function fachSpeichern(): void {
@@ -536,7 +561,22 @@ export function ArtikelDrawer({
     <Drawer
       open
       onClose={onSchliessen}
-      title={detail?.artikel.name ?? "Artikeldetails"}
+      title={
+        detail ? (
+          <Typography.Text
+            editable={{
+              onChange: nameAendern,
+              icon: <Ikone name="stift" groesse={16} />,
+              tooltip: "Name ändern",
+              enterIcon: null,
+            }}
+          >
+            {name}
+          </Typography.Text>
+        ) : (
+          "Artikeldetails"
+        )
+      }
       /*
        * 1120 STATT 880 STATT 520 — beide Sprünge kommen aus einer Messung.
        *

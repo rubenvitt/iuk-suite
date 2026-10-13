@@ -44,6 +44,7 @@ const CreateSchema = z.object({
 });
 
 const UpdateSchema = z.object({
+  name: z.string().trim().min(1, "Name darf nicht leer sein").optional(),
   mindestbestand: z.coerce
     .number()
     .int()
@@ -117,6 +118,7 @@ export async function updateArtikel(
     }
 
     const aenderung: Partial<typeof artikel.$inferInsert> = {};
+    if (v.name !== undefined) aenderung.name = v.name;
     if (v.mindestbestand !== undefined) {
       aenderung.mindestbestand = v.mindestbestand;
     }
