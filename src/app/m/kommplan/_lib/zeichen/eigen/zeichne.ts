@@ -7,7 +7,7 @@ import type { Symbolquelle } from "../grundlagen";
  * DER ZEICHNER EIGENER ZEICHEN — Server UND Baukasten im Browser, damit die Vorschau genau das Bild ist, das später
  * in Plan, Druck und Freigabe-Link steht.
  *
- * WARUM `@einsatzzeichen/core` (4.2.0) UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
+ * WARUM `@einsatzzeichen/core` (5.5.0) UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
  * selbst mit (`drawSymbol`, `checkSpec`, `vocabulary`) und lädt seine Metriken als JSON-Import — kein
  * `fileURLToPath` auf Modulebene, also nicht Befund M1, der `@einsatzzeichen/catalog` aus jedem Server-Graph
  * verbannt (`grenze.test.ts`). Damit zeichnet der SERVER aus der gespeicherten Zusammenstellung; ein SVG aus dem
