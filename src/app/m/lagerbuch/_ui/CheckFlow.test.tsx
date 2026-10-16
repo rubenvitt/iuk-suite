@@ -406,12 +406,11 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(quelle).toMatch(/const zurNachfuellung = \(\) => \{\s*if \(ungezaehlt > 0\) return;/);
   });
 
-  it("eine noch nicht gezaehlte Zeile sagt das — statt „nachfuellen N\" zu behaupten", async () => {
+  it("eine noch nicht gezaehlte Zeile sagt das — und auch gezaehlt nennt sie keine Luecke", async () => {
     /*
      * Die Luecke einer unberuehrten Position ist UNBEKANNT, nicht „voll".
-     * Ohne diese Unterscheidung stuende an jeder Zeile beim Betreten des
-     * Schritts ein roter „nachfuellen 5"-Chip — eine Zahl, die niemand
-     * gezaehlt hat, und der Riegel daneben waere nicht mehr erklaerbar.
+     * Seit IDA-219 nennt der Zaehlschritt sie auch NACH dem Zaehlen nicht:
+     * gezaehlt wird blind, die Luecke steht erst im Schritt „Nachfuellen".
      */
     await mount(
       <CheckFlow
@@ -429,10 +428,9 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(query("[data-rolle='zaehlliste']").textContent).toContain("nicht gezählt");
     expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nachfüllen");
 
-    // Erst die Zaehlung macht die Luecke zu einer Aussage.
     await minus(0);
     expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nicht gezählt");
-    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 5");
+    expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nachfüllen");
   });
 
   it("der gesperrte Weiter-Knopf SIEHT gesperrt aus (DRK-304)", async () => {
@@ -635,7 +633,13 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 laufen ab");
   });
 
-  it("`Soll` runterzaehlen zeigt „nachfuellen N\"", async () => {
+  it("der Zaehlschritt verraet das Soll nicht — die Luecke steht erst beim Nachfuellen (IDA-219)", async () => {
+    /*
+     * Wer beim Zaehlen das Soll sieht (als Zahl, als „nachfuellen N", als
+     * „Ueberbestand", als Rot/Gruen am Kreis oder als „unter Soll" in der
+     * Leiste), zaehlt aufs Soll hin statt zu zaehlen. Jede dieser vier
+     * Hintertueren ist hier einzeln abgeriegelt.
+     */
     await mount(
       <CheckFlow
     kontoZugang={false}
@@ -650,7 +654,20 @@ describe("CheckFlow — der Zaehlschritt", () => {
       />,
     );
     for (let i = 0; i < 3; i++) await plus(0); // 0 → 3, Luecke 2
-    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 2");
+    const liste = query("[data-rolle='zaehlliste']");
+    expect(liste.textContent).not.toMatch(/Soll|nachfüllen|Überbestand/);
+    expect(liste.querySelector("[class*='pruefKreisFehl']")).toBeNull();
+    expect(liste.querySelector("[class*='pruefKreisOk']")).not.toBeNull();
+    expect(query("[data-rolle='zaehl-summe']").textContent).not.toMatch(/Soll/);
+    expect(query("[data-rolle='zaehl-summe']").textContent).toContain("Alles gezählt");
+
+    for (let i = 0; i < 4; i++) await plus(0); // 3 → 7, ueber Soll
+    expect(liste.textContent).not.toMatch(/Soll|Überbestand/);
+
+    // Erst der naechste Schritt nennt, was fehlt.
+    for (let i = 0; i < 4; i++) await minus(0); // 7 → 3
+    await clickElement(query("[data-rolle='weiter']"));
+    expect(query("[data-rolle='nf-liste']").textContent).toContain("Lücke 2");
   });
 });
 
@@ -1596,10 +1613,10 @@ async function pruefeAlleSechs(): Promise<void> {
   expect(
     query<HTMLInputElement>("[data-rolle='zaehlliste'] input[type='month']").value,
   ).toBe("2027-03");
+  // Seit IDA-219 traegt die gezaehlte Zeile nur noch den Verfallschip.
   const chips = queryAll("[data-rolle='zaehlliste'] [data-rolle='helfer-chip']").map(
     (e) => e.textContent ?? "",
   );
-  expect(chips.length).toBeGreaterThanOrEqual(2);
   expect(chips.some((t) => t.includes("03/27"))).toBe(true);
 }
 
