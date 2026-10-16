@@ -1055,3 +1055,35 @@ test.describe("DRK-399 — „Ändern“ und die Geraeteknoepfe gehoeren derselb
     expect(seitwaerts, "die Seite darf nicht seitwaerts scrollen").toBe(0);
   });
 });
+
+test.describe("IDA-218 — „Ziel übernehmen“ steht ohne Scrollen im Bild", () => {
+  /**
+   * Der Knopf stand unter der ganzen Fahrzeugliste. Wer eine Einheit antippte,
+   * sah ihn nicht und tippte auf den Tab, und die Wahl war verloren. Jetzt klebt
+   * er über der Tab-Leiste. jsdom rechnet keine Layoutboxen, deshalb steht die
+   * Zusage hier.
+   *
+   * Der Schirm ist bewusst niedrig: die Liste muss über die Kante ragen, sonst
+   * stünde der Knopf auch ohne Sticky im Bild und der Test bewiese nichts. Das
+   * prüft die erste Erwartung.
+   */
+  test("bei einer Liste über die Kante liegt der Knopf über der Tab-Leiste", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 420 });
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.waitForURL(/\/helfer$/);
+    await page.goto(lagerbuchUrl("/helfer/ziel"));
+
+    const leiste = await page.getByTestId("lb-tableiste").boundingBox();
+    const letzte = await page.locator("[data-rolle='ziel-wahl']").last().boundingBox();
+    expect(leiste && letzte, "Tab-Leiste und Liste muessen eine Flaeche haben").toBeTruthy();
+    expect(letzte!.y + letzte!.height, "Vorbedingung: die Liste ragt unter die Tab-Leiste")
+      .toBeGreaterThan(leiste!.y);
+
+    await page.getByRole("radio", { name: /Keine Einheit/ }).check();
+    const knopf = await page.getByRole("button", { name: "Ziel übernehmen" }).boundingBox();
+    expect(knopf, "der Knopf muss eine Flaeche haben").toBeTruthy();
+    expect(knopf!.y, "der Knopf steht im Bild").toBeGreaterThanOrEqual(0);
+    expect(knopf!.y + knopf!.height, "der Knopf endet über der Tab-Leiste")
+      .toBeLessThanOrEqual(leiste!.y);
+  });
+});

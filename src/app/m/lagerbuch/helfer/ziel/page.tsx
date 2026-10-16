@@ -182,8 +182,10 @@ export default async function ZielSeite({
           ))}
         </fieldset>
 
+        {/* Klebt am unteren Rand (`.zielUebernehmen`): unter einer langen
+            Fahrzeugliste tippte man sonst auf den Tab statt auf den Knopf. */}
         <button
-          className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
+          className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit} ${s.zielUebernehmen}`}
           type="submit"
           style={{ marginTop: 10 }}
         >
