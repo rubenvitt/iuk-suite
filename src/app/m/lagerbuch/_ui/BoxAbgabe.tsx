@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import Link from "next/link";
+import { falte } from "../_lib/suche";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
@@ -54,6 +55,28 @@ import s from "./helfer.module.css";
  * ⚠️ ES IST IMMER HOECHSTENS EINE ZEILE OFFEN. Zwei halb ausgefuellte
  * Mengenfelder untereinander sind zwei Absichten, von denen der Knopf nur eine
  * ausfuehrt; welche, waere aus der Anzeige nicht zu erkennen.
+ *
+ * ── SUCHE OBEN, BELEG UNTEN — IDA-220 ─────────────────────────────────────
+ *
+ * Eine Einheit fuehrt leicht 200 Posten. Ohne Suche hiess das: durch die
+ * ganze Liste scrollen, und die Bestaetigung stand danach OBEN ueber der Liste
+ * — also genau dort, wo niemand hinsah, der gerade unten etwas abgelegt hatte.
+ *
+ * ⚠️ DAS SUCHFELD FILTERT IM CLIENT, mit derselben Faltung wie die Artikelliste
+ * der Entnahme (`ArtikelSuche`, `_lib/suche.ts`). Die Posten liegen ohnehin
+ * vollstaendig im Payload; eine Navigation je Tastendruck waere in der Halle
+ * die teuerste Form. Gesucht wird ueber den Artikelnamen — `BoxPosten` fuehrt
+ * kein Fach, und an der Einheit gibt es keines.
+ *
+ * ⚠️ DER ERFOLG STEHT IN DER LEISTE UNTEN, DER FEHLER IN DER OFFENEN ZEILE. Der
+ * Erfolg schliesst die Zeile — er braucht einen Ort, der unabhaengig von der
+ * Scrollposition sichtbar ist. Ein Fehler laesst sie offen, und die Meldung
+ * gehoert neben den Knopf, der sie ausgeloest hat.
+ *
+ * ⚠️ DER BELEG ZAEHLT, WAS IN DIESER RUNDE ABGELEGT WURDE. Ein Posten, der auf
+ * null geht, verschwindet aus der Liste (`postenAmOrt`); ohne den Beleg waere
+ * das Verschwinden die einzige Spur der Buchung. Er lebt nur im Zustand dieser
+ * Insel — das Buch ist die Wahrheit, der Beleg ist die Quittung.
  */
 
 export type BoxEinheit = {
@@ -63,7 +86,11 @@ export type BoxEinheit = {
   einheitenart: Einheitenart | null;
 };
 
-type Rueckmeldung = { art: "ok" | "fehler"; text: string; grund?: HelferGrund };
+/** Ein Fehler gehoert zu der Zeile, aus der gebucht wurde. */
+type Fehler = { artikelId: string; text: string; grund?: HelferGrund };
+
+/** Eine Zeile des Belegs — was in dieser Runde abgelegt wurde. */
+type Abgelegt = { artikelId: string; artikelName: string; einheit: string; menge: number };
 
 /**
  * DIE CHARGENWAHL IST EIN EIGENER ZUSTAND MIT DREI WERTEN, nicht zwei.
@@ -134,11 +161,32 @@ export function BoxAbgabe({
   rueckweg: { href: string; text: string };
 }) {
   const [wahl, setWahl] = useState<Wahl | null>(null);
-  const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
+  const [fehler, setFehler] = useState<Fehler | null>(null);
+  const [abgelegt, setAbgelegt] = useState<Abgelegt[]>([]);
+  const [belegOffen, setBelegOffen] = useState(false);
+  const [q, setQ] = useState("");
   const [laeuft, start] = useTransition();
+  const belegRef = useRef<HTMLDivElement>(null);
+
+  // `trim()` VOR `falte()` — dieselbe Form wie `ArtikelSuche`.
+  const treffer = useMemo(() => {
+    const nadel = falte(q.trim());
+    return posten.filter((p) => falte(p.artikelName).includes(nadel));
+  }, [posten, q]);
+
+  /** Der Beleg fasst je Artikel zusammen: zweimal Pflaster ist EINE Zeile. */
+  const beleg = useMemo(() => {
+    const je = new Map<string, Abgelegt>();
+    for (const a of abgelegt) {
+      const da = je.get(a.artikelId);
+      je.set(a.artikelId, da ? { ...da, menge: da.menge + a.menge } : a);
+    }
+    return [...je.values()];
+  }, [abgelegt]);
+  const letzte = abgelegt.at(-1);
 
   function oeffnen(p: BoxPosten): void {
-    setRueck(null);
+    setFehler(null);
     // ⚠️ EIN ZWEITER TIPP AUF DIESELBE ZEILE SCHLIESST SIE. Ohne diesen Zweig
     // gaebe es keinen Weg zurueck aus einer versehentlich geoeffneten Zeile
     // ausser dem Absenden — und genau das waere die Buchung, die niemand wollte.
@@ -166,7 +214,7 @@ export function BoxAbgabe({
     );
     const menge = Math.min(wahl.menge, grenze);
     if (menge <= 0) return;
-    setRueck(null);
+    setFehler(null);
     start(async () => {
       try {
         const r = await bucheInEntnahmebox({
@@ -177,25 +225,40 @@ export function BoxAbgabe({
         });
         if (!r.ok) {
           // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
-          setRueck({ art: "fehler", text: r.text, grund: r.grund });
+          setFehler({ artikelId: p.artikelId, text: r.text, grund: r.grund });
           return;
         }
-        setRueck({
-          art: "ok",
-          text: `In die Entnahmebox gelegt: ${r.wert.gebucht} × ${p.artikelName}`,
-        });
+        setAbgelegt((vorher) => [...vorher, {
+          artikelId: p.artikelId, artikelName: p.artikelName, einheit: p.einheit, menge: r.wert.gebucht,
+        }]);
         // Die Zeile schliesst nach dem Erfolg. Sie offen zu lassen hiesse, ein
         // gefuelltes Mengenfeld ueber einer Liste stehen zu lassen, deren Zahlen
         // der naechste Serverstand gerade aendert — ein zweiter Tipp buchte
         // dann gegen einen Bestand, der nicht mehr auf dem Schirm steht.
         setWahl(null);
+        // Und die Suche leert sich: der naechste Griff ist fast immer ein
+        // ANDERER Artikel (IDA-220). Was gerade gebucht wurde, sagt die Leiste.
+        setQ("");
+        // Ein kurzes Rucken in der Hand — in der Halle schaut niemand
+        // ununterbrochen aufs Telefon. Wo es das nicht gibt (iOS), passiert nichts.
+        if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+          navigator.vibrate(40);
+        }
       } catch {
         // FALLE 62: ohne `catch` schlaegt der Wurf bis zur Fehlerseite durch,
         // und in Produktion steht dort ein englischer Satz mit `digest`
         // (Falle 66). `"netz"` entsteht ausschliesslich HIER, nie serverseitig.
-        setRueck({ art: "fehler", text: NETZ_TEXT_BUCHUNG, grund: "netz" });
+        setFehler({ artikelId: p.artikelId, text: NETZ_TEXT_BUCHUNG, grund: "netz" });
       }
     });
+  }
+
+  /** Enter im Suchfeld: bei genau einem Treffer diesen oeffnen, die Tastatur weg. */
+  function suchEnter(e: KeyboardEvent<HTMLInputElement>): void {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.currentTarget.blur();
+    if (treffer.length === 1 && wahl?.artikelId !== treffer[0].artikelId) oeffnen(treffer[0]);
   }
 
   return (
@@ -246,37 +309,43 @@ export function BoxAbgabe({
         in der Halle. Eingeräumt wird es später — bis dahin bleibt es im Buch.
       </p>
 
-      {rueck && (
-        <>
-          <span
-            className={`${s.chip} ${rueck.art === "ok" ? s.ok : s.rot} ${s.rueckmeldung}`}
-            data-rolle="box-ergebnis"
-            role="status"
-          >
-            {/*
-              DRK-305: `RIEGEL_TEXTE.sitzung` lautet woertlich „Scanne das
-              Kaertchen erneut". Fuer eine angemeldete Person ist das falsch, und
-              der Server kann es nicht wissen — die Seite schon.
-            */}
-            {kontoZugang && rueck.grund === "sitzung" ? ANMELDUNG_TEXT : rueck.text}
-          </span>
-          {rueck.grund === "sitzung" && !kontoZugang && (
-            <Link
-              className={s.rueckweg}
-              // DRK-493: die Einheit per `URLSearchParams`, wie im Check-Pfad.
-              href={`/?returnTo=${encodeURIComponent(`/helfer/box?${new URLSearchParams({ fz: einheit.id })}`)}`}
-              data-rolle="box-zum-gate"
+      {/*
+        DAS SUCHFELD BLEIBT OBEN STEHEN (IDA-220) — bei 200 Posten ist es der
+        Weg in die Liste, nicht ein Zusatz zu ihr.
+      */}
+      <div className={s.boxSuche}>
+        <div className={s.feldZeile}>
+          <input
+            className={s.suchfeld}
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            aria-label="Artikel suchen"
+            placeholder="Artikel suchen…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={suchEnter}
+            data-rolle="box-suche"
+          />
+          {q !== "" && (
+            <button
+              type="button"
+              className={s.boxSucheLeeren}
+              onClick={() => setQ("")}
+              aria-label="Suche leeren"
+              data-rolle="box-suche-leeren"
             >
-              Kärtchen erneut eingeben
-            </Link>
+              <Ikone name="kreuz" />
+            </button>
           )}
-          {rueck.grund === "sitzung" && kontoZugang && (
-            <Link className={s.rueckweg} href="/verwaltung" data-rolle="box-zur-anmeldung">
-              Erneut anmelden
-            </Link>
-          )}
-        </>
-      )}
+        </div>
+        <div className={s.boxSucheZahl} data-rolle="box-trefferzahl" aria-live="polite">
+          {q.trim() === ""
+            ? `${posten.length} Artikel`
+            : `${treffer.length} von ${posten.length} ${posten.length === 1 ? "Artikel" : "Artikeln"}`}
+        </div>
+      </div>
 
       <div className={s.karte}>
         {/*
@@ -288,7 +357,12 @@ export function BoxAbgabe({
         <div className={s.karteTitel} data-rolle="box-liste-titel">
           Liegt {inDerEinheit(einheit.einheitenart)}
         </div>
-        {posten.map((p) => {
+        {treffer.length === 0 && (
+          <div className={`${s.kartePad} ${s.fussnote}`} data-rolle="box-kein-treffer">
+            Nichts gefunden für „{q.trim()}“.
+          </div>
+        )}
+        {treffer.map((p) => {
           const offen = wahl?.artikelId === p.artikelId;
           return (
             <div key={p.artikelId} data-rolle="box-posten">
@@ -423,13 +497,91 @@ export function BoxAbgabe({
                     data-rolle="box-buchen"
                     style={{ marginTop: 10 }}
                   >
-                    In die Entnahmebox legen
+                    {laeuft ? "Wird abgelegt…" : "In die Entnahmebox legen"}
                   </button>
+
+                  {fehler?.artikelId === p.artikelId && (
+                    <>
+                      <span
+                        className={`${s.chip} ${s.rot} ${s.rueckmeldung}`}
+                        data-rolle="box-ergebnis"
+                        role="alert"
+                      >
+                        {/*
+                          DRK-305: `RIEGEL_TEXTE.sitzung` lautet woertlich „Scanne das
+                          Kaertchen erneut". Fuer eine angemeldete Person ist das falsch, und
+                          der Server kann es nicht wissen — die Seite schon.
+                        */}
+                        {kontoZugang && fehler.grund === "sitzung" ? ANMELDUNG_TEXT : fehler.text}
+                      </span>
+                      {fehler.grund === "sitzung" && !kontoZugang && (
+                        <Link
+                          className={s.rueckweg}
+                          // DRK-493: die Einheit per `URLSearchParams`, wie im Check-Pfad.
+                          href={`/?returnTo=${encodeURIComponent(`/helfer/box?${new URLSearchParams({ fz: einheit.id })}`)}`}
+                          data-rolle="box-zum-gate"
+                        >
+                          Kärtchen erneut eingeben
+                        </Link>
+                      )}
+                      {fehler.grund === "sitzung" && kontoZugang && (
+                        <Link className={s.rueckweg} href="/verwaltung" data-rolle="box-zur-anmeldung">
+                          Erneut anmelden
+                        </Link>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      {/*
+        DER BELEG — IDA-220. Die Leiste klebt unten im Scroller und steht damit
+        dort, wo die Hand gerade ist, egal wie weit unten in der Liste gebucht
+        wurde. Der Statusbereich steht IMMER im Baum, damit eine Vorlesehilfe
+        die erste Bestaetigung ansagt; ein erst eingefuegter Bereich wird von
+        manchen ueberhoert.
+      */}
+      <div role="status" aria-live="polite" data-rolle="box-beleg-bereich">
+        {letzte && (
+          <div className={s.abschluss} data-rolle="box-beleg" ref={belegRef}>
+            <span className={s.belegHaken} aria-hidden="true">
+              <Ikone name="haken" groesse={18} />
+            </span>
+            <div className={s.abschlussInfo}>
+              <b data-rolle="box-ergebnis">
+                In die Entnahmebox gelegt: {letzte.menge} × {letzte.artikelName}
+              </b>
+              <span className={s.belegZeile} data-rolle="box-beleg-summe">
+                Diesmal abgelegt: {beleg.length} Artikel
+              </span>
+              {belegOffen && (
+                <ul className={s.belegListe} data-rolle="box-beleg-liste">
+                  {beleg.map((a) => (
+                    <li key={a.artikelId}>{a.menge} {a.einheit} {a.artikelName}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <button
+              type="button"
+              className={s.belegUmschalter}
+              onClick={() => {
+                setBelegOffen((o) => !o);
+                // Steht die Leiste am Listenende im Fluss, waechst sie unter die
+                // Reiterleiste — die aufgeklappte Liste soll man auch sehen.
+                requestAnimationFrame(() => belegRef.current?.scrollIntoView?.({ block: "nearest" }));
+              }}
+              aria-expanded={belegOffen}
+              data-rolle="box-beleg-umschalter"
+            >
+              Liste <Ikone name={belegOffen ? "zuklappen" : "aufklappen"} groesse={15} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

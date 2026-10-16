@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { act } from "react";
 import {
   mount, unmount, query, queryAll, exists, click, clickElement, fill,
 } from "@/app/m/qr/_lib/test-dom";
@@ -434,6 +435,135 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
     expect(query("[data-rolle='box-ergebnis']").textContent).toContain("Melde dich in einem neuen Tab an");
     expect(query("[data-rolle='box-zur-anmeldung']").getAttribute("href")).toBe("/verwaltung");
     expect(exists("[data-rolle='box-zum-gate']")).toBe(false);
+  });
+});
+
+/**
+ * SUCHE UND BELEG — IDA-220. Eine Einheit fuehrt leicht 200 Posten; ohne Suche
+ * hiess das Scrollen durch die ganze Liste, und die Bestaetigung stand oben,
+ * waehrend man unten gebucht hatte.
+ */
+const DREI = [
+  posten({ artikelId: "a-pfl", artikelName: "Pflaster 6 cm", menge: 10, chargen: [] }),
+  posten({ artikelId: "a-mull", artikelName: "Mullbinde 8 cm", menge: 4, chargen: [] }),
+  posten({ artikelId: "a-kuehl", artikelName: "Kühlkompresse", menge: 6, chargen: [] }),
+];
+
+function namen(): string[] {
+  return queryAll("[data-rolle='box-posten'] [data-rolle='box-posten-knopf']")
+    .map((b) => b.querySelector("div div")?.textContent ?? "");
+}
+
+async function enter(selector: string): Promise<void> {
+  await act(async () => {
+    query(selector).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
+}
+
+describe("BoxAbgabe — die Suche (IDA-220)", () => {
+  it("filtert die Liste nach dem Artikelnamen, ohne auf Gross/Klein zu achten", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    expect(namen()).toHaveLength(3);
+    expect(query("[data-rolle='box-trefferzahl']").textContent).toBe("3 Artikel");
+
+    await fill("[data-rolle='box-suche']", "  MULL ");
+    expect(namen()).toEqual(["Mullbinde 8 cm"]);
+    expect(query("[data-rolle='box-trefferzahl']").textContent).toBe("1 von 3 Artikeln");
+  });
+
+  it("sagt, wenn nichts passt — statt eine leere Karte zu zeigen", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    await fill("[data-rolle='box-suche']", "Beatmung");
+    expect(namen()).toHaveLength(0);
+    expect(query("[data-rolle='box-kein-treffer']").textContent).toContain("Beatmung");
+  });
+
+  it("leert sich auf Knopfdruck", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    expect(exists("[data-rolle='box-suche-leeren']")).toBe(false);
+    await fill("[data-rolle='box-suche']", "pfl");
+    await click("[data-rolle='box-suche-leeren']");
+    expect(query<HTMLInputElement>("[data-rolle='box-suche']").value).toBe("");
+    expect(namen()).toHaveLength(3);
+  });
+
+  it("oeffnet bei genau einem Treffer den Posten mit Enter", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    await fill("[data-rolle='box-suche']", "kühl");
+    await enter("[data-rolle='box-suche']");
+    expect(exists("[data-rolle='box-eingabe']")).toBe(true);
+  });
+
+  it("oeffnet bei mehreren Treffern mit Enter nichts", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    await fill("[data-rolle='box-suche']", "cm");
+    await enter("[data-rolle='box-suche']");
+    expect(exists("[data-rolle='box-eingabe']")).toBe(false);
+  });
+});
+
+describe("BoxAbgabe — der Beleg (IDA-220)", () => {
+  it("steht nach dem Erfolg in der Leiste, und die Suche ist fuer den naechsten Griff leer", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    expect(exists("[data-rolle='box-beleg']")).toBe(false);
+    // Der Statusbereich steht schon VOR der ersten Buchung im Baum.
+    expect(query("[data-rolle='box-beleg-bereich']").getAttribute("role")).toBe("status");
+
+    await fill("[data-rolle='box-suche']", "mull");
+    await click("[data-rolle='box-posten-knopf']");
+    await click("[data-rolle='box-buchen']");
+
+    expect(query("[data-rolle='box-beleg'] [data-rolle='box-ergebnis']").textContent)
+      .toBe("In die Entnahmebox gelegt: 1 × Mullbinde 8 cm");
+    expect(query<HTMLInputElement>("[data-rolle='box-suche']").value).toBe("");
+    expect(namen()).toHaveLength(3);
+  });
+
+  it("fasst je Artikel zusammen und zeigt die Liste auf Wunsch", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    for (const nadel of ["pfl", "pfl", "kühl"]) {
+      await fill("[data-rolle='box-suche']", nadel);
+      await click("[data-rolle='box-posten-knopf']");
+      await click("[data-rolle='box-buchen']");
+    }
+    expect(query("[data-rolle='box-beleg-summe']").textContent).toBe("Diesmal abgelegt: 2 Artikel");
+    expect(query("[data-rolle='box-beleg'] [data-rolle='box-ergebnis']").textContent)
+      .toBe("In die Entnahmebox gelegt: 1 × Kühlkompresse");
+
+    expect(exists("[data-rolle='box-beleg-liste']")).toBe(false);
+    await click("[data-rolle='box-beleg-umschalter']");
+    expect(queryAll("[data-rolle='box-beleg-liste'] li").map((li) => li.textContent))
+      .toEqual(["2 Stk Pflaster 6 cm", "1 Stk Kühlkompresse"]);
+  });
+
+  it("zeigt einen Fehler in der offenen Zeile und nicht in der Leiste", async () => {
+    antwortet(async () => ({ ok: false, grund: "eingabe", text: "Es liegen hier nur 3 Stk." }));
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={DREI} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
+    );
+    await fill("[data-rolle='box-suche']", "mull");
+    await click("[data-rolle='box-posten-knopf']");
+    await click("[data-rolle='box-buchen']");
+
+    expect(query("[data-rolle='box-eingabe'] [data-rolle='box-ergebnis']").textContent)
+      .toBe("Es liegen hier nur 3 Stk.");
+    expect(exists("[data-rolle='box-beleg']")).toBe(false);
+    // Die Suche bleibt stehen — die Person ist mit DIESEM Artikel nicht fertig.
+    expect(query<HTMLInputElement>("[data-rolle='box-suche']").value).toBe("mull");
   });
 });
 
