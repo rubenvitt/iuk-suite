@@ -816,6 +816,14 @@
  * Stylesheet (Falle 5).
  */
 .abschlussGo[disabled] { opacity: .45; cursor: default }
+/*
+ * DER UEBERNEHMEN-KNOPF DER ZIELWAHL KLEBT UNTEN, so wie `.abschluss` im Check.
+ * Er stand unter der ganzen Fahrzeugliste: wer eine Einheit antippte, sah den
+ * Knopf nicht und tippte stattdessen auf den Tab, und dabei ging die Wahl
+ * verloren. Den Schatten braucht er aus demselben Grund wie `.abschluss`, damit
+ * er sich beim Scrollen von den Zeilen darunter abhebt.
+ */
+.zielUebernehmen { position: sticky; bottom: 6px; box-shadow: 0 10px 26px rgba(12, 18, 24, .32) }
 .warnkasten { display: inline-flex; align-items: center; gap: 5px }
 
 /* ——— Scanner (§7.6). Diese Regeln greifen NUR auf --lb-* zu: die Komponente

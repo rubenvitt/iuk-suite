@@ -732,7 +732,6 @@ export function CheckFlow({
 
   // ——— Schritt: Zaehlen ———
   if (aktivePhase === "zaehlen") {
-    const unterSoll = soll.filter((p) => gezaehlt(p) && istWert(p) < p.soll).length;
     const ungezaehlt = soll.filter((p) => !gezaehlt(p)).length;
     const ablaufend = zaehleAblaufende(
       Object.fromEntries(soll.map((p) => [p.artikelId, verfallWert(p.artikelId) || null])),
@@ -784,7 +783,8 @@ export function CheckFlow({
             Jede Position startet bei 0 – mit <b>+</b> hochzählen, was du wirklich findest. Ist ein
             Fach leer, tippe einmal auf <b>−</b>; damit ist die 0 gezählt. Das Verfallsdatum kommt
             aus dem letzten Check und ist freiwillig: nur ändern, wenn auf der Packung ein anderes
-            (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“.
+            (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“. Das Soll steht hier
+            bewusst nicht: was fehlt, zeigt dir der nächste Schritt.
           </p>
         </div>
 
@@ -798,8 +798,6 @@ export function CheckFlow({
                   .map((p) => {
                     const wert = istWert(p);
                     const offen = !gezaehlt(p);
-                    const luecke = Math.max(0, p.soll - wert);
-                    const ueber = wert > p.soll;
                     const vw = verfallWert(p.artikelId);
                     const vc = verfallChip(vw);
                     const traegtFeld = ersteZeile.get(p.artikelId) === p.id;
@@ -815,23 +813,22 @@ export function CheckFlow({
                           Scrollen ohne Lesen wirkt, saegte damit genau die
                           Aussage ab, die der Riegel daneben macht.
                         */}
-                        <div
-                          className={`${s.pruefKreis} ${
-                            offen ? "" : luecke > 0 ? s.pruefKreisFehl : s.pruefKreisOk
-                          }`}
-                        />
+                        {/*
+                          BLIND GEZAEHLT SEIT IDA-219: der Kreis sagt nur noch
+                          „gezaehlt", nie „unter Soll". Ein Rot/Gruen gegen das
+                          Soll verriete das Soll durch die Hintertuer — wer bei
+                          Gruen aufhoert zu tippen, zaehlt aufs Soll hin statt
+                          zu zaehlen.
+                        */}
+                        <div className={`${s.pruefKreis} ${offen ? "" : s.pruefKreisOk}`} />
                         <div className={s.zeileHaupt}>
                           <div className={s.zeileName}>{p.artikelName}</div>
                           <div className={s.zeileMeta}>
-                            <span>
-                              Soll {p.soll} {p.einheit}
-                            </span>
-                            {/* ⚠️ Die Luecke einer unberuehrten Position ist
-                                UNBEKANNT, nicht „voll" (DRK-304). Ein
-                                „nachfuellen 5" an einer Zeile, die niemand
-                                gezaehlt hat, waere eine Zahl aus dem Nichts —
-                                und sie stuende beim Betreten des Schritts an
-                                JEDER Zeile.
+                            {/* ⚠️ KEIN SOLL, KEINE LUECKE, KEIN UEBERBESTAND
+                                IM ZAEHLSCHRITT (IDA-219). Gezaehlt wird blind;
+                                was fehlt, zeigt erst der Schritt „Nachfuellen".
+                                Die Einheit bleibt, sie sagt, WAS gezaehlt wird
+                                (Stueck oder Packung).
 
                                 ⚠️ „nicht gezaehlt" UND NICHT „noch nicht
                                 gezaehlt", und das ist keine Stilfrage: neben
@@ -845,13 +842,8 @@ export function CheckFlow({
                                 .zeileMeta 121>110"). Gemessen, nicht
                                 geschaetzt; wer den Text wieder verlaengert,
                                 bricht denselben Test. */}
+                            <span>{p.einheit}</span>
                             {offen && <HelferChip ton="grau">nicht gezählt</HelferChip>}
-                            {!offen && luecke > 0 && (
-                              <HelferChip ton="rot">nachfüllen {luecke}</HelferChip>
-                            )}
-                            {ueber && (
-                              <HelferChip ton="gelb">Überbestand {wert - p.soll}</HelferChip>
-                            )}
                             {/* Der Chip steht in JEDER Zeile desselben Artikels —
                                 deshalb faellt die Hinweiszeile bei Wiederholzeilen
                                 ersatzlos weg (§7.7.2 Punkt 3). */}
@@ -994,25 +986,21 @@ export function CheckFlow({
         >
           <div className={s.abschlussInfo} data-rolle="zaehl-summe">
             {/*
-              SOLANGE ETWAS OFFEN IST, IST DIE OFFENE ZAHL DIE NACHRICHT — nicht
-              „Alles auf Soll". Eine Bilanz ueber Positionen, die niemand
-              gezaehlt hat, waere eine Behauptung; „2 von 2" sagt stattdessen,
-              warum der Knopf daneben nicht geht.
+              SOLANGE ETWAS OFFEN IST, IST DIE OFFENE ZAHL DIE NACHRICHT; „2 von
+              2" sagt, warum der Knopf daneben nicht geht. Eine Bilanz gegen
+              das Soll („unter Soll") steht hier NICHT MEHR (IDA-219): sie
+              verriete das Soll, und der Schritt danach sagt es ohnehin.
             */}
             <b>
               {ungezaehlt > 0
                 ? `Noch ${ungezaehlt} von ${soll.length} zu zählen`
-                : unterSoll === 0
-                  ? "Alles auf Soll"
-                  : `${unterSoll} unter Soll`}
+                : "Alles gezählt"}
             </b>
             <div>
               {ablaufend > 0 && `${ablaufend} laufen ab · `}
               {ungezaehlt > 0
                 ? "Leeres Fach? Einmal auf − tippen."
-                : unterSoll === 0
-                  ? "Nichts nachzufüllen"
-                  : "Weiter zur Nachfüllung aus dem Handlager"}
+                : "Was fehlt, zeigt der nächste Schritt"}
             </div>
           </div>
           {/*
