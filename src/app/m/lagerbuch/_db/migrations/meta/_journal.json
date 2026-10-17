@@ -127,6 +127,13 @@
       "when": 1789588800000,
       "tag": "0017_plomben",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1789592400000,
+      "tag": "0018_demo_einstellung",
+      "breakpoints": true
     }
   ]
 }

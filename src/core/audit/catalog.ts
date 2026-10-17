@@ -145,6 +145,12 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "demo_einstellung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "fahrzeug_templates": {
       "mode": "audited",
       "primaryKey": [

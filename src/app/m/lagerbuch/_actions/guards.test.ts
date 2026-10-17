@@ -564,6 +564,11 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Verwaltung aus, beide bewacht von `requireLagerbuchAdmin`. Die Zaehlung
  * steht damit auf 67 = 64 bewacht + 3 Ausnahmen, 64 = 60 + 4, in 28 Dateien.
  *
+ * NACHTRAG IDA-224 (17.10.2026): `demo.ts` mit `setzeDemoCheck` kommt dazu —
+ * der voruebergehende Schalter des Demo-Checks (Rueckbau IDA-225), bewacht von
+ * `requireLagerbuchAdmin`. Die Zaehlung steht damit auf 68 = 65 bewacht + 3
+ * Ausnahmen, 65 = 61 + 4, in 29 Dateien.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -606,6 +611,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "bz.ts": 5,
     "check.ts": 1,
     "csv.ts": 1,
+    "demo.ts": 1,   // IDA-224, voruebergehend (Rueckbau IDA-225)
     "detail.ts": 1,
     // DRK-314 die Umlagerung IN die Kiste, DRK-381 der Weg zurueck heraus,
     // DRK-393 das Aussondern aus ihr — mit VERSCHIEDENEN Riegeln in einer Datei.
@@ -641,13 +647,13 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 28 Action-Dateien plus `guards.test.ts`", () => {
+  it("hat 29 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER)` zaehlen (Ruling A7): der Ordner fuehrt
     // auch die Testdateien. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
-    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 28 Dateien.").toHaveLength(28);
-    expect(dateien, "28 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
+    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 29 Dateien.").toHaveLength(29);
+    expect(dateien, "29 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
     expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 
@@ -668,10 +674,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 67 Deklarationen, obwohl es nur 64 verschiedene Namen gibt", () => {
+  it("zaehlt 68 Deklarationen, obwohl es nur 65 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "67 Deklarationen").toHaveLength(67);
-    expect(new Set(namen).size, "64 verschiedene Namen").toBe(64);
+    expect(namen, "68 Deklarationen").toHaveLength(68);
+    expect(new Set(namen).size, "65 verschiedene Namen").toBe(65);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -683,7 +689,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 64 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 65 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -692,7 +698,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "64 bewacht").toBe(64);
+    expect(funde.length - ausnahmen.length, "65 bewacht").toBe(65);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -759,7 +765,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 64 Riegel auf 60 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
+  it("verteilt die 65 Riegel auf 61 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -789,6 +795,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // macht den Rueckweg fuer jedes Kaertchen auf.
       "entnahmebox.ts#bucheInEntnahmebox",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(60);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(61);
   });
 });
