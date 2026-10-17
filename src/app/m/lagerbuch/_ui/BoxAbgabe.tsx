@@ -14,7 +14,7 @@ import {
 // importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
 // `_ui/Auffuellen.tsx` und `_ui/Entnahme.tsx`.
 import { bucheInEntnahmebox } from "../_actions/entnahmebox";
-import { einheitMeta, inDerEinheit, type Einheitenart } from "../_lib/konstanten";
+import { einheitMeta, type Einheitenart } from "../_lib/konstanten";
 import { ampelTon } from "../_lib/format";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
@@ -349,13 +349,14 @@ export function BoxAbgabe({
 
       <div className={s.karte}>
         {/*
-          ART-BEWUSST, NICHT NEUTRAL (DRK-309): hier steht die Art FEST — es ist
-          der Schirm genau dieser Einheit —, und die Regel lautet, dass sie
-          dort auch dasteht, wo sie bekannt ist. „Liegt in der Einheit" waere
-          die Ausnahme von der eigenen Regel.
+          DIE UEBERSCHRIFT FRAGT NACH DER HANDLUNG (IDA-221). Wer hier steht, hat
+          sich fuers Ablegen entschieden und haelt das Teil in der Hand; die
+          Liste ist seine Auswahl, keine Bestandsanzeige. „Liegt im Fahrzeug"
+          beantwortete eine Frage, die niemand gestellt hat. Die Einheit und
+          ihre Art (DRK-309) stehen gross darueber, hier braucht es sie nicht.
         */}
         <div className={s.karteTitel} data-rolle="box-liste-titel">
-          Liegt {inDerEinheit(einheit.einheitenart)}
+          Was legst du in die Box?
         </div>
         {treffer.length === 0 && (
           <div className={`${s.kartePad} ${s.fussnote}`} data-rolle="box-kein-treffer">
