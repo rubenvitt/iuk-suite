@@ -80,6 +80,20 @@ export type CheckVerfallRoh = {
 };
 
 /** V1 (alt, vor dem Fahrzeugbestand): ein Array ohne Positionsdetails. */
+/**
+ * IDA-222: eine Plombe im Check. Im Kurzcheck ABGELESEN (`erwartet` gegen
+ * `gelesen`, `intakt`), im Vollcheck GESETZT (nur `gesetzt`). Altchecks tragen
+ * die Liste nicht.
+ */
+export type CheckPlombeRoh = {
+  plombeId: string;
+  bezeichnung?: string;
+  erwartet?: string | null;
+  gelesen?: string | null;
+  intakt?: boolean;
+  gesetzt?: string;
+};
+
 export type CheckErgebnisV1 = {
   version: 1;
   eintraege: { fehlt?: number; gebucht?: number }[];
@@ -93,6 +107,14 @@ export type CheckErgebnisV2 = {
   geraete: CheckGeraetRoh[];
   flaschen: CheckFlascheRoh[];
   verfall: CheckVerfallRoh[];
+  /**
+   * IDA-222: Kurz- oder Vollcheck. ⚠️ ADDITIV UND OPTIONAL: jeder Check vor
+   * IDA-222 traegt das Feld nicht und war ein Vollcheck — Leser fragen
+   * `art === "kurz"`, nie `art === "voll"`.
+   */
+  art?: "kurz" | "voll";
+  /** IDA-222: abgelesene bzw. gesetzte Plomben; fehlt bei Altchecks. */
+  plomben?: CheckPlombeRoh[];
   /**
    * §11.5, Zustand 27: der Rohwert war NICHT lesbar — kein JSON, oder JSON in
    * einer Form, die kein Ergebnis sein kann. Die Listen sind dann leer, aber
@@ -219,5 +241,29 @@ export function parseCheckErgebnis(roh: string | null): CheckErgebnis {
     geraete: liste<CheckGeraetRoh>(o.geraete),
     flaschen: liste<CheckFlascheRoh>(o.flaschen),
     verfall: liste<CheckVerfallRoh>(o.verfall),
+    ...(o.art === "kurz" || o.art === "voll" ? { art: o.art } : {}),
+    ...(Array.isArray(o.plomben) ? { plomben: o.plomben as CheckPlombeRoh[] } : {}),
+  };
+}
+
+/**
+ * IDA-222: Art und Plomben eines Checks — fuer Verlauf und Detailseite.
+ *
+ * Eigene Funktion statt weiterer Felder in `CheckSummen`: die Summen sind
+ * Zahlen ueber den Bestand, diese hier sind die Art der Pruefung. Altchecks
+ * und unlesbare Ergebnisse sind Vollchecks ohne Plomben.
+ */
+export function checkArtUndPlomben(roh: string | null): {
+  art: "kurz" | "voll";
+  plomben: CheckPlombeRoh[];
+  plombenOffen: number;
+} {
+  const e = parseCheckErgebnis(roh);
+  if (e.version !== 2) return { art: "voll", plomben: [], plombenOffen: 0 };
+  const plomben = e.plomben ?? [];
+  return {
+    art: e.art === "kurz" ? "kurz" : "voll",
+    plomben,
+    plombenOffen: plomben.filter((p) => p.intakt === false).length,
   };
 }

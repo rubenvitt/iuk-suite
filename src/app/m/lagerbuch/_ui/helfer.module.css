@@ -1275,3 +1275,9 @@
 /* Das eigene Kreuz daneben ist 56px gross und mit Handschuhen zu treffen; das
    kleine des Browsers waere ein zweites Kreuz fuer dieselbe Handlung. */
 .boxSuche .suchfeld::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none }
+/*
+ * IDA-222 — DER GRUND DER STICHPROBE im Kurzcheck. Eine eigene volle Zeile
+ * wie `.verfallZeile`: in `.zeileMeta` passt neben dem 56er-Stepper am Telefon
+ * kein weiterer Text (`lagerbuch-mobil.spec.ts` misst das).
+ */
+.grundZeile { flex: 1 0 100%; font-size: 13px; color: var(--lb-stahl); line-height: 1.35 }

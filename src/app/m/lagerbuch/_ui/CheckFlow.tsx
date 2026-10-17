@@ -26,6 +26,7 @@ import {
 import {
   ANMELDUNG_TEXT, NETZ_TEXT_CHECK, darfKaertchenErneuern, type HelferGrund,
 } from "../_lib/actionTypen";
+import { plombenNummerNorm } from "../_lib/plombe";
 import s from "./helfer.module.css";
 
 /**
@@ -92,8 +93,24 @@ export type CheckFlasche = {
   letzterDruck: number | null;
 };
 
-type Phase = "zaehlen" | "nachfuellen" | "geraete" | "sauerstoff";
+/**
+ * IDA-222: eine Plombe, wie die Insel sie sieht.
+ *
+ * `erwartet` ist die NORMALISIERTE Nummer und nur im Kurzcheck gesetzt — und
+ * dort nur, wenn die Plombe etwas bezeugt (`plombeDecktAb`). `null` heisst im
+ * Kurzcheck „noch nie gesetzt" (der Schritt zeigt sie als Hinweis), im
+ * Vollcheck immer: dort wird gesetzt, nicht verglichen.
+ */
+export type CheckPlombe = {
+  id: string;
+  bezeichnung: string;
+  fachLabel: string | null;
+  erwartet: string | null;
+};
+
+type Phase = "plomben" | "zaehlen" | "nachfuellen" | "geraete" | "sauerstoff";
 const PHASE_LABEL: Record<Phase, string> = {
+  plomben: "Plomben",
   zaehlen: "Zählen",
   nachfuellen: "Nachfüllen",
   geraete: "Geräte",
@@ -124,7 +141,11 @@ const zustandTon = (z: Zustand) =>
 /** Die fünf Geräteknöpfe teilen das 56x56px-Tippziel aus `.chipKnopf` (DRK-399). */
 export function CheckFlow({
   fahrzeug,
-  soll,
+  art,
+  soll: sollAlle,
+  stichprobe,
+  versiegelt,
+  plomben,
   geraete,
   flaschen,
   verfall,
@@ -145,7 +166,18 @@ export function CheckFlow({
     id: string; name: string; kennung: string | null;
     einheitenart: Einheitenart | null;
   };
+  /** IDA-222: Kurzcheck (Stichprobe + Plomben ablesen) oder Vollcheck. */
+  art: "kurz" | "voll";
+  /** Die GANZE Bestueckung. Was davon gezaehlt wird, entscheidet `art`. */
   soll: CheckPos[];
+  /**
+   * IDA-222: im Kurzcheck die gezogenen Positionen mit ihrem Grund als Satz;
+   * im Vollcheck `null`.
+   */
+  stichprobe: Record<string, string> | null;
+  /** IDA-222: je stehender Plombe die Positionen, die sie bezeugt. */
+  versiegelt: Record<string, string[]>;
+  plomben: CheckPlombe[];
   geraete: CheckGeraet[];
   flaschen: CheckFlasche[];
   /** Beim letzten Check gemeldeter Verfall je artikelId („YYYY-MM"), leer = keine Angabe. */
@@ -262,7 +294,49 @@ export function CheckFlow({
 }) {
   // DIE SECHS CLIENT-ZUSTAENDE (1:1, `:62-71`). Sie bleiben bei JEDEM Fehler
   // stehen — das ist die tragende Zusage von §7.4.4 und §7.10.3.
-  const [phase, setPhase] = useState<Phase>("zaehlen");
+  /*
+   * IDA-222 — DIE PLOMBEN UND WAS SIE AN DIE ZAEHLLISTE GEBEN.
+   *
+   * Im Kurzcheck steht der Plombenschritt VORN: eine offene Plombe gibt ihr
+   * ganzes Fach in die Zaehlliste, und das muss feststehen, bevor gezaehlt
+   * wird. Im Vollcheck steht er HINTEN: gesetzt wird, wenn alles drin ist.
+   */
+  const ablesen = art === "kurz" ? plomben.filter((p) => p.erwartet !== null) : [];
+  const nieGesetzt = art === "kurz" ? plomben.filter((p) => p.erwartet === null) : [];
+  const [plombenWert, setPlombenWert] = useState<Record<string, string>>({});
+  const [plombeFehlt, setPlombeFehlt] = useState<Record<string, boolean>>({});
+  const plombeEingabe = (id: string) => (plombenWert[id] ?? "").trim();
+  const plombeErfasst = (p: CheckPlombe) => !!plombeFehlt[p.id] || plombeEingabe(p.id) !== "";
+  const plombeOffen = (p: CheckPlombe) =>
+    !!plombeFehlt[p.id]
+    || (plombeEingabe(p.id) !== "" && plombenNummerNorm(plombeEingabe(p.id)) !== p.erwartet);
+
+  /*
+   * DIE ZAEHLLISTE. Im Vollcheck die ganze Bestueckung. Im Kurzcheck die
+   * Stichprobe plus jedes Fach einer offenen Plombe — und dann JEDE Position
+   * jedes betroffenen Artikels: der Abschluss gleicht den Bestand je Artikel
+   * ab, eine Teilsumme buchte das ungezaehlte Fach auf null (der Server weist
+   * eine solche Nutzlast ab).
+   */
+  const soll = (() => {
+    if (art === "voll") return sollAlle;
+    const ids = new Set(Object.keys(stichprobe ?? {}));
+    for (const p of ablesen) {
+      if (plombeOffen(p)) for (const id of versiegelt[p.id] ?? []) ids.add(id);
+    }
+    const artikelIds = new Set(sollAlle.filter((p) => ids.has(p.id)).map((p) => p.artikelId));
+    return sollAlle.filter((p) => artikelIds.has(p.artikelId));
+  })();
+  const grundFuer = (p: CheckPos): string | null => {
+    if (art === "voll") return null;
+    const g = stichprobe?.[p.id];
+    if (g) return g;
+    const pl = ablesen.find((x) => (versiegelt[x.id] ?? []).includes(p.id) && plombeOffen(x));
+    if (pl) return `Plombe offen: ${pl.bezeichnung}`;
+    return "Gleicher Artikel wie eine gezogene Position";
+  };
+
+  const [phase, setPhase] = useState<Phase>(ablesen.length > 0 ? "plomben" : "zaehlen");
   const [ist, setIst] = useState<Record<string, number>>({});
   const [nachfuell, setNachfuell] = useState<Record<string, number>>({});
   const [geraeteState, setGeraeteState] = useState<Record<string, CheckGeraetAntwort>>({});
@@ -334,9 +408,11 @@ export function CheckFlow({
 
   const hatArtikel = soll.length > 0;
   const schrittFolge: Phase[] = [
+    ...(ablesen.length > 0 ? (["plomben"] as const) : []),
     ...(hatArtikel ? (["zaehlen", "nachfuellen"] as const) : []),
     ...(geraete.length > 0 ? (["geraete"] as const) : []),
     ...(flaschen.length > 0 ? (["sauerstoff"] as const) : []),
+    ...(art === "voll" && plomben.length > 0 ? (["plomben"] as const) : []),
   ];
   const aktivePhase: Phase = schrittFolge.includes(phase) ? phase : (schrittFolge[0] ?? "zaehlen");
   const idx = schrittFolge.indexOf(aktivePhase);
@@ -379,7 +455,17 @@ export function CheckFlow({
           flaschen: flaschen.map((f) => ({ id: f.id, nennfuelldruckBar: f.nennfuelldruckBar })),
           z: zaehlung(),
         });
-        const r = await checkAbschluss(nutzlast);
+        const r = await checkAbschluss({
+          ...nutzlast,
+          art,
+          // Kurzcheck: jede stehende Plombe, abgelesen oder als fehlend
+          // gemeldet. Vollcheck: nur die neu gesetzten.
+          plomben: art === "kurz"
+            ? ablesen.map((p) => ({ plombeId: p.id, nummer: plombeFehlt[p.id] ? null : plombeEingabe(p.id) }))
+            : plomben
+                .filter((p) => plombeEingabe(p.id) !== "")
+                .map((p) => ({ plombeId: p.id, nummer: plombeEingabe(p.id) })),
+        });
         if (!r.ok) {
           // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
           // Das gilt auch fuer den fuenften Grund `"eingabe"`
@@ -494,12 +580,13 @@ export function CheckFlow({
       ergebnis.geraeteAuffaellig === 0 &&
       ergebnis.flaschenAuffaellig === 0 &&
       ergebnis.verfallAuffaellig === 0 &&
-      ergebnis.flaschenNichtBewertbar === 0;
+      ergebnis.flaschenNichtBewertbar === 0 &&
+      ergebnis.plombenOffen === 0;
     return (
       <>
         <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
         <div className={`${s.karte} ${s.kartePad}`} data-rolle="check-ergebnis">
-          <div className={s.zeileName}>Check abgeschlossen</div>
+          <div className={s.zeileName}>{art === "kurz" ? "Kurzcheck" : "Vollcheck"} abgeschlossen</div>
           <div className={s.zeileMeta}>
             {/* Ohne Soll-Bestueckung gab es nichts nachzufuellen — ein Chip
                 „0 aus Handlager geholt" waere eine Aussage ueber Arbeit, die
@@ -523,6 +610,12 @@ export function CheckFlow({
             )}
             {ergebnis.verfallAuffaellig > 0 && (
               <HelferChip ton="gelb">{ergebnis.verfallAuffaellig} laufen ab</HelferChip>
+            )}
+            {ergebnis.plombenOffen > 0 && (
+              <HelferChip ton="gelb">{ergebnis.plombenOffen} Plombe(n) offen</HelferChip>
+            )}
+            {ergebnis.plombenGesetzt > 0 && (
+              <HelferChip ton="ok">{ergebnis.plombenGesetzt} Plombe(n) gesetzt</HelferChip>
             )}
             {alles && <HelferChip ton="ok">Alles in Ordnung</HelferChip>}
           </div>
@@ -557,6 +650,12 @@ export function CheckFlow({
             <p className={s.fussnote}>
               Für diese Flaschen ist kein Nennfülldruck hinterlegt – der Füllstand lässt sich nicht
               bewerten. Der abgelesene Druck wurde trotzdem gespeichert.
+            </p>
+          )}
+          {ergebnis.plombenOffen > 0 && (
+            <p className={s.fussnote}>
+              Offene Plomben gelten ab jetzt nicht mehr. Ihr Inhalt wurde heute gezählt; neu
+              gesetzt werden sie beim nächsten Vollcheck.
             </p>
           )}
           {ergebnis.verfallAuffaellig > 0 && (
@@ -662,6 +761,9 @@ export function CheckFlow({
    */
   const letzterCheckZeile = (
     <div className={s.letzterCheck} data-rolle="letzter-check">
+      {/* IDA-222: die Art steht auf JEDEM Schritt, aus demselben Grund wie die Herkunftszeile. */}
+      <b data-rolle="check-art">{art === "kurz" ? "Kurzcheck" : "Vollcheck"}</b>
+      {" · "}
       {letzterCheckText === null
         ? `Noch kein Check erfasst — das ist der erste für ${dieseEinheit(fahrzeug.einheitenart)}.`
         : `Letzter Check: ${letzterCheckText}`}
@@ -730,6 +832,174 @@ export function CheckFlow({
     </div>
   );
 
+  // ——— Schritt: Plomben (IDA-222) ———
+  if (aktivePhase === "plomben") {
+    const zurueck = idx > 0 && (
+      <button
+        className={`${s.knopf} ${s.knopfGeist}`}
+        type="button"
+        onClick={() => setPhase(schrittFolge[idx - 1])}
+        data-rolle="zurueck-zaehlen"
+      >
+        ← Zurück
+      </button>
+    );
+    const weiterLeiste = (info: string, gesperrt: boolean) => (
+      <div className={s.abschluss} data-rolle="abschlussleiste">
+        <div className={s.abschlussInfo}>
+          <b>{info}</b>
+          <div>
+            {istLetzter ? "Bestätigen schließt den Check ab" : `Weiter zu ${PHASE_LABEL[naechste]}`}
+          </div>
+        </div>
+        {istLetzter ? (
+          <button
+            className={s.abschlussGo}
+            type="button"
+            disabled={laeuft || gesperrt}
+            onClick={abschliessen}
+            data-rolle="abschliessen"
+          >
+            Abschließen
+          </button>
+        ) : (
+          <button
+            className={s.abschlussGo}
+            type="button"
+            disabled={gesperrt}
+            onClick={() => { setFehler(null); setPhase(naechste); }}
+            data-rolle="weiter"
+          >
+            Weiter
+          </button>
+        )}
+      </div>
+    );
+
+    if (art === "kurz") {
+      const offen = ablesen.filter((p) => !plombeErfasst(p)).length;
+      return (
+        <>
+          <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Plomben</div>
+          <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+          {letzterCheckZeile}
+          {zurueck}
+          <div className={`${s.karte} ${s.kartePad}`}>
+            <div className={s.zeileName}>Steht die Plombe vom letzten Vollcheck noch?</div>
+            <p className={s.fussnote}>
+              Lies die Nummer an der Plombe ab. Passt sie, ist der Behälter seitdem zu geblieben und
+              du musst ihn nicht öffnen. Fehlt die Plombe oder ist sie aufgebrochen, zählst du seinen
+              Inhalt gleich mit.
+            </p>
+          </div>
+          <div className={s.karte} data-rolle="plomben-liste">
+            {ablesen.map((p) => {
+              const eingabe = plombeEingabe(p.id);
+              const fehlt = !!plombeFehlt[p.id];
+              const passt = !fehlt && eingabe !== "" && !plombeOffen(p);
+              const anzahl = versiegelt[p.id]?.length ?? 0;
+              return (
+                <div className={s.zeile} key={p.id} style={{ alignItems: "flex-start" }} data-rolle="plombe">
+                  <div className={`${s.pruefKreis} ${passt ? s.pruefKreisOk : plombeOffen(p) ? s.pruefKreisFehl : ""}`} />
+                  <div className={s.zeileHaupt}>
+                    <div className={s.zeileName}>{p.bezeichnung}</div>
+                    <div className={s.zeileMeta}>
+                      {passt && <HelferChip ton="ok">passt</HelferChip>}
+                      {plombeOffen(p) && <HelferChip ton="gelb">offen</HelferChip>}
+                      {!plombeErfasst(p) && <HelferChip ton="grau">nicht abgelesen</HelferChip>}
+                    </div>
+                  </div>
+                  <div className={s.verfallZeile}>
+                    <input
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      aria-label={`Plombennummer ${p.bezeichnung}`}
+                      placeholder="Nummer ablesen"
+                      value={plombenWert[p.id] ?? ""}
+                      disabled={fehlt}
+                      onChange={(e) => setPlombenWert((v) => ({ ...v, [p.id]: e.target.value }))}
+                      data-rolle="plombe-nummer"
+                    />
+                    <button
+                      type="button"
+                      className={`${s.knopf} ${s.knopfGeist}`}
+                      aria-pressed={fehlt}
+                      onClick={() => setPlombeFehlt((v) => ({ ...v, [p.id]: !fehlt }))}
+                      data-rolle="plombe-fehlt"
+                    >
+                      {fehlt ? "Doch da" : "Fehlt"}
+                    </button>
+                  </div>
+                  {plombeOffen(p) && (
+                    <div className={s.grundZeile} data-rolle="plombe-folge">
+                      {fehlt ? "Plombe fehlt" : "Andere Nummer als beim Vollcheck"} – die {anzahl}{" "}
+                      {anzahl === 1 ? "Position" : "Positionen"} aus „{p.fachLabel}“ zählst du gleich mit.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {nieGesetzt.length > 0 && (
+            <p className={s.fussnote} data-rolle="plomben-nie">
+              Noch ohne Plombe: {nieGesetzt.map((p) => p.bezeichnung).join(", ")}. Gesetzt wird beim
+              nächsten Vollcheck.
+            </p>
+          )}
+          {fehlerBereich}
+          {weiterLeiste(
+            offen > 0 ? `Noch ${offen} von ${ablesen.length} abzulesen` : "Alle Plomben abgelesen",
+            offen > 0,
+          )}
+        </>
+      );
+    }
+
+    const gesetzt = plomben.filter((p) => plombeEingabe(p.id) !== "").length;
+    return (
+      <>
+        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Plomben</div>
+        <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
+        {zurueck}
+        <div className={`${s.karte} ${s.kartePad}`}>
+          <div className={s.zeileName}>Behälter verplomben</div>
+          <p className={s.fussnote}>
+            Alles ist gezählt und aufgefüllt. Verschließ die Behälter mit einer neuen Plombe und trag
+            ihre Nummer ein – bis zum nächsten Vollcheck reicht es dann, sie abzulesen. Leer lassen,
+            wenn du keine neue Plombe gesetzt hast.
+          </p>
+        </div>
+        <div className={s.karte} data-rolle="plomben-liste">
+          {plomben.map((p) => (
+            <div className={s.zeile} key={p.id} data-rolle="plombe">
+              <div className={`${s.pruefKreis} ${plombeEingabe(p.id) !== "" ? s.pruefKreisOk : ""}`} />
+              <div className={s.zeileHaupt}>
+                <div className={s.zeileName}>{p.bezeichnung}</div>
+                {p.fachLabel && <div className={s.zeileMeta}>deckt „{p.fachLabel}“ ab</div>}
+              </div>
+              <div className={s.verfallZeile}>
+                <input
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  aria-label={`Neue Plombennummer ${p.bezeichnung}`}
+                  placeholder="Neue Plombennummer"
+                  value={plombenWert[p.id] ?? ""}
+                  onChange={(e) => setPlombenWert((v) => ({ ...v, [p.id]: e.target.value }))}
+                  data-rolle="plombe-nummer"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        {fehlerBereich}
+        {weiterLeiste(`${gesetzt} von ${plomben.length} gesetzt`, false)}
+      </>
+    );
+  }
+
   // ——— Schritt: Zaehlen ———
   if (aktivePhase === "zaehlen") {
     const ungezaehlt = soll.filter((p) => !gezaehlt(p)).length;
@@ -786,6 +1056,13 @@ export function CheckFlow({
             (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“. Das Soll steht hier
             bewusst nicht: was fehlt, zeigt dir der nächste Schritt.
           </p>
+          {art === "kurz" && (
+            <p className={s.fussnote} data-rolle="stichprobe-hinweis">
+              <b>Heute {soll.length} von {sollAlle.length} Positionen.</b> Ausgewählt, weil sie lange
+              nicht gezählt, seit der letzten Zählung entnommen wurden oder bald ablaufen – dazu ein
+              Zufallsanteil.
+            </p>
+          )}
         </div>
 
         <div className={s.fachraster} data-rolle="zaehlliste">
@@ -871,6 +1148,12 @@ export function CheckFlow({
                           faellt es unter alle drei und nimmt die volle
                           Kartenbreite ein.
                         */}
+                        {/* IDA-222: der Grund der Stichprobe, als eigene
+                            volle Zeile — in `.zeileMeta` ist neben dem
+                            Stepper kein Platz (siehe der Chip darueber). */}
+                        {grundFuer(p) && (
+                          <div className={s.grundZeile} data-rolle="stichprobe-grund">{grundFuer(p)}</div>
+                        )}
                         {traegtFeld && (
                           <div className={s.verfallZeile}>
                             {/* Natives <input type="month"> — kein antd-DatePicker
@@ -1267,17 +1550,30 @@ export function CheckFlow({
                 ? `${flaschen.length} Flasche(n)`
                 : `${zuWechseln} wechseln`}
             </b>
-            <div>Bestätigen schließt den Check ab</div>
+            <div>
+              {istLetzter ? "Bestätigen schließt den Check ab" : `Weiter zu ${PHASE_LABEL[naechste]}`}
+            </div>
           </div>
-          <button
-            className={s.abschlussGo}
-            type="button"
-            disabled={laeuft}
-            onClick={abschliessen}
-            data-rolle="abschliessen"
-          >
-            Abschließen
-          </button>
+          {istLetzter ? (
+            <button
+              className={s.abschlussGo}
+              type="button"
+              disabled={laeuft}
+              onClick={abschliessen}
+              data-rolle="abschliessen"
+            >
+              Abschließen
+            </button>
+          ) : (
+            <button
+              className={s.abschlussGo}
+              type="button"
+              onClick={() => setPhase(naechste)}
+              data-rolle="weiter"
+            >
+              Weiter
+            </button>
+          )}
         </div>
       </>
     );

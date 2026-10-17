@@ -291,10 +291,23 @@ const TABELLEN: Record<
     { name: "erwartet", typ: "integer", notnull: 1, dflt: null, pk: 0 },
     { name: "gezaehlt", typ: "integer", notnull: 1, dflt: null, pk: 0 },
   ],
+  // 0017, IDA-222 — Plomben einer Einheit. `nummer`/`gesetzt_at` sind der
+  // Ist-Zustand; nullbar, weil eine neu angelegte Plombe noch nie gesetzt wurde.
+  plomben: [
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "lagerort_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "bezeichnung", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "fach_label", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "nummer", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "gesetzt_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
+    { name: "sortierung", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+  ],
 };
 
-describe("19 Tabellen, Spalte fuer Spalte", () => {
-  it("es sind genau 19 und keine mehr", () => {
+describe("20 Tabellen, Spalte fuer Spalte", () => {
+  it("es sind genau 20 und keine mehr", () => {
     const namen = (sqlite.prepare(
       `select name from sqlite_master where type='table'
          and name not like 'sqlite_%' and name not like '__drizzle%' and name != 'audit_outbox' order by name`,
@@ -339,6 +352,7 @@ const INDIZES: Record<string, string[]> = {
   ausgeblendete_kategorien: [],
   inventuren: [],
   inventur_positionen: ["idx_inventur_positionen_lauf"],
+  plomben: ["idx_plomben_lagerort"],
 };
 
 describe("Indizes — alle bestehenden bleiben, vier kommen dazu", () => {
@@ -438,9 +452,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt siebzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+  it("fuehrt achtzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
     expect(journal.entries.map((e) => e.idx))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -478,6 +492,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         // der eine Nummer wirklich eindeutig sein MUSS.
         "0015_ortscodes",
         "0016_ortscode_ersetzt",
+        "0017_plomben",
       ]);
   });
 

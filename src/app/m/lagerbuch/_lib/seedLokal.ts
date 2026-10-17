@@ -12,6 +12,7 @@ import {
   lagerorte,
   o2Flaschen,
   o2Messungen,
+  plomben,
   sollPositionen,
   templatePositionen,
   tokens,
@@ -1177,6 +1178,24 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   ].filter((x) => !msDa.has(x.id));
   for (const x of messungenListe) {
     db.insert(o2Messungen).values({ ...x, quelleTyp: "oidc", quelleId: SEED_SUB }).run();
+  }
+
+  /* 16b ── Plomben (IDA-222). Am RTW eine STEHENDE Plombe ueber dem
+   *        Infusionsfach (der Kurzcheck liest sie ab, statt zu zaehlen) und
+   *        eine nie gesetzte; am KTW eine nie gesetzte — dort zieht der
+   *        Kurzcheck das Fach wie jedes andere. Die Nummer „4711-001" ist
+   *        Demo-Wissen, wie die Zugangs-Codes darunter. */
+  const plDa = vorhandeneIds(db.select({ id: plomben.id }).from(plomben).all());
+  const plombenListe = [
+    { id: "pl-rtw1-infusion", lagerortId: RTW, bezeichnung: "Infusionskoffer",
+      fachLabel: "Fach 2 – Infusion", nummer: "4711-001", gesetztAt: vor(jetzt, 6), sortierung: 0 },
+    { id: "pl-rtw1-kinder", lagerortId: RTW, bezeichnung: "Kindernotfalltasche",
+      fachLabel: null, nummer: null, gesetztAt: null, sortierung: 1 },
+    { id: "pl-ktw1-verband", lagerortId: KTW, bezeichnung: "Verbandkasten",
+      fachLabel: "Fach 1 – Verbandmaterial", nummer: null, gesetztAt: null, sortierung: 0 },
+  ].filter((p) => !plDa.has(p.id));
+  for (const p of plombenListe) {
+    db.insert(plomben).values({ ...p, aktiv: true, createdAt: vor(jetzt, 30) }).run();
   }
 
   /* 17 ── Zugangs-Codes. FESTE Codes — sie stehen im Protokoll und auf

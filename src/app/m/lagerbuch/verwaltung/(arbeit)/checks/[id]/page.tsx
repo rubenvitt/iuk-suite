@@ -1,4 +1,4 @@
-import { Alert, Col, Row } from "antd";
+import { Alert, Card, Col, Row } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
@@ -146,6 +146,8 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
               * vergessener Wert aussieht. Das war die letzte Stelle, an der
               * „abgeschlossen" noch stillschweigend vorausgesetzt war.
               */}
+            {/* IDA-222: welche Pruefung — ein Kurzcheck zaehlt nur eine Stichprobe. */}
+            {check.art === "kurz" ? "Kurzcheck" : "Vollcheck"}{" · "}
             {check.completedAt
               ? `Abgeschlossen ${check.completedAt.toLocaleString("de-DE", {
                 timeZone: zeitzone(),
@@ -340,6 +342,27 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         * `altFormat` behaelt daneben seinen eigenen, anderen Nachfuell-Text: das
         * Altformat ist LESBAR, es traegt nur keine Positionsdetails.
         */}
+      {/* IDA-222: abgelesene bzw. gesetzte Plomben. */}
+      {check.plomben.length > 0 && (
+        <Card title="Plomben" style={{ marginBlockEnd: SPACE.xl }} data-rolle="check-plomben">
+          <ul style={{ margin: 0, paddingInlineStart: SPACE.lg }}>
+            {check.plomben.map((p) => (
+              <li key={p.plombeId}>
+                <strong>{p.bezeichnung ?? "Plombe"}</strong>
+                {": "}
+                {p.gesetzt !== undefined
+                  ? `neu gesetzt, Nummer ${p.gesetzt}`
+                  : p.intakt
+                    ? `abgelesen, passt (${p.gelesen ?? ""})`
+                    : p.gelesen
+                      ? `abgelesen ${p.gelesen}, erwartet ${p.erwartet ?? "–"} – Inhalt gezählt`
+                      : "fehlte oder war aufgebrochen – Inhalt gezählt"}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <CheckDetailTabellen
         abgleichZeilen={abgleichZeilen}
         nachfuellZeilen={nachfuellZeilen}

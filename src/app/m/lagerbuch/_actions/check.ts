@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb, type DB } from "../_db/client";
 import {
-  checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, newId,
+  checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, plomben, newId,
 } from "../_db/schema";
 import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
@@ -24,6 +24,8 @@ import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { o2Status } from "../_lib/domain/o2";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
+import { plombeDecktAb, plombenNummerNorm } from "../_lib/plombe";
+import type { CheckPlombeRoh } from "../_lib/checkErgebnis";
 
 /**
  * DER FAHRZEUG-CHECK-ABSCHLUSS — §5.8, §7.9.4. EINE Transaktion.
@@ -38,6 +40,26 @@ import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 
 const CheckSchema = z.object({
   fahrzeugId: z.string().min(1),
+  /*
+   * IDA-222: Kurz- oder Vollcheck. Vorgabe „voll", weil jeder Check vor
+   * IDA-222 einer war — eine Nutzlast ohne `art` meint genau das.
+   *
+   * ⚠️ „voll" WIRD HIER NICHT AUF VOLLSTAENDIGKEIT GEPRUEFT. Die Oberflaeche
+   * sendet im Vollcheck jede Position (der Zaehlschritt sperrt „Weiter", bis
+   * alles gezaehlt ist); serverseitig war eine Teilnutzlast schon vor IDA-222
+   * zulaessig und bleibt es. Geprueft wird, was den BESTAND schuetzt: dass ein
+   * Artikel ganz gezaehlt ist (unten).
+   */
+  art: z.enum(["kurz", "voll"]).default("voll"),
+  /*
+   * IDA-222: im Kurzcheck die ABGELESENEN Nummern (`null` = Plombe fehlt oder
+   * ist aufgebrochen), im Vollcheck die NEU GESETZTEN (leer = nicht neu gesetzt,
+   * die Plombe bleibt, wie sie war).
+   */
+  plomben: z.array(z.object({
+    plombeId: z.string().min(1),
+    nummer: z.string().trim().max(64).nullable(),
+  })).default([]),
   // Kann leer sein (Fahrzeug ohne Soll-Artikel, aber mit Geraeten). Der Flow
   // verhindert komplett leere Checks; serverseitig ist ein leerer
   // Positions-Check harmlos (bucht nichts).
@@ -81,6 +103,10 @@ export type CheckAbschlussWert = {
   /** Flaschen mit `nennfuelldruckBar <= 0` — nicht bewertbar, nicht „niedrig". */
   flaschenNichtBewertbar: number;
   verfallAuffaellig: number;
+  /** IDA-222: im Kurzcheck abgelesene Plomben, die nicht mehr stehen. */
+  plombenOffen: number;
+  /** IDA-222: im Vollcheck neu gesetzte Plomben. */
+  plombenGesetzt: number;
 };
 
 export async function checkAbschluss(
@@ -218,6 +244,8 @@ export async function checkAbschluss(
     let flaschenAuffaellig = 0;
     let flaschenNichtBewertbar = 0;
     let verfallAuffaellig = 0;
+    let plombenOffen = 0;
+    let plombenGesetzt = 0;
 
     db.transaction((tx) => {
       // Grabsteine (`entfernt`) sind kein Soll → aus der gueltigen Positionsmenge
@@ -257,6 +285,71 @@ export async function checkAbschluss(
       // geladen, nicht einmal je Artikelgruppe: `handlagerOrte` haengt an
       // keinem Artikel, ein Fahrzeug-Check mit vielen Positionen laedt sie
       // sonst unnoetig oft neu.
+      /*
+       * IDA-222 — EIN ARTIKEL WIRD GANZ ODER GAR NICHT GEZAEHLT.
+       *
+       * Der Abgleich darunter setzt den Fahrzeugbestand je Artikel auf die
+       * Summe der gezaehlten Positionen. Fehlt eine Position desselben Artikels
+       * (Kurzcheck zieht nur eine Stichprobe), waere das eine Teilsumme — und
+       * die Korrekturbuchung landet unwiderruflich im Journal. Die Oberflaeche
+       * zieht deshalb immer ganze Artikel (`_lib/domain/stichprobe.ts`); hier
+       * steht der Riegel fuer jeden anderen Weg.
+       */
+      for (const g of gruppen.values()) {
+        const alle = sollRows.filter((r) => r.artikelId === g.artikelId).length;
+        if (g.positionen.length !== alle) {
+          throw new Error("Ein Artikel wurde nur in einem Teil seiner Fächer gezählt");
+        }
+      }
+
+      /*
+       * IDA-222 — PLOMBEN. Im Kurzcheck wird jede stehende Plombe abgelesen;
+       * passt die Nummer nicht oder fehlt sie, steht die Plombe nicht mehr
+       * (`nummer` wird geleert, der naechste Vollcheck setzt sie neu), und ihr
+       * Fach MUSS in dieser Nutzlast gezaehlt sein. Im Vollcheck wird gesetzt.
+       */
+      const plombenHier = new Map(
+        tx.select().from(plomben).where(eq(plomben.lagerortId, v.fahrzeugId)).all()
+          .filter((p) => p.aktiv)
+          .map((p) => [p.id, p]),
+      );
+      const gezaehltIds = new Set(v.positionen.map((p) => p.sollPositionId));
+      const plombenErgebnis: CheckPlombeRoh[] = [];
+      for (const e of v.plomben) {
+        const pl = plombenHier.get(e.plombeId);
+        if (!pl) throw new Error("Plombe gehört nicht zu diesem Fahrzeug");
+        if (v.art === "kurz") {
+          const intakt = pl.nummer !== null && e.nummer !== null
+            && plombenNummerNorm(e.nummer) === plombenNummerNorm(pl.nummer);
+          if (!intakt) {
+            plombenOffen++;
+            if (pl.fachLabel !== null) {
+              const fach = sollRows.filter((r) => r.fachLabel === pl.fachLabel);
+              if (fach.some((r) => !gezaehltIds.has(r.id))) {
+                throw new Error("Das Fach einer offenen Plombe wurde nicht gezählt");
+              }
+            }
+            tx.update(plomben).set({ nummer: null, gesetztAt: null }).where(eq(plomben.id, pl.id)).run();
+          }
+          plombenErgebnis.push({
+            plombeId: pl.id, bezeichnung: pl.bezeichnung,
+            erwartet: pl.nummer, gelesen: e.nummer, intakt,
+          });
+        } else if (e.nummer) {
+          plombenGesetzt++;
+          tx.update(plomben).set({ nummer: e.nummer, gesetztAt: new Date() })
+            .where(eq(plomben.id, pl.id)).run();
+          plombenErgebnis.push({ plombeId: pl.id, bezeichnung: pl.bezeichnung, gesetzt: e.nummer });
+        }
+      }
+      if (v.art === "kurz") {
+        for (const pl of plombenHier.values()) {
+          if (plombeDecktAb(pl) && !v.plomben.some((e) => e.plombeId === pl.id)) {
+            throw new Error("Eine stehende Plombe wurde nicht abgelesen");
+          }
+        }
+      }
+
       const handlagerBereich = handlagerOrte(tx);
       const artikelErgebnis = [...gruppen.values()].map((g) => {
         // I4: nach `korrekturAufLagerort(…, istMenge)` gilt
@@ -384,6 +477,8 @@ export async function checkAbschluss(
           geraete: geraeteErgebnis,
           flaschen: flaschenErgebnis,
           verfall: verfallErgebnis,
+          art: v.art,
+          plomben: plombenErgebnis,
         }),
       }).run();
     });
@@ -414,6 +509,7 @@ export async function checkAbschluss(
       wert: {
         checkId, nachgefuellt, nachfuellBestaetigt, offen,
         geraeteAuffaellig, flaschenAuffaellig, flaschenNichtBewertbar, verfallAuffaellig,
+        plombenOffen, plombenGesetzt,
       },
     };
   });

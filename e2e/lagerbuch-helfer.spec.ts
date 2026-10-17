@@ -11,6 +11,7 @@ import {
   LAGERBUCH_HOST,
   LAGERBUCH_PORT,
   lagerbuchUrl,
+  vollcheckWaehlen,
 } from "./helpers/lagerbuch";
 
 /**
@@ -608,6 +609,7 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
     await page.goto(lagerbuchUrl("/helfer/check"));
     await page.getByRole("link", { name: /^E2E RTW/ }).click();
     await page.waitForURL(/\/helfer\/check\?fz=/);
+    await vollcheckWaehlen(page);
 
     /*
      * ⚠️ EIN FERNER MONAT, UND ZWAR MIT ABSICHT — nicht der naechstbeste.
@@ -801,6 +803,7 @@ test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
     await page.goto(lagerbuchUrl("/helfer/check"));
     await page.getByRole("link", { name: /^E2E RTW/ }).click();
     await page.waitForURL(/\/helfer\/check\?fz=/);
+    await vollcheckWaehlen(page);
 
     /*
      * AK1. Der Seed legt fuer `e2e-fahrzeug` drei abgeschlossene Checks an
@@ -1004,6 +1007,7 @@ test.describe("DRK-399 — „Ändern“ und die Geraeteknoepfe gehoeren derselb
     await page.goto(lagerbuchUrl("/helfer/check"));
     await page.getByRole("link", { name: new RegExp(`^${E2E_FAHRZEUG_ANDERES_NAME}`) }).click();
     await page.waitForURL(/\/helfer\/check\?fz=/);
+    await vollcheckWaehlen(page);
 
     /*
      * Einmal „−“ auf 0 zaehlt das leere Fach und gibt „Weiter“ frei. In einer
@@ -1085,5 +1089,29 @@ test.describe("IDA-218 — „Ziel übernehmen“ steht ohne Scrollen im Bild", 
     expect(knopf!.y, "der Knopf steht im Bild").toBeGreaterThanOrEqual(0);
     expect(knopf!.y + knopf!.height, "der Knopf endet über der Tab-Leiste")
       .toBeLessThanOrEqual(leiste!.y);
+  });
+});
+
+test.describe("IDA-222 — Kurzcheck oder Vollcheck", () => {
+  /*
+   * Schreibt nichts: der Test endet vor „Abschließen“. Er prueft die Strecke,
+   * die nur ein Browser sieht — die Wahl ist eine Server-Navigation (`?art=`),
+   * und die Stichprobe entsteht auf dem Server.
+   */
+  test("nach der Einheit kommt die Wahl, und der Kurzcheck zaehlt mit Begruendung", async ({ page }) => {
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.goto(lagerbuchUrl("/helfer/check"));
+    await page.getByRole("link", { name: /^E2E RTW/ }).click();
+    await page.waitForURL(/\/helfer\/check\?fz=/);
+
+    const kurz = page.locator("[data-rolle='check-art-kurz']");
+    await expect(kurz).toContainText("Reicht vor einem Sanitätsdienst");
+    await expect(page.locator("[data-rolle='check-art-voll']")).toContainText("Nach der Desinfektion");
+
+    await kurz.click();
+    await page.waitForURL((u) => u.searchParams.get("art") === "kurz");
+    await expect(page.locator("[data-rolle='check-art']")).toHaveText("Kurzcheck");
+    await expect(page.locator("[data-rolle='zaehlliste']")).toBeVisible();
+    await expect(page.locator("[data-rolle='stichprobe-grund']").first()).toBeVisible();
   });
 });

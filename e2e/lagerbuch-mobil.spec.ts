@@ -476,7 +476,7 @@ test.describe("Der Helfer-Zweig laeuft bei keiner Breite ueber", () => {
       },
     },
     {
-      pfad: "/helfer/check?fz=e2e-fahrzeug",
+      pfad: "/helfer/check?fz=e2e-fahrzeug&art=voll",
       anker: async (page) => {
         await expect(page.getByTestId("lb-tableiste")).toBeVisible();
         // Der Zaehlbildschirm, nicht die Fahrzeugwahl — nur er traegt das Raster.

@@ -7,6 +7,10 @@ import { geraeteFuerLagerort } from "../../_lib/lesepfade/geraete";
 import { o2FlaschenFuerLagerort } from "../../_lib/lesepfade/o2";
 import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
 import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
+import { kurzcheckVorlage, letzteCheckId } from "../../_lib/lesepfade/kurzcheck";
+import { plombenFuerLagerort } from "../../_lib/lesepfade/plomben";
+import { plombeDecktAb, plombenNummerNorm } from "../../_lib/plombe";
+import { grundText } from "../../_lib/domain/stichprobe";
 import { fmtDatumZeit } from "../../_lib/zeit";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
 import { einWert } from "../../_lib/suchparameter";
@@ -14,6 +18,7 @@ import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { FahrzeugWahl } from "../../_ui/FahrzeugWahl";
 import { CheckFlow } from "../../_ui/CheckFlow";
+import { CheckArtWahl } from "../../_ui/CheckArtWahl";
 import { ScanHinweis } from "../../_ui/ScanHinweis";
 import { LeerZustand } from "../../_ui/LeerZustand";
 
@@ -93,10 +98,15 @@ export default async function CheckSeite({
    * ergibt), und ein doppeltes `?fz=a&fz=a` waehlt jetzt `a`, statt still in
    * die Wahl zu fallen.
    */
-  searchParams: Promise<{ fz?: string | string[]; gescannt?: string | string[] }>;
+  searchParams: Promise<{
+    fz?: string | string[]; gescannt?: string | string[];
+    /** IDA-222: Kurz- oder Vollcheck; fehlt er, fragt die Seite. */
+    art?: string | string[];
+  }>;
 }) {
   const roh = await searchParams;
   const fz = einWert(roh.fz);
+  const artWahl = einWert(roh.art);
   const gescannt = einWert(roh.gescannt);
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
@@ -386,6 +396,71 @@ export default async function CheckSeite({
    * Helferin dafuer liest, entscheidet die Insel an EINER Stelle.
    */
   const letzterCheck = letzterCheckZeitpunkt(db, gewaehlt.id);
+  const letzterCheckText = letzterCheck === null ? null : fmtDatumZeit(letzterCheck);
+
+  /*
+   * KURZCHECK ODER VOLLCHECK — IDA-222.
+   *
+   * Ohne `?art=` fragt die Seite, sobald es etwas zu zaehlen gibt. Eine Einheit
+   * ohne Soll-Bestueckung hat keine Stichprobe — dort IST jeder Check ein
+   * Vollcheck, und eine Frage, deren Antwort nichts aendert, wird nicht gestellt.
+   *
+   * ⚠️ DIE STICHPROBE ENTSTEHT HIER, AUF DEM SERVER. Die Insel bekommt nur die
+   * gezogenen Positionen samt Grund; gezogen wird mit einem Seed aus Einheit,
+   * Tag und letztem Check (`_lib/lesepfade/kurzcheck.ts`) — ein Neuladen zieht
+   * dieselbe Stichprobe, man kann sich keine leichtere erladen.
+   */
+  const plombenListe = plombenFuerLagerort(db, gewaehlt.id);
+  const vorlage = soll.length > 0
+    ? kurzcheckVorlage(db, {
+        fahrzeugId: gewaehlt.id, soll, plomben: plombenListe,
+        letzterCheckId: letzteCheckId(db, gewaehlt.id),
+      })
+    : null;
+  const art: "kurz" | "voll" | null = artWahl === "kurz" || artWahl === "voll"
+    ? artWahl
+    : vorlage ? null : "voll";
+
+  if (art === null && vorlage) {
+    return (
+      <HelferRahmen aktiv="check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+        {uebergangen && <ScanHinweis gescannt={uebergangen} gezeigt={gewaehlt} />}
+        <CheckArtWahl
+          fahrzeug={{
+            id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung,
+            einheitenart: gewaehlt.einheitenart,
+          }}
+          gescannt={vomEtikettenweg ? gescannt : undefined}
+          kurz={{
+            positionen: vorlage.auswahl.length,
+            plomben: Object.keys(vorlage.versiegelt).length,
+            abgedeckt: vorlage.abgedeckt,
+            gesamt: vorlage.gesamt,
+          }}
+          plombenGesamt={plombenListe.length}
+          letzterCheckText={letzterCheckText}
+        />
+      </HelferRahmen>
+    );
+  }
+
+  /*
+   * ⚠️ DIE ERWARTETE NUMMER REIST MIT, NORMALISIERT, UND WIRD NIE ANGEZEIGT.
+   * Die Insel vergleicht sofort, damit ein geoeffnetes Fach noch VOR dem Zaehlen
+   * in die Liste kommt; der Abschluss vergleicht noch einmal selbst. Wer den
+   * Payload liest, kann sie finden — das ist hingenommen: eine Plombe ist
+   * Nachweis gegen Versehen im Dienstalltag, keine Sicherung gegen Vorsatz.
+   *
+   * Im Kurzcheck kommen nur Plomben, die etwas bezeugen (gesetzt, mit Fach),
+   * und die nie gesetzten — die zeigt der Schritt als Hinweis.
+   */
+  const plombenFuerFlow = (art === "kurz"
+    ? plombenListe.filter((p) => plombeDecktAb(p) || p.nummer === null)
+    : plombenListe
+  ).map((p) => ({
+    id: p.id, bezeichnung: p.bezeichnung, fachLabel: p.fachLabel,
+    erwartet: art === "kurz" && plombeDecktAb(p) ? plombenNummerNorm(p.nummer!) : null,
+  }));
 
   return (
     <HelferRahmen aktiv="check" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
@@ -429,11 +504,17 @@ export default async function CheckSeite({
         // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
         // unterscheiden — diese Seite kennt sie.
         kontoZugang={zugang.herkunft === "konto"}
+        art={art ?? "voll"}
         soll={soll}
+        stichprobe={art === "kurz" && vorlage
+          ? Object.fromEntries(vorlage.auswahl.map((t) => [t.id, grundText(t)]))
+          : null}
+        versiegelt={art === "kurz" && vorlage ? vorlage.versiegelt : {}}
+        plomben={plombenFuerFlow}
         geraete={geraete}
         flaschen={flaschen}
         verfall={verfall}
-        letzterCheckText={letzterCheck === null ? null : fmtDatumZeit(letzterCheck)}
+        letzterCheckText={letzterCheckText}
         // Die Schwellen kommen vom SERVER; die Ampel im Zaehlschritt rechnet
         // der Client damit ueber `verfallStatus`, und das ist seit
         // Entscheidung 26 (b) zonenexplizit — Chip und Abschlusszahl koennen
