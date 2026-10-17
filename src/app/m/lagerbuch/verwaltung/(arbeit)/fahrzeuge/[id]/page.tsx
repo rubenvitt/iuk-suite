@@ -31,6 +31,9 @@ import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
 import { VerfallEditor, type VerfallAnzeigeZeile } from "./VerfallEditor";
+import { PlombenEditor } from "./PlombenEditor";
+import { plombenFuerLagerort } from "../../../../_lib/lesepfade/plomben";
+import { fmtDatumZeit } from "../../../../_lib/zeit";
 
 export const dynamic = "force-dynamic";
 
@@ -219,6 +222,13 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     : null;
   const vorlagen = templateListeAktiv(db);
   const faecher = new Set(aktivePositionen.map((position) => position.fachLabel)).size;
+  // IDA-222. Der Zeitpunkt wird HIER formatiert — die Insel bekommt Text, kein `Date`.
+  const plomben = plombenFuerLagerort(db, id, { nurAktive: false }).map((p) => ({
+    id: p.id, bezeichnung: p.bezeichnung, fachLabel: p.fachLabel, aktiv: p.aktiv,
+    gesetzt: p.nummer !== null && p.gesetztAt !== null
+      ? `${p.nummer} · gesetzt ${fmtDatumZeit(p.gesetztAt)}`
+      : null,
+  }));
 
   return (
     <>
@@ -369,6 +379,18 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         Soll-Bestückung
       </h2>
       <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />
+
+      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
+        Plomben
+      </h2>
+      <Card>
+        <PlombenEditor
+          lagerortId={fahrzeug.id}
+          plomben={plomben}
+          faecher={[...new Set(aktivePositionen.map((position) => position.fachLabel))]
+            .sort((a, b) => a.localeCompare(b, "de"))}
+        />
+      </Card>
 
       <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
         {/*

@@ -633,6 +633,14 @@
     "kind": "context",
     "via": "setFahrzeugAktiv"
   },
+  "src/app/m/lagerbuch/_actions/plomben.ts#plombeAnlegen": {
+    "kind": "context",
+    "via": "plombeAnlegen"
+  },
+  "src/app/m/lagerbuch/_actions/plomben.ts#plombeAendern": {
+    "kind": "context",
+    "via": "plombeAendern"
+  },
   "src/app/m/lagerbuch/_actions/fahrzeuge.ts#setEinheitenart": {
     "kind": "context",
     "via": "setEinheitenart"

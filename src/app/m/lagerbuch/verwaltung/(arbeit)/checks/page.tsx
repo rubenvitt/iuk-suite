@@ -53,6 +53,19 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
     return [{ schluessel: "laeuft", text: "läuft noch", ton: "grau", zeichen: null }];
   }
   const chips: CheckErgebnisChip[] = [];
+  // IDA-222: ein Kurzcheck zaehlt nur eine Stichprobe — „vollständig" waere
+  // fuer ihn eine Behauptung ueber Positionen, die niemand angesehen hat.
+  if (zeile.art === "kurz") {
+    chips.push({ schluessel: "kurz", text: "Kurzcheck", ton: "grau", zeichen: null });
+  }
+  if (zeile.plombenOffen > 0) {
+    chips.push({
+      schluessel: "plomben",
+      text: `${zeile.plombenOffen} Plombe(n) offen`,
+      ton: "gelb",
+      zeichen: null,
+    });
+  }
   if (zeile.nachgefuellt > 0) {
     chips.push({
       schluessel: "nachgefuellt",
@@ -97,10 +110,10 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
       zeichen: "sauerstoff",
     });
   }
-  if (chips.length === 0) {
+  if (chips.every((c) => c.schluessel === "kurz")) {
     chips.push({
       schluessel: "vollstaendig",
-      text: "vollständig",
+      text: zeile.art === "kurz" ? "ohne Befund" : "vollständig",
       ton: "ok",
       zeichen: null,
     });

@@ -120,6 +120,13 @@
       "when": 1789585200000,
       "tag": "0016_ortscode_ersetzt",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1789588800000,
+      "tag": "0017_plomben",
+      "breakpoints": true
     }
   ]
 }

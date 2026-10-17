@@ -28,6 +28,8 @@ const BASIS: CheckDetail = {
   flaschen: [],
   verfall: [],
   altFormat: false,
+  art: "voll",
+  plomben: [],
   unlesbar: false,
   offen: false,
   hatZwischenstand: false,

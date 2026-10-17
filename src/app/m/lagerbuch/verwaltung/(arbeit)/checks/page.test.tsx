@@ -394,6 +394,23 @@ describe("Checks-Seite", () => {
     expect(istRekursivJsonSicher(zeile)).toBe(true);
   });
 
+  it("IDA-222: ein Kurzcheck ohne Befund heisst nicht „vollständig“, und offene Plomben stehen da", () => {
+    const kurz = (plomben: unknown[]) => JSON.stringify({
+      version: 2, art: "kurz", positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [], plomben,
+    });
+    checkEintragen({ id: "check-kurz", ergebnis: kurz([]) });
+    expect(tabelleAus(checksInhalt(t.db, {})).zeilen[0].ergebnisChips.map((c) => c.text))
+      .toEqual(["Kurzcheck", "ohne Befund"]);
+
+    checkEintragen({
+      id: "check-kurz-offen",
+      completedAt: new Date(ZEIT.getTime() + 1000),
+      ergebnis: kurz([{ plombeId: "p", intakt: false }, { plombeId: "q", intakt: true }]),
+    });
+    expect(tabelleAus(checksInhalt(t.db, {})).zeilen[0].ergebnisChips.map((c) => c.text))
+      .toEqual(["Kurzcheck", "1 Plombe(n) offen"]);
+  });
+
   it("zeigt ohne Auffälligkeit ausschließlich den vollständigen Status", () => {
     checkEintragen({ id: "check-vollstaendig" });
 

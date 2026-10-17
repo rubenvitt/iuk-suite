@@ -24,7 +24,7 @@ import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from 
 import type { DB } from "../../_db/client";
 import { quelleAufloeser } from "../../_db/quelle";
 import type { Einheitenart } from "../konstanten";
-import { parseCheckErgebnis } from "../checkErgebnis";
+import { checkArtUndPlomben, parseCheckErgebnis, type CheckPlombeRoh } from "../checkErgebnis";
 import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
 import { o2Status } from "../domain/o2";
 import { wechselGrenzeNachschlag } from "./o2";
@@ -82,6 +82,10 @@ export type CheckHistorieZeile = CheckSummen & {
    * ist zugleich die Lesart von „soweit vorhanden" im Ticket.
    */
   wer: string;
+  /** IDA-222: Kurz- oder Vollcheck; Altchecks sind Vollchecks. */
+  art: "kurz" | "voll";
+  /** IDA-222: im Kurzcheck abgelesene Plomben, die nicht mehr standen. */
+  plombenOffen: number;
 };
 
 export type CheckHistorie = { zeilen: CheckHistorieZeile[]; mehrVorhanden: boolean };
@@ -200,6 +204,7 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
       completedAt: c.completedAt,
       wer: wer(c.quelleTyp, c.quelleId),
       ...summiereCheckErgebnis(c.ergebnis, wechselGrenze),
+      ...(({ art, plombenOffen }) => ({ art, plombenOffen }))(checkArtUndPlomben(c.ergebnis)),
     })),
   };
 }
@@ -255,6 +260,9 @@ export type CheckDetail = {
    *  Zustand 26) — alles andere ist eine leere Tabelle, die wie ein Fehler
    *  aussieht. */
   altFormat: boolean;
+  /** IDA-222: Kurz- oder Vollcheck und was mit den Plomben war. */
+  art: "kurz" | "voll";
+  plomben: CheckPlombeRoh[];
   /**
    * ⚠️ §11.5, Zustand 27, und NICHT dasselbe wie `altFormat`: der Rohwert war
    * nicht lesbar, die leeren Listen unten sind also kein Befund, sondern ein
@@ -453,6 +461,7 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     wer: quelleAufloeser(db)(c.quelleTyp, c.quelleId),
     positionen, artikel: artikelD, geraete: geraeteD, flaschen: flaschenD, verfall: verfallD,
     altFormat: summe.altFormat,
+    ...(({ art, plomben }) => ({ art, plomben }))(checkArtUndPlomben(c.ergebnis)),
     // Aus DERSELBEN Quelle wie `altFormat` daneben. Seit die Uebersicht den
     // Grund ebenfalls anzeigt, traegt ihn `CheckSummen`; eine zweite Herleitung
     // hier waere eine zweite Wahrheit ueber dasselbe JSON — genau der Bruch, den

@@ -513,6 +513,44 @@ export const o2Messungen = sqliteTable(
   (t) => [index("idx_o2_messungen_flasche_ts").on(t.flascheId, t.ts)],
 );
 
+/**
+ * IDA-222 — die Plomben einer Einheit (Medizinkoffer, Notfallrucksack …).
+ *
+ * Eine Plombe bezeugt, dass ein Behaelter seit dem letzten Vollcheck nicht
+ * geoeffnet wurde. Der Kurzcheck liest sie ab, statt den Inhalt zu zaehlen; der
+ * Vollcheck setzt sie neu.
+ *
+ * STAMMDATEN MIT IST-ZUSTAND, KEIN NACHWEIS: `nummer` und `gesetzt_at` tragen
+ * die ZULETZT gesetzte Plombe und werden ueberschrieben. Was bei welchem Check
+ * abgelesen oder gesetzt wurde, steht im `checks.ergebnis` dieses Checks — dort
+ * ist es eine Momentaufnahme und bleibt.
+ *
+ * ⚠️ `fach_label` IST TEXT, KEIN FREMDSCHLUESSEL. Die Soll-Bestueckung kennt
+ * Faecher nur als `soll_positionen.fach_label` derselben Einheit; die Plombe
+ * deckt alle Positionen mit genau diesem Label ab. Benennt die Verwaltung das
+ * Fach um, deckt die Plombe nichts mehr ab — das ist der sichere Ausgang: der
+ * Kurzcheck zaehlt dann mehr, nie weniger. `null` heisst „deckt kein Fach ab"
+ * (die Plombe wird abgelesen, spart aber kein Zaehlen).
+ *
+ * `nummer` `null` heisst „noch nie gesetzt". Solange das so ist, gilt das Fach
+ * als offen und wird im Kurzcheck wie jedes andere gezogen.
+ */
+export const plomben = sqliteTable(
+  "plomben",
+  {
+    id: text("id").primaryKey(),
+    lagerortId: text("lagerort_id").notNull().references(() => lagerorte.id),
+    bezeichnung: text("bezeichnung").notNull(),
+    fachLabel: text("fach_label"),
+    nummer: text("nummer"),
+    gesetztAt: integer("gesetzt_at", { mode: "timestamp" }),
+    aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
+    sortierung: integer("sortierung").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [index("idx_plomben_lagerort").on(t.lagerortId)],
+);
+
 export const tokens = sqliteTable(
   "tokens",
   {

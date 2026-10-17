@@ -193,6 +193,12 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "plomben": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "soll_positionen": {
       "mode": "audited",
       "primaryKey": [

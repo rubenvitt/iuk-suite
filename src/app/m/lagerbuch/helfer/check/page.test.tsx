@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import type { TestDb } from "../../_db/testdb";
 import { migrierteTestDb } from "../../_db/testdb";
-import { checks, lagerorte, tokens } from "../../_db/schema";
+import { checks, lagerorte, plomben, tokens } from "../../_db/schema";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
 
 const QUELLE = "src/app/m/lagerbuch/helfer/check/page.tsx";
@@ -168,9 +168,15 @@ vi.mock("../../_ui/CheckFlow", () => ({
     warn: unknown;
     andereEinheitErreichbar: boolean;
     letzterCheckText: string | null;
+    art: string;
+    stichprobe: Record<string, string> | null;
+    plomben: Record<string, unknown>[];
   }) => (
     <div
       data-rolle="flow"
+      data-art={p.art}
+      data-stichprobe={JSON.stringify(p.stichprobe)}
+      data-plomben={JSON.stringify(p.plomben)}
       data-fz={p.fahrzeug.id}
       data-andere={String(p.andereEinheitErreichbar)}
       data-fz-felder={Object.keys(p.fahrzeug).sort().join(",")}
@@ -216,6 +222,21 @@ vi.mock("../../_ui/ScanHinweis", () => ({
       data-rolle="scan-hinweis"
       data-gescannt={String(p.gescannt.id)}
       data-gezeigt={String(p.gezeigt.id)}
+    />
+  ),
+}));
+/* IDA-222: die Wahl Kurz/Voll — eine Server Component, gemockt wie die Wahl der Einheit. */
+vi.mock("../../_ui/CheckArtWahl", () => ({
+  CheckArtWahl: (p: {
+    fahrzeug: { id: string }; gescannt: string | undefined;
+    kurz: Record<string, number>; plombenGesamt: number;
+  }) => (
+    <div
+      data-rolle="art-wahl"
+      data-fz={p.fahrzeug.id}
+      data-gescannt={String(p.gescannt)}
+      data-kurz={JSON.stringify(p.kurz)}
+      data-plomben-gesamt={String(p.plombenGesamt)}
     />
   ),
 }));
@@ -499,7 +520,7 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
      */
     fahrzeuge.mockReturnValue([FZ("fz-1")]);
     sollFuer.mockReturnValue([POS("sp-1", "a1"), POS("sp-2", "a2", true)]);
-    await mount(await CheckSeite(sp()));
+    await mount(await CheckSeite(sp({ art: "voll" })));
     expect(query("[data-rolle='flow']").getAttribute("data-soll-ids")).toBe("sp-1");
   });
 
@@ -514,7 +535,7 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
      */
     fahrzeuge.mockReturnValue([FZ("fz-1")]);
     sollFuer.mockReturnValue([POS("sp-1", "a1")]);
-    await mount(await CheckSeite(sp()));
+    await mount(await CheckSeite(sp({ art: "voll" })));
     expect(query("[data-rolle='flow']").getAttribute("data-soll-felder"))
       .toBe("artikelId,artikelName,einheit,fachLabel,fahrzeugBestand,handlagerBestand,handlagerFach,id,soll");
   });
@@ -1301,5 +1322,73 @@ describe("DRK-305 — der angemeldete Einstieg", () => {
     await mount(await CheckSeite(sp()));
     expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("false");
     expect(query("[data-rolle='rahmen']").getAttribute("data-etikett")).toBe(ETIKETT);
+  });
+});
+
+describe("/helfer/check — Kurzcheck oder Vollcheck (IDA-222)", () => {
+  const plombe = (id: string, nummer: string | null, fachLabel: string | null) =>
+    t.db.insert(plomben).values({
+      id, lagerortId: "fz-1", bezeichnung: `Plombe ${id}`, fachLabel, nummer,
+      gesetztAt: nummer ? new Date() : null, createdAt: new Date(),
+    }).run();
+
+  beforeEach(() => {
+    t.db.insert(lagerorte).values({
+      id: "fz-1", name: "FZ-1", typ: "fahrzeug", aktiv: true, einheitenart: "fahrzeug",
+    }).run();
+  });
+
+  it("fragt nach der Art, sobald es etwas zu zaehlen gibt", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    sollFuer.mockReturnValue([POS("sp-1", "a1"), POS("sp-2", "a2")]);
+    await mount(await CheckSeite(sp()));
+    expect(exists("[data-rolle='flow']")).toBe(false);
+    const wahl = query("[data-rolle='art-wahl']");
+    expect(wahl.getAttribute("data-fz")).toBe("fz-1");
+    expect(JSON.parse(wahl.getAttribute("data-kurz")!)).toEqual({
+      positionen: 2, plomben: 0, abgedeckt: 0, gesamt: 2,
+    });
+  });
+
+  it("fragt NICHT, wenn es nichts zu zaehlen gibt — dann ist es ein Vollcheck", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    geraeteFuer.mockReturnValue([GERAET("g-1")]);
+    await mount(await CheckSeite(sp()));
+    expect(exists("[data-rolle='art-wahl']")).toBe(false);
+    expect(query("[data-rolle='flow']").getAttribute("data-art")).toBe("voll");
+  });
+
+  it("ein unbekanntes `?art=` faellt auf die Frage zurueck", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    sollFuer.mockReturnValue([POS("sp-1", "a1")]);
+    await mount(await CheckSeite(sp({ art: "schnell" })));
+    expect(exists("[data-rolle='art-wahl']")).toBe(true);
+  });
+
+  it("der Kurzcheck bekommt die Stichprobe und die erwartete Nummer nur stehender Plomben", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    sollFuer.mockReturnValue([POS("sp-1", "a1"), POS("sp-2", "a2")]);
+    plombe("pl-steht", "12 345", "Fach 9");
+    plombe("pl-nie", null, "Fach 8");
+    plombe("pl-ohne-fach", "777", null);
+    await mount(await CheckSeite(sp({ art: "kurz" })));
+    const flow = query("[data-rolle='flow']");
+    expect(flow.getAttribute("data-art")).toBe("kurz");
+    expect(Object.keys(JSON.parse(flow.getAttribute("data-stichprobe")!)).sort()).toEqual(["sp-1", "sp-2"]);
+    const pl = JSON.parse(flow.getAttribute("data-plomben")!) as { id: string; erwartet: string | null }[];
+    // die Plombe ohne Fach bezeugt nichts und wird im Kurzcheck nicht abgelesen
+    expect(pl.map((p) => [p.id, p.erwartet])).toEqual([["pl-nie", null], ["pl-steht", "12345"]]);
+  });
+
+  it("der Vollcheck bekommt alle Plomben, aber keine Nummer und keine Stichprobe", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    sollFuer.mockReturnValue([POS("sp-1", "a1")]);
+    plombe("pl-steht", "12345", "Fach 9");
+    await mount(await CheckSeite(sp({ art: "voll" })));
+    const flow = query("[data-rolle='flow']");
+    expect(flow.getAttribute("data-stichprobe")).toBe("null");
+    expect(JSON.parse(flow.getAttribute("data-plomben")!)).toEqual([
+      { id: "pl-steht", bezeichnung: "Plombe pl-steht", fachLabel: "Fach 9", erwartet: null },
+    ]);
   });
 });

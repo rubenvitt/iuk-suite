@@ -18,6 +18,7 @@ import {
   lagerorte,
   o2Flaschen,
   o2Messungen,
+  plomben,
   sollPositionen,
   templatePositionen,
   tokens,
@@ -324,6 +325,11 @@ export async function loescheElement(
             break;
           case "lagerort":
             loescheVerfallFuer(tx, "lagerort", i);
+            // IDA-222: Plomben sind Stammdaten der Einheit und gehen mit. Ein
+            // Nachweis haengt nicht an ihnen (der steht im Check, und eine
+            // Einheit mit Checks ist ohnehin nicht loeschbar); ohne diese
+            // Zeile braeche das DELETE unten am Fremdschluessel ab.
+            tx.delete(plomben).where(eq(plomben.lagerortId, i)).run();
             /*
              * DER ORTSCODE GEHT MIT — DRK-406, und er wird GESPERRT, nicht
              * geloescht.

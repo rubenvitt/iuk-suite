@@ -33,6 +33,7 @@ import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
 import { VerfallEditor } from "./VerfallEditor";
+import { PlombenEditor } from "./PlombenEditor";
 import FahrzeugBlatt, { dynamic, fahrzeugInhalt, verfallKennzahlen } from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -568,12 +569,14 @@ describe("Fahrzeugblatt als Server Component", () => {
       // DRK-309: Die letzte Überschrift ist ART-BEWUSST. Die Fixture trägt
       // keine Art (der Zwischenstand aus Migration 0010), also das neutrale
       // Wort; bei einem Fahrzeug heißt sie unverändert „Verfall im Fahrzeug".
-      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Verfall in der Einheit"]);
+      // IDA-222: die Plomben stehen hinter der Soll-Bestückung — sie decken deren Fächer ab.
+      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Plomben", "Verfall in der Einheit"]);
 
     for (const [typ, name] of [
       [SollEditor, "SollEditor"],
       [TemplateVerknuepfung, "TemplateVerknuepfung"],
       [VerfallEditor, "VerfallEditor"],
+      [PlombenEditor, "PlombenEditor"],
     ] as const) {
       const [insel] = elementeVomTyp(seite, typ);
       expect(istRekursivJsonSicher(insel.props), name).toBe(true);

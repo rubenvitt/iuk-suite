@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 /**
  * DIE EINE QUELLE fuer Host, Admin-Gruppe, Port und die drei Token-Codes
  * (Festlegung H9, Spec §12.6 Punkt 2).
@@ -120,6 +121,17 @@ export const LAGERBUCH_ENV: Record<string, string> = {
  *  Login. */
 export function lagerbuchUrl(pfad: string): string {
   return `http://${LAGERBUCH_HOST}:${LAGERBUCH_PORT}${pfad}`;
+}
+
+/**
+ * IDA-222 — nach der Wahl der Einheit fragt der Check „Kurzcheck oder
+ * Vollcheck?". Specs, die den bisherigen Ablauf (alles zaehlen) pruefen, waehlen
+ * hier den Vollcheck. Ein Link, also eine Navigation: erst die neue Adresse
+ * abwarten, sonst greift der naechste Schritt noch auf der Wahl.
+ */
+export async function vollcheckWaehlen(page: Page): Promise<void> {
+  await page.locator("[data-rolle='check-art-voll']").click();
+  await page.waitForURL((u) => u.pathname.endsWith("/helfer/check") && u.searchParams.get("art") === "voll");
 }
 
 /** Dieselbe URL auf dem FREMDEN Suite-Host — fuer die 404-Schleife aus §3.8.3. */
