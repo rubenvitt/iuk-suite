@@ -74,7 +74,7 @@ export function CheckArtWahl({
         <Link className={s.zeile} href={ziel("voll")} data-rolle="check-art-voll">
           <div className={s.zeileHaupt}>
             <div className={s.zeileName}>Vollcheck</div>
-            <div className={s.zeileMeta}>Nach der Desinfektion</div>
+            <div className={s.zeileMeta}>Während der Desinfektion</div>
             <p className={s.fussnote} style={{ margin: "4px 0 0" }}>
               Alle {kurz.gesamt} Positionen zählen
               {plombenGesamt > 0 && " · Plomben neu setzen"}
