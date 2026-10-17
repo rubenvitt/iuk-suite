@@ -5,6 +5,12 @@ import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { NeuTemplate } from "./NeuTemplate";
 import { TemplateTable, type TemplateAnzeigeZeile } from "./TemplateTable";
 import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
+import { qrSvg } from "@/core/qr";
+import { moduleUrl } from "@/core/shell/moduleUrl";
+import { DEMO_PFAD } from "../../../_lib/demoCheck";
+import { demoCheckDaten, demoEinstellungLesen } from "../../../_lib/lesepfade/demo";
+import { templateListeAktiv } from "../../../_lib/lesepfade/fahrzeuge";
+import { DemoCheckKarte } from "./DemoCheckKarte";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +37,14 @@ function templateAnzeigeZeilen(db: DB): TemplateAnzeigeZeile[] {
   }));
 }
 
-export function vorlagenInhalt(db: DB): ReactNode {
+/** IDA-224: die oeffentliche Adresse des Demo-Checks, aus derselben Quelle wie die Etiketten (`moduleUrl`). */
+function demoAdresse(): { url: string; absolut: boolean } {
+  const basis = moduleUrl("lagerbuch");
+  return basis ? { url: `${basis.replace(/\/$/, "")}${DEMO_PFAD}`, absolut: true } : { url: DEMO_PFAD, absolut: false };
+}
+
+export function vorlagenInhalt(db: DB, demoQr: string | null = null): ReactNode {
+  const demo = demoEinstellungLesen(db);
   return (
     <>
       <SeitenKopf
@@ -40,10 +53,20 @@ export function vorlagenInhalt(db: DB): ReactNode {
         aktionen={<NeuTemplate />}
       />
       <TemplateTable zeilen={templateAnzeigeZeilen(db)} />
+      <DemoCheckKarte
+        // „Eingeschaltet" nur, wenn /demo auch wirklich antwortet — eine danach
+        // deaktivierte oder geleerte Vorlage schaltet die Demo still ab.
+        aktiv={demoCheckDaten(db) !== null}
+        templateId={demo.templateId}
+        vorlagen={templateListeAktiv(db)}
+        adresse={demoAdresse().url}
+        qr={demoQr}
+      />
     </>
   );
 }
 
-export default function VorlagenSeite() {
-  return vorlagenInhalt(getDb());
+export default async function VorlagenSeite() {
+  const adresse = demoAdresse();
+  return vorlagenInhalt(getDb(), adresse.absolut ? await qrSvg(adresse.url) : null);
 }

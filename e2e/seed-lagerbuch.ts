@@ -38,7 +38,7 @@ import { openModuleDatabase, moduleDbPath } from "@/core/db";
 import { getDb } from "@/app/m/lagerbuch/_db/client";
 import {
   artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte,
-  lagerortVerfall, o2Flaschen, sollPositionen, tokens, newId,
+  lagerortVerfall, o2Flaschen, sollPositionen, templatePositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import { AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX } from "@/app/m/lagerbuch/_lib/vorgang";
@@ -47,6 +47,7 @@ import {
   E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
   E2E_LAST_ANZAHL, E2E_LAST_PRAEFIX,
   E2E_ZELLENTEXT_ARTIKEL, E2E_ZELLENTEXT_KOMMENTAR,
+  E2E_DEMO_VORLAGE_ID, E2E_DEMO_VORLAGE_NAME,
 } from "./helpers/lagerbuch";
 
 const JETZT = new Date();
@@ -362,6 +363,29 @@ function vorlagenFixtures(): void {
     id: "e2e-vorlagen-fahrzeug", name: "E2E Vorlagen-KTW", typ: "fahrzeug",
     kennung: "MS-E2E-3", aktiv: false, templateId: null, einheitenart: "fahrzeug",
   }).onConflictDoNothing().run();
+}
+
+/**
+ * Die Vorlage fuer `lagerbuch-demo.spec.ts` (IDA-224): drei Positionen auf zwei
+ * eigenen Artikeln, einer davon in zwei Faechern. Die Artikel sind INAKTIV —
+ * sie stehen damit auf keinem Etikettenbogen und in keiner Bestellung, und die
+ * Vorlage haengt an keiner Einheit.
+ */
+function demoFixtures(): void {
+  const db = getDb();
+  db.insert(fahrzeugTemplates).values({
+    id: E2E_DEMO_VORLAGE_ID, name: E2E_DEMO_VORLAGE_NAME, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  for (const [id, name] of [["e2e-demo-handschuhe", "E2E Demo Handschuhe"], ["e2e-demo-mullbinde", "E2E Demo Mullbinde"]]) {
+    db.insert(artikel).values({
+      id, name, einheit: "Stk.", fach: "D1", mindestbestand: 0, aktiv: false, createdAt: JETZT,
+    }).onConflictDoNothing().run();
+  }
+  db.insert(templatePositionen).values([
+    { id: "e2e-demo-pos-1", templateId: E2E_DEMO_VORLAGE_ID, fachLabel: "Fach A", sort: 0, artikelId: "e2e-demo-handschuhe", soll: 2 },
+    { id: "e2e-demo-pos-2", templateId: E2E_DEMO_VORLAGE_ID, fachLabel: "Fach B", sort: 0, artikelId: "e2e-demo-handschuhe", soll: 1 },
+    { id: "e2e-demo-pos-3", templateId: E2E_DEMO_VORLAGE_ID, fachLabel: "Fach B", sort: 1, artikelId: "e2e-demo-mullbinde", soll: 3 },
+  ]).onConflictDoNothing().run();
 }
 
 /**
@@ -1092,6 +1116,7 @@ geraeteFixtures();
 fahrzeugKaertchenFixtures();
 bestellFixtures();
 vorlagenFixtures();
+demoFixtures();
 einheitenartFixtures();
 fahrzeugVerfallFixtures();
 aussondernFahrzeugFixtures();
