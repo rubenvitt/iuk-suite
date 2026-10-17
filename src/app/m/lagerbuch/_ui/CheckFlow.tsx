@@ -590,6 +590,9 @@ export function CheckFlow({
       ergebnis.verfallAuffaellig === 0 &&
       ergebnis.flaschenNichtBewertbar === 0 &&
       ergebnis.plombenOffen === 0;
+    const einraeumen = faecher
+      .map((fach) => ({ fach, positionen: soll.filter((p) => p.fachLabel === fach && nfWert(p) > 0) }))
+      .filter((g) => g.positionen.length > 0);
     return (
       <>
         <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
@@ -719,6 +722,37 @@ export function CheckFlow({
             </p>
           )}
         </div>
+
+        {/*
+          WOHIN DIE GEHOLTEN TEILE GEHOEREN (IDA-226). Eingeraeumt wird oft
+          erst nach dem Bestaetigen, und dann ist der Nachfuellschritt weg.
+          Gezeigt wird, was der Helfer BESTAETIGT hat — das hat er in der Hand —,
+          nicht das Gebuchte; kappt der Server, sagt es die Fussnote oben.
+        */}
+        {einraeumen.length > 0 && (
+          <>
+            <div className={`${s.karte} ${s.kartePad}`}>
+              <div className={s.zeileName}>Wohin die geholten Teile gehören</div>
+            </div>
+            <div className={s.fachraster} data-rolle="einraeum-liste">
+              {einraeumen.map(({ fach, positionen }) => (
+                <div key={fach} data-rolle="einraeum-fach">
+                  <div className={s.fachKopf}>{fach}</div>
+                  <div className={s.karte}>
+                    {positionen.map((p) => (
+                      <div className={s.nfZeile} key={p.id}>
+                        <div className={`${s.zeileHaupt} ${s.zeileName}`}>{p.artikelName}</div>
+                        <b data-rolle="einraeum-menge">
+                          {nfWert(p)} {p.einheit}
+                        </b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/*
           ZWEI LINKS statt eines Zustandsresets ueber sieben Setter (`:210`,
@@ -990,7 +1024,11 @@ export function CheckFlow({
               <div className={`${s.pruefKreis} ${plombeEingabe(p.id) !== "" ? s.pruefKreisOk : ""}`} />
               <div className={s.zeileHaupt}>
                 <div className={s.zeileName}>{p.bezeichnung}</div>
-                {p.fachLabel && <div className={s.zeileMeta}>deckt „{p.fachLabel}“ ab</div>}
+                {p.fachLabel && (
+                  <div className={s.zeileMeta}>
+                    deckt <b className={s.fachInZeile}>{p.fachLabel}</b> ab
+                  </div>
+                )}
               </div>
               <div className={s.verfallZeile}>
                 <input
@@ -1628,41 +1666,55 @@ export function CheckFlow({
               Aus dem Handlager {inDieEinheit(fahrzeug.einheitenart)} legen
             </div>
             <p className={s.fussnote}>
-              Hol die Teile aus dem angegebenen Handlager-Fach und stell mit <b>+/−</b> ein, wie
-              viele du <b>wirklich</b> geholt hast.
+              Die Überschriften sind die Fächer {inDerEinheit(fahrzeug.einheitenart)}, in die die
+              Teile gehören. Hol sie aus dem angegebenen Handlager-Fach und stell mit <b>+/−</b> ein,
+              wie viele du <b>wirklich</b> geholt hast.
             </p>
           </div>
-          <div className={s.karte} data-rolle="nf-liste">
-            {nfPositionen.map((p) => {
-              const luecke = Math.max(0, p.soll - istWert(p));
-              return (
-                <div className={s.nfZeile} key={p.id}>
-                  <div className={s.zeileHaupt}>
-                    <div className={s.zeileName}>{p.artikelName}</div>
-                    <div className={s.zeileMeta}>
-                      <span className={s.fach}>{p.handlagerFach}</span>
-                      <span>
-                        Lücke {luecke} · im Handlager {p.handlagerBestand}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={s.nfGeholt}>
-                    {/* `max={luecke}`: der Helfer stellt ein, was er WIRKLICH
-                        geholt hat — die Buchung folgt der Wirklichkeit, nicht
-                        dem Vorschlag (`:461`). */}
-                    <Stepper
-                      noText
-                      wert={nfWert(p)}
-                      min={0}
-                      max={luecke}
-                      beschriftung={`geholt ${p.artikelName}`}
-                      setWert={(v) => setNachfuell((z) => ({ ...z, [p.id]: v }))}
-                    />
-                    <small>geholt</small>
-                  </div>
+          {/*
+            NACH ZIEL-FACH GEGLIEDERT (IDA-226), wie der Zaehlschritt. Das
+            Handlager-Fach sagt nur, WOHER; wer die Teile danach einraeumt, muss
+            wissen, WOHIN — und ein Artikel in zwei Faechern war vorher zweimal
+            dieselbe Zeile.
+          */}
+          <div className={s.fachraster} data-rolle="nf-liste">
+            {faecher.filter((f) => nfPositionen.some((p) => p.fachLabel === f)).map((fach) => (
+              <div key={fach} data-rolle="nf-fach">
+                <div className={s.fachKopf}>{fach}</div>
+                <div className={s.karte}>
+                  {nfPositionen.filter((p) => p.fachLabel === fach).map((p) => {
+                    const luecke = Math.max(0, p.soll - istWert(p));
+                    return (
+                      <div className={s.nfZeile} key={p.id}>
+                        <div className={s.zeileHaupt}>
+                          <div className={s.zeileName}>{p.artikelName}</div>
+                          <div className={s.zeileMeta}>
+                            <span className={s.fach}>{p.handlagerFach}</span>
+                            <span>
+                              Lücke {luecke} · im Handlager {p.handlagerBestand}
+                            </span>
+                          </div>
+                        </div>
+                        <div className={s.nfGeholt}>
+                          {/* `max={luecke}`: der Helfer stellt ein, was er WIRKLICH
+                              geholt hat — die Buchung folgt der Wirklichkeit, nicht
+                              dem Vorschlag (`:461`). */}
+                          <Stepper
+                            noText
+                            wert={nfWert(p)}
+                            min={0}
+                            max={luecke}
+                            beschriftung={`geholt ${p.artikelName}`}
+                            setWert={(v) => setNachfuell((z) => ({ ...z, [p.id]: v }))}
+                          />
+                          <small>geholt</small>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </>
       )}
