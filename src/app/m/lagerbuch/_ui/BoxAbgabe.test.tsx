@@ -118,18 +118,23 @@ describe("BoxAbgabe — der Schirm", () => {
    * NAECHSTEN Tests aus dem Dokument. Der Ausfall ist weit weg von der Ursache
    * — er meldet sich als „Element nicht gefunden" im uebernaechsten Test.
    */
-  it("beschriftet die Liste am Fahrzeug art-bewusst", async () => {
+  /*
+   * IDA-221: die Ueberschrift fragt nach der HANDLUNG. Wer hier steht, legt ab —
+   * der Bestand der Einheit ist nicht seine Frage. Die Art der Einheit steht
+   * darueber (`box-einheit-meta`), die Ueberschrift ist deshalb fuer beide gleich.
+   */
+  it("fragt am Fahrzeug, was in die Box kommt — statt den Bestand zu nennen", async () => {
     await mount(
       <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
     );
-    expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Liegt im Fahrzeug");
+    expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Was legst du in die Box?");
   });
 
-  it("beschriftet dieselbe Liste an der Tasche anders", async () => {
+  it("fragt an der Tasche dasselbe", async () => {
     await mount(
       <BoxAbgabe einheit={TASCHE} posten={[posten()]} andereEinheitErreichbar rueckweg={RUECKWEG} kontoZugang={false} />,
     );
-    expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Liegt in der Tasche");
+    expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Was legst du in die Box?");
   });
 
   it("nennt die GEMELDETE Angabe als solche — DRK-377", async () => {

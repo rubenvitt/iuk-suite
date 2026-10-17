@@ -87,8 +87,8 @@ test.describe("Entnahmebox (DRK-314)", () => {
     // Zeitbudget und meldete sich als etwas ganz anderes (Falle 10).
     expect(antwort?.status(), "/helfer/box: HTTP").toBe(200);
 
-    // Die Strecke spricht art-bewusst — hier steht die Art FEST (DRK-309).
-    await expect(page.locator("[data-rolle='box-liste-titel']")).toHaveText("Liegt im Fahrzeug");
+    // Die Liste ist eine Auswahl fuers Ablegen, keine Bestandsanzeige (IDA-221).
+    await expect(page.locator("[data-rolle='box-liste-titel']")).toHaveText("Was legst du in die Box?");
 
     const zeile = page.locator("[data-rolle='box-posten']").filter({ hasText: ARTIKEL_NAME });
     await expect(zeile).toHaveCount(1);
