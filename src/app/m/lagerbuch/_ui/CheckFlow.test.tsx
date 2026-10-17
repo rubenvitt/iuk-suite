@@ -916,6 +916,78 @@ describe("CheckFlow — Nachfuellen", () => {
   });
 });
 
+/**
+ * IDA-226 — WOHIN DIE TEILE GEHOEREN. Das Handlager-Fach sagt nur, woher; wer
+ * nach dem Check einraeumt, braucht das Fach der Einheit und die Menge. Ein
+ * Artikel in zwei Faechern ist der Fall, an dem eine Liste ohne Ziel
+ * unbrauchbar wird: zwei gleiche Zeilen.
+ */
+describe("CheckFlow — Ziel-Fach und Einraeumliste (IDA-226)", () => {
+  const ZWEI_FAECHER = [
+    POS({ id: "sp-1", fachLabel: "Fach 1", soll: 3 }),
+    POS({ id: "sp-2", fachLabel: "Fach 2", soll: 2 }),
+    POS({ id: "sp-3", fachLabel: "Fach 2", artikelId: "art-2", artikelName: "Mullbinde", soll: 1 }),
+  ];
+
+  async function bisNachfuellen() {
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={ZWEI_FAECHER}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await alleBestaetigen();
+    await plus(2); // Mullbinde gezaehlt 1 = Soll, fehlt nicht
+    await click(WEITER);
+  }
+
+  const faecherMitText = (rolle: string) =>
+    queryAll(`[data-rolle='${rolle}']`).map((f) => f.textContent ?? "");
+
+  it("gliedert den Nachfuellschritt nach dem Fach der Einheit", async () => {
+    await bisNachfuellen();
+    const faecher = faecherMitText("nf-fach");
+    expect(faecher).toHaveLength(2);
+    expect(faecher[0]).toMatch(/^Fach 1.*Kompresse.*Lücke 3/);
+    expect(faecher[1]).toMatch(/^Fach 2.*Kompresse.*Lücke 2/);
+    // Was auf Soll ist, steht auch im Fach nicht.
+    expect(faecher[1]).not.toContain("Mullbinde");
+    expect(document.body.textContent).toContain("Die Überschriften sind die Fächer im Fahrzeug");
+  });
+
+  it("nennt am Abschluss je Fach, wie viel wohin gehoert — das Bestaetigte", async () => {
+    await bisNachfuellen();
+    // Fach 2 nur 1 statt 2 geholt.
+    await clickElement(queryAll("[data-rolle='nf-liste'] button[aria-label$='verringern']")[1]);
+    await click(ABSCHLIESSEN);
+    expect(faecherMitText("einraeum-fach")).toEqual(["Fach 1Kompresse3 Stk", "Fach 2Kompresse1 Stk"]);
+    expect(document.body.textContent).toContain("Wohin die geholten Teile gehören");
+  });
+
+  it("laesst ein Fach weg, in das nichts geholt wurde — und die Liste, wenn nichts geholt wurde", async () => {
+    await bisNachfuellen();
+    const minusNf = (i: number) =>
+      clickElement(queryAll("[data-rolle='nf-liste'] button[aria-label$='verringern']")[i]);
+    for (let i = 0; i < 2; i++) await minusNf(1);
+    await click(ABSCHLIESSEN);
+    expect(faecherMitText("einraeum-fach")).toEqual(["Fach 1Kompresse3 Stk"]);
+    await unmount();
+
+    await bisNachfuellen();
+    for (let i = 0; i < 3; i++) await minusNf(0);
+    for (let i = 0; i < 2; i++) await minusNf(1);
+    await click(ABSCHLIESSEN);
+    expect(exists("[data-rolle='einraeum-liste']")).toBe(false);
+  });
+});
+
 describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
   it("sendet genau das Gezaehlte — Ist, Nachfuellmenge, Geraet und Druck", async () => {
     // ⚠️ Ohne diese Zusicherung ist KEINE der acht 1:1-Zeilen der Brief-Tabelle

@@ -691,10 +691,19 @@
 .schrittAktiv { border-color: var(--lb-tinte); color: var(--lb-tinte) }
 .schrittAktiv .schrittNr { background: var(--lb-tinte); color: var(--lb-karte) }
 .schrittFertig .schrittNr { background: var(--lb-ampel-ok-text); color: var(--lb-karte) }
+/*
+ * DAS FACH IST DIE ORTSANGABE DES CHECKS (IDA-226) — wo gezaehlt, wohin
+ * eingeraeumt wird. Als leise 13px-Stahlzeile ging sie unter; sie steht jetzt in
+ * Tinte, gross und mit Balken. Kein Rot (Falle 3): ein Ort ist kein Befund.
+ */
 .fachKopf {
-  font-family: var(--lb-display); font-weight: 600; font-size: 13px; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--lb-stahl); margin: 15px 2px 7px;
+  font-family: var(--lb-display); font-weight: 700; font-size: 21px; line-height: 1.2;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--lb-tinte);
+  margin: 20px 2px 8px; padding-left: 10px; border-left: 5px solid var(--lb-tinte);
+  overflow-wrap: anywhere;
 }
+/* Dieselbe Ortsangabe mitten in einer Zeile (Plombe „deckt … ab"). */
+.fachInZeile { font-size: 15px; font-weight: 700; color: var(--lb-tinte); overflow-wrap: anywhere }
 .pruefKreis {
   width: 30px; height: 30px; border-radius: 99px; border: 2px solid var(--lb-linie);
   flex: none; display: flex; align-items: center; justify-content: center; background: var(--lb-karte);
