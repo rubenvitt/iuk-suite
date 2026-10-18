@@ -1,16 +1,17 @@
 import localFont from "next/font/local";
 
 /**
- * Arimo aus `@einsatzzeichen/core/fonts` (seit core 4.1.0) — keine Kopie im Repo. Nur die zwei Stufen, die eine
- * Zeichnung anfordert: 400 (Katalogzeichen, Plantext, eigene Zeichen ohne `font-weight`) und 700 (Piktogramme
- * TMO/DMO/HRT/Fax/C, fette Titel). 500 und 500 kursiv setzt core nur, wo `zerlege` das Gewicht wieder abnimmt
- * bzw. der Baukasten nicht hinkommt (`generat.test.ts` hält beides fest). Vorschübe gleich `ARIMO_TEXT_METRICS`.
- * `display: "block"`: die Karten sind mit Arimo-Metriken gesetzt, ein kurz eingeblendeter Ersatzschnitt liefe aus
+ * „Einsatzzeichen Sans" aus `@einsatzzeichen/core/fonts` (seit core 6.0.0, vorher Arimo) — keine Kopie im Repo. Die drei
+ * Stufen, die eine Zeichnung anfordert: 400 (Plantext), 500 (jedes Kürzel in Katalog- und eigenen Zeichen, core setzt es
+ * als `CATALOG_TEXT_FONT_WEIGHT`) und 700 (fette Titel). 500 kursiv setzt core nur, wo der Baukasten nicht hinkommt
+ * (`generat.test.ts` hält beides fest). Vorschübe gleich `TEXT_FONT_METRICS`.
+ * `display: "block"`: die Karten sind mit diesen Metriken gesetzt, ein kurz eingeblendeter Ersatzschnitt liefe aus
  * ihnen heraus. Die Zeichnung erbt die Familie vom <svg> (`style.fontFamily`), die Symbole tragen keine.
  */
-export const ARIMO = localFont({
+export const ZEICHENSCHRIFT = localFont({
   src: [
     { path: "../../../../../node_modules/@einsatzzeichen/core/fonts/text-regular.woff2", weight: "400", style: "normal" },
+    { path: "../../../../../node_modules/@einsatzzeichen/core/fonts/text-medium.woff2", weight: "500", style: "normal" },
     { path: "../../../../../node_modules/@einsatzzeichen/core/fonts/text-bold.woff2", weight: "700", style: "normal" },
   ],
   display: "block",

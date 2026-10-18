@@ -46,8 +46,8 @@ describe("OpenR 01.07.2022 wie in der Vorlage", () => {
     expect(linie.y1).toBeLessThan(el.y + el.kopfHoehe);
     expect(z.sechsecke.find((s) => s.netz === "fuekw<links")?.beschriftung.text).toBe("BOS_NI_RES_09");
     expect(z.einheiten.find((e) => e.stelleId === "el")?.zeilen.map((x) => x.text)).toEqual(["KdoW 40-10-1"]);
-    // Die Excel-Vorlage zeigt die Rufnummer ganz (Review Phase 1: früher „GW Betreuung RK LG 45-7…")
-    expect(z.einheiten.find((e) => e.voll === "GW Betreuung RK LG 45-74-10")?.zeilen.map((x) => x.text)).toEqual(["GW Betreuung", "RK LG 45-74-10"]);
+    // Die Excel-Vorlage zeigt die Rufnummer ganz (Review Phase 1: früher „GW Betreuung RK LG 45-7…"); seit Einsatzzeichen Sans in einer Zeile
+    expect(z.einheiten.find((e) => e.voll === "GW Betreuung RK LG 45-74-10")?.zeilen.map((x) => x.text)).toEqual(["GW Betreuung RK LG 45-74-10"]);
   });
   it("drei Gruppen unter FüKW, jede mit eigenem Stiel ab der Kartenunterkante", () => {
     const fk = k(z, "fuekw");

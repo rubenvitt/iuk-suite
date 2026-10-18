@@ -33,8 +33,8 @@ describe("Sechseck", () => {
       const textY = Number(/<text\b[^>]*\by="([\d.]+)"/.exec(q.inhalt)![1]);
       // preserveAspectRatio xMidYMid meet: der Inhalt steht senkrecht mittig im Platz
       const grundlinie = s.pikto.y + (s.pikto.hoehe - vh * f) / 2 + (textY - vy) * f;
-      // Fax: die Zickzacklinie unter „Fax" stieße unten an den Rand; dort hält der Rand (0,04 mm).
-      expect(Math.abs(grundlinie - s.beschriftung.y), art).toBeLessThan(art === "fax" ? 0.05 : 1e-6);
+      // Fax: die Zickzacklinie unter „Fax" stieße unten an den Rand; dort hält der Rand (0,12 mm, unter Arimo 0,04 mm).
+      expect(Math.abs(grundlinie - s.beschriftung.y), art).toBeLessThan(art === "fax" ? 0.15 : 1e-6);
       // und bleibt im Sechseck
       expect(s.pikto.y + (s.pikto.hoehe - vh * f) / 2).toBeGreaterThanOrEqual(0);
       expect(s.pikto.y + (s.pikto.hoehe + vh * f) / 2).toBeLessThanOrEqual(SECHSECK.hoehe);

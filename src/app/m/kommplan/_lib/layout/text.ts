@@ -1,15 +1,30 @@
-import { METRIK, type Schnitt } from "../zeichen/grundlagen";
+import { METRIK, type Schnitt, type Unterschneidung } from "../zeichen/grundlagen";
 import { PT_IN_MM } from "./masse";
 
 /**
  * Textmessung ohne DOM: Server und Browser rechnen dieselben Breiten (Spec §5.1). Gerendert
- * wird in Arimo — dieselbe Schrift, aus der die Vorschübe stammen.
+ * wird in „Einsatzzeichen Sans" — dieselbe Schrift, aus der die Vorschübe stammen.
  */
 const AUSLASSUNG = "…";
 const BRUCHSTELLEN = new Set(["-", "/", "@", ".", "_"]);
 
 function vorschub(s: Schnitt, cp: number): number {
   return s.vorschub[String(cp)] ?? METRIK.ersatz;
+}
+
+/** Codepoint → Klasse, einmal je Seite und Schnitt aufgebaut. */
+function klassen(liste: readonly string[]): Map<number, number> {
+  const index = new Map<number, number>();
+  liste.forEach((mitglieder, klasse) => { for (const z of mitglieder) index.set(z.codePointAt(0)!, klasse); });
+  return index;
+}
+const KLASSEN = new Map<Unterschneidung, { links: Map<number, number>; rechts: Map<number, number> }>();
+function unterschneidung(u: Unterschneidung, links: number, rechts: number): number {
+  let k = KLASSEN.get(u);
+  if (!k) { k = { links: klassen(u.links), rechts: klassen(u.rechts) }; KLASSEN.set(u, k); }
+  const zeile = k.links.get(links);
+  const spalte = k.rechts.get(rechts);
+  return zeile === undefined || spalte === undefined ? 0 : u.werte[zeile]?.[String(spalte)] ?? 0;
 }
 
 export function textBreite(text: string, pt: number, fett = false): number {
@@ -19,7 +34,7 @@ export function textBreite(text: string, pt: number, fett = false): number {
   for (const zeichen of text) {
     const cp = zeichen.codePointAt(0)!;
     summe += vorschub(s, cp);
-    if (vorher !== null) summe += s.unterschneidung[String(vorher)]?.[String(cp)] ?? 0;
+    if (vorher !== null) summe += unterschneidung(s.unterschneidung, vorher, cp);
     vorher = cp;
   }
   return (summe / METRIK.einheitenProEm) * pt * PT_IN_MM;

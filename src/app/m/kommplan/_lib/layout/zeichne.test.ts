@@ -23,7 +23,7 @@ describe("zeichne", () => {
     const z = zeichne(p, "bildschirm");
     expect(z.karten.map((k) => k.id).sort()).toEqual(["el", "lts", "s"]);
     const xs = [...z.karten.map((k) => k.x), ...z.linien.flatMap((l) => [l.x1, l.x2]), ...z.sechsecke.map((s) => s.x)];
-    expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(-1e-6); // normiert wird an der Kontur, und die rundet auf 1e-6 (`kontur.ts`)
     expect(Math.min(...xs)).toBeLessThan(1);
     expect(Math.min(...z.karten.map((k) => k.y))).toBe(0);
     expect(Math.max(...z.karten.map((k) => k.x + k.breite))).toBeLessThanOrEqual(z.breite + 1e-9);

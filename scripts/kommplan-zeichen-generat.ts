@@ -2,13 +2,13 @@
  * Erzeugt die vier eingecheckten Generate des Moduls kommplan.
  *
  * WARUM EINGECHECKT: eine frische Arbeitskopie muss ohne Vorlauf `typecheck` und `vitest` bestehen,
- * und `@einsatzzeichen/*` sind devDependencies — der Server-Graph darf sie nie laden (Befund M1:
- * `catalog/dist/src/fonts.js` ruft `fileURLToPath(new URL(…))` auf Modulebene). Drift fängt
- * `_lib/zeichen/generat.test.ts`: er erzeugt neu in einen Wegwerfordner und vergleicht byteweise.
+ * und die Rezepte stehen im Prüfpaket `@einsatzzeichen/conformance` (devDependency, früher `catalog`) — der
+ * Server-Graph darf es nie laden (Befund M1: `fonts.js` ruft `fileURLToPath(new URL(…))` auf Modulebene). Drift
+ * fängt `_lib/zeichen/generat.test.ts`: er erzeugt neu in einen Wegwerfordner und vergleicht byteweise.
  *
  * WARUM VIER DATEIEN: `zeichen.generiert.json` (alle Rezepte als fertiges SVG) und `zeichen-sw.generiert.json` (dieselben im Druckthema `PRINT_MONOCHROME_THEME`, Phase 5) liest nur der Server;
- * `grundlagen.generiert.json` (Arimo-Metriken, Piktogramme) braucht auch der Browser, weil der Betrachter das Layout
- * selbst rechnet; `schrift.generiert.json` (Arimo 400 und 700 aus `@einsatzzeichen/core/fonts`, Base64) lädt nur der SVG-Export beim Klick.
+ * `grundlagen.generiert.json` (Metriken von „Einsatzzeichen Sans", Piktogramme) braucht auch der Browser, weil der Betrachter das Layout
+ * selbst rechnet; `schrift.generiert.json` (die Schnitte 400, 500 und 700 aus `@einsatzzeichen/core/fonts`, Base64) lädt nur der SVG-Export beim Klick.
  *
  * KEIN DATUM IM GENERAT: sonst wäre der Drift-Vergleich am nächsten Tag rot.
  *
@@ -17,13 +17,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import {
-  ALL_PICTOGRAMS,
-  ARIMO_TEXT_METRICS,
-  RECIPES,
-  composeFromCatalog,
-} from "@einsatzzeichen/catalog";
-import { PRINT_MONOCHROME_THEME, renderSvg } from "@einsatzzeichen/core";
+import { RECIPES } from "@einsatzzeichen/conformance";
+import { ALL_PICTOGRAMS, PRINT_MONOCHROME_THEME, TEXT_FONT_METRICS, drawSymbol, renderSvg } from "@einsatzzeichen/core";
 import { SECHSECK } from "../src/app/m/kommplan/_lib/layout/masse";
 
 const STANDARD_ZIEL = "src/app/m/kommplan/_lib/zeichen";
@@ -45,17 +40,24 @@ function wurzel(einstieg: string, endung: RegExp): string {
   if (w === einstieg) throw new GeneratFehler(`Einstiegspunkt liegt unerwartet unter ${einstieg}`);
   return w;
 }
-const katalogEinstieg = hier.resolve("@einsatzzeichen/catalog");
-const KATALOG = wurzel(katalogEinstieg, /dist[/\\]src[/\\]index\.js$/);
-const ausKatalog: Anforderer = createRequire(katalogEinstieg);
+const pruefEinstieg = hier.resolve("@einsatzzeichen/conformance");
+const PRUEFPAKET = wurzel(pruefEinstieg, /dist[/\\]src[/\\]index\.js$/);
+const ausPruefpaket: Anforderer = createRequire(pruefEinstieg);
 const kern = (von: Anforderer, name: string) => wurzel(von.resolve(name), /dist[/\\]index\.js$/);
 const version = (w: string) => (JSON.parse(readFileSync(join(w, "package.json"), "utf8")) as { version: string }).version;
+const KERN = kern(hier, "@einsatzzeichen/core");
 
+/**
+ * EIN KERN FÜR REZEPT UND ZEICHNUNG: bis Katalog 1.5.0 zeichnete der Katalog mit seinem verschachtelten core 1.5.0
+ * und kommplan renderte mit dem eigenen — zwei Schriften, zwei Typstände. Das Prüfpaket muss denselben core und
+ * dasselbe schema auflösen wie die Wurzel, sonst stünden die Kürzel wieder in Metriken, mit denen nicht gemessen wird.
+ */
+for (const name of ["@einsatzzeichen/core", "@einsatzzeichen/schema"]) {
+  if (kern(ausPruefpaket, name) !== kern(hier, name)) throw new GeneratFehler(`das Prüfpaket löst ${name} anders auf als die Wurzel`);
+}
 const STAND = {
-  catalog: version(KATALOG),
-  catalogCore: version(kern(ausKatalog, "@einsatzzeichen/core")),
-  catalogSchema: version(kern(ausKatalog, "@einsatzzeichen/schema")),
-  core: version(kern(hier, "@einsatzzeichen/core")),
+  conformance: version(PRUEFPAKET),
+  core: version(KERN),
   schema: version(kern(hier, "@einsatzzeichen/schema")),
 };
 
@@ -74,12 +76,11 @@ function zerlege(svg: string, schluessel: string): Symbol {
   return { viewBox: kopf[1], inhalt };
 }
 const praefix = (roh: string) => `kpz-${roh.replace(/[^A-Za-z0-9]/g, "-")}`;
-type Spec = Parameters<typeof composeFromCatalog>[0];
 type Zeichnung = Parameters<typeof renderSvg>[0];
 
-/** Breite des Kürzels in Einheiten der viewBox, gemessen mit Arimo wie beim Zeichnen. */
+/** Breite des Kürzels in Einheiten der viewBox, gemessen im Schnitt, in dem der Kern es setzt (`CATALOG_TEXT_FONT_WEIGHT`). */
 const kuerzelBreite = (text: string, groesse: number) =>
-  [...text].reduce((summe, c) => summe + (ARIMO_TEXT_METRICS.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
+  [...text].reduce((summe, c) => summe + (TEXT_FONT_METRICS.medium!.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
 /**
  * Große Kürzel im Führungszeichen (Schrift ≥ 25 Einheiten, Körper 85 von 90,7 Einheiten breit)
  * schrumpfen auf höchstens 72 Einheiten Breite: der Katalog setzt jedes Kürzel mit fester Größe,
@@ -103,9 +104,7 @@ const zeichenSw: Record<string, Symbol> = {};
 for (const [abschnitt, rezept] of Object.entries(RECIPES)) {
   if (abschnitt.includes("#")) continue;
   const schluessel = `rezept:${abschnitt}`;
-  // Katalog 1.5.0 zeichnet mit seinem verschachtelten core 1.5.0, gerendert wird mit core 3.0.0 (Wurzel):
-  // zur Laufzeit geprüft (Planungssitzung), die Typen der zwei Major-Stände passen nicht zusammen.
-  const zeichnung = composeFromCatalog(rezept.spec as Spec, rezept.title) as unknown as Zeichnung;
+  const zeichnung = drawSymbol(rezept.spec, { title: rezept.title });
   const svg = kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix: praefix(abschnitt) }));
   zeichen[schluessel] = {
     titel: rezept.title,
@@ -131,7 +130,7 @@ if (!VORLAGE_ZUSATZ) throw new GeneratFehler("Rezept D.1.4 fehlt im Katalog");
 type Thema = NonNullable<NonNullable<Parameters<typeof renderSvg>[1]>["theme"]>;
 function zusatzSvg(z: (typeof ZUSATZ)[number], theme: Thema | undefined): string {
   const svg = renderSvg(
-    composeFromCatalog(VORLAGE_ZUSATZ!.spec as Spec, z.titel) as unknown as Zeichnung,
+    drawSymbol(VORLAGE_ZUSATZ!.spec, { title: z.titel }),
     { size: 64, idPrefix: praefix(z.schluessel), ...(theme ? { theme } : {}) },
   );
   const kuerzel = /<text\b([^>]*)\bfont-size="([\d.]+)"([^>]*)>EL<\/text>/g;
@@ -189,23 +188,31 @@ const EIGENE: Record<string, string> = {
 };
 for (const [id, inhalt] of Object.entries(EIGENE)) piktogramme[id] = { viewBox: "0 0 24 24", inhalt };
 
-// 3. Arimo-Metriken aus den JSON-Assets des Katalogs (dieselbe Quelle wie ARIMO_TEXT_METRICS).
+// 3. Metriken von „Einsatzzeichen Sans" aus den JSON-Assets des Kerns (dieselbe Quelle wie TEXT_FONT_METRICS). Der Plantext
+// setzt in 400 und 700; die Unterschneidung bleibt in den Klassen des Pakets — paarweise ausgeschrieben wären es rund 27 000
+// Einträge je Schnitt in jedem Bündel, das den Betrachter lädt.
 type MetrikDatei = {
   unitsPerEm: number; ascender: number; descender: number; notdefAdvance: number;
-  advances: Record<string, number>; kerning: Record<string, Record<string, number>>;
+  advances: Record<string, number>; kerning: { left: string[]; right: string[]; values: Record<string, number>[] };
 };
-const lies = (datei: string) => JSON.parse(readFileSync(join(KATALOG, "dist/assets", datei), "utf8")) as MetrikDatei;
-const normal = lies("arimo-metrics.json");
-const fett = lies("arimo-bold-metrics.json");
-if (normal.unitsPerEm !== fett.unitsPerEm) throw new GeneratFehler("normal und fett haben verschiedene unitsPerEm");
+const lies = (datei: string) => JSON.parse(readFileSync(join(KERN, "dist/assets", datei), "utf8")) as MetrikDatei;
+const normal = lies("einsatzzeichen-sans-metrics.json");
+const fett = lies("einsatzzeichen-sans-bold-metrics.json");
+for (const k of ["unitsPerEm", "ascender", "descender"] as const) {
+  if (normal[k] !== fett[k]) throw new GeneratFehler(`normal und fett haben verschiedene ${k}`);
+}
 const sortiert = <T,>(o: Record<string, T>) => Object.fromEntries(Object.keys(o).sort((a, b) => Number(a) - Number(b)).map((k) => [k, o[k]]));
+const schnitt = (m: MetrikDatei) => ({
+  vorschub: sortiert(m.advances),
+  unterschneidung: { links: m.kerning.left, rechts: m.kerning.right, werte: m.kerning.values.map(sortiert) },
+});
 const metrik = {
   einheitenProEm: normal.unitsPerEm,
   aufstieg: normal.ascender,
   abstieg: -normal.descender,
   ersatz: normal.advances["65533"] ?? normal.notdefAdvance,
-  normal: { vorschub: sortiert(normal.advances), unterschneidung: sortiert(normal.kerning) },
-  fett: { vorschub: sortiert(fett.advances), unterschneidung: sortiert(fett.kerning) },
+  normal: schnitt(normal),
+  fett: schnitt(fett),
 };
 
 // 4. Schreiben — sortiert, ohne Datum, atomar (Zwischendatei im selben Ordner, dann rename).
@@ -218,11 +225,11 @@ function schreibe(datei: string, wert: unknown): void {
 mkdirSync(ZIEL, { recursive: true });
 schreibe("zeichen.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichen) });
 schreibe("zeichen-sw.generiert.json", { stand: STAND, zeichen: nachSchluessel(zeichenSw) });
-// Die Schrift für den SVG-Export (Phase 5, Entscheidung 15): dieselben zwei WOFF2 wie im Browser (`_ui/schrift.ts`),
+// Die Schrift für den SVG-Export (Phase 5, Entscheidung 15): dieselben drei WOFF2 wie im Browser (`_ui/schrift.ts`),
 // als Base64, damit sie gebündelt wird — unter `output: "standalone"` liegt `node_modules` zur Laufzeit nicht vollständig
 // vor. Gelesen nur beim Klick (`SvgHerunterladen`).
-const coreSchrift = (stufe: "regular" | "bold") => readFileSync(hier.resolve(`@einsatzzeichen/core/fonts/text-${stufe}.woff2`)).toString("base64");
-schreibe("schrift.generiert.json", { stand: STAND, regular: coreSchrift("regular"), fett: coreSchrift("bold") });
+const coreSchrift = (stufe: "regular" | "medium" | "bold") => readFileSync(hier.resolve(`@einsatzzeichen/core/fonts/text-${stufe}.woff2`)).toString("base64");
+schreibe("schrift.generiert.json", { stand: STAND, regular: coreSchrift("regular"), mittel: coreSchrift("medium"), fett: coreSchrift("bold") });
 schreibe("grundlagen.generiert.json", { stand: STAND, metrik, piktogramme: nachSchluessel(piktogramme) });
 
 console.log(`${ZIEL}: ${Object.keys(zeichen).length} Zeichen, ${Object.keys(piktogramme).length} Piktogramme, Stand ${JSON.stringify(STAND)}`);

@@ -40,7 +40,7 @@ describe("kartenMass", () => {
   });
   it("ein Einzelwort, das in 9,5 pt nicht passt, verkleinert die Titelschrift bis 8 pt statt hart zu brechen", () => {
     const breite = KARTE.breite - KARTE.titelX - KARTE.innenRechts;
-    for (const wort of ["Transportorganisation", "Bereitstellungsraum"]) {
+    for (const wort of ["Transportorganisation", "Behandlungsplatzleitung"]) {
       expect(textBreite(wort, SCHRIFT.titel, true), wort).toBeGreaterThan(breite);
       const m = mass({ titel: wort });
       expect(m.titel.map((z) => z.text), wort).toEqual([wort]);
@@ -80,13 +80,13 @@ describe("kartenMass", () => {
   it("zu lange Einheit: zwei Zeilen Typ / Rufname statt Kürzung, die Rufnummer bleibt ganz (8 pt, nie kleiner)", () => {
     const eh = [
       { id: "a", typ: "ELW", rufname: "RK LG 45-11-1", zeichen: null },
-      { id: "b", typ: "GW Betreuung", rufname: "RK LG 45-74-10", zeichen: null },
+      { id: "b", typ: "GW Verpflegung", rufname: "RK LG 45-74-10", zeichen: null },
       { id: "c", typ: "MTW", rufname: "RK LG 45-17-12", zeichen: null },
     ];
     const m = mass({ einheiten: eh });
     const [a, b, c] = m.einheiten;
     expect(a.zeilen.map((z) => z.text)).toEqual(["ELW RK LG 45-11-1"]);
-    expect(b.zeilen.map((z) => z.text)).toEqual(["GW Betreuung", "RK LG 45-74-10"]);
+    expect(b.zeilen.map((z) => z.text)).toEqual(["GW Verpflegung", "RK LG 45-74-10"]);
     expect(b.zeilen.every((z) => z.groesse === SCHRIFT.einheit)).toBe(true);
     expect(a.hoehe).toBe(EINHEIT.hoehe);
     expect(b.hoehe).toBeGreaterThan(EINHEIT.hoehe);
@@ -102,8 +102,9 @@ describe("kartenMass", () => {
     }
   });
   it("zwei Spalten mit zweizeiligen Einheiten: jede Spalte stapelt für sich, der Block reicht bis zur tieferen", () => {
-    const eh = Array.from({ length: 10 }, (_, i) => ({ id: `e${i}`, typ: i === 7 ? "GW Betreuung" : "RTW", rufname: `RK LG 45-74-1${i}`, zeichen: null }));
+    const eh = Array.from({ length: 10 }, (_, i) => ({ id: `e${i}`, typ: i === 7 ? "GW Verpflegung" : "RTW", rufname: `RK LG 45-74-1${i}`, zeichen: null }));
     const m = mass({ einheiten: eh });
+    expect(m.einheiten[7].zeilen).toHaveLength(2);
     const spalten = [m.einheiten.slice(0, 5), m.einheiten.slice(5)];
     for (const sp of spalten) for (let i = 1; i < sp.length; i++) expect(sp[i].y - (sp[i - 1].y + sp[i - 1].hoehe)).toBeCloseTo(EINHEIT.takt - EINHEIT.hoehe, 9);
     expect(m.blockHoehe).toBeCloseTo(Math.max(...m.einheiten.map((e) => e.y + e.hoehe)), 9);

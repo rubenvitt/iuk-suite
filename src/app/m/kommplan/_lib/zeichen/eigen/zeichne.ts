@@ -7,15 +7,15 @@ import type { Symbolquelle } from "../grundlagen";
  * DER ZEICHNER EIGENER ZEICHEN — Server UND Baukasten im Browser, damit die Vorschau genau das Bild ist, das später
  * in Plan, Druck und Freigabe-Link steht.
  *
- * WARUM `@einsatzzeichen/core` (5.5.0) UND NICHT DER KATALOG: der Kern bringt seit 3.0.0 die vermessene Geometrie
+ * WARUM `@einsatzzeichen/core` (6.4.0) UND NICHT DAS PRÜFPAKET: der Kern bringt seit 3.0.0 die vermessene Geometrie
  * selbst mit (`drawSymbol`, `checkSpec`, `vocabulary`) und lädt seine Metriken als JSON-Import — kein
- * `fileURLToPath` auf Modulebene, also nicht Befund M1, der `@einsatzzeichen/catalog` aus jedem Server-Graph
+ * `fileURLToPath` auf Modulebene, also nicht Befund M1, der `@einsatzzeichen/conformance` aus jedem Server-Graph
  * verbannt (`grenze.test.ts`). Damit zeichnet der SERVER aus der gespeicherten Zusammenstellung; ein SVG aus dem
  * Browser wird nie angenommen. Gespeichert wird nur die Spec, geprüft von `parseSpec` (Form) und `checkSpec`
  * (Regeln), gezeichnet bei jedem Abruf (`symbole.ts`).
  *
- * Die eingecheckten Katalogzeichen (`zeichen.generiert.json`) entstehen weiter aus Katalog 1.5.0; ein eigenes
- * Zeichen kann sich deshalb in Feinheiten unterscheiden. Einen Rezeptnachbau gibt es hier nicht.
+ * Die eingecheckten Katalogzeichen (`zeichen.generiert.json`) zeichnet seit core 6.x derselbe Kern aus den Rezepten des
+ * Prüfpakets; Unterschiede bleiben nur, wo ein Rezept eine eigene Angabe trägt. Einen Rezeptnachbau gibt es hier nicht.
  */
 
 /** Obergrenze der gespeicherten Spec: eine echte Zusammenstellung braucht wenige hundert Zeichen. */
@@ -69,9 +69,9 @@ function lesbar(zeichnung: Drawing): Drawing {
 }
 
 /**
- * Äußeres <svg> ab, `desc`/`title` und `font-family` heraus (die Schrift erbt vom Plan-<svg>, wie im Generat),
- * `font-weight` heraus: das Generat (Katalog 1.5.0) setzt Text im Normalschnitt, ein eigenes Zeichen neben einem
- * Katalogzeichen sähe sonst fetter aus.
+ * Äußeres <svg> ab, `desc`/`title` und `font-family` heraus (die Schrift erbt vom Plan-<svg>, wie im Generat).
+ * `font-weight` bleibt: der Kern setzt jedes Kürzel in 500 wie im Generat, und die Seite lädt den Schnitt
+ * (`_ui/schrift.ts`); ohne die Angabe stünde ein eigenes Zeichen dünner neben einem Katalogzeichen.
  */
 function zerlege(svg: string): Symbolquelle {
   const kopf = /^<svg\b[^>]*\bviewBox="([^"]+)"[^>]*>/.exec(svg);
@@ -79,7 +79,7 @@ function zerlege(svg: string): Symbolquelle {
   const inhalt = svg.slice(kopf[0].length, -"</svg>".length)
     .replace(/<title\b[^>]*>[\s\S]*?<\/title>/g, "")
     .replace(/<desc\b[^>]*>[\s\S]*?<\/desc>/g, "")
-    .replace(/\sfont-(?:family|weight)="[^"]*"/g, "");
+    .replace(/\sfont-family="[^"]*"/g, "");
   return { viewBox: kopf[1], inhalt };
 }
 
@@ -94,7 +94,7 @@ const ATTRIBUTE = new Set([
   "x", "y", "width", "height", "rx", "ry", "cx", "cy", "r", "x1", "y1", "x2", "y2", "points", "d", "transform", "id",
   "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
   "stroke-miterlimit", "fill-rule", "clip-rule", "clip-path", "opacity", "fill-opacity", "stroke-opacity",
-  "text-anchor", "dominant-baseline", "font-size", "font-style",
+  "text-anchor", "dominant-baseline", "font-size", "font-weight", "font-style",
 ]);
 export function istSicheresSymbol(inhalt: string, idPraefix: string): boolean {
   for (const tag of inhalt.matchAll(/<\/?([A-Za-z][\w:-]*)([^>]*)>/g)) {

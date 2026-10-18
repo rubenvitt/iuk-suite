@@ -96,7 +96,7 @@ describe("Blattansicht", () => {
   });
   it("ein langer Anlass läuft nicht unter die Logo-Box: gekürzt wird der Anlass, das Datum bleibt (Abnahme)", () => {
     const [blatt] = teileAuf(BEISPIELE[2].inhalt, "a4-quer");
-    const lang = `${"KREISBEREITSCHAFTSÜBUNG KATASTROPHENSCHUTZ LANDKREIS UELZEN ".repeat(2).slice(0, 119)} · 22.02.2026`;
+    const lang = `${"KREISBEREITSCHAFTSÜBUNG KATASTROPHENSCHUTZ LANDKREIS UELZEN ".repeat(3).slice(0, 160)} · 22.02.2026`;
     const logo = { href: "data:image/png;base64,iVBORw0KGgo=" };
     const platz = 297 - 10 - 40 - 3 - 10; // vor der Logo-Box (ab 247 mm), Luft, Rand
     const u = kopfUntertitel(lang, platz);

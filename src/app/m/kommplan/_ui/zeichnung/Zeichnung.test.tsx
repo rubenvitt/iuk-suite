@@ -56,7 +56,7 @@ describe("Zeichnung", () => {
   });
   it("ein gekürzter Titel zeigt „…\" und trägt den vollen Text als title; eine lange Einheit steht in zwei Zeilen ganz da", () => {
     const lang = "Bereitstellungsraumkoordinationsstelle Behandlungsplatz Sanitätsdienst Logistik Technik Nord";
-    const inhalt = baue({ stellen: [{ id: "a", titel: lang, einheiten: [["GW Betreuung", "RK LG 45-74-10"]] }] });
+    const inhalt = baue({ stellen: [{ id: "a", titel: lang, einheiten: [["GW Verpflegung", "RK LG 45-74-10"]] }] });
     const d = zeichne(inhalt, "bildschirm");
     expect(d.karten[0].gekuerzt).toBe(true);
     const h = renderToStaticMarkup(<Zeichnung daten={d} symbole={{}} titel="x" />);
@@ -65,7 +65,7 @@ describe("Zeichnung", () => {
     expect(karte).toContain("…");
     expect(karte).not.toContain(">Nord<");
     const einheit = h.slice(h.indexOf("data-einheit="));
-    expect(einheit).toMatch(/>GW Betreuung<\/text>/);
+    expect(einheit).toMatch(/>GW Verpflegung<\/text>/);
     expect(einheit).toMatch(/>RK LG 45-74-10<\/text>/);
     expect(einheit).not.toContain("…");
   });

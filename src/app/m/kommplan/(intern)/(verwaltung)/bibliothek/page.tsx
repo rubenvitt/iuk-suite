@@ -8,7 +8,7 @@ import { symboleMitEigenen, zeichenIndexMitEigenen } from "@/app/m/kommplan/_lib
 import { pruefeKommplanBearbeiten, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
 import { Bibliothek } from "@/app/m/kommplan/_ui/bibliothek/Bibliothek";
 import { Huelle } from "@/app/m/kommplan/_ui/Huelle";
-import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
+import { ZEICHENSCHRIFT } from "@/app/m/kommplan/_ui/schrift";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export default async function BibliothekSeite({ searchParams }: { searchParams: 
       <Seitenkopf titel="Bibliothek" zurueck={{ titel: "Alle Pläne", href: "/" }}
         beschreibung="Stellen, Einheiten und Verbindungen, die du im Editor in Pläne kopierst — Pläne behalten ihre Kopien. Unter Zeichen baust du eigene taktische Zeichen; sie gelten in allen Plänen, die sie nutzen." />
       <Bibliothek bibliothek={bib} eigeneZeichen={eigene} zeichenIndex={zeichenIndexMitEigenen(db)} symbole={symboleMitEigenen(db, zeichen)}
-        schrift={ARIMO.style.fontFamily} reiter={reiter === "zeichen" ? "zeichen" : undefined} />
+        schrift={ZEICHENSCHRIFT.style.fontFamily} reiter={reiter === "zeichen" ? "zeichen" : undefined} />
     </Huelle>
   );
 }
