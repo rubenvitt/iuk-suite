@@ -330,9 +330,12 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
      * genau deshalb reisst ein ungerahmtes `getByText` an einer „strict mode
      * violation". Ein `.first()` waere hier die falsche Abhilfe: es griffe den
      * Knoten, der bei 1280px auf `display: none` steht.
+     *
+     * IDA-236: ein Abschnitt ohne Zeilen ist seitdem keine leere Tabelle mehr,
+     * sondern eine Zeile der Sammelkarte — mit demselben Satz, einmal.
      */
     await expect(
-      page.locator("[data-rolle='breitansicht']").getByText("Keine Geräte in diesem Check."),
+      page.locator("#abschnitt-geraete").getByText("Keine Geräte in diesem Check."),
     ).toBeVisible();
   });
 
@@ -351,10 +354,21 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
      * fehlende Seite statt als verfehlten Greifer. Gerahmt trifft es wieder
      * die Darstellung, die hier gemeint ist.
      */
+    /*
+     * IDA-236: der Abgleich dieses Checks stimmt (3 Soll, 3 gezählt) — er steht
+     * deshalb zuerst als Zeile „keine Abweichung" und erst nach „Anzeigen" als
+     * Tabelle. Beides gehört zur Zusicherung: die Zeile darf die Zeilen nicht
+     * verschlucken, und die Adresse merkt sich die Sicht.
+     */
+    await warteAufGestreamteInhalte(page);
+    const abgleich = page.locator("#abschnitt-abgleich");
+    await expect(abgleich).toContainText("keine Abweichung (1 Artikel)");
+    await klickeWennRuhig(abgleich.getByRole("button", { name: "Anzeigen" }));
     await expect(
-      page.locator("[data-rolle='breitansicht']")
+      page.locator("#abschnitt-abgleich [data-rolle='breitansicht']")
         .getByText("E2E Check Kompressen steril 10x10cm").first(),
     ).toBeVisible();
+    await expect(page).toHaveURL(/[?&]alle=abgleich(?:&|$)/);
     // … und sagt nichts von unlesbar.
     await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
   });
@@ -430,6 +444,14 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     const verfall = page.locator(".ant-card", { hasText: "Verfall" }).first();
     await expect(verfall).toContainText("E2E Verfall NaCl");
     await expect(verfall).toContainText("gegen heute gerechnet");
+
+    /*
+     * IDA-236: eine Kachel mit einer Zahl über null springt zu ihrem Abschnitt.
+     * Erst NACH den Abschnitten oben, damit der Sprung wirklich scrollen muss.
+     */
+    await klickeWennRuhig(page.getByRole("link", { name: /fehlt weiterhin/ }));
+    await expect(page).toHaveURL(/#abschnitt-abgleich$/);
+    await expect(page.locator("#abschnitt-abgleich")).toBeInViewport();
   });
 
   test("die Übersicht kennzeichnet die Zeile, statt eine ruhige 0 zu zeigen", async ({ page }) => {
