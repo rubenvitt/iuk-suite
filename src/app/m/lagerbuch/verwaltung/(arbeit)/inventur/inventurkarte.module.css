@@ -64,6 +64,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* IDA-237 — Stepper und „Stimmt"/Abweichung in einer Zeile; das Feld nimmt den Rest. */
+.zaehlzeile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .stepper > :global(.ant-input-number) {
@@ -74,4 +83,76 @@
 .chargen {
   border-top: 1px solid var(--lb-linie);
   padding-top: 8px;
+}
+
+/*
+ * IDA-237 — DIE ABSCHLUSSLEISTE STEHT FEST AM UNTEREN RAND.
+ *
+ * ⚠️ `sticky` UND NICHT `fixed`: die Leiste behält ihren Platz im Fluss. Am
+ * Ende der Liste steht sie unter der letzten Karte, statt sie zu verdecken —
+ * eine `fixed`-Leiste bräuchte dafür einen Platzhalter in passender Höhe, also
+ * eine zweite Stelle für dieselbe Zahl. Am Schreibtisch endet der virtuelle
+ * Tabellenkörper über ihr (`onHoehe` → `rand`, Falle 16).
+ *
+ * ⚠️ DER HINTERGRUND IST DECKEND (`--lb-karte`): Karten scrollen darunter
+ * durch, und eine durchscheinende Leiste wäre Text auf Text.
+ */
+.abschluss {
+  position: sticky;
+  bottom: 0;
+  /* Über den Zellen der Tabelle; antds fixierte Spalten und Kopf stehen darunter. */
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  /* Auf Telefonen mit Gestenleiste nicht unter die Leiste des Systems. */
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  border: 1px solid var(--lb-linie);
+  border-radius: 6px;
+  background: var(--lb-karte);
+  box-shadow: 0 -4px 16px rgba(12, 18, 24, 0.08);
+}
+
+.abschlussZeile {
+  display: grid;
+  grid-template-columns: auto minmax(200px, 1fr) auto;
+  grid-template-areas: "fortschritt kommentar knopf";
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.fortschritt {
+  grid-area: fortschritt;
+  font-size: 14px;
+  color: var(--lb-stahl);
+  font-variant-numeric: tabular-nums;
+}
+
+.fortschritt strong {
+  color: var(--lb-tinte);
+}
+
+.kommentar {
+  grid-area: kommentar;
+  min-width: 0;
+}
+
+.knopf {
+  grid-area: knopf;
+}
+
+/*
+ * Auf dem Telefon zwei Zeilen: das Kommentarfeld über die volle Breite, darunter
+ * Stand und Knopf — der Knopf bleibt, wo der Daumen ist. Derselbe Breakpoint wie
+ * `core/tabelle/schmalkarten.module.css` (767.98px, docs/design/README.md).
+ */
+@media (max-width: 767.98px) {
+  .abschlussZeile {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "kommentar kommentar"
+      "fortschritt knopf";
+  }
 }

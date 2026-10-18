@@ -16,6 +16,18 @@
  * und die Lawine waere zurueck. Was das Formular braucht, ist allein die
  * Auskunft „es laeuft gerade", und die geht als eine Meldung nach oben
  * (`onAbsenden`), nicht als Zustand.
+ *
+ * IDA-237 — SIE STEHT FEST AM UNTEREN RAND (`position: sticky`) und sagt, wie
+ * weit die Zaehlung ist („x von y erfasst"). Vorher stand sie unter der letzten
+ * Zeile: bei 230 Artikeln auf dem Telefon zwanzig Bildschirme Scrollweg bis zum
+ * Kommentarfeld, und wie viel noch fehlt, stand nirgends.
+ *
+ * ⚠️ IHRE HOEHE GEHT HINAUF (`onHoehe`), UND DAS IST FALLE 16, NICHT KOSMETIK.
+ * Am Schreibtisch fuellt der virtuelle Tabellenkoerper das Fenster bis zum
+ * unteren Rand (`TabellenVollhoehe`). Eine feste Leiste darueber verdeckte
+ * genau die letzten Zeilen dieses zweiten Scrollers — und das Dokument bekaeme
+ * wieder einen Scrollweg in Hoehe der Leiste, also zwei Scrollbalken. Mit der
+ * gemessenen Hoehe als `rand` endet der Koerper ueber der Leiste.
  */
 
 import Link from "next/link";
@@ -29,11 +41,13 @@ import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import {
   abweichungenIn,
   ausgeblendetGezaehlt,
+  fortschritt,
   positionenAus,
   type ZaehlStand,
 } from "./inventurZustand";
 import { useZaehlstand, type Zaehlspeicher } from "./zaehlspeicher";
 import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
+import k from "./inventurkarte.module.css";
 
 /**
  * ⚠️ EIN ERGEBNIS GEHOERT ZU DEM STAND, AUS DEM ES ENTSTANDEN IST — und
@@ -61,6 +75,7 @@ export function Abschlussleiste({
   ortId,
   gesperrt,
   onAbsenden,
+  onHoehe,
 }: {
   zeilen: readonly InventurZeile[];
   speicher: Zaehlspeicher;
@@ -73,6 +88,8 @@ export function Abschlussleiste({
   gesperrt: boolean;
   /** Meldet dem Formular, ob gerade abgesendet wird — es sperrt daraufhin. */
   onAbsenden: (laeuft: boolean) => void;
+  /** Die gemessene Hoehe der Leiste — Begruendung im Kopf (Falle 16). */
+  onHoehe?: (hoehe: number) => void;
 }) {
   const stand = useZaehlstand(speicher);
   const [kommentar, setKommentar] = useState("");
@@ -86,9 +103,22 @@ export function Abschlussleiste({
   // React ein Fehler.
   useEffect(() => { onAbsenden(absendetGerade); }, [absendetGerade, onAbsenden]);
 
+  const leiste = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = leiste.current;
+    // jsdom kennt keinen `ResizeObserver` und rechnet ohnehin keine Kaesten.
+    if (!element || !onHoehe || typeof ResizeObserver === "undefined") return;
+    const melde = () => onHoehe(Math.ceil(element.getBoundingClientRect().height));
+    melde();
+    const beobachter = new ResizeObserver(melde);
+    beobachter.observe(element);
+    return () => beobachter.disconnect();
+  }, [onHoehe]);
+
   const positionen = useMemo(() => positionenAus(stand), [stand]);
   const abweichungen = abweichungenIn(zeilen, stand);
   const ausgeblendet = ausgeblendetGezaehlt(zeilen, stand, filter);
+  const { erfasst, gesamt } = fortschritt(zeilen, stand, filter);
   const laeuft = absendetGerade || gesperrt;
   const meldung = gilt(ergebnis, stand, kommentar);
 
@@ -163,36 +193,53 @@ export function Abschlussleiste({
   }
 
   return (
-    <Flex vertical gap={SPACE.sm} style={{ marginBlockStart: SPACE.md }}>
-      <Input
-        aria-label="Kommentar"
-        placeholder="Kommentar (Pflicht), z. B. Quartalsinventur 07/2026"
-        disabled={laeuft}
-        value={kommentar}
-        onChange={(ereignis) => setKommentar(ereignis.target.value)}
-      />
-      {ausgeblendet > 0 ? (
-        // Der Filter blendet aus, er verwirft nicht (Spec §A): ohne diesen
-        // Hinweis buchte der Knopf etwas, das man nicht sieht.
-        <Alert
-          type="info"
-          showIcon={false}
-          data-rolle="ausgeblendet-hinweis"
-          title={`${ausgeblendet} gezählte ${
-            ausgeblendet === 1 ? "Position ist ausgeblendet und wird" : "Positionen sind ausgeblendet und werden"
-          } mitgebucht.`}
-        />
+    <div ref={leiste} className={k.abschluss} data-rolle="abschlussleiste">
+      {ausgeblendet > 0 || meldung ? (
+        <Flex vertical gap={SPACE.sm}>
+          {ausgeblendet > 0 ? (
+            // Der Filter blendet aus, er verwirft nicht (Spec §A): ohne diesen
+            // Hinweis buchte der Knopf etwas, das man nicht sieht.
+            <Alert
+              type="info"
+              showIcon={false}
+              data-rolle="ausgeblendet-hinweis"
+              title={`${ausgeblendet} gezählte ${
+                ausgeblendet === 1 ? "Position ist ausgeblendet und wird" : "Positionen sind ausgeblendet und werden"
+              } mitgebucht.`}
+            />
+          ) : null}
+          {meldung}
+        </Flex>
       ) : null}
-      <Button
-        type="primary"
-        data-rolle="abschluss"
-        loading={absendetGerade}
-        disabled={laeuft || !kommentar.trim() || positionen.length === 0}
-        onClick={abschliessen}
-      >
-        Inventur abschließen ({abweichungen} Abweichung{abweichungen === 1 ? "" : "en"})
-      </Button>
-      {meldung}
-    </Flex>
+      <div className={k.abschlussZeile}>
+        {/* ⚠️ DIE ABWEICHUNGEN STEHEN HIER UND NICHT MEHR IM KNOPF (IDA-237):
+            „Inventur abschließen (12 Abweichungen)" passte auf 390px neben
+            nichts anderes mehr in die Zeile. */}
+        <span className={k.fortschritt} data-rolle="fortschritt">
+          <strong>{`${erfasst} von ${gesamt}`}</strong>
+          {` erfasst · ${abweichungen} Abweichung${abweichungen === 1 ? "" : "en"}`}
+        </span>
+        <div className={k.kommentar}>
+          <Input
+            aria-label="Kommentar"
+            placeholder="Kommentar (Pflicht), z. B. Quartalsinventur 07/2026"
+            disabled={laeuft}
+            value={kommentar}
+            onChange={(ereignis) => setKommentar(ereignis.target.value)}
+          />
+        </div>
+        <div className={k.knopf}>
+          <Button
+            type="primary"
+            data-rolle="abschluss"
+            loading={absendetGerade}
+            disabled={laeuft || !kommentar.trim() || positionen.length === 0}
+            onClick={abschliessen}
+          >
+            Inventur abschließen
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

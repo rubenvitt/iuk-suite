@@ -26,7 +26,7 @@ import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { ChargenZaehlung } from "./ChargenZaehlung";
-import { artikelSetzen, summeFuer } from "./inventurZustand";
+import { artikelBestaetigen, artikelSetzen, bestaetigungZuruecknehmen, summeFuer } from "./inventurZustand";
 import { useZaehlung, type Zaehlspeicher } from "./zaehlspeicher";
 
 /** Serverseitige Obergrenze der Artikelzaehlung (`_actions/inventur.ts`). */
@@ -39,19 +39,71 @@ type ZellenProps = {
   speicher: Zaehlspeicher;
 };
 
+/** Die beiden Fassungen von „Stimmt" — Begruendung am Knopf unten. */
+const STIMMT_OFFEN = { paddingInline: SPACE.sm } as const;
+const STIMMT_GEDRUECKT = {
+  paddingInline: SPACE.sm,
+  color: "var(--lb-ampel-ok-text)",
+  background: "var(--lb-ampel-ok-flaeche)",
+  borderColor: "var(--lb-ampel-ok-text)",
+} as const;
+
 /**
- * Die Abweichung dieser Zeile — leer, solange niemand sie angefasst hat.
- * Unveraendert in der Sache: Minus rot, Plus gelb, ASCII-Vorzeichen im Text.
+ * Die Abweichung dieser Zeile — und, solange keine da ist, der Knopf „Stimmt"
+ * (IDA-237). Die Abweichung selbst unveraendert in der Sache: Minus rot, Plus
+ * gelb, ASCII-Vorzeichen im Text.
+ *
+ * ⚠️ „STIMMT" STEHT IN DER SPALTE „Abweichung", NICHT IN DER „Ist"-ZELLE. Die
+ * Frage dieser Spalte ist „weicht es ab?" — „Stimmt" ist ihre Antwort fuer den
+ * haeufigsten Fall, und sobald eine Zahl abweicht, nimmt der Chip den Platz
+ * ein. In der Ist-Zelle waere er ein viertes Bedienelement neben dem Stepper,
+ * und die Spalte haette nicht mehr in eine Tabletbreite gepasst.
+ *
+ * ⚠️ ZURUECKNEHMBAR, ABER NUR DIE BESTAETIGUNG (`bestaetigungZuruecknehmen`).
+ * Ein Fehltipp auf „Stimmt" bucht sonst eine Zeile als gezaehlt, die niemand
+ * gezaehlt hat; der zweite Tipp hebt das auf. Eine Zeile im Chargenmodus ohne
+ * Abweichung zeigt dagegen nur den Haken — „zurueck" verwarf dort gezaehlte
+ * Chargen, und dafuer gibt es in der Chargenliste den ausdruecklichen Knopf.
+ *
+ * ⚠️ `aria-pressed` UND DER HAKEN TRAGEN DEN ZUSTAND, nicht allein die Farbe
+ * (dieselbe Zusage wie die Chips in `CheckFlow.tsx`).
  */
-export const AbweichungsZelle = memo(function AbweichungsZelle({ zeile, speicher }: ZellenProps) {
+export const AbweichungsZelle = memo(function AbweichungsZelle({ zeile, speicher, gesperrt }: ZellenProps & {
+  gesperrt: boolean;
+}) {
   const zaehlung = useZaehlung(speicher, zeile.id);
-  if (!zaehlung) return null;
-  const differenz = summeFuer(zeile, zaehlung) - zeile.bestand;
-  if (differenz === 0) return null;
+  const differenz = zaehlung ? summeFuer(zeile, zaehlung) - zeile.bestand : 0;
+  if (differenz !== 0) {
+    return (
+      <Chip ton={differenz < 0 ? "rot" : "gelb"}>
+        {differenz > 0 ? `+${differenz}` : `${differenz}`}
+      </Chip>
+    );
+  }
+  if (zaehlung?.art === "chargen") return <Chip ton="ok" zeichen="haken">erfasst</Chip>;
+  const bestaetigt = zaehlung !== undefined;
   return (
-    <Chip ton={differenz < 0 ? "rot" : "gelb"}>
-      {differenz > 0 ? `+${differenz}` : `${differenz}`}
-    </Chip>
+    <Button
+      aria-pressed={bestaetigt}
+      aria-label={`Ist-Bestand ${zeile.name} stimmt`}
+      data-rolle="stimmt"
+      disabled={gesperrt}
+      icon={bestaetigt ? <Ikone name="haken" groesse={14} /> : undefined}
+      // ⚠️ SCHMALERES POLSTER ALS ANTDS VORGABE, damit Haken und Wort in die
+      // 112px der Spalte passen (`BREITE.abweichung`); die Hoehe bleibt die
+      // Arbeitsdichte (Falle 4). Gedrueckt in den Farben des Ampel-Chips „ok"
+      // — antds `color="green"` traegt hellgruene Schrift auf hellgruenem
+      // Grund (#52c41a auf #f6ffed, nachgerechnet 2,2:1, unter WCAG AA). ROT bleibt der Abweichung
+      // vorbehalten (Falle 3). Inline, weil es gegen antds Klassen sonst still
+      // verliert (Falle 5); die Werte sind die Modul-Variablen, also auch dunkel
+      // richtig.
+      style={bestaetigt ? STIMMT_GEDRUECKT : STIMMT_OFFEN}
+      onClick={() => speicher.aendere((stand) => (bestaetigt
+        ? bestaetigungZuruecknehmen(stand, zeile)
+        : artikelBestaetigen(stand, zeile)))}
+    >
+      Stimmt
+    </Button>
   );
 });
 
@@ -92,27 +144,36 @@ export const IstZelle = memo(function IstZelle({ zeile, speicher, gesperrt, clas
   // niemandem auf, weil nie beide gleichzeitig zu sehen sind.
   const bedienung = (
     <>
-      {nurSumme ? <Chip ton="grau">je Charge</Chip> : null}
-      <Button
-        disabled={gesperrt || nurSumme || aktuell <= 0}
-        aria-label={`Ist-Bestand ${zeile.name} verringern`}
-        onClick={() => wertSetzen(aktuell - 1)}
-        icon={<Ikone name="minus" groesse={14} />}
-      />
+      {/* ⚠️ IM CHARGENMODUS OHNE ±-KNOEPFE (IDA-237). Sie waren dort ohnehin
+          gesperrt — gezaehlt wird in der aufgeklappten Zeile — und standen mit
+          dem Chip zusammen breiter als die Spalte (`BREITE.ist`). */}
+      {nurSumme ? <Chip ton="grau">je Charge</Chip> : (
+        <Button
+          disabled={gesperrt || aktuell <= 0}
+          aria-label={`Ist-Bestand ${zeile.name} verringern`}
+          onClick={() => wertSetzen(aktuell - 1)}
+          icon={<Ikone name="minus" groesse={14} />}
+        />
+      )}
       <InputNumber<number>
         min={0}
         max={nurSumme ? IST_MAX_SUMME : IST_MAX_ARTIKEL}
         disabled={gesperrt || nurSumme}
         aria-label={`Ist-Bestand ${zeile.name}`}
+        // IDA-237 — der Griff, an dem die Suche das Zaehlfeld fokussiert. Die
+        // Kennung und nicht der Name: zwei Artikel duerfen gleich heissen.
+        data-ist-artikel={zeile.id}
         value={aktuell}
         onChange={(wert) => wertSetzen(wert)}
       />
-      <Button
-        disabled={gesperrt || nurSumme || aktuell >= IST_MAX_ARTIKEL}
-        aria-label={`Ist-Bestand ${zeile.name} erhöhen`}
-        onClick={() => wertSetzen(aktuell + 1)}
-        icon={<Ikone name="plus" groesse={14} />}
-      />
+      {nurSumme ? null : (
+        <Button
+          disabled={gesperrt || aktuell >= IST_MAX_ARTIKEL}
+          aria-label={`Ist-Bestand ${zeile.name} erhöhen`}
+          onClick={() => wertSetzen(aktuell + 1)}
+          icon={<Ikone name="plus" groesse={14} />}
+        />
+      )}
     </>
   );
 
