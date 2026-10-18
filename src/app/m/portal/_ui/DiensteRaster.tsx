@@ -153,7 +153,21 @@ export function DiensteRaster({
                           ) : (
                             <Icons8Ikone name={zeichen} />
                           )}
-                          <span style={SCHRIFT.unterTitel}>{e.title}</span>
+                          {/* Ein Flex-Kind schrumpft nie unter sein längstes
+                              Wort: ohne `minInlineSize: 0` lief „Kommunikations-
+                              pläne“ auf dem Telefon aus der Kachel. Getrennt wird
+                              an der Silbe (`lang="de"`), sonst hart. */}
+                          <span
+                            data-testid="kachel-titel"
+                            style={{
+                              ...SCHRIFT.unterTitel,
+                              minInlineSize: 0,
+                              overflowWrap: "anywhere",
+                              hyphens: "auto",
+                            }}
+                          >
+                            {e.title}
+                          </span>
                         </div>
                         {e.beschreibung ? (
                           <div
