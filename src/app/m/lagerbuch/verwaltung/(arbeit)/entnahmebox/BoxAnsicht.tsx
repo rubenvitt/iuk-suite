@@ -431,7 +431,7 @@ export function BoxAnsicht({
   const zugangSpaltenliste = useMemo(() => zugangSpalten(), []);
 
   return (
-    <Flex vertical gap={SPACE.xl}>
+    <Flex vertical gap={SPACE.lg}>
       {nimmtAuf && (
         <Abgabe einheiten={einheiten} gewaehlt={gewaehlt} posten={quellPosten} />
       )}

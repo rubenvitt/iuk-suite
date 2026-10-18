@@ -51,7 +51,7 @@ export function sauerstoffSeitenInhalt(db: Leser): ReactNode {
         beschreibung="Flaschen mit Füllstand, Herkunft der jüngsten Messung und Standort. Ab wann eine Flasche gewechselt werden soll, steht je Flasche in ihren Stammdaten."
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel zahl={aktive.length} beschriftung="Aktive Flaschen" />
         </Col>

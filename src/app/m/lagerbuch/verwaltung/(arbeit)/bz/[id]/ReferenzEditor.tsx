@@ -208,7 +208,7 @@ function ReferenzEditorInhalt({
   });
 
   return (
-    <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: SPACE.xl }}>
+    <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: SPACE.lg }}>
       <div
         ref={wurzel}
         style={{

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../_lib/format";
 import { SCHRIFT } from "../_lib/schrift";
 import { Ikone } from "./ikonen";
@@ -35,6 +36,11 @@ import s from "./verwaltung.module.css";
  * Komponente. Das heutige `grid-template-columns: repeat(auto-fill,
  * minmax(190px, 1fr))` samt zweiter Fassung bei <=760px entfaellt mit dem
  * 760px-Block (§6.8.6).
+ *
+ * POLSTER 8/12 STATT 12 RUNDUM (IDA-234, mehr auf eine Seite): die Kachel ist
+ * eine Zeile Zahl plus eine Zeile Text, oben und unten reichen 8 px. Die
+ * verlinkte Fläche (`.kpiLink`) bleibt dabei über 44 px hoch — sie ist die
+ * Inhaltshöhe aus Zahl (24), Abstand (4) und Beschriftung (12/1.57 ≈ 19).
  */
 const KANTE: Partial<Record<AmpelTon, string>> = {
   rot: s.kpiRot,
@@ -73,7 +79,7 @@ export function Kachel({
   );
 
   return (
-    <Card styles={{ body: { padding: 12 } }} style={{ height: "100%" }}>
+    <Card styles={{ body: { padding: `${SPACE.sm}px ${SPACE.md}px` } }} style={{ height: "100%" }}>
       {href ? (
         <Link className={s.kpiLink} href={href}>
           {inhalt}

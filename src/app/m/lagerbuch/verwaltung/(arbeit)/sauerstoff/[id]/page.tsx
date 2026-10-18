@@ -58,7 +58,7 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         )}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={juengste ? `${juengste.druckBar} bar` : "–"}
@@ -96,13 +96,13 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
       </Row>
 
       {status?.wechseln ? (
-        <div className={s.warnbox} style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.xl }}>
+        <div className={s.warnbox} style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.lg }}>
           Wechsel fällig — der Füllstand liegt auf oder unter{" "}
           {status.wechselAbBar} bar ({status.wechselAbProzent} % vom Nennfülldruck).
         </div>
       ) : null}
 
-      <Card title="Stammdaten" style={{ marginBlockEnd: SPACE.xl }}>
+      <Card title="Stammdaten" style={{ marginBlockEnd: SPACE.lg }}>
         <ReferenzFelder
           id={flasche.id}
           name={flasche.name}
@@ -113,7 +113,7 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         />
       </Card>
 
-      <Card title="Neue Messung" style={{ marginBlockEnd: SPACE.xl }}>
+      <Card title="Neue Messung" style={{ marginBlockEnd: SPACE.lg }}>
         <MessungForm flascheId={flasche.id} />
       </Card>
 

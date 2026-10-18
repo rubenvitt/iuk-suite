@@ -40,7 +40,7 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         )}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={geraet.typ === "medizin" ? "Medizin" : "Objekt"}
