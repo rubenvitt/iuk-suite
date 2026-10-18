@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -34,6 +34,9 @@ export function Stepper({
   max = 999,
   noText = false,
   beschriftung = "Menge",
+  leer = false,
+  beiEnter,
+  ref,
 }: {
   wert: number;
   setWert: (wert: number) => void;
@@ -43,10 +46,30 @@ export function Stepper({
    * Nur +/−, der Wert ist NICHT tippbar. 1:1 aus dem Alt-Bestand
    * (`lagerbuch/src/components/Stepper.tsx:19-21`), samt Begruendung: „damit
    * unterwegs am Handy nicht versehentlich ins Zahlenfeld getippt wird".
-   * Genutzt beim Zaehlen und beim Nachfuellen — beides Stellen, an denen ein
-   * Fehlgriff eine falsche Bestandsbuchung ist.
+   *
+   * ⚠️ SEIT IDA-233 NUR NOCH BEIM NACHFUELLEN, NICHT MEHR BEIM ZAEHLEN. Die
+   * Begruendung traegt dort, wo der Wert vorgeschlagen ist und nur um ein, zwei
+   * Teile korrigiert wird (`max` = Luecke). Beim Zaehlen startet jede Zeile bei
+   * 0, und „24 gefunden" waren 24 Taps — gemessen am Fahrzeug mit 210
+   * Positionen der teuerste Teil des ganzen Checks. Der Fehlgriff, gegen den
+   * `noText` schuetzt, ist dort mit `leer` entschaerft: ein Tipp ins Feld
+   * aendert nichts, erst eine getippte Ziffer ist eine Zaehlung, und ein leer
+   * verlassenes Feld bleibt ungezaehlt (`CheckFlow.tsx`, DRK-304).
    */
   noText?: boolean;
+  /**
+   * NOCH KEIN WERT ERFASST — das Feld zeigt nichts statt `wert` (IDA-233).
+   *
+   * Fuer den Zaehlschritt, in dem `wert` eine 0 als PLATZHALTER traegt
+   * (DRK-304: ungezaehlt ≠ gezaehlte 0). Eine sichtbare „0" im tippbaren Feld
+   * saehe aus wie eine Aussage. `−`/`+` rechnen weiter auf `wert` und machen
+   * die Zeile damit zur Zaehlung; Fokus und Verlassen ohne Ziffer tun es nicht.
+   */
+  leer?: boolean;
+  /** Enter im Feld — der Zaehlschritt springt damit in die naechste Zeile. */
+  beiEnter?: () => void;
+  /** Das Zahlenfeld selbst (React 19: `ref` ist ein gewoehnliches Prop). */
+  ref?: Ref<HTMLInputElement>;
   /**
    * Speist die drei `aria-label`. In der Zaehlliste stehen zwanzig Stepper
    * untereinander; „Menge erhoehen" zwanzigmal ist fuer eine
@@ -98,7 +121,7 @@ export function Stepper({
     setDraft(null);
   }
 
-  const anzeige = draft ?? String(wert);
+  const anzeige = draft ?? (leer ? "" : String(wert));
 
   function tippen(roh: string) {
     const nurZiffern = roh.replace(/\D/g, "");
@@ -145,10 +168,19 @@ export function Stepper({
           inputMode="numeric"
           pattern="[0-9]*"
           aria-label={beschriftung}
+          placeholder={leer ? "–" : undefined}
+          enterKeyHint={beiEnter ? "next" : undefined}
+          ref={ref}
           value={anzeige}
           onChange={(e) => tippen(e.target.value)}
           onFocus={(e) => e.currentTarget.select()}
           onBlur={abschliessen}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && beiEnter) {
+              e.preventDefault();
+              beiEnter();
+            }
+          }}
         />
       )}
 

@@ -637,7 +637,13 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
      * sonst filtert `checkAbschluss` ihn als ungeaendert weg (siehe oben).
      * Die Zusicherung unten prueft den GESCHRIEBENEN WERT, nicht die
      * Warnwirkung.
+     *
+     * SEIT IDA-233 LIEGT DAS FELD HINTER EINEM KNOPF („Verfall angeben" bzw.
+     * dem Ampelchip einer vorhandenen Angabe) — es wird erst aufgeklappt, wie
+     * die Helferin es auch tut. Der Greifer nennt den Artikel VORN, aus
+     * demselben Grund wie beim Leerknopf (`CheckFlow.tsx`).
      */
+    await page.getByRole("button", { name: /^E2E Check Kompressen.*: Verfall/ }).click();
     await page.getByLabel(/^Verfall E2E Check Kompressen/).fill("2090-09");
 
     /*
@@ -646,18 +652,24 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
      * niemand gezaehlt hat, waere sonst eine unwiderrufliche Leerbuchung auf den
      * Fahrzeugbestand.
      *
-     * Dreimal „+" bringt sie auf das Soll (3) und damit auf den Stand, den der
-     * Test vor DRK-304 durch die Vorbelegung geschenkt bekam: keine Luecke,
-     * keine Nachfuellung, dieselbe Zusicherung am Ende. `toBeEnabled()` steht
+     * Die Menge (3, das Soll) wird seit IDA-233 GETIPPT statt dreimal „+"
+     * gedrueckt — das ist der Weg, der im echten Browser an Fokus, Markieren
+     * und Tastatur haengt und den jsdom nicht sieht. Keine Luecke, keine
+     * Nachfuellung, dieselbe Zusicherung am Ende. `toBeEnabled()` steht
      * dazwischen, weil ein Klick auf einen gesperrten Knopf in Playwright nicht
      * scheitert, sondern in sein Zeitbudget laeuft und sich als etwas anderes
      * meldet (Falle 10, zweite Testregel).
+     *
+     * ⚠️ `toBeDisabled()` LIEST AUCH `aria-disabled`: der Zaehlschritt sperrt
+     * seit IDA-233 so (sein Tipp fuehrt zur offenen Zeile statt ins Leere).
      */
     const weiter = page.getByRole("button", { name: "Weiter" });
     await expect(weiter, "unberuehrte Positionen muessen „Weiter\" sperren").toBeDisabled();
-    for (let i = 0; i < 3; i++) {
-      await page.getByRole("button", { name: /^E2E Check Kompressen.*erhöhen$/ }).click();
-    }
+    const menge = page.getByRole("textbox", { name: /^E2E Check Kompressen/ });
+    await menge.click();
+    await expect(weiter, "ein Tipp ins Feld ist noch keine Zaehlung").toBeDisabled();
+    await page.keyboard.type("3");
+    await expect(menge).toHaveValue("3");
     await expect(weiter).toBeEnabled();
 
     await weiter.click(); // Zaehlen → Nachfuellen
@@ -817,6 +829,17 @@ test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
     const herkunft = page.locator("[data-rolle='letzter-check']");
     await expect(herkunft).toBeVisible();
     await expect(herkunft).toHaveText(/Letzter Check: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
+
+    /*
+     * IDA-233: das Feld ist zugeklappt, die vorhandene Angabe steht im Knopf
+     * davor (Ampelchip „bis 07/90"). Der Knopf ist ein Tippziel des Helferwegs
+     * und traegt dieselben 56px wie der Leerknopf unten.
+     */
+    const aufklappen = page.getByRole("button", { name: /^E2E Check Kompressen.*: Verfall/ });
+    await expect(aufklappen).toContainText("07/90");
+    const knopf = await aufklappen.boundingBox();
+    expect(knopf!.height, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
+    await aufklappen.click();
 
     // AK2, im Browser: der Wert aus der Datenbank steht im Feld, ohne dass
     // jemand etwas bestaetigt haette.
