@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Alert,
   Button,
+  Checkbox,
   Flex,
   Input,
   InputNumber,
@@ -59,6 +60,7 @@ export function TemplatePosEditor({
   const [neuArtikel, setNeuArtikel] = useState<string>();
   const [neuSoll, setNeuSoll] = useState<number | null>(1);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
+  const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
   // Zum Timer gehoert sein Rumpf: nur so kann `onBlur` den ausstehenden
@@ -151,6 +153,29 @@ export function TemplatePosEditor({
     };
   }
 
+  /**
+   * IDA-223. Sofort, nicht entprellt: ein Klick ist eine Entscheidung. Das
+   * Soll reist aus dem Spiegel mit, damit ein noch entprelltes Soll nicht vom
+   * gespeicherten Wert ueberholt wird.
+   */
+  function pflichtGeaendert(position: TemplatePositionZeile, wert: boolean): void {
+    setPflicht((vorher) => ({ ...vorher, [position.id]: wert }));
+    void sicherAusfuehren(
+      () => templatePositionSetzen({
+        id: position.id,
+        templateId,
+        fachLabel: position.fachLabel,
+        artikelId: position.artikelId,
+        soll: spiegel[position.id] ?? position.soll,
+        sort: position.sort,
+        immerZaehlen: wert,
+      }),
+      SPEICHER_FEHLER,
+    ).then((ok) => {
+      if (!ok) setPflicht((vorher) => ({ ...vorher, [position.id]: !wert }));
+    });
+  }
+
   const spalten: TableProps<TemplatePositionZeile>["columns"] = [
     {
       title: "Fach",
@@ -200,6 +225,22 @@ export function TemplatePosEditor({
           onChange={(neu) => sollGeaendert(position, neu)}
           onBlur={() => timerVorziehen(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
+        />
+      ),
+    },
+    {
+      // IDA-223: kommt in jeden Kurzcheck, ausserhalb der Stichprobe.
+      title: "Immer zählen",
+      dataIndex: "immerZaehlen",
+      key: "immerZaehlen",
+      align: "center",
+      filters: [{ text: "ja", value: true }, { text: "nein", value: false }],
+      onFilter: (wert, position) => position.immerZaehlen === wert,
+      render: (wert: boolean, position) => (
+        <Checkbox
+          checked={pflicht[position.id] ?? wert}
+          onChange={(e) => pflichtGeaendert(position, e.target.checked)}
+          aria-label={`${position.artikelName} in jedem Kurzcheck zählen`}
         />
       ),
     },

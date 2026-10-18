@@ -102,6 +102,7 @@ const TABELLEN: Record<
     { name: "sort", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
     { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
     { name: "soll", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "immer_zaehlen", typ: "integer", notnull: 1, dflt: "false", pk: 0 },   // 0019, IDA-223
   ],
   artikel: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -131,6 +132,7 @@ const TABELLEN: Record<
     { name: "template_position_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "ueberschrieben", typ: "integer", notnull: 1, dflt: "false", pk: 0 },
     { name: "entfernt", typ: "integer", notnull: 1, dflt: "false", pk: 0 },
+    { name: "immer_zaehlen", typ: "integer", notnull: 1, dflt: "false", pk: 0 },   // 0019, IDA-223
   ],
   buchungen: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -460,9 +462,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt neunzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+  it("fuehrt zwanzig Eintraege in aufsteigender idx-Reihenfolge", () => {
     expect(journal.entries.map((e) => e.idx))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -502,6 +504,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         "0016_ortscode_ersetzt",
         "0017_plomben",
         "0018_demo_einstellung",
+        "0019_immer_zaehlen",
       ]);
   });
 

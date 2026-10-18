@@ -71,6 +71,7 @@ import checkOhneSoll from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/202
 import kurzcheck from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-17-kurzcheck";
 import demoCheck from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-17-demo-check";
 import wohinNachfuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-17-wohin-nachfuellen";
+import immerZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-18-immer-zaehlen";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -162,6 +163,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   kurzcheck,
   demoCheck,
   wohinNachfuellen,
+  immerZaehlen,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,

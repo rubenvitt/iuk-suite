@@ -59,9 +59,12 @@ export function demoCheckDaten(db: Leser, now: Date = new Date()): DemoCheckDate
     fahrzeugBestand: 0, handlagerBestand: handlager.get(p.artikelId) ?? 0,
   }));
 
+  const pflicht = new Set(vorlage.positionen.filter((p) => p.immerZaehlen).map((p) => p.id));
   const gezogen = waehleStichprobe(
     soll.map((p) => ({
       id: p.id, artikelId: p.artikelId, tageSeitZaehlung: null, verbraucht: false, verfallBald: false,
+      // IDA-223: der Pflichtkern steht an der Vorlage und gilt hier wie im Ernstfall.
+      immerZaehlen: pflicht.has(p.id),
     })),
     { seed: `${DEMO_FAHRZEUG_ID}|${heuteIso(now)}` },
   );

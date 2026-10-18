@@ -221,6 +221,8 @@ export type SollZeile = {
   herkunft: SollHerkunft;
   /** GRABSTEIN: zaehlt nicht als Soll. Diese Funktion filtert ihn NICHT heraus. */
   entfernt: boolean;
+  /** IDA-223: kommt in jeden Kurzcheck. */
+  immerZaehlen: boolean;
 };
 
 export function sollFuerFahrzeug(db: Leser, fahrzeugId: string): SollZeile[] {
@@ -264,7 +266,7 @@ export function sollFuerFahrzeug(db: Leser, fahrzeugId: string): SollZeile[] {
         handlagerFach: a?.fach ?? "", soll: p.soll,
         fahrzeugBestand: imFahrzeug?.get(p.artikelId) ?? 0,
         handlagerBestand: handlagerBestandJeArtikel.get(p.artikelId) ?? 0,
-        herkunft, entfernt: p.entfernt,
+        herkunft, entfernt: p.entfernt, immerZaehlen: p.immerZaehlen,
       };
     })
     .sort((x, y) => x.fachLabel.localeCompare(y.fachLabel) || x.sort - y.sort);
@@ -295,6 +297,8 @@ export function templateUebersicht(db: Leser): TemplateUebersichtZeile[] {
 export type TemplatePositionZeile = {
   id: string; fachLabel: string; sort: number; artikelId: string; artikelName: string;
   einheit: string; handlagerFach: string; soll: number;
+  /** IDA-223: kommt in jeden Kurzcheck der verknuepften Einheiten. */
+  immerZaehlen: boolean;
 };
 
 export type TemplateDetail = {
@@ -326,7 +330,7 @@ export function templateDetail(db: Leser, id: string): TemplateDetail | null {
       return {
         id: p.id, fachLabel: p.fachLabel, sort: p.sort, artikelId: p.artikelId,
         artikelName: a?.name ?? "–", einheit: a?.einheit ?? "",
-        handlagerFach: a?.fach ?? "", soll: p.soll,
+        handlagerFach: a?.fach ?? "", soll: p.soll, immerZaehlen: p.immerZaehlen,
       };
     })
     .sort((x, y) => x.fachLabel.localeCompare(y.fachLabel) || x.sort - y.sort);

@@ -357,11 +357,15 @@ export default async function CheckSeite({
   //
   // Grabsteine (`entfernt`) sind auf dem Fahrzeug bewusst NICHT vorhanden →
   // nicht Teil des Checks (1:1 aus `helfer/check/page.tsx:15`).
-  const soll = sollFuerFahrzeug(db, gewaehlt.id).filter((p) => !p.entfernt).map((p) => ({
+  const sollZeilen = sollFuerFahrzeug(db, gewaehlt.id).filter((p) => !p.entfernt);
+  const soll = sollZeilen.map((p) => ({
     id: p.id, fachLabel: p.fachLabel, artikelId: p.artikelId, artikelName: p.artikelName,
     einheit: p.einheit, handlagerFach: p.handlagerFach, soll: p.soll,
     fahrzeugBestand: p.fahrzeugBestand, handlagerBestand: p.handlagerBestand,
   }));
+  // IDA-223: nur fuer die Stichprobe hier auf dem Server — der Flow bekommt
+  // davon nur den Grund an der gezogenen Position.
+  const immerZaehlen = new Set(sollZeilen.filter((p) => p.immerZaehlen).map((p) => p.id));
   const geraete = geraeteFuerLagerort(db, gewaehlt.id).map((g) => ({
     id: g.id, typ: g.typ, name: g.name,
   }));
@@ -413,7 +417,9 @@ export default async function CheckSeite({
   const plombenListe = plombenFuerLagerort(db, gewaehlt.id);
   const vorlage = soll.length > 0
     ? kurzcheckVorlage(db, {
-        fahrzeugId: gewaehlt.id, soll, plomben: plombenListe,
+        fahrzeugId: gewaehlt.id,
+        soll: soll.map((p) => ({ ...p, immerZaehlen: immerZaehlen.has(p.id) })),
+        plomben: plombenListe,
         letzterCheckId: letzteCheckId(db, gewaehlt.id),
       })
     : null;

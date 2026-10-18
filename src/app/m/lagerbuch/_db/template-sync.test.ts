@@ -143,6 +143,18 @@ describe("Regel 3 — angleichen, aber nur bei echtem Unterschied", () => {
     expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
   });
 
+  it("traegt „immer zaehlen“ (IDA-223) beim Anlegen und beim Angleichen mit", () => {
+    t.db.insert(templatePositionen).values(
+      { id: "tp1", templateId: "tpl", fachLabel: "F", sort: 0, artikelId: "a1", soll: 4,
+        immerZaehlen: true }).run();
+    syncFahrzeugTemplate(t.db, "rtw-1");
+    expect(soll()[0].immerZaehlen).toBe(true);
+    t.db.update(templatePositionen).set({ immerZaehlen: false })
+      .where(eq(templatePositionen.id, "tp1")).run();
+    expect(syncFahrzeugTemplate(t.db, "rtw-1").aktualisiert).toBe(1);
+    expect(soll()[0].immerZaehlen).toBe(false);
+  });
+
   it("schreibt NICHT, wenn alles gleich ist", () => {
     t.db.insert(templatePositionen).values(
       { id: "tp1", templateId: "tpl", fachLabel: "F", sort: 0, artikelId: "a1", soll: 4 }).run();

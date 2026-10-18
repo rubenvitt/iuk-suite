@@ -233,6 +233,8 @@ const SollSchema = z.object({
   artikelId: z.string().min(1, "Artikel wählen"),
   soll: z.coerce.number().int().positive("Soll muss größer als 0 sein"),
   sort: z.coerce.number().int().default(0),
+  /** IDA-223. Fehlt er, bleibt der gespeicherte Wert — das Soll-Feld sendet ihn nicht. */
+  immerZaehlen: z.boolean().optional(),
 });
 
 /**
@@ -278,6 +280,7 @@ export async function sollPositionSetzen(
             sort: v.sort,
             ueberschrieben,
             entfernt: false,
+            ...(v.immerZaehlen === undefined ? {} : { immerZaehlen: v.immerZaehlen }),
           })
           .where(eq(sollPositionen.id, v.id))
           .run();
@@ -289,6 +292,7 @@ export async function sollPositionSetzen(
           artikelId: v.artikelId,
           soll: v.soll,
           sort: v.sort,
+          immerZaehlen: v.immerZaehlen ?? false,
         }).run();
       }
     } catch {

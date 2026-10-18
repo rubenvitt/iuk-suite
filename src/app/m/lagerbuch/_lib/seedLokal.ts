@@ -423,7 +423,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
 
   /* 5 ── Vorlagen-Positionen. Je Artikel GENAU EINE Position — der Check
    *      gruppiert seine Ergebnisse je Artikel, nicht je Position (§5.7.1); mit
-   *      einer Position je Artikel bleibt das lokal lesbar. */
+   *      einer Position je Artikel bleibt das lokal lesbar. Zwei RTW-Positionen
+   *      tragen „immer zaehlen" (IDA-223), damit der Kurzcheck sie zeigt. */
   const tpDa = vorhandeneIds(db.select({ id: templatePositionen.id }).from(templatePositionen).all());
   const tpListe = [
     { id: "tp-rtw-01", templateId: TPL_RTW, fachLabel: "Fach 1 – Verbandmaterial", sort: 10, artikelId: A.kompresse, soll: 10 },
@@ -432,9 +433,9 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: "tp-rtw-04", templateId: TPL_RTW, fachLabel: "Fach 1 – Verbandmaterial", sort: 40, artikelId: A.dreiecktuch, soll: 6 },
     { id: "tp-rtw-05", templateId: TPL_RTW, fachLabel: "Fach 2 – Infusion", sort: 10, artikelId: A.nacl, soll: 4 },
     { id: "tp-rtw-06", templateId: TPL_RTW, fachLabel: "Fach 2 – Infusion", sort: 20, artikelId: A.ringer, soll: 2 },
-    { id: "tp-rtw-07", templateId: TPL_RTW, fachLabel: "Fach 3 – Hygiene", sort: 10, artikelId: A.handschuh, soll: 4 },
+    { id: "tp-rtw-07", templateId: TPL_RTW, fachLabel: "Fach 3 – Hygiene", sort: 10, artikelId: A.handschuh, soll: 4, immerZaehlen: true },
     { id: "tp-rtw-08", templateId: TPL_RTW, fachLabel: "Fach 3 – Hygiene", sort: 20, artikelId: A.desinfektion, soll: 2 },
-    { id: "tp-rtw-09", templateId: TPL_RTW, fachLabel: "Fach 4 – Sauerstoff", sort: 10, artikelId: A.o2maske, soll: 4 },
+    { id: "tp-rtw-09", templateId: TPL_RTW, fachLabel: "Fach 4 – Sauerstoff", sort: 10, artikelId: A.o2maske, soll: 4, immerZaehlen: true },
     { id: "tp-rtw-10", templateId: TPL_RTW, fachLabel: "Fach 5 – Diagnostik", sort: 10, artikelId: A.bzstreifen, soll: 1 },
     { id: "tp-ktw-01", templateId: TPL_KTW, fachLabel: "Fach 1 – Verbandmaterial", sort: 10, artikelId: A.kompresse, soll: 6 },
     { id: "tp-ktw-02", templateId: TPL_KTW, fachLabel: "Fach 1 – Verbandmaterial", sort: 20, artikelId: A.mullbinde, soll: 10 },

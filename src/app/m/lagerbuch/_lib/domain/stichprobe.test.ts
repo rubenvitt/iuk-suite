@@ -99,6 +99,40 @@ describe("waehleStichprobe", () => {
   });
 });
 
+describe("waehleStichprobe — Pflichtkern (IDA-223)", () => {
+  it("nimmt „immer zaehlen“ jedes Mal mit, ausserhalb des Umfangs", () => {
+    const kandidaten = [
+      ...Array.from({ length: 30 }, (_, i) => k(`p${i}`, 40)),
+      k("defi", 0, { immerZaehlen: true }), k("o2", 1, { immerZaehlen: true }),
+    ];
+    for (const seed of ["a", "b", "c"]) {
+      const t = waehleStichprobe(kandidaten, { seed, umfang: 5 });
+      expect(t).toHaveLength(7);
+      expect(t.find((x) => x.id === "defi")?.grund).toBe("pflicht");
+      expect(t.find((x) => x.id === "o2")?.grund).toBe("pflicht");
+      // Der Umfang bleibt fuer den Rest: fuenf Ueberfaellige, nicht drei.
+      expect(t.filter((x) => x.grund === "ueberfaellig")).toHaveLength(5);
+    }
+  });
+
+  it("zieht einen markierten Artikel mit ALLEN seinen Positionen", () => {
+    const t = waehleStichprobe([
+      k("fach1", 0, { artikelId: "pad", immerZaehlen: true }),
+      k("fach2", 0, { artikelId: "pad" }),
+      k("anderes", 0),
+    ], { seed: "s", umfang: 0 });
+    expect(ids(t)).toEqual(["fach1", "fach2"]);
+    expect(t.every((x) => x.grund === "pflicht")).toBe(true);
+  });
+
+  it("nennt den Pflichtkern vor jedem anderen Grund", () => {
+    const t = waehleStichprobe(
+      [k("p", null, { immerZaehlen: true, verbraucht: true })], { seed: "s" });
+    expect(t[0].grund).toBe("pflicht");
+    expect(grundText(t[0])).toBe("Wird jedes Mal gezählt");
+  });
+});
+
 describe("zufallAus", () => {
   it("liefert Werte in [0, 1)", () => {
     const z = zufallAus("abc");

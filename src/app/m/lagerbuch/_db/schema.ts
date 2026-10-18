@@ -145,6 +145,8 @@ export const templatePositionen = sqliteTable(
     // db.delete(artikel) wirft FOREIGN KEY constraint failed (§5.21, Teil 3).
     artikelId: text("artikel_id").notNull().references(() => artikel.id),
     soll: integer("soll").notNull(),
+    // IDA-223: der Sync traegt ihn wie `soll` in die Fahrzeugzeilen.
+    immerZaehlen: integer("immer_zaehlen", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [index("idx_template_pos_template").on(t.templateId)],
 );
@@ -214,6 +216,10 @@ export const sollPositionen = sqliteTable(
     // missversteht und die Zeilen wegfiltert BEVOR der Sync laeuft, legt sie beim
     // naechsten Sync wieder an (§5.7).
     entfernt: integer("entfernt", { mode: "boolean" }).notNull().default(false),
+    // IDA-223: kommt in jeden Kurzcheck, ausserhalb des Stichprobenumfangs
+    // (`_lib/domain/stichprobe.ts`). Eine stehende Plombe ueber dem Fach
+    // bezeugt die Position trotzdem.
+    immerZaehlen: integer("immer_zaehlen", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [index("idx_soll_fahrzeug").on(t.fahrzeugId)],
 );
