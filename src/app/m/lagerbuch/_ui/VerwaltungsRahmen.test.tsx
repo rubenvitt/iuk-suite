@@ -7,6 +7,7 @@ import { Shell } from "@/core/shell/Shell";
 import { LAGERBUCH_NAV } from "../_lib/nav";
 import s from "./verwaltung.module.css";
 import { VerwaltungsRahmen } from "./VerwaltungsRahmen";
+import { Verwaltungsluft } from "./Verwaltungsluft";
 
 const QUELLE = readFileSync(
   "src/app/m/lagerbuch/_ui/VerwaltungsRahmen.tsx",
@@ -324,6 +325,10 @@ describe("VerwaltungsRahmen", () => {
     expect(innen.props.variant).toBe(getModule("lagerbuch").shell);
     expect(innen.props.moduleKey).toBe("lagerbuch");
     expect(innen.props.nav).toBe(LAGERBUCH_NAV);
-    expect(innen.props.children).toBe(kind);
+    // IDA-234: die Luft der Verwaltung liegt INNERHALB der Shell um den Inhalt,
+    // nicht um Kopfzeile und Modulleiste.
+    const luft = innen.props.children as ReactElement<{ children: unknown }>;
+    expect(luft.type).toBe(Verwaltungsluft);
+    expect(luft.props.children).toBe(kind);
   });
 });

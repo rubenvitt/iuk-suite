@@ -1240,12 +1240,12 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `core/shell/` gewandert ist (feedback braucht sie als zweites Modul).
     // Derselbe Grund wie bei `Brotkrume.tsx`: ein Ausnahmename fuer eine
     // Datei, die hier nicht mehr liegt, winkte eine kuenftige gleichnamige
-    // STILL durch. Vierzehn Namen.
+    // STILL durch. Vierzehn Namen; seit IDA-234 fuenfzehn (`Verwaltungsluft.tsx`, Polster-Insel des Rahmens).
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
-      "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx",
+      "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx", "Verwaltungsluft.tsx",
     ]);
     //
     // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.

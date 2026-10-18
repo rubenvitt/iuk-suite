@@ -90,7 +90,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         beschreibung="Chargen im Handlager nach Verfallsampel — und die an Einheiten und in der Entnahmebox gemeldeten Angaben."
       />
 
-      <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.xl }}>
+      <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.lg }}>
         {chargen.length === 0 ? (
           <Empty description="Keine auffällige Charge im Handlager." />
         ) : (

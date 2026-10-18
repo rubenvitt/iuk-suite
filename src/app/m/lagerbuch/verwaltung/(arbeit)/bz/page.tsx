@@ -46,7 +46,7 @@ export function bzSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         beschreibung="Blutzuckermessgeräte mit Kontrollfrist, Referenzbereichen und Logbuch."
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
         </Col>

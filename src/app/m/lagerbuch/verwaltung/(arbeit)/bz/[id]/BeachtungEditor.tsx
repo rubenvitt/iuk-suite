@@ -83,7 +83,7 @@ function BeachtungEditorInhalt({ geraetId, hinweis, seitText }: BeachtungWerte) 
   const gesetzt = entwurf.trim() !== "";
 
   return (
-    <Card title="Beachtung" style={{ marginBlockEnd: SPACE.xl }}>
+    <Card title="Beachtung" style={{ marginBlockEnd: SPACE.lg }}>
       <div ref={wurzel} style={{ display: "grid", gap: SPACE.md }}>
         {hinweis === null ? (
           <p style={SCHRIFT.neben}>

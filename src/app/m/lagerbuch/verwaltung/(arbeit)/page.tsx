@@ -99,7 +99,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         })} Uhr`}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={8}>
           <Kachel
             zahl={k.unterMindest}
@@ -134,7 +134,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         </Col>
       </Row>
 
-      <Card title="Kritische Artikel" style={{ marginBlockEnd: SPACE.xl }}>
+      <Card title="Kritische Artikel" style={{ marginBlockEnd: SPACE.lg }}>
         {kritisch.length === 0 ? (
           <Empty description="Alles im grünen Bereich." />
         ) : (

@@ -303,7 +303,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         * richtig herum: bei ihm steht nicht einmal fest, ob noch gezaehlt wird.
         */}
       {check.offen && !check.hatZwischenstand ? null : (
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={6}>
           <Kachel
             zahl={check.summe.positionen}

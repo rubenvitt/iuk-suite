@@ -70,7 +70,7 @@ export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
         beschreibung="Medizintechnik mit MTK-Frist und Objekte mit Ablaufdatum — zwei Klassen, eine Liste."
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
         </Col>
