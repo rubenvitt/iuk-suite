@@ -2,7 +2,8 @@
 import { withAuditContext, auditActor } from "@/core/audit/server";
 import { revalidatePath } from "next/cache";
 import { requireModuleAdmin } from "@/core/auth/guards";
-import { createService, deleteService } from "@/app/m/portal/_lib/services";
+import { createService, deleteService, updateService } from "@/app/m/portal/_lib/services";
+import { sichtbarkeitAusFormular } from "@/app/m/portal/_lib/gruppen";
 import { setzeAnsprechpartner, setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
 
 const assertAdmin = () => requireModuleAdmin("portal");
@@ -14,7 +15,7 @@ export async function createServiceAction(formData: FormData) {
       slug: String(formData.get("slug")),
       name: String(formData.get("name")),
       url: String(formData.get("url")),
-      isPublic: formData.get("isPublic") === "on",
+      ...sichtbarkeitAusFormular(formData),
     });
     revalidatePath("/m/portal");
   });
@@ -28,10 +29,18 @@ export async function deleteServiceAction(formData: FormData) {
   });
 }
 
-// updateServiceAction intentionally omitted (YAGNI): no page or e2e spec
-// exercises an update flow yet — the brief marks it optional. Add it via
-// updateService() (already exported by _lib/services.ts) when a real
-// "edit service" UI lands.
+/**
+ * Ändert nur, wer die Kachel sieht (IDA-227) — kein allgemeines Bearbeiten.
+ * Die Prüfung „nicht öffentlich braucht eine Gruppe" steht in
+ * `sichtbarkeitAusFormular`, also VOR dem Schreiben.
+ */
+export async function setzeSichtbarkeitAction(formData: FormData) {
+  const auditViewer = await assertAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
+    await updateService(String(formData.get("id")), sichtbarkeitAusFormular(formData));
+    revalidatePath("/m/portal");
+  });
+}
 
 export async function setzeAnsprechpartnerAction(formData: FormData) {
   const auditViewer = await assertAdmin();

@@ -4,7 +4,10 @@ import { act } from "react";
 
 // Die Insel importiert `deleteServiceAction` direkt (Falle 9, DRK-398); die
 // Action besitzt `actions.test.ts`, hier genuegt eine Attrappe des Moduls.
-vi.mock("@/app/m/portal/actions", () => ({ deleteServiceAction: vi.fn() }));
+vi.mock("@/app/m/portal/actions", () => ({
+  deleteServiceAction: vi.fn(),
+  setzeSichtbarkeitAction: vi.fn(),
+}));
 
 import { ServiceTable, type ServiceRow } from "./service-table";
 import { exists, mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
@@ -23,13 +26,15 @@ import { exists, mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/t
 afterEach(unmount);
 
 const DIENSTE: ServiceRow[] = [
-  { id: "a", name: "Wiki", slug: "wiki", url: "https://wiki.example.org", isPublic: false },
-  { id: "b", name: "Ampel", slug: "ampel", url: "https://ampel.example.org", isPublic: true },
-  { id: "c", name: "Mail", slug: "mail", url: "https://mail.example.org", isPublic: true },
+  { id: "a", name: "Wiki", slug: "wiki", url: "https://wiki.example.org", isPublic: false, requiredGroups: ["iuk", "unbekannt"] },
+  { id: "b", name: "Ampel", slug: "ampel", url: "https://ampel.example.org", isPublic: true, requiredGroups: [] },
+  { id: "c", name: "Mail", slug: "mail", url: "https://mail.example.org", isPublic: true, requiredGroups: [] },
 ];
 
+const GRUPPEN = [{ wert: "iuk", anzeige: "IuK-Gruppe" }];
+
 async function zeige(dienste: ServiceRow[] = DIENSTE): Promise<void> {
-  await mount(<ServiceTable services={dienste} />);
+  await mount(<ServiceTable services={dienste} gruppen={GRUPPEN} />);
 }
 
 /**
@@ -68,20 +73,20 @@ it("sortiert die Namen deutsch, statt die Eingabereihenfolge zu behalten", async
 });
 
 /**
- * „Öffentlich" ist ein WAHRHEITSWERT: die Filterliste hat genau zwei Eintraege,
- * und sie heiszen woertlich wie die Zelle („ja"/„nein"). Zwei Woerter fuer
+ * „Sichtbar für" haengt an einem WAHRHEITSWERT: die Filterliste hat genau zwei
+ * Eintraege, und „alle" heiszt woertlich wie die Zelle. Zwei Woerter fuer
  * denselben Zustand waeren zwei Aussagen.
  */
 it("filtert über den Spaltenkopf auf öffentliche Dienste", async () => {
   await zeige();
-  const ausloeser = kopf("Öffentlich").querySelector(".ant-table-filter-trigger");
-  expect(ausloeser, "kein Filter-Ausloeser an der Spalte „Öffentlich“").not.toBeNull();
+  const ausloeser = kopf("Sichtbar für").querySelector(".ant-table-filter-trigger");
+  expect(ausloeser, "kein Filter-Ausloeser an der Spalte „Sichtbar für“").not.toBeNull();
   await zeigerfolge(ausloeser as HTMLElement);
 
   const eintraege = Array.from(
     queryPortal(".ant-table-filter-dropdown").querySelectorAll(".ant-dropdown-menu-item"),
   );
-  expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual(["ja", "nein"]);
+  expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual(["alle", "nur Gruppen"]);
 
   await zeigerfolge(eintraege[0] as HTMLElement);
   await zeigerfolge(queryPortal(".ant-table-filter-dropdown-btns .ant-btn-primary"));
@@ -94,4 +99,17 @@ it("filtert über den Spaltenkopf auf öffentliche Dienste", async () => {
 it("blättert nicht", async () => {
   await zeige();
   expect(exists(".ant-pagination")).toBe(false);
+});
+
+/**
+ * DIE ZELLE NENNT DIE GRUPPEN (IDA-227) — mit dem Anzeigenamen aus Pocket ID,
+ * und eine Gruppe, die dort (noch) nicht steht, mit ihrem rohen Namen statt gar
+ * nicht: sonst verschwiege die Tabelle einen Teil der Freigabe.
+ */
+it("zeigt, wer eine Kachel sieht", async () => {
+  await zeige();
+  const zellen = queryAll("tbody.ant-table-tbody tr.ant-table-row").map((tr) =>
+    (tr.querySelectorAll("td")[3]?.textContent ?? "").trim(),
+  );
+  expect(zellen).toEqual(["IuK-Gruppe, unbekannt", "alle", "alle"]);
 });

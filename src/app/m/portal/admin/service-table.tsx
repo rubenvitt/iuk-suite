@@ -1,8 +1,11 @@
 "use client";
 
 import { Button } from "antd";
+import { SPACE } from "@/core/theme/tokens";
 import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import { deleteServiceAction } from "@/app/m/portal/actions";
+import type { GruppenOption } from "@/app/m/portal/_lib/gruppen";
+import { SichtbarkeitAendern } from "@/app/m/portal/admin/sichtbarkeit-aendern";
 
 export interface ServiceRow {
   id: string;
@@ -10,18 +13,28 @@ export interface ServiceRow {
   slug: string;
   url: string;
   isPublic: boolean;
+  requiredGroups: string[];
 }
 
 /**
- * „Öffentlich" ist ein WAHRHEITSWERT und deshalb kein `werteAlsFilter`: dessen
- * Liste entsteht aus Textfeldern. Zwei benannte Zustaende sind hier die ganze
- * Wahrheit — und sie heiszen in der Liste genauso wie in der Zelle („ja"/„nein"),
- * sonst stuenden zwei Woerter fuer denselben Zustand.
+ * „Sichtbar für" haengt an einem WAHRHEITSWERT und ist deshalb kein
+ * `werteAlsFilter`: dessen Liste entsteht aus Textfeldern. Zwei benannte
+ * Zustaende sind hier die ganze Wahrheit — und „alle" heiszt in der Liste
+ * genauso wie in der Zelle, sonst stuenden zwei Woerter fuer denselben Zustand.
  */
-const OEFFENTLICH_FILTER = zustandsFilter<ServiceRow>([
-  { wert: "ja", text: "ja", trifft: (zeile) => zeile.isPublic },
-  { wert: "nein", text: "nein", trifft: (zeile) => !zeile.isPublic },
+const ALLE = "alle";
+const SICHTBAR_FILTER = zustandsFilter<ServiceRow>([
+  { wert: "alle", text: ALLE, trifft: (zeile) => zeile.isPublic },
+  { wert: "gruppen", text: "nur Gruppen", trifft: (zeile) => !zeile.isPublic },
 ]);
+
+/** Was die Zelle zeigt: „alle" oder die Gruppen mit ihrem Anzeigenamen aus Pocket ID. */
+export function sichtbarFuer(zeile: ServiceRow, gruppen: readonly GruppenOption[]): string {
+  if (zeile.isPublic) return ALLE;
+  if (zeile.requiredGroups.length === 0) return "niemand";
+  const anzeige = new Map(gruppen.map((g) => [g.wert, g.anzeige]));
+  return zeile.requiredGroups.map((g) => anzeige.get(g) ?? g).join(", ");
+}
 
 /**
  * Die Loesch-Action wird DIREKT importiert, nicht als Prop durchgereicht
@@ -29,7 +42,13 @@ const OEFFENTLICH_FILTER = zustandsFilter<ServiceRow>([
  * zeigt genau diese Dienste — eine allgemeine Tabelle, die an eine Action
  * gebunden wuerde, ist sie nicht. Dieselbe Form wie `service-form.tsx`.
  */
-export function ServiceTable({ services }: { services: ServiceRow[] }) {
+export function ServiceTable({
+  services,
+  gruppen,
+}: {
+  services: ServiceRow[];
+  gruppen: GruppenOption[];
+}) {
   // Das data-testid sitzt am umschließenden div, NICHT an <Table>: antds Table
   // reicht unbekannte DOM-Attribute nicht zuverlässig durch, und ein still
   // verschwindendes Testid wäre erst im nächsten Testlauf aufgefallen.
@@ -65,11 +84,13 @@ export function ServiceTable({ services }: { services: ServiceRow[] }) {
           sorter: nachText<ServiceRow>((zeile) => zeile.url),
         },
         {
-          title: "Öffentlich",
-          dataIndex: "isPublic",
+          // Ersetzt die Spalte „Öffentlich" (IDA-227) statt eine sechste
+          // anzuhaengen: `e2e/mobil-admin.spec.ts` misst genau fuenf Spalten.
+          title: "Sichtbar für",
+          key: "sichtbarFuer",
           sorter: nachJaNein<ServiceRow>((zeile) => zeile.isPublic),
-          ...OEFFENTLICH_FILTER,
-          render: (v: boolean) => (v ? "ja" : "nein"),
+          ...SICHTBAR_FILTER,
+          render: (_, zeile) => sichtbarFuer(zeile, gruppen),
         },
         {
           title: "",
@@ -79,12 +100,15 @@ export function ServiceTable({ services }: { services: ServiceRow[] }) {
           // funktioniert das Löschen auch ohne JavaScript und bleibt genau das
           // Muster, das die Seite vorher hatte.
           render: (_, row) => (
-            <form action={deleteServiceAction}>
-              <input type="hidden" name="id" value={row.id} />
-              <Button htmlType="submit" danger>
-                Löschen
-              </Button>
-            </form>
+            <div style={{ display: "inline-flex", gap: SPACE.sm, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <SichtbarkeitAendern dienst={row} gruppen={gruppen} />
+              <form action={deleteServiceAction}>
+                <input type="hidden" name="id" value={row.id} />
+                <Button htmlType="submit" danger>
+                  Löschen
+                </Button>
+              </form>
+            </div>
           ),
         },
       ]}

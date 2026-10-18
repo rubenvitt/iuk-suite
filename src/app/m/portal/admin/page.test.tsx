@@ -32,6 +32,9 @@ vi.mock("@/app/m/portal/_lib/services", () => ({
   updateService: vi.fn(),
   deleteService: vi.fn(),
 }));
+vi.mock("@/app/m/portal/_lib/gruppen", () => ({
+  ladeWaehlbareGruppen: vi.fn(),
+}));
 vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   leseAnsprechpartner: vi.fn(),
   setzeAnsprechpartner: vi.fn(),
@@ -45,6 +48,8 @@ import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
 import PortalAdminPage from "@/app/m/portal/admin/page";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
+import { ServiceForm } from "@/app/m/portal/admin/service-form";
+import { ladeWaehlbareGruppen } from "@/app/m/portal/_lib/gruppen";
 import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
 import { ZeitzoneForm } from "@/app/m/portal/admin/zeitzone-form";
 import { leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
@@ -52,6 +57,8 @@ import { leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
 const guardMock = vi.mocked(moduleAdminPageOrNotFound);
 const servicesMock = vi.mocked(getAllServices);
 const ansprechpartnerMock = vi.mocked(leseAnsprechpartner);
+const gruppenMock = vi.mocked(ladeWaehlbareGruppen);
+const GRUPPEN = [{ wert: "iuk", anzeige: "IuK-Gruppe" }];
 
 function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {
   if (Array.isArray(node)) {
@@ -70,6 +77,7 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
     guardMock.mockReset().mockResolvedValue(undefined);
     servicesMock.mockReset().mockResolvedValue([]);
     ansprechpartnerMock.mockReset().mockResolvedValue(null);
+    gruppenMock.mockReset().mockResolvedValue({ quelle: "ok", optionen: GRUPPEN });
   });
 
   it("prueft denselben Modul-Key wie die Sichtbarkeit des Verwaltung-Links im Menue", async () => {
@@ -96,6 +104,18 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
     expect((tabelle.props as { services: unknown[] }).services).toEqual(services);
   });
 
+  it("reicht die waehlbaren Gruppen an Tabelle und Formular und liest sie aus den Diensten (IDA-227)", async () => {
+    const services = [{ id: "s1", requiredGroups: ["alt"] }];
+    servicesMock.mockResolvedValue(services as never);
+
+    const baum = flatten((await PortalAdminPage()) as ReactElement);
+    expect(gruppenMock).toHaveBeenCalledWith(services);
+    for (const insel of [ServiceTable, ServiceForm]) {
+      const element = baum.find((el) => el.type === insel)!;
+      expect((element.props as { gruppen: unknown }).gruppen, insel.name).toEqual(GRUPPEN);
+    }
+  });
+
   it("reicht den gepflegten Ansprechpartner unveraendert an das Formular durch", async () => {
     ansprechpartnerMock.mockResolvedValue("IuK-Gruppe — iuk@example.org");
 
@@ -106,7 +126,7 @@ describe("Portal-Verwaltung: Zugriff und Seitenkopf", () => {
 
   it("reicht keiner Insel eine Funktion als Prop (Falle 9, DRK-398)", async () => {
     const baum = flatten((await PortalAdminPage()) as ReactElement);
-    const inseln = [ServiceTable, AnsprechpartnerForm, ZeitzoneForm];
+    const inseln = [ServiceTable, ServiceForm, AnsprechpartnerForm, ZeitzoneForm];
     for (const insel of inseln) {
       const element = baum.find((el) => el.type === insel);
       expect(element, `${insel.name} fehlt im Baum`).toBeDefined();

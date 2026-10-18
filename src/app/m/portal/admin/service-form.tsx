@@ -1,13 +1,31 @@
-import { Button, Checkbox, Input } from "antd";
+"use client";
+
+import { useState } from "react";
+import { Button, Input } from "antd";
 import { createServiceAction } from "@/app/m/portal/actions";
+import type { GruppenOption } from "@/app/m/portal/_lib/gruppen";
+import {
+  SichtbarkeitFelder,
+  sichtbarkeitVollstaendig,
+  type Sichtbarkeit,
+} from "@/app/m/portal/admin/sichtbarkeit-felder";
 
 import { SPACE } from "@/core/theme/tokens";
 const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: SPACE.xs };
 
-export function ServiceForm() {
+/**
+ * Eine Insel, seit die Gruppenwahl am Haken „Öffentlich" hängt (IDA-227). Die
+ * Action wird DIREKT importiert, nicht als Prop durchgereicht (Falle 9,
+ * `CLAUDE.md`; DRK-398).
+ */
+export function ServiceForm({ gruppen }: { gruppen: GruppenOption[] }) {
+  const [sichtbarkeit, setSichtbarkeit] = useState<Sichtbarkeit>({ isPublic: true, requiredGroups: [] });
   return (
     <form
-      action={createServiceAction}
+      action={async (formData) => {
+        await createServiceAction(formData);
+        setSichtbarkeit({ isPublic: true, requiredGroups: [] });
+      }}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.md, maxWidth: 480, marginTop: SPACE.lg }}
     >
       <label htmlFor="svc-slug" style={field}>
@@ -22,16 +40,17 @@ export function ServiceForm() {
         URL
         <Input id="svc-url" name="url" type="url" required />
       </label>
-      {/* Ohne `value`-Attribut sendet ein angehakter Checkbox-Input "on" —
-          genau das prüft createServiceAction (`formData.get("isPublic") === "on"`).
-          Bewusst OHNE `TAP_ROW` (@/core/theme/tokens): der Portal-Admin ist ein
+      {/* Bewusst OHNE `TAP_ROW` (@/core/theme/tokens): der Portal-Admin ist ein
           Schreibtisch-Bereich, keine Einsatz-Oberflaeche, und trug auch im
           Tailwind-Bestand kein vergroessertes Tap-Ziel (`px-2 py-1`). Das steht
           hier, damit die Stelle beim naechsten Durchgang nicht als Versehen
           gilt. */}
-      <Checkbox name="isPublic" defaultChecked>
-        Öffentlich sichtbar
-      </Checkbox>
+      <SichtbarkeitFelder
+        idPraefix="svc"
+        optionen={gruppen}
+        wert={sichtbarkeit}
+        onChange={setSichtbarkeit}
+      />
       {/*
        * `alignSelf: "flex-start"` haelt den Knopf am Laptop so breit wie seine
        * Beschriftung — ein 480px breiter Absendeknopf laese sich als Flaeche,
@@ -41,6 +60,7 @@ export function ServiceForm() {
       <Button
         htmlType="submit"
         type="primary"
+        disabled={!sichtbarkeitVollstaendig(sichtbarkeit)}
         style={{ alignSelf: "flex-start" }}
         className="portal-block-mobil"
       >
