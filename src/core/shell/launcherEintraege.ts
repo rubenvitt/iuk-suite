@@ -1,3 +1,4 @@
+import { appIconFuerKachel } from "@/core/favicon";
 import { hasAnyGroup } from "@/core/groups";
 import { VERWALTUNGSEINSTIEGE, verwaltungsGruppenFor, visibleSwitcherModules } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
@@ -37,6 +38,7 @@ export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
       title: mod.title,
       // Der NAME, nicht die Komponente — ein Name überquert die RSC-Grenze.
       icon: mod.icon,
+      appIconUrl: appIconFuerKachel(mod.key, href),
       href,
       abschnitt: ABSCHNITT_APPS,
       extern: false,

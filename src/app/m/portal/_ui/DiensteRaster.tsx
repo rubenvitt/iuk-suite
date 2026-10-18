@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { Card, Col, Empty, Input, Result, Row } from "antd";
 
-import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { KACHEL_GRUND, TINTE } from "@/core/favicon/zeichen";
+import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
 import type { LauncherEintrag } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -137,7 +138,9 @@ export function DiensteRaster({
                         style={{ blockSize: "100%" }}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-                          {e.iconUrl ? (
+                          {!e.extern ? (
+                            <AppZeichen url={e.appIconUrl} zeichen={zeichen} />
+                          ) : e.iconUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={e.iconUrl}
@@ -173,5 +176,50 @@ export function DiensteRaster({
         ))
       )}
     </div>
+  );
+}
+
+/** Kante des App-Icons auf der Kachel; der Radius ist der der Kachel im Icon (112/512). */
+const APP_ZEICHEN = 40;
+const APP_RADIUS = Math.round((APP_ZEICHEN * 112) / 512);
+
+/*
+ * DAS APP-ICON EINES SUITE-MODULS — dasselbe wie auf dem Startbildschirm
+ * (`core/favicon/app-icon.ts`). Module ohne eigenes Zeichen bekommen ihr
+ * Icons8-Zeichen auf derselben Kachel, damit die Reihe der Apps einheitlich
+ * bleibt.
+ *
+ * Die Kachel ist in beiden Themen weiß, wie das Icon selbst — es ist ein
+ * eingebranntes Bild, kein Bedienelement. Die Haarlinie in `--iuk-linie` hebt
+ * sie im hellen Thema von der weißen Card ab.
+ */
+function AppZeichen({ url, zeichen }: { url?: string; zeichen: Icons8Name }) {
+  const rahmen = {
+    inlineSize: APP_ZEICHEN,
+    blockSize: APP_ZEICHEN,
+    flex: "none",
+    borderRadius: APP_RADIUS,
+    boxShadow: "0 0 0 1px var(--iuk-linie)",
+  } as const;
+  if (url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img data-testid="app-zeichen" src={url} alt="" width={APP_ZEICHEN} height={APP_ZEICHEN} style={rahmen} />
+    );
+  }
+  return (
+    <span
+      data-testid="app-zeichen"
+      style={{
+        ...rahmen,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: KACHEL_GRUND,
+        color: TINTE,
+      }}
+    >
+      <Icons8Ikone name={zeichen} groesse={24} />
+    </span>
   );
 }

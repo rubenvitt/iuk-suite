@@ -1,4 +1,4 @@
-import { FORMEN, SIGNAL, TINTE, type Form } from "./zeichen";
+import { FORMEN, KACHEL_GRUND, SIGNAL, TINTE, type Form } from "./zeichen";
 
 /**
  * DAS APP-ICON DER SUITE — dasselbe Zeichen wie das Favicon, auf einer weißen
@@ -26,7 +26,7 @@ import { FORMEN, SIGNAL, TINTE, type Form } from "./zeichen";
 
 export type Zuschnitt = "rund" | "maskierbar" | "apple";
 
-const GRUND = "#ffffff";
+const GRUND = KACHEL_GRUND;
 const KANTE = 512;
 
 /** Kantenlänge des Zeichens auf der 512er-Kachel je Zuschnitt. */
