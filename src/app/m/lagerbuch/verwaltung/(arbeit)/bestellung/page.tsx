@@ -33,7 +33,7 @@ export default function BestellungSeite() {
     <>
       <SeitenKopf
         titel="Bestellvorschlag"
-        beschreibung="Unterbestände zuerst. Bleibt eine Bestellmarkierung trotz wieder gedecktem Bestand stehen, kann sie hier nachvollziehbar zurückgenommen werden."
+        beschreibung="Unterbestände zuerst. Kreuze Zeilen an, um sie als bestellt zu markieren oder eine stehengebliebene Markierung zurückzunehmen."
       />
       <BestellListe zeilen={zeilen} />
     </>

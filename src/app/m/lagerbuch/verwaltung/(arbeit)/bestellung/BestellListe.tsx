@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Flex, Input, Modal, type TableProps } from "antd";
 import {
   Kartentabelle,
+  type FilterZustand,
+  filterAktiv,
   nachText,
   nachZahl,
   trifftWert,
+  useEntprellt,
+  wendeFilterAn,
   werteAlsFilter,
   zustandsFilter,
 } from "@/core/tabelle";
@@ -19,8 +23,12 @@ import {
 } from "../../../_lib/bestellExport";
 import { bestellListeText } from "../../../_lib/bestellText";
 import { SCHRIFT } from "../../../_lib/schrift";
+import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
+import { auswahlZelle } from "../../../_ui/auswahlZelle";
 import { Ikone } from "../../../_ui/ikonen";
+import { Suchfeld } from "../../../_ui/Suchfeld";
+import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import s from "../../../_ui/verwaltung.module.css";
 
 /**
@@ -72,11 +80,41 @@ const STATUS_FILTER = zustandsFilter<BestellAnzeigeZeile>([
   },
 ]);
 
+/** Suche ueber Artikelname und Fach — das, was auf der Zeile zu lesen ist. */
+export function sucheTrifft(z: BestellAnzeigeZeile, begriff: string): boolean {
+  const suche = falte(begriff.trim());
+  return suche === "" || falte(`${z.name} ${z.fach}`).includes(suche);
+}
+
 export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
   const [laeuft, start] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [abschriftOffen, setAbschriftOffen] = useState(false);
+  const [suche, setSuche] = useState("");
+  const sucheNachlauf = useEntprellt(suche);
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
+  /**
+   * IDA-238 — DIE AUSWAHL ERSETZT DEN RUNDEN KNOPF JE ZEILE. Er war
+   * unbeschriftet, und jede Zeile war ein eigener Server-Roundtrip; zehn
+   * Positionen einer Bestellung hiessen zehn Klicks und zehn Anfragen. Den
+   * Zustand jeder Zeile sagt jetzt allein die Statusspalte, in Worten.
+   *
+   * Die Auswahl ueberlebt Suche und Filter und wird gegen `zeilen` aufgeloest,
+   * nie gegen die angezeigte Menge — dieselbe Regel wie in der Artikelliste.
+   */
+  const [auswahl, setAuswahl] = useState<string[]>([]);
+
+  const gefiltert = useMemo(
+    () => zeilen.filter((z) => sucheTrifft(z, sucheNachlauf)),
+    [zeilen, sucheNachlauf],
+  );
+  const ausgewaehlt = useMemo(() => {
+    const menge = new Set(auswahl);
+    return zeilen.filter((z) => menge.has(z.id));
+  }, [zeilen, auswahl]);
+  const zuMarkieren = ausgewaehlt.filter((z) => !z.bestellt);
+  const zuruecknehmbar = ausgewaehlt.filter((z) => z.bestellt);
 
   /**
    * ZWISCHENABLAGE (Spec §9.3, Entscheidung 9-D).
@@ -133,15 +171,37 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
     ]).catch(() => setFehler(BESTELL_FEHLERTEXT));
   }
 
-  function markierungAendern(z: BestellAnzeigeZeile): void {
+  /**
+   * EINE ANFRAGE FUER DIE GANZE AUSWAHL. Geschickt werden nur die Zeilen, die
+   * die Aenderung betrifft; die Action laesst die uebrigen ohnehin stehen
+   * (ein schon markierter Artikel behaelt sein Datum), aber die Zahl in der
+   * Meldung soll sagen, was geschehen ist.
+   *
+   * ⚠️ KEIN OPTIMISMUS: die Zeilen aendern sich erst, wenn die Seite neu
+   * gerechnet zurueckkommt. Eine vorab umgefaerbte Statusspalte zeigte bei
+   * einem Fehler einen Zustand, den es nicht gibt.
+   */
+  function markierungAendern(bestellt: boolean): void {
+    const ziele = bestellt ? zuMarkieren : zuruecknehmbar;
+    if (ziele.length === 0) return;
     start(async () => {
       setFehler(null);
+      setMeldung(null);
       try {
         const ergebnis = await markiereBestellt({
-          artikelId: z.id,
-          bestellt: !z.bestellt,
+          artikelIds: ziele.map((z) => z.id),
+          bestellt,
         });
-        if (!ergebnis.ok) setFehler(ergebnis.fehler);
+        if (!ergebnis.ok) {
+          setFehler(ergebnis.fehler);
+          return;
+        }
+        setAuswahl([]);
+        const n = ergebnis.wert.betroffen;
+        const artikelText = n === 1 ? "1 Artikel" : `${n} Artikel`;
+        setMeldung(bestellt
+          ? `${artikelText} als bestellt markiert.`
+          : `Markierung an ${artikelText} zurückgenommen.`);
       } catch {
         setFehler("Bestellmarkierung konnte nicht gespeichert werden.");
       }
@@ -149,48 +209,18 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
   }
 
   // Den Spaltenkopf-Kicker setzt `Datentabelle` selbst, sobald `title` eine
-  // Zeichenkette ist. Die Markierungsspalte bleibt ohne Titeltext -- ein Kicker
-  // haette hier nichts zu beschriften.
+  // Zeichenkette ist.
+  //
+  // ⚠️ KEIN DURCHSTREICHEN BESTELLTER ZEILEN MEHR (IDA-238): es sagte
+  // dasselbe wie die Statusspalte daneben, nur ohne Datum und ohne den Fall
+  // „Ware offenbar eingetroffen". Eine Aussage steht einmal, in Worten.
   const spalten: TableProps<BestellAnzeigeZeile>["columns"] = [
-    {
-      title: "",
-      dataIndex: "bestellt",
-      key: "markierung",
-      width: 48,
-      render: (_bestellt: boolean, z) => (
-        // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
-        // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
-        // ist hier bereits die volle wie die halbe Bediendichte. "small"
-        // unterbietet die Mindesttapflaeche und wird von
-        // e2e/lagerbuch-mobil.spec.ts:312 geprueft (misst ALLE
-        // a[href]/button/input/textarea/select auf 44px breit UND hoch).
-        <Button
-          shape="circle"
-          disabled={laeuft}
-          aria-label={
-            z.bestellt ? "Bestellung zurücknehmen" : "Als bestellt markieren"
-          }
-          icon={z.bestellt ? <Ikone name="haken" groesse={15} /> : undefined}
-          onClick={() => markierungAendern(z)}
-        />
-      ),
-    },
     {
       title: "Artikel",
       dataIndex: "name",
       key: "name",
       sorter: nachText<BestellAnzeigeZeile>((z) => z.name),
-      render: (name: string, z) => (
-        <span
-          style={
-            z.bestellt
-              ? { textDecoration: "line-through", ...SCHRIFT.neben }
-              : { fontWeight: 600 }
-          }
-        >
-          {name}
-        </span>
-      ),
+      render: (name: string) => <span style={{ fontWeight: 600 }}>{name}</span>,
     },
     {
       title: "Fach",
@@ -241,26 +271,14 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
     },
   ];
 
+  const angezeigt = wendeFilterAn(gefiltert, spalten, spaltenFilter);
+  const sucheAktiv = sucheNachlauf.trim() !== "";
+
   return (
     <>
-      {meldung ? (
-        <Alert
-          type="success"
-          showIcon={false}
-          title={meldung}
-          style={{ marginBlockEnd: SPACE.md }}
-        />
-      ) : null}
-      {fehler ? (
-        <Alert
-          type="warning"
-          showIcon={false}
-          title={fehler}
-          style={{ marginBlockEnd: SPACE.md }}
-        />
-      ) : null}
-
       <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
+        <Suchfeld wert={suche} onWert={setSuche} platzhalter="Artikel oder Fach suchen…" />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <Button
           data-testid="lb-kopieren"
           icon={<Ikone name="kopieren" groesse={16} />}
@@ -277,15 +295,83 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
         </Button>
       </Flex>
 
+      {ausgewaehlt.length > 0 ? (
+        <Flex
+          gap={SPACE.md}
+          align="center"
+          wrap
+          data-testid="bestell-sammelleiste"
+          style={{ marginBlockEnd: SPACE.md }}
+        >
+          <span style={SCHRIFT.feldname}>{ausgewaehlt.length} ausgewählt</span>
+          {/* Die Zahl im Knopf sagt, wie viele Zeilen die Aktion WIRKLICH
+              aendert — eine schon markierte Zeile in der Auswahl zaehlt beim
+              Markieren nicht mit. */}
+          <Button
+            type="primary"
+            loading={laeuft}
+            disabled={zuMarkieren.length === 0}
+            onClick={() => markierungAendern(true)}
+          >
+            Als bestellt markieren ({zuMarkieren.length})
+          </Button>
+          <Button
+            disabled={laeuft || zuruecknehmbar.length === 0}
+            onClick={() => markierungAendern(false)}
+          >
+            Markierung zurücknehmen ({zuruecknehmbar.length})
+          </Button>
+          <Button type="link" style={{ padding: 0 }} onClick={() => setAuswahl([])}>
+            Auswahl aufheben
+          </Button>
+        </Flex>
+      ) : null}
+
+      {meldung ? (
+        <Alert
+          type="success"
+          showIcon={false}
+          title={meldung}
+          closable
+          onClose={() => setMeldung(null)}
+          style={{ marginBlockEnd: SPACE.md }}
+        />
+      ) : null}
+      {fehler ? (
+        <Alert
+          type="warning"
+          showIcon={false}
+          title={fehler}
+          style={{ marginBlockEnd: SPACE.md }}
+        />
+      ) : null}
+
       <Kartentabelle<BestellAnzeigeZeile>
         rowKey="id"
         aria-label="Bestellvorschlag"
-        dataSource={zeilen}
+        dataSource={gefiltert}
+        filter={spaltenFilter}
+        onFilter={setSpaltenFilter}
         leer={{
           nichts: "Kein Unterbestand und keine offene Bestellmarkierung.",
-          gefiltert: "Kein Vorschlag passt zum Filter.",
+          gefiltert: "Kein Vorschlag passt zu Suche und Filter.",
+          aktiv: sucheAktiv || filterAktiv(spaltenFilter),
         }}
         columns={spalten}
+        karte={{ titel: "name", kennzeichen: ["status"] }}
+        rowSelection={{
+          selectedRowKeys: auswahl,
+          // 44 px Trefferflaeche plus Zellenrand (`auswahlZelle`).
+          columnWidth: 60,
+          renderCell: auswahlZelle,
+          preserveSelectedRowKeys: true,
+          onChange: (schluessel) => {
+            setAuswahl(schluessel.map(String));
+            // „3 Artikel als bestellt markiert." neben einer frisch begonnenen
+            // Auswahl liest sich wie eine Meldung ueber DIESE Auswahl.
+            setMeldung(null);
+          },
+        }}
       />
 
       <Modal

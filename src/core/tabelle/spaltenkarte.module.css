@@ -40,6 +40,24 @@
 }
 
 /*
+ * IDA-238 — DAS AUSWAHLKREUZCHEN DER KARTE HAT DIE TREFFERFLAECHE DER
+ * ARBEITSDICHTE (44 px, WCAG 2.5.5). antd leitet die Groesse eines
+ * `Checkbox`-Labels nicht aus `controlHeight` ab; ohne diese Regel ist es
+ * 22 x 22 px gross, und `e2e/lagerbuch-mobil.spec.ts` („jede Zeilenaktion ist
+ * mindestens 44 x 44 px") misst genau das Label.
+ *
+ * ⚠️ DIE KLASSE STEHT ZWEIMAL (Falle 5): antds eigene Regel am selben Label
+ * hat eine Klasse Spezifitaet, und welche Regel zuerst im Kopf steht,
+ * entscheidet sonst die Ladereihenfolge. Kein `.ant-*`-Name (Falle 20).
+ */
+.kreuz.kreuz {
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
  * ⚠️ DER TITEL IST EIN TEXT, KEIN BEDIENELEMENT — auch dann nicht, wenn die
  * Zeile anklickbar ist. Hier stand einmal ein `.titelKnopf` daneben; er ergab
  * `<button><button>`, sobald die Titelspalte selbst einen Knopf rendert, und
