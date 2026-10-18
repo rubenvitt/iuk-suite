@@ -123,7 +123,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         aktionen={<BzAktivToggle id={geraet.id} name={geraet.name} aktiv={geraet.aktiv} />}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={faelligText}

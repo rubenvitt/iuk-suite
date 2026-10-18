@@ -161,7 +161,7 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
         </div>
       )}
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12}>
           <Kachel zahl={inhalt.length} beschriftung="Artikel in der Box" />
         </Col>

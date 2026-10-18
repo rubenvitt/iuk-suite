@@ -50,7 +50,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         zurueck={{ titel: "Alle Vorlagen", href: "/verwaltung/vorlagen" }}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={8}>
           <Kachel zahl={positionen.length} beschriftung="Positionen" />
         </Col>
