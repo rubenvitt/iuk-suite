@@ -87,7 +87,10 @@ export function inventurSeitenInhalt(
     <>
       <SeitenKopf
         titel="Inventur"
-        beschreibung={`${zaehlOrtBeschreibung(ortId, ortName)} Nur angefasste Zeilen und Chargen werden gebucht — der Server rechnet gegen den Live-Bestand, nicht gegen den Stand dieser Seite.`}
+        // IDA-237 — gekuerzt. Dass gegen den LIVE-Bestand gerechnet wird, ist
+        // Sache des Servers (`_actions/inventur.ts`), keine Bedienanleitung;
+        // was gebucht wird, zeigt die Abschlussleiste („x von y erfasst").
+        beschreibung={`${zaehlOrtBeschreibung(ortId, ortName)} Gebucht werden nur erfasste Zeilen.`}
         // Wie `BzListe` und `ChecklisteKnopf`: ein antd-`Button` mit `href`, kein
         // `size` (Falle 4). Aeussere Pfadform wie in der Navigation.
         aktionen={<Button href="/verwaltung/inventur/verlauf">Verlauf</Button>}

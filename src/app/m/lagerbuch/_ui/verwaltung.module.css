@@ -78,51 +78,51 @@
 
 .warnbox { border-inline-start: 3px solid var(--lb-ampel-rot-text); border-radius: 4px; padding: 10px 12px; color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche); font-size: 14px; }
 .infobox { border-inline-start: 3px solid var(--lb-ampel-gelb-text); border-radius: 4px; padding: 10px 12px; color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche); font-size: 14px; }
-.gefahr { border: 1px solid var(--lb-rot); border-radius: 6px; margin-block-start: 24px; padding: 16px; }
-.gtitle { color: var(--lb-rot); margin-block-end: 8px; font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
 
 /*
- * DIE BEIDEN BUCHUNGSFORMULARE NEBENEINANDER, SOBALD PLATZ IST.
- *
- * ⚠️ `auto-fit` UND KEINE `@media`-ABFRAGE, und der Unterschied ist hier
- * tragend: eine Schublade ist ein Kasten IM Fenster, kein Fenster. Eine
- * `@media (min-width: …)`-Regel misst das FENSTER und legt die Spalten
- * deshalb auch dann nebeneinander, wenn die Schublade selbst schmal
- * geworden ist — `flyinBreite` deckelt sie auf 92 vw, und auf einem breiten,
- * aber niedrigen Schirm greift dieselbe Deckelung ueber `size`. `auto-fit`
- * mit `minmax` misst dagegen den KASTEN und faellt von allein auf eine
- * Spalte zurueck.
- *
- * 320px als Untergrenze: darunter wird aus dem Formular eine Kolonne aus
- * Einzeilern. Gemessen bei 1120 px Schubladenbreite ergeben sich zwei
- * Spalten zu je 526 px.
- *
- * ⛔ KEIN `gap: 20px` als Literal, obwohl der Elternteil dieselbe Zahl
- * traegt: das Raster steht INNERHALB von `.artikelRaster` (am Ende dieser
- * Datei), und beide Werte beschreiben denselben Abstand
- * zwischen zwei Abschnitten. Sie hier ein zweites Mal hinzuschreiben,
- * heisst, sie beim naechsten Mal an einer Stelle zu aendern.
- */
-.buchungsspalten {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
-  gap: inherit;
-  align-items: start;
-}
-
-/*
- * DRK-338 — die vier Felder der Umlagerung.
+ * DIE FELDER EINES FORMULARS DER ARTIKELSCHUBLADE NEBENEINANDER, sobald
+ * Platz ist (IDA-235: Zugang, Entnahme, Umlagern und die Stammdaten — seit
+ * den Reitern steht immer nur EIN Formular da, und es bekommt die ganze
+ * Breite statt einer halben Spalte).
  *
  * ⚠️ `auto-fit`/`minmax` MISST DEN KASTEN, eine `@media`-Abfrage das FENSTER
  * (CLAUDE.md, Falle 13). Diese Felder stehen in einer Schublade, deren Breite
  * `flyinBreite(1120)` deckelt — auf einem schmalen Schirm ist der Kasten
- * laengst schmal, waehrend das Fenster noch breit aussieht.
+ * laengst schmal, waehrend das Fenster noch breit aussieht. 200 px als
+ * Untergrenze stammt aus der Umlagerung (DRK-338): bei 1120 px stehen drei
+ * bis vier Felder je Zeile, bei 390 px eines.
  */
-.umlagerfelder {
+.buchungsfelder {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 0 12px;
   align-items: start;
+}
+
+/* IDA-235 — Lesemodus der Stammdaten: Feldname ueber Wert, im selben Raster. */
+.stammdatenListe {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+/* Speichern/Abbrechen links, Loeschen rechts — und untereinander, wenn's eng wird. */
+.stammdatenAktionen {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Abschnittstitel links, eine Aktion (Bearbeiten, Journal-Link) rechts daneben. */
+.abschnittKopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-block-end: 12px;
 }
 
 /*
@@ -173,8 +173,8 @@
  * in einer 688 px breiten Schublade, und zwar je Artikel verschieden weit,
  * weil die Tabelle mit ihren Daten wächst. Jeder Abschnitt lief rechts aus
  * dem Bild, die Schublade bekam einen waagerechten Scrollbalken, und
- * `buchungsspalten` legte bei 390 px Fensterbreite zwei Formulare neben-
- * einander, weil es die aufgeblähte Spur für den Platz hielt.
+ * das damalige Formularraster legte bei 390 px Fensterbreite zwei Formulare
+ * nebeneinander, weil es die aufgeblähte Spur für den Platz hielt.
  *
  * `minmax(0, 1fr)` nimmt der Spur den min-content-Boden: die Tabelle scrollt
  * dann in sich, statt die ganze Schublade aufzuziehen. Dieselbe Überlegung
@@ -184,5 +184,20 @@
 .artikelRaster {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
+  gap: 16px; /* SPACE.lg — Abstand zwischen Abschnitten seit IDA-234 */
+}
+
+/*
+ * IDA-238 — DAS AUSWAHLKREUZCHEN EINER TABELLENZEILE (Bestellung, Verfall)
+ * mit der Trefferflaeche der Arbeitsdichte, 44 x 44 px. Die Verwaltung wird am
+ * Tablet mit dem Finger bedient (Falle 4); antd leitet die Groesse des
+ * `Checkbox`-Labels nicht aus `controlHeight` ab, es bliebe 22 x 22 px. Gesetzt
+ * ueber `rowSelection.renderCell` am Label selbst, also ohne `.ant-*`-Namen
+ * (Falle 20); die Klasse steht zweimal gegen antds eigene Regel (Falle 5).
+ */
+.auswahlKreuz.auswahlKreuz {
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
 }

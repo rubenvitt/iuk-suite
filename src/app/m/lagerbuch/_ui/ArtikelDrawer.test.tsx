@@ -13,6 +13,14 @@ import {
 import { ArtikelDrawer, zielFilter } from "./ArtikelDrawer";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
+/*
+ * IDA-235: jeder Fall waehlt jetzt erst Reiter und Buchungsart, und im
+ * parallelen Lauf der ganzen Modul-Suite stand der langsamste bei 5,06 s —
+ * knapp ueber Vitests Vorgabe. Ein abgebrochener Fall laesst seine Schublade
+ * stehen und reisst die folgenden mit; deshalb mehr Zeit, nicht weniger Pruefung.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
 const mocks = vi.hoisted(() => ({
@@ -197,6 +205,44 @@ async function drawerMounten(): Promise<void> {
   );
 }
 
+/** Einen Reiter der Schublade waehlen (IDA-235). */
+async function reiter(name: string): Promise<void> {
+  const tab = Array.from(document.body.querySelectorAll<HTMLElement>("[role='tab']"))
+    .find((element) => element.textContent === name);
+  if (!tab) throw new Error(`Reiter nicht gefunden: ${name}`);
+  await clickElement(tab);
+  await warte();
+}
+
+/** Eine Buchungsart im Reiter „Buchen“ waehlen. */
+async function buchungsart(name: "Zugang" | "Entnahme" | "Umlagern"): Promise<void> {
+  const eintrag = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-segmented-item"))
+    .find((element) => element.textContent === name);
+  const eingabe = eintrag?.querySelector<HTMLInputElement>("input");
+  if (!eingabe) throw new Error(`Buchungsart nicht gefunden: ${name}`);
+  await clickElement(eingabe);
+  await warte();
+}
+
+async function zuBuchen(art?: "Zugang" | "Entnahme" | "Umlagern"): Promise<void> {
+  await reiter("Buchen");
+  if (art) await buchungsart(art);
+}
+
+async function knopfKlicken(text: string): Promise<void> {
+  const knopf = Array.from(queryPortal(".ant-drawer-body").querySelectorAll<HTMLButtonElement>("button"))
+    .find((element) => (element.textContent ?? "").trim() === text);
+  if (!knopf) throw new Error(`Knopf nicht gefunden: ${text}`);
+  await clickElement(knopf);
+  await warte();
+}
+
+/** „Stammdaten“ → „Bearbeiten“. */
+async function bearbeiten(): Promise<void> {
+  await reiter("Stammdaten");
+  await knopfKlicken("Bearbeiten");
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date("2027-01-15T10:00:00Z"));
@@ -220,93 +266,59 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("ArtikelDrawer: Dialog und lokale Stammdaten-Spiegel", () => {
-  it("benennt den Dialog ueber seinen Drawer-Titel mit dem Artikelnamen", async () => {
+/**
+ * IDA-235 — DIE REITER. Vorher stand alles untereinander (13–18 Eingabefelder
+ * beim Oeffnen, gemessen); jetzt ist „Übersicht" ein reiner Lese-Reiter, und
+ * „Buchen" zeigt EIN Formular zur Zeit.
+ */
+describe("ArtikelDrawer: Dialog und Reiter", () => {
+  it("benennt den Dialog ueber seinen Drawer-Titel mit dem Artikelnamen — ohne Stift", async () => {
     await drawerMounten();
 
     const dialog = queryPortal("[role='dialog']");
     const titelId = dialog.getAttribute("aria-labelledby");
     expect(titelId).toBeTruthy();
     expect(document.getElementById(titelId ?? "")?.textContent).toBe("Kompressen steril");
+    // IDA-215 bearbeitete den Namen im Titel und speicherte beim Verlassen;
+    // seit IDA-235 steht er unter „Stammdaten" → „Bearbeiten".
+    expect(existsPortal(".ant-drawer-title [aria-label='Name ändern']")).toBe(false);
+    expect(existsPortal(".ant-drawer-title textarea, .ant-drawer-title input")).toBe(false);
   });
 
-  it("haelt den Mindestbestand ausserhalb von Form und committet den letzten Spiegelwert einmal nach 400 ms", async () => {
+  it("oeffnet auf „Übersicht“, ohne ein einziges Eingabefeld", async () => {
     await drawerMounten();
-    // Ab hier darf die Uhr nicht automatisch mit der realen Laufzeit
-    // fortschreiten: geprüft werden exakt 399 ms bzw. 400 ms nach Eingabe.
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    const input = queryPortal<HTMLInputElement>("[data-rolle='mindestbestand'] input");
 
-    expect(input.closest(".ant-form-item")).toBeNull();
-    await fillPortal("[data-rolle='mindestbestand'] input", "3");
-    await fillPortal("[data-rolle='mindestbestand'] input", "37");
-
-    expect(input.value).toBe("37");
-    expect(mocks.updateArtikel).not.toHaveBeenCalled();
-    await act(async () => { vi.advanceTimersByTime(399); });
-    expect(mocks.updateArtikel).not.toHaveBeenCalled();
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mocks.updateArtikel).toHaveBeenCalledTimes(1);
-    expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { mindestbestand: 37 });
+    expect(queryPortal("[role='tab'][aria-selected='true']").textContent).toBe("Übersicht");
+    expect(queryPortal(".ant-drawer-body")
+      .querySelectorAll("input:not([type='hidden']), textarea, [role='switch']")).toHaveLength(0);
+    expect(queryPortal("table[aria-label='Chargen']")).toBeTruthy();
+    expect(queryPortal("[data-rolle='kennzahlen']").textContent)
+      .toBe("Mindestbestand 20 Stk · Fach A1");
   });
 
-  it("laesst den lokalen Spiegel leer und verwirft beim Leeren einen ausstehenden Commit", async () => {
+  it("zeigt unter „Buchen“ immer nur EIN Formular, umschaltbar ueber die Buchungsart", async () => {
     await drawerMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    const input = queryPortal<HTMLInputElement>("[data-rolle='mindestbestand'] input");
+    await zuBuchen();
 
-    await fillPortal("[data-rolle='mindestbestand'] input", "37");
-    await fillPortal("[data-rolle='mindestbestand'] input", "");
+    expect(existsPortal("[data-rolle='zugang-form']")).toBe(true);
+    expect(existsPortal("[data-rolle='entnahme-form']")).toBe(false);
 
-    expect(input.value).toBe("");
-    await act(async () => {
-      vi.advanceTimersByTime(400);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+    await buchungsart("Entnahme");
+    expect(existsPortal("[data-rolle='zugang-form']")).toBe(false);
+    expect(existsPortal("[data-rolle='entnahme-form']")).toBe(true);
+
+    await buchungsart("Umlagern");
+    expect(existsPortal("[data-rolle='entnahme-form']")).toBe(false);
+    expect(queryPortal(".ant-drawer-body").textContent).toContain("keinen zweiten aktiven Ort");
   });
 
-  it("ueberschreibt eine neuere Eingabe nicht mit dem Reload eines laufenden Commits", async () => {
-    const serverNachCommit = {
-      ...DETAIL,
-      artikel: { ...DETAIL.artikel, mindestbestand: 37 },
-    };
-    mocks.getDetail
-      .mockResolvedValueOnce({ ok: true, wert: DETAIL })
-      .mockResolvedValueOnce({ ok: true, wert: serverNachCommit });
-    let commitBeenden!: (ergebnis: { ok: true }) => void;
-    const laufenderCommit = new Promise<{ ok: true }>((fertig) => {
-      commitBeenden = fertig;
-    });
-    mocks.updateArtikel.mockReturnValueOnce(laufenderCommit);
-
+  it("verlinkt den Verlauf ins Journal, gefiltert nach der Artikel-Kennung", async () => {
     await drawerMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    const input = queryPortal<HTMLInputElement>("[data-rolle='mindestbestand'] input");
-    await fillPortal("[data-rolle='mindestbestand'] input", "37");
-    await act(async () => {
-      vi.advanceTimersByTime(400);
-      await Promise.resolve();
-    });
-    expect(mocks.updateArtikel).toHaveBeenCalledTimes(1);
+    await reiter("Verlauf");
 
-    await fillPortal("[data-rolle='mindestbestand'] input", "38");
-    await act(async () => {
-      commitBeenden({ ok: true });
-      await laufenderCommit;
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mocks.getDetail).toHaveBeenCalledTimes(2);
-    expect(input.value).toBe("38");
+    const link = Array.from(queryPortal(".ant-drawer-body").querySelectorAll<HTMLAnchorElement>("a"))
+      .find((a) => a.textContent === "Im Journal anzeigen");
+    expect(link?.getAttribute("href")).toBe("/verwaltung/journal?artikel=a1");
   });
 
   it("serialisiert parallele Mutationen und behaelt den Fehler der spaeteren Aktion", async () => {
@@ -321,14 +333,13 @@ describe("ArtikelDrawer: Dialog und lokale Stammdaten-Spiegel", () => {
     });
 
     await drawerMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    await fillPortal("[data-rolle='mindestbestand'] input", "37");
-    await act(async () => {
-      vi.advanceTimersByTime(400);
-      await Promise.resolve();
-    });
-    expect(mocks.updateArtikel).toHaveBeenCalledTimes(1);
+    await bearbeiten();
+    await fillPortal("[aria-label='Mindestbestand']", "37");
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "laufendes Speichern");
 
+    // Waehrend die Stammdaten noch speichern, wechselt die Bearbeitende zum Buchen.
+    await zuBuchen("Entnahme");
     await submitPortalForm("[data-rolle='entnahme-form']");
     await act(async () => {
       await Promise.resolve();
@@ -345,10 +356,14 @@ describe("ArtikelDrawer: Dialog und lokale Stammdaten-Spiegel", () => {
       await laufenderCommit;
       for (let i = 0; i < 10; i++) await Promise.resolve();
     });
+    await warteAuf(() => mocks.bucheEntnahme.mock.calls.length === 1, "nachgezogene Entnahme");
 
     expect(mocks.bucheEntnahme).toHaveBeenCalledTimes(1);
-    expect(queryPortal(".ant-drawer-body").textContent)
-      .toContain("Der Bestand reicht für diese Entnahme nicht aus.");
+    await warteAuf(
+      () => (queryPortal("[data-rolle='entnahme-form']").textContent ?? "")
+        .includes("Der Bestand reicht für diese Entnahme nicht aus."),
+      "Fehler am Entnahmeformular",
+    );
     expect(
       queryPortal("[data-rolle='entnahme-form'] button")
         .classList.contains("ant-btn-loading"),
@@ -356,15 +371,175 @@ describe("ArtikelDrawer: Dialog und lokale Stammdaten-Spiegel", () => {
   });
 });
 
+/**
+ * IDA-235 — STAMMDATEN: LESEN, BEARBEITEN, AUSDRUECKLICH SPEICHERN.
+ *
+ * Vorher speicherte jedes Feld beim Verlassen, der Mindestbestand nach 400 ms
+ * — ein Tippfehler war ohne Rueckweg in der Datenbank. Die Faelle hier halten
+ * die Kehrtwende fest: Tippen schreibt nichts, „Abbrechen" verwirft, und
+ * „Speichern" schickt genau das, was sich geaendert hat.
+ */
+describe("ArtikelDrawer: Stammdaten", () => {
+  it("zeigt die Stammdaten im Lesemodus als Liste, ohne Eingabefeld", async () => {
+    await drawerMounten();
+    await reiter("Stammdaten");
+
+    const liste = queryPortal("[data-rolle='stammdaten-liste']");
+    expect(liste.textContent).toContain("20 Stk");
+    expect(liste.textContent).toContain("A1");
+    expect(liste.textContent).toContain("aktiv");
+    expect(existsPortal("[data-rolle='stammdaten-form']")).toBe(false);
+    expect(existsPortal("[aria-label='Mindestbestand']")).toBe(false);
+  });
+
+  it("speichert beim Tippen nichts und schickt auf „Speichern“ nur das Geaenderte", async () => {
+    await drawerMounten();
+    await bearbeiten();
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+
+    await fillPortal("[aria-label='Mindestbestand']", "37");
+    await act(async () => { vi.advanceTimersByTime(2_000); });
+    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherter Mindestbestand");
+    expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { mindestbestand: 37 });
+    expect(mocks.setArtikelAktiv).not.toHaveBeenCalled();
+    await warteAuf(() => existsPortal("[data-rolle='stammdaten-liste']"), "zurueck im Lesemodus");
+  });
+
+  it("verwirft einen Tippfehler mit „Abbrechen“", async () => {
+    await drawerMounten();
+    await bearbeiten();
+
+    await fillPortal("[aria-label='Mindestbestand']", "200");
+    await knopfKlicken("Abbrechen");
+
+    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+    expect(queryPortal("[data-rolle='stammdaten-liste']").textContent).toContain("20 Stk");
+    await knopfKlicken("Bearbeiten");
+    expect(queryPortal<HTMLInputElement>("[aria-label='Mindestbestand']").value).toBe("20");
+  });
+
+  it("schreibt bei einem unveraenderten Formular nichts", async () => {
+    await drawerMounten();
+    await bearbeiten();
+
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+    await warteAuf(() => existsPortal("[data-rolle='stammdaten-liste']"), "zurueck im Lesemodus");
+    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+    expect(mocks.setArtikelAktiv).not.toHaveBeenCalled();
+  });
+
+  it("speichert Name getrimmt und Fach in Grossbuchstaben", async () => {
+    await drawerMounten();
+    await bearbeiten();
+
+    await fillPortal("[aria-label='Name']", "  Kompressen 10x10 ");
+    await fillPortal("[aria-label='Fach im Handlager']", "b2");
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherte Felder");
+    expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { name: "Kompressen 10x10", fach: "B2" });
+  });
+
+  it("speichert keinen leeren Namen", async () => {
+    await drawerMounten();
+    await bearbeiten();
+
+    await fillPortal("[aria-label='Name']", "   ");
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+    await warte();
+    await warte();
+
+    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+    expect(existsPortal("[data-rolle='stammdaten-form']")).toBe(true);
+  });
+
+  it("zeigt einen abgewiesenen Speicherversuch AM Formular und behaelt die Eingabe", async () => {
+    mocks.updateArtikel.mockResolvedValueOnce({ ok: false, fehler: "Nicht gespeichert." });
+    await drawerMounten();
+    await bearbeiten();
+
+    await fillPortal("[aria-label='Mindestbestand']", "37");
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "Speicherversuch");
+    await warteAuf(
+      () => (queryPortal("[data-rolle='stammdaten-form']").textContent ?? "").includes("Nicht gespeichert."),
+      "Fehler am Formular",
+    );
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Mindestbestand']").value).toBe("37");
+    expect(mocks.getDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("schaltet „Aktiv“ erst mit „Speichern“ — ueber die eigene Action", async () => {
+    await drawerMounten();
+    await bearbeiten();
+
+    await clickPortal("[aria-label='Artikel aktiv']");
+    expect(mocks.setArtikelAktiv).not.toHaveBeenCalled();
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+
+    await warteAuf(() => mocks.setArtikelAktiv.mock.calls.length === 1, "geschalteter Status");
+    expect(mocks.setArtikelAktiv).toHaveBeenCalledWith({ id: "a1", aktiv: false });
+    expect(mocks.updateArtikel).not.toHaveBeenCalled();
+  });
+
+  /**
+   * FALLE 24 — der Fokus folgt dem Moduswechsel, aber nur, wenn er verloren ist.
+   * jsdom kennt keine Animation; was hier geprueft wird, ist die REGEL, nicht
+   * das Timing der Schublade.
+   */
+  it("setzt den Fokus nach „Bearbeiten“ ins Namensfeld und nach „Abbrechen“ zurueck", async () => {
+    await drawerMounten();
+    await bearbeiten();
+    expect(document.activeElement).toBe(queryPortal("[aria-label='Name']"));
+
+    await knopfKlicken("Abbrechen");
+    expect(document.activeElement?.textContent).toContain("Bearbeiten");
+  });
+
+  it("nimmt nach einem langsamen Speichern niemandem den Fokus, der inzwischen weitergeht", async () => {
+    let speichernBeenden!: (ergebnis: { ok: true }) => void;
+    mocks.updateArtikel.mockReturnValueOnce(new Promise((fertig) => {
+      speichernBeenden = fertig;
+    }));
+    await drawerMounten();
+    await bearbeiten();
+    await fillPortal("[aria-label='Mindestbestand']", "37");
+    await submitPortalForm("[data-rolle='stammdaten-form']");
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "laufendes Speichern");
+
+    // Die Buchungsformulare sind waehrend des Speicherns gesperrt (`busy`);
+    // erreichbar bleibt etwa der Link im Verlauf.
+    await reiter("Verlauf");
+    const link = Array.from(queryPortal(".ant-drawer-body").querySelectorAll<HTMLAnchorElement>("a"))
+      .find((a) => a.textContent === "Im Journal anzeigen")!;
+    await act(async () => { link.focus(); });
+    expect(document.activeElement).toBe(link);
+
+    await act(async () => { speichernBeenden({ ok: true }); });
+    await warteAuf(() => mocks.getDetail.mock.calls.length === 2, "neu geladen");
+    await warte();
+    expect(document.activeElement).toBe(link);
+  });
+});
+
 describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
   it("rendert genau Fahrzeug-, Charge- und Zielort-Select und filtert jeweils label plus keywords", async () => {
     await drawerMounten();
 
-    // Das Kategoriefeld (DRK-294) ist ein `AutoComplete` und damit technisch
-    // ebenfalls ein `.ant-select` — gezaehlt werden hier die AUSWAHLfelder.
     // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Einheit).
-    expect(queryPortal(".ant-drawer-body")
-      .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(3);
+    // Seit IDA-235 steht je Buchungsart nur EIN Formular da: Charge und Wohin
+    // am Zugang, Ziel-Einheit an der Entnahme.
+    await zuBuchen("Zugang");
+    expect(queryPortal("[data-rolle='zugang-form']")
+      .querySelectorAll(".ant-select")).toHaveLength(2);
+    await buchungsart("Entnahme");
+    expect(queryPortal("[data-rolle='entnahme-form']")
+      .querySelectorAll(".ant-select")).toHaveLength(1);
     expect(zielFilter("UE-RK", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(true);
     expect(zielFilter("ZZZ", { label: "Charge 12/26", keywords: "ZZZ-ALT" })).toBe(true);
     expect(zielFilter("MTW", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
@@ -383,6 +558,7 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
    */
   it("findet eine Tasche ueber ihre ART, nicht nur ueber Name und Kennung", async () => {
     await drawerMounten();
+    await zuBuchen("Entnahme");
 
     const ziel = queryPortal<HTMLInputElement>("[aria-label='Ziel-Einheit']");
     await act(async () => {
@@ -415,6 +591,7 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
 
   it("bewahrt NEUE_CHARGE plus die serverseitige FEFO-Reihenfolge und blendet Neufelder bei Bestandscharge aus", async () => {
     await drawerMounten();
+    await zuBuchen();
     expect(existsPortal("[aria-label='Chargennummer']")).toBe(true);
     expect(existsPortal("[aria-label='Verfallsmonat']")).toBe(true);
 
@@ -443,20 +620,12 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
   });
 });
 
+
 /**
- * DRK-294. Die Kategorie speichert wie Fach und Einheit beim Verlassen des
- * Feldes — mit einem Unterschied, an dem der Filter haengt: sie DARF leer
- * werden, und leer heisst `null`, nie ein Leerstring.
+ * DRK-294. Die Kategorie DARF leer werden — und leer heisst `null`, nie ein
+ * Leerstring. Seit IDA-235 gespeichert ueber „Speichern", nicht beim Verlassen.
  */
 describe("ArtikelDrawer: Kategorie", () => {
-  async function kategorieVerlassen(): Promise<void> {
-    const input = queryPortal<HTMLInputElement>("[aria-label='Kategorie']");
-    await act(async () => {
-      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-    });
-    await warte();
-  }
-
   it("zeigt die gespeicherte Kategorie, speichert eine getrimmte Aenderung und leert auf null", async () => {
     mocks.getDetail.mockResolvedValue({
       ok: true, wert: { ...DETAIL, artikel: { ...DETAIL.artikel, kategorie: "Hygiene" } },
@@ -467,88 +636,23 @@ describe("ArtikelDrawer: Kategorie", () => {
       />,
     );
     await warteAuf(
-      () => queryPortal<HTMLInputElement>("[aria-label='Kategorie']").value === "Hygiene",
-      "gespeicherte Kategorie",
+      () => (document.body.textContent ?? "").includes("Kompressen steril"),
+      "geladener Artikel",
     );
-
-    await kategorieVerlassen();
-    expect(mocks.updateArtikel, "unveraendert → kein Schreibvorgang").not.toHaveBeenCalled();
+    await bearbeiten();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Kategorie']").value).toBe("Hygiene");
 
     await fillPortal("[aria-label='Kategorie']", "  Technik ");
-    await kategorieVerlassen();
+    await submitPortalForm("[data-rolle='stammdaten-form']");
     await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherte Aenderung");
     expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { kategorie: "Technik" });
 
+    await warteAuf(() => existsPortal("[data-rolle='stammdaten-liste']"), "Lesemodus");
+    await knopfKlicken("Bearbeiten");
     await fillPortal("[aria-label='Kategorie']", "   ");
-    await kategorieVerlassen();
+    await submitPortalForm("[data-rolle='stammdaten-form']");
     await warteAuf(() => mocks.updateArtikel.mock.calls.length === 2, "geleerte Kategorie");
     expect(mocks.updateArtikel).toHaveBeenLastCalledWith("a1", { kategorie: null });
-  });
-});
-
-/**
- * IDA-215. Der Name wird im Titel bearbeitet (antds `Typography` mit
- * `editable`): Stift → Textfeld → Verlassen speichert. Kein Feld unter
- * „Stammdaten", das kostete auf 1280x720 den Blick auf „Entnahme buchen".
- */
-describe("ArtikelDrawer: Name im Titel", () => {
-  async function nameBearbeiten(wert: string): Promise<void> {
-    await clickPortal("[aria-label='Name ändern']");
-    await fillPortal(".ant-drawer-title textarea", wert);
-    const feld = queryPortal<HTMLTextAreaElement>(".ant-drawer-title textarea");
-    await act(async () => {
-      feld.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-    });
-    await warte();
-  }
-
-  it("liegt nicht unter den Stammdaten", async () => {
-    await drawerMounten();
-
-    expect(existsPortal("[aria-label='Name']")).toBe(false);
-    expect(existsPortal(".ant-drawer-title [aria-label='Name ändern']")).toBe(true);
-  });
-
-  it("speichert einen getrimmten neuen Namen und zeigt ihn im Titel", async () => {
-    mocks.getDetail
-      .mockResolvedValueOnce({ ok: true, wert: DETAIL })
-      .mockResolvedValue({
-        ok: true, wert: { ...DETAIL, artikel: { ...DETAIL.artikel, name: "Kompressen 10x10" } },
-      });
-    await drawerMounten();
-
-    await nameBearbeiten("  Kompressen 10x10 ");
-
-    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherter Name");
-    expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { name: "Kompressen 10x10" });
-    await warteAuf(
-      () => queryPortal(".ant-drawer-title").textContent === "Kompressen 10x10",
-      "neuer Titel",
-    );
-  });
-
-  it("speichert weder einen leeren noch einen unveraenderten Namen", async () => {
-    await drawerMounten();
-
-    await nameBearbeiten("   ");
-    await nameBearbeiten("Kompressen steril");
-
-    expect(mocks.updateArtikel).not.toHaveBeenCalled();
-    expect(queryPortal(".ant-drawer-title").textContent).toBe("Kompressen steril");
-  });
-
-  it("zeigt nach einem abgewiesenen Speichern wieder den alten Namen", async () => {
-    mocks.updateArtikel.mockResolvedValueOnce({ ok: false, fehler: "Nicht gespeichert." });
-    await drawerMounten();
-
-    await nameBearbeiten("Kompressen 10x10");
-
-    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "Speicherversuch");
-    await warteAuf(
-      () => queryPortal(".ant-drawer-title").textContent === "Kompressen steril",
-      "alter Titel",
-    );
-    expect(document.body.textContent).toContain("Nicht gespeichert.");
   });
 });
 
@@ -561,6 +665,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
     mocks.bucheZugang.mockReturnValueOnce(laufenderZugang);
 
     await drawerMounten();
+    await zuBuchen();
     await selectOption("Charge", "ZZZ-ALT");
     await fillPortal("[aria-label='Zugangsmenge']", "5");
     await submitPortalForm("[data-rolle='zugang-form']");
@@ -589,6 +694,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       .mockResolvedValueOnce({ ok: true, wert: DETAIL })
       .mockResolvedValueOnce({ ok: true, wert: DETAIL_NACH_ZUGANG });
     await drawerMounten();
+    await zuBuchen();
     await selectOption("Charge", "ZZZ-ALT");
     await fillPortal("[aria-label='Zugangsmenge']", "5");
 
@@ -609,6 +715,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
 
   it("bindet den DatePicker an Form und sendet bei NEUE_CHARGE nur neueCharge mit YYYY-MM", async () => {
     await drawerMounten();
+    await zuBuchen();
     await fillPortal("[aria-label='Zugangsmenge']", "4");
     await fillPortal("[aria-label='Chargennummer']", "NEU-42");
     await waehleVerfallsmonat("2027-03");
@@ -642,6 +749,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       },
     });
     await drawerMounten();
+    await zuBuchen();
     expect(queryPortal<HTMLInputElement>("[aria-label='Wohin']").value).toBe("");
 
     await selectOption("Charge", "ZZZ-ALT");
@@ -665,6 +773,7 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       fehler: "Die gewählte Charge ist nicht mehr verfügbar.",
     });
     await drawerMounten();
+    await zuBuchen();
     await selectOption("Charge", "ZZZ-ALT");
     await fillPortal("[aria-label='Zugangsmenge']", "2");
 
@@ -686,6 +795,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
     mocks.bucheEntnahme.mockReturnValueOnce(laufendeEntnahme);
 
     await drawerMounten();
+    await zuBuchen("Entnahme");
     await submitPortalForm("[data-rolle='entnahme-form']");
     await warteAuf(() => mocks.bucheEntnahme.mock.calls.length === 1, "laufende Entnahme");
 
@@ -711,6 +821,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
 
   it("sendet das ausgewaehlte Fahrzeug mit Menge und Kommentar", async () => {
     await drawerMounten();
+    await zuBuchen("Entnahme");
     await selectOption("Ziel-Einheit", "RTW 1");
     await fillPortal("[aria-label='Entnahmemenge']", "2");
     await fillPortal("[aria-label='Entnahmekommentar']", "Nachfüllung RTW");
@@ -729,6 +840,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
   it("verbirgt unerwartete Runtime-Texte hinter einem festen deutschen Fallback", async () => {
     mocks.bucheEntnahme.mockRejectedValueOnce(new Error("SQLITE intern und geheim"));
     await drawerMounten();
+    await zuBuchen("Entnahme");
     await fillPortal("[aria-label='Entnahmemenge']", "1");
 
     await submitPortalForm("[data-rolle='entnahme-form']");
@@ -762,6 +874,7 @@ describe("ArtikelDrawer: ein deaktivierter Artikel nimmt keinen Zugang mehr an",
   it("sperrt die Zugangsform", async () => {
     mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_INAKTIV });
     await drawerMounten();
+    await zuBuchen("Zugang");
 
     expect(queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").disabled).toBe(true);
     expect(queryPortal<HTMLInputElement>("[aria-label='Charge']").disabled).toBe(true);
@@ -770,6 +883,10 @@ describe("ArtikelDrawer: ein deaktivierter Artikel nimmt keinen Zugang mehr an",
   it("laesst Entnahme und Umlagerung offen — der Restbestand bleibt abbuchbar", async () => {
     mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_INAKTIV });
     await drawerMounten();
+    // Ohne Wahl steht „Buchen“ hier auf der Entnahme (IDA-235): der Zugang
+    // ist gesperrt, der Restbestand ist der naheliegende Handgriff.
+    await zuBuchen();
+    expect(existsPortal("[data-rolle='zugang-form']")).toBe(false);
 
     expect(queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").disabled).toBe(false);
   });
@@ -786,6 +903,7 @@ describe("ArtikelDrawer: ein deaktivierter Artikel nimmt keinen Zugang mehr an",
 
   it("laesst die Zugangsform auf einem AKTIVEN Artikel offen", async () => {
     await drawerMounten();
+    await zuBuchen();
     expect(queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").disabled).toBe(false);
   });
 });
@@ -797,6 +915,7 @@ describe("ArtikelDrawer: Loeschen und Deaktivieren", () => {
       fehler: "Der Artikel ist inzwischen mit einer Buchung verknüpft.",
     });
     await drawerMounten();
+    await bearbeiten();
 
     const loeschButton = Array.from(
       queryPortal(".ant-drawer-body").querySelectorAll<HTMLButtonElement>("button"),
@@ -858,6 +977,7 @@ describe("ArtikelDrawer: Chargen und begrenzte Historie", () => {
 
   it("zeigt den festen Begrenzungshinweis nur wenn mehrVorhanden wahr ist", async () => {
     await drawerMounten();
+    await reiter("Verlauf");
     expect(queryPortal("table[aria-label='Buchungshistorie des Artikels']"))
       .toBeTruthy();
     expect(queryPortal(".ant-drawer-body").textContent)
@@ -869,6 +989,7 @@ describe("ArtikelDrawer: Chargen und begrenzte Historie", () => {
       wert: { ...DETAIL, mehrVorhanden: false },
     });
     await drawerMounten();
+    await reiter("Verlauf");
     expect(queryPortal(".ant-drawer-body").textContent)
       .not.toContain("Es werden nur die neuesten Buchungen angezeigt.");
   });
@@ -975,6 +1096,7 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
   async function mitSchraenken(): Promise<void> {
     mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_MIT_SCHRAENKEN });
     await drawerMounten();
+    await zuBuchen("Umlagern");
   }
 
   /**
@@ -1070,6 +1192,7 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
 
   it("sagt bei nur einem Ort im Handlager, warum es nichts zu tun gibt", async () => {
     await drawerMounten();
+    await zuBuchen("Umlagern");
     expect(existsPortal("[data-rolle='umlager-form']")).toBe(false);
     expect(queryPortal(".ant-drawer-body").textContent)
       .toContain("keinen zweiten aktiven Ort");
@@ -1104,6 +1227,7 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
       },
     });
     await drawerMounten();
+    await zuBuchen("Umlagern");
 
     expect(existsPortal("[data-rolle='umlager-form']")).toBe(false);
     expect(queryPortal(".ant-drawer-body").textContent)
@@ -1131,6 +1255,7 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
       },
     });
     await drawerMounten();
+    await zuBuchen("Umlagern");
 
     expect(existsPortal("[data-rolle='umlager-form']")).toBe(true);
     await waehle("Umlagerung Charge", "ZZZ-ALT");
@@ -1265,6 +1390,7 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
       },
     });
     await drawerMounten();
+    await zuBuchen("Umlagern");
 
     // Die Charge KANN wandern — aus dem stillgelegten Schrank an die Wurzel.
     expect(existsPortal("[data-rolle='umlager-form']")).toBe(true);
@@ -1292,5 +1418,33 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
 
     const formular = queryPortal("[data-rolle='umlager-form']");
     expect(formular.textContent).toContain("liegen nur 4 Stück");
+  });
+
+  /**
+   * IDA-235 — die Chargentabelle steht nicht mehr unter dem Formular, sondern
+   * im Reiter „Übersicht". Wo eine Charge im Handlager liegt, sagt deshalb die
+   * Option selbst — und zwar nach DERSELBEN Regel wie „Von": kein Fahrzeug.
+   */
+  it("nennt in der Chargenwahl, wo die Charge im Handlager liegt", async () => {
+    await mitSchraenken();
+
+    expect(await optionenVon("Umlagerung Charge")).toEqual([
+      "ZZZ-ALT · 12/26 · Schrank 1: 4, GF-Schrank: 2",
+      "AAA-NEU · 03/27 · GF-Schrank: 3",
+    ]);
+  });
+
+  it("summiert in der Übersicht den Bestand je Ort ueber alle Chargen", async () => {
+    await mitSchraenken();
+    await reiter("Übersicht");
+
+    const abschnitt = Array.from(queryPortal(".ant-drawer-body").querySelectorAll("section"))
+      .find((element) => element.querySelector("h3")?.textContent === "Bestand je Ort");
+    const chips = Array.from(abschnitt?.querySelectorAll("span") ?? [])
+      .map((element) => element.textContent ?? "");
+    // GF-Schrank traegt 2 von ZZZ-ALT und 3 von AAA-NEU.
+    expect(chips.some((text) => text.includes("GF-Schrank") && text.endsWith(": 5 Stk"))).toBe(true);
+    expect(chips.some((text) => text.includes("Schrank 1") && text.endsWith(": 4 Stk"))).toBe(true);
+    expect(chips.some((text) => text.includes("RTW 1") && text.endsWith(": 5 Stk"))).toBe(true);
   });
 });

@@ -226,20 +226,31 @@ describe("Vorlagen-Detailseite als Server Component", () => {
       "Einheiten",
     ]);
     expect(kacheln.map((k) => (k.props as { zahl: ReactNode }).zahl)).toEqual([1, 1, 2]);
+    // IDA-239 — jede Kachel mit Zahl führt zu ihrer Liste auf der Seite.
+    expect(kacheln.map((k) => (k.props as { href?: string }).href))
+      .toEqual(["#positionen", "#positionen", "#einheiten"]);
 
+    // IDA-239 — keine Aktionskarte mehr unter der Liste; die Aktionen stehen im Kopf.
     expect(elementeVomTyp(inhalt, Card).map((karte) =>
       (karte.props as { title: string }).title)).toEqual([
       "Positionen",
       "Verknüpfte Einheiten",
-      "Aktionen",
     ]);
+    expect(elementeVomTyp(
+      (kopf.props as { aktionen: ReactNode }).aktionen,
+      TemplateAktionen,
+    )).toHaveLength(1);
   });
 
   it("übergibt den Inseln ausschließlich explizite, rekursiv JSON-sichere DTOs", async () => {
     const inhalt = await seite();
     const editor = elementeVomTyp(inhalt, TemplatePosEditor)[0];
     const fahrzeuge = elementeVomTyp(inhalt, VerknuepfteFahrzeugeTable)[0];
-    const aktionen = elementeVomTyp(inhalt, TemplateAktionen)[0];
+    const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];
+    const aktionen = elementeVomTyp(
+      (kopf.props as { aktionen: ReactNode }).aktionen,
+      TemplateAktionen,
+    )[0];
 
     expect(editor.props).toEqual({
       templateId: "tpl-rtw",

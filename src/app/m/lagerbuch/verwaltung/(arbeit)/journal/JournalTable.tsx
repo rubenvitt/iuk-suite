@@ -58,6 +58,9 @@ export type JournalAbrufFilter = {
   vorgang?: Vorgangsart;
   von?: string;
   bis?: string;
+  /** IDA-239 — Kennungen; dieselben wie auf der ersten Seite. */
+  artikelId?: string;
+  lagerortId?: string;
 };
 
 /**
@@ -278,6 +281,8 @@ export function JournalTable({
     abrufFilter.vorgang ?? null,
     abrufFilter.von ?? null,
     abrufFilter.bis ?? null,
+    abrufFilter.artikelId ?? null,
+    abrufFilter.lagerortId ?? null,
   ]);
 
   const [stand, setStand] = useState(() => ({

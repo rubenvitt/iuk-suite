@@ -47,6 +47,8 @@ export function AussondernDialog({
   einheitenart,
   gesperrt = false,
   schreibe,
+  offen: offenVonAussen,
+  onSchliessen,
 }: {
   lagerortId: string;
   artikelId: string;
@@ -97,9 +99,24 @@ export function AussondernDialog({
   schreibe: (
     aktion: () => Promise<ActionErgebnis<VerfallWert>>,
   ) => Promise<ActionErgebnis<VerfallWert>>;
+  /**
+   * IDA-232 — VON AUSSEN GEÖFFNET. Gesetzt heißt: der Dialog rendert keinen
+   * eigenen Knopf, die Bestandsliste öffnet ihn aus ihrem Zeilenmenü und hält
+   * EINE Instanz für alle Zeilen statt zweihundert geschlossener.
+   * `onSchliessen` meldet jeden Ausweg (Abbrechen, Escape, Erfolg).
+   */
+  offen?: boolean;
+  onSchliessen?: () => void;
 }) {
   const [form] = Form.useForm<Werte>();
-  const [offen, setOffen] = useState(false);
+  // IDA-232: gesteuert, wenn `offen` gesetzt ist — sonst wie bisher mit eigenem Knopf.
+  const gesteuert = offenVonAussen !== undefined;
+  const [eigenOffen, setEigenOffen] = useState(false);
+  const offen = gesteuert ? offenVonAussen : eigenOffen;
+  const setOffen = (wert: boolean) => {
+    if (!gesteuert) setEigenOffen(wert);
+    else if (!wert) onSchliessen?.();
+  };
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const schreibtGerade = useRef(false);
@@ -206,16 +223,20 @@ export function AussondernDialog({
 
   return (
     <>
-      {/* KEIN size="small": 44px ist die Arbeitsdichte, "small" unterbietet die
-          Mindesttapfläche (Falle 4, WCAG 2.5.5). */}
-      <Button
-        disabled={gesperrt || bestand <= 0}
-        icon={<Ikone name="kreuz" groesse={14} />}
-        onClick={oeffnen}
-        aria-label={`${artikelName} aussondern`}
-      >
-        aussondern
-      </Button>
+      {gesteuert ? null : (
+        <>
+          {/* KEIN size="small": 44px ist die Arbeitsdichte, "small" unterbietet die
+              Mindesttapfläche (Falle 4, WCAG 2.5.5). */}
+          <Button
+            disabled={gesperrt || bestand <= 0}
+            icon={<Ikone name="kreuz" groesse={14} />}
+            onClick={oeffnen}
+            aria-label={`${artikelName} aussondern`}
+          >
+            aussondern
+          </Button>
+        </>
+      )}
       <Modal
         open={offen}
         title={`${artikelName} aussondern`}

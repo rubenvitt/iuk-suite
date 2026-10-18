@@ -20,6 +20,7 @@ import {
   click,
   clickElement,
   fill,
+  fillElement,
   mount,
   query,
   queryAll,
@@ -214,15 +215,19 @@ describe("InventurForm — Tabelle und Eingabe", () => {
      * der Tabelle gehoert in den Kopf der Spalte, die er betrifft — und eine
      * Kategorie, nach der man filtern kann, muss man auch lesen koennen.
      */
+    /*
+     * ⚠️ IDA-237 — DIE REIHENFOLGE DES ZAEHLENS: was man zum Zaehlen braucht,
+     * steht links und passt in eine Tabletbreite; Lesestoff danach.
+     */
     expect(queryAll("thead th").map((zelle) => zelle.textContent).filter((t) => t)).toEqual([
       "Artikel",
-      "Kategorie",
       "Fach",
-      "MHD",
-      "Min.",
       "Bestand",
       "Abweichung",
       "Ist",
+      "MHD",
+      "Min.",
+      "Kategorie",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Inventur");
     expect(queryAll("tbody tr")
@@ -404,7 +409,8 @@ describe("InventurForm — Zeile und Filter", () => {
   it("zeigt die Kategorie in ihrer eigenen Spalte und „—“, wo keine vergeben ist", async () => {
     await mount(<Formular zeilen={ZEILEN} />);
     expect(query("tr[data-row-key='a1']").textContent).toContain("Hygiene");
-    expect(query("tr[data-row-key='a2'] td:nth-child(3)").textContent).toBe("—");
+    // Seit IDA-237 die letzte Spalte.
+    expect(query("tr[data-row-key='a2'] td:last-child").textContent).toBe("—");
   });
 
   /**
@@ -492,6 +498,174 @@ describe("InventurForm — Zeile und Filter", () => {
   });
 });
 
+/** Laesst den Nachlauf der Suche (`useEntprellt`, 200 ms) verstreichen. */
+async function warteNachlauf(): Promise<void> {
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 260));
+  });
+}
+
+async function suchen(text: string): Promise<void> {
+  await fill("input[aria-label='Artikel oder Fach suchen…']", text);
+  await warteNachlauf();
+}
+
+function tabellenZeilen(): string[] {
+  return queryAll("tbody tr[data-row-key]")
+    .map((zeile) => zeile.getAttribute("data-row-key") ?? "");
+}
+
+async function zeilenWahl(text: "Alle" | "Offen"): Promise<void> {
+  const punkt = queryAll<HTMLElement>(".ant-segmented-item")
+    .find((element) => (element.textContent ?? "") === text);
+  if (!punkt) throw new Error(`Kein Segment: ${text}`);
+  await clickElement(punkt.querySelector<HTMLElement>("input") ?? punkt);
+}
+
+const STIMMT_PFLASTER = "button[data-rolle='stimmt'][aria-label='Ist-Bestand Pflaster stimmt']";
+
+/**
+ * IDA-237 — „STIMMT", „OFFEN", SUCHE UND DIE FESTE ABSCHLUSSLEISTE.
+ *
+ * ⚠️ WAS JSDOM NICHT SIEHT und deshalb e2e misst: dass die Leiste beim Scrollen
+ * stehen bleibt (`position: sticky`) und den virtuellen Koerper nicht verdeckt
+ * (Falle 16). Hier steht die Sache: was gesendet wird, was gefiltert wird.
+ */
+describe("InventurForm — „Stimmt“, „Offen“ und Suche (IDA-237)", () => {
+  it("„Stimmt“ erfasst die erwartete Menge, ohne die Zahl zu ändern, und sendet sie wie getippt", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    expect(query('[data-rolle="fortschritt"]').textContent).toBe("0 von 2 erfasst · 0 Abweichungen");
+    const knopf = query<HTMLButtonElement>(STIMMT_PFLASTER);
+    expect(knopf.getAttribute("aria-pressed")).toBe("false");
+
+    await clickElement(knopf);
+    expect(query(STIMMT_PFLASTER).getAttribute("aria-pressed")).toBe("true");
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Pflaster']").value).toBe("4");
+    expect(query('[data-rolle="fortschritt"]').textContent).toBe("1 von 2 erfasst · 0 Abweichungen");
+
+    // Allein eine Bestaetigung reicht zum Abschliessen — sie IST eine Zaehlung.
+    await fill("input[aria-label='Kommentar']", "Quartalsinventur");
+    expect(query<HTMLButtonElement>("button[data-rolle='abschluss']").disabled).toBe(false);
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    /*
+     * ⚠️ DIESELBE POSITION, DIE EIN GETIPPTES „4" ERGAEBE — keine neue Nutzlast,
+     * keine neue Buchungsregel. Der Server bucht daraus nur dann etwas, wenn der
+     * LIVE-Bestand inzwischen ein anderer ist (`_actions/inventur.test.ts`).
+     */
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Quartalsinventur", ortId: null, umfang: null,
+      positionen: [{ artikelId: "a2", ist: 4 }],
+    });
+  });
+
+  it("nimmt „Stimmt“ mit einem zweiten Tipp zurück — die Zeile ist wieder offen", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await click(STIMMT_PFLASTER);
+    await click(STIMMT_PFLASTER);
+    expect(query(STIMMT_PFLASTER).getAttribute("aria-pressed")).toBe("false");
+    expect(query('[data-rolle="fortschritt"]').textContent).toBe("0 von 2 erfasst · 0 Abweichungen");
+    expect(query<HTMLButtonElement>("button[data-rolle='abschluss']").disabled).toBe(true);
+  });
+
+  it("zeigt bei einer Abweichung den Chip statt „Stimmt“ und nach ±0 wieder den gedrückten Knopf", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Pflaster']", "6");
+    expect(queryAll(STIMMT_PFLASTER)).toHaveLength(0);
+    expect(query("tr[data-row-key='a2']").textContent).toContain("+2");
+    expect(query('[data-rolle="fortschritt"]').textContent).toBe("1 von 2 erfasst · 1 Abweichung");
+
+    await fill("input[aria-label='Ist-Bestand Pflaster']", "4");
+    expect(query(STIMMT_PFLASTER).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("zeigt im Chargenmodus ohne Abweichung nur den Haken, keinen Knopf, der Chargen verwerfen könnte", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await click("button[aria-label='Chargen Mullbinde anzeigen']");
+    // Erst weg vom Rest und wieder zurueck: ein Feld, das schon 12 zeigt,
+    // meldet beim Tippen von 12 keine Aenderung.
+    await fill("input[aria-label='Ist Charge L1']", "11");
+    await fill("input[aria-label='Ist Charge L1']", "12");
+    const zeile = query("tr[data-row-key='a1']");
+    expect(zeile.querySelectorAll("button[data-rolle='stimmt']")).toHaveLength(0);
+    expect(zeile.textContent).toContain("erfasst");
+    // Die ±-Knoepfe sind im Chargenmodus weg, nicht nur gesperrt.
+    expect(zeile.querySelectorAll("button[aria-label='Ist-Bestand Mullbinde erhöhen']")).toHaveLength(0);
+  });
+
+  it("sucht über Name und Fach, gefaltet, und legt die Suche nicht in den Umfang", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await suchen("MULL");
+    expect(tabellenZeilen()).toEqual(["a1"]);
+    expect(query("[data-testid='trefferanzeige']").textContent).toBe("1 von 2");
+    await suchen("b2");
+    expect(tabellenZeilen()).toEqual(["a2"]);
+    await suchen("gibt es nicht");
+    expect(document.body.textContent).toContain("Kein Artikel passt zu Suche und Filter.");
+
+    // Die Suche ist Navigation: der Lauf bleibt „vollstaendig", und der
+    // Fortschritt zaehlt weiter alle Zeilen.
+    await suchen("Pflaster");
+    await click(STIMMT_PFLASTER);
+    expect(query('[data-rolle="fortschritt"]').textContent).toBe("1 von 2 erfasst · 0 Abweichungen");
+    expect(queryAll("[data-rolle='ausgeblendet-hinweis']")).toHaveLength(0);
+    await fill("input[aria-label='Kommentar']", "Suche");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    expect(mocks.inventurKorrektur.mock.calls[0]?.[0]).toMatchObject({ umfang: null });
+  });
+
+  it("springt mit Enter bei genau einem Treffer ins Zählfeld und markiert die Vorbelegung", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    const feld = query<HTMLInputElement>("input[aria-label='Artikel oder Fach suchen…']");
+    await fillElement(feld, "pflas");
+    // Sofort, ohne den Nachlauf abzuwarten — Enter rechnet mit dem Feldinhalt.
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }));
+    });
+    await warteAuf(
+      () => document.activeElement?.getAttribute("aria-label") === "Ist-Bestand Pflaster",
+      "Fokus im Zählfeld",
+    );
+    const ziel = document.activeElement as HTMLInputElement;
+    expect(ziel.dataset.istArtikel).toBe("a2");
+    expect([ziel.selectionStart, ziel.selectionEnd]).toEqual([0, ziel.value.length]);
+  });
+
+  it("springt bei mehreren Treffern nicht", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    const feld = query<HTMLInputElement>("input[aria-label='Artikel oder Fach suchen…']");
+    await fillElement(feld, "e");
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }));
+    });
+    await warte();
+    await warte();
+    expect(document.activeElement?.getAttribute("aria-label") ?? "").not.toMatch(/^Ist-Bestand/);
+  });
+
+  it("„Offen“ zeigt die noch nicht erfassten Zeilen — als Schnappschuss, der niemandem die Zeile unter dem Finger wegzieht", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    await click(STIMMT_PFLASTER);
+    await zeilenWahl("Offen");
+    expect(tabellenZeilen()).toEqual(["a1"]);
+
+    // Jetzt die offene Zeile zaehlen: sie BLEIBT stehen.
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    expect(tabellenZeilen()).toEqual(["a1"]);
+
+    // Neu gewaehlt, ist auch sie weg — und der Leertext sagt, was als Naechstes kommt.
+    await zeilenWahl("Alle");
+    await zeilenWahl("Offen");
+    expect(tabellenZeilen()).toEqual([]);
+    expect(document.body.textContent).toContain("Alles erfasst. Schließe die Inventur unten ab.");
+
+    // Verwerfen macht alles wieder offen — auch ohne neue Wahl.
+    await click("[data-rolle='zaehlung-verwerfen']");
+    expect(tabellenZeilen()).toEqual(["a1", "a2"]);
+  });
+});
+
 const PLUS = '[aria-label="Ist-Bestand Mullbinde erhöhen"]';
 const MINUS = '[aria-label="Ist-Bestand Mullbinde verringern"]';
 
@@ -535,8 +709,9 @@ describe("±-Knöpfe", () => {
     await mount(<Formular zeilen={ZEILEN} />);
     await click(PLUS);
     await click(MINUS);
-    expect(query('[data-rolle="abschluss"]').textContent)
-      .toContain("0 Abweichungen");
+    // Seit IDA-237 steht die Zahl in der Fortschrittsangabe, nicht im Knopf.
+    expect(query('[data-rolle="fortschritt"]').textContent)
+      .toBe("1 von 2 erfasst · 0 Abweichungen");
   });
 
   it("sperrt − bei 0 und + bei 9999", async () => {
@@ -595,7 +770,7 @@ describe("InventurForm — Zählort (DRK-337)", () => {
     await fill("input[aria-label='Ist-Bestand Pflaster']", "6");
     expect(query("[aria-label='Zählort']").hasAttribute("disabled")).toBe(true);
     expect(query("[data-rolle='ort-gesperrt']").textContent)
-      .toBe("1 Position ist gezählt — der Zählort ist bis zum Abschluss festgelegt.");
+      .toBe("Zählort festgelegt, solange gezählt ist.");
 
     await click("[data-rolle='zaehlung-verwerfen']");
     expect(query("[aria-label='Zählort']").hasAttribute("disabled")).toBe(false);

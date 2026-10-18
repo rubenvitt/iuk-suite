@@ -47,6 +47,25 @@ async function inventurseite(page: Page): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
+/**
+ * Ans Ende der Seite — WIEDERHOLT, bis es dort bleibt. Die Karten tragen
+ * `content-visibility: auto` mit geschaetzter Hoehe (`schmalkarten.module.css`):
+ * ein einzelnes `scrollTo` landet am geschaetzten Ende, die Karten dort messen
+ * sich danach aus, und die Seite ist wieder laenger als der Sprung.
+ */
+async function ansEnde(page: Page): Promise<void> {
+  let vorher = -1;
+  for (let versuch = 0; versuch < 20; versuch += 1) {
+    const jetzt = await page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      return window.scrollY;
+    });
+    if (jetzt === vorher) return;
+    vorher = jetzt;
+    await page.waitForTimeout(100);
+  }
+}
+
 test.describe("Inventur auf dem Telefon (DRK-421)", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
@@ -88,9 +107,72 @@ test.describe("Inventur auf dem Telefon (DRK-421)", () => {
     const vorher = await feld.inputValue();
     await page.locator(KARTEN).getByLabel(/^Ist-Bestand .* erhöhen$/).first().click();
     await expect(feld).toHaveValue(String(Number(vorher) + 1));
-    await expect(page.getByRole("button", { name: /^Inventur abschließen \(1 Abweichung\)/ }))
-      .toBeVisible();
+    // Seit IDA-237 steht die Zahl in der Fortschrittsangabe der festen Leiste.
+    await expect(page.locator('[data-rolle="fortschritt"]')).toContainText("1 Abweichung");
   });
+
+  /*
+   * IDA-237 — DIE ABSCHLUSSLEISTE BLEIBT IM BILD, und sie verdeckt nichts.
+   *
+   * ⚠️ BEIDE HAELFTEN ZAEHLEN. „Im Bild" allein bestuende auch eine `fixed`-
+   * Leiste, die die letzte Karte zudeckt; „verdeckt nichts" allein bestuende
+   * die alte Leiste am Ende der Liste. Gemessen wird oben, nach einem Sprung
+   * ans Ende, und dort am Abstand zur letzten Karte.
+   */
+  test("bei 390px steht die Abschlussleiste von jeder Scrollposition aus im Bild", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await inventurseite(page);
+
+    const leiste = page.locator('[data-rolle="abschlussleiste"]');
+    const imBild = async (): Promise<void> => {
+      const kasten = await leiste.boundingBox();
+      expect(kasten, "Abschlussleiste hat keinen Kasten").not.toBeNull();
+      expect(kasten!.y, "Leiste beginnt über dem Schirm").toBeGreaterThanOrEqual(0);
+      expect(kasten!.y + kasten!.height, "Leiste ragt unter den Schirm").toBeLessThanOrEqual(844 + 1);
+    };
+    await imBild();
+    await expect(page.getByLabel("Kommentar", { exact: true })).toBeInViewport();
+    await expect(page.locator("button[data-rolle='abschluss']")).toBeInViewport();
+
+    await ansEnde(page);
+    await imBild();
+    const letzte = await page.locator(KARTEN).locator("article").last().boundingBox();
+    const unten = await leiste.boundingBox();
+    expect(letzte!.y + letzte!.height, "die Leiste deckt die letzte Karte zu").toBeLessThanOrEqual(unten!.y + 1);
+  });
+
+  /*
+   * IDA-237 — SUCHE, ENTER, „STIMMT", IN BEIDEN DARSTELLUNGEN.
+   *
+   * ⚠️ WAS JSDOM HIER NICHT SIEHT: welches der beiden Zaehlfelder Enter
+   * fokussiert. Jede Zeile steht zweimal im DOM (Karte und Tabelle), und nur
+   * der Browser weiss, welche die Media Query zeigt (`checkVisibility`). Der
+   * Rollen-Greifer loest nur das sichtbare auf — `toBeFocused` daran beweist
+   * also, dass der Sprung im richtigen Feld landet.
+   */
+  for (const [breite, hoehe] of [[390, 844], [1280, 720]] as const) {
+    test(`bei ${breite}px springt Enter ins Zählfeld, und „Stimmt“ zählt ohne die Zahl zu ändern`, async ({ page }) => {
+      await page.setViewportSize({ width: breite, height: hoehe });
+      await inventurseite(page);
+
+      const suche = page.getByRole("searchbox", { name: "Artikel oder Fach suchen…" });
+      await suche.fill("Verbandpäckchen");
+      await suche.press("Enter");
+      const feld = page.getByRole("spinbutton", { name: "Ist-Bestand E2E Verbandpäckchen", exact: true });
+      await expect(feld).toBeFocused();
+      const vorher = await feld.inputValue();
+
+      const fortschritt = page.locator('[data-rolle="fortschritt"]');
+      const stimmt = page.getByRole("button", { name: "Ist-Bestand E2E Verbandpäckchen stimmt", exact: true });
+      await stimmt.click();
+      await expect(stimmt).toHaveAttribute("aria-pressed", "true");
+      await expect(feld).toHaveValue(vorher);
+      await expect(fortschritt).toContainText(/^1 von \d+ erfasst · 0 Abweichungen$/);
+      // Und zurück: ein Fehltipp lässt sich aufheben.
+      await stimmt.click();
+      await expect(fortschritt).toContainText(/^0 von \d+ erfasst/);
+    });
+  }
 
   test("bei 1280px steht die Tabelle, und die schmale Fassung ist weg", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -109,5 +191,15 @@ test.describe("Inventur auf dem Telefon (DRK-421)", () => {
 
     // Die Tabelle bleibt, was sie war: waagerecht scrollend, nicht umbrechend.
     await expect(page.locator(BREIT).getByRole("columnheader", { name: "Artikel" })).toBeVisible();
+
+    // IDA-237 — die Leiste steht auch hier im Bild, und am Ende der Seite
+    // liegt die letzte Tabellenzeile ÜBER ihr, nicht unter ihr (Falle 16).
+    const leiste = page.locator('[data-rolle="abschlussleiste"]');
+    await expect(leiste).toBeInViewport({ ratio: 1 });
+    await ansEnde(page);
+    await expect(leiste).toBeInViewport({ ratio: 1 });
+    const letzte = await page.locator(BREIT).locator("tbody tr[data-row-key]").last().boundingBox();
+    const kasten = await leiste.boundingBox();
+    expect(letzte!.y + letzte!.height, "die Leiste deckt die letzte Zeile zu").toBeLessThanOrEqual(kasten!.y + 1);
   });
 });

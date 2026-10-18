@@ -51,6 +51,24 @@ async function buttonMitText(text: string): Promise<HTMLButtonElement> {
   return knopf;
 }
 
+/** IDA-239 — Umbenennen, Status und Löschen stehen hinter „Weitere Aktionen". */
+async function menuePunkt(text: string): Promise<void> {
+  await clickElement(query("button[aria-label='Weitere Aktionen']"));
+  await warte();
+  const eintrag = Array.from(document.body.querySelectorAll<HTMLElement>(
+    ".ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item",
+  )).find((element) => (element.textContent ?? "").trim() === text);
+  if (!eintrag) throw new Error(`Menüeintrag nicht gefunden: ${text}`);
+  await clickElement(eintrag);
+  await warte();
+}
+
+function menueTexte(): string[] {
+  return Array.from(document.body.querySelectorAll<HTMLElement>(
+    ".ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item",
+  )).map((element) => (element.textContent ?? "").trim());
+}
+
 async function portalButtonMitText(text: string): Promise<HTMLButtonElement> {
   const knopf = Array.from(document.body.querySelectorAll<HTMLButtonElement>(".ant-modal button"))
     .find((element) => element.textContent?.includes(text));
@@ -96,16 +114,14 @@ async function rendern(): Promise<void> {
 }
 
 async function umbenennen(neuerName = "RTW Süd"): Promise<void> {
-  await clickElement(await buttonMitText("Umbenennen"));
-  await warte();
+  await menuePunkt("Umbenennen");
   await portalFuellen(".ant-modal input[aria-label='Name der Vorlage']", neuerName);
   await clickElement(await portalButtonMitText("Speichern"));
   await warte();
 }
 
 async function loeschen(): Promise<void> {
-  await clickElement(await buttonMitText("Vorlage löschen"));
-  await warte();
+  await menuePunkt("Vorlage löschen");
   await portalFuellen(
     ".ant-modal input[aria-label='Namen zur Bestätigung eingeben']",
     "RTW Nord",
@@ -144,16 +160,26 @@ afterEach(async () => {
 });
 
 describe("TemplateAktionen", () => {
-  it("rendert genau Umbenennen, Aktiv-Schalter, Synchronisieren und Löschen", async () => {
+  it("zeigt EINE Hauptaktion und den Rest im Menü, Löschen zuletzt und ohne Rot", async () => {
     await rendern();
 
-    expect(queryAll("button")).toHaveLength(4);
-    expect(query("button[role='switch']").getAttribute("aria-label")).toBe(
-      "Vorlage aktiv",
-    );
-    expect(document.body.textContent).toContain("Umbenennen");
-    expect(document.body.textContent).toContain("Auf alle Einheiten übertragen");
-    expect(document.body.textContent).toContain("Vorlage löschen");
+    const knoepfe = queryAll<HTMLButtonElement>("button");
+    expect(knoepfe).toHaveLength(2);
+    expect(knoepfe[0]!.textContent).toContain("Auf alle Einheiten übertragen");
+    expect(knoepfe[0]!.classList.contains("ant-btn-primary")).toBe(true);
+    expect(knoepfe[1]!.getAttribute("aria-label")).toBe("Weitere Aktionen");
+    expect(queryAll(".ant-btn-dangerous")).toHaveLength(0);
+
+    await clickElement(knoepfe[1]!);
+    await warte();
+    expect(menueTexte()).toEqual(["Umbenennen", "Deaktivieren", "Vorlage löschen"]);
+    expect(document.body.querySelectorAll(".ant-dropdown-menu-item-danger")).toHaveLength(0);
+  });
+
+  it("sperrt das Übertragen, wenn keine Einheit die Vorlage nutzt", async () => {
+    await mount(<TemplateAktionen id="t1" name="RTW Nord" aktiv fahrzeuge={0} />);
+    await warte();
+    expect((await buttonMitText("Auf alle Einheiten übertragen")).disabled).toBe(true);
   });
 
   it("benennt exakt um und übernimmt den Namen erst nach Erfolg", async () => {
@@ -163,8 +189,7 @@ describe("TemplateAktionen", () => {
     expect(actions.renameTemplate).toHaveBeenCalledWith({ id: "t1", name: "RTW Süd" });
     expect(existsPortal(".ant-modal")).toBe(false);
 
-    await clickElement(await buttonMitText("Umbenennen"));
-    await warte();
+    await menuePunkt("Umbenennen");
     expect(queryPortal<HTMLInputElement>(".ant-modal input").value).toBe("RTW Süd");
   });
 
@@ -224,12 +249,12 @@ describe("TemplateAktionen", () => {
 
   it("ändert den Aktivstatus mit exaktem Payload erst nach Erfolg", async () => {
     await rendern();
-    await clickElement(query("button[role='switch']"));
-    await warte();
+    await menuePunkt("Deaktivieren");
 
     expect(actions.setTemplateAktiv).toHaveBeenCalledWith({ id: "t1", aktiv: false });
-    expect(query("button[role='switch']").getAttribute("aria-checked")).toBe("false");
-    expect(document.body.textContent).toContain("inaktiv");
+    await clickElement(query("button[aria-label='Weitere Aktionen']"));
+    await warte();
+    expect(menueTexte()).toContain("Aktivieren");
   });
 
   it.each([
@@ -238,14 +263,15 @@ describe("TemplateAktionen", () => {
   ])("behält den Aktivstatus bei %s und zeigt nur den festen Fehler", async (_fall, vorbereiten) => {
     vorbereiten();
     await rendern();
-    await clickElement(query("button[role='switch']"));
-    await warte();
+    await menuePunkt("Deaktivieren");
 
-    expect(query("button[role='switch']").getAttribute("aria-checked")).toBe("true");
     expect(query(".ant-alert-warning").textContent).toContain(
       "Vorlagenstatus konnte nicht geändert werden.",
     );
     expect(document.body.textContent).not.toContain(INTERN);
+    await clickElement(query("button[aria-label='Weitere Aktionen']"));
+    await warte();
+    expect(menueTexte()).toContain("Deaktivieren");
   });
 
   it("zeigt alle sechs Synchronisationszähler", async () => {
@@ -278,8 +304,7 @@ describe("TemplateAktionen", () => {
 
   it("zeigt im Löschdialog den vollständigen Fahrzeug-Hinweis", async () => {
     await rendern();
-    await clickElement(await buttonMitText("Vorlage löschen"));
-    await warte();
+    await menuePunkt("Vorlage löschen");
 
     expect(document.body.textContent).toContain(
       "3 Einheit(en) werden von dieser Vorlage gelöst; ihre Positionen bleiben als individuelle Bestückung erhalten.",

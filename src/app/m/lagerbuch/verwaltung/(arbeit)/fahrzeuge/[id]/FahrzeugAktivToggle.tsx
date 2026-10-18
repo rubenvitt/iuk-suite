@@ -11,7 +11,9 @@ import {
   pruefeLoeschbar,
 } from "../../../../_actions/loeschen";
 import { einheitNomen, type Einheitenart } from "../../../../_lib/konstanten";
+import { SCHRIFT } from "../../../../_lib/schrift";
 import { LoeschButton } from "../../../../_ui/LoeschButton";
+import s from "../../../../_ui/verwaltung.module.css";
 
 /**
  * ⚠️ DIE TEXTE HAENGEN AN DER ART (DRK-309, Reviewrunde 3).
@@ -66,6 +68,10 @@ export function FahrzeugAktivToggle({
         }
         setIstAktiv(naechsterWert);
         setFehler(null);
+        // IDA-232: der Kopf des Blatts haengt am Status — Check und Aufladen
+        // stehen nur an einer aktiven Einheit, und ein Chip nennt die inaktive.
+        // Ohne Auffrischung stuenden sie bis zum naechsten Laden falsch da.
+        router.refresh();
       } catch {
         setFehler(STATUS_FEHLER);
       } finally {
@@ -94,6 +100,11 @@ export function FahrzeugAktivToggle({
     router.push("/verwaltung/fahrzeuge");
   }
 
+  /*
+   * IDA-232: Status und Loeschen stehen im Reiter „Einstellungen", nicht mehr im
+   * Kopf neben der taeglichen Arbeit — und das Loeschen dort in der Gefahrenzone
+   * des Moduls (Vorbild `ArtikelDrawer`), getrennt vom Schalter darueber.
+   */
   return (
     <div style={{ display: "grid", gap: SPACE.sm }}>
       <Space wrap>
@@ -104,6 +115,13 @@ export function FahrzeugAktivToggle({
           onChange={aktivAendern}
         />
         <span>{istAktiv ? "Aktiv" : "Inaktiv"}</span>
+      </Space>
+      <span style={SCHRIFT.neben}>
+        Inaktive Einheiten stehen im Check nicht zur Wahl und nehmen kein Material an.
+      </span>
+      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+      <section className={s.gefahr}>
+        <div className={s.gtitle}>Gefahrenzone</div>
         <LoeschButton
           name={name}
           typLabel={art}
@@ -123,8 +141,7 @@ export function FahrzeugAktivToggle({
           onLoeschen={loeschen}
           onDeaktivieren={deaktivieren}
         />
-      </Space>
-      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+      </section>
     </div>
   );
 }

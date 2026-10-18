@@ -264,6 +264,30 @@ describe("Check-Detailseite", () => {
     ]);
   });
 
+  it("lässt die Kacheln mit einer Zahl über null zu ihrem Abschnitt springen (IDA-236)", () => {
+    const summe = { ...BASIS.summe, positionen: 8, nachgefuellt: 3, korrigiert: 0, offen: 1 };
+    const hrefs = (c: CheckDetail) => elementeVomTyp(checkDetailInhalt(c), Kachel)
+      .map((kachel) => (kachel.props as { href?: string }).href);
+
+    expect(hrefs({ ...BASIS, summe })).toEqual([
+      undefined, "#abschnitt-nachfuellung", undefined, "#abschnitt-abgleich",
+    ]);
+    // Im Altformat gibt es die Zeilen nicht, zu denen gesprungen wuerde.
+    expect(hrefs({ ...BASIS, altFormat: true, summe: { ...summe, altFormat: true } }))
+      .toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it("reicht die ganz gezeigten Abschnitte aus der Adresse an die Insel (IDA-236)", () => {
+    expect(tabellenAus(checkDetailInhalt(gefuellterCheck())).alleAnfangs).toEqual([]);
+    expect(tabellenAus(checkDetailInhalt(gefuellterCheck(), ["geraete"])).alleAnfangs)
+      .toEqual(["geraete"]);
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/[id]/page.tsx",
+      "utf8",
+    );
+    expect(quelle).toMatch(/checkDetailInhalt\(check, alleAusAdresse\(alle\)\)/);
+  });
+
   it("bereitet Abgleich und Nachfüllung mit ihren verschiedenen Auflösungen vor", () => {
     const check: CheckDetail = {
       ...BASIS,
@@ -419,9 +443,21 @@ describe("Check-Detailseite", () => {
     // ⚠️ BEIDE AMPELN, seit der Wechselwert einstellbar ist (DRK-308): auch die
     // Sauerstoff-Zeile rechnet gegen die heutige Vorgabe. Ein Hinweis, der nur
     // eine der beiden nennt, behauptet Vollständigkeit.
-    const beschreibung = textVon(koepfe[0].props.beschreibung as ReactNode);
-    expect(beschreibung).toMatch(/heute geltenden Vorgaben gerechnet/i);
-    expect(beschreibung).toMatch(/Sauerstoff-Ampel/i);
+    //
+    // IDA-236: der Satz steht nur, wo eine der beiden Ampeln unten steht — der
+    // Altcheck hier traegt keine Zeilen, also auch keine Ampel.
+    const kopfText = (c: CheckDetail) => textVon(
+      elementeVomTyp(checkDetailInhalt(c), SeitenKopf)[0].props.beschreibung as ReactNode,
+    );
+    expect(kopfText(check)).not.toMatch(/Ampel/);
+    for (const mitAmpel of [
+      { ...BASIS, verfall: gefuellterCheck().verfall },
+      { ...BASIS, flaschen: gefuellterCheck().flaschen },
+    ]) {
+      const beschreibung = kopfText(mitAmpel);
+      expect(beschreibung).toMatch(/heute geltenden Vorgaben gerechnet/i);
+      expect(beschreibung).toMatch(/Verfall- und Sauerstoff-Ampel/i);
+    }
 
     const alerts = elementeVomTyp(seite, Alert);
     expect(alerts).toHaveLength(1);

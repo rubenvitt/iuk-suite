@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
@@ -138,6 +138,31 @@ function Schritte({ folge, aktiv }: { folge: Phase[]; aktiv: Phase }) {
 
 const zustandTon = (z: Zustand) =>
   z === "In Ordnung" ? "ok" : z === "Gebrauchsspuren" ? "gelb" : "rot";
+
+/**
+ * NACH OBEN BEIM SCHRITTWECHSEL — IDA-233.
+ *
+ * Gescrollt wird nicht das Fenster, sondern `.inhalt` des `HelferRahmen`
+ * (`overflow-y: auto`). Ohne diese Funktion behielt der Kasten beim Wechsel
+ * seine Position: wer am Ende einer 210er-Zaehlliste „Weiter" tippte, landete
+ * mitten im Nachfuellschritt, ohne dessen Anweisung gesehen zu haben.
+ *
+ * Gesucht wird der naechste Vorfahr, der WIRKLICH scrollt, statt die Klasse zu
+ * kennen: die Insel weiss nicht, in welchem Rahmen sie steht, und der Rahmen
+ * darf seinen Scroller umbauen. Ohne Treffer (jsdom rechnet kein CSS) bleibt
+ * das Dokument selbst — `scrollTop` statt `window.scrollTo`, das jsdom nicht
+ * kennt.
+ */
+function nachOben(von: HTMLElement | null) {
+  for (let el = von?.parentElement; el; el = el.parentElement) {
+    const o = getComputedStyle(el).overflowY;
+    if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight) {
+      el.scrollTop = 0;
+      return;
+    }
+  }
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+}
 
 /** Die fünf Geräteknöpfe teilen das 56x56px-Tippziel aus `.chipKnopf` (DRK-399). */
 export function CheckFlow({
@@ -357,6 +382,18 @@ export function CheckFlow({
   const [erneuerungsFehler, setErneuerungsFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
 
+  /*
+   * REINE ANZEIGE, KEIN SIEBTER ZAEHLZUSTAND (IDA-233): welches Verfallsfeld
+   * aufgeklappt ist. Es geht in keine Nutzlast; ein zugeklapptes Feld mit
+   * Angabe zeigt sie im Knopf weiter an.
+   */
+  const [verfallAuf, setVerfallAuf] = useState<Record<string, boolean>>({});
+  const verfallFokus = useRef<string | null>(null);
+  /** Die Zahlenfelder der Zaehlliste je Position — Ziel von „Nächste offene" und Enter. */
+  const zaehlFelder = useRef(new Map<string, HTMLInputElement>());
+  const weiterKnopf = useRef<HTMLButtonElement>(null);
+  const kopf = useRef<HTMLDivElement>(null);
+
   const faecher = [...new Set(soll.map((p) => p.fachLabel))];
 
   /*
@@ -388,11 +425,12 @@ export function CheckFlow({
    * gezaehlt" und ist von einer gezaehlten 0 zu unterscheiden — genau darauf
    * steht und faellt DRK-304.
    *
-   * ⚠️ DER AUSGANG FUER EIN WIRKLICH LEERES FACH IST DAS „−". `Stepper.tsx`
-   * ruft `setWert` auch dann, wenn der Wert bei `min` schon steht; der Klick
-   * schreibt also die 0 in `ist` und macht sie zur Aussage. Ohne diese
-   * Eigenschaft gaebe es aus dem Riegel keinen Weg, und sie darf beim naechsten
-   * Umbau des Steppers nicht stillschweigend verloren gehen.
+   * ⚠️ DER AUSGANG FUER EIN WIRKLICH LEERES FACH IST DAS „−" — ODER SEIT
+   * IDA-233 EINE GETIPPTE „0". `Stepper.tsx` ruft `setWert` auch dann, wenn der
+   * Wert bei `min` schon steht; der Klick schreibt also die 0 in `ist` und macht
+   * sie zur Aussage. Ohne diese Eigenschaft gaebe es aus dem Riegel keinen Weg,
+   * und sie darf beim naechsten Umbau des Steppers nicht stillschweigend
+   * verloren gehen. Ein blosser Tipp INS Feld schreibt dagegen nichts (`leer`).
    */
   const gezaehlt = (p: CheckPos) => ist[p.id] !== undefined;
   const nfWert = (p: CheckPos) => nachfuell[p.id] ?? 0;
@@ -426,6 +464,17 @@ export function CheckFlow({
   const idx = schrittFolge.indexOf(aktivePhase);
   const istLetzter = idx === schrittFolge.length - 1;
   const naechste = schrittFolge[idx + 1];
+
+  // Jeder Wechsel — Schritt vor, Schritt zurueck, Fertig-Schirm — beginnt oben
+  // (`nachOben`). Nicht beim ersten Aufbau: da steht die Seite ohnehin oben,
+  // und ein ScanHinweis darueber (`helfer/check/page.tsx`) bliebe im Bild.
+  const ansicht = ergebnis ? "fertig" : aktivePhase;
+  const ersteAnsicht = useRef(ansicht);
+  useEffect(() => {
+    if (ersteAnsicht.current === ansicht) return;
+    ersteAnsicht.current = "";
+    nachOben(kopf.current);
+  }, [ansicht]);
 
   const geraetE = (id: string): CheckGeraetAntwort => geraeteState[id] ?? GERAET_VORBELEGUNG;
   const setGeraet = (id: string, patch: Partial<CheckGeraetAntwort>) =>
@@ -558,7 +607,7 @@ export function CheckFlow({
   if (schrittFolge.length === 0) {
     return (
       <>
-        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit}</div>
+        <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit}</div>
         <LeerZustand
           titel="Nichts zu prüfen"
           text={
@@ -595,7 +644,7 @@ export function CheckFlow({
       .filter((g) => g.positionen.length > 0);
     return (
       <>
-        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
+        <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
         <div className={`${s.karte} ${s.kartePad}`} data-rolle="check-ergebnis">
           <div className={s.zeileName}>{art === "kurz" ? "Kurzcheck" : "Vollcheck"} abgeschlossen</div>
           <div className={s.zeileMeta}>
@@ -927,7 +976,7 @@ export function CheckFlow({
       const offen = ablesen.filter((p) => !plombeErfasst(p)).length;
       return (
         <>
-          <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Plomben</div>
+          <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Plomben</div>
           <Schritte folge={schrittFolge} aktiv={aktivePhase} />
           {letzterCheckZeile}
           {zurueck}
@@ -1006,7 +1055,7 @@ export function CheckFlow({
     const gesetzt = plomben.filter((p) => plombeEingabe(p.id) !== "").length;
     return (
       <>
-        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Plomben</div>
+        <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Plomben</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {zurueck}
@@ -1090,9 +1139,42 @@ export function CheckFlow({
       setPhase("nachfuellen");
     };
 
+    /*
+     * „NAECHSTE OFFENE" — IDA-233. Bei 210 Positionen war die Frage „welche
+     * fehlt noch?" nur durch Scrollen ueber die ganze Liste zu beantworten, und
+     * der gesperrte Knopf am Ende sagte bloss, DASS etwas fehlt.
+     *
+     * Gesprungen wird in der ANZEIGEREIHENFOLGE (`zaehlFolge`, Fach fuer Fach),
+     * nicht in der von `soll`: die erste offene ist die, die oben am weitesten
+     * steht. Der Fokus geht ins Zahlenfeld — am Telefon oeffnet das die
+     * Zifferntastatur, und die naechste Eingabe ist die Zaehlung selbst.
+     * `preventScroll`, weil `scrollIntoView` die Zeile schon mittig gestellt
+     * hat; der Fokus allein schoebe sie an die Kante unter den klebenden
+     * Fachkopf.
+     */
+    const springeZu = (ziel: HTMLElement | null | undefined) => {
+      if (!ziel) return;
+      ziel.scrollIntoView?.({ block: "center" });
+      ziel.focus({ preventScroll: true });
+    };
+    const ersteOffene = zaehlFolge.find((p) => !gezaehlt(p));
+    const zurOffenen = () => {
+      if (ersteOffene) springeZu(zaehlFelder.current.get(ersteOffene.id));
+    };
+    /** Enter im Feld: die naechste Zeile der Liste, nach der letzten der Abschlussknopf. */
+    const nachZeile = (posId: string) => {
+      const folgende = zaehlFolge[zaehlFolge.findIndex((p) => p.id === posId) + 1];
+      springeZu(folgende ? zaehlFelder.current.get(folgende.id) : weiterKnopf.current);
+    };
+    const gezaehltAnzahl = soll.length - ungezaehlt;
+    const nachFach = faecher.map((fach) => ({
+      fach,
+      imFach: zaehlFolge.filter((p) => p.fachLabel === fach),
+    }));
+
     return (
       <>
-        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit}</div>
+        <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit}</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         <div className={`${s.karte} ${s.kartePad}`}>
@@ -1100,12 +1182,19 @@ export function CheckFlow({
             Wie viel liegt wirklich {inDerEinheit(fahrzeug.einheitenart)}, und wie lange
             hält es?
           </div>
+          {/*
+            ZWEI SAETZE STATT FUENF (IDA-233). Was wegfiel, steht jetzt am
+            Bedienelement selbst: das leere Feld traegt „nicht gezählt", der
+            Leerknopf am Verfallsfeld sein eigenes Kreuz. Geblieben ist, was man
+            VOR dem ersten Tipp wissen muss — dass eine 0 bestaetigt werden will
+            (DRK-304), dass blind gezaehlt wird (IDA-219) und dass der Verfall
+            freiwillig und vorbelegt ist.
+          */}
           <p className={s.fussnote}>
-            Jede Position startet bei 0 – mit <b>+</b> hochzählen, was du wirklich findest. Ist ein
-            Fach leer, tippe einmal auf <b>−</b>; damit ist die 0 gezählt. Das Verfallsdatum kommt
-            aus dem letzten Check und ist freiwillig: nur ändern, wenn auf der Packung ein anderes
-            (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“. Das Soll steht hier
-            bewusst nicht: was fehlt, zeigt dir der nächste Schritt.
+            Trag ein, was du wirklich findest – tippen oder mit <b>+/−</b>, ein leeres Fach mit{" "}
+            <b>0</b>; das Soll zeigt dir erst der nächste Schritt. Der Verfall ist freiwillig und aus
+            dem letzten Check übernommen: nur ändern, wenn die Packung ein anderes (das{" "}
+            <b>früheste</b>) Datum zeigt.
           </p>
           {art === "kurz" && (
             <p className={s.fussnote} data-rolle="stichprobe-hinweis">
@@ -1117,20 +1206,35 @@ export function CheckFlow({
         </div>
 
         <div className={s.fachraster} data-rolle="zaehlliste">
-          {faecher.map((fach) => (
+          {nachFach.map(({ fach, imFach }) => (
             <div key={fach}>
-              <div className={s.fachKopf}>{fach}</div>
+              {/*
+                KLEBT BEIM SCROLLEN (IDA-233) — innerhalb seines Fachs, weil das
+                Fach-`div` sein Containing Block ist: am Fachende schiebt der
+                naechste Kopf ihn hinaus. Der Zaehler beantwortet „bin ich mit
+                diesem Fach durch?", ohne dass jemand Kreise zaehlt.
+              */}
+              <div className={s.fachKopf} data-rolle="fach-kopf">
+                <span>{fach}</span>
+                <span className={s.fachStand}>
+                  {imFach.filter(gezaehlt).length}/{imFach.length}
+                </span>
+              </div>
               <div className={s.karte}>
-                {soll
-                  .filter((p) => p.fachLabel === fach)
-                  .map((p) => {
+                {imFach.map((p) => {
                     const wert = istWert(p);
                     const offen = !gezaehlt(p);
                     const vw = verfallWert(p.artikelId);
                     const vc = verfallChip(vw);
                     const traegtFeld = ersteZeile.get(p.artikelId) === p.id;
+                    const aufgeklappt = traegtFeld && verfallAuf[p.artikelId] === true;
                     return (
-                      <div className={s.zeile} key={p.id} style={{ alignItems: "flex-start" }}>
+                      <div
+                        className={`${s.zeile} ${s.zaehlZeile}`}
+                        key={p.id}
+                        style={{ alignItems: "flex-start" }}
+                        data-rolle="zaehlzeile"
+                      >
                         {/*
                           DREIWERTIG SEIT DRK-304, und aus demselben Grund wie
                           beim Sauerstoff weiter unten: der nackte
@@ -1159,53 +1263,110 @@ export function CheckFlow({
                                 (Stueck oder Packung).
 
                                 ⚠️ „nicht gezaehlt" UND NICHT „noch nicht
-                                gezaehlt", und das ist keine Stilfrage: neben
-                                dem 56er-Stepper bleiben dem Textblock am
-                                Telefon rund 110px (`helfer.module.css`,
-                                `.zeileHaupt`), und `.chip` traegt
-                                `white-space: nowrap` — die lange Fassung mass
-                                121px und liess die Zeile waagerecht
-                                ueberlaufen (CI-Lauf 34956458586,
-                                `lagerbuch-mobil.spec.ts` bei 390px: „DIV
-                                .zeileMeta 121>110"). Gemessen, nicht
-                                geschaetzt; wer den Text wieder verlaengert,
-                                bricht denselben Test. */}
+                                gezaehlt": `.chip` traegt `white-space: nowrap`,
+                                und die lange Fassung liess die Zeile am Telefon
+                                schon einmal waagerecht ueberlaufen (CI-Lauf
+                                34956458586, `lagerbuch-mobil.spec.ts` bei
+                                390px, damals neben dem Stepper mit 110px
+                                Textbreite). Seit IDA-233 steht der Stepper im
+                                Band darunter und der Text hat die volle Breite;
+                                der kurze Text bleibt trotzdem der richtige. */}
                             <span>{p.einheit}</span>
                             {offen && <HelferChip ton="grau">nicht gezählt</HelferChip>}
                             {/* Der Chip steht in JEDER Zeile desselben Artikels —
                                 deshalb faellt die Hinweiszeile bei Wiederholzeilen
-                                ersatzlos weg (§7.7.2 Punkt 3). */}
-                            {vc && <HelferChip ton={vc.ton}>{vc.text}</HelferChip>}
+                                ersatzlos weg (§7.7.2 Punkt 3). In der ERSTEN Zeile
+                                traegt ihn der Verfallsknopf im Band darunter. */}
+                            {vc && !traegtFeld && <HelferChip ton={vc.ton}>{vc.text}</HelferChip>}
                           </div>
                         </div>
-                        {/* max grosszuegig ueber Soll: echter Ueberbestand muss
-                            zaehlbar sein, sonst korrigiert der Abgleich real
-                            vorhandene Teile STILL heraus (`:293-294`). */}
-                        <Stepper
-                          noText
-                          wert={wert}
-                          min={0}
-                          max={9999}
-                          beschriftung={p.artikelName}
-                          setWert={(v) => setIst((z) => ({ ...z, [p.id]: v }))}
-                        />
                         {/*
-                          GESCHWISTER VON KREIS, TEXT UND STEPPER — NICHT MEHR
-                          KIND VON `.zeileHaupt`. §7.7.2 Punkt 2 gibt dem
-                          Verfallsfeld „eine eigene, volle Zeile"; im
-                          `.zeileHaupt` bekam es nur dessen SPALTE, am Telefon
-                          neben dem 56er-Stepper rund 110px. Als Geschwister mit
-                          `flex: 1 0 100%` (shell-seitig in `.verfallZeile`)
-                          faellt es unter alle drei und nimmt die volle
-                          Kartenbreite ein.
+                          DAS BEDIENBAND — IDA-233. Verfallsknopf und Stepper
+                          teilen sich EINE 56er-Zeile unter dem Text. Vorher
+                          stand der Stepper neben dem Namen und liess ihm am
+                          Telefon rund 110px (drei, vier Umbrueche je Artikel),
+                          und das Verfallsfeld belegte in jeder ersten
+                          Artikelzeile eine eigene 56er-Zeile darunter.
                         */}
                         {/* IDA-222: der Grund der Stichprobe, als eigene
-                            volle Zeile — in `.zeileMeta` ist neben dem
-                            Stepper kein Platz (siehe der Chip darueber). */}
+                            volle Zeile zwischen Text und Bedienband — er ist
+                            ein Satz, kein Chip, und `.chip` bricht nicht um. */}
                         {grundFuer(p) && (
                           <div className={s.grundZeile} data-rolle="stichprobe-grund">{grundFuer(p)}</div>
                         )}
-                        {traegtFeld && (
+                        <div className={s.zaehlBand}>
+                          {traegtFeld && (
+                            /*
+                              DAS VERFALLSFELD LIEGT HINTER EINEM KNOPF (IDA-233).
+                              Es ist freiwillig und wird selten geaendert, stand
+                              aber in jeder ersten Artikelzeile offen da. Eine
+                              VORHANDENE Angabe bleibt sichtbar: der Knopf
+                              traegt dann ihren Ampelchip statt „Verfall
+                              angeben" — derselbe Chip, den §7.7.2 Punkt 3 in
+                              jeder Zeile des Artikels verlangt.
+
+                              ⚠️ DER ARTIKELNAME STEHT VORN im aria-label, aus
+                              demselben Grund wie beim Leerknopf unten: das Feld
+                              heisst `Verfall <Artikel>`, und ein Knopf mit
+                              demselben Anfang liesse `getByLabel(/^Verfall …/)`
+                              auf zwei Elemente aufloesen.
+                            */
+                            <button
+                              type="button"
+                              className={s.verfallKnopf}
+                              data-rolle="verfall-knopf"
+                              aria-expanded={aufgeklappt}
+                              aria-label={
+                                vc
+                                  ? `${p.artikelName}: Verfall ${vc.text}, ändern`
+                                  : `${p.artikelName}: Verfall angeben`
+                              }
+                              onClick={() => {
+                                verfallFokus.current = aufgeklappt ? null : p.artikelId;
+                                setVerfallAuf((v) => ({ ...v, [p.artikelId]: !aufgeklappt }));
+                              }}
+                            >
+                              {vc ? (
+                                <HelferChip ton={vc.ton}>{vc.text}</HelferChip>
+                              ) : (
+                                <>
+                                  <Ikone name="verfall" groesse={16} />
+                                  Verfall angeben
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {/* max grosszuegig ueber Soll: echter Ueberbestand muss
+                              zaehlbar sein, sonst korrigiert der Abgleich real
+                              vorhandene Teile STILL heraus (`:293-294`).
+
+                              ⚠️ TIPPBAR SEIT IDA-233 — `leer` STATT `noText`. Ein
+                              Tipp ins Feld zaehlt NICHT: erst eine Ziffer (auch
+                              „0") oder `−`/`+` macht die Zeile zur Zaehlung, ein
+                              ohne Ziffer verlassenes Feld bleibt ungezaehlt
+                              (`Stepper.tsx`, Prop `leer`). */}
+                          <Stepper
+                            wert={wert}
+                            leer={offen}
+                            min={0}
+                            max={9999}
+                            beschriftung={p.artikelName}
+                            setWert={(v) => setIst((z) => ({ ...z, [p.id]: v }))}
+                            beiEnter={() => nachZeile(p.id)}
+                            ref={(el) => {
+                              if (el) zaehlFelder.current.set(p.id, el);
+                              else zaehlFelder.current.delete(p.id);
+                            }}
+                          />
+                        </div>
+                        {/*
+                          GESCHWISTER VON KREIS, TEXT UND BAND. §7.7.2 Punkt 2
+                          gibt dem Verfallsfeld „eine eigene, volle Zeile"; mit
+                          `flex: 1 0 100%` (shell-seitig in `.verfallZeile`)
+                          faellt es unter alle drei und nimmt die volle
+                          Kartenbreite ein — seit IDA-233 nur aufgeklappt.
+                        */}
+                        {aufgeklappt && (
                           <div className={s.verfallZeile}>
                             {/* Natives <input type="month"> — kein antd-DatePicker
                                 (§7.7.2 Punkt 4): die Klasse ist ohnehin ohne
@@ -1214,13 +1375,25 @@ export function CheckFlow({
                                 jede Dayjs-Umrechnung. `pattern` und `inputMode`
                                 sind der Rueckfall fuer Browser, die `month` als
                                 Textfeld rendern; die STRENGE selbst ist
-                                serverseitig (MONAT_REGEX, §4.6). */}
+                                serverseitig (MONAT_REGEX, §4.6).
+
+                                Den Fokus bekommt es NUR nach dem Aufklappen per
+                                Knopf (`verfallFokus`), nie per `autoFocus`: beim
+                                Zurueckblaettern in diesen Schritt stehen alle
+                                offenen Felder neu auf, und die Liste spraenge zum
+                                letzten von ihnen. */}
                             <input
                               type="month"
                               inputMode="numeric"
                               pattern="\d{4}-\d{2}"
                               aria-label={`Verfall ${p.artikelName}`}
                               value={vw}
+                              ref={(el) => {
+                                if (el && verfallFokus.current === p.artikelId) {
+                                  verfallFokus.current = null;
+                                  el.focus();
+                                }
+                              }}
                               onChange={(e) =>
                                 setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
                               }
@@ -1297,6 +1470,51 @@ export function CheckFlow({
           ))}
         </div>
 
+        {/*
+          DER MITLAUFENDE STAND — IDA-233. Er klebt am UNTEREN Rand des
+          Scrollkastens, weil dort der Daumen ist (eine Hand am Telefon), und
+          landet am Listenende im Fluss direkt ueber der Weiter-Leiste.
+
+          ⚠️ ER TRAEGT KEIN „WEITER", und das ist die Grenze zu DRK-304: ein
+          mitfahrendes Weiter waere erreichbar, BEVOR die Liste gelesen wurde.
+          Hier faehrt nur mit, was zur offenen Zeile FUEHRT. Hell statt tintig,
+          damit er nicht wie die Abschlussleiste der anderen Schritte aussieht.
+
+          ⚠️ KEINE LIVE-REGION. Er aendert sich mit jeder Zaehlung; eine
+          Ansage je Tipp waere bei 210 Positionen Laerm.
+        */}
+        <div className={s.zaehlStand} data-rolle="zaehl-stand">
+          <div className={s.zaehlStandText}>
+            <b>
+              {gezaehltAnzahl} von {soll.length} gezählt
+            </b>
+            <div className={s.zaehlStandSpur} aria-hidden="true">
+              <div style={{ width: `${(gezaehltAnzahl / soll.length) * 100}%` }} />
+            </div>
+          </div>
+          {ersteOffene ? (
+            <button
+              className={`${s.knopf} ${s.knopfTinte}`}
+              type="button"
+              onClick={zurOffenen}
+              data-rolle="naechste-offene"
+            >
+              Nächste offene
+            </button>
+          ) : (
+            /* ⚠️ NICHT „Weiter" im Namen: `getByRole("button", { name: "Weiter" })`
+               trifft Teilstrings und fasste dann zwei Knoepfe. */
+            <button
+              className={`${s.knopf} ${s.knopfGeist}`}
+              type="button"
+              onClick={() => springeZu(weiterKnopf.current)}
+              data-rolle="zum-ende"
+            >
+              Zum Abschluss
+            </button>
+          )}
+        </div>
+
         {fehlerBereich}
 
         {/*
@@ -1333,7 +1551,7 @@ export function CheckFlow({
             <div>
               {ablaufend > 0 && `${ablaufend} laufen ab · `}
               {ungezaehlt > 0
-                ? "Leeres Fach? Einmal auf − tippen."
+                ? "„Weiter“ zeigt dir die erste offene Zeile."
                 : "Was fehlt, zeigt der nächste Schritt"}
             </div>
           </div>
@@ -1342,12 +1560,22 @@ export function CheckFlow({
             in die Leerbuchung offen — und die ist im Journal nicht
             zuruecknehmbar (`check.ts`, `korrekturAufLagerort`). Der Riegel ist
             zugleich die Zusage der User Story: Mengen werden BEWUSST erfasst.
+
+            ⚠️ `aria-disabled` STATT `disabled` — IDA-233. Ein natives
+            `disabled` schluckt den Tipp, und wer am Ende einer langen Liste
+            darauf tippt, erfaehrt nicht, WELCHE Zeile fehlt. Jetzt fuehrt der
+            gesperrte Knopf dorthin. Gesperrt bleibt er trotzdem: sein Klick
+            ruft dann `zurOffenen`, nie `zurNachfuellung` — und deren erste
+            Anweisung bleibt der Riegel, falls ein zweiter Weg sie erreicht.
+            `aria-disabled` sagt der Vorlesehilfe dasselbe wie das Aussehen
+            (`.abschlussGo[aria-disabled="true"]`).
           */}
           <button
             className={s.abschlussGo}
             type="button"
-            disabled={ungezaehlt > 0}
-            onClick={zurNachfuellung}
+            ref={weiterKnopf}
+            aria-disabled={ungezaehlt > 0 ? true : undefined}
+            onClick={ungezaehlt > 0 ? zurOffenen : zurNachfuellung}
             data-rolle="weiter"
           >
             Weiter
@@ -1361,7 +1589,7 @@ export function CheckFlow({
   if (aktivePhase === "geraete") {
     return (
       <>
-        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Geräte</div>
+        <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Geräte</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {idx > 0 && (
@@ -1488,7 +1716,7 @@ export function CheckFlow({
     ).length;
     return (
       <>
-        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Sauerstoff</div>
+        <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit} · Sauerstoff</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {idx > 0 && (
@@ -1642,7 +1870,7 @@ export function CheckFlow({
 
   return (
     <>
-      <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit}</div>
+      <div className={s.schirmKopf} ref={kopf} data-rolle="check-einheit">{kopfEinheit}</div>
       <Schritte folge={schrittFolge} aktiv={aktivePhase} />
       {letzterCheckZeile}
       <button

@@ -33,17 +33,28 @@ import { Ikone } from "../../../_ui/ikonen";
 export function CheckDurchfuehrenKnopf({
   fahrzeugId,
   beschriftung,
+  primaer = false,
 }: {
   /** Genau ein Fahrzeug, oder `undefined` für die Fahrzeugwahl. */
   fahrzeugId?: string;
   beschriftung: string;
+  /**
+   * IDA-232: auf dem Einheitenblatt ist der Check DIE Hauptaktion des Kopfes —
+   * eine je Kopf, und sie trägt die Primärfarbe. In der Liste steht der Knopf
+   * neben anderen gleichrangigen und bleibt neutral.
+   */
+  primaer?: boolean;
 }) {
   const ziel = fahrzeugId === undefined
     ? "/helfer/check"
     : `/helfer/check?fz=${encodeURIComponent(fahrzeugId)}`;
 
   return (
-    <Button href={ziel} icon={<Ikone name="haken" groesse={16} />}>
+    <Button
+      href={ziel}
+      type={primaer ? "primary" : undefined}
+      icon={<Ikone name="haken" groesse={16} />}
+    >
       {beschriftung}
     </Button>
   );

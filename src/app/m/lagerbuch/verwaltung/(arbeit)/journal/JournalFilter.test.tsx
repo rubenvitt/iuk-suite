@@ -27,6 +27,20 @@ import {
   mitGetipptem,
 } from "./JournalFilter";
 
+/** IDA-239 — Ort und Artikel; leer gewählt, mit je zwei Angeboten. */
+const WAHL = {
+  ort: "",
+  artikel: "",
+  orte: [
+    { value: "handlager", label: "Handlager" },
+    { value: "rtw-1", label: "RTW 1 · Fahrzeug · MS-1" },
+  ],
+  artikelOptionen: [
+    { value: "a-mull", label: "Mullbinde" },
+    { value: "a-pflaster", label: "Pflaster" },
+  ],
+};
+
 async function zeit(ms: number): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
@@ -90,7 +104,7 @@ describe("JournalFilter", () => {
     ]);
     expect(deckelText(3, false)).toBe("3 Treffer");
     expect(mitGetipptem(
-      { q: "", typ: "", von: "", bis: "" },
+      { q: "", typ: "", von: "", bis: "", ort: "", artikel: "" },
       " Mull ",
       { typ: "zugang" },
     ).q).toBe("Mull");
@@ -115,7 +129,7 @@ describe("JournalFilter", () => {
      * und `_ui/ArtikelDrawer.test.tsx`.
      */
     vi.useFakeTimers({ shouldAdvanceTime: false });
-    await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
 
     await fill("input[type='search']", "mu");
     await zeit(200);
@@ -132,8 +146,8 @@ describe("JournalFilter", () => {
   });
 
   it("zieht externe q-Aenderungen nach, ohne sie erneut in die URL zu schreiben", async () => {
-    await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
-    await rerender(<JournalFilter q="geteilt" typ="" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
+    await rerender(<JournalFilter q="geteilt" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     await zeit(600);
 
     expect(query<HTMLInputElement>("input[type='search']").value).toBe("geteilt");
@@ -141,13 +155,13 @@ describe("JournalFilter", () => {
   });
 
   it("erkennt die eigene q-Schreibung und navigiert beim RSC-Rerender nicht doppelt", async () => {
-    await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     await fill("input[type='search']", "mull");
     await zeit(300);
     expect(mocks.replace).toHaveBeenCalledTimes(1);
 
     mocks.replace.mockClear();
-    await rerender(<JournalFilter q="mull" typ="" von="" bis="" hinweise={[]} />);
+    await rerender(<JournalFilter q="mull" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     await zeit(600);
 
     expect(query<HTMLInputElement>("input[type='search']").value).toBe("mull");
@@ -155,7 +169,7 @@ describe("JournalFilter", () => {
   });
 
   it("flusht bereits Getipptes beim Typklick und verwirft den alten Timer", async () => {
-    await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     await fill("input[type='search']", "  mull  ");
     await zeit(100);
     await waehleVorgang("Wareneingang");
@@ -170,7 +184,7 @@ describe("JournalFilter", () => {
   it("flusht bereits Getipptes auch beim Datumsklick", async () => {
     window.history.replaceState(null, "", "/verwaltung/journal?von=2026-08-01");
     await mount(
-      <JournalFilter q="" typ="" von="2026-08-01" bis="" hinweise={[]} />,
+      <JournalFilter q="" typ="" von="2026-08-01" bis="" {...WAHL} hinweise={[]} />,
     );
     await fill("input[type='search']", "  naht  ");
     await zeit(100);
@@ -195,6 +209,7 @@ describe("JournalFilter", () => {
         typ="entnahme"
         von="2026-08-01"
         bis="2026-08-31"
+        {...WAHL}
         hinweise={[]}
       />,
     );
@@ -217,6 +232,7 @@ describe("JournalFilter", () => {
         typ=""
         von="2026-02-31"
         bis="gestern"
+        {...WAHL}
         hinweise={["Das Datum in der Adresse ist ungültig und wurde ignoriert."]}
       />,
     );
@@ -246,7 +262,7 @@ describe("JournalFilter", () => {
    * ohne die Konstante anzufassen.
    */
   it("bietet alle sechs Vorgangsarten an und schreibt die gewaehlte in die URL", async () => {
-    await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
     // antds `Select` oeffnet auf `mousedown`, nicht auf `click` — derselbe
     // Griff wie in `waehleVorgang`.
     const input = query<HTMLInputElement>("[aria-label='Vorgang']");
@@ -274,7 +290,7 @@ describe("JournalFilter", () => {
   });
 
   it("nimmt eine Vorgangsart aus der URL als gewaehlten Wert an", async () => {
-    await mount(<JournalFilter q="" typ="inventur" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="inventur" von="" bis="" {...WAHL} hinweise={[]} />);
     expect(query<HTMLInputElement>("[aria-label='Vorgang']")
       .closest(".ant-select")?.textContent).toContain("Inventur");
   });
@@ -282,8 +298,42 @@ describe("JournalFilter", () => {
   it("verwirft einen Wert, den es nicht gibt, statt ihn anzuzeigen", async () => {
     // Derselbe Riegel wie bei den Datumsgrenzen: was der Server nicht filtert,
     // darf die Adresszeile auch nicht behaupten.
-    await mount(<JournalFilter q="" typ="gibt-es-nicht" von="" bis="" hinweise={[]} />);
+    await mount(<JournalFilter q="" typ="gibt-es-nicht" von="" bis="" {...WAHL} hinweise={[]} />);
     expect(query<HTMLInputElement>("[aria-label='Vorgang']")
       .closest(".ant-select")?.textContent).toContain("Alle Vorgänge");
+  });
+
+  /** IDA-239 — Ort und Artikel stehen als Kennung in der Adresse. */
+  it("schreibt Ort und Artikel als Kennung in die Adresse und nimmt beide zurück", async () => {
+    await mount(<JournalFilter q="" typ="" von="" bis="" {...WAHL} hinweise={[]} />);
+    const ort = query<HTMLInputElement>("[aria-label='Ort']");
+    await act(async () => {
+      ort.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    const option = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).find((element) => (element.textContent ?? "").includes("RTW 1"));
+    await clickElement(option!);
+    expect(letzterPfad().searchParams.get("ort")).toBe("rtw-1");
+
+    window.history.replaceState(null, "", "/verwaltung/journal?ort=rtw-1&artikel=a-mull");
+    await unmount();
+    await mount(
+      <JournalFilter q="" typ="" von="" bis="" {...WAHL} ort="rtw-1" artikel="a-mull" hinweise={[]} />,
+    );
+    expect(query("[aria-label='Artikel']").closest(".ant-select")?.textContent)
+      .toContain("Mullbinde");
+    await clickElement(knopf("Zurücksetzen"));
+    expect(letzterPfad().search).toBe("");
+  });
+
+  it("zeigt eine Kennung, die nicht angeboten wird, nicht roh an", async () => {
+    await mount(
+      <JournalFilter q="" typ="" von="" bis="" {...WAHL} ort="weg" artikel="" hinweise={[]} />,
+    );
+    expect(query("[aria-label='Ort']").closest(".ant-select")?.textContent)
+      .toContain("Alle Orte");
+    expect(exists("button") && queryAll("button").some((b) => b.textContent === "Zurücksetzen"))
+      .toBe(false);
   });
 });

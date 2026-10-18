@@ -21,7 +21,7 @@
   },
   {
     "name": "eimer-6",
-    "specs": "e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-kategorien.spec.ts e2e/lagerbuch-vorlagenfeld.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/radio-*.spec.ts"
+    "specs": "e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-kategorien.spec.ts e2e/lagerbuch-vorlagenfeld.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/radio-*.spec.ts e2e/lagerbuch-sammelaktionen.spec.ts"
   },
   {
     "name": "eimer-7",

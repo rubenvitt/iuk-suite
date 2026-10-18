@@ -282,6 +282,9 @@ export function Kartentabelle<T extends object>({
         onKlick={klick as ((e: React.MouseEvent<HTMLElement>) => void) | undefined}
         auswahl={auswahl ? {
           gewaehlt: gewaehlte.has(String(eigen)),
+          // Dieselbe Sperre wie das Kreuzchen in der Tabelle — sonst liesse
+          // sich auf dem Telefon waehlen, was breit nicht waehlbar ist.
+          gesperrt: Boolean(auswahl.getCheckboxProps?.(zeile).disabled),
           /*
            * ⚠️ DIE AUSWAHL WIRD AUS DEM BISHERIGEN STAND FORTGESCHRIEBEN, nicht
            * ersetzt. antds `onChange` meldet die GANZE Auswahl; ein Aufrufer mit

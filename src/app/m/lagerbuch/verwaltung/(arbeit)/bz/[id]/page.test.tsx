@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
-import Link from "next/link";
+import { Card } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clickElement,
@@ -13,7 +13,9 @@ import { bzGeraete, bzKontrollen, lagerorte } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { BZ_LOGBUCH_GRENZE } from "../../../../_lib/grenzen";
 import { Kachel } from "../../../../_ui/Kachel";
+import { LinkKnopf } from "../../../../_ui/LinkKnopf";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
+import { BeachtungEditor } from "./BeachtungEditor";
 import { BzAktivToggle } from "./BzAktivToggle";
 import {
   BzLogbuchTabelle,
@@ -286,33 +288,57 @@ describe("BZ-Geräteblatt als Server Component", () => {
     expect(kacheln.map((element) => (element.props as { ton?: string }).ton))
       .toEqual(["ok", "ok", undefined, "ok"]);
 
-    const links = elementeVomTyp(seite, Link);
-    expect(links.map((element) => (element.props as { href?: string }).href))
-      .toContain("/verwaltung/bz/bz-1/kontrolle");
-    const kontrolleLink = links.find(
-      (element) => (element.props as { href?: string }).href
-        === "/verwaltung/bz/bz-1/kontrolle",
-    );
-    expect((kontrolleLink?.props as { role?: string }).role).toBe("button");
-
     const editor = elementeVomTyp(seite, ReferenzEditor)[0];
     const editorProps = editor.props as {
       geraet: BzEditorWerte;
       lagerorte: unknown[];
+      zusatz: ReactNode;
     };
     expect(editorProps.geraet).toEqual(EDITOR_WERTE);
-    expect(enthaeltDate(editorProps)).toBe(false);
+    expect(enthaeltDate({ geraet: editorProps.geraet, lagerorte: editorProps.lagerorte }))
+      .toBe(false);
 
+    /*
+     * IDA-239 — „Kontrolle erfassen" ist die EINE Hauptaktion im Kopf; Status
+     * und Löschen stehen bei den Stammdaten, nicht mehr daneben.
+     */
     const kopf = elementeVomTyp(seite, SeitenKopf)[0];
     const zurueck = (kopf.props as {
       zurueck?: { titel: string; href: string };
     }).zurueck;
     expect(zurueck).toEqual({ titel: "BZ-Geräte", href: "/verwaltung/bz" });
-    const status = elementeVomTyp(
-      (kopf.props as { aktionen: ReactNode }).aktionen,
-      BzAktivToggle,
-    )[0];
+    const aktionen = (kopf.props as { aktionen: ReactNode }).aktionen;
+    const [kontrolle] = elementeVomTyp(aktionen, LinkKnopf);
+    expect(kontrolle.props).toMatchObject({
+      href: "/verwaltung/bz/bz-1/kontrolle",
+      primaer: true,
+    });
+    expect(textVon(kontrolle)).toBe("Kontrolle erfassen");
+    expect(elementeVomTyp(aktionen, BzAktivToggle)).toHaveLength(0);
+    const status = elementeVomTyp(editorProps.zusatz, BzAktivToggle)[0];
     expect(status.props).toEqual({ id: "bz-1", name: "Accu-Chek A", aktiv: true });
+  });
+
+  it("stellt das Logbuch vor die Stammdaten, eine laufende Beachtung vor das Logbuch", () => {
+    const reihenfolge = (seite: ReactNode) => (seite as ReactElement<{ children: ReactNode[] }>)
+      .props.children
+      .flat()
+      .filter(isValidElement)
+      .map((element) => element.type === Card
+        ? (element.props as { title: string }).title
+        : element.type === BeachtungEditor ? "Beachtung"
+          : element.type === ReferenzEditor ? "Stammdaten"
+            : element.type === SeitenKopf ? "Kopf" : "Kacheln");
+
+    expect(reihenfolge(bzGeraetInhalt(t.db, "bz-1", NOW))).toEqual([
+      "Kopf", "Kacheln", "Logbuch der Kontrollen", "Beachtung", "Stammdaten",
+    ]);
+    t.sqlite.prepare(
+      "update bz_geraete set beachtung_hinweis = 'Display flackert', beachtung_seit = 1 where id = 'bz-1'",
+    ).run();
+    expect(reihenfolge(bzGeraetInhalt(t.db, "bz-1", NOW))).toEqual([
+      "Kopf", "Kacheln", "Beachtung", "Logbuch der Kontrollen", "Stammdaten",
+    ]);
   });
 
   it("bereitet ein rekursiv JSON-sicheres Logbuch-DTO aus refDamals vor", () => {
@@ -401,9 +427,39 @@ describe("BZ-Geräteblatt als Server Component", () => {
   });
 });
 
+/**
+ * IDA-239 — DIE REFERENZ IST EIN LESEMODUS MIT „BEARBEITEN". Vorher speicherte
+ * jedes Feld beim Verlassen bzw. nach 400 ms; jetzt schreibt erst „Speichern"
+ * alle zehn Felder auf einmal, und „Abbrechen" verwirft.
+ */
 describe("ReferenzEditor", () => {
-  it("bietet alle alten Felder ohne Form und filtert den Standort nach Label", async () => {
+  function knopf(text: string): HTMLButtonElement {
+    const treffer = Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
+      .find((element) => (element.textContent ?? "").trim() === text);
+    if (!treffer) throw new Error(`Knopf nicht gefunden: ${text}`);
+    return treffer;
+  }
+
+  async function bearbeiten(): Promise<void> {
+    await clickElement(knopf("Bearbeiten"));
+    await warte();
+  }
+
+  async function speichern(): Promise<void> {
+    await clickElement(knopf("Speichern"));
+    await warte();
+  }
+
+  it("liest zuerst und öffnet alle zehn Felder erst mit „Bearbeiten“", async () => {
     await editorMounten();
+    expect(document.querySelectorAll("input")).toHaveLength(0);
+    const liste = document.querySelector("[data-rolle='stammdaten-liste']")?.textContent ?? "";
+    for (const wert of ["Accu-Chek A", "1234567890128", "RTW 1 · Fahrzeug · MS-1", "LOT-NEU",
+      "Level 1 · 40–60", "Level 2 · 250–350"]) {
+      expect(liste, wert).toContain(wert);
+    }
+
+    await bearbeiten();
     for (const label of [
       "Name",
       "Barcode",
@@ -423,17 +479,26 @@ describe("ReferenzEditor", () => {
     expect(lagerortFilter("Hand", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
   });
 
-  it("committet Text auf Blur mit vollständigem Payload", async () => {
+  it("speichert weder beim Verlassen noch nach Zeit, sondern erst mit „Speichern“", async () => {
     await editorMounten();
-    const name = await feldSetzen("[aria-label='Name']", "Accu-Chek Neu");
-    expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
+    await bearbeiten();
+    const name = await feldSetzen("[aria-label='Name']", "  Accu-Chek Neu ");
     await feldVerlassen(name);
+    await feldSetzen("[aria-label='Level-1-Untergrenze']", "41");
+    await act(async () => { vi.advanceTimersByTime(1000); });
+    await standortWaehlen("Handlager");
+    expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
 
+    await speichern();
     expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
     expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
       ...EDITOR_WERTE,
       name: "Accu-Chek Neu",
+      level1Min: 41,
+      lagerortId: "handlager",
     });
+    // Nach dem Erfolg wieder der Lesemodus.
+    expect(document.querySelector("[aria-label='Name']")).toBeNull();
   });
 
   it.each([
@@ -443,14 +508,10 @@ describe("ReferenzEditor", () => {
     ["Level-2-Bezeichnung", "level2Label", "Kontrolle hoch"],
   ] as const)("bindet das Textfeld %s an %s", async (label, feld, wert) => {
     await editorMounten();
-    const input = await feldSetzen(`[aria-label='${label}']`, wert);
-    await feldVerlassen(input);
-
-    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
-    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
-      ...EDITOR_WERTE,
-      [feld]: wert,
-    });
+    await bearbeiten();
+    await feldSetzen(`[aria-label='${label}']`, wert);
+    await speichern();
+    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({ ...EDITOR_WERTE, [feld]: wert });
   });
 
   it.each([
@@ -458,25 +519,12 @@ describe("ReferenzEditor", () => {
     ["Level-1-Obergrenze", "level1Max", "61", 61],
     ["Level-2-Untergrenze", "level2Min", "251", 251],
     ["Level-2-Obergrenze", "level2Max", "351", 351],
-  ] as const)("flusht %s beim Blur sofort und nicht später doppelt", async (
-    label,
-    feld,
-    eingabe,
-    wert,
-  ) => {
+  ] as const)("bindet das Zahlenfeld %s an %s", async (label, feld, eingabe, wert) => {
     await editorMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    const input = await feldSetzen(`[aria-label='${label}']`, eingabe);
-    await feldVerlassen(input);
-
-    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
-    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
-      ...EDITOR_WERTE,
-      [feld]: wert,
-    });
-
-    await act(async () => { vi.advanceTimersByTime(400); });
-    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
+    await bearbeiten();
+    await feldSetzen(`[aria-label='${label}']`, eingabe);
+    await speichern();
+    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({ ...EDITOR_WERTE, [feld]: wert });
   });
 
   it("normalisiert leere optionale Felder im vollständigen Payload zu undefined", async () => {
@@ -492,8 +540,12 @@ describe("ReferenzEditor", () => {
       level2Max: null,
     };
     await mount(<ReferenzEditor geraet={leer} lagerorte={LAGERORT_OPTIONEN} />);
-    const name = await feldSetzen("[aria-label='Name']", "Accu-Chek Leer");
-    await feldVerlassen(name);
+    expect(document.querySelector("[data-rolle='stammdaten-liste']")?.textContent)
+      .toContain("–");
+    await bearbeiten();
+    await feldSetzen("[aria-label='Name']", "Accu-Chek Leer");
+    await feldSetzen("[aria-label='Barcode']", "   ");
+    await speichern();
 
     expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
       id: "bz-1",
@@ -510,175 +562,61 @@ describe("ReferenzEditor", () => {
     });
   });
 
-  it("committet den Standort auf Select-Änderung mit vollständigem Payload", async () => {
+  it("verwirft mit „Abbrechen“ und beginnt beim nächsten Bearbeiten beim Serverstand", async () => {
     await editorMounten();
-    await standortWaehlen("Handlager");
-
-    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
-    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
-      ...EDITOR_WERTE,
-      lagerortId: "handlager",
-    });
-  });
-
-  it("startet den echten 400-ms-Debounce nach jeder Zahländerung neu", async () => {
-    await editorMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    await feldSetzen("[aria-label='Level-1-Untergrenze']", "31");
-    await act(async () => { vi.advanceTimersByTime(250); });
-    await feldSetzen("[aria-label='Level-1-Obergrenze']", "71");
-
-    await act(async () => { vi.advanceTimersByTime(149); });
+    await bearbeiten();
+    await feldSetzen("[aria-label='Name']", "verworfen");
+    await clickElement(knopf("Abbrechen"));
+    await warte();
     expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
-    await act(async () => { vi.advanceTimersByTime(250); });
-    expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    expect(document.body.textContent).not.toContain("verworfen");
 
-    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
-    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
-      ...EDITOR_WERTE,
-      level1Min: 31,
-      level1Max: 71,
-    });
-  });
-
-  it.each([
-    ["Level-1-Untergrenze", "level1Min", "41", 41],
-    ["Level-1-Obergrenze", "level1Max", "61", 61],
-    ["Level-2-Untergrenze", "level2Min", "251", 251],
-    ["Level-2-Obergrenze", "level2Max", "351", 351],
-  ] as const)("bindet das Zahlenfeld %s an %s", async (label, feld, eingabe, wert) => {
-    await editorMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    await feldSetzen(`[aria-label='${label}']`, eingabe);
-    await act(async () => {
-      vi.advanceTimersByTime(400);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mocks.geraetSpeichern).toHaveBeenCalledTimes(1);
-    expect(mocks.geraetSpeichern).toHaveBeenCalledWith({
-      ...EDITOR_WERTE,
-      [feld]: wert,
-    });
-  });
-
-  it("setzt bei neuen Serverwerten derselben Geräte-ID alle lokalen Felder zurück", async () => {
-    await editorMounten();
-    await feldSetzen("[aria-label='Name']", "lokal geändert");
-    const anderes = {
-      ...EDITOR_WERTE,
-      name: "Contour Next",
-      barcode: "9876543210987",
-      lagerortId: "handlager",
-    };
-    await rerender(<ReferenzEditor geraet={anderes} lagerorte={LAGERORT_OPTIONEN} />);
-
+    await bearbeiten();
     expect(document.querySelector<HTMLInputElement>("[aria-label='Name']")?.value)
-      .toBe("Contour Next");
-    expect(document.querySelector<HTMLInputElement>("[aria-label='Barcode']")?.value)
-      .toBe("9876543210987");
+      .toBe("Accu-Chek A");
   });
 
-  it("räumt einen offenen Zahlen-Timer beim Unmount auf", async () => {
+  it("zeigt im Lesemodus neue Serverwerte derselben Geräte-ID", async () => {
     await editorMounten();
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    await feldSetzen("[aria-label='Level-2-Untergrenze']", "210");
-    await unmount();
-    await act(async () => { vi.advanceTimersByTime(400); });
-    expect(mocks.geraetSpeichern).not.toHaveBeenCalled();
+    await rerender(
+      <ReferenzEditor
+        geraet={{ ...EDITOR_WERTE, name: "Contour Next", barcode: "9876543210987" }}
+        lagerorte={LAGERORT_OPTIONEN}
+      />,
+    );
+    const liste = document.querySelector("[data-rolle='stammdaten-liste']")?.textContent ?? "";
+    expect(liste).toContain("Contour Next");
+    expect(liste).toContain("9876543210987");
   });
 
   /**
-   * Der Satz AUS DER ACTION, nicht die Modulkonstante. `payload()` schickt bei
-   * jedem Blur alle zehn Felder — eine einmalige Barcode-Kollision laesst
-   * danach JEDES Speichern scheitern, und ohne den echten Grund steht die
-   * Person vor einem Editor, der nichts mehr annimmt. Der Wurf-Zweig behaelt
-   * die Konstante (siehe den Test weiter unten).
+   * Der Satz AUS DER ACTION, nicht die Modulkonstante: `payload()` schickt alle
+   * zehn Felder, eine Barcode-Kollision lässt sonst jedes Speichern scheitern,
+   * ohne dass jemand den Grund erfährt. Und das Getippte bleibt stehen.
    */
-  it("zeigt bei ok:false den Satz der Action statt den Commit zu verschweigen", async () => {
+  it("zeigt bei ok:false den Satz der Action und bleibt im Bearbeiten", async () => {
     mocks.geraetSpeichern.mockResolvedValueOnce({
       ok: false,
       fehler: "Barcode ist bereits vergeben.",
     });
     await editorMounten();
-    const barcode = await feldSetzen("[aria-label='Barcode']", "9999999999999");
-    await feldVerlassen(barcode);
+    await bearbeiten();
+    await feldSetzen("[aria-label='Barcode']", "9999999999999");
+    await speichern();
 
     expect(document.body.textContent).toContain("Barcode ist bereits vergeben.");
+    expect(document.querySelector<HTMLInputElement>("[aria-label='Barcode']")?.value)
+      .toBe("9999999999999");
   });
 
-  it("lässt eine ältere verspätete Antwort nicht den neueren Erfolg überschreiben", async () => {
-    let ersteAntwort!: (wert: { ok: false; fehler: string }) => void;
-    mocks.geraetSpeichern
-      .mockImplementationOnce(() => new Promise((resolve) => {
-        ersteAntwort = resolve;
-      }))
-      .mockResolvedValueOnce({ ok: true, wert: { id: "bz-1" } });
+  it("zeigt beim Wurf den festen Satz statt des Grundes", async () => {
+    mocks.geraetSpeichern.mockRejectedValueOnce(new Error("Pfad geheim"));
     await editorMounten();
-    const name = await feldSetzen("[aria-label='Name']", "Erste Änderung");
-    await feldVerlassen(name);
-    const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
-    await feldVerlassen(lot);
-    expect(document.body.textContent).not.toContain("BZ-Gerät konnte nicht gespeichert werden.");
+    await bearbeiten();
+    await speichern();
 
-    await act(async () => {
-      ersteAntwort({ ok: false, fehler: "verspätet" });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(document.body.textContent).not.toContain("BZ-Gerät konnte nicht gespeichert werden.");
-  });
-
-  it("lässt einen älteren Erfolg nicht den Fehler eines neueren Saves löschen", async () => {
-    let ersteAntwort!: (wert: { ok: true; wert: { id: string } }) => void;
-    mocks.geraetSpeichern
-      .mockImplementationOnce(() => new Promise((resolve) => {
-        ersteAntwort = resolve;
-      }))
-      .mockResolvedValueOnce({ ok: false, fehler: "neuer Fehler" });
-    await editorMounten();
-    const name = await feldSetzen("[aria-label='Name']", "Erste Änderung");
-    await feldVerlassen(name);
-    const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
-    await feldVerlassen(lot);
-    expect(document.body.textContent).toContain("neuer Fehler");
-
-    await act(async () => {
-      ersteAntwort({ ok: true, wert: { id: "bz-1" } });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(document.body.textContent).toContain("neuer Fehler");
-  });
-
-  it("lässt eine ältere verspätete Ablehnung nicht den neueren Erfolg überschreiben", async () => {
-    let ersteAblehnung!: (grund: unknown) => void;
-    mocks.geraetSpeichern
-      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
-        ersteAblehnung = reject;
-      }))
-      .mockResolvedValueOnce({ ok: true, wert: { id: "bz-1" } });
-    await editorMounten();
-    const name = await feldSetzen("[aria-label='Name']", "Erste Änderung");
-    await feldVerlassen(name);
-    const lot = await feldSetzen("[aria-label='Streifen-Lot']", "LOT-ZWEI");
-    await feldVerlassen(lot);
-
-    await act(async () => {
-      ersteAblehnung(new Error("verspätet"));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(document.body.textContent).not.toContain("BZ-Gerät konnte nicht gespeichert werden.");
+    expect(document.body.textContent).toContain("BZ-Gerät konnte nicht gespeichert werden.");
+    expect(document.body.textContent).not.toContain("Pfad geheim");
   });
 });
 

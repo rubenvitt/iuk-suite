@@ -29,12 +29,15 @@ test.describe("Rücklauf vom Fahrzeug", () => {
     const antwort = await page.goto(lagerbuchUrl(BLATT));
     expect(antwort!.status()).toBe(200);
 
-    const istZelle = page.locator("[data-row-key='e2e-ruecklauf-soll'] [data-rolle='ist']");
+    // IDA-232: die Zeile der Bestandsliste, geschluesselt nach Artikel.
+    const istZelle = page.locator("[data-row-key='e2e-ruecklauf-artikel'] [data-rolle='ist']");
     await expect(istZelle).toBeVisible();
     const vorher = Number((await istZelle.innerText()).match(/\d+/)![0]);
     expect(vorher).toBeGreaterThan(1);
 
-    await klickeWennRuhig(page.getByRole("button", { name: `${ARTIKEL} zurück ins Handlager` }));
+    // IDA-232: der Rücklauf steht im Zeilenmenü neben dem Aussondern.
+    await klickeWennRuhig(page.getByRole("button", { name: `Aktionen für ${ARTIKEL}` }));
+    await page.getByRole("menuitem", { name: "Zurück ins Handlager" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 

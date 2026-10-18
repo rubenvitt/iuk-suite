@@ -19,7 +19,7 @@ import {
 import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { zugangsZiele } from "../../../../_lib/lesepfade/orte";
 import { SCHRIFT } from "../../../../_lib/schrift";
-import { einheitenartLabel, inDerEinheit } from "../../../../_lib/konstanten";
+import { einheitenartLabel } from "../../../../_lib/konstanten";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -28,10 +28,13 @@ import { CheckDurchfuehrenKnopf } from "../CheckDurchfuehrenKnopf";
 import { AufladenDialog } from "./AufladenDialog";
 import { EinheitenartWahl } from "./EinheitenartWahl";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
+import { FahrzeugReiter } from "./FahrzeugReiter";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
 import { VerfallEditor, type VerfallAnzeigeZeile } from "./VerfallEditor";
 import { PlombenEditor } from "./PlombenEditor";
+import { WeitereAktionen } from "./WeitereAktionen";
+import { blattAdresse } from "./reiter";
 import { plombenFuerLagerort } from "../../../../_lib/lesepfade/plomben";
 import { fmtDatumZeit } from "../../../../_lib/zeit";
 
@@ -49,6 +52,9 @@ function verfallZeilen(
     /* Je Artikel derselbe Wert an ALLEN seinen Soll-Positionen — der Bestand
      * haengt am (Lagerort, Artikel), nicht am Fach. */
     bestand: number;
+    /* IDA-232 — die SUMME aller aktiven Positionen des Artikels, dieselbe
+     * Rechnung wie „unter Soll" in `fahrzeugUebersicht`. */
+    soll: number;
     einheit: string;
   }>();
 
@@ -59,6 +65,7 @@ function verfallZeilen(
       if (!vorhanden.faecher.includes(position.fachLabel)) {
         vorhanden.faecher.push(position.fachLabel);
       }
+      vorhanden.soll += position.soll;
       continue;
     }
     jeArtikel.set(position.artikelId, {
@@ -66,6 +73,7 @@ function verfallZeilen(
       artikelName: position.artikelName,
       faecher: [position.fachLabel],
       bestand: position.fahrzeugBestand,
+      soll: position.soll,
       einheit: position.einheit,
     });
   }
@@ -79,7 +87,10 @@ function verfallZeilen(
       verfall: eintrag?.verfall ?? null,
       statusTon: eintrag ? ampelTon(eintrag.ampel) : null,
       statusText: eintrag?.text ?? null,
+      // IDA-232 — aus der Quelle, nicht aus dem Ton (DRK-340, s. u.).
+      abgelaufen: eintrag?.abgelaufen ?? false,
       bestand: artikel.bestand,
+      soll: artikel.soll,
       einheit: artikel.einheit,
       chargen: chargen.get(artikel.artikelId) ?? [],
     };
@@ -235,70 +246,70 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       <SeitenKopf
         titel={fahrzeug.name}
         /*
-         * ⚠️ DIE ART STEHT IM KOPF, NICHT ERST BEI IHRER WAHL WEITER UNTEN
-         * (DRK-309). Wer das Blatt aufschlägt, muss wissen, wovon er liest,
-         * bevor er eine Zahl darunter deutet — eine Kennung allein sagt es
-         * nicht mehr, seit eine Tasche gar keine haben muss. Die Wahl weiter
-         * unten ändert die Angabe; hier steht sie.
+         * ⚠️ DIE ART STEHT IM KOPF, NICHT ERST BEI IHRER WAHL IM REITER
+         * „EINSTELLUNGEN" (DRK-309). Wer das Blatt aufschlägt, muss wissen,
+         * wovon er liest, bevor er eine Zahl darunter deutet — eine Kennung
+         * allein sagt es nicht mehr, seit eine Tasche gar keine haben muss. Die
+         * Wahl ändert die Angabe; hier steht sie.
+         *
+         * IDA-232: DASSELBE GILT FÜR DEN STATUS. Der Schalter liegt jetzt im
+         * Reiter „Einstellungen"; ablesbar sein muss eine stillgelegte Einheit
+         * trotzdem ohne Klick — sonst sucht jemand den Check-Knopf, den es an
+         * ihr nicht gibt.
          */
         beschreibung={(
-          <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
             <Chip ton="grau" zeichen={fahrzeug.einheitenart ?? undefined}>
               {einheitenartLabel(fahrzeug.einheitenart)}
             </Chip>
             {fahrzeug.kennung ? (
               <span style={SCHRIFT.mono}>{fahrzeug.kennung}</span>
             ) : null}
+            {!fahrzeug.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
           </span>
         )}
         zurueck={{ titel: "Fahrzeuge und Taschen", href: "/verwaltung/fahrzeuge" }}
-        aktionen={(
+        aktionen={fahrzeug.aktiv ? (
           <>
             {/*
-              MIT `fahrzeugId` — und damit ausdruecklich AUCH fuer ein
-              stillgelegtes Fahrzeug. `checklistenDaten` filtert `aktiv` nur,
-              wenn gar keine Auswahl uebergeben wurde; wer hier steht, hat das
-              Fahrzeug vor sich und meint genau dieses eine.
+              IDA-232 — EINE HAUPTAKTION JE KOPF, und an einer aktiven Einheit
+              ist es der Check. NUR AM AKTIVEN FAHRZEUG — DRK-305: die
+              Check-Seite kennt nur aktive und führt für jedes andere auf die
+              Fahrzeugwahl. Ein Knopf, der woanders landet, als er verspricht,
+              ist schlimmer als keiner.
             */}
-            <ChecklisteKnopf
+            <CheckDurchfuehrenKnopf
               fahrzeugId={fahrzeug.id}
-              beschriftung="Checkliste drucken"
+              beschriftung="Check durchführen"
+              primaer
             />
             {/*
-              NUR AM AKTIVEN FAHRZEUG — DRK-305, und das ist der Unterschied zum
-              Knopf darüber. Der Druckbogen meint ausdrücklich auch ein
-              stillgelegtes Fahrzeug; die Check-Seite kennt nur aktive und führt
-              für jedes andere auf die Fahrzeugwahl. Ein Knopf, der woanders
-              landet, als er verspricht, ist schlimmer als keiner.
-            */}
-            {fahrzeug.aktiv && (
-              <CheckDurchfuehrenKnopf
-                fahrzeugId={fahrzeug.id}
-                beschriftung="Check durchführen"
-              />
-            )}
-            {/*
               DRK-485 — MATERIAL AUFLADEN, von einem anderen Ort oder neu. Nur
-              an der AKTIVEN Einheit, dieselbe Regel wie beim Check darueber:
+              an der AKTIVEN Einheit, dieselbe Regel wie beim Check davor:
               die Action nimmt auf eine stillgelegte nichts mehr an, und ein
               Knopf, der immer abgewiesen wird, ist schlimmer als keiner.
             */}
-            {fahrzeug.aktiv && (
-              <AufladenDialog
-                fahrzeugId={fahrzeug.id}
-                einheitenart={fahrzeug.einheitenart}
-                artikel={artikel}
-              />
-            )}
-            <FahrzeugAktivToggle
-              id={fahrzeug.id}
-              name={fahrzeug.name}
-              aktiv={fahrzeug.aktiv}
-              // DRK-309: die Rückfrage vor dem Löschen nennt dieselbe Art wie
-              // der Chip in der Kopfzeile darüber.
+            <AufladenDialog
+              fahrzeugId={fahrzeug.id}
               einheitenart={fahrzeug.einheitenart}
+              artikel={artikel}
             />
+            {/* Der Druckbogen — seltener gebraucht, deshalb im Menü. */}
+            <WeitereAktionen fahrzeugId={fahrzeug.id} />
           </>
+        ) : (
+          /*
+            MIT `fahrzeugId` — und damit ausdruecklich AUCH fuer ein
+            stillgelegtes Fahrzeug. `checklistenDaten` filtert `aktiv` nur,
+            wenn gar keine Auswahl uebergeben wurde; wer hier steht, hat das
+            Fahrzeug vor sich und meint genau dieses eine. An einer inaktiven
+            Einheit ist der Druck die einzige Aktion — ein Menü mit einem
+            einzigen Eintrag wäre ein Klick zu viel.
+          */
+          <ChecklisteKnopf
+            fahrzeugId={fahrzeug.id}
+            beschriftung="Checkliste drucken"
+          />
         )}
       />
 
@@ -328,19 +339,38 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         ⚠️ `md={12}` STATT `md={8}`: vier Kacheln nebeneinander unterschreiten
         ab dem md-Umbruch die 190px, die `Kachel` als Untergrenze nennt. Zwei
         Reihen zu zweit ab 768px, vier nebeneinander erst ab xl.
+
+        IDA-232 — DIE KACHELN FÜHREN HIN. „abgelaufen" und „läuft ab" öffnen
+        die Bestandsliste mit genau diesem Filter, die beiden anderen das Soll.
+        ⚠️ NUR MIT EINER ZAHL ÜBER NULL: ein Link auf eine leere Auswahl ist
+        eine Sackgasse. Und eine Zahl, die eine Meldung ohne aktives Soll
+        mitzählt (Grabstein, s. `verfallKennzahlen`), findet in der Liste keine
+        Zeile — die Liste führt nur Soll-Artikel; die Verfallsseite der
+        Verwaltung zeigt jede Meldung.
       */}
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
+      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={aktivePositionen.length} beschriftung="Soll-Positionen" />
+          <Kachel
+            zahl={aktivePositionen.length}
+            beschriftung="Soll-Positionen"
+            href={blattAdresse(fahrzeug.id, "soll")}
+          />
         </Col>
         <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={faecher} beschriftung="Fächer" />
+          <Kachel
+            zahl={faecher}
+            beschriftung="Fächer"
+            href={blattAdresse(fahrzeug.id, "soll")}
+          />
         </Col>
         <Col xs={24} md={12} xl={6}>
           <Kachel
             zahl={kennzahlen.abgelaufen}
             beschriftung="abgelaufen"
             ton={kachelTon(kennzahlen.abgelaufen, "rot", kennzahlen)}
+            href={kennzahlen.abgelaufen > 0
+              ? blattAdresse(fahrzeug.id, "bestand", "abgelaufen")
+              : undefined}
           />
         </Col>
         <Col xs={24} md={12} xl={6}>
@@ -348,71 +378,104 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
             zahl={kennzahlen.warnend}
             beschriftung="läuft ab"
             ton={kachelTon(kennzahlen.warnend, "gelb", kennzahlen)}
+            href={kennzahlen.warnend > 0
+              ? blattAdresse(fahrzeug.id, "bestand", "laeuft-ab")
+              : undefined}
           />
         </Col>
       </Row>
 
-      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: 0, marginBlockEnd: SPACE.sm }}>
-        Art
-      </h2>
-      <Card>
-        <EinheitenartWahl
-          id={fahrzeug.id}
-          einheitenart={fahrzeug.einheitenart}
-        />
-      </Card>
+      {/*
+        IDA-232 — DIE REITER. Tagesgeschäft vor Einrichtung: das Blatt öffnet
+        auf Bestand und Verfall; Soll, Plomben und die Einstellungen der
+        Einheit liegen daneben. Vorher stand alles untereinander, und bei einem
+        großen Fahrzeug begann der Verfall erst nach rund 17 000px.
+      */}
+      <FahrzeugReiter
+        reiter={[
+          {
+            schluessel: "bestand",
+            titel: "Bestand & Verfall",
+            // Dieselbe Zahl wie die Kachel — aus `verfallKennzahlen`.
+            zusatz: kennzahlen.abgelaufen > 0 ? `${kennzahlen.abgelaufen} abgelaufen` : undefined,
+            inhalt: (
+              <VerfallEditor
+                lagerortId={fahrzeug.id}
+                eintraege={verfall}
+                einheitenart={fahrzeug.einheitenart}
+                // DRK-366 — dieselbe Liste, die die Action prüft: die Seite
+                // bietet nichts an, was die Buchung danach verwirft.
+                ruecklaufZiele={zugangsZiele(db).map(({ id: zielId, name }) => ({ id: zielId, name }))}
+              />
+            ),
+          },
+          {
+            schluessel: "soll",
+            titel: "Soll",
+            zusatz: String(aktivePositionen.length),
+            inhalt: <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />,
+          },
+          {
+            schluessel: "plomben",
+            titel: "Plomben",
+            zusatz: plomben.length > 0 ? String(plomben.filter((p) => p.aktiv).length) : undefined,
+            inhalt: (
+              <Card>
+                <PlombenEditor
+                  lagerortId={fahrzeug.id}
+                  plomben={plomben}
+                  faecher={[...new Set(aktivePositionen.map((position) => position.fachLabel))]
+                    .sort((a, b) => a.localeCompare(b, "de"))}
+                />
+              </Card>
+            ),
+          },
+          {
+            schluessel: "einstellungen",
+            titel: "Einstellungen",
+            inhalt: (
+              <>
+                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: 0, marginBlockEnd: SPACE.sm }}>
+                  Art
+                </h2>
+                <Card>
+                  <EinheitenartWahl
+                    id={fahrzeug.id}
+                    einheitenart={fahrzeug.einheitenart}
+                  />
+                </Card>
 
-      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        Vorlage
-      </h2>
-      <Card>
-        <TemplateVerknuepfung
-          fahrzeugId={fahrzeug.id}
-          aktuelleVorlage={aktuelleVorlage}
-          vorlagen={vorlagen}
-          hatPositionen={aktivePositionen.length > 0}
-          einheitenart={fahrzeug.einheitenart}
-        />
-      </Card>
+                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.lg, marginBlockEnd: SPACE.sm }}>
+                  Vorlage
+                </h2>
+                <Card>
+                  <TemplateVerknuepfung
+                    fahrzeugId={fahrzeug.id}
+                    aktuelleVorlage={aktuelleVorlage}
+                    vorlagen={vorlagen}
+                    hatPositionen={aktivePositionen.length > 0}
+                    einheitenart={fahrzeug.einheitenart}
+                  />
+                </Card>
 
-      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        Soll-Bestückung
-      </h2>
-      <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />
-
-      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        Plomben
-      </h2>
-      <Card>
-        <PlombenEditor
-          lagerortId={fahrzeug.id}
-          plomben={plomben}
-          faecher={[...new Set(aktivePositionen.map((position) => position.fachLabel))]
-            .sort((a, b) => a.localeCompare(b, "de"))}
-        />
-      </Card>
-
-      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        {/*
-          ⚠️ ART-BEWUSST, NICHT NEUTRAL (DRK-309, nach dem ersten CI-Lauf).
-          Hier steht die Art FEST — es ist das Blatt genau dieser Einheit —,
-          und die Regel dieses Tickets lautet: wo sie bekannt ist, steht sie
-          auch da. Ein neutrales „Verfall in dieser Einheit" war die Ausnahme
-          von der eigenen Regel; für ein Fahrzeug liest sich der Satz jetzt
-          wieder wie vorher, für eine Tasche richtig.
-        */}
-        Verfall {inDerEinheit(fahrzeug.einheitenart)}
-      </h2>
-      <Card>
-        <VerfallEditor
-          lagerortId={fahrzeug.id}
-          eintraege={verfall}
-          einheitenart={fahrzeug.einheitenart}
-          // DRK-366 — dieselbe Liste, die die Action prüft: die Seite bietet
-          // nichts an, was die Buchung danach verwirft.
-          ruecklaufZiele={zugangsZiele(db).map(({ id, name }) => ({ id, name }))}
-        />
-      </Card>
+                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.lg, marginBlockEnd: SPACE.sm }}>
+                  Status
+                </h2>
+                <Card>
+                  <FahrzeugAktivToggle
+                    id={fahrzeug.id}
+                    name={fahrzeug.name}
+                    aktiv={fahrzeug.aktiv}
+                    // DRK-309: die Rückfrage vor dem Löschen nennt dieselbe Art
+                    // wie der Chip in der Kopfzeile.
+                    einheitenart={fahrzeug.einheitenart}
+                  />
+                </Card>
+              </>
+            ),
+          },
+        ]}
+      />
     </>
   );
 }

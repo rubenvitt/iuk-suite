@@ -18,7 +18,20 @@ import {
 
 export { VORGANG_ARTEN, deckelText, mitGetipptem } from "./journalFilterLogik";
 
-type JournalFilterProps = JournalFilterWerte & { hinweise: string[] };
+type JournalAuswahl = { value: string; label: string };
+
+type JournalFilterProps = JournalFilterWerte & {
+  /** IDA-239 — was die Wahlen „Ort" und „Artikel" anbieten. */
+  orte: JournalAuswahl[];
+  artikelOptionen: JournalAuswahl[];
+  hinweise: string[];
+};
+
+/** Sucht im sichtbaren Text der Wahl, ohne Groß-/Kleinschreibung. */
+function auswahlFilter(eingabe: string, option?: JournalAuswahl): boolean {
+  return (option?.label ?? "").toLocaleLowerCase("de")
+    .includes(eingabe.trim().toLocaleLowerCase("de"));
+}
 
 /**
  * URL-getriebener Regime-B-Filter. Der Server liefert ausschliesslich skalare,
@@ -30,6 +43,10 @@ export function JournalFilter({
   typ,
   von,
   bis,
+  ort,
+  artikel,
+  orte,
+  artikelOptionen,
   hinweise,
 }: JournalFilterProps) {
   const setzeUrl = useUrlFilter();
@@ -41,6 +58,11 @@ export function JournalFilter({
   const sichererTyp = (VORGANG_ARTEN as readonly string[]).includes(typ) ? typ : "";
   const sicherVon = normalisiereJournalTag(von);
   const sicherBis = normalisiereJournalTag(bis);
+  // Nur eine angebotene Kennung steht in der Wahl — sonst zeigte sie die rohe Id.
+  const sichererOrt = orte.some((option) => option.value === ort) ? ort : "";
+  const sichererArtikel = artikelOptionen.some((option) => option.value === artikel)
+    ? artikel
+    : "";
 
   useEffect(() => {
     setzeUrlRef.current = setzeUrl;
@@ -86,7 +108,14 @@ export function JournalFilter({
     debounce.current = null;
     committedQ.current = suche.trim();
     setzeUrl(mitGetipptem(
-      { q, typ: sichererTyp, von: sicherVon, bis: sicherBis },
+      {
+        q,
+        typ: sichererTyp,
+        von: sicherVon,
+        bis: sicherBis,
+        ort: sichererOrt,
+        artikel: sichererArtikel,
+      },
       suche,
       teil,
     ));
@@ -115,6 +144,33 @@ export function JournalFilter({
           maxLength={JOURNAL_SUCHE_MAX}
           onChange={(ereignis) => setSuche(ereignis.target.value)}
           style={{ width: 260 }}
+        />
+        {/*
+          IDA-239 — ORT UND ARTIKEL. Beide filtern serverseitig über die
+          Kennung (`?ort=`, `?artikel=`), und das Nachladen beim Scrollen fährt
+          denselben Filter (`JournalTable`, `naechsteJournalSeite`).
+        */}
+        <Select<string, JournalAuswahl>
+          allowClear
+          showSearch
+          aria-label="Ort"
+          placeholder="Alle Orte"
+          style={{ minWidth: 220 }}
+          value={sichererOrt || undefined}
+          onChange={(wert) => setParam({ ort: wert ?? "" })}
+          filterOption={auswahlFilter}
+          options={orte}
+        />
+        <Select<string, JournalAuswahl>
+          allowClear
+          showSearch
+          aria-label="Artikel"
+          placeholder="Alle Artikel"
+          style={{ minWidth: 220 }}
+          value={sichererArtikel || undefined}
+          onChange={(wert) => setParam({ artikel: wert ?? "" })}
+          filterOption={auswahlFilter}
+          options={artikelOptionen}
         />
         <Select
           allowClear
@@ -157,7 +213,7 @@ export function JournalFilter({
             bis: tag ? tag.format("YYYY-MM-DD") : "",
           })}
         />
-        {q || sichererTyp || sicherVon || sicherBis ? (
+        {q || sichererTyp || sicherVon || sicherBis || sichererOrt || sichererArtikel ? (
           <Button onClick={zuruecksetzen}>Zurücksetzen</Button>
         ) : null}
       </Flex>

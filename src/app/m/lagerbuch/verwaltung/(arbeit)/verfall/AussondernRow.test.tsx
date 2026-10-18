@@ -635,13 +635,15 @@ describe("Verfallsseite als Server Component", () => {
         "An Einheiten und in der Entnahmebox gemeldet",
       ]);
       /**
-       * ⚠️ ZWEI `li`, NICHT DREI — und das ist seit DRK-298 die Aussage dieses
-       * Tests: die Kartenliste traegt nur noch die HANDLAGER-Chargen. Die
-       * Fahrzeugmeldungen darunter sind eine Tabelle geworden, weil dort nichts
-       * zu buchen ist und stattdessen nach Fahrzeug gefiltert werden muss.
+       * ⚠️ ZWEI ZEILEN, NICHT DREI — und das ist seit DRK-298 die Aussage
+       * dieses Tests: die obere Tabelle traegt nur die HANDLAGER-Chargen (seit
+       * IDA-238 eine Tabelle statt einer `ul`). Die Fahrzeugmeldungen darunter
+       * stehen in einer eigenen, weil dort nichts zu buchen ist.
        * Begruendung im Kopf von `page.tsx`.
        */
-      expect(queryAll("[role='list'] > [role='listitem']")).toHaveLength(2);
+      expect(queryAll(`table[aria-label='Chargen im Handlager'] tbody tr[data-row-key]`)
+        .map((zeile) => zeile.getAttribute("data-row-key")))
+        .toEqual(["charge-abgelaufen", "charge-warnend"]);
       expect(document.body.textContent).toContain("ALT-42");
       expect(document.body.textContent).toContain("WARN-42");
       expect(document.body.textContent).not.toContain("GRUEN-42");
@@ -655,13 +657,27 @@ describe("Verfallsseite als Server Component", () => {
        */
       expect(document.body.textContent).toContain("Nicht zugeordnet: 2 Pkg");
       expect(document.body.textContent).toContain("Nicht zugeordnet: 3 Pkg");
-      expect(queryAll("button[aria-label$='aussondern']")).toHaveLength(1);
+      // IDA-238: KEIN Einzelknopf — beide Chargen liegen an EINEM Ort, und dort
+      // kann er nichts, was die Auswahl nicht auch kann (Kopf von
+      // `HandlagerVerfallTabelle.tsx`). Ausgesondert wird ueber die Auswahl.
+      expect(queryAll(`[data-rolle='breitansicht'] button[aria-label$='aussondern']`))
+        .toHaveLength(0);
+      // IDA-238: auswaehlbar ist nur die abgelaufene Charge.
+      expect(queryAll<HTMLInputElement>(
+        "table[aria-label='Chargen im Handlager'] tbody tr[data-row-key] input[type='checkbox']",
+      ).map((kreuz) => kreuz.disabled)).toEqual([false, true]);
       /**
        * ⚠️ DER AUSSONDERN-KNOPF HAENGT AN DER HANDLAGER-HAELFTE UND NUR DORT.
        * `aussondern` bucht ausschliesslich den Handlager-Rest; ein Knopf an
        * einer Fahrzeugmeldung schluege reproduzierbar fehl
-       * (`lesepfade/verfall.ts`). Genau EINER — an der abgelaufenen Charge.
+       * (`lesepfade/verfall.ts`). Seit IDA-238 gilt das fuer die Auswahl:
+       * ankreuzbar ist genau die abgelaufene Handlager-Charge (oben), und die
+       * Meldungstabelle traegt gar kein Kreuzchen.
        */
+      expect(queryAll("table[aria-label='Gemeldete Verfälle']")).toHaveLength(1);
+      expect(queryAll(
+        "table[aria-label='Gemeldete Verfälle'] input[type='checkbox']",
+      )).toHaveLength(0);
       expect(query<HTMLAnchorElement>("a[href='/verwaltung/fahrzeuge/rtw-warn']").textContent)
         .toContain("RTW Warnend");
     } finally {
@@ -693,8 +709,9 @@ describe("Verfallsseite als Server Component", () => {
     const ordner = "src/app/m/lagerbuch/verwaltung/(arbeit)/verfall";
     const quelle = readFileSync(join(process.cwd(), ordner, "page.tsx"), "utf8");
     expect(dynamic).toBe("force-dynamic");
-    // Die Handlager-Haelfte bleibt die Kartenliste, die sie ist.
-    expect(quelle).toContain("<ul");
+    // IDA-238: auch die Handlager-Haelfte ist eine Tabelle — in ihrer eigenen
+    // Insel, nicht in der Server Component.
+    expect(quelle).toContain("<HandlagerVerfallTabelle");
     expect(quelle).not.toContain("<Table");
     expect(quelle).not.toContain("List.Item");
     expect(quelle).toContain("lagerortVerfallListe(db, { nurWarnend: true }, jetzt)");
@@ -704,5 +721,10 @@ describe("Verfallsseite als Server Component", () => {
       "utf8",
     );
     expect(insel.startsWith('"use client";')).toBe(true);
+    const handlagerInsel = readFileSync(
+      join(process.cwd(), ordner, "HandlagerVerfallTabelle.tsx"),
+      "utf8",
+    );
+    expect(handlagerInsel.startsWith('"use client";')).toBe(true);
   });
 });

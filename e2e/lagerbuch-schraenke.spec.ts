@@ -183,6 +183,8 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     await klickeWennRuhig(artikelKnopf);
 
     // ── 3) Zugang mit Zielort buchen ───────────────────────────────────────
+    // IDA-235: die Schublade oeffnet auf „Übersicht"; „Buchen" steht auf Zugang.
+    await klickeWennRuhig(page.getByRole("tab", { name: "Buchen" }));
     const zugangForm = page.locator('form[data-rolle="zugang-form"]');
     await expect(zugangForm).toBeVisible();
 
@@ -206,11 +208,14 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     const verfallFeld = zugangForm.getByLabel("Verfallsmonat");
     await verfallFeld.click();
     await verfallFeld.fill(verfallsmonat);
-    // Panel per Klick auf eine inerte Ueberschrift schliessen, NICHT per `Escape` (bei antds
+    // Panel per Klick auf den inerten Schubladentitel schliessen, NICHT per `Escape` (bei antds
     // Picker ein ABBRUCH); der Klick daneben uebernimmt den getippten Wert. `Enter` taete es
     // seit DRK-483 auch (bis dahin schickte es das ganze Formular ab, DRK-415) — diesen Weg
     // haelt `lagerbuch-zugang-enter.spec.ts` fest, hier bleibt der Klick.
-    await page.getByRole("heading", { name: "Zugang buchen" }).click();
+    // Gescopet auf DIESE Schublade: die Huelle haelt ihre Navigationsschublade
+    // verborgen im DOM, ein blosser Titelgreifer traefe zwei.
+    await page.getByRole("dialog", { name: artikelName })
+      .getByText(artikelName, { exact: true }).click();
     await expect(verfallFeld).toHaveValue(verfallsmonat);
 
     const zugangAntwort = serverActionAntwort(page);
@@ -224,6 +229,8 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     // jetzt EBENFALLS unsere Chargennummer (`ArtikelTable.tsx` Zeile
     // `naechsteCharge.chargenNr`) — ohne Scope traf der Greifer zwei Zeilen
     // (Playwright-Strict-Mode-Fehler, gemessen im ersten Lauf dieser Datei).
+    // Die Chargentabelle steht seit IDA-235 im Reiter „Übersicht".
+    await klickeWennRuhig(page.getByRole("tab", { name: "Übersicht" }));
     const chargenTabelle = page.getByRole("table", { name: "Chargen" });
     const chargeZeile = chargenTabelle.locator("[data-row-key]").filter({ hasText: chargenNr });
     await expect(chargeZeile, "die neue Charge muss in der Chargentabelle stehen").toBeVisible();

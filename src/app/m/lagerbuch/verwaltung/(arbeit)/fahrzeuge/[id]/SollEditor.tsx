@@ -5,14 +5,11 @@ import {
   Alert,
   Button,
   Checkbox,
-  Flex,
-  Input,
   InputNumber,
   Popconfirm,
-  Select,
   type TableProps,
 } from "antd";
-import { Kartentabelle, trifftWert, werteAlsFilter } from "@/core/tabelle";
+import { Kartentabelle, useEntprellt } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import {
   sollPositionEntfernen,
@@ -21,54 +18,53 @@ import {
 } from "../../../../_actions/fahrzeuge";
 import type { ActionAusgang } from "../../../../_lib/actionErgebnis";
 import type { SollZeile } from "../../../../_lib/lesepfade/fahrzeuge";
+import {
+  artikelOptionen,
+  nachFachGruppieren,
+  OFFEN_BIS_POSITIONEN,
+  positionTrifft,
+  type FachGruppe,
+} from "../../../../_lib/positionen";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
+import {
+  FachgruppenListe,
+  NeuePosition,
+  PositionenLeiste,
+  useFachgruppen,
+  type NeuePositionWerte,
+} from "../../../../_ui/Fachgruppen";
 import { Ikone } from "../../../../_ui/ikonen";
-import s from "../../../../_ui/verwaltung.module.css";
+
+/*
+ * IDA-239: Gruppierung, Suche, Artikelwahl und die Bedienteile drumherum
+ * teilt sich dieses Soll mit der Positionsliste einer Vorlage
+ * (`_lib/positionen.ts`, `_ui/Fachgruppen.tsx`). Die Namen bleiben hier
+ * stehen, weil Tests und Aufrufer sie so kennen.
+ */
+export {
+  fachFilter,
+  OFFEN_BIS_POSITIONEN,
+  type ArtikelOption,
+} from "../../../../_lib/positionen";
 
 const SOLL_DEBOUNCE_MS = 400;
 const SPEICHER_FEHLER = "Soll-Position konnte nicht gespeichert werden.";
 const ENTFERNEN_FEHLER = "Soll-Position konnte nicht entfernt werden.";
 const RESTORE_FEHLER = "Soll-Position konnte nicht wiederhergestellt werden.";
 
-export type ArtikelOption = {
-  value: string;
-  label: string;
-  keywords: string;
-};
+export type SollGruppe = FachGruppe<SollZeile>;
 
-type SollAnzeigeZeile = SollZeile & { rowSpan: number };
-
-/** `showSearch` findet damit neben dem Namen auch das Handlager-Fach. */
-export function fachFilter(eingabe: string, option?: ArtikelOption): boolean {
-  return `${option?.label ?? ""} ${option?.keywords ?? ""}`
-    .toLocaleLowerCase("de")
-    .includes(eingabe.trim().toLocaleLowerCase("de"));
+/**
+ * Gruppiert nach Fach — Fächer alphabetisch, innerhalb nach `sort`, dann `id`;
+ * Grabsteine zählen als „entfernt". Begründung an `nachFachGruppieren`.
+ */
+export function sollNachFach(positionen: readonly SollZeile[]): SollGruppe[] {
+  return nachFachGruppieren(positionen, (position) => position.entfernt);
 }
 
-/** Sortiert eine Kopie und markiert die erste Zelle jeder echten Fachgruppe. */
-export function sollGruppieren(positionen: SollZeile[]): SollAnzeigeZeile[] {
-  const sortiert = [...positionen].sort((a, b) =>
-    a.fachLabel.localeCompare(b.fachLabel, "de")
-    || a.sort - b.sort
-    || a.id.localeCompare(b.id, "de"));
-  const gruppengroesse = new Map<string, number>();
-  for (const position of sortiert) {
-    gruppengroesse.set(
-      position.fachLabel,
-      (gruppengroesse.get(position.fachLabel) ?? 0) + 1,
-    );
-  }
-  const gesehen = new Set<string>();
-  return sortiert.map((position) => {
-    const erste = !gesehen.has(position.fachLabel);
-    gesehen.add(position.fachLabel);
-    return {
-      ...position,
-      rowSpan: erste ? (gruppengroesse.get(position.fachLabel) ?? 1) : 0,
-    };
-  });
-}
+/** Die Suche über Artikelname, Fach der Einheit und Handlager-Fach. */
+export const sollTrifft = positionTrifft;
 
 /** Verschiedene aktive Faecher je Artikel; Grabsteine zaehlen nicht mit. */
 export function faecherJeArtikelZaehlen(positionen: SollZeile[]): Map<string, number> {
@@ -88,6 +84,31 @@ const HERKUNFT_TON = {
   ueberschrieben: "gelb",
 } as const;
 
+/**
+ * ⚠️ FESTE BREITEN, DAMIT DIE TABELLEN DER FÄCHER UNTEREINANDER FLUCHTEN. Jede
+ * Gruppe ist eine eigene Tabelle; nach Inhalt gemessen stünde die Soll-Spalte
+ * in jedem Fach woanders. Die Artikelspalte trägt KEINE Breite und nimmt den
+ * Rest — `scroll.x` ist ihre Mindestbreite plus die Summe der übrigen.
+ */
+const BREITE = {
+  artikelMindestens: 280,
+  ist: 120,
+  soll: 120,
+  immerZaehlen: 120,
+  herkunft: 130,
+  aktion: 150,
+} as const;
+
+/**
+ * DIE SOLL-BESTÜCKUNG — seit IDA-232 ein LESEMODUS mit Schalter „Bearbeiten".
+ *
+ * Vorher stand in jeder Zeile ein Mengenfeld mit automatischem Speichern, ein
+ * Kästchen und ein roter Löschknopf: zweihundert offene Eingaben auf einer
+ * Fläche, die im Alltag gelesen wird. Jetzt zeigt das Soll erst einmal Zahlen;
+ * „Bearbeiten" schaltet Mengenfeld, „Immer zählen" und Entfernen frei. Das
+ * Speichern selbst ist unverändert — entprellt, je Feld, mit vorgezogenem
+ * Schreiben beim Verlassen.
+ */
 export function SollEditor({
   fahrzeugId,
   positionen,
@@ -97,9 +118,10 @@ export function SollEditor({
   positionen: SollZeile[];
   artikel: { id: string; name: string; fach: string }[];
 }) {
-  const [neuFach, setNeuFach] = useState("");
-  const [neuArtikel, setNeuArtikel] = useState<string>();
-  const [neuSoll, setNeuSoll] = useState<number | null>(1);
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [suche, setSuche] = useState("");
+  const sucheNachlauf = useEntprellt(suche);
+  const [neuOffen, setNeuOffen] = useState(false);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
   const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
@@ -112,13 +134,14 @@ export function SollEditor({
     sofort: () => void;
   }>>({});
 
-  const zeilen = useMemo(() => sollGruppieren(positionen), [positionen]);
+  const gruppen = useMemo(() => sollNachFach(positionen), [positionen]);
   const faecherJeArtikel = useMemo(() => faecherJeArtikelZaehlen(positionen), [positionen]);
-  const optionen = useMemo<ArtikelOption[]>(() => artikel.map((eintrag) => ({
-    value: eintrag.id,
-    label: eintrag.name,
-    keywords: eintrag.fach,
-  })), [artikel]);
+  const optionen = useMemo(() => artikelOptionen(artikel), [artikel]);
+  const fach = useFachgruppen(
+    gruppen,
+    sucheNachlauf,
+    positionen.filter((position) => !position.entfernt).length <= OFFEN_BIS_POSITIONEN,
+  );
 
   useEffect(() => () => {
     for (const ausstehend of Object.values(timer.current)) clearTimeout(ausstehend.id);
@@ -224,113 +247,147 @@ export function SollEditor({
   }
 
   /**
-   * ⚠️ DIESE TABELLE BEKOMMT KEINE SORTIERUNG — UND NUR EINEN FILTER, DEN AUF
-   * DAS FACH. Beides ist kein Versehen, und beides hat DIESELBE Ursache.
-   *
-   * Die Fachspalte ist ueber `onCell: { rowSpan }` zusammengefasst; die
-   * Zusammenfassung rechnet `sollGruppieren` EINMAL auf der nach `fachLabel`
-   * sortierten Kopie — also auf der VOLLEN Liste, bevor antd irgendetwas
-   * anfasst. Jeder Eingriff danach, der die Gruppen DURCHMISCHT ODER
-   * ANSCHNEIDET, macht die gemerkten Spannweiten falsch:
-   *
-   * - SORTIEREN mischt sie durch: die Zelle mit `rowSpan > 0` steht nicht mehr
-   *   am Anfang ihrer Gruppe, die Tabelle verschluckt Zeilen oder zeigt das
-   *   Fach an der falschen Stelle.
-   * - EIN FILTER AUF EINE ANDERE SPALTE schneidet sie an. Genau das tat bis
-   *   DRK-331 (dritte Reviewrunde) der Filter auf `herkunft`: ein Fach kann
-   *   Positionen verschiedener Herkunft enthalten. Faellt die ERSTE Zeile einer
-   *   Gruppe heraus, bleibt die ueberlebende auf `rowSpan: 0` und ihre
-   *   Fachzelle verschwindet; ueberlebt die erste, reicht ihre alte Spannweite
-   *   ins NAECHSTE Fach hinein. Die Eingabefelder stehen dann unter dem
-   *   falschen Fach — eine schreibende Flaeche an der falschen Zeile.
-   *
-   * Der FACHFILTER ist als einziger unbedenklich: sein Praedikat liest genau
-   * das Merkmal, nach dem gruppiert wurde, und entfernt deshalb immer GANZE
-   * Gruppen. Wer hier eine weitere Spalte filterbar macht, muss die
-   * Spannweiten aus den GEFILTERTEN Zeilen neu rechnen — kein Tor faende den
-   * Fehler, und Vitest sieht `rowSpan` nur als Zahl, nicht als Bild.
+   * Beim Verlassen des Bearbeitens verschwinden die Felder — und mit ihnen
+   * jedes `onBlur`. Was noch entprellt wartet, wird deshalb HIER vorgezogen,
+   * aus demselben Grund wie oben.
    */
-  const spalten: TableProps<SollAnzeigeZeile>["columns"] = [
-    {
-      title: "Fach",
-      dataIndex: "fachLabel",
-      key: "fach",
-      onCell: (position) => ({ rowSpan: position.rowSpan }),
-      filters: werteAlsFilter(zeilen, (position) => position.fachLabel),
-      onFilter: trifftWert<SollAnzeigeZeile>((position) => position.fachLabel),
-      render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
-    },
-    {
-      title: "Artikel",
-      dataIndex: "artikelName",
-      key: "artikel",
-      render: (artikelName: string, position) => (
-        // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-        // Zweizeiler aus Artikelname und Bestandstext, keine Geschwisterzeile
-        // in diesem Zuschnitt, die einen Skalenwert nahelegen wuerde.
-        <div style={{ display: "grid", gap: 2 }}>
-          <span
-            data-rolle={position.entfernt ? "grabstein" : undefined}
-            style={position.entfernt
-              ? { textDecoration: "line-through", opacity: 0.6 }
-              : undefined}
-          >
-            {artikelName}{" "}
-            {position.entfernt ? <Chip ton="grau">entfernt</Chip> : null}
-          </span>
-          <span style={SCHRIFT.neben}>
-            Handlager {position.handlagerBestand} {position.einheit}
-          </span>
-        </div>
-      ),
-    },
-    {
-      // DER IST STEHT IN EIGENER SPALTE, NICHT IM NEBENTEXT (DRK-315). Dort
-      // war er 12px grau und von der Handlager-Zahl daneben nur am Wort zu
-      // unterscheiden. Gross gesetzt und neben dem Soll-Feld lesen sich beide
-      // als Paar: IST ist Zahl, SOLL ist Eingabe. Keine Farbe fuer die
-      // Abweichung — Rot gehoert nicht auf eine Datenflaeche (Falle 3).
-      // KEIN `width`: sonst stimmt `scroll.x = "max-content"` nicht mehr.
-      title: "Ist",
-      dataIndex: "fahrzeugBestand",
-      key: "ist",
-      align: "right",
-      render: (bestand: number, position) => {
-        const faecherGesamt = faecherJeArtikel.get(position.artikelId) ?? 0;
-        return (
-          // `gap: 2` wie in der Artikelzelle, s. dort.
-          <div
-            data-rolle="ist"
-            style={{
-              display: "grid",
-              gap: 2,
-              justifyItems: "end",
-              opacity: position.entfernt ? 0.6 : undefined,
-            }}
-          >
-            <span style={{ whiteSpace: "nowrap" }}>
-              <span style={SCHRIFT.zahl}>{bestand}</span>{" "}
-              <span style={SCHRIFT.neben}>{position.einheit}</span>
-            </span>
-            {/*
-              Der Bestand gehoert dem ARTIKEL im Fahrzeug, nicht dem Fach.
-              Steht der Artikel in mehreren Faechern, stuende sonst dieselbe
-              grosse Zahl mehrfach da und laese sich als Ist je Fach.
-            */}
-            {faecherGesamt > 1 ? (
-              <span style={{ ...SCHRIFT.neben, whiteSpace: "nowrap" }}>
-                gesamt für {faecherGesamt} Fächer
-              </span>
-            ) : null}
-          </div>
+  function bearbeitenUmschalten(an: boolean): void {
+    if (!an) {
+      for (const positionId of Object.keys(timer.current)) {
+        ausstehendenSollCommitAusfuehren(positionId);
+      }
+    }
+    setBearbeiten(an);
+  }
+
+  function hinzufuegen(werte: NeuePositionWerte): Promise<boolean> {
+    return new Promise((fertig) => {
+      startTransition(async () => {
+        const erfolgreich = await sicherAusfuehren(
+          () => sollPositionSetzen({ fahrzeugId, ...werte }),
+          SPEICHER_FEHLER,
         );
-      },
+        // Das Fach der neuen Position aufklappen — sonst landete sie
+        // unsichtbar in einer zugeklappten Gruppe.
+        if (erfolgreich) fach.oeffnen(werte.fachLabel);
+        fertig(erfolgreich);
+      });
+    });
+  }
+
+  const artikelSpalte: NonNullable<TableProps<SollZeile>["columns"]>[number] = {
+    title: "Artikel",
+    dataIndex: "artikelName",
+    key: "artikel",
+    render: (artikelName: string, position) => (
+      // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+      // Zweizeiler aus Artikelname und Bestandstext, keine Geschwisterzeile
+      // in diesem Zuschnitt, die einen Skalenwert nahelegen wuerde.
+      <div style={{ display: "grid", gap: 2 }}>
+        <span
+          data-rolle={position.entfernt ? "grabstein" : undefined}
+          style={position.entfernt
+            ? { textDecoration: "line-through", opacity: 0.6 }
+            : undefined}
+        >
+          {artikelName}{" "}
+          {position.entfernt ? <Chip ton="grau">entfernt</Chip> : null}
+          {/* Im Lesemodus steht „immer zählen" als Kennzeichen am Namen; beim
+              Bearbeiten übernimmt die eigene Spalte mit dem Kästchen. */}
+          {!bearbeiten && !position.entfernt && (pflicht[position.id] ?? position.immerZaehlen)
+            ? <Chip ton="grau">immer zählen</Chip>
+            : null}
+        </span>
+        <span style={SCHRIFT.neben}>
+          Handlager {position.handlagerBestand} {position.einheit}
+        </span>
+      </div>
+    ),
+  };
+
+  const istSpalte: NonNullable<TableProps<SollZeile>["columns"]>[number] = {
+    // DER IST STEHT IN EIGENER SPALTE, NICHT IM NEBENTEXT (DRK-315). Dort
+    // war er 12px grau und von der Handlager-Zahl daneben nur am Wort zu
+    // unterscheiden. Gross gesetzt und neben dem Soll lesen sich beide
+    // als Paar: IST ist Zahl, SOLL ist Vorgabe. Keine Farbe fuer die
+    // Abweichung — Rot gehoert nicht auf eine Datenflaeche (Falle 3).
+    title: "Ist",
+    dataIndex: "fahrzeugBestand",
+    key: "ist",
+    align: "right",
+    width: BREITE.ist,
+    render: (bestand: number, position) => {
+      const faecherGesamt = faecherJeArtikel.get(position.artikelId) ?? 0;
+      return (
+        // `gap: 2` wie in der Artikelzelle, s. dort.
+        <div
+          data-rolle="ist"
+          style={{
+            display: "grid",
+            gap: 2,
+            justifyItems: "end",
+            opacity: position.entfernt ? 0.6 : undefined,
+          }}
+        >
+          <span style={{ whiteSpace: "nowrap" }}>
+            <span style={SCHRIFT.zahl}>{bestand}</span>{" "}
+            <span style={SCHRIFT.neben}>{position.einheit}</span>
+          </span>
+          {/*
+            Der Bestand gehoert dem ARTIKEL im Fahrzeug, nicht dem Fach.
+            Steht der Artikel in mehreren Faechern, stuende sonst dieselbe
+            grosse Zahl mehrfach da und laese sich als Ist je Fach.
+          */}
+          {faecherGesamt > 1 ? (
+            <span style={{ ...SCHRIFT.neben, whiteSpace: "nowrap" }}>
+              gesamt für {faecherGesamt} Fächer
+            </span>
+          ) : null}
+        </div>
+      );
     },
+  };
+
+  const herkunftSpalte: NonNullable<TableProps<SollZeile>["columns"]>[number] = {
+    title: "Herkunft",
+    dataIndex: "herkunft",
+    key: "herkunft",
+    width: BREITE.herkunft,
+    render: (herkunft: SollZeile["herkunft"]) => (
+      <Chip ton={HERKUNFT_TON[herkunft]}>{herkunft}</Chip>
+    ),
+  };
+
+  const lesen: TableProps<SollZeile>["columns"] = [
+    artikelSpalte,
+    istSpalte,
     {
       title: "Soll",
       dataIndex: "soll",
       key: "soll",
       align: "right",
+      width: BREITE.soll,
+      render: (wert: number, position) => (
+        <span
+          data-rolle="soll"
+          style={{ whiteSpace: "nowrap", opacity: position.entfernt ? 0.6 : undefined }}
+        >
+          {spiegel[position.id] ?? wert} <span style={SCHRIFT.neben}>{position.einheit}</span>
+        </span>
+      ),
+    },
+    herkunftSpalte,
+  ];
+
+  const schreiben: TableProps<SollZeile>["columns"] = [
+    artikelSpalte,
+    istSpalte,
+    {
+      title: "Soll",
+      dataIndex: "soll",
+      key: "soll",
+      align: "right",
+      width: BREITE.soll,
       render: (wert: number, position) => (
         // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
         // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
@@ -345,16 +402,17 @@ export function SollEditor({
           onChange={(neu) => sollGeaendert(position, neu)}
           onBlur={() => ausstehendenSollCommitAusfuehren(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
+          style={{ width: "100%" }}
         />
       ),
     },
     {
-      // IDA-223: kommt in jeden Kurzcheck, ausserhalb der Stichprobe. KEIN
-      // `filters` — Begruendung im Block ueber der Spaltenliste.
+      // IDA-223: kommt in jeden Kurzcheck, ausserhalb der Stichprobe.
       title: "Immer zählen",
       dataIndex: "immerZaehlen",
       key: "immerZaehlen",
       align: "center",
+      width: BREITE.immerZaehlen,
       render: (wert: boolean, position) => (
         <Checkbox
           checked={pflicht[position.id] ?? wert}
@@ -364,21 +422,12 @@ export function SollEditor({
         />
       ),
     },
+    herkunftSpalte,
     {
-      title: "Herkunft",
-      dataIndex: "herkunft",
-      key: "herkunft",
-      // ⚠️ KEIN `filters` HIER — Begruendung im Block ueber der Spaltenliste:
-      // eine Herkunft schneidet Fachgruppen an, und die Spannweiten sind schon
-      // gerechnet.
-      render: (herkunft: SollZeile["herkunft"]) => (
-        <Chip ton={HERKUNFT_TON[herkunft]}>{herkunft}</Chip>
-      ),
-    },
-    {
-      title: "",
+      title: "Aktion",
       dataIndex: "id",
       key: "aktion",
+      width: BREITE.aktion,
       render: (_id: string, position) => position.entfernt ? (
         // KEIN size="small" an den beiden Zeilenaktionen unten, s. o.
         <Button
@@ -415,8 +464,9 @@ export function SollEditor({
             });
           }}
         >
+          {/* KEIN `danger`: Rot ist in diesem Modul fachlich belegt (Falle 3),
+              und das Entfernen fragt ohnehin noch einmal nach. */}
           <Button
-            danger
             loading={laeuft}
             icon={<Ikone name="papierkorb" groesse={14} />}
             aria-label={`${position.artikelName} aus Fach ${position.fachLabel} entfernen`}
@@ -426,76 +476,70 @@ export function SollEditor({
     },
   ];
 
+  const spalten = bearbeiten ? schreiben : lesen;
+  const breite = BREITE.artikelMindestens + (bearbeiten
+    ? BREITE.ist + BREITE.soll + BREITE.immerZaehlen + BREITE.herkunft + BREITE.aktion
+    : BREITE.ist + BREITE.soll + BREITE.herkunft);
+
   return (
     // `minmax(0, 1fr)` STATT DER IMPLIZITEN `auto`-SPALTE: die waechst auf die
     // Mindestbreite der Tabelle, und `scroll.x` kommt nie zum Zug — gemessen
     // (DRK-315) lief das Fahrzeugblatt bei 390px um 372px waagerecht ueber,
     // statt die Tabelle in sich scrollen zu lassen.
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
-      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Kartentabelle<SollAnzeigeZeile>
-        rowKey="id"
-        aria-label="Soll-Bestückung"
-        dataSource={zeilen}
-        leer={{
-          nichts: "Noch keine Soll-Position. Lege unten die erste an.",
-          gefiltert: "Keine Soll-Position passt zum Filter.",
-        }}
-        columns={spalten}
+    <div
+      data-rolle="soll-bestueckung"
+      style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}
+    >
+      <PositionenLeiste
+        suche={suche}
+        onSuche={setSuche}
+        mehrereGruppen={fach.sichtbare.length > 1}
+        alleOffen={fach.alleOffen}
+        onAlleUmschalten={fach.alleUmschalten}
+        bearbeiten={bearbeiten}
+        onBearbeiten={bearbeitenUmschalten}
+        neuOffen={neuOffen}
+        onNeu={() => setNeuOffen(true)}
       />
-      <Flex gap={SPACE.sm} wrap align="center">
-        <Input
-          placeholder="Fach"
-          aria-label="Fach"
-          value={neuFach}
-          onChange={(ereignis) => setNeuFach(ereignis.target.value)}
-          style={{ minWidth: 160, width: "auto" }}
+
+      {neuOffen ? (
+        <NeuePosition
+          faecher={gruppen.map((gruppe) => gruppe.fach)}
+          artikel={optionen}
+          laeuft={laeuft}
+          onHinzufuegen={hinzufuegen}
+          onSchliessen={() => setNeuOffen(false)}
         />
-        <Select<string, ArtikelOption>
-          showSearch
-          filterOption={fachFilter}
-          value={neuArtikel}
-          onChange={setNeuArtikel}
-          placeholder="Artikel"
-          aria-label="Artikel"
-          style={{ minWidth: 240 }}
-          options={optionen}
+      ) : null}
+
+      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+
+      {gruppen.length === 0 ? (
+        <p style={{ ...SCHRIFT.neben, margin: 0 }}>
+          Noch keine Soll-Position. Lege oben die erste an.
+        </p>
+      ) : fach.sichtbare.length === 0 ? (
+        <p style={{ ...SCHRIFT.neben, margin: 0 }}>Keine Soll-Position passt zur Suche.</p>
+      ) : (
+        <FachgruppenListe
+          gruppen={fach.sichtbare}
+          offene={fach.offene}
+          onOffene={fach.setOffene}
+          inhalt={(gruppe) => (
+            <Kartentabelle<SollZeile>
+              rowKey="id"
+              aria-label={`Soll-Bestückung ${gruppe.fach}`}
+              dataSource={gruppe.positionen}
+              tableLayout="fixed"
+              scroll={{ x: breite }}
+              karte={{ titel: "artikel" }}
+              kartenHoehe={bearbeiten ? 260 : 170}
+              leer={{ nichts: "Keine Position in diesem Fach." }}
+              columns={spalten}
+            />
+          )}
         />
-        <InputNumber
-          min={1}
-          max={9999}
-          precision={0}
-          value={neuSoll}
-          onChange={setNeuSoll}
-          aria-label="Soll"
-        />
-        <Button
-          type="primary"
-          icon={<Ikone name="plus" groesse={16} />}
-          loading={laeuft}
-          disabled={!neuFach.trim() || !neuArtikel || !neuSoll || laeuft}
-          onClick={() => {
-            const payload = {
-              fahrzeugId,
-              fachLabel: neuFach.trim(),
-              artikelId: neuArtikel!,
-              soll: neuSoll!,
-            };
-            startTransition(async () => {
-              const erfolgreich = await sicherAusfuehren(
-                () => sollPositionSetzen(payload),
-                SPEICHER_FEHLER,
-              );
-              if (erfolgreich) {
-                setNeuArtikel(undefined);
-                setNeuSoll(1);
-              }
-            });
-          }}
-        >
-          Position hinzufügen
-        </Button>
-      </Flex>
+      )}
     </div>
   );
 }

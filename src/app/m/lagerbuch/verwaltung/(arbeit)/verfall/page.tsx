@@ -5,12 +5,14 @@ import { getDb, type DB } from "../../../_db/client";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
 import { lagerortVerfallListe, verfallListe } from "../../../_lib/lesepfade/verfall";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
-import { AussondernRow } from "./AussondernRow";
+import {
+  HandlagerVerfallTabelle,
+  type HandlagerVerfallZeile,
+} from "./HandlagerVerfallTabelle";
 import {
   OrtVerfallTabelle,
   type OrtVerfallZeile,
 } from "./OrtVerfallTabelle";
-import { VerfallItem } from "./VerfallItem";
 import { zeitFormat } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
@@ -25,20 +27,17 @@ const GEMELDET_FORMAT = zeitFormat("de-DE", {
  * DIE BEIDEN HAELFTEN DIESER SEITE SIND VERSCHIEDEN GEBAUT, UND DAS IST DER
  * PUNKT — nicht ein liegengebliebener Umbau.
  *
- * OBEN, HANDLAGER: eine Kartenliste mit eigenem `ul`/`li`. Jede Zeile traegt
- * eine Plakette, ihre LIEGEPLAETZE im Handlager (DRK-339) und, wenn die Charge
- * abgelaufen ist, einen Aussondern-Knopf. Das ist eine ARBEITSLISTE: man geht
- * sie am Regal Zeile fuer Zeile durch und bucht. Eine Tabelle mit Filtern und
- * Sortierung waere hier nicht besser, sondern im Weg.
+ * OBEN, HANDLAGER: eine ARBEITSLISTE, an der gebucht wird. Seit IDA-238 eine
+ * Tabelle (vorher `ul`/`li`) mit Suche, Statusfilter und Auswahl: abgelaufene
+ * Chargen lassen sich gemeinsam aussondern, mit EINER Rueckfrage, die alle
+ * nennt. Jede Zeile nennt weiter ihre LIEGEPLAETZE (DRK-339), und bei mehreren
+ * Liegeplaetzen kann ihr Einzelknopf genau einen Schrank ausraeumen. Begruendung des
+ * Wechsels im Kopf von `HandlagerVerfallTabelle.tsx`.
  *
  * ⚠️ UND SIE BLEIBT NACH DRINGLICHKEIT SORTIERT, NICHT NACH SCHRANK
- * (DRK-339, offene Frage „nach Schrank filterbar?"). Ein Schrankfilter waere
- * ein zweiter Zustand neben einer Liste, die ohnehin nur die auffaelligen
- * Chargen fuehrt — und er tauschte die Frage „was ist am dringendsten?" gegen
- * „was ist hier?". Solange jede Zeile ihren Ort NENNT und ihr Knopf genau
- * diesen Ort aussondern kann, ist „einen Schrank leerraeumen" ein Durchgang
- * durch dieselbe Liste. Wird sie einmal laenger als ein Schirm, ist das ein
- * eigenes Ticket, keine Ergaenzung hier.
+ * (DRK-339, offene Frage „nach Schrank filterbar?"). Ein Schrankfilter
+ * tauschte die Frage „was ist am dringendsten?" gegen „was ist hier?"; die
+ * Suche findet einen Schrank trotzdem, weil sie die Liegeplaetze mitliest.
  *
  * UNTEN, FAHRZEUGE: eine Tabelle (DRK-298). Hier gibt es NICHTS ZU BUCHEN — ein
  * Fahrzeugverfall ist eine Meldung, keine Charge, und `aussondern` bucht
@@ -47,8 +46,9 @@ const GEMELDET_FORMAT = zeitFormat("de-DE", {
  * Fahrzeugfilter. Als flache Aufzaehlung standen die Meldungen eines Fahrzeugs
  * ueber die ganze Liste verstreut.
  *
- * ⚠️ WER DIE BEIDEN ANGLEICHT, VERLIERT EINE DER BEIDEN EIGENSCHAFTEN: oben
- * die Bedienbarkeit am Regal, unten die Antwort je Fahrzeug.
+ * ⚠️ ES BLEIBEN ZWEI TABELLEN, NICHT EINE: oben wird gebucht, unten nur
+ * gemeldet. Wer sie zusammenlegt, setzt Aussondern-Knoepfe an Meldungen, die
+ * `aussondern` reproduzierbar abweist.
  *
  * ⚠️ „Liegt fuer dieses Fahrzeug nichts vor?" BEANTWORTET DIESE SEITE NICHT,
  * und zwar bewusst: `lagerortVerfallListe` liefert nur vorhandene Meldungen,
@@ -83,6 +83,20 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     gemeldetText: GEMELDET_FORMAT.format(meldung.erfasstAt),
   }));
 
+  const chargenZeilen: HandlagerVerfallZeile[] = chargen.map((charge) => ({
+    chargeId: charge.chargeId,
+    chargenNr: charge.chargenNr,
+    artikelName: charge.artikelName,
+    verfall: charge.verfall,
+    verfallText: fmtVerfall(charge.verfall),
+    statusTon: ampelTon(charge.ampel),
+    statusText: charge.text,
+    abgelaufen: charge.abgelaufen,
+    rest: charge.rest,
+    einheit: charge.einheit,
+    orte: charge.orte,
+  }));
+
   return (
     <>
       <SeitenKopf
@@ -94,29 +108,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         {chargen.length === 0 ? (
           <Empty description="Keine auffällige Charge im Handlager." />
         ) : (
-          <ul role="list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {chargen.map((charge) => (
-              <VerfallItem
-                key={charge.chargeId}
-                artikelName={charge.artikelName}
-                chargenNr={charge.chargenNr}
-                verfall={charge.verfall}
-                ampel={charge.ampel}
-                text={charge.text}
-                rest={charge.rest}
-                einheit={charge.einheit}
-                orte={charge.orte}
-                aktion={charge.abgelaufen ? (
-                  <AussondernRow
-                    chargeId={charge.chargeId}
-                    bezeichnung={`${charge.chargenNr} · ${charge.artikelName}`}
-                    orte={charge.orte}
-                    einheit={charge.einheit}
-                  />
-                ) : undefined}
-              />
-            ))}
-          </ul>
+          <HandlagerVerfallTabelle zeilen={chargenZeilen} />
         )}
       </Card>
 

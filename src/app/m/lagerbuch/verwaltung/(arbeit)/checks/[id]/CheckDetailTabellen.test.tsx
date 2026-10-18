@@ -16,6 +16,7 @@ import {
   CheckDetailTabellen,
   type CheckDetailTabellenProps,
 } from "./CheckDetailTabellen";
+import { ABSCHNITTE } from "./abweichungen";
 
 /**
  * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
@@ -127,7 +128,9 @@ afterEach(async () => {
 
 describe("CheckDetailTabellen", () => {
   it("rendert jede der fünf Tabellen mit einer gefüllten DTO-Zeile", async () => {
-    await mount(<CheckDetailTabellen {...GEFUELLT} />);
+    // Ganz aufgeklappt (IDA-236): sonst stuende von den beiden Flaschen nur die
+    // ungemessene da — die gemessene mit 50 % ist keine Abweichung.
+    await mount(<CheckDetailTabellen {...GEFUELLT} alleAnfangs={[...ABSCHNITTE]} />);
 
     expect(queryAll(".ant-card-head-title").map((titel) => titel.textContent)).toEqual([
       "Abgleich",
@@ -256,9 +259,16 @@ describe("CheckDetailTabellen", () => {
      * liest sich wie ein doppelt gerendertes Bauteil. Die Aussage ist
      * unveraendert: FUENF Tabellen, EIN Satz.
      */
-    const breit = queryAll('[data-rolle="breitansicht"]');
-    expect(breit, "fuenf Tabellen, fuenf breite Darstellungen").toHaveLength(5);
-    const treffer = breit.filter((kasten) => (kasten.textContent ?? "").includes(SATZ));
+    /*
+     * ⚠️ SEIT IDA-236 STEHEN LEERE ABSCHNITTE ALS ZEILE IN DER SAMMELKARTE,
+     * nicht mehr als leere Tabelle — der Satz ist derselbe, er steht nur
+     * einmal je Abschnitt statt doppelt (Tabelle und Kartenliste). Die
+     * Aussage bleibt: FUENF Abschnitte, EIN Satz.
+     */
+    expect(queryAll('[data-rolle="breitansicht"]'), "keine leere Tabelle mehr").toHaveLength(0);
+    const zeilen = queryAll('[data-rolle="check-ruhiger-abschnitt"]');
+    expect(zeilen, "fuenf Abschnitte, fuenf Zeilen").toHaveLength(5);
+    const treffer = zeilen.filter((zeile) => (zeile.textContent ?? "").includes(SATZ));
     expect(treffer).toHaveLength(5);
     expect(document.body.textContent).not.toContain("Keine Positionen erfasst.");
     expect(document.body.textContent).not.toContain("Keine Einzelposition erfasst.");
@@ -330,5 +340,89 @@ describe("CheckDetailTabellen", () => {
       abgleich.querySelectorAll("tbody tr[data-row-key]"),
       (zeile) => zeile.getAttribute("data-row-key"),
     )).toEqual(["artikel-voll"]);
+  });
+
+  describe("zuerst nur die Abweichungen (IDA-236)", () => {
+    const ruhig: CheckDetailTabellenProps["abgleichZeilen"][number] = {
+      ...GEFUELLT.abgleichZeilen[0]!,
+      id: "artikel-ruhig",
+      artikel: "Ruhig",
+      sollText: "4", istText: "4", korrekturText: "0", nachgefuelltText: "0",
+      sollZahl: 4, istZahl: 4, korrekturZahl: 0, nachgefuelltZahl: 0, offenZahl: 0,
+      offenChip: { text: "vollständig", ton: "ok", zeichen: null },
+    };
+    const zeilenIn = (beschriftung: string) => Array.from(
+      document.querySelectorAll(`${BREIT} table[aria-label='${beschriftung}'] tbody tr[data-row-key]`),
+      (zeile) => zeile.getAttribute("data-row-key"),
+    );
+    const knopf = (text: string) => Array.from(document.querySelectorAll<HTMLButtonElement>("button"))
+      .find((b) => b.textContent === text);
+
+    it("zeigt beim Öffnen nur die abweichende Zeile, mit Zähler und Umschalter", async () => {
+      const ersetzen = vi.spyOn(window.history, "replaceState");
+      await mount(
+        <CheckDetailTabellen {...GEFUELLT} abgleichZeilen={[GEFUELLT.abgleichZeilen[0]!, ruhig]} />,
+      );
+
+      expect(zeilenIn("Abgleich")).toEqual(["artikel-1"]);
+      const abgleich = query("#abschnitt-abgleich");
+      expect(abgleich.textContent).toContain("1 von 2 Artikeln mit Abweichung");
+      // Beim Öffnen schreibt die Insel nichts in die Adresse — sie stimmt schon.
+      expect(ersetzen).not.toHaveBeenCalled();
+
+      await clickElement(knopf("Alle anzeigen")!);
+      expect(zeilenIn("Abgleich")).toEqual(["artikel-1", "artikel-ruhig"]);
+      expect(abgleich.textContent).toContain("Alle 2 Artikel · 1 mit Abweichung");
+      expect(String(ersetzen.mock.calls.at(-1)?.[2])).toMatch(/\?alle=abgleich$/);
+
+      await clickElement(knopf("Nur Abweichungen")!);
+      expect(zeilenIn("Abgleich")).toEqual(["artikel-1"]);
+      expect(String(ersetzen.mock.calls.at(-1)?.[2])).not.toMatch(/alle=/);
+    });
+
+    it("ohne Umschalter, wenn jede Zeile abweicht", async () => {
+      await mount(<CheckDetailTabellen {...GEFUELLT} />);
+      expect(query("#abschnitt-abgleich").querySelector("[data-rolle='check-abschnitt-stand']"))
+        .toBeNull();
+      expect(zeilenIn("Abgleich")).toEqual(["artikel-1"]);
+    });
+
+    it("fasst einen Abschnitt ohne Abweichung zu einer Zeile zusammen und klappt ihn auf", async () => {
+      await mount(<CheckDetailTabellen {...GEFUELLT} abgleichZeilen={[ruhig]} />);
+
+      // Keine Tabelle, eine Zeile — mit der Zahl, damit „keine" nicht nach leer klingt.
+      expect(zeilenIn("Abgleich")).toEqual([]);
+      const zeile = query("#abschnitt-abgleich");
+      expect(zeile.getAttribute("data-rolle")).toBe("check-ruhiger-abschnitt");
+      expect(zeile.textContent).toContain("Abgleich");
+      expect(zeile.textContent).toContain("keine Abweichung (1 Artikel)");
+
+      await clickElement(knopf("Anzeigen")!);
+      expect(zeilenIn("Abgleich")).toEqual(["artikel-ruhig"]);
+      expect(exists("[data-rolle='check-ruhiger-abschnitt']#abschnitt-abgleich")).toBe(false);
+      // Der gedrückte Knopf ist weg; der Fokus landet auf seinem Gegenstück.
+      const zurueck = knopf("Ausblenden")!;
+      expect(document.activeElement).toBe(zurueck);
+
+      await clickElement(zurueck);
+      expect(zeilenIn("Abgleich")).toEqual([]);
+      expect(document.activeElement?.textContent).toBe("Anzeigen");
+    });
+
+    it("öffnet die Abschnitte aus der Adresse ganz", async () => {
+      await mount(
+        <CheckDetailTabellen {...GEFUELLT} abgleichZeilen={[ruhig]} alleAnfangs={["abgleich"]} />,
+      );
+      expect(zeilenIn("Abgleich")).toEqual(["artikel-ruhig"]);
+      expect(query("#abschnitt-abgleich").textContent).toContain("1 Artikel · keine Abweichung");
+    });
+
+    it("nennt einen leeren Abschnitt nie „ohne Abweichung“", async () => {
+      await mount(<CheckDetailTabellen {...GEFUELLT} geraeteZeilen={[]} />);
+      const zeile = query("#abschnitt-geraete");
+      expect(zeile.textContent).toContain("Keine Geräte in diesem Check.");
+      expect(zeile.textContent).not.toContain("Abweichung");
+      expect(zeile.querySelector("button")).toBeNull();
+    });
   });
 });

@@ -404,4 +404,28 @@ describe("Kartentabelle", () => {
     await clickElement(kreuz);
     expect(gewaehlt.mock.calls[0]?.[0]).toEqual(["b", "a"]);
   });
+
+  /*
+   * IDA-238 — DIE SPERRE AUS `getCheckboxProps` GILT AUCH AUF DER KARTE. Ohne
+   * sie liesse sich auf dem Telefon waehlen, was in der Tabelle gesperrt ist.
+   */
+  it("sperrt auf der Karte, was die Tabelle sperrt", async () => {
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={ZEILEN}
+        columns={SPALTEN}
+        leer={{ nichts: "Nichts da." }}
+        rowSelection={{
+          selectedRowKeys: [],
+          getCheckboxProps: (zeile) => ({ disabled: zeile.id === "a" }),
+        }}
+      />,
+    );
+    const karte = (id: string) =>
+      query<HTMLInputElement>(`${KARTEN} > li[data-karte-key="${id}"] input[type="checkbox"]`);
+    expect(karte("a").disabled).toBe(true);
+    expect(karte("b").disabled).toBe(false);
+  });
 });

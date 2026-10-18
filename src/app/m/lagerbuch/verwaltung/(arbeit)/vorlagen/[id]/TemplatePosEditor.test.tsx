@@ -11,6 +11,7 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import type { TemplatePositionZeile } from "../../../../_lib/lesepfade/fahrzeuge";
+import { OFFEN_BIS_POSITIONEN } from "../../../../_lib/positionen";
 import {
   fachFilter,
   TemplatePosEditor,
@@ -73,6 +74,21 @@ function knopf(text: string): HTMLButtonElement {
   return treffer;
 }
 
+/** Rahmen um die breite Darstellung — jede Zeile steht als Zeile UND Karte im Baum. */
+const BREIT = '[data-rolle="breitansicht"]';
+
+/** IDA-239: Lesemodus; Mengenfeld, Kästchen und Entfernen erst nach „Bearbeiten". */
+async function bearbeiten(): Promise<void> {
+  const schalter = query<HTMLButtonElement>("button[role='switch']");
+  if (schalter.getAttribute("aria-checked") !== "true") await clickElement(schalter);
+  await warte();
+}
+
+async function neuePositionOeffnen(): Promise<void> {
+  await clickElement(knopf("Position hinzufügen"));
+  await warte();
+}
+
 async function waehleOption(text: string): Promise<void> {
   await act(async () => {
     query("[aria-label='Artikel']")
@@ -88,6 +104,7 @@ async function waehleOption(text: string): Promise<void> {
 }
 
 async function entfernenBestaetigen(): Promise<void> {
+  await bearbeiten();
   await clickElement(query(
     "button[aria-label='Mullbinde aus Fach Fach A entfernen']",
   ));
@@ -100,11 +117,11 @@ async function entfernenBestaetigen(): Promise<void> {
   await warte();
 }
 
-async function editorMounten(): Promise<void> {
+async function editorMounten(positionen: TemplatePositionZeile[] = POSITIONEN): Promise<void> {
   await mount(
     <TemplatePosEditor
       templateId="template-1"
-      positionen={POSITIONEN}
+      positionen={positionen}
       artikel={ARTIKEL}
     />,
   );
@@ -125,39 +142,89 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("TemplatePosEditor — echte Vorlagenzeilen und Tabelle", () => {
-  it("rendert vier Spalten, reale Metadaten und stabile Tabellenattribute", async () => {
+describe("TemplatePosEditor — Fachgruppen und Lesemodus (IDA-239)", () => {
+  it("setzt je Fach eine Überschrift mit Zähler und eine eigene Tabelle", async () => {
     await editorMounten();
 
-    expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Fach", "Artikel", "Soll", "Immer zählen", ""]);
-    expect(query("table").getAttribute("aria-label")).toBe("Vorlagen-Positionen");
+    expect(queryAll("[data-rolle='fachkopf']").map((kopf) => kopf.textContent))
+      .toEqual(["Fach A", "Fach B"]);
+    expect(document.body.textContent).toContain("1 Position");
+    expect(queryAll("table").map((tabelle) => tabelle.getAttribute("aria-label")))
+      .toEqual(["Vorlagen-Positionen Fach A", "Vorlagen-Positionen Fach B"]);
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
       zeile.getAttribute("data-row-key"))).toEqual(["pos-a", "pos-b"]);
-    expect(query("tr[data-row-key='pos-a']").textContent)
-      .toContain("Mullbinde");
-    expect(query("tr[data-row-key='pos-a']").textContent)
+    expect(query(`${BREIT} tr[data-row-key='pos-a']`).textContent)
       .toContain("Handlager C2 · Rol");
-    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- die zwei Soll-Felder
-    // tragen die volle 44px-Bedienhoehe, keine `-sm`-Modifikatorklasse.
-    expect(queryAll("tbody .ant-input-number")).toHaveLength(2);
-    expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
     expect(document.body.querySelector(".ant-pagination")).toBeNull();
-    expect(query(".ant-table-content").getAttribute("style"))
-      .toContain("overflow-x: auto");
   });
 
-  it("enthält kein Formular und öffnet zum Entfernen einen Popconfirm statt Modal", async () => {
+  it("liest zuerst: Menge als Text, „immer zählen“ als Kennzeichen, kein Formular", async () => {
     await editorMounten();
+
+    expect(Array.from(queryAll("table")[0]!.querySelectorAll("thead th"))
+      .map((th) => th.textContent)).toEqual(["Artikel", "Soll"]);
+    expect(queryAll(`${BREIT} .ant-input-number`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-checkbox`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} button[aria-label$='entfernen']`)).toHaveLength(0);
+    expect(query(`${BREIT} tr[data-row-key='pos-a'] [data-rolle='soll']`).textContent)
+      .toBe("3 Rol");
+    expect(query(`${BREIT} tr[data-row-key='pos-b']`).textContent).toContain("immer zählen");
+    expect(query(`${BREIT} tr[data-row-key='pos-a']`).textContent).not.toContain("immer zählen");
     expect(queryAll("form")).toHaveLength(0);
     expect(queryAll(".ant-form-item")).toHaveLength(0);
+  });
 
+  it("schaltet mit „Bearbeiten“ Mengenfeld, Kästchen und Entfernen frei", async () => {
+    await editorMounten();
+    await bearbeiten();
+
+    expect(Array.from(queryAll("table")[0]!.querySelectorAll("thead th"))
+      .map((th) => th.textContent)).toEqual(["Artikel", "Soll", "Immer zählen", "Aktion"]);
+    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5).
+    expect(queryAll("tbody .ant-input-number")).toHaveLength(2);
+    expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
+    // Rot ist fachlich belegt (Falle 3) — der Entfernen-Knopf ist neutral.
+    expect(queryAll(`${BREIT} .ant-btn-dangerous`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-table-filter-trigger`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-table-column-sorters`)).toHaveLength(0);
+  });
+
+  it("öffnet zum Entfernen einen Popconfirm statt Modal", async () => {
+    await editorMounten();
+    await bearbeiten();
     await clickElement(query(
       "button[aria-label='Mullbinde aus Fach Fach A entfernen']",
     ));
     await warte();
     expect(document.body.querySelector(".ant-popconfirm")).not.toBeNull();
     expect(document.body.querySelector(".ant-modal")).toBeNull();
+  });
+
+  it("beginnt eine große Vorlage zugeklappt und klappt Suchtreffer auf", async () => {
+    const viele: TemplatePositionZeile[] = Array.from(
+      { length: OFFEN_BIS_POSITIONEN + 1 },
+      (_, i) => ({
+        ...POSITIONEN[0]!,
+        id: `pos-${i}`,
+        artikelId: `artikel-${i}`,
+        artikelName: i === 7 ? "Pflaster gross" : `Artikel ${i}`,
+        fachLabel: `Fach ${i % 3}`,
+        sort: i,
+      }),
+    );
+    await editorMounten(viele);
+
+    expect(queryAll("[data-rolle='fachkopf']")).toHaveLength(3);
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
+
+    await fill("input[aria-label='Artikel oder Fach suchen…']", "pflaster");
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    await warte();
+
+    expect(queryAll("[data-rolle='fachkopf']").map((kopf) => kopf.textContent))
+      .toEqual(["Fach 1"]);
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["pos-7"]);
   });
 
   it("filtert den konkret typisierten Select über Name und Handlager-Fach", () => {
@@ -175,6 +242,7 @@ describe("TemplatePosEditor — echte Vorlagenzeilen und Tabelle", () => {
 describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
   it("committet erst bei 400 ms den vollständigen Edit-Payload", async () => {
     await editorMounten();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "5");
 
     await act(async () => { await vi.advanceTimersByTimeAsync(399); });
@@ -195,6 +263,7 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
 
   it("ersetzt einen schnellen Entwurf und sendet nur den neuesten Wert", async () => {
     await editorMounten();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "5");
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
     await fill("input[aria-label='Soll für Mullbinde']", "7");
@@ -210,8 +279,22 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
     }));
   });
 
+  it("zieht beim Verlassen des Bearbeitens den ausstehenden Wert vor", async () => {
+    await editorMounten();
+    await bearbeiten();
+    await fill("input[aria-label='Soll für Mullbinde']", "6");
+    await clickElement(query<HTMLButtonElement>("button[role='switch']"));
+    await warte();
+
+    expect(mocks.setzen).toHaveBeenCalledTimes(1);
+    expect(mocks.setzen).toHaveBeenCalledWith(expect.objectContaining({ id: "pos-a", soll: 6 }));
+    expect(query(`${BREIT} tr[data-row-key='pos-a'] [data-rolle='soll']`).textContent)
+      .toBe("6 Rol");
+  });
+
   it("räumt beim Unmount alle ausstehenden Timer auf", async () => {
     await editorMounten();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "9");
     await unmount();
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
@@ -220,6 +303,7 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
 
   it("cancelt den Pending-Timer, bevor dieselbe Position entfernt wird", async () => {
     await editorMounten();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "8");
     await entfernenBestaetigen();
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
@@ -249,6 +333,7 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
     await editorMounten();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "8");
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     await warte();
@@ -263,6 +348,7 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
 describe("TemplatePosEditor — immer zählen (IDA-223)", () => {
   it("zeigt den gespeicherten Schalter und speichert einen Klick sofort", async () => {
     await editorMounten();
+    await bearbeiten();
     const schalter = (artikel: string) => queryAll<HTMLInputElement>(
       `input[aria-label='${artikel} in jedem Kurzcheck zählen']`)[0];
     expect(schalter("Kompressen").checked).toBe(true);
@@ -279,6 +365,7 @@ describe("TemplatePosEditor — immer zählen (IDA-223)", () => {
   it("nimmt den Haken zurück, wenn das Speichern scheitert", async () => {
     mocks.setzen.mockResolvedValueOnce({ ok: false, fehler: "kaputt" });
     await editorMounten();
+    await bearbeiten();
     const schalter = () => queryAll<HTMLInputElement>(
       "input[aria-label='Mullbinde in jedem Kurzcheck zählen']")[0];
     await clickElement(schalter());
@@ -290,10 +377,11 @@ describe("TemplatePosEditor — immer zählen (IDA-223)", () => {
 describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
   it("sendet beim Hinzufügen den exakten Payload und leert erst nach Erfolg", async () => {
     await editorMounten();
+    await neuePositionOeffnen();
     await fill("input[aria-label='Fach']", " Fach Neu ");
     await waehleOption("Pflaster");
     await fill("input[aria-label='Soll']", "4");
-    await clickElement(knopf("Position hinzufügen"));
+    await clickElement(knopf("Hinzufügen"));
     await warte();
 
     expect(mocks.setzen).toHaveBeenCalledWith({
@@ -305,7 +393,7 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
     expect(query<HTMLInputElement>("input[aria-label='Fach']").value)
       .toBe(" Fach Neu ");
     expect(query<HTMLInputElement>("input[aria-label='Soll']").value).toBe("1");
-    expect(query(".ant-select").textContent).not.toContain("Pflaster");
+    expect(query("[data-rolle='neue-position']").textContent).not.toContain("Pflaster");
   });
 
   // Bei `ok:false` der Satz aus der Action — nur er unterscheidet die
@@ -329,15 +417,16 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
     await editorMounten();
+    await neuePositionOeffnen();
     await fill("input[aria-label='Fach']", "Fach X");
     await waehleOption("Pflaster");
     await fill("input[aria-label='Soll']", "6");
-    await clickElement(knopf("Position hinzufügen"));
+    await clickElement(knopf("Hinzufügen"));
     await warte();
 
     expect(query<HTMLInputElement>("input[aria-label='Fach']").value).toBe("Fach X");
     expect(query<HTMLInputElement>("input[aria-label='Soll']").value).toBe("6");
-    expect(query(".ant-select").textContent).toContain("Pflaster");
+    expect(query("[data-rolle='neue-position']").textContent).toContain("Pflaster");
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
@@ -374,46 +463,5 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
-  });
-  /**
-   * ⚠️ DER BEWEIS, DASS DIE SOLL-SPALTE UEBER DEN GESPEICHERTEN WERT SORTIERT.
-   * Nicht ueber den Spiegel und nicht ueber das Eingabefeld — sonst sortierte
-   * sich die Zeile waehrend des Tippens unter dem Finger weg.
-   */
-  it("sortiert die Soll-Spalte über den gespeicherten Wert", async () => {
-    await editorMounten();
-
-    const kopf = queryAll<HTMLElement>("thead th")
-      .find((zelle) => (zelle.textContent ?? "").includes("Soll"));
-    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
-
-    const aufsteigend = queryAll("tbody tr[data-row-key]")
-      .map((zeile) => zeile.getAttribute("data-row-key"));
-    const erwartet = [...POSITIONEN]
-      .sort((a, b) => a.soll - b.soll)
-      .map((position) => position.id);
-    expect(aufsteigend).toEqual(erwartet);
-  });
-
-  it("filtert nach Fach über den Spaltenkopf", async () => {
-    await editorMounten();
-
-    const kopf = queryAll<HTMLElement>("thead th")
-      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
-    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
-
-    const offen = () => document.body.querySelector<HTMLElement>(
-      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
-    );
-    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
-      .find((li) => li.textContent === "Fach B");
-    await clickElement(eintrag!);
-    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
-    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((knopf) => knopf.textContent === "OK");
-    await clickElement(ok!);
-
-    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
-      .toEqual(["pos-b"]);
   });
 });

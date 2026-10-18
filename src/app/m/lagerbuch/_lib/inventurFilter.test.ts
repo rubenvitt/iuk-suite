@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterIstLeer, inventurTrifft, LEERER_INVENTUR_FILTER } from "./inventurFilter";
+import { filterIstLeer, inventurSucheTrifft, inventurTrifft, LEERER_INVENTUR_FILTER } from "./inventurFilter";
 import { kategorieSchluessel } from "./kategorie";
 
 const HYG = kategorieSchluessel("Hygiene");
@@ -22,5 +22,21 @@ describe("inventurTrifft", () => {
     expect(inventurTrifft({ fach: "A1", kategorie: "Hygiene" }, f)).toBe(true);
     expect(inventurTrifft({ fach: "a1", kategorie: "Hygiene" }, f)).toBe(false);
     expect(inventurTrifft({ fach: "B2", kategorie: "Hygiene" }, f)).toBe(false);
+  });
+});
+
+describe("inventurSucheTrifft (IDA-237)", () => {
+  const zeile = { name: "Kompresse steril 10×10", fach: "Regal B" };
+
+  it("findet ueber Name und Fach, gefaltet und ohne Rand", () => {
+    expect(inventurSucheTrifft(zeile, "KOMPRESSE")).toBe(true);
+    expect(inventurSucheTrifft(zeile, " regal b ")).toBe(true);
+    expect(inventurSucheTrifft(zeile, "10×10")).toBe(true);
+    expect(inventurSucheTrifft(zeile, "Pflaster")).toBe(false);
+  });
+
+  it("laesst mit leerer Suche alles durch", () => {
+    expect(inventurSucheTrifft(zeile, "")).toBe(true);
+    expect(inventurSucheTrifft(zeile, "   ")).toBe(true);
   });
 });

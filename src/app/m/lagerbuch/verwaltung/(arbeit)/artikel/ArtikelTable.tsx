@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Flex, Select, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
@@ -30,7 +30,9 @@ import {
   ARTIKEL_MINDEST_ZUSTAENDE,
   ARTIKEL_STATUS_ZUSTAENDE,
   LEERER_FILTER,
+  spaltenFilterFuer,
   type ArtikelFilterZeile,
+  type ArtikelListenFilter,
   type ArtikelFilterZustand,
 } from "../../../_lib/artikelFilter";
 import {
@@ -108,6 +110,27 @@ const BREITE = {
 /** Die fachliche Ordnung der Ampel — rot zuerst, nicht alphabetisch. */
 const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
 
+/**
+ * IDA-239 — DER OFFENE ARTIKEL STEHT IN DER ADRESSE (`?artikel=<id>`).
+ *
+ * `replaceState` und nicht `router.replace`: die Seite liest den Parameter nur
+ * beim ersten Aufschlagen; ein Router-Wechsel ließe sie für jedes Öffnen und
+ * Schließen die ganze Artikelliste serverseitig neu rechnen. Next gleicht
+ * `useSearchParams` mit dem nativen Verlauf ab. Ersetzt wird, nicht
+ * angehängt: „Zurück" führt dorthin, woher man kam, nicht durch jede
+ * geöffnete Schublade.
+ */
+function adresseSetzen(name: string, wert: string | null): void {
+  const url = new URL(window.location.href);
+  if ((url.searchParams.get(name) ?? null) === wert) return;
+  if (wert === null) url.searchParams.delete(name);
+  else url.searchParams.set(name, wert);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+/** `useSyncExternalStore` ohne Quelle — nur „Server oder Browser?". */
+const keinAbo = () => () => {};
+
 /** Nur fuer die Vorschau der Sammelaenderung, die alphabetisch bleibt. */
 const NACH_NAMEN = nachText<ArtikelAnzeigeZeile>((zeile) => zeile.name);
 
@@ -115,14 +138,39 @@ export function ArtikelTable({
   zeilen,
   fahrzeuge,
   ausgeblendeteKategorien = [],
+  startArtikel,
+  startFilter,
 }: {
   zeilen: ArtikelAnzeigeZeile[];
   fahrzeuge: FahrzeugOption[];
   /** DRK-294 — gefaltete Schluessel, gelesen fuer das Konto aus der Sitzung. */
   ausgeblendeteKategorien?: string[];
+  /** IDA-239 — aus `?artikel=`: diese Schublade steht beim Aufschlagen offen. */
+  startArtikel?: string;
+  /** IDA-239 — aus `?filter=`: dieser Spaltenfilter ist vorgesetzt. */
+  startFilter?: ArtikelListenFilter;
 }) {
   const [filter, setFilter] = useState<ArtikelFilterZustand>(LEERER_FILTER);
-  const [offenerArtikel, setOffenerArtikel] = useState<string | null>(null);
+  const [offenerArtikel, setOffenerArtikel] = useState<string | null>(startArtikel ?? null);
+  /*
+   * Ein neuer Wunsch aus der Adresse (Link auf dieselbe Seite mit anderem
+   * Artikel) öffnet dessen Schublade — im Rendern abgeglichen, nicht im Effekt
+   * (dasselbe Muster wie der Suchabgleich in `_ui/Fachgruppen.tsx`).
+   */
+  const [gewuenscht, setGewuenscht] = useState(startArtikel);
+  if (gewuenscht !== startArtikel) {
+    setGewuenscht(startArtikel);
+    if (startArtikel) setOffenerArtikel(startArtikel);
+  }
+  useEffect(() => {
+    adresseSetzen("artikel", offenerArtikel);
+  }, [offenerArtikel]);
+  /*
+   * Die Schublade erst im Browser: eine `Drawer`, die schon im Server-HTML
+   * offen stünde, hat dort keinen Ort für ihr Portal (antd warnt) — und
+   * `?artikel=` ist der einzige Weg, auf dem sie beim ersten Rendern offen ist.
+   */
+  const imBrowser = useSyncExternalStore(keinAbo, () => true, () => false);
   const [exportLaeuft, startExport] = useTransition();
   const [exportFehler, setExportFehler] = useState<string | null>(null);
   /**
@@ -196,7 +244,19 @@ export function ArtikelTable({
    * Deshalb wird nur der ZUSTAND gemerkt und die Liste daraus ABGELEITET.
    * Begruendung und Rechnung stehen in `core/tabelle/angezeigt.ts`.
    */
-  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>(
+    () => spaltenFilterFuer(startFilter),
+  );
+
+  /**
+   * Wer die Spaltenköpfe selbst bedient, hat den Filter aus der Adresse
+   * übernommen — er steht danach nicht mehr dort, sonst setzte ein Neuladen
+   * einen Zustand zurück, den die Person schon geändert hat.
+   */
+  function spaltenFilterAendern(neu: FilterZustand): void {
+    setSpaltenFilter(neu);
+    adresseSetzen("filter", null);
+  }
   const [sortierung, setSortierung] = useState<SortZustand>({
     spalte: "name",
     richtung: "ascend",
@@ -289,7 +349,7 @@ export function ArtikelTable({
   /** Raeumt BEIDE Wege ab — sonst bliebe der Knopf sichtbar und wirkungslos. */
   function zuruecksetzen(): void {
     setFilter(LEERER_FILTER);
-    setSpaltenFilter({});
+    spaltenFilterAendern({});
   }
 
   // ⚠️ NICHT-OPTIONALER TYP, und das ist kein Stil: mit dem optionalen
@@ -614,7 +674,7 @@ export function ArtikelTable({
              * NUR der Zustand wird gemerkt, nie die Liste (Falle 15).
              */
             filter={spaltenFilter}
-            onFilter={setSpaltenFilter}
+            onFilter={spaltenFilterAendern}
             sortierung={sortierung}
             onSortierung={setSortierung}
             /*
@@ -687,7 +747,7 @@ export function ArtikelTable({
         />
       ) : null}
 
-      {offenerArtikel ? (
+      {offenerArtikel && imBrowser ? (
         <ArtikelDrawer
           key={offenerArtikel}
           id={offenerArtikel}

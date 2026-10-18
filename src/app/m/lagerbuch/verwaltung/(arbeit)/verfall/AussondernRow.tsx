@@ -230,8 +230,10 @@ export function AussondernRow({
             e2e/lagerbuch-mobil.spec.ts:312 misst das heute nur auf
             /verwaltung/bestellung -- diese Seite ist (noch) nicht im
             Testpfad, die Regel gilt trotzdem. */}
+        {/* KEIN `danger` (IDA-238): Rot ist fachlich belegt (Falle 3), und der
+            Status daneben sagt „abgelaufen" schon rot — ein roter Knopf je
+            Zeile machte daraus eine Wand. Die Rueckfrage traegt die Vorsicht. */}
         <Button
-          danger
           loading={laeuft}
           icon={<Ikone name="kreuz" groesse={14} />}
           aria-label={`${bezeichnung} aussondern`}

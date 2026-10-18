@@ -42,6 +42,16 @@ import { Ikone } from "../../../_ui/ikonen";
  * KEIN `size` (Falle 4): `size="large"` waere 72px; die Arbeitsdichte des
  * Verwaltungsasts steht in `core/theme/theme.ts` und ist schon richtig.
  */
+/**
+ * Der Zielpfad, EINMAL geschrieben — auch das Menü im Kopf des Einheitenblatts
+ * (`[id]/WeitereAktionen.tsx`, IDA-232) liest ihn von hier.
+ */
+export function checklistenZiel(fahrzeugId?: string): string {
+  return fahrzeugId === undefined
+    ? "/verwaltung/checklisten"
+    : `/verwaltung/checklisten?fz=${encodeURIComponent(fahrzeugId)}`;
+}
+
 export function ChecklisteKnopf({
   fahrzeugId,
   beschriftung,
@@ -50,9 +60,7 @@ export function ChecklisteKnopf({
   fahrzeugId?: string;
   beschriftung: string;
 }) {
-  const ziel = fahrzeugId === undefined
-    ? "/verwaltung/checklisten"
-    : `/verwaltung/checklisten?fz=${encodeURIComponent(fahrzeugId)}`;
+  const ziel = checklistenZiel(fahrzeugId);
 
   return (
     <Button href={ziel} icon={<Ikone name="drucken" groesse={16} />}>

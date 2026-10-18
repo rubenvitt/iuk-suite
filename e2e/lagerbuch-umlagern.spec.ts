@@ -50,6 +50,16 @@ function serverActionAntwort(page: Page) {
   );
 }
 
+/**
+ * IDA-235 — die Schublade oeffnet auf „Übersicht"; gebucht wird im Reiter
+ * „Buchen", eine Buchungsart zur Zeit. Das Segment ist ein `radiogroup`; der
+ * Klick geht auf die Beschriftung, das Radio selbst ist unsichtbar.
+ */
+async function buchungsart(page: Page, art: "Zugang" | "Entnahme" | "Umlagern"): Promise<void> {
+  await klickeWennRuhig(page.getByRole("tab", { name: "Buchen" }));
+  await page.getByRole("radiogroup", { name: "Buchungsart" }).getByText(art, { exact: true }).click();
+}
+
 /** Ein Auswahlfeld im offenen Drawer setzen. */
 async function waehle(page: Page, feld: string, eintrag: string): Promise<void> {
   await klickeWennRuhig(page.getByRole("combobox", { name: feld, exact: true }));
@@ -124,6 +134,7 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     await klickeWennRuhig(artikelKnopf);
 
     // ── 3) Zugang in den QUELL-Schrank ────────────────────────────────────
+    await buchungsart(page, "Zugang");
     const zugangForm = page.locator('form[data-rolle="zugang-form"]');
     await expect(zugangForm).toBeVisible();
     await zugangForm.getByLabel("Zugangsmenge").fill(String(zugang));
@@ -133,21 +144,27 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     const verfallFeld = zugangForm.getByLabel("Verfallsmonat");
     await verfallFeld.click();
     await verfallFeld.fill(verfallsmonat);
-    // Panel per Klick auf eine inerte Ueberschrift schliessen, NICHT per `Escape` (bei
-    // antds Picker ein ABBRUCH). `Enter` ginge seit DRK-483 auch, Begruendung in
+    // Panel per Klick auf den inerten Schubladentitel schliessen, NICHT per `Escape`
+    // (bei antds Picker ein ABBRUCH). `Enter` ginge seit DRK-483 auch, Begruendung in
     // `lagerbuch-schraenke.spec.ts`.
-    await page.getByRole("heading", { name: "Zugang buchen" }).click();
+    // Gescopet auf DIESE Schublade: die Huelle haelt ihre Navigationsschublade
+    // verborgen im DOM, ein blosser Titelgreifer traefe zwei.
+    await page.getByRole("dialog", { name: artikelName })
+      .getByText(artikelName, { exact: true }).click();
     await expect(verfallFeld).toHaveValue(verfallsmonat);
 
     const zugangAntwort = serverActionAntwort(page);
     await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));
     expect((await zugangAntwort).ok(), "Zugang buchen: Server Action").toBe(true);
 
+    // Die Chargentabelle steht seit IDA-235 im Reiter „Übersicht".
+    await klickeWennRuhig(page.getByRole("tab", { name: "Übersicht" }));
     const chargenTabelle = page.getByRole("table", { name: "Chargen" });
     const chargeZeile = chargenTabelle.locator("[data-row-key]").filter({ hasText: chargenNr });
     await expect(chargeZeile).toContainText(`${quelle}: ${zugang} ${einheit}`);
 
     // ── 4) Umlagern ───────────────────────────────────────────────────────
+    await buchungsart(page, "Umlagern");
     const umlagerForm = page.locator('form[data-rolle="umlager-form"]');
     await expect(umlagerForm).toBeVisible();
     await waehle(page, "Umlagerung Charge", chargenNr);
@@ -162,6 +179,7 @@ test.describe("Lagerbuch Umlagern — Schrank zu Schrank (DRK-338)", () => {
     expect((await umlagerAntwort).ok(), "Umlagern: Server Action").toBe(true);
 
     // ── 5) Die Verteilung zeigt BEIDE Orte, die Summe ist unveraendert ────
+    await klickeWennRuhig(page.getByRole("tab", { name: "Übersicht" }));
     // ⚠️ DIE SUMME IST DIE ZUSAGE AUS AK 2, nicht nur das Auftauchen des
     // zweiten Orts: 5 + 4 = 9, und `Rest gesamt` steht daneben.
     await expect(chargeZeile).toContainText(`${quelle}: ${zugang - umlagert} ${einheit}`);

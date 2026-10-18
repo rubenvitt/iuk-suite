@@ -61,6 +61,63 @@ export function neueChargeEntfernen(stand: ZaehlStand, artikelId: string, schlue
   return { ...stand, [artikelId]: { art: "chargen", ...teil } };
 }
 
+/**
+ * IDA-237 — „STIMMT": die erwartete Menge als gezaehlt uebernehmen, ohne die
+ * Zahl anzufassen.
+ *
+ * ⚠️ DAS IST WOERTLICH DASSELBE, WIE DIE ERWARTUNG VON HAND EINZUTIPPEN —
+ * `{ artikelId, ist: bestand }`, keine neue Nutzlast, keine neue Buchungsregel.
+ * Der Server rechnet weiter gegen den LIVE-Bestand: stimmt der mit dem Stand
+ * dieser Seite ueberein (der Regelfall), entsteht eine Position mit
+ * `gezaehlt === erwartet` und KEINE Korrekturbuchung; im Verlauf steht die
+ * Zeile als gezaehlt ohne Abweichung. Hat sich der Bestand seit dem Laden
+ * bewegt, verhaelt sich die Bestaetigung wie jede andere Zaehlung auch: gilt,
+ * was im Regal lag.
+ *
+ * ⚠️ EINE SCHON ERFASSTE ZEILE BLEIBT, WIE SIE IST. Ein „Stimmt" auf einer
+ * Zeile im Chargenmodus ueberschriebe sonst still die gezaehlten Chargen —
+ * referenzgleich zurueck heisst: nichts geschehen, niemand wird geweckt.
+ */
+export function artikelBestaetigen(
+  stand: ZaehlStand, zeile: Pick<InventurZeile, "id" | "bestand">,
+): ZaehlStand {
+  if (zeile.id in stand) return stand;
+  return { ...stand, [zeile.id]: { art: "artikel", ist: zeile.bestand } };
+}
+
+/**
+ * Nimmt ein „Stimmt" zurueck — aber NUR eines: eine Artikelzaehlung, die genau
+ * auf der Erwartung steht. Eine abweichende Zahl oder eine Chargenzaehlung ist
+ * Arbeit, die ein Fehltipp nicht verwerfen darf; dafuer gibt es den
+ * ausdruecklichen Weg („Zählung verwerfen" bzw. „Chargenzählung verwerfen").
+ */
+export function bestaetigungZuruecknehmen(
+  stand: ZaehlStand, zeile: Pick<InventurZeile, "id" | "bestand">,
+): ZaehlStand {
+  const z = stand[zeile.id];
+  if (z?.art !== "artikel" || z.ist !== zeile.bestand) return stand;
+  return ohne(stand, zeile.id);
+}
+
+/**
+ * IDA-237 — „x von y erfasst", bezogen auf den UMFANG (Kategorie/Fach), nicht
+ * auf die Suche: wer „Hygiene" zaehlt, will wissen, wie viel von Hygiene fehlt.
+ * Erfasst heisst: steht im Zaehlstand — angefasst, gezaehlt oder bestaetigt;
+ * genau das, was `positionenAus` sendet.
+ */
+export function fortschritt(
+  zeilen: readonly InventurZeile[], stand: ZaehlStand, filter: InventurFilter,
+): { erfasst: number; gesamt: number } {
+  let erfasst = 0;
+  let gesamt = 0;
+  for (const z of zeilen) {
+    if (!inventurTrifft(z, filter)) continue;
+    gesamt++;
+    if (z.id in stand) erfasst++;
+  }
+  return { erfasst, gesamt };
+}
+
 export function chargenzaehlungVerwerfen(stand: ZaehlStand, artikelId: string): ZaehlStand {
   return ohne(stand, artikelId);
 }

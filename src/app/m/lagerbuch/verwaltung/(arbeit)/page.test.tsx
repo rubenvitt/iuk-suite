@@ -12,7 +12,17 @@ import {
   LetzteBuchungenTable,
   type UebersichtJournalZeile,
 } from "./LetzteBuchungenTable";
-import { kritischeArtikel, verwaltungInhalt } from "./page";
+import { KRITISCH_ANZEIGE, kritischeArtikel, verwaltungInhalt } from "./page";
+
+/** Der sichtbare Text eines Baums — Kinder UND `extra` (Kopfzeile einer Karte). */
+function textVon(wert: ReactNode): string {
+  if (wert === null || wert === undefined || typeof wert === "boolean") return "";
+  if (typeof wert === "string" || typeof wert === "number") return String(wert);
+  if (Array.isArray(wert)) return wert.map(textVon).join("");
+  if (!isValidElement(wert)) return "";
+  const props = wert.props as { children?: ReactNode; extra?: ReactNode };
+  return textVon(props.extra) + textVon(props.children);
+}
 
 let t: TestDb;
 
@@ -275,6 +285,7 @@ describe("Verwaltungsübersicht", () => {
         zahl: 1,
         beschriftung: "Artikel unter Mindestbestand",
         ton: "rot",
+        href: "/verwaltung/bestellung",
       },
       {
         zahl: 1,
@@ -291,25 +302,62 @@ describe("Verwaltungsübersicht", () => {
       {
         zahl: 1,
         beschriftung: "unter Mindestbestand, noch nicht bestellt",
+        href: "/verwaltung/bestellung",
       },
       {
         zahl: 2,
         beschriftung: "Buchungen im Journal",
+        href: "/verwaltung/journal",
       },
     ]);
 
     const artikelLinks = elementeVomTyp(seite, Link).map((element) =>
       element.props as { href: string; children: ReactNode });
+    // IDA-239 — der Link öffnet den Artikel, und die Reihenfolge ist die der
+    // Dringlichkeit: rote Charge (beide hier sind rot, dann nach Name), dann
+    // Unterbestand, dann der Rest.
     expect(artikelLinks.map((props) => props.href)).toEqual([
-      "/verwaltung/artikel",
-      "/verwaltung/artikel",
-      "/verwaltung/artikel",
+      "/verwaltung/artikel?artikel=artikel-kritisch",
+      "/verwaltung/artikel?artikel=artikel-abgelaufen",
+      "/verwaltung/artikel?artikel=artikel-unter-mindest",
     ]);
-    expect(artikelLinks.map((props) => String(props.children)).toSorted()).toEqual([
+    expect(artikelLinks.map((props) => String(props.children))).toEqual([
       "Beatmungsmaske",
       "Infusionsbesteck",
       "Kompressen",
     ]);
+  });
+
+  it("zeigt höchstens zehn kritische Artikel und führt zu allen", () => {
+    for (let i = 0; i < KRITISCH_ANZEIGE + 2; i += 1) {
+      artikelMit({
+        id: `leer-${i}`,
+        name: `Leerer Artikel ${String(i).padStart(2, "0")}`,
+        bestand: 0,
+        mindestbestand: 5,
+      });
+    }
+    artikelMit({
+      id: "artikel-kritisch",
+      name: "Beatmungsmaske",
+      bestand: 50,
+      mindestbestand: 1,
+      verfall: "2026-08",
+    });
+
+    const seite = verwaltungInhalt(t.db, new Date("2026-08-07T12:00:00Z"));
+    const links = elementeVomTyp(seite, Link).map((element) =>
+      element.props as { href: string; children: ReactNode });
+    const artikel = links.filter((props) => props.href.includes("?artikel="));
+    expect(artikel).toHaveLength(KRITISCH_ANZEIGE);
+    expect(links.filter((props) => props.href.includes("?filter=")).map((props) => props.href))
+      .toEqual([
+        "/verwaltung/artikel?filter=unter-mindest",
+        "/verwaltung/artikel?filter=charge-kritisch",
+      ]);
+    expect(textVon(seite)).toContain("Alle 12 unter Mindestbestand anzeigen");
+    expect(textVon(seite)).toContain("Alle 1 mit kritischer Charge anzeigen");
+    expect(textVon(seite)).toContain(`${KRITISCH_ANZEIGE} von 13`);
   });
 
   it("zeigt die neuesten fünf Buchungen in totaler Ordnung als primitive Client-DTOs", () => {

@@ -34,6 +34,11 @@ import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
 import { VerfallEditor } from "./VerfallEditor";
 import { PlombenEditor } from "./PlombenEditor";
+import { FahrzeugReiter } from "./FahrzeugReiter";
+import { WeitereAktionen } from "./WeitereAktionen";
+import { CheckDurchfuehrenKnopf } from "../CheckDurchfuehrenKnopf";
+import { ChecklisteKnopf } from "../ChecklisteKnopf";
+import { AufladenDialog } from "./AufladenDialog";
 import FahrzeugBlatt, { dynamic, fahrzeugInhalt, verfallKennzahlen } from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -42,11 +47,12 @@ const mocks = vi.hoisted(() => ({
   loeschen: vi.fn(),
   deaktivieren: vi.fn(),
   push: vi.fn(),
+  refresh: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
-  useRouter: () => ({ push: mocks.push }),
+  useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
 }));
 
 vi.mock("../../../../_actions/fahrzeuge", async (importOriginal) => {
@@ -68,17 +74,27 @@ const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
 let t: TestDb;
 
+/**
+ * Sucht Elemente eines Typs im gerenderten Baum — ÜBER ALLE PROPS, nicht nur
+ * über `children`: seit IDA-232 stehen die Inseln in den Reitern
+ * (`FahrzeugReiter`, Prop `reiter[].inhalt`) und die Kopfaktionen in
+ * `SeitenKopf.aktionen`.
+ */
 function elementeVomTyp(
-  wert: ReactNode,
+  wert: unknown,
   typ: unknown,
 ): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(wert)) return wert.flatMap((kind) => elementeVomTyp(kind, typ));
-  if (!isValidElement(wert)) return [];
-  const treffer = wert.type === typ
-    ? [wert as ReactElement<Record<string, unknown>>]
-    : [];
-  const kinder = (wert.props as { children?: ReactNode }).children;
-  return [...treffer, ...elementeVomTyp(kinder, typ)];
+  if (isValidElement(wert)) {
+    const treffer = wert.type === typ
+      ? [wert as ReactElement<Record<string, unknown>>]
+      : [];
+    return [...treffer, ...elementeVomTyp(wert.props, typ)];
+  }
+  if (wert !== null && typeof wert === "object" && Object.getPrototypeOf(wert) === Object.prototype) {
+    return Object.values(wert).flatMap((kind) => elementeVomTyp(kind, typ));
+  }
+  return [];
 }
 
 function kachelDaten(wert: ReactNode): {
@@ -91,6 +107,10 @@ function kachelDaten(wert: ReactNode): {
     beschriftung: kachel.props.beschriftung,
     ton: kachel.props.ton,
   }));
+}
+
+function kachelZiele(wert: ReactNode): unknown[] {
+  return elementeVomTyp(wert, Kachel).map((kachel) => kachel.props.href);
 }
 
 /** Setzt den gemeldeten Verfall EINES Artikels auf fz-1 — ohne Schreibpfad,
@@ -511,11 +531,16 @@ describe("Fahrzeugblatt als Server Component", () => {
         verfall: "2025-01",
         statusTon: "rot",
         statusText: expect.any(String),
+        // IDA-232: aus der Quelle — 2025-01 ist abgelaufen.
+        abgelaufen: true,
         // DRK-303: Obergrenze und Auswahl des Aussondern-Dialogs.
         // ⚠️ `verfall` (2025-01) und der Verfall der CHARGE (2030-01) gehen hier
         // auseinander — genau dafuer gibt es `lagerort_verfall`: am Fahrzeug ist
         // die Charge oft geraten, massgeblich ist, was auf der Packung steht.
         bestand: 2,
+        // IDA-232: die SUMME beider Fächer (3 + 2), wie „unter Soll" in der
+        // Fahrzeugliste rechnet.
+        soll: 5,
         einheit: "Stk",
         chargen: [
           { id: "charge-a1", chargenNr: "LOT-1", verfall: "2030-01", rest: 2 },
@@ -528,7 +553,9 @@ describe("Fahrzeugblatt als Server Component", () => {
         verfall: "2028-12",
         statusTon: "ok",
         statusText: expect.any(String),
+        abgelaufen: false,
         bestand: 0,
+        soll: 1,
         einheit: "Stk",
         chargen: [],
       },
@@ -563,14 +590,27 @@ describe("Fahrzeugblatt als Server Component", () => {
     expect(template.props.vorlagen).toEqual([{ id: "tpl-aktiv", name: "Aktive Alternative" }]);
   });
 
-  it("ordnet Vorlage, Soll und Verfall und sendet nur JSON-sichere Inselprops", () => {
+  it("ordnet die Reiter und sendet nur JSON-sichere Inselprops", () => {
     const seite = fahrzeugInhalt(t.db, "fz-1", JETZT);
-    expect(elementeVomTyp(seite, "h2").map((ueberschrift) => textVon(ueberschrift)))
-      // DRK-309: Die letzte Überschrift ist ART-BEWUSST. Die Fixture trägt
-      // keine Art (der Zwischenstand aus Migration 0010), also das neutrale
-      // Wort; bei einem Fahrzeug heißt sie unverändert „Verfall im Fahrzeug".
-      // IDA-222: die Plomben stehen hinter der Soll-Bestückung — sie decken deren Fächer ab.
-      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Plomben", "Verfall in der Einheit"]);
+    // IDA-232: Tagesgeschäft vor Einrichtung — der erste Reiter ist der
+    // Startreiter. Die Zahl hinter „Soll" ist die der aktiven Positionen,
+    // hinter „Bestand & Verfall" dieselbe wie die Kachel „abgelaufen".
+    const [reiter] = elementeVomTyp(seite, FahrzeugReiter);
+    const eintraege = (reiter.props as React.ComponentProps<typeof FahrzeugReiter>).reiter;
+    expect(eintraege.map(({ schluessel, titel, zusatz }) => ({ schluessel, titel, zusatz })))
+      .toEqual([
+        { schluessel: "bestand", titel: "Bestand & Verfall", zusatz: "2 abgelaufen" },
+        { schluessel: "soll", titel: "Soll", zusatz: "3" },
+        // Keine Plombe angelegt — dann auch keine Zahl.
+        { schluessel: "plomben", titel: "Plomben", zusatz: undefined },
+        { schluessel: "einstellungen", titel: "Einstellungen", zusatz: undefined },
+      ]);
+    // Die Einrichtung steht im Reiter „Einstellungen", nicht mehr auf der Seite.
+    const einstellungen = eintraege.find((eintrag) => eintrag.schluessel === "einstellungen")!;
+    expect(elementeVomTyp(einstellungen.inhalt, "h2").map((ueberschrift) => textVon(ueberschrift)))
+      .toEqual(["Art", "Vorlage", "Status"]);
+    expect(elementeVomTyp(einstellungen.inhalt, TemplateVerknuepfung)).toHaveLength(1);
+    expect(elementeVomTyp(einstellungen.inhalt, FahrzeugAktivToggle)).toHaveLength(1);
 
     for (const [typ, name] of [
       [SollEditor, "SollEditor"],
@@ -583,13 +623,55 @@ describe("Fahrzeugblatt als Server Component", () => {
     }
 
     const [kopf] = elementeVomTyp(seite, SeitenKopf);
-    const [toggle] = elementeVomTyp(kopf.props.aktionen as ReactNode, FahrzeugAktivToggle);
+    // IDA-232: Stilllegen und Löschen stehen NICHT mehr im Kopf.
+    expect(elementeVomTyp(kopf.props.aktionen, FahrzeugAktivToggle)).toHaveLength(0);
+    const [toggle] = elementeVomTyp(seite, FahrzeugAktivToggle);
     // DRK-309: `einheitenart` reist mit — die Rückfrage vor dem Löschen nennt
     // dieselbe Art wie der Chip in der Kopfzeile. `null` ist hier der
     // Zwischenstand, den die Fixture nicht setzt.
     expect(toggle.props)
       .toEqual({ id: "fz-1", name: "RTW 1", aktiv: true, einheitenart: null });
     expect(istRekursivJsonSicher(toggle.props)).toBe(true);
+  });
+});
+
+describe("Fahrzeugblatt — Kopf und Kacheln (IDA-232)", () => {
+  it("trägt an einer aktiven Einheit EINE Hauptaktion, das Aufladen und das Menü", () => {
+    const [kopf] = elementeVomTyp(fahrzeugInhalt(t.db, "fz-1", JETZT), SeitenKopf);
+    const aktionen = kopf.props.aktionen;
+    const [check] = elementeVomTyp(aktionen, CheckDurchfuehrenKnopf);
+    expect(check.props).toEqual({ fahrzeugId: "fz-1", beschriftung: "Check durchführen", primaer: true });
+    expect(elementeVomTyp(aktionen, AufladenDialog)).toHaveLength(1);
+    expect(elementeVomTyp(aktionen, WeitereAktionen)).toHaveLength(1);
+    // Der Druck steht im Menü, nicht als eigener Knopf.
+    expect(elementeVomTyp(aktionen, ChecklisteKnopf)).toHaveLength(0);
+  });
+
+  it("zeigt an einer inaktiven Einheit nur den Druck und nennt den Status im Kopf", () => {
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    const [kopf] = elementeVomTyp(fahrzeugInhalt(t.db, "fz-1", JETZT), SeitenKopf);
+    const aktionen = kopf.props.aktionen;
+    expect(elementeVomTyp(aktionen, CheckDurchfuehrenKnopf)).toHaveLength(0);
+    expect(elementeVomTyp(aktionen, AufladenDialog)).toHaveLength(0);
+    expect(elementeVomTyp(aktionen, ChecklisteKnopf)).toHaveLength(1);
+    expect(textVon(kopf.props.beschreibung as ReactNode)).toContain("inaktiv");
+  });
+
+  /**
+   * DIE KACHELN FÜHREN HIN — aber nur mit einer Zahl über null; ein Link auf
+   * eine leere Auswahl wäre eine Sackgasse.
+   */
+  it("verlinkt die Kacheln auf Reiter und Statusfilter", () => {
+    expect(kachelZiele(fahrzeugInhalt(t.db, "fz-1", JETZT))).toEqual([
+      "/verwaltung/fahrzeuge/fz-1?reiter=soll",
+      "/verwaltung/fahrzeuge/fz-1?reiter=soll",
+      // Startreiter — er steht nicht in der Adresse.
+      "/verwaltung/fahrzeuge/fz-1?status=abgelaufen",
+      undefined,
+    ]);
+    verfallSetzenImTest("a3", "2026-09");
+    expect(kachelZiele(fahrzeugInhalt(t.db, "fz-1", JETZT))[3])
+      .toBe("/verwaltung/fahrzeuge/fz-1?status=laeuft-ab");
   });
 });
 
@@ -657,6 +739,8 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
 
     expect(query("button[role='switch']").getAttribute("aria-checked")).toBe("false");
     expect(document.body.textContent).toContain("Inaktiv");
+    // IDA-232: der Kopf (Check, Aufladen, Status-Chip) hängt am Status.
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
 
   it.each([

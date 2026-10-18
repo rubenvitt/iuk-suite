@@ -214,11 +214,11 @@ function ortAusWert(roh: string | undefined): string | null {
 
 /** Der Ortsteil des Zaehlhinweises auf der Seite — „Gezählt wird …". */
 export function zaehlOrtBeschreibung(ortId: string | null, name: string | undefined): string {
-  if (ortId === null) return "Gezählt wird der Bestand im gesamten Handlager, über alle Schränke hinweg.";
-  if (ortId === HANDLAGER_ID) {
-    return "Gezählt wird, was im Handlager noch keinem Schrank zugeordnet ist — Schrankbestand bleibt außen vor.";
-  }
-  return `Gezählt wird der Bestand in ${name ?? ortId}. Erwartungszahlen und Korrekturen gelten nur für diesen Schrank.`;
+  // IDA-237 — je ein kurzer Satz: der Ort steht in der Auswahl daneben; hier
+  // steht nur, was er fuer die Zahlen BEDEUTET.
+  if (ortId === null) return "Gezählt wird im gesamten Handlager.";
+  if (ortId === HANDLAGER_ID) return "Gezählt wird nur, was noch keinem Schrank zugeordnet ist.";
+  return `Gezählt und korrigiert wird nur in ${name ?? ortId}.`;
 }
 
 /**

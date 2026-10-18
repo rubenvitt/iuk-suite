@@ -162,11 +162,21 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
    * muss die zweite Buchungsaktion zu sehen sein, OHNE zu scrollen. Vorher
    * lag „Entnahme buchen" rund 1 000 px unterhalb der Sichtkante.
    *
+   * IDA-235: seit den Reitern steht je Buchungsart EIN Formular unter
+   * „Buchen". Die Zusage gilt deshalb fuer BEIDE Knoepfe, je nach Wahl —
+   * gerade das Umschalten darf keinen unter die Kante schieben.
+   *
    * ⛔ `toBeInViewport` und NICHT `toBeVisible`: `toBeVisible` ist auch fuer
    * ein Element wahr, das im Rollbereich der Schublade weit unterhalb der
    * Sichtkante haengt — es bestaende also genau in dem Zustand, den dieser
    * Test ausschliessen soll.
    */
+  await klickeWennRuhig(page.getByRole("tab", { name: "Buchen" }));
+  await expect(
+    page.getByRole("button", { name: "Zugang buchen" }),
+  ).toBeInViewport();
+  await page.getByRole("radiogroup", { name: "Buchungsart" })
+    .getByText("Entnahme", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Entnahme buchen" }),
   ).toBeInViewport();
@@ -213,11 +223,23 @@ test("Artikeldetails: kein waagerechter Überlauf, auch mit Chargen und Buchunge
       await klickeWennRuhig(sichtbareZeilen(page).nth(zeile));
       const schublade = page.locator(".ant-drawer-right.ant-drawer-open");
       // Erst wenn die Tabellen stehen, hat die Rasterspur ihre volle Breite.
-      await expect(schublade.getByText("Letzte Buchungen")).toBeVisible();
-      await page.waitForTimeout(300);
-      const mass = await vermesseSchublade(page);
-      expect(mass, `keine offene Schublade (Zeile ${zeile}, ${breite} px)`).not.toBeNull();
-      erwarteKeinenQuerueberlauf(mass!, `in Zeile ${zeile} bei ${breite} px`);
+      await expect(schublade.getByText("Chargen · älteste zuerst (FEFO)")).toBeVisible();
+      /*
+       * IDA-235: JEDER REITER WIRD GEMESSEN, nicht nur der erste. Die beiden
+       * Tabellen stehen seither in verschiedenen Reitern („Übersicht",
+       * „Verlauf"), die Formulare in einem dritten — ein Ueberlauf in einem
+       * davon saehe, wer nur den Startreiter misst, nie.
+       */
+      for (const reiter of ["Übersicht", "Buchen", "Stammdaten", "Verlauf"]) {
+        await schublade.getByRole("tab", { name: reiter }).click();
+        if (reiter === "Verlauf") {
+          await expect(schublade.getByText("Letzte Buchungen")).toBeVisible();
+        }
+        await page.waitForTimeout(300);
+        const mass = await vermesseSchublade(page);
+        expect(mass, `keine offene Schublade (Zeile ${zeile}, ${breite} px)`).not.toBeNull();
+        erwarteKeinenQuerueberlauf(mass!, `in Zeile ${zeile}, Reiter ${reiter}, bei ${breite} px`);
+      }
       await page.keyboard.press("Escape");
       await expect(schublade).toHaveCount(0);
     }
