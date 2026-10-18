@@ -64,13 +64,17 @@ export function PlombenEditor({
 
   return (
     <div style={{ display: "grid", gap: SPACE.md }} data-rolle="plomben-editor">
-      <p style={{ margin: 0 }}>
-        Eine Plombe bezeugt, dass ein Behälter seit dem letzten Vollcheck zu war. Solange sie
-        steht, liest der Kurzcheck nur ihre Nummer ab, statt das Fach zu zählen. Gesetzt wird die
-        Nummer im Vollcheck.
-      </p>
+      {/*
+        IDA-232: die Erklärung steht nur im Leerzustand — dort, wo jemand die
+        erste Plombe anlegt und wissen muss, wozu. Neben einer gepflegten Liste
+        war sie ein Dauerabsatz, den niemand mehr liest.
+      */}
       {plomben.length === 0 ? (
-        <p style={{ margin: 0 }}>Noch keine Plombe angelegt.</p>
+        <p style={{ margin: 0 }}>
+          Noch keine Plombe angelegt. Eine Plombe bezeugt, dass ein Behälter seit dem letzten
+          Vollcheck zu war. Solange sie steht, liest der Kurzcheck nur ihre Nummer ab, statt das
+          Fach zu zählen. Gesetzt wird die Nummer im Vollcheck.
+        </p>
       ) : (
         <div style={{ display: "grid", gap: SPACE.sm }}>
           {plomben.map((p) => (

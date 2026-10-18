@@ -25,7 +25,8 @@ test.describe("Vorlagenfeld im Fahrzeugblatt", () => {
   });
 
   test("zeigt Leerzustand, dann die verknuepfte Vorlage, dann wieder den Leerzustand", async ({ page }) => {
-    const pfad = "/verwaltung/fahrzeuge/e2e-vorlagen-fahrzeug";
+    // IDA-232: die Vorlage steht im Reiter „Einstellungen".
+    const pfad = "/verwaltung/fahrzeuge/e2e-vorlagen-fahrzeug?reiter=einstellungen";
     const antwort = await page.goto(lagerbuchUrl(pfad));
     expect(antwort!.status()).toBe(200);
 
@@ -55,7 +56,7 @@ test.describe("Vorlagenfeld im Fahrzeugblatt", () => {
     // Hinein und ohne Wahl wieder heraus: der Name muss zurueckkommen.
     await insel.getByRole("combobox", { name: "Vorlage" }).click();
     await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Soll-Bestückung" }).click();
+    await page.getByRole("heading", { name: "Vorlage", exact: true }).click();
     await expect(feld.getByText("E2E Vorlagenfeld", { exact: true })).toBeVisible();
 
     await insel.getByRole("button", { name: "Verknüpfung lösen" }).click();

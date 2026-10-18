@@ -211,7 +211,8 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
   });
 
   test("traegt die Art am Einheitenblatt nach und zeigt sie danach im Kopf", async ({ page }) => {
-    const pfad = "/verwaltung/fahrzeuge/e2e-ohne-art";
+    // IDA-232: die Wahl der Art steht im Reiter „Einstellungen".
+    const pfad = "/verwaltung/fahrzeuge/e2e-ohne-art?reiter=einstellungen";
     const antwort = await page.goto(lagerbuchUrl(pfad));
     expect(antwort!.status()).toBe(200);
 

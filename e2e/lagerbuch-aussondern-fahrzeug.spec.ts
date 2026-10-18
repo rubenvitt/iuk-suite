@@ -45,14 +45,18 @@ test.describe("Aussondern aus einem Fahrzeug", () => {
     // Zeitbudget und meldete sich als etwas ganz anderes (Falle 10).
     expect(antwort!.status()).toBe(200);
 
+    // IDA-232: Ist und Aussondern stehen in DERSELBEN Zeile der Bestandsliste
+    // (Startreiter „Bestand & Verfall"), geschluesselt nach Artikel.
     const istZelle = page.locator(
-      "[data-row-key='e2e-aussondern-soll'] [data-rolle='ist']",
+      "[data-row-key='e2e-verfall-artikel'] [data-rolle='ist']",
     );
     await expect(istZelle).toBeVisible();
     const vorher = Number((await istZelle.innerText()).match(/\d+/)![0]);
     expect(vorher).toBeGreaterThan(0);
 
-    await klickeWennRuhig(page.getByRole("button", { name: "E2E Verfall NaCl aussondern" }));
+    // IDA-232: Aussondern steht im Zeilenmenue, nicht mehr als eigener Knopf.
+    await klickeWennRuhig(page.getByRole("button", { name: "Aktionen für E2E Verfall NaCl" }));
+    await page.getByRole("menuitem", { name: "Aussondern" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 

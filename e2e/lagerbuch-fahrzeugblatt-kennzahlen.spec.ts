@@ -124,7 +124,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
   test("nennt abgelaufen und bald ablaufend als zwei Zahlen", async ({ page }) => {
     const antwort = await page.goto(BLAETTER[0]);
     expect(antwort!.status()).toBe(200);
-    await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor();
+    await page.locator("[data-rolle='bestandsliste']").waitFor();
 
     const gesehen = await kacheln(page);
     expect(gesehen.map((k) => ({ zahl: k.zahl, text: k.text, kante: k.kante }))).toEqual([
@@ -144,7 +144,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
   test("gibt ohne vollständige Erfassung keine grüne Kante", async ({ page }) => {
     const antwort = await page.goto(BLAETTER[1]);
     expect(antwort!.status()).toBe(200);
-    await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor();
+    await page.locator("[data-rolle='bestandsliste']").waitFor();
 
     const gesehen = await kacheln(page);
     expect(gesehen.slice(2).map((k) => ({ zahl: k.zahl, text: k.text, kante: k.kante })))
@@ -163,7 +163,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
       await page.setViewportSize({ width: breite, height: 900 });
       const antwort = await page.goto(BLAETTER[0]);
       expect(antwort!.status()).toBe(200);
-      await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor(); await warteAufSpaltenaufteilung(page);
+      await page.locator("[data-rolle='bestandsliste']").waitFor(); await warteAufSpaltenaufteilung(page);
 
       const gesehen = await kacheln(page);
       expect(gesehen).toHaveLength(4);
