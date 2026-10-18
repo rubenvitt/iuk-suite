@@ -36,6 +36,41 @@ test("admin can create a service", async ({ page }) => {
   await expect(page.getByText("Neuer Dienst")).toBeVisible();
 });
 
+/*
+ * IDA-227: ein nicht oeffentlicher Dienst mit Gruppe ist genau fuer deren
+ * Mitglieder sichtbar. Die Gruppe wird EINGETIPPT, nicht aus der Liste gewaehlt:
+ * ohne Pocket-ID-Key (e2e) stehen dort nur die Gruppen der Suite, und eingetippt
+ * ist der Weg, den ein Ausfall des Verzeichnisses uebrig laesst.
+ */
+test("admin legt einen Dienst nur fuer eine Gruppe an", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
+  await page.getByLabel("slug").fill("funk-intern");
+  await page.getByLabel("name").fill("Funk intern");
+  await page.getByLabel("url").fill("https://funk.iuk-ue.de");
+  await page.getByText("Öffentlich sichtbar").click();
+
+  const anlegen = page.getByRole("button", { name: "Anlegen" });
+  await expect(anlegen).toBeDisabled();
+  const auswahl = page.getByLabel("Sichtbar für Gruppen");
+  await auswahl.fill("e2e-funk");
+  await auswahl.press("Enter");
+  await auswahl.press("Escape");
+  await expect(anlegen).toBeEnabled();
+  await anlegen.click();
+
+  const zeile = page.getByTestId("service-row").filter({ hasText: "Funk intern" });
+  await expect(zeile).toContainText("e2e-funk");
+
+  await page.context().clearCookies();
+  await devLogin(page, { host: "portal.localtest.me", groups: "" });
+  await expect(page.getByTestId("portal-grid")).toBeVisible();
+  await expect(page.getByText("Funk intern")).toHaveCount(0);
+
+  await page.context().clearCookies();
+  await devLogin(page, { host: "portal.localtest.me", groups: "e2e-funk" });
+  await expect(page.getByText("Funk intern")).toBeVisible();
+});
+
 test("admin can delete a service", async ({ page }) => {
   await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
   // Eigener, eindeutiger Dienst: die Seed-Daten bleiben unangetastet (der erste

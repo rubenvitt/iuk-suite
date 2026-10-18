@@ -3,6 +3,7 @@ import { canReadAudit } from "@/core/audit/access";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { leseAnsprechpartner, leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
+import { ladeWaehlbareGruppen } from "@/app/m/portal/_lib/gruppen";
 import { ServiceForm } from "@/app/m/portal/admin/service-form";
 import { ServiceTable } from "@/app/m/portal/admin/service-table";
 import { AnsprechpartnerForm } from "@/app/m/portal/admin/ansprechpartner-form";
@@ -16,6 +17,7 @@ export default async function PortalAdminPage() {
 
   const darfAuditLesen = await canReadAudit();
   const services = await getAllServices();
+  const gruppen = await ladeWaehlbareGruppen(services);
   const ansprechpartner = await leseAnsprechpartner();
   const zeitzone = leseZeitzone();
 
@@ -31,14 +33,22 @@ export default async function PortalAdminPage() {
       {darfAuditLesen && <section><h2 style={{ margin: 0 }}>Audit-Log</h2><p>Änderungen, Anmeldungen und Abrufe in der gesamten Suite nachvollziehen.</p><Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Audit-Log öffnen</Link></section>}
 
       <section>
-        <ServiceTable services={services} />
+        <ServiceTable services={services} gruppen={gruppen.optionen} />
       </section>
 
       <section>
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: `0 ${SPACE.lg}px` }}>
           Neuen Dienst anlegen
         </h2>
-        <ServiceForm />
+        {/* Nur der Ausfall wird genannt, nicht „nicht eingerichtet": ohne Key
+            in Pocket ID (lokal, e2e) ist die Liste aus der Suite der Normalfall. */}
+        {gruppen.quelle === "error" && (
+          <p style={{ marginBlock: 0, color: "var(--iuk-gedaempft)" }}>
+            Die Gruppen aus Pocket ID sind gerade nicht abrufbar. Du kannst eine Gruppe trotzdem
+            eintippen — sie muss genau so heißen wie in Pocket ID.
+          </p>
+        )}
+        <ServiceForm gruppen={gruppen.optionen} />
       </section>
 
       <section>

@@ -9,6 +9,7 @@ vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/app/m/portal/_lib/services", () => ({
   createService: vi.fn().mockResolvedValue({ id: "svc-1" }),
   deleteService: vi.fn().mockResolvedValue(undefined),
+  updateService: vi.fn().mockResolvedValue({ id: "svc-1" }),
 }));
 vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   setzeAnsprechpartner: vi.fn(),
@@ -17,10 +18,15 @@ vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { auth } from "@/core/auth";
-import { createService, deleteService } from "@/app/m/portal/_lib/services";
+import { createService, deleteService, updateService } from "@/app/m/portal/_lib/services";
 import { setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
 import { revalidatePath } from "next/cache";
-import { createServiceAction, deleteServiceAction, setzeZeitzoneAction } from "@/app/m/portal/actions";
+import {
+  createServiceAction,
+  deleteServiceAction,
+  setzeSichtbarkeitAction,
+  setzeZeitzoneAction,
+} from "@/app/m/portal/actions";
 
 const authMock = vi.mocked(auth);
 const createServiceMock = vi.mocked(createService);
@@ -55,8 +61,47 @@ describe("portal admin actions: authorization boundary", () => {
 
   it("admin session (dashboard-admins) is allowed to create a service", async () => {
     authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
-    await createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example" }));
+    await createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example", isPublic: "on" }));
     expect(createServiceMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("speichert einen nicht oeffentlichen Dienst mit den gewaehlten Gruppen (IDA-227)", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    const fd = formData({ slug: "x", name: "X", url: "https://x.example" });
+    fd.append("requiredGroups", "iuk");
+    fd.append("requiredGroups", "sanitaet");
+    await createServiceAction(fd);
+    expect(createServiceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ isPublic: false, requiredGroups: ["iuk", "sanitaet"] }),
+    );
+  });
+
+  it("legt keinen nicht oeffentlichen Dienst ohne Gruppe an — den saehe niemand", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    await expect(
+      createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example" })),
+    ).rejects.toThrow(/mindestens eine Gruppe/);
+    expect(createServiceMock).not.toHaveBeenCalled();
+  });
+
+  it("non-admin session cannot change who sees a service", async () => {
+    authMock.mockResolvedValue({ user: { groups: [] } } as never);
+    await expect(
+      setzeSichtbarkeitAction(formData({ id: "svc-1", isPublic: "on" })),
+    ).rejects.toThrow("Forbidden");
+    expect(vi.mocked(updateService)).not.toHaveBeenCalled();
+  });
+
+  it("admin session changes who sees a service", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    const fd = formData({ id: "svc-1" });
+    fd.append("requiredGroups", "iuk");
+    await setzeSichtbarkeitAction(fd);
+    expect(vi.mocked(updateService)).toHaveBeenCalledWith("svc-1", {
+      isPublic: false,
+      requiredGroups: ["iuk"],
+    });
+    expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/m/portal");
   });
 
   it("non-admin session cannot change the suite time zone", async () => {
