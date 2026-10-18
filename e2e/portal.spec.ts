@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, E2E_PORT } from "./fixtures";
+import { devLogin, E2E_PORT, warteAufGestreamteInhalte } from "./fixtures";
 
 test("portal und Kopfumschalter blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({
   page,
@@ -148,4 +148,33 @@ test("die Kachelkante steht in Ruhe auf --iuk-linie und im Hover auf --iuk-marke
   // rote Innenkante und keinen rundum roten Rahmen. Ohne diese Zeile ginge ein
   // versehentliches `border-color` auf allen vier Seiten durch.
   await expect(kachel).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
+});
+
+/*
+ * IDA-240: ein langes Einzelwort im Kacheltitel lief auf dem Telefon über den
+ * rechten Kachelrand („Kommunikationspläne“ neben dem App-Icon). Ein Flex-Kind
+ * schrumpft nie unter sein längstes Wort; gemessen wird deshalb die Kante des
+ * Titels gegen die Kante der Kachel, bei der Breite, an der es auffiel.
+ * Eigener Dienst mit absichtlich überlangem Namen: welche Seed-App ein Login
+ * ohne Gruppen sieht, soll hier nicht entscheiden, ob der Test etwas beweist.
+ */
+test("ein langer Kacheltitel bricht auf dem Telefon innerhalb der Kachel um", async ({ page }) => {
+  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
+  await page.getByLabel("slug").fill("lang");
+  await page.getByLabel("name").fill("Einsatzkommunikationsplanverwaltung");
+  await page.getByLabel("url").fill("https://lang.iuk-ue.de");
+  await page.getByRole("button", { name: /anlegen|create/i }).click();
+  await expect(page.getByTestId("service-row").filter({ hasText: "Einsatzkommunikationsplanverwaltung" })).toHaveCount(1);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
+  await warteAufGestreamteInhalte(page);
+
+  const link = page.getByTestId("service-tile").filter({ hasText: "Einsatzkommunikationsplanverwaltung" });
+  await expect(link).toHaveCount(1);
+  const kachel = await link.locator(".portal-kachel").boundingBox();
+  const titel = await link.getByTestId("kachel-titel").boundingBox();
+  expect(kachel).not.toBeNull();
+  expect(titel).not.toBeNull();
+  expect(titel!.x + titel!.width).toBeLessThanOrEqual(kachel!.x + kachel!.width);
 });
