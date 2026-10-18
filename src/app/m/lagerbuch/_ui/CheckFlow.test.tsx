@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, onTestFinished, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { act } from "react";
 import {
   mount,
   unmount,
@@ -153,6 +154,40 @@ const alleBestaetigen = async () => {
   for (const el of queryAll("[data-rolle='zaehlliste'] button[aria-label$='verringern']")) {
     await clickElement(el);
   }
+};
+
+/**
+ * Die Zahlenfelder der Zaehlliste — seit IDA-233 tippbar. `type='text'` und
+ * NICHT `inputmode`: das Verfallsfeld traegt ebenfalls `inputMode="numeric"`
+ * (Rueckfall fuer Browser ohne Monatsauswahl) und liegt im selben Teilbaum.
+ */
+const ZAHLFELD = "[data-rolle='zaehlliste'] input[type='text']";
+const zahlfelder = () => queryAll<HTMLInputElement>(ZAHLFELD);
+const gesperrt = () => query(WEITER).getAttribute("aria-disabled") === "true";
+
+/**
+ * Klappt JEDES Verfallsfeld der Zaehlliste auf. Seit IDA-233 liegt es hinter
+ * dem Knopf „Verfall angeben" bzw. dem Ampelchip; Tests, die das Feld selbst
+ * fuellen oder lesen, muessen es erst oeffnen wie die Helferin auch.
+ */
+const verfallAufklappen = async () => {
+  for (const el of queryAll("[data-rolle='verfall-knopf'][aria-expanded='false']")) {
+    await clickElement(el);
+  }
+};
+
+/** Enter im Feld, im `act` des Harness (React spuelt sonst nicht aus). */
+const enter = async (el: HTMLElement) => {
+  await act(async () => {
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
+};
+
+/** Verlaesst ein Feld so, wie React es sieht (`onBlur` = natives `focusout`). */
+const verlassen = async (el: HTMLElement) => {
+  await act(async () => {
+    el.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+  });
 };
 
 const WERT_NULL = {
@@ -317,7 +352,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
 });
 
 describe("CheckFlow — der Zaehlschritt", () => {
-  it("jede Position startet bei 0 — weder auf Soll noch auf dem Fahrzeugbestand (DRK-304)", async () => {
+  it("jede Position startet UNGEZAEHLT — weder auf Soll noch auf dem Fahrzeugbestand (DRK-304)", async () => {
     /*
      * DIE UMKEHR VON „voll annehmen, Gezaehltes runterkorrigieren" (DRK-304).
      * Die alte Vorbelegung WAR die Aktion „Alles auf Soll": wer durchklickte,
@@ -326,6 +361,10 @@ describe("CheckFlow — der Zaehlschritt", () => {
      * Soll (7) und Fahrzeugbestand (5) sind hier VERSCHIEDEN und beide nicht 0
      * — sonst bliebe die Zeile auch dann gruen, wenn eine der beiden alten
      * Vorbelegungen zurueckkaeme.
+     *
+     * ⚠️ SEIT IDA-233 STEHT IM FELD NICHTS, NICHT „0". Das Feld ist tippbar,
+     * und eine sichtbare 0 darin saehe aus wie eine Aussage. Gerechnet wird
+     * weiter ab 0: das erste „+" ergibt 1, das erste „−" die gezaehlte 0.
      */
     await mount(
       <CheckFlow
@@ -340,7 +379,10 @@ describe("CheckFlow — der Zaehlschritt", () => {
         letzterCheckText={null}
       />,
     );
-    expect(query("[data-rolle='stepanzeige']").textContent).toBe("0");
+    expect(zahlfelder()[0].value).toBe("");
+    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nicht gezählt");
+    await minus(0);
+    expect(zahlfelder()[0].value).toBe("0");
   });
 
   it("eine unberuehrte Position sperrt „Weiter\" — und zaehlt sich im Text mit", async () => {
@@ -368,13 +410,12 @@ describe("CheckFlow — der Zaehlschritt", () => {
         letzterCheckText={null}
       />,
     );
-    const weiter = () => query<HTMLButtonElement>(WEITER);
-    expect(weiter().disabled).toBe(true);
+    expect(gesperrt()).toBe(true);
     expect(query("[data-rolle='zaehl-summe']").textContent).toContain("2 von 2");
 
     // Die ERSTE Position hochgezaehlt — der Riegel haelt weiter, die Zahl faellt.
     await plus(0);
-    expect(weiter().disabled).toBe(true);
+    expect(gesperrt()).toBe(true);
     expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 von 2");
 
     /*
@@ -385,9 +426,39 @@ describe("CheckFlow — der Zaehlschritt", () => {
      * Ausgang aus dem Riegel.
      */
     await minus(1);
-    expect(query("[data-rolle='stepanzeige']").textContent).toBe("1");
-    expect(queryAll("[data-rolle='stepanzeige']")[1].textContent).toBe("0");
-    expect(weiter().disabled).toBe(false);
+    expect(zahlfelder().map((f) => f.value)).toEqual(["1", "0"]);
+    expect(gesperrt()).toBe(false);
+  });
+
+  it("der gesperrte Weiter-Knopf FUEHRT zur ersten offenen Zeile, statt nichts zu tun (IDA-233)", async () => {
+    /*
+     * Vorher nahm ein natives `disabled` den Tipp schweigend entgegen; wer am
+     * Ende einer langen Liste stand, erfuhr nicht, WELCHE Zeile fehlt. Jetzt
+     * springt derselbe Tipp dorthin — und bleibt dabei im Zaehlschritt: das
+     * ist die Haelfte, ohne die der Riegel aus DRK-304 still gefallen waere.
+     *
+     * Die erste offene ist hier die ZWEITE Zeile, nicht die erste — sonst
+     * bliebe der Test gruen, wenn der Knopf blind auf die erste Zeile zeigte.
+     */
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2", artikelId: "art-2" })]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await plus(0);
+    await click(WEITER);
+    expect(exists("[data-rolle='zaehlliste']"), "der Riegel muss halten").toBe(true);
+    expect(exists("[data-rolle='nf-liste']")).toBe(false);
+    expect(document.activeElement).toBe(zahlfelder()[1]);
+    expect(query("[data-rolle='zaehl-summe']").textContent).toContain("erste offene Zeile");
   });
 
   it("der Riegel steht in `zurNachfuellung` SELBST, nicht nur am Knopf (DRK-304)", () => {
@@ -455,11 +526,19 @@ describe("CheckFlow — der Zaehlschritt", () => {
      * Knopf UND die Deklaration, die daran haengt. Je allein waere gruen,
      * waehrend die andere fehlt.
      */
-    const gesperrt = regeln(".abschlussGo[disabled]");
-    expect(gesperrt.get("opacity")).toBe(".45");
-    expect(gesperrt.get("cursor")).toBe("default");
+    const gesperrtRegel = regeln(".abschlussGo[disabled]");
+    expect(gesperrtRegel.get("opacity")).toBe(".45");
+    expect(gesperrtRegel.get("cursor")).toBe("default");
     // Dieselbe Sprache wie beim etablierten Knopf — nicht zufaellig dieselbe Zahl.
-    expect(gesperrt).toEqual(regeln(".knopf[disabled]"));
+    expect(gesperrtRegel).toEqual(regeln(".knopf[disabled]"));
+    /*
+     * SEIT IDA-233 traegt der Zaehlschritt `aria-disabled` statt `disabled`
+     * (sein Tipp fuehrt zur offenen Zeile). Dasselbe Aussehen, eigene Regel —
+     * ohne sie stuende der gesperrte Knopf wieder in vollem Rot da.
+     */
+    expect(regeln('.abschlussGo[aria-disabled="true"]').get("opacity")).toBe(
+      gesperrtRegel.get("opacity"),
+    );
 
     await mount(
       <CheckFlow
@@ -475,13 +554,13 @@ describe("CheckFlow — der Zaehlschritt", () => {
       />,
     );
     const weiter = query<HTMLButtonElement>(WEITER);
-    expect(weiter.disabled).toBe(true);
+    expect(gesperrt()).toBe(true);
     expect(weiter.className).toMatch(/abschlussGo/);
 
     // Und wieder frei, sobald gezaehlt ist — sonst bewiese der Test nur, dass
     // der Knopf IMMER gesperrt ist.
     await minus(0);
-    expect(query<HTMLButtonElement>(WEITER).disabled).toBe(false);
+    expect(query(WEITER).hasAttribute("aria-disabled")).toBe(false);
   });
 
   it("der Weiter-Knopf des Zaehlschritts SCHWEBT NICHT mehr (DRK-304)", async () => {
@@ -526,18 +605,201 @@ describe("CheckFlow — der Zaehlschritt", () => {
     );
   });
 
-  it("der Stepper hat KEIN Zahlenfeld (`noText`)", async () => {
-    // Stepper.tsx:41-47: „damit unterwegs am Handy nicht versehentlich ins
-    // Zahlenfeld getippt wird" — hier ist ein Fehlgriff eine falsche
-    // Bestandsbuchung.
-    //
-    // ⚠️ Geprueft wird ueber die ANZAHL der Eingabefelder, nicht ueber
-    // `input[aria-label]` (Befund 33): das Verfallsfeld traegt genau so eins
-    // und liegt im selben Teilbaum. Ohne `noText` stuenden hier ZWEI Felder,
-    // und `stepanzeige` gaebe es gar nicht.
+  it("was mitfaehrt, ist der Zaehlstand — OHNE „Weiter\" (IDA-233)", async () => {
+    /*
+     * Die Grenze zu DRK-304: der Stand klebt unten, die Fachkoepfe oben, aber
+     * nichts davon fuehrt aus dem Schritt hinaus. Ein mitfahrendes Weiter waere
+     * erreichbar, BEVOR die Liste gelesen wurde. Gelesen wird die REGEL (jsdom
+     * rechnet keine Layoutboxen) und das gerenderte Markup.
+     */
+    expect(regeln(".zaehlStand").get("position")).toBe("sticky");
+    expect(regeln(".fachKopf").get("position")).toBe("sticky");
+    // Ohne eigene Flaeche liefen die Zeilen sichtbar unter dem Text durch.
+    expect(regeln(".fachKopf").get("background")).toBe("var(--lb-papier)");
+
     await mount(
       <CheckFlow
-    kontoZugang={false} {...VOLL}
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[
+          POS({ id: "sp-1" }),
+          POS({ id: "sp-2", artikelId: "art-2" }),
+          POS({ id: "sp-3", fachLabel: "Fach 2", artikelId: "art-3" }),
+        ]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    const stand = () => query("[data-rolle='zaehl-stand']");
+    expect(stand().querySelector(WEITER)).toBeNull();
+    expect(stand().textContent).toContain("0 von 3 gezählt");
+    const koepfe = () => queryAll("[data-rolle='fach-kopf']").map((k) => k.textContent);
+    expect(koepfe()).toEqual(["Fach 10/2", "Fach 20/1"]);
+
+    await plus(0);
+    expect(stand().textContent).toContain("1 von 3 gezählt");
+    expect(koepfe()).toEqual(["Fach 11/2", "Fach 20/1"]);
+  });
+
+  it("„Nächste offene\" springt in Anzeigereihenfolge und setzt den Fokus ins Feld (IDA-233)", async () => {
+    /*
+     * `soll` steht hier ABSICHTLICH nicht in Anzeigereihenfolge: die Liste ist
+     * Fach fuer Fach gruppiert (`zaehlFolge`), und „die erste offene" ist die,
+     * die OBEN steht — nicht die erste im Prop. Mit sortiertem Prop bliebe der
+     * Test gruen, wenn der Sprung der falschen Reihenfolge folgte.
+     */
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[
+          POS({ id: "sp-a", fachLabel: "Fach A", artikelName: "Erste" }),
+          POS({ id: "sp-b", fachLabel: "Fach B", artikelId: "art-b", artikelName: "Dritte" }),
+          POS({ id: "sp-c", fachLabel: "Fach A", artikelId: "art-c", artikelName: "Zweite" }),
+        ]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    const feld = (name: string) => query<HTMLInputElement>(`${ZAHLFELD}[aria-label='${name}']`);
+    await plus(0); // „Erste" gezaehlt
+    await click("[data-rolle='naechste-offene']");
+    expect(document.activeElement).toBe(feld("Zweite"));
+
+    await fill(`${ZAHLFELD}[aria-label='Zweite']`, "4");
+    await click("[data-rolle='naechste-offene']");
+    expect(document.activeElement).toBe(feld("Dritte"));
+
+    // Alles gezaehlt: der Knopf fuehrt zum Abschluss, ohne „Weiter" zu heissen.
+    await fill(`${ZAHLFELD}[aria-label='Dritte']`, "0");
+    expect(exists("[data-rolle='naechste-offene']")).toBe(false);
+    await click("[data-rolle='zum-ende']");
+    expect(document.activeElement).toBe(query(WEITER));
+    expect(query("[data-rolle='zum-ende']").textContent).not.toMatch(/weiter/i);
+  });
+
+  it("Enter im Zahlenfeld geht in die naechste Zeile, nach der letzten an den Abschluss", async () => {
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2", artikelId: "art-2" })]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    expect(zahlfelder()[0].getAttribute("enterkeyhint")).toBe("next");
+    await enter(zahlfelder()[0]);
+    expect(document.activeElement).toBe(zahlfelder()[1]);
+    await enter(zahlfelder()[1]);
+    expect(document.activeElement).toBe(query(WEITER));
+    // Enter ZAEHLT nicht: beide Zeilen sind weiter offen.
+    expect(query("[data-rolle='zaehl-summe']").textContent).toContain("2 von 2");
+  });
+
+  it("ein Schrittwechsel beginnt OBEN — der Scrollkasten springt zurueck (IDA-233)", async () => {
+    /*
+     * Gescrollt wird im Helferweg nicht das Fenster, sondern `.inhalt` des
+     * Rahmens. Vorher behielt dieser Kasten beim Wechsel seine Position: wer
+     * am Ende einer langen Zaehlliste „Weiter" tippte, stand mitten im
+     * Nachfuellschritt. jsdom rechnet kein Layout — der Kasten bekommt hier
+     * sein `overflow-y` inline und eine Inhaltshoehe von Hand.
+     */
+    await mount(
+      <div style={{ overflowY: "auto" }} data-rolle="scroller">
+        <CheckFlow
+          kontoZugang={false} {...VOLL}
+          fahrzeug={FZ}
+          soll={[POS()]}
+          geraete={[]}
+          flaschen={[]}
+          verfall={{}}
+          warn={WARN}
+          andereEinheitErreichbar
+          letzterCheckText={null}
+        />
+      </div>,
+    );
+    const kasten = query("[data-rolle='scroller']");
+    Object.defineProperty(kasten, "scrollHeight", { configurable: true, value: 5000 });
+    kasten.scrollTop = 1200;
+    await minus(0); // innerhalb des Schritts: KEIN Sprung, sonst verloere man die Zeile
+    expect(kasten.scrollTop).toBe(1200);
+    await click(WEITER); // → Nachfuellen
+    expect(kasten.scrollTop).toBe(0);
+    kasten.scrollTop = 800;
+    await click(ZURUECK); // → Zaehlen
+    expect(kasten.scrollTop).toBe(0);
+  });
+
+  it("die Menge ist TIPPBAR — und ein Tipp INS Feld zaehlt nicht (IDA-233)", async () => {
+    /*
+     * BIS IDA-233 STAND HIER `noText` („damit unterwegs am Handy nicht
+     * versehentlich ins Zahlenfeld getippt wird", `Stepper.tsx`). Der Preis
+     * war gemessen: 24 gefundene Teile = 24 Taps, an jeder Zeile von 0 an.
+     *
+     * Der Fehlgriff, gegen den `noText` schuetzte, ist jetzt am Feld selbst
+     * entschaerft, und genau das sichert dieser Test: Fokus und Verlassen
+     * OHNE Ziffer lassen die Zeile ungezaehlt (DRK-304) — sonst waere jeder
+     * versehentliche Tipp eine stille Leerbuchung. Erst eine Ziffer, auch die
+     * 0, ist eine Zaehlung.
+     *
+     * ⚠️ Geprueft wird ueber `type='text'`, nicht ueber `input[aria-label]`
+     * (Befund 33): das Verfallsfeld traegt auch eins.
+     */
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        soll={[POS({ soll: 30 })]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    expect(zahlfelder()).toHaveLength(1);
+    const feld = zahlfelder()[0];
+    expect(feld.getAttribute("inputmode")).toBe("numeric");
+
+    await act(async () => feld.focus());
+    await verlassen(feld);
+    expect(gesperrt(), "ein Tipp ins Feld ist keine Zaehlung").toBe(true);
+    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nicht gezählt");
+    expect(feld.value).toBe("");
+
+    // Loeschen-und-neu-tippen zaehlt ebenso wenig (Stepper: leeres Feld committet nicht).
+    await fill(ZAHLFELD, "");
+    expect(gesperrt()).toBe(true);
+
+    await fill(ZAHLFELD, "24");
+    expect(gesperrt()).toBe(false);
+    expect(zahlfelder()[0].value).toBe("24");
+    expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nicht gezählt");
+
+    // Und `+/−` rechnen auf dem getippten Wert weiter.
+    await plus(0);
+    expect(zahlfelder()[0].value).toBe("25");
+  });
+
+  it("eine getippte 0 ist eine Zaehlung — der zweite Weg fuer ein leeres Fach", async () => {
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -548,10 +810,13 @@ describe("CheckFlow — der Zaehlschritt", () => {
         letzterCheckText={null}
       />,
     );
-    const felder = queryAll<HTMLInputElement>("[data-rolle='zaehlliste'] input");
-    expect(felder.length).toBe(1);
-    expect(felder[0].type).toBe("month");
-    expect(exists("[data-rolle='zaehlliste'] [data-rolle='stepanzeige']")).toBe(true);
+    await fill(ZAHLFELD, "0");
+    expect(gesperrt()).toBe(false);
+    expect(zahlfelder()[0].value).toBe("0");
+    // … und sie kommt als 0 an, nicht als „unangetastet": der Nachfuellschritt
+    // zeigt die volle Luecke (Soll 5).
+    await click(WEITER);
+    expect(query("[data-rolle='nf-liste']").textContent).toContain("Lücke 5");
   });
 
   it("das Verfallsfeld erscheint NUR in der ERSTEN Zeile je Artikel", async () => {
@@ -570,9 +835,59 @@ describe("CheckFlow — der Zaehlschritt", () => {
       />,
     );
     // Beide Zeilen sind da …
-    expect(queryAll("[data-rolle='zaehlliste'] [data-rolle='stepanzeige']").length).toBe(2);
-    // … und nur EINE traegt das Feld.
+    expect(queryAll("[data-rolle='zaehlzeile']").length).toBe(2);
+    expect(zahlfelder()).toHaveLength(2);
+    // … und nur EINE traegt den Knopf und, aufgeklappt, das Feld.
+    expect(queryAll("[data-rolle='verfall-knopf']").length).toBe(1);
+    await verfallAufklappen();
     expect(queryAll("[data-rolle='zaehlliste'] input[type='month']").length).toBe(1);
+  });
+
+  it("das Verfallsfeld ist ZUGEKLAPPT — eine vorhandene Angabe bleibt sichtbar (IDA-233)", async () => {
+    /*
+     * Das Feld ist freiwillig und wird selten geaendert; offen belegte es in
+     * jeder ersten Artikelzeile eine eigene 56er-Zeile. Zugeklappt darf aber
+     * keine ANGABE verschwinden: der Knopf traegt dann den Ampelchip, und das
+     * Aufklappen zeigt denselben Wert im Feld. Uhr fest, aus demselben Grund
+     * wie im Wiederholzeilen-Test unten.
+     */
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-15T10:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    await mount(
+      <CheckFlow
+        kontoZugang={false} {...VOLL}
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2026-09" }}
+        warn={WARN}
+        soll={[POS(), POS({ id: "sp-2", artikelId: "art-2", artikelName: "Mullbinde" })]}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    expect(exists("[data-rolle='zaehlliste'] input[type='month']")).toBe(false);
+    const [mitAngabe, ohneAngabe] = queryAll("[data-rolle='verfall-knopf']");
+    expect(mitAngabe.textContent).toContain("09/26");
+    expect(mitAngabe.getAttribute("aria-label")).toMatch(/^Kompresse: Verfall .*09\/26/);
+    expect(ohneAngabe.textContent).toBe("Verfall angeben");
+    expect(ohneAngabe.getAttribute("aria-label")).toBe("Mullbinde: Verfall angeben");
+
+    await clickElement(mitAngabe);
+    expect(mitAngabe.getAttribute("aria-expanded")).toBe("true");
+    const feld = query<HTMLInputElement>("[data-rolle='zaehlliste'] input[type='month']");
+    expect(feld.value).toBe("2026-09");
+    // Der Fokus folgt dem Aufklappen — ein zweiter Tipp ins Feld entfaellt.
+    expect(document.activeElement).toBe(feld);
+
+    // Zuklappen verwirft NICHTS: der geaenderte Wert steht danach im Chip.
+    await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
+    await clickElement(mitAngabe);
+    expect(exists("[data-rolle='zaehlliste'] input[type='month']")).toBe(false);
+    expect(query("[data-rolle='verfall-knopf']").textContent).toContain("03/27");
   });
 
   it("die Hinweiszeile bei Wiederholzeilen ist WEG — der Chip steht in JEDER Zeile", async () => {
@@ -1014,6 +1329,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     for (let i = 0; i < 3; i++) await plus(0); // Ist = 3
     // Angetippt und wieder auf den Ausgangswert gestellt: NUR Geaendertes wird
     // gesendet (:152-155) — hier also NICHTS.
+    await verfallAufklappen();
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2026-09");
     await click(WEITER); // greedy: Luecke 2, Handlager 20 → 2
@@ -1052,6 +1368,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
     await alleBestaetigen();
     await click(WEITER);
@@ -1062,8 +1379,8 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
   });
 
   it("ein GELEERTES Feld loescht die Angabe — es ist nicht „unangetastet\"", async () => {
-    // Der Zaehlschritt sagt es der Helferin woertlich: „Leeren heißt ‚keine
-    // Angabe‘". `checkNutzlast` unterscheidet drei Faelle — fehlender Eintrag =
+    // Der Leerknopf am Feld (DRK-306) schreibt genau das: „keine Angabe".
+    // `checkNutzlast` unterscheidet drei Faelle — fehlender Eintrag =
     // unangetastet, `""`/`null` = LOESCHEN. Ohne diesen Test deckten die beiden
     // Tests oben nur zwei davon ab, und ein Filter, der die geleerte Angabe
     // mit wegwirft, bliebe gruen.
@@ -1080,6 +1397,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     await fill("[data-rolle='zaehlliste'] input[type='month']", "");
     await alleBestaetigen();
     await click(WEITER);
@@ -1669,6 +1987,7 @@ const VOLLES_FAHRZEUG_KONTO = (
 async function alleSechsSetzen(flaeche = VOLLES_FAHRZEUG): Promise<void> {
   await mount(flaeche);
   for (let i = 0; i < 3; i++) await plus(0); // 1 `ist` = 3
+  await verfallAufklappen();
   await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03"); // 2 `verfallState`
   await click(WEITER); // 3 `nachfuell` = 2 (greedy)
   await click(WEITER);
@@ -1692,8 +2011,9 @@ async function pruefeAlleSechs(): Promise<void> {
   expect(query("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").textContent).toBe("2");
   await click(ZURUECK);
   // 1 — die gezaehlte Menge.
-  expect(query("[data-rolle='zaehlliste'] [data-rolle='stepanzeige']").textContent).toBe("3");
-  // 2 — der gemeldete Verfall, im Feld UND im Chip.
+  expect(zahlfelder()[0].value).toBe("3");
+  // 2 — der gemeldete Verfall, im Feld UND im Chip. Das Feld steht noch offen:
+  // das Aufklappen ist Anzeige im selben Baum und ueberlebt den Schrittwechsel.
   expect(
     query<HTMLInputElement>("[data-rolle='zaehlliste'] input[type='month']").value,
   ).toBe("2027-03");
@@ -2282,6 +2602,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     expect(exists(LEEREN)).toBe(false);
     await fill(FELD, "2027-03");
     expect(exists(LEEREN)).toBe(true);
@@ -2309,6 +2630,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     expect(query<HTMLInputElement>(FELD).value).toBe("2026-09");
     await click(LEEREN);
     expect(query<HTMLInputElement>(FELD).value).toBe("");
@@ -2329,6 +2651,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     await click(LEEREN);
     await alleBestaetigen();   // DRK-304: unberuehrte Position sperrt „Weiter"
     await click(WEITER);
@@ -2356,6 +2679,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     await fill(FELD, "2027-03");
     await click(LEEREN);
     await alleBestaetigen();   // DRK-304: unberuehrte Position sperrt „Weiter"
@@ -2381,6 +2705,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 laufen ab");
     await click(LEEREN);
     expect(query("[data-rolle='zaehl-summe']").textContent).not.toContain("laufen ab");
@@ -2408,10 +2733,15 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     const feldLabel = query(FELD).getAttribute("aria-label") ?? "";
     const knopfLabel = query(LEEREN).getAttribute("aria-label") ?? "";
     expect(feldLabel).toBe("Verfall Kompresse");
     expect(knopfLabel.startsWith(feldLabel)).toBe(false);
+    // Dasselbe gilt fuer den Aufklappknopf aus IDA-233 — er steht IMMER da,
+    // nicht erst mit Vorbelegung, und braeche den Greifer damit in jedem Lauf.
+    const aufLabel = query("[data-rolle='verfall-knopf']").getAttribute("aria-label") ?? "";
+    expect(aufLabel.startsWith("Verfall")).toBe(false);
   });
 
   it("traegt ein eigenes aria-label je Artikel — der Knopf steht je Zeile", async () => {
@@ -2430,6 +2760,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         letzterCheckText={null}
       />,
     );
+    await verfallAufklappen();
     const labels = queryAll(LEEREN).map((b) => b.getAttribute("aria-label"));
     expect(labels).toStrictEqual([
       "Kompresse: Verfall entfernen",

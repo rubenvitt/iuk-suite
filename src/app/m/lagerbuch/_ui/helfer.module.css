@@ -695,12 +695,43 @@
  * DAS FACH IST DIE ORTSANGABE DES CHECKS (IDA-226) — wo gezaehlt, wohin
  * eingeraeumt wird. Als leise 13px-Stahlzeile ging sie unter; sie steht jetzt in
  * Tinte, gross und mit Balken. Kein Rot (Falle 3): ein Ort ist kein Befund.
+ *
+ * UND SIE KLEBT — IDA-233. Bei 210 Positionen in zehn Faechern stand der Kopf
+ * nach drei Zeilen ausser Sicht, und welches Fach gerade offen vor einem liegt,
+ * war nur durch Zurueckscrollen zu erfahren. `position: sticky` wirkt innerhalb
+ * des Fach-`div` (der Containing Block, `CheckFlow.tsx`): am Fachende schiebt
+ * der naechste Kopf ihn hinaus. Er braucht dafuer eine eigene Flaeche —
+ * `--lb-papier`, der Seitengrund —, sonst liefen die Zeilen unter dem Text durch.
+ *
+ * ⚠️ DER STREIFEN DARUEBER — gemessen, nicht vermutet (Chromium, 390px): der
+ * Kopf klebt an der INHALTSKANTE von `.inhalt`, also 14px (ab 768px: 20px)
+ * unter dessen Oberkante, und im Polster darueber liefen die Zeilen sichtbar
+ * angeschnitten durch. `::before` deckt genau dieses Polster ab, ueber den
+ * Balken hinweg. Im Fluss verdeckt es nichts, weil der `margin` darueber (20px)
+ * mindestens so hoch ist wie der Streifen: dort liegt nur Seitengrund.
+ *
+ * ⚠️ KEIN SEITLICHER `margin` UND `right: 0`: der Streifen soll so breit sein
+ * wie die Karte darunter, darf aber rechts nicht ueber den Kopf hinausragen —
+ * ein Ueberstand dort zaehlt als waagerechter Ueberlauf (gemessen:
+ * `lagerbuch-mobil.spec.ts` meldete 2px bei `right: -2px`).
  */
 .fachKopf {
   font-family: var(--lb-display); font-weight: 700; font-size: 21px; line-height: 1.2;
   letter-spacing: .04em; text-transform: uppercase; color: var(--lb-tinte);
-  margin: 20px 2px 8px; padding-left: 10px; border-left: 5px solid var(--lb-tinte);
+  margin: 20px 0 8px; padding-left: 10px; border-left: 5px solid var(--lb-tinte);
   overflow-wrap: anywhere;
+  position: sticky; top: 0; z-index: 1; background: var(--lb-papier);
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+}
+.fachKopf::before {
+  content: ""; position: absolute; left: -5px; right: 0; bottom: 100%; height: 14px;
+  background: var(--lb-papier);
+}
+.fachKopf > span:first-child { min-width: 0 }
+/* „3/12" — leiser als der Ort, Ziffern gleich breit, damit nichts wackelt. */
+.fachStand {
+  flex: none; font-size: 15px; letter-spacing: .04em; color: var(--lb-stahl);
+  font-variant-numeric: tabular-nums;
 }
 /* Dieselbe Ortsangabe mitten in einer Zeile (Plombe „deckt … ab"). */
 .fachInZeile { font-size: 15px; font-weight: 700; color: var(--lb-tinte); overflow-wrap: anywhere }
@@ -771,6 +802,65 @@
   border: 1.5px solid var(--lb-linie); border-radius: 10px;
   background: var(--lb-karte); color: var(--lb-stahl);
 }
+/*
+ * DIE ZAEHLZEILE — IDA-233: Name oben ueber die volle Breite, darunter EIN
+ * Bedienband mit Verfallsknopf links und Stepper rechts.
+ *
+ * Vorher stand der Stepper (3x56) neben dem Namen und liess ihm am Telefon rund
+ * 110px — ein Artikelname brach drei-, viermal um —, und das offene
+ * Verfallsfeld belegte in jeder ersten Artikelzeile eine eigene 56er-Zeile.
+ * `.zaehlBand` traegt `flex: 1 0 100%` aus demselben Grund wie `.verfallZeile`:
+ * `.zeile` bricht um (`flex-wrap`), und die 100%-Basis legt das Band unter
+ * Kreis und Text.
+ *
+ * `row-gap` enger als die 11px von `.zeile`: zwischen Text und Band steht keine
+ * Trennung, sondern dieselbe Position. `.zeile.zaehlZeile` (0,2,0) gewinnt
+ * unabhaengig von der Stelle im Stylesheet (Falle 5).
+ */
+.zeile.zaehlZeile { row-gap: 8px }
+.zaehlBand { flex: 1 0 100%; min-width: 0; display: flex; align-items: center; gap: 8px }
+.zaehlBand > .stepper { margin-left: auto }
+/*
+ * DER VERFALLSKNOPF — IDA-233. 56px hoch wie jedes Tippziel des Helferwegs
+ * (Falle 4, `.verfallLeeren`), und er kostet nichts: er steht im Band NEBEN dem
+ * ohnehin 56px hohen Stepper.
+ *
+ * `flex: 0 1 auto` und `min-width: 0`: am Telefon bleiben neben dem Stepper rund
+ * 150px. Passt ein langer Ampeltext dort nicht hinein, gibt der Knopf nach und
+ * nicht der Stepper — dessen Tasten sind das Einsatzmass.
+ *
+ * KEINE AMPELFARBE AM KNOPF SELBST (Falle 3): die traegt der Chip darin, wenn
+ * eine Angabe da ist. Ohne Angabe ist er eine leise Bedienung, gestrichelt wie
+ * ein Feld, das man fuellen KANN, nicht muss.
+ */
+.verfallKnopf {
+  flex: 0 1 auto; min-width: 0; min-height: 56px; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
+  border: 1.5px dashed var(--lb-linie); border-radius: 10px;
+  font-size: 13px; font-weight: 600; color: var(--lb-stahl); white-space: nowrap;
+}
+.verfallKnopf[aria-expanded="true"] { border-style: solid; border-color: var(--lb-tinte); color: var(--lb-tinte) }
+/*
+ * DER MITLAUFENDE ZAEHLSTAND — IDA-233. Er klebt unten im Scrollkasten
+ * (`.inhalt`), wo der Daumen ist, und faellt am Listenende in den Fluss —
+ * direkt ueber die ruhende Weiter-Leiste (`.abschluss.abschlussRuhend`).
+ *
+ * HELL, NICHT TINTIG: die tintige Leiste heisst in den anderen Schritten
+ * „Weiter/Abschliessen". Dieser Stand fuehrt nur zur naechsten offenen Zeile
+ * (DRK-304: kein mitfahrendes Weiter), und er soll nicht so aussehen, als koenne
+ * er mehr. Der Schatten ist der Schwebeschatten von `.abschluss`, leiser.
+ */
+.zaehlStand {
+  position: sticky; bottom: 6px; z-index: 1; margin-top: 14px;
+  display: flex; align-items: center; gap: 11px; padding: 8px 8px 8px 14px;
+  background: var(--lb-karte); border: 1px solid var(--lb-linie); border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(12, 18, 24, .18);
+}
+.zaehlStandText { flex: 1; min-width: 0 }
+.zaehlStandText b { font-family: var(--lb-display); font-size: 16px; letter-spacing: .03em; font-variant-numeric: tabular-nums }
+.zaehlStandSpur { height: 5px; margin-top: 6px; border-radius: 99px; background: var(--lb-linie); overflow: hidden }
+.zaehlStandSpur > div { height: 100%; background: var(--lb-ampel-ok-text) }
+.zaehlStand .knopf { flex: none; padding-inline: 14px }
 .nfZeile { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-top: 1px solid var(--lb-linie) }
 .nfZeile:first-child { border-top: none }
 .nfGeholt { text-align: center; flex: none }
@@ -825,6 +915,13 @@
  * Stylesheet (Falle 5).
  */
 .abschlussGo[disabled] { opacity: .45; cursor: default }
+/*
+ * DER GESPERRTE WEITER-KNOPF DES ZAEHLSCHRITTS — IDA-233. Er traegt
+ * `aria-disabled` statt `disabled`, weil sein Tipp zur ersten offenen Zeile
+ * fuehrt, statt verschluckt zu werden; das Aussehen bleibt das gesperrte. Kein
+ * `cursor: default`: der Knopf TUT etwas.
+ */
+.abschlussGo[aria-disabled="true"] { opacity: .45 }
 /*
  * DER UEBERNEHMEN-KNOPF DER ZIELWAHL KLEBT UNTEN, so wie `.abschluss` im Check.
  * Er stand unter der ganzen Fahrzeugliste: wer eine Einheit antippte, sah den
@@ -1108,6 +1205,10 @@
 
   /* Mehr Luft, sobald welche da ist. Die Seitenabstaende regelt `--lb-bahn`. */
   .inhalt { padding-block: 20px 26px; }
+
+  /* Der Abdeckstreifen des klebenden Fachkopfs folgt dem Polster darueber
+     (Begruendung an `.fachKopf`). */
+  .fachKopf::before { height: 20px }
 
   /*
    * ZWEI SPALTEN AB 768px, DREI AB 1100px — ohne zweite Media Query: `auto-fit`

@@ -145,11 +145,60 @@ describe("Stepper — der `draft`-Zustand haelt den Parent-Wert als Quelle der W
   });
 });
 
+describe("Stepper — `leer` (IDA-233: ungezaehlt ist nicht 0)", () => {
+  /*
+   * Der Zaehlschritt gibt den Stepper seit IDA-233 tippbar aus. `wert` traegt
+   * dort fuer eine ungezaehlte Zeile eine 0 als Platzhalter (DRK-304); diese 0
+   * darf weder im Feld STEHEN (sie saehe aus wie eine Aussage) noch durch
+   * blosses Antippen zur Zaehlung WERDEN.
+   */
+  it("zeigt nichts statt der Platzhalter-0", async () => {
+    await mount(<Stepper wert={0} setWert={() => {}} min={0} max={99} leer />);
+    expect(query<HTMLInputElement>("input").value).toBe("");
+    expect(query<HTMLInputElement>("input").placeholder).toBe("–");
+  });
+
+  it("Fokus und Verlassen ohne Ziffer committen NICHTS", async () => {
+    const setWert = vi.fn();
+    await mount(<Stepper wert={0} setWert={setWert} min={0} max={99} leer />);
+    await act(async () => query("input").focus());
+    await verlassen("input");
+    expect(setWert).not.toHaveBeenCalled();
+    expect(query<HTMLInputElement>("input").value).toBe("");
+  });
+
+  it("eine getippte 0 IST eine Zaehlung", async () => {
+    const setWert = vi.fn();
+    await mount(<Stepper wert={0} setWert={setWert} min={0} max={99} leer />);
+    await fill("input", "0");
+    expect(setWert).toHaveBeenCalledWith(0);
+  });
+
+  it("`−` auf der Platzhalter-0 committet die 0 — der Ausgang fuer ein leeres Fach", async () => {
+    const setWert = vi.fn();
+    await mount(<Stepper wert={0} setWert={setWert} min={0} max={99} leer />);
+    await click(MINUS);
+    expect(setWert).toHaveBeenCalledWith(0);
+  });
+
+  it("Enter ruft `beiEnter` — und committet dabei nichts", async () => {
+    const setWert = vi.fn();
+    const beiEnter = vi.fn();
+    await mount(<Stepper wert={0} setWert={setWert} min={0} max={99} leer beiEnter={beiEnter} />);
+    expect(query("input").getAttribute("enterkeyhint")).toBe("next");
+    await act(async () => {
+      query("input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(beiEnter).toHaveBeenCalledTimes(1);
+    expect(setWert).not.toHaveBeenCalled();
+  });
+});
+
 describe("Stepper — `noText`", () => {
   it("rendert KEIN <input>", async () => {
     // „damit unterwegs am Handy nicht versehentlich ins Zahlenfeld getippt
-    // wird" (Stepper.tsx). Genutzt beim Zaehlen und beim Nachfuellen — beides
-    // Stellen, an denen ein Fehlgriff eine falsche Bestandsbuchung ist.
+    // wird" (Stepper.tsx). Seit IDA-233 nur noch beim Nachfuellen, wo der Wert
+    // vorgeschlagen ist; das Zaehlen nutzt `leer` (Block darueber).
     await mount(<Stepper wert={4} setWert={() => {}} noText />);
     expect(exists("input")).toBe(false);
     expect(query("[data-rolle='stepanzeige']").textContent).toBe("4");
