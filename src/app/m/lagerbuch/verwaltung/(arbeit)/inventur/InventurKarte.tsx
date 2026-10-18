@@ -9,7 +9,9 @@
  * VOR DEM SCHRANK gebraucht wird:
  *
  *  * Der NAME, gross und zuerst — die Frage lautet „welcher Artikel ist das".
- *  * Die ABWEICHUNG daneben, weil sie die einzige Zahl ist, die sich aendert.
+ *  * Die ABWEICHUNG neben dem Stepper, weil sie die einzige Zahl ist, die sich
+ *    aendert — und solange keine da ist, „Stimmt" (IDA-237): der haeufigste
+ *    Fall vor dem Regal ist ein Blick und ein Tipp, kein Zaehlen.
  *  * Kategorie, Fach, naechstes MHD als eine Zeile Merkmale — Fach ist der Weg
  *    zum Regal, MHD entscheidet, ob ueberhaupt gezaehlt werden muss.
  *  * Erwartung und Mindestbestand als eine Zeile Zahlen.
@@ -48,7 +50,6 @@ export function InventurKarte({ zeile, speicher, gesperrt, ortText }: {
     <article className={k.karte}>
       <div className={k.kopf}>
         <span className={k.name}>{zeile.name}</span>
-        <AbweichungsZelle zeile={zeile} speicher={speicher} />
       </div>
 
       <p className={k.merkmale}>
@@ -67,7 +68,15 @@ export function InventurKarte({ zeile, speicher, gesperrt, ortText }: {
         {`erwartet ${zeile.bestand} ${zeile.einheit} · Min. ${zeile.mindestbestand}`}
       </p>
 
-      <IstZelle zeile={zeile} speicher={speicher} gesperrt={gesperrt} className={k.stepper} />
+      {/* IDA-237 — „Stimmt" bzw. die Abweichung stehen IN DER ZAEHLZEILE, nicht
+          im Kopf neben dem Namen: bestaetigen oder korrigieren ist eine
+          Entscheidung, und beide Haelften liegen so unter demselben Daumen. Im
+          Kopf haette der 44px-Knopf die Karte um eine halbe Zeile hoeher
+          gemacht — bei 200 Karten zwanzig Bildschirme mehr Weg. */}
+      <div className={k.zaehlzeile}>
+        <IstZelle zeile={zeile} speicher={speicher} gesperrt={gesperrt} className={k.stepper} />
+        <AbweichungsZelle zeile={zeile} speicher={speicher} gesperrt={gesperrt} />
+      </div>
 
       {/* ⚠️ SICHTBARER TEXT KURZ, BESCHRIFTUNG VOLLSTAENDIG. „Chargen Mullbinde
           anzeigen" auf dem Knopf waere auf 390px ein Umbruch und steht ohnehin

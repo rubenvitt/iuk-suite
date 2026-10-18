@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button, type TableProps } from "antd";
 import {
   Datentabelle,
@@ -13,8 +13,14 @@ import {
   type Filterwert,
   type FilterZustand,
 } from "@/core/tabelle";
+import { SPACE } from "@/core/theme/tokens";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
-import { inventurTrifft, type InventurFilter } from "../../../_lib/inventurFilter";
+import {
+  filterIstLeer,
+  inventurSucheTrifft,
+  inventurTrifft,
+  type InventurFilter,
+} from "../../../_lib/inventurFilter";
 import { ZAEHLORT_ALLE, ZAEHLORT_PARAM, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { kategorieOptionen } from "../../../_lib/kategorie";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
@@ -28,6 +34,7 @@ import { InventurKarte } from "./InventurKarte";
 import { AbweichungsZelle, ChargenZelle, IstZelle } from "./InventurZellen";
 import { Schmalfilter } from "./Schmalfilter";
 import { Zaehlleiste } from "./Zaehlleiste";
+import type { ZaehlStand } from "./inventurZustand";
 import { erzeugeZaehlspeicher } from "./zaehlspeicher";
 
 /**
@@ -73,23 +80,35 @@ function trifftKategorie(zeile: InventurZeile, wert: Filterwert): boolean {
  * ⚠️ `aufklappen` STEHT NICHT IN `columns` — antd fuegt die Spalte aus
  * `expandable` selbst hinzu, und ohne `columnWidth` kennt ihre Breite nur
  * antds Stylesheet. `Datentabelle` verlangt die Zahl deshalb ausdruecklich.
+ *
+ * ⚠️ IDA-237 — DIE REIHENFOLGE IST DIE DES ZAEHLENS, NICHT DIE DES STAMMS:
+ * Artikel, Fach, erwarteter Bestand, Abweichung/„Stimmt", Ist — danach erst
+ * MHD, Mindestbestand, Kategorie. Vorher stand der Stepper in der achten von
+ * acht Spalten; auf einem Tablet (1024px, Seitenleiste offen, rund 750px
+ * Inhalt) lagen Bestand, Abweichung und Ist rechts ausserhalb des Bildes,
+ * gezaehlt wurde mit waagerechtem Scrollen je Zeile. Die ersten sechs Spalten
+ * summieren sich jetzt auf 742 und passen dort hinein; was rechts davon
+ * steht, liest man, bedient es aber nicht.
  */
 const BREITE = {
   aufklappen: 60,
-  artikel: 230,
-  kategorie: 140,
+  artikel: 160,
+  // Kicker, Sortierer und Filter im Kopf brauchen die 100 — mit 80 brach „Fach"
+  // gemessen in zwei Zeilen um.
   fach: 100,
-  mhd: 110,
-  mindest: 80,
-  bestand: 120,
-  abweichung: 110,
-  // ⚠️ 300 UND NICHT 260, UND DAS IST NACHGERECHNET: drei Bedienelemente
-  // (44 + 90 + 44) plus zwei Abstaende und das Zellenpolster sind schon rund
-  // 226 — im Chargenmodus kommt der Chip „je Charge" dazu. Zu schmal gerechnet
-  // bricht der Stepper um, und in einer Zeile mit fester Hoehe ist das dann
-  // abgeschnitten. Die Breite ist den Nachbarspalten ABGENOMMEN, nicht der
-  // Summe zugeschlagen: 1190 + 60 bleibt unter 1280.
-  ist: 300,
+  bestand: 100,
+  // „Stimmt" mit Haken und schmalerem Polster (`InventurZellen.tsx`) — 44px
+  // hoch wie jedes Bedienelement (Falle 4).
+  abweichung: 112,
+  // ⚠️ 210 IST NACHGERECHNET: drei Bedienelemente (44 + 90 + 44) plus zwei
+  // Abstaende sind 186, dazu das Zellenpolster. Zu schmal gerechnet bricht der
+  // Stepper um, und in einer Zeile mit fester Hoehe ist das dann abgeschnitten.
+  // Der Chip „je Charge" im Chargenmodus steht dann neben einem gesperrten
+  // Stepper und darf umbrechen — dort wird in der aufgeklappten Zeile gezaehlt.
+  ist: 210,
+  mhd: 100,
+  mindest: 70,
+  kategorie: 140,
 } as const;
 
 export function InventurForm({ zeilen, ortId, orte }: {
@@ -115,6 +134,33 @@ export function InventurForm({ zeilen, ortId, orte }: {
    * dieser Zahl — ein gemerkter Stand waere dort still veraltet.
    */
   const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
+  /**
+   * IDA-237 — der ENTPRELLTE Suchbegriff. Das Feld selbst lebt in der
+   * Zaehlleiste; hier kommt nur an, wonach gefiltert wird.
+   */
+  const [suche, setSuche] = useState("");
+  const sucheJetzt = useRef("");
+  /**
+   * IDA-237 — „OFFEN" IST EIN SCHNAPPSCHUSS DES ZAEHLSTANDS, KEIN LAUFENDER
+   * FILTER. `null` heisst „alle Zeilen".
+   *
+   * ⚠️ EIN LAUFENDER FILTER VERLOERE DIE ZEILE UNTER DEM FINGER: der erste
+   * Tipp auf „+" macht sie erfasst, sie verschwindet, und der zweite Tipp
+   * trifft die naechste Zeile — dieselbe Begruendung, aus der „Abweichung"
+   * und „Ist" keinen Sortierer haben. Gemerkt wird deshalb der Stand beim
+   * Einschalten; was danach erfasst wird, bleibt sichtbar (mit Haken), bis
+   * die Auswahl neu getroffen oder die Suche geaendert wird.
+   *
+   * ⚠️ UND DAS FORMULAR HORCHT DAFUER NICHT AUF DEN STAND (DRK-421): es liest
+   * ihn nur in dem Moment, in dem jemand umschaltet oder sucht. Der einzige
+   * Horcher unten meldet sich allein beim LEEREN (Abschluss, Verwerfen) —
+   * sonst blieben danach Zeilen ausgeblendet, die laengst wieder offen sind.
+   */
+  const [offenStand, setOffenStand] = useState<ZaehlStand | null>(null);
+  /** Wohin die Suche nach Enter springt. Ein Objekt, damit ein zweites Enter wieder springt. */
+  const [fokusZiel, setFokusZiel] = useState<{ id: string } | null>(null);
+  /** Hoehe der festen Abschlussleiste — sie geht als `rand` an die Tabelle (Falle 16). */
+  const [leistenHoehe, setLeistenHoehe] = useState(0);
   /**
    * Zwei Sperren, EINE Bedeutung fuer alles Bedienbare. `absendet` meldet die
    * Abschlussleiste herauf (dort liegt die Transition, weil dort der Kommentar
@@ -176,10 +222,83 @@ export function InventurForm({ zeilen, ortId, orte }: {
   );
   const faecher = useMemo(() => fachFilter.map((f) => String(f.value)), [fachFilter]);
 
-  const sichtbar = useMemo(
-    () => zeilen.filter((zeile) => inventurTrifft(zeile, filter)),
-    [zeilen, filter],
+  /**
+   * Suche und „Offen" VOR der Tabelle, Kategorie und Fach IN ihr (antds
+   * `onFilter`, gesteuert). Die Trennung ist fachlich: nur Kategorie und Fach
+   * sind Umfang und gehen in den Verlauf (`inventurSucheTrifft`).
+   */
+  const vorgefiltert = useMemo(
+    () => zeilen.filter((zeile) => inventurSucheTrifft(zeile, suche)
+      && (offenStand === null || !(zeile.id in offenStand))),
+    [zeilen, suche, offenStand],
   );
+
+  const sichtbar = useMemo(
+    () => vorgefiltert.filter((zeile) => inventurTrifft(zeile, filter)),
+    [vorgefiltert, filter],
+  );
+
+  const sucheSetzen = useCallback((begriff: string) => {
+    if (begriff === sucheJetzt.current) return;
+    sucheJetzt.current = begriff;
+    setSuche(begriff);
+    // Eine neue Suche ist eine neue Frage — „Offen" gilt dann fuer jetzt.
+    setOffenStand((vorher) => (vorher === null ? null : speicher.lies()));
+  }, [speicher]);
+
+  const nurOffenSetzen = useCallback((an: boolean) => {
+    setOffenStand(an ? speicher.lies() : null);
+  }, [speicher]);
+
+  useEffect(() => speicher.horcheGesamt(() => {
+    if (Object.keys(speicher.lies()).length > 0) return;
+    setOffenStand((vorher) => (vorher && Object.keys(vorher).length > 0 ? {} : vorher));
+  }), [speicher]);
+
+  /**
+   * IDA-237 — ENTER SPRINGT ZUM EINZIGEN TREFFER. Gerechnet wird mit dem
+   * Begriff, wie er GERADE im Feld steht, nicht mit dem entprellten: wer
+   * „137" tippt und sofort Enter drueckt, ist schneller als der Nachlauf.
+   * Mehrere Treffer: kein Sprung, die Liste ist ja schon gefiltert.
+   */
+  const sucheEnter = useCallback((begriff: string) => {
+    const neu = begriff !== sucheJetzt.current;
+    sucheSetzen(begriff);
+    const offen = offenStand === null ? null : neu ? speicher.lies() : offenStand;
+    const treffer = zeilen.filter((zeile) => inventurSucheTrifft(zeile, begriff)
+      && inventurTrifft(zeile, filter)
+      && (offen === null || !(zeile.id in offen)));
+    if (treffer.length === 1) setFokusZiel({ id: treffer[0]!.id });
+  }, [sucheSetzen, offenStand, speicher, zeilen, filter]);
+
+  useEffect(() => {
+    if (!fokusZiel) return;
+    let versuche = 0;
+    let bild = 0;
+    /*
+     * ⚠️ JEDE ZEILE STEHT ZWEIMAL IM DOM (Karte und Tabelle, die Media Query
+     * blendet eine aus) — fokussiert wird die SICHTBARE. `checkVisibility`
+     * kennt jsdom nicht; dort gilt die erste. Und die Zeile ist womoeglich
+     * noch nicht gerendert (virtuelle Liste, gerade erst gefiltert): deshalb
+     * einige Bilder lang erneut versuchen statt einmal zu raten.
+     */
+    const springe = () => {
+      const feld = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-ist-artikel]"))
+        .find((element) => element.dataset.istArtikel === fokusZiel.id
+          && (typeof element.checkVisibility !== "function" || element.checkVisibility()));
+      if (feld) {
+        feld.focus();
+        // Markiert, damit die getippte Zahl die Vorbelegung ersetzt statt sie
+        // zu verlaengern („10" + „5" waere sonst 105).
+        feld.select();
+        return;
+      }
+      versuche += 1;
+      if (versuche < 20) bild = requestAnimationFrame(springe);
+    };
+    springe();
+    return () => cancelAnimationFrame(bild);
+  }, [fokusZiel]);
 
   const ortText = ortId === null ? "im Handlager" : "an diesem Zählort";
 
@@ -200,6 +319,70 @@ export function InventurForm({ zeilen, ortId, orte }: {
       width: BREITE.artikel,
       sorter: nachText<InventurZeile>((zeile) => zeile.name),
       render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
+    },
+    {
+      title: "Fach",
+      dataIndex: "fach",
+      width: BREITE.fach,
+      sorter: nachText<InventurZeile>((zeile) => zeile.fach),
+      filters: fachFilter,
+      filteredValue: spaltenFilter.fach ?? null,
+      onFilter: trifftWert<InventurZeile>((zeile) => zeile.fach),
+      render: (wert: string) => <span className={s.fach}>{wert}</span>,
+    },
+    {
+      title: "Bestand",
+      dataIndex: "bestand",
+      width: BREITE.bestand,
+      align: "right",
+      // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
+      sorter: nachZahl<InventurZeile>((zeile) => zeile.bestand),
+      render: (wert: number, zeile) => (
+        <span style={SCHRIFT.mono}>{wert} {zeile.einheit}</span>
+      ),
+    },
+    /*
+     * ⚠️ KEINE SORTIERUNG AUF „Abweichung" UND „Ist": beide lesen den
+     * Zaehlstand DIESER Sitzung. Eine Spalte, die sich waehrend des Zaehlens
+     * selbst umsortiert, verliert die Zeile unter dem Finger. ⛔ AUS DEMSELBEN
+     * GRUND HAT DIE KATEGORIE-SPALTE KEINEN SORTIERER, obwohl ihr Wert statisch
+     * waere: DRK-333 brachte hier einen FILTER, keine zweite Ordnung.
+     */
+    {
+      title: "Abweichung",
+      dataIndex: "id",
+      width: BREITE.abweichung,
+      render: (_wert: string, zeile) => <AbweichungsZelle zeile={zeile} speicher={speicher} gesperrt={laeuft} />,
+    },
+    {
+      title: "Ist",
+      dataIndex: "id",
+      width: BREITE.ist,
+      align: "right",
+      render: (_wert: string, zeile) => (
+        <IstZelle zeile={zeile} speicher={speicher} gesperrt={laeuft} />
+      ),
+    },
+    {
+      title: "MHD",
+      dataIndex: "chargen",
+      width: BREITE.mhd,
+      // `chargen[0]` ist FEFO-naechste Handlager-Charge. `2099-12` („ohne
+      // Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall` — dort
+      // gibt es keinen Sonderfall, hier auch nicht.
+      render: (_wert: unknown, zeile) => {
+        const naechste = zeile.chargen[0];
+        return naechste
+          ? <Chip ton={ampelTon(naechste.ampel)}>{fmtVerfall(naechste.verfall)}</Chip>
+          : "—";
+      },
+    },
+    {
+      title: "Min.",
+      dataIndex: "mindestbestand",
+      width: BREITE.mindest,
+      align: "right",
+      render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
     },
     {
       title: "Kategorie",
@@ -229,70 +412,6 @@ export function InventurForm({ zeilen, ortId, orte }: {
       onFilter: (wert: Filterwert, zeile: InventurZeile) => trifftKategorie(zeile, wert),
       render: (wert: string | null) => wert ?? "—",
     },
-    {
-      title: "Fach",
-      dataIndex: "fach",
-      width: BREITE.fach,
-      sorter: nachText<InventurZeile>((zeile) => zeile.fach),
-      filters: fachFilter,
-      filteredValue: spaltenFilter.fach ?? null,
-      onFilter: trifftWert<InventurZeile>((zeile) => zeile.fach),
-      render: (wert: string) => <span className={s.fach}>{wert}</span>,
-    },
-    {
-      title: "MHD",
-      dataIndex: "chargen",
-      width: BREITE.mhd,
-      // `chargen[0]` ist FEFO-naechste Handlager-Charge. `2099-12` („ohne
-      // Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall` — dort
-      // gibt es keinen Sonderfall, hier auch nicht.
-      render: (_wert: unknown, zeile) => {
-        const naechste = zeile.chargen[0];
-        return naechste
-          ? <Chip ton={ampelTon(naechste.ampel)}>{fmtVerfall(naechste.verfall)}</Chip>
-          : "—";
-      },
-    },
-    {
-      title: "Min.",
-      dataIndex: "mindestbestand",
-      width: BREITE.mindest,
-      align: "right",
-      render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
-    },
-    {
-      title: "Bestand",
-      dataIndex: "bestand",
-      width: BREITE.bestand,
-      align: "right",
-      // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
-      sorter: nachZahl<InventurZeile>((zeile) => zeile.bestand),
-      render: (wert: number, zeile) => (
-        <span style={SCHRIFT.mono}>{wert} {zeile.einheit}</span>
-      ),
-    },
-    /*
-     * ⚠️ KEINE SORTIERUNG AUF „Abweichung" UND „Ist": beide lesen den
-     * Zaehlstand DIESER Sitzung. Eine Spalte, die sich waehrend des Zaehlens
-     * selbst umsortiert, verliert die Zeile unter dem Finger. ⛔ AUS DEMSELBEN
-     * GRUND HAT DIE KATEGORIE-SPALTE KEINEN SORTIERER, obwohl ihr Wert statisch
-     * waere: DRK-333 brachte hier einen FILTER, keine zweite Ordnung.
-     */
-    {
-      title: "Abweichung",
-      dataIndex: "id",
-      width: BREITE.abweichung,
-      render: (_wert: string, zeile) => <AbweichungsZelle zeile={zeile} speicher={speicher} />,
-    },
-    {
-      title: "Ist",
-      dataIndex: "id",
-      width: BREITE.ist,
-      align: "right",
-      render: (_wert: string, zeile) => (
-        <IstZelle zeile={zeile} speicher={speicher} gesperrt={laeuft} />
-      ),
-    },
   ], [kategorien, fachFilter, spaltenFilter, speicher, laeuft]);
 
   const aufklappbar = useMemo<TableProps<InventurZeile>["expandable"]>(() => ({
@@ -314,12 +433,17 @@ export function InventurForm({ zeilen, ortId, orte }: {
     ),
   }), [speicher, laeuft, ortText]);
 
+  const nurOffenAlles = offenStand !== null && suche.trim() === "" && filterIstLeer(filter);
   const leertext = useMemo(() => ({
     // Punkt 5 der Pruefliste: der Leertext nennt den naechsten Schritt.
     emptyText: zeilen.length === 0
       ? "Keine Artikel vorhanden. Lege sie zuerst unter Artikel & Bestand an."
-      : "Kein Artikel passt zum Filter.",
-  }), [zeilen.length]);
+      : nurOffenAlles
+        ? "Alles erfasst. Schließe die Inventur unten ab."
+        : suche.trim() !== ""
+          ? "Kein Artikel passt zu Suche und Filter."
+          : "Kein Artikel passt zum Filter.",
+  }), [zeilen.length, nurOffenAlles, suche]);
 
   const ortWechseln = useCallback((wert: string) => {
     startOrtswechsel(() => {
@@ -337,6 +461,10 @@ export function InventurForm({ zeilen, ortId, orte }: {
         onOrtWechsel={ortWechseln}
         gezeigt={sichtbar.length}
         gesamt={zeilen.length}
+        onSuche={sucheSetzen}
+        onSucheEnter={sucheEnter}
+        nurOffen={offenStand !== null}
+        onNurOffen={nurOffenSetzen}
       />
       {/* Nur in der schmalen Darstellung — dort gibt es keine Spaltenkoepfe,
           und ohne ihn gar keinen Filter (Begruendung in `Schmalfilter.tsx`). */}
@@ -373,13 +501,17 @@ export function InventurForm({ zeilen, ortId, orte }: {
           `overscroll-behavior: contain` gegen das Kettenscrollen. Ein zweiter
           Haken im Aufrufer waere eine zweite Messung derselben Sache.
         */}
-        <TabellenVollhoehe>
+        {/* IDA-237 — der Rand traegt die feste Abschlussleiste mit (Abstand
+            darueber, ihre gemessene Hoehe, Innenabstand der Seite): der
+            virtuelle Koerper endet UEBER ihr, statt unter ihr weiterzulaufen
+            (Falle 16, Begruendung im Kopf von `Abschlussleiste.tsx`). */}
+        <TabellenVollhoehe rand={SPACE.lg + SPACE.md + leistenHoehe}>
           {(koerperHoehe) => (
             <Datentabelle<InventurZeile>
               rowKey="id"
               virtuell={koerperHoehe}
               aria-label="Inventur"
-              dataSource={zeilen}
+              dataSource={vorgefiltert}
               onChange={(_seite, spaltenZustand) => setSpaltenFilter(spaltenZustand)}
               expandable={aufklappbar}
               locale={leertext}
@@ -398,6 +530,7 @@ export function InventurForm({ zeilen, ortId, orte }: {
         ortId={ortId}
         gesperrt={wechseltOrt}
         onAbsenden={setAbsendet}
+        onHoehe={setLeistenHoehe}
       />
     </>
   );
