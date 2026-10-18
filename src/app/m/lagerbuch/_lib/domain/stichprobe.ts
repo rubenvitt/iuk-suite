@@ -15,6 +15,11 @@
  *       Lage → gleiche Auswahl: ein Neuladen wuerfelt nicht neu, man kann sich
  *       also keine leichte Stichprobe „erladen".
  *
+ * Davor steht der PFLICHTKERN (IDA-223): was die Verwaltung „immer zaehlen"
+ * markiert hat, kommt jedes Mal dazu und zaehlt NICHT in den Umfang. Sonst
+ * fraesse ein grosser Pflichtkern die Stichprobe auf, und der Rest der
+ * Bestueckung kaeme nie mehr dran.
+ *
  * ⚠️ DIE EINHEIT DES ZIEHENS IST DER ARTIKEL, NICHT DIE POSITION. Der Abschluss
  * gleicht den Fahrzeugbestand JE ARTIKEL ab (`_actions/check.ts`): die Summe
  * der gezaehlten Positionen wird der neue Bestand. Steht derselbe Artikel in
@@ -33,10 +38,13 @@ export type StichprobenKandidat = {
   verbraucht: boolean;
   /** Der gemeldete Verfall ist nicht mehr gruen. */
   verfallBald: boolean;
+  /** IDA-223: in jedem Kurzcheck dran, ausserhalb des Umfangs. */
+  immerZaehlen?: boolean;
 };
 
 /** Warum eine Position heute dran ist — die Helferin liest das als Satz. */
-export type StichprobenGrund = "nie" | "ueberfaellig" | "verbraucht" | "verfall" | "zufall";
+export type StichprobenGrund =
+  "pflicht" | "nie" | "ueberfaellig" | "verbraucht" | "verfall" | "zufall";
 
 export type StichprobenTreffer = { id: string; grund: StichprobenGrund; tage: number | null };
 
@@ -50,6 +58,7 @@ type Gruppe = {
   tage: number | null;
   verbraucht: boolean;
   verfallBald: boolean;
+  immerZaehlen: boolean;
 };
 
 /** Deterministischer Zufall: FNV-1a als Seed, mulberry32 als Generator. */
@@ -77,6 +86,7 @@ function gruppiere(kandidaten: StichprobenKandidat[]): Gruppe[] {
       map.set(k.artikelId, {
         artikelId: k.artikelId, ids: [k.id], tage: k.tageSeitZaehlung,
         verbraucht: k.verbraucht, verfallBald: k.verfallBald,
+        immerZaehlen: k.immerZaehlen ?? false,
       });
       continue;
     }
@@ -87,11 +97,14 @@ function gruppiere(kandidaten: StichprobenKandidat[]): Gruppe[] {
       : Math.max(g.tage, k.tageSeitZaehlung);
     g.verbraucht ||= k.verbraucht;
     g.verfallBald ||= k.verfallBald;
+    // Eine markierte Position zieht den ganzen Artikel (Kopf, ⚠️).
+    g.immerZaehlen ||= k.immerZaehlen ?? false;
   }
   return [...map.values()];
 }
 
 function grundFuer(g: Gruppe, garantieTage: number, ausGarantie: boolean): StichprobenGrund {
+  if (g.immerZaehlen) return "pflicht";
   if (ausGarantie) return g.tage === null ? "nie" : "ueberfaellig";
   if (g.verbraucht) return "verbraucht";
   if (g.verfallBald) return "verfall";
@@ -106,7 +119,7 @@ const gewicht = (g: Gruppe, garantieTage: number) =>
 /**
  * Waehlt die Stichprobe. Der Umfang zaehlt POSITIONEN; ein Artikel mit
  * mehreren Positionen darf ihn um seine uebrigen Positionen ueberschreiten,
- * weil er nur ganz gezogen werden kann (Kopf).
+ * weil er nur ganz gezogen werden kann (Kopf). Der Pflichtkern kommt obendrauf.
  */
 export function waehleStichprobe(
   kandidaten: StichprobenKandidat[],
@@ -123,12 +136,15 @@ export function waehleStichprobe(
     .sort((x, y) => x.r - y.r)
     .map(({ g }) => g);
 
-  const gewaehlt: { g: Gruppe; ausGarantie: boolean }[] = [];
+  // Pflichtkern zuerst — ohne `anzahl` zu erhoehen.
+  const gewaehlt: { g: Gruppe; ausGarantie: boolean }[] = gruppen
+    .filter((g) => g.immerZaehlen)
+    .map((g) => ({ g, ausGarantie: false }));
   let anzahl = 0;
   const voll = () => anzahl >= umfang;
 
   const faellig = gruppen
-    .filter((g) => g.tage === null || g.tage >= garantieTage)
+    .filter((g) => !g.immerZaehlen && (g.tage === null || g.tage >= garantieTage))
     // stabil: „nie" vor jeder Zahl, sonst die aeltesten zuerst
     .sort((x, y) => (y.tage ?? Infinity) - (x.tage ?? Infinity));
   for (const g of faellig) {
@@ -161,6 +177,7 @@ export function waehleStichprobe(
 /** Der Satz zur Begruendung, so wie er auf der Karte steht. */
 export function grundText(t: { grund: StichprobenGrund; tage: number | null }): string {
   switch (t.grund) {
+    case "pflicht": return "Wird jedes Mal gezählt";
     case "nie": return "Noch nie gezählt";
     case "ueberfaellig": return `Seit ${t.tage} Tagen nicht gezählt`;
     case "verbraucht": return "Seit der letzten Zählung entnommen";

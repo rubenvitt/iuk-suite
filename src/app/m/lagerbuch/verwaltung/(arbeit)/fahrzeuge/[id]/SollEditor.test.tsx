@@ -59,6 +59,7 @@ const POSITIONEN: SollZeile[] = [
     handlagerBestand: 4,
     herkunft: "manuell",
     entfernt: false,
+    immerZaehlen: false,
   },
   {
     id: "p-a2",
@@ -73,6 +74,7 @@ const POSITIONEN: SollZeile[] = [
     handlagerBestand: 7,
     herkunft: "vorlage",
     entfernt: true,
+    immerZaehlen: false,
   },
   {
     id: "p-c1",
@@ -87,6 +89,7 @@ const POSITIONEN: SollZeile[] = [
     handlagerBestand: 8,
     herkunft: "ueberschrieben",
     entfernt: false,
+    immerZaehlen: false,
   },
   {
     id: "p-a1",
@@ -101,6 +104,7 @@ const POSITIONEN: SollZeile[] = [
     handlagerBestand: 9,
     herkunft: "vorlage",
     entfernt: false,
+    immerZaehlen: false,
   },
 ];
 
@@ -187,11 +191,11 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
     ]);
   });
 
-  it("rendert die sechs Spalten und gruppiert Fachzellen im DOM", async () => {
+  it("rendert die sieben Spalten und gruppiert Fachzellen im DOM", async () => {
     await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
 
     expect(queryAll("thead th").map((th) => th.textContent))
-      .toEqual(["Fach", "Artikel", "Ist", "Soll", "Herkunft", ""]);
+      .toEqual(["Fach", "Artikel", "Ist", "Soll", "Immer zählen", "Herkunft", ""]);
     expect(query("table").getAttribute("aria-label")).toBe("Soll-Bestückung");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
@@ -371,6 +375,27 @@ describe("SollEditor — auto-committende Sollmenge", () => {
     expect(query<HTMLInputElement>("input[aria-label='Soll für Mullbinde']").value).toBe("8");
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
+  });
+});
+
+describe("SollEditor — immer zaehlen (IDA-223)", () => {
+  it("speichert den Schalter sofort, mit dem noch entprellten Soll", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await fill("input[aria-label='Soll für Mullbinde']", "5");
+    await clickElement(query(
+      `${BREIT} input[aria-label='Mullbinde in jedem Kurzcheck zählen']`));
+    await warte();
+
+    expect(mocks.setzen).toHaveBeenCalledWith({
+      id: "p-a1", fahrzeugId: "fz-1", fachLabel: "Fach A", artikelId: "a-a1",
+      soll: 5, sort: 1, immerZaehlen: true,
+    });
+  });
+
+  it("sperrt den Schalter an einem Grabstein", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    expect(query<HTMLInputElement>(
+      `${BREIT} input[aria-label='Kompressen in jedem Kurzcheck zählen']`).disabled).toBe(true);
   });
 });
 

@@ -37,6 +37,7 @@ const POSITIONEN: TemplatePositionZeile[] = [
     einheit: "Rol",
     handlagerFach: "C2",
     soll: 3,
+    immerZaehlen: false,
   },
   {
     id: "pos-b",
@@ -47,6 +48,7 @@ const POSITIONEN: TemplatePositionZeile[] = [
     einheit: "Pck",
     handlagerFach: "C3",
     soll: 2,
+    immerZaehlen: true,
   },
 ];
 
@@ -128,7 +130,7 @@ describe("TemplatePosEditor — echte Vorlagenzeilen und Tabelle", () => {
     await editorMounten();
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Fach", "Artikel", "Soll", ""]);
+      .toEqual(["Fach", "Artikel", "Soll", "Immer zählen", ""]);
     expect(query("table").getAttribute("aria-label")).toBe("Vorlagen-Positionen");
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
       zeile.getAttribute("data-row-key"))).toEqual(["pos-a", "pos-b"]);
@@ -255,6 +257,33 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
       .toBe("8");
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
+  });
+});
+
+describe("TemplatePosEditor — immer zählen (IDA-223)", () => {
+  it("zeigt den gespeicherten Schalter und speichert einen Klick sofort", async () => {
+    await editorMounten();
+    const schalter = (artikel: string) => queryAll<HTMLInputElement>(
+      `input[aria-label='${artikel} in jedem Kurzcheck zählen']`)[0];
+    expect(schalter("Kompressen").checked).toBe(true);
+    expect(schalter("Mullbinde").checked).toBe(false);
+
+    await clickElement(schalter("Mullbinde"));
+    await warte();
+    expect(mocks.setzen).toHaveBeenCalledWith({
+      id: "pos-a", templateId: "template-1", fachLabel: "Fach A",
+      artikelId: "artikel-mull", soll: 3, sort: 1, immerZaehlen: true,
+    });
+  });
+
+  it("nimmt den Haken zurück, wenn das Speichern scheitert", async () => {
+    mocks.setzen.mockResolvedValueOnce({ ok: false, fehler: "kaputt" });
+    await editorMounten();
+    const schalter = () => queryAll<HTMLInputElement>(
+      "input[aria-label='Mullbinde in jedem Kurzcheck zählen']")[0];
+    await clickElement(schalter());
+    await warte();
+    expect(schalter().checked).toBe(false);
   });
 });
 

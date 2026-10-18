@@ -207,6 +207,8 @@ const TemplatePosSchema = z.object({
   artikelId: z.string().min(1, "Artikel wählen"),
   soll: z.coerce.number().int().positive("Soll muss größer als 0 sein"),
   sort: z.coerce.number().int().default(0),
+  /** IDA-223. Fehlt er, bleibt der gespeicherte Wert — das Soll-Feld sendet ihn nicht. */
+  immerZaehlen: z.boolean().optional(),
 });
 
 export async function templatePositionSetzen(
@@ -226,6 +228,7 @@ export async function templatePositionSetzen(
       artikelId: v.artikelId,
       soll: v.soll,
       sort: v.sort,
+      ...(v.immerZaehlen === undefined ? {} : { immerZaehlen: v.immerZaehlen }),
     };
 
     try {
@@ -482,6 +485,7 @@ export async function templateAusFahrzeug(
             sort: row.sort,
             artikelId: row.artikelId,
             soll: row.soll,
+            immerZaehlen: row.immerZaehlen,
           }).run();
           if (v.verknuepfen) {
             tx.update(sollPositionen)

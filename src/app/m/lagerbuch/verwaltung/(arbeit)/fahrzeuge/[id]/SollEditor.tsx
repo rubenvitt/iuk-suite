@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Alert,
   Button,
+  Checkbox,
   Flex,
   Input,
   InputNumber,
@@ -100,6 +101,7 @@ export function SollEditor({
   const [neuArtikel, setNeuArtikel] = useState<string>();
   const [neuSoll, setNeuSoll] = useState<number | null>(1);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
+  const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
   // Zum Timer gehoert sein Rumpf: nur so kann `onBlur` den ausstehenden
@@ -172,6 +174,30 @@ export function SollEditor({
       id: setTimeout(sofort, SOLL_DEBOUNCE_MS),
       sofort,
     };
+  }
+
+  /**
+   * IDA-223. Sofort, nicht entprellt: ein Klick ist eine Entscheidung. Das
+   * Soll reist aus dem Spiegel mit, damit ein noch entprelltes Soll nicht vom
+   * gespeicherten Wert ueberholt wird. An einer Vorlagenzeile ueberschreibt
+   * der Klick wie jede andere Aenderung (`sollPositionSetzen`).
+   */
+  function pflichtGeaendert(position: SollZeile, wert: boolean): void {
+    setPflicht((vorher) => ({ ...vorher, [position.id]: wert }));
+    void sicherAusfuehren(
+      () => sollPositionSetzen({
+        id: position.id,
+        fahrzeugId,
+        fachLabel: position.fachLabel,
+        artikelId: position.artikelId,
+        soll: spiegel[position.id] ?? position.soll,
+        sort: position.sort,
+        immerZaehlen: wert,
+      }),
+      SPEICHER_FEHLER,
+    ).then((ok) => {
+      if (!ok) setPflicht((vorher) => ({ ...vorher, [position.id]: !wert }));
+    });
   }
 
   function ausstehendenSollCommitVerwerfen(positionId: string): void {
@@ -319,6 +345,22 @@ export function SollEditor({
           onChange={(neu) => sollGeaendert(position, neu)}
           onBlur={() => ausstehendenSollCommitAusfuehren(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
+        />
+      ),
+    },
+    {
+      // IDA-223: kommt in jeden Kurzcheck, ausserhalb der Stichprobe. KEIN
+      // `filters` — Begruendung im Block ueber der Spaltenliste.
+      title: "Immer zählen",
+      dataIndex: "immerZaehlen",
+      key: "immerZaehlen",
+      align: "center",
+      render: (wert: boolean, position) => (
+        <Checkbox
+          checked={pflicht[position.id] ?? wert}
+          disabled={position.entfernt}
+          onChange={(e) => pflichtGeaendert(position, e.target.checked)}
+          aria-label={`${position.artikelName} in jedem Kurzcheck zählen`}
         />
       ),
     },

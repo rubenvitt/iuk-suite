@@ -64,7 +64,11 @@ export function letzteEntnahmeJeArtikel(db: Leser, fahrzeugId: string): Map<stri
   return new Map(zeilen.filter((z) => z.ts).map((z) => [z.artikelId, z.ts as Date]));
 }
 
-export type KurzcheckPosition = { id: string; artikelId: string; fachLabel: string };
+export type KurzcheckPosition = {
+  id: string; artikelId: string; fachLabel: string;
+  /** IDA-223: jedes Mal dran, solange keine Plombe das Fach bezeugt. */
+  immerZaehlen?: boolean;
+};
 
 export type KurzcheckVorlage = {
   /** Die heute gezogenen Positionen mit ihrem Grund. */
@@ -113,6 +117,7 @@ export function kurzcheckVorlage(
         tageSeitZaehlung: am === null ? null : Math.max(0, Math.floor((now.getTime() - am.getTime()) / TAG_MS)),
         verbraucht: entnahme !== null && (am === null || entnahme > am),
         verfallBald: ampel !== undefined && ampel !== "gruen",
+        immerZaehlen: p.immerZaehlen ?? false,
       };
     });
 

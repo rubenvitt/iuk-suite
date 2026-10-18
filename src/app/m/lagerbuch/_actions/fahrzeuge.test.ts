@@ -450,8 +450,24 @@ describe("sollPositionSetzen", () => {
       templatePositionId: null,
       ueberschrieben: false,
       entfernt: false,
+      immerZaehlen: false,
     });
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD, `${FAHRZEUGE_PFAD}/fz-1`]);
+  });
+
+  it("setzt „immer zählen“ (IDA-223) und laesst es stehen, wenn das Feld fehlt", async () => {
+    positionAnlegen("sp-manuell", { fachLabel: "F", soll: 1, sort: 0 });
+    const basis = { id: "sp-manuell", fahrzeugId: "fz-1", fachLabel: "F", artikelId: "art-1", sort: 0 };
+    const lesen = () => t.db.select().from(sollPositionen)
+      .where(eq(sollPositionen.id, "sp-manuell")).get()!.immerZaehlen;
+
+    await sollPositionSetzen({ ...basis, soll: 1, immerZaehlen: true }, t.db);
+    expect(lesen()).toBe(true);
+    // Das entprellte Soll-Feld sendet den Schalter nicht mit.
+    await sollPositionSetzen({ ...basis, soll: 4 }, t.db);
+    expect(lesen()).toBe(true);
+    await sollPositionSetzen({ ...basis, soll: 4, immerZaehlen: false }, t.db);
+    expect(lesen()).toBe(false);
   });
 
   it("aktualisiert eine manuelle Position in derselben Zeile", async () => {
@@ -477,6 +493,7 @@ describe("sollPositionSetzen", () => {
       templatePositionId: null,
       ueberschrieben: false,
       entfernt: false,
+      immerZaehlen: false,
     }]);
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD, `${FAHRZEUGE_PFAD}/fz-1`]);
   });
@@ -622,6 +639,7 @@ describe("sollPositionEntfernen", () => {
       templatePositionId: "tp-1",
       ueberschrieben: false,
       entfernt: true,
+      immerZaehlen: false,
     });
   });
 

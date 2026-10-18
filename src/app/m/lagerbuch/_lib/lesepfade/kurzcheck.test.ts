@@ -114,6 +114,28 @@ describe("kurzcheckVorlage", () => {
   });
 });
 
+describe("kurzcheckVorlage — Pflichtkern (IDA-223)", () => {
+  it("nimmt „immer zaehlen“ auch frisch gezaehlt mit, eine stehende Plombe bezeugt es aber", () => {
+    t.db.insert(plomben).values({
+      id: "pl", lagerortId: "fz", bezeichnung: "Medizinkoffer", fachLabel: "Koffer",
+      nummer: "1", gesetztAt: vor(2), createdAt: jetzt,
+    }).run();
+    check("c1", vor(1), ["p-a", "p-b"]);
+    const v = kurzcheckVorlage(t.db, {
+      fahrzeugId: "fz",
+      soll: [
+        { id: "p-a", artikelId: "a", fachLabel: "Fach 1", immerZaehlen: true },
+        { id: "p-b", artikelId: "b", fachLabel: "Fach 1" },
+        { id: "p-c", artikelId: "c", fachLabel: "Koffer", immerZaehlen: true },
+        { id: "p-d", artikelId: "d", fachLabel: "Koffer" },
+      ],
+      plomben: plombenFuerLagerort(t.db, "fz"), letzterCheckId: "c1", now: jetzt,
+    });
+    expect(v.auswahl.find((x) => x.id === "p-a")?.grund).toBe("pflicht");
+    expect(v.auswahl.map((x) => x.id)).not.toContain("p-c");
+  });
+});
+
 describe("plombenNummerNorm", () => {
   it("ignoriert Leerraum, Trennzeichen und Gross-/Kleinschreibung", () => {
     expect(plombenNummerNorm(" ab 12-34.5 ")).toBe(plombenNummerNorm("AB12345"));

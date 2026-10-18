@@ -134,6 +134,13 @@
       "when": 1789592400000,
       "tag": "0018_demo_einstellung",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1789596000000,
+      "tag": "0019_immer_zaehlen",
+      "breakpoints": true
     }
   ]
 }
