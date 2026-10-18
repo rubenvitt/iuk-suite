@@ -5,7 +5,7 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { Providers } from "@/components/providers";
 import { AntdProvider } from "@/core/theme/AntdProvider";
 import { zeitzone } from "@/core/zeit";
-import { faviconFuer } from "@/core/favicon";
+import { appleIconFuer, faviconFuer } from "@/core/favicon";
 import { moduleForHost } from "@/core/registry";
 import { resolveHost } from "@/core/routing";
 import {
@@ -175,9 +175,9 @@ export default async function RootLayout({
 }
 
 /**
- * Das Favicon folgt dem HOST, nicht dem Pfad: ein Modul-Host zeigt das Zeichen
- * seines Moduls (auch auf seiner Anmeldeseite), jeder andere das IDA-Zeichen
- * (`core/favicon`). Hier und nicht je Modul-Layout, weil `feedback` und `files`
+ * Favicon und Apple-Touch-Icon folgen dem HOST, nicht dem Pfad: ein Modul-Host
+ * zeigt das Zeichen seines Moduls (auch auf seiner Anmeldeseite), jeder andere
+ * das IDA-Zeichen (`core/favicon`). Hier und nicht je Modul-Layout, weil `feedback` und `files`
  * keines haben und die Anmeldeseite unter keinem Modul liegt. Das Layout ist
  * über `cookies()` ohnehin dynamisch, `headers()` kostet nichts dazu.
  */
@@ -186,6 +186,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "IDA",
     description: "Interne Dienste und Anwendungen",
-    icons: { icon: faviconFuer(modul?.key) },
+    icons: { icon: faviconFuer(modul?.key), apple: appleIconFuer(modul?.key) },
   };
 }

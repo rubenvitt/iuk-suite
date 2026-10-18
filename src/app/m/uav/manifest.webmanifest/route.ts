@@ -1,3 +1,5 @@
+import { appIconsFuerManifest } from "@/core/favicon";
+
 /**
  * Domain-scoped Manifest — Muster `qr/manifest.webmanifest/route.ts` (siehe dort
  * für die volle Begründung: warum unter dem Modul statt als globales
@@ -17,6 +19,7 @@ export function GET() {
       display: "standalone",
       background_color: "#ffffff",
       theme_color: "#c8000f",
+      // App-Icon der Suite mit dem Zeichen des Moduls (`core/favicon/app-icon.ts`).
       icons: [
         {
           src: "/pwa-icon.svg",
@@ -24,6 +27,7 @@ export function GET() {
           type: "image/svg+xml",
           purpose: "any",
         },
+        ...appIconsFuerManifest("uav"),
       ],
     },
     { headers: { "content-type": "application/manifest+json" } },
