@@ -61,7 +61,7 @@ export type SpaltenkarteProps<T> = {
   /** Gesetzt, wenn ein Tipp auf die Karte etwas auslöst. */
   onKlick?: (ereignis: React.MouseEvent<HTMLElement>) => void;
   /** Gesetzt, wenn die Tabelle daneben `rowSelection` trägt. */
-  auswahl?: { gewaehlt: boolean; onWechsel: (gewaehlt: boolean) => void };
+  auswahl?: { gewaehlt: boolean; gesperrt?: boolean; onWechsel: (gewaehlt: boolean) => void };
 };
 
 export function Spaltenkarte<T>({
@@ -89,6 +89,8 @@ export function Spaltenkarte<T>({
         {auswahl ? (
           <Checkbox
             checked={auswahl.gewaehlt}
+            disabled={auswahl.gesperrt}
+            className={stil.kreuz}
             onChange={(ereignis) => auswahl.onWechsel(ereignis.target.checked)}
             aria-label={`${name} auswählen`}
           />

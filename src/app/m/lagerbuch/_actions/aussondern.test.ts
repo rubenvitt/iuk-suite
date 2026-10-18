@@ -22,7 +22,7 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test - jeder Aufruf uebergibt t.db"); },
 }));
 
-import { aussondern } from "./aussondern";
+import { aussondern, aussondernSammel } from "./aussondern";
 
 const JETZT = new Date("2026-08-07T10:00:00Z");
 const VIEWER = {
@@ -459,5 +459,215 @@ describe("aussondern — DRK-297: bucht je Ort, an dem die Charge liegt", () => 
       expect(fehlerVon(erg)).toMatch(/abgelaufen/i);
       erwarteKeineNebenwirkung(anzahlVorher);
     });
+  });
+});
+
+/**
+ * IDA-238 — MEHRERE ABGELAUFENE CHARGEN IN EINER ANFRAGE.
+ *
+ * Geprueft wird, was die Sammelaktion vom Einzelknopf erbt (je Charge und Ort
+ * eine eigene Buchung, nur abgelaufen, nur Handlager, nie eine Menge) und was
+ * sie anders macht: eine Charge, die nicht mehr geht, haelt die anderen nicht
+ * auf.
+ */
+describe("aussondernSammel", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 },
+    ]).run();
+    charge("ch-a", "2020-01");
+    charge("ch-b", "2021-03");
+    buchen({ id: "seed-a", chargeId: "ch-a", lagerortId: HANDLAGER_ID, menge: 3 });
+    buchen({ id: "seed-b1", chargeId: "ch-b", lagerortId: HANDLAGER_ID, menge: 2 });
+    buchen({ id: "seed-b2", chargeId: "ch-b", lagerortId: "schrank-1", menge: 5 });
+  });
+
+  function aussonderungen() {
+    return t.db.select().from(buchungen).where(eq(buchungen.typ, "korrektur")).all();
+  }
+
+  it("bucht je Charge und Ort eine eigene Aussonderung, in einer Anfrage", async () => {
+    const erg = await aussondernSammel({
+      chargen: [
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+        { chargeId: "ch-b", lagerortIds: [HANDLAGER_ID, "schrank-1"] },
+      ],
+    }, t.db);
+
+    expect(erg).toEqual({
+      ok: true,
+      wert: { ausgesondert: ["ch-a", "ch-b"], uebersprungen: [] },
+    });
+    expect(aussonderungen().map((b) => [b.chargeId, b.lagerortId, b.menge, b.referenz]).sort())
+      .toEqual([
+        ["ch-a", HANDLAGER_ID, -3, `aussondern:${HANDLAGER_ID}`],
+        ["ch-b", HANDLAGER_ID, -2, `aussondern:${HANDLAGER_ID}`],
+        ["ch-b", "schrank-1", -5, "aussondern:schrank-1"],
+      ].sort());
+    // Der Kommentar entsteht auf dem Server, wortgleich mit dem Einzelknopf.
+    expect(new Set(aussonderungen().map((b) => b.kommentar))).toEqual(new Set([
+      "Verfallskontrolle — Charge ch-a · Mullbinde ausgesondert",
+      "Verfallskontrolle — Charge ch-b · Mullbinde ausgesondert",
+    ]));
+    expect(aussonderungen().every((b) => b.quelleTyp === "oidc" && b.quelleId === "u-admin"))
+      .toBe(true);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
+  });
+
+  it("schreibt je Buchung eine Auditzeile mit dem angemeldeten Konto", async () => {
+    t.sqlite.exec("DELETE FROM audit_outbox");
+
+    await aussondernSammel({
+      chargen: [
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+        { chargeId: "ch-b", lagerortIds: [HANDLAGER_ID, "schrank-1"] },
+      ],
+    }, t.db);
+
+    const zeilen = t.sqlite
+      .prepare("SELECT actor FROM audit_outbox WHERE object_type = 'buchungen'")
+      .all() as { actor: string }[];
+    expect(zeilen).toHaveLength(3);
+    for (const zeile of zeilen) {
+      expect(JSON.parse(zeile.actor)).toEqual({ kind: "user", id: "u-admin", name: "A. Verwaltung" });
+    }
+  });
+
+  /**
+   * DER FALL AUS DEM TICKET: zwischen Rendern und Bestaetigen hat eine andere
+   * Sitzung eine der Chargen schon ausgesondert. Die uebrigen werden gebucht,
+   * die eine kommt mit Grund zurueck — und an ihr entsteht keine zweite,
+   * leere oder vorzeichenverkehrte Buchung.
+   */
+  it("sondert die uebrigen aus, wenn eine Charge zwischenzeitlich schon ausgesondert ist", async () => {
+    expect((await aussondern({ chargeId: "ch-a", kommentar: "andere Sitzung" }, t.db)).ok).toBe(true);
+    const vorher = aussonderungen().length;
+    revalidiert.length = 0;
+
+    const erg = await aussondernSammel({
+      chargen: [
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+        { chargeId: "ch-b", lagerortIds: [HANDLAGER_ID] },
+      ],
+    }, t.db);
+
+    expect(erg).toEqual({
+      ok: true,
+      wert: {
+        ausgesondert: ["ch-b"],
+        uebersprungen: [{ chargeId: "ch-a", grund: "bereits ausgesondert" }],
+      },
+    });
+    expect(aussonderungen()).toHaveLength(vorher + 1);
+    // Gebucht wird nur der genannte Ort; Schrank 1 stand nicht in der Rueckfrage.
+    expect(aussonderungen().filter((b) => b.chargeId === "ch-b").map((b) => b.lagerortId))
+      .toEqual([HANDLAGER_ID]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
+  });
+
+  it("ueberspringt unbekannte, noch gueltige und fremd verortete Chargen mit Grund", async () => {
+    charge("ch-frisch", "2099-01");
+    buchen({ id: "seed-frisch", chargeId: "ch-frisch", lagerortId: HANDLAGER_ID, menge: 1 });
+    buchen({ id: "seed-fz", chargeId: "ch-b", lagerortId: "fz-1", menge: 4 });
+
+    const erg = await aussondernSammel({
+      chargen: [
+        { chargeId: "gibt-es-nicht", lagerortIds: [HANDLAGER_ID] },
+        { chargeId: "ch-frisch", lagerortIds: [HANDLAGER_ID] },
+        // Ein Fahrzeug im Feld darf nichts ausbuchen — auch nicht den
+        // Handlager-Teil daneben.
+        { chargeId: "ch-b", lagerortIds: [HANDLAGER_ID, "fz-1"] },
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+      ],
+    }, t.db);
+
+    expect(erg).toEqual({
+      ok: true,
+      wert: {
+        ausgesondert: ["ch-a"],
+        uebersprungen: [
+          { chargeId: "gibt-es-nicht", grund: "nicht gefunden" },
+          { chargeId: "ch-frisch", grund: "nicht abgelaufen" },
+          { chargeId: "ch-b", grund: "Ort gehört nicht zum Handlager" },
+        ],
+      },
+    });
+    expect(aussonderungen().map((b) => b.chargeId)).toEqual(["ch-a"]);
+  });
+
+  it("revalidiert nicht, wenn keine Charge gebucht wurde", async () => {
+    const erg = await aussondernSammel({
+      chargen: [{ chargeId: "gibt-es-nicht", lagerortIds: [HANDLAGER_ID] }],
+    }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(aussonderungen()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("bucht eine doppelt genannte Charge nur einmal", async () => {
+    await aussondernSammel({
+      chargen: [
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+      ],
+    }, t.db);
+
+    expect(aussonderungen()).toHaveLength(1);
+  });
+
+  it.each([
+    [{ chargen: [] }, "Bitte mindestens eine Charge auswählen."],
+    [{ chargen: [{ chargeId: "ch-a", lagerortIds: [] }] }, "Ungültige Eingabe."],
+    [{ chargen: [{ chargeId: "ch-a" }] }, "Ungültige Eingabe."],
+    [{}, "Ungültige Eingabe."],
+  ])("weist eine ungueltige Eingabe ohne Nebenwirkung ab (%j)", async (eingabe, satz) => {
+    const anzahlVorher = alleBuchungen().length;
+
+    const erg = await aussondernSammel(eingabe, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: satz });
+    erwarteKeineNebenwirkung(anzahlVorher);
+  });
+
+  it("laesst den Admin-Riegel vor der Validierung entscheiden", async () => {
+    const verweigert = new Error("Kein Lagerbuch-Admin");
+    adminRiegel.mockRejectedValueOnce(verweigert);
+    const anzahlVorher = alleBuchungen().length;
+
+    await expect(aussondernSammel({
+      chargen: [{ chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] }],
+    }, t.db)).rejects.toBe(verweigert);
+
+    expect(adminRiegel).toHaveBeenCalledTimes(1);
+    erwarteKeineNebenwirkung(anzahlVorher);
+  });
+
+  /**
+   * ⚠️ EIN WURF MITTENDRIN NIMMT ALLES ZURUECK. Die erste Charge waere schon
+   * gebucht, wenn die zweite bricht; stuende sie danach im Journal, zeigte die
+   * Oberflaeche „fehlgeschlagen" ueber einer halb ausgefuehrten Auswahl.
+   */
+  it("nimmt bei einem Datenbankfehler alle Buchungen der Anfrage zurueck", async () => {
+    t.sqlite.exec(`
+      CREATE TRIGGER aussondern_sammel_defekt
+      BEFORE INSERT ON buchungen
+      WHEN NEW.quelle_typ = 'oidc' AND NEW.charge_id = 'ch-b'
+      BEGIN
+        SELECT RAISE(ABORT, 'db-intern: geheim');
+      END;
+    `);
+    const anzahlVorher = alleBuchungen().length;
+
+    const erg = await aussondernSammel({
+      chargen: [
+        { chargeId: "ch-a", lagerortIds: [HANDLAGER_ID] },
+        { chargeId: "ch-b", lagerortIds: [HANDLAGER_ID] },
+      ],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: "Aussondern fehlgeschlagen." });
+    erwarteKeineNebenwirkung(anzahlVorher);
   });
 });

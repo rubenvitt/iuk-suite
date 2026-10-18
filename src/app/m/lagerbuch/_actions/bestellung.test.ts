@@ -70,9 +70,15 @@ function artikelMitId(id: string) {
   return t.db.select().from(artikel).where(eq(artikel.id, id)).get();
 }
 
+function auditZeilen(): { actor: string; object_type: string }[] {
+  return t.sqlite
+    .prepare("SELECT actor, object_type FROM audit_outbox WHERE object_type = 'artikel'")
+    .all() as { actor: string; object_type: string }[];
+}
+
 describe("markiereBestellt", () => {
   it("setzt am Zielartikel den exakt aktuellen Zeitstempel und bewahrt alle anderen Felder", async () => {
-    artikelAnlegen();
+    artikelAnlegen({ bestelltAt: null });
     artikelAnlegen({
       id: "art-2",
       name: "Dreiecktuch",
@@ -80,14 +86,14 @@ describe("markiereBestellt", () => {
       fach: "B-09",
       mindestbestand: 13,
       aktiv: true,
-      bestelltAt: new Date("2026-05-01T08:00:00.000Z"),
+      bestelltAt: null,
     });
     const zielVorher = artikelMitId("art-1");
     const andererVorher = artikelMitId("art-2");
 
-    const erg = await markiereBestellt({ artikelId: "art-1", bestellt: true }, t.db);
+    const erg = await markiereBestellt({ artikelIds: ["art-1"], bestellt: true }, t.db);
 
-    expect(erg).toEqual({ ok: true });
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 1 } });
     expect(artikelMitId("art-1")).toEqual({
       ...zielVorher,
       bestelltAt: BESTELLT_AM,
@@ -96,22 +102,70 @@ describe("markiereBestellt", () => {
     expect(revalidiert).toEqual([BESTELLUNG_PFAD, VERWALTUNG_PFAD]);
   });
 
-  it("nimmt die Markierung zurück und bewahrt alle anderen Felder", async () => {
+  /**
+   * IDA-238 — EINE AUSWAHL IN EINER ANFRAGE. Die Auswahl darf schon markierte
+   * Zeilen enthalten; deren „seit" bleibt stehen, denn erneuert wurde dort
+   * nichts.
+   */
+  it("markiert eine Auswahl in einer Anfrage und laesst ein vorhandenes Datum stehen", async () => {
     artikelAnlegen();
+    artikelAnlegen({ id: "art-2", name: "Dreiecktuch", bestelltAt: null });
+    artikelAnlegen({ id: "art-3", name: "Kompresse", bestelltAt: null });
+
+    const erg = await markiereBestellt(
+      { artikelIds: ["art-1", "art-2", "art-3", "art-2", "gibt-es-nicht"], bestellt: true },
+      t.db,
+    );
+
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 2 } });
+    expect(artikelMitId("art-1")?.bestelltAt?.getTime()).toBe(VORHER_BESTELLT_AM.getTime());
+    expect(artikelMitId("art-2")?.bestelltAt?.getTime()).toBe(BESTELLT_AM.getTime());
+    expect(artikelMitId("art-3")?.bestelltAt?.getTime()).toBe(BESTELLT_AM.getTime());
+  });
+
+  /**
+   * DIE MARKIERUNG SCHREIBT KEINE JOURNALZEILE — belegt wird sie im Audit, und
+   * zwar je Artikel, obwohl die Aenderung in EINEM `UPDATE` steht. Ein schon
+   * markierter Artikel bekommt keine Zeile: an ihm hat sich nichts geaendert.
+   */
+  it("schreibt je geaendertem Artikel eine Auditzeile mit dem angemeldeten Konto", async () => {
+    artikelAnlegen();
+    artikelAnlegen({ id: "art-2", name: "Dreiecktuch", bestelltAt: null });
+    artikelAnlegen({ id: "art-3", name: "Kompresse", bestelltAt: null });
+    t.sqlite.exec("DELETE FROM audit_outbox");
+
+    await markiereBestellt({ artikelIds: ["art-1", "art-2", "art-3"], bestellt: true }, t.db);
+
+    const zeilen = auditZeilen();
+    expect(zeilen).toHaveLength(2);
+    for (const zeile of zeilen) {
+      expect(JSON.parse(zeile.actor)).toEqual({ kind: "user", id: "u-admin", name: "A. Verwaltung" });
+    }
+  });
+
+  it("nimmt die Markierung an einer Auswahl zurueck und bewahrt alle anderen Felder", async () => {
+    artikelAnlegen();
+    artikelAnlegen({ id: "art-2", name: "Dreiecktuch", bestelltAt: null });
     const vorher = artikelMitId("art-1");
+    const andererVorher = artikelMitId("art-2");
     expect(vorher?.bestelltAt?.getTime()).toBe(VORHER_BESTELLT_AM.getTime());
 
-    const erg = await markiereBestellt({ artikelId: "art-1", bestellt: false }, t.db);
+    const erg = await markiereBestellt({ artikelIds: ["art-1", "art-2"], bestellt: false }, t.db);
 
-    expect(erg).toEqual({ ok: true });
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 1 } });
     expect(artikelMitId("art-1")).toEqual({ ...vorher, bestelltAt: null });
+    expect(artikelMitId("art-2")).toEqual(andererVorher);
     expect(revalidiert).toEqual([BESTELLUNG_PFAD, VERWALTUNG_PFAD]);
   });
 
   it.each([
-    { artikelId: "", bestellt: true },
-    { artikelId: "art-1", bestellt: "ja" },
-  ])("weist ungültige Eingaben ohne Änderung und Revalidierung zurück", async (eingabe) => {
+    { artikelIds: [], bestellt: true },
+    { artikelIds: [""], bestellt: true },
+    { artikelIds: ["art-1"], bestellt: "ja" },
+    // Die alte Einzelform kommt nicht mehr an — ein veralteter Client bekommt
+    // eine Abweisung statt einer stillen Teilwirkung.
+    { artikelId: "art-1", bestellt: true },
+  ])("weist ungültige Eingaben ohne Änderung und Revalidierung zurück (%j)", async (eingabe) => {
     artikelAnlegen();
     const vorher = artikelMitId("art-1");
 
@@ -128,11 +182,24 @@ describe("markiereBestellt", () => {
     const verweigert = new Error("Kein Lagerbuch-Zugang");
     adminRiegel.mockRejectedValueOnce(verweigert);
 
-    await expect(markiereBestellt({ artikelId: "", bestellt: true }, t.db))
+    await expect(markiereBestellt({ artikelIds: [], bestellt: true }, t.db))
       .rejects.toBe(verweigert);
 
     expect(adminRiegel).toHaveBeenCalledTimes(1);
     expect(artikelMitId("art-1")).toEqual(vorher);
     expect(revalidiert).toEqual([]);
   });
+
+  it("weist einen Nicht-Admin ab, bevor eine gültige Auswahl etwas ändert", async () => {
+    artikelAnlegen({ bestelltAt: null });
+    const verweigert = new Error("Kein Lagerbuch-Admin");
+    adminRiegel.mockRejectedValueOnce(verweigert);
+
+    await expect(markiereBestellt({ artikelIds: ["art-1"], bestellt: true }, t.db))
+      .rejects.toBe(verweigert);
+
+    expect(artikelMitId("art-1")?.bestelltAt).toBeNull();
+    expect(revalidiert).toEqual([]);
+  });
 });
+

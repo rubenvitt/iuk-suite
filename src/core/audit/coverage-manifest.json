@@ -545,6 +545,10 @@
     "kind": "context",
     "via": "aussondern"
   },
+  "src/app/m/lagerbuch/_actions/aussondern.ts#aussondernSammel": {
+    "kind": "context",
+    "via": "aussondernSammel"
+  },
   "src/app/m/lagerbuch/_actions/aussondernLagerort.ts#aussondernVomLagerort": {
     "kind": "context",
     "via": "aussondernVomLagerort"

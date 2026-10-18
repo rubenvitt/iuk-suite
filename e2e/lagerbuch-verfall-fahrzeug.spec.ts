@@ -77,7 +77,10 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
 
     // Ueber die Suche statt ueber den Spaltenfilter: dieselbe fachliche Frage
     // („nur dieses Fahrzeug"), aber ohne von antds Filtermenue-Markup abzuhaengen.
-    await page.getByRole("searchbox").first().fill("E2E Verfall-RTW");
+    // ⚠️ IN DER KARTE DER MELDUNGEN gegriffen: seit IDA-238 traegt auch die
+    // Handlager-Tabelle darueber eine Suche und eine Trefferanzeige.
+    const meldungen = page.locator(".ant-card", { hasText: "An Einheiten und in der Entnahmebox gemeldet" });
+    await meldungen.getByRole("searchbox").fill("E2E Verfall-RTW");
     await expect(
       page.locator("[data-row-key='e2e-verfall-fahrzeug:e2e-verfall-artikel']"),
     ).toBeVisible();
@@ -87,7 +90,7 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
     // ⚠️ „1 von" OHNE GESAMTZAHL: die Trefferanzeige nennt beide Zahlen, aber
     // die zweite gehoert dieser Spec nicht allein — ein Check in einem anderen
     // Spec kann jederzeit eine weitere Meldung schreiben.
-    await expect(page.getByTestId("trefferanzeige")).toContainText("1 von");
+    await expect(meldungen.getByTestId("trefferanzeige")).toContainText("1 von");
   });
 
   /**

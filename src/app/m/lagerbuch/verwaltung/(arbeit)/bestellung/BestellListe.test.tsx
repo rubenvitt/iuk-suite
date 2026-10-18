@@ -13,6 +13,7 @@ import {
 import {
   clickElement,
   exists,
+  fill,
   mount,
   query,
   queryAll,
@@ -147,6 +148,22 @@ async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<v
   throw new Error(`Nicht rechtzeitig sichtbar: ${beschreibung}`);
 }
 
+/** Kreuzt eine Zeile in der breiten Darstellung an. */
+async function waehle(id: string): Promise<void> {
+  await clickElement(query(`${BREIT} tbody tr[data-row-key='${id}'] input[type='checkbox']`));
+}
+
+function sammelKnopf(beschriftung: string): HTMLButtonElement {
+  const knopf = queryAll<HTMLButtonElement>("[data-testid='bestell-sammelleiste'] button")
+    .find((b) => (b.textContent ?? "").startsWith(beschriftung));
+  if (!knopf) throw new Error(`Kein Sammelknopf „${beschriftung}"`);
+  return knopf;
+}
+
+function chipVon(id: string): string | null {
+  return query(`${BREIT} tbody tr[data-row-key='${id}'] .${s.chip}`).textContent;
+}
+
 describe("statusChip — Auflage 17", () => {
   it("nennt das Datum statt eines blossen Hakens", () => {
     expect(statusChip(BESTELLT)).toEqual({
@@ -256,59 +273,113 @@ describe("BestellListe", () => {
     ).toEqual(["a1", "a2", "a3"]);
   });
 
-  it("der Kreis-Knopf sagt in beiden Richtungen, was er tut", async () => {
+  /**
+   * IDA-238 — KEIN RUNDER, UNBESCHRIFTETER KNOPF JE ZEILE MEHR. Den Zustand
+   * sagt die Statusspalte in Worten; gehandelt wird ueber die Auswahl.
+   */
+  it("traegt je Zeile ein Auswahlkreuzchen und keinen Zeilenknopf", async () => {
     await mount(<BestellListe zeilen={ZEILEN} />);
-    expect(queryAll("tbody button[aria-label]").map((b) => b.getAttribute("aria-label"))).toEqual([
-      "Als bestellt markieren",
-      "Bestellung zurücknehmen",
-      "Bestellung zurücknehmen",
-    ]);
+    expect(queryAll(`${BREIT} tbody button`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} tbody tr[data-row-key] input[type='checkbox']`)).toHaveLength(3);
+    // Ohne Auswahl keine Sammelleiste — sie waere eine Aktion ohne Gegenstand.
+    expect(exists("[data-testid='bestell-sammelleiste']")).toBe(false);
   });
 
-  it("uebergibt die neue Markierung vollstaendig und faelscht den Zustand nicht optimistisch", async () => {
+  it("zaehlt in den Knoepfen, was die Aktion wirklich aendert", async () => {
     await mount(<BestellListe zeilen={ZEILEN} />);
-    const knopf = queryAll<HTMLButtonElement>("tbody button[aria-label]")[0];
-    await clickElement(knopf);
-    expect(mocks.markiereBestellt).toHaveBeenCalledWith({
-      artikelId: "a1",
-      bestellt: true,
-    });
-    expect(knopf.getAttribute("aria-label")).toBe("Als bestellt markieren");
+    await waehle("a1");
+    await waehle("a2");
+
+    expect(query("[data-testid='bestell-sammelleiste']").textContent).toContain("2 ausgewählt");
+    expect(sammelKnopf("Als bestellt markieren").textContent).toContain("(1)");
+    expect(sammelKnopf("Markierung zurücknehmen").textContent).toContain("(1)");
   });
 
-  it("nimmt eine Bestellung mit `bestellt: false` zurueck, ebenfalls ohne Optimismus", async () => {
+  it("markiert die Auswahl in EINER Anfrage und faelscht den Zustand nicht optimistisch", async () => {
+    mocks.markiereBestellt.mockResolvedValueOnce({ ok: true, wert: { betroffen: 1 } });
     await mount(<BestellListe zeilen={ZEILEN} />);
-    const knopf = queryAll<HTMLButtonElement>("tbody button[aria-label]")[1];
-    await clickElement(knopf);
+    await waehle("a1");
+    await waehle("a2");
+
+    await clickElement(sammelKnopf("Als bestellt markieren"));
+    await warteAuf(() => exists(".ant-alert-success"), "Erfolgsmeldung");
+
+    // Nur die offene Zeile — die schon markierte behaelt ihr Datum.
+    expect(mocks.markiereBestellt).toHaveBeenCalledTimes(1);
+    expect(mocks.markiereBestellt).toHaveBeenCalledWith({ artikelIds: ["a1"], bestellt: true });
+    expect(query(".ant-alert-success").textContent).toContain("1 Artikel als bestellt markiert.");
+    // Der Status kommt vom Server, nicht aus der Insel.
+    expect(chipVon("a1")).toBe("offen");
+    expect(exists("[data-testid='bestell-sammelleiste']")).toBe(false);
+  });
+
+  it("nimmt die Markierung mit `bestellt: false` zurueck, ebenfalls ohne Optimismus", async () => {
+    mocks.markiereBestellt.mockResolvedValueOnce({ ok: true, wert: { betroffen: 2 } });
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await waehle("a2");
+    await waehle("a3");
+
+    await clickElement(sammelKnopf("Markierung zurücknehmen"));
+    await warteAuf(() => exists(".ant-alert-success"), "Erfolgsmeldung");
+
     expect(mocks.markiereBestellt).toHaveBeenCalledWith({
-      artikelId: "a2",
+      artikelIds: ["a2", "a3"],
       bestellt: false,
     });
-    expect(knopf.getAttribute("aria-label")).toBe("Bestellung zurücknehmen");
+    expect(query(".ant-alert-success").textContent).toContain("Markierung an 2 Artikel zurückgenommen.");
+    expect(chipVon("a2")).toBe("bestellt seit 01.08.2026");
   });
 
-  it("beobachtet fachliche Actionfehler als Warnung und laesst die Serverzeile stehen", async () => {
+  it("beobachtet fachliche Actionfehler als Warnung und laesst die Auswahl stehen", async () => {
     mocks.markiereBestellt.mockResolvedValueOnce({
       ok: false,
       fehler: "Die Bestellmarkierung konnte nicht gespeichert werden.",
     });
     await mount(<BestellListe zeilen={ZEILEN} />);
-    await clickElement(queryAll<HTMLButtonElement>("tbody button[aria-label]")[0]);
+    await waehle("a1");
+    await clickElement(sammelKnopf("Als bestellt markieren"));
+    await warteAuf(() => exists(".ant-alert-warning"), "fachliche Warnung");
+
     expect(query(".ant-alert-warning").textContent).toContain(
       "Die Bestellmarkierung konnte nicht gespeichert werden.",
     );
-    expect(queryAll("tbody button[aria-label]")[0].getAttribute("aria-label")).toBe(
-      "Als bestellt markieren",
-    );
+    expect(chipVon("a1")).toBe("offen");
+    expect(query("[data-testid='bestell-sammelleiste']").textContent).toContain("1 ausgewählt");
   });
 
   it("zeigt bei einem Runtimefehler eine allgemeine Warnung ohne Interna", async () => {
     mocks.markiereBestellt.mockRejectedValueOnce(new Error("SQLITE intern und geheim"));
     await mount(<BestellListe zeilen={ZEILEN} />);
-    await clickElement(queryAll<HTMLButtonElement>("tbody button[aria-label]")[0]);
+    await waehle("a1");
+    await clickElement(sammelKnopf("Als bestellt markieren"));
+    await warteAuf(() => exists(".ant-alert-warning"), "Laufzeitwarnung");
     const text = query(".ant-alert-warning").textContent ?? "";
     expect(text).toContain("Bestellmarkierung konnte nicht gespeichert werden.");
     expect(text).not.toContain("SQLITE intern und geheim");
+  });
+
+  it("streicht bestellte Zeilen nicht mehr durch — die Statusspalte sagt es", async () => {
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    const namen = queryAll<HTMLElement>(`${BREIT} tbody tr[data-row-key] td span`)
+      .filter((el) => ["Mullbinde", "Pflaster", "Kompresse"].includes(el.textContent ?? ""));
+    expect(namen).toHaveLength(3);
+    for (const name of namen) expect(name.style.textDecoration).toBe("");
+  });
+
+  it("sucht ueber Artikel und Fach, und die Auswahl ueberlebt die Suche", async () => {
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    await waehle("a2");
+    // „a1" ist das FACH von Mullbinde — die Suche liest beide Spalten.
+    await fill("input[type='search']", "a1");
+    // Die Suche ist entprellt (200 ms, `useEntprellt`).
+    await act(async () => {
+      await new Promise((fertig) => setTimeout(fertig, 250));
+    });
+
+    expect(queryAll(`${BREIT} tbody tr[data-row-key]`).map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["a1"]);
+    expect(query("[data-testid='trefferanzeige']").textContent).toBe("1 von 3");
+    expect(query("[data-testid='bestell-sammelleiste']").textContent).toContain("1 ausgewählt");
   });
 
   /**
