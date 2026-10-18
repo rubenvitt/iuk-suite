@@ -18,6 +18,7 @@ import {
   type NachfuellAnzeigeZeile,
   type VerfallAnzeigeZeile,
 } from "./CheckDetailTabellen";
+import { alleAusAdresse, type AbschnittSchluessel } from "./abweichungen";
 import { zeitzone } from "@/core/zeit";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,10 @@ function chip(
   return { text, ton, zeichen };
 }
 
-export function checkDetailInhalt(check: CheckDetail): ReactNode {
+export function checkDetailInhalt(
+  check: CheckDetail,
+  alleAnfangs: AbschnittSchluessel[] = [],
+): ReactNode {
   const abgleichZeilen: AbgleichAnzeigeZeile[] = check.artikel.map((artikel) => ({
     id: artikel.artikelId,
     artikel: artikel.artikelName,
@@ -118,6 +122,17 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
   }));
 
   /*
+   * IDA-236 — EINE KACHEL MIT EINER ZAHL UEBER NULL SPRINGT ZU IHREM ABSCHNITT.
+   * Ziel ist der Anker der Insel (`abschnitt-<name>`, an der Karte ODER an der
+   * Sammelzeile — es gibt ihn immer genau einmal). Bei null gibt es dort nichts
+   * zu sehen; eine verlinkte Null waere eine Einladung ins Leere. Im Altformat
+   * fehlen die Zeilen ganz (`altFormat`), die Summen stehen trotzdem — dort
+   * fuehrte der Sprung auf den Leertext, also auch kein Link.
+   */
+  const sprung = (zahl: number, abschnitt: AbschnittSchluessel) =>
+    zahl > 0 && !check.altFormat ? `#abschnitt-${abschnitt}` : undefined;
+
+  /*
    * ⚠️ DER KOPF NENNT DIE ART — DIESELBE FORM WIE IN DER HISTORIE (DRK-309,
    * Reviewrunde 11). `lagerorte.name` traegt keinen Eindeutigkeitsschluessel;
    * ein blosser Name im Kopf laesst offen, ob dieser Check zu dem Fahrzeug
@@ -159,17 +174,19 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
                 Historie — wer von dort hierher tippt, liest ihn wieder. Beim
                 Kaertchen ist das die Beschriftung des Zugangs, nicht eine
                 Person; genau das ist die Aussage, die hier zu treffen ist. */}
-            Erfasst von {check.wer}{" · "}
+            Erfasst von {check.wer}
             {/* ⚠️ DER SATZ NENNT BEIDE AMPELN, seit der Wechselwert einstellbar
                 ist (DRK-308). Vorher stand hier nur die Verfall-Ampel — und
                 genau dadurch las sich die Sauerstoff-Zeile wie der Stand bei
                 Abschluss, obwohl auch sie gegen die heutige Vorgabe rechnet. Ein
                 Hinweis, der eine von zwei Ausnahmen aufzaehlt, ist irrefuehrender
-                als gar keiner: er behauptet Vollstaendigkeit. */}
-            <strong>
-              Verfall- und Sauerstoff-Ampel unten sind gegen die heute geltenden Vorgaben
-              gerechnet, nicht gegen den Zeitpunkt des Checks.
-            </strong>
+                als gar keiner: er behauptet Vollstaendigkeit.
+                IDA-236: nur noch, wenn eine der beiden Ampeln unten steht, und
+                nicht mehr fett — auf einem Check ohne Flasche und ohne
+                Verfallsangabe erklaerte er etwas, das es nicht gibt. */}
+            {check.flaschen.length > 0 || check.verfall.length > 0
+              ? " · Verfall- und Sauerstoff-Ampel sind gegen die heute geltenden Vorgaben gerechnet, nicht gegen den Tag des Checks."
+              : null}
           </>
         )}
       />
@@ -315,6 +332,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
             zahl={check.summe.nachgefuellt}
             beschriftung="nachgefüllt"
             ton={check.summe.nachgefuellt ? "rot" : "ok"}
+            href={sprung(check.summe.nachgefuellt, "nachfuellung")}
           />
         </Col>
         <Col xs={24} md={6}>
@@ -322,6 +340,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
             zahl={check.summe.korrigiert}
             beschriftung="korrigiert"
             ton={check.summe.korrigiert ? "gelb" : "ok"}
+            href={sprung(check.summe.korrigiert, "abgleich")}
           />
         </Col>
         <Col xs={24} md={6}>
@@ -329,6 +348,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
             zahl={check.summe.offen}
             beschriftung="fehlt weiterhin"
             ton={check.summe.offen ? "rot" : "ok"}
+            href={sprung(check.summe.offen, "abgleich")}
           />
         </Col>
       </Row>
@@ -344,7 +364,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         */}
       {/* IDA-222: abgelesene bzw. gesetzte Plomben. */}
       {check.plomben.length > 0 && (
-        <Card title="Plomben" style={{ marginBlockEnd: SPACE.xl }} data-rolle="check-plomben">
+        <Card title="Plomben" style={{ marginBlockEnd: SPACE.lg }} data-rolle="check-plomben">
           <ul style={{ margin: 0, paddingInlineStart: SPACE.lg }}>
             {check.plomben.map((p) => (
               <li key={p.plombeId}>
@@ -410,6 +430,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
           : check.offen
             ? "Für diesen laufenden Check ist hier noch nichts erfasst — ob noch etwas kommt, steht nicht fest."
             : null}
+        alleAnfangs={alleAnfangs}
       />
     </>
   );
@@ -417,12 +438,16 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
 
 export default async function CheckDetailSeite({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireLagerbuchAdmin();
   const { id } = await params;
   const check = checkDetail(getDb(), id, new Date());
   if (!check) notFound();
-  return checkDetailInhalt(check);
+  // IDA-236: `?alle=abgleich,geraete` — welche Abschnitte ganz stehen.
+  const { alle } = await searchParams;
+  return checkDetailInhalt(check, alleAusAdresse(alle));
 }
