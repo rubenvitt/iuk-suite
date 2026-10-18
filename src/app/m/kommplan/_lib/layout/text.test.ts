@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { ARIMO_TEXT_METRICS } from "@einsatzzeichen/catalog";
+import { TEXT_FONT_METRICS } from "@einsatzzeichen/core";
 import { PT_IN_MM } from "./masse";
 import { grundlinie, kuerze, textBreite, umbrechen } from "./text";
 
 /** Unabhängige Referenz über das Paket selbst (nur im Test erlaubt). */
 function referenz(text: string, pt: number, fett = false): number {
-  const m = fett ? ARIMO_TEXT_METRICS.bold! : ARIMO_TEXT_METRICS;
+  const m = fett ? TEXT_FONT_METRICS.bold! : TEXT_FONT_METRICS;
   const cps = [...text].map((c) => c.codePointAt(0)!);
   let em = 0;
   cps.forEach((cp, i) => {
     em += m.advanceEm(cp) ?? 0;
-    // `kerningEm` ist in der Schnittstelle (core 1.5.0, verschachtelt im Katalog) OPTIONAL —
-    // ohne `?.` bricht `pnpm typecheck` mit TS2722, während Vitest grün bleibt.
+    // `kerningEm` ist in der Schnittstelle OPTIONAL — ohne `?.` bricht `pnpm typecheck` mit TS2722,
+    // während Vitest grün bleibt.
     if (i > 0) em += m.kerningEm?.(cps[i - 1], cp) ?? 0;
   });
   return em * pt * PT_IN_MM;
@@ -19,7 +19,7 @@ function referenz(text: string, pt: number, fett = false): number {
 
 describe("textBreite", () => {
   it.each(["Leitstelle Uelzen", "RK UE 40-05-1", "fel@landkreis-uelzen.de", "ÖEL Fußstreife", "AV Tê"])(
-    "%s misst wie ARIMO_TEXT_METRICS (normal und fett)",
+    "%s misst wie TEXT_FONT_METRICS (normal und fett)",
     (t) => {
       expect(textBreite(t, 8)).toBeCloseTo(referenz(t, 8), 9);
       expect(textBreite(t, 9.5, true)).toBeCloseTo(referenz(t, 9.5, true), 9);

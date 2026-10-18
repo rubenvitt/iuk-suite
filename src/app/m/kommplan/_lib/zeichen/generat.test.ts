@@ -4,9 +4,10 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
-import { ARIMO_TEXT_METRICS, RECIPES } from "@einsatzzeichen/catalog";
-import { ARIMO_TEXT_METRICS as CORE_METRIK } from "@einsatzzeichen/core";
+import { RECIPES } from "@einsatzzeichen/conformance";
+import { CATALOG_TEXT_FONT_WEIGHT, TEXT_FONT_METRICS } from "@einsatzzeichen/core";
 import { SECHSECK } from "../layout/masse";
+import { textBreite } from "../layout/text";
 import { VERBINDUNG_PIKTOGRAMM } from "./grundlagen";
 import zeichen from "./zeichen.generiert.json";
 import zeichenSw from "./zeichen-sw.generiert.json";
@@ -33,12 +34,12 @@ describe("kommplan-Generat", () => {
     }
   }, 120_000);
 
-  it("vermerkt fünf aufgelöste Paketversionen, in allen vier Dateien gleich", () => {
+  it("vermerkt drei aufgelöste Paketversionen, in allen vier Dateien gleich", () => {
     expect(zeichen.stand).toEqual(grundlagen.stand);
     expect(zeichenSw.stand).toEqual(zeichen.stand);
     expect(schrift.stand).toEqual(zeichen.stand);
     for (const v of Object.values(zeichen.stand)) expect(v).toMatch(/^\d+\.\d+\.\d+/);
-    expect(Object.keys(zeichen.stand).sort()).toEqual(["catalog", "catalogCore", "catalogSchema", "core", "schema"]);
+    expect(Object.keys(zeichen.stand).sort()).toEqual(["conformance", "core", "schema"]);
   });
 
   it("trägt jedes Hauptrezept und die vier Zusatzzeichen", () => {
@@ -105,7 +106,7 @@ describe("kommplan-Generat", () => {
 
   it("große Kürzel (EL, UEAL, KatSL …) lassen im Führungszeichen Luft zum Rahmen", () => {
     const breite = (text: string, groesse: number) =>
-      [...text].reduce((summe, c) => summe + (ARIMO_TEXT_METRICS.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
+      [...text].reduce((summe, c) => summe + (TEXT_FONT_METRICS.medium!.advanceEm(c.codePointAt(0)!) ?? 0.6), 0) * groesse;
     let gezaehlt = 0;
     for (const [k, e] of Object.entries(zeichen.zeichen as Record<string, { inhalt: string }>)) {
       for (const m of e.inhalt.matchAll(/<text\b[^>]*\bfont-size="([\d.]+)"[^>]*>([^<]*)<\/text>/g)) {
@@ -118,39 +119,44 @@ describe("kommplan-Generat", () => {
     expect((zeichen.zeichen as Record<string, { inhalt: string }>)["rezept:D.1.2"].inhalt).toContain(">KatSL<");
   });
 
-  it("die Vorschübe stimmen mit ARIMO_TEXT_METRICS überein (normal und fett)", () => {
-    const upem = grundlagen.metrik.einheitenProEm;
-    const normal = grundlagen.metrik.normal.vorschub as Record<string, number>;
-    const fett = grundlagen.metrik.fett.vorschub as Record<string, number>;
-    for (let cp = 32; cp < 0x250; cp++) {
-      const erwartet = ARIMO_TEXT_METRICS.advanceEm(cp);
-      if (erwartet === undefined) { expect(normal[String(cp)]).toBeUndefined(); continue; }
-      expect(normal[String(cp)] / upem).toBeCloseTo(erwartet, 12);
-      expect(fett[String(cp)] / upem).toBeCloseTo(ARIMO_TEXT_METRICS.bold!.advanceEm(cp)!, 12);
-    }
-  });
-  it("Browser und SVG-Export setzen Arimo aus @einsatzzeichen/core, byteweise und nur 400 und 700", () => {
-    const paket = (stufe: string) => readFileSync(createRequire(import.meta.url).resolve(`@einsatzzeichen/core/fonts/text-${stufe}.woff2`));
-    expect(Buffer.from(schrift.regular, "base64").equals(paket("regular"))).toBe(true);
-    expect(Buffer.from(schrift.fett, "base64").equals(paket("bold"))).toBe(true);
-    const quelle = readFileSync("src/app/m/kommplan/_ui/schrift.ts", "utf8");
-    const pfade = [...quelle.matchAll(/path: "([^"]+)", weight: "(\d+)"/g)].map((m) => [resolve("src/app/m/kommplan/_ui", m[1]), m[2]]);
-    expect(pfade.map(([, gewicht]) => gewicht)).toEqual(["400", "700"]);
-    expect(readFileSync(pfade[0][0]).equals(paket("regular"))).toBe(true);
-    expect(readFileSync(pfade[1][0]).equals(paket("bold"))).toBe(true);
-    expect(schrift.stand).toEqual(zeichen.stand);
-  });
   it("die Paket-Schrift hat die Vorschübe, mit denen das Layout misst (normal und fett)", () => {
     const upem = grundlagen.metrik.einheitenProEm;
     const normal = grundlagen.metrik.normal.vorschub as Record<string, number>;
     const fett = grundlagen.metrik.fett.vorschub as Record<string, number>;
     for (let cp = 32; cp < 0x250; cp++) {
-      const erwartet = CORE_METRIK.advanceEm(cp);
+      const erwartet = TEXT_FONT_METRICS.advanceEm(cp);
       expect(normal[String(cp)] === undefined ? undefined : normal[String(cp)] / upem).toBe(erwartet);
-      if (erwartet !== undefined) expect(fett[String(cp)] / upem).toBe(CORE_METRIK.bold!.advanceEm(cp));
+      if (erwartet !== undefined) expect(fett[String(cp)] / upem).toBe(TEXT_FONT_METRICS.bold!.advanceEm(cp));
     }
   });
-  it("die Zeichen fordern keinen Schnitt an, den die Seite nicht lädt: nur 400 (ohne Angabe) und 700, nie kursiv", () => {
+  it("die Unterschneidung ist die des Pakets, Klasse für Klasse (normal und fett)", () => {
+    const upem = grundlagen.metrik.einheitenProEm;
+    for (const [schnitt, m] of [[grundlagen.metrik.normal, TEXT_FONT_METRICS], [grundlagen.metrik.fett, TEXT_FONT_METRICS.bold!]] as const) {
+      const { links, rechts, werte } = schnitt.unterschneidung;
+      let gezaehlt = 0;
+      links.forEach((l, i) => rechts.forEach((r, j) => {
+        const wert = (werte[i] as Partial<Record<string, number>>)[String(j)];
+        expect(wert === undefined ? undefined : wert / upem).toBe(m.kerningEm!(l.codePointAt(0)!, r.codePointAt(0)!));
+        if (wert !== undefined) gezaehlt++;
+      }));
+      expect(gezaehlt).toBeGreaterThan(100);
+    }
+    expect(textBreite("Ta", 10)).toBeLessThan(textBreite("T", 10) + textBreite("a", 10)); // −67/1000 em laut Paket
+  });
+  it("Browser und SVG-Export setzen Einsatzzeichen Sans aus @einsatzzeichen/core, byteweise und nur 400, 500 und 700", () => {
+    const paket = (stufe: string) => readFileSync(createRequire(import.meta.url).resolve(`@einsatzzeichen/core/fonts/text-${stufe}.woff2`));
+    expect(Buffer.from(schrift.regular, "base64").equals(paket("regular"))).toBe(true);
+    expect(Buffer.from(schrift.mittel, "base64").equals(paket("medium"))).toBe(true);
+    expect(Buffer.from(schrift.fett, "base64").equals(paket("bold"))).toBe(true);
+    const quelle = readFileSync("src/app/m/kommplan/_ui/schrift.ts", "utf8");
+    const pfade = [...quelle.matchAll(/path: "([^"]+)", weight: "(\d+)"/g)].map((m) => [resolve("src/app/m/kommplan/_ui", m[1]), m[2]]);
+    expect(pfade.map(([, gewicht]) => gewicht)).toEqual(["400", "500", "700"]);
+    expect(readFileSync(pfade[0][0]).equals(paket("regular"))).toBe(true);
+    expect(readFileSync(pfade[1][0]).equals(paket("medium"))).toBe(true);
+    expect(readFileSync(pfade[2][0]).equals(paket("bold"))).toBe(true);
+    expect(schrift.stand).toEqual(zeichen.stand);
+  });
+  it("die Zeichen fordern keinen Schnitt an, den die Seite nicht lädt: jedes Kürzel in 500, nie kursiv", () => {
     const gewichte = new Set<string>();
     for (const e of [
       ...Object.values(zeichen.zeichen as Record<string, { inhalt: string }>),
@@ -158,8 +164,10 @@ describe("kommplan-Generat", () => {
       ...Object.values(grundlagen.piktogramme as Record<string, { inhalt: string }>),
     ]) {
       for (const m of e.inhalt.matchAll(/\bfont-weight="([^"]*)"/g)) gewichte.add(m[1]);
+      for (const t of e.inhalt.matchAll(/<text\b[^>]*>/g)) expect(t[0]).toMatch(/\bfont-weight="/);
       expect(e.inhalt).not.toMatch(/font-style/);
     }
-    expect([...gewichte]).toEqual(["700"]); // TMO, DMO, HRT, Fax, C in den Piktogrammen
+    expect([...gewichte]).toEqual([String(CATALOG_TEXT_FONT_WEIGHT)]);
+    expect(CATALOG_TEXT_FONT_WEIGHT).toBe(500);
   });
 });

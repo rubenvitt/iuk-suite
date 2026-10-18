@@ -1,13 +1,22 @@
 import roh from "./grundlagen.generiert.json";
 
 /**
- * Das kleine, geteilte Generat: Arimo-Metriken und Piktogramme. Server UND Browser laden es
+ * Das kleine, geteilte Generat: Metriken von „Einsatzzeichen Sans" und Piktogramme. Server UND Browser laden es
  * (der Betrachter rechnet das Layout selbst). Das große Rezept-Generat liegt in `zeichen.ts`
  * und gehört allein dem Server (`grenze.test.ts`).
  */
+/**
+ * Unterschneidung in den Klassen des Pakets (core 6.x): jedes Zeichen steht links bzw. rechts in höchstens einer Klasse,
+ * `werte[linkeKlasse][rechteKlasse]` ist der Wert in Einheiten des Em.
+ */
+export interface Unterschneidung {
+  readonly links: readonly string[];
+  readonly rechts: readonly string[];
+  readonly werte: readonly Readonly<Partial<Record<string, number>>>[];
+}
 export interface Schnitt {
   readonly vorschub: Readonly<Record<string, number>>;
-  readonly unterschneidung: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  readonly unterschneidung: Unterschneidung;
 }
 export interface Metrik {
   readonly einheitenProEm: number;

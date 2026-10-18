@@ -252,7 +252,7 @@ export function pruefeVerbindungen(z: Zeichnungsdaten, inhalt: PlanInhalt): Befu
 
 /**
  * Jede Textzeile steht ganz in ihrem Träger (Karte, Einheitenkasten, Sechseck, Abzeichen): waagerecht
- * nach Arimo-Breite und Anker, die Grundlinie innerhalb der Höhe. Ein Text, der übersteht, ist
+ * nach gemessener Breite und Anker, die Grundlinie innerhalb der Höhe. Ein Text, der übersteht, ist
  * am Bildschirm abgeschnitten und auf Papier unleserlich — ohne dass die Geometrie es merkt.
  */
 export function pruefeTexte(z: Zeichnungsdaten): Befund[] {

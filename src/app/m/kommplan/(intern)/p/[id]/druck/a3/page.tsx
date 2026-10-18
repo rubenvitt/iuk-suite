@@ -5,7 +5,7 @@ import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { ladePlanFuerOder404 } from "@/app/m/kommplan/_lib/plaene";
 import { personAus, requireKommplanZugang } from "@/app/m/kommplan/_lib/zugang";
 import { Druckseite } from "@/app/m/kommplan/_ui/druck/Druckseite";
-import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
+import { ZEICHENSCHRIFT } from "@/app/m/kommplan/_ui/schrift";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,6 @@ export default async function DruckA3({ params, searchParams }: {
   const { id } = await params;
   const db = getDb();
   const { plan, rechte } = ladePlanFuerOder404(db, id, personAus(viewer));
-  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await interneDruckdaten(db, plan, rechte.verwalten, "a3-quer", new Date().getTime())}
+  return <Druckseite schrift={{ familie: ZEICHENSCHRIFT.style.fontFamily, klasse: ZEICHENSCHRIFT.className }} daten={await interneDruckdaten(db, plan, rechte.verwalten, "a3-quer", new Date().getTime())}
     automatisch={(await searchParams).export !== "svg"} />;
 }

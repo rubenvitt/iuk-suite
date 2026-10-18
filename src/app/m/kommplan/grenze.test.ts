@@ -5,7 +5,7 @@ import { dirname, join, relative } from "node:path";
 /**
  * DIE IMPORTGRENZEN DES MODULS — alle strukturell, keine davon sieht `pnpm build` rechtzeitig.
  *
- * 1. `@einsatzzeichen/catalog` bricht jeden Server-Import im Build (Befund M1 der Zeichen-Spec
+ * 1. `@einsatzzeichen/conformance` (bis 1.5.0 `catalog`) bricht jeden Server-Import im Build (Befund M1 der Zeichen-Spec
  *    2026-09-02), auch als Seiteneffekt- oder dynamischer Import und auch in einer SSR-gerenderten
  *    Client-Insel (M2). Nur das Generatorskript und Tests dürfen ihn laden. `core`/`schema` 3.0.0 sind
  *    rein (JSON-Importe, kein `fileURLToPath`) und zeichnen eigene Zeichen — aber nur an ZWEI Stellen
@@ -106,8 +106,8 @@ describe("kommplan: der Riegel selbst", () => {
 });
 
 describe("kommplan: Importgrenzen", () => {
-  it("keine Laufzeitdatei importiert @einsatzzeichen/catalog, in keiner Form", () => {
-    const verstoesse = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => s.startsWith("@einsatzzeichen/catalog")));
+  it("keine Laufzeitdatei importiert @einsatzzeichen/conformance (früher catalog), in keiner Form", () => {
+    const verstoesse = laufzeit.filter((p) => spezifizierer(quelltext(p)).some((s) => /^@einsatzzeichen\/(?:conformance|catalog)\b/.test(s)));
     expect(verstoesse).toEqual([]);
   });
 

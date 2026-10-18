@@ -41,11 +41,12 @@ describe("eigene Zeichen zeichnen", () => {
     expect(["gelb", "hellgruen", "orange", "hellgrau"].every(weissZuSchwach)).toBe(true);
     expect(["rot", "gruen", "blau", "hellblau", "braun", "schwarz", "grau"].some(weissZuSchwach)).toBe(false);
   });
-  it("ohne Hülle, Beschreibung, Schriftfamilie und -gewicht — wie das Generat; Schwarzweiß ohne Buntton", () => {
+  it("ohne Hülle, Beschreibung und Schriftfamilie, Kürzel in 500 — wie das Generat; Schwarzweiß ohne Buntton", () => {
     const farbe = zeichneEigenes(ILS, "kpe-t");
     const sw = zeichneEigenes(ILS, "kpe-t", { schwarzweiss: true });
     if (!farbe.ok || !sw.ok) throw new Error("zeichnet nicht");
-    expect(farbe.quelle.inhalt).not.toMatch(/<svg|<desc|<title|font-family|font-weight|aria-/);
+    expect(farbe.quelle.inhalt).not.toMatch(/<svg|<desc|<title|font-family|aria-/);
+    expect([...new Set([...farbe.quelle.inhalt.matchAll(/\bfont-weight="([^"]*)"/g)].map((m) => m[1]))]).toEqual(["500"]);
     const bunt = [...sw.quelle.inhalt.matchAll(/#([0-9a-f]{6})\b/gi)].map((m) => m[1].toLowerCase())
       .filter((h) => !(h.slice(0, 2) === h.slice(2, 4) && h.slice(2, 4) === h.slice(4, 6)));
     expect(bunt).toEqual([]);

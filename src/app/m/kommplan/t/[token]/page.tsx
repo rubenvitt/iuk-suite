@@ -6,7 +6,7 @@ import { TOKEN_METADATEN } from "@/app/m/kommplan/_lib/tokenMetadaten";
 import { tokenPlanOder404 } from "@/app/m/kommplan/_lib/tokenZugang";
 import { symboleFuerPlan } from "@/app/m/kommplan/_lib/zeichen/symbole";
 import { Betrachter } from "@/app/m/kommplan/_ui/betrachter/Betrachter";
-import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
+import { ZEICHENSCHRIFT } from "@/app/m/kommplan/_ui/schrift";
 import { TokenKopf } from "@/app/m/kommplan/_ui/token/TokenKopf";
 import { TokenRahmen } from "@/app/m/kommplan/_ui/token/TokenRahmen";
 
@@ -29,8 +29,8 @@ export default async function TokenAnsicht({ params }: { params: Promise<{ token
         aktualisiertVon: plan.aktualisiertVon, vermerkVsNfD: plan.inhalt?.optionen.vermerkVsNfD ?? false,
       }} />
       {plan.inhalt ? (
-        <div className={`kp-token-flaeche ${ARIMO.className}`}>
-          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ARIMO.style.fontFamily} />
+        <div className={`kp-token-flaeche ${ZEICHENSCHRIFT.className}`}>
+          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ZEICHENSCHRIFT.style.fontFamily} />
         </div>
       ) : (
         <p className="kp-token-hinweis">Dieser Plan lässt sich gerade nicht anzeigen.</p>

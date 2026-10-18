@@ -18,7 +18,7 @@ import { Betrachter } from "@/app/m/kommplan/_ui/betrachter/Betrachter";
 import { DruckMenue } from "@/app/m/kommplan/_ui/druck/DruckMenue";
 import { Editor } from "@/app/m/kommplan/_ui/editor/Editor";
 import { Huelle } from "@/app/m/kommplan/_ui/Huelle";
-import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
+import { ZEICHENSCHRIFT } from "@/app/m/kommplan/_ui/schrift";
 import { Wiederherstellen } from "./Wiederherstellen";
 
 export const dynamic = "force-dynamic";
@@ -44,9 +44,9 @@ export default async function PlanAnsicht({ params, searchParams }: {
     const kopie = kopieHinweis(typeof suche.kopie === "string" ? suche.kopie : undefined, kalendertag(plan.datum) ?? "heute");
     return (
       <Huelle>
-        {/* Kein Arimo-Container um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
+        {/* Kein Container mit der Zeichenschrift um den Editor: Kopfleiste, Status und Hinweise stehen in der Suite-Schrift
             wie im Betrachter-Zweig; die Zeichnung setzt ihre Familie selbst, die Legende bekommt die Klasse. */}
-        <Editor key={plan.id} symbole={symboleFuerPlan(getDb(), plan.inhalt)} zeichenIndex={zeichenIndexMitEigenen(getDb())} schrift={ARIMO.style.fontFamily} schriftKlasse={ARIMO.className} ansicht={ansicht} kopieHinweis={kopie} bibliothek={ladeBibliothek(getDb())}
+        <Editor key={plan.id} symbole={symboleFuerPlan(getDb(), plan.inhalt)} zeichenIndex={zeichenIndexMitEigenen(getDb())} schrift={ZEICHENSCHRIFT.style.fontFamily} schriftKlasse={ZEICHENSCHRIFT.className} ansicht={ansicht} kopieHinweis={kopie} bibliothek={ladeBibliothek(getDb())}
           bibliothekPflegen={darfKommplanBearbeiten(viewer.groups)}
           teilen={rechte.verwalten ? {
             freigaben: freigabenFuer(getDb(), plan.id, new Date().getTime()), basis: moduleUrl("kommplan"),
@@ -71,8 +71,8 @@ export default async function PlanAnsicht({ params, searchParams }: {
         </Card>
       ) : null}
       {plan.inhalt ? (
-        <div className={ARIMO.className}>
-          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ARIMO.style.fontFamily} />
+        <div className={ZEICHENSCHRIFT.className}>
+          <Betrachter inhalt={plan.inhalt} symbole={symboleFuerPlan(getDb(), plan.inhalt)} titel={plan.titel} schrift={ZEICHENSCHRIFT.style.fontFamily} />
         </div>
       ) : (
         <Card>Dieser Plan lässt sich nicht lesen: der gespeicherte Inhalt ist beschädigt. Ansehen, Bearbeiten und Drucken gehen erst wieder, wenn die Daten repariert sind.</Card>

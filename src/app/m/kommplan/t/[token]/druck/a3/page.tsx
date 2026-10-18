@@ -5,7 +5,7 @@ import { requireKommplanHost } from "@/app/m/kommplan/_lib/host";
 import { TOKEN_METADATEN } from "@/app/m/kommplan/_lib/tokenMetadaten";
 import { tokenPlanOder404 } from "@/app/m/kommplan/_lib/tokenZugang";
 import { Druckseite } from "@/app/m/kommplan/_ui/druck/Druckseite";
-import { ARIMO } from "@/app/m/kommplan/_ui/schrift";
+import { ZEICHENSCHRIFT } from "@/app/m/kommplan/_ui/schrift";
 
 export const dynamic = "force-dynamic";
 export const metadata = TOKEN_METADATEN;
@@ -15,5 +15,5 @@ export default async function TokenDruckA3({ params }: { params: Promise<{ token
   requireKommplanHost(await headers());
   const { token } = await params;
   const { plan } = await tokenPlanOder404(token);
-  return <Druckseite schrift={{ familie: ARIMO.style.fontFamily, klasse: ARIMO.className }} daten={await druckseitenDaten(getDb(), plan, { format: "a3-quer", qrUrl: qrUrlFuerToken(plan, token) })} />;
+  return <Druckseite schrift={{ familie: ZEICHENSCHRIFT.style.fontFamily, klasse: ZEICHENSCHRIFT.className }} daten={await druckseitenDaten(getDb(), plan, { format: "a3-quer", qrUrl: qrUrlFuerToken(plan, token) })} />;
 }

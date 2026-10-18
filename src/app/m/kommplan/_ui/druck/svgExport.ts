@@ -2,21 +2,21 @@
  * DIE EIGENSTÄNDIGE SVG-DATEI EINES BLATTS (Spec §8.1; Umsetzungsplan Phase 5, Entscheidung 15). Im Druckdokument
  * stehen Symbole, Logo und Graufilter EINMAL in einem gemeinsamen Vorrat (`Druckblaetter`), die Blätter verweisen per
  * `<use>`/`url(#…)`. Die Datei nimmt genau die erreichten Einträge mit (auch über Ketten, etwa ein Symbol, das ein
- * anderes verwendet), bettet Arimo 400 und 700 als `@font-face` ein und setzt eine Schriftliste, die auch ohne `@font-face` gleich
- * breit setzt (Arimo ist metrisch gleich mit Arial und Liberation Sans). DOM-Code für die Client-Insel; kein React.
+ * anderes verwendet), bettet „Einsatzzeichen Sans" 400, 500 und 700 als `@font-face` ein und setzt eine Schriftliste dahinter. Ohne
+ * `@font-face` setzt keine Systemschrift gleich breit (anders als Arimo/Arial bis core 5.x). DOM-Code für die Client-Insel; kein React.
  */
 const SVG_NS = "http://www.w3.org/2000/svg";
-export const SCHRIFTLISTE = 'Arimo, Arial, "Liberation Sans", Helvetica, sans-serif';
+export const SCHRIFTLISTE = '"Einsatzzeichen Sans", "IBM Plex Sans", Arial, sans-serif';
 const VERWEIS = /(?:\bhref|xlink:href)="#([^"]+)"|url\(#([^)"']+)\)/g;
 const SICHERE_ID = /^[A-Za-z0-9_.:-]+$/;
 
-/** Die zwei Stufen aus `@einsatzzeichen/core/fonts` (WOFF2, Base64), dieselben wie im Browser (`_ui/schrift.ts`). */
-export interface ExportSchrift { regular: string; fett: string }
+/** Die drei Stufen aus `@einsatzzeichen/core/fonts` (WOFF2, Base64), dieselben wie im Browser (`_ui/schrift.ts`). */
+export interface ExportSchrift { regular: string; mittel: string; fett: string }
 
 export function schriftStil(schrift: ExportSchrift): string {
   const flaeche = (base64: string, gewicht: number) =>
-    `@font-face{font-family:"Arimo";src:url(data:font/woff2;base64,${base64}) format("woff2");font-weight:${gewicht};font-style:normal;}`;
-  return flaeche(schrift.regular, 400) + flaeche(schrift.fett, 700);
+    `@font-face{font-family:"Einsatzzeichen Sans";src:url(data:font/woff2;base64,${base64}) format("woff2");font-weight:${gewicht};font-style:normal;}`;
+  return flaeche(schrift.regular, 400) + flaeche(schrift.mittel, 500) + flaeche(schrift.fett, 700);
 }
 
 export function verweiseIn(text: string): string[] {
