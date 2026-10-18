@@ -49,21 +49,48 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         titel={detail.name}
         beschreibung={detail.aktiv ? undefined : <Chip ton="grau">inaktiv</Chip>}
         zurueck={{ titel: "Alle Vorlagen", href: "/verwaltung/vorlagen" }}
+        /*
+          IDA-239 — DIE AKTIONEN STEHEN IM KOPF, nicht mehr unter der
+          Positionsliste (bei 210 Positionen rund 14 800 px tief). Übertragen
+          ist die Hauptaktion, der Rest steht im Menü.
+        */
+        aktionen={(
+          <TemplateAktionen
+            id={detail.id}
+            name={detail.name}
+            aktiv={detail.aktiv}
+            fahrzeuge={verknuepfteFahrzeuge.length}
+          />
+        )}
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
+        {/* IDA-239 — eine Kachel mit Zahl führt zu ihrer Liste; bei null gibt
+            es dort nichts zu sehen. */}
         <Col xs={24} md={8}>
-          <Kachel zahl={positionen.length} beschriftung="Positionen" />
+          <Kachel
+            zahl={positionen.length}
+            beschriftung="Positionen"
+            href={positionen.length > 0 ? "#positionen" : undefined}
+          />
         </Col>
         <Col xs={24} md={8}>
-          <Kachel zahl={faecher} beschriftung="Fächer" />
+          <Kachel
+            zahl={faecher}
+            beschriftung="Fächer"
+            href={faecher > 0 ? "#positionen" : undefined}
+          />
         </Col>
         <Col xs={24} md={8}>
-          <Kachel zahl={verknuepfteFahrzeuge.length} beschriftung="Einheiten" />
+          <Kachel
+            zahl={verknuepfteFahrzeuge.length}
+            beschriftung="Einheiten"
+            href={verknuepfteFahrzeuge.length > 0 ? "#einheiten" : undefined}
+          />
         </Col>
       </Row>
 
-      <Card title="Positionen" style={{ marginBlockEnd: SPACE.lg }}>
+      <Card id="positionen" title="Positionen" style={{ marginBlockEnd: SPACE.lg }}>
         <TemplatePosEditor
           templateId={detail.id}
           positionen={positionen}
@@ -71,17 +98,8 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         />
       </Card>
 
-      <Card title="Verknüpfte Einheiten" style={{ marginBlockEnd: SPACE.lg }}>
+      <Card id="einheiten" title="Verknüpfte Einheiten">
         <VerknuepfteFahrzeugeTable zeilen={verknuepfteFahrzeuge} />
-      </Card>
-
-      <Card title="Aktionen">
-        <TemplateAktionen
-          id={detail.id}
-          name={detail.name}
-          aktiv={detail.aktiv}
-          fahrzeuge={verknuepfteFahrzeuge.length}
-        />
       </Card>
     </>
   );

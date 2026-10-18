@@ -354,7 +354,12 @@ describe("JournalTable", () => {
       <JournalTable
         ersteZeilen={ZEILEN}
         ersterCursor={{ ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" }}
-        abrufFilter={{ vorgang: "entnahme", q: "binde" }}
+        abrufFilter={{
+          vorgang: "entnahme",
+          q: "binde",
+          artikelId: "artikel-1",
+          lagerortId: "rtw-1",
+        }}
         leertext="Noch keine Buchung."
       />,
     );
@@ -363,9 +368,12 @@ describe("JournalTable", () => {
 
     // Ohne den Filter lieferte Seite zwei andere Zeilen als Seite eins — der
     // Nachschlag sieht sonst die ganze Historie.
+    // IDA-239: Ort und Artikel reisen genauso mit.
     expect(mocks.naechsteJournalSeite).toHaveBeenCalledWith({
       vorgang: "entnahme",
       q: "binde",
+      artikelId: "artikel-1",
+      lagerortId: "rtw-1",
       cursor: { ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" },
     });
   });

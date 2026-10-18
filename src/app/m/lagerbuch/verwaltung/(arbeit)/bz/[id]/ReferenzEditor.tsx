@@ -1,19 +1,12 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { Alert, Card, Input, InputNumber, Select } from "antd";
-import { SPACE } from "@/core/theme/tokens";
+import { useState, useTransition, type ReactNode } from "react";
+import { Input, InputNumber, Select } from "antd";
 import { geraetSpeichern } from "../../../../_actions/bz";
 import { standortMeta } from "../../../../_lib/konstanten";
 import type { LagerortOption } from "../../../../_lib/lesepfade/bz";
-import { SCHRIFT } from "../../../../_lib/schrift";
+import { Stammdaten, StammdatenEingabe } from "../../../../_ui/Stammdaten";
 
-const ZAHL_DEBOUNCE_MS = 400;
 const SPEICHER_FEHLER = "BZ-Gerät konnte nicht gespeichert werden.";
 
 export type BzEditorWerte = {
@@ -77,118 +70,83 @@ function payload(w: BzEditorWerte) {
   };
 }
 
-/**
- * Der Schluessel haengt an der IDENTITAET, nicht an den WERTEN.
- *
- * `key={JSON.stringify(props.geraet)}` sah nach demselben Zweck aus, tat aber
- * etwas anderes: jedes `onBlur` speichert, `revalidatePath` rendert die Seite
- * neu, die neuen Werte ergeben einen neuen Schluessel — und der unmountet den
- * Teilbaum mitten im Tippen. Der Fokus faellt auf `body`, die Zeichen, die
- * inzwischen ins Nachbarfeld gingen, landen nirgends, und es gibt keine
- * Meldung; die Person haelt das Feld fuer kaputt.
- *
- * Mit der `id` bleibt der Remount da, wo er gebraucht wird — beim Wechsel auf
- * ein ANDERES Geraet, wo React die Komponente sonst samt fremdem Zustand
- * wiederverwendet. Waehrend desselben Geraets ist der lokale Zustand die
- * Wahrheit: nur diese Insel schreibt ihn.
- */
-export function ReferenzEditor(props: {
-  geraet: BzEditorWerte;
-  lagerorte: LagerortOption[];
-}) {
-  return <ReferenzEditorInhalt key={props.geraet.id} {...props} />;
+/** Der Referenzbereich als Lesetext: „40–60", „ab 40", „bis 60", „–". */
+export function bereichText(min: number | null, max: number | null): string {
+  if (min !== null && max !== null) return `${min}–${max}`;
+  if (min !== null) return `ab ${min}`;
+  if (max !== null) return `bis ${max}`;
+  return "–";
 }
 
-function ReferenzEditorInhalt({
+/** „Kontrolle niedrig · 40–60" — die Bezeichnung nur, wenn eine gepflegt ist. */
+function levelText(bezeichnung: string | null, min: number | null, max: number | null): string {
+  const bereich = bereichText(min, max);
+  return bezeichnung ? `${bezeichnung} · ${bereich}` : bereich;
+}
+
+/**
+ * REFERENZ & STREIFEN-LOT — SEIT IDA-239 EIN LESEMODUS MIT „BEARBEITEN".
+ *
+ * Vorher standen alle zehn Felder immer offen zwischen Kacheln und „Kontrolle
+ * erfassen", und jedes speicherte beim Verlassen (Text) bzw. nach 400 ms
+ * (Zahl). Eine vertippte Referenzgrenze ging so ohne Rückweg durch — und sie
+ * entscheidet, ob die nächste Kontrolle als bestanden zählt. Jetzt wird
+ * gelesen, „Bearbeiten" öffnet die Felder, „Speichern" schreibt alle zehn auf
+ * einmal, „Abbrechen" verwirft.
+ *
+ * ⚠️ `payload()` SCHICKT WEITER ALLE ZEHN FELDER — `geraetSpeichern` schreibt
+ * die Stammzeile ganz. Ein Fehler kommt deshalb als Satz der Action an (eine
+ * Barcode-Kollision lässt sonst jedes Speichern scheitern, ohne dass jemand
+ * den Grund erfährt), und der Bearbeitungsmodus bleibt offen, damit nichts
+ * Getipptes verloren geht.
+ *
+ * Der Lesemodus zeigt immer die Serverwerte; der Entwurf entsteht erst beim
+ * Klick auf „Bearbeiten" aus ihnen und gehört dann der Person — ein neuer
+ * Serverstand überschreibt nichts, was sie gerade tippt.
+ *
+ * ⚠️ DER AUFRUFER SETZT `key={geraet.id}`: beim Wechsel auf ein ANDERES Gerät
+ * darf kein offener Entwurf des vorigen stehen bleiben.
+ */
+export function ReferenzEditor({
   geraet,
   lagerorte,
+  zusatz,
 }: {
   geraet: BzEditorWerte;
   lagerorte: LagerortOption[];
+  /** Unter der Liste: Status und Löschen (IDA-239, vorher im Seitenkopf). */
+  zusatz?: ReactNode;
 }) {
-  const [werte, setWerte] = useState(geraet);
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [entwurf, setEntwurf] = useState(geraet);
   const [fehler, setFehler] = useState<string | null>(null);
-  const aktuell = useRef(geraet);
-  const zahlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const speicherGeneration = useRef(0);
-  const wurzel = useRef<HTMLDivElement>(null);
+  const [laeuft, starten] = useTransition();
 
-  /**
-   * Neue Serverwerte fuer DASSELBE Geraet ziehen die Felder nach — aber nur,
-   * wenn niemand gerade in diesem Editor steht.
-   *
-   * Den Abgleich hat frueher ein wertabhaengiger `key` erledigt. Der hat aber
-   * nicht abgeglichen, sondern UNMOUNTET: nach jedem `onBlur`-Speichern riss er
-   * den Fokus aus dem Feld, in das die Person inzwischen weitergetippt hatte,
-   * und verschluckte die Zeichen. Der Abgleich per Effekt haelt die Zusage aus
-   * `page.test.tsx` („setzt bei neuen Serverwerten derselben Geraete-ID alle
-   * lokalen Felder zurueck") und laesst die Eingabe in Ruhe.
-   */
-  useEffect(() => {
-    const fokus = document.activeElement;
-    if (fokus && wurzel.current?.contains(fokus)) return;
-    aktuell.current = geraet;
-    setWerte(geraet);
-  }, [geraet]);
-
-  useEffect(() => () => {
-    if (zahlTimer.current) clearTimeout(zahlTimer.current);
-  }, []);
-
-  function spiegeln(aenderung: Partial<BzEditorWerte>): BzEditorWerte {
-    const naechste = { ...aktuell.current, ...aenderung };
-    aktuell.current = naechste;
-    setWerte(naechste);
-    return naechste;
+  function aendern(aenderung: Partial<BzEditorWerte>): void {
+    setEntwurf((vorher) => ({ ...vorher, ...aenderung }));
   }
 
-  async function speichern(snapshot: BzEditorWerte): Promise<void> {
-    const generation = ++speicherGeneration.current;
+  function umschalten(an: boolean): void {
     setFehler(null);
-    try {
-      const ergebnis = await geraetSpeichern(payload(snapshot));
-      if (generation !== speicherGeneration.current) return;
-      // Der Satz aus der Action, nicht die Modulkonstante. `payload()` schickt
-      // bei JEDEM Blur alle zehn Felder — eine einmalige Barcode-Kollision
-      // laesst danach jedes Speichern scheitern, und ohne den echten Grund
-      // steht die Person vor einem Editor, der nichts mehr annimmt.
-      setFehler(ergebnis.ok ? null : ergebnis.fehler);
-    } catch {
-      if (generation === speicherGeneration.current) setFehler(SPEICHER_FEHLER);
-    }
+    setEntwurf(geraet);
+    setBearbeiten(an);
   }
 
-  function textAendern(feld: TextFeld, wert: string): void {
-    spiegeln({ [feld]: wert });
-  }
-
-  function textSpeichern(feld: TextFeld): void {
-    const roh = aktuell.current[feld];
-    const normalisiert = feld === "name"
-      ? (roh ?? "").trim()
-      : optionalerText(roh) ?? null;
-    const snapshot = spiegeln({ [feld]: normalisiert });
-    void speichern(snapshot);
-  }
-
-  function standortSpeichern(lagerortId: string): void {
-    void speichern(spiegeln({ lagerortId }));
-  }
-
-  function zahlAendern(feld: ZahlFeld, wert: number | null): void {
-    spiegeln({ [feld]: wert });
-    if (zahlTimer.current) clearTimeout(zahlTimer.current);
-    zahlTimer.current = setTimeout(() => {
-      zahlTimer.current = null;
-      void speichern(aktuell.current);
-    }, ZAHL_DEBOUNCE_MS);
-  }
-
-  function zahlSpeichern(): void {
-    if (!zahlTimer.current) return;
-    clearTimeout(zahlTimer.current);
-    zahlTimer.current = null;
-    void speichern(aktuell.current);
+  function speichern(): void {
+    const werte = { ...entwurf, name: entwurf.name.trim() };
+    setFehler(null);
+    starten(async () => {
+      try {
+        const ergebnis = await geraetSpeichern(payload(werte));
+        if (!ergebnis.ok) {
+          setFehler(ergebnis.fehler);
+          return;
+        }
+        setBearbeiten(false);
+      } catch {
+        setFehler(SPEICHER_FEHLER);
+      }
+    });
   }
 
   /*
@@ -206,133 +164,78 @@ function ReferenzEditorInhalt({
       keywords: `${lagerort.name} ${lagerort.typ} ${meta}`,
     };
   });
+  const standortText = standortOptionen
+    .find((option) => option.value === geraet.lagerortId)?.label ?? geraet.lagerortId;
 
-  return (
-    <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: SPACE.lg }}>
-      <div
-        ref={wurzel}
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-          // 14 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
-          // Geschwisterzeile in diesem Zuschnitt; bleibt Literal.
-          gap: 14,
-        }}
-      >
-        <Feld label="Name">
-          <Input
-            aria-label="Name"
-            value={werte.name}
-            onChange={(ereignis) => textAendern("name", ereignis.target.value)}
-            onBlur={() => textSpeichern("name")}
-          />
-        </Feld>
-        <Feld label="Barcode">
-          <Input
-            aria-label="Barcode"
-            value={werte.barcode ?? ""}
-            onChange={(ereignis) => textAendern("barcode", ereignis.target.value)}
-            onBlur={() => textSpeichern("barcode")}
-          />
-        </Feld>
-        <Feld label="Standort">
-          <Select<string, LagerortSelectOption>
-            aria-label="Standort"
-            value={werte.lagerortId}
-            options={standortOptionen}
-            showSearch
-            optionFilterProp="label"
-            filterOption={lagerortFilter}
-            onChange={standortSpeichern}
-            style={{ width: "100%" }}
-          />
-        </Feld>
-        <Feld label="Streifen-Lot">
-          <Input
-            aria-label="Streifen-Lot"
-            value={werte.streifenLot ?? ""}
-            onChange={(ereignis) => textAendern("streifenLot", ereignis.target.value)}
-            onBlur={() => textSpeichern("streifenLot")}
-          />
-        </Feld>
-        <Feld label="Level-1-Bezeichnung">
-          <Input
-            aria-label="Level-1-Bezeichnung"
-            value={werte.level1Label ?? ""}
-            onChange={(ereignis) => textAendern("level1Label", ereignis.target.value)}
-            onBlur={() => textSpeichern("level1Label")}
-          />
-        </Feld>
-        <Feld label="Level-1-Untergrenze">
-          <InputNumber<number>
-            aria-label="Level-1-Untergrenze"
-            value={werte.level1Min}
-            precision={0}
-            onChange={(wert) => zahlAendern("level1Min", wert)}
-            onBlur={zahlSpeichern}
-            style={{ width: "100%" }}
-          />
-        </Feld>
-        <Feld label="Level-1-Obergrenze">
-          <InputNumber<number>
-            aria-label="Level-1-Obergrenze"
-            value={werte.level1Max}
-            precision={0}
-            onChange={(wert) => zahlAendern("level1Max", wert)}
-            onBlur={zahlSpeichern}
-            style={{ width: "100%" }}
-          />
-        </Feld>
-        <Feld label="Level-2-Bezeichnung">
-          <Input
-            aria-label="Level-2-Bezeichnung"
-            value={werte.level2Label ?? ""}
-            onChange={(ereignis) => textAendern("level2Label", ereignis.target.value)}
-            onBlur={() => textSpeichern("level2Label")}
-          />
-        </Feld>
-        <Feld label="Level-2-Untergrenze">
-          <InputNumber<number>
-            aria-label="Level-2-Untergrenze"
-            value={werte.level2Min}
-            precision={0}
-            onChange={(wert) => zahlAendern("level2Min", wert)}
-            onBlur={zahlSpeichern}
-            style={{ width: "100%" }}
-          />
-        </Feld>
-        <Feld label="Level-2-Obergrenze">
-          <InputNumber<number>
-            aria-label="Level-2-Obergrenze"
-            value={werte.level2Max}
-            precision={0}
-            onChange={(wert) => zahlAendern("level2Max", wert)}
-            onBlur={zahlSpeichern}
-            style={{ width: "100%" }}
-          />
-        </Feld>
-      </div>
-      {fehler ? (
-        <Alert
-          type="warning"
-          showIcon={false}
-          title={fehler}
-          // 14 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- derselbe
-          // Wert wie der Gitterabstand oben, keine Geschwisterzeile.
-          style={{ marginBlockStart: 14 }}
+  function textFeld(feld: TextFeld, label: string) {
+    return (
+      <StammdatenEingabe label={label}>
+        <Input
+          aria-label={label}
+          autoComplete="off"
+          value={entwurf[feld] ?? ""}
+          onChange={(ereignis) => aendern({ [feld]: ereignis.target.value })}
         />
-      ) : null}
-    </Card>
-  );
-}
+      </StammdatenEingabe>
+    );
+  }
 
-function Feld({ label, children }: { label: string; children: ReactNode }) {
+  function zahlFeld(feld: ZahlFeld, label: string) {
+    return (
+      <StammdatenEingabe label={label}>
+        <InputNumber<number>
+          aria-label={label}
+          value={entwurf[feld]}
+          precision={0}
+          onChange={(wert) => aendern({ [feld]: wert })}
+          style={{ width: "100%" }}
+        />
+      </StammdatenEingabe>
+    );
+  }
+
   return (
-    // 5 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger Abstand
-    // zwischen Feldname und Eingabe, kein Skalenwert ohne sichtbaren Sprung.
-    <label style={{ display: "grid", gap: 5 }}>
-      <span style={SCHRIFT.feldname}>{label}</span>
-      {children}
-    </label>
+    <Stammdaten
+      titel="Referenz & Streifen-Lot"
+      bearbeiten={bearbeiten}
+      onBearbeiten={umschalten}
+      laeuft={laeuft}
+      onSpeichern={speichern}
+      fehler={fehler}
+      zusatz={zusatz}
+      felder={[
+        { name: "Name", wert: geraet.name },
+        { name: "Barcode", wert: geraet.barcode ?? "–" },
+        { name: "Standort", wert: standortText },
+        { name: "Streifen-Lot", wert: geraet.streifenLot ?? "–" },
+        { name: "Level 1", wert: levelText(geraet.level1Label, geraet.level1Min, geraet.level1Max) },
+        { name: "Level 2", wert: levelText(geraet.level2Label, geraet.level2Min, geraet.level2Max) },
+      ]}
+      eingaben={(
+        <>
+          {textFeld("name", "Name")}
+          {textFeld("barcode", "Barcode")}
+          <StammdatenEingabe label="Standort">
+            <Select<string, LagerortSelectOption>
+              aria-label="Standort"
+              value={entwurf.lagerortId}
+              options={standortOptionen}
+              showSearch
+              optionFilterProp="label"
+              filterOption={lagerortFilter}
+              onChange={(lagerortId) => aendern({ lagerortId })}
+              style={{ width: "100%" }}
+            />
+          </StammdatenEingabe>
+          {textFeld("streifenLot", "Streifen-Lot")}
+          {textFeld("level1Label", "Level-1-Bezeichnung")}
+          {zahlFeld("level1Min", "Level-1-Untergrenze")}
+          {zahlFeld("level1Max", "Level-1-Obergrenze")}
+          {textFeld("level2Label", "Level-2-Bezeichnung")}
+          {zahlFeld("level2Min", "Level-2-Untergrenze")}
+          {zahlFeld("level2Max", "Level-2-Obergrenze")}
+        </>
+      )}
+    />
   );
 }

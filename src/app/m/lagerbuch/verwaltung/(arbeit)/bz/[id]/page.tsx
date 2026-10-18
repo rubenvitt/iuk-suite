@@ -1,5 +1,4 @@
 import { Card, Col, Row } from "antd";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
@@ -16,6 +15,8 @@ import {
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Ikone } from "../../../../_ui/ikonen";
+import { LinkKnopf } from "../../../../_ui/LinkKnopf";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { BeachtungEditor } from "./BeachtungEditor";
 import { BzAktivToggle } from "./BzAktivToggle";
@@ -113,6 +114,15 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     ? "–"
     : `${Math.round(akku.tageDurchschnitt)} Tage`;
   const editor = editorWerte(geraet);
+  const beachtung = (
+    <BeachtungEditor
+      geraetId={geraet.id}
+      hinweis={detail.beachtung.hinweis}
+      seitText={detail.beachtung.seit === null
+        ? null
+        : `seit ${fmtTs(detail.beachtung.seit)}`}
+    />
+  );
 
   return (
     <>
@@ -120,7 +130,26 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         titel={geraet.name}
         beschreibung={geraet.barcode ? `Barcode ${geraet.barcode}` : "Kein Barcode hinterlegt"}
         zurueck={{ titel: "BZ-Geräte", href: "/verwaltung/bz" }}
-        aktionen={<BzAktivToggle id={geraet.id} name={geraet.name} aktiv={geraet.aktiv} />}
+        aktionen={(
+          /*
+            IDA-239 — DIE HAUPTAKTION STEHT IM KOPF. Vorher lag „Kontrolle
+            erfassen" als eigener roter Link UNTER Beachtung und zehn offenen
+            Referenzfeldern (gemessen 818 px bei 1440×900, 1 077 px bei
+            1024×768). Jetzt ist es die eine Primäraktion der Seite; Status und
+            Löschen sind in die Stammdaten gewandert — eine unumkehrbare Aktion
+            gehört nicht neben die tägliche.
+
+            `LinkKnopf`: ein echter Anker, der im Verwaltungsrahmen clientseitig
+            navigiert (Begründung dort).
+          */
+          <LinkKnopf
+            primaer
+            href={verwaltungDetailPfad("bz", geraet.id, "kontrolle")}
+            icon={<Ikone name="haken" groesse={16} />}
+          >
+            Kontrolle erfassen
+          </LinkKnopf>
+        )}
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
@@ -166,47 +195,17 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       </Row>
 
       {/*
-        KEIN wertabhaengiger `key` hier: `ReferenzEditor` setzt seinen
-        Schluessel selbst aus der Geraete-`id`. Ein zweiter Remount-Ausloeser
-        auf dieser Ebene haette denselben Fokusverlust wieder eingebaut.
+        DRK-311: EINE LAUFENDE BEACHTUNG STEHT VOR ALLEM ANDEREN — sie ist das,
+        was jemand wissen muss, BEVOR er an diesem Gerät arbeitet. Ist keine
+        gesetzt, gibt es oben nichts zu lesen, und das Setzen wandert zu den
+        Stammdaten (IDA-239): sonst stünde zwischen Kacheln und Logbuch eine
+        Karte, die nur sagt, dass nichts zu beachten ist.
       */}
-      {/*
-        DRK-311: VOR dem Referenzeditor, nicht darunter. Der Hinweis ist das,
-        was jemand wissen muss, BEVOR er an diesem Geraet arbeitet; die
-        Referenzbereiche sind Stammdatenpflege.
-      */}
-      <BeachtungEditor
-        geraetId={geraet.id}
-        hinweis={detail.beachtung.hinweis}
-        seitText={detail.beachtung.seit === null
-          ? null
-          : `seit ${fmtTs(detail.beachtung.seit)}`}
-      />
+      {detail.beachtung.hinweis !== null ? beachtung : null}
 
-      <ReferenzEditor geraet={editor} lagerorte={lagerortOptionen(db)} />
-
-      <div style={{ marginBlockEnd: SPACE.lg }}>
-        <Link
-          href={verwaltungDetailPfad("bz", geraet.id, "kontrolle")}
-          role="button"
-          style={{
-            ...SCHRIFT.text,
-            display: "inline-flex",
-            alignItems: "center",
-            minHeight: 44,
-            borderRadius: 6,
-            paddingInline: SPACE.lg,
-            color: "white",
-            background: "var(--lb-rot)",
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
-        >
-          Kontrolle erfassen
-        </Link>
-      </div>
-
-      <Card title="Logbuch der Kontrollen">
+      {/* IDA-239 — das Logbuch direkt unter den Kacheln: es ist das, was man
+          an einem Gerät nachliest. */}
+      <Card title="Logbuch der Kontrollen" style={{ marginBlockEnd: SPACE.lg }}>
         <p style={SCHRIFT.neben}>
           {detail.logbuchMehrVorhanden
             ? `Neueste ${BZ_LOGBUCH_GRENZE} von mehr Einträgen`
@@ -214,6 +213,17 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         </p>
         <BzLogbuchTabelle zeilen={logbuchZeilen} />
       </Card>
+
+      {detail.beachtung.hinweis === null ? beachtung : null}
+
+      {/* `key` an der Identität: beim Wechsel auf ein anderes Gerät darf kein
+          offener Entwurf des vorigen stehen bleiben. */}
+      <ReferenzEditor
+        key={geraet.id}
+        geraet={editor}
+        lagerorte={lagerortOptionen(db)}
+        zusatz={<BzAktivToggle id={geraet.id} name={geraet.name} aktiv={geraet.aktiv} />}
+      />
     </>
   );
 }

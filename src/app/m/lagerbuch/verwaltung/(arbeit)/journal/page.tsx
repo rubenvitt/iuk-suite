@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { getDb, type DB } from "../../../_db/client";
+import { artikel as artikelTabelle } from "../../../_db/schema";
+import { ortZeile } from "../../../_lib/konstanten";
+import { ortStamm } from "../../../_lib/lesepfade/orte";
 import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
 import {
   journalEintraege,
@@ -17,7 +20,32 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export type JournalSeitenDaten = JournalParameterErgebnis & JournalErgebnis;
+export type JournalAuswahl = { value: string; label: string };
+
+export type JournalSeitenDaten = JournalParameterErgebnis & JournalErgebnis & {
+  /** IDA-239 — was die Wahlen „Ort" und „Artikel" anbieten. */
+  optionen: { orte: JournalAuswahl[]; artikel: JournalAuswahl[] };
+};
+
+const NACH_LABEL = (a: JournalAuswahl, b: JournalAuswahl) => a.label.localeCompare(b.label, "de");
+
+/**
+ * IDA-239 — DIE WAHLEN FÜR ORT UND ARTIKEL, mit stillgelegten: das Journal ist
+ * append-only, und wer die Buchungen einer ausgemusterten Einheit sucht, muss
+ * sie wählen können. Lager vor Einheiten, je nach Name.
+ */
+function journalOptionen(db: DB): JournalSeitenDaten["optionen"] {
+  const orte = [...ortStamm(db).values()]
+    .map((ort) => ({ value: ort.id, label: ortZeile(ort), lager: ort.typ === "lager" }))
+    .sort((a, b) => Number(b.lager) - Number(a.lager) || NACH_LABEL(a, b));
+  return {
+    orte: orte.map(({ value, label }) => ({ value, label })),
+    artikel: db.select({ id: artikelTabelle.id, name: artikelTabelle.name })
+      .from(artikelTabelle).all()
+      .map((zeile) => ({ value: zeile.id, label: zeile.name }))
+      .sort(NACH_LABEL),
+  };
+}
 
 /**
  * Regime B: Die URL wird vor dem Reader normalisiert, dann greifen alle
@@ -33,12 +61,16 @@ export function journalDaten(
   db: DB,
   parameter: JournalRohParameter,
 ): JournalSeitenDaten {
-  const normalisiert = journalParameterAus(parameter);
+  const optionen = journalOptionen(db);
+  const normalisiert = journalParameterAus(parameter, {
+    orte: new Set(optionen.orte.map((ort) => ort.value)),
+    artikel: new Set(optionen.artikel.map((eintrag) => eintrag.value)),
+  });
   const ergebnis = journalEintraege(db, {
     ...normalisiert.filter,
     grenze: JOURNAL_GRENZE,
   });
-  return { ...normalisiert, ...ergebnis };
+  return { ...normalisiert, ...ergebnis, optionen };
 }
 
 /**
@@ -61,6 +93,8 @@ function abrufFilterAus(daten: JournalSeitenDaten): JournalAbrufFilter {
   if (daten.filter.vorgang) filter.vorgang = daten.filter.vorgang;
   if (daten.filter.von) filter.von = daten.filter.von.toISOString();
   if (daten.filter.bis) filter.bis = daten.filter.bis.toISOString();
+  if (daten.filter.artikelId) filter.artikelId = daten.filter.artikelId;
+  if (daten.filter.lagerortId) filter.lagerortId = daten.filter.lagerortId;
   return filter;
 }
 
@@ -89,6 +123,10 @@ export function journalInhalt(daten: JournalSeitenDaten): ReactNode {
         typ={daten.werte.typ}
         von={daten.werte.von}
         bis={daten.werte.bis}
+        ort={daten.werte.ort}
+        artikel={daten.werte.artikel}
+        orte={daten.optionen.orte}
+        artikelOptionen={daten.optionen.artikel}
         hinweise={daten.hinweise}
       />
       <JournalTable
@@ -98,7 +136,7 @@ export function journalInhalt(daten: JournalSeitenDaten): ReactNode {
           : null}
         abrufFilter={abrufFilterAus(daten)}
         leertext={daten.hatFilter
-          ? "Keine Buchung passt zu Suche, Vorgang und Zeitraum."
+          ? "Keine Buchung passt zu Suche, Ort, Artikel, Vorgang und Zeitraum."
           : "Noch keine Buchung."}
       />
     </>

@@ -14,6 +14,7 @@ import {
   queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
+import { Card } from "antd";
 import { lagerorte, o2Flaschen, o2Messungen, users } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import type { Loeschbarkeit } from "../../../../_lib/loeschen";
@@ -21,6 +22,7 @@ import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import s from "../../../../_ui/verwaltung.module.css";
 import { FlascheAktivToggle } from "./FlascheAktivToggle";
+import { MessungForm } from "./MessungForm";
 import { ReferenzFelder } from "./ReferenzFelder";
 import {
   VerlaufTabelle,
@@ -252,7 +254,10 @@ describe("Flaschenblatt als Server Component", () => {
     expect((kopf.props as {
       zurueck?: { titel: string; href: string };
     }).zurueck).toEqual({ titel: "Sauerstoffflaschen", href: "/verwaltung/sauerstoff" });
-    expect(elementeVomTyp(seite, ReferenzFelder)[0].props).toEqual({
+    const { zusatz, ...stammdaten } = elementeVomTyp(seite, ReferenzFelder)[0].props as {
+      zusatz: ReactNode;
+    } & Record<string, unknown>;
+    expect(stammdaten).toEqual({
       id: "flasche-1",
       name: "O2 Detail",
       lagerortId: "rtw-1",
@@ -260,10 +265,9 @@ describe("Flaschenblatt als Server Component", () => {
       nennfuelldruckBar: 200,
       wechselAbProzent: 25,
     });
-    const toggle = elementeVomTyp(
-      (kopf.props as { aktionen: ReactNode }).aktionen,
-      FlascheAktivToggle,
-    )[0];
+    // IDA-239 — Status und Löschen stehen bei den Stammdaten, nicht im Kopf.
+    expect((kopf.props as { aktionen?: ReactNode }).aktionen).toBeUndefined();
+    const toggle = elementeVomTyp(zusatz, FlascheAktivToggle)[0];
     expect(toggle.props).toEqual({
       id: "flasche-1",
       name: "O2 Detail",
@@ -277,6 +281,21 @@ describe("Flaschenblatt als Server Component", () => {
     expect(textVon(warnung)).toContain("Wechsel fällig");
     expect(textVon(warnung)).toContain("50 bar");
     expect(textVon(warnung)).toContain("25 %");
+  });
+
+  it("stellt die Messung vor Verlauf und Stammdaten und erklärt sie dort", () => {
+    const seite = o2FlascheInhalt(t.db, "flasche-1") as ReactElement<{ children: ReactNode[] }>;
+    const karten = elementeVomTyp(seite, Card).map((karte) =>
+      (karte.props as { title: string }).title);
+    expect(karten).toEqual(["Neue Messung", "Messungsverlauf"]);
+    const kinder = seite.props.children.flat().filter(isValidElement);
+    const stelle = (typ: unknown) => kinder.findIndex((kind) => kind.type === typ
+      || elementeVomTyp(kind, typ).length > 0);
+    expect(stelle(MessungForm)).toBeLessThan(stelle(VerlaufTabelle));
+    expect(stelle(VerlaufTabelle)).toBeLessThan(stelle(ReferenzFelder));
+    expect(textVon(elementeVomTyp(seite, Card)[0])).toContain("Fehlmessung");
+    const kopf = elementeVomTyp(seite, SeitenKopf)[0];
+    expect((kopf.props as { beschreibung?: ReactNode }).beschreibung).toBeUndefined();
   });
 
   it("übergibt ausschließlich rekursiv JSON-sichere primitive Verlaufs-DTOs", () => {
@@ -337,6 +356,10 @@ describe("Flaschenblatt als Server Component", () => {
   });
 });
 
+/**
+ * IDA-239 — DIE STAMMDATEN SIND EIN LESEMODUS MIT „BEARBEITEN": gespeichert
+ * wird erst mit „Speichern", nicht mehr beim Verlassen oder nach 400 ms.
+ */
 describe("ReferenzFelder", () => {
   function mounten(groesseLiter: number | null = null) {
     return mount(
@@ -351,70 +374,72 @@ describe("ReferenzFelder", () => {
     );
   }
 
-  it("rendert Name, Größe und Nennfülldruck ohne Form", async () => {
-    await mounten();
-    for (const label of ["Name", "Größe in Litern", "Nennfülldruck"]) {
+  function knopf(text: string): HTMLButtonElement {
+    const treffer = queryAll<HTMLButtonElement>("button")
+      .find((element) => (element.textContent ?? "").trim() === text);
+    if (!treffer) throw new Error(`Knopf nicht gefunden: ${text}`);
+    return treffer;
+  }
+
+  async function bearbeiten(): Promise<void> {
+    await clickElement(knopf("Bearbeiten"));
+    await warte();
+  }
+
+  async function speichern(): Promise<void> {
+    await clickElement(knopf("Speichern"));
+    await warte();
+  }
+
+  it("liest zuerst und nennt die Wechselgrenze in bar", async () => {
+    await mounten(10);
+    expect(queryAll("input")).toHaveLength(0);
+    const text = document.body.textContent ?? "";
+    for (const wert of ["O2 Detail", "10 l", "200 bar", "25 %", "ab 50 bar"]) {
+      expect(text, wert).toContain(wert);
+    }
+    await bearbeiten();
+    for (const label of ["Name", "Größe in Litern", "Nennfülldruck",
+      "Wechselhinweis ab Prozent vom Nennfülldruck"]) {
       expect(document.querySelector(`[aria-label='${label}']`), label).not.toBeNull();
     }
-    expect(document.querySelector("form")).toBeNull();
     expect(document.querySelector(".ant-form-item")).toBeNull();
   });
 
-  it("committet den Namen auf Blur mit vollständigem Payload und null als undefined", async () => {
+  it("speichert erst mit „Speichern“, vollständig und mit null als undefined", async () => {
     await mounten();
+    await bearbeiten();
     await fill("input[aria-label='Name']", "  O2 Reserve  ");
     await blur("input[aria-label='Name']");
+    await fill("input[aria-label='Nennfülldruck']", "300");
+    expect(mocks.speichern).not.toHaveBeenCalled();
+    // Die bar-Zahl folgt dem Entwurf: 25 % von 300 bar.
+    expect(document.body.textContent).toContain("ab 75 bar");
 
-    // ⚠️ `wechselAbProzent` IST TEIL JEDES PAYLOADS, auch wenn nur der Name
-    // geaendert wurde (DRK-308). `flascheSpeichern` schreibt die Stammzeile GANZ
-    // und belegt ein fehlendes Feld mit der Vorgabe vor — ohne diese Zeile
-    // setzte eine Namensaenderung den eingestellten Grenzwert still auf 25
-    // zurueck. Genau deshalb steht sie hier im ERWARTUNGSWERT und nicht nur im
-    // Quelltext.
+    await speichern();
+    // ⚠️ `wechselAbProzent` IST TEIL JEDES PAYLOADS, auch wenn nur Name und
+    // Druck geaendert wurden (DRK-308). `flascheSpeichern` schreibt die
+    // Stammzeile GANZ und belegt ein fehlendes Feld mit der Vorgabe vor.
+    expect(mocks.speichern).toHaveBeenCalledTimes(1);
     expect(mocks.speichern).toHaveBeenCalledWith({
       id: "flasche-1",
       name: "O2 Reserve",
       lagerortId: "rtw-1",
       groesseLiter: undefined,
-      nennfuelldruckBar: 200,
-      wechselAbProzent: 25,
-    });
-  });
-
-  it("startet den echten 400-ms-Debounce neu und nutzt die neuesten Werte", async () => {
-    await mounten(2);
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    await fill("input[aria-label='Größe in Litern']", "4");
-    await act(async () => { vi.advanceTimersByTime(250); });
-    await fill("input[aria-label='Nennfülldruck']", "300");
-
-    await act(async () => { vi.advanceTimersByTime(399); });
-    expect(mocks.speichern).not.toHaveBeenCalled();
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mocks.speichern).toHaveBeenCalledTimes(1);
-    expect(mocks.speichern).toHaveBeenCalledWith({
-      id: "flasche-1",
-      name: "O2 Detail",
-      lagerortId: "rtw-1",
-      groesseLiter: 4,
       nennfuelldruckBar: 300,
       wechselAbProzent: 25,
     });
+    expect(document.querySelector("input[aria-label='Name']")).toBeNull();
   });
 
-  it("räumt einen offenen Debounce beim Unmount auf", async () => {
+  it("verwirft mit „Abbrechen“", async () => {
     await mounten(2);
-    vi.useFakeTimers({ shouldAdvanceTime: false });
-    await fill("input[aria-label='Nennfülldruck']", "300");
-    await unmount();
-    await act(async () => { vi.advanceTimersByTime(400); });
-
+    await bearbeiten();
+    await fill("input[aria-label='Größe in Litern']", "4");
+    await clickElement(knopf("Abbrechen"));
+    await warte();
     expect(mocks.speichern).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("2 l");
   });
 
   /**
@@ -430,24 +455,26 @@ describe("ReferenzFelder", () => {
    * durchscheinen: `e.message` ist in Produktion nicht der deutsche Satz,
    * sondern Framework-Englisch, und der Pfad im Stack geht niemanden an.
    */
-  it("zeigt bei ok:false den Satz der Action", async () => {
+  it("zeigt bei ok:false den Satz der Action und bleibt im Bearbeiten", async () => {
     mocks.speichern.mockResolvedValueOnce({
       ok: false as const,
       fehler: "Lagerort nicht gefunden.",
     });
     await mounten();
+    await bearbeiten();
     await fill("input[aria-label='Name']", "O2 Reserve");
-    await blur("input[aria-label='Name']");
+    await speichern();
 
     expect(query(".ant-alert-warning").textContent)
       .toContain("Lagerort nicht gefunden.");
+    expect(query<HTMLInputElement>("input[aria-label='Name']").value).toBe("O2 Reserve");
   });
 
   it("zeigt beim Wurf einen festen Fehler und haelt den Grund geheim", async () => {
     mocks.speichern.mockRejectedValueOnce(new Error("Pfad geheim"));
     await mounten();
-    await fill("input[aria-label='Name']", "O2 Reserve");
-    await blur("input[aria-label='Name']");
+    await bearbeiten();
+    await speichern();
 
     expect(query(".ant-alert-warning").textContent)
       .toContain("Sauerstoffflasche konnte nicht gespeichert werden.");

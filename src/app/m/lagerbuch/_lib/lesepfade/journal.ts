@@ -110,6 +110,19 @@ export type JournalFilter = {
    * `zeitraumAus` gebaut ist. Uebersetzt wird in `journalParameterAus`.
    */
   vorgang?: Vorgangsart;
+  /**
+   * IDA-239 — GENAU DIESER ARTIKEL, über die Kennung. Die Freitextsuche `q`
+   * findet daneben auch Artikel, deren Name den Begriff enthält, und
+   * Buchungen, deren Kommentar ihn nennt — für „alle Buchungen dieses
+   * Artikels" ist das zu unscharf.
+   */
+  artikelId?: string;
+  /**
+   * IDA-239 — GENAU DIESER ORT (Lagerort, Schrank, Fahrzeug oder Tasche).
+   * Ohne Teilbaum: „Handlager" meint die Buchungen ohne Schrank, jeder
+   * Schrank ist ein eigener Ort — so wie die Ortsspalte sie zeigt.
+   */
+  lagerortId?: string;
   /** inklusive untere Zeitgrenze */
   von?: Date;
   /** inklusive obere Zeitgrenze (der Aufrufer setzt das Tagesende, §5.14.2) */
@@ -204,6 +217,8 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
 
   const conds: SQL[] = [];
   if (f.vorgang) conds.push(vorgangBedingung(f.vorgang));
+  if (f.artikelId) conds.push(eq(buchungen.artikelId, f.artikelId));
+  if (f.lagerortId) conds.push(eq(buchungen.lagerortId, f.lagerortId));
   if (f.von) conds.push(gte(buchungen.ts, f.von));
   if (f.bis) conds.push(lte(buchungen.ts, f.bis));
 

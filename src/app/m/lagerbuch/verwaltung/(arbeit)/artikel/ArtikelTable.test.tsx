@@ -21,6 +21,7 @@ import { migrierteTestDb } from "../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { EXCEL_FEHLERTEXT } from "../../../_lib/bestandExportSpalten";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
+import { artikelListenFilterAus, spaltenFilterFuer } from "../../../_lib/artikelFilter";
 import { ArtikelTable } from "./ArtikelTable";
 
 const mocks = vi.hoisted(() => ({
@@ -614,6 +615,51 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
  * `onChange(…, extra.currentDataSource)`. Dieser Test ist der Riegel davor,
  * dass jemand das zurueckdreht und der Knopf still wieder alles exportiert.
  */
+/**
+ * IDA-239 — DIE ADRESSE ÖFFNET EINE SCHUBLADE UND SETZT EINEN FILTER VOR.
+ * Links aus der Übersicht tragen `?artikel=` bzw. `?filter=`; die Seite reicht
+ * sie als `startArtikel`/`startFilter` durch.
+ */
+describe("ArtikelTable: Artikel und Filter aus der Adresse (IDA-239)", () => {
+  it("öffnet die Schublade des Artikels und nimmt den Parameter beim Schließen weg", async () => {
+    window.history.replaceState(null, "", "/verwaltung/artikel?artikel=gamma");
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} startArtikel="gamma" />);
+    expect(query("[data-rolle='artikel-drawer']").getAttribute("data-artikel-id")).toBe("gamma");
+    expect(window.location.search).toBe("?artikel=gamma");
+
+    // Ein Klick auf eine andere Zeile schreibt deren Kennung.
+    await clickElement(query("tr[data-row-key='beta'] button"));
+    await warte();
+    expect(window.location.search).toBe("?artikel=beta");
+    window.history.replaceState(null, "", "/verwaltung/artikel");
+  });
+
+  it("setzt den Spaltenfilter „unter Mindestbestand“ vor", async () => {
+    window.history.replaceState(null, "", "/verwaltung/artikel?filter=unter-mindest");
+    await mount(
+      <ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} startFilter="unter-mindest" />,
+    );
+    expect(zeilenIds()).toEqual(["alpha", "delta"]);
+    expect(window.location.search).toBe("?filter=unter-mindest");
+    window.history.replaceState(null, "", "/verwaltung/artikel");
+  });
+
+  it("setzt den Spaltenfilter „Charge kritisch“ vor", async () => {
+    await mount(
+      <ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} startFilter="charge-kritisch" />,
+    );
+    expect(zeilenIds()).toEqual(["alpha", "gamma"]);
+  });
+
+  it("liest nur bekannte Filternamen und bildet sie auf die echten Zustände ab", () => {
+    expect(artikelListenFilterAus("unter-mindest")).toBe("unter-mindest");
+    expect(artikelListenFilterAus("toString")).toBeUndefined();
+    expect(artikelListenFilterAus(undefined)).toBeUndefined();
+    expect(spaltenFilterFuer("charge-kritisch")).toEqual({ naechsteCharge: ["charge-kritisch"] });
+    expect(spaltenFilterFuer(undefined)).toEqual({});
+  });
+});
+
 describe("ArtikelTable: „Bestand 0“ als Spaltenfilter (DRK-295)", () => {
   const MIT_NULL = [
     { ...ZEILEN[2], id: "leer", name: "Leerer Artikel", bestand: 0, unterMindest: false },
@@ -973,6 +1019,20 @@ describe("Artikelseite als Server Component", () => {
         { userId: "u-anna", kategorie: "hygiene" },
         { userId: "u-bert", kategorie: "technik" },
       ]).run();
+
+      // IDA-239: eine unbekannte Kennung öffnet nichts, eine bekannte schon.
+      const unbekannt = artikelSeitenInhalt(testDb.db, jetzt, "u-anna", {
+        artikel: "gibt-es-nicht", filter: "quatsch",
+      });
+      expect(elementeVomTyp(unbekannt, ArtikelTable)[0]!.props).toMatchObject({
+        startArtikel: undefined, startFilter: undefined,
+      });
+      const bekannt = artikelSeitenInhalt(testDb.db, jetzt, "u-anna", {
+        artikel: "artikel-aktiv", filter: "unter-mindest",
+      });
+      expect(elementeVomTyp(bekannt, ArtikelTable)[0]!.props).toMatchObject({
+        startArtikel: "artikel-aktiv", startFilter: "unter-mindest",
+      });
 
       const inhalt = artikelSeitenInhalt(testDb.db, jetzt, "u-anna");
       const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];

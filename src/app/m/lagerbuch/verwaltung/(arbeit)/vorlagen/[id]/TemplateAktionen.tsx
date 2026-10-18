@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Alert, Button, Flex, Form, Input, Modal, Popconfirm, Space, Switch } from "antd";
+import { Alert, Button, Dropdown, Flex, Form, Input, Modal, Popconfirm } from "antd";
 import { useRouter } from "next/navigation";
 import { SPACE } from "@/core/theme/tokens";
 import {
@@ -10,8 +10,10 @@ import {
   setTemplateAktiv,
   templateAufFahrzeugeSyncen,
 } from "../../../../_actions/templates";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { SCHRIFT } from "../../../../_lib/schrift";
 import { Ikone } from "../../../../_ui/ikonen";
-import { LoeschButton } from "../../../../_ui/LoeschButton";
+import { LoeschDialog } from "../../../../_ui/LoeschDialog";
 
 const UMBENENNEN_FEHLER = "Vorlage konnte nicht umbenannt werden.";
 const STATUS_FEHLER = "Vorlagenstatus konnte nicht geändert werden.";
@@ -20,6 +22,19 @@ const LOESCH_FEHLER = "Vorlage konnte nicht gelöscht werden.";
 
 type UmbenennenWerte = { name: string };
 
+/**
+ * DIE AKTIONEN EINER VORLAGE — SEIT IDA-239 IM SEITENKOPF.
+ *
+ * Vorher standen Umbenennen, Aktiv-Schalter, „Auf alle Einheiten übertragen"
+ * und der rote Löschknopf in einer Karte UNTER der Positionsliste — bei einer
+ * großen Vorlage rund 14 800 px tief. Jetzt: EINE Hauptaktion im Kopf
+ * (übertragen), der Rest hinter „Weitere Aktionen". Löschen steht dort
+ * zuletzt und ohne Rot (Falle 3) — ob gelöscht wird, entscheidet der Dialog,
+ * der den Namen abfragt.
+ *
+ * Ergebnis und Fehler stehen direkt unter den Knöpfen, rechtsbündig im Kopf:
+ * dort, wo geklickt wurde.
+ */
 export function TemplateAktionen({
   id,
   name,
@@ -35,6 +50,7 @@ export function TemplateAktionen({
   const [aktuellerName, setAktuellerName] = useState(name);
   const [istAktiv, setIstAktiv] = useState(aktiv);
   const [umbenennenOffen, setUmbenennenOffen] = useState(false);
+  const [loeschenOffen, setLoeschenOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [syncText, setSyncText] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
@@ -134,25 +150,8 @@ export function TemplateAktionen({
   }
 
   return (
-    <Space orientation="vertical" size={SPACE.md} style={{ width: "100%" }}>
-      <Flex gap={SPACE.sm} wrap align="center">
-        <Button
-          icon={<Ikone name="stift" groesse={16} />}
-          disabled={laeuft}
-          onClick={umbenennenOeffnen}
-        >
-          Umbenennen
-        </Button>
-        <Space>
-          <Switch
-            checked={istAktiv}
-            loading={laeuft}
-            disabled={laeuft}
-            aria-label="Vorlage aktiv"
-            onChange={statusAendern}
-          />
-          <span>{istAktiv ? "aktiv" : "inaktiv"}</span>
-        </Space>
+    <div style={{ display: "grid", gap: SPACE.sm, justifyItems: "end" }}>
+      <Flex gap={SPACE.sm} wrap align="center" justify="flex-end">
         {/*
           Die folgenreichste Aktion der Seite: sie schreibt ueber alle
           verknuepften Einheiten und loescht dabei verwaiste Soll-Zeilen
@@ -166,6 +165,9 @@ export function TemplateAktionen({
           Einheiten verschiedener Art. Ein „Auf alle Fahrzeuge übertragen" waere
           hier nicht nur schief, sondern eine falsche Zusage — es klaenge, als
           bliebe die Tasche daneben unberuehrt.
+
+          IDA-239: OHNE VERKNÜPFTE EINHEIT GESPERRT — es gäbe nichts zu
+          übertragen, und eine Hauptaktion, die nichts tut, ist eine Falle.
         */}
         <Popconfirm
           title="Auf alle verknüpften Einheiten übertragen?"
@@ -177,23 +179,63 @@ export function TemplateAktionen({
           cancelText="Abbrechen"
           okButtonProps={{ loading: laeuft }}
           onConfirm={synchronisieren}
+          disabled={fahrzeuge === 0}
         >
           <Button
+            type="primary"
             icon={<Ikone name="erneut" groesse={16} />}
             loading={laeuft}
-            disabled={laeuft}
+            disabled={laeuft || fahrzeuge === 0}
+            title={fahrzeuge === 0 ? "Keine Einheit nutzt diese Vorlage." : undefined}
           >
             Auf alle Einheiten übertragen
           </Button>
         </Popconfirm>
+        <Dropdown
+          trigger={["click"]}
+          disabled={laeuft}
+          menu={{
+            items: [
+              {
+                key: "umbenennen",
+                icon: <Ikone name="stift" groesse={16} />,
+                label: "Umbenennen",
+                onClick: umbenennenOeffnen,
+              },
+              {
+                key: "status",
+                label: istAktiv ? "Deaktivieren" : "Aktivieren",
+                onClick: () => statusAendern(!istAktiv),
+              },
+              { type: "divider" },
+              {
+                key: "loeschen",
+                icon: <Ikone name="papierkorb" groesse={16} />,
+                label: "Vorlage löschen",
+                onClick: () => setLoeschenOffen(true),
+              },
+            ],
+          }}
+        >
+          {/* KEIN `size` (Falle 4) — 44px wie der Knopf daneben. */}
+          <Button
+            aria-label="Weitere Aktionen"
+            icon={<Icons8Ikone name="more" groesse={18} />}
+          />
+        </Dropdown>
       </Flex>
 
-      {syncText ? <span>{syncText}</span> : null}
+      {syncText ? (
+        <span role="status" style={{ ...SCHRIFT.neben, maxWidth: "48ch", textAlign: "end" }}>
+          {syncText}
+        </span>
+      ) : null}
       {fehler && !umbenennenOffen
         ? <Alert type="warning" showIcon={false} title={fehler} />
         : null}
 
-      <LoeschButton
+      <LoeschDialog
+        offen={loeschenOffen}
         name={aktuellerName}
         typLabel="Vorlage"
         hinweis={
@@ -202,6 +244,7 @@ export function TemplateAktionen({
         }
         pruefen={async () => ({ loeschbar: true })}
         onLoeschen={loeschen}
+        onSchliessen={() => setLoeschenOffen(false)}
       />
 
       <Modal
@@ -236,6 +279,6 @@ export function TemplateAktionen({
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 }

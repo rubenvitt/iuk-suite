@@ -3,15 +3,10 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Alert,
-  AutoComplete,
   Button,
   Checkbox,
-  Collapse,
-  Flex,
   InputNumber,
   Popconfirm,
-  Select,
-  Switch,
   type TableProps,
 } from "antd";
 import { Kartentabelle, useEntprellt } from "@/core/tabelle";
@@ -23,83 +18,53 @@ import {
 } from "../../../../_actions/fahrzeuge";
 import type { ActionAusgang } from "../../../../_lib/actionErgebnis";
 import type { SollZeile } from "../../../../_lib/lesepfade/fahrzeuge";
+import {
+  artikelOptionen,
+  nachFachGruppieren,
+  OFFEN_BIS_POSITIONEN,
+  positionTrifft,
+  type FachGruppe,
+} from "../../../../_lib/positionen";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
+import {
+  FachgruppenListe,
+  NeuePosition,
+  PositionenLeiste,
+  useFachgruppen,
+  type NeuePositionWerte,
+} from "../../../../_ui/Fachgruppen";
 import { Ikone } from "../../../../_ui/ikonen";
-import { Suchfeld } from "../../../../_ui/Suchfeld";
+
+/*
+ * IDA-239: Gruppierung, Suche, Artikelwahl und die Bedienteile drumherum
+ * teilt sich dieses Soll mit der Positionsliste einer Vorlage
+ * (`_lib/positionen.ts`, `_ui/Fachgruppen.tsx`). Die Namen bleiben hier
+ * stehen, weil Tests und Aufrufer sie so kennen.
+ */
+export {
+  fachFilter,
+  OFFEN_BIS_POSITIONEN,
+  type ArtikelOption,
+} from "../../../../_lib/positionen";
 
 const SOLL_DEBOUNCE_MS = 400;
 const SPEICHER_FEHLER = "Soll-Position konnte nicht gespeichert werden.";
 const ENTFERNEN_FEHLER = "Soll-Position konnte nicht entfernt werden.";
 const RESTORE_FEHLER = "Soll-Position konnte nicht wiederhergestellt werden.";
 
-/**
- * Bis zu so vielen aktiven Positionen stehen alle Fächer beim Öffnen offen.
- * Darüber beginnt das Soll zugeklappt — zehn Fachköpfe mit ihren Zählern sind
- * dann die Übersicht, und ein großes Fahrzeug rendert nicht 200 Zeilen auf
- * einmal (IDA-232, gemessen mit 210 Positionen in 10 Fächern).
- */
-export const OFFEN_BIS_POSITIONEN = 40;
-
-export type ArtikelOption = {
-  value: string;
-  label: string;
-  keywords: string;
-};
-
-/** `showSearch` findet damit neben dem Namen auch das Handlager-Fach. */
-export function fachFilter(eingabe: string, option?: ArtikelOption): boolean {
-  return `${option?.label ?? ""} ${option?.keywords ?? ""}`
-    .toLocaleLowerCase("de")
-    .includes(eingabe.trim().toLocaleLowerCase("de"));
-}
-
-export type SollGruppe = {
-  fach: string;
-  positionen: SollZeile[];
-  /** Aktive Positionen — Grabsteine zählen nicht als Soll. */
-  aktiv: number;
-  entfernt: number;
-};
+export type SollGruppe = FachGruppe<SollZeile>;
 
 /**
- * Gruppiert nach Fach — Fächer alphabetisch, innerhalb nach `sort`, dann `id`.
- * Arbeitet auf einer Kopie; die Prop bleibt unberührt.
- *
- * ⚠️ DIE FACHÜBERSCHRIFT STEHT ÜBER IHRER GRUPPE, NICHT IN EINER ZUSAMMEN-
- * GEFASSTEN ZELLE (IDA-232). Bis hierher trug die erste Spalte das Fach als
- * `rowSpan` über alle Zeilen der Gruppe, senkrecht mittig — bei 21 Zeilen stand
- * der Name rund 600px unter dem Gruppenanfang und war beim Scrollen meist gar
- * nicht zu sehen. Dazu kam die Falle, die der alte Kommentar ausführlich
- * beschrieb: jede Sortierung und jeder Filter auf einer anderen Spalte machte
- * die gemerkten Spannweiten falsch. Mit einer Tabelle je Fach gibt es keine
- * Spannweite mehr, die falsch werden kann.
+ * Gruppiert nach Fach — Fächer alphabetisch, innerhalb nach `sort`, dann `id`;
+ * Grabsteine zählen als „entfernt". Begründung an `nachFachGruppieren`.
  */
 export function sollNachFach(positionen: readonly SollZeile[]): SollGruppe[] {
-  const sortiert = [...positionen].sort((a, b) =>
-    a.fachLabel.localeCompare(b.fachLabel, "de")
-    || a.sort - b.sort
-    || a.id.localeCompare(b.id, "de"));
-  const gruppen = new Map<string, SollGruppe>();
-  for (const position of sortiert) {
-    const gruppe = gruppen.get(position.fachLabel)
-      ?? { fach: position.fachLabel, positionen: [], aktiv: 0, entfernt: 0 };
-    gruppe.positionen.push(position);
-    if (position.entfernt) gruppe.entfernt += 1;
-    else gruppe.aktiv += 1;
-    gruppen.set(position.fachLabel, gruppe);
-  }
-  return [...gruppen.values()];
+  return nachFachGruppieren(positionen, (position) => position.entfernt);
 }
 
 /** Die Suche über Artikelname, Fach der Einheit und Handlager-Fach. */
-export function sollTrifft(position: SollZeile, suche: string): boolean {
-  const muster = suche.trim().toLocaleLowerCase("de");
-  if (!muster) return true;
-  return `${position.artikelName} ${position.fachLabel} ${position.handlagerFach}`
-    .toLocaleLowerCase("de")
-    .includes(muster);
-}
+export const sollTrifft = positionTrifft;
 
 /** Verschiedene aktive Faecher je Artikel; Grabsteine zaehlen nicht mit. */
 export function faecherJeArtikelZaehlen(positionen: SollZeile[]): Map<string, number> {
@@ -134,11 +99,6 @@ const BREITE = {
   aktion: 150,
 } as const;
 
-function zaehltext(gruppe: SollGruppe): string {
-  const aktiv = `${gruppe.aktiv} ${gruppe.aktiv === 1 ? "Position" : "Positionen"}`;
-  return gruppe.entfernt > 0 ? `${aktiv} · ${gruppe.entfernt} entfernt` : aktiv;
-}
-
 /**
  * DIE SOLL-BESTÜCKUNG — seit IDA-232 ein LESEMODUS mit Schalter „Bearbeiten".
  *
@@ -162,9 +122,6 @@ export function SollEditor({
   const [suche, setSuche] = useState("");
   const sucheNachlauf = useEntprellt(suche);
   const [neuOffen, setNeuOffen] = useState(false);
-  const [neuFach, setNeuFach] = useState("");
-  const [neuArtikel, setNeuArtikel] = useState<string>();
-  const [neuSoll, setNeuSoll] = useState<number | null>(1);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
   const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
@@ -179,42 +136,12 @@ export function SollEditor({
 
   const gruppen = useMemo(() => sollNachFach(positionen), [positionen]);
   const faecherJeArtikel = useMemo(() => faecherJeArtikelZaehlen(positionen), [positionen]);
-  const optionen = useMemo<ArtikelOption[]>(() => artikel.map((eintrag) => ({
-    value: eintrag.id,
-    label: eintrag.name,
-    keywords: eintrag.fach,
-  })), [artikel]);
-  const fachOptionen = useMemo(
-    () => gruppen.map((gruppe) => ({ value: gruppe.fach })),
-    [gruppen],
+  const optionen = useMemo(() => artikelOptionen(artikel), [artikel]);
+  const fach = useFachgruppen(
+    gruppen,
+    sucheNachlauf,
+    positionen.filter((position) => !position.entfernt).length <= OFFEN_BIS_POSITIONEN,
   );
-
-  const [offeneFaecher, setOffeneFaecher] = useState<string[]>(() =>
-    positionen.filter((position) => !position.entfernt).length <= OFFEN_BIS_POSITIONEN
-      ? gruppen.map((gruppe) => gruppe.fach)
-      : []);
-
-  const sichtbareGruppen = useMemo(() => gruppen
-    .map((gruppe) => ({
-      ...gruppe,
-      positionen: gruppe.positionen.filter((position) => sollTrifft(position, sucheNachlauf)),
-    }))
-    .filter((gruppe) => gruppe.positionen.length > 0), [gruppen, sucheNachlauf]);
-
-  /*
-   * EINE SUCHE KLAPPT IHRE TREFFER AUF — einmal, beim Ändern des Suchworts, und
-   * im Rendern statt in einem Effekt (Reacts Muster „Zustand bei geänderter
-   * Eingabe anpassen"). Danach gehört der Zustand wieder der Person: ein Fach,
-   * das sie während der Suche zuklappt, bleibt zu.
-   */
-  const [gesuchtFuer, setGesuchtFuer] = useState(sucheNachlauf);
-  if (gesuchtFuer !== sucheNachlauf) {
-    setGesuchtFuer(sucheNachlauf);
-    if (sucheNachlauf.trim()) setOffeneFaecher(sichtbareGruppen.map((gruppe) => gruppe.fach));
-  }
-
-  const alleOffen = sichtbareGruppen.length > 0
-    && sichtbareGruppen.every((gruppe) => offeneFaecher.includes(gruppe.fach));
 
   useEffect(() => () => {
     for (const ausstehend of Object.values(timer.current)) clearTimeout(ausstehend.id);
@@ -333,26 +260,18 @@ export function SollEditor({
     setBearbeiten(an);
   }
 
-  function hinzufuegen(): void {
-    const fach = neuFach.trim();
-    const payload = {
-      fahrzeugId,
-      fachLabel: fach,
-      artikelId: neuArtikel!,
-      soll: neuSoll!,
-    };
-    startTransition(async () => {
-      const erfolgreich = await sicherAusfuehren(
-        () => sollPositionSetzen(payload),
-        SPEICHER_FEHLER,
-      );
-      if (erfolgreich) {
-        setNeuArtikel(undefined);
-        setNeuSoll(1);
+  function hinzufuegen(werte: NeuePositionWerte): Promise<boolean> {
+    return new Promise((fertig) => {
+      startTransition(async () => {
+        const erfolgreich = await sicherAusfuehren(
+          () => sollPositionSetzen({ fahrzeugId, ...werte }),
+          SPEICHER_FEHLER,
+        );
         // Das Fach der neuen Position aufklappen — sonst landete sie
         // unsichtbar in einer zugeklappten Gruppe.
-        setOffeneFaecher((vorher) => (vorher.includes(fach) ? vorher : [...vorher, fach]));
-      }
+        if (erfolgreich) fach.oeffnen(werte.fachLabel);
+        fertig(erfolgreich);
+      });
     });
   }
 
@@ -571,87 +490,26 @@ export function SollEditor({
       data-rolle="soll-bestueckung"
       style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}
     >
-      <Flex gap={SPACE.md} wrap align="center">
-        <Suchfeld wert={suche} onWert={setSuche} platzhalter="Artikel oder Fach suchen…" />
-        {sichtbareGruppen.length > 1 ? (
-          <Button
-            onClick={() => setOffeneFaecher(alleOffen ? [] : sichtbareGruppen.map((g) => g.fach))}
-            icon={<Ikone name={alleOffen ? "zuklappen" : "aufklappen"} groesse={16} />}
-          >
-            {alleOffen ? "Alle zuklappen" : "Alle aufklappen"}
-          </Button>
-        ) : null}
-        {/* Die Beschriftung umschliesst den Schalter: ein Tippen auf das Wort
-            schaltet mit, und der Name des Schalters ist das sichtbare Wort. */}
-        <label style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm, minHeight: 44 }}>
-          <Switch checked={bearbeiten} onChange={bearbeitenUmschalten} />
-          Bearbeiten
-        </label>
-        <Button
-          icon={<Ikone name="plus" groesse={16} />}
-          onClick={() => setNeuOffen(true)}
-          disabled={neuOffen}
-        >
-          Position hinzufügen
-        </Button>
-      </Flex>
+      <PositionenLeiste
+        suche={suche}
+        onSuche={setSuche}
+        mehrereGruppen={fach.sichtbare.length > 1}
+        alleOffen={fach.alleOffen}
+        onAlleUmschalten={fach.alleUmschalten}
+        bearbeiten={bearbeiten}
+        onBearbeiten={bearbeitenUmschalten}
+        neuOffen={neuOffen}
+        onNeu={() => setNeuOffen(true)}
+      />
 
       {neuOffen ? (
-        <div
-          data-rolle="neue-position"
-          style={{
-            display: "grid",
-            gap: SPACE.sm,
-            padding: SPACE.md,
-            border: "1px solid var(--iuk-linie)",
-            borderRadius: 6,
-          }}
-        >
-          <span style={SCHRIFT.feldname}>Neue Position</span>
-          <Flex gap={SPACE.sm} wrap align="center">
-            {/* Ein bestehendes Fach steht zur Wahl, ein neues lässt sich
-                tippen — so entsteht kein zweites Fach aus einem Tippfehler. */}
-            <AutoComplete
-              placeholder="Fach"
-              aria-label="Fach"
-              value={neuFach}
-              onChange={(wert: string) => setNeuFach(wert)}
-              options={fachOptionen}
-              filterOption={(eingabe, option) => String(option?.value ?? "")
-                .toLocaleLowerCase("de")
-                .includes(eingabe.trim().toLocaleLowerCase("de"))}
-              style={{ minWidth: 200 }}
-            />
-            <Select<string, ArtikelOption>
-              showSearch
-              filterOption={fachFilter}
-              value={neuArtikel}
-              onChange={setNeuArtikel}
-              placeholder="Artikel"
-              aria-label="Artikel"
-              style={{ minWidth: 240 }}
-              options={optionen}
-            />
-            <InputNumber
-              min={1}
-              max={9999}
-              precision={0}
-              value={neuSoll}
-              onChange={setNeuSoll}
-              aria-label="Soll"
-            />
-            <Button
-              type="primary"
-              icon={<Ikone name="plus" groesse={16} />}
-              loading={laeuft}
-              disabled={!neuFach.trim() || !neuArtikel || !neuSoll || laeuft}
-              onClick={hinzufuegen}
-            >
-              Hinzufügen
-            </Button>
-            <Button onClick={() => setNeuOffen(false)}>Schließen</Button>
-          </Flex>
-        </div>
+        <NeuePosition
+          faecher={gruppen.map((gruppe) => gruppe.fach)}
+          artikel={optionen}
+          laeuft={laeuft}
+          onHinzufuegen={hinzufuegen}
+          onSchliessen={() => setNeuOffen(false)}
+        />
       ) : null}
 
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
@@ -660,32 +518,26 @@ export function SollEditor({
         <p style={{ ...SCHRIFT.neben, margin: 0 }}>
           Noch keine Soll-Position. Lege oben die erste an.
         </p>
-      ) : sichtbareGruppen.length === 0 ? (
+      ) : fach.sichtbare.length === 0 ? (
         <p style={{ ...SCHRIFT.neben, margin: 0 }}>Keine Soll-Position passt zur Suche.</p>
       ) : (
-        <Collapse
-          activeKey={offeneFaecher}
-          onChange={(schluessel) => setOffeneFaecher(
-            Array.isArray(schluessel) ? schluessel.map(String) : [String(schluessel)],
+        <FachgruppenListe
+          gruppen={fach.sichtbare}
+          offene={fach.offene}
+          onOffene={fach.setOffene}
+          inhalt={(gruppe) => (
+            <Kartentabelle<SollZeile>
+              rowKey="id"
+              aria-label={`Soll-Bestückung ${gruppe.fach}`}
+              dataSource={gruppe.positionen}
+              tableLayout="fixed"
+              scroll={{ x: breite }}
+              karte={{ titel: "artikel" }}
+              kartenHoehe={bearbeiten ? 260 : 170}
+              leer={{ nichts: "Keine Position in diesem Fach." }}
+              columns={spalten}
+            />
           )}
-          items={sichtbareGruppen.map((gruppe) => ({
-            key: gruppe.fach,
-            label: <strong data-rolle="fachkopf">{gruppe.fach}</strong>,
-            extra: <span style={SCHRIFT.neben}>{zaehltext(gruppe)}</span>,
-            children: (
-              <Kartentabelle<SollZeile>
-                rowKey="id"
-                aria-label={`Soll-Bestückung ${gruppe.fach}`}
-                dataSource={gruppe.positionen}
-                tableLayout="fixed"
-                scroll={{ x: breite }}
-                karte={{ titel: "artikel" }}
-                kartenHoehe={bearbeiten ? 260 : 170}
-                leer={{ nichts: "Keine Position in diesem Fach." }}
-                columns={spalten}
-              />
-            ),
-          }))}
         />
       )}
     </div>

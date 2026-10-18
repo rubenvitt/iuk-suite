@@ -312,13 +312,13 @@ describe("ArtikelDrawer: Dialog und Reiter", () => {
     expect(queryPortal(".ant-drawer-body").textContent).toContain("keinen zweiten aktiven Ort");
   });
 
-  it("verlinkt den Verlauf ins Journal, gesucht nach dem Artikelnamen", async () => {
+  it("verlinkt den Verlauf ins Journal, gefiltert nach der Artikel-Kennung", async () => {
     await drawerMounten();
     await reiter("Verlauf");
 
     const link = Array.from(queryPortal(".ant-drawer-body").querySelectorAll<HTMLAnchorElement>("a"))
       .find((a) => a.textContent === "Im Journal anzeigen");
-    expect(link?.getAttribute("href")).toBe("/verwaltung/journal?q=Kompressen%20steril");
+    expect(link?.getAttribute("href")).toBe("/verwaltung/journal?artikel=a1");
   });
 
   it("serialisiert parallele Mutationen und behaelt den Fehler der spaeteren Aktion", async () => {

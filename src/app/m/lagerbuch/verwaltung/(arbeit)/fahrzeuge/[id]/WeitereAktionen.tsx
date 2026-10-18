@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Dropdown } from "antd";
+import Link from "next/link";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Ikone } from "../../../../_ui/ikonen";
 import { checklistenZiel } from "../ChecklisteKnopf";
@@ -18,6 +19,10 @@ import { checklistenZiel } from "../ChecklisteKnopf";
  * Druckbogen liegt in der Routengruppe `(druck)` ohne Verwaltungsrahmen, und ein
  * Dokumentwechsel ist dort ohnehin richtig (Begründung an `ChecklisteKnopf`).
  * Der Pfad kommt von dort, damit er genau einmal geschrieben steht.
+ *
+ * IDA-239 — „IM JOURNAL ANZEIGEN": alle Buchungen an dieser Einheit, über die
+ * Kennung gefiltert (`?ort=`). Ein `next/link`, denn das Journal liegt im
+ * selben Verwaltungsrahmen.
  */
 export function WeitereAktionen({ fahrzeugId }: { fahrzeugId: string }) {
   return (
@@ -29,6 +34,15 @@ export function WeitereAktionen({ fahrzeugId }: { fahrzeugId: string }) {
             key: "checkliste",
             icon: <Ikone name="drucken" groesse={16} />,
             label: <a href={checklistenZiel(fahrzeugId)}>Checkliste drucken</a>,
+          },
+          {
+            key: "journal",
+            icon: <Ikone name="liste" groesse={16} />,
+            label: (
+              <Link href={`/verwaltung/journal?ort=${encodeURIComponent(fahrzeugId)}`}>
+                Im Journal anzeigen
+              </Link>
+            ),
           },
         ],
       }}
