@@ -105,6 +105,11 @@ export interface LauncherEintrag {
   icon?: Icons8Name;
   /** Bild-URL — nur externe Dienste. */
   iconUrl?: string | null;
+  /**
+   * App-Icon des Moduls (`core/favicon`, `appIconFuerKachel`) — nur Suite-Module,
+   * und nur die Portal-Kachel zeigt es; der Umschalter bleibt bei `icon`.
+   */
+  appIconUrl?: string;
   href: string;
   abschnitt: string;
   /** Öffnet in neuem Tab (`services.openInNewTab`). */

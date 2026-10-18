@@ -10,7 +10,7 @@ const notiz: Releasenotiz = {
     absatz(
       "Legst du eine Seite der Suite über „Zum Home-Bildschirm“ ab oder installierst du " +
         "QR-Codes oder das Drohnentraining als App, erscheint jetzt das Zeichen der " +
-        "Anwendung als Symbol.",
+        "Anwendung als Symbol. Dieselben Symbole stehen jetzt auch auf den Kacheln unter „Apps“.",
     ),
   ],
 };

@@ -27,6 +27,8 @@ export const TINTE = "#1a1d20";
 export const TINTE_DUNKEL = "#eceef0";
 export const SIGNAL = "#c8000f";
 export const SIGNAL_DUNKEL = "#e45a66";
+/** Grund des App-Icons (`app-icon.ts`) — auch die Portal-Kachel zeichnet ihn nach. */
+export const KACHEL_GRUND = "#ffffff";
 
 /** Maßstab von den Pixeln der IDA-Vorlage (820 px hoch) auf das 64er-Raster. */
 const MASSSTAB = 64 / 820;

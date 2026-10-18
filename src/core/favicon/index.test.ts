@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MODULES } from "@/core/registry";
-import { appIconsFuerManifest, appleIconFuer, faviconFuer, pngZuDatei, zeichenZuDatei } from "./index";
+import { appIconFuerKachel, appIconsFuerManifest, appleIconFuer, faviconFuer, pngZuDatei, zeichenZuDatei } from "./index";
 import { ZEICHEN } from "./zeichen";
 
 describe("faviconFuer", () => {
@@ -85,5 +85,21 @@ describe("pngZuDatei", () => {
     for (const datei of ["ida.png", "ida-apple-180", "../ida-apple-180.png", "toString", "constructor", "lagerbuch-app-192.png"]) {
       expect(pngZuDatei(datei), datei).toBeNull();
     }
+  });
+});
+
+describe("appIconFuerKachel", () => {
+  it("verlinkt eine Datei, die die Route auch ausliefert", () => {
+    for (const m of MODULES) {
+      const url = appIconFuerKachel(m.key, `https://${m.key}.example`);
+      if (!url || m.key === "lagerbuch") continue;
+      expect(pngZuDatei(url.slice("/favicon/".length).split("?")[0]), m.key).not.toBeNull();
+    }
+  });
+
+  it("holt lagerbuchs Symbol von dessen Host und gibt Modulen ohne Zeichen keines", () => {
+    expect(appIconFuerKachel("lagerbuch", "https://lager.example")).toBe("https://lager.example/pwa-icon.svg");
+    expect(appIconFuerKachel("kommplan", "https://k.example")).toBeUndefined();
+    expect(appIconFuerKachel("portal", "https://p.example")).toMatch(/^\/favicon\/ida-app-192\.png\?v=/);
   });
 });
