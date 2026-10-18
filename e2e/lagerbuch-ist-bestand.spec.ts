@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, sichtbareZeilen, warteAufDarstellung, warteAufSpaltenaufteilung } from "./fixtures";
+import {
+  devLogin,
+  klickeWennRuhig,
+  sichtbareZeilen,
+  warteAufDarstellung,
+  warteAufSpaltenaufteilung,
+} from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -68,8 +74,12 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
   for (const breite of BREITEN) {
     test(`steht gross, getrennt vom Soll, und bleibt erreichbar — ${breite.name}`, async ({ page }) => {
       await page.setViewportSize({ width: breite.width, height: breite.height });
-      const antwort = await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
+      // IDA-232: das Soll steht im eigenen Reiter und ist ein Lesemodus; das
+      // Mengenfeld, an dem die Trennung gemessen wird, gibt es erst nach
+      // „Bearbeiten".
+      const antwort = await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug?reiter=soll"));
       expect(antwort!.status()).toBe(200);
+      await klickeWennRuhig(page.getByRole("switch", { name: "Bearbeiten" }));
 
       // Erst wenn genau EINE Darstellung im Bild steht, greift der Greifer die
       // gemeinte — sonst entscheidet das Zeitverhalten (Begruendung bei

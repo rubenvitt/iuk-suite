@@ -40,9 +40,10 @@ test.describe("Fahrzeugblatt auf schmalem Schirm", () => {
         lagerbuchUrl("/verwaltung/fahrzeuge/e2e-verfall-fahrzeug"));
       expect(antwort!.status()).toBe(200);
 
-      // Erst wenn der Abschnitt steht, ist die Tabelle gerendert — sonst misst
-      // die Probe eine Seite, auf der das Breite machende Element noch fehlt.
-      await page.getByRole("heading", { name: "Verfall im Fahrzeug" }).waitFor(); await warteAufSpaltenaufteilung(page);
+      // Erst wenn die Liste steht, ist die Tabelle gerendert — sonst misst die
+      // Probe eine Seite, auf der das Breite machende Element noch fehlt.
+      // IDA-232: die Bestandsliste ist der Startreiter des Blatts.
+      await page.locator("[data-rolle='bestandsliste']").waitFor(); await warteAufSpaltenaufteilung(page);
 
       const masse = await page.evaluate(() => ({
         scroll: document.documentElement.scrollWidth,

@@ -11,11 +11,12 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import type { SollZeile } from "../../../../_lib/lesepfade/fahrzeuge";
-import s from "../../../../_ui/verwaltung.module.css";
 import {
   fachFilter,
   faecherJeArtikelZaehlen,
-  sollGruppieren,
+  OFFEN_BIS_POSITIONEN,
+  sollNachFach,
+  sollTrifft,
   SollEditor,
 } from "./SollEditor";
 
@@ -136,6 +137,26 @@ async function waehleOption(label: string, text: string): Promise<void> {
   await warte();
 }
 
+/**
+ * IDA-232: das Soll ist ein Lesemodus. Mengenfeld, Kästchen und Entfernen
+ * gibt es erst nach dem Schalter „Bearbeiten".
+ */
+async function bearbeiten(): Promise<void> {
+  const schalter = query<HTMLButtonElement>("button[role='switch']");
+  if (schalter.getAttribute("aria-checked") !== "true") await clickElement(schalter);
+  await warte();
+}
+
+async function mountSoll(positionen: SollZeile[] = POSITIONEN): Promise<void> {
+  await mount(<SollEditor fahrzeugId="fz-1" positionen={positionen} artikel={ARTIKEL} />);
+}
+
+/** Öffnet oben die Zeile für eine neue Position. */
+async function neuePositionOeffnen(): Promise<void> {
+  await clickElement(knopf("Position hinzufügen"));
+  await warte();
+}
+
 function knopf(text: string): HTMLButtonElement {
   const treffer = queryAll<HTMLButtonElement>("button")
     .find((button) => (button.textContent ?? "").includes(text));
@@ -174,14 +195,18 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("SollEditor — Tabelle und Fachgruppen", () => {
-  it("sortiert eine Kopie und berechnet echte rowSpan-Gruppen", () => {
-    const gruppiert = sollGruppieren(POSITIONEN);
-    expect(gruppiert.map(({ id, rowSpan }) => ({ id, rowSpan }))).toEqual([
-      { id: "p-a1", rowSpan: 2 },
-      { id: "p-a2", rowSpan: 0 },
-      { id: "p-b1", rowSpan: 1 },
-      { id: "p-c1", rowSpan: 1 },
+describe("SollEditor — Fachgruppen (IDA-232)", () => {
+  it("gruppiert eine Kopie nach Fach, innerhalb nach Sortierung", () => {
+    const gruppen = sollNachFach(POSITIONEN);
+    expect(gruppen.map((gruppe) => ({
+      fach: gruppe.fach,
+      ids: gruppe.positionen.map((position) => position.id),
+      aktiv: gruppe.aktiv,
+      entfernt: gruppe.entfernt,
+    }))).toEqual([
+      { fach: "Fach A", ids: ["p-a1", "p-a2"], aktiv: 1, entfernt: 1 },
+      { fach: "Fach B", ids: ["p-b1"], aktiv: 1, entfernt: 0 },
+      { fach: "Fach C", ids: ["p-c1"], aktiv: 1, entfernt: 0 },
     ]);
     expect(POSITIONEN.map((position) => position.id)).toEqual([
       "p-b1",
@@ -191,24 +216,83 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
     ]);
   });
 
-  it("rendert die sieben Spalten und gruppiert Fachzellen im DOM", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+  it("sucht über Artikel, Fach der Einheit und Handlager-Fach", () => {
+    expect(sollTrifft(POSITIONEN[0]!, "beatmung")).toBe(true);
+    expect(sollTrifft(POSITIONEN[0]!, "fach b")).toBe(true);
+    expect(sollTrifft(POSITIONEN[0]!, "h2")).toBe(true);
+    expect(sollTrifft(POSITIONEN[0]!, "mullbinde")).toBe(false);
+    expect(sollTrifft(POSITIONEN[0]!, "  ")).toBe(true);
+  });
 
-    expect(queryAll("thead th").map((th) => th.textContent))
-      .toEqual(["Fach", "Artikel", "Ist", "Soll", "Immer zählen", "Herkunft", ""]);
-    expect(query("table").getAttribute("aria-label")).toBe("Soll-Bestückung");
-    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
-    expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
-      zeile.textContent?.includes("Mullbinde")))
-      .toEqual([true, false, false, false]);
-    expect(queryAll("td[rowspan]").map((zelle) => zelle.getAttribute("rowspan")))
-      .toEqual(["2"]);
-    expect(queryAll(`tbody td .${s.fach}`).map((zelle) => zelle.textContent))
+  /**
+   * ⚠️ DIE FACHÜBERSCHRIFT STEHT ÜBER IHRER GRUPPE — der Befund war ein
+   * `rowSpan`-Fach, senkrecht mittig über bis zu 21 Zeilen und beim Scrollen
+   * meist unsichtbar.
+   */
+  it("setzt je Fach eine Überschrift mit Zähler und eine eigene Tabelle", async () => {
+    await mountSoll();
+
+    expect(queryAll("[data-rolle='fachkopf']").map((kopf) => kopf.textContent))
       .toEqual(["Fach A", "Fach B", "Fach C"]);
+    expect(document.body.textContent).toContain("1 Position · 1 entfernt");
+    expect(queryAll("table").map((tabelle) => tabelle.getAttribute("aria-label")))
+      .toEqual(["Soll-Bestückung Fach A", "Soll-Bestückung Fach B", "Soll-Bestückung Fach C"]);
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["p-a1", "p-a2", "p-b1", "p-c1"]);
+    // Keine zusammengefasste Zelle mehr, die falsch werden könnte.
+    expect(queryAll("td[rowspan]")).toHaveLength(0);
+  });
+
+  it("liest im Lesemodus nur und zeigt „immer zählen“ als Kennzeichen", async () => {
+    await mountSoll([{ ...POSITIONEN[3]!, immerZaehlen: true }, POSITIONEN[0]!]);
+
+    expect(queryAll("table")[0]!.querySelectorAll("thead th")).toHaveLength(4);
+    expect(Array.from(queryAll("table")[0]!.querySelectorAll("thead th")).map((th) => th.textContent))
+      .toEqual(["Artikel", "Ist", "Soll", "Herkunft"]);
+    expect(queryAll(`${BREIT} .ant-input-number`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-checkbox`)).toHaveLength(0);
+    expect(queryAll(`${BREIT} button[aria-label$='entfernen']`)).toHaveLength(0);
+    expect(query(`${BREIT} tr[data-row-key='p-a1'] [data-rolle='soll']`).textContent).toBe("3 Rol");
+    expect(query(`${BREIT} tr[data-row-key='p-a1']`).textContent).toContain("immer zählen");
+    expect(query(`${BREIT} tr[data-row-key='p-b1']`).textContent).not.toContain("immer zählen");
+  });
+
+  it("schaltet mit „Bearbeiten“ Mengenfeld, Kästchen und Entfernen frei", async () => {
+    await mountSoll();
+    await bearbeiten();
+
+    expect(Array.from(queryAll("table")[0]!.querySelectorAll("thead th")).map((th) => th.textContent))
+      .toEqual(["Artikel", "Ist", "Soll", "Immer zählen", "Herkunft", "Aktion"]);
     // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- die vier Soll-Felder
     // tragen die volle 44px-Bedienhoehe, keine `-sm`-Modifikatorklasse.
     expect(queryAll("tbody .ant-input-number")).toHaveLength(4);
     expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
+    // Rot ist fachlich belegt (Falle 3) — der Entfernen-Knopf ist neutral.
+    expect(queryAll(`${BREIT} .ant-btn-dangerous`)).toHaveLength(0);
+  });
+
+  it("beginnt ein großes Soll zugeklappt und klappt Suchtreffer auf", async () => {
+    const viele: SollZeile[] = Array.from({ length: OFFEN_BIS_POSITIONEN + 1 }, (_, i) => ({
+      ...POSITIONEN[0]!,
+      id: `p-${i}`,
+      artikelId: `a-${i}`,
+      artikelName: i === 7 ? "Pflaster gross" : `Artikel ${i}`,
+      fachLabel: `Fach ${i % 3}`,
+      sort: i,
+    }));
+    await mountSoll(viele);
+
+    expect(queryAll("[data-rolle='fachkopf']")).toHaveLength(3);
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
+
+    await fill("input[aria-label='Artikel oder Fach suchen…']", "pflaster");
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    await warte();
+
+    // Nur das Fach mit dem Treffer bleibt, und es steht offen.
+    expect(queryAll("[data-rolle='fachkopf']").map((kopf) => kopf.textContent)).toEqual(["Fach 1"]);
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["p-7"]);
   });
 
   /**
@@ -217,7 +301,7 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
    * im Nebentext. Die gerenderte Groesse misst `e2e/lagerbuch-ist-bestand.spec.ts`.
    */
   it("setzt den Ist als grosse Zahl in eigene Spalte, getrennt vom Handlager", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
 
     const ist = queryAll(`${BREIT} [data-rolle='ist']`);
     expect(ist.map((zelle) => zelle.textContent)).toEqual([
@@ -250,8 +334,8 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
       ["a-b1", 1],
     ]));
 
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={geteilt} artikel={ARTIKEL} />);
-    // Reihenfolge nach `sollGruppieren`: Fach A · Fach B (p-b1 vor p-x2) · Fach C.
+    await mountSoll(geteilt);
+    // Reihenfolge nach `sollNachFach`: Fach A · Fach B (p-b1 vor p-x2) · Fach C.
     // Auch der Grabstein in Fach C traegt den Hinweis — er zeigt denselben Bestand.
     expect(queryAll(`${BREIT} [data-rolle='ist']`).map((zelle) => zelle.textContent)).toEqual([
       "2 Rolgesamt für 2 Fächer",
@@ -261,14 +345,17 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
     ]);
   });
 
-  it("zeigt Grabsteine durchgestrichen mit Chip und Restore-Weg", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+  it("zeigt Grabsteine durchgestrichen mit Chip und — beim Bearbeiten — Restore-Weg", async () => {
+    await mountSoll();
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
     const grabstein = query("[data-rolle='grabstein']");
     expect(grabstein.textContent).toContain("Kompressen");
     expect(grabstein.textContent).toContain("entfernt");
     expect(grabstein.getAttribute("style")).toContain("line-through");
+    expect(queryAll("[data-rolle='wiederherstellen']")).toHaveLength(0);
+
+    await bearbeiten();
     expect(query("[data-rolle='wiederherstellen']").textContent).toContain("zurücksetzen");
   });
 
@@ -284,7 +371,8 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
 
 describe("SollEditor — auto-committende Sollmenge", () => {
   it("committet bei 399 ms noch nicht und bei 400 ms den vollstaendigen Payload", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "5");
 
     await act(async () => { await vi.advanceTimersByTimeAsync(399); });
@@ -304,7 +392,8 @@ describe("SollEditor — auto-committende Sollmenge", () => {
   });
 
   it("ersetzt einen schnellen Entwurf und sendet nur den neuesten Wert", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "5");
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
     await fill("input[aria-label='Soll für Mullbinde']", "7");
@@ -320,8 +409,29 @@ describe("SollEditor — auto-committende Sollmenge", () => {
     }));
   });
 
+  /**
+   * IDA-232: beim Zurückschalten in den Lesemodus verschwinden die Felder samt
+   * `onBlur` — der entprellte Wert wird deshalb SOFORT geschrieben, nicht
+   * verworfen und nicht erst nach Ablauf der Frist.
+   */
+  it("zieht beim Verlassen des Bearbeitens den ausstehenden Wert vor", async () => {
+    await mountSoll();
+    await bearbeiten();
+    await fill("input[aria-label='Soll für Mullbinde']", "6");
+    await clickElement(query("button[role='switch']"));
+    await warte();
+
+    expect(mocks.setzen).toHaveBeenCalledTimes(1);
+    expect(mocks.setzen).toHaveBeenCalledWith(expect.objectContaining({ id: "p-a1", soll: 6 }));
+    // Und der Lesemodus zeigt den neuen Wert, nicht den alten.
+    expect(query(`${BREIT} tr[data-row-key='p-a1'] [data-rolle='soll']`).textContent).toBe("6 Rol");
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(mocks.setzen).toHaveBeenCalledTimes(1);
+  });
+
   it("raeumt beim Unmount alle ausstehenden Timer auf", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "9");
     await unmount();
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
@@ -329,7 +439,8 @@ describe("SollEditor — auto-committende Sollmenge", () => {
   });
 
   it("cancelt ein ausstehendes Soll-Edit, bevor dieselbe Vorlagenposition entfernt wird", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "9");
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
 
@@ -367,7 +478,8 @@ describe("SollEditor — auto-committende Sollmenge", () => {
     text,
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "8");
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     await warte();
@@ -380,7 +492,8 @@ describe("SollEditor — auto-committende Sollmenge", () => {
 
 describe("SollEditor — immer zaehlen (IDA-223)", () => {
   it("speichert den Schalter sofort, mit dem noch entprellten Soll", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await fill("input[aria-label='Soll für Mullbinde']", "5");
     await clickElement(query(
       `${BREIT} input[aria-label='Mullbinde in jedem Kurzcheck zählen']`));
@@ -393,19 +506,33 @@ describe("SollEditor — immer zaehlen (IDA-223)", () => {
   });
 
   it("sperrt den Schalter an einem Grabstein", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     expect(query<HTMLInputElement>(
       `${BREIT} input[aria-label='Kompressen in jedem Kurzcheck zählen']`).disabled).toBe(true);
   });
 });
 
 describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
+  it("bietet das Hinzufügen oben an, ohne erst bearbeiten zu müssen", async () => {
+    await mountSoll();
+    expect(queryAll("[data-rolle='neue-position']")).toHaveLength(0);
+    await neuePositionOeffnen();
+    expect(queryAll("[data-rolle='neue-position']")).toHaveLength(1);
+    // Die Zeile steht VOR den Fächern, nicht unter einer langen Liste.
+    const zeile = query("[data-rolle='neue-position']");
+    const erstesFach = query("[data-rolle='fachkopf']");
+    expect(zeile.compareDocumentPosition(erstesFach) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
   it("sendet beim Hinzufuegen den exakten Payload und leert nur nach Erfolg", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await neuePositionOeffnen();
     await fill("input[aria-label='Fach']", " Fach Neu ");
     await waehleOption("Artikel", "Pflaster");
     await fill("input[aria-label='Soll']", "4");
-    await clickElement(knopf("Position hinzufügen"));
+    await clickElement(knopf("Hinzufügen"));
     await warte();
 
     expect(mocks.setzen).toHaveBeenCalledWith({
@@ -436,22 +563,24 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
     text,
   ) => {
     mocks.setzen.mockImplementationOnce(antwort);
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await neuePositionOeffnen();
     await fill("input[aria-label='Fach']", "Fach X");
     await waehleOption("Artikel", "Pflaster");
     await fill("input[aria-label='Soll']", "6");
-    await clickElement(knopf("Position hinzufügen"));
+    await clickElement(knopf("Hinzufügen"));
     await warte();
 
     expect(query<HTMLInputElement>("input[aria-label='Fach']").value).toBe("Fach X");
     expect(query<HTMLInputElement>("input[aria-label='Soll']").value).toBe("6");
-    expect(query(".ant-select").textContent).toContain("Pflaster");
+    expect(query("[data-rolle='neue-position']").textContent).toContain("Pflaster");
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
 
   it("wertet Entfernen und Wiederherstellen mit ihren echten IDs aus", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     await entfernenBestaetigen();
     await clickElement(query("[data-rolle='wiederherstellen']"));
     await warte();
@@ -498,7 +627,8 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
     text,
   ) => {
     mocks[aktion].mockImplementationOnce(antwort);
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    await mountSoll();
+    await bearbeiten();
     if (aktion === "entfernen") await entfernenBestaetigen();
     else {
       await clickElement(query("[data-rolle='wiederherstellen']"));
@@ -507,58 +637,16 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
   });
+
   /**
-   * ⚠️ DIE FACHSPALTE BEKOMMT EINEN FILTER, ABER KEINE SORTIERUNG.
-   *
-   * Die Zusammenfassung der Fachzellen (`onCell: { rowSpan }`) rechnet
-   * `sollGruppieren` EINMAL auf der nach `fachLabel` sortierten Kopie; eine
-   * Umsortierung durch antd zerrisse die Gruppen. Ein Filter entfernt dagegen
-   * ganze Gruppen und laesst die Reihenfolge in Ruhe.
+   * ⚠️ KEIN SPALTENFILTER UND KEIN SORTIERER MEHR. Gefiltert wird über die
+   * Suche oben, gruppiert nach Fach — und die Reihenfolge innerhalb eines
+   * Fachs ist die gepflegte (`sort`), keine, die ein Klick umwirft.
    */
-  it("filtert nach Fach und trägt an keiner Spalte einen Sortierer", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+  it("trägt an keiner Spalte Filter oder Sortierer", async () => {
+    await mountSoll();
+    await bearbeiten();
+    expect(queryAll(`${BREIT} .ant-table-filter-trigger`)).toHaveLength(0);
     expect(queryAll(`${BREIT} .ant-table-column-sorters`)).toHaveLength(0);
-
-    const kopf = queryAll<HTMLElement>("thead th")
-      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
-    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
-
-    const offen = () => document.body.querySelector<HTMLElement>(
-      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
-    );
-    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
-      .find((li) => li.textContent === "Fach A");
-    await clickElement(eintrag!);
-    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
-    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
-      .find((knopf) => knopf.textContent === "OK");
-    await clickElement(ok!);
-
-    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
-      .toEqual(["p-a1", "p-a2"]);
-  });
-
-  /**
-   * ⚠️ NUR DAS FACH DARF FILTERN, UND DAS IST EINE KORREKTHEITSFRAGE.
-   *
-   * `sollGruppieren` rechnet die Spannweiten EINMAL auf der vollen Liste. Ein
-   * Filter auf eine ANDERE Spalte schneidet eine Fachgruppe an: faellt ihre
-   * erste Zeile heraus, bleibt die ueberlebende auf `rowSpan: 0` und verliert
-   * ihre Fachzelle; ueberlebt die erste, reicht ihre alte Spannweite ins
-   * naechste Fach. Die Eingabefelder stuenden dann unter dem falschen Fach.
-   *
-   * Bis DRK-331 (dritte Reviewrunde) trug die Spalte „Herkunft" genau so einen
-   * Filter — ein Fach kann Positionen verschiedener Herkunft enthalten. Dieser
-   * Test zaehlt die Trichter, statt eine Wirkung zu pruefen, weil das Bild in
-   * jsdom nicht entsteht: `rowSpan` ist dort eine Zahl, keine Zelle.
-   */
-  it("trägt außerhalb der Fachspalte keinen einzigen Filter", async () => {
-    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
-
-    const mitFilter = queryAll<HTMLElement>("thead th")
-      .filter((zelle) => zelle.querySelector(".ant-table-filter-trigger"))
-      .map((zelle) => (zelle.textContent ?? "").trim());
-
-    expect(mitFilter).toEqual(["Fach"]);
   });
 });

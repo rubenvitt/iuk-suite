@@ -383,6 +383,9 @@ test.describe("Fahrzeug-Checklisten", () => {
   test("das Fahrzeugblatt zeigt auf genau sein eigenes Blatt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge/e2e-fahrzeug"));
 
+    // IDA-232: an einer aktiven Einheit steht der Druck im Menü „Weitere
+    // Aktionen" des Kopfes — die Hauptaktion dort ist der Check.
+    await klickeWennRuhig(page.getByRole("button", { name: "Weitere Aktionen" }));
     const knopf = page.getByRole("link", { name: "Checkliste drucken" });
     await expect(knopf).toBeVisible();
     // Das Ziel wird AM ANKER geprueft, nicht an der Adresszeile: ein falsches
