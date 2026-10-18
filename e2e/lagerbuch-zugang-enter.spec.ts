@@ -74,6 +74,8 @@ test.describe("Lagerbuch Zugang — Enter im Verfallsmonat (DRK-483)", () => {
     await klickeWennRuhig(artikelKnopf);
 
     // ── 2) Zugang ausfuellen, den Monat mit Enter uebernehmen ─────────────
+    // IDA-235: die Schublade oeffnet auf „Übersicht"; „Buchen" steht auf Zugang.
+    await klickeWennRuhig(page.getByRole("tab", { name: "Buchen" }));
     const zugangForm = page.locator('form[data-rolle="zugang-form"]');
     await expect(zugangForm).toBeVisible();
     await zugangForm.getByLabel("Zugangsmenge").fill("3");
@@ -109,6 +111,7 @@ test.describe("Lagerbuch Zugang — Enter im Verfallsmonat (DRK-483)", () => {
     await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));
     expect((await zugangAntwort).ok(), "Zugang buchen: Server Action").toBe(true);
 
+    await klickeWennRuhig(page.getByRole("tab", { name: "Übersicht" }));
     const chargeZeile = page.getByRole("table", { name: "Chargen" })
       .locator("[data-row-key]").filter({ hasText: chargenNr });
     await expect(chargeZeile, "die neue Charge muss in der Chargentabelle stehen").toBeVisible();

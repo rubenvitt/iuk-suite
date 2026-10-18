@@ -77,6 +77,7 @@ import wohinNachfuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/
 import immerZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-18-immer-zaehlen";
 import einheitInReitern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-19-einheit-in-reitern";
 import checkAbweichungen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-19-check-abweichungen";
+import artikelReiter from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-19-artikel-reiter";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -171,6 +172,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   immerZaehlen,
   einheitInReitern,
   checkAbweichungen,
+  artikelReiter,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,

@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import type { Dayjs } from "dayjs";
 import {
   Alert,
@@ -16,14 +17,17 @@ import {
   Form,
   Input,
   InputNumber,
+  Segmented,
   Select,
   Space,
   Switch,
-  Typography,
+  Tabs,
+  type InputRef,
 } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { Kartentabelle, nachRang, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
+import { SPACE } from "@/core/theme/tokens";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
 import { bucheEntnahme, bucheUmlagerung, bucheZugang } from "../_actions/buchung";
 import {
@@ -55,11 +59,36 @@ import styles from "./verwaltung.module.css";
 export const NEUE_CHARGE = "__neu__";
 
 /**
- * Wo eine Meldung HINGEHOERT. Der Drawer ist lang; ein Fehler aus dem
- * Umlagern-Formular gehoert an dieses Formular, nicht 900px darueber.
+ * Wo eine Meldung HINGEHOERT. Ein Fehler aus dem Umlagern-Formular gehoert an
+ * dieses Formular, nicht an den Kopf der Schublade — seit IDA-235 steht er
+ * sonst sogar in einem anderen Reiter.
  */
-type Meldungsquelle = "allgemein" | "zugang" | "entnahme" | "umlagern";
-const MINDEST_DEBOUNCE_MS = 400;
+type Meldungsquelle = "allgemein" | "zugang" | "entnahme" | "umlagern" | "stammdaten";
+
+/**
+ * IDA-235 — DIE REITER DER SCHUBLADE. Vorher stand alles untereinander: rund
+ * 1 650–1 950 px Inhalt mit 13–18 Eingabefeldern, und ein Tippfehler im
+ * Mindestbestand war nach 400 ms gespeichert. Jetzt: lesen zuerst
+ * („Übersicht"), Buchen als eigener Reiter mit EINEM Formular zur Zeit,
+ * Stammdaten nur ueber „Bearbeiten" mit ausdruecklichem Speichern.
+ *
+ * ⚠️ DER REITER STEHT NICHT IN DER ADRESSE, anders als die Reiter der Seiten.
+ * Die Schublade selbst ist nicht adressierbar (`ArtikelTable` haelt den offenen
+ * Artikel im Zustand); ein `?reiter=` ohne den Artikel waere auf der Liste ein
+ * Parameter ohne Bedeutung, und Zurueck schaltete den Reiter um, statt die
+ * Schublade zu schliessen.
+ */
+type Reiter = "uebersicht" | "buchen" | "stammdaten" | "verlauf";
+type Buchungsart = "zugang" | "entnahme" | "umlagern";
+
+const BUCHUNGSARTEN: { value: Buchungsart; label: string }[] = [
+  { value: "zugang", label: "Zugang" },
+  { value: "entnahme", label: "Entnahme" },
+  { value: "umlagern", label: "Umlagern" },
+];
+
+/** Das Journal sucht ueber Artikelname UND Kommentar (`lesepfade/journal.ts`, `q`). */
+const JOURNAL_PFAD = "/verwaltung/journal";
 
 /** Rot vor gelb vor gruen: was Aufmerksamkeit verlangt, gehoert nach oben. */
 const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
@@ -75,6 +104,29 @@ export function zielFilter(eingabe: string, option?: SuchOption): boolean {
   const label = typeof option?.label === "string" ? option.label : "";
   const text = `${label} ${option?.keywords ?? ""}`.toLocaleLowerCase("de");
   return text.includes(nadel);
+}
+
+/**
+ * FALLE 24 — DEN FOKUS NUR SETZEN, WENN ER VERLOREN IST.
+ *
+ * Gesetzt wird er hier nur nach einem Moduswechsel der Stammdaten („Bearbeiten",
+ * „Abbrechen", „Speichern"): der geklickte Knopf verschwindet dabei, und der
+ * Fokus faellt auf `body`. Speichern ist aber asynchron — wer inzwischen in
+ * „Buchen" eine Menge tippt, darf sie nicht an „Bearbeiten" verlieren. Deshalb
+ * zaehlt nur `body`, ein abgehaengtes Element oder ein nicht tabbarer Rahmen
+ * (`tabindex="-1"`, der Container der Schublade) als verloren. Vorbild:
+ * `kommplan/_ui/fokus.ts`; dessen `fokusVerloren` zaehlt jedes Element IN einer
+ * Schublade als verloren, weil es dort um eine SCHLIESSENDE geht — hier bleibt
+ * sie offen.
+ */
+function fokussiereWennVerloren(ziel: HTMLElement | null | undefined): void {
+  if (!ziel || typeof document === "undefined") return;
+  const aktiv = document.activeElement;
+  const verloren = aktiv === null
+    || aktiv === document.body
+    || !aktiv.isConnected
+    || aktiv.getAttribute("tabindex") === "-1";
+  if (verloren) ziel.focus();
 }
 
 type Fahrzeug = {
@@ -123,6 +175,15 @@ type UmlagerWerte = {
   kommentar?: string;
 };
 
+type StammdatenWerte = {
+  name: string;
+  mindestbestand: number;
+  fach: string;
+  kategorie?: string;
+  einheit: string;
+  aktiv: boolean;
+};
+
 type ArtikelPatch = Partial<{
   name: string;
   mindestbestand: number;
@@ -137,14 +198,12 @@ export function ArtikelDrawer({
 }: ArtikelDrawerProps) {
   const [detail, setDetail] = useState<ArtikelDetailResult>();
   /**
-   * Die Meldung traegt ihre HERKUNFT, weil der Drawer lang ist.
-   *
-   * Ein Fehler aus „Entnahme buchen" stand bisher als einziger Kanal ganz oben
-   * im Drawer — rund 700px ueber dem Knopf, hinter Kopf, Stammdaten und dem
-   * ganzen Abschnitt „Zugang buchen", und es wird nicht dorthin gescrollt. Auf
-   * einem schmalen Geraet sieht es aus, als reagiere der Knopf nicht, und der
-   * Vorgang wird wiederholt. Formularfehler gehoeren deshalb an ihr Formular;
-   * alles Uebrige (Laden, Stammdaten, Loeschen) bleibt oben.
+   * Die Meldung traegt ihre HERKUNFT. Ein Fehler aus „Entnahme" stand frueher
+   * als einziger Kanal ganz oben in der Schublade — rund 700 px ueber dem
+   * Knopf, und es wird nicht dorthin gescrollt. Auf einem schmalen Geraet sah
+   * es aus, als reagiere der Knopf nicht, und der Vorgang wurde wiederholt.
+   * Formularfehler gehoeren deshalb an ihr Formular; alles Uebrige (Laden,
+   * Loeschen) bleibt oben.
    */
   const [meldung, setMeldung] = useState<
     { text: string; quelle: Meldungsquelle } | null
@@ -157,16 +216,17 @@ export function ArtikelDrawer({
   }
 
   const [busy, setBusy] = useState(false);
-  const [mindestbestand, setMindestbestand] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  const [fach, setFach] = useState("");
-  const [einheit, setEinheit] = useState("");
-  const [kategorie, setKategorie] = useState("");
+  const [reiter, setReiter] = useState<Reiter>("uebersicht");
+  /** `null` = noch nicht gewaehlt; dann entscheidet der Artikel (s. `art`). */
+  const [buchungsart, setBuchungsart] = useState<Buchungsart | null>(null);
+  const [bearbeiten, setBearbeiten] = useState(false);
   const [loeschDialogGeneration, setLoeschDialogGeneration] = useState(0);
-  const mindestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ladeGeneration = useRef(0);
   const mutationsKette = useRef<Promise<void>>(Promise.resolve());
   const offeneMutationen = useRef(0);
+  const fokusNachModuswechsel = useRef(false);
+  const bearbeitenKnopf = useRef<HTMLButtonElement>(null);
+  const nameFeld = useRef<InputRef>(null);
   const [zugangForm] = Form.useForm<ZugangWerte>();
   const [entnahmeForm] = Form.useForm<EntnahmeWerte>();
   const [umlagerForm] = Form.useForm<UmlagerWerte>();
@@ -185,9 +245,6 @@ export function ArtikelDrawer({
         return false;
       }
       setDetail(ergebnis.wert);
-      // Nach der Initialladung bleiben die drei Stammdaten lokale Spiegel.
-      // Ein Reload darf keine neuere Eingabe ueberschreiben, waehrend der
-      // vorherige Auto-Commit noch laeuft (Falle 45).
       return true;
     } catch {
       if (generation === ladeGeneration.current) {
@@ -208,11 +265,6 @@ export function ArtikelDrawer({
           return;
         }
         setDetail(ergebnis.wert);
-        setMindestbestand(ergebnis.wert.artikel.mindestbestand);
-        setName(ergebnis.wert.artikel.name);
-        setFach(ergebnis.wert.artikel.fach);
-        setEinheit(ergebnis.wert.artikel.einheit);
-        setKategorie(ergebnis.wert.artikel.kategorie ?? "");
         setFehler(null);
       },
       () => {
@@ -226,9 +278,21 @@ export function ArtikelDrawer({
     };
   }, [id]);
 
-  useEffect(() => () => {
-    if (mindestTimer.current) clearTimeout(mindestTimer.current);
-  }, []);
+  // Falle 24: nur nach einem Moduswechsel, den ein Klick ausgeloest hat — nie
+  // beim Oeffnen (dort fokussiert die Schublade ihren Rahmen selbst).
+  useEffect(() => {
+    if (!fokusNachModuswechsel.current) return;
+    fokusNachModuswechsel.current = false;
+    fokussiereWennVerloren(
+      bearbeiten ? nameFeld.current?.input : bearbeitenKnopf.current,
+    );
+  }, [bearbeiten]);
+
+  function modusWechseln(neu: boolean): void {
+    fokusNachModuswechsel.current = true;
+    if (neu) setFehler(null);
+    setBearbeiten(neu);
+  }
 
   function mutationSerialisieren(arbeit: () => Promise<void>): Promise<void> {
     offeneMutationen.current += 1;
@@ -249,110 +313,67 @@ export function ArtikelDrawer({
     // Ein erwarteter ActionErgebnis-Fehler gehoert dagegen unveraendert in
     // den Drawer. Der neue key schliesst den alten Dialog, ohne onFertig und
     // damit ohne den Artikel-Drawer zu schliessen.
-    setFehler(aktionsFehler);
+    setFehler(aktionsFehler, "stammdaten");
     setLoeschDialogGeneration((generation) => generation + 1);
     throw new Error("Die Löschaktion ist fachlich fehlgeschlagen.");
   }
 
-  function artikelFeldSpeichern(
-    aenderung: ArtikelPatch,
-    beiFehler?: () => void,
-  ): Promise<void> {
-    return mutationSerialisieren(async () => {
+  /**
+   * IDA-235 — STAMMDATEN WERDEN AUSDRUECKLICH GESPEICHERT, nicht mehr nach
+   * Blur bzw. 400 ms. Ein Tippfehler im Mindestbestand war vorher ohne
+   * Rueckweg gespeichert; jetzt verwirft „Abbrechen" ihn.
+   *
+   * Geschickt wird nur, was sich gegenueber dem geladenen Stand AENDERT — ein
+   * unveraendertes Formular schreibt nichts. Dieselben Regeln wie vorher je
+   * Feld: Fach in Grossbuchstaben, Kategorie darf leer werden und heisst dann
+   * `null` (DRK-294), Name, Fach und Einheit nie leer (das sagen die Regeln
+   * am Formular). Der Schalter „Aktiv" laeuft ueber seine eigene Action und
+   * erst NACH den Feldern: scheitern die, bleibt der Status unberuehrt.
+   */
+  async function stammdatenSpeichern(werte: StammdatenWerte): Promise<void> {
+    if (!detail) return;
+    const bisher = detail.artikel;
+    const aenderung: ArtikelPatch = {};
+    const name = werte.name.trim();
+    if (name !== bisher.name) aenderung.name = name;
+    if (werte.mindestbestand !== bisher.mindestbestand) {
+      aenderung.mindestbestand = werte.mindestbestand;
+    }
+    const fach = werte.fach.trim().toUpperCase();
+    if (fach !== bisher.fach) aenderung.fach = fach;
+    const einheit = werte.einheit.trim();
+    if (einheit !== bisher.einheit) aenderung.einheit = einheit;
+    const kategorie = kategorieNormalisieren(werte.kategorie);
+    if (kategorie !== (bisher.kategorie ?? null)) aenderung.kategorie = kategorie;
+    const aktivGeaendert = werte.aktiv !== bisher.aktiv;
+
+    if (Object.keys(aenderung).length === 0 && !aktivGeaendert) {
+      modusWechseln(false);
+      return;
+    }
+
+    await mutationSerialisieren(async () => {
       setFehler(null);
       try {
-        const ergebnis = await updateArtikel(id, aenderung);
-        if (!ergebnis.ok) {
-          setFehler(ergebnis.fehler);
-          beiFehler?.();
-          return;
+        if (Object.keys(aenderung).length > 0) {
+          const ergebnis = await updateArtikel(id, aenderung);
+          if (!ergebnis.ok) {
+            setFehler(ergebnis.fehler, "stammdaten");
+            return;
+          }
+        }
+        if (aktivGeaendert) {
+          const ergebnis = await setArtikelAktiv({ id, aktiv: werte.aktiv });
+          if (!ergebnis.ok) {
+            setFehler(ergebnis.fehler, "stammdaten");
+            await laden();
+            return;
+          }
         }
         await laden();
+        modusWechseln(false);
       } catch {
-        setFehler("Artikeldaten konnten nicht gespeichert werden.");
-        beiFehler?.();
-      }
-    });
-  }
-
-  function mindestbestandAendern(wert: number | null): void {
-    setMindestbestand(wert);
-    if (mindestTimer.current) {
-      clearTimeout(mindestTimer.current);
-      mindestTimer.current = null;
-    }
-    if (wert === null) return;
-    mindestTimer.current = setTimeout(() => {
-      mindestTimer.current = null;
-      void artikelFeldSpeichern({ mindestbestand: wert });
-    }, MINDEST_DEBOUNCE_MS);
-  }
-
-  /** Zieht einen ausstehenden Mindestbestand-Commit vor (siehe `onBlur`). */
-  function mindestbestandSpeichern(): void {
-    if (!mindestTimer.current) return;
-    clearTimeout(mindestTimer.current);
-    mindestTimer.current = null;
-    if (mindestbestand === null) return;
-    void artikelFeldSpeichern({ mindestbestand });
-  }
-
-  /**
-   * IDA-215. Der Name wird IM TITEL bearbeitet, nicht als Feld unter
-   * „Stammdaten": eine eigene Zeile dort kostete 70 px Höhe und schob
-   * „Entnahme buchen" auf 1280x720 unter die Sichtkante (DRK-296,
-   * `e2e/flyin-breite.spec.ts`). antd übergibt den Wert schon getrimmt; ein
-   * leerer Name wird verworfen, der Titel zeigt dann weiter den alten. Schlägt
-   * das Speichern fehl, springt der Titel auf den gespeicherten Namen zurück.
-   */
-  function nameAendern(wert: string): void {
-    const bisher = detail?.artikel.name ?? "";
-    if (!wert || wert === bisher) return;
-    setName(wert);
-    void artikelFeldSpeichern({ name: wert }, () => setName(bisher));
-  }
-
-  function fachSpeichern(): void {
-    const wert = fach.trim();
-    if (wert && wert !== detail?.artikel.fach) {
-      setFach(wert);
-      void artikelFeldSpeichern({ fach: wert });
-    }
-  }
-
-  function einheitSpeichern(): void {
-    const wert = einheit.trim();
-    if (wert && wert !== detail?.artikel.einheit) {
-      setEinheit(wert);
-      void artikelFeldSpeichern({ einheit: wert });
-    }
-  }
-
-  /**
-   * DRK-294. Anders als Fach und Einheit DARF die Kategorie leer werden — ein
-   * geleertes Feld heisst „ohne Kategorie" und wird als `null` gespeichert.
-   * Kein Grossschreiben wie beim Fach: das ist ein Kuerzel, die Kategorie ein Wort.
-   */
-  function kategorieSpeichern(): void {
-    const wert = kategorieNormalisieren(kategorie);
-    if (wert !== (detail?.artikel.kategorie ?? null)) {
-      setKategorie(wert ?? "");
-      void artikelFeldSpeichern({ kategorie: wert });
-    }
-  }
-
-  function aktivAendern(aktiv: boolean): Promise<void> {
-    return mutationSerialisieren(async () => {
-      setFehler(null);
-      try {
-        const ergebnis = await setArtikelAktiv({ id, aktiv });
-        if (!ergebnis.ok) {
-          setFehler(ergebnis.fehler);
-          return;
-        }
-        await laden();
-      } catch {
-        setFehler("Artikelstatus konnte nicht gespeichert werden.");
+        setFehler("Artikeldaten konnten nicht gespeichert werden.", "stammdaten");
       }
     });
   }
@@ -557,491 +578,475 @@ export function ArtikelDrawer({
       .filter(Boolean).join(" "),
   }));
 
-  return (
-    <Drawer
-      open
-      onClose={onSchliessen}
-      title={
-        detail ? (
-          <Typography.Text
-            editable={{
-              onChange: nameAendern,
-              icon: <Ikone name="stift" groesse={16} />,
-              tooltip: "Name ändern",
-              enterIcon: null,
-            }}
-          >
-            {name}
-          </Typography.Text>
-        ) : (
-          "Artikeldetails"
-        )
-      }
+  function formularMeldung(quelle: Meldungsquelle): ReactNode {
+    return meldung?.quelle === quelle ? (
+      <Alert
+        type="warning"
+        showIcon={false}
+        title={meldung.text}
+        style={{ marginBlockEnd: SPACE.md }}
+      />
+    ) : null;
+  }
+
+  function zugangFormular(artikel: ArtikelDetailResult): ReactNode {
+    return (
       /*
-       * 1120 STATT 880 STATT 520 — beide Sprünge kommen aus einer Messung.
-       *
-       * 520 → 880 (13.09.2026, `e2e/flyin-breite.spec.ts`): bei 520 px war
-       * der Inhalt 1862 px hoch, auf 1280x720 davon ein Drittel zu sehen,
-       * während links 760 px abgedunkelter Hintergrund brachlagen.
-       *
-       * 880 → 1120 (21.09.2026): die beiden Tabellen unten fahren
-       * `scroll.x: "max-content"`. Schon die Seed-Daten brauchten für die
-       * Chargen 691 px; der Platz darin war 798 px — echte Chargen mit
-       * mehreren Orten und Buchungen mit Kommentar liefen darüber hinaus und
-       * brachten je Tabelle einen eigenen waagerechten Scrollbalken mit.
-       *
-       * Breiter allein hätte wenig geholfen — eine breitere Spalte ist
-       * immer noch EINE Spalte. Die Zahl wirkt erst zusammen mit dem
-       * `buchungsspalten`-Raster weiter unten, das die beiden Buchungs-
-       * formulare ab genug Breite nebeneinander legt.
-       *
-       * ⛔ KEIN `size="large"` (das wären antds 736) und keine nackte Zahl:
-       * `flyinBreite` deckelt auf 92 vw — auf 1280 px bleiben damit 160 px
-       * Hintergrund, auf 1024 px greift der Deckel.
-       */
-      size={flyinBreite(1120)}
-      rootClassName={styles.modul}
-      destroyOnHidden
-    >
-      {meldung?.quelle === "allgemein" ? (
-        <Alert
-          type="warning"
-          showIcon={false}
-          title={meldung.text}
-          style={{ marginBlockEnd: 16 }}
-        />
-      ) : null}
+        ⚠️ GESPERRT, WENN DER ARTIKEL DEAKTIVIERT IST — DRK-380, und als
+        EINZIGES der drei Formulare. Entnahme und Umlagerung bleiben offen:
+        „deaktivieren" ist der Rueckfall des Loeschpfades fuer einen Artikel
+        MIT Historie, und wer den Abgang mitsperrte, froere dessen Restbestand
+        ein. Die Richtung ist die Asymmetrie — heraus ja, hinein nein.
 
-      {!detail ? (
-        <div style={SCHRIFT.neben}>Artikeldetails werden geladen …</div>
-      ) : (
-        <div className={styles.artikelRaster}>
-          <ArtikelKopf
-            detail={detail}
-            mindestbestand={mindestbestand ?? detail.artikel.mindestbestand}
-          />
-
-          {/*
-            ⚠️ DER SATZ NENNT SEIT DRK-380 AUCH DIE FOLGE, nicht nur die Lage.
-            „Erscheint nicht in den aktiven Listen" allein erklaerte das
-            gesperrte Zugangsformular daneben nicht — und ein gesperrtes Feld
-            ohne Grund ist der Fall, in dem jemand den Schalter sucht und die
-            Verbindung nicht herstellt. Der Zusatz sagt ausserdem, was WEITER
-            geht: Entnahme und Umlagerung bleiben erlaubt, damit der
-            Restbestand abzubuchen ist (Entscheidung zu DRK-380).
-          */}
-          {!detail.artikel.aktiv ? (
-            <Alert
-              type="info"
-              showIcon={false}
-              title={
-                "Dieser Artikel ist deaktiviert und erscheint nicht in den aktiven " +
-                "Listen. Auf ihn geht kein Material mehr zu; Entnahme und Umlagerung " +
-                "bleiben möglich."
-              }
+        ⚠️ DER GRUND STEHT OBEN IM `Alert` UEBER DEN REITERN, NICHT HIER.
+        `Form`s `disabled` reicht an jedes Feld durch; ein zweiter Hinweis
+        direkt am Formular stuende zweimal auf demselben Schirm.
+      */
+      <Form<ZugangWerte>
+        key="zugang"
+        form={zugangForm}
+        layout="vertical"
+        disabled={busy || !artikel.artikel.aktiv}
+        initialValues={{
+          menge: 1,
+          chargeId: NEUE_CHARGE,
+          ...(artikel.zielOrte.length === 1
+            ? { zielLagerortId: artikel.zielOrte[0]!.id }
+            : {}),
+        }}
+        onFinish={(werte) => { void zugangBuchen(werte); }}
+        data-rolle="zugang-form"
+      >
+        <div className={styles.buchungsfelder}>
+          <Form.Item
+            name="menge"
+            label="Menge"
+            rules={[{ required: true }, { type: "number", min: 1 }]}
+          >
+            <InputNumber
+              min={1}
+              precision={0}
+              aria-label="Zugangsmenge"
+              style={{ width: "100%" }}
             />
+          </Form.Item>
+          <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
+            <Select
+              aria-label="Charge"
+              showSearch
+              filterOption={zielFilter}
+              options={chargeOptionen}
+              virtual={false}
+            />
+          </Form.Item>
+          {/*
+            IDA-235: der Satz zu „Handlager (ohne Schrank)" stand dauerhaft
+            unter dem Feld; er erklaert einen Eintrag der Liste und steht jetzt
+            hinter dem „?" am Feldnamen.
+          */}
+          <Form.Item
+            name="zielLagerortId"
+            label="Wohin"
+            tooltip={{
+              title: "„Handlager (ohne Schrank)“ heißt: noch nicht einsortiert.",
+              icon: <Ikone name="info" groesse={14} />,
+            }}
+            rules={[{ required: true, message: "Bitte einen Ort wählen" }]}
+          >
+            <Select
+              aria-label="Wohin"
+              showSearch
+              optionFilterProp="label"
+              options={zielOrtOptionen}
+            />
+          </Form.Item>
+          {ausgewaehlteCharge === NEUE_CHARGE ? (
+            <>
+              <Form.Item
+                name="chargenNr"
+                label="Chargennummer"
+                rules={[{ required: true, whitespace: true }]}
+              >
+                <Input aria-label="Chargennummer" autoComplete="off" />
+              </Form.Item>
+              <Form.Item label="Verfallsmonat">
+                <div data-rolle="verfallsmonat">
+                  <Form.Item
+                    name="verfall"
+                    noStyle
+                    rules={[{ required: true, message: "Bitte Verfallsmonat auswählen." }]}
+                  >
+                    <DatePicker
+                      picker="month"
+                      format="YYYY-MM"
+                      aria-label="Verfallsmonat"
+                      style={{ width: "100%" }}
+                      // DRK-483: Enter uebernimmt den Monat, gebucht wird erst
+                      // ueber „Zugang buchen".
+                      onKeyDown={enterUebernimmtNurDasFeld}
+                    />
+                  </Form.Item>
+                </div>
+              </Form.Item>
+            </>
           ) : null}
+        </div>
+        {formularMeldung("zugang")}
+        <Button type="primary" htmlType="submit" loading={busy}>
+          Zugang buchen
+        </Button>
+      </Form>
+    );
+  }
 
-          <Abschnitt titel="Stammdaten">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
-                gap: 12,
+  function entnahmeFormular(artikel: ArtikelDetailResult): ReactNode {
+    return (
+      <Form<EntnahmeWerte>
+        key="entnahme"
+        form={entnahmeForm}
+        layout="vertical"
+        disabled={busy}
+        initialValues={{ menge: 1 }}
+        onFinish={(werte) => { void entnahmeBuchen(werte); }}
+        data-rolle="entnahme-form"
+      >
+        <div className={styles.buchungsfelder}>
+          <Form.Item
+            name="menge"
+            label="Menge"
+            rules={[{ required: true }, { type: "number", min: 1 }]}
+          >
+            <InputNumber
+              min={1}
+              precision={0}
+              aria-label="Entnahmemenge"
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          {/*
+            DRK-309: „Ziel-Einheit", weil die Liste darunter Fahrzeuge
+            UND Taschen führt. Welche Art eine einzelne Option hat, sagt
+            die Option (`fahrzeugOptionen`).
+          */}
+          <Form.Item name="zielLagerortId" label="Ziel-Einheit">
+            <Select
+              aria-label="Ziel-Einheit"
+              placeholder="Handlager (Verbrauch)"
+              allowClear
+              showSearch
+              filterOption={zielFilter}
+              options={fahrzeugOptionen}
+              virtual={false}
+            />
+          </Form.Item>
+          <Form.Item name="kommentar" label="Kommentar">
+            <Input.TextArea
+              aria-label="Entnahmekommentar"
+              autoSize={{ minRows: 1, maxRows: 4 }}
+            />
+          </Form.Item>
+        </div>
+        {formularMeldung("entnahme")}
+        <Button
+          type="primary"
+          htmlType="submit"
+          loading={busy}
+          disabled={artikel.artikel.bestand === 0}
+        >
+          Entnahme buchen
+        </Button>
+      </Form>
+    );
+  }
+
+  function umlagerFormular(artikel: ArtikelDetailResult): ReactNode {
+    /*
+      ⚠️ ZWEI VERSCHIEDENE LEEREN, ZWEI VERSCHIEDENE SAETZE. „Es liegt nichts
+      da" und „es gibt keinen zweiten Ort" verlangen unterschiedliche
+      Handgriffe; ein gemeinsamer Satz schickte die Haelfte der Leser an die
+      falsche Stelle.
+    */
+    if (umlagerChargen.length === 0) {
+      return (
+        <div style={SCHRIFT.neben}>
+          {chargenImHandlager.length === 0
+            ? "Von diesem Artikel liegt im Handlager nichts, das sich umlagern ließe."
+            : "Es gibt im Handlager keinen zweiten aktiven Ort. Lege unter „Lagerorte“ "
+              + "einen Schrank an oder nimm einen stillgelegten wieder in Betrieb."}
+        </div>
+      );
+    }
+    return (
+      <Form<UmlagerWerte>
+        key="umlager"
+        form={umlagerForm}
+        layout="vertical"
+        disabled={busy}
+        initialValues={{ menge: 1 }}
+        onFinish={(werte) => { void umlagern(werte); }}
+        data-rolle="umlager-form"
+      >
+        <div className={styles.buchungsfelder}>
+          <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
+            <Select
+              aria-label="Umlagerung Charge"
+              showSearch
+              filterOption={zielFilter}
+              /*
+               * IDA-235 — WO DIE CHARGE LIEGT, STEHT IN DER OPTION. Bis
+               * hierher las man es aus der Chargentabelle unter dem
+               * Formular ab; die steht jetzt im Reiter „Übersicht".
+               * Genannt werden nur die Orte, von denen aus es weitergeht
+               * (`quellenVon`) — dieselbe Regel wie unter „Von".
+               */
+              options={umlagerChargen.map((charge) => ({
+                value: charge.id,
+                label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)} · `
+                  + quellenVon(charge)
+                    .map((ort) => `${ort.name}: ${ort.menge}`)
+                    .join(", "),
+                keywords: charge.chargenNr,
+              }))}
+              virtual={false}
+              /*
+               * ⚠️ QUELLE UND MENGE MUESSEN MIT. Beide haengen an der
+               * Charge: ein stehengebliebener Schrank waere nach dem
+               * Wechsel eine Quelle, an der diese Charge gar nicht
+               * liegt — und die Menge eine, die es dort nicht gibt. Der
+               * Server faengt beides ab, aber erst nach dem Absenden.
+               */
+              onChange={() => umlagerForm.setFieldsValue({
+                vonLagerortId: undefined, menge: 1,
+              })}
+            />
+          </Form.Item>
+          <Form.Item
+            name="vonLagerortId"
+            label="Von"
+            rules={[{ required: true, message: "Bitte den Quellort wählen" }]}
+          >
+            <Select
+              aria-label="Von"
+              disabled={!umlagerCharge}
+              placeholder={umlagerCharge ? undefined : "Erst die Charge wählen"}
+              options={umlagerQuellen.map((ort) => ({
+                value: ort.id,
+                label: `${ort.name} · ${ort.menge} ${artikel.artikel.einheit}`,
+              }))}
+              /*
+               * ⚠️ DAS ZIEL MUSS MIT — EIN FELD AUS DER AUSWAHL ZU
+               * NEHMEN LOESCHT SEINEN WERT NICHT (Review-Befund Codex
+               * P2 zu PR #161). „Nach" filtert den gewaehlten Quellort
+               * heraus; wer aber ZUERST das Ziel waehlt und danach
+               * denselben Ort als Quelle, behaelt ihn als Formularwert.
+               * Die Auswahl zeigt dann die nackte Kennung an, und das
+               * Absenden laeuft in „Quelle und Ziel muessen verschieden
+               * sein" — an einer Bedienfolge, die nichts Falsches tut.
+               */
+              onChange={(wert: string) => umlagerForm.setFieldsValue({
+                menge: 1,
+                ...(umlagerForm.getFieldValue("nachLagerortId") === wert
+                  ? { nachLagerortId: undefined }
+                  : {}),
+              })}
+            />
+          </Form.Item>
+          <Form.Item
+            name="nachLagerortId"
+            label="Nach"
+            rules={[{ required: true, message: "Bitte den Zielort wählen" }]}
+          >
+            <Select
+              aria-label="Nach"
+              showSearch
+              optionFilterProp="label"
+              // Der gewaehlte Quellort faellt heraus: „von A nach A" ist
+              // keine Umlagerung, und der Server lehnt sie ohnehin ab.
+              options={artikel.zielOrte
+                .filter((ort) => ort.id !== umlagerVon)
+                .map((ort) => ({ value: ort.id, label: ort.name }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="menge"
+            label="Menge"
+            rules={[{ required: true }, { type: "number", min: 1 }]}
+            /*
+             * ⚠️ DER DECKEL IST EINE HILFE, KEIN RIEGEL. Er steht
+             * daneben in `bucheUmlagerung`, und dort rollt eine zu
+             * grosse Menge die ganze Buchung zurueck — eine TEILWEISE
+             * Umlagerung liesse den Buchstand an beiden Orten falsch
+             * stehen, ohne dass es jemand erfaehrt.
+             */
+            extra={umlagerQuelle
+              ? `Dort liegen ${umlagerQuelle.menge} ${artikel.artikel.einheit}.`
+              : undefined}
+          >
+            <InputNumber
+              min={1}
+              max={umlagerQuelle?.menge}
+              precision={0}
+              aria-label="Umlagerungsmenge"
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          <Form.Item name="kommentar" label="Kommentar">
+            <Input.TextArea
+              aria-label="Umlagerungskommentar"
+              autoSize={{ minRows: 1, maxRows: 3 }}
+            />
+          </Form.Item>
+        </div>
+        {formularMeldung("umlagern")}
+        <Button type="primary" htmlType="submit" loading={busy}>
+          Umlagern
+        </Button>
+      </Form>
+    );
+  }
+
+  function buchenReiter(artikel: ArtikelDetailResult): ReactNode {
+    // Ein deaktivierter Artikel nimmt keinen Zugang an (DRK-380) — der
+    // naheliegende erste Handgriff ist dann die Entnahme des Restbestands.
+    const art = buchungsart ?? (artikel.artikel.aktiv ? "zugang" : "entnahme");
+    return (
+      <div style={{ display: "grid", gap: SPACE.lg }}>
+        <Segmented<Buchungsart>
+          options={BUCHUNGSARTEN}
+          value={art}
+          onChange={setBuchungsart}
+          aria-label="Buchungsart"
+          style={{ justifySelf: "start" }}
+        />
+        {/*
+          ⚠️ JEDES FORMULAR TRAEGT EINEN `key` (s. dort). Ohne ihn stehen die
+          drei `Form`s an DERSELBEN Stelle des Baums, React behaelt die
+          Instanz, und `Form` haelt die Formularinstanz vom ersten Mount fest
+          (`useForm(form)` liest sie nur einmal): die Umlagerung schrieb dann
+          in den Zustand des Zugangs — gemessen im DOM-Test, nicht vermutet.
+        */}
+        {art === "zugang"
+          ? zugangFormular(artikel)
+          : art === "entnahme"
+            ? entnahmeFormular(artikel)
+            : umlagerFormular(artikel)}
+      </div>
+    );
+  }
+
+  function stammdatenReiter(artikel: ArtikelDetailResult): ReactNode {
+    const a = artikel.artikel;
+    if (!bearbeiten) {
+      return (
+        <Abschnitt
+          titel="Stammdaten"
+          aktion={(
+            <Button
+              ref={bearbeitenKnopf}
+              icon={<Ikone name="stift" groesse={16} />}
+              onClick={() => modusWechseln(true)}
+            >
+              Bearbeiten
+            </Button>
+          )}
+        >
+          <dl className={styles.stammdatenListe} data-rolle="stammdaten-liste">
+            <Feld name="Name" wert={a.name} />
+            <Feld name="Mindestbestand" wert={`${a.mindestbestand} ${a.einheit}`} />
+            <Feld name="Fach im Handlager" wert={a.fach} />
+            <Feld name="Kategorie" wert={a.kategorie ?? "–"} />
+            <Feld name="Einheit" wert={a.einheit} />
+            <Feld name="Status" wert={a.aktiv ? "aktiv" : "deaktiviert"} />
+          </dl>
+        </Abschnitt>
+      );
+    }
+    return (
+      <Abschnitt titel="Stammdaten bearbeiten">
+        <Form<StammdatenWerte>
+          layout="vertical"
+          disabled={busy}
+          initialValues={{
+            name: a.name,
+            mindestbestand: a.mindestbestand,
+            fach: a.fach,
+            kategorie: a.kategorie ?? "",
+            einheit: a.einheit,
+            aktiv: a.aktiv,
+          }}
+          onFinish={(werte) => { void stammdatenSpeichern(werte); }}
+          data-rolle="stammdaten-form"
+        >
+          <div className={styles.buchungsfelder}>
+            <Form.Item
+              name="name"
+              label="Name"
+              rules={[{ required: true, whitespace: true, message: "Bitte einen Namen eingeben." }]}
+            >
+              <Input ref={nameFeld} aria-label="Name" autoComplete="off" />
+            </Form.Item>
+            <Form.Item
+              name="mindestbestand"
+              label="Mindestbestand"
+              rules={[{ required: true, message: "Bitte einen Mindestbestand eingeben." }]}
+            >
+              <InputNumber
+                min={0}
+                precision={0}
+                aria-label="Mindestbestand"
+                style={{ width: "100%" }}
+              />
+            </Form.Item>
+            <Form.Item
+              name="fach"
+              label="Fach im Handlager"
+              normalize={(wert?: string) => wert?.toUpperCase() ?? ""}
+              rules={[{ required: true, whitespace: true, message: "Bitte ein Fach eingeben." }]}
+            >
+              <Input aria-label="Fach im Handlager" autoComplete="off" />
+            </Form.Item>
+            <Form.Item name="kategorie" label="Kategorie">
+              <KategorieEingabe kategorien={kategorien} aria-label="Kategorie" />
+            </Form.Item>
+            <Form.Item
+              name="einheit"
+              label="Einheit"
+              rules={[{ required: true, whitespace: true, message: "Bitte eine Einheit eingeben." }]}
+            >
+              <Input aria-label="Einheit" autoComplete="off" />
+            </Form.Item>
+            <Form.Item
+              name="aktiv"
+              label="Aktiv"
+              valuePropName="checked"
+              tooltip={{
+                title: "Ein deaktivierter Artikel fehlt in den aktiven Listen und nimmt "
+                  + "keinen Zugang mehr an.",
+                icon: <Ikone name="info" groesse={14} />,
               }}
             >
-              <div>
-                <div style={SCHRIFT.feldname}>Mindestbestand</div>
-                <div data-rolle="mindestbestand">
-                  <InputNumber
-                    min={0}
-                    precision={0}
-                    value={mindestbestand}
-                    onChange={mindestbestandAendern}
-                    // Zieht den entprellten Schreibvorgang beim Verlassen des
-                    // Feldes vor. Ohne das verliert ein Schliessen des Drawers
-                    // innerhalb der Entprellzeit die Aenderung stillschweigend
-                    // — der Aufraeumer loescht den Timer, ohne ihn
-                    // auszufuehren. `fach` und `einheit` daneben tun es schon.
-                    onBlur={mindestbestandSpeichern}
-                    aria-label="Mindestbestand"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-              </div>
-              <div>
-                <div style={SCHRIFT.feldname}>Fach im Handlager</div>
-                <Input
-                  value={fach}
-                  onChange={(ereignis) => setFach(ereignis.target.value.toUpperCase())}
-                  onBlur={fachSpeichern}
-                  aria-label="Fach im Handlager"
-                />
-              </div>
-              <div>
-                <div style={SCHRIFT.feldname}>Kategorie</div>
-                <KategorieEingabe
-                  kategorien={kategorien}
-                  value={kategorie}
-                  onChange={setKategorie}
-                  onBlur={kategorieSpeichern}
-                  aria-label="Kategorie"
-                />
-              </div>
-              <div>
-                <div style={SCHRIFT.feldname}>Einheit</div>
-                <Input
-                  value={einheit}
-                  onChange={(ereignis) => setEinheit(ereignis.target.value)}
-                  onBlur={einheitSpeichern}
-                  aria-label="Einheit"
-                />
-              </div>
-              <div>
-                <div style={SCHRIFT.feldname}>Aktiv</div>
-                <Switch
-                  checked={detail.artikel.aktiv}
-                  loading={busy}
-                  onChange={(aktiv) => { void aktivAendern(aktiv); }}
-                  aria-label="Artikel aktiv"
-                />
-              </div>
-            </div>
-          </Abschnitt>
-
-          <div className={styles.buchungsspalten}>
-            <Abschnitt titel="Zugang buchen">
-              {/*
-                ⚠️ GESPERRT, WENN DER ARTIKEL DEAKTIVIERT IST — DRK-380, und
-                als EINZIGES der drei Formulare dieser Spalte. Entnahme und
-                Umlagerung bleiben offen: „deaktivieren" ist der Rueckfall des
-                Loeschpfades fuer einen Artikel MIT Historie, und wer den
-                Abgang mitsperrte, froere dessen Restbestand ein. Die Richtung
-                ist die Asymmetrie — heraus ja, hinein nein.
-
-                ⚠️ DER GRUND STEHT OBEN IM `Alert`, NICHT HIER. `Form`s
-                `disabled` reicht an jedes Feld durch; ein zweiter Hinweis
-                direkt am Formular stuende zweimal auf demselben Schirm.
-              */}
-              <Form<ZugangWerte>
-                form={zugangForm}
-                layout="vertical"
-                disabled={busy || !detail.artikel.aktiv}
-                initialValues={{
-                  menge: 1,
-                  chargeId: NEUE_CHARGE,
-                  ...(detail && detail.zielOrte.length === 1
-                    ? { zielLagerortId: detail.zielOrte[0]!.id }
-                    : {}),
-                }}
-                onFinish={(werte) => { void zugangBuchen(werte); }}
-                data-rolle="zugang-form"
-              >
-                <Form.Item
-                  name="menge"
-                  label="Menge"
-                  rules={[{ required: true }, { type: "number", min: 1 }]}
-                >
-                  <InputNumber
-                    min={1}
-                    precision={0}
-                    aria-label="Zugangsmenge"
-                    style={{ width: "100%" }}
-                  />
-                </Form.Item>
-                <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
-                  <Select
-                    aria-label="Charge"
-                    showSearch
-                    filterOption={zielFilter}
-                    options={chargeOptionen}
-                    virtual={false}
-                  />
-                </Form.Item>
-                <Form.Item
-                  name="zielLagerortId"
-                  label="Wohin"
-                  rules={[{ required: true, message: "Bitte einen Ort wählen" }]}
-                  extra="„Handlager (ohne Schrank)“ heißt: noch nicht einsortiert."
-                >
-                  <Select
-                    aria-label="Wohin"
-                    showSearch
-                    optionFilterProp="label"
-                    options={zielOrtOptionen}
-                  />
-                </Form.Item>
-                {ausgewaehlteCharge === NEUE_CHARGE ? (
-                  <>
-                    <Form.Item
-                      name="chargenNr"
-                      label="Chargennummer"
-                      rules={[{ required: true, whitespace: true }]}
-                    >
-                      <Input aria-label="Chargennummer" autoComplete="off" />
-                    </Form.Item>
-                    <Form.Item label="Verfallsmonat">
-                      <div data-rolle="verfallsmonat">
-                        <Form.Item
-                          name="verfall"
-                          noStyle
-                          rules={[{ required: true, message: "Bitte Verfallsmonat auswählen." }]}
-                        >
-                          <DatePicker
-                            picker="month"
-                            format="YYYY-MM"
-                            aria-label="Verfallsmonat"
-                            style={{ width: "100%" }}
-                            // DRK-483: Enter uebernimmt den Monat, gebucht wird erst
-                            // ueber „Zugang buchen".
-                            onKeyDown={enterUebernimmtNurDasFeld}
-                          />
-                        </Form.Item>
-                      </div>
-                    </Form.Item>
-                  </>
-                ) : null}
-                {meldung?.quelle === "zugang" ? (
-                  <Alert
-                    type="warning"
-                    showIcon={false}
-                    title={meldung.text}
-                    style={{ marginBlockEnd: 12 }}
-                  />
-                ) : null}
-                <Button type="primary" htmlType="submit" loading={busy}>
-                  Zugang buchen
-                </Button>
-              </Form>
-            </Abschnitt>
-
-            <Abschnitt titel="Entnahme buchen">
-              <Form<EntnahmeWerte>
-                form={entnahmeForm}
-                layout="vertical"
-                disabled={busy}
-                initialValues={{ menge: 1 }}
-                onFinish={(werte) => { void entnahmeBuchen(werte); }}
-                data-rolle="entnahme-form"
-              >
-                <Form.Item
-                  name="menge"
-                  label="Menge"
-                  rules={[{ required: true }, { type: "number", min: 1 }]}
-                >
-                  <InputNumber
-                    min={1}
-                    precision={0}
-                    aria-label="Entnahmemenge"
-                    style={{ width: "100%" }}
-                  />
-                </Form.Item>
-                {/*
-                  DRK-309: „Ziel-Einheit", weil die Liste darunter Fahrzeuge
-                  UND Taschen führt. Welche Art eine einzelne Option hat, sagt
-                  die Option (`fahrzeugOptionen`).
-                */}
-                <Form.Item name="zielLagerortId" label="Ziel-Einheit">
-                  <Select
-                    aria-label="Ziel-Einheit"
-                    placeholder="Handlager (Verbrauch)"
-                    allowClear
-                    showSearch
-                    filterOption={zielFilter}
-                    options={fahrzeugOptionen}
-                    virtual={false}
-                  />
-                </Form.Item>
-                <Form.Item name="kommentar" label="Kommentar">
-                  <Input.TextArea
-                    aria-label="Entnahmekommentar"
-                    autoSize={{ minRows: 2, maxRows: 4 }}
-                  />
-                </Form.Item>
-                {meldung?.quelle === "entnahme" ? (
-                  <Alert
-                    type="warning"
-                    showIcon={false}
-                    title={meldung.text}
-                    style={{ marginBlockEnd: 12 }}
-                  />
-                ) : null}
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={busy}
-                  disabled={detail.artikel.bestand === 0}
-                >
-                  Entnahme buchen
-                </Button>
-              </Form>
-            </Abschnitt>
+              <Switch aria-label="Artikel aktiv" />
+            </Form.Item>
           </div>
-
-          {/*
-            DRK-338 — DAS UMLAGERN STEHT UEBER DER CHARGENTABELLE UND NICHT IM
-            Raster daneben: es liest sich aus derselben Tabelle („Liegt in:
-            Schrank 1: 5 · GF-Schrank: 3"), die direkt darunter steht. Zwei
-            Spalten waeren hier ausserdem eng — das Formular traegt fuenf
-            Felder, Zugang und Entnahme drei bzw. vier.
-          */}
-          <Abschnitt titel="Umlagern im Handlager">
+          {formularMeldung("stammdaten")}
+          <div className={styles.stammdatenAktionen}>
+            <Space wrap>
+              <Button type="primary" htmlType="submit" loading={busy}>
+                Speichern
+              </Button>
+              <Button onClick={() => modusWechseln(false)}>
+                Abbrechen
+              </Button>
+            </Space>
             {/*
-              ⚠️ ZWEI VERSCHIEDENE LEEREN, ZWEI VERSCHIEDENE SAETZE. „Es liegt
-              nichts da" und „es gibt keinen zweiten Ort" verlangen
-              unterschiedliche Handgriffe; ein gemeinsamer Satz schickte die
-              Haelfte der Leser an die falsche Stelle.
+              Die „Gefahrenzone" als eigener roter Kasten ist entfallen
+              (IDA-235): Rot ist fachlich belegt (Falle 3), und Loeschen ist
+              eine Ausnahme, die hinter „Bearbeiten" genuegt. Ob geloescht
+              oder nur deaktiviert wird, entscheidet der Dialog.
             */}
-            {umlagerChargen.length === 0 ? (
-              <div style={SCHRIFT.neben}>
-                {chargenImHandlager.length === 0
-                  ? "Von diesem Artikel liegt im Handlager nichts, das sich umlagern ließe."
-                  : "Es gibt im Handlager keinen zweiten aktiven Ort, in den dieses Material "
-                    + "wandern könnte. Lege unter „Lagerorte“ einen Schrank an oder nimm einen "
-                    + "stillgelegten wieder in Betrieb."}
-              </div>
-            ) : (
-              <Form<UmlagerWerte>
-                form={umlagerForm}
-                layout="vertical"
-                disabled={busy}
-                initialValues={{ menge: 1 }}
-                onFinish={(werte) => { void umlagern(werte); }}
-                data-rolle="umlager-form"
-              >
-                <div className={styles.umlagerfelder}>
-                  <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
-                    <Select
-                      aria-label="Umlagerung Charge"
-                      showSearch
-                      filterOption={zielFilter}
-                      options={umlagerChargen.map((charge) => ({
-                        value: charge.id,
-                        label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)}`,
-                        keywords: charge.chargenNr,
-                      }))}
-                      virtual={false}
-                      /*
-                       * ⚠️ QUELLE UND MENGE MUESSEN MIT. Beide haengen an der
-                       * Charge: ein stehengebliebener Schrank waere nach dem
-                       * Wechsel eine Quelle, an der diese Charge gar nicht
-                       * liegt — und die Menge eine, die es dort nicht gibt. Der
-                       * Server faengt beides ab, aber erst nach dem Absenden.
-                       */
-                      onChange={() => umlagerForm.setFieldsValue({
-                        vonLagerortId: undefined, menge: 1,
-                      })}
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    name="vonLagerortId"
-                    label="Von"
-                    rules={[{ required: true, message: "Bitte den Quellort wählen" }]}
-                  >
-                    <Select
-                      aria-label="Von"
-                      disabled={!umlagerCharge}
-                      placeholder={umlagerCharge ? undefined : "Erst die Charge wählen"}
-                      options={umlagerQuellen.map((ort) => ({
-                        value: ort.id,
-                        label: `${ort.name} · ${ort.menge} ${detail.artikel.einheit}`,
-                      }))}
-                      /*
-                       * ⚠️ DAS ZIEL MUSS MIT — EIN FELD AUS DER AUSWAHL ZU
-                       * NEHMEN LOESCHT SEINEN WERT NICHT (Review-Befund Codex
-                       * P2 zu PR #161). „Nach" filtert den gewaehlten Quellort
-                       * heraus; wer aber ZUERST das Ziel waehlt und danach
-                       * denselben Ort als Quelle, behaelt ihn als Formularwert.
-                       * Die Auswahl zeigt dann die nackte Kennung an, und das
-                       * Absenden laeuft in „Quelle und Ziel muessen verschieden
-                       * sein" — an einer Bedienfolge, die nichts Falsches tut.
-                       */
-                      onChange={(wert: string) => umlagerForm.setFieldsValue({
-                        menge: 1,
-                        ...(umlagerForm.getFieldValue("nachLagerortId") === wert
-                          ? { nachLagerortId: undefined }
-                          : {}),
-                      })}
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    name="nachLagerortId"
-                    label="Nach"
-                    rules={[{ required: true, message: "Bitte den Zielort wählen" }]}
-                  >
-                    <Select
-                      aria-label="Nach"
-                      showSearch
-                      optionFilterProp="label"
-                      // Der gewaehlte Quellort faellt heraus: „von A nach A" ist
-                      // keine Umlagerung, und der Server lehnt sie ohnehin ab.
-                      options={detail.zielOrte
-                        .filter((ort) => ort.id !== umlagerVon)
-                        .map((ort) => ({ value: ort.id, label: ort.name }))}
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    name="menge"
-                    label="Menge"
-                    rules={[{ required: true }, { type: "number", min: 1 }]}
-                    /*
-                     * ⚠️ DER DECKEL IST EINE HILFE, KEIN RIEGEL. Er steht
-                     * daneben in `bucheUmlagerung`, und dort rollt eine zu
-                     * grosse Menge die ganze Buchung zurueck — eine TEILWEISE
-                     * Umlagerung liesse den Buchstand an beiden Orten falsch
-                     * stehen, ohne dass es jemand erfaehrt.
-                     */
-                    extra={umlagerQuelle
-                      ? `Dort liegen ${umlagerQuelle.menge} ${detail.artikel.einheit}.`
-                      : undefined}
-                  >
-                    <InputNumber
-                      min={1}
-                      max={umlagerQuelle?.menge}
-                      precision={0}
-                      aria-label="Umlagerungsmenge"
-                      style={{ width: "100%" }}
-                    />
-                  </Form.Item>
-                </div>
-                <Form.Item name="kommentar" label="Kommentar">
-                  <Input.TextArea
-                    aria-label="Umlagerungskommentar"
-                    autoSize={{ minRows: 1, maxRows: 3 }}
-                  />
-                </Form.Item>
-                {meldung?.quelle === "umlagern" ? (
-                  <Alert
-                    type="warning"
-                    showIcon={false}
-                    title={meldung.text}
-                    style={{ marginBlockEnd: 12 }}
-                  />
-                ) : null}
-                <Button type="primary" htmlType="submit" loading={busy}>
-                  Umlagern
-                </Button>
-              </Form>
-            )}
-          </Abschnitt>
-
-          <ChargenTabelle
-            chargen={detail.chargen}
-            einheit={detail.artikel.einheit}
-          />
-          <HistorieTabelle
-            historie={detail.historie}
-            mehrVorhanden={detail.mehrVorhanden}
-          />
-
-          <section className={styles.gefahr}>
-            <div className={styles.gtitle}>Gefahrenzone</div>
-            <p style={SCHRIFT.text}>
-              Artikel deaktivieren oder – wenn keine Nachweise verknüpft sind – endgültig löschen.
-            </p>
             <LoeschButton
               key={loeschDialogGeneration}
-              name={detail.artikel.name}
+              name={a.name}
               typLabel="Artikel"
               pruefen={async () => {
                 const ergebnis = await pruefeLoeschbar("artikel", id);
@@ -1066,44 +1071,165 @@ export function ArtikelDrawer({
               }}
               onFertig={onSchliessen}
             />
-          </section>
+          </div>
+        </Form>
+      </Abschnitt>
+    );
+  }
+
+  return (
+    <Drawer
+      open
+      onClose={onSchliessen}
+      /*
+       * IDA-235: der Name ist wieder schlichter Titel. Bearbeitet wird er unter
+       * „Stammdaten" → „Bearbeiten" mit den uebrigen Feldern — der Stift im
+       * Titel (IDA-215) speicherte beim Verlassen, ohne Rueckweg.
+       */
+      title={detail?.artikel.name ?? "Artikeldetails"}
+      /*
+       * 1120 STATT 880 STATT 520 — beide Sprünge kommen aus einer Messung.
+       *
+       * 520 → 880 (13.09.2026, `e2e/flyin-breite.spec.ts`): bei 520 px war
+       * der Inhalt 1862 px hoch, auf 1280x720 davon ein Drittel zu sehen,
+       * während links 760 px abgedunkelter Hintergrund brachlagen.
+       *
+       * 880 → 1120 (21.09.2026): die beiden Tabellen (heute in „Übersicht"
+       * und „Verlauf") fahren `scroll.x: "max-content"`. Schon die Seed-Daten
+       * brauchten für die Chargen 691 px; der Platz darin war 798 px — echte
+       * Chargen mit mehreren Orten und Buchungen mit Kommentar liefen darüber
+       * hinaus und brachten je Tabelle einen eigenen waagerechten
+       * Scrollbalken mit. Die Formulare legen ihre Felder über
+       * `buchungsfelder` nebeneinander, sobald die Breite da ist.
+       *
+       * ⛔ KEIN `size="large"` (das wären antds 736) und keine nackte Zahl:
+       * `flyinBreite` deckelt auf 92 vw — auf 1280 px bleiben damit 160 px
+       * Hintergrund, auf 1024 px greift der Deckel.
+       */
+      size={flyinBreite(1120)}
+      rootClassName={styles.modul}
+      /*
+       * Falle 24: `autoFocus` bleibt an — beim Oeffnen setzt diese Schublade
+       * keinen eigenen Fokus, den der Rahmen danach stehlen koennte, und Esc
+       * wirkt so sofort. Die Rueckgabe beim Schliessen trifft die Zeile, die
+       * die Schublade geoeffnet hat; die Maske verhindert einen Klick
+       * dazwischen. Eigene Fokuswechsel nur ueber `fokussiereWennVerloren`.
+       */
+      destroyOnHidden
+    >
+      {meldung?.quelle === "allgemein" ? (
+        <Alert
+          type="warning"
+          showIcon={false}
+          title={meldung.text}
+          style={{ marginBlockEnd: SPACE.lg }}
+        />
+      ) : null}
+
+      {!detail ? (
+        <div style={SCHRIFT.neben}>Artikeldetails werden geladen …</div>
+      ) : (
+        <div className={styles.artikelRaster}>
+          <ArtikelKopf detail={detail} />
+
+          {/*
+            ⚠️ DER SATZ NENNT SEIT DRK-380 AUCH DIE FOLGE, nicht nur die Lage.
+            „Erscheint nicht in den aktiven Listen" allein erklaerte das
+            gesperrte Zugangsformular nicht — und ein gesperrtes Feld ohne
+            Grund ist der Fall, in dem jemand den Schalter sucht und die
+            Verbindung nicht herstellt. Der Zusatz sagt ausserdem, was WEITER
+            geht: Entnahme und Umlagerung bleiben erlaubt, damit der
+            Restbestand abzubuchen ist (Entscheidung zu DRK-380). Er steht UEBER
+            den Reitern, weil er fuer alle gilt.
+          */}
+          {!detail.artikel.aktiv ? (
+            <Alert
+              type="info"
+              showIcon={false}
+              title={
+                "Dieser Artikel ist deaktiviert und erscheint nicht in den aktiven " +
+                "Listen. Auf ihn geht kein Material mehr zu; Entnahme und Umlagerung " +
+                "bleiben möglich."
+              }
+            />
+          ) : null}
+
+          <Tabs
+            activeKey={reiter}
+            // 16 statt antds 32 px zwischen den Reitern: so passen alle vier
+            // auch auf ein Telefon (390 px), ohne im „…"-Menue zu verschwinden.
+            tabBarGutter={SPACE.lg}
+            onChange={(schluessel) => setReiter(schluessel as Reiter)}
+            items={[
+              {
+                key: "uebersicht",
+                label: "Übersicht",
+                children: <UebersichtReiter detail={detail} />,
+              },
+              { key: "buchen", label: "Buchen", children: buchenReiter(detail) },
+              { key: "stammdaten", label: "Stammdaten", children: stammdatenReiter(detail) },
+              {
+                key: "verlauf",
+                label: "Verlauf",
+                children: (
+                  <HistorieTabelle
+                    historie={detail.historie}
+                    mehrVorhanden={detail.mehrVorhanden}
+                    artikelName={detail.artikel.name}
+                  />
+                ),
+              },
+            ]}
+          />
         </div>
       )}
     </Drawer>
   );
 }
 
-function Abschnitt({ titel, children }: { titel: string; children: ReactNode }) {
+function Abschnitt({
+  titel, aktion, children,
+}: {
+  titel: string;
+  aktion?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section
       style={{
         border: "1px solid var(--lb-linie)",
         borderRadius: 6,
-        padding: 16,
+        padding: SPACE.lg,
         background: "var(--lb-karte)",
       }}
     >
-      <h3 style={{ ...SCHRIFT.abschnitt, marginBlock: "0 14px" }}>{titel}</h3>
+      <div className={styles.abschnittKopf}>
+        <h3 style={{ ...SCHRIFT.abschnitt, margin: 0 }}>{titel}</h3>
+        {aktion}
+      </div>
       {children}
     </section>
   );
 }
 
-function ArtikelKopf({
-  detail,
-  mindestbestand,
-}: {
-  detail: ArtikelDetailResult;
-  mindestbestand: number;
-}) {
-  const unterMindest = detail.artikel.bestand < mindestbestand;
+function Feld({ name, wert }: { name: string; wert: ReactNode }) {
+  return (
+    <div>
+      <dt style={SCHRIFT.feldname}>{name}</dt>
+      <dd style={{ ...SCHRIFT.text, margin: 0 }}>{wert}</dd>
+    </div>
+  );
+}
+
+function ArtikelKopf({ detail }: { detail: ArtikelDetailResult }) {
+  const unterMindest = detail.artikel.bestand < detail.artikel.mindestbestand;
   // ⚠️ `rest` ist der Handlager-Bereich, `restGesamt` schliesst Fahrzeuge ein. Der
   // Chip meint die Nachschub-Sicht des Handlagers und darf NICHT auf Fahrzeug-
   // bestand anspringen — dafuer ist der Fahrzeug-Check zustaendig (§5.2.1).
   const faelligeCharge = detail.chargen.find((charge) => charge.ampel !== "gruen" && charge.rest > 0);
 
   return (
-    <div style={{ display: "grid", gap: 10 }}>
+    <div style={{ display: "grid", gap: SPACE.sm }}>
       <div style={SCHRIFT.zahl}>
         Bestand {detail.artikel.bestand} {detail.artikel.einheit}
       </div>
@@ -1119,6 +1245,43 @@ function ArtikelKopf({
           </Chip>
         ) : null}
       </Space>
+    </div>
+  );
+}
+
+/**
+ * IDA-235 — der Lese-Reiter: wo wie viel liegt, und welche Charge zuerst
+ * gebraucht wird. Kein Eingabefeld.
+ *
+ * „Bestand je Ort" ist die Summe der Chargenverteilung (`chargen[].orte`) je
+ * Ort; die Reihenfolge der ersten Nennung bleibt stehen (Handlager-Bereich vor
+ * Fahrzeugen, so liefert `_actions/detail.ts` jede einzelne Verteilung).
+ */
+function UebersichtReiter({ detail }: { detail: ArtikelDetailResult }) {
+  const jeOrt = new Map<string, ArtikelDetailCharge["orte"][number]>();
+  for (const charge of detail.chargen) {
+    for (const ort of charge.orte) {
+      const bisher = jeOrt.get(ort.id);
+      jeOrt.set(ort.id, bisher ? { ...bisher, menge: bisher.menge + ort.menge } : ort);
+    }
+  }
+  const { artikel } = detail;
+
+  return (
+    <div className={styles.artikelRaster}>
+      <Abschnitt titel="Bestand je Ort">
+        <div style={{ display: "grid", gap: SPACE.sm }}>
+          {jeOrt.size > 0 ? (
+            <OrtVerteilung orte={[...jeOrt.values()]} einheit={artikel.einheit} />
+          ) : (
+            <div style={SCHRIFT.neben}>Kein Bestand.</div>
+          )}
+          <div style={SCHRIFT.neben} data-rolle="kennzahlen">
+            Mindestbestand {artikel.mindestbestand} {artikel.einheit} · Fach {artikel.fach}
+          </div>
+        </div>
+      </Abschnitt>
+      <ChargenTabelle chargen={detail.chargen} einheit={artikel.einheit} />
     </div>
   );
 }
@@ -1195,6 +1358,7 @@ function ChargenTabelle({
  * Spaltenkopf verspraeche ein EXTREM („Zeit aufsteigend" = die erste Buchung
  * dieses Artikels), das genau dann falsch ist, wenn der Deckel greift. Volle
  * Begruendung: `core/tabelle/sortierer.ts` (DRK-331, fuenfte Reviewrunde).
+ * Wer alle sehen will, folgt dem Link ins Journal (IDA-235).
  *
  * ⚠️ NICHT AUF `ChargenTabelle` UEBERTRAGEN: die haelt ALLE Chargen des
  * Artikels (`chargenMitRest`, ohne Deckel) und darf deshalb sortieren.
@@ -1202,12 +1366,25 @@ function ChargenTabelle({
 function HistorieTabelle({
   historie,
   mehrVorhanden,
+  artikelName,
 }: {
   historie: ArtikelDetailBuchung[];
   mehrVorhanden: boolean;
+  artikelName: string;
 }) {
+  /*
+   * ⚠️ DAS JOURNAL KENNT KEINEN FILTER NACH ARTIKEL-ID, nur die Freitextsuche
+   * `q` ueber Artikelname UND Kommentar (`lesepfade/journal.ts`). Der Link
+   * findet deshalb auch Artikel, deren Name diesen enthaelt, und Buchungen,
+   * deren Kommentar ihn nennt — fuer „alle Buchungen dieses Artikels" die
+   * beste Naeherung, die es heute gibt.
+   */
+  const journalLink = `${JOURNAL_PFAD}?q=${encodeURIComponent(artikelName)}`;
   return (
-    <Abschnitt titel="Letzte Buchungen">
+    <Abschnitt
+      titel="Letzte Buchungen"
+      aktion={<Link href={journalLink}>Im Journal anzeigen</Link>}
+    >
       <Kartentabelle<ArtikelDetailBuchung>
         aria-label="Buchungshistorie des Artikels"
         rowKey="id"
@@ -1282,7 +1459,7 @@ function HistorieTabelle({
         ]}
       />
       {mehrVorhanden ? (
-        <div className={styles.footnote} style={{ marginBlockStart: 10 }}>
+        <div className={styles.footnote} style={{ marginBlockStart: SPACE.sm }}>
           Es werden nur die neuesten Buchungen angezeigt.
         </div>
       ) : null}
