@@ -445,7 +445,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
                   />
                 </Card>
 
-                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
+                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.lg, marginBlockEnd: SPACE.sm }}>
                   Vorlage
                 </h2>
                 <Card>
@@ -458,7 +458,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
                   />
                 </Card>
 
-                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
+                <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.lg, marginBlockEnd: SPACE.sm }}>
                   Status
                 </h2>
                 <Card>

@@ -8,13 +8,9 @@ const notiz: Releasenotiz = {
   titel: "Die Seite einer Einheit ist in Reiter gegliedert",
   inhalt: [
     absatz(
-      "Unter Verwaltung → Fahrzeuge & Taschen öffnet eine Einheit jetzt auf „Bestand & Verfall“: " +
-        "Was abgelaufen ist, bald abläuft oder unter Soll liegt, steht oben, ein Klick auf die Kachel „abgelaufen“ filtert danach. " +
-        "Das Soll liest du im Reiter „Soll“ nach Fächern, ändern kannst du es nach dem Schalter „Bearbeiten“.",
-    ),
-    absatz(
-      "Art, Vorlage, Aktiv und Löschen findest du jetzt unter „Einstellungen“, " +
-        "„Checkliste drucken“ hinter dem Knopf mit den drei Punkten oben rechts.",
+      "Eine Einheit unter Verwaltung → Fahrzeuge & Taschen öffnet jetzt auf „Bestand & Verfall“, Auffälliges steht oben. " +
+        "Das Soll änderst du im Reiter „Soll“ nach „Bearbeiten“. " +
+        "Art, Vorlage, Aktiv und Löschen stehen unter „Einstellungen“, „Checkliste drucken“ hinter den drei Punkten oben rechts.",
     ),
   ],
 };
