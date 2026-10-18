@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MODULES } from "@/core/registry";
-import { faviconFuer, zeichenZuDatei } from "./index";
+import { appIconsFuerManifest, appleIconFuer, faviconFuer, pngZuDatei, zeichenZuDatei } from "./index";
 import { ZEICHEN } from "./zeichen";
 
 describe("faviconFuer", () => {
@@ -40,6 +40,50 @@ describe("zeichenZuDatei", () => {
     expect(zeichenZuDatei("ida.svg")).toBe(ZEICHEN.ida);
     for (const datei of ["ida", "ida.png", "IDA.svg", "../ida.svg", "toString.svg", "constructor.svg", "lagerbuch.svg"]) {
       expect(zeichenZuDatei(datei), datei).toBeNull();
+    }
+  });
+});
+
+describe("appleIconFuer", () => {
+  it("gibt jedem Modul sein Zeichen als App-Icon, versioniert über die Prüfsumme", () => {
+    expect(appleIconFuer("qr")?.url).toMatch(/^\/favicon\/qr-apple-180\.png\?v=[0-9a-z]+$/);
+    expect(appleIconFuer("portal")?.url).toMatch(/^\/favicon\/ida-apple-180\.png\?v=/);
+    expect(appleIconFuer(null)?.url).toMatch(/^\/favicon\/ida-apple-180\.png\?v=/);
+  });
+
+  it("lässt lagerbuch ohne fremdes Zeichen", () => {
+    expect(appleIconFuer("lagerbuch")).toBeUndefined();
+  });
+
+  it("verlinkt für jedes Registry-Modul eine Datei, die die Route auch ausliefert", () => {
+    for (const m of MODULES) {
+      const icon = appleIconFuer(m.key);
+      if (!icon) continue;
+      expect(pngZuDatei(icon.url.slice("/favicon/".length).split("?")[0]), m.key).not.toBeNull();
+    }
+  });
+});
+
+describe("appIconsFuerManifest", () => {
+  it("nennt 192, 512 und eine maskierbare 512 mit dem Zeichen des Moduls", () => {
+    const icons = appIconsFuerManifest("uav");
+    expect(icons.map((i) => [i.sizes, i.purpose])).toEqual([
+      ["192x192", "any"],
+      ["512x512", "any"],
+      ["512x512", "maskable"],
+    ]);
+    for (const i of icons) {
+      expect(i.src).toMatch(/^\/favicon\/uav-[a-z]+-\d+\.png\?v=/);
+      expect(pngZuDatei(i.src.slice("/favicon/".length).split("?")[0])).not.toBeNull();
+    }
+  });
+});
+
+describe("pngZuDatei", () => {
+  it("kennt nur die erzeugten Dateien", () => {
+    expect(pngZuDatei("ida-apple-180.png")).not.toBeNull();
+    for (const datei of ["ida.png", "ida-apple-180", "../ida-apple-180.png", "toString", "constructor", "lagerbuch-app-192.png"]) {
+      expect(pngZuDatei(datei), datei).toBeNull();
     }
   });
 });

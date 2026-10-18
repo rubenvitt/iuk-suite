@@ -71,6 +71,17 @@ describe("Root-Layout — Favicon nach Host", () => {
     expect(await icon("")).toMatch(/^\/favicon\/ida\.svg\?v=/);
   });
 
+  it("legt ein Apple-Touch-Icon mit demselben Zeichen daneben, außer für lagerbuch", async () => {
+    const apple = async (host: string) => {
+      kopf.host = host;
+      const { icons } = await generateMetadata();
+      return (icons as { apple?: { url: string } }).apple?.url;
+    };
+    expect(await apple("qr.localtest.me")).toMatch(/^\/favicon\/qr-apple-180\.png\?v=/);
+    expect(await apple("portal.localtest.me")).toMatch(/^\/favicon\/ida-apple-180\.png\?v=/);
+    expect(await apple("lagerbuch.localtest.me")).toBeUndefined();
+  });
+
   it("behält Titel und Beschreibung", async () => {
     kopf.host = "";
     const m = await generateMetadata();

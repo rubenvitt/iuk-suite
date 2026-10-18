@@ -23,10 +23,10 @@
  * `--an-marke`).
  */
 
-const TINTE = "#1a1d20";
-const TINTE_DUNKEL = "#eceef0";
-const SIGNAL = "#c8000f";
-const SIGNAL_DUNKEL = "#e45a66";
+export const TINTE = "#1a1d20";
+export const TINTE_DUNKEL = "#eceef0";
+export const SIGNAL = "#c8000f";
+export const SIGNAL_DUNKEL = "#e45a66";
 
 /** Maßstab von den Pixeln der IDA-Vorlage (820 px hoch) auf das 64er-Raster. */
 const MASSSTAB = 64 / 820;
@@ -47,27 +47,36 @@ const SIGNAL_FORM =
 /** Das Signal im 64er-Raster, Punkt bei (44|19) — in jedem Modulzeichen gleich. */
 const SIGNAL_OBEN_RECHTS = `<g transform="translate(44 19) scale(${MASSSTAB})">${SIGNAL_FORM}</g>`;
 
-function svg(titel: string, viewBox: string, inhalt: string): string {
+/**
+ * Ein Zeichen ohne Farben: die Formen tragen nur die Klassen `t`/`l` (Tinte) und
+ * `s`/`w` (Signal). Gefärbt wird erst beim Einbetten — als Favicon mit
+ * Hell/Dunkel-Umschaltung (`ZEICHEN` unten), als App-Icon fest auf der Kachel
+ * (`app-icon.ts`).
+ */
+export type Form = { titel: string; viewBox: string; inhalt: string };
+
+function svg({ titel, viewBox, inhalt }: Form): string {
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" role="img" aria-label="${titel}">` +
     `<title>${titel}</title>${STIL}${inhalt}</svg>`
   );
 }
 
-function modulZeichen(titel: string, gegenstand: string): string {
-  return svg(titel, "0 0 64 64", gegenstand + SIGNAL_OBEN_RECHTS);
+function modulZeichen(titel: string, gegenstand: string): Form {
+  return { titel, viewBox: "0 0 64 64", inhalt: gegenstand + SIGNAL_OBEN_RECHTS };
 }
 
 /**
  * Das IDA-Zeichen selbst, in seinen Originalkoordinaten. Die `viewBox` ist das
  * Quadrat um die Vorlage (323 × 820 px), waagerecht mittig.
  */
-const IDA = svg(
-  "IDA",
-  "294.5 217 820 820",
-  `<rect class="t" x="553" y="552" width="130" height="480" rx="40"/>` +
+const IDA: Form = {
+  titel: "IDA",
+  viewBox: "294.5 217 820 820",
+  inhalt:
+    `<rect class="t" x="553" y="552" width="130" height="480" rx="40"/>` +
     `<g transform="translate(618 461)">${SIGNAL_FORM}</g>`,
-);
+};
 
 /** Handfunkgerät: Gehäuse mit Anzeige und Tasten, die Antenne trägt das Signal. */
 const FUNKGERAET = modulZeichen(
@@ -133,7 +142,7 @@ const EINSATZBUCH = modulZeichen(
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
-export const ZEICHEN: Readonly<Record<string, string>> = {
+export const FORMEN: Readonly<Record<string, Form>> = {
   ida: IDA,
   qr: QR,
   feedback: FEEDBACK,
@@ -143,3 +152,8 @@ export const ZEICHEN: Readonly<Record<string, string>> = {
   uav: DROHNE,
   einsatzbuch: EINSATZBUCH,
 };
+
+/** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */
+export const ZEICHEN: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(FORMEN).map(([name, form]) => [name, svg(form)]),
+);
