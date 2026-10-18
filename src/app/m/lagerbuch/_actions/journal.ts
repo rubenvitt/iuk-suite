@@ -40,6 +40,9 @@ const AnfrageSchema = z.object({
   vorgang: z.enum(VORGANG_ARTEN).optional(),
   von: z.string().datetime().optional(),
   bis: z.string().datetime().optional(),
+  /** IDA-239 — Artikel und Ort reisen als Kennung, dieselben wie auf Seite eins. */
+  artikelId: z.string().min(1).max(64).optional(),
+  lagerortId: z.string().min(1).max(64).optional(),
   cursor: CursorSchema.nullable().optional(),
 });
 
@@ -63,12 +66,14 @@ export async function naechsteJournalSeite(
 
   const gelesen = AnfrageSchema.safeParse(anfrage);
   if (!gelesen.success) return { ok: false, fehler: ABRUF_FEHLER };
-  const { q, vorgang, von, bis, cursor } = gelesen.data;
+  const { q, vorgang, von, bis, artikelId, lagerortId, cursor } = gelesen.data;
 
   try {
     const ergebnis = journalEintraege(getDb(), {
       q: q || undefined,
       vorgang,
+      artikelId,
+      lagerortId,
       von: von ? new Date(von) : undefined,
       bis: bis ? new Date(bis) : undefined,
       grenze: JOURNAL_GRENZE,

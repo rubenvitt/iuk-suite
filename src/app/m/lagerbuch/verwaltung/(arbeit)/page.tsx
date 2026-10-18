@@ -62,6 +62,44 @@ export function kritischeArtikel(db: DB, jetzt: Date): KritischeZeile[] {
     });
 }
 
+/**
+ * IDA-239 — SO VIELE KRITISCHE ARTIKEL ZEIGT DIE ÜBERSICHT HÖCHSTENS.
+ *
+ * Die Liste hatte keine Obergrenze: mit vielen Unterbeständen wurde die
+ * Startseite der Verwaltung über 15 000 px lang (gemessen 9 980 px mit 120
+ * Unterbeständen bei 1440×900), und „Letzte Buchungen" stand ganz unten. Die
+ * Übersicht soll sagen, DASS etwas zu tun ist und WAS zuerst; die vollständige
+ * Liste steht einen Klick weiter in der Artikelliste mit passendem Filter.
+ */
+export const KRITISCH_ANZEIGE = 10;
+
+/**
+ * Was zuerst angesehen werden muss: eine rote Charge (abgelaufen bzw. kurz
+ * davor), dann Unterbestände nach Füllgrad (leer zuerst), dann der Rest —
+ * innerhalb gleich nach Name. Arbeitet auf einer Kopie.
+ */
+export function kritischeReihenfolge(zeilen: readonly KritischeZeile[]): KritischeZeile[] {
+  const rang = (zeile: KritischeZeile) =>
+    zeile.chargeTon === "rot" ? 0 : zeile.unterMindest ? 1 : 2;
+  const fuellgrad = (zeile: KritischeZeile) =>
+    zeile.mindestbestand > 0 ? zeile.bestand / zeile.mindestbestand : 1;
+  return [...zeilen].sort((a, b) =>
+    rang(a) - rang(b)
+    || fuellgrad(a) - fuellgrad(b)
+    || a.name.localeCompare(b.name, "de"));
+}
+
+/** Wohin „alle anzeigen" führt: die Artikelliste mit vorgesetztem Spaltenfilter. */
+const ALLE_UNTER_MINDEST = "/verwaltung/artikel?filter=unter-mindest";
+const ALLE_CHARGE_KRITISCH = "/verwaltung/artikel?filter=charge-kritisch";
+
+const ZIEL = { display: "inline-flex", alignItems: "center", minHeight: 44 } as const;
+
+/** Ein Artikel der Liste öffnet in der Artikelliste direkt seine Schublade. */
+export function artikelAdresse(id: string): string {
+  return `/verwaltung/artikel?artikel=${encodeURIComponent(id)}`;
+}
+
 function journalAnzeigeZeilen(
   zeilen: JournalZeileRoh[],
 ): UebersichtJournalZeile[] {
@@ -86,7 +124,10 @@ function journalAnzeigeZeilen(
 
 export function verwaltungInhalt(db: DB, jetzt: Date) {
   const k = kennzahlen(db, jetzt);
-  const kritisch = kritischeArtikel(db, jetzt);
+  const kritisch = kritischeReihenfolge(kritischeArtikel(db, jetzt));
+  const sichtbar = kritisch.slice(0, KRITISCH_ANZEIGE);
+  const anzahlUnterMindest = kritisch.filter((zeile) => zeile.unterMindest).length;
+  const anzahlChargeKritisch = kritisch.filter((zeile) => zeile.chargeTon !== null).length;
   const journal = journalEintraege(db, { grenze: 5 });
   const journalZeilen = journalAnzeigeZeilen(journal.zeilen);
 
@@ -101,10 +142,14 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
         <Col xs={24} md={8}>
+          {/* IDA-239 — eine Kachel mit Zahl führt zu ihrer Liste: was unter
+              dem Mindestbestand liegt, wird über den Bestellvorschlag
+              nachgeholt. Bei null gibt es dort nichts zu tun. */}
           <Kachel
             zahl={k.unterMindest}
             beschriftung="Artikel unter Mindestbestand"
             ton={k.unterMindest ? "rot" : "ok"}
+            href={k.unterMindest > 0 ? "/verwaltung/bestellung" : undefined}
           />
         </Col>
         <Col xs={24} md={8}>
@@ -127,19 +172,32 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
           <Kachel
             zahl={k.nichtBestellt}
             beschriftung="unter Mindestbestand, noch nicht bestellt"
+            href={k.nichtBestellt > 0 ? "/verwaltung/bestellung" : undefined}
           />
         </Col>
         <Col xs={24} md={8}>
-          <Kachel zahl={k.buchungenGesamt} beschriftung="Buchungen im Journal" />
+          <Kachel
+            zahl={k.buchungenGesamt}
+            beschriftung="Buchungen im Journal"
+            href={k.buchungenGesamt > 0 ? "/verwaltung/journal" : undefined}
+          />
         </Col>
       </Row>
 
-      <Card title="Kritische Artikel" style={{ marginBlockEnd: SPACE.lg }}>
+      <Card
+        title="Kritische Artikel"
+        extra={kritisch.length > sichtbar.length ? (
+          <span style={SCHRIFT.neben}>
+            {sichtbar.length} von {kritisch.length}
+          </span>
+        ) : undefined}
+        style={{ marginBlockEnd: SPACE.lg }}
+      >
         {kritisch.length === 0 ? (
           <Empty description="Alles im grünen Bereich." />
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {kritisch.map((zeile) => (
+            {sichtbar.map((zeile) => (
               <li
                 key={zeile.id}
                 style={{
@@ -155,7 +213,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Link
-                    href="/verwaltung/artikel"
+                    href={artikelAdresse(zeile.id)}
                     style={{ ...SCHRIFT.text, fontWeight: 600 }}
                   >
                     {zeile.name}
@@ -187,6 +245,36 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
             ))}
           </ul>
         )}
+        {kritisch.length > sichtbar.length ? (
+          /*
+            ⚠️ ZWEI WEGE, NICHT EINER: „kritisch" heißt Unterbestand ODER
+            kritische Charge, und die Artikelliste filtert je Spalte — eine
+            Oder-Verknüpfung über zwei Spalten kann sie nicht ausdrücken. Jeder
+            Weg nennt deshalb seine eigene Zahl.
+          */
+          <p
+            data-rolle="alle-kritischen"
+            style={{
+              ...SCHRIFT.text,
+              display: "flex",
+              flexWrap: "wrap",
+              columnGap: SPACE.lg,
+              margin: `${SPACE.sm}px 0 0`,
+            }}
+          >
+            {/* 44 px Zielhöhe auch für einen Textlink (Arbeitsdichte). */}
+            {anzahlUnterMindest > 0 ? (
+              <Link href={ALLE_UNTER_MINDEST} style={ZIEL}>
+                Alle {anzahlUnterMindest} unter Mindestbestand anzeigen
+              </Link>
+            ) : null}
+            {anzahlChargeKritisch > 0 ? (
+              <Link href={ALLE_CHARGE_KRITISCH} style={ZIEL}>
+                Alle {anzahlChargeKritisch} mit kritischer Charge anzeigen
+              </Link>
+            ) : null}
+          </p>
+        ) : null}
       </Card>
 
       <Card title="Letzte Buchungen">

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { artikel, buchungen, chargen } from "../../../_db/schema";
+import { artikel, buchungen, chargen, lagerorte } from "../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
@@ -48,20 +48,26 @@ function buche({
   typ = "zugang",
   menge = 1,
   kommentar = null,
+  artikelId = "artikel-1",
+  chargeId = "charge-1",
+  lagerortId = HANDLAGER_ID,
 }: {
   id: string;
   ts?: string;
   typ?: "zugang" | "entnahme" | "korrektur" | "umlagerung";
   menge?: number;
   kommentar?: string | null;
+  artikelId?: string;
+  chargeId?: string;
+  lagerortId?: string;
 }) {
   t.db.insert(buchungen).values({
     id,
     ts: new Date(ts),
     typ,
-    artikelId: "artikel-1",
-    chargeId: "charge-1",
-    lagerortId: HANDLAGER_ID,
+    artikelId,
+    chargeId,
+    lagerortId,
     menge,
     quelleTyp: "system",
     quelleId: "system",
@@ -185,7 +191,7 @@ describe("Journalseite — Regime B und Deckel", () => {
       "zugang",
       "entnahme",
     ]);
-    expect(ungueltig.werte).toEqual({ q: "", typ: "", von: "", bis: "" });
+    expect(ungueltig.werte).toEqual({ q: "", typ: "", von: "", bis: "", ort: "", artikel: "" });
     expect(ungueltig.filter).toEqual({
       q: undefined,
       vorgang: undefined,
@@ -200,6 +206,13 @@ describe("Journalseite — Regime B und Deckel", () => {
       typ: "",
       von: "",
       bis: "",
+      ort: "",
+      artikel: "",
+      orte: [
+        { value: "entnahmebox", label: "Entnahmebox" },
+        { value: HANDLAGER_ID, label: "Handlager" },
+      ],
+      artikelOptionen: [{ value: "artikel-1", label: "Verbandpäckchen" }],
       hinweise: ungueltig.hinweise,
     });
     expect(istJsonSicher(insel.props)).toBe(true);
@@ -216,7 +229,55 @@ describe("Journalseite — Regime B und Deckel", () => {
       typ: "entnahme",
       von: "2026-08-07",
       bis: "2026-08-07",
+      ort: "",
+      artikel: "",
     });
+  });
+
+  /**
+   * IDA-239 — NACH ORT UND ARTIKEL, über die Kennung, serverseitig. Und der
+   * Filter reist in `abrufFilter` mit, damit das Nachladen beim Scrollen
+   * dieselbe Treffermenge weiterblättert.
+   */
+  it("filtert nach Ort und Artikel und reicht beide an das Nachladen weiter", () => {
+    t.db.insert(lagerorte).values({
+      id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1",
+      einheitenart: "fahrzeug", aktiv: true,
+    }).run();
+    t.db.insert(artikel).values({
+      id: "artikel-2", name: "Verbandpäckchen groß", einheit: "Stk.", fach: "A2",
+      mindestbestand: 0, aktiv: true, createdAt: new Date("2026-01-01T00:00:00Z"),
+    }).run();
+    t.db.insert(chargen).values({
+      id: "charge-2", artikelId: "artikel-2", chargenNr: "LOT-2", verfall: "2030-01",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+    }).run();
+    buche({ id: "handlager-1" });
+    buche({ id: "fahrzeug-1", lagerortId: "rtw-1" });
+    buche({ id: "anderer-artikel", artikelId: "artikel-2", chargeId: "charge-2" });
+
+    const amOrt = journalDaten(t.db, { ort: "rtw-1" });
+    expect(amOrt.zeilen.map((zeile) => zeile.id)).toEqual(["fahrzeug-1"]);
+    expect(amOrt.optionen.orte.map((ort) => ort.label))
+      .toEqual(expect.arrayContaining(["Handlager", "RTW 1 · Fahrzeug · MS-1"]));
+
+    // Der Name „Verbandpäckchen" steckt auch im zweiten Artikel — die Kennung nicht.
+    const artikelGenau = journalDaten(t.db, { artikel: "artikel-1" });
+    expect(artikelGenau.zeilen.map((zeile) => zeile.id).sort())
+      .toEqual(["fahrzeug-1", "handlager-1"]);
+
+    const beides = journalDaten(t.db, { ort: "rtw-1", artikel: "artikel-1" });
+    const [tabelle] = elementeVomTyp(journalInhalt(beides), JournalTable);
+    expect((tabelle.props as { abrufFilter: unknown }).abrufFilter)
+      .toEqual({ artikelId: "artikel-1", lagerortId: "rtw-1" });
+    const [insel] = elementeVomTyp(journalInhalt(beides), JournalFilter);
+    expect(insel.props).toMatchObject({ ort: "rtw-1", artikel: "artikel-1" });
+
+    const unbekannt = journalDaten(t.db, { ort: "gibt-es-nicht" });
+    expect(unbekannt.zeilen).toHaveLength(3);
+    expect(unbekannt.hinweise).toEqual([
+      "Der Ort in der Adresse ist unbekannt und wurde ignoriert.",
+    ]);
   });
 
   it("behaelt umgekehrte gueltige Grenzen sichtbar und liefert ehrlich keine Zeile", () => {
@@ -318,7 +379,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
     const mitFilter = journalDaten(t.db, { q: "ohne-treffer" });
     const [gefilterteTabelle] = elementeVomTyp(journalInhalt(mitFilter), JournalTable);
     expect((gefilterteTabelle.props as { leertext: string }).leertext)
-      .toBe("Keine Buchung passt zu Suche, Vorgang und Zeitraum.");
+      .toBe("Keine Buchung passt zu Suche, Ort, Artikel, Vorgang und Zeitraum.");
   });
 
   it("erkennt benannte, Alias-, Namespace- und Default-Importe als Negativproben", () => {

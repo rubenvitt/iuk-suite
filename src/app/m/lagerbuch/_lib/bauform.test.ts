@@ -1241,11 +1241,14 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // Derselbe Grund wie bei `Brotkrume.tsx`: ein Ausnahmename fuer eine
     // Datei, die hier nicht mehr liegt, winkte eine kuenftige gleichnamige
     // STILL durch. Vierzehn Namen; seit IDA-234 fuenfzehn (`Verwaltungsluft.tsx`, Polster-Insel des Rahmens).
+    // Seit IDA-239 achtzehn: `Fachgruppen.tsx` (Soll und Vorlage), `Stammdaten.tsx`
+    // (BZ-Geraet und Sauerstoffflasche) und `LinkKnopf.tsx` — alle drei nur in der Verwaltung.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
       "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx", "Verwaltungsluft.tsx",
+      "Fachgruppen.tsx", "Stammdaten.tsx", "LinkKnopf.tsx",
     ]);
     //
     // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.
@@ -1353,8 +1356,9 @@ describe("§7.8.2 / Falle 63 — genau eine `usePathname`-Datei im Modul", () =>
     expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(41);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
-      // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.
-      if (/\/(Suchfeld|Trefferanzeige|useUrlFilter|LoeschDialog|ArtikelDrawer)\./.test(pfad)) continue;
+      // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides
+      // (`LinkKnopf` seit IDA-239: ein Knopf, der in der Verwaltung navigiert).
+      if (/\/(Suchfeld|Trefferanzeige|useUrlFilter|LoeschDialog|ArtikelDrawer|LinkKnopf)\./.test(pfad)) continue;
       if (/useSearchParams|router\.(push|replace)/.test(ohneKommentare(readFileSync(pfad, "utf8")))) {
         verstoesse.push(relative(process.cwd(), pfad));
       }

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  ARTIKEL_UNBEKANNT,
+  ORT_UNBEKANNT,
   VORGANG_ARTEN,
   deckelText,
   journalParameterAus,
@@ -99,6 +101,8 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
       typ: "korrektur",
       von: "2026-08-01",
       bis: "2026-08-31",
+      ort: "",
+      artikel: "",
     });
     expect(ergebnis.filter).toEqual({
       q: "Päckchen",
@@ -121,7 +125,7 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
       bis: "gestern",
     });
 
-    expect(ergebnis.werte).toEqual({ q: "", typ: "", von: "", bis: "" });
+    expect(ergebnis.werte).toEqual({ q: "", typ: "", von: "", bis: "", ort: "", artikel: "" });
     expect(ergebnis.filter).toEqual({
       q: undefined,
       vorgang: undefined,
@@ -148,6 +152,8 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
       typ: "",
       von: "2026-08-08",
       bis: "2026-08-07",
+      ort: "",
+      artikel: "",
     });
     expect(ergebnis.filter.von?.toISOString()).toBe("2026-08-07T22:00:00.000Z");
     expect(ergebnis.filter.bis?.toISOString()).toBe("2026-08-07T21:59:59.999Z");
@@ -157,9 +163,32 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     expect(ergebnis.hatFilter).toBe(true);
   });
 
+  /**
+   * IDA-239 — ORT UND ARTIKEL ALS KENNUNG. Eine unbekannte Kennung filtert
+   * nicht still auf eine leere Liste, sondern fällt weg und sagt es — wie ein
+   * ungültiges Datum. Doppelte Angaben gehen durch `einWert`.
+   */
+  it("reicht bekannte Orte und Artikel als Kennung durch und verwirft unbekannte", () => {
+    const bekannt = { orte: new Set(["rtw-1"]), artikel: new Set(["a-1"]) };
+    const gut = journalParameterAus({ ort: " rtw-1 ", artikel: ["a-1", "a-1"] }, bekannt);
+    expect(gut.werte).toMatchObject({ ort: "rtw-1", artikel: "a-1" });
+    expect(gut.filter).toMatchObject({ lagerortId: "rtw-1", artikelId: "a-1" });
+    expect(gut.hinweise).toEqual([]);
+    expect(gut.hatFilter).toBe(true);
+
+    const schlecht = journalParameterAus({ ort: "weg", artikel: ["a-1", "a-2"] }, bekannt);
+    expect(schlecht.werte).toMatchObject({ ort: "", artikel: "" });
+    expect(schlecht.filter.lagerortId).toBeUndefined();
+    expect(schlecht.filter.artikelId).toBeUndefined();
+    // Zwei verschiedene Artikel sind ein Widerspruch, keine unbekannte Kennung.
+    expect(schlecht.hinweise).toEqual([ORT_UNBEKANNT]);
+    expect(schlecht.hatFilter).toBe(false);
+    expect(ARTIKEL_UNBEKANNT).toContain("Artikel");
+  });
+
   it("nimmt bei einem Typ- oder Datumsklick den bereits getippten Begriff mit", () => {
     expect(mitGetipptem(
-      { q: "alt", typ: "", von: "", bis: "" },
+      { q: "alt", typ: "", von: "", bis: "", ort: "rtw-1", artikel: "" },
       "  Mull  ",
       { von: "2026-08-01" },
     )).toEqual({
@@ -167,13 +196,15 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
       typ: "",
       von: "2026-08-01",
       bis: "",
+      ort: "rtw-1",
+      artikel: "",
     });
 
     expect(mitGetipptem(
-      { q: "alt", typ: "zugang", von: "", bis: "" },
+      { q: "alt", typ: "zugang", von: "", bis: "", ort: "", artikel: "a-1" },
       "Mull",
       { q: "" },
-    )).toEqual({ q: "", typ: "zugang", von: "", bis: "" });
+    )).toEqual({ q: "", typ: "zugang", von: "", bis: "", ort: "", artikel: "a-1" });
   });
 
   /**

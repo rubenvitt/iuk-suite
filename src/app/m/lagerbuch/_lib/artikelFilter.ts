@@ -161,6 +161,41 @@ export const ARTIKEL_STATUS_ZUSTAENDE: readonly ArtikelZustand[] = [
   { wert: "inaktiv", text: "inaktiv", trifft: (z) => !z.aktiv },
 ];
 
+/**
+ * IDA-239 — EIN SPALTENFILTER AUS DER ADRESSE (`/verwaltung/artikel?filter=…`).
+ *
+ * Die Übersicht zeigt höchstens zehn kritische Artikel und führt für den Rest
+ * in die Artikelliste — mit genau dem Spaltenfilter vorgesetzt, den man dort
+ * sonst von Hand wählen würde. Danach gehört der Filter der Tabelle: wer ihn
+ * im Spaltenkopf abwählt, sieht die ganze Liste.
+ *
+ * ⚠️ DIE WERTE SIND DIE DER ZUSTÄNDE OBEN, nicht abgeschrieben — ein
+ * umbenannter Zustand ließe sonst den Link still ungefiltert auflaufen. Der
+ * Schlüssel ist der `dataIndex` der Spalte in `ArtikelTable`.
+ */
+export const ARTIKEL_LISTEN_FILTER = {
+  "unter-mindest": { spalte: "mindestbestand", wert: ARTIKEL_MINDEST_ZUSTAENDE[0]!.wert },
+  "charge-kritisch": { spalte: "naechsteCharge", wert: ARTIKEL_CHARGEN_ZUSTAENDE[0]!.wert },
+} as const;
+
+export type ArtikelListenFilter = keyof typeof ARTIKEL_LISTEN_FILTER;
+
+/** Nur ein bekannter Name wird ein Filter; alles andere ist keiner. */
+export function artikelListenFilterAus(roh: string | undefined): ArtikelListenFilter | undefined {
+  return roh !== undefined && Object.hasOwn(ARTIKEL_LISTEN_FILTER, roh)
+    ? roh as ArtikelListenFilter
+    : undefined;
+}
+
+/** Der Startzustand der Spaltenköpfe für einen Filter aus der Adresse. */
+export function spaltenFilterFuer(
+  filter: ArtikelListenFilter | undefined,
+): Record<string, string[]> {
+  if (!filter) return {};
+  const { spalte, wert } = ARTIKEL_LISTEN_FILTER[filter];
+  return { [spalte]: [wert] };
+}
+
 /** Alle vier Gruppen — fuer Pruefungen, die ueber die ganze Menge gehen. */
 export const ARTIKEL_ZUSTAND_GRUPPEN: readonly (readonly ArtikelZustand[])[] = [
   ARTIKEL_BESTAND_ZUSTAENDE,

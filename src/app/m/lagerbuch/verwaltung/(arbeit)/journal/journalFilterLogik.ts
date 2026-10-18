@@ -1,6 +1,7 @@
 import { zeitraumAus } from "../../../_lib/format";
 import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
 import type { JournalFilter as JournalLeseFilter } from "../../../_lib/lesepfade/journal";
+import { einWert } from "../../../_lib/suchparameter";
 import { VORGANG_ARTEN, type Vorgangsart } from "../../../_lib/vorgang";
 
 export { VORGANG_ARTEN };
@@ -19,13 +20,37 @@ export type JournalFilterWerte = {
   typ: string;
   von: string;
   bis: string;
+  /** IDA-239 — Kennung eines Lagerorts, Schranks, Fahrzeugs oder einer Tasche. */
+  ort: string;
+  /** IDA-239 — Kennung eines Artikels. */
+  artikel: string;
 };
 
-export type JournalRohParameter = Partial<JournalFilterWerte>;
+/**
+ * ⚠️ NEXTS `searchParams` IST `string | string[] | undefined`, egal was hier
+ * steht (`_lib/suchparameter.ts`). Für die beiden Kennungen ist das
+ * ausgeschrieben; sie gehen durch `einWert`.
+ */
+export type JournalRohParameter = Partial<Omit<JournalFilterWerte, "ort" | "artikel">> & {
+  ort?: string | string[];
+  artikel?: string | string[];
+};
+
+/**
+ * Die Kennungen, die es gibt. Fehlt die Angabe (reine Logik-Tests), gilt jede
+ * nicht leere Kennung; die Seite reicht die echten Mengen aus der Datenbank.
+ */
+export type JournalBekannt = {
+  orte: ReadonlySet<string>;
+  artikel: ReadonlySet<string>;
+};
+
+export const ORT_UNBEKANNT = "Der Ort in der Adresse ist unbekannt und wurde ignoriert.";
+export const ARTIKEL_UNBEKANNT = "Der Artikel in der Adresse ist unbekannt und wurde ignoriert.";
 
 export type JournalParameterErgebnis = {
   werte: JournalFilterWerte;
-  filter: Pick<JournalLeseFilter, "q" | "vorgang" | "von" | "bis">;
+  filter: Pick<JournalLeseFilter, "q" | "vorgang" | "von" | "bis" | "artikelId" | "lagerortId">;
   hinweise: string[];
   hatFilter: boolean;
 };
@@ -48,6 +73,7 @@ export function normalisiereJournalTag(roh: string | undefined): string {
  */
 export function journalParameterAus(
   parameter: JournalRohParameter,
+  bekannt?: JournalBekannt,
 ): JournalParameterErgebnis {
   // ⚠️ GEKAPPT, NICHT NUR GETRIMMT — dieselbe Grenze, die `_actions/journal.ts`
   // prueft. Ohne das Kappen nimmt der erste Aufschlag einen laengeren Begriff an
@@ -58,7 +84,28 @@ export function journalParameterAus(
   const zeitraum = zeitraumAus(parameter.von, parameter.bis);
   const von = zeitraum.von ? parameter.von?.trim() ?? "" : "";
   const bis = zeitraum.bis ? parameter.bis?.trim() ?? "" : "";
-  const werte = { q, typ: vorgang ?? "", von, bis };
+  /*
+   * IDA-239 — ORT UND ARTIKEL. Eine Kennung, die es nicht (mehr) gibt, filtert
+   * nicht still auf eine leere Liste, sondern fällt weg und sagt es — derselbe
+   * Umgang wie mit einem ungültigen Datum.
+   */
+  const hinweise = [...zeitraum.hinweise];
+  const kennung = (
+    roh: string | string[] | undefined,
+    menge: ReadonlySet<string> | undefined,
+    hinweis: string,
+  ): string => {
+    const wert = einWert(roh)?.trim() ?? "";
+    if (!wert) return "";
+    if (menge && !menge.has(wert)) {
+      hinweise.push(hinweis);
+      return "";
+    }
+    return wert;
+  };
+  const ort = kennung(parameter.ort, bekannt?.orte, ORT_UNBEKANNT);
+  const artikel = kennung(parameter.artikel, bekannt?.artikel, ARTIKEL_UNBEKANNT);
+  const werte = { q, typ: vorgang ?? "", von, bis, ort, artikel };
 
   return {
     werte,
@@ -67,8 +114,10 @@ export function journalParameterAus(
       vorgang,
       von: zeitraum.von,
       bis: zeitraum.bis,
+      artikelId: artikel || undefined,
+      lagerortId: ort || undefined,
     },
-    hinweise: zeitraum.hinweise,
+    hinweise,
     hatFilter: Object.values(werte).some((wert) => wert !== ""),
   };
 }

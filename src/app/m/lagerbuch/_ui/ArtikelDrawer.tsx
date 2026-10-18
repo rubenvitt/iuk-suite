@@ -73,10 +73,10 @@ type Meldungsquelle = "allgemein" | "zugang" | "entnahme" | "umlagern" | "stammd
  * Stammdaten nur ueber „Bearbeiten" mit ausdruecklichem Speichern.
  *
  * ⚠️ DER REITER STEHT NICHT IN DER ADRESSE, anders als die Reiter der Seiten.
- * Die Schublade selbst ist nicht adressierbar (`ArtikelTable` haelt den offenen
- * Artikel im Zustand); ein `?reiter=` ohne den Artikel waere auf der Liste ein
- * Parameter ohne Bedeutung, und Zurueck schaltete den Reiter um, statt die
- * Schublade zu schliessen.
+ * Seit IDA-239 steht der offene ARTIKEL dort (`?artikel=`, ersetzt, nicht
+ * angehaengt — `ArtikelTable`); ein `?reiter=` daneben waere ein zweiter
+ * Parameter fuer einen fluechtigen Zustand, und Zurueck schaltete den Reiter
+ * um, statt die Schublade zu schliessen.
  */
 type Reiter = "uebersicht" | "buchen" | "stammdaten" | "verlauf";
 type Buchungsart = "zugang" | "entnahme" | "umlagern";
@@ -87,7 +87,7 @@ const BUCHUNGSARTEN: { value: Buchungsart; label: string }[] = [
   { value: "umlagern", label: "Umlagern" },
 ];
 
-/** Das Journal sucht ueber Artikelname UND Kommentar (`lesepfade/journal.ts`, `q`). */
+/** Das Journal filtert nach Artikel-Kennung (`?artikel=`, IDA-239). */
 const JOURNAL_PFAD = "/verwaltung/journal";
 
 /** Rot vor gelb vor gruen: was Aufmerksamkeit verlangt, gehoert nach oben. */
@@ -1175,7 +1175,7 @@ export function ArtikelDrawer({
                   <HistorieTabelle
                     historie={detail.historie}
                     mehrVorhanden={detail.mehrVorhanden}
-                    artikelName={detail.artikel.name}
+                    artikelId={detail.artikel.id}
                   />
                 ),
               },
@@ -1366,20 +1366,19 @@ function ChargenTabelle({
 function HistorieTabelle({
   historie,
   mehrVorhanden,
-  artikelName,
+  artikelId,
 }: {
   historie: ArtikelDetailBuchung[];
   mehrVorhanden: boolean;
-  artikelName: string;
+  artikelId: string;
 }) {
   /*
-   * ⚠️ DAS JOURNAL KENNT KEINEN FILTER NACH ARTIKEL-ID, nur die Freitextsuche
-   * `q` ueber Artikelname UND Kommentar (`lesepfade/journal.ts`). Der Link
-   * findet deshalb auch Artikel, deren Name diesen enthaelt, und Buchungen,
-   * deren Kommentar ihn nennt — fuer „alle Buchungen dieses Artikels" die
-   * beste Naeherung, die es heute gibt.
+   * IDA-239 — NACH DER KENNUNG, NICHT NACH DEM NAMEN. Bis hierher kannte das
+   * Journal nur die Freitextsuche `q` ueber Artikelname UND Kommentar; der
+   * Link fand damit auch Artikel, deren Name diesen enthaelt, und Buchungen,
+   * deren Kommentar ihn nennt. `?artikel=` trifft genau diesen einen.
    */
-  const journalLink = `${JOURNAL_PFAD}?q=${encodeURIComponent(artikelName)}`;
+  const journalLink = `${JOURNAL_PFAD}?artikel=${encodeURIComponent(artikelId)}`;
   return (
     <Abschnitt
       titel="Letzte Buchungen"

@@ -47,15 +47,13 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
     <>
       <SeitenKopf
         titel={flasche.name}
-        beschreibung="Der aktuelle Druck ist immer die jüngste Messung. Eine Fehlmessung lässt sich durch eine neue Messung korrigieren."
         zurueck={{ titel: "Sauerstoffflaschen", href: "/verwaltung/sauerstoff" }}
-        aktionen={(
-          <FlascheAktivToggle
-            id={flasche.id}
-            name={flasche.name}
-            aktiv={flasche.aktiv}
-          />
-        )}
+        /*
+          IDA-239 — KEIN SCHALTER UND KEIN LÖSCHKNOPF MEHR IM KOPF. Beides steht
+          bei den Stammdaten; die Hauptaufgabe der Seite ist die Messung, und
+          die steht direkt unter den Kacheln. Der Erklärtext, der hier stand,
+          steht jetzt dort, wo er gebraucht wird: am Messformular.
+        */
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
@@ -102,24 +100,40 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         </div>
       ) : null}
 
-      <Card title="Stammdaten" style={{ marginBlockEnd: SPACE.lg }}>
-        <ReferenzFelder
-          id={flasche.id}
-          name={flasche.name}
-          lagerortId={flasche.lagerortId}
-          groesseLiter={flasche.groesseLiter}
-          nennfuelldruckBar={flasche.nennfuelldruckBar}
-          wechselAbProzent={flasche.wechselAbProzent}
-        />
-      </Card>
-
+      {/*
+        IDA-239 — DIE MESSUNG ZUERST. Sie ist die häufigste Aufgabe dieser
+        Seite und stand bisher UNTER den offenen Stammdaten (gemessen 574 px bei
+        1440×900, 789 px bei 1024×768). Die Stammdaten stehen jetzt als
+        Lesemodus unter dem Verlauf.
+      */}
       <Card title="Neue Messung" style={{ marginBlockEnd: SPACE.lg }}>
         <MessungForm flascheId={flasche.id} />
+        <p style={{ ...SCHRIFT.neben, margin: `${SPACE.sm}px 0 0` }}>
+          Der aktuelle Druck ist immer die jüngste Messung — eine Fehlmessung
+          korrigierst du mit einer neuen.
+        </p>
       </Card>
 
-      <Card title="Messungsverlauf">
+      <Card title="Messungsverlauf" style={{ marginBlockEnd: SPACE.lg }}>
         <VerlaufTabelle zeilen={zeilen} />
       </Card>
+
+      <ReferenzFelder
+        key={flasche.id}
+        id={flasche.id}
+        name={flasche.name}
+        lagerortId={flasche.lagerortId}
+        groesseLiter={flasche.groesseLiter}
+        nennfuelldruckBar={flasche.nennfuelldruckBar}
+        wechselAbProzent={flasche.wechselAbProzent}
+        zusatz={(
+          <FlascheAktivToggle
+            id={flasche.id}
+            name={flasche.name}
+            aktiv={flasche.aktiv}
+          />
+        )}
+      />
     </>
   );
 }

@@ -5,20 +5,11 @@ import {
   Alert,
   Button,
   Checkbox,
-  Flex,
-  Input,
   InputNumber,
   Popconfirm,
-  Select,
   type TableProps,
 } from "antd";
-import {
-  Kartentabelle,
-  nachText,
-  nachZahl,
-  trifftWert,
-  werteAlsFilter,
-} from "@/core/tabelle";
+import { Kartentabelle, useEntprellt } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import {
   templatePositionEntfernen,
@@ -26,27 +17,50 @@ import {
 } from "../../../../_actions/templates";
 import type { ActionAusgang } from "../../../../_lib/actionErgebnis";
 import type { TemplatePositionZeile } from "../../../../_lib/lesepfade/fahrzeuge";
+import {
+  artikelOptionen,
+  nachFachGruppieren,
+  OFFEN_BIS_POSITIONEN,
+} from "../../../../_lib/positionen";
 import { SCHRIFT } from "../../../../_lib/schrift";
+import { Chip } from "../../../../_ui/Chip";
+import {
+  FachgruppenListe,
+  NeuePosition,
+  PositionenLeiste,
+  useFachgruppen,
+  type NeuePositionWerte,
+} from "../../../../_ui/Fachgruppen";
 import { Ikone } from "../../../../_ui/ikonen";
-import s from "../../../../_ui/verwaltung.module.css";
+
+export { fachFilter, type ArtikelOption } from "../../../../_lib/positionen";
 
 const SOLL_DEBOUNCE_MS = 400;
 const SPEICHER_FEHLER = "Vorlagenposition konnte nicht gespeichert werden.";
 const ENTFERNEN_FEHLER = "Vorlagenposition konnte nicht entfernt werden.";
 
-export type ArtikelOption = {
-  value: string;
-  label: string;
-  keywords: string;
-};
+/**
+ * ⚠️ FESTE BREITEN, DAMIT DIE TABELLEN DER FÄCHER UNTEREINANDER FLUCHTEN —
+ * dieselbe Begründung wie am Soll der Einheit (`fahrzeuge/[id]/SollEditor.tsx`).
+ */
+const BREITE = {
+  artikelMindestens: 280,
+  soll: 120,
+  immerZaehlen: 120,
+  aktion: 80,
+} as const;
 
-/** Sucht neben dem Artikelnamen ausdrücklich auch im Handlager-Fach. */
-export function fachFilter(eingabe: string, option?: ArtikelOption): boolean {
-  return `${option?.label ?? ""} ${option?.keywords ?? ""}`
-    .toLocaleLowerCase("de")
-    .includes(eingabe.trim().toLocaleLowerCase("de"));
-}
-
+/**
+ * DIE POSITIONEN EINER VORLAGE — seit IDA-239 nach dem Muster des Solls einer
+ * Einheit: Lesemodus mit Schalter „Bearbeiten", je Fach ein aufklappbarer
+ * Abschnitt, Suche über Artikel und Fach.
+ *
+ * Vorher stand jede Position als Zeile mit offenem Mengenfeld, Kästchen und
+ * rotem Löschknopf in EINER Tabelle; bei 210 Positionen war die Seite rund
+ * 15 000 px hoch, und die Aktionen der Vorlage standen darunter. Das Speichern
+ * selbst ist unverändert: entprellt je Feld, mit vorgezogenem Schreiben beim
+ * Verlassen des Feldes und beim Verlassen des Bearbeitens.
+ */
 export function TemplatePosEditor({
   templateId,
   positionen,
@@ -56,9 +70,10 @@ export function TemplatePosEditor({
   positionen: TemplatePositionZeile[];
   artikel: { id: string; name: string; fach: string }[];
 }) {
-  const [neuFach, setNeuFach] = useState("");
-  const [neuArtikel, setNeuArtikel] = useState<string>();
-  const [neuSoll, setNeuSoll] = useState<number | null>(1);
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [suche, setSuche] = useState("");
+  const sucheNachlauf = useEntprellt(suche);
+  const [neuOffen, setNeuOffen] = useState(false);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
   const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
@@ -71,11 +86,9 @@ export function TemplatePosEditor({
     sofort: () => void;
   }>>({});
 
-  const optionen = useMemo<ArtikelOption[]>(() => artikel.map((eintrag) => ({
-    value: eintrag.id,
-    label: eintrag.name,
-    keywords: eintrag.fach,
-  })), [artikel]);
+  const gruppen = useMemo(() => nachFachGruppieren(positionen), [positionen]);
+  const optionen = useMemo(() => artikelOptionen(artikel), [artikel]);
+  const fach = useFachgruppen(gruppen, sucheNachlauf, positionen.length <= OFFEN_BIS_POSITIONEN);
 
   function timerLoeschen(id: string): void {
     clearTimeout(timer.current[id]?.id);
@@ -88,8 +101,7 @@ export function TemplatePosEditor({
    * Ohne das ist jede Aenderung verloren, die innerhalb der Entprellzeit von
    * einem Klick auf den `zurueck`-Weg im Seitenkopf oder einem Seitenwechsel
    * gefolgt wird — der Aufraeumer in `useEffect` loescht den Timer, ohne ihn
-   * auszufuehren, und es gibt keinen Hinweis darauf. Form aus
-   * `bz/[id]/ReferenzEditor.tsx`.
+   * auszufuehren, und es gibt keinen Hinweis darauf.
    */
   function timerVorziehen(id: string): void {
     const ausstehend = timer.current[id];
@@ -176,42 +188,80 @@ export function TemplatePosEditor({
     });
   }
 
-  const spalten: TableProps<TemplatePositionZeile>["columns"] = [
-    {
-      title: "Fach",
-      dataIndex: "fachLabel",
-      key: "fach",
-      sorter: nachText<TemplatePositionZeile>((position) => position.fachLabel),
-      defaultSortOrder: "ascend",
-      filters: werteAlsFilter(positionen, (position) => position.fachLabel),
-      onFilter: trifftWert<TemplatePositionZeile>((position) => position.fachLabel),
-      render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
-    },
-    {
-      title: "Artikel",
-      dataIndex: "artikelName",
-      key: "artikel",
-      sorter: nachText<TemplatePositionZeile>((position) => position.artikelName),
-      render: (artikelName: string, position) => (
-        // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-        // Zweizeiler aus Artikelname und Bestandstext, keine Geschwisterzeile
-        // in diesem Zuschnitt, die einen Skalenwert nahelegen wuerde.
-        <div style={{ display: "grid", gap: 2 }}>
-          <strong>{artikelName}</strong>
-          <span style={SCHRIFT.neben}>
-            Handlager {position.handlagerFach} · {position.einheit}
-          </span>
-        </div>
-      ),
-    },
+  /**
+   * Beim Verlassen des Bearbeitens verschwinden die Felder — und mit ihnen
+   * jedes `onBlur`. Was noch entprellt wartet, wird deshalb HIER vorgezogen.
+   */
+  function bearbeitenUmschalten(an: boolean): void {
+    if (!an) {
+      for (const positionId of Object.keys(timer.current)) timerVorziehen(positionId);
+    }
+    setBearbeiten(an);
+  }
+
+  function hinzufuegen(werte: NeuePositionWerte): Promise<boolean> {
+    return new Promise((fertig) => {
+      startTransition(async () => {
+        const erfolgreich = await sicherAusfuehren(
+          () => templatePositionSetzen({ templateId, ...werte }),
+          SPEICHER_FEHLER,
+        );
+        // Das Fach der neuen Position aufklappen — sonst landete sie
+        // unsichtbar in einer zugeklappten Gruppe.
+        if (erfolgreich) fach.oeffnen(werte.fachLabel);
+        fertig(erfolgreich);
+      });
+    });
+  }
+
+  const artikelSpalte: NonNullable<TableProps<TemplatePositionZeile>["columns"]>[number] = {
+    title: "Artikel",
+    dataIndex: "artikelName",
+    key: "artikel",
+    render: (artikelName: string, position) => (
+      // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+      // Zweizeiler aus Artikelname und Handlagertext, keine Geschwisterzeile
+      // in diesem Zuschnitt, die einen Skalenwert nahelegen wuerde.
+      <div style={{ display: "grid", gap: 2 }}>
+        <span>
+          {artikelName}{" "}
+          {/* Im Lesemodus steht „immer zählen" als Kennzeichen am Namen; beim
+              Bearbeiten übernimmt die eigene Spalte mit dem Kästchen. */}
+          {!bearbeiten && (pflicht[position.id] ?? position.immerZaehlen)
+            ? <Chip ton="grau">immer zählen</Chip>
+            : null}
+        </span>
+        <span style={SCHRIFT.neben}>
+          Handlager {position.handlagerFach} · {position.einheit}
+        </span>
+      </div>
+    ),
+  };
+
+  const lesen: TableProps<TemplatePositionZeile>["columns"] = [
+    artikelSpalte,
     {
       title: "Soll",
       dataIndex: "soll",
       key: "soll",
       align: "right",
-      // ⚠️ UEBER DEN GESPEICHERTEN WERT, NICHT UEBER DEN SPIEGEL: sonst
-      // sortierte sich die Zeile waehrend des Tippens unter dem Finger weg.
-      sorter: nachZahl<TemplatePositionZeile>((position) => position.soll),
+      width: BREITE.soll,
+      render: (wert: number, position) => (
+        <span data-rolle="soll" style={{ whiteSpace: "nowrap" }}>
+          {spiegel[position.id] ?? wert} <span style={SCHRIFT.neben}>{position.einheit}</span>
+        </span>
+      ),
+    },
+  ];
+
+  const schreiben: TableProps<TemplatePositionZeile>["columns"] = [
+    artikelSpalte,
+    {
+      title: "Soll",
+      dataIndex: "soll",
+      key: "soll",
+      align: "right",
+      width: BREITE.soll,
       render: (wert: number, position) => (
         // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
         // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
@@ -225,6 +275,7 @@ export function TemplatePosEditor({
           onChange={(neu) => sollGeaendert(position, neu)}
           onBlur={() => timerVorziehen(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
+          style={{ width: "100%" }}
         />
       ),
     },
@@ -234,8 +285,7 @@ export function TemplatePosEditor({
       dataIndex: "immerZaehlen",
       key: "immerZaehlen",
       align: "center",
-      filters: [{ text: "ja", value: true }, { text: "nein", value: false }],
-      onFilter: (wert, position) => position.immerZaehlen === wert,
+      width: BREITE.immerZaehlen,
       render: (wert: boolean, position) => (
         <Checkbox
           checked={pflicht[position.id] ?? wert}
@@ -245,9 +295,10 @@ export function TemplatePosEditor({
       ),
     },
     {
-      title: "",
+      title: "Aktion",
       dataIndex: "id",
       key: "aktion",
+      width: BREITE.aktion,
       render: (_id: string, position) => (
         // KEIN size="small" an der Zeilenaktion, s. o.
         <Popconfirm
@@ -265,8 +316,9 @@ export function TemplatePosEditor({
             });
           })}
         >
+          {/* KEIN `danger`: Rot ist in diesem Modul fachlich belegt (Falle 3),
+              und das Entfernen fragt ohnehin noch einmal nach. */}
           <Button
-            danger
             loading={laeuft}
             icon={<Ikone name="papierkorb" groesse={14} />}
             aria-label={`${position.artikelName} aus Fach ${position.fachLabel} entfernen`}
@@ -276,72 +328,69 @@ export function TemplatePosEditor({
     },
   ];
 
+  const spalten = bearbeiten ? schreiben : lesen;
+  const breite = BREITE.artikelMindestens + (bearbeiten
+    ? BREITE.soll + BREITE.immerZaehlen + BREITE.aktion
+    : BREITE.soll);
+
   return (
-    <div style={{ display: "grid", gap: SPACE.md }}>
-      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Kartentabelle<TemplatePositionZeile>
-        rowKey="id"
-        aria-label="Vorlagen-Positionen"
-        dataSource={positionen}
-        leer={{
-          nichts: "Noch keine Position. Lege unten die erste an.",
-          gefiltert: "Keine Position passt zum Filter.",
-        }}
-        columns={spalten}
+    // `minmax(0, 1fr)` STATT DER IMPLIZITEN `auto`-SPALTE — sonst waechst die
+    // Spalte auf die Mindestbreite der Tabelle, und `scroll.x` kommt nie zum
+    // Zug (DRK-315, gemessen am Soll der Einheit).
+    <div
+      data-rolle="vorlagen-positionen"
+      style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}
+    >
+      <PositionenLeiste
+        suche={suche}
+        onSuche={setSuche}
+        mehrereGruppen={fach.sichtbare.length > 1}
+        alleOffen={fach.alleOffen}
+        onAlleUmschalten={fach.alleUmschalten}
+        bearbeiten={bearbeiten}
+        onBearbeiten={bearbeitenUmschalten}
+        neuOffen={neuOffen}
+        onNeu={() => setNeuOffen(true)}
       />
-      <Flex gap={SPACE.sm} wrap align="center">
-        <Input
-          placeholder="Fach"
-          aria-label="Fach"
-          value={neuFach}
-          onChange={(ereignis) => setNeuFach(ereignis.target.value)}
-          style={{ minWidth: 160, width: "auto" }}
+
+      {neuOffen ? (
+        <NeuePosition
+          faecher={gruppen.map((gruppe) => gruppe.fach)}
+          artikel={optionen}
+          laeuft={laeuft}
+          onHinzufuegen={hinzufuegen}
+          onSchliessen={() => setNeuOffen(false)}
         />
-        <Select<string, ArtikelOption>
-          showSearch
-          filterOption={fachFilter}
-          value={neuArtikel}
-          onChange={setNeuArtikel}
-          placeholder="Artikel"
-          aria-label="Artikel"
-          style={{ minWidth: 240 }}
-          options={optionen}
+      ) : null}
+
+      {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+
+      {gruppen.length === 0 ? (
+        <p style={{ ...SCHRIFT.neben, margin: 0 }}>
+          Noch keine Position. Lege oben die erste an.
+        </p>
+      ) : fach.sichtbare.length === 0 ? (
+        <p style={{ ...SCHRIFT.neben, margin: 0 }}>Keine Position passt zur Suche.</p>
+      ) : (
+        <FachgruppenListe
+          gruppen={fach.sichtbare}
+          offene={fach.offene}
+          onOffene={fach.setOffene}
+          inhalt={(gruppe) => (
+            <Kartentabelle<TemplatePositionZeile>
+              rowKey="id"
+              aria-label={`Vorlagen-Positionen ${gruppe.fach}`}
+              dataSource={gruppe.positionen}
+              tableLayout="fixed"
+              scroll={{ x: breite }}
+              karte={{ titel: "artikel" }}
+              kartenHoehe={bearbeiten ? 240 : 150}
+              leer={{ nichts: "Keine Position in diesem Fach." }}
+              columns={spalten}
+            />
+          )}
         />
-        <InputNumber
-          min={1}
-          max={9999}
-          precision={0}
-          value={neuSoll}
-          onChange={setNeuSoll}
-          aria-label="Soll"
-        />
-        <Button
-          type="primary"
-          icon={<Ikone name="plus" groesse={16} />}
-          loading={laeuft}
-          disabled={!neuFach.trim() || !neuArtikel || !neuSoll || laeuft}
-          onClick={() => {
-            const payload = {
-              templateId,
-              fachLabel: neuFach.trim(),
-              artikelId: neuArtikel!,
-              soll: neuSoll!,
-            };
-            startTransition(async () => {
-              const erfolgreich = await sicherAusfuehren(
-                () => templatePositionSetzen(payload),
-                SPEICHER_FEHLER,
-              );
-              if (erfolgreich) {
-                setNeuArtikel(undefined);
-                setNeuSoll(1);
-              }
-            });
-          }}
-        >
-          Position hinzufügen
-        </Button>
-      </Flex>
+      )}
     </div>
   );
 }
