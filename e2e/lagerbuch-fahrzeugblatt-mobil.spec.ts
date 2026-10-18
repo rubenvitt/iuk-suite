@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, warteAufSpaltenaufteilung } from "./fixtures";
+import { devLogin, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -43,7 +43,7 @@ test.describe("Fahrzeugblatt auf schmalem Schirm", () => {
       // Erst wenn die Liste steht, ist die Tabelle gerendert — sonst misst die
       // Probe eine Seite, auf der das Breite machende Element noch fehlt.
       // IDA-232: die Bestandsliste ist der Startreiter des Blatts.
-      await page.locator("[data-rolle='bestandsliste']").waitFor(); await warteAufSpaltenaufteilung(page);
+      await warteAufGestreamteInhalte(page); await page.locator("[data-rolle='bestandsliste']").waitFor(); await warteAufSpaltenaufteilung(page);
 
       const masse = await page.evaluate(() => ({
         scroll: document.documentElement.scrollWidth,
