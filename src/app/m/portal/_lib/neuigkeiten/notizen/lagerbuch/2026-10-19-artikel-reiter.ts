@@ -10,8 +10,7 @@ const notiz: Releasenotiz = {
     absatz(
       "Die Artikeldetails unter „Artikel“ sind in die Reiter „Übersicht“, „Buchen“, „Stammdaten“ " +
         "und „Verlauf“ geteilt; Zugang, Entnahme und Umlagern wählst du unter „Buchen“. " +
-        "Stammdaten und Namen änderst du über „Bearbeiten“, gespeichert wird erst mit „Speichern“. " +
-        "Dort findest du auch „Artikel löschen“.",
+        "Name, Stammdaten und „Artikel löschen“ findest du unter „Stammdaten“ → „Bearbeiten“; gespeichert wird erst mit „Speichern“.",
     ),
   ],
 };
