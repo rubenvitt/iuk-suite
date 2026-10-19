@@ -105,14 +105,23 @@ test.describe("IDA-224 — Demo-Check", () => {
       await warteAufGestreamteInhalte(handy);
       await expect(handy.locator("[data-rolle='check-art']")).toHaveText("Kurzcheck");
 
+      // IDA-248: zuerst die Plombe der Medikamententasche — die Nummer steht im Demo-Hinweis.
+      const weiter = handy.getByRole("button", { name: "Weiter" });
+      await expect(handy.locator("[data-rolle='demo-plombe']")).toContainText("004711");
+      await handy.locator("[data-rolle='plombe-nummer']").fill("004711");
+      await expect(handy.locator("[data-rolle='plombe']")).toContainText("passt");
+      await weiter.click(); // Plomben → Zaehlen
+
       const plus = handy.locator("[data-rolle='zaehlliste']").getByRole("button", { name: /erhöhen$/ });
       await expect(plus.first()).toBeVisible();
       const n = await plus.count();
       for (let i = 0; i < n; i++) await plus.nth(i).click();
 
-      const weiter = handy.getByRole("button", { name: "Weiter" });
       await expect(weiter).toBeEnabled();
       await weiter.click(); // Zaehlen → Nachfuellen
+      await weiter.click(); // Nachfuellen → Geraete
+      await expect(handy.getByText("Defibrillator (AED)")).toBeVisible();
+      await weiter.click(); // Geraete → Sauerstoff
 
       await handy.request.get(ABSCHLUSS); // Falle 10, Warmlauf (405, kompiliert den Handler)
       const [post] = await Promise.all([

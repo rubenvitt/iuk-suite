@@ -111,19 +111,29 @@ describe("Demo an", () => {
     const baum = await DemoSeite(sp());
     const wahl = finde<Parameters<typeof CheckArtWahl>[0]>(baum, CheckArtWahl);
     expect(wahl?.props.pfad).toBe("/demo");
-    expect(wahl?.props.kurz.plomben).toBe(0);
+    expect(wahl?.props.kurz.plomben).toBe(1);
     expect(wahl?.props.kurz.gesamt).toBeGreaterThan(0);
   });
 
-  it("der Kurzcheck bekommt die Stichprobe, keine Plomben, Geräte oder Flaschen", async () => {
+  it("der Kurzcheck bekommt Stichprobe, die Plombe der Medikamententasche, Geräte und Sauerstoff (IDA-248)", async () => {
     const baum = await DemoSeite(sp("kurz"));
     const flow = finde<Parameters<typeof CheckFlow>[0]>(baum, CheckFlow);
     expect(flow?.props.demo).toBe(true);
     expect(flow?.props.art).toBe("kurz");
     expect(Object.keys(flow!.props.stichprobe!).length).toBeGreaterThan(0);
-    expect(flow?.props.plomben).toEqual([]);
-    expect(flow?.props.geraete).toEqual([]);
-    expect(flow?.props.flaschen).toEqual([]);
+    expect(flow?.props.plomben).toEqual([{
+      id: "demo-plombe-tasche", bezeichnung: "Medikamententasche", fachLabel: "Medikamententasche",
+      erwartet: "004711",
+    }]);
+    // Die versiegelte Tasche ist nie Teil der Stichprobe — sie bezeugt die Plombe.
+    const tasche = flow!.props.versiegelt["demo-plombe-tasche"]!;
+    expect(tasche.length).toBe(4);
+    for (const id of tasche) expect(flow!.props.stichprobe).not.toHaveProperty(id);
+    expect(flow?.props.geraete.map((g) => g.name))
+      .toEqual(["Defibrillator (AED)", "Absaugpumpe", "Spineboard"]);
+    expect(flow?.props.flaschen).toHaveLength(1);
+    expect(Object.keys(flow!.props.verfall)).toContain("demo-med-adrenalin");
+    expect(flow?.props.letzterCheckText).not.toBeNull();
     expect(flow?.props.andereEinheitErreichbar).toBe(false);
     // Kein echter Bestand auf dem anonymen Telefon: Handlager ist erfunden (= Soll je Artikel).
     for (const p of flow!.props.soll) expect(p.fahrzeugBestand).toBe(0);
@@ -144,6 +154,48 @@ describe("Demo an", () => {
     expect(ergebnis.ok).toBe(true);
     expect(ergebnis.wert.nachgefuellt).toBe(1);
     expect(ergebnis.wert.offen).toBe(erste.soll - 1);
+  });
+
+  it("rechnet Plombe, Geräte und Sauerstoff wie der echte Check (IDA-248)", async () => {
+    const baum = await DemoSeite(sp("kurz"));
+    const flow = finde<Parameters<typeof CheckFlow>[0]>(baum, CheckFlow)!.props;
+    const tasche = flow.versiegelt["demo-plombe-tasche"]!;
+    const gezaehlt = [...Object.keys(flow.stichprobe!), ...tasche];
+    const positionen = flow.soll.filter((p) => gezaehlt.includes(p.id))
+      .map((p) => ({ sollPositionId: p.id, ist: p.soll, nachfuellMenge: 0 }));
+    const basis = {
+      art: "kurz",
+      positionen,
+      verfaelle: [],
+      geraete: [
+        { geraetId: "demo-geraet-aed", vorhanden: true, zustand: "In Ordnung" },
+        { geraetId: "demo-geraet-absaugung", vorhanden: true, zustand: "Defekt" },
+        { geraetId: "demo-geraet-spineboard", vorhanden: false, zustand: "In Ordnung" },
+      ],
+      flaschen: [{ flascheId: "demo-o2-2l", druckBar: 30 }],
+    };
+
+    const passt = await (await POST(anfrage({
+      ...basis, plomben: [{ plombeId: "demo-plombe-tasche", nummer: "0047-11" }],
+    }))).json();
+    expect(passt.wert).toMatchObject({
+      plombenOffen: 0, geraeteAuffaellig: 2, flaschenAuffaellig: 1,
+      // Adrenalin ist mit Verfall in einem Monat vorbelegt.
+      verfallAuffaellig: 1,
+    });
+
+    const offen = await (await POST(anfrage({
+      ...basis, plomben: [{ plombeId: "demo-plombe-tasche", nummer: "999" }],
+    }))).json();
+    expect(offen.wert.plombenOffen).toBe(1);
+
+    // Eine offene Plombe ohne gezählte Tasche ist ein Eingabefehler, wie im Ernstfall.
+    const ohneTasche = await (await POST(anfrage({
+      ...basis,
+      positionen: positionen.filter((p) => !tasche.includes(p.sollPositionId)),
+      plomben: [{ plombeId: "demo-plombe-tasche", nummer: null }],
+    }))).json();
+    expect(ohneTasche).toMatchObject({ ok: false, grund: "eingabe" });
   });
 
   it("weist eine Position ab, die nicht zur Vorlage gehört — als Eingabefehler, nie als Sitzungsfehler", async () => {

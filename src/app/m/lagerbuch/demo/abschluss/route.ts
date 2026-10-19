@@ -35,7 +35,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   const geparst = DemoNutzlastSchema.safeParse(roh);
   const wert = geparst.success
-    ? demoErgebnis(geparst.data, daten.soll, verfallSchwellen(), new Date())
+    ? demoErgebnis(geparst.data, daten, verfallSchwellen(), new Date())
     : null;
   return Response.json(
     wert ? { ok: true, wert } : { ok: false, grund: "eingabe", text: DEMO_EINGABE_TEXT },
