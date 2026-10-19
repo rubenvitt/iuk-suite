@@ -5,6 +5,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
 import { einheitMeta } from "../../../../_lib/konstanten";
+import { sollText, ueberschuss } from "../../../../_lib/domain/sollBereich";
 import { checkDetail, type CheckDetail } from "../../../../_lib/lesepfade/checks";
 import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { Kachel } from "../../../../_ui/Kachel";
@@ -58,20 +59,31 @@ export function checkDetailInhalt(
   }));
   const nachfuellZeilen: NachfuellAnzeigeZeile[] = check.positionen.map((position) => {
     const luecke = position.soll - position.ist;
+    /*
+     * IDA-243: was ueber „OK bis" (ohne Bereich: ueber dem Soll) lag, ist ein
+     * eigener Zustand. Bis dahin fiel eine negative Luecke unter „vollständig",
+     * und der Filter fand sie unter keinem Wert. Ein Check von vor IDA-247 hat
+     * kein `sollMax` — dort zaehlt alles ueber dem Soll.
+     */
+    const zuViel = ueberschuss(position.ist, position.soll, position.sollMax);
     return {
       id: position.id,
       fachText: position.fachLabel,
       artikelText: position.artikelName,
       einheitText: position.einheit,
-      sollText: String(position.soll),
+      sollText: sollText(position.soll, position.sollMax),
       istText: String(position.ist),
       // Rohzahlen fuer die Sortierung, s. `abgleichZeilen`.
       sollZahl: position.soll,
       istZahl: position.ist,
       lueckeZahl: luecke,
+      zuVielZahl: zuViel,
       lueckeChip: luecke > 0
         ? chip(`${luecke} fehlten`, "rot", "warnung")
-        : chip("vollständig", "ok"),
+        : zuViel > 0
+          // Gelb, nicht Rot: zu viel ist ein Hinweis, kein Mangel (Falle 3).
+          ? chip(position.box > 0 ? `${zuViel} zu viel · ${position.box} in Box` : `${zuViel} zu viel`, "gelb")
+          : chip("vollständig", "ok"),
     };
   });
   const geraeteZeilen: GeraetAnzeigeZeile[] = check.geraete.map((geraet) => {

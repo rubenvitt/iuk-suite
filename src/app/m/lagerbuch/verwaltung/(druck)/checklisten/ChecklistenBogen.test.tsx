@@ -22,11 +22,11 @@ const RTW: ChecklisteBlatt = {
     positionen: [
       {
         artikelId: "a1", artikelName: "Verband", einheit: "Stk.",
-        handlagerFach: "B-04", soll: 4,
+        handlagerFach: "B-04", soll: 4, sollMax: null,
       },
       {
         artikelId: "a2", artikelName: "NaCl", einheit: "Fl.",
-        handlagerFach: "C-01", soll: 3,
+        handlagerFach: "C-01", soll: 3, sollMax: null,
       },
     ],
   }],

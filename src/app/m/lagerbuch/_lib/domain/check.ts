@@ -23,7 +23,10 @@ export function fehlmengen<T extends { soll: number; ist: number }>(
 }
 
 /**
- * DIE EINE `offen`-Formel: `max(0, soll − ist − nachgefuellt)`, JE ARTIKEL geklemmt.
+ * DIE EINE `offen`-Formel: `max(0, soll − ist − nachgefuellt + inBox)`, JE ARTIKEL
+ * geklemmt. `boxGebucht` (IDA-247) fehlt in jedem aelteren Check und zaehlt dann 0;
+ * es wirkt nur, wenn derselbe Artikel in einem Fach zu viel und in einem anderen zu
+ * wenig hatte.
  *
  * ⚠️ SIE STEHT HIER UND NUR HIER. Vorher rechnete sie zweimal woertlich — einmal
  * je Detailzeile (`_lib/lesepfade/checks.ts`) und einmal in der Summe (unten).
@@ -38,8 +41,10 @@ export function fehlmengen<T extends { soll: number; ist: number }>(
  */
 export function offenJeArtikel(a: {
   sollSumme?: number | null; istSumme?: number | null; nachfuellGebucht?: number | null;
+  boxGebucht?: number | null;
 }): number {
-  return Math.max(0, (a.sollSumme ?? 0) - (a.istSumme ?? 0) - (a.nachfuellGebucht ?? 0));
+  return Math.max(0,
+    (a.sollSumme ?? 0) - (a.istSumme ?? 0) - (a.nachfuellGebucht ?? 0) + (a.boxGebucht ?? 0));
 }
 
 export type CheckSummen = {

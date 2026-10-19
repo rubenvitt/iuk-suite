@@ -55,7 +55,7 @@ export function demoCheckDaten(db: Leser, now: Date = new Date()): DemoCheckDate
   for (const p of vorlage.positionen) handlager.set(p.artikelId, (handlager.get(p.artikelId) ?? 0) + p.soll);
   const soll: CheckPos[] = vorlage.positionen.map((p) => ({
     id: p.id, fachLabel: p.fachLabel, artikelId: p.artikelId, artikelName: p.artikelName,
-    einheit: p.einheit, handlagerFach: p.handlagerFach, soll: p.soll,
+    einheit: p.einheit, handlagerFach: p.handlagerFach, soll: p.soll, sollMax: p.sollMax,
     fahrzeugBestand: 0, handlagerBestand: handlager.get(p.artikelId) ?? 0,
   }));
 

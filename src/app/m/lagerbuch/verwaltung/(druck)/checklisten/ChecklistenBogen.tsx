@@ -42,6 +42,7 @@ import type {
   ChecklisteFach,
 } from "../../../_lib/lesepfade/checkliste";
 import { checklisteTitel, dieseEinheit, ZUSTAENDE } from "../../../_lib/konstanten";
+import { sollText } from "../../../_lib/domain/sollBereich";
 import { Ikone } from "../../../_ui/ikonen";
 
 /** Das gezeichnete Kaestchen. Nie ein Formularelement — es wird mit dem
@@ -98,7 +99,7 @@ function Fach({ fach, blind }: { fach: ChecklisteFach; blind: boolean }) {
               <td className="lb-cl-artikel">{position.artikelName}</td>
               <td className="lb-cl-sLager">{position.handlagerFach || "–"}</td>
               <td className="lb-cl-sSoll">
-                {blind ? position.einheit : `${position.soll} ${position.einheit}`}
+                {blind ? position.einheit : `${sollText(position.soll, position.sollMax)} ${position.einheit}`}
               </td>
               {/* LEER UND GETOENT — hier wird geschrieben. Der Wert steht
                   bewusst nirgends im Markup: die Zaehlung soll die Zahl

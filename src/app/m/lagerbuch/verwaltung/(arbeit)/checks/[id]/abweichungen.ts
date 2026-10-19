@@ -39,12 +39,14 @@ export function abgleichWeichtAb(zeile: AbgleichAnzeigeZeile): boolean {
 }
 
 /**
- * Nachfüllung je Fach: die Fächer mit Lücke — dieselbe Grenze wie der Chip der
- * Spalte („n fehlten"). Ein Überbestand im Fach ist hier keine Nachfüllung; er
- * steht im Abgleich (Gezählt über Soll).
+ * Nachfüllung je Fach: die Fächer mit Lücke und die mit zu viel — dieselben
+ * Grenzen wie der Chip der Spalte („n fehlten", „n zu viel"). Seit IDA-247
+ * schlägt der Check den Überbestand für die Entnahmebox vor; er gehört damit
+ * hierher und nicht mehr nur in den Abgleich. Was innerhalb von „OK bis"
+ * liegt, weicht nicht ab.
  */
 export function nachfuellungWeichtAb(zeile: NachfuellAnzeigeZeile): boolean {
-  return zeile.lueckeZahl > 0;
+  return zeile.lueckeZahl > 0 || zeile.zuVielZahl > 0;
 }
 
 /** Geräte: fehlt, oder der Zustand ist nicht „In Ordnung" (auch „nicht erfasst"). */

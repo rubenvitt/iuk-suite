@@ -13,16 +13,20 @@ import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 import {
   CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
+  ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME,
   MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT,
   dieseEinheit, grossAmAnfang,
 } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { revalidiereBestand } from "../_lib/revalidierung";
-import { umlagerungAusBereich } from "../_lib/schreibpfade/umlagerung";
+import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
-import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
+import { setzeVerfall, verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { o2Status } from "../_lib/domain/o2";
+import { offenJeArtikel } from "../_lib/domain/check";
+import { ueberschuss } from "../_lib/domain/sollBereich";
+import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { plombeDecktAb, plombenNummerNorm } from "../_lib/plombe";
 import type { CheckPlombeRoh } from "../_lib/checkErgebnis";
@@ -36,6 +40,7 @@ import type { CheckPlombeRoh } from "../_lib/checkErgebnis";
  * (nicht pro Position) genau einmal:
  *   1. ABGLEICH   — Fahrzeugbestand des Artikels auf die Summe der gezaehlten Ist.
  *   2. NACHFUELLEN — die Summe der bestaetigten Mengen aus dem Handlager umgelagert.
+ *   3. ENTNAHMEBOX — IDA-247: die bestaetigte Menge ueber „OK bis" in die Kiste.
  */
 
 const CheckSchema = z.object({
@@ -70,6 +75,18 @@ const CheckSchema = z.object({
     // Position auf max(0, Soll − Ist) geklemmt und ueber die Umlagerung an der
     // Handlager-Verfuegbarkeit gekappt.
     nachfuellMenge: z.coerce.number().int().min(0),
+    /*
+     * IDA-247: vom Helfer bestaetigte Menge, die von DIESER Position in die
+     * Entnahmebox gewandert ist. Serverseitig auf den Ueberschuss ueber „OK
+     * bis" geklemmt (`ueberschuss`). Vorgabe 0: eine Nutzlast aus einem
+     * Fenster von vor IDA-247 legt nichts in die Kiste.
+     *
+     * ⚠️ BESTAETIGT, NICHT ABGELEITET. Der Kopf von `_actions/entnahmebox.ts`
+     * verbietet ein automatisches Umleiten der Check-Differenz in die Box — sie
+     * hat zu viele Ursachen (verbraucht, verzaehlt, zu viel drauf). Gebucht
+     * wird hier nur, was jemand in die Hand genommen und bestaetigt hat.
+     */
+    boxMenge: z.coerce.number().int().min(0).default(0),
   })).default([]),
   geraete: z.array(z.object({
     geraetId: z.string().min(1),
@@ -97,6 +114,8 @@ export type CheckAbschlussWert = {
   nachgefuellt: number;
   /** Was der Helfer bestaetigt hat und in der Hand haelt (§7.9.4, NEU). */
   nachfuellBestaetigt: number;
+  /** IDA-247: in die Entnahmebox umgelagert. */
+  inBox: number;
   offen: number;
   geraeteAuffaellig: number;
   flaschenAuffaellig: number;
@@ -235,10 +254,32 @@ export async function checkAbschluss(
      * schriebe eine OIDC-Kennung in die Token-Spalte, und die Zeile ist
      * append-only.
      */
+    /*
+     * IDA-247 — DIE KISTE MUSS AUFNEHMEN, BEVOR IRGENDETWAS GEBUCHT WIRD.
+     * Dieselben Riegel wie in `bucheInEntnahmebox` (Riegel 2), hier als
+     * Rueckgabewert vor der Transaktion: ohne Box laege das Material sonst an
+     * einem Ort, den keine Oberflaeche zeigt. Die Seite bietet die Box nur an,
+     * wenn sie aufnimmt; dieser Zweig faengt die Stilllegung waehrend des
+     * Checks.
+     */
+    if (v.positionen.some((p) => p.boxMenge > 0)) {
+      const box = db.select({ typ: lagerorte.typ, aktiv: lagerorte.aktiv })
+        .from(lagerorte).where(eq(lagerorte.id, ENTNAHMEBOX_ID)).get();
+      if (!box || box.typ !== "lager" || !box.aktiv) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: `Die ${ENTNAHMEBOX_NAME} nimmt gerade nichts auf. Bitte bei „Zu viel an Bord" `
+            + "0 einstellen, das Material liegen lassen und der Verwaltung melden.",
+        };
+      }
+    }
+
     const quelle = journalQuelle(riegel.zugang);
     const checkId = newId();
     let nachgefuellt = 0;              // TATSAECHLICH umgelagert, nach Handlager-Kappung
     let nachfuellBestaetigt = 0;       // was der Helfer bestaetigt hat (§7.9.4, NEU)
+    let inBox = 0;                     // IDA-247: in die Entnahmebox umgelagert
     let offen = 0;
     let geraeteAuffaellig = 0;
     let flaschenAuffaellig = 0;
@@ -259,9 +300,13 @@ export async function checkAbschluss(
       type Gruppe = {
         artikelId: string; positionen: string[];
         sollSumme: number; istSumme: number; nachfuellGewuenscht: number;
+        boxGewuenscht: number;
       };
       const gruppen = new Map<string, Gruppe>();
-      const posErgebnis: { sollPositionId: string; artikelId: string; soll: number; ist: number }[] = [];
+      const posErgebnis: {
+        sollPositionId: string; artikelId: string; soll: number; ist: number;
+        sollMax?: number; box?: number;
+      }[] = [];
 
       for (const p of v.positionen) {
         const row = byId.get(p.sollPositionId);
@@ -270,15 +315,24 @@ export async function checkAbschluss(
         // Nutzlast entsteht aus Daten, die derselbe Server gerade geliefert hat.
         if (!row) throw new Error("Soll-Position gehört nicht zu diesem Fahrzeug");
         const nachfuellWunsch = Math.min(p.nachfuellMenge, Math.max(0, row.soll - p.ist));
+        const boxWunsch = Math.min(p.boxMenge, ueberschuss(p.ist, row.soll, row.sollMax));
         const g = gruppen.get(row.artikelId) ?? {
           artikelId: row.artikelId, positionen: [], sollSumme: 0, istSumme: 0, nachfuellGewuenscht: 0,
+          boxGewuenscht: 0,
         };
         g.positionen.push(row.id);
         g.sollSumme += row.soll;
         g.istSumme += p.ist;
         g.nachfuellGewuenscht += nachfuellWunsch;
+        g.boxGewuenscht += boxWunsch;
         gruppen.set(row.artikelId, g);
-        posErgebnis.push({ sollPositionId: row.id, artikelId: row.artikelId, soll: row.soll, ist: p.ist });
+        // IDA-247: `sollMax` und `box` NUR, wenn gesetzt — ein Check ohne
+        // Bereich und ohne Kiste schreibt dasselbe JSON wie vorher.
+        posErgebnis.push({
+          sollPositionId: row.id, artikelId: row.artikelId, soll: row.soll, ist: p.ist,
+          ...(row.sollMax != null && row.sollMax > row.soll ? { sollMax: row.sollMax } : {}),
+          ...(boxWunsch > 0 ? { box: boxWunsch } : {}),
+        });
       }
 
       // DRK-297, Fixrunde 1 (Befund 3) — EINMAL vor der Gruppenschleife
@@ -368,11 +422,18 @@ export async function checkAbschluss(
           : 0;
         nachgefuellt += nachfuellGebucht;
         nachfuellBestaetigt += g.nachfuellGewuenscht;
-        offen += Math.max(0, g.sollSumme - g.istSumme - nachfuellGebucht);
+        // `boxGewuenscht` statt eines Gebuchten: die Box-Umlagerung unten ist
+        // voll gedeckt (Abgleich auf `istSumme`, jeder Wunsch <= sein Ist) und
+        // wirft sonst — dieselbe Formel wie `offenJeArtikel`.
+        offen += offenJeArtikel({
+          sollSumme: g.sollSumme, istSumme: g.istSumme, nachfuellGebucht,
+          boxGebucht: g.boxGewuenscht,
+        });
         return {
           artikelId: g.artikelId, positionen: g.positionen.length,
           sollSumme: g.sollSumme, istSumme: g.istSumme, recordedVorher, korrektur,
           nachfuellGewuenscht: g.nachfuellGewuenscht, nachfuellGebucht,
+          ...(g.boxGewuenscht > 0 ? { boxGebucht: g.boxGewuenscht } : {}),
         };
       });
 
@@ -452,6 +513,33 @@ export async function checkAbschluss(
         });
       }
 
+      /*
+       * IDA-247 — DER UEBERSCHUSS IN DIE ENTNAHMEBOX. Nach dem Verfall, weil
+       * `verfallFolgtDemMaterial` die GERADE gemeldete Angabe mitnehmen soll.
+       *
+       * ⚠️ DIESELBE BUCHUNG WIE `bucheInEntnahmebox`, NICHT EINE EIGENE:
+       * Referenz `entnahmebox:<Einheit>` und derselbe Kommentar. Die
+       * Einraeumflaeche liest die Herkunft aus genau dieser Referenz
+       * (`_lib/lesepfade/entnahmebox.ts`); eine `check:`-Referenz liesse die
+       * Teile in der Kiste ohne Herkunft liegen.
+       */
+      for (const g of gruppen.values()) {
+        if (g.boxGewuenscht <= 0) continue;
+        const { umgelagert } = umlagerungVonOrt(tx, {
+          artikelId: g.artikelId, menge: g.boxGewuenscht,
+          vonOrt: v.fahrzeugId, nachLagerortId: ENTNAHMEBOX_ID,
+          quelle, kommentar: ENTNAHMEBOX_KOMMENTAR,
+          referenz: `${ENTNAHMEBOX_PRAEFIX}${v.fahrzeugId}`,
+        });
+        // Unerreichbar (s. `offen` oben) — waere es erreichbar, stuende die
+        // Kiste halb gebucht da, und nur ein Zuruecknehmen ist richtig.
+        if (umgelagert < g.boxGewuenscht) throw new Error("Deckung und Buchung sind uneins");
+        verfallFolgtDemMaterial(tx, {
+          vonLagerortId: v.fahrzeugId, nachLagerortId: ENTNAHMEBOX_ID, artikelId: g.artikelId,
+        });
+        inBox += umgelagert;
+      }
+
       // NACH dem Schreiben zaehlen, damit die Rueckmeldung den GANZEN
       // Fahrzeugstand widerspiegelt — nicht nur die in diesem Check angefassten
       // Artikel (1:1 aus check.ts:158-159).
@@ -507,7 +595,7 @@ export async function checkAbschluss(
     return {
       ok: true,
       wert: {
-        checkId, nachgefuellt, nachfuellBestaetigt, offen,
+        checkId, nachgefuellt, nachfuellBestaetigt, inBox, offen,
         geraeteAuffaellig, flaschenAuffaellig, flaschenNichtBewertbar, verfallAuffaellig,
         plombenOffen, plombenGesetzt,
       },

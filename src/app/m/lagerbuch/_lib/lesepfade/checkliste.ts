@@ -54,6 +54,8 @@ export type ChecklistePosition = {
   /** Fach im HANDLAGER — wo das Nachfuellgut liegt, nicht wo es hingehoert. */
   handlagerFach: string;
   soll: number;
+  /** IDA-247: „OK bis", `null` = kein Bereich. Das Blatt druckt „2–4". */
+  sollMax: number | null;
 };
 
 export type ChecklisteFach = {
@@ -163,6 +165,7 @@ export function checklisteFuerFahrzeug(
       einheit: position.einheit,
       handlagerFach: position.handlagerFach,
       soll: position.soll,
+      sollMax: position.sollMax,
     }));
 
   const vorlage = fahrzeug.templateId

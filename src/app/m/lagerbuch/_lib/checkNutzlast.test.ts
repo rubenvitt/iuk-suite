@@ -27,9 +27,9 @@ describe("checkNutzlast — die vier Vorbelegungen (§5.8.1)", () => {
      */
     const n = checkNutzlast({ ...BASIS, z: LEER });
     expect(n.positionen).toEqual([
-      { sollPositionId: "sp1", ist: 0, nachfuellMenge: 0 },
-      { sollPositionId: "sp2", ist: 0, nachfuellMenge: 0 },
-      { sollPositionId: "sp3", ist: 0, nachfuellMenge: 0 },
+      { sollPositionId: "sp1", ist: 0, nachfuellMenge: 0, boxMenge: 0 },
+      { sollPositionId: "sp2", ist: 0, nachfuellMenge: 0, boxMenge: 0 },
+      { sollPositionId: "sp3", ist: 0, nachfuellMenge: 0, boxMenge: 0 },
     ]);
   });
 
@@ -39,8 +39,8 @@ describe("checkNutzlast — die vier Vorbelegungen (§5.8.1)", () => {
     // den Fehler UNSICHTBAR machte. Deshalb prueft die Zeile unten einen Wert,
     // den `||` verfaelschen WUERDE: `sp1` auf 3 gezaehlt, Soll 4.
     const n = checkNutzlast({ ...BASIS, z: { ...LEER, ist: { sp1: 0, sp2: 3 } } });
-    expect(n.positionen[0]).toEqual({ sollPositionId: "sp1", ist: 0, nachfuellMenge: 0 });
-    expect(n.positionen[1]).toEqual({ sollPositionId: "sp2", ist: 3, nachfuellMenge: 0 });
+    expect(n.positionen[0]).toEqual({ sollPositionId: "sp1", ist: 0, nachfuellMenge: 0, boxMenge: 0 });
+    expect(n.positionen[1]).toEqual({ sollPositionId: "sp2", ist: 3, nachfuellMenge: 0, boxMenge: 0 });
   });
 
   it("es werden ALLE Positionen gesendet, auch unveraenderte", () => {
@@ -149,7 +149,7 @@ describe("checkNutzlast — nachfuellMenge wird hier NICHT geklemmt", () => {
      * serverseitige noch da ist.
      */
     const n = checkNutzlast({ ...BASIS, z: { ...LEER, ist: { sp1: 4 }, nachfuell: { sp1: 99 } } });
-    expect(n.positionen[0]).toEqual({ sollPositionId: "sp1", ist: 4, nachfuellMenge: 99 });
+    expect(n.positionen[0]).toEqual({ sollPositionId: "sp1", ist: 4, nachfuellMenge: 99, boxMenge: 0 });
   });
 });
 

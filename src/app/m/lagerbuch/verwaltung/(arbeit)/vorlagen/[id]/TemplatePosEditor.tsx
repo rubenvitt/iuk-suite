@@ -23,6 +23,7 @@ import {
   OFFEN_BIS_POSITIONEN,
 } from "../../../../_lib/positionen";
 import { SCHRIFT } from "../../../../_lib/schrift";
+import { sollText } from "../../../../_lib/domain/sollBereich";
 import { Chip } from "../../../../_ui/Chip";
 import {
   FachgruppenListe,
@@ -46,6 +47,7 @@ const ENTFERNEN_FEHLER = "Vorlagenposition konnte nicht entfernt werden.";
 const BREITE = {
   artikelMindestens: 280,
   soll: 120,
+  sollMax: 120,
   immerZaehlen: 120,
   aktion: 80,
 } as const;
@@ -75,6 +77,7 @@ export function TemplatePosEditor({
   const sucheNachlauf = useEntprellt(suche);
   const [neuOffen, setNeuOffen] = useState(false);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
+  const [spiegelMax, setSpiegelMax] = useState<Record<string, number | null>>({});
   const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
@@ -140,16 +143,35 @@ export function TemplatePosEditor({
     }
   }
 
+  const maxWert = (position: TemplatePositionZeile): number | null =>
+    position.id in spiegelMax ? spiegelMax[position.id] : position.sollMax;
+
   function sollGeaendert(position: TemplatePositionZeile, wert: number | null): void {
     if (wert === null) return;
     setSpiegel((vorher) => ({ ...vorher, [position.id]: wert }));
+    zeileSpeichern(position, wert, maxWert(position));
+  }
+
+  /** IDA-247: „OK bis". Ein leeres Feld heisst „kein Bereich" und speichert `null`. */
+  function maxGeaendert(position: TemplatePositionZeile, wert: number | null): void {
+    setSpiegelMax((vorher) => ({ ...vorher, [position.id]: wert }));
+    zeileSpeichern(position, spiegel[position.id] ?? position.soll, wert);
+  }
+
+  /** Ein Schreibvorgang je Zeile fuer beide Werte — Begruendung am Soll der Einheit. */
+  function zeileSpeichern(
+    position: TemplatePositionZeile,
+    soll: number,
+    sollMax: number | null,
+  ): void {
     timerLoeschen(position.id);
     const payload = {
       id: position.id,
       templateId,
       fachLabel: position.fachLabel,
       artikelId: position.artikelId,
-      soll: wert,
+      soll,
+      sollMax,
       sort: position.sort,
     };
     const sofort = () => {
@@ -248,7 +270,8 @@ export function TemplatePosEditor({
       width: BREITE.soll,
       render: (wert: number, position) => (
         <span data-rolle="soll" style={{ whiteSpace: "nowrap" }}>
-          {spiegel[position.id] ?? wert} <span style={SCHRIFT.neben}>{position.einheit}</span>
+          {sollText(spiegel[position.id] ?? wert, maxWert(position))}{" "}
+          <span style={SCHRIFT.neben}>{position.einheit}</span>
         </span>
       ),
     },
@@ -275,6 +298,27 @@ export function TemplatePosEditor({
           onChange={(neu) => sollGeaendert(position, neu)}
           onBlur={() => timerVorziehen(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
+          style={{ width: "100%" }}
+        />
+      ),
+    },
+    {
+      // IDA-247: optional, dieselbe Bedeutung wie am Soll der Einheit.
+      title: "OK bis",
+      dataIndex: "sollMax",
+      key: "sollMax",
+      align: "right",
+      width: BREITE.sollMax,
+      render: (_wert: number | null, position) => (
+        <InputNumber
+          min={(spiegel[position.id] ?? position.soll) + 1}
+          max={9999}
+          precision={0}
+          value={maxWert(position)}
+          placeholder="–"
+          onChange={(neu) => maxGeaendert(position, neu)}
+          onBlur={() => timerVorziehen(position.id)}
+          aria-label={`OK bis für ${position.artikelName}`}
           style={{ width: "100%" }}
         />
       ),
@@ -330,7 +374,7 @@ export function TemplatePosEditor({
 
   const spalten = bearbeiten ? schreiben : lesen;
   const breite = BREITE.artikelMindestens + (bearbeiten
-    ? BREITE.soll + BREITE.immerZaehlen + BREITE.aktion
+    ? BREITE.soll + BREITE.sollMax + BREITE.immerZaehlen + BREITE.aktion
     : BREITE.soll);
 
   return (

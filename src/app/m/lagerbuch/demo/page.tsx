@@ -6,6 +6,7 @@ import { demoCheckDaten } from "../_lib/lesepfade/demo";
 import { DEMO_PFAD } from "../_lib/demoCheck";
 import { verfallSchwellen } from "../_lib/domain/verfall";
 import { einWert } from "../_lib/suchparameter";
+import { ENTNAHMEBOX_NAME } from "../_lib/konstanten";
 import { CheckArtWahl } from "../_ui/CheckArtWahl";
 import { CheckFlow } from "../_ui/CheckFlow";
 import s from "../_ui/helfer.module.css";
@@ -62,6 +63,9 @@ export default async function DemoSeite({
             andereEinheitErreichbar={false}
             kontoZugang={false}
             letzterCheckText={null}
+            // IDA-247: die Demo zeigt den Vorschlag fuer die Kiste mit — gebucht
+            // wird ohnehin nichts.
+            entnahmebox={{ name: ENTNAHMEBOX_NAME }}
           />
         ) : (
           <CheckArtWahl

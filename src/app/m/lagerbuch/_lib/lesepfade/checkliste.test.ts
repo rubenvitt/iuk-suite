@@ -92,7 +92,7 @@ afterEach(() => t.schliessen());
 describe("nachFaechern — Gruppierung ohne Umsortierung", () => {
   const pos = (fachLabel: string, artikelName: string) => ({
     fachLabel, artikelId: artikelName, artikelName, einheit: "Stk.",
-    handlagerFach: "A", soll: 1,
+    handlagerFach: "A", soll: 1, sollMax: null,
   });
 
   it("behaelt die Reihenfolge der Eingabe — Faecher UND Positionen", () => {
@@ -163,7 +163,7 @@ describe("checklisteFuerFahrzeug", () => {
     const blatt = checklisteFuerFahrzeug(t.db, "fz-a", NOW)!;
     for (const position of blatt.faecher.flatMap((f) => f.positionen)) {
       expect(Object.keys(position).sort()).toEqual(
-        ["artikelId", "artikelName", "einheit", "handlagerFach", "soll"],
+        ["artikelId", "artikelName", "einheit", "handlagerFach", "soll", "sollMax"],
       );
     }
   });

@@ -28,6 +28,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
     handlagerFach: position.handlagerFach,
     soll: position.soll,
     immerZaehlen: position.immerZaehlen,
+    sollMax: position.sollMax,
   }));
   const auswaehlbareArtikel = artikelListe(db).map((eintrag) => ({
     id: eintrag.id,

@@ -8,6 +8,7 @@ import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId, sollPositionen } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { EINHEITENARTEN } from "../_lib/konstanten";
+import { sollMaxNorm } from "../_lib/domain/sollBereich";
 import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
 import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
@@ -235,6 +236,12 @@ const SollSchema = z.object({
   sort: z.coerce.number().int().default(0),
   /** IDA-223. Fehlt er, bleibt der gespeicherte Wert — das Soll-Feld sendet ihn nicht. */
   immerZaehlen: z.boolean().optional(),
+  /**
+   * IDA-247: „OK bis". Fehlt er, bleibt der gespeicherte Wert; `null` loescht
+   * den Bereich. Gespeichert wird immer `sollMaxNorm` — auch beim Fehlen, weil
+   * ein hochgezogenes Soll einen alten Bereich ueberholen kann.
+   */
+  sollMax: z.number().int().positive().max(9999).nullable().optional(),
 });
 
 /**
@@ -281,6 +288,7 @@ export async function sollPositionSetzen(
             ueberschrieben,
             entfernt: false,
             ...(v.immerZaehlen === undefined ? {} : { immerZaehlen: v.immerZaehlen }),
+            sollMax: sollMaxNorm(v.soll, v.sollMax === undefined ? row.sollMax : v.sollMax),
           })
           .where(eq(sollPositionen.id, v.id))
           .run();
@@ -293,6 +301,7 @@ export async function sollPositionSetzen(
           soll: v.soll,
           sort: v.sort,
           immerZaehlen: v.immerZaehlen ?? false,
+          sollMax: sollMaxNorm(v.soll, v.sollMax),
         }).run();
       }
     } catch {

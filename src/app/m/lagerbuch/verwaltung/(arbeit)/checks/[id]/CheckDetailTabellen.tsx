@@ -65,6 +65,8 @@ export type NachfuellAnzeigeZeile = {
   sollZahl: number;
   istZahl: number;
   lueckeZahl: number;
+  /** IDA-243: ueber „OK bis" (ohne Bereich: ueber dem Soll), nie negativ. */
+  zuVielZahl: number;
   lueckeChip: DetailChipAnzeige;
 };
 
@@ -152,9 +154,16 @@ const OFFEN_FILTER = zustandsFilter<AbgleichAnzeigeZeile>([
   { wert: "vollstaendig", text: "vollständig", trifft: (zeile) => zeile.offenZahl === 0 },
 ]);
 
+// IDA-243: drei Zustaende, die zusammen JEDE Zeile treffen — vorher fiel ein
+// Ueberbestand (negative Luecke) unter keinen der beiden Werte.
 const LUECKE_FILTER = zustandsFilter<NachfuellAnzeigeZeile>([
   { wert: "luecke", text: "Lücke", trifft: (zeile) => zeile.lueckeZahl > 0 },
-  { wert: "vollstaendig", text: "vollständig", trifft: (zeile) => zeile.lueckeZahl === 0 },
+  { wert: "zuViel", text: "zu viel", trifft: (zeile) => zeile.zuVielZahl > 0 },
+  {
+    wert: "vollstaendig",
+    text: "vollständig",
+    trifft: (zeile) => zeile.lueckeZahl <= 0 && zeile.zuVielZahl === 0,
+  },
 ]);
 
 const ABGLEICH_SPALTEN: TableProps<AbgleichAnzeigeZeile>["columns"] = [
@@ -244,7 +253,7 @@ const NACHFUELL_SPALTEN: TableProps<NachfuellAnzeigeZeile>["columns"] = [
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: "Lücke im Fach",
+    title: "Stand im Fach",
     dataIndex: "lueckeChip",
     key: "luecke",
     sorter: nachZahl<NachfuellAnzeigeZeile>((zeile) => zeile.lueckeZahl),

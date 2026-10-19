@@ -14,6 +14,8 @@ import { z } from "zod";
 import type { CheckAbschlussWert } from "../_actions/check";
 import type { HelferErgebnis } from "./actionTypen";
 import { zaehleAblaufende } from "./checkNutzlast";
+import { offenJeArtikel } from "./domain/check";
+import { ueberschuss } from "./domain/sollBereich";
 import type { VerfallSchwellen } from "./domain/verfall";
 import { MONAT_REGEX } from "./konstanten";
 
@@ -34,6 +36,7 @@ export const DemoNutzlastSchema = z.object({
     sollPositionId: z.string().min(1).max(64),
     ist: z.number().int().min(0).max(100_000),
     nachfuellMenge: z.number().int().min(0).max(100_000),
+    boxMenge: z.number().int().min(0).max(100_000).default(0),
   })).max(2_000).default([]),
   verfaelle: z.array(z.object({
     artikelId: z.string().min(1).max(64),
@@ -52,34 +55,41 @@ export type DemoNutzlast = z.infer<typeof DemoNutzlastSchema>;
  */
 export function demoErgebnis(
   v: DemoNutzlast,
-  soll: readonly { id: string; artikelId: string; soll: number }[],
+  soll: readonly { id: string; artikelId: string; soll: number; sollMax?: number | null }[],
   schwellen: VerfallSchwellen,
   now: Date,
 ): CheckAbschlussWert | null {
   const byId = new Map(soll.map((p) => [p.id, p]));
   const artikelIds = new Set(soll.map((p) => p.artikelId));
-  const gruppen = new Map<string, { sollSumme: number; istSumme: number; nachfuell: number }>();
+  const gruppen = new Map<string, { sollSumme: number; istSumme: number; nachfuell: number; box: number }>();
   for (const p of v.positionen) {
     const row = byId.get(p.sollPositionId);
     if (!row) return null;
-    const g = gruppen.get(row.artikelId) ?? { sollSumme: 0, istSumme: 0, nachfuell: 0 };
+    const g = gruppen.get(row.artikelId) ?? { sollSumme: 0, istSumme: 0, nachfuell: 0, box: 0 };
     g.sollSumme += row.soll;
     g.istSumme += p.ist;
     g.nachfuell += Math.min(p.nachfuellMenge, Math.max(0, row.soll - p.ist));
+    // IDA-247: dieselbe Klemmung wie im echten Abschluss.
+    g.box += Math.min(p.boxMenge, ueberschuss(p.ist, row.soll, row.sollMax));
     gruppen.set(row.artikelId, g);
   }
   if (v.verfaelle.some((e) => !artikelIds.has(e.artikelId))) return null;
 
   let nachgefuellt = 0;
+  let inBox = 0;
   let offen = 0;
   for (const g of gruppen.values()) {
     nachgefuellt += g.nachfuell;
-    offen += Math.max(0, g.sollSumme - g.istSumme - g.nachfuell);
+    inBox += g.box;
+    offen += offenJeArtikel({
+      sollSumme: g.sollSumme, istSumme: g.istSumme, nachfuellGebucht: g.nachfuell, boxGebucht: g.box,
+    });
   }
   return {
     checkId: DEMO_FAHRZEUG_ID,
     nachgefuellt,
     nachfuellBestaetigt: nachgefuellt,
+    inBox,
     offen,
     geraeteAuffaellig: 0,
     flaschenAuffaellig: 0,

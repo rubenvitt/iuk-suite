@@ -141,6 +141,13 @@
       "when": 1789596000000,
       "tag": "0019_immer_zaehlen",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1789599600000,
+      "tag": "0020_soll_bereich",
+      "breakpoints": true
     }
   ]
 }

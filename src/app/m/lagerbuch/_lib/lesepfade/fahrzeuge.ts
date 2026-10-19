@@ -25,6 +25,7 @@ import { eq } from "drizzle-orm";
 import { artikel, checks, fahrzeugTemplates, lagerorte, sollPositionen,
          templatePositionen } from "../../_db/schema";
 import type { Einheitenart } from "../konstanten";
+import { sollMaxNorm } from "../domain/sollBereich";
 import { bestandJeArtikelUndLagerort, type Leser } from "./bestand";
 import { handlagerOrte } from "./orte";
 import { lagerortVerfallListe } from "./verfall";
@@ -223,6 +224,8 @@ export type SollZeile = {
   entfernt: boolean;
   /** IDA-223: kommt in jeden Kurzcheck. */
   immerZaehlen: boolean;
+  /** IDA-247: „OK bis", `null` = kein Bereich (`_lib/domain/sollBereich.ts`). */
+  sollMax: number | null;
 };
 
 export function sollFuerFahrzeug(db: Leser, fahrzeugId: string): SollZeile[] {
@@ -267,6 +270,7 @@ export function sollFuerFahrzeug(db: Leser, fahrzeugId: string): SollZeile[] {
         fahrzeugBestand: imFahrzeug?.get(p.artikelId) ?? 0,
         handlagerBestand: handlagerBestandJeArtikel.get(p.artikelId) ?? 0,
         herkunft, entfernt: p.entfernt, immerZaehlen: p.immerZaehlen,
+        sollMax: sollMaxNorm(p.soll, p.sollMax),
       };
     })
     .sort((x, y) => x.fachLabel.localeCompare(y.fachLabel) || x.sort - y.sort);
@@ -299,6 +303,8 @@ export type TemplatePositionZeile = {
   einheit: string; handlagerFach: string; soll: number;
   /** IDA-223: kommt in jeden Kurzcheck der verknuepften Einheiten. */
   immerZaehlen: boolean;
+  /** IDA-247: „OK bis", `null` = kein Bereich. */
+  sollMax: number | null;
 };
 
 export type TemplateDetail = {
@@ -331,6 +337,7 @@ export function templateDetail(db: Leser, id: string): TemplateDetail | null {
         id: p.id, fachLabel: p.fachLabel, sort: p.sort, artikelId: p.artikelId,
         artikelName: a?.name ?? "–", einheit: a?.einheit ?? "",
         handlagerFach: a?.fach ?? "", soll: p.soll, immerZaehlen: p.immerZaehlen,
+        sollMax: sollMaxNorm(p.soll, p.sollMax),
       };
     })
     .sort((x, y) => x.fachLabel.localeCompare(y.fachLabel) || x.sort - y.sort);

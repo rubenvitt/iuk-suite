@@ -147,6 +147,8 @@ export const templatePositionen = sqliteTable(
     soll: integer("soll").notNull(),
     // IDA-223: der Sync traegt ihn wie `soll` in die Fahrzeugzeilen.
     immerZaehlen: integer("immer_zaehlen", { mode: "boolean" }).notNull().default(false),
+    // IDA-247: „OK bis" — wie `soll` im Sync. Regel an `sollPositionen.sollMax`.
+    sollMax: integer("soll_max"),
   },
   (t) => [index("idx_template_pos_template").on(t.templateId)],
 );
@@ -220,6 +222,10 @@ export const sollPositionen = sqliteTable(
     // (`_lib/domain/stichprobe.ts`). Eine stehende Plombe ueber dem Fach
     // bezeugt die Position trotzdem.
     immerZaehlen: integer("immer_zaehlen", { mode: "boolean" }).notNull().default(false),
+    // IDA-247: „OK bis". `null` = kein Bereich, das Soll ist die Obergrenze.
+    // Nachgefuellt wird weiter auf `soll`; erst ueber `sollMax` schlaegt der
+    // Check die Entnahmebox vor (`_lib/domain/sollBereich.ts`).
+    sollMax: integer("soll_max"),
   },
   (t) => [index("idx_soll_fahrzeug").on(t.fahrzeugId)],
 );

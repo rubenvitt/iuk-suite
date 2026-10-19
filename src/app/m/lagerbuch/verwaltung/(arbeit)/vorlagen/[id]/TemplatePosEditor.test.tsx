@@ -39,6 +39,7 @@ const POSITIONEN: TemplatePositionZeile[] = [
     handlagerFach: "C2",
     soll: 3,
     immerZaehlen: false,
+    sollMax: null,
   },
   {
     id: "pos-b",
@@ -50,6 +51,7 @@ const POSITIONEN: TemplatePositionZeile[] = [
     handlagerFach: "C3",
     soll: 2,
     immerZaehlen: true,
+    sollMax: null,
   },
 ];
 
@@ -179,9 +181,9 @@ describe("TemplatePosEditor — Fachgruppen und Lesemodus (IDA-239)", () => {
     await bearbeiten();
 
     expect(Array.from(queryAll("table")[0]!.querySelectorAll("thead th"))
-      .map((th) => th.textContent)).toEqual(["Artikel", "Soll", "Immer zählen", "Aktion"]);
-    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5).
-    expect(queryAll("tbody .ant-input-number")).toHaveLength(2);
+      .map((th) => th.textContent)).toEqual(["Artikel", "Soll", "OK bis", "Immer zählen", "Aktion"]);
+    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) — je Zeile Soll und „OK bis“.
+    expect(queryAll("tbody .ant-input-number")).toHaveLength(4);
     expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
     // Rot ist fachlich belegt (Falle 3) — der Entfernen-Knopf ist neutral.
     expect(queryAll(`${BREIT} .ant-btn-dangerous`)).toHaveLength(0);
@@ -257,6 +259,7 @@ describe("TemplatePosEditor — 400-ms-Auto-Commit", () => {
       fachLabel: "Fach A",
       artikelId: "artikel-mull",
       soll: 5,
+      sollMax: null,
       sort: 1,
     });
   });

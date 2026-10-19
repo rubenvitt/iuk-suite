@@ -34,6 +34,8 @@ export const GERAET_VORBELEGUNG: CheckGeraetAntwort = { vorhanden: true, zustand
 export type CheckZaehlung = {
   ist: Record<string, number | undefined>;
   nachfuell: Record<string, number | undefined>;
+  /** IDA-247: bestaetigte Menge je Position in die Entnahmebox. Fehlt = 0. */
+  box?: Record<string, number | undefined>;
   geraete: Record<string, CheckGeraetAntwort | undefined>;
   druck: Record<string, number | undefined>;
   /** ⚠️ NUR die GEAENDERTEN. Ein fehlender Eintrag laesst die Angabe
@@ -43,7 +45,7 @@ export type CheckZaehlung = {
 
 export type CheckNutzlast = {
   fahrzeugId: string;
-  positionen: { sollPositionId: string; ist: number; nachfuellMenge: number }[];
+  positionen: { sollPositionId: string; ist: number; nachfuellMenge: number; boxMenge: number }[];
   geraete: { geraetId: string; vorhanden: boolean; zustand: Zustand; bemerkung?: string }[];
   flaschen: { flascheId: string; druckBar: number }[];
   verfaelle: { artikelId: string; verfall: string | null }[];
@@ -91,6 +93,9 @@ export function checkNutzlast(args: {
       sollPositionId: p.id,
       ist: z.ist[p.id] ?? 0,
       nachfuellMenge: z.nachfuell[p.id] ?? 0,
+      // Ungeklemmt wie `nachfuellMenge` — die Klemmung auf den Ueberschuss
+      // ist serverseitig (`check.ts`) und bleibt es.
+      boxMenge: z.box?.[p.id] ?? 0,
     })),
     geraete: geraete.map((g) => {
       const a = z.geraete[g.id] ?? GERAET_VORBELEGUNG;

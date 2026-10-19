@@ -18,7 +18,7 @@ const FZ = { id: "fz-1", name: "KTW 1", kennung: null, einheitenart: "fahrzeug" 
 const WARN = { rotTage: 31, gelbTage: 56 };
 const POS = (id: string, artikelId: string, fachLabel: string): CheckPos => ({
   id, fachLabel, artikelId, artikelName: `Artikel ${artikelId}`, einheit: "Stk",
-  handlagerFach: "A", soll: 2, fahrzeugBestand: 2, handlagerBestand: 10,
+  handlagerFach: "A", soll: 2, sollMax: null, fahrzeugBestand: 2, handlagerBestand: 10,
 });
 const SOLL = [
   POS("sp-a", "a", "Fach 1"),
@@ -43,6 +43,7 @@ afterEach(async () => { await unmount(); });
 const kurz = (plomben: CheckPlombe[] = [KOFFER, NIE]) => mount(
   <CheckFlow
     kontoZugang={false}
+    entnahmebox={null}
     art="kurz"
     fahrzeug={FZ}
     soll={SOLL}
@@ -129,6 +130,7 @@ describe("Kurzcheck — ein Artikel wird ganz gezaehlt", () => {
     await mount(
       <CheckFlow
         kontoZugang={false}
+        entnahmebox={null}
         art="kurz"
         fahrzeug={FZ}
         soll={[POS("sp-a", "a", "Fach 1"), POS("sp-a2", "a", "Fach 2"), POS("sp-b", "b", "Fach 1")]}
@@ -152,6 +154,7 @@ describe("Vollcheck — Plomben am Ende setzen", () => {
     await mount(
       <CheckFlow
         kontoZugang={false}
+        entnahmebox={null}
         art="voll"
         fahrzeug={FZ}
         soll={[POS("sp-a", "a", "Fach 1")]}

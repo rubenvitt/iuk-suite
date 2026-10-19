@@ -61,6 +61,7 @@ const POSITIONEN: SollZeile[] = [
     herkunft: "manuell",
     entfernt: false,
     immerZaehlen: false,
+    sollMax: null,
   },
   {
     id: "p-a2",
@@ -76,6 +77,7 @@ const POSITIONEN: SollZeile[] = [
     herkunft: "vorlage",
     entfernt: true,
     immerZaehlen: false,
+    sollMax: null,
   },
   {
     id: "p-c1",
@@ -91,6 +93,7 @@ const POSITIONEN: SollZeile[] = [
     herkunft: "ueberschrieben",
     entfernt: false,
     immerZaehlen: false,
+    sollMax: null,
   },
   {
     id: "p-a1",
@@ -106,6 +109,7 @@ const POSITIONEN: SollZeile[] = [
     herkunft: "vorlage",
     entfernt: false,
     immerZaehlen: false,
+    sollMax: null,
   },
 ];
 
@@ -262,10 +266,11 @@ describe("SollEditor — Fachgruppen (IDA-232)", () => {
     await bearbeiten();
 
     expect(Array.from(queryAll("table")[0]!.querySelectorAll("thead th")).map((th) => th.textContent))
-      .toEqual(["Artikel", "Ist", "Soll", "Immer zählen", "Herkunft", "Aktion"]);
-    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- die vier Soll-Felder
-    // tragen die volle 44px-Bedienhoehe, keine `-sm`-Modifikatorklasse.
-    expect(queryAll("tbody .ant-input-number")).toHaveLength(4);
+      .toEqual(["Artikel", "Ist", "Soll", "OK bis", "Immer zählen", "Herkunft", "Aktion"]);
+    // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- die vier Soll- und
+    // vier „OK bis“-Felder tragen die volle 44px-Bedienhoehe, keine
+    // `-sm`-Modifikatorklasse.
+    expect(queryAll("tbody .ant-input-number")).toHaveLength(8);
     expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
     // Rot ist fachlich belegt (Falle 3) — der Entfernen-Knopf ist neutral.
     expect(queryAll(`${BREIT} .ant-btn-dangerous`)).toHaveLength(0);
@@ -387,8 +392,29 @@ describe("SollEditor — auto-committende Sollmenge", () => {
       fachLabel: "Fach A",
       artikelId: "a-a1",
       soll: 5,
+      sollMax: null,
       sort: 1,
     });
+  });
+
+  it("speichert „OK bis“ entprellt mit dem Soll und zeigt den Bereich im Lesemodus (IDA-247)", async () => {
+    await mountSoll();
+    await bearbeiten();
+
+    await fill("input[aria-label='OK bis für Mullbinde']", "6");
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    await warte();
+
+    expect(mocks.setzen).toHaveBeenCalledTimes(1);
+    expect(mocks.setzen).toHaveBeenCalledWith(expect.objectContaining({
+      id: "p-a1", soll: 3, sollMax: 6,
+    }));
+
+    // Zurueck in den Lesemodus.
+    await clickElement(query<HTMLButtonElement>("button[role='switch']"));
+    await warte();
+    const zeile = Array.from(queryAll("tr")).find((tr) => tr.textContent?.includes("Mullbinde"))!;
+    expect(zeile.querySelector("[data-rolle='soll']")!.textContent).toContain("3–6");
   });
 
   it("ersetzt einen schnellen Entwurf und sendet nur den neuesten Wert", async () => {

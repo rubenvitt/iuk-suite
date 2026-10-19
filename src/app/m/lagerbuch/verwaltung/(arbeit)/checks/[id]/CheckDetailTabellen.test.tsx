@@ -59,6 +59,7 @@ const GEFUELLT: CheckDetailTabellenProps = {
     sollZahl: 55,
     istZahl: 66,
     lueckeZahl: 3,
+    zuVielZahl: 0,
     lueckeChip: { text: "3 fehlten", ton: "rot", zeichen: "warnung" },
   }],
   geraeteZeilen: [{
@@ -151,7 +152,7 @@ describe("CheckDetailTabellen", () => {
       Array.from(tabelle.querySelectorAll("thead th"), (spalte) => spalte.textContent)))
       .toEqual([
         ["Artikel", "Soll", "Gezählt", "Korrigiert", "Nachgefüllt", "Offen"],
-        ["Fach", "Artikel", "Soll", "Gezählt", "Lücke im Fach"],
+        ["Fach", "Artikel", "Soll", "Gezählt", "Stand im Fach"],
         ["Gerät", "Vorhanden", "Zustand", "Bemerkung"],
         ["Flasche", "Druck", "Füllstand"],
         ["Artikel", "Verfall", "Status"],
