@@ -53,6 +53,8 @@ import * as einsatzbuchSchema from "@/app/m/einsatzbuch/_db/schema";
 import { seedLokalEinsatzbuch } from "@/app/m/einsatzbuch/_lib/seedLokal";
 import * as kommplanSchema from "@/app/m/kommplan/_db/schema";
 import { seedLokalKommplan } from "@/app/m/kommplan/_lib/seedLokal";
+import * as helferSchema from "@/app/m/helfer/_db/schema";
+import { seedLokalHelfer } from "@/app/m/helfer/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -70,6 +72,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "uav", lauf: () => seedLokalUav(getModuleDb("uav", uavSchema)) },
   { key: "einsatzbuch", lauf: () => seedLokalEinsatzbuch(getModuleDb("einsatzbuch", einsatzbuchSchema)) },
   { key: "kommplan", lauf: () => seedLokalKommplan(getModuleDb("kommplan", kommplanSchema)) },
+  { key: "helfer", lauf: () => seedLokalHelfer(getModuleDb("helfer", helferSchema)) },
 ];
 
 /**
