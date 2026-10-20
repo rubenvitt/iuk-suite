@@ -85,10 +85,10 @@ test("ohne Zugangsgruppe kein Zugang — auch nicht als Suite-Admin", async ({ p
 });
 
 test("das Einsatzbuch zeigt Demo-Helfer in der Vorschau, übernimmt sie aber nicht", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  // Eine Anmeldung mit beiden Gruppen: die Sitzung gilt über die gemeinsame Cookie-Domain auf beiden Hosts.
+  await devLogin(page, { host: HOST, groups: `${ADMIN},einsatzbuch-verwaltung`, callbackPath: "/" });
   await demoAbgleichen(page);
   const eb = "einsatzbuch.localtest.me";
-  await devLogin(page, { host: eb, groups: "einsatzbuch-verwaltung", callbackPath: "/stammdaten?reiter=personal" });
   await page.goto(`http://${eb}:${E2E_PORT}/stammdaten?reiter=personal`);
   await page.waitForLoadState("networkidle");
   await klickeWennRuhig(page.getByRole("button", { name: "Aus Helferverzeichnis abgleichen" }));
