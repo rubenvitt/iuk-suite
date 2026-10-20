@@ -6,7 +6,9 @@ import {
   lagerorte, artikel, chargen, buchungen, sollPositionen, geraete,
   o2Flaschen, o2Messungen, checks, lagerortVerfall,
 } from "../_db/schema";
-import { CHECK_ABGLEICH, HANDLAGER_ID } from "../_lib/konstanten";
+import {
+  CHECK_ABGLEICH, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, HANDLAGER_ID,
+} from "../_lib/konstanten";
 import { bereichText, RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
@@ -985,5 +987,86 @@ describe("DRK-406 — der Ortscode des Handlagers darf nicht checken", () => {
     expect((r as { text: string }).text).not.toContain("gesperrt");
     // §11.7 — der abgelehnte Weg nennt den Weg, der bleibt.
     expect((r as { text: string }).text).toContain("Fahrzeug");
+  });
+});
+
+describe("IDA-247 — der Überschuss über „OK bis“ wandert in die Entnahmebox", () => {
+  const bestandAn = (ort: string) => t.db.select().from(buchungen).all()
+    .filter((b) => b.lagerortId === ort && b.artikelId === "art-1")
+    .reduce((summe, b) => summe + b.menge, 0);
+
+  it("bucht die bestätigte Menge vom Fahrzeug in die Kiste, wie „In die Box legen“", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 8, nachfuellMenge: 0, boxMenge: 3 }],
+    }, t.db);
+
+    expect(r.ok && r.wert.inBox).toBe(3);
+    expect(bestandAn("fz-1")).toBe(5);
+    expect(bestandAn(ENTNAHMEBOX_ID)).toBe(3);
+    const boxZeilen = t.db.select().from(buchungen).all()
+      .filter((b) => b.lagerortId === ENTNAHMEBOX_ID);
+    // Dieselbe Referenz wie die Helfer-Abgabe — die Einraeumflaeche liest daraus die Herkunft.
+    expect(boxZeilen.map((b) => [b.referenz, b.kommentar]))
+      .toEqual([["entnahmebox:fz-1", ENTNAHMEBOX_KOMMENTAR]]);
+    const roh = JSON.parse(t.db.select().from(checks).all()[0]!.ergebnis!);
+    expect(roh.artikel[0].boxGebucht).toBe(3);
+    expect(roh.positionen[0].box).toBe(3);
+  });
+
+  it("klemmt auf den Überschuss über „OK bis“ und schreibt den Bereich in den Nachweis", async () => {
+    t.db.update(sollPositionen).set({ sollMax: 6 }).where(eq(sollPositionen.id, "sp-1")).run();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 8, nachfuellMenge: 0, boxMenge: 5 }],
+    }, t.db);
+
+    expect(r.ok && r.wert.inBox).toBe(2);
+    expect(bestandAn("fz-1")).toBe(6);
+    const roh = JSON.parse(t.db.select().from(checks).all()[0]!.ergebnis!);
+    expect(roh.positionen[0]).toMatchObject({ soll: 5, sollMax: 6, ist: 8, box: 2 });
+  });
+
+  it("legt ohne `boxMenge` nichts in die Kiste — die Nutzlast von vor IDA-247", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 8, nachfuellMenge: 0 }],
+    }, t.db);
+
+    expect(r.ok && r.wert.inBox).toBe(0);
+    expect(bestandAn("fz-1")).toBe(8);
+    const roh = JSON.parse(t.db.select().from(checks).all()[0]!.ergebnis!);
+    expect(roh.artikel[0]).not.toHaveProperty("boxGebucht");
+    expect(roh.positionen[0]).not.toHaveProperty("box");
+  });
+
+  it("rechnet `offen` je Artikel mit der Kiste — ein Fach zu viel, ein anderes leer", async () => {
+    t.db.insert(sollPositionen).values([
+      { id: "sp-1b", fahrzeugId: "fz-1", fachLabel: "Fach 3", sort: 3, artikelId: "art-1",
+        soll: 4, entfernt: false },
+    ]).run();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [
+        { sollPositionId: "sp-1", ist: 8, nachfuellMenge: 0, boxMenge: 3 },
+        { sollPositionId: "sp-1b", ist: 0, nachfuellMenge: 0 },
+      ],
+    }, t.db);
+
+    // Soll 9, gezaehlt 8, 3 in die Kiste: am Fahrzeug fehlen 4.
+    expect(r.ok && r.wert.offen).toBe(4);
+  });
+
+  it("weist ab und bucht nichts, wenn die Kiste stillgelegt ist", async () => {
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, ENTNAHMEBOX_ID)).run();
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 8, nachfuellMenge: 0, boxMenge: 3 }],
+    }, t.db);
+
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.grund).toBe("eingabe");
+    expect(t.db.select().from(checks).all()).toHaveLength(0);
+    expect(bestandAn("fz-1")).toBe(0);
   });
 });

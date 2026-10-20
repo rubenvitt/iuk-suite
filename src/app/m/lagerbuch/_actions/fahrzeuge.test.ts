@@ -451,6 +451,7 @@ describe("sollPositionSetzen", () => {
       ueberschrieben: false,
       entfernt: false,
       immerZaehlen: false,
+      sollMax: null,
     });
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD, `${FAHRZEUGE_PFAD}/fz-1`]);
   });
@@ -468,6 +469,25 @@ describe("sollPositionSetzen", () => {
     expect(lesen()).toBe(true);
     await sollPositionSetzen({ ...basis, soll: 4, immerZaehlen: false }, t.db);
     expect(lesen()).toBe(false);
+  });
+
+  it("setzt „OK bis“ (IDA-247), laesst es beim Fehlen stehen und raeumt es unter dem Soll ab", async () => {
+    positionAnlegen("sp-manuell", { fachLabel: "F", soll: 2, sort: 0 });
+    const basis = { id: "sp-manuell", fahrzeugId: "fz-1", fachLabel: "F", artikelId: "art-1", sort: 0 };
+    const lesen = () => t.db.select().from(sollPositionen)
+      .where(eq(sollPositionen.id, "sp-manuell")).get()!.sollMax;
+
+    await sollPositionSetzen({ ...basis, soll: 2, sollMax: 4 }, t.db);
+    expect(lesen()).toBe(4);
+    // Der Schalter „Immer zählen“ sendet „OK bis“ nicht mit.
+    await sollPositionSetzen({ ...basis, soll: 3 }, t.db);
+    expect(lesen()).toBe(4);
+    // Ein Soll, das den Bereich ueberholt, laesst keinen Bereich uebrig.
+    await sollPositionSetzen({ ...basis, soll: 4 }, t.db);
+    expect(lesen()).toBeNull();
+    await sollPositionSetzen({ ...basis, soll: 2, sollMax: 5 }, t.db);
+    await sollPositionSetzen({ ...basis, soll: 2, sollMax: null }, t.db);
+    expect(lesen()).toBeNull();
   });
 
   it("aktualisiert eine manuelle Position in derselben Zeile", async () => {
@@ -494,6 +514,7 @@ describe("sollPositionSetzen", () => {
       ueberschrieben: false,
       entfernt: false,
       immerZaehlen: false,
+      sollMax: null,
     }]);
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD, `${FAHRZEUGE_PFAD}/fz-1`]);
   });
@@ -640,6 +661,7 @@ describe("sollPositionEntfernen", () => {
       ueberschrieben: false,
       entfernt: true,
       immerZaehlen: false,
+      sollMax: null,
     });
   });
 

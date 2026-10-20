@@ -264,6 +264,7 @@ describe("Vorlagen-Detailseite als Server Component", () => {
         handlagerFach: "Handlager A1",
         soll: 4,
         immerZaehlen: false,
+        sollMax: null,
       }],
       artikel: [{ id: "a-aktiv", name: "Verbandpäckchen", fach: "Handlager A1" }],
     });

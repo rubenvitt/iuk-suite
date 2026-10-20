@@ -9,6 +9,7 @@ import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
 import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
 import { kurzcheckVorlage, letzteCheckId } from "../../_lib/lesepfade/kurzcheck";
 import { plombenFuerLagerort } from "../../_lib/lesepfade/plomben";
+import { boxOrt } from "../../_lib/lesepfade/entnahmebox";
 import { plombeDecktAb, plombenNummerNorm } from "../../_lib/plombe";
 import { grundText } from "../../_lib/domain/stichprobe";
 import { fmtDatumZeit } from "../../_lib/zeit";
@@ -360,12 +361,13 @@ export default async function CheckSeite({
   const sollZeilen = sollFuerFahrzeug(db, gewaehlt.id).filter((p) => !p.entfernt);
   const soll = sollZeilen.map((p) => ({
     id: p.id, fachLabel: p.fachLabel, artikelId: p.artikelId, artikelName: p.artikelName,
-    einheit: p.einheit, handlagerFach: p.handlagerFach, soll: p.soll,
+    einheit: p.einheit, handlagerFach: p.handlagerFach, soll: p.soll, sollMax: p.sollMax,
     fahrzeugBestand: p.fahrzeugBestand, handlagerBestand: p.handlagerBestand,
   }));
   // IDA-223: nur fuer die Stichprobe hier auf dem Server — der Flow bekommt
   // davon nur den Grund an der gezogenen Position.
   const immerZaehlen = new Set(sollZeilen.filter((p) => p.immerZaehlen).map((p) => p.id));
+  const box = boxOrt(db);
   const geraete = geraeteFuerLagerort(db, gewaehlt.id).map((g) => ({
     id: g.id, typ: g.typ, name: g.name,
   }));
@@ -521,6 +523,9 @@ export default async function CheckSeite({
         flaschen={flaschen}
         verfall={verfall}
         letzterCheckText={letzterCheckText}
+        // IDA-247: nur eine Kiste, die aufnimmt, wird angeboten. Der Abschluss
+        // prueft dasselbe noch einmal, falls sie waehrend des Checks wegfaellt.
+        entnahmebox={box?.aktiv ? { name: box.name } : null}
         // Die Schwellen kommen vom SERVER; die Ampel im Zaehlschritt rechnet
         // der Client damit ueber `verfallStatus`, und das ist seit
         // Entscheidung 26 (b) zonenexplizit — Chip und Abschlusszahl koennen

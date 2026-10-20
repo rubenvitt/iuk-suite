@@ -168,7 +168,7 @@ function gefuellterCheck(): CheckDetail {
     }],
     positionen: [{
       id: "sp1", fachLabel: "Fach 1", artikelId: "a1",
-      artikelName: "Verband", einheit: "Stk.", soll: 2, ist: 1,
+      artikelName: "Verband", einheit: "Stk.", soll: 2, ist: 1, sollMax: null, box: 0,
     }],
     geraete: [{
       geraetId: "g1", name: "Monitor", typ: "medizin",
@@ -218,7 +218,7 @@ describe("Check-Detailseite", () => {
       ],
       [
         "id", "fachText", "artikelText", "einheitText", "sollText", "istText",
-        "sollZahl", "istZahl", "lueckeZahl", "lueckeChip",
+        "sollZahl", "istZahl", "lueckeZahl", "zuVielZahl", "lueckeChip",
       ],
       ["id", "name", "vorhandenChip", "zustandChip", "bemerkungText"],
       ["id", "name", "druck", "druckZahl", "fuellstandChip"],
@@ -298,7 +298,7 @@ describe("Check-Detailseite", () => {
       }],
       positionen: [{
         id: "sp-7", fachLabel: "Fach 7", artikelId: "a1",
-        artikelName: "Verband", einheit: "Stk.", soll: 4, ist: 2,
+        artikelName: "Verband", einheit: "Stk.", soll: 4, ist: 2, sollMax: null, box: 0,
       }],
     };
 
@@ -328,8 +328,32 @@ describe("Check-Detailseite", () => {
       sollZahl: 4,
       istZahl: 2,
       lueckeZahl: 2,
+      zuVielZahl: 0,
       lueckeChip: { ton: "rot", zeichen: "warnung", text: "2 fehlten" },
     }]);
+  });
+
+  it("ordnet Überbestand als eigenen Zustand ein, gegen „OK bis“ gerechnet (IDA-243)", () => {
+    const pos = (id: string, soll: number, ist: number, sollMax: number | null, box = 0) => ({
+      id, fachLabel: "Fach 1", artikelId: id, artikelName: id, einheit: "Stk.",
+      soll, ist, sollMax, box,
+    });
+    const check: CheckDetail = {
+      ...BASIS,
+      positionen: [
+        pos("ohne-bereich", 2, 8, null),
+        pos("im-bereich", 2, 4, 4),
+        pos("ueber-bereich", 2, 7, 4, 3),
+      ],
+    };
+
+    const zeilen = tabellenAus(checkDetailInhalt(check)).nachfuellZeilen;
+
+    expect(zeilen.map((z) => [z.id, z.sollText, z.zuVielZahl, z.lueckeChip.text, z.lueckeChip.ton])).toEqual([
+      ["ohne-bereich", "2", 6, "6 zu viel", "gelb"],
+      ["im-bereich", "2–4", 0, "vollständig", "ok"],
+      ["ueber-bereich", "2–4", 3, "3 zu viel · 3 in Box", "gelb"],
+    ]);
   });
 
   it("unterscheidet nicht erfasste, bekannte und fremde Gerätezustände", () => {

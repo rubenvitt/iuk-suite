@@ -524,7 +524,7 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
     expect(query("[data-rolle='flow']").getAttribute("data-soll-ids")).toBe("sp-1");
   });
 
-  it("reicht vom Soll NUR die neun Anzeigefelder — `sort`, `herkunft`, `entfernt` bleiben", async () => {
+  it("reicht vom Soll NUR die zehn Anzeigefelder — `sort`, `herkunft`, `entfernt` bleiben", async () => {
     /*
      * DIE ZWEITE HAELFTE DES SCHNITTS, und die einzige Sonde dafuer.
      * `SollZeile` ist `CheckPos` PLUS `sort`, `herkunft` und `entfernt`. Weil
@@ -537,7 +537,7 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
     sollFuer.mockReturnValue([POS("sp-1", "a1")]);
     await mount(await CheckSeite(sp({ art: "voll" })));
     expect(query("[data-rolle='flow']").getAttribute("data-soll-felder"))
-      .toBe("artikelId,artikelName,einheit,fachLabel,fahrzeugBestand,handlagerBestand,handlagerFach,id,soll");
+      .toBe("artikelId,artikelName,einheit,fachLabel,fahrzeugBestand,handlagerBestand,handlagerFach,id,soll,sollMax");
   });
 
   it("reicht von den Geraeten NUR id, typ und name", async () => {

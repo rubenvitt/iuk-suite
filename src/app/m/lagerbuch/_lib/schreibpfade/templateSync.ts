@@ -49,7 +49,7 @@ export type SyncErgebnis = {
  * 1. Vorlagen-Position ohne verknuepfte Fahrzeug-Zeile → anlegen.
  * 2. Verknuepfte Zeile mit `ueberschrieben` ODER `entfernt` → unangetastet.
  * 3. Sonst: nur schreiben, wenn sich `fachLabel`, `sort`, `artikelId`,
- *    `soll` oder `immerZaehlen` (IDA-223) unterscheiden — als UPDATE der bestehenden Zeile, nie als
+ *    `soll`, `immerZaehlen` (IDA-223) oder `sollMax` (IDA-247) unterscheiden — als UPDATE der bestehenden Zeile, nie als
  *    Delete+Insert (die Zeilen-Identitaet ist Vertrag, `soll_positionen.id`
  *    steht in historischen `checks.ergebnis`-JSONs).
  * 4. Verwaiste Zeile (ihre Vorlagen-Position wurde geloescht): war sie
@@ -84,6 +84,7 @@ export function syncFahrzeugTemplate(db: DB | Tx, fahrzeugId: string): SyncErgeb
         id: newId(), fahrzeugId, fachLabel: tp.fachLabel, sort: tp.sort,
         artikelId: tp.artikelId, soll: tp.soll, templatePositionId: tp.id,
         ueberschrieben: false, entfernt: false, immerZaehlen: tp.immerZaehlen,
+        sollMax: tp.sollMax,
       }).run();
       erg.hinzugefuegt += 1;
       continue;
@@ -100,11 +101,12 @@ export function syncFahrzeugTemplate(db: DB | Tx, fahrzeugId: string): SyncErgeb
     // machte den `aktualisiert`-Zaehler wertlos, und der IST die Rueckmeldung.
     if (row.fachLabel !== tp.fachLabel || row.sort !== tp.sort ||
         row.artikelId !== tp.artikelId || row.soll !== tp.soll ||
-        row.immerZaehlen !== tp.immerZaehlen) {
+        row.immerZaehlen !== tp.immerZaehlen || row.sollMax !== tp.sollMax) {
       const bisherigerArtikelId = row.artikelId;
       db.update(sollPositionen)
         .set({ fachLabel: tp.fachLabel, sort: tp.sort,
-               artikelId: tp.artikelId, soll: tp.soll, immerZaehlen: tp.immerZaehlen })
+               artikelId: tp.artikelId, soll: tp.soll, immerZaehlen: tp.immerZaehlen,
+               sollMax: tp.sollMax })
         .where(eq(sollPositionen.id, row.id))
         .run();
       if (bisherigerArtikelId !== tp.artikelId) {

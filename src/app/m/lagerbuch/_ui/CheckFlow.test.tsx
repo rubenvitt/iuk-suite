@@ -118,6 +118,7 @@ const POS = (over: Partial<CheckPos> = {}): CheckPos => ({
   einheit: "Stk",
   handlagerFach: "A-01",
   soll: 5,
+  sollMax: null,
   fahrzeugBestand: 5,
   handlagerBestand: 20,
   ...over,
@@ -194,6 +195,7 @@ const WERT_NULL = {
   checkId: "c1",
   nachgefuellt: 0,
   nachfuellBestaetigt: 0,
+  inBox: 0,
   offen: 0,
   geraeteAuffaellig: 0,
   flaschenAuffaellig: 0,
@@ -206,7 +208,8 @@ const WERT_NULL = {
 /** IDA-222: die Faelle hier sind Vollchecks ohne Plomben — wie jeder Check davor. */
 const VOLL: {
   art: "voll"; stichprobe: null; versiegelt: Record<string, string[]>; plomben: CheckPlombe[];
-} = { art: "voll", stichprobe: null, versiegelt: {}, plomben: [] };
+  entnahmebox: { name: string } | null;
+} = { art: "voll", stichprobe: null, versiegelt: {}, plomben: [], entnahmebox: null };
 
 beforeEach(() => {
   abschluss.mockReset();
@@ -1342,7 +1345,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     expect(abschluss).toHaveBeenCalledTimes(1);
     expect(abschluss.mock.calls[0][0]).toStrictEqual({
       fahrzeugId: "fz-1",
-      positionen: [{ sollPositionId: "sp-1", ist: 3, nachfuellMenge: 2 }],
+      positionen: [{ sollPositionId: "sp-1", ist: 3, nachfuellMenge: 2, boxMenge: 0 }],
       geraete: [{ geraetId: "g-1", vorhanden: false, zustand: "In Ordnung" }],
       flaschen: [{ flascheId: "o-1", druckBar: 199 }],
       verfaelle: [],
@@ -2766,5 +2769,75 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
       "Kompresse: Verfall entfernen",
       "Mullbinde: Verfall entfernen",
     ]);
+  });
+});
+
+describe("IDA-247 — zu viel an Bord", () => {
+  const BOX = { name: "Entnahmebox" };
+  const zaehle = async (n: number) => { for (let i = 0; i < n; i++) await plus(0); };
+  const flow = (soll: CheckPos[], entnahmebox: { name: string } | null) => mount(
+    <CheckFlow
+      kontoZugang={false} {...VOLL}
+      entnahmebox={entnahmebox}
+      fahrzeug={FZ}
+      soll={soll}
+      geraete={[]}
+      flaschen={[]}
+      verfall={{}}
+      warn={WARN}
+      andereEinheitErreichbar
+      letzterCheckText={null}
+    />,
+  );
+
+  it("schlägt den Überschuss über „OK bis“ vor und sendet, was wirklich in die Box kam", async () => {
+    await flow([POS({ soll: 2, sollMax: 4 })], BOX);
+    await zaehle(7);
+    await click(WEITER);
+
+    const liste = query("[data-rolle='box-liste']");
+    expect(liste.textContent).toContain("3 zu viel");
+    expect(liste.textContent).toContain("OK bis 4");
+    expect(query("[data-rolle='abschlussleiste']").textContent).toContain("3 in die Box");
+    // Nur zwei der drei landen wirklich in der Kiste.
+    await clickElement(query("[data-rolle='box-liste'] button[aria-label$='verringern']"));
+    await click(ABSCHLIESSEN);
+
+    expect(abschluss.mock.calls[0]![0].positionen).toEqual([
+      { sollPositionId: "sp-1", ist: 7, nachfuellMenge: 0, boxMenge: 2 },
+    ]);
+  });
+
+  it("zeigt nichts, solange der Bestand innerhalb von „OK bis“ liegt", async () => {
+    await flow([POS({ soll: 2, sollMax: 4 })], BOX);
+    await zaehle(4);
+    await click(WEITER);
+
+    expect(queryAll("[data-rolle='box-liste']")).toHaveLength(0);
+  });
+
+  it("nennt den Überschuss ohne aufnehmende Box, ohne etwas zu buchen", async () => {
+    await flow([POS({ soll: 2 })], null);
+    await zaehle(5);
+    await click(WEITER);
+
+    expect(query("[data-rolle='box-liste']").textContent).toContain("3 zu viel");
+    expect(queryAll("[data-rolle='box-liste'] button")).toHaveLength(0);
+    expect(query("[data-rolle='box-hinweis']").textContent).toContain("der Verwaltung melden");
+    await click(ABSCHLIESSEN);
+
+    expect(abschluss.mock.calls[0]![0].positionen).toEqual([
+      { sollPositionId: "sp-1", ist: 5, nachfuellMenge: 0, boxMenge: 0 },
+    ]);
+  });
+
+  it("meldet auf dem Fertig-Schirm, was in die Box gelegt wurde", async () => {
+    abschluss.mockResolvedValue({ ok: true, wert: { ...WERT_NULL, inBox: 3 } });
+    await flow([POS({ soll: 2 })], BOX);
+    await zaehle(5);
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+
+    expect(query("[data-rolle='check-ergebnis']").textContent).toContain("3 in die Entnahmebox gelegt");
   });
 });

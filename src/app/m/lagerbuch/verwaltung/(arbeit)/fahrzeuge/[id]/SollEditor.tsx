@@ -26,6 +26,7 @@ import {
   type FachGruppe,
 } from "../../../../_lib/positionen";
 import { SCHRIFT } from "../../../../_lib/schrift";
+import { sollText } from "../../../../_lib/domain/sollBereich";
 import { Chip } from "../../../../_ui/Chip";
 import {
   FachgruppenListe,
@@ -94,6 +95,7 @@ const BREITE = {
   artikelMindestens: 280,
   ist: 120,
   soll: 120,
+  sollMax: 120,
   immerZaehlen: 120,
   herkunft: 130,
   aktion: 150,
@@ -123,6 +125,7 @@ export function SollEditor({
   const sucheNachlauf = useEntprellt(suche);
   const [neuOffen, setNeuOffen] = useState(false);
   const [spiegel, setSpiegel] = useState<Record<string, number>>({});
+  const [spiegelMax, setSpiegelMax] = useState<Record<string, number | null>>({});
   const [pflicht, setPflicht] = useState<Record<string, boolean>>({});
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
@@ -174,16 +177,36 @@ export function SollEditor({
     }
   }
 
+  const maxWert = (position: SollZeile): number | null =>
+    position.id in spiegelMax ? spiegelMax[position.id] : position.sollMax;
+
   function sollGeaendert(position: SollZeile, wert: number | null): void {
     if (wert === null) return;
     setSpiegel((vorher) => ({ ...vorher, [position.id]: wert }));
+    zeileSpeichern(position, wert, maxWert(position));
+  }
+
+  /** IDA-247: „OK bis". Ein leeres Feld heisst „kein Bereich" und speichert `null`. */
+  function maxGeaendert(position: SollZeile, wert: number | null): void {
+    setSpiegelMax((vorher) => ({ ...vorher, [position.id]: wert }));
+    zeileSpeichern(position, spiegel[position.id] ?? position.soll, wert);
+  }
+
+  /**
+   * Soll und „OK bis" teilen sich EINEN entprellten Schreibvorgang je Zeile.
+   * Der zuletzt geplante traegt beide Werte und verwirft den frueheren — zwei
+   * Timer liefen in beliebiger Reihenfolge ein, und der spaetere schriebe den
+   * anderen Wert aus seinem veralteten Stand zurueck.
+   */
+  function zeileSpeichern(position: SollZeile, soll: number, sollMax: number | null): void {
     clearTimeout(timer.current[position.id]?.id);
     const payload = {
       id: position.id,
       fahrzeugId,
       fachLabel: position.fachLabel,
       artikelId: position.artikelId,
-      soll: wert,
+      soll,
+      sollMax,
       sort: position.sort,
     };
     const sofort = () => {
@@ -372,7 +395,8 @@ export function SollEditor({
           data-rolle="soll"
           style={{ whiteSpace: "nowrap", opacity: position.entfernt ? 0.6 : undefined }}
         >
-          {spiegel[position.id] ?? wert} <span style={SCHRIFT.neben}>{position.einheit}</span>
+          {sollText(spiegel[position.id] ?? wert, maxWert(position))}{" "}
+          <span style={SCHRIFT.neben}>{position.einheit}</span>
         </span>
       ),
     },
@@ -402,6 +426,29 @@ export function SollEditor({
           onChange={(neu) => sollGeaendert(position, neu)}
           onBlur={() => ausstehendenSollCommitAusfuehren(position.id)}
           aria-label={`Soll für ${position.artikelName}`}
+          style={{ width: "100%" }}
+        />
+      ),
+    },
+    {
+      // IDA-247: optional. Leer = kein Bereich, das Soll ist die Obergrenze;
+      // erst darueber schlaegt der Check die Entnahmebox vor.
+      title: "OK bis",
+      dataIndex: "sollMax",
+      key: "sollMax",
+      align: "right",
+      width: BREITE.sollMax,
+      render: (_wert: number | null, position) => (
+        <InputNumber
+          min={(spiegel[position.id] ?? position.soll) + 1}
+          max={9999}
+          precision={0}
+          disabled={position.entfernt}
+          value={maxWert(position)}
+          placeholder="–"
+          onChange={(neu) => maxGeaendert(position, neu)}
+          onBlur={() => ausstehendenSollCommitAusfuehren(position.id)}
+          aria-label={`OK bis für ${position.artikelName}`}
           style={{ width: "100%" }}
         />
       ),
@@ -478,7 +525,8 @@ export function SollEditor({
 
   const spalten = bearbeiten ? schreiben : lesen;
   const breite = BREITE.artikelMindestens + (bearbeiten
-    ? BREITE.ist + BREITE.soll + BREITE.immerZaehlen + BREITE.herkunft + BREITE.aktion
+    ? BREITE.ist + BREITE.soll + BREITE.sollMax + BREITE.immerZaehlen + BREITE.herkunft
+      + BREITE.aktion
     : BREITE.ist + BREITE.soll + BREITE.herkunft);
 
   return (

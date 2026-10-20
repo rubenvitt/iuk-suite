@@ -433,7 +433,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: "tp-rtw-04", templateId: TPL_RTW, fachLabel: "Fach 1 – Verbandmaterial", sort: 40, artikelId: A.dreiecktuch, soll: 6 },
     { id: "tp-rtw-05", templateId: TPL_RTW, fachLabel: "Fach 2 – Infusion", sort: 10, artikelId: A.nacl, soll: 4 },
     { id: "tp-rtw-06", templateId: TPL_RTW, fachLabel: "Fach 2 – Infusion", sort: 20, artikelId: A.ringer, soll: 2 },
-    { id: "tp-rtw-07", templateId: TPL_RTW, fachLabel: "Fach 3 – Hygiene", sort: 10, artikelId: A.handschuh, soll: 4, immerZaehlen: true },
+    { id: "tp-rtw-07", templateId: TPL_RTW, fachLabel: "Fach 3 – Hygiene", sort: 10, artikelId: A.handschuh, soll: 4, immerZaehlen: true, sollMax: 6 },
     { id: "tp-rtw-08", templateId: TPL_RTW, fachLabel: "Fach 3 – Hygiene", sort: 20, artikelId: A.desinfektion, soll: 2 },
     { id: "tp-rtw-09", templateId: TPL_RTW, fachLabel: "Fach 4 – Sauerstoff", sort: 10, artikelId: A.o2maske, soll: 4, immerZaehlen: true },
     { id: "tp-rtw-10", templateId: TPL_RTW, fachLabel: "Fach 5 – Diagnostik", sort: 10, artikelId: A.bzstreifen, soll: 1 },

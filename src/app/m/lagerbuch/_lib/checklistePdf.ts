@@ -32,6 +32,7 @@
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { checklisteTitel, dieseEinheit, einheitMeta, ZUSTAENDE } from "./konstanten";
+import { sollText } from "./domain/sollBereich";
 import type { ChecklisteBlatt, ChecklisteFach } from "./lesepfade/checkliste";
 
 /* ── Masse ────────────────────────────────────────────────────────────────── */
@@ -774,7 +775,9 @@ function bestueckung(lage: Lage, blind: boolean): void {
           // Textlayer des PDF, und genau dort wuerde es beim Suchen wieder
           // sichtbar — „Blindzaehlung" waere dann eine Behauptung statt einer
           // Eigenschaft. Dieselbe Regel wie im HTML-Blatt.
-          laeufe: [{ text: blind ? position.einheit : `${position.soll} ${position.einheit}` }],
+          laeufe: [{
+            text: blind ? position.einheit : `${sollText(position.soll, position.sollMax)} ${position.einheit}`,
+          }],
         },
         { art: "leer" },
         { art: "leer" },

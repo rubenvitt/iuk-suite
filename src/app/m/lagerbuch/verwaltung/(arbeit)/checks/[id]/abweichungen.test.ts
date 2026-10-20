@@ -32,11 +32,13 @@ describe("abweichungen (IDA-236)", () => {
     expect(abgleichWeichtAb({ ...ruhig, offenZahl: 1 })).toBe(true);
   });
 
-  it("zählt bei der Nachfüllung nur die Lücke", () => {
-    const fach = { lueckeZahl: 0 } as Parameters<typeof nachfuellungWeichtAb>[0];
+  it("zählt bei der Nachfüllung die Lücke und das Zuviel, nicht den Bereich (IDA-243)", () => {
+    const fach = { lueckeZahl: 0, zuVielZahl: 0 } as Parameters<typeof nachfuellungWeichtAb>[0];
     expect(nachfuellungWeichtAb(fach)).toBe(false);
     expect(nachfuellungWeichtAb({ ...fach, lueckeZahl: 2 })).toBe(true);
+    // Über dem Soll, aber innerhalb von „OK bis“.
     expect(nachfuellungWeichtAb({ ...fach, lueckeZahl: -1 })).toBe(false);
+    expect(nachfuellungWeichtAb({ ...fach, lueckeZahl: -3, zuVielZahl: 1 })).toBe(true);
   });
 
   it("zählt bei Chips alles außer Grün — auch das ungemessene Grau", () => {

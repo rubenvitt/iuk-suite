@@ -212,6 +212,10 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
 export type CheckPositionDetail = {
   id: string; fachLabel: string; artikelId: string; artikelName: string; einheit: string;
   soll: number; ist: number;
+  /** IDA-247: „OK bis" zum Zeitpunkt des Checks; `null` in jedem aelteren Check. */
+  sollMax: number | null;
+  /** IDA-247: von dieser Position in die Entnahmebox gelegt. */
+  box: number;
 };
 export type CheckArtikelDetail = {
   artikelId: string; artikelName: string; einheit: string;
@@ -367,7 +371,7 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
       id: p.sollPositionId ?? `legacy:${c.id}:${fingerprint}:${vorkommen}`,
       fachLabel: s?.fachLabel ?? "–", artikelId: p.artikelId,
       artikelName: a?.name ?? "(gelöschter Artikel)", einheit: a?.einheit ?? "",
-      soll, ist,
+      soll, ist, sollMax: p.sollMax ?? null, box: p.box ?? 0,
     };
   });
 

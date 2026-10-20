@@ -18,6 +18,7 @@ import {
 } from "../_lib/checkNutzlast";
 import { verfallStatus, type VerfallSchwellen } from "../_lib/domain/verfall";
 import { o2Status } from "../_lib/domain/o2";
+import { obergrenze, ueberschuss } from "../_lib/domain/sollBereich";
 import { chargeText, ampelTon } from "../_lib/format";
 import {
   dieseEinheit, einheitMeta, grossAmAnfang, inDerEinheit, inDieEinheit, ZUSTAENDE,
@@ -63,6 +64,8 @@ export type CheckPos = {
   einheit: string;
   handlagerFach: string;
   soll: number;
+  /** IDA-247: „OK bis", `null` = kein Bereich. Erst darueber ist es zu viel. */
+  sollMax: number | null;
   fahrzeugBestand: number;
   handlagerBestand: number;
 };
@@ -179,6 +182,7 @@ export function CheckFlow({
   andereEinheitErreichbar,
   kontoZugang,
   letzterCheckText,
+  entnahmebox,
   demo = false,
 }: {
   /**
@@ -319,6 +323,16 @@ export function CheckFlow({
    */
   letzterCheckText: string | null;
   /**
+   * IDA-247: die Kiste in der Halle, wenn sie aufnimmt — sonst `null`. Mit Box
+   * schlaegt der Nachfuellschritt den Ueberschuss ueber „OK bis" zum
+   * Hineinlegen vor; ohne nennt er ihn nur.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL — dieselbe Begruendung wie bei
+   * `andereEinheitErreichbar`: ein vergessenes `entnahmebox?` waere still
+   * „keine Box", und der Vorschlag verschwaende ohne Spur.
+   */
+  entnahmebox: { name: string } | null;
+  /**
    * IDA-224 (voruebergehend, Rueckbau IDA-225): der Demo-Check unter `/demo`.
    * Abschluss ueber den Route Handler, der nichts schreibt; „Nochmal" fuehrt
    * zurueck in die Demo. Kopf: `_lib/demoCheck.ts`.
@@ -372,6 +386,8 @@ export function CheckFlow({
   const [phase, setPhase] = useState<Phase>(ablesen.length > 0 ? "plomben" : "zaehlen");
   const [ist, setIst] = useState<Record<string, number>>({});
   const [nachfuell, setNachfuell] = useState<Record<string, number>>({});
+  // IDA-247: was je Position in die Entnahmebox wandert.
+  const [box, setBox] = useState<Record<string, number>>({});
   const [geraeteState, setGeraeteState] = useState<Record<string, CheckGeraetAntwort>>({});
   const [druck, setDruck] = useState<Record<string, number>>({});
   const [verfallState, setVerfallState] = useState<Record<string, string>>({});
@@ -434,6 +450,8 @@ export function CheckFlow({
    */
   const gezaehlt = (p: CheckPos) => ist[p.id] !== undefined;
   const nfWert = (p: CheckPos) => nachfuell[p.id] ?? 0;
+  const boxWert = (p: CheckPos) => box[p.id] ?? 0;
+  const zuViel = (p: CheckPos) => ueberschuss(istWert(p), p.soll, p.sollMax);
 
   // Verfall haengt am ARTIKEL, nicht am Fach. Vorbelegt ist der beim letzten
   // Check gemeldete Wert; leeren heisst „keine Angabe" (`:100-109`).
@@ -490,6 +508,7 @@ export function CheckFlow({
   const zaehlung = (): CheckZaehlung => ({
     ist: Object.fromEntries(soll.map((p) => [p.id, istWert(p)])),
     nachfuell: Object.fromEntries(soll.map((p) => [p.id, nfWert(p)])),
+    box: Object.fromEntries(soll.map((p) => [p.id, boxWert(p)])),
     geraete: Object.fromEntries(geraete.map((g) => [g.id, geraetE(g.id)])),
     druck: Object.fromEntries(flaschen.map((f) => [f.id, druckWert(f)])),
     // NUR die GEAENDERTEN — ein fehlender Eintrag laesst die Angabe
@@ -653,6 +672,9 @@ export function CheckFlow({
                 nie stattgefunden hat. */}
             {hatArtikel && (
               <HelferChip ton="ok">{ergebnis.nachgefuellt} aus Handlager geholt</HelferChip>
+            )}
+            {ergebnis.inBox > 0 && (
+              <HelferChip ton="ok">{ergebnis.inBox} in die Entnahmebox gelegt</HelferChip>
             )}
             {ergebnis.offen > 0 && (
               <HelferChip ton="rot">{ergebnis.offen} fehlt weiterhin</HelferChip>
@@ -1135,6 +1157,12 @@ export function CheckFlow({
         rest.set(p.artikelId, uebrig - nimm);
       }
       setNachfuell(nf);
+      // IDA-247: vorgeschlagen ist der ganze Ueberschuss ueber „OK bis" — wer
+      // weniger in die Kiste legt, stellt es herunter. Ohne aufnehmende Box
+      // wird nichts vorgeschlagen; der Schritt nennt den Ueberschuss dann nur.
+      setBox(entnahmebox
+        ? Object.fromEntries(soll.map((p) => [p.id, zuViel(p)]))
+        : {});
       setFehler(null);
       setPhase("nachfuellen");
     };
@@ -1867,6 +1895,9 @@ export function CheckFlow({
   }
   const nfPositionen = soll.filter((p) => Math.max(0, p.soll - istWert(p)) > 0);
   const summe = soll.reduce((z, p) => z + nfWert(p), 0);
+  // IDA-247: was ueber „OK bis" liegt, und was davon in die Kiste wandert.
+  const zuVielPositionen = soll.filter((p) => zuViel(p) > 0);
+  const boxSumme = soll.reduce((z, p) => z + boxWert(p), 0);
 
   return (
     <>
@@ -1884,8 +1915,11 @@ export function CheckFlow({
 
       {nfPositionen.length === 0 ? (
         <div className={`${s.karte} ${s.kartePad}`}>
-          Nichts nachzufüllen – alle Positionen sind auf Soll. Du kannst{" "}
-          {istLetzter ? "den Check direkt abschließen" : "direkt weiter"}.
+          Nichts nachzufüllen – alle Positionen sind auf Soll.
+          {/* Mit Ueberschuss bleibt darunter noch etwas zu tun. */}
+          {zuVielPositionen.length === 0
+            ? ` Du kannst ${istLetzter ? "den Check direkt abschließen" : "direkt weiter"}.`
+            : null}
         </div>
       ) : (
         <>
@@ -1948,6 +1982,73 @@ export function CheckFlow({
       )}
 
       {/*
+        ZU VIEL AN BORD — IDA-247. Dieselbe Gliederung nach Ziel-Fach wie die
+        Nachfuellung darueber: wer die Teile herausnimmt, steht vor genau
+        diesem Fach. Der Vorschlag ist der ganze Ueberschuss ueber „OK bis";
+        der Stepper sagt, was WIRKLICH in die Kiste gewandert ist — gebucht
+        wird nur das.
+      */}
+      {zuVielPositionen.length > 0 && (
+        <>
+          <div className={`${s.karte} ${s.kartePad}`} data-rolle="box-hinweis">
+            <div className={s.zeileName}>Zu viel an Bord</div>
+            <p className={s.fussnote}>
+              {entnahmebox ? (
+                <>
+                  {grossAmAnfang(inDerEinheit(fahrzeug.einheitenart))} liegt mehr, als hingehört.
+                  Leg es in die <b>{entnahmebox.name}</b> und stell mit <b>+/−</b> ein, wie viel du{" "}
+                  <b>wirklich</b> hineingelegt hast.
+                </>
+              ) : (
+                <>
+                  {grossAmAnfang(inDerEinheit(fahrzeug.einheitenart))} liegt mehr, als hingehört. Die
+                  Entnahmebox nimmt gerade nichts auf – bitte der Verwaltung melden.
+                </>
+              )}
+            </p>
+          </div>
+          <div className={s.fachraster} data-rolle="box-liste">
+            {faecher.filter((f) => zuVielPositionen.some((p) => p.fachLabel === f)).map((fach) => (
+              <div key={fach} data-rolle="box-fach">
+                <div className={s.fachKopf}>{fach}</div>
+                <div className={s.karte}>
+                  {zuVielPositionen.filter((p) => p.fachLabel === fach).map((p) => {
+                    const mehr = zuViel(p);
+                    return (
+                      <div className={s.nfZeile} key={p.id}>
+                        <div className={s.zeileHaupt}>
+                          <div className={s.zeileName}>{p.artikelName}</div>
+                          <div className={s.zeileMeta}>
+                            <span>
+                              {mehr} zu viel · gezählt {istWert(p)} ·{" "}
+                              {p.sollMax === null ? "Soll" : "OK bis"} {obergrenze(p.soll, p.sollMax)}
+                            </span>
+                          </div>
+                        </div>
+                        {entnahmebox && (
+                          <div className={s.nfGeholt}>
+                            <Stepper
+                              noText
+                              wert={boxWert(p)}
+                              min={0}
+                              max={mehr}
+                              beschriftung={`in die Box ${p.artikelName}`}
+                              setWert={(v) => setBox((z) => ({ ...z, [p.id]: v }))}
+                            />
+                            <small>in Box</small>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/*
         ⚠️ Diese Warnung KANN der greedy Vorschlag nicht ausloesen — er deckelt
         selbst an der Verfuegbarkeit (Befund 32). Sie erscheint erst, wenn der
         Helfer von Hand mehr eintraegt, als der Handlager fuer diesen Artikel
@@ -1970,10 +2071,14 @@ export function CheckFlow({
 
       <div className={s.abschluss} data-rolle="abschlussleiste">
         <div className={s.abschlussInfo}>
-          <b>{summe} Teile {inDieEinheit(fahrzeug.einheitenart)}</b>
+          <b>
+            {summe} Teile {inDieEinheit(fahrzeug.einheitenart)}
+            {boxSumme > 0 && entnahmebox ? ` · ${boxSumme} in die Box` : null}
+          </b>
           <div>
             {istLetzter
               ? `Bestätigen bucht Handlager → ${fahrzeug.name}`
+                + (boxSumme > 0 && entnahmebox ? ` und ${fahrzeug.name} → ${entnahmebox.name}` : "")
               : `Weiter zu ${PHASE_LABEL[naechste]}`}
           </div>
         </div>

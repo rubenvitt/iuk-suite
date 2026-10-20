@@ -26,6 +26,10 @@ export type CheckPositionRoh = {
   artikelId: string;
   soll?: number;
   ist?: number;
+  /** IDA-247: „OK bis" zum Zeitpunkt des Checks, nur wenn gesetzt. */
+  sollMax?: number;
+  /** IDA-247: von dieser Position in die Entnahmebox gelegt, nur wenn > 0. */
+  box?: number;
 };
 
 /** V2: die Aggregation JE ARTIKEL — nicht je Position. Der Fahrzeugbestand ist
@@ -40,6 +44,8 @@ export type CheckArtikelRoh = {
   korrektur?: number;
   nachfuellGewuenscht?: number;
   nachfuellGebucht?: number;
+  /** IDA-247: in die Entnahmebox umgelagert, nur wenn > 0. */
+  boxGebucht?: number;
 };
 
 /** V2: die Geraete-Quittierung. ⚠️ `zustand` ist ein FREIER String, weil ein

@@ -2,10 +2,12 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "../_db/client";
 import { requireLagerbuchHost } from "../_lib/host";
-import { demoCheckDaten } from "../_lib/lesepfade/demo";
+import { DEMO_PLOMBE_NUMMER, DEMO_TASCHE, demoCheckDaten } from "../_lib/lesepfade/demo";
+import { plombenNummerNorm } from "../_lib/plombe";
 import { DEMO_PFAD } from "../_lib/demoCheck";
 import { verfallSchwellen } from "../_lib/domain/verfall";
 import { einWert } from "../_lib/suchparameter";
+import { ENTNAHMEBOX_NAME } from "../_lib/konstanten";
 import { CheckArtWahl } from "../_ui/CheckArtWahl";
 import { CheckFlow } from "../_ui/CheckFlow";
 import s from "../_ui/helfer.module.css";
@@ -47,22 +49,53 @@ export default async function DemoSeite({
       </header>
       <main className={s.inhalt}>
         {art === "kurz" || art === "voll" ? (
-          <CheckFlow
-            demo
-            fahrzeug={daten.fahrzeug}
-            art={art}
-            soll={daten.soll}
-            stichprobe={art === "kurz" ? daten.stichprobe : null}
-            versiegelt={{}}
-            plomben={[]}
-            geraete={[]}
-            flaschen={[]}
-            verfall={{}}
-            warn={verfallSchwellen()}
-            andereEinheitErreichbar={false}
-            kontoZugang={false}
-            letzterCheckText={null}
-          />
+          <>
+            {/*
+              IDA-248: Die Plombe haengt im Ernstfall am Behaelter und traegt ihre
+              Nummer. In der Demo gibt es keinen Behaelter — die Nummer steht
+              deshalb hier, und wer sich vertippt, sieht den Weg „Plombe offen".
+            */}
+            <div className={`${s.karte} ${s.kartePad}`} data-rolle="demo-plombe">
+              <p className={s.fussnote} style={{ margin: 0 }}>
+                {art === "kurz" ? (
+                  <>
+                    <b>Für die Demo:</b> Auf der Plombe der {DEMO_TASCHE} steht <b>{DEMO_PLOMBE_NUMMER}</b>.
+                    Tipp eine andere Nummer ein, und du zählst die Tasche mit.
+                  </>
+                ) : (
+                  <>
+                    <b>Für die Demo:</b> Am Ende setzt du eine neue Plombe auf die {DEMO_TASCHE} –
+                    jede Nummer geht.
+                  </>
+                )}
+              </p>
+            </div>
+            <CheckFlow
+              demo
+              fahrzeug={daten.fahrzeug}
+              art={art}
+              soll={daten.soll}
+              stichprobe={art === "kurz" ? daten.stichprobe : null}
+              versiegelt={art === "kurz" ? daten.versiegelt : {}}
+              plomben={[{
+                id: daten.plombe.id,
+                bezeichnung: daten.plombe.bezeichnung,
+                fachLabel: daten.plombe.fachLabel,
+                // Wie `helfer/check/page.tsx`: nur der Kurzcheck vergleicht.
+                erwartet: art === "kurz" ? plombenNummerNorm(daten.plombe.nummer) : null,
+              }]}
+              geraete={daten.geraete}
+              flaschen={daten.flaschen}
+              verfall={daten.verfall}
+              warn={verfallSchwellen()}
+              andereEinheitErreichbar={false}
+              kontoZugang={false}
+              letzterCheckText={daten.letzterCheckText}
+              // IDA-247: die Demo zeigt den Vorschlag fuer die Kiste mit — gebucht
+              // wird ohnehin nichts.
+              entnahmebox={{ name: ENTNAHMEBOX_NAME }}
+            />
+          </>
         ) : (
           <CheckArtWahl
             pfad={DEMO_PFAD}
@@ -70,12 +103,12 @@ export default async function DemoSeite({
             gescannt={undefined}
             kurz={{
               positionen: Object.keys(daten.stichprobe).length,
-              plomben: 0,
+              plomben: 1,
               abgedeckt: 0,
               gesamt: daten.soll.length,
             }}
-            plombenGesamt={0}
-            letzterCheckText={null}
+            plombenGesamt={1}
+            letzterCheckText={daten.letzterCheckText}
           />
         )}
       </main>

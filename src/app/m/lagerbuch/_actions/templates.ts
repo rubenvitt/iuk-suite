@@ -13,6 +13,7 @@ import {
   templatePositionen,
 } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
+import { sollMaxNorm } from "../_lib/domain/sollBereich";
 import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import {
   syncFahrzeugTemplate,
@@ -209,6 +210,8 @@ const TemplatePosSchema = z.object({
   sort: z.coerce.number().int().default(0),
   /** IDA-223. Fehlt er, bleibt der gespeicherte Wert — das Soll-Feld sendet ihn nicht. */
   immerZaehlen: z.boolean().optional(),
+  /** IDA-247: „OK bis" — dieselbe Regel wie in `sollPositionSetzen`. */
+  sollMax: z.number().int().positive().max(9999).nullable().optional(),
 });
 
 export async function templatePositionSetzen(
@@ -233,12 +236,17 @@ export async function templatePositionSetzen(
 
     try {
       if (v.id) {
+        const gespeichert = v.sollMax === undefined
+          ? db.select({ sollMax: templatePositionen.sollMax }).from(templatePositionen)
+              .where(eq(templatePositionen.id, v.id)).get()?.sollMax
+          : v.sollMax;
         db.update(templatePositionen)
-          .set(felder)
+          .set({ ...felder, sollMax: sollMaxNorm(v.soll, gespeichert) })
           .where(eq(templatePositionen.id, v.id))
           .run();
       } else {
-        db.insert(templatePositionen).values({ id, ...felder }).run();
+        db.insert(templatePositionen)
+          .values({ id, ...felder, sollMax: sollMaxNorm(v.soll, v.sollMax) }).run();
       }
     } catch {
       return festerFehler("Vorlagenposition konnte nicht gespeichert werden.");
@@ -486,6 +494,7 @@ export async function templateAusFahrzeug(
             artikelId: row.artikelId,
             soll: row.soll,
             immerZaehlen: row.immerZaehlen,
+            sollMax: row.sollMax,
           }).run();
           if (v.verknuepfen) {
             tx.update(sollPositionen)
