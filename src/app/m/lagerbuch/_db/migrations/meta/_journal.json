@@ -148,6 +148,13 @@
       "when": 1789599600000,
       "tag": "0020_soll_bereich",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1789603200000,
+      "tag": "0021_demo_einstellung_entfernen",
+      "breakpoints": true
     }
   ]
 }

@@ -563,21 +563,6 @@ export const plomben = sqliteTable(
   (t) => [index("idx_plomben_lagerort").on(t.lagerortId)],
 );
 
-/**
- * IDA-224 — der Schalter des Demo-Checks fuer die Kommandositzung am 20.10.2026
- * (Rueckbau: IDA-225). Genau eine Zeile (`id = "check"`).
- *
- * ⚠️ KEIN FREMDSCHLUESSEL auf `fahrzeug_templates`: sonst scheiterte das
- * Loeschen einer Vorlage an diesem Schalter. Eine geloeschte oder inaktive
- * Vorlage heisst beim Lesen „Demo aus" (`_lib/lesepfade/demo.ts`).
- */
-export const demoEinstellung = sqliteTable("demo_einstellung", {
-  id: text("id").primaryKey(),
-  aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(false),
-  templateId: text("template_id"),
-  geaendertAt: integer("geaendert_at", { mode: "timestamp" }).notNull(),
-});
-
 export const tokens = sqliteTable(
   "tokens",
   {
