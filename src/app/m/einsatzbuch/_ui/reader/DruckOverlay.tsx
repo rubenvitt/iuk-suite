@@ -12,6 +12,9 @@ import { Berichtsblatt } from "../../_lib/kern/ansichten/Berichtsblatt";
 import { chipText, type Kettenzustand } from "../../_lib/kern/ansichten/modell";
 import s from "./reader.module.css";
 
+/** Was im Dialog den Fokus nehmen kann; das Berichtsblatt selbst hat heute nichts davon. */
+const FOKUSSIERBAR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export interface DruckOverlayProps {
   block: Block;
   einsatz: Einsatz;
@@ -35,12 +38,26 @@ export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, b
   // Einmal beim Öffnen festgehalten: das Blatt nennt den Zeitpunkt, zu dem es erzeugt wurde.
   const [erzeugt] = useState(() => zeitpunktText(new Date().toISOString(), zeitzone));
   const speichern = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
+  const wurzel = useRef<HTMLDivElement>(null);
 
   // Der Fokus gehört beim Öffnen in den Dialog; zurück setzt ihn der Aufrufer in `onSchliessen`.
   useEffect(() => { speichern.current?.focus(); }, []);
 
+  // Fokusfalle: Tab und Umschalt+Tab laufen im Dialog im Kreis. Die Seite dahinter ist im Druck
+  // ausgeblendet, am Schirm aber noch da — ohne Falle landete der Fokus unsichtbar unter dem Blatt.
   useEffect(() => {
-    const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onSchliessen(); };
+    const taste = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onSchliessen(); return; }
+      if (e.key !== "Tab" || !wurzel.current) return;
+      const ziele = Array.from(wurzel.current.querySelectorAll<HTMLElement>(FOKUSSIERBAR));
+      if (ziele.length === 0) return;
+      const aktiv = document.activeElement;
+      const drin = aktiv !== null && wurzel.current.contains(aktiv);
+      const rand = e.shiftKey ? ziele[0] : ziele[ziele.length - 1];
+      if (drin && aktiv !== rand) return;
+      e.preventDefault();
+      (e.shiftKey ? ziele[ziele.length - 1] : ziele[0]).focus();
+    };
     document.addEventListener("keydown", taste);
     return () => document.removeEventListener("keydown", taste);
   }, [onSchliessen]);
@@ -59,7 +76,7 @@ export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, b
   }
 
   return createPortal(
-    <div className={s.druckOverlay} role="dialog" aria-modal="true" aria-label={`Einsatzbericht · ${einsatz.nummer}`}>
+    <div ref={wurzel} className={s.druckOverlay} role="dialog" aria-modal="true" aria-label={`Einsatzbericht · ${einsatz.nummer}`}>
       <div className={s.steuer} data-druck-steuer="">
         <div className={s.steuerText}>
           <span className={s.steuerTitel}>{`Einsatzbericht · ${einsatz.nummer}`}</span>

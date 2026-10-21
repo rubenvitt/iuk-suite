@@ -110,6 +110,25 @@ describe("Reader", () => {
     expect(exists('input[type="password"]')).toBe(false);
   });
 
+  it("eine Datei neben der Zone öffnet der Browser nicht selbst (keine Navigation weg vom Reader)", async () => {
+    await mount(<Reader bereitschaft="B" />);
+    const ziehe = (ziel: EventTarget, art: "dragover" | "drop", types: string[]) => {
+      const e = new Event(art, { bubbles: true, cancelable: true });
+      const dataTransfer = { types, dropEffect: "copy", files: [] };
+      Object.defineProperty(e, "dataTransfer", { value: dataTransfer });
+      ziel.dispatchEvent(e);
+      return { abgewehrt: e.defaultPrevented, dropEffect: dataTransfer.dropEffect };
+    };
+    expect(ziehe(document.body, "dragover", ["Files"])).toEqual({ abgewehrt: true, dropEffect: "none" });
+    expect(ziehe(document.body, "drop", ["Files"]).abgewehrt).toBe(true);
+    // Auf der Zone bleibt das Ablegen erlaubt.
+    expect(ziehe(query("[data-dropzone]"), "dragover", ["Files"])).toEqual({ abgewehrt: true, dropEffect: "copy" });
+    // Gezogener Text (keine Datei) bleibt unberührt.
+    expect(ziehe(document.body, "dragover", ["text/plain"]).abgewehrt).toBe(false);
+    await unmount();
+    expect(ziehe(document.body, "dragover", ["Files"]).abgewehrt, "nach dem Abbau hängt kein Listener mehr").toBe(false);
+  });
+
   it("zeigt keine Beispieldatei", async () => {
     await mount(<Reader bereitschaft="B" />);
     expect(document.body.textContent).not.toContain("Beispieldatei");
@@ -168,6 +187,20 @@ describe("Reader", () => {
       expect(steuer.textContent).toContain("Im Druckdialog „Als PDF speichern“ wählen.");
       expect(queryPortal("[data-bericht]").textContent).toContain("DRK-Bereitschaft Uelzen");
       expect(queryPortal("[data-bericht]").textContent).toContain("Kette intakt (geprüft im Reader)");
+
+      // Fokusfalle: Tab läuft vom letzten Knopf zum ersten, Umschalt+Tab zurück, und ein Fokus
+      // außerhalb kommt beim nächsten Tab in den Dialog.
+      const tab = (shiftKey = false) => act(async () => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey, bubbles: true, cancelable: true }));
+      });
+      await tab();
+      expect(document.activeElement).toBe(knopf("Schließen", steuer));
+      await tab(true);
+      expect(document.activeElement).toBe(knopf("Als PDF speichern", steuer));
+      (document.activeElement as HTMLElement).blur();
+      await tab();
+      expect(document.activeElement).toBe(knopf("Schließen", steuer));
+      knopf("Als PDF speichern", steuer).focus();
 
       await clickElement(knopf("Als PDF speichern", steuer));
       expect(drucke).toHaveBeenCalledTimes(1);
