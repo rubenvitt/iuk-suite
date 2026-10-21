@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die einundzwanzig Ziele", () => {
-  it("führt genau die 21 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die zweiundzwanzig Ziele", () => {
+  it("führt genau die 22 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -33,6 +33,8 @@ describe("LAGERBUCH_NAV: die einundzwanzig Ziele", () => {
       { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Prüfungen" },
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
       { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
+      // IDA-261: die Verdichtung des Journals, deshalb direkt darunter.
+      { key: "statistik", title: "Statistik", href: "/verwaltung/statistik", ikon: "statistik", abschnitt: "Protokoll" },
       // DRK-312: die QR-Karte je Handlager bzw. Einheit. EIGENES Zeichen —
       // „Artikeletiketten" steht im selben Abschnitt, und zwei gleiche Zeichen
       // waeren dort nicht auseinanderzuhalten (Begruendung an
@@ -77,8 +79,8 @@ describe("LAGERBUCH_NAV: die einundzwanzig Ziele", () => {
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(21);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(21);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(22);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(22);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {

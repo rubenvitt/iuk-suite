@@ -107,6 +107,11 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
 
   { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
+  /* IDA-261 — die Verdichtung des Journals: Verbrauch, Nachschub und Verfall
+   * über Monate. Sie steht UNTER dem Journal, weil sie aus genau denselben
+   * Zeilen gerechnet wird; wer eine Zahl nicht glaubt, findet die Buchungen
+   * einen Eintrag darüber. */
+  { key: "statistik", title: "Statistik", href: "/verwaltung/statistik", ikon: "statistik", abschnitt: "Protokoll" },
 
   /* DRK-312 — die QR-Karte je Handlager bzw. Einheit.
    *

@@ -87,7 +87,11 @@ export type NavIkonName =
   // Personal und Stichworte, `einstellungen` (PiGearSix) die Fristen der Suite; keiner der
   // beiden trägt das physische Gerät, um das es hier geht. Ein geliehener Name gäbe dem
   // nächsten Leser einen falschen Begriff statt eines fehlenden.
-  | "rechner";
+  | "rechner"
+  // IDA-261: die Verbrauchsstatistik des Lagerbuchs. KEIN geliehener Name — `journal`
+  // (history) meint die einzelnen Buchungen, `uebersicht` (apps) den Tagesstand; die
+  // Statistik verdichtet Monate zu Diagrammen und braucht ein eigenes Bild dafür.
+  | "statistik";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

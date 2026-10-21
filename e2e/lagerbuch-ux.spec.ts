@@ -167,7 +167,7 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
     // von `entnahme`, die beiden stehen direkt übereinander) und 21 seit DRK-314
     // („Entnahmebox“, `entnahmebox`), jeweils aus demselben Grund: zwei Einträge
     // im selben Abschnitt mit demselben Zeichen sind in der Leiste nicht zu
-    // unterscheiden.
+    // unterscheiden. 22 seit IDA-261 („Statistik“, `statistik`).
     // Die Zahl steht in `_lib/nav.test.ts` ausgeschrieben; HIER wird geprüft,
     // dass jedes davon wirklich ein SVG rendert — ein unbekannter Schlüssel
     // rendert stillschweigend NICHTS (`NavIkone`), und genau das sähe kein
@@ -179,7 +179,7 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
     // stimmte dann aus dem falschen Grund.
     await expect(
       page.getByTestId("modulleiste").getByTestId("nav-link").locator("svg"),
-    ).toHaveCount(21, { timeout: 10_000 });
+    ).toHaveCount(22, { timeout: 10_000 });
   });
 
   /*

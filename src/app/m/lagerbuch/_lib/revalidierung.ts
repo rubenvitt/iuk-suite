@@ -59,6 +59,8 @@ export const BESTANDSFLAECHEN: readonly string[] = [
   "/m/lagerbuch/verwaltung/verfall",
   /* `journalEintraege` — die Buchungszeilen selbst. */
   "/m/lagerbuch/verwaltung/journal",
+  /* IDA-261 — `statistikDaten` verdichtet dieselben Buchungszeilen zu Monaten. */
+  "/m/lagerbuch/verwaltung/statistik",
   /* Zaehlt „Bestandsposten je Schrank" direkt aus `buchungen`. */
   "/m/lagerbuch/verwaltung/lagerorte",
   /* `inventurZeilen` — Soll gegen Ist, also Bestand. */
