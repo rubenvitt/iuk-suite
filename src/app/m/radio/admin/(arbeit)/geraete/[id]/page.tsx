@@ -7,6 +7,7 @@ import { offeneLeiheZuGeraet } from "../../../../_db/leihen";
 import { STAND_TON, STAND_WORT } from "../../../../_lib/geraeteFelder";
 import { geraetTitel } from "../../../../_lib/geraetTitel";
 import { geraet, geraetFormWerte, vorschlaege } from "../../../../_lib/lesepfade/geraete";
+import { mitStammOrten, stammOrte } from "../../../../_lib/stammFahrzeuge";
 import { versionenMitGeraetezahl } from "../../../../_lib/lesepfade/versionen";
 import { requireRadioVerwaltung } from "../../../../_lib/zugang";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -106,7 +107,9 @@ export default async function RadioGeraetAktePage({
    */
   if (akte === null || formWerte === null) notFound();
 
-  const felderVorschlaege = vorschlaege(db);
+  // IDA-259: als Lagerort stehen auch die aktiven Fahrzeuge der Fahrzeugverwaltung zur Wahl.
+  const roheVorschlaege = vorschlaege(db);
+  const felderVorschlaege = { ...roheVorschlaege, lagerort: mitStammOrten(roheVorschlaege.lagerort, stammOrte()) };
   const versionen = versionenMitGeraetezahl(db).map((zeile) => zeile.wert);
   const offeneLeihe = offeneLeiheZuGeraet(db, id);
 

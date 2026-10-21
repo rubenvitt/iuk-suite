@@ -29,6 +29,13 @@
       "when": 1791538887491,
       "tag": "0003_update_fehler",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792578284534,
+      "tag": "0004_fahrzeug_id",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { geraeteParameterAus, type RohSuchparameter } from "../../../_lib/suchpa
 import { requireRadioVerwaltung } from "../../../_lib/zugang";
 import s from "../../../_ui/verwaltung.module.css";
 import { GeraeteTabelle } from "./GeraeteTabelle";
+import { OrtAbgleich } from "./OrtAbgleich";
 
 /**
  * DIE GERAETELISTE — der aeussere Pfad `/admin/geraete` (Spec §5.6, `Spec:4490-4553`;
@@ -64,6 +65,8 @@ export default async function RadioGeraeteSeite({
   return (
     <>
       <h1 className={s.titel}>Geräte</h1>
+      {/* IDA-259: Lagerorte mit der Fahrzeugverwaltung abgleichen — schreibt viele Geräte, also Admin. */}
+      {istAdmin ? <div style={{ marginBlockEnd: 12 }}><OrtAbgleich /></div> : null}
       <GeraeteTabelle
         zeilen={seite.zeilen}
         gesamt={seite.gesamt}

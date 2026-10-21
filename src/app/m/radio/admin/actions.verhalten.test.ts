@@ -82,6 +82,21 @@ vi.mock("next/headers", () => ({ headers: async () => hostKopf }));
 let sitzung: unknown = null;
 vi.mock("@/core/auth", () => ({ auth: async () => sitzung }));
 
+// IDA-259: die Fahrzeugverwaltung ist ein anderes Modul — sie steht hier als Attrappe.
+const stamm = vi.hoisted(() => ({
+  fahrzeuge: [] as Array<{ id: string; art: "fahrzeug" | "anhaenger"; typ: string; funkrufname: string; funkkenner: string | null; kennzeichen: string | null; standort: string; aktiv: boolean }>,
+  zuordnung: {} as Record<string, string | null>,
+  wirft: false,
+}));
+vi.mock("@/app/m/fahrzeuge/_lib/bereitstellung", async (echtes) => ({
+  ...(await echtes<typeof import("@/app/m/fahrzeuge/_lib/bereitstellung")>()),
+  bereitgestellteFahrzeuge: () => {
+    if (stamm.wirft) throw new Error("fahrzeuge.db gesperrt");
+    return { fahrzeuge: stamm.fahrzeuge, stand: null };
+  },
+  zuordnungenFuer: () => stamm.zuordnung,
+}));
+
 let testDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
 vi.mock("../_db/client", () => ({ getDb: () => testDb }));
 
@@ -93,6 +108,8 @@ import {
   geraetLoeschenAction,
   importSchreibenAction,
   notizAnfuegenAction,
+  fahrzeugAbgleichAction,
+  fahrzeugAbgleichVorschauAction,
   updateFehlerAction,
   versionAnlegenAction,
   versionLoeschenAction,
@@ -128,6 +145,9 @@ beforeEach(() => {
   entwertungWirftAuf = null;
   hostKopf = new Headers({ host: "radio.localtest.me" });
   sitzung = ADMIN_SITZUNG;
+  stamm.fahrzeuge = [];
+  stamm.zuordnung = {};
+  stamm.wirft = false;
   delete process.env.SUITE_ADMIN_GROUP_RADIO;
   delete process.env.SUITE_HOST_RADIO;
   // Die Updater-Stufe ist ohne diese Variable GESCHLOSSEN (`_lib/zugang.ts:225-231`); die
@@ -1392,5 +1412,62 @@ describe("updateFehlerAction — der Fehlerweg des Update-Modus", () => {
     expect(await geraetAendernAction("g-1", { notes: "neue Bemerkung" })).toEqual({ ok: true });
 
     expect(geraeteZeilen()[0].updateFehler).toBe("Akku leer");
+  });
+});
+
+describe("IDA-259 — Lagerorte aus der Fahrzeugverwaltung", () => {
+  const RTW = { id: "s-1", art: "fahrzeug" as const, typ: "RTW", funkrufname: "Rotkreuz Uelzen 11-83-1", funkkenner: "11-83-1", kennzeichen: null, standort: "Uelzen", aktiv: true };
+
+  it("Speichern setzt den Verweis, wenn der Ort ein Fahrzeugname ist, und löst ihn beim Wechsel", async () => {
+    stamm.fahrzeuge = [RTW];
+    const neu = await geraetAnlegenAction({ issi: "7001", location: "RTW 11-83-1" });
+    expect(neu.ok).toBe(true);
+    expect(geraeteZeilen()[0].fahrzeugId).toBe("s-1");
+
+    expect(await geraetAendernAction(geraeteZeilen()[0].id, { location: "Lager" })).toEqual({ ok: true });
+    expect(geraeteZeilen()[0].fahrzeugId).toBeNull();
+  });
+
+  it("ein mitgeschickter Verweis wird verworfen — der Server leitet ihn ab", async () => {
+    stamm.fahrzeuge = [RTW];
+    await geraetAnlegenAction({ issi: "7002", location: "Lager", fahrzeugId: "s-1" } as never);
+    expect(geraeteZeilen()[0].fahrzeugId).toBeNull();
+  });
+
+  it("eine andere Änderung lässt den Verweis stehen, auch wenn das Fahrzeug außer Dienst ist", async () => {
+    stamm.fahrzeuge = [{ ...RTW, aktiv: false }];
+    geraet({ id: "g-1", issi: "7003", location: "RTW 11-83-1", fahrzeugId: "s-1" });
+    expect(await geraetAendernAction("g-1", { notes: "Akku getauscht" })).toEqual({ ok: true });
+    expect(geraeteZeilen()[0].fahrzeugId).toBe("s-1");
+  });
+
+  it("Vorschau schreibt nichts; Übernehmen verknüpft, benennt um und schreibt die Historie", async () => {
+    stamm.fahrzeuge = [RTW];
+    stamm.zuordnung = { "RTW Uelzen": "s-1", Lager: null };
+    geraet({ id: "g-1", issi: "7004", location: "RTW Uelzen" });
+    geraet({ id: "g-2", issi: "7005", location: "Lager" });
+
+    const vorschau = await fahrzeugAbgleichVorschauAction();
+    expect(vorschau.ok && vorschau.plan.zeilen.map((z) => [z.bisher, z.name, z.klasse])).toEqual([["RTW Uelzen", "RTW 11-83-1", "verknuepfen"]]);
+    expect(geraeteZeilen().find((g) => g.id === "g-1")?.fahrzeugId).toBeNull();
+
+    expect(await fahrzeugAbgleichAction()).toEqual({ ok: true, geraete: 1 });
+    const [g1, g2] = ["g-1", "g-2"].map((id) => geraeteZeilen().find((g) => g.id === id)!);
+    expect([g1.location, g1.fahrzeugId]).toEqual(["RTW 11-83-1", "s-1"]);
+    expect([g2.location, g2.fahrzeugId]).toEqual(["Lager", null]);
+    expect(ereignisse().map((e) => [e.deviceId, e.field, e.oldValue, e.newValue])).toEqual([["g-1", "location", "RTW Uelzen", "RTW 11-83-1"]]);
+  });
+
+  it("ist die Fahrzeugverwaltung nicht lesbar, meldet der Abgleich das und schreibt nichts", async () => {
+    stamm.wirft = true;
+    geraet({ id: "g-1", issi: "7006", location: "RTW Uelzen" });
+    expect(await fahrzeugAbgleichVorschauAction()).toMatchObject({ ok: false });
+    expect(await fahrzeugAbgleichAction()).toMatchObject({ ok: false });
+    expect(geraeteZeilen()[0].location).toBe("RTW Uelzen");
+  });
+
+  it("der Abgleich ist der Admin-Stufe vorbehalten", async () => {
+    sitzung = UPDATER_SITZUNG;
+    await expect(fahrzeugAbgleichAction()).rejects.toThrow();
   });
 });

@@ -20,6 +20,8 @@ import { diffGeraet } from "../_lib/geraeteDiff";
 import type { FeldDiff } from "../_lib/geraeteDiff";
 import { haengeNotizAn } from "../_lib/notiz";
 import { filterSchreibbareFelder } from "../_lib/rollen";
+import { bereitgestellteFahrzeuge, zuordnungenFuer } from "@/app/m/fahrzeuge/_lib/bereitstellung";
+import { fahrzeugVerweis, planeOrtAbgleich, stammOrte, type OrtPlan } from "../_lib/stammFahrzeuge";
 import type { RadioRolle } from "../_lib/rollen";
 import { requireRadioAdmin, requireRadioVerwaltung } from "../_lib/zugang";
 import { ausleihenListe, type AusleihZeile, type LeihCursor } from "../_lib/lesepfade/ausleihen";
@@ -110,7 +112,7 @@ export type Ergebnis<T = unknown> = ({ ok: true } & T) | { ok: false; fehler: st
  */
 type SchreibbaresGeraetFeld = Exclude<
   keyof Geraet,
-  "id" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy"
+  "id" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "fahrzeugId"
 >;
 
 /** Der Patch des Aendern-Wegs: jedes schreibbare Feld optional, `issi` eingeschlossen. */
@@ -255,10 +257,21 @@ type SchreibDB = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
  * handgepflegte zweite Fassung waere die Stelle, an der eine neue Spalte still unschreibbar
  * bleibt — oder, schlimmer, still schreibbar wird.
  */
-const SERVEREIGENE_FELDER = new Set(["id", "createdAt", "updatedAt", "createdBy", "updatedBy"]);
+// `fahrzeugId` leitet der Server aus `location` ab (IDA-259, `_lib/stammFahrzeuge.ts`).
+const SERVEREIGENE_FELDER = new Set(["id", "createdAt", "updatedAt", "createdBy", "updatedBy", "fahrzeugId"]);
 const SCHREIBBARE_FELDER = new Set(
   Object.keys(getTableColumns(devices)).filter((feld) => !SERVEREIGENE_FELDER.has(feld)),
 );
+
+/**
+ * IDA-259 — der Verweis aufs Stammfahrzeug, wenn ein Schreibvorgang den Ort setzt; sonst nichts, und
+ * der bestehende Verweis bleibt. Keine Ereigniszeile: die Historie zeigt den Ort, der Verweis folgt ihm.
+ */
+function verweisZu(werte: { location?: unknown }, orte?: Map<string, string>): { fahrzeugId?: string | null } {
+  if (!("location" in werte)) return {};
+  const ort = typeof werte.location === "string" ? werte.location : null;
+  return { fahrzeugId: ort ? fahrzeugVerweis(orte ?? stammOrte(), ort) : null };
+}
 
 /** Schneidet aus einer eingehenden Nutzlast alles heraus, was keine schreibbare Spalte ist. */
 function nurSchreibbareFelder<T extends Record<string, unknown>>(eingabe: T): Partial<T> {
@@ -481,6 +494,7 @@ export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebni
           .insert(devices)
           .values({
             ...sauber,
+            ...verweisZu(sauber),
             createdAt: jetzt,
             updatedAt: jetzt,
             createdBy: viewer.sub,
@@ -559,7 +573,7 @@ export async function geraetAendernAction(id: string, patch: GeraetPatch): Promi
       db.transaction((tx) => {
         if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
         tx.update(devices)
-          .set({ ...erlaubt, updatedAt: new Date(), updatedBy: viewer.sub })
+          .set({ ...erlaubt, ...(diffs.some((d) => d.feld === "location") ? verweisZu(erlaubt) : {}), updatedAt: new Date(), updatedBy: viewer.sub })
           .where(eq(devices.id, id))
           .run();
         schreibeEreignisse(tx, id, diffs, viewer.sub, "manual");
@@ -1062,6 +1076,7 @@ export async function importSchreibenAction(
        */
       if (probelauf) return { ok: true, zusammenfassung, zeilen: klassifiziert };
 
+      const orte = stammOrte();
       db.transaction((tx) => {
         klassifiziert.forEach((zeile) => {
           const eingehend = zeileZuEingehend(zeilen[zeile.zeilenNummer] ?? [], zuordnungSauber);
@@ -1080,6 +1095,7 @@ export async function importSchreibenAction(
               .insert(devices)
               .values({
                 ...erlaubt,
+                ...verweisZu(erlaubt, orte),
                 issi: zeile.issi,
                 createdAt: jetzt,
                 updatedAt: jetzt,
@@ -1121,7 +1137,7 @@ export async function importSchreibenAction(
             }
             if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
             tx.update(devices)
-              .set({ ...zuSetzen, updatedAt: jetzt, updatedBy: viewer.sub })
+              .set({ ...zuSetzen, ...verweisZu(zuSetzen, orte), updatedAt: jetzt, updatedBy: viewer.sub })
               .where(eq(devices.id, bestehend.id))
               .run();
             schreibeEreignisse(tx, bestehend.id, zeile.aenderungen, viewer.sub, "csv-import");
@@ -1200,4 +1216,56 @@ export async function ausleihenNachladenAction(anfrage: {
   } catch {
     return { ok: false, fehler: AUSLEIHEN_NACHLADE_FEHLER };
   }
+}
+
+/**
+ * IDA-259 — DER ABGLEICH DER ORTE MIT DER FAHRZEUGVERWALTUNG, erst als Vorschau (schreibt nichts), dann
+ * als Übernahme. Beide planen frisch gegen den Bestand (`_lib/stammFahrzeuge.ts`, `planeOrtAbgleich`).
+ * Admin-Stufe wie Import und Anlegen: der Abgleich schreibt viele Geräte auf einmal.
+ */
+const ABGLEICH_NICHT_LESBAR = "Die Fahrzeugverwaltung ist gerade nicht erreichbar. Bitte später noch einmal versuchen.";
+
+function planeOrteGegenBestand(db: DB): OrtPlan {
+  const geraete = db.select({ id: devices.id, location: devices.location, fahrzeugId: devices.fahrzeugId }).from(devices).all();
+  return planeOrtAbgleich(bereitgestellteFahrzeuge(), zuordnungenFuer("funkgeraete"), geraete);
+}
+
+export async function fahrzeugAbgleichVorschauAction(): Promise<Ergebnis<{ plan: OrtPlan }>> {
+  await requireRadioAdmin();
+  try {
+    return { ok: true, plan: planeOrteGegenBestand(getDb()) };
+  } catch {
+    return { ok: false, fehler: ABGLEICH_NICHT_LESBAR };
+  }
+}
+
+export async function fahrzeugAbgleichAction(): Promise<Ergebnis<{ geraete: number }>> {
+  const viewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis<{ geraete: number }>> => {
+    const db = getDb();
+    let plan: OrtPlan;
+    try {
+      plan = planeOrteGegenBestand(db);
+    } catch {
+      return { ok: false, fehler: ABGLEICH_NICHT_LESBAR };
+    }
+    try {
+      db.transaction((tx) => {
+        const jetzt = new Date();
+        for (const a of plan.aenderungen) {
+          tx.update(devices)
+            .set({ location: a.location, fahrzeugId: a.fahrzeugId, updatedAt: jetzt, updatedBy: viewer.sub })
+            .where(eq(devices.id, a.id))
+            .run();
+          if (a.alt !== a.location) schreibeEreignisse(tx, a.id, [{ feld: "location", alt: a.alt, neu: a.location }], viewer.sub, "manual");
+        }
+      });
+    } catch {
+      return { ok: false, fehler: SPEICHERN_FEHLER };
+    }
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    revalidatePath(SOFTWARE);
+    return { ok: true, geraete: plan.aenderungen.length };
+  });
 }

@@ -54,6 +54,7 @@ function geraet(ueberschreibungen: Partial<Geraet> = {}): Geraet {
     loanable: null,
     updateNote: null,
     updateFehler: null,
+    fahrzeugId: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
     createdBy: null,

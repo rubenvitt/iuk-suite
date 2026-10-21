@@ -45,6 +45,15 @@ export function bereitgestellteFahrzeuge(db: FahrzeugeDb = getDb()): Fahrzeugber
   return { fahrzeuge, stand: juengste?.am.toISOString() ?? null };
 }
 
+/**
+ * Der kurze Name eines Fahrzeugs in den Apps, die nur einen Namen führen (Lagerbuch-Einheit, Ort eines
+ * Funkgeräts): Typ und Funkkenner, ohne Funkkenner der Funkrufname. EINE Regel für alle Empfänger —
+ * wer sie ändert, benennt beim nächsten Abgleich überall gleich um.
+ */
+export function kurzname(s: Pick<BereitgestelltesFahrzeug, "typ" | "funkkenner" | "funkrufname">): string {
+  return s.funkkenner ? `${s.typ} ${s.funkkenner}` : s.funkrufname;
+}
+
 /** Die Apps, deren Fahrzeugzeilen der Erstimport zuordnet. */
 export type Fahrzeugquelle = "einsatzbuch" | "lagerbuch" | "funkgeraete";
 

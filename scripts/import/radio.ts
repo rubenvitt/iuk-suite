@@ -471,6 +471,8 @@ export function paritaetsSichtGeraet(r: schema.NeuesGeraet | schema.Geraet) {
     updateNote: r.updateNote ?? null,
     // Die Quelle kennt keinen offenen Update-Fehler; beide Arme tragen `null`.
     updateFehler: r.updateFehler ?? null,
+    // Die Quelle kennt keine Fahrzeugverwaltung (IDA-259); beide Arme tragen `null`.
+    fahrzeugId: r.fahrzeugId ?? null,
     createdAt: sekunden(r.createdAt),
     updatedAt: sekunden(r.updatedAt),
     createdBy: r.createdBy ?? null,

@@ -108,6 +108,7 @@ import geraetelisteAlsExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/
 import verwaltungImPortal from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-09-27-verwaltung-im-portal";
 import updateModusFuersTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-09-27-update-modus-fuers-telefon";
 import fahrzeugeImUpdateModus from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-10-09-fahrzeuge-im-update-modus";
+import lagerorteAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-10-21-lagerorte-aus-der-fahrzeugverwaltung";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
@@ -228,6 +229,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verwaltungImPortal,
   updateModusFuersTelefon,
   fahrzeugeImUpdateModus,
+  lagerorteAusDerFahrzeugverwaltung,
   drohnentrainingInDerSuite,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,

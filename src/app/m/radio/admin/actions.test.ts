@@ -58,8 +58,10 @@ const DATEI = join(MODUL, "admin/actions.ts");
  *       Verwaltungs-Stufe ihrer Seiten                              -> 11
  *   „Nicht aktualisiert" im Update-Modus (`updateFehlerAction`), auf der
  *       Verwaltungs-Stufe wie die Anmerkung                          -> 12
+ *   IDA-259: Abgleich der Lagerorte mit der Fahrzeugverwaltung, Vorschau und
+ *       Uebernahme, beide auf der Admin-Stufe                        -> 14
  */
-const ACTION_ANZAHL = 12;
+const ACTION_ANZAHL = 14;
 
 /**
  * DIE AUFRUFTABELLE AUS §5.4, NAMENTLICH — `Spec:4655-4664`, um `importVorschauAction`
@@ -82,6 +84,8 @@ const ADMIN_ACTIONS = [
   "versionLoeschenAction",
   "versionenSortierenAction",
   "importSchreibenAction",
+  "fahrzeugAbgleichVorschauAction",
+  "fahrzeugAbgleichAction",
 ] as const;
 
 const VERWALTUNGS_ACTIONS = [
@@ -492,7 +496,7 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
 
     const aufAdmin = [...ersteVon.values()].filter((e) => RIEGEL_ADMIN.test(e)).length;
     const aufVerwaltung = [...ersteVon.values()].filter((e) => RIEGEL_VERWALTUNG.test(e)).length;
-    expect(aufAdmin, "SIEBEN Actions auf der Admin-Stufe (Spec:4655-4664)").toBe(7);
+    expect(aufAdmin, "NEUN Actions auf der Admin-Stufe (Spec:4655-4664, IDA-259)").toBe(9);
     expect(aufVerwaltung, "FUENF Actions auf der Verwaltungs-Stufe (Spec:4655-4664, DRK-335, Fehlerweg)").toBe(5);
   });
 });

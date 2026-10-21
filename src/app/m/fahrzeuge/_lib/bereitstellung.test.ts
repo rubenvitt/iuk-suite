@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { bereitgestellteFahrzeuge } from "./bereitstellung";
+import { bereitgestellteFahrzeuge, kurzname } from "./bereitstellung";
 import { setzeAktiv, speichereFahrzeug } from "./daten";
 import { fahrzeugEingabe } from "./eingabe";
 import { testDb } from "./testDb";
@@ -31,6 +31,13 @@ describe("bereitgestellteFahrzeuge — was das Modul anderen Modulen herausgibt"
     expect(bereitgestellteFahrzeuge(db).stand).toBe("2026-10-21T08:00:00.000Z");
     setzeAktiv(db, f.id, false, new Date("2026-10-22T08:00:00Z"));
     expect(bereitgestellteFahrzeuge(db).stand).toBe("2026-10-22T08:00:00.000Z");
+  });
+});
+
+describe("kurzname", () => {
+  it("Typ und Funkkenner, ohne Funkkenner der Funkrufname", () => {
+    expect(kurzname(RTW)).toBe("RTW 11-83-1");
+    expect(kurzname({ ...RTW, funkkenner: null })).toBe("Rotkreuz Uelzen 11-83-1");
   });
 });
 
