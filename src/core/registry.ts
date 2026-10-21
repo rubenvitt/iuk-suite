@@ -224,6 +224,11 @@ export const MODULES: ModuleDef[] = [
   { key: "helfer", title: "Helfer", icon: "people", shell: "full",
     requiresAuth: true, requiredGroups: ["helfer-nutzer"], adminGroups: ["helfer-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
+  // fahrzeuge: die Fahrzeuge als Stammdaten der Suite (IDA-254). Keine Personaldaten, deshalb öffnet auch die
+  // Admin-Gruppe allein das Modul; anlegen und ändern nur Modul-Admins (`_lib/zugang.ts`).
+  { key: "fahrzeuge", title: "Fahrzeuge", icon: "truck", shell: "full",
+    requiresAuth: true, requiredGroups: ["fahrzeuge-nutzer", "fahrzeuge-admin"], adminGroups: ["fahrzeuge-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

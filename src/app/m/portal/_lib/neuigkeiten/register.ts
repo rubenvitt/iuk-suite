@@ -27,6 +27,7 @@ import zeichenBaukastenMehrOptionen from "@/app/m/portal/_lib/neuigkeiten/notize
 import zeichenGrosserTextUndBeschriftungAussen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-05-zeichen-grosser-text-und-beschriftung-aussen";
 import neueSchriftUndWeitereZeichen from "@/app/m/portal/_lib/neuigkeiten/notizen/kommplan/2026-10-18-neue-schrift-und-weitere-zeichen";
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
+import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
 import personalAusDemHelferverzeichnis from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-20-personal-aus-dem-helferverzeichnis";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
@@ -130,6 +131,7 @@ import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/not
  */
 const NOTIZEN: readonly Releasenotiz[] = [
   helferAusHiorg,
+  fahrzeugeAlsStammdaten,
   personalAusDemHelferverzeichnis,
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
