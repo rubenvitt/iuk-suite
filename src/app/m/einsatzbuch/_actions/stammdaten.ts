@@ -13,6 +13,7 @@ import { planeImport, type Vorschauzeile } from "../_lib/stammdaten/csv";
 import { bestandFuerImport, wendeImportAn } from "../_lib/stammdaten/import";
 import { bereitgestellteHelfer } from "@/app/m/helfer/_lib/bereitstellung";
 import { planeGegenBestand, wendeHelferAbgleichAn, type HelferErgebnis, type HelferPlan } from "../_lib/stammdaten/helferAbgleich";
+import { qualiRegelnSchema, schreibeQualiRegeln } from "../_lib/stammdaten/qualiZuordnung";
 import { bereitgestellteFahrzeuge, zuordnungenFuer } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import { planeFahrzeugeGegenBestand, wendeFahrzeugAbgleichAn, type FahrzeugErgebnis, type FahrzeugPlan } from "../_lib/stammdaten/fahrzeugAbgleich";
 import { STAMMDATENARTEN, type FahrzeugDTO, type PersonDTO, type Stammdatenart, type StichwortDTO } from "../_lib/stammdaten/typen";
@@ -97,6 +98,20 @@ export async function helferUebernehmenAction(): Promise<ActionErgebnis<HelferEr
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     const db = getDb();
     return alsErgebnis(() => wendeHelferAbgleichAn(db, planeGegenBestand(db, bereitgestellteHelfer())));
+  });
+}
+/**
+ * Speichert die Zuordnung „HiOrg-Qualifikation → Kürzel“ (ersetzt alle Regeln) und liefert die neue
+ * Vorschau. Am Personal ändert das nichts, bis jemand übernimmt.
+ */
+export async function qualiZuordnungSpeichernAction(regeln: unknown): Promise<ActionErgebnis<HelferPlan>> {
+  const viewer = await requireEinsatzbuchAktion();
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const db = getDb();
+    return alsErgebnis(() => {
+      schreibeQualiRegeln(db, qualiRegelnSchema.parse(regeln));
+      return planeGegenBestand(db, bereitgestellteHelfer());
+    });
   });
 }
 /**

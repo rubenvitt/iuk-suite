@@ -3,7 +3,8 @@ import type { BereitgestellterHelfer, Bereitstellung } from "@/app/m/helfer/_lib
 import { person } from "../../_db/schema";
 import { testDb } from "../testDb";
 import { listePersonal } from "./daten";
-import { nameFuer, planeGegenBestand, qualiFuer, wendeHelferAbgleichAn, HELFER_PRAEFIX } from "./helferAbgleich";
+import { hiorgQualifikationen, nameFuer, planeGegenBestand, qualiFuer, wendeHelferAbgleichAn, HELFER_PRAEFIX } from "./helferAbgleich";
+import { leseQualiRegeln, schreibeQualiRegeln } from "./qualiZuordnung";
 
 const h = (id: string, teil: Partial<BereitgestellterHelfer> = {}): BereitgestellterHelfer => ({
   id, vorname: "Jana", nachname: `Albers${id}`, qualifikationen: [{ name: "Rettungssanitäter", kurz: "RS" }], demo: false, ...teil,
@@ -70,5 +71,54 @@ describe("Abgleich mit dem Helferverzeichnis", () => {
     const vorher = db.all<{ version: number }>("SELECT version FROM stammdatenstand WHERE id = 1")[0]?.version ?? 0;
     wendeHelferAbgleichAn(db, planeGegenBestand(db, b(h("a"))));
     expect(db.all<{ version: number }>("SELECT version FROM stammdatenstand WHERE id = 1")[0].version).toBeGreaterThan(vorher);
+  });
+});
+
+describe("einstellbare Zuordnung (IDA-250)", () => {
+  it("eine Regel geht der eingebauten Zuordnung vor, die höchste gewinnt weiter", () => {
+    const qualis = [{ name: "Fachdienst Sanität", kurz: "FD-San" }, { name: "Sanitätshelfer", kurz: "SanH" }];
+    expect(qualiFuer(qualis)).toBe("SanH");
+    expect(qualiFuer(qualis, [{ hiorg: " fachdienst sanität ", kurz: "RS" }])).toBe("RS");
+    // „nicht zuordnen“ schlägt die eingebaute Zuordnung aus.
+    expect(qualiFuer([{ name: "Sanitäter", kurz: "San" }], [{ hiorg: "Sanitäter", kurz: null }])).toBeNull();
+    // Ohne Namen trägt die Kurzform die Regel.
+    expect(qualiFuer([{ name: "", kurz: "FDS" }], [{ hiorg: "fds", kurz: "SiK" }])).toBe("SiK");
+  });
+
+  it("listet jede HiOrg-Qualifikation einmal, mit Anzahl, eingebauter Zuordnung und Regel", () => {
+    const liste = hiorgQualifikationen(
+      b(h("a"), h("b", { qualifikationen: [{ name: "rettungssanitäter", kurz: "RS" }, { name: "Sprechfunker", kurz: "SprF" }] })),
+      [{ hiorg: "Sprechfunker", kurz: null }, { hiorg: "Alte Qualifikation", kurz: "SanH" }],
+    );
+    expect(liste).toEqual([
+      { hiorg: "Rettungssanitäter", kurz: "RS", anzahl: 2, eingebaut: "RS", regel: undefined },
+      { hiorg: "Sprechfunker", kurz: "SprF", anzahl: 1, eingebaut: null, regel: null },
+      { hiorg: "Alte Qualifikation", kurz: "", anzahl: 0, eingebaut: null, regel: "SanH" },
+    ]);
+  });
+
+  it("der Abgleich plant mit den gespeicherten Regeln", () => {
+    const db = testDb();
+    const quelle = b(h("y", { qualifikationen: [{ name: "Ersthelfer", kurz: "EH" }] }));
+    expect(planeGegenBestand(db, quelle).zeilen[0].klasse).toBe("ohne_quali");
+    schreibeQualiRegeln(db, [{ hiorg: "Ersthelfer", kurz: "SanH" }]);
+    const plan = planeGegenBestand(db, quelle);
+    expect(plan.zeilen[0]).toMatchObject({ klasse: "neu", quali: "SanH" });
+    expect(plan.qualifikationen[0]).toMatchObject({ hiorg: "Ersthelfer", regel: "SanH" });
+  });
+});
+
+describe("Regeln speichern", () => {
+  it("ersetzt alle Regeln, je HiOrg-Qualifikation die letzte, und löscht bei leerer Liste", () => {
+    const db = testDb();
+    expect(leseQualiRegeln(db)).toEqual([]);
+    schreibeQualiRegeln(db, [{ hiorg: "Ersthelfer", kurz: "SanH" }, { hiorg: " ERSTHELFER", kurz: null }, { hiorg: "San", kurz: "SiK" }]);
+    expect(leseQualiRegeln(db)).toEqual([{ hiorg: "ERSTHELFER", kurz: null }, { hiorg: "San", kurz: "SiK" }]);
+    schreibeQualiRegeln(db, []);
+    expect(leseQualiRegeln(db)).toEqual([]);
+  });
+
+  it("lehnt unbekannte Kürzel ab", () => {
+    expect(() => schreibeQualiRegeln(testDb(), [{ hiorg: "X", kurz: "Arzt" as never }])).toThrow();
   });
 });
