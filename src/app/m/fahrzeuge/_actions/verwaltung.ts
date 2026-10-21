@@ -5,9 +5,12 @@ import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
-import { NichtGefunden, SchonVergeben, setzeAktiv, speichereFahrzeug, type FahrzeugDTO } from "../_lib/daten";
+import { listeFahrzeuge, NichtGefunden, SchonVergeben, setzeAktiv, speichereFahrzeug, type FahrzeugDTO } from "../_lib/daten";
 import { fahrzeugEingabe } from "../_lib/eingabe";
-import { requireFahrzeugeVerwaltenAktion } from "../_lib/zugang";
+import { entscheidungenSchema, wendeErstimportAn, zugeordneteSchluessel, type Erstimportergebnis } from "../_lib/erstimport/anwenden";
+import { planeErstimport } from "../_lib/erstimport/plan";
+import { leseKandidaten } from "../_lib/erstimport/quellen";
+import { anzeigeName, requireFahrzeugeVerwaltenAktion } from "../_lib/zugang";
 
 /** Nach jedem Schreiben: alle Seiten des Moduls mit neuem Bestand. */
 function neuLaden(): void {
@@ -45,5 +48,21 @@ export async function aktivSetzenAction(id: string, aktiv: boolean): Promise<Act
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     const r = alsErgebnis(() => setzeAktiv(getDb(), id, aktiv));
     return r.ok ? { ok: true } : r;
+  });
+}
+
+/**
+ * Wendet den Erstimport an. Der Plan wird hier NEU gebaut (die Apps können sich seit dem Seitenaufruf
+ * geändert haben); die Entscheidungen beziehen sich auf die Schlüssel der Vorschläge.
+ */
+export async function erstimportAction(eingabe: unknown): Promise<ActionErgebnis<Erstimportergebnis>> {
+  const viewer = await requireFahrzeugeVerwaltenAktion();
+  const e = entscheidungenSchema.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Die Auswahl ist unvollständig. Bitte die Seite neu laden." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const { kandidaten, fehler } = leseKandidaten();
+    if (fehler.length > 0) return { ok: false, fehler: `Nicht lesbar: ${fehler.join(", ")}. Bitte später noch einmal versuchen.` };
+    const db = getDb();
+    return alsErgebnis(() => wendeErstimportAn(db, planeErstimport(kandidaten, listeFahrzeuge(db), zugeordneteSchluessel(db)), e.data, anzeigeName(viewer)));
   });
 }

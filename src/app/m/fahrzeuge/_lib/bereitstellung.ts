@@ -13,9 +13,9 @@
  * Wer hier ein Feld ergänzt, prüft zuerst, ob ein Empfänger es wirklich braucht; `bereitstellung.test.ts`
  * hält die Feldliste fest.
  */
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb, type FahrzeugeDb } from "../_db/client";
-import { stammfahrzeug } from "../_db/schema";
+import { quellzuordnung, stammfahrzeug } from "../_db/schema";
 import type { Art } from "./eingabe";
 
 export interface BereitgestelltesFahrzeug {
@@ -43,4 +43,17 @@ export function bereitgestellteFahrzeuge(db: FahrzeugeDb = getDb()): Fahrzeugber
   }).from(stammfahrzeug).all();
   const juengste = db.select({ am: stammfahrzeug.aktualisiertAm }).from(stammfahrzeug).orderBy(desc(stammfahrzeug.aktualisiertAm)).limit(1).get();
   return { fahrzeuge, stand: juengste?.am.toISOString() ?? null };
+}
+
+/** Die Apps, deren Fahrzeugzeilen der Erstimport zuordnet. */
+export type Fahrzeugquelle = "einsatzbuch" | "lagerbuch" | "funkgeraete";
+
+/**
+ * Die Entscheidungen des Erstimports für EINE App: je eigener Zeilen-ID (beim Funkgerät: der Ort) die ID
+ * des Stammfahrzeugs, oder `null` für „kein Fahrzeug“. Eine Zeile, die fehlt, ist noch nicht entschieden.
+ */
+export function zuordnungenFuer(quelle: Fahrzeugquelle, db: FahrzeugeDb = getDb()): Record<string, string | null> {
+  const zeilen = db.select({ quellId: quellzuordnung.quellId, stammId: quellzuordnung.stammId })
+    .from(quellzuordnung).where(eq(quellzuordnung.quelle, quelle)).all();
+  return Object.fromEntries(zeilen.map((z) => [z.quellId, z.stammId]));
 }

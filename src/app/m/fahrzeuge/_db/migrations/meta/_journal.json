@@ -8,6 +8,13 @@
       "when": 1792569795917,
       "tag": "0000_grundbestand",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792572758861,
+      "tag": "0001_quellzuordnung",
+      "breakpoints": true
     }
   ]
 }

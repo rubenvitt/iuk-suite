@@ -12,7 +12,8 @@ const notiz: Releasenotiz = {
         "Mit Fahrzeug anlegen erfasst du ein neues, ein ausgemustertes stellst du außer Dienst.",
     ),
     absatz(
-      "Einsatzbuch, Lagerbuch und Funkgeräte übernehmen ihre Fahrzeuge nach und nach von hier. Bis dahin pflegst du sie dort weiter wie bisher.",
+      "Unter Erstimport holst du die Fahrzeuge einmal aus Einsatzbuch, Lagerbuch und Funkgeräten und entscheidest je Vorschlag, was zusammengehört. " +
+        "Die drei Apps übernehmen ihre Fahrzeuge nach und nach von hier, bis dahin pflegst du sie dort weiter wie bisher.",
     ),
   ],
 };

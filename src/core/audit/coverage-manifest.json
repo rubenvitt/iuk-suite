@@ -148,6 +148,7 @@
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#personSpeichernAction": { "kind": "context", "via": "personSpeichernAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stichwortSpeichernAction": { "kind": "context", "via": "stichwortSpeichernAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#aktivSetzenAction": { "kind": "context", "via": "aktivSetzenAction" },
+  "src/app/m/fahrzeuge/_actions/verwaltung.ts#erstimportAction": { "kind": "context", "via": "erstimportAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#fahrzeugSpeichernAction": { "kind": "context", "via": "fahrzeugSpeichernAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#alleLoeschenAction": { "kind": "context", "via": "alleLoeschenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#freigabeAction": { "kind": "context", "via": "freigabeAction" },

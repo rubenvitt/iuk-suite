@@ -4,7 +4,7 @@
  */
 import { asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import type { FahrzeugeDb } from "../_db/client";
+import type { FahrzeugeDb, FahrzeugeSchreiber } from "../_db/client";
 import { stammfahrzeug } from "../_db/schema";
 import type { Art, FahrzeugEingabe } from "./eingabe";
 
@@ -56,12 +56,12 @@ export function listeFahrzeuge(db: FahrzeugeDb): FahrzeugDTO[] {
   const sortierer = new Intl.Collator("de", { numeric: true });
   return db.select().from(stammfahrzeug).orderBy(asc(stammfahrzeug.standort)).all().map(alsDTO).sort((a, b) =>
     sortierer.compare(a.standort, b.standort)
-    || sortierer.compare(a.funkkenner ?? "￿", b.funkkenner ?? "￿")
+    || sortierer.compare(a.funkkenner ?? "\uffff", b.funkkenner ?? "\uffff")
     || sortierer.compare(a.funkrufname, b.funkrufname));
 }
 
 /** Legt an (`id === null`) oder ändert. `aktualisiertAm` rückt nur vor, wenn sich ein Wert ändert. */
-export function speichereFahrzeug(db: FahrzeugeDb, id: string | null, e: FahrzeugEingabe, jetzt = new Date()): FahrzeugDTO {
+export function speichereFahrzeug(db: FahrzeugeSchreiber, id: string | null, e: FahrzeugEingabe, jetzt = new Date()): FahrzeugDTO {
   return eindeutig(() => {
     if (id === null) {
       return alsDTO(db.insert(stammfahrzeug).values({ id: nanoid(), ...e, angelegtAm: jetzt, aktualisiertAm: jetzt }).returning().get());

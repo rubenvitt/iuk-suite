@@ -6,4 +6,5 @@ import type { SuiteNavItem } from "@/core/shell/types";
  */
 export const FAHRZEUGE_NAV: SuiteNavItem[] = [
   { key: "liste", title: "Fahrzeuge", href: "/", ikon: "fahrzeuge" },
+  { key: "erstimport", title: "Erstimport", href: "/erstimport", ikon: "import" },
 ];
