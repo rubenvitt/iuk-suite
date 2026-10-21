@@ -5,13 +5,9 @@ import { ZEICHEN } from "./zeichen";
 
 describe("faviconFuer", () => {
   it("gibt Modulen mit eigenem Zeichen dieses, versioniert über die Prüfsumme", () => {
-    for (const key of ["qr", "feedback", "files", "aufgaben", "radio", "uav", "einsatzbuch"]) {
+    for (const key of ["qr", "feedback", "files", "aufgaben", "radio", "uav", "einsatzbuch", "lagerbuch"]) {
       expect(faviconFuer(key).url).toMatch(new RegExp(`^/favicon/${key}\\.svg\\?v=[0-9a-z]+$`));
     }
-  });
-
-  it("lässt lagerbuch sein eigenes PWA-Symbol behalten", () => {
-    expect(faviconFuer("lagerbuch").url).toBe("/pwa-icon.svg");
   });
 
   it("fällt ohne Modul, für das Portal und für Demos auf das IDA-Zeichen zurück", () => {
@@ -23,7 +19,6 @@ describe("faviconFuer", () => {
   it("verlinkt für jedes Registry-Modul eine Datei, die die Route auch ausliefert", () => {
     for (const m of MODULES) {
       const { url } = faviconFuer(m.key);
-      if (url === "/pwa-icon.svg") continue;
       const datei = url.slice("/favicon/".length).split("?")[0];
       expect(zeichenZuDatei(datei), m.key).not.toBeNull();
     }
@@ -51,8 +46,8 @@ describe("appleIconFuer", () => {
     expect(appleIconFuer(null)?.url).toMatch(/^\/favicon\/ida-apple-180\.png\?v=/);
   });
 
-  it("lässt lagerbuch ohne fremdes Zeichen", () => {
-    expect(appleIconFuer("lagerbuch")).toBeUndefined();
+  it("gibt auch lagerbuch sein Suite-Zeichen statt des Alt-Symbols", () => {
+    expect(appleIconFuer("lagerbuch")?.url).toMatch(/^\/favicon\/lagerbuch-apple-180\.png\?v=/);
   });
 
   it("verlinkt für jedes Registry-Modul eine Datei, die die Route auch ausliefert", () => {

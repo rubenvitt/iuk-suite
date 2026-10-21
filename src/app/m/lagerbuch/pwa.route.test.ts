@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pngZuDatei } from "@/core/favicon";
+import { appIconSvg } from "@/core/favicon/app-icon";
 
 import { GET as manifest } from "./manifest.webmanifest/route";
 import { GET as svg } from "./pwa-icon.svg/route";
@@ -245,34 +246,29 @@ describe("manifest.webmanifest — die acht Werte, gemessen gegen die Alt-Anwend
 
 describe("Die Icon-Handler liefern BYTES, nicht Text", () => {
   /**
-   * Nachgemessen an `../lagerbuch/public/` @ ca04eb1 (`wc -c`, `shasum -a 256`)
-   * — dieselben vier Werte, die `_lib/pwaIcons.test.ts` (T65) selbsttragend
-   * fuehrt. Hier haengen sie an der ANTWORT: `pngAntwort` koennte durch ein
-   * `new Response(base64)` ersetzt werden, und der Byte-Test von T65 bliebe
-   * gruen, waehrend der Browser ein kaputtes Bild zeigte.
+   * Seit dem 21.10.2026 das Suite-Zeichen (`_lib/pwaIcons.ts`). Hier haengt die
+   * Zusage an der ANTWORT: `pngAntwort` koennte durch ein `new Response(text)`
+   * ersetzt werden, und der Test in `_lib/pwaIcons.test.ts` bliebe gruen,
+   * waehrend der Browser ein kaputtes Bild zeigte.
    */
   const ERWARTET = [
-    { name: "icon-192.png", fn: png192, bytes: 1558, sha: "8ba1cec7e6b5590566e218542c2c8ba818726621ca75de724da402740528d607" },
-    { name: "icon-512.png", fn: png512, bytes: 5458, sha: "deab28e9c5eaa3b1eee2ebc34147bc2632cac7fd865770d35c318a3b68800779" },
-    { name: "icon-maskable-512.png", fn: pngMask, bytes: 3290, sha: "b990ac769739a40a7a0e6e9cb10576b7bd08b4ef186604750f307dc33e3cf559" },
+    { name: "icon-192.png", fn: png192, datei: "lagerbuch-app-192.png" },
+    { name: "icon-512.png", fn: png512, datei: "lagerbuch-app-512.png" },
+    { name: "icon-maskable-512.png", fn: pngMask, datei: "lagerbuch-maskierbar-512.png" },
   ];
 
   for (const e of ERWARTET) {
-    it(`${e.name}: ${e.bytes} Bytes mit dem erwarteten SHA-256`, async () => {
+    it(`${e.name}: die Bytes von ${e.datei}`, async () => {
       const puffer = Buffer.from(
         await (await e.fn(anfrage("lagerbuch.localtest.me"))).arrayBuffer(),
       );
-      expect(puffer.length, e.name).toBe(e.bytes);
-      expect(createHash("sha256").update(puffer).digest("hex"), e.name).toBe(e.sha);
+      expect(puffer.equals(pngZuDatei(e.datei)!), e.name).toBe(true);
     });
   }
 
-  it("pwa-icon.svg: 385 Bytes mit dem erwarteten SHA-256", async () => {
+  it("pwa-icon.svg: das App-Icon mit dem Lagerbuch-Zeichen", async () => {
     const text = await (await svg(anfrage("lagerbuch.localtest.me"))).text();
-    expect(Buffer.byteLength(text, "utf8")).toBe(385);
-    expect(createHash("sha256").update(text, "utf8").digest("hex")).toBe(
-      "98d9dcdb66ee733fd9b28921930121973937fc344b1d28628f354e35a44e5b34",
-    );
+    expect(text).toBe(appIconSvg("lagerbuch"));
   });
 
   it("alle VIER Symbol-Antworten tragen eine Woche unveraenderlichen Cache", async () => {

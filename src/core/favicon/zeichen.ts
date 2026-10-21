@@ -142,7 +142,7 @@ const EINSATZBUCH = modulZeichen(
 
 /**
  * Lagerkiste: Deckel und Kasten, ausgespart Griffloch und Etikettfeld. Löst das
- * Alt-Symbol der Lagerbuch-Anwendung auf Portal-Kachel und App-Umschalter ab
+ * Alt-Symbol der Lagerbuch-Anwendung ab — Kachel, Favicon und PWA
  * (Rückmeldung vom 20.10.2026: dunkle Kachel mit Balken neben lauter hellen).
  */
 const LAGERBUCH = modulZeichen(
