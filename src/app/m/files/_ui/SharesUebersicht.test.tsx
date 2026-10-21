@@ -343,7 +343,7 @@ describe("Punkt 4 — die Zeile traegt Zustand, Menge und Datum", () => {
 // ---------------------------------------------------------------------------
 
 /*
- * EIGENER TIMEOUT FUER DIESE SUITE — sie enthaelt den langsamsten Fall der Datei,
+ * FRUEHER EIGENER TIMEOUT (15 s) — die Suite enthaelt den langsamsten Fall der Datei,
  * und seine Zeit ist weder verschwendet noch zu klammern: `markup()` rendert die
  * antd-Tabelle einmal vollstaendig in jsdom, und der ERSTE Durchlauf einer Datei
  * traegt die Aufwaermkosten der Umgebung mit. Es gibt hier keine Datenbank und
@@ -357,9 +357,9 @@ describe("Punkt 4 — die Zeile traegt Zustand, Menge und Datum", () => {
  *     Abstand ist nur 2,1-fach, und dieselbe Projektion lag bei PR #80 schon
  *     einmal zu niedrig (2462 ms projiziert, real ueber 5000 ms).
  *
- * ⛔ Die Zahl gilt NUR fuer diese Suite. Der globale `testTimeout` bleibt bei 5 s.
+ * Seit IDA-244 traegt sie das jsdom-Budget von 30 s (`vitest.setup.ts`, `DOM_ZEITBUDGET_MS`).
  */
-describe("Punkt 5 — Leerzustand mit Ausweg", { timeout: 15_000 }, () => {
+describe("Punkt 5 — Leerzustand mit Ausweg", () => {
   it("nennt den Zustand und bietet den Knopf, der ihn beendet", async () => {
     const quelle = await markup();
     expect(quelle).toContain("Noch keine Freigabe angelegt");
