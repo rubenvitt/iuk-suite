@@ -193,7 +193,9 @@ test.describe("Tabellenauswahl", () => {
     await expect(zeile).toHaveClass(/ant-table-row-selected/);
     // Die Maus aus der Zeile nehmen: gemessen wird die Ruhefarbe, nicht der Hover.
     await page.mouse.move(0, 0);
-    const grund = await zeile.locator("td").nth(1).evaluate((td) => getComputedStyle(td).backgroundColor);
+    // Die Artikelliste ist virtualisiert: Zellen sind dort `div`, kein `td` (Falle 14).
+    const grund = await zeile.locator(":scope > *").nth(1).evaluate((zelle) => getComputedStyle(zelle).backgroundColor);
+    expect(grund, "die Zeile ist ueberhaupt hinterlegt").not.toBe("rgba(0, 0, 0, 0)");
     const [r, g, b] = (grund.match(/\d+/g) ?? []).map(Number);
     expect(Math.max(r, g, b) - Math.min(r, g, b), `neutral statt rot: ${grund}`).toBeLessThanOrEqual(8);
 
