@@ -25,6 +25,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { NeuFahrzeug } from "./NeuFahrzeug";
+import type { StammAuswahl } from "../../../_lib/stammAbgleich";
 import { verwaltungDetailPfad } from "../../../_lib/verwaltungPfad";
 
 /**
@@ -388,7 +389,7 @@ function spalten(
   ];
 }
 
-export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
+export function FahrzeugeListe({ zeilen, stammAuswahl }: { zeilen: FahrzeugAnzeigeZeile[]; stammAuswahl?: StammAuswahl[] }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung: ohne das filtert
   // und rendert jeder Tastendruck die ganze Liste neu.
@@ -422,7 +423,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
           platzhalter="Einheit, Kennung oder Art suchen…"
         />
         <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
-        <NeuFahrzeug />
+        <NeuFahrzeug stammAuswahl={stammAuswahl} />
       </Flex>
 
       <Kartentabelle<FahrzeugAnzeigeZeile>

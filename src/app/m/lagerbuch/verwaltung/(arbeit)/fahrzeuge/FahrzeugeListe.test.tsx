@@ -741,6 +741,24 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
 });
 
 describe("NeuFahrzeug", () => {
+  it("IDA-258: mit Stammfahrzeugen fragt die Art Fahrzeug nur, welches — Taschen behalten die freien Felder", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} stammAuswahl={[{ id: "s1", name: "RTW 11-83-1", kennzeichen: "UE-RK 831" }]} />);
+    await modalOeffnen();
+    await portalArtWaehlen("Fahrzeug");
+    await warteAuf(
+      () => document.body.querySelector(".ant-modal input[aria-label='Fahrzeug aus der Fahrzeugverwaltung']") !== null,
+      "Auswahl aus der Fahrzeugverwaltung",
+    );
+    expect(document.body.querySelector(".ant-modal input[aria-label='Name']")).toBeNull();
+
+    await portalArtWaehlen("Tasche");
+    await warteAuf(
+      () => document.body.querySelector(".ant-modal input[aria-label='Name']") !== null,
+      "freie Felder für die Tasche",
+    );
+    expect(document.body.querySelector(".ant-modal input[aria-label='Fahrzeug aus der Fahrzeugverwaltung']")).toBeNull();
+  });
+
   it("bindet beide Felder direkt, sendet den exakten Payload und schließt nur bei Erfolg", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
     await modalOeffnen();

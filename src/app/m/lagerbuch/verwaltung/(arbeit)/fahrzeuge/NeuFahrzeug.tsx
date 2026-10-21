@@ -2,36 +2,45 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Form, Input, Modal, Radio } from "antd";
+import { Alert, Button, Form, Input, Modal, Radio, Select } from "antd";
 import { createFahrzeug } from "../../../_actions/fahrzeuge";
 import {
   EINHEITENARTEN,
   EINHEITENART_LABEL,
   type Einheitenart,
 } from "../../../_lib/konstanten";
+import type { StammAuswahl } from "../../../_lib/stammAbgleich";
 import { Ikone } from "../../../_ui/ikonen";
 
 type FahrzeugWerte = {
   name: string;
   kennung?: string;
   einheitenart: Einheitenart;
+  stammId?: string;
 };
 
 const FORM_FELDER = new Set<keyof FahrzeugWerte>([
-  "name", "kennung", "einheitenart",
+  "name", "kennung", "einheitenart", "stammId",
 ]);
 
 function istFormFeld(name: string): name is keyof FahrzeugWerte {
   return FORM_FELDER.has(name as keyof FahrzeugWerte);
 }
 
-export function NeuFahrzeug() {
+/**
+ * IDA-258: Mit `stammAuswahl` kommt ein FAHRZEUG aus der Fahrzeugverwaltung — Name und Kennzeichen
+ * stehen dort, der Dialog fragt nur, welches. Taschen bleiben freie Felder. Ohne Auswahl (die
+ * Fahrzeugverwaltung ist leer oder nicht erreichbar) bleibt der Dialog, wie er war.
+ */
+export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl[] }) {
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const laeuftRef = useRef(false);
   const [form] = Form.useForm<FahrzeugWerte>();
   const router = useRouter();
+  const art = Form.useWatch("einheitenart", form);
+  const ausStamm = art === "fahrzeug" && stammAuswahl.length > 0;
 
   function oeffnen(): void {
     setFehler(null);
@@ -53,7 +62,9 @@ export function NeuFahrzeug() {
 
     start(async () => {
       try {
-        const ergebnis = await createFahrzeug(werte);
+        const ergebnis = await createFahrzeug(ausStamm
+          ? { stammId: werte.stammId, einheitenart: "fahrzeug" }
+          : { name: werte.name, kennung: werte.kennung, einheitenart: werte.einheitenart });
         if (!ergebnis.ok) {
           if (ergebnis.feldFehler) {
             form.setFields(Object.entries(ergebnis.feldFehler)
@@ -137,16 +148,36 @@ export function NeuFahrzeug() {
               }))}
             />
           </Form.Item>
-          <Form.Item
-            name="name"
-            label="Name"
-            rules={[{ required: true, whitespace: true, message: "Name angeben" }]}
-          >
-            <Input aria-label="Name" autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="kennung" label="Kennung">
-            <Input aria-label="Kennung" autoComplete="off" />
-          </Form.Item>
+          {ausStamm ? (
+            <Form.Item
+              name="stammId"
+              label="Fahrzeug aus der Fahrzeugverwaltung"
+              extra="Name und Kennzeichen kommen von dort. Fehlt ein Fahrzeug, lege es zuerst in der Fahrzeugverwaltung an."
+              rules={[{ required: true, message: "Fahrzeug wählen" }]}
+            >
+              <Select
+                aria-label="Fahrzeug aus der Fahrzeugverwaltung"
+                showSearch={{ optionFilterProp: "label" }}
+                options={stammAuswahl.map((s) => ({
+                  value: s.id,
+                  label: s.kennzeichen ? `${s.name} · ${s.kennzeichen}` : s.name,
+                }))}
+              />
+            </Form.Item>
+          ) : (
+            <>
+              <Form.Item
+                name="name"
+                label="Name"
+                rules={[{ required: true, whitespace: true, message: "Name angeben" }]}
+              >
+                <Input aria-label="Name" autoComplete="off" />
+              </Form.Item>
+              <Form.Item name="kennung" label="Kennung">
+                <Input aria-label="Kennung" autoComplete="off" />
+              </Form.Item>
+            </>
+          )}
         </Form>
         {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       </Modal>

@@ -6,7 +6,9 @@ import {
 } from "../../../_lib/lesepfade/fahrzeuge";
 import { fmtDatumZeit } from "../../../_lib/zeit";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
+import { stammAuswahl, type StammAuswahl } from "../../../_lib/stammAbgleich";
 import { ChecklisteKnopf } from "./ChecklisteKnopf";
+import { StammAbgleich } from "./StammAbgleich";
 import { CheckDurchfuehrenKnopf } from "./CheckDurchfuehrenKnopf";
 import {
   FahrzeugeListe,
@@ -47,7 +49,11 @@ export function fahrzeugAnzeigeZeile(
   };
 }
 
-export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date): ReactNode {
+/**
+ * `stammAuswahl` (IDA-258) kommt von aussen: die Seite liest sie aus der Fahrzeugverwaltung, Tests
+ * reichen sie hinein oder lassen sie leer — ein Test liest nie eine fremde Moduldatenbank.
+ */
+export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date, auswahl: StammAuswahl[] = []): ReactNode {
   const zeilen = fahrzeugUebersicht(db, jetzt).map(fahrzeugAnzeigeZeile);
 
   return (
@@ -84,14 +90,16 @@ export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date): ReactNode {
             */}
             <CheckDurchfuehrenKnopf beschriftung="Check durchführen" />
             <ChecklisteKnopf beschriftung="Checklisten drucken" />
+            <StammAbgleich />
           </>
         )}
       />
-      <FahrzeugeListe zeilen={zeilen} />
+      <FahrzeugeListe zeilen={zeilen} stammAuswahl={auswahl} />
     </>
   );
 }
 
 export default function FahrzeugeSeite() {
-  return fahrzeugeSeitenInhalt(getDb(), new Date());
+  const db = getDb();
+  return fahrzeugeSeitenInhalt(db, new Date(), stammAuswahl(db));
 }

@@ -645,6 +645,8 @@
     "kind": "excluded",
     "reason": "Per-session display preference only: it stores which destination the shelf withdrawal screen pre-selects. It writes no domain data; the booking it precedes is audited and carries the storage location itself."
   },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#stammUebernehmenAction": { "kind": "context", "via": "stammUebernehmenAction" },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#stammVorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs mit der Fahrzeugverwaltung: liest die Bereitstellung und den Bestand, schreibt nichts; die Übernahme läuft über stammUebernehmenAction." },
   "src/app/m/lagerbuch/_actions/fahrzeuge.ts#createFahrzeug": {
     "kind": "context",
     "via": "createFahrzeug"

@@ -15,6 +15,10 @@ import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { verwaltungDetailPfadIntern } from "../_lib/verwaltungPfad";
+import { bereitgestellteFahrzeuge, zuordnungenFuer } from "@/app/m/fahrzeuge/_lib/bereitstellung";
+import {
+  einheitName, planeStammGegenBestand, stammFahrzeug, wendeStammAbgleichAn, type StammErgebnis, type StammPlan,
+} from "../_lib/stammAbgleich";
 
 const FAHRZEUGE_PFAD = "/m/lagerbuch/verwaltung/fahrzeuge";
 const VERFALL_PFAD = "/m/lagerbuch/verwaltung/verfall";
@@ -53,6 +57,15 @@ const FahrzeugSchema = z.object({
   einheitenart: z.enum(EINHEITENARTEN, { message: "Fahrzeug oder Tasche wählen" }),
 });
 
+/**
+ * IDA-258 — ein Fahrzeug AUS DER FAHRZEUGVERWALTUNG: Name und Kennzeichen kommen von dort
+ * (`einheitName`), nie aus dem Dialog. Taschen gehen weiter über `FahrzeugSchema`.
+ */
+const AusStammSchema = z.object({
+  stammId: z.string().min(1, "Fahrzeug wählen").max(64),
+  einheitenart: z.literal("fahrzeug", { message: "Nur Fahrzeuge kommen aus der Fahrzeugverwaltung" }),
+});
+
 export async function createFahrzeug(
   eingabe: unknown,
   db: DB = getDb(),
@@ -60,9 +73,19 @@ export async function createFahrzeug(
   const auditViewer = await requireLagerbuchAdmin();
   return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-    let v: z.output<typeof FahrzeugSchema>;
+    let v: z.output<typeof FahrzeugSchema> & { stammId?: string };
     try {
-      v = FahrzeugSchema.parse(eingabe);
+      if (eingabe && typeof eingabe === "object" && "stammId" in eingabe) {
+        const s = AusStammSchema.parse(eingabe);
+        const stamm = stammFahrzeug(s.stammId);
+        if (!stamm || !stamm.aktiv) return { ok: false, fehler: "Dieses Fahrzeug gibt es in der Fahrzeugverwaltung nicht (mehr)." };
+        if (db.select({ id: lagerorte.id }).from(lagerorte).where(eq(lagerorte.stammId, s.stammId)).get()) {
+          return { ok: false, fehler: "Dieses Fahrzeug hat im Lagerbuch schon eine Einheit." };
+        }
+        v = { name: einheitName(stamm), kennung: stamm.kennzeichen ?? undefined, einheitenart: "fahrzeug", stammId: s.stammId };
+      } else {
+        v = FahrzeugSchema.parse(eingabe);
+      }
     } catch (e) {
       return validierungsFehler(e);
     }
@@ -71,6 +94,7 @@ export async function createFahrzeug(
     try {
       db.insert(lagerorte).values({
         id,
+        ...(v.stammId ? { stammId: v.stammId } : {}),
         name: v.name,
         // ⚠️ `typ` BLEIBT "fahrzeug", AUCH FUER EINE TASCHE. `typ` trennt Ort
         // von beweglichem Bestandstraeger, und daran haengt jeder Schreibpfad
@@ -213,8 +237,9 @@ export async function setEinheitenart(
       if (!findeFahrzeug(db, v.id)) {
         return { ok: false, fehler: "Einheit nicht gefunden." };
       }
+      // Eine Tasche gehört zu keinem Stammfahrzeug (IDA-258): der Verweis fällt mit der Art.
       db.update(lagerorte)
-        .set({ einheitenart: v.einheitenart })
+        .set({ einheitenart: v.einheitenart, ...(v.einheitenart === "tasche" ? { stammId: null } : {}) })
         .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
         .run();
     } catch {
@@ -415,5 +440,36 @@ export async function sollPositionWiederherstellen(
     if (row) revalidatePath(verwaltungDetailPfadIntern("fahrzeuge", row.fahrzeugId));
     revalidatePath(FAHRZEUGE_PFAD);
     return { ok: true };
+  });
+}
+
+const NICHT_LESBAR = "Die Fahrzeugverwaltung ist gerade nicht erreichbar. Bitte später noch einmal versuchen.";
+
+/**
+ * IDA-258 — Vorschau des Abgleichs mit der Fahrzeugverwaltung: liest deren veröffentlichte
+ * Bereitstellung samt Zuordnungen aus dem Erstimport und plant gegen die Fahrzeuge. Schreibt nichts.
+ */
+export async function stammVorschauAction(): Promise<ActionErgebnis<StammPlan>> {
+  await requireLagerbuchAdmin();
+  try {
+    return { ok: true, wert: planeStammGegenBestand(getDb(), bereitgestellteFahrzeuge(), zuordnungenFuer("lagerbuch")) };
+  } catch {
+    return { ok: false, fehler: NICHT_LESBAR };
+  }
+}
+
+/** Plant neu (beide Seiten können sich seit der Vorschau geändert haben) und schreibt. */
+export async function stammUebernehmenAction(): Promise<ActionErgebnis<StammErgebnis>> {
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<StammErgebnis>> => {
+    let plan: StammPlan;
+    try {
+      plan = planeStammGegenBestand(getDb(), bereitgestellteFahrzeuge(), zuordnungenFuer("lagerbuch"));
+    } catch {
+      return { ok: false, fehler: NICHT_LESBAR };
+    }
+    const wert = wendeStammAbgleichAn(getDb(), plan);
+    revalidatePath(FAHRZEUGE_PFAD);
+    return { ok: true, wert };
   });
 }
