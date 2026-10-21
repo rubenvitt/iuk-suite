@@ -73,6 +73,7 @@ const INSEL_SOLL = [
   "GeraeteTabelle.tsx",
   "GeraeteWerkzeugleiste.tsx",
   "NeuGeraetModal.tsx",
+  "OrtAbgleich.tsx", // IDA-259: der Abgleich der Lagerorte mit der Fahrzeugverwaltung
   "SpaltenWahl.tsx",
 ];
 

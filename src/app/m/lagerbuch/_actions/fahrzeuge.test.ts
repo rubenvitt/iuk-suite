@@ -40,7 +40,8 @@ vi.mock("../_lib/lesepfade/ortEtiketten", async (echtes) => {
   };
 });
 
-vi.mock("@/app/m/fahrzeuge/_lib/bereitstellung", () => ({
+vi.mock("@/app/m/fahrzeuge/_lib/bereitstellung", async (echtes) => ({
+  ...(await echtes<typeof import("@/app/m/fahrzeuge/_lib/bereitstellung")>()),
   bereitgestellteFahrzeuge: () => ({ fahrzeuge: stamm.fahrzeuge, stand: null }),
   zuordnungenFuer: () => stamm.zuordnung,
 }));

@@ -5,7 +5,8 @@ import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { lagerorte } from "../_db/schema";
 
 const { stamm } = vi.hoisted(() => ({ stamm: { fahrzeuge: [] as BereitgestelltesFahrzeug[], wirft: false } }));
-vi.mock("@/app/m/fahrzeuge/_lib/bereitstellung", () => ({
+vi.mock("@/app/m/fahrzeuge/_lib/bereitstellung", async (echtes) => ({
+  ...(await echtes<typeof import("@/app/m/fahrzeuge/_lib/bereitstellung")>()),
   bereitgestellteFahrzeuge: () => {
     if (stamm.wirft) throw new Error("fahrzeuge.db gesperrt");
     return { fahrzeuge: stamm.fahrzeuge, stand: null };

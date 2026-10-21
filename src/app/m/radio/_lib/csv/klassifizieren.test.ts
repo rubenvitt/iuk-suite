@@ -50,6 +50,7 @@ function bestehendesGeraet(felder: Partial<Geraet> = {}): Geraet {
     loanable: true,
     updateNote: null,
     updateFehler: null,
+    fahrzeugId: null,
     createdAt: new Date(1_700_000_000_000),
     updatedAt: new Date(1_700_000_000_000),
     createdBy: null,

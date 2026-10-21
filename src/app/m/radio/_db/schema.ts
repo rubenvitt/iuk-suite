@@ -30,6 +30,11 @@ export const devices = sqliteTable("devices", {
   deviceType: text("device_type"),
   status: text("status"),
   location: text("location"),
+  // IDA-259 — das Stammfahrzeug der Fahrzeugverwaltung, wenn `location` eines ist. KEIN eigenes
+  // Formularfeld: der Server leitet es beim Speichern aus `location` ab, und der Abgleich zieht
+  // `location` auf den Namen des Fahrzeugs nach (`_lib/stammFahrzeuge.ts`). Alles, was nach Ort
+  // gruppiert (Update-Modus, Ausleihe), bleibt so unberuehrt.
+  fahrzeugId: text("fahrzeug_id"),
   assignedTo: text("assigned_to"),
   softwareVersion: text("software_version"),
   // KALENDERDATUM `YYYY-MM-DD`, kein Zeitstempel (§2.2.3). Die Quelle fuehrt hier

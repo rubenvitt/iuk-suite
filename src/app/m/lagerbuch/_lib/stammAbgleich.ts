@@ -13,15 +13,16 @@
  * der `id` der Einheit, und die ändert sich nie. Taschen bleiben ganz lokal.
  */
 import { eq } from "drizzle-orm";
-import { bereitgestellteFahrzeuge, type BereitgestelltesFahrzeug, type Fahrzeugbereitstellung } from "@/app/m/fahrzeuge/_lib/bereitstellung";
+import { bereitgestellteFahrzeuge, kurzname, type BereitgestelltesFahrzeug, type Fahrzeugbereitstellung } from "@/app/m/fahrzeuge/_lib/bereitstellung";
 import type { DB } from "../_db/client";
 import { lagerorte } from "../_db/schema";
 import { lagerbuchFahrzeuge } from "./fahrzeugbestand";
 
-/** Der Name einer Einheit aus ihrem Stammfahrzeug: kurz fürs Handy, eindeutig über den Funkkenner. */
-export function einheitName(s: Pick<BereitgestelltesFahrzeug, "typ" | "funkkenner" | "funkrufname">): string {
-  return s.funkkenner ? `${s.typ} ${s.funkkenner}` : s.funkrufname;
-}
+/**
+ * Der Name einer Einheit aus ihrem Stammfahrzeug: kurz fürs Handy, eindeutig über den Funkkenner — die
+ * Regel der Fahrzeugverwaltung (`kurzname`), dieselbe wie für die Orte der Funkgeräte (Ruben, 21.10.2026).
+ */
+export const einheitName = kurzname;
 
 export type StammKlasse = "verknuepfen" | "geaendert" | "unveraendert" | "deaktivieren" | "nicht_verknuepft" | "doppelt";
 

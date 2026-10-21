@@ -991,6 +991,11 @@
     "kind": "context",
     "via": "importSchreibenAction"
   },
+  "src/app/m/radio/admin/actions.ts#fahrzeugAbgleichAction": {
+    "kind": "context",
+    "via": "fahrzeugAbgleichAction"
+  },
+  "src/app/m/radio/admin/actions.ts#fahrzeugAbgleichVorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs der Lagerorte mit der Fahrzeugverwaltung: liest die Bereitstellung und die Geräte, schreibt nichts; die Übernahme läuft über fahrzeugAbgleichAction." },
   "src/app/m/radio/admin/actions.ts#geraeteNachladenAction": {
     "kind": "excluded",
     "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."

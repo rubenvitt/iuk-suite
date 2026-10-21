@@ -138,3 +138,49 @@ test("das Lagerbuch legt ein Fahrzeug aus der Fahrzeugverwaltung an und gleicht 
   const vorschau = page.getByRole("table", { name: "Vorschau des Abgleichs mit der Fahrzeugverwaltung" });
   await expect(vorschau.locator("[data-row-key]").filter({ hasText: `GW-San ${kenner}` })).toContainText("Unverändert");
 });
+
+test("die Funkgeräte schlagen das Fahrzeug als Lagerort vor und gleichen es ab", async ({ page }) => {
+  const kenner = `96-${Date.now() % 100_000}-1`;
+  const name = `MTF ${kenner}`;
+  const issi = `96${Date.now() % 10_000_000}`;
+  await devLogin(page, { host: HOST, groups: "fahrzeuge-admin,radio-admin", callbackPath: "/" });
+  await oeffne(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Fahrzeug anlegen" }));
+  const schublade = page.getByRole("dialog");
+  await schublade.getByLabel("Typ").fill("MTF");
+  await schublade.getByLabel("Funkrufname").fill(`Rotkreuz Funk ${kenner}`);
+  await schublade.getByLabel("Funkkenner").fill(kenner);
+  await schublade.getByLabel("Standort").fill("Teststadt");
+  await schublade.getByRole("button", { name: "Speichern" }).click();
+  await expect(schublade).toBeHidden();
+
+  const radio = (p: string) => `http://radio.localtest.me:${E2E_PORT}${p}`;
+  await page.goto(radio("/admin/geraete"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Gerät anlegen" }));
+  await page.locator("#radio-neu-issi").fill(issi);
+  await page.getByRole("dialog").getByRole("button", { name: "Anlegen" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+
+  await page.goto(radio(`/admin/geraete?q=${issi}`));
+  const zeile = page.locator("table tbody tr.ant-table-row").first();
+  await expect(zeile).toBeVisible();
+  const id = await zeile.getAttribute("data-row-key");
+  await page.goto(radio(`/admin/geraete/${id}`));
+  await page.waitForLoadState("networkidle");
+  const ort = page.locator("#location");
+  await ort.click();
+  await ort.fill(kenner);
+  await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option", { hasText: name }).click();
+  const gespeichert = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes(`/admin/geraete/${id}`));
+  await page.getByRole("button", { name: "Speichern" }).click();
+  expect((await gespeichert).status()).toBe(200);
+
+  await page.goto(radio("/admin/geraete"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Mit Fahrzeugverwaltung abgleichen" }));
+  const vorschau = page.getByRole("table", { name: "Vorschau des Abgleichs mit der Fahrzeugverwaltung" });
+  await expect(vorschau.locator("[data-row-key]").filter({ hasText: name })).toContainText("Unverändert");
+});

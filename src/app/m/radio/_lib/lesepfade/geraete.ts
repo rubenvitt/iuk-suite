@@ -931,8 +931,9 @@ export function geraeteFuerExport(db: DB): Geraet[] {
  */
 export type GeraetFormWerte = Omit<
   Geraet,
-  // `updateFehler` schreibt nur der Update-Modus (`updateFehlerAction`), das Formular nicht.
-  "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "updateFehler"
+  // `updateFehler` schreibt nur der Update-Modus (`updateFehlerAction`), das Formular nicht;
+  // `fahrzeugId` leitet der Server aus `location` ab (IDA-259).
+  "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "updateFehler" | "fahrzeugId"
 > & { updateStand: UpdateStand };
 
 /**
