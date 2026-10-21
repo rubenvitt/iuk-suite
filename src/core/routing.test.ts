@@ -218,7 +218,7 @@ describe("antwortKoepfeFuer — vertrauliche Ansichten (kommplan Phase 5, Entsch
     }
   });
   it("das ganze Modul helfer (Personaldaten, IDA-249), auch Route Handler und 404", () => {
-    for (const p of ["/m/helfer", "/m/helfer/", "/m/helfer/abgleich", "/m/helfer/hiorg/rueckruf", "/m/helfer/gibtsnicht"]) {
+    for (const p of ["/m/helfer", "/m/helfer/", "/m/helfer/abgleich", "/m/helfer/hiorg/callback", "/m/helfer/gibtsnicht"]) {
       expect(antwortKoepfeFuer(p), p).toEqual({ "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer", "cache-control": "no-store" });
     }
   });

@@ -10,7 +10,7 @@ import { anzeigeName, helferVerwaltenZugang } from "../../_lib/zugang";
 export const dynamic = "force-dynamic";
 
 /**
- * Rückkehr von HiOrg-Server (Redirect-URI `<Modul-Host>/hiorg/rueckruf`). Prüft, dass derselbe Browser
+ * Rückkehr von HiOrg-Server (Redirect-URI `<Modul-Host>/hiorg/callback`). Prüft, dass derselbe Browser
  * (Cookie) und dieselbe Person (Vorgang) zurückkommt, tauscht den Code und speichert das
  * Refresh-Token verschlüsselt. Ergebnis als Hinweis auf der Einstellungsseite; die Fehlertexte
  * stehen dort, nicht in der Adresse.

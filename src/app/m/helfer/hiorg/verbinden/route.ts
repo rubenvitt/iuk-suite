@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * Beginnt das Verbinden mit HiOrg-Server: Vorgang (state + PKCE) anlegen, an die Person binden und
  * zur Anmeldung bei HiOrg weiterleiten. GET, weil es ein Link ist; geschrieben wird nur der
- * kurzlebige Vorgang, die Verbindung entsteht erst im Rückruf.
+ * kurzlebige Vorgang, die Verbindung entsteht erst im Callback.
  */
 export async function GET(req: Request): Promise<Response> {
   if (!istHelferHost(new Headers(req.headers))) return new Response("Not found", { status: 404 });

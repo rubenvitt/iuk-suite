@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 const ZEIT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** Die Texte zur Rückkehr von HiOrg (`hiorg/rueckruf`); ein unbekannter Wert zeigt nichts. */
+/** Die Texte zur Rückkehr von HiOrg (`hiorg/callback`); ein unbekannter Wert zeigt nichts. */
 const RUECKMELDUNG: Record<string, EinstellungenProps["rueckmeldung"]> = {
   verbunden: { art: "erfolg", text: "Mit HiOrg-Server verbunden." },
   abgelehnt: { art: "warnung", text: "Die Anmeldung bei HiOrg-Server wurde abgebrochen oder abgelehnt." },
