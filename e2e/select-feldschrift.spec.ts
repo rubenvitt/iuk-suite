@@ -44,7 +44,7 @@ test.describe("Auswahlfeld: 16px Schrift, Hoehe auf der Bediendichte", () => {
   for (const breite of [390, 1280]) {
     test(`bei ${breite}px`, async ({ page }) => {
       await page.setViewportSize({ width: breite, height: 900 });
-      await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins" });
+      await devLogin(page, { host: "portal.localtest.me", groups: "admin" });
 
       const antwort = await page.goto(PORTAL + "/admin/audit");
       expect(antwort?.status(), "/admin/audit: HTTP").toBe(200);

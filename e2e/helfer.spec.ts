@@ -11,7 +11,7 @@ import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "
  */
 const HOST = "helfer.localtest.me";
 const url = (p: string) => `http://${HOST}:${E2E_PORT}${p}`;
-const ADMIN = "iuk-helfer,iuk-helfer-admin";
+const ADMIN = "helfer-nutzer,helfer-admin";
 
 async function oeffne(page: Page, pfad: string): Promise<void> {
   await page.goto(url(pfad));
@@ -68,7 +68,7 @@ test("Freigabe fürs Einsatzbuch umschalten; ohne Admin-Gruppe nur lesend", asyn
   await expect(schalter).toHaveAttribute("aria-checked", vorher ?? "true");
 
   const leser = await browser.newPage();
-  await devLogin(leser, { host: HOST, groups: "iuk-helfer", email: "leser@localtest.me", callbackPath: "/" });
+  await devLogin(leser, { host: HOST, groups: "helfer-nutzer", email: "leser@localtest.me", callbackPath: "/" });
   await oeffne(leser, "/");
   await expect(leser.getByRole("table", { name: "Helfer" })).toContainText("Albers, Jana");
   await expect(leser.getByRole("switch")).toHaveCount(0);
@@ -78,7 +78,7 @@ test("Freigabe fürs Einsatzbuch umschalten; ohne Admin-Gruppe nur lesend", asyn
 });
 
 test("ohne Zugangsgruppe kein Zugang — auch nicht als Suite-Admin", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "dashboard-admins", email: "admin@localtest.me", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "admin", email: "admin@localtest.me", callbackPath: "/" });
   const antwort = await page.goto(url("/"));
   expect(antwort?.status()).not.toBe(200);
   await expect(page.getByRole("table", { name: "Helfer" })).toHaveCount(0);
@@ -86,7 +86,7 @@ test("ohne Zugangsgruppe kein Zugang — auch nicht als Suite-Admin", async ({ p
 
 test("das Einsatzbuch zeigt Demo-Helfer in der Vorschau, übernimmt sie aber nicht", async ({ page }) => {
   // Eine Anmeldung mit beiden Gruppen: die Sitzung gilt über die gemeinsame Cookie-Domain auf beiden Hosts.
-  await devLogin(page, { host: HOST, groups: `${ADMIN},einsatzbuch-verwaltung`, callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: `${ADMIN},einsatzbuch-nutzer`, callbackPath: "/" });
   await demoAbgleichen(page);
   const eb = "einsatzbuch.localtest.me";
   await page.goto(`http://${eb}:${E2E_PORT}/stammdaten?reiter=personal`);

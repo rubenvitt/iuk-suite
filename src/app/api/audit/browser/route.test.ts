@@ -95,12 +95,12 @@ it("rejects an anonymous einsatzbuch reader event although canAccess allows the 
  expect(recordAuditEvent).toHaveBeenCalledWith({module:"einsatzbuch",action:"access_denied",objectType:"browser_export",result:"denied",origin:"server"});
 });
 it("rejects a suite admin without the einsatzbuch access group", async () => {
- vi.mocked(auth).mockResolvedValue({user:{id:"suite",groups:["dashboard-admins"]}} as never);
+ vi.mocked(auth).mockResolvedValue({user:{id:"suite",groups:["admin"]}} as never);
  expect((await POST(request(einsatzbuchEreignis))).status).toBe(403);
  expect(recordAuditEvent).toHaveBeenCalledWith({module:"einsatzbuch",action:"access_denied",objectType:"browser_export",result:"denied",origin:"server"});
 });
 it("records the einsatzbuch reader event with its block range for a member of the access group", async () => {
- vi.mocked(auth).mockResolvedValue({user:{id:"jana",groups:["einsatzbuch-verwaltung"]}} as never);
+ vi.mocked(auth).mockResolvedValue({user:{id:"jana",groups:["einsatzbuch-nutzer"]}} as never);
  expect((await POST(request(einsatzbuchEreignis))).status).toBe(204);
  // storage.ts hasht objectRef beim Schreiben (safeAuditReference) — hier, mit gemocktem
  // recordAuditEvent, ist der übergebene Bereichs-String noch im Klartext sichtbar.

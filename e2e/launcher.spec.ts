@@ -57,7 +57,7 @@ test("mobil öffnen Titel und Menü-Knopf zwei verschiedene Dinge", async ({ pag
  *
  * Die Gruppe des Portal-Admins ist die SUITE-Admin-Gruppe: `portal` führt keine
  * eigene (`registry.ts`, `adminGroups: []`), also greift `ADMIN_GROUP` aus
- * `core/groups.ts` — Vorgabe `dashboard-admins`, und `playwright.config.ts`
+ * `core/groups.ts` — Vorgabe `admin`, und `playwright.config.ts`
  * setzt die Variable nicht, die Vorgabe gilt also.
  *
  * Zum Leerzustand selbst: ihn end-to-end zu erzwingen hieße, einer Sitzung
@@ -73,7 +73,7 @@ test("was die Verwaltung als Ansprechpartner pflegt, uebersteht den Rundlauf ueb
 }) => {
   await devLogin(page, {
     host: "portal.localtest.me",
-    groups: "dashboard-admins",
+    groups: "admin",
     callbackPath: "/admin",
   });
 

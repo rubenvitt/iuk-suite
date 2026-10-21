@@ -10,8 +10,8 @@ Beide Gruppen müssen in Pocket ID **existieren UND Mitglieder haben**, bevor de
 
 | Gruppe (Instanz `id.iuk-ue.de`) | Variable | Was ohne sie passiert |
 |---|---|---|
-| `aufgaben_nutzer` | `SUITE_ACCESS_GROUP_AUFGABEN` | Die Middleware antwortet **jedem** mit 403. Das Modul ist für niemanden erreichbar. |
-| `aufgaben_koordination` | `SUITE_ADMIN_GROUP_AUFGABEN` | Niemand kann eine Person anlegen, eine Aufgabe verteilen oder eine Freigabe erteilen. Das Modul ist begehbar und **tut nichts**. |
+| `aufgaben-nutzer` | `SUITE_ACCESS_GROUP_AUFGABEN` | Die Middleware antwortet **jedem** mit 403. Das Modul ist für niemanden erreichbar. |
+| `aufgaben-admin` | `SUITE_ADMIN_GROUP_AUFGABEN` | Niemand kann eine Person anlegen, eine Aufgabe verteilen oder eine Freigabe erteilen. Das Modul ist begehbar und **tut nichts**. |
 
 **Stand bei Erstellung dieses Runbooks: beide Gruppen existieren mit 0 Mitgliedern.** Das Modul wäre
 in diesem Zustand für niemanden erreichbar, unabhängig davon, wie die Gruppen heißen — die leere
@@ -32,7 +32,7 @@ kennt nur noch `auftrag` und `bufdi`.
 Drei Folgen für den Betrieb:
 
 1. **Ein Tippfehler im Variablenwert sperrt jede Koordination aus** — nicht nur `/personen`.
-2. **Der Rückweg ist die Suite-Admin-Gruppe** (`dashboard-admins`, `SUITE_ADMIN_GROUP`):
+2. **Der Rückweg ist die Suite-Admin-Gruppe** (`admin`, `SUITE_ADMIN_GROUP`):
    `isModuleAdmin` lässt sie neben der Modulgruppe passieren, ausdrücklich als Notausgang. Wer ihn
    benutzt, bekommt beim ersten Modulaufruf selbst eine `personen`-Zeile — sie bleibt danach in
    `/personen` stehen und lässt sich nur über `aktiv bis` beenden, nicht löschen.
@@ -44,21 +44,21 @@ Drei Folgen für den Betrieb:
 ## Ablauf
 
 1. **Gruppen in Pocket ID anlegen und besetzen.**
-   - `aufgaben_nutzer`: **alle**, die das Modul benutzen sollen — BuFDis, Auftraggeber *und* die
+   - `aufgaben-nutzer`: **alle**, die das Modul benutzen sollen — BuFDis, Auftraggeber *und* die
      Koordination. Ohne diese Gruppe kommt auch die Koordination nicht durch die Middleware.
-   - `aufgaben_koordination`: die koordinierenden Personen. **Zusätzlich** zu `aufgaben_nutzer`, nicht
+   - `aufgaben-admin`: die koordinierenden Personen. **Zusätzlich** zu `aufgaben-nutzer`, nicht
      statt ihr.
    - Gegenprobe vor dem Weitermachen: beide Gruppen haben ≥ 1 Mitglied.
 
 2. **`.env` des Stacks ergänzen** (Vorlage in `.env.example`, Abschnitt „Modul aufgaben"):
    ```
    SUITE_HOST_AUFGABEN=aufgaben.iuk-ue.de
-   SUITE_ACCESS_GROUP_AUFGABEN=aufgaben_nutzer
-   SUITE_ADMIN_GROUP_AUFGABEN=aufgaben_koordination
+   SUITE_ACCESS_GROUP_AUFGABEN=aufgaben-nutzer
+   SUITE_ADMIN_GROUP_AUFGABEN=aufgaben-admin
    ```
-   Die Registry-Vorgaben heißen `iuk-aufgaben-nutzer`/`iuk-aufgaben-koordination` und bleiben im
-   Quelltext unverändert — die Instanz löst die Abweichung über diese beiden Variablen, nicht durch
-   Ändern der Literale (daran hängt `e2e/aufgaben.spec.ts` über `e2e/helpers/aufgaben.ts`).
+   Die Registry-Vorgaben heißen seit dem 21.10.2026 genauso; die beiden Zeilen braucht es nur, wenn
+   eine Instanz ihre Gruppen anders benennt oder während einer Umbenennung alte und neue Namen als
+   Liste trägt (an den Literalen hängt `e2e/aufgaben.spec.ts` über `e2e/helpers/aufgaben.ts`).
 
 3. **`SUITE_TRAEFIK_RULE` erweitern**, sonst erreicht die Domain den Container gar nicht erst:
    ```

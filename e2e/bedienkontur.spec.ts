@@ -54,7 +54,7 @@ function kontrast(a: string, b: string): number {
 test.describe("Bedienelemente: ruhende Kontur mit 3:1", () => {
   for (const modus of ["light", "dark"] as const) {
     test(`im Modus ${modus}`, async ({ page, context }) => {
-      await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins" });
+      await devLogin(page, { host: "portal.localtest.me", groups: "admin" });
       await context.addCookies([{ name: "iuk-theme-pref", value: modus, url: PORTAL }]);
 
       const antwort = await page.goto(PORTAL + "/admin/audit");

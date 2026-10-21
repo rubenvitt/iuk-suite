@@ -18,13 +18,13 @@ import { computeClosesAt, DEFAULT_CLOSE_AFTER_HOURS } from "@/app/m/feedback/_li
  * ((admin)/layout.tsx) und die Gruppen-Sichtbarkeit ohne echtes OIDC/SSO
  * durchspielen lassen:
  *
- * - Admin-Test: Dev-Login mit `groups=da-feedback-admin` → sieht BEIDE Gruppen
- *   ("Demo" und "Demo Jugend") und darf neue Gruppen anlegen. `dashboard-admins`
+ * - Admin-Test: Dev-Login mit `groups=feedback-admin` → sieht BEIDE Gruppen
+ *   ("Demo" und "Demo Jugend") und darf neue Gruppen anlegen. `admin`
  *   allein reicht dafür NICHT (mehr): der Suite-Admin ist in diesem Modul kein
  *   Admin, siehe `_lib/access.ts`. Wer beides durchspielen will, hängt die
- *   Modulgruppe dazu (`groups=dashboard-admins,da-feedback-admin`).
+ *   Modulgruppe dazu (`groups=admin,feedback-admin`).
  * - Gruppenleiter-Test: Dev-Login mit `email=gl@localtest.me` +
- *   `groups=da-feedback-gl` → sieht NUR "Demo Jugend" (über die
+ *   `groups=feedback-nutzer` → sieht NUR "Demo Jugend" (über die
  *   `user_groups`-Zuordnung unten), kein "Neue Gruppe anlegen"-Formular.
  */
 

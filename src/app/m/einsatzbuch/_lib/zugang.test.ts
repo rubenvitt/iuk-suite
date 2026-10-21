@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
 
 describe("hatEinsatzbuchZugang", () => {
   it("die Zugangsgruppe öffnet das Modul", () => {
-    expect(hatEinsatzbuchZugang(["einsatzbuch-verwaltung"], {})).toBe(true);
+    expect(hatEinsatzbuchZugang(["einsatzbuch-nutzer"], {})).toBe(true);
   });
   it("ohne Gruppe, anonym oder mit leerer Liste: kein Zugang", () => {
     expect(hatEinsatzbuchZugang(["andere"], {})).toBe(false);
@@ -24,19 +24,19 @@ describe("hatEinsatzbuchZugang", () => {
     expect(hatEinsatzbuchZugang([], {})).toBe(false);
   });
   it("der Suite-Admin allein öffnet das Modul NICHT (hier liegt die Schlüsselfreigabe)", () => {
-    expect(hatEinsatzbuchZugang(["dashboard-admins"], {})).toBe(false);
+    expect(hatEinsatzbuchZugang(["admin"], {})).toBe(false);
     expect(hatEinsatzbuchZugang(["chef"], { ADMIN_GROUP: "chef" })).toBe(false);
   });
   it("SUITE_ACCESS_GROUP_EINSATZBUCH ersetzt die Vorgabe", () => {
     expect(hatEinsatzbuchZugang(["eb-leitung"], { SUITE_ACCESS_GROUP_EINSATZBUCH: "eb-leitung" })).toBe(true);
-    expect(hatEinsatzbuchZugang(["einsatzbuch-verwaltung"], { SUITE_ACCESS_GROUP_EINSATZBUCH: "eb-leitung" })).toBe(false);
+    expect(hatEinsatzbuchZugang(["einsatzbuch-nutzer"], { SUITE_ACCESS_GROUP_EINSATZBUCH: "eb-leitung" })).toBe(false);
   });
 });
 
 describe("Riegel mit Audit-Zweigen", () => {
   beforeEach(() => { zustand.host = "einsatzbuch.localtest.me"; zustand.user = null; audit.denied.mockClear(); audit.login.mockClear(); });
-  const mitGruppe = { sub: "s1", name: "Jana", groups: ["einsatzbuch-verwaltung"] };
-  const admin = { sub: "s2", name: "Chef", groups: ["dashboard-admins"] };
+  const mitGruppe = { sub: "s1", name: "Jana", groups: ["einsatzbuch-nutzer"] };
+  const admin = { sub: "s2", name: "Chef", groups: ["admin"] };
 
   it("requireEinsatzbuchZugang: ohne Sitzung → Login mit Audit, ohne Gruppe → 404 mit Audit", async () => {
     const { requireEinsatzbuchZugang } = await import("./zugang");

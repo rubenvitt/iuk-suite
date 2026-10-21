@@ -24,7 +24,7 @@ async function readQrSvg(page: Page): Promise<string> {
    * EIGENES ZEITBUDGET, UND ES IST DIE URSACHE EINES ECHTEN ROTEN LAUFS —
    * nicht Vorsorge.
    *
-   * `main`, Lauf 31960413191, Shard 3, ERSTER Versuch von „iuk-qr-admin kann
+   * `main`, Lauf 31960413191, Shard 3, ERSTER Versuch von „qr-admin kann
    * ein Preset anlegen" (aus `error-context.md` gelesen):
    *
    *     expect(locator).toBeVisible() failed
@@ -276,11 +276,11 @@ test("Admin-Route ist ohne die Gruppe nicht vorhanden (404, nicht 403)", async (
   expect(res?.status()).toBe(404);
 });
 
-test("iuk-qr-admin kann ein Preset anlegen", async ({ page }, testInfo) => {
+test("qr-admin kann ein Preset anlegen", async ({ page }, testInfo) => {
   const bezeichnung = jeVersuch("Neues Preset", testInfo);
   await devLogin(page, {
     host: "qr.localtest.me",
-    groups: "iuk-qr-admin",
+    groups: "qr-admin",
     callbackPath: "/admin",
   });
   await expect(page.getByTestId("qr-admin")).toBeVisible();
@@ -317,11 +317,11 @@ test("iuk-qr-admin kann ein Preset anlegen", async ({ page }, testInfo) => {
  * E2E laeuft mit `workers:1` gegen eine einmal gewischte DB, alle Tests dieser
  * Datei teilen seriell denselben Stand.
  */
-test("iuk-qr-admin kann ein Preset loeschen", async ({ page }, testInfo) => {
+test("qr-admin kann ein Preset loeschen", async ({ page }, testInfo) => {
   const bezeichnung = jeVersuch("Preset zum Loeschen", testInfo);
   await devLogin(page, {
     host: "qr.localtest.me",
-    groups: "iuk-qr-admin",
+    groups: "qr-admin",
     callbackPath: "/admin",
   });
   await page.getByLabel("Bezeichnung").fill(bezeichnung);
@@ -347,12 +347,12 @@ test("iuk-qr-admin kann ein Preset loeschen", async ({ page }, testInfo) => {
  * QR-Code): die Preset-Zeile rendert den gespeicherten Wert nirgends, ein Test
  * bis zur Liste bliebe also auch dann gruen, wenn die Action den Wert verwirft.
  */
-test("iuk-qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page }, testInfo) => {
+test("qr-admin kann ein Preset bearbeiten, ohne es neu anzulegen", async ({ page }, testInfo) => {
   const vorher = jeVersuch("Preset vor Rotation", testInfo);
   const nachher = jeVersuch("Preset nach Rotation", testInfo);
   await devLogin(page, {
     host: "qr.localtest.me",
-    groups: "iuk-qr-admin",
+    groups: "qr-admin",
     callbackPath: "/admin",
   });
   await page.getByLabel("Bezeichnung").fill(vorher);
@@ -547,7 +547,7 @@ test("qr-admin: die Checkbox-Zeile im Preset-Formular bleibt mit Handschuhen tre
 }) => {
   await devLogin(page, {
     host: "qr.localtest.me",
-    groups: "iuk-qr-admin",
+    groups: "qr-admin",
     callbackPath: "/admin",
   });
   await expect(page.getByTestId("qr-admin")).toBeVisible();

@@ -96,7 +96,7 @@ import AuffuellenLayout, { dynamic as layoutDynamic } from "./layout";
 import AuffuellenArtikelSeite from "./[artikelId]/page";
 import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
 
-const VIEWER = { sub: "u-gf", groups: ["lagerbuch_nutzer"], name: "G. Führer", email: null };
+const VIEWER = { sub: "u-gf", groups: ["lagerbuch-admin"], name: "G. Führer", email: null };
 
 beforeEach(() => { riegel.mockResolvedValue(VIEWER); detail.mockReturnValue(null); kiste.mockReturnValue([]); });
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });

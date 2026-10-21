@@ -140,7 +140,7 @@ export type Akteur = { person: PersonRow; istKoordination: boolean };
  *     `_lib/seedLokal.ts` — auf einer frischen Produktivdatenbank duerfte niemand die erste Person
  *     anlegen.
  *  2. ZWEI REGISTER FUER DIESELBE FRAGE laufen auseinander: der Betreiber pflegt die Gruppe
- *     `aufgaben_koordination` in Pocket ID ohnehin und musste dieselbe Person danach ein zweites
+ *     `aufgaben-admin` in Pocket ID ohnehin und musste dieselbe Person danach ein zweites
  *     Mal in der Modultabelle eintragen. Dass es auseinandergelaufen ist, faellt erst auf, wenn
  *     jemand nicht mehr hineinkommt.
  *
@@ -197,7 +197,7 @@ export async function akteurFuer(person: PersonRow): Promise<Akteur> {
  *
  * DER SUITE-ADMIN BEKOMMT DIESE ZEILE EBENFALLS, UND ZWAR SCHON BEIM BLOSSEN BETRETEN DES MODULS —
  * DAS IST EINE ENTSCHEIDUNG, KEIN NEBENEFFEKT (Review-Runde zum Quellenwechsel): `canAdminModule`
- * laesst `ADMIN_GROUP` (`dashboard-admins`) mit durch, und der Entwurf will das ausdruecklich
+ * laesst `ADMIN_GROUP` (`admin`) mit durch, und der Entwurf will das ausdruecklich
  * (Rueckweg bei fehlkonfiguriertem `SUITE_ADMIN_GROUP_AUFGABEN`). Ohne Zeile waere dieser Rueckweg
  * die halbe Sache: der Betreiber saehe die Flaechen, koennte aber nichts einstellen, verteilen oder
  * freigeben — `erstellerId`/`prueferId`/`akteurId` verlangen eine `personen.id`. DER PREIS,

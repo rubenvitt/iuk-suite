@@ -104,7 +104,7 @@ const MIGRATIONEN = "src/app/m/radio/_db/migrations";
 const UPDATER_GRUPPE = "eine-updater-gruppe";
 
 const ADMIN_SITZUNG = {
-  user: { id: "sub-admin", name: "Adam Admin", groups: ["iuk-radio-admin"] },
+  user: { id: "sub-admin", name: "Adam Admin", groups: ["radio-admin"] },
 };
 const UPDATER_SITZUNG = {
   user: { id: "sub-updater", name: "Uwe Updater", groups: [UPDATER_GRUPPE] },
@@ -706,7 +706,7 @@ describe("notizAnfuegenAction", () => {
      * „so the field is never blank" (`radio-admin/server/src/routes/devices.ts:70-78`).
      * ⛔ EIN NAME AUS LEERRAUM IST KEIN NAME — deshalb `?.trim()` und nicht `?? `.
      */
-    sitzung = { user: { id: "sub-namenlos", name: "   ", groups: ["iuk-radio-admin"] } };
+    sitzung = { user: { id: "sub-namenlos", name: "   ", groups: ["radio-admin"] } };
     geraet({ id: "g-1", issi: "1000001" });
 
     expect(await notizAnfuegenAction("g-1", "Antenne getauscht")).toEqual({ ok: true });

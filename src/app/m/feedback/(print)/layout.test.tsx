@@ -82,7 +82,7 @@ describe("Druckansicht: ohne Anmeldung nicht erreichbar", () => {
   });
 
   it("mit Berechtigung: rendert und trägt ins Verzeichnis ein wie die Verwaltung", async () => {
-    authMock.mockResolvedValue(sessionFor({ id: "user-1", groups: ["da-feedback-gl"] }));
+    authMock.mockResolvedValue(sessionFor({ id: "user-1", groups: ["feedback-nutzer"] }));
 
     await expect(rendere()).resolves.toBeTruthy();
 

@@ -59,14 +59,14 @@ describe("portal admin actions: authorization boundary", () => {
     expect(deleteServiceMock).not.toHaveBeenCalled();
   });
 
-  it("admin session (dashboard-admins) is allowed to create a service", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+  it("admin session (admin) is allowed to create a service", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
     await createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example", isPublic: "on" }));
     expect(createServiceMock).toHaveBeenCalledTimes(1);
   });
 
   it("speichert einen nicht oeffentlichen Dienst mit den gewaehlten Gruppen (IDA-227)", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
     const fd = formData({ slug: "x", name: "X", url: "https://x.example" });
     fd.append("requiredGroups", "iuk");
     fd.append("requiredGroups", "sanitaet");
@@ -77,7 +77,7 @@ describe("portal admin actions: authorization boundary", () => {
   });
 
   it("legt keinen nicht oeffentlichen Dienst ohne Gruppe an — den saehe niemand", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
     await expect(
       createServiceAction(formData({ slug: "x", name: "X", url: "https://x.example" })),
     ).rejects.toThrow(/mindestens eine Gruppe/);
@@ -93,7 +93,7 @@ describe("portal admin actions: authorization boundary", () => {
   });
 
   it("admin session changes who sees a service", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
     const fd = formData({ id: "svc-1" });
     fd.append("requiredGroups", "iuk");
     await setzeSichtbarkeitAction(fd);
@@ -111,7 +111,7 @@ describe("portal admin actions: authorization boundary", () => {
   });
 
   it("admin session sets the time zone and revalidates the whole suite", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"] } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
     await setzeZeitzoneAction(formData({ zeitzone: "Europe/Lisbon" }));
     expect(vi.mocked(setzeZeitzone)).toHaveBeenCalledWith("Europe/Lisbon");
     expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/", "layout");

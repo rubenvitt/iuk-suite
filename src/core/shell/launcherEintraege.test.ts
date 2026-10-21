@@ -34,7 +34,7 @@ vi.mock("@/app/m/portal/_lib/services", () => ({
 describe("modulEintraege", () => {
   it("verlinkt in Dev nur die für den Nutzer sichtbaren Module über *.localtest.me", () => {
     vi.stubEnv("PORT", "3000");
-    const groups = ["da-feedback-gl", "iuk-files-admin", "lagerbuch_nutzer"];
+    const groups = ["feedback-nutzer", "files-admin", "lagerbuch-admin"];
     expect(modulEintraege(groups).map((e) => e.key)).toEqual([
       "portal",
       "qr",
@@ -76,7 +76,7 @@ describe("modulEintraege", () => {
 describe("modulEintraege: das App-Icon für die Portal-Kachel", () => {
   it("trägt das Zeichen des Moduls, für das Portal das IDA-Zeichen, auch für lagerbuch", () => {
     vi.stubEnv("PORT", "3000");
-    const eintraege = modulEintraege(["da-feedback-gl", "iuk-files-admin", "lagerbuch_nutzer"]);
+    const eintraege = modulEintraege(["feedback-nutzer", "files-admin", "lagerbuch-admin"]);
     const url = (key: string) => eintraege.find((e) => e.key === key)?.appIconUrl;
     expect(url("qr")).toMatch(/^\/favicon\/qr-app-192\.png\?v=/);
     expect(url("portal")).toMatch(/^\/favicon\/ida-app-192\.png\?v=/);
@@ -89,8 +89,8 @@ describe("modulEintraege: das App-Icon für die Portal-Kachel", () => {
 describe("modulEintraege: der Verwaltungseinstieg (DRK-495)", () => {
   it("steht für die Admin-Gruppe von radio direkt hinter der Modulkachel", () => {
     vi.stubEnv("PORT", "3000");
-    vi.stubEnv("SUITE_ADMIN_GROUP_RADIO", "iuk-radio-admin");
-    const eintraege = modulEintraege(["iuk-radio-admin"]);
+    vi.stubEnv("SUITE_ADMIN_GROUP_RADIO", "radio-admin");
+    const eintraege = modulEintraege(["radio-admin"]);
     const keys = eintraege.map((e) => e.key);
     expect(keys.indexOf("radio:verwaltung")).toBe(keys.indexOf("radio") + 1);
     const verwaltung = eintraege.find((e) => e.key === "radio:verwaltung");
@@ -113,7 +113,7 @@ describe("modulEintraege: der Verwaltungseinstieg (DRK-495)", () => {
 
   it("fehlt ohne passende Gruppe und ohne Anmeldung — sie führte sonst in ein 404", () => {
     vi.stubEnv("SUITE_UPDATER_GROUP_RADIO", "");
-    expect(modulEintraege(["lagerbuch_nutzer"]).map((e) => e.key)).not.toContain(
+    expect(modulEintraege(["lagerbuch-admin"]).map((e) => e.key)).not.toContain(
       "radio:verwaltung",
     );
     expect(modulEintraege(null).map((e) => e.key)).toEqual(["qr", "radio"]);

@@ -21,13 +21,13 @@ describe("Actions der Token-Links", () => {
   it("anonym: Forbidden; mit Zugangsgruppe an einem geteilten Plan, den sie nicht verwaltet: abgewiesen", async () => {
     const a = await import("./freigabe");
     await expect(a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "" })).rejects.toThrow("Forbidden");
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     const { NICHT_ERLAUBT } = await import("../_lib/rechte");
     expect(await a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "" })).toEqual({ ok: false, fehler: NICHT_ERLAUBT, feldFehler: {} });
     expect(await a.widerrufeFreigabeAction({ planId: OPENR, freigabeId: "x" })).toEqual({ ok: false, fehler: NICHT_ERLAUBT, feldFehler: {} });
   });
   it("ausstellen und widerrufen mit Audit-Akteur aus der Sitzung", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const a = await import("./freigabe");
     const r = await a.stelleFreigabeAusAction({ planId: OPENR, dauer: "24h", notiz: "Leitstelle" });
     if (!r.ok) throw new Error(r.fehler);
@@ -42,9 +42,9 @@ describe("Actions der Token-Links", () => {
   it("Liste lesen: nur wer den Plan verwaltet, nur die Links dieses Plans, Status vom Server", async () => {
     const a = await import("./freigabe");
     await expect(a.ladeFreigabenAction(OPENR)).rejects.toThrow("Forbidden");
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     expect(await a.ladeFreigabenAction(OPENR)).toBeNull();
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const r = await a.stelleFreigabeAusAction({ planId: OPENR, dauer: "7d", notiz: "Leitstelle" });
     if (!r.ok) throw new Error(r.fehler);
     await a.stelleFreigabeAusAction({ planId: "beispiel-einsatz-2026-02-22", dauer: "7d", notiz: "anderer Plan" });
@@ -52,7 +52,7 @@ describe("Actions der Token-Links", () => {
     expect(await a.ladeFreigabenAction({ id: 5 })).toBeNull();
   });
   it("Unsinn wird abgewiesen, nicht geworfen", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const a = await import("./freigabe");
     expect(await a.stelleFreigabeAusAction("x")).toMatchObject({ ok: false });
     expect(await a.widerrufeFreigabeAction({ planId: 5 })).toEqual({ ok: false, fehler: "Ungültige Anfrage.", feldFehler: {} });

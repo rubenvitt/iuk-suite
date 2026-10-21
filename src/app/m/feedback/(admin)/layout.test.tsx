@@ -79,7 +79,7 @@ describe("Feedback-Verwaltung: Layout traegt ins Nutzerverzeichnis ein", () => {
     authMock.mockResolvedValue(
       sessionFor({
         id: "user-1",
-        groups: ["da-feedback-gl"],
+        groups: ["feedback-nutzer"],
         name: "Erika Musterfrau",
         email: "erika@example.org",
       }),
@@ -100,7 +100,7 @@ describe("Feedback-Verwaltung: Layout traegt ins Nutzerverzeichnis ein", () => {
 
   it("zweiter Aufruf bleibt idempotent: weiterhin nur ein Upsert pro Aufruf, keine Verdopplung", async () => {
     authMock.mockResolvedValue(
-      sessionFor({ id: "user-1", groups: ["da-feedback-gl"], name: "Erika", email: "e@x.org" }),
+      sessionFor({ id: "user-1", groups: ["feedback-nutzer"], name: "Erika", email: "e@x.org" }),
     );
 
     await renderLayout();
@@ -156,19 +156,19 @@ describe("Feedback-Verwaltung: der Vergleich steht nur da, wo er auch begehbar i
   });
 
   it("Voll-Admin sieht den Eintrag", async () => {
-    authMock.mockResolvedValue(sessionFor({ id: "admin-1", groups: ["da-feedback-admin"] }));
+    authMock.mockResolvedValue(sessionFor({ id: "admin-1", groups: ["feedback-admin"] }));
 
     expect(await navSchluessel()).toEqual(["start", "vergleich"]);
   });
 
   it("Gruppenleitung sieht nur die Uebersicht — kein Weg in den 404", async () => {
-    authMock.mockResolvedValue(sessionFor({ id: "gl-1", groups: ["da-feedback-gl"] }));
+    authMock.mockResolvedValue(sessionFor({ id: "gl-1", groups: ["feedback-nutzer"] }));
 
     expect(await navSchluessel()).toEqual(["start"]);
   });
 
   it("Suite-Admin ohne Feedback-Gruppe kommt gar nicht erst so weit (isFeedbackAdmin != isModuleAdmin)", async () => {
-    authMock.mockResolvedValue(sessionFor({ id: "betreiber", groups: ["dashboard-admins"] }));
+    authMock.mockResolvedValue(sessionFor({ id: "betreiber", groups: ["admin"] }));
 
     await expect(renderLayout()).rejects.toThrow();
 

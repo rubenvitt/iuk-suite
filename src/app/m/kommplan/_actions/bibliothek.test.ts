@@ -16,7 +16,7 @@ beforeEach(() => {
 
 describe("Bibliotheks-Actions", () => {
   it("ohne Bearbeitungsrecht: Forbidden — jede einzelne", async () => {
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     const a = await import("./bibliothek");
     await expect(a.speichereBibStelleAction({})).rejects.toThrow("Forbidden");
     await expect(a.speichereBibEinheitAction({})).rejects.toThrow("Forbidden");
@@ -26,7 +26,7 @@ describe("Bibliotheks-Actions", () => {
     await expect(a.importiereBibVerbindungenAction([])).rejects.toThrow("Forbidden");
   });
   it("anlegen, importieren, löschen — Audit nennt die Person", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const a = await import("./bibliothek");
     const s = await a.speichereBibStelleAction({ id: null, titel: "EAL Süd", zeichen: null, leiter: null, kontakte: [], notiz: null });
     if (!s.ok) throw new Error(s.fehler);

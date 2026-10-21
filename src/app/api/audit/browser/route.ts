@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   const mod = getModule(event.module);
   const zugang = requiredGroupsFor(mod);
   // canAccess ist für requiresAuth:false-Module (qr, einsatzbuch) für jeden wahr; ein Modul mit eigener
-  // Zugangsgruppe (einsatzbuch: einsatzbuch-verwaltung) verlangt sie hier zusätzlich (Plan Stufe 3,
+  // Zugangsgruppe (einsatzbuch: einsatzbuch-nutzer) verlangt sie hier zusätzlich (Plan Stufe 3,
   // `docs/superpowers/plans/2026-09-24-einsatzbuch-v2-stufe-3-reader.md`, Entscheidung 4).
   if (!canAccess(mod, groups) || (zugang.length > 0 && !hasAnyGroup(groups, zugang))) {
     auditDenied(event.module, actor, "browser_export");

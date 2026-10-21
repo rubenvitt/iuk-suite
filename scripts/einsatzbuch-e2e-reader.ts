@@ -18,7 +18,7 @@ import { devLogin, klickeWennRuhig } from "../e2e/fixtures";
  * nach; `channel: "chromium"`, weil die Headless-Shell den Schalter still übergeht. Zugesichert
  * wird das vor der Datei, sonst endete sie als „beschädigt“.
  */
-const GRUPPE = "einsatzbuch-verwaltung";
+const GRUPPE = "einsatzbuch-nutzer";
 const TESTBAND = "Testdaten — kein echter Einsatz";
 /** PBKDF2 mit 600 000 Runden im Browser, auf einer ausgelasteten Maschine. */
 const ENTSCHLUESSELT_MS = 60_000;

@@ -54,7 +54,7 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
 }
 
 function anmelden(p: PersonRow, koordiniert = false): void {
-  sitzung = { user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] } };
+  sitzung = { user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] } };
 }
 
 const seite = (id: string) => AufgabeBearbeitenPage({ params: Promise.resolve({ id }) });

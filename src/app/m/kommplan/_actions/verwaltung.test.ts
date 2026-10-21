@@ -22,7 +22,7 @@ describe("Actions der Planverwaltung", () => {
     await expect(a.dupliziereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
     gruppen = ["andere"];
     await expect(a.archiviereAction("beispiel-openr-2022-07-01")).rejects.toThrow("Forbidden");
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     const kopie = await a.dupliziereAction("beispiel-openr-2022-07-01");
     expect(kopie.ok).toBe(true);
     const { NICHT_ERLAUBT } = await import("../_lib/rechte");
@@ -34,7 +34,7 @@ describe("Actions der Planverwaltung", () => {
     if (kopie.ok) expect(await a.loescheOhneArchivAction(kopie.id)).toEqual({ ok: true });
   });
   it("löschen: ohne Archiv nur frisch, endgültig nur archiviert — die Uhr ist die des Servers", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const a = await import("./verwaltung");
     const { listePlaene } = await import("../_lib/plaene");
     const { getDb } = await import("../_db/client");
@@ -53,7 +53,7 @@ describe("Actions der Planverwaltung", () => {
     expect(await a.loescheOhneArchivAction("")).toEqual({ ok: false, fehler: "Ungültige Anfrage." });
   });
   it("duplizieren, archivieren, wiederherstellen, Vorlage — ungültige Eingaben ohne Wurf", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const a = await import("./verwaltung");
     const r = await a.dupliziereAction("beispiel-openr-2022-07-01");
     expect(r.ok).toBe(true);

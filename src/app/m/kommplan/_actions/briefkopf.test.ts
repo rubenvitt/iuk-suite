@@ -17,12 +17,12 @@ beforeEach(() => {
 describe("Briefkopf-Actions", () => {
   it("ohne Bearbeitungsrecht: Forbidden", async () => {
     const { entferneLogoAction, speichereOrganisationAction } = await import("./briefkopf");
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     await expect(speichereOrganisationAction({ organisation: "X" })).rejects.toThrow("Forbidden");
     await expect(entferneLogoAction()).rejects.toThrow("Forbidden");
   });
   it("Organisation setzen und Logo entfernen", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const { entferneLogoAction, speichereOrganisationAction } = await import("./briefkopf");
     expect(await speichereOrganisationAction({ organisation: "Muster" })).toEqual({ ok: true });
     expect(await speichereOrganisationAction("kaputt")).toMatchObject({ ok: false });

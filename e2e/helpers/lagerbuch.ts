@@ -36,7 +36,7 @@ export const FREMDER_HOST = "feedback.localtest.me";
  * beim Cutover als eine `.env`-Zeile gesetzt. Fuer E2E gilt der
  * Registry-Vorgabewert.
  */
-export const LAGERBUCH_ADMIN_GRUPPE = "lagerbuch_nutzer";
+export const LAGERBUCH_ADMIN_GRUPPE = "lagerbuch-admin";
 
 import { E2E_PORT } from "./ports"; // Derselbe Port wie `playwright.config.ts` (DRK-346).
 export const LAGERBUCH_PORT = E2E_PORT;

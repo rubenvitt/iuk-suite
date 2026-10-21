@@ -50,8 +50,8 @@ import { setzeAvModus } from "./helpers/avModus";
 const VERWALTUNG = "files.localtest.me";
 const V = `http://${VERWALTUNG}:${E2E_PORT}`;
 
-/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
-const GRUPPE = "iuk-files-admin";
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["files-admin"]`). */
+const GRUPPE = "files-admin";
 
 /**
  * 12 MiB — und die Zahl ist von zwei Seiten festgelegt, nicht gewaehlt:

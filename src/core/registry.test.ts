@@ -43,14 +43,14 @@ describe("registry", () => {
     expect(canAccess(getModule("portal"), [])).toBe(true);
     expect(canAccess(getModule("portal"), null)).toBe(false);
   });
-  it("qr ist anonym erreichbar und hat iuk-qr-admin als Modul-Admin", () => {
+  it("qr ist anonym erreichbar und hat qr-admin als Modul-Admin", () => {
     const qr = getModule("qr");
     expect(qr.requiresAuth).toBe(false);
     // Minimal-Shell ist Teil des anonymen Zugangs: die Full-Shell würde für
     // jeden Besucher auth() aufrufen und den App-Switcher-Header rendern.
     expect(qr.shell).toBe("minimal");
     expect(canAccess(qr, null)).toBe(true);
-    expect(qr.adminGroups).toEqual(["iuk-qr-admin"]);
+    expect(qr.adminGroups).toEqual(["qr-admin"]);
     expect(moduleForHost("qr.localtest.me")?.key).toBe("qr");
   });
   /*
@@ -63,8 +63,8 @@ describe("registry", () => {
    */
   it("requiredGroupsFor: ohne Env gilt der Registry-Wert", () => {
     expect(requiredGroupsFor(getModule("feedback"), {})).toEqual([
-      "da-feedback-gl",
-      "da-feedback-admin",
+      "feedback-nutzer",
+      "feedback-admin",
     ]);
   });
   it("requiredGroupsFor: SUITE_ACCESS_GROUP_<KEY> ersetzt die Liste vollstaendig", () => {
@@ -108,9 +108,9 @@ describe("registry", () => {
     expect(ohneGruppen).not.toContain("files");
     expect(ohneGruppen).not.toContain("lagerbuch");
 
-    expect(visibleSwitcherModules(["da-feedback-gl"]).map((m) => m.key)).toContain("feedback");
-    expect(visibleSwitcherModules(["iuk-files-admin"]).map((m) => m.key)).toContain("files");
-    expect(visibleSwitcherModules(["lagerbuch_nutzer"]).map((m) => m.key)).toContain("lagerbuch");
+    expect(visibleSwitcherModules(["feedback-nutzer"]).map((m) => m.key)).toContain("feedback");
+    expect(visibleSwitcherModules(["files-admin"]).map((m) => m.key)).toContain("files");
+    expect(visibleSwitcherModules(["lagerbuch-admin"]).map((m) => m.key)).toContain("lagerbuch");
   });
 
   it("liest fuer den Switcher die env-konfigurierten Access- und Admin-Gruppen", () => {
@@ -122,7 +122,7 @@ describe("registry", () => {
     };
 
     expect(visibleSwitcherModules(["feedback-neu"], env).map((m) => m.key)).toContain("feedback");
-    expect(visibleSwitcherModules(["da-feedback-gl"], env).map((m) => m.key)).not.toContain(
+    expect(visibleSwitcherModules(["feedback-nutzer"], env).map((m) => m.key)).not.toContain(
       "feedback",
     );
     expect(visibleSwitcherModules(["dateien-neu"], env).map((m) => m.key)).toContain("files");

@@ -56,8 +56,8 @@ async function abschickenUndGruppenLesen(page: import("@playwright/test").Page) 
 
 test("ein Häkchen landet als Gruppe im Token", async ({ page }) => {
   await oeffneLogin(page);
-  await hakeAn(page, "iuk-files-admin");
-  expect(await abschickenUndGruppenLesen(page)).toEqual(["iuk-files-admin"]);
+  await hakeAn(page, "files-admin");
+  expect(await abschickenUndGruppenLesen(page)).toEqual(["files-admin"]);
 });
 
 test("„Alle auswählen“ hakt jede angebotene Gruppe an", async ({ page }) => {
@@ -75,13 +75,13 @@ test("„Alle auswählen“ hakt jede angebotene Gruppe an", async ({ page }) =>
   //
   // `alpha-users` steht fest in der Registry, und das ist der REGISTRY-Beleg:
   // `alpha` bekommt keine Env-Zeile in `playwright.config.ts`, `devGroupChoices`
-  // kann den Namen also nur aus dem Code haben. `dashboard-admins` wäre hier der
+  // kann den Namen also nur aus dem Code haben. `admin` wäre hier der
   // falsche Beleg: das ist nur die VORBELEGUNG von `ADMIN_GROUP`
   // (`core/groups.ts`), und der Test hinge damit an der Env der Maschine statt
   // am Code — grün hier, rot auf einem Server mit anders benannter
   // Betreibergruppe.
   expect(gruppen).toContain("alpha-users");
-  // ⚠️ `lagerbuch_nutzer` ist KEIN Registry-Beleg mehr. `devGroupChoices` liest
+  // ⚠️ `lagerbuch-admin` ist KEIN Registry-Beleg mehr. `devGroupChoices` liest
   // über `adminGroupsFor(mod, env)` (`core/auth/devGroups.ts:42`), also
   // ENV-FIRST — und seit dem lagerbuch-Branch setzt `LAGERBUCH_ENV`
   // (`e2e/helpers/lagerbuch.ts`) die Zeile `SUITE_ADMIN_GROUP_LAGERBUCH`. Der
@@ -91,7 +91,7 @@ test("„Alle auswählen“ hakt jede angebotene Gruppe an", async ({ page }) =>
   // env-gesetzten Modulnamen —, sie belegt nur nicht mehr das, was der Absatz
   // darüber behauptet. (Die Kopplung Env ↔ Registry-Wert bewacht seit I-16
   // `src/app/m/lagerbuch/_lib/e2eEnv.test.ts`.)
-  expect(gruppen).toContain("lagerbuch_nutzer");
+  expect(gruppen).toContain("lagerbuch-admin");
 });
 
 test("ohne Häkchen zählt allein der Freitext — der Vertrag von fixtures.ts", async ({ page }) => {

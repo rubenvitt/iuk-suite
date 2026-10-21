@@ -24,13 +24,13 @@ describe("einstellungenSpeichernAction", () => {
     await expect(einstellungenSpeichernAction({ fristMinuten: 30, besatzung: false, bereitschaft: "X" })).rejects.toThrow("Forbidden");
   });
   it("mit Gruppe: speichert und liefert die gelesenen Einstellungen", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { einstellungenSpeichernAction } = await import("./einstellungen");
     const ergebnis = await einstellungenSpeichernAction({ fristMinuten: 30, besatzung: false, bereitschaft: "X" });
     expect(ergebnis).toEqual({ ok: true, wert: { fristMinuten: 30, besatzung: false, bereitschaft: "X" } });
   });
   it("ungültige Eingabe wird als Feldfehler gemeldet", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { einstellungenSpeichernAction } = await import("./einstellungen");
     const ergebnis = await einstellungenSpeichernAction({ fristMinuten: 121, besatzung: false, bereitschaft: "X" });
     expect(ergebnis.ok ? null : ergebnis.feldFehler?.fristMinuten).toBe("Höchstens 120 Minuten");

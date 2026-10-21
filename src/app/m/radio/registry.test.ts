@@ -163,7 +163,7 @@ describe("radio: der Verwaltungszugang wird ueber die Gruppe aufgeloest, nie ueb
   it("schlaegt ohne Env auf den Registry-Vorschlag zurueck", () => {
     // ⬜ E1: ob die Gruppe in Pocket ID wirklich so heisst, weiss nur der Betreiber
     // (Spec:766-768). Der Registry-Wert ist ein VORSCHLAG, kein bestaetigter Name.
-    expect(adminGroupsFor(getModule("radio"), OHNE_ENV)).toEqual(["iuk-radio-admin"]);
+    expect(adminGroupsFor(getModule("radio"), OHNE_ENV)).toEqual(["radio-admin"]);
   });
 
   it("laesst SUITE_ADMIN_GROUP_RADIO gewinnen", () => {

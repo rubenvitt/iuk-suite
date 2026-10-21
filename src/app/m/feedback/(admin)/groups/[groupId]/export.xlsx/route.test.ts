@@ -115,7 +115,7 @@ beforeEach(() => {
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });
   authMock.mockReset();
   authMock.mockResolvedValue({
-    user: { id: "leitung-1", groups: ["da-feedback-gl"], fachgruppen: ["bereitschaft"] },
+    user: { id: "leitung-1", groups: ["feedback-nutzer"], fachgruppen: ["bereitschaft"] },
   });
 });
 afterEach(() => sqlite.close());
@@ -373,7 +373,7 @@ describe("GET groups/[groupId]/export.xlsx — der Guard", () => {
     const g = gruppe();
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 2 }]);
     authMock.mockResolvedValue({
-      user: { id: "fremd-1", groups: ["da-feedback-gl"], fachgruppen: ["andere-gruppe"] },
+      user: { id: "fremd-1", groups: ["feedback-nutzer"], fachgruppen: ["andere-gruppe"] },
     });
 
     const res = await hole(g.id);
@@ -418,26 +418,26 @@ describe("GET groups/[groupId]/export.xlsx — Modulzugang vor Objektzuordnung (
 
   it("NEGATIV: Zugangsgruppe ohne Objektzuordnung → 404", async () => {
     const g = seed();
-    als(["da-feedback-gl"], []);
+    als(["feedback-nutzer"], []);
     expect((await hole(g.id)).status).toBe(404);
   });
 
   it("POSITIV: Zugangsgruppe plus lokale Zuordnung → 200", async () => {
     const g = seed();
     insertUserGroup(db, "leitung-1", g.id);
-    als(["da-feedback-gl"], []);
+    als(["feedback-nutzer"], []);
     expect((await hole(g.id)).status).toBe(200);
   });
 
   it("POSITIV: Zugangsgruppe plus passender Claim → 200", async () => {
     const g = seed();
-    als(["da-feedback-gl"], ["bereitschaft"]);
+    als(["feedback-nutzer"], ["bereitschaft"]);
     expect((await hole(g.id)).status).toBe(200);
   });
 
   it("POSITIV: Feedback-Admin ohne Zuordnung → 200", async () => {
     const g = seed();
-    als(["da-feedback-admin"], []);
+    als(["feedback-admin"], []);
     expect((await hole(g.id)).status).toBe(200);
   });
 
@@ -446,7 +446,7 @@ describe("GET groups/[groupId]/export.xlsx — Modulzugang vor Objektzuordnung (
     vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK", "da_feedback_admin");
     const g = seed();
     insertUserGroup(db, "leitung-1", g.id);
-    als(["da-feedback-gl"], []);
+    als(["feedback-nutzer"], []);
     expect((await hole(g.id)).status).toBe(404);
     als(["gruppenleiter"], []);
     expect((await hole(g.id)).status).toBe(200);

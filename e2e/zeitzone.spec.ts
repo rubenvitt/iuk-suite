@@ -40,7 +40,7 @@ test("die Verwaltung stellt die Zeitzone der Suite um, und das Root-Layout reich
 }) => {
   await devLogin(page, {
     host: "portal.localtest.me",
-    groups: "dashboard-admins",
+    groups: "admin",
     callbackPath: "/admin",
   });
 

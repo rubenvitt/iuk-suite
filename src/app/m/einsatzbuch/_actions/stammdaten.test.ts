@@ -26,14 +26,14 @@ describe("Stammdaten-Actions", () => {
     const { getDb } = await import("../_db/client");
     const { listeFahrzeuge } = await import("../_lib/stammdaten/daten");
     await expect(fahrzeugSpeichernAction(null, FZ)).rejects.toThrow("Forbidden");
-    gruppen = ["dashboard-admins"];
+    gruppen = ["admin"];
     await expect(fahrzeugSpeichernAction(null, FZ)).rejects.toThrow("Forbidden");
-    gruppen = ["einsatzbuch-verwaltung"]; host = "feedback.localtest.me";
+    gruppen = ["einsatzbuch-nutzer"]; host = "feedback.localtest.me";
     await expect(fahrzeugSpeichernAction(null, FZ)).rejects.toThrow("Forbidden");
     expect(listeFahrzeuge(getDb())).toEqual([]);
   });
   it("mit Gruppe: anlegen, doppelte Kennung als Feldfehler, ungültige Eingabe als Feldfehler", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { fahrzeugSpeichernAction } = await import("./stammdaten");
     const erst = await fahrzeugSpeichernAction(null, FZ);
     expect(erst.ok).toBe(true);
@@ -42,7 +42,7 @@ describe("Stammdaten-Actions", () => {
     expect(leer.ok ? null : leer.feldFehler?.kennung).toBe("Kennung fehlt");
   });
   it("Stichwort mit Reihenfolge 10000: deutscher Feldfehler, nichts geschrieben (das Formular klemmt nicht mehr)", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { stichwortSpeichernAction } = await import("./stammdaten");
     const { getDb } = await import("../_db/client");
     const { listeStichworte } = await import("../_lib/stammdaten/daten");
@@ -51,7 +51,7 @@ describe("Stammdaten-Actions", () => {
     expect(listeStichworte(getDb())).toEqual([]);
   });
   it("die Audit-Zeile trägt die handelnde Person", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { fahrzeugSpeichernAction } = await import("./stammdaten");
     const { getDb } = await import("../_db/client");
     const { sql } = await import("drizzle-orm");
@@ -60,7 +60,7 @@ describe("Stammdaten-Actions", () => {
     expect(JSON.parse(zeile.actor)).toMatchObject({ kind: "user", id: "s1" });
   });
   it("CSV: Vorschau schreibt nichts, Übernehmen schreibt", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { csvVorschauAction, csvUebernehmenAction } = await import("./stammdaten");
     const { getDb } = await import("../_db/client");
     const { listeStichworte } = await import("../_lib/stammdaten/daten");
@@ -72,7 +72,7 @@ describe("Stammdaten-Actions", () => {
     expect(await csvVorschauAction("stichworte", "falsch")).toEqual({ ok: false, fehler: "Die Kopfzeile muss genau „gruppe;name;reihenfolge“ lauten." });
   });
   it("aktivSetzenAction mit unbekannter Art oder ID", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { aktivSetzenAction } = await import("./stammdaten");
     expect(await aktivSetzenAction("fahrzeuge", "nix", false)).toEqual({ ok: false, fehler: "Eintrag nicht gefunden" });
     expect(await aktivSetzenAction("unsinn" as never, "nix", false)).toEqual({ ok: false, fehler: "Unbekannte Art" });

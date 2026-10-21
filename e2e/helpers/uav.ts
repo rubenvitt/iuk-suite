@@ -30,7 +30,7 @@ export const UAV_PORT = E2E_PORT;
 
 /**
  * Die Gruppe der Verwaltungsstufe. Registry-Vorgabe (`src/core/registry.ts:204`,
- * `"uav-training-admin"`), gelesen ueber `adminGroupsFor`/`isModuleAdmin` in
+ * `"uav-admin"`), gelesen ueber `adminGroupsFor`/`isModuleAdmin` in
  * `_lib/requireUavAdmin.ts`.
  *
  * ⚠️ SIE STEHT ZUSAETZLICH IN `webServer.env` (`playwright.config.ts`,
@@ -40,7 +40,7 @@ export const UAV_PORT = E2E_PORT;
  * produktiver Gruppenname wuerde den E2E-Server sonst still auf einen anderen
  * Wert verschieben.
  */
-export const UAV_ADMIN_GRUPPE = "uav-training-admin";
+export const UAV_ADMIN_GRUPPE = "uav-admin";
 
 /**
  * DIE CODES, DIE DER LOKALE SEED ANLEGT — `_lib/seedLokal.ts`

@@ -26,7 +26,7 @@ const KATEGORIE_TOOLS = "Tools";
 const KATEGORIE_VERWALTUNG = "Verwaltung";
 
 /**
- * Die Gruppen, gegen die `requiredGroups` prüft. `dashboard-admins` ist die
+ * Die Gruppen, gegen die `requiredGroups` prüft. `admin` ist die
  * Suite-Admin-Gruppe (schon von `seed.ts` benutzt); die übrigen sind frei
  * erfunden und stehen hier, damit sich der Dev-Login gezielt damit anmelden
  * kann: `?groups=da-einsatz,da-ausbildung`.
@@ -34,7 +34,7 @@ const KATEGORIE_VERWALTUNG = "Verwaltung";
 const GRUPPE_EINSATZ = "da-einsatz";
 const GRUPPE_AUSBILDUNG = "da-ausbildung";
 const GRUPPE_VERWALTUNG = "da-verwaltung";
-const GRUPPE_SUITE_ADMIN = "dashboard-admins";
+const GRUPPE_SUITE_ADMIN = "admin";
 
 /** Exportiert, damit der Test gegen die Liste zählen kann statt gegen eine Zahl. */
 export const LOKALE_DIENSTE: schema.NewService[] = [

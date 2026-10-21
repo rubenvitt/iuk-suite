@@ -99,12 +99,12 @@ function legeNachweis(aufgabeId: string, text: string, erstelltVon: string) {
  * (`anmelden(rike, true)`) und nicht mehr verdeckt in der Fixtur-Zeile. Die FIXTUR wandert mit der
  * Quelle, die ERWARTUNG bleibt stehen.
  *
- * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `aufgaben-admin` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
 function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
   };
 }
 

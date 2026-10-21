@@ -32,7 +32,7 @@ describe("neuigkeitenFuer", () => {
   });
 
   it("zeigt die Notiz zu einer App, sobald die Gruppe passt", () => {
-    const sichtbar = neuigkeitenFuer(["iuk-aufgaben-nutzer"], NOTIZEN, {});
+    const sichtbar = neuigkeitenFuer(["aufgaben-nutzer"], NOTIZEN, {});
     expect(sichtbar.map((n) => n.slug)).toEqual(["portal-eins", "aufgaben-eins"]);
   });
 
@@ -41,7 +41,7 @@ describe("neuigkeitenFuer", () => {
     // Helferpfade). `canAccess` allein liesse die Notiz damit durch — die
     // Kachel im Portal tut das nicht, und diese Auswahl folgt der Kachel.
     expect(neuigkeitenFuer([], NOTIZEN, {}).map((n) => n.slug)).not.toContain("lagerbuch-eins");
-    expect(neuigkeitenFuer(["lagerbuch_nutzer"], NOTIZEN, {}).map((n) => n.slug)).toContain(
+    expect(neuigkeitenFuer(["lagerbuch-admin"], NOTIZEN, {}).map((n) => n.slug)).toContain(
       "lagerbuch-eins",
     );
   });
@@ -51,7 +51,7 @@ describe("neuigkeitenFuer", () => {
   });
 
   it("lässt Module aus, die nicht im Umschalter stehen", () => {
-    const alleGruppen = ["iuk-aufgaben-nutzer", "lagerbuch_nutzer"];
+    const alleGruppen = ["aufgaben-nutzer", "lagerbuch-admin"];
     expect(neuigkeitenFuer(alleGruppen, NOTIZEN, {}).map((n) => n.modul)).not.toContain("beta");
   });
 

@@ -19,7 +19,7 @@ beforeEach(() => {
   process.env.DATA_DIR = DIR;
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
   migrateAllModules();
-  gruppen = ["iuk-kommplan-bearbeiten"]; befund = { art: "clean" }; scans = 0;
+  gruppen = ["kommplan-admin"]; befund = { art: "clean" }; scans = 0;
 });
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -39,7 +39,7 @@ const logo = async () => (await import("../_lib/briefkopf")).ladeBriefkopf((awai
 describe("POST /logo", () => {
   it("ohne Bearbeitungsrecht: 404, nichts gelesen, nichts gespeichert", async () => {
     const { POST } = await import("./route");
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     expect((await POST(await anfrage(new Blob([PNG])))).status).toBe(404);
     gruppen = null;
     expect((await POST(await anfrage(new Blob([PNG])))).status).toBe(404);

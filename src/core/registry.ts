@@ -62,7 +62,7 @@ export const MODULES: ModuleDef[] = [
   // Einsatz). Der Admin-Bereich schützt sich selbst über core/auth/guards —
   // requiresAuth: true wäre hier falsch und würde den anonymen Zugang nehmen.
   { key: "qr", title: "QR-Codes", icon: "qr-code", shell: "minimal",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-qr-admin"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["qr-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   // feedback: gemischt wie qr — anonyme Teilnahme (/f/...) braucht keinen Login,
   // requiresAuth:false. Dadurch prüft canAccess() unten requiredGroups HIER
@@ -78,8 +78,8 @@ export const MODULES: ModuleDef[] = [
   // SUITE_ADMIN_GROUP_FEEDBACK (Voll-Admin) in der .env. Beide Wege lesen über
   // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
   { key: "feedback", title: "Feedback", icon: "comment", shell: "full",
-    requiresAuth: false, requiredGroups: ["da-feedback-gl", "da-feedback-admin"],
-    adminGroups: ["da-feedback-admin"], prodHosts: [], showInSwitcher: true,
+    requiresAuth: false, requiredGroups: ["feedback-nutzer", "feedback-admin"],
+    adminGroups: ["feedback-admin"], prodHosts: [], showInSwitcher: true,
     switcherGroupSources: ["access", "admin"] },
   // files: zwei Prod-Hosts in EINER Variable, die Reihenfolge trägt die Rolle
   // (Index 0 = Verwaltung/Shares, Index 1 = Inbox) — siehe _lib/hostRolle.ts.
@@ -102,7 +102,7 @@ export const MODULES: ModuleDef[] = [
   //
   //
   { key: "files", title: "Dateien", icon: "folder", shell: "full",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-files-admin"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["files-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access", "admin"] },
   // lagerbuch: EIN Host (lagerbuch.iuk-ue.de), aber die Domain steht ausschliesslich
   // in SUITE_HOST_LAGERBUCH — Betreiberauflage vom 03.08.2026 („zu 100 % konfigurierbar").
@@ -118,7 +118,7 @@ export const MODULES: ModuleDef[] = [
   // !requiresAuth). Durchgesetzt wird der Verwaltungszugang
   // modul-intern in _lib/zugang.ts, der Host in _lib/host.ts.
   { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", shell: "full",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch_nutzer"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["lagerbuch-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   // aufgaben: Aufgabenverteilung und Zeitplanung fuer BuFDis
   // (docs/superpowers/specs/2026-08-13-modul-aufgaben-design.md).
@@ -169,8 +169,8 @@ export const MODULES: ModuleDef[] = [
   // stiller Rueckfall auf das Portal-Zeichen.
   //
   { key: "aufgaben", title: "Aufgaben", icon: "task", shell: "full",
-    requiresAuth: true, requiredGroups: ["iuk-aufgaben-nutzer"],
-    adminGroups: ["iuk-aufgaben-koordination"], prodHosts: [],
+    requiresAuth: true, requiredGroups: ["aufgaben-nutzer"],
+    adminGroups: ["aufgaben-admin"], prodHosts: [],
     showInSwitcher: true, switcherGroupSources: ["access"] },
   // radio: EIN Prod-Host (radio.iuk-ue.de), und er steht AUSSCHLIESSLICH in
   // SUITE_HOST_RADIO — dieselbe Auflage wie bei lagerbuch (registry.ts:106-108).
@@ -192,17 +192,17 @@ export const MODULES: ModuleDef[] = [
   // genau diesen Weg (visibleSwitcherModules, registry.ts:271-279).
   //
   // adminGroups ist eine VORGABE, keine feste Zuweisung — SUITE_ADMIN_GROUP_RADIO
-  // ueberschreibt sie (adminGroupsFor, core/groups.ts:102-109). "iuk-radio-admin"
+  // ueberschreibt sie (adminGroupsFor, core/groups.ts:102-109). "radio-admin"
   // ist der Vorschlag aus Spec:766; der tatsaechliche Gruppenname in Pocket ID ist
   // offen (⬜ E1, .env.example:74-75) und faellig vor Cut 26.
   { key: "radio", title: "Funkgeräte", icon: "walkie-talkie", shell: "full",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["radio-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
   // uav: Teilnehmer melden sich mit einem Dauer-Code an (kein SSO) → requiresAuth:false.
   // Die Verwaltung gated `_lib/requireUavAdmin.ts` (Layout UND jeder Handler unter api/admin/).
-  // Vorgabe uav-training-admin (Betreiber, 28.08.2026); Instanzwert über SUITE_ADMIN_GROUP_UAV.
+  // Vorgabe uav-admin (Betreiber, 28.08.2026); Instanzwert über SUITE_ADMIN_GROUP_UAV.
   { key: "uav", title: "Drohnentraining", icon: "drone", shell: "minimal",
-    requiresAuth: false, requiredGroups: [], adminGroups: ["uav-training-admin"],
+    requiresAuth: false, requiredGroups: [], adminGroups: ["uav-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   // einsatzbuch: Einsatzbuch v2 (docs/superpowers/specs/2026-09-24-einsatzbuch-v2-design.md).
   // requiresAuth: false wie radio und uav — die Geräte-Schnittstellen der Desktop-App tragen
@@ -211,18 +211,18 @@ export const MODULES: ModuleDef[] = [
   // Den Host hält `_lib/host.ts`. Im Umschalter nur für die Zugangsgruppe
   // (`switcherGroupSources: ["access"]`).
   { key: "einsatzbuch", title: "Einsatzbuch", icon: "book", shell: "full",
-    requiresAuth: false, requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [],
+    requiresAuth: false, requiredGroups: ["einsatzbuch-nutzer"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // kommplan: Kommunikationspläne (Spec 2026-09-30). requiresAuth:false für die Token-Ansicht (Phase 5); Zugang und Host in _lib/.
   { key: "kommplan", title: "Kommunikationspläne", icon: "genealogy", shell: "full",
-    requiresAuth: false, requiredGroups: ["iuk-kommplan"], adminGroups: ["iuk-kommplan-bearbeiten"],
+    requiresAuth: false, requiredGroups: ["kommplan-nutzer"], adminGroups: ["kommplan-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access", "admin"] },
   // helfer: aus HiOrg-Server importierte Helfer, bereitgestellt fürs Einsatzbuch (IDA-249). requiresAuth:
   // true — kein anonymer Teilpfad, also riegelt schon die Middleware. Zugang NUR über die eigene Gruppe:
   // wer die Suite administriert, sieht deshalb noch keine Personaldaten (`_lib/zugang.ts`). Importieren,
   // freigeben und löschen dürfen nur die Modul-Admins, die zusätzlich die Zugangsgruppe tragen.
   { key: "helfer", title: "Helfer", icon: "people", shell: "full",
-    requiresAuth: true, requiredGroups: ["iuk-helfer"], adminGroups: ["iuk-helfer-admin"],
+    requiresAuth: true, requiredGroups: ["helfer-nutzer"], adminGroups: ["helfer-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],

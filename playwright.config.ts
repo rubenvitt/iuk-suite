@@ -209,7 +209,7 @@ export default cloudTauglich(defineConfig({
       env: {
         AUTH_SECRET: "test-secret",
         AUTH_DEV_LOGIN: "true",
-        ADMIN_GROUP: "dashboard-admins",
+        ADMIN_GROUP: "admin",
         SUITE_ADMIN_GROUP_PORTAL: "portal-only-admin",
         AUTH_COOKIE_DOMAIN: ".localtest.me",
         DATA_DIR: "./.data/e2e",
@@ -290,7 +290,7 @@ export default cloudTauglich(defineConfig({
          * GENAU DAS WAR DIE LUECKE: ohne Eintrag griffe der Registry-Vorgabewert,
          * es sei denn, `.env.local` setzt etwas anderes. `next dev` laeuft im
          * Repo-Wurzelverzeichnis und liest `.env.local` mit; wer dort die
-         * produktiven Pocket-ID-Namen (`aufgaben_nutzer`/`aufgaben_koordination`)
+         * abweichende Gruppennamen (etwa `aufgaben_nutzer`/`aufgaben_koordination`)
          * eintraegt — wovon `.env.example` inzwischen zwar abraet, was aber in
          * jeder gitignorierten Arbeitskopie anders aussehen kann —, verschoebe
          * damit still die Gruppen des E2E-Servers. Der Lauf waere danach nicht

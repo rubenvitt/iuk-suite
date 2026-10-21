@@ -56,7 +56,7 @@ const authMock = vi.mocked(auth);
 const revalidatePathMock = vi.mocked(revalidatePath);
 
 /** Die Gruppe aus `core/registry.ts:88` — die einzige Stufe des Moduls (§2.4). */
-const GRUPPE = "iuk-files-admin";
+const GRUPPE = "files-admin";
 
 beforeEach(() => {
   rmSync(DIR, { recursive: true, force: true });

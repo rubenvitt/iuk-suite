@@ -4,7 +4,7 @@ import { lagerbuchBootFehler } from "./boot";
 /** Eine vollstaendige, gueltige Umgebung MIT Prod-Host. */
 const OK: Record<string, string | undefined> = {
   SUITE_HOST_LAGERBUCH: "lagerbuch.example.test",
-  SUITE_ADMIN_GROUP_LAGERBUCH: "lagerbuch_nutzer",
+  SUITE_ADMIN_GROUP_LAGERBUCH: "lagerbuch-admin",
   LAGERBUCH_HELFER_SITZUNG_SECRET: "ein-hinreichend-langes-geheimnis-32z",
   AUTH_SECRET: "ein-anderes-suite-geheimnis",
 };
@@ -69,11 +69,11 @@ describe("lagerbuchBootFehler — Pruefung 5: SUITE_ADMIN_GROUP_LAGERBUCH ist ge
      * ⚠️ DIESE PRUEFUNG LIEST DIE VARIABLE DIREKT und NICHT ueber
      * `adminGroupsFor` — das faellt bei nicht gesetzter Variable auf
      * `mod.adminGroups` zurueck (`core/groups.ts:83`), also auf den
-     * ENTWICKLUNGS-Vorgabewert `["lagerbuch_nutzer"]`, und meldete nichts.
+     * ENTWICKLUNGS-Vorgabewert `["lagerbuch-admin"]`, und meldete nichts.
      *
      * Die haeufigste Go-live-Fehlkonfiguration ist genau die: der Betreiber
      * vergisst die Zeile, der Registry-Default greift, in Pocket ID ist aber
-     * niemand in einer Gruppe namens `lagerbuch_nutzer` — und die Folge ist ein
+     * niemand in einer Gruppe namens `lagerbuch-admin` — und die Folge ist ein
      * STUMMES 404 fuer ALLE Verwaltenden, weil der Suite-Admin-Kurzschluss fuer
      * dieses Modul bewusst nicht gilt (Betreiber-Entscheidung 3, §3.6.2).
      */

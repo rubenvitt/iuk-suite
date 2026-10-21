@@ -34,7 +34,7 @@ let other:PersonRow;
 let taskId:string;
 beforeEach(()=>{
  dir=mkdtempSync(join(tmpdir(),"audit-page-denial-"));vi.stubEnv("DATA_DIR",dir);
- vi.stubEnv("ADMIN_GROUP","dashboard-admins");vi.stubEnv("SUITE_ADMIN_GROUP_AUFGABEN","aufgaben_koordination");vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK","da-feedback-admin");
+ vi.stubEnv("ADMIN_GROUP","admin");vi.stubEnv("SUITE_ADMIN_GROUP_AUFGABEN","aufgaben-admin");vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK","feedback-admin");
  central=new Database(join(dir,"audit.db"));migrate(drizzle(central),{migrationsFolder:"src/core/audit/_db/migrations"});
  taskDb=migrierteTestDb();
  feedback=new Database(":memory:");registerAuditFunctions(feedback);feedbackDb=drizzle(feedback);migrate(feedbackDb,{migrationsFolder:"src/app/m/feedback/_db/migrations"});
@@ -55,7 +55,7 @@ const cases=[
 ] as const;
 it.each(cases.filter(([name])=>name!=="plan"))("actual %s page persists exactly one confirmed denial and preserves 404",async(name,call)=>{
  if(name==="freigaben") taskDb.sqlite.prepare("UPDATE personen SET rolle='bufdi' WHERE id=?").run(caller.id);
- if(name==="vergleich") session={user:{id:caller.sub,groups:["da-feedback-gl"],fachgruppen:["bereitschaft"]}};
+ if(name==="vergleich") session={user:{id:caller.sub,groups:["feedback-nutzer"],fachgruppen:["bereitschaft"]}};
  await expect(call()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
  const events=queryAuditEvents().events;
  expect(events).toHaveLength(1);
@@ -64,7 +64,7 @@ it.each(cases.filter(([name])=>name!=="plan"))("actual %s page persists exactly 
  expect(JSON.stringify(events)).not.toContain("Private task content");
 });
 it.each(cases)("allowed %s page stays quiet",async(name,call)=>{
- session={user:{id:caller.sub,groups:["aufgaben_koordination","da-feedback-admin"],fachgruppen:[]}};
+ session={user:{id:caller.sub,groups:["aufgaben-admin","feedback-admin"],fachgruppen:[]}};
  if(name==="routinen") taskDb.sqlite.prepare("UPDATE personen SET rolle='bufdi' WHERE id=?").run(caller.id);
  expect(await call()).toBeTruthy();expect(queryAuditEvents().events).toEqual([]);
 });

@@ -70,12 +70,12 @@ function legeAufgabe(extra: Partial<typeof aufgaben.$inferInsert> & { erstellerI
  * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
  *
  * SEIT `ROLLEN = ["auftrag", "bufdi"]` MUSS DER AUFRUFER ES SAGEN: aus der Zeile ist es nicht mehr
- * ableitbar. `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * ableitbar. `aufgaben-admin` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
 function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
   };
 }
 

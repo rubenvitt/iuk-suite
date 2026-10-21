@@ -67,7 +67,7 @@ test.beforeEach(async ({ page }) => {
     w.__drucke = 0;
     window.print = () => { w.__drucke++; };
   });
-  await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
   // Falle 10: Route Handler vor dem ersten POST aufwärmen.
   expect((await page.request.get(url("/api/audit/browser"))).status()).toBe(204);
   expect((await page.goto(url("/reader")))?.status()).toBe(200);

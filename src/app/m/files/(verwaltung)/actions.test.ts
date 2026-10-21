@@ -117,7 +117,7 @@ const abschliesse: typeof abschliesseRoh = (z) => mitSchreibbesitz(z, () => absc
 const authMock = vi.mocked(auth);
 
 /** Die Gruppe aus `registry.ts:88` — `adminGroupsFor` liest sie. */
-const GRUPPE = "iuk-files-admin";
+const GRUPPE = "files-admin";
 const SUB = "sub-4711";
 
 /** `FILES_MAX_ABLAUF_TAGE` im Test — klein, damit die Obergrenze pruefbar ist. */

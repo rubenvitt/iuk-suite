@@ -131,7 +131,7 @@ test("mobil: der Drawer schlieszt sich nach der Wahl eines Navigationsziels", as
    */
   await devLogin(page, {
     host: "feedback.localtest.me",
-    groups: "da-feedback-admin",
+    groups: "feedback-admin",
     callbackPath: "/",
   });
   await page.getByTestId("menue-knopf").click();
@@ -275,7 +275,7 @@ for (const breite of [768, 820, 900]) {
       // Seite ohne Modulnavigation kann der Defekt gar nicht auftreten.
       await devLogin(page, {
         host: "feedback.localtest.me",
-        groups: "da-feedback-admin",
+        groups: "feedback-admin",
         callbackPath: "/",
       });
       await expect(page.getByTestId("modulleiste")).toBeVisible(); await warteAufSpaltenaufteilung(page);
@@ -393,7 +393,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
      */
     await devLogin(page, {
       host: "feedback.localtest.me",
-      groups: "da-feedback-admin",
+      groups: "feedback-admin",
       callbackPath: "/",
     });
     const kopf = (await page.getByTestId("suite-header").boundingBox())!;
@@ -429,7 +429,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
     // markiert — ein stiller Fehlschlag, den kein Unit-Test sieht.
     await devLogin(page, {
       host: "feedback.localtest.me",
-      groups: "da-feedback-admin",
+      groups: "feedback-admin",
       callbackPath: "/vergleich",
     });
     const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current="page"]');
@@ -440,7 +440,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
   test("markiert die Uebersicht auf der Modulwurzel", async ({ page }) => {
     await devLogin(page, {
       host: "feedback.localtest.me",
-      groups: "da-feedback-admin",
+      groups: "feedback-admin",
       callbackPath: "/",
     });
     const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current="page"]');
@@ -547,7 +547,7 @@ test.describe("Task 10 — Wirkungsnachweis Streifen, Aktivfarbe, Display-Schrif
       // "inline-start" ist dort "left".
       await devLogin(page, {
         host: "feedback.localtest.me",
-        groups: "da-feedback-admin",
+        groups: "feedback-admin",
         callbackPath: "/",
       });
       const aktiv = page.locator('[data-testid="modulleiste"] a[aria-current]');

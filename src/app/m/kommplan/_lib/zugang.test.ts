@@ -17,21 +17,21 @@ import { bearbeiterAus, darfKommplanBearbeiten, hatKommplanZugang, pruefeKommpla
 
 describe("Zugang zu kommplan", () => {
   it("Zugangsgruppe, Admin-Gruppe und Suite-Admin öffnen; andere nicht", () => {
-    expect(hatKommplanZugang(["iuk-kommplan"], {})).toBe(true);
-    expect(hatKommplanZugang(["iuk-kommplan-bearbeiten"], {})).toBe(true);
-    expect(hatKommplanZugang(["dashboard-admins"], {})).toBe(true);
+    expect(hatKommplanZugang(["kommplan-nutzer"], {})).toBe(true);
+    expect(hatKommplanZugang(["kommplan-admin"], {})).toBe(true);
+    expect(hatKommplanZugang(["admin"], {})).toBe(true);
     expect(hatKommplanZugang(["andere"], {})).toBe(false);
     expect(hatKommplanZugang(null, {})).toBe(false);
     expect(hatKommplanZugang([], {})).toBe(false);
   });
   it("Bearbeiten nur für Admin-Gruppe und Suite-Admin", () => {
-    expect(darfKommplanBearbeiten(["iuk-kommplan"], {})).toBe(false);
-    expect(darfKommplanBearbeiten(["iuk-kommplan-bearbeiten"], {})).toBe(true);
-    expect(darfKommplanBearbeiten(["dashboard-admins"], {})).toBe(true);
+    expect(darfKommplanBearbeiten(["kommplan-nutzer"], {})).toBe(false);
+    expect(darfKommplanBearbeiten(["kommplan-admin"], {})).toBe(true);
+    expect(darfKommplanBearbeiten(["admin"], {})).toBe(true);
   });
   it("SUITE_ACCESS_GROUP_KOMMPLAN ersetzt die Vorgabe", () => {
     expect(hatKommplanZugang(["plaene"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(true);
-    expect(hatKommplanZugang(["iuk-kommplan"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(false);
+    expect(hatKommplanZugang(["kommplan-nutzer"], { SUITE_ACCESS_GROUP_KOMMPLAN: "plaene" })).toBe(false);
   });
 });
 
@@ -43,7 +43,7 @@ describe("requireKommplanZugang", () => {
     zustand.user = { sub: "s1", name: "Jana", groups: ["andere"] };
     await expect(requireKommplanZugang()).rejects.toThrow("NEXT_NOT_FOUND");
     expect(audit.denied).toHaveBeenCalledTimes(1);
-    zustand.user = { sub: "s2", name: "Kai", groups: ["iuk-kommplan"] };
+    zustand.user = { sub: "s2", name: "Kai", groups: ["kommplan-nutzer"] };
     await expect(requireKommplanZugang()).resolves.toMatchObject({ sub: "s2" });
   });
 });
@@ -51,15 +51,15 @@ describe("requireKommplanZugang", () => {
 describe("Bearbeiten-Riegel für Server Actions", () => {
   beforeEach(() => { kopf.host = "kommplan.localtest.me"; audit.denied.mockReset(); audit.login.mockReset(); });
   it("Admin-Gruppe darf, Zugangsgruppe nicht, ohne Anmeldung nicht, fremder Host nicht — je mit Audit", async () => {
-    zustand.user = { sub: "u1", name: "Jana", groups: ["iuk-kommplan-bearbeiten"] };
+    zustand.user = { sub: "u1", name: "Jana", groups: ["kommplan-admin"] };
     await expect(requireKommplanBearbeitenAktion()).resolves.toMatchObject({ sub: "u1" });
-    zustand.user = { sub: "u2", name: "Ole", groups: ["iuk-kommplan"] };
+    zustand.user = { sub: "u2", name: "Ole", groups: ["kommplan-nutzer"] };
     await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
     expect(audit.denied).toHaveBeenCalledTimes(1);
     zustand.user = null;
     await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
     expect(audit.login).toHaveBeenCalledTimes(1);
-    zustand.user = { sub: "u1", name: "Jana", groups: ["iuk-kommplan-bearbeiten"] };
+    zustand.user = { sub: "u1", name: "Jana", groups: ["kommplan-admin"] };
     kopf.host = "feedback.localtest.me";
     await expect(requireKommplanBearbeitenAktion()).rejects.toThrow("Forbidden");
     expect(audit.denied).toHaveBeenCalledTimes(2);
@@ -75,8 +75,8 @@ describe("Bearbeiten-Riegel für Server Actions", () => {
 describe("Seitenriegel der Verwaltungsseiten (Phase 4, Entscheidung 16)", () => {
   beforeEach(() => { audit.denied.mockReset(); });
   it("Bearbeitende kommen durch; die Zugangsgruppe bekommt 404 mit Audit", () => {
-    expect(() => pruefeKommplanBearbeiten({ sub: "u1", groups: ["iuk-kommplan-bearbeiten"] } as never)).not.toThrow();
-    expect(() => pruefeKommplanBearbeiten({ sub: "u2", groups: ["iuk-kommplan"] } as never)).toThrow("NEXT_NOT_FOUND");
+    expect(() => pruefeKommplanBearbeiten({ sub: "u1", groups: ["kommplan-admin"] } as never)).not.toThrow();
+    expect(() => pruefeKommplanBearbeiten({ sub: "u2", groups: ["kommplan-nutzer"] } as never)).toThrow("NEXT_NOT_FOUND");
     expect(audit.denied).toHaveBeenCalledTimes(1);
   });
 });

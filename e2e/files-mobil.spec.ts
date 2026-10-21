@@ -121,8 +121,8 @@ const V = `http://${VERWALTUNG}:${E2E_PORT}`;
 const INBOX = "drop.localtest.me";
 const I = `http://${INBOX}:${E2E_PORT}`;
 
-/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
-const GRUPPE = "iuk-files-admin";
+/** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["files-admin"]`). */
+const GRUPPE = "files-admin";
 
 /**
  * DER PFAD STEHT AUSGESCHRIEBEN UND KOMMT NICHT AUS `moduleDbPath()`.

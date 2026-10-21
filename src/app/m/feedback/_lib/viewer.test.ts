@@ -5,11 +5,11 @@ describe("viewerFromSession", () => {
   it("baut Viewer aus Session", () => {
     expect(
       viewerFromSession({
-        user: { id: "u1", groups: ["da-feedback-gl"], fachgruppen: ["sanitaet"] },
+        user: { id: "u1", groups: ["feedback-nutzer"], fachgruppen: ["sanitaet"] },
       }),
     ).toEqual({
       sub: "u1",
-      groups: ["da-feedback-gl"],
+      groups: ["feedback-nutzer"],
       fachgruppen: ["sanitaet"],
     });
   });

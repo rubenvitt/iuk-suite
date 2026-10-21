@@ -109,7 +109,7 @@ describe("RADIO_ENV — die zwei Gruppenzeilen, das Sitzungsgeheimnis und die Si
      * das Geheimnis verbraucht kein Test, es geht nur an den Serverprozess. Eine geteilte
      * Konstante machte diese Zeile zur Tautologie (beide Seiten wanderten gemeinsam), genau
      * die Klasse, gegen die der Fall „nennt auch fuer die ADMIN-Stufe …" weiter unten steht
-     * (dort gemessen: `RADIO_ADMIN_GRUPPE` auf `iuk-radio-admins` verdreht liess alle 57
+     * (dort gemessen: `RADIO_ADMIN_GRUPPE` auf `radio-admins` verdreht liess alle 57
      * Testdateien gruen). Vorbild: `lagerbuch` haelt seinen
      * `LAGERBUCH_HELFER_SITZUNG_SECRET` ebenfalls inline (`e2e/helpers/lagerbuch.ts:71`).
      */
@@ -225,7 +225,7 @@ describe("RADIO_ENV — die zwei Gruppenzeilen, das Sitzungsgeheimnis und die Si
      * oben koppelt den UPDATER-Namen an seinen Leser, der erste Fall dieser Datei vergleicht
      * `RADIO_ENV` dagegen nur mit DENSELBEN Konstanten, aus denen es gebaut ist — er faengt
      * einen Schluesseltippfehler, aber keinen falschen WERT. Gemessen: `RADIO_ADMIN_GRUPPE`
-     * auf `"iuk-radio-admins"` verdreht liess alle 57 Testdateien gruen.
+     * auf `"radio-admins"` verdreht liess alle 57 Testdateien gruen.
      *
      * ⛔ OHNE `SUITE_ADMIN_GROUP_RADIO` GEMESSEN, UND DAS IST DIE GANZE SCHAERFE. Mit gesetzter
      * Variable stuenden beide Seiten des Vergleichs auf derselben Konstante und wanderten

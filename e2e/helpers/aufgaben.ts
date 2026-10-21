@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
  * also nicht mehr ueber eine Route, sondern ueber jede Koordinationsflaeche des
  * Moduls. `next dev` der E2E-Suite laeuft im Repo-Wurzelverzeichnis und liest
  * dabei `.env.local` MIT. Traegt jemand dort die produktiven Pocket-ID-Namen ein
- * (`aufgaben_nutzer`/`aufgaben_koordination`, s. `.env.example` — heute
+ * (`aufgaben-nutzer`/`aufgaben-admin`, s. `.env.example` — heute
  * ausdruecklich abgeraten, aber eine `.env.local` ist gitignored und in jeder
  * Arbeitskopie anders), waeren die Literale im Spec und die tatsaechlich
  * geltenden Gruppennamen des Servers ZWEI auseinanderlaufende Werte. Die
@@ -30,10 +30,10 @@ import type { Page } from "@playwright/test";
  */
 
 /** Zugang zum Modul ueberhaupt (`requiredGroups`, `core/registry.ts`). */
-export const AUFGABEN_ZUGANG_GRUPPE = "iuk-aufgaben-nutzer";
+export const AUFGABEN_ZUGANG_GRUPPE = "aufgaben-nutzer";
 
 /** Die Koordinationsrolle (`adminGroups`) — seit dem 2026-08-15 die ganze Rolle, nicht nur `/personen`. */
-export const AUFGABEN_KOORDINATION_GRUPPE = "iuk-aufgaben-koordination";
+export const AUFGABEN_KOORDINATION_GRUPPE = "aufgaben-admin";
 
 /**
  * DER HOST DES MODULS — hier und nicht als Literal im Spec, seit die Faelle auf ZWEI

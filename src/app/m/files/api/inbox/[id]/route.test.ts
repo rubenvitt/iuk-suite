@@ -47,7 +47,7 @@ const VERWALTUNG = "files.localtest.me";
 const INBOX = "drop.localtest.me";
 
 /** Die Gruppe aus `registry.ts:88` — sie ist der eine Weg in die Verwaltung. */
-const ZUGANGSGRUPPE = "iuk-files-admin";
+const ZUGANGSGRUPPE = "files-admin";
 
 const SEK = 1000;
 /** Feste Uhr: die Spalten fuehren SEKUNDEN, eine laufende Uhr waere Flackerwerk. */

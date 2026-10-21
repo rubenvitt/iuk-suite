@@ -56,7 +56,7 @@ async function altesCookie(extra: Record<string, unknown> = {}) {
       sub: "pocket-sub-1",
       name: "Frueher Berechtigt",
       angemeldetSeit: Math.floor(Date.now() / 1000) - 3_600,
-      groups: ["uav-training-admin"],
+      groups: ["uav-admin"],
       fachgruppen: [],
       expiresAt: Math.floor(Date.now() / 1000) - 60,
       // Je Test ein eigenes Refresh-Token: das Rotationsgedaechtnis in
@@ -113,7 +113,7 @@ describe("endgueltiger Refresh-Fehler — echte Kette", () => {
   it("transient (503): die Sitzung lebt weiter, mit den bisherigen Gruppen", async () => {
     idp({ status: 503, koerper: {} });
     const { koerper } = await sitzungAbrufen(await altesCookie());
-    expect(koerper?.user?.groups).toEqual(["uav-training-admin"]);
+    expect(koerper?.user?.groups).toEqual(["uav-admin"]);
     expect(koerper?.error).toBeUndefined();
   });
 

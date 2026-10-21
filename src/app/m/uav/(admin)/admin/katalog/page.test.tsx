@@ -70,8 +70,8 @@ describe("katalogInhalt — Kopf und Tabelle", () => {
 });
 
 describe("AdminKatalogPage — Gate", () => {
-  it("mit uav-training-admin: rendert den Katalog mit der angelegten Aufgabe", async () => {
-    sitzung = { user: { id: "sub-1", groups: ["uav-training-admin"] } };
+  it("mit uav-admin: rendert den Katalog mit der angelegten Aufgabe", async () => {
+    sitzung = { user: { id: "sub-1", groups: ["uav-admin"] } };
     taskAnlegen(mockDb, aufgabe("2.1"));
     await mount(await AdminKatalogPage());
     expect(query("h1").textContent).toBe("Aufgabenkatalog");

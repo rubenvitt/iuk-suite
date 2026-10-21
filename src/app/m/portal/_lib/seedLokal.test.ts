@@ -112,7 +112,7 @@ describe("seedLokalPortal", () => {
 
     const ohne = filterVisibleServices([], dienste);
     const mit = filterVisibleServices(
-      ["da-einsatz", "da-ausbildung", "da-verwaltung", "dashboard-admins"],
+      ["da-einsatz", "da-ausbildung", "da-verwaltung", "admin"],
       dienste,
     );
 

@@ -886,7 +886,7 @@ test("Nachweis-Auslieferung: eine andere BuFDi ohne darfNachweisSehen bekommt de
  * MODUL AUS (Vorbild `keystone.spec.ts`s „switcher reflects groups"), nicht von der aufgaben-Seite
  * selbst: dort traegt seit dieser Aufgabe AUCH die Modulnavigation einen Eintrag „Aufgaben" (der
  * Wurzel-Anker aus `_lib/nav.ts`), und beide Verweise waeren unter demselben Namen mehrdeutig.
- * `alpha-users,iuk-aufgaben-nutzer` ist EINE Sitzung mit BEIDEN Gruppen — dieselbe SSO-Zusicherung
+ * `alpha-users,aufgaben-nutzer` ist EINE Sitzung mit BEIDEN Gruppen — dieselbe SSO-Zusicherung
  * wie in `keystone.spec.ts`.
  *
  * ERST OEFFNEN, DANN PRUEFEN (nachgezogen beim Rebase auf `main`): der App-Wechsel haengt seit dem

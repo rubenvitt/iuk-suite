@@ -179,7 +179,7 @@ describe("AufgabenPage — Default-Export", () => {
    */
   it("leerer Start: Koordinationsgruppe OHNE personen-Zeile landet auf der Verteilung, nicht auf der Erklaerseite", async () => {
     sitzung = {
-      user: { id: "dev:rike@test", name: "Rike Petersen", groups: ["iuk-aufgaben-koordination"] },
+      user: { id: "dev:rike@test", name: "Rike Petersen", groups: ["aufgaben-admin"] },
     };
     await mount(await AufgabenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Verteilung");

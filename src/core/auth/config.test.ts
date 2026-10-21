@@ -96,9 +96,9 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
    */
   it("laesst die Gruppen stehen, wenn kein profile mitkommt", async () => {
     const token = await jwtCallback(undefined)({
-      token: { groups: ["da-feedback-admin"], fachgruppen: ["kueche"] },
+      token: { groups: ["feedback-admin"], fachgruppen: ["kueche"] },
     } as never);
-    expect(token?.groups).toEqual(["da-feedback-admin"]);
+    expect(token?.groups).toEqual(["feedback-admin"]);
     expect(token?.fachgruppen).toEqual(["kueche"]);
   });
 
@@ -421,7 +421,7 @@ describe("authConfig — endgueltiger Refresh-Fehler", () => {
   const altesToken = {
     sub: "s-9",
     angemeldetSeit: 1_000,
-    groups: ["uav-training-admin", "suite-admin"],
+    groups: ["uav-admin", "suite-admin"],
     fachgruppen: ["fg"],
     expiresAt: 1_000,
     refreshToken: "rt-alt",

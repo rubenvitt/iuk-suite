@@ -9,7 +9,7 @@ import { devLogin, klickeWennRuhig } from "../e2e/fixtures";
  * Playwright-API, ohne Testrunner.
  *
  *   pnpm exec tsx scripts/einsatzbuch-e2e-anmeldung.ts <anmelde-url>
- *     Anmelden mit der Gruppe `einsatzbuch-verwaltung` und die Anmelde-URL der App öffnen. Die
+ *     Anmelden mit der Gruppe `einsatzbuch-nutzer` und die Anmelde-URL der App öffnen. Die
  *     Suite leitet auf `http://127.0.0.1:<port>/rueckruf` weiter; dort antwortet der ECHTE
  *     Loopback-Listener der App (`e2e_lauf.rs` startet dieses Skript aus seinem `oeffne`).
  *   pnpm exec tsx scripts/einsatzbuch-e2e-anmeldung.ts --loeschen <suite-url> <rechnername>
@@ -21,7 +21,7 @@ import { devLogin, klickeWennRuhig } from "../e2e/fixtures";
  *
  * Nie ausgegeben: die Rückrufadresse (sie trägt den Einmalcode) und jedes Token.
  */
-const GRUPPE = "einsatzbuch-verwaltung";
+const GRUPPE = "einsatzbuch-nutzer";
 /** Obergrenze für den ganzen Aufruf. Hängt er, beendet er sich selbst; der Treiber bricht dann die Anmeldung ab. */
 const GESAMTFRIST_MS = 240_000;
 

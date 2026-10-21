@@ -51,7 +51,7 @@ export async function lagerbuchBootFehler(env: EnvLike = process.env): Promise<s
   // ⚠️ GELESEN WIRD DIE VARIABLE DIREKT, NICHT UEBER `adminGroupsFor`. Das faellt
   // bei nicht gesetzter Variable auf `mod.adminGroups` zurueck
   // (`core/groups.ts:83`), also auf den ENTWICKLUNGS-Vorgabewert
-  // ["lagerbuch_nutzer"] — und meldete nichts. Die Frage hier ist aber eine andere:
+  // ["lagerbuch-admin"] — und meldete nichts. Die Frage hier ist aber eine andere:
   // HAT DER BETREIBER DIE PRODUKTIVE GRUPPE GESETZT?
   const adminGruppen = (env.SUITE_ADMIN_GROUP_LAGERBUCH ?? "")
     .split(",")
@@ -60,7 +60,7 @@ export async function lagerbuchBootFehler(env: EnvLike = process.env): Promise<s
   if (adminGruppen.length === 0) {
     fehler.push(
       `SUITE_ADMIN_GROUP_LAGERBUCH ist nicht gesetzt oder leer. Ohne sie greift der ` +
-        `Entwicklungs-Vorgabewert aus dem Registry ("lagerbuch_nutzer"); ist in Pocket ID ` +
+        `Entwicklungs-Vorgabewert aus dem Registry ("lagerbuch-admin"); ist in Pocket ID ` +
         `niemand in dieser Gruppe, ist die Folge ein STUMMES 404 fuer ALLE Verwaltenden — ` +
         `fuer dieses Modul gibt es bewusst KEINE Suite-Admin-Rueckfallebene ` +
         `(Betreiber-Entscheidung 3). Der Wert wandert 1:1 aus OIDC_ADMIN_GROUP der alten ` +

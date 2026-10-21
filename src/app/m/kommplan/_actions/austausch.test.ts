@@ -25,14 +25,14 @@ describe("Actions Export und Import", () => {
   });
   it("Export eines sichtbaren Plans, Import als eigener privater Plan — den ein anderer nicht exportiert", async () => {
     const a = await import("./austausch");
-    nutzer = { id: "u-anna", name: "Anna", groups: ["iuk-kommplan"] };
+    nutzer = { id: "u-anna", name: "Anna", groups: ["kommplan-nutzer"] };
     const e = await a.exportierePlanAction(OPENR);
     if (!e.ok) throw new Error(e.fehler);
     expect(e.dateiname).toMatch(/\.kommplan\.json$/);
     const i = await a.importierePlanAction(JSON.parse(JSON.stringify(e.datei)));
     if (!i.ok) throw new Error(i.fehler);
     expect(await a.exportierePlanAction(i.id)).toMatchObject({ ok: true });
-    nutzer = { id: "u-admin", name: "Admin", groups: ["iuk-kommplan-bearbeiten"] };
+    nutzer = { id: "u-admin", name: "Admin", groups: ["kommplan-admin"] };
     expect(await a.exportierePlanAction(i.id)).toMatchObject({ ok: false });
     expect(await a.exportierePlanAction({ id: 1 })).toMatchObject({ ok: false });
     expect(await a.importierePlanAction("kein Plan")).toMatchObject({ ok: false });
