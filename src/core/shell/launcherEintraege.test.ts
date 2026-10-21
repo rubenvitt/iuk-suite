@@ -74,13 +74,13 @@ describe("modulEintraege", () => {
 });
 
 describe("modulEintraege: das App-Icon für die Portal-Kachel", () => {
-  it("trägt das Zeichen des Moduls, für das Portal das IDA-Zeichen, für lagerbuch dessen eigenes", () => {
+  it("trägt das Zeichen des Moduls, für das Portal das IDA-Zeichen, auch für lagerbuch", () => {
     vi.stubEnv("PORT", "3000");
     const eintraege = modulEintraege(["da-feedback-gl", "iuk-files-admin", "lagerbuch_nutzer"]);
     const url = (key: string) => eintraege.find((e) => e.key === key)?.appIconUrl;
     expect(url("qr")).toMatch(/^\/favicon\/qr-app-192\.png\?v=/);
     expect(url("portal")).toMatch(/^\/favicon\/ida-app-192\.png\?v=/);
-    expect(url("lagerbuch")).toBe("http://lagerbuch.localtest.me:3000/pwa-icon.svg");
+    expect(url("lagerbuch")).toMatch(/^\/favicon\/lagerbuch-app-192\.png\?v=/);
     // Ohne eigenes Zeichen kein fremdes: die Kachel zeigt dann das Icons8-Zeichen.
     expect(url("gamma")).toBeUndefined();
   });

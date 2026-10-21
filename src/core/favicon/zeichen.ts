@@ -141,6 +141,17 @@ const EINSATZBUCH = modulZeichen(
 );
 
 /**
+ * Lagerkiste: Deckel und Kasten, ausgespart Griffloch und Etikettfeld. Löst das
+ * Alt-Symbol der Lagerbuch-Anwendung auf Portal-Kachel und App-Umschalter ab
+ * (Rückmeldung vom 20.10.2026: dunkle Kachel mit Balken neben lauter hellen).
+ */
+const LAGERBUCH = modulZeichen(
+  "Lagerbuch",
+  `<path class="t" fill-rule="evenodd" d="M9 27h34a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3Zm12 3.5v3h10v-3Z"/>` +
+    `<path class="t" fill-rule="evenodd" d="M9 40h34v18a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4Zm8 6v6h18v-6Z"/>`,
+);
+
+/**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
@@ -153,6 +164,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   radio: FUNKGERAET,
   uav: DROHNE,
   einsatzbuch: EINSATZBUCH,
+  lagerbuch: LAGERBUCH,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */

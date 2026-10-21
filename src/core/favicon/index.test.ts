@@ -38,7 +38,7 @@ describe("faviconFuer", () => {
 describe("zeichenZuDatei", () => {
   it("kennt nur `<name>.svg` aus der Liste", () => {
     expect(zeichenZuDatei("ida.svg")).toBe(ZEICHEN.ida);
-    for (const datei of ["ida", "ida.png", "IDA.svg", "../ida.svg", "toString.svg", "constructor.svg", "lagerbuch.svg"]) {
+    for (const datei of ["ida", "ida.png", "IDA.svg", "../ida.svg", "toString.svg", "constructor.svg", "kommplan.svg"]) {
       expect(zeichenZuDatei(datei), datei).toBeNull();
     }
   });
@@ -82,7 +82,7 @@ describe("appIconsFuerManifest", () => {
 describe("pngZuDatei", () => {
   it("kennt nur die erzeugten Dateien", () => {
     expect(pngZuDatei("ida-apple-180.png")).not.toBeNull();
-    for (const datei of ["ida.png", "ida-apple-180", "../ida-apple-180.png", "toString", "constructor", "lagerbuch-app-192.png"]) {
+    for (const datei of ["ida.png", "ida-apple-180", "../ida-apple-180.png", "toString", "constructor", "kommplan-app-192.png"]) {
       expect(pngZuDatei(datei), datei).toBeNull();
     }
   });
@@ -91,15 +91,16 @@ describe("pngZuDatei", () => {
 describe("appIconFuerKachel", () => {
   it("verlinkt eine Datei, die die Route auch ausliefert", () => {
     for (const m of MODULES) {
-      const url = appIconFuerKachel(m.key, `https://${m.key}.example`);
-      if (!url || m.key === "lagerbuch") continue;
+      const url = appIconFuerKachel(m.key);
+      if (!url) continue;
       expect(pngZuDatei(url.slice("/favicon/".length).split("?")[0]), m.key).not.toBeNull();
     }
   });
 
-  it("holt lagerbuchs Symbol von dessen Host und gibt Modulen ohne Zeichen keines", () => {
-    expect(appIconFuerKachel("lagerbuch", "https://lager.example")).toBe("https://lager.example/pwa-icon.svg");
-    expect(appIconFuerKachel("kommplan", "https://k.example")).toBeUndefined();
-    expect(appIconFuerKachel("portal", "https://p.example")).toMatch(/^\/favicon\/ida-app-192\.png\?v=/);
+  /** Rückmeldung vom 20.10.2026: Lagerbuchs dunkles Alt-Symbol stand als einzige Kachel aus der Reihe. */
+  it("gibt lagerbuch das Suite-Zeichen, Modulen ohne Zeichen keines", () => {
+    expect(appIconFuerKachel("lagerbuch")).toMatch(/^\/favicon\/lagerbuch-app-192\.png\?v=/);
+    expect(appIconFuerKachel("kommplan")).toBeUndefined();
+    expect(appIconFuerKachel("portal")).toMatch(/^\/favicon\/ida-app-192\.png\?v=/);
   });
 });

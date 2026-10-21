@@ -14,13 +14,18 @@ import type { RueckmeldungArt, RueckmeldungEingabe } from "@/core/rueckmeldung/e
  * wird, kommt nicht hin. Rückfragen laufen persönlich über die Bereitschaft.
  */
 
-export type ZunderTyp = "bug" | "feature" | "aufgabe";
-
+/**
+ * ⚠️ KEIN `type` IM EINWURF. Zunder kennt `bug` und `feature` nur in
+ * Dev-Projekten und lehnt sie sonst mit `400` ab; der Eingang „IDA Eingang"
+ * (`IDAE`) ist ein Standardprojekt. So scheiterte jede Rückmeldung außer
+ * „Sonstiges" — gemessen am 21.10.2026: in `IDAE` lagen nur Aufgaben vom Typ
+ * `aufgabe`. Die Art steht deshalb im Kontextblock; den Typ setzt die Triage
+ * beim Verschieben nach „IDA".
+ */
 export interface ZunderAufgabe {
   external_id: string;
   title: string;
   description: string;
-  type: ZunderTyp;
   links: { url: string; title: string }[];
 }
 
@@ -32,10 +37,11 @@ export interface VorlagenKontext {
   jetzt: Date;
 }
 
-const TYP: Record<RueckmeldungArt, ZunderTyp> = {
-  fehler: "bug",
-  idee: "feature",
-  sonstiges: "aufgabe",
+/** Die Wörter vom Formular („Worum geht es?"), damit die Triage dieselbe Sprache liest. */
+const ART: Record<RueckmeldungArt, string> = {
+  fehler: "Etwas klappt nicht",
+  idee: "Idee oder Wunsch",
+  sonstiges: "Sonstiges",
 };
 
 const ZEIT = zeitFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
@@ -98,7 +104,7 @@ export function baueAufgabe(eingabe: RueckmeldungEingabe, kontext: VorlagenKonte
     .join(" · ");
 
   const kopf = [
-    `**Gemeldet von:** ${kontext.name?.trim() || "unbekannt"}`,
+    `**Gemeldet von:** ${kontext.name?.trim() || "unbekannt"} · **Art:** ${ART[eingabe.art]}`,
     `**Modul:** ${modul ? `${modul.title} (${code(modul.key)})` : "unbekannt"} · **Seite:** ${code(pfad)}`,
     `**Version:** ${version} · **Zeit:** ${ZEIT.format(kontext.jetzt)}`,
     `**Browser:** ${browser}`,
@@ -109,7 +115,6 @@ export function baueAufgabe(eingabe: RueckmeldungEingabe, kontext: VorlagenKonte
     external_id: eingabe.id,
     title: eingabe.titel,
     description: eingabe.text ? `${eingabe.text}\n\n---\n\n${kopf}` : kopf,
-    type: TYP[eingabe.art],
     links: [{ url: seite, title: "Gemeldet auf" }],
   };
 }

@@ -38,7 +38,7 @@ export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
       title: mod.title,
       // Der NAME, nicht die Komponente — ein Name überquert die RSC-Grenze.
       icon: mod.icon,
-      appIconUrl: appIconFuerKachel(mod.key, href),
+      appIconUrl: appIconFuerKachel(mod.key),
       href,
       abschnitt: ABSCHNITT_APPS,
       extern: false,

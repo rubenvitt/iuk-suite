@@ -21,8 +21,14 @@ export const NICHT_ERREICHBAR =
   "Die Rückmeldung konnte gerade nicht zugestellt werden. Dein Text bleibt stehen — versuch es gleich noch einmal.";
 export const ZU_VIELE =
   "Gerade kommen sehr viele Rückmeldungen an. Versuch es in ein paar Minuten noch einmal.";
+/**
+ * ⚠️ NICHT „PRÜF TITEL UND BESCHREIBUNG". Was die Person ändern kann, prüft
+ * `pruefeEingabe` vorher und meldet es mit eigenem Satz; ein `400` danach liegt
+ * an dem, was die Suite daraus baut (so am 20.10.2026: `type: "feature"` im
+ * Standardprojekt). Die Person soll nicht an einem gültigen Text herumraten.
+ */
 export const ABGELEHNT =
-  "Die Rückmeldung wurde nicht angenommen. Prüf Titel und Beschreibung und versuch es noch einmal.";
+  "Die Rückmeldung wurde nicht angenommen — an deinem Text liegt es nicht, er bleibt stehen. Versuch es später noch einmal.";
 
 export const ZEITLIMIT_MS = 8000;
 
@@ -60,6 +66,13 @@ function kennungAus(json: unknown): { id: string; kennung: string } | null {
   return id ? { id, kennung: ref || id } : null;
 }
 
+/** `{"error":{"code","message"}}` aus Zunders Antwort, gekürzt und ohne Zeilenumbrüche fürs Log. */
+function grundAus(json: unknown): string {
+  const fehler = ((json ?? {}) as { error?: { code?: unknown; message?: unknown } }).error ?? {};
+  const teile = [fehler.code, fehler.message].filter((t): t is string => typeof t === "string");
+  return (teile.join(": ") || "ohne Angabe").replace(/\s+/g, " ").slice(0, 300);
+}
+
 export async function wirfEin(
   eingang: ZunderEingang,
   aufgabe: ZunderAufgabe,
@@ -82,7 +95,11 @@ export async function wirfEin(
     return { ok: false, grund: NICHT_ERREICHBAR };
   }
   if (antwort.status === 429) return { ok: false, grund: ZU_VIELE };
-  if (antwort.status === 400) return { ok: false, grund: ABGELEHNT };
+  if (antwort.status === 400) {
+    // Der Grund geht ins Serverlog, nicht nach vorn (Kopfkommentar) — ohne ihn sucht man im Betrieb blind.
+    warnen(`Zunder-Eingang lehnt ab (400): ${grundAus(antwort.json)}`);
+    return { ok: false, grund: ABGELEHNT };
+  }
 
   // 401, 403, 404, 409 …: der Eingang ist falsch eingerichtet, nicht die Eingabe falsch.
   warnen(`Zunder-Eingang antwortet ${antwort.status}; Token oder Zielprojekt prüfen.`);

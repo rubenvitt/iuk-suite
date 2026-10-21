@@ -23,10 +23,15 @@ const KONTEXT = {
 };
 
 describe("baueAufgabe", () => {
-  it("macht aus Fehler/Idee/Sonstiges bug/feature/aufgabe", () => {
-    expect(baueAufgabe(EINGABE, KONTEXT).type).toBe("bug");
-    expect(baueAufgabe({ ...EINGABE, art: "idee" }, KONTEXT).type).toBe("feature");
-    expect(baueAufgabe({ ...EINGABE, art: "sonstiges" }, KONTEXT).type).toBe("aufgabe");
+  /**
+   * ⚠️ ZUNDER LEHNT `bug`/`feature` IN EINEM STANDARDPROJEKT MIT 400 AB, und
+   * der Eingang ist eins. Die Art steht im Kontextblock, nie als `type`.
+   */
+  it("schickt keinen Typ und nennt die Art im Kontextblock", () => {
+    expect(baueAufgabe(EINGABE, KONTEXT)).not.toHaveProperty("type");
+    expect(baueAufgabe(EINGABE, KONTEXT).description).toContain("**Art:** Etwas klappt nicht");
+    expect(baueAufgabe({ ...EINGABE, art: "idee" }, KONTEXT).description).toContain("**Art:** Idee oder Wunsch");
+    expect(baueAufgabe({ ...EINGABE, art: "sonstiges" }, KONTEXT).description).toContain("**Art:** Sonstiges");
   });
 
   it("übernimmt Titel und ID unverändert", () => {

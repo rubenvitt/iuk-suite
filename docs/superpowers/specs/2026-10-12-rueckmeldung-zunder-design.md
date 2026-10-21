@@ -194,7 +194,7 @@ aus dem der Link heute einen neuen Tab öffnet).
 
 ### 5.4 Vorlage der Aufgabe in Zunder
 
-`type`: `fehler` → `bug`, `idee` → `feature`, `sonstiges` → `aufgabe`.
+`type`: wird **nicht** geschickt. Zunder kennt `bug`/`feature` nur in Dev-Projekten, `IDAE` ist ein Standardprojekt (jede Idee und jeder Fehler kam bis 21.10.2026 als `400` zurück). Die Art steht als `**Art:**` im Kontextblock; den Typ setzt die Triage.
 `title`: der Titel aus dem Formular, unverändert.
 `description`:
 
