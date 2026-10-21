@@ -50,7 +50,7 @@ Account-Inhaber der Gliederung. Anzugeben sind:
 
 - Bezeichnung: `iuk-suite – Helferverzeichnis`
 - Organisations-Kürzel (den Client darauf beschränken lassen)
-- Redirect-URI: `https://<SUITE_HOST_HELFER>/hiorg/rueckruf`
+- Redirect-URI: `https://<SUITE_HOST_HELFER>/hiorg/callback`
 - Grant-Types `authorization_code` und `refresh_token`, Scopes `openid personal:read`
 - Kontakt, Einsatzzweck, Systemumgebung
 

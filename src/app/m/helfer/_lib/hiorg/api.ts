@@ -36,7 +36,7 @@ export function neuerVorgang(): { state: string; verifier: string; challenge: st
 
 export function anmeldeAdresse(k: HiorgKonfiguration, state: string, challenge: string): string {
   const q = new URLSearchParams({
-    response_type: "code", client_id: k.clientId, redirect_uri: k.rueckruf, scope: HIORG_SCOPE, state,
+    response_type: "code", client_id: k.clientId, redirect_uri: k.callbackUrl, scope: HIORG_SCOPE, state,
     code_challenge: challenge, code_challenge_method: "S256",
   });
   if (k.organisation) q.set("ov", k.organisation);
@@ -73,7 +73,7 @@ async function tokenAnfrage(k: HiorgKonfiguration, abruf: Abruf, felder: Record<
 }
 
 export function tauscheCode(k: HiorgKonfiguration, abruf: Abruf, code: string, verifier: string): Promise<Tokens> {
-  return tokenAnfrage(k, abruf, { grant_type: "authorization_code", code, redirect_uri: k.rueckruf, code_verifier: verifier });
+  return tokenAnfrage(k, abruf, { grant_type: "authorization_code", code, redirect_uri: k.callbackUrl, code_verifier: verifier });
 }
 
 /** HiOrg kann bei jeder Erneuerung ein neues Refresh-Token ausgeben; das alte gilt dann nicht mehr. */

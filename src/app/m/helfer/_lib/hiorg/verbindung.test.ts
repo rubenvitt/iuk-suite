@@ -10,7 +10,7 @@ import { accessToken, legeVorgangAn, loeseVorgangEin, merkeAccessToken, speicher
 
 const SCHLUESSEL = Buffer.alloc(32, 7).toString("base64");
 const K: HiorgKonfiguration = {
-  clientId: "iuk-suite", clientSecret: "geheim", organisation: "uelz", basis: "https://hiorg.test", rueckruf: "https://helfer.example/hiorg/rueckruf",
+  clientId: "iuk-suite", clientSecret: "geheim", organisation: "uelz", basis: "https://hiorg.test", callbackUrl: "https://helfer.example/hiorg/callback",
 };
 
 /** Ein Fake-HiOrg: beantwortet Token- und Personalanfragen und merkt sich jede Anfrage. */
@@ -65,7 +65,7 @@ describe("Anmeldung bei HiOrg", () => {
     const url = new URL(anmeldeAdresse(K, v.state, v.challenge));
     expect(url.origin + url.pathname).toBe("https://hiorg.test/oauth/v1/authorize");
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
-      response_type: "code", client_id: "iuk-suite", redirect_uri: K.rueckruf, scope: "openid personal:read",
+      response_type: "code", client_id: "iuk-suite", redirect_uri: K.callbackUrl, scope: "openid personal:read",
       state: v.state, code_challenge: v.challenge, code_challenge_method: "S256", ov: "uelz",
     });
     expect(url.toString()).not.toContain("geheim");

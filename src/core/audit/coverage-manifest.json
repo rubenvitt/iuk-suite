@@ -154,8 +154,8 @@
   "src/app/m/helfer/_actions/verwaltung.ts#trennenAction": { "kind": "context", "via": "trennenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#uebernehmenAction": { "kind": "context", "via": "uebernehmenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#vorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs: liest die Quelle und plant gegen den Bestand, schreibt nichts; die Übernahme läuft über uebernehmenAction." },
-  "src/app/m/helfer/hiorg/rueckruf/route.ts#GET": { "kind": "context", "via": "GET" },
-  "src/app/m/helfer/hiorg/verbinden/route.ts#GET": { "kind": "excluded", "reason": "Beginnt das Verbinden mit HiOrg: legt nur einen kurzlebigen, nicht auditierten Vorgang an; die Verbindung selbst entsteht auditiert im Rückruf." },
+  "src/app/m/helfer/hiorg/callback/route.ts#GET": { "kind": "context", "via": "GET" },
+  "src/app/m/helfer/hiorg/verbinden/route.ts#GET": { "kind": "excluded", "reason": "Beginnt das Verbinden mit HiOrg: legt nur einen kurzlebigen, nicht auditierten Vorgang an; die Verbindung selbst entsteht auditiert im Callback." },
   "src/app/m/einsatzbuch/api/anker/route.ts#GET": {
     "kind": "excluded",
     "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."

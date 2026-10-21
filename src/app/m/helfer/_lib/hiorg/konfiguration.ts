@@ -29,7 +29,7 @@ export interface HiorgKonfiguration {
   /** Organisations-Kürzel; vorbelegt im Anmeldedialog (`?ov=`), sonst fragt HiOrg danach. */
   organisation: string | null;
   basis: string;
-  rueckruf: string;
+  callbackUrl: string;
 }
 
 export type Konfigurationsstand =
@@ -54,7 +54,7 @@ export function hiorgKonfiguration(env: EnvLike = process.env): Konfigurationsst
     konfiguration: {
       clientId, clientSecret, basis,
       organisation: env[HIORG_VARIABLEN.organisation]?.trim() || null,
-      rueckruf: `${modul}/hiorg/rueckruf`,
+      callbackUrl: `${modul}/hiorg/callback`,
     },
   };
 }
