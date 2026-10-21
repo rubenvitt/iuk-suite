@@ -71,6 +71,8 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // helfer: OHNE Boot-Seed — die Demo-Helfer sind Entwicklungsdaten (der Demo-Modus selbst ist ein
   // Schalter im Modul, kein Seed); das lokale Seed-Skript deckt Dev ab.
   { key: "helfer", migrationsFolder: "src/app/m/helfer/_db/migrations" },
+  // fahrzeuge: OHNE Boot-Seed — die Beispielfahrzeuge sind Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
+  { key: "fahrzeuge", migrationsFolder: "src/app/m/fahrzeuge/_db/migrations" },
 ];
 
 /**
