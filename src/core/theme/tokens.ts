@@ -100,6 +100,20 @@ export const FARBEN = {
   gelbAufDunkel: "#d9a032",
   gelbAufDunkelHover: "#e0a144",
   gelbAufDunkelActive: "#c98f2a",
+  /**
+   * AUSGEWÄHLTE TABELLENZEILE (IDA-245). antd leitet `rowSelectedBg` aus
+   * `colorPrimary` ab und färbt damit jede ausgewählte Zeile hellrot — eine
+   * rote Datenfläche für einen Nicht-Fehler (Falle 3). Neutral statt rot: hell
+   * derselbe Ton wie `papier` (deutlich gegen antds Zeilen-Hover `#fafafa`),
+   * dunkel eine Stufe über der Kartenfläche `#141414`. Deckend, nicht
+   * durchscheinend: eine fixierte Spalte über waagerecht gescrolltem Inhalt
+   * ließe ihn sonst durchscheinen. Text darauf: `tinte` 14,8:1 hell, antds
+   * Dunkeltext (85 % Weiß) 11,2:1 dunkel; im Hover 13,5:1 bzw. 10,0:1.
+   */
+  auswahl: "#eef0f1",
+  auswahlHover: "#e3e6e8",
+  auswahlAufDunkel: "#262626",
+  auswahlAufDunkelHover: "#303030",
 } as const;
 
 /**

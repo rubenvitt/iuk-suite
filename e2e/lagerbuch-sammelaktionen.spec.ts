@@ -150,3 +150,53 @@ test.describe("Sammelaktionen", () => {
     expect(aussonderungen(), "je Charge eine eigene Journalzeile").toBe(vorher + 2);
   });
 });
+
+/**
+ * TABELLENAUSWAHL (IDA-245): am Tablet treffbar, neutral hervorgehoben, ohne
+ * antds Filterwarnung. Gemessen an der Artikelliste, weil sie das Kreuzchen
+ * vor IDA-245 noch in 22 px trug, und an allen drei Seiten mit Auswahl.
+ */
+test.describe("Tabellenauswahl", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  test.beforeEach(async ({ page }) => {
+    stelleHer();
+    await devLogin(page, {
+      host: LAGERBUCH_HOST,
+      groups: LAGERBUCH_ADMIN_GRUPPE,
+      callbackPath: "/verwaltung",
+    });
+  });
+
+  test("Kreuzchen sind 44 px, die gewaehlte Zeile ist nicht rot, keine Filterwarnung", async ({ page }) => {
+    const meldungen: string[] = [];
+    page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") meldungen.push(m.text()); });
+
+    for (const pfad of ["/verwaltung/bestellung", "/verwaltung/verfall", "/verwaltung/artikel"]) {
+      const antwort = await page.goto(lagerbuchUrl(pfad));
+      expect(antwort!.status()).toBe(200);
+      await warteAufGestreamteInhalte(page);
+    }
+
+    const breit = page.locator("[data-rolle='breitansicht']");
+    const kopf = breit.locator("thead label").first();
+    const zeile = breit.locator("[data-row-key]").first();
+    const kreuz = zeile.locator("label").first();
+    for (const [name, ort] of [["Alle auswählen", kopf], ["Zeile", kreuz]] as const) {
+      const mass = await ort.boundingBox();
+      expect(mass, name).not.toBeNull();
+      expect(mass!.width, name).toBeGreaterThanOrEqual(44);
+      expect(mass!.height, name).toBeGreaterThanOrEqual(44);
+    }
+
+    await zeile.locator("input[type='checkbox']").check();
+    await expect(zeile).toHaveClass(/ant-table-row-selected/);
+    // Die Maus aus der Zeile nehmen: gemessen wird die Ruhefarbe, nicht der Hover.
+    await page.mouse.move(0, 0);
+    const grund = await zeile.locator("td").nth(1).evaluate((td) => getComputedStyle(td).backgroundColor);
+    const [r, g, b] = (grund.match(/\d+/g) ?? []).map(Number);
+    expect(Math.max(r, g, b) - Math.min(r, g, b), `neutral statt rot: ${grund}`).toBeLessThanOrEqual(8);
+
+    expect(meldungen.filter((m) => m.includes("filteredValue"))).toEqual([]);
+  });
+});

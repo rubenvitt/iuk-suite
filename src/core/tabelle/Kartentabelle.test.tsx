@@ -429,3 +429,35 @@ describe("Kartentabelle", () => {
     expect(karte("b").disabled).toBe(false);
   });
 });
+
+/*
+ * IDA-245 — antd verlangt `filteredValue` an ALLEN filterbaren Spalten oder an
+ * keiner. Filterbar ist für antd auch eine Spalte mit `onFilter` ohne
+ * `filters`-Liste (Verfall im Gruppenmodus); sie blieb ungesteuert, und antd
+ * warnte „Columns should all contain `filteredValue` or not".
+ */
+describe("Kartentabelle — gesteuerte Filter", () => {
+  it("steuert auch eine Spalte mit `onFilter` ohne Filterliste", async () => {
+    const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnung = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await mount(
+        <Kartentabelle<Zeile>
+          aria-label="Artikel"
+          rowKey="id"
+          dataSource={ZEILEN}
+          columns={[
+            { title: "Artikel", dataIndex: "name", key: "name", onFilter: () => true },
+            ...SPALTEN.slice(1),
+          ]}
+          leer={{ nichts: "Nichts da." }}
+        />,
+      );
+      const meldungen = [...fehler.mock.calls, ...warnung.mock.calls].map((a) => String(a[0]));
+      expect(meldungen.filter((m) => m.includes("filteredValue"))).toEqual([]);
+    } finally {
+      fehler.mockRestore();
+      warnung.mockRestore();
+    }
+  });
+});
