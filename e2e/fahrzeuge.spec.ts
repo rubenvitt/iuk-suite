@@ -80,3 +80,28 @@ test("Erstimport: Vorschau nur mit Verwaltungsrecht", async ({ page, browser }) 
   await expect(nutzer.getByRole("heading", { name: "Vorschau" })).toHaveCount(0);
   await nutzer.close();
 });
+
+test("das Einsatzbuch übernimmt ein Fahrzeug aus der Fahrzeugverwaltung", async ({ page }) => {
+  const kenner = `98-${Date.now() % 100_000}-1`;
+  // Eine Anmeldung mit beiden Gruppen: die Sitzung gilt über die gemeinsame Cookie-Domain auf beiden Hosts.
+  await devLogin(page, { host: HOST, groups: "fahrzeuge-admin,einsatzbuch-nutzer", callbackPath: "/" });
+  await oeffne(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Fahrzeug anlegen" }));
+  const schublade = page.getByRole("dialog");
+  await schublade.getByLabel("Typ").fill("KTW");
+  await schublade.getByLabel("Funkrufname").fill(`Rotkreuz Abgleich ${kenner}`);
+  await schublade.getByLabel("Funkkenner").fill(kenner);
+  await schublade.getByLabel("Standort").fill("Teststadt");
+  await schublade.getByRole("button", { name: "Speichern" }).click();
+  await expect(schublade).toBeHidden();
+
+  await page.goto(`http://einsatzbuch.localtest.me:${E2E_PORT}/stammdaten?reiter=fahrzeuge`);
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Aus Fahrzeugverwaltung abgleichen" }));
+  const vorschau = page.getByRole("table", { name: "Vorschau des Abgleichs mit der Fahrzeugverwaltung" });
+  await expect(vorschau.locator("[data-row-key]").filter({ hasText: kenner })).toContainText("Neu");
+  await page.getByRole("dialog").getByRole("button", { name: "Übernehmen" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByRole("cell", { name: `Rotkreuz Abgleich ${kenner}` })).toBeVisible();
+});

@@ -11,6 +11,7 @@ import { StammdatenTabelle, type Stammeintrag } from "./StammdatenTabelle";
 import { StammdatenFormular } from "./StammdatenFormular";
 import { CsvImport } from "./CsvImport";
 import { HelferAbgleich } from "./HelferAbgleich";
+import { StammfahrzeugAbgleich } from "./StammfahrzeugAbgleich";
 
 const EINZAHL: Record<Stammdatenart, string> = { fahrzeuge: "Fahrzeug", personal: "Person", stichworte: "Stichwort" };
 
@@ -54,6 +55,7 @@ export function Stammdaten({
   const [formular, setFormular] = useState<{ art: Stammdatenart; eintrag: Stammeintrag | null } | null>(null);
   const [importOffen, setImportOffen] = useState(false);
   const [helferOffen, setHelferOffen] = useState(false);
+  const [fahrzeugeOffen, setFahrzeugeOffen] = useState(false);
 
   function wechsle(key: string): void {
     const art = key as Stammdatenart;
@@ -82,6 +84,7 @@ export function Stammdaten({
             </Button>
             <Button onClick={() => setImportOffen(true)}>CSV importieren</Button>
             {reiter === "personal" ? <Button onClick={() => setHelferOffen(true)}>Aus Helferverzeichnis abgleichen</Button> : null}
+            {reiter === "fahrzeuge" ? <Button onClick={() => setFahrzeugeOffen(true)}>Aus Fahrzeugverwaltung abgleichen</Button> : null}
           </div>
         }
       />
@@ -131,6 +134,10 @@ export function Stammdaten({
 
       <Drawer open={helferOffen} onClose={() => setHelferOffen(false)} title="Personal aus dem Helferverzeichnis" size={flyinBreite(720)} destroyOnHidden>
         {helferOffen ? <HelferAbgleich onFertig={() => setHelferOffen(false)} /> : null}
+      </Drawer>
+
+      <Drawer open={fahrzeugeOffen} onClose={() => setFahrzeugeOffen(false)} title="Fahrzeuge aus der Fahrzeugverwaltung" size={flyinBreite(720)} destroyOnHidden>
+        {fahrzeugeOffen ? <StammfahrzeugAbgleich onFertig={() => setFahrzeugeOffen(false)} /> : null}
       </Drawer>
     </div>
   );
