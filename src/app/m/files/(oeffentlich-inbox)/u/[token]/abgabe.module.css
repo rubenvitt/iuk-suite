@@ -236,3 +236,34 @@
     gap: 2px;
   }
 }
+
+/* ---------- Der Schlusspunkt: alles angekommen ---------- */
+
+/*
+ * Das Formular weicht ganz — Felder, die stehen bleiben, lesen sich auf einem
+ * fremden Handy wie „noch nicht fertig". Die Dateiliste bleibt als Beleg, was
+ * angekommen ist; der gesetzte Abstand oben haelt den Block aus der
+ * Kopfzeile heraus, ohne ihn in die Seitenmitte zu schieben.
+ */
+.erfolg {
+  padding-top: 12px;
+}
+
+/*
+ * Haken im Ring, 52px wie auf der Danke-Seite von `feedback`. Strich statt
+ * Flaeche und `--fp-ok` als letzte Schicht: die Aussage steht im Text darunter.
+ */
+.erfolgZeichen {
+  display: block;
+  width: 52px;
+  height: 52px;
+  fill: none;
+  stroke: var(--fp-ok);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.erfolgText {
+  margin-top: 12px;
+}

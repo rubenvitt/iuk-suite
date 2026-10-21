@@ -104,13 +104,9 @@ export default async function FilesAbgabeSeite({
 
   return (
     <div data-testid="files-abgabe">
-      <h1 className="fp-titel">Dateien abgeben</h1>
-      <p className="fp-text">
-        Wählen Sie die Dateien aus, die Sie übermitteln möchten. Auf dem Handy
-        können Sie im Auswahldialog auch direkt die Kamera benutzen.
-      </p>
       {/* Der Token geht als Zeichenkette weiter — die Insel baut daraus die
-          Adresse des Abgabewegs, und sonst nichts. */}
+          Adresse des Abgabewegs, und sonst nichts. Überschrift und Einleitung
+          stehen in der Insel: nach der Abgabe weichen sie der Erfolgsmeldung. */}
       <AbgabeFormular token={kanonisch} />
     </div>
   );

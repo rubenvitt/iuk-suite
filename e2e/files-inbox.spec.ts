@@ -174,6 +174,11 @@ test("1 — zwei Dateien mit Hinweis und Kategorie: zwei Quittungen, je Datei ei
     await expect(zeile).toHaveAttribute("data-zustand", "fertig");
     await expect(zeile.getByTestId("eintrag-quittung")).toBeVisible();
   }
+
+  // Der Schlusspunkt: das Formular weicht der Erfolgsmeldung, statt mit zwei
+  // kleinen Quittungen stehen zu bleiben.
+  await expect(page.getByTestId("abgabe-erfolg")).toBeVisible();
+  await expect(page.getByTestId("abgabe-formular")).toHaveCount(0);
 });
 
 test("2 — ein unbekanntes Token: HTTP 200 mit Korrekturaufforderung, kein Redirect, kein Token in der Adresse", async ({

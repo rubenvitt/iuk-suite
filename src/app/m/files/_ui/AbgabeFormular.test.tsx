@@ -700,7 +700,7 @@ describe("AbgabeFormular — der Absende-Knopf als Einstiegspunkt", () => {
     expect(knopf().disabled).toBe(true);
   });
 
-  it("ist nach einem vollständigen Lauf deaktiviert und heißt „Alles abgegeben“", async () => {
+  it("weicht nach einem vollständigen Lauf der Erfolgsansicht", async () => {
     antwortGeber = erfolgAus({ "eins.txt": 10, "zwei.png": 20 });
     await mount(<AbgabeFormular token={TOKEN} />);
     await waehle([datei("eins.txt", "text/plain", 10), datei("zwei.png", "image/png", 20)]);
@@ -708,15 +708,44 @@ describe("AbgabeFormular — der Absende-Knopf als Einstiegspunkt", () => {
     expect(knopf().disabled).toBe(false);
     await abgeben();
 
-    expect(knopf().disabled).toBe(true);
-    expect(knopf().textContent).toMatch(/Alles abgegeben/);
+    // Kein Formular mehr, das nach „noch nicht fertig" aussieht — der Melder
+    // gab sonst dieselben Dateien ein zweites Mal ab.
+    expect(exists('[data-testid="abgabe-formular"]')).toBe(false);
+    const erfolg = query('[data-testid="abgabe-erfolg"]');
+    expect(erfolg.textContent).toMatch(/Danke, alles ist angekommen/);
+    expect(erfolg.textContent).toMatch(/Alle 2 Dateien sind beim I&K eingegangen/);
+    // Die Liste bleibt als Beleg, was angekommen ist.
+    expect(queryAll('[data-testid="eintrag-quittung"]')).toHaveLength(2);
+    // Der Fokus geht an die Meldung, nicht ins Leere.
+    expect(document.activeElement).toBe(erfolg.querySelector("h1"));
   });
 
-  it("heißt bei einer abgelehnten Datei NICHT „Alles abgegeben“", async () => {
+  it("zeigt bei einer abgelehnten Datei KEINE Erfolgsansicht", async () => {
     await ersteEndgueltigAbgelehnt();
-    // Die Beschriftung ist eine Aussage über den Vorgang. Neben einer
+    // Die Erfolgsansicht ist eine Aussage über den Vorgang. Neben einer
     // zurückgewiesenen Datei wäre sie unwahr; den Grund trägt der Eintrag.
-    expect(knopf().textContent).not.toMatch(/Alles abgegeben/);
+    expect(exists('[data-testid="abgabe-erfolg"]')).toBe(false);
+    expect(exists('[data-testid="abgabe-formular"]')).toBe(true);
+  });
+
+  it("öffnet über „Weitere Dateien abgeben“ einen frischen Vorgang", async () => {
+    antwortGeber = erfolgAus({ "eins.txt": 10 });
+    await mount(<AbgabeFormular token={TOKEN} />);
+    await waehleKategorie(SCHREIBBARE_KATEGORIEN[0]!.wert);
+    await tippeHinweis("Lagebild");
+    await waehle([datei("eins.txt", "text/plain", 10)]);
+    await abgeben();
+    expect(query('[data-testid="abgabe-erfolg"]').textContent).toMatch(
+      /Ihre Datei ist beim I&K eingegangen/,
+    );
+
+    await click('[data-testid="abgabe-weitere"]');
+
+    expect(exists('[data-testid="abgabe-erfolg"]')).toBe(false);
+    expect(queryAll('[data-testid="abgabe-eintrag"]')).toHaveLength(0);
+    expect(query<HTMLTextAreaElement>("#abgabe-hinweis").value).toBe("");
+    expect(queryAll<HTMLInputElement>('input[type="radio"]:checked')).toHaveLength(0);
+    expect(knopf().disabled).toBe(true);
   });
 
   it("wird durch eine neue Dateiauswahl wieder bedienbar", async () => {

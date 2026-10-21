@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { FILES_CHUNK_BYTES, FILES_HINWEIS_MAX_ZEICHEN } from "../_lib/grenzen";
 import { SCHREIBBARE_KATEGORIEN } from "../_lib/kategorien";
@@ -246,6 +246,21 @@ export function AbgabeFormular({ token }: { token: string }) {
   );
   /** Nur DANN ist „alles abgegeben" wahr — neben einer Ablehnung wäre es eine Lüge. */
   const alleFertig = eintraege.length > 0 && eintraege.every((e) => e.zustand === "fertig");
+  /**
+   * DER SCHLUSSPUNKT: alles angekommen und nichts läuft mehr. Dann weicht das
+   * Formular der Erfolgsansicht — ein stehengebliebenes Formular mit einer
+   * 13px-Quittung je Datei las sich auf dem Handy wie „hat nicht geklappt", und
+   * der Melder gab dieselben Dateien ein zweites Mal ab.
+   */
+  const erfolgreich = alleFertig && !laeuft;
+  const erfolgTitelRef = useRef<HTMLHeadingElement>(null);
+
+  // Der Fokus folgt dem Inhalt: der Absende-Knopf, der ihn hielt, ist weg, und
+  // ein Screenreader soll den Erfolg ansagen. Auf einem langen Formular holt
+  // das die Meldung außerdem nach oben ins Bild.
+  useEffect(() => {
+    if (erfolgreich) erfolgTitelRef.current?.focus();
+  }, [erfolgreich]);
 
   function aktualisiere(schluessel: string, teil: Partial<Eintrag>): void {
     setEintraege((vorher) =>
@@ -413,6 +428,16 @@ export function AbgabeFormular({ token }: { token: string }) {
     }
   }
 
+  /** „Weitere Dateien abgeben" — ein frischer Vorgang, ohne die Angaben des vorigen. */
+  function neuBeginnen(): void {
+    dateienRef.current = new Map();
+    standRef.current = new Map();
+    setEintraege([]);
+    setHinweis("");
+    setKategorie("");
+    setHinweisFehler(null);
+  }
+
   function beiAbgabe(ereignis: React.FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
     void starte(
@@ -422,148 +447,198 @@ export function AbgabeFormular({ token }: { token: string }) {
     );
   }
 
-  return (
-    <form className={s.formular} data-testid="abgabe-formular" onSubmit={beiAbgabe} noValidate>
-      {/* Kein leerer Bildschirm ohne JavaScript: die Inbox war nie ohne JS
-          bedienbar (§8.2), also nennt der Block den Weg. */}
-      <noscript>
-        Für die Abgabe wird JavaScript benötigt. Bitte öffnen Sie diesen Link in einem Browser mit
-        aktiviertem JavaScript — oder geben Sie ihn an eine Person mit Rechner weiter, die die
-        Dateien für Sie abgibt.
-      </noscript>
+  const liste =
+    eintraege.length > 0 ? (
+      <ul className={s.liste}>
+        {eintraege.map((e) => (
+          <li
+            className={s.eintrag}
+            key={e.schluessel}
+            data-testid="abgabe-eintrag"
+            data-datei={e.name}
+            data-zustand={e.zustand}
+          >
+            <p className={s.dateiname}>
+              {e.name} <span className={s.groesse}>{alsMiB(e.groesse)}</span>
+            </p>
 
-      <fieldset className={s.gruppe} data-testid="abgabe-kategorie">
-        <legend className={s.legende}>Kategorie (freiwillig)</legend>
-        {/* ECHTE Radios mit EINEM `name`: der Browser macht daraus einen
-            Tabstop und die Pfeiltastenauswahl. Eine Knopfreihe müsste beides
-            nachbauen und wäre mit der Tastatur schlechter bedienbar
-            (`docs/design/README.md:144`). */}
-        {SCHREIBBARE_KATEGORIEN.map((k) => (
-          <label className={s.wahl} key={k.wert}>
-            <input
-              type="radio"
-              name="kategorie"
-              value={k.wert}
-              checked={kategorie === k.wert}
-              onChange={() => setKategorie(k.wert)}
+            {/* Fortschritt je Datei — Balken UND Zahl: ein Balken allein
+                trägt die Aussage nur über Fläche. */}
+            <progress
+              className={s.balken}
+              data-testid="eintrag-fortschritt"
+              max={e.groesse}
+              value={e.uebertragen}
             />
-            <span>{k.beschriftung}</span>
-          </label>
-        ))}
-      </fieldset>
 
-      <div className={s.feldblock}>
-        <label className="fp-label" htmlFor="abgabe-hinweis">
-          Hinweis für den I&K (freiwillig)
-        </label>
-        {/* KEIN `maxlength`. Es schnitte still ab — und zwar in
-            UTF-16-Einheiten, also bei Emoji mitten in einem Zeichen. Die Grenze
-            wird gemeldet, nicht erzwungen (§8.3). */}
-        <textarea
-          id="abgabe-hinweis"
-          className="fp-feld"
-          rows={3}
-          value={hinweis}
-          onChange={(e) => setHinweis(e.target.value)}
-        />
-        <p className={s.zaehler} data-testid="hinweis-zaehler">
-          {hinweisZeichen} von {FILES_HINWEIS_MAX_ZEICHEN} Zeichen
-        </p>
-        {hinweisFehler !== null && (
-          <p className="fp-fehler" data-testid="hinweis-fehler" role="alert">
-            {hinweisFehler}
-          </p>
-        )}
-      </div>
-
-      <div className={s.feldblock}>
-        <label className="fp-label" htmlFor="abgabe-dateien">
-          Dateien
-        </label>
-        {/* KEIN `accept`: eine Typliste nähme dem Handy-Auswahldialog die
-            Kamera-Option und wäre eine zweite, stille Allowlist neben
-            `_lib/mime.ts` — die Entscheidung über den Typ trifft der Server
-            anhand der Bytes (§8.5). KEIN `webkitdirectory` (§8.2). */}
-        <input
-          id="abgabe-dateien"
-          className="fp-feld"
-          type="file"
-          multiple
-          onChange={(e) => beiAuswahl(e.target.files)}
-        />
-      </div>
-
-      {eintraege.length > 0 && (
-        <ul className={s.liste}>
-          {eintraege.map((e) => (
-            <li
-              className={s.eintrag}
-              key={e.schluessel}
-              data-testid="abgabe-eintrag"
-              data-datei={e.name}
-              data-zustand={e.zustand}
-            >
-              <p className={s.dateiname}>
-                {e.name} <span className={s.groesse}>{alsMiB(e.groesse)}</span>
+            {e.zustand === "fertig" && (
+              <p className={s.quittung} data-testid="eintrag-quittung">
+                ✓ Angekommen — die Datei wird jetzt geprüft.
               </p>
+            )}
 
-              {/* Fortschritt je Datei — Balken UND Zahl: ein Balken allein
-                  trägt die Aussage nur über Fläche. */}
-              <progress
-                className={s.balken}
-                data-testid="eintrag-fortschritt"
-                max={e.groesse}
-                value={e.uebertragen}
-              />
+            {e.zustand === "laeuft" && (
+              <p className={s.stand}>
+                {alsMiB(e.uebertragen)} von {alsMiB(e.groesse)} übertragen …
+              </p>
+            )}
 
-              {e.zustand === "fertig" && (
-                <p className={s.quittung} data-testid="eintrag-quittung">
-                  ✓ Angekommen — die Datei wird jetzt geprüft.
-                </p>
-              )}
+            {e.fehler !== null && (
+              <p className="fp-fehler" data-testid="eintrag-fehler" role="alert">
+                {e.fehler}
+                {e.zusatz !== null && <span className={s.zusatz}> {e.zusatz}</span>}
+              </p>
+            )}
 
-              {e.zustand === "laeuft" && (
-                <p className={s.stand}>
-                  {alsMiB(e.uebertragen)} von {alsMiB(e.groesse)} übertragen …
-                </p>
-              )}
+            {e.wiederholbar && !laeuft && (
+              <button
+                type="button"
+                className={`fp-knopf fp-knopf-leise ${s.wiederholen}`}
+                data-testid="eintrag-wiederholen"
+                onClick={() => void starte([e.schluessel], hinweis, kategorie)}
+              >
+                Wiederholen
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    ) : null;
 
-              {e.fehler !== null && (
-                <p className="fp-fehler" data-testid="eintrag-fehler" role="alert">
-                  {e.fehler}
-                  {e.zusatz !== null && <span className={s.zusatz}> {e.zusatz}</span>}
-                </p>
-              )}
-
-              {e.wiederholbar && !laeuft && (
-                <button
-                  type="button"
-                  className={`fp-knopf fp-knopf-leise ${s.wiederholen}`}
-                  data-testid="eintrag-wiederholen"
-                  onClick={() => void starte([e.schluessel], hinweis, kategorie)}
-                >
-                  Wiederholen
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="fp-knopfzeile">
-        {/* Deaktiviert, sobald nichts mehr offen ist: ein aktiver Knopf, der in
-            `starte` still zurückkehrt, ist auf einem fremden Handy von „hat
-            nicht reagiert" nicht zu unterscheiden. Der Weg nach vorn bleibt die
-            Dateiauswahl darüber — `beiAuswahl` setzt den Vorgang zurück. */}
-        <button
-          type="submit"
-          className="fp-knopf"
-          data-testid="abgabe-absenden"
-          disabled={laeuft || offen.length === 0}
+  if (erfolgreich) {
+    const anzahl = eintraege.length;
+    return (
+      <section className={s.erfolg} data-testid="abgabe-erfolg">
+        {/* Haken im Ring als Inline-SVG — dasselbe Zeichen wie auf der
+            Danke-Seite von `feedback`, kein Zeichenpaket (Falle 7). */}
+        <svg
+          className={s.erfolgZeichen}
+          viewBox="0 0 52 52"
+          role="presentation"
+          aria-hidden="true"
+          focusable="false"
         >
-          {laeuft ? "Wird übertragen …" : alleFertig ? "Alles abgegeben" : "Abgeben"}
-        </button>
-      </div>
-    </form>
+          <circle cx="26" cy="26" r="25" />
+          <path d="M16.5 27 L23 33.5 L36 19" />
+        </svg>
+        <h1 className="fp-titel" ref={erfolgTitelRef} tabIndex={-1}>
+          Danke, alles ist angekommen.
+        </h1>
+        <p className={`fp-text ${s.erfolgText}`} role="status">
+          {anzahl === 1
+            ? "Ihre Datei ist beim I&K eingegangen und wird jetzt geprüft."
+            : `Alle ${anzahl} Dateien sind beim I&K eingegangen und werden jetzt geprüft.`}{" "}
+          Sie müssen nichts weiter tun.
+        </p>
+        {liste}
+        <div className="fp-knopfzeile">
+          <button
+            type="button"
+            className="fp-knopf fp-knopf-leise"
+            data-testid="abgabe-weitere"
+            onClick={neuBeginnen}
+          >
+            Weitere Dateien abgeben
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <h1 className="fp-titel">Dateien abgeben</h1>
+      <p className="fp-text">
+        Wählen Sie die Dateien aus, die Sie übermitteln möchten. Auf dem Handy
+        können Sie im Auswahldialog auch direkt die Kamera benutzen.
+      </p>
+      <form className={s.formular} data-testid="abgabe-formular" onSubmit={beiAbgabe} noValidate>
+        {/* Kein leerer Bildschirm ohne JavaScript: die Inbox war nie ohne JS
+            bedienbar (§8.2), also nennt der Block den Weg. */}
+        <noscript>
+          Für die Abgabe wird JavaScript benötigt. Bitte öffnen Sie diesen Link in einem Browser mit
+          aktiviertem JavaScript — oder geben Sie ihn an eine Person mit Rechner weiter, die die
+          Dateien für Sie abgibt.
+        </noscript>
+
+        <fieldset className={s.gruppe} data-testid="abgabe-kategorie">
+          <legend className={s.legende}>Kategorie (freiwillig)</legend>
+          {/* ECHTE Radios mit EINEM `name`: der Browser macht daraus einen
+              Tabstop und die Pfeiltastenauswahl. Eine Knopfreihe müsste beides
+              nachbauen und wäre mit der Tastatur schlechter bedienbar
+              (`docs/design/README.md:144`). */}
+          {SCHREIBBARE_KATEGORIEN.map((k) => (
+            <label className={s.wahl} key={k.wert}>
+              <input
+                type="radio"
+                name="kategorie"
+                value={k.wert}
+                checked={kategorie === k.wert}
+                onChange={() => setKategorie(k.wert)}
+              />
+              <span>{k.beschriftung}</span>
+            </label>
+          ))}
+        </fieldset>
+
+        <div className={s.feldblock}>
+          <label className="fp-label" htmlFor="abgabe-hinweis">
+            Hinweis für den I&K (freiwillig)
+          </label>
+          {/* KEIN `maxlength`. Es schnitte still ab — und zwar in
+              UTF-16-Einheiten, also bei Emoji mitten in einem Zeichen. Die Grenze
+              wird gemeldet, nicht erzwungen (§8.3). */}
+          <textarea
+            id="abgabe-hinweis"
+            className="fp-feld"
+            rows={3}
+            value={hinweis}
+            onChange={(e) => setHinweis(e.target.value)}
+          />
+          <p className={s.zaehler} data-testid="hinweis-zaehler">
+            {hinweisZeichen} von {FILES_HINWEIS_MAX_ZEICHEN} Zeichen
+          </p>
+          {hinweisFehler !== null && (
+            <p className="fp-fehler" data-testid="hinweis-fehler" role="alert">
+              {hinweisFehler}
+            </p>
+          )}
+        </div>
+
+        <div className={s.feldblock}>
+          <label className="fp-label" htmlFor="abgabe-dateien">
+            Dateien
+          </label>
+          {/* KEIN `accept`: eine Typliste nähme dem Handy-Auswahldialog die
+              Kamera-Option und wäre eine zweite, stille Allowlist neben
+              `_lib/mime.ts` — die Entscheidung über den Typ trifft der Server
+              anhand der Bytes (§8.5). KEIN `webkitdirectory` (§8.2). */}
+          <input
+            id="abgabe-dateien"
+            className="fp-feld"
+            type="file"
+            multiple
+            onChange={(e) => beiAuswahl(e.target.files)}
+          />
+        </div>
+
+        {liste}
+
+        <div className="fp-knopfzeile">
+          {/* Deaktiviert, sobald nichts mehr offen ist: ein aktiver Knopf, der in
+              `starte` still zurückkehrt, ist auf einem fremden Handy von „hat
+              nicht reagiert" nicht zu unterscheiden. Der Weg nach vorn bleibt die
+              Dateiauswahl darüber — `beiAuswahl` setzt den Vorgang zurück. */}
+          <button
+            type="submit"
+            className="fp-knopf"
+            data-testid="abgabe-absenden"
+            disabled={laeuft || offen.length === 0}
+          >
+            {laeuft ? "Wird übertragen …" : "Abgeben"}
+          </button>
+        </div>
+      </form>
+    </>
   );
 }
