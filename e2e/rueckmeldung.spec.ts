@@ -138,12 +138,14 @@ test("eine Rückmeldung kommt in Zunder an — mit Name, ohne E-Mail, ohne Query
 
   const einwuerfe = (await (await request.get(`${ZUNDER}/__test/einwuerfe`)).json()) as {
     ref: string;
-    aufgabe: { title: string; description: string; type: string; links: { url: string }[] };
+    aufgabe: { title: string; description: string; type?: string; links: { url: string }[] };
   }[];
   const ref = await kennung.textContent();
   const eintrag = einwuerfe.find((e) => e.ref === ref);
   expect(eintrag, "Einwurf mit der angezeigten Kennung").toBeDefined();
-  expect(eintrag?.aufgabe.type).toBe("feature");
+  // Der Eingang ist ein Standardprojekt: `feature` wäre dort ein 400 (`vorlage.ts`, `ZunderAufgabe`).
+  expect(eintrag?.aufgabe.type).toBeUndefined();
+  expect(eintrag?.aufgabe.description).toContain("**Art:** Idee oder Wunsch");
   expect(eintrag?.aufgabe.title).toBe("Sortierung der Dienste merken");
   expect(eintrag?.aufgabe.description).toContain("**Gemeldet von:**");
   expect(eintrag?.aufgabe.description).not.toContain("@");

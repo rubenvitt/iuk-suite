@@ -66,13 +66,15 @@ export function appleIconFuer(modulKey: string | null | undefined): Favicon | un
  * DAS APP-ICON FÜR DIE PORTAL-KACHEL eines Moduls, oder `undefined`.
  *
  * Absolut zum Portal-Host gedacht: `/favicon/` liegt in der Durchlassliste und
- * gilt auf jedem Host. Nur `lagerbuch` liegt woanders — sein Symbol gibt es nur
- * auf dem eigenen Host, deshalb dort über `href` (die Modul-URL aus
- * `moduleUrl`). Das Portal trägt das IDA-Zeichen. Module ohne Zeichen
+ * gilt auf jedem Host. Das Portal trägt das IDA-Zeichen. Module ohne Zeichen
  * (Kommunikationspläne, Demos) bekommen keines und behalten ihr Icons8-Zeichen.
+ *
+ * ⚠️ AUCH `lagerbuch` NIMMT HIER DAS SUITE-ZEICHEN, nicht sein eigenes Symbol:
+ * dessen dunkle Kachel stand als einzige zwischen lauter hellen (Rückmeldung
+ * vom 20.10.2026). Favicon und installierte PWA behalten das eigene Symbol
+ * (`EIGENES_SYMBOL`) — das ist auf den Geräten eingebrannt.
  */
-export function appIconFuerKachel(modulKey: string, href: string): string | undefined {
-  if (modulKey === "lagerbuch") return `${href}${EIGENES_SYMBOL.lagerbuch}`;
+export function appIconFuerKachel(modulKey: string): string | undefined {
   const name = modulKey === "portal" ? "ida" : modulKey;
   if (!Object.hasOwn(ZEICHEN, name)) return undefined;
   const datei = `${name}-app-192.png`;

@@ -8,7 +8,6 @@ const AUFGABE: ZunderAufgabe = {
   external_id: "tz4a98xxat96iws9zmbrgj3a",
   title: "Inventur speichert nicht",
   description: "…",
-  type: "bug",
   links: [],
 };
 
@@ -65,8 +64,18 @@ describe("wirfEin", () => {
     [400, ABGELEHNT],
   ])("meldet %i verständlich und ohne Wiederholung", async (status, grund) => {
     const holen = vi.fn(async () => antwort(status, { error: { code: "x", message: "intern" } }));
-    expect(await wirfEin(EINGANG, AUFGABE, { holen })).toEqual({ ok: false, grund });
+    expect(await wirfEin(EINGANG, AUFGABE, { holen, warnen: vi.fn() })).toEqual({ ok: false, grund });
     expect(holen).toHaveBeenCalledTimes(1);
+  });
+
+  /** Ein 400 nach bestandener Eingabeprüfung ist ein Suite-Fehler: Zunders Grund gehört ins Log, nicht nach vorn. */
+  it("schreibt Zunders Grund für ein 400 ins Serverlog, nicht in die Meldung", async () => {
+    const warnen = vi.fn();
+    const holen = vi.fn(async () => antwort(400, { error: { code: "invalid_type", message: "Typ\nnur in Dev-Projekten" } }));
+    const r = await wirfEin(EINGANG, AUFGABE, { holen, warnen });
+    expect(r).toEqual({ ok: false, grund: ABGELEHNT });
+    expect(ABGELEHNT).not.toMatch(/Prüf Titel/);
+    expect(warnen).toHaveBeenCalledWith("Zunder-Eingang lehnt ab (400): invalid_type: Typ nur in Dev-Projekten");
   });
 
   /** Eine falsche Einrichtung ist ein Betriebsfehler: Warnung ins Log, freundlicher Satz nach vorn. */

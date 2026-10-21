@@ -59,6 +59,10 @@ const server = createServer((req, res) => {
     if (typeof aufgabe.external_id !== "string" || typeof aufgabe.title !== "string") {
       return antworte(res, 400, { error: { code: "invalid_request", message: "Pflichtfeld fehlt" } });
     }
+    // Wie der echte Eingang: `IDAE` ist ein Standardprojekt, `bug`/`feature` gibt es nur in Dev-Projekten.
+    if (aufgabe.type !== undefined && aufgabe.type !== "aufgabe") {
+      return antworte(res, 400, { error: { code: "invalid_type", message: "Typ nur in Dev-Projekten" } });
+    }
     if (aufgabe.title.includes("[zunder-weg]")) {
       return antworte(res, 503, { error: { code: "unavailable", message: "Testfall" } });
     }
