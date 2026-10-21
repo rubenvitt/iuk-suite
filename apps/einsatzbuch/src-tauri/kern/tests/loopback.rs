@@ -9,9 +9,24 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use einsatzbuch_kern::loopback::{Listener, LoopbackFehler, Rueckruf};
+use einsatzbuch_kern::loopback::{Listener, LoopbackFehler, Rueckruf, TAKT};
 
 const STATE: &str = "Zm9vYmFyYmF6cXV4cXV1eHh5enp5eHh5enp5eHh5eno";
+
+/// Binnen so vieler Takte der Warteschleife muss ein Abbruch greifen. Großzügig, weil geteilte
+/// CI-Runner unter Last Takte verschlafen (macOS brauchte einmal 350 ms, IDA-228); eng genug, dass
+/// ein blockierendes Lesen auf einer stummen Verbindung rot wird, denn das kehrt nie zurück.
+const ZEITNAH: Duration = TAKT.saturating_mul(50);
+
+/// Wartet ab `start` höchstens `grenze` auf das Ende des Fadens. Scheitert, statt zu hängen: Ein
+/// taubes Abbruch-Flag macht den Test rot, nicht den Lauf endlos.
+fn ende_binnen<T>(faden: thread::JoinHandle<T>, start: Instant, grenze: Duration) -> T {
+    while !faden.is_finished() {
+        assert!(start.elapsed() < grenze, "nach {:?} nicht beendet, Grenze {grenze:?}", start.elapsed());
+        thread::sleep(Duration::from_millis(1));
+    }
+    faden.join().unwrap()
+}
 
 /// Startet `warte` in einem eigenen Thread und liefert Port, Abbruch-Flag und den Thread.
 fn starte(zeitlimit: Duration) -> (u16, Arc<AtomicBool>, thread::JoinHandle<Result<Rueckruf, LoopbackFehler>>) {
@@ -132,13 +147,12 @@ fn zeitlimit_endet_mit_zeitlimit() {
 }
 
 #[test]
-fn abbruch_endet_binnen_200_ms() {
+fn abbruch_endet_zeitnah() {
     let (_port, abbruch, faden) = starte(Duration::from_secs(60));
     thread::sleep(Duration::from_millis(100));
     let start = Instant::now();
     abbruch.store(true, Ordering::SeqCst);
-    let ergebnis = faden.join().unwrap();
-    assert!(start.elapsed() < Duration::from_millis(200), "{:?}", start.elapsed());
+    let ergebnis = ende_binnen(faden, start, ZEITNAH);
     assert!(matches!(ergebnis, Err(LoopbackFehler::Abbruch)), "{ergebnis:?}");
     assert_eq!(LoopbackFehler::Abbruch.to_string(), "Anmeldung abgebrochen.");
 }
@@ -152,7 +166,7 @@ fn eine_stumme_verbindung_haelt_weder_rueckruf_noch_abbruch_auf() {
     thread::sleep(Duration::from_millis(100));
     let start = Instant::now();
     assert_eq!(status(&hole(port, &format!("/rueckruf?code=abc&state={STATE}"))), 200);
-    assert!(start.elapsed() < Duration::from_secs(1), "{:?}", start.elapsed());
+    assert!(start.elapsed() < ZEITNAH * 2, "{:?}", start.elapsed());
     assert_eq!(faden.join().unwrap().unwrap(), Rueckruf::Code("abc".into()));
 
     let (port, abbruch2, faden2) = starte(Duration::from_secs(60));
@@ -160,8 +174,7 @@ fn eine_stumme_verbindung_haelt_weder_rueckruf_noch_abbruch_auf() {
     thread::sleep(Duration::from_millis(100));
     let start = Instant::now();
     abbruch2.store(true, Ordering::SeqCst);
-    assert!(matches!(faden2.join().unwrap(), Err(LoopbackFehler::Abbruch)));
-    assert!(start.elapsed() < Duration::from_millis(200), "{:?}", start.elapsed());
+    assert!(matches!(ende_binnen(faden2, start, ZEITNAH), Err(LoopbackFehler::Abbruch)));
 }
 
 #[test]
@@ -251,12 +264,10 @@ fn eine_flut_verzoegert_weder_abbruch_noch_zeitlimit() {
     thread::sleep(Duration::from_millis(50));
     let start = Instant::now();
     abbruch.store(true, Ordering::SeqCst);
-    let ergebnis = faden.join().unwrap();
-    let dauer = start.elapsed();
+    let ergebnis = ende_binnen(faden, start, ZEITNAH);
     halt.store(true, Ordering::SeqCst);
     drop(warte_auf_flut(fluter));
     assert!(matches!(ergebnis, Err(LoopbackFehler::Abbruch)), "{ergebnis:?}");
-    assert!(dauer < Duration::from_secs(1), "{dauer:?}");
 
     let listener = Listener::oeffne().unwrap();
     let port = listener.port();
