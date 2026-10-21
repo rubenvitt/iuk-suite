@@ -24,7 +24,7 @@ use crate::anmeldung::prozent_dekodiere;
 pub const ZEITLIMIT: Duration = Duration::from_secs(300);
 
 /// Takt der Warteschleife — Abbruch-Flag und Zeitlimit werden mindestens so oft geprüft.
-const TAKT: Duration = Duration::from_millis(20);
+pub const TAKT: Duration = Duration::from_millis(20);
 /// Obergrenze für Anfragezeile und Kopfzeilen zusammen.
 const HOECHSTENS_KOPF: usize = 16 * 1024;
 /// Eine Verbindung, die so lange keine vollständige Anfrage liefert, wird verworfen.
@@ -117,7 +117,7 @@ impl Listener {
     }
 
     /// Wartet auf `GET /rueckruf` mit passendem `state`. Prüft `abbruch` und das Zeitlimit in
-    /// jedem Takt (≤ 50 ms). Ein falscher `state` bekommt 400 und der Listener wartet weiter,
+    /// jedem `TAKT`. Ein falscher `state` bekommt 400 und der Listener wartet weiter,
     /// ebenso eine sonst unbrauchbare Anfrage; andere Pfade bekommen 404.
     pub fn warte(self, state: &str, zeitlimit: Duration, abbruch: &AtomicBool) -> Result<Rueckruf, LoopbackFehler> {
         let ende = Instant::now() + zeitlimit;
