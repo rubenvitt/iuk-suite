@@ -207,14 +207,15 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
                   // der frueheren Handlager-Liste (bis IDA-238) und die "An Fahrzeugen und Taschen"-Liste
                   // (verfall/page.tsx) — dort steht bereits SPACE.md.
                   gap: SPACE.md,
-                  padding: `${SPACE.md}px 0`,
+                  padding: `${SPACE.xs}px 0 ${SPACE.md}px`, // oben traegt der 44-px-Link die Luft (IDA-241)
                   borderBlockEnd: "1px solid var(--lb-linie)",
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* 44 px Tippziel wie bei „alle anzeigen" unten (IDA-241). */}
                   <Link
                     href={artikelAdresse(zeile.id)}
-                    style={{ ...SCHRIFT.text, fontWeight: 600 }}
+                    style={{ ...SCHRIFT.text, ...ZIEL, fontWeight: 600 }}
                   >
                     {zeile.name}
                   </Link>
