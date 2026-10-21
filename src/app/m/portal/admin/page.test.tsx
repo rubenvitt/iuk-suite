@@ -18,6 +18,7 @@ import { isValidElement, type ReactElement } from "react";
  * DB-Funktionen, ein DOM-Mount bräuchte eine echte migrierte Datenbank dafür.
  */
 vi.mock("@/core/audit/access", () => ({ canReadAudit: vi.fn().mockResolvedValue(false) }));
+vi.mock("@/app/m/portal/_lib/rechteZugang", () => ({ darfRechteVergeben: vi.fn().mockResolvedValue(false) }));
 vi.mock("@/core/auth/guards", () => ({
   moduleAdminPageOrNotFound: vi.fn(),
   requireModuleAdmin: vi.fn(),

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { canReadAudit } from "@/core/audit/access";
+import { darfRechteVergeben } from "@/app/m/portal/_lib/rechteZugang";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { leseAnsprechpartner, leseZeitzone } from "@/app/m/portal/_lib/einstellungen";
@@ -16,6 +17,7 @@ export default async function PortalAdminPage() {
   await moduleAdminPageOrNotFound("portal");
 
   const darfAuditLesen = await canReadAudit();
+  const darfRechte = await darfRechteVergeben();
   const services = await getAllServices();
   const gruppen = await ladeWaehlbareGruppen(services);
   const ansprechpartner = await leseAnsprechpartner();
@@ -31,6 +33,7 @@ export default async function PortalAdminPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="portal-admin">
       <Seitenkopf titel="Dienste verwalten" />
       {darfAuditLesen && <section><h2 style={{ margin: 0 }}>Audit-Log</h2><p>Änderungen, Anmeldungen und Abrufe in der gesamten Suite nachvollziehen.</p><Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Audit-Log öffnen</Link></section>}
+      {darfRechte && <section><h2 style={{ margin: 0 }}>Rechte</h2><p>Personen in die Gruppen aus Pocket ID aufnehmen: wer welches Modul benutzen oder verwalten darf.</p><Link href="/admin/rechte" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }} data-testid="rechte-einstieg">Rechte vergeben</Link></section>}
 
       <section>
         <ServiceTable services={services} gruppen={gruppen.optionen} />

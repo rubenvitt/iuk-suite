@@ -852,6 +852,10 @@
     "kind": "context",
     "via": "setzeZeitzoneAction"
   },
+  "src/app/m/portal/admin/rechte/actions.ts#setzeRechtAction": {
+    "kind": "explicit-only",
+    "reason": "Schreibt in Pocket ID, nicht in eine Suite-Datenbank; jede Aufnahme und Entfernung wird explizit auditiert."
+  },
   "src/app/m/portal/profil/actions.ts#alleSitzungenAbmelden": {
     "kind": "context",
     "via": "alleSitzungenAbmelden"
