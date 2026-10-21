@@ -99,9 +99,17 @@ export const lagerorte = sqliteTable(
      * Handlager einen Chip „nicht zugeordnet".
      */
     einheitenart: text("einheitenart", { enum: ["fahrzeug", "tasche"] }),
+    /**
+     * IDA-258 — das Stammfahrzeug der Fahrzeugverwaltung (Modul fahrzeuge), aus dem Name und
+     * Kennzeichen dieser Einheit kommen. Nur bei `einheitenart = "fahrzeug"`; Taschen bleiben lokal.
+     * Kein Fremdschlüssel: die Stammdaten leben in einer anderen Datenbank, gesetzt wird der Wert
+     * allein durch den Abgleich (`_lib/stammAbgleich.ts`) und das Anlegen aus dem Stamm.
+     */
+    stammId: text("stamm_id"),
   },
   (t) => [
     index("idx_lagerorte_parent").on(t.parentId),
+    uniqueIndex("idx_lagerorte_stamm").on(t.stammId).where(sql`${t.stammId} is not null`),
     /**
      * DRK-367 — zwei Schraenke duerfen nicht gleich heissen.
      *

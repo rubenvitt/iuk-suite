@@ -11,7 +11,12 @@ import {
 } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
-const { revalidiert, adminRiegel, ortLeseWirft } = vi.hoisted(() => ({
+const { revalidiert, adminRiegel, ortLeseWirft, stamm } = vi.hoisted(() => ({
+  /** IDA-258: was die Fahrzeugverwaltung bereitstellt — der Test liest nie deren Datenbank. */
+  stamm: {
+    fahrzeuge: [] as import("@/app/m/fahrzeuge/_lib/bereitstellung").BereitgestelltesFahrzeug[],
+    zuordnung: {} as Record<string, string | null>,
+  },
   revalidiert: [] as string[],
   adminRiegel: vi.fn<() => Promise<unknown>>(),
   /** Schalter fuer den gesperrten Lesezugriff — siehe den Fall ganz unten. */
@@ -35,6 +40,11 @@ vi.mock("../_lib/lesepfade/ortEtiketten", async (echtes) => {
   };
 });
 
+vi.mock("@/app/m/fahrzeuge/_lib/bereitstellung", () => ({
+  bereitgestellteFahrzeuge: () => ({ fahrzeuge: stamm.fahrzeuge, stand: null }),
+  zuordnungenFuer: () => stamm.zuordnung,
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
 }));
@@ -51,6 +61,8 @@ import {
   createFahrzeug,
   setEinheitenart,
   setFahrzeugAktiv,
+  stammUebernehmenAction,
+  stammVorschauAction,
   sollPositionEntfernen,
   sollPositionSetzen,
   sollPositionWiederherstellen,
@@ -70,6 +82,8 @@ let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
+  stamm.fahrzeuge = [];
+  stamm.zuordnung = {};
   adminRiegel.mockResolvedValue(VIEWER);
   t = migrierteTestDb("lagerbuch-actions-fahrzeuge-");
 
@@ -211,6 +225,7 @@ describe("createFahrzeug", () => {
       zugangshinweis: null,
       sortierung: 0,
       einheitenart: "fahrzeug",
+      stammId: null,
     });
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD]);
   });
@@ -835,5 +850,43 @@ describe("createFahrzeug — ein gesperrter Lesezugriff nimmt die Einheit nicht 
     const id = wert<{ id: string }>(ergebnis).id;
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()?.name)
       .toBe("RTW 9");
+  });
+});
+
+describe("IDA-258 — Fahrzeuge aus der Fahrzeugverwaltung", () => {
+  const RTW = {
+    id: "s1", art: "fahrzeug" as const, typ: "RTW", funkrufname: "Rotkreuz Uelzen 11-83-1", funkkenner: "11-83-1",
+    kennzeichen: "UE-RK 831", standort: "Uelzen", aktiv: true,
+  };
+  const einheit = (id: string) => t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get();
+
+  it("legt ein Fahrzeug aus dem Stamm an: Name und Kennzeichen kommen von dort, nicht aus dem Dialog", async () => {
+    stamm.fahrzeuge = [RTW];
+    const ergebnis = await createFahrzeug({ stammId: "s1", einheitenart: "fahrzeug", name: "egal" }, t.db);
+    const id = wert<{ id: string }>(ergebnis).id;
+    expect(einheit(id)).toMatchObject({ name: "RTW 11-83-1", kennung: "UE-RK 831", stammId: "s1", einheitenart: "fahrzeug" });
+
+    const zweite = await createFahrzeug({ stammId: "s1", einheitenart: "fahrzeug" }, t.db);
+    expect(zweite).toEqual({ ok: false, fehler: "Dieses Fahrzeug hat im Lagerbuch schon eine Einheit." });
+  });
+
+  it("weist ein unbekanntes oder außer Dienst gestelltes Stammfahrzeug und eine Tasche aus dem Stamm ab", async () => {
+    stamm.fahrzeuge = [{ ...RTW, aktiv: false }];
+    expect((await createFahrzeug({ stammId: "s1", einheitenart: "fahrzeug" }, t.db)).ok).toBe(false);
+    expect((await createFahrzeug({ stammId: "weg", einheitenart: "fahrzeug" }, t.db)).ok).toBe(false);
+    expect((await createFahrzeug({ stammId: "s1", einheitenart: "tasche" }, t.db)).ok).toBe(false);
+  });
+
+  it("eine Einheit, die zur Tasche wird, verliert ihren Verweis", async () => {
+    t.db.update(lagerorte).set({ stammId: "s1", einheitenart: "fahrzeug" }).where(eq(lagerorte.id, "fz-1")).run();
+    await setEinheitenart({ id: "fz-1", einheitenart: "tasche" }, t.db);
+    expect(einheit("fz-1")?.stammId).toBeNull();
+  });
+
+  it("Vorschau und Übernahme melden einen Lesefehler, statt zu werfen (Planung: `_lib/stammAbgleich.test.ts`)", async () => {
+    stamm.fahrzeuge = [RTW];
+    // Die Actions lesen `getDb()`; hier ist die gemockt und wirft — genau der Fall „nicht lesbar“.
+    expect(await stammVorschauAction()).toEqual({ ok: false, fehler: expect.stringContaining("nicht erreichbar") });
+    expect(await stammUebernehmenAction()).toEqual({ ok: false, fehler: expect.stringContaining("nicht erreichbar") });
   });
 });

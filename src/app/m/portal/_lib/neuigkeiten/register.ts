@@ -59,6 +59,7 @@ import entnahmeboxEinraeumen from "@/app/m/portal/_lib/neuigkeiten/notizen/lager
 import schranknameEindeutig from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schrankname-eindeutig";
 import checkUndEntnahmeAngemeldet from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-und-entnahme-angemeldet";
 import taschenNebenFahrzeugen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-taschen-neben-fahrzeugen";
+import lagerbuchFahrzeugeAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-21-einheiten-aus-der-fahrzeugverwaltung";
 import bzBemerkungUndBeachtung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-bz-bemerkung-und-beachtung";
 import werHatGeprueft from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-wer-hat-geprueft";
 import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-aussondern-je-schrank";
@@ -166,6 +167,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   schranknameEindeutig,
   checkUndEntnahmeAngemeldet,
   taschenNebenFahrzeugen,
+  lagerbuchFahrzeugeAusDerFahrzeugverwaltung,
   bzBemerkungUndBeachtung,
   werHatGeprueft,
   aussondernJeSchrank,

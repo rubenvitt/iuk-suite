@@ -105,3 +105,36 @@ test("das Einsatzbuch übernimmt ein Fahrzeug aus der Fahrzeugverwaltung", async
   await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByRole("cell", { name: `Rotkreuz Abgleich ${kenner}` })).toBeVisible();
 });
+
+test("das Lagerbuch legt ein Fahrzeug aus der Fahrzeugverwaltung an und gleicht es ab", async ({ page }) => {
+  const kenner = `97-${Date.now() % 100_000}-1`;
+  await devLogin(page, { host: HOST, groups: "fahrzeuge-admin,lagerbuch-admin", callbackPath: "/" });
+  await oeffne(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Fahrzeug anlegen" }));
+  const schublade = page.getByRole("dialog");
+  await schublade.getByLabel("Typ").fill("GW-San");
+  await schublade.getByLabel("Funkrufname").fill(`Rotkreuz Lager ${kenner}`);
+  await schublade.getByLabel("Funkkenner").fill(kenner);
+  await schublade.getByLabel("Standort").fill("Teststadt");
+  await schublade.getByRole("button", { name: "Speichern" }).click();
+  await expect(schublade).toBeHidden();
+
+  await page.goto(`http://lagerbuch.localtest.me:${E2E_PORT}/verwaltung/fahrzeuge`);
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Neue Einheit" }));
+  const dialog = page.getByRole("dialog");
+  await dialog.locator("label.ant-radio-button-wrapper", { hasText: "Fahrzeug" }).click();
+  const auswahl = dialog.getByLabel("Fahrzeug aus der Fahrzeugverwaltung");
+  await auswahl.click();
+  await auswahl.fill(kenner);
+  await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option", { hasText: kenner }).click();
+  const gespeichert = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/verwaltung/fahrzeuge"));
+  await dialog.getByRole("button", { name: "Anlegen" }).click();
+  expect((await gespeichert).status()).toBe(200);
+  await expect(page.locator("[data-row-key]", { hasText: `GW-San ${kenner}` }).first()).toBeVisible();
+
+  await klickeWennRuhig(page.getByRole("button", { name: "Mit Fahrzeugverwaltung abgleichen" }));
+  const vorschau = page.getByRole("table", { name: "Vorschau des Abgleichs mit der Fahrzeugverwaltung" });
+  await expect(vorschau.locator("[data-row-key]").filter({ hasText: `GW-San ${kenner}` })).toContainText("Unverändert");
+});

@@ -88,6 +88,8 @@ const TABELLEN: Record<
      * Default machte aus jeder Altzeile eine Behauptung. Die PFLICHT fuer neue
      * Einheiten steht im Eingangsvalidator, nicht hier. */
     { name: "einheitenart", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    /* IDA-258: das Stammfahrzeug der Fahrzeugverwaltung, nur bei Fahrzeugen. */
+    { name: "stamm_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   fahrzeug_templates: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -329,7 +331,7 @@ describe("20 Tabellen, Spalte fuer Spalte", () => {
 });
 
 const INDIZES: Record<string, string[]> = {
-  lagerorte: ["idx_lagerorte_name_je_parent", "idx_lagerorte_parent"],
+  lagerorte: ["idx_lagerorte_name_je_parent", "idx_lagerorte_parent", "idx_lagerorte_stamm"],
   fahrzeug_templates: [],
   template_positionen: ["idx_template_pos_template"],
   artikel: [],
@@ -456,9 +458,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt zweiundzwanzig Eintraege in aufsteigender idx-Reihenfolge", () => {
+  it("fuehrt dreiundzwanzig Eintraege in aufsteigender idx-Reihenfolge", () => {
     expect(journal.entries.map((e) => e.idx))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -501,6 +503,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         "0019_immer_zaehlen",
         "0020_soll_bereich",
         "0021_demo_einstellung_entfernen",
+        "0022_stamm_id",
       ]);
   });
 
