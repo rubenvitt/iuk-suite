@@ -96,3 +96,28 @@ test("das Einsatzbuch zeigt Demo-Helfer in der Vorschau, übernimmt sie aber nic
   await expect(page.getByText("Das Helferverzeichnis läuft im Demo-Modus")).toBeVisible();
   await expect(page.getByRole("dialog").getByRole("button", { name: "Übernehmen" })).toBeDisabled();
 });
+
+test("im Einsatzbuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen (IDA-250)", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: `${ADMIN},einsatzbuch-nutzer`, callbackPath: "/" });
+  await demoAbgleichen(page);
+  await page.goto(`http://einsatzbuch.localtest.me:${E2E_PORT}/stammdaten?reiter=personal`);
+  await page.waitForLoadState("networkidle");
+  await klickeWennRuhig(page.getByRole("button", { name: "Aus Helferverzeichnis abgleichen" }));
+  const dialog = page.getByRole("dialog");
+  const ersthelfer = dialog.getByTestId("quali-zuordnung").getByRole("listitem").filter({ hasText: "Ersthelfer" });
+  await expect(ersthelfer).toContainText("Automatisch: nicht zuordnen");
+  const speichern = dialog.getByRole("button", { name: "Zuordnung speichern" });
+  await expect(speichern).toBeDisabled();
+
+  // Zuordnen und speichern; danach zurück auf „Automatisch“, damit Wiederholungen gleich starten.
+  for (const [wahl, sichtbar] of [["SanH – Sanitätshelfer", "SanH – Sanitätshelfer"], [/^Automatisch/, "Automatisch: nicht zuordnen"]] as const) {
+    await ersthelfer.getByRole("combobox").click();
+    await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option", { hasText: wahl }).click();
+    const antwort = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/stammdaten"));
+    await klickeWennRuhig(speichern);
+    expect((await antwort).ok()).toBe(true);
+    await expect(page.getByText("Zuordnung gespeichert.", { exact: false })).toBeVisible();
+    await expect(ersthelfer).toContainText(sichtbar);
+    await expect(speichern).toBeDisabled();
+  }
+});
