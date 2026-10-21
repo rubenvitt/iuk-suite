@@ -6,7 +6,7 @@
  *
  * WELCHE ZEILE ZU WELCHEM STAMMFAHRZEUG GEHÖRT, sagt der Erstimport der Fahrzeugverwaltung
  * (`zuordnungenFuer("einsatzbuch")`); was danach dort neu angelegt wird, bekommt hier die Kennung
- * `stamm-<id>`. Die ID einer vorhandenen Zeile ändert sich NIE (Draht und versiegelte Einsätze tragen
+ * `fz-<id>`. Die ID einer vorhandenen Zeile ändert sich NIE (Draht und versiegelte Einsätze tragen
  * sie, Runbook `einsatzbuch-release.md`) — übernommen werden nur Typ, Kennung (= Funkkenner),
  * Funkrufname, Standort und der Status.
  *
@@ -19,12 +19,12 @@ import { fahrzeug } from "../../_db/schema";
 import { listeFahrzeuge, type Db } from "./daten";
 import type { FahrzeugDTO } from "./typen";
 
-export const STAMM_PRAEFIX = "stamm-";
+export const STAMM_PRAEFIX = "fz-";
 
 export type FahrzeugKlasse = "neu" | "geaendert" | "unveraendert" | "deaktivieren" | "ohne_kenner" | "doppelt";
 
 export interface FahrzeugVorschauzeile {
-  /** Die Kennung der Zeile im Einsatzbuch (vorhanden oder `stamm-…`). */
+  /** Die Kennung der Zeile im Einsatzbuch (vorhanden oder `fz-…`). */
   id: string;
   typ: string;
   kennung: string;
@@ -54,7 +54,7 @@ export function planeFahrzeugAbgleich(
   zuordnung: Record<string, string | null>,
   bestand: FahrzeugDTO[],
 ): FahrzeugPlan {
-  // Je Stammfahrzeug die Zeilen im Einsatzbuch: aus dem Erstimport und über die Kennung `stamm-<id>`.
+  // Je Stammfahrzeug die Zeilen im Einsatzbuch: aus dem Erstimport und über die Kennung `fz-<id>`.
   const zeilenJeStamm = new Map<string, FahrzeugDTO[]>();
   for (const f of bestand) {
     const stammId = f.id.startsWith(STAMM_PRAEFIX) ? f.id.slice(STAMM_PRAEFIX.length) : zuordnung[f.id];

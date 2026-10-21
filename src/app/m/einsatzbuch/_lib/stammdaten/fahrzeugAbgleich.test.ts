@@ -18,12 +18,12 @@ function mitBestand(...zeilen: { id: string; kennung: string; ruf?: string; akti
 }
 
 describe("Abgleich mit der Fahrzeugverwaltung", () => {
-  it("legt Neues mit `stamm-<id>` an und lässt lokale Fahrzeuge stehen", () => {
+  it("legt Neues mit `fz-<id>` an und lässt lokale Fahrzeuge stehen", () => {
     const db = mitBestand({ id: "leih", kennung: "99-1-1", ruf: "Leihfahrzeug" });
     const plan = planeFahrzeugeGegenBestand(db, b(s("1")), {});
     expect(plan.zeilen.map((z) => [z.id, z.klasse])).toEqual([[`${STAMM_PRAEFIX}1`, "neu"]]);
     expect(wendeFahrzeugAbgleichAn(db, plan)).toEqual({ neu: 1, geaendert: 0, deaktiviert: 0 });
-    expect(listeFahrzeuge(db).map((f) => f.id).sort()).toEqual(["leih", "stamm-1"]);
+    expect(listeFahrzeuge(db).map((f) => f.id).sort()).toEqual(["fz-1", "leih"]);
     expect(planeFahrzeugeGegenBestand(db, b(s("1")), {}).zeilen[0].klasse).toBe("unveraendert");
   });
 
@@ -55,7 +55,7 @@ describe("Abgleich mit der Fahrzeugverwaltung", () => {
     const db = testDb();
     const plan = planeFahrzeugeGegenBestand(db, b(s("1", { funkkenner: null }), s("2", { art: "anhaenger", funkkenner: null })), {});
     expect(plan.zeilen.map((z) => z.klasse)).toEqual(["ohne_kenner", "ohne_kenner"]);
-    expect(plan.zeilen.find((z) => z.id === "stamm-2")?.hinweis).toContain("Anhänger");
+    expect(plan.zeilen.find((z) => z.id === "fz-2")?.hinweis).toContain("Anhänger");
   });
 
   it("ohne Funkkenner, aber zugeordnet: die Kennung der Zeile bleibt", () => {
