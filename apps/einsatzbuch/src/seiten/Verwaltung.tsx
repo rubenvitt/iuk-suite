@@ -19,7 +19,7 @@
  * der Suite selbst, deshalb steht er als eigene Zeile „Anker bestätigt bis Block n“ daneben
  * (Spec §4.6: beide Ergebnisse getrennt).
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Einsatzdetail } from "@kern/ansichten/Einsatzdetail";
 import { Kettenliste } from "@kern/ansichten/Kettenliste";
@@ -27,6 +27,7 @@ import { Kettenpruefung } from "@kern/ansichten/Kettenpruefung";
 
 import type { Block } from "@kern/format";
 
+import { Abschnittsgrenze } from "../bausteine/Fehlergrenze";
 import { Hinweis } from "../bausteine/Hinweis";
 import { Karte } from "../bausteine/Karte";
 import { Knopf } from "../bausteine/Knopf";
@@ -204,47 +205,61 @@ export function Verwaltung(p: VerwaltungProps) {
 
       {offen ? (
         <>
-          <div className="raster raster-180">
-            {kennzahlen(offen.offen, { anzahl, zeitzone }).map((k) => (
-              <div key={k.label} className="kachel">
-                <span className="kachel-zahl">{k.zahl}</span>
-                <span className="kachel-label">{k.label}</span>
-              </div>
-            ))}
-          </div>
+          <Abschnittsgrenze>
+            <Ausgerechnet>
+              {() => (
+                <div className="raster raster-180">
+                  {kennzahlen(offen.offen, { anzahl, zeitzone }).map((k) => (
+                    <div key={k.label} className="kachel">
+                      <span className="kachel-zahl">{k.zahl}</span>
+                      <span className="kachel-label">{k.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Ausgerechnet>
+          </Abschnittsgrenze>
 
           <div className="verwaltung-spalten">
             <div className="verwaltung-links">
-              <Kettenliste
-                eintraege={listeneintraege({ offen: offen.offen, zu: offen.zu, gesperrt: offen.fehler !== null }, offen.pruefung, zeitzone)}
-                gewaehlt={auswahl ? auswahl.block.kopf.block : gewaehlt}
-                onWaehle={setGewaehlt}
-                kopfRechts={`neueste oben · ${anzahl} ${anzahl === 1 ? "Block" : "Blöcke"}`}
-                fuss={{ text: anfangText(p.eingerichtetAm, p.eingerichtetVon, zeitzone) }}
-              />
+              <Abschnittsgrenze>
+                <Ausgerechnet>
+                  {() => (
+                    <Kettenliste
+                      eintraege={listeneintraege({ offen: offen.offen, zu: offen.zu, gesperrt: offen.fehler !== null }, offen.pruefung, zeitzone)}
+                      gewaehlt={auswahl ? auswahl.block.kopf.block : gewaehlt}
+                      onWaehle={setGewaehlt}
+                      kopfRechts={`neueste oben · ${anzahl} ${anzahl === 1 ? "Block" : "Blöcke"}`}
+                      fuss={{ text: anfangText(p.eingerichtetAm, p.eingerichtetVon, zeitzone) }}
+                    />
+                  )}
+                </Ausgerechnet>
+              </Abschnittsgrenze>
             </div>
             {offen.offen.length > 0 || gewaehltZu || ohneFreigabe ? (
               <div className="verwaltung-rechts">
                 {auswahl ? (
-                  <Einsatzdetail
-                    block={{ nummer: auswahl.block.kopf.block, hash: auswahl.block.hash, prev: auswahl.block.kopf.prev, versiegelt: auswahl.block.kopf.versiegelt }}
-                    einsatz={auswahl.einsatz}
-                    zeitzone={zeitzone}
-                    dritteKennzahl="dauer"
-                    mitDauerzeile={false}
-                    objektImmer={false}
-                    kopfRechts={<span className="chip-grau"><Zeichen name="schluessel" groesse={12} />Unveränderlich</span>}
-                    aktionen={
-                      <>
-                        <Knopf zeichen="drucken" onClick={() => void berichtOeffnen(auswahl.block.kopf.block)}>
-                          PDF erzeugen
-                        </Knopf>
-                        <Knopf zeichen="herunterladen" onClick={() => setExportUmfang("einzeln")}>
-                          Diesen Einsatz herunterladen
-                        </Knopf>
-                      </>
-                    }
-                  />
+                  <Abschnittsgrenze key={auswahl.block.kopf.block}>
+                    <Einsatzdetail
+                      block={{ nummer: auswahl.block.kopf.block, hash: auswahl.block.hash, prev: auswahl.block.kopf.prev, versiegelt: auswahl.block.kopf.versiegelt }}
+                      einsatz={auswahl.einsatz}
+                      zeitzone={zeitzone}
+                      dritteKennzahl="dauer"
+                      mitDauerzeile={false}
+                      objektImmer={false}
+                      kopfRechts={<span className="chip-grau"><Zeichen name="schluessel" groesse={12} />Unveränderlich</span>}
+                      aktionen={
+                        <>
+                          <Knopf zeichen="drucken" onClick={() => void berichtOeffnen(auswahl.block.kopf.block)}>
+                            PDF erzeugen
+                          </Knopf>
+                          <Knopf zeichen="herunterladen" onClick={() => setExportUmfang("einzeln")}>
+                            Diesen Einsatz herunterladen
+                          </Knopf>
+                        </>
+                      }
+                    />
+                  </Abschnittsgrenze>
                 ) : gewaehltZu ? (
                   <Karte>
                     <Hinweis ton="warn">{`Block ${gewaehlt} lässt sich nicht öffnen`}</Hinweis>
@@ -257,18 +272,24 @@ export function Verwaltung(p: VerwaltungProps) {
                   </Karte>
                 ) : null}
                 {offen.offen.length > 0 ? (
-                  <section className="karte verteilung" aria-label="Alarmstichworte">
-                    <h2 className="kicker">Alarmstichworte</h2>
-                    {stichwortVerteilung(offen.offen).map((v) => (
-                      <div key={v.name} className="verteilung-zeile">
-                        <span className="verteilung-name">{v.name}</span>
-                        <div className="verteilung-bahn" aria-hidden="true">
-                          <div className="verteilung-balken" style={{ width: v.breite }} />
-                        </div>
-                        <span className="verteilung-anz">{v.anz}</span>
-                      </div>
-                    ))}
-                  </section>
+                  <Abschnittsgrenze>
+                    <Ausgerechnet>
+                      {() => (
+                        <section className="karte verteilung" aria-label="Alarmstichworte">
+                          <h2 className="kicker">Alarmstichworte</h2>
+                          {stichwortVerteilung(offen.offen).map((v) => (
+                            <div key={v.name} className="verteilung-zeile">
+                              <span className="verteilung-name">{v.name}</span>
+                              <div className="verteilung-bahn" aria-hidden="true">
+                                <div className="verteilung-balken" style={{ width: v.breite }} />
+                              </div>
+                              <span className="verteilung-anz">{v.anz}</span>
+                            </div>
+                          ))}
+                        </section>
+                      )}
+                    </Ausgerechnet>
+                  </Abschnittsgrenze>
                 ) : null}
               </div>
             ) : null}
@@ -277,13 +298,15 @@ export function Verwaltung(p: VerwaltungProps) {
       ) : null}
 
       {exportUmfang && offen ? (
-        <ExportDialog
-          bloecke={kette}
-          einzeln={auswahl ? { block: auswahl.block.kopf.block, nummer: auswahl.einsatz.nummer, stichwort: auswahl.einsatz.stichwort } : null}
-          umfang={exportUmfang}
-          zeitzone={zeitzone}
-          beiSchliessen={() => setExportUmfang(null)}
-        />
+        <Abschnittsgrenze>
+          <ExportDialog
+            bloecke={kette}
+            einzeln={auswahl ? { block: auswahl.block.kopf.block, nummer: auswahl.einsatz.nummer, stichwort: auswahl.einsatz.stichwort } : null}
+            umfang={exportUmfang}
+            zeitzone={zeitzone}
+            beiSchliessen={() => setExportUmfang(null)}
+          />
+        </Abschnittsgrenze>
       ) : null}
       {druck && druckOffen ? (
         <BerichtUeberlagerung
@@ -299,4 +322,13 @@ export function Verwaltung(p: VerwaltungProps) {
       ) : null}
     </main>
   );
+}
+
+/**
+ * Rechnet erst beim eigenen Rendern, also UNTER der umgebenden `Abschnittsgrenze`. Im Körper von
+ * `Verwaltung` würfe ein Formatierer (`kennzahlen`, `listeneintraege`, `stichwortVerteilung`) an
+ * der Grenze vorbei bis zur `Fehlergrenze` der ganzen Verwaltung.
+ */
+function Ausgerechnet({ children }: { children: () => ReactNode }) {
+  return <>{children()}</>;
 }

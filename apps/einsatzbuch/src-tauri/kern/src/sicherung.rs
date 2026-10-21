@@ -154,7 +154,7 @@ struct Kennung {
 }
 
 /// Liest eine Sicherungsdatei. Größer als `HOECHSTENS_BYTES` wird schon vor dem Lesen abgelehnt
-/// (Länge aus den Metadaten des geöffneten Handles), dann fremdes Format oder fremde Version,
+/// (Länge aus den Metadaten des geöffneten Handles), dann fremdes Format (auch ein JSON-Array) oder fremde Version,
 /// dann ein unbekanntes Feld. Die Kette selbst prüft `kette::pruefe`.
 pub fn lies(pfad: &Path) -> Result<Sicherungsdatei, SicherungFehler> {
     let datei = File::open(pfad)?;
@@ -168,6 +168,11 @@ pub fn lies(pfad: &Path) -> Result<Sicherungsdatei, SicherungFehler> {
     datei.take(HOECHSTENS_BYTES + 1).read_to_end(&mut inhalt)?;
     if inhalt.len() as u64 > HOECHSTENS_BYTES {
         return Err(SicherungFehler::ZuGross { bytes: inhalt.len() as u64 });
+    }
+    // serde nimmt eine Struktur auch als Array in Feldreihenfolge an; eine Sicherung ist immer
+    // ein Objekt. Ein JSON-Array ist also gültiges JSON, aber ein fremdes Format.
+    if inhalt.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'[') {
+        return Err(SicherungFehler::FremdesFormat);
     }
     let kennung: Kennung = serde_json::from_slice(&inhalt).map_err(SicherungFehler::Json)?;
     if kennung.format.as_deref() != Some(FORMAT) || kennung.version != Some(u64::from(VERSION)) {

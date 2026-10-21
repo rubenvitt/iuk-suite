@@ -1,6 +1,7 @@
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { einstellung } from "../_db/schema";
-import type { Db } from "./stammdaten/daten";
+import { stammdatenVersion, type Db } from "./stammdaten/daten";
 
 export const einstellungenSchema = z.object({
   fristMinuten: z.number().int("Die Frist ist eine ganze Zahl von Minuten").min(1, "Mindestens 1 Minute").max(120, "Höchstens 120 Minuten"),
@@ -23,12 +24,18 @@ export function leseEinstellungen(db: Db): Einstellungen {
   return ergebnis;
 }
 
-/** Upsert je Schlüssel. Ein unveränderter Wert trifft die `WHEN`-Klauseln der Trigger nicht. */
+/**
+ * Upsert je Schlüssel. Ein unveränderter Wert trifft die `WHEN`-Klauseln der Trigger nicht.
+ * Die Trigger `stand_einstellung_*` zählen je Zeile; ein Speichern ist aber EINE Änderung der
+ * Stammdaten. Sonst stiege die Version beim ersten Speichern (drei neue Zeilen) einmalig um 3.
+ */
 export function schreibeEinstellungen(db: Db, e: Einstellungen): void {
   db.transaction((tx) => {
+    const vorher = stammdatenVersion(tx);
     for (const [schluessel, wert] of Object.entries(einstellungenSchema.parse(e))) {
       tx.insert(einstellung).values({ schluessel, wert: JSON.stringify(wert) })
         .onConflictDoUpdate({ target: einstellung.schluessel, set: { wert: JSON.stringify(wert) } }).run();
     }
+    if (stammdatenVersion(tx) > vorher + 1) tx.run(sql`UPDATE stammdatenstand SET version = ${vorher + 1} WHERE id = 1`);
   });
 }

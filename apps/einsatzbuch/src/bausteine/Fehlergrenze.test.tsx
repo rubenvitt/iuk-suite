@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import { clickElement, mount, queryAll, unmount } from "../../../../src/app/m/qr/_lib/test-dom";
-import { Fehlergrenze } from "./Fehlergrenze";
+import { Abschnittsgrenze, Fehlergrenze } from "./Fehlergrenze";
 
 const GEHEIM = "Lindenstraße 8, 2026-02-31";
 
@@ -56,5 +56,25 @@ describe("Fehlergrenze", () => {
     expect(text()).not.toContain(GEHEIM);
     await clickElement(knopf("Sitzung sperren")!);
     expect(beiSperren).toHaveBeenCalledTimes(1);
+  });
+
+  it("eine Abschnittsgrenze nimmt nur ihren Abschnitt mit, ohne die Meldung", async () => {
+    await mount(
+      <div>
+        <button type="button">Herunterladen</button>
+        <Abschnittsgrenze>
+          <Kaputt />
+        </Abschnittsgrenze>
+        <Abschnittsgrenze>
+          <p>Alarmstichworte</p>
+        </Abschnittsgrenze>
+      </div>,
+    );
+    expect(queryAll('[role="alert"]').map((a) => a.textContent)).toEqual([
+      "Dieser Teil ließ sich nicht anzeigen. Herunterladen und Sitzung sperren gehen weiter.",
+    ]);
+    expect(text()).toContain("Alarmstichworte");
+    expect(knopf("Herunterladen")).toBeDefined();
+    expect(text()).not.toContain(GEHEIM);
   });
 });

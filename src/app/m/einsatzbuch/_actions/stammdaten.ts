@@ -10,7 +10,7 @@ import {
   NichtGefunden, SchonVergeben, setzeAktiv, speichereFahrzeug, speicherePerson, speichereStichwort,
 } from "../_lib/stammdaten/daten";
 import { planeImport, type Vorschauzeile } from "../_lib/stammdaten/csv";
-import { bestandFuerImport, wendeImportAn } from "../_lib/stammdaten/import";
+import { bestandFuerImport, ImportUeberholt, wendeImportAn } from "../_lib/stammdaten/import";
 import { bereitgestellteHelfer } from "@/app/m/helfer/_lib/bereitstellung";
 import { planeGegenBestand, wendeHelferAbgleichAn, type HelferErgebnis, type HelferPlan } from "../_lib/stammdaten/helferAbgleich";
 import { qualiRegelnSchema, schreibeQualiRegeln } from "../_lib/stammdaten/qualiZuordnung";
@@ -38,7 +38,7 @@ function alsErgebnis<T>(tun: () => T): ActionErgebnis<T> {
     const feldFehler = zodFehler(e);
     if (feldFehler) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler };
     if (e instanceof SchonVergeben) return { ok: false, fehler: e.message, feldFehler: { [e.feld]: e.message } };
-    if (e instanceof NichtGefunden) return { ok: false, fehler: e.message };
+    if (e instanceof NichtGefunden || e instanceof ImportUeberholt) return { ok: false, fehler: e.message };
     throw e;
   }
 }

@@ -109,7 +109,7 @@ jobs:
             fi
           done
           exit "$fehler"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4, Stand 2026-09-25
         with:
           version: 11.0.9
       - uses: actions/setup-node@v4
@@ -251,7 +251,7 @@ jobs:
             fi
           done
           exit "$fehler"
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4, Stand 2026-09-25
         with:
           version: 11.0.9
       - uses: actions/setup-node@v4
@@ -274,6 +274,11 @@ jobs:
       - name: cargo test --workspace
         working-directory: apps/einsatzbuch/src-tauri
         run: cargo test --locked --workspace
+      # Code hinter `cfg(not(debug_assertions))` (Updater, Befehlsliste u. a.) kompiliert
+      # sonst erst der Release-Lauf nach dem Merge. `check` reicht: Typen und Borrows, ohne Linken.
+      - name: cargo check --release
+        working-directory: apps/einsatzbuch/src-tauri
+        run: cargo check --locked --workspace --release
       # `--debug` für einen schnellen Rauchtest statt eines optimierten Release-Baus.
       # `--bundles`: dmg ist lokal wie in der CI anfällig (Lehre aus dem
       # Einsatzarchiv-Repo) und für einen Rauchtest reicht `app`; unter Windows
@@ -492,7 +497,7 @@ jobs:
             fehler=1
           fi
           exit "$fehler"
-      # Per SHA statt `@v4` wie in den Prüfjobs: das pnpm dieser Action läuft im Build-Schritt
+      # Per SHA wie in allen Jobs, hier besonders: das pnpm dieser Action läuft im Build-Schritt
       # mit dem privaten Schlüssel in der Umgebung.
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4, Stand 2026-09-25
         with:

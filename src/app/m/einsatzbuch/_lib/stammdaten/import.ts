@@ -20,6 +20,33 @@ export function bestandFuerImport(db: Db): Importbestand {
  */
 export function wendeImportAn(db: Db, plan: Extract<Importplan, { ok: true }>) {
   const zaehler = { neu: 0, geaendert: 0, unveraendert: 0, fehler: 0 };
+  try {
+    schreibe(db, plan, zaehler);
+  } catch (e) {
+    if (istKonflikt(e)) throw new ImportUeberholt();
+    throw e;
+  }
+  return zaehler;
+}
+
+/**
+ * Der Plan passt nicht mehr zum Bestand: Ein zweiter Import (oder eine Einzeländerung) hat
+ * dieselbe Kennung bzw. denselben Namen schon angelegt, oder die Datenbank war gerade belegt.
+ * Die Transaktion ist dann ganz zurückgerollt; ein neuer Lauf plant gegen den neuen Bestand.
+ */
+export class ImportUeberholt extends Error {
+  constructor() {
+    super("Der Bestand hat sich währenddessen geändert, etwa durch einen zweiten Import. Es wurde nichts übernommen. Bitte noch einmal übernehmen.");
+  }
+}
+
+function istKonflikt(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const code = (e as { code?: unknown }).code;
+  return /UNIQUE constraint failed/.test(e.message) || code === "SQLITE_BUSY" || code === "SQLITE_LOCKED";
+}
+
+function schreibe(db: Db, plan: Extract<Importplan, { ok: true }>, zaehler: Record<Vorschauzeile["klasse"], number>) {
   db.transaction((tx) => {
     for (const z of plan.zeilen) {
       zaehler[z.klasse]++;
@@ -40,7 +67,6 @@ export function wendeImportAn(db: Db, plan: Extract<Importplan, { ok: true }>) {
       }
     }
   });
-  return zaehler;
 }
 
 /** `planeImport` liefert bei `klasse === "geaendert"` immer eine `id` — hier nur noch belegt. */

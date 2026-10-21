@@ -704,17 +704,24 @@ async function blockMitUngueltigemDatum(): Promise<{ block: Block; posten: Schlu
   return { block, posten: { block: 1, cek: zuBase64(cek) } };
 }
 
-describe("Fehlergrenze um die Verwaltung", () => {
-  it("ein ungültiges Datum im Klartext: Hinweis mit „Sitzung sperren“ statt weißer Seite, Kopf und Erfassung bleiben bedienbar", async () => {
+describe("Fehlergrenzen in der Verwaltung", () => {
+  it("ein ungültiges Datum im Klartext: nur die betroffenen Abschnitte fallen aus, Herunterladen, Kopf und Erfassung bleiben bedienbar", async () => {
     const konsole = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const { block, posten } = await blockMitUngueltigemDatum();
       befehle.bloecke.mockResolvedValue([block]);
       befehle.schluesselFreigeben.mockResolvedValue([posten]);
       await meldeAnUndOeffneVerwaltung(status({ kette: { anzahl: 1, letzter: { block: 1, hash: block.hash } } }));
-      expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain(
-        "Diese Ansicht ließ sich nicht anzeigen. Sperr die Sitzung und melde dich neu an.",
-      );
+      const abschnitt = "Dieser Teil ließ sich nicht anzeigen. Herunterladen und Sitzung sperren gehen weiter.";
+      expect(queryAll('[role="alert"]').map((a) => a.textContent)).toContain(abschnitt);
+      expect(text(), "die Grenze der ganzen Verwaltung greift nicht").not.toContain("Diese Ansicht ließ sich nicht anzeigen.");
+      expect(text()).not.toContain("2026-02-31");
+      expect(text(), "die Verwaltung selbst steht").toContain("Versiegelte Einsätze");
+      // Der kaputte Block sperrt den Export nicht.
+      const herunterladen = knopf("Herunterladen")!;
+      expect(herunterladen.disabled).toBe(false);
+      await clickElement(herunterladen);
+      expect(queryAll('[role="dialog"]').map((d) => d.querySelector("h2")?.textContent)).toEqual(["Einsätze als Datei speichern"]);
       expect(text()).not.toContain("2026-02-31");
       // Der Kopf liegt außerhalb der Grenze und bleibt bedienbar.
       const thema = queryAll<HTMLButtonElement>("button.rundknopf")[0];

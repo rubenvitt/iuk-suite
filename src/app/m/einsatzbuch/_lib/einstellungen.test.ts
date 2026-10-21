@@ -19,6 +19,16 @@ describe("Einstellungen", () => {
     expect(stammdatenVersion(db)).toBe(v);
     expect((db.all(sql`SELECT count(*) AS n FROM audit_outbox`) as { n: number }[])[0].n).toBe(n);
   });
+  it("ein Speichern erhöht die Stammdatenversion um genau 1, auch das erste mit drei neuen Zeilen", () => {
+    const db = testDb();
+    expect(stammdatenVersion(db)).toBe(0);
+    schreibeEinstellungen(db, EINSTELLUNG_VORGABEN);
+    expect(stammdatenVersion(db)).toBe(1);
+    schreibeEinstellungen(db, { fristMinuten: 30, besatzung: false, bereitschaft: "DRK-Bereitschaft Ebstorf" });
+    expect(stammdatenVersion(db)).toBe(2);
+    // Das Audit-Log bleibt je Zeile: drei Anlagen, dann drei Änderungen.
+    expect((db.all(sql`SELECT count(*) AS n FROM audit_outbox WHERE object_type = 'einstellung'`) as { n: number }[])[0].n).toBe(6);
+  });
   it("ein unlesbarer gespeicherter Wert fällt auf die Vorgabe zurück", () => {
     const db = testDb();
     db.insert(einstellung).values({ schluessel: "fristMinuten", wert: '"viel"' }).run();

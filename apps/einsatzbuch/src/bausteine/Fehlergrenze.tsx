@@ -43,3 +43,23 @@ export class Fehlergrenze extends Component<FehlergrenzeProps, { gescheitert: bo
     );
   }
 }
+
+/**
+ * Engere Grenze um einen Abschnitt der Verwaltung (Kennzahlen, Kette, Detail, Verteilung, Export).
+ * Ein einzelner Block, an dem ein Formatierer scheitert, nimmt so nur seinen Abschnitt mit;
+ * Kopfzeile mit „Herunterladen“ und „Sitzung sperren“ bleibt bedienbar, der Export also auch.
+ * Wie oben ohne die Meldung des Fehlers. Zurückgesetzt wird über `key` am Aufrufer (etwa die
+ * gewählte Blocknummer am Detail).
+ */
+export class Abschnittsgrenze extends Component<{ children: ReactNode }, { gescheitert: boolean }> {
+  state = { gescheitert: false };
+
+  static getDerivedStateFromError(): { gescheitert: boolean } {
+    return { gescheitert: true };
+  }
+
+  render(): ReactNode {
+    if (!this.state.gescheitert) return this.props.children;
+    return <Hinweis ton="warn">Dieser Teil ließ sich nicht anzeigen. Herunterladen und Sitzung sperren gehen weiter.</Hinweis>;
+  }
+}

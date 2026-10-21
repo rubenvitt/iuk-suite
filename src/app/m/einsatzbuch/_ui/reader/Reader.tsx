@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { Alert, Button, Input } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { reportBrowserExport } from "@/core/audit/browser";
@@ -60,6 +60,25 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
   const eingabe = useRef<HTMLInputElement>(null);
   const kennwortId = useId();
   const kwFehlerId = useId();
+
+  // Eine Datei, die neben der Zone landet, öffnete der Browser sonst selbst: Er navigierte weg und
+  // nähme eine schon entschlüsselte Datei mit. Abgelegt wird nur auf der Zone (`ablegen`).
+  useEffect(() => {
+    const mitDatei = (e: globalThis.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const ueber = (e: globalThis.DragEvent) => {
+      if (!mitDatei(e)) return;
+      e.preventDefault();
+      const aufZone = e.target instanceof Element && e.target.closest("[data-dropzone]") !== null;
+      if (!aufZone && e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    };
+    const fallen = (e: globalThis.DragEvent) => { if (mitDatei(e)) e.preventDefault(); };
+    window.addEventListener("dragover", ueber);
+    window.addEventListener("drop", fallen);
+    return () => {
+      window.removeEventListener("dragover", ueber);
+      window.removeEventListener("drop", fallen);
+    };
+  }, []);
 
   function verwerfen() {
     lauf.current++;
