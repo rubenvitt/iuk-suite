@@ -191,7 +191,7 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        */
       Input: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
       InputNumber: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
-      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
+      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur, cellWidth: WAEHLER_ZELLE },
     },
   };
 }
@@ -363,3 +363,26 @@ function warnungDunkel(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<
     colorWarningTextActive: FARBEN.gelbAufDunkelActive,
   };
 }
+
+/**
+ * DAS WAEHLERFENSTER PASST AUF EIN 375px-TELEFON (IDA-242).
+ *
+ * antd rechnet die Breite JEDES Fensters der Datumsauswahl — Tag, Woche, Monat, Jahr — aus
+ * `cellWidth * 7 + 2 * pickerDatePanelPaddingHorizontal` (`antd/es/date-picker/style/panel.js`,
+ * `pickerPanelWidth`), und `cellWidth` aus `controlHeightSM * 1.5` (`style/token.js`). Unsere
+ * Bediendichten hoben damit das Fenster mit: 382,5px unter `ARBEITSDICHTE` (44 → SM 33), 477px
+ * unter `buildTheme` (56 → SM 42) — beides breiter als das Telefon, auf dem es aufgeht.
+ *
+ * 44 ist die Untergrenze des Repos fuer eine Tapflaeche (WCAG 2.5.5, siehe `ARBEITSDICHTE`), also
+ * keine neue Zahl. Das Fenster wird 7 * 44 + 2 * 18 = 344px breit und laesst bei 375px 15px je
+ * Seite. Die Zelle bleibt so breit wie ihr Inhalt verlangt: dessen Mindestbreite ist `cellHeight`
+ * (= `controlHeightSM`, hoechstens 42). Unter `SCHREIBTISCHDICHTE` waechst das Fenster dadurch von
+ * antds 288px auf 344px — bewusst hingenommen, eine zweite Zahl je Dichte waere ein Eintrag mehr,
+ * der still auseinanderlaeuft.
+ *
+ * Breite allein reicht nicht: das Fenster muss auch an den Rand ruecken duerfen, wenn es auf keiner
+ * Seite des Felds passt (`MONATSWAEHLER_IM_BILD` im `lagerbuch`). Als `const` am Dateiende, weil
+ * Zeilenanker aus den Modulen in diese Datei zeigen; gelesen wird sie erst beim Aufruf von
+ * `buildTheme`.
+ */
+const WAEHLER_ZELLE = 44;

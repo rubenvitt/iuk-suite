@@ -9,6 +9,7 @@ import { fmtVerfall } from "../../../../_lib/format";
 import { dieseEinheit, ortZeile, type Einheitenart } from "../../../../_lib/konstanten";
 import { Ikone } from "../../../../_ui/ikonen";
 import { monatAusPicker } from "../../../../_ui/monat";
+import { MONATSWAEHLER_IM_BILD } from "../../../../_lib/monatswaehler";
 
 /**
  * Der Wert der Herkunft „neu angeliefert" und der Charge „neue Charge".
@@ -335,6 +336,7 @@ export function AufladenDialog({
               >
                 <DatePicker
                   picker="month"
+                  popupAlign={MONATSWAEHLER_IM_BILD}
                   format="YYYY-MM"
                   aria-label="Verfallsmonat"
                   style={{ width: "100%" }}
