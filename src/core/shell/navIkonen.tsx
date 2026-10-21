@@ -61,6 +61,8 @@ export const NAV_IKONEN: Record<NavIkonName, Icons8Name> = {
   // DRK-471 (Stufe 5) — Begründung an der Union in `types.ts`. Der Rechnerturm trägt das
   // physische Gerät der Einsatzstelle, nicht seine Daten.
   rechner: "computer",
+  // IDA-261 — Begründung an der Union in `types.ts`.
+  statistik: "bar-chart",
 };
 
 /**

@@ -1,0 +1,68 @@
+/*
+ * IDA-261 — die Farben der Statistik. Sie haengen an `.flaeche` und nicht an
+ * `--ant-*` (Falle 2): ein recharts-SVG liegt ausserhalb jedes antd-Scopes.
+ *
+ * ⚠️ KEIN ROT AUF DER DATENFLAECHE (Falle 3). Mengen sind Graphit, in zwei
+ * Helligkeiten fuer die zwei Herkuenfte des Verbrauchs — die Luminanz traegt
+ * den Unterschied, nicht der Farbton, damit er auch in Graustufen bleibt.
+ * Allein der Balken „abgelaufen" der Verfallsvorschau nimmt die Ampelfarbe
+ * (`--lb-ampel-rot-text`), weil er einen Wert dieser Skala zeigt.
+ */
+.flaeche {
+  --st-serie-1: #36404a;
+  --st-serie-2: #9aa6b2;
+  --st-tooltip: #ffffff;
+}
+
+:root[data-theme="dark"] .flaeche {
+  --st-serie-1: #d5dbe1;
+  --st-serie-2: #66727d;
+  --st-tooltip: #16191c;
+}
+
+/*
+ * ⚠️ `min-width: 0` AN JEDEM RASTERKIND. Ein Grid-Element ist sonst mindestens
+ * so breit wie sein Inhalt, und ein recharts-SVG meldet seine letzte Breite —
+ * auf 390px stand die Seite damit 6px seitwaerts ueber (e2e
+ * `lagerbuch-statistik.spec.ts`).
+ */
+.flaeche > *,
+.raster > * { min-width: 0; }
+
+/* Filterleiste: nebeneinander, solange Platz ist; darunter je Zeile ein Feld. */
+.leiste {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.feldname {
+  display: block;
+  margin-block-end: 4px;
+  color: var(--lb-stahl);
+  font-size: 12px;
+}
+
+/* Zwei Karten nebeneinander, sobald jede mindestens 420px bekommt. */
+.raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 16px;
+}
+
+.hinweis {
+  margin: 0;
+  color: var(--lb-stahl);
+  font-size: 12px;
+}
+
+.leer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 16px;
+  color: var(--lb-stahl);
+  text-align: center;
+}
