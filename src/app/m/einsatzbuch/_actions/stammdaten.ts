@@ -13,6 +13,8 @@ import { planeImport, type Vorschauzeile } from "../_lib/stammdaten/csv";
 import { bestandFuerImport, wendeImportAn } from "../_lib/stammdaten/import";
 import { bereitgestellteHelfer } from "@/app/m/helfer/_lib/bereitstellung";
 import { planeGegenBestand, wendeHelferAbgleichAn, type HelferErgebnis, type HelferPlan } from "../_lib/stammdaten/helferAbgleich";
+import { bereitgestellteFahrzeuge, zuordnungenFuer } from "@/app/m/fahrzeuge/_lib/bereitstellung";
+import { planeFahrzeugeGegenBestand, wendeFahrzeugAbgleichAn, type FahrzeugErgebnis, type FahrzeugPlan } from "../_lib/stammdaten/fahrzeugAbgleich";
 import { STAMMDATENARTEN, type FahrzeugDTO, type PersonDTO, type Stammdatenart, type StichwortDTO } from "../_lib/stammdaten/typen";
 
 /** Nach jeder Schreibaktion: die Übersicht und die Stammdatenseite laufen mit neuem Bestand. */
@@ -95,5 +97,21 @@ export async function helferUebernehmenAction(): Promise<ActionErgebnis<HelferEr
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     const db = getDb();
     return alsErgebnis(() => wendeHelferAbgleichAn(db, planeGegenBestand(db, bereitgestellteHelfer())));
+  });
+}
+/**
+ * Vorschau des Abgleichs mit der Fahrzeugverwaltung (Modul fahrzeuge): liest deren veröffentlichte
+ * Bereitstellung samt Zuordnungen aus dem Erstimport und plant gegen die Fahrzeuge. Schreibt nichts.
+ */
+export async function stammfahrzeugeVorschauAction(): Promise<ActionErgebnis<FahrzeugPlan>> {
+  await requireEinsatzbuchAktion();
+  return { ok: true, wert: planeFahrzeugeGegenBestand(getDb(), bereitgestellteFahrzeuge(), zuordnungenFuer("einsatzbuch")) };
+}
+/** Plant neu (beide Seiten können sich seit der Vorschau geändert haben) und schreibt. */
+export async function stammfahrzeugeUebernehmenAction(): Promise<ActionErgebnis<FahrzeugErgebnis>> {
+  const viewer = await requireEinsatzbuchAktion();
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const db = getDb();
+    return alsErgebnis(() => wendeFahrzeugAbgleichAn(db, planeFahrzeugeGegenBestand(db, bereitgestellteFahrzeuge(), zuordnungenFuer("einsatzbuch"))));
   });
 }

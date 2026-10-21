@@ -29,6 +29,7 @@ import neueSchriftUndWeitereZeichen from "@/app/m/portal/_lib/neuigkeiten/notize
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
 import personalAusDemHelferverzeichnis from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-20-personal-aus-dem-helferverzeichnis";
+import fahrzeugeAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-fahrzeuge-aus-der-fahrzeugverwaltung";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -133,6 +134,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   helferAusHiorg,
   fahrzeugeAlsStammdaten,
   personalAusDemHelferverzeichnis,
+  fahrzeugeAusDerFahrzeugverwaltung,
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
   aufgabenBearbeiten,

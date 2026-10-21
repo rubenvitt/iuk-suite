@@ -146,6 +146,8 @@
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#helferUebernehmenAction": { "kind": "context", "via": "helferUebernehmenAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#helferVorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs mit dem Helferverzeichnis: liest die Bereitstellung und den Bestand, schreibt nichts; die Übernahme läuft über helferUebernehmenAction." },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#personSpeichernAction": { "kind": "context", "via": "personSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#stammfahrzeugeUebernehmenAction": { "kind": "context", "via": "stammfahrzeugeUebernehmenAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#stammfahrzeugeVorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs mit der Fahrzeugverwaltung: liest die Bereitstellung und den Bestand, schreibt nichts; die Übernahme läuft über stammfahrzeugeUebernehmenAction." },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stichwortSpeichernAction": { "kind": "context", "via": "stichwortSpeichernAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#aktivSetzenAction": { "kind": "context", "via": "aktivSetzenAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#erstimportAction": { "kind": "context", "via": "erstimportAction" },
