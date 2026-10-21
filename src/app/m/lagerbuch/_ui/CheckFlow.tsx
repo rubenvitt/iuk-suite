@@ -28,7 +28,6 @@ import {
   ANMELDUNG_TEXT, NETZ_TEXT_CHECK, darfKaertchenErneuern, type HelferGrund,
 } from "../_lib/actionTypen";
 import { plombenNummerNorm } from "../_lib/plombe";
-import { DEMO_PFAD, demoAbschluss } from "../_lib/demoCheck";
 import s from "./helfer.module.css";
 
 /**
@@ -183,7 +182,6 @@ export function CheckFlow({
   kontoZugang,
   letzterCheckText,
   entnahmebox,
-  demo = false,
 }: {
   /**
    * ⚠️ `einheitenart` GEHOERT HIER HER UND NICHT NUR IN DIE VERWALTUNG
@@ -332,12 +330,6 @@ export function CheckFlow({
    * „keine Box", und der Vorschlag verschwaende ohne Spur.
    */
   entnahmebox: { name: string } | null;
-  /**
-   * IDA-224 (voruebergehend, Rueckbau IDA-225): der Demo-Check unter `/demo`.
-   * Abschluss ueber den Route Handler, der nichts schreibt; „Nochmal" fuehrt
-   * zurueck in die Demo. Kopf: `_lib/demoCheck.ts`.
-   */
-  demo?: boolean;
 }) {
   // DIE SECHS CLIENT-ZUSTAENDE (1:1, `:62-71`). Sie bleiben bei JEDEM Fehler
   // stehen — das ist die tragende Zusage von §7.4.4 und §7.10.3.
@@ -531,7 +523,7 @@ export function CheckFlow({
           flaschen: flaschen.map((f) => ({ id: f.id, nennfuelldruckBar: f.nennfuelldruckBar })),
           z: zaehlung(),
         });
-        const r = await (demo ? demoAbschluss : checkAbschluss)({
+        const r = await checkAbschluss({
           ...nutzlast,
           art,
           // Kurzcheck: jede stehende Plombe, abgelesen oder als fehlend
@@ -773,11 +765,6 @@ export function CheckFlow({
             traegt das Fahrzeug nur Geraete und Flaschen, gibt es nichts
             aufzufuellen, und der Satz spraeche von Arbeit, die es nicht gibt.
           */}
-          {demo && (
-            <p className={s.fussnote} data-rolle="demo-ergebnis">
-              <b>Das war eine Demo:</b> Es wurde nichts gespeichert.
-            </p>
-          )}
           {hatArtikel && (
             <p className={s.fussnote} data-rolle="auffuell-hinweis">
               {/*
@@ -838,7 +825,7 @@ export function CheckFlow({
         */}
         <Link
           className={`${s.knopf} ${s.knopfGeist}`}
-          href={demo ? DEMO_PFAD : `/helfer/check?fz=${encodeURIComponent(fahrzeug.id)}`}
+          href={`/helfer/check?fz=${encodeURIComponent(fahrzeug.id)}`}
           data-rolle="nochmal"
         >
           Nochmal {dieseEinheit(fahrzeug.einheitenart)}
@@ -912,7 +899,7 @@ export function CheckFlow({
           </a>
         </p>
       )}
-      {!demo && darfKaertchenErneuern(fehler.grund, kontoZugang) && (
+      {darfKaertchenErneuern(fehler.grund, kontoZugang) && (
         <div data-rolle="erneuern">
           <p className={s.fussnote}>
             Kärtchen erneut eingeben — <b>die gezählten Mengen bleiben stehen.</b>

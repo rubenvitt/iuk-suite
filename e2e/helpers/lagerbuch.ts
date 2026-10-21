@@ -139,10 +139,6 @@ export function fremdUrl(pfad: string): string {
   return `http://${FREMDER_HOST}:${LAGERBUCH_PORT}${pfad}`;
 }
 
-/** IDA-224 — die Vorlage des Demo-Checks (`lagerbuch-demo.spec.ts`, `demoFixtures` im Seed). */
-export const E2E_DEMO_VORLAGE_ID = "e2e-demo-tpl";
-export const E2E_DEMO_VORLAGE_NAME = "E2E Demo-RTW";
-
 /**
  * DIE LAST-ARTIKEL — die einzige Fixture, die es allein wegen einer ZAHL gibt
  * (DRK-334).

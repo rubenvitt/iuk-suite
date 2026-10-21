@@ -24,7 +24,6 @@ export function CheckArtWahl({
   kurz,
   plombenGesamt,
   letzterCheckText,
-  pfad = "/helfer/check",
 }: {
   fahrzeug: { id: string; name: string; kennung: string | null; einheitenart: Einheitenart | null };
   gescannt: string | undefined;
@@ -38,13 +37,11 @@ export function CheckArtWahl({
   };
   plombenGesamt: number;
   letzterCheckText: string | null;
-  /** IDA-224: die Demo (`/demo`) waehlt die Art auf ihrer eigenen Seite. */
-  pfad?: string;
 }) {
   const ziel = (art: "kurz" | "voll") => {
     const q = new URLSearchParams({ fz: fahrzeug.id, art });
     if (gescannt) q.set("gescannt", gescannt);
-    return `${pfad}?${q.toString()}`;
+    return `/helfer/check?${q.toString()}`;
   };
   const teile = [
     kurz.plomben > 0 && `${kurz.plomben} ${kurz.plomben === 1 ? "Plombe" : "Plomben"} ablesen`,

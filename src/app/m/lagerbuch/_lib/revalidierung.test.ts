@@ -301,7 +301,6 @@ const SEITEN: Record<string, "bestand" | "kein-bestand"> = {
   "/g/[code]": "kein-bestand",                     // Scan-Weiche auf ein Geraet
   "/o/[ortId]": "kein-bestand",                    // Scan-Weiche auf einen Ort
   "/helfer/ziel": "kein-bestand",                  // Zielwahl, nur Fahrzeugnamen
-  "/demo": "kein-bestand",                         // IDA-224: Vorlage im Speicher, erfundene Bestaende
   "/verwaltung/bz": "kein-bestand",                // Beatmungsgeraete, eigener Stamm
   "/verwaltung/bz/[id]": "kein-bestand",
   "/verwaltung/bz/[id]/kontrolle": "kein-bestand",

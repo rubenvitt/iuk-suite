@@ -72,7 +72,6 @@ import artikelnamenAendern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbu
 import boxSuche from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-16-box-suche";
 import checkOhneSoll from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-16-check-ohne-soll";
 import kurzcheck from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-17-kurzcheck";
-import demoCheck from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-17-demo-check";
 import wohinNachfuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-17-wohin-nachfuellen";
 import immerZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-18-immer-zaehlen";
 import einheitInReitern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-19-einheit-in-reitern";
@@ -172,7 +171,6 @@ const NOTIZEN: readonly Releasenotiz[] = [
   boxSuche,
   checkOhneSoll,
   kurzcheck,
-  demoCheck,
   wohinNachfuellen,
   immerZaehlen,
   einheitInReitern,

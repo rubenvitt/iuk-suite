@@ -533,10 +533,6 @@
     "kind": "context",
     "via": "setzeAusgeblendeteKategorien"
   },
-  "src/app/m/lagerbuch/_actions/demo.ts#setzeDemoCheck": {
-    "kind": "context",
-    "via": "setzeDemoCheck"
-  },
   "src/app/m/lagerbuch/_actions/journal.ts#naechsteJournalSeite": {
     "kind": "excluded",
     "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
@@ -792,10 +788,6 @@
   "src/app/m/lagerbuch/abmelden/route.ts#GET": {
     "kind": "explicit-only",
     "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
-  },
-  "src/app/m/lagerbuch/demo/abschluss/route.ts#POST": {
-    "kind": "excluded",
-    "reason": "Anonymous demo check (IDA-224): computes a result from a template in memory and writes nothing."
   },
   "src/app/m/lagerbuch/icon-192.png/route.ts#GET": {
     "kind": "excluded",
