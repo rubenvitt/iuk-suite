@@ -478,6 +478,43 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "helfer": {
+    "helfer": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "einstellung": {
+      "mode": "audited",
+      "primaryKey": [
+        "schluessel"
+      ]
+    },
+    "hiorg_verbindung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "refresh_token",
+          "erneuert_am"
+        ],
+        "reason": "HiOrg ersetzt das Refresh-Token bei jeder Erneuerung, also bei jedem Abgleich; Verbinden und Trennen bleiben auditiert, der Abgleich selbst steht in importlauf."
+      }
+    },
+    "anmeldevorgang": {
+      "mode": "excluded",
+      "reason": "Angefangenes Verbinden mit HiOrg (state und PKCE-Verifier), zehn Minuten gültig; die Verbindung selbst ist auditiert."
+    },
+    "importlauf": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    }
+  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",

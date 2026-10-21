@@ -217,6 +217,13 @@ export const MODULES: ModuleDef[] = [
   { key: "kommplan", title: "Kommunikationspläne", icon: "genealogy", shell: "full",
     requiresAuth: false, requiredGroups: ["iuk-kommplan"], adminGroups: ["iuk-kommplan-bearbeiten"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access", "admin"] },
+  // helfer: aus HiOrg-Server importierte Helfer, bereitgestellt fürs Einsatzbuch (IDA-249). requiresAuth:
+  // true — kein anonymer Teilpfad, also riegelt schon die Middleware. Zugang NUR über die eigene Gruppe:
+  // wer die Suite administriert, sieht deshalb noch keine Personaldaten (`_lib/zugang.ts`). Importieren,
+  // freigeben und löschen dürfen nur die Modul-Admins, die zusätzlich die Zugangsgruppe tragen.
+  { key: "helfer", title: "Helfer", icon: "people", shell: "full",
+    requiresAuth: true, requiredGroups: ["iuk-helfer"], adminGroups: ["iuk-helfer-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   { key: "alpha", title: "Alpha", icon: "square", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
@@ -342,3 +349,14 @@ export function verwaltungsGruppenFor(
   const weitere = einstieg.weitereGruppeEnv ? env[einstieg.weitereGruppeEnv]?.trim() : undefined;
   return weitere ? [...gruppen, weitere] : gruppen;
 }
+
+/**
+ * VERTRAULICHE ANSICHTEN: Pfade (INTERNE Form `/m/<key>/…`), deren Antworten `no-store`, `noindex` und
+ * `no-referrer` tragen (`antwortKoepfeFuer` in `core/routing`, gesetzt vom Proxy). Zuerst die Token-Ansicht
+ * der Kommunikationspläne; seit dem Modul helfer (IDA-249) das ganze Modul, weil jede seiner Seiten
+ * Personaldaten zeigt. Am Dateiende aus demselben Grund wie `VERWALTUNGSEINSTIEGE`.
+ */
+export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[] = [
+  { modul: "kommplan", muster: /^\/m\/kommplan\/t\/[^/]/ },
+  { modul: "helfer", muster: /^\/m\/helfer(\/|$)/ },
+];

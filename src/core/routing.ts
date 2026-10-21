@@ -1,4 +1,4 @@
-import { moduleForHost, getModule, findModule, canAccess } from "@/core/registry";
+import { moduleForHost, getModule, findModule, canAccess, VERTRAULICHE_ANSICHTEN } from "@/core/registry";
 
 export type RouteDecision =
   | { action: "next" }
@@ -102,23 +102,23 @@ export function decideRoute(input: {
 }
 
 /**
- * VERTRAULICHE ANSICHTEN (kommplan Phase 5, Entscheidung 7): anonyme Pfade, deren Inhalt nur der Linkinhaber
- * sehen soll. Eine Seite kann keine Antwortköpfe setzen — nur der Proxy. Gemessen wird am INTERNEN Pfad
+ * VERTRAULICHE ANSICHTEN (kommplan Phase 5, Entscheidung 7): Pfade, deren Inhalt nicht in Caches, Suchmaschinen
+ * oder Referrer gehört. Eine Seite kann keine Antwortköpfe setzen — nur der Proxy. Gemessen wird am INTERNEN Pfad
  * (Rewrite-Ziel oder `/m/<key>/…`), damit `/t/x` auf dem Modul-Host und `/m/kommplan/t/x` gleich behandelt
  * werden, auch beim 404. `cache-control` setzt Next bei dynamischen Seiten zusätzlich selbst; zugesichert wird
- * „enthält no-store". Kein Registry-Feld: eine einzelne Ansicht rechtfertigt kein neues Modulfeld.
+ * „enthält no-store".
  *
- * AUSNAHME VON „nach core nur, was ein zweites Modul braucht" (CLAUDE.md, Review kommplan Phase 5), bewusst:
- * Antwortköpfe setzt nur der Proxy, und der Proxy importiert aus `core`, nie aus einem Modul. Die Mechanik
- * (`antwortKoepfeFuer`) ist modulneutral; modulspezifisch ist allein die Musterliste. Braucht ein zweites Modul
- * eine vertrauliche Ansicht, wandert die Liste als Feld in `registry.ts` — dann nicht hier eine zweite Zeile anfügen.
+ * Die Musterliste steht seit dem zweiten Modul (helfer, IDA-249: Personaldaten) als `VERTRAULICHE_ANSICHTEN` in
+ * `registry.ts`, wie es hier für diesen Fall vorgesehen war; die Mechanik (`antwortKoepfeFuer`) bleibt
+ * modulneutral in `core`. Der Proxy importiert aus `core`, nie aus einem Modul. Eine neue vertrauliche
+ * Ansicht bekommt dort einen Eintrag, nicht hier eine Zeile.
  */
-const VERTRAULICHE_ANSICHTEN: readonly RegExp[] = [/^\/m\/kommplan\/t\/[^/]/];
+const VERTRAULICH: readonly RegExp[] = VERTRAULICHE_ANSICHTEN.map((a) => a.muster);
 export const VERTRAULICHE_KOEPFE: Readonly<Record<string, string>> = {
   "x-robots-tag": "noindex, nofollow, noarchive",
   "referrer-policy": "no-referrer",
   "cache-control": "no-store",
 };
 export function antwortKoepfeFuer(internerPfad: string): Readonly<Record<string, string>> | null {
-  return VERTRAULICHE_ANSICHTEN.some((m) => m.test(internerPfad)) ? VERTRAULICHE_KOEPFE : null;
+  return VERTRAULICH.some((m) => m.test(internerPfad)) ? VERTRAULICHE_KOEPFE : null;
 }

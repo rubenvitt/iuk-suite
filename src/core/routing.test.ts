@@ -217,8 +217,13 @@ describe("antwortKoepfeFuer — vertrauliche Ansichten (kommplan Phase 5, Entsch
       expect(antwortKoepfeFuer(p)).toEqual({ "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer", "cache-control": "no-store" });
     }
   });
+  it("das ganze Modul helfer (Personaldaten, IDA-249), auch Route Handler und 404", () => {
+    for (const p of ["/m/helfer", "/m/helfer/", "/m/helfer/abgleich", "/m/helfer/hiorg/rueckruf", "/m/helfer/gibtsnicht"]) {
+      expect(antwortKoepfeFuer(p), p).toEqual({ "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer", "cache-control": "no-store" });
+    }
+  });
   it("nichts sonst — auch nicht die /t/-Pfade anderer Module oder die Arbeitsrouten", () => {
-    for (const p of ["/m/kommplan", "/m/kommplan/p/abc", "/m/kommplan/tt/abc", "/m/lagerbuch/t/abc", "/m/radio/t/abc", "/t/abc", "/m/kommplan/t"]) {
+    for (const p of ["/m/kommplan", "/m/kommplan/p/abc", "/m/kommplan/tt/abc", "/m/lagerbuch/t/abc", "/m/radio/t/abc", "/t/abc", "/m/kommplan/t", "/m/helferlein", "/m/einsatzbuch"]) {
       expect(antwortKoepfeFuer(p), p).toBeNull();
     }
   });

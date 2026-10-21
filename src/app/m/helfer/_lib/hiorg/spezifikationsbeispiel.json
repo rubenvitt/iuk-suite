@@ -1,0 +1,136 @@
+{
+  "jsonapi": {
+    "version": "1.0"
+  },
+  "data": [
+    {
+      "type": "user",
+      "id": "9aabc46f91700bf0d97f625b7c5eeacf",
+      "links": {
+        "self": "https://api.hiorg-server.de/core/v1/personal/9aabc46f91700bf0d97f625b7c5eeacf"
+      },
+      "attributes": {
+        "anrede": "Herr",
+        "vorname": "Max",
+        "nachname": "Muster",
+        "titel": "Dr.",
+        "username": "admin",
+        "kuerzel": "abiE",
+        "telpriv": "+4963014618",
+        "teldienst": "+4963014617",
+        "handy": "+4917685214785",
+        "email": "admin@example.com",
+        "adresse": "Hauptstr. 3",
+        "plz": "12345",
+        "ort": "Musterhausen",
+        "land": "Musterland",
+        "gebdat": "1985-02-07",
+        "gebort": "Musterhausen",
+        "gruppen_namen": [
+          "Bereitschaft",
+          "Jugend",
+          "Aktive",
+          "Senioren"
+        ],
+        "orgakuerzel": "xxx",
+        "leitung": true,
+        "status": "aktiv",
+        "gesperrt": false,
+        "rechte": [
+          "helfer",
+          "termine",
+          "sandienst",
+          "kurse",
+          "rechnung",
+          "stunden",
+          "eigenestunden",
+          "mitarbeiter",
+          "rundnachrichten",
+          "sms",
+          "material",
+          "forum",
+          "aufgaben",
+          "adressen",
+          "dokumente",
+          "rechnungsansicht",
+          "admin"
+        ],
+        "qualifikationen": [
+          {
+            "position": 1,
+            "liste_id": 3529,
+            "liste": "med. Qualifikation",
+            "rang": 0,
+            "name": "Ersthelfer",
+            "name_kurz": "EH",
+            "zentralliste_id": 1,
+            "zentralliste_rang": 1,
+            "zentralliste_name_kurz": "EH",
+            "erwerb_datum": "1985-02-07"
+          }
+        ],
+        "ausbildungen": [
+          {
+            "id": 12345,
+            "ausbildung_id": 678910,
+            "bezeichnung": "Traumatraining",
+            "datum": "2024-01-07",
+            "lehrgangsnummer": "12345",
+            "gueltig_bis": "2026-01-07",
+            "created_at": "2024-03-05T13:19:59+01:00",
+            "updated_at": "2024-04-07T13:12:00+01:00"
+          }
+        ],
+        "fahrerlaubnis": {
+          "klassen": [
+            "AM",
+            "B",
+            "B96",
+            "BE",
+            "L"
+          ],
+          "beschraenkung": "C1 171",
+          "fuehrerscheinnummer": "7B9205K0C65",
+          "fuehrerscheindatum": "1995-11-01"
+        },
+        "angehoerige": "Ehefrau Maxima Muster, Hauptstr. 3 in 12345 Musterhausen",
+        "ernaehrung": [
+          "halal",
+          "vegan"
+        ],
+        "allerg_intol": [
+          "laktose",
+          "soja"
+        ],
+        "verpflegung_weiteres": "kein Spinat",
+        "kontoinhaber": "Max Muster",
+        "iban": "DE12345678901234567800",
+        "bic": "MALEDIC",
+        "kreditinstitut": "Sparkasse Musterhausen",
+        "mitgliednr": "12345",
+        "mitglied_seit": "01.01.1975",
+        "austritt_datum": "01.01.2000",
+        "wechseljgddat": "01.01.1980",
+        "beruf": "Zahnarzt",
+        "arbeitgeber": "Klinik in Muster",
+        "bemerkung": "das ist eine Beispielbemerkung",
+        "funktion": "Fachberater IuK seit 01.06.2020",
+        "benutzerdefinierte_felder": [
+          {
+            "id": "user1",
+            "name": "Führungszeugnis einfach",
+            "wert": "Test 123"
+          }
+        ]
+      },
+      "relationships": {
+        "organisation": {
+          "data": {
+            "type": "orga",
+            "id": "14119"
+          }
+        }
+      }
+    }
+  ]
+}

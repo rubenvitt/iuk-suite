@@ -11,6 +11,8 @@ import {
 } from "../_lib/stammdaten/daten";
 import { planeImport, type Vorschauzeile } from "../_lib/stammdaten/csv";
 import { bestandFuerImport, wendeImportAn } from "../_lib/stammdaten/import";
+import { bereitgestellteHelfer } from "@/app/m/helfer/_lib/bereitstellung";
+import { planeGegenBestand, wendeHelferAbgleichAn, type HelferErgebnis, type HelferPlan } from "../_lib/stammdaten/helferAbgleich";
 import { STAMMDATENARTEN, type FahrzeugDTO, type PersonDTO, type Stammdatenart, type StichwortDTO } from "../_lib/stammdaten/typen";
 
 /** Nach jeder Schreibaktion: die Übersicht und die Stammdatenseite laufen mit neuem Bestand. */
@@ -77,5 +79,21 @@ export async function csvUebernehmenAction(art: Stammdatenart, text: string): Pr
     const plan = planeImport(art, text, bestandFuerImport(db));
     if (!plan.ok) return { ok: false, fehler: plan.fehler };
     return alsErgebnis(() => wendeImportAn(db, plan));
+  });
+}
+/**
+ * Vorschau des Abgleichs mit dem Helferverzeichnis (Modul helfer): liest dessen veröffentlichte
+ * Bereitstellung und plant gegen das Personal. Schreibt nichts.
+ */
+export async function helferVorschauAction(): Promise<ActionErgebnis<HelferPlan>> {
+  await requireEinsatzbuchAktion();
+  return { ok: true, wert: planeGegenBestand(getDb(), bereitgestellteHelfer()) };
+}
+/** Plant neu (beide Seiten können sich seit der Vorschau geändert haben) und schreibt. */
+export async function helferUebernehmenAction(): Promise<ActionErgebnis<HelferErgebnis>> {
+  const viewer = await requireEinsatzbuchAktion();
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const db = getDb();
+    return alsErgebnis(() => wendeHelferAbgleichAn(db, planeGegenBestand(db, bereitgestellteHelfer())));
   });
 }

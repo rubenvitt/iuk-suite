@@ -1,0 +1,47 @@
+/*
+ * Eigenes Markup des Moduls helfer. Nur Suite-Variablen (`--iuk-*`, `app/globals.css`) — `--ant-*`
+ * sieht eigenes Markup nicht (Falle 2). Beide haben einen Dunkelzweig.
+ */
+
+/* Gefahrenzone nach dem Vokabular aus docs/design/README.md: 1px Kontur in Markenrot, versaler Titel. */
+.gefahrenzone {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--iuk-marke);
+  border-radius: 8px;
+}
+
+.gefahrenTitel {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--iuk-marke);
+}
+
+/*
+ * Ein Link in Knopfform: das Verbinden mit HiOrg ist ein echter Seitenwechsel zu einem Route
+ * Handler, kein Klick auf eine Action. 44px wie die Bediendichte der Arbeitsflächen (Falle 4).
+ */
+.knopf {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.knopf:hover {
+  border-color: var(--iuk-marke);
+  color: var(--iuk-marke);
+}
+
+.knopf:focus-visible {
+  outline: 2px solid var(--iuk-marke);
+  outline-offset: 2px;
+}
