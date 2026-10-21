@@ -207,6 +207,9 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
   },
 ];
 
+/** Mindestbreite des Journals — Begruendung am Aufruf. */
+const JOURNAL_SCROLL = { x: 960 } as const;
+
 /** Fester Satz statt `e.message` (§11.2 d). */
 const NACHLADE_FEHLER = "Weitere Buchungen konnten nicht geladen werden.";
 
@@ -396,6 +399,15 @@ export function JournalTable({
         dataSource={zeilen}
         leer={{ nichts: leertext }}
         columns={SPALTEN}
+        /*
+         * ⚠️ EINE ZAHL STATT DER VORGABE `max-content` (IDA-241). Unter
+         * `max-content` bricht keine Zelle um: Artikel und Ort standen in voller
+         * Laenge da, und bei 1440px lief die Tabelle 65px ueber ihre Flaeche —
+         * Δ und Quelle nur waagerecht erreichbar. Mit einer Zahl misst rc-table
+         * `width: 960px; min-width: 100%`: auf jeder breiteren Flaeche brechen
+         * Artikel und Ort um, erst darunter scrollt die Tabelle in sich.
+         */
+        scroll={JOURNAL_SCROLL}
       />
 
       {/*

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Flex, Select, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
@@ -91,7 +91,7 @@ const KATEGORIEN_SPEICHERFEHLER =
  * rc-table auf `table-layout: fixed` (`docs/design/README.md`) — die Spalten
  * stehen dann GENAU so breit, wie es hier steht, und nicht mehr so breit wie
  * ihr Inhalt. Die Zahlen sind deshalb am Inhalt entlang gewaehlt und die Summe
- * bewusst klein gehalten: 1110 + 32 fuer die Auswahlspalte = 1142.
+ * bewusst klein gehalten: 1120 + 32 fuer die Auswahlspalte = 1152.
  *
  * ⚠️ SIE GELTEN ERST AB `VIRTUELL_AB_ZEILEN` (150). Darunter bleibt die Tabelle
  * gewoehnlich und misst wie bisher nach Inhalt — eine kleine Installation sieht
@@ -102,7 +102,7 @@ const BREITE = {
   fach: 90,
   kategorie: 150,
   bestand: 110,
-  mindest: 80,
+  mindest: 90, // 80 brach den Kopf bei 1280px in „MI N." (IDA-241); Wort und zwei Zeichen brauchen 81
   verfall: 210,
   status: 240,
 } as const;
@@ -133,6 +133,12 @@ const keinAbo = () => () => {};
 
 /** Nur fuer die Vorschau der Sammelaenderung, die alphabetisch bleibt. */
 const NACH_NAMEN = nachText<ArtikelAnzeigeZeile>((zeile) => zeile.name);
+
+/** Der Name als Knopf in der Zeile — Begruendung an der Spalte „Artikel". */
+const NAMENSKNOPF: CSSProperties = {
+  padding: 0, fontWeight: 600, whiteSpace: "normal", overflowWrap: "anywhere",
+  height: "auto", minHeight: 44, textAlign: "start",
+};
 
 export function ArtikelTable({
   zeilen,
@@ -365,9 +371,15 @@ export function ArtikelTable({
       sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.name),
       sortOrder: sortierung.spalte === "name" ? sortierung.richtung : null,
       render: (wert: string, zeile) => (
+        /*
+         * ⚠️ DER NAME BRICHT UM, STATT UEBER DIE FACH-SPALTE ZU LAUFEN (IDA-241).
+         * antds `Button` setzt `white-space: nowrap` und eine feste Hoehe; unter
+         * `table-layout: fixed` (virtuell) ragte ein langer Name ueber den
+         * Fachrahmen daneben. `minHeight` haelt die 44 der Arbeitsdichte.
+         */
         <Button
           type="link"
-          style={{ padding: 0, fontWeight: 600 }}
+          style={NAMENSKNOPF}
           onClick={() => setOffenerArtikel(zeile.id)}
         >
           {wert}
