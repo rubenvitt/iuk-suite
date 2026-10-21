@@ -11,7 +11,7 @@
  */
 export { auditOutbox } from "@/core/audit/_db/schema";
 import { sql } from "drizzle-orm";
-import { check, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Ein Fahrzeug oder ein Anhänger. Die Tabelle heißt `stammfahrzeug` und nicht `fahrzeug`, weil das
@@ -41,4 +41,24 @@ export const stammfahrzeug = sqliteTable("stammfahrzeug", {
   uniqueIndex("stammfahrzeug_funkkenner_idx").on(t.funkkenner),
   uniqueIndex("stammfahrzeug_kennzeichen_idx").on(t.kennzeichen),
   check("stammfahrzeug_art", sql`art IN ('fahrzeug','anhaenger')`),
+]);
+
+/**
+ * Welche Zeile einer anderen App welches Stammfahrzeug ist (IDA-256). Geschrieben vom Erstimport, gelesen
+ * von den Kopplungen der Apps (IDA-257 bis IDA-259) über `_lib/bereitstellung.ts`.
+ *
+ * `quellId` ist die Kennung in der Quelle: im Einsatzbuch `fahrzeug.id`, im Lagerbuch `lagerorte.id`, bei
+ * den Funkgeräten der getrimmte Ort (sie kennen keine Fahrzeugzeile). `stammId = null` heißt „entschieden:
+ * kein Fahrzeug“ („Fahrzeughalle“) — so fragt die Vorschau nicht bei jedem Lauf wieder.
+ */
+export const quellzuordnung = sqliteTable("quellzuordnung", {
+  quelle: text("quelle", { enum: ["einsatzbuch", "lagerbuch", "funkgeraete"] }).notNull(),
+  quellId: text("quell_id").notNull(),
+  stammId: text("stamm_id").references(() => stammfahrzeug.id),
+  entschiedenAm: integer("entschieden_am", { mode: "timestamp" }).notNull(),
+  entschiedenVon: text("entschieden_von").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.quelle, t.quellId] }),
+  index("quellzuordnung_stamm_idx").on(t.stammId),
+  check("quellzuordnung_quelle", sql`quelle IN ('einsatzbuch','lagerbuch','funkgeraete')`),
 ]);

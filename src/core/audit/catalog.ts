@@ -521,6 +521,13 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "quellzuordnung": {
+      "mode": "audited",
+      "primaryKey": [
+        "quelle",
+        "quell_id"
+      ]
     }
   },
   "konto": {

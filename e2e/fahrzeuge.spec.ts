@@ -62,3 +62,21 @@ test("ohne Admin-Gruppe nur lesend, ohne Gruppe 403", async ({ page, browser }) 
   expect(antwort?.status()).toBe(403);
   await fremd.close();
 });
+
+test("Erstimport: Vorschau nur mit Verwaltungsrecht", async ({ page, browser }) => {
+  await devLogin(page, { host: HOST, groups: "fahrzeuge-admin", callbackPath: "/erstimport" });
+  await page.goto(url("/erstimport"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  await expect(page.getByRole("heading", { name: "Erstimport" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vorschau" })).toBeVisible();
+  await expect(page.getByTestId("erstimport-summe")).toContainText("neue Fahrzeuge");
+  await expect(page.getByRole("button", { name: "Übernehmen" })).toBeVisible();
+
+  const nutzer = await browser.newPage();
+  await devLogin(nutzer, { host: HOST, groups: "fahrzeuge-nutzer", callbackPath: "/erstimport" });
+  await nutzer.goto(url("/erstimport"));
+  await expect(nutzer.getByText("Den Erstimport führt eine Person mit Verwaltungsrecht durch.")).toBeVisible();
+  await expect(nutzer.getByRole("heading", { name: "Vorschau" })).toHaveCount(0);
+  await nutzer.close();
+});

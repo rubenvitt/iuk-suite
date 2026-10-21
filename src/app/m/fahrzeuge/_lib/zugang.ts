@@ -53,3 +53,8 @@ export async function requireFahrzeugeVerwaltenAktion(): Promise<Viewer> {
   if (!darfFahrzeugeVerwalten(viewer.groups)) { auditDenied("fahrzeuge", auditActor(viewer)); throw new Error("Forbidden"); }
   return viewer;
 }
+
+/** Wer entschieden hat, für die Zuordnungen des Erstimports (wie `helfer/_lib/zugang.ts`). */
+export function anzeigeName(viewer: Viewer): string {
+  return (viewer.name?.trim() || viewer.id).slice(0, 120);
+}
