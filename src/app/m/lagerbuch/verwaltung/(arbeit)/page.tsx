@@ -37,6 +37,12 @@ export type KritischeZeile = {
   unterMindest: boolean;
   chargeText: string | null;
   chargeTon: AmpelTon | null;
+  /**
+   * IDA-246 — eigenes Feld, weil `chargeTon === "rot"` abgelaufene UND bald
+   * fällige Chargen meint (`VerfallStatus.abgelaufen`); ohne es standen beide
+   * gleichrangig, und ein abgelaufener Artikel fiel aus der ersten Zehn.
+   */
+  chargeAbgelaufen: boolean;
 };
 
 export function kritischeArtikel(db: DB, jetzt: Date): KritischeZeile[] {
@@ -58,6 +64,7 @@ export function kritischeArtikel(db: DB, jetzt: Date): KritischeZeile[] {
           ? chargeText(status, zeile.naechsteCharge.verfall)
           : null,
         chargeTon: status ? ampelTon(status.ampel) : null,
+        chargeAbgelaufen: status?.abgelaufen ?? false,
       };
     });
 }
@@ -74,13 +81,15 @@ export function kritischeArtikel(db: DB, jetzt: Date): KritischeZeile[] {
 export const KRITISCH_ANZEIGE = 10;
 
 /**
- * Was zuerst angesehen werden muss: eine rote Charge (abgelaufen bzw. kurz
- * davor), dann Unterbestände nach Füllgrad (leer zuerst), dann der Rest —
+ * Was zuerst angesehen werden muss: eine abgelaufene Charge, dann eine rote
+ * (kurz davor), dann Unterbestände nach Füllgrad (leer zuerst), dann der Rest —
  * innerhalb gleich nach Name. Arbeitet auf einer Kopie.
  */
 export function kritischeReihenfolge(zeilen: readonly KritischeZeile[]): KritischeZeile[] {
   const rang = (zeile: KritischeZeile) =>
-    zeile.chargeTon === "rot" ? 0 : zeile.unterMindest ? 1 : 2;
+    zeile.chargeAbgelaufen ? 0
+      : zeile.chargeTon === "rot" ? 1
+        : zeile.unterMindest ? 2 : 3;
   const fuellgrad = (zeile: KritischeZeile) =>
     zeile.mindestbestand > 0 ? zeile.bestand / zeile.mindestbestand : 1;
   return [...zeilen].sort((a, b) =>
