@@ -12,21 +12,13 @@ import { ZEICHEN } from "./zeichen";
  * Anmeldeseite braucht ihr Zeichen ohne Sitzung. Aus demselben Grund keine
  * Datei in `public/` und keine `icon.svg` nach Nexts Dateikonvention.
  *
- * `lagerbuch` behält sein eigenes Symbol, das es als PWA ohnehin ausliefert
- * (`m/lagerbuch/pwa-icon.svg`). Der Pfad ist host-relativ und nur auf dem
- * Lagerbuch-Host gültig — genau dort, und nur dort, wählt ihn diese Funktion.
- *
- * Module ohne eigenes Zeichen (Portal, Demos) tragen das IDA-Zeichen.
+ * Module ohne eigenes Zeichen (Portal, Demos) tragen das IDA-Zeichen. Auch
+ * `lagerbuch` trägt seit dem 21.10.2026 ein Suite-Zeichen statt des
+ * Alt-Symbols (`m/lagerbuch/_lib/pwaIcons.ts`).
  */
-const EIGENES_SYMBOL: Readonly<Record<string, string>> = {
-  lagerbuch: "/pwa-icon.svg",
-};
-
 export type Favicon = { url: string; type: "image/svg+xml" | "image/png" };
 
 export function faviconFuer(modulKey: string | null | undefined): Favicon {
-  const eigenes = modulKey ? EIGENES_SYMBOL[modulKey] : undefined;
-  if (eigenes) return { url: eigenes, type: "image/svg+xml" };
   const name = zeichenName(modulKey);
   return { url: `/favicon/${name}.svg?v=${pruefsumme(ZEICHEN[name])}`, type: "image/svg+xml" };
 }
@@ -52,12 +44,8 @@ function zeichenName(modulKey: string | null | undefined): string {
  * DAS APPLE-TOUCH-ICON EINES HOSTS — was iOS bei „Zum Home-Bildschirm" auf den
  * Startbildschirm legt, für jede Seite der Suite, auch ohne Manifest. Dasselbe
  * Zeichen wie das Favicon, als App-Icon (`app-icon.ts`).
- *
- * `lagerbuch` bekommt keines von hier: es trägt sein eigenes Symbol, und ein
- * IDA-Zeichen daneben wäre ein zweites Gesicht derselben App.
  */
 export function appleIconFuer(modulKey: string | null | undefined): Favicon | undefined {
-  if (modulKey && EIGENES_SYMBOL[modulKey]) return undefined;
   const datei = `${zeichenName(modulKey)}-apple-180.png`;
   return { url: `/favicon/${datei}?v=${versionVon(datei)}`, type: "image/png" };
 }
@@ -68,11 +56,6 @@ export function appleIconFuer(modulKey: string | null | undefined): Favicon | un
  * Absolut zum Portal-Host gedacht: `/favicon/` liegt in der Durchlassliste und
  * gilt auf jedem Host. Das Portal trägt das IDA-Zeichen. Module ohne Zeichen
  * (Kommunikationspläne, Demos) bekommen keines und behalten ihr Icons8-Zeichen.
- *
- * ⚠️ AUCH `lagerbuch` NIMMT HIER DAS SUITE-ZEICHEN, nicht sein eigenes Symbol:
- * dessen dunkle Kachel stand als einzige zwischen lauter hellen (Rückmeldung
- * vom 20.10.2026). Favicon und installierte PWA behalten das eigene Symbol
- * (`EIGENES_SYMBOL`) — das ist auf den Geräten eingebrannt.
  */
 export function appIconFuerKachel(modulKey: string): string | undefined {
   const name = modulKey === "portal" ? "ida" : modulKey;

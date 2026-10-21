@@ -62,8 +62,8 @@ describe("Root-Layout — Favicon nach Host", () => {
     expect(await icon("radio.localtest.me")).toMatch(/^\/favicon\/radio\.svg\?v=/);
   });
 
-  it("lässt lagerbuch sein eigenes Symbol", async () => {
-    expect(await icon("lagerbuch.localtest.me")).toBe("/pwa-icon.svg");
+  it("gibt auch lagerbuch sein Suite-Zeichen", async () => {
+    expect(await icon("lagerbuch.localtest.me")).toMatch(/^\/favicon\/lagerbuch\.svg\?v=/);
   });
 
   it("zeigt sonst das IDA-Zeichen", async () => {
@@ -71,7 +71,7 @@ describe("Root-Layout — Favicon nach Host", () => {
     expect(await icon("")).toMatch(/^\/favicon\/ida\.svg\?v=/);
   });
 
-  it("legt ein Apple-Touch-Icon mit demselben Zeichen daneben, außer für lagerbuch", async () => {
+  it("legt ein Apple-Touch-Icon mit demselben Zeichen daneben, auch für lagerbuch", async () => {
     const apple = async (host: string) => {
       kopf.host = host;
       const { icons } = await generateMetadata();
@@ -79,7 +79,7 @@ describe("Root-Layout — Favicon nach Host", () => {
     };
     expect(await apple("qr.localtest.me")).toMatch(/^\/favicon\/qr-apple-180\.png\?v=/);
     expect(await apple("portal.localtest.me")).toMatch(/^\/favicon\/ida-apple-180\.png\?v=/);
-    expect(await apple("lagerbuch.localtest.me")).toBeUndefined();
+    expect(await apple("lagerbuch.localtest.me")).toMatch(/^\/favicon\/lagerbuch-apple-180\.png\?v=/);
   });
 
   it("behält Titel und Beschreibung", async () => {

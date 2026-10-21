@@ -1,5 +1,5 @@
 import { hostAbweisung } from "../_lib/hostRiegel";
-import { ICON_192_BASE64, pngAntwort } from "../_lib/pwaIcons";
+import { ICON_192, pngAntwort } from "../_lib/pwaIcons";
 
 /**
  * §7.10.2. DIE BYTES WANDERN AUS `public/` HERAUS, und das ist eine REPARATUR,
@@ -20,5 +20,5 @@ import { ICON_192_BASE64, pngAntwort } from "../_lib/pwaIcons";
 export const dynamic = "force-dynamic";
 
 export function GET(req: Request): Response {
-  return hostAbweisung(req) ?? pngAntwort(ICON_192_BASE64);
+  return hostAbweisung(req) ?? pngAntwort(ICON_192);
 }
