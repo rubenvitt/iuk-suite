@@ -1,6 +1,7 @@
 import type { AuditActor, AuditEventInput, AuditModule } from "./types";
 import { withAuditContext } from "./context";
 import { recordAuditEvent } from "./storage";
+import { AblehnungsDrossel } from "./drossel";
 export { withAuditContext } from "./context";
 
 /** Only call with an identity already confirmed by the existing server guard. */
@@ -42,9 +43,28 @@ export function auditDenied(module: AuditModule, actor: AuditActor = { kind: "an
  *
  * Deliberately still recorded, not dropped: a burst of these on a module host is the
  * only trace of a scan. The label is what changes, not the retention.
+ *
+ * Bundled and capped per module since IDA-263. Measured on production (2026-10-21):
+ * 426 rows since 2026-09-12, no scan among them — every row came in PAIRS ~10 ms apart
+ * (layout and page guard of one navigation), four parallel fetches of one tab with an
+ * expired session wrote eight, and each rollout check (`HEAD /`) wrote one per module.
+ * Now: hits within `LOGIN_AUDIT_BUENDEL_MS` of the last written row are the same visit and
+ * stay silent; at most `LOGIN_AUDIT_PRO_MIN` rows per module and minute, then ONE
+ * `access_throttled` marker — so a scan still shows, at a bounded number of rows.
  */
+export const LOGIN_AUDIT_BUENDEL_MS = 2_000;
+export const LOGIN_AUDIT_PRO_MIN = 5;
+const loginDrosseln = new Map<AuditModule, AblehnungsDrossel>();
 export function auditLoginRequired(module: AuditModule): void {
-  auditEvent({ module, action: "access_denied", objectType: "login_required", result: "denied", origin: "server" }, { kind: "anonymous" });
+  let drossel = loginDrosseln.get(module);
+  if (!drossel) loginDrosseln.set(module, drossel = new AblehnungsDrossel({ max: LOGIN_AUDIT_PRO_MIN, windowMs: 60_000, buendelMs: LOGIN_AUDIT_BUENDEL_MS }));
+  const entscheid = drossel.entscheiden();
+  if (entscheid === "still") return;
+  auditEvent({ module, action: "access_denied", objectType: entscheid === "einzeln" ? "login_required" : "access_throttled", result: "denied", origin: "server" }, { kind: "anonymous" });
+}
+/** Only for tests: every test starts with fresh windows. */
+export function loginDrosselnZuruecksetzen(): void {
+  loginDrosseln.clear();
 }
 export function auditSystem<T>(operation: () => T): T {
   return withAuditContext({ actor: { kind: "system" } }, operation);

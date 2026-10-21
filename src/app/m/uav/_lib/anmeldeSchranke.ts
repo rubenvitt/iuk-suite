@@ -1,4 +1,5 @@
 import { auditDenied } from "@/core/audit/server";
+import { AblehnungsDrossel } from "@/core/audit/drossel";
 import { RateLimiter } from "@/core/ratelimit";
 
 /**
@@ -62,27 +63,10 @@ export function codeVersuchErlaubt(code: string, absender: string): boolean {
  * unabhängig von diesem Fenster; die Drossel ändert auch keine Antwort.
  *
  * Festes Fenster statt `RateLimiter`: nur ein Schlüssel, und für die Markierung zählt, ob sie
- * in DIESEM Fenster schon geschrieben ist — das ist ein Zustand je Fenster, kein Zeitstempel-
- * Verlauf. Prozessspeicher wie oben: nach einem Neustart beginnt ein frisches Fenster.
+ * in DIESEM Fenster schon geschrieben ist (`AblehnungsDrossel`, `core/audit/drossel.ts`).
  */
+export { AblehnungsDrossel };
 export const ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN = 10;
-
-export type AuditEntscheid = "einzeln" | "gedrosselt" | "still";
-
-export class AblehnungsDrossel {
-  private fensterStart = -Infinity;
-  private geschrieben = 0;
-  private markiert = false;
-  constructor(private readonly opts: { max: number; windowMs: number; now?: () => number }) {}
-  /** Was soll für DIESE Ablehnung ins Audit? Bucht zugleich. */
-  entscheiden(): AuditEntscheid {
-    const t = (this.opts.now ?? Date.now)();
-    if (t - this.fensterStart >= this.opts.windowMs) { this.fensterStart = t; this.geschrieben = 0; this.markiert = false; }
-    if (this.geschrieben < this.opts.max) { this.geschrieben++; return "einzeln"; }
-    if (!this.markiert) { this.markiert = true; return "gedrosselt"; }
-    return "still";
-  }
-}
 
 const auditAblehnungen = new AblehnungsDrossel({ max: ANMELDUNG_AUDIT_ABLEHNUNGEN_PRO_MIN, windowMs: 60_000 });
 
