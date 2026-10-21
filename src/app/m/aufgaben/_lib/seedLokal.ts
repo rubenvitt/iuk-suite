@@ -633,11 +633,11 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
  * DIE NAMEN KOMMEN AUS DEN AUFLÖSERN, NICHT AUS EINEM LITERAL HIER:
  * `requiredGroupsFor`/`adminGroupsFor` lesen `SUITE_ACCESS_GROUP_AUFGABEN`
  * bzw. `SUITE_ADMIN_GROUP_AUFGABEN` und fallen sonst auf die Registry-Vorgabe
- * zurück. Ein drittes abgeschriebenes `iuk-aufgaben-koordination` liefe genau
+ * zurück. Ein drittes abgeschriebenes `aufgaben-admin` liefe genau
  * dann auseinander, wenn eine Instanz die Namen überschreibt — und dann still:
  * das Protokoll nennt eine Gruppe, die niemanden hineinlässt.
  *
- * `dashboard-admins` (die Suite-Admin-Gruppe) steht bewusst NICHT hier, obwohl
+ * `admin` (die Suite-Admin-Gruppe) steht bewusst NICHT hier, obwohl
  * sie ebenfalls koordinieren lässt (`isModuleAdmin`, s. `_lib/zugang.ts`): sie
  * ist der Rückweg bei fehlkonfigurierter Modulgruppe, nicht der vorgesehene
  * lokale Weg.

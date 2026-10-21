@@ -38,8 +38,8 @@ Was die Suite technisch zusichert, steht auch auf der Seite **Einstellungen → 
 
 | Variable | Vorgabe | Bedeutung |
 | --- | --- | --- |
-| `SUITE_ACCESS_GROUP_HELFER` | `iuk-helfer` | Liste ansehen |
-| `SUITE_ADMIN_GROUP_HELFER` | `iuk-helfer-admin` | abgleichen, freigeben, Quelle wechseln, verbinden, löschen (braucht zusätzlich die Zugangsgruppe) |
+| `SUITE_ACCESS_GROUP_HELFER` | `helfer-nutzer` | Liste ansehen |
+| `SUITE_ADMIN_GROUP_HELFER` | `helfer-admin` | abgleichen, freigeben, Quelle wechseln, verbinden, löschen (braucht zusätzlich die Zugangsgruppe) |
 
 Die Gruppen müssen in Pocket ID existieren, bevor das Modul erreichbar ist.
 

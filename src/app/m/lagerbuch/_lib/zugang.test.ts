@@ -42,10 +42,10 @@ import {
 } from "./zugang";
 import { _resetNamenlosGemeldet } from "./konto";
 
-const ADMIN = { user: { id: "sub-1", groups: ["lagerbuch_nutzer"], name: "Anna Beispiel",
+const ADMIN = { user: { id: "sub-1", groups: ["lagerbuch-admin"], name: "Anna Beispiel",
                         email: "anna@example.org" } };
 const OHNE_GRUPPE = { user: { id: "sub-2", groups: ["irgendwas"], name: "Bert", email: null } };
-const SUITE_ADMIN = { user: { id: "sub-3", groups: ["dashboard-admins"], name: "Chef",
+const SUITE_ADMIN = { user: { id: "sub-3", groups: ["admin"], name: "Chef",
                               email: "chef@example.org" } };
 
 const altGruppe = process.env.SUITE_ADMIN_GROUP_LAGERBUCH;
@@ -95,7 +95,7 @@ describe("viewerAusSession — VIER Felder, nicht zwei", () => {
      * session.user.name/email UNANGETASTET und setzt nur groups, isAdmin und id.
      */
     expect(viewerAusSession(ADMIN)).toEqual({
-      sub: "sub-1", groups: ["lagerbuch_nutzer"],
+      sub: "sub-1", groups: ["lagerbuch-admin"],
       name: "Anna Beispiel", email: "anna@example.org",
     });
   });
@@ -104,7 +104,7 @@ describe("viewerAusSession — VIER Felder, nicht zwei", () => {
     expect(viewerAusSession(null)).toBeNull();
     expect(viewerAusSession({})).toBeNull();
     expect(viewerAusSession({ user: {} })).toBeNull();
-    expect(viewerAusSession({ user: { groups: ["lagerbuch_nutzer"] } })).toBeNull();
+    expect(viewerAusSession({ user: { groups: ["lagerbuch-admin"] } })).toBeNull();
   });
 
   it("ein fehlender groups-Claim ist die LEERE MENGE, kein 500", () => {
@@ -128,7 +128,7 @@ describe("viewerOderNull — die nicht-werfende Form", () => {
   it("liefert den Viewer der laufenden Sitzung", async () => {
     sitzung = ADMIN;
     expect(await viewerOderNull()).toEqual({
-      sub: "sub-1", groups: ["lagerbuch_nutzer"],
+      sub: "sub-1", groups: ["lagerbuch-admin"],
       name: "Anna Beispiel", email: "anna@example.org",
     });
   });
@@ -353,7 +353,7 @@ describe("requireLagerbuchAdmin — der Backstop", () => {
     sitzung = ADMIN;
     const v = await requireLagerbuchAdmin();
     expect(v.sub).toBe("sub-1");
-    expect(v.groups).toEqual(["lagerbuch_nutzer"]);
+    expect(v.groups).toEqual(["lagerbuch-admin"]);
   });
 
   it("leitet OHNE Sitzung auf /login — mit callbackUrl auf den ANGEFRAGTEN Host", async () => {
@@ -412,7 +412,7 @@ describe("requireLagerbuchAdmin — der Backstop", () => {
       const text = String(warn.mock.calls[0]?.[0]);
       expect(text).toContain("[lagerbuch]");
       expect(text).toContain("SUITE_ADMIN_GROUP_LAGERBUCH");
-      expect(text).toContain("lagerbuch_nutzer");   // die ERWARTETE Gruppe
+      expect(text).toContain("lagerbuch-admin");   // die ERWARTETE Gruppe
       expect(text).toContain("irgendwas");         // die VORHANDENEN Gruppen
       // KEINE Kennung, keine E-Mail, kein Name — dieselbe Form wie heute.
       expect(text).not.toContain("sub-2");

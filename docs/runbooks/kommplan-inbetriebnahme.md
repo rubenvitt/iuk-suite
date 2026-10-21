@@ -10,8 +10,8 @@ einer leeren Datenbank; Pläne, Bibliothek und Briefkopf legen die Bearbeitenden
 | Variable | Pflicht | Was ohne sie passiert |
 |---|---|---|
 | `SUITE_HOST_KOMMPLAN` | **ja** | Das Modul liefert nur auf seinem eigenen Host aus (Host-Riegel `_lib/host.ts`). Ohne Eintrag gibt es in Produktion **keinen** solchen Host: jede Seite, jeder Token-Link und jede Action antwortet 404, die Kachel fehlt im App-Umschalter. Derselbe Wert ist die Basis der Token-Links und des QR-Codes auf dem Ausdruck (`moduleUrl("kommplan")`) und steht auf der Allowlist der Anmeldung (`core/auth/redirect.ts`). |
-| `SUITE_ACCESS_GROUP_KOMMPLAN` | nur wenn die Pocket-ID-Gruppe anders heißt als `iuk-kommplan` | Zugang (ansehen, drucken) hat nur, wer die Registry-Gruppe trägt. **Leer gesetzt bricht den Boot ab** (`validateGroupConfig`). |
-| `SUITE_ADMIN_GROUP_KOMMPLAN` | nur wenn die Gruppe anders heißt als `iuk-kommplan-bearbeiten` | Leer gesetzt startet die Suite, aber bearbeiten (Pläne, Bibliothek, Einstellungen, Links) darf nur noch die Suite-Admin-Gruppe. |
+| `SUITE_ACCESS_GROUP_KOMMPLAN` | nur wenn die Pocket-ID-Gruppe anders heißt als `kommplan-nutzer` | Zugang (ansehen, drucken) hat nur, wer die Registry-Gruppe trägt. **Leer gesetzt bricht den Boot ab** (`validateGroupConfig`). |
+| `SUITE_ADMIN_GROUP_KOMMPLAN` | nur wenn die Gruppe anders heißt als `kommplan-admin` | Leer gesetzt startet die Suite, aber bearbeiten (Pläne, Bibliothek, Einstellungen, Links) darf nur noch die Suite-Admin-Gruppe. |
 | `KOMMPLAN_AV_HOST`/`_PORT`/`_TIMEOUT_MS` | nein | Vorgabe `clamav`, `3310`, `30000` — der Compose-Sidecar. |
 
 Die Bearbeitungsgruppe genügt für den Zugang; wer bearbeitet, braucht die Zugangsgruppe nicht

@@ -44,7 +44,7 @@ import {
  *
  * Host, Admin-Gruppe, Port und URLs kommen ausschliesslich aus
  * `e2e/helpers/lagerbuch.ts` (Festlegung H9, Ruling A9) — KEIN Literal wie
- * `"http://lagerbuch.localtest.me:3100"` oder `["lagerbuch_nutzer"]`. Der fremde
+ * `"http://lagerbuch.localtest.me:3100"` oder `["lagerbuch-admin"]`. Der fremde
  * Host ist `FREMDER_HOST` (`feedback.localtest.me`) — er ist die schaerfere
  * Probe, weil `moduleForHost` dort tatsaechlich ein Modul liefert (Festlegung
  * H8): der 404 unten kommt nachweislich aus `istLagerbuchHost`, nicht aus einem

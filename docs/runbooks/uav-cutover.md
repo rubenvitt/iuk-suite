@@ -23,8 +23,8 @@ danach) → §C (Cutover, Host-Schwenk) → §S (Standby 14 Tage) → §E (Abbau
 
 Diese vier Dinge stehen nicht im Repo und müssen vor der Generalprobe (§P) erledigt sein:
 
-1. **Gruppe `uav-training-admin` in Pocket ID anlegen, Mitglieder eintragen.** Das ist die
-   Vorgabe aus `src/core/registry.ts` (`adminGroups: ["uav-training-admin"]`, Betreiberentscheidung
+1. **Gruppe `uav-admin` in Pocket ID anlegen, Mitglieder eintragen.** Das ist die
+   Vorgabe aus `src/core/registry.ts` (`adminGroups: ["uav-admin"]`, Betreiberentscheidung
    28.08.2026); ein anderer Gruppenname geht über `SUITE_ADMIN_GROUP_UAV` in die `.env`
    (`_lib/requireUavAdmin.ts` prüft darüber, `core/groups.ts` löst auf). Ohne diese Gruppe sieht
    nach dem Cutover niemand die Verwaltung — nicht einmal ein Tippfehler in der Variable fällt
@@ -36,7 +36,7 @@ Diese vier Dinge stehen nicht im Repo und müssen vor der Generalprobe (§P) erl
    `uav-praxis`-Router auf demselben Namen):
    ```
    SUITE_HOST_UAV=uav-training.iuk-ue.de
-   SUITE_ADMIN_GROUP_UAV=uav-training-admin
+   SUITE_ADMIN_GROUP_UAV=uav-admin
    UAV_SW_MODUS=abraeumen
    ```
    `UAV_SW_MODUS` ist Pflicht, sobald `SUITE_HOST_UAV` gesetzt ist — fehlt sie oder ist sie
@@ -281,7 +281,7 @@ Bildgenerierung (`pnpm gen:images`, kein Prod-Geheimnis) und bleibt bestehen —
 
 | | Zeile | Fällig |
 |---|---|---|
-| ⬜ | Gruppe `uav-training-admin` in Pocket ID angelegt, Mitglieder drin | vor §P |
+| ⬜ | Gruppe `uav-admin` in Pocket ID angelegt, Mitglieder drin | vor §P |
 | ⬜ | Snapshot der Alt-DB (`.backup`) auf dem Server erzeugt | vor §P |
 | ⬜ | Traefik-Regel / `SUITE_HOST_UAV` gesetzt | §C |
 | ⬜ | Ein Teilnehmergerät für den Verify verfügbar (Magic-Link + alte Installation) | §C |

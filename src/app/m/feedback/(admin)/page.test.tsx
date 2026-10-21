@@ -54,8 +54,8 @@ vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 
 import FeedbackEinstieg from "./page";
 
-const ADMIN = { user: { id: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] } };
-const LEITER = { user: { id: "gl-1", groups: ["da-feedback-gl"], fachgruppen: [] } };
+const ADMIN = { user: { id: "admin-1", groups: ["feedback-admin"], fachgruppen: [] } };
+const LEITER = { user: { id: "gl-1", groups: ["feedback-nutzer"], fachgruppen: [] } };
 
 const NUR_SCHULNOTE: Question[] = [{ id: "q1", type: "schulnote", text: "Insgesamt?" }];
 

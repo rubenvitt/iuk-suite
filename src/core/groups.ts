@@ -7,10 +7,10 @@ import type { ModuleDef } from "@/core/registry";
  * (`core/auth/index.ts` für `session.user.isAdmin`, `portal/_lib/rbac.ts` für
  * das Portal-Gating), und jedes weitere Modul hätte sie ein drittes Mal
  * geschrieben. Spätestens mit `qr` geht das nicht mehr auf: dessen Admins
- * sitzen in `iuk-qr-admin`, nicht in der Portal-Gruppe.
+ * sitzen in `qr-admin`, nicht in der Portal-Gruppe.
  *
  * Drei Ebenen:
- * - **Suite-Admin** (`ADMIN_GROUP`, Default `dashboard-admins`) — der
+ * - **Suite-Admin** (`ADMIN_GROUP`, Default `admin`) — der
  *   Betreiber. Ist überall Admin, damit ein Modul nicht aussperrbar ist.
  * - **Modul-Admin** (`ModuleDef.adminGroups`, überschreibbar per
  *   `SUITE_ADMIN_GROUP_<KEY>`) — administriert genau ein Modul.
@@ -94,7 +94,7 @@ export function envAccessGroupsFor(key: string, env: EnvLike = process.env): str
 /** Suite-weite Admin-Gruppe. `ADMIN_GROUP` ohne Präfix — der Name ist historisch
  *  und steht so auf dem Server; nicht umbenennen ohne .env-Migration. */
 export function suiteAdminGroup(env: EnvLike = process.env): string {
-  return env.ADMIN_GROUP ?? "dashboard-admins";
+  return env.ADMIN_GROUP ?? "admin";
 }
 
 /** Modul-Admin-Gruppen: Env gewinnt, sonst der Registry-Wert. Leer gesetzt

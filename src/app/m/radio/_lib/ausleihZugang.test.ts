@@ -330,7 +330,7 @@ describe("radio-Ausleihzugang: die zwei Wege, und wer wen schlaegt", () => {
        */
       try {
         process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
-        sitzung = mitGruppen(["iuk-radio-admin"]);
+        sitzung = mitGruppen(["radio-admin"]);
         const z = await ausleihZugangOderNull(db as never);
         expect(z).toMatchObject({ weg: "suite", darfVerwalten: true });
       } finally {

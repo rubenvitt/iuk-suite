@@ -52,12 +52,12 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
  * Rolle bisher bedeutet hat — die FIXTUR wandert mit der Quelle, die ERWARTUNG bleibt stehen.
  *
  * SEIT `ROLLEN = ["auftrag", "bufdi"]` MUSS DER AUFRUFER ES SAGEN: aus der Zeile ist es nicht mehr
- * ableitbar. `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * ableitbar. `aufgaben-admin` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
 function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
   };
 }
 
@@ -156,9 +156,9 @@ describe("PersonenPage — Rollen-Gate (Spec §4: nur die Koordination verwaltet
 
 /**
  * DER NOTAUSGANG (Fix-Runde 1, Betreiberentscheidung 2026-08-14, Spec §4 "plus der Suite-Admin") —
- * geprueft auf der Route (`canAdminModule`), nicht im Praedikat. Die Gruppe "dashboard-admins" ist
+ * geprueft auf der Route (`canAdminModule`), nicht im Praedikat. Die Gruppe "admin" ist
  * der Vorgabewert von `suiteAdminGroup()` (`core/groups.ts`, ohne `ADMIN_GROUP` in der Testumgebung
- * gesetzt); "iuk-aufgaben-koordination" ist die modul-eigene Admin-Gruppe aus der Registry
+ * gesetzt); "aufgaben-admin" ist die modul-eigene Admin-Gruppe aus der Registry
  * (`core/registry.ts`s `adminGroups` fuer `aufgaben`) — `isModuleAdmin` laesst BEIDE durch.
  */
 describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
@@ -172,13 +172,13 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
   it("Suite-Admin OHNE eigene personen-Zeile bekommt die Seite mit dem Formular (Lesepfad)", async () => {
     // Bewusst KEINE `personen`-Zeile fuer diese Sitzung: eine frische Datenbank kennt ueberhaupt
     // keine Person, und genau das soll dieser Notausgang loesen.
-    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: "dev:admin@test", groups: ["admin"] } };
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
   });
 
-  it("die modul-eigene Admin-Gruppe (iuk-aufgaben-koordination) kommt ebenso hinein", async () => {
-    sitzung = { user: { id: "dev:modadmin@test", groups: ["iuk-aufgaben-koordination"] } };
+  it("die modul-eigene Admin-Gruppe (aufgaben-admin) kommt ebenso hinein", async () => {
+    sitzung = { user: { id: "dev:modadmin@test", groups: ["aufgaben-admin"] } };
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
   });
@@ -198,7 +198,7 @@ describe("PersonenPage — der Notausgang fuer den Suite-/Modul-Admin", () => {
    */
   it("Aussperr-Fall: die einzige (jetzt beendete) Koordinationsperson kommt als Suite-Admin trotzdem hinein", async () => {
     const exRike = legePerson("dev:ex-rike@test", "auftrag", { aktivBis: "2026-08-12" });
-    sitzung = { user: { id: exRike.sub, groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: exRike.sub, groups: ["admin"] } };
     await mount(await PersonenPage({ searchParams: Promise.resolve({}) }));
     expect(query("h1").textContent).toBe("Personenverwaltung");
   });

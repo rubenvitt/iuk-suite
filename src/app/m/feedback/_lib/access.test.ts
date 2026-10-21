@@ -8,8 +8,8 @@ import {
   hatFeedbackVerwaltungszugang,
 } from "./access";
 
-const admin = { sub: "a", groups: ["da-feedback-admin"], fachgruppen: [] };
-const gl = { sub: "g", groups: ["da-feedback-gl"], fachgruppen: [] };
+const admin = { sub: "a", groups: ["feedback-admin"], fachgruppen: [] };
+const gl = { sub: "g", groups: ["feedback-nutzer"], fachgruppen: [] };
 
 describe("isFeedbackAdmin", () => {
   it("true für Admin-Gruppe, false sonst/null", () => {
@@ -37,7 +37,7 @@ describe("isFeedbackAdmin", () => {
   it("der Suite-Admin MIT Feedback-Admin-Gruppe ist Admin — der Weg steht offen", () => {
     const beides = {
       sub: "b2",
-      groups: [suiteAdminGroup(), "da-feedback-admin"],
+      groups: [suiteAdminGroup(), "feedback-admin"],
       fachgruppen: [],
     };
     expect(isFeedbackAdmin(beides)).toBe(true);
@@ -124,7 +124,7 @@ describe("Zugang und Admin-Recht bei umbenannten SSO-Gruppen", () => {
   it("die alten Vorgabe-Gruppen tragen nach dem Umhaengen nicht mehr", () => {
     stubEnv();
     const erlaubt = requiredGroupsFor(getModule("feedback"), ENV);
-    expect(erlaubt).not.toContain("da-feedback-gl");
+    expect(erlaubt).not.toContain("feedback-nutzer");
     expect(gl.groups.some((g) => erlaubt.includes(g))).toBe(false);
     expect(isFeedbackAdmin(admin)).toBe(false);
   });

@@ -63,12 +63,12 @@ function legePerson(sub: string, extra: Partial<typeof personen.$inferInsert> = 
  * AUSDRUECKLICH AM AUFRUF — ableiten liesse es sich nicht mehr, `ROLLEN` kennt `koordination` nicht
  * mehr, und die beiden Achsen `rolle`/Gruppe sind unabhaengig geworden.
  *
- * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `aufgaben-admin` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
 function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
   };
 }
 

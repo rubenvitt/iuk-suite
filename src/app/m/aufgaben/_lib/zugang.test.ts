@@ -146,7 +146,7 @@ describe("personFuerSeite", () => {
  * die Zeile traegt sie NICHT mehr, und der Suite-Admin kommt mit durch. Sie brauchen keinen
  * zusaetzlichen Mock — `canAdminModule` (`core/auth/guards.ts`) liest dieselbe `auth()`-Attrappe
  * wie `personFuerSeite` und gleicht `session.user.groups` gegen die `adminGroups` des Moduls aus
- * `core/registry.ts` ab. `iuk-aufgaben-koordination` und `dashboard-admins` sind deren
+ * `core/registry.ts` ab. `aufgaben-admin` und `admin` sind deren
  * Vorgabewerte; sie stehen hier woertlich, weil `SUITE_ADMIN_GROUP_AUFGABEN`/`ADMIN_GROUP` in der
  * Testumgebung nicht gesetzt sind (der Fall, den der Betrieb per Env ueberschreibt, ist Sache von
  * `core/groups.test.ts`, nicht dieser Datei).
@@ -154,7 +154,7 @@ describe("personFuerSeite", () => {
 describe("akteurFuerSeite — die Koordination kommt aus der Gruppe, nicht aus der Zeile", () => {
   it("eine auftrag-Zeile MIT Koordinationsgruppe koordiniert", async () => {
     legePerson("dev:malte@localtest.me", "auftrag");
-    sitzung = { user: { id: "dev:malte@localtest.me", groups: ["iuk-aufgaben-koordination"] } };
+    sitzung = { user: { id: "dev:malte@localtest.me", groups: ["aufgaben-admin"] } };
     const a = await akteurFuerSeite(t.db);
     expect(a?.istKoordination).toBe(true);
   });
@@ -174,14 +174,14 @@ describe("akteurFuerSeite — die Koordination kommt aus der Gruppe, nicht aus d
 
   it("der Suite-Admin koordiniert — der Notausgang aus personen/page.tsx gilt jetzt modulweit", async () => {
     legePerson("dev:betreiber@localtest.me", "bufdi");
-    sitzung = { user: { id: "dev:betreiber@localtest.me", groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: "dev:betreiber@localtest.me", groups: ["admin"] } };
     const a = await akteurFuerSeite(t.db);
     expect(a?.istKoordination).toBe(true);
   });
 
   it("die Personenzeile selbst bleibt unberuehrt — nur `istKoordination` wechselt die Quelle", async () => {
     const malte = legePerson("dev:malte2@localtest.me", "auftrag");
-    sitzung = { user: { id: "dev:malte2@localtest.me", groups: ["iuk-aufgaben-koordination"] } };
+    sitzung = { user: { id: "dev:malte2@localtest.me", groups: ["aufgaben-admin"] } };
     const a = await akteurFuerSeite(t.db);
     expect(a?.person).toEqual(malte);
     expect(a?.person.rolle).toBe("auftrag");
@@ -202,7 +202,7 @@ describe("akteurFuerSeite — die Koordination kommt aus der Gruppe, nicht aus d
  * prueft der Fall das Ergebnis von `bufdis()` selbst und nicht nur den Rollenwert.
  */
 describe("akteurFuerSeite — die Koordination bekommt ihre Zeile beim ersten Aufruf", () => {
-  const KOORDINATION = { id: "dev:rike@localtest.me", groups: ["iuk-aufgaben-koordination"] };
+  const KOORDINATION = { id: "dev:rike@localtest.me", groups: ["aufgaben-admin"] };
 
   it("legt eine Zeile an, wenn die Gruppe da ist und keine Zeile existiert", async () => {
     sitzung = { user: { ...KOORDINATION, name: "Rike Petersen" } };
@@ -236,7 +236,7 @@ describe("akteurFuerSeite — die Koordination bekommt ihre Zeile beim ersten Au
 
   /*
    * DER SUITE-ADMIN BEKOMMT DIE ZEILE AUCH — GEPRUEFT, WEIL ES EINE ENTSCHEIDUNG IST UND KEIN
-   * NEBENEFFEKT (Review-Runde zum Quellenwechsel). `isModuleAdmin` laesst `dashboard-admins` neben
+   * NEBENEFFEKT (Review-Runde zum Quellenwechsel). `isModuleAdmin` laesst `admin` neben
    * der Modulgruppe passieren (`core/groups.ts`), und der Entwurf will diesen Rueckweg
    * ausdruecklich: ohne Zeile saehe der Betreiber die Flaechen, koennte aber nichts einstellen,
    * verteilen oder freigeben. Der Preis ist eine Zeile in `/personen`, die die Koordination nicht
@@ -247,7 +247,7 @@ describe("akteurFuerSeite — die Koordination bekommt ihre Zeile beim ersten Au
    * beantwortet werden, statt sich still zu erledigen.
    */
   it("der Suite-Admin bekommt sie ebenfalls — der Rueckweg waere sonst nur der Lesepfad", async () => {
-    sitzung = { user: { id: "dev:betreiber@localtest.me", groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: "dev:betreiber@localtest.me", groups: ["admin"] } };
     const a = await akteurFuerSeite(t.db);
     expect(a?.person.sub).toBe("dev:betreiber@localtest.me");
     expect(a?.person.rolle).toBe("auftrag");

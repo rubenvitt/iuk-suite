@@ -14,7 +14,7 @@ describe("parseGroups", () => {
 
 describe("parseDevGroups", () => {
   it("splits a comma string, trims, drops empties", () => {
-    expect(parseDevGroups("alpha-users, dashboard-admins ,")).toEqual(["alpha-users", "dashboard-admins"]);
+    expect(parseDevGroups("alpha-users, admin ,")).toEqual(["alpha-users", "admin"]);
   });
   it("handles undefined", () => {
     expect(parseDevGroups(undefined)).toEqual([]);

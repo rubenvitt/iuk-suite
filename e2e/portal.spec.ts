@@ -22,12 +22,12 @@ test("portal und Kopfumschalter blenden Apps ohne passende Pocket-ID-Gruppe aus"
 });
 
 test("portal zeigt eine geschuetzte App bei passender Pocket-ID-Gruppe", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins" });
+  await devLogin(page, { host: "portal.localtest.me", groups: "admin" });
   await expect(page.getByText("Vaultwarden")).toBeVisible();
 });
 
 test("admin can create a service", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
+  await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
   await page.getByLabel("slug").fill("neu");
   await page.getByLabel("name").fill("Neuer Dienst");
   await page.getByLabel("url").fill("https://neu.iuk-ue.de");
@@ -43,7 +43,7 @@ test("admin can create a service", async ({ page }) => {
  * ist der Weg, den ein Ausfall des Verzeichnisses uebrig laesst.
  */
 test("admin legt einen Dienst nur fuer eine Gruppe an", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
+  await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
   await page.getByLabel("slug").fill("funk-intern");
   await page.getByLabel("name").fill("Funk intern");
   await page.getByLabel("url").fill("https://funk.iuk-ue.de");
@@ -72,7 +72,7 @@ test("admin legt einen Dienst nur fuer eine Gruppe an", async ({ page }) => {
 });
 
 test("admin can delete a service", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
+  await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
   // Eigener, eindeutiger Dienst: die Seed-Daten bleiben unangetastet (der erste
   // Test prueft BookStack sichtbar), und ein eigener Name entkoppelt den Test
   // vom Anlege-Test — beide teilen bei `workers:1` dieselbe, einmal gewischte DB.
@@ -159,7 +159,7 @@ test("die Kachelkante steht in Ruhe auf --iuk-linie und im Hover auf --iuk-marke
  * ohne Gruppen sieht, soll hier nicht entscheiden, ob der Test etwas beweist.
  */
 test("ein langer Kacheltitel bricht auf dem Telefon innerhalb der Kachel um", async ({ page }) => {
-  await devLogin(page, { host: "portal.localtest.me", groups: "dashboard-admins", callbackPath: "/admin" });
+  await devLogin(page, { host: "portal.localtest.me", groups: "admin", callbackPath: "/admin" });
   await page.getByLabel("slug").fill("lang");
   await page.getByLabel("name").fill("Einsatzkommunikationsplanverwaltung");
   await page.getByLabel("url").fill("https://lang.iuk-ue.de");

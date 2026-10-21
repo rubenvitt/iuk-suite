@@ -32,8 +32,8 @@ describe("teilnehmerAnlegenAction", () => {
     expect(alleTeilnehmer(getDb())).toEqual([]);
   });
 
-  it("mit uav-training-admin legt an, der Code hat 8 Zeichen", async () => {
-    gruppen = ["uav-training-admin"];
+  it("mit uav-admin legt an, der Code hat 8 Zeichen", async () => {
+    gruppen = ["uav-admin"];
     const { teilnehmerAnlegenAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "Bruno");
@@ -44,8 +44,8 @@ describe("teilnehmerAnlegenAction", () => {
     expect(teilnehmer.loginCode).toHaveLength(8);
   });
 
-  it("Suite-Admin (dashboard-admins) darf ebenfalls anlegen", async () => {
-    gruppen = ["dashboard-admins"];
+  it("Suite-Admin (admin) darf ebenfalls anlegen", async () => {
+    gruppen = ["admin"];
     const { teilnehmerAnlegenAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "Carla");
@@ -54,7 +54,7 @@ describe("teilnehmerAnlegenAction", () => {
   });
 
   it("leerer Name wirft (Zod)", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerAnlegenAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "");
@@ -69,7 +69,7 @@ describe("teilnehmerAendernAction", () => {
   });
 
   it("ändert Name, Beginn und Status", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerAnlegenAction, teilnehmerAendernAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "Dora");
@@ -82,7 +82,7 @@ describe("teilnehmerAendernAction", () => {
   });
 
   it("unbekannte id wirft NotFound", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerAendernAction } = await import("./teilnehmer");
     await expect(teilnehmerAendernAction("unbekannt", { name: "X" })).rejects.toThrow(NotFound);
   });
@@ -90,7 +90,7 @@ describe("teilnehmerAendernAction", () => {
 
 describe("codeNeuAction", () => {
   it("ohne Gruppe wirft Forbidden, der Code bleibt unverändert", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerAnlegenAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "Elke");
@@ -104,7 +104,7 @@ describe("codeNeuAction", () => {
   });
 
   it("erzeugt einen neuen, 8-stelligen Code", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerAnlegenAction, codeNeuAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "Frieda");
@@ -122,7 +122,7 @@ describe("teilnehmerLoeschenAction", () => {
   });
 
   it("löscht einen vorhandenen Teilnehmer", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerAnlegenAction, teilnehmerLoeschenAction } = await import("./teilnehmer");
     const fd = new FormData();
     fd.set("name", "Gustav");
@@ -134,7 +134,7 @@ describe("teilnehmerLoeschenAction", () => {
   });
 
   it("unbekannte id wirft NotFound", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { teilnehmerLoeschenAction } = await import("./teilnehmer");
     await expect(teilnehmerLoeschenAction("unbekannt")).rejects.toThrow(NotFound);
   });

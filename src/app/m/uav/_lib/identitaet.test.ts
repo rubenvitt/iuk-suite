@@ -56,7 +56,7 @@ describe("identitaetAus", () => {
   });
 
   it("Suite-Session mit Modul-Admin-Gruppe → admin", async () => {
-    session = { user: { id: "sub-1", name: "Root", email: "r@x", groups: ["uav-training-admin"] } };
+    session = { user: { id: "sub-1", name: "Root", email: "r@x", groups: ["uav-admin"] } };
     const { identitaetAus } = await import("./identitaet");
     const { getDb } = await import("../_db/client");
     const req = new Request("http://x");

@@ -95,9 +95,9 @@ function akteur(p: PersonRow, istKoordination = false): Akteur {
   return { person: p, istKoordination };
 }
 
-/** `iuk-aufgaben-koordination` ist der Registry-Vorgabewert — dieselbe Fixtur wie `nav.test.ts`. */
+/** `aufgaben-admin` ist der Registry-Vorgabewert — dieselbe Fixtur wie `nav.test.ts`. */
 function anmelden(p: PersonRow, koordiniert = false): void {
-  sitzung = { user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] } };
+  sitzung = { user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] } };
 }
 
 /* ── 1 · JEDES KAPITEL IST VOLLSTAENDIG UND IN SICH STIMMIG ─────────────────────────────────── */

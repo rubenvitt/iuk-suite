@@ -105,7 +105,7 @@ describe("g/[code] — die Rollen-Weiche (§3.2.1, §11.3)", () => {
   });
 
   it("leitet den Admin bei einem Geraetetreffer weiter", async () => {
-    viewer.wert = { sub: "u1", groups: ["lagerbuch_nutzer"] };
+    viewer.wert = { sub: "u1", groups: ["lagerbuch-admin"] };
     treffer.geraet = { id: "g1" };
     await expect(GeraetDeepLink({ params: params("4012345678901") }))
       .rejects.toThrow("REDIRECT:/verwaltung/geraete/g1");
@@ -115,7 +115,7 @@ describe("g/[code] — die Rollen-Weiche (§3.2.1, §11.3)", () => {
    *  global eindeutig (geraetSpeichern prueft das), daher genuegt die
    *  Reihenfolge. 1:1 aus page.tsx:29-32. */
   it("leitet den Admin bei einem BZ-Treffer weiter", async () => {
-    viewer.wert = { sub: "u1", groups: ["lagerbuch_nutzer"] };
+    viewer.wert = { sub: "u1", groups: ["lagerbuch-admin"] };
     treffer.bz = { id: "b1" };
     await expect(GeraetDeepLink({ params: params("4012345678901") }))
       .rejects.toThrow("REDIRECT:/verwaltung/bz/b1");
@@ -124,7 +124,7 @@ describe("g/[code] — die Rollen-Weiche (§3.2.1, §11.3)", () => {
   /** ÄUSSERE Pfadform in jedem Redirect-Ziel (§2.1 g): unter dem Host-Rewrite
    *  fuehrt /verwaltung/geraete/g1 richtig, /m/lagerbuch/... waere doppelt. */
   it("benutzt in den Zielen die aeussere Pfadform", async () => {
-    viewer.wert = { sub: "u1", groups: ["lagerbuch_nutzer"] };
+    viewer.wert = { sub: "u1", groups: ["lagerbuch-admin"] };
     treffer.geraet = { id: "g1" };
     await expect(GeraetDeepLink({ params: params("x") })).rejects.toThrow();
     expect(redirect).toHaveBeenCalledWith("/verwaltung/geraete/g1");
@@ -137,7 +137,7 @@ describe("g/[code] — die Rollen-Weiche (§3.2.1, §11.3)", () => {
    * Barcode `ab#1` am Gate nur `/g/ab`, eine Id `g#1` im Ziel nur `g`.
    */
   it("fuehrt eine Id mit Trennzeichen vollstaendig ins Ziel", async () => {
-    viewer.wert = { sub: "u1", groups: ["lagerbuch_nutzer"] };
+    viewer.wert = { sub: "u1", groups: ["lagerbuch-admin"] };
     treffer.geraet = { id: "g#1?x=/2" };
     await expect(GeraetDeepLink({ params: params("x") })).rejects.toThrow();
     const ziel = new URL(redirect.mock.calls[0][0], "https://lagerbuch.example.org");
@@ -156,7 +156,7 @@ describe("g/[code] — die Rollen-Weiche (§3.2.1, §11.3)", () => {
 });
 
 describe("g/[code] — der eine gerenderte Zustand (§11.3, 8-C2)", () => {
-  beforeEach(() => { viewer.wert = { sub: "u1", groups: ["lagerbuch_nutzer"] }; });
+  beforeEach(() => { viewer.wert = { sub: "u1", groups: ["lagerbuch-admin"] }; });
 
   /**
    * ALTE FASSUNG: page.tsx:33 ruft notFound(). NEUE FASSUNG: HTTP 200 mit einem

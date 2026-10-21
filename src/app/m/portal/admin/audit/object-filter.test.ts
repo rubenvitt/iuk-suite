@@ -8,11 +8,11 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { randomUUID } from "node:crypto";
 import { insertAuditRow, recordAuditEvent, withAuditDatabase } from "@/core/audit/storage";
 import { safeAuditReference, withAuditContext } from "@/core/audit/context";
-vi.mock("@/core/auth",()=>({auth:async()=>({user:{id:"confirmed-admin",groups:["dashboard-admins"]}})}));
+vi.mock("@/core/auth",()=>({auth:async()=>({user:{id:"confirmed-admin",groups:["admin"]}})}));
 import { GET } from "./data/route";
 let dir:string;
 beforeEach(()=>{
- dir=mkdtempSync(join(tmpdir(),"audit-object-handler-"));vi.stubEnv("DATA_DIR",dir);vi.stubEnv("ADMIN_GROUP","dashboard-admins");
+ dir=mkdtempSync(join(tmpdir(),"audit-object-handler-"));vi.stubEnv("DATA_DIR",dir);vi.stubEnv("ADMIN_GROUP","admin");
  const db=new Database(join(dir,"audit.db"));try{migrate(drizzle(db),{migrationsFolder:"src/core/audit/_db/migrations"});}finally{db.close();}
 });
 afterEach(()=>{rmSync(dir,{recursive:true,force:true});vi.unstubAllEnvs();});

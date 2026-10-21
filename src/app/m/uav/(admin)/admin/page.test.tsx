@@ -79,8 +79,8 @@ describe("teilnehmerInhalt — Kopf, Formular, Tabelle", () => {
 });
 
 describe("AdminTeilnehmerPage — Gate", () => {
-  it("mit uav-training-admin: rendert die Übersicht mit dem angelegten Teilnehmer", async () => {
-    sitzung = { user: { id: "sub-1", groups: ["uav-training-admin"] } };
+  it("mit uav-admin: rendert die Übersicht mit dem angelegten Teilnehmer", async () => {
+    sitzung = { user: { id: "sub-1", groups: ["uav-admin"] } };
     teilnehmerAnlegen(mockDb, "Carla");
     await mount(await AdminTeilnehmerPage());
     expect(query("h1").textContent).toBe("Teilnehmer");

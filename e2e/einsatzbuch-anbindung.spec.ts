@@ -112,7 +112,7 @@ async function rechnerAnlegen(
 
 test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
   test("mit Sitzung und Gruppe: Weiterleitung mit code und state auf 127.0.0.1, echter 307", async ({ page }) => {
-    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     const port = zufallsPort();
     const st = state();
     const ch = challengeRoh();
@@ -138,7 +138,7 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
   });
 
   test("ohne Gruppe: Kein Zugang zum Einsatzbuch, keine Weiterleitung", async ({ page }) => {
-    await devLogin(page, { host: HOST, groups: "dashboard-admins", callbackPath: "/login" });
+    await devLogin(page, { host: HOST, groups: "admin", callbackPath: "/login" });
     const port = zufallsPort();
     const rueckruf = loopbackServer(port);
     try {
@@ -174,7 +174,7 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
 
     const rueckruf = loopbackServer(port);
     try {
-      await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: decodeURIComponent(callbackUrl!) });
+      await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: decodeURIComponent(callbackUrl!) });
       const empfangen = await rueckruf.wait();
       expect(empfangen.get("state")).toBe(st);
       expect(empfangen.get("code")).toBeTruthy();
@@ -184,7 +184,7 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
   });
 
   test("echt bei vorhandenem echtem Rechner fragt nach und leitet erst nach Ersetzen", async ({ page, request }) => {
-    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     // Legt den vorhandenen echten Rechner über die API an — das echte Schlüsselpaar dafür
     // stellt `e2e/seed-einsatzbuch.ts` vor `next dev` sicher (`playwright.config.ts`).
     await rechnerAnlegen(page, request, { art: "echt", name: "Erster Leitrechner" });
@@ -220,7 +220,7 @@ test.describe("Anmeldeseite des Einsatzbuch-Rechners", () => {
  */
 test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
   test("listet einen Test-Rechner und löscht ihn nach Bestätigung", async ({ page, request }) => {
-    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     const name = `Testrechner ${Date.now()}`;
     const { geraeteToken } = await rechnerAnlegen(page, request, { art: "test", name });
 
@@ -252,7 +252,7 @@ test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
    * spurlos — er steht mit seinen Abweichungen unter der Karte des aktiven Rechners.
    */
   test("ein widerrufener echter Rechner mit Abweichung steht unter der Karte des aktiven Rechners", async ({ page, request }) => {
-    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     const name = `Leitrechner ${Date.now()}`;
     const { geraeteToken } = await rechnerAnlegen(page, request, { art: "echt", name });
 
@@ -282,7 +282,7 @@ test.describe("Rechnerseite der Einsatzbuch-Verwaltung", () => {
 
 test.describe("Übersicht der Einsatzbuch-Verwaltung", () => {
   test("zeigt Rechnerstatus", async ({ page, request }) => {
-    await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+    await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
     await rechnerAnlegen(page, request, { art: "test", name: `Statusrechner ${Date.now()}` });
 
     await page.goto(url("/"));

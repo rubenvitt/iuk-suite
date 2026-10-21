@@ -64,7 +64,7 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  *      Dauerfall prueft deshalb eine Menge von Umleitungscodes, nicht die Zahl.
  *   B  `/admin` MIT Sitzung, ohne beide Gruppen        -> HTTP 404 (nicht 403), dazu die
  *      Protokollzeile aus `_lib/zugang.ts` im Serverstrom: „[radio] Zugriff auf /admin
- *      abgelehnt: keine der Gruppen [ iuk-radio-admin ] in den Token-Gruppen [ ]".
+ *      abgelehnt: keine der Gruppen [ radio-admin ] in den Token-Gruppen [ ]".
  *   C  `/admin` mit der Updater-Gruppe -> HTTP 200, und die Modulleiste traegt genau VIER
  *      `nav-link`-Knoten (`_lib/nav.ts:94` filtert `NUR_ADMIN` aus, die Liste steht `:51`).
  *   D  `/admin/versionen` mit der Updater-Gruppe -> HTTP 404, mit der Admin-Gruppe -> 200.

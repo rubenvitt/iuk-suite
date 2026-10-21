@@ -26,8 +26,8 @@ describe("GET /api/admin/participants/export", () => {
 
   /** Seit DRK-186 eine Excel-Mappe statt einer CSV. Der äußere Pfad bleibt
    *  derselbe; nur Medientyp und Dateiname wechseln. */
-  it("mit uav-training-admin → Excel-Mappe mit Überschriftszeile", async () => {
-    gruppen = ["uav-training-admin"];
+  it("mit uav-admin → Excel-Mappe mit Überschriftszeile", async () => {
+    gruppen = ["uav-admin"];
     const { getDb } = await import("../../../../_db/client");
     const { teilnehmerAnlegen } = await import("../../../../_lib/queries");
     teilnehmerAnlegen(getDb(), "Ada", "2026-01-01");
@@ -58,7 +58,7 @@ describe("GET /api/admin/participants/export", () => {
    * NICHT in der Zeichenkettentabelle auftauchen.
    */
   it("schreibt die Zahlenspalten als Zahlen, nicht als Text", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { getDb } = await import("../../../../_db/client");
     const { teilnehmerAnlegen } = await import("../../../../_lib/queries");
     teilnehmerAnlegen(getDb(), "Ada", "2026-01-01");

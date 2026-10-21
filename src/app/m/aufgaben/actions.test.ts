@@ -170,14 +170,14 @@ function legeRoutine(extra: Partial<typeof routinen.$inferInsert> & { personId: 
  * Zeile ist es nicht mehr ableitbar — sie traegt `auftrag` wie jede andere Auftraggeber-Zeile, und
  * genau das ist der Punkt des Umbaus.
  *
- * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `aufgaben-admin` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt. Die wenigen Tests, die eine
  * Sitzung MIT ausdruecklichen Gruppen brauchen (Suite-Admin, Modul-Admin ohne Zeile), setzen
  * `sitzung` weiterhin selbst — sie pruefen genau diese Gruppenfrage.
  */
 function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
   };
 }
 
@@ -2702,11 +2702,11 @@ describe("personAnlegenAction", () => {
    * Produktionscode genau einen Aufrufer — diese Action. Wirft sie, ist das Modul ohne direkten
    * Datenbankeingriff nicht in Betrieb zu nehmen.
    *
-   * "dashboard-admins" ist der Vorgabewert von `suiteAdminGroup()` (`core/groups.ts`) — dieselbe
+   * "admin" ist der Vorgabewert von `suiteAdminGroup()` (`core/groups.ts`) — dieselbe
    * Gruppe, mit der `personen/page.test.tsx` die Route-Haelfte desselben Notausgangs prueft.
    */
   it("Suite-Admin OHNE eigene personen-Zeile legt die erste Person an — die Zeile steht danach in der Datenbank", async () => {
-    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: "dev:admin@test", groups: ["admin"] } };
 
     const ergebnis = await personAnlegenAction({ ok: true }, form());
     expect(ergebnis).toEqual({ ok: true });
@@ -2721,8 +2721,8 @@ describe("personAnlegenAction", () => {
     expect(t.db.select().from(personen).all()).toHaveLength(1);
   });
 
-  it("die modul-eigene Admin-Gruppe (iuk-aufgaben-koordination) legt ebenso an", async () => {
-    sitzung = { user: { id: "dev:modadmin@test", groups: ["iuk-aufgaben-koordination"] } };
+  it("die modul-eigene Admin-Gruppe (aufgaben-admin) legt ebenso an", async () => {
+    sitzung = { user: { id: "dev:modadmin@test", groups: ["aufgaben-admin"] } };
 
     expect(await personAnlegenAction({ ok: true }, form())).toEqual({ ok: true });
     expect(t.db.select().from(personen).all()).toHaveLength(1);
@@ -2825,7 +2825,7 @@ describe("personAendernAction", () => {
    * (`darfPersonenVerwalten` misst sie nicht mehr an `istAktiv`) — dieser Fall prueft seither den
    * ZWEITEN Weg, die Suite-Admin-Gruppe, und der traegt auch dann noch, wenn
    * `SUITE_ADMIN_GROUP_AUFGABEN` fehlkonfiguriert ist. Genau deshalb steht die Sitzung hier mit
-   * `dashboard-admins` und NICHT mit der Koordinationsgruppe.
+   * `admin` und NICHT mit der Koordinationsgruppe.
    *
    * DAS AUSDRUECKLICHE `rolle` IM FORMULAR IST PFLICHT UND KEINE FIXTUR-KOSMETIK: das `form()`
    * dieser Gruppe traegt sonst `bufdi`, und eine Reaktivierung, die die Person dabei still zur
@@ -2840,7 +2840,7 @@ describe("personAendernAction", () => {
    */
   it("Aussperr-Fall: die beendete einzige Koordinationsperson reaktiviert sich als Suite-Admin — mit ihrer Rolle", async () => {
     const exRike = legePerson("dev:rike@test", "auftrag", { aktivBis: "2026-08-12" });
-    sitzung = { user: { id: exRike.sub, groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: exRike.sub, groups: ["admin"] } };
 
     const ergebnis = await personAendernAction(
       { ok: true },
@@ -2894,7 +2894,7 @@ describe("personBeendenAction — setzt aktivBis auf HEUTE", () => {
    */
   it("Suite-Admin OHNE eigene personen-Zeile beendet eine Person", async () => {
     const ziel = legePerson("dev:alina@test", "bufdi", { aktivBis: null });
-    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: "dev:admin@test", groups: ["admin"] } };
 
     await personBeendenAction(form(ziel.id));
     expect(personNachId(t.db, ziel.id)!.aktivBis).toBe(HEUTE);
@@ -3016,7 +3016,7 @@ describe("personenSucheAction — die Personensuche im Verzeichnis", () => {
 
   it("der Suite-Admin darf ebenfalls suchen — derselbe Rueckweg wie ueberall im Modul", async () => {
     mitVerzeichnis();
-    sitzung = { user: { id: "dev:admin@test", groups: ["dashboard-admins"] } };
+    sitzung = { user: { id: "dev:admin@test", groups: ["admin"] } };
 
     const ergebnis = await personenSucheAction("bendix");
 

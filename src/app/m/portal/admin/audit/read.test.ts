@@ -8,12 +8,12 @@ import { transferAuditEvents } from "@/core/audit/transfer";
 import { readAuditView } from "./read";
 import { GET } from "./data/route";
 beforeEach(()=>{
- vi.stubEnv("ADMIN_GROUP","dashboard-admins");vi.stubEnv("SUITE_ADMIN_GROUP_PORTAL","portal-only");
- vi.mocked(auth).mockResolvedValue({user:{id:"suite",groups:["dashboard-admins"]}} as never);
+ vi.stubEnv("ADMIN_GROUP","admin");vi.stubEnv("SUITE_ADMIN_GROUP_PORTAL","portal-only");
+ vi.mocked(auth).mockResolvedValue({user:{id:"suite",groups:["admin"]}} as never);
  vi.mocked(queryAuditEvents).mockReset().mockReturnValue({events:[]});
  vi.mocked(transferAuditEvents).mockReset().mockReturnValue({transferred:0,pending:0,expired:0,failures:[]});
 });
-it.each([null,[],["regular"],["iuk-qr-admin"],["portal-only"]])("never reaches storage or transfer for %j through helper or direct GET",async groups=>{
+it.each([null,[],["regular"],["qr-admin"],["portal-only"]])("never reaches storage or transfer for %j through helper or direct GET",async groups=>{
  vi.mocked(auth).mockResolvedValue((groups ? {user:{id:"user",groups,isAdmin:true}} : null) as never);
  await expect(readAuditView({})).rejects.toThrow("Forbidden");
  expect((await GET(new Request("http://portal.localtest.me/admin/audit/data"))).status).toBe(403);

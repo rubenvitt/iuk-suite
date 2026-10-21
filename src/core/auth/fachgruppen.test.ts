@@ -10,7 +10,7 @@ describe("parseFachgruppen", () => {
   // Sicherheitsgrenze: fehlender Claim ergibt die LEERE Menge, nie "alle".
   it("liefert [] wenn der Claim ganz fehlt", () => {
     expect(parseFachgruppen({})).toEqual([]);
-    expect(parseFachgruppen({ groups: ["da-feedback-gl"] })).toEqual([]);
+    expect(parseFachgruppen({ groups: ["feedback-nutzer"] })).toEqual([]);
   });
 
   it("liefert [] bei leerem Array", () => {

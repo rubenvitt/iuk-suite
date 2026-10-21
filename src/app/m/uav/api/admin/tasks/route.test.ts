@@ -25,8 +25,8 @@ describe("GET /api/admin/tasks", () => {
     expect((await GET(get())).status).toBe(403);
   });
 
-  it("mit uav-training-admin → 200, inklusive inaktive", async () => {
-    gruppen = ["uav-training-admin"];
+  it("mit uav-admin → 200, inklusive inaktive", async () => {
+    gruppen = ["uav-admin"];
     const { getDb } = await import("../../../_db/client");
     const { taskAnlegen } = await import("../../../_lib/queries");
     taskAnlegen(getDb(), {
@@ -42,7 +42,7 @@ describe("GET /api/admin/tasks", () => {
   });
 
   it("fremder Host → 404", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { GET } = await import("./route");
     expect((await GET(get("iuk-ue.de"))).status).toBe(404);
   });
@@ -56,7 +56,7 @@ describe("POST /api/admin/tasks", () => {
   });
 
   it("legt Aufgabe mit Defaults an", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { POST } = await import("./route");
     const res = await POST(post({ teil: 1, nummer: "1.1", titel: "Start" }));
     expect(res.status).toBe(201);
@@ -68,13 +68,13 @@ describe("POST /api/admin/tasks", () => {
   });
 
   it("ungültiger Body → 400", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { POST } = await import("./route");
     expect((await POST(post({ teil: 9, nummer: "1.1", titel: "Start" }))).status).toBe(400);
   });
 
   it("ungültiges JSON → 400 invalid_json (nicht validation_error)", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { POST } = await import("./route");
     const req = new Request("http://x/api/admin/tasks", {
       method: "POST",

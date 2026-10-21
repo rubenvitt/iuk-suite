@@ -100,7 +100,7 @@ import {
  *
  * ⛔ HOST, GRUPPE, PORT UND CODES KOMMEN AUSSCHLIESSLICH AUS `e2e/helpers/radio.ts`
  * (Bauform-Zulaessigkeitstafel Nr. 19) — kein Literal wie `"http://radio.localtest.me:3100"`
- * oder `"iuk-radio-admin"`: mit einem falschen Wert bezeugte der Lauf den Riegel-404 und saehe
+ * oder `"radio-admin"`: mit einem falschen Wert bezeugte der Lauf den Riegel-404 und saehe
  * dabei aus wie ein bestandener Test.
  *
  * ⛔ ANGEMELDET MIT DER RADIO-ADMIN-GRUPPE, UND NICHT MIT `groups: ""`. Sonst waere der 404 der

@@ -66,7 +66,7 @@ vi.mock("../../_ui/BoxEinraeumen", () => ({
 import EinraeumenSeite, { dynamic as seiteDynamic } from "./page";
 import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
 
-const VIEWER = { sub: "u-gf", groups: ["lagerbuch_nutzer"], name: "G. Führer", email: null };
+const VIEWER = { sub: "u-gf", groups: ["lagerbuch-admin"], name: "G. Führer", email: null };
 
 const POSTEN = [{ artikelId: "art-1", artikelName: "Kühlkompresse", fach: "A-01", artikelAktiv: true }];
 

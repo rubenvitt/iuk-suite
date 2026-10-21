@@ -53,8 +53,8 @@ describe("devGroupChoices", () => {
     expect(auswahl).toContain("andere-alpha-nutzer");
     // Die überschriebene Vorgabe ist verschwunden — sie bedeutet in dieser
     // Instanz nichts mehr, und ein Häkchen dafür wäre eine Falschauskunft.
-    expect(auswahl).not.toContain("iuk-files-admin");
-    expect(auswahl).not.toContain("dashboard-admins");
+    expect(auswahl).not.toContain("files-admin");
+    expect(auswahl).not.toContain("admin");
   });
 });
 
@@ -64,8 +64,8 @@ describe("devGroupChoices", () => {
  */
 describe("vereinigeGruppen", () => {
   it("ohne Häkchen: der Freitext, getrimmt und ohne Leeres", () => {
-    expect(vereinigeGruppen([], "alpha-users, dashboard-admins ,")).toBe(
-      "alpha-users,dashboard-admins",
+    expect(vereinigeGruppen([], "alpha-users, admin ,")).toBe(
+      "alpha-users,admin",
     );
     expect(vereinigeGruppen([], "")).toBe("");
   });

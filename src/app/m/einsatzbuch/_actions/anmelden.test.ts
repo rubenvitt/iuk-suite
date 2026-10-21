@@ -35,21 +35,21 @@ describe("ersetzenBestaetigenAction", () => {
   });
 
   it("mit fremdem Host: Forbidden", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     host = "feedback.localtest.me";
     const { ersetzenBestaetigenAction } = await import("./anmelden");
     await expect(ersetzenBestaetigenAction(formular())).rejects.toThrow("Forbidden");
   });
 
   it("ungültige Formularwerte werfen, statt einen Code zu erzeugen", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { ersetzenBestaetigenAction } = await import("./anmelden");
     await expect(ersetzenBestaetigenAction(formular({ state: "zu-kurz" }))).rejects.toThrow("Anmeldung ungültig.");
     expect(nav.redirect).not.toHaveBeenCalled();
   });
 
   it("mit Gruppe: ein Code mit ersetzen=1 steht in der DB, redirect zeigt auf 127.0.0.1", async () => {
-    gruppen = ["einsatzbuch-verwaltung"];
+    gruppen = ["einsatzbuch-nutzer"];
     const { ersetzenBestaetigenAction } = await import("./anmelden");
     await expect(ersetzenBestaetigenAction(formular())).rejects.toThrow(
       new RegExp(`^NEXT_REDIRECT http://127\\.0\\.0\\.1:54321/rueckruf\\?code=.+&state=${GUELTIG.state}$`),

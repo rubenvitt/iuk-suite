@@ -14,12 +14,12 @@ describe("Registry-Eintrag uav", () => {
    * hier stehen, bevor jemand daraus auf eine Hülle schließt, die es nicht
    * mehr gibt.
    */
-  it("ist ein anonymes Modul mit der Admin-Gruppe uav-training-admin", () => {
+  it("ist ein anonymes Modul mit der Admin-Gruppe uav-admin", () => {
     const m = getModule("uav");
     expect(m.shell).toBe("minimal");
     expect(m.requiresAuth).toBe(false);
     expect(m.requiredGroups).toEqual([]);
-    expect(m.adminGroups).toEqual(["uav-training-admin"]);
+    expect(m.adminGroups).toEqual(["uav-admin"]);
     expect(m.showInSwitcher).toBe(true);
     expect(m.switcherGroupSources).toEqual(["admin"]);
   });
@@ -30,7 +30,7 @@ describe("Registry-Eintrag uav", () => {
   });
   it("Admin nur mit Gruppe — und SUITE_ADMIN_GROUP_UAV gewinnt", () => {
     const m = getModule("uav");
-    expect(isModuleAdmin(m, ["uav-training-admin"], {})).toBe(true);
+    expect(isModuleAdmin(m, ["uav-admin"], {})).toBe(true);
     expect(isModuleAdmin(m, ["irgendwas"], {})).toBe(false);
     expect(isModuleAdmin(m, ["andere"], { SUITE_ADMIN_GROUP_UAV: "andere" })).toBe(true);
   });

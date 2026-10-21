@@ -60,7 +60,7 @@ const AUSBILDUNG_SECRET = "sana2";
  * Der Dev-Login (Credentials-Provider, core/auth/index.ts) erzeugt aus der
  * E-Mail den `sub` `dev:${email}`; das Muster ist in `seed.ts` belegt.
  * Anmeldung: /login mit email=bereitschaft@localtest.me und
- * groups=da-feedback-gl.
+ * groups=feedback-nutzer.
  */
 const NORD_DEV_EMAIL = "bereitschaft@localtest.me";
 const NORD_DEV_USER_ID = `dev:${NORD_DEV_EMAIL}`;
@@ -508,8 +508,8 @@ export async function seedLokalFeedback(
   });
 
   zeilen.push(
-    `feedback: eingeschränkte Sicht — Dev-Login mit email=${NORD_DEV_EMAIL} und groups=da-feedback-gl sieht NUR diese beiden Gruppen.`,
-    "feedback: volle Sicht — Dev-Login mit groups=da-feedback-admin sieht alle Gruppen, auch die des Boot-Seeds.",
+    `feedback: eingeschränkte Sicht — Dev-Login mit email=${NORD_DEV_EMAIL} und groups=feedback-nutzer sieht NUR diese beiden Gruppen.`,
+    "feedback: volle Sicht — Dev-Login mit groups=feedback-admin sieht alle Gruppen, auch die des Boot-Seeds.",
   );
 
   return zeilen;

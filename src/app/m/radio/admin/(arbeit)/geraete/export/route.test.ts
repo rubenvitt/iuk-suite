@@ -73,7 +73,7 @@ const QUELLE = "src/app/m/radio/admin/(arbeit)/geraete/export/route.ts";
 const MIGRATIONEN = "src/app/m/radio/_db/migrations";
 const UPDATER_GRUPPE = "eine-updater-gruppe";
 
-const ADMIN_SITZUNG = { user: { id: "sub-admin", name: "Adam Admin", groups: ["iuk-radio-admin"] } };
+const ADMIN_SITZUNG = { user: { id: "sub-admin", name: "Adam Admin", groups: ["radio-admin"] } };
 const UPDATER_SITZUNG = { user: { id: "sub-updater", name: "Uwe Updater", groups: [UPDATER_GRUPPE] } };
 
 let tmp: string;

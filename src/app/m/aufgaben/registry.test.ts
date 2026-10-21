@@ -34,19 +34,19 @@ describe("Registrierung des Moduls aufgaben", () => {
     expect(findModule("aufgaben")!.showInSwitcher).toBe(true);
   });
 
-  it("verlangt die Zugangsgruppe iuk-aufgaben-nutzer", () => {
+  it("verlangt die Zugangsgruppe aufgaben-nutzer", () => {
     const mod = findModule("aufgaben")!;
-    expect(requiredGroupsFor(mod, {})).toEqual(["iuk-aufgaben-nutzer"]);
+    expect(requiredGroupsFor(mod, {})).toEqual(["aufgaben-nutzer"]);
     expect(canAccess(mod, [], {})).toBe(false);
     expect(canAccess(mod, null, {})).toBe(false);
-    expect(canAccess(mod, ["iuk-aufgaben-nutzer"], {})).toBe(true);
+    expect(canAccess(mod, ["aufgaben-nutzer"], {})).toBe(true);
   });
 
   it("laesst die Zugangsgruppe per Env ueberschreiben", () => {
     const mod = findModule("aufgaben")!;
     const env = { SUITE_ACCESS_GROUP_AUFGABEN: "andere-gruppe" };
     expect(requiredGroupsFor(mod, env)).toEqual(["andere-gruppe"]);
-    expect(canAccess(mod, ["iuk-aufgaben-nutzer"], env)).toBe(false);
+    expect(canAccess(mod, ["aufgaben-nutzer"], env)).toBe(false);
     expect(canAccess(mod, ["andere-gruppe"], env)).toBe(true);
   });
 

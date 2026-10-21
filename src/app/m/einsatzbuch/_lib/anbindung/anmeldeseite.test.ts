@@ -126,7 +126,7 @@ describe("anmeldezugang", () => {
   });
 
   it("mit Sitzung und Gruppe: ok mit dem Viewer", async () => {
-    zustand.user = { id: "s1", name: "Jana", groups: ["einsatzbuch-verwaltung"] };
+    zustand.user = { id: "s1", name: "Jana", groups: ["einsatzbuch-nutzer"] };
     const z = await anmeldezugang("/anmelden");
     expect(z).toEqual({ art: "ok", viewer: zustand.user });
     expect(audit.denied).not.toHaveBeenCalled();

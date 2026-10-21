@@ -26,7 +26,7 @@ describe("Plan-Actions", () => {
     await expect(speichereInhaltAction({ id: "x", version: 1, inhalt: {} })).rejects.toThrow("Forbidden");
     await expect(ladeStandAction("x")).rejects.toThrow("Forbidden");
     await expect(ladeZeichenAction(["rezept:F.2.3"])).rejects.toThrow("Forbidden");
-    gruppen = ["iuk-kommplan"];
+    gruppen = ["kommplan-nutzer"];
     const neu = await legePlanAnAction(ANGABEN);
     if (!neu.ok) throw new Error(neu.fehler);
     const { getDb } = await import("../_db/client");
@@ -51,7 +51,7 @@ describe("Plan-Actions", () => {
     }
   });
   it("ladeStandAction liefert den Serverstand, unbekannt oder ungültig ist null", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const { ladeStandAction, legePlanAnAction } = await import("./plan");
     const neu = await legePlanAnAction(ANGABEN);
     if (!neu.ok) throw new Error(neu.fehler);
@@ -60,7 +60,7 @@ describe("Plan-Actions", () => {
     expect(await ladeStandAction({ id: 5 })).toBeNull();
   });
   it("anlegen, speichern, Konflikt — mit Audit-Akteur aus der Sitzung", async () => {
-    gruppen = ["iuk-kommplan-bearbeiten"];
+    gruppen = ["kommplan-admin"];
     const { legePlanAnAction, speichereAngabenAction, speichereInhaltAction } = await import("./plan");
     const neu = await legePlanAnAction(ANGABEN);
     if (!neu.ok) throw new Error(neu.fehler);

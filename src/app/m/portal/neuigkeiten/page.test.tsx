@@ -56,8 +56,8 @@ describe("Neuigkeiten-Seite", () => {
   });
 
   it("uebergibt der Insel genau die Auswahl fuer die Gruppen der Sitzung", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["iuk-aufgaben-nutzer"] } } as never);
-    expect(await insel()).toEqual(neuigkeitenFuer(["iuk-aufgaben-nutzer"]));
+    authMock.mockResolvedValue({ user: { groups: ["aufgaben-nutzer"] } } as never);
+    expect(await insel()).toEqual(neuigkeitenFuer(["aufgaben-nutzer"]));
   });
 
   it("faellt anonym auf `null` zurueck, nicht auf „keine Gruppen“", async () => {

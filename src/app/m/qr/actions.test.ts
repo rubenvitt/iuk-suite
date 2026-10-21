@@ -38,7 +38,7 @@ function fd(entries: Record<string, string>): FormData {
 }
 
 function asAdmin(): void {
-  authMock.mockResolvedValue({ user: { groups: ["iuk-qr-admin"], id: "u1" } } as never);
+  authMock.mockResolvedValue({ user: { groups: ["qr-admin"], id: "u1" } } as never);
 }
 
 /** Die vier Rollen, aus denen heraus keine Mutation durchgehen darf. */
@@ -98,7 +98,7 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
     expect(reorderPresets).not.toHaveBeenCalled();
   });
 
-  it("iuk-qr-admin darf anlegen", async () => {
+  it("qr-admin darf anlegen", async () => {
     asAdmin();
     await createPresetAction(fd({ label: "L", kind: "url", value: "https://x" }));
     // Nicht nur DASS geschrieben wurde, sondern WAS: ein falsch verdrahteter
@@ -110,7 +110,7 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
   });
 
   it("Suite-Admin darf auch ohne QR-Gruppe", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["dashboard-admins"], id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["admin"], id: "u1" } } as never);
     await createPresetAction(fd({ label: "L", kind: "url", value: "https://x" }));
     expect(createPreset).toHaveBeenCalledWith(
       expect.objectContaining({ label: "L", kind: "url", value: "https://x" }),
@@ -121,7 +121,7 @@ describe("qr admin actions: Autorisierungsgrenze", () => {
   // Eine Session ohne user.id darf nicht am Schreiber scheitern; der Fallback
   // haelt die Spalte createdBy gefuellt.
   it("trägt 'unbekannt' ein, wenn die Session keine user.id hat", async () => {
-    authMock.mockResolvedValue({ user: { groups: ["iuk-qr-admin"] } } as never);
+    authMock.mockResolvedValue({ user: { groups: ["qr-admin"] } } as never);
     await createPresetAction(fd({ label: "L", kind: "url", value: "https://x" }));
     expect(createPreset).toHaveBeenCalledWith(expect.anything(), "unbekannt");
   });

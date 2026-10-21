@@ -198,7 +198,7 @@ test("Admin-Seite landet nicht im SW-Cache", async ({ page }) => {
   await devLogin(page, {
     host: "qr.localtest.me",
     port: E2E_PORTS.pwa,
-    groups: "iuk-qr-admin",
+    groups: "qr-admin",
     callbackPath: "/admin",
   });
   await expect(page.getByTestId("qr-admin")).toBeVisible();

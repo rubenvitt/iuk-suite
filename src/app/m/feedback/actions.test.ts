@@ -617,7 +617,7 @@ describe("releaseDeviceAction: leerer Bogen für die nächste Person", () => {
  * kein Zugang (vorher stand hier `groups: []`, und genau das war die Lücke).
  */
 function alsGruppenleitung(slug: string): void {
-  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: ["da-feedback-gl"], fachgruppen: [slug] } });
+  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: ["feedback-nutzer"], fachgruppen: [slug] } });
 }
 
 /** Gruppe + Abend (`daysAgo` Tage zurück) + Umfrage im Zustand `draft`. */
@@ -1364,7 +1364,7 @@ describe("absagenAction / wiederAnsetzenAction", () => {
 /** Suite-Admin: `groups` trägt die Suite-Admin-Gruppe, `fachgruppen` ist leer. */
 function alsAdmin(): void {
   authMock.mockResolvedValue({
-    user: { id: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
+    user: { id: "admin-1", groups: ["feedback-admin"], fachgruppen: [] },
   });
 }
 
@@ -2376,7 +2376,7 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
       it("NEGATIV: Zugangsgruppe ohne Objektzuordnung — Forbidden", async () => {
         const actions = await loadActions();
         const lage = seedLage();
-        alsViewer(["da-feedback-gl"], []);
+        alsViewer(["feedback-nutzer"], []);
         const vorher = stand();
 
         await expect(aufruf(actions, lage)).rejects.toThrow("Forbidden");
@@ -2388,7 +2388,7 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
         const actions = await loadActions();
         const lage = seedLage();
         insertUserGroup(db, "leitung-1", lage.groupId);
-        alsViewer(["da-feedback-gl"], []);
+        alsViewer(["feedback-nutzer"], []);
         const vorher = stand();
 
         await aufruf(actions, lage);
@@ -2399,7 +2399,7 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
       it("POSITIV: Zugangsgruppe plus passender fachgruppen-Claim — die Action schreibt", async () => {
         const actions = await loadActions();
         const lage = seedLage();
-        alsViewer(["da-feedback-gl"], ["bereitschaft"]);
+        alsViewer(["feedback-nutzer"], ["bereitschaft"]);
         const vorher = stand();
 
         await aufruf(actions, lage);
@@ -2410,7 +2410,7 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
       it("POSITIV: Feedback-Admin ohne Zuordnung — die Action schreibt", async () => {
         const actions = await loadActions();
         const lage = seedLage();
-        alsViewer(["da-feedback-admin"], []);
+        alsViewer(["feedback-admin"], []);
         const vorher = stand();
 
         await aufruf(actions, lage);
@@ -2430,7 +2430,7 @@ describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK
       const lage = seedLage();
       insertUserGroup(db, "leitung-1", lage.groupId);
 
-      alsViewer(["da-feedback-gl"], []);
+      alsViewer(["feedback-nutzer"], []);
       await expect(AUFRUFE.regenerateSecretAction(actions, lage)).rejects.toThrow("Forbidden");
 
       alsViewer(["gruppenleiter"], []);

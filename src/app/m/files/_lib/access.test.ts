@@ -42,7 +42,7 @@ const INBOX = "drop.localtest.me";
  * dieser Testdatei; und der Vorgabewert steht so in der `.env` des Servers
  * (`core/groups.ts:76`), ist also die Zeichenkette, die real ankommt.
  */
-const SUITE_ADMIN = "dashboard-admins";
+const SUITE_ADMIN = "admin";
 
 const authMock = vi.mocked(auth);
 const headersMock = vi.mocked(headers);
@@ -75,7 +75,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("isFilesAdmin: die EINE Stufe, ohne Suite-Admin-Abkuerzung", () => {
   it("Mitglied der Modul-Admin-Gruppe darf, ein Fremder nicht, `null` nie", () => {
-    expect(isFilesAdmin({ sub: "a", groups: ["iuk-files-admin"] })).toBe(true);
+    expect(isFilesAdmin({ sub: "a", groups: ["files-admin"] })).toBe(true);
     expect(isFilesAdmin({ sub: "b", groups: ["irgendeine-andere-gruppe"] })).toBe(false);
     expect(isFilesAdmin({ sub: "c", groups: [] })).toBe(false);
     expect(isFilesAdmin(null)).toBe(false);
@@ -92,13 +92,13 @@ describe("isFilesAdmin: die EINE Stufe, ohne Suite-Admin-Abkuerzung", () => {
   });
 
   it("der Suite-Admin MIT files-Gruppe ist berechtigt — der Weg steht offen", () => {
-    expect(isFilesAdmin({ sub: "b2", groups: [SUITE_ADMIN, "iuk-files-admin"] })).toBe(true);
+    expect(isFilesAdmin({ sub: "b2", groups: [SUITE_ADMIN, "files-admin"] })).toBe(true);
   });
 
   /*
    * PUNKT 4 DES PLANS, und der teuerste Fehler dieses Tasks. Er ist nur mit
    * geleerter Admin-Variable pruefbar: `adminGroupsFor` liefert sonst immer
-   * `["iuk-files-admin"]`, die Liste ist also nie leer und die Mutation auf die
+   * `["files-admin"]`, die Liste ist also nie leer und die Mutation auf die
    * `canAccess`-Bauform (`erlaubt.length === 0 || …`) bliebe gruen.
    *
    * `SUITE_ADMIN_GROUP_FILES=""` heisst „keine modul-eigenen Admins"
@@ -109,7 +109,7 @@ describe("isFilesAdmin: die EINE Stufe, ohne Suite-Admin-Abkuerzung", () => {
    */
   it("BEIDE Listen leer gewaehren NICHTS — nicht alles", () => {
     vi.stubEnv("SUITE_ADMIN_GROUP_FILES", "");
-    expect(isFilesAdmin({ sub: "x", groups: ["iuk-files-admin"] })).toBe(false);
+    expect(isFilesAdmin({ sub: "x", groups: ["files-admin"] })).toBe(false);
     expect(isFilesAdmin({ sub: "y", groups: [SUITE_ADMIN, "beliebig", "noch-eine"] })).toBe(
       false,
     );
@@ -121,23 +121,23 @@ describe("isFilesAdmin: die EINE Stufe, ohne Suite-Admin-Abkuerzung", () => {
     expect(isFilesAdmin({ sub: "neu", groups: ["dateien-verwaltung"] })).toBe(true);
     // Der Vorgabewert traegt nach dem Umhaengen nicht mehr — sonst waere die
     // Ueberschreibung eine Erweiterung, keine Ersetzung.
-    expect(isFilesAdmin({ sub: "alt", groups: ["iuk-files-admin"] })).toBe(false);
+    expect(isFilesAdmin({ sub: "alt", groups: ["files-admin"] })).toBe(false);
   });
 
   it("die Zugangsvariable gewaehrt DIESELBE eine Stufe wie die Admin-Variable", () => {
     vi.stubEnv("SUITE_ACCESS_GROUP_FILES", "dateien-nutzer");
     expect(isFilesAdmin({ sub: "n", groups: ["dateien-nutzer"] })).toBe(true);
     // Und die Admin-Gruppe bleibt daneben gueltig: beide Listen gelten zusammen.
-    expect(isFilesAdmin({ sub: "a", groups: ["iuk-files-admin"] })).toBe(true);
+    expect(isFilesAdmin({ sub: "a", groups: ["files-admin"] })).toBe(true);
     expect(isFilesAdmin({ sub: "f", groups: ["fremd"] })).toBe(false);
   });
 });
 
 describe("viewerAusSession", () => {
   it("liest sub und Gruppen; ohne id gibt es keinen Viewer", () => {
-    expect(viewerAusSession(sessionMit("u1", ["iuk-files-admin"]))).toEqual({
+    expect(viewerAusSession(sessionMit("u1", ["files-admin"]))).toEqual({
       sub: "u1",
-      groups: ["iuk-files-admin"],
+      groups: ["files-admin"],
     });
     expect(viewerAusSession(null)).toBeNull();
     expect(viewerAusSession({ user: { groups: ["x"] } } as never)).toBeNull();
@@ -156,11 +156,11 @@ describe("viewerAusSession", () => {
 describe("requireFilesAccess: der Backstop", () => {
   it("Mitglied der Admin-Gruppe kommt durch und bekommt seinen Viewer", async () => {
     zweiHosts();
-    authMock.mockResolvedValue(sessionMit("u1", ["iuk-files-admin"]));
+    authMock.mockResolvedValue(sessionMit("u1", ["files-admin"]));
 
     await expect(requireFilesAccess()).resolves.toEqual({
       sub: "u1",
-      groups: ["iuk-files-admin"],
+      groups: ["files-admin"],
     });
     expect(notFound).not.toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
@@ -204,7 +204,7 @@ describe("requireFilesAccess: der Backstop", () => {
   it("beide Listen leer: auch ein Eingeloggter mit Gruppen bekommt 404", async () => {
     zweiHosts();
     vi.stubEnv("SUITE_ADMIN_GROUP_FILES", "");
-    authMock.mockResolvedValue(sessionMit("u4", ["iuk-files-admin", SUITE_ADMIN]));
+    authMock.mockResolvedValue(sessionMit("u4", ["files-admin", SUITE_ADMIN]));
 
     await expect(requireFilesAccess()).rejects.toThrow();
 

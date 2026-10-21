@@ -40,8 +40,8 @@ describe("aufgabeAnlegenAction", () => {
     expect(alleTasks(getDb(), true)).toEqual([]);
   });
 
-  it("mit uav-training-admin legt an", async () => {
-    gruppen = ["uav-training-admin"];
+  it("mit uav-admin legt an", async () => {
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction } = await import("./katalog");
     const aufgabe = await aufgabeAnlegenAction(EINGABE);
     expect(aufgabe.titel).toBe("Vorflugkontrolle");
@@ -49,7 +49,7 @@ describe("aufgabeAnlegenAction", () => {
   });
 
   it("bildUrl wird getrimmt, ein leerer String wird zu null", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction } = await import("./katalog");
     const mitLeerzeichen = await aufgabeAnlegenAction({ ...EINGABE, nummer: "1.2", bildUrl: "  /bild.webp  " });
     expect(mitLeerzeichen.bildUrl).toBe("/bild.webp");
@@ -58,13 +58,13 @@ describe("aufgabeAnlegenAction", () => {
   });
 
   it("ungültige Eingabe (leerer Titel) wirft", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction } = await import("./katalog");
     await expect(aufgabeAnlegenAction({ ...EINGABE, titel: "" })).rejects.toThrow();
   });
 
   it("ein Titel über der Grenze wirft, genau an der Grenze wird angelegt (DRK-402)", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction } = await import("./katalog");
     await expect(aufgabeAnlegenAction({ ...EINGABE, titel: "x".repeat(TITEL_MAX_LAENGE + 1) })).rejects.toThrow();
     const aufgabe = await aufgabeAnlegenAction({ ...EINGABE, titel: "x".repeat(TITEL_MAX_LAENGE) });
@@ -79,7 +79,7 @@ describe("aufgabeAendernAction", () => {
   });
 
   it("ändert Felder eines vorhandenen Eintrags", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction, aufgabeAendernAction } = await import("./katalog");
     const angelegt = await aufgabeAnlegenAction(EINGABE);
     const geaendert = await aufgabeAendernAction(angelegt.id, { titel: "Neuer Titel", aktiv: false });
@@ -88,7 +88,7 @@ describe("aufgabeAendernAction", () => {
   });
 
   it("ein Titel über der Grenze wirft, der gespeicherte bleibt stehen (DRK-402)", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction, aufgabeAendernAction } = await import("./katalog");
     const { getDb } = await import("../_db/client");
     const { alleTasks } = await import("../_lib/queries");
@@ -98,7 +98,7 @@ describe("aufgabeAendernAction", () => {
   });
 
   it("unbekannte id wirft NotFound", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAendernAction } = await import("./katalog");
     await expect(aufgabeAendernAction("unbekannt", { titel: "X" })).rejects.toThrow(NotFound);
   });
@@ -111,7 +111,7 @@ describe("aufgabeLoeschenAction", () => {
   });
 
   it("löscht einen vorhandenen Eintrag", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction, aufgabeLoeschenAction } = await import("./katalog");
     const { getDb } = await import("../_db/client");
     const { taskById } = await import("../_lib/queries");
@@ -121,7 +121,7 @@ describe("aufgabeLoeschenAction", () => {
   });
 
   it("unbekannte id wirft NotFound", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeLoeschenAction } = await import("./katalog");
     await expect(aufgabeLoeschenAction("unbekannt")).rejects.toThrow(NotFound);
   });
@@ -129,7 +129,7 @@ describe("aufgabeLoeschenAction", () => {
 
 describe("aufgabenSortierenAction", () => {
   it("ohne Gruppe wirft Forbidden, die Reihenfolge bleibt unverändert", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction } = await import("./katalog");
     const a = await aufgabeAnlegenAction(EINGABE);
     const b = await aufgabeAnlegenAction({ ...EINGABE, nummer: "1.2" });
@@ -142,7 +142,7 @@ describe("aufgabenSortierenAction", () => {
   });
 
   it("schreibt die übergebene Reihenfolge als Positionen", async () => {
-    gruppen = ["uav-training-admin"];
+    gruppen = ["uav-admin"];
     const { aufgabeAnlegenAction, aufgabenSortierenAction } = await import("./katalog");
     const a = await aufgabeAnlegenAction(EINGABE);
     const b = await aufgabeAnlegenAction({ ...EINGABE, nummer: "1.2" });

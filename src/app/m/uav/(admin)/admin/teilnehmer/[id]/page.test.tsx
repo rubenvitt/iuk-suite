@@ -20,7 +20,7 @@ import AdminTeilnehmerDetailPage, { teilnehmerDetailInhalt } from "./page";
 
 beforeEach(() => {
   mockDb = testDb();
-  sitzung = { user: { id: "sub-1", groups: ["uav-training-admin"] } };
+  sitzung = { user: { id: "sub-1", groups: ["uav-admin"] } };
 });
 afterEach(async () => {
   await unmount();

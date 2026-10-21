@@ -174,7 +174,7 @@ describe("raeumeLeihhistorie — gegen die migrierte Datenbank", () => {
  */
 const OK: Record<string, string | undefined> = {
   SUITE_HOST_RADIO: "radio.example.test",
-  SUITE_ADMIN_GROUP_RADIO: "iuk-radio-admin",
+  SUITE_ADMIN_GROUP_RADIO: "radio-admin",
   RADIO_AUSLEIH_SITZUNG_SECRET: "ein-hinreichend-langes-geheimnis-32z",
   AUTH_SECRET: "ein-anderes-suite-geheimnis",
   SUITE_TRAEFIK_RULE: "Host(`iuk-ue.de`) || Host(`radio.example.test`)",
@@ -258,14 +258,14 @@ describe("Planteil 5 / G2 — radioBootFehler, historieMonate, historieMonateFeh
        * ⚠️ GELESEN WIRD DIE VARIABLE DIREKT, NICHT UEBER `adminGroupsFor`: die faellt bei
        * nicht gesetzter Variable still auf `mod.adminGroups` zurueck
        * (`src/core/groups.ts:102-108`), also auf den Entwicklungs-Vorgabewert
-       * `["iuk-radio-admin"]` (`src/core/registry.ts:198`), und meldete nichts.
+       * `["radio-admin"]` (`src/core/registry.ts:198`), und meldete nichts.
        * `validateGroupConfig` meldet den leeren Admin-Wert bewusst ebenfalls nicht.
        */
       const { SUITE_ADMIN_GROUP_RADIO: _weg, ...ohne } = OK;
       const fehler = await radioBootFehler(ohne);
       expect(fehler.filter((m) => m.includes("SUITE_ADMIN_GROUP_RADIO"))).toHaveLength(1);
       // Die Meldung nennt den Vorgabewert, die Folge und dass sie den LEEREN Wert faengt.
-      expect(fehler.join("\n")).toContain("iuk-radio-admin");
+      expect(fehler.join("\n")).toContain("radio-admin");
       expect(fehler.join("\n")).toContain("404");
       expect(fehler.join("\n")).toContain("LEEREN");
     });
@@ -548,7 +548,7 @@ describe("Planteil 5 / G2 — radioBootFehler, historieMonate, historieMonateFeh
        */
       const { SUITE_UPDATER_GROUP_RADIO: _weg, ...ohneUpdater } = OK;
       const faelle: Record<string, string | undefined>[] = [
-        { ...OK, SUITE_UPDATER_GROUP_RADIO: "iuk-radio-updater" },
+        { ...OK, SUITE_UPDATER_GROUP_RADIO: "radio-updater" },
         { ...OK, SUITE_UPDATER_GROUP_RADIO: "" },
         ohneUpdater,
       ];

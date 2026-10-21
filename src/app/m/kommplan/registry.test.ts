@@ -7,7 +7,7 @@ describe("Registry-Eintrag kommplan", () => {
   it("anonym routbar (Token-Ansicht in Phase 5), mit Zugangs- und Admin-Gruppe", () => {
     expect(getModule("kommplan")).toMatchObject({
       title: "Kommunikationspläne", icon: "genealogy", shell: "full", requiresAuth: false,
-      requiredGroups: ["iuk-kommplan"], adminGroups: ["iuk-kommplan-bearbeiten"], prodHosts: [],
+      requiredGroups: ["kommplan-nutzer"], adminGroups: ["kommplan-admin"], prodHosts: [],
       showInSwitcher: true, switcherGroupSources: ["access", "admin"],
     });
     expect(ICONS8.genealogy).toBeDefined();
@@ -25,7 +25,7 @@ describe("Registry-Eintrag kommplan", () => {
     const keys = (g: string[] | null) => visibleSwitcherModules(g, {}).map((m) => m.key);
     expect(keys(null)).not.toContain("kommplan");
     expect(keys(["andere"])).not.toContain("kommplan");
-    expect(keys(["iuk-kommplan"])).toContain("kommplan");
-    expect(keys(["iuk-kommplan-bearbeiten"])).toContain("kommplan");
+    expect(keys(["kommplan-nutzer"])).toContain("kommplan");
+    expect(keys(["kommplan-admin"])).toContain("kommplan");
   });
 });

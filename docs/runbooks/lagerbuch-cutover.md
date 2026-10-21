@@ -146,7 +146,7 @@ ist damit **blind gegenüber den vier Append-only-Triggern und der Handlager-Zei
 Vollständig in `ENTSCHEIDUNGEN-lagerbuch.md`, Abschnitt „Was vor dem Cutover noch abzulesen oder zu
 tun ist". Die zwei mit Ausfallwirkung:
 
-- ⚠️ **`OIDC_ADMIN_GROUP` der laufenden Instanz gegen `lagerbuch_nutzer` gegenprüfen — und einmal
+- ⚠️ **`OIDC_ADMIN_GROUP` der laufenden Instanz gegen `lagerbuch-admin` gegenprüfen — und einmal
   echt einloggen**, bevor der Router umschwenkt. Die Boot-Prüfung fängt den **leeren**, nicht den
   **falschen** Wert, und für dieses Modul gibt es bewusst keine Suite-Admin-Rückfallebene. Ein
   falscher Wert ist ein stummes 404 für alle vier Personen (D3).

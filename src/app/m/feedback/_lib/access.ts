@@ -12,14 +12,14 @@ export type Viewer = { sub: string; groups: string[]; fachgruppen: string[] };
  * anderen Modul der Suite.
  *
  * `isModuleAdmin` (core/groups) lässt den SUITE-Admin (`ADMIN_GROUP`, Vorgabe
- * `dashboard-admins`) durch: „ist Betreiber" heißt dort automatisch „darf jedes
+ * `admin`) durch: „ist Betreiber" heißt dort automatisch „darf jedes
  * Modul verwalten". Für `feedback` gilt das seit 2026-07-28 nicht mehr. Der
  * Grund ist fachlich, nicht technisch: Admin bedeutet hier Einblick in die
  * Rückmeldungen ALLER Gruppen — `accessibleGroupFilter` gibt `"all"` zurück —
  * und wer den Server betreibt, hat damit noch keinen Anlass, die Bewertungen
  * fremder Dienstabende zu lesen. Betrieb und Einsicht sind zwei Rollen.
  *
- * Wer feedback verwalten soll, gehört also in `da-feedback-admin` (bzw. in das,
+ * Wer feedback verwalten soll, gehört also in `feedback-admin` (bzw. in das,
  * was `SUITE_ADMIN_GROUP_FEEDBACK` benennt) — auch der Betreiber selbst. Das ist
  * eine Aussage über DIESES Modul: `qr`, `portal` und die kommenden Module
  * behalten die Suite-Admin-Abkürzung, solange niemand dasselbe für sie

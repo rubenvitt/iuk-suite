@@ -17,8 +17,8 @@ beforeEach(() => {
   verzeichnis.search.mockReset().mockResolvedValue({ status: "unconfigured", people: [] });
   verzeichnis.list.mockReset().mockResolvedValue({ status: "unconfigured", people: [] });
 });
-const ANNA = { id: "u-anna", name: "Anna", groups: ["iuk-kommplan"] };
-const BODO = { id: "u-bodo", name: "Bodo", groups: ["iuk-kommplan"] };
+const ANNA = { id: "u-anna", name: "Anna", groups: ["kommplan-nutzer"] };
+const BODO = { id: "u-bodo", name: "Bodo", groups: ["kommplan-nutzer"] };
 
 async function annasPlan(): Promise<string> {
   nutzer = ANNA;

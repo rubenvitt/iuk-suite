@@ -8,7 +8,7 @@ import { E2E_PORT, klickeWennRuhig, warteAufSpaltenaufteilung } from "./fixtures
  */
 export const HOST = "kommplan.localtest.me";
 export const url = (pfad: string) => `http://${HOST}:${E2E_PORT}${pfad}`;
-export const ADMIN = "iuk-kommplan-bearbeiten";
+export const ADMIN = "kommplan-admin";
 
 export const istAktion = (r: Response) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined;
 export const rumpf = (r: Response) => r.request().postData() ?? "";

@@ -30,7 +30,7 @@ beforeEach(() => {
   mocks.db.mockReturnValue(db);
   mocks.auth.mockImplementation(async () => {
     await new Promise(resolve => setTimeout(resolve, request.getStore() === "alice" ? 10 : 1));
-    return { user: { id: request.getStore(), name: "Confirmed name", groups: ["dashboard-admins"] } };
+    return { user: { id: request.getStore(), name: "Confirmed name", groups: ["admin"] } };
   });
 });
 afterEach(() => { source.close(); rmSync(dir, { recursive: true, force: true }); vi.unstubAllEnvs(); });

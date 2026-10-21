@@ -24,7 +24,7 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  *
  * Host, Gruppe, Port und URLs kommen ausschliesslich aus
  * `e2e/helpers/lagerbuch.ts` (Festlegung H9, Ruling A9) — kein Literal wie
- * "http://lagerbuch.localtest.me:3100" oder `["lagerbuch_nutzer"]`.
+ * "http://lagerbuch.localtest.me:3100" oder `["lagerbuch-admin"]`.
  */
 test.describe("Excel-Export des Bestands", () => {
   test.beforeEach(async ({ page }) => {

@@ -76,12 +76,12 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
  * — und `koordiniert` steht deshalb AM AUFRUF, genauso wie `istKoordination` bei `akteur` oben:
  * ableiten liesse es sich nicht mehr, `ROLLEN` kennt `koordination` nicht mehr.
  *
- * `iuk-aufgaben-koordination` ist der Registry-Vorgabewert (`core/registry.ts`);
+ * `aufgaben-admin` ist der Registry-Vorgabewert (`core/registry.ts`);
  * `SUITE_ADMIN_GROUP_AUFGABEN` ist in der Testumgebung nicht gesetzt.
  */
 function anmelden(p: PersonRow, koordiniert = false): void {
   sitzung = {
-    user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+    user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
   };
 }
 

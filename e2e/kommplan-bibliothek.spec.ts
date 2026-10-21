@@ -26,7 +26,7 @@ async function legeBibStelleAn(page: Page, titel: string, leiter: string, telefo
 }
 
 test("Zugangsgruppe: kein Weg zur Bibliothek, /bibliothek ist 404", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "kommplan-nutzer", callbackPath: "/" });
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await expect(page.getByRole("link", { name: "Bibliothek" })).toHaveCount(0);

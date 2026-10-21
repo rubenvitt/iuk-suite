@@ -14,7 +14,7 @@ function fixtureEvents(actor: string) {
 }
 test("Systemeinträge sind initial ausgeblendet und per Checkbox einblendbar",async({page},testInfo)=>{
  const email=`audit-system-${randomUUID()}@localtest.me`;
- await devLogin(page,{host:"portal.localtest.me",groups:"dashboard-admins",email});
+ await devLogin(page,{host:"portal.localtest.me",groups:"admin",email});
  fixtureEvents(`dev:${email}`);
  const systemId=randomUUID();
  const db=new Database(".data/e2e/audit.db");
@@ -66,7 +66,7 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
  test.setTimeout(240_000);
  expect((await page.request.get(PORTAL+"/api/auth/session")).status()).toBe(200);
  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
- await devLogin(page,{host:"portal.localtest.me",groups:"dashboard-admins",email});
+ await devLogin(page,{host:"portal.localtest.me",groups:"admin",email});
  fixtureEvents(ACTOR);
  await klickeWennRuhig(page.getByRole("link",{name:"Verwaltung",exact:true}).first());
  await expect(page).toHaveURL(/\/admin$/,{timeout:30_000});
@@ -144,7 +144,7 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
 
 test("Direktaufruf und Navigation schließen Nutzer, Modul-Admin und Portal-Override aus",async({page})=>{
  test.setTimeout(240_000);
- for(const groups of ["", "iuk-qr-admin", "portal-only-admin"]) {
+ for(const groups of ["", "qr-admin", "portal-only-admin"]) {
   await wechsleAnmeldung(page,{host:"portal.localtest.me",groups});
   await expect(page.getByRole("link",{name:"Audit-Log",exact:true})).toHaveCount(0);
   if(groups==="portal-only-admin") {

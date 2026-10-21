@@ -20,7 +20,7 @@ beforeEach(() => {
   process.env.DATA_DIR = DIR;
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
   migrateAllModules();
-  gruppen = ["einsatzbuch-verwaltung"];
+  gruppen = ["einsatzbuch-nutzer"];
   host = "einsatzbuch.localtest.me";
 });
 

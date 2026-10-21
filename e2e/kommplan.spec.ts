@@ -35,7 +35,7 @@ async function ruhigeAnsicht(page: Page): Promise<string> {
 const PFEIL_RUNTER_BIS_A3 = 1;
 
 test("mit der Zugangsgruppe: Liste, Plan, Einklappen und Zoom", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "kommplan-nutzer", callbackPath: "/" });
   const liste = await page.goto(url("/"));
   expect(liste?.status()).toBe(200);
   await warteAufSpaltenaufteilung(page);
@@ -97,7 +97,7 @@ test("Druck A4: ein Blatt für den Einsatz, mehrere für die Stab-Lage, keines l
     w.__gedruckt = 0;
     window.print = () => { w.__gedruckt += 1; };
   });
-  await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "kommplan-nutzer", callbackPath: "/" });
 
   const einsatz = await page.goto(url(`/p/${EINSATZ}/druck/a4`));
   expect(einsatz?.status()).toBe(200);
@@ -152,7 +152,7 @@ test("ohne Gruppe: 404 auf Liste, Plan und Druck", async ({ page }) => {
 });
 
 test("unbekannter Plan: 404 auf Betrachter und Druck", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "kommplan-nutzer", callbackPath: "/" });
   for (const pfad of ["/p/gibt-es-nicht", "/p/gibt-es-nicht/druck/a4", "/p/gibt-es-nicht/druck/a3"]) {
     expect((await page.goto(url(pfad)))?.status(), pfad).toBe(404);
   }
@@ -163,6 +163,6 @@ test("unbekannter Plan: 404 auf Betrachter und Druck", async ({ page }) => {
  * fremden Host, während die Sitzung von oben noch gilt, landet auf dessen 404 statt auf dem Formular.
  */
 test("fremder Suite-Host liefert das Modul nicht aus", async ({ page }) => {
-  await devLogin(page, { host: "feedback.localtest.me", groups: "iuk-kommplan", callbackPath: "/login" });
+  await devLogin(page, { host: "feedback.localtest.me", groups: "kommplan-nutzer", callbackPath: "/login" });
   expect((await page.goto(`http://feedback.localtest.me:${E2E_PORT}/m/kommplan`))?.status()).toBe(404);
 });

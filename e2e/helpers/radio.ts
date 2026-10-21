@@ -37,7 +37,7 @@ export const RADIO_PORT = E2E_PORT;
  * der Registry-Vorgabewert, wie bei `lagerbuch`
  * (`e2e/helpers/lagerbuch.ts:34-38`).
  */
-export const RADIO_ADMIN_GRUPPE = "iuk-radio-admin";
+export const RADIO_ADMIN_GRUPPE = "radio-admin";
 
 /**
  * Die Gruppe der Updater-Stufe.
@@ -48,7 +48,7 @@ export const RADIO_ADMIN_GRUPPE = "iuk-radio-admin";
  * (`docs/superpowers/plans/SPERREN-radio-spec2.md:110`). ⛔ Er darf hier nicht
  * als Produktionsname erraten werden.
  */
-export const RADIO_UPDATER_GRUPPE = "iuk-radio-updater";
+export const RADIO_UPDATER_GRUPPE = "radio-updater";
 
 /**
  * Die zwei Gruppenzeilen und das Sitzungsgeheimnis fuer `webServer.env`.

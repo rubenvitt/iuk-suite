@@ -40,7 +40,7 @@ async function oeffne(page: Page, pfad: string): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
 });
 
 test("Übersicht, Stammdaten und Einstellungen antworten mit 200; der Entwicklungs-KEK-Hinweis erscheint nur im vorgebauten Server", async ({ page }) => {

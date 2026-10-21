@@ -87,7 +87,7 @@ beforeEach(() => {
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });
   authMock.mockReset();
   authMock.mockResolvedValue({
-    user: { id: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
+    user: { id: "admin-1", groups: ["feedback-admin"], fachgruppen: [] },
   });
 });
 afterEach(() => sqlite.close());
@@ -154,7 +154,7 @@ describe("Vergleich — je Gruppe der Schulnoten-Ø, nicht der Mischwert", () =>
 
   it("bleibt Nicht-Admins verborgen (404, nicht 403)", async () => {
     authMock.mockResolvedValue({
-      user: { id: "gl-1", groups: ["da-feedback-gl"], fachgruppen: ["bereitschaft"] },
+      user: { id: "gl-1", groups: ["feedback-nutzer"], fachgruppen: ["bereitschaft"] },
     });
     await expect(zeichne()).rejects.toThrow("notFound()");
   });

@@ -167,8 +167,8 @@ async function alsPerson(browser: Browser, email: string, groups: string): Promi
 
 test("privat ist Vorgabe: nur die Eigentümerin sieht ihn — geteilt sehen ihn alle, eingeladen bearbeitet Bodo", async ({ browser }) => {
   test.setTimeout(120_000);
-  const anna = await alsPerson(browser, ANNA, "iuk-kommplan");
-  const bodo = await alsPerson(browser, BODO, "iuk-kommplan");
+  const anna = await alsPerson(browser, ANNA, "kommplan-nutzer");
+  const bodo = await alsPerson(browser, BODO, "kommplan-nutzer");
   const admin = await alsPerson(browser, "admin@localtest.me", ADMIN);
   const titel = `e2e privat ${neu()}`;
   const id = await neuerPlan(anna, titel);
@@ -208,7 +208,7 @@ test("privat ist Vorgabe: nur die Eigentümerin sieht ihn — geteilt sehen ihn 
 test("Exportieren und Importieren: die Datei wird ein neuer privater Plan mit demselben Inhalt", async ({ page }) => {
   // Eigene Adresse: die importierte Kopie trägt den Titel des Seed-Plans und ist privat — unter der Vorgabe-Adresse
   // stünde sie in jeder späteren Spec ein zweites Mal in der Liste.
-  await devLogin(page, { host: "kommplan.localtest.me", email: "import@localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(page, { host: "kommplan.localtest.me", email: "import@localtest.me", groups: "kommplan-nutzer", callbackPath: "/" });
   await page.goto(url("/"));
   await warteAufSpaltenaufteilung(page);
   await klickeWennRuhig(page.getByRole("table", { name: "Pläne" }).getByRole("button", { name: "Aktionen für Kommunikationsplan Einsatz 22.02.2026", exact: true }));
@@ -341,7 +341,7 @@ test("QR „Aktuelle Fassung“: ohne Link Hinweis und kein QR; intern der unbeg
   const leseKontext = await browser.newContext();
   await leseKontext.addInitScript(() => { window.print = () => {}; });
   const leser = await leseKontext.newPage();
-  await devLogin(leser, { host: "kommplan.localtest.me", email: "leser@localtest.me", groups: "iuk-kommplan", callbackPath: "/" });
+  await devLogin(leser, { host: "kommplan.localtest.me", email: "leser@localtest.me", groups: "kommplan-nutzer", callbackPath: "/" });
   expect((await leser.goto(url(`/p/${id}/druck/a4`)))?.status()).toBe(200);
   await warteAufGestreamteInhalte(leser);
   await expect(leser.locator("svg.kp-blatt")).not.toHaveCount(0);

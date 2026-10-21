@@ -464,7 +464,7 @@ describe("die Uebersicht an /geraete", () => {
     expect(exists('[data-rolle="radio-liste-attrappe"]')).toBe(false);
 
     await unmount();
-    viewerMock.mockResolvedValue({ sub: "pid-7", name: "V. Person", groups: ["iuk-radio-admin"] });
+    viewerMock.mockResolvedValue({ sub: "pid-7", name: "V. Person", groups: ["radio-admin"] });
     await rendere();
 
     expect(query('[data-rolle="radio-leer-bestand"]').querySelector("a")).toBe(null);

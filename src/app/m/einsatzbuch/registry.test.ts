@@ -12,7 +12,7 @@ describe("Registry-Eintrag einsatzbuch", () => {
     const m = getModule("einsatzbuch");
     expect(m).toMatchObject({
       title: "Einsatzbuch", icon: "book", shell: "full", requiresAuth: false,
-      requiredGroups: ["einsatzbuch-verwaltung"], adminGroups: [], prodHosts: [],
+      requiredGroups: ["einsatzbuch-nutzer"], adminGroups: [], prodHosts: [],
       showInSwitcher: true, switcherGroupSources: ["access"],
     });
   });
@@ -25,8 +25,8 @@ describe("Registry-Eintrag einsatzbuch", () => {
     expect(requiredGroupsFor(getModule("einsatzbuch"), { SUITE_ACCESS_GROUP_EINSATZBUCH: "eb-leitung" })).toEqual(["eb-leitung"]);
   });
   it("im Umschalter nur mit der Zugangsgruppe — nicht anonym, nicht für den Suite-Admin", () => {
-    expect(visibleSwitcherModules(["einsatzbuch-verwaltung"], {}).map((m) => m.key)).toContain("einsatzbuch");
-    expect(visibleSwitcherModules(["dashboard-admins"], {}).map((m) => m.key)).not.toContain("einsatzbuch");
+    expect(visibleSwitcherModules(["einsatzbuch-nutzer"], {}).map((m) => m.key)).toContain("einsatzbuch");
+    expect(visibleSwitcherModules(["admin"], {}).map((m) => m.key)).not.toContain("einsatzbuch");
     expect(visibleSwitcherModules(null, {}).map((m) => m.key)).toEqual(["qr", "radio"]);
   });
 });

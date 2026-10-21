@@ -11,7 +11,7 @@ beforeEach(() => {
   process.env.DATA_DIR = DIR; process.env.SUITE_HOST_UAV = "uav-training.iuk-ue.de";
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
   migrateAllModules();
-  gruppen = ["uav-training-admin"];
+  gruppen = ["uav-admin"];
 });
 
 const req = (id: string, init: RequestInit) =>

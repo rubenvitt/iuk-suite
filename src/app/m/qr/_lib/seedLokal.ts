@@ -192,6 +192,6 @@ export async function seedLokalQr(
     `qr: Arten abgedeckt — ${arten}.`,
     "qr: http://qr.localtest.me:3000/ — die Kacheln stehen hinter „Beispiel-Link“ (sortOrder ab 10).",
     "qr: http://qr.localtest.me:3000/wifi · /tel · /contact — die Formulare zu den drei Sonderarten.",
-    "qr: Dev-Login mit groups=iuk-qr-admin öffnet http://qr.localtest.me:3000/admin (Bearbeiten/Sortieren).",
+    "qr: Dev-Login mit groups=qr-admin öffnet http://qr.localtest.me:3000/admin (Bearbeiten/Sortieren).",
   ];
 }

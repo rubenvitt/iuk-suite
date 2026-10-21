@@ -261,7 +261,7 @@ export async function radioBootFehler(env: EnvLike = process.env): Promise<strin
    * ⚠️ GELESEN WIRD DIE VARIABLE DIREKT, NICHT UEBER `adminGroupsFor`. Die faellt bei
    * nicht gesetzter Variable still auf `mod.adminGroups` zurueck
    * (`src/core/groups.ts:102-108`), also auf den ENTWICKLUNGS-Vorgabewert
-   * `["iuk-radio-admin"]` (`src/core/registry.ts:198`) — und meldete nichts. Die Frage hier
+   * `["radio-admin"]` (`src/core/registry.ts:198`) — und meldete nichts. Die Frage hier
    * ist eine andere: HAT DER BETREIBER DIE PRODUKTIVE GRUPPE GESETZT?
    */
   const adminGruppen = (env.SUITE_ADMIN_GROUP_RADIO ?? "")
@@ -271,7 +271,7 @@ export async function radioBootFehler(env: EnvLike = process.env): Promise<strin
   if (adminGruppen.length === 0) {
     fehler.push(
       `SUITE_ADMIN_GROUP_RADIO ist nicht gesetzt oder leer. Ohne sie greift der ` +
-        `Entwicklungs-Vorgabewert aus dem Registry ("iuk-radio-admin"); ist in Pocket ID ` +
+        `Entwicklungs-Vorgabewert aus dem Registry ("radio-admin"); ist in Pocket ID ` +
         `niemand in dieser Gruppe, ist die Folge ein STUMMES 404 fuer ALLE Verwaltenden — ` +
         `fuer dieses Modul gibt es bewusst KEINE Suite-Admin-Rueckfallebene ` +
         `(Betreiber-Entscheidung 9). Der Wert wandert 1:1 aus OIDC_ADMIN_GROUP der alten ` +

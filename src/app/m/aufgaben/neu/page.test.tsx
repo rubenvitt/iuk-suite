@@ -97,7 +97,7 @@ describe("NeuPage — Default-Export: keine Rollenschranke, nur die Erklaerseite
    * Quellenwechsel (2026-08-15) sind Rolle und Koordination zwei unabhaengige Achsen, und „gatet
    * nicht" muss auf beiden gelten.
    *
-   * DIE GRUPPE STEHT AM AUFRUF, NICHT IN DER ZEILE: `iuk-aufgaben-koordination` ist der
+   * DIE GRUPPE STEHT AM AUFRUF, NICHT IN DER ZEILE: `aufgaben-admin` ist der
    * Registry-Vorgabewert (`core/registry.ts`); `SUITE_ADMIN_GROUP_AUFGABEN` ist in der
    * Testumgebung nicht gesetzt.
    */
@@ -111,7 +111,7 @@ describe("NeuPage — Default-Export: keine Rollenschranke, nur die Erklaerseite
     async (rolle, koordiniert) => {
       const p = legePerson(`np-${rolle}-${koordiniert}`, rolle);
       sitzung = {
-        user: { id: p.sub, groups: koordiniert ? ["iuk-aufgaben-koordination"] : [] },
+        user: { id: p.sub, groups: koordiniert ? ["aufgaben-admin"] : [] },
       };
       await mount(await NeuPage());
       expect(query("h1").textContent).toBe("Aufgabe einstellen");

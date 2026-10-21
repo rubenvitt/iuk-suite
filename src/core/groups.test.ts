@@ -18,7 +18,7 @@ const mod = (over: Partial<ModuleDef> = {}): ModuleDef => ({
   shell: "minimal",
   requiresAuth: false,
   requiredGroups: [],
-  adminGroups: ["iuk-qr-admin"],
+  adminGroups: ["qr-admin"],
   prodHosts: [],
   showInSwitcher: true,
   switcherGroupSources: [],
@@ -39,8 +39,8 @@ describe("hasAnyGroup", () => {
 });
 
 describe("suiteAdminGroup", () => {
-  it("fällt auf dashboard-admins zurück", () => {
-    expect(suiteAdminGroup({})).toBe("dashboard-admins");
+  it("fällt auf admin zurück", () => {
+    expect(suiteAdminGroup({})).toBe("admin");
   });
   it("ADMIN_GROUP überschreibt — der Name ist historisch, nicht umbenennen", () => {
     expect(suiteAdminGroup({ ADMIN_GROUP: "admin" })).toBe("admin");
@@ -49,7 +49,7 @@ describe("suiteAdminGroup", () => {
 
 describe("adminGroupsFor", () => {
   it("nimmt den Registry-Wert, wenn keine Env gesetzt ist", () => {
-    expect(adminGroupsFor(mod(), {})).toEqual(["iuk-qr-admin"]);
+    expect(adminGroupsFor(mod(), {})).toEqual(["qr-admin"]);
   });
   it("SUITE_ADMIN_GROUP_<KEY> überschreibt und trennt an Kommas", () => {
     expect(adminGroupsFor(mod(), { SUITE_ADMIN_GROUP_QR: " a , b " })).toEqual(["a", "b"]);
@@ -91,10 +91,10 @@ describe("envAccessGroupsFor", () => {
 
 describe("isModuleAdmin", () => {
   it("Modul-Admin-Gruppe genügt", () => {
-    expect(isModuleAdmin(mod(), ["iuk-qr-admin"], {})).toBe(true);
+    expect(isModuleAdmin(mod(), ["qr-admin"], {})).toBe(true);
   });
   it("Suite-Admin darf überall — auch ohne Modul-Gruppe", () => {
-    expect(isModuleAdmin(mod(), ["dashboard-admins"], {})).toBe(true);
+    expect(isModuleAdmin(mod(), ["admin"], {})).toBe(true);
   });
   it("fremde Gruppe genügt nicht", () => {
     expect(isModuleAdmin(mod(), ["iuk-qr-user"], {})).toBe(false);
@@ -112,7 +112,7 @@ describe("isModuleAdmin", () => {
 
   it("Modul ohne eigene Admin-Gruppen: nur der Suite-Admin darf", () => {
     const portal = mod({ key: "portal", adminGroups: [] });
-    expect(isModuleAdmin(portal, ["dashboard-admins"], {})).toBe(true);
+    expect(isModuleAdmin(portal, ["admin"], {})).toBe(true);
     expect(isModuleAdmin(portal, ["irgendwas"], {})).toBe(false);
   });
 
@@ -120,7 +120,7 @@ describe("isModuleAdmin", () => {
     expect(isModuleAdmin(mod(), ["neue-gruppe"], { SUITE_ADMIN_GROUP_QR: "neue-gruppe" })).toBe(
       true,
     );
-    expect(isModuleAdmin(mod(), ["iuk-qr-admin"], { SUITE_ADMIN_GROUP_QR: "neue-gruppe" })).toBe(
+    expect(isModuleAdmin(mod(), ["qr-admin"], { SUITE_ADMIN_GROUP_QR: "neue-gruppe" })).toBe(
       false,
     );
   });

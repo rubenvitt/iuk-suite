@@ -11,7 +11,7 @@ const HOST = "einsatzbuch.localtest.me";
 const url = (pfad: string) => `http://${HOST}:${E2E_PORT}${pfad}`;
 
 test("mit der Gruppe öffnet sich die Übersicht in der Suite-Hülle", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "einsatzbuch-verwaltung", callbackPath: "/" });
+  await devLogin(page, { host: HOST, groups: "einsatzbuch-nutzer", callbackPath: "/" });
   const antwort = await page.goto(url("/"));
   expect(antwort?.status()).toBe(200);
   await expect(page.getByRole("heading", { level: 1, name: "Einsatzbuch" })).toBeVisible();
@@ -19,7 +19,7 @@ test("mit der Gruppe öffnet sich die Übersicht in der Suite-Hülle", async ({ 
 });
 
 test("ohne die Gruppe antwortet das Modul mit 404 — auch dem Suite-Admin", async ({ page }) => {
-  await devLogin(page, { host: HOST, groups: "dashboard-admins", callbackPath: "/login" });
+  await devLogin(page, { host: HOST, groups: "admin", callbackPath: "/login" });
   const antwort = await page.goto(url("/"));
   expect(antwort?.status()).toBe(404);
 });
@@ -30,7 +30,7 @@ test("ohne Anmeldung geht es zum Login", async ({ page }) => {
 });
 
 test("ein fremder Suite-Host liefert das Modul nicht aus", async ({ page }) => {
-  await devLogin(page, { host: "feedback.localtest.me", groups: "einsatzbuch-verwaltung", callbackPath: "/login" });
+  await devLogin(page, { host: "feedback.localtest.me", groups: "einsatzbuch-nutzer", callbackPath: "/login" });
   const antwort = await page.goto(`http://feedback.localtest.me:${E2E_PORT}/m/einsatzbuch`);
   expect(antwort?.status()).toBe(404);
 });

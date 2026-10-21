@@ -164,9 +164,9 @@ describe("istRadioAdmin — das Praedikat", () => {
 
   it("mit der Registry-Vorgabegruppe: true", () => {
     // Das Env-Loeschen leistet das beforeEach oben (kein zweites hier, es waere tot).
-    // Die Vorgabe steht in `src/core/registry.ts:198` (`adminGroups: ["iuk-radio-admin"]`).
+    // Die Vorgabe steht in `src/core/registry.ts:198` (`adminGroups: ["radio-admin"]`).
     try {
-      expect(istRadioAdmin(viewer(["iuk-radio-admin"]))).toBe(true);
+      expect(istRadioAdmin(viewer(["radio-admin"]))).toBe(true);
     } finally { zuruecksetzen(); }
   });
 
@@ -180,7 +180,7 @@ describe("istRadioAdmin — das Praedikat", () => {
     try {
       process.env.SUITE_ADMIN_GROUP_RADIO = "leitung";
       expect(istRadioAdmin(viewer(["leitung"]))).toBe(true);
-      expect(istRadioAdmin(viewer(["iuk-radio-admin"]))).toBe(false);
+      expect(istRadioAdmin(viewer(["radio-admin"]))).toBe(false);
     } finally { zuruecksetzen(); }
   });
 
@@ -196,16 +196,16 @@ describe("istRadioAdmin — das Praedikat", () => {
      */
     try {
       process.env.SUITE_ADMIN_GROUP_RADIO = "";
-      expect(istRadioAdmin(viewer(["iuk-radio-admin"]))).toBe(false);
+      expect(istRadioAdmin(viewer(["radio-admin"]))).toBe(false);
       expect(istRadioAdmin(viewer([]))).toBe(false);
     } finally { zuruecksetzen(); }
   });
 
-  it("ein Viewer mit NUR dashboard-admins: false — der Suite-Admin bekommt keine Radio-Rechte", () => {
+  it("ein Viewer mit NUR admin: false — der Suite-Admin bekommt keine Radio-Rechte", () => {
     /*
      * Entscheidung 9 und Kapitel-4-Pflicht 17. `src/core/groups.ts:125` liesse ihn durch
      * (`if (groups.includes(suiteAdminGroup(env))) return true;`) — deshalb ist
-     * `isModuleAdmin` hier NICHT die Quelle. `dashboard-admins` ist der Default von
+     * `isModuleAdmin` hier NICHT die Quelle. `admin` ist der Default von
      * ADMIN_GROUP (src/core/groups.ts:96-97).
      *
      * ⚠️ OHNE DIESEN FALL waere ein Umbau auf `isModuleAdmin` GRUEN — er sieht wie
@@ -216,7 +216,7 @@ describe("istRadioAdmin — das Praedikat", () => {
      * Das Env-Loeschen leistet das beforeEach oben.
      */
     try {
-      expect(istRadioAdmin(viewer(["dashboard-admins"]))).toBe(false);
+      expect(istRadioAdmin(viewer(["admin"]))).toBe(false);
     } finally { zuruecksetzen(); }
   });
 
@@ -263,7 +263,7 @@ describe("istRadioAdmin — das Praedikat", () => {
       expect(istRadioUpdater(viewer(["eine-updater-gruppe"]))).toBe(true);
       // Und die Gegenrichtung: wer BEIDES hat, ist Admin — „admin gewinnt bei
       // Ueberschneidung" (radio-admin/shared/src/role.test.ts:15-17).
-      expect(istRadioAdmin(viewer(["eine-updater-gruppe", "iuk-radio-admin"]))).toBe(true);
+      expect(istRadioAdmin(viewer(["eine-updater-gruppe", "radio-admin"]))).toBe(true);
     } finally { zuruecksetzen(); }
   });
 });
@@ -453,7 +453,7 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
     try {
       expect(updaterGruppe()).toBeNull();
       expect(istInUpdaterGruppe([])).toBe(false);
-      expect(istInUpdaterGruppe(["iuk-radio-updater"])).toBe(false);
+      expect(istInUpdaterGruppe(["radio-updater"])).toBe(false);
       expect(istInUpdaterGruppe(["irgendeine", "andere"])).toBe(false);
     } finally { zuruecksetzen(); }
   });
@@ -465,7 +465,7 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
       process.env.SUITE_UPDATER_GROUP_RADIO = "";
       expect(updaterGruppe()).toBeNull();
       expect(istInUpdaterGruppe([""])).toBe(false);
-      expect(istInUpdaterGruppe(["iuk-radio-updater"])).toBe(false);
+      expect(istInUpdaterGruppe(["radio-updater"])).toBe(false);
     } finally { zuruecksetzen(); }
   });
 
@@ -492,14 +492,14 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
      * `groups.includes(cfg.updaterGroup)` (radio-admin/shared/src/role.ts:8).
      */
     try {
-      process.env.SUITE_UPDATER_GROUP_RADIO = "iuk-radio-updater";
-      expect(istInUpdaterGruppe(["iuk-radio-updater"])).toBe(true);
+      process.env.SUITE_UPDATER_GROUP_RADIO = "radio-updater";
+      expect(istInUpdaterGruppe(["radio-updater"])).toBe(true);
       expect(istInUpdaterGruppe(["IUK-RADIO-UPDATER"])).toBe(false);
       expect(istInUpdaterGruppe(["Iuk-Radio-Updater"])).toBe(false);
       // Der Rand-Leerraum der Variablen faellt weg, der Gruppenname bleibt zeichengleich.
-      process.env.SUITE_UPDATER_GROUP_RADIO = "  iuk-radio-updater  ";
-      expect(updaterGruppe()).toBe("iuk-radio-updater");
-      expect(istInUpdaterGruppe(["iuk-radio-updater"])).toBe(true);
+      process.env.SUITE_UPDATER_GROUP_RADIO = "  radio-updater  ";
+      expect(updaterGruppe()).toBe("radio-updater");
+      expect(istInUpdaterGruppe(["radio-updater"])).toBe(true);
     } finally { zuruecksetzen(); }
   });
 
@@ -556,7 +556,7 @@ describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", ()
      */
     try {
       process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
-      const v = viewer(["iuk-radio-admin"]);
+      const v = viewer(["radio-admin"]);
       expect(istRadioUpdater(v)).toBe(false);
       expect(istRadioVerwaltung(v)).toBe(true);
     } finally { zuruecksetzen(); }
@@ -671,7 +671,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
 
   it("laesst die Admin-Gruppe durch und meldet rolle admin", async () => {
     try {
-      sitzung = { user: { id: "sub-a1", name: "Anna Beispiel", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a1", name: "Anna Beispiel", groups: ["radio-admin"] } };
       const { viewer, rolle } = await requireRadioVerwaltung();
       expect(rolle).toBe("admin");
       expect(viewer.sub).toBe("sub-a1");
@@ -700,7 +700,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
     try {
       process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
       sitzung = {
-        user: { id: "sub-b1", name: "Bea Beispiel", groups: ["eine-updater-gruppe", "iuk-radio-admin"] },
+        user: { id: "sub-b1", name: "Bea Beispiel", groups: ["eine-updater-gruppe", "radio-admin"] },
       };
       expect((await requireRadioVerwaltung()).rolle).toBe("admin");
     } finally { zuruecksetzen(); }
@@ -746,7 +746,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
      */
     try {
       hostKopf = new Headers({ host: "iuk-ue.de" });
-      sitzung = { user: { id: "sub-h1", name: "Hans Beispiel", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-h1", name: "Hans Beispiel", groups: ["radio-admin"] } };
       await expect(requireRadioVerwaltung()).rejects.toThrow("NEXT_NOT_FOUND");
       expect(authAufrufe, "die Sitzung wurde gelesen, obwohl der Host schon falsch war").toBe(0);
     } finally { zuruecksetzen(); }
@@ -775,7 +775,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
     // Zeile gruen — und die Ereignisliste zeigte danach fuer jede Person eine nackte UUID
     // (Spec:4358-4360).
     try {
-      sitzung = { user: { id: "sub-a2", name: "Anna Beispiel", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a2", name: "Anna Beispiel", groups: ["radio-admin"] } };
       await requireRadioVerwaltung();
       const zeilen = nutzerZeilen();
       expect(zeilen).toHaveLength(1);
@@ -798,7 +798,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
      * erfundener Platzhalter den Fall.
      */
     try {
-      sitzung = { user: { id: "sub-a3", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a3", groups: ["radio-admin"] } };
       await requireRadioVerwaltung();
       expect(nutzerZeilen()[0]!.name).toBe("sub-a3");
       /*
@@ -811,7 +811,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
        * `src/app/m/lagerbuch/_lib/konto.ts:80-100` und `lagerbuch/_db/quelle.ts:37`
        * („EIN NAME AUS LEERZEICHEN IST KEIN NAME").
        */
-      sitzung = { user: { id: "sub-a3b", name: "   ", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a3b", name: "   ", groups: ["radio-admin"] } };
       await requireRadioVerwaltung();
       const leerraum = nutzerZeilen().find((z) => z.sub === "sub-a3b");
       expect(leerraum!.name).toBe("sub-a3b");
@@ -825,9 +825,9 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
      * still, denn die Zeile EXISTIERT ja.
      */
     try {
-      sitzung = { user: { id: "sub-a4", name: "Anna Alt", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a4", name: "Anna Alt", groups: ["radio-admin"] } };
       await requireRadioVerwaltung();
-      sitzung = { user: { id: "sub-a4", name: "Anna Neu", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a4", name: "Anna Neu", groups: ["radio-admin"] } };
       await requireRadioVerwaltung();
       expect(nutzerZeilen()[0]!.name).toBe("Anna Neu");
     } finally { zuruecksetzen(); }
@@ -837,7 +837,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
     // `toBe(1)` nach zwei Aufrufen — der Fall gegen ein `insert` ohne `onConflict`, das beim
     // zweiten Aufruf entweder eine zweite Zeile schriebe oder hart abbraeche.
     try {
-      sitzung = { user: { id: "sub-a5", name: "Anna Beispiel", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a5", name: "Anna Beispiel", groups: ["radio-admin"] } };
       await requireRadioVerwaltung();
       await requireRadioVerwaltung();
       expect(nutzerZeilen()).toHaveLength(1);
@@ -858,7 +858,7 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
       await expect(requireRadioAdmin()).rejects.toThrow("NEXT_NOT_FOUND");
       expect(nutzerZeilen()).toEqual([]);
       // Und die Gegenprobe am selben Riegel: die Admin-Gruppe kommt durch.
-      sitzung = { user: { id: "sub-a6", name: "Anna Beispiel", groups: ["iuk-radio-admin"] } };
+      sitzung = { user: { id: "sub-a6", name: "Anna Beispiel", groups: ["radio-admin"] } };
       expect((await requireRadioAdmin()).sub).toBe("sub-a6");
     } finally { zuruecksetzen(); }
   });

@@ -163,7 +163,7 @@ async function aufgebaut(seite: Page): Promise<void> {
 async function alsAdmin(page: Page): Promise<void> {
   await devLogin(page, {
     host: "feedback.localtest.me",
-    groups: "da-feedback-admin",
+    groups: "feedback-admin",
     callbackPath: "/",
   });
 }
@@ -531,10 +531,10 @@ test("IDOR-Guard: groupleader ohne Zuordnung bekommt auf einer fremden Gruppen-S
 
   await page.context().clearCookies();
 
-  // "da-feedback-gl" reicht für den (ungegateten) Modul-Zugang, aber ohne
+  // "feedback-nutzer" reicht für den (ungegateten) Modul-Zugang, aber ohne
   // Zeile in user_groups bleibt memberGroupIdsFor leer — genau der Fall, den
   // assertGroupAccess/guardPage abfangen muss (die Alt-IDOR).
-  await devLogin(page, { host: "feedback.localtest.me", groups: "da-feedback-gl" });
+  await devLogin(page, { host: "feedback.localtest.me", groups: "feedback-nutzer" });
   const res = await page.goto(`${FEEDBACK}/groups/${groupId}`);
   expect(res?.status()).toBe(404);
 });
@@ -759,7 +759,7 @@ test("Gruppenleiter: der Einstieg landet in der eigenen Gruppe, die fremde bleib
   await devLogin(page, {
     host: "feedback.localtest.me",
     email: "gl@localtest.me",
-    groups: "da-feedback-gl",
+    groups: "feedback-nutzer",
     callbackPath: "/",
   });
   await page.waitForURL(/\/groups\/\d+$/);
@@ -783,7 +783,7 @@ test("Export-Link: die Zuordnung allein reicht ohne Modulgruppe nicht mehr", asy
   await devLogin(page, {
     host: "feedback.localtest.me",
     email: "gl@localtest.me",
-    groups: "da-feedback-gl",
+    groups: "feedback-nutzer",
     callbackPath: "/",
   });
   await page.waitForURL(/\/groups\/\d+$/);

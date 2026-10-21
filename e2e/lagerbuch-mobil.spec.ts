@@ -27,7 +27,7 @@ import {
  *
  * Host, Admin-Gruppe und URLs kommen ausschliesslich aus
  * `e2e/helpers/lagerbuch.ts` (Festlegung H9, Ruling A9) — kein Literal wie
- * "http://lagerbuch.localtest.me:3100" oder `["lagerbuch_nutzer"]`.
+ * "http://lagerbuch.localtest.me:3100" oder `["lagerbuch-admin"]`.
  *
  * JEDER Test traegt ein POSITIVES Merkmal, das beweist, dass er die RICHTIGE
  * Seite misst und nicht eine 404: Status 200 UND ein Anker, der nur auf der
