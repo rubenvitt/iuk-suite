@@ -55,7 +55,7 @@ export function appleIconFuer(modulKey: string | null | undefined): Favicon | un
  *
  * Absolut zum Portal-Host gedacht: `/favicon/` liegt in der Durchlassliste und
  * gilt auf jedem Host. Das Portal trägt das IDA-Zeichen. Module ohne Zeichen
- * (Kommunikationspläne, Demos) bekommen keines und behalten ihr Icons8-Zeichen.
+ * (die Demos) bekommen keines und behalten ihr Icons8-Zeichen.
  */
 export function appIconFuerKachel(modulKey: string): string | undefined {
   const name = modulKey === "portal" ? "ida" : modulKey;
