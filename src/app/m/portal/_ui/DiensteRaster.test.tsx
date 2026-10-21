@@ -28,7 +28,7 @@ describe("DiensteRaster", () => {
       <DiensteRaster
         eintraege={[
           { ...EINTRAEGE[0], key: "qr", title: "QR-Codes", appIconUrl: "/favicon/qr-app-192.png?v=1" },
-          { ...EINTRAEGE[0], key: "kommplan", title: "Kommunikationspläne", icon: "genealogy" },
+          { ...EINTRAEGE[0], key: "alpha", title: "Alpha", icon: "square" },
           EINTRAEGE[1],
         ]}
         ansprechpartner={null}
@@ -38,7 +38,7 @@ describe("DiensteRaster", () => {
     expect(zeichen.length).toBe(2);
     expect(zeichen[0].tagName).toBe("IMG");
     expect(zeichen[0].getAttribute("src")).toBe("/favicon/qr-app-192.png?v=1");
-    expect(zeichen[1].querySelector('[data-icons8="genealogy"]')).not.toBeNull();
+    expect(zeichen[1].querySelector('[data-icons8="square"]')).not.toBeNull();
     // Externe Dienste bleiben beim kleinen Zeichen.
     const dienst = queryAll('[data-testid="service-tile"]')[2];
     expect(dienst.querySelector('[data-testid="app-zeichen"]')).toBeNull();

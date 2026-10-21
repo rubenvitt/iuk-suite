@@ -5,7 +5,7 @@ import { ZEICHEN } from "./zeichen";
 
 describe("faviconFuer", () => {
   it("gibt Modulen mit eigenem Zeichen dieses, versioniert über die Prüfsumme", () => {
-    for (const key of ["qr", "feedback", "files", "aufgaben", "radio", "uav", "einsatzbuch", "lagerbuch"]) {
+    for (const key of ["qr", "feedback", "files", "aufgaben", "radio", "uav", "einsatzbuch", "lagerbuch", "kommplan", "fahrzeuge", "helfer"]) {
       expect(faviconFuer(key).url).toMatch(new RegExp(`^/favicon/${key}\\.svg\\?v=[0-9a-z]+$`));
     }
   });
@@ -33,7 +33,7 @@ describe("faviconFuer", () => {
 describe("zeichenZuDatei", () => {
   it("kennt nur `<name>.svg` aus der Liste", () => {
     expect(zeichenZuDatei("ida.svg")).toBe(ZEICHEN.ida);
-    for (const datei of ["ida", "ida.png", "IDA.svg", "../ida.svg", "toString.svg", "constructor.svg", "kommplan.svg"]) {
+    for (const datei of ["ida", "ida.png", "IDA.svg", "../ida.svg", "toString.svg", "constructor.svg", "alpha.svg"]) {
       expect(zeichenZuDatei(datei), datei).toBeNull();
     }
   });
@@ -77,7 +77,7 @@ describe("appIconsFuerManifest", () => {
 describe("pngZuDatei", () => {
   it("kennt nur die erzeugten Dateien", () => {
     expect(pngZuDatei("ida-apple-180.png")).not.toBeNull();
-    for (const datei of ["ida.png", "ida-apple-180", "../ida-apple-180.png", "toString", "constructor", "kommplan-app-192.png"]) {
+    for (const datei of ["ida.png", "ida-apple-180", "../ida-apple-180.png", "toString", "constructor", "alpha-app-192.png"]) {
       expect(pngZuDatei(datei), datei).toBeNull();
     }
   });
@@ -95,7 +95,18 @@ describe("appIconFuerKachel", () => {
   /** Rückmeldung vom 20.10.2026: Lagerbuchs dunkles Alt-Symbol stand als einzige Kachel aus der Reihe. */
   it("gibt lagerbuch das Suite-Zeichen, Modulen ohne Zeichen keines", () => {
     expect(appIconFuerKachel("lagerbuch")).toMatch(/^\/favicon\/lagerbuch-app-192\.png\?v=/);
-    expect(appIconFuerKachel("kommplan")).toBeUndefined();
+    expect(appIconFuerKachel("alpha")).toBeUndefined();
     expect(appIconFuerKachel("portal")).toMatch(/^\/favicon\/ida-app-192\.png\?v=/);
+  });
+
+  /**
+   * Rückmeldung vom 21.10.2026: Fahrzeuge, Helfer und Kommunikationspläne
+   * standen mit Icons8-Zeichen ohne rotes Signal neben den Suite-Kacheln. Ein
+   * neues Modul braucht ein Zeichen in `zeichen.ts`; nur die Wegwerf-Module nicht.
+   */
+  it("gibt jedem echten Modul ein eigenes Zeichen", () => {
+    const wegwerf = new Set(["alpha", "beta", "gamma", "kioskdemo"]);
+    const ohne = MODULES.filter((m) => !wegwerf.has(m.key) && !appIconFuerKachel(m.key)).map((m) => m.key);
+    expect(ohne).toEqual([]);
   });
 });

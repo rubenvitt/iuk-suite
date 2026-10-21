@@ -151,6 +151,38 @@ const LAGERBUCH = modulZeichen(
     `<path class="t" fill-rule="evenodd" d="M9 40h34v18a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4Zm8 6v6h18v-6Z"/>`,
 );
 
+/** Organigramm: eine Leitstelle oben, drei Teilnehmer darunter, verbunden. */
+const KOMMPLAN = modulZeichen(
+  "Kommunikationspläne",
+  `<rect class="t" x="16" y="24" width="16" height="11" rx="3"/>` +
+    `<path class="l" stroke-width="3" stroke-linejoin="round" d="M24 35v6M9.5 48v-7h29v7M24 41v7"/>` +
+    [4, 18.5, 33].map((x) => `<rect class="t" x="${x}" y="48" width="11" height="12" rx="3"/>`).join(""),
+);
+
+/**
+ * Rettungswagen von der Seite: Kofferaufbau mit ausgespartem Kreuz, Fahrerhaus
+ * mit Scheibe, zwei Räder mit Luft zum Aufbau.
+ */
+const FAHRZEUGE = modulZeichen(
+  "Fahrzeuge",
+  `<mask id="f"><rect width="64" height="64" fill="#fff"/>` +
+    `<path d="M16.5 32h4v5.5H26v4h-5.5V47h-4v-5.5H11v-4h5.5Z"/>` +
+    `<rect x="35" y="38" width="7" height="5" rx="1.5"/>` +
+    `<circle cx="15" cy="54" r="8.5"/><circle cx="38" cy="54" r="8.5"/></mask>` +
+    `<path class="t" mask="url(#f)" d="M8 28h22a3 3 0 0 1 3 3v3h7.5a3 3 0 0 1 2.6 1.5l3.5 6.1a3 3 0 0 1 .4 1.5V51a3 3 0 0 1-3 3H8a4 4 0 0 1-4-4V32a4 4 0 0 1 4-4Z"/>` +
+    `<circle class="t" cx="15" cy="54" r="6"/><circle class="t" cx="38" cy="54" r="6"/>`,
+);
+
+/** Zwei Helfer, Kopf und Schultern; der vordere steht frei vor dem hinteren. */
+const HELFER_VORNE = `<circle cx="18" cy="35" r="6.5"/><path d="M5 62v-5a10 10 0 0 1 10-10h6a10 10 0 0 1 10 10v5Z"/>`;
+const HELFER = modulZeichen(
+  "Helfer",
+  `<mask id="p"><rect width="64" height="64" fill="#fff"/>` +
+    `<g stroke="#000" stroke-width="5" stroke-linejoin="round">${HELFER_VORNE}</g></mask>` +
+    `<g class="t" mask="url(#p)"><circle cx="34" cy="31" r="6"/><path d="M23 56v-5a9 9 0 0 1 9-9h5a9 9 0 0 1 9 9v5Z"/></g>` +
+    `<g class="t">${HELFER_VORNE}</g>`,
+);
+
 /**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
@@ -165,6 +197,9 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   uav: DROHNE,
   einsatzbuch: EINSATZBUCH,
   lagerbuch: LAGERBUCH,
+  kommplan: KOMMPLAN,
+  fahrzeuge: FAHRZEUGE,
+  helfer: HELFER,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */
