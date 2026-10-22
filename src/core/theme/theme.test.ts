@@ -17,6 +17,7 @@ import {
   Select,
   Table,
   theme as antdTheme,
+  type ThemeConfig,
 } from "antd";
 import { ARBEITSDICHTE, SCHREIBTISCHDICHTE, buildTheme, type ThemeMode } from "@/core/theme/theme";
 import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
@@ -549,5 +550,42 @@ describe("Ausgewählte Tabellenzeile", () => {
       const rot = antdTheme.getDesignToken(buildTheme(mode)).controlItemBgActive;
       expect(css).not.toContain(`--ant-table-row-selected-bg:${rot}`);
     }
+  });
+});
+
+/**
+ * IDA-242: das Fenster der Datumsauswahl passt in jeder Dichte auf ein 375px-Telefon. Gerechnet
+ * wird mit antds EIGENER Formel aus dem erzeugten CSS — geprüft wird deshalb auch, dass sie dort
+ * noch so steht; ein Major, der sie umbaut, macht diesen Test rot statt die Rechnung still falsch.
+ * Ob das Fenster dann auch an seinem Platz steht, misst `e2e/monatswaehler-schmal.spec.ts`.
+ */
+describe("Fenster der Datumsauswahl", () => {
+  const FORMEL =
+    "width:calc(var(--ant-date-picker-cell-width) * 7 + calc(var(--ant-padding) + var(--ant-padding-xxs) / 2) * 2)";
+  const dichten: [string, ThemeConfig[]][] = [
+    ["buildTheme", [buildTheme("light")]],
+    ["ARBEITSDICHTE", [buildTheme("light"), ARBEITSDICHTE]],
+    ["SCHREIBTISCHDICHTE", [buildTheme("light"), ARBEITSDICHTE, SCHREIBTISCHDICHTE]],
+  ];
+
+  it.each(dichten)("lässt unter %s bei 375px je Seite mindestens 15px frei", (_name, themen) => {
+    const cache = createCache();
+    const baum = themen.reduceRight<ReturnType<typeof createElement>>(
+      (kind, theme) => createElement(ConfigProvider, { theme }, kind),
+      createElement(DatePicker, { picker: "month" }),
+    );
+    renderToString(createElement(StyleProvider, { cache }, baum));
+    const css = extractStyle(cache, true);
+    const px = (name: string) => {
+      const treffer = [...css.matchAll(new RegExp(`--ant-${name}:(\\d+(?:\\.\\d+)?)px`, "g"))];
+      expect(treffer.length, `--ant-${name} fehlt im CSS`).toBeGreaterThan(0);
+      // Die innerste Dichte steht zuletzt im Stylesheet.
+      return Number(treffer.at(-1)![1]);
+    };
+    expect(css, "antd rechnet die Fensterbreite anders als angenommen").toContain(FORMEL);
+    const breite = px("date-picker-cell-width") * 7 + (px("padding") + px("padding-xxs") / 2) * 2;
+    // 44er-Zellen ergeben 344px (`WAEHLER_ZELLE` in `theme.ts`); rücken darf das Fenster nur,
+    // wenn es überhaupt hineinpasst.
+    expect((375 - breite) / 2).toBeGreaterThanOrEqual(15);
   });
 });

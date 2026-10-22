@@ -11,6 +11,7 @@ import type { VerfallWert } from "../../../../_lib/verfallStand";
 import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
 import { monatAusPicker } from "../../../../_ui/monat";
 import { Ikone } from "../../../../_ui/ikonen";
+import { MONATSWAEHLER_IM_BILD } from "../../../../_lib/monatswaehler";
 
 const ALLGEMEIN = "Aussondern fehlgeschlagen.";
 
@@ -303,6 +304,7 @@ export function AussondernDialog({
           >
             <DatePicker
               picker="month"
+              popupAlign={MONATSWAEHLER_IM_BILD}
               format="YYYY-MM"
               allowClear
               disabled={allesRaus}
