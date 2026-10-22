@@ -49,7 +49,6 @@ import type { AmpelTon } from "../../../_lib/format";
 import type { VerfallOrt } from "../../../_lib/lesepfade/verfall";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
-import { auswahlZelle } from "../../../_ui/auswahlZelle";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
@@ -315,9 +314,6 @@ export function HandlagerVerfallTabelle({ zeilen }: { zeilen: HandlagerVerfallZe
         }}
         rowSelection={{
           selectedRowKeys: auswahl,
-          // 44 px Trefferflaeche plus Zellenrand (`auswahlZelle`).
-          columnWidth: 60,
-          renderCell: auswahlZelle,
           preserveSelectedRowKeys: true,
           onChange: (schluessel) => {
             setAuswahl(schluessel.map(String));

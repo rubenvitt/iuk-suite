@@ -25,7 +25,6 @@ import { bestellListeText } from "../../../_lib/bestellText";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
-import { auswahlZelle } from "../../../_ui/auswahlZelle";
 import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
@@ -361,9 +360,6 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
         karte={{ titel: "name", kennzeichen: ["status"] }}
         rowSelection={{
           selectedRowKeys: auswahl,
-          // 44 px Trefferflaeche plus Zellenrand (`auswahlZelle`).
-          columnWidth: 60,
-          renderCell: auswahlZelle,
           preserveSelectedRowKeys: true,
           onChange: (schluessel) => {
             setAuswahl(schluessel.map(String));

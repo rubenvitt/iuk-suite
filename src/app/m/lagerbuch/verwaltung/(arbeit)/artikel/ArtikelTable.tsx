@@ -711,7 +711,6 @@ export function ArtikelTable({
             }}
             rowSelection={{
               selectedRowKeys: auswahl,
-              columnWidth: 32,
               onChange: (schluessel) => {
                 setAuswahl(schluessel.map(String));
                 // „5 Artikel geaendert." neben einer frisch begonnenen Auswahl

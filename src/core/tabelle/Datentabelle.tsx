@@ -27,6 +27,7 @@ import { SCHRIFT } from "../theme/schrift";
 import { scrollMasse, type MassSpalte, type Scrollmass } from "./masse";
 import { angezeigteAnzahl, type AnzeigeSpalte } from "./angezeigt";
 import { RollenAnbieter, mitRollen, mitZeilenindex } from "./rollen";
+import { mitGrossenKreuzchen } from "./auswahl";
 
 export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" | "scroll"> & {
   /**
@@ -124,15 +125,15 @@ export function Datentabelle<T extends object>({
    * ⚠️ DIE AUSWAHLSPALTE STEHT NICHT IN `columns`. antd fügt sie aus
    * `rowSelection` selbst hinzu; ohne ihre Breite wäre die gerechnete
    * Gesamtbreite um genau diese Spalte zu schmal und die letzte echte Spalte
-   * geriete unter den waagerechten Rand. 32px ist antds eigene Vorgabe
-   * (`ant-table-selection-column`), überschreibbar über
-   * `rowSelection.columnWidth`.
+   * geriete unter den waagerechten Rand. Die Vorgabe setzt `mitGrossenKreuzchen`
+   * (`AUSWAHL_SPALTENBREITE`, Platz für die 44px-Trefferfläche), überschreibbar
+   * über `rowSelection.columnWidth`.
    */
+  const auswahl = useMemo(() => mitGrossenKreuzchen(rest.rowSelection), [rest.rowSelection]);
   const auswahlBreite = useMemo(() => {
-    const auswahl = rest.rowSelection;
     if (!auswahl) return 0;
     return typeof auswahl.columnWidth === "number" ? auswahl.columnWidth : 32;
-  }, [rest.rowSelection]);
+  }, [auswahl]);
 
   /**
    * ⚠️ DIE AUFKLAPPSPALTE IST DIE ZWEITE, DIE NICHT IN `columns` STEHT — und
@@ -235,6 +236,7 @@ export function Datentabelle<T extends object>({
     <RollenAnbieter value={rollenwerte}>
       <Table<T>
         {...rest}
+        rowSelection={auswahl}
         /**
          * ⚠️ DIE BESCHRIFTUNG WANDERT MIT DER VIRTUALISIERUNG AN EINEN ANDEREN
          * KNOTEN, und sie darf nicht an beiden stehen. antd hängt `aria-*` an

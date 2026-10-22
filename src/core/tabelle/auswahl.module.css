@@ -1,0 +1,22 @@
+/*
+ * DAS AUSWAHLKREUZCHEN EINER TABELLENZEILE UND DES SPALTENKOPFS mit der
+ * Trefferflaeche der Arbeitsdichte, 44 x 44 px (IDA-245, WCAG 2.5.5). Die
+ * Begruendung steht in `auswahl.tsx`; gesetzt am Label selbst, also ohne
+ * `.ant-*`-Namen (Falle 20).
+ *
+ * ⚠️ DIE KLASSE STEHT ZWEIMAL (Falle 5): antds eigene Regel am selben Label hat
+ * eine Klasse Spezifitaet, und welche Regel zuerst im Kopf steht, entscheidet
+ * sonst die Ladereihenfolge.
+ *
+ * ⚠️ DER NEGATIVE RAND OBEN UND UNTEN HAELT DIE ZEILENHOEHE. Die Flaeche waechst
+ * in den Zellenrand hinein (antd: 16 px oben und unten), statt die Zeile um
+ * 22 px zu strecken — an der Artikelliste sind das hunderte Zeilen. 11 px ist
+ * genau der Zuwachs je Seite, (44 - 22) / 2; der Kasten misst weiter 44 px.
+ */
+.kreuz.kreuz {
+  min-width: 44px;
+  min-height: 44px;
+  margin-block: -11px;
+  align-items: center;
+  justify-content: center;
+}
