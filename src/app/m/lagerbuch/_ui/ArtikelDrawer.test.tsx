@@ -16,10 +16,10 @@ import { HANDLAGER_ID } from "../_lib/konstanten";
 /*
  * IDA-235: jeder Fall waehlt jetzt erst Reiter und Buchungsart, und im
  * parallelen Lauf der ganzen Modul-Suite stand der langsamste bei 5,06 s —
- * knapp ueber Vitests Vorgabe. Ein abgebrochener Fall laesst seine Schublade
- * stehen und reisst die folgenden mit; deshalb mehr Zeit, nicht weniger Pruefung.
+ * knapp ueber Vitests Vorgabe. Die 20 s, die hier frueher eigens standen, sind
+ * seit IDA-244 ein Budget fuer jede jsdom-Datei (`vitest.setup.ts`,
+ * `DOM_ZEITBUDGET_MS`): mehr Zeit, nicht weniger Pruefung.
  */
-vi.setConfig({ testTimeout: 20_000 });
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
