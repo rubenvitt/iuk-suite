@@ -186,18 +186,3 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 16px; /* SPACE.lg — Abstand zwischen Abschnitten seit IDA-234 */
 }
-
-/*
- * IDA-238 — DAS AUSWAHLKREUZCHEN EINER TABELLENZEILE (Bestellung, Verfall)
- * mit der Trefferflaeche der Arbeitsdichte, 44 x 44 px. Die Verwaltung wird am
- * Tablet mit dem Finger bedient (Falle 4); antd leitet die Groesse des
- * `Checkbox`-Labels nicht aus `controlHeight` ab, es bliebe 22 x 22 px. Gesetzt
- * ueber `rowSelection.renderCell` am Label selbst, also ohne `.ant-*`-Namen
- * (Falle 20); die Klasse steht zweimal gegen antds eigene Regel (Falle 5).
- */
-.auswahlKreuz.auswahlKreuz {
-  min-width: 44px;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-}

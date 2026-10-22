@@ -48,6 +48,7 @@ import {
   angezeigteZeilen,
   blattSpalten,
   filterAktiv,
+  istFilterbar,
   spaltenSchluessel,
   type FilterZustand,
   type SortZustand,
@@ -110,6 +111,11 @@ export type KartentabelleProps<T> = Omit<DatentabelleProps<T>, "aria-label" | "l
  * Filter in einer Gruppe ungesteuert — und der ist dann auf dem Telefon nicht
  * erreichbar, ohne dass irgendetwas rot wird.
  *
+ * ⚠️ GESTEUERT WIRD JEDE SPALTE, DIE antd FÜR FILTERBAR HÄLT (`istFilterbar`),
+ * nicht nur die mit `filters`. antd verlangt alle oder keine (IDA-245: „Columns
+ * should all contain `filteredValue` or not") — eine Spalte mit `onFilter`, aber
+ * ohne Liste (Verfall im Gruppenmodus), blieb sonst als einzige ungesteuert.
+ *
  * ⚠️ EIN VOM AUFRUFER GESETZTES `filteredValue`/`sortOrder` BLEIBT STEHEN.
  * Zwei Steuernde an derselben Spalte ergäben ein Feld, das auf die eigene
  * Bedienung nicht reagiert.
@@ -130,7 +136,7 @@ function gesteuert<T>(
       filteredValue?: (Key | boolean)[] | null;
       sortOrder?: "ascend" | "descend" | null;
     };
-    if (Array.isArray(spalte.filters) && !("filteredValue" in spalte)) {
+    if (istFilterbar(spalte) && !("filteredValue" in spalte)) {
       neu.filteredValue = filter[schluessel] ?? null;
     }
     if (spalte.sorter !== undefined && !("sortOrder" in spalte)) {

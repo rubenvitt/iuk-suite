@@ -317,6 +317,22 @@ fn lies_lehnt_fremdes_format_ab() {
     assert_eq!(fehler.to_string(), "Die Datei ist keine Einsatzbuch-Sicherung (Format oder Version unbekannt).");
 }
 
+/// serde liest eine Struktur auch aus einem Array in Feldreihenfolge. Eine Sicherung ist aber
+/// immer ein Objekt; dieselben Werte als Array sind ein fremdes Format.
+#[test]
+fn lies_lehnt_ein_json_array_ab() {
+    let ordner = tempfile::tempdir().unwrap();
+    let pfad = ordner.path().join(DATEI);
+    let d = datei(1);
+    let array = serde_json::json!([d.format, d.version, d.erstellt, d.bloecke]);
+    fs::write(&pfad, format!("  \n{array}")).unwrap();
+    let fehler = sicherung::lies(&pfad).unwrap_err();
+    assert!(matches!(fehler, SicherungFehler::FremdesFormat), "{fehler:?}");
+    // Auch die kurze Form, die genau die Kennung trifft.
+    fs::write(&pfad, serde_json::json!([d.format, d.version]).to_string()).unwrap();
+    assert!(matches!(sicherung::lies(&pfad), Err(SicherungFehler::FremdesFormat)));
+}
+
 #[test]
 fn lies_lehnt_fremde_version_ab() {
     let ordner = tempfile::tempdir().unwrap();

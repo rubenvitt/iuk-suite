@@ -15,6 +15,7 @@ import {
   InputNumber,
   Radio,
   Select,
+  Table,
   theme as antdTheme,
   type ThemeConfig,
 } from "antd";
@@ -504,6 +505,50 @@ describe("Statusmarke Warnung", () => {
       const token = antdTheme.getDesignToken(buildTheme(mode));
       expect(token.colorSuccess.toLowerCase()).toBe(mode === "dark" ? FARBEN.okAufDunkel : FARBEN.ok);
       expect(token.colorError.toLowerCase()).toBe(mode === "dark" ? FARBEN.rotAufDunkel : FARBEN.rot);
+    }
+  });
+});
+
+/**
+ * IDA-245: antd färbte die ausgewählte Tabellenzeile aus `colorPrimary` —
+ * hellrot, eine rote Datenfläche für einen Nicht-Fehler (Falle 3). Gemessen am
+ * ERZEUGTEN CSS wie die Kontur oben: der Wert muss als Variable auf antds
+ * Tabellen-Scope landen, auch unter den beiden verschachtelten Dichten, und die
+ * Zeile muss die Klasse tragen, an der antd ihn anwendet.
+ */
+describe("Ausgewählte Tabellenzeile", () => {
+  const zeile = { schluessel: "a", name: "Pflaster" };
+
+  it.each(MODES)("ist im Modus %s neutral statt aus Suite-Rot abgeleitet", (mode) => {
+    const [grund, hover] = mode === "dark"
+      ? [FARBEN.auswahlAufDunkel, FARBEN.auswahlAufDunkelHover]
+      : [FARBEN.auswahl, FARBEN.auswahlHover];
+    for (const dichte of [undefined, ARBEITSDICHTE, SCHREIBTISCHDICHTE]) {
+      const tabelle = createElement(Table<typeof zeile>, {
+        rowKey: "schluessel",
+        dataSource: [zeile],
+        columns: [{ title: "Name", dataIndex: "name" }],
+        rowSelection: { selectedRowKeys: ["a"] },
+      });
+      const cache = createCache();
+      const markup = renderToString(
+        createElement(
+          StyleProvider,
+          { cache },
+          createElement(
+            ConfigProvider,
+            { theme: buildTheme(mode) },
+            dichte ? createElement(ConfigProvider, { theme: dichte }, tabelle) : tabelle,
+          ),
+        ),
+      );
+      const css = extractStyle(cache, true);
+      expect(markup).toContain("ant-table-row-selected");
+      expect(css).toContain(`--ant-table-row-selected-bg:${grund}`);
+      expect(css).toContain(`--ant-table-row-selected-hover-bg:${hover}`);
+      // antds Ableitung aus dem Seed darf nirgends mehr stehen.
+      const rot = antdTheme.getDesignToken(buildTheme(mode)).controlItemBgActive;
+      expect(css).not.toContain(`--ant-table-row-selected-bg:${rot}`);
     }
   });
 });

@@ -1,3 +1,33 @@
+import { vi } from "vitest";
+
+/**
+ * ZEITBUDGET FUER DOM-TESTS (IDA-244): 30 s statt Vitests 5 s, aber NUR in der
+ * jsdom-Umgebung. Die node-Tests behalten die 5 s — dort ist ein langsamer Fall
+ * meist ein Befund (Commit-Lawine, fehlender Index), und eine groessere Zahl
+ * verdeckte ihn (siehe `portal/admin/audit/object-filter.test.ts`).
+ *
+ * In jsdom ist Dauer dagegen keine Aussage, sondern Rechenzeit: antd rendert
+ * Tabellen, Schubladen und Dialoge vollstaendig, ohne Layout-Engine, und keine
+ * Zusicherung hier misst Millisekunden (die Renderkosten-Tests zaehlen
+ * Renderdurchlaeufe, siehe `InventurForm.renderkosten.test.tsx`). Gemessen
+ * (21.10.2026, Cloud-Sitzung, 4 Kerne, `vitest run src/app/m/lagerbuch` neben
+ * 8 Rechenschleifen, Last wie beim parallelen Lauf mehrerer Arbeitskopien in
+ * IDA-231): 42 von 4873 Faellen scheiterten, in fuenf jsdom-Dateien (darunter
+ * `ArtikelTable` und `TokenTable`, die das Ticket nicht nannte); der langsamste
+ * gruene Fall lag bei 8,6 s, in `ArtikelDrawer` mit dessen damaligen 20 s.
+ * Mit dem Budget derselbe Lauf noch einmal: 0 Fehlschlaege, aber
+ * `InventurForm.renderkosten` brauchte 16,5 s fuer einen Fall, der ohne Last
+ * 4,7 s braucht (Faktor 3,5). Daher 30 s und nicht 20: das Budget soll nur
+ * einen echten Haenger beenden, nicht den langsamsten gesunden Fall. Ein abgebrochener Fall laesst seine Schublade oder
+ * sein Portal stehen und reisst die folgenden Faelle der Datei mit — daher die
+ * vielen Folgefehler wie „Element nicht gefunden", die keine eigenen sind.
+ *
+ * Eine Liste einzelner Dateien mit eigenem Budget liefe dem naechsten Fund
+ * hinterher; deshalb hier, einmal fuer alle jsdom-Dateien. Ein `vi.setConfig`
+ * oder `{ timeout }` in einer Datei geht weiterhin vor.
+ */
+const DOM_ZEITBUDGET_MS = 30_000;
+
 /**
  * antd greift auf `matchMedia` (Responsive-Breakpoints in Grid, Table, Drawer)
  * und `ResizeObserver` (Overflow-Erkennung in Menu, Tabs, Select) zu. jsdom
@@ -32,6 +62,7 @@ if (typeof window !== "undefined") {
   }
 
   bewegungAbschalten();
+  vi.setConfig({ testTimeout: DOM_ZEITBUDGET_MS });
 }
 
 /**

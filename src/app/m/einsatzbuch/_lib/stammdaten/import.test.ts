@@ -6,7 +6,7 @@ import {
   stammdatenVersion,
 } from "./daten";
 import { planeImport } from "./csv";
-import { bestandFuerImport, wendeImportAn } from "./import";
+import { bestandFuerImport, ImportUeberholt, wendeImportAn } from "./import";
 
 describe("wendeImportAn", () => {
   it("schreibt neu und geändert, lässt unverändert und Fehler liegen; ein zweiter Lauf ändert nichts", () => {
@@ -53,5 +53,19 @@ describe("wendeImportAn", () => {
     expect(typeof manv5?.reihenfolge).toBe("number");
     const manv10 = liste.find((s) => s.name === "MANV 10");
     expect(manv10).toEqual({ id: expect.any(String), gruppe: "MANV", name: "MANV 10", reihenfolge: 2, aktiv: true });
+  });
+
+  it("ein Plan, den ein zweiter Import überholt hat, schreibt nichts und meldet das verständlich", () => {
+    const db = testDb();
+    const text = "typ;kennung;ruf;standort\nRTW;11-83-1;Rotkreuz Uelzen 11-83-1;Uelzen\nMTF;11-19-1;Rotkreuz Uelzen 11-19-1;Uelzen";
+    const erster = planeImport("fahrzeuge", text, bestandFuerImport(db));
+    const zweiter = planeImport("fahrzeuge", text, bestandFuerImport(db));
+    if (!erster.ok || !zweiter.ok) throw new Error("Plan erwartet");
+    wendeImportAn(db, erster);
+    const v = stammdatenVersion(db);
+    expect(() => wendeImportAn(db, zweiter)).toThrow(ImportUeberholt);
+    expect(() => wendeImportAn(db, zweiter)).toThrow("Bestand hat sich währenddessen geändert");
+    expect(listeFahrzeuge(db)).toHaveLength(2);
+    expect(stammdatenVersion(db)).toBe(v);
   });
 });

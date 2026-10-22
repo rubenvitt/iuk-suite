@@ -173,7 +173,7 @@ export function filterAktiv(zustand: FilterZustand): boolean {
  * `onFilter`, ganz ohne `filters`-Liste) filtert genauso — es fiele durch und
  * die Zeilenzahl bliebe die ungefilterte, während weniger Zeilen dastehen.
  */
-function istFilterbar<T>(spalte: AnzeigeSpalte<T>): boolean {
+export function istFilterbar<T>(spalte: AnzeigeSpalte<T>): boolean {
   return Boolean(spalte.filters) || spalte.filterDropdown !== undefined || "onFilter" in spalte;
 }
 

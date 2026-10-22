@@ -12,14 +12,17 @@
  *
  * Die Qualifikation im Einsatzbuch ist EINE Kurzform aus `QUALIFIKATIONEN`. Aus den
  * HiOrg-Qualifikationen gewinnt die höchste, die sich zuordnen lässt; ohne Zuordnung wird die Person
- * nicht übernommen und in der Vorschau mit ihren Qualifikationen genannt.
+ * nicht übernommen und in der Vorschau mit ihren Qualifikationen genannt. Zugeordnet wird je
+ * HiOrg-Qualifikation erst nach der eingestellten Regel (`qualiZuordnung.ts`, IDA-250), sonst nach
+ * der eingebauten `ZUORDNUNG`.
  */
 import { eq } from "drizzle-orm";
 import type { BereitgestellterHelfer, Bereitstellung } from "@/app/m/helfer/_lib/bereitstellung";
 import { person } from "../../_db/schema";
 import { listePersonal, type Db } from "./daten";
 import type { PersonDTO } from "./typen";
-import { QUALIFIKATIONEN } from "./vorlage";
+import { hiorgSchluessel, leseQualiRegeln, type QualiRegel } from "./qualiZuordnung";
+import { QUALIFIKATIONEN, QUALIS } from "./vorlage";
 
 export const HELFER_PRAEFIX = "helfer-";
 
@@ -34,11 +37,58 @@ const ZUORDNUNG: readonly (readonly [Quali, RegExp])[] = [
   ["SanH", /sanit(ä|ae)tshelfer|^sanh$|^sh$/i],
 ];
 
-export function qualiFuer(qualifikationen: BereitgestellterHelfer["qualifikationen"]): Quali | null {
-  for (const [kurz, muster] of ZUORDNUNG) {
-    if (qualifikationen.some((q) => muster.test(q.name.trim()) || muster.test(q.kurz.trim()))) return kurz;
+type HiorgQuali = BereitgestellterHelfer["qualifikationen"][number];
+
+/** Die eingebaute Zuordnung einer einzelnen HiOrg-Qualifikation. */
+export function eingebauteQuali(q: HiorgQuali): Quali | null {
+  return ZUORDNUNG.find(([, muster]) => muster.test(q.name.trim()) || muster.test(q.kurz.trim()))?.[0] ?? null;
+}
+
+/** Je HiOrg-Qualifikation: Regel vor eingebauter Zuordnung. */
+function zuordner(regeln: readonly QualiRegel[]): (q: HiorgQuali) => Quali | null {
+  const nachSchluessel = new Map(regeln.map((r) => [hiorgSchluessel({ name: r.hiorg, kurz: "" }), r.kurz]));
+  return (q) => {
+    const schluessel = hiorgSchluessel(q);
+    return nachSchluessel.has(schluessel) ? nachSchluessel.get(schluessel)! : eingebauteQuali(q);
+  };
+}
+
+export function qualiFuer(qualifikationen: readonly HiorgQuali[], regeln: readonly QualiRegel[] = []): Quali | null {
+  const zu = zuordner(regeln);
+  const rang = qualifikationen.map(zu).filter((k): k is Quali => k !== null).map((k) => QUALIS.indexOf(k));
+  return rang.length ? QUALIS[Math.min(...rang)] : null;
+}
+
+/** Eine HiOrg-Qualifikation, wie sie im Helferverzeichnis vorkommt, mit ihrer Zuordnung. */
+export interface HiorgQualiZeile {
+  /** Name wie in HiOrg (ohne Namen: die Kurzform) — so heißt auch die Regel. */
+  hiorg: string;
+  kurz: string;
+  /** Wie viele bereitgestellte Helfer sie tragen; 0 = nur noch eine Regel. */
+  anzahl: number;
+  eingebaut: Quali | null;
+  /** `undefined` = keine Regel, eingebaute Zuordnung gilt; `null` = bewusst nicht zuordnen. */
+  regel: Quali | null | undefined;
+}
+
+export function hiorgQualifikationen(b: Bereitstellung, regeln: readonly QualiRegel[]): HiorgQualiZeile[] {
+  const zeilen = new Map<string, HiorgQualiZeile>();
+  for (const h of b.helfer) {
+    for (const q of h.qualifikationen) {
+      const schluessel = hiorgSchluessel(q);
+      if (!schluessel) continue;
+      const z = zeilen.get(schluessel) ?? { hiorg: q.name.trim() || q.kurz.trim(), kurz: q.kurz.trim(), anzahl: 0, eingebaut: eingebauteQuali(q), regel: undefined };
+      z.anzahl++;
+      zeilen.set(schluessel, z);
+    }
   }
-  return null;
+  for (const r of regeln) {
+    const schluessel = hiorgSchluessel({ name: r.hiorg, kurz: "" });
+    const z = zeilen.get(schluessel);
+    if (z) z.regel = r.kurz;
+    else zeilen.set(schluessel, { hiorg: r.hiorg, kurz: "", anzahl: 0, eingebaut: eingebauteQuali({ name: r.hiorg, kurz: "" }), regel: r.kurz });
+  }
+  return [...zeilen.values()].sort((a, b) => b.anzahl - a.anzahl || a.hiorg.localeCompare(b.hiorg, "de"));
 }
 
 /** „Nachname, Vorname“ wie in `personEingabe` verlangt: kein weiteres Komma, höchstens 80 Zeichen. */
@@ -62,9 +112,10 @@ export interface HelferVorschauzeile {
 export interface HelferPlan {
   stand: string | null;
   zeilen: HelferVorschauzeile[];
+  qualifikationen: HiorgQualiZeile[];
 }
 
-export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[]): HelferPlan {
+export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[], regeln: readonly QualiRegel[] = []): HelferPlan {
   const nachId = new Map(personal.map((p) => [p.id, p]));
   const vonHand = new Set(personal.filter((p) => p.aktiv && !p.id.startsWith(HELFER_PRAEFIX)).map((p) => p.name));
   const zeilen: HelferVorschauzeile[] = [];
@@ -72,7 +123,7 @@ export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[]): H
   for (const h of b.helfer) {
     const id = `${HELFER_PRAEFIX}${h.id}`;
     const name = nameFuer(h);
-    const quali = qualiFuer(h.qualifikationen);
+    const quali = qualiFuer(h.qualifikationen, regeln);
     const anzeige = name ?? `${h.nachname}, ${h.vorname}`;
     const qualis = h.qualifikationen.map((q) => q.name).join(", ") || "keine";
     if (h.demo) {
@@ -84,7 +135,7 @@ export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[]): H
       continue;
     }
     if (!quali) {
-      zeilen.push({ id, name, quali: null, klasse: "ohne_quali", hinweis: `Keine Qualifikation des Einsatzbuchs zuzuordnen (in HiOrg: ${qualis})` });
+      zeilen.push({ id, name, quali: null, klasse: "ohne_quali", hinweis: `Keine Qualifikation des Einsatzbuchs zuzuordnen (in HiOrg: ${qualis}). Einstellbar unter „Qualifikationen aus HiOrg“.` });
       continue;
     }
     const alt = nachId.get(id);
@@ -103,7 +154,7 @@ export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[]): H
   }
   const reihe: Record<HelferKlasse, number> = { neu: 0, geaendert: 1, deaktivieren: 2, doppelt: 3, ohne_quali: 4, fehler: 5, demo: 6, unveraendert: 7 };
   zeilen.sort((a, b) => reihe[a.klasse] - reihe[b.klasse] || a.name.localeCompare(b.name, "de"));
-  return { stand: b.stand, zeilen };
+  return { stand: b.stand, zeilen, qualifikationen: hiorgQualifikationen(b, regeln) };
 }
 
 export interface HelferErgebnis { neu: number; geaendert: number; deaktiviert: number }
@@ -129,5 +180,5 @@ export function wendeHelferAbgleichAn(db: Db, plan: HelferPlan): HelferErgebnis 
 
 /** Plan gegen den aktuellen Bestand — Vorschau und Übernahme planen beide frisch. */
 export function planeGegenBestand(db: Db, b: Bereitstellung): HelferPlan {
-  return planeHelferAbgleich(b, listePersonal(db));
+  return planeHelferAbgleich(b, listePersonal(db), leseQualiRegeln(db));
 }

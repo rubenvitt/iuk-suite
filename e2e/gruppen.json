@@ -17,7 +17,7 @@
   },
   {
     "name": "eimer-5",
-    "specs": "e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-einheitenart.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-fahrzeug-kaertchen.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-organisation.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/uav.spec.ts"
+    "specs": "e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-darstellung.spec.ts e2e/lagerbuch-einheitenart.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-fahrzeug-kaertchen.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-organisation.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/uav.spec.ts"
   },
   {
     "name": "eimer-6",

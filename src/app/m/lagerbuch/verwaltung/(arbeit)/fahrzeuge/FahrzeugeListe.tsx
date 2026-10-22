@@ -212,9 +212,10 @@ function spalten(
       sorter: nachText<FahrzeugAnzeigeZeile>((zeile) => zeile.name),
       render: (wert: string, zeile) => (
         <span>
+          {/* 44 px Tippziel (Arbeitsdichte, IDA-241): ein Textlink erbt sie nicht. */}
           <Link
             href={verwaltungDetailPfad("fahrzeuge", zeile.id)}
-            style={{ fontWeight: 600 }}
+            style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", minHeight: 44 }}
           >
             {wert}
           </Link>

@@ -7,6 +7,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { helferUebernehmenAction, helferVorschauAction } from "../../_actions/stammdaten";
 import type { HelferKlasse, HelferPlan, HelferVorschauzeile } from "../../_lib/stammdaten/helferAbgleich";
+import { QualiZuordnung } from "./QualiZuordnung";
 
 const ZEIT = zeitFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -24,13 +25,16 @@ const KLASSE: Record<HelferKlasse, { text: string; farbe: string }> = {
 
 /**
  * Personal aus dem Helferverzeichnis abgleichen: die Vorschau lädt beim Öffnen, „Übernehmen“ plant auf
- * dem Server neu und schreibt. Demo-Personen zeigt die Vorschau, übernommen werden sie nie.
+ * dem Server neu und schreibt. Demo-Personen zeigt die Vorschau, übernommen werden sie nie. Darunter
+ * die Zuordnung der HiOrg-Qualifikationen; ihr Speichern liefert eine neue Vorschau.
  */
 export function HelferAbgleich({ onFertig }: { onFertig: () => void }) {
   const { message } = App.useApp();
   const [plan, setPlan] = useState<HelferPlan | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(true);
+  /** Jede neue Vorschau aus dem Speichern der Zuordnung setzt deren Auswahl neu auf. */
+  const [stand, setStand] = useState(0);
 
   useEffect(() => {
     let aktiv = true;
@@ -103,6 +107,14 @@ export function HelferAbgleich({ onFertig }: { onFertig: () => void }) {
               Übernehmen
             </Button>
           </div>
+          <QualiZuordnung
+            key={stand}
+            zeilen={plan.qualifikationen}
+            onGespeichert={(neu) => {
+              setPlan(neu);
+              setStand((n) => n + 1);
+            }}
+          />
         </>
       ) : null}
     </div>

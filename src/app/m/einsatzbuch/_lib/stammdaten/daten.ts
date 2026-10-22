@@ -79,7 +79,7 @@ export function setzeAktiv(db: Db, art: Stammdatenart, id: string, aktiv: boolea
   if (z.changes === 0 && !db.select({ id: t.id }).from(t).where(eq(t.id, id)).get()) throw new NichtGefunden();
 }
 
-/** Der ETag-Zähler (Spec §5.1). Erhöht nur durch die Trigger `stand_*` der Migration 0001. */
+/** Der ETag-Zähler (Spec §5.1). Erhöht nur durch die Trigger `stand_*` der Migration 0001; `schreibeEinstellungen` fasst ihre Schritte zu einem zusammen. */
 export function stammdatenVersion(db: Db): number {
   return (db.all(sql`SELECT version FROM stammdatenstand WHERE id = 1`) as { version: number }[])[0]?.version ?? 0;
 }

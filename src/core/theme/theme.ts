@@ -191,7 +191,7 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        */
       Input: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
       InputNumber: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur },
-      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur, cellWidth: WAEHLER_ZELLE },
+      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16, colorBorder: kontur, cellWidth: WAEHLER_ZELLE }, Table: auswahlZeile(dark),
     },
   };
 }
@@ -362,6 +362,28 @@ function warnungDunkel(_seed: Parameters<MappingAlgorithm>[0], map?: ReturnType<
     colorWarningTextHover: FARBEN.gelbAufDunkelHover,
     colorWarningTextActive: FARBEN.gelbAufDunkelActive,
   };
+}
+
+/**
+ * DIE AUSGEWÄHLTE TABELLENZEILE NEUTRAL STATT ROT (IDA-245). antd leitet
+ * `rowSelectedBg`/`rowSelectedHoverBg` aus `colorPrimary` ab
+ * (`antd/es/table/style/index.js`: `controlItemBgActive`) — mit Suite-Rot als
+ * Seed eine hellrote Fläche unter jeder ausgewählten Zeile, also Rot auf einer
+ * Datenfläche für etwas, das kein Fehler ist (Falle 3). Werte und Begründung an
+ * `FARBEN.auswahl`.
+ *
+ * Über den Komponenten-Token, nicht über CSS gegen `.ant-table-row-selected`
+ * (Falle 5 und 20). `ARBEITSDICHTE` und `SCHREIBTISCHDICHTE` erben ihn, weil
+ * `components` eine Ebene tief gemischt wird.
+ *
+ * Steht als Funktion am Dateiende und im Komponentenblock auf der Zeile von
+ * `DatePicker`, weil Zeilenanker aus den Modulen in diese Datei zeigen — eine
+ * Einfügung weiter oben verschöbe sie (siehe `erfolgHell`).
+ */
+function auswahlZeile(dark: boolean) {
+  return dark
+    ? { rowSelectedBg: FARBEN.auswahlAufDunkel, rowSelectedHoverBg: FARBEN.auswahlAufDunkelHover }
+    : { rowSelectedBg: FARBEN.auswahl, rowSelectedHoverBg: FARBEN.auswahlHover };
 }
 
 /**

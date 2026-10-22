@@ -12,7 +12,12 @@ import {
   LetzteBuchungenTable,
   type UebersichtJournalZeile,
 } from "./LetzteBuchungenTable";
-import { KRITISCH_ANZEIGE, kritischeArtikel, verwaltungInhalt } from "./page";
+import {
+  KRITISCH_ANZEIGE,
+  kritischeArtikel,
+  kritischeReihenfolge,
+  verwaltungInhalt,
+} from "./page";
 
 /** Der sichtbare Text eines Baums — Kinder UND `extra` (Kopfzeile einer Karte). */
 function textVon(wert: ReactNode): string {
@@ -209,6 +214,7 @@ describe("kritischeArtikel", () => {
         unterMindest: false,
         chargeText: "abgelaufen",
         chargeTon: "rot",
+        chargeAbgelaufen: true,
       },
     ]);
     expect(istJsonSicher(zeilen)).toBe(true);
@@ -314,16 +320,16 @@ describe("Verwaltungsübersicht", () => {
     const artikelLinks = elementeVomTyp(seite, Link).map((element) =>
       element.props as { href: string; children: ReactNode });
     // IDA-239 — der Link öffnet den Artikel, und die Reihenfolge ist die der
-    // Dringlichkeit: rote Charge (beide hier sind rot, dann nach Name), dann
-    // Unterbestand, dann der Rest.
+    // Dringlichkeit: abgelaufene Charge vor bald fälliger (IDA-246, obwohl
+    // „Beatmungsmaske" nach Name vorn stünde), dann Unterbestand, dann der Rest.
     expect(artikelLinks.map((props) => props.href)).toEqual([
-      "/verwaltung/artikel?artikel=artikel-kritisch",
       "/verwaltung/artikel?artikel=artikel-abgelaufen",
+      "/verwaltung/artikel?artikel=artikel-kritisch",
       "/verwaltung/artikel?artikel=artikel-unter-mindest",
     ]);
     expect(artikelLinks.map((props) => String(props.children))).toEqual([
-      "Beatmungsmaske",
       "Infusionsbesteck",
+      "Beatmungsmaske",
       "Kompressen",
     ]);
   });
@@ -358,6 +364,47 @@ describe("Verwaltungsübersicht", () => {
     expect(textVon(seite)).toContain("Alle 12 unter Mindestbestand anzeigen");
     expect(textVon(seite)).toContain("Alle 1 mit kritischer Charge anzeigen");
     expect(textVon(seite)).toContain(`${KRITISCH_ANZEIGE} von 13`);
+  });
+
+  it("stellt eine abgelaufene Charge vor bald fällige, auch über die ersten zehn hinaus (IDA-246)", () => {
+    // Elf rote, noch nicht abgelaufene Chargen (August 2026 endet in 25 Tagen)
+    // und eine abgelaufene, die nach Name zuletzt käme.
+    for (let i = 0; i < KRITISCH_ANZEIGE + 1; i += 1) {
+      artikelMit({
+        id: `bald-${i}`,
+        name: `Bald fällig ${String(i).padStart(2, "0")}`,
+        bestand: 50,
+        mindestbestand: 1,
+        verfall: "2026-08",
+      });
+    }
+    artikelMit({
+      id: "artikel-abgelaufen",
+      name: "Zellstoff",
+      bestand: 50,
+      mindestbestand: 1,
+      verfall: "2026-07",
+    });
+    artikelMit({
+      id: "artikel-leer",
+      name: "Aluminiumdecke",
+      bestand: 0,
+      mindestbestand: 5,
+    });
+
+    const jetzt = new Date("2026-08-07T12:00:00Z");
+    const reihenfolge = kritischeReihenfolge(kritischeArtikel(t.db, jetzt));
+    expect(reihenfolge.map((zeile) => zeile.id).slice(0, 2))
+      .toEqual(["artikel-abgelaufen", "bald-0"]);
+    expect(reihenfolge.at(-1)?.id).toBe("artikel-leer");
+    expect(reihenfolge.filter((zeile) => zeile.chargeAbgelaufen).map((zeile) => zeile.id))
+      .toEqual(["artikel-abgelaufen"]);
+
+    const seite = verwaltungInhalt(t.db, jetzt);
+    const artikel = elementeVomTyp(seite, Link)
+      .map((element) => (element.props as { href: string }).href)
+      .filter((href) => href.includes("?artikel="));
+    expect(artikel[0]).toBe("/verwaltung/artikel?artikel=artikel-abgelaufen");
   });
 
   it("zeigt die neuesten fünf Buchungen in totaler Ordnung als primitive Client-DTOs", () => {
