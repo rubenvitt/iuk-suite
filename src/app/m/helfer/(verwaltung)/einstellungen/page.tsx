@@ -8,6 +8,7 @@ import { PROTOKOLL_TAGE } from "../../_lib/abgleich";
 import { anzahlHelfer } from "../../_lib/daten";
 import { leseEinstellungen } from "../../_lib/einstellungen";
 import { STATUS_TEXT } from "../../_lib/filter";
+import { QUELLE_TEXT } from "../../_lib/quellen";
 import { hiorgKonfiguration } from "../../_lib/hiorg/konfiguration";
 import { verbindungsstand } from "../../_lib/hiorg/verbindung";
 import { requireHelferHost } from "../../_lib/host";
@@ -53,24 +54,25 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
         />
       ) : (
         <p style={{ margin: 0 }}>
-          Quelle: {e.quelle === "demo" ? "Demo" : "HiOrg-Server"}{v ? `, verbunden als ${v.kontoName}` : ""}. Ändern dürfen nur die Verwaltenden des Moduls.
+          Quelle: {QUELLE_TEXT[e.quelle]}{v ? `, verbunden als ${v.kontoName}` : ""}. Ändern dürfen nur die Verwaltenden des Moduls.
         </p>
       )}
       <section aria-labelledby="datenschutz" style={{ display: "grid", gap: SPACE.sm, maxWidth: 720 }}>
         <h2 id="datenschutz" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Datenschutz</h2>
         <ul style={{ margin: 0, paddingInlineStart: SPACE.xl, display: "grid", gap: SPACE.xs }}>
           <li>
-            <b>Gespeichert</b> werden je Person nur Vor- und Nachname, Kontostatus in HiOrg, Gruppen und Qualifikationen. Alles
+            <b>Gespeichert</b> werden je Person nur Vor- und Nachname, Kontostatus, Gruppen und Qualifikationen. Alles
             andere, was HiOrg-Server mitliefert (Kontaktdaten, Anschrift, Geburtsdatum, Bankverbindung, Führerschein, Allergien,
-            Angehörige, Bemerkungen), wird beim Lesen verworfen und nie gespeichert oder protokolliert.
+            Angehörige, Bemerkungen), wird beim Lesen verworfen und nie gespeichert oder protokolliert. Aus einer Excel-Datei
+            liest die Suite nur die Spalten der Vorlage; weitere Spalten und die Datei selbst werden nicht gespeichert.
           </li>
           <li>
             <b>Übernommen</b> wird nur, wer durch den Importfilter kommt (heute: Kontostatus {e.filter.status.map((s) => STATUS_TEXT[s]).join(", ")}),
             nie gesperrte Konten und nie Ausgetretene. Wer nicht mehr durchkommt, wird beim nächsten Abgleich gelöscht.
           </li>
           <li>
-            <b>Ans Einsatzbuch</b> gehen nur freigegebene Personen, und nur mit Name und Qualifikationen — keine HiOrg-Kennung,
-            keine Gruppen.
+            <b>Ans Einsatzbuch</b> gehen nur freigegebene Personen, und nur mit Name und Qualifikationen — keine Kennung aus
+            HiOrg oder der Datei, keine Gruppen.
           </li>
           <li>
             <b>Sehen</b> darf die Liste nur, wer in der Zugangsgruppe des Moduls ist; die Suite-Administration allein reicht

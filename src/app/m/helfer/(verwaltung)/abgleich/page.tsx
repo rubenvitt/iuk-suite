@@ -35,7 +35,9 @@ export default async function AbgleichSeite() {
         beschreibung={
           e.quelle === "demo"
             ? "Quelle ist die eingebaute Demo-Antwort. Der Abgleich läuft genau wie mit HiOrg-Server: lesen, filtern, Vorschau, übernehmen."
-            : verbindung
+            : e.quelle === "datei"
+              ? "Quelle ist eine Excel-Datei: hochladen, filtern, Vorschau, übernehmen."
+              : verbindung
               ? `Quelle ist HiOrg-Server, verbunden als ${verbindung.kontoName}. Gelesen wird nur, was das Konto in HiOrg sehen darf.`
               : "Quelle ist HiOrg-Server, aber es besteht keine Verbindung."
         }

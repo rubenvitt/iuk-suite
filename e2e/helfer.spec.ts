@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import writeXlsxFile from "write-excel-file/node";
+import { freiesBlatt, mappe } from "@/core/export/spalten";
 import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 
 /**
@@ -119,5 +121,56 @@ test("im Einsatzbuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen
     await expect(page.getByText("Zuordnung gespeichert.", { exact: false })).toBeVisible();
     await expect(ersthelfer).toContainText(sichtbar);
     await expect(speichern).toBeDisabled();
+  }
+});
+
+async function quelleWaehlen(page: Page, name: RegExp): Promise<void> {
+  await oeffne(page, "/einstellungen");
+  const radio = page.getByRole("radio", { name });
+  if (await radio.isChecked()) return;
+  await klickeWennRuhig(radio);
+  await klickeWennRuhig(page.getByRole("button", { name: "Wechseln" }));
+  await expect(page.getByText(/Quelle „.*“ eingestellt\./)).toBeVisible();
+}
+
+test("Excel-Datei als Quelle: hochladen, Vorschau ohne Ausgefilterte, übernehmen (IDA-281)", async ({ page }) => {
+  await devLogin(page, { host: HOST, groups: ADMIN, callbackPath: "/" });
+  // Falle 10: ein POST in die Erstkompilierung des Route Handlers bricht ab — vorher anwärmen.
+  await page.request.get(url("/datei/abgleich"));
+  const vorlage = await page.request.get(url("/datei/vorlage"));
+  expect(vorlage.status()).toBe(200);
+  expect(vorlage.headers()["content-disposition"]).toContain("helfer-vorlage.xlsx");
+
+  const liste = await writeXlsxFile(mappe([freiesBlatt("Helfer", [
+    ["Kennung", "Vorname", "Nachname", "Status", "Qualifikationen", "Telefon"],
+    ["e2e-1", "Erika", "Excelmann", "aktiv", "Rettungssanitäter (RS)", "0151 0000"],
+    ["e2e-2", "Gerd", "Gesperrtmann", "gesperrt", "", ""],
+  ])])).toBuffer();
+
+  try {
+    await quelleWaehlen(page, /^Excel-Datei/);
+    await oeffne(page, "/abgleich");
+    await expect(page.getByTestId("demo-hinweis")).toHaveCount(0);
+    await page.locator("input[type=file]").setInputFiles({ name: "helfer.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.from(liste) });
+    const vorschau = page.waitForResponse((r) => r.url().includes("/datei/abgleich") && r.request().method() === "POST");
+    await klickeWennRuhig(page.getByRole("button", { name: "Vorschau aus der Datei" }));
+    expect((await vorschau).ok()).toBe(true);
+    await expect(page.getByTestId("abgleich-summe")).toContainText("2 gelesen");
+    await expect(page.getByTestId("ignorierte-spalten")).toContainText("Telefon");
+    const tabelle = page.getByRole("table", { name: "Vorschau des Abgleichs" });
+    await expect(tabelle).toContainText("Excelmann, Erika");
+    await expect(tabelle).not.toContainText("Gesperrtmann");
+
+    const uebernehmen = page.waitForResponse((r) => r.url().includes("/datei/abgleich") && r.request().method() === "POST");
+    await klickeWennRuhig(page.getByRole("button", { name: "Übernehmen" }));
+    expect((await uebernehmen).ok()).toBe(true);
+    await expect(page.getByText(/neu, \d+ geändert, \d+ gelöscht/)).toBeVisible();
+    await expect(page.getByRole("table", { name: "Letzte Abgleiche" })).toContainText("Excel-Datei");
+
+    await oeffne(page, "/");
+    await expect(page.getByRole("table", { name: "Helfer" }).locator("[data-row-key]").filter({ hasText: "Excelmann, Erika" })).toHaveCount(1);
+  } finally {
+    // Zurück auf die Demo, damit die übrigen Tests (und Wiederholungen) dieselbe Lage vorfinden.
+    await quelleWaehlen(page, /^Demo/);
   }
 });

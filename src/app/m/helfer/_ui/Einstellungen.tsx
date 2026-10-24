@@ -6,7 +6,7 @@ import { Alert, App, Button, Radio, Switch } from "antd";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { alleLoeschenAction, neueFreigebenAction, quelleAction, trennenAction } from "../_actions/verwaltung";
-import type { Quelle } from "../_lib/einstellungen";
+import { QUELLE_TEXT, type Quelle } from "../_lib/quellen";
 import styles from "./helfer.module.css";
 
 export interface EinstellungenProps {
@@ -43,13 +43,13 @@ export function Einstellungen(p: EinstellungenProps) {
   function quelleWechseln(neu: Quelle): void {
     if (neu === p.quelle) return;
     modal.confirm({
-      title: neu === "demo" ? "Zur Demo-Quelle wechseln?" : "Zu HiOrg-Server wechseln?",
+      title: `Zur Quelle „${QUELLE_TEXT[neu]}“ wechseln?`,
       content: p.anzahl > 0
         ? `Die ${p.anzahl} Helfer der bisherigen Quelle werden gelöscht. Danach holst du die neuen unter „Abgleich“.`
-        : "Danach holst du die Helfer unter „Abgleich“.",
+        : neu === "datei" ? "Danach lädst du die Liste unter „Abgleich“ hoch." : "Danach holst du die Helfer unter „Abgleich“.",
       okText: "Wechseln",
       cancelText: "Abbrechen",
-      onOk: () => tue("quelle", () => quelleAction(neu), neu === "demo" ? "Demo-Quelle eingestellt." : "HiOrg-Server eingestellt."),
+      onOk: () => tue("quelle", () => quelleAction(neu), `Quelle „${QUELLE_TEXT[neu]}“ eingestellt.`),
     });
   }
 
@@ -62,6 +62,7 @@ export function Einstellungen(p: EinstellungenProps) {
         <Radio.Group value={p.quelle} onChange={(e) => quelleWechseln(e.target.value as Quelle)} disabled={laeuft !== null} style={{ display: "grid", gap: SPACE.xs }}>
           <Radio value="demo" style={{ minHeight: 44, alignItems: "center" }}>Demo — erfundene Helfer zum Ausprobieren</Radio>
           <Radio value="hiorg" style={{ minHeight: 44, alignItems: "center" }} disabled={p.hiorgFehlt.length > 0}>HiOrg-Server</Radio>
+          <Radio value="datei" style={{ minHeight: 44, alignItems: "center" }}>Excel-Datei — die Liste unter „Abgleich“ hochladen</Radio>
         </Radio.Group>
         {p.hiorgFehlt.length > 0 ? (
           <p style={{ ...SCHRIFT.neben, margin: 0 }}>
