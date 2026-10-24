@@ -2,8 +2,8 @@
  * Die Einstellungen des Moduls (Tabelle `einstellung`, Schlüssel/Wert als JSON). Ein unlesbarer
  * Wert fällt auf die Vorgabe zurück, statt die Seite zu sprengen.
  *
- * - `quelle`: `demo` (Vorgabe) oder `hiorg`. Ohne Verbindung zu HiOrg ist nur die Demo sinnvoll;
- *   der Wechsel löscht die Helfer der anderen Quelle (`daten.ts`, `wechsleQuelle`).
+ * - `quelle`: `demo` (Vorgabe), `hiorg` oder `datei` (Excel-Liste, IDA-281). Der Wechsel löscht die
+ *   Helfer der anderen Quelle (`daten.ts`, `wechsleQuelle`).
  * - `filter`: der Importfilter (`filter.ts`).
  * - `neueFreigeben`: ob neu übernommene Helfer gleich fürs Einsatzbuch freigegeben sind.
  */
@@ -12,8 +12,9 @@ import { z } from "zod";
 import type { HelferDb, HelferSchreiber } from "../_db/client";
 import { einstellung } from "../_db/schema";
 import { filterSchema, STANDARD_FILTER, type Importfilter } from "./filter";
+import { QUELLEN, type Quelle } from "./quellen";
 
-export type Quelle = "demo" | "hiorg";
+export type { Quelle } from "./quellen";
 
 export interface Einstellungen {
   quelle: Quelle;
@@ -24,7 +25,7 @@ export interface Einstellungen {
 export const STANDARD_EINSTELLUNGEN: Einstellungen = { quelle: "demo", filter: STANDARD_FILTER, neueFreigeben: true };
 
 const SCHEMAS = {
-  quelle: z.enum(["demo", "hiorg"]),
+  quelle: z.enum(QUELLEN),
   filter: filterSchema,
   neueFreigeben: z.boolean(),
 } as const;

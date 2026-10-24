@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Alert, App, Button, Checkbox, Select, Tag } from "antd";
+import { useRouter } from "next/navigation";
+import { Alert, App, Button, Checkbox, Select, Tag, Upload } from "antd";
 import { Kartentabelle } from "@/core/tabelle";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { uebernehmenAction, vorschauAction } from "../_actions/verwaltung";
-import type { Abgleichklasse, Abgleichplan, Abgleichzeile } from "../_lib/abgleich";
+import type { Abgleichergebnis, Abgleichklasse, Abgleichplan, Abgleichzeile } from "../_lib/abgleich";
+import type { ActionErgebnis } from "../_lib/actionErgebnis";
+import { DATEI_SPALTEN } from "../_lib/datei/spalten";
+import type { Quelle } from "../_lib/quellen";
 import { AUSSCHLUSSGRUENDE, GRUND_TEXT, STATUS_TEXT, WAEHLBARE_STATUS, type Importfilter } from "../_lib/filter";
 
 /* Kein Rot auf der Datenfläche (Falle 3): „entfällt“ trägt die Warnfarbe, jede Klasse steht als Wort da. */
@@ -19,13 +23,35 @@ const KLASSE: Record<Abgleichklasse, { text: string; farbe: string }> = {
 
 const zeilenSchluessel = (z: Abgleichzeile) => `${z.klasse}:${z.quellId}`;
 
+const VORSCHAU_TEXT: Record<Quelle, string> = {
+  demo: "Vorschau aus der Demo-Quelle",
+  hiorg: "Vorschau aus HiOrg-Server",
+  datei: "Vorschau aus der Datei",
+};
+
+/**
+ * Die Excel-Datei geht nicht durch eine Server Action (1 MB), sondern an `datei/abgleich/route.ts`
+ * — und zwar bei Vorschau UND Übernehmen, denn der Server bewahrt sie nicht auf.
+ */
+async function dateiSchritt<T>(schritt: "vorschau" | "uebernehmen", datei: File, filter: Importfilter): Promise<ActionErgebnis<T>> {
+  const formular = new FormData();
+  formular.set("schritt", schritt);
+  formular.set("filter", JSON.stringify(filter));
+  formular.set("datei", datei);
+  const antwort = await fetch("/datei/abgleich", { method: "POST", body: formular });
+  if (!antwort.ok) throw new Error(`HTTP ${antwort.status}`);
+  return (await antwort.json()) as ActionErgebnis<T>;
+}
+
 /**
  * Der Abgleich mit der Quelle in zwei Schritten: „Vorschau“ liest und plant (schreibt nichts),
  * „Übernehmen“ speichert den Filter, liest neu und schreibt. Wer am Filter scheitert, erscheint nur
- * als Zahl je Grund — nie mit Namen.
+ * als Zahl je Grund — nie mit Namen. Bei der Quelle „Excel-Datei“ kommt davor die Dateiauswahl.
  */
-export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo" | "hiorg" }) {
+export function Abgleich({ start, quelle }: { start: Importfilter; quelle: Quelle }) {
   const { message, modal } = App.useApp();
+  const router = useRouter();
+  const [datei, setDatei] = useState<File | null>(null);
   const [filter, setFilter] = useState<Importfilter>(start);
   const [plan, setPlan] = useState<Abgleichplan | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -40,7 +66,9 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo
     setFehler(null);
     setLaeuft("vorschau");
     try {
-      const e = await vorschauAction(f);
+      const e = quelle === "datei"
+        ? datei ? await dateiSchritt<Abgleichplan>("vorschau", datei, f) : { ok: false as const, fehler: "Bitte zuerst eine Excel-Datei wählen." }
+        : await vorschauAction(f);
       if (e.ok) setPlan(e.wert);
       else setFehler(e.fehler);
     } catch {
@@ -54,10 +82,14 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo
     setFehler(null);
     setLaeuft("uebernehmen");
     try {
-      const e = await uebernehmenAction(filter);
+      const e = quelle === "datei"
+        ? datei ? await dateiSchritt<Abgleichergebnis>("uebernehmen", datei, filter) : { ok: false as const, fehler: "Bitte zuerst eine Excel-Datei wählen." }
+        : await uebernehmenAction(filter);
       if (e.ok) {
         void message.success(`${e.wert.neu} neu, ${e.wert.geaendert} geändert, ${e.wert.entfernt} gelöscht.`);
         setPlan(null);
+        // Die Server Action frischt die Seite selbst auf, der Route Handler nicht.
+        if (quelle === "datei") router.refresh();
       } else setFehler(e.fehler);
     } catch {
       setFehler("Der Abgleich ist fehlgeschlagen. Bitte noch einmal versuchen.");
@@ -89,6 +121,43 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
+      {quelle === "datei" ? (
+        <section aria-labelledby="excel-datei" style={{ display: "grid", gap: SPACE.md, maxWidth: 720 }}>
+          <h2 id="excel-datei" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Excel-Datei</h2>
+          <p style={{ margin: 0 }}>
+            Gelesen wird das erste Blatt; die erste Zeile nennt die Spalten. Die Datei ist die ganze Liste: wer nicht mehr
+            darin steht, wird beim Übernehmen gelöscht. Die Datei selbst speichert die Suite nicht.
+          </p>
+          <ul style={{ margin: 0, paddingInlineStart: SPACE.xl, display: "grid", gap: SPACE.xs }} aria-label="Spalten der Datei">
+            {DATEI_SPALTEN.map((s) => (
+              <li key={s.feld}><b>{s.kopf}</b>{s.pflicht ? "" : " (freiwillig)"} — {s.hilfe}</li>
+            ))}
+          </ul>
+          <p style={{ ...SCHRIFT.neben, margin: 0 }}>Andere Spalten (z. B. Telefon oder Anschrift) bleiben unbeachtet und werden nicht gespeichert.</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: SPACE.sm, alignItems: "flex-start" }}>
+            <Upload
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              maxCount={1}
+              fileList={datei ? [{ uid: "datei", name: datei.name, status: "done" }] : []}
+              beforeUpload={(f) => {
+                setDatei(f);
+                setPlan(null);
+                setFehler(null);
+                return false;
+              }}
+              onRemove={() => {
+                setDatei(null);
+                setPlan(null);
+              }}
+            >
+              <Button disabled={laeuft !== null}>{datei ? "Andere Datei wählen" : "Excel-Datei wählen"}</Button>
+            </Upload>
+            {/* Ein echter Download, kein `next/link`: das Ziel ist ein Route Handler. */}
+            <a href="/datei/vorlage" download style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Vorlage herunterladen</a>
+          </div>
+        </section>
+      ) : null}
+
       <section aria-labelledby="importfilter" style={{ display: "grid", gap: SPACE.md, maxWidth: 640 }}>
         <h2 id="importfilter" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Importfilter</h2>
         <p style={{ margin: 0 }}>
@@ -96,7 +165,7 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo
           nicht gespeichert — auch nicht als Name in der Vorschau.
         </p>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}>Kontostatus in HiOrg</legend>
+          <legend style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}>{quelle === "hiorg" ? "Kontostatus in HiOrg" : "Kontostatus"}</legend>
           <Checkbox.Group
             value={filter.status}
             onChange={(werte) => aendere({ ...filter, status: werte as Importfilter["status"] })}
@@ -132,8 +201,13 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo
           />
         </div>
         <div>
-          <Button type="primary" onClick={() => void vorschau()} loading={laeuft === "vorschau"} disabled={laeuft !== null || filter.status.length === 0}>
-            {quelle === "demo" ? "Vorschau aus der Demo-Quelle" : "Vorschau aus HiOrg-Server"}
+          <Button
+            type="primary"
+            onClick={() => void vorschau()}
+            loading={laeuft === "vorschau"}
+            disabled={laeuft !== null || filter.status.length === 0 || (quelle === "datei" && !datei)}
+          >
+            {VORSCHAU_TEXT[quelle]}
           </Button>
         </div>
       </section>
@@ -147,7 +221,24 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: "demo
             {plan.gelesen} gelesen · {anzahl("neu")} neu · {anzahl("geaendert")} geändert · {anzahl("unveraendert")} unverändert
             · {anzahl("entfaellt")} werden gelöscht · {ausgefiltert} ausgefiltert
             {plan.unlesbar > 0 ? ` · ${plan.unlesbar} unlesbar` : ""}
+            {plan.doppelt > 0 ? ` · ${plan.doppelt} doppelt` : ""}
           </p>
+          {plan.unlesbar > 0 && quelle === "datei" ? (
+            <p style={{ ...SCHRIFT.neben, margin: 0 }}>
+              Unlesbar heißt: Vor- oder Nachname fehlt, ein Austrittsdatum lässt sich nicht lesen oder ein Wert ist zu lang.
+              Diese Zeilen werden nicht übernommen.
+            </p>
+          ) : null}
+          {plan.doppelt > 0 ? (
+            <p style={{ ...SCHRIFT.neben, margin: 0 }}>
+              Doppelt heißt: dieselbe Kennung{quelle === "datei" ? " oder, ohne Kennung, derselbe Name" : ""} steht mehrfach da; es zählt der erste Eintrag.
+            </p>
+          ) : null}
+          {plan.ignorierteSpalten.length > 0 ? (
+            <p style={{ ...SCHRIFT.neben, margin: 0 }} data-testid="ignorierte-spalten">
+              Nicht gelesen: {plan.ignorierteSpalten.slice(0, 20).join(", ")}{plan.ignorierteSpalten.length > 20 ? " …" : ""}
+            </p>
+          ) : null}
           {ausgefiltert > 0 ? (
             <ul style={{ margin: 0, paddingInlineStart: SPACE.xl }} aria-label="Ausgefiltert nach Grund">
               {AUSSCHLUSSGRUENDE.filter((g) => plan.ausgefiltert[g] > 0).map((g) => (

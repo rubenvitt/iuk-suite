@@ -1,9 +1,10 @@
 /**
- * Lesen aus der eingestellten Quelle — der einzige Ort, an dem Demo und HiOrg sich unterscheiden.
- * Beide laufen danach durch denselben Filter und denselben Abgleich.
+ * Lesen aus der eingestellten Quelle — der einzige Ort, an dem Demo, HiOrg und Excel-Datei sich
+ * unterscheiden. Alle laufen danach durch denselben Filter und denselben Abgleich.
  */
 import { zeitFormat } from "@/core/zeit";
 import type { HelferDb } from "../_db/client";
+import { liesHelferMappe } from "./datei/lesen";
 import { demoAntwort } from "./demo/antwort";
 import type { Einstellungen } from "./einstellungen";
 import { statusParameter } from "./filter";
@@ -12,7 +13,9 @@ import { hiorgKonfiguration } from "./hiorg/konfiguration";
 import { lesePersonal, type QuellPerson } from "./hiorg/person";
 import { accessToken } from "./hiorg/verbindung";
 
-export type Gelesen = { ok: true; personen: QuellPerson[]; unlesbar: number } | { ok: false; fehler: string };
+export type Gelesen =
+  | { ok: true; personen: QuellPerson[]; unlesbar: number; ignorierteSpalten?: string[] }
+  | { ok: false; fehler: string };
 
 const TAG = zeitFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" });
 
@@ -21,7 +24,9 @@ export function heuteInZone(jetzt: Date = new Date()): string {
   return TAG.format(jetzt);
 }
 
-export async function liesQuelle(db: HelferDb, e: Einstellungen, abruf: Abruf = fetch): Promise<Gelesen> {
+/** `datei` sind die Bytes der hochgeladenen Excel-Datei; nur die Quelle `datei` liest sie. */
+export async function liesQuelle(db: HelferDb, e: Einstellungen, abruf: Abruf = fetch, datei?: Uint8Array): Promise<Gelesen> {
+  if (e.quelle === "datei") return datei ? liesHelferMappe(datei) : { ok: false, fehler: "Bitte zuerst eine Excel-Datei wählen." };
   if (e.quelle === "demo") {
     const s = lesePersonal(demoAntwort());
     return s.ok ? { ok: true, personen: s.personen, unlesbar: s.unlesbar } : s;
