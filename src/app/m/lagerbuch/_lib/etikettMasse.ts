@@ -30,6 +30,19 @@ export const ETIKETT_PADDING_MM = 2;
 export const ETIKETT_SPALT_MM = 2.5;
 
 /**
+ * DIE ZEILEN, ZU DENEN DER ARTIKELNAME UMBRECHEN DARF (IDA-275) — `druck.css`,
+ * `.lb-etikettTitel`, `-webkit-line-clamp`. Die Hoehe gibt sie vor: 25,4mm minus
+ * 2 x 2mm Polster sind rund 80,9px; die Unterzeile (9px) braucht gut 11px, jede
+ * Titelzeile 11px x 1,05 = 11,55px. Sechs Zeilen fuellten die Kachel bis auf
+ * einen halben Pixel, fuenf lassen Luft fuer Rundung und Schriftmetrik.
+ * `etiketten/druck.test.ts` rechnet es nach.
+ */
+export const ETIKETT_TITEL_ZEILEN = 5;
+export const ETIKETT_TITEL_PX = 11;
+export const ETIKETT_TITEL_ZEILENHOEHE = 1.05;
+export const ETIKETT_SUB_PX = 9;
+
+/**
  * DER ABSTAND IST AM BILDSCHIRM 2mm UND AUF DEM PAPIER 0 — und das ist keine
  * Nachlaessigkeit, sondern die Bauform: am Bildschirm trennt der Spalt die
  * Kacheln sichtbar, auf dem Bogen sitzen die Klebeetiketten Kante an Kante.

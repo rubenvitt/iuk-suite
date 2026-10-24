@@ -128,24 +128,24 @@
   min-width: 0;
 }
 
-/* 1:1-Pflicht 22: 11px bzw. 9px. Das ist KEIN Verstoss gegen die 16px-Regel —
- * die gilt fuer EINGABEelemente (§6.7.3), und das hier sind Textknoten auf einem
- * 25,4 mm hohen Klebeetikett.
+/* 1:1-Pflicht 22: 11px bzw. 9px — kein Verstoss gegen die 16px-Regel, die gilt
+ * fuer EINGABEelemente (§6.7.3); das hier sind Textknoten auf einem Klebeetikett.
  *
- * ⚠️ `display: block` IST PFLICHT UND KEINE KOSMETIK. `.lb-etikett` ist ein
- * Flex-Container, `.lb-etikettText` damit ein Flex-ITEM — aber selbst ein
- * gewoehnlicher Block. Seine beiden Kinder blieben ohne diese Zeile INLINE, und
- * das kostet zwei Dinge auf einem 48,5 x 25,4 mm grossen Etikett: Titel und
- * Unterzeile stuenden NEBENEINANDER statt untereinander, und
- * `text-overflow: ellipsis` waere WIRKUNGSLOS — die Eigenschaft greift bei
- * nicht ersetzten Inline-Elementen nicht. */
+ * DER NAME BRICHT UM, STATT ABGESCHNITTEN ZU WERDEN (IDA-275): einzeilig blieben
+ * neben dem QR 22mm, also kaum 13 Zeichen. Die Klammer (`ETIKETT_TITEL_ZEILEN`,
+ * `_lib/etikettMasse.ts`) laesst der Unterzeile ihren Platz, und was auch dann
+ * nicht passt, endet sichtbar auf „…". `display: -webkit-box` ist dafuer Pflicht
+ * und stapelt wie `block` — ohne beides stuenden Titel und Unterzeile INLINE
+ * nebeneinander. `anywhere` faengt den Namen ohne Leerzeichen. */
 .lb-etikettTitel {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
   font: 700 11px var(--font-body);
   line-height: 1.05;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .lb-etikettSub {

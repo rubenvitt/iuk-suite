@@ -4,7 +4,8 @@ import { join } from "node:path";
 import {
   ETIKETT_BREITE_MM, ETIKETT_HOEHE_MM, ETIKETT_QR_MM, ETIKETT_PADDING_MM,
   ETIKETT_SPALT_MM, BOGEN_GAP_BILDSCHIRM_MM, BOGEN_GAP_DRUCK_MM,
-  SEITENRAND_MM, ETIKETT_ABGEWAEHLT_OPAZITAET, mm,
+  SEITENRAND_MM, ETIKETT_ABGEWAEHLT_OPAZITAET, ETIKETT_TITEL_ZEILEN, ETIKETT_TITEL_PX,
+  ETIKETT_TITEL_ZEILENHOEHE, ETIKETT_SUB_PX, mm,
 } from "@/app/m/lagerbuch/_lib/etikettMasse";
 
 /**
@@ -230,20 +231,56 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
     });
 
     /**
-     * `display: block` AUF BEIDEN TEXTKLASSEN IST PFLICHT. `.lb-etikettText` ist
+     * EIN BLOCKKASTEN AUF BEIDEN TEXTKLASSEN IST PFLICHT. `.lb-etikettText` ist
      * ein Flex-Item, aber selbst ein gewoehnlicher Block — seine Kinder blieben
-     * sonst INLINE. Zwei Folgen auf einem 48,5 x 25,4 mm grossen Etikett: Titel
-     * und Unterzeile stuenden NEBENEINANDER, und `text-overflow: ellipsis`
-     * waere wirkungslos, weil die Eigenschaft bei nicht ersetzten
-     * Inline-Elementen nicht greift.
+     * sonst INLINE, und Titel und Unterzeile stuenden NEBENEINANDER. Der Titel
+     * traegt `-webkit-box` statt `block`, weil die Zeilenklammer es verlangt;
+     * gestapelt wird damit genauso.
      */
     it("stapelt Titel und Unterzeile", () => {
       const rein = ohneKommentare(css());
       for (const klasse of ["lb-etikettTitel", "lb-etikettSub"]) {
         const regel = new RegExp(`\\.${klasse}\\s*\\{([^}]*)\\}`).exec(rein);
         expect(regel, klasse).not.toBeNull();
-        expect(regel![1], klasse).toMatch(/display:\s*block/);
+        expect(regel![1], klasse).toMatch(/display:\s*(block|-webkit-box)/);
       }
+    });
+
+    /**
+     * DER ARTIKELNAME BRICHT UM, STATT ABGESCHNITTEN ZU WERDEN (IDA-275). Mit
+     * `nowrap` blieb von einem langen Namen eine Zeile mit „…" — auf dem
+     * gedruckten Etikett war nicht mehr zu lesen, welcher Artikel es ist. Die
+     * Klammer braucht `-webkit-box` samt `vertical` AM SELBEN Element, sonst
+     * hoert der Name still auf statt auf „…" zu enden.
+     */
+    it("laesst den Artikelnamen umbrechen und klammert ihn", () => {
+      const regel = /\.lb-etikettTitel\s*\{([^}]*)\}/.exec(ohneKommentare(css()));
+      expect(regel, "keine Regel auf .lb-etikettTitel").not.toBeNull();
+      expect(regel![1]).not.toMatch(/white-space:\s*nowrap/);
+      expect(regel![1]).toMatch(/overflow-wrap:\s*anywhere/);
+      expect(regel![1]).toMatch(/display:\s*-webkit-box/);
+      expect(regel![1]).toMatch(/-webkit-box-orient:\s*vertical/);
+      expect(regel![1]).toMatch(/overflow:\s*hidden/);
+      expect(regel![1]).toContain(`-webkit-line-clamp: ${ETIKETT_TITEL_ZEILEN}`);
+      expect(regel![1]).toContain(`${ETIKETT_TITEL_PX}px`);
+      expect(regel![1]).toContain(`line-height: ${ETIKETT_TITEL_ZEILENHOEHE}`);
+    });
+
+    /**
+     * UND DIE GEKLAMMERTEN ZEILEN PASSEN SAMT UNTERZEILE IN DIE KACHEL. Sonst
+     * schnitte `overflow: hidden` an `.lb-etikett` oben und unten zugleich ab —
+     * die Kachel zentriert ihren Inhalt — und die Fach-Zeile ginge mit verloren.
+     * 1,25 als Zeilenhoehe der Unterzeile ist die grosszuegige Schaetzung fuer
+     * `normal`.
+     */
+    it("laesst der Unterzeile auch bei voller Klammer ihren Platz", () => {
+      const pxJeMm = 96 / 25.4;
+      const verfuegbar = (ETIKETT_HOEHE_MM - 2 * ETIKETT_PADDING_MM) * pxJeMm;
+      const belegt =
+        ETIKETT_TITEL_ZEILEN * ETIKETT_TITEL_PX * ETIKETT_TITEL_ZEILENHOEHE + ETIKETT_SUB_PX * 1.25;
+      expect(belegt).toBeLessThanOrEqual(verfuegbar);
+      const sub = /\.lb-etikettSub\s*\{([^}]*)\}/.exec(ohneKommentare(css()));
+      expect(sub![1]).toContain(`${ETIKETT_SUB_PX}px`);
     });
 
     /**
