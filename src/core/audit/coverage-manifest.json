@@ -160,6 +160,8 @@
   "src/app/m/helfer/_actions/verwaltung.ts#trennenAction": { "kind": "context", "via": "trennenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#uebernehmenAction": { "kind": "context", "via": "uebernehmenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#vorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs: liest die Quelle und plant gegen den Bestand, schreibt nichts; die Übernahme läuft über uebernehmenAction." },
+  "src/app/m/helfer/datei/abgleich/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/helfer/datei/vorlage/route.ts#GET": { "kind": "excluded", "reason": "Liefert die leere Excel-Vorlage für den Upload: liest und schreibt keine Daten." },
   "src/app/m/helfer/hiorg/callback/route.ts#GET": { "kind": "context", "via": "GET" },
   "src/app/m/helfer/hiorg/verbinden/route.ts#GET": { "kind": "excluded", "reason": "Beginnt das Verbinden mit HiOrg: legt nur einen kurzlebigen, nicht auditierten Vorgang an; die Verbindung selbst entsteht auditiert im Callback." },
   "src/app/m/einsatzbuch/api/anker/route.ts#GET": {

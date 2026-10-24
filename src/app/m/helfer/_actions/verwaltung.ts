@@ -4,53 +4,36 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
-import { planeAbgleich, wendeAbgleichAn, type Abgleichergebnis, type Abgleichplan } from "../_lib/abgleich";
-import { zodFehler, type ActionAusgang, type ActionErgebnis } from "../_lib/actionErgebnis";
+import type { Abgleichergebnis, Abgleichplan } from "../_lib/abgleich";
+import type { ActionAusgang, ActionErgebnis } from "../_lib/actionErgebnis";
 import { loescheAlles, setzeFreigabe, wechsleQuelle } from "../_lib/daten";
-import { leseEinstellungen, schreibeEinstellung } from "../_lib/einstellungen";
-import { filterSchema } from "../_lib/filter";
+import { schreibeEinstellung } from "../_lib/einstellungen";
+import { QUELLEN, type Quelle } from "../_lib/quellen";
 import { trenneVerbindung } from "../_lib/hiorg/verbindung";
-import { helfer } from "../_db/schema";
-import { heuteInZone, liesQuelle } from "../_lib/quelle";
-import { anzeigeName, requireHelferVerwaltenAktion } from "../_lib/zugang";
+import { planeLauf, uebernehmeLauf } from "../_lib/lauf";
+import { requireHelferVerwaltenAktion } from "../_lib/zugang";
 
 /** Nach jedem Schreiben: alle Seiten des Moduls mit neuem Bestand. */
 function neuLaden(): void {
   revalidatePath("/m/helfer", "layout");
 }
 
-/** Liest die Quelle und plant gegen den Bestand. Schreibt nichts. */
-async function plane(filterEingabe: unknown): Promise<ActionErgebnis<Abgleichplan>> {
-  const f = filterSchema.safeParse(filterEingabe);
-  if (!f.success) return { ok: false, fehler: "Bitte den Filter prüfen.", feldFehler: zodFehler(f.error) ?? undefined };
-  const db = getDb();
-  const e = leseEinstellungen(db);
-  const gelesen = await liesQuelle(db, { ...e, filter: f.data });
-  if (!gelesen.ok) return { ok: false, fehler: gelesen.fehler };
-  return { ok: true, wert: planeAbgleich(gelesen, db.select().from(helfer).all(), f.data, heuteInZone(), e.quelle) };
-}
-
 /** Vorschau des Abgleichs mit dem (noch nicht gespeicherten) Filter aus dem Formular. */
 export async function vorschauAction(filterEingabe: unknown): Promise<ActionErgebnis<Abgleichplan>> {
   await requireHelferVerwaltenAktion();
-  return plane(filterEingabe);
+  return planeLauf(filterEingabe);
 }
 
 /**
- * Speichert den Filter, liest die Quelle NEU (sie kann sich seit der Vorschau geändert haben) und
- * gleicht ab. Der Filter wird nur gespeichert, wenn der Abgleich gelingt.
+ * Speichert den Filter, liest die Quelle NEU und gleicht ab (`_lib/lauf.ts`). Die Excel-Datei geht
+ * nicht hier durch, sondern durch `datei/abgleich/route.ts` — eine Server Action nimmt höchstens 1 MB.
  */
 export async function uebernehmenAction(filterEingabe: unknown): Promise<ActionErgebnis<Abgleichergebnis>> {
   const viewer = await requireHelferVerwaltenAktion();
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
-    const plan = await plane(filterEingabe);
-    if (!plan.ok) return plan;
-    const db = getDb();
-    const e = leseEinstellungen(db);
-    schreibeEinstellung(db, "filter", filterSchema.parse(filterEingabe));
-    const ergebnis = wendeAbgleichAn(db, plan.wert, { neueFreigeben: e.neueFreigeben, von: { name: anzeigeName(viewer), sub: viewer.id } });
-    neuLaden();
-    return { ok: true, wert: ergebnis };
+    const ergebnis = await uebernehmeLauf(viewer, filterEingabe);
+    if (ergebnis.ok) neuLaden();
+    return ergebnis;
   });
 }
 
@@ -78,12 +61,12 @@ export async function neueFreigebenAction(wert: unknown): Promise<ActionAusgang>
   });
 }
 
-/** Wechselt zwischen Demo und HiOrg; die Helfer der bisherigen Quelle werden gelöscht. */
+/** Wechselt die Quelle (Demo, HiOrg, Excel-Datei); die Helfer der bisherigen werden gelöscht. */
 export async function quelleAction(quelle: unknown): Promise<ActionErgebnis<number>> {
   const viewer = await requireHelferVerwaltenAktion();
-  if (quelle !== "demo" && quelle !== "hiorg") return { ok: false, fehler: "Unbekannte Quelle." };
+  if (!(QUELLEN as readonly unknown[]).includes(quelle)) return { ok: false, fehler: "Unbekannte Quelle." };
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
-    const n = wechsleQuelle(getDb(), quelle);
+    const n = wechsleQuelle(getDb(), quelle as Quelle);
     neuLaden();
     return { ok: true, wert: n };
   });

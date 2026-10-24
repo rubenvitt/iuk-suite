@@ -19,7 +19,7 @@ import { check, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
  */
 export const helfer = sqliteTable("helfer", {
   id: text("id").primaryKey(),
-  herkunft: text("herkunft", { enum: ["hiorg", "demo"] }).notNull(),
+  herkunft: text("herkunft", { enum: ["hiorg", "demo", "datei"] }).notNull(),
   quellId: text("quell_id").notNull(),
   vorname: text("vorname").notNull(),
   nachname: text("nachname").notNull(),
@@ -31,7 +31,7 @@ export const helfer = sqliteTable("helfer", {
   aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull(),
 }, (t) => [
   uniqueIndex("helfer_quelle_idx").on(t.herkunft, t.quellId),
-  check("helfer_herkunft", sql`herkunft IN ('hiorg','demo')`),
+  check("helfer_herkunft", sql`herkunft IN ('hiorg','demo','datei')`),
   check("helfer_gruppen_json", sql`json_valid(gruppen)`),
   check("helfer_qualifikationen_json", sql`json_valid(qualifikationen)`),
 ]);
@@ -75,7 +75,7 @@ export const anmeldevorgang = sqliteTable("anmeldevorgang", {
 export const importlauf = sqliteTable("importlauf", {
   id: text("id").primaryKey(),
   zeitpunkt: integer("zeitpunkt", { mode: "timestamp" }).notNull(),
-  quelle: text("quelle", { enum: ["hiorg", "demo"] }).notNull(),
+  quelle: text("quelle", { enum: ["hiorg", "demo", "datei"] }).notNull(),
   vonName: text("von_name").notNull(),
   vonSub: text("von_sub").notNull(),
   gelesen: integer("gelesen").notNull(),
@@ -84,6 +84,6 @@ export const importlauf = sqliteTable("importlauf", {
   entfernt: integer("entfernt").notNull(),
   ausgefiltert: text("ausgefiltert").notNull().default("{}"),
 }, () => [
-  check("importlauf_quelle", sql`quelle IN ('hiorg','demo')`),
+  check("importlauf_quelle", sql`quelle IN ('hiorg','demo','datei')`),
   check("importlauf_ausgefiltert_json", sql`json_valid(ausgefiltert)`),
 ]);

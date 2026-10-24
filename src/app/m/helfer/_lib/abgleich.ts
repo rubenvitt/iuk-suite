@@ -1,5 +1,5 @@
 /**
- * Der Abgleich zwischen Quelle (HiOrg oder Demo) und Bestand: erst planen (schreibt nichts, Vorschau),
+ * Der Abgleich zwischen Quelle (HiOrg, Excel-Datei oder Demo) und Bestand: erst planen (schreibt nichts, Vorschau),
  * dann anwenden (EINE Transaktion). Die Quelle ist die Wahrheit — wer dort nicht mehr durch den
  * Filter kommt, wird hier GELÖSCHT, nicht deaktiviert (Speicherbegrenzung, Art. 5 Abs. 1 lit. e
  * DSGVO). Versiegelte Einsätze behalten ihren eigenen Schnappschuss; im Einsatzbuch wird die Person
@@ -33,6 +33,10 @@ export interface Abgleichplan {
   quelle: Quelle;
   gelesen: number;
   unlesbar: number;
+  /** Einträge mit einer Kennung, die schon vorkam (Excel-Datei ohne Kennung: derselbe Name); es zählt der erste. */
+  doppelt: number;
+  /** Spaltenköpfe einer Excel-Datei, die nicht gelesen wurden; bei HiOrg und Demo leer. */
+  ignorierteSpalten: string[];
   ausgefiltert: Record<Ausschlussgrund, number>;
   /** Gruppennamen aller gelesenen Personen mit Anzahl — Hilfe beim Einstellen des Filters, ohne Namen. */
   gruppen: { name: string; anzahl: number }[];
@@ -51,7 +55,7 @@ function kanonisch(p: Pick<QuellPerson, "gruppen" | "qualifikationen">): { grupp
 type Bestandszeile = typeof helfer.$inferSelect;
 
 export function planeAbgleich(
-  gelesen: { personen: QuellPerson[]; unlesbar: number },
+  gelesen: { personen: QuellPerson[]; unlesbar: number; ignorierteSpalten?: string[] },
   bestand: Bestandszeile[],
   filter: Importfilter,
   heute: string,
@@ -62,9 +66,13 @@ export function planeAbgleich(
   const nachQuelle = new Map(bestand.filter((b) => b.herkunft === quelle).map((b) => [b.quellId, b]));
   const gesehen = new Set<string>();
   const zeilen: Abgleichzeile[] = [];
+  let doppelt = 0;
 
   for (const p of gelesen.personen) {
-    if (gesehen.has(p.quellId)) continue;
+    if (gesehen.has(p.quellId)) {
+      doppelt++;
+      continue;
+    }
     gesehen.add(p.quellId);
     for (const g of new Set(p.gruppen)) gruppen.set(g, (gruppen.get(g) ?? 0) + 1);
     const grund = ausschlussgrund(p, filter, heute);
@@ -95,6 +103,8 @@ export function planeAbgleich(
     quelle,
     gelesen: gesehen.size,
     unlesbar: gelesen.unlesbar,
+    doppelt,
+    ignorierteSpalten: gelesen.ignorierteSpalten ?? [],
     ausgefiltert,
     gruppen: [...gruppen].map(([name, anzahl]) => ({ name, anzahl })).sort((a, b) => b.anzahl - a.anzahl || a.name.localeCompare(b.name, "de")),
     zeilen,
