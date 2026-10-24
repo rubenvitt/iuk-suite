@@ -439,6 +439,19 @@ test.describe("Der lange Artikelname bei 390px", () => {
     expect(subBox!.y, "Unterzeile steht unter dem Titel").toBeGreaterThanOrEqual(
       titelBox!.y + titelBox!.height - 1,
     );
+
+    /**
+     * IDA-275: der lange Name BRICHT UM (mehr als eine 11px-Zeile hoch), und
+     * die Unterzeile bleibt dabei ganz in der Kachel — die Kachel schneidet mit
+     * `overflow: hidden`, ein Ueberstand waere auf dem Etikett still weg.
+     */
+    expect(titelBox!.height, "der lange Titel bricht um").toBeGreaterThan(2 * 11);
+    const kachelBox = await kachel.boundingBox();
+    expect(kachelBox, "Kachel hat keinen Kasten").not.toBeNull();
+    expect(subBox!.y + subBox!.height, "Unterzeile endet in der Kachel").toBeLessThanOrEqual(
+      kachelBox!.y + kachelBox!.height + 0.5,
+    );
+    expect(titelBox!.y, "Titel beginnt in der Kachel").toBeGreaterThanOrEqual(kachelBox!.y - 0.5);
   });
 });
 
