@@ -152,6 +152,24 @@ test.describe("Ortsetiketten (Bogen)", () => {
   });
 
   /**
+   * IDA-278: der Knopf zeigt auf eine Datei unter `public/`. Ob sie ueber den
+   * Lagerbuch-Host wirklich als PDF ankommt (Rewrite, Host-Riegel, statische
+   * Auslieferung), sieht nur ein echter Abruf — der Vitest-Fall prueft das
+   * Attribut und die Datei, nicht den Weg dazwischen.
+   */
+  test("bietet die Helfer-Anleitung als PDF an, und der Link liefert sie aus", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    const link = page.getByTestId("lb-ort-anleitung");
+    await expect(link).toBeVisible();
+    const href = await link.getAttribute("href");
+    expect(href).toBe("/m/lagerbuch/helfer-anleitung.pdf");
+    const antwort = await page.request.get(lagerbuchUrl(href!));
+    expect(antwort.status(), "Helfer-Anleitung: HTTP").toBe(200);
+    expect(antwort.headers()["content-type"]).toContain("application/pdf");
+    expect((await antwort.body()).subarray(0, 5).toString("latin1")).toBe("%PDF-");
+  });
+
+  /**
    * AKZEPTANZKRITERIUM 3 — UND DER EINZIGE TEST DES REPOS, DER IHN GANZ LAEUFT.
    *
    * Der QR wird aus den Pixeln zurueckdekodiert (nicht aus dem Markup gelesen),

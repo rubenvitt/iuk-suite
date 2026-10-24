@@ -38,7 +38,8 @@ const WURZEL = resolve(__dirname, "..");
  * ist an dem Tag still lückenhaft, an dem eine neue Textendung dazukommt —
  * und dieser Wächter existiert gerade gegen stille Lücken. Hier steht also,
  * was echt binär ist; alles andere wird gelesen. `.webp`, `.jpg`, `.jpeg` und `.png` stehen
- * so auch in `.gitattributes` (`filter=lfs`, `-text`), `.ico` und `.icns` liegen ohne LFS.
+ * so auch in `.gitattributes` (`filter=lfs`, `-text`), `.ico` und `.icns` liegen ohne LFS,
+ * `.pdf` ebenfalls ohne LFS, aber als `binary` in `.gitattributes` (IDA-278).
  */
 export const ECHT_BINAER = [
   ".webp",
@@ -52,6 +53,8 @@ export const ECHT_BINAER = [
   ".ttf",
   ".woff",
   ".woff2",
+  // Die Helfer-Anleitung des Lagerbuchs (`public/m/lagerbuch/helfer-anleitung.pdf`).
+  ".pdf",
 ];
 
 export function istZuPruefen(pfad: string): boolean {
@@ -119,6 +122,7 @@ describe("Nullbyte-Wächter: die Prüfung selbst", () => {
     expect(istZuPruefen("src/app/fonts/Arimo[wght].ttf")).toBe(false);
     expect(istZuPruefen("public/login-bg.JPG")).toBe(false);
     expect(istZuPruefen("apps/einsatzbuch/src-tauri/icons/icon.icns")).toBe(false);
+    expect(istZuPruefen("public/m/lagerbuch/helfer-anleitung.pdf")).toBe(false);
     expect(istZuPruefen("scripts/import/uav.ts")).toBe(true);
     expect(istZuPruefen("docs/design/README.md")).toBe(true);
   });

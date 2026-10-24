@@ -30,6 +30,7 @@ import { Ikone } from "../../../_ui/ikonen";
 import {
   ORT_JE_BLATT, ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM,
 } from "../../../_lib/ortEtikettMasse";
+import { HELFER_ANLEITUNG_DATEINAME, HELFER_ANLEITUNG_PFAD } from "../../../_lib/helferAnleitung";
 
 export function OrtsetikettenChrome({
   basis,
@@ -166,9 +167,24 @@ export function OrtsetikettenChrome({
             und Ränder aus dem Dokument übernehmen.
           </p>
         </div>
-        <Button type="primary" onClick={() => window.print()} icon={<Ikone name="drucken" groesse={16} />}>
-          Drucken
-        </Button>
+        {/*
+          IDA-278: die Helfer-Anleitung steht HIER, weil sie auf genau diese
+          Karten verweist („Zuerst die Karte am Handlager scannen") — wer die
+          Karten druckt, haengt die Anleitung daneben auf.
+        */}
+        <Flex gap={SPACE.sm} wrap>
+          <Button
+            href={HELFER_ANLEITUNG_PFAD}
+            download={HELFER_ANLEITUNG_DATEINAME}
+            icon={<Ikone name="herunterladen" groesse={16} />}
+            data-testid="lb-ort-anleitung"
+          >
+            Helfer-Anleitung (PDF)
+          </Button>
+          <Button type="primary" onClick={() => window.print()} icon={<Ikone name="drucken" groesse={16} />}>
+            Drucken
+          </Button>
+        </Flex>
       </Flex>
     </div>
   );
