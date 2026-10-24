@@ -42,7 +42,7 @@ describe("inventurZeilen", () => {
     art("inaktiv", { aktiv: false });
     expect(inventurZeilen(t.db, JETZT)).toEqual([{
       id: "aktiv", name: "aktiv", einheit: "Stk.", fach: "A1",
-      kategorie: "Hygiene", mindestbestand: 5, bestand: 0, chargen: [],
+      kategorie: "Hygiene", mindestbestand: 5, bestand: 0, ungeordnet: 0, chargen: [],
     }]);
   });
 
@@ -87,18 +87,47 @@ describe("inventurZeilen", () => {
   });
 
   /**
-   * ⚠️ DIE ZEILE BLEIBT, DIE CHARGE VERSCHWINDET. Ein Artikel ohne Bestand an
+   * ⚠️ DIE ZEILE BLEIBT, AUCH OHNE BESTAND AM ORT. Ein Artikel ohne Bestand an
    * diesem Ort ist trotzdem zaehlbar — sonst koennte man ueberraschend
    * Gefundenes nicht erfassen, und genau dafuer zaehlt man.
    */
-  it("behaelt Artikel ohne Bestand am Ort, zeigt dort aber keine Charge", () => {
+  it("behaelt Artikel ohne Bestand am Ort, zeigt dort aber keine Charge eines anderen Schranks", () => {
+    t.db.insert(lagerorte).values({ id: "schrank-2", name: "Schrank 2", typ: "lager", kennung: null,
+      aktiv: true, templateId: null, parentId: HANDLAGER_ID, sortierung: 20 }).run();
     art("a");
     charge("c", "a", "2029-01");
-    buche("a", "c", 5);
+    buche("a", "c", 5, "schrank-2");
 
     const schrank = inventurZeilen(t.db, JETZT, zaehlBereich(t.db, "schrank-1")!);
     expect(schrank).toHaveLength(1);
     expect(schrank[0]!.bestand).toBe(0);
     expect(schrank[0]!.chargen).toEqual([]);
+  });
+
+  /**
+   * IDA-276 — VOR EINEM SCHRANK STEHT AUCH, WAS NOCH AUF „NICHT ZUGEORDNET"
+   * LIEGT. Der Handlager hatte lange keine Schraenke; ohne diese Chargen
+   * koennte die Zaehlung im Schrank sie nur als NEUE Charge erfassen, und der
+   * Bestand stuende danach doppelt da.
+   */
+  it("zeigt vor einem Schrank die Chargen von „Nicht zugeordnet“ mit ihrem Rest dort", () => {
+    art("a");
+    charge("c", "a", "2029-01");
+    charge("d", "a", "2027-01");
+    buche("a", "c", 30);
+    buche("a", "d", 2, "schrank-1");
+    buche("a", "d", 1);
+
+    const [schrank] = inventurZeilen(t.db, JETZT, zaehlBereich(t.db, "schrank-1")!);
+    expect(schrank!.bestand).toBe(2);
+    expect(schrank!.ungeordnet).toBe(31);
+    expect(schrank!.chargen.map((c) => [c.id, c.rest, c.ungeordnet])).toEqual([["d", 2, 1], ["c", 0, 30]]);
+
+    // Gehoert die Wurzel zum Bereich, steht sie im Rest und nicht daneben.
+    const [ganz] = inventurZeilen(t.db, JETZT);
+    expect(ganz!.ungeordnet).toBe(0);
+    expect(ganz!.chargen.map((c) => [c.id, c.rest, c.ungeordnet])).toEqual([["d", 3, 0], ["c", 30, 0]]);
+    const [wurzel] = inventurZeilen(t.db, JETZT, zaehlBereich(t.db, HANDLAGER_ID)!);
+    expect(wurzel!.ungeordnet).toBe(0);
   });
 });

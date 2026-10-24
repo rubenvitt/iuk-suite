@@ -13,9 +13,15 @@ import { KATEGORIE_MAX_LAENGE, KATEGORIEN_AUSWAHL_MAX } from "../_lib/kategorie"
 import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import { zaehlOrtLabel } from "../_lib/inventurOrt";
-import { restJeChargeFuerArtikelImBereich, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
+import { uebernahme } from "../_lib/inventurUebernahme";
+import {
+  restJeChargeFuerArtikelAnOrt, restJeChargeFuerArtikelImBereich, restJeChargeUndOrt,
+} from "../_lib/lesepfade/bestand";
 import { ortStamm, zaehlBereich, type OrtStammZeile } from "../_lib/lesepfade/orte";
-import { fefoAbbuchungImBereich, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
+import {
+  fefoAbbuchungAnOrt, fefoAbbuchungImBereich, type Quelle, type Tx,
+} from "../_lib/schreibpfade/abbuchung";
+import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { INVENTUR_PRAEFIX } from "../_lib/vorgang";
 import { revalidiereBestand } from "../_lib/revalidierung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -39,7 +45,12 @@ export type InventurNutzlast = {
     | { artikelId: string; ist: number }
     | {
         artikelId: string;
-        chargen: { chargeId: string; ist: number }[];
+        /**
+         * IDA-276 — `ausbuchen` gilt nur bei einer Zaehlung VOR EINEM SCHRANK
+         * und nur fuer eine Charge, die auch auf „Nicht zugeordnet" liegt: der
+         * Rest dort geht dann als Differenz ab (`_lib/inventurUebernahme.ts`).
+         */
+        chargen: { chargeId: string; ist: number; ausbuchen?: boolean }[];
         neu: { verfall: string; chargenNr?: string; ist: number }[];
       }
   >;
@@ -60,7 +71,9 @@ const ChargenPosition = z.object({
   artikelId: z.string().min(1),
   // NUR ANGEFASSTE Chargen. Eine hier fehlende Charge wird nicht gebucht —
   // nie implizit 0 (1:1-Pflicht 21, Spec §B).
-  chargen: z.array(z.object({ chargeId: z.string().min(1), ist: IST }).strict()),
+  chargen: z.array(z.object({
+    chargeId: z.string().min(1), ist: IST, ausbuchen: z.boolean().optional(),
+  }).strict()),
   neu: z.array(z.object({
     verfall: z.string().regex(MONAT_REGEX, "Verfall muss YYYY-MM sein"),
     // Keine eigene Laengengrenze: `bucheZugang` (Wareneingang) hat auch keine.
@@ -106,6 +119,13 @@ type Lauf = {
    * dem es nicht liegt (Akzeptanzkriterium 3).
    */
   rueckfallOrt: string;
+  /**
+   * IDA-276 — WOHIN EINE UEBERNAHME AUS „NICHT ZUGEORDNET" GEHT: der gezaehlte
+   * Schrank. `null`, wenn die Wurzel selbst zum gezaehlten Bereich gehoert
+   * (ganzer Handlager oder „Nicht zugeordnet") — dann gibt es nichts zu
+   * uebernehmen, die Ware liegt ja schon im Bereich.
+   */
+  uebernahmeZiel: string | null;
 };
 
 /** Fachliche Abweisung INNERHALB der Transaktion — sie rollt alles zurueck. */
@@ -185,7 +205,13 @@ function chargenPosition(
   // Buchungshistorie des Artikels ohne Ortspraedikat und ist damit die
   // teuerste Abfrage in dieser Funktion.
   const bestandJeCharge = restJeChargeUndOrt(tx, position.artikelId);
-  const zuZaehlen: { chargeId: string; ist: number }[] = [];
+  // IDA-276 — der Rest je Charge auf der Wurzel, LIVE in derselben Transaktion
+  // gelesen wie alles andere. Nur vor einem Schrank: sonst gehoert die Wurzel
+  // zum gezaehlten Bereich und steht schon in `rest`.
+  const ungeordnet = lauf.uebernahmeZiel === null
+    ? new Map<string, number>()
+    : restJeChargeFuerArtikelAnOrt(tx, position.artikelId, HANDLAGER_ID);
+  const zuZaehlen: { chargeId: string; ist: number; ausbuchen?: boolean }[] = [];
 
   for (const c of position.chargen) {
     const zeile = tx.select().from(chargen).where(eq(chargen.id, c.chargeId)).get();
@@ -218,15 +244,37 @@ function chargenPosition(
 
   let abweichend = 0;
   for (const z of zuZaehlen) {
-    const erwartet = rest.get(z.chargeId) ?? 0;
-    const diff = z.ist - erwartet;
-    positionSpeichern(tx, lauf, position.artikelId, z.chargeId, erwartet, z.ist);
-    if (diff === 0) continue;
+    const hier = rest.get(z.chargeId) ?? 0;
+    /*
+     * IDA-276 — die Rechnung steht einmal, in `uebernahme`; die Insel zeigt
+     * mit derselben Funktion, was hier gebucht wird. Ohne Wurzelbestand (oder
+     * ohne Schrank) ist sie woertlich der alte Weg: `umlagern` und `ausbuchen`
+     * sind 0, `erwartet` ist der Rest im Bereich.
+     */
+    const u = uebernahme(hier, ungeordnet.get(z.chargeId) ?? 0, z.ist, z.ausbuchen ?? false);
+    positionSpeichern(tx, lauf, position.artikelId, z.chargeId, u.erwartet, z.ist);
+    if (u.umlagern > 0 && lauf.uebernahmeZiel !== null) {
+      umlagerungVonOrt(tx, {
+        artikelId: position.artikelId, chargeId: z.chargeId, menge: u.umlagern,
+        vonOrt: HANDLAGER_ID, nachLagerortId: lauf.uebernahmeZiel,
+        quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz,
+      });
+    }
+    if (u.ausbuchen > 0) {
+      fefoAbbuchungAnOrt(tx, {
+        artikelId: position.artikelId, chargeId: z.chargeId, menge: u.ausbuchen, ort: HANDLAGER_ID,
+        quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
+      });
+    }
+    // Was nach der Umlagerung im Schrank noch fehlt oder uebersteht.
+    const diff = z.ist - hier - u.umlagern;
     // Kein Kappen noetig: `ist >= 0`, der Rest dieser Charge danach ist `ist` (I2).
-    bucheKorrektur(
-      tx, lauf, bereich, stamm, position.artikelId, z.chargeId, diff, bestandJeCharge.get(z.chargeId),
-    );
-    abweichend++;
+    if (diff !== 0) {
+      bucheKorrektur(
+        tx, lauf, bereich, stamm, position.artikelId, z.chargeId, diff, bestandJeCharge.get(z.chargeId),
+      );
+    }
+    if (u.abweichung !== 0) abweichend++;
   }
   return abweichend;
 }
@@ -370,6 +418,7 @@ export async function inventurKorrektur(
       quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
       kommentar: v.kommentar,
       rueckfallOrt: ortId ?? HANDLAGER_ID,
+      uebernahmeZiel: null,
     };
     let korrigiert = 0;
 
@@ -388,6 +437,7 @@ export async function inventurKorrektur(
         const bereich = zaehlBereich(tx, ortId);
         if (!bereich) throw new InventurAbgewiesen(INVENTUR_TEXTE.ortUnbekannt);
         const stamm = ortStamm(tx);
+        if (ortId !== null && !bereich.includes(HANDLAGER_ID)) lauf.uebernahmeZiel = ortId;
         tx.insert(inventuren).values({
           id: inventurId, ts: new Date(), quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
           kommentar: v.kommentar,

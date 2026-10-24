@@ -77,9 +77,9 @@ vi.mock("../../../_ui/useUrlFilter", () => ({
 }));
 
 const ZEILEN: InventurZeile[] = [
-  { id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", kategorie: "Hygiene", mindestbestand: 5, bestand: 12,
-    chargen: [{ id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 12, ampel: "gelb" }] },
-  { id: "a2", name: "Pflaster", einheit: "Pkg", fach: "B2", kategorie: null, mindestbestand: 0, bestand: 4, chargen: [] },
+  { id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", kategorie: "Hygiene", mindestbestand: 5, bestand: 12, ungeordnet: 0,
+    chargen: [{ id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 12, ungeordnet: 0, ampel: "gelb" }] },
+  { id: "a2", name: "Pflaster", einheit: "Pkg", fach: "B2", kategorie: null, mindestbestand: 0, bestand: 4, ungeordnet: 0, chargen: [] },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -433,7 +433,7 @@ describe("InventurForm — Zeile und Filter", () => {
         zeilen={[
           ...ZEILEN,
           { id: "a3", name: "Kompresse", einheit: "Stk", fach: "A1", kategorie: "Hygiene",
-            mindestbestand: 1, bestand: 7, chargen: [] },
+            mindestbestand: 1, bestand: 7, ungeordnet: 0, chargen: [] },
         ]}
       />,
     );
@@ -821,7 +821,7 @@ describe("Inventurseite als RSC", () => {
       expect(form.props).toEqual({
         zeilen: [{
           id: "inventur-rsc", name: "RSC Mullbinde", einheit: "Stk", fach: "R1",
-          kategorie: null, mindestbestand: 3, bestand: 0, chargen: [],
+          kategorie: null, mindestbestand: 3, bestand: 0, ungeordnet: 0, chargen: [],
         }],
         // DRK-337: ohne Suchparameter der ganze Handlager — das Verhalten vor
         // diesem Ticket. Die Auswahl kennt ausserdem die Wurzel als eigenen Ort.

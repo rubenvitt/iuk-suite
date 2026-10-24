@@ -40,8 +40,13 @@ const NEU_MENGE = 2;
 const SCHRANK = "E2E Inventurschrank";
 const SCHRANK_ID = "e2e-inventur-schrank";
 const ORT_ARTIKEL = "E2E Inventur Ortszählung";
-/** Seedwert auf der Wurzel. Diese Zahl darf sich durch keinen Lauf aendern. */
-const AUF_DER_WURZEL = 4;
+/**
+ * IDA-276 — die Wurzel nach dem ersten Lauf. Der Seed legt 4 dorthin; die
+ * Zaehlung im Schrank uebernimmt von dort, was sie mehr findet, und bucht den
+ * Rest als Abweichung aus. Danach steht „Nicht zugeordnet" fuer diesen Artikel
+ * auf 0 — und bleibt dort, egal wie oft der Fall wiederholt wird.
+ */
+const AUF_DER_WURZEL = 0;
 
 /**
  * DER BEZUG FUER GREIFER, DIE UEBER DAS DOM AUFLOESEN (DRK-421).
@@ -245,8 +250,11 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
    * ⚠️ JEDER VERSUCH ISOLIERT SICH SELBST, wie im Fall darueber: `retries`
    * laufen gegen DIESELBE Datenbank, der Schrankbestand ist nach dem ersten
    * Versuch also ein anderer. Deshalb wird relativ zugesichert — und die
-   * WURZELZAHL ist die eigentliche Zusicherung: sie bleibt 4, egal wie oft
-   * gebucht wird. Genau das ist Akzeptanzkriterium 3.
+   * WURZELZAHL ist die eigentliche Zusicherung: nach dem Lauf steht sie auf 0,
+   * egal wie oft gebucht wird. Der Ueberhang landet im Schrank, nie auf der
+   * Wurzel (Akzeptanzkriterium 3); und seit IDA-276 kommt er zuerst VON der
+   * Wurzel, deren Rest der Stepper der Hauptzeile mit ausbucht (Vorgabe des
+   * Schalters „Rest ausbuchen").
    */
   test("zählt einen einzelnen Schrank und bucht die Korrektur dorthin", async ({ page }) => {
     const kommentar = `E2E Schrankinventur Versuch ${test.info().retry + 1}`;
@@ -293,8 +301,8 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     expect(nachher?.status()).toBe(200);
     await expect(feld).toHaveValue(String(imSchrank + 1));
 
-    // 5) … und die Wurzel ist unberuehrt. Vor DRK-337 waere der Ueberhang genau
-    //    hier gelandet, weil die Charge im Schrank noch keinen Kandidaten hatte.
+    // 5) … und die Wurzel ist leer. Vor DRK-337 waere der Ueberhang genau hier
+    //    gelandet; seit IDA-276 kommt er von hier, und der Rest ist ausgebucht.
     const wurzel = await page.goto(lagerbuchUrl("/verwaltung/inventur?zaehlort=ort:handlager"));
     expect(wurzel?.status()).toBe(200);
     await expect(page.getByTestId("seitenkopf-beschreibung")).toContainText("noch keinem Schrank zugeordnet");
