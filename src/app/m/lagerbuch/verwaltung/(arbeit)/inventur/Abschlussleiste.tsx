@@ -115,7 +115,7 @@ export function Abschlussleiste({
     return () => beobachter.disconnect();
   }, [onHoehe]);
 
-  const positionen = useMemo(() => positionenAus(stand), [stand]);
+  const positionen = useMemo(() => positionenAus(stand, zeilen), [stand, zeilen]);
   const abweichungen = abweichungenIn(zeilen, stand);
   const ausgeblendet = ausgeblendetGezaehlt(zeilen, stand, filter);
   const { erfasst, gesamt } = fortschritt(zeilen, stand, filter);

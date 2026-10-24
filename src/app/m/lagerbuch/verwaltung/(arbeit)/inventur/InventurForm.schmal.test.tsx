@@ -39,8 +39,8 @@ const ORTE: ZaehlOrt[] = [
 const ZEILEN: InventurZeile[] = [
   {
     id: "a1", name: "Mullbinde", einheit: "Stk", fach: "Fach 1",
-    kategorie: "Verband", mindestbestand: 5, bestand: 10,
-    chargen: [{ id: "c1", chargenNr: "M-1", verfall: "2027-06", rest: 4, ampel: "gruen" }],
+    kategorie: "Verband", mindestbestand: 5, bestand: 10, ungeordnet: 0,
+    chargen: [{ id: "c1", chargenNr: "M-1", verfall: "2027-06", rest: 4, ungeordnet: 0, ampel: "gruen" }],
   },
 ];
 

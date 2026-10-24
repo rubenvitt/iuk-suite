@@ -61,7 +61,7 @@ function zeilen(anzahl: number): InventurZeile[] {
     fach: `Fach ${i % 8}`,
     kategorie: ["Verband", "Hygiene", "Infusion"][i % 3],
     mindestbestand: 5,
-    bestand: 10,
+    bestand: 10, ungeordnet: 0,
     chargen: [],
   }));
 }

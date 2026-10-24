@@ -7,10 +7,10 @@ import { ChargenZaehlung } from "./ChargenZaehlung";
 import { positionenAus, type ZaehlStand } from "./inventurZustand";
 
 const ZEILE: InventurZeile = {
-  id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", kategorie: null, mindestbestand: 0, bestand: 10,
+  id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", kategorie: null, mindestbestand: 0, bestand: 10, ungeordnet: 0,
   chargen: [
-    { id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 4, ampel: "gelb" },
-    { id: "c2", chargenNr: "L2", verfall: "2029-01", rest: 6, ampel: "gruen" },
+    { id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 4, ungeordnet: 0, ampel: "gelb" },
+    { id: "c2", chargenNr: "L2", verfall: "2029-01", rest: 6, ungeordnet: 0, ampel: "gruen" },
   ],
 };
 
@@ -80,5 +80,92 @@ describe("ChargenZaehlung", () => {
     if (!verwerfen) throw new Error("Knopf „Chargenzählung verwerfen“ fehlt");
     await act(async () => { verwerfen.click(); });
     expect(positionenAus(h.stand())).toEqual([]);
+  });
+
+  describe("IDA-276 — Übernahme aus „Nicht zugeordnet“", () => {
+    const SCHRANK: InventurZeile = {
+      ...ZEILE, id: "k1", bestand: 0, ungeordnet: 30,
+      chargen: [{ id: "w1", chargenNr: "Inventur", verfall: "2030-12", rest: 0, ungeordnet: 30, ampel: "gruen" }],
+    };
+
+    /** Rendert neu mit dem aktuellen Stand — der Harness ist kein Speicher. */
+    async function zeige(h: ReturnType<typeof harness>): Promise<void> {
+      await mount(<ChargenZaehlung
+          ortText="an diesem Zählort" zeile={SCHRANK} zaehlung={h.stand().k1} gesperrt={false}
+          onAendern={h.onAendern} />);
+    }
+
+    it("zeigt die Charge mit ihrem Rest bei „Nicht zugeordnet“ und erklärt die Übernahme", async () => {
+      const h = harness();
+      await zeige(h);
+      expect(query("[data-charge-id='w1']").textContent).toContain("nicht zugeordnet 30");
+      expect(query("[data-rolle='ungeordnet-hinweis']").textContent).toContain("umgelagert");
+      // Ungezaehlt: kein Schalter, nichts gesendet.
+      expect(queryAll("[data-rolle='uebernahme']")).toHaveLength(0);
+    });
+
+    it("bucht den Rest standardmäßig aus und lässt ihn auf Wunsch stehen", async () => {
+      const h = harness();
+      await zeige(h);
+      await fill("input[aria-label='Ist Charge Inventur']", "3");
+      await unmount();
+      await zeige(h);
+      const zeile = query("[data-rolle='uebernahme']");
+      expect(zeile.textContent).toContain("3 Stk aus „Nicht zugeordnet“ hierher");
+      expect(zeile.textContent).toContain("Rest 27 Stk bei „Nicht zugeordnet“ ausbuchen");
+      const haken = query<HTMLInputElement>("[data-rolle='uebernahme'] input[type='checkbox']");
+      expect(haken.checked).toBe(true);
+      expect(query("[data-charge-id='w1']").textContent).toContain("-27");
+
+      await act(async () => { haken.click(); });
+      expect(positionenAus(h.stand(), [SCHRANK])).toEqual([{
+        artikelId: "k1", chargen: [{ chargeId: "w1", ist: 3, ausbuchen: false }], neu: [],
+      }]);
+    });
+  });
+
+  it("IDA-276 — ändert eine ergänzte Charge nachträglich: Menge per Stepper, MHD über Bearbeiten", async () => {
+    const h = harness();
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
+    await fill("input[aria-label='MHD der neuen Charge']", "2027-03");
+    await fill("input[aria-label='Menge der neuen Charge']", "2");
+    await click("button[aria-label='Charge ergänzen']");
+    await unmount();
+    const neu = async () => mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={h.stand().a1} gesperrt={false} onAendern={h.onAendern} />);
+    await neu();
+
+    await click("button[aria-label='Ist ergänzte Charge Inventur erhöhen']");
+    expect(positionenAus(h.stand())[0]).toMatchObject({ neu: [{ verfall: "2027-03", ist: 3 }] });
+    await unmount();
+    await neu();
+
+    await click("button[aria-label='Ergänzte Charge Inventur bearbeiten']");
+    await fill("input[aria-label='MHD der ergänzten Charge']", "2028-05");
+    await fill("input[aria-label='Chargennummer der ergänzten Charge']", "AB12");
+    const uebernehmen = queryAll<HTMLButtonElement>("[data-rolle='charge-bearbeiten'] button")
+      .find((b) => b.textContent?.includes("Übernehmen"));
+    if (!uebernehmen) throw new Error("Knopf „Übernehmen“ fehlt");
+    await act(async () => { uebernehmen.click(); });
+    expect(positionenAus(h.stand())).toEqual([{
+      artikelId: "a1", chargen: [], neu: [{ verfall: "2028-05", chargenNr: "AB12", ist: 3 }],
+    }]);
+  });
+
+  it("IDA-276 — sperrt beim Bearbeiten eine Charge, die schon in der Liste steht", async () => {
+    const h = harness();
+    h.onAendern((s) => ({ ...s, a1: { art: "chargen", chargen: {}, neu: [
+      { schluessel: "Inventur|2027-03", verfall: "2027-03", chargenNr: "", ist: 1 },
+    ] } }));
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={h.stand().a1} gesperrt={false} onAendern={h.onAendern} />);
+    await click("button[aria-label='Ergänzte Charge Inventur bearbeiten']");
+    await fill("input[aria-label='MHD der ergänzten Charge']", "2026-10");
+    await fill("input[aria-label='Chargennummer der ergänzten Charge']", "L1");
+    expect(query("[data-rolle='charge-bearbeiten']").textContent).toContain("Diese Charge steht schon in der Liste");
+    const uebernehmen = queryAll<HTMLButtonElement>("[data-rolle='charge-bearbeiten'] button")
+      .find((b) => b.textContent?.includes("Übernehmen"));
+    expect(uebernehmen?.disabled).toBe(true);
   });
 });

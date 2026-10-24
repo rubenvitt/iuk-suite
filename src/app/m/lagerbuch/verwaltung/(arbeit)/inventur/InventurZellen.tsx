@@ -26,7 +26,9 @@ import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { ChargenZaehlung } from "./ChargenZaehlung";
-import { artikelBestaetigen, artikelSetzen, bestaetigungZuruecknehmen, summeFuer } from "./inventurZustand";
+import {
+  abweichungFuer, artikelBestaetigen, bestaetigungZuruecknehmen, istSetzen, stepperCharge, summeFuer,
+} from "./inventurZustand";
 import { useZaehlung, type Zaehlspeicher } from "./zaehlspeicher";
 
 /** Serverseitige Obergrenze der Artikelzaehlung (`_actions/inventur.ts`). */
@@ -72,7 +74,9 @@ export const AbweichungsZelle = memo(function AbweichungsZelle({ zeile, speicher
   gesperrt: boolean;
 }) {
   const zaehlung = useZaehlung(speicher, zeile.id);
-  const differenz = zaehlung ? summeFuer(zeile, zaehlung) - zeile.bestand : 0;
+  // IDA-276 — die gebuchte Abweichung: eine Uebernahme aus „Nicht zugeordnet"
+  // ist keine, ein dort ausgebuchter Rest schon.
+  const differenz = abweichungFuer(zeile, zaehlung);
   if (differenz !== 0) {
     return (
       <Chip ton={differenz < 0 ? "rot" : "gelb"}>
@@ -131,11 +135,19 @@ export const IstZelle = memo(function IstZelle({ zeile, speicher, gesperrt, clas
   // Einmal berechnet, von Minus-Knopf, Feld und Plus-Knopf gelesen — zwei
   // Ableitungen desselben Werts liefen sonst auseinander.
   const aktuell = summeFuer(zeile, zaehlung);
-  // Im Chargenmodus ist das Feld nur die Summe (Spec §B).
-  const nurSumme = zaehlung?.art === "chargen";
+  /*
+   * Im Chargenmodus ist das Feld nur die Summe (Spec §B). IDA-276: liegt der
+   * Artikel noch auf „Nicht zugeordnet", zaehlt der Stepper GENAU EINE Charge
+   * (`stepperCharge`) — bei mehreren wird in der aufgeklappten Zeile gezaehlt,
+   * denn eine Artikelzahl liesse offen, welche Charge umgelagert wird.
+   */
+  const einzeln = stepperCharge(zeile);
+  const nurSumme = einzeln
+    ? zaehlung?.art === "chargen" && zaehlung.neu.length > 0
+    : zaehlung?.art === "chargen" || zeile.ungeordnet > 0;
 
   function wertSetzen(wert: number | null): void {
-    speicher.aendere((stand) => artikelSetzen(stand, zeile.id, wert ?? 0));
+    speicher.aendere((stand) => istSetzen(stand, zeile, wert ?? 0));
   }
 
   // ⚠️ EINMAL HINGESCHRIEBEN, ZWEIMAL EINGERAHMT. Zwei Fassungen der drei

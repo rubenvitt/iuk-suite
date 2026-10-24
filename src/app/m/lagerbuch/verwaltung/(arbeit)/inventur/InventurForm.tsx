@@ -23,7 +23,7 @@ import {
 } from "../../../_lib/inventurFilter";
 import { ZAEHLORT_ALLE, ZAEHLORT_PARAM, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { kategorieOptionen } from "../../../_lib/kategorie";
-import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
+import { naechsteCharge, type InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
@@ -338,7 +338,21 @@ export function InventurForm({ zeilen, ortId, orte }: {
       // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
       sorter: nachZahl<InventurZeile>((zeile) => zeile.bestand),
       render: (wert: number, zeile) => (
-        <span style={SCHRIFT.mono}>{wert} {zeile.einheit}</span>
+        <>
+          <span style={SCHRIFT.mono}>{wert} {zeile.einheit}</span>
+          {/* IDA-276 — was dazu noch auf „Nicht zugeordnet" liegt und beim
+              Zaehlen hierher uebernommen wird. Eine eigene Zeile, damit die
+              erwartete Zahl die Zahl des Zaehlorts bleibt. */}
+          {zeile.ungeordnet > 0 ? (
+            <div
+              data-rolle="ungeordnet"
+              title={`${zeile.ungeordnet} ${zeile.einheit} bei „Nicht zugeordnet“`}
+              className={s.footnote}
+            >
+              {`+${zeile.ungeordnet} n. zug.`}
+            </div>
+          ) : null}
+        </>
       ),
     },
     /*
@@ -367,11 +381,11 @@ export function InventurForm({ zeilen, ortId, orte }: {
       title: "MHD",
       dataIndex: "chargen",
       width: BREITE.mhd,
-      // `chargen[0]` ist FEFO-naechste Handlager-Charge. `2099-12` („ohne
-      // Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall` — dort
-      // gibt es keinen Sonderfall, hier auch nicht.
+      // Die FEFO-naechste Charge MIT Bestand am Zaehlort (IDA-276: `chargen`
+      // traegt auch Chargen, die nur auf „Nicht zugeordnet" liegen). `2099-12`
+      // („ohne Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall`.
       render: (_wert: unknown, zeile) => {
-        const naechste = zeile.chargen[0];
+        const naechste = naechsteCharge(zeile);
         return naechste
           ? <Chip ton={ampelTon(naechste.ampel)}>{fmtVerfall(naechste.verfall)}</Chip>
           : "—";

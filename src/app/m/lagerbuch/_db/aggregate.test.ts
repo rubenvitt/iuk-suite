@@ -476,8 +476,8 @@ describe("DRK-297 — Bestand ueber einen Bereich", () => {
 
   /**
    * Derselbe Differenztest fuer `restJeChargeFuerArtikel` — auch dieses Aggregat
-   * lief bisher nur einelementig (`_actions/inventur.ts:139` ruft es produktiv
-   * ueber einen echten Bereich). Verschiedenwegig wie oben: SQL-Seite `sum()` +
+   * lief bisher nur einelementig (`_actions/inventur.ts`, `chargenPosition`, ruft
+   * es produktiv ueber einen echten Bereich). Verschiedenwegig wie oben: SQL-Seite `sum()` +
    * `inArray` (plus `artikelId`-Praedikat), reine Seite die Vollladung EINES
    * Artikels ohne Ortsprädikat.
    */
