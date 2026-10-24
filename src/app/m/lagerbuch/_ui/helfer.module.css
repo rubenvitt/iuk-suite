@@ -664,22 +664,22 @@
 
 /* ——— Fahrzeug-Check ——— */
 /*
- * `flex-wrap: wrap` + `min-width: 0`, weil vier Schritte am Telefon nicht
- * nebeneinander passen. Ein Fahrzeug mit Geraeten UND Flaschen traegt die volle
- * Folge „Zaehlen · Nachfuellen · Geraete · Sauerstoff" (`CheckFlow.tsx`,
- * PHASE_LABEL); je Kachel sind das 22px Polster + 22px Ziffer + 8px Abstand +
- * Beschriftung, zusammen ueber 440px gegen 358px verfuegbare Breite. Ohne
- * `min-width: 0` gibt ein `flex: 1`-Kind seine min-content-Breite nicht her
- * (CSS Flexbox 1, §4.5), die Leiste haette also nicht schrumpfen KOENNEN — sie
- * waere seitwaerts ausgewichen.
- *
+ * `flex-wrap: wrap`, weil vier oder fuenf Schritte am Telefon nicht
+ * nebeneinander passen: „Plomben · Zaehlen · Nachfuellen · Geraete · Sauerstoff"
+ * (`CheckFlow.tsx`, PHASE_LABEL) misst je Kachel 22px Polster + 22px Ziffer +
+ * 8px Abstand + Beschriftung, zusammen ueber 440px gegen 358px Breite.
+ * ⚠️ `flex: 1 1 auto`, NICHT `flex: 1` (IDA-277). `flex: 1` setzt die
+ * Grundbreite auf 0 — dann passt rechnerisch jede Zahl Schritte in eine Reihe,
+ * umgebrochen wurde nie: die Beschriftungen liefen zu „Ploml"/„Zähle" ueber,
+ * `main` wurde 412px breit und rutschte beim ersten Tippen seitlich weg.
+ * `min-width: 0` faengt den einen Schritt, der allein breiter waere (§4.5).
  * Umbrechen und nicht abschneiden: die Leiste sagt dem Helfer, wo im Ablauf er
  * steht. Zwei Reihen sind dafuer in Ordnung, ein halb sichtbarer vierter
  * Schritt nicht.
  */
 .schritte { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 2px 14px }
 .schritt {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 11px;
   border: 1.5px solid var(--lb-linie); border-radius: 11px; background: var(--lb-karte);
   font-weight: 600; font-size: 13px; color: var(--lb-stahl);
 }
