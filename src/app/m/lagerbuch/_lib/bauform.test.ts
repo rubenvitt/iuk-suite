@@ -1169,6 +1169,9 @@ describe("§7.7 — der Helfer-Weg passt in 390px, weil jedes Stueck nachgeben D
     // zusammen ueber 440px gegen 358px verfuegbare Breite.
     expect(regel(".schritte")).toMatch(/flex-wrap:\s*wrap/);
     expect(regel(".schritt")).toMatch(/min-width:\s*0/);
+    // IDA-277: `flex: 1` hiesse Grundbreite 0 — die Reihe bricht dann nie um,
+    // und `flex-wrap` oben steht richtig da und greift nicht (Falle 5).
+    expect(regel(".schritt")).toMatch(/flex:\s*1 1 auto/);
   });
 });
 

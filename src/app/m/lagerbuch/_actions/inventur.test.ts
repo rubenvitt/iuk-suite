@@ -891,3 +891,100 @@ describe("inventurKorrektur — DRK-337: ein Lauf zaehlt genau einen Ort", () =>
     expect(umfangVon(id(ohneOrt))).toBeNull();
   });
 });
+
+/**
+ * IDA-276 — DER HANDLAGER HATTE LANGE KEINE SCHRAENKE. Aller Bestand steht auf
+ * der Wurzel („Nicht zugeordnet"); wer jetzt Schrank fuer Schrank zaehlt,
+ * findet dort Ware, die buchhalterisch noch auf der Wurzel liegt. Gezaehlt im
+ * Schrank wird sie von dort UMGELAGERT, statt ein zweites Mal zu entstehen.
+ */
+describe("inventurKorrektur — IDA-276: Übernahme aus „Nicht zugeordnet“", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values({ id: "schrank-2", name: "Schrank 2", typ: "lager", kennung: null,
+      aktiv: true, parentId: HANDLAGER_ID, sortierung: 20 }).run();
+    legeArtikelAn("kompr");
+    legeChargeAn({ id: "c-kompr", artikelId: "kompr", verfall: "2030-12", chargenNr: CHARGE_INVENTUR });
+    buche({ artikelId: "kompr", chargeId: "c-kompr", lagerortId: HANDLAGER_ID, menge: 30 });
+  });
+
+  function bestandAn(lagerortId: string): number {
+    return t.db.select().from(buchungen).all()
+      .filter((b) => b.artikelId === "kompr" && b.lagerortId === lagerortId)
+      .reduce((s, b) => s + b.menge, 0);
+  }
+
+  function zaehle(ist: number, ausbuchen?: boolean, ortId: string | null = "schrank-2") {
+    return inventurKorrektur({
+      kommentar: "Einsortieren", ortId,
+      positionen: [{
+        artikelId: "kompr",
+        chargen: [{ chargeId: "c-kompr", ist, ...(ausbuchen === undefined ? {} : { ausbuchen }) }],
+        neu: [],
+      }],
+    }, t.db);
+  }
+
+  function gespeichertePosition() {
+    return t.db.select().from(inventurPositionen).all().map((p) => [p.erwartet, p.gezaehlt]);
+  }
+
+  it("lagert das Gezählte um und bucht den Rest auf der Wurzel aus", async () => {
+    const erg = await zaehle(3, true);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    expect(bestandAn("schrank-2")).toBe(3);
+    expect(bestandAn(HANDLAGER_ID)).toBe(0);
+    expect(inventurBuchungen().map((b) => ({ typ: b.typ, ort: b.lagerortId, menge: b.menge })))
+      .toEqual([
+        { typ: "umlagerung", ort: HANDLAGER_ID, menge: -3 },
+        { typ: "umlagerung", ort: "schrank-2", menge: 3 },
+        { typ: "korrektur", ort: HANDLAGER_ID, menge: -27 },
+      ]);
+    // Die Position traegt Schrank plus Wurzel als Erwartung — die Abweichung
+    // im Verlauf ist die Bestandsaenderung des Handlagers.
+    expect(gespeichertePosition()).toEqual([[30, 3]]);
+  });
+
+  it("lässt den Rest ohne Schalter auf der Wurzel — eine reine Umlagerung weicht nicht ab", async () => {
+    const erg = await zaehle(3);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 0 } });
+    expect(bestandAn("schrank-2")).toBe(3);
+    expect(bestandAn(HANDLAGER_ID)).toBe(27);
+    expect(inventurBuchungen().every((b) => b.typ === "umlagerung")).toBe(true);
+    expect(gespeichertePosition()).toEqual([[3, 3]]);
+  });
+
+  it("bucht, was über die Wurzel hinaus gezählt wurde, als Mehrbestand im Schrank", async () => {
+    const erg = await zaehle(34, true);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    expect(bestandAn("schrank-2")).toBe(34);
+    expect(bestandAn(HANDLAGER_ID)).toBe(0);
+    expect(inventurBuchungen().filter((b) => b.typ === "korrektur").map((b) => [b.lagerortId, b.menge]))
+      .toEqual([["schrank-2", 4]]);
+    expect(gespeichertePosition()).toEqual([[30, 34]]);
+  });
+
+  it("übernimmt auch eine ergänzte Charge, die es auf der Wurzel schon gibt", async () => {
+    const erg = await inventurKorrektur({
+      kommentar: "Einsortieren", ortId: "schrank-2",
+      positionen: [{ artikelId: "kompr", chargen: [], neu: [{ verfall: "2030-12", ist: 3 }] }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 0 } });
+    expect(bestandAn("schrank-2")).toBe(3);
+    expect(bestandAn(HANDLAGER_ID)).toBe(27);
+    expect(t.db.select().from(chargen).all()).toHaveLength(1);
+  });
+
+  it("übernimmt nichts, wenn die Wurzel selbst gezählt wird oder der ganze Handlager", async () => {
+    await zaehle(3, true, HANDLAGER_ID);
+    expect(bestandAn(HANDLAGER_ID)).toBe(3);
+    expect(inventurBuchungen().map((b) => [b.typ, b.lagerortId, b.menge])).toEqual([["korrektur", HANDLAGER_ID, -27]]);
+
+    await zaehle(5, true, null);
+    expect(bestandAn(HANDLAGER_ID)).toBe(5);
+    expect(inventurBuchungen().some((b) => b.typ === "umlagerung")).toBe(false);
+  });
+});

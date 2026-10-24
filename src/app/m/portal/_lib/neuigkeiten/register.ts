@@ -91,6 +91,7 @@ import journalFilter from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/202
 import zuVielAnBord from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-19-zu-viel-an-bord";
 import lagerbuchStatistik from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-21-statistik";
 import helferAnleitung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-24-helfer-anleitung";
+import inventurEinsortieren from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-10-24-inventur-einsortieren";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -199,6 +200,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   zuVielAnBord,
   lagerbuchStatistik,
   helferAnleitung,
+  inventurEinsortieren,
   ruecklaufVomFahrzeug,
   checksLaufend,
   inventurTelefon,

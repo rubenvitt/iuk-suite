@@ -29,7 +29,7 @@
 import { useState } from "react";
 import { Button } from "antd";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
-import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
+import { naechsteCharge, type InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import s from "../../../_ui/verwaltung.module.css";
@@ -44,7 +44,7 @@ export function InventurKarte({ zeile, speicher, gesperrt, ortText }: {
   ortText: string;
 }) {
   const [chargenOffen, setChargenOffen] = useState(false);
-  const naechste = zeile.chargen[0];
+  const naechste = naechsteCharge(zeile);
 
   return (
     <article className={k.karte}>
@@ -66,6 +66,8 @@ export function InventurKarte({ zeile, speicher, gesperrt, ortText }: {
           gilt fuer den gewaehlten Zaehlort, nicht fuer den ganzen Handlager). */}
       <p className={k.zahlen}>
         {`erwartet ${zeile.bestand} ${zeile.einheit} · Min. ${zeile.mindestbestand}`}
+        {/* IDA-276 — wie in der Tabelle: was noch ohne Schrank im Handlager liegt. */}
+        {zeile.ungeordnet > 0 ? ` · ${zeile.ungeordnet} nicht zugeordnet` : null}
       </p>
 
       {/* IDA-237 — „Stimmt" bzw. die Abweichung stehen IN DER ZAEHLZEILE, nicht

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import {
+  abweichungFuer, ausbuchenSetzen, istSetzen, neueChargeAendern, stepperCharge,
   abweichungenIn, artikelBestaetigen, artikelSetzen, ausgeblendetGezaehlt, bestaetigungZuruecknehmen,
   chargeSetzen, chargenzaehlungVerwerfen, fortschritt, neueChargeEntfernen, neueChargeHinzufuegen,
   neuSchluessel, positionenAus, summeFuer, type ZaehlStand,
@@ -8,10 +9,10 @@ import {
 
 const ZEILE: InventurZeile = {
   id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", kategorie: "Hygiene",
-  mindestbestand: 5, bestand: 10,
+  mindestbestand: 5, bestand: 10, ungeordnet: 0,
   chargen: [
-    { id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 4, ampel: "gelb" },
-    { id: "c2", chargenNr: "L2", verfall: "2029-01", rest: 6, ampel: "gruen" },
+    { id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 4, ungeordnet: 0, ampel: "gelb" },
+    { id: "c2", chargenNr: "L2", verfall: "2029-01", rest: 6, ungeordnet: 0, ampel: "gruen" },
   ],
 };
 const LEER: ZaehlStand = {};
@@ -105,5 +106,77 @@ describe("fortschritt (IDA-237)", () => {
     expect(fortschritt([ZEILE, ZWEITE], stand, { kategorien: [], faecher: [] })).toEqual({ erfasst: 2, gesamt: 2 });
     expect(fortschritt([ZEILE, ZWEITE], stand, { kategorien: ["hygiene"], faecher: [] }))
       .toEqual({ erfasst: 1, gesamt: 1 });
+  });
+});
+
+describe("Übernahme aus „Nicht zugeordnet“ (IDA-276)", () => {
+  /** Vor Schrank 2: im Schrank nichts, auf der Wurzel 30 der einen Charge. */
+  const SCHRANK: InventurZeile = {
+    id: "k1", name: "Kompresse", einheit: "Stk", fach: "2/2", kategorie: null,
+    mindestbestand: 0, bestand: 0, ungeordnet: 30,
+    chargen: [{ id: "w1", chargenNr: "Inventur", verfall: "2030-12", rest: 0, ungeordnet: 30, ampel: "gruen" }],
+  };
+
+  it("bucht den Rest standardmäßig aus — die Abweichung ist Gezähltes minus Schrank und Wurzel", () => {
+    const stand = chargeSetzen(LEER, "k1", "w1", 3);
+    expect(abweichungFuer(SCHRANK, stand.k1)).toBe(-27);
+    expect(abweichungenIn([SCHRANK], stand)).toBe(1);
+    expect(positionenAus(stand, [SCHRANK])).toEqual([{
+      artikelId: "k1", chargen: [{ chargeId: "w1", ist: 3, ausbuchen: true }], neu: [],
+    }]);
+  });
+
+  it("lässt den Rest auf Wunsch stehen — dann ist die Umlagerung keine Abweichung", () => {
+    const stand = ausbuchenSetzen(chargeSetzen(LEER, "k1", "w1", 3), "k1", "w1", false);
+    expect(abweichungFuer(SCHRANK, stand.k1)).toBe(0);
+    expect(abweichungenIn([SCHRANK], stand)).toBe(0);
+    expect(positionenAus(stand, [SCHRANK])[0]).toMatchObject({ chargen: [{ chargeId: "w1", ist: 3, ausbuchen: false }] });
+    // Zurueck auf die Vorgabe: kein gemerkter Eintrag mehr.
+    const zurueck = ausbuchenSetzen(stand, "k1", "w1", true);
+    expect(zurueck.k1).toEqual({ art: "chargen", chargen: { w1: 3 }, neu: [] });
+  });
+
+  it("setzt den Schalter nur an einer gezählten Charge", () => {
+    expect(ausbuchenSetzen(LEER, "k1", "w1", false)).toBe(LEER);
+  });
+
+  it("schickt `ausbuchen` nur für Chargen, die auf dieser Seite auf „Nicht zugeordnet“ standen", () => {
+    const stand = chargeSetzen(LEER, "a1", "c1", 4);
+    expect(positionenAus(stand, [ZEILE])).toEqual([{ artikelId: "a1", chargen: [{ chargeId: "c1", ist: 4 }], neu: [] }]);
+  });
+
+  it("zählt mit dem Stepper der Hauptzeile die eine Charge, nicht den Artikel", () => {
+    expect(stepperCharge(SCHRANK)?.id).toBe("w1");
+    expect(stepperCharge(ZEILE)).toBeUndefined();
+    expect(istSetzen(LEER, SCHRANK, 3)).toEqual(chargeSetzen(LEER, "k1", "w1", 3));
+    expect(istSetzen(LEER, ZEILE, 3)).toEqual(artikelSetzen(LEER, "a1", 3));
+    // Mehrere Chargen: keine richtige Wahl, gezaehlt wird aufgeklappt.
+    const zwei = { ...SCHRANK, chargen: [...SCHRANK.chargen, { ...SCHRANK.chargen[0]!, id: "w2" }] };
+    expect(stepperCharge(zwei)).toBeUndefined();
+  });
+
+  it("„Stimmt“ heißt: Schrank und Wurzel liegen vollständig hier", () => {
+    const stand = artikelBestaetigen(LEER, SCHRANK);
+    expect(stand.k1).toEqual({ art: "chargen", chargen: { w1: 30 }, neu: [] });
+    expect(abweichungFuer(SCHRANK, stand.k1)).toBe(0);
+  });
+});
+
+describe("Ergänzte Chargen nachträglich ändern (IDA-276)", () => {
+  it("ändert Menge, MHD und Nummer an Ort und Stelle", () => {
+    const stand = neueChargeHinzufuegen(LEER, "a1", NEU);
+    const menge = neueChargeAendern(stand, "a1", NEU.schluessel, { ...NEU, ist: 5 });
+    expect(positionenAus(menge)[0]).toMatchObject({ neu: [{ verfall: "2027-03", chargenNr: "", ist: 5 }] });
+    const mhd = neueChargeAendern(menge, "a1", NEU.schluessel, {
+      schluessel: neuSchluessel("2028-01", "X9"), verfall: "2028-01", chargenNr: "X9", ist: 5,
+    });
+    expect(positionenAus(mhd)[0]).toMatchObject({ neu: [{ verfall: "2028-01", chargenNr: "X9", ist: 5 }] });
+  });
+
+  it("ändert nichts, wenn der neue Schlüssel schon eine andere Ergänzung trägt", () => {
+    const zweite = { schluessel: neuSchluessel("2028-01", ""), verfall: "2028-01", chargenNr: "", ist: 1 };
+    const stand = neueChargeHinzufuegen(neueChargeHinzufuegen(LEER, "a1", NEU), "a1", zweite);
+    expect(neueChargeAendern(stand, "a1", zweite.schluessel, { ...NEU, ist: 9 })).toBe(stand);
+    expect(neueChargeAendern(stand, "a1", "gibt-es-nicht", NEU)).toBe(stand);
   });
 });
