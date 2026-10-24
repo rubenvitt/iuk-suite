@@ -76,3 +76,13 @@ describe("OrtsetikettenChrome — alte Codes (DRK-442)", () => {
     expect(query("[data-testid='lb-ort-alt-ergebnis']").textContent).toContain("Ging nicht.");
   });
 });
+
+describe("OrtsetikettenChrome — Helfer-Anleitung (IDA-278)", () => {
+  it("bietet die Anleitung als PDF zum Herunterladen an", async () => {
+    await mount(<OrtsetikettenChrome basis={BASIS} neueCodes={0} alteCodes={0} />);
+    const link = query("[data-testid='lb-ort-anleitung']");
+    expect(link.getAttribute("href")).toBe("/m/lagerbuch/helfer-anleitung.pdf");
+    expect(link.getAttribute("download")).toBe("Lagerbuch-Helfer-Anleitung.pdf");
+    expect(link.textContent).toContain("Helfer-Anleitung (PDF)");
+  });
+});
