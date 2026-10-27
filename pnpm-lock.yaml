@@ -22,8 +22,8 @@ importers:
         specifier: 6.4.0
         version: 6.4.0
       '@einsatzzeichen/schema':
-        specifier: 6.4.0
-        version: 6.4.0
+        specifier: 6.8.0
+        version: 6.8.0
       '@zxing/browser':
         specifier: ^0.2.1
         version: 0.2.1(@zxing/library@0.23.0)
@@ -398,6 +398,9 @@ packages:
 
   '@einsatzzeichen/schema@6.4.0':
     resolution: {integrity: sha512-Lh2WLIvKFv1E9czJhCm4T8s0kRWYB4RwEWJgSv2qfDnVTQrNXVLf8Ja7VnkFcSTe3aM6rBfog8ALgiGhIyXuOw==}
+
+  '@einsatzzeichen/schema@6.8.0':
+    resolution: {integrity: sha512-8n80lgP9prtZCaG6jwCoCivTjj8ul/6r3k5aYeSXeNXsXit96E7443h0u92MNH/iJdG9ZdwEJelqx9iwd6jzqA==}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -4395,6 +4398,8 @@ snapshots:
       '@einsatzzeichen/schema': 6.4.0
 
   '@einsatzzeichen/schema@6.4.0': {}
+
+  '@einsatzzeichen/schema@6.8.0': {}
 
   '@emnapi/core@1.10.0':
     dependencies:
