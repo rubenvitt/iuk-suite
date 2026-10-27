@@ -154,6 +154,8 @@
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#erstimportAction": { "kind": "context", "via": "erstimportAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#fahrzeugSpeichernAction": { "kind": "context", "via": "fahrzeugSpeichernAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#anzeigeSpeichernAction": { "kind": "context", "via": "anzeigeSpeichernAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#meldungAnlegenAction": { "kind": "context", "via": "meldungAnlegenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#meldungBeendenAction": { "kind": "context", "via": "meldungBeendenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#zugangAnlegenAction": { "kind": "context", "via": "zugangAnlegenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#zugangWiderrufenAction": { "kind": "context", "via": "zugangWiderrufenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#alleLoeschenAction": { "kind": "context", "via": "alleLoeschenAction" },

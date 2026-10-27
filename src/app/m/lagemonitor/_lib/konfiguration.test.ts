@@ -72,6 +72,7 @@ describe("Speichern und Drahtformat", () => {
       warnThreshold: "Moderate",
       modules: { weather: true, radar: false, warningAreas: true, warningList: true, suchlage: true },
       suchlage: { url: "https://suchlage.example.org", token: TOKEN, tracks: true, areas: false, video: true },
+      notices: [],
     });
   });
 

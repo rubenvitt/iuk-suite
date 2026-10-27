@@ -54,3 +54,18 @@ export const zugang = sqliteTable("lagemonitor_zugang", {
   /** Letzte erfolgreiche Abholung; technischer Kontakt, nicht im Audit (`AUDIT_TABLES.lagemonitor`). */
   zuletztAbgeholtAm: integer("zuletzt_abgeholt_am", { mode: "timestamp" }),
 }, (t) => [uniqueIndex("lagemonitor_zugang_schluessel_idx").on(t.schluesselHash)]);
+
+/**
+ * Eine Meldung, die der Lagemonitor als Band zeigt, etwa „Nächste Lagebesprechung“. Jede Meldung hat
+ * ein Ablaufdatum (Vorgabe 24 Stunden): ohne Ablauf stünde ein vergessener Hinweis für immer am
+ * Bildschirm. „Beenden“ setzt `ablaufAm` auf jetzt; die Zeile bleibt für das Audit stehen.
+ */
+export const meldung = sqliteTable("lagemonitor_meldung", {
+  id: text("id").primaryKey(),
+  text: text("text").notNull(),
+  /** Optional: ein Zeitpunkt, bis zu dem der Monitor herunterzählt („in 12 min“). */
+  zeitpunkt: integer("zeitpunkt", { mode: "timestamp" }),
+  ablaufAm: integer("ablauf_am", { mode: "timestamp" }).notNull(),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
+  angelegtVon: text("angelegt_von").notNull(),
+});

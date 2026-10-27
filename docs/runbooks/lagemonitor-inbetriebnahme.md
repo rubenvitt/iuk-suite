@@ -40,7 +40,18 @@ dagegen nur als SHA-256.
 4. Prüfen: nach spätestens einer Minute die Seite neu laden; in der Liste der Zugänge steht dann „zuletzt
    abgeholt“, und der Monitor zeigt unten keinen Hinweis „Konfiguration aus IUK-Suite nicht abholbar“.
 
-## 4. Störungen
+## 4. Meldungen am Monitor
+
+Unter **Meldungen am Monitor** steht ein kurzer Hinweis als blaues Band unter der Kopfzeile, etwa
+„Nächste Lagebesprechung“. Mit einer Uhrzeit zählt der Monitor herunter („in 42 min“). Jede Meldung
+läuft ab (Vorgabe 24 Stunden, höchstens 7 Tage), höchstens drei laufen gleichzeitig. Der Monitor
+prüft den Ablauf selbst: eine Meldung verschwindet pünktlich, auch wenn die Suite nicht erreichbar
+ist. **Beenden** nimmt sie spätestens nach der nächsten Abholung (eine Minute) herunter; ohne
+Verbindung zur Suite bleibt sie bis zu ihrem Ablauf stehen.
+
+Ein Monitor ohne Meldungsband (ältere Version) übergeht das Feld `notices` im Drahtformat einfach.
+
+## 5. Störungen
 
 - **Monitor zeigt alte Einstellungen**, unten „nicht abholbar": Zugang widerrufen oder Suite nicht
   erreichbar. Der Monitor läuft mit dem letzten Stand weiter; einen neuen Zugang anlegen oder die

@@ -35,6 +35,12 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
           <span className={s.bandBis}>bis {v.band[0].bis}{v.band.length > 1 ? ` · +${v.band.length - 1} weitere` : ""}</span>
         </div>
       ) : null}
+      {v.meldungen.map((m, i) => (
+        <div key={i} className={s.meldung} data-entwurf={m.entwurf === true} data-testid="vorschau-meldung">
+          <span className={s.meldungText}>{m.text}</span>
+          {m.countdown ? <span className={s.meldungZeit}>{m.countdown}</span> : null}
+        </div>
+      ))}
       <div className={s.rumpf} data-seitenspalte={v.seitenspalte}>
         <svg className={s.karte} viewBox="0 0 440 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
           <path className={s.wald} d="M0,0 L110,0 L90,50 L0,70Z" />

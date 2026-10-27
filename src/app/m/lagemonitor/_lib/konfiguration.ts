@@ -1,12 +1,14 @@
 /**
  * Was der Lagemonitor im FüKw zeigt: lesen, prüfen, speichern und als Drahtformat ausgeben. Das
  * Drahtformat (`alsVertrag`) liest der Lagemonitor in `src/sources/suite.rs` (Repo `lagemonitor`);
- * eine Änderung daran ist eine neue `version`, keine stille Erweiterung.
+ * ein neues Feld darf dazukommen (ältere Monitore übergehen es), Umbenennen oder Weglassen ist eine
+ * neue `version`.
  */
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
 import { anzeige } from "../_db/schema";
+import { alsNotices, type Notice } from "./meldungen";
 
 export const VERTRAG_VERSION = 1;
 const ZEILE = "anzeige";
@@ -186,6 +188,8 @@ export interface Vertrag {
   modules: { weather: boolean; radar: boolean; warningAreas: boolean; warningList: boolean; suchlage: boolean };
   /** `null`, solange keine Verbindung zu Suchlage eingetragen ist — auch wenn das Modul an ist. */
   suchlage: { url: string; token: string; tracks: boolean; areas: boolean; video: boolean } | null;
+  /** Laufende Meldungen fürs Band (`_lib/meldungen.ts`); seit dem Meldungsband, ältere Monitore übergehen sie. */
+  notices: Notice[];
 }
 
 export function alsVertrag(db: LagemonitorDb): Vertrag {
@@ -208,5 +212,6 @@ export function alsVertrag(db: LagemonitorDb): Vertrag {
       z?.suchlageAdresse && z.suchlageToken
         ? { url: z.suchlageAdresse, token: z.suchlageToken, tracks: k.suchlage.flugspuren, areas: k.suchlage.gebiete, video: k.suchlage.drohnenbild }
         : null,
+    notices: alsNotices(db),
   };
 }

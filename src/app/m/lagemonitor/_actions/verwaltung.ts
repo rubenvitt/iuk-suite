@@ -6,6 +6,7 @@ import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { konfigurationEingabe, speichereKonfiguration, type KonfigurationDTO } from "../_lib/konfiguration";
+import { beendeMeldung, legeMeldungAn, meldungEingabe, type MeldungDTO } from "../_lib/meldungen";
 import { legeZugangAn, widerrufeZugang } from "../_lib/schluessel";
 import { anzeigeName, requireLagemonitorAktion } from "../_lib/zugang";
 
@@ -44,6 +45,30 @@ export async function zugangWiderrufenAction(id: unknown): Promise<ActionErgebni
   if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannter Zugang." };
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     if (!widerrufeZugang(getDb(), id)) return { ok: false, fehler: "Diesen Zugang gibt es nicht mehr." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Legt eine Meldung fürs Band an. Ohne Ablauf geht es nicht; die Vorgabe sind 24 Stunden. */
+export async function meldungAnlegenAction(eingabe: unknown): Promise<ActionErgebnis<MeldungDTO>> {
+  const viewer = await requireLagemonitorAktion();
+  const e = meldungEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = legeMeldungAn(getDb(), e.data, anzeigeName(viewer));
+    if (!r.ok) return { ok: false, fehler: r.fehler };
+    neuLaden();
+    return { ok: true, wert: r.meldung };
+  });
+}
+
+/** Nimmt eine Meldung sofort vom Monitor (spätestens nach der nächsten Abholung). */
+export async function meldungBeendenAction(id: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannte Meldung." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!beendeMeldung(getDb(), id)) return { ok: false, fehler: "Diese Meldung läuft schon nicht mehr." };
     neuLaden();
     return { ok: true };
   });

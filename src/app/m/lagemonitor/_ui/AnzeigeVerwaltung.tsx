@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Alert, Button, Card, Input, InputNumber, Radio, Switch } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -9,8 +9,10 @@ import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { WARNSCHWELLEN, type KonfigurationDTO, type Module, type SuchlageTeile, type Warnschwelle } from "../_lib/konfiguration";
+import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { ZugangDTO } from "../_lib/schluessel";
-import { SZENARIEN, vorschau, type Szenario } from "../_lib/vorschau";
+import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
+import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
 import { Zugaenge } from "./Zugaenge";
 import v from "./verwaltung.module.css";
@@ -63,7 +65,7 @@ const TEIL_TEXT: { feld: keyof SuchlageTeile; titel: string; text: string }[] = 
  * noch vor dem Speichern, mit Beispieldaten. Nur serialisierbare Props, die Actions direkt importiert
  * (Falle 9). Nach dem Speichern kommt der neue Stand über die Props (`revalidatePath`).
  */
-export function AnzeigeVerwaltung({ konfiguration, zugaenge }: { konfiguration: KonfigurationDTO; zugaenge: ZugangDTO[] }) {
+export function AnzeigeVerwaltung({ konfiguration, zugaenge, meldungen }: { konfiguration: KonfigurationDTO; zugaenge: ZugangDTO[]; meldungen: MeldungDTO[] }) {
   const [gespeichert, setGespeichert] = useState(konfiguration);
   const [z, setZ] = useState<Zustand>(() => zustandAus(konfiguration));
   const [szenario, setSzenario] = useState<Szenario>("ruhe");
@@ -73,6 +75,15 @@ export function AnzeigeVerwaltung({ konfiguration, zugaenge }: { konfiguration: 
   const [laeuft, setLaeuft] = useState(false);
   const [erfolg, setErfolg] = useState(false);
   const basis = useId();
+  const [entwurf, setEntwurf] = useState<MeldungEntwurf | null>(null);
+  // Die Uhr erst nach dem Hydrieren: Server und Browser zählten sonst verschieden herunter.
+  const [jetzt, setJetzt] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setJetzt(Date.now());
+    tick();
+    const t = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   // Kommt ein neuer Stand vom Server (anderer Tab, anderes Gerät), wird er übernommen. Verglichen wird der
   // Inhalt: `revalidatePath` nach Anlegen oder Widerrufen eines Zugangs liefert ein neues, gleiches Objekt.
@@ -86,7 +97,14 @@ export function AnzeigeVerwaltung({ konfiguration, zugaenge }: { konfiguration: 
     setZ((alt) => ({ ...alt, [feld]: wert }));
   };
   const geaendert = JSON.stringify(z) !== JSON.stringify(zustandAus(gespeichert));
-  const bild = useMemo(() => vorschau(z, szenario), [z, szenario]);
+  const bandMeldungen = useMemo<VorschauMeldung[]>(() => {
+    const zaehler = (ziel: number | null) => (ziel !== null && jetzt !== null ? countdownText(ziel, jetzt) : null);
+    const laufend = meldungen.map((m) => ({ text: m.text, countdown: zaehler(m.zeitpunkt ? Date.parse(m.zeitpunkt) : null) }));
+    if (!entwurf) return laufend;
+    const ziel = entwurf.uhrzeit && jetzt !== null ? naechsteUhrzeit(entwurf.uhrzeit, new Date(jetzt)).getTime() : null;
+    return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true }];
+  }, [meldungen, entwurf, jetzt]);
+  const bild = useMemo(() => vorschau(z, szenario, bandMeldungen), [z, szenario, bandMeldungen]);
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -142,130 +160,133 @@ export function AnzeigeVerwaltung({ konfiguration, zugaenge }: { konfiguration: 
       />
 
       <div className={v.raster}>
-        <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
-          {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+        <div style={{ display: "grid", gap: SPACE.lg, alignContent: "start" }}>
+          <Meldungen liste={meldungen} jetzt={jetzt} onEntwurf={setEntwurf} />
+          <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
+            {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
-          <Card title="Standort und Warnregion">
-            <div style={{ display: "grid", gap: SPACE.md }}>
-              {text("standortName", "Standort", "So heißt der Ort in der Kopfzeile und beim Wetter.")}
-              <div style={{ display: "grid", gap: SPACE.md, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-                {zahl("standortBreite", "Breitengrad")}
-                {zahl("standortLaenge", "Längengrad")}
+            <Card title="Standort und Warnregion">
+              <div style={{ display: "grid", gap: SPACE.md }}>
+                {text("standortName", "Standort", "So heißt der Ort in der Kopfzeile und beim Wetter.")}
+                <div style={{ display: "grid", gap: SPACE.md, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+                  {zahl("standortBreite", "Breitengrad")}
+                  {zahl("standortLaenge", "Längengrad")}
+                </div>
+                {text("regionName", "Warnregion", "Für diese Region kommen die Warnungen von NINA.")}
+                {text("regionArs", "Regionalschlüssel", "12 Ziffern, für einen Landkreis mit sieben Nullen am Ende (Uelzen: 033600000000).")}
               </div>
-              {text("regionName", "Warnregion", "Für diese Region kommen die Warnungen von NINA.")}
-              {text("regionArs", "Regionalschlüssel", "12 Ziffern, für einen Landkreis mit sieben Nullen am Ende (Uelzen: 033600000000).")}
-            </div>
-          </Card>
+            </Card>
 
-          <Card title="Wann eine Warnung das Band bekommt">
-            <div style={{ display: "grid", gap: SPACE.sm }}>
-              <Radio.Group
-                aria-label="Warnschwelle"
-                value={z.warnschwelle}
-                onChange={(e) => setze("warnschwelle", e.target.value as Warnschwelle)}
-                options={WARNSCHWELLEN.map((s) => ({ value: s.wert, label: s.text }))}
-                optionType="button"
-              />
-              <span style={SCHRIFT.neben} className={v.gedaempft}>
-                {WARNSCHWELLEN.find((s) => s.wert === z.warnschwelle)?.erklaerung}
+            <Card title="Wann eine Warnung das Band bekommt">
+              <div style={{ display: "grid", gap: SPACE.sm }}>
+                <Radio.Group
+                  aria-label="Warnschwelle"
+                  value={z.warnschwelle}
+                  onChange={(e) => setze("warnschwelle", e.target.value as Warnschwelle)}
+                  options={WARNSCHWELLEN.map((s) => ({ value: s.wert, label: s.text }))}
+                  optionType="button"
+                />
+                <span style={SCHRIFT.neben} className={v.gedaempft}>
+                  {WARNSCHWELLEN.find((s) => s.wert === z.warnschwelle)?.erklaerung}
+                </span>
+              </div>
+            </Card>
+
+            <Card title="Was der Monitor zeigt">
+              {MODUL_TEXT.map((m) => (
+                <Schalter
+                  key={m.feld}
+                  id={`${basis}-${m.feld}`}
+                  titel={m.titel}
+                  text={m.text}
+                  an={z.module[m.feld]}
+                  onChange={(an) => setze("module", { ...z.module, [m.feld]: an })}
+                />
+              ))}
+            </Card>
+
+            <Card title="Suchlage">
+              <div style={{ display: "grid", gap: SPACE.md }}>
+                <Schalter
+                  id={`${basis}-suchlage`}
+                  titel="Laufenden Suchlage-Einsatz zeigen"
+                  text="Läuft in Suchlage ein Einsatz, zeigt die Karte ihn und die Kopfzeile seinen Namen. Ohne Einsatz sieht der Monitor aus wie sonst."
+                  an={z.module.suchlage}
+                  onChange={(an) => {
+                    setze("module", { ...z.module, suchlage: an });
+                    if (an) setSzenario("einsatz");
+                  }}
+                />
+                {z.module.suchlage ? (
+                  <>
+                    {linkFeld ? (
+                      <Feld
+                        id={`${basis}-suchlageLink`}
+                        label="Großbild-Link aus Suchlage"
+                        fehler={feldFehler.suchlageLink}
+                        hilfe="In Suchlage unter Einstellungen → Großbild einen Zugang anlegen und den Link hier einfügen. Er sieht so aus: https://suchlage…/kiosk#…"
+                      >
+                        <Input
+                          id={`${basis}-suchlageLink`}
+                          value={z.suchlageLink}
+                          autoComplete="off"
+                          status={feldFehler.suchlageLink ? "error" : undefined}
+                          aria-describedby={feldFehler.suchlageLink ? `${basis}-suchlageLink-fehler` : `${basis}-suchlageLink-hilfe`}
+                          onChange={(e) => setze("suchlageLink", e.target.value)}
+                        />
+                      </Feld>
+                    ) : z.suchlageTrennen ? (
+                      <Alert
+                        type="warning"
+                        showIcon={false}
+                        title="Beim Speichern wird die Verbindung zu Suchlage getrennt."
+                        action={<Button onClick={() => setze("suchlageTrennen", false)}>Doch nicht</Button>}
+                      />
+                    ) : (
+                      <div style={{ display: "grid", gap: SPACE.sm }}>
+                        <span>
+                          Verbunden mit <strong>{gespeichert.suchlageAdresse}</strong>
+                        </span>
+                        <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
+                          <Button onClick={() => setLinkErsetzen(true)}>Anderen Link eintragen</Button>
+                          <Button onClick={() => setze("suchlageTrennen", true)}>Verbindung trennen</Button>
+                        </div>
+                      </div>
+                    )}
+                    {!gespeichert.suchlageVerbunden && z.suchlageLink.trim() === "" ? (
+                      <Alert type="warning" showIcon={false} title="Ohne Link weiß der Monitor nicht, wo Suchlage läuft, und zeigt keinen Einsatz." />
+                    ) : null}
+                    {TEIL_TEXT.map((t) => (
+                      <Schalter
+                        key={t.feld}
+                        id={`${basis}-${t.feld}`}
+                        titel={t.titel}
+                        text={t.text}
+                        an={z.suchlage[t.feld]}
+                        onChange={(an) => setze("suchlage", { ...z.suchlage, [t.feld]: an })}
+                      />
+                    ))}
+                  </>
+                ) : null}
+              </div>
+            </Card>
+
+            <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap", alignItems: "center" }}>
+              <Button type="primary" htmlType="submit" loading={laeuft} disabled={!geaendert}>
+                Speichern
+              </Button>
+              <span style={SCHRIFT.neben} className={v.gedaempft} role="status">
+                {geaendert
+                  ? "Ungespeicherte Änderungen. Die Vorschau zeigt sie schon, der Monitor noch nicht."
+                  : erfolg
+                    ? "Gespeichert. Der Monitor zeigt es spätestens in einer Minute."
+                    : gespeichert.aktualisiertAm
+                      ? `Zuletzt gespeichert am ${STAND.format(new Date(gespeichert.aktualisiertAm))} von ${gespeichert.aktualisiertVon}.`
+                      : "Noch nie gespeichert: der Monitor zeigt seine Vorgaben."}
               </span>
             </div>
-          </Card>
-
-          <Card title="Was der Monitor zeigt">
-            {MODUL_TEXT.map((m) => (
-              <Schalter
-                key={m.feld}
-                id={`${basis}-${m.feld}`}
-                titel={m.titel}
-                text={m.text}
-                an={z.module[m.feld]}
-                onChange={(an) => setze("module", { ...z.module, [m.feld]: an })}
-              />
-            ))}
-          </Card>
-
-          <Card title="Suchlage">
-            <div style={{ display: "grid", gap: SPACE.md }}>
-              <Schalter
-                id={`${basis}-suchlage`}
-                titel="Laufenden Suchlage-Einsatz zeigen"
-                text="Läuft in Suchlage ein Einsatz, zeigt die Karte ihn und die Kopfzeile seinen Namen. Ohne Einsatz sieht der Monitor aus wie sonst."
-                an={z.module.suchlage}
-                onChange={(an) => {
-                  setze("module", { ...z.module, suchlage: an });
-                  if (an) setSzenario("einsatz");
-                }}
-              />
-              {z.module.suchlage ? (
-                <>
-                  {linkFeld ? (
-                    <Feld
-                      id={`${basis}-suchlageLink`}
-                      label="Großbild-Link aus Suchlage"
-                      fehler={feldFehler.suchlageLink}
-                      hilfe="In Suchlage unter Einstellungen → Großbild einen Zugang anlegen und den Link hier einfügen. Er sieht so aus: https://suchlage…/kiosk#…"
-                    >
-                      <Input
-                        id={`${basis}-suchlageLink`}
-                        value={z.suchlageLink}
-                        autoComplete="off"
-                        status={feldFehler.suchlageLink ? "error" : undefined}
-                        aria-describedby={feldFehler.suchlageLink ? `${basis}-suchlageLink-fehler` : `${basis}-suchlageLink-hilfe`}
-                        onChange={(e) => setze("suchlageLink", e.target.value)}
-                      />
-                    </Feld>
-                  ) : z.suchlageTrennen ? (
-                    <Alert
-                      type="warning"
-                      showIcon={false}
-                      title="Beim Speichern wird die Verbindung zu Suchlage getrennt."
-                      action={<Button onClick={() => setze("suchlageTrennen", false)}>Doch nicht</Button>}
-                    />
-                  ) : (
-                    <div style={{ display: "grid", gap: SPACE.sm }}>
-                      <span>
-                        Verbunden mit <strong>{gespeichert.suchlageAdresse}</strong>
-                      </span>
-                      <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
-                        <Button onClick={() => setLinkErsetzen(true)}>Anderen Link eintragen</Button>
-                        <Button onClick={() => setze("suchlageTrennen", true)}>Verbindung trennen</Button>
-                      </div>
-                    </div>
-                  )}
-                  {!gespeichert.suchlageVerbunden && z.suchlageLink.trim() === "" ? (
-                    <Alert type="warning" showIcon={false} title="Ohne Link weiß der Monitor nicht, wo Suchlage läuft, und zeigt keinen Einsatz." />
-                  ) : null}
-                  {TEIL_TEXT.map((t) => (
-                    <Schalter
-                      key={t.feld}
-                      id={`${basis}-${t.feld}`}
-                      titel={t.titel}
-                      text={t.text}
-                      an={z.suchlage[t.feld]}
-                      onChange={(an) => setze("suchlage", { ...z.suchlage, [t.feld]: an })}
-                    />
-                  ))}
-                </>
-              ) : null}
-            </div>
-          </Card>
-
-          <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap", alignItems: "center" }}>
-            <Button type="primary" htmlType="submit" loading={laeuft} disabled={!geaendert}>
-              Speichern
-            </Button>
-            <span style={SCHRIFT.neben} className={v.gedaempft} role="status">
-              {geaendert
-                ? "Ungespeicherte Änderungen. Die Vorschau zeigt sie schon, der Monitor noch nicht."
-                : erfolg
-                  ? "Gespeichert. Der Monitor zeigt es spätestens in einer Minute."
-                  : gespeichert.aktualisiertAm
-                    ? `Zuletzt gespeichert am ${STAND.format(new Date(gespeichert.aktualisiertAm))} von ${gespeichert.aktualisiertVon}.`
-                    : "Noch nie gespeichert: der Monitor zeigt seine Vorgaben."}
-            </span>
-          </div>
-        </form>
+          </form>
+        </div>
 
         <aside className={v.vorschauSpalte} aria-label="Vorschau">
           <Card

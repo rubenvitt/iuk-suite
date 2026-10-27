@@ -46,6 +46,28 @@ export interface VorschauEingabe {
 
 export type Ton = "normal" | "alarm" | "einsatz";
 
+/** Eine Meldung fürs Band, wie die Vorschau sie zeigt; `countdown` schon als Text („in 42 min“). */
+export interface VorschauMeldung {
+  text: string;
+  countdown: string | null;
+  /** Noch nicht angelegt, nur im Formular getippt. */
+  entwurf?: boolean;
+}
+
+/**
+ * Der Countdown einer Meldung in Worten, wie der Lagemonitor ihn zeigt (Repo `lagemonitor`,
+ * `frontend/src/monitor/countdown.ts`): „in 42 min“, „in 1 h 5 min“, „jetzt“, „seit 3 min“.
+ */
+export function countdownText(zielMs: number, jetztMs: number): string {
+  const d = zielMs - jetztMs;
+  if (d <= 0 && d > -60_000) return "jetzt";
+  const minuten = d > 0 ? Math.ceil(d / 60_000) : Math.floor(-d / 60_000);
+  const h = Math.floor(minuten / 60);
+  const m = minuten % 60;
+  const dauer = h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+  return d > 0 ? `in ${dauer}` : `seit ${dauer}`;
+}
+
 export interface Vorschau {
   status: { text: string; ton: Ton };
   band: BeispielWarnung[];
@@ -59,11 +81,12 @@ export interface Vorschau {
   sichtbar: string[];
   /** Was ausgeschaltet ist und deshalb fehlt. */
   aus: string[];
+  meldungen: VorschauMeldung[];
 }
 
 const anzahl = (n: number, eins: string, viele: string) => `${n} ${n === 1 ? eins : viele}`;
 
-export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
+export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: VorschauMeldung[] = []): Vorschau {
   const warnungen = BEISPIEL_WARNUNGEN[szenario];
   const schwelle = rang(e.warnschwelle);
   const band = warnungen.filter((w) => rang(w.stufe) >= schwelle);
@@ -88,6 +111,9 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
     sichtbar.push(`Rotes Band über allem: ${band.map((w) => w.titel).join(", ")}. Ab „${STUFE_TEXT[e.warnschwelle]}“ kommt eine Warnung ins Band.`);
   } else if (warnungen.length > 0) {
     sichtbar.push(`Kein Band: keine Warnung erreicht „${STUFE_TEXT[e.warnschwelle]}“.`);
+  }
+  for (const n of meldungen) {
+    sichtbar.push(`Blaues Meldungsband${n.entwurf ? " (noch nicht angelegt)" : ""}: „${n.text}“${n.countdown ? `, ${n.countdown}` : ""}.`);
   }
   const kartenTeile = [
     m.radar && "Regenradar",
@@ -133,5 +159,6 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
     drohnenbild,
     sichtbar,
     aus,
+    meldungen,
   };
 }

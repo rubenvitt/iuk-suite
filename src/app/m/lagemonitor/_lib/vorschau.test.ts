@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VORGABE } from "./konfiguration";
-import { vorschau, type VorschauEingabe } from "./vorschau";
+import { countdownText, vorschau, type VorschauEingabe } from "./vorschau";
 
 const basis: VorschauEingabe = {
   standortName: "Uelzen",
@@ -59,5 +59,25 @@ describe("Vorschau", () => {
     const v = vorschau({ ...basis, warnschwelle: "Minor" }, "einsatz");
     expect(v.status.ton).toBe("alarm");
     expect(v.drohnenbild).toBe(true);
+  });
+});
+
+describe("Meldungsband in der Vorschau", () => {
+  it("steht nach dem Warnband in der Erklärung, mit Countdown", () => {
+    const e = { standortName: "Uelzen", regionName: "Landkreis Uelzen", warnschwelle: "Severe" as const, module: { wetter: true, radar: true, warngebiete: true, warnliste: true, suchlage: false }, suchlage: { flugspuren: true, gebiete: true, drohnenbild: true } };
+    const b = vorschau(e, "ruhe", [{ text: "Nächste Lagebesprechung", countdown: "in 42 min" }, { text: "Funkkanal 34", countdown: null, entwurf: true }]);
+    expect(b.meldungen).toHaveLength(2);
+    expect(b.sichtbar).toContain("Blaues Meldungsband: „Nächste Lagebesprechung“, in 42 min.");
+    expect(b.sichtbar).toContain("Blaues Meldungsband (noch nicht angelegt): „Funkkanal 34“.");
+  });
+
+  it("zählt in Minuten und Stunden, auf die volle Minute aufgerundet", () => {
+    const t = Date.parse("2026-10-27T13:00:00Z");
+    expect(countdownText(t + 42 * 60_000, t)).toBe("in 42 min");
+    expect(countdownText(t + 30_000, t)).toBe("in 1 min");
+    expect(countdownText(t + 65 * 60_000, t)).toBe("in 1 h 5 min");
+    expect(countdownText(t + 120 * 60_000, t)).toBe("in 2 h");
+    expect(countdownText(t - 20_000, t)).toBe("jetzt");
+    expect(countdownText(t - 3 * 60_000, t)).toBe("seit 3 min");
   });
 });

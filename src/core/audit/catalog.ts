@@ -548,6 +548,12 @@ export const AUDIT_TABLES = {
         ],
         "reason": "Technische Kontaktzeit: der Lagemonitor holt jede Minute ab, das ist keine fachliche Änderung am Zugang."
       }
+    },
+    "lagemonitor_meldung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "konto": {

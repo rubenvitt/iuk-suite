@@ -13,6 +13,7 @@
   --lmv-text: #e8ebee;
   --lmv-gedaempft: #9aa2ab;
   --lmv-bedien: #4d94d6;
+  --lmv-meldung-fuellung: rgb(77 148 214 / 0.16);
   --lmv-alarm: #ff6b6b;
   --lmv-alarm-fuellung: rgb(255 107 107 / 0.18);
   --lmv-achtung: #e8cc3a;
@@ -114,6 +115,30 @@
   color: var(--lmv-alarm);
   font-size: 1.6cqi;
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Meldungsband: ruhiges Blau statt Alarmrot (Monitor: `.lm-meldung`). Ein Entwurf ist gestrichelt. */
+.meldung {
+  display: flex;
+  align-items: center;
+  gap: 1.6cqi;
+  padding: 0.8cqi 2cqi;
+  background: var(--lmv-meldung-fuellung);
+  border-inline-start: 0.6cqi solid var(--lmv-bedien);
+  font-size: 2.1cqi;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.meldung[data-entwurf="true"] {
+  border-inline-start-style: dashed;
+  opacity: 0.75;
+}
+.meldungText { overflow: hidden; text-overflow: ellipsis; }
+.meldungZeit {
+  margin-inline-start: auto;
+  color: var(--lmv-bedien);
   font-variant-numeric: tabular-nums;
 }
 
