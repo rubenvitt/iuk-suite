@@ -48,7 +48,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@einsatzzeichen/conformance": "6.4.0",
+    "@einsatzzeichen/conformance": "6.8.0",
     "@eslint/eslintrc": "^3.3.7",
     "@playwright/test": "^1.63.0",
     "@types/archiver": "^8.0.0",
