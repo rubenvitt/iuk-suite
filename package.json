@@ -45,7 +45,7 @@
     "react-dom": "19.3.0",
     "recharts": "^3.10.1",
     "write-excel-file": "^4.1.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@einsatzzeichen/conformance": "6.4.0",
