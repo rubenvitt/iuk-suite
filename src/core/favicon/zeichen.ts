@@ -173,6 +173,18 @@ const FAHRZEUGE = modulZeichen(
     `<circle class="t" cx="15" cy="54" r="6"/><circle class="t" cx="38" cy="54" r="6"/>`,
 );
 
+/**
+ * Lagemonitor: Bildschirm auf Fuß, im Schirm eine Kartennadel (wie das Zeichen des Lagemonitors
+ * selbst, Repo `lagemonitor`, `public/favicon.svg`).
+ */
+const LAGEMONITOR = modulZeichen(
+  "Lagemonitor",
+  `<mask id="m"><rect width="64" height="64" fill="#fff"/><rect x="8.5" y="32.5" width="31" height="16" rx="1.5"/></mask>` +
+    `<rect class="t" mask="url(#m)" x="4" y="28" width="40" height="25" rx="3.5"/>` +
+    `<path class="t" fill-rule="evenodd" d="M24 34.2a4.6 4.6 0 0 1 4.6 4.6c0 3.3-4.6 7.8-4.6 7.8s-4.6-4.5-4.6-7.8a4.6 4.6 0 0 1 4.6-4.6Zm0 2.9a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z"/>` +
+    `<path class="t" d="M20 53h8v4h6a2 2 0 0 1 0 4H14a2 2 0 0 1 0-4h6Z"/>`,
+);
+
 /** Zwei Helfer, Kopf und Schultern; der vordere steht frei vor dem hinteren. */
 const HELFER_VORNE = `<circle cx="18" cy="35" r="6.5"/><path d="M5 62v-5a10 10 0 0 1 10-10h6a10 10 0 0 1 10 10v5Z"/>`;
 const HELFER = modulZeichen(
@@ -200,6 +212,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   kommplan: KOMMPLAN,
   fahrzeuge: FAHRZEUGE,
   helfer: HELFER,
+  lagemonitor: LAGEMONITOR,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */

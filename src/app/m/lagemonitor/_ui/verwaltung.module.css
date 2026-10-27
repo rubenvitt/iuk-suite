@@ -1,0 +1,47 @@
+/*
+ * Formular links, Vorschau rechts — sobald beide nebeneinander passen. Kein zweiter Breakpoint
+ * (`docs/design/README.md`, „Mobil — ein Breakpoint"): `auto-fit` entscheidet nach dem Platz, nicht
+ * nach dem Viewport, denn die Seitenleiste der Shell nimmt ihm schon einen Teil.
+ */
+.raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/*
+ * Die Vorschau bleibt beim Scrollen durch das Formular stehen. 85px = Kopfblock der Shell (69px,
+ * `--iuk-kopf` in `core/shell/shell.module.css`, dort nur an der Seitenleiste gesetzt) plus 16px Luft.
+ * Untereinander wirkt `sticky` nicht: die Zelle ist dann genau so hoch wie die Vorschau.
+ */
+.vorschauSpalte {
+  position: sticky;
+  inset-block-start: 85px;
+  display: grid;
+  gap: 12px;
+}
+
+.liste {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.gedaempft { color: var(--iuk-gedaempft); }
+
+.schalter {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: start;
+}
+.schalter + .schalter { margin-block-start: 12px; }
+
+.schluessel {
+  font-family: var(--font-mono);
+  word-break: break-all;
+  white-space: pre-wrap;
+  margin: 0;
+}
