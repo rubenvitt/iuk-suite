@@ -73,6 +73,8 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "helfer", migrationsFolder: "src/app/m/helfer/_db/migrations" },
   // fahrzeuge: OHNE Boot-Seed — die Beispielfahrzeuge sind Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
   { key: "fahrzeuge", migrationsFolder: "src/app/m/fahrzeuge/_db/migrations" },
+  // lagemonitor: OHNE Boot-Seed — die Beispielanzeige ist Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
+  { key: "lagemonitor", migrationsFolder: "src/app/m/lagemonitor/_db/migrations" },
 ];
 
 /**

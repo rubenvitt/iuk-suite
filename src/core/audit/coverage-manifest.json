@@ -153,6 +153,9 @@
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#aktivSetzenAction": { "kind": "context", "via": "aktivSetzenAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#erstimportAction": { "kind": "context", "via": "erstimportAction" },
   "src/app/m/fahrzeuge/_actions/verwaltung.ts#fahrzeugSpeichernAction": { "kind": "context", "via": "fahrzeugSpeichernAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#anzeigeSpeichernAction": { "kind": "context", "via": "anzeigeSpeichernAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#zugangAnlegenAction": { "kind": "context", "via": "zugangAnlegenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#zugangWiderrufenAction": { "kind": "context", "via": "zugangWiderrufenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#alleLoeschenAction": { "kind": "context", "via": "alleLoeschenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#freigabeAction": { "kind": "context", "via": "freigabeAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#neueFreigebenAction": { "kind": "context", "via": "neueFreigebenAction" },
@@ -193,6 +196,10 @@
     "via": "POST"
   },
   "src/app/m/einsatzbuch/api/stammdaten/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/lagemonitor/api/konfiguration/route.ts#GET": {
     "kind": "excluded",
     "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
   },

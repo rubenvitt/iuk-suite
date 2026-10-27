@@ -1,0 +1,272 @@
+/*
+ * Die Vorschau ist ein Bild des Bildschirms im FüKw, keine Suite-Fläche: sie trägt die Nachtfarben
+ * des Lagemonitors (Repo `lagemonitor`, `frontend/src/theme/rollen.css`, `[data-theme='dark']`) in
+ * beiden Suite-Modi. Eigene `--lmv-*`-Variablen, nie `--ant-*` (Falle 2). Größen in `cqi`, damit das
+ * Bild bei jeder Breite gleich aussieht wie der Monitor, nur kleiner.
+ */
+.rahmen {
+  --lmv-grund: #08090b;
+  --lmv-flaeche: #0f1215;
+  --lmv-flaeche-2: #14171b;
+  --lmv-kopf: #0c0e11;
+  --lmv-linie: #22262b;
+  --lmv-text: #e8ebee;
+  --lmv-gedaempft: #9aa2ab;
+  --lmv-bedien: #4d94d6;
+  --lmv-alarm: #ff6b6b;
+  --lmv-alarm-fuellung: rgb(255 107 107 / 0.18);
+  --lmv-achtung: #e8cc3a;
+  --lmv-normal: #52c41a;
+  --lmv-marke: #a8071a;
+  --lmv-wasser: #1b2a3a;
+  --lmv-wald: #121c15;
+  --lmv-strasse: #2b3036;
+  --lmv-ort: #1a1e23;
+  --lmv-suchgebiet: #2d6cdf;
+  /* Flugspuren wie `lagemonitor/frontend/src/map/suchlageFarben.ts`, `TRACK_COLORS`. */
+  --lmv-spur-1: #b07cff;
+  --lmv-spur-2: #2fb8b1;
+  --lmv-radar-leicht: rgb(47 184 177 / 0.35);
+  --lmv-radar-mittel: rgb(143 198 58 / 0.45);
+  --lmv-radar-stark: rgb(232 204 58 / 0.55);
+  --lmv-feld-1: #2c3a22;
+  --lmv-feld-2: #36452a;
+  --lmv-feld-3: #3f3a26;
+  --lmv-weg: #8a8270;
+
+  container-type: inline-size;
+  aspect-ratio: 16 / 9;
+  background: var(--lmv-grund);
+  color: var(--lmv-text);
+  border: 1px solid var(--iuk-linie);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-body);
+  line-height: 1.25;
+}
+
+.kopf {
+  display: flex;
+  align-items: center;
+  gap: 2cqi;
+  padding: 1.1cqi 2cqi;
+  background: var(--lmv-kopf);
+  border-block-end: 0.3cqi solid var(--lmv-marke);
+  font-family: var(--font-display);
+  font-size: 2.2cqi;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.wortmarke { font-weight: 600; }
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8cqi;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status[data-ton="normal"] { color: var(--lmv-normal); }
+.status[data-ton="alarm"] { color: var(--lmv-alarm); }
+.status[data-ton="einsatz"] { color: var(--lmv-bedien); }
+
+.punkt {
+  width: 1.2cqi;
+  height: 1.2cqi;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.uhr {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--lmv-gedaempft);
+}
+
+.band {
+  display: flex;
+  align-items: center;
+  gap: 1.6cqi;
+  padding: 0.9cqi 2cqi;
+  background: var(--lmv-alarm-fuellung);
+  font-size: 2.3cqi;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.kuerzel {
+  background: var(--lmv-alarm);
+  color: var(--lmv-grund);
+  padding: 0.3cqi 0.9cqi;
+  font-size: 1.4cqi;
+  letter-spacing: 0.06em;
+}
+
+.bandBis {
+  margin-inline-start: auto;
+  color: var(--lmv-alarm);
+  font-size: 1.6cqi;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.rumpf {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 2.2fr 1fr;
+  overflow: hidden;
+}
+.rumpf[data-seitenspalte="false"] { grid-template-columns: 1fr; }
+
+.karte {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--lmv-flaeche);
+}
+
+.seite {
+  background: var(--lmv-flaeche-2);
+  border-inline-start: 1px solid var(--lmv-linie);
+  padding: 1.6cqi;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4cqi;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.augenbraue {
+  font-family: var(--font-display);
+  font-size: 1.3cqi;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lmv-gedaempft);
+}
+
+.temperatur {
+  font-family: var(--font-display);
+  font-size: 5.4cqi;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.werte {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4cqi 1.2cqi;
+  font-size: 1.4cqi;
+  font-variant-numeric: tabular-nums;
+}
+.werte dt { color: var(--lmv-gedaempft); }
+.werte dd { margin: 0; }
+
+.warnung {
+  border-inline-start: 0.4cqi solid var(--lmv-achtung);
+  padding-inline-start: 0.9cqi;
+  font-size: 1.4cqi;
+}
+.warnung small {
+  display: block;
+  color: var(--lmv-gedaempft);
+  font-size: 1.15cqi;
+}
+
+/* Kartenebenen */
+.wasser { fill: none; stroke: var(--lmv-wasser); stroke-width: 5; stroke-linecap: round; }
+.wald { fill: var(--lmv-wald); }
+.strasse { fill: none; stroke: var(--lmv-strasse); stroke-width: 2; }
+.ort { fill: var(--lmv-ort); stroke: var(--lmv-linie); }
+.ortName { fill: var(--lmv-gedaempft); font-size: 9px; font-family: var(--font-body); }
+.standort { fill: var(--lmv-bedien); stroke: var(--lmv-grund); stroke-width: 2; }
+.radarLeicht { fill: var(--lmv-radar-leicht); }
+.radarMittel { fill: var(--lmv-radar-mittel); }
+.radarStark { fill: var(--lmv-radar-stark); }
+.warngebiet { fill: rgb(232 204 58 / 0.08); stroke: var(--lmv-achtung); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.warngebiet[data-band="true"] { fill: rgb(255 107 107 / 0.1); stroke: var(--lmv-alarm); }
+.suchgebiet { fill: rgb(45 108 223 / 0.18); stroke: var(--lmv-suchgebiet); stroke-width: 1.5; }
+.suchgebietName { fill: var(--lmv-text); font-size: 8px; font-family: var(--font-body); }
+.spur { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.spur1 { stroke: var(--lmv-spur-1); }
+.spur2 { stroke: var(--lmv-spur-2); }
+.drohne { fill: var(--lmv-text); stroke: var(--lmv-grund); stroke-width: 1.5; }
+
+/* Das Drohnenbild fährt von rechts über die Seitenspalte ein (Monitor: `.lm-drohne`, 46 % der Breite). */
+.drohnenbild {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 46%;
+  background: var(--lmv-kopf);
+  border-inline-start: 0.3cqi solid var(--lmv-bedien);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.drohnenbild[data-offen="true"] { transform: translateX(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .drohnenbild { transition: none; }
+}
+
+.drohnenKopf {
+  display: flex;
+  justify-content: space-between;
+  gap: 1cqi;
+  padding: 0.8cqi 1.2cqi;
+  font-family: var(--font-display);
+  font-size: 1.4cqi;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6cqi;
+  color: var(--lmv-alarm);
+}
+
+.luftbild {
+  flex: 1;
+  min-height: 0;
+  display: block;
+  width: 100%;
+}
+.feld1 { fill: var(--lmv-feld-1); }
+.feld2 { fill: var(--lmv-feld-2); }
+.feld3 { fill: var(--lmv-feld-3); }
+.weg { fill: none; stroke: var(--lmv-weg); stroke-width: 6; }
+.fadenkreuz { fill: none; stroke: rgb(255 255 255 / 0.7); stroke-width: 1.2; }
+
+.drohnenWerte {
+  display: flex;
+  gap: 1.6cqi;
+  padding: 0.8cqi 1.2cqi;
+  font-size: 1.3cqi;
+  font-variant-numeric: tabular-nums;
+  color: var(--lmv-gedaempft);
+}
+
+.fuss {
+  display: flex;
+  gap: 2cqi;
+  padding: 0.6cqi 2cqi;
+  background: var(--lmv-kopf);
+  border-block-start: 1px solid var(--lmv-linie);
+  font-size: 1.15cqi;
+  color: var(--lmv-gedaempft);
+  white-space: nowrap;
+  overflow: hidden;
+}

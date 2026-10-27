@@ -530,6 +530,26 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "lagemonitor": {
+    "lagemonitor_anzeige": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "lagemonitor_zugang": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "zuletzt_abgeholt_am"
+        ],
+        "reason": "Technische Kontaktzeit: der Lagemonitor holt jede Minute ab, das ist keine fachliche Änderung am Zugang."
+      }
+    }
+  },
   "konto": {
     "sitzung_widerruf": {
       "mode": "audited",
