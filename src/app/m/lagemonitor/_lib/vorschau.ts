@@ -5,7 +5,7 @@
  * Seitenspalte; eine Warnung im Band geht dem Suchlage-Einsatz in der Kopfzeile vor; das Drohnenbild
  * kommt nur bei laufendem Einsatz mit Livebild. Kein `"use client"`: reine Funktionen, in Vitest prüfbar.
  */
-import { rang, WARNSCHWELLEN, type Module, type SuchlageTeile, type Warnschwelle } from "./konfiguration";
+import { istWebadresse, rang, WARNSCHWELLEN, type Mitmachen, type Module, type SuchlageTeile, type Warnschwelle } from "./konfiguration";
 
 export const SZENARIEN = [
   { wert: "ruhe", text: "Ruhiger Tag" },
@@ -42,6 +42,7 @@ export interface VorschauEingabe {
   warnschwelle: Warnschwelle;
   module: Module;
   suchlage: SuchlageTeile;
+  mitmachen: Mitmachen;
 }
 
 export type Ton = "normal" | "alarm" | "einsatz";
@@ -82,6 +83,8 @@ export interface Vorschau {
   /** Was ausgeschaltet ist und deshalb fehlt. */
   aus: string[];
   meldungen: VorschauMeldung[];
+  /** Der QR-Code fürs Ehrenamt, wenn er gerade zu sehen ist (nur in ruhiger Lage). */
+  mitmachen: { adresse: string; text: string } | null;
 }
 
 const anzahl = (n: number, eins: string, viele: string) => `${n} ${n === 1 ? eins : viele}`;
@@ -131,6 +134,18 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
   }
   if (drohnenbild) sichtbar.push(`Drohnenbild (${BEISPIEL_EINSATZ.drohne}) fährt von rechts ein, solange die Drohne ein Livebild sendet, und wieder hinaus, wenn es endet.`);
   if (einsatz && band.length > 0) sichtbar.push("Eine Warnung im Band hat in der Kopfzeile Vorrang vor dem Einsatz.");
+  // Wie der Monitor (`MonitorPage.tsx`): der QR-Code nur, solange es ruhig ist.
+  const ruhig = band.length === 0 && !einsatz;
+  const qr = e.mitmachen.an && ruhig ? { adresse: e.mitmachen.adresse, text: e.mitmachen.text } : null;
+  if (qr) {
+    sichtbar.push(
+      istWebadresse(qr.adresse)
+        ? `QR-Code unten rechts auf der Karte: „${qr.text}“ führt zu ${qr.adresse}.`
+        : "QR-Code unten rechts auf der Karte, sobald eine Webadresse eingetragen ist.",
+    );
+  } else if (e.mitmachen.an) {
+    sichtbar.push("Kein QR-Code fürs Ehrenamt: bei einer Warnung im Band oder einem Einsatz gehört der Bildschirm der Lage.");
+  }
 
   const aus = [
     !m.wetter && "Wetter",
@@ -141,6 +156,7 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
     m.suchlage && !e.suchlage.flugspuren && "Flugspuren",
     m.suchlage && !e.suchlage.gebiete && "Suchgebiete",
     m.suchlage && !e.suchlage.drohnenbild && "Drohnenbild",
+    !e.mitmachen.an && "QR-Code fürs Ehrenamt",
   ].filter((t): t is string => typeof t === "string");
 
   return {
@@ -160,5 +176,6 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
     sichtbar,
     aus,
     meldungen,
+    mitmachen: qr,
   };
 }

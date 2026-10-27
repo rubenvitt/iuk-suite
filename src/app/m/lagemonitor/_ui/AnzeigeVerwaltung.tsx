@@ -8,7 +8,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { WARNSCHWELLEN, type KonfigurationDTO, type Module, type SuchlageTeile, type Warnschwelle } from "../_lib/konfiguration";
+import { MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Warnschwelle } from "../_lib/konfiguration";
 import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
@@ -28,6 +28,7 @@ interface Zustand {
   warnschwelle: Warnschwelle;
   module: Module;
   suchlage: SuchlageTeile;
+  mitmachen: Mitmachen;
   suchlageLink: string;
   suchlageTrennen: boolean;
 }
@@ -42,6 +43,7 @@ function zustandAus(k: KonfigurationDTO): Zustand {
     warnschwelle: k.warnschwelle,
     module: { ...k.module },
     suchlage: { ...k.suchlage },
+    mitmachen: { ...k.mitmachen },
     suchlageLink: "",
     suchlageTrennen: false,
   };
@@ -266,6 +268,43 @@ export function AnzeigeVerwaltung({ konfiguration, zugaenge, meldungen }: { konf
                         onChange={(an) => setze("suchlage", { ...z.suchlage, [t.feld]: an })}
                       />
                     ))}
+                  </>
+                ) : null}
+              </div>
+            </Card>
+
+            <Card title="Mitmachen im Ehrenamt">
+              <div style={{ display: "grid", gap: SPACE.md }}>
+                <Schalter
+                  id={`${basis}-mitmachen`}
+                  titel="QR-Code fürs Ehrenamt zeigen"
+                  text="Ein QR-Code unten rechts auf der Karte für alle, die am Bildschirm vorbeikommen und bei der Bereitschaft mitmachen möchten. Nur solange es ruhig ist: bei einer Warnung im Band oder einem Einsatz verschwindet er."
+                  an={z.mitmachen.an}
+                  onChange={(an) => setze("mitmachen", { ...z.mitmachen, an, text: z.mitmachen.text || MITMACHEN_TEXT_VORGABE })}
+                />
+                {z.mitmachen.an ? (
+                  <>
+                    <Feld id={`${basis}-mitmachenAdresse`} label="Wohin der Code führt" fehler={feldFehler["mitmachen.adresse"]} hilfe="Die Mitmach-Seite eures Ortsvereins oder Kreisverbands, mit https://.">
+                      <Input
+                        id={`${basis}-mitmachenAdresse`}
+                        value={z.mitmachen.adresse}
+                        placeholder="https://…"
+                        inputMode="url"
+                        status={feldFehler["mitmachen.adresse"] ? "error" : undefined}
+                        aria-describedby={feldFehler["mitmachen.adresse"] ? `${basis}-mitmachenAdresse-fehler` : `${basis}-mitmachenAdresse-hilfe`}
+                        onChange={(e) => setze("mitmachen", { ...z.mitmachen, adresse: e.target.value })}
+                      />
+                    </Feld>
+                    <Feld id={`${basis}-mitmachenText`} label="Satz neben dem Code" fehler={feldFehler["mitmachen.text"]}>
+                      <Input
+                        id={`${basis}-mitmachenText`}
+                        value={z.mitmachen.text}
+                        maxLength={MITMACHEN_MAX_ZEICHEN}
+                        showCount
+                        status={feldFehler["mitmachen.text"] ? "error" : undefined}
+                        onChange={(e) => setze("mitmachen", { ...z.mitmachen, text: e.target.value })}
+                      />
+                    </Feld>
                   </>
                 ) : null}
               </div>

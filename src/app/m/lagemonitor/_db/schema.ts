@@ -34,6 +34,11 @@ export const anzeige = sqliteTable("lagemonitor_anzeige", {
   suchlageFlugspuren: integer("suchlage_flugspuren", { mode: "boolean" }).notNull(),
   suchlageGebiete: integer("suchlage_gebiete", { mode: "boolean" }).notNull(),
   suchlageDrohnenbild: integer("suchlage_drohnenbild", { mode: "boolean" }).notNull(),
+  /** QR-Code fürs Ehrenamt (Werbung für die Bereitschaft); Vorgabe aus. */
+  mitmachen: integer("mitmachen", { mode: "boolean" }).notNull().default(false),
+  /** Wohin der QR-Code führt, etwa die Mitmach-Seite des Ortsvereins. */
+  mitmachenAdresse: text("mitmachen_adresse"),
+  mitmachenText: text("mitmachen_text"),
   aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull(),
   aktualisiertVon: text("aktualisiert_von").notNull(),
 }, () => [

@@ -15,6 +15,13 @@
       "when": 1793134109945,
       "tag": "0001_meldungen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793134774492,
+      "tag": "0002_mitmachen",
+      "breakpoints": true
     }
   ]
 }

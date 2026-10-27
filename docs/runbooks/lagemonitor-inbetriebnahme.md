@@ -51,6 +51,11 @@ Verbindung zur Suite bleibt sie bis zu ihrem Ablauf stehen.
 
 Ein Monitor ohne Meldungsband (ältere Version) übergeht das Feld `notices` im Drahtformat einfach.
 
+**QR-Code fürs Ehrenamt** (Vorgabe aus): unter **Mitmachen im Ehrenamt** einschalten, eine
+`https://`-Adresse (Mitmach-Seite des Ortsvereins) und einen kurzen Satz eintragen. Der Monitor zeigt
+den Code unten rechts auf der Karte, aber nur in ruhiger Lage: bei einer Warnung im Band oder einem
+laufenden Suchlage-Einsatz blendet er ihn aus. Das Feld `recruitment` übergeht ein älterer Monitor.
+
 ## 5. Störungen
 
 - **Monitor zeigt alte Einstellungen**, unten „nicht abholbar": Zugang widerrufen oder Suite nicht

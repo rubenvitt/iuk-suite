@@ -40,6 +40,12 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   await expect(page.getByText(/Ausgeschaltet:.*Regenradar/)).toBeVisible();
   await expect(page.getByText("Ungespeicherte Änderungen", { exact: false })).toBeVisible();
 
+  // QR-Code fürs Ehrenamt: aus als Vorgabe; an steht er in ruhiger Lage unten rechts in der Vorschau.
+  const qr = page.getByRole("switch", { name: "QR-Code fürs Ehrenamt zeigen" });
+  if ((await qr.getAttribute("aria-checked")) === "false") await klickeWennRuhig(qr);
+  await page.getByLabel("Wohin der Code führt").fill("https://drk.example.org/mitmachen");
+  await expect(page.getByTestId("vorschau-qr")).toContainText("Lust mitzuhelfen?");
+
   await klickeWennRuhig(page.getByRole("button", { name: "Speichern" }));
   await expect(page.getByText("Gespeichert. Der Monitor zeigt es spätestens in einer Minute.")).toBeVisible();
 
@@ -57,6 +63,7 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   const vertrag = await mit.json();
   expect(vertrag).toMatchObject({ version: 1, warnThreshold: "Extreme", location: { label: ort } });
   expect(vertrag.modules.radar).toBe(false);
+  expect(vertrag.recruitment).toEqual({ url: "https://drk.example.org/mitmachen", text: "Lust mitzuhelfen? Werde Teil der Bereitschaft." });
 });
 
 test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", async ({ page }) => {
