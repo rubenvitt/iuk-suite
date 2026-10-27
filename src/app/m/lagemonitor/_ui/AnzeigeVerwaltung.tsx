@@ -74,8 +74,9 @@ export function AnzeigeVerwaltung({ konfiguration, zugaenge }: { konfiguration: 
   const [erfolg, setErfolg] = useState(false);
   const basis = useId();
 
-  // Kommt ein neuer Stand vom Server (anderer Tab, anderes Gerät), wird er übernommen.
-  if (konfiguration !== gespeichert) {
+  // Kommt ein neuer Stand vom Server (anderer Tab, anderes Gerät), wird er übernommen. Verglichen wird der
+  // Inhalt: `revalidatePath` nach Anlegen oder Widerrufen eines Zugangs liefert ein neues, gleiches Objekt.
+  if (JSON.stringify(konfiguration) !== JSON.stringify(gespeichert)) {
     setGespeichert(konfiguration);
     setZ(zustandAus(konfiguration));
   }

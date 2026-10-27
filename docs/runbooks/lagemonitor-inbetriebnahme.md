@@ -37,8 +37,8 @@ dagegen nur als SHA-256.
 3. Unter **Zugänge für den Monitor** einen Zugang anlegen. Die zwei angezeigten Zeilen kommen in die
    `.env` des Lagemonitors (`deploy/README.md` im Repo `lagemonitor`, Abschnitt 9), danach den Dienst
    neu starten. Der Schlüssel steht nur in diesem Moment da.
-4. Prüfen: in der Liste der Zugänge steht nach spätestens einer Minute „zuletzt abgeholt", und der
-   Monitor zeigt unten keinen Hinweis „Konfiguration aus IUK-Suite nicht abholbar".
+4. Prüfen: nach spätestens einer Minute die Seite neu laden; in der Liste der Zugänge steht dann „zuletzt
+   abgeholt“, und der Monitor zeigt unten keinen Hinweis „Konfiguration aus IUK-Suite nicht abholbar“.
 
 ## 4. Störungen
 

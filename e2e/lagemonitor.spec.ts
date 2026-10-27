@@ -33,7 +33,10 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   await expect(vorschau).toContainText("RUHE · 2 Warnungen unter Schwelle");
   await expect(erklaerung).toContainText("Kein Band");
 
-  await klickeWennRuhig(page.getByRole("switch", { name: "Regenradar" }));
+  const radar = page.getByRole("switch", { name: "Regenradar" });
+  // Auf „aus“ stellen, nicht blind umschalten: der Ausgangszustand kommt aus der Datenbank.
+  if ((await radar.getAttribute("aria-checked")) === "true") await klickeWennRuhig(radar);
+  await expect(radar).toHaveAttribute("aria-checked", "false");
   await expect(page.getByText(/Ausgeschaltet:.*Regenradar/)).toBeVisible();
   await expect(page.getByText("Ungespeicherte Änderungen", { exact: false })).toBeVisible();
 
