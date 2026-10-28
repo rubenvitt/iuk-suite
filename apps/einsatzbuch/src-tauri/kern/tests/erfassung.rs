@@ -21,6 +21,7 @@ fn leerer_entwurf() -> Entwurf {
         vor_ort: 0,
         transport: 0,
         notizen: String::new(),
+        leitstellen_nummer: String::new(),
         patienten: Vec::new(),
     }
 }
@@ -40,6 +41,7 @@ fn gueltiger_entwurf() -> Entwurf {
         vor_ort: 0,
         transport: 1,
         notizen: "erste Fassung".into(),
+        leitstellen_nummer: String::new(),
         patienten: Vec::new(),
     }
 }
@@ -230,6 +232,7 @@ fn textfelder_zaehlen_utf16_codeeinheiten_wie_der_reader() {
         ("Ort", 200, |e, s| e.ort = s),
         ("Objekt", 500, |e, s| e.objekt = s),
         ("Notizen", 20_000, |e, s| e.notizen = s),
+        ("Einsatznummer der Leitstelle", 40, |e, s| e.leitstellen_nummer = s),
     ] {
         assert_eq!(sende(|e| setze(e, "ä".repeat(grenze))), Ok(()), "{feld} an der Grenze");
         let meldung = sende(|e| setze(e, "😀".repeat(grenze / 2 + 1))).unwrap_err();

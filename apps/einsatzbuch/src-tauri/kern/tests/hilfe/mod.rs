@@ -182,6 +182,7 @@ pub fn gueltiger_entwurf() -> einsatzbuch_kern::erfassung::Entwurf {
         vor_ort: 0,
         transport: 1,
         notizen: String::new(),
+        leitstellen_nummer: String::new(),
         patienten: Vec::new(),
     }
 }

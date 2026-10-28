@@ -54,6 +54,7 @@ fn entwurf_eins() -> Entwurf {
         vor_ort: 0,
         transport: 1,
         notizen: String::new(),
+        leitstellen_nummer: String::new(),
         patienten: Vec::new(),
     }
 }
@@ -73,6 +74,7 @@ fn entwurf_zwei() -> Entwurf {
         vor_ort: 11,
         transport: 2,
         notizen: String::new(),
+        leitstellen_nummer: String::new(),
         patienten: Vec::new(),
     }
 }
@@ -305,6 +307,34 @@ fn besatzung_aus_ergibt_fahrzeug_id_none_im_klartext() {
     let bloecke = buch.bloecke().unwrap();
     let einsatz = entschluessele(&bloecke[0], &suite_privatschluessel());
     assert!(einsatz.personal.iter().all(|p| p.fahrzeug_id.is_none()), "{:?}", einsatz.personal);
+}
+
+/// Die Einsatznummer der Leitstelle landet getrimmt im Klartext; leer (auch nur Leerzeichen) fehlt
+/// das Feld ganz, damit der Klartext eines Einsatzes ohne sie byte-gleich zu älteren Versionen bleibt.
+#[test]
+fn leitstellen_nummer_nur_mit_inhalt_versiegelt() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+    let mut mit = entwurf_eins();
+    mit.leitstellen_nummer = "  RD 2026-08-1234 ".into();
+    buch.sende_ab(&mit, t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(7), false).unwrap();
+
+    let t1 = Utc.with_ymd_and_hms(2026, 8, 29, 13, 0, 0).unwrap();
+    let mut leer = entwurf_zwei();
+    leer.leitstellen_nummer = "   ".into();
+    buch.sende_ab(&leer, t1, false).unwrap();
+    buch.versiegele_ausstehend(t1, &mut FesterZufall(9), false).unwrap();
+
+    let bloecke = buch.bloecke().unwrap();
+    let suite = suite_privatschluessel();
+    assert_eq!(entschluessele(&bloecke[0], &suite).leitstellen_nummer.as_deref(), Some("RD 2026-08-1234"));
+    let ohne = entschluessele(&bloecke[1], &suite);
+    assert_eq!(ohne.leitstellen_nummer, None);
+    assert!(!serde_json::to_string(&ohne).unwrap().contains("leitstellenNummer"));
 }
 
 #[test]

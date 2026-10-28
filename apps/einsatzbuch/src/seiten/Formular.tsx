@@ -47,7 +47,7 @@ interface FormularProps {
   beiAbsenden: () => void;
 }
 
-type Textfeld = "stichwort" | "beginnDatum" | "beginnZeit" | "endeDatum" | "endeZeit" | "strasse" | "ort" | "objekt" | "notizen";
+type Textfeld = "stichwort" | "beginnDatum" | "beginnZeit" | "endeDatum" | "endeZeit" | "strasse" | "ort" | "objekt" | "notizen" | "leitstellenNummer";
 type Zaehler = "vorOrt" | "transport";
 
 const ZAEHLER: { feld: Zaehler; titel: string; hilfe: string; minus: string; plus: string; kurz: string }[] = [
@@ -179,6 +179,14 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
                 </div>
               </div>
             ))}
+            <Feld
+              label="Einsatznummer der Leitstelle"
+              hilfe="Freiwillig, so wie die Leitstelle sie durchgibt."
+              wert={e.leitstellenNummer}
+              beiAenderung={setze("leitstellenNummer")}
+              placeholder="z. B. RD 2026-08-1234"
+              maxLength={HOECHSTLAENGE.leitstellenNummer}
+            />
           </div>
         </Karte>
 

@@ -36,6 +36,7 @@ export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
     vorOrt: 0,
     transport: 0,
     notizen: "",
+    leitstellenNummer: "",
     patienten: [],
   };
 }
@@ -46,7 +47,7 @@ export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
  * UTF-16-Codeeinheiten. Das Alarmstichwort ist Freitext: Die Stammdaten-Stichworte füllen das Feld
  * nur vor (Rust prüft nicht gegen die Liste, `erfassung.rs`, `pruefe_entwurf`).
  */
-export const HOECHSTLAENGE = { stichwort: 80, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 } as const;
+export const HOECHSTLAENGE = { stichwort: 80, leitstellenNummer: 40, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 } as const;
 
 /** Höchstlängen einer Patientenzeile (`grenzen.rs`: `PATIENT_EINSATZNUMMER`, `PATIENT_DURCH`). */
 export const PATIENT_HOECHSTLAENGE = { einsatznummer: 40, durch: 120 } as const;
@@ -232,6 +233,7 @@ export function zusammenfassung(e: Entwurf, s: Stammdatenpaket): { k: string; v:
     .map((p) => [p.durch.trim() || "—", p.einsatznummer.trim()].filter(Boolean).join(", "));
   return [
     { k: "Alarmstichwort", v: e.stichwort || "—" },
+    ...(e.leitstellenNummer.trim() ? [{ k: "Einsatznummer Leitstelle", v: e.leitstellenNummer.trim() }] : []),
     { k: "Beginn", v: e.beginnDatum ? `${datumText(e.beginnDatum)}, ${e.beginnZeit} Uhr` : "—" },
     { k: "Ende", v: e.endeDatum ? `${datumText(e.endeDatum)}, ${e.endeZeit} Uhr` : "offen" },
     { k: "Einsatzort", v: [e.strasse, e.ort].filter(Boolean).join(", ") || "—" },

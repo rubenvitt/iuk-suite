@@ -165,8 +165,8 @@ impl Buch {
             vor_ort: entwurf.vor_ort,
             transport: entwurf.transport,
             notizen: entwurf.notizen.clone(),
-            // Erst lesen, dann schreiben (IDA-284): Dieser Stand versiegelt noch im ersten Format.
-            leitstellen_nummer: None,
+            // Nur mit Inhalt geschrieben (IDA-284): Ohne Nummer bleibt der Klartext im ersten Format.
+            leitstellen_nummer: (!entwurf.leitstellen_nummer.is_empty()).then(|| entwurf.leitstellen_nummer.clone()),
             // Von `pruefe_entwurf` an den Zählern ausgerichtet, ohne Angaben leer.
             patienten: entwurf.patienten.clone(),
         };
