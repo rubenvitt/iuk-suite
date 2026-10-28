@@ -106,10 +106,12 @@ test("im Einsatzbuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen
   await page.waitForLoadState("networkidle");
   await klickeWennRuhig(page.getByRole("button", { name: "Aus Helferverzeichnis abgleichen" }));
   const dialog = page.getByRole("dialog");
+  await klickeWennRuhig(dialog.getByRole("tab", { name: /Qualifikationen aus HiOrg/ }));
   const ersthelfer = dialog.getByTestId("quali-zuordnung").getByRole("listitem").filter({ hasText: "Ersthelfer" });
   await expect(ersthelfer).toContainText("Automatisch: nicht zuordnen");
+  // IDA-283: Der Knopf steht in der Fußleiste und erscheint erst mit einer ungespeicherten Änderung.
   const speichern = dialog.getByRole("button", { name: "Zuordnung speichern" });
-  await expect(speichern).toBeDisabled();
+  await expect(speichern).toHaveCount(0);
 
   // Zuordnen und speichern; danach zurück auf „Automatisch“, damit Wiederholungen gleich starten.
   for (const [wahl, sichtbar] of [["SanH – Sanitätshelfer", "SanH – Sanitätshelfer"], [/^Automatisch/, "Automatisch: nicht zuordnen"]] as const) {
@@ -120,7 +122,7 @@ test("im Einsatzbuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen
     expect((await antwort).ok()).toBe(true);
     await expect(page.getByText("Zuordnung gespeichert.", { exact: false })).toBeVisible();
     await expect(ersthelfer).toContainText(sichtbar);
-    await expect(speichern).toBeDisabled();
+    await expect(speichern).toHaveCount(0);
   }
 });
 

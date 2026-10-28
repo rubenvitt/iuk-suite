@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { afterEach, describe, expect, it } from "vitest";
+import { mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { HiorgQualiZeile } from "../../_lib/stammdaten/helferAbgleich";
-import { QualiZuordnung } from "./QualiZuordnung";
-
-vi.mock("../../_actions/stammdaten", () => ({ qualiZuordnungSpeichernAction: vi.fn() }));
+import { QualiZuordnung, regelnAus, startZuordnung, zuordnungGeaendert } from "./QualiZuordnung";
 
 afterEach(unmount);
 
@@ -16,7 +14,7 @@ const ZEILEN: HiorgQualiZeile[] = [
 
 describe("QualiZuordnung", () => {
   it("zeigt jede HiOrg-Qualifikation mit Anzahl und ihrer Zuordnung, jedes Feld beschriftet", async () => {
-    await mount(<QualiZuordnung zeilen={ZEILEN} onGespeichert={() => {}} />);
+    await mount(<QualiZuordnung zeilen={ZEILEN} wahl={startZuordnung(ZEILEN)} onWahl={() => {}} />);
     const zeilen = queryAll("[data-testid=quali-zuordnung] > li");
     expect(zeilen.map((li) => li.querySelector("label")?.textContent)).toEqual([
       "Rettungssanitäter (RS)2 Helfer",
@@ -35,8 +33,17 @@ describe("QualiZuordnung", () => {
     }
   });
 
-  it("Speichern ist gesperrt, solange nichts geändert ist", async () => {
-    await mount(<QualiZuordnung zeilen={ZEILEN} onGespeichert={() => {}} />);
-    expect(query<HTMLButtonElement>("button").disabled).toBe(true);
+  it("gilt erst als geändert, wenn eine Wahl vom gespeicherten Stand abweicht", () => {
+    const wahl = startZuordnung(ZEILEN);
+    expect(zuordnungGeaendert(ZEILEN, wahl)).toBe(false);
+    expect(zuordnungGeaendert(ZEILEN, new Map(wahl).set("Sanitäter", "keine"))).toBe(false);
+    expect(zuordnungGeaendert(ZEILEN, new Map(wahl).set("Sanitäter", "auto"))).toBe(true);
+  });
+
+  it("schickt „Automatisch“ nicht als Regel, „Nicht zuordnen“ als null", () => {
+    expect(regelnAus(ZEILEN, startZuordnung(ZEILEN))).toEqual([
+      { hiorg: "Sanitäter", kurz: null },
+      { hiorg: "Fachdienst", kurz: "SanH" },
+    ]);
   });
 });
