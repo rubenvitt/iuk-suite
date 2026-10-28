@@ -38,6 +38,9 @@ export function Berichtsblatt({ daten: d, bereitschaft, unveraendert }: { daten:
         <div><dt className={b.kicker}>Ende</dt><dd>{d.ende}</dd></div>
         <div><dt className={b.kicker}>Dauer</dt><dd>{d.dauer}</dd></div>
         <div className={b.breit}><dt className={b.kicker}>Objekt, Lage vor Ort</dt><dd>{d.objekt}</dd></div>
+        {d.leitstellenNummer && (
+          <div className={b.breit}><dt className={b.kicker}>Einsatznummer Leitstelle</dt><dd data-leitstelle="">{d.leitstellenNummer}</dd></div>
+        )}
       </dl>
 
       <dl className={b.zahlen}>

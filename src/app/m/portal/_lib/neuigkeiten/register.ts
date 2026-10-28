@@ -36,6 +36,7 @@ import personalAusDemHelferverzeichnis from "@/app/m/portal/_lib/neuigkeiten/not
 import fahrzeugeAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-fahrzeuge-aus-der-fahrzeugverwaltung";
 import qualifikationenZuordnen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-qualifikationen-zuordnen";
 import qualifikationenVerwalten from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-qualifikationen-verwalten";
+import abgleichKompakter from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-abgleich-kompakter";
 import stichwortAlsFreitext from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-stichwort-als-freitext";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
@@ -153,6 +154,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   fahrzeugeAusDerFahrzeugverwaltung,
   qualifikationenZuordnen,
   qualifikationenVerwalten,
+  abgleichKompakter,
   stichwortAlsFreitext,
   anleitungJeAnsicht,
   verteilenZweiAnsichten,

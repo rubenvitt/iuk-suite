@@ -50,6 +50,7 @@ export function Einsatzdetail({ block, einsatz: e, zeitzone, dritteKennzahl, mit
           : <div><dt className={s.kicker}>Dauer</dt><dd>{t.dauer}</dd></div>}
       </dl>
       <dl className={s.raster}>
+        {e.leitstellenNummer && <><dt>Leitstelle</dt><dd data-leitstelle="">{e.leitstellenNummer}</dd></>}
         <dt>Beginn</dt><dd>{t.beginn}</dd>
         <dt>Ende</dt><dd>{t.ende}</dd>
         {mitDauerzeile && <><dt>Dauer</dt><dd>{t.dauer}</dd></>}

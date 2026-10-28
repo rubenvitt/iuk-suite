@@ -33,7 +33,7 @@ export const einsatzSchema = z.object({
   strasse: kurzText(200), ort: kurzText(200), objekt: kurzText(500),
   fahrzeuge: z.array(z.object({ id: kurzText(80), typ: kurzText(40), kennung: kurzText(40), ruf: kurzText(120), standort: kurzText(80) }).strict()).max(200),
   personal: z.array(z.object({ id: kurzText(80), name: kurzText(120), quali: kurzText(40), ov: kurzText(80), fahrzeugId: kurzText(80).nullable() }).strict()).max(1000),
-  vorOrt: zahl, transport: zahl, notizen: kurzText(20_000),
+  vorOrt: zahl, transport: zahl, notizen: kurzText(20_000), leitstellenNummer: kurzText(40).optional(),
 }).strict().refine((e) => (e.endeDatum === null) === (e.endeZeit === null), "Ende nur vollständig");
 
 /** Kopf, Umschlag und CEK einzeln exportiert: `anbindung/vertrag.ts` prüft `schluessel/freigeben` damit gleich streng. */

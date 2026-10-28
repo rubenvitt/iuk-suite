@@ -171,13 +171,9 @@ export function Stammdaten({
         {importOffen && reiter !== "qualifikationen" ? <CsvImport art={reiter} onFertig={() => setImportOffen(false)} /> : null}
       </Drawer>
 
-      <Drawer open={helferOffen} onClose={() => setHelferOffen(false)} title="Personal aus dem Helferverzeichnis" size={flyinBreite(720)} destroyOnHidden>
-        {helferOffen ? <HelferAbgleich onFertig={() => setHelferOffen(false)} /> : null}
-      </Drawer>
-
-      <Drawer open={fahrzeugeOffen} onClose={() => setFahrzeugeOffen(false)} title="Fahrzeuge aus der Fahrzeugverwaltung" size={flyinBreite(720)} destroyOnHidden>
-        {fahrzeugeOffen ? <StammfahrzeugAbgleich onFertig={() => setFahrzeugeOffen(false)} /> : null}
-      </Drawer>
+      {/* Die beiden Abgleiche bringen ihre Schublade selbst mit: ihre Knöpfe stehen in deren Fußleiste (IDA-283). */}
+      {helferOffen ? <HelferAbgleich onSchliessen={() => setHelferOffen(false)} /> : null}
+      {fahrzeugeOffen ? <StammfahrzeugAbgleich onSchliessen={() => setFahrzeugeOffen(false)} /> : null}
     </div>
   );
 }
