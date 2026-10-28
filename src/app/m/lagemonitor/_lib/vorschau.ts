@@ -5,7 +5,7 @@
  * Seitenspalte; eine Warnung im Band geht dem Suchlage-Einsatz in der Kopfzeile vor; das Drohnenbild
  * kommt nur bei laufendem Einsatz mit Livebild. Kein `"use client"`: reine Funktionen, in Vitest prüfbar.
  */
-import { istWebadresse, rang, WARNSCHWELLEN, type Mitmachen, type Module, type SuchlageTeile, type Warnschwelle } from "./konfiguration";
+import { istWebadresse, rang, WARNSCHWELLEN, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "./konfiguration";
 
 export const SZENARIEN = [
   { wert: "ruhe", text: "Ruhiger Tag" },
@@ -43,6 +43,9 @@ export interface VorschauEingabe {
   module: Module;
   suchlage: SuchlageTeile;
   mitmachen: Mitmachen;
+  verkehr: Verkehr;
+  /** Ein TomTom-Schlüssel ist hinterlegt oder eingetippt; ohne zeigt der Monitor Fluss und Baustellen nicht. */
+  tomtom: boolean;
 }
 
 export type Ton = "normal" | "alarm" | "einsatz";
@@ -74,7 +77,16 @@ export interface Vorschau {
   band: BeispielWarnung[];
   /** Warnungen unter der Schwelle in der Seitenspalte (nur mit Warnliste). */
   liste: BeispielWarnung[];
-  karte: { radar: boolean; warngebiete: BeispielWarnung[]; suchgebiete: boolean; flugspuren: boolean; drohne: boolean };
+  karte: {
+    radar: boolean;
+    warngebiete: BeispielWarnung[];
+    suchgebiete: boolean;
+    flugspuren: boolean;
+    drohne: boolean;
+    verkehr: boolean;
+    baustellen: boolean;
+    blitzer: boolean;
+  };
   wetter: boolean;
   seitenspalte: boolean;
   drohnenbild: boolean;
@@ -99,6 +111,8 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
   const liste = m.warnliste ? darunter : [];
   const seitenspalte = m.wetter || liste.length > 0;
   const drohnenbild = einsatz && e.suchlage.drohnenbild;
+  const verkehr = e.verkehr.fluss && e.tomtom;
+  const baustellen = e.verkehr.baustellen && e.tomtom;
 
   const status: Vorschau["status"] =
     band.length > 0
@@ -119,13 +133,21 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
     sichtbar.push(`Blaues Meldungsband${n.entwurf ? " (noch nicht angelegt)" : ""}: „${n.text}“${n.countdown ? `, ${n.countdown}` : ""}.`);
   }
   const kartenTeile = [
+    verkehr && "Verkehrsfluss",
     m.radar && "Regenradar",
     m.warngebiete && warnungen.length > 0 && "Warngebiete",
     einsatz && e.suchlage.gebiete && "Suchgebiete",
     einsatz && e.suchlage.flugspuren && "Flugspuren aller Flüge im Einsatz",
     einsatz && "Drohnenposition",
+    baustellen && "Baustellen und Sperrungen",
   ].filter((t): t is string => typeof t === "string");
   sichtbar.push(kartenTeile.length > 0 ? `Karte um ${e.standortName || "den Standort"} mit ${kartenTeile.join(", ")}.` : `Karte um ${e.standortName || "den Standort"}, ohne Ebenen.`);
+  if ((e.verkehr.fluss || e.verkehr.baustellen) && !e.tomtom) {
+    sichtbar.push("Kein Verkehr von TomTom: ohne Schlüssel holt der Monitor weder Verkehrsfluss noch Baustellen.");
+  }
+  if (e.verkehr.blitzer) {
+    sichtbar.push("Feste Blitzer aus OpenStreetMap als Ring auf der Karte, nur am Online-Monitor. Der Bildschirm im FüKw zeigt sie nie.");
+  }
   if (seitenspalte) {
     const teile = [m.wetter && `Wetter in ${e.standortName || "Standort"}`, liste.length > 0 && `${anzahl(liste.length, "Warnung", "Warnungen")} unter der Schwelle`].filter(Boolean);
     sichtbar.push(`Rechte Spalte: ${teile.join(" und ")}.`);
@@ -157,6 +179,9 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
     m.suchlage && !e.suchlage.gebiete && "Suchgebiete",
     m.suchlage && !e.suchlage.drohnenbild && "Drohnenbild",
     !e.mitmachen.an && "QR-Code fürs Ehrenamt",
+    !e.verkehr.fluss && "Verkehrsfluss",
+    !e.verkehr.baustellen && "Baustellen",
+    !e.verkehr.blitzer && "Blitzer",
   ].filter((t): t is string => typeof t === "string");
 
   return {
@@ -169,6 +194,9 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
       suchgebiete: einsatz && e.suchlage.gebiete,
       flugspuren: einsatz && e.suchlage.flugspuren,
       drohne: einsatz,
+      verkehr,
+      baustellen,
+      blitzer: e.verkehr.blitzer,
     },
     wetter: m.wetter,
     seitenspalte,

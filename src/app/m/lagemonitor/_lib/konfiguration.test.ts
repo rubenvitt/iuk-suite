@@ -75,6 +75,7 @@ describe("Speichern und Drahtformat", () => {
       recruitment: null,
       notices: [],
       publicLinks: [],
+      traffic: { tomtomKey: null, flow: false, incidents: false, speedCameras: false },
     });
   });
 
@@ -111,5 +112,27 @@ describe("Speichern und Drahtformat", () => {
     speichereKonfiguration(db, eingabe({ mitmachen: { ...mitmachen, an: false } }), "Ruben");
     expect(alsVertrag(db).recruitment).toBeNull();
     expect(leseKonfiguration(db).mitmachen).toEqual({ ...mitmachen, an: false });
+  });
+
+  it("TomTom-Schlüssel: nur an den Monitor, ein leeres Feld behält ihn, Entfernen löscht ihn", () => {
+    const db = testDb();
+    const SCHLUESSEL = "AbCdEf0123456789AbCdEf0123456789";
+    const verkehr = { fluss: true, baustellen: true, blitzer: false };
+    const k = speichereKonfiguration(db, eingabe({ verkehr, tomtomSchluessel: SCHLUESSEL }), "Ruben");
+    expect(k).toMatchObject({ verkehr, tomtomHinterlegt: true });
+    expect(JSON.stringify(k)).not.toContain(SCHLUESSEL);
+    expect(alsVertrag(db).traffic).toEqual({ tomtomKey: SCHLUESSEL, flow: true, incidents: true, speedCameras: false });
+
+    speichereKonfiguration(db, eingabe({ verkehr: { ...verkehr, blitzer: true } }), "Ruben");
+    expect(alsVertrag(db).traffic).toMatchObject({ tomtomKey: SCHLUESSEL, speedCameras: true });
+    speichereKonfiguration(db, eingabe({ verkehr, tomtomEntfernen: true }), "Ruben");
+    expect(alsVertrag(db).traffic.tomtomKey).toBeNull();
+    expect(leseKonfiguration(db).tomtomHinterlegt).toBe(false);
+  });
+
+  it("ein TomTom-Schlüssel mit Sonderzeichen ist ein Feldfehler", () => {
+    const r = konfigurationEingabe.safeParse({ ...eingabe(), tomtomSchluessel: "abc&key=0123456789xyz" });
+    expect(r.error?.issues.map((i) => i.path.join("."))).toEqual(["tomtomSchluessel"]);
+    expect(konfigurationEingabe.safeParse({ ...eingabe(), tomtomSchluessel: "  AbCdEf0123456789AbCdEf0123456789 " }).success).toBe(true);
   });
 });

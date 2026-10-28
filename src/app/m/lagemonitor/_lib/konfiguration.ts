@@ -50,6 +50,17 @@ export interface Mitmachen {
   text: string;
 }
 
+/** Verkehrslage auf der Karte. Fluss und Baustellen kommen von TomTom und brauchen den Schlüssel. */
+export interface Verkehr {
+  fluss: boolean;
+  baustellen: boolean;
+  /** Feste Blitzer aus OpenStreetMap; der Monitor im FüKw zeigt sie nie, nur der Online-Monitor. */
+  blitzer: boolean;
+}
+
+/** TomTom-Schlüssel sind Buchstaben und Ziffern (heute 32 Zeichen); so prüft auch der Lagemonitor. */
+export const TOMTOM_SCHLUESSEL = /^[A-Za-z0-9]{16,64}$/;
+
 export const MITMACHEN_TEXT_VORGABE = "Lust mitzuhelfen? Werde Teil der Bereitschaft.";
 export const MITMACHEN_MAX_ZEICHEN = 60;
 
@@ -66,6 +77,9 @@ export interface KonfigurationDTO {
   suchlageVerbunden: boolean;
   suchlage: SuchlageTeile;
   mitmachen: Mitmachen;
+  verkehr: Verkehr;
+  /** Ob ein TomTom-Schlüssel hinterlegt ist. Den Schlüssel selbst bekommt die Seite nie. */
+  tomtomHinterlegt: boolean;
   /** `null`, solange noch niemand gespeichert hat (dann gelten die Vorgaben). */
   aktualisiertAm: string | null;
   aktualisiertVon: string | null;
@@ -84,6 +98,8 @@ export const VORGABE: KonfigurationDTO = {
   suchlageVerbunden: false,
   suchlage: { flugspuren: true, gebiete: true, drohnenbild: true },
   mitmachen: { an: false, adresse: "", text: MITMACHEN_TEXT_VORGABE },
+  verkehr: { fluss: false, baustellen: false, blitzer: false },
+  tomtomHinterlegt: false,
   aktualisiertAm: null,
   aktualisiertVon: null,
 };
@@ -140,6 +156,11 @@ export const konfigurationEingabe = z
     suchlageLink: z.string().max(500).default(""),
     /** Trennt die Verbindung zu Suchlage (Adresse und Token weg). */
     suchlageTrennen: z.boolean().default(false),
+    verkehr: z.object({ fluss: schalter, baustellen: schalter, blitzer: schalter }).default({ fluss: false, baustellen: false, blitzer: false }),
+    /** Leer: der bisherige Schlüssel bleibt. Sonst ein neuer TomTom-Schlüssel. */
+    tomtomSchluessel: z.string().trim().max(200).default(""),
+    /** Entfernt den hinterlegten Schlüssel. */
+    tomtomEntfernen: z.boolean().default(false),
   })
   .superRefine((e, ctx) => {
     if (e.mitmachen.an && !istWebadresse(e.mitmachen.adresse)) {
@@ -147,6 +168,13 @@ export const konfigurationEingabe = z
     }
     if (e.mitmachen.an && e.mitmachen.text === "") {
       ctx.addIssue({ code: "custom", path: ["mitmachen", "text"], message: "Bitte einen kurzen Satz neben den Code schreiben." });
+    }
+    if (e.tomtomSchluessel !== "" && !TOMTOM_SCHLUESSEL.test(e.tomtomSchluessel)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tomtomSchluessel"],
+        message: "Das ist kein TomTom-Schlüssel. Er besteht nur aus Buchstaben und Ziffern, meist 32 Zeichen (developer.tomtom.com unter Keys).",
+      });
     }
     if (e.suchlageLink.trim() !== "" && !suchlageLinkAus(e.suchlageLink)) {
       ctx.addIssue({
@@ -173,6 +201,8 @@ function dtoAus(z: Zeile): KonfigurationDTO {
     suchlageVerbunden: z.suchlageAdresse !== null && z.suchlageToken !== null,
     suchlage: { flugspuren: z.suchlageFlugspuren, gebiete: z.suchlageGebiete, drohnenbild: z.suchlageDrohnenbild },
     mitmachen: { an: z.mitmachen, adresse: z.mitmachenAdresse ?? "", text: z.mitmachenText ?? MITMACHEN_TEXT_VORGABE },
+    verkehr: { fluss: z.verkehrFluss, baustellen: z.verkehrBaustellen, blitzer: z.verkehrBlitzer },
+    tomtomHinterlegt: z.tomtomSchluessel !== null,
     aktualisiertAm: z.aktualisiertAm.toISOString(),
     aktualisiertVon: z.aktualisiertVon,
   };
@@ -212,6 +242,10 @@ export function speichereKonfiguration(db: LagemonitorDb, e: KonfigurationEingab
     mitmachen: e.mitmachen.an,
     mitmachenAdresse: e.mitmachen.adresse === "" ? null : e.mitmachen.adresse,
     mitmachenText: e.mitmachen.text === "" ? null : e.mitmachen.text,
+    verkehrFluss: e.verkehr.fluss,
+    verkehrBaustellen: e.verkehr.baustellen,
+    verkehrBlitzer: e.verkehr.blitzer,
+    tomtomSchluessel: e.tomtomEntfernen ? null : e.tomtomSchluessel !== "" ? e.tomtomSchluessel : (alt?.tomtomSchluessel ?? null),
     aktualisiertAm: jetzt,
     aktualisiertVon: von,
   };
@@ -235,6 +269,8 @@ export interface Vertrag {
   notices: Notice[];
   /** Links für Rechner ohne Anmeldung (`_lib/links.ts`), nur als Hash. Ältere Monitore übergehen das Feld. */
   publicLinks: PublicLink[];
+  /** Verkehrslage; der Schlüssel geht nur hier hinaus. Ältere Monitore übergehen das Feld. */
+  traffic: { tomtomKey: string | null; flow: boolean; incidents: boolean; speedCameras: boolean };
 }
 
 export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
@@ -260,5 +296,11 @@ export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
     recruitment: k.mitmachen.an && istWebadresse(k.mitmachen.adresse) ? { url: k.mitmachen.adresse, text: k.mitmachen.text } : null,
     notices: alsNotices(db, jetzt),
     publicLinks: alsPublicLinks(db),
+    traffic: {
+      tomtomKey: z?.tomtomSchluessel ?? null,
+      flow: k.verkehr.fluss,
+      incidents: k.verkehr.baustellen,
+      speedCameras: k.verkehr.blitzer,
+    },
   };
 }

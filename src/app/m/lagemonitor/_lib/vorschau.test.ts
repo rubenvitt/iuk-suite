@@ -9,6 +9,8 @@ const basis: VorschauEingabe = {
   module: { ...VORGABE.module, suchlage: true },
   suchlage: { ...VORGABE.suchlage },
   mitmachen: { ...VORGABE.mitmachen },
+  verkehr: { ...VORGABE.verkehr },
+  tomtom: false,
 };
 
 describe("Vorschau", () => {
@@ -94,5 +96,17 @@ describe("QR-Code fürs Ehrenamt in der Vorschau", () => {
     expect(vorschau(an, "unwetter").mitmachen).toBeNull();
     expect(vorschau(an, "einsatz").mitmachen).toBeNull();
     expect(vorschau({ ...an, module: { ...an.module, suchlage: false } }, "einsatz").mitmachen).not.toBeNull();
+  });
+
+  it("Verkehr: Fluss und Baustellen nur mit TomTom-Schlüssel, Blitzer nur online", () => {
+    const an = { fluss: true, baustellen: true, blitzer: true };
+    const ohne = vorschau({ ...basis, verkehr: an }, "ruhe");
+    expect(ohne.karte).toMatchObject({ verkehr: false, baustellen: false, blitzer: true });
+    expect(ohne.sichtbar.join(" ")).toContain("ohne Schlüssel");
+    const mit = vorschau({ ...basis, verkehr: an, tomtom: true }, "ruhe");
+    expect(mit.karte).toMatchObject({ verkehr: true, baustellen: true });
+    expect(mit.sichtbar.join(" ")).toMatch(/Verkehrsfluss.*Baustellen und Sperrungen/);
+    expect(mit.sichtbar.join(" ")).toContain("nur am Online-Monitor");
+    expect(vorschau(basis, "ruhe").aus).toEqual(expect.arrayContaining(["Verkehrsfluss", "Baustellen", "Blitzer"]));
   });
 });
