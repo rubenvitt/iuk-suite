@@ -20,6 +20,10 @@ describe("istEinsatz", () => {
   it("endeZeit darf nicht undefined sein", () => {
     expect(istEinsatz({ ...beispielEinsatz(), endeZeit: undefined })).toBe(false);
   });
+  it("leitstellenNummer darf fehlen oder Text sein, nichts anderes (IDA-284)", () => {
+    expect(istEinsatz({ ...beispielEinsatz(), leitstellenNummer: "RD 2026-1234" })).toBe(true);
+    for (const falsch of [null, undefined, 5]) expect(istEinsatz({ ...beispielEinsatz(), leitstellenNummer: falsch })).toBe(false);
+  });
   it("eine Person ohne fahrzeugId ist ungültig", () => {
     const einsatz = beispielEinsatz();
     const ohneFahrzeugId: Record<string, unknown> = { ...einsatz.personal[0] };

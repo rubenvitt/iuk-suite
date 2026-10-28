@@ -38,6 +38,7 @@ describe("Einsatzdetail", () => {
     expect(query("h2").textContent).toBe("SanD");
     expect(query("[data-objekt]").textContent).toBe("Stadtfest, ca. 2.500 Besucher");
     expect(exists("[data-notizen]")).toBe(true);
+    expect(wert("Leitstelle")).toBe("RD 2026-08-1234");
   });
 
   it("Kopf, Kennzahlen, Listen, Notizen und Hash-Box", async () => {
@@ -80,6 +81,7 @@ describe("Einsatzdetail", () => {
     await mount(<Einsatzdetail block={blockFuer(0)} einsatz={TESTEINSAETZE[0]} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
     expect(query("[data-objekt]").textContent).toBe("—");
     expect(exists("[data-notizen]")).toBe(false);
+    expect(exists("[data-leitstelle]")).toBe(false);
     expect(wert("Dauer")).toBe("1 h 28 min");
     await unmount();
     await mount(<Einsatzdetail block={blockFuer(0)} einsatz={TESTEINSAETZE[0]} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer={false} />);

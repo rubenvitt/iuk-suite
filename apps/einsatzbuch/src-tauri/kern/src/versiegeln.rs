@@ -165,6 +165,8 @@ impl Buch {
             vor_ort: entwurf.vor_ort,
             transport: entwurf.transport,
             notizen: entwurf.notizen.clone(),
+            // Erst lesen, dann schreiben (IDA-284): Dieser Stand versiegelt noch im ersten Format.
+            leitstellen_nummer: None,
         };
 
         let suite_spki = krypto::aus_b64(&einrichtung.oeffentlich_spki)?;

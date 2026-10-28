@@ -25,6 +25,13 @@ export interface Einsatz {
   vorOrt: number;
   transport: number;
   notizen: string;
+  /**
+   * Einsatznummer der Leitstelle, Freitext (IDA-284). Optional und nur geschrieben, wenn sie
+   * Inhalt hat: Ein Einsatz ohne sie bleibt byte-gleich zum ersten Format, ältere Leser öffnen
+   * ihn weiter. Gelesen wird sie ab diesem Stand, geschrieben erst ein Release später
+   * (Zwei-Schritt-Regel, Runbook `einsatzbuch-release.md`).
+   */
+  leitstellenNummer?: string;
 }
 
 export type Umgebung = "echt" | "test";
@@ -80,6 +87,8 @@ const EINSATZ_SCHLUESSEL = [
   "v", "nummer", "stichwort", "beginnDatum", "beginnZeit", "endeDatum", "endeZeit",
   "strasse", "ort", "objekt", "fahrzeuge", "personal", "vorOrt", "transport", "notizen",
 ] as const;
+/** Schlüssel, die ein Einsatz tragen darf, aber nicht muss — fehlen sie, ist der Einsatz im ersten Format. */
+const EINSATZ_SCHLUESSEL_OPTIONAL = ["leitstellenNummer"] as const;
 const FAHRZEUG_SCHLUESSEL = ["id", "typ", "kennung", "ruf", "standort"] as const;
 const PERSON_SCHLUESSEL = ["id", "name", "quali", "ov", "fahrzeugId"] as const;
 const BLOCKKOPF_SCHLUESSEL = ["v", "block", "prev", "versiegelt", "schluesselId", "umgebung"] as const;
@@ -114,8 +123,11 @@ function istPersonStand(x: unknown): x is PersonStand {
  * `oeffneBlock` jeden Klartext gegen diese Form, bevor er als `Einsatz` gilt.
  */
 export function istEinsatz(x: unknown): x is Einsatz {
-  if (!istObjekt(x) || !hatGenauSchluessel(x, EINSATZ_SCHLUESSEL)) return false;
+  if (!istObjekt(x)) return false;
+  const optional = EINSATZ_SCHLUESSEL_OPTIONAL.filter((k) => Object.hasOwn(x, k));
+  if (!hatGenauSchluessel(x, [...EINSATZ_SCHLUESSEL, ...optional])) return false;
   if (x.v !== 1) return false;
+  if (optional.some((k) => typeof x[k] !== "string")) return false;
   for (const feld of ["nummer", "stichwort", "beginnDatum", "beginnZeit", "strasse", "ort", "objekt", "notizen"] as const) {
     if (typeof x[feld] !== "string") return false;
   }
