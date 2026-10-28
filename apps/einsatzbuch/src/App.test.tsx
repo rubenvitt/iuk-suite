@@ -106,6 +106,7 @@ function entwurf(teil: Partial<Entwurf> = {}): Entwurf {
     vorOrt: 1,
     transport: 0,
     notizen: "",
+    patienten: [],
     ...teil,
   };
 }

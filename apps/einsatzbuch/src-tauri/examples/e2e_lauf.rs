@@ -357,6 +357,7 @@ mod lauf {
             vor_ort: 1,
             transport: 0,
             notizen: "Ende-zu-Ende-Lauf Stufe 6".into(),
+            patienten: Vec::new(),
         };
         let aus = sende_ab(z, &entwurf, false)?;
         e2e!(

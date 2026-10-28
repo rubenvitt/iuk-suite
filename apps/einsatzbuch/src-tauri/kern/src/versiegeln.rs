@@ -167,9 +167,8 @@ impl Buch {
             notizen: entwurf.notizen.clone(),
             // Erst lesen, dann schreiben (IDA-284): Dieser Stand versiegelt noch im ersten Format.
             leitstellen_nummer: None,
-            // Lese-Schritt der Zwei-Release-Regel (Runbook `einsatzbuch-release.md`): Diese Version
-            // liest Angaben je Patient, schreibt sie aber noch nicht.
-            patienten: Vec::new(),
+            // Von `pruefe_entwurf` an den Zählern ausgerichtet, ohne Angaben leer.
+            patienten: entwurf.patienten.clone(),
         };
 
         let suite_spki = krypto::aus_b64(&einrichtung.oeffentlich_spki)?;
