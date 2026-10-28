@@ -120,7 +120,8 @@ test("im Einsatzbuch lässt sich eine HiOrg-Qualifikation einem Kürzel zuordnen
     const antwort = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/stammdaten"));
     await klickeWennRuhig(speichern);
     expect((await antwort).ok()).toBe(true);
-    await expect(page.getByText("Zuordnung gespeichert.", { exact: false })).toBeVisible();
+    // Die Meldung der ersten Runde kann noch stehen, wenn die zweite speichert: zwei gleiche Toasts.
+    await expect(page.getByText("Zuordnung gespeichert.", { exact: false }).last()).toBeVisible();
     await expect(ersthelfer).toContainText(sichtbar);
     await expect(speichern).toHaveCount(0);
   }
