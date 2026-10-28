@@ -49,10 +49,13 @@ export function HelferAbgleich({ onSchliessen }: { onSchliessen: () => void }) {
   const [sicht, setSicht] = useState<Sicht | null>(null);
   const [suche, setSuche] = useState("");
   const [wahl, setWahl] = useState<Zuordnung>(new Map());
+  /** Jede neue Vorschau setzt die Auswahlfelder der Zuordnung neu auf (auch ihre offenen Listen). */
+  const [stand, setStand] = useState(0);
 
   function neuerPlan(p: HelferPlan): void {
     setPlan(p);
     setWahl(startZuordnung(p.qualifikationen));
+    setStand((n) => n + 1);
   }
 
   useEffect(() => {
@@ -188,7 +191,7 @@ export function HelferAbgleich({ onSchliessen }: { onSchliessen: () => void }) {
               {
                 key: "qualifikationen",
                 label: `Qualifikationen aus HiOrg · ${plan.qualifikationen.length}`,
-                children: <QualiZuordnung zeilen={plan.qualifikationen} wahl={wahl} onWahl={setWahl} />,
+                children: <QualiZuordnung key={stand} zeilen={plan.qualifikationen} wahl={wahl} onWahl={setWahl} />,
               },
             ]}
           />
