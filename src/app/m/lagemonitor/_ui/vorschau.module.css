@@ -90,6 +90,16 @@
   color: var(--lmv-gedaempft);
 }
 
+/* Taktische Zeit wie am Monitor: die Uhrzeit hebt sich ab. */
+.uhrZeit {
+  color: var(--lmv-bedien);
+  font-weight: 600;
+}
+
+.uhrDatum {
+  color: var(--lmv-gedaempft);
+}
+
 .band {
   display: flex;
   align-items: center;

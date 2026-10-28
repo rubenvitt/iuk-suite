@@ -23,12 +23,12 @@ export interface BeispielWarnung {
 
 /** Erfundene Warnungen je Beispiellage. Der Einsatz läuft an einem Tag mit leichter Warnung. */
 export const BEISPIEL_WARNUNGEN: Record<Szenario, BeispielWarnung[]> = {
-  ruhe: [{ id: "frost", titel: "Leichter Frost", stufe: "Minor", bis: "09:00" }],
+  ruhe: [{ id: "frost", titel: "Leichter Frost", stufe: "Minor", bis: "280900okt26" }],
   unwetter: [
-    { id: "starkregen", titel: "Unwetter: Heftiger Starkregen", stufe: "Severe", bis: "21:00" },
-    { id: "sturm", titel: "Sturmböen", stufe: "Moderate", bis: "23:00" },
+    { id: "starkregen", titel: "Unwetter: Heftiger Starkregen", stufe: "Severe", bis: "272100okt26" },
+    { id: "sturm", titel: "Sturmböen", stufe: "Moderate", bis: "272300okt26" },
   ],
-  einsatz: [{ id: "frost", titel: "Leichter Frost", stufe: "Minor", bis: "09:00" }],
+  einsatz: [{ id: "frost", titel: "Leichter Frost", stufe: "Minor", bis: "280900okt26" }],
 };
 
 /** Der Beispieleinsatz, wie Suchlage ihn melden würde. */
@@ -109,7 +109,7 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
           ? { text: `RUHE · ${anzahl(darunter.length, "Warnung", "Warnungen")} unter Schwelle`, ton: "normal" }
           : { text: "RUHE · keine Warnungen", ton: "normal" };
 
-  const sichtbar: string[] = [`Kopfzeile: ${e.standortName || "Standort"}, Uhrzeit und der Status in Worten („${status.text}“).`];
+  const sichtbar: string[] = [`Kopfzeile: ${e.standortName || "Standort"}, taktische Zeit und der Status in Worten („${status.text}“).`];
   if (band.length > 0) {
     sichtbar.push(`Rotes Band über allem: ${band.map((w) => w.titel).join(", ")}. Ab „${STUFE_TEXT[e.warnschwelle]}“ kommt eine Warnung ins Band.`);
   } else if (warnungen.length > 0) {

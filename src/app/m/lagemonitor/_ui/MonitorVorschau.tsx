@@ -27,7 +27,11 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
           <span className={s.punkt} />
           {v.status.text}
         </span>
-        <span className={s.uhr}>18:42</span>
+        <span className={s.uhr} aria-label="Taktische Zeit 271842okt26">
+          <span className={s.uhrDatum}>27</span>
+          <span className={s.uhrZeit}>1842</span>
+          <span className={s.uhrDatum}>okt26</span>
+        </span>
       </div>
       {v.band.length > 0 ? (
         <div className={s.band}>
