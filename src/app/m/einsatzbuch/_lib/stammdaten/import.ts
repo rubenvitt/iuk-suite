@@ -6,11 +6,11 @@
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { fahrzeug, person, stichwort } from "../../_db/schema";
-import { listeFahrzeuge, listePersonal, listeStichworte, type Db } from "./daten";
+import { listeFahrzeuge, listePersonal, listeQualifikationen, listeStichworte, type Db } from "./daten";
 import type { Importbestand, Importplan, Vorschauzeile } from "./csv";
 
 export function bestandFuerImport(db: Db): Importbestand {
-  return { fahrzeuge: listeFahrzeuge(db), personal: listePersonal(db), stichworte: listeStichworte(db) };
+  return { fahrzeuge: listeFahrzeuge(db), personal: listePersonal(db), stichworte: listeStichworte(db), qualifikationen: listeQualifikationen(db).map((q) => q.kurz) };
 }
 
 /**

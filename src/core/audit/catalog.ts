@@ -346,6 +346,12 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "qualifikation": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "einstellung": {
       "mode": "audited",
       "primaryKey": [

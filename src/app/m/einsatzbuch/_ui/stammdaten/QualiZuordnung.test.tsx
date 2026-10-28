@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { HiorgQualiZeile } from "../../_lib/stammdaten/helferAbgleich";
+import { QUALIFIKATIONEN } from "../../_lib/stammdaten/vorlage";
 import { QualiZuordnung } from "./QualiZuordnung";
 
 vi.mock("../../_actions/stammdaten", () => ({ qualiZuordnungSpeichernAction: vi.fn() }));
@@ -16,7 +17,7 @@ const ZEILEN: HiorgQualiZeile[] = [
 
 describe("QualiZuordnung", () => {
   it("zeigt jede HiOrg-Qualifikation mit Anzahl und ihrer Zuordnung, jedes Feld beschriftet", async () => {
-    await mount(<QualiZuordnung zeilen={ZEILEN} onGespeichert={() => {}} />);
+    await mount(<QualiZuordnung zeilen={ZEILEN} auswahl={[...QUALIFIKATIONEN]} onGespeichert={() => {}} />);
     const zeilen = queryAll("[data-testid=quali-zuordnung] > li");
     expect(zeilen.map((li) => li.querySelector("label")?.textContent)).toEqual([
       "Rettungssanitäter (RS)2 Helfer",
@@ -36,7 +37,7 @@ describe("QualiZuordnung", () => {
   });
 
   it("Speichern ist gesperrt, solange nichts geändert ist", async () => {
-    await mount(<QualiZuordnung zeilen={ZEILEN} onGespeichert={() => {}} />);
+    await mount(<QualiZuordnung zeilen={ZEILEN} auswahl={[...QUALIFIKATIONEN]} onGespeichert={() => {}} />);
     expect(query<HTMLButtonElement>("button").disabled).toBe(true);
   });
 });

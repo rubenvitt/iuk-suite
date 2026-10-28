@@ -3,7 +3,7 @@
  * Browser-Vorschau (Client-Insel) läuft. `import.ts` (Server) schreibt anhand des hier
  * erzeugten Plans (Spec §5.1; Plan Stufe 2, Entscheidung 7).
  */
-import { fahrzeugEingabe, personEingabe, stichwortEingabe } from "./schemas";
+import { fahrzeugEingabe, personEingabeMit, stichwortEingabe } from "./schemas";
 import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "./typen";
 
 export const KOPFZEILEN: Record<Stammdatenart, readonly string[]> = {
@@ -35,6 +35,8 @@ export interface Importbestand {
   fahrzeuge: FahrzeugDTO[];
   personal: PersonDTO[];
   stichworte: StichwortDTO[];
+  /** Die Kurzformen der Qualifikationen in Rangfolge; gegen sie prüft der Personalimport (IDA-282). */
+  qualifikationen: string[];
 }
 
 /** Excel unter Windows speichert CSV als Windows-1252; ohne Rückfall würden aus „Jürgens“ Ersatzzeichen. */
@@ -108,7 +110,6 @@ export function parseCsvMitZeilen(text: string): CsvDatensatz[] {
   return saetze;
 }
 
-const SCHEMA = { fahrzeuge: fahrzeugEingabe, personal: personEingabe, stichworte: stichwortEingabe } as const;
 const SCHLUESSEL: Record<Stammdatenart, "kennung" | "name"> = { fahrzeuge: "kennung", personal: "name", stichworte: "name" };
 const SCHLUESSEL_TEXT: Record<Stammdatenart, string> = { fahrzeuge: "Kennung", personal: "Name", stichworte: "Stichwort" };
 
@@ -132,6 +133,7 @@ export function planeImport(art: Stammdatenart, text: string, bestand: Importbes
   // Der fachliche Schlüssel (`kennung`/`name`) ist je nach Art auf einem anderen DTO-Feld zu
   // finden; die Tabellenweiche macht das hier unvermeidlich generisch.
   const vorhanden = bestand[art] as (FahrzeugDTO | PersonDTO | StichwortDTO)[];
+  const schema = art === "fahrzeuge" ? fahrzeugEingabe : art === "personal" ? personEingabeMit(bestand.qualifikationen) : stichwortEingabe;
   const gesehen = new Map<string, number>();
   const zeilen = roh.slice(1).map(({ zeile, felder }): Vorschauzeile => {
     const werte = Object.fromEntries(kopf.map((k) => [k, (felder[spalten.indexOf(k)] ?? "").trim()]));
@@ -143,7 +145,7 @@ export function planeImport(art: Stammdatenart, text: string, bestand: Importbes
       ...(art === "stichworte" ? { reihenfolge: /^\d+$/.test(werte.reihenfolge) ? Number(werte.reihenfolge) : NaN } : {}),
       aktiv: true,
     };
-    const geprueft = SCHEMA[art].safeParse(eingabe);
+    const geprueft = schema.safeParse(eingabe);
     if (!geprueft.success) return { zeile, klasse: "fehler", werte, fehler: geprueft.error.issues[0]?.message ?? "ungültig" };
     const daten = geprueft.data as Record<string, unknown>;
     const schluessel = String(daten[SCHLUESSEL[art]]);

@@ -10,8 +10,8 @@
  * unberührt. Wer nicht mehr bereitgestellt wird, wird DEAKTIVIERT, nicht gelöscht — wie überall in
  * den Stammdaten; versiegelte Einsätze behalten ihren Schnappschuss.
  *
- * Die Qualifikation im Einsatzbuch ist EINE Kurzform aus `QUALIFIKATIONEN`. Aus den
- * HiOrg-Qualifikationen gewinnt die höchste, die sich zuordnen lässt; ohne Zuordnung wird die Person
+ * Die Qualifikation im Einsatzbuch ist EINE Kurzform aus der Tabelle `qualifikation` (IDA-282). Aus
+ * den HiOrg-Qualifikationen gewinnt die mit dem höchsten Rang, die sich zuordnen lässt; ohne Zuordnung wird die Person
  * nicht übernommen und in der Vorschau mit ihren Qualifikationen genannt. Zugeordnet wird je
  * HiOrg-Qualifikation erst nach der eingestellten Regel (`qualiZuordnung.ts`, IDA-250), sonst nach
  * der eingebauten `ZUORDNUNG`.
@@ -20,43 +20,53 @@ import { eq } from "drizzle-orm";
 import type { BereitgestellterHelfer, Bereitstellung } from "@/app/m/helfer/_lib/bereitstellung";
 import { person } from "../../_db/schema";
 import { listePersonal, type Db } from "./daten";
-import type { PersonDTO } from "./typen";
+import type { PersonDTO, QualifikationDTO } from "./typen";
 import { hiorgSchluessel, leseQualiRegeln, type QualiRegel } from "./qualiZuordnung";
-import { QUALIFIKATIONEN, QUALIS } from "./vorlage";
+import { listeQualifikationen } from "./qualifikationen";
+import { QUALIFIKATIONEN } from "./vorlage";
 
 export const HELFER_PRAEFIX = "helfer-";
 
-type Quali = (typeof QUALIFIKATIONEN)[number]["kurz"];
+/** Eine Kurzform aus der Liste der Qualifikationen. */
+type Quali = string;
 
-/** Höchste zuerst, wie `QUALIFIKATIONEN`. Geprüft werden Name und Kurzform der HiOrg-Qualifikation. */
-const ZUORDNUNG: readonly (readonly [Quali, RegExp])[] = [
-  ["NotSan", /notfallsanit|^notsan$|^ns$/i],
-  ["RettAss", /rettungsassist|^rettass$|^ra$/i],
-  ["RS", /rettungssanit|^rs$/i],
-  ["SiK", /^sik$|im katastrophenschutz|^san$|^sanit(ä|ae)ter(in)?$/i],
-  ["SanH", /sanit(ä|ae)tshelfer|^sanh$|^sh$/i],
+/**
+ * Höchste zuerst. Geprüft werden Name und Kurzform der HiOrg-Qualifikation. Verankert an der ID der
+ * Qualifikation aus der Migration `0004_qualifikationen.sql`, nicht an ihrer Kurzform: eine
+ * umbenannte behält ihre eingebaute Zuordnung, eine entfernte verliert sie, eine neue hat keine.
+ */
+const ZUORDNUNG: readonly (readonly [string, RegExp])[] = [
+  ["notsan", /notfallsanit|^notsan$|^ns$/i],
+  ["rettass", /rettungsassist|^rettass$|^ra$/i],
+  ["rs", /rettungssanit|^rs$/i],
+  ["sik", /^sik$|im katastrophenschutz|^san$|^sanit(ä|ae)ter(in)?$/i],
+  ["sanh", /sanit(ä|ae)tshelfer|^sanh$|^sh$/i],
 ];
 
 type HiorgQuali = BereitgestellterHelfer["qualifikationen"][number];
 
-/** Die eingebaute Zuordnung einer einzelnen HiOrg-Qualifikation. */
-export function eingebauteQuali(q: HiorgQuali): Quali | null {
-  return ZUORDNUNG.find(([, muster]) => muster.test(q.name.trim()) || muster.test(q.kurz.trim()))?.[0] ?? null;
+/** Die eingebaute Zuordnung einer einzelnen HiOrg-Qualifikation, als Kurzform aus `liste`. */
+export function eingebauteQuali(q: HiorgQuali, liste: readonly QualifikationDTO[] = QUALIFIKATIONEN): Quali | null {
+  const kurzVon = new Map(liste.map((x) => [x.id, x.kurz]));
+  const treffer = ZUORDNUNG.find(([id, muster]) => kurzVon.has(id) && (muster.test(q.name.trim()) || muster.test(q.kurz.trim())));
+  return treffer ? kurzVon.get(treffer[0])! : null;
 }
 
 /** Je HiOrg-Qualifikation: Regel vor eingebauter Zuordnung. */
-function zuordner(regeln: readonly QualiRegel[]): (q: HiorgQuali) => Quali | null {
+function zuordner(regeln: readonly QualiRegel[], liste: readonly QualifikationDTO[]): (q: HiorgQuali) => Quali | null {
   const nachSchluessel = new Map(regeln.map((r) => [hiorgSchluessel({ name: r.hiorg, kurz: "" }), r.kurz]));
   return (q) => {
     const schluessel = hiorgSchluessel(q);
-    return nachSchluessel.has(schluessel) ? nachSchluessel.get(schluessel)! : eingebauteQuali(q);
+    return nachSchluessel.has(schluessel) ? nachSchluessel.get(schluessel)! : eingebauteQuali(q, liste);
   };
 }
 
-export function qualiFuer(qualifikationen: readonly HiorgQuali[], regeln: readonly QualiRegel[] = []): Quali | null {
-  const zu = zuordner(regeln);
-  const rang = qualifikationen.map(zu).filter((k): k is Quali => k !== null).map((k) => QUALIS.indexOf(k));
-  return rang.length ? QUALIS[Math.min(...rang)] : null;
+/** `liste` in Rangfolge (`listeQualifikationen`); eine Kurzform, die dort fehlt, zählt nicht. */
+export function qualiFuer(qualifikationen: readonly HiorgQuali[], regeln: readonly QualiRegel[] = [], liste: readonly QualifikationDTO[] = QUALIFIKATIONEN): Quali | null {
+  const zu = zuordner(regeln, liste);
+  const kurz = liste.map((x) => x.kurz);
+  const rang = qualifikationen.map(zu).map((k) => (k === null ? -1 : kurz.indexOf(k))).filter((i) => i >= 0);
+  return rang.length ? kurz[Math.min(...rang)] : null;
 }
 
 /** Eine HiOrg-Qualifikation, wie sie im Helferverzeichnis vorkommt, mit ihrer Zuordnung. */
@@ -71,13 +81,13 @@ export interface HiorgQualiZeile {
   regel: Quali | null | undefined;
 }
 
-export function hiorgQualifikationen(b: Bereitstellung, regeln: readonly QualiRegel[]): HiorgQualiZeile[] {
+export function hiorgQualifikationen(b: Bereitstellung, regeln: readonly QualiRegel[], liste: readonly QualifikationDTO[] = QUALIFIKATIONEN): HiorgQualiZeile[] {
   const zeilen = new Map<string, HiorgQualiZeile>();
   for (const h of b.helfer) {
     for (const q of h.qualifikationen) {
       const schluessel = hiorgSchluessel(q);
       if (!schluessel) continue;
-      const z = zeilen.get(schluessel) ?? { hiorg: q.name.trim() || q.kurz.trim(), kurz: q.kurz.trim(), anzahl: 0, eingebaut: eingebauteQuali(q), regel: undefined };
+      const z = zeilen.get(schluessel) ?? { hiorg: q.name.trim() || q.kurz.trim(), kurz: q.kurz.trim(), anzahl: 0, eingebaut: eingebauteQuali(q, liste), regel: undefined };
       z.anzahl++;
       zeilen.set(schluessel, z);
     }
@@ -86,7 +96,7 @@ export function hiorgQualifikationen(b: Bereitstellung, regeln: readonly QualiRe
     const schluessel = hiorgSchluessel({ name: r.hiorg, kurz: "" });
     const z = zeilen.get(schluessel);
     if (z) z.regel = r.kurz;
-    else zeilen.set(schluessel, { hiorg: r.hiorg, kurz: "", anzahl: 0, eingebaut: eingebauteQuali({ name: r.hiorg, kurz: "" }), regel: r.kurz });
+    else zeilen.set(schluessel, { hiorg: r.hiorg, kurz: "", anzahl: 0, eingebaut: eingebauteQuali({ name: r.hiorg, kurz: "" }, liste), regel: r.kurz });
   }
   return [...zeilen.values()].sort((a, b) => b.anzahl - a.anzahl || a.hiorg.localeCompare(b.hiorg, "de"));
 }
@@ -113,9 +123,11 @@ export interface HelferPlan {
   stand: string | null;
   zeilen: HelferVorschauzeile[];
   qualifikationen: HiorgQualiZeile[];
+  /** Die Qualifikationen des Einsatzbuchs in Rangfolge — die Auswahl der Zuordnung. */
+  auswahl: QualifikationDTO[];
 }
 
-export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[], regeln: readonly QualiRegel[] = []): HelferPlan {
+export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[], regeln: readonly QualiRegel[] = [], liste: readonly QualifikationDTO[] = QUALIFIKATIONEN): HelferPlan {
   const nachId = new Map(personal.map((p) => [p.id, p]));
   const vonHand = new Set(personal.filter((p) => p.aktiv && !p.id.startsWith(HELFER_PRAEFIX)).map((p) => p.name));
   const zeilen: HelferVorschauzeile[] = [];
@@ -123,7 +135,7 @@ export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[], re
   for (const h of b.helfer) {
     const id = `${HELFER_PRAEFIX}${h.id}`;
     const name = nameFuer(h);
-    const quali = qualiFuer(h.qualifikationen, regeln);
+    const quali = qualiFuer(h.qualifikationen, regeln, liste);
     const anzeige = name ?? `${h.nachname}, ${h.vorname}`;
     const qualis = h.qualifikationen.map((q) => q.name).join(", ") || "keine";
     if (h.demo) {
@@ -154,7 +166,7 @@ export function planeHelferAbgleich(b: Bereitstellung, personal: PersonDTO[], re
   }
   const reihe: Record<HelferKlasse, number> = { neu: 0, geaendert: 1, deaktivieren: 2, doppelt: 3, ohne_quali: 4, fehler: 5, demo: 6, unveraendert: 7 };
   zeilen.sort((a, b) => reihe[a.klasse] - reihe[b.klasse] || a.name.localeCompare(b.name, "de"));
-  return { stand: b.stand, zeilen, qualifikationen: hiorgQualifikationen(b, regeln) };
+  return { stand: b.stand, zeilen, qualifikationen: hiorgQualifikationen(b, regeln, liste), auswahl: [...liste] };
 }
 
 export interface HelferErgebnis { neu: number; geaendert: number; deaktiviert: number }
@@ -180,5 +192,5 @@ export function wendeHelferAbgleichAn(db: Db, plan: HelferPlan): HelferErgebnis 
 
 /** Plan gegen den aktuellen Bestand — Vorschau und Übernahme planen beide frisch. */
 export function planeGegenBestand(db: Db, b: Bereitstellung): HelferPlan {
-  return planeHelferAbgleich(b, listePersonal(db), leseQualiRegeln(db));
+  return planeHelferAbgleich(b, listePersonal(db), leseQualiRegeln(db), listeQualifikationen(db));
 }

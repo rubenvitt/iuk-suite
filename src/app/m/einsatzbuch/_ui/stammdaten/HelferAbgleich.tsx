@@ -110,6 +110,7 @@ export function HelferAbgleich({ onFertig }: { onFertig: () => void }) {
           <QualiZuordnung
             key={stand}
             zeilen={plan.qualifikationen}
+            auswahl={plan.auswahl}
             onGespeichert={(neu) => {
               setPlan(neu);
               setStand((n) => n + 1);

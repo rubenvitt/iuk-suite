@@ -7,13 +7,15 @@ import { SPACE } from "@/core/theme/tokens";
 import { qualiZuordnungSpeichernAction } from "../../_actions/stammdaten";
 import type { HelferPlan, HiorgQualiZeile } from "../../_lib/stammdaten/helferAbgleich";
 import type { QualiRegel } from "../../_lib/stammdaten/qualiZuordnung";
-import { QUALIFIKATIONEN } from "../../_lib/stammdaten/vorlage";
+import type { QualifikationDTO } from "../../_lib/stammdaten/typen";
 
-type Quali = (typeof QUALIFIKATIONEN)[number]["kurz"];
-/** „auto“ = keine Regel, die eingebaute Zuordnung gilt; „keine“ = bewusst nicht zuordnen. */
-type Wahl = "auto" | "keine" | Quali;
+/**
+ * „auto“ = keine Regel, die eingebaute Zuordnung gilt; „keine“ = bewusst nicht zuordnen; sonst
+ * `q:` und eine Kurzform — der Vorsatz hält eine Kurzform „auto“ oder „keine“ auseinander (IDA-282).
+ */
+type Wahl = "auto" | "keine" | `q:${string}`;
 
-const wahlAus = (z: HiorgQualiZeile): Wahl => (z.regel === undefined ? "auto" : z.regel ?? "keine");
+const wahlAus = (z: HiorgQualiZeile): Wahl => (z.regel === undefined ? "auto" : z.regel === null ? "keine" : `q:${z.regel}`);
 
 /**
  * Die einstellbare Zuordnung „HiOrg-Qualifikation → Kürzel“ (IDA-250), unter der Vorschau des
@@ -24,7 +26,7 @@ const wahlAus = (z: HiorgQualiZeile): Wahl => (z.regel === undefined ? "auto" : 
  * Eine Liste statt `Kartentabelle`: die rendert beide Darstellungen ins HTML, jedes Auswahlfeld
  * stünde also doppelt da.
  */
-export function QualiZuordnung({ zeilen, onGespeichert }: { zeilen: HiorgQualiZeile[]; onGespeichert: (plan: HelferPlan) => void }) {
+export function QualiZuordnung({ zeilen, auswahl, onGespeichert }: { zeilen: HiorgQualiZeile[]; auswahl: QualifikationDTO[]; onGespeichert: (plan: HelferPlan) => void }) {
   const { message } = App.useApp();
   const start = useMemo(() => new Map(zeilen.map((z) => [z.hiorg, wahlAus(z)])), [zeilen]);
   const [wahl, setWahl] = useState(start);
@@ -37,7 +39,7 @@ export function QualiZuordnung({ zeilen, onGespeichert }: { zeilen: HiorgQualiZe
     setLaeuft(true);
     const regeln: QualiRegel[] = zeilen.flatMap((z) => {
       const w = wahl.get(z.hiorg) ?? "auto";
-      return w === "auto" ? [] : [{ hiorg: z.hiorg, kurz: w === "keine" ? null : w }];
+      return w === "auto" ? [] : [{ hiorg: z.hiorg, kurz: w === "keine" ? null : w.slice(2) }];
     });
     try {
       const e = await qualiZuordnungSpeichernAction(regeln);
@@ -83,7 +85,7 @@ export function QualiZuordnung({ zeilen, onGespeichert }: { zeilen: HiorgQualiZe
                   value={wahl.get(z.hiorg) ?? "auto"}
                   options={[
                     { value: "auto", label: `Automatisch: ${z.eingebaut ?? "nicht zuordnen"}` },
-                    ...QUALIFIKATIONEN.map((q) => ({ value: q.kurz, label: `${q.kurz} – ${q.lang}` })),
+                    ...auswahl.map((q) => ({ value: `q:${q.kurz}` as const, label: `${q.kurz} – ${q.lang}` })),
                     { value: "keine", label: "Nicht zuordnen" },
                   ]}
                   onChange={(w) => setWahl((alt) => new Map(alt).set(z.hiorg, w))}

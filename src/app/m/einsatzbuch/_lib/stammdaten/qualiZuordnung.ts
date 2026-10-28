@@ -10,16 +10,18 @@
  * nur das Ergebnis, die Kürzel am Personal (`stammdatenpaket.ts` liest nur seine eigenen Schlüssel).
  * Ein Speichern zählt den Stammdatenstand hoch (Trigger `stand_einstellung_*`); der Rechner holt
  * dann einmal ein unverändertes Paket. Das ist billiger als eine eigene Tabelle samt Migration.
+ *
+ * `kurz` ist seit IDA-282 eine Kurzform aus der Tabelle `qualifikation`. Eine geänderte Kurzform
+ * zieht die Regeln mit, eine entfernte Qualifikation nimmt ihre Regeln mit (`zieheRegelnNach`).
  */
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { einstellung } from "../../_db/schema";
-import type { Db } from "./daten";
-import { QUALIS } from "./vorlage";
+import { QualiFehler, listeQualifikationen, type Db } from "./daten";
 
 export const QUALI_ZUORDNUNG_SCHLUESSEL = "qualiZuordnung";
 
-const quali = z.enum(QUALIS as [(typeof QUALIS)[number], ...(typeof QUALIS)[number][]]);
+const quali = z.string().trim().min(1).max(20);
 export const qualiRegelnSchema = z.array(z.object({
   hiorg: z.string().trim().min(1, "Name der HiOrg-Qualifikation fehlt").max(120, "Höchstens 120 Zeichen"),
   kurz: quali.nullable(),
@@ -45,6 +47,9 @@ export function leseQualiRegeln(db: Db): QualiRegel[] {
 /** Ersetzt alle Regeln. Je HiOrg-Qualifikation gilt die letzte; eine leere Liste löscht die Zeile. */
 export function schreibeQualiRegeln(db: Db, regeln: QualiRegel[]): void {
   const eindeutig = [...new Map(qualiRegelnSchema.parse(regeln).map((r) => [hiorgSchluessel({ name: r.hiorg, kurz: "" }), r])).values()];
+  const bekannt = new Set(listeQualifikationen(db).map((q) => q.kurz));
+  const fremd = eindeutig.find((r) => r.kurz !== null && !bekannt.has(r.kurz));
+  if (fremd) throw new QualiFehler(`Die Qualifikation „${fremd.kurz}“ gibt es nicht mehr. Bitte die Seite neu laden.`);
   const wert = JSON.stringify(eindeutig);
   db.transaction((tx) => {
     if (eindeutig.length === 0) {
@@ -54,4 +59,19 @@ export function schreibeQualiRegeln(db: Db, regeln: QualiRegel[]): void {
     tx.insert(einstellung).values({ schluessel: QUALI_ZUORDNUNG_SCHLUESSEL, wert })
       .onConflictDoUpdate({ target: einstellung.schluessel, set: { wert } }).run();
   });
+}
+
+/**
+ * Zieht die Regeln einer Kurzform nach: `neu` benennt sie um, `null` streicht ihre Regeln (die
+ * Qualifikation ist entfernt; „nicht zuordnen“-Regeln bleiben). Läuft in der Transaktion des Aufrufers.
+ */
+export function zieheRegelnNach(db: Db, alt: string, neu: string | null): void {
+  const regeln = leseQualiRegeln(db);
+  if (!regeln.some((r) => r.kurz === alt)) return;
+  const nachher = regeln.flatMap((r) => (r.kurz !== alt ? [r] : neu === null ? [] : [{ ...r, kurz: neu }]));
+  if (nachher.length === 0) {
+    db.delete(einstellung).where(eq(einstellung.schluessel, QUALI_ZUORDNUNG_SCHLUESSEL)).run();
+    return;
+  }
+  db.update(einstellung).set({ wert: JSON.stringify(nachher) }).where(eq(einstellung.schluessel, QUALI_ZUORDNUNG_SCHLUESSEL)).run();
 }

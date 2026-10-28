@@ -147,6 +147,8 @@
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#helferVorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs mit dem Helferverzeichnis: liest die Bereitstellung und den Bestand, schreibt nichts; die Übernahme läuft über helferUebernehmenAction." },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#qualiZuordnungSpeichernAction": { "kind": "context", "via": "qualiZuordnungSpeichernAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#personSpeichernAction": { "kind": "context", "via": "personSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#qualifikationSpeichernAction": { "kind": "context", "via": "qualifikationSpeichernAction" },
+  "src/app/m/einsatzbuch/_actions/stammdaten.ts#qualifikationEntfernenAction": { "kind": "context", "via": "qualifikationEntfernenAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stammfahrzeugeUebernehmenAction": { "kind": "context", "via": "stammfahrzeugeUebernehmenAction" },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stammfahrzeugeVorschauAction": { "kind": "excluded", "reason": "Probelauf des Abgleichs mit der Fahrzeugverwaltung: liest die Bereitstellung und den Bestand, schreibt nichts; die Übernahme läuft über stammfahrzeugeUebernehmenAction." },
   "src/app/m/einsatzbuch/_actions/stammdaten.ts#stichwortSpeichernAction": { "kind": "context", "via": "stichwortSpeichernAction" },

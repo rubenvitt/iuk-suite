@@ -7,9 +7,9 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { nanoid } from "nanoid";
 import * as schema from "../../_db/schema";
-import { fahrzeug, person, stichwort } from "../../_db/schema";
+import { fahrzeug, person, qualifikation, stichwort } from "../../_db/schema";
 import type { FahrzeugEingabe, PersonEingabe, StichwortEingabe } from "./schemas";
-import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "./typen";
+import type { FahrzeugDTO, PersonDTO, QualifikationDTO, Stammdatenart, StichwortDTO } from "./typen";
 
 export type Db = BetterSQLite3Database<typeof schema>;
 
@@ -18,14 +18,17 @@ export class NichtGefunden extends Error {
     super("Eintrag nicht gefunden");
   }
 }
+const SCHON_VERGEBEN = { kennung: "Diese Kennung gibt es schon.", name: "Dieses Stichwort gibt es schon.", kurz: "Diese Kurzform gibt es schon." } as const;
 export class SchonVergeben extends Error {
-  constructor(readonly feld: "kennung" | "name") {
-    super(feld === "kennung" ? "Diese Kennung gibt es schon." : "Dieses Stichwort gibt es schon.");
+  constructor(readonly feld: keyof typeof SCHON_VERGEBEN) {
+    super(SCHON_VERGEBEN[feld]);
   }
 }
+/** Ein fachlicher Einwand gegen eine Änderung an den Qualifikationen; die Meldung geht so an die Oberfläche. */
+export class QualiFehler extends Error {}
 
 /** Übersetzt den `UNIQUE constraint failed`-Fehler von better-sqlite3 in `SchonVergeben`. */
-function eindeutig<T>(feld: "kennung" | "name", schreiben: () => T): T {
+export function eindeutig<T>(feld: keyof typeof SCHON_VERGEBEN, schreiben: () => T): T {
   try {
     return schreiben();
   } catch (e) {
@@ -41,6 +44,10 @@ export function listeFahrzeuge(db: Db): FahrzeugDTO[] {
 const PERSON_SPALTEN = { id: person.id, name: person.name, quali: person.quali, aktiv: person.aktiv };
 export function listePersonal(db: Db): PersonDTO[] {
   return db.select(PERSON_SPALTEN).from(person).all().sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+/** Höchste zuerst; bei gleichem Rang nach Kurzform. */
+export function listeQualifikationen(db: Db): QualifikationDTO[] {
+  return db.select().from(qualifikation).orderBy(asc(qualifikation.rang), asc(qualifikation.kurz)).all();
 }
 export function listeStichworte(db: Db): StichwortDTO[] {
   return db.select().from(stichwort).orderBy(asc(stichwort.gruppe), asc(stichwort.reihenfolge), asc(stichwort.name)).all();
