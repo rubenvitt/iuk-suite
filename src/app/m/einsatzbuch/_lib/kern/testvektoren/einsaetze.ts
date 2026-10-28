@@ -4,7 +4,7 @@ import type { Einsatz } from "../format";
  * Drei Einsätze aus der Vorlage (`Einsatzbuch v2.dc.html`, `SEEDS`), als Schnappschuss
  * umgeschrieben. Mit Absicht dabei: Umlaute, „typografische" und gerade Anführungszeichen,
  * Zeilenumbruch, Tab, Steuerzeichen U+0001, U+2028, DEL, Emoji, leeres Objekt, offenes Ende,
- * Person ohne Fahrzeug — jede Stelle, an der eine JCS-Umsetzung in Rust anders maskieren könnte.
+ * Person ohne Fahrzeug, Angaben je Patient (nur im ersten) — jede Stelle, an der eine JCS-Umsetzung in Rust anders maskieren könnte.
  */
 export const TESTEINSAETZE: Einsatz[] = [
   {
@@ -17,6 +17,7 @@ export const TESTEINSAETZE: Einsatz[] = [
       { id: "p8", name: "Hansen, Ole", quali: "RS", ov: "Uelzen", fahrzeugId: "11-83-1" },
     ],
     vorOrt: 0, transport: 1, notizen: "",
+    patienten: [{ art: "transport", einsatznummer: "2608-0193", durch: "Rotkreuz Uelzen 11-83-1" }],
   },
   {
     v: 1, nummer: "2026-042", stichwort: "SanD",

@@ -165,6 +165,9 @@ impl Buch {
             vor_ort: entwurf.vor_ort,
             transport: entwurf.transport,
             notizen: entwurf.notizen.clone(),
+            // Lese-Schritt der Zwei-Release-Regel (Runbook `einsatzbuch-release.md`): Diese Version
+            // liest Angaben je Patient, schreibt sie aber noch nicht.
+            patienten: Vec::new(),
         };
 
         let suite_spki = krypto::aus_b64(&einrichtung.oeffentlich_spki)?;

@@ -19,6 +19,20 @@ export function einsatzTexte(e: Einsatz, zeitzone: string): Einsatztexte {
   };
 }
 
+export interface Patientenzeile { art: "Vor Ort" | "Transport"; durch: string; einsatznummer: string }
+
+/**
+ * Die Angaben je Patient als Text, leer ohne `patienten`. Geteilt mit `ansichten/Einsatzdetail.tsx`.
+ * Ein leeres Feld wird „—“; bei „Vor Ort“ gibt es niemanden, der transportiert hat.
+ */
+export function patientenZeilen(e: Einsatz): Patientenzeile[] {
+  return (e.patienten ?? []).map((p) => ({
+    art: p.art === "transport" ? "Transport" : "Vor Ort",
+    durch: p.art === "transport" ? p.durch || "—" : "",
+    einsatznummer: p.einsatznummer || "—",
+  }));
+}
+
 export interface Berichtsdaten {
   /** Spec §12: Das Berichtsblatt trägt dann „TESTDATEN" im Kopf. */
   test: boolean;
@@ -33,6 +47,7 @@ export interface Berichtsdaten {
   vorOrt: number;
   transport: number;
   gesamt: number;
+  patienten: Patientenzeile[];
   fahrzeuge: { typ: string; ruf: string; besatzung: string }[];
   personal: { name: string; quali: string; fahrzeug: string }[];
   notizen: string;
@@ -69,6 +84,7 @@ export function bericht(
     vorOrt: e.vorOrt,
     transport: e.transport,
     gesamt: e.vorOrt + e.transport,
+    patienten: patientenZeilen(e),
     fahrzeuge,
     personal,
     notizen: e.notizen,
