@@ -39,6 +39,14 @@ export const anzeige = sqliteTable("lagemonitor_anzeige", {
   /** Wohin der QR-Code führt, etwa die Mitmach-Seite des Ortsvereins. */
   mitmachenAdresse: text("mitmachen_adresse"),
   mitmachenText: text("mitmachen_text"),
+  /** API-Schlüssel von TomTom. Geht nur an den Lagemonitor, nie an den Browser (wie `suchlageToken`). */
+  tomtomSchluessel: text("tomtom_schluessel"),
+  /** Verkehrsfluss (Auslastung der Straßen) von TomTom; braucht den Schlüssel. */
+  verkehrFluss: integer("verkehr_fluss", { mode: "boolean" }).notNull().default(false),
+  /** Baustellen und Sperrungen von TomTom; braucht den Schlüssel. */
+  verkehrBaustellen: integer("verkehr_baustellen", { mode: "boolean" }).notNull().default(false),
+  /** Feste Blitzer aus OpenStreetMap; zeigt nur der Online-Monitor, nie der im FüKw. */
+  verkehrBlitzer: integer("verkehr_blitzer", { mode: "boolean" }).notNull().default(false),
   aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull(),
   aktualisiertVon: text("aktualisiert_von").notNull(),
 }, () => [

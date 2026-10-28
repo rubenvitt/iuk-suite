@@ -56,6 +56,33 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
             <path className={s.strasse} d="M0,118 L440,152" />
             <path className={s.strasse} d="M212,122 L385,38" />
             <path className={s.ort} d="M190,120 L240,115 L250,150 L225,170 L195,160Z" />
+            {v.karte.verkehr ? (
+              <g data-testid="vorschau-verkehr">
+                <path className={`${s.fluss} ${s.flussFrei}`} d="M222,0 L215,90" />
+                <path className={`${s.fluss} ${s.flussZaeh}`} d="M215,90 L212,122 L218,170" />
+                <path className={`${s.fluss} ${s.flussFrei}`} d="M224,215 L232,300" />
+                <path className={`${s.fluss} ${s.flussFrei}`} d="M0,118 L140,129" />
+                <path className={`${s.fluss} ${s.flussStau}`} d="M140,129 L212,135" />
+                <path className={`${s.fluss} ${s.flussZaeh}`} d="M212,135 L290,141" />
+                <path className={`${s.fluss} ${s.flussFrei}`} d="M290,141 L440,152" />
+                <path className={`${s.fluss} ${s.flussFrei}`} d="M212,122 L385,38" />
+              </g>
+            ) : null}
+            {v.karte.baustellen ? (
+              <g data-testid="vorschau-baustellen">
+                <path className={s.baustelleGrund} d="M218,170 L224,215" />
+                <path className={s.baustelleStreifen} d="M218,170 L224,215" />
+                <circle className={s.sperrung} cx="330" cy="65" r="4" />
+              </g>
+            ) : null}
+            {v.karte.blitzer ? (
+              <g data-testid="vorschau-blitzer">
+                <circle className={s.blitzer} cx="95" cy="125" r="5" />
+                <text className={s.blitzerTempo} x="95" y="140">50</text>
+                <circle className={s.blitzer} cx="300" cy="81" r="5" />
+                <text className={s.blitzerTempo} x="300" y="96">70</text>
+              </g>
+            ) : null}
             {v.karte.radar ? (
               szenario === "unwetter" ? (
                 <g>
@@ -152,6 +179,7 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
         <span>Beispieldaten</span>
         <span>Warnungen: NINA</span>
         <span>Wetter: DWD</span>
+        {v.karte.verkehr || v.karte.baustellen ? <span>Verkehr: TomTom</span> : null}
         <span>Einstellungen aus der IUK-Suite</span>
       </div>
     </div>

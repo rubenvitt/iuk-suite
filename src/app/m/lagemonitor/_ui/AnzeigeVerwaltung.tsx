@@ -8,7 +8,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Warnschwelle } from "../_lib/konfiguration";
+import { MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
@@ -33,6 +33,9 @@ interface Zustand {
   mitmachen: Mitmachen;
   suchlageLink: string;
   suchlageTrennen: boolean;
+  verkehr: Verkehr;
+  tomtomSchluessel: string;
+  tomtomEntfernen: boolean;
 }
 
 function zustandAus(k: KonfigurationDTO): Zustand {
@@ -48,6 +51,9 @@ function zustandAus(k: KonfigurationDTO): Zustand {
     mitmachen: { ...k.mitmachen },
     suchlageLink: "",
     suchlageTrennen: false,
+    verkehr: { ...k.verkehr },
+    tomtomSchluessel: "",
+    tomtomEntfernen: false,
   };
 }
 
@@ -56,6 +62,16 @@ const MODUL_TEXT: { feld: keyof Omit<Module, "suchlage">; titel: string; text: s
   { feld: "radar", titel: "Regenradar", text: "Der Niederschlag der letzten Minuten als Ebene auf der Karte." },
   { feld: "warngebiete", titel: "Warngebiete auf der Karte", text: "Die Gebiete der aktuellen Warnungen als Umriss." },
   { feld: "warnliste", titel: "Warnungen unter der Schwelle", text: "Leichtere Warnungen als Liste in der rechten Spalte. Ohne sie siehst du nur, was ins Band kommt." },
+];
+
+const VERKEHR_TEXT: { feld: keyof Verkehr; titel: string; text: string }[] = [
+  { feld: "fluss", titel: "Verkehrsfluss", text: "Wie stark die Straßen ausgelastet sind, grün bis rot auf der Karte. Von TomTom, alle 30 Minuten neu." },
+  { feld: "baustellen", titel: "Baustellen und Sperrungen", text: "Baustellen, gesperrte Straßen und Fahrstreifen als gestreifte Linie. Von TomTom, stündlich neu." },
+  {
+    feld: "blitzer",
+    titel: "Feste Blitzer",
+    text: "Fest installierte Blitzer aus OpenStreetMap, einmal am Tag neu. Nur am Online-Monitor, der Bildschirm im FüKw zeigt sie nie. Mobile Blitzer gibt es aus keiner offenen Quelle.",
+  },
 ];
 
 const TEIL_TEXT: { feld: keyof SuchlageTeile; titel: string; text: string }[] = [
@@ -86,6 +102,7 @@ export function AnzeigeVerwaltung({
   const [z, setZ] = useState<Zustand>(() => zustandAus(konfiguration));
   const [szenario, setSzenario] = useState<Szenario>("ruhe");
   const [linkErsetzen, setLinkErsetzen] = useState(false);
+  const [schluesselErsetzen, setSchluesselErsetzen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
@@ -120,7 +137,8 @@ export function AnzeigeVerwaltung({
     const ziel = entwurf.uhrzeit && jetzt !== null ? naechsteUhrzeit(entwurf.uhrzeit, new Date(jetzt)).getTime() : null;
     return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true }];
   }, [meldungen, entwurf, jetzt]);
-  const bild = useMemo(() => vorschau(z, szenario, bandMeldungen), [z, szenario, bandMeldungen]);
+  const tomtom = z.tomtomSchluessel.trim() !== "" || (gespeichert.tomtomHinterlegt && !z.tomtomEntfernen);
+  const bild = useMemo(() => vorschau({ ...z, tomtom }, szenario, bandMeldungen), [z, tomtom, szenario, bandMeldungen]);
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -131,6 +149,7 @@ export function AnzeigeVerwaltung({
       .then((ergebnis) => {
         if (ergebnis.ok) {
           setLinkErsetzen(false);
+          setSchluesselErsetzen(false);
           setErfolg(true);
           return;
         }
@@ -142,6 +161,8 @@ export function AnzeigeVerwaltung({
   }
 
   const linkFeld = !gespeichert.suchlageVerbunden || linkErsetzen;
+  const schluesselFeld = !gespeichert.tomtomHinterlegt || schluesselErsetzen;
+  const tomtomNoetig = z.verkehr.fluss || z.verkehr.baustellen;
   const zahl = (feld: "standortBreite" | "standortLaenge", label: string) => (
     <Feld id={`${basis}-${feld}`} label={label} fehler={feldFehler[feld]}>
       <InputNumber
@@ -284,6 +305,60 @@ export function AnzeigeVerwaltung({
                     ))}
                   </>
                 ) : null}
+              </div>
+            </Card>
+
+            <Card title="Verkehrslage">
+              <div style={{ display: "grid", gap: SPACE.md }}>
+                {VERKEHR_TEXT.map((t) => (
+                  <Schalter
+                    key={t.feld}
+                    id={`${basis}-verkehr-${t.feld}`}
+                    titel={t.titel}
+                    text={t.text}
+                    an={z.verkehr[t.feld]}
+                    onChange={(an) => setze("verkehr", { ...z.verkehr, [t.feld]: an })}
+                  />
+                ))}
+                {schluesselFeld ? (
+                  <Feld
+                    id={`${basis}-tomtomSchluessel`}
+                    label="API-Schlüssel von TomTom"
+                    fehler={feldFehler.tomtomSchluessel}
+                    hilfe="Auf developer.tomtom.com unter Keys. Nur der Monitor bekommt ihn; hier wird er nach dem Speichern nicht mehr angezeigt."
+                  >
+                    <Input.Password
+                      id={`${basis}-tomtomSchluessel`}
+                      value={z.tomtomSchluessel}
+                      autoComplete="off"
+                      visibilityToggle={false}
+                      status={feldFehler.tomtomSchluessel ? "error" : undefined}
+                      aria-describedby={feldFehler.tomtomSchluessel ? `${basis}-tomtomSchluessel-fehler` : `${basis}-tomtomSchluessel-hilfe`}
+                      onChange={(e) => setze("tomtomSchluessel", e.target.value)}
+                    />
+                  </Feld>
+                ) : z.tomtomEntfernen ? (
+                  <Alert
+                    type="warning"
+                    showIcon={false}
+                    title="Beim Speichern wird der TomTom-Schlüssel entfernt."
+                    action={<Button onClick={() => setze("tomtomEntfernen", false)}>Doch nicht</Button>}
+                  />
+                ) : (
+                  <div style={{ display: "grid", gap: SPACE.sm }}>
+                    <span>Ein TomTom-Schlüssel ist hinterlegt.</span>
+                    <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
+                      <Button onClick={() => setSchluesselErsetzen(true)}>Anderen Schlüssel eintragen</Button>
+                      <Button onClick={() => setze("tomtomEntfernen", true)}>Schlüssel entfernen</Button>
+                    </div>
+                  </div>
+                )}
+                {tomtomNoetig && !tomtom ? (
+                  <Alert type="warning" showIcon={false} title="Ohne TomTom-Schlüssel zeigt der Monitor weder Verkehrsfluss noch Baustellen." />
+                ) : null}
+                <span style={SCHRIFT.neben} className={v.gedaempft}>
+                  Das Gratiskontingent von TomTom teilen sich der Monitor im FüKw und der Online-Monitor. Deshalb holt jeder Monitor die Daten selten und behält sie lange.
+                </span>
               </div>
             </Card>
 

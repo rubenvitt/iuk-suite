@@ -34,6 +34,10 @@
   --lmv-feld-2: #36452a;
   --lmv-feld-3: #3f3a26;
   --lmv-weg: #8a8270;
+  /* Verkehrsfluss wie TomTom `relative0-dark`: frei, zäh, Stau. */
+  --lmv-fluss-frei: #3ec46d;
+  --lmv-fluss-zaeh: #f5a623;
+  --lmv-fluss-stau: #e0452b;
 
   container-type: inline-size;
   aspect-ratio: 16 / 9;
@@ -262,6 +266,16 @@
 .spur1 { stroke: var(--lmv-spur-1); }
 .spur2 { stroke: var(--lmv-spur-2); }
 .drohne { fill: var(--lmv-text); stroke: var(--lmv-grund); stroke-width: 1.5; }
+/* Verkehr wie im Monitor (`MapPanel.tsx`): Fluss in TomTom-Farben, Baustelle gestreift, Blitzer als Ring. */
+.fluss { fill: none; stroke-width: 3; stroke-linecap: round; opacity: 0.85; }
+.flussFrei { stroke: var(--lmv-fluss-frei); }
+.flussZaeh { stroke: var(--lmv-fluss-zaeh); }
+.flussStau { stroke: var(--lmv-fluss-stau); }
+.baustelleGrund { fill: none; stroke: var(--lmv-grund); stroke-width: 6; }
+.baustelleStreifen { fill: none; stroke: var(--lmv-text); stroke-width: 3; stroke-dasharray: 3 3; }
+.sperrung { fill: var(--lmv-text); stroke: var(--lmv-grund); stroke-width: 2.5; }
+.blitzer { fill: var(--lmv-grund); stroke: var(--lmv-text); stroke-width: 2; }
+.blitzerTempo { fill: var(--lmv-text); font-size: 7px; font-family: var(--font-body); text-anchor: middle; }
 
 /* Das Drohnenbild fährt von rechts über die Seitenspalte ein (Monitor: `.lm-drohne`, 46 % der Breite). */
 .drohnenbild {

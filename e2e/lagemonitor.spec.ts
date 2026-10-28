@@ -112,6 +112,40 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   expect((await abholen()).some((x) => x.text === text)).toBe(false);
 });
 
+test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrsebenen", async ({ page }) => {
+  const SCHLUESSEL = `E2e${Date.now()}`.padEnd(32, "x");
+  await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
+  await page.goto(url("/"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  // Ein Schlüssel aus einem früheren Lauf: ersetzen statt neu eintragen.
+  const ersetzen = page.getByRole("button", { name: "Anderen Schlüssel eintragen" });
+  if (await ersetzen.isVisible()) await klickeWennRuhig(ersetzen);
+
+  const fluss = page.getByRole("switch", { name: "Verkehrsfluss" });
+  if ((await fluss.getAttribute("aria-checked")) === "false") await klickeWennRuhig(fluss);
+  const feld = page.getByLabel("API-Schlüssel von TomTom");
+  await feld.fill("");
+  await expect(page.getByText("Ohne TomTom-Schlüssel zeigt der Monitor weder Verkehrsfluss noch Baustellen.")).toBeVisible();
+  await expect(page.getByTestId("vorschau-verkehr")).toHaveCount(0);
+  await feld.fill(SCHLUESSEL);
+  await expect(page.getByTestId("vorschau-verkehr")).toBeVisible();
+  await expect(page.getByTestId("vorschau-erklaerung")).toContainText("Verkehrsfluss");
+
+  await klickeWennRuhig(page.getByRole("button", { name: "Speichern" }));
+  await expect(page.getByText("Gespeichert. Der Monitor zeigt es spätestens in einer Minute.")).toBeVisible();
+  await expect(page.getByText("Ein TomTom-Schlüssel ist hinterlegt.")).toBeVisible();
+  await page.reload();
+  await warteAufGestreamteInhalte(page);
+  expect(await page.content()).not.toContain(SCHLUESSEL);
+
+  await page.getByLabel("Neuer Zugang").fill("Verkehr e2e");
+  await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
+  const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec((await page.getByTestId("neuer-schluessel").textContent()) ?? "")?.[1];
+  const vertrag = await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json();
+  expect(vertrag.traffic).toMatchObject({ tomtomKey: SCHLUESSEL, flow: true });
+});
+
 test("ohne Admin-Gruppe gibt es die Seite nicht", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "fahrzeuge-admin", callbackPath: "/" });
   const antwort = await page.goto(url("/"));
