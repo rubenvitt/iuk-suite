@@ -7,7 +7,7 @@ import type { Block } from "@kern/format";
 import { beispielEinsatz, GENESIS, kopf as blockkopf } from "@kern/testhilfe";
 import { erzeugeSchluesselpaar, schluesselIdVon } from "@kern/umschlag";
 
-import { clickElement, fill, mount, queryAll, unmount } from "../../../src/app/m/qr/_lib/test-dom";
+import { clickElement, fill, fillElement, mount, queryAll, unmount } from "../../../src/app/m/qr/_lib/test-dom";
 import type { Ausstehend, Entwurf, Schluesselposten, Stammdatenpaket, Status, Versiegelung } from "./typen";
 import { BLOECKE, CEKS } from "./verwaltung/testvektoren";
 
@@ -878,6 +878,27 @@ describe("Formular", () => {
     expect(feld("PLZ, Ort")?.maxLength).toBe(200);
     expect(feld("Objekt, Lage vor Ort")?.maxLength).toBe(500);
     expect(queryAll<HTMLTextAreaElement>("textarea")[0]?.maxLength).toBe(20_000);
+  });
+
+  it("nimmt das Alarmstichwort als Freitext: Antippen füllt das Feld vor, Tippen ergänzt oder ersetzt", async () => {
+    await starte(status({ entwurf: entwurf({ stichwort: "" }) }));
+    await clickElement(knopf("Einsatz öffnen")!);
+    const stichwortFeld = () =>
+      queryAll<HTMLLabelElement>("label").find((l) => l.querySelector(".feld-label")?.textContent === "Stichwort, Freitext")?.querySelector("input");
+    const rd1 = () => knopf("RD 1")!;
+    expect(stichwortFeld()?.maxLength).toBe(80);
+
+    await clickElement(rd1());
+    expect(stichwortFeld()?.value).toBe("RD 1");
+    expect(rd1().getAttribute("aria-pressed")).toBe("true");
+
+    await fillElement(stichwortFeld()!, "RD 1 – Sturz im Treppenhaus");
+    expect(rd1().getAttribute("aria-pressed")).toBe("false");
+    expect(text()).toContain("Bereit · RD 1 – Sturz im Treppenhaus");
+    expect(knopf("Einsatz absenden")?.disabled).toBe(false);
+
+    await fillElement(stichwortFeld()!, "Sanitätsdienst Stadtfest");
+    expect(text()).toContain("Bereit · Sanitätsdienst Stadtfest");
   });
 
   it("sperrt das Absenden bei einem Ende nur mit Datum", async () => {

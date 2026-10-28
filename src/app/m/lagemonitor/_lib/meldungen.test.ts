@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { meldung } from "../_db/schema";
 import { alsVertrag } from "./konfiguration";
 import { aktiveMeldungen, beendeMeldung, legeMeldungAn, MELDUNGEN_MAX_AKTIV, meldungEingabe, naechsteUhrzeit } from "./meldungen";
@@ -33,6 +33,9 @@ describe("Meldungen am Lagemonitor", () => {
   });
 
   it("Beenden nimmt die Meldung sofort vom Monitor, die Zeile bleibt", () => {
+    // `alsVertrag` fragt die Uhr selbst; ohne gestellte Uhr wäre die Meldung ab JETZT + 24 h abgelaufen.
+    vi.useFakeTimers({ toFake: ["Date"], now: JETZT });
+    onTestFinished(() => { vi.useRealTimers(); });
     const db = testDb();
     const r = legeMeldungAn(db, eingabe({ uhrzeit: "14:30" }), "Ruben", JETZT);
     if (!r.ok) throw new Error(r.fehler);
