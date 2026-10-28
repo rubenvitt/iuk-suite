@@ -7,6 +7,8 @@ import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { konfigurationEingabe, speichereKonfiguration, type KonfigurationDTO } from "../_lib/konfiguration";
 import { beendeMeldung, legeMeldungAn, meldungEingabe, type MeldungDTO } from "../_lib/meldungen";
+import { legeLinkAn, linkAdresse, widerrufeLink } from "../_lib/links";
+import { onlineAdresse } from "../_lib/online";
 import { legeZugangAn, widerrufeZugang } from "../_lib/schluessel";
 import { anzeigeName, requireLagemonitorAktion } from "../_lib/zugang";
 
@@ -45,6 +47,32 @@ export async function zugangWiderrufenAction(id: unknown): Promise<ActionErgebni
   if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannter Zugang." };
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     if (!widerrufeZugang(getDb(), id)) return { ok: false, fehler: "Diesen Zugang gibt es nicht mehr." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+const linkBezeichnungSchema = z.string().trim().min(1, "Bitte eine Bezeichnung angeben, etwa „Rechner Wache“.").max(60, "Höchstens 60 Zeichen.");
+
+/** Legt einen Link für den Online-Monitor an. Der Link steht nur in dieser Antwort. */
+export async function linkAnlegenAction(bezeichnung: unknown): Promise<ActionErgebnis<{ adresse: string }>> {
+  const viewer = await requireLagemonitorAktion();
+  const basis = onlineAdresse();
+  if (!basis) return { ok: false, fehler: "Für den Online-Monitor ist keine Adresse eingetragen." };
+  const b = linkBezeichnungSchema.safeParse(bezeichnung);
+  if (!b.success) return { ok: false, fehler: b.error.issues[0].message, feldFehler: { bezeichnung: b.error.issues[0].message } };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const { schluessel } = legeLinkAn(getDb(), b.data, anzeigeName(viewer));
+    neuLaden();
+    return { ok: true, wert: { adresse: linkAdresse(basis, schluessel) } };
+  });
+}
+
+export async function linkWiderrufenAction(id: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannter Link." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!widerrufeLink(getDb(), id)) return { ok: false, fehler: "Diesen Link gibt es nicht mehr." };
     neuLaden();
     return { ok: true };
   });

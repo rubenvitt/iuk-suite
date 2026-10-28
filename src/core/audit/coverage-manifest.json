@@ -158,6 +158,8 @@
   "src/app/m/lagemonitor/_actions/verwaltung.ts#meldungBeendenAction": { "kind": "context", "via": "meldungBeendenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#zugangAnlegenAction": { "kind": "context", "via": "zugangAnlegenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#zugangWiderrufenAction": { "kind": "context", "via": "zugangWiderrufenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#linkAnlegenAction": { "kind": "context", "via": "linkAnlegenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#linkWiderrufenAction": { "kind": "context", "via": "linkWiderrufenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#alleLoeschenAction": { "kind": "context", "via": "alleLoeschenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#freigabeAction": { "kind": "context", "via": "freigabeAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#neueFreigebenAction": { "kind": "context", "via": "neueFreigebenAction" },
