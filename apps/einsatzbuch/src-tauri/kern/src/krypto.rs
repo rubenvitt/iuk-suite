@@ -288,6 +288,7 @@ mod tests {
             vor_ort: 0,
             transport: 0,
             notizen: String::new(),
+            leitstellen_nummer: None,
             patienten: Vec::new(),
         }
     }

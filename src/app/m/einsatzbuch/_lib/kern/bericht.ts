@@ -37,6 +37,8 @@ export interface Berichtsdaten {
   /** Spec §12: Das Berichtsblatt trägt dann „TESTDATEN" im Kopf. */
   test: boolean;
   nummer: string;
+  /** Einsatznummer der Leitstelle (IDA-284); `null`, wenn der Einsatz keine trägt. */
+  leitstellenNummer: string | null;
   block: number;
   stichwort: string;
   ort: string;
@@ -78,6 +80,7 @@ export function bericht(
   return {
     test: block.kopf.umgebung === "test",
     nummer: e.nummer,
+    leitstellenNummer: e.leitstellenNummer || null,
     block: block.kopf.block,
     stichwort: e.stichwort,
     ...einsatzTexte(e, extra.zeitzone),

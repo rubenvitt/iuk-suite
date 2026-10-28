@@ -165,6 +165,8 @@ impl Buch {
             vor_ort: entwurf.vor_ort,
             transport: entwurf.transport,
             notizen: entwurf.notizen.clone(),
+            // Erst lesen, dann schreiben (IDA-284): Dieser Stand versiegelt noch im ersten Format.
+            leitstellen_nummer: None,
             // Lese-Schritt der Zwei-Release-Regel (Runbook `einsatzbuch-release.md`): Diese Version
             // liest Angaben je Patient, schreibt sie aber noch nicht.
             patienten: Vec::new(),

@@ -81,5 +81,12 @@ describe("Berichtsblatt", () => {
     expect(text).toContain("DRK-Bereitschaft Uelzen");
     expect(queryAll("table").length).toBe(0);
     expect(text).not.toContain("Notizen");
+    expect(text).not.toContain("Einsatznummer Leitstelle");
+  });
+
+  it("zeigt die Leitstellen-Nummer im Raster, wenn der Einsatz eine trägt", async () => {
+    await mount(<Berichtsblatt daten={bericht(bloecke[1], TESTEINSAETZE[1], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
+    expect(blatt()).toContain("Einsatznummer Leitstelle");
+    expect(query("[data-leitstelle]").textContent).toBe("RD 2026-08-1234");
   });
 });

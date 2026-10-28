@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { meldung } from "../_db/schema";
 import { alsVertrag } from "./konfiguration";
 import { aktiveMeldungen, beendeMeldung, legeMeldungAn, MELDUNGEN_MAX_AKTIV, meldungEingabe, naechsteUhrzeit } from "./meldungen";
@@ -8,8 +8,6 @@ const JETZT = new Date("2026-10-27T12:00:00Z"); // 13:00 in Berlin
 const eingabe = (e: Record<string, unknown>) => meldungEingabe.parse({ text: "Nächste Lagebesprechung", ...e });
 
 describe("Meldungen am Lagemonitor", () => {
-  afterEach(() => vi.useRealTimers());
-
   it("läuft ohne Angabe nach 24 Stunden ab und hat keinen Countdown", () => {
     const db = testDb();
     const r = legeMeldungAn(db, eingabe({}), "Ruben", JETZT);
@@ -35,9 +33,9 @@ describe("Meldungen am Lagemonitor", () => {
   });
 
   it("Beenden nimmt die Meldung sofort vom Monitor, die Zeile bleibt", () => {
-    // `alsVertrag` filtert nach der echten Uhr; ohne sie festzuhalten, war die Meldung ab dem
-    // 28.10.2026, 12:00 UTC schon abgelaufen.
-    vi.useFakeTimers({ now: JETZT, toFake: ["Date"] });
+    // `alsVertrag` fragt die Uhr selbst; ohne gestellte Uhr wäre die Meldung ab JETZT + 24 h abgelaufen.
+    vi.useFakeTimers({ toFake: ["Date"], now: JETZT });
+    onTestFinished(() => { vi.useRealTimers(); });
     const db = testDb();
     const r = legeMeldungAn(db, eingabe({ uhrzeit: "14:30" }), "Ruben", JETZT);
     if (!r.ok) throw new Error(r.fehler);

@@ -30,6 +30,10 @@ describe("bericht", () => {
   it("ein Ende vor dem Beginn ergibt keine negative Dauer im Blatt", () => {
     expect(bericht(block, { ...beispielEinsatz(), endeZeit: "18:00" }, extra).dauer).toBe("—");
   });
+  it("übernimmt die Leitstellen-Nummer, ohne sie steht `null` da", () => {
+    expect(bericht(block, beispielEinsatz(), extra).leitstellenNummer).toBeNull();
+    expect(bericht(block, { ...beispielEinsatz(), leitstellenNummer: "RD 2026-1234" }, extra).leitstellenNummer).toBe("RD 2026-1234");
+  });
   it("markiert Testblöcke", () => {
     expect(bericht(block, beispielEinsatz(), extra).test).toBe(false);
     expect(bericht({ ...block, kopf: { ...block.kopf, umgebung: "test" } }, beispielEinsatz(), extra).test).toBe(true);

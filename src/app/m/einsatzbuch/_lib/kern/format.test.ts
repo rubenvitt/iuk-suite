@@ -20,6 +20,10 @@ describe("istEinsatz", () => {
   it("endeZeit darf nicht undefined sein", () => {
     expect(istEinsatz({ ...beispielEinsatz(), endeZeit: undefined })).toBe(false);
   });
+  it("leitstellenNummer darf fehlen oder Text sein, nichts anderes (IDA-284)", () => {
+    expect(istEinsatz({ ...beispielEinsatz(), leitstellenNummer: "RD 2026-1234" })).toBe(true);
+    for (const falsch of [null, undefined, 5]) expect(istEinsatz({ ...beispielEinsatz(), leitstellenNummer: falsch })).toBe(false);
+  });
   it("Angaben je Patient sind optional, aber nie leer", () => {
     const patienten = [{ art: "transport" as const, einsatznummer: "2608-0193", durch: "RTW 11-83-1" }];
     expect(istEinsatz({ ...beispielEinsatz(), patienten })).toBe(true);

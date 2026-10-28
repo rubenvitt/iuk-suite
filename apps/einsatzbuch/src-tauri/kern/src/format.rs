@@ -64,6 +64,12 @@ pub struct Einsatz {
     pub vor_ort: u32,
     pub transport: u32,
     pub notizen: String,
+    /// Einsatznummer der Leitstelle, Freitext (IDA-284), Gegenstück zu `leitstellenNummer?` im
+    /// TS-Kern. `None` fehlt im Klartext ganz: Ein Einsatz ohne sie bleibt byte-gleich zum
+    /// ersten Format, und der Rundlauf in `oeffne_block` bleibt gültig. Gelesen ab diesem Stand,
+    /// geschrieben erst ein Release später (Zwei-Schritt-Regel, Runbook `einsatzbuch-release.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leitstellen_nummer: Option<String>,
     /// Optional und nie leer geschrieben: Ohne Angaben je Patient fehlt der Schlüssel, und der
     /// Einsatz ist byte-gleich zu dem, was Versionen vor dem Feld versiegelt haben. Ein
     /// geschriebenes `[]` scheitert am Rundlauf in `krypto::oeffne_block` wie an `istEinsatz`.

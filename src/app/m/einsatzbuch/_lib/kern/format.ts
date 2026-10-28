@@ -34,6 +34,13 @@ export interface Einsatz {
   transport: number;
   notizen: string;
   /**
+   * Einsatznummer der Leitstelle, Freitext (IDA-284). Optional und nur geschrieben, wenn sie
+   * Inhalt hat: Ein Einsatz ohne sie bleibt byte-gleich zum ersten Format, ältere Leser öffnen
+   * ihn weiter. Gelesen wird sie ab diesem Stand, geschrieben erst ein Release später
+   * (Zwei-Schritt-Regel, Runbook `einsatzbuch-release.md`).
+   */
+  leitstellenNummer?: string;
+  /**
    * Optional und nie leer: Fehlt der Schlüssel, gibt es keine Angaben je Patient. So bleibt ein
    * Einsatz ohne diese Angaben byte-gleich zu dem, was Versionen vor dem Feld versiegelt haben.
    * Ist er da, steht je gezähltem Patient genau eine Zeile darin (Reader: `einsatzSchema`).
@@ -94,8 +101,8 @@ const EINSATZ_SCHLUESSEL = [
   "v", "nummer", "stichwort", "beginnDatum", "beginnZeit", "endeDatum", "endeZeit",
   "strasse", "ort", "objekt", "fahrzeuge", "personal", "vorOrt", "transport", "notizen",
 ] as const;
-/** Schlüssel, die ein Einsatz tragen darf, aber nicht muss. Ein vorhandener ist nie leer. */
-const EINSATZ_OPTIONAL = ["patienten"] as const;
+/** Schlüssel, die ein Einsatz tragen darf, aber nicht muss — fehlen sie, ist der Einsatz im ersten Format. Ein vorhandener ist nie leer. */
+const EINSATZ_SCHLUESSEL_OPTIONAL = ["leitstellenNummer", "patienten"] as const;
 const FAHRZEUG_SCHLUESSEL = ["id", "typ", "kennung", "ruf", "standort"] as const;
 const PERSON_SCHLUESSEL = ["id", "name", "quali", "ov", "fahrzeugId"] as const;
 const PATIENT_SCHLUESSEL = ["art", "einsatznummer", "durch"] as const;
@@ -137,12 +144,13 @@ function istPatientStand(x: unknown): x is PatientStand {
  */
 export function istEinsatz(x: unknown): x is Einsatz {
   if (!istObjekt(x)) return false;
-  const pflicht = Object.keys(x).filter((k) => !(EINSATZ_OPTIONAL as readonly string[]).includes(k));
-  if (!hatGenauSchluessel(Object.fromEntries(pflicht.map((k) => [k, x[k]])), EINSATZ_SCHLUESSEL)) return false;
+  const optional = EINSATZ_SCHLUESSEL_OPTIONAL.filter((k) => Object.hasOwn(x, k));
+  if (!hatGenauSchluessel(x, [...EINSATZ_SCHLUESSEL, ...optional])) return false;
   if (x.v !== 1) return false;
+  if (Object.hasOwn(x, "leitstellenNummer") && typeof x.leitstellenNummer !== "string") return false;
   // Ein leeres `patienten` schreibt der Kern nie (Rust: `skip_serializing_if`), und der
   // Rundlauf in `oeffne_block` lehnt es ab — hier genauso.
-  if ("patienten" in x && (!Array.isArray(x.patienten) || x.patienten.length === 0 || !x.patienten.every(istPatientStand))) return false;
+  if (Object.hasOwn(x, "patienten") && (!Array.isArray(x.patienten) || x.patienten.length === 0 || !x.patienten.every(istPatientStand))) return false;
   for (const feld of ["nummer", "stichwort", "beginnDatum", "beginnZeit", "strasse", "ort", "objekt", "notizen"] as const) {
     if (typeof x[feld] !== "string") return false;
   }
