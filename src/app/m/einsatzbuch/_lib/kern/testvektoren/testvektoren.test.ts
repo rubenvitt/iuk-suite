@@ -29,7 +29,7 @@ describe("Testvektoren (Format-Vertrag mit der Desktop-App)", () => {
    */
   it("die Eingaben sind die festgeschriebenen (Rust vergleicht gegen genau diese Datei)", async () => {
     const roh = readFileSync(path.join(__dirname, "eingaben.json"), "utf8");
-    expect(await sha256Hex(utf8(roh))).toBe("49908f9525dc2c872749fccb9ea5264727d3aa327b6f0f8111ec17e59ab05033");
+    expect(await sha256Hex(utf8(roh))).toBe("92cb7941e70f5d03a4412febcecea82831c9b4aaa84b954fd85a6b34b0b164cd");
   });
   it("die Einsätze der Eingabe sind die aus einsaetze.ts", () => {
     expect(eingaben.einsaetze).toEqual(TESTEINSAETZE);

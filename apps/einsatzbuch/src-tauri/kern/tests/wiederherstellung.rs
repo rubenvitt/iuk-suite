@@ -294,6 +294,30 @@ fn oeffne_block_lehnt_ein_anderes_format_ab() {
     assert!(matches!(krypto::oeffne_block(&block, &cek), Err(KryptoFehler::KeinEinsatz)));
 }
 
+/// IDA-284: `leitstellenNummer` darf fehlen (erstes Format) oder als Text dastehen. `null` füllte
+/// serde still mit `None` und fiele im Rundlauf auf, eine Zahl ist schon kein Einsatz.
+#[test]
+fn oeffne_block_liest_die_optionale_leitstellen_nummer() {
+    let mut wert = vektor_klartext();
+    wert["leitstellenNummer"] = "RD 2026-1234".into();
+    let (block, cek) = block_mit_klartext(&einsatzbuch_kern::jcs::kanonisch(&wert).unwrap());
+    assert_eq!(krypto::oeffne_block(&block, &cek).unwrap().leitstellen_nummer.as_deref(), Some("RD 2026-1234"));
+    for falsch in [serde_json::Value::Null, 5.into()] {
+        let mut wert = vektor_klartext();
+        wert["leitstellenNummer"] = falsch;
+        let (block, cek) = block_mit_klartext(&einsatzbuch_kern::jcs::kanonisch(&wert).unwrap());
+        assert!(matches!(krypto::oeffne_block(&block, &cek), Err(KryptoFehler::KeinEinsatz)));
+    }
+}
+
+/// Ohne Leitstellen-Nummer bleibt der Klartext byte-gleich zum ersten Format: Ältere Leser öffnen ihn.
+#[test]
+fn ohne_leitstellen_nummer_fehlt_der_schluessel_im_klartext() {
+    let einsatz: Einsatz = serde_json::from_value(vektor_klartext()).unwrap();
+    assert_eq!(einsatz.leitstellen_nummer, None);
+    assert!(!einsatz.kanonisch().unwrap().contains("leitstellenNummer"));
+}
+
 // ---------------------------------------------------------------------------------------------
 // `nummern`
 // ---------------------------------------------------------------------------------------------
