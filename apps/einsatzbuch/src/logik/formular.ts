@@ -42,10 +42,10 @@ export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
 /**
  * Höchstlängen der Textfelder, wie sie der Reader der Suite durchsetzt und Rust beim Absenden
  * prüft (`grenzen.rs` im Kern). Das DOM-Attribut `maxLength` zählt wie der Reader in
- * UTF-16-Codeeinheiten. Das Alarmstichwort hat kein Eingabefeld: Es kommt aus den Stammdaten,
- * deren Stichworte Rust schon beim Übernehmen auf 80 begrenzt.
+ * UTF-16-Codeeinheiten. Das Alarmstichwort ist Freitext: Die Stammdaten-Stichworte füllen das Feld
+ * nur vor (Rust prüft nicht gegen die Liste, `erfassung.rs`, `pruefe_entwurf`).
  */
-export const HOECHSTLAENGE = { strasse: 200, ort: 200, objekt: 500, notizen: 20_000 } as const;
+export const HOECHSTLAENGE = { stichwort: 80, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 } as const;
 
 /** Hinweis, wenn das Ende nur halb angegeben ist; Rust lehnt ein solches Absenden ab. */
 export const ENDE_UNVOLLSTAENDIG = "Ende nur mit Datum und Uhrzeit angeben.";

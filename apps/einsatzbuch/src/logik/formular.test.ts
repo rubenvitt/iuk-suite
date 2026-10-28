@@ -230,6 +230,6 @@ describe("Grenzen des Readers", () => {
   });
 
   it("Höchstlängen wie im Reader", () => {
-    expect(HOECHSTLAENGE).toEqual({ strasse: 200, ort: 200, objekt: 500, notizen: 20_000 });
+    expect(HOECHSTLAENGE).toEqual({ stichwort: 80, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 });
   });
 });
