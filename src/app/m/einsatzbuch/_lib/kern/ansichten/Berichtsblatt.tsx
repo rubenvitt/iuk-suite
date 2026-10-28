@@ -49,6 +49,26 @@ export function Berichtsblatt({ daten: d, bereitschaft, unveraendert }: { daten:
         <div><dt className={b.kicker}>Patienten gesamt</dt><dd>{d.gesamt}</dd></div>
       </dl>
 
+      {d.patienten.length > 0 && (
+        <section className={b.abschnitt}>
+          <h2 className={b.kicker}>{`Patienten · ${d.patienten.length}`}</h2>
+          <table className={b.tabelle} data-patienten="">
+            <thead>
+              <tr><th scope="col">Art</th><th scope="col">Transportiert durch</th><th scope="col">Einsatznummer</th></tr>
+            </thead>
+            <tbody>
+              {d.patienten.map((p, i) => (
+                <tr key={i}>
+                  <td>{p.art}</td>
+                  <td>{p.durch}</td>
+                  <td>{p.einsatznummer}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       <section className={b.abschnitt}>
         <h2 className={b.kicker}>{`Fahrzeuge · ${d.fahrzeuge.length}`}</h2>
         {d.fahrzeuge.length > 0 ? (
