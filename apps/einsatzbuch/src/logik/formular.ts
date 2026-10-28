@@ -6,7 +6,7 @@
  */
 import { dauerMinuten, dauerText, datumText } from "@kern/zeit";
 
-import type { Entwurf, Fahrzeug, PersonAuswahl, Person, Stammdatenpaket } from "../typen";
+import type { Entwurf, Fahrzeug, PatientStand, PersonAuswahl, Person, Stammdatenpaket } from "../typen";
 
 type FehlendeAngabe = "Alarmstichwort" | "Beginn" | "Einsatzort";
 
@@ -36,6 +36,7 @@ export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
     vorOrt: 0,
     transport: 0,
     notizen: "",
+    patienten: [],
   };
 }
 
@@ -46,6 +47,9 @@ export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
  * nur vor (Rust prüft nicht gegen die Liste, `erfassung.rs`, `pruefe_entwurf`).
  */
 export const HOECHSTLAENGE = { stichwort: 80, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 } as const;
+
+/** Höchstlängen einer Patientenzeile (`grenzen.rs`: `PATIENT_EINSATZNUMMER`, `PATIENT_DURCH`). */
+export const PATIENT_HOECHSTLAENGE = { einsatznummer: 40, durch: 120 } as const;
 
 /** Hinweis, wenn das Ende nur halb angegeben ist; Rust lehnt ein solches Absenden ab. */
 export const ENDE_UNVOLLSTAENDIG = "Ende nur mit Datum und Uhrzeit angeben.";
@@ -180,9 +184,52 @@ export function setzeZaehler(wert: string): number {
   return Math.min(n, 999);
 }
 
+/** Die Art heißt wie ihr Zähler im Entwurf (`vorOrt`, `transport`). */
+type Patientenart = PatientStand["art"];
+
+/**
+ * Die Zeilen einer Art, genau so viele wie gezählt: gespeicherte in ihrer Reihenfolge, fehlende
+ * leer. Rust richtet beim Absenden genauso aus (`richte_patienten_aus` in `erfassung.rs`).
+ */
+export function patientenZeilen(e: Entwurf, art: Patientenart): PatientStand[] {
+  const eigene = e.patienten.filter((p) => p.art === art);
+  return Array.from({ length: e[art] }, (_, i) => eigene[i] ?? { art, einsatznummer: "", durch: "" });
+}
+
+function mitZeilen(e: Entwurf, art: Patientenart, zeilen: PatientStand[]): Entwurf {
+  const andere = e.patienten.filter((p) => p.art !== art);
+  const vorOrt = art === "vorOrt" ? zeilen : andere;
+  const transport = art === "transport" ? zeilen : andere;
+  return { ...e, [art]: zeilen.length, patienten: [...vorOrt, ...transport] };
+}
+
+/** Ändert ein Feld der Zeile `index` einer Art; die übrigen Zeilen bleiben, wie sie sind. */
+export function setzePatient(e: Entwurf, art: Patientenart, index: number, feld: "einsatznummer" | "durch", wert: string): Entwurf {
+  return mitZeilen(e, art, patientenZeilen(e, art).map((p, i) => (i === index ? { ...p, [feld]: wert } : p)));
+}
+
+/** Neue Anzahl einer Art (Zähler, ±): Weniger streicht Zeilen am Ende, mehr hängt leere an. */
+export function setzePatientenzahl(e: Entwurf, art: Patientenart, anzahl: number): Entwurf {
+  return mitZeilen(e, art, patientenZeilen({ ...e, [art]: Math.max(0, Math.min(999, anzahl)) }, art));
+}
+
+/** Entfernt genau die Zeile `index` einer Art (und zählt einen Patienten weniger). */
+export function entfernePatient(e: Entwurf, art: Patientenart, index: number): Entwurf {
+  return mitZeilen(e, art, patientenZeilen(e, art).filter((_, i) => i !== index));
+}
+
+/** Vorschläge für „transportiert durch“: die Funkrufnamen der gewählten Fahrzeuge. */
+export function transportVorschlaege(e: Entwurf, alle: Fahrzeug[]): string[] {
+  const fzMap = new Map(alle.map((f) => [f.id, f]));
+  return [...new Set(e.fahrzeuge.flatMap((id) => fzMap.get(id)?.ruf ?? []).filter(Boolean))];
+}
+
 /** Zeilen der Zusammenfassungs-Karte nach dem Absenden (Vorlage: `zusammenfassung`). */
 export function zusammenfassung(e: Entwurf, s: Stammdatenpaket): { k: string; v: string }[] {
   const fzMap = new Map(s.stammdaten.fahrzeuge.map((f) => [f.id, f]));
+  const transporte = patientenZeilen(e, "transport")
+    .filter((p) => p.durch.trim() || p.einsatznummer.trim())
+    .map((p) => [p.durch.trim() || "—", p.einsatznummer.trim()].filter(Boolean).join(", "));
   return [
     { k: "Alarmstichwort", v: e.stichwort || "—" },
     { k: "Beginn", v: e.beginnDatum ? `${datumText(e.beginnDatum)}, ${e.beginnZeit} Uhr` : "—" },
@@ -191,5 +238,6 @@ export function zusammenfassung(e: Entwurf, s: Stammdatenpaket): { k: string; v:
     { k: "Fahrzeuge", v: e.fahrzeuge.map((id) => (fzMap.has(id) ? `${fzMap.get(id)!.typ} ${fzMap.get(id)!.kennung}` : id)).join(" · ") || "—" },
     { k: "Personal", v: `${e.personal.length} Kräfte` },
     { k: "Patienten", v: `${e.vorOrt} vor Ort · ${e.transport} mit Transport` },
+    ...(transporte.length > 0 ? [{ k: "Transporte", v: transporte.join(" · ") }] : []),
   ];
 }

@@ -39,6 +39,7 @@ import qualifikationenZuordnen from "@/app/m/portal/_lib/neuigkeiten/notizen/ein
 import qualifikationenVerwalten from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-qualifikationen-verwalten";
 import abgleichKompakter from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-abgleich-kompakter";
 import stichwortAlsFreitext from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-stichwort-als-freitext";
+import angabenJePatient from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-angaben-je-patient";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -158,6 +159,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   qualifikationenVerwalten,
   abgleichKompakter,
   stichwortAlsFreitext,
+  angabenJePatient,
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
   aufgabenBearbeiten,

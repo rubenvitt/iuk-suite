@@ -538,6 +538,12 @@ button:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px;
   font: 700 36px/1 var(--font-display);
   font-variant-numeric: tabular-nums;
 }
+.zaehler-gruppe { border-bottom: 1px solid var(--verw-rand-2); }
+.zaehler-gruppe .zaehler { border-bottom: 0; }
+.patienten { list-style: none; margin: 0; padding: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.patient { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.patient-transport { grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1.4fr) auto; }
+.patient-nr { font: 600 13px var(--font-display); color: var(--iuk-gedaempft); text-align: right; font-variant-numeric: tabular-nums; }
 .gesamt { display: flex; align-items: baseline; padding-top: 12px; }
 .gesamt-label {
   flex: 1;

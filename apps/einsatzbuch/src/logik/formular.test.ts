@@ -19,6 +19,11 @@ import {
   schalteFahrzeug,
   setzeZaehler,
   waehleErstenTreffer,
+  entfernePatient,
+  patientenZeilen,
+  setzePatient,
+  setzePatientenzahl,
+  transportVorschlaege,
   zusammenfassung,
 } from "./formular";
 
@@ -72,6 +77,7 @@ function mit(teil: Partial<Entwurf> = {}): Entwurf {
     vorOrt: 0,
     transport: 0,
     notizen: "",
+    patienten: [],
     ...teil,
   };
 }
@@ -208,6 +214,54 @@ it("Zusammenfassung: Zeilen wie in der Vorlage, inklusive offenem Ende", () => {
     { k: "Personal", v: "1 Kräfte" },
     { k: "Patienten", v: "1 vor Ort · 2 mit Transport" },
   ]);
+});
+
+describe("Angaben je Patient", () => {
+  const leer = (art: "vorOrt" | "transport") => ({ art, einsatznummer: "", durch: "" });
+
+  it("je gezähltem Patient eine Zeile, fehlende leer", () => {
+    expect(patientenZeilen(mit({ transport: 2 }), "transport")).toEqual([leer("transport"), leer("transport")]);
+    expect(patientenZeilen(mit({ vorOrt: 1 }), "transport")).toEqual([]);
+  });
+
+  it("Feld setzen lässt die andere Art stehen; vor Ort steht immer vorn", () => {
+    let e = setzePatient(mit({ vorOrt: 1, transport: 2 }), "transport", 1, "durch", "RTW 83-1");
+    e = setzePatient(e, "vorOrt", 0, "einsatznummer", "2608-0200");
+    expect(e.patienten).toEqual([
+      { art: "vorOrt", einsatznummer: "2608-0200", durch: "" },
+      leer("transport"),
+      { art: "transport", einsatznummer: "", durch: "RTW 83-1" },
+    ]);
+    expect([e.vorOrt, e.transport]).toEqual([1, 2]);
+  });
+
+  it("Zähler kürzt am Ende, mehr hängt leere Zeilen an; geklemmt auf 0..999", () => {
+    const e = setzePatient(mit({ transport: 2 }), "transport", 0, "einsatznummer", "A");
+    expect(setzePatientenzahl(e, "transport", 1).patienten).toEqual([{ art: "transport", einsatznummer: "A", durch: "" }]);
+    expect(setzePatientenzahl(e, "transport", 3).transport).toBe(3);
+    expect(patientenZeilen(setzePatientenzahl(e, "transport", 3), "transport")[0].einsatznummer).toBe("A");
+    expect(setzePatientenzahl(e, "transport", -1).transport).toBe(0);
+    expect(setzePatientenzahl(e, "transport", 1000).transport).toBe(999);
+  });
+
+  it("Entfernen nimmt genau diese Zeile und zählt einen weniger", () => {
+    let e = setzePatient(mit({ transport: 3 }), "transport", 0, "einsatznummer", "A");
+    e = setzePatient(e, "transport", 2, "einsatznummer", "C");
+    const ohne = entfernePatient(e, "transport", 0);
+    expect(ohne.transport).toBe(2);
+    expect(ohne.patienten.map((p) => p.einsatznummer)).toEqual(["", "C"]);
+  });
+
+  it("Vorschläge sind die Funkrufnamen der gewählten Fahrzeuge", () => {
+    expect(transportVorschlaege(mit({ fahrzeuge: ["11-85-1", "11-83-1"] }), FAHRZEUGE)).toEqual(["Rotkreuz Bad Bevensen 85-1", "Rotkreuz Uelzen 83-1"]);
+  });
+
+  it("die Zusammenfassung nennt ausgefüllte Transporte", () => {
+    let e = setzePatient(mit({ stichwort: "RD 2", ort: "Uelzen", transport: 2 }), "transport", 0, "durch", "RTW 83-1");
+    e = setzePatient(e, "transport", 0, "einsatznummer", "2608-0193");
+    expect(zusammenfassung(e, PAKET).at(-1)).toEqual({ k: "Transporte", v: "RTW 83-1, 2608-0193" });
+    expect(zusammenfassung(mit({ transport: 2 }), PAKET).at(-1)?.k).toBe("Patienten");
+  });
 });
 
 describe("Grenzen des Readers", () => {

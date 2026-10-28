@@ -27,6 +27,11 @@ pub const PERSON_NAME: usize = 120;
 pub const PERSON_QUALI: usize = 40;
 pub const PERSON_OV: usize = 80;
 
+/// Angaben je Patient: Einsatznummer des Rettungsdienstes und „transportiert durch“ (Freitext,
+/// meist ein Funkrufname, deshalb wie `FAHRZEUG_RUF`).
+pub const PATIENT_EINSATZNUMMER: usize = 40;
+pub const PATIENT_DURCH: usize = 120;
+
 /// Höchstlänge von `nummer` im Einsatz. `T-JJJJ-NNN` bleibt weit darunter, auch mit einer
 /// vier- oder fünfstelligen laufenden Nummer (Test in `tests/versiegeln.rs`).
 pub const NUMMER: usize = 40;
