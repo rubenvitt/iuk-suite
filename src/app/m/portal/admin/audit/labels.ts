@@ -21,7 +21,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  plan:"Kommunikationsplan",plan_bearbeitung:"Bearbeitung eines Kommunikationsplans",plan_mitglied:"Eingeladene Person eines Kommunikationsplans",bib_stelle:"Stelle (Planbibliothek)",bib_einheit:"Einheit (Planbibliothek)",bib_verbindung:"Verbindung (Planbibliothek)",plan_freigabe:"Freigabelink eines Plans",briefkopf:"Briefkopf (Kommunikationspläne)",eigenes_zeichen:"Eigenes Zeichen (Kommunikationspläne)",
  helfer:"Helfer (aus HiOrg)",hiorg_verbindung:"Verbindung zu HiOrg-Server",importlauf:"Abgleich der Helfer",
  stammfahrzeug:"Fahrzeug (Stammdaten)",
- lagemonitor_anzeige:"Anzeige des Lagemonitors",lagemonitor_zugang:"Zugang des Lagemonitors",quellzuordnung:"Fahrzeugzuordnung (Stammdaten)",
+ lagemonitor_anzeige:"Anzeige des Lagemonitors",lagemonitor_zugang:"Zugang des Lagemonitors",lagemonitor_meldung:"Meldung am Lagemonitor",quellzuordnung:"Fahrzeugzuordnung (Stammdaten)",
 };
 export function objectLabel(type: string): string { return OBJECT_LABELS[type] ?? "Weiteres Objekt"; }
 export function actorLabel(event: AuditEvent): string {

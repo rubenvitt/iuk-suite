@@ -1,4 +1,5 @@
 import { BEISPIEL_EINSATZ, STUFE_TEXT, type Szenario, type Vorschau } from "../_lib/vorschau";
+import { MitmachQr } from "./MitmachQr";
 import s from "./vorschau.module.css";
 
 /** Erfundenes Wetter je Beispiellage. */
@@ -35,50 +36,64 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
           <span className={s.bandBis}>bis {v.band[0].bis}{v.band.length > 1 ? ` · +${v.band.length - 1} weitere` : ""}</span>
         </div>
       ) : null}
+      {v.meldungen.map((m, i) => (
+        <div key={i} className={s.meldung} data-entwurf={m.entwurf === true} data-testid="vorschau-meldung">
+          <span className={s.meldungText}>{m.text}</span>
+          {m.countdown ? <span className={s.meldungZeit}>{m.countdown}</span> : null}
+        </div>
+      ))}
       <div className={s.rumpf} data-seitenspalte={v.seitenspalte}>
-        <svg className={s.karte} viewBox="0 0 440 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
-          <path className={s.wald} d="M0,0 L110,0 L90,50 L0,70Z" />
-          <path className={s.wald} d="M330,240 L440,220 L440,300 L320,300Z" />
-          <path className={s.wasser} d="M0,215 C80,195 120,245 200,225 S330,175 440,195" />
-          <path className={s.strasse} d="M222,0 L212,122 L232,300" />
-          <path className={s.strasse} d="M0,118 L440,152" />
-          <path className={s.strasse} d="M212,122 L385,38" />
-          <path className={s.ort} d="M190,120 L240,115 L250,150 L225,170 L195,160Z" />
-          {v.karte.radar ? (
-            szenario === "unwetter" ? (
+        <div className={s.kartenZelle}>
+          <svg className={s.karte} viewBox="0 0 440 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
+            <path className={s.wald} d="M0,0 L110,0 L90,50 L0,70Z" />
+            <path className={s.wald} d="M330,240 L440,220 L440,300 L320,300Z" />
+            <path className={s.wasser} d="M0,215 C80,195 120,245 200,225 S330,175 440,195" />
+            <path className={s.strasse} d="M222,0 L212,122 L232,300" />
+            <path className={s.strasse} d="M0,118 L440,152" />
+            <path className={s.strasse} d="M212,122 L385,38" />
+            <path className={s.ort} d="M190,120 L240,115 L250,150 L225,170 L195,160Z" />
+            {v.karte.radar ? (
+              szenario === "unwetter" ? (
+                <g>
+                  <ellipse className={s.radarLeicht} cx="300" cy="120" rx="120" ry="70" />
+                  <ellipse className={s.radarMittel} cx="310" cy="125" rx="70" ry="42" />
+                  <ellipse className={s.radarStark} cx="320" cy="128" rx="30" ry="20" />
+                </g>
+              ) : (
+                <g>
+                  <ellipse className={s.radarLeicht} cx="380" cy="60" rx="50" ry="26" />
+                  <ellipse className={s.radarLeicht} cx="60" cy="250" rx="36" ry="18" />
+                </g>
+              )
+            ) : null}
+            {v.karte.warngebiete.slice(0, WARNGEBIETE.length).map((w, i) => (
+              <path key={w.id} className={s.warngebiet} data-band={bandIds.has(w.id)} d={WARNGEBIETE[i]} />
+            ))}
+            {v.karte.suchgebiete ? (
               <g>
-                <ellipse className={s.radarLeicht} cx="300" cy="120" rx="120" ry="70" />
-                <ellipse className={s.radarMittel} cx="310" cy="125" rx="70" ry="42" />
-                <ellipse className={s.radarStark} cx="320" cy="128" rx="30" ry="20" />
+                <path className={s.suchgebiet} d="M70,70 L160,60 L170,130 L80,140Z" />
+                <text className={s.suchgebietName} x="74" y="58">Suchgebiet A</text>
+                <path className={s.suchgebiet} d="M90,150 L175,140 L185,205 L100,215Z" />
+                <text className={s.suchgebietName} x="94" y="228">Suchgebiet B</text>
               </g>
-            ) : (
+            ) : null}
+            {v.karte.flugspuren ? (
               <g>
-                <ellipse className={s.radarLeicht} cx="380" cy="60" rx="50" ry="26" />
-                <ellipse className={s.radarLeicht} cx="60" cy="250" rx="36" ry="18" />
+                <path className={`${s.spur} ${s.spur1}`} d="M75,75 L155,66 L157,80 L77,89 L79,103 L159,94 L161,108 L81,117 L83,131 L163,122" />
+                <path className={`${s.spur} ${s.spur2}`} d="M95,155 L172,146 L174,160 L97,169 L99,183 L176,174" />
               </g>
-            )
+            ) : null}
+            {v.karte.drohne ? <path className={s.drohne} d="M176,166 L183,180 L176,177 L169,180Z" /> : null}
+            <circle className={s.standort} cx="218" cy="142" r="5" />
+            <text className={s.ortName} x="228" y="134">{standort || "Standort"}</text>
+          </svg>
+          {v.mitmachen ? (
+            <div className={s.mitmachen} data-testid="vorschau-qr">
+              <MitmachQr adresse={v.mitmachen.adresse} className={s.qr} />
+              <span>{v.mitmachen.text}</span>
+            </div>
           ) : null}
-          {v.karte.warngebiete.slice(0, WARNGEBIETE.length).map((w, i) => (
-            <path key={w.id} className={s.warngebiet} data-band={bandIds.has(w.id)} d={WARNGEBIETE[i]} />
-          ))}
-          {v.karte.suchgebiete ? (
-            <g>
-              <path className={s.suchgebiet} d="M70,70 L160,60 L170,130 L80,140Z" />
-              <text className={s.suchgebietName} x="74" y="58">Suchgebiet A</text>
-              <path className={s.suchgebiet} d="M90,150 L175,140 L185,205 L100,215Z" />
-              <text className={s.suchgebietName} x="94" y="228">Suchgebiet B</text>
-            </g>
-          ) : null}
-          {v.karte.flugspuren ? (
-            <g>
-              <path className={`${s.spur} ${s.spur1}`} d="M75,75 L155,66 L157,80 L77,89 L79,103 L159,94 L161,108 L81,117 L83,131 L163,122" />
-              <path className={`${s.spur} ${s.spur2}`} d="M95,155 L172,146 L174,160 L97,169 L99,183 L176,174" />
-            </g>
-          ) : null}
-          {v.karte.drohne ? <path className={s.drohne} d="M176,166 L183,180 L176,177 L169,180Z" /> : null}
-          <circle className={s.standort} cx="218" cy="142" r="5" />
-          <text className={s.ortName} x="228" y="134">{standort || "Standort"}</text>
-        </svg>
+        </div>
         {v.seitenspalte ? (
           <div className={s.seite}>
             {v.wetter ? (

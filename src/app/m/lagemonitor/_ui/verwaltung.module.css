@@ -45,3 +45,18 @@
   white-space: pre-wrap;
   margin: 0;
 }
+
+.meldungen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.meldungen > li {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}

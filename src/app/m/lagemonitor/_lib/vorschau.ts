@@ -5,7 +5,7 @@
  * Seitenspalte; eine Warnung im Band geht dem Suchlage-Einsatz in der Kopfzeile vor; das Drohnenbild
  * kommt nur bei laufendem Einsatz mit Livebild. Kein `"use client"`: reine Funktionen, in Vitest prüfbar.
  */
-import { rang, WARNSCHWELLEN, type Module, type SuchlageTeile, type Warnschwelle } from "./konfiguration";
+import { istWebadresse, rang, WARNSCHWELLEN, type Mitmachen, type Module, type SuchlageTeile, type Warnschwelle } from "./konfiguration";
 
 export const SZENARIEN = [
   { wert: "ruhe", text: "Ruhiger Tag" },
@@ -42,9 +42,32 @@ export interface VorschauEingabe {
   warnschwelle: Warnschwelle;
   module: Module;
   suchlage: SuchlageTeile;
+  mitmachen: Mitmachen;
 }
 
 export type Ton = "normal" | "alarm" | "einsatz";
+
+/** Eine Meldung fürs Band, wie die Vorschau sie zeigt; `countdown` schon als Text („in 42 min“). */
+export interface VorschauMeldung {
+  text: string;
+  countdown: string | null;
+  /** Noch nicht angelegt, nur im Formular getippt. */
+  entwurf?: boolean;
+}
+
+/**
+ * Der Countdown einer Meldung in Worten, wie der Lagemonitor ihn zeigt (Repo `lagemonitor`,
+ * `frontend/src/monitor/countdown.ts`): „in 42 min“, „in 1 h 5 min“, „jetzt“, „seit 3 min“.
+ */
+export function countdownText(zielMs: number, jetztMs: number): string {
+  const d = zielMs - jetztMs;
+  if (d <= 0 && d > -60_000) return "jetzt";
+  const minuten = d > 0 ? Math.ceil(d / 60_000) : Math.floor(-d / 60_000);
+  const h = Math.floor(minuten / 60);
+  const m = minuten % 60;
+  const dauer = h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+  return d > 0 ? `in ${dauer}` : `seit ${dauer}`;
+}
 
 export interface Vorschau {
   status: { text: string; ton: Ton };
@@ -59,11 +82,14 @@ export interface Vorschau {
   sichtbar: string[];
   /** Was ausgeschaltet ist und deshalb fehlt. */
   aus: string[];
+  meldungen: VorschauMeldung[];
+  /** Der QR-Code fürs Ehrenamt, wenn er gerade zu sehen ist (nur in ruhiger Lage). */
+  mitmachen: { adresse: string; text: string } | null;
 }
 
 const anzahl = (n: number, eins: string, viele: string) => `${n} ${n === 1 ? eins : viele}`;
 
-export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
+export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: VorschauMeldung[] = []): Vorschau {
   const warnungen = BEISPIEL_WARNUNGEN[szenario];
   const schwelle = rang(e.warnschwelle);
   const band = warnungen.filter((w) => rang(w.stufe) >= schwelle);
@@ -89,6 +115,9 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
   } else if (warnungen.length > 0) {
     sichtbar.push(`Kein Band: keine Warnung erreicht „${STUFE_TEXT[e.warnschwelle]}“.`);
   }
+  for (const n of meldungen) {
+    sichtbar.push(`Blaues Meldungsband${n.entwurf ? " (noch nicht angelegt)" : ""}: „${n.text}“${n.countdown ? `, ${n.countdown}` : ""}.`);
+  }
   const kartenTeile = [
     m.radar && "Regenradar",
     m.warngebiete && warnungen.length > 0 && "Warngebiete",
@@ -105,6 +134,18 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
   }
   if (drohnenbild) sichtbar.push(`Drohnenbild (${BEISPIEL_EINSATZ.drohne}) fährt von rechts ein, solange die Drohne ein Livebild sendet, und wieder hinaus, wenn es endet.`);
   if (einsatz && band.length > 0) sichtbar.push("Eine Warnung im Band hat in der Kopfzeile Vorrang vor dem Einsatz.");
+  // Wie der Monitor (`MonitorPage.tsx`): der QR-Code nur, solange es ruhig ist.
+  const ruhig = band.length === 0 && !einsatz;
+  const qr = e.mitmachen.an && ruhig ? { adresse: e.mitmachen.adresse, text: e.mitmachen.text } : null;
+  if (qr) {
+    sichtbar.push(
+      istWebadresse(qr.adresse)
+        ? `QR-Code unten rechts auf der Karte: „${qr.text}“ führt zu ${qr.adresse}.`
+        : "QR-Code unten rechts auf der Karte, sobald eine Webadresse eingetragen ist.",
+    );
+  } else if (e.mitmachen.an) {
+    sichtbar.push("Kein QR-Code fürs Ehrenamt: bei einer Warnung im Band oder einem Einsatz gehört der Bildschirm der Lage.");
+  }
 
   const aus = [
     !m.wetter && "Wetter",
@@ -115,6 +156,7 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
     m.suchlage && !e.suchlage.flugspuren && "Flugspuren",
     m.suchlage && !e.suchlage.gebiete && "Suchgebiete",
     m.suchlage && !e.suchlage.drohnenbild && "Drohnenbild",
+    !e.mitmachen.an && "QR-Code fürs Ehrenamt",
   ].filter((t): t is string => typeof t === "string");
 
   return {
@@ -133,5 +175,7 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario): Vorschau {
     drohnenbild,
     sichtbar,
     aus,
+    meldungen,
+    mitmachen: qr,
   };
 }

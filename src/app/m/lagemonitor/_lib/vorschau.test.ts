@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VORGABE } from "./konfiguration";
-import { vorschau, type VorschauEingabe } from "./vorschau";
+import { countdownText, vorschau, type VorschauEingabe } from "./vorschau";
 
 const basis: VorschauEingabe = {
   standortName: "Uelzen",
@@ -8,6 +8,7 @@ const basis: VorschauEingabe = {
   warnschwelle: "Severe",
   module: { ...VORGABE.module, suchlage: true },
   suchlage: { ...VORGABE.suchlage },
+  mitmachen: { ...VORGABE.mitmachen },
 };
 
 describe("Vorschau", () => {
@@ -59,5 +60,39 @@ describe("Vorschau", () => {
     const v = vorschau({ ...basis, warnschwelle: "Minor" }, "einsatz");
     expect(v.status.ton).toBe("alarm");
     expect(v.drohnenbild).toBe(true);
+  });
+});
+
+describe("Meldungsband in der Vorschau", () => {
+  it("steht nach dem Warnband in der Erklärung, mit Countdown", () => {
+    const b = vorschau(basis, "ruhe", [{ text: "Nächste Lagebesprechung", countdown: "in 42 min" }, { text: "Funkkanal 34", countdown: null, entwurf: true }]);
+    expect(b.meldungen).toHaveLength(2);
+    expect(b.sichtbar).toContain("Blaues Meldungsband: „Nächste Lagebesprechung“, in 42 min.");
+    expect(b.sichtbar).toContain("Blaues Meldungsband (noch nicht angelegt): „Funkkanal 34“.");
+  });
+
+  it("zählt in Minuten und Stunden, auf die volle Minute aufgerundet", () => {
+    const t = Date.parse("2026-10-27T13:00:00Z");
+    expect(countdownText(t + 42 * 60_000, t)).toBe("in 42 min");
+    expect(countdownText(t + 30_000, t)).toBe("in 1 min");
+    expect(countdownText(t + 65 * 60_000, t)).toBe("in 1 h 5 min");
+    expect(countdownText(t + 120 * 60_000, t)).toBe("in 2 h");
+    expect(countdownText(t - 20_000, t)).toBe("jetzt");
+    expect(countdownText(t - 3 * 60_000, t)).toBe("seit 3 min");
+  });
+});
+
+describe("QR-Code fürs Ehrenamt in der Vorschau", () => {
+  const an = { ...basis, mitmachen: { an: true, adresse: "https://drk-uelzen.de/mitmachen", text: "Lust mitzuhelfen?" } };
+  it("ist aus, bis jemand ihn einschaltet", () => {
+    expect(vorschau(basis, "ruhe").mitmachen).toBeNull();
+    expect(vorschau(basis, "ruhe").aus).toContain("QR-Code fürs Ehrenamt");
+  });
+  it("steht nur in ruhiger Lage, nicht bei Band oder Einsatz", () => {
+    expect(vorschau(an, "ruhe").mitmachen).toEqual({ adresse: "https://drk-uelzen.de/mitmachen", text: "Lust mitzuhelfen?" });
+    expect(vorschau(an, "ruhe").sichtbar).toContain("QR-Code unten rechts auf der Karte: „Lust mitzuhelfen?“ führt zu https://drk-uelzen.de/mitmachen.");
+    expect(vorschau(an, "unwetter").mitmachen).toBeNull();
+    expect(vorschau(an, "einsatz").mitmachen).toBeNull();
+    expect(vorschau({ ...an, module: { ...an.module, suchlage: false } }, "einsatz").mitmachen).not.toBeNull();
   });
 });

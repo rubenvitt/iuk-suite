@@ -1,12 +1,14 @@
 /**
  * Was der Lagemonitor im FüKw zeigt: lesen, prüfen, speichern und als Drahtformat ausgeben. Das
  * Drahtformat (`alsVertrag`) liest der Lagemonitor in `src/sources/suite.rs` (Repo `lagemonitor`);
- * eine Änderung daran ist eine neue `version`, keine stille Erweiterung.
+ * ein neues Feld darf dazukommen (ältere Monitore übergehen es), Umbenennen oder Weglassen ist eine
+ * neue `version`.
  */
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
 import { anzeige } from "../_db/schema";
+import { alsNotices, type Notice } from "./meldungen";
 
 export const VERTRAG_VERSION = 1;
 const ZEILE = "anzeige";
@@ -40,6 +42,16 @@ export interface SuchlageTeile {
   drohnenbild: boolean;
 }
 
+/** QR-Code fürs Ehrenamt: wer am Bildschirm vorbeikommt, findet darüber zur Bereitschaft. */
+export interface Mitmachen {
+  an: boolean;
+  adresse: string;
+  text: string;
+}
+
+export const MITMACHEN_TEXT_VORGABE = "Lust mitzuhelfen? Werde Teil der Bereitschaft.";
+export const MITMACHEN_MAX_ZEICHEN = 60;
+
 /** Was die Seite sieht. Das Großbild-Token bleibt auf dem Server; die Seite erfährt nur, ob eins da ist. */
 export interface KonfigurationDTO {
   standortName: string;
@@ -52,6 +64,7 @@ export interface KonfigurationDTO {
   suchlageAdresse: string | null;
   suchlageVerbunden: boolean;
   suchlage: SuchlageTeile;
+  mitmachen: Mitmachen;
   /** `null`, solange noch niemand gespeichert hat (dann gelten die Vorgaben). */
   aktualisiertAm: string | null;
   aktualisiertVon: string | null;
@@ -69,6 +82,7 @@ export const VORGABE: KonfigurationDTO = {
   suchlageAdresse: null,
   suchlageVerbunden: false,
   suchlage: { flugspuren: true, gebiete: true, drohnenbild: true },
+  mitmachen: { an: false, adresse: "", text: MITMACHEN_TEXT_VORGABE },
   aktualisiertAm: null,
   aktualisiertVon: null,
 };
@@ -94,6 +108,16 @@ export function suchlageLinkAus(text: string): { adresse: string; token: string 
 
 const schalter = z.boolean();
 
+/** Nur `https://` mit Host: ein QR-Code, der auf `http://` oder etwas anderes zeigt, landet nicht am Monitor. */
+export function istWebadresse(text: string): boolean {
+  try {
+    const u = new URL(text.trim());
+    return u.protocol === "https:" && u.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
 export const konfigurationEingabe = z
   .object({
     standortName: z.string().trim().min(1, "Bitte einen Namen angeben.").max(60, "Höchstens 60 Zeichen."),
@@ -104,12 +128,25 @@ export const konfigurationEingabe = z
     warnschwelle: z.enum(SCHWELLEN_WERTE),
     module: z.object({ wetter: schalter, radar: schalter, warngebiete: schalter, warnliste: schalter, suchlage: schalter }),
     suchlage: z.object({ flugspuren: schalter, gebiete: schalter, drohnenbild: schalter }),
+    mitmachen: z
+      .object({
+        an: schalter,
+        adresse: z.string().trim().max(300, "Höchstens 300 Zeichen.").default(""),
+        text: z.string().trim().max(MITMACHEN_MAX_ZEICHEN, `Höchstens ${MITMACHEN_MAX_ZEICHEN} Zeichen.`).default(""),
+      })
+      .default({ an: false, adresse: "", text: "" }),
     /** Leer: der bisherige Link bleibt. Sonst ein neuer Großbild-Link. */
     suchlageLink: z.string().max(500).default(""),
     /** Trennt die Verbindung zu Suchlage (Adresse und Token weg). */
     suchlageTrennen: z.boolean().default(false),
   })
   .superRefine((e, ctx) => {
+    if (e.mitmachen.an && !istWebadresse(e.mitmachen.adresse)) {
+      ctx.addIssue({ code: "custom", path: ["mitmachen", "adresse"], message: "Bitte eine Webadresse angeben, die mit https:// beginnt." });
+    }
+    if (e.mitmachen.an && e.mitmachen.text === "") {
+      ctx.addIssue({ code: "custom", path: ["mitmachen", "text"], message: "Bitte einen kurzen Satz neben den Code schreiben." });
+    }
     if (e.suchlageLink.trim() !== "" && !suchlageLinkAus(e.suchlageLink)) {
       ctx.addIssue({
         code: "custom",
@@ -134,6 +171,7 @@ function dtoAus(z: Zeile): KonfigurationDTO {
     suchlageAdresse: z.suchlageAdresse,
     suchlageVerbunden: z.suchlageAdresse !== null && z.suchlageToken !== null,
     suchlage: { flugspuren: z.suchlageFlugspuren, gebiete: z.suchlageGebiete, drohnenbild: z.suchlageDrohnenbild },
+    mitmachen: { an: z.mitmachen, adresse: z.mitmachenAdresse ?? "", text: z.mitmachenText ?? MITMACHEN_TEXT_VORGABE },
     aktualisiertAm: z.aktualisiertAm.toISOString(),
     aktualisiertVon: z.aktualisiertVon,
   };
@@ -169,6 +207,10 @@ export function speichereKonfiguration(db: LagemonitorDb, e: KonfigurationEingab
     suchlageFlugspuren: e.suchlage.flugspuren,
     suchlageGebiete: e.suchlage.gebiete,
     suchlageDrohnenbild: e.suchlage.drohnenbild,
+    // Ausgeschaltet bleiben Adresse und Text stehen, damit das Wiedereinschalten sie nicht neu verlangt.
+    mitmachen: e.mitmachen.an,
+    mitmachenAdresse: e.mitmachen.adresse === "" ? null : e.mitmachen.adresse,
+    mitmachenText: e.mitmachen.text === "" ? null : e.mitmachen.text,
     aktualisiertAm: jetzt,
     aktualisiertVon: von,
   };
@@ -186,6 +228,10 @@ export interface Vertrag {
   modules: { weather: boolean; radar: boolean; warningAreas: boolean; warningList: boolean; suchlage: boolean };
   /** `null`, solange keine Verbindung zu Suchlage eingetragen ist — auch wenn das Modul an ist. */
   suchlage: { url: string; token: string; tracks: boolean; areas: boolean; video: boolean } | null;
+  /** QR-Code fürs Ehrenamt; `null`, wenn aus. Ältere Monitore übergehen das Feld. */
+  recruitment: { url: string; text: string } | null;
+  /** Laufende Meldungen fürs Band (`_lib/meldungen.ts`); seit dem Meldungsband, ältere Monitore übergehen sie. */
+  notices: Notice[];
 }
 
 export function alsVertrag(db: LagemonitorDb): Vertrag {
@@ -208,5 +254,7 @@ export function alsVertrag(db: LagemonitorDb): Vertrag {
       z?.suchlageAdresse && z.suchlageToken
         ? { url: z.suchlageAdresse, token: z.suchlageToken, tracks: k.suchlage.flugspuren, areas: k.suchlage.gebiete, video: k.suchlage.drohnenbild }
         : null,
+    recruitment: k.mitmachen.an && istWebadresse(k.mitmachen.adresse) ? { url: k.mitmachen.adresse, text: k.mitmachen.text } : null,
+    notices: alsNotices(db),
   };
 }

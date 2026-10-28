@@ -72,6 +72,8 @@ describe("Speichern und Drahtformat", () => {
       warnThreshold: "Moderate",
       modules: { weather: true, radar: false, warningAreas: true, warningList: true, suchlage: true },
       suchlage: { url: "https://suchlage.example.org", token: TOKEN, tracks: true, areas: false, video: true },
+      recruitment: null,
+      notices: [],
     });
   });
 
@@ -91,5 +93,22 @@ describe("Speichern und Drahtformat", () => {
     speichereKonfiguration(db, eingabe({ warnschwelle: "Extreme" }), "Ruben");
     const zeilen = db.select().from(auditOutbox).all();
     expect(zeilen.map((z) => z.action)).toEqual(["create", "update"]);
+  });
+
+  it("QR-Code fürs Ehrenamt: aus als Vorgabe, an nur mit https-Adresse und Text", () => {
+    const db = testDb();
+    expect(alsVertrag(db).recruitment).toBeNull();
+    const fehler = (m: unknown) => konfigurationEingabe.safeParse({ ...eingabe(), mitmachen: m }).error?.issues.map((i) => i.path.join("."));
+    expect(fehler({ an: true, adresse: "http://drk.example.org", text: "Mitmachen" })).toEqual(["mitmachen.adresse"]);
+    expect(fehler({ an: true, adresse: "https://drk.example.org", text: "" })).toEqual(["mitmachen.text"]);
+    expect(fehler({ an: false, adresse: "", text: "" })).toBeUndefined();
+
+    const mitmachen = { an: true, adresse: "https://drk.example.org/mitmachen", text: "Lust mitzuhelfen?" };
+    speichereKonfiguration(db, eingabe({ mitmachen }), "Ruben");
+    expect(alsVertrag(db).recruitment).toEqual({ url: mitmachen.adresse, text: mitmachen.text });
+    // Ausschalten behält Adresse und Text für das nächste Einschalten.
+    speichereKonfiguration(db, eingabe({ mitmachen: { ...mitmachen, an: false } }), "Ruben");
+    expect(alsVertrag(db).recruitment).toBeNull();
+    expect(leseKonfiguration(db).mitmachen).toEqual({ ...mitmachen, an: false });
   });
 });
