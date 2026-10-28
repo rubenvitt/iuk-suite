@@ -41,7 +41,7 @@ interface FormularProps {
   beiAbsenden: () => void;
 }
 
-type Textfeld = "beginnDatum" | "beginnZeit" | "endeDatum" | "endeZeit" | "strasse" | "ort" | "objekt" | "notizen";
+type Textfeld = "stichwort" | "beginnDatum" | "beginnZeit" | "endeDatum" | "endeZeit" | "strasse" | "ort" | "objekt" | "notizen";
 type Zaehler = "vorOrt" | "transport";
 
 const ZAEHLER: { feld: Zaehler; titel: string; hilfe: string; minus: string; plus: string }[] = [
@@ -140,6 +140,14 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
 
         <Karte titel="Alarmstichwort">
           <div className="stapel stapel-16">
+            <Feld
+              label="Stichwort, Freitext"
+              hilfe="Antippen übernimmt ein Stichwort aus der Liste; du kannst es hier ergänzen oder ein eigenes schreiben."
+              wert={e.stichwort}
+              beiAenderung={setze("stichwort")}
+              placeholder="z. B. RD 1 – Sturz im Treppenhaus"
+              maxLength={HOECHSTLAENGE.stichwort}
+            />
             {stichworte.map((g) => (
               <div key={g.name} className="stichwort-gruppe">
                 <div className="stichwort-gruppenname">{g.name}</div>
