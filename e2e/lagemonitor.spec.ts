@@ -118,29 +118,42 @@ test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrs
   await page.goto(url("/"));
   await page.waitForLoadState("networkidle");
   await warteAufGestreamteInhalte(page);
-  // Ein Schlüssel aus einem früheren Lauf: ersetzen statt neu eintragen.
-  const ersetzen = page.getByRole("button", { name: "Anderen Schlüssel eintragen" });
-  if (await ersetzen.isVisible()) await klickeWennRuhig(ersetzen);
+  // Jede Server Action ist ein POST auf die Seite; die Antwort wird geprüft, nicht nur der Text danach (Falle 10).
+  const speichern = async () => {
+    const [antwort] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/")),
+      klickeWennRuhig(page.getByRole("button", { name: "Speichern" })),
+    ]);
+    expect(antwort.status()).toBe(200);
+    await expect(page.getByText("Gespeichert. Der Monitor zeigt es spätestens in einer Minute.")).toBeVisible();
+  };
+  // Ein Schlüssel aus einem früheren Lauf gegen dieselbe Datenbank: erst entfernen, sonst gilt er weiter.
+  if (await page.getByText("Ein TomTom-Schlüssel ist hinterlegt.").isVisible()) {
+    await klickeWennRuhig(page.getByRole("button", { name: "Schlüssel entfernen" }));
+    await speichern();
+  }
 
   const fluss = page.getByRole("switch", { name: "Verkehrsfluss" });
   if ((await fluss.getAttribute("aria-checked")) === "false") await klickeWennRuhig(fluss);
   const feld = page.getByLabel("API-Schlüssel von TomTom");
-  await feld.fill("");
   await expect(page.getByText("Ohne TomTom-Schlüssel zeigt der Monitor weder Verkehrsfluss noch Baustellen.")).toBeVisible();
   await expect(page.getByTestId("vorschau-verkehr")).toHaveCount(0);
   await feld.fill(SCHLUESSEL);
   await expect(page.getByTestId("vorschau-verkehr")).toBeVisible();
   await expect(page.getByTestId("vorschau-erklaerung")).toContainText("Verkehrsfluss");
 
-  await klickeWennRuhig(page.getByRole("button", { name: "Speichern" }));
-  await expect(page.getByText("Gespeichert. Der Monitor zeigt es spätestens in einer Minute.")).toBeVisible();
+  await speichern();
   await expect(page.getByText("Ein TomTom-Schlüssel ist hinterlegt.")).toBeVisible();
   await page.reload();
   await warteAufGestreamteInhalte(page);
   expect(await page.content()).not.toContain(SCHLUESSEL);
 
   await page.getByLabel("Neuer Zugang").fill("Verkehr e2e");
-  await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
+  const [angelegt] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/")),
+    klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" })),
+  ]);
+  expect(angelegt.status()).toBe(200);
   const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec((await page.getByTestId("neuer-schluessel").textContent()) ?? "")?.[1];
   const vertrag = await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json();
   expect(vertrag.traffic).toMatchObject({ tomtomKey: SCHLUESSEL, flow: true });
