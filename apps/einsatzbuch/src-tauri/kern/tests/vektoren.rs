@@ -186,11 +186,14 @@ fn patienten_sind_optional_und_nie_leer() {
         schluessel_id: krypto::schluessel_id(&spki),
         umgebung: Umgebung::Echt,
     };
-    let cek = [7u8; 32];
-    let iv = [9u8; 12];
+    // Der Zufall des ersten Vektorblocks, damit kein Schlüssel als Literal im Test steht.
+    let z = &eingaben["bloecke"][0];
+    let cek: [u8; 32] = b64(z["cek"].as_str().unwrap()).try_into().unwrap();
+    let iv: [u8; 12] = b64(z["iv"].as_str().unwrap()).try_into().unwrap();
     let versiegle = |einsatz: &Einsatz| {
-        let ephemer = p256::SecretKey::from_slice(&[3u8; 32]).unwrap();
-        krypto::versiegele(einsatz, &kopf, &suite, Blockzufall::fest(cek, iv, ephemer, [5u8; 12])).unwrap()
+        let ephemer = p256::SecretKey::from_slice(&b64url(z["umschlag"]["ephemer"]["d"].as_str().unwrap())).unwrap();
+        let umschlag_iv: [u8; 12] = b64(z["umschlag"]["iv"].as_str().unwrap()).try_into().unwrap();
+        krypto::versiegele(einsatz, &kopf, &suite, Blockzufall::fest(cek, iv, ephemer, umschlag_iv)).unwrap()
     };
 
     let mit: Einsatz = serde_json::from_value(eingaben["einsaetze"][0].clone()).unwrap();
