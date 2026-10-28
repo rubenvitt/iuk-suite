@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { person } from "../../_db/schema";
 import { testDb } from "../testDb";
-import { fahrzeugEingabe, personEingabe, stichwortEingabe } from "./schemas";
+import { fahrzeugEingabe, personEingabe, personEingabeMit, stichwortEingabe } from "./schemas";
+import { QUALIFIKATIONEN } from "./vorlage";
 import {
   NichtGefunden, SchonVergeben, listeFahrzeuge, listePersonal, listeStichworte, setzeAktiv,
   speichereFahrzeug, speicherePerson, speichereStichwort, stammdatenVersion,
@@ -51,14 +52,16 @@ describe("Eingabeschemas", () => {
     expect(personEingabe.safeParse({ name: "Jana Albers", quali: "RS", aktiv: true }).success).toBe(false);
     expect(personEingabe.safeParse({ name: "Albers, Jana", quali: "RS", aktiv: true }).success).toBe(true);
   });
-  it("Qualifikation nur aus der festen Liste (DRK-488)", () => {
+  it("Qualifikation nur aus der Liste, die übergeben wird (DRK-488, IDA-282)", () => {
+    const mit = personEingabeMit(QUALIFIKATIONEN.map((q) => q.kurz));
     for (const quali of ["NotSan", "RettAss", "RS", "SiK", "SanH", " SiK "]) {
-      expect(personEingabe.safeParse({ name: "Albers, Jana", quali, aktiv: true }).success).toBe(true);
+      expect(mit.safeParse({ name: "Albers, Jana", quali, aktiv: true }).success).toBe(true);
     }
-    const falsch = personEingabe.safeParse({ name: "Albers, Jana", quali: "GF", aktiv: true });
+    const falsch = mit.safeParse({ name: "Albers, Jana", quali: "GF", aktiv: true });
     expect(falsch.success).toBe(false);
     expect(falsch.error?.issues[0]?.message).toBe("Qualifikation bitte aus NotSan, RettAss, RS, SiK, SanH wählen");
-    expect(personEingabe.safeParse({ name: "Albers, Jana", quali: "", aktiv: true }).error?.issues[0]?.message).toBe("Qualifikation fehlt");
+    expect(mit.safeParse({ name: "Albers, Jana", quali: "", aktiv: true }).error?.issues[0]?.message).toBe("Qualifikation fehlt");
+    expect(personEingabeMit(["GF"]).safeParse({ name: "Albers, Jana", quali: "GF", aktiv: true }).success).toBe(true);
   });
   it("Personal verlässt die Datenschicht ohne Ortsverein, die Spalte bleibt leer (DRK-488)", () => {
     const db = testDb();

@@ -10,6 +10,13 @@ export interface PersonAuswahl {
   fahrzeugId: string | null;
 }
 
+/** Spiegel von `PatientStand` (`kern/src/format.rs`); bei `vorOrt` ist `durch` leer. */
+export interface PatientStand {
+  art: "vorOrt" | "transport";
+  einsatznummer: string;
+  durch: string;
+}
+
 export interface Entwurf {
   stichwort: string;
   beginnDatum: string;
@@ -26,6 +33,8 @@ export interface Entwurf {
   notizen: string;
   /** Einsatznummer der Leitstelle, Freitext; leer heißt „keine“ (Rust versiegelt sie dann nicht). */
   leitstellenNummer: string;
+  /** Angaben je Patient, beliebig lang; Rust richtet sie beim Absenden an den Zählern aus. */
+  patienten: PatientStand[];
 }
 
 export interface Fahrzeug {

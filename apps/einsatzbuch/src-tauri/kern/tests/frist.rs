@@ -28,6 +28,7 @@ fn entwurf() -> Entwurf {
         transport: 0,
         notizen: "A".into(),
         leitstellen_nummer: String::new(),
+        patienten: Vec::new(),
     }
 }
 

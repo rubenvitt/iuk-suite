@@ -28,6 +28,24 @@ pub struct PersonStand {
     pub fahrzeug_id: Option<String>,
 }
 
+/// „Behandelt vor Ort" (BVO) oder „behandelt und transportiert" (`Patientenart` im TS-Kern).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Patientenart {
+    VorOrt,
+    Transport,
+}
+
+/// Eine Zeile je Patient: Einsatznummer des übernehmenden Rettungsdienstes und bei einem
+/// Transport, wer gefahren hat (Freitext). `durch` ist bei `VorOrt` leer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PatientStand {
+    pub art: Patientenart,
+    pub einsatznummer: String,
+    pub durch: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Einsatz {
@@ -52,6 +70,11 @@ pub struct Einsatz {
     /// geschrieben erst ein Release später (Zwei-Schritt-Regel, Runbook `einsatzbuch-release.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub leitstellen_nummer: Option<String>,
+    /// Optional und nie leer geschrieben: Ohne Angaben je Patient fehlt der Schlüssel, und der
+    /// Einsatz ist byte-gleich zu dem, was Versionen vor dem Feld versiegelt haben. Ein
+    /// geschriebenes `[]` scheitert am Rundlauf in `krypto::oeffne_block` wie an `istEinsatz`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub patienten: Vec<PatientStand>,
 }
 
 /// Test-Rechner versiegeln immer `Test` (Spec §12). Steht in Hash und AAD, lässt sich also

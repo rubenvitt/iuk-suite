@@ -1,4 +1,4 @@
-import type { FahrzeugDTO, PersonDTO, StichwortDTO } from "./typen";
+import type { FahrzeugDTO, PersonDTO, QualifikationDTO, StichwortDTO } from "./typen";
 
 /** Wörtlich aus der Vorlage (`Einsatzbuch v2.dc.html`, `ORTE`): Fahrzeugstandort → Kennungspräfix. */
 export const ORTE = [["Uelzen", 11], ["Bad Bevensen", 12], ["Ebstorf", 13], ["Suderburg", 14], ["Bienenbüttel", 15], ["Rosche", 16], ["Wrestedt", 17], ["Bad Bodenteich", 18]] as const;
@@ -10,17 +10,18 @@ export const GRUPPEN = [
   { name: "Sonstiges", items: ["Personensuche", "Sonstiges"] },
 ] as const;
 /**
- * Die Qualifikationen des Personals, höchste zuerst (DRK-488). Gespeichert wird die Abkürzung;
- * sie wandert als Schnappschuss in jeden Einsatz und steht in der App auf dem Auswahlchip.
+ * Die Qualifikationen, mit denen die Migration `0004_qualifikationen.sql` die Tabelle `qualifikation`
+ * füllt, höchste zuerst (DRK-488). Seit IDA-282 sind sie in der Verwaltung änderbar; maßgeblich ist
+ * dann die Tabelle (`qualifikationen.ts`), diese Liste bleibt Vorgabe für Tests und Demodaten.
+ * `vorlage.test.ts` hält sie gleich mit der Migration.
  */
-export const QUALIFIKATIONEN = [
-  { kurz: "NotSan", lang: "Notfallsanitäter" },
-  { kurz: "RettAss", lang: "Rettungsassistent" },
-  { kurz: "RS", lang: "Rettungssanitäter" },
-  { kurz: "SiK", lang: "Sanitäter im Katastrophenschutz" },
-  { kurz: "SanH", lang: "Sanitätshelfer" },
-] as const;
-export const QUALIS = QUALIFIKATIONEN.map((q) => q.kurz);
+export const QUALIFIKATIONEN: readonly QualifikationDTO[] = [
+  { id: "notsan", kurz: "NotSan", lang: "Notfallsanitäter", rang: 1 },
+  { id: "rettass", kurz: "RettAss", lang: "Rettungsassistent", rang: 2 },
+  { id: "rs", kurz: "RS", lang: "Rettungssanitäter", rang: 3 },
+  { id: "sik", kurz: "SiK", lang: "Sanitäter im Katastrophenschutz", rang: 4 },
+  { id: "sanh", kurz: "SanH", lang: "Sanitätshelfer", rang: 5 },
+];
 
 export const VORLAGE_FAHRZEUGE: FahrzeugDTO[] = (() => {
   const T: Record<string, number> = { "ELW 1": 11, RTW: 83, "KTW-B": 85, "GW-San": 64, "GW-Bt": 68, MTF: 19, PKW: 10 };

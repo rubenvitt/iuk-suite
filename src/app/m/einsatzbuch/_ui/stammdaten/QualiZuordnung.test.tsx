@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { HiorgQualiZeile } from "../../_lib/stammdaten/helferAbgleich";
+import { QUALIFIKATIONEN } from "../../_lib/stammdaten/vorlage";
 import { QualiZuordnung, regelnAus, startZuordnung, zuordnungGeaendert } from "./QualiZuordnung";
 
 afterEach(unmount);
@@ -14,7 +15,7 @@ const ZEILEN: HiorgQualiZeile[] = [
 
 describe("QualiZuordnung", () => {
   it("zeigt jede HiOrg-Qualifikation mit Anzahl und ihrer Zuordnung, jedes Feld beschriftet", async () => {
-    await mount(<QualiZuordnung zeilen={ZEILEN} wahl={startZuordnung(ZEILEN)} onWahl={() => {}} />);
+    await mount(<QualiZuordnung zeilen={ZEILEN} auswahl={[...QUALIFIKATIONEN]} wahl={startZuordnung(ZEILEN)} onWahl={() => {}} />);
     const zeilen = queryAll("[data-testid=quali-zuordnung] > li");
     expect(zeilen.map((li) => li.querySelector("label")?.textContent)).toEqual([
       "Rettungssanitäter (RS)2 Helfer",

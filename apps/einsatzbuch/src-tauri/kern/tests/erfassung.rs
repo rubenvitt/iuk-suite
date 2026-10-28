@@ -4,7 +4,7 @@ mod hilfe;
 use chrono::{TimeZone, Utc};
 use einsatzbuch_kern::buch::{Betrieb, Buch};
 use einsatzbuch_kern::erfassung::{Entwurf, ErfassungFehler, PersonAuswahl};
-use einsatzbuch_kern::format::Umgebung;
+use einsatzbuch_kern::format::{PatientStand, Patientenart, Umgebung};
 
 fn leerer_entwurf() -> Entwurf {
     Entwurf {
@@ -22,6 +22,7 @@ fn leerer_entwurf() -> Entwurf {
         transport: 0,
         notizen: String::new(),
         leitstellen_nummer: String::new(),
+        patienten: Vec::new(),
     }
 }
 
@@ -41,6 +42,7 @@ fn gueltiger_entwurf() -> Entwurf {
         transport: 1,
         notizen: "erste Fassung".into(),
         leitstellen_nummer: String::new(),
+        patienten: Vec::new(),
     }
 }
 
@@ -338,4 +340,60 @@ fn volle_kette_nimmt_keinen_neuen_einsatz_an() {
         "Das Einsatzbuch ist voll: Mehr als 10 000 Einsätze nimmt dieser Rechner nicht auf. Bitte wende dich an die Verwaltung."
     );
     assert!(buch.ausstehend().unwrap().is_none(), "nichts wurde hinterlegt");
+}
+
+fn patient(art: Patientenart, einsatznummer: &str, durch: &str) -> PatientStand {
+    PatientStand { art, einsatznummer: einsatznummer.into(), durch: durch.into() }
+}
+
+/// Angaben je Patient folgen den Zählern: je Art in Entwurfsreihenfolge, getrimmt, aufgefüllt oder
+/// gekürzt, vor Ort ohne „durch“, vor Ort zuerst. Ohne jede Angabe bleibt die Liste leer.
+#[test]
+fn patienten_richten_sich_nach_den_zaehlern() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+
+    let mut e = gueltiger_entwurf();
+    e.vor_ort = 2;
+    e.transport = 1;
+    e.patienten = vec![
+        patient(Patientenart::Transport, " 2608-0193 ", " RTW 11-83-1 "),
+        patient(Patientenart::VorOrt, "2608-0200", "soll weg"),
+        patient(Patientenart::Transport, "überzählig", "KTW"),
+    ];
+    let ausstehend = buch.sende_ab(&e, Utc::now(), false).unwrap();
+    assert_eq!(
+        ausstehend.entwurf.patienten,
+        vec![
+            patient(Patientenart::VorOrt, "2608-0200", ""),
+            patient(Patientenart::VorOrt, "", ""),
+            patient(Patientenart::Transport, "2608-0193", "RTW 11-83-1"),
+        ]
+    );
+
+    let mut leer = gueltiger_entwurf();
+    leer.transport = 2;
+    leer.patienten = vec![patient(Patientenart::Transport, "  ", ""), patient(Patientenart::VorOrt, "nicht gezählt", "")];
+    let ausstehend = buch.sende_ab(&leer, Utc::now(), true).unwrap();
+    assert!(ausstehend.entwurf.patienten.is_empty(), "{:?}", ausstehend.entwurf.patienten);
+}
+
+#[test]
+fn patientenfelder_haben_die_grenzen_des_readers() {
+    let mit = |nr: String, durch: String| {
+        sende(move |e| e.patienten = vec![patient(Patientenart::Transport, &nr, &durch)])
+    };
+    assert_eq!(mit("ä".repeat(40), "ä".repeat(120)), Ok(()));
+    assert_eq!(mit("a".repeat(41), String::new()).unwrap_err(), "Einsatznummer eines Patienten darf höchstens 40 Zeichen lang sein, hat 41");
+    assert_eq!(mit(String::new(), "a".repeat(121)).unwrap_err(), "Transportiert durch darf höchstens 120 Zeichen lang sein, hat 121");
+}
+
+/// Ein Entwurf aus einer Version vor dem Feld (gespeichert ohne `patienten`) bleibt lesbar.
+#[test]
+fn entwurf_ohne_patienten_bleibt_lesbar() {
+    let mut wert = serde_json::to_value(gueltiger_entwurf()).unwrap();
+    wert.as_object_mut().unwrap().remove("patienten");
+    let e: Entwurf = serde_json::from_value(wert).unwrap();
+    assert!(e.patienten.is_empty());
 }

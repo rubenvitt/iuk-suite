@@ -167,6 +167,8 @@ impl Buch {
             notizen: entwurf.notizen.clone(),
             // Nur mit Inhalt geschrieben (IDA-284): Ohne Nummer bleibt der Klartext im ersten Format.
             leitstellen_nummer: (!entwurf.leitstellen_nummer.is_empty()).then(|| entwurf.leitstellen_nummer.clone()),
+            // Von `pruefe_entwurf` an den Zählern ausgerichtet, ohne Angaben leer.
+            patienten: entwurf.patienten.clone(),
         };
 
         let suite_spki = krypto::aus_b64(&einrichtung.oeffentlich_spki)?;

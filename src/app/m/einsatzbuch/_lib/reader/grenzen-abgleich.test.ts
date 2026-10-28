@@ -34,6 +34,7 @@ function arrayMax(s: z.ZodType): number {
 const E = einsatzSchema.shape;
 const FZ = E.fahrzeuge.element.shape;
 const PS = E.personal.element.shape;
+const PA = E.patienten.unwrap().element.shape;
 
 /** Reader-Grenze je Einsatzfeld (Klartextfelder und Listen), wie die App-Dateien sie benennen. */
 const EINSATZFELD: Record<string, () => number> = {
@@ -68,6 +69,8 @@ const RUST: Record<string, () => number> = {
   PERSON_NAME: () => textMax(PS.name),
   PERSON_QUALI: () => textMax(PS.quali),
   PERSON_OV: () => textMax(PS.ov),
+  PATIENT_EINSATZNUMMER: () => textMax(PA.einsatznummer),
+  PATIENT_DURCH: () => textMax(PA.durch),
   BLOECKE: () => arrayMax(exportinhaltSchema.shape.bloecke),
 };
 
@@ -125,6 +128,15 @@ describe("formular.ts (Oberfläche der App) gegen den Reader", () => {
       expect(wert).toBe(EINSATZFELD[feld]());
     });
   }
+});
+
+describe("formular.ts: PATIENT_HOECHSTLAENGE gegen den Reader", () => {
+  const block = /export const PATIENT_HOECHSTLAENGE = \{([^}]*)\}/.exec(lies("src/logik/formular.ts"))?.[1];
+  const gefunden = new Map([...(block ?? "").matchAll(/(\w+): ([\d_]+)/g)].map((m) => [m[1], zahl(m[2])]));
+  it("einsatznummer und durch gleichen der Reader-Grenze", () => {
+    expect(block, "PATIENT_HOECHSTLAENGE nicht gefunden — Datei umgebaut?").toBeDefined();
+    expect(Object.fromEntries(gefunden)).toEqual({ einsatznummer: textMax(PA.einsatznummer), durch: textMax(PA.durch) });
+  });
 });
 
 describe("e2e/stub.ts (Nachbau des Rust-Befehls) gegen den Reader", () => {

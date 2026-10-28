@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
 import { anzeige } from "../_db/schema";
+import { alsPublicLinks, type PublicLink } from "./links";
 import { alsNotices, type Notice } from "./meldungen";
 
 export const VERTRAG_VERSION = 1;
@@ -232,9 +233,11 @@ export interface Vertrag {
   recruitment: { url: string; text: string } | null;
   /** Laufende Meldungen fürs Band (`_lib/meldungen.ts`); seit dem Meldungsband, ältere Monitore übergehen sie. */
   notices: Notice[];
+  /** Links für Rechner ohne Anmeldung (`_lib/links.ts`), nur als Hash. Ältere Monitore übergehen das Feld. */
+  publicLinks: PublicLink[];
 }
 
-export function alsVertrag(db: LagemonitorDb): Vertrag {
+export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
   const z = zeile(db);
   const k = z ? dtoAus(z) : VORGABE;
   return {
@@ -255,6 +258,7 @@ export function alsVertrag(db: LagemonitorDb): Vertrag {
         ? { url: z.suchlageAdresse, token: z.suchlageToken, tracks: k.suchlage.flugspuren, areas: k.suchlage.gebiete, video: k.suchlage.drohnenbild }
         : null,
     recruitment: k.mitmachen.an && istWebadresse(k.mitmachen.adresse) ? { url: k.mitmachen.adresse, text: k.mitmachen.text } : null,
-    notices: alsNotices(db),
+    notices: alsNotices(db, jetzt),
+    publicLinks: alsPublicLinks(db),
   };
 }

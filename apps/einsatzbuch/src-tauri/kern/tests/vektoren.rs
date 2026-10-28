@@ -169,3 +169,47 @@ fn rundlauf_mit_systemzufall_oeffnet_den_klartext_und_scheitert_bei_veraendertem
         "ein veränderter Kopf muss das Auspacken scheitern lassen, weil er die AAD ändert"
     );
 }
+
+/// Angaben je Patient (`patienten`) sind optional: Ein Block mit Zeilen öffnet zu genau diesen
+/// Zeilen, einer ohne den Schlüssel zu einer leeren Liste. Ein geschriebenes `[]` dagegen ist kein
+/// Einsatz — der Kern schreibt es nie, und `istEinsatz` im TS-Kern lehnt es genauso ab.
+#[test]
+fn patienten_sind_optional_und_nie_leer() {
+    let eingaben = hilfe::vektor("eingaben.json");
+    let spki = b64(eingaben["suite"]["oeffentlichSpki"].as_str().unwrap());
+    let suite = krypto::oeffentlich_aus_spki(&spki).unwrap();
+    let kopf = Blockkopf {
+        v: 1,
+        block: 1,
+        prev: GENESIS.to_string(),
+        versiegelt: "2026-01-01T00:00:00+01:00".to_string(),
+        schluessel_id: krypto::schluessel_id(&spki),
+        umgebung: Umgebung::Echt,
+    };
+    // Der Zufall des ersten Vektorblocks, damit kein Schlüssel als Literal im Test steht.
+    let z = &eingaben["bloecke"][0];
+    let cek: [u8; 32] = b64(z["cek"].as_str().unwrap()).try_into().unwrap();
+    let iv: [u8; 12] = b64(z["iv"].as_str().unwrap()).try_into().unwrap();
+    let versiegle = |einsatz: &Einsatz| {
+        let ephemer = p256::SecretKey::from_slice(&b64url(z["umschlag"]["ephemer"]["d"].as_str().unwrap())).unwrap();
+        let umschlag_iv: [u8; 12] = b64(z["umschlag"]["iv"].as_str().unwrap()).try_into().unwrap();
+        krypto::versiegele(einsatz, &kopf, &suite, Blockzufall::fest(cek, iv, ephemer, umschlag_iv)).unwrap()
+    };
+
+    let mit: Einsatz = serde_json::from_value(eingaben["einsaetze"][0].clone()).unwrap();
+    assert_eq!(mit.patienten.len(), 1, "der erste Vektor-Einsatz trägt eine Patientenzeile");
+    assert_eq!(krypto::oeffne_block(&versiegle(&mit), &cek).unwrap(), mit);
+
+    let ohne: Einsatz = serde_json::from_value(eingaben["einsaetze"][1].clone()).unwrap();
+    assert!(ohne.patienten.is_empty());
+    assert!(!ohne.kanonisch().unwrap().contains("patienten"), "ohne Angaben fehlt der Schlüssel");
+    assert_eq!(krypto::oeffne_block(&versiegle(&ohne), &cek).unwrap(), ohne);
+
+    // Derselbe Block, aber mit `"patienten":[]` im Klartext (JCS: Schlüssel sortiert).
+    let mut block = versiegle(&ohne);
+    let klar = ohne.kanonisch().unwrap().replace("\"personal\":", "\"patienten\":[],\"personal\":");
+    let aad = block.kopf.kanonisch().unwrap();
+    let daten = Aes256Gcm::new(&cek.into()).encrypt(&iv.into(), Payload { msg: klar.as_bytes(), aad: aad.as_bytes() }).unwrap();
+    block.daten = krypto::b64(&daten);
+    assert!(matches!(krypto::oeffne_block(&block, &cek), Err(krypto::KryptoFehler::KeinEinsatz)));
+}

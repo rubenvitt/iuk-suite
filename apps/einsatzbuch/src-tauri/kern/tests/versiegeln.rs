@@ -8,7 +8,7 @@ use base64::Engine as _;
 use chrono::{TimeZone, Utc};
 use einsatzbuch_kern::buch::{Betrieb, Buch, BuchFehler};
 use einsatzbuch_kern::erfassung::{Entwurf, ErfassungFehler, PersonAuswahl};
-use einsatzbuch_kern::format::{Einsatz, GENESIS, Umgebung};
+use einsatzbuch_kern::format::{Einsatz, GENESIS, PatientStand, Patientenart, Umgebung};
 use einsatzbuch_kern::krypto;
 use einsatzbuch_kern::jcs;
 use hilfe::{FesterZufall, test_einrichtung};
@@ -55,6 +55,7 @@ fn entwurf_eins() -> Entwurf {
         transport: 1,
         notizen: String::new(),
         leitstellen_nummer: String::new(),
+        patienten: Vec::new(),
     }
 }
 
@@ -74,6 +75,7 @@ fn entwurf_zwei() -> Entwurf {
         transport: 2,
         notizen: String::new(),
         leitstellen_nummer: String::new(),
+        patienten: Vec::new(),
     }
 }
 
@@ -474,4 +476,29 @@ fn unbestaetigte_anker_nach_teilweiser_bestaetigung() {
 
     buch.anker_bestaetigt(3, "2026-09-24T10:00:00+02:00").unwrap();
     assert!(buch.unbestaetigte_anker().unwrap().is_empty());
+}
+
+/// Angaben je Patient landen versiegelt im Klartext; ohne Angaben fehlt der Schlüssel ganz.
+#[test]
+fn patienten_werden_versiegelt_und_fehlen_ohne_angaben() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Echt).unwrap();
+    buch.richte_ein(&test_einrichtung(Umgebung::Echt), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    let t0 = Utc.with_ymd_and_hms(2026, 8, 22, 3, 12, 0).unwrap();
+
+    let mut e = entwurf_eins();
+    e.vor_ort = 0;
+    e.transport = 1;
+    e.patienten = vec![PatientStand { art: Patientenart::Transport, einsatznummer: "2608-0193".into(), durch: "RTW 11-83-1".into() }];
+    buch.sende_ab(&e, t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(7), false).unwrap().unwrap();
+    buch.sende_ab(&entwurf_zwei(), t0, false).unwrap();
+    buch.versiegele_ausstehend(t0, &mut FesterZufall(9), false).unwrap().unwrap();
+
+    let bloecke = buch.bloecke().unwrap();
+    let mit = entschluessele(&bloecke[0], &suite_privatschluessel());
+    assert_eq!(mit.patienten, e.patienten);
+    let ohne = entschluessele(&bloecke[1], &suite_privatschluessel());
+    assert!(ohne.patienten.is_empty());
+    assert!(!ohne.kanonisch().unwrap().contains("patienten"));
 }

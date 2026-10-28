@@ -61,6 +61,19 @@ export const zugang = sqliteTable("lagemonitor_zugang", {
 }, (t) => [uniqueIndex("lagemonitor_zugang_schluessel_idx").on(t.schluesselHash)]);
 
 /**
+ * Ein Link, mit dem ein Rechner den Online-Lagemonitor ohne Anmeldung sieht, etwa „Rechner Wache“.
+ * Wie beim Zugang steht nur der SHA-256 des Schlüssels hier; der Lagemonitor bekommt ihn mit der
+ * Konfiguration (`publicLinks`) und lässt Rechner mit diesem Link ein, bis er widerrufen ist.
+ */
+export const link = sqliteTable("lagemonitor_link", {
+  id: text("id").primaryKey(),
+  bezeichnung: text("bezeichnung").notNull(),
+  schluesselHash: text("schluessel_hash").notNull(),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
+  angelegtVon: text("angelegt_von").notNull(),
+}, (t) => [uniqueIndex("lagemonitor_link_schluessel_idx").on(t.schluesselHash)]);
+
+/**
  * Eine Meldung, die der Lagemonitor als Band zeigt, etwa „Nächste Lagebesprechung“. Jede Meldung hat
  * ein Ablaufdatum (Vorgabe 24 Stunden): ohne Ablauf stünde ein vergessener Hinweis für immer am
  * Bildschirm. „Beenden“ setzt `ablaufAm` auf jetzt; die Zeile bleibt für das Audit stehen.

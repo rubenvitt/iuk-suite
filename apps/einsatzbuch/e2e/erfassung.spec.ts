@@ -159,3 +159,37 @@ test("Update-Anzeige: auf der Startseite in der Ecke, im Formular über der Fuß
   expect(ueber.y + ueber.height).toBeLessThanOrEqual(leiste.y);
   expect(ueber.y + ueber.height).toBeLessThanOrEqual(knopf.y);
 });
+
+test("je Patient eine Zeile: Einsatznummer und wer transportiert hat gehen mit ab", async ({ page }) => {
+  await installiereStub(page, { betrieb: "test", fristSekunden: 60 });
+  await page.goto("/");
+  await expect(page.getByText("TESTBETRIEB — nichts hiervon ist ein echter Einsatz")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "RD 2" }).click();
+  await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");
+  await page.getByLabel("Fahrzeug suchen").fill("83-1");
+  await page.getByLabel("Fahrzeug suchen").press("Enter");
+
+  await page.getByRole("button", { name: "Vor Ort behandelt: mehr" }).click();
+  await page.getByRole("textbox", { name: "Behandelt mit Transport" }).fill("2");
+  await expect(page.getByRole("textbox", { name: /^Transport, Patient \d: Einsatznummer$/ })).toHaveCount(2);
+  await page.getByRole("textbox", { name: "Vor Ort, Patient 1: Einsatznummer" }).fill("2608-0200");
+  await page.getByRole("textbox", { name: "Transport, Patient 1: Einsatznummer" }).fill("2608-0193");
+  // Mit Vorschlagsliste (`list`) ist das Feld eine Combobox, kein Textfeld.
+  await page.getByRole("combobox", { name: "Transport, Patient 1: transportiert durch" }).fill("RTW Uelzen 1-83-2");
+  await page.getByRole("textbox", { name: "Transport, Patient 2: Einsatznummer" }).fill("2608-0194");
+  await page.screenshot({ path: test.info().outputPath("patienten.png"), fullPage: true });
+  await page.getByRole("button", { name: "Transport, Patient 1 entfernen" }).click();
+  await expect(page.getByRole("textbox", { name: "Behandelt mit Transport" })).toHaveValue("1");
+  await expect(page.getByRole("textbox", { name: "Transport, Patient 1: Einsatznummer" })).toHaveValue("2608-0194");
+
+  await page.getByRole("button", { name: "Einsatz absenden" }).click();
+  await expect(page.getByText("Abgesendet · noch änderbar")).toBeVisible();
+  const absendungen = await page.evaluate(
+    () => (window as unknown as { __aufrufe: { cmd: string; args: { entwurf: { patienten: unknown[] } } }[] }).__aufrufe.filter((a) => a.cmd === "absenden"),
+  );
+  expect(absendungen[0].args.entwurf.patienten).toEqual([
+    { art: "vorOrt", einsatznummer: "2608-0200", durch: "" },
+    { art: "transport", einsatznummer: "2608-0194", durch: "" },
+  ]);
+});

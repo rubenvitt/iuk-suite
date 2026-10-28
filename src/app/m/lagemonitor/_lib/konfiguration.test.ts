@@ -74,6 +74,7 @@ describe("Speichern und Drahtformat", () => {
       suchlage: { url: "https://suchlage.example.org", token: TOKEN, tracks: true, areas: false, video: true },
       recruitment: null,
       notices: [],
+      publicLinks: [],
     });
   });
 

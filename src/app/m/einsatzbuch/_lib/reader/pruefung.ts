@@ -34,7 +34,13 @@ export const einsatzSchema = z.object({
   fahrzeuge: z.array(z.object({ id: kurzText(80), typ: kurzText(40), kennung: kurzText(40), ruf: kurzText(120), standort: kurzText(80) }).strict()).max(200),
   personal: z.array(z.object({ id: kurzText(80), name: kurzText(120), quali: kurzText(40), ov: kurzText(80), fahrzeugId: kurzText(80).nullable() }).strict()).max(1000),
   vorOrt: zahl, transport: zahl, notizen: kurzText(20_000), leitstellenNummer: kurzText(40).optional(),
-}).strict().refine((e) => (e.endeDatum === null) === (e.endeZeit === null), "Ende nur vollständig");
+  patienten: z.array(z.object({ art: z.enum(["vorOrt", "transport"]), einsatznummer: kurzText(40), durch: kurzText(120) }).strict()).min(1).max(1998).optional(),
+}).strict().refine((e) => (e.endeDatum === null) === (e.endeZeit === null), "Ende nur vollständig")
+  .refine((e) => e.patienten === undefined || (
+    e.patienten.filter((p) => p.art === "vorOrt").length === e.vorOrt
+    && e.patienten.filter((p) => p.art === "transport").length === e.transport
+    && e.patienten.every((p) => p.art === "transport" || p.durch === "")
+  ), "Patientenzeilen passen nicht zu den Zählern");
 
 /** Kopf, Umschlag und CEK einzeln exportiert: `anbindung/vertrag.ts` prüft `schluessel/freigeben` damit gleich streng. */
 export const cekSchema = z.string().refine((s) => { try { return ausBase64(s).length === 32; } catch { return false; } });

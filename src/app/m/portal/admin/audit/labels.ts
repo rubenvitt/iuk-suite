@@ -15,13 +15,13 @@ export const OBJECT_LABELS: Record<string,string> = {
  session:"Anmeldung",sessions:"Sitzungen",idp_refresh:"Sitzung beim Identitätsanbieter",access:"Modulzugriff",access_throttled:"Weitere Ablehnungen nicht einzeln protokolliert",login_required:"Modulzugriff ohne Anmeldung",share_access:"Freigabezugriff",audit_log:"Audit-Log",browser_export:"Browserexport",bereich:"Bereich außerhalb des Kärtchens",
  share_file:"Datei aus Freigabe",share_archive:"Archiv aus Freigabe",inbox_file:"Datei aus Abgabe",inbox_archive:"Archiv der Abgaben",group_export:"Gruppenauswertung",evening_export:"Dienstabendauswertung",checklist_collection:"Fahrzeug-Checklisten",device_collection:"Funkgeräteübersicht",participant_export:"Teilnehmerauswertung",participant_collection:"Teilnehmerübersicht",proof_file:"Nachweisdatei",
  qr_png:"QR-Code als PNG",
- fahrzeug:"Fahrzeug (Einsatzbuch)",person:"Person (Einsatzbuch)",stichwort:"Alarmstichwort",einstellung:"Einstellung",schluesselpaar:"Schlüsselpaar des Einsatzbuchs",
+ fahrzeug:"Fahrzeug (Einsatzbuch)",person:"Person (Einsatzbuch)",stichwort:"Alarmstichwort",qualifikation:"Qualifikation (Einsatzbuch)",einstellung:"Einstellung",schluesselpaar:"Schlüsselpaar des Einsatzbuchs",
  rechner:"Einsatzbuch-Rechner",anker_abweichung:"Anker-Abweichung (Einsatzbuch)",freigabe:"Schlüsselfreigabe (Einsatzbuch)",
  einsatzbuch_reader_oeffnen:"Einsatzdatei im Reader geöffnet",einsatzbuch_reader_druck:"Einsatzbericht aus dem Reader gedruckt",
  plan:"Kommunikationsplan",plan_bearbeitung:"Bearbeitung eines Kommunikationsplans",plan_mitglied:"Eingeladene Person eines Kommunikationsplans",bib_stelle:"Stelle (Planbibliothek)",bib_einheit:"Einheit (Planbibliothek)",bib_verbindung:"Verbindung (Planbibliothek)",plan_freigabe:"Freigabelink eines Plans",briefkopf:"Briefkopf (Kommunikationspläne)",eigenes_zeichen:"Eigenes Zeichen (Kommunikationspläne)",
  helfer:"Helfer (aus HiOrg)",hiorg_verbindung:"Verbindung zu HiOrg-Server",importlauf:"Abgleich der Helfer",
  stammfahrzeug:"Fahrzeug (Stammdaten)",
- lagemonitor_anzeige:"Anzeige des Lagemonitors",lagemonitor_zugang:"Zugang des Lagemonitors",lagemonitor_meldung:"Meldung am Lagemonitor",quellzuordnung:"Fahrzeugzuordnung (Stammdaten)",
+ lagemonitor_anzeige:"Anzeige des Lagemonitors",lagemonitor_zugang:"Zugang des Lagemonitors",lagemonitor_meldung:"Meldung am Lagemonitor",lagemonitor_link:"Link für den Online-Lagemonitor",quellzuordnung:"Fahrzeugzuordnung (Stammdaten)",
 };
 export function objectLabel(type: string): string { return OBJECT_LABELS[type] ?? "Weiteres Objekt"; }
 export function actorLabel(event: AuditEvent): string {

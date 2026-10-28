@@ -358,6 +358,7 @@ mod lauf {
             transport: 0,
             notizen: "Ende-zu-Ende-Lauf Stufe 6".into(),
             leitstellen_nummer: String::new(),
+            patienten: Vec::new(),
         };
         let aus = sende_ab(z, &entwurf, false)?;
         e2e!(

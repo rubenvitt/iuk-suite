@@ -58,6 +58,7 @@ const AUSSTEHEND: Ausstehend = {
     transport: 0,
     notizen: "",
     leitstellenNummer: "",
+    patienten: [],
   },
   abgesendetAm: "2026-09-24T10:00:00+02:00",
   fristBis: "2026-09-24T10:15:00+02:00",

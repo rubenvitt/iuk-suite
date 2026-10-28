@@ -53,7 +53,14 @@
       ],
       "vorOrt": 0,
       "transport": 1,
-      "notizen": ""
+      "notizen": "",
+      "patienten": [
+        {
+          "art": "transport",
+          "einsatznummer": "2608-0193",
+          "durch": "Rotkreuz Uelzen 11-83-1"
+        }
+      ]
     },
     {
       "v": 1,

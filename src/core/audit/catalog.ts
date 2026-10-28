@@ -346,6 +346,12 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "qualifikation": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "einstellung": {
       "mode": "audited",
       "primaryKey": [
@@ -550,6 +556,12 @@ export const AUDIT_TABLES = {
       }
     },
     "lagemonitor_meldung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "lagemonitor_link": {
       "mode": "audited",
       "primaryKey": [
         "id"

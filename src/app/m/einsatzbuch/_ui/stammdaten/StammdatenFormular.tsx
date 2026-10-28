@@ -6,11 +6,8 @@ import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { fahrzeugSpeichernAction, personSpeichernAction, stichwortSpeichernAction } from "../../_actions/stammdaten";
 import type { FeldFehler } from "../../_lib/actionErgebnis";
-import { QUALIFIKATIONEN } from "../../_lib/stammdaten/vorlage";
-import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "../../_lib/stammdaten/typen";
+import type { FahrzeugDTO, PersonDTO, QualifikationDTO, Stammdatenart, StichwortDTO } from "../../_lib/stammdaten/typen";
 import type { Stammeintrag } from "./StammdatenTabelle";
-
-const QUALI_OPTIONEN = QUALIFIKATIONEN.map((q) => ({ value: q.kurz, label: `${q.kurz} – ${q.lang}` }));
 
 /** Die Textfelder aller drei Arten in einem Zustand; welche davon gelten, entscheidet `art`. */
 interface Zustand {
@@ -48,12 +45,15 @@ function zustandAus(art: Stammdatenart, eintrag: Stammeintrag | null): Zustand {
 export function StammdatenFormular({
   art,
   eintrag,
+  qualifikationen,
   onGespeichert,
   onAbbrechen,
 }: {
   art: Stammdatenart;
   /** `null`: anlegen. Sonst wird dieser Eintrag geändert. */
   eintrag: Stammeintrag | null;
+  /** Die Auswahl fürs Personal, in Rangfolge (IDA-282). */
+  qualifikationen: QualifikationDTO[];
   onGespeichert: () => void;
   onAbbrechen: () => void;
 }) {
@@ -107,8 +107,9 @@ export function StammdatenFormular({
     </Feld>
   );
   /**
-   * Feste Liste statt Freitext (DRK-488). Volle Breite: Ohne sie schrumpft das Feld auf seinen
-   * Wert. Ein Altwert außerhalb der Liste bleibt sichtbar, speichern lässt ihn der Server nicht.
+   * Liste statt Freitext (DRK-488), seit IDA-282 aus der Datenbank. Volle Breite: Ohne sie schrumpft
+   * das Feld auf seinen Wert. Ein Altwert außerhalb der Liste bleibt sichtbar, speichern lässt ihn
+   * der Server nicht.
    */
   const quali = (
     <Feld id={`${basis}-quali`} label="Qualifikation" fehler={feldFehler.quali}>
@@ -117,7 +118,7 @@ export function StammdatenFormular({
         style={{ width: "100%" }}
         value={z.quali || undefined}
         placeholder="Qualifikation wählen"
-        options={QUALI_OPTIONEN}
+        options={qualifikationen.map((q) => ({ value: q.kurz, label: `${q.kurz} – ${q.lang}` }))}
         status={feldFehler.quali ? "error" : undefined}
         aria-describedby={feldFehler.quali ? `${basis}-quali-fehler` : undefined}
         onChange={(wert: string) => setze("quali", wert)}

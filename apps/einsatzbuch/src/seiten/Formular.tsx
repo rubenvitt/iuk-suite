@@ -16,16 +16,22 @@ import { Zeichen } from "../bausteine/Symbol";
 import {
   bereitText,
   dauerHinweis,
+  entfernePatient,
   fahrzeugFilter,
   fahrzeugTreffer,
   fristSatz,
   HOECHSTLAENGE,
   kannAbsenden,
+  PATIENT_HOECHSTLAENGE,
+  patientenZeilen,
   personFilter,
   personTreffer,
   schalteFahrzeug,
   schaltePerson,
+  setzePatient,
+  setzePatientenzahl,
   setzeZaehler,
+  transportVorschlaege,
   waehleErstenTreffer,
 } from "../logik/formular";
 import type { Entwurf, Stammdatenpaket } from "../typen";
@@ -44,16 +50,20 @@ interface FormularProps {
 type Textfeld = "stichwort" | "beginnDatum" | "beginnZeit" | "endeDatum" | "endeZeit" | "strasse" | "ort" | "objekt" | "notizen" | "leitstellenNummer";
 type Zaehler = "vorOrt" | "transport";
 
-const ZAEHLER: { feld: Zaehler; titel: string; hilfe: string; minus: string; plus: string }[] = [
-  { feld: "vorOrt", titel: "Vor Ort behandelt", hilfe: "ohne Transport", minus: "Vor Ort behandelt: weniger", plus: "Vor Ort behandelt: mehr" },
+const ZAEHLER: { feld: Zaehler; titel: string; hilfe: string; minus: string; plus: string; kurz: string }[] = [
+  { feld: "vorOrt", titel: "Vor Ort behandelt", hilfe: "ohne Transport", minus: "Vor Ort behandelt: weniger", plus: "Vor Ort behandelt: mehr", kurz: "Vor Ort" },
   {
     feld: "transport",
     titel: "Behandelt mit Transport",
     hilfe: "ins Krankenhaus oder zum Arzt",
     minus: "Mit Transport: weniger",
     plus: "Mit Transport: mehr",
+    kurz: "Transport",
   },
 ];
+
+/** `<datalist>` der Vorschläge für „Transportiert durch“. */
+const VORSCHLAEGE_ID = "transport-vorschlaege";
 
 /** Der Dauer-Hinweis rechnet mit Wanduhrzeiten; ein halb getipptes Feld darf die Seite nicht umwerfen. */
 function sichererDauerHinweis(e: Entwurf, zeitzone: string): string {
@@ -345,22 +355,62 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
           <Karte titel="Patienten">
             <div className="stapel">
               {ZAEHLER.map((z) => (
-                <div key={z.feld} className="zaehler">
-                  <div className="zaehler-text">
-                    <div className="zaehler-titel">{z.titel}</div>
-                    <div className="neben">{z.hilfe}</div>
+                <div key={z.feld} className="zaehler-gruppe">
+                  <div className="zaehler">
+                    <div className="zaehler-text">
+                      <div className="zaehler-titel">{z.titel}</div>
+                      <div className="neben">{z.hilfe}</div>
+                    </div>
+                    <Knopf zeichen="minus-kraeftig" aria-label={z.minus} onClick={() => beiAenderung(setzePatientenzahl(e, z.feld, e[z.feld] - 1))} />
+                    <input
+                      className="zaehler-wert"
+                      value={e[z.feld]}
+                      onChange={(ev) => beiAenderung(setzePatientenzahl(e, z.feld, setzeZaehler(ev.target.value)))}
+                      inputMode="numeric"
+                      aria-label={z.titel}
+                    />
+                    <Knopf zeichen="plus-kraeftig" aria-label={z.plus} onClick={() => beiAenderung(setzePatientenzahl(e, z.feld, e[z.feld] + 1))} />
                   </div>
-                  <Knopf zeichen="minus-kraeftig" aria-label={z.minus} onClick={() => beiAenderung({ ...e, [z.feld]: Math.max(0, e[z.feld] - 1) })} />
-                  <input
-                    className="zaehler-wert"
-                    value={e[z.feld]}
-                    onChange={(ev) => beiAenderung({ ...e, [z.feld]: setzeZaehler(ev.target.value) })}
-                    inputMode="numeric"
-                    aria-label={z.titel}
-                  />
-                  <Knopf zeichen="plus-kraeftig" aria-label={z.plus} onClick={() => beiAenderung({ ...e, [z.feld]: Math.min(999, e[z.feld] + 1) })} />
+                  {e[z.feld] > 0 ? (
+                    <ol className="patienten" aria-label={`${z.titel}: Angaben je Patient`}>
+                      {patientenZeilen(e, z.feld).map((p, i) => (
+                        <li key={i} className={z.feld === "transport" ? "patient patient-transport" : "patient"} data-patient={z.feld}>
+                          <span className="patient-nr">{i + 1}</span>
+                          <Feld
+                            wert={p.einsatznummer}
+                            beiAenderung={(w) => beiAenderung(setzePatient(e, z.feld, i, "einsatznummer", w))}
+                            placeholder="Einsatznummer"
+                            aria-label={`${z.kurz}, Patient ${i + 1}: Einsatznummer`}
+                            maxLength={PATIENT_HOECHSTLAENGE.einsatznummer}
+                          />
+                          {z.feld === "transport" ? (
+                            <Feld
+                              wert={p.durch}
+                              beiAenderung={(w) => beiAenderung(setzePatient(e, z.feld, i, "durch", w))}
+                              placeholder="Transportiert durch"
+                              aria-label={`${z.kurz}, Patient ${i + 1}: transportiert durch`}
+                              maxLength={PATIENT_HOECHSTLAENGE.durch}
+                              list={VORSCHLAEGE_ID}
+                            />
+                          ) : null}
+                          <Knopf
+                            variante="text"
+                            zeichen="kreuz"
+                            aria-label={`${z.kurz}, Patient ${i + 1} entfernen`}
+                            onClick={() => beiAenderung(entfernePatient(e, z.feld, i))}
+                          />
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
                 </div>
               ))}
+              <datalist id={VORSCHLAEGE_ID}>
+                {transportVorschlaege(e, fahrzeuge).map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+              <div className="neben">Einsatznummer und wer transportiert hat sind freiwillig, je Patient eine Zeile.</div>
               <div className="gesamt">
                 <div className="gesamt-label">Gesamt</div>
                 <div className="gesamt-zahl">{e.vorOrt + e.transport}</div>

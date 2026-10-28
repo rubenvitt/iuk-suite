@@ -56,7 +56,25 @@ Ein Monitor ohne Meldungsband (ältere Version) übergeht das Feld `notices` im 
 den Code unten rechts auf der Karte, aber nur in ruhiger Lage: bei einer Warnung im Band oder einem
 laufenden Suchlage-Einsatz blendet er ihn aus. Das Feld `recruitment` übergeht ein älterer Monitor.
 
-## 5. Störungen
+## 5. Online-Monitor und Links ohne Anmeldung
+
+Neben dem FüKw läuft der Lagemonitor ein zweites Mal auf iuk-services, unter
+`https://lagemonitor.iuk-ue.de/monitor/` (Traefik nimmt nur `/monitor`, der Rest des Hosts bleibt bei
+der Suite; Einrichtung im Repo `lagemonitor`, `deploy/cloud/README.md`). Er holt mit einem eigenen
+Zugang ab und lässt nur mit Pocket ID (`lagemonitor-nutzer`, `lagemonitor-admin`) oder mit einem Link
+hinein.
+
+```
+LAGEMONITOR_ONLINE_URL=https://lagemonitor.iuk-ue.de/monitor
+```
+
+Ohne diese Zeile zeigt **Links für Rechner ohne Anmeldung** nur einen Hinweis. Mit ihr legt die
+Verwaltung benannte Links an (`…/monitor/auth/link#<Schlüssel>`); der Link steht genau einmal da,
+gespeichert ist nur sein SHA-256, der mit der Konfiguration als `publicLinks` zum Monitor geht. Ein
+Rechner, der den Link einmal öffnet, bleibt angemeldet. **Widerrufen** sperrt jeden Rechner mit diesem
+Link nach spätestens einer Minute aus. Ein älterer Monitor übergeht das Feld.
+
+## 6. Störungen
 
 - **Monitor zeigt alte Einstellungen**, unten „nicht abholbar": Zugang widerrufen oder Suite nicht
   erreichbar. Der Monitor läuft mit dem letzten Stand weiter; einen neuen Zugang anlegen oder die

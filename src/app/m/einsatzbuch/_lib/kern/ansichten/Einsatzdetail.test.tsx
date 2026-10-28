@@ -87,4 +87,16 @@ describe("Einsatzdetail", () => {
     await mount(<Einsatzdetail block={blockFuer(0)} einsatz={TESTEINSAETZE[0]} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer={false} />);
     expect(exists("[data-objekt]")).toBe(false);
   });
+
+  it("Angaben je Patient: eine Zeile je Patient, ohne Angaben kein Abschnitt", async () => {
+    await mount(<Einsatzdetail block={blockFuer(0)} einsatz={TESTEINSAETZE[0]} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
+    expect(queryAll("[data-patient]").map((li) => li.textContent)).toEqual(["TransportEinsatznr. 2608-0193Rotkreuz Uelzen 11-83-1"]);
+    await unmount();
+    const bvo = { ...TESTEINSAETZE[0], vorOrt: 1, transport: 0, patienten: [{ art: "vorOrt" as const, einsatznummer: "", durch: "" }] };
+    await mount(<Einsatzdetail block={blockFuer(0)} einsatz={bvo} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
+    expect(queryAll("[data-patient]").map((li) => li.textContent)).toEqual(["Vor OrtEinsatznr. —"]);
+    await unmount();
+    await mount(<Einsatzdetail block={blockFuer(2)} einsatz={TESTEINSAETZE[2]} zeitzone={ZONE} dritteKennzahl="gesamt" mitDauerzeile objektImmer />);
+    expect(exists("[data-patient]")).toBe(false);
+  });
 });

@@ -191,7 +191,7 @@ export function HelferAbgleich({ onSchliessen }: { onSchliessen: () => void }) {
               {
                 key: "qualifikationen",
                 label: `Qualifikationen aus HiOrg · ${plan.qualifikationen.length}`,
-                children: <QualiZuordnung key={stand} zeilen={plan.qualifikationen} wahl={wahl} onWahl={setWahl} />,
+                children: <QualiZuordnung key={stand} zeilen={plan.qualifikationen} auswahl={plan.auswahl} wahl={wahl} onWahl={setWahl} />,
               },
             ]}
           />

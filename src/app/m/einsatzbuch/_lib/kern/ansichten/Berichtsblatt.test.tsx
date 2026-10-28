@@ -58,8 +58,21 @@ describe("Berichtsblatt", () => {
     expect(text).toContain("Gebrochen bei Block 2");
   });
 
+  it("Angaben je Patient als eigene Tabelle", async () => {
+    await mount(<Berichtsblatt daten={bericht(bloecke[0], TESTEINSAETZE[0], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
+    expect(blatt()).toContain("Patienten · 1");
+    const zellen = Array.from(query("[data-patienten] tbody tr").querySelectorAll("td")).map((td) => td.textContent);
+    expect(zellen).toEqual(["Transport", "Rotkreuz Uelzen 11-83-1", "2608-0193"]);
+  });
+
+  it("ohne Angaben je Patient keine Patiententabelle", async () => {
+    await mount(<Berichtsblatt daten={bericht(bloecke[2], TESTEINSAETZE[2], EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
+    expect(queryAll("[data-patienten]").length).toBe(0);
+    expect(blatt()).not.toContain("Patienten ·");
+  });
+
   it("leere Listen", async () => {
-    const leer = { ...TESTEINSAETZE[0], fahrzeuge: [], personal: [], notizen: "" };
+    const leer = { ...TESTEINSAETZE[0], fahrzeuge: [], personal: [], notizen: "", patienten: undefined };
     await mount(<Berichtsblatt daten={bericht(bloecke[0], leer, EXTRA)} bereitschaft="DRK-Bereitschaft Uelzen" unveraendert />);
     const text = blatt();
     expect(text).toContain("Keine Fahrzeuge angegeben.");

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { Einsatz } from "../format";
-import { einsatzTexte } from "../bericht";
+import { einsatzTexte, patientenZeilen } from "../bericht";
 import { zeitpunktText } from "../zeit";
 import s from "./ansichten.module.css";
 
@@ -29,6 +29,7 @@ export interface EinsatzdetailProps {
 export function Einsatzdetail({ block, einsatz: e, zeitzone, dritteKennzahl, mitDauerzeile, objektImmer, kopfRechts, aktionen }: EinsatzdetailProps) {
   const t = einsatzTexte(e, zeitzone);
   const zeigeObjekt = objektImmer || e.objekt !== "";
+  const patienten = patientenZeilen(e);
   return (
     <section aria-label={`Block ${block.nummer}`} className={`${s.wurzel} ${s.karte} ${s.detail}`}>
       <div className={s.detailkopf}>
@@ -81,6 +82,20 @@ export function Einsatzdetail({ block, einsatz: e, zeitzone, dritteKennzahl, mit
           </ul>
         )}
       </div>
+      {patienten.length > 0 && (
+        <div className={s.abschnitt}>
+          <h3 className={s.kicker}>{`Patienten · ${patienten.length}`}</h3>
+          <ul className={s.aufzaehlung}>
+            {patienten.map((p, i) => (
+              <li key={i} className={s.patient} data-patient="">
+                <span className={s.quali}>{p.art}</span>
+                <span>{`Einsatznr. ${p.einsatznummer}`}</span>
+                {p.art === "Transport" && <span className={s.ruf}>{p.durch}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {e.notizen.trim() !== "" && (
         <div className={s.abschnitt}>
           <h3 className={s.kicker}>Notizen</h3>

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::buch::{Buch, BuchFehler};
 use crate::einrichtung::Stammdatenpaket;
-use crate::format::{FahrzeugStand, PersonStand};
+use crate::format::{FahrzeugStand, PatientStand, Patientenart, PersonStand};
 use crate::grenzen;
 use crate::krypto::KryptoFehler;
 
@@ -44,6 +44,10 @@ pub struct Entwurf {
     /// in der Datenbank liegen.
     #[serde(default)]
     pub leitstellen_nummer: String,
+    /// Angaben je Patient, in beliebiger Länge: `pruefe_entwurf` richtet sie an `vor_ort` und
+    /// `transport` aus. `default`, weil Entwürfe älterer Versionen das Feld nicht kennen.
+    #[serde(default)]
+    pub patienten: Vec<PatientStand>,
 }
 
 /// Der zuletzt abgesendete Einsatz, solange die Frist läuft.
@@ -176,6 +180,33 @@ fn pruefe_laenge(feld: &str, wert: &str, hoechstens: usize) -> Result<(), Erfass
     Ok(())
 }
 
+/// Richtet die Angaben je Patient an den Zählern aus: zuerst `vor_ort` Zeilen „vor Ort“, dann
+/// `transport` Zeilen „Transport“, je Art in der Reihenfolge des Entwurfs, getrimmt, fehlende leer
+/// aufgefüllt, überzählige verworfen; bei „vor Ort“ ist `durch` immer leer. Sind danach alle
+/// Felder leer, gibt es keine Angaben, und das Ergebnis ist leer — der Einsatz bleibt dann
+/// byte-gleich zu einem ohne das Feld (`format.rs`, `Einsatz::patienten`).
+fn richte_patienten_aus(e: &Entwurf) -> Result<Vec<PatientStand>, ErfassungFehler> {
+    let mut zeilen = Vec::new();
+    for (art, anzahl) in [(Patientenart::VorOrt, e.vor_ort), (Patientenart::Transport, e.transport)] {
+        let mut eigene = e.patienten.iter().filter(|p| p.art == art);
+        for _ in 0..anzahl {
+            let p = eigene.next();
+            let einsatznummer = p.map(|p| p.einsatznummer.trim().to_string()).unwrap_or_default();
+            let durch = match (art, p) {
+                (Patientenart::Transport, Some(p)) => p.durch.trim().to_string(),
+                _ => String::new(),
+            };
+            pruefe_laenge("Einsatznummer eines Patienten", &einsatznummer, grenzen::PATIENT_EINSATZNUMMER)?;
+            pruefe_laenge("Transportiert durch", &durch, grenzen::PATIENT_DURCH)?;
+            zeilen.push(PatientStand { art, einsatznummer, durch });
+        }
+    }
+    if zeilen.iter().all(|p| p.einsatznummer.is_empty() && p.durch.is_empty()) {
+        zeilen.clear();
+    }
+    Ok(zeilen)
+}
+
 /// Prüft `HH:MM` auf Form und den Bereich 00:00–23:59 (z. B. lehnt sie `24:00` ab).
 fn pruefe_zeit(s: &str) -> Result<(), ErfassungFehler> {
     if !ist_zeitform(s) {
@@ -246,6 +277,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     pruefe_laenge("Objekt", &objekt, grenzen::OBJEKT)?;
     pruefe_laenge("Notizen", &e.notizen, grenzen::NOTIZEN)?;
     pruefe_laenge("Einsatznummer der Leitstelle", &leitstellen_nummer, grenzen::LEITSTELLEN_NUMMER)?;
+    let patienten = richte_patienten_aus(e)?;
     if e.fahrzeuge.len() > grenzen::FAHRZEUGE {
         return Err(ErfassungFehler::Ungueltig(format!(
             "höchstens {} Fahrzeuge je Einsatz, gewählt sind {}",
@@ -312,6 +344,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
         transport: e.transport,
         notizen: e.notizen.clone(),
         leitstellen_nummer,
+        patienten,
     };
 
     let schnappschuss = Schnappschuss {

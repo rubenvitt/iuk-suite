@@ -103,7 +103,7 @@ test("Stammdaten-Durchlauf: Fahrzeug anlegen, bearbeiten, deaktivieren; Personal
   await expect(page.getByRole("button", { name: "Fahrzeug anlegen" })).toBeVisible();
 });
 
-test("Person anlegen: Qualifikation aus fester Liste über die volle Breite, kein Ortsverein (DRK-488)", async ({ page }) => {
+test("Person anlegen: Qualifikation aus der Liste über die volle Breite, kein Ortsverein (DRK-488)", async ({ page }) => {
   const name = `Probe${Date.now() % 100000}, Sina`;
   await oeffne(page, "/stammdaten?reiter=personal");
   await klickeWennRuhig(page.getByRole("button", { name: "Person anlegen" }));
@@ -127,6 +127,40 @@ test("Person anlegen: Qualifikation aus fester Liste über die volle Breite, kei
   const zeile = page.getByRole("table", { name: "Personal" }).locator("[data-row-key]", { hasText: name });
   await expect(zeile).toContainText("SiK");
   await expect(page.getByRole("table", { name: "Personal" }).getByRole("columnheader", { name: /Ortsverein/ })).toHaveCount(0);
+});
+
+test("Qualifikation anlegen, umbenennen, in der Personalauswahl finden und wieder entfernen (IDA-282)", async ({ page }) => {
+  const kurz = `Q${Date.now() % 100000}`;
+  await oeffne(page, "/stammdaten?reiter=qualifikationen");
+  const tabelle = page.getByRole("table", { name: "Qualifikationen" });
+  await expect(tabelle.locator("[data-row-key]", { hasText: "Notfallsanitäter" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "CSV importieren" })).toHaveCount(0);
+
+  await klickeWennRuhig(page.getByRole("button", { name: "Qualifikation anlegen" }));
+  const formular = page.getByRole("dialog");
+  await formular.getByLabel("Kurzform", { exact: true }).fill(kurz);
+  await formular.getByLabel("Bezeichnung", { exact: true }).fill("Probequalifikation");
+  await formular.getByRole("button", { name: "Speichern" }).click();
+  const zeile = tabelle.locator("[data-row-key]", { hasText: "Probequalifikation" });
+  await expect(zeile).toContainText(kurz);
+
+  await zeile.getByRole("button", { name: "Bearbeiten" }).click();
+  await formular.getByLabel("Kurzform", { exact: true }).fill(`${kurz}b`);
+  await formular.getByRole("button", { name: "Speichern" }).click();
+  await expect(zeile).toContainText(`${kurz}b`);
+
+  // Die neue Qualifikation steht in der Auswahl des Personalformulars, hinter den fünf aus der Migration.
+  await page.getByRole("tab", { name: /Personal/ }).click();
+  await klickeWennRuhig(page.getByRole("button", { name: "Person anlegen" }));
+  await formular.locator(".ant-select").first().click();
+  await expect(page.locator(".ant-select-item-option").last()).toHaveText(`${kurz}b – Probequalifikation`);
+  await page.keyboard.press("Escape");
+  await formular.getByRole("button", { name: "Abbrechen" }).click();
+
+  await page.getByRole("tab", { name: /Qualifikationen/ }).click();
+  await zeile.getByRole("button", { name: "Entfernen" }).click();
+  await page.locator(".ant-popconfirm").getByRole("button", { name: "Entfernen" }).click();
+  await expect(zeile).toHaveCount(0);
 });
 
 test("Einstellungen: speichern, neu laden, ungültige Frist wird abgelehnt", async ({ page }) => {

@@ -1476,6 +1476,7 @@ pub(crate) mod tests {
             transport: 0,
             notizen: String::new(),
             leitstellen_nummer: String::new(),
+            patienten: Vec::new(),
         }
     }
 
