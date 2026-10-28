@@ -10,10 +10,12 @@ import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Warnschwelle } from "../_lib/konfiguration";
 import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
+import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
 import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
+import { OeffentlicheLinks } from "./OeffentlicheLinks";
 import { Zugaenge } from "./Zugaenge";
 import v from "./verwaltung.module.css";
 
@@ -67,7 +69,19 @@ const TEIL_TEXT: { feld: keyof SuchlageTeile; titel: string; text: string }[] = 
  * noch vor dem Speichern, mit Beispieldaten. Nur serialisierbare Props, die Actions direkt importiert
  * (Falle 9). Nach dem Speichern kommt der neue Stand über die Props (`revalidatePath`).
  */
-export function AnzeigeVerwaltung({ konfiguration, zugaenge, meldungen }: { konfiguration: KonfigurationDTO; zugaenge: ZugangDTO[]; meldungen: MeldungDTO[] }) {
+export function AnzeigeVerwaltung({
+  konfiguration,
+  zugaenge,
+  meldungen,
+  links,
+  online,
+}: {
+  konfiguration: KonfigurationDTO;
+  zugaenge: ZugangDTO[];
+  meldungen: MeldungDTO[];
+  links: LinkDTO[];
+  online: string | null;
+}) {
   const [gespeichert, setGespeichert] = useState(konfiguration);
   const [z, setZ] = useState<Zustand>(() => zustandAus(konfiguration));
   const [szenario, setSzenario] = useState<Szenario>("ruhe");
@@ -364,6 +378,8 @@ export function AnzeigeVerwaltung({ konfiguration, zugaenge, meldungen }: { konf
           </Card>
         </aside>
       </div>
+
+      <OeffentlicheLinks liste={links} online={online} />
 
       <Zugaenge liste={zugaenge} />
     </div>

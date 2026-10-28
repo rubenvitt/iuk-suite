@@ -554,6 +554,12 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "lagemonitor_link": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "konto": {
