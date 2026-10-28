@@ -24,6 +24,8 @@ export interface Entwurf {
   vorOrt: number;
   transport: number;
   notizen: string;
+  /** Einsatznummer der Leitstelle, Freitext; leer heißt „keine“ (Rust versiegelt sie dann nicht). */
+  leitstellenNummer: string;
 }
 
 export interface Fahrzeug {

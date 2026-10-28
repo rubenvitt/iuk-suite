@@ -31,6 +31,9 @@ pub const PERSON_OV: usize = 80;
 /// vier- oder fünfstelligen laufenden Nummer (Test in `tests/versiegeln.rs`).
 pub const NUMMER: usize = 40;
 
+/// Höchstlänge der Einsatznummer der Leitstelle (`leitstellenNummer`, IDA-284).
+pub const LEITSTELLEN_NUMMER: usize = 40;
+
 /// Höchstzahl der Blöcke in einem Export; ein Rechner hängt nie mehr Blöcke an seine Kette.
 pub const BLOECKE: u64 = 10_000;
 

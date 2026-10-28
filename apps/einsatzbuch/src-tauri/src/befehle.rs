@@ -1475,6 +1475,7 @@ pub(crate) mod tests {
             vor_ort: 1,
             transport: 0,
             notizen: String::new(),
+            leitstellen_nummer: String::new(),
         }
     }
 

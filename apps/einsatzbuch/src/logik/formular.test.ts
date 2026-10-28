@@ -72,6 +72,7 @@ function mit(teil: Partial<Entwurf> = {}): Entwurf {
     vorOrt: 0,
     transport: 0,
     notizen: "",
+    leitstellenNummer: "",
     ...teil,
   };
 }
@@ -208,6 +209,9 @@ it("Zusammenfassung: Zeilen wie in der Vorlage, inklusive offenem Ende", () => {
     { k: "Personal", v: "1 Kräfte" },
     { k: "Patienten", v: "1 vor Ort · 2 mit Transport" },
   ]);
+  // Die Einsatznummer der Leitstelle erscheint nur, wenn eine angegeben ist.
+  expect(zusammenfassung({ ...e, leitstellenNummer: " RD 2026-08-1234 " }, PAKET)[1]).toEqual({ k: "Einsatznummer Leitstelle", v: "RD 2026-08-1234" });
+  expect(zusammenfassung({ ...e, leitstellenNummer: "  " }, PAKET)).toHaveLength(7);
 });
 
 describe("Grenzen des Readers", () => {
@@ -230,6 +234,6 @@ describe("Grenzen des Readers", () => {
   });
 
   it("Höchstlängen wie im Reader", () => {
-    expect(HOECHSTLAENGE).toEqual({ stichwort: 80, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 });
+    expect(HOECHSTLAENGE).toEqual({ stichwort: 80, leitstellenNummer: 40, strasse: 200, ort: 200, objekt: 500, notizen: 20_000 });
   });
 });

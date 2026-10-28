@@ -357,6 +357,7 @@ mod lauf {
             vor_ort: 1,
             transport: 0,
             notizen: "Ende-zu-Ende-Lauf Stufe 6".into(),
+            leitstellen_nummer: String::new(),
         };
         let aus = sende_ab(z, &entwurf, false)?;
         e2e!(

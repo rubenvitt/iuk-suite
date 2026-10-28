@@ -39,6 +39,7 @@ const PS = E.personal.element.shape;
 const EINSATZFELD: Record<string, () => number> = {
   nummer: () => textMax(E.nummer),
   stichwort: () => textMax(E.stichwort),
+  leitstellenNummer: () => textMax(E.leitstellenNummer.unwrap()),
   strasse: () => textMax(E.strasse),
   ort: () => textMax(E.ort),
   objekt: () => textMax(E.objekt),
@@ -55,6 +56,7 @@ const RUST: Record<string, () => number> = {
   OBJEKT: EINSATZFELD.objekt,
   NOTIZEN: EINSATZFELD.notizen,
   NUMMER: EINSATZFELD.nummer,
+  LEITSTELLEN_NUMMER: EINSATZFELD.leitstellenNummer,
   FAHRZEUGE: EINSATZFELD.fahrzeuge,
   PERSONAL: EINSATZFELD.personal,
   FAHRZEUG_ID: () => textMax(FZ.id),

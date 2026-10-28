@@ -106,6 +106,7 @@ function entwurf(teil: Partial<Entwurf> = {}): Entwurf {
     vorOrt: 1,
     transport: 0,
     notizen: "",
+    leitstellenNummer: "",
     ...teil,
   };
 }
@@ -877,6 +878,10 @@ describe("Formular", () => {
     expect(feld("Straße, Hausnummer")?.maxLength).toBe(200);
     expect(feld("PLZ, Ort")?.maxLength).toBe(200);
     expect(feld("Objekt, Lage vor Ort")?.maxLength).toBe(500);
+    const leitstelle = queryAll<HTMLLabelElement>("label")
+      .find((l) => l.querySelector(".feld-label")?.textContent === "Einsatznummer der Leitstelle")
+      ?.querySelector("input");
+    expect(leitstelle?.maxLength).toBe(40);
     expect(queryAll<HTMLTextAreaElement>("textarea")[0]?.maxLength).toBe(20_000);
   });
 

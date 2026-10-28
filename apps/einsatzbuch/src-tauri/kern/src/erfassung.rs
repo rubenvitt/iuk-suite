@@ -39,6 +39,11 @@ pub struct Entwurf {
     pub vor_ort: u32,
     pub transport: u32,
     pub notizen: String,
+    /// Einsatznummer der Leitstelle, Freitext (IDA-284); leer heißt „keine“ und wird nicht
+    /// versiegelt. `default`, weil Entwürfe und Ausstehendes aus älteren Versionen ohne das Feld
+    /// in der Datenbank liegen.
+    #[serde(default)]
+    pub leitstellen_nummer: String,
 }
 
 /// Der zuletzt abgesendete Einsatz, solange die Frist läuft.
@@ -198,6 +203,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     let ende_datum = e.ende_datum.trim().to_string();
     let ende_zeit = e.ende_zeit.trim().to_string();
     let objekt = e.objekt.trim().to_string();
+    let leitstellen_nummer = e.leitstellen_nummer.trim().to_string();
 
     // `stichwort` wird nur auf „nicht leer" geprüft, nicht gegen `paket.stammdaten.stichworte`:
     // Die Stammdaten-Stichworte sind Vorschläge für die Oberfläche, keine abschließende Liste —
@@ -239,6 +245,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     pruefe_laenge("Ort", &ort, grenzen::ORT)?;
     pruefe_laenge("Objekt", &objekt, grenzen::OBJEKT)?;
     pruefe_laenge("Notizen", &e.notizen, grenzen::NOTIZEN)?;
+    pruefe_laenge("Einsatznummer der Leitstelle", &leitstellen_nummer, grenzen::LEITSTELLEN_NUMMER)?;
     if e.fahrzeuge.len() > grenzen::FAHRZEUGE {
         return Err(ErfassungFehler::Ungueltig(format!(
             "höchstens {} Fahrzeuge je Einsatz, gewählt sind {}",
@@ -304,6 +311,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
         vor_ort: e.vor_ort,
         transport: e.transport,
         notizen: e.notizen.clone(),
+        leitstellen_nummer,
     };
 
     let schnappschuss = Schnappschuss {

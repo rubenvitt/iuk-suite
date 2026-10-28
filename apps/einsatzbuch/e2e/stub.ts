@@ -337,6 +337,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       }
       const laengen: [string, string, number][] = [
         ["Alarmstichwort", e.stichwort.trim(), 80],
+        ["Einsatznummer der Leitstelle", e.leitstellenNummer.trim(), 40],
         ["Straße", e.strasse.trim(), 200],
         ["Ort", e.ort.trim(), 200],
         ["Objekt", e.objekt.trim(), 500],
