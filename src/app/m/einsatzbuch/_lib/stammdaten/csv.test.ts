@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { dekodiere, parseCsv, parseCsvMitZeilen, planeImport, type Importbestand } from "./csv";
+import { QUALIFIKATIONEN } from "./vorlage";
 
-const LEER: Importbestand = { fahrzeuge: [], personal: [], stichworte: [] };
+const LEER: Importbestand = { fahrzeuge: [], personal: [], stichworte: [], qualifikationen: QUALIFIKATIONEN.map((q) => q.kurz) };
 const win1252 = (s: string) =>
   Uint8Array.from([...s].map((c) => ({ ü: 0xfc, ß: 0xdf, ä: 0xe4 } as Record<string, number>)[c] ?? c.charCodeAt(0)));
 
@@ -85,9 +86,13 @@ describe("planeImport", () => {
     ]);
     expect(plan.ok && plan.zeilen[2].fehler).toBe("3 Spalten erwartet, 2 gefunden");
   });
-  it("Person: Qualifikation nur aus der festen Liste", () => {
+  it("Person: Qualifikation nur aus der Liste in der Datenbank", () => {
     const plan = planeImport("personal", "name;quali\nNeu, Nina;BtH", LEER);
     expect(plan.ok && plan.zeilen[0].fehler).toBe("Qualifikation bitte aus NotSan, RettAss, RS, SiK, SanH wählen");
+    const mitBtH = planeImport("personal", "name;quali\nNeu, Nina;BtH", { ...LEER, qualifikationen: [...LEER.qualifikationen, "BtH"] });
+    expect(mitBtH.ok && mitBtH.zeilen[0].klasse).toBe("neu");
+    const ohne = planeImport("personal", "name;quali\nNeu, Nina;SanH", { ...LEER, qualifikationen: [] });
+    expect(ohne.ok && ohne.zeilen[0].fehler).toBe("Bitte zuerst unter „Qualifikationen“ eine Qualifikation anlegen");
   });
   it("falsche Kopfzeile, falsche Spaltenzahl, leere Datei, zu viele Zeilen", () => {
     expect(planeImport("personal", "quali;name\nSanH;A, B", LEER)).toEqual({ ok: false, fehler: "Die Kopfzeile muss genau „name;quali“ lauten." });

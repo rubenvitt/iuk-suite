@@ -28,6 +28,18 @@ export const person = sqliteTable("person", {
   ov: text("ov").notNull().$default(() => ""),
   aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
 });
+/**
+ * Die Qualifikationen des Personals (IDA-282), `rang` 1 = höchste. `person.quali` trägt die
+ * Kurzform als Text, nicht die ID: so steht sie im Draht und als Schnappschuss im Einsatz. Ändert
+ * sich die Kurzform, zieht die Datenschicht das Personal mit (`qualifikationen.ts`). Kein Trigger
+ * `stand_*`: die App bekommt die Liste nicht, nur die Kürzel am Personal.
+ */
+export const qualifikation = sqliteTable("qualifikation", {
+  id: text("id").primaryKey(),
+  kurz: text("kurz").notNull().unique(),
+  lang: text("lang").notNull(),
+  rang: integer("rang").notNull(),
+});
 export const stichwort = sqliteTable("stichwort", {
   id: text("id").primaryKey(),
   gruppe: text("gruppe").notNull(),

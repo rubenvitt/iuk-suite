@@ -5,14 +5,16 @@ import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import type { HiorgQualiZeile } from "../../_lib/stammdaten/helferAbgleich";
 import type { QualiRegel } from "../../_lib/stammdaten/qualiZuordnung";
-import { QUALIFIKATIONEN } from "../../_lib/stammdaten/vorlage";
+import type { QualifikationDTO } from "../../_lib/stammdaten/typen";
 
-type Quali = (typeof QUALIFIKATIONEN)[number]["kurz"];
-/** „auto“ = keine Regel, die eingebaute Zuordnung gilt; „keine“ = bewusst nicht zuordnen. */
-export type Wahl = "auto" | "keine" | Quali;
+/**
+ * „auto“ = keine Regel, die eingebaute Zuordnung gilt; „keine“ = bewusst nicht zuordnen; sonst
+ * `q:` und eine Kurzform — der Vorsatz hält eine Kurzform „auto“ oder „keine“ auseinander (IDA-282).
+ */
+export type Wahl = "auto" | "keine" | `q:${string}`;
 export type Zuordnung = Map<string, Wahl>;
 
-const wahlAus = (z: HiorgQualiZeile): Wahl => (z.regel === undefined ? "auto" : z.regel ?? "keine");
+const wahlAus = (z: HiorgQualiZeile): Wahl => (z.regel === undefined ? "auto" : z.regel === null ? "keine" : `q:${z.regel}`);
 
 /** Die gespeicherte Zuordnung als Ausgangsstand der Auswahl. */
 export const startZuordnung = (zeilen: HiorgQualiZeile[]): Zuordnung => new Map(zeilen.map((z) => [z.hiorg, wahlAus(z)]));
@@ -24,7 +26,7 @@ export const zuordnungGeaendert = (zeilen: HiorgQualiZeile[], wahl: Zuordnung): 
 export const regelnAus = (zeilen: HiorgQualiZeile[], wahl: Zuordnung): QualiRegel[] =>
   zeilen.flatMap((z) => {
     const w = wahl.get(z.hiorg) ?? "auto";
-    return w === "auto" ? [] : [{ hiorg: z.hiorg, kurz: w === "keine" ? null : w }];
+    return w === "auto" ? [] : [{ hiorg: z.hiorg, kurz: w === "keine" ? null : w.slice(2) }];
   });
 
 /**
@@ -39,7 +41,13 @@ export const regelnAus = (zeilen: HiorgQualiZeile[], wahl: Zuordnung): QualiRege
  * Eine Liste statt `Kartentabelle`: die rendert beide Darstellungen ins HTML, jedes Auswahlfeld
  * stünde also doppelt da.
  */
-export function QualiZuordnung({ zeilen, wahl, onWahl }: { zeilen: HiorgQualiZeile[]; wahl: Zuordnung; onWahl: (wahl: Zuordnung) => void }) {
+export function QualiZuordnung({ zeilen, auswahl, wahl, onWahl }: {
+  zeilen: HiorgQualiZeile[];
+  /** Die Qualifikationen des Einsatzbuchs in Rangfolge (IDA-282). */
+  auswahl: QualifikationDTO[];
+  wahl: Zuordnung;
+  onWahl: (wahl: Zuordnung) => void;
+}) {
   return (
     <section aria-label="Qualifikationen aus HiOrg" style={{ display: "grid", gap: SPACE.md }}>
       <p style={{ margin: 0 }}>
@@ -67,7 +75,7 @@ export function QualiZuordnung({ zeilen, wahl, onWahl }: { zeilen: HiorgQualiZei
                   value={wahl.get(z.hiorg) ?? "auto"}
                   options={[
                     { value: "auto", label: `Automatisch: ${z.eingebaut ?? "nicht zuordnen"}` },
-                    ...QUALIFIKATIONEN.map((q) => ({ value: q.kurz, label: `${q.kurz} – ${q.lang}` })),
+                    ...auswahl.map((q) => ({ value: `q:${q.kurz}` as const, label: `${q.kurz} – ${q.lang}` })),
                     { value: "keine", label: "Nicht zuordnen" },
                   ]}
                   onChange={(w) => onWahl(new Map(wahl).set(z.hiorg, w))}

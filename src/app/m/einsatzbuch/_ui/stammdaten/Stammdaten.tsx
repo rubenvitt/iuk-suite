@@ -6,14 +6,16 @@ import { Button, Drawer, Tabs } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { flyinBreite } from "@/core/theme/flyin";
 import { SPACE } from "@/core/theme/tokens";
-import type { FahrzeugDTO, PersonDTO, Stammdatenart, StichwortDTO } from "../../_lib/stammdaten/typen";
+import type { FahrzeugDTO, PersonDTO, QualifikationDTO, Reiter, Stammdatenart, StichwortDTO } from "../../_lib/stammdaten/typen";
 import { StammdatenTabelle, type Stammeintrag } from "./StammdatenTabelle";
 import { StammdatenFormular } from "./StammdatenFormular";
 import { CsvImport } from "./CsvImport";
 import { HelferAbgleich } from "./HelferAbgleich";
 import { StammfahrzeugAbgleich } from "./StammfahrzeugAbgleich";
+import { QualifikationenTabelle, type QualifikationZeile } from "./QualifikationenTabelle";
+import { QualifikationFormular } from "./QualifikationFormular";
 
-const EINZAHL: Record<Stammdatenart, string> = { fahrzeuge: "Fahrzeug", personal: "Person", stichworte: "Stichwort" };
+const EINZAHL: Record<Reiter, string> = { fahrzeuge: "Fahrzeug", personal: "Person", stichworte: "Stichwort", qualifikationen: "Qualifikation" };
 
 /**
  * Die Client-Insel der Stammdatenseite: Reiter, Tabelle, Formular- und Import-Schublade.
@@ -33,14 +35,17 @@ export function Stammdaten({
   fahrzeuge,
   personal,
   stichworte,
+  qualifikationen,
 }: {
-  reiter: Stammdatenart;
+  reiter: Reiter;
   fahrzeuge: FahrzeugDTO[];
   personal: PersonDTO[];
   stichworte: StichwortDTO[];
+  /** In Rangfolge, höchste zuerst. */
+  qualifikationen: QualifikationDTO[];
 }) {
   const router = useRouter();
-  const [reiter, setReiter] = useState<Stammdatenart>(start);
+  const [reiter, setReiter] = useState<Reiter>(start);
   /*
    * DIE URL BLEIBT DIE QUELLE. Ändert sich nur `?reiter=` (Seitenleiste „Stammdaten“, Zurück im
    * Browser), rendert der App Router dieselbe Insel mit neuem Prop, und `useState` hielte den
@@ -56,9 +61,14 @@ export function Stammdaten({
   const [importOffen, setImportOffen] = useState(false);
   const [helferOffen, setHelferOffen] = useState(false);
   const [fahrzeugeOffen, setFahrzeugeOffen] = useState(false);
+  const [qualiFormular, setQualiFormular] = useState<{ eintrag: QualifikationZeile | null } | null>(null);
+
+  const traeger = new Map<string, number>();
+  for (const p of personal) traeger.set(p.quali, (traeger.get(p.quali) ?? 0) + 1);
+  const qualiZeilen: QualifikationZeile[] = qualifikationen.map((q) => ({ ...q, anzahl: traeger.get(q.kurz) ?? 0 }));
 
   function wechsle(key: string): void {
-    const art = key as Stammdatenart;
+    const art = key as Reiter;
     setReiter(art);
     /*
      * RELATIV, NICHT ÜBER `usePathname()`. Unter dem Host-Rewrite des Proxys kann der Pfad in
@@ -69,6 +79,11 @@ export function Stammdaten({
     router.replace(`?reiter=${art}`, { scroll: false });
   }
 
+  function anlegen(): void {
+    if (reiter === "qualifikationen") setQualiFormular({ eintrag: null });
+    else setFormular({ art: reiter, eintrag: null });
+  }
+
   const bearbeiten = (art: Stammdatenart) => (eintrag: Stammeintrag) => setFormular({ art, eintrag });
   const formularTitel = formular ? `${EINZAHL[formular.art]} ${formular.eintrag ? "bearbeiten" : "anlegen"}` : undefined;
 
@@ -76,13 +91,13 @@ export function Stammdaten({
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Stammdaten"
-        beschreibung="Fahrzeuge, Personal und Alarmstichworte, aus denen der Einsatzbuch-Rechner auswählt. Deaktivierte Einträge verschwinden dort aus der Auswahl; versiegelte Einsätze behalten ihren Stand."
+        beschreibung="Fahrzeuge, Personal, Alarmstichworte und die Qualifikationen des Personals, aus denen der Einsatzbuch-Rechner auswählt. Deaktivierte Einträge verschwinden dort aus der Auswahl; versiegelte Einsätze behalten ihren Stand."
         aktionen={
           <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
-            <Button type="primary" onClick={() => setFormular({ art: reiter, eintrag: null })}>
+            <Button type="primary" onClick={anlegen}>
               {EINZAHL[reiter]} anlegen
             </Button>
-            <Button onClick={() => setImportOffen(true)}>CSV importieren</Button>
+            {reiter !== "qualifikationen" ? <Button onClick={() => setImportOffen(true)}>CSV importieren</Button> : null}
             {reiter === "personal" ? <Button onClick={() => setHelferOffen(true)}>Aus Helferverzeichnis abgleichen</Button> : null}
             {reiter === "fahrzeuge" ? <Button onClick={() => setFahrzeugeOffen(true)}>Aus Fahrzeugverwaltung abgleichen</Button> : null}
           </div>
@@ -108,6 +123,11 @@ export function Stammdaten({
             label: `Stichworte · ${stichworte.length}`,
             children: <StammdatenTabelle art="stichworte" liste={stichworte} onBearbeiten={bearbeiten("stichworte")} />,
           },
+          {
+            key: "qualifikationen",
+            label: `Qualifikationen · ${qualifikationen.length}`,
+            children: <QualifikationenTabelle liste={qualiZeilen} onBearbeiten={(q) => setQualiFormular({ eintrag: q })} />,
+          },
         ]}
       />
 
@@ -116,6 +136,7 @@ export function Stammdaten({
           <StammdatenFormular
             art={formular.art}
             eintrag={formular.eintrag}
+            qualifikationen={qualifikationen}
             onGespeichert={() => setFormular(null)}
             onAbbrechen={() => setFormular(null)}
           />
@@ -123,13 +144,31 @@ export function Stammdaten({
       </Drawer>
 
       <Drawer
-        open={importOffen}
+        open={qualiFormular !== null}
+        onClose={() => setQualiFormular(null)}
+        title={`Qualifikation ${qualiFormular?.eintrag ? "bearbeiten" : "anlegen"}`}
+        size={flyinBreite(480)}
+        destroyOnHidden
+      >
+        {qualiFormular ? (
+          <QualifikationFormular
+            eintrag={qualiFormular.eintrag}
+            anzahl={qualiFormular.eintrag?.anzahl ?? 0}
+            vorschlagRang={Math.min(99, Math.max(0, ...qualifikationen.map((q) => q.rang)) + 1)}
+            onGespeichert={() => setQualiFormular(null)}
+            onAbbrechen={() => setQualiFormular(null)}
+          />
+        ) : null}
+      </Drawer>
+
+      <Drawer
+        open={importOffen && reiter !== "qualifikationen"}
         onClose={() => setImportOffen(false)}
         title={`${reiter === "fahrzeuge" ? "Fahrzeuge" : reiter === "personal" ? "Personal" : "Stichworte"} aus CSV importieren`}
         size={flyinBreite(720)}
         destroyOnHidden
       >
-        {importOffen ? <CsvImport art={reiter} onFertig={() => setImportOffen(false)} /> : null}
+        {importOffen && reiter !== "qualifikationen" ? <CsvImport art={reiter} onFertig={() => setImportOffen(false)} /> : null}
       </Drawer>
 
       {/* Die beiden Abgleiche bringen ihre Schublade selbst mit: ihre Knöpfe stehen in deren Fußleiste (IDA-283). */}
