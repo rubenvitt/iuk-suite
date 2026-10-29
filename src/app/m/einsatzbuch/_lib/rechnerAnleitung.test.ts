@@ -14,8 +14,8 @@ describe("Anleitung für den Einsatzbuch-Rechner (IDA-289)", () => {
     expect(datei.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   });
 
-  it("hat genau zwei Seiten: Erfassen, Prüfen und Versiegeln", () => {
+  it("ist genau ein Blatt zum Danebenlegen", () => {
     const seiten = datei.toString("latin1").match(/\/Type\s*\/Page(?!s)/g) ?? [];
-    expect(seiten).toHaveLength(2);
+    expect(seiten).toHaveLength(1);
   });
 });

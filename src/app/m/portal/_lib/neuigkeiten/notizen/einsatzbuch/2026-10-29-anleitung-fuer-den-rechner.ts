@@ -9,8 +9,8 @@ const notiz: Releasenotiz = {
   titel: "Anleitung für den Einsatzbuch-Rechner",
   inhalt: [
     absatz(
-      "Unter Rechner lädst du mit Anleitung für den Rechner (PDF) zwei A4-Blätter herunter, die du neben den Rechner legen kannst. " +
-        "Sie zeigen mit Bildern der Desktop-App, wie man einen Einsatz erfasst, in der Frist korrigiert und versiegelt.",
+      "Unter Rechner lädst du mit Anleitung für den Rechner (PDF) ein A4-Blatt herunter, das du neben den Rechner legen kannst. " +
+        "Es zeigt mit Bildern der Desktop-App, wie man einen Einsatz hinterher dokumentiert, noch einmal prüft und versiegelt.",
     ),
   ],
 };

@@ -1,7 +1,7 @@
 /**
- * DIE ANWENDERANLEITUNG FÜR DEN EINSATZBUCH-RECHNER (IDA-289) — zwei A4-Blätter mit Bildern der
- * Desktop-App: Einsatz erfassen, dann prüfen und versiegeln. Gegenstück zur Lagerbuch-Helfer-
- * Anleitung, die das Handy zeigt.
+ * DIE ANWENDERANLEITUNG FÜR DEN EINSATZBUCH-RECHNER (IDA-289) — ein A4-Blatt mit Bildern der
+ * Desktop-App: einen Einsatz nachträglich dokumentieren, prüfen und versiegeln. Gegenstück zur
+ * Lagerbuch-Helfer-Anleitung, die das Handy zeigt.
  *
  * Fährt die Oberfläche wie `e2e/erfassung.spec.ts` gegen den Stub (`../e2e/stub.ts`), macht an
  * jedem Schritt ein Bild mit rotem Rahmen um das, worauf es ankommt, setzt die Bilder in
@@ -18,14 +18,31 @@ import { installiereStub } from "../e2e/stub";
 const VORLAGE = path.join(import.meta.dirname, "vorlage.html");
 const ZIEL = path.join(import.meta.dirname, "../../../public/m/einsatzbuch/rechner-anleitung.pdf");
 const RAHMEN = "[data-anleitung]{outline:4px solid #c8000f !important;outline-offset:4px;border-radius:10px;}";
+/** Ausschnitt im Seitenverhältnis der Bildrahmen (16:10); kleiner als das Fenster, damit die Schrift im Druck lesbar bleibt. */
+const AUSSCHNITT = { width: 1024, height: 640 };
 
-/** Ein Bild des ganzen Fensters; `ziele` bekommen den roten Rahmen, `mitte` wird vorher mittig gerollt. */
+/**
+ * Ein Bild um `ziele` herum (ohne Ziele: die Fenstermitte), die einen roten Rahmen bekommen;
+ * `mitte` wird vorher mittig gerollt.
+ */
 async function bild(page: Page, bilder: Map<string, Buffer>, name: string, ziele: Locator[] = [], mitte?: Locator) {
   if (mitte) await mitte.evaluate((e) => e.scrollIntoView({ block: "center" }));
   for (const z of ziele) await z.evaluate((e) => e.setAttribute("data-anleitung", ""));
   // Der Wechsel der Fokus- und Hover-Zustände braucht einen Frame, sonst fehlt der Rahmen im Bild.
   await page.waitForTimeout(250);
-  bilder.set(name, await page.screenshot({ type: "jpeg", quality: 82 }));
+  const fenster = page.viewportSize()!;
+  const kaesten = await Promise.all((mitte ? [mitte, ...ziele] : ziele).map(async (z) => (await z.boundingBox())!));
+  const links = kaesten.length ? Math.min(...kaesten.map((k) => k.x)) : 0;
+  const rechts = kaesten.length ? Math.max(...kaesten.map((k) => k.x + k.width)) : fenster.width;
+  const oben = kaesten.length ? Math.min(...kaesten.map((k) => k.y)) : 0;
+  const unten = kaesten.length ? Math.max(...kaesten.map((k) => k.y + k.height)) : fenster.height;
+  const klemme = (wert: number, max: number) => Math.min(Math.max(wert, 0), max);
+  const clip = {
+    ...AUSSCHNITT,
+    x: klemme((links + rechts) / 2 - AUSSCHNITT.width / 2, fenster.width - AUSSCHNITT.width),
+    y: klemme((oben + unten) / 2 - AUSSCHNITT.height / 2, fenster.height - AUSSCHNITT.height),
+  };
+  bilder.set(name, await page.screenshot({ type: "jpeg", quality: 85, clip }));
   for (const z of ziele) await z.evaluate((e) => e.removeAttribute("data-anleitung"));
 }
 
@@ -50,8 +67,13 @@ test("Anleitung für den Einsatzbuch-Rechner erzeugen", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Neuer Einsatz" })).toBeVisible();
   const karte = (titel: string) => page.locator(".karte").filter({ hasText: titel }).first();
   await page.getByRole("button", { name: "RD 2", exact: true }).click();
+  await page.getByLabel("Einsatznummer der Leitstelle").fill("RD 2026-10-4711");
   await bild(page, bilder, "2-stichwort", [karte("Alarmstichwort")], karte("Alarmstichwort"));
 
+  // Dokumentiert wird immer hinterher: der vorgeschlagene Beginn (jetzt) wird überschrieben.
+  await page.getByLabel("Beginn · Uhrzeit").fill("14:05");
+  await page.getByLabel("Ende · Datum").fill(await page.getByLabel("Beginn · Datum").inputValue());
+  await page.getByLabel("Ende · Uhrzeit").fill("15:20");
   await page.getByLabel("Straße, Hausnummer").fill("Bahnhofstraße 12");
   await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");
   await page.getByLabel("Objekt, Lage vor Ort").fill("Sporthalle, Zufahrt über Hof");
@@ -70,26 +92,17 @@ test("Anleitung für den Einsatzbuch-Rechner erzeugen", async ({ page }) => {
   await page.getByRole("button", { name: "Vor Ort behandelt: mehr" }).click();
   await page.getByLabel("Notizen").fill("Patient an RTW übergeben.");
   const absenden = page.getByRole("button", { name: "Einsatz absenden" });
-  await bild(page, bilder, "6-absenden", [absenden, page.locator(".bereit")], karte("Patienten"));
+  await karte("Patienten").evaluate((e) => e.scrollIntoView({ block: "end" }));
+  await bild(page, bilder, "6-absenden", [absenden]);
 
   await absenden.click();
   await expect(page.getByText("Abgesendet · noch änderbar")).toBeVisible();
-  await bild(page, bilder, "7-frist", [page.locator(".frist-uhr")]);
-
-  await page.getByRole("button", { name: "Angaben ändern" }).click();
-  await page.getByLabel("Ende · Datum").fill(await page.getByLabel("Beginn · Datum").inputValue());
-  await page.getByLabel("Ende · Uhrzeit").fill("23:30");
-  await page.evaluate(() => window.scrollTo(0, 0));
-  const uebernehmen = page.getByRole("button", { name: "Änderungen übernehmen" });
-  await bild(page, bilder, "8-aendern", [page.locator(".hinweis").first(), uebernehmen]);
-  await uebernehmen.click();
+  await bild(page, bilder, "7-frist", [page.getByRole("button", { name: "Angaben ändern" }), karte("Zusammenfassung")]);
 
   const versiegeln = page.getByRole("button", { name: "Jetzt versiegeln" });
-  await expect(versiegeln).toBeVisible();
-  await bild(page, bilder, "9-versiegeln", [versiegeln]);
   await versiegeln.click();
   await expect(page.getByRole("heading", { name: "Einsatz versiegelt" })).toBeVisible();
-  await bild(page, bilder, "10-versiegelt", [page.getByRole("button", { name: "Neuen Einsatz erfassen" })]);
+  await bild(page, bilder, "8-versiegelt");
 
   // Die Vorlage über `file://`, damit sie die Schriften der App relativ findet.
   const blatt = await page.context().newPage();

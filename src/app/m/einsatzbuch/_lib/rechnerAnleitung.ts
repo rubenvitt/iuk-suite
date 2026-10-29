@@ -1,7 +1,7 @@
 /**
- * DIE ANWENDERANLEITUNG FÜR DEN EINSATZBUCH-RECHNER (IDA-289) — zwei A4-Blätter mit Bildern der
- * Desktop-App: Einsatz erfassen, dann prüfen und versiegeln. Gegenstück zur Helfer-Anleitung des
- * Lagerbuchs (`lagerbuch/_lib/helferAnleitung.ts`), die das Handy zeigt.
+ * DIE ANWENDERANLEITUNG FÜR DEN EINSATZBUCH-RECHNER (IDA-289) — ein A4-Blatt mit Bildern der
+ * Desktop-App: einen Einsatz hinterher dokumentieren, prüfen und versiegeln. Gegenstück zur
+ * Helfer-Anleitung des Lagerbuchs (`lagerbuch/_lib/helferAnleitung.ts`), die das Handy zeigt.
  *
  * KEIN "use client": den Pfad lesen die Server Component `rechner/page.tsx` UND der Test, der
  * prüft, dass die Datei wirklich daliegt (Falle 6).
