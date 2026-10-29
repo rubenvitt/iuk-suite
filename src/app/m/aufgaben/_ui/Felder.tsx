@@ -7,6 +7,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import "dayjs/locale/de";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 /*
  * `customParseFormat` AUSDRUECKLICH, OBWOHL antd DENSELBEN PLUGIN SCHON LAEDT
@@ -152,6 +153,7 @@ function DatumFeldInnen({
     <>
       <input type="hidden" name={name} value={iso} />
       <DatePicker
+        popupAlign={WAEHLER_IM_BILD}
         id={id}
         locale={deDE}
         value={ausIso(iso, ISO_TAG)}
@@ -189,6 +191,7 @@ function ZeitFeldInnen({
     <>
       <input type="hidden" name={name} value={iso} />
       <TimePicker
+        popupAlign={WAEHLER_IM_BILD}
         id={id}
         locale={deDE}
         value={ausIso(iso, ISO_ZEIT)}

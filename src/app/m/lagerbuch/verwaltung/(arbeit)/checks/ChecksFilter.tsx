@@ -7,6 +7,7 @@ import { einheitenartLabel, einheitLabels, type Einheitenart } from "../../../_l
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export type FahrzeugOption = {
   value: string;
@@ -106,6 +107,7 @@ export function ChecksFilter({
           virtual={false}
         />
         <DatePicker
+          popupAlign={WAEHLER_IM_BILD}
           value={von ? dayjs(von) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum von"
@@ -115,6 +117,7 @@ export function ChecksFilter({
           })}
         />
         <DatePicker
+          popupAlign={WAEHLER_IM_BILD}
           value={bis ? dayjs(bis) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum bis"

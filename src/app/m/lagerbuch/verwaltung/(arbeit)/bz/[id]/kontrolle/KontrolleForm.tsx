@@ -7,7 +7,7 @@ import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { SPACE } from "@/core/theme/tokens";
 import { kontrolleErfassen } from "../../../../../_actions/bz";
 import { monatAusPicker } from "../../../../../_ui/monat";
-import { MONATSWAEHLER_IM_BILD } from "../../../../../_lib/monatswaehler";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export type KontrolleLevelDto = {
   label: string | null;
@@ -156,7 +156,7 @@ export function KontrolleForm({
         <DatePicker
           data-rolle="kompresse"
           picker="month"
-          popupAlign={MONATSWAEHLER_IM_BILD}
+          popupAlign={WAEHLER_IM_BILD}
           format="YYYY-MM"
           aria-label="Kompressen-Verfall"
           onKeyDown={enterUebernimmtNurDasFeld}

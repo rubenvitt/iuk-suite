@@ -15,6 +15,7 @@ import { geraetSpeichern } from "../../../../_actions/geraete";
 import { standortMeta } from "../../../../_lib/konstanten";
 import type { LagerortOption as Lagerort } from "../../../../_lib/lesepfade/bz";
 import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export type GeraetInitial = {
   id: string;
@@ -187,6 +188,7 @@ export function GeraetForm({
       {typ === "medizin" ? (
         <Form.Item name="mtkFaellig" label="Nächste MTK (optional)">
           <DatePicker
+            popupAlign={WAEHLER_IM_BILD}
             aria-label="Nächste MTK"
             allowClear
             format="YYYY-MM-DD"
@@ -203,6 +205,7 @@ export function GeraetForm({
           </Form.Item>
           <Form.Item name="ablaufdatum" label="Ablaufdatum (optional)">
             <DatePicker
+              popupAlign={WAEHLER_IM_BILD}
               aria-label="Ablaufdatum"
               allowClear
               format="YYYY-MM-DD"
