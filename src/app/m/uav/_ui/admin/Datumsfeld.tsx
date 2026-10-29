@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import "dayjs/locale/de";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 /*
  * DAS DATUMSFELD DER VERWALTUNG — antds `DatePicker` statt eines nackten
@@ -65,6 +66,7 @@ export function Datumsfeld({
 
   return (
     <DatePicker
+      popupAlign={WAEHLER_IM_BILD}
       id={id}
       locale={pickerDeDE}
       /*

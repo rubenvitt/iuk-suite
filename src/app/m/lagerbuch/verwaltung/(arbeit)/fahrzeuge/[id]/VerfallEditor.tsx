@@ -36,7 +36,7 @@ import {
 import { STATUS_FILTER, STATUS_TEXT, statusAus } from "./reiter";
 import { useAdressParameter } from "./useAdressParameter";
 import { useVerfallStand } from "./useVerfallStand";
-import { MONATSWAEHLER_IM_BILD } from "../../../../_lib/monatswaehler";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 const VERFALL_FEHLER = "Verfall konnte nicht gespeichert werden.";
 
@@ -139,7 +139,7 @@ function VerfallZelle({
         open
         autoFocus
         picker="month"
-        popupAlign={MONATSWAEHLER_IM_BILD}
+        popupAlign={WAEHLER_IM_BILD}
         format="YYYY-MM"
         allowClear
         disabled={gesperrt}

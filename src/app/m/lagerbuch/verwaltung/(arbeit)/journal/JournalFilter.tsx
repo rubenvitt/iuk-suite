@@ -15,6 +15,7 @@ import {
   normalisiereJournalTag,
   type JournalFilterWerte,
 } from "./journalFilterLogik";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export { VORGANG_ARTEN, deckelText, mitGetipptem } from "./journalFilterLogik";
 
@@ -192,6 +193,7 @@ export function JournalFilter({
           }))}
         />
         <DatePicker
+          popupAlign={WAEHLER_IM_BILD}
           value={sicherVon ? dayjs(sicherVon) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum von"
@@ -203,6 +205,7 @@ export function JournalFilter({
           })}
         />
         <DatePicker
+          popupAlign={WAEHLER_IM_BILD}
           value={sicherBis ? dayjs(sicherBis) : null}
           format="YYYY-MM-DD"
           aria-label="Zeitraum bis"

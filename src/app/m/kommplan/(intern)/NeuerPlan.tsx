@@ -13,6 +13,7 @@ import { LAENGE } from "../_lib/plan/schema";
 import type { VorlageWahl } from "../_lib/planverwaltung";
 import { ersetzeDatumImTitel } from "../_lib/tagesfassung";
 import { fokussiereWennFrei } from "../_ui/fokus";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 /**
  * „Neu" in der Planliste (Spec §6.1): Titel, Art, Anlass, Datum — danach direkt in den Editor.
@@ -101,7 +102,7 @@ export function NeuerPlanFormular({ onAngelegt, onAbbrechen, titelRef, vorlagen 
       {fehlerText("anlass")}
       <label className="kp-feldname" htmlFor={`${basis}-datum`}>Datum</label>
       {/* feld() auch hier: aria-invalid UND aria-describedby auf den Fehlertext (docs/design/feedback-admin.md 4.4) */}
-      <DatePicker {...feld("datum")} value={datum} onChange={setDatum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
+      <DatePicker {...feld("datum")} popupAlign={WAEHLER_IM_BILD} value={datum} onChange={setDatum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
         status={feldFehler.datum ? "error" : undefined} />
       {fehlerText("datum")}
       <div className="kp-formular-knoepfe">

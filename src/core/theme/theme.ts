@@ -403,7 +403,7 @@ function auswahlZeile(dark: boolean) {
  * der still auseinanderlaeuft.
  *
  * Breite allein reicht nicht: das Fenster muss auch an den Rand ruecken duerfen, wenn es auf keiner
- * Seite des Felds passt (`MONATSWAEHLER_IM_BILD` im `lagerbuch`). Als `const` am Dateiende, weil
+ * Seite des Felds passt (`WAEHLER_IM_BILD` im `lagerbuch`). Als `const` am Dateiende, weil
  * Zeilenanker aus den Modulen in diese Datei zeigen; gelesen wird sie erst beim Aufruf von
  * `buildTheme`.
  */

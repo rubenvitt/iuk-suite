@@ -16,6 +16,7 @@ import type { Aendere } from "./aendere";
 import { useBibliothek } from "./bibliothekKontext";
 import { neueId } from "./ids";
 import { OHNE_FOKUSRUECKGABE } from "../fokus";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export const PLAN_FLYIN_GRUND = 560;
 export interface PlanFormularProps {
@@ -156,7 +157,7 @@ function Angaben({ angaben, speichereAngaben, onEntwurf }: Pick<PlanFormularProp
         onPressEnter={(e) => { e.preventDefault(); sende(entwurf()); }} />
       {fehlerText("anlass")}
       <label className="kp-feldname" htmlFor={`${basis}-datum`}>Datum</label>
-      <DatePicker {...feld("datum")} value={datum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
+      <DatePicker {...feld("datum")} popupAlign={WAEHLER_IM_BILD} value={datum} format="DD.MM.YYYY" onKeyDown={enterUebernimmtNurDasFeld}
         status={feldFehler.datum ? "error" : undefined}
         onChange={(d: Dayjs | null) => { eingabe.current += 1; setDatum(d); sende({ ...entwurf(), datum: d ? d.format("YYYY-MM-DD") : null }); }} />
       {fehlerText("datum")}

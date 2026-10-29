@@ -1,6 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte, warteAufSpaltenaufteilung } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
+import { pruefeOffenesFenster } from "./helpers/waehler";
 
 /**
  * DER OFFENE MONATSWAEHLER RAGT NICHT UEBER EIN 375px-TELEFON (IDA-242).
@@ -18,39 +19,6 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * Fenster haengt als Portal am `body`, nicht in der Tabelle, die in sich scrollen
  * darf. Gemessen wird deshalb das DOKUMENT und die Box des Fensters selbst.
  */
-async function pruefeOffenesFenster(page: Page) {
-  const fenster = page.locator(
-    ".ant-picker-dropdown:not(.ant-picker-dropdown-hidden) .ant-picker-month-panel");
-  await expect(fenster).toBeVisible();
-
-  const messe = () => page.evaluate(() => {
-    const box = document
-      .querySelector(".ant-picker-dropdown:not(.ant-picker-dropdown-hidden) .ant-picker-panel-container")!
-      .getBoundingClientRect();
-    return {
-      ueberlauf: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      links: Math.round(box.left),
-      rechts: Math.round(box.right),
-      sicht: document.documentElement.clientWidth,
-    };
-  });
-  // Erst nach seiner Ausrichtung steht das Fenster an seinem Platz: zwei gleiche Messungen
-  // hintereinander, statt einer festen Wartezeit.
-  let vorher = "";
-  await expect.poll(async () => {
-    const jetzt = JSON.stringify(await messe());
-    const ruhig = jetzt === vorher;
-    vorher = jetzt;
-    return ruhig;
-  }, { intervals: [100] }).toBe(true);
-  const masse = await messe();
-
-  expect(masse.ueberlauf, `Das Dokument ragt um ${masse.ueberlauf}px über die Sichtfläche`)
-    .toBeLessThanOrEqual(0);
-  expect(masse.links, "Das Fenster beginnt links außerhalb der Sichtfläche").toBeGreaterThanOrEqual(0);
-  expect(masse.rechts, "Das Fenster endet rechts außerhalb der Sichtfläche").toBeLessThanOrEqual(masse.sicht);
-}
-
 test.describe("Monatswähler auf schmalem Telefon", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
@@ -70,7 +38,7 @@ test.describe("Monatswähler auf schmalem Telefon", () => {
 
     // Nur öffnen, nichts wählen: das Fahrzeug teilen sich andere Specs.
     await klickeWennRuhig(page.getByRole("button", { name: "Verfall E2E Verfall NaCl ändern" }));
-    await pruefeOffenesFenster(page);
+    await pruefeOffenesFenster(page, ".ant-picker-month-panel");
   });
 
   test("Verfall im Aussondern-Dialog", async ({ page }) => {
@@ -87,6 +55,6 @@ test.describe("Monatswähler auf schmalem Telefon", () => {
 
     // Nur öffnen, nicht absenden: der Dialog bucht sonst ab.
     await dialog.getByLabel("Verfall").click();
-    await pruefeOffenesFenster(page);
+    await pruefeOffenesFenster(page, ".ant-picker-month-panel");
   });
 });

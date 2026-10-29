@@ -1,6 +1,6 @@
 /**
- * DER MONATSWAEHLER BLEIBT IN DER SICHTFLAECHE (IDA-242). Gehoert als `popupAlign` an jeden
- * antd-`DatePicker` mit `picker="month"` im Modul.
+ * DER DATUMSWAEHLER BLEIBT IN DER SICHTFLAECHE (IDA-242, IDA-264). Gehoert als `popupAlign` an
+ * jeden antd-`DatePicker` und `TimePicker` der Suite; `waehlerImBild.test.ts` riegelt ab.
  *
  * rc-pickers Vorgabe (`@rc-component/picker`, `PickerTrigger/index.js`) kennt fuer das Fenster nur
  * `adjustX`: es klappt nach links oder rechts um, wenn es auf seiner Seite nicht passt. Auf einem
@@ -14,8 +14,13 @@
  * `hooks/useAlign.js` mischt `popupAlign` flach ueber die Platzierung) — deshalb steht `adjustX`
  * und `adjustY` hier noch einmal.
  *
+ * Seit IDA-264 in `core`: bei 375px ragten ohne ihn auch der Dialog „Neues Geraet" im `lagerbuch`
+ * (1px) und „Zuletzt aktualisiert" auf dem Geraeteblatt in `radio` (10px) links hinaus
+ * (`e2e/datumswaehler-schmal.spec.ts`). Die uebrigen gemessenen Waehler passten nur dank der Lage
+ * ihres Felds; sie tragen ihn trotzdem, damit ein umgestelltes Formular nicht still ueberragt.
+ *
  * Bewusst OHNE `"use client"`: ein reiner Wert, den jede Client-Insel importiert (Falle 6).
  */
-export const MONATSWAEHLER_IM_BILD = {
+export const WAEHLER_IM_BILD = {
   overflow: { adjustX: 1, adjustY: 1, shiftX: true },
 } as const;

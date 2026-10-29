@@ -55,7 +55,7 @@ import { monatAusPicker } from "./monat";
 import { OrtVerteilung } from "./OrtVerteilung";
 import { Plakette } from "./Plakette";
 import styles from "./verwaltung.module.css";
-import { MONATSWAEHLER_IM_BILD } from "../_lib/monatswaehler";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 export const NEUE_CHARGE = "__neu__";
 
@@ -679,7 +679,7 @@ export function ArtikelDrawer({
                   >
                     <DatePicker
                       picker="month"
-                      popupAlign={MONATSWAEHLER_IM_BILD}
+                      popupAlign={WAEHLER_IM_BILD}
                       format="YYYY-MM"
                       aria-label="Verfallsmonat"
                       style={{ width: "100%" }}

@@ -19,6 +19,7 @@ import {
 import { NachladeFuss, useNachladen } from "../../../_ui/Nachladen";
 import s from "../../../_ui/verwaltung.module.css";
 import { ausleihenNachladenAction } from "../../actions";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 /**
  * INSEL 2 — DIE AUSLEIHENLISTE DER VERWALTUNG (`Spec:4498-4506`, §5.9; Aufgabe V16).
@@ -249,6 +250,7 @@ function Filterleiste({
         options={geraete.map((g) => ({ value: g.id, label: g.rufname }))}
       />
       <DatePicker
+        popupAlign={WAEHLER_IM_BILD}
         aria-label="Ausgeliehen von"
         format="DD.MM.YYYY"
         value={tag(filter.von)}
@@ -259,6 +261,7 @@ function Filterleiste({
         }
       />
       <DatePicker
+        popupAlign={WAEHLER_IM_BILD}
         aria-label="Ausgeliehen bis"
         format="DD.MM.YYYY"
         value={tag(filter.bis)}

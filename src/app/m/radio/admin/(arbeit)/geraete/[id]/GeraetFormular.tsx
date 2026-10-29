@@ -13,6 +13,7 @@ import { UPDATER_FELDER, type RadioRolle } from "../../../../_lib/rollen";
 import { tagAusWert } from "../../../../_lib/csv/spalten";
 import s from "../../../../_ui/verwaltung.module.css";
 import { VIkone } from "../../../../_ui/verwaltungIkonen";
+import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 
 /**
  * INSEL 6 — DAS GERAETEFORMULAR (`Spec:4508`, §5.7; Aufgabe V14). Nachfolger von
@@ -647,6 +648,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
         <Col {...SPALTE}>
           <Form.Item name="lastUpdatedAt" label="Zuletzt aktualisiert">
             <DatePicker
+              popupAlign={WAEHLER_IM_BILD}
               className={s.feldWeit}
               disabled={gesperrt("lastUpdatedAt")}
               // DRK-494: Enter uebernimmt das Datum und speichert nicht das ganze Geraet.
