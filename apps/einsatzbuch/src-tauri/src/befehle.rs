@@ -453,7 +453,7 @@ impl Drop for LaufendeAnmeldung<'_> {
 }
 
 /// Hält den Merker `Zustand::einrichtung_laeuft` für einen Einrichtungslauf (Einrichten, Neu
-/// einrichten, Entwicklerweg) und gibt ihn auf jedem Weg hinaus wieder frei. Ein zweiter Lauf
+/// einrichten, Entwicklerweg, auch „Testbetrieb beenden“) und gibt ihn auf jedem Weg hinaus wieder frei. Ein zweiter Lauf
 /// wird abgewiesen, solange einer läuft: Die Anmeldung sperrt nur bis zum Rückruf, danach
 /// könnten zwei Läufe je ein Token in den Tresor schreiben und das Buch den Rechner des einen,
 /// der Tresor das Token des anderen tragen.
@@ -950,7 +950,12 @@ pub fn hole_stammdaten_jetzt(z: &Zustand) -> Result<(), String> {
 /// Test-Rechner in der Suite (`DELETE rechner/<id>`, ohne Buch-Lock). Lehnt die Suite ab oder
 /// ist sie nicht erreichbar, ist der Testbetrieb trotzdem beendet; die Meldung sagt beides. Die
 /// Sitzung endet in jedem Fall: Sie war an den gelöschten Rechner gebunden.
+///
+/// Während eines Einrichtungslaufs abgewiesen (`LaufendeEinrichtung`): Der schreibt das Token vor
+/// dem Buch-Lock, ein Beenden dazwischen löschte es, und die Einrichtung legte danach ein neues
+/// Buch ohne Token an.
 pub fn beende_testbetrieb(z: &Zustand) -> Result<(), String> {
+    let _laufend = LaufendeEinrichtung::beginne(z)?;
     let mut buch = z.buch_zum_schreiben()?;
     match buch.as_ref().map(|b| b.betrieb()) {
         Some(Betrieb::Test) => {}
@@ -2346,12 +2351,14 @@ pub(crate) mod tests {
             |z| {
                 let status = lies_status(z).map(|s| s.eingerichtet);
                 let zweiter = richte_ein_ueber_suite(z, Umgebung::Test, "Laptop 2", TEST_SUITE, &|u| zweiter_browser.oeffne(u));
-                (status, zweiter)
+                (status, zweiter, beende_testbetrieb(z))
             },
         );
-        let (status, zweiter) = waehrenddessen.expect("lies_status darf nicht auf den Schlüsselbund warten");
+        let (status, zweiter, beenden) = waehrenddessen.expect("lies_status darf nicht auf den Schlüsselbund warten");
         assert_eq!(status, Ok(false));
         assert_eq!(zweiter.unwrap_err(), EINRICHTUNG_LAEUFT);
+        // Beenden dazwischen löschte das eben geschriebene Token.
+        assert_eq!(beenden.unwrap_err(), EINRICHTUNG_LAEUFT);
         assert!(zweiter_browser.urls.lock().unwrap().is_empty());
         assert_eq!(ergebnis.unwrap(), Einrichtungsergebnis { echt: false });
         assert_eq!(tresor.lies("geraetetoken-test").unwrap().as_deref(), Some("geraet-neu"));

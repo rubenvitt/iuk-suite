@@ -59,7 +59,7 @@ pub struct Zustand {
     /// Abbruch-Flag der laufenden Anmeldung; `Some`, solange die App auf den Rückruf wartet.
     pub anmeldung: Mutex<Option<Arc<AtomicBool>>>,
     /// Gesetzt, solange ein Einrichtungslauf läuft (`befehle::LaufendeEinrichtung`): Einrichten,
-    /// Neu einrichten, Entwicklerweg. Ein zweiter wird mit Meldung abgewiesen.
+    /// Neu einrichten, Entwicklerweg, Testbetrieb beenden. Ein zweiter wird mit Meldung abgewiesen.
     pub einrichtung_laeuft: AtomicBool,
     /// HTTP zur Suite: `NetzTransport` im Betrieb, ein Fake in Tests.
     pub transport: Box<dyn Transport>,
