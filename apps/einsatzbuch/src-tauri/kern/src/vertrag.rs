@@ -26,7 +26,7 @@ pub struct TauschAnfrage {
 
 /// Antwort von `POST /api/anmelden/tausch`. `rechner_id` und `einrichtung` sind im Vertrag
 /// Pflichtfelder, die `null` sein dürfen — sie werden deshalb als `null` geschrieben, nie
-/// weggelassen.
+/// weggelassen. Beim Drop wird `sitzungstoken` überschrieben (`impl Drop` unten).
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TauschAntwort {
@@ -54,7 +54,8 @@ pub struct EinrichtenAnfrage {
     pub name: String,
 }
 
-/// Antwort von `POST /api/einrichten`.
+/// Antwort von `POST /api/einrichten`. Beim Drop wird `geraete_token` überschrieben
+/// (`impl Drop` unten), auch wenn die Einrichtung danach scheitert.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EinrichtenAntwort {
@@ -196,6 +197,22 @@ impl fmt::Debug for EinrichtenAntwort {
             .finish()
     }
 }
+
+impl Drop for TauschAntwort {
+    fn drop(&mut self) {
+        self.sitzungstoken.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for TauschAntwort {}
+
+impl Drop for EinrichtenAntwort {
+    fn drop(&mut self) {
+        self.geraete_token.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for EinrichtenAntwort {}
 
 impl Drop for Schluesselposten {
     fn drop(&mut self) {

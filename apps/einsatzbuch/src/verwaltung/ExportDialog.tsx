@@ -123,6 +123,8 @@ export function ExportDialog({ bloecke, einzeln, umfang: anfang, zeitzone, beiSc
     setFehler(null);
     setFertig(null);
     try {
+      // `posten[].cek` (Base64) lässt sich in JS nicht wischen und lebt nur bis zum Ende dieser
+      // Funktion; gewischt werden die dekodierten Bytes in `ceks` (unten, `finally`). IDA-273.
       const posten = await befehle.schluesselFreigeben(nummern);
       pruefe();
       for (const p of posten) ceks.set(p.block, ausBase64(p.cek));

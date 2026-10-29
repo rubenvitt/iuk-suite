@@ -2,7 +2,7 @@
 //! Die Fachlogik steht im Crate `einsatzbuch-kern` (`kern/`), die Befehle der Oberfläche in
 //! `befehle.rs`, Sicherung und Wiederherstellen in `sicherung.rs`, Export/Drucken/Reader in
 //! `export.rs`; HTTP zur Suite in `netz.rs`, der Schlüsselbund in `schluesselbund.rs`, der
-//! Updater in `updater.rs`.
+//! Updater in `updater.rs`, der Puffer für Geheimnisse in `wischpuffer.rs`.
 //!
 //! Reihenfolge beim Start (Spec §4.1, §4.3):
 //! 1. Einzelinstanz als erstes Plugin, damit ein zweiter Start sofort beim ersten landet.
@@ -16,6 +16,7 @@ pub mod netz;
 pub mod schluesselbund;
 pub mod sicherung;
 pub mod updater;
+pub mod wischpuffer;
 pub mod zustand;
 
 // Der Platzhalter-Riegel aus `build.rs`, hier nur für seine Tests eingebunden.

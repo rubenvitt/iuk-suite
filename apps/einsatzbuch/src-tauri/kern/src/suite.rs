@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 use serde::de::DeserializeOwned;
 
 use crate::anmeldung::{modul_url, prozent_kodiere};
@@ -35,7 +35,8 @@ pub struct Anfrage<'a> {
 }
 
 /// Die Antwort der Suite: Status, `ETag` (unverändert, samt Anführungszeichen) und Körper.
-/// `Debug` nennt vom Körper nur die Länge: Er trägt Sitzungs- und Geräte-Token oder CEKs.
+/// `Debug` nennt vom Körper nur die Länge: Er trägt Sitzungs- und Geräte-Token oder CEKs. Beim
+/// Drop wird der Körper überschrieben (`impl Drop` unten), auf jedem Pfad (IDA-273).
 #[derive(Clone, PartialEq, Eq)]
 pub struct Antwort {
     pub status: u16,
@@ -62,6 +63,14 @@ impl std::fmt::Debug for Anfrage<'_> {
             .finish()
     }
 }
+
+impl Drop for Antwort {
+    fn drop(&mut self) {
+        self.koerper.zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Antwort {}
 
 impl std::fmt::Debug for Antwort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
