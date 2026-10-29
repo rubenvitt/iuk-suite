@@ -8,7 +8,7 @@
 //! liegt, erreicht er nicht: die Lesepuffer von `ureq` und die IPC-Kopie von Tauri.
 use std::io::{self, Read, Write};
 
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 /// Größe der Lesestücke; das Stück selbst ist ebenfalls `Zeroizing`.
 const STUECK: usize = 8 * 1024;
@@ -46,19 +46,20 @@ impl Wischpuffer {
         self.0.extend_from_slice(bytes);
     }
 
-    /// Der Inhalt als Text, ohne Kopie, wenn er gültiges UTF-8 ist. Sonst wie bisher
-    /// `read_to_string` von `ureq` verlustbehaftet (etwa eine Latin-1-Fehlerseite eines Proxys);
-    /// die Bytes werden danach überschrieben. Den Text wischt, wer ihn bekommt.
+    /// Der Inhalt als Text, immer ohne Kopie. Ungültiges UTF-8 (etwa eine Latin-1-Fehlerseite
+    /// eines Proxys) wird wie bisher bei `read_to_string` von `ureq` Byte für Byte durch `?`
+    /// ersetzt, an Ort und Stelle: `from_utf8_lossy` legte eine Kopie an, die beim Wachsen
+    /// ungewischt stehen bliebe. Den Text wischt, wer ihn bekommt.
     pub fn in_text(mut self) -> String {
-        match String::from_utf8(std::mem::take(&mut *self.0)) {
-            Ok(text) => text,
-            Err(e) => {
-                let mut bytes = e.into_bytes();
-                let text = String::from_utf8_lossy(&bytes).into_owned();
-                bytes.zeroize();
-                text
-            }
+        let mut bytes = std::mem::take(&mut *self.0);
+        let mut start = 0;
+        while let Err(fehler) = std::str::from_utf8(&bytes[start..]) {
+            let stelle = start + fehler.valid_up_to();
+            let laenge = fehler.error_len().unwrap_or(bytes.len() - stelle);
+            bytes[stelle..stelle + laenge].fill(b'?');
+            start = stelle + laenge;
         }
+        String::from_utf8(bytes).expect("ungültige Bytes sind ersetzt")
     }
 }
 
@@ -103,10 +104,12 @@ mod tests {
         assert_eq!(Wischpuffer::lies(quelle, 0).unwrap().in_text(), text);
     }
 
+    /// Wie `ureq` (`body/lossy.rs`): jedes ungültige Byte wird ein `?`, auch eine abgeschnittene
+    /// Folge am Ende.
     #[test]
-    fn ungueltiges_utf8_wird_verlustbehaftet_gelesen() {
-        let puffer = Wischpuffer::lies(&b"Fehler \xe4"[..], 16).unwrap();
-        assert_eq!(puffer.in_text(), "Fehler \u{fffd}");
+    fn ungueltiges_utf8_wird_wie_bei_ureq_ersetzt() {
+        let puffer = Wischpuffer::lies(&b"A\xe4 \xc3\xa4 \xf0\x9f\x98"[..], 16).unwrap();
+        assert_eq!(puffer.in_text(), "A? ä ???");
     }
 
     #[test]
