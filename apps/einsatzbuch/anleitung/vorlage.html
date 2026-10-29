@@ -27,9 +27,7 @@
   .titelzeile { display: flex; align-items: center; gap: 3mm; margin-top: 2mm; }
   .etikett { background: var(--rot); color: #fff; font: 700 11pt "Barlow Condensed", sans-serif; letter-spacing: 0.12em; padding: 1mm 2.5mm; border-radius: 1mm; }
   h1 { margin: 0; font: 700 25pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.01em; }
-  .einleitung { display: grid; grid-template-columns: 1fr 62mm; gap: 7mm; margin-top: 3mm; align-items: start; }
-  .einleitung p { margin: 0; font-size: 10.2pt; }
-  .kasten { border: 0.35mm dashed var(--linie); border-radius: 2mm; padding: 2.5mm 3.5mm; font-size: 8.6pt; }
+  .einleitung { margin: 3mm 0 0; font-size: 10.2pt; }
 
   .schritte { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); column-gap: 5mm; row-gap: 4mm; margin-top: 5mm; }
   .schritt img { display: block; width: 100%; aspect-ratio: 16 / 10; border: 0.35mm solid var(--linie); border-radius: 1.6mm; background: #f2f3f5; object-fit: cover; }
@@ -49,10 +47,7 @@
 <section class="blatt">
   <div class="marke">EINSATZ<span>BUCH</span> · Rechner</div>
   <div class="titelzeile"><span class="etikett">NACH DEM EINSATZ</span><h1>EINSATZ DOKUMENTIEREN</h1></div>
-  <div class="einleitung">
-    <p>Wenn ihr vom Einsatz zurück seid, schreibst du hier auf, was passiert ist. Ein Konto oder Passwort brauchst du dafür nicht.</p>
-    <div class="kasten"><b>Leg dir die Zeiten bereit.</b> Der Rechner trägt beim Öffnen die aktuelle Uhrzeit als Beginn ein. Die stimmt fast nie, weil du ja hinterher schreibst.</div>
-  </div>
+  <p class="einleitung">Wenn ihr vom Einsatz zurück seid, schreibst du hier auf, was passiert ist. Ein Konto oder Passwort brauchst du dafür nicht.</p>
   <div class="schritte">
     <div class="schritt">
       <img data-bild="1-start" alt="">
@@ -62,12 +57,12 @@
     <div class="schritt">
       <img data-bild="2-stichwort" alt="">
       <h2><span class="nr">2</span>ALARMSTICHWORT</h2>
-      <p>Klick das Stichwort an, unter dem ihr alarmiert wurdet. Passt keins, schreib es oben selbst hin. Darunter kommt die Einsatznummer der Leitstelle.</p>
+      <p>Klick das Stichwort an, unter dem ihr alarmiert wurdet. Im Feld darüber kannst du es ergänzen, etwa zu „RD 2 – Sturz“, oder es gleich selbst eintippen. Darunter kommt die Einsatznummer der Leitstelle.</p>
     </div>
     <div class="schritt">
       <img data-bild="3-ort" alt="">
       <h2><span class="nr">3</span>ZEIT UND ORT</h2>
-      <p>Trag ein, wann der Einsatz angefangen und wann er aufgehört hat, mit Datum und Uhrzeit. Die vorgeschlagene Uhrzeit überschreibst du dabei. Dann kommt die Adresse dazu.</p>
+      <p>Trag ein, wann der Einsatz angefangen und wann er aufgehört hat, mit Datum und Uhrzeit. Beim Beginn steht schon die aktuelle Uhrzeit drin, die überschreibst du. Dann kommt die Adresse dazu.</p>
     </div>
     <div class="schritt">
       <img data-bild="4-fahrzeuge" alt="">

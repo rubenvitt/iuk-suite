@@ -67,6 +67,7 @@ test("Anleitung für den Einsatzbuch-Rechner erzeugen", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Neuer Einsatz" })).toBeVisible();
   const karte = (titel: string) => page.locator(".karte").filter({ hasText: titel }).first();
   await page.getByRole("button", { name: "RD 2", exact: true }).click();
+  await page.getByLabel("Stichwort, Freitext").fill("RD 2 – Sturz");
   await page.getByLabel("Einsatznummer der Leitstelle").fill("RD 2026-10-4711");
   await bild(page, bilder, "2-stichwort", [karte("Alarmstichwort")], karte("Alarmstichwort"));
 
