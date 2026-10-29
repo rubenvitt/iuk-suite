@@ -19,16 +19,51 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import QRCode from "qrcode";
 
+import { decodeQrPng } from "../helpers/decode-qr";
+
 const VORLAGE = path.join(__dirname, "lagerbuch-helfer.html");
 // Die CI (`ci.yml`, Job `anleitung`) schreibt woandershin: Sie prüft nur, dass die Anleitung
 // noch entsteht, und legt das Ergebnis als Artefakt ab.
 const ZIEL = process.env.ANLEITUNG_ZIEL ?? path.join(__dirname, "../../public/m/lagerbuch/helfer-anleitung.pdf");
 /** Die Datenbank, die `playwright.anleitung.config.ts` frisch mit den Demodaten füllt. */
 const DB_PFAD = path.join(__dirname, "../../.data/anleitung/lagerbuch.db");
-/** Ein Beispiel, kein echter Code: ein ausgedrucktes Blatt darf nirgendwo hinführen. */
-const QR_INHALT = "BEISPIEL - kein echter Lagerbuch-Code";
+/** Die Gegenprobe zu `scheinQr`: ein echter Code, gleich gesetzt, MUSS sich lesen lassen. */
+const QR_PROBE = "BEISPIEL - kein echter Lagerbuch-Code";
 /** Der allgemeine Helfer-Code der Demodaten (`_lib/seedLokal.ts`, `CODE_HELFER`). */
 const CODE_HELFER = "100-100";
+
+/**
+ * Ein Muster, das wie ein QR-Code aussieht, sich aber nicht scannen lässt: ein ausgedrucktes Blatt
+ * in der Halle darf nirgendwo hinführen, auch nicht zu einem Text. Die drei Suchmarken stehen wie
+ * bei einem echten Code (Version 2, 25 × 25), alles andere ist Zufall mit festem Startwert, also
+ * auch keine Format- und Fehlerkorrektur-Angaben, die ein Scanner auflösen könnte. Ob das hält,
+ * prüft der Generator am fertigen Blatt.
+ */
+function scheinQr(): string {
+  const n = 25;
+  let zustand = 0x1a2b3c4d;
+  const zufall = () => {
+    zustand = (zustand * 1103515245 + 12345) >>> 0;
+    return (zustand >>> 16) / 0x10000;
+  };
+  const marke = (x: number, y: number, ox: number, oy: number) => {
+    const dx = x - ox;
+    const dy = y - oy;
+    if (dx < -1 || dy < -1 || dx > 7 || dy > 7) return undefined;
+    if (dx === -1 || dy === -1 || dx === 7 || dy === 7) return false; // die helle Kante
+    const rand = dx === 0 || dy === 0 || dx === 6 || dy === 6;
+    const kern = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4;
+    return rand || kern;
+  };
+  const felder: string[] = [];
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const fest = marke(x, y, 0, 0) ?? marke(x, y, n - 7, 0) ?? marke(x, y, 0, n - 7);
+      if (fest ?? zufall() < 0.5) felder.push(`M${x} ${y}h1v1h-1z`);
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><path d="${felder.join("")}"/></svg>`;
+}
 
 /** Ein Feld, das hervorgehoben wird; mehrere Locatoren in einem Feld werden ein gemeinsamer Kasten. */
 type Feld = Locator | Locator[];
@@ -252,7 +287,7 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
       `<style>${schriften}\n:root { --schrift-text: "Barlow"; --schrift-titel: "Barlow Condensed"; }</style>`,
     ),
   );
-  const qr = await QRCode.toString(QR_INHALT, { type: "svg", margin: 0, errorCorrectionLevel: "M" });
+  const qr = scheinQr();
   const quellen = Object.fromEntries([...bilder].map(([name, b]) => [name, `data:image/jpeg;base64,${b.toString("base64")}`]));
   const { fehlend, ungenutzt } = await blatt.evaluate(({ quellen, qr }) => {
     const offen: string[] = [];
@@ -266,6 +301,17 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
     document.querySelectorAll<HTMLElement>("[data-qr]").forEach((feld) => (feld.innerHTML = qr));
     return { fehlend: offen, ungenutzt: Object.keys(quellen).filter((n) => !genutzt.has(n)) };
   }, { quellen, qr });
+  // Lesbar wäre ein Fehler, und die Prüfung zählt nur, wenn sie einen echten Code an derselben
+  // Stelle erkennt: erst die Gegenprobe, dann jedes Muster auf dem Blatt.
+  const muster = blatt.locator("[data-qr]");
+  const echt = await QRCode.toString(QR_PROBE, { type: "svg", margin: 0, errorCorrectionLevel: "M" });
+  await muster.first().evaluate((feld, svg) => (feld.innerHTML = svg), echt);
+  await expect(decodeQrPng(await muster.first().screenshot()), "Gegenprobe: ein echter Code wird gelesen").resolves.toBe(QR_PROBE);
+  await muster.first().evaluate((feld, svg) => (feld.innerHTML = svg), qr);
+  expect(await muster.count()).toBe(4);
+  for (const feld of await muster.all()) {
+    await expect(decodeQrPng(await feld.screenshot()), "ein Muster auf dem Blatt lässt sich scannen").rejects.toThrow();
+  }
   expect(fehlend, "Bilder in der Vorlage ohne Aufnahme").toEqual([]);
   expect(ungenutzt, "Aufnahmen ohne Platz in der Vorlage").toEqual([]);
   await blatt.evaluate(async () => {
