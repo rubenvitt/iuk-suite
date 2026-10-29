@@ -46,6 +46,7 @@ const ECHT_VORHANDEN: &str =
 const NAME_UNGUELTIG: &str = "Der Name des Rechners muss 1 bis 60 Zeichen lang sein.";
 const ADRESSE_UNGUELTIG: &str = "Die Suite-Adresse muss mit https:// oder http:// beginnen.";
 const ANMELDUNG_LAEUFT: &str = "Es läuft schon eine Anmeldung.";
+const EINRICHTUNG_LAEUFT: &str = "Es läuft schon eine Einrichtung. Warte, bis sie fertig ist.";
 const KEIN_ZUGANG: &str = "Kein Zugang zum Einsatzbuch — dir fehlt die Gruppe in der Suite.";
 const ANMELDUNG_ABGEBROCHEN: &str = "Anmeldung abgebrochen.";
 pub(crate) const SITZUNG_ABGELAUFEN: &str = "Die Sitzung ist abgelaufen. Bitte neu anmelden.";
@@ -451,6 +452,28 @@ impl Drop for LaufendeAnmeldung<'_> {
     }
 }
 
+/// Hält den Merker `Zustand::einrichtung_laeuft` für einen Einrichtungslauf (Einrichten, Neu
+/// einrichten, Entwicklerweg) und gibt ihn auf jedem Weg hinaus wieder frei. Ein zweiter Lauf
+/// wird abgewiesen, solange einer läuft: Die Anmeldung sperrt nur bis zum Rückruf, danach
+/// könnten zwei Läufe je ein Token in den Tresor schreiben und das Buch den Rechner des einen,
+/// der Tresor das Token des anderen tragen.
+struct LaufendeEinrichtung<'a>(&'a AtomicBool);
+
+impl<'a> LaufendeEinrichtung<'a> {
+    fn beginne(z: &'a Zustand) -> Result<LaufendeEinrichtung<'a>, String> {
+        z.einrichtung_laeuft
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .map_err(|_| EINRICHTUNG_LAEUFT.to_string())?;
+        Ok(LaufendeEinrichtung(&z.einrichtung_laeuft))
+    }
+}
+
+impl Drop for LaufendeEinrichtung<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 /// Eine Anmeldung bis zum Tausch: Listener auf `127.0.0.1`, PKCE und `state`, die Anmelde-URL
 /// an `oeffne`, Warten auf den Rückruf (höchstens 5 Minuten, abbrechbar), dann der Tausch. Kein
 /// Lock wird dabei gehalten. `einrichtung` steht nur bei Einrichten und Neu einrichten in der URL
@@ -551,6 +574,7 @@ pub fn richte_ein_ueber_suite(
     let name = pruefe_name(name)?;
     let suite_url = pruefe_suite_url(z, art, suite_url)?;
     let betrieb = betrieb_zu(art);
+    let _laufend = LaufendeEinrichtung::beginne(z)?;
     {
         let buch = z.buch_zum_schreiben()?;
         pruefe_einrichtbar(z, &buch, betrieb)?;
@@ -572,14 +596,32 @@ pub fn richte_ein_ueber_suite(
     Ok(Einrichtungsergebnis { echt: art == Umgebung::Echt })
 }
 
-/// Legt Tresor-Eintrag und Datenbank an. Reihenfolge: Datei öffnen, Token in den Tresor, zuletzt
-/// `richte_ein` — erst diese Zeile macht das Buch „eingerichtet“. Scheitert etwas, wird der
-/// Tresor-Eintrag gelöscht und eine hier neu angelegte Datei verworfen
-/// (`verwirf_unfertiges_buch`); ein schon vorher offenes, unfertiges Buch bleibt liegen.
+/// Legt Tresor-Eintrag und Datenbank an. Der Schlüsselbund kann auf einen Dialog des
+/// Betriebssystems warten, deshalb läuft er nie unter dem Buch-Lock (Sperrreihenfolge in
+/// `zustand.rs`, wie bei `richte_neu_ein`):
+/// 1. ohne Lock das Token in den Tresor;
+/// 2. unter Lock erneut prüfen, die Datei öffnen, zuletzt `richte_ein` (`trage_ins_buch_ein`) —
+///    erst diese Zeile macht das Buch „eingerichtet“;
+/// 3. scheitert Schritt 1 oder 2: ohne Lock den Tresor-Eintrag löschen.
 fn lege_lokal_an(z: &Zustand, betrieb: Betrieb, suite_url: &str, name: &str, antwort: &EinrichtenAntwort) -> Result<(), String> {
+    let konto = konto_fuer(betrieb);
+    let ergebnis =
+        z.tresor.schreibe(konto, &antwort.geraete_token).and_then(|()| trage_ins_buch_ein(z, betrieb, suite_url, name, antwort));
+    if let Err(fehler) = ergebnis {
+        if let Err(e) = z.tresor.loesche(konto) {
+            eprintln!("Das Geräte-Token der gescheiterten Einrichtung ließ sich nicht löschen: {e}");
+        }
+        return Err(fehler);
+    }
+    Ok(())
+}
+
+/// Schritt 2 von `lege_lokal_an`, ganz unter dem Buch-Lock. Scheitert er, wird eine hier neu
+/// angelegte Datei verworfen (`verwirf_unfertiges_buch`); ein schon vorher offenes, unfertiges
+/// Buch bleibt liegen.
+fn trage_ins_buch_ein(z: &Zustand, betrieb: Betrieb, suite_url: &str, name: &str, antwort: &EinrichtenAntwort) -> Result<(), String> {
     let mut buch = z.buch_zum_schreiben()?;
     pruefe_einrichtbar(z, &buch, betrieb)?;
-    let konto = konto_fuer(betrieb);
     let (mut neu, frisch) = match buch.take() {
         Some(offen) => (offen, false),
         None => {
@@ -599,14 +641,7 @@ fn lege_lokal_an(z: &Zustand, betrieb: Betrieb, suite_url: &str, name: &str, ant
             }
         }
     };
-    let ergebnis = z
-        .tresor
-        .schreibe(konto, &antwort.geraete_token)
-        .and_then(|()| neu.richte_ein(&antwort.einrichtung(suite_url), &antwort.rechner_id, name).map_err(buch_fehler_text));
-    if let Err(fehler) = ergebnis {
-        if let Err(e) = z.tresor.loesche(konto) {
-            eprintln!("Das Geräte-Token der gescheiterten Einrichtung ließ sich nicht löschen: {e}");
-        }
+    if let Err(fehler) = neu.richte_ein(&antwort.einrichtung(suite_url), &antwort.rechner_id, name) {
         if frisch {
             if let Err(e) = buch::verwirf_unfertiges_buch(neu) {
                 eprintln!("Die halb angelegte Datenbank ließ sich nicht löschen: {e}");
@@ -614,7 +649,7 @@ fn lege_lokal_an(z: &Zustand, betrieb: Betrieb, suite_url: &str, name: &str, ant
         } else {
             *buch = Some(neu);
         }
-        return Err(fehler);
+        return Err(buch_fehler_text(fehler));
     }
     *buch = Some(neu);
     Ok(())
@@ -667,7 +702,10 @@ pub fn melde_an(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) -> Res
 /// 4. unter Lock erneut prüfen, dass Betrieb und `schluesselId` unverändert sind, dann
 ///    `Buch::richte_neu_ein`;
 /// 5. scheitert Schritt 4 auf irgendeinem Weg: ohne Lock das alte Token zurücklegen.
+///
+/// Ein zweiter Lauf, solange dieser läuft, wird abgewiesen (`LaufendeEinrichtung`).
 pub fn richte_neu_ein(z: &Zustand, oeffne: &dyn Fn(&str) -> Result<(), String>) -> Result<(), String> {
+    let _laufend = LaufendeEinrichtung::beginne(z)?;
     let (suite_url, name, schluessel_id) = {
         let buch = z.buch_zum_schreiben()?;
         let offen = buch.as_ref().ok_or(NICHT_EINGERICHTET)?;
@@ -959,6 +997,7 @@ pub fn richte_entwicklung_ein(z: &Zustand, spki_pfad: Option<&Path>, frist_minut
     };
     let frist = frist_minuten.unwrap_or(15).clamp(1, 120);
     let jetzt = z.uhr.jetzt();
+    let _laufend = LaufendeEinrichtung::beginne(z)?;
     let mut buch = z.buch_zum_schreiben()?;
     if let Some(offen) = buch.as_ref() {
         if offen.einrichtung().map_err(buch_fehler_text)?.is_some() {
@@ -1907,9 +1946,10 @@ pub(crate) mod tests {
         warte_bis(|| lies_status(&z).unwrap().anmeldung_laeuft);
         let browser = Browser::neu();
         assert_eq!(melde_an(&z, &|u| browser.oeffne(u)).unwrap_err(), NICHT_EINGERICHTET);
+        // Eine zweite Einrichtung scheitert schon am Merker, nicht erst an der Anmeldung.
         assert_eq!(
             richte_ein_ueber_suite(&z, Umgebung::Test, "Laptop", TEST_SUITE, &|u| browser.oeffne(u)).unwrap_err(),
-            ANMELDUNG_LAEUFT
+            EINRICHTUNG_LAEUFT
         );
 
         brich_anmeldung_ab(&z);
@@ -1919,6 +1959,25 @@ pub(crate) mod tests {
         keine_datei(ordner.path());
         kein_token(&z);
         brich_anmeldung_ab(&z); // ohne laufende Anmeldung ein No-op
+    }
+
+    /// Die Anmeldung sperrt sich weiter selbst gegen eine zweite, auch ohne Einrichtungslauf.
+    #[test]
+    fn zweite_verwaltungsanmeldung_waehrend_des_wartens_wird_abgelehnt() {
+        let ordner = tempfile::tempdir().unwrap();
+        let (z, _suite) = eingerichteter_testrechner(ordner.path(), &Stelluhr::neu());
+        melde_ab(&z);
+        let z = Arc::new(z);
+        let z2 = Arc::clone(&z);
+        let erste = std::thread::spawn(move || {
+            let browser = Browser::stumm();
+            melde_an(&z2, &|u| browser.oeffne(u))
+        });
+        warte_bis(|| lies_status(&z).unwrap().anmeldung_laeuft);
+        let browser = Browser::neu();
+        assert_eq!(melde_an(&z, &|u| browser.oeffne(u)).unwrap_err(), ANMELDUNG_LAEUFT);
+        brich_anmeldung_ab(&z);
+        assert_eq!(erste.join().unwrap().unwrap_err(), ANMELDUNG_ABGEBROCHEN);
     }
 
     // -----------------------------------------------------------------------------------------
@@ -2196,9 +2255,34 @@ pub(crate) mod tests {
         }
     }
 
+    /// Lässt `lauf` laufen, bis der Tresor beim Schreiben hängt. `waehrenddessen` läuft in dieser
+    /// Zeit in einem zweiten Faden; sein Ergebnis kommt nur zurück, wenn er binnen 2 Sekunden
+    /// fertig wird.
+    fn waehrend_der_tresor_haengt<L: Send, T: Send>(
+        z: &Zustand,
+        tresor: &HaengenderTresor,
+        lauf: impl FnOnce(&Zustand) -> L + Send,
+        waehrenddessen: impl FnOnce(&Zustand) -> T + Send,
+    ) -> (L, Option<T>) {
+        tresor.schaerfe();
+        std::thread::scope(|s| {
+            let laeuft = s.spawn(|| lauf(z));
+            tresor.warte_bis_es_haengt();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let faden = s.spawn(move || {
+                let _ = tx.send(waehrenddessen(z));
+            });
+            let zweiter = rx.recv_timeout(std::time::Duration::from_secs(2)).ok();
+            // Erst freigeben, dann auf beide Fäden warten — ein Assert vorher ließe den Test hängen.
+            tresor.gib_frei();
+            let ergebnis = laeuft.join().unwrap();
+            faden.join().unwrap();
+            (ergebnis, zweiter)
+        })
+    }
+
     /// Richtet einen widerrufenen echten Rechner neu ein, während der Tresor beim Schreiben des
-    /// neuen Tokens hängt. `waehrenddessen` läuft in dieser Zeit in einem zweiten Faden; sein
-    /// Ergebnis kommt nur zurück, wenn er binnen 2 Sekunden fertig wird.
+    /// neuen Tokens hängt (`waehrend_der_tresor_haengt`).
     fn neu_einrichten_waehrend_der_tresor_haengt<T: Send>(
         ordner: &Path,
         waehrenddessen: impl FnOnce(&Zustand) -> T + Send,
@@ -2213,22 +2297,8 @@ pub(crate) mod tests {
             "/api/einrichten" => antwort(200, &einrichten_antwort(a, "r-neu-2", "geraet-neu-2").to_string()),
             _ => gesunde_suite(a),
         });
-        tresor.schaerfe();
-        let zr = &z;
-        let (ergebnis, zweiter) = std::thread::scope(|s| {
-            let neu = s.spawn(|| richte_neu_ein(zr, &|u| browser.oeffne(u)));
-            tresor.warte_bis_es_haengt();
-            let (tx, rx) = std::sync::mpsc::channel();
-            let faden = s.spawn(move || {
-                let _ = tx.send(waehrenddessen(zr));
-            });
-            let zweiter = rx.recv_timeout(std::time::Duration::from_secs(2)).ok();
-            // Erst freigeben, dann auf beide Fäden warten — ein Assert vorher ließe den Test hängen.
-            tresor.gib_frei();
-            let ergebnis = neu.join().unwrap();
-            faden.join().unwrap();
-            (ergebnis, zweiter)
-        });
+        let (ergebnis, zweiter) =
+            waehrend_der_tresor_haengt(&z, &tresor, |z| richte_neu_ein(z, &|u| browser.oeffne(u)), waehrenddessen);
         (z, tresor, ergebnis, zweiter)
     }
 
@@ -2241,6 +2311,72 @@ pub(crate) mod tests {
         ergebnis.unwrap();
         assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu-2"));
         assert_eq!(z.buch().as_ref().unwrap().anbindung().unwrap().unwrap().rechner_id, "r-neu-2");
+    }
+
+    #[test]
+    fn zweites_neu_einrichten_waehrend_eines_laufenden_wird_abgewiesen() {
+        let ordner = tempfile::tempdir().unwrap();
+        let zweiter_browser = Browser::neu();
+        let (z, tresor, ergebnis, zweiter) = neu_einrichten_waehrend_der_tresor_haengt(ordner.path(), |z| {
+            richte_neu_ein(z, &|u| zweiter_browser.oeffne(u))
+        });
+        assert_eq!(zweiter, Some(Err(EINRICHTUNG_LAEUFT.to_string())));
+        assert!(zweiter_browser.urls.lock().unwrap().is_empty(), "der zweite Lauf meldet sich gar nicht erst an");
+        ergebnis.unwrap();
+        // Buch und Tresor stammen aus demselben Lauf.
+        assert_eq!(tresor.lies("geraetetoken-echt").unwrap().as_deref(), Some("geraet-neu-2"));
+        assert_eq!(z.buch().as_ref().unwrap().anbindung().unwrap().unwrap().rechner_id, "r-neu-2");
+        // Danach ist der Merker wieder frei: Ein weiterer Lauf scheitert erst an der Sache.
+        let browser = Browser::neu();
+        assert_eq!(richte_neu_ein(&z, &|u| browser.oeffne(u)).unwrap_err(), NEU_NUR_NACH_WIDERRUF);
+    }
+
+    #[test]
+    fn einrichten_haelt_den_buch_lock_nicht_ueber_dem_schluesselbund() {
+        let ordner = tempfile::tempdir().unwrap();
+        let suite = FakeSuite::gesund();
+        let tresor = HaengenderTresor::default();
+        let z = zustand_mit(ordner.path(), &Stelluhr::neu(), &suite, Box::new(tresor.clone()));
+        let browser = Browser::neu();
+        let zweiter_browser = Browser::neu();
+        let (ergebnis, waehrenddessen) = waehrend_der_tresor_haengt(
+            &z,
+            &tresor,
+            |z| richte_ein_ueber_suite(z, Umgebung::Test, "Laptop", TEST_SUITE, &|u| browser.oeffne(u)),
+            |z| {
+                let status = lies_status(z).map(|s| s.eingerichtet);
+                let zweiter = richte_ein_ueber_suite(z, Umgebung::Test, "Laptop 2", TEST_SUITE, &|u| zweiter_browser.oeffne(u));
+                (status, zweiter)
+            },
+        );
+        let (status, zweiter) = waehrenddessen.expect("lies_status darf nicht auf den Schlüsselbund warten");
+        assert_eq!(status, Ok(false));
+        assert_eq!(zweiter.unwrap_err(), EINRICHTUNG_LAEUFT);
+        assert!(zweiter_browser.urls.lock().unwrap().is_empty());
+        assert_eq!(ergebnis.unwrap(), Einrichtungsergebnis { echt: false });
+        assert_eq!(tresor.lies("geraetetoken-test").unwrap().as_deref(), Some("geraet-neu"));
+        assert_eq!(z.buch().as_ref().unwrap().anbindung().unwrap().unwrap().rechner_id, "r-neu");
+        assert!(lies_status(&z).unwrap().eingerichtet);
+    }
+
+    #[test]
+    fn einrichten_loescht_das_token_wenn_das_buch_danach_nicht_mehr_passt() {
+        // Ein Startfehler, gesetzt während der Tresor hängt: Keine Datei entsteht, und das schon
+        // geschriebene Token wird wieder gelöscht.
+        let ordner = tempfile::tempdir().unwrap();
+        let suite = FakeSuite::gesund();
+        let tresor = HaengenderTresor::default();
+        let z = zustand_mit(ordner.path(), &Stelluhr::neu(), &suite, Box::new(tresor.clone()));
+        let browser = Browser::neu();
+        let (ergebnis, _) = waehrend_der_tresor_haengt(
+            &z,
+            &tresor,
+            |z| richte_ein_ueber_suite(z, Umgebung::Test, "Laptop", TEST_SUITE, &|u| browser.oeffne(u)),
+            |z| *z.startfehler() = Some("Die Datenbank ist weg.".into()),
+        );
+        assert_eq!(ergebnis.unwrap_err(), "Die Datenbank ist weg.");
+        keine_datei(ordner.path());
+        assert_eq!(tresor.lies("geraetetoken-test").unwrap(), None);
     }
 
     #[test]

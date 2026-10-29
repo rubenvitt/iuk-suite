@@ -12,7 +12,8 @@
 //! sperrt nur den zweiten Schreiber, und unter ihm wird `buch` nur kurz genommen. Über der
 //! Meldung an die Suite ist es schon wieder frei. `startfehler`, `sitzung`, `anmeldung`,
 //! `abgleich`, `update`, `update_fehler`, `update_geprueft` und `update_lauf` sind Blätter: Wer
-//! einen von ihnen hält, nimmt keinen weiteren Mutex.
+//! einen von ihnen hält, nimmt keinen weiteren Mutex. Der Merker `einrichtung_laeuft` ist kein
+//! Lock, auf ihn wartet niemand: Ein zweiter Einrichtungslauf wird abgewiesen, nicht eingereiht.
 //! Kein anderer Lock wird über eine Anfrage an die Suite oder den Update-Endpunkt, das Warten auf
 //! den Anmelderückruf, einen Dialog oder das Schreiben und Prüfen einer Datei außerhalb des
 //! App-Datenordners (Sicherungsordner) gehalten. Den Versiegelungshinweis schreibt der Kern in
@@ -57,6 +58,9 @@ pub struct Zustand {
     pub sitzung: Mutex<Option<Sitzung>>,
     /// Abbruch-Flag der laufenden Anmeldung; `Some`, solange die App auf den Rückruf wartet.
     pub anmeldung: Mutex<Option<Arc<AtomicBool>>>,
+    /// Gesetzt, solange ein Einrichtungslauf läuft (`befehle::LaufendeEinrichtung`): Einrichten,
+    /// Neu einrichten, Entwicklerweg. Ein zweiter wird mit Meldung abgewiesen.
+    pub einrichtung_laeuft: AtomicBool,
     /// HTTP zur Suite: `NetzTransport` im Betrieb, ein Fake in Tests.
     pub transport: Box<dyn Transport>,
     /// Geräte-Token: Schlüsselbund des Betriebssystems im Betrieb, `Speichertresor` in Tests.
@@ -111,6 +115,7 @@ impl Zustand {
             uhr,
             sitzung: Mutex::new(None),
             anmeldung: Mutex::new(None),
+            einrichtung_laeuft: AtomicBool::new(false),
             transport: teile.transport,
             tresor: teile.tresor,
             abgleich: Mutex::new(None),
