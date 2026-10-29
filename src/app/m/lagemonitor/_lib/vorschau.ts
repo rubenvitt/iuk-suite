@@ -46,6 +46,8 @@ export interface VorschauEingabe {
   verkehr: Verkehr;
   /** Ein TomTom-Schlüssel ist hinterlegt oder eingetippt; ohne zeigt der Monitor Fluss und Baustellen nicht. */
   tomtom: boolean;
+  /** Zoomstufe der Karte ohne Einsatz; `null`, solange das Feld leer ist. */
+  kartenZoom?: number | null;
 }
 
 export type Ton = "normal" | "alarm" | "einsatz";
@@ -141,7 +143,10 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
     einsatz && "Drohnenposition",
     baustellen && "Baustellen und Sperrungen",
   ].filter((t): t is string => typeof t === "string");
-  sichtbar.push(kartenTeile.length > 0 ? `Karte um ${e.standortName || "den Standort"} mit ${kartenTeile.join(", ")}.` : `Karte um ${e.standortName || "den Standort"}, ohne Ebenen.`);
+  // Die Skizze zeigt keinen Maßstab; die Zoomstufe steht deshalb im Text. Im Einsatz passt der Monitor auf das Gebiet ein.
+  const zoom = !einsatz && typeof e.kartenZoom === "number" ? ` in Zoomstufe ${String(e.kartenZoom).replace(".", ",")}` : "";
+  const karte = `Karte um ${e.standortName || "den Standort"}${zoom}`;
+  sichtbar.push(kartenTeile.length > 0 ? `${karte} mit ${kartenTeile.join(", ")}.` : `${karte}, ohne Ebenen.`);
   if ((e.verkehr.fluss || e.verkehr.baustellen) && !e.tomtom) {
     sichtbar.push("Kein Verkehr von TomTom: ohne Schlüssel holt der Monitor weder Verkehrsfluss noch Baustellen.");
   }

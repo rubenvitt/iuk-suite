@@ -14,6 +14,11 @@ const basis: VorschauEingabe = {
 };
 
 describe("Vorschau", () => {
+  it("nennt die Zoomstufe der Karte, im Einsatz nicht", () => {
+    expect(vorschau({ ...basis, kartenZoom: 11.5 }, "ruhe").sichtbar).toContainEqual(expect.stringMatching(/^Karte um Uelzen in Zoomstufe 11,5 /));
+    expect(vorschau({ ...basis, kartenZoom: 11.5 }, "einsatz").sichtbar.join(" ")).not.toContain("Zoomstufe");
+  });
+
   it("die Schwelle teilt Band und Liste wie im Monitor", () => {
     const v = vorschau(basis, "unwetter");
     expect(v.band.map((w) => w.id)).toEqual(["starkregen"]);
