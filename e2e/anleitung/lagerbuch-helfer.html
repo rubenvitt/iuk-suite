@@ -1,0 +1,224 @@
+<!doctype html>
+<!--
+  Vorlage der Lagerbuch-Helfer-Anleitung (IDA-278, Generator IDA-291): drei A4-Blätter zum
+  Aushängen. Die Bilder setzt `lagerbuch-helfer.anleitung.ts` über `data-bild` ein, die
+  Beispiel-QR-Codes über `data-qr`; die Schriften holt er aus der laufenden Suite (`--schriften`).
+  Von Hand geöffnet bleiben die Rahmen leer.
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Lagerbuch – Helfer-Anleitung</title>
+<!-- --schriften -->
+<style>
+  @page { size: A4; margin: 0; }
+  :root { --rot: #c8000f; --tinte: #1a1a1a; --linie: #c9ccd1; --handy: #1f2124; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: var(--schrift-text), sans-serif; color: var(--tinte); font-size: 9pt; line-height: 1.32; }
+  b { font-weight: 600; }
+
+  .blatt { width: 210mm; height: 296mm; padding: 0 12mm 9mm; border-top: 3.2mm solid var(--rot); overflow: hidden; display: flex; flex-direction: column; }
+  .blatt + .blatt { break-before: page; }
+
+  .marke { margin-top: 8mm; font: 700 10.5pt var(--schrift-titel), sans-serif; letter-spacing: 0.05em; }
+  .marke span { color: var(--rot); }
+  .titelzeile { display: flex; align-items: center; gap: 3.5mm; margin-top: 2.5mm; }
+  .etikett { background: var(--rot); color: #fff; font: 700 11pt/1.15 var(--schrift-titel), sans-serif; letter-spacing: 0.12em; padding: 0.8mm 2.5mm; }
+  h1 { margin: 0; font: 700 25pt/1 var(--schrift-titel), sans-serif; letter-spacing: 0.01em; }
+  .kopf { display: flex; gap: 8mm; align-items: flex-start; margin-top: 3mm; }
+  .einleitung { flex: 1; margin: 0; font-size: 10pt; line-height: 1.38; }
+  .notfall { flex: none; width: 66mm; margin-top: 1mm; border: 0.35mm dashed #9a9ea5; border-radius: 2mm; padding: 2mm 3mm; font-size: 8.4pt; line-height: 1.4; }
+
+  .schritte { display: grid; grid-template-columns: repeat(var(--spalten, 3), 1fr); column-gap: 6mm; row-gap: 5mm; margin-top: 5mm; }
+  .schritt h2 { display: flex; align-items: center; gap: 2.4mm; margin: 2.6mm 0 0.8mm; font: 700 12pt/1 var(--schrift-titel), sans-serif; letter-spacing: 0.01em; }
+  .nr { flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--rot); color: #fff; display: grid; place-items: center; font: 700 10pt/1 var(--schrift-titel), sans-serif; }
+  .schritt p { margin: 0 0 0 8mm; }
+
+  /* Das Handy: schwarzer Rahmen um das Bild, Bildschirm im Seitenverhältnis 390:844. */
+  .handy { width: var(--handy-breite, 41mm); margin: 0 auto; padding: 1.5mm; background: var(--handy); border-radius: 6mm; }
+  .handy img, .handy .schirm { display: block; width: 100%; aspect-ratio: 390 / 844; border-radius: 4.6mm; background: #f2f3f5; object-fit: cover; }
+  .handy .schirm { background: #2b2e33; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm; text-align: center; font-size: 9pt; line-height: 1.3; }
+  .schirm .qr { width: 44%; padding: 1.4mm; background: #fff; border-radius: 1.4mm; }
+  .schirm .qr svg { display: block; width: 100%; height: auto; }
+  .schirm strong { margin-top: 1.5mm; font: 700 11pt/1 var(--schrift-titel), sans-serif; letter-spacing: 0.03em; }
+  .schirm .weiter { display: inline-flex; align-items: center; gap: 1mm; }
+  .schirm .weiter i { font-style: normal; width: 4.4mm; height: 4.4mm; border-radius: 50%; background: var(--rot); display: grid; place-items: center; font: 700 8.5pt/1 var(--schrift-titel), sans-serif; }
+  .schirm .oder { margin: 3mm 0 2mm; letter-spacing: 0.25em; color: #9ba0a8; font-size: 8pt; }
+  .schirm .qr.gross { width: 52%; }
+  /* Der Sucher der Kamera: vier Ecken um den Code. */
+  .sucher { --ecke: linear-gradient(#fff, #fff); width: 70%; aspect-ratio: 1; display: grid; place-items: center;
+    background: var(--ecke) left top / 5mm 0.6mm, var(--ecke) left top / 0.6mm 5mm, var(--ecke) right top / 5mm 0.6mm, var(--ecke) right top / 0.6mm 5mm,
+      var(--ecke) left bottom / 5mm 0.6mm, var(--ecke) left bottom / 0.6mm 5mm, var(--ecke) right bottom / 5mm 0.6mm, var(--ecke) right bottom / 0.6mm 5mm;
+    background-repeat: no-repeat; }
+  .sucher .qr.gross { width: 74%; }
+  .schirm .hinweis { margin-top: 2.5mm; color: #d6d8dc; }
+
+  .wissen { border-left: 1.6mm solid var(--rot); background: #f4f5f6; border-radius: 0 2mm 2mm 0; border-top: 0.3mm solid #dcdee1; border-right: 0.3mm solid #dcdee1; border-bottom: 0.3mm solid #dcdee1; padding: 4mm 5mm; align-self: start; }
+  .wissen h2 { margin: 0 0 3mm; font: 700 12.5pt/1 var(--schrift-titel), sans-serif; letter-spacing: 0.02em; }
+  .wissen ul { margin: 0; padding-left: 4.5mm; font-size: 9.4pt; line-height: 1.4; }
+  .wissen li { margin-bottom: 2.4mm; }
+  .wissen li:last-child { margin-bottom: 0; }
+
+  .vier { --spalten: 4; --handy-breite: 37mm; column-gap: 4mm; }
+  .vier .schritt h2 { font-size: 11.5pt; }
+  .vier .schritt p { margin-left: 0; font-size: 8.6pt; }
+</style>
+</head>
+<body>
+
+<section class="blatt">
+  <div class="marke">LAGER<span>BUCH</span> · Helfer</div>
+  <div class="titelzeile"><span class="etikett">ENTNAHME</span><h1>MATERIAL ENTNEHMEN</h1></div>
+  <div class="kopf">
+    <p class="einleitung">Du holst Material aus dem Handlager, für ein Fahrzeug, eine Tasche oder zum direkten Verbrauch. Dafür brauchst du nur dein Handy, kein Konto und kein Passwort.</p>
+    <div class="notfall"><b>QR-Code geht nicht?</b> Dann im Browser <b>lagerbuch.iuk-ue.de</b> aufrufen und den Code von der Karte eintippen.</div>
+  </div>
+  <div class="schritte">
+    <div class="schritt">
+      <div class="handy"><div class="schirm">
+        <div class="qr" data-qr></div>
+        <strong>REGALETIKETT</strong>
+        <span>Artikel ist sofort offen</span>
+        <span class="weiter">→ weiter mit <i>3</i></span>
+        <span class="oder">ODER</span>
+        <div class="qr" data-qr></div>
+        <strong>KARTE AM HANDLAGER</strong>
+        <span>Artikelliste</span>
+        <span class="weiter">→ weiter mit <i>2</i></span>
+      </div></div>
+      <h2><span class="nr">1</span>QR-CODE SCANNEN</h2>
+      <p>Etikett am Artikel oder Karte am Handlager scannen. Fragt das Handy nach einem Code: Er steht auf der Karte.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="e2-artikel" alt=""></div>
+      <h2><span class="nr">2</span>ARTIKEL WÄHLEN</h2>
+      <p>Nur nach der Handlager-Karte: oben suchen und den Artikel antippen.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="e3-ziel-waehlen" alt=""></div>
+      <h2><span class="nr">3</span>ZIEL WÄHLEN ANTIPPEN</h2>
+      <p>Solange kein Ziel gewählt ist, bleibt der rote Knopf blass.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="e4-wohin" alt=""></div>
+      <h2><span class="nr">4</span>WOHIN KOMMT ES?</h2>
+      <p>Fahrzeug oder Tasche antippen, bei Verbrauch <b>Keine Einheit – Verbrauch</b>. Dann <b>Ziel übernehmen</b>. Für die nächsten Artikel bleibt das Ziel stehen.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="e5-menge" alt=""></div>
+      <h2><span class="nr">5</span>MENGE EINSTELLEN</h2>
+      <p>Mit + und − die Menge setzen und <b>Entnahme buchen</b> tippen. Bei der Charge bleibt <b>Zuerst ablaufende</b> stehen.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="e6-fertig" alt=""></div>
+      <h2><span class="nr">6</span>FERTIG</h2>
+      <p>Die grüne Zeile bestätigt die Entnahme. Zum nächsten Artikel geht es über <b>Zurück</b>, am Ende tippst du oben auf <b>Beenden</b>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="blatt">
+  <div class="marke">LAGER<span>BUCH</span> · Helfer</div>
+  <div class="titelzeile"><span class="etikett">BOX</span><h1>MATERIAL ZURÜCKPACKEN</h1></div>
+  <div class="kopf">
+    <p class="einleitung">Was im Fahrzeug oder in der Tasche zu viel ist oder nicht hingehört, legst du in die Entnahmebox in der Halle und tippst kurz ein, was es war.</p>
+    <div class="notfall"><b>QR-Code geht nicht?</b> Dann im Browser <b>lagerbuch.iuk-ue.de</b> aufrufen und den Code von der Karte eintippen.</div>
+  </div>
+  <div class="schritte">
+    <div class="schritt">
+      <div class="handy"><div class="schirm">
+        <div class="sucher"><div class="qr gross" data-qr></div></div>
+        <span class="hinweis">Kamera-App öffnen<br>und auf den Code halten</span>
+      </div></div>
+      <h2><span class="nr">1</span>QR-CODE SCANNEN</h2>
+      <p>Die Karte am Fahrzeug oder an der Tasche scannen und den Link öffnen.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="b2-einheit" alt=""></div>
+      <h2><span class="nr">2</span>BOX UND EINHEIT</h2>
+      <p>Unten auf <b>BOX</b> tippen. Nach dem Fahrzeug-Code ist die Einheit schon gewählt, sonst wählst du sie hier.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="b3-artikel" alt=""></div>
+      <h2><span class="nr">3</span>ARTIKEL ANTIPPEN</h2>
+      <p>Die Zeile klappt auf. In langen Listen findest du den Artikel schneller über das Suchfeld.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="b4-menge" alt=""></div>
+      <h2><span class="nr">4</span>MENGE UND ABLEGEN</h2>
+      <p>Mit + und − einstellen, wie viel du in die Box legst. Danach <b>In die Entnahmebox legen</b>.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="b5-bestaetigung" alt=""></div>
+      <h2><span class="nr">5</span>BESTÄTIGUNG</h2>
+      <p>Unten siehst du, was du abgelegt hast. Weiter mit dem nächsten Artikel oder oben auf <b>Beenden</b>.</p>
+    </div>
+    <div class="wissen">
+      <h2>GUT ZU WISSEN</h2>
+      <ul>
+        <li>Erst in die Box legen, dann tippen.</li>
+        <li>Die Box steht in der Halle. Ins Regal zurückräumen musst du nichts.</li>
+        <li>Was beim Check übrig bleibt, legst du direkt im Check in die Box. Den Weg über <b>BOX</b> brauchst du dafür nicht.</li>
+        <li>Vertippt? Sag der Lagerverwaltung Bescheid.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="blatt">
+  <div class="marke">LAGER<span>BUCH</span> · Helfer</div>
+  <div class="titelzeile"><span class="etikett">CHECK</span><h1>FAHRZEUGCHECK</h1></div>
+  <div class="kopf">
+    <p class="einleitung">Du zählst, was im Fahrzeug ist, und siehst sofort, was fehlt und was bald abläuft.</p>
+    <div class="notfall"><b>QR-Code geht nicht?</b> Dann im Browser <b>lagerbuch.iuk-ue.de</b> aufrufen und den Code von der Karte eintippen.</div>
+  </div>
+  <div class="schritte vier">
+    <div class="schritt">
+      <div class="handy"><div class="schirm">
+        <div class="sucher"><div class="qr gross" data-qr></div></div>
+        <span class="hinweis">Kamera-App öffnen<br>und auf den Code halten</span>
+      </div></div>
+      <h2><span class="nr">1</span>QR-CODE SCANNEN</h2>
+      <p>Die Karte am Fahrzeug scannen und den Link öffnen. Der Check öffnet sich für genau dieses Fahrzeug.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c2-art" alt=""></div>
+      <h2><span class="nr">2</span>KURZ ODER VOLL?</h2>
+      <p><b>Kurzcheck</b> vor einem Sanitätsdienst. <b>Vollcheck</b> während der Desinfektion: Dabei zählst du alles und setzt die Plomben neu.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c3-plomben" alt=""></div>
+      <h2><span class="nr">3</span>PLOMBEN</h2>
+      <p>Nummer an der Plombe ablesen und eintippen. Fehlt die Plombe oder ist sie aufgebrochen, tippst du auf <b>Fehlt</b>.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c4-zaehlen" alt=""></div>
+      <h2><span class="nr">4</span>ZÄHLEN</h2>
+      <p>Eintragen, was im Fach liegt, ein leeres Fach mit 0. Das Verfallsdatum änderst du nur, wenn eine Packung früher abläuft.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c5-nachfuellen" alt=""></div>
+      <h2><span class="nr">5</span>NACHFÜLLEN</h2>
+      <p>Fehlendes holst du aus dem genannten Handlager-Fach, Überzähliges kommt in die Entnahmebox. Mit +/− stellst du ein, wie viel es war.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c6-geraete" alt=""></div>
+      <h2><span class="nr">6</span>GERÄTE</h2>
+      <p>Alles steht auf <b>vorhanden</b> und <b>In Ordnung</b>. Tippe nur an, was davon abweicht.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c7-sauerstoff" alt=""></div>
+      <h2><span class="nr">7</span>SAUERSTOFF</h2>
+      <p>Manometer ablesen und den Druck mit − auf diesen Wert stellen. Zum Schluss <b>Abschließen</b>.</p>
+    </div>
+    <div class="schritt">
+      <div class="handy"><img data-bild="c8-zusammenfassung" alt=""></div>
+      <h2><span class="nr">8</span>ZUSAMMENFASSUNG</h2>
+      <p>Hier steht, was du geholt und in die Box gelegt hast. Was bald abläuft, bitte tauschen oder der Verwaltung melden.</p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

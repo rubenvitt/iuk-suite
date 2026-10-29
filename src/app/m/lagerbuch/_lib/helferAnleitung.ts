@@ -13,7 +13,7 @@
  * Lagerbuch-Host direkt aus `public/m/lagerbuch/`.
  *
  * ⚠️ DIE BILDER SIND SCREENSHOTS. Aendert sich die Helfer-Ansicht sichtbar,
- * stimmt die Anleitung nicht mehr; sie muss dann neu erzeugt werden.
+ * `pnpm anleitung:lagerbuch` neu fahren (`e2e/anleitung/`, IDA-291; die CI prueft ihn).
  */
 export const HELFER_ANLEITUNG_PFAD = "/m/lagerbuch/helfer-anleitung.pdf";
 
