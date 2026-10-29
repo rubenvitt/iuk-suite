@@ -8,24 +8,17 @@ import { dauerMinuten, dauerText, datumText } from "@kern/zeit";
 
 import type { Entwurf, Fahrzeug, PatientStand, PersonAuswahl, Person, Stammdatenpaket } from "../typen";
 
-type FehlendeAngabe = "Alarmstichwort" | "Beginn" | "Einsatzort";
+type FehlendeAngabe = "Alarmstichwort" | "Beginn" | "Ende" | "Einsatzort";
 
-/** Beginn = heute/jetzt in `zeitzone` (Vorlage: `leer()`). Alle übrigen Felder sind leer/0. */
-export function leererEntwurf(jetzt: Date, zeitzone: string): Entwurf {
-  const teile = new Intl.DateTimeFormat("en-US", {
-    timeZone: zeitzone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).formatToParts(jetzt);
-  const t = Object.fromEntries(teile.map((p) => [p.type, p.value]));
+/**
+ * Ein leerer Entwurf (Vorlage: `leer()`), auch ohne Beginn: Das Einsatzbuch wird immer nach dem
+ * Einsatz ausgefüllt (IDA-290), eine vorgeschlagene Uhrzeit von jetzt stimmt dann fast nie.
+ */
+export function leererEntwurf(): Entwurf {
   return {
     stichwort: "",
-    beginnDatum: `${t.year}-${t.month}-${t.day}`,
-    beginnZeit: `${t.hour}:${t.minute}`,
+    beginnDatum: "",
+    beginnZeit: "",
     endeDatum: "",
     endeZeit: "",
     strasse: "",
@@ -56,18 +49,21 @@ export const PATIENT_HOECHSTLAENGE = { einsatznummer: 40, durch: 120 } as const;
 export const ENDE_UNVOLLSTAENDIG = "Ende nur mit Datum und Uhrzeit angeben.";
 
 /**
- * Pflichtfelder, in der Reihenfolge der Vorlage: Alarmstichwort, Beginn, Einsatzort (Straße ODER
- * Ort). Getrimmt wie in Rust (`pruefe_entwurf`): Nur Leerzeichen zählen als fehlend.
+ * Pflichtfelder, in der Reihenfolge der Vorlage: Alarmstichwort, Beginn, Ende, Einsatzort (Straße
+ * ODER Ort). Ende ist Pflicht, weil hinterher dokumentiert wird (IDA-290); fehlt nur eine Hälfte,
+ * meldet das `endeUnvollstaendig`. Getrimmt wie in Rust (`pruefe_entwurf`): Nur Leerzeichen zählen
+ * als fehlend.
  */
 export function fehlendeAngaben(e: Entwurf): FehlendeAngabe[] {
   const fehlt: FehlendeAngabe[] = [];
   if (!e.stichwort.trim()) fehlt.push("Alarmstichwort");
   if (!e.beginnDatum.trim() || !e.beginnZeit.trim()) fehlt.push("Beginn");
+  if (!e.endeDatum.trim() && !e.endeZeit.trim()) fehlt.push("Ende");
   if (!e.strasse.trim() && !e.ort.trim()) fehlt.push("Einsatzort");
   return fehlt;
 }
 
-/** Ende mit nur Datum oder nur Uhrzeit — beide leer (offen) oder beide gesetzt ist in Ordnung. */
+/** Ende mit nur Datum oder nur Uhrzeit. Ganz leer meldet `fehlendeAngaben`. */
 export function endeUnvollstaendig(e: Entwurf): boolean {
   return !e.endeDatum.trim() !== !e.endeZeit.trim();
 }
@@ -91,10 +87,10 @@ export function bereitText(e: Entwurf): string {
   return `Bereit · ${e.stichwort}, ${e.fahrzeuge.length} Fahrzeuge, ${e.personal.length} Kräfte, ${patienten} Patienten`;
 }
 
-/** Dauer-Hinweis unter „Zeit und Einsatzort“ — offenes Ende, negative Dauer oder die Dauer selbst. */
+/** Dauer-Hinweis unter „Zeit und Einsatzort“ — was noch fehlt, negative Dauer oder die Dauer selbst. */
 export function dauerHinweis(e: Entwurf, zeitzone: string): string {
   const minuten = dauerMinuten(e, zeitzone);
-  if (minuten === null) return "Ende noch offen — kannst du auch später in der Frist nachtragen.";
+  if (minuten === null) return "Mit Beginn und Ende steht hier die Einsatzdauer.";
   if (minuten < 0) return "Ende liegt vor dem Beginn — bitte prüfen.";
   return `Einsatzdauer ${dauerText(minuten)}`;
 }
@@ -235,7 +231,7 @@ export function zusammenfassung(e: Entwurf, s: Stammdatenpaket): { k: string; v:
     { k: "Alarmstichwort", v: e.stichwort || "—" },
     ...(e.leitstellenNummer.trim() ? [{ k: "Einsatznummer Leitstelle", v: e.leitstellenNummer.trim() }] : []),
     { k: "Beginn", v: e.beginnDatum ? `${datumText(e.beginnDatum)}, ${e.beginnZeit} Uhr` : "—" },
-    { k: "Ende", v: e.endeDatum ? `${datumText(e.endeDatum)}, ${e.endeZeit} Uhr` : "offen" },
+    { k: "Ende", v: e.endeDatum ? `${datumText(e.endeDatum)}, ${e.endeZeit} Uhr` : "—" },
     { k: "Einsatzort", v: [e.strasse, e.ort].filter(Boolean).join(", ") || "—" },
     { k: "Fahrzeuge", v: e.fahrzeuge.map((id) => (fzMap.has(id) ? `${fzMap.get(id)!.typ} ${fzMap.get(id)!.kennung}` : id)).join(" · ") || "—" },
     { k: "Personal", v: `${e.personal.length} Kräfte` },

@@ -43,6 +43,7 @@ import stichwortAlsFreitext from "@/app/m/portal/_lib/neuigkeiten/notizen/einsat
 import einsatznummerDerLeitstelle from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-einsatznummer-der-leitstelle";
 import angabenJePatient from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-28-angaben-je-patient";
 import anleitungFuerDenRechner from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-29-anleitung-fuer-den-rechner";
+import beginnUndEndeNachtragen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-29-beginn-und-ende-nachtragen";
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import aufgabenBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-09-27-aufgaben-bearbeiten";
@@ -166,6 +167,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   einsatznummerDerLeitstelle,
   angabenJePatient,
   anleitungFuerDenRechner,
+  beginnUndEndeNachtragen,
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
   aufgabenBearbeiten,

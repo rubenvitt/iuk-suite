@@ -31,8 +31,8 @@ fn gueltiger_entwurf() -> Entwurf {
         stichwort: "RD 2".into(),
         beginn_datum: "2026-08-22".into(),
         beginn_zeit: "03:12".into(),
-        ende_datum: String::new(),
-        ende_zeit: String::new(),
+        ende_datum: "2026-08-22".into(),
+        ende_zeit: "04:30".into(),
         strasse: String::new(),
         ort: "29525 Uelzen".into(),
         objekt: String::new(),
@@ -47,14 +47,14 @@ fn gueltiger_entwurf() -> Entwurf {
 }
 
 #[test]
-fn absenden_verlangt_stichwort_beginn_und_ort() {
+fn absenden_verlangt_stichwort_beginn_ende_und_ort() {
     let ordner = tempfile::tempdir().unwrap();
     let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
     buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
 
     let ergebnis = buch.sende_ab(&leerer_entwurf(), Utc::now(), false);
     assert!(
-        matches!(&ergebnis, Err(ErfassungFehler::Fehlt(f)) if f == &vec!["Alarmstichwort", "Beginn", "Einsatzort"]),
+        matches!(&ergebnis, Err(ErfassungFehler::Fehlt(f)) if f == &vec!["Alarmstichwort", "Beginn", "Ende", "Einsatzort"]),
         "{ergebnis:?}"
     );
 
@@ -280,11 +280,8 @@ fn hoechstens_200_fahrzeuge_und_1000_kraefte_je_einsatz() {
 
 #[test]
 fn ende_nur_mit_datum_und_uhrzeit() {
-    assert_eq!(
-        sende(|e| e.ende_datum = "2026-08-22".into()),
-        Err("Ende braucht Datum und Uhrzeit zusammen oder keins von beiden".into())
-    );
-    assert_eq!(sende(|e| e.ende_zeit = "04:00".into()), Err("Ende braucht Datum und Uhrzeit zusammen oder keins von beiden".into()));
+    assert_eq!(sende(|e| e.ende_zeit = String::new()), Err("Ende braucht Datum und Uhrzeit zusammen".into()));
+    assert_eq!(sende(|e| e.ende_datum = String::new()), Err("Ende braucht Datum und Uhrzeit zusammen".into()));
     assert_eq!(
         sende(|e| {
             e.ende_datum = "2026-08-22".into();
@@ -292,6 +289,19 @@ fn ende_nur_mit_datum_und_uhrzeit() {
         }),
         Ok(())
     );
+}
+
+/// Hinterher dokumentiert (IDA-290): Ohne Ende wird nicht abgesendet.
+#[test]
+fn ende_ist_pflicht() {
+    let ordner = tempfile::tempdir().unwrap();
+    let mut buch = Buch::oeffne(ordner.path(), Betrieb::Test).unwrap();
+    buch.richte_ein(&hilfe::test_einrichtung(Umgebung::Test), hilfe::RECHNER_ID, hilfe::RECHNER_NAME).unwrap();
+    let mut e = gueltiger_entwurf();
+    e.ende_datum = " ".into();
+    e.ende_zeit = String::new();
+    let ergebnis = buch.sende_ab(&e, Utc::now(), false);
+    assert!(matches!(&ergebnis, Err(ErfassungFehler::Fehlt(f)) if f == &vec!["Ende"]), "{ergebnis:?}");
 }
 
 #[test]

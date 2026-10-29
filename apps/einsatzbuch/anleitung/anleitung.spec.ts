@@ -74,9 +74,10 @@ test("Anleitung für den Einsatzbuch-Rechner erzeugen", async ({ page }) => {
   await page.getByLabel("Einsatznummer der Leitstelle").fill("RD 2026-10-4711");
   await bild(page, bilder, "2-stichwort", [karte("Alarmstichwort")], karte("Alarmstichwort"));
 
-  // Dokumentiert wird immer hinterher: der vorgeschlagene Beginn (jetzt) wird überschrieben.
+  // Dokumentiert wird immer hinterher (IDA-290): Beginn und Ende stehen fest und sind leer, bis man sie einträgt.
+  await page.getByLabel("Beginn · Datum").fill("2026-10-24");
   await page.getByLabel("Beginn · Uhrzeit").fill("14:05");
-  await page.getByLabel("Ende · Datum").fill(await page.getByLabel("Beginn · Datum").inputValue());
+  await page.getByLabel("Ende · Datum").fill("2026-10-24");
   await page.getByLabel("Ende · Uhrzeit").fill("15:20");
   await page.getByLabel("Straße, Hausnummer").fill("Bahnhofstraße 12");
   await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");

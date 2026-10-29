@@ -67,8 +67,8 @@ function mit(teil: Partial<Entwurf> = {}): Entwurf {
     stichwort: "",
     beginnDatum: "2026-09-24",
     beginnZeit: "10:00",
-    endeDatum: "",
-    endeZeit: "",
+    endeDatum: "2026-09-24",
+    endeZeit: "11:30",
     strasse: "",
     ort: "",
     objekt: "",
@@ -84,10 +84,20 @@ function mit(teil: Partial<Entwurf> = {}): Entwurf {
 }
 
 describe("Pflichtfelder (Spec §4.3)", () => {
-  it("leer: Stichwort, Beginn und Ort fehlen, Text wie die Vorlage", () => {
-    const e = mit({ beginnDatum: "", beginnZeit: "" });
-    expect(fehlendeAngaben(e)).toEqual(["Alarmstichwort", "Beginn", "Einsatzort"]);
-    expect(bereitText(e)).toBe("Ohne Alarmstichwort, Beginn und Einsatzort wird nicht abgesendet.");
+  it("leer: Stichwort, Beginn, Ende und Ort fehlen, Text wie die Vorlage", () => {
+    const e = mit({ beginnDatum: "", beginnZeit: "", endeDatum: "", endeZeit: "" });
+    expect(fehlendeAngaben(e)).toEqual(["Alarmstichwort", "Beginn", "Ende", "Einsatzort"]);
+    expect(bereitText(e)).toBe("Ohne Alarmstichwort, Beginn, Ende und Einsatzort wird nicht abgesendet.");
+  });
+
+  it("Ende ist Pflicht, weil hinterher dokumentiert wird (IDA-290); ein halbes Ende meldet sich eigens", () => {
+    const ohneEnde = mit({ stichwort: "RD 2", ort: "Uelzen", endeDatum: " ", endeZeit: "" });
+    expect(fehlendeAngaben(ohneEnde)).toEqual(["Ende"]);
+    expect(kannAbsenden(ohneEnde)).toBe(false);
+    const halb = mit({ stichwort: "RD 2", ort: "Uelzen", endeZeit: "" });
+    expect(fehlendeAngaben(halb)).toEqual([]);
+    expect(bereitText(halb)).toBe("Ende nur mit Datum und Uhrzeit angeben.");
+    expect(kannAbsenden(halb)).toBe(false);
   });
 
   it("Ort ODER Straße genügt", () => {
@@ -124,8 +134,8 @@ describe("Dauer in der Suite-Zone", () => {
     expect(fehlendeAngaben(e)).toEqual([]);
   });
 
-  it("offenes Ende", () => {
-    expect(dauerHinweis(mit({ endeDatum: "", endeZeit: "" }), "Europe/Berlin")).toBe("Ende noch offen — kannst du auch später in der Frist nachtragen.");
+  it("ohne Ende kein „später nachtragen“, nur wofür das Feld da ist", () => {
+    expect(dauerHinweis(mit({ endeDatum: "", endeZeit: "" }), "Europe/Berlin")).toBe("Mit Beginn und Ende steht hier die Einsatzdauer.");
   });
 });
 
@@ -190,15 +200,17 @@ it("Fristsatz", () => {
   expect(fristSatz(1)).toBe("Nach dem Absenden 1 Minute änderbar, danach nicht mehr einsehbar");
 });
 
-it("leerer Entwurf nimmt heute und jetzt in der Suite-Zone, nicht in der Rechnerzone", () => {
-  expect(leererEntwurf(new Date("2026-12-31T23:30:00Z"), "Europe/Berlin")).toMatchObject({ beginnDatum: "2027-01-01", beginnZeit: "00:30" });
+it("leerer Entwurf schlägt keinen Beginn vor: Das Einsatzbuch wird hinterher ausgefüllt (IDA-290)", () => {
+  expect(leererEntwurf()).toMatchObject({ beginnDatum: "", beginnZeit: "", endeDatum: "", endeZeit: "" });
 });
 
-it("Zusammenfassung: Zeilen wie in der Vorlage, inklusive offenem Ende", () => {
+it("Zusammenfassung: Zeilen wie in der Vorlage; ein Einsatz von vor IDA-290 ohne Ende zeigt einen Strich", () => {
   const e = mit({
     stichwort: "RD 2",
     beginnDatum: "2026-09-24",
     beginnZeit: "10:00",
+    endeDatum: "",
+    endeZeit: "",
     strasse: "Lindenstraße 8",
     ort: "Uelzen",
     fahrzeuge: ["11-83-1"],
@@ -209,7 +221,7 @@ it("Zusammenfassung: Zeilen wie in der Vorlage, inklusive offenem Ende", () => {
   expect(zusammenfassung(e, PAKET)).toEqual([
     { k: "Alarmstichwort", v: "RD 2" },
     { k: "Beginn", v: "24.9.2026, 10:00 Uhr" },
-    { k: "Ende", v: "offen" },
+    { k: "Ende", v: "—" },
     { k: "Einsatzort", v: "Lindenstraße 8, Uelzen" },
     { k: "Fahrzeuge", v: "RTW HH-BP 8301" },
     { k: "Personal", v: "1 Kräfte" },
@@ -271,7 +283,7 @@ describe("Angaben je Patient", () => {
 describe("Grenzen des Readers", () => {
   it("Ende nur mit Datum und Uhrzeit: halb angegeben sperrt das Absenden", () => {
     const basis = { stichwort: "RD 2", ort: "Uelzen" };
-    for (const e of [mit({ ...basis, endeDatum: "2026-09-24" }), mit({ ...basis, endeZeit: "11:00" })]) {
+    for (const e of [mit({ ...basis, endeDatum: "2026-09-24", endeZeit: "" }), mit({ ...basis, endeDatum: "", endeZeit: "11:00" })]) {
       expect(endeUnvollstaendig(e)).toBe(true);
       expect(kannAbsenden(e)).toBe(false);
       expect(bereitText(e)).toBe("Ende nur mit Datum und Uhrzeit angeben.");
@@ -284,7 +296,7 @@ describe("Grenzen des Readers", () => {
   });
 
   it("fehlende Pflichtfelder gehen dem halben Ende im Text vor", () => {
-    expect(bereitText(mit({ endeDatum: "2026-09-24" }))).toBe("Ohne Alarmstichwort und Einsatzort wird nicht abgesendet.");
+    expect(bereitText(mit({ endeDatum: "2026-09-24", endeZeit: "" }))).toBe("Ohne Alarmstichwort und Einsatzort wird nicht abgesendet.");
   });
 
   it("Höchstlängen wie im Reader", () => {

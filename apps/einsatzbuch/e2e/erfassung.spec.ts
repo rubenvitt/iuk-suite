@@ -13,9 +13,18 @@ interface Aufruf {
   args: { entwurf?: { vorOrt: number } };
 }
 
+/** Beginn und Ende: Das Einsatzbuch wird hinterher ausgefüllt, beides ist Pflicht (IDA-290). */
+async function trageZeitenEin(page: Page, ende = true): Promise<void> {
+  await page.getByLabel("Beginn · Datum").fill("2026-09-24");
+  await page.getByLabel("Beginn · Uhrzeit").fill("10:05");
+  if (!ende) return;
+  await page.getByLabel("Ende · Datum").fill("2026-09-24");
+  await page.getByLabel("Ende · Uhrzeit").fill("11:30");
+}
+
 /**
- * Öffnet das Formular, füllt die kleinste vollständige Erfassung aus (Stichwort, Ort, ein
- * Fahrzeug, eine Person) und sendet ab. Gemeinsamer Anfang aller Tests mit abgesendetem Einsatz.
+ * Öffnet das Formular, füllt die kleinste vollständige Erfassung aus (Stichwort, Beginn, Ende,
+ * Ort, ein Fahrzeug, eine Person) und sendet ab. Gemeinsamer Anfang aller Tests mit abgesendetem Einsatz.
  */
 async function erfasseUndSendeAb(page: Page): Promise<void> {
   await page.goto("/");
@@ -24,6 +33,7 @@ async function erfasseUndSendeAb(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { name: "Neuer Einsatz" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Einsatz absenden" })).toBeDisabled();
   await page.getByRole("button", { name: "RD 2" }).click();
+  await trageZeitenEin(page);
   await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");
   await page.getByLabel("Fahrzeug suchen").fill("83-1");
   await page.getByLabel("Fahrzeug suchen").press("Enter");
@@ -76,6 +86,7 @@ test("ein Ende nur mit Datum sperrt das Absenden, mit Uhrzeit geht es", async ({
   await expect(page.getByText("TESTBETRIEB — nichts hiervon ist ein echter Einsatz")).toBeVisible();
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "RD 2" }).click();
+  await trageZeitenEin(page, false);
   await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");
   await page.getByLabel("Ende · Datum").fill("2026-09-24");
 
@@ -166,6 +177,7 @@ test("je Patient eine Zeile: Einsatznummer und wer transportiert hat gehen mit a
   await expect(page.getByText("TESTBETRIEB — nichts hiervon ist ein echter Einsatz")).toBeVisible();
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "RD 2" }).click();
+  await trageZeitenEin(page);
   await page.getByLabel("PLZ, Ort").fill("29525 Uelzen");
   await page.getByLabel("Fahrzeug suchen").fill("83-1");
   await page.getByLabel("Fahrzeug suchen").press("Enter");
