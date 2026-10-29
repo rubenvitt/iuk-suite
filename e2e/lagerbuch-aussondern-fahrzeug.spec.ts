@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -44,6 +44,10 @@ test.describe("Aussondern aus einem Fahrzeug", () => {
     // schon entschieden, und die Sichtbarkeitsprobe liefe stattdessen in ihr
     // Zeitbudget und meldete sich als etwas ganz anderes (Falle 10).
     expect(antwort!.status()).toBe(200);
+    // IDA-288: kurz nach `load` steht die Zeile noch ein zweites Mal versteckt
+    // im gestreamten `div[hidden id="S:n"]` — der strict-Greifer unten traefe
+    // zwei Elemente (Falle 22, `CLAUDE.md`).
+    await warteAufGestreamteInhalte(page);
 
     // IDA-232: Ist und Aussondern stehen in DERSELBEN Zeile der Bestandsliste
     // (Startreiter „Bestand & Verfall"), geschluesselt nach Artikel.
