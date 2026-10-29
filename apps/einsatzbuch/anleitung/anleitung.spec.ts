@@ -7,6 +7,7 @@
  * jedem Schritt ein Bild mit rotem Rahmen um das, worauf es ankommt, setzt die Bilder in
  * `vorlage.html` ein und druckt sie nach `public/m/einsatzbuch/rechner-anleitung.pdf` der Suite.
  * Ändert sich die Erfassung sichtbar, `pnpm anleitung` neu fahren und das PDF mit committen.
+ * Bricht ein Schritt, weil die Oberfläche sich geändert hat, wird der Job `oberflaeche` rot.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -16,7 +17,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { installiereStub } from "../e2e/stub";
 
 const VORLAGE = path.join(import.meta.dirname, "vorlage.html");
-const ZIEL = path.join(import.meta.dirname, "../../../public/m/einsatzbuch/rechner-anleitung.pdf");
+// Die CI (`einsatzbuch.yml`, Job `oberflaeche`) schreibt woandershin: Sie prüft nur, dass die
+// Anleitung noch entsteht, und legt das Ergebnis als Artefakt ab.
+const ZIEL = process.env.ANLEITUNG_ZIEL ?? path.join(import.meta.dirname, "../../../public/m/einsatzbuch/rechner-anleitung.pdf");
 const RAHMEN = "[data-anleitung]{outline:4px solid #c8000f !important;outline-offset:4px;border-radius:10px;}";
 /** Ausschnitt im Seitenverhältnis der Bildrahmen (16:10); kleiner als das Fenster, damit die Schrift im Druck lesbar bleibt. */
 const AUSSCHNITT = { width: 1024, height: 640 };

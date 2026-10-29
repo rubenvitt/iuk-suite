@@ -5,7 +5,8 @@ import { E2E_PORTS } from "../../../e2e/helpers/ports";
 
 /**
  * Erzeugt die Anwenderanleitung für den Einsatzbuch-Rechner (IDA-289): `pnpm anleitung`.
- * Kein Test, sondern ein Generator — deshalb nicht unter `e2e/`, die CI fährt ihn nicht.
+ * Kein Test, sondern ein Generator — deshalb nicht unter `e2e/`. Die CI fährt ihn trotzdem
+ * (`einsatzbuch.yml`, Job `oberflaeche`), damit eine Änderung an der Erfassung ihn nicht still bricht.
  * Sechster Platz im Zehnerblock der Arbeitskopie; `e2e` der App belegt +4.
  */
 const PORT = E2E_PORTS.web + 5;
