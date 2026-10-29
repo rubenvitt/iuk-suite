@@ -50,8 +50,30 @@ const ORTE: ZaehlOrt[] = [
   { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
 ].map((o) => ({ ...o, schluessel: zaehlOrtWert(o.id) }));
 
-/** Genug Zeilen, dass eine Lawine sich von einem Rauschen unterscheidet. */
-const ZEILEN_ANZAHL = 120;
+/**
+ * Genug Zeilen, dass eine Lawine sich von einem Rauschen unterscheidet — und
+ * NICHT MEHR (IDA-274).
+ *
+ * ⚠️ DIE TRENNSCHAERFE HAENGT NICHT AN DER ZEILENZAHL. Die Lawine waechst mit
+ * ihr (zwei Zeichen je Zeile, Tabelle und Karte), das Rauschen nicht (fuenf,
+ * egal bei wie vielen), und die Grenze unten IST die Zeilenzahl. Gemessen
+ * (29.10.2026, jsdom) am probeweise wieder horchenden Formular:
+ *
+ * ```
+ * Zeilen   Aufbau    Klick „+": gesund   Rueckfall
+ *    120   1,7 s                     5   245 (2·120 + 5)
+ *     30   0,5 s                     5    65 (2·30 + 5)
+ * ```
+ *
+ * Mehr Zeilen kaufen also keine Sicherheit, nur Aufbauzeit: rund 14 ms je
+ * Zeile, fast ganz React im Entwicklungsbau und antds `Table` (neun Zellen je
+ * Zeile), dazu die Karte, die jede Zeile ein zweites Mal rendert. Bei 120
+ * stand der erste Fall einzeln bei 4,7 s, unter Last bei 16,5 s (IDA-244).
+ * ⚠️ UNTER `VIRTUELL_AB_ZEILEN` (150) MUSS SIE BLEIBEN: darueber rendert die
+ * Tabelle in jsdom keine Zeile mehr (Falle 14), und der Zaehler saehe nur noch
+ * die Karten.
+ */
+const ZEILEN_ANZAHL = 30;
 
 function zeilen(anzahl: number): InventurZeile[] {
   return Array.from({ length: anzahl }, (_, i) => ({
@@ -109,11 +131,12 @@ describe("InventurForm — Renderkosten (DRK-421)", () => {
      * „Ist"-Zelle rendert davon zwei neu. Die Grenze steht bewusst bei der
      * ZEILENZAHL und nicht bei einer exakten Zahl: sie soll die Lawine fangen,
      * nicht bei jedem zusaetzlichen Zeichen in einer Zelle umkippen. Ein
-     * Rueckfall in den alten Zustand ergaebe hier mehr als 240.
+     * Rueckfall in den alten Zustand ergaebe hier mehr als das Doppelte.
      *
      * ⚠️ DIESER FALL HAT ZAEHNE, UND ZWAR NACHGEMESSEN: laesst man das Formular
-     * probeweise wieder auf den Gesamtstand horchen und haengt die
-     * Spaltendefinition daran, meldet er `expected 122 to be less than 120`.
+     * probeweise wieder auf den Gesamtstand horchen (`useZaehlstand`) und
+     * haengt die Spaltendefinition daran, meldet er `expected 65 to be less
+     * than 30` (IDA-274; bei 120 Zeilen und vor den Karten waren es 122).
      * Ein Test, der auf beiden Fassungen gruen ist, bewacht nichts.
      */
     expect(gerendert.zeichen).toBeLessThan(ZEILEN_ANZAHL);
