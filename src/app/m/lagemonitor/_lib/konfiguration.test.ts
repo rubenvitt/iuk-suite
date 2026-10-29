@@ -76,7 +76,20 @@ describe("Speichern und Drahtformat", () => {
       notices: [],
       publicLinks: [],
       traffic: { tomtomKey: null, flow: false, incidents: false, speedCameras: false },
+      map: { zoom: 9 },
     });
+  });
+
+  it("die Zoomstufe der Karte geht als map.zoom hinaus und hat Grenzen", () => {
+    const db = testDb();
+    speichereKonfiguration(db, eingabe({ kartenZoom: 11.5 }), "Ruben");
+    expect(leseKonfiguration(db).kartenZoom).toBe(11.5);
+    expect(alsVertrag(db).map).toEqual({ zoom: 11.5 });
+    for (const kartenZoom of [4, 17, null]) {
+      const r = konfigurationEingabe.safeParse({ ...eingabe(), kartenZoom });
+      expect(r.success).toBe(false);
+      expect(r.error!.issues.map((i) => i.path.join("."))).toEqual(["kartenZoom"]);
+    }
   });
 
   it("ein leeres Linkfeld behält die Verbindung, Trennen löscht sie", () => {

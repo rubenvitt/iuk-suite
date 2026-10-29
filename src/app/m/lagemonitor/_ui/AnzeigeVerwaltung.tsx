@@ -8,7 +8,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
+import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
@@ -25,6 +25,7 @@ interface Zustand {
   standortName: string;
   standortBreite: number | null;
   standortLaenge: number | null;
+  kartenZoom: number | null;
   regionArs: string;
   regionName: string;
   warnschwelle: Warnschwelle;
@@ -43,6 +44,7 @@ function zustandAus(k: KonfigurationDTO): Zustand {
     standortName: k.standortName,
     standortBreite: k.standortBreite,
     standortLaenge: k.standortLaenge,
+    kartenZoom: k.kartenZoom,
     regionArs: k.regionArs,
     regionName: k.regionName,
     warnschwelle: k.warnschwelle,
@@ -163,16 +165,16 @@ export function AnzeigeVerwaltung({
   const linkFeld = !gespeichert.suchlageVerbunden || linkErsetzen;
   const schluesselFeld = !gespeichert.tomtomHinterlegt || schluesselErsetzen;
   const tomtomNoetig = z.verkehr.fluss || z.verkehr.baustellen;
-  const zahl = (feld: "standortBreite" | "standortLaenge", label: string) => (
-    <Feld id={`${basis}-${feld}`} label={label} fehler={feldFehler[feld]}>
+  const zahl = (feld: "standortBreite" | "standortLaenge" | "kartenZoom", label: string, hilfe?: string) => (
+    <Feld id={`${basis}-${feld}`} label={label} fehler={feldFehler[feld]} hilfe={hilfe}>
       <InputNumber
         id={`${basis}-${feld}`}
         value={z[feld]}
-        step={0.0001}
+        {...(feld === "kartenZoom" ? { step: 0.5, min: KARTEN_ZOOM.min, max: KARTEN_ZOOM.max } : { step: 0.0001, controls: false })}
         decimalSeparator=","
-        controls={false}
         style={{ width: "100%" }}
         status={feldFehler[feld] ? "error" : undefined}
+        aria-describedby={feldFehler[feld] ? `${basis}-${feld}-fehler` : hilfe ? `${basis}-${feld}-hilfe` : undefined}
         onChange={(wert) => setze(feld, typeof wert === "number" ? wert : null)}
       />
     </Feld>
@@ -209,6 +211,11 @@ export function AnzeigeVerwaltung({
                   {zahl("standortBreite", "Breitengrad")}
                   {zahl("standortLaenge", "Längengrad")}
                 </div>
+                {zahl(
+                  "kartenZoom",
+                  "Zoomstufe der Karte",
+                  `Wie nah die Karte ohne Einsatz an den Standort heranzoomt, von ${KARTEN_ZOOM.min} bis ${KARTEN_ZOOM.max}. 9 zeigt etwa den Landkreis, 12 die Stadt. Läuft ein Einsatz in Suchlage, zeigt die Karte stattdessen das Suchgebiet.`,
+                )}
                 {text("regionName", "Warnregion", "Für diese Region kommen die Warnungen von NINA.")}
                 {text("regionArs", "Regionalschlüssel", "12 Ziffern, für einen Landkreis mit sieben Nullen am Ende (Uelzen: 033600000000).")}
               </div>

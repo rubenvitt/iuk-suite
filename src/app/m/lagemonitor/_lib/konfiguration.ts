@@ -61,6 +61,9 @@ export interface Verkehr {
 /** TomTom-Schlüssel sind Buchstaben und Ziffern (heute 32 Zeichen); so prüft auch der Lagemonitor. */
 export const TOMTOM_SCHLUESSEL = /^[A-Za-z0-9]{16,64}$/;
 
+/** Zoomstufe der Karte ohne Einsatz (maplibre). Der Lagemonitor rückt Werte außerhalb auf den Rand. */
+export const KARTEN_ZOOM = { min: 5, max: 16, vorgabe: 9 } as const;
+
 export const MITMACHEN_TEXT_VORGABE = "Lust mitzuhelfen? Werde Teil der Bereitschaft.";
 export const MITMACHEN_MAX_ZEICHEN = 60;
 
@@ -69,6 +72,7 @@ export interface KonfigurationDTO {
   standortName: string;
   standortBreite: number;
   standortLaenge: number;
+  kartenZoom: number;
   regionArs: string;
   regionName: string;
   warnschwelle: Warnschwelle;
@@ -90,6 +94,7 @@ export const VORGABE: KonfigurationDTO = {
   standortName: "Uelzen",
   standortBreite: 52.9656,
   standortLaenge: 10.5594,
+  kartenZoom: KARTEN_ZOOM.vorgabe,
   regionArs: "033600000000",
   regionName: "Landkreis Uelzen",
   warnschwelle: "Severe",
@@ -140,6 +145,11 @@ export const konfigurationEingabe = z
     standortName: z.string().trim().min(1, "Bitte einen Namen angeben.").max(60, "Höchstens 60 Zeichen."),
     standortBreite: z.number({ error: "Bitte eine Zahl angeben." }).min(-90, "Zwischen -90 und 90.").max(90, "Zwischen -90 und 90."),
     standortLaenge: z.number({ error: "Bitte eine Zahl angeben." }).min(-180, "Zwischen -180 und 180.").max(180, "Zwischen -180 und 180."),
+    kartenZoom: z
+      .number({ error: "Bitte eine Zahl angeben." })
+      .min(KARTEN_ZOOM.min, `Zwischen ${KARTEN_ZOOM.min} und ${KARTEN_ZOOM.max}.`)
+      .max(KARTEN_ZOOM.max, `Zwischen ${KARTEN_ZOOM.min} und ${KARTEN_ZOOM.max}.`)
+      .default(KARTEN_ZOOM.vorgabe),
     regionArs: z.string().trim().regex(/^\d{12}$/, "Der Regionalschlüssel hat genau 12 Ziffern."),
     regionName: z.string().trim().min(1, "Bitte einen Namen angeben.").max(80, "Höchstens 80 Zeichen."),
     warnschwelle: z.enum(SCHWELLEN_WERTE),
@@ -193,6 +203,7 @@ function dtoAus(z: Zeile): KonfigurationDTO {
     standortName: z.standortName,
     standortBreite: z.standortBreite,
     standortLaenge: z.standortLaenge,
+    kartenZoom: z.kartenZoom,
     regionArs: z.regionArs,
     regionName: z.regionName,
     warnschwelle: z.warnschwelle as Warnschwelle,
@@ -230,6 +241,7 @@ export function speichereKonfiguration(db: LagemonitorDb, e: KonfigurationEingab
     standortName: e.standortName,
     standortBreite: e.standortBreite,
     standortLaenge: e.standortLaenge,
+    kartenZoom: e.kartenZoom,
     regionArs: e.regionArs,
     regionName: e.regionName,
     warnschwelle: e.warnschwelle,
@@ -271,6 +283,8 @@ export interface Vertrag {
   publicLinks: PublicLink[];
   /** Verkehrslage; der Schlüssel geht nur hier hinaus. Ältere Monitore übergehen das Feld. */
   traffic: { tomtomKey: string | null; flow: boolean; incidents: boolean; speedCameras: boolean };
+  /** Kartenausschnitt ohne Einsatz. Ältere Monitore übergehen das Feld und bleiben bei Zoom 9. */
+  map: { zoom: number };
 }
 
 export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
@@ -302,5 +316,6 @@ export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
       incidents: k.verkehr.baustellen,
       speedCameras: k.verkehr.blitzer,
     },
+    map: { zoom: k.kartenZoom },
   };
 }

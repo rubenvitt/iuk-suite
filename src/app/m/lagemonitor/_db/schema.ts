@@ -17,6 +17,8 @@ export const anzeige = sqliteTable("lagemonitor_anzeige", {
   standortName: text("standort_name").notNull(),
   standortBreite: real("standort_breite").notNull(),
   standortLaenge: real("standort_laenge").notNull(),
+  /** Zoomstufe der Karte ohne Einsatz, um den Standort (maplibre; 9 zeigt etwa einen Landkreis). */
+  kartenZoom: real("karten_zoom").notNull().default(9),
   /** Amtlicher Regionalschlüssel (12 Ziffern) für die NINA-Warnungen. */
   regionArs: text("region_ars").notNull(),
   regionName: text("region_name").notNull(),
