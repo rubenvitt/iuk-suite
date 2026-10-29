@@ -342,13 +342,15 @@ mod lauf {
         let person = paket.stammdaten.personal.first().ok_or("Das Paket hat kein Personal (Seed fehlt?).")?;
         let stichwort =
             paket.stammdaten.stichworte.iter().flat_map(|g| g.items.iter()).next().cloned().unwrap_or_else(|| "E2E".into());
+        // Hinterher dokumentiert (IDA-290): Beginn vor einer Stunde, Ende jetzt.
         let jetzt = chrono::Local::now();
+        let beginn = jetzt - chrono::Duration::hours(1);
         let entwurf = Entwurf {
             stichwort: stichwort.clone(),
-            beginn_datum: jetzt.format("%Y-%m-%d").to_string(),
-            beginn_zeit: jetzt.format("%H:%M").to_string(),
-            ende_datum: String::new(),
-            ende_zeit: String::new(),
+            beginn_datum: beginn.format("%Y-%m-%d").to_string(),
+            beginn_zeit: beginn.format("%H:%M").to_string(),
+            ende_datum: jetzt.format("%Y-%m-%d").to_string(),
+            ende_zeit: jetzt.format("%H:%M").to_string(),
             strasse: String::new(),
             ort: if fahrzeug.standort.trim().is_empty() { "Uelzen".into() } else { fahrzeug.standort.clone() },
             objekt: String::new(),

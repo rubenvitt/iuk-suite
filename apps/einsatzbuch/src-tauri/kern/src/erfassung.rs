@@ -248,6 +248,11 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
     if beginn_datum.is_empty() || beginn_zeit.is_empty() {
         fehlt.push("Beginn");
     }
+    // Hinterher dokumentiert (IDA-290): Das Ende steht dann fest. Halb angegeben meldet der
+    // Abgleich unten.
+    if ende_datum.is_empty() && ende_zeit.is_empty() {
+        fehlt.push("Ende");
+    }
     if strasse.is_empty() && ort.is_empty() {
         fehlt.push("Einsatzort");
     }
@@ -263,7 +268,7 @@ pub(crate) fn pruefe_entwurf(e: &Entwurf, paket: &Stammdatenpaket) -> Result<(En
             pruefe_datum(&ende_datum)?;
             pruefe_zeit(&ende_zeit)?;
         }
-        _ => return Err(ErfassungFehler::Ungueltig("Ende braucht Datum und Uhrzeit zusammen oder keins von beiden".into())),
+        _ => return Err(ErfassungFehler::Ungueltig("Ende braucht Datum und Uhrzeit zusammen".into())),
     }
     if e.vor_ort > 999 {
         return Err(ErfassungFehler::Ungueltig(format!("vor Ort muss höchstens 999 sein, war {}", e.vor_ort)));

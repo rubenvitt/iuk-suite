@@ -94,8 +94,6 @@ export function App() {
   const versatzRef = useRef(0);
   const lokalRef = useRef<Lokal>(START);
   const entwurfRef = useRef<Entwurf | null>(null);
-  /** Der Entwurf stammt unverändert aus `leererEntwurf`: Beim Öffnen bekommt er dann einen frischen Beginn. */
-  const frischRef = useRef(false);
   const laeuftRef = useRef(false);
   /** Der angezeigte Fehler stammt aus einer Abfrage im Hintergrund und verschwindet mit der nächsten, die gelingt. */
   const fehlerAusAbfrageRef = useRef(false);
@@ -111,9 +109,8 @@ export function App() {
     setLokal(l);
   }
 
-  function setzeEntwurf(e: Entwurf | null, frisch = false) {
+  function setzeEntwurf(e: Entwurf | null) {
     entwurfRef.current = e;
-    frischRef.current = frisch;
     setEntwurf(e);
   }
 
@@ -237,7 +234,7 @@ export function App() {
     const p = await befehle.stammdaten();
     if (!istAktiv()) return;
     setPaket(p);
-    if (!s.ausstehend) setzeEntwurf(s.entwurf ?? leererEntwurf(new Date(), s.zeitzone ?? p.zeitzone), !s.entwurf);
+    if (!s.ausstehend) setzeEntwurf(s.entwurf ?? leererEntwurf());
     else if (s.entwurf) setzeEntwurf(s.entwurf);
   });
 
@@ -323,7 +320,7 @@ export function App() {
 
   function oeffnen() {
     setGesperrtHinweis(false);
-    if ((frischRef.current || !entwurfRef.current) && zeitzone) setzeEntwurf(leererEntwurf(new Date(), zeitzone), true);
+    if (!entwurfRef.current) setzeEntwurf(leererEntwurf());
     setzeLokal({ phase: "form", bearbeiten: false });
   }
 
@@ -416,8 +413,7 @@ export function App() {
         await befehle.entwurfVerwerfen();
         s = { ...s, entwurf: null };
       }
-      const zone = s.zeitzone ?? zeitzone;
-      setzeEntwurf(zone ? leererEntwurf(new Date(), zone) : null, true);
+      setzeEntwurf(leererEntwurf());
       setVerfallenLokal(false);
       setzeLokal(START);
       uebernehmeAktuell({ nr: a.nr, s });
@@ -459,7 +455,7 @@ export function App() {
       if (!s.eingerichtet || s.startfehler) return;
       const p = await befehle.stammdaten();
       setPaket(p);
-      setzeEntwurf(leererEntwurf(new Date(), s.zeitzone ?? p.zeitzone), true);
+      setzeEntwurf(leererEntwurf());
     });
 
   /** „Mit Pocket ID anmelden und einrichten“ auf der Einrichtungsfrage. */

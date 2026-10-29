@@ -322,6 +322,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
       const fehlt: string[] = [];
       if (!e.stichwort.trim()) fehlt.push("Alarmstichwort");
       if (!e.beginnDatum.trim() || !e.beginnZeit.trim()) fehlt.push("Beginn");
+      if (!e.endeDatum.trim() && !e.endeZeit.trim()) fehlt.push("Ende");
       if (!e.strasse.trim() && !e.ort.trim()) fehlt.push("Einsatzort");
       return fehlt;
     }
@@ -333,7 +334,7 @@ export async function installiereStub(page: Page, optionen: StubOptionen = {}): 
      */
     function pruefeInhalt(e: Entwurf): void {
       if (!e.endeDatum.trim() !== !e.endeZeit.trim()) {
-        throw new Error("Eingabe ungültig: Ende braucht Datum und Uhrzeit zusammen oder keins von beiden");
+        throw new Error("Eingabe ungültig: Ende braucht Datum und Uhrzeit zusammen");
       }
       const laengen: [string, string, number][] = [
         ["Alarmstichwort", e.stichwort.trim(), 80],

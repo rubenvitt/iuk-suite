@@ -96,8 +96,8 @@ function entwurf(teil: Partial<Entwurf> = {}): Entwurf {
     stichwort: "RD 1",
     beginnDatum: "2026-09-24",
     beginnZeit: "10:00",
-    endeDatum: "",
-    endeZeit: "",
+    endeDatum: "2026-09-24",
+    endeZeit: "11:00",
     strasse: "Lindenstraße 8",
     ort: "29525 Uelzen",
     objekt: "",
@@ -908,7 +908,7 @@ describe("Formular", () => {
   });
 
   it("sperrt das Absenden bei einem Ende nur mit Datum", async () => {
-    await starte(status({ entwurf: entwurf({ endeDatum: "2026-09-24" }) }));
+    await starte(status({ entwurf: entwurf({ endeDatum: "2026-09-24", endeZeit: "" }) }));
     await clickElement(knopf("Einsatz öffnen")!);
     expect(text()).toContain("Ende nur mit Datum und Uhrzeit angeben.");
     expect(knopf("Einsatz absenden")?.disabled).toBe(true);
