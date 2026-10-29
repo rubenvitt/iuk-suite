@@ -1,0 +1,131 @@
+<!doctype html>
+<!--
+  Vorlage der Anwenderanleitung für den Einsatzbuch-Rechner (IDA-289). Die Bilder setzt
+  `anleitung.spec.ts` über `data-bild` ein; von Hand geöffnet bleiben die Rahmen leer.
+  Satz und Farben wie die Lagerbuch-Helfer-Anleitung (`public/m/lagerbuch/helfer-anleitung.pdf`).
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Einsatzbuch – Anleitung für den Rechner</title>
+<style>
+  @font-face { font-family: "Barlow Condensed"; font-weight: 600; src: url("../src/stil/schrift/barlow-condensed-600.woff2") format("woff2"); }
+  @font-face { font-family: "Barlow Condensed"; font-weight: 700; src: url("../src/stil/schrift/barlow-condensed-700.woff2") format("woff2"); }
+  @font-face { font-family: "Geist"; font-weight: 400; src: url("../src/stil/schrift/geist-400.woff2") format("woff2"); }
+
+  @page { size: A4; margin: 0; }
+  :root { --rot: #c8000f; --tinte: #1a1a1a; --grau: #5b5f66; --linie: #c9ccd1; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Geist", sans-serif; color: var(--tinte); font-size: 9.6pt; line-height: 1.38; }
+  b { font-weight: 400; font-family: "Geist", sans-serif; -webkit-text-stroke: 0.35px currentColor; }
+
+  .blatt { width: 210mm; height: 297mm; padding: 0 13mm 10mm; border-top: 3.2mm solid var(--rot); break-after: page; overflow: hidden; display: flex; flex-direction: column; }
+  .blatt:last-child { break-after: auto; }
+
+  .marke { margin-top: 8mm; font: 700 10pt "Barlow Condensed", sans-serif; letter-spacing: 0.06em; }
+  .marke span { color: var(--rot); }
+  .titelzeile { display: flex; align-items: center; gap: 3mm; margin-top: 2.5mm; }
+  .etikett { background: var(--rot); color: #fff; font: 700 11pt "Barlow Condensed", sans-serif; letter-spacing: 0.12em; padding: 1mm 2.5mm; border-radius: 1mm; }
+  h1 { margin: 0; font: 700 25pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.01em; }
+  .einleitung { display: grid; grid-template-columns: 1fr 64mm; gap: 8mm; margin-top: 3mm; align-items: start; }
+  .einleitung p { margin: 0; font-size: 10.6pt; }
+  .kasten { border: 0.35mm dashed var(--linie); border-radius: 2mm; padding: 2.5mm 3.5mm; font-size: 8.6pt; }
+
+  .schritte { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; row-gap: 5mm; margin-top: 6mm; }
+  .schritt img, .schritt .bild { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0.35mm solid var(--linie); border-radius: 1.6mm; background: #f2f3f5; object-fit: cover; }
+  .schritt h2 { display: flex; align-items: center; gap: 2.2mm; margin: 2.6mm 0 0.6mm; font: 700 12.5pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.02em; }
+  .nr { flex: none; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--rot); color: #fff; display: grid; place-items: center; font: 700 10pt/1 "Barlow Condensed", sans-serif; }
+  .schritt p { margin: 0 0 0 7.8mm; }
+
+  .wissen { grid-column: 1 / -1; border-left: 1.2mm solid var(--rot); background: #f6f6f7; padding: 3mm 4.5mm; border-radius: 0 1.6mm 1.6mm 0; }
+  .wissen h2 { margin: 0 0 1.6mm; font: 700 12.5pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.06em; }
+  .wissen ul { margin: 0; padding-left: 4.5mm; columns: 2; column-gap: 9mm; }
+  .wissen li { margin-bottom: 1.6mm; break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<section class="blatt">
+  <div class="marke">EINSATZ<span>BUCH</span> · Rechner</div>
+  <div class="titelzeile"><span class="etikett">ERFASSEN</span><h1>EINSATZ ERFASSEN</h1></div>
+  <div class="einleitung">
+    <p>Nach jedem Einsatz trägst du am Einsatzbuch-Rechner ein, was passiert ist. Dafür brauchst du kein Konto und kein Passwort. Maus und Tastatur reichen.</p>
+    <div class="kasten"><b>Pflicht sind nur drei Angaben:</b> Alarmstichwort, Beginn und Einsatzort. Alles andere ist freiwillig, hilft aber später beim Auswerten.</div>
+  </div>
+  <div class="schritte">
+    <div class="schritt">
+      <img data-bild="1-start" alt="">
+      <h2><span class="nr">1</span>EINSATZ ÖFFNEN</h2>
+      <p>Auf der Startseite <b>Einsatz öffnen</b> klicken. Schneller geht es mit <b>Enter</b> oder der <b>Leertaste</b>.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="2-stichwort" alt="">
+      <h2><span class="nr">2</span>ALARMSTICHWORT</h2>
+      <p>Ein Stichwort aus der Liste anklicken. Im Feld darüber kannst du es ergänzen oder ein eigenes schreiben. Die Einsatznummer der Leitstelle ist freiwillig.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="3-ort" alt="">
+      <h2><span class="nr">3</span>ZEIT UND EINSATZORT</h2>
+      <p>Der Beginn steht schon auf jetzt, prüf ihn kurz. Dann Straße oder Ort eintragen. Das Ende darfst du offen lassen und später nachtragen.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="4-fahrzeuge" alt="">
+      <h2><span class="nr">4</span>FAHRZEUGE</h2>
+      <p>Funkrufname oder Typ ins Suchfeld tippen, zum Beispiel <b>83-1</b>, und <b>Enter</b> drücken. Oder das Fahrzeug in der Liste anklicken. Das <b>×</b> nimmt es wieder heraus.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="5-personal" alt="">
+      <h2><span class="nr">5</span>PERSONAL</h2>
+      <p>Genauso für alle, die dabei waren: Nachnamen tippen und <b>Enter</b>, oder in der Liste anklicken.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="6-absenden" alt="">
+      <h2><span class="nr">6</span>ABSENDEN</h2>
+      <p>Patienten mit <b>+</b> und <b>−</b> zählen, bei Bedarf Notizen schreiben. Unten links steht, ob noch etwas fehlt. Zum Schluss <b>Einsatz absenden</b>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="blatt">
+  <div class="marke">EINSATZ<span>BUCH</span> · Rechner</div>
+  <div class="titelzeile"><span class="etikett">FRIST</span><h1>PRÜFEN UND VERSIEGELN</h1></div>
+  <div class="einleitung">
+    <p>Nach dem Absenden hast du noch ein paar Minuten, um Fehler zu korrigieren. Danach wird der Einsatz versiegelt: verschlüsselt gespeichert und nicht mehr änderbar.</p>
+    <div class="kasten"><b>Nichts mehr zu tun?</b> Dann kannst du einfach gehen. Läuft die Uhr ab, versiegelt der Rechner den Einsatz von selbst.</div>
+  </div>
+  <div class="schritte">
+    <div class="schritt">
+      <img data-bild="7-frist" alt="">
+      <h2><span class="nr">1</span>DIE UHR LÄUFT</h2>
+      <p>Die große Zahl zeigt, wie lange du noch ändern kannst. Darunter steht die Zusammenfassung zum Prüfen.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="8-aendern" alt="">
+      <h2><span class="nr">2</span>ANGABEN ÄNDERN</h2>
+      <p>Etwas vergessen, etwa das Ende? <b>Angaben ändern</b> klicken, korrigieren und <b>Änderungen übernehmen</b>. Ohne Übernehmen bleibt der alte Stand.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="9-versiegeln" alt="">
+      <h2><span class="nr">3</span>JETZT VERSIEGELN</h2>
+      <p>Stimmt alles, klickst du <b>Jetzt versiegeln</b>. Auf das Ende der Uhr musst du nicht warten.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="10-versiegelt" alt="">
+      <h2><span class="nr">4</span>FERTIG</h2>
+      <p>Der Einsatz ist versiegelt. Für den nächsten Einsatz klickst du <b>Neuen Einsatz erfassen</b>.</p>
+    </div>
+    <div class="wissen">
+      <h2>GUT ZU WISSEN</h2>
+      <ul>
+        <li><b>Keine Namen oder Diagnosen</b> von Patienten in die Notizen schreiben.</li>
+        <li>Nach dem Versiegeln siehst du den Einsatz hier nicht mehr, auch nicht deinen eigenen. Lesen kann ihn nur die Verwaltung nach der Anmeldung.</li>
+        <li>Steht oben ein Band <b>TESTBETRIEB</b>, ist es ein Übungsrechner. Was du dort einträgst, zählt nicht als echter Einsatz.</li>
+        <li>Nach dem Versiegeln einen Fehler bemerkt? Sag der Verwaltung Bescheid.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

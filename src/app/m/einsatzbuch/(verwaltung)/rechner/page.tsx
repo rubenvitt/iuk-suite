@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { Button } from "antd";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../_db/client";
@@ -9,6 +11,7 @@ import { EchterRechner } from "../../_ui/rechner/EchterRechner";
 import { WiderrufeneRechner } from "../../_ui/rechner/WiderrufeneRechner";
 import { TestRechnerListe } from "../../_ui/rechner/TestRechnerListe";
 import { Freigaben } from "../../_ui/rechner/Freigaben";
+import { RECHNER_ANLEITUNG_DATEINAME, RECHNER_ANLEITUNG_PFAD } from "../../_lib/rechnerAnleitung";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +33,18 @@ export default async function RechnerSeite() {
       <Seitenkopf
         titel="Rechner"
         beschreibung="Der echte Einsatzbuch-Rechner, alle Test-Rechner und die letzten Schlüsselfreigaben."
+        // IDA-289: die Anleitung steht HIER, weil sie neben den Rechner gehört — wer ihn
+        // einrichtet, legt sie daneben.
+        aktionen={
+          <Button
+            href={RECHNER_ANLEITUNG_PFAD}
+            download={RECHNER_ANLEITUNG_DATEINAME}
+            icon={<Icons8Ikone name="download" groesse={16} />}
+            data-testid="eb-rechner-anleitung"
+          >
+            Anleitung für den Rechner (PDF)
+          </Button>
+        }
       />
       <EchterRechner rechner={echt} />
       <WiderrufeneRechner liste={widerrufeneEcht} />
