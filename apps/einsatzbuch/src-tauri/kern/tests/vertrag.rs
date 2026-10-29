@@ -193,3 +193,13 @@ fn schluesselposten_wischt_seinen_cek_beim_drop() {
     fn wischt_beim_drop<T: zeroize::ZeroizeOnDrop>() {}
     wischt_beim_drop::<Schluesselposten>();
 }
+
+/// Die Antworten mit Token wischen es beim Drop ebenso, auch wenn die Anmeldung oder Einrichtung
+/// danach scheitert; die rohe Antwort der Suite wischt ihren Körper (IDA-273).
+#[test]
+fn antworten_mit_token_wischen_beim_drop() {
+    fn wischt_beim_drop<T: zeroize::ZeroizeOnDrop>() {}
+    wischt_beim_drop::<TauschAntwort>();
+    wischt_beim_drop::<EinrichtenAntwort>();
+    wischt_beim_drop::<einsatzbuch_kern::suite::Antwort>();
+}

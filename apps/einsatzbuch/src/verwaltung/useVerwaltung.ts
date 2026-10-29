@@ -107,17 +107,24 @@ export function useVerwaltung(aktiv: boolean): {
     const pruefung = await pruefe(bloecke);
     if (!gilt()) return;
     const rest = { pruefung, anker: null, ankerstand: null, ankerFehler: null };
-    let ceks: Map<number, string>;
+    // Die CEKs kommen als Base64-Zeichenketten. Die lassen sich in JS nicht überschreiben (sie
+    // sind unveränderlich, und die Engine kopiert sie nach Belieben); bis die Speicherbereinigung
+    // sie holt, stehen sie im Speicher der Webview. Deshalb leben sie nur in dieser Funktion: keine
+    // Kopie im Zustand, `ceks.clear()` auf jedem Weg, die Bytes wischt `oeffne` (IDA-273).
+    let ceks = new Map<number, string>();
     try {
-      ceks = new Map((await befehle.schluesselFreigeben()).map((p) => [p.block, p.cek]));
-    } catch (e) {
-      if (gilt()) setZustand({ art: "offen", offen: [], zu: bloecke, fehler: fehlerText(e), ...rest });
-      return;
+      try {
+        ceks = new Map((await befehle.schluesselFreigeben()).map((p) => [p.block, p.cek]));
+      } catch (e) {
+        if (gilt()) setZustand({ art: "offen", offen: [], zu: bloecke, fehler: fehlerText(e), ...rest });
+        return;
+      }
+      if (!gilt()) return;
+      const { offen, zu } = await oeffne(bloecke, ceks);
+      if (gilt()) setZustand({ art: "offen", offen, zu, fehler: null, ...rest });
+    } finally {
+      ceks.clear();
     }
-    if (!gilt()) return;
-    const { offen, zu } = await oeffne(bloecke, ceks);
-    ceks.clear();
-    if (gilt()) setZustand({ art: "offen", offen, zu, fehler: null, ...rest });
   });
 
   useEffect(() => {

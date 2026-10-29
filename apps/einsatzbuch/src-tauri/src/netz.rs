@@ -16,13 +16,24 @@
 //! - Ein Zeitlimit von 15 s für die ganze Anfrage.
 //!
 //! Körper und Token landen nie im Log: Fehlertexte von `ureq` nennen nur Adresse und Ursache.
+//!
+//! Was hier an Geheimnissen durchgeht, wird gewischt (IDA-273): die `Authorization`-Zeile und der
+//! Anfragekörper (Code und Verifier des Tauschs) nach dem Senden, der Antwortkörper (Sitzungs-
+//! und Geräte-Token, CEKs) liest sich in einen `Wischpuffer` und wird in der `Antwort` beim Drop
+//! überschrieben. Die Kopien in `ureq` selbst (Kopfzeilen, Verbindungspuffer) erreicht das nicht.
 use std::time::Duration;
 
 use einsatzbuch_kern::suite::{Anfrage, Antwort, Transport};
 use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
+use zeroize::Zeroizing;
+
+use crate::wischpuffer::Wischpuffer;
 
 /// Zeitlimit einer Anfrage, vom Verbindungsaufbau bis zum letzten Byte der Antwort.
 pub const ZEITLIMIT: Duration = Duration::from_secs(15);
+
+/// Höchstgröße eines Antwortkörpers, dieselbe wie bei `read_to_string` von `ureq` (10 MB).
+const KOERPER_HOECHSTENS: u64 = 10 * 1024 * 1024;
 
 pub struct NetzTransport {
     agent: ureq::Agent,
@@ -51,7 +62,8 @@ impl Default for NetzTransport {
 /// Setzt die Kopfzeilen, die jede Anfrage tragen kann.
 fn mit_kopfzeilen<B>(mut anfrage: ureq::RequestBuilder<B>, a: &Anfrage<'_>) -> ureq::RequestBuilder<B> {
     if let Some(token) = a.bearer {
-        anfrage = anfrage.header("Authorization", format!("Bearer {token}"));
+        let zeile = Zeroizing::new(format!("Bearer {token}"));
+        anfrage = anfrage.header("Authorization", zeile.as_str());
     }
     if let Some(etag) = a.if_none_match {
         anfrage = anfrage.header("If-None-Match", etag);
@@ -60,8 +72,9 @@ fn mit_kopfzeilen<B>(mut anfrage: ureq::RequestBuilder<B>, a: &Anfrage<'_>) -> u
 }
 
 impl Transport for NetzTransport {
-    fn sende(&self, a: Anfrage<'_>) -> Result<Antwort, String> {
-        let ergebnis = match (a.methode, a.json.as_deref()) {
+    fn sende(&self, mut a: Anfrage<'_>) -> Result<Antwort, String> {
+        let json = a.json.take().map(Zeroizing::new);
+        let ergebnis = match (a.methode, json.as_deref().map(String::as_str)) {
             ("GET", None) => mit_kopfzeilen(self.agent.get(&a.url), &a).call(),
             ("DELETE", None) => mit_kopfzeilen(self.agent.delete(&a.url), &a).call(),
             ("POST", Some(json)) => {
@@ -73,7 +86,10 @@ impl Transport for NetzTransport {
         let antwort = ergebnis.map_err(|e| e.to_string())?;
         let status = antwort.status().as_u16();
         let etag = antwort.headers().get("etag").and_then(|w| w.to_str().ok()).map(str::to_string);
-        let koerper = antwort.into_body().read_to_string().map_err(|e| e.to_string())?;
+        let mut body = antwort.into_body();
+        let erwartet = body.content_length().unwrap_or(0).min(KOERPER_HOECHSTENS) as usize;
+        let leser = body.with_config().limit(KOERPER_HOECHSTENS).reader();
+        let koerper = Wischpuffer::lies(leser, erwartet).map_err(|e| e.to_string())?.in_text();
         Ok(Antwort { status, etag, koerper })
     }
 }
@@ -175,6 +191,15 @@ mod tests {
         assert!(gesehen.starts_with("GET /m/einsatzbuch/api/stammdaten HTTP/1.1\r\n"), "{gesehen}");
         assert!(hat_kopfzeile(&gesehen, "if-none-match: \"6/Europe/Berlin\""), "{gesehen}");
         assert!(!gesehen.to_lowercase().contains("content-type"), "ein GET trägt keinen Körper: {gesehen}");
+    }
+
+    /// Ein Körper ohne `Content-Length`, größer als ein Lesestück des `Wischpuffer`s, kommt ganz an.
+    #[test]
+    fn koerper_ohne_laenge_waechst_im_wischpuffer() {
+        let koerper = format!("{{\"sitzungstoken\":\"{}\"}}", "t".repeat(20_000));
+        let (adresse, _rx) = einmal_server(format!("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{koerper}"));
+        let antwort = NetzTransport::neu().sende(anfrage("GET", format!("{adresse}/x"))).unwrap();
+        assert_eq!(antwort.koerper, koerper);
     }
 
     /// 401, 409 und 5xx sind Antworten, kein `Err` — sonst hielte der Kern einen Widerruf oder eine

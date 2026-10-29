@@ -35,6 +35,7 @@ use zeroize::Zeroizing;
 use crate::abgleich::Anstoss;
 use crate::sicherung::{Sicherungsstand, sicherungsstand};
 use crate::updater::Updatelauf;
+use crate::wischpuffer::Wischpuffer;
 use crate::zustand::{Zustand, oeffne_buch, startfehler_text};
 
 pub(crate) const NICHT_EINGERICHTET: &str = "Dieser Rechner ist noch nicht eingerichtet.";
@@ -481,11 +482,13 @@ fn melde_an_der_suite(
     sitzung_aus(tausch)
 }
 
-/// Die Sitzung aus der Antwort des Tauschs; das Token wandert ohne Kopie in `Zeroizing`.
-fn sitzung_aus(t: TauschAntwort) -> Result<Sitzung, String> {
+/// Die Sitzung aus der Antwort des Tauschs; das Token wandert ohne Kopie in `Zeroizing`. Auf dem
+/// Fehlerweg wischt `TauschAntwort` es beim Drop.
+fn sitzung_aus(mut t: TauschAntwort) -> Result<Sitzung, String> {
     let ablauf = chrono::DateTime::parse_from_rfc3339(&t.ablauf)
         .map_err(|_| format!("Unerwartete Antwort der Suite: „{}“ ist kein Zeitpunkt.", t.ablauf))?;
-    Ok(Sitzung { token: Zeroizing::new(t.sitzungstoken), name: t.name, ablauf_ms: ablauf.timestamp_millis(), rechner_id: t.rechner_id })
+    let token = Zeroizing::new(std::mem::take(&mut t.sitzungstoken));
+    Ok(Sitzung { token, name: std::mem::take(&mut t.name), ablauf_ms: ablauf.timestamp_millis(), rechner_id: t.rechner_id.take() })
 }
 
 fn pruefe_name(name: &str) -> Result<String, String> {
@@ -1109,9 +1112,24 @@ pub async fn bloecke(app: AppHandle) -> Result<Vec<Block>, String> {
 
 /// `bloecke`: `None` (bzw. kein Argument aus TS) gibt wie bisher alle frei; `Some` nur die
 /// genannten Nummern (Export „einzeln“, Stufe 6 Entscheidung 9).
+///
+/// Die CEKs gehen als fertiges JSON hinaus (`ceks_als_json`) statt über die Serialisierung von
+/// Tauri: Deren `String` wächst beim Schreiben und ließe die alten Puffer ungewischt stehen.
+/// Das fertige JSON gehört danach Tauri und der Oberfläche; dort wischt es niemand (IDA-273).
 #[tauri::command]
-pub async fn schluessel_freigeben(app: AppHandle, bloecke: Option<Vec<u64>>) -> Result<Vec<Schluesselposten>, String> {
-    blockierend(app, move |z| gib_schluessel_frei(z, bloecke.as_deref())).await
+pub async fn schluessel_freigeben(app: AppHandle, bloecke: Option<Vec<u64>>) -> Result<tauri::ipc::Response, String> {
+    let posten = blockierend(app, move |z| gib_schluessel_frei(z, bloecke.as_deref())).await?;
+    Ok(tauri::ipc::Response::new(ceks_als_json(&posten)))
+}
+
+/// Die Posten als JSON-Array, geschrieben in einen `Wischpuffer`. Die Posten wischen ihre CEKs
+/// beim Drop selbst (`Schluesselposten`).
+fn ceks_als_json(posten: &[Schluesselposten]) -> String {
+    // Ein Posten ist rund 70 Byte (`{"block":…,"cek":"<44 Zeichen Base64>"}`); passt die
+    // Schätzung nicht, wächst der Puffer und wischt dabei.
+    let mut puffer = Wischpuffer::mit_kapazitaet(2 + posten.len() * 72);
+    serde_json::to_writer(&mut puffer, posten).expect("Schlüsselposten sind serialisierbar");
+    puffer.in_text()
 }
 
 #[tauri::command]
@@ -1993,6 +2011,15 @@ pub(crate) mod tests {
 
     /// Stufe 6, Entscheidung 9: „einzeln“ beim Export gibt nur den gewählten Block frei, und die
     /// Audit-Zeile der Suite nennt nur ihn.
+    /// Das JSON für die Oberfläche ist dasselbe wie aus der Serialisierung von Tauri — nur in
+    /// einem `Wischpuffer` geschrieben (IDA-273).
+    #[test]
+    fn ceks_als_json_gleicht_der_serialisierung_von_tauri() {
+        for posten in [vec![], (1..=40).map(|b| Schluesselposten { block: b, cek: format!("cek{b}") }).collect()] {
+            assert_eq!(ceks_als_json(&posten), serde_json::to_string(&posten).unwrap());
+        }
+    }
+
     #[test]
     fn freigabe_mit_blockliste_fragt_nur_die_genannten_bloecke_an() {
         let ordner = tempfile::tempdir().unwrap();
