@@ -87,8 +87,8 @@ describe("cloudTauglich", () => {
   });
 });
 
-describe("die drei Playwright-Profile", () => {
-  it.each(["playwright.config.ts", "playwright.pwa.config.ts", "playwright.rueckmeldung.config.ts"])(
+describe("die Playwright-Profile", () => {
+  it.each(["playwright.config.ts", "playwright.pwa.config.ts", "playwright.rueckmeldung.config.ts", "playwright.anleitung.config.ts"])(
     "%s geht durch cloudTauglich",
     (datei) => {
       const quelle = readFileSync(path.join(__dirname, "..", datei), "utf8");

@@ -423,6 +423,53 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # ══ DIE HELFER-ANLEITUNG DES LAGERBUCHS (IDA-291) ═══════════════════════════════
+  #
+  # Der Generator (`e2e/anleitung/`, `playwright.anleitung.config.ts`) faehrt die
+  # Helfer-Ansicht Schritt fuer Schritt ab. Aendert sie sich so, dass ein Schritt
+  # nicht mehr passt, wird es hier rot statt erst beim naechsten Neuerzeugen.
+  # Ausgeliefert wird weiter das eingecheckte PDF unter public/m/lagerbuch/; das
+  # frisch erzeugte liegt als Artefakt am Lauf. Gegen denselben vorgebauten Stand
+  # wie `e2e`, aber mit eigener Datenbank aus den lokalen Demodaten.
+  anleitung:
+    needs: [e2e-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_VORGEBAUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4, Stand 2026-09-25
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: e2e-build
+      - run: tar -xf e2e-build.tar && rm e2e-build.tar
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Helfer-Anleitung lässt sich erzeugen
+        run: pnpm anleitung:lagerbuch
+        env:
+          ANLEITUNG_ZIEL: ${{ runner.temp }}/Lagerbuch-Helfer-Anleitung.pdf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lagerbuch-anleitung
+          path: ${{ runner.temp }}/Lagerbuch-Helfer-Anleitung.pdf
+          retention-days: 14
+      - name: Playwright-Artefakte sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artefakte-anleitung
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   # DER NAME `test` IST VERTRAGLICH, NICHT BESCHREIBEND: das Ruleset auf `main`
   # verlangt genau diesen Status-Kontext. Wuerden `lint` und `e2e (radio)` …
   # direkt als erforderliche Checks dienen, bliebe `test` auf ewig ausstehend
@@ -451,7 +498,7 @@ jobs:
   # `timeout-minutes` (bricht nur den JOB ab, nicht den Lauf, `cancelled()` bleibt
   # falsch) und ein Fehler DIESES Jobs selbst (keine Ausgabe → `test` laeuft → rot).
   ueberholt:
-    needs: [lint, typecheck, vitest, e2e, version]
+    needs: [lint, typecheck, vitest, e2e, anleitung, version]
     if: ${{ cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
@@ -489,7 +536,7 @@ jobs:
     #
     # `ueberholt` steht in `needs` nur, damit seine Ausgabe lesbar ist; er ist
     # ausserhalb eines abgebrochenen PR-Laufs `skipped`, und `always()` traegt das.
-    needs: [lint, typecheck, vitest, e2e, version, ueberholt]
+    needs: [lint, typecheck, vitest, e2e, anleitung, version, ueberholt]
     if: ${{ always() && needs.ueberholt.outputs.ueberholt != 'true' }}
     runs-on: ubuntu-latest
     steps:
@@ -499,11 +546,12 @@ jobs:
       # zugleich `cancelled` und `skipped` ab.
       - name: Ergebnisse der Vorstufen prüfen
         run: |
-          echo "lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }} vitest=${{ needs.vitest.result }} e2e=${{ needs.e2e.result }} version=${{ needs.version.result }}"
+          echo "lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }} vitest=${{ needs.vitest.result }} e2e=${{ needs.e2e.result }} anleitung=${{ needs.anleitung.result }} version=${{ needs.version.result }}"
           test "${{ needs.lint.result }}" = "success"
           test "${{ needs.typecheck.result }}" = "success"
           test "${{ needs.vitest.result }}" = "success"
           test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.anleitung.result }}" = "success"
           test "${{ needs.version.result }}" = "success"
 
   # Je Architektur ein Job auf NATIVEM Runner statt einem Job mit QEMU.
