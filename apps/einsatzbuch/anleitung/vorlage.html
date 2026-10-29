@@ -1,0 +1,104 @@
+<!doctype html>
+<!--
+  Vorlage der Anwenderanleitung für den Einsatzbuch-Rechner (IDA-289): ein A4-Blatt. Die Bilder
+  setzt `anleitung.spec.ts` über `data-bild` ein; von Hand geöffnet bleiben die Rahmen leer.
+  Satz und Farben wie die Lagerbuch-Helfer-Anleitung (`public/m/lagerbuch/helfer-anleitung.pdf`).
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Einsatzbuch – Anleitung für den Rechner</title>
+<style>
+  @font-face { font-family: "Barlow Condensed"; font-weight: 600; src: url("../src/stil/schrift/barlow-condensed-600.woff2") format("woff2"); }
+  @font-face { font-family: "Barlow Condensed"; font-weight: 700; src: url("../src/stil/schrift/barlow-condensed-700.woff2") format("woff2"); }
+  @font-face { font-family: "Geist"; font-weight: 400; src: url("../src/stil/schrift/geist-400.woff2") format("woff2"); }
+
+  @page { size: A4; margin: 0; }
+  :root { --rot: #c8000f; --tinte: #1a1a1a; --linie: #c9ccd1; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Geist", sans-serif; color: var(--tinte); font-size: 8.9pt; line-height: 1.36; }
+  b { font-weight: 400; -webkit-text-stroke: 0.35px currentColor; }
+
+  .blatt { width: 210mm; height: 297mm; padding: 0 12mm 9mm; border-top: 3.2mm solid var(--rot); overflow: hidden; display: flex; flex-direction: column; }
+
+  .marke { margin-top: 7mm; font: 700 10pt "Barlow Condensed", sans-serif; letter-spacing: 0.06em; }
+  .marke span { color: var(--rot); }
+  .titelzeile { display: flex; align-items: center; gap: 3mm; margin-top: 2mm; }
+  .etikett { background: var(--rot); color: #fff; font: 700 11pt "Barlow Condensed", sans-serif; letter-spacing: 0.12em; padding: 1mm 2.5mm; border-radius: 1mm; }
+  h1 { margin: 0; font: 700 25pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.01em; }
+  .einleitung { margin: 3mm 0 0; font-size: 10.2pt; }
+
+  .schritte { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); column-gap: 5mm; row-gap: 4mm; margin-top: 5mm; }
+  .schritt img { display: block; width: 100%; aspect-ratio: 16 / 10; border: 0.35mm solid var(--linie); border-radius: 1.6mm; background: #f2f3f5; object-fit: cover; }
+  .schritt h2 { display: flex; align-items: center; gap: 2mm; margin: 2.2mm 0 0.8mm; font: 700 11.5pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.02em; }
+  .nr { flex: none; width: 5.2mm; height: 5.2mm; border-radius: 50%; background: var(--rot); color: #fff; display: grid; place-items: center; font: 700 9.5pt/1 "Barlow Condensed", sans-serif; }
+  .schritt p { margin: 0; }
+
+  .wissen { border-left: 1.2mm solid var(--rot); background: #f6f6f7; padding: 3mm 3.5mm; border-radius: 0 1.6mm 1.6mm 0; align-self: start; }
+  .wissen h2 { margin: 0 0 2mm; font: 700 11.5pt/1 "Barlow Condensed", sans-serif; letter-spacing: 0.06em; }
+  .wissen ul { margin: 0; padding-left: 4mm; }
+  .wissen li { margin-bottom: 1.8mm; }
+  .wissen li:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<section class="blatt">
+  <div class="marke">EINSATZ<span>BUCH</span> · Rechner</div>
+  <div class="titelzeile"><span class="etikett">NACH DEM EINSATZ</span><h1>EINSATZ DOKUMENTIEREN</h1></div>
+  <p class="einleitung">Wenn ihr vom Einsatz zurück seid, schreibst du hier auf, was passiert ist. Ein Konto oder Passwort brauchst du dafür nicht.</p>
+  <div class="schritte">
+    <div class="schritt">
+      <img data-bild="1-start" alt="">
+      <h2><span class="nr">1</span>ÖFFNEN</h2>
+      <p>Klick auf <b>Einsatz öffnen</b> oder drück einfach <b>Enter</b>.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="2-stichwort" alt="">
+      <h2><span class="nr">2</span>ALARMSTICHWORT</h2>
+      <p>Klick das Stichwort an, unter dem ihr alarmiert wurdet. Im Feld darüber kannst du es ergänzen, etwa zu „RD 2 – Sturz“, oder es gleich selbst eintippen. Darunter kommt die Einsatznummer der Leitstelle.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="3-ort" alt="">
+      <h2><span class="nr">3</span>ZEIT UND ORT</h2>
+      <p>Trag ein, wann der Einsatz angefangen und wann er aufgehört hat, mit Datum und Uhrzeit. Beim Beginn steht schon die aktuelle Uhrzeit drin, die überschreibst du. Dann kommt die Adresse dazu.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="4-fahrzeuge" alt="">
+      <h2><span class="nr">4</span>FAHRZEUGE</h2>
+      <p>Tipp den Funkrufnamen ins Suchfeld, etwa <b>83-1</b>, und drück <b>Enter</b>. Du kannst das Fahrzeug auch in der Liste anklicken.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="5-personal" alt="">
+      <h2><span class="nr">5</span>PERSONAL</h2>
+      <p>Für alle, die dabei waren, genauso: Nachnamen tippen und <b>Enter</b>. Wer aus Versehen drin ist, fliegt mit dem <b>×</b> wieder raus.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="6-absenden" alt="">
+      <h2><span class="nr">6</span>PATIENTEN UND ABSENDEN</h2>
+      <p>Zähl die Patienten mit <b>+</b> und schreib dazu, was sonst wichtig war. Unten steht, ob noch etwas fehlt. Dann <b>Einsatz absenden</b>.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="7-frist" alt="">
+      <h2><span class="nr">7</span>NOCH MAL DRÜBERSCHAUEN</h2>
+      <p>Lies die Zusammenfassung. Ist etwas falsch, klick <b>Angaben ändern</b>, korrigier es und klick <b>Änderungen übernehmen</b>. Die Uhr zeigt, wie lange das noch geht.</p>
+    </div>
+    <div class="schritt">
+      <img data-bild="8-versiegelt" alt="">
+      <h2><span class="nr">8</span>VERSIEGELN</h2>
+      <p>Stimmt alles, klick <b>Jetzt versiegeln</b>, dann kommt diese Bestätigung. Gehst du einfach, versiegelt der Rechner den Einsatz, sobald die Uhr abgelaufen ist.</p>
+    </div>
+    <div class="wissen">
+      <h2>GUT ZU WISSEN</h2>
+      <ul>
+        <li>Namen und Diagnosen von Patienten gehören nicht in die Notizen.</li>
+        <li>Ist der Einsatz versiegelt, kannst du ihn hier nicht mehr aufrufen. Lesen kann ihn dann nur noch die Verwaltung.</li>
+        <li>Fällt dir danach noch ein Fehler auf, sag der Verwaltung Bescheid.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

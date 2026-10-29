@@ -17,5 +17,5 @@
       "@/core/ikonen/Icons8Ikone": ["../../src/core/ikonen/Icons8Ikone.tsx"]
     }
   },
-  "include": ["src", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+  "include": ["src", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts", "anleitung"]
 }

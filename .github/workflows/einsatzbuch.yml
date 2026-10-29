@@ -126,6 +126,19 @@ jobs:
       - run: pnpm --filter einsatzbuch test
       - run: pnpm --filter einsatzbuch exec playwright install --with-deps chromium
       - run: pnpm --filter einsatzbuch e2e
+      # Die Anwenderanleitung (IDA-289) fährt dieselbe Oberfläche Schritt für Schritt ab. Ändert
+      # sich die Erfassung so, dass ein Schritt nicht mehr passt, wird es hier rot statt erst
+      # beim nächsten Neuerzeugen. Ausgeliefert wird weiter das eingecheckte PDF unter
+      # public/m/einsatzbuch/; das frisch erzeugte liegt als Artefakt am Lauf.
+      - name: Anwenderanleitung lässt sich erzeugen
+        run: pnpm --filter einsatzbuch anleitung
+        env:
+          ANLEITUNG_ZIEL: ${{ runner.temp }}/Einsatzbuch-Anleitung-Rechner.pdf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: einsatzbuch-anleitung
+          path: ${{ runner.temp }}/Einsatzbuch-Anleitung-Rechner.pdf
+          retention-days: 14
 
   rust-kern:
     runs-on: ubuntu-latest

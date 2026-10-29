@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "e2e": "playwright test",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "anleitung": "playwright test --config anleitung/playwright.config.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
