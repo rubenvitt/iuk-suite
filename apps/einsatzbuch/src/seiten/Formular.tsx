@@ -244,7 +244,7 @@ export function Formular({ entwurf: e, paket, bearbeiten, restText, beiAenderung
               wert={fzSuche}
               beiAenderung={setFzSuche}
               onKeyDown={fzEnter}
-              placeholder="Fahrzeug suchen — z. B. „RTW“, „83-1“ oder „Ebstorf“"
+              placeholder="Fahrzeug suchen — z. B. „RTW“ oder „83-1“"
               aria-label="Fahrzeug suchen"
             />
             <div className="reihe-umbruch reihe-6">
