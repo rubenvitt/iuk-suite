@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, warteAufGestreamteInhalte } from "./fixtures";
 import { decodeQr } from "./helpers/decode-qr";
 import {
   E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
@@ -374,6 +374,8 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await seite.goto(ziel);
     await seite.waitForURL((url) => url.pathname.endsWith("/helfer")
       && url.searchParams.get("ort") === "e2e-inventur-schrank");
+    // Falle 22: der Kopf steht kurz nach `load` doppelt im DOM.
+    await warteAufGestreamteInhalte(seite);
     await expect(seite.getByText("E2E Inventurschrank — Artikel wählen")).toBeVisible();
 
     const reiter = seite.getByTestId("lb-tableiste");
