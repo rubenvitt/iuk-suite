@@ -116,3 +116,48 @@ it("portal-only override never gets an audit navigation entry", async () => {
  expect(element.props.nav).toEqual(navFuerPortal(true,false));
  vi.unstubAllEnvs();
 });
+
+/**
+ * DER WEG ZUR SERVERWARTUNG: nur wer das Abo sehen darf UND nur, wenn es
+ * eingerichtet ist — sonst fuehrte der Eintrag auf 404. Das Thema hier ist
+ * ausgedacht (`_lib/serverwartung.ts`: das echte gehoert nie ins Repo).
+ */
+describe("Portal-Layout: Serverwartung in der Navigation", () => {
+  const eintrag = { key: "serverwartung", title: "Serverwartung", href: "/serverwartung" };
+
+  beforeEach(() => {
+    authMock.mockReset();
+    vi.unstubAllEnvs();
+  });
+
+  it("steht hinter den Neuigkeiten, auch ohne Verwaltungsrecht", () => {
+    expect(navFuerPortal(false, false, true)).toEqual([
+      { key: "start", title: "Übersicht", href: "/" },
+      { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
+      eintrag,
+    ]);
+  });
+
+  it("erscheint fuer eine zusaetzliche Wartungsgruppe, wenn das Abo eingerichtet ist", async () => {
+    vi.stubEnv("SUITE_WARTUNG_NTFY_URL", "https://ntfy.example.org/beispielthema");
+    vi.stubEnv("SUITE_WARTUNG_GROUPS", "radio-admin");
+    authMock.mockResolvedValue(sessionFor(["radio-admin"]));
+    const element = await PortalLayout({ children: null });
+    expect(element.props.nav).toContainEqual(eintrag);
+    vi.unstubAllEnvs();
+  });
+
+  it("fehlt ohne eingerichtetes Abo, auch fuer den Suite-Betrieb", async () => {
+    authMock.mockResolvedValue(sessionFor([suiteAdminGroup()]));
+    const element = await PortalLayout({ children: null });
+    expect(element.props.nav).not.toContainEqual(eintrag);
+  });
+
+  it("fehlt fuer Angemeldete ohne passende Gruppe", async () => {
+    vi.stubEnv("SUITE_WARTUNG_NTFY_URL", "https://ntfy.example.org/beispielthema");
+    authMock.mockResolvedValue(sessionFor(["user"]));
+    const element = await PortalLayout({ children: null });
+    expect(element.props.nav).not.toContainEqual(eintrag);
+    vi.unstubAllEnvs();
+  });
+});
