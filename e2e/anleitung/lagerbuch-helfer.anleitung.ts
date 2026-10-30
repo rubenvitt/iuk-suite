@@ -29,8 +29,13 @@ const ZIEL = process.env.ANLEITUNG_ZIEL ?? path.join(__dirname, "../../public/m/
 const DB_PFAD = path.join(__dirname, "../../.data/anleitung/lagerbuch.db");
 /** Die Gegenprobe zu `scheinQr`: ein echter Code, gleich gesetzt, MUSS sich lesen lassen. */
 const QR_PROBE = "BEISPIEL - kein echter Lagerbuch-Code";
-/** Der allgemeine Helfer-Code der Demodaten (`_lib/seedLokal.ts`, `CODE_HELFER`). */
-const CODE_HELFER = "100-100";
+/**
+ * Das Ortsetikett von Schrank 1 in den Demodaten (`_lib/seedLokal.ts`, `CODE_ORT_SCHRANK`). Helfer
+ * scannen nur Ortsetiketten, keine Artikel-Etiketten (IDA-295): die Anleitung fängt am Schrank an.
+ */
+const CODE_SCHRANK = "660-660";
+/** Das Ortsetikett von RTW 1 (`CODE_ORT_RTW`): Box und Check für genau dieses Fahrzeug. */
+const CODE_RTW = "220-220";
 
 /**
  * Ein Muster, das wie ein QR-Code aussieht, sich aber nicht scannen lässt: ein ausgedrucktes Blatt
@@ -143,22 +148,29 @@ async function bild(page: Page, bilder: Map<string, Buffer>, name: string, felde
 test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   const bilder = new Map<string, Buffer>();
 
-  // Im Kopf steht der Name des Codes; „(Demo)" gehört nicht auf ein Blatt, das in der Halle hängt.
+  // Der Schrank heißt in den Demodaten „Schrank 1 (Helfer)"; der Zusatz gehört nicht auf ein Blatt,
+  // das in der Halle hängt. Im Kopf steht der Name des Schranks, oben der des Codes.
   const db = new Database(DB_PFAD);
   registerAuditFunctions(db);
-  db.prepare("UPDATE tokens SET label = 'Helfer Bereitschaft' WHERE code = ?").run(CODE_HELFER);
+  db.prepare("UPDATE lagerorte SET name = 'Schrank 1' WHERE id = 'schrank-1'").run();
+  db.prepare("UPDATE tokens SET label = 'Schrank 1' WHERE code = ?").run(CODE_SCHRANK);
   db.close();
 
-  await page.goto(`/t/${CODE_HELFER}`);
-  await page.waitForURL(/\/helfer$/);
+  await page.goto(`/t/${CODE_SCHRANK}`);
+  await page.waitForURL((u) => u.pathname === "/helfer" && u.searchParams.get("ort") === "schrank-1");
 
   /* ── Blatt 1: Material entnehmen ─────────────────────────────────────── */
-  const kompressen = page.getByRole("link", { name: /^Kompressen 10×10 cm, steril/ });
-  await expect(kompressen).toBeVisible();
-  await bild(page, bilder, "e2-artikel", [kompressen], page.getByRole("searchbox", { name: "Artikel suchen" }));
+  const kopf = page.locator("[data-rolle='helfer-kopf']");
+  await expect(kopf).toHaveText("Schrank 1 — Artikel wählen");
+  const ringer = page.getByRole("link", { name: /^Ringer-Lactat 500 ml/ });
+  await expect(ringer).toBeVisible();
+  const alle = page.locator("[data-rolle='helfer-alle']");
+  await expect(alle).toBeVisible();
+  await bild(page, bilder, "e2-artikel", [kopf, ringer, alle], page.getByRole("searchbox", { name: "Artikel suchen" }));
 
-  await kompressen.click();
-  await expect(page.getByRole("heading", { name: "Kompressen 10×10 cm, steril" })).toBeVisible();
+  await ringer.click();
+  await expect(page.getByRole("heading", { name: "Ringer-Lactat 500 ml" })).toBeVisible();
+  await expect(page.locator("[data-rolle='bestand-schrank']")).toContainText("Schrank 1");
   const zielWaehlen = page.getByRole("link", { name: "Ziel wählen" });
   await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
   await bild(page, bilder, "e3-ziel-waehlen", [zielWaehlen]);
@@ -171,7 +183,7 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   await bild(page, bilder, "e4-wohin", [uebernehmen], uebernehmen);
 
   await uebernehmen.click();
-  await page.waitForURL(/\/a\/art-kompresse-10x10/);
+  await page.waitForURL(/\/a\/art-ringer-500/);
   await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText("RTW 1");
   const plus = page.getByRole("button", { name: "Menge erhöhen" });
   await plus.click();
@@ -186,15 +198,16 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   await bild(page, bilder, "e6-fertig", [ergebnis], plus);
 
   /* ── Blatt 2: Material zurückpacken ──────────────────────────────────── */
+  // Das Schrank-Etikett reicht nur bis zur Entnahme; Box und Check kommen vom Etikett am Fahrzeug.
+  await page.goto(`/t/${CODE_RTW}`);
+  await page.waitForURL(/\/helfer\/check/);
   const boxReiter = page.getByRole("navigation", { name: "Helfer-Bereiche" }).getByRole("link", { name: "Box" });
   await boxReiter.click();
   await page.waitForURL(/\/helfer\/box/);
-  const rtwBox = page.getByRole("link", { name: /^RTW 1/ });
-  await expect(rtwBox).toBeVisible();
-  await bild(page, bilder, "b2-einheit", [rtwBox, boxReiter], rtwBox);
+  const boxTitel = page.locator("[data-rolle='box-liste-titel']");
+  await expect(boxTitel).toBeVisible();
+  await bild(page, bilder, "b2-einheit", [boxTitel, boxReiter], boxTitel);
 
-  await rtwBox.click();
-  await expect(page.locator("[data-rolle='box-liste-titel']")).toBeVisible();
   const mullbinde = page.locator("[data-rolle='box-posten']").filter({ hasText: "Mullbinde 6 cm" });
   await mullbinde.locator("[data-rolle='box-posten-knopf']").click();
   const eingabe = mullbinde.locator("[data-rolle='box-eingabe']");
@@ -211,9 +224,8 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   await bild(page, bilder, "b5-bestaetigung", [abgelegt]);
 
   /* ── Blatt 3: Fahrzeugcheck ──────────────────────────────────────────── */
-  await page.goto("/helfer/check");
-  await page.getByRole("link", { name: /^RTW 1/ }).click();
-  await page.waitForURL(/\/helfer\/check\?fz=/);
+  await page.getByRole("navigation", { name: "Helfer-Bereiche" }).getByRole("link", { name: "Check" }).click();
+  await page.waitForURL(/\/helfer\/check/);
   const kurz = page.locator("[data-rolle='check-art-kurz']");
   const voll = page.locator("[data-rolle='check-art-voll']");
   await bild(page, bilder, "c2-art", [[kurz, voll]]);
@@ -308,7 +320,7 @@ test("Helfer-Anleitung des Lagerbuchs erzeugen", async ({ page }) => {
   await muster.first().evaluate((feld, svg) => (feld.innerHTML = svg), echt);
   await expect(decodeQrPng(await muster.first().screenshot()), "Gegenprobe: ein echter Code wird gelesen").resolves.toBe(QR_PROBE);
   await muster.first().evaluate((feld, svg) => (feld.innerHTML = svg), qr);
-  expect(await muster.count()).toBe(4);
+  expect(await muster.count()).toBe(3);
   for (const feld of await muster.all()) {
     await expect(decodeQrPng(await feld.screenshot()), "ein Muster auf dem Blatt lässt sich scannen").rejects.toThrow();
   }

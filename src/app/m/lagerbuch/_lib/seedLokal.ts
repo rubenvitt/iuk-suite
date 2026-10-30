@@ -179,6 +179,8 @@ const CODE_ORT_RTW = "220-220";
 const CODE_ORT_KTW = "330-330";
 const CODE_ORT_MTW = "440-440";
 const CODE_ORT_TASCHE = "550-550";
+/** Ein Schrank im Handlager (IDA-295): fuehrt auf die Artikel, die dort liegen. */
+const CODE_ORT_SCHRANK = "660-660";
 
 const A = {
   kompresse: "art-kompresse-10x10",
@@ -1244,13 +1246,14 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     }).run();
   }
 
-  /* 17b ── Die ORTSCODES (DRK-406): je ein Code fuer den Handlager und vier der
-   *        fuenf Einheiten. `ziel_typ`/`ziel_id` folgen der Zeile — der
+  /* 17b ── Die ORTSCODES (DRK-406): je ein Code fuer den Handlager, Schrank 1
+   *        (IDA-295) und vier der fuenf Einheiten. `ziel_typ`/`ziel_id` folgen der Zeile — der
    *        Handlager landet auf der Artikelliste und hat deshalb KEIN Ziel,
    *        eine Einheit fuehrt in ihren Check. Die Begruendung steht an
    *        `zielSpalten` (`_lib/schreibpfade/ortCodes.ts`). */
   const ortCodeListe = [
     { id: "ortcode-handlager", code: CODE_ORT_HANDLAGER, label: "Handlager", ortId: HANDLAGER_ID, zielTyp: null, zielId: null },
+    { id: "ortcode-schrank1", code: CODE_ORT_SCHRANK, label: "Schrank 1 (Helfer)", ortId: SCHRANK_1, zielTyp: null, zielId: null },
     { id: "ortcode-rtw1", code: CODE_ORT_RTW, label: "RTW 1", ortId: RTW, zielTyp: "fahrzeug" as const, zielId: RTW },
     { id: "ortcode-ktw1", code: CODE_ORT_KTW, label: "KTW 1", ortId: KTW, zielTyp: "fahrzeug" as const, zielId: KTW },
     { id: "ortcode-mtw1", code: CODE_ORT_MTW, label: "MTW 1", ortId: MTW, zielTyp: "fahrzeug" as const, zielId: MTW },
@@ -1310,6 +1313,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     "",
     "Ortscodes (DRK-406) — jede Ortskarte trägt genau einen:",
     `  ${CODE_ORT_HANDLAGER}  Handlager → Entnahme, OHNE Box und OHNE Check`,
+    `  ${CODE_ORT_SCHRANK}  Schrank 1 → nur die Artikel in diesem Schrank, sonst wie der Handlager`,
     `  ${CODE_ORT_RTW}  RTW 1 → Check, volle Reichweite`,
     `  ${CODE_ORT_KTW}  KTW 1`,
     `  ${CODE_ORT_MTW}  MTW 1`,

@@ -42,9 +42,6 @@
   .schirm .qr { width: 44%; padding: 1.4mm; background: #fff; border-radius: 1.4mm; }
   .schirm .qr svg { display: block; width: 100%; height: auto; }
   .schirm strong { margin-top: 1.5mm; font: 700 11pt/1 var(--schrift-titel), sans-serif; letter-spacing: 0.03em; }
-  .schirm .weiter { display: inline-flex; align-items: center; gap: 1mm; }
-  .schirm .weiter i { font-style: normal; width: 4.4mm; height: 4.4mm; border-radius: 50%; background: var(--rot); display: grid; place-items: center; font: 700 8.5pt/1 var(--schrift-titel), sans-serif; }
-  .schirm .oder { margin: 3mm 0 2mm; letter-spacing: 0.25em; color: #9ba0a8; font-size: 8pt; }
   .schirm .qr.gross { width: 52%; }
   /* Der Sucher der Kamera: vier Ecken um den Code. */
   .sucher { --ecke: linear-gradient(#fff, #fff); width: 70%; aspect-ratio: 1; display: grid; place-items: center;
@@ -71,29 +68,23 @@
   <div class="marke">LAGER<span>BUCH</span> · Helfer</div>
   <div class="titelzeile"><span class="etikett">ENTNAHME</span><h1>MATERIAL ENTNEHMEN</h1></div>
   <div class="kopf">
-    <p class="einleitung">Du holst Material aus dem Handlager, für ein Fahrzeug, eine Tasche oder zum direkten Verbrauch. Dafür brauchst du nur dein Handy, kein Konto und kein Passwort.</p>
-    <div class="notfall"><b>QR-Code geht nicht?</b> Dann im Browser <b>lagerbuch.iuk-ue.de</b> aufrufen und den Code von der Karte eintippen.</div>
+    <p class="einleitung">Du holst Material aus einem Schrank im Handlager, für ein Fahrzeug, eine Tasche oder zum direkten Verbrauch. Dafür brauchst du nur dein Handy, kein Konto und kein Passwort.</p>
+    <div class="notfall"><b>QR-Code geht nicht?</b> Dann im Browser <b>lagerbuch.iuk-ue.de</b> aufrufen und den Code vom Etikett am Schrank eintippen.</div>
   </div>
   <div class="schritte">
     <div class="schritt">
       <div class="handy"><div class="schirm">
-        <div class="qr" data-qr></div>
-        <strong>REGALETIKETT</strong>
-        <span>Artikel ist sofort offen</span>
-        <span class="weiter">→ weiter mit <i>3</i></span>
-        <span class="oder">ODER</span>
-        <div class="qr" data-qr></div>
-        <strong>KARTE AM HANDLAGER</strong>
-        <span>Artikelliste</span>
-        <span class="weiter">→ weiter mit <i>2</i></span>
+        <div class="sucher"><div class="qr gross" data-qr></div></div>
+        <strong>ETIKETT AM SCHRANK</strong>
+        <span class="hinweis">Kamera-App öffnen<br>und auf den Code halten</span>
       </div></div>
       <h2><span class="nr">1</span>QR-CODE SCANNEN</h2>
-      <p>Etikett am Artikel oder Karte am Handlager scannen. Fragt das Handy nach einem Code: Er steht auf der Karte.</p>
+      <p>Das Etikett am Schrank scannen, aus dem du etwas nimmst, und den Link öffnen.</p>
     </div>
     <div class="schritt">
       <div class="handy"><img data-bild="e2-artikel" alt=""></div>
       <h2><span class="nr">2</span>ARTIKEL WÄHLEN</h2>
-      <p>Nur nach der Handlager-Karte: oben suchen und den Artikel antippen.</p>
+      <p>Die Liste zeigt, was in diesem Schrank liegt. Artikel antippen. Liegt er woanders, oben auf <b>Alle Artikel im Handlager</b>.</p>
     </div>
     <div class="schritt">
       <div class="handy"><img data-bild="e3-ziel-waehlen" alt=""></div>
