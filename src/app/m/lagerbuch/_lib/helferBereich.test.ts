@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { migrierteTestDb } from "../_db/testdb";
 import { lagerorte } from "../_db/schema";
 import { etikettOrte } from "./lesepfade/ortEtiketten";
+import { istHandlagerSchrank } from "./lesepfade/orte";
 import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "./konstanten";
 import {
   BEREICHE, VOLLE_REICHWEITE, darf, reichweiteAus, startPfad,
@@ -30,6 +31,17 @@ describe("reichweiteAus — der Ort entscheidet, was geht", () => {
    * Der Überschuss fällt AM FAHRZEUG auf; ihn erst in der Halle buchen zu
    * lassen hieße, ihn zu vergessen.
    */
+  /**
+   * IDA-295 — ein Schrank IST Handlager. Ohne den Hinweis des Aufrufers fiele
+   * er in den Einheiten-Zweig: eine Karte am Schrank, die einen Fahrzeug-Check
+   * oeffnet und keine Entnahme.
+   */
+  it("ein Schrank im Handlager: nur die Entnahme", () => {
+    expect(reichweiteAus("schrank-1", true)).toEqual(["entnahme"]);
+    expect(reichweiteAus("schrank-1")).toEqual(["box", "check"]);
+    expect(reichweiteAus(null, true)).toEqual(VOLLE_REICHWEITE);
+  });
+
   it("eine Einheit: Check und Box, nie die Entnahme", () => {
     expect(reichweiteAus("rtw-1")).toEqual(["box", "check"]);
     expect(darf(reichweiteAus("rtw-1"), "entnahme")).toBe(false);
@@ -71,10 +83,13 @@ describe("reichweiteAus — der Ort entscheidet, was geht", () => {
           aktiv: true, einheitenart: "fahrzeug" },
         { id: "ta-1", name: "Ärztetasche", typ: "fahrzeug", kennung: null,
           aktiv: true, einheitenart: "tasche" },
+        { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+          aktiv: true, parentId: HANDLAGER_ID },
       ]).run();
 
       const erwartet: Record<string, readonly string[]> = {
         [HANDLAGER_ID]: ["entnahme"],
+        "schrank-1": ["entnahme"],
         [ENTNAHMEBOX_ID]: ["box"],
         "rtw-1": ["box", "check"],
         "ta-1": ["box", "check"],
@@ -84,7 +99,8 @@ describe("reichweiteAus — der Ort entscheidet, was geht", () => {
       // Schleife die ganze Zusage.
       expect(orte.map((o) => o.id).sort()).toEqual(Object.keys(erwartet).sort());
       for (const o of orte) {
-        expect(reichweiteAus(o.id), o.id).toEqual(erwartet[o.id]);
+        expect(reichweiteAus(o.id, istHandlagerSchrank(t.db, o.id)), o.id)
+          .toEqual(erwartet[o.id]);
       }
     } finally {
       t.schliessen();

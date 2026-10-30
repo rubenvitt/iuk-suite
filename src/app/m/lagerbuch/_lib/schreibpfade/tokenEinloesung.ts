@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { tokens } from "../../_db/schema";
 import { createHelferSitzung, type HelferPayload } from "../helferSitzung";
+import { istHandlagerSchrank } from "../lesepfade/orte";
 
 /**
  * DIE TOKEN-EINLOESUNG — §7.5.2, Schritt 4. Portiert aus
@@ -59,6 +60,12 @@ export type EinloesungTreffer = {
    * und nicht aus dem Cookie (§3.4.4).
    */
   ortId: string | null;
+  /**
+   * IDA-295 — haengt die Karte an einem Schrank im Handlager? Die Landung
+   * braucht es (`ortcodeZielPfad`), und aus der Id allein ist es nicht zu
+   * lesen. Fehlt das Feld, gilt „nein" — die Landung von vor IDA-295.
+   */
+  schrank?: boolean;
 };
 
 export type Einloesung = EinloesungTreffer | { ok: false };
@@ -100,6 +107,7 @@ export async function redeemToken(code: string, db: DB): Promise<Einloesung> {
       zielTyp: t.zielTyp,
       zielId: t.zielId,
       ortId: t.ortId,
+      schrank: istHandlagerSchrank(db, t.ortId),
     };
   });
 }

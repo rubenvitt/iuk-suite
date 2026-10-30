@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import type { TestDb } from "../_db/testdb";
 import { migrierteTestDb } from "../_db/testdb";
-import { lagerorte, tokens } from "../_db/schema";
+import { artikel, buchungen, chargen, lagerorte, tokens } from "../_db/schema";
 
 const LAYOUT = "src/app/m/lagerbuch/helfer/layout.tsx";
 
@@ -139,9 +139,11 @@ vi.mock("../_lib/lesepfade/artikel", () => ({
  * fehlte).
  */
 vi.mock("../_ui/ArtikelSuche", () => ({
-  ArtikelSuche: (p: { artikel: Record<string, unknown>[] }) => (
+  ArtikelSuche: (p: { artikel: Record<string, unknown>[]; ort?: string }) => (
     <div
       data-rolle="suche"
+      data-ort={p.ort ?? ""}
+      data-bestaende={p.artikel.map((a) => `${String(a.id)}=${String(a.bestand)}`).join(",")}
       data-anzahl={String(p.artikel.length)}
       data-felder={Object.keys(p.artikel[0] ?? {}).sort().join(",")}
     />
@@ -332,11 +334,11 @@ describe("helfer/page.tsx", () => {
   });
 
   it("traegt den Satz, der die Systemkamera erklaert", async () => {
-    // 1:1 aus `helfer/page.tsx:12`. Er ist die einzige Stelle, an der die
-    // Anwendung sagt, dass das Regaletikett ein Einstieg ist.
+    // IDA-295: Helfer scannen seit dem 30.10.2026 nur noch Ortsetiketten —
+    // der Satz nennt deshalb den Schrank und nicht mehr das Regaletikett.
     await mount(await HelferSeite());
     expect(query("[data-rolle='helfer-hinweis']").textContent)
-      .toBe("Regaletikett scannen öffnet den Artikel direkt — oder hier suchen.");
+      .toBe("Ortsetikett am Schrank scannen zeigt nur dessen Artikel — oder hier suchen.");
   });
 
   it("haengt Hinweis und Insel INNERHALB des Rahmens", async () => {
@@ -419,6 +421,73 @@ describe("helfer/page.tsx — wer hier entnehmen darf (DRK-417)", () => {
    */
   it("ein Kaertchen ohne Ortsbezug darf weiterhin", async () => {
     await mount(await HelferSeite());
+    expect(umleitungen).toEqual([]);
+    expect(exists("[data-rolle='rahmen']")).toBe(true);
+  });
+});
+
+/**
+ * IDA-295 — DIE LISTE EINES SCHRANKS. Die Landung nach dem Scan seines
+ * Ortsetiketts: nur was laut Buch darin liegt, mit dem Bestand DES SCHRANKS.
+ */
+describe("helfer/page.tsx — mit Schrank (IDA-295)", () => {
+  const JETZT = new Date("2026-10-30T10:00:00Z");
+
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", aktiv: true, parentId: HANDLAGER_ID },
+      { id: "schrank-alt", name: "Altschrank", typ: "lager", aktiv: false, parentId: HANDLAGER_ID },
+    ]).run();
+    t.db.insert(artikel).values([
+      { id: "a1", name: "Kompresse", einheit: "Stk", fach: "A-01", mindestbestand: 0,
+        aktiv: true, createdAt: JETZT },
+      { id: "a2", name: "Mullbinde", einheit: "Stk", fach: "A-02", mindestbestand: 0,
+        aktiv: true, createdAt: JETZT },
+    ]).run();
+    t.db.insert(chargen).values([
+      { id: "c1", artikelId: "a1", chargenNr: "L1", verfall: "2028-01", createdAt: JETZT },
+      { id: "c2", artikelId: "a2", chargenNr: "L2", verfall: "2028-01", createdAt: JETZT },
+    ]).run();
+    t.db.insert(buchungen).values([
+      { id: "b1", ts: JETZT, typ: "zugang", artikelId: "a1", chargeId: "c1",
+        lagerortId: "schrank-1", menge: 3, quelleTyp: "system", quelleId: "seed",
+        referenz: null, kommentar: null },
+      { id: "b2", ts: JETZT, typ: "zugang", artikelId: "a1", chargeId: "c1",
+        lagerortId: HANDLAGER_ID, menge: 7, quelleTyp: "system", quelleId: "seed",
+        referenz: null, kommentar: null },
+      { id: "b3", ts: JETZT, typ: "zugang", artikelId: "a2", chargeId: "c2",
+        lagerortId: HANDLAGER_ID, menge: 4, quelleTyp: "system", quelleId: "seed",
+        referenz: null, kommentar: null },
+    ]).run();
+    liste.mockReturnValue([
+      { id: "a1", name: "Kompresse", einheit: "Stk", fach: "A-01", bestand: 10 },
+      { id: "a2", name: "Mullbinde", einheit: "Stk", fach: "A-02", bestand: 4 },
+    ]);
+  });
+
+  it("zeigt nur, was im Schrank liegt, mit dem Bestand des Schranks", async () => {
+    await mount(await HelferSeite({ searchParams: Promise.resolve({ ort: "schrank-1" }) }));
+    expect(query("[data-rolle='suche']").getAttribute("data-bestaende")).toBe("a1=3");
+    expect(query("[data-rolle='suche']").getAttribute("data-ort")).toBe("schrank-1");
+    expect(query("[data-rolle='helfer-kopf']").textContent).toBe("Schrank 1 — Artikel wählen");
+    expect(exists("[data-rolle='helfer-alle']")).toBe(true);
+  });
+
+  it.each([
+    ["einen stillgelegten Schrank", "schrank-alt"],
+    ["den Handlager selbst", HANDLAGER_ID],
+    ["eine unbekannte Id", "gibt-es-nicht"],
+  ])("zeigt fuer %s den ganzen Handlager", async (_was, ort) => {
+    await mount(await HelferSeite({ searchParams: Promise.resolve({ ort }) }));
+    expect(query("[data-rolle='suche']").getAttribute("data-bestaende")).toBe("a1=10,a2=4");
+    expect(query("[data-rolle='suche']").getAttribute("data-ort")).toBe("");
+    expect(query("[data-rolle='helfer-kopf']").textContent).toBe("Artikel wählen");
+  });
+
+  /** Ein Schrank-Code darf, was der Handlager-Code darf — und keinen Check. */
+  it("die Karte am Schrank darf entnehmen", async () => {
+    t.db.update(tokens).set({ ortId: "schrank-1" }).where(eq(tokens.id, TOKEN_ID)).run();
+    await mount(await HelferSeite({ searchParams: Promise.resolve({ ort: "schrank-1" }) }));
     expect(umleitungen).toEqual([]);
     expect(exists("[data-rolle='rahmen']")).toBe(true);
   });

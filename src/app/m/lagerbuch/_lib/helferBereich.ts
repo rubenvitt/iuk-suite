@@ -62,9 +62,12 @@ export const VOLLE_REICHWEITE: Reichweite = BEREICHE;
  * Handlager. Wer am Fahrzeug stand, konnte mit einem Fehlgriff aus dem Regal
  * buchen, ohne je am Regal gewesen zu sein.
  *
- * DIE VIER FÄLLE, und jeder hängt an der `ort_id` der Token-Zeile:
+ * DIE FÜNF FÄLLE, und jeder hängt an der `ort_id` der Token-Zeile:
  *
  *   Handlager   → nur Entnahme. Genau dafür hängt die Karte am Regal.
+ *   Schrank     → nur Entnahme, wie der Handlager — der Schrank IST Handlager
+ *                 (IDA-295). Ob die Id ein Schrank ist, weiß nur die Datenbank;
+ *                 der Aufrufer reicht es als `imHandlager` herein.
  *   Entnahmebox → nur Ablegen. Wer vor der Kiste steht, gibt etwas ab.
  *   Einheit     → Check UND Box. Die Betreiberentscheidung vom 17.09.2026:
  *                 der Überschuss fällt AM FAHRZEUG auf, und ihn erst in der
@@ -73,8 +76,8 @@ export const VOLLE_REICHWEITE: Reichweite = BEREICHE;
  *
  * ⚠️ „ALLES ANDERE IST EINE EINHEIT" IST KEINE ANNAHME, SONDERN DIE MENGE AUS
  * `etikettOrte`. Nur sie erzeugt Ortscodes (`stelleOrtCodesSicher` läuft über
- * genau diese Zeilen), und sie führt den Handlager, die Entnahmebox und
- * `typ = "fahrzeug"` — sonst nichts. Ein fünfter Ort müsste also erst dort
+ * genau diese Zeilen), und sie führt den Handlager, seine Schränke, die
+ * Entnahmebox und `typ = "fahrzeug"` — sonst nichts. Ein fünfter Ort müsste also erst dort
  * hinein, und dann ist DIESE Funktion die Stelle, an der es auffällt.
  * `helferBereich.test.ts` hält beide Mengen zusammen.
  *
@@ -85,8 +88,11 @@ export const VOLLE_REICHWEITE: Reichweite = BEREICHE;
  * `zielTyp` hätte den Kärtchen im Umlauf still die Hälfte weggenommen.
  * Eingeschränkt wird ausschließlich, was als Ortscode an einem Ort hängt.
  */
-export function reichweiteAus(ortId: string | null | undefined): Reichweite {
-  if (ortId === HANDLAGER_ID) return ["entnahme"];
+export function reichweiteAus(
+  ortId: string | null | undefined,
+  imHandlager = false,
+): Reichweite {
+  if (ortId === HANDLAGER_ID || (ortId && imHandlager)) return ["entnahme"];
   if (ortId === ENTNAHMEBOX_ID) return ["box"];
   if (ortId) return ["box", "check"];
   return VOLLE_REICHWEITE;

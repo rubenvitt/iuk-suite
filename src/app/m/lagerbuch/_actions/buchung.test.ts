@@ -647,6 +647,91 @@ describe("bucheEntnahmeHelfer", () => {
   });
 
   /**
+   * IDA-295 — DER GESCANNTE SCHRANK WIRD ZUERST ANGEFASST.
+   *
+   * ⚠️ DIE CHARGE IM SCHRANK VERFAELLT SPAETER als die an der Wurzel. Ohne den
+   * Unterschied naehme FEFO ueber den Handlager ohnehin die Schrankcharge, und
+   * die Zusicherung hielte auch, wenn `ortId` ignoriert wuerde.
+   */
+  function schrankMitBestand(menge: number, aktiv = true): void {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", aktiv, parentId: HANDLAGER_ID,
+        sortierung: 10 },
+    ]).run();
+    t.db.insert(chargen).values([
+      { id: "ch-spaet", artikelId: "art-1", chargenNr: "L9", verfall: "2029-01", createdAt: JETZT },
+    ]).run();
+    t.db.insert(buchungen).values([
+      { id: "b-seed-schrank", ts: JETZT, typ: "zugang", artikelId: "art-1",
+        chargeId: "ch-spaet", lagerortId: "schrank-1", menge,
+        quelleTyp: "system", quelleId: "seed", referenz: null, kommentar: null },
+    ]).run();
+  }
+
+  it("mit Schrank bucht zuerst aus dem Schrank, auch gegen FEFO", async () => {
+    schrankMitBestand(5);
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH, ortId: "schrank-1" }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({
+      lagerortId: "schrank-1", chargeId: "ch-spaet", menge: -2,
+    });
+  });
+
+  it("reicht der Schrank nicht, kommt der Rest wie bisher aus dem Handlager", async () => {
+    schrankMitBestand(1);
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 3, ziel: VERBRAUCH, ortId: "schrank-1" }, t.db);
+
+    expect((erg as { ok: true; wert: { gebucht: number } }).wert.gebucht).toBe(3);
+    const b = geschrieben();
+    expect(b.find((z) => z.lagerortId === "schrank-1")?.menge).toBe(-1);
+    expect(b.find((z) => z.lagerortId === HANDLAGER_ID)?.menge).toBe(-2);
+  });
+
+  it("mit ZIEL-FAHRZEUG kommt die Umlagerung aus dem Schrank", async () => {
+    schrankMitBestand(5);
+    zielCookie = "tk1|fz:fz-1";
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" },
+        ortId: "schrank-1" }, t.db);
+
+    expect(erg.ok).toBe(true);
+    const um = geschrieben().filter((b) => b.typ === "umlagerung");
+    expect(um.find((b) => b.menge < 0)).toMatchObject({ lagerortId: "schrank-1", menge: -2 });
+    expect(um.find((b) => b.menge > 0)).toMatchObject({ lagerortId: "fz-1", menge: 2 });
+  });
+
+  /**
+   * ⚠️ DIE ID KOMMT VOM CLIENT. Ein Fahrzeug, ein zweites Lager oder ein
+   * stillgelegter Schrank sind kein Schrank-Kontext — die Buchung laeuft dann
+   * genau wie ohne Angabe, statt von einem fremden Ort abzubuchen.
+   */
+  it.each([
+    ["ein Fahrzeug", "fz-1"],
+    ["ein zweites Lager", "lager-2"],
+    ["eine unbekannte Id", "gibt-es-nicht"],
+  ])("ignoriert %s als Schrank", async (_was, ortId) => {
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH, ortId }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({ lagerortId: HANDLAGER_ID, menge: -2 });
+  });
+
+  it("ignoriert einen stillgelegten Schrank und bucht FEFO ueber den Handlager", async () => {
+    schrankMitBestand(5, false);
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH, ortId: "schrank-1" }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()[0]).toMatchObject({ lagerortId: HANDLAGER_ID, chargeId: "ch-1" });
+  });
+
+  /**
    * ⚠️ EINE FREMDE CHARGE BUCHT NICHTS UND MELDET ES — kein 200, das luegt.
    *
    * Die Zugehoerigkeit zum Artikel wird nicht im Schema geprueft, sondern im

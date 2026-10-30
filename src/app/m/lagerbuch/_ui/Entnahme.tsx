@@ -19,7 +19,7 @@ import type { Ampel } from "../_lib/domain/verfall";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
 // dieselbe Form liest die Server Component, die ihn befüllt.
 import type { ZielAnzeige } from "../_lib/entnahmeZiel";
-import { tokenZielPfad } from "../_lib/tokenZiel";
+import { schrankPfad, tokenZielPfad } from "../_lib/tokenZiel";
 export type { ZielAnzeige };
 import s from "./helfer.module.css";
 
@@ -101,6 +101,7 @@ export function Entnahme({
   detail,
   ziel,
   kontoZugang,
+  schrank = null,
 }: {
   detail: EntnahmeDetail;
   /** `null` = noch nichts gewählt; dann wird NICHT gebucht (DRK-300). */
@@ -120,6 +121,12 @@ export function Entnahme({
    * damit „Kärtchen" — also genau der Defekt.
    */
   kontoZugang: boolean;
+  /**
+   * IDA-295 — der Schrank, dessen Ortsetikett gescannt wurde, mit dem Bestand
+   * dieses Artikels darin. Die Buchung nimmt zuerst aus ihm, den Rest wie
+   * bisher aus dem Handlager.
+   */
+  schrank?: { id: string; name: string; bestand: number } | null;
 }) {
   const [menge, setMenge] = useState(1);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
@@ -216,7 +223,11 @@ export function Entnahme({
    * Regalfach, vor dem sie gerade steht. Der Artikelpfad kommt kodiert aus
    * `tokenZielPfad` (DRK-493) und dient auch als Rueckweg ans Gate.
    */
-  const artikelPfad = tokenZielPfad("artikel", detail.id);
+  // IDA-295 — der Schrank reist durch die Zielwahl mit, sonst kaeme man von
+  // dort ohne ihn zurueck und buchte still aus dem ganzen Handlager.
+  const artikelPfad = schrank
+    ? `${tokenZielPfad("artikel", detail.id)}?${new URLSearchParams({ ort: schrank.id })}`
+    : tokenZielPfad("artikel", detail.id);
   const zielWahlWeg = `/helfer/ziel?returnTo=${encodeURIComponent(artikelPfad)}`;
   const zielName = ziel?.art === "fahrzeug" ? ziel.name : null;
 
@@ -245,6 +256,7 @@ export function Entnahme({
            * an, und die Nutzlast soll dann auch nicht mehr von ihr sprechen.
            */
           ...(gewaehlteCharge ? { chargeId: gewaehlteCharge.id } : {}),
+          ...(schrank ? { ortId: schrank.id } : {}),
           // Die KENNUNG wandert, nicht der Anzeigename — der Server kennt nur sie.
           ziel: ziel.art === "fahrzeug" ? { art: "fahrzeug", lagerortId: ziel.lagerortId } : ziel,
         });
@@ -284,7 +296,7 @@ export function Entnahme({
 
   return (
     <div className={s.lesebahn}>
-      <Link className={s.rueckweg} href="/helfer">
+      <Link className={s.rueckweg} href={schrank ? schrankPfad(schrank.id) : "/helfer"}>
         <Ikone name="chevron-links" groesse={15} />
         Zurück
       </Link>
@@ -303,6 +315,11 @@ export function Entnahme({
         <div className={s.bestandsZahl} data-rolle="bestand">
           {detail.bestand} <span style={{ fontSize: 16 }}>{detail.einheit}</span>
         </div>
+        {schrank && (
+          <div className={s.fussnote} data-rolle="bestand-schrank">
+            davon in {schrank.name}: {schrank.bestand} {detail.einheit} — wird zuerst gebucht
+          </div>
+        )}
       </div>
 
       <div className={s.karte}>

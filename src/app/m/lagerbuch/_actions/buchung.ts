@@ -10,10 +10,10 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerkunft";
-import { fefoAbbuchungImBereich } from "../_lib/schreibpfade/abbuchung";
+import { fefoAbbuchungAnOrt, fefoAbbuchungImBereich } from "../_lib/schreibpfade/abbuchung";
 import { zugangBuchen } from "../_lib/schreibpfade/zugang";
 import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
-import { handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
+import { aktiverSchrank, handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { revalidiereBestand } from "../_lib/revalidierung";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
@@ -474,6 +474,11 @@ const HelferEntnahmeSchema = z.object({
    * Pruefung hier waere eine zweite Wahrheit ueber dieselbe Frage.
    */
   chargeId: z.string().min(1).nullish(),
+  /**
+   * IDA-295 — der Schrank, dessen Ortsetikett gescannt wurde. Optional: ohne
+   * ihn bucht die Entnahme FEFO ueber den ganzen Handlager wie bisher.
+   */
+  ortId: z.string().min(1).nullish(),
 });
 
 /**
@@ -597,10 +602,28 @@ export async function bucheEntnahmeHelfer(
       return { ok: false, grund: "eingabe", text: ZIEL_UNGUELTIG_TEXT };
     }
 
+    /*
+     * IDA-295 — DER GESCANNTE SCHRANK WIRD ZUERST ANGEFASST. Wer vor Schrank 1
+     * steht und dort greift, hat aus Schrank 1 genommen; FEFO ueber den ganzen
+     * Handlager buchte das womoeglich aus Schrank 2, und die naechste Inventur
+     * faende in beiden eine Abweichung.
+     *
+     * ⚠️ DER REST GEHT WIE BISHER UEBER DEN HANDLAGER. Liegt laut Buch im
+     * Schrank weniger, als jemand in der Hand haelt, stimmt das Buch nicht — die
+     * Entnahme abzulehnen liesse die Person mit Material in der Hand und ohne
+     * Buchung stehen, und der Bestand des Handlagers waere danach erst recht
+     * falsch.
+     *
+     * ⚠️ DIE ID KOMMT VOM CLIENT UND WIRD HIER AUFGELOEST, nie geglaubt. Was kein
+     * aktiver Schrank ist, faellt auf den bisherigen Weg zurueck — derselbe, den
+     * jeder Aufruf ohne `ortId` nimmt.
+     */
+    const schrankId = aktiverSchrank(db, v.ortId)?.id ?? null;
+
     let gebucht = 0;
     db.transaction((tx) => {
       const quelle = journalQuelle(riegel.zugang);
-      gebucht =
+      const buche = (menge: number, schrank: string | null): number =>
         ziel.art === "fahrzeug"
           ? /*
              * Der Verbrauch bleibt am FAHRZEUG und sinkt erst beim nächsten
@@ -609,9 +632,16 @@ export async function bucheEntnahmeHelfer(
              * missdeuten; die Charge wandert mit, damit das Fahrzeug die
              * Verfall-Herkunft behält.
              */
-            umlagerungAusBereich(tx, {
+            (schrank
+              ? umlagerungVonOrt(tx, {
+                  artikelId: v.artikelId, menge, vonOrt: schrank,
+                  nachLagerortId: ziel.lagerortId, quelle, kommentar: null,
+                  referenz: `entnahme-ziel:${ziel.lagerortId}`,
+                  ...(v.chargeId ? { chargeId: v.chargeId } : {}),
+                })
+              : umlagerungAusBereich(tx, {
               artikelId: v.artikelId,
-              menge: v.menge,
+              menge,
               vonBereich: handlagerOrte(tx),
               nachLagerortId: ziel.lagerortId,
               quelle,
@@ -625,10 +655,16 @@ export async function bucheEntnahmeHelfer(
                * wirkte, schriebe dem Fahrzeug still die falsche Charge zu.
                */
               ...(v.chargeId ? { chargeId: v.chargeId } : {}),
-            }).umgelagert
-          : fefoAbbuchungImBereich(tx, {
+            })).umgelagert
+          : (schrank
+            ? fefoAbbuchungAnOrt(tx, {
+                artikelId: v.artikelId, menge, ort: schrank, quelle,
+                kommentar: null, referenz: null,
+                ...(v.chargeId ? { chargeId: v.chargeId } : {}),
+              })
+            : fefoAbbuchungImBereich(tx, {
               artikelId: v.artikelId,
-              menge: v.menge,
+              menge,
               quelle,
               kommentar: null,
               referenz: null,
@@ -640,7 +676,9 @@ export async function bucheEntnahmeHelfer(
                * IMMER eine Charge bestimmt.
                */
               ...(v.chargeId ? { chargeId: v.chargeId } : {}),
-            }).gebucht;
+            })).gebucht;
+      gebucht = schrankId ? buche(v.menge, schrankId) : 0;
+      if (gebucht < v.menge) gebucht += buche(v.menge - gebucht, null);
     });
 
     /**

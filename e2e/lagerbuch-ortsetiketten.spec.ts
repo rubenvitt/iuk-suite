@@ -354,6 +354,35 @@ test.describe("Ortsetiketten (Bogen)", () => {
   });
 
   /**
+   * IDA-295 — DIE KARTE AM SCHRANK, DENSELBEN WEG ENTLANG: drucken, abgemeldet
+   * scannen, vor dem Schrank stehen. Der Scan landet auf der Artikelliste DIESES
+   * Schranks, und die Reichweite ist die des Regals — Entnahme, kein Check.
+   *
+   * Der Schrank kommt aus `ortsFixtures` (`seed-lagerbuch.ts`). Der Test liest
+   * nur, er bucht nichts; die Bestandszahl darin bleibt Sache des
+   * Inventur-Specs.
+   */
+  test("die Schrank-Karte fuehrt abgemeldet auf die Artikel des Schranks", async ({ page, browser }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    const karte = page.locator(".lb-ortkarte", { hasText: "E2E Inventurschrank" }).first();
+    await expect(karte.locator(".lb-ortkarteMeta")).toHaveText("Schrank im Handlager");
+    const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
+    expect(ziel.startsWith(lagerbuchUrl("/t/")), ziel).toBe(true);
+
+    const anonym = await browser.newContext();
+    const seite = await anonym.newPage();
+    await seite.goto(ziel);
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer")
+      && url.searchParams.get("ort") === "e2e-inventur-schrank");
+    await expect(seite.getByText("E2E Inventurschrank — Artikel wählen")).toBeVisible();
+
+    const reiter = seite.getByTestId("lb-tableiste");
+    await expect(reiter.getByText("Entnahme")).toBeVisible();
+    await expect(reiter.getByText("Check")).toHaveCount(0);
+    await anonym.close();
+  });
+
+  /**
    * ⚠️ OHNE SITZUNG AUFS GATE, NIE NACH /login — und MIT `returnTo`. Das ist
    * der dritte Ausgang der Weiche und der, den ein Quelltext-Scan nicht
    * beweisen kann: ein werfender Riegel schickte jede Helferin ohne Konto nach

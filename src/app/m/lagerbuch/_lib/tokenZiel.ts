@@ -70,3 +70,19 @@ export function fahrzeugBindungAus(
 ): string | null {
   return zielTyp === "fahrzeug" && zielId ? zielId : null;
 }
+
+/**
+ * IDA-295 — DIE ARTIKELLISTE EINES SCHRANKS. Die Landung nach dem Scan seines
+ * Ortsetiketts, und der Rückweg vom Artikel dorthin.
+ *
+ * Sie steht HIER und nicht in `helferBereich.ts`, weil auch die Insel
+ * `_ui/Entnahme.tsx` sie braucht — und jene Datei zieht Serverzugriffe nach.
+ *
+ * ⚠️ KEIN EIGENER SCHIRM, SONDERN `/helfer` MIT EINEM FILTER. Der Schrank ist
+ * Handlager; dieselbe Liste, dieselbe Suche, nur auf seinen Bestand begrenzt.
+ * Ein `/helfer/schrank/<id>` wäre eine zweite Artikelliste, und die liefe
+ * auseinander, sobald jemand eine der beiden erweitert.
+ */
+export function schrankPfad(schrankId: string): string {
+  return `/helfer?${new URLSearchParams({ ort: schrankId })}`;
+}

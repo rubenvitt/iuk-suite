@@ -27,8 +27,12 @@ beforeEach(() => {
     { id: "zzz-mtw", name: "ZZZ MTW", typ: "fahrzeug", kennung: "MS-9",
       aktiv: true, einheitenart: "fahrzeug" },
     { id: "keller", name: "Lager Keller", typ: "lager", kennung: null, aktiv: true },
+    { id: "schrank-gf", name: "GF-Schrank", typ: "lager", kennung: null,
+      aktiv: true, parentId: HANDLAGER_ID, sortierung: 90 },
     { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
       aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 },
+    { id: "schrank-alt", name: "Altschrank", typ: "lager", kennung: null,
+      aktiv: false, parentId: HANDLAGER_ID, sortierung: 5 },
     { id: "alt-elw", name: "ELW alt", typ: "fahrzeug", kennung: "MS-8",
       aktiv: false, einheitenart: "fahrzeug" },
     { id: "tasche-san", name: "Ärztetasche", typ: "fahrzeug", kennung: null,
@@ -41,9 +45,16 @@ beforeEach(() => {
 afterEach(() => t.schliessen());
 
 describe("etikettOrte", () => {
-  it("nimmt Handlager, Entnahmebox und jede aktive Einheit — in dieser Reihenfolge", () => {
-    expect(etikettOrte(t.db).map((o) => o.id))
-      .toEqual([HANDLAGER_ID, ENTNAHMEBOX_ID, "tasche-san", "rucksack", "zzz-mtw"]);
+  /**
+   * IDA-295 — die Schraenke stehen direkt hinter dem Handlager, nach ihrer
+   * `sortierung` und nicht nach dem Namen: „GF-Schrank" stuende sonst vor
+   * „Schrank 1", in der Verwaltung steht er hinten.
+   */
+  it("nimmt Handlager, seine aktiven Schraenke, Entnahmebox und jede aktive Einheit — in dieser Reihenfolge", () => {
+    expect(etikettOrte(t.db).map((o) => o.id)).toEqual([
+      HANDLAGER_ID, "schrank-1", "schrank-gf", ENTNAHMEBOX_ID,
+      "tasche-san", "rucksack", "zzz-mtw",
+    ]);
   });
 
   /**
@@ -71,9 +82,18 @@ describe("etikettOrte", () => {
     expect(etikettOrte(t.db).map((o) => o.id)).not.toContain("keller");
   });
 
-  /** Ein Schrank ist kein Ort, an dem man einsteigt — und hat kein eigenes Ziel. */
-  it("nimmt keinen Schrank", () => {
-    expect(etikettOrte(t.db).map((o) => o.id)).not.toContain("schrank-1");
+  /**
+   * IDA-295 — seit der Betreiberentscheidung vom 30.10.2026 bekommt jeder
+   * Schrank eine Karte; ein stillgelegter nicht, aus demselben Grund wie eine
+   * stillgelegte Einheit.
+   */
+  it("nimmt jeden aktiven Schrank und markiert ihn als Schrank", () => {
+    const orte = new Map(etikettOrte(t.db).map((o) => [o.id, o]));
+    expect(orte.get("schrank-1")).toMatchObject({ typ: "lager", schrank: true });
+    expect(orte.get(HANDLAGER_ID)).toMatchObject({ schrank: false });
+    expect(orte.get(ENTNAHMEBOX_ID)).toMatchObject({ schrank: false });
+    expect(orte.get("zzz-mtw")).toMatchObject({ schrank: false });
+    expect(orte.has("schrank-alt")).toBe(false);
   });
 
   /**
@@ -117,7 +137,7 @@ describe("etikettOrt", () => {
   it.each([
     ["eine unbekannte Id", "gibt-es-nicht"],
     ["ein stillgelegtes Fahrzeug", "alt-elw"],
-    ["einen Schrank", "schrank-1"],
+    ["einen stillgelegten Schrank", "schrank-alt"],
     ["ein zweites Lager", "keller"],
   ])("gibt null fuer %s", (_was, id) => {
     expect(etikettOrt(t.db, id)).toBeNull();

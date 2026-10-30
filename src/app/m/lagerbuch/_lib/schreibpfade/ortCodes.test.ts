@@ -223,10 +223,29 @@ describe("stelleOrtCodesSicher — idempotent und rein additiv", () => {
   /**
    * ⚠️ EINE STILLGELEGTE EINHEIT BEKOMMT KEINEN. Sie ist kein Buchungsziel
    * mehr und hat deshalb keine Ortskarte (`_lib/lesepfade/ortEtiketten.ts`) —
-   * ein Code für sie wäre einer, den niemand je zu sehen bekäme.
+   * ein Code für sie wäre einer, den niemand je zu sehen bekäme. Dasselbe gilt
+   * für einen stillgelegten Schrank.
    */
   it("überspringt stillgelegte Einheiten und Schränke", () => {
     einheit({ id: "alt", name: "Ausgemustert", aktiv: false });
+    t.db.insert(lagerorte).values({
+      id: "schrank-alt", name: "Altschrank", typ: "lager",
+      kennung: null, aktiv: false, parentId: HANDLAGER_ID, einheitenart: null,
+    }).run();
+
+    stelleOrtCodesSicher(t.db, AUSSTELLER, null);
+
+    expect(zeilenVon("alt")).toEqual([]);
+    expect(zeilenVon("schrank-alt")).toEqual([]);
+    expect(zeilenVon(HANDLAGER_ID)).toHaveLength(1);
+  });
+
+  /**
+   * IDA-295 — JEDER AKTIVE SCHRANK BEKOMMT SEINEN EIGENEN CODE, ohne Ziel wie
+   * der Handlager. Ein `ziel_typ: "fahrzeug"` fuehrte den Scan am Schrank in
+   * den Fahrzeug-Check.
+   */
+  it("gibt einem aktiven Schrank einen eigenen Code ohne Ziel", () => {
     t.db.insert(lagerorte).values({
       id: "schrank", name: "Schrank 1", typ: "lager",
       kennung: null, aktiv: true, parentId: HANDLAGER_ID, einheitenart: null,
@@ -234,9 +253,9 @@ describe("stelleOrtCodesSicher — idempotent und rein additiv", () => {
 
     stelleOrtCodesSicher(t.db, AUSSTELLER, null);
 
-    expect(zeilenVon("alt")).toEqual([]);
-    expect(zeilenVon("schrank")).toEqual([]);
-    expect(zeilenVon(HANDLAGER_ID)).toHaveLength(1);
+    const [z] = zeilenVon("schrank");
+    expect(z).toMatchObject({ zielTyp: null, zielId: null, label: "Schrank 1", aktiv: true });
+    expect(z.code).not.toBe(zeilenVon(HANDLAGER_ID)[0].code);
   });
 
   /**

@@ -7,6 +7,9 @@ import { helferZugangOderNull, kontoZugangOderNull } from "../../_lib/helferZuga
 import { sitzungsEtikett, zugangsKennung } from "../../_lib/zugangHerkunft";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
+import { bestandJeArtikelAnOrt } from "../../_lib/lesepfade/bestand";
+import { aktiverSchrank } from "../../_lib/lesepfade/orte";
+import { einWert } from "../../_lib/suchparameter";
 import { ZIEL_COOKIE } from "../../_lib/entnahmeZiel";
 import { tokenZielPfad } from "../../_lib/tokenZiel";
 import { getDb } from "../../_db/client";
@@ -78,8 +81,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ArtikelDeepLink({
   params,
+  searchParams,
 }: {
   params: Promise<{ artikelId: string }>;
+  /** IDA-295 — der Schrank, aus dessen Liste der Artikel gewaehlt wurde. */
+  searchParams?: Promise<{ ort?: string | string[] }>;
 }) {
   requireLagerbuchHost(await headers()); // §2.6 — erste Anweisung
   const { artikelId } = await params;
@@ -182,6 +188,21 @@ export default async function ArtikelDeepLink({
   const detail = artikelDetailHelfer(db, artikelId);
 
   /*
+   * IDA-295 — DER SCHRANK AUS DER ADRESSE, GEGEN DIE DATENBANK AUFGELOEST. Er
+   * aendert, wovon zuerst gebucht wird, und das entscheidet die Action noch
+   * einmal selbst; hier geht es um die Anzeige („davon in Schrank 1: 3") und
+   * darum, dass der Wert ueberhaupt mitreist.
+   */
+  const schrankZeile = aktiverSchrank(db, einWert((await searchParams)?.ort));
+  const schrank = schrankZeile
+    ? {
+        id: schrankZeile.id,
+        name: schrankZeile.name,
+        bestand: bestandJeArtikelAnOrt(db, schrankZeile.id).get(artikelId) ?? 0,
+      }
+    : null;
+
+  /*
    * DAS GEMERKTE ZIEL — DRK-300. Es wird bei JEDEM Aufruf neu gegen die
    * Datenbank aufgelöst, nicht nur beim Wählen: das Cookie hält für den ganzen
    * Kärtchen-Zugang, und die Verwaltung kann in derselben Zeit ein Fahrzeug
@@ -224,6 +245,7 @@ export default async function ArtikelDeepLink({
           ziel={ziel}
           // DRK-305 — entscheidet den Rueckweg, wenn der Zugang ausfaellt.
           kontoZugang={zugang.herkunft === "konto"}
+          schrank={schrank}
         />
       ) : (
         /*

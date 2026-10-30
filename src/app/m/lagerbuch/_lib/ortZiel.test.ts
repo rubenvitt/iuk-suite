@@ -344,3 +344,34 @@ describe("ortcodeZielPfad — wohin ein eingeloester Ortscode fuehrt", () => {
     expect(tokenZielPfad(null, null)).toBe("/helfer");
   });
 });
+
+/**
+ * IDA-295 — DER SCHRANK HAT EIN EIGENES ZIEL: die Artikelliste, begrenzt auf
+ * seinen Bestand. Beide Einstiege — das gescannte Etikett `/o/<id>` und der
+ * eingeloeste Code `/t/<code>` — muessen dort landen, sonst fuehrte die Karte
+ * je nach Druckstand an verschiedene Stellen.
+ */
+describe("der Schrank im Handlager (IDA-295)", () => {
+  const SCHRANK = { id: "schrank-1", typ: "lager" as const, schrank: true };
+
+  it("das Etikett fuehrt auf die Artikelliste des Schranks", () => {
+    expect(ortZielPfad(SCHRANK, null)).toBe("/helfer?ort=schrank-1");
+  });
+
+  it("eine Fahrzeugbindung aendert daran nichts — die Liste ist an keine Einheit gebunden", () => {
+    expect(ortZielPfad(SCHRANK, "rtw-1")).toBe("/helfer?ort=schrank-1");
+  });
+
+  it("der Code fuehrt an dieselbe Stelle wie das Etikett", () => {
+    expect(ortcodeZielPfad("schrank-1", null, null, true)).toBe(ortZielPfad(SCHRANK, null));
+  });
+
+  it("kodiert die Id, statt sie roh anzuhaengen", () => {
+    expect(ortZielPfad({ ...SCHRANK, id: "s#1&x" }, null)).toBe("/helfer?ort=s%231%26x");
+  });
+
+  it("ohne den Hinweis bleibt der Handlager, was er war", () => {
+    expect(ortcodeZielPfad(HANDLAGER_ID, null, null)).toBe("/helfer");
+    expect(ortZielPfad(LAGER, null)).toBe("/helfer");
+  });
+});
