@@ -3,6 +3,8 @@ import { canReadAudit } from "@/core/audit/access";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 import { canAdminModule } from "@/core/auth/guards";
+import { auth } from "@/core/auth";
+import { darfWartungSehen, wartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import type { SuiteNavItem } from "@/core/shell/types";
 
 /**
@@ -20,12 +22,15 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Oberflaeche?", `docs/design/README.md`).
  *
  * Die Verwaltung bleibt an `darfVerwalten`: ein Eintrag, der auf 404 fuehrt,
- * ist schlimmer als kein Eintrag.
+ * ist schlimmer als kein Eintrag. Aus demselben Grund haengt „Serverwartung"
+ * an `darfWartung` — und das ist eine EIGENE Frage, nicht die der Verwaltung
+ * (`_lib/serverwartung.ts`, `darfWartungSehen`).
  */
-export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false): SuiteNavItem[] {
+export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, darfWartung = false): SuiteNavItem[] {
   const jeder: SuiteNavItem[] = [
     { key: "start", title: "Übersicht", href: "/" },
     { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
+    ...(darfWartung ? [{ key: "serverwartung", title: "Serverwartung", href: "/serverwartung" }] : []),
   ];
   if (!darfVerwalten) return jeder;
   return [...jeder, { key: "admin", title: "Verwaltung", href: "/admin" },
@@ -38,10 +43,16 @@ export default async function PortalLayout({ children }: { children: React.React
   // Suite-Admin-Gruppe, weil `portal` keine eigene fuehrt) — also steht sie
   // auch nur ihnen in der Navigation. Ein Eintrag, der auf 404 fuehrt, ist
   // schlimmer als kein Eintrag. Dieselbe Bauform wie in `qr/layout.tsx`.
-  const [darfVerwalten, darfAuditLesen] = await Promise.all([canAdminModule("portal"), canReadAudit()]);
+  const [darfVerwalten, darfAuditLesen, session] = await Promise.all([
+    canAdminModule("portal"),
+    canReadAudit(),
+    auth(),
+  ]);
+  // Ohne eingerichtetes Abo fuehrte der Eintrag auf 404 (`serverwartung/page.tsx`).
+  const darfWartung = wartungsAbo() !== null && darfWartungSehen(session?.user?.groups);
 
   return (
-    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen)}>
+    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen, darfWartung)}>
       {children}
     </Shell>
   );
