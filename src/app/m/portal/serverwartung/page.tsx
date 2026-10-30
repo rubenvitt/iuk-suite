@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { darfWartungSehen, wartungsAbo } from "@/app/m/portal/_lib/serverwartung";
@@ -14,13 +15,21 @@ import { ServerwartungAnleitung } from "@/app/m/portal/_ui/ServerwartungAnleitun
  * `core/auth/guards.ts`). Das Portal hat keine `loading.tsx`, das `notFound()`
  * hier ist also ein echter 404 (Falle 23 trifft nicht).
  *
+ * Zwei getrennte Abzweige, weil es zwei verschiedene Ereignisse sind: „nicht
+ * eingerichtet" ist ein Schalter und kein Vorfall; eine abgewiesene Person
+ * schreibt eine Zeile ins Audit-Log (`core/audit/coverage.test.ts`).
+ *
  * Das Thema erreicht den Browser ausschließlich als Prop der Insel und nur
  * nach dieser Prüfung — nie über das Bundle (kein `NEXT_PUBLIC_*`).
  */
 export default async function ServerwartungPage() {
   const session = await auth();
   const abo = wartungsAbo();
-  if (!abo || !darfWartungSehen(session?.user?.groups)) notFound();
+  if (!abo) notFound();
+  if (!darfWartungSehen(session?.user?.groups)) {
+    auditDenied("portal", auditActor(session?.user));
+    notFound();
+  }
 
   return (
     <>

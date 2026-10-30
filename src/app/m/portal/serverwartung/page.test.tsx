@@ -8,8 +8,10 @@ import { isValidElement, type ReactElement } from "react";
  * Das Thema ist ausgedacht — das echte gehoert nie ins Repo.
  */
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/core/audit/server", () => ({ auditActor: vi.fn(() => ({ kind: "anonymous" })), auditDenied: vi.fn() }));
 
 import { auth } from "@/core/auth";
+import { auditDenied } from "@/core/audit/server";
 import ServerwartungPage from "@/app/m/portal/serverwartung/page";
 import { ServerwartungAnleitung } from "@/app/m/portal/_ui/ServerwartungAnleitung";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -36,6 +38,7 @@ function mitGruppen(groups: string[] | null) {
 describe("Serverwartung-Seite", () => {
   beforeEach(() => {
     authMock.mockReset();
+    vi.mocked(auditDenied).mockClear();
     vi.stubEnv("SUITE_WARTUNG_NTFY_URL", ADRESSE);
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -53,14 +56,17 @@ describe("Serverwartung-Seite", () => {
   it.each([
     ["anonym", null],
     ["angemeldet ohne passende Gruppe", ["user", "portal-admin"]],
-  ])("ist %s ein 404, und das Abo erreicht keine Insel", async (_fall, groups) => {
+  ])("ist %s ein 404 mit Audit-Zeile, und das Abo erreicht keine Insel", async (_fall, groups) => {
     mitGruppen(groups);
     await expect(ServerwartungPage()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
+    expect(auditDenied).toHaveBeenCalledWith("portal", expect.anything());
   });
 
   it("ist ohne eingerichtetes Abo auch fuer den Suite-Betrieb ein 404", async () => {
     vi.stubEnv("SUITE_WARTUNG_NTFY_URL", "");
     mitGruppen(["admin"]);
     await expect(ServerwartungPage()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
+    // Ein abgeschalteter Schalter ist kein Vorfall.
+    expect(auditDenied).not.toHaveBeenCalled();
   });
 });

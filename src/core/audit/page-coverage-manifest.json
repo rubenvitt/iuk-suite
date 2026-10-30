@@ -266,5 +266,13 @@
   "src/app/m/lagerbuch/helfer/ziel/page.tsx#redirect:bereichsAbweisung(zugang, \"entnahme\"):1": {
     "kind": "delegated-denial",
     "reason": "DRK-417: a place code only opens the area its card hangs at — Handlager takeout, Entnahmebox drop-off, unit check and drop-off. `bereichsAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
+  },
+  "src/app/m/portal/serverwartung/page.tsx#notFound:!abo:1": {
+    "kind": "excluded",
+    "reason": "Feature switch: without SUITE_WARTUNG_NTFY_URL the page does not exist; no role decision."
+  },
+  "src/app/m/portal/serverwartung/page.tsx#notFound:!darfWartungSehen(session?.user?.groups):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
   }
 }
