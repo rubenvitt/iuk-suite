@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, warteAufGestreamteInhalte } from "./fixtures";
 import { decodeQr } from "./helpers/decode-qr";
 import {
   E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
@@ -350,6 +350,37 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await seite.goto(lagerbuchUrl("/helfer/box"));
     await seite.waitForURL((url) => url.pathname.endsWith("/helfer"));
 
+    await anonym.close();
+  });
+
+  /**
+   * IDA-295 — DIE KARTE AM SCHRANK, DENSELBEN WEG ENTLANG: drucken, abgemeldet
+   * scannen, vor dem Schrank stehen. Der Scan landet auf der Artikelliste DIESES
+   * Schranks, und die Reichweite ist die des Regals — Entnahme, kein Check.
+   *
+   * Der Schrank kommt aus `ortsFixtures` (`seed-lagerbuch.ts`). Der Test liest
+   * nur, er bucht nichts; die Bestandszahl darin bleibt Sache des
+   * Inventur-Specs.
+   */
+  test("die Schrank-Karte fuehrt abgemeldet auf die Artikel des Schranks", async ({ page, browser }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    const karte = page.locator(".lb-ortkarte", { hasText: "E2E Inventurschrank" }).first();
+    await expect(karte.locator(".lb-ortkarteMeta")).toHaveText("Schrank im Handlager");
+    const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
+    expect(ziel.startsWith(lagerbuchUrl("/t/")), ziel).toBe(true);
+
+    const anonym = await browser.newContext();
+    const seite = await anonym.newPage();
+    await seite.goto(ziel);
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer")
+      && url.searchParams.get("ort") === "e2e-inventur-schrank");
+    // Falle 22: der Kopf steht kurz nach `load` doppelt im DOM.
+    await warteAufGestreamteInhalte(seite);
+    await expect(seite.getByText("E2E Inventurschrank — Artikel wählen")).toBeVisible();
+
+    const reiter = seite.getByTestId("lb-tableiste");
+    await expect(reiter.getByText("Entnahme")).toBeVisible();
+    await expect(reiter.getByText("Check")).toHaveCount(0);
     await anonym.close();
   });
 

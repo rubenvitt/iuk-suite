@@ -106,7 +106,7 @@ export default function TokensSeite() {
     <>
       <SeitenKopf
         titel="Zugangs-Codes"
-        beschreibung="Der Handlager, jedes Fahrzeug und jede Tasche haben genau einen Code. Er entsteht automatisch und steht auf der Ortskarte. Wird ein Code missbraucht, erzeuge ihn hier neu — der alte ist damit dauerhaft gesperrt."
+        beschreibung="Der Handlager, jeder Schrank, jedes Fahrzeug und jede Tasche haben genau einen Code. Er entsteht automatisch und steht auf der Ortskarte. Wird ein Code missbraucht, erzeuge ihn hier neu — der alte ist damit dauerhaft gesperrt."
       />
       <TokenTable zeilen={zeilen} />
     </>

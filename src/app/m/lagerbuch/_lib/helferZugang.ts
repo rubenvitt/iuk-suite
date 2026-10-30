@@ -9,6 +9,7 @@ import { HELFER_COOKIE, verifyHelferSitzung } from "./helferSitzung";
 import { gateGrundFuerSperre } from "./gateTexte";
 import { reichweiteAus, VOLLE_REICHWEITE, type Reichweite } from "./helferBereich";
 import { fahrzeugBindungAus } from "./tokenZiel";
+import { istHandlagerSchrank } from "./lesepfade/orte";
 import { istLagerbuchAdmin, viewerOderNull, type Viewer } from "./zugang";
 import { merkeNutzer } from "./konto";
 
@@ -207,7 +208,9 @@ async function befund(db: DB): Promise<Befund> {
       // die vier Seiten und die vier Actions lesen alle dieselbe Antwort, und
       // eine zweite Rechnung neben dieser waere die Stelle, an der sie
       // auseinanderlaufen.
-      reichweite: reichweiteAus(zeile.ortId),
+      // IDA-295 — ein Schrank-Code darf, was der Handlager-Code darf. Ob die
+      // `ort_id` ein Schrank ist, sagt nur der Baum der Orte.
+      reichweite: reichweiteAus(zeile.ortId, istHandlagerSchrank(db, zeile.ortId)),
     },
   };
 }

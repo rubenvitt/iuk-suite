@@ -54,8 +54,17 @@ export type ArtikelZeileHelfer = {
 export function ArtikelSuche({
   artikel,
   basis,
+  ort,
+  leerText,
 }: {
   artikel: ArtikelZeileHelfer[];
+  /**
+   * IDA-295 — der Schrank, aus dem die Liste kommt. Er reist als `?ort=` an
+   * jeden Artikel mit, damit die Entnahme dort zuerst aus ihm bucht.
+   */
+  ort?: string;
+  /** Der Satz fuer eine leere Liste, wenn sie nicht „kein Artikel angelegt" heisst. */
+  leerText?: string;
   /**
    * DRK-313 — DER PFADSTAMM, UNTER DEM EINE ZEILE IHREN ARTIKEL OEFFNET:
    * `/a` fuer die Entnahme (der Pfad, der auch auf dem Regaletikett steht),
@@ -111,7 +120,7 @@ export function ArtikelSuche({
         */}
         {artikel.length === 0 && (
           <div className={`${s.kartePad} ${s.fussnote}`} data-rolle="keine-artikel">
-            Es ist noch kein Artikel angelegt. Die Verwaltung pflegt den Bestand.
+            {leerText ?? "Es ist noch kein Artikel angelegt. Die Verwaltung pflegt den Bestand."}
           </div>
         )}
 
@@ -127,7 +136,7 @@ export function ArtikelSuche({
           <Link
             className={s.zeile}
             key={a.id}
-            href={`${basis}/${encodeURIComponent(a.id)}`}
+            href={`${basis}/${encodeURIComponent(a.id)}${ort ? `?${new URLSearchParams({ ort })}` : ""}`}
             data-rolle="artikel-zeile"
           >
             <div className={s.zeileHaupt}>

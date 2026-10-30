@@ -1,8 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { bereichsAbweisung, startPfad } from "../_lib/helferBereich";
 import { requireHelferSitzung } from "../_lib/helferZugang";
 import { sitzungsEtikett } from "../_lib/zugangHerkunft";
 import { artikelListe } from "../_lib/lesepfade/artikel";
+import { bestandJeArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { aktiverSchrank } from "../_lib/lesepfade/orte";
+import { einWert } from "../_lib/suchparameter";
 import { getDb } from "../_db/client";
 import { HelferRahmen } from "../_ui/HelferRahmen";
 import { ArtikelSuche } from "../_ui/ArtikelSuche";
@@ -34,7 +38,19 @@ import s from "../_ui/helfer.module.css";
  */
 export const dynamic = "force-dynamic";
 
-export default async function HelferSeite() {
+export default async function HelferSeite({
+  searchParams,
+}: {
+  /**
+   * IDA-295 — `ort` SETZT DIE LANDUNG NACH DEM SCAN EINES SCHRANK-ETIKETTS
+   * (`schrankPfad`, `_lib/helferBereich.ts`). Er wird gegen die Datenbank
+   * aufgeloest (`aktiverSchrank`); was dort kein aktiver Schrank ist, zeigt den
+   * ganzen Handlager wie bisher. `string | string[]` aus demselben Grund wie
+   * auf der Check-Seite: das ist Nexts Laufzeitwert.
+   */
+  searchParams?: Promise<{ ort?: string | string[] }>;
+} = {}) {
+  const roh = (await searchParams) ?? {};
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
 
@@ -66,9 +82,23 @@ export default async function HelferSeite() {
   // OHNE `inklInaktiv`: das Ausblenden inaktiver Artikel liegt im Lesepfad
   // (Teil 3, T51). Ein zweiter Filter hier waere eine zweite Wahrheit ueber
   // dieselbe Frage.
-  const artikel = artikelListe(db).map((a) => ({
-    id: a.id, name: a.name, einheit: a.einheit, fach: a.fach, bestand: a.bestand,
-  }));
+  /*
+   * IDA-295 — DER SCHRANK BEGRENZT DIE LISTE AUF SEINEN BESTAND. Wer vor dem
+   * Schrank steht, sucht unter dem, was darin liegt; der Bestand je Zeile ist
+   * dann der des Schranks, nicht der des ganzen Handlagers.
+   *
+   * ⚠️ NUR ARTIKEL MIT BESTAND IM SCHRANK. Was laut Buch woanders liegt, steht
+   * nicht in diesem Schrank — und wer es trotzdem in der Hand haelt, kommt ueber
+   * „Alle Artikel im Handlager" an ihn heran.
+   */
+  const schrank = aktiverSchrank(db, einWert(roh.ort));
+  const imSchrank = schrank ? bestandJeArtikelAnOrt(db, schrank.id) : null;
+  const artikel = artikelListe(db)
+    .filter((a) => !imSchrank || (imSchrank.get(a.id) ?? 0) > 0)
+    .map((a) => ({
+      id: a.id, name: a.name, einheit: a.einheit, fach: a.fach,
+      bestand: imSchrank ? (imSchrank.get(a.id) ?? 0) : a.bestand,
+    }));
 
   return (
     <HelferRahmen
@@ -77,13 +107,26 @@ export default async function HelferSeite() {
       sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
     >
-      <div className={s.schirmKopf}>Artikel wählen</div>
-      {/* 1:1 aus `helfer/page.tsx:12` — die EINZIGE Stelle, an der die Anwendung
-          sagt, dass das Regaletikett ein Einstieg ist (§7.2.1). */}
-      <p className={s.fussnote} data-rolle="helfer-hinweis">
-        Regaletikett scannen öffnet den Artikel direkt — oder hier suchen.
-      </p>
-      <ArtikelSuche artikel={artikel} basis="/a" />
+      <div className={s.schirmKopf} data-rolle="helfer-kopf">
+        {schrank ? `${schrank.name} — Artikel wählen` : "Artikel wählen"}
+      </div>
+      {/* IDA-295 — seit der Betreiberentscheidung vom 30.10.2026 scannen Helfer
+          nur noch Ortsetiketten, keine Regaletiketten am Artikel. */}
+      {schrank ? (
+        <p className={s.fussnote} data-rolle="helfer-hinweis">
+          Hier steht nur, was laut Buch in diesem Schrank liegt.{" "}
+          <Link href="/helfer" data-rolle="helfer-alle">Alle Artikel im Handlager</Link>
+        </p>
+      ) : (
+        <p className={s.fussnote} data-rolle="helfer-hinweis">
+          Ortsetikett am Schrank scannen zeigt nur dessen Artikel — oder hier suchen.
+        </p>
+      )}
+      <ArtikelSuche
+        artikel={artikel}
+        basis="/a"
+        {...(schrank ? { ort: schrank.id, leerText: "Laut Buch liegt in diesem Schrank nichts." } : {})}
+      />
     </HelferRahmen>
   );
 }

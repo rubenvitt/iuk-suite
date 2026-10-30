@@ -29,10 +29,10 @@
  */
 import { reichweiteAus, startPfad } from "./helferBereich";
 import { ENTNAHMEBOX_ID } from "./konstanten";
-import { fahrzeugBindungAus, tokenZielPfad } from "./tokenZiel";
+import { fahrzeugBindungAus, schrankPfad, tokenZielPfad } from "./tokenZiel";
 
 /** Genau das, was die Zielwahl braucht — mehr liest diese Funktion nicht. */
-export type EtikettOrt = { id: string; typ: "lager" | "fahrzeug" };
+export type EtikettOrt = { id: string; typ: "lager" | "fahrzeug"; schrank?: boolean };
 
 /**
  * Der lokale Pfad in AEUSSERER Form (`/helfer/check?fz=…`, `/helfer`), nie die
@@ -95,6 +95,13 @@ export function ortZielPfad(
    * Entscheidung zweimal zu treffen.
    */
   if (ort?.id === ENTNAHMEBOX_ID) return "/helfer/box";
+  /*
+   * IDA-295 — DER SCHRANK HAT SEIT DER BETREIBERENTSCHEIDUNG VOM 30.10.2026 EIN
+   * EIGENES ZIEL: die Artikelliste, begrenzt auf seinen Bestand. Die Bindung
+   * gilt hier aus demselben Grund nicht wie beim Handlager eine Zeile weiter —
+   * die Artikelliste ist an keine Einheit gebunden.
+   */
+  if (ort?.schrank) return schrankPfad(ort.id);
   if (!ort || ort.typ !== "fahrzeug") return tokenZielPfad(null, null);
   /*
    * ⚠️ `!fahrzeugBindung` UND NICHT `=== null` — dieselbe Falsy-Probe, die die
@@ -216,7 +223,13 @@ export function ortcodeZielPfad(
   ortId: string | null | undefined,
   zielTyp: string | null | undefined,
   zielId: string | null | undefined,
+  /**
+   * IDA-295 — haengt der Ort im Handlager (`istHandlagerSchrank`)? Die Id
+   * allein sagt es nicht, und diese Datei liest keine Datenbank.
+   */
+  schrank = false,
 ): string {
   if (!ortId) return tokenZielPfad(zielTyp, zielId);
+  if (schrank) return schrankPfad(ortId);
   return startPfad(reichweiteAus(ortId), fahrzeugBindungAus(zielTyp, zielId));
 }

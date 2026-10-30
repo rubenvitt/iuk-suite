@@ -103,7 +103,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
    * `ortcodeZielPfad` dieselbe Adresse wie vorher — nachgerechnet in
    * `ortZiel.test.ts`, nicht behauptet.
    */
-  const antw = antwort(returnTo ?? ortcodeZielPfad(res.ortId, res.zielTyp, res.zielId));
+  const antw = antwort(returnTo ?? ortcodeZielPfad(
+    res.ortId, res.zielTyp, res.zielId, res.schrank,
+  ));
   antw.cookies.set(HELFER_COOKIE, res.cookieValue, helferCookieOptionen(helferGueltigkeitSekunden()));
   antw.cookies.set(GERAET_COOKIE, await geraetCookieWert(keks.get(GERAET_COOKIE)?.value), geraetCookieOptionen());
   auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));

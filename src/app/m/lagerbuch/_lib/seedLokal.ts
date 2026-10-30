@@ -1339,7 +1339,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/verwaltung/journal`,
     `  ${BASIS_URL}/verwaltung/tokens`,
     `  ${BASIS_URL}/verwaltung/etiketten          Artikeletiketten — Bogen je Regalfach`,
-    `  ${BASIS_URL}/verwaltung/ortsetiketten      Ortskarte je Handlager und Einheit MIT Code, 8 je A4-Blatt`,
+    `  ${BASIS_URL}/verwaltung/ortsetiketten      Ortskarte je Handlager, Schrank und Einheit MIT Code, 8 je A4-Blatt`,
     `  ${BASIS_URL}/o/${HANDLAGER_ID}                    Ortsetikett → Artikelliste`,
     `  ${BASIS_URL}/g/4012345678901               Geraete-Barcode → Geraete-Detail`,
     `  ${BASIS_URL}/g/4015630000018               Geraete-Barcode → BZ-Detail`,

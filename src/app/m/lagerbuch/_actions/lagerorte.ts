@@ -14,6 +14,8 @@ import {
   schrankNameVergeben,
 } from "../_lib/schrankName";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
+import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
 
 const LAGERORTE_PFAD = "/m/lagerbuch/verwaltung/lagerorte";
 const ARTIKEL_PFAD = "/m/lagerbuch/verwaltung/artikel";
@@ -78,6 +80,21 @@ export async function createSchrank(
     } catch (e) {
       if (istNamensKollision(e)) return nameVergebenFehler();
       return { ok: false, fehler: "Schrank konnte nicht angelegt werden." };
+    }
+
+    /*
+     * IDA-295 — DER NEUE SCHRANK HAT SEINEN ORTSCODE, BEVOR JEMAND DIE
+     * ORTSETIKETTEN OEFFNET. Dieselbe Form wie beim Anlegen einer Einheit
+     * (`_actions/fahrzeuge.ts`, `createFahrzeug`): die Zeile kommt aus
+     * `etikettOrt`, und weder die Abfrage noch die Ziehung duerfen den
+     * angelegten Schrank zuruecknehmen — der Code ist die Beigabe, der Nachzug
+     * beim Oeffnen der Ortsetiketten holt ihn sonst nach.
+     */
+    try {
+      const ort = etikettOrt(db, id);
+      if (ort) stelleOrtCodeSicher(db, ort, auditViewer.sub);
+    } catch {
+      // Siehe oben: der Schrank steht, der Code kommt beim naechsten Oeffnen.
     }
 
     revalidatePath(LAGERORTE_PFAD);

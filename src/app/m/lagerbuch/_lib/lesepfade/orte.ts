@@ -84,6 +84,39 @@ export function handlagerSchraenke(db: Leser, nurAktive = false): OrtStammZeile[
     .filter((o): o is OrtStammZeile => o !== undefined && (!nurAktive || o.aktiv));
 }
 
+/**
+ * IDA-295 — DER AKTIVE SCHRANK IM HANDLAGER mit dieser Id, oder `null`.
+ *
+ * Die eine Antwort auf „gehoert dieser Ortskontext zu einem Schrank?" fuer die
+ * Artikelliste, den Artikelschirm und die Entnahme-Action. Die Id kommt dort
+ * aus der Adresse (`?ort=`), also aus Nutzereingabe — sie wird hier gegen die
+ * Datenbank aufgeloest, nie geglaubt (CLAUDE.md, „Zugriffsschutz").
+ *
+ * ⚠️ NUR AKTIVE. Ein stillgelegter Schrank ist in der Verwaltung keiner mehr,
+ * und eine Liste „Schrank alt" waere eine Auskunft ueber einen Ort, an den
+ * niemand mehr etwas legt. Wer seine alte Karte scannt, sieht den ganzen
+ * Handlager — der Bestand darin bleibt im Bestand.
+ */
+export function aktiverSchrank(db: Leser, id: string | null | undefined): OrtStammZeile | null {
+  if (!id) return null;
+  return handlagerSchraenke(db, true).find((o) => o.id === id) ?? null;
+}
+
+/**
+ * IDA-295 — HAENGT DIESER ORT IM HANDLAGER, OHNE DER HANDLAGER SELBST ZU SEIN?
+ * Fuer die Reichweite eines Ortscodes (`reichweiteAus`).
+ *
+ * ⚠️ AUCH STILLGELEGTE, anders als `aktiverSchrank`: hier geht es nicht um eine
+ * Anzeige, sondern darum, was ein Kaertchen DARF. Der Code eines stillgelegten
+ * Schranks ist und bleibt ein Code am Regal; ihm deshalb Check und Box zu geben
+ * (den Fall „alles andere ist eine Einheit") hiesse, mit dem Stilllegen still
+ * eine Berechtigung zu erweitern.
+ */
+export function istHandlagerSchrank(db: Leser, id: string | null | undefined): boolean {
+  if (!id || id === HANDLAGER_ID) return false;
+  return handlagerOrte(db).includes(id);
+}
+
 /** Jeder Ort nach `id` — Name, Hinweis und Reihenfolge fuer die Anzeige. */
 export function ortStamm(db: Leser): Map<string, OrtStammZeile> {
   return new Map(alleOrte(db).map((o) => [o.id, o]));

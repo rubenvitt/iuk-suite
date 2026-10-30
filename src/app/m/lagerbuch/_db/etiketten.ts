@@ -295,7 +295,9 @@ export async function ortEtikettenDaten(
     return {
       id: o.id,
       name: o.name,
-      meta: standortMeta(o),
+      // IDA-295 — ein Schrank ist ein `typ: "lager"`, und „Lager" allein sagte
+      // auf der Karte nicht, dass sie an einen Schrank IM Handlager gehoert.
+      meta: o.schrank ? "Schrank im Handlager" : standortMeta(o),
       unterscheidung: kollidiert(o) ? o.id : null,
       url,
       qr: await qrSvg(url),

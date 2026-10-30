@@ -1277,3 +1277,35 @@ describe("Entnahme — die Charge waehlen (DRK-418)", () => {
     expect(radios().length).toBe(2);
   });
 });
+
+/**
+ * IDA-295 — DER SCHRANK AUS DEM ORTSETIKETT reist mit: in die Buchung, in den
+ * Rueckweg und durch die Zielwahl. Faellt er an einer der drei Stellen weg,
+ * bucht die Entnahme still wieder FEFO ueber den ganzen Handlager.
+ */
+describe("Entnahme — mit Schrank (IDA-295)", () => {
+  const SCHRANK = { id: "schrank-1", name: "Schrank 1", bestand: 3 };
+
+  it("schickt den Schrank mit und nennt seinen Bestand", async () => {
+    const spion = antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} schrank={SCHRANK} />);
+    expect(query("[data-rolle='bestand-schrank']").textContent).toContain("Schrank 1: 3 Stk");
+    await click(BUCHEN);
+    expect((spion.mock.calls[0]![0] as { ortId?: string }).ortId).toBe("schrank-1");
+  });
+
+  it("fuehrt zurueck auf die Liste des Schranks und behaelt ihn in der Zielwahl", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} schrank={SCHRANK} />);
+    expect(exists("a[href='/helfer?ort=schrank-1']")).toBe(true);
+    const zielwahl = query<HTMLAnchorElement>("[data-rolle='entnahme-ziel-waehlen']");
+    expect(decodeURIComponent(zielwahl.getAttribute("href") ?? "")).toContain("?ort=schrank-1");
+  });
+
+  it("ohne Schrank schickt sie keinen mit", async () => {
+    const spion = antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+    expect("ortId" in (spion.mock.calls[0]![0] as object)).toBe(false);
+    expect(exists("[data-rolle='bestand-schrank']")).toBe(false);
+  });
+});
