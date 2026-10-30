@@ -28,9 +28,15 @@ describe("ServerwartungAnleitung", () => {
     const text = document.body.textContent ?? "";
     expect(text.indexOf("1. App installieren")).toBeLessThan(text.indexOf("2. Thema abonnieren"));
     expect(text.indexOf("2. Thema abonnieren")).toBeLessThan(text.indexOf("3. Mitteilungen erlauben"));
-    const stores = queryAll("a").map((a) => a.getAttribute("href") ?? "");
-    expect(stores.some((h) => h.includes("play.google.com"))).toBe(true);
-    expect(stores.some((h) => h.includes("apps.apple.com"))).toBe(true);
+    const hosts = queryAll("a").flatMap((a) => {
+      try {
+        return [new URL(a.getAttribute("href") ?? "").hostname];
+      } catch {
+        return [];
+      }
+    });
+    expect(hosts).toContain("play.google.com");
+    expect(hosts).toContain("apps.apple.com");
   });
 
   it("nennt den Server nur, wenn es nicht ntfy.sh ist", async () => {
