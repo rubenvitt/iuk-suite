@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Card, Space, Typography } from "antd";
 
 import { WARTUNG_ANZEIGENAME, type NtfyAbo } from "@/app/m/portal/_lib/ntfy";
-import type { WartungsAbo } from "@/app/m/portal/_lib/serverwartung";
+import { WARTUNG_LINKS, type WartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 
@@ -41,11 +41,32 @@ export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
       abo={abo}
       anzeigename={WARTUNG_ANZEIGENAME}
       praefix="wartung"
+      vorweg={<WartungLinks />}
       hinweis={{
         fett: "Gib das Thema nicht weiter.",
         text: "Wer es kennt, liest mit und kann selbst Nachrichten an alle schicken. Wer das Abo auch braucht, bekommt die Berechtigung und findet dann diese Seite im Portal.",
       }}
     />
+  );
+}
+
+/** Status und Datenvolumen — die beiden Seiten, auf die man bei einer Störung zuerst schaut. */
+function WartungLinks() {
+  return (
+    <Card title="Status und Datenvolumen" data-testid="wartung-links">
+      {WARTUNG_LINKS.map((link) => (
+        <Paragraph key={link.href}>
+          <Text strong>{link.titel}:</Text> {link.text}
+        </Paragraph>
+      ))}
+      <Space wrap>
+        {WARTUNG_LINKS.map((link) => (
+          <Button key={link.href} href={link.href} target="_blank" rel="noopener noreferrer">
+            {link.titel} öffnen
+          </Button>
+        ))}
+      </Space>
+    </Card>
   );
 }
 
@@ -55,14 +76,17 @@ export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
  * das Präfix der Testkennungen und der Hinweis am Ende (beim Wartungsthema kann jeder senden, beim
  * Fälligkeitsthema nur die Suite).
  */
-export function NtfyAnleitung({ abo, anzeigename, praefix, hinweis }: {
+export function NtfyAnleitung({ abo, anzeigename, praefix, hinweis, vorweg }: {
   abo: NtfyAbo;
   anzeigename: string;
   praefix: string;
   hinweis: { fett: string; text: string };
+  /** Eine Karte vor dem Abo — bei der Serverwartung Status und Datenvolumen. */
+  vorweg?: ReactNode;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxInlineSize: 720 }}>
+      {vorweg}
       <Card title="Dein Abo" data-testid={`${praefix}-abo`}>
         <Paragraph>
           Das Thema ist der Name, unter dem die Nachrichten verschickt werden. Du brauchst es gleich in

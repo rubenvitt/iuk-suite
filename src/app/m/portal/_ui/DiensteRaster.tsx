@@ -93,7 +93,13 @@ export function DiensteRaster({
       />
 
       {abschnitte.length === 0 ? (
-        <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche}“.`} />
+        <Empty data-testid="portal-ohne-treffer" description={`Keine App und kein Dienst heißt „${suche}“.`}>
+          {/* Wer hier eine Seriennummer oder ein Kennzeichen eintippt, sucht in Wahrheit
+              die Daten der Module — der Weg dorthin ist die suiteweite Suche (IDA-301). */}
+          <a data-testid="portal-suche-ueberall" href={`/suche?q=${encodeURIComponent(suche.trim())}`}>
+            In allen Modulen nach „{suche.trim()}“ suchen
+          </a>
+        </Empty>
       ) : (
         abschnitte.map(([titel, liste]) => (
           <section key={titel}>

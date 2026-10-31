@@ -32,6 +32,7 @@ export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, da
     { key: "start", title: "Übersicht", href: "/" },
     // IDA-297: dasselbe Prädikat wie die Seite (`sichtbareQuellen`), sonst führte der Eintrag auf 404.
     ...(darfFristen ? [{ key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten" }] : []),
+    { key: "suche", title: "Suche", href: "/suche" },
     { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
     ...(darfWartung ? [{ key: "serverwartung", title: "Serverwartung", href: "/serverwartung" }] : []),
   ];
