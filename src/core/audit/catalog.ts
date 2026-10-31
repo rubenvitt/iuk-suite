@@ -591,6 +591,12 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "lagemonitor_kategorie": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "konto": {

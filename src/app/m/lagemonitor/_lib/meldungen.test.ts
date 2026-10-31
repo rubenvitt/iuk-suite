@@ -40,7 +40,7 @@ describe("Meldungen am Lagemonitor", () => {
     const r = legeMeldungAn(db, eingabe({ uhrzeit: "14:30" }), "Ruben", JETZT);
     if (!r.ok) throw new Error(r.fehler);
     expect(alsVertrag(db, JETZT).notices).toEqual([
-      { id: r.meldung.id, text: "Nächste Lagebesprechung", countdownTo: "2026-10-27T13:30:00.000Z", expiresAt: r.meldung.ablaufAm },
+      { id: r.meldung.id, text: "Nächste Lagebesprechung", countdownTo: "2026-10-27T13:30:00.000Z", expiresAt: r.meldung.ablaufAm, category: null },
     ]);
     expect(beendeMeldung(db, r.meldung.id, JETZT)).toBe(true);
     expect(beendeMeldung(db, r.meldung.id, JETZT)).toBe(false);

@@ -5,6 +5,7 @@
  * Seitenspalte; eine Warnung im Band geht dem Suchlage-Einsatz in der Kopfzeile vor; das Drohnenbild
  * kommt nur bei laufendem Einsatz mit Livebild. Kein `"use client"`: reine Funktionen, in Vitest prüfbar.
  */
+import type { Farbe, Zeichen } from "./kategorieRegeln";
 import { istWebadresse, rang, WARNSCHWELLEN, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "./konfiguration";
 
 export const SZENARIEN = [
@@ -58,6 +59,10 @@ export interface VorschauMeldung {
   countdown: string | null;
   /** Noch nicht angelegt, nur im Formular getippt. */
   entwurf?: boolean;
+  /** Ohne Kategorie steht „Meldung“ in Blau davor, wie am Monitor. */
+  kategorie?: { name: string; zeichen: Zeichen; farbe: Farbe } | null;
+  /** Blinkt gerade (`istFaellig` in `kategorieRegeln.ts`). */
+  faellig?: boolean;
 }
 
 /**
@@ -132,7 +137,9 @@ export function vorschau(e: VorschauEingabe, szenario: Szenario, meldungen: Vors
     sichtbar.push(`Kein Band: keine Warnung erreicht „${STUFE_TEXT[e.warnschwelle]}“.`);
   }
   for (const n of meldungen) {
-    sichtbar.push(`Blaues Meldungsband${n.entwurf ? " (noch nicht angelegt)" : ""}: „${n.text}“${n.countdown ? `, ${n.countdown}` : ""}.`);
+    sichtbar.push(
+      `Meldungsband ${n.kategorie?.name ?? "Meldung"}${n.entwurf ? " (noch nicht angelegt)" : ""}: „${n.text}“${n.countdown ? `, ${n.countdown}` : ""}${n.faellig ? ", blinkt" : ""}.`,
+    );
   }
   const kartenTeile = [
     verkehr && "Verkehrsfluss",

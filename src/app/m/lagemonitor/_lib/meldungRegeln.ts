@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { tagesGrenzenInZone, zeitFormat } from "@/core/zeit";
+import type { KategorieDTO } from "./kategorieRegeln";
 
 export const MELDUNG_MAX_ZEICHEN = 80;
 /** Mehr passt nicht übereinander, ohne die Karte zu verdrängen. */
@@ -31,6 +32,8 @@ export interface MeldungDTO {
   ablaufAm: string;
   angelegtAm: string;
   angelegtVon: string;
+  /** `null` bei Meldungen von vor den Kategorien oder deren Kategorie gelöscht ist. */
+  kategorie: KategorieDTO | null;
 }
 
 export const meldungEingabe = z.object({
@@ -45,6 +48,8 @@ export const meldungEingabe = z.object({
     .trim()
     .regex(/^(|([01]\d|2[0-3]):[0-5]\d)$/, "Bitte als Uhrzeit angeben, etwa 14:30.")
     .default(""),
+  /** Leer: ohne Kategorie, am Monitor eine schlichte „Meldung“. */
+  kategorieId: z.string().max(64).nullable().default(null),
   laufzeitStunden: z.number().refine((n) => LAUFZEIT_WERTE.includes(n), "Bitte eine Laufzeit wählen.").default(LAUFZEIT_VORGABE),
 });
 export type MeldungEingabe = z.input<typeof meldungEingabe>;

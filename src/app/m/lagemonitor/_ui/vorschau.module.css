@@ -13,7 +13,6 @@
   --lmv-text: #e8ebee;
   --lmv-gedaempft: #9aa2ab;
   --lmv-bedien: #4d94d6;
-  --lmv-meldung-fuellung: rgb(77 148 214 / 0.16);
   --lmv-alarm: #ff6b6b;
   --lmv-alarm-fuellung: rgb(255 107 107 / 0.18);
   --lmv-achtung: #e8cc3a;
@@ -132,14 +131,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Meldungsband: ruhiges Blau statt Alarmrot (Monitor: `.lm-meldung`). Ein Entwurf ist gestrichelt. */
+/* Meldungsband in der Farbe der Kategorie (Monitor: `.lm-meldung`; `--kategorie` kommt inline aus
+   `_lib/kategorieRegeln.ts`). Nachts hellt der Monitor die Kante auf, die Vorschau ebenso. Ein Entwurf
+   ist gestrichelt; eine fällige Meldung blinkt wie am Monitor. */
 .meldung {
   display: flex;
   align-items: center;
   gap: 1.6cqi;
   padding: 0.8cqi 2cqi;
-  background: var(--lmv-meldung-fuellung);
-  border-inline-start: 0.6cqi solid var(--lmv-bedien);
+  background: color-mix(in srgb, var(--kategorie) 28%, var(--lmv-flaeche));
+  border-inline-start: 0.6cqi solid color-mix(in srgb, var(--kategorie) 55%, #fff);
   font-size: 2.1cqi;
   font-weight: 600;
   white-space: nowrap;
@@ -148,6 +149,24 @@
 .meldung[data-entwurf="true"] {
   border-inline-start-style: dashed;
   opacity: 0.75;
+}
+.meldungKuerzel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6cqi;
+  padding: 0.2cqi 0.8cqi;
+  background: var(--kategorie);
+  color: #fff;
+  font-size: 1.4cqi;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.meldung[data-faellig="true"] { animation: faellig 1.2s steps(1, end) infinite; }
+@keyframes faellig {
+  50% { background: color-mix(in srgb, var(--kategorie) 70%, var(--lmv-flaeche)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .meldung[data-faellig="true"] { animation: none; background: color-mix(in srgb, var(--kategorie) 60%, var(--lmv-flaeche)); }
 }
 .meldungText { overflow: hidden; text-overflow: ellipsis; }
 .meldungZeit {

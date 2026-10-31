@@ -43,6 +43,13 @@
       "when": 1793292774685,
       "tag": "0005_kartenzoom",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793462963133,
+      "tag": "0006_kategorien",
+      "breakpoints": true
     }
   ]
 }

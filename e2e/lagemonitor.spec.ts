@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 
 /**
@@ -9,6 +9,14 @@ import { devLogin, E2E_PORT, klickeWennRuhig, warteAufGestreamteInhalte } from "
 const HOST = "lagemonitor.localtest.me";
 const url = (p: string) => `http://${HOST}:${E2E_PORT}${p}`;
 
+
+/**
+ * Ein Knopf eines antd-`Radio.Group` mit `optionType="button"`: das `input` ist 0×0 versteckt, bedienbar
+ * ist das Label (wie `lagerbuch-einheitenart.spec.ts`, `artKnopf`).
+ */
+function wahlKnopf(bereich: Locator, beschriftung: string): Locator {
+  return bereich.locator("label.ant-radio-button-wrapper").filter({ hasText: beschriftung });
+}
 test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ page }) => {
   const ort = `Teststadt ${Date.now() % 100_000}`;
   await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
@@ -84,9 +92,10 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   const neu = page.getByRole("form", { name: "Neue Meldung" });
   await neu.getByLabel("Text").fill(text);
   await neu.getByLabel("Herunterzählen bis (freiwillig)").fill("23:59");
+  await klickeWennRuhig(wahlKnopf(neu, "Besprechung"));
   // Der Entwurf steht schon in der Vorschau, gestrichelt.
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "true");
-  await expect(page.getByTestId("vorschau-erklaerung")).toContainText(`(noch nicht angelegt): „${text}“`);
+  await expect(page.getByTestId("vorschau-erklaerung")).toContainText(`Meldungsband Besprechung (noch nicht angelegt): „${text}“`);
 
   // Eine ungespeicherte Änderung an der Anzeige überlebt das Anlegen (neuer Stand vom Server).
   await page.getByLabel("Standort", { exact: true }).fill("Ungespeichert");
@@ -100,10 +109,12 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   await page.getByLabel("Neuer Zugang").fill("Meldungen e2e");
   await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
   const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec((await page.getByTestId("neuer-schluessel").textContent()) ?? "")?.[1];
-  const abholen = async () => (await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json()).notices as { text: string; countdownTo: string | null; expiresAt: string }[];
+  const abholen = async () => (await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json()).notices as { text: string; countdownTo: string | null; expiresAt: string; category: { name: string; color: string; icon: { paths: string[] } | null; alertLeadMinutes: number | null } | null }[];
   const notices = await abholen();
   const n = notices.find((x) => x.text === text);
   expect(n?.countdownTo).toMatch(/T\d\d:\d\d:00\.000Z$/);
+  expect(n?.category).toMatchObject({ name: "Besprechung", color: "purple", alertLeadMinutes: 10 });
+  expect(n?.category?.icon?.paths.length).toBeGreaterThan(0);
   // Ohne Angabe 24 Stunden.
   expect(Date.parse(n!.expiresAt) - Date.now()).toBeGreaterThan(23.9 * 3_600_000);
 
@@ -163,4 +174,35 @@ test("ohne Admin-Gruppe gibt es die Seite nicht", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "fahrzeuge-admin", callbackPath: "/" });
   const antwort = await page.goto(url("/"));
   expect(antwort?.status()).toBe(404);
+});
+
+test("Kategorie anlegen, ändern und löschen", async ({ page }) => {
+  const name = `Funk ${Date.now() % 10_000}`;
+  await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
+  await page.goto(url("/"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+  const liste = page.getByRole("list", { name: "Kategorien" });
+  await expect(liste).toContainText("Lagemeldung");
+
+  await klickeWennRuhig(page.getByRole("button", { name: "Neue Kategorie" }));
+  const neu = page.getByRole("form", { name: "Neue Kategorie" });
+  await neu.getByLabel("Name").fill(name);
+  await klickeWennRuhig(wahlKnopf(neu, "Funkgerät"));
+  await klickeWennRuhig(wahlKnopf(neu, "Türkis"));
+  await klickeWennRuhig(wahlKnopf(neu, "Nie"));
+  await klickeWennRuhig(neu.getByRole("button", { name: "Kategorie anlegen" }));
+  await expect(liste).toContainText(name);
+  // Sofort beim Anlegen einer Meldung wählbar.
+  await expect(wahlKnopf(page.getByRole("form", { name: "Neue Meldung" }), name)).toBeVisible();
+
+  await klickeWennRuhig(page.getByRole("button", { name: `Kategorie ändern: ${name}` }));
+  const aendern = page.getByRole("form", { name: `Kategorie „${name}“ ändern` });
+  await aendern.getByLabel("Name").fill(`${name} neu`);
+  await klickeWennRuhig(aendern.getByRole("button", { name: "Speichern" }));
+  await expect(liste).toContainText(`${name} neu`);
+
+  await klickeWennRuhig(page.getByRole("button", { name: `Kategorie löschen: ${name} neu` }));
+  await klickeWennRuhig(page.getByRole("button", { name: "Löschen", exact: true }).last());
+  await expect(liste).not.toContainText(`${name} neu`);
 });
