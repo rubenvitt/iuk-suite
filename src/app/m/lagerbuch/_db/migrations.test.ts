@@ -375,6 +375,7 @@ const INDIZES: Record<string, string[]> = {
   inventuren: [],
   inventur_positionen: ["idx_inventur_positionen_lauf"],
   plomben: ["idx_plomben_lagerort"],
+  maengel: ["idx_maengel_lagerort", "idx_maengel_offen"],
 };
 
 describe("Indizes — alle bestehenden bleiben, vier kommen dazu", () => {
