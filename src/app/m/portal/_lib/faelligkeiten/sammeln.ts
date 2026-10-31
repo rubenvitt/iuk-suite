@@ -6,7 +6,8 @@
  *
  * Kein `"use client"` (Falle 6).
  */
-import { sortiereFaelligkeiten, type Faelligkeit } from "@/core/faelligkeiten";
+import type { Faelligkeit } from "@/core/faelligkeiten";
+import { sortiereFaelligkeiten } from "./anzeige";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { QUELLEN, type FaelligkeitsQuelle } from "./quellen";
 

@@ -1,6 +1,7 @@
 import { Card } from "antd";
 
-import { woAnzeige, type Faelligkeit } from "@/core/faelligkeiten";
+import type { Faelligkeit } from "@/core/faelligkeiten";
+import { woAnzeige } from "@/app/m/portal/_lib/faelligkeiten/anzeige";
 import type { FaelligkeitsGruppe } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";

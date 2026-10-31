@@ -7,7 +7,8 @@
  * Kurz statt vollständig: je Modul höchstens `ZEILEN_JE_MODUL` Zeilen, der Rest als „… und N weitere".
  * Die vollständige Liste ist einen Tipp entfernt (`click` auf die Seite im Portal).
  */
-import { woAnzeige, type Faelligkeit } from "@/core/faelligkeiten";
+import type { Faelligkeit } from "@/core/faelligkeiten";
+import { woAnzeige } from "./anzeige";
 import type { FaelligkeitsGruppe } from "./sammeln";
 import { zaehle } from "./sammeln";
 

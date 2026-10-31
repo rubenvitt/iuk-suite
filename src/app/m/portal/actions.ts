@@ -5,6 +5,10 @@ import { requireModuleAdmin } from "@/core/auth/guards";
 import { createService, deleteService, updateService } from "@/app/m/portal/_lib/services";
 import { sichtbarkeitAusFormular } from "@/app/m/portal/_lib/gruppen";
 import { setzeAnsprechpartner, setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
+import { sendeZiel } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
+import { baueNachricht } from "@/app/m/portal/_lib/faelligkeiten/nachricht";
+import { sendeAnNtfy } from "@/app/m/portal/_lib/faelligkeiten/senden";
+import { alleGruppen, faelligkeitenSeitenUrl } from "@/app/m/portal/_lib/faelligkeiten/takt";
 
 const assertAdmin = () => requireModuleAdmin("portal");
 
@@ -73,18 +77,14 @@ export type JetztSendenErgebnis = { ok: boolean; text: string };
 export async function sendeFaelligkeitenJetztAction(): Promise<JetztSendenErgebnis> {
   const auditViewer = await assertAdmin();
   return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
-    const { sendeZiel } = await import("@/app/m/portal/_lib/faelligkeiten/konfiguration");
-    const { alleGruppen, faelligkeitenSeitenUrl } = await import("@/app/m/portal/_lib/faelligkeiten/takt");
-    const { baueNachricht } = await import("@/app/m/portal/_lib/faelligkeiten/nachricht");
-    const { sendeAnNtfy } = await import("@/app/m/portal/_lib/faelligkeiten/senden");
-    const ziel = sendeZiel();
-    if (!ziel) return { ok: false, text: "Der Versand ist nicht eingerichtet." };
-    const seite = faelligkeitenSeitenUrl();
-    const nachricht = baueNachricht(alleGruppen(new Date()), seite) ?? {
-      title: "Was steht an", message: "Gerade steht nichts an. Diese Probe zeigt, dass der Push ankommt.",
-      priority: 3 as const, tags: ["date"], ...(seite ? { click: seite } : {}),
-    };
     try {
+      const ziel = sendeZiel();
+      if (!ziel) return { ok: false, text: "Der Versand ist nicht eingerichtet." };
+      const seite = faelligkeitenSeitenUrl();
+      const nachricht = baueNachricht(alleGruppen(new Date()), seite) ?? {
+        title: "Was steht an", message: "Gerade steht nichts an. Diese Probe zeigt, dass der Push ankommt.",
+        priority: 3 as const, tags: ["date"], ...(seite ? { click: seite } : {}),
+      };
       await sendeAnNtfy(ziel, nachricht);
       return { ok: true, text: "Gesendet. Die Mitteilung sollte gleich auf den abonnierten Telefonen sein." };
     } catch (fehler) {

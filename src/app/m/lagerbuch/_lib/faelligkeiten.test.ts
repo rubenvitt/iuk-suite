@@ -20,6 +20,7 @@ beforeEach(() => {
     tx.insert(artikel).values([
       { id: "a1", name: "Verband", einheit: "Stk.", fach: "A1", mindestbestand: 0, aktiv: true, createdAt: NOW },
       { id: "a2", name: "NaCl", einheit: "Fl.", fach: "B2", mindestbestand: 0, aktiv: true, createdAt: NOW },
+      { id: "a3", name: "Pflaster", einheit: "Stk.", fach: "C3", mindestbestand: 0, aktiv: true, createdAt: NOW },
     ]).run();
   });
 });
@@ -37,8 +38,8 @@ describe("lagerbuchFaelligkeiten — was das Lagerbuch an „Was steht an“ her
       { id: "v3", lagerortId: "alt", artikelId: "a2", verfall: "2026-01", erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
     ]).run();
     t.db.insert(lagerortVerfall).values(
-      { id: "v4", lagerortId: "rtw-1", artikelId: "a2", verfall: "2029-01", erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
-    ).onConflictDoNothing().run();
+      { id: "v4", lagerortId: "rtw-1", artikelId: "a3", verfall: "2029-01", erfasstAt: NOW, quelleTyp: "oidc", quelleId: "sub-1" },
+    ).run();
     const liste = lagerbuchFaelligkeiten(NOW, t.db);
     expect(liste.map((f) => [f.titel, f.wo, f.dringlichkeit, f.art, f.pfad])).toEqual([
       ["Verband", "RTW 1", "ueberfaellig", "Verfall", "/verwaltung/verfall"],
