@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, Space, Typography } from "antd";
 
-import type { WartungsAbo } from "@/app/m/portal/_lib/serverwartung";
+import { WARTUNG_LINKS, type WartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 
@@ -37,6 +37,21 @@ const RUECKMELDUNG_MS = 2000;
 export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxInlineSize: 720 }}>
+      <Card title="Status und Datenvolumen" data-testid="wartung-links">
+        {WARTUNG_LINKS.map((link) => (
+          <Paragraph key={link.href}>
+            <Text strong>{link.titel}:</Text> {link.text}
+          </Paragraph>
+        ))}
+        <Space wrap>
+          {WARTUNG_LINKS.map((link) => (
+            <Button key={link.href} href={link.href} target="_blank" rel="noopener noreferrer">
+              {link.titel} öffnen
+            </Button>
+          ))}
+        </Space>
+      </Card>
+
       <Card title="Dein Abo" data-testid="wartung-abo">
         <Paragraph>
           Das Thema ist der Name, unter dem die Nachrichten verschickt werden. Du brauchst es gleich in

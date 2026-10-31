@@ -44,6 +44,24 @@ export const WARTUNG_NTFY_ENV = "SUITE_WARTUNG_NTFY_URL";
  */
 export const WARTUNG_GRUPPEN_ENV = "SUITE_WARTUNG_GROUPS";
 
+/**
+ * Die beiden Seiten, auf die man bei einer Störung zuerst schaut. Öffentlich
+ * erreichbare Adressen und kein Geheimnis, anders als das Thema, deshalb
+ * stehen sie hier und nicht in der `.env`.
+ */
+export const WARTUNG_LINKS = [
+  {
+    titel: "Status",
+    href: "https://status.iuk-ue.de",
+    text: "Welche Dienste gerade laufen und was ausgefallen ist.",
+  },
+  {
+    titel: "Datenvolumen",
+    href: "https://volumen.iuk-ue.de",
+    text: "Wie viel Datenvolumen verbraucht ist und wie viel bleibt.",
+  },
+] as const;
+
 /** So heißt das Abo in der Android-App (`?display=` des `ntfy://`-Links). */
 export const WARTUNG_ANZEIGENAME = "I&K Serverwartung";
 
