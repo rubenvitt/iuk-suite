@@ -39,6 +39,14 @@ describe("ServerwartungAnleitung", () => {
     expect(hosts).toContain("apps.apple.com");
   });
 
+  it("verlinkt Status und Datenvolumen vor dem Abo", async () => {
+    await mount(<ServerwartungAnleitung abo={NTFY_SH} />);
+    const links = queryAll("[data-testid=wartung-links] a").map((a) => new URL(a.getAttribute("href") ?? "").hostname);
+    expect(links).toEqual(["status.iuk-ue.de", "volumen.iuk-ue.de"]);
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Status und Datenvolumen")).toBeLessThan(text.indexOf("Dein Abo"));
+  });
+
   it("nennt den Server nur, wenn es nicht ntfy.sh ist", async () => {
     await mount(<ServerwartungAnleitung abo={NTFY_SH} />);
     expect(query("[data-testid=wartung-schritte]").textContent).not.toContain("Anderen Server");
