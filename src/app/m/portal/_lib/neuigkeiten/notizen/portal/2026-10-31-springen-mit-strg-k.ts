@@ -8,12 +8,10 @@ const notiz: Releasenotiz = {
   titel: "Mit Strg+K überall hinspringen",
   inhalt: [
     absatz(
-      "Drück auf jeder Seite Strg+K, am Mac ⌘K, oder tipp oben auf die Lupe. Mit ein paar " +
-        "Buchstaben und Enter springst du zu einer Seite, einer App oder einem Dienst; passt " +
-        "nichts, sucht die letzte Zeile in allen Modulen nach deinem Begriff.",
-    ),
-    absatz(
-      "Auch das Suchfeld auf der Startseite zeigt jetzt unter den Apps die Treffer aus den Modulen.",
+      "Drück auf jeder Seite Strg+K, am Mac ⌘K, oder tipp oben auf die Lupe: Mit ein paar " +
+        "Buchstaben und Enter springst du zu einer Seite, App oder einem Dienst, sonst sucht " +
+        "die letzte Zeile in allen Modulen. Das Suchfeld der Startseite zeigt diese Treffer " +
+        "jetzt unter den Apps.",
     ),
   ],
 };

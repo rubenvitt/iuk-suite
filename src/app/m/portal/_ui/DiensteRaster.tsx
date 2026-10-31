@@ -70,7 +70,7 @@ export function DiensteRaster({
       setModulSuche({ laedt: false, treffer: [] });
       return;
     }
-    setModulSuche((alt) => ({ ...alt, laedt: true }));
+    setModulSuche({ laedt: true, treffer: [] });
     wecker.current = setTimeout(() => {
       sucheAktion(wert)
         .catch(() => [] as ModulErgebnis[])
