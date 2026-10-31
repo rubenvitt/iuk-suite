@@ -122,6 +122,15 @@ describe("DiensteRaster", () => {
     expect(exists('[data-testid="portal-leer"]')).toBe(false);
   });
 
+  it("meldet eine gescheiterte Modulsuche, statt „nichts gefunden“ zu behaupten", async () => {
+    sucheAktion.mockRejectedValueOnce(new Error("offline"));
+    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
+    await fill('[data-testid="portal-suche"]', "gibtesnicht");
+    await nachDerVerzoegerung();
+    expect(exists('[data-testid="portal-suche-fehler"]')).toBe(true);
+    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(false);
+  });
+
   it("zeigt unter den Apps die Treffer aus den Modulen, aus demselben Feld (IDA-301)", async () => {
     sucheAktion.mockResolvedValueOnce([{
       modul: "fahrzeuge", titel: "Fahrzeuge", icon: "truck", zustand: "treffer", mehr: false,

@@ -48,7 +48,7 @@ export function DiensteRaster({
   ansprechpartner: string | null;
 }) {
   const [suche, setSuche] = useState("");
-  const [modulSuche, setModulSuche] = useState<{ laedt: boolean; treffer: ModulErgebnis[] }>({ laedt: false, treffer: [] });
+  const [modulSuche, setModulSuche] = useState<{ laedt: boolean; treffer: ModulErgebnis[]; fehler?: boolean }>({ laedt: false, treffer: [] });
   const kuerzel = usePalettenKuerzel();
   const wecker = useRef<ReturnType<typeof setTimeout> | null>(null);
   const anfrage = useRef(0);
@@ -72,11 +72,15 @@ export function DiensteRaster({
     }
     setModulSuche({ laedt: true, treffer: [] });
     wecker.current = setTimeout(() => {
-      sucheAktion(wert)
-        .catch(() => [] as ModulErgebnis[])
-        .then((treffer) => {
+      // Ein gescheiterter Aufruf ist kein „Nichts gefunden“: die Module sind dann gar nicht gefragt.
+      sucheAktion(wert).then(
+        (treffer) => {
           if (nummer === anfrage.current) setModulSuche({ laedt: false, treffer });
-        });
+        },
+        () => {
+          if (nummer === anfrage.current) setModulSuche({ laedt: false, treffer: [], fehler: true });
+        },
+      );
     }, VERZOEGERUNG_MS);
   }
 
@@ -149,7 +153,7 @@ export function DiensteRaster({
 
       {abschnitte.length === 0 ? (
         // Leer erst, wenn auch die Module nichts liefern (oder noch gar nicht gefragt sind).
-        modulSuche.laedt || modulSuche.treffer.length > 0 ? null : (
+        modulSuche.laedt || modulSuche.fehler || modulSuche.treffer.length > 0 ? null : (
           <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche.trim()}“.`} />
         )
       ) : (
@@ -253,6 +257,11 @@ export function DiensteRaster({
       {modulSuche.laedt && modulSuche.treffer.length === 0 ? (
         <p data-testid="portal-suche-laedt" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
           Suche in den Modulen …
+        </p>
+      ) : null}
+      {modulSuche.fehler ? (
+        <p data-testid="portal-suche-fehler" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
+          Die Module ließen sich gerade nicht durchsuchen. Tipp weiter oder öffne die Suchseite.
         </p>
       ) : null}
       <SuchErgebnisse ergebnisse={modulSuche.treffer} />
