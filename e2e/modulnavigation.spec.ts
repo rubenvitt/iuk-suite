@@ -227,6 +227,7 @@ test("das Filterfeld grenzt die Leiste ein und nennt die Trefferzahl", async ({ 
   // finden wie „Prüfungen".
   await leiste.getByTestId("nav-filter").fill("pruef");
   await expect(leiste.getByTestId("nav-link")).toHaveText([
+    "Mängel",
     "Checks",
     "Check durchführen",
     "BZ-Kontrolle",
