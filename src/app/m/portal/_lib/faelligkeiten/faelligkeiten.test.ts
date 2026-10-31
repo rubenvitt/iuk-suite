@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Faelligkeit } from "@/core/faelligkeiten";
+import type { FaelligkeitenAbo } from "@/app/m/portal/_db/schema";
+import { artSchluessel, auswahlOptionen, bereinigeAuswahl, fuerPerson } from "./auswahl";
 import {
-  _warnsperreZuruecksetzen, FAELLIG_INTERN_ENV, FAELLIG_NTFY_ENV, FAELLIG_TOKEN_ENV, faelligkeitenAbo, sendeZiel,
+  _warnsperreZuruecksetzen, aboFuer, FAELLIG_INTERN_ENV, FAELLIG_PRAEFIX_ENV, FAELLIG_SERVER_ENV, FAELLIG_TOKEN_ENV,
+  neuesThema, sendeZielFuer, STANDARD_PRAEFIX, versand, ZUFALL_LAENGE,
 } from "./konfiguration";
+import { personenGruppen } from "./personenGruppen";
 import { baueNachricht, ZEILEN_JE_MODUL } from "./nachricht";
 import type { FaelligkeitsQuelle } from "./quellen";
 import { sammle, sichtbareQuellen, zaehle, type FaelligkeitsGruppe } from "./sammeln";
 import { sendeAnNtfy } from "./senden";
-import { _meldesperreZuruecksetzen, sendefenster, wochenschritt, type SchrittAbhaengigkeiten } from "./takt";
+import { _meldesperreZuruecksetzen, nachrichtFuerPerson, sendefenster, wochenschritt, type SchrittAbhaengigkeiten } from "./takt";
 
 /* Ausgedachtes Thema und Token — die echten stehen nur in der Server-`.env`. */
 const THEMA = "beispiel-faellig_42";
@@ -28,44 +32,81 @@ function gruppe(teil: Partial<FaelligkeitsGruppe>): FaelligkeitsGruppe {
 
 describe("Konfiguration", () => {
   beforeEach(() => _warnsperreZuruecksetzen());
+  const SERVER = "https://ntfy.example.org";
 
-  it("ist ohne Adresse aus, und zwar still", () => {
+  it("ist ohne Server aus, und zwar still", () => {
     const warnen = vi.fn();
-    expect(faelligkeitenAbo({}, warnen)).toBeNull();
-    expect(sendeZiel({ [FAELLIG_TOKEN_ENV]: TOKEN }, warnen)).toBeNull();
+    expect(versand({ [FAELLIG_TOKEN_ENV]: TOKEN }, warnen)).toBeNull();
     expect(warnen).not.toHaveBeenCalled();
   });
 
-  it("zeigt das Abo auch ohne Token, sendet aber nicht — und warnt, ohne Werte zu nennen", () => {
+  it("ohne Token aus — und warnt, ohne Werte zu nennen", () => {
     const warnen = vi.fn();
-    const env = { [FAELLIG_NTFY_ENV]: `https://ntfy.example.org/${THEMA}` };
-    expect(faelligkeitenAbo(env, warnen)?.appLink).toBe(`ntfy://ntfy.example.org/${THEMA}?display=I%26K%20Was%20steht%20an`);
-    expect(sendeZiel(env, warnen)).toBeNull();
+    expect(versand({ [FAELLIG_SERVER_ENV]: SERVER }, warnen)).toBeNull();
     expect(warnen).toHaveBeenCalledTimes(1);
-    expect(String(warnen.mock.calls[0][0])).not.toContain(THEMA);
+    expect(String(warnen.mock.calls[0][0])).not.toContain("example");
+  });
+
+  it("nimmt nur eine Server-Wurzel, kein Thema in der Adresse", () => {
+    const warnen = vi.fn();
+    expect(versand({ [FAELLIG_SERVER_ENV]: `${SERVER}/${THEMA}`, [FAELLIG_TOKEN_ENV]: TOKEN }, warnen)).toBeNull();
+    expect(warnen).toHaveBeenCalledTimes(1);
   });
 
   it("sendet an den öffentlichen Server oder an die interne Adresse", () => {
-    const env = { [FAELLIG_NTFY_ENV]: `https://ntfy.example.org/${THEMA}`, [FAELLIG_TOKEN_ENV]: ` ${TOKEN} ` };
-    expect(sendeZiel(env)).toEqual({ basis: "https://ntfy.example.org", thema: THEMA, token: TOKEN });
-    expect(sendeZiel({ ...env, [FAELLIG_INTERN_ENV]: "http://ntfy/" })).toEqual({ basis: "http://ntfy", thema: THEMA, token: TOKEN });
+    const env = { [FAELLIG_SERVER_ENV]: `${SERVER}/`, [FAELLIG_TOKEN_ENV]: ` ${TOKEN} ` };
+    expect(versand(env)).toEqual({ serverUrl: SERVER, basis: SERVER, token: TOKEN, praefix: STANDARD_PRAEFIX });
+    const v = versand({ ...env, [FAELLIG_INTERN_ENV]: "http://ntfy/" })!;
+    expect(sendeZielFuer(v, THEMA)).toEqual({ basis: "http://ntfy", thema: THEMA, token: TOKEN });
   });
 
-  it("eine kaputte interne Adresse fällt auf den öffentlichen Server zurück", () => {
+  it("eine kaputte interne Adresse fällt auf den öffentlichen Server zurück, ein kaputtes Präfix auf den Standard", () => {
     const warnen = vi.fn();
-    const env = { [FAELLIG_NTFY_ENV]: `https://ntfy.example.org/${THEMA}`, [FAELLIG_TOKEN_ENV]: TOKEN, [FAELLIG_INTERN_ENV]: "javascript:alert(1)" };
-    expect(sendeZiel(env, warnen)?.basis).toBe("https://ntfy.example.org");
+    const v = versand({ [FAELLIG_SERVER_ENV]: SERVER, [FAELLIG_TOKEN_ENV]: TOKEN, [FAELLIG_INTERN_ENV]: "javascript:alert(1)" }, warnen);
+    expect(v?.basis).toBe(SERVER);
+    _warnsperreZuruecksetzen();
+    expect(versand({ [FAELLIG_SERVER_ENV]: SERVER, [FAELLIG_TOKEN_ENV]: TOKEN, [FAELLIG_PRAEFIX_ENV]: "mit leerzeichen" }, warnen)?.praefix).toBe(STANDARD_PRAEFIX);
+    expect(versand({ [FAELLIG_SERVER_ENV]: SERVER, [FAELLIG_TOKEN_ENV]: TOKEN, [FAELLIG_PRAEFIX_ENV]: "drk-" })?.praefix).toBe("drk-");
+    expect(warnen).toHaveBeenCalledTimes(2);
+  });
+
+  it("schickt das Token nie an einen fremden Host, auch nicht als „interne“ Adresse", () => {
+    const warnen = vi.fn();
+    const env = { [FAELLIG_SERVER_ENV]: SERVER, [FAELLIG_TOKEN_ENV]: TOKEN };
+    expect(versand({ ...env, [FAELLIG_INTERN_ENV]: "https://ntfy.fremd.example" }, warnen)?.basis).toBe(SERVER);
     expect(warnen).toHaveBeenCalledTimes(1);
+    expect(versand({ ...env, [FAELLIG_INTERN_ENV]: "http://127.0.0.1:3399" })?.basis).toBe("http://127.0.0.1:3399");
+    expect(versand({ ...env, [FAELLIG_INTERN_ENV]: "http://ntfy-intern" })?.basis).toBe("http://ntfy-intern");
+  });
+
+  it("das Abo einer Person: App-Link auf ihr Thema", () => {
+    const v = versand({ [FAELLIG_SERVER_ENV]: SERVER, [FAELLIG_TOKEN_ENV]: TOKEN })!;
+    expect(aboFuer(v, THEMA)?.appLink).toBe(`ntfy://ntfy.example.org/${THEMA}?display=I%26K%20Was%20steht%20an`);
+  });
+});
+
+describe("neuesThema", () => {
+  it("Präfix plus 20 Zeichen a–z0–9, gültig für ntfy, und jedes Mal anders", () => {
+    const a = neuesThema("iuk-faellig-");
+    expect(a).toMatch(new RegExp(`^iuk-faellig-[a-z0-9]{${ZUFALL_LAENGE}}$`));
+    expect(a.length).toBeLessThanOrEqual(64);
+    expect(neuesThema("iuk-faellig-")).not.toBe(a);
+  });
+
+  it("verwirft Bytes ab 252, damit kein Zeichen öfter vorkommt", () => {
+    let runde = 0;
+    const zufall = (n: number) => new Uint8Array(n).fill(runde++ === 0 ? 255 : 37);
+    expect(neuesThema("x-", zufall)).toBe(`x-${"b".repeat(ZUFALL_LAENGE)}`);
   });
 });
 
 describe("sammeln", () => {
   const lager: FaelligkeitsQuelle = {
-    modul: "lagerbuch", titel: "Lagerbuch", darfSehen: (g) => !!g?.includes("lager"),
+    modul: "lagerbuch", titel: "Lagerbuch", arten: ["Verfall"], darfSehen: (g) => !!g?.includes("lager"),
     lesen: () => [f({ id: "b", dringlichkeit: "bald" }), f({ id: "a" })],
   };
   const kaputt: FaelligkeitsQuelle = {
-    modul: "radio", titel: "Funkgeräte", darfSehen: (g) => !!g?.includes("funk"),
+    modul: "radio", titel: "Funkgeräte", arten: ["Ausleihe"], darfSehen: (g) => !!g?.includes("funk"),
     lesen: () => { throw new Error("database is locked"); },
   };
 
@@ -147,17 +188,92 @@ describe("sendefenster", () => {
   });
 });
 
+const LAGER: FaelligkeitsQuelle = {
+  modul: "lagerbuch", titel: "Lagerbuch", arten: ["Verfall", "Plombe"], darfSehen: (g) => !!g?.includes("lager"), lesen: () => [],
+};
+const FUNK: FaelligkeitsQuelle = {
+  modul: "radio", titel: "Funkgeräte", arten: ["Ausleihe"], darfSehen: (g) => !!g?.includes("funk"), lesen: () => [],
+};
+const ALLE = [
+  gruppe({ eintraege: [f({ id: "v" }), f({ id: "p", art: "Plombe", dringlichkeit: "bald" })] }),
+  gruppe({ modul: "radio", titel: "Funkgeräte", eintraege: [f({ id: "l", art: "Ausleihe", dringlichkeit: "bald" })] }),
+];
+
+describe("Auswahl", () => {
+  it("bietet je Modul alle Arten an, auch ohne Fälliges", () => {
+    expect(auswahlOptionen([FUNK])).toEqual([{ modul: "radio", titel: "Funkgeräte", arten: [{ schluessel: "radio:Ausleihe", art: "Ausleihe" }] }]);
+  });
+
+  it("nimmt aus dem Browser nur bekannte Schlüssel, ohne Doppel", () => {
+    expect(bereinigeAuswahl(["radio:Ausleihe", "radio:Ausleihe", "radio:Erfunden", 3, null], [LAGER, FUNK])).toEqual(["radio:Ausleihe"]);
+    expect(bereinigeAuswahl("radio:Ausleihe", [FUNK])).toEqual([]);
+  });
+
+  it("filtert nach sichtbaren Modulen und abgewählten Arten", () => {
+    const g = fuerPerson(ALLE, [LAGER, FUNK], new Set(["lagerbuch"]), [artSchluessel("lagerbuch", "Plombe")]);
+    expect(g.map((x) => x.modul)).toEqual(["lagerbuch"]);
+    expect(g[0].eintraege.map((e) => e.id)).toEqual(["v"]);
+  });
+
+  it("ein Modul ganz abgewählt: auch seine Fehlermeldung bleibt draußen", () => {
+    const kaputt = [gruppe({ modul: "radio", titel: "Funkgeräte", fehler: true })];
+    expect(fuerPerson(kaputt, [FUNK], new Set(["radio"]), ["radio:Ausleihe"])).toEqual([]);
+    expect(fuerPerson(kaputt, [FUNK], new Set(["radio"]), [])).toHaveLength(1);
+  });
+
+  it("nachrichtFuerPerson: ohne sichtbares Modul nichts, sonst nur das eigene", () => {
+    expect(nachrichtFuerPerson({ abgewaehlt: [] }, ["andere"], ALLE, [LAGER, FUNK], null)).toBeNull();
+    const n = nachrichtFuerPerson({ abgewaehlt: [] }, ["funk"], ALLE, [LAGER, FUNK], null)!;
+    expect(n.message).toContain("Funkgeräte");
+    expect(n.message).not.toContain("Lagerbuch");
+  });
+});
+
+describe("personenGruppen", () => {
+  it("ohne Verzeichnis null, bei Ausfall wirft es", async () => {
+    expect(await personenGruppen(async () => ({ status: "unconfigured", gruppen: [], personen: [] }))).toBeNull();
+    await expect(personenGruppen(async () => ({ status: "error", gruppen: [], personen: [] }))).rejects.toThrow();
+  });
+
+  it("Gruppennamen je Person, gesperrt heißt null", async () => {
+    const m = await personenGruppen(async () => ({
+      status: "ok",
+      gruppen: [{ id: "g1", name: "lager", anzeige: "Lager", ldap: false }],
+      personen: [
+        { id: "p1", name: "A", email: null, gruppenIds: ["g1", "weg"], gesperrt: false },
+        { id: "p2", name: "B", email: null, gruppenIds: ["g1"], gesperrt: true },
+      ],
+    }));
+    expect(m?.get("p1")).toEqual(["lager"]);
+    expect(m?.get("p2")).toBeNull();
+    expect(m?.has("p3")).toBe(false);
+  });
+});
+
 describe("wochenschritt", () => {
-  const ZIEL = { basis: "http://ntfy", thema: THEMA, token: TOKEN };
+  const SERVER = "https://ntfy.example.org";
+  const VERSAND = { serverUrl: SERVER, basis: "http://ntfy", token: TOKEN, praefix: STANDARD_PRAEFIX };
   const MONTAG_8 = new Date("2026-07-06T06:00:00Z");
 
-  function abh(teil: Partial<SchrittAbhaengigkeiten> = {}) {
-    let gespeichert: string | null = null;
+  function abo(personId: string, teil: Partial<FaelligkeitenAbo> = {}): FaelligkeitenAbo {
+    return {
+      personId, thema: `${STANDARD_PRAEFIX}${personId}`, push: true, abgewaehlt: [], gruppen: [],
+      gesendeteWoche: null, erstelltAm: new Date(0), ...teil,
+    };
+  }
+
+  function abh(teil: Partial<SchrittAbhaengigkeiten> & { liste?: FaelligkeitenAbo[] } = {}) {
+    const liste = teil.liste ?? [abo("p1", { gruppen: ["lager"] })];
     const d: SchrittAbhaengigkeiten = {
-      jetzt: MONTAG_8, zone: ZONE, ziel: ZIEL,
-      leseWoche: () => gespeichert,
-      schreibeWoche: vi.fn((w: string) => { gespeichert = w; }),
-      gruppen: () => [gruppe({ eintraege: [f({ id: "a" })] })],
+      jetzt: MONTAG_8, zone: ZONE, versand: VERSAND,
+      abos: () => liste,
+      verzeichnis: async () => null,
+      quellen: [LAGER, FUNK],
+      sammeln: vi.fn(() => ALLE),
+      vermerkeWoche: vi.fn((p: string, w: string) => {
+        const a = liste.find((x) => x.personId === p);
+        if (a) a.gesendeteWoche = w;
+      }),
       seitenUrl: null,
       senden: vi.fn(async () => {}),
       melden: vi.fn(),
@@ -168,31 +284,64 @@ describe("wochenschritt", () => {
 
   beforeEach(() => _meldesperreZuruecksetzen());
 
-  it("ohne Ziel aus, vor Montag 7 Uhr wartet er", async () => {
-    expect(await wochenschritt(abh({ ziel: null }))).toBe("aus");
-    expect(await wochenschritt(abh({ jetzt: new Date("2026-07-06T04:00:00Z") }))).toBe("wartet");
+  it("ohne Versand aus, vor Montag 7 Uhr wartet er", async () => {
+    expect((await wochenschritt(abh({ versand: null }))).stand).toBe("aus");
+    expect((await wochenschritt(abh({ jetzt: new Date("2026-07-06T04:00:00Z") }))).stand).toBe("wartet");
   });
 
-  it("sendet einmal je Woche und vermerkt die Woche", async () => {
-    const d = abh();
-    expect(await wochenschritt(d)).toBe("gesendet");
-    expect(d.schreibeWoche).toHaveBeenCalledWith("2026-W28");
-    expect(await wochenschritt(d)).toBe("schon");
-    expect(d.senden).toHaveBeenCalledTimes(1);
+  it("sendet jeder Person an ihr Thema, nur ihre Module, einmal je Woche", async () => {
+    const d = abh({ liste: [abo("p1", { gruppen: ["lager"] }), abo("p2", { gruppen: ["funk"] })] });
+    expect(await wochenschritt(d)).toEqual({ stand: "fertig", gesendet: 2, leer: 0, gescheitert: 0 });
+    const aufrufe = vi.mocked(d.senden).mock.calls;
+    expect(aufrufe.map(([z]) => z.thema)).toEqual([`${STANDARD_PRAEFIX}p1`, `${STANDARD_PRAEFIX}p2`]);
+    expect(aufrufe[0][1].message).not.toContain("Funkgeräte");
+    expect(aufrufe[1][1].message).not.toContain("Lagerbuch");
+    expect(aufrufe[0][0].basis).toBe("http://ntfy");
+    expect((await wochenschritt(d)).stand).toBe("schon");
+    expect(d.senden).toHaveBeenCalledTimes(2);
   });
 
-  it("nichts fällig: nichts gesendet, Woche trotzdem erledigt", async () => {
-    const d = abh({ gruppen: () => [gruppe({})] });
-    expect(await wochenschritt(d)).toBe("leer");
+  it("mit Verzeichnis gilt dessen Stand, nicht der vom letzten Besuch — entzogen, gesperrt oder gelöscht heißt nichts", async () => {
+    const liste = [abo("p1", { gruppen: ["lager"] }), abo("p2", { gruppen: ["lager"] }), abo("p3", { gruppen: ["funk"] })];
+    const d = abh({ liste, verzeichnis: async () => new Map([["p1", []], ["p2", null], ["p4", ["lager"]]]) });
+    expect(await wochenschritt(d)).toEqual({ stand: "fertig", gesendet: 0, leer: 3, gescheitert: 0 });
     expect(d.senden).not.toHaveBeenCalled();
-    expect(d.schreibeWoche).toHaveBeenCalledWith("2026-W28");
+    expect(liste.every((a) => a.gesendeteWoche === "2026-W28")).toBe(true);
   });
 
-  it("scheitert der Versand, bleibt die Woche offen, und das Log bekommt eine Zeile je Woche", async () => {
-    const d = abh({ senden: vi.fn(async () => { throw new Error("HTTP 502"); }) });
-    expect(await wochenschritt(d)).toBe("fehler");
-    expect(await wochenschritt(d)).toBe("fehler");
-    expect(d.schreibeWoche).not.toHaveBeenCalled();
+  it("antwortet das Verzeichnis nicht, geht an niemanden etwas, und die Woche bleibt offen", async () => {
+    const d = abh({ verzeichnis: async () => { throw new Error("Pocket ID nicht erreichbar"); } });
+    expect((await wochenschritt(d)).stand).toBe("fehler");
+    expect(d.senden).not.toHaveBeenCalled();
+    expect(d.vermerkeWoche).not.toHaveBeenCalled();
     expect(d.melden).toHaveBeenCalledTimes(1);
+  });
+
+  it("abgewählte Arten fehlen; alles abgewählt heißt keine Nachricht, Woche trotzdem erledigt", async () => {
+    const d = abh({ liste: [abo("p1", { gruppen: ["lager"], abgewaehlt: ["lagerbuch:Plombe"] }), abo("p2", { gruppen: ["lager"], abgewaehlt: ["lagerbuch:Verfall", "lagerbuch:Plombe"] })] });
+    expect(await wochenschritt(d)).toEqual({ stand: "fertig", gesendet: 1, leer: 1, gescheitert: 0 });
+    expect(vi.mocked(d.senden).mock.calls[0][1].title).toBe("Was steht an: 1 überfällig");
+    expect(d.vermerkeWoche).toHaveBeenCalledTimes(2);
+  });
+
+  it("scheitert der Versand an eine Person, bekommen die anderen ihre trotzdem; ihre Woche bleibt offen, eine Logzeile je Woche", async () => {
+    const liste = [abo("p1", { gruppen: ["lager"] }), abo("p2", { gruppen: ["lager"] })];
+    const senden = vi.fn(async (z: { thema: string }) => { if (z.thema.endsWith("p1")) throw new Error("HTTP 502"); });
+    const d = abh({ liste, senden });
+    expect(await wochenschritt(d)).toEqual({ stand: "fehler", gesendet: 1, leer: 0, gescheitert: 1 });
+    expect(await wochenschritt(d)).toEqual({ stand: "fehler", gesendet: 0, leer: 0, gescheitert: 1 });
+    expect(liste.map((a) => a.gesendeteWoche)).toEqual([null, "2026-W28"]);
+    expect(d.melden).toHaveBeenCalledTimes(1);
+  });
+
+  it("gesendet, aber Woche nicht vermerkt: der nächste Schritt sendet nicht noch einmal", async () => {
+    let gesperrt = true;
+    const liste = [abo("p1", { gruppen: ["lager"] })];
+    const d = abh({ liste, vermerkeWoche: vi.fn((_p: string, w: string) => { if (gesperrt) throw new Error("database is locked"); liste[0].gesendeteWoche = w; }) });
+    expect((await wochenschritt(d)).stand).toBe("fehler");
+    gesperrt = false;
+    expect(await wochenschritt(d)).toEqual({ stand: "fertig", gesendet: 1, leer: 0, gescheitert: 0 });
+    expect(d.senden).toHaveBeenCalledTimes(1);
+    expect(liste[0].gesendeteWoche).toBe("2026-W28");
   });
 });

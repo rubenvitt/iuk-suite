@@ -1,27 +1,33 @@
 /**
- * DER WÖCHENTLICHE PUSH — montags ab 7 Uhr in der Suite-Zone, einmal je Kalenderwoche (IDA-297).
+ * DER WÖCHENTLICHE PUSH — montags ab 7 Uhr in der Suite-Zone, einmal je Kalenderwoche und Person
+ * (IDA-297). Jede Person mit Abo bekommt ihr eigenes Thema, darin nur die Module, die sie verwaltet,
+ * und nur die Arten, die sie angewählt hat (`auswahl.ts`).
  *
  * Ein Prüfschritt alle `PRUEF_TAKT_MS` statt eines Weckers auf Montag 7:00: ein Container, der um 7 Uhr
  * gerade neu startet oder dessen ntfy kurz schweigt, holt die Nachricht beim nächsten Schritt nach. Die
- * gesendete Woche steht in `portal_einstellungen` und überlebt so jeden Neustart — ohne sie käme nach
- * jedem Rollout am Montag eine zweite Nachricht.
+ * gesendete Woche steht je Person in `faelligkeiten_abos` und überlebt so jeden Neustart — ohne sie
+ * käme nach jedem Rollout am Montag eine zweite Nachricht.
  *
- * Geht der Versand schief, wird die Woche NICHT vermerkt, und der nächste Schritt versucht es wieder.
- * Ins Log kommt das einmal je Woche, nicht alle 15 Minuten.
+ * Wer etwas sehen darf, sagt Pocket ID (`personenGruppen.ts`), nicht der Stand vom letzten Besuch.
+ * Antwortet Pocket ID nicht, wird in diesem Schritt an niemanden gesendet.
+ *
+ * Geht der Versand an eine Person schief, wird ihre Woche NICHT vermerkt, und der nächste Schritt
+ * versucht es wieder. Ins Log kommt das einmal je Woche, nicht alle 15 Minuten.
  *
  * Ist nichts fällig, wird nichts gesendet (die Woche gilt trotzdem als erledigt). Eine Mitteilung
  * „nichts zu tun" jede Woche lehrt, die Mitteilungen wegzuwischen.
  *
  * Kein `"use client"`. Zeitzone je Aufruf aus `core/zeit` (CLAUDE.md, „Zeitzone").
  */
-import { eq } from "drizzle-orm";
-import { getDb } from "@/app/m/portal/_db/client";
-import { einstellungen } from "@/app/m/portal/_db/schema";
+import type { FaelligkeitenAbo } from "@/app/m/portal/_db/schema";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { zeitzone } from "@/core/zeit";
-import { sendeZiel, type SendeZiel } from "./konfiguration";
+import { abosMitPush, vermerkeWoche } from "./abos";
+import { fuerPerson } from "./auswahl";
+import { sendeZielFuer, versand, type SendeZiel, type Versand } from "./konfiguration";
 import { baueNachricht, type PushNachricht } from "./nachricht";
-import { QUELLEN } from "./quellen";
+import { personenGruppen, type GruppenJePerson } from "./personenGruppen";
+import { QUELLEN, type FaelligkeitsQuelle } from "./quellen";
 import { sammle, type FaelligkeitsGruppe } from "./sammeln";
 import { sendeAnNtfy } from "./senden";
 
@@ -29,7 +35,6 @@ export const SENDE_STUNDE = 7;
 export const PRUEF_TAKT_MS = 15 * 60_000;
 /** Der erste Schritt nicht beim Boot: die Seite soll zuerst antworten. */
 export const ERSTER_SCHRITT_MS = 2 * 60_000;
-export const WOCHE_SCHLUESSEL = "faelligkeiten_push_woche";
 
 const WOCHENTAG: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
 
@@ -54,66 +59,113 @@ export function sendefenster(jetzt: Date, zone: string): { woche: string; erreic
   };
 }
 
-export type Schrittergebnis = "aus" | "wartet" | "schon" | "leer" | "gesendet" | "fehler";
+export type Schrittstand = "aus" | "wartet" | "schon" | "fertig" | "fehler";
+
+export interface Schrittergebnis {
+  stand: Schrittstand;
+  gesendet: number;
+  /** Nichts fällig, oder die Person darf nichts (mehr) sehen. */
+  leer: number;
+  gescheitert: number;
+}
 
 export interface SchrittAbhaengigkeiten {
   jetzt: Date;
   zone: string;
-  ziel: SendeZiel | null;
-  leseWoche: () => string | null;
-  schreibeWoche: (woche: string) => void;
-  gruppen: (jetzt: Date) => FaelligkeitsGruppe[];
+  versand: Versand | null;
+  abos: () => FaelligkeitenAbo[];
+  /** `null`: kein Verzeichnis, es gilt `abo.gruppen`. Wirft, wenn das Verzeichnis nicht antwortet. */
+  verzeichnis: () => Promise<GruppenJePerson | null>;
+  quellen: readonly FaelligkeitsQuelle[];
+  sammeln: (quellen: readonly FaelligkeitsQuelle[], jetzt: Date) => FaelligkeitsGruppe[];
+  vermerkeWoche: (personId: string, woche: string) => void;
   seitenUrl: string | null;
   senden: (ziel: SendeZiel, n: PushNachricht) => Promise<void>;
   melden: (meldung: string) => void;
 }
 
+/**
+ * Die Nachricht für eine Person — oder `null`, wenn für sie nichts ansteht. `gruppen` sind ihre
+ * Gruppen (Verzeichnis oder Sitzung), `alle` die Gruppen aller Quellen.
+ */
+export function nachrichtFuerPerson(
+  abo: Pick<FaelligkeitenAbo, "abgewaehlt">,
+  gruppen: readonly string[],
+  alle: readonly FaelligkeitsGruppe[],
+  quellen: readonly FaelligkeitsQuelle[],
+  seitenUrl: string | null,
+): PushNachricht | null {
+  const sichtbar = new Set(quellen.filter((q) => q.darfSehen(gruppen)).map((q) => q.modul));
+  if (sichtbar.size === 0) return null;
+  return baueNachricht(fuerPerson(alle, quellen, sichtbar, abo.abgewaehlt), seitenUrl);
+}
+
 let gemeldeteWoche: string | null = null;
+/**
+ * `<person>|<woche>`, an die in diesem Prozess schon gesendet wurde. Scheitert nach einem
+ * erfolgreichen Versand nur das Vermerken der Woche (Datenbank gesperrt), schickte der nächste
+ * Schritt sonst dieselbe Nachricht noch einmal.
+ */
+const lokalGesendet = new Set<string>();
+
+function meldeEinmal(d: SchrittAbhaengigkeiten, woche: string, text: string): void {
+  if (gemeldeteWoche === woche) return;
+  gemeldeteWoche = woche;
+  d.melden(`Was steht an: ${text}, nächster Versuch in 15 Minuten`);
+}
+
+function grund(fehler: unknown): string {
+  return fehler instanceof Error ? fehler.message : String(fehler);
+}
 
 /** Ein Prüfschritt. Wirft nie. */
 export async function wochenschritt(d: SchrittAbhaengigkeiten): Promise<Schrittergebnis> {
+  const ergebnis: Schrittergebnis = { stand: "aus", gesendet: 0, leer: 0, gescheitert: 0 };
+  let woche = "";
   try {
-    if (!d.ziel) return "aus";
-    const { woche, erreicht } = sendefenster(d.jetzt, d.zone);
-    if (!erreicht) return "wartet";
-    if (d.leseWoche() === woche) return "schon";
-    const nachricht = baueNachricht(d.gruppen(d.jetzt), d.seitenUrl);
-    if (nachricht) await d.senden(d.ziel, nachricht);
-    d.schreibeWoche(woche);
-    return nachricht ? "gesendet" : "leer";
-  } catch (fehler) {
-    const woche = sendefenster(d.jetzt, d.zone).woche;
-    if (gemeldeteWoche !== woche) {
-      gemeldeteWoche = woche;
-      d.melden(`Was steht an: wöchentlicher Push gescheitert, nächster Versuch in 15 Minuten — ${fehler instanceof Error ? fehler.message : String(fehler)}`);
+    if (!d.versand) return ergebnis;
+    const fenster = sendefenster(d.jetzt, d.zone);
+    woche = fenster.woche;
+    if (!fenster.erreicht) return { ...ergebnis, stand: "wartet" };
+    const offen = d.abos().filter((a) => a.gesendeteWoche !== woche);
+    if (offen.length === 0) return { ...ergebnis, stand: "schon" };
+
+    const verzeichnis = await d.verzeichnis();
+    const alle = d.sammeln(d.quellen, d.jetzt);
+    for (const abo of offen) {
+      const gruppen = verzeichnis ? verzeichnis.get(abo.personId) ?? null : abo.gruppen;
+      const nachricht = gruppen ? nachrichtFuerPerson(abo, gruppen, alle, d.quellen, d.seitenUrl) : null;
+      const merker = `${abo.personId}|${woche}`;
+      try {
+        if (nachricht && !lokalGesendet.has(merker)) {
+          await d.senden(sendeZielFuer(d.versand, abo.thema), nachricht);
+          lokalGesendet.add(merker);
+        }
+        d.vermerkeWoche(abo.personId, woche);
+        if (nachricht) ergebnis.gesendet += 1;
+        else ergebnis.leer += 1;
+      } catch (fehler) {
+        ergebnis.gescheitert += 1;
+        meldeEinmal(d, woche, `Push an ein Abo gescheitert — ${grund(fehler)}`);
+      }
     }
-    return "fehler";
+    return { ...ergebnis, stand: ergebnis.gescheitert > 0 ? "fehler" : "fertig" };
+  } catch (fehler) {
+    meldeEinmal(d, woche, `wöchentlicher Push gescheitert — ${grund(fehler)}`);
+    return { ...ergebnis, stand: "fehler" };
   }
 }
 
 /** Nur für Tests. */
 export function _meldesperreZuruecksetzen(): void {
   gemeldeteWoche = null;
-}
-
-export function leseGesendeteWoche(): string | null {
-  return getDb().select().from(einstellungen).where(eq(einstellungen.schluessel, WOCHE_SCHLUESSEL)).get()?.wert ?? null;
-}
-
-export function vermerkeGesendeteWoche(woche: string): void {
-  getDb().insert(einstellungen).values({ schluessel: WOCHE_SCHLUESSEL, wert: woche })
-    .onConflictDoUpdate({ target: einstellungen.schluessel, set: { wert: woche } }).run();
+  lokalGesendet.clear();
 }
 
 /** Die Adresse der Seite „Was steht an" — Ziel des Tipps auf die Mitteilung. */
 export function faelligkeitenSeitenUrl(): string | null {
   const portal = moduleUrl("portal");
   return portal ? `${portal}/faelligkeiten` : null;
-}
-
-/** Alle Quellen, ohne Rechteprüfung — nur für den Push, der an ein Thema geht und an keine Person. */
-export function alleGruppen(jetzt: Date): FaelligkeitsGruppe[] {
-  return sammle(QUELLEN, jetzt);
 }
 
 let gestartet = false;
@@ -125,7 +177,7 @@ let gestartet = false;
 export function starteFaelligkeitenTakt(): void {
   if (gestartet) return;
   try {
-    if (!sendeZiel()) return;
+    if (!versand()) return;
     gestartet = true;
     let laeuft = false;
     const schritt = async () => {
@@ -135,10 +187,12 @@ export function starteFaelligkeitenTakt(): void {
         await wochenschritt({
           jetzt: new Date(),
           zone: zeitzone(),
-          ziel: sendeZiel(),
-          leseWoche: leseGesendeteWoche,
-          schreibeWoche: vermerkeGesendeteWoche,
-          gruppen: alleGruppen,
+          versand: versand(),
+          abos: () => abosMitPush(),
+          verzeichnis: () => personenGruppen(),
+          quellen: QUELLEN,
+          sammeln: (q, j) => sammle(q, j),
+          vermerkeWoche: (p, w) => vermerkeWoche(p, w),
           seitenUrl: faelligkeitenSeitenUrl(),
           senden: (z, n) => sendeAnNtfy(z, n),
           melden: console.error,

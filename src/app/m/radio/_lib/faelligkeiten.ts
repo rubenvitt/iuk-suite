@@ -13,6 +13,10 @@ import { tageDativ, type Faelligkeit } from "@/core/faelligkeiten";
 import { getDb, type DB } from "../_db/client";
 import { offeneAusleihenSeit } from "../_db/leihen";
 
+/** Die Arten, die diese Datei herausgibt — Grundlage der Auswahl im Portal. */
+export const RADIO_FAELLIGKEITS_ARTEN = ["Ausleihe"] as const;
+type RadioFaelligkeit = Faelligkeit & { art: (typeof RADIO_FAELLIGKEITS_ARTEN)[number] };
+
 /** Ab so vielen Stunden steht eine offene Ausleihe in „Was steht an". */
 export const AUSLEIHE_BALD_STUNDEN = 24;
 /** Ab so vielen Tagen gilt sie als überfällig. */
@@ -34,7 +38,7 @@ export function darfRadioFaelligkeitenSehen(groups: readonly string[] | null | u
 
 export function radioFaelligkeiten(jetzt: Date, db: DB = getDb()): Faelligkeit[] {
   const bis = new Date(jetzt.getTime() - AUSLEIHE_BALD_STUNDEN * STUNDE_MS);
-  return offeneAusleihenSeit(db, bis).map((l): Faelligkeit => {
+  return offeneAusleihenSeit(db, bis).map((l): RadioFaelligkeit => {
     const tage = Math.max(1, Math.floor((jetzt.getTime() - l.seit.getTime()) / TAG_MS));
     return {
       id: `leihe:${l.id}`,

@@ -30,6 +30,15 @@ import type { Leser } from "./lesepfade/bestand";
 import { verwaltungDetailPfad } from "./verwaltungPfad";
 
 /**
+ * Die Arten, die diese Datei herausgibt — die Auswahl im Portal („Was soll aufs Telefon?") bietet genau
+ * diese an, auch wenn gerade nichts davon fällig ist. Eine neue Art gehört hier dazu, sonst lässt sie
+ * sich nicht abwählen.
+ */
+export const LAGERBUCH_FAELLIGKEITS_ARTEN = ["Verfall", "Sauerstoff", "BZ-Kontrolle", "Plombe"] as const;
+/** Der Typ hält `art` an der Liste oben fest: eine Art außerhalb davon bricht `pnpm typecheck`. */
+type LagerbuchFaelligkeit = Faelligkeit & { art: (typeof LAGERBUCH_FAELLIGKEITS_ARTEN)[number] };
+
+/**
  * Darf diese Person die Fälligkeiten des Lagerbuchs sehen? Dasselbe Prädikat wie
  * `istLagerbuchAdmin` (`_lib/zugang.ts`): die Admin-Gruppen des Moduls, OHNE den Suite-Admin-
  * Kurzschluss von `isModuleAdmin` — wer hier etwas sieht, muss den Link dahinter auch öffnen dürfen
@@ -51,7 +60,7 @@ export function lagerbuchFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelli
 }
 
 function verfall(db: Leser, jetzt: Date): Faelligkeit[] {
-  const imHandlager = verfallListe(db, jetzt).map((e): Faelligkeit => ({
+  const imHandlager = verfallListe(db, jetzt).map((e): LagerbuchFaelligkeit => ({
     id: `charge:${e.chargeId}`,
     art: "Verfall",
     titel: e.chargenNr ? `${e.artikelName} · Charge ${e.chargenNr}` : e.artikelName,
@@ -66,7 +75,7 @@ function verfall(db: Leser, jetzt: Date): Faelligkeit[] {
   );
   const gemeldet = lagerortVerfallListe(db, { nurWarnend: true }, jetzt)
     .filter((z) => aktiveOrte.has(z.lagerortId))
-    .map((z): Faelligkeit => ({
+    .map((z): LagerbuchFaelligkeit => ({
       id: `ort:${z.lagerortId}:${z.artikelId}`,
       art: "Verfall",
       titel: z.artikelName,
@@ -82,7 +91,7 @@ function verfall(db: Leser, jetzt: Date): Faelligkeit[] {
 function sauerstoff(db: Leser): Faelligkeit[] {
   return o2FlaschenUebersicht(db)
     .filter((f) => f.aktiv && f.status?.wechseln)
-    .map((f): Faelligkeit => ({
+    .map((f): LagerbuchFaelligkeit => ({
       id: `o2:${f.id}`,
       art: "Sauerstoff",
       titel: `Flasche ${f.name}`,
@@ -97,7 +106,7 @@ function sauerstoff(db: Leser): Faelligkeit[] {
 function blutzucker(db: Leser, jetzt: Date): Faelligkeit[] {
   return bzGeraeteUebersicht(db, jetzt)
     .filter((g) => g.aktiv && g.faelligkeit.ampel !== "gruen")
-    .map((g): Faelligkeit => {
+    .map((g): LagerbuchFaelligkeit => {
       const f = g.faelligkeit;
       // ⚠️ `nieGeprueft` ZUERST und eigenständig: dort ist `ueberfaellig` false (`domain/bz.ts`).
       const zustand = f.nieGeprueft
@@ -126,7 +135,7 @@ function offenePlomben(db: Leser): Faelligkeit[] {
     .innerJoin(lagerorte, eq(lagerorte.id, plomben.lagerortId))
     .where(and(eq(plomben.aktiv, true), isNull(plomben.nummer), eq(lagerorte.aktiv, true)))
     .all()
-    .map((p): Faelligkeit => ({
+    .map((p): LagerbuchFaelligkeit => ({
       id: `plombe:${p.id}`,
       art: "Plombe",
       titel: p.fachLabel ? `${p.bezeichnung} (${p.fachLabel})` : p.bezeichnung,

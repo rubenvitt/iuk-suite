@@ -875,9 +875,25 @@
     "kind": "context",
     "via": "setzeZeitzoneAction"
   },
-  "src/app/m/portal/actions.ts#sendeFaelligkeitenJetztAction": {
+  "src/app/m/portal/actions.ts#richteFaelligkeitenAboEinAction": {
     "kind": "context",
-    "via": "sendeFaelligkeitenJetztAction"
+    "via": "richteFaelligkeitenAboEinAction"
+  },
+  "src/app/m/portal/actions.ts#speichereFaelligkeitenAuswahlAction": {
+    "kind": "context",
+    "via": "speichereFaelligkeitenAuswahlAction"
+  },
+  "src/app/m/portal/actions.ts#wechsleFaelligkeitenThemaAction": {
+    "kind": "context",
+    "via": "wechsleFaelligkeitenThemaAction"
+  },
+  "src/app/m/portal/actions.ts#beendeFaelligkeitenAboAction": {
+    "kind": "context",
+    "via": "beendeFaelligkeitenAboAction"
+  },
+  "src/app/m/portal/actions.ts#sendeFaelligkeitenProbeAction": {
+    "kind": "context",
+    "via": "sendeFaelligkeitenProbeAction"
   },
   "src/app/m/portal/admin/rechte/actions.ts#setzeRechtAction": {
     "kind": "explicit-only",

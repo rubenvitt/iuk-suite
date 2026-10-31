@@ -1,8 +1,8 @@
 /**
- * DIE WÖCHENTLICHE PUSH-NACHRICHT — aus den Gruppen aller Quellen, ohne Datenbank und ohne Uhr.
+ * DIE WÖCHENTLICHE PUSH-NACHRICHT — aus den Gruppen einer Person, ohne Datenbank und ohne Uhr.
  *
- * ⚠️ KEIN KLARNAME. Das Feld `person` (Entleiher) bleibt draußen: das Thema lesen alle, die irgendein
- * Quellmodul verwalten, und die Mitteilung steht auf dem Sperrbildschirm.
+ * ⚠️ KEIN KLARNAME. Das Feld `person` (Entleiher) bleibt draußen: das Thema liest jeder, der seinen
+ * Namen kennt, und die Mitteilung steht auf dem Sperrbildschirm.
  *
  * Kurz statt vollständig: je Modul höchstens `ZEILEN_JE_MODUL` Zeilen, der Rest als „… und N weitere".
  * Die vollständige Liste ist einen Tipp entfernt (`click` auf die Seite im Portal).

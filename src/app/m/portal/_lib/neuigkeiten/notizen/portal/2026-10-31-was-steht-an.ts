@@ -10,8 +10,7 @@ const notiz: Releasenotiz = {
     absatz(
       "Verwaltest du das Lagerbuch oder die Funkgeräte, zeigt dir die Startseite jetzt „Was steht an“: " +
         "abgelaufenes Material, Sauerstoff zum Wechseln, fällige BZ-Kontrollen, offene Plomben und lange " +
-        "ausgeliehene Funkgeräte an einer Stelle. Dort steht auch, wie du montags eine Zusammenfassung " +
-        "aufs Telefon bekommst.",
+        "ausgeliehene Funkgeräte an einer Stelle. Dort wählst du auch, was dir montags aufs Telefon kommt.",
     ),
   ],
 };
