@@ -29,6 +29,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
 export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, darfWartung = false): SuiteNavItem[] {
   const jeder: SuiteNavItem[] = [
     { key: "start", title: "Übersicht", href: "/" },
+    { key: "suche", title: "Suche", href: "/suche" },
     { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
     ...(darfWartung ? [{ key: "serverwartung", title: "Serverwartung", href: "/serverwartung" }] : []),
   ];

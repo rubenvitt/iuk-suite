@@ -108,4 +108,10 @@ describe("DiensteRaster", () => {
     // gefunden zu haben sind zwei verschiedene Lagen.
     expect(exists('[data-testid="portal-leer"]')).toBe(false);
   });
+
+  it("bietet bei null Treffern die suiteweite Suche mit demselben Begriff an (IDA-301)", async () => {
+    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
+    await fill('[data-testid="portal-suche"]', " UE-RK 831 ");
+    expect(query('[data-testid="portal-suche-ueberall"]')?.getAttribute("href")).toBe("/suche?q=UE-RK%20831");
+  });
 });

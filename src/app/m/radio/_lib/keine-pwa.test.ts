@@ -226,7 +226,7 @@ const VERBOTE_ANZAHL = 5;
 // Suite audit: _lib/audit.ts adds verified shared-access attribution (110 + 1).
 // DRK-335: Nachladen beim Scrollen — `_lib/nachladen.ts` und `_ui/Nachladen.tsx` (111 + 2).
 // DRK-455: der Geraetetitel fuer Akte und Historie aus einer Stelle, `_lib/geraetTitel.ts` (113 + 1).
-const QUELLDATEIEN_ANZAHL = 118; // DRK-389: `_lib/csv/mappe.ts` (114 + 1); IDA-256: `_lib/fahrzeugbestand.ts`, die Orte für den Erstimport der Fahrzeugverwaltung (115 + 1); IDA-259: `_lib/stammFahrzeuge.ts` und `admin/(arbeit)/geraete/OrtAbgleich.tsx` (116 + 2).
+const QUELLDATEIEN_ANZAHL = 119; // DRK-389: `_lib/csv/mappe.ts` (114 + 1); IDA-256: `_lib/fahrzeugbestand.ts`, die Orte für den Erstimport der Fahrzeugverwaltung (115 + 1); IDA-259: `_lib/stammFahrzeuge.ts` und `admin/(arbeit)/geraete/OrtAbgleich.tsx` (116 + 2); IDA-301: `_lib/suiteSuche.ts`, die Treffer für die suiteweite Suche (118 + 1).
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.

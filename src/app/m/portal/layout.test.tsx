@@ -59,6 +59,7 @@ describe("Portal — Navigationseintraege", () => {
   it("gibt Modul-Admins Uebersicht, Neuigkeiten und Verwaltung", () => {
     expect(navFuerPortal(true)).toEqual([
       { key: "start", title: "Übersicht", href: "/" },
+      { key: "suche", title: "Suche", href: "/suche" },
       { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
       { key: "admin", title: "Verwaltung", href: "/admin" },
     ]);
@@ -67,6 +68,7 @@ describe("Portal — Navigationseintraege", () => {
   it("gibt allen anderen Uebersicht und Neuigkeiten, aber nicht die Verwaltung", () => {
     expect(navFuerPortal(false)).toEqual([
       { key: "start", title: "Übersicht", href: "/" },
+      { key: "suche", title: "Suche", href: "/suche" },
       { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
     ]);
   });
@@ -133,6 +135,7 @@ describe("Portal-Layout: Serverwartung in der Navigation", () => {
   it("steht hinter den Neuigkeiten, auch ohne Verwaltungsrecht", () => {
     expect(navFuerPortal(false, false, true)).toEqual([
       { key: "start", title: "Übersicht", href: "/" },
+      { key: "suche", title: "Suche", href: "/suche" },
       { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
       eintrag,
     ]);
