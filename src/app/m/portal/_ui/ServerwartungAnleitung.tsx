@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Card, Space, Typography } from "antd";
 
+import { WARTUNG_ANZEIGENAME, type NtfyAbo } from "@/app/m/portal/_lib/ntfy";
 import { WARTUNG_LINKS, type WartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -36,29 +37,63 @@ const RUECKMELDUNG_MS = 2000;
  */
 export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxInlineSize: 720 }}>
-      <Card title="Status und Datenvolumen" data-testid="wartung-links">
-        {WARTUNG_LINKS.map((link) => (
-          <Paragraph key={link.href}>
-            <Text strong>{link.titel}:</Text> {link.text}
-          </Paragraph>
-        ))}
-        <Space wrap>
-          {WARTUNG_LINKS.map((link) => (
-            <Button key={link.href} href={link.href} target="_blank" rel="noopener noreferrer">
-              {link.titel} öffnen
-            </Button>
-          ))}
-        </Space>
-      </Card>
+    <NtfyAnleitung
+      abo={abo}
+      anzeigename={WARTUNG_ANZEIGENAME}
+      praefix="wartung"
+      vorweg={<WartungLinks />}
+      hinweis={{
+        fett: "Gib das Thema nicht weiter.",
+        text: "Wer es kennt, liest mit und kann selbst Nachrichten an alle schicken. Wer das Abo auch braucht, bekommt die Berechtigung und findet dann diese Seite im Portal.",
+      }}
+    />
+  );
+}
 
-      <Card title="Dein Abo" data-testid="wartung-abo">
+/** Status und Datenvolumen — die beiden Seiten, auf die man bei einer Störung zuerst schaut. */
+function WartungLinks() {
+  return (
+    <Card title="Status und Datenvolumen" data-testid="wartung-links">
+      {WARTUNG_LINKS.map((link) => (
+        <Paragraph key={link.href}>
+          <Text strong>{link.titel}:</Text> {link.text}
+        </Paragraph>
+      ))}
+      <Space wrap>
+        {WARTUNG_LINKS.map((link) => (
+          <Button key={link.href} href={link.href} target="_blank" rel="noopener noreferrer">
+            {link.titel} öffnen
+          </Button>
+        ))}
+      </Space>
+    </Card>
+  );
+}
+
+/**
+ * DIESELBE ANLEITUNG FÜR JEDES NTFY-THEMA DER SUITE — Serverwartung (ntfy.sh) und „Was steht an"
+ * (eigener Container, IDA-297). Was sich unterscheidet, kommt als Prop: der Name des Abos in der App,
+ * das Präfix der Testkennungen und der Hinweis am Ende (beim Wartungsthema kann jeder senden, beim
+ * Fälligkeitsthema nur die Suite).
+ */
+export function NtfyAnleitung({ abo, anzeigename, praefix, hinweis, vorweg }: {
+  abo: NtfyAbo;
+  anzeigename: string;
+  praefix: string;
+  hinweis: { fett: string; text: string };
+  /** Eine Karte vor dem Abo — bei der Serverwartung Status und Datenvolumen. */
+  vorweg?: ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxInlineSize: 720 }}>
+      {vorweg}
+      <Card title="Dein Abo" data-testid={`${praefix}-abo`}>
         <Paragraph>
           Das Thema ist der Name, unter dem die Nachrichten verschickt werden. Du brauchst es gleich in
           der App.
         </Paragraph>
         <div
-          data-testid="wartung-thema"
+          data-testid={`${praefix}-thema`}
           style={{ ...SCHRIFT.mono, fontSize: 14, userSelect: "all", overflowWrap: "anywhere", marginBlockEnd: SPACE.md }}
         >
           {abo.thema}
@@ -69,8 +104,8 @@ export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
           </Paragraph>
         )}
         <Space wrap>
-          <KopierKnopf text={abo.thema} />
-          <Button type="primary" href={abo.appLink} data-testid="wartung-app-link">
+          <KopierKnopf text={abo.thema} testid={`${praefix}-kopieren`} />
+          <Button type="primary" href={abo.appLink} data-testid={`${praefix}-app-link`}>
             In der ntfy-App öffnen (Android)
           </Button>
           <Button href={abo.url} target="_blank" rel="noopener noreferrer">
@@ -96,12 +131,12 @@ export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
       <Card title="2. Thema abonnieren">
         <Paragraph>
           <Text strong>Android:</Text> Öffne diese Seite auf dem Telefon und tippe oben auf „In der
-          ntfy-App öffnen“. Die App legt das Abo „I&amp;K Serverwartung“ von selbst an.
+          ntfy-App öffnen“. Die App legt das Abo „{anzeigename}“ von selbst an.
         </Paragraph>
         <Paragraph style={{ marginBlockEnd: SPACE.xs }}>
           <Text strong>iPhone</Text> (oder wenn der Knopf nichts tut):
         </Paragraph>
-        <ol style={{ marginBlock: 0, paddingInlineStart: SPACE.xl }} data-testid="wartung-schritte">
+        <ol style={{ marginBlock: 0, paddingInlineStart: SPACE.xl }} data-testid={`${praefix}-schritte`}>
           <li>Tippe oben auf „Kopieren“.</li>
           <li>Öffne die ntfy-App und tippe auf „+“.</li>
           <li>Füge das Thema in das Feld für den Themennamen ein.</li>
@@ -125,20 +160,18 @@ export function ServerwartungAnleitung({ abo }: { abo: WartungsAbo }) {
       {/* Warnung als Text mit 3px-Kante, nicht als `Alert type="error"`: das sähe
           aus wie eine Primäraktion (Falle 3). */}
       <section
-        data-testid="wartung-hinweis"
+        data-testid={`${praefix}-hinweis`}
         style={{ borderInlineStart: "3px solid var(--iuk-marke)", paddingInlineStart: SPACE.md }}
       >
         <Paragraph style={{ marginBlockEnd: 0 }}>
-          <Text strong>Gib das Thema nicht weiter.</Text> Wer es kennt, liest mit und kann selbst
-          Nachrichten an alle schicken. Wer das Abo auch braucht, bekommt die Berechtigung und findet
-          dann diese Seite im Portal.
+          <Text strong>{hinweis.fett}</Text> {hinweis.text}
         </Paragraph>
       </section>
     </div>
   );
 }
 
-function KopierKnopf({ text }: { text: string }) {
+function KopierKnopf({ text, testid }: { text: string; testid: string }) {
   const [kopiert, setKopiert] = useState(false);
   const uhr = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -157,7 +190,7 @@ function KopierKnopf({ text }: { text: string }) {
   };
 
   return (
-    <Button onClick={kopieren} data-testid="wartung-kopieren">
+    <Button onClick={kopieren} data-testid={testid}>
       {kopiert ? "Kopiert ✓" : "Kopieren"}
     </Button>
   );

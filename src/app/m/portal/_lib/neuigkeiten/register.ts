@@ -11,6 +11,7 @@ import feedbackInDerSuite from "./notizen/portal/2026-10-12-feedback-in-der-suit
 import diensteFuerGruppen from "./notizen/portal/2026-10-18-dienste-fuer-gruppen";
 import appSymbol from "./notizen/portal/2026-10-18-app-symbol";
 import rechteVergeben from "./notizen/portal/2026-10-21-rechte-vergeben";
+import wasStehtAn from "./notizen/portal/2026-10-31-was-steht-an";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
@@ -259,6 +260,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   diensteFuerGruppen,
   appSymbol,
   rechteVergeben,
+  wasStehtAn,
   sucheUeberAlleModule,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,

@@ -124,7 +124,7 @@ services:
     # `av_status = 'error'`. Das ist fail-closed und richtig, sieht aber wie ein
     # kaputtes Modul aus — und kein Gate außer `files/_lib/compose.test.ts`
     # berührt diese Zeile, weil E2E kein Compose benutzt.
-    networks: [proxy, av]
+    networks: [proxy, av, ntfy]
     # Betreiberentscheidung MIT Kehrseite, und die gehört benannt: wird clamav
     # nicht healthy (fehlgeschlagener freshclam-Erststart, zu knappe
     # `start_period`, RAM-Mangel), startet die Suite GAR NICHT — mit allen vier
@@ -415,6 +415,60 @@ services:
       # Zeile, die den Vermerk schreibt (der Vorlauf mit `apk` liegt dazwischen).
       start_period: ${SUITE_BACKUP_START_PERIOD:-5m}
 
+  # Der EIGENE ntfy für „Was steht an" (IDA-297) — Runbook `docs/runbooks/faelligkeiten-ntfy.md`.
+  #
+  # ⚠️ NUR MIT PROFIL: ohne `COMPOSE_PROFILES=ntfy` in der .env startet `docker compose up -d`
+  # diesen Dienst gar nicht. Die Benutzer, Rechte und Tokens kommen aus der .env, und ein
+  # Container mit halb gesetzten Werten liefe in die Neustartschleife — das Profil schaltet ihn
+  # erst zu, wenn alles eingetragen ist.
+  #
+  # ⚠️ NICHT FÜR DIE SERVERWARTUNG. Ein ntfy auf diesem Server schwiege genau dann, wenn der Server
+  # in Wartung ist oder ausfällt; die Wartung bleibt deshalb auf ntfy.sh
+  # (`portal/_lib/serverwartung.ts`). Für eine Fristen-Erinnerung ist ein Ausfall unkritisch.
+  ntfy:
+    image: ${SUITE_NTFY_IMAGE:-binwiederhier/ntfy:v2.35.0}
+    profiles: [ntfy]
+    restart: unless-stopped
+    command: serve
+    environment:
+      NTFY_BASE_URL: ${SUITE_NTFY_BASE_URL:-https://ntfy.invalid}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_CACHE_DURATION: 168h
+      NTFY_AUTH_FILE: /var/lib/ntfy/user.db
+      # Niemand darf etwas, was nicht ausdrücklich erlaubt ist: die Suite schreibt mit Token,
+      # Abonnenten lesen. Ohne `deny-all` könnte jeder, der das Thema kennt, an alle senden.
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_ENABLE_SIGNUP: "false"
+      NTFY_ENABLE_LOGIN: "true"
+      # Benutzer, Zugriffsliste und Tokens deklarativ aus der .env (Format im Runbook). In der .env
+      # in EINFACHEN Anführungszeichen, sonst frisst die Ersetzung das `$` der bcrypt-Hashes.
+      NTFY_AUTH_USERS: ${SUITE_NTFY_AUTH_USERS:-}
+      NTFY_AUTH_ACCESS: ${SUITE_NTFY_AUTH_ACCESS:-}
+      NTFY_AUTH_TOKENS: ${SUITE_NTFY_AUTH_TOKENS:-}
+      # Ohne Upstream kommen Mitteilungen auf dem iPhone erst nach Stunden an: Apple weckt die App
+      # nur über ntfy.sh. Übertragen wird dabei nur eine Kennung der Nachricht, nicht ihr Text.
+      NTFY_UPSTREAM_BASE_URL: https://ntfy.sh
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ntfy_data:/var/lib/ntfy
+    # `proxy` für Traefik und den Weg nach außen (Upstream), `ntfy` für die Suite, die über
+    # `http://ntfy` sendet (`SUITE_FAELLIG_NTFY_INTERN`) statt über den öffentlichen Host.
+    networks: [proxy, ntfy]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 http://127.0.0.1:80/v1/health -O - | grep -Eq '\"healthy\"\\s*:\\s*true'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.iuk-ntfy.rule=${SUITE_NTFY_TRAEFIK_RULE:-Host(`ntfy.invalid`)}
+      # Derselbe Entrypoint wie die Suite: TLS endet vor Traefik, an einem Edge-Proxy.
+      - traefik.http.routers.iuk-ntfy.entrypoints=web
+      - traefik.http.services.iuk-ntfy.loadbalancer.server.port=80
+
 volumes:
   suite_data:
     name: suite_data
@@ -434,6 +488,8 @@ volumes:
     name: backup_data
   clamav_db:
     name: clamav_db
+  ntfy_data:
+    name: ntfy_data
 
 networks:
   proxy:
@@ -455,3 +511,7 @@ networks:
   # nach aussen: `apk` beim Start, `rclone` zum Ziel, `curl` fuer den Ping. Ein eigenes
   # Netz statt `proxy`, damit er dabei keinen anderen Container dieses Stacks sieht.
   backupnet:
+  # Suite → eigener ntfy (IDA-297). `internal`: über dieses Netz geht nur der Versand; den Weg nach
+  # außen hat der ntfy-Container über `proxy`.
+  ntfy:
+    internal: true

@@ -18,6 +18,7 @@ import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot
 import { uavBootFehler } from "@/app/m/uav/_lib/boot";
 import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 import { starteEinsatzbuchHintergrund } from "@/app/m/einsatzbuch/_lib/anbindung/aufraeumen";
+import { starteFaelligkeitenTakt } from "@/app/m/portal/_lib/faelligkeiten/takt";
 import { lokalHttpFehler } from "@/core/lokalHttp";
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
 // Migrations-Pfad ist cwd-relativ: Dev = Repo-Root, Prod = /app (Dockerfile
@@ -171,6 +172,9 @@ export function startBackgroundWork(): void {
   // einsatzbuch: Aufräum-Takt für abgelaufene Einmalcodes und Sitzungen (Stufe 6, Task 7,
   // Entscheidung 10) — alle zehn Minuten, synchron und wirft nie, siehe `_lib/anbindung/aufraeumen.ts`.
   starteEinsatzbuchHintergrund();
+  // portal: der wöchentliche Push „Was steht an" (IDA-297) — nur mit eingerichtetem ntfy, synchron und
+  // wirft nie, siehe `portal/_lib/faelligkeiten/takt.ts`.
+  starteFaelligkeitenTakt();
 }
 
 export async function seedAllModules(): Promise<void> {

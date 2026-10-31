@@ -5,6 +5,10 @@ import { requireModuleAdmin } from "@/core/auth/guards";
 import { createService, deleteService, updateService } from "@/app/m/portal/_lib/services";
 import { sichtbarkeitAusFormular } from "@/app/m/portal/_lib/gruppen";
 import { setzeAnsprechpartner, setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
+import { sendeZiel } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
+import { baueNachricht } from "@/app/m/portal/_lib/faelligkeiten/nachricht";
+import { sendeAnNtfy } from "@/app/m/portal/_lib/faelligkeiten/senden";
+import { alleGruppen, faelligkeitenSeitenUrl } from "@/app/m/portal/_lib/faelligkeiten/takt";
 
 const assertAdmin = () => requireModuleAdmin("portal");
 
@@ -60,5 +64,32 @@ export async function setzeZeitzoneAction(formData: FormData) {
   return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
     await setzeZeitzone(String(formData.get("zeitzone") ?? "").trim());
     revalidatePath("/", "layout");
+  });
+}
+
+export type JetztSendenErgebnis = { ok: boolean; text: string };
+
+/**
+ * „Was steht an" jetzt an das ntfy-Thema senden (IDA-297) — für den Suite-Betrieb, um nach dem
+ * Einrichten nicht bis Montag warten zu müssen. Vermerkt KEINE Woche: der Montagslauf kommt trotzdem.
+ * Ist nichts fällig, geht eine kurze Probe raus, damit man sieht, dass der Weg trägt.
+ */
+export async function sendeFaelligkeitenJetztAction(): Promise<JetztSendenErgebnis> {
+  const auditViewer = await assertAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
+    try {
+      const ziel = sendeZiel();
+      if (!ziel) return { ok: false, text: "Der Versand ist nicht eingerichtet." };
+      const seite = faelligkeitenSeitenUrl();
+      const nachricht = baueNachricht(alleGruppen(new Date()), seite) ?? {
+        title: "Was steht an", message: "Gerade steht nichts an. Diese Probe zeigt, dass der Push ankommt.",
+        priority: 3 as const, tags: ["date"], ...(seite ? { click: seite } : {}),
+      };
+      await sendeAnNtfy(ziel, nachricht);
+      return { ok: true, text: "Gesendet. Die Mitteilung sollte gleich auf den abonnierten Telefonen sein." };
+    } catch (fehler) {
+      console.error("Was steht an: Senden von Hand gescheitert —", fehler);
+      return { ok: false, text: "Senden hat nicht geklappt. Läuft der ntfy-Container, und stimmt das Token?" };
+    }
   });
 }
