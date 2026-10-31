@@ -9,9 +9,10 @@
  *
  * Ein Schritt alle `SOFORT_TAKT_MS` statt eines Aufrufs aus dem Modul: das Portal liest die Module,
  * nicht umgekehrt (`quellen.ts`), und ein ntfy, der kurz schweigt, bekommt die Meldung beim nächsten
- * Schritt. Vermerkt wird eine Meldung, sobald sie mindestens ein Abo erreicht hat oder niemand sie
- * bekommen soll; scheitert der Versand an alle, bleibt sie offen. Wer sie in diesem Prozess schon
- * bekommen hat, bekommt sie beim Nachholen nicht noch einmal (`lokalGesendet`).
+ * Schritt. Vermerkt wird eine Meldung erst, wenn sie jedes Abo erreicht hat oder niemand sie bekommen
+ * soll; scheitert der Versand an eines, bleibt sie offen (längstens `SOFORT_FENSTER_MS`). Wer sie in
+ * diesem Prozess schon bekam, bekommt sie beim Nachholen nicht noch einmal (`lokalGesendet`); nach einem
+ * Neustart mitten im Nachholen kann sie doppelt kommen — lieber doppelt als nie.
  *
  * Nur Meldungen der letzten `SOFORT_FENSTER_MS`: wird der Push erst später eingerichtet, gehen alte
  * Meldungen nicht auf einmal hinaus — sie stehen ohnehin auf „Was steht an".
@@ -119,7 +120,7 @@ export async function sofortschritt(d: SofortAbhaengigkeiten): Promise<SofortErg
           meldeGedrosselt(d, `an ein Abo gescheitert — ${grund(fehler)}`);
         }
       }
-      if (erreicht > 0 || empfaenger.length === 0) vermerken.set(q, [...(vermerken.get(q) ?? []), m.id]);
+      if (erreicht === empfaenger.length) vermerken.set(q, [...(vermerken.get(q) ?? []), m.id]);
     }
 
     for (const [q, ids] of vermerken) {

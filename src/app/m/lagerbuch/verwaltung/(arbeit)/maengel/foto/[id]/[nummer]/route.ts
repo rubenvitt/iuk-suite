@@ -37,7 +37,7 @@ export async function GET(
   return new Response(new Uint8Array(bytes), {
     headers: {
       "content-type": "image/jpeg",
-      "cache-control": "private, max-age=3600",
+      "cache-control": "no-store",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
     },

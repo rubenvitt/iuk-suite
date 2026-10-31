@@ -76,9 +76,9 @@ test.describe("Mängel melden", () => {
     const bild = karte.locator("img").first();
     await expect(bild).toBeVisible();
     // Das Bild kam wirklich an — und ist höchstens 1600 px breit, also neu gerechnet.
-    const breite = await bild.evaluate((img: HTMLImageElement) => img.complete ? img.naturalWidth : 0);
-    expect(breite).toBeGreaterThan(0);
-    expect(breite).toBeLessThanOrEqual(1600);
+    const breiteLesen = () => bild.evaluate((img: HTMLImageElement) => (img.complete ? img.naturalWidth : 0));
+    await expect.poll(breiteLesen, { timeout: 15_000 }).toBeGreaterThan(0);
+    expect(await breiteLesen()).toBeLessThanOrEqual(1600);
 
     if (process.env.MAENGEL_BILDER) {
       await admin.screenshot({ path: `${process.env.MAENGEL_BILDER}/verwaltung-desktop.png`, fullPage: true });

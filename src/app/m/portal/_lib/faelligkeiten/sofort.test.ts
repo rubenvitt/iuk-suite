@@ -63,7 +63,7 @@ describe("Sofort-Push", () => {
     expect((senden.mock.calls[0] as unknown[])[0]).toMatchObject({ thema: "iuk-faellig-ben" });
   });
 
-  it("vermerkt nicht, wenn der Versand an alle scheitert, und schickt beim Nachholen niemandem doppelt", async () => {
+  it("vermerkt erst, wenn jedes Abo erreicht ist, und schickt beim Nachholen niemandem doppelt", async () => {
     const vermerken = vi.fn();
     const abos = () => [abo("anna"), abo("dora")];
     const scheitertFuerDora = vi.fn(async (ziel: { thema: string }) => { if (ziel.thema.endsWith("dora")) throw new Error("HTTP 502"); });
@@ -74,11 +74,14 @@ describe("Sofort-Push", () => {
     expect(vermerken).not.toHaveBeenCalled();
 
     r = await sofortschritt(abh({ quellen: [quelle([MANGEL], vermerken)], abos, senden: scheitertFuerDora }));
-    expect(r).toEqual({ gesendet: 1, gescheitert: 1, vermerkt: 1 });
+    expect(r).toEqual({ gesendet: 1, gescheitert: 1, vermerkt: 0 });
+    expect(vermerken).not.toHaveBeenCalled();
 
     const nochmal = vi.fn(async () => {});
-    await sofortschritt(abh({ quellen: [quelle([MANGEL], vermerken)], abos, senden: nochmal }));
+    r = await sofortschritt(abh({ quellen: [quelle([MANGEL], vermerken)], abos, senden: nochmal }));
     expect((nochmal.mock.calls as unknown[][]).map((c) => (c[0] as { thema: string }).thema)).toEqual(["iuk-faellig-dora"]);
+    expect(r.vermerkt).toBe(1);
+    expect(vermerken).toHaveBeenCalledTimes(1);
   });
 
   it("vermerkt auch ohne Empfänger und tut ohne Versand nichts", async () => {

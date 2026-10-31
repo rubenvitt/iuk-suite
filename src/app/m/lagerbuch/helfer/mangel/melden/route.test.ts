@@ -104,4 +104,19 @@ describe("POST /helfer/mangel/melden", () => {
     const r = await POST(anfrage({ ort: "rtw", punkt: "Verschmutzt" }, [f, f, f, f]));
     expect(await r.json()).toMatchObject({ ok: false, feld: "fotos" });
   });
+
+  it("bricht einen übergroßen Körper beim Lesen ab, auch ohne content-length", async () => {
+    const block = new Uint8Array(1024 * 1024);
+    let n = 0;
+    const strom = new ReadableStream<Uint8Array>({
+      pull(c) { if (n++ < 60) c.enqueue(block); else c.close(); },
+    });
+    const req = new Request("https://lagerbuch.example/helfer/mangel/melden", {
+      method: "POST", body: strom, duplex: "half",
+      headers: { host: "lagerbuch.example", "content-type": "multipart/form-data; boundary=x" },
+    } as RequestInit);
+    expect((await POST(req)).status).toBe(413);
+    expect(n).toBeLessThan(60);
+    expect((await POST(anfrage({ ort: "rtw" }, [], { "content-length": "999999999" }))).status).toBe(413);
+  });
 });

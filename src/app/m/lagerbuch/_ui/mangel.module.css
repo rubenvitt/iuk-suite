@@ -13,6 +13,7 @@
   border: 1px solid var(--lb-linie); background: var(--lb-karte); color: var(--lb-tinte); cursor: pointer;
 }
 .fotoKnopf { width: 100%; cursor: pointer }
+.fotoKnopf:focus-within { outline: 2px solid var(--lb-tinte); outline-offset: 2px }
 .versteckt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
 .fehler { color: var(--lb-ampel-rot-text); font-size: 14px; font-weight: 600; margin: 10px 2px 0 }
 .fertig { text-align: center; padding: 22px 16px }

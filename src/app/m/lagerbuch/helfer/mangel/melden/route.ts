@@ -57,6 +57,34 @@ function text(formData: FormData, name: string, max: number): string | null {
   return getrimmt === "" ? null : getrimmt;
 }
 
+/**
+ * Den Körper lesen, aber nie mehr als `max` Bytes — `content-length` fehlt bei `fetch` mit FormData oft
+ * oder kann lügen; gezählt wird deshalb beim Lesen (Vorbild `einsatzbuch/_lib/anbindung/koerper.ts`).
+ */
+async function begrenztGelesen(req: Request, max: number): Promise<Uint8Array<ArrayBuffer> | "zu_gross" | null> {
+  const angegeben = req.headers.get("content-length");
+  if (angegeben !== null && (!/^\d+$/.test(angegeben) || Number(angegeben) > max)) return "zu_gross";
+  const reader = req.body?.getReader();
+  if (!reader) return null;
+  let bytes = 0;
+  const teile: Uint8Array[] = [];
+  try {
+    while (true) {
+      const teil = await reader.read();
+      if (teil.done) break;
+      bytes += teil.value.byteLength;
+      if (bytes > max) {
+        await reader.cancel();
+        return "zu_gross";
+      }
+      teile.push(teil.value);
+    }
+  } catch {
+    return null;
+  }
+  return new Uint8Array(Buffer.concat(teile));
+}
+
 export async function POST(req: Request): Promise<Response> {
   // Die nicht werfende Host-Probe zuerst (Falle 55): ein Route Handler hat keine Fehlerseite.
   if (lagerbuchHostOderNull(await headers()) === null) return new Response(null, { status: 404 });
@@ -66,12 +94,17 @@ export async function POST(req: Request): Promise<Response> {
   if (!zugang.ok) return fehler(401, "Die Sitzung ist abgelaufen. Bitte das Etikett noch einmal scannen.");
 
   return withAuditContext({ actor: zugangsAkteur(zugang.zugang) }, async (): Promise<Response> => {
-    const laenge = Number(req.headers.get("content-length") ?? "0");
-    if (Number.isFinite(laenge) && laenge > KOERPER_MAX) return fehler(413, "Die Fotos sind zu groß.");
+    const gelesen = await begrenztGelesen(req, KOERPER_MAX);
+    if (gelesen === "zu_gross") return fehler(413, "Die Fotos sind zu groß.");
 
     let formData: FormData;
     try {
-      formData = await req.formData();
+      if (gelesen === null) throw new Error("kein Körper");
+      formData = await new Request(req.url, {
+        method: "POST",
+        headers: { "content-type": req.headers.get("content-type") ?? "" },
+        body: gelesen,
+      }).formData();
     } catch {
       return fehler(400, "Die Meldung kam nicht vollständig an. Bitte noch einmal senden.");
     }
