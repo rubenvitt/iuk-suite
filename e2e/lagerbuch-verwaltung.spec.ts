@@ -146,10 +146,10 @@ test.describe("lagerbuch — Modulnavigation", () => {
     await expect(leiste).toBeVisible();
     // 18 seit DRK-305 („Entnahme“, „Check durchführen“), 19 seit DRK-312
     // („Ortsetiketten“), 20 seit DRK-313 („Auffüllen“), 21 seit DRK-314
-    // („Entnahmebox“), 22 seit IDA-261 („Statistik“). Die Zusage dieses Tests hängt NICHT an der Zahl, sondern
+    // („Entnahmebox“), 22 seit IDA-261 („Statistik“), 23 seit IDA-298 („Mängel“). Die Zusage dieses Tests hängt NICHT an der Zahl, sondern
     // am Satz darunter: mehr Einträge machen die Marge größer, nicht kleiner —
     // deshalb ist ein neuer Eintrag hier eine Zahl im Diff und kein Befund.
-    await expect(leiste.locator("a")).toHaveCount(22); await warteAufSpaltenaufteilung(page);
+    await expect(leiste.locator("a")).toHaveCount(23); await warteAufSpaltenaufteilung(page);
 
     const masse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,

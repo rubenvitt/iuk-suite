@@ -17,6 +17,9 @@
  * Ist nichts fällig, wird nichts gesendet (die Woche gilt trotzdem als erledigt). Eine Mitteilung
  * „nichts zu tun" jede Woche lehrt, die Mitteilungen wegzuwischen.
  *
+ * Derselbe Start trägt den Sofort-Push (IDA-298, `sofort.ts`): ohne eingerichteten Versand gibt es
+ * keinen der beiden.
+ *
  * Kein `"use client"`. Zeitzone je Aufruf aus `core/zeit` (CLAUDE.md, „Zeitzone").
  */
 import type { FaelligkeitenAbo } from "@/app/m/portal/_db/schema";
@@ -30,6 +33,7 @@ import { personenGruppen, type GruppenJePerson } from "./personenGruppen";
 import { QUELLEN, type FaelligkeitsQuelle } from "./quellen";
 import { sammle, type FaelligkeitsGruppe } from "./sammeln";
 import { sendeAnNtfy } from "./senden";
+import { SOFORT_TAKT_MS, sofortschritt } from "./sofort";
 
 export const SENDE_STUNDE = 7;
 export const PRUEF_TAKT_MS = 15 * 60_000;
@@ -203,6 +207,28 @@ export function starteFaelligkeitenTakt(): void {
     };
     setTimeout(() => void schritt(), ERSTER_SCHRITT_MS).unref?.();
     setInterval(() => void schritt(), PRUEF_TAKT_MS).unref?.();
+
+    // IDA-298 — der Sofort-Push (`sofort.ts`) hängt an derselben Einrichtung und läuft jede Minute.
+    let sofortLaeuft = false;
+    const sofort = async () => {
+      if (sofortLaeuft) return;
+      sofortLaeuft = true;
+      try {
+        await sofortschritt({
+          jetzt: new Date(),
+          versand: versand(),
+          abos: () => abosMitPush(),
+          verzeichnis: () => personenGruppen(),
+          quellen: QUELLEN,
+          basis: (modul) => moduleUrl(modul),
+          senden: (z, n) => sendeAnNtfy(z, n),
+          melden: console.error,
+        });
+      } finally {
+        sofortLaeuft = false;
+      }
+    };
+    setInterval(() => void sofort(), SOFORT_TAKT_MS).unref?.();
   } catch (fehler) {
     console.error("Was steht an: Takt nicht gestartet —", fehler);
   }

@@ -61,18 +61,24 @@ export function HelferRahmen({
   reichweite,
   sitzungsetikett,
   laeuftAb,
+  mangelOrt,
   children,
 }: {
   /**
    * DRK-314: DREI Reiter, nicht mehr zwei. Der dritte ist die Gegenrichtung zur
    * Entnahme — „in die Box legen" statt „aus dem Regal nehmen".
    *
-   * ⚠️ DREI IST DIE GRENZE, NICHT DER ANFANG. `.tab` teilt die Leiste per
-   * `flex: 1` gleichmaessig auf; bei 320px Fensterbreite bleiben je Reiter rund
-   * 106px, und die Beschriftung „Entnahme" misst darin schon 62px. Ein vierter
+   * ⚠️ VIER IST DIE GRENZE (IDA-298, „Mangel"). `.tab` teilt die Leiste per
+   * `flex: 1` gleichmaessig auf; bei 320px Fensterbreite bleiben je Reiter 80px,
+   * abzueglich 4px Polster 76px, und die Beschriftung „Entnahme" misst 62px. Vier
+   * Reiter sieht ohnehin nur, wer alles darf (Konto, Karte ohne Ort). Ein fuenfter
    * Reiter braucht ein anderes Muster, keinen weiteren Wert hier.
+   *
+   * „mangel" ist kein `Bereich`: melden darf jede Reichweite, es ist kein Riegel.
    */
-  aktiv: Bereich;
+  aktiv: Bereich | "mangel";
+  /** IDA-298: der Ort, den der Reiter „Mangel" vorbelegt (z. B. der gescannte Schrank). */
+  mangelOrt?: string | null;
   /**
    * WAS DIESER ZUGANG OEFFNEN DARF — DRK-406, vier Werte statt zwei seit
    * DRK-417.
@@ -242,6 +248,19 @@ export function HelferRahmen({
             <span>Check</span>
           </Link>
         )}
+        {/*
+          IDA-298 — MANGEL MELDEN STEHT AN JEDER KARTE. Ein Mangel ist keine Buchung: wer am Regal
+          steht, sieht den kaputten Schrank genauso wie jemand am Fahrzeug. Darum keine `darf`-Probe.
+        */}
+        <Link
+          href={mangelOrt ? `/helfer/mangel?ort=${encodeURIComponent(mangelOrt)}` : "/helfer/mangel"}
+          className={s.tab}
+          aria-current={aktiv === "mangel" ? "page" : undefined}
+          data-rolle="tab-mangel"
+        >
+          <Ikone name="warnung" groesse={20} />
+          <span>Mangel</span>
+        </Link>
       </nav>
     </div>
   );

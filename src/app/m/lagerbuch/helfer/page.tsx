@@ -106,6 +106,7 @@ export default async function HelferSeite({
       reichweite={zugang.reichweite}
       sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
+      mangelOrt={schrank?.id ?? null}
     >
       <div className={s.schirmKopf} data-rolle="helfer-kopf">
         {schrank ? `${schrank.name} — Artikel wählen` : "Artikel wählen"}

@@ -1245,5 +1245,25 @@
       "path": "src/core/audit/access.ts",
       "reason": "Shared suite-only reader guard records audit_log denial before throwing."
     }
+  },
+  "src/app/m/lagerbuch/helfer/mangel/melden/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/lagerbuch/_actions/maengel.ts#mangelErledigen": {
+    "kind": "context",
+    "via": "mangelErledigen"
+  },
+  "src/app/m/lagerbuch/_actions/maengel.ts#mangelWiederOeffnen": {
+    "kind": "context",
+    "via": "mangelWiederOeffnen"
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/maengel/foto/[id]/[nummer]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Viewing a defect photo is an ordinary admin read of the module's own data, like the defect list page; no export or delivery event.",
+    "denial": {
+      "via": "GET",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
   }
 }

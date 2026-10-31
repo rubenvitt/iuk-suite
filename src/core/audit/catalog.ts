@@ -194,6 +194,18 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "maengel": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "gemeldet_at"
+        ],
+        "reason": "Vermerk des Sofort-Pushs über „Was steht an“; Meldung und Erledigen sind auditiert."
+      }
+    },
     "o2_flaschen": {
       "mode": "audited",
       "primaryKey": [

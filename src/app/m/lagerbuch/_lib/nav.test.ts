@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die zweiundzwanzig Ziele", () => {
-  it("führt genau die 22 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die dreiundzwanzig Ziele", () => {
+  it("führt genau die 23 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -27,6 +27,8 @@ describe("LAGERBUCH_NAV: die zweiundzwanzig Ziele", () => {
       { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Einheiten & Geräte" },
       { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Einheiten & Geräte" },
       { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Einheiten & Geräte" },
+      // IDA-298: die gemeldeten Mängel, vor den Checks — sie sind das, was jemand jetzt tun muss.
+      { key: "maengel", title: "Mängel", href: "/verwaltung/maengel", ikon: "maengel", abschnitt: "Prüfungen" },
       { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
       // DRK-305: der dritte. `pruefen` ist die HANDLUNG, `checks` daneben die
       // Historie — zwei Eintraege im selben Abschnitt, deshalb zwei Zeichen.
@@ -79,8 +81,8 @@ describe("LAGERBUCH_NAV: die zweiundzwanzig Ziele", () => {
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(22);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(22);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(23);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(23);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {
