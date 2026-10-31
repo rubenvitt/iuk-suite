@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import { Avatar, Button, Drawer, Dropdown, Input } from "antd";
 import type { MenuProps } from "antd";
 // Dieselbe Zeichenfamilie wie die Navigationseintraege selbst (`navIkonen.tsx`):
@@ -331,6 +332,7 @@ export function SuiteNav({
   angemeldet,
   profilHref,
   rueckmeldeweg,
+  befehlspalette = null,
 }: {
   nav: SuiteNavItem[];
   /** Namensraum des gemerkten Aufklappzustands — siehe `NavListe`. */
@@ -349,6 +351,8 @@ export function SuiteNav({
    * nicht eingerichtet oder anonym. Siehe `feedbackEintrag`.
    */
   rueckmeldeweg: Rueckmeldeweg | null;
+  /** Der Lupen-Knopf der Befehlspalette (IDA-303), vorn in der rechten Gruppe; anonym `null`. */
+  befehlspalette?: ReactNode;
 }) {
   const [offen, setOffen] = useState(false);
   /*
@@ -507,6 +511,7 @@ export function SuiteNav({
   return (
     <>
       <div className={s.rechts}>
+        {befehlspalette}
         <Button
           className={s.nurMobil}
           type="text"

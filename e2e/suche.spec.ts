@@ -44,6 +44,13 @@ test("findet ein Fahrzeug über sein Kennzeichen, nur mit Zugang zum Modul", asy
   await expect(treffer).toContainText(kennzeichen);
   await expect(treffer).toHaveAttribute("href", url(FAHRZEUGE, "/"));
   await expect(darf.getByTestId("suche-eingabe")).toHaveValue(kennzeichen.toLowerCase());
+
+  // Dasselbe aus dem Suchfeld der Startseite: die Treffer stehen unter den Apps.
+  await darf.goto(url(PORTAL, "/"));
+  await darf.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(darf);
+  await darf.getByTestId("portal-suche").fill(kennzeichen);
+  await expect(darf.getByTestId("suche-treffer").filter({ hasText: funkrufname })).toHaveCount(1);
   await darf.close();
 
   // Ohne Zugang: kein Abschnitt, kein Treffer, sondern „nichts gefunden“.
@@ -60,4 +67,27 @@ test("ein Zeichen ist zu kurz; die Leiste führt zur Suche", async ({ page }) =>
   await suche(page, "x");
   await expect(page.getByTestId("suche-zu-kurz")).toBeVisible();
   await expect(page.getByRole("link", { name: "Suche", exact: true }).first()).toBeVisible();
+});
+
+test("Strg+K öffnet die Befehlspalette: springen und in die Suche weiterreichen (IDA-303)", async ({ page }) => {
+  await devLogin(page, { host: PORTAL, groups: "", callbackPath: "/" });
+  await page.goto(url(PORTAL, "/"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+
+  await page.keyboard.press("Control+k");
+  const feld = page.getByTestId("befehlspalette-eingabe");
+  await expect(feld).toBeFocused();
+  await feld.pressSequentially("neuig");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(url(PORTAL, "/neuigkeiten"));
+  await warteAufGestreamteInhalte(page);
+
+  await klickeWennRuhig(page.getByTestId("befehlspalette-knopf"));
+  await expect(feld).toBeFocused();
+  await feld.pressSequentially("UE-RK 831");
+  await expect(page.getByTestId("befehl")).toHaveText(["In allen Modulen nach „UE-RK 831“ suchen"]);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(url(PORTAL, "/suche?q=UE-RK%20831"));
+  await expect(page.getByTestId("suche-eingabe")).toHaveValue("UE-RK 831");
 });

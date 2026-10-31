@@ -875,6 +875,10 @@
     "kind": "context",
     "via": "setzeZeitzoneAction"
   },
+  "src/app/m/portal/sucheAktion.ts#sucheAktion": {
+    "kind": "excluded",
+    "reason": "Read/search only; each module checks its own gate per request (IDA-301), no mutation or export."
+  },
   "src/app/m/portal/actions.ts#richteFaelligkeitenAboEinAction": {
     "kind": "context",
     "via": "richteFaelligkeitenAboEinAction"

@@ -1,13 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Col, Empty, Input, Result, Row } from "antd";
 
 import { KACHEL_GRUND, TINTE } from "@/core/favicon/zeichen";
 import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
+import { usePalettenKuerzel } from "@/core/shell/Befehlspalette";
 import type { LauncherEintrag } from "@/core/shell/types";
+import { suchbegriff } from "@/core/suche";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
+import { SuchErgebnisse } from "@/app/m/portal/_ui/SuchErgebnisse";
+import { sucheAktion } from "@/app/m/portal/sucheAktion";
+
+/** So lange nach dem letzten Tastendruck, bevor die Module gefragt werden. */
+const VERZOEGERUNG_MS = 250;
+
+/** Die Taste im Suchfeld: klein, gedämpft, mit Suite-Variablen (Falle 2). */
+const KBD = {
+  ...SCHRIFT.neben,
+  color: "var(--iuk-gedaempft)",
+  border: "1px solid var(--iuk-linie)",
+  borderRadius: 4,
+  padding: "0 6px",
+  fontFamily: "inherit",
+} as const;
 
 /**
  * DAS PORTAL ALS VOLLFLÄCHIGE ANSICHT DERSELBEN LISTE, die der Umschalter als
@@ -30,6 +48,41 @@ export function DiensteRaster({
   ansprechpartner: string | null;
 }) {
   const [suche, setSuche] = useState("");
+  const [modulSuche, setModulSuche] = useState<{ laedt: boolean; treffer: ModulErgebnis[]; fehler?: boolean }>({ laedt: false, treffer: [] });
+  const kuerzel = usePalettenKuerzel();
+  const wecker = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anfrage = useRef(0);
+  const begriff = suchbegriff(suche);
+
+  useEffect(() => () => {
+    if (wecker.current) clearTimeout(wecker.current);
+  }, []);
+
+  /**
+   * Die Apps filtert der Browser sofort; die Module fragt er kurz nach dem letzten Tastendruck,
+   * und nur die jüngste Antwort zählt (ein langsamer Rücklauf überschriebe sonst eine neuere).
+   */
+  function eingeben(wert: string) {
+    setSuche(wert);
+    if (wecker.current) clearTimeout(wecker.current);
+    const nummer = ++anfrage.current;
+    if (!suchbegriff(wert)) {
+      setModulSuche({ laedt: false, treffer: [] });
+      return;
+    }
+    setModulSuche({ laedt: true, treffer: [] });
+    wecker.current = setTimeout(() => {
+      // Ein gescheiterter Aufruf ist kein „Nichts gefunden“: die Module sind dann gar nicht gefragt.
+      sucheAktion(wert).then(
+        (treffer) => {
+          if (nummer === anfrage.current) setModulSuche({ laedt: false, treffer });
+        },
+        () => {
+          if (nummer === anfrage.current) setModulSuche({ laedt: false, treffer: [], fehler: true });
+        },
+      );
+    }, VERZOEGERUNG_MS);
+  }
 
   const abschnitte = useMemo(() => {
     const nadel = suche.trim().toLowerCase();
@@ -86,20 +139,23 @@ export function DiensteRaster({
         data-testid="portal-suche"
         type="search"
         value={suche}
-        placeholder="Apps und Dienste durchsuchen"
-        aria-label="Apps und Dienste durchsuchen"
-        onChange={(e) => setSuche(e.target.value)}
-        style={{ maxInlineSize: 420 }}
+        placeholder="Apps, Geräte, Kennzeichen, Artikel …"
+        aria-label="Apps, Dienste und alle Module durchsuchen"
+        onChange={(e) => eingeben(e.target.value)}
+        // Der Hinweis auf die Befehlspalette: dasselbe Suchen geht auf jeder Seite mit diesem Kürzel.
+        suffix={
+          <kbd data-testid="portal-suche-kuerzel" title="Auf jeder Seite: Befehlspalette öffnen" style={KBD}>
+            {kuerzel}
+          </kbd>
+        }
+        style={{ maxInlineSize: 480 }}
       />
 
       {abschnitte.length === 0 ? (
-        <Empty data-testid="portal-ohne-treffer" description={`Keine App und kein Dienst heißt „${suche}“.`}>
-          {/* Wer hier eine Seriennummer oder ein Kennzeichen eintippt, sucht in Wahrheit
-              die Daten der Module — der Weg dorthin ist die suiteweite Suche (IDA-301). */}
-          <a data-testid="portal-suche-ueberall" href={`/suche?q=${encodeURIComponent(suche.trim())}`}>
-            In allen Modulen nach „{suche.trim()}“ suchen
-          </a>
-        </Empty>
+        // Leer erst, wenn auch die Module nichts liefern (oder noch gar nicht gefragt sind).
+        modulSuche.laedt || modulSuche.fehler || modulSuche.treffer.length > 0 ? null : (
+          <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche.trim()}“.`} />
+        )
       ) : (
         abschnitte.map(([titel, liste]) => (
           <section key={titel}>
@@ -195,6 +251,25 @@ export function DiensteRaster({
           </section>
         ))
       )}
+
+      {/* DIE TREFFER AUS DEN MODULEN, unter den Apps (IDA-301): dasselbe Feld, ein zweiter Blick.
+          Was hier steht, hat jedes Modul selbst nach Rechten gefiltert (`sucheAktion`). */}
+      {modulSuche.laedt && modulSuche.treffer.length === 0 ? (
+        <p data-testid="portal-suche-laedt" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
+          Suche in den Modulen …
+        </p>
+      ) : null}
+      {modulSuche.fehler ? (
+        <p data-testid="portal-suche-fehler" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
+          Die Module ließen sich gerade nicht durchsuchen. Tipp weiter oder öffne die Suchseite.
+        </p>
+      ) : null}
+      <SuchErgebnisse ergebnisse={modulSuche.treffer} />
+      {begriff ? (
+        <a data-testid="portal-suche-ueberall" href={`/suche?q=${encodeURIComponent(begriff)}`} style={SCHRIFT.neben}>
+          Auf der Suchseite öffnen
+        </a>
+      ) : null}
     </div>
   );
 }

@@ -1002,3 +1002,42 @@
     display: none !important;
   }
 }
+
+/*
+ * DIE BEFEHLSPALETTE (IDA-303, `Befehlspalette.tsx`). Eigene Klassen statt antd-Listen: `List`
+ * ist seit antd 6 abgekündigt, und eine Zeile mit `role="option"` braucht ohnehin eigenes Markup.
+ * Die Farben kommen aus den Suite-Variablen in `globals.css` (Falle 2: `--ant-*` sähe das Markup
+ * im Modal nicht).
+ */
+.paletteListe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: min(60dvh, 420px);
+  overflow-y: auto;
+}
+
+.paletteGruppe {
+  color: var(--iuk-gedaempft);
+  padding: 8px 8px 4px;
+}
+
+.paletteEintrag {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.paletteEintrag[aria-selected="true"] {
+  background: var(--iuk-flaeche-aktiv);
+}
+
+.paletteHinweis {
+  color: var(--iuk-gedaempft);
+  font-size: 12px;
+  white-space: nowrap;
+}
