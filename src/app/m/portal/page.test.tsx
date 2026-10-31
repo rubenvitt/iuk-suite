@@ -19,6 +19,19 @@ vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   leseAnsprechpartner: vi.fn(),
   setzeAnsprechpartner: vi.fn(),
 }));
+vi.mock("@/app/m/lagerbuch/_lib/faelligkeiten", () => ({
+  LAGERBUCH_FAELLIGKEITS_ARTEN: ["Verfall"],
+  darfLagerbuchFaelligkeitenSehen: (g: string[] | null) => !!g?.includes("lager-admin"),
+  lagerbuchFaelligkeiten: () => [{
+    id: "v", art: "Verfall", titel: "NaCl", wo: null, zustand: "abgelaufen",
+    dringlichkeit: "ueberfaellig", sortierung: "", pfad: "/verwaltung/verfall",
+  }],
+}));
+vi.mock("@/app/m/radio/_lib/faelligkeiten", () => ({
+  RADIO_FAELLIGKEITS_ARTEN: ["Ausleihe"],
+  darfRadioFaelligkeitenSehen: () => false,
+  radioFaelligkeiten: () => [],
+}));
 
 import { auth } from "@/core/auth";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
@@ -26,6 +39,7 @@ import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
 import PortalPage from "@/app/m/portal/page";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
+import { FaelligkeitenKarte } from "@/app/m/portal/_ui/FaelligkeitenKarte";
 
 const authMock = vi.mocked(auth);
 const launcherMock = vi.mocked(launcherEintraege);
@@ -99,5 +113,23 @@ describe("Portal-Startseite: Seitenkopf statt eigenem <h1>", () => {
     authMock.mockResolvedValue(null as never);
     await PortalPage();
     expect(launcherMock).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("Portal-Startseite: Kachel „Was steht an“ (IDA-297)", () => {
+  beforeEach(() => {
+    launcherMock.mockResolvedValue([]);
+    ansprechpartnerMock.mockResolvedValue(null);
+  });
+
+  it("fehlt ohne Recht an einem Quellmodul", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["admin"] } } as never);
+    expect(flatten((await PortalPage()) as ReactElement).some((el) => el.type === FaelligkeitenKarte)).toBe(false);
+  });
+
+  it("zeigt Lagerbuch-Admins die Zahlen", async () => {
+    authMock.mockResolvedValue({ user: { groups: ["lager-admin"] } } as never);
+    const karte = flatten((await PortalPage()) as ReactElement).find((el) => el.type === FaelligkeitenKarte)!;
+    expect((karte.props as { zaehlung: unknown }).zaehlung).toEqual({ ueberfaellig: 1, bald: 0 });
   });
 });

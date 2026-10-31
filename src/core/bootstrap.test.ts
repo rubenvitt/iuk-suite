@@ -774,11 +774,14 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * (`src/app/m/einsatzbuch/_lib/anbindung/aufraeumen.ts`) kam dazu — dieselbe Ausnahme wie
      * `starteAufgabenScanArbeiter`: sie liegt NICHT in einer `_lib/boot.ts` und ist deshalb von
      * `hintergrundStarter` (Klausel IIa) strukturell nicht sichtbar, nur von dieser Klausel (IIb).
+     *
+     * ⛔ ANGEHOBEN VON `4` AUF `5` (IDA-297): `starteFaelligkeitenTakt`
+     * (`src/app/m/portal/_lib/faelligkeiten/takt.ts`), dieselbe Ausnahme wie die beiden davor.
      */
     for (const name of starterAufrufe) {
       expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
     }
-    expect(starterAufrufe.length).toBe(4);
+    expect(starterAufrufe.length).toBe(5);
   });
 
   it("kein Blockkommentar in den zwei gelesenen Ausschnitten, denn der Filter kennt nur //", () => {

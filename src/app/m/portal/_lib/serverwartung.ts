@@ -26,6 +26,7 @@
  */
 
 import { hasAnyGroup, suiteAdminGroup } from "@/core/groups";
+import { ntfyAboAus, WARTUNG_ANZEIGENAME, type NtfyAbo } from "@/app/m/portal/_lib/ntfy";
 
 /** Wie in `registry.ts`: nur „String rein, String oder undefined raus". */
 type EnvLike = Record<string, string | undefined>;
@@ -62,30 +63,14 @@ export const WARTUNG_LINKS = [
   },
 ] as const;
 
-/** So heißt das Abo in der Android-App (`?display=` des `ntfy://`-Links). */
-export const WARTUNG_ANZEIGENAME = "I&K Serverwartung";
-
-export interface WartungsAbo {
-  /** Die Adresse aus der `.env`, normalisiert (ohne Schrägstrich am Ende). */
-  readonly url: string;
-  /** Host samt Port, so wie man ihn in der App als Server einträgt. */
-  readonly server: string;
-  /** `https://<server>` — für „Anderen Server verwenden" in der App. */
-  readonly serverUrl: string;
-  /** ntfy.sh ist in den Apps die Vorgabe; dann entfällt der Server-Schritt. */
-  readonly standardServer: boolean;
-  readonly thema: string;
-  /** `ntfy://`-Link: öffnet die Android-App und abonniert direkt. */
-  readonly appLink: string;
-}
+/** So heißt das Abo in der Android-App — steht in `ntfy.ts`, weil die Client-Insel ihn auch braucht. */
+export { WARTUNG_ANZEIGENAME } from "@/app/m/portal/_lib/ntfy";
 
 /**
- * ntfys eigene Regel für Themennamen. Ein Thema mit anderen Zeichen nimmt der
- * Server nicht an — der Fehler fiele erst auf, wenn die erste Wartung
- * niemanden erreicht.
+ * Das Abo — seit IDA-297 dieselbe Form wie das Fälligkeiten-Abo (`ntfy.ts`).
+ * Felder: Adresse, Server, Server-Adresse, ob ntfy.sh, Thema und `ntfy://`-Link.
  */
-const THEMA = /^[A-Za-z0-9_-]{1,64}$/;
-
+export type WartungsAbo = NtfyAbo;
 let schonGewarnt = false;
 
 /** Nur für Tests: die Warnsperre zurücknehmen. */
@@ -118,31 +103,7 @@ export function wartungsAbo(
 }
 
 function zerlege(roh: string): WartungsAbo | null {
-  let adresse: URL;
-  try {
-    adresse = new URL(roh);
-  } catch {
-    return null;
-  }
-  // Nur http(s): der Wert landet als `href`, und `javascript:` wäre dort eine
-  // Skriptausführung mit den Rechten der Suite.
-  if (adresse.protocol !== "https:" && adresse.protocol !== "http:") return null;
-  if (adresse.search || adresse.hash || adresse.username || adresse.password) return null;
-
-  const thema = adresse.pathname.replace(/^\/+|\/+$/g, "");
-  if (!THEMA.test(thema)) return null;
-
-  const sicher = adresse.protocol === "https:";
-  const server = adresse.host;
-  const display = `display=${encodeURIComponent(WARTUNG_ANZEIGENAME)}`;
-  return {
-    url: `${adresse.protocol}//${server}/${thema}`,
-    server,
-    serverUrl: `${adresse.protocol}//${server}`,
-    standardServer: sicher && server === "ntfy.sh",
-    thema,
-    appLink: `ntfy://${server}/${thema}?${display}${sicher ? "" : "&secure=false"}`,
-  };
+  return ntfyAboAus(roh, WARTUNG_ANZEIGENAME);
 }
 
 /** Die Gruppen, die das Abo sehen dürfen: immer der Suite-Betrieb, dazu die aus der `.env`. */

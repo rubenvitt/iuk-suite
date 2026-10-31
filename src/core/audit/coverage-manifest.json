@@ -879,6 +879,26 @@
     "kind": "excluded",
     "reason": "Read/search only; each module checks its own gate per request (IDA-301), no mutation or export."
   },
+  "src/app/m/portal/actions.ts#richteFaelligkeitenAboEinAction": {
+    "kind": "context",
+    "via": "richteFaelligkeitenAboEinAction"
+  },
+  "src/app/m/portal/actions.ts#speichereFaelligkeitenAuswahlAction": {
+    "kind": "context",
+    "via": "speichereFaelligkeitenAuswahlAction"
+  },
+  "src/app/m/portal/actions.ts#wechsleFaelligkeitenThemaAction": {
+    "kind": "context",
+    "via": "wechsleFaelligkeitenThemaAction"
+  },
+  "src/app/m/portal/actions.ts#beendeFaelligkeitenAboAction": {
+    "kind": "context",
+    "via": "beendeFaelligkeitenAboAction"
+  },
+  "src/app/m/portal/actions.ts#sendeFaelligkeitenProbeAction": {
+    "kind": "context",
+    "via": "sendeFaelligkeitenProbeAction"
+  },
   "src/app/m/portal/admin/rechte/actions.ts#setzeRechtAction": {
     "kind": "explicit-only",
     "reason": "Schreibt in Pocket ID, nicht in eine Suite-Datenbank; jede Aufnahme und Entfernung wird explizit auditiert."

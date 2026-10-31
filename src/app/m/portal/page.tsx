@@ -5,6 +5,8 @@ import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
 import { RueckmeldungKarte } from "@/app/m/portal/_ui/RueckmeldungKarte";
 import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { sammle, sichtbareQuellen, zaehle } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
+import { FaelligkeitenKarte } from "@/app/m/portal/_ui/FaelligkeitenKarte";
 
 /**
  * Server Component: sie löst Sitzung, Liste und Ansprechpartner auf und
@@ -42,9 +44,13 @@ export default async function PortalPage() {
    * Client-Bundle nicht existiert.
    */
   const rueckmeldung = rueckmeldeweg();
+  // „Was steht an" (IDA-297): nur wer ein Quellmodul verwaltet, sieht die Kachel.
+  const quellen = sichtbareQuellen(session?.user?.groups);
+  const fristen = quellen.length > 0 ? sammle(quellen, new Date()) : null;
   return (
     <>
       <Seitenkopf titel="Apps & Dienste" />
+      {fristen && <FaelligkeitenKarte zaehlung={zaehle(fristen)} ausgefallen={fristen.some((g) => g.fehler)} />}
       <DiensteRaster eintraege={eintraege} ansprechpartner={ansprechpartner} />
       {rueckmeldung && <RueckmeldungKarte weg={rueckmeldung} />}
     </>
