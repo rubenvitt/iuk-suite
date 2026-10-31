@@ -875,6 +875,10 @@
     "kind": "context",
     "via": "setzeZeitzoneAction"
   },
+  "src/app/m/portal/sucheAktion.ts#sucheAktion": {
+    "kind": "excluded",
+    "reason": "Read/search only; each module checks its own gate per request (IDA-301), no mutation or export."
+  },
   "src/app/m/portal/admin/rechte/actions.ts#setzeRechtAction": {
     "kind": "explicit-only",
     "reason": "Schreibt in Pocket ID, nicht in eine Suite-Datenbank; jede Aufnahme und Entfernung wird explizit auditiert."
