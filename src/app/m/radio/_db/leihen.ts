@@ -1096,3 +1096,28 @@ export function geraeteMitLeihen(db: DB): GeraetMitLeihe[] {
     .map((z) => ({ id: z.id, rufname: z.rufname }))
     .sort((a, b) => a.rufname.localeCompare(b.rufname, "de"));
 }
+
+/** Eine offene Leihe mit ihrem Beginn als Zeitpunkt — für „Was steht an" (`_lib/faelligkeiten.ts`). */
+export type OffeneLeiheSeit = { id: string; rufname: string; entleiher: string; seit: Date };
+
+/**
+ * DIE OFFENEN AUSLEIHEN, DIE VOR `bis` BEGONNEN HABEN — älteste zuerst (IDA-297).
+ *
+ * Neben `offeneAusleihen` statt in ihr, weil jene den Beginn schon als Anzeigetext liefert und ihre
+ * Aufrufer genau das wollen; hier wird mit dem Zeitpunkt gerechnet. Sie liegt in DIESER Datei, weil
+ * `loans` genau einen Zugriffsort hat (siehe `offeneLeiheZuGeraet`). Rufname aus dem Schnappschuss,
+ * kein Join auf `devices` — aus demselben Grund wie bei `offeneAusleihen`.
+ */
+export function offeneAusleihenSeit(db: DB, bis: Date): OffeneLeiheSeit[] {
+  return db
+    .select({
+      id: loans.id,
+      rufname: loans.snapshotCallSign,
+      entleiher: loans.borrowerName,
+      seit: loans.borrowedAt,
+    })
+    .from(loans)
+    .where(and(isNull(loans.returnedAt), lte(loans.borrowedAt, bis)))
+    .orderBy(loans.borrowedAt)
+    .all();
+}

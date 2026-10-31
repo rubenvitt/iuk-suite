@@ -161,3 +161,30 @@ describe("Portal-Layout: Serverwartung in der Navigation", () => {
     vi.unstubAllEnvs();
   });
 });
+
+/** „Was steht an" (IDA-297): dasselbe Prädikat wie die Seite, sonst führte der Eintrag auf 404. */
+describe("Portal-Layout: „Was steht an“ in der Navigation", () => {
+  const eintrag = { key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten" };
+
+  beforeEach(() => {
+    authMock.mockReset();
+    vi.unstubAllEnvs();
+  });
+
+  it("steht direkt hinter der Übersicht", () => {
+    expect(navFuerPortal(false, false, false, true).slice(0, 2)).toEqual([
+      { key: "start", title: "Übersicht", href: "/" },
+      eintrag,
+    ]);
+  });
+
+  it("erscheint für Lagerbuch-Admins, nicht für den Suite-Betrieb allein", async () => {
+    vi.stubEnv("ADMIN_GROUP", "betrieb");
+    vi.stubEnv("SUITE_ADMIN_GROUP_LAGERBUCH", "lager-admin");
+    authMock.mockResolvedValue(sessionFor(["lager-admin"]));
+    expect((await PortalLayout({ children: null })).props.nav).toContainEqual(eintrag);
+    authMock.mockResolvedValue(sessionFor(["betrieb"]));
+    expect((await PortalLayout({ children: null })).props.nav).not.toContainEqual(eintrag);
+    vi.unstubAllEnvs();
+  });
+});

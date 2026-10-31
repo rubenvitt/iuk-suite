@@ -135,6 +135,6 @@ it("classifies every actual module page/layout 404 and redirect decision, includ
   visit(source);
  }
  expect(actual.sort()).toEqual(Object.keys(pageManifest).sort());
- expect(Object.values(pageManifest).filter(e=>e.kind==="denial")).toHaveLength(9);
+ expect(Object.values(pageManifest).filter(e=>e.kind==="denial")).toHaveLength(10);
  expect(Object.values(pageManifest).filter(e=>e.kind==="defensive-denial")).toHaveLength(1);
 });

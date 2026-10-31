@@ -6,6 +6,7 @@ import { canAdminModule } from "@/core/auth/guards";
 import { auth } from "@/core/auth";
 import { darfWartungSehen, wartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import type { SuiteNavItem } from "@/core/shell/types";
+import { sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
 
 /**
  * Die Navigationseintraege des Moduls — als benannte Funktion, damit die
@@ -26,9 +27,11 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * an `darfWartung` — und das ist eine EIGENE Frage, nicht die der Verwaltung
  * (`_lib/serverwartung.ts`, `darfWartungSehen`).
  */
-export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, darfWartung = false): SuiteNavItem[] {
+export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false, darfWartung = false, darfFristen = false): SuiteNavItem[] {
   const jeder: SuiteNavItem[] = [
     { key: "start", title: "Übersicht", href: "/" },
+    // IDA-297: dasselbe Prädikat wie die Seite (`sichtbareQuellen`), sonst führte der Eintrag auf 404.
+    ...(darfFristen ? [{ key: "faelligkeiten", title: "Was steht an", href: "/faelligkeiten" }] : []),
     { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
     ...(darfWartung ? [{ key: "serverwartung", title: "Serverwartung", href: "/serverwartung" }] : []),
   ];
@@ -50,9 +53,10 @@ export default async function PortalLayout({ children }: { children: React.React
   ]);
   // Ohne eingerichtetes Abo fuehrte der Eintrag auf 404 (`serverwartung/page.tsx`).
   const darfWartung = wartungsAbo() !== null && darfWartungSehen(session?.user?.groups);
+  const darfFristen = sichtbareQuellen(session?.user?.groups).length > 0;
 
   return (
-    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen, darfWartung)}>
+    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen, darfWartung, darfFristen)}>
       {children}
     </Shell>
   );
