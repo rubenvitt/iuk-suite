@@ -2,13 +2,16 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { Alert, App, Button, Card, Input, Radio } from "antd";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { meldungAnlegenAction, meldungBeendenAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { LAUFZEIT_VORGABE, LAUFZEITEN, MELDUNG_MAX_ZEICHEN, MELDUNGEN_MAX_AKTIV, STUNDE, type MeldungDTO } from "../_lib/meldungRegeln";
+import type { KategorieDTO } from "../_lib/kategorieRegeln";
 import { countdownText } from "../_lib/vorschau";
+import { KategorieMarke } from "./KategorieMarke";
 import v from "./verwaltung.module.css";
 
 const ABLAUF = zeitFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -17,6 +20,12 @@ const UHR = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 export interface MeldungEntwurf {
   text: string;
   uhrzeit: string;
+  kategorieId: string | null;
+}
+
+/** Vorgewählt ist „Meldung“ aus den Vorgaben, sonst die erste Kategorie. */
+function vorgabeKategorie(kategorien: KategorieDTO[]): string | null {
+  return (kategorien.find((k) => k.id === "meldung") ?? kategorien[0])?.id ?? null;
 }
 
 /**
@@ -24,10 +33,23 @@ export interface MeldungEntwurf {
  * und vorzeitig beenden. Wirkt sofort, ohne „Speichern“ der Anzeige; die Vorschau daneben zeigt auch
  * den Entwurf, solange er getippt wird.
  */
-export function Meldungen({ liste, jetzt, onEntwurf }: { liste: MeldungDTO[]; jetzt: number | null; onEntwurf: (e: MeldungEntwurf | null) => void }) {
+export function Meldungen({
+  liste,
+  kategorien,
+  jetzt,
+  onEntwurf,
+}: {
+  liste: MeldungDTO[];
+  kategorien: KategorieDTO[];
+  jetzt: number | null;
+  onEntwurf: (e: MeldungEntwurf | null) => void;
+}) {
   const { message } = App.useApp();
   const [text, setText] = useState("");
   const [uhrzeit, setUhrzeit] = useState("");
+  const [kategorieWahl, setKategorieWahl] = useState<string | null>(() => vorgabeKategorie(kategorien));
+  // Eine gelöschte Kategorie bleibt nicht gewählt.
+  const kategorieId = kategorieWahl !== null && kategorien.some((k) => k.id === kategorieWahl) ? kategorieWahl : vorgabeKategorie(kategorien);
   const [laufzeit, setLaufzeit] = useState<number>(LAUFZEIT_VORGABE);
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
@@ -35,11 +57,12 @@ export function Meldungen({ liste, jetzt, onEntwurf }: { liste: MeldungDTO[]; je
   const basis = useId();
   const voll = liste.length >= MELDUNGEN_MAX_AKTIV;
 
-  function aendere(t: string, u: string): void {
+  function aendere(t: string, u: string, k: string | null = kategorieId): void {
     setText(t);
     setUhrzeit(u);
+    setKategorieWahl(k);
     setFeldFehler({});
-    onEntwurf(t.trim() === "" ? null : { text: t.trim(), uhrzeit: u });
+    onEntwurf(t.trim() === "" ? null : { text: t.trim(), uhrzeit: u, kategorieId: k });
   }
 
   function anlegen(e: FormEvent<HTMLFormElement>): void {
@@ -47,14 +70,14 @@ export function Meldungen({ liste, jetzt, onEntwurf }: { liste: MeldungDTO[]; je
     setFehler(null);
     setFeldFehler({});
     setLaeuft("neu");
-    void meldungAnlegenAction({ text, uhrzeit, laufzeitStunden: laufzeit })
+    void meldungAnlegenAction({ text, uhrzeit, kategorieId, laufzeitStunden: laufzeit })
       .then((r) => {
         if (!r.ok) {
           setFehler(r.fehler);
           setFeldFehler(r.feldFehler ?? {});
           return;
         }
-        aendere("", "");
+        aendere("", "", kategorieId);
         setLaufzeit(LAUFZEIT_VORGABE);
         void message.success("Meldung angelegt. Der Monitor zeigt sie spätestens in einer Minute.");
       })
@@ -78,7 +101,7 @@ export function Meldungen({ liste, jetzt, onEntwurf }: { liste: MeldungDTO[]; je
     <Card title="Meldungen am Monitor">
       <div style={{ display: "grid", gap: SPACE.lg }}>
         <span style={SCHRIFT.neben} className={v.gedaempft}>
-          Ein kurzer Hinweis als blaues Band unter der Kopfzeile, etwa „Nächste Lagebesprechung“. Jede Meldung läuft von selbst ab; du kannst sie auch vorher beenden.
+          Ein kurzer Hinweis als Band unter der Kopfzeile, mit Zeichen und Farbe seiner Kategorie, etwa „Nächste Lagebesprechung“. Jede Meldung läuft von selbst ab; du kannst sie auch vorher beenden.
         </span>
 
         {liste.length > 0 ? (
@@ -86,7 +109,7 @@ export function Meldungen({ liste, jetzt, onEntwurf }: { liste: MeldungDTO[]; je
             {liste.map((m) => (
               <li key={m.id}>
                 <div>
-                  <strong>{m.text}</strong>
+                  <KategorieMarke kategorie={m.kategorie} /> <strong>{m.text}</strong>
                   {m.zeitpunkt ? (
                     <span>
                       {" "}
@@ -113,6 +136,27 @@ export function Meldungen({ liste, jetzt, onEntwurf }: { liste: MeldungDTO[]; je
         ) : (
           <form onSubmit={anlegen} style={{ display: "grid", gap: SPACE.md }} aria-label="Neue Meldung">
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
+            {kategorien.length > 0 ? (
+              <div style={{ display: "grid", gap: SPACE.xs }}>
+                <span style={SCHRIFT.neben} id={`${basis}-kategorie`}>
+                  Kategorie
+                </span>
+                <Radio.Group
+                  aria-labelledby={`${basis}-kategorie`}
+                  value={kategorieId}
+                  optionType="button"
+                  onChange={(e) => aendere(text, uhrzeit, e.target.value as string)}
+                  options={kategorien.map((k) => ({
+                    value: k.id,
+                    label: (
+                      <>
+                        <Icons8Ikone name={k.zeichen} /> {k.name}
+                      </>
+                    ),
+                  }))}
+                />
+              </div>
+            ) : null}
             <div>
               <label htmlFor={`${basis}-text`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
                 Text

@@ -9,10 +9,12 @@ import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
+import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
 import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
+import { Kategorien } from "./Kategorien";
 import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
 import { OeffentlicheLinks } from "./OeffentlicheLinks";
@@ -91,12 +93,14 @@ export function AnzeigeVerwaltung({
   konfiguration,
   zugaenge,
   meldungen,
+  kategorien,
   links,
   online,
 }: {
   konfiguration: KonfigurationDTO;
   zugaenge: ZugangDTO[];
   meldungen: MeldungDTO[];
+  kategorien: KategorieDTO[];
   links: LinkDTO[];
   online: string | null;
 }) {
@@ -134,11 +138,16 @@ export function AnzeigeVerwaltung({
   const geaendert = JSON.stringify(z) !== JSON.stringify(zustandAus(gespeichert));
   const bandMeldungen = useMemo<VorschauMeldung[]>(() => {
     const zaehler = (ziel: number | null) => (ziel !== null && jetzt !== null ? countdownText(ziel, jetzt) : null);
-    const laufend = meldungen.map((m) => ({ text: m.text, countdown: zaehler(m.zeitpunkt ? Date.parse(m.zeitpunkt) : null) }));
+    const blinkt = (ziel: number | null, k: KategorieDTO | null) => jetzt !== null && istFaellig(ziel, k?.vorlaufMinuten ?? null, jetzt);
+    const laufend = meldungen.map((m) => {
+      const ziel = m.zeitpunkt ? Date.parse(m.zeitpunkt) : null;
+      return { text: m.text, countdown: zaehler(ziel), kategorie: m.kategorie, faellig: blinkt(ziel, m.kategorie) };
+    });
     if (!entwurf) return laufend;
     const ziel = entwurf.uhrzeit && jetzt !== null ? naechsteUhrzeit(entwurf.uhrzeit, new Date(jetzt)).getTime() : null;
-    return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true }];
-  }, [meldungen, entwurf, jetzt]);
+    const k = kategorien.find((x) => x.id === entwurf.kategorieId) ?? null;
+    return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true, kategorie: k, faellig: blinkt(ziel, k) }];
+  }, [meldungen, kategorien, entwurf, jetzt]);
   const tomtom = z.tomtomSchluessel.trim() !== "" || (gespeichert.tomtomHinterlegt && !z.tomtomEntfernen);
   const bild = useMemo(() => vorschau({ ...z, tomtom }, szenario, bandMeldungen), [z, tomtom, szenario, bandMeldungen]);
 
@@ -200,7 +209,7 @@ export function AnzeigeVerwaltung({
 
       <div className={v.raster}>
         <div style={{ display: "grid", gap: SPACE.lg, alignContent: "start" }}>
-          <Meldungen liste={meldungen} jetzt={jetzt} onEntwurf={setEntwurf} />
+          <Meldungen liste={meldungen} kategorien={kategorien} jetzt={jetzt} onEntwurf={setEntwurf} />
           <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
@@ -460,6 +469,8 @@ export function AnzeigeVerwaltung({
           </Card>
         </aside>
       </div>
+
+      <Kategorien liste={kategorien} />
 
       <OeffentlicheLinks liste={links} online={online} />
 

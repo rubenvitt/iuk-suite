@@ -74,8 +74,14 @@ describe("Meldungsband in der Vorschau", () => {
   it("steht nach dem Warnband in der Erklärung, mit Countdown", () => {
     const b = vorschau(basis, "ruhe", [{ text: "Nächste Lagebesprechung", countdown: "in 42 min" }, { text: "Funkkanal 34", countdown: null, entwurf: true }]);
     expect(b.meldungen).toHaveLength(2);
-    expect(b.sichtbar).toContain("Blaues Meldungsband: „Nächste Lagebesprechung“, in 42 min.");
-    expect(b.sichtbar).toContain("Blaues Meldungsband (noch nicht angelegt): „Funkkanal 34“.");
+    expect(b.sichtbar).toContain("Meldungsband Meldung: „Nächste Lagebesprechung“, in 42 min.");
+    expect(b.sichtbar).toContain("Meldungsband Meldung (noch nicht angelegt): „Funkkanal 34“.");
+  });
+
+  it("nennt die Kategorie und ob die Meldung blinkt", () => {
+    const kategorie = { name: "Besprechung", zeichen: "meeting", farbe: "violett" } as const;
+    const b = vorschau(basis, "ruhe", [{ text: "Lage im FüKw", countdown: "in 4 min", kategorie, faellig: true }]);
+    expect(b.sichtbar).toContain("Meldungsband Besprechung: „Lage im FüKw“, in 4 min, blinkt.");
   });
 
   it("zählt in Minuten und Stunden, auf die volle Minute aufgerundet", () => {

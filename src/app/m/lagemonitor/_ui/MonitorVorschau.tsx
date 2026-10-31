@@ -1,4 +1,7 @@
 import { BEISPIEL_EINSATZ, STUFE_TEXT, type Szenario, type Vorschau } from "../_lib/vorschau";
+import type { CSSProperties } from "react";
+import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { farbe } from "../_lib/kategorieRegeln";
 import { MitmachQr } from "./MitmachQr";
 import s from "./vorschau.module.css";
 
@@ -41,7 +44,18 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
         </div>
       ) : null}
       {v.meldungen.map((m, i) => (
-        <div key={i} className={s.meldung} data-entwurf={m.entwurf === true} data-testid="vorschau-meldung">
+        <div
+          key={i}
+          className={s.meldung}
+          data-entwurf={m.entwurf === true}
+          data-faellig={m.faellig === true}
+          style={{ "--kategorie": farbe(m.kategorie?.farbe ?? "blau").ton } as CSSProperties}
+          data-testid="vorschau-meldung"
+        >
+          <span className={s.meldungKuerzel}>
+            {m.kategorie ? <Icons8Ikone name={m.kategorie.zeichen} /> : null}
+            {m.kategorie?.name ?? "Meldung"}
+          </span>
           <span className={s.meldungText}>{m.text}</span>
           {m.countdown ? <span className={s.meldungZeit}>{m.countdown}</span> : null}
         </div>

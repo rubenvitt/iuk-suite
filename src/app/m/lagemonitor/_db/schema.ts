@@ -91,9 +91,28 @@ export const link = sqliteTable("lagemonitor_link", {
 export const meldung = sqliteTable("lagemonitor_meldung", {
   id: text("id").primaryKey(),
   text: text("text").notNull(),
+  /** Die Kategorie (`kategorie`); `null` bei Meldungen von vor den Kategorien oder nach dem Löschen der Kategorie. */
+  kategorieId: text("kategorie_id").references(() => kategorie.id, { onDelete: "set null" }),
   /** Optional: ein Zeitpunkt, bis zu dem der Monitor herunterzählt („in 12 min“). */
   zeitpunkt: integer("zeitpunkt", { mode: "timestamp" }),
   ablaufAm: integer("ablauf_am", { mode: "timestamp" }).notNull(),
   angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
   angelegtVon: text("angelegt_von").notNull(),
+});
+
+/**
+ * Eine Kategorie fürs Meldungsband, etwa „Lagemeldung“ oder „Besprechung“: Name, Zeichen aus dem
+ * Icons8-Katalog der Suite, Farbe aus einer festen Palette (`_lib/kategorieRegeln.ts`, damit Tag- und
+ * Nachtmodus am Monitor lesbar bleiben) und wie viele Minuten vor der Countdown-Uhrzeit die Meldung
+ * blinkt. Die Vorgaben legt `0006_kategorien.sql` an.
+ */
+export const kategorie = sqliteTable("lagemonitor_kategorie", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  zeichen: text("zeichen").notNull(),
+  farbe: text("farbe").notNull(),
+  /** Minuten vor der Countdown-Uhrzeit, ab denen die Meldung blinkt; `null` blinkt nie. */
+  vorlaufMinuten: integer("vorlauf_minuten"),
+  reihenfolge: integer("reihenfolge").notNull(),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
 });

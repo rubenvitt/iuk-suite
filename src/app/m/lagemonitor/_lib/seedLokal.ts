@@ -29,7 +29,7 @@ export async function seedLokalLagemonitor(db: LagemonitorDb): Promise<string[]>
     zeilen.push("lagemonitor: Meldung läuft, nicht geändert");
   } else {
     const uhrzeit = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(Date.now() + 45 * 60_000);
-    legeMeldungAn(db, meldungEingabe.parse({ text: "Nächste Lagebesprechung im FüKw", uhrzeit }), "Demodaten");
+    legeMeldungAn(db, meldungEingabe.parse({ text: "Nächste Lagebesprechung im FüKw", uhrzeit, kategorieId: "besprechung" }), "Demodaten");
     zeilen.push("lagemonitor: Meldung „Nächste Lagebesprechung“ angelegt (läuft 24 Stunden)");
   }
   return zeilen;

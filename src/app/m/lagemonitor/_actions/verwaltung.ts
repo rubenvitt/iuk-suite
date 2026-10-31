@@ -7,6 +7,7 @@ import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { konfigurationEingabe, speichereKonfiguration, type KonfigurationDTO } from "../_lib/konfiguration";
 import { beendeMeldung, legeMeldungAn, meldungEingabe, type MeldungDTO } from "../_lib/meldungen";
+import { aendereKategorie, kategorieEingabe, legeKategorieAn, loescheKategorie, type KategorieDTO } from "../_lib/kategorien";
 import { legeLinkAn, linkAdresse, widerrufeLink } from "../_lib/links";
 import { onlineAdresse } from "../_lib/online";
 import { legeZugangAn, widerrufeZugang } from "../_lib/schluessel";
@@ -97,6 +98,44 @@ export async function meldungBeendenAction(id: unknown): Promise<ActionErgebnis>
   if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannte Meldung." };
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     if (!beendeMeldung(getDb(), id)) return { ok: false, fehler: "Diese Meldung läuft schon nicht mehr." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Legt eine Meldekategorie an; sie steht sofort beim Anlegen einer Meldung zur Wahl. */
+export async function kategorieAnlegenAction(eingabe: unknown): Promise<ActionErgebnis<KategorieDTO>> {
+  const viewer = await requireLagemonitorAktion();
+  const e = kategorieEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = legeKategorieAn(getDb(), e.data);
+    if (!r.ok) return { ok: false, fehler: r.fehler };
+    neuLaden();
+    return { ok: true, wert: r.kategorie };
+  });
+}
+
+/** Ändert eine Kategorie; laufende Meldungen mit ihr ändern sich am Monitor mit. */
+export async function kategorieAendernAction(id: unknown, eingabe: unknown): Promise<ActionErgebnis<KategorieDTO>> {
+  const viewer = await requireLagemonitorAktion();
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannte Kategorie." };
+  const e = kategorieEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = aendereKategorie(getDb(), id, e.data);
+    if (!r.ok) return { ok: false, fehler: r.fehler };
+    neuLaden();
+    return { ok: true, wert: r.kategorie };
+  });
+}
+
+/** Löscht eine Kategorie. Laufende Meldungen mit ihr bleiben stehen, ohne Kategorie. */
+export async function kategorieLoeschenAction(id: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannte Kategorie." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!loescheKategorie(getDb(), id)) return { ok: false, fehler: "Diese Kategorie gibt es nicht mehr." };
     neuLaden();
     return { ok: true };
   });

@@ -60,3 +60,34 @@
   align-items: center;
   justify-content: space-between;
 }
+
+/* Meldekategorien: die Marke wie am Monitor (Zeichen und Name auf der Kategoriefarbe). Die Farbe kommt
+   inline als `--kategorie`, weil sie aus der Palette in `_lib/kategorieRegeln.ts` stammt. */
+.marke {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--kategorie);
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.farbfeld {
+  display: inline-block;
+  inline-size: 14px;
+  block-size: 14px;
+  background: var(--kategorie);
+  vertical-align: -2px;
+  margin-inline-end: 6px;
+}
+
+.versteckt {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
