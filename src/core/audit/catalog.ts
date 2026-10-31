@@ -10,6 +10,19 @@ export type AuditTableDecision =
   | { mode: "excluded"; reason: string };
 export const AUDIT_TABLES = {
   "portal": {
+    "faelligkeiten_abos": {
+      "mode": "audited",
+      "primaryKey": [
+        "person_id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "gruppen",
+          "gesendete_woche"
+        ],
+        "reason": "Gruppenstand beim Seitenbesuch und die vom wöchentlichen Takt vermerkte Woche; Einrichten, Auswahl, Themenwechsel und Beenden sind auditiert."
+      }
+    },
     "services": {
       "mode": "audited",
       "primaryKey": [

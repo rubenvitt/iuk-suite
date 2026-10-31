@@ -7,9 +7,10 @@ import { isValidElement, type ReactElement } from "react";
  * `lagerbuch/_lib/faelligkeiten.ts` und `radio/_lib/faelligkeiten.ts`.
  */
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/core/auth/guards", () => ({ canAdminModule: vi.fn(async () => false) }));
+vi.mock("@/app/m/portal/_lib/faelligkeiten/abos", () => ({ aboVon: vi.fn(() => null), vermerkeGruppen: vi.fn() }));
 vi.mock("@/core/audit/server", () => ({ auditActor: vi.fn(() => ({ kind: "anonymous" })), auditDenied: vi.fn() }));
 vi.mock("@/app/m/lagerbuch/_lib/faelligkeiten", () => ({
+  LAGERBUCH_FAELLIGKEITS_ARTEN: ["Verfall", "Sauerstoff"],
   darfLagerbuchFaelligkeitenSehen: (g: string[] | null) => !!g?.includes("lager-admin"),
   lagerbuchFaelligkeiten: () => [{
     id: "o2:1", art: "Sauerstoff", titel: "Flasche 1", wo: "RTW 1", zustand: "noch 20 %, wechseln",
@@ -17,15 +18,16 @@ vi.mock("@/app/m/lagerbuch/_lib/faelligkeiten", () => ({
   }],
 }));
 vi.mock("@/app/m/radio/_lib/faelligkeiten", () => ({
+  RADIO_FAELLIGKEITS_ARTEN: ["Ausleihe"],
   darfRadioFaelligkeitenSehen: (g: string[] | null) => !!g?.includes("funk-admin"),
   radioFaelligkeiten: () => [],
 }));
 
 import { auth } from "@/core/auth";
-import { canAdminModule } from "@/core/auth/guards";
+import { aboVon, vermerkeGruppen } from "@/app/m/portal/_lib/faelligkeiten/abos";
 import { auditDenied } from "@/core/audit/server";
 import FaelligkeitenPage from "@/app/m/portal/faelligkeiten/page";
-import { FaelligkeitenJetztSenden } from "@/app/m/portal/_ui/FaelligkeitenJetztSenden";
+import { FaelligkeitenAuswahl, FaelligkeitenEinrichten, FaelligkeitenProbe } from "@/app/m/portal/_ui/FaelligkeitenAbo";
 import { FaelligkeitenListe } from "@/app/m/portal/_ui/FaelligkeitenListe";
 import { NtfyAnleitung } from "@/app/m/portal/_ui/ServerwartungAnleitung";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -45,14 +47,15 @@ function flatten(node: unknown, out: ReactElement[] = []): ReactElement[] {
 }
 
 function mitGruppen(groups: string[] | null) {
-  authMock.mockResolvedValue((groups ? { user: { groups } } : null) as never);
+  authMock.mockResolvedValue((groups ? { user: { id: "person-1", groups } } : null) as never);
 }
 
 describe("Seite „Was steht an“", () => {
   beforeEach(() => {
     authMock.mockReset();
     vi.mocked(auditDenied).mockClear();
-    vi.mocked(canAdminModule).mockResolvedValue(false);
+    vi.mocked(aboVon).mockReset().mockReturnValue(null);
+    vi.mocked(vermerkeGruppen).mockClear();
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -78,20 +81,34 @@ describe("Seite „Was steht an“", () => {
     expect(auditDenied).toHaveBeenCalledTimes(1);
   });
 
-  it("mit eingerichtetem Thema: Anleitung für alle, „Jetzt senden“ nur für den Betrieb und nur mit Token", async () => {
-    vi.stubEnv("SUITE_FAELLIG_NTFY_URL", "https://ntfy.example.org/beispielthema");
+  it("ohne eingerichteten Versand kein Abo-Abschnitt", async () => {
+    vi.stubEnv("SUITE_FAELLIG_NTFY_SERVER", "https://ntfy.example.org");
+    mitGruppen(["funk-admin"]);
+    const baum = flatten(await FaelligkeitenPage());
+    expect(baum.some((el) => el.type === FaelligkeitenEinrichten)).toBe(false);
+    expect(aboVon).not.toHaveBeenCalled();
+  });
+
+  it("mit Versand: erst Einrichten, danach Auswahl, Anleitung für das EIGENE Thema und Probe", async () => {
+    vi.stubEnv("SUITE_FAELLIG_NTFY_SERVER", "https://ntfy.example.org");
+    vi.stubEnv("SUITE_FAELLIG_NTFY_TOKEN", "tk_beispielbeispielbeispielbeis");
     mitGruppen(["funk-admin"]);
     let baum = flatten(await FaelligkeitenPage());
-    const insel = baum.find((el) => el.type === NtfyAnleitung)!;
-    expect((insel.props as { abo: { thema: string } }).abo.thema).toBe("beispielthema");
-    expect(baum.some((el) => el.type === FaelligkeitenJetztSenden)).toBe(false);
+    expect(baum.some((el) => el.type === FaelligkeitenEinrichten)).toBe(true);
+    expect(baum.some((el) => el.type === NtfyAnleitung)).toBe(false);
+    expect(aboVon).toHaveBeenCalledWith("person-1");
 
-    vi.mocked(canAdminModule).mockResolvedValue(true);
+    vi.mocked(aboVon).mockReturnValue({
+      personId: "person-1", thema: "iuk-faellig-beispielbeispielbeis", push: true, abgewaehlt: ["radio:Ausleihe"],
+      gruppen: [], gesendeteWoche: null, erstelltAm: new Date(0),
+    });
     baum = flatten(await FaelligkeitenPage());
-    expect(baum.some((el) => el.type === FaelligkeitenJetztSenden)).toBe(false);
-
-    vi.stubEnv("SUITE_FAELLIG_NTFY_TOKEN", "tk_beispielbeispielbeispielbeis");
-    baum = flatten(await FaelligkeitenPage());
-    expect(baum.some((el) => el.type === FaelligkeitenJetztSenden)).toBe(true);
+    expect(baum.some((el) => el.type === FaelligkeitenEinrichten)).toBe(false);
+    expect((baum.find((el) => el.type === NtfyAnleitung)!.props as { abo: { thema: string } }).abo.thema).toBe("iuk-faellig-beispielbeispielbeis");
+    const auswahl = baum.find((el) => el.type === FaelligkeitenAuswahl)!.props as { abgewaehlt: string[]; module: { modul: string }[] };
+    expect(auswahl.abgewaehlt).toEqual(["radio:Ausleihe"]);
+    expect(auswahl.module.map((m) => m.modul)).toEqual(["radio"]);
+    expect(baum.some((el) => el.type === FaelligkeitenProbe)).toBe(true);
+    expect(vermerkeGruppen).toHaveBeenCalledWith(expect.objectContaining({ personId: "person-1" }), ["funk-admin"]);
   });
 });

@@ -20,6 +20,7 @@ vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   setzeAnsprechpartner: vi.fn(),
 }));
 vi.mock("@/app/m/lagerbuch/_lib/faelligkeiten", () => ({
+  LAGERBUCH_FAELLIGKEITS_ARTEN: ["Verfall"],
   darfLagerbuchFaelligkeitenSehen: (g: string[] | null) => !!g?.includes("lager-admin"),
   lagerbuchFaelligkeiten: () => [{
     id: "v", art: "Verfall", titel: "NaCl", wo: null, zustand: "abgelaufen",
@@ -27,6 +28,7 @@ vi.mock("@/app/m/lagerbuch/_lib/faelligkeiten", () => ({
   }],
 }));
 vi.mock("@/app/m/radio/_lib/faelligkeiten", () => ({
+  RADIO_FAELLIGKEITS_ARTEN: ["Ausleihe"],
   darfRadioFaelligkeitenSehen: () => false,
   radioFaelligkeiten: () => [],
 }));

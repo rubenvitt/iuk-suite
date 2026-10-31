@@ -36,3 +36,29 @@ export const einstellungen = sqliteTable("portal_einstellungen", {
 });
 
 export type Einstellung = typeof einstellungen.$inferSelect;
+
+/**
+ * „WAS STEHT AN" AUFS TELEFON, JE PERSON (IDA-297). Jede Person, die es einrichtet, bekommt ein
+ * EIGENES ntfy-Thema (`thema`, Zufallsname hinter dem Präfix aus `SUITE_FAELLIG_NTFY_PRAEFIX`) und
+ * wählt, welche Arten darin stehen.
+ *
+ * `abgewaehlt` statt „angewählt": eine Art, die später dazukommt (etwa eine neue Quelle), ist für alle
+ * Bestehenden sofort an. Schlüssel `<modul>:<art>`, siehe `portal/_lib/faelligkeiten/auswahl.ts`.
+ *
+ * `gruppen` ist nur der Stand beim letzten Besuch der Seite — der wöchentliche Versand fragt Pocket ID
+ * (`personenGruppen.ts`) und nimmt diesen Stand nur, wo kein Verzeichnis eingerichtet ist (lokal).
+ *
+ * `gesendeteWoche` je Person statt einmal fürs Portal: scheitert der Versand an eine Person, bekommen
+ * die anderen ihre Nachricht beim nächsten Schritt nicht ein zweites Mal.
+ */
+export const faelligkeitenAbos = sqliteTable("faelligkeiten_abos", {
+  personId: text("person_id").primaryKey(),
+  thema: text("thema").notNull().unique(),
+  push: integer("push", { mode: "boolean" }).notNull().default(true),
+  abgewaehlt: text("abgewaehlt", { mode: "json" }).$type<string[]>().notNull().$defaultFn(() => []),
+  gruppen: text("gruppen", { mode: "json" }).$type<string[]>().notNull().$defaultFn(() => []),
+  gesendeteWoche: text("gesendete_woche"),
+  erstelltAm: integer("erstellt_am", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+export type FaelligkeitenAbo = typeof faelligkeitenAbos.$inferSelect;
