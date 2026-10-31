@@ -50,12 +50,14 @@ describe("Modulgrenze", () => {
     return readdirSync(ordner, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory() ? dateien(join(ordner, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [join(ordner, e.name)] : []);
   }
-  it("andere Module importieren aus fahrzeuge nur `_lib/bereitstellung`", () => {
+  // `_lib/suiteSuche` ist die zweite veröffentlichte Datei: die suiteweite Suche des Portals (IDA-301).
+  const ERLAUBT = ["@/app/m/fahrzeuge/_lib/bereitstellung", "@/app/m/fahrzeuge/_lib/suiteSuche"];
+  it("andere Module importieren aus fahrzeuge nur `_lib/bereitstellung` und `_lib/suiteSuche`", () => {
     const fremd: string[] = [];
     for (const datei of [...dateien("src/app"), ...dateien("src/core")]) {
       if (datei.startsWith(join("src/app/m/fahrzeuge"))) continue;
       for (const m of readFileSync(datei, "utf8").matchAll(/from\s+["'](@\/app\/m\/fahrzeuge\/[^"']+)["']/g)) {
-        if (m[1] !== "@/app/m/fahrzeuge/_lib/bereitstellung") fremd.push(`${datei}: ${m[1]}`);
+        if (!ERLAUBT.includes(m[1])) fremd.push(`${datei}: ${m[1]}`);
       }
     }
     expect(fremd).toEqual([]);
