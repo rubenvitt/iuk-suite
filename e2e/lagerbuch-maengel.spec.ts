@@ -31,6 +31,18 @@ test.describe("Mängel melden", () => {
     await expect(page.getByTestId("lb-tableiste").getByText("Mangel")).toBeVisible();
     await expect(page.locator("[data-rolle='mangel-ort']")).toContainText(E2E_FAHRZEUG_NAME);
 
+    // Vier Reiter auf dem schmalsten Telefon: keine Beschriftung bricht um oder läuft über.
+    await page.setViewportSize({ width: 320, height: 700 });
+    for (const reiter of await page.getByTestId("lb-tableiste").locator("a").all()) {
+      const ueber = await reiter.evaluate((a) => a.scrollWidth > a.clientWidth);
+      expect(ueber, await reiter.innerText()).toBe(false);
+    }
+    if (process.env.MAENGEL_BILDER) {
+      mkdirSync(process.env.MAENGEL_BILDER, { recursive: true });
+      await page.screenshot({ path: `${process.env.MAENGEL_BILDER}/melden-320.png` });
+    }
+    await page.setViewportSize({ width: 360, height: 780 });
+
     await page.getByLabel("Verschmutzt").check();
     await page.getByLabel("Beschreibung").fill(BESCHREIBUNG);
     const foto = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: "#4060a0" } }).jpeg().toBuffer();
@@ -38,8 +50,8 @@ test.describe("Mängel melden", () => {
     await expect(page.locator("[data-rolle='mangel-fotos'] img")).toHaveCount(1);
 
     if (process.env.MAENGEL_BILDER) {
-      mkdirSync(process.env.MAENGEL_BILDER, { recursive: true });
-      await page.screenshot({ path: `${process.env.MAENGEL_BILDER}/melden-mobil.png`, fullPage: true });
+      await page.locator("[data-rolle='mangel-senden']").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${process.env.MAENGEL_BILDER}/melden-mobil.png` });
     }
 
     await page.request.get(lagerbuchUrl("/helfer/mangel/melden"));
