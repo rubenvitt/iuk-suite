@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { act } from "react";
 import { mount, unmount, query, queryAll, exists, fill } from "@/app/m/qr/_lib/test-dom";
+import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
+
+// Die Server Action läse Sitzung und Moduldatenbanken; hier zählt nur, was das Feld daraus macht.
+const sucheAktion = vi.hoisted(() => vi.fn<(begriff: string) => Promise<ModulErgebnis[]>>(async () => []));
+vi.mock("@/app/m/portal/sucheAktion", () => ({ sucheAktion }));
+
+/** Über die Verzögerung hinaus warten, bis die Module geantwortet haben. */
+const nachDerVerzoegerung = () => act(async () => { await new Promise((r) => setTimeout(r, 300)); });
 import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
 import type { LauncherEintrag } from "@/core/shell/types";
 
@@ -11,6 +20,7 @@ const EINTRAEGE: LauncherEintrag[] = [
 
 afterEach(async () => {
   await unmount();
+  sucheAktion.mockClear();
 });
 
 describe("DiensteRaster", () => {
@@ -103,15 +113,44 @@ describe("DiensteRaster", () => {
   it("sagt es, wenn die Suche nichts findet — das ist nicht derselbe Zustand", async () => {
     await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
     await fill('[data-testid="portal-suche"]', "gibtesnicht");
+    // Solange die Module noch gefragt werden, ist „nichts gefunden“ noch nicht wahr.
+    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(false);
+    await nachDerVerzoegerung();
     expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(true);
     // Kein Ansprechpartner-Hinweis: nicht freigeschaltet zu sein und nichts
     // gefunden zu haben sind zwei verschiedene Lagen.
     expect(exists('[data-testid="portal-leer"]')).toBe(false);
   });
 
-  it("bietet bei null Treffern die suiteweite Suche mit demselben Begriff an (IDA-301)", async () => {
+  it("zeigt unter den Apps die Treffer aus den Modulen, aus demselben Feld (IDA-301)", async () => {
+    sucheAktion.mockResolvedValueOnce([{
+      modul: "fahrzeuge", titel: "Fahrzeuge", icon: "truck", zustand: "treffer", mehr: false,
+      treffer: [{ id: "f1", art: "Fahrzeug", titel: "Rotkreuz Uelzen 11-83-1", merkmale: [], href: "https://f/" }],
+    }]);
     await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
     await fill('[data-testid="portal-suche"]', " UE-RK 831 ");
+    await nachDerVerzoegerung();
+    expect(sucheAktion).toHaveBeenCalledTimes(1);
+    expect(query('[data-testid="suche-treffer"]').textContent).toContain("Rotkreuz Uelzen 11-83-1");
+    expect(exists('[data-testid="portal-ohne-treffer"]')).toBe(false);
     expect(query('[data-testid="portal-suche-ueberall"]')?.getAttribute("href")).toBe("/suche?q=UE-RK%20831");
+  });
+
+  it("fragt die Module erst ab zwei Zeichen und nur einmal nach schnellem Tippen", async () => {
+    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
+    await fill('[data-testid="portal-suche"]', "N");
+    await nachDerVerzoegerung();
+    expect(sucheAktion).not.toHaveBeenCalled();
+    expect(queryAll('[data-testid="service-tile"]').length).toBe(1);
+    await fill('[data-testid="portal-suche"]', "La");
+    await fill('[data-testid="portal-suche"]', "Lag");
+    await nachDerVerzoegerung();
+    expect(sucheAktion).toHaveBeenCalledTimes(1);
+    expect(sucheAktion).toHaveBeenCalledWith("Lag");
+  });
+
+  it("zeigt das Kürzel der Befehlspalette im Suchfeld", async () => {
+    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
+    expect(query('[data-testid="portal-suche-kuerzel"]').textContent).toMatch(/^(Strg\+K|⌘K)$/);
   });
 });

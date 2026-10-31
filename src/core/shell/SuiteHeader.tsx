@@ -15,6 +15,7 @@ import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { launcherEintraege } from "@/core/shell/launcherEintraege";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
+import { Befehlspalette } from "@/core/shell/Befehlspalette";
 import { SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -35,6 +36,11 @@ import s from "./shell.module.css";
  * und erreicht für die Dienste-Hälfte die Portal-Datenbank. `AppUmschalter`
  * bekommt nur die fertige Liste mit fertigen hrefs.
  */
+/** Die suiteweite Suche (IDA-301) auf dem Portal-Host, oder `null` ohne Portal-Adresse. */
+function portalSuche(portal: string | null): string | null {
+  return portal ? `${portal}/suche` : null;
+}
+
 export async function SuiteHeader({
   moduleKey,
   nav = [],
@@ -142,6 +148,14 @@ export async function SuiteHeader({
           angemeldet={angemeldet}
           profilHref={angemeldet ? moduleUrl("portal") : null}
           rueckmeldeweg={weg}
+          befehlspalette={
+            /* Nur angemeldet, aus demselben Grund wie der Umschalter: anonym führte jeder
+               Eintrag in den Login (IDA-303). Die Listen sind dieselben, die die Kopfzeile
+               schon nach Rechten gebaut hat. */
+            angemeldet ? (
+              <Befehlspalette nav={nav} eintraege={eintraege} suchHref={portalSuche(moduleUrl("portal"))} />
+            ) : null
+          }
         />
       </Header>
     </div>
