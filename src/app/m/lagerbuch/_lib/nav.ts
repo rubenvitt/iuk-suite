@@ -86,6 +86,8 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Einheiten & Geräte" },
   { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Einheiten & Geräte" },
 
+  /* IDA-298 — von Helfern nach dem Scan eines Ortsetiketts gemeldet. */
+  { key: "maengel", title: "Mängel", href: "/verwaltung/maengel", ikon: "maengel", abschnitt: "Prüfungen" },
   { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
   /*
    * DER EINSTIEG IN DEN HELFER-AST — DRK-305, und die beiden einzigen Einträge,

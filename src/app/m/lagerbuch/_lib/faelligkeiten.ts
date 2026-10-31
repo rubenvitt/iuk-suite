@@ -15,13 +15,16 @@
  *     ohne Messung ist keine Frist und bleibt draußen; die Verwaltung zeigt sie als „keine Messung".
  *   * BZ-Geräte, deren Kontrolle überfällig ist oder nie stattfand → überfällig; im Warnfenster → bald.
  *   * Plomben, die angelegt, aber nicht gesetzt sind (Fach offen) → bald.
+ *   * Gemeldete Mängel, die noch offen sind → überfällig (IDA-298). Neue Mängel gehen außerdem sofort
+ *     als Push hinaus (`lagerbuchSofortmeldungen`), nicht erst am Montag.
  * Ausgemusterte Flaschen, Geräte und Einheiten (`aktiv = false`) zählen nicht.
  */
 import { and, eq, isNull } from "drizzle-orm";
 import { adminGroupsFor } from "@/core/groups";
 import { getModule } from "@/core/registry";
-import { tageDativ, type Faelligkeit } from "@/core/faelligkeiten";
+import { tageDativ, type Faelligkeit, type Sofortmeldung } from "@/core/faelligkeiten";
 import { getDb } from "../_db/client";
+import { offeneMaengel, ungemeldeteMaengel, vermerkeGemeldet, type MangelZeile } from "./maengel/daten";
 import { lagerorte, plomben } from "../_db/schema";
 import { bzGeraeteUebersicht } from "./lesepfade/bz";
 import { o2FlaschenUebersicht } from "./lesepfade/o2";
@@ -34,7 +37,7 @@ import { verwaltungDetailPfad } from "./verwaltungPfad";
  * diese an, auch wenn gerade nichts davon fällig ist. Eine neue Art gehört hier dazu, sonst lässt sie
  * sich nicht abwählen.
  */
-export const LAGERBUCH_FAELLIGKEITS_ARTEN = ["Verfall", "Sauerstoff", "BZ-Kontrolle", "Plombe"] as const;
+export const LAGERBUCH_FAELLIGKEITS_ARTEN = ["Verfall", "Sauerstoff", "BZ-Kontrolle", "Plombe", "Mangel"] as const;
 /** Der Typ hält `art` an der Liste oben fest: eine Art außerhalb davon bricht `pnpm typecheck`. */
 type LagerbuchFaelligkeit = Faelligkeit & { art: (typeof LAGERBUCH_FAELLIGKEITS_ARTEN)[number] };
 
@@ -56,7 +59,47 @@ export function lagerbuchFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelli
     ...sauerstoff(db),
     ...blutzucker(db, jetzt),
     ...offenePlomben(db),
+    ...maengel(db),
   ];
+}
+
+const MAENGEL_PFAD = "/verwaltung/maengel";
+
+/** Was im Push und auf der Seite statt des Freitexts steht. */
+function mangelKurz(m: MangelZeile): string {
+  if (m.punkte.length === 0) return "siehe Beschreibung";
+  return m.punkte.length === 1 ? m.punkte[0]! : `${m.punkte[0]} und ${m.punkte.length - 1} weitere`;
+}
+
+function maengel(db: Leser): Faelligkeit[] {
+  return offeneMaengel(db).map((m): LagerbuchFaelligkeit => ({
+    id: `mangel:${m.id}`,
+    art: "Mangel",
+    titel: mangelKurz(m),
+    wo: m.ort,
+    zustand: "gemeldet, offen",
+    dringlichkeit: "ueberfaellig",
+    sortierung: m.createdAt.toISOString(),
+    pfad: MAENGEL_PFAD,
+  }));
+}
+
+/** Neue Mängel für den Sofort-Push — ohne Freitext und ohne Namen (`core/faelligkeiten.ts`). */
+export function lagerbuchSofortmeldungen(seit: Date, db: Leser = getDb()): Sofortmeldung[] {
+  return ungemeldeteMaengel(db, seit).map((m) => ({
+    id: m.id,
+    art: "Mangel",
+    titel: `Mangel gemeldet: ${m.ort}`,
+    zeilen: [
+      ...(m.punkte.length > 0 ? m.punkte.map((p) => `• ${p}`) : ["Siehe Beschreibung im Lagerbuch"]),
+      ...(m.fotos > 0 ? [m.fotos === 1 ? "1 Foto" : `${m.fotos} Fotos`] : []),
+    ],
+    pfad: MAENGEL_PFAD,
+  }));
+}
+
+export function vermerkeLagerbuchSofortmeldungen(ids: readonly string[], jetzt: Date, db: Leser = getDb()): void {
+  vermerkeGemeldet(db, ids, jetzt);
 }
 
 function verfall(db: Leser, jetzt: Date): Faelligkeit[] {

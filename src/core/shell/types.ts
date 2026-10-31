@@ -91,7 +91,11 @@ export type NavIkonName =
   // IDA-261: die Verbrauchsstatistik des Lagerbuchs. KEIN geliehener Name — `journal`
   // (history) meint die einzelnen Buchungen, `uebersicht` (apps) den Tagesstand; die
   // Statistik verdichtet Monate zu Diagrammen und braucht ein eigenes Bild dafür.
-  | "statistik";
+  | "statistik"
+  // IDA-298: die gemeldeten Mängel des Lagerbuchs. KEIN geliehener Name — `checks` meint die
+  // Prüfung einer Einheit, `pruefen` ihre Durchführung; ein Mangel ist eine Meldung, die jemand
+  // beheben muss. Der Schraubenschlüssel trägt das Beheben.
+  | "maengel";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

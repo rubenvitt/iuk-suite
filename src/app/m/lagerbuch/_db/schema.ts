@@ -747,3 +747,42 @@ export const inventurPositionen = sqliteTable(
   },
   (t) => [index("idx_inventur_positionen_lauf").on(t.inventurId)],
 );
+
+/**
+ * IDA-298 — EIN GEMELDETER MANGEL an einem Ort (Schrank, Fahrzeug, Tasche). Helfer melden ihn nach dem
+ * Scan des Ortsetiketts, die Verwaltung erledigt ihn (`/verwaltung/maengel`).
+ *
+ * `punkte` speichert die angehakten Punkte als TEXT, wie sie auf dem Bildschirm standen, nicht als
+ * Schlüssel: ändert sich die feste Checkliste (`_lib/maengel/checkliste.ts`), liest sich eine alte
+ * Meldung trotzdem noch so, wie sie abgegeben wurde.
+ *
+ * `fotos` ist die ANZAHL, nicht eine Liste von Pfaden: die Dateien heißen `<id>-<n>.jpg`, und ein Pfad
+ * entsteht nur aus der geprüften `id` (`_lib/maengel/fotos.ts`).
+ *
+ * `gemeldet_at` vermerkt den Sofort-Push über „Was steht an" (IDA-297) und ist darum nicht auditiert
+ * (`core/audit/catalog.ts`).
+ */
+export const maengel = sqliteTable(
+  "maengel",
+  {
+    id: text("id").primaryKey(),
+    lagerortId: text("lagerort_id").notNull().references(() => lagerorte.id),
+    punkte: text("punkte", { mode: "json" }).$type<string[]>().notNull(),
+    beschreibung: text("beschreibung"),
+    /** Freiwillig, für Rückfragen. Steht nie im Push. */
+    melderName: text("melder_name"),
+    quelleTyp: text("quelle_typ", { enum: ["token", "oidc"] }).notNull(),
+    quelleId: text("quelle_id").notNull(),
+    fotos: integer("fotos").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    gemeldetAt: integer("gemeldet_at", { mode: "timestamp" }),
+    erledigtAt: integer("erledigt_at", { mode: "timestamp" }),
+    /** OIDC-`sub` der Person, die erledigt hat. */
+    erledigtVon: text("erledigt_von"),
+    erledigtVermerk: text("erledigt_vermerk"),
+  },
+  (t) => [
+    index("idx_maengel_lagerort").on(t.lagerortId),
+    index("idx_maengel_offen").on(t.erledigtAt, t.createdAt),
+  ],
+);

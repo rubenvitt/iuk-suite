@@ -63,3 +63,11 @@ export function verwaltungDetailPfadIntern(
 ): string {
   return `/m/lagerbuch${verwaltungDetailPfad(flaeche, id, unterseite)}`;
 }
+
+/**
+ * IDA-298 — die Adresse eines Fotos zu einer Mängelmeldung (`maengel/foto/[id]/[nummer]/route.ts`).
+ * Hier und nicht beim Aufrufer, aus demselben Grund wie `verwaltungDetailPfad`.
+ */
+export function mangelFotoPfad(id: string, nummer: number): string {
+  return `/verwaltung/maengel/foto/${encodeURIComponent(id)}/${nummer}`;
+}

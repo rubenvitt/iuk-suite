@@ -47,3 +47,24 @@ export interface Faelligkeit {
 export function tageDativ(tage: number): string {
   return tage === 1 ? "1 Tag" : `${tage} Tagen`;
 }
+
+/**
+ * EINE SOFORTMELDUNG (IDA-298) — etwas, das nicht bis Montag warten soll, z. B. ein gemeldeter Mangel.
+ * Das Portal schickt sie an dieselben Abos wie „Was steht an", sobald es sie sieht (etwa jede Minute),
+ * an alle, die die Fälligkeiten des Moduls sehen dürfen und die Art nicht abgewählt haben.
+ *
+ * ⚠️ KEIN KLARNAME UND KEIN FREITEXT: die Mitteilung steht auf fremden Sperrbildschirmen, und das Thema
+ * liest jeder, der seinen Namen kennt. `zeilen` sind feste Wörter vom Bildschirm des Moduls.
+ */
+export interface Sofortmeldung {
+  /** Eindeutig innerhalb des Moduls — damit vermerkt das Modul den Versand. */
+  id: string;
+  /** Eine der Arten des Moduls (`FaelligkeitsQuelle.arten`), z. B. „Mangel". */
+  art: string;
+  /** Kopf der Mitteilung, z. B. „Mangel gemeldet: RTW 1". */
+  titel: string;
+  /** Höchstens ein paar kurze Zeilen. */
+  zeilen: string[];
+  /** Pfad auf dem Host des Moduls, an dem die Sache erledigt wird. */
+  pfad: string;
+}

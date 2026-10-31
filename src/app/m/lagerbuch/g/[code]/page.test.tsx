@@ -247,7 +247,7 @@ describe("g/[code] — der eine gerenderte Zustand (§11.3, 8-C2)", () => {
     // und DRK-314 haben je EINEN Eintrag ergaenzt, jeder von 19 aus gerechnet.
     // Zusammen sind es 21. Wer den Marker aufloest, ohne nachzuzaehlen, uebernimmt
     // eine Zahl, die auf keiner der beiden Seiten falsch war.
-    expect(LAGERBUCH_NAV).toHaveLength(22);   // DRK-305: Entnahme + Check durchfuehren; DRK-312: Ortsetiketten; DRK-313: Auffuellen; DRK-314: Entnahmebox; IDA-261: Statistik
+    expect(LAGERBUCH_NAV).toHaveLength(23);   // DRK-305: Entnahme + Check durchfuehren; DRK-312: Ortsetiketten; DRK-313: Auffuellen; DRK-314: Entnahmebox; IDA-261: Statistik; IDA-298: Mängel
   });
 });
 

@@ -69,6 +69,7 @@ it("keeps local masked denials covered independently of successful-read exclusio
     "src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts#POST",
     "src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET",
     "src/app/m/kommplan/logo/route.ts#POST",
+    "src/app/m/lagerbuch/verwaltung/(arbeit)/maengel/foto/[id]/[nummer]/route.ts#GET",
   ];
   const entries = Object.entries(manifest) as [string, { denial?: { via: string; path?: string; reason: string } }][];
   expect(entries.filter(([, entry]) => entry.denial).map(([key]) => key).sort()).toEqual(expected.sort());

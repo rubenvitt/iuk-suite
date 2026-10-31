@@ -134,8 +134,9 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // DRK-314: der dritte Reiter ist die Entnahmebox, und er steht in der MITTE
     // — die beiden Buchungsrichtungen (aus dem Regal nehmen, in die Kiste
     // legen) nebeneinander, der Check als eigener Vorgang daneben.
+    // IDA-298: „Mangel" steht immer zuletzt.
     expect(links.map((a) => a.getAttribute("href")))
-      .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
+      .toEqual(["/helfer", "/helfer/box", "/helfer/check", "/helfer/mangel"]);
   });
 
   it("die CSS-Klasse folgt aus `aria-current`, nicht umgekehrt (§7.8.2 Punkt 4)", async () => {
@@ -150,7 +151,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
       <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
-    expect(links.length).toBe(3);   // DRK-314: Entnahme, Box, Check
+    expect(links.length).toBe(4);   // DRK-314: Entnahme, Box, Check; IDA-298: Mangel
     // Erst dass ueberhaupt eine Tab-Klasse dranhaengt — sonst waere die
     // Gleichheit LEERER Klassenlisten die ganze Zusage.
     for (const a of links) expect(a.className).toMatch(/tab/);
@@ -267,7 +268,7 @@ describe("HelferRahmen — der Kopf", () => {
       <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
     );
     expect(queryAll("nav[data-testid='lb-tableiste'] a").map((a) => a.getAttribute("href")))
-      .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
+      .toEqual(["/helfer", "/helfer/box", "/helfer/check", "/helfer/mangel"]);
   });
 
   it("rendert die Kinder im `<main>`", async () => {
@@ -430,7 +431,7 @@ describe("HelferRahmen — der Traeger und die Zeichen", () => {
     );
     const zeichen = queryAll("svg");
     // Ohne diese Zeile fuehrte ein leeres Trefferarray null Zusicherungen aus.
-    expect(zeichen.length).toBe(4); // Beenden + drei Tabs (DRK-314)
+    expect(zeichen.length).toBe(5); // Beenden + drei Tabs (DRK-314) + Mangel (IDA-298)
     for (const svg of zeichen) {
       expect(svg.getAttribute("aria-hidden")).toBe("true");
       expect(svg.getAttribute("focusable")).toBe("false");
@@ -542,7 +543,7 @@ describe("HelferRahmen — die Reiter haengen je an ihrem Bereich (DRK-417)", ()
   }
 
   it("Regal-Code: nur die Entnahme", async () => {
-    expect(await hrefsFuer(["entnahme"])).toEqual(["/helfer"]);
+    expect(await hrefsFuer(["entnahme"])).toEqual(["/helfer", "/helfer/mangel"]);
   });
 
   /**
@@ -553,15 +554,30 @@ describe("HelferRahmen — die Reiter haengen je an ihrem Bereich (DRK-417)", ()
    * Bedienung, bei der man sich vertippt.
    */
   it("Karte an der Einheit: Box und Check, keine Entnahme", async () => {
-    expect(await hrefsFuer(["box", "check"])).toEqual(["/helfer/box", "/helfer/check"]);
+    expect(await hrefsFuer(["box", "check"])).toEqual(["/helfer/box", "/helfer/check", "/helfer/mangel"]);
   });
 
   it("Karte an der Entnahmebox: nur die Box", async () => {
-    expect(await hrefsFuer(["box"])).toEqual(["/helfer/box"]);
+    expect(await hrefsFuer(["box"])).toEqual(["/helfer/box", "/helfer/mangel"]);
   });
 
   it("voller Zugang: alle drei, in der Reihenfolge der Leiste", async () => {
     expect(await hrefsFuer(VOLLE_REICHWEITE))
-      .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
+      .toEqual(["/helfer", "/helfer/box", "/helfer/check", "/helfer/mangel"]);
+  });
+
+  /**
+   * IDA-298 — „Mangel" haengt an KEINEM Bereich: melden darf jede Karte. Er steht immer zuletzt,
+   * damit die anderen Reiter an ihrer Stelle bleiben, und traegt den Ort mit, wenn die Seite einen kennt.
+   */
+  it("Mangel steht an jeder Karte und traegt den vorbelegten Ort", async () => {
+    await mount(
+      <HelferRahmen aktiv="mangel" reichweite={["entnahme"]} sitzungsetikett="X" laeuftAb={LAEUFT_AB} mangelOrt="schrank 1">
+        <p />
+      </HelferRahmen>,
+    );
+    const mangel = query<HTMLAnchorElement>("[data-rolle='tab-mangel']");
+    expect(mangel.getAttribute("href")).toBe("/helfer/mangel?ort=schrank%201");
+    expect(mangel.getAttribute("aria-current")).toBe("page");
   });
 });
