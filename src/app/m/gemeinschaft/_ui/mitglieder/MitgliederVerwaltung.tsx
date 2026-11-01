@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { App, Button, Form, Input, Modal, Popconfirm, Space } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -26,18 +26,27 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
   const [formular, setFormular] = useState<Formular | null>(null);
   const [feldFehler, setFeldFehler] = useState<Record<string, string>>({});
   const [laeuft, starte] = useTransition();
+  // Synchrone Sperre: zwei schnelle Enter landen sonst vor dem ersten `laeuft` in zwei Aktionen.
+  const sperre = useRef(false);
 
-  const fuehreAus = (aktion: () => Promise<MitgliederErgebnis>, erfolg: string, danach?: () => void) =>
+  const fuehreAus = (aktion: () => Promise<MitgliederErgebnis>, erfolg: string, danach?: () => void) => {
+    if (sperre.current) return;
+    sperre.current = true;
     starte(async () => {
-      const r = await aktion();
-      if (r.ok) {
-        message.success(erfolg);
-        danach?.();
-      } else {
-        setFeldFehler(r.feldFehler ?? {});
-        if (!r.feldFehler) message.error(r.fehler);
+      try {
+        const r = await aktion();
+        if (r.ok) {
+          message.success(erfolg);
+          danach?.();
+        } else {
+          setFeldFehler(r.feldFehler ?? {});
+          if (!r.feldFehler) message.error(r.fehler);
+        }
+      } finally {
+        sperre.current = false;
       }
     });
+  };
 
   const kopieren = async (m: MitgliedZeile) => {
     const adresse = persoenlicherLink(basis, m.link);

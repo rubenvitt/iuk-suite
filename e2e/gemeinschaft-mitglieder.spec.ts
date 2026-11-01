@@ -34,6 +34,7 @@ test("Mitglied anlegen, Link öffnen, neuer Link macht den alten ungültig, entf
   const fremd = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const handy = await fremd.newPage();
   const antwort = await handy.goto(alt!);
+  await warteAufGestreamteInhalte(handy);
   expect(antwort?.status()).toBe(200);
   await expect(handy.getByRole("heading", { name: "Hallo Testmitglied" })).toBeVisible();
   await expect(handy.getByRole("heading", { name: "Deine Aufgaben" })).toBeVisible();
@@ -49,9 +50,11 @@ test("Mitglied anlegen, Link öffnen, neuer Link macht den alten ungültig, entf
   await expect(zeile.getByRole("link", { name: /…\/mein\// })).not.toHaveAttribute("href", alt!);
   const neu = await zeile.getByRole("link", { name: /…\/mein\// }).getAttribute("href");
   await handy.goto(alt!);
+  await warteAufGestreamteInhalte(handy);
   await expect(handy.getByRole("heading", { name: "Link nicht gültig" })).toBeVisible();
   await expect(handy.getByText("Dieser Link gilt nicht mehr.", { exact: false })).toBeVisible();
   await handy.goto(neu!);
+  await warteAufGestreamteInhalte(handy);
   await expect(handy.getByRole("heading", { name: "Hallo Testmitglied" })).toBeVisible();
   await fremd.close();
 
@@ -77,6 +80,7 @@ test("ohne Leitungsrecht keine Mitgliederliste; ein erfundener Link zeigt die fr
   const fremd = await page.context().browser()!.newContext();
   const seite = await fremd.newPage();
   const r = await seite.goto(url("/mein/AAAAAAAAAAAAAAAAAAAAAA"));
+  await warteAufGestreamteInhalte(seite);
   expect(r?.status()).toBe(200);
   await expect(seite.getByRole("heading", { name: "Link nicht gültig" })).toBeVisible();
   await fremd.close();

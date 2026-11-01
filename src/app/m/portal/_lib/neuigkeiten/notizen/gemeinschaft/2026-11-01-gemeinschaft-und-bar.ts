@@ -8,12 +8,9 @@ const notiz: Releasenotiz = {
   titel: "Events, Projekte und die Bar an einem Ort",
   inhalt: [
     absatz(
-      "In der neuen App Gemeinschaft legt die Leitung Events und Projekte an, verteilt Aufgaben und sieht im Kalender alles zusammen. " +
-        "Mitglieder brauchen kein Konto: Jedes bekommt unter Mitglieder einen persönlichen Link, hakt dort seine Aufgaben ab und trägt sich mit Ich mach’s für offene ein.",
-    ),
-    absatz(
-      "Die Bar fragst du jetzt ohne Anmeldung an und siehst den Stand über deinen Link. " +
-        "Unter Vermietung sagt die Leitung zu oder ab und hält fest, wie weit der Mietvertrag ist.",
+      "In der neuen App Gemeinschaft planst du als Leitung Events und Projekte und verteilst die Aufgaben. " +
+        "Mitglieder brauchen kein Konto, jedes hakt seine Aufgaben über einen persönlichen Link ab. " +
+        "Die Bar fragst du ohne Anmeldung an, zu- oder absagen geht unter Vermietung.",
     ),
   ],
 };

@@ -17,15 +17,15 @@ import { requireGemeinschaftHostAktion } from "../_lib/zugang";
  * SCHUTZ GEGEN MASSENABSENDEN, drei Schichten (Vorbild `feedback/actions.ts`, `core/ratelimit.ts`):
  * 1. Längen- und Wertgrenzen jedes Feldes in zod (`_lib/vermietungEingabe.ts`), Zeitraum höchstens drei Tage,
  *    höchstens 18 Monate im Voraus.
- * 2. Ein Zähler je Absender (`clientIpAus`, Prozessspeicher, Notbremse): zehn Anfragen in zehn Minuten. Weit
- *    genug für ein Vereins-WLAN hinter einer Adresse, eng genug gegen ein Skript.
+ * 2. Ein Zähler je Absender (`clientIpAus`, Prozessspeicher, Notbremse): 15 Anfragen je Stunde, also weniger
+ *    als das Budget aus 3 — ein einzelner Absender kann die Bar so nicht für alle anderen sperren.
  * 3. Ein Mengenbudget in der Datenbank (überlebt Neustarts, gilt über alle Absender): höchstens
  *    `ANFRAGEN_JE_STUNDE` neue Anfragen je Stunde. Danach bittet die Seite, es später zu versuchen.
  * Dazu ein Honigtopf-Feld (`webseite`), das ein Mensch nie sieht: ist es gefüllt, antwortet die Action wie
  * bei Erfolg, speichert aber nichts.
  */
 
-const jeAbsender = new RateLimiter({ windowMs: 10 * 60_000, max: 10 });
+const jeAbsender = new RateLimiter({ windowMs: 60 * 60_000, max: 15 });
 // Nicht exportiert: in einer `"use server"`-Datei darf jeder Export nur eine async-Funktion sein.
 const ANFRAGEN_JE_STUNDE = 60;
 const ZU_VIELE = "Gerade kommen sehr viele Anfragen an. Versuch es bitte in einer Stunde noch einmal.";

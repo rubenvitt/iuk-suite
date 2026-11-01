@@ -22,6 +22,8 @@ export type Entscheidung = {
  * die anfragende Person sieht sie auf ihrer Statusseite. Zusagen bei harter Überschneidung lehnt der Server ab,
  * der Satz kommt als Hinweis.
  */
+const NICHT_GEKLAPPT = "Das hat gerade nicht geklappt. Prüf bitte die Verbindung und versuch es noch einmal.";
+
 export function useEntscheidung(): Entscheidung {
   const { message, modal } = App.useApp();
   const router = useRouter();
@@ -31,7 +33,13 @@ export function useEntscheidung(): Entscheidung {
   const [laeuft, setLaeuft] = useState(false);
 
   async function zusagen(a: AnfrageDTO) {
-    const r = await anfrageZusagenAction(a.id);
+    let r: Awaited<ReturnType<typeof anfrageZusagenAction>>;
+    try {
+      r = await anfrageZusagenAction(a.id);
+    } catch {
+      modal.info({ title: "Zusagen geht nicht", content: NICHT_GEKLAPPT, okText: "Verstanden" });
+      return;
+    }
     if (!r.ok) { modal.info({ title: "Zusagen geht nicht", content: r.fehler, okText: "Verstanden" }); return; }
     const n = r.wert.weitereOffene;
     message.success(n
@@ -55,6 +63,8 @@ export function useEntscheidung(): Entscheidung {
       message.success(offen.art === "ablehnen" ? "Abgelehnt. Die Person sieht die Begründung auf ihrer Statusseite." : "Zusage zurückgenommen. Die Person sieht die Begründung auf ihrer Statusseite.");
       setOffen(null);
       router.refresh();
+    } catch {
+      setFehler(NICHT_GEKLAPPT);
     } finally {
       setLaeuft(false);
     }
