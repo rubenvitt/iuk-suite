@@ -769,7 +769,9 @@
  * war. Die Zeile bleibt auch mit voller Breite noetig: `flex: 1 0 100%` gibt
  * die Basis vor, nicht den Boden.
  */
-.verfallZeile { display: flex; flex: 1 0 100%; align-items: center; gap: 8px; margin-top: 8px; color: var(--lb-stahl) }
+.verfallZeile { display: flex; flex-wrap: wrap; flex: 1 0 100%; align-items: center; gap: 8px; margin-top: 8px; color: var(--lb-stahl) }
+/* Nur bei mehrfach gefuehrten Artikeln: ein Wert fuer alle Faecher, daher die Bitte ums frueheste Datum. */
+.verfallHinweis { flex: 1 0 100%; font-size: 14px }
 .verfallZeile input {
   flex: 1; min-width: 0; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 10px 12px;
   font-size: 18px; min-height: 56px; background: var(--lb-karte); color: var(--lb-tinte);
