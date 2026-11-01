@@ -144,6 +144,14 @@ export function endeVon(m: Zeitlich): number {
   return Math.min(ablauf, Date.parse(m.zeitpunkt) + nach * MINUTE);
 }
 
+/**
+ * Hat sie begonnen? Ohne „Anzeigen ab“ immer: die Uhr der Verwaltung tickt nur alle 30 Sekunden und läge
+ * sonst kurz vor dem Anlegen.
+ */
+export function begonnen(m: Pick<MeldungDTO, "anzeigenAb">, jetzt: number): boolean {
+  return m.anzeigenAb === null || Date.parse(m.anzeigenAb) <= jetzt;
+}
+
 /** Noch nicht vorbei: läuft gerade oder ist geplant. */
 export function offen<T extends Zeitlich>(liste: T[], jetzt: number): T[] {
   return liste.filter((m) => endeVon(m) > jetzt);
@@ -154,5 +162,5 @@ export function offen<T extends Zeitlich>(liste: T[], jetzt: number): T[] {
  * `MELDUNGEN_MAX_AKTIV`. Eine weitere wartet, bis ein Platz frei wird. Erwartet die Liste nach Beginn sortiert.
  */
 export function sichtbar<T extends Zeitlich>(liste: T[], jetzt: number): T[] {
-  return liste.filter((m) => beginnVon(m) <= jetzt && endeVon(m) > jetzt).slice(0, MELDUNGEN_MAX_AKTIV);
+  return liste.filter((m) => begonnen(m, jetzt) && endeVon(m) > jetzt).slice(0, MELDUNGEN_MAX_AKTIV);
 }

@@ -8,7 +8,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { meldungAnlegenAction, meldungBeendenAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { beginnVon, endeVon, LAUFZEIT_VORGABE, LAUFZEITEN, MELDUNG_MAX_ZEICHEN, MELDUNGEN_MAX_AKTIV, MELDUNGEN_MAX_GEPLANT, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
+import { begonnen, beginnVon, endeVon, LAUFZEIT_VORGABE, LAUFZEITEN, MELDUNG_MAX_ZEICHEN, MELDUNGEN_MAX_AKTIV, MELDUNGEN_MAX_GEPLANT, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { KategorieDTO } from "../_lib/kategorieRegeln";
 import { countdownText } from "../_lib/vorschau";
 import { KategorieMarke } from "./KategorieMarke";
@@ -26,7 +26,7 @@ export interface MeldungEntwurf {
 /** Wo eine Meldung gerade steht; ohne Uhr (vor dem Hydrieren) nichts. */
 function stand(m: MeldungDTO, amMonitor: Set<string>, jetzt: number | null): string | null {
   if (jetzt === null) return null;
-  if (beginnVon(m) > jetzt) return `geplant ab ${ABLAUF.format(beginnVon(m))}`;
+  if (!begonnen(m, jetzt)) return `geplant ab ${ABLAUF.format(beginnVon(m))}`;
   if (amMonitor.has(m.id)) return "am Monitor";
   return `wartet, am Monitor stehen schon ${MELDUNGEN_MAX_AKTIV}`;
 }
