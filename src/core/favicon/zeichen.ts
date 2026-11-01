@@ -207,6 +207,15 @@ const SCHICHTPLAN = modulZeichen(
 );
 
 /**
+ * Unterkunft: ein Zelt mit ausgesparter Tür, die unteren Ecken gerundet.
+ */
+const UNTERKUNFT = modulZeichen(
+  "Unterkunftsrechner",
+  `<mask id="u"><rect width="64" height="64" fill="#fff"/><path d="M25 42L31.5 61.5H18.5Z"/></mask>` +
+    `<path class="t" mask="url(#u)" d="M23.3 26.6a2 2 0 0 1 3.4 0L46.6 58a2 2 0 0 1-1.7 3H5.1a2 2 0 0 1-1.7-3Z"/>`,
+);
+
+/**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
@@ -225,6 +234,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   helfer: HELFER,
   lagemonitor: LAGEMONITOR,
   schichtplan: SCHICHTPLAN,
+  unterkunft: UNTERKUNFT,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */
