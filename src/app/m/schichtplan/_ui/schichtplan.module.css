@@ -83,7 +83,7 @@
 .block.rot { border-inline-start-color: var(--sp-rot-text); }
 .block.ziel { background: var(--sp-ziel); box-shadow: 0 0 0 2px var(--iuk-marke); }
 .block.zieht { opacity: 0.85; box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); z-index: 4; cursor: grabbing; }
-.griff { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 1; }
+.griff { position: absolute; top: 0; bottom: 0; width: min(8px, 25%); /* kurze Schichten: die Mitte bleibt zum Verschieben frei */ cursor: ew-resize; z-index: 1; }
 .griff:hover { background: var(--sp-ziel); }
 .griffVon { left: 0; }
 .griffBis { right: 0; }

@@ -21,6 +21,13 @@ describe("teileAuf", () => {
   it("feste Länge, die letzte Schicht endet mit dem Zeitraum", () => {
     expect(teileAuf(0, 10 * STUNDE, 240).map((s) => (s.bis - s.von) / STUNDE)).toEqual([4, 4, 2]);
   });
+  it("ein Rest unter 10 Minuten geht in die Schicht davor", () => {
+    expect(teileAuf(0, 65 * 60_000, 60).map((s) => (s.bis - s.von) / 60_000)).toEqual([65]);
+    expect(teileAuf(0, 70 * 60_000, 60).map((s) => (s.bis - s.von) / 60_000)).toEqual([60, 10]);
+  });
+  it("ein Zeitraum unter 10 Minuten wird abgelehnt", () => {
+    expect(planungEingabe.safeParse({ name: "x", art: "lage", von: T0, bis: T0 + 5 * 60_000, maxDienstMin: 720, minRuheMin: 480 }).success).toBe(false);
+  });
 });
 
 describe("Planung und Einheiten", () => {

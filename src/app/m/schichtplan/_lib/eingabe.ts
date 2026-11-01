@@ -25,6 +25,7 @@ export const planungEingabe = z.object({
   minRuheMin: z.number().int().min(0).max(24 * 60),
 }).superRefine((p, ctx) => {
   if (p.bis <= p.von) ctx.addIssue({ code: "custom", path: ["bis"], message: "Das Ende muss nach dem Beginn liegen." });
+  else if (p.bis - p.von < MIN_SCHICHT_MIN * MINUTE) ctx.addIssue({ code: "custom", path: ["bis"], message: `Mindestens ${MIN_SCHICHT_MIN} Minuten.` });
   else if (p.bis - p.von > MAX_ZEITRAUM) ctx.addIssue({ code: "custom", path: ["bis"], message: "Höchstens 14 Tage." });
 });
 export type PlanungEingabe = z.infer<typeof planungEingabe>;
