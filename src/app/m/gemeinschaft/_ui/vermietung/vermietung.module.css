@@ -1,0 +1,99 @@
+/*
+ * Vermietung der Bar, Seiten der Leitung (IDA-315). `.modul` trägt die Farben (Falle 2: `--ant-*` ist nicht
+ * global); `.tokens` hängt zusätzlich am `body` (`useTokensAmBody`), weil Flyins und Dialoge in ein Portal
+ * rendern. Zustandsfarben als Paar Text/Fläche aus dem Vokabular der Arbeitsflächen (wie
+ * `schichtplan/_ui/schichtplan.module.css`): angefragt gelb, zugesagt grün, gesperrt grau schraffiert. Kein
+ * Rot auf Datenflächen (Falle 3).
+ */
+.modul, .tokens {
+  --gv-ok-text: #1e7a3c;
+  --gv-ok-flaeche: #e4f2e9;
+  --gv-gelb-text: #8a5200;
+  --gv-gelb-flaeche: #fbf1dc;
+  --gv-grau-text: #5b6570;
+  --gv-grau-flaeche: #e7eaec;
+  --gv-karte: #ffffff;
+  --gv-raster: #f6f7f8;
+}
+:root[data-theme="dark"] .modul, :root[data-theme="dark"] .tokens {
+  --gv-ok-text: #7ee0a0;
+  --gv-ok-flaeche: #10261a;
+  --gv-gelb-text: #d9a032;
+  --gv-gelb-flaeche: #2a1e05;
+  --gv-grau-text: #9aa4ad;
+  --gv-grau-flaeche: #1c2024;
+  --gv-karte: #141414;
+  --gv-raster: #0c0d0e;
+}
+.modul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.neben { font-size: 12px; color: var(--iuk-gedaempft); }
+.zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* Chips: Fläche und Text als Paar. */
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.chip.angefragt, .chip.verschickt, .chip.offen { color: var(--gv-gelb-text); background: var(--gv-gelb-flaeche); }
+.chip.zugesagt, .chip.unterschrieben { color: var(--gv-ok-text); background: var(--gv-ok-flaeche); }
+.chip.gesperrt, .chip.abgelehnt, .chip.zurueckgezogen, .chip.grau { color: var(--gv-grau-text); background: var(--gv-grau-flaeche); }
+
+/* Legende */
+.legende { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--iuk-gedaempft); }
+.muster { display: inline-block; width: 18px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--iuk-linie); background: var(--gv-karte); }
+
+/* Einträge: 3px Kante in der Zustandsfarbe, Fläche dazu. */
+.eintrag {
+  display: block; width: 100%; text-align: start; font: inherit; font-size: 12px; line-height: 18px;
+  padding: 1px 6px; margin-top: 3px; border-radius: 4px; border: 1px solid transparent; border-inline-start-width: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; color: inherit; background: var(--gv-karte);
+}
+.angefragt.eintrag, .angefragt.muster { border-color: var(--gv-gelb-text); border-style: dashed; border-inline-start-style: solid; background: var(--gv-gelb-flaeche); }
+.zugesagt.eintrag, .zugesagt.muster { border-color: var(--gv-ok-text); background: var(--gv-ok-flaeche); }
+.gesperrt.eintrag, .gesperrt.muster {
+  border-color: var(--gv-grau-text);
+  background: repeating-linear-gradient(135deg, var(--gv-grau-flaeche) 0 4px, var(--gv-karte) 4px 8px);
+}
+
+/* Monatskalender der Leitung */
+.monatKopf { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.monatTitel { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.raster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--iuk-linie); border-inline-start: 1px solid var(--iuk-linie); background: var(--gv-karte); border-radius: 8px; overflow: hidden; }
+.wt { font-size: 12px; font-weight: 600; color: var(--iuk-gedaempft); text-align: end; padding: 6px 8px; border-bottom: 1px solid var(--iuk-linie); border-inline-end: 1px solid var(--iuk-linie); }
+.zelle {
+  min-height: 104px; padding: 6px; border-bottom: 1px solid var(--iuk-linie); border-inline-end: 1px solid var(--iuk-linie);
+  display: flex; flex-direction: column; min-width: 0; cursor: pointer; background: var(--gv-karte);
+}
+.zelle.aussen { background: var(--gv-raster); cursor: default; }
+.zelle.gewaehlt { box-shadow: inset 0 0 0 2px currentColor; }
+.tagnummer { align-self: flex-end; font-size: 13px; font-variant-numeric: tabular-nums; border: 0; background: none; padding: 0 2px; min-height: 22px; cursor: pointer; color: inherit; font: inherit; }
+.heute .tagnummer { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.mehr { font-size: 11px; color: var(--iuk-gedaempft); margin-top: 2px; }
+
+/* Schmal: keine Texte in den Zellen, nur Striche; die Tagesliste darunter trägt den Inhalt. */
+@media (max-width: 767.98px) {
+  .zelle { min-height: 56px; padding: 4px; }
+  .eintrag { font-size: 0; line-height: 0; height: 6px; padding: 0; margin-top: 2px; }
+  .wt { text-align: center; padding: 6px 2px; }
+}
+
+/* Tagesliste unter dem Kalender */
+.tagesliste { display: grid; gap: 8px; }
+.tageszeile {
+  display: grid; gap: 2px; text-align: start; font: inherit; color: inherit; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--iuk-linie); border-inline-start-width: 3px; background: var(--gv-karte); min-height: 44px;
+}
+.tageszeile.angefragt { border-inline-start-color: var(--gv-gelb-text); }
+.tageszeile.zugesagt { border-inline-start-color: var(--gv-ok-text); }
+.tageszeile.gesperrt { border-inline-start-color: var(--gv-grau-text); }
+
+/* Überschneidungen: Text plus 3px Kante (Hinweis, nicht Fehler). */
+.konflikt { border-inline-start: 3px solid var(--gv-gelb-text); background: var(--gv-gelb-flaeche); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; display: grid; gap: 2px; }
+
+/* Flyin */
+.details { display: grid; gap: 14px; }
+.feldname { font-size: 12px; color: var(--iuk-gedaempft); }
+.vertrag { border: 1px solid var(--iuk-linie); border-radius: 8px; padding: 12px; display: grid; gap: 10px; }
+.text { white-space: pre-line; overflow-wrap: anywhere; }
