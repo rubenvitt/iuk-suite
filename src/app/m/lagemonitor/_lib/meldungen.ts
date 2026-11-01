@@ -42,7 +42,8 @@ export function offeneMeldungen(db: LagemonitorDb, jetzt = new Date()): MeldungD
     .from(meldung)
     .leftJoin(kategorie, eq(meldung.kategorieId, kategorie.id))
     .where(gt(meldung.ablaufAm, jetzt))
-    .orderBy(sql`coalesce(${meldung.anzeigenAb}, ${meldung.angelegtAm})`, asc(meldung.angelegtAm), asc(meldung.id))
+    // `angelegt_am` hat Sekunden; bei Gleichstand entscheidet die Reihenfolge des Anlegens (rowid), nicht die zufällige id.
+    .orderBy(sql`coalesce(${meldung.anzeigenAb}, ${meldung.angelegtAm})`, asc(meldung.angelegtAm), sql`"lagemonitor_meldung"."rowid"`)
     .all()
     .map((r) => dtoAus(r.lagemonitor_meldung, r.lagemonitor_kategorie));
   return offen(zeilen, jetzt.getTime());

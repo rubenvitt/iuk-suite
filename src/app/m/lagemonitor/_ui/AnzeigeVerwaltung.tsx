@@ -147,7 +147,8 @@ export function AnzeigeVerwaltung({
       return { text: m.text, countdown: zaehler(ziel), kategorie: m.kategorie, faellig: blinkt(ziel, m.kategorie) };
     });
     if (!entwurf) return laufend;
-    // Beginnt der Entwurf später, zeigt ihn der Monitor jetzt noch nicht.
+    // Beginnt der Entwurf später oder stehen schon drei am Monitor, zeigt ihn der Monitor jetzt noch nicht.
+    if (laufend.length >= MELDUNGEN_MAX_AKTIV) return laufend;
     const plan = jetzt === null ? null : planeMeldung({ uhrzeit: entwurf.uhrzeit, anzeigenAb: entwurf.anzeigenAb, laufzeitMinuten: 0 }, new Date(jetzt));
     if (plan?.anzeigenAb) return laufend;
     const ziel = plan?.zeitpunkt?.getTime() ?? null;
