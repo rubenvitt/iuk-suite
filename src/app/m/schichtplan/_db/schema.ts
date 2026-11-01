@@ -1,7 +1,7 @@
 /**
  * Die Datenbank des Moduls `schichtplan` (IDA-313): Planungen im Voraus für Veranstaltungen und große
  * Lagen. Zeiten als Millisekunden seit 1970 (`integer`, kein `timestamp`-Modus): das Raster rechnet in
- * Millisekunden, und eine Schicht bewegt sich in Viertelstunden — ein `Date` je Wert wäre nur Umweg.
+ * Millisekunden, und eine Schicht bewegt sich in Minutenschritten — ein `Date` je Wert wäre nur Umweg.
  *
  * Helfer aus dem Modul `helfer` stehen hier NUR mit ihrer Kennung (`zuordnung.helfer_id`, Quelle
  * `stamm`), nie mit Namen: Name und Qualifikation liest die Seite frisch aus `helfer/_lib/bereitstellung`.

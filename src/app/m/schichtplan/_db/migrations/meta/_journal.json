@@ -8,6 +8,13 @@
       "when": 1793554975414,
       "tag": "0000_grundbestand",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793562733510,
+      "tag": "0001_audit_ohne_beruehrt",
+      "breakpoints": true
     }
   ]
 }

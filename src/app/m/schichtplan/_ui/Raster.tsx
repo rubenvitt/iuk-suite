@@ -5,7 +5,7 @@ import { App, Button, Input, Segmented, Select } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import type { Auswertung } from "../_lib/pruefung";
 import { erfuellt } from "../_lib/qualis";
-import { type EinheitDTO, type PlanHelfer, type PlanungDTO, type Quali, type SchichtDTO, RASTER_MIN, MINUTE, STUNDE, schluessel } from "../_lib/typen";
+import { type EinheitDTO, type PlanHelfer, type PlanungDTO, type Quali, type SchichtDTO, MIN_SCHICHT_MIN, RASTER_MIN, MINUTE, STUNDE, schluessel } from "../_lib/typen";
 import { kurzTag, rasten, stunden, stundeInZone, uhrzeit, zeitspanne } from "../_lib/zeit";
 import s from "./schichtplan.module.css";
 import { anforderungText, Chip, EinheitZeichen, einheitTitel, name, QualiChips, schichtAmpel } from "./teile";
@@ -18,7 +18,10 @@ export interface RasterAktionen {
 }
 
 const ZIEHDATEN = "application/x-schichtplan";
+/** Unter dieser Breite trägt ein Block weder Innenabstand noch Inhalt, sonst wäre er breiter als seine Schicht. */
+const SCHMAL_PX = 32;
 const RASTER = RASTER_MIN * MINUTE;
+const MIN_SCHICHT = MIN_SCHICHT_MIN * MINUTE;
 const MAX_SCHICHT = 24 * STUNDE;
 type Zoom = "eng" | "normal" | "weit";
 const PX: Record<Zoom, number> = { eng: 28, normal: 56, weit: 96 };
@@ -92,7 +95,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
         if (stand.art !== "zeichnen") return;
         const von = Math.min(stand.anker, stand.ende);
         const bis = Math.min(Math.max(stand.anker, stand.ende), von + MAX_SCHICHT);
-        if (bis - von >= RASTER) aktionen.schichtAnlegen(e.id, von, bis);
+        if (bis - von >= MIN_SCHICHT) aktionen.schichtAnlegen(e.id, von, bis);
       },
     );
   }
@@ -117,9 +120,9 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
           const spur = document.elementFromPoint(m.clientX, m.clientY)?.closest<HTMLElement>("[data-spur]");
           einheitId = spur?.dataset.spur ?? stand.einheitId;
         } else if (art === "von") {
-          von = klemme(sch.von + d, Math.max(p.von, sch.bis - MAX_SCHICHT), sch.bis - RASTER);
+          von = klemme(sch.von + d, Math.max(p.von, sch.bis - MAX_SCHICHT), sch.bis - MIN_SCHICHT);
         } else {
-          bis = klemme(sch.bis + d, sch.von + RASTER, Math.min(p.bis, sch.von + MAX_SCHICHT));
+          bis = klemme(sch.bis + d, sch.von + MIN_SCHICHT, Math.min(p.bis, sch.von + MAX_SCHICHT));
         }
         stand = { ...stand, von, bis, einheitId, bewegt: true };
         setZug(stand);
@@ -141,7 +144,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
   function doppelklick(ev: React.MouseEvent<HTMLDivElement>, e: EinheitDTO) {
     if (ev.target !== ev.currentTarget) return;
     const rahmen = ev.currentTarget.getBoundingClientRect();
-    const von = klemme(unten(p.von + ((ev.clientX - rahmen.left) / px) * STUNDE), p.von, p.bis - RASTER);
+    const von = klemme(unten(p.von + ((ev.clientX - rahmen.left) / px) * STUNDE), p.von, p.bis - MIN_SCHICHT);
     aktionen.schichtAnlegen(e.id, von, Math.min(von + e.schichtMin * MINUTE, p.bis));
   }
 
@@ -196,7 +199,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
                         <span>{einheitTitel(e)}</span>
                       </button>
                       <span className={s.neben}>Soll {e.soll}{anf ? `, davon ${anf}` : ""}</span>
-                      <span className={`${s.neben} ${s.nurBreit}`}>{stunden(e.schichtMin * MINUTE)}-Schichten</span>
+                      <span className={`${s.neben} ${s.nurBreit}`}>Schichten je {stunden(e.schichtMin * MINUTE)}</span>
                       <Button type="link" style={{ alignSelf: "flex-start", paddingInline: 0 }} onClick={() => schichtAnhaengen(e)}>Schicht anlegen</Button>
                     </div>
                     <div
@@ -224,7 +227,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
                             tabIndex={0}
                             data-schicht={sch.id}
                             aria-label={`${e.name}, ${zeitspanne(sch.von, sch.bis)}, ${ids.length} von ${e.soll} besetzt`}
-                            className={`${s.block} ${s[ampel]}${ziel === sch.id ? ` ${s.ziel}` : ""}${zieht ? ` ${s.zieht}` : ""}`}
+                            className={`${s.block} ${s[ampel]}${x(sch.bis) - x(sch.von) < SCHMAL_PX ? ` ${s.schmal}` : ""}${ziel === sch.id ? ` ${s.ziel}` : ""}${zieht ? ` ${s.zieht}` : ""}`}
                             style={{ left: x(sch.von) + 2, width: Math.max(x(sch.bis) - x(sch.von) - 4, 6) }}
                             onPointerDown={(ev) => zieheAb(ev, sch, "verschieben")}
                             onClick={() => { if (!klickSperre.current) oeffneSchicht(sch.id); }}

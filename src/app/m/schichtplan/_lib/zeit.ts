@@ -58,13 +58,17 @@ export function zeitspanne(von: number, bis: number, mitTag = false): string {
   return `${kurzTag(von)} ${uhrzeit(von)} – ${kurzTag(bis)} ${uhrzeit(bis)}`;
 }
 
-/** Rundet auf das Raster der Planung (15 Minuten). */
+/** Rundet auf das Raster der Planung (`RASTER_MIN`). */
 export function rasten(ms: number, raster = RASTER_MIN): number {
   const schritt = raster * MINUTE;
   return Math.round(ms / schritt) * schritt;
 }
 
-/** „8 h“, „2,5 h“, „13,75 h“ (Viertelstunden bleiben genau). */
+/** Eine Dauer, wie man sie sagt: „10 min“, „8 h“, „2 h 30 min“. */
 export function stunden(ms: number): string {
-  return `${String(Number((ms / STUNDE).toFixed(2))).replace(".", ",")} h`;
+  const min = Math.round(ms / MINUTE);
+  const h = Math.floor(min / 60);
+  const rest = min % 60;
+  if (h === 0) return `${rest} min`;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
 }

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { Abgelehnt, entferneEinheit, ladePlanung, legeSchichtAn, loeschePlanung, loescheTempHelfer, NichtGefunden, setzeSchicht, speichereEinheit, speicherePlanung, speichereTempHelfer, teileAuf, teileZu, tragAus, verschiebeEinheit } from "./daten";
 import { einheitEingabe, planungEingabe, schichtZeitEingabe, tempHelferEingabe } from "./eingabe";
@@ -19,6 +20,14 @@ function aufbau() {
 describe("teileAuf", () => {
   it("feste Länge, die letzte Schicht endet mit dem Zeitraum", () => {
     expect(teileAuf(0, 10 * STUNDE, 240).map((s) => (s.bis - s.von) / STUNDE)).toEqual([4, 4, 2]);
+  });
+  it("ein Rest unter 10 Minuten geht in die Schicht davor", () => {
+    expect(teileAuf(0, 65 * 60_000, 60).map((s) => (s.bis - s.von) / 60_000)).toEqual([65]);
+    expect(teileAuf(0, 70 * 60_000, 60).map((s) => (s.bis - s.von) / 60_000)).toEqual([60, 10]);
+    expect(teileAuf(0, (1440 + 5) * 60_000, 1440).map((s) => (s.bis - s.von) / 60_000)).toEqual([1435, 10]);
+  });
+  it("ein Zeitraum unter 10 Minuten wird abgelehnt", () => {
+    expect(planungEingabe.safeParse({ name: "x", art: "lage", von: T0, bis: T0 + 5 * 60_000, maxDienstMin: 720, minRuheMin: 480 }).success).toBe(false);
   });
 });
 
@@ -112,9 +121,27 @@ describe("Schichten und Einteilung", () => {
   });
 });
 
+describe("Audit", () => {
+  it("eine Änderung schreibt eine Zeile, nicht noch eine für die Planung dazu", () => {
+    const { db, planId } = aufbau();
+    const zeilen = () => db.all<{ object_type: string; action: string }>(sql`SELECT object_type, action FROM audit_outbox ORDER BY rowid`);
+    const vorher = zeilen().length;
+    const s = ladePlanung(db, planId)!.schichten[0];
+    setzeSchicht(db, planId, s.id, zeit(s.von, s.bis - STUNDE));
+    expect(zeilen().slice(vorher)).toEqual([{ object_type: "schicht", action: "update" }]);
+  });
+});
+
 describe("Eingaben", () => {
-  it("Zeiten müssen auf einer Viertelstunde liegen", () => {
+  it("Zeiten liegen im 5-Minuten-Raster", () => {
     expect(schichtZeitEingabe.safeParse({ von: T0 + 60_000, bis: T0 + STUNDE }).success).toBe(false);
+    expect(schichtZeitEingabe.safeParse({ von: T0 + 5 * 60_000, bis: T0 + STUNDE }).success).toBe(true);
+  });
+  it("eine Schicht dauert mindestens 10 Minuten", () => {
+    expect(schichtZeitEingabe.safeParse({ von: T0, bis: T0 + 5 * 60_000 }).success).toBe(false);
+    expect(schichtZeitEingabe.safeParse({ von: T0, bis: T0 + 10 * 60_000 }).success).toBe(true);
+    expect(einheitEingabe.safeParse({ art: "abschnitt", name: "UHS", schichtMin: 5, soll: 1 }).success).toBe(false);
+    expect(einheitEingabe.safeParse({ art: "abschnitt", name: "UHS", schichtMin: 10, soll: 1 }).success).toBe(true);
   });
   it("Zeitraum höchstens 14 Tage", () => {
     expect(planungEingabe.safeParse({ name: "x", art: "lage", von: T0, bis: T0 + 15 * 24 * STUNDE, maxDienstMin: 720, minRuheMin: 480 }).success).toBe(false);

@@ -1,0 +1,78 @@
+/* Unterkunftsrechner. `.modul` trägt die Tokens (Falle 2: `--ant-*` ist nicht global); Farbvokabular der
+   Arbeitsflächen wie in `schichtplan/_ui/schichtplan.module.css`. Rot nur auf Chrome, nie auf Werten (Falle 3).
+   `.tokens` hängt zusätzlich am `body` (`useTokensAmBody`), weil Auswahllisten in ein Portal rendern. */
+.modul, .tokens {
+  --uk-gelb-text: #8a5200;
+  --uk-gelb-flaeche: #fbf1dc;
+  --uk-grau-text: #5b6570;
+  --uk-grau-flaeche: #e7eaec;
+  --uk-karte: #ffffff;
+  --uk-feld: #f6f7f8;
+}
+:root[data-theme="dark"] .modul, :root[data-theme="dark"] .tokens {
+  --uk-gelb-text: #d9a032;
+  --uk-gelb-flaeche: #2a1e05;
+  --uk-grau-text: #9aa4ad;
+  --uk-grau-flaeche: #1c2024;
+  --uk-karte: #141414;
+  --uk-feld: #0c0d0e;
+}
+.modul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.neben { font-size: 12px; color: var(--iuk-gedaempft); }
+
+/* Eingabe links, Ergebnis rechts; unter 768px untereinander (einziger Breakpoint der Suite). */
+.rechner {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 767.98px) {
+  .rechner { grid-template-columns: minmax(0, 1fr); }
+}
+
+.felder { display: flex; flex-direction: column; gap: 14px; }
+.feld { display: flex; flex-direction: column; gap: 6px; }
+.feldTitel { font-weight: 600; font-size: 14px; }
+.zweiSpalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.schalter { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+
+/* Räume */
+.raum { border: 1px solid var(--iuk-linie); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--uk-feld); }
+.raumKopf { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.raumZeile { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.raumFuss { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--iuk-gedaempft); }
+.raumFuss b { color: inherit; font-variant-numeric: tabular-nums; }
+
+/* Zeltbestand: Typen als Spalten. */
+.zeltraster { display: grid; grid-template-columns: 64px repeat(4, minmax(0, 1fr)); gap: 8px; align-items: center; }
+.kopfzelle { font-size: 12px; font-weight: 600; color: var(--iuk-gedaempft); text-align: center; }
+
+/* Kennzahlen */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.kpi { background: var(--uk-karte); border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--uk-grau-text); border-radius: 8px; padding: 10px 14px; }
+.kpiTitel { font-size: 12px; color: var(--iuk-gedaempft); }
+.kpiWert { font-family: var(--font-display); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpiWert small { font-size: 14px; font-weight: 500; margin-inline-start: 3px; }
+
+/* Ergebniskarten */
+.ergebnis { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.werte { width: 100%; border-collapse: collapse; }
+.werte th { text-align: start; font-weight: 400; padding: 6px 0; border-block-end: 1px solid var(--iuk-linie); }
+.werte td { text-align: end; padding: 6px 0; border-block-end: 1px solid var(--iuk-linie); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.werte tr:last-child th, .werte tr:last-child td { border-block-end: 0; }
+.werte td small { font-weight: 400; color: var(--iuk-gedaempft); margin-inline-start: 4px; }
+.unterzeile { font-size: 12px; color: var(--iuk-gedaempft); margin-block: 10px 6px; }
+.mix { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Chips: Fläche und Text als Paar, nie antds Tag-Vorgabe. „Annahme“ ist ein Wert ohne Quelle. */
+.chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.chip.grau { color: var(--uk-grau-text); background: var(--uk-grau-flaeche); }
+.chip.gelb { color: var(--uk-gelb-text); background: var(--uk-gelb-flaeche); }
+.marke { margin-inline-start: 6px; }
