@@ -1,0 +1,304 @@
+/*
+ * Bar anfragen und Statusseite (IDA-315), öffentlich, ohne antd. Baut auf `_ui/offen/gemeinschaft-offen.css`
+ * auf (Variablen `--go-*`, Klassen `.go-*`); hier steht nur, was dort fehlt: Monatskalender, Formularblöcke,
+ * Statuslink, Zustandsplakette. Farben nur aus `--go-*` — die tragen Hell und Dunkel. „belegt“ ist eine
+ * Schraffur plus Text, keine Farbe (Falle 3: kein Rot auf Datenflächen).
+ */
+
+.karte {
+  border: 1px solid var(--go-linie);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  background: var(--go-blatt);
+}
+
+.ueberschrift {
+  margin: 0 0 12px;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.anmeldung {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+/* ---------- Monatskalender ---------- */
+
+.monatKopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.rund {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--go-linie-stark);
+  background: var(--go-blatt);
+  color: var(--go-tinte);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.rund:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wochentage,
+.tage {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.wochentage div {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--go-gedaempft);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.tag {
+  aspect-ratio: 1 / 1;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--go-linie);
+  background: var(--go-blatt);
+  color: var(--go-tinte);
+  font: inherit;
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.leer {
+  visibility: hidden;
+}
+
+.vergangen {
+  color: var(--go-gedaempft);
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+
+.belegt {
+  background: repeating-linear-gradient(135deg, var(--go-tint) 0 5px, var(--go-blatt) 5px 10px);
+  border-color: var(--go-linie-stark);
+}
+
+.heute {
+  box-shadow: inset 0 0 0 2px var(--go-tinte);
+}
+
+/* (0,2,0) wie der Fokusring aus `gemeinschaft-offen.css`: die Auswahl soll auch auf einem belegten Tag stehen. */
+.tage .gewaehlt {
+  outline: 3px solid var(--go-tinte);
+  outline-offset: 1px;
+}
+
+.punkt {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--go-gedaempft);
+}
+
+.legende {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--go-gedaempft);
+  margin-top: 10px;
+}
+
+.legende i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  vertical-align: -2px;
+  margin-right: 6px;
+  border: 1px solid var(--go-linie);
+  background: var(--go-blatt);
+}
+
+.legende i.schraffur {
+  background: repeating-linear-gradient(135deg, var(--go-tint) 0 3px, var(--go-blatt) 3px 6px);
+  border-color: var(--go-linie-stark);
+}
+
+.tagInfo {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--go-linie);
+  font-size: 15px;
+}
+
+.tagInfo ul {
+  margin: 6px 0 12px;
+  padding-left: 18px;
+  color: var(--go-gedaempft);
+}
+
+/* ---------- Formular ---------- */
+
+.formular {
+  display: grid;
+  gap: 20px;
+}
+
+.block {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.block legend {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--go-gedaempft);
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.zeile2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.hilfe {
+  display: block;
+  font-weight: 400;
+  color: var(--go-gedaempft);
+}
+
+.textfeld {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.personen {
+  max-width: 160px;
+}
+
+/* Der Honigtopf: aus dem Bild und aus der Tab-Folge, aber kein `display: none` — manche Skripte prüfen das. */
+.honig {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.voll {
+  width: 100%;
+}
+
+/* ---------- Danke und Status ---------- */
+
+.danke {
+  font-size: 32px;
+  font-weight: 600;
+  margin: 8px 0;
+}
+
+.statuslink {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.statuslink code {
+  flex: 1 1 220px;
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  background: var(--go-grund);
+  border: 1px solid var(--go-linie);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+}
+
+.plakette {
+  display: inline-flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--go-linie-stark);
+  color: var(--go-gedaempft);
+}
+
+.plakette.angefragt {
+  color: var(--go-hinweis);
+  border-color: currentColor;
+}
+
+.plakette.zugesagt {
+  color: var(--go-ok);
+  border-color: currentColor;
+}
+
+.angaben {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 16px 0 0;
+  font-size: 15px;
+}
+
+.angaben dt {
+  color: var(--go-gedaempft);
+}
+
+.angaben dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.begruendung {
+  border-left: 3px solid var(--go-gedaempft);
+  padding: 8px 12px;
+  margin: 12px 0 0;
+  background: var(--go-grund);
+  white-space: pre-line;
+}
+
+.rueckfrage {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding-left: 12px;
+  border-left: 3px solid var(--go-hinweis);
+}
