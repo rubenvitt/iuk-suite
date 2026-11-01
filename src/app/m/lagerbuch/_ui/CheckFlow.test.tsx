@@ -822,8 +822,15 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(query("[data-rolle='nf-liste']").textContent).toContain("Lücke 5");
   });
 
-  it("das Verfallsfeld erscheint NUR in der ERSTEN Zeile je Artikel", async () => {
-    // Zwei Felder fuer EINE Angabe waeren nicht auseinanderzuhalten (:100-109).
+  it("der Verfallsknopf steht in JEDER Zeile, der Wert ist einer je Artikel (IDA-305)", async () => {
+    // Nur in der ersten Zeile stand er bei 215 Positionen Faecher weiter oben,
+    // und in der Modultasche, in der man die Packung hielt, fehlte er.
+    // Uhr fest vor 2027-03: danach zeigte der Chip „abgelaufen" statt „03/27".
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-15T10:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     await mount(
       <CheckFlow
     kontoZugang={false} {...VOLL}
@@ -840,10 +847,21 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // Beide Zeilen sind da …
     expect(queryAll("[data-rolle='zaehlzeile']").length).toBe(2);
     expect(zahlfelder()).toHaveLength(2);
-    // … und nur EINE traegt den Knopf und, aufgeklappt, das Feld.
-    expect(queryAll("[data-rolle='verfall-knopf']").length).toBe(1);
-    await verfallAufklappen();
+    // … beide tragen den Knopf, und er nennt das Fach mit.
+    const knoepfe = queryAll("[data-rolle='verfall-knopf']");
+    expect(knoepfe.map((k) => k.getAttribute("aria-label"))).toEqual([
+      "Kompresse (Fach 1): Verfall angeben",
+      "Kompresse (Fach 2): Verfall angeben",
+    ]);
+    // Aufklappen ist je ZEILE: der zweite Knopf oeffnet nur sein Feld.
+    await clickElement(knoepfe[1]);
     expect(queryAll("[data-rolle='zaehlliste'] input[type='month']").length).toBe(1);
+    expect(query("[data-rolle='verfall-hinweis']").textContent).toContain("frühestes Datum");
+    const hinweis = query("[data-rolle='verfall-hinweis']");
+    expect(query("[data-rolle='zaehlliste'] input[type='month']").getAttribute("aria-describedby")).toBe(hinweis.id);
+    // Der Wert ist EINER je Artikel: in Fach 2 getippt, steht er auch in Fach 1.
+    await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
+    expect(knoepfe[0].getAttribute("aria-label")).toMatch(/^Kompresse \(Fach 1\): Verfall .*03\/27/);
   });
 
   it("das Verfallsfeld ist ZUGEKLAPPT — eine vorhandene Angabe bleibt sichtbar (IDA-233)", async () => {

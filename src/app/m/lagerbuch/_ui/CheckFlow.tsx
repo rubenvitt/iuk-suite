@@ -449,12 +449,14 @@ export function CheckFlow({
   // Check gemeldete Wert; leeren heisst „keine Angabe" (`:100-109`).
   const verfallWert = (artikelId: string) => verfallState[artikelId] ?? verfall[artikelId] ?? "";
 
-  // Anzeigereihenfolge Fach fuer Fach → je Artikel bekommt nur die ERSTE Zeile
-  // das Eingabefeld. Zwei Felder fuer eine Angabe waeren nicht
-  // auseinanderzuhalten (`:105-109`).
+  // Anzeigereihenfolge Fach fuer Fach. Seit IDA-305 traegt JEDE Zeile den
+  // Verfallsknopf: nur in der ersten Zeile je Artikel stand er bei 215
+  // Positionen ein paar Faecher weiter oben, und in der Modultasche, in der
+  // man die Packung in der Hand hielt, fehlte er ohne jeden Hinweis. Der Wert
+  // bleibt EINER je Artikel (`lagerort_verfall`), alle Zeilen teilen ihn.
   const zaehlFolge = faecher.flatMap((f) => soll.filter((p) => p.fachLabel === f));
-  const ersteZeile = new Map<string, string>();
-  for (const p of zaehlFolge) if (!ersteZeile.has(p.artikelId)) ersteZeile.set(p.artikelId, p.id);
+  const zeilenJeArtikel = new Map<string, number>();
+  for (const p of zaehlFolge) zeilenJeArtikel.set(p.artikelId, (zeilenJeArtikel.get(p.artikelId) ?? 0) + 1);
 
   const verfallChip = (wert: string) => {
     if (!wert) return null;
@@ -1241,8 +1243,11 @@ export function CheckFlow({
                     const offen = !gezaehlt(p);
                     const vw = verfallWert(p.artikelId);
                     const vc = verfallChip(vw);
-                    const traegtFeld = ersteZeile.get(p.artikelId) === p.id;
-                    const aufgeklappt = traegtFeld && verfallAuf[p.artikelId] === true;
+                    // Mehrfach gefuehrt: Feld und Knopf nennen das Fach mit, sonst
+                    // loeste `getByLabel(/^Verfall …/)` auf zwei Elemente auf.
+                    const mehrfach = (zeilenJeArtikel.get(p.artikelId) ?? 0) > 1;
+                    const benannt = mehrfach ? `${p.artikelName} (${p.fachLabel})` : p.artikelName;
+                    const aufgeklappt = verfallAuf[p.id] === true;
                     return (
                       <div
                         className={`${s.zeile} ${s.zaehlZeile}`}
@@ -1290,9 +1295,8 @@ export function CheckFlow({
                             {offen && <HelferChip ton="grau">nicht gezählt</HelferChip>}
                             {/* Der Chip steht in JEDER Zeile desselben Artikels —
                                 deshalb faellt die Hinweiszeile bei Wiederholzeilen
-                                ersatzlos weg (§7.7.2 Punkt 3). In der ERSTEN Zeile
-                                traegt ihn der Verfallsknopf im Band darunter. */}
-                            {vc && !traegtFeld && <HelferChip ton={vc.ton}>{vc.text}</HelferChip>}
+                                ersatzlos weg (§7.7.2 Punkt 3). Getragen wird er
+                                vom Verfallsknopf im Band darunter. */}
                           </div>
                         </div>
                         {/*
@@ -1310,7 +1314,7 @@ export function CheckFlow({
                           <div className={s.grundZeile} data-rolle="stichprobe-grund">{grundFuer(p)}</div>
                         )}
                         <div className={s.zaehlBand}>
-                          {traegtFeld && (
+                          {(
                             /*
                               DAS VERFALLSFELD LIEGT HINTER EINEM KNOPF (IDA-233).
                               Es ist freiwillig und wird selten geaendert, stand
@@ -1333,12 +1337,12 @@ export function CheckFlow({
                               aria-expanded={aufgeklappt}
                               aria-label={
                                 vc
-                                  ? `${p.artikelName}: Verfall ${vc.text}, ändern`
-                                  : `${p.artikelName}: Verfall angeben`
+                                  ? `${benannt}: Verfall ${vc.text}, ändern`
+                                  : `${benannt}: Verfall angeben`
                               }
                               onClick={() => {
-                                verfallFokus.current = aufgeklappt ? null : p.artikelId;
-                                setVerfallAuf((v) => ({ ...v, [p.artikelId]: !aufgeklappt }));
+                                verfallFokus.current = aufgeklappt ? null : p.id;
+                                setVerfallAuf((v) => ({ ...v, [p.id]: !aufgeklappt }));
                               }}
                             >
                               {vc ? (
@@ -1401,10 +1405,11 @@ export function CheckFlow({
                               type="month"
                               inputMode="numeric"
                               pattern="\d{4}-\d{2}"
-                              aria-label={`Verfall ${p.artikelName}`}
+                              aria-label={`Verfall ${benannt}`}
+                              aria-describedby={mehrfach ? `verfall-hinweis-${p.id}` : undefined}
                               value={vw}
                               ref={(el) => {
-                                if (el && verfallFokus.current === p.artikelId) {
+                                if (el && verfallFokus.current === p.id) {
                                   verfallFokus.current = null;
                                   el.focus();
                                 }
@@ -1467,13 +1472,18 @@ export function CheckFlow({
                                   Test still gruen; kaputt geht er erst auf
                                   echten Daten.
                                 */
-                                aria-label={`${p.artikelName}: Verfall entfernen`}
+                                aria-label={`${benannt}: Verfall entfernen`}
                                 onClick={() =>
                                   setVerfallState((v) => ({ ...v, [p.artikelId]: "" }))
                                 }
                               >
                                 <Ikone name="kreuz" groesse={20} />
                               </button>
+                            )}
+                            {mehrfach && (
+                              <span id={`verfall-hinweis-${p.id}`} className={s.verfallHinweis} data-rolle="verfall-hinweis">
+                                gilt für alle Fächer – frühestes Datum eintragen
+                              </span>
                             )}
                           </div>
                         )}
