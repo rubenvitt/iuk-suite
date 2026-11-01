@@ -115,12 +115,19 @@ export interface Plan {
 /**
  * Wann eine neue Meldung läuft. Mit Countdown gilt „Anzeigen ab“ vor der Uhrzeit: Besprechung um 14:00,
  * anzeigen ab 13:00 — ist 13:00 schon vorbei, erscheint sie sofort. Ohne Countdown ist „Anzeigen ab“ die
- * nächste solche Uhrzeit. Die Laufzeit zählt ab dem Beginn.
+ * nächste solche Uhrzeit. Die Laufzeit zählt ab dem Beginn. Liegt die nächste solche Uhrzeit näher als die
+ * vergangene, ist sie gemeint — auch wenn sie nach dem Countdown liegt; das lehnt `legeMeldungAn` dann ab.
  */
 export function planeMeldung(e: { uhrzeit: string; anzeigenAb: string; laufzeitMinuten: number }, jetzt: Date): Plan {
   const zeitpunkt = e.uhrzeit === "" ? null : naechsteUhrzeit(e.uhrzeit, jetzt);
   let ab: Date | null = null;
   if (e.anzeigenAb !== "") ab = zeitpunkt ? letzteUhrzeitBis(e.anzeigenAb, zeitpunkt) : naechsteUhrzeit(e.anzeigenAb, jetzt);
+  if (zeitpunkt && ab && ab.getTime() <= jetzt.getTime()) {
+    // Vorbei oder gemeint als nächste solche Uhrzeit? Die nähere gilt: um 13:00 mit Countdown 14:00 ist
+    // „ab 15:00“ heute 15:00 (nach dem Countdown, also abgelehnt), nicht gestern 15:00.
+    const naechste = naechsteUhrzeit(e.anzeigenAb, jetzt);
+    if (naechste.getTime() - jetzt.getTime() < jetzt.getTime() - ab.getTime()) ab = naechste;
+  }
   const anzeigenAb = ab && ab.getTime() > jetzt.getTime() ? ab : null;
   const beginn = anzeigenAb ?? jetzt;
   return { zeitpunkt, anzeigenAb, ablaufAm: new Date(beginn.getTime() + e.laufzeitMinuten * MINUTE) };

@@ -80,7 +80,7 @@ export async function linkWiderrufenAction(id: unknown): Promise<ActionErgebnis>
 }
 
 /** Legt eine Meldung fürs Band an. Ohne Ablauf geht es nicht; die Vorgabe sind 24 Stunden. */
-export async function meldungAnlegenAction(eingabe: unknown): Promise<ActionErgebnis<MeldungDTO>> {
+export async function meldungAnlegenAction(eingabe: unknown): Promise<ActionErgebnis<{ meldung: MeldungDTO; wartet: boolean }>> {
   const viewer = await requireLagemonitorAktion();
   const e = meldungEingabe.safeParse(eingabe);
   if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
@@ -88,7 +88,7 @@ export async function meldungAnlegenAction(eingabe: unknown): Promise<ActionErge
     const r = legeMeldungAn(getDb(), e.data, anzeigeName(viewer));
     if (!r.ok) return { ok: false, fehler: r.fehler };
     neuLaden();
-    return { ok: true, wert: r.meldung };
+    return { ok: true, wert: { meldung: r.meldung, wartet: r.wartet } };
   });
 }
 

@@ -53,7 +53,8 @@ export function aktiveMeldungen(db: LagemonitorDb, jetzt = new Date()): MeldungD
   return sichtbar(offeneMeldungen(db, jetzt), jetzt.getTime());
 }
 
-export type AnlegenErgebnis = { ok: true; meldung: MeldungDTO } | { ok: false; fehler: string };
+/** `wartet`: beginnt sofort, aber am Monitor stehen schon drei; sie rückt nach, sobald einer frei wird. */
+export type AnlegenErgebnis = { ok: true; meldung: MeldungDTO; wartet: boolean } | { ok: false; fehler: string };
 
 export function legeMeldungAn(db: LagemonitorDb, e: z.output<typeof meldungEingabe>, von: string, jetzt = new Date()): AnlegenErgebnis {
   if (offeneMeldungen(db, jetzt).length >= MELDUNGEN_MAX_GEPLANT) {
@@ -72,7 +73,8 @@ export function legeMeldungAn(db: LagemonitorDb, e: z.output<typeof meldungEinga
   db.insert(meldung)
     .values({ id, text: e.text, kategorieId: e.kategorieId, ...plan, angelegtAm: jetzt, angelegtVon: von })
     .run();
-  return { ok: true, meldung: { ...dtoAus(db.select().from(meldung).where(eq(meldung.id, id)).get()!, null), kategorie: k } };
+  const wartet = plan.anzeigenAb === null && !aktiveMeldungen(db, jetzt).some((m) => m.id === id);
+  return { ok: true, meldung: { ...dtoAus(db.select().from(meldung).where(eq(meldung.id, id)).get()!, null), kategorie: k }, wartet };
 }
 
 /** Beendet eine laufende oder geplante Meldung sofort. `false`, wenn es sie nicht (mehr) gibt oder sie schon abgelaufen ist. */

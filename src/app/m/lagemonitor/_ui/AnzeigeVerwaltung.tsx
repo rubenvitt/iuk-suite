@@ -10,7 +10,7 @@ import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
-import { MELDUNGEN_MAX_AKTIV, naechsteUhrzeit, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
+import { MELDUNGEN_MAX_AKTIV, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
@@ -147,7 +147,10 @@ export function AnzeigeVerwaltung({
       return { text: m.text, countdown: zaehler(ziel), kategorie: m.kategorie, faellig: blinkt(ziel, m.kategorie) };
     });
     if (!entwurf) return laufend;
-    const ziel = entwurf.uhrzeit && jetzt !== null ? naechsteUhrzeit(entwurf.uhrzeit, new Date(jetzt)).getTime() : null;
+    // Beginnt der Entwurf später, zeigt ihn der Monitor jetzt noch nicht.
+    const plan = jetzt === null ? null : planeMeldung({ uhrzeit: entwurf.uhrzeit, anzeigenAb: entwurf.anzeigenAb, laufzeitMinuten: 0 }, new Date(jetzt));
+    if (plan?.anzeigenAb) return laufend;
+    const ziel = plan?.zeitpunkt?.getTime() ?? null;
     const k = kategorien.find((x) => x.id === entwurf.kategorieId) ?? null;
     return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true, kategorie: k, faellig: blinkt(ziel, k) }];
   }, [meldungen, kategorien, entwurf, jetzt]);

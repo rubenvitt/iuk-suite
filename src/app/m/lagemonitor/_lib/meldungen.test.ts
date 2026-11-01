@@ -108,6 +108,19 @@ describe("Meldungen am Lagemonitor", () => {
     expect(letzteUhrzeitBis("14:30", new Date("2026-10-27T13:30:00Z"))).toEqual(new Date("2026-10-27T13:30:00Z"));
   });
 
+  it("„Anzeigen ab“ nach dem Countdown wird abgelehnt, nicht stillschweigend sofort", () => {
+    // 13:00 Berlin: Countdown 14:30, anzeigen ab 15:00 meint heute 15:00, nicht gestern.
+    expect(planeMeldung({ uhrzeit: "14:30", anzeigenAb: "15:00", laufzeitMinuten: 60 }, JETZT).anzeigenAb).toEqual(new Date("2026-10-27T14:00:00Z"));
+    expect(legeMeldungAn(testDb(), eingabe({ uhrzeit: "14:30", anzeigenAb: "15:00" }), "Ruben", JETZT)).toMatchObject({ ok: false });
+  });
+
+  it("meldet, ob eine sofortige Meldung auf einen Platz am Monitor wartet", () => {
+    const db = testDb();
+    for (let i = 0; i < MELDUNGEN_MAX_AKTIV; i++) expect(legeMeldungAn(db, eingabe({ text: `M ${i}` }), "Ruben", JETZT)).toMatchObject({ ok: true, wartet: false });
+    expect(legeMeldungAn(db, eingabe({ text: "vierte" }), "Ruben", JETZT)).toMatchObject({ ok: true, wartet: true });
+    expect(legeMeldungAn(db, eingabe({ text: "später", anzeigenAb: "20:00" }), "Ruben", JETZT)).toMatchObject({ ok: true, wartet: false });
+  });
+
   it("die Kategorie nimmt eine Meldung nach der Uhrzeit weg, auch eine schon laufende", () => {
     vi.useFakeTimers({ toFake: ["Date"], now: JETZT });
     onTestFinished(() => { vi.useRealTimers(); });

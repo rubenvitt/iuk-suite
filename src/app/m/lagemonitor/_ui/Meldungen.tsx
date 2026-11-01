@@ -20,6 +20,8 @@ const UHR = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
 export interface MeldungEntwurf {
   text: string;
   uhrzeit: string;
+  /** `HH:MM` oder leer; beginnt der Entwurf später, steht er in der Vorschau nicht im Band. */
+  anzeigenAb: string;
   kategorieId: string | null;
 }
 
@@ -74,12 +76,13 @@ export function Meldungen({
     ? endeVon({ zeitpunkt: plan.zeitpunkt?.toISOString() ?? null, anzeigenAb: null, ablaufAm: plan.ablaufAm.toISOString(), angelegtAm: new Date(jetzt!).toISOString(), kategorie: kategorien.find((k) => k.id === kategorieId) ?? null })
     : null;
 
-  function aendere(t: string, u: string, k: string | null = kategorieId): void {
+  function aendere(t: string, u: string, k: string | null = kategorieId, ab: string = anzeigenAb): void {
     setText(t);
     setUhrzeit(u);
     setKategorieWahl(k);
+    setAnzeigenAb(ab);
     setFeldFehler({});
-    onEntwurf(t.trim() === "" ? null : { text: t.trim(), uhrzeit: u, kategorieId: k });
+    onEntwurf(t.trim() === "" ? null : { text: t.trim(), uhrzeit: u, anzeigenAb: ab, kategorieId: k });
   }
 
   function anlegen(e: FormEvent<HTMLFormElement>): void {
@@ -87,8 +90,6 @@ export function Meldungen({
     setFehler(null);
     setFeldFehler({});
     setLaeuft("neu");
-    // Stand beim Absenden: stehen schon drei am Monitor, wartet die neue auf einen freien Platz.
-    const besetzt = amMonitor.size >= MELDUNGEN_MAX_AKTIV;
     void meldungAnlegenAction({ text, uhrzeit, anzeigenAb, kategorieId, laufzeitMinuten: laufzeit })
       .then((r) => {
         if (!r.ok) {
@@ -96,13 +97,12 @@ export function Meldungen({
           setFeldFehler(r.feldFehler ?? {});
           return;
         }
-        aendere("", "", kategorieId);
-        setAnzeigenAb("");
+        aendere("", "", kategorieId, "");
         setLaufzeit(LAUFZEIT_VORGABE);
         void message.success(
-          r.wert.anzeigenAb
-            ? `Meldung geplant ab ${ABLAUF.format(new Date(r.wert.anzeigenAb))}.`
-            : besetzt
+          r.wert.meldung.anzeigenAb
+            ? `Meldung geplant ab ${ABLAUF.format(new Date(r.wert.meldung.anzeigenAb))}.`
+            : r.wert.wartet
               ? `Meldung angelegt. Sie wartet, bis am Monitor einer der ${MELDUNGEN_MAX_AKTIV} Plätze frei wird.`
               : "Meldung angelegt. Der Monitor zeigt sie spätestens in einer Minute.",
         );
@@ -227,10 +227,7 @@ export function Meldungen({
                 style={{ maxWidth: 160 }}
                 status={feldAb ? "error" : undefined}
                 aria-describedby={`${basis}-ab-hilfe`}
-                onChange={(e) => {
-                  setAnzeigenAb(e.target.value);
-                  setFeldFehler({});
-                }}
+                onChange={(e) => aendere(text, uhrzeit, kategorieId, e.target.value)}
               />
               <div id={`${basis}-ab-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }} className={feldAb ? undefined : v.gedaempft}>
                 {feldAb ?? "Leer: sofort. Mit einer Uhrzeit zum Herunterzählen gilt die Zeit davor, etwa 13:00 für eine Besprechung um 14:00."}
