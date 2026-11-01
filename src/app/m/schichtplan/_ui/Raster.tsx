@@ -18,6 +18,8 @@ export interface RasterAktionen {
 }
 
 const ZIEHDATEN = "application/x-schichtplan";
+/** Unter dieser Breite trägt ein Block weder Innenabstand noch Inhalt, sonst wäre er breiter als seine Schicht. */
+const SCHMAL_PX = 32;
 const RASTER = RASTER_MIN * MINUTE;
 const MIN_SCHICHT = MIN_SCHICHT_MIN * MINUTE;
 const MAX_SCHICHT = 24 * STUNDE;
@@ -225,7 +227,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
                             tabIndex={0}
                             data-schicht={sch.id}
                             aria-label={`${e.name}, ${zeitspanne(sch.von, sch.bis)}, ${ids.length} von ${e.soll} besetzt`}
-                            className={`${s.block} ${s[ampel]}${ziel === sch.id ? ` ${s.ziel}` : ""}${zieht ? ` ${s.zieht}` : ""}`}
+                            className={`${s.block} ${s[ampel]}${x(sch.bis) - x(sch.von) < SCHMAL_PX ? ` ${s.schmal}` : ""}${ziel === sch.id ? ` ${s.ziel}` : ""}${zieht ? ` ${s.zieht}` : ""}`}
                             style={{ left: x(sch.von) + 2, width: Math.max(x(sch.bis) - x(sch.von) - 4, 6) }}
                             onPointerDown={(ev) => zieheAb(ev, sch, "verschieben")}
                             onClick={() => { if (!klickSperre.current) oeffneSchicht(sch.id); }}
