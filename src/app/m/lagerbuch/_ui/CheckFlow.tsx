@@ -1406,6 +1406,7 @@ export function CheckFlow({
                               inputMode="numeric"
                               pattern="\d{4}-\d{2}"
                               aria-label={`Verfall ${benannt}`}
+                              aria-describedby={mehrfach ? `verfall-hinweis-${p.id}` : undefined}
                               value={vw}
                               ref={(el) => {
                                 if (el && verfallFokus.current === p.id) {
@@ -1480,7 +1481,7 @@ export function CheckFlow({
                               </button>
                             )}
                             {mehrfach && (
-                              <span className={s.verfallHinweis} data-rolle="verfall-hinweis">
+                              <span id={`verfall-hinweis-${p.id}`} className={s.verfallHinweis} data-rolle="verfall-hinweis">
                                 gilt für alle Fächer – frühestes Datum eintragen
                               </span>
                             )}
