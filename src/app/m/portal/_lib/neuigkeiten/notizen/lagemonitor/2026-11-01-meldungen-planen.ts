@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Meldungen am Lagemonitor planen",
   inhalt: [
     absatz(
-      "Unter Meldungen am Monitor legst du mit „Anzeigen ab“ fest, wann eine Meldung erscheint,; höchstens drei stehen gleichzeitig am Monitor, weitere warten. " +
+      "Unter Meldungen am Monitor legst du mit „Anzeigen ab“ fest, wann eine Meldung erscheint; höchstens drei stehen gleichzeitig am Monitor, weitere warten. " +
         "Unter Meldekategorien stellst du ein, wann eine Meldung nach ihrer Uhrzeit verschwindet. " +
         "„Live-Lagemonitor öffnen“ zeigt den Monitor in einem neuen Tab.",
     ),

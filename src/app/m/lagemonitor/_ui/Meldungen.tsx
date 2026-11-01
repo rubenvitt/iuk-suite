@@ -8,7 +8,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { meldungAnlegenAction, meldungBeendenAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { begonnen, beginnVon, endeVon, LAUFZEIT_VORGABE, LAUFZEITEN, MELDUNG_MAX_ZEICHEN, MELDUNGEN_MAX_AKTIV, MELDUNGEN_MAX_GEPLANT, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
+import { begonnen, beginnVon, endeVon, offen, LAUFZEIT_VORGABE, LAUFZEITEN, MELDUNG_MAX_ZEICHEN, MELDUNGEN_MAX_AKTIV, MELDUNGEN_MAX_GEPLANT, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { KategorieDTO } from "../_lib/kategorieRegeln";
 import { countdownText } from "../_lib/vorschau";
 import { KategorieMarke } from "./KategorieMarke";
@@ -65,8 +65,10 @@ export function Meldungen({
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const basis = useId();
-  const voll = liste.length >= MELDUNGEN_MAX_GEPLANT;
-  const amMonitor = new Set(jetzt === null ? [] : sichtbar(liste, jetzt).map((m) => m.id));
+  // Was seit dem Laden abgelaufen ist, fällt mit der Uhr weg, nicht erst mit dem nächsten Stand vom Server.
+  const offene = jetzt === null ? liste : offen(liste, jetzt);
+  const voll = offene.length >= MELDUNGEN_MAX_GEPLANT;
+  const amMonitor = new Set(jetzt === null ? [] : sichtbar(offene, jetzt).map((m) => m.id));
   const plan = jetzt === null ? null : planeMeldung({ uhrzeit, anzeigenAb, laufzeitMinuten: laufzeit }, new Date(jetzt));
   const planEnde = plan
     ? endeVon({ zeitpunkt: plan.zeitpunkt?.toISOString() ?? null, anzeigenAb: null, ablaufAm: plan.ablaufAm.toISOString(), angelegtAm: new Date(jetzt!).toISOString(), kategorie: kategorien.find((k) => k.id === kategorieId) ?? null })
@@ -121,9 +123,9 @@ export function Meldungen({
           {`Ein kurzer Hinweis als Band unter der Kopfzeile, mit Zeichen und Farbe seiner Kategorie, etwa „Nächste Lagebesprechung“. Jede Meldung läuft von selbst ab; du kannst sie auch vorher beenden. Planen kannst du bis zu ${MELDUNGEN_MAX_GEPLANT}, der Monitor zeigt davon höchstens ${MELDUNGEN_MAX_AKTIV} auf einmal, die früher begonnenen zuerst.`}
         </span>
 
-        {liste.length > 0 ? (
+        {offene.length > 0 ? (
           <ul className={v.meldungen} aria-label="Laufende und geplante Meldungen">
-            {liste.map((m) => (
+            {offene.map((m) => (
               <li key={m.id}>
                 <div>
                   <KategorieMarke kategorie={m.kategorie} /> <strong>{m.text}</strong>
