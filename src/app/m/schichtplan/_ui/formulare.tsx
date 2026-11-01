@@ -1,21 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { App, Button, Checkbox, DatePicker, Input, InputNumber, Radio, Select } from "antd";
-import type { Dayjs } from "dayjs";
+import { App, Button, Checkbox, Input, InputNumber, Radio, Select } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { einheitSpeichernAction, planungSpeichernAction, tempHelferSpeichernAction } from "../_actions/planung";
 import type { ActionErgebnis, FeldFehler } from "../_lib/actionErgebnis";
 import type { Anforderung, EinheitArt, EinheitDTO, FahrzeugWahl, PlanungArt, PlanungDTO, Quali, TempHelferDTO } from "../_lib/typen";
-import { MINUTE, RASTER_MIN } from "../_lib/typen";
-import { rasten, stunden } from "../_lib/zeit";
-import { alsDayjs, ausDayjs } from "./datum";
+import { MINUTE } from "../_lib/typen";
+import { stunden } from "../_lib/zeit";
+import { type Zeitraum, Zeitfelder } from "./Zeitfelder";
 import s from "./schichtplan.module.css";
 
 /** Schichtlängen zur Wahl; im Sanitätsdienst auch kurze (Rubens Vorgabe aus dem POC). */
-const LAENGEN_MIN = [60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
+const LAENGEN_MIN = [10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720];
 const laengenOptionen = (aktuell?: number) =>
-  [...new Set([...LAENGEN_MIN, ...(aktuell ? [aktuell] : [])])].sort((a, b) => a - b).map((m) => ({ value: m, label: stunden(m * MINUTE).replace(" h", " Stunden") }));
+  [...new Set([...LAENGEN_MIN, ...(aktuell ? [aktuell] : [])])].sort((a, b) => a - b).map((m) => ({ value: m, label: stunden(m * MINUTE) }));
 
 export function Feld({ titel, hilfe, fehler, children }: { titel: string; hilfe?: ReactNode; fehler?: string; children: ReactNode }) {
   return (
@@ -40,7 +39,6 @@ async function senden<T>(aufruf: () => Promise<ActionErgebnis<T>>, setFehler: (f
   return null;
 }
 
-const ZEITFORMAT = "DD.MM.YYYY HH:mm";
 
 // ── Planung ────────────────────────────────────────────────────────────────
 
@@ -55,7 +53,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   const [name, setName] = useState(planung?.name ?? "");
   const [art, setArt] = useState<PlanungArt>(planung?.art ?? "veranstaltung");
   const [ort, setOrt] = useState(planung?.ort ?? "");
-  const [zeitraum, setZeitraum] = useState<[Dayjs, Dayjs] | null>(planung ? [alsDayjs(planung.von), alsDayjs(planung.bis)] : null);
+  const [zeitraum, setZeitraum] = useState<Zeitraum>({ von: planung?.von ?? null, bis: planung?.bis ?? null });
   const [laenge, setLaenge] = useState(240);
   const [abschnitte, setAbschnitte] = useState<string[]>([]);
   const [gewaehlt, setGewaehlt] = useState<string[]>([]);
@@ -65,10 +63,11 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
   const [laeuft, setLaeuft] = useState(false);
 
   async function speichern() {
-    if (!zeitraum) { setFehler({ bis: "Bitte Beginn und Ende wählen." }); return; }
+    const { von, bis } = zeitraum;
+    if (von === null || bis === null) { setFehler({ bis: "Bitte Beginn und Ende wählen." }); return; }
     setLaeuft(true);
     const eingabe = {
-      name, art, ort, von: rasten(ausDayjs(zeitraum[0])), bis: rasten(ausDayjs(zeitraum[1])),
+      name, art, ort, von, bis,
       maxDienstMin: Math.round(maxDienst * 60), minRuheMin: Math.round(minRuhe * 60),
     };
     const id = await senden(() => planungSpeichernAction(planung?.id ?? null, eingabe), setFehler, (t) => void message.warning(t));
@@ -96,15 +95,11 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
         <Radio.Group value={art} onChange={(e) => setArt(e.target.value as PlanungArt)} options={[{ value: "veranstaltung", label: "Veranstaltung" }, { value: "lage", label: "Lage" }]} />
       </Feld>
       <Feld titel="Ort" fehler={fehler.ort}><Input value={ort} onChange={(e) => setOrt(e.target.value)} maxLength={120} /></Feld>
-      <Feld titel="Zeitraum" fehler={fehler.bis ?? fehler.von} hilfe={planung ? "Bestehende Schichten müssen im neuen Zeitraum liegen." : "Höchstens 14 Tage."}>
-        <DatePicker.RangePicker
-          showTime={{ format: "HH:mm", minuteStep: RASTER_MIN }}
-          format={ZEITFORMAT}
-          value={zeitraum}
-          onChange={(w) => setZeitraum(w?.[0] && w[1] ? [w[0], w[1]] : null)}
-          style={{ width: "100%" }}
-        />
-      </Feld>
+      <div className={s.feld} role="group" aria-label="Zeitraum">
+        <span className={s.feldTitel}>Zeitraum</span>
+        <Zeitfelder wert={zeitraum} onChange={setZeitraum} />
+        {fehler.bis ?? fehler.von ? <span className={s.feldFehler} role="alert">{fehler.bis ?? fehler.von}</span> : <span className={s.neben}>{planung ? "Bestehende Schichten müssen im neuen Zeitraum liegen." : "Höchstens 14 Tage."}</span>}
+      </div>
       {planung ? null : (
         <>
           <Feld titel="Abschnitte" hilfe="Freitext, mit Enter übernehmen. Zum Beispiel UHS, Fußstreife, Sanitätswache.">
@@ -126,7 +121,7 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
           <InputNumber min={0} max={24} step={0.5} value={minRuhe} onChange={(v) => setMinRuhe(v ?? 8)} suffix="h" style={{ width: "100%" }} />
         </Feld>
       </div>
-      <Button type="primary" loading={laeuft} disabled={!name.trim() || !zeitraum} onClick={() => void speichern()}>{planung ? "Speichern" : "Planung anlegen"}</Button>
+      <Button type="primary" loading={laeuft} disabled={!name.trim() || zeitraum.von === null || zeitraum.bis === null} onClick={() => void speichern()}>{planung ? "Speichern" : "Planung anlegen"}</Button>
     </div>
   );
 }

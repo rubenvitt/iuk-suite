@@ -10,7 +10,7 @@ import type { SchichtplanDb, SchichtplanSchreiber } from "../_db/client";
 import { einheit, planung, schicht, tempHelfer, zuordnung } from "../_db/schema";
 import type { EinheitEingabe, PlanungEingabe, SchichtZeitEingabe, TempHelferEingabe } from "./eingabe";
 import type { Anforderung, EinheitDTO, HelferQuelle, PlanungDTO, Quali, SchichtDTO, TempHelferDTO } from "./typen";
-import { MINUTE } from "./typen";
+import { MIN_SCHICHT_MIN, MINUTE } from "./typen";
 
 export class NichtGefunden extends Error {
   constructor(was = "Diese Planung gibt es nicht mehr.") {
@@ -69,6 +69,15 @@ export function teileAuf(von: number, bis: number, schichtMin: number): { von: n
   const schritt = schichtMin * MINUTE;
   const out: { von: number; bis: number }[] = [];
   for (let t = von; t < bis; t += schritt) out.push({ von: t, bis: Math.min(t + schritt, bis) });
+  // Ein Rest unter der Mindestdauer wäre danach nicht mehr verschiebbar (`schichtZeitEingabe`): er geht in die Schicht
+  // davor — außer die würde damit länger als 24 Stunden, dann gibt sie dem Rest so viel ab, dass er die Mindestdauer hat.
+  const min = MIN_SCHICHT_MIN * MINUTE;
+  const rest = out.at(-1);
+  if (out.length > 1 && rest && rest.bis - rest.von < min) {
+    const davor = out[out.length - 2];
+    if (rest.bis - davor.von <= 24 * 60 * MINUTE) { out.pop(); davor.bis = rest.bis; }
+    else { davor.bis = rest.bis - min; rest.von = davor.bis; }
+  }
   return out;
 }
 

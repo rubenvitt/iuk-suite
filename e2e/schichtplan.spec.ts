@@ -21,13 +21,19 @@ async function mitte(l: Locator): Promise<{ x: number; y: number; links: number;
   return { x: b.x + b.width / 2, y: b.y + b.height / 2, links: b.x, breite: b.width };
 }
 
+/** Beginn und Ende je als Datum und Uhrzeit (`Zeitfelder.tsx`): „14.11.2030 08:00“. */
 async function zeitraum(feld: Locator, von: string, bis: string): Promise<void> {
-  const eingaben = feld.locator("input");
-  await eingaben.nth(0).click();
-  await eingaben.nth(0).fill(von);
-  await eingaben.nth(0).press("Enter");
-  await eingaben.nth(1).fill(bis);
-  await eingaben.nth(1).press("Enter");
+  for (const [wer, wert] of [["Beginn", von], ["Ende", bis]] as const) {
+    const [tag, uhr] = wert.split(" ");
+    for (const [teil, text] of [["Datum", tag], ["Uhrzeit", uhr]] as const) {
+      const eingabe = feld.getByLabel(`${wer} ${teil}`);
+      await expect(eingabe).toBeEnabled();
+      await eingabe.click();
+      await eingabe.fill(text);
+      await eingabe.press("Enter");
+      await expect(eingabe).toHaveValue(text);
+    }
+  }
 }
 
 test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", async ({ page }) => {
@@ -41,7 +47,7 @@ test("planen: anlegen, aufziehen, verschieben, Helfer ziehen, prüfen, Excel", a
   await klickeWennRuhig(page.getByRole("button", { name: "Neue Planung" }));
   const neu = page.getByRole("dialog");
   await neu.getByLabel("Name").fill(name);
-  await zeitraum(neu.locator(".ant-picker-range"), "14.11.2030 08:00", "14.11.2030 20:00");
+  await zeitraum(neu.getByRole("group", { name: "Zeitraum" }), "14.11.2030 08:00", "14.11.2030 20:00");
   const abschnitte = neu.getByLabel("Abschnitte");
   await abschnitte.fill("Sanitätswache");
   await abschnitte.press("Enter");

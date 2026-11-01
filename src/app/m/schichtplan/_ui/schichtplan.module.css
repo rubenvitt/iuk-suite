@@ -77,13 +77,16 @@
 .spur.zeichenbar { cursor: crosshair; }
 .entwurf { position: absolute; top: 6px; bottom: 6px; border: 2px dashed var(--iuk-marke); border-radius: 6px; background: var(--sp-zeichnen); pointer-events: none; display: flex; align-items: flex-start; padding: 4px 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
 .block { position: absolute; top: 6px; bottom: 6px; border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--sp-grau-text); border-radius: 6px; background: var(--sp-karte); padding: 6px 10px 6px 8px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; gap: 2px; text-align: start; color: inherit; font: inherit; user-select: none; }
+/* Kurze Schicht (`SCHMAL_PX` in `Raster.tsx`): ohne Innenabstand, sonst ragt der Block in den nächsten. */
+.block.schmal { padding: 0; border-inline-start-width: 3px; }
+.block.schmal > :not(.griff) { visibility: hidden; }
 .block:hover, .block:focus-visible { box-shadow: 0 0 0 2px var(--iuk-marke); outline: none; }
 .block.ok { border-inline-start-color: var(--sp-ok-text); }
 .block.gelb { border-inline-start-color: var(--sp-gelb-text); }
 .block.rot { border-inline-start-color: var(--sp-rot-text); }
 .block.ziel { background: var(--sp-ziel); box-shadow: 0 0 0 2px var(--iuk-marke); }
 .block.zieht { opacity: 0.85; box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); z-index: 4; cursor: grabbing; }
-.griff { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 1; }
+.griff { position: absolute; top: 0; bottom: 0; width: min(8px, 25%); /* kurze Schichten: die Mitte bleibt zum Verschieben frei */ cursor: ew-resize; z-index: 1; }
 .griff:hover { background: var(--sp-ziel); }
 .griffVon { left: 0; }
 .griffBis { right: 0; }
@@ -111,6 +114,9 @@
 .feld { display: flex; flex-direction: column; gap: 6px; margin-block-end: 16px; }
 .feldTitel { font-weight: 600; font-size: 14px; }
 .feldFehler { font-size: 12px; color: var(--sp-rot-text); }
+/* Beginn und Ende je als Datum + Uhrzeit (`Zeitfelder.tsx`); passt auch auf 320px. */
+.zeitfelder { display: grid; grid-template-columns: auto minmax(0, 3fr) minmax(0, 2fr); gap: 8px; align-items: center; }
+.zeitfeldTitel { font-size: 14px; color: var(--iuk-gedaempft); min-width: 48px; }
 .zweiSpalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 
 /* ── Listen ── */
