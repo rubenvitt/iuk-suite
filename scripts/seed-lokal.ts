@@ -59,6 +59,8 @@ import * as fahrzeugeSchema from "@/app/m/fahrzeuge/_db/schema";
 import { seedLokalFahrzeuge } from "@/app/m/fahrzeuge/_lib/seedLokal";
 import * as schichtplanSchema from "@/app/m/schichtplan/_db/schema";
 import { seedLokalSchichtplan } from "@/app/m/schichtplan/_lib/seedLokal";
+import * as gemeinschaftSchema from "@/app/m/gemeinschaft/_db/schema";
+import { seedLokalGemeinschaft } from "@/app/m/gemeinschaft/_lib/seedLokal";
 import * as lagemonitorSchema from "@/app/m/lagemonitor/_db/schema";
 import { seedLokalLagemonitor } from "@/app/m/lagemonitor/_lib/seedLokal";
 
@@ -82,6 +84,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "fahrzeuge", lauf: () => seedLokalFahrzeuge(getModuleDb("fahrzeuge", fahrzeugeSchema)) },
   // Nach helfer und fahrzeuge: die Demo-Planung teilt deren Demodaten ein.
   { key: "schichtplan", lauf: () => seedLokalSchichtplan(getModuleDb("schichtplan", schichtplanSchema)) },
+  { key: "gemeinschaft", lauf: () => seedLokalGemeinschaft(getModuleDb("gemeinschaft", gemeinschaftSchema)) },
   { key: "lagemonitor", lauf: () => seedLokalLagemonitor(getModuleDb("lagemonitor", lagemonitorSchema)) },
 ];
 

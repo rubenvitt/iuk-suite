@@ -235,6 +235,13 @@ export const MODULES: ModuleDef[] = [
   { key: "schichtplan", title: "Schichtplanung", icon: "calendar", shell: "full",
     requiresAuth: true, requiredGroups: ["schichtplan-nutzer", "schichtplan-admin"], adminGroups: ["schichtplan-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
+  // gemeinschaft: die Helfergruppe „Gemeinschaft“ (IDA-320) mit Events, Projekten, Aufgaben und der Vermietung der
+  // Bar (IDA-315). requiresAuth: false, weil drei Teile ohne Anmeldung gehen: Bar anfragen (`/bar`), Statusseite
+  // einer Anfrage (`/status/<code>`) und der persönliche Link eines Mitglieds (`/mein/<link>`) — Mitglieder haben
+  // bewusst kein Konto. Die Leitung riegelt `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).
+  { key: "gemeinschaft", title: "Gemeinschaft", icon: "people", shell: "full",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["gemeinschaft-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
   // seine Einstellungen mit eigenem Schlüssel unter `api/konfiguration` abholt; die Seiten riegelt
   // `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).

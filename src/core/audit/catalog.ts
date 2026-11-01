@@ -595,6 +595,51 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "gemeinschaft": {
+    "mitglied": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "vorhaben": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "aufgabe": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "zustaendig": {
+      "mode": "audited",
+      "primaryKey": [
+        "aufgabe_id",
+        "mitglied_id"
+      ]
+    },
+    "sperrzeit": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "anfrage": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "vertragsdatei": {
+      "mode": "audited",
+      "primaryKey": [
+        "anfrage_id"
+      ]
+    }
+  },
   "lagemonitor": {
     "lagemonitor_anzeige": {
       "mode": "audited",

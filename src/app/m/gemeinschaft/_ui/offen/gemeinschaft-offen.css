@@ -1,0 +1,324 @@
+/*
+ * DIE OPTIK DER ÖFFENTLICHEN ANSICHTEN DES MODULS `gemeinschaft` — `/bar` (Bar anfragen), `/status/<code>`
+ * (Stand einer Anfrage) und `/mein/<link>` (persönlicher Link eines Mitglieds). Gestaltungsklasse
+ * „öffentlich“ nach `docs/design/README.md`: eigenes CSS, KEIN antd, mobile-first.
+ *
+ * ÜBERNOMMEN aus `files/_ui/files-public.css` (dort steht die Begründung jeder Farbe samt Kontrastrechnung,
+ * gesichert durch `files-public-css.test.ts`), nur mit eigenem Präfix `--go-*`/`.go-*`: zwei globale
+ * Stylesheets mit denselben Namen überschrieben sich je nach Chunk-Reihenfolge. Wer einen Farbwert ändert,
+ * rechnet den Kontrast dort nach, nicht hier.
+ *
+ * DUNKELMODUS über `:root[data-theme="dark"]`, nicht über `prefers-color-scheme` (Cookie-Umschalter der Suite).
+ * KEIN `--ant-*` (Falle 2). Trefferflächen 44px, Eingabefelder mindestens 16px Schrift.
+ */
+
+:root,
+:root[data-theme="light"] {
+  --go-grund: #f4f1ea;
+  --go-blatt: #fbfaf7;
+  --go-tinte: #16181a;
+  --go-gedaempft: #5e625f;
+  --go-linie: #ddd8ce;
+  --go-linie-stark: #c9c3b7;
+  --go-tint: #ede9df;
+
+  /* Primaeraktion ist Graphit-Tinte, NICHT Suite-Rot (14,8:1). Ein roter Knopf
+     waere hier die groesste Flaeche der Seite in der Farbe, die die Suite
+     gleichzeitig als Fehlerfarbe fuehrt (Falle 3). */
+  --go-knopf-grund: #24282c;
+  --go-knopf-schrift: #ffffff;
+
+  /* Zwei Zustandsfarben, beide nur als 3px-Kante oder Symbolfarbe neben TEXT —
+     nie als Flaeche. „gesperrt" traegt bewusst KEIN Rot: Rot ist in dieser Suite
+     Marke und Primaeraktion, und auf einer Datenflaeche wird daraus eine
+     Aussage, die niemand gemeint hat.
+
+     `--go-ok` ist `FARBEN.ok` unveraendert (5,15:1 auf Blatt, 4,77:1 auf Grund).
+     `--go-hinweis` NICHT: `FARBEN.gelb` (#b26a00) traegt hier 4,06:1 auf Blatt und
+     3,76:1 auf Grund und ist damit kein AA-Text (`.go-zustand-wartet` erbt 13px
+     in normalem Gewicht). Im Token ist die Farbe mit `gelbBg: #fbf1dc` gepaart,
+     als Textfarbe auf Papier war sie nie AA-faehig — auf reinem Weiss nur
+     4,24:1. Deshalb abgedunkelt: #9a5c00 ergibt 5,15:1 / 4,77:1. Der Token ist
+     hier Ausgangspunkt, nicht uebernommener Wert. */
+  --go-ok: #1e7a3c;
+  --go-hinweis: #9a5c00;
+
+  /* Das Wortzeichen „IDA" ist TEXT, nicht Flaeche — deshalb eine eigene
+     Variable statt des Literals: hell bleibt es Suite-Rot (5,81:1 auf Blatt),
+     dunkel braucht es eine aufgehellte Ableitung. #c8000f erreicht auf dunklem
+     Blatt (#1b1e22) nur 2,76:1, und 13px in Gewicht 700 ist nach WCAG 1.4.3
+     KEIN grosser Text (dafuer waeren 18,66px fett noetig). Die 3px-Fahne bleibt
+     dagegen am Literal: sie ist `aria-hidden`, traegt keine Information, und
+     eine aufgehellte Markenlinie waere eine Farbaussage ohne Anlass. */
+  --go-wortzeichen: #c8000f;
+}
+
+:root[data-theme="dark"] {
+  --go-grund: #101214;
+  --go-blatt: #1b1e22;
+  --go-tinte: #ece9e2;
+  --go-gedaempft: #9aa0a6;
+  --go-linie: #2c3035;
+  --go-linie-stark: #3a3f45;
+  --go-tint: #23272c;
+
+  --go-knopf-grund: #ece9e2;
+  --go-knopf-schrift: #101214;
+
+  --go-ok: #7cc79a;
+  --go-hinweis: #e0a94a;
+
+  /* Aufgehelltes Suite-Rot, 5,46:1 auf Blatt und 6,13:1 auf Grund. Kein Token —
+     `core/theme/tokens.ts` fuehrt keine helle Rotvariante; ein Umzug dorthin
+     braucht nach der core-Regel einen zweiten, heute belegbaren Nutzniesser. */
+  --go-wortzeichen: #f4655a;
+}
+
+/* ---------- Huelle: Fahne, Blatt, Kopf ---------- */
+
+.go-seite {
+  background: var(--go-grund);
+  color: var(--go-tinte);
+  /* `100dvh` und NICHT `100%`: der Rahmen sitzt unter antds `<App>`, und das
+     rendert ein `<div class="ant-app">` ohne Hoehenangabe
+     (`core/theme/AntdProvider.tsx`, die `<App>`-Huelle — keine Zeilennummer
+     hier, die ist schon einmal weggewandert). Die Elternhoehe ist damit unbestimmt und
+     ein Prozentwert faellt darauf zurueck, gar nichts zu tun — `html, body {
+     height: 100% }` aus `globals.css` reicht nur bis zu diesem Wrapper. Die
+     Papierfarbe endete sonst auf einer kurzen Seite an der Inhaltsunterkante,
+     still wie Falle 5. `dvh` statt `svh`/`lvh`: `svh` laesst eine Luecke, sobald
+     die Browserleiste einfaehrt, `lvh` erzwingt beim Laden einen Scrollbalken. */
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  /* Groessen und Zeiten werden verglichen (Uhrzeiten, Anzahlen) —
+     Proportionalziffern lassen die Spalte tanzen. */
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/*
+ * Traeger 1 von genau ZWEI Stellen mit Suite-Rot: 3px, randlos am Oberrand. Nie
+ * als Flaeche, nie als Knopffuellung, nie als Fehlerfarbe.
+ */
+.go-fahne {
+  height: 3px;
+  background: #c8000f;
+}
+
+.go-blatt {
+  background: var(--go-blatt);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-bottom: 32px;
+}
+
+.go-kopf {
+  padding-top: 28px;
+  padding-bottom: 20px;
+}
+
+.go-kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--go-gedaempft);
+}
+
+/* Traeger 2 von zwei: das Wortzeichen. 13px Text, keine Flaeche — und weil es
+   Text ist, laeuft die Farbe ueber die Variable (siehe `--go-wortzeichen`).
+
+   DIE SPERRUNG IST .10em, NICHT .04em: .04em war auf das zehnbuchstabige
+   „Sammelhaus" typografiert. `.go-kicker` vererbt `text-transform:
+   uppercase`, auf dem Bildschirm stehen seit der Umbenennung also genau DREI
+   Versalien — und drei eng gesetzte Versalien liest man als Abkuerzung, nicht
+   als Wortmarke. Groesse (13px) und Gewicht (700) bleiben unveraendert; beide
+   stehen wortgenau in docs/design/feedback-oeffentliche-ansicht.md. */
+.go-wortzeichen {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--go-wortzeichen);
+}
+
+.go-titel {
+  margin: 12px 0 0;
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+
+.go-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.go-meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--go-gedaempft);
+}
+
+/* ---------- Liste: ein Eintrag je Zeile, Zustand als Text ---------- */
+
+.go-liste {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--go-linie);
+}
+
+.go-zeile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--go-linie);
+}
+
+/*
+ * Zustaende tragen Text plus Symbol; die Farbe ist die verzichtbare letzte
+ * Schicht (`docs/design/README.md:133-141`).
+ */
+.go-zustand {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--go-gedaempft);
+}
+
+.go-zustand-frei {
+  color: var(--go-ok);
+}
+
+.go-zustand-wartet {
+  color: var(--go-hinweis);
+}
+
+/* ---------- Bedienelemente ---------- */
+
+.go-knopfzeile {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.go-knopf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-inline: 20px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--go-knopf-grund);
+  color: var(--go-knopf-schrift);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.go-knopf-leise {
+  background: transparent;
+  border-color: var(--go-linie-stark);
+  color: var(--go-tinte);
+}
+
+.go-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.go-feld {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--go-linie-stark);
+  border-radius: 8px;
+  background: var(--go-blatt);
+  color: var(--go-tinte);
+  /* Untergrenze, keine Wahl — siehe Kopf dieser Datei. */
+  font-size: 16px;
+  line-height: 1.5;
+  transition: border-color 120ms ease-out;
+}
+
+/*
+ * Warnung als Text plus 3px linke Kante, nicht als rote Flaeche: `colorError`
+ * ist in dieser Suite dasselbe Rot wie `colorPrimary` (Falle 3), eine rote
+ * Flaeche liest sich also als Primaeraktion.
+ */
+.go-fehler {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--go-hinweis);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/*
+ * FOKUS. Die Erhoehung auf (0,2,0) ist bewusst und gehoert kommentiert, sonst
+ * entfernt sie die naechste Aufraeumrunde: der Ring muss AUCH auf Elementen
+ * sitzen, die eine spaetere `*.module.css` mit ihrer eigenen Klasse (0,1,0)
+ * gestaltet — er soll dabei nicht wegfallen. Weiter als bis zum Nachbarselektor
+ * geht die Erhoehung nicht: `!important` waere die Tuer, durch die niemand mehr
+ * zurueckkann.
+ */
+.go-seite :focus-visible {
+  outline: 2px solid var(--go-tinte);
+  outline-offset: 2px;
+}
+
+/* ---------- Mobil: der einzige Breakpoint der Suite ---------- */
+
+/*
+ * 767.98px und nicht 768: bei exakt 768px gelten sonst beide Seiten und die
+ * Reihenfolge im Stylesheet entscheidet (`docs/design/README.md:193-197`).
+ */
+@media (max-width: 767.98px) {
+  /* Ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel — deshalb
+     untereinander und volle Breite (`docs/design/README.md:189-190`). */
+  .go-knopfzeile {
+    flex-direction: column;
+  }
+
+  .go-knopf {
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) {
+  .go-blatt {
+    margin: 40px auto 64px;
+    padding-inline: 32px;
+    border: 1px solid var(--go-linie);
+    border-radius: 14px;
+  }
+}
+
+/*
+ * Bewegung zuruecknehmen: nur die Dauern fallen, der Farbwechsel bleibt — ohne
+ * ihn waere der Zustandswechsel gar nicht mehr wahrnehmbar.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .go-knopf,
+  .go-feld {
+    transition-duration: 1ms;
+  }
+}

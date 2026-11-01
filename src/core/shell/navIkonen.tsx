@@ -65,6 +65,13 @@ export const NAV_IKONEN: Record<NavIkonName, Icons8Name> = {
   statistik: "bar-chart",
   // IDA-298 — Begründung an der Union in `types.ts`.
   maengel: "wrench",
+  // IDA-320 — Begründung an der Union in `types.ts`.
+  kalender: "calendar",
+  events: "meeting",
+  projekte: "folder",
+  belegung: "clock",
+  anfragen: "inbox",
+  sperrzeiten: "cancel",
 };
 
 /**

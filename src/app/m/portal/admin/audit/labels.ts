@@ -22,6 +22,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  helfer:"Helfer (aus HiOrg)",hiorg_verbindung:"Verbindung zu HiOrg-Server",importlauf:"Abgleich der Helfer",
  stammfahrzeug:"Fahrzeug (Stammdaten)",
  planung:"Schichtplanung",einheit:"Abschnitt oder Fahrzeug (Schichtplanung)",schicht:"Schicht",temp_helfer:"Temporärer Helfer (Schichtplanung)",zuordnung:"Einteilung in eine Schicht",
+ mitglied:"Mitglied (Gemeinschaft)",vorhaben:"Event oder Projekt (Gemeinschaft)",aufgabe:"Aufgabe (Gemeinschaft)",zustaendig:"Zuständigkeit für eine Aufgabe (Gemeinschaft)",sperrzeit:"Sperrzeit (Vermietung)",anfrage:"Mietanfrage",vertragsdatei:"Mietvertrag (PDF)",
  lagemonitor_anzeige:"Anzeige des Lagemonitors",lagemonitor_zugang:"Zugang des Lagemonitors",lagemonitor_meldung:"Meldung am Lagemonitor",lagemonitor_link:"Link für den Online-Lagemonitor",lagemonitor_kategorie:"Meldekategorie des Lagemonitors",quellzuordnung:"Fahrzeugzuordnung (Stammdaten)",
 };
 export function objectLabel(type: string): string { return OBJECT_LABELS[type] ?? "Weiteres Objekt"; }
