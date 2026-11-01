@@ -19,6 +19,7 @@ import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
 import { OeffentlicheLinks } from "./OeffentlicheLinks";
 import { Zugaenge } from "./Zugaenge";
+import { ZumMonitor } from "./ZumMonitor";
 import v from "./verwaltung.module.css";
 
 const STAND = zeitFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
@@ -205,6 +206,7 @@ export function AnzeigeVerwaltung({
       <Seitenkopf
         titel="Lagemonitor"
         beschreibung="Was der Bildschirm im FüKw zeigt. Die Vorschau zeigt jede Änderung sofort mit Beispieldaten, noch bevor du speicherst. Der Monitor holt gespeicherte Einstellungen spätestens nach einer Minute ab und behält sie, auch wenn die Verbindung zur Suite abreißt."
+        aktionen={<ZumMonitor online={online} />}
       />
 
       <div className={v.raster}>
