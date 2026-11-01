@@ -1,0 +1,122 @@
+/* Schichtplanung. `.modul` trägt die Tokens (Falle 2: `--ant-*` ist nicht global); Ampel aus dem
+   Farbvokabular der Arbeitsflächen (`lagerbuch/_ui/verwaltung.module.css`). Rot nur für Konflikte (Falle 3).
+   `.tokens` hängt zusätzlich am `body` (`useTokensAmBody`), weil Schubladen und Auswahllisten in ein Portal
+   außerhalb von `.modul` rendern und die Variablen dort sonst fehlten. */
+.modul, .tokens {
+  --sp-ok-text: #1e7a3c;
+  --sp-ok-flaeche: #e4f2e9;
+  --sp-gelb-text: #8a5200;
+  --sp-gelb-flaeche: #fbf1dc;
+  --sp-rot-text: #8c0d16;
+  --sp-rot-flaeche: #f6e3e0;
+  --sp-grau-text: #5b6570;
+  --sp-grau-flaeche: #e7eaec;
+  --sp-karte: #ffffff;
+  --sp-raster: #f6f7f8;
+  --sp-ziel: rgb(200 0 15 / 0.08);
+  --sp-zeichnen: rgb(200 0 15 / 0.14);
+}
+.modul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+:root[data-theme="dark"] .modul, :root[data-theme="dark"] .tokens {
+  --sp-ok-text: #7ee0a0;
+  --sp-ok-flaeche: #10261a;
+  --sp-gelb-text: #d9a032;
+  --sp-gelb-flaeche: #2a1e05;
+  --sp-rot-text: #e8837c;
+  --sp-rot-flaeche: #2a1113;
+  --sp-grau-text: #9aa4ad;
+  --sp-grau-flaeche: #1c2024;
+  --sp-karte: #141414;
+  --sp-raster: #0c0d0e;
+  --sp-ziel: rgb(228 90 102 / 0.16);
+  --sp-zeichnen: rgb(228 90 102 / 0.24);
+}
+
+/* Chips: Fläche und Text als Paar, nie antds Tag-Vorgabe. */
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.chip.ok { color: var(--sp-ok-text); background: var(--sp-ok-flaeche); }
+.chip.gelb { color: var(--sp-gelb-text); background: var(--sp-gelb-flaeche); }
+.chip.rot { color: var(--sp-rot-text); background: var(--sp-rot-flaeche); }
+.chip.grau { color: var(--sp-grau-text); background: var(--sp-grau-flaeche); }
+.chip.quali { font-weight: 500; color: var(--sp-grau-text); background: var(--sp-grau-flaeche); padding: 0 6px; font-size: 11px; }
+.chip.temp { color: var(--sp-gelb-text); background: var(--sp-gelb-flaeche); font-weight: 500; }
+.qualis { display: flex; flex-wrap: wrap; gap: 3px; }
+
+/* KPI-Kachel: 4px Kante in der Ampelfarbe, sonst neutral. */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { background: var(--sp-karte); border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--sp-grau-text); border-radius: 8px; padding: 10px 14px; }
+.kpi.ok { border-inline-start-color: var(--sp-ok-text); }
+.kpi.gelb { border-inline-start-color: var(--sp-gelb-text); }
+.kpi.rot { border-inline-start-color: var(--sp-rot-text); }
+.kpiWert { font-family: var(--font-display); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpiTitel { font-size: 12px; color: var(--iuk-gedaempft); }
+
+.kicker { font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--iuk-gedaempft); }
+.neben { font-size: 12px; color: var(--iuk-gedaempft); }
+.zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ── Schichtraster ── */
+.arbeitsflaeche { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 1200px) { .arbeitsflaeche { grid-template-columns: minmax(0, 1fr) 300px; } }
+
+.raster { background: var(--sp-karte); border: 1px solid var(--iuk-linie); border-radius: 8px; overflow: hidden; }
+.rasterScroll { overflow-x: auto; }
+.rasterInnen { --sp-namen: 200px; display: grid; grid-template-columns: var(--sp-namen) max-content; min-width: max-content; }
+.rasterKopfLinks { position: sticky; left: 0; z-index: 3; background: var(--sp-karte); border-block-end: 1px solid var(--iuk-linie); border-inline-end: 1px solid var(--iuk-linie); padding: 8px 12px; display: flex; align-items: end; }
+.rasterKopf { position: relative; height: 48px; border-block-end: 1px solid var(--iuk-linie); }
+.stundeMarke { position: absolute; top: 24px; font-size: 11px; color: var(--iuk-gedaempft); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.tagMarke { position: absolute; top: 4px; font-size: 12px; font-weight: 600; padding-inline-start: 6px; white-space: nowrap; }
+.einheitZelle { position: sticky; left: 0; z-index: 2; background: var(--sp-karte); border-block-end: 1px solid var(--iuk-linie); border-inline-end: 1px solid var(--iuk-linie); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.einheitName { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; cursor: pointer; text-align: start; min-height: 24px; }
+.einheitName:hover { text-decoration: underline; }
+.spur { position: relative; border-block-end: 1px solid var(--iuk-linie); background-image: linear-gradient(to right, var(--iuk-linie) 1px, transparent 1px); background-color: var(--sp-raster); touch-action: pan-x pan-y; }
+.spur.zeichenbar { cursor: crosshair; }
+.entwurf { position: absolute; top: 6px; bottom: 6px; border: 2px dashed var(--iuk-marke); border-radius: 6px; background: var(--sp-zeichnen); pointer-events: none; display: flex; align-items: flex-start; padding: 4px 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.block { position: absolute; top: 6px; bottom: 6px; border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--sp-grau-text); border-radius: 6px; background: var(--sp-karte); padding: 6px 10px 6px 8px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; gap: 2px; text-align: start; color: inherit; font: inherit; user-select: none; }
+.block:hover, .block:focus-visible { box-shadow: 0 0 0 2px var(--iuk-marke); outline: none; }
+.block.ok { border-inline-start-color: var(--sp-ok-text); }
+.block.gelb { border-inline-start-color: var(--sp-gelb-text); }
+.block.rot { border-inline-start-color: var(--sp-rot-text); }
+.block.ziel { background: var(--sp-ziel); box-shadow: 0 0 0 2px var(--iuk-marke); }
+.block.zieht { opacity: 0.85; box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); z-index: 4; cursor: grabbing; }
+.griff { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 1; }
+.griff:hover { background: var(--sp-ziel); }
+.griffVon { left: 0; }
+.griffBis { right: 0; }
+.blockKopf { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; cursor: grab; }
+.blockName { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; cursor: grab; border-radius: 4px; }
+.blockName.konflikt { color: var(--sp-rot-text); font-weight: 600; }
+.blockName.leer { color: var(--iuk-gedaempft); font-style: italic; cursor: inherit; }
+
+/* ── Helferleiste ── */
+.leiste { background: var(--sp-karte); border: 1px solid var(--iuk-linie); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 1200px) { .leiste { position: sticky; top: 85px; max-height: calc(100dvh - 101px); } }
+.leisteListe { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-inline: -4px; padding-inline: 4px; }
+@media (max-width: 1199px) { .leisteListe { max-height: 360px; } }
+.helferKarte { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px solid var(--iuk-linie); border-radius: 6px; cursor: grab; background: var(--sp-karte); }
+.helferKarte:active { cursor: grabbing; }
+.kartenZeile { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+
+/* ── Flyins ── */
+.abschnitt { display: flex; flex-direction: column; gap: 8px; margin-block-end: 20px; }
+.personZeile { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-block-end: 1px solid var(--iuk-linie); }
+.personZeile:last-child { border-block-end: 0; }
+.warnbox { border-inline-start: 3px solid var(--sp-rot-text); border-radius: 4px; padding: 8px 12px; color: var(--sp-rot-text); background: var(--sp-rot-flaeche); font-size: 13px; }
+.infobox { border-inline-start: 3px solid var(--sp-gelb-text); border-radius: 4px; padding: 8px 12px; color: var(--sp-gelb-text); background: var(--sp-gelb-flaeche); font-size: 13px; }
+.anforderung { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.feld { display: flex; flex-direction: column; gap: 6px; margin-block-end: 16px; }
+.feldTitel { font-weight: 600; font-size: 14px; }
+.feldFehler { font-size: 12px; color: var(--sp-rot-text); }
+.zweiSpalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+
+/* ── Listen ── */
+.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; }
+.befundListe { display: flex; flex-direction: column; }
+.befund { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-block-end: 1px solid var(--iuk-linie); }
+.befund:last-child { border-block-end: 0; }
+
+@media (max-width: 767px) { .rasterInnen { --sp-namen: 132px; } .einheitZelle { padding: 8px; } .nurBreit { display: none; } }

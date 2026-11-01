@@ -76,6 +76,9 @@ const ZEILEN: readonly Zeile[] = [
   ["Jens", "Jürgens", "aktiv", false, "31.12.2099", [BEREITSCHAFT, SAN], ["San"]],
 ];
 
+/** Reihum vergebene Fahrerlaubnisklassen, damit die Schichtplanung „Fahrer C1“ zeigen kann. */
+const DEMO_KLASSEN: readonly (readonly string[])[] = [["B", "BE", "C1", "C1E"], ["B"], ["B", "C1"], ["B", "BE"]];
+
 /** 32 Hex-Zeichen wie eine HiOrg-Kennung, fest je Zeile — derselbe Demo-Bestand bei jedem Abruf. */
 const kennung = (i: number) => `de0de${(i + 1).toString(16).padStart(27, "0")}`;
 
@@ -104,7 +107,7 @@ export function demoAntwort(): unknown {
           name_kurz: kurz, zentralliste_id: 1, zentralliste_rang: 1, zentralliste_name_kurz: kurz, erwerb_datum: "2020-01-01",
         })),
         ausbildungen: [{ id: 1, ausbildung_id: 1, bezeichnung: "Erste Hilfe", datum: "2024-01-01", lehrgangsnummer: "DEMO", gueltig_bis: "2026-01-01" }],
-        fahrerlaubnis: { klassen: ["B"], beschraenkung: "", fuehrerscheinnummer: "DEMO0000000", fuehrerscheindatum: "2010-01-01" },
+        fahrerlaubnis: { klassen: DEMO_KLASSEN[i % DEMO_KLASSEN.length], beschraenkung: "", fuehrerscheinnummer: "DEMO0000000", fuehrerscheindatum: "2010-01-01" },
         angehoerige: "Demo-Angehörige, 0581 000000",
         ernaehrung: ["vegetarisch"], allerg_intol: ["Demo-Allergie"], verpflegung_weiteres: "",
         kontoinhaber: `${vorname} ${nachname}`, iban: "DE02120300000000202051", bic: "BYLADEM1001", kreditinstitut: "Demo-Bank",

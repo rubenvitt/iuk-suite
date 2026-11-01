@@ -10,6 +10,8 @@ const NIE = [
   "DE12345678901234567800", "MALEDIC", "Sparkasse", "1985-02-07", "Hauptstr", "12345", "Musterhausen",
   "+4917685214785", "+4963014618", "admin@example.com", "7B9205K0C65", "laktose", "halal", "Spinat",
   "Ehefrau", "Zahnarzt", "Klinik", "Beispielbemerkung", "Führungszeugnis", "Fachberater", "admin", "abiE",
+  // Von der Fahrerlaubnis bleiben nur die Klassen (IDA-313): keine Beschränkung, kein Ausstellungsdatum.
+  "C1 171", "1995-11-01",
 ];
 
 describe("lesePersonal — die Allowlist ist der Datenschutz", () => {
@@ -27,6 +29,7 @@ describe("lesePersonal — die Allowlist ist der Datenschutz", () => {
       austritt: "2000-01-01",
       gruppen: ["Bereitschaft", "Jugend", "Aktive", "Senioren"],
       qualifikationen: [{ liste: "med. Qualifikation", name: "Ersthelfer", kurz: "EH" }],
+      fahrerlaubnis: ["AM", "B", "B96", "BE", "L"],
     }]);
   });
 
@@ -39,7 +42,7 @@ describe("lesePersonal — die Allowlist ist der Datenschutz", () => {
     const s = lesePersonal(demoAntwort());
     expect(s.ok && s.personen).toHaveLength(DEMO_ANZAHL);
     const text = JSON.stringify(s);
-    for (const wert of ["DE02120300000000202051", "Demo-Allergie", "@demo.invalid", "Demo-Bank", "DEMO0000000", "Musterstraße", "1990-01-01"]) {
+    for (const wert of ["DE02120300000000202051", "Demo-Allergie", "@demo.invalid", "Demo-Bank", "DEMO0000000", "2010-01-01", "Musterstraße", "1990-01-01"]) {
       expect(text, wert).not.toContain(wert);
     }
   });

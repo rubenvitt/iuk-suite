@@ -229,6 +229,12 @@ export const MODULES: ModuleDef[] = [
   { key: "fahrzeuge", title: "Fahrzeuge", icon: "truck", shell: "full",
     requiresAuth: true, requiredGroups: ["fahrzeuge-nutzer", "fahrzeuge-admin"], adminGroups: ["fahrzeuge-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
+  // schichtplan: Schichtplanung im Voraus für Veranstaltungen und große Lagen (IDA-313). Personaldaten
+  // (Namen aus dem Helfer-Modul, temporäre Helfer mit Telefon), deshalb Zugang nur über die eigenen
+  // Gruppen; planen dürfen alle mit Zugang, eine Planung löschen nur Modul-Admins (`_lib/zugang.ts`).
+  { key: "schichtplan", title: "Schichtplanung", icon: "calendar", shell: "full",
+    requiresAuth: true, requiredGroups: ["schichtplan-nutzer", "schichtplan-admin"], adminGroups: ["schichtplan-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
   // seine Einstellungen mit eigenem Schlüssel unter `api/konfiguration` abholt; die Seiten riegelt
   // `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).

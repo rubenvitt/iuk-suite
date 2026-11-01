@@ -61,9 +61,9 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
         <h2 id="datenschutz" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Datenschutz</h2>
         <ul style={{ margin: 0, paddingInlineStart: SPACE.xl, display: "grid", gap: SPACE.xs }}>
           <li>
-            <b>Gespeichert</b> werden je Person nur Vor- und Nachname, Kontostatus, Gruppen und Qualifikationen. Alles
-            andere, was HiOrg-Server mitliefert (Kontaktdaten, Anschrift, Geburtsdatum, Bankverbindung, Führerschein, Allergien,
-            Angehörige, Bemerkungen), wird beim Lesen verworfen und nie gespeichert oder protokolliert. Aus einer Excel-Datei
+            <b>Gespeichert</b> werden je Person nur Vor- und Nachname, Kontostatus, Gruppen, Qualifikationen und die
+            Fahrerlaubnisklassen. Alles andere, was HiOrg-Server mitliefert (Kontaktdaten, Anschrift, Geburtsdatum, Bankverbindung,
+            Führerscheinnummer und -datum, Allergien, Angehörige, Bemerkungen), wird beim Lesen verworfen und nie gespeichert oder protokolliert. Aus einer Excel-Datei
             liest die Suite nur die Spalten der Vorlage; weitere Spalten und die Datei selbst werden nicht gespeichert.
           </li>
           <li>
@@ -73,6 +73,10 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
           <li>
             <b>Ans Einsatzbuch</b> gehen nur freigegebene Personen, und nur mit Name und Qualifikationen — keine Kennung aus
             HiOrg oder der Datei, keine Gruppen.
+          </li>
+          <li>
+            <b>An die Schichtplanung</b> gehen alle übernommenen Personen, auch ohne Freigabe fürs Einsatzbuch, mit Name,
+            Qualifikationen und Fahrerlaubnisklassen. Sehen dürfen sie dort nur die Nutzer der Schichtplanung.
           </li>
           <li>
             <b>Sehen</b> darf die Liste nur, wer in der Zugangsgruppe des Moduls ist; die Suite-Administration allein reicht

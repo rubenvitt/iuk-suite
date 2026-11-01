@@ -1,0 +1,23 @@
+/* Die Druckblätter (Vorschau unter „Ausgabe“ und die Druckansicht). Papier ist immer hell. */
+.blaetter { display: flex; flex-direction: column; gap: 24px; align-items: center; }
+.papier { width: min(210mm, 100%); background: #fff; color: #1a1d20; box-shadow: 0 1px 4px rgb(0 0 0 / 0.18); padding: 14mm 14mm 16mm; border-top: 5px solid #c8000f; font-size: 13px; }
+.titel { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 0; letter-spacing: 0.02em; }
+.meta { color: #5b6570; font-size: 12px; margin: 2px 0 12px; }
+.tabelle { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tabelle th { text-align: start; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #5b6570; border-block-end: 1.5px solid #1a1d20; padding: 4px 6px; }
+.tabelle td { border-block-end: 1px solid #d9dde1; padding: 6px; vertical-align: top; }
+.offen { color: #8a5200; font-weight: 600; }
+.fuss { margin-top: 14px; font-size: 11px; color: #5b6570; }
+.knopf { position: fixed; top: 16px; right: 16px; }
+.druckSeite { padding: 24px 16px; background: #eef0f1; min-height: 100dvh; }
+
+/* Benannt (Falle 18): Next legt CSS-Module routenübergreifend in gemeinsame Chunks, eine unbenannte
+   @page-Regel träfe dann auch fremde Druckseiten (gemessen am Lagerbuch-Etikettenbogen). */
+@page schichtblatt { size: 210mm 297mm; margin: 0; }
+@media print {
+  .knopf { display: none; }
+  .druckSeite { padding: 0; background: #fff; }
+  .blaetter { gap: 0; display: block; }
+  .papier { page: schichtblatt; width: 210mm; min-height: 297mm; box-shadow: none; break-after: page; }
+  .papier:last-child { break-after: auto; }
+}

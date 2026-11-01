@@ -32,6 +32,7 @@ import neueSchriftUndWeitereZeichen from "@/app/m/portal/_lib/neuigkeiten/notize
 import helferAusHiorg from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-20-helfer-aus-hiorg";
 import helferAusExcel from "@/app/m/portal/_lib/neuigkeiten/notizen/helfer/2026-10-24-helfer-aus-excel";
 import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahrzeuge/2026-10-21-fahrzeuge-als-stammdaten";
+import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-01-schichten-im-voraus-planen";
 import lagemonitorEinstellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-lagemonitor-einstellen";
 import lagemonitorMeldungen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-meldungen-am-monitor";
 import lagemonitorQrCode from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-qr-code-ehrenamt";
@@ -161,6 +162,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   helferAusExcel,
   helferAusHiorg,
   fahrzeugeAlsStammdaten,
+  schichtenImVorausPlanen,
   lagemonitorEinstellen,
   lagemonitorMeldungen,
   lagemonitorQrCode,

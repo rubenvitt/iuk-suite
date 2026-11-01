@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { planeAbgleich, wendeAbgleichAn } from "./abgleich";
-import { bereitgestellteHelfer } from "./bereitstellung";
+import { bereitgestellteHelfer, helferFuerSchichtplanung } from "./bereitstellung";
 import { listeHelfer, setzeFreigabe } from "./daten";
 import { STANDARD_FILTER } from "./filter";
 import { testDb } from "./testDb";
@@ -11,6 +11,7 @@ function wende(db: ReturnType<typeof testDb>, quelle: "demo" | "hiorg") {
   const personen = ["a", "b"].map((id) => ({
     quellId: id, vorname: `V${id}`, nachname: `N${id}`, status: "aktiv", gesperrt: false, austritt: null,
     gruppen: ["Bereitschaft"], qualifikationen: [{ liste: "med. Qualifikation", name: "Rettungssanitäter", kurz: "RS" }],
+    fahrerlaubnis: ["c1", "B"],
   }));
   wendeAbgleichAn(db, planeAbgleich({ personen, unlesbar: 0 }, [], STANDARD_FILTER, "2026-10-20", quelle), { neueFreigeben: true, von: { name: "T", sub: "t" } });
 }
@@ -41,6 +42,20 @@ describe("bereitgestellteHelfer — was das Modul anderen Modulen herausgibt", (
     const db = testDb();
     wende(db, "demo");
     expect(bereitgestellteHelfer(db).helfer.every((h) => h.demo)).toBe(true);
+  });
+});
+
+describe("helferFuerSchichtplanung — der zweite Empfänger", () => {
+  it("alle Helfer, auch ohne Einsatzbuch-Freigabe, mit Fahrerlaubnisklassen", () => {
+    const db = testDb();
+    wende(db, "hiorg");
+    setzeFreigabe(db, [listeHelfer(db)[0].id], false);
+    const b = helferFuerSchichtplanung(db);
+    expect(b.helfer).toHaveLength(2);
+    for (const h of b.helfer) {
+      expect(Object.keys(h).sort()).toEqual(["demo", "fahrerlaubnis", "id", "nachname", "qualifikationen", "vorname"]);
+      expect(h.fahrerlaubnis).toEqual(["B", "C1"]);
+    }
   });
 });
 
