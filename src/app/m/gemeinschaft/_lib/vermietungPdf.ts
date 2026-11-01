@@ -5,7 +5,9 @@
  * `%PDF-` beginnen (Magic Bytes). Eine HTML-Datei mit `.pdf`-Endung kommt so nicht in die Datenbank.
  */
 
-export const VERTRAG_MAX_BYTES = 10 * 1024 * 1024;
+// 10 MB dezimal, nicht 10 MiB: mit dem Multipart-Überhang des Route Handlers bleibt die Anfrage unter den
+// 10 MiB, die `src/proxy.ts` als Middleware standardmäßig puffert (`experimental.proxyClientMaxBodySize`).
+export const VERTRAG_MAX_BYTES = 10_000_000;
 const PDF_KOPF = Buffer.from("%PDF-", "ascii");
 
 export type PdfPruefung = { ok: true; name: string } | { ok: false; fehler: string; status: 400 | 413 | 415 };

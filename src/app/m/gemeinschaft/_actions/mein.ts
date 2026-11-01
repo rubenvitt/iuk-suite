@@ -18,6 +18,7 @@ import { requireGemeinschaftHostAktion } from "../_lib/zugang";
  */
 
 const UNGUELTIG_LINK = "Dieser Link gilt nicht mehr. Frag bei der Leitung der Gemeinschaft nach einem neuen.";
+class LinkUngueltig extends Error {}
 
 /** Wer über den Link handelt: das Mitglied, ohne Konto. Name nur für die Lesbarkeit im Protokoll der Suite. */
 function mitgliedAkteur(m: LinkMitglied): AuditActor {
@@ -34,8 +35,17 @@ async function ueberLink(link: unknown, schreiben: (db: GemeinschaftSchreiber, m
   }
   return withAuditContext({ actor: mitgliedAkteur(m) }, async (): Promise<MitgliederErgebnis> => {
     try {
-      db.transaction((tx) => schreiben(tx, m, Date.now()));
+      // Den Link in derselben Transaktion noch einmal auflösen: wurde er inzwischen neu erzeugt, gilt der alte sofort nicht mehr.
+      db.transaction((tx) => {
+        const aktuell = mitgliedZuLink(tx, link as string);
+        if (!aktuell || aktuell.id !== m.id) throw new LinkUngueltig();
+        schreiben(tx, aktuell, Date.now());
+      });
     } catch (e) {
+      if (e instanceof LinkUngueltig) {
+        auditDenied("gemeinschaft");
+        return { ok: false, fehler: UNGUELTIG_LINK, linkUngueltig: true };
+      }
       if (e instanceof AufgabeAbgelehnt) return { ok: false, fehler: e.message };
       throw e;
     }
