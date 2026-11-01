@@ -12,6 +12,17 @@ describe("Zeiten in der Suite-Zone", () => {
     expect(wanduhr(ms)).toEqual({ jahr: 2026, monat: 11, tag: 14, stunde: 8, minute: 0 });
   });
 
+  it("an Zeitumstellungstagen bleibt die Wanduhr die eingegebene", () => {
+    setzeAktiveZeitzone("Europe/Berlin");
+    const iso = (stunde: number, minute: number, tag: number, monat: number) => new Date(ausWanduhr({ jahr: 2026, monat, tag, stunde, minute })).toISOString();
+    expect(iso(8, 0, 29, 3)).toBe("2026-03-29T06:00:00.000Z");
+    expect(iso(1, 30, 29, 3)).toBe("2026-03-29T00:30:00.000Z");
+    expect(iso(2, 30, 29, 3)).toBe("2026-03-29T01:30:00.000Z"); // gibt es nicht: wird 03:30 Sommerzeit
+    expect(iso(8, 0, 25, 10)).toBe("2026-10-25T07:00:00.000Z");
+    expect(iso(2, 30, 25, 10)).toBe("2026-10-25T00:30:00.000Z"); // doppelt: das erste Vorkommen
+    expect(iso(0, 0, 25, 10)).toBe("2026-10-24T22:00:00.000Z");
+  });
+
   it("eine andere Suite-Zone verschiebt die Wanduhr", () => {
     setzeAktiveZeitzone("UTC");
     expect(new Date(ausWanduhr({ jahr: 2026, monat: 11, tag: 14, stunde: 8, minute: 0 })).toISOString()).toBe("2026-11-14T08:00:00.000Z");

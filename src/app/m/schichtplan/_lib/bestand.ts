@@ -12,7 +12,7 @@ export { tempAlsPlanHelfer } from "./planHelfer";
 
 const nachName = (a: PlanHelfer, b: PlanHelfer) => a.nachname.localeCompare(b.nachname, "de") || a.vorname.localeCompare(b.vorname, "de");
 
-/** Alle Stammhelfer, nach Namen. Ist das Helfer-Modul leer oder nicht erreichbar, ist die Liste leer. */
+/** Alle Stammhelfer, nach Namen. Ist das Helfer-Modul leer, ist die Liste leer; ein Datenbankfehler fliegt bewusst durch. */
 export function stammHelfer(): PlanHelfer[] {
   return alsPlanHelfer(helferFuerSchichtplanung().helfer).sort(nachName);
 }

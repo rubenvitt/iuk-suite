@@ -19,10 +19,23 @@ export function wanduhr(ms: number): Wanduhr {
   return { jahr: +p.year, monat: +p.month, tag: +p.day, stunde: +p.hour % 24, minute: +p.minute };
 }
 
-/** Wanduhr in der Suite-Zone → Millisekunden. An einer Zeitumstellung zählt die Uhrzeit ab Mitternacht. */
+/**
+ * Wanduhr in der Suite-Zone → Millisekunden, auch an einer Zeitumstellung: 08:00 bleibt 08:00. Die im
+ * Frühjahr übersprungene Stunde (02:30) wird zur Zeit eine Stunde später, die im Herbst doppelte
+ * Stunde nimmt ihr erstes Vorkommen (Sommerzeit).
+ */
 export function ausWanduhr(w: Wanduhr): number {
   const iso = `${w.jahr}-${String(w.monat).padStart(2, "0")}-${String(w.tag).padStart(2, "0")}`;
-  return tagesGrenzenInZone(iso).von + w.stunde * STUNDE + w.minute * MINUTE;
+  const ziel = Date.UTC(w.jahr, w.monat - 1, w.tag, w.stunde, w.minute);
+  const naeherung = tagesGrenzenInZone(iso).von + w.stunde * STUNDE + w.minute * MINUTE;
+  let ms = naeherung;
+  for (let i = 0; i < 2; i++) {
+    const ist = wanduhr(ms);
+    const abstand = ziel - Date.UTC(ist.jahr, ist.monat - 1, ist.tag, ist.stunde, ist.minute);
+    if (abstand === 0) return ms;
+    ms += abstand;
+  }
+  return wanduhr(ms).stunde === w.stunde && wanduhr(ms).minute === w.minute ? ms : naeherung;
 }
 
 /** Stunde des Tages in der Suite-Zone (für die Marken im Raster). */
