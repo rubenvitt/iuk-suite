@@ -28,7 +28,7 @@ test("Mitglied anlegen, Link öffnen, neuer Link macht den alten ungültig, entf
   const zeile = page.getByRole("row").filter({ hasText: name });
   await expect(zeile).toContainText("0151 2223334");
   const alt = await zeile.getByRole("link", { name: /…\/mein\// }).getAttribute("href");
-  expect(alt).toMatch(new RegExp(`^http://${HOST.replace(/\./g, "\\.")}:${E2E_PORT}/mein/[A-Za-z0-9_-]{22}$`));
+  expect(alt).toMatch(new RegExp(`^http://${HOST.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:${E2E_PORT}/mein/[A-Za-z0-9_-]{22}$`));
 
   // Ohne Anmeldung, auf dem Telefon: eigener Browserkontext ohne Sitzung.
   const fremd = await browser.newContext({ viewport: { width: 390, height: 844 } });
