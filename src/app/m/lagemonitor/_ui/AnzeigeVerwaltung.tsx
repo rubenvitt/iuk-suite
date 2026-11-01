@@ -10,7 +10,7 @@ import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
-import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
+import { MELDUNGEN_MAX_AKTIV, naechsteUhrzeit, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
@@ -140,7 +140,9 @@ export function AnzeigeVerwaltung({
   const bandMeldungen = useMemo<VorschauMeldung[]>(() => {
     const zaehler = (ziel: number | null) => (ziel !== null && jetzt !== null ? countdownText(ziel, jetzt) : null);
     const blinkt = (ziel: number | null, k: KategorieDTO | null) => jetzt !== null && istFaellig(ziel, k?.vorlaufMinuten ?? null, jetzt);
-    const laufend = meldungen.map((m) => {
+    // Wie am Monitor: höchstens drei begonnene. Ohne Uhr (Server, vor dem Hydrieren) die ohne späteren Beginn.
+    const amMonitor = jetzt === null ? meldungen.filter((m) => m.anzeigenAb === null).slice(0, MELDUNGEN_MAX_AKTIV) : sichtbar(meldungen, jetzt);
+    const laufend = amMonitor.map((m) => {
       const ziel = m.zeitpunkt ? Date.parse(m.zeitpunkt) : null;
       return { text: m.text, countdown: zaehler(ziel), kategorie: m.kategorie, faellig: blinkt(ziel, m.kategorie) };
     });

@@ -7,19 +7,22 @@ import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { kategorieAendernAction, kategorieAnlegenAction, kategorieLoeschenAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { FARBEN, KATEGORIE_NAME_MAX, KATEGORIEN_MAX, NACHLAUF_MINUTEN, VORLAEUFE, ZEICHEN, ZEICHEN_TEXT, type KategorieDTO, type KategorieEingabe } from "../_lib/kategorieRegeln";
+import { FARBEN, KATEGORIE_NAME_MAX, KATEGORIEN_MAX, NACHLAUF_MINUTEN, VERSCHWINDEN, VORLAEUFE, ZEICHEN, ZEICHEN_TEXT, type KategorieDTO, type KategorieEingabe } from "../_lib/kategorieRegeln";
 import { KategorieMarke } from "./KategorieMarke";
 import v from "./verwaltung.module.css";
 
 /** Radio-Werte sind Zeichenketten; „nie“ steht für `null`. */
 const NIE = "nie";
 const vorlaufText = (m: number | null) => VORLAEUFE.find((x) => x.minuten === m)?.text ?? "Nie";
+/** „bleibt“ steht für `null`: bis zum Ende der Laufzeit. */
+const BLEIBT = "bleibt";
+const verschwindenText = (m: number | null) => VERSCHWINDEN.find((x) => x.minuten === m)?.text ?? "Bis zum Ablauf";
 
-const NEU: KategorieEingabe = { name: "", zeichen: "info", farbe: "blau", vorlaufMinuten: 5 };
+const NEU: KategorieEingabe = { name: "", zeichen: "info", farbe: "blau", vorlaufMinuten: 5, verschwindenMinuten: 15 };
 
 /**
  * Meldekategorien, etwa „Lagemeldung“ oder „Besprechung“: Name, Zeichen, Farbe und wann eine Meldung
- * mit Countdown blinkt. Eine Änderung wirkt sofort, auch auf laufende Meldungen.
+ * mit Countdown blinkt und verschwindet. Eine Änderung wirkt sofort, auch auf laufende Meldungen.
  */
 export function Kategorien({ liste }: { liste: KategorieDTO[] }) {
   const { message } = App.useApp();
@@ -42,7 +45,7 @@ export function Kategorien({ liste }: { liste: KategorieDTO[] }) {
     <Card title="Meldekategorien">
       <div style={{ display: "grid", gap: SPACE.lg }}>
         <span style={SCHRIFT.neben} className={v.gedaempft}>
-          Jede Meldung bekommt eine Kategorie. Am Monitor steht sie mit Zeichen und Farbe vor dem Text. Hat die Meldung eine Uhrzeit zum Herunterzählen, blinkt sie kurz vorher und bis {NACHLAUF_MINUTEN} Minuten danach.
+          Jede Meldung bekommt eine Kategorie. Am Monitor steht sie mit Zeichen und Farbe vor dem Text. Hat die Meldung eine Uhrzeit zum Herunterzählen, blinkt sie kurz vorher und bis {NACHLAUF_MINUTEN} Minuten danach, und sie kann danach von selbst verschwinden.
         </span>
         {liste.length > 0 ? (
           <ul className={v.meldungen} aria-label="Kategorien">
@@ -66,7 +69,7 @@ export function Kategorien({ liste }: { liste: KategorieDTO[] }) {
                   <div style={{ display: "flex", gap: SPACE.md, alignItems: "center", flexWrap: "wrap" }}>
                     <KategorieMarke kategorie={k} />
                     <span style={SCHRIFT.neben} className={v.gedaempft}>
-                      blinkt: {vorlaufText(k.vorlaufMinuten)}
+                      blinkt: {vorlaufText(k.vorlaufMinuten)} · verschwindet: {verschwindenText(k.verschwindenMinuten).toLowerCase()}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: SPACE.sm }}>
@@ -133,7 +136,7 @@ function KategorieFormular({
   onFertig: () => void;
   onAbbrechen: () => void;
 }) {
-  const [e, setE] = useState<KategorieEingabe>({ name: start.name, zeichen: start.zeichen, farbe: start.farbe, vorlaufMinuten: start.vorlaufMinuten });
+  const [e, setE] = useState<KategorieEingabe>({ name: start.name, zeichen: start.zeichen, farbe: start.farbe, vorlaufMinuten: start.vorlaufMinuten, verschwindenMinuten: start.verschwindenMinuten ?? null });
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
@@ -225,6 +228,22 @@ function KategorieFormular({
           onChange={(x) => setE({ ...e, vorlaufMinuten: x.target.value === NIE ? null : Number(x.target.value) })}
           options={VORLAEUFE.map((l) => ({ value: l.minuten === null ? NIE : String(l.minuten), label: l.text }))}
         />
+      </div>
+      <div style={{ display: "grid", gap: SPACE.xs }}>
+        <span style={SCHRIFT.neben} id={`${basis}-verschwinden`}>
+          Verschwindet nach der Uhrzeit
+        </span>
+        <Radio.Group
+          aria-labelledby={`${basis}-verschwinden`}
+          aria-describedby={`${basis}-verschwinden-hilfe`}
+          value={e.verschwindenMinuten == null ? BLEIBT : String(e.verschwindenMinuten)}
+          optionType="button"
+          onChange={(x) => setE({ ...e, verschwindenMinuten: x.target.value === BLEIBT ? null : Number(x.target.value) })}
+          options={VERSCHWINDEN.map((l) => ({ value: l.minuten === null ? BLEIBT : String(l.minuten), label: l.text }))}
+        />
+        <span id={`${basis}-verschwinden-hilfe`} style={SCHRIFT.neben} className={v.gedaempft}>
+          Für Meldungen mit Uhrzeit, etwa einer Besprechung: danach nimmt der Monitor sie von selbst weg, auch wenn ihre Laufzeit noch nicht um ist.
+        </span>
       </div>
       <div style={{ display: "flex", gap: SPACE.md, alignItems: "center", flexWrap: "wrap" }}>
         <span style={SCHRIFT.neben} className={v.gedaempft}>

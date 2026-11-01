@@ -27,11 +27,20 @@ describe("Meldekategorien", () => {
     expect(FARBEN.map((f) => f.wert)).not.toContain("rot");
   });
 
+  it("die Vorgaben verschwinden 15 Minuten nach der Uhrzeit; nur angebotene Werte", () => {
+    const db = testDb();
+    expect(listeKategorien(db).map((k) => k.verschwindenMinuten)).toEqual([15, 15, 15, 15, 15]);
+    const gut = { name: "Funk", zeichen: "info", farbe: "blau", vorlaufMinuten: 5 };
+    expect(kategorieEingabe.parse(gut).verschwindenMinuten).toBeNull();
+    expect(kategorieEingabe.safeParse({ ...gut, verschwindenMinuten: 0 }).success).toBe(true);
+    expect(kategorieEingabe.safeParse({ ...gut, verschwindenMinuten: 7 }).success).toBe(false);
+  });
+
   it("anlegen hängt hinten an, ändern und löschen wirken", () => {
     const db = testDb();
     const r = legeKategorieAn(db, kategorieEingabe.parse({ name: "Funk", zeichen: "walkie-talkie", farbe: "tuerkis", vorlaufMinuten: null }), JETZT);
     if (!r.ok) throw new Error(r.fehler);
-    expect(listeKategorien(db).at(-1)).toEqual({ id: r.kategorie.id, name: "Funk", zeichen: "walkie-talkie", farbe: "tuerkis", vorlaufMinuten: null });
+    expect(listeKategorien(db).at(-1)).toEqual({ id: r.kategorie.id, name: "Funk", zeichen: "walkie-talkie", farbe: "tuerkis", vorlaufMinuten: null, verschwindenMinuten: null });
     expect(aendereKategorie(db, r.kategorie.id, kategorieEingabe.parse({ name: "Funkverkehr", zeichen: "phone", farbe: "ocker", vorlaufMinuten: 2 }))).toMatchObject({ ok: true, kategorie: { name: "Funkverkehr", vorlaufMinuten: 2 } });
     expect(loescheKategorie(db, r.kategorie.id)).toBe(true);
     expect(loescheKategorie(db, r.kategorie.id)).toBe(false);

@@ -40,6 +40,7 @@ import lagemonitorLinks from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonito
 import lagemonitorVerkehr from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-28-verkehrslage";
 import lagemonitorKartenzoom from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-29-kartenzoom";
 import lagemonitorKategorien from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-31-meldekategorien";
+import lagemonitorMeldungenPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-11-01-meldungen-planen";
 import personalAusDemHelferverzeichnis from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-20-personal-aus-dem-helferverzeichnis";
 import fahrzeugeAusDerFahrzeugverwaltung from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-fahrzeuge-aus-der-fahrzeugverwaltung";
 import qualifikationenZuordnen from "@/app/m/portal/_lib/neuigkeiten/notizen/einsatzbuch/2026-10-21-qualifikationen-zuordnen";
@@ -170,6 +171,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   lagemonitorVerkehr,
   lagemonitorKartenzoom,
   lagemonitorKategorien,
+  lagemonitorMeldungenPlanen,
   personalAusDemHelferverzeichnis,
   fahrzeugeAusDerFahrzeugverwaltung,
   qualifikationenZuordnen,
