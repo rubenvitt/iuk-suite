@@ -566,7 +566,13 @@ export const AUDIT_TABLES = {
       "mode": "audited",
       "primaryKey": [
         "id"
-      ]
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "aktualisiert_am"
+        ],
+        "reason": "Stempel, den jede Änderung an Schicht, Einteilung, Einheit oder Aushilfe mitsetzt; die Änderung selbst steht in der Zeile ihrer Tabelle."
+      }
     },
     "einheit": {
       "mode": "audited",

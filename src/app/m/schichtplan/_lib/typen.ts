@@ -87,6 +87,7 @@ export interface PlanungKurz {
 export const schluessel = (quelle: HelferQuelle, id: string) => `${quelle}:${id}`;
 export const MINUTE = 60_000;
 export const STUNDE = 60 * MINUTE;
-/** Raster, auf das Aufziehen, Verschieben und die Eingabefelder einrasten. */
-export const RASTER_MIN = 15;
-export const SCHICHTLAENGEN_STD = [2, 3, 4, 6, 8, 12] as const;
+/** Raster, auf das Aufziehen, Verschieben und die Eingabefelder einrasten (Ruben, 01.11.2026: flexibler als Viertelstunden). */
+export const RASTER_MIN = 5;
+/** Kürzeste Schicht; im Sanitätsdienst gibt es auch sehr kurze Einsätze (Ruben, 01.11.2026: „ab 10 min“). */
+export const MIN_SCHICHT_MIN = 10;

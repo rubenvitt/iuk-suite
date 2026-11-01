@@ -36,12 +36,14 @@ describe("Zeiten in der Suite-Zone", () => {
     expect(zeitspanne(acht, mitternacht + 6 * 3_600_000)).toBe("Sa., 14.11. 16:00 – So., 15.11. 06:00");
   });
 
-  it("rastet auf 15 Minuten und schreibt Stunden deutsch", () => {
-    expect(rasten(7 * 60_000)).toBe(0);
-    expect(rasten(8 * 60_000)).toBe(15 * 60_000);
-    expect(stunden(9_000_000)).toBe("2,5 h");
-    expect(stunden(13.75 * 3_600_000)).toBe("13,75 h");
-    expect(stunden(15 * 60_000)).toBe("0,25 h");
+  it("rastet auf 5 Minuten und schreibt Dauern, wie man sie sagt", () => {
+    expect(rasten(2 * 60_000)).toBe(0);
+    expect(rasten(7 * 60_000)).toBe(5 * 60_000);
+    expect(rasten(8 * 60_000)).toBe(10 * 60_000);
+    expect(stunden(9_000_000)).toBe("2 h 30 min");
+    expect(stunden(13.75 * 3_600_000)).toBe("13 h 45 min");
+    expect(stunden(15 * 60_000)).toBe("15 min");
+    expect(stunden(10 * 60_000)).toBe("10 min");
     expect(stunden(8 * 3_600_000)).toBe("8 h");
   });
 });

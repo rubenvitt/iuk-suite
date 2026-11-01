@@ -1,14 +1,16 @@
 "use client";
 
-import { Button, DatePicker, Popconfirm, Select } from "antd";
+import { Button, Popconfirm, Select } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { KONFLIKT_TITEL, offeneAnforderungen, type Auswertung } from "../_lib/pruefung";
 import { erfuellt } from "../_lib/qualis";
-import { type EinheitDTO, type PlanHelfer, type PlanungDTO, type SchichtDTO, RASTER_MIN, STUNDE, schluessel } from "../_lib/typen";
-import { rasten, zeitspanne } from "../_lib/zeit";
-import { alsDayjs, ausDayjs } from "./datum";
+import { type EinheitDTO, type PlanHelfer, type PlanungDTO, type SchichtDTO, MIN_SCHICHT_MIN, MINUTE, STUNDE, schluessel } from "../_lib/typen";
+import { zeitspanne } from "../_lib/zeit";
+import { Zeitfelder } from "./Zeitfelder";
 import s from "./schichtplan.module.css";
 import { Chip, name, QualiChips } from "./teile";
+
+const MIN_SCHICHT = MIN_SCHICHT_MIN * MINUTE;
 
 export interface SchichtAktionen {
   zuteilen: (schichtId: string, helferSchluessel: string) => void;
@@ -62,7 +64,7 @@ export function SchichtInhalt({ p, a, helfer, sch, e, aktionen, onGeloescht }: {
   ].filter((g) => g.options.length > 0);
 
   const setze = (von: number, bis: number) => {
-    if (von < p.von || bis > p.bis || bis <= von) return;
+    if (von < p.von || bis > p.bis || bis - von < MIN_SCHICHT) return;
     aktionen.schichtSetzen(sch.id, von, bis);
   };
 
@@ -121,19 +123,12 @@ export function SchichtInhalt({ p, a, helfer, sch, e, aktionen, onGeloescht }: {
 
       <div className={s.abschnitt}>
         <span className={s.kicker}>Zeit</span>
-        <DatePicker.RangePicker
-          showTime={{ format: "HH:mm", minuteStep: RASTER_MIN }}
-          format="DD.MM.YYYY HH:mm"
-          value={[alsDayjs(sch.von), alsDayjs(sch.bis)]}
-          allowClear={false}
-          aria-label="Beginn und Ende"
-          onChange={(w) => { if (w?.[0] && w[1]) setze(rasten(ausDayjs(w[0])), rasten(ausDayjs(w[1]))); }}
-        />
+        <Zeitfelder ohneLeeren wert={{ von: sch.von, bis: sch.bis }} onChange={(w) => { if (w.von !== null && w.bis !== null) setze(w.von, w.bis); }} />
         <div className={s.zeile}>
           <Button disabled={sch.von - STUNDE < p.von} onClick={() => setze(sch.von - STUNDE, sch.bis - STUNDE)}>1 h früher</Button>
           <Button disabled={sch.bis + STUNDE > p.bis} onClick={() => setze(sch.von + STUNDE, sch.bis + STUNDE)}>1 h später</Button>
           <Button disabled={sch.bis + STUNDE > p.bis} onClick={() => setze(sch.von, sch.bis + STUNDE)}>1 h länger</Button>
-          <Button disabled={sch.bis - sch.von <= STUNDE} onClick={() => setze(sch.von, sch.bis - STUNDE)}>1 h kürzer</Button>
+          <Button disabled={sch.bis - sch.von - STUNDE < MIN_SCHICHT} onClick={() => setze(sch.von, sch.bis - STUNDE)}>1 h kürzer</Button>
         </div>
         <span className={s.neben}>Gilt nur für diese Schicht. Im Raster geht es auch per Ziehen.</span>
       </div>
