@@ -69,9 +69,15 @@ export function teileAuf(von: number, bis: number, schichtMin: number): { von: n
   const schritt = schichtMin * MINUTE;
   const out: { von: number; bis: number }[] = [];
   for (let t = von; t < bis; t += schritt) out.push({ von: t, bis: Math.min(t + schritt, bis) });
-  // Ein Rest unter der Mindestdauer wäre danach nicht mehr verschiebbar (`schichtZeitEingabe`): er geht in die Schicht davor.
+  // Ein Rest unter der Mindestdauer wäre danach nicht mehr verschiebbar (`schichtZeitEingabe`): er geht in die Schicht
+  // davor — außer die würde damit länger als 24 Stunden, dann gibt sie dem Rest so viel ab, dass er die Mindestdauer hat.
+  const min = MIN_SCHICHT_MIN * MINUTE;
   const rest = out.at(-1);
-  if (out.length > 1 && rest && rest.bis - rest.von < MIN_SCHICHT_MIN * MINUTE) { out.pop(); out[out.length - 1].bis = rest.bis; }
+  if (out.length > 1 && rest && rest.bis - rest.von < min) {
+    const davor = out[out.length - 2];
+    if (rest.bis - davor.von <= 24 * 60 * MINUTE) { out.pop(); davor.bis = rest.bis; }
+    else { davor.bis = rest.bis - min; rest.von = davor.bis; }
+  }
   return out;
 }
 
