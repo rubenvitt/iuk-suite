@@ -51,8 +51,7 @@ export function rasten(ms: number, raster = RASTER_MIN): number {
   return Math.round(ms / schritt) * schritt;
 }
 
-/** „8 h“, „2,5 h“. */
+/** „8 h“, „2,5 h“, „13,75 h“ (Viertelstunden bleiben genau). */
 export function stunden(ms: number): string {
-  const h = ms / STUNDE;
-  return `${Number.isInteger(h) ? h : h.toFixed(1).replace(".", ",")} h`;
+  return `${String(Number((ms / STUNDE).toFixed(2))).replace(".", ",")} h`;
 }

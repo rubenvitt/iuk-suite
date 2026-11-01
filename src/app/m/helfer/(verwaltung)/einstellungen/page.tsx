@@ -75,6 +75,10 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
             HiOrg oder der Datei, keine Gruppen.
           </li>
           <li>
+            <b>An die Schichtplanung</b> gehen alle übernommenen Personen, auch ohne Freigabe fürs Einsatzbuch, mit Name,
+            Qualifikationen und Fahrerlaubnisklassen. Sehen dürfen sie dort nur die Nutzer der Schichtplanung.
+          </li>
+          <li>
             <b>Sehen</b> darf die Liste nur, wer in der Zugangsgruppe des Moduls ist; die Suite-Administration allein reicht
             nicht. Jede Änderung steht im Audit-Log der Suite, das Abgleichprotokoll (ohne Helfernamen) {PROTOKOLL_TAGE} Tage lang.
           </li>

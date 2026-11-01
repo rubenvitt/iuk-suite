@@ -29,5 +29,8 @@ describe("Zeiten in der Suite-Zone", () => {
     expect(rasten(7 * 60_000)).toBe(0);
     expect(rasten(8 * 60_000)).toBe(15 * 60_000);
     expect(stunden(9_000_000)).toBe("2,5 h");
+    expect(stunden(13.75 * 3_600_000)).toBe("13,75 h");
+    expect(stunden(15 * 60_000)).toBe("0,25 h");
+    expect(stunden(8 * 3_600_000)).toBe("8 h");
   });
 });

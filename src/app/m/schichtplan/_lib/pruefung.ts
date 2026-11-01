@@ -7,7 +7,7 @@ import { erfuellt, strenge } from "./qualis";
 import { type Anforderung, type EinheitDTO, type PlanHelfer, type PlanungDTO, type SchichtDTO, MINUTE, schluessel } from "./typen";
 import { stunden, zeitspanne } from "./zeit";
 
-export type KonfliktArt = "doppelt" | "quali" | "dienst";
+export type KonfliktArt = "doppelt" | "quali" | "dienst" | "bestand";
 export interface Konflikt { art: KonfliktArt; schichtIds: string[]; helfer?: string; text: string }
 /** Offene Plätze einer Schicht; `braucht` sind Anforderungen, die diese Plätze noch decken müssen. */
 export interface Luecke { schichtId: string; fehlen: number; braucht: Anforderung[] }
@@ -16,25 +16,31 @@ export const KONFLIKT_TITEL: Record<KonfliktArt, string> = {
   doppelt: "Doppelt verplant",
   quali: "Qualifikation fehlt",
   dienst: "Zu lange im Dienst",
+  bestand: "Nicht mehr im Bestand",
 };
 
 /** Welche Anforderungen offen bleiben. Eine Person deckt höchstens eine Anforderung. */
 export function offeneAnforderungen(einheit: Pick<EinheitDTO, "anforderungen">, personen: readonly Pick<PlanHelfer, "qualifikationen">[]): Anforderung[] {
-  const frei = [...personen];
-  const offen: Anforderung[] = [];
-  // Strengste zuerst, damit eine Notfallsanitäterin nicht die Sanitäterstelle belegt, während RS fehlt;
-  // und von den Passenden die mit den wenigsten Qualifikationen, damit die vielseitigen frei bleiben.
-  for (const a of [...einheit.anforderungen].sort((x, y) => strenge(y.quali) - strenge(x.quali))) {
-    let fehlt = a.anzahl;
-    while (fehlt > 0) {
-      const passend = frei.filter((p) => erfuellt(p.qualifikationen, a.quali)).sort((x, y) => x.qualifikationen.length - y.qualifikationen.length);
-      if (passend.length === 0) break;
-      frei.splice(frei.indexOf(passend[0]), 1);
-      fehlt--;
+  const an = einheit.anforderungen;
+  // Ein Platz je geforderter Person, die strengsten zuerst: Reicht das Personal nicht, bleibt die
+  // weniger strenge Anforderung offen. Maximales Matching (Kuhn) statt „erste Passende“, damit eine
+  // vielseitige Person nicht die einzige Stelle verbaut, die nur sie decken könnte. Die Mengen sind klein.
+  const plaetze = an.flatMap((x, nr) => Array.from({ length: x.anzahl }, () => nr))
+    .sort((x, y) => strenge(an[y].quali) - strenge(an[x].quali));
+  const platzVon = new Array<number>(personen.length).fill(-1);
+  const belege = (platz: number, gesehen: Set<number>): boolean => {
+    const quali = an[plaetze[platz]].quali;
+    for (let i = 0; i < personen.length; i++) {
+      if (gesehen.has(i) || !erfuellt(personen[i].qualifikationen, quali)) continue;
+      gesehen.add(i);
+      if (platzVon[i] === -1 || belege(platzVon[i], gesehen)) { platzVon[i] = platz; return true; }
     }
-    if (fehlt > 0) offen.push({ quali: a.quali, anzahl: fehlt });
-  }
-  return offen;
+    return false;
+  };
+  const fehlt = an.map(() => 0);
+  plaetze.forEach((nr, platz) => { if (!belege(platz, new Set())) fehlt[nr]++; });
+  return [...an.keys()].sort((x, y) => strenge(an[y].quali) - strenge(an[x].quali))
+    .filter((nr) => fehlt[nr] > 0).map((nr) => ({ quali: an[nr].quali, anzahl: fehlt[nr] }));
 }
 
 export interface Auswertung {
@@ -66,7 +72,13 @@ export function pruefe(p: PlanungDTO, alle: readonly PlanHelfer[]): Auswertung {
     const e = einheit.get(s.einheitId);
     if (!e) continue;
     const personen = (proSchicht.get(s.id) ?? []).map((k) => helfer.get(k)).filter((h): h is PlanHelfer => !!h);
-    const anzahl = (proSchicht.get(s.id) ?? []).length;
+    // Eine Einteilung, deren Person der Helfer-Abgleich gelöscht hat, besetzt keinen Platz — wie im
+    // Druck und in der Excel-Datei; sie wird als Klärungsfall gemeldet, ohne Personendaten.
+    const anzahl = personen.length;
+    const verwaist = (proSchicht.get(s.id) ?? []).length - anzahl;
+    if (verwaist > 0) {
+      konflikte.push({ art: "bestand", schichtIds: [s.id], text: `${e.name}, ${zeitspanne(s.von, s.bis)}: ${verwaist === 1 ? "eine Einteilung zeigt" : `${verwaist} Einteilungen zeigen`} auf eine Person, die das Helfer-Modul nicht mehr führt. Austragen und neu besetzen.` });
+    }
     soll += e.soll;
     ist += Math.min(anzahl, e.soll);
     const frei = Math.max(0, e.soll - anzahl);
@@ -85,6 +97,7 @@ export function pruefe(p: PlanungDTO, alle: readonly PlanHelfer[]): Auswertung {
     const s = schicht.get(z.schichtId);
     if (!s) continue;
     const k = schluessel(z.quelle, z.helferId);
+    if (!helfer.has(k)) continue;
     jeHelferSchichten.set(k, [...(jeHelferSchichten.get(k) ?? []), s]);
   }
   const dauer = new Map<string, number>();

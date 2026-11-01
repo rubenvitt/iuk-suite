@@ -82,7 +82,7 @@ export function HelferAnsicht({ p, a, helfer, neuTemp, bearbeiteTemp, entferneTe
 
 // ── Prüfen ─────────────────────────────────────────────────────────────────
 
-const ARTEN: readonly KonfliktArt[] = ["doppelt", "quali", "dienst"];
+const ARTEN: readonly KonfliktArt[] = ["doppelt", "quali", "dienst", "bestand"];
 
 export function PruefAnsicht({ p, a, zurSchicht }: { p: PlanungDTO; a: Auswertung; zurSchicht: (id: string) => void }) {
   const schicht = new Map(p.schichten.map((x) => [x.id, x]));

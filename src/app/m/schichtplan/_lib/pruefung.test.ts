@@ -24,6 +24,29 @@ describe("offeneAnforderungen", () => {
     expect(offeneAnforderungen(e, [helfer("a", RS)])).toEqual([{ quali: SAN, anzahl: 1 }]);
     expect(offeneAnforderungen(e, [helfer("a", RS), helfer("b", SAN)])).toEqual([]);
   });
+
+  it("findet die Zuteilung, auch wenn die erste Passende die falsche wäre", () => {
+    const e = einheit("e", 2, [{ quali: RS, anzahl: 1 }, { quali: C1, anzahl: 1 }]);
+    // a deckt RS und C1, b nur RS (mit mehr Einträgen): a muss auf C1, b auf RS.
+    expect(offeneAnforderungen(e, [helfer("a", RS, C1), helfer("b", RS, q("EH"), q("SanH"))])).toEqual([]);
+    expect(offeneAnforderungen(e, [helfer("a", RS, C1)])).toEqual([{ quali: C1, anzahl: 1 }]);
+  });
+});
+
+describe("pruefe: nicht mehr im Bestand", () => {
+  it("eine verwaiste Einteilung besetzt keinen Platz und wird gemeldet", () => {
+    const p = planung({
+      einheiten: [einheit("rtw", 2)],
+      schichten: [{ id: "s", einheitId: "rtw", von: T0, bis: T0 + 8 * STUNDE }],
+      zuordnungen: [{ schichtId: "s", quelle: "stamm", helferId: "a" }, { schichtId: "s", quelle: "stamm", helferId: "weg" }],
+    });
+    const a = pruefe(p, [helfer("a", SAN)]);
+    expect(a.ist).toBe(1);
+    expect(a.luecken).toEqual([{ schichtId: "s", fehlen: 1, braucht: [] }]);
+    expect(a.konflikte.map((k) => k.art)).toEqual(["bestand"]);
+    expect(a.konflikte[0].text).not.toContain("weg");
+    expect(a.jeHelfer.size).toBe(0);
+  });
 });
 
 describe("pruefe", () => {
