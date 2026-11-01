@@ -18,6 +18,11 @@ describe("Link zum Live-Lagemonitor", () => {
     expect(a?.getAttribute("aria-label")).toBe("Live-Lagemonitor öffnen (neuer Tab)");
   });
 
+  it("der Schrägstrich gehört zum Pfad, nicht hinter Query oder Fragment", async () => {
+    await mount(<ZumMonitor online="https://lagemonitor.example.org/monitor?ansicht=gross#oben" />);
+    expect(query("a[data-testid='zum-monitor']").getAttribute("href")).toBe("https://lagemonitor.example.org/monitor/?ansicht=gross#oben");
+  });
+
   it("ohne eingetragene Adresse gibt es keinen Link", async () => {
     await mount(<ZumMonitor online={null} />);
     expect(queryAll("[data-testid='zum-monitor']")).toHaveLength(0);

@@ -12,8 +12,10 @@ import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
  */
 export function ZumMonitor({ online }: { online: string | null }) {
   if (online === null) return null;
+  const ziel = new URL(online);
+  if (!ziel.pathname.endsWith("/")) ziel.pathname += "/";
   return (
-    <Button href={`${online}/`} target="_blank" rel="noopener noreferrer" icon={<Icons8Ikone name="monitor" groesse={16} />} aria-label="Live-Lagemonitor öffnen (neuer Tab)" data-testid="zum-monitor">
+    <Button href={ziel.toString()} target="_blank" rel="noopener noreferrer" icon={<Icons8Ikone name="monitor" groesse={16} />} aria-label="Live-Lagemonitor öffnen (neuer Tab)" data-testid="zum-monitor">
       Live-Lagemonitor öffnen
     </Button>
   );
