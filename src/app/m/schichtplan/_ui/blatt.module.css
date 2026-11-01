@@ -11,11 +11,13 @@
 .knopf { position: fixed; top: 16px; right: 16px; }
 .druckSeite { padding: 24px 16px; background: #eef0f1; min-height: 100dvh; }
 
-@page { size: 210mm 297mm; margin: 0; }
+/* Benannt (Falle 18): Next legt CSS-Module routenübergreifend in gemeinsame Chunks, eine unbenannte
+   @page-Regel träfe dann auch fremde Druckseiten (gemessen am Lagerbuch-Etikettenbogen). */
+@page schichtblatt { size: 210mm 297mm; margin: 0; }
 @media print {
   .knopf { display: none; }
   .druckSeite { padding: 0; background: #fff; }
   .blaetter { gap: 0; display: block; }
-  .papier { width: 210mm; min-height: 297mm; box-shadow: none; break-after: page; }
+  .papier { page: schichtblatt; width: 210mm; min-height: 297mm; box-shadow: none; break-after: page; }
   .papier:last-child { break-after: auto; }
 }
