@@ -13,7 +13,7 @@ type EnvLike = Record<string, string | undefined>;
 /**
  * Angemeldet ist nur die Leitung (`SUITE_ADMIN_GROUP_GEMEINSCHAFT`, Vorgabe `gemeinschaft-admin`; der
  * Suite-Admin zählt nach `isModuleAdmin` mit). Mitglieder haben kein Konto, sie kommen über ihren
- * persönlichen Link (`_lib/mitgliedLink.ts`); Bar-Anfragen gehen ohne Anmeldung.
+ * persönlichen Link (`_lib/meinLink.ts`); Bar-Anfragen gehen ohne Anmeldung.
  */
 export function istLeitung(groups: readonly string[] | null | undefined, env: EnvLike = process.env): boolean {
   return isModuleAdmin(getModule("gemeinschaft"), groups ? [...groups] : null, env);

@@ -383,4 +383,6 @@ export function verwaltungsGruppenFor(
 export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[] = [
   { modul: "kommplan", muster: /^\/m\/kommplan\/t\/[^/]/ },
   { modul: "helfer", muster: /^\/m\/helfer(\/|$)/ },
+  // gemeinschaft: persönlicher Link eines Mitglieds und Statusseite einer Bar-Anfrage — der Code im Pfad ist der Zugang.
+  { modul: "gemeinschaft", muster: /^\/m\/gemeinschaft\/(mein|status)\/[^/]/ },
 ];

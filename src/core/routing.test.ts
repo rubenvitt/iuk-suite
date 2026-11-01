@@ -222,8 +222,13 @@ describe("antwortKoepfeFuer — vertrauliche Ansichten (kommplan Phase 5, Entsch
       expect(antwortKoepfeFuer(p), p).toEqual({ "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer", "cache-control": "no-store" });
     }
   });
+  it("gemeinschaft: persönlicher Link und Statusseite einer Bar-Anfrage (IDA-320, IDA-315)", () => {
+    for (const p of ["/m/gemeinschaft/mein/AbCdEfGhIjKlMnOpQrStUv", "/m/gemeinschaft/status/AbCdEfGhIjKlMnOpQrStUv"]) {
+      expect(antwortKoepfeFuer(p), p).toEqual({ "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer", "cache-control": "no-store" });
+    }
+  });
   it("nichts sonst — auch nicht die /t/-Pfade anderer Module oder die Arbeitsrouten", () => {
-    for (const p of ["/m/kommplan", "/m/kommplan/p/abc", "/m/kommplan/tt/abc", "/m/lagerbuch/t/abc", "/m/radio/t/abc", "/t/abc", "/m/kommplan/t", "/m/helferlein", "/m/einsatzbuch"]) {
+    for (const p of ["/m/kommplan", "/m/gemeinschaft", "/m/gemeinschaft/bar", "/m/gemeinschaft/mitglieder", "/m/gemeinschaft/mein", "/m/kommplan/p/abc", "/m/kommplan/tt/abc", "/m/lagerbuch/t/abc", "/m/radio/t/abc", "/t/abc", "/m/kommplan/t", "/m/helferlein", "/m/einsatzbuch"]) {
       expect(antwortKoepfeFuer(p), p).toBeNull();
     }
   });
