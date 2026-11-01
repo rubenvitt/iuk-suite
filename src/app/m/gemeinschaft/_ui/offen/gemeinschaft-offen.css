@@ -188,7 +188,7 @@
 
 /*
  * Zustaende tragen Text plus Symbol; die Farbe ist die verzichtbare letzte
- * Schicht (`docs/design/README.md:133-141`).
+ * Schicht (`docs/design/README.md`, „Barrierefreiheit“).
  */
 .go-zustand {
   font-size: 13px;
@@ -289,11 +289,11 @@
 
 /*
  * 767.98px und nicht 768: bei exakt 768px gelten sonst beide Seiten und die
- * Reihenfolge im Stylesheet entscheidet (`docs/design/README.md:193-197`).
+ * Reihenfolge im Stylesheet entscheidet (`docs/design/README.md`, „Mobil — ein Breakpoint“).
  */
 @media (max-width: 767.98px) {
   /* Ein 630px breiter Knopf liest sich als Flaeche, nicht als Ziel — deshalb
-     untereinander und volle Breite (`docs/design/README.md:189-190`). */
+     untereinander und volle Breite (`docs/design/README.md`, „Mobil — ein Breakpoint“). */
   .go-knopfzeile {
     flex-direction: column;
   }

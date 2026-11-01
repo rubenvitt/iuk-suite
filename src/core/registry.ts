@@ -239,7 +239,7 @@ export const MODULES: ModuleDef[] = [
   // Bar (IDA-315). requiresAuth: false, weil drei Teile ohne Anmeldung gehen: Bar anfragen (`/bar`), Statusseite
   // einer Anfrage (`/status/<code>`) und der persönliche Link eines Mitglieds (`/mein/<link>`) — Mitglieder haben
   // bewusst kein Konto. Die Leitung riegelt `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).
-  { key: "gemeinschaft", title: "Gemeinschaft", icon: "people", shell: "full",
+  { key: "gemeinschaft", title: "Gemeinschaft", icon: "meeting", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["gemeinschaft-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
