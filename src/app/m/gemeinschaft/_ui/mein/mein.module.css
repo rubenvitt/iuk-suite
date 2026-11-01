@@ -1,0 +1,200 @@
+/*
+ * Der persönliche Link eines Mitglieds (`/mein/<link>`), Vorlage POC `MeineSeite` und Screenshot
+ * `mitglied-link-mobil.png`. Ergänzt `_ui/offen/gemeinschaft-offen.css` (Klassen `.go-*`, Farben `--go-*` mit
+ * Dunkelzweig) — hier keine eigenen Farbwerte, kein `--ant-*` (Falle 2). Trefferflächen mindestens 44px.
+ */
+
+.lead {
+  margin: 8px 0 20px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--go-gedaempft);
+}
+
+.karte {
+  background: var(--go-blatt);
+  border: 1px solid var(--go-linie);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.karte h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+/* Hinweis als Text plus 3px linke Kante in Tinte, keine Farbfläche. */
+.hinweis {
+  font-size: 15px;
+  line-height: 1.5;
+  border-left: 3px solid var(--go-tinte);
+}
+
+.leise {
+  margin: 0;
+  font-size: 15px;
+  color: var(--go-gedaempft);
+}
+
+.liste {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.liste li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--go-linie);
+}
+
+.liste li:first-child {
+  border-top: 0;
+}
+
+.text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.neben {
+  color: var(--go-gedaempft);
+  font-size: 14px;
+}
+
+.dringend {
+  color: var(--go-hinweis);
+  font-weight: 600;
+}
+
+.erledigt .text b {
+  text-decoration: line-through;
+  color: var(--go-gedaempft);
+}
+
+/* Der große Haken: 48px, das Ziel der Seite. Leer = offen, gefüllt in `--go-ok` mit Zeichen = erledigt. */
+.haken {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  border: 2px solid var(--go-linie-stark);
+  background: var(--go-blatt);
+  color: var(--go-blatt);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.haken:hover {
+  border-color: var(--go-tinte);
+}
+
+.hakenAn {
+  background: var(--go-ok);
+  border-color: var(--go-ok);
+}
+
+.linkKnopf {
+  background: none;
+  border: 0;
+  padding: 0 4px;
+  min-height: 44px;
+  color: var(--go-tinte);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  justify-self: start;
+}
+
+.linkKnopfKlein {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--go-gedaempft);
+  padding: 0;
+}
+
+.knopfZweit {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid var(--go-linie-stark);
+  background: var(--go-blatt);
+  color: var(--go-tinte);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.haken:disabled,
+.linkKnopf:disabled,
+.knopfZweit:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.datum {
+  flex: none;
+  width: 48px;
+  border: 1px solid var(--go-linie);
+  border-radius: 8px;
+  display: grid;
+  justify-items: center;
+  padding: 4px 0;
+  line-height: 1.1;
+}
+
+.datum span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--go-gedaempft);
+}
+
+.datum b {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* Das Datum des Datumsblocks für Hilfstechnik als ein Satz; der Block selbst ist `aria-hidden`. */
+.vorlesen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dabei {
+  color: var(--go-ok);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.datenschutz {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--go-gedaempft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .haken {
+    transition-duration: 1ms;
+  }
+}

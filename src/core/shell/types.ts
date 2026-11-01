@@ -95,7 +95,13 @@ export type NavIkonName =
   // IDA-298: die gemeldeten Mängel des Lagerbuchs. KEIN geliehener Name — `checks` meint die
   // Prüfung einer Einheit, `pruefen` ihre Durchführung; ein Mangel ist eine Meldung, die jemand
   // beheben muss. Der Schraubenschlüssel trägt das Beheben.
-  | "maengel";
+  | "maengel"
+  // IDA-320: die Leitung der Gemeinschaft. KEINE geliehenen Namen — `journal` (history) meint
+  // vergangene Buchungen, `kalender` die kommenden Termine; `events` sind Termine mit Datum,
+  // `projekte` laufen über Wochen ohne festen Tag (die Mappe trägt das Sammeln von Aufgaben).
+  // Für die Vermietung der Bar: `belegung` (Uhr: wann ist der Raum vergeben), `anfragen`
+  // (Eingang: was wartet auf eine Entscheidung), `sperrzeiten` (Verbot: hier geht nichts).
+  | "kalender" | "events" | "projekte" | "belegung" | "anfragen" | "sperrzeiten";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

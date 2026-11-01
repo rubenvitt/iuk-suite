@@ -1,0 +1,36 @@
+/*
+ * Mitgliederliste der Leitung. Eigenes Markup nur mit `--iuk-*` (Falle 2: `--ant-*` sieht es nicht).
+ */
+
+.neben {
+  color: var(--iuk-gedaempft);
+}
+
+/* Neutrales Kennzeichen „verantwortlich“: Kontur und Text, keine Farbe mit Bedeutung. */
+.kennzeichen {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--iuk-gedaempft);
+  white-space: nowrap;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+}
+
+.felder {
+  display: grid;
+  gap: 4px;
+}

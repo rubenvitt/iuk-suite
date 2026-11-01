@@ -207,6 +207,15 @@ const SCHICHTPLAN = modulZeichen(
 );
 
 /**
+ * Gemeinschaft: drei Köpfe an einem langen Tisch — die Helfergruppe, die zusammen plant und feiert.
+ */
+const GEMEINSCHAFT = modulZeichen(
+  "Gemeinschaft",
+  `<g class="t"><circle cx="12" cy="37" r="6"/><circle cx="29" cy="33" r="6.5"/><circle cx="46" cy="37" r="6"/>` +
+    `<rect x="3" y="47" width="52" height="9" rx="4.5"/><rect x="9" y="54" width="5" height="8" rx="2"/><rect x="44" y="54" width="5" height="8" rx="2"/></g>`,
+);
+
+/**
  * Unterkunft: ein Zelt mit ausgesparter Tür, die unteren Ecken gerundet.
  */
 const UNTERKUNFT = modulZeichen(
@@ -234,6 +243,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   helfer: HELFER,
   lagemonitor: LAGEMONITOR,
   schichtplan: SCHICHTPLAN,
+  gemeinschaft: GEMEINSCHAFT,
   unterkunft: UNTERKUNFT,
 };
 

@@ -1,0 +1,149 @@
+/* Planung der Gemeinschaft (IDA-320): Übersicht, Kalender, Events, Projekte, Detailseite.
+   `.modul` trägt die Tokens (Falle 2: `--ant-*` ist nicht global); `.tokens` hängt zusätzlich am `body`
+   (`useTokensAmBody`), weil Schubladen und Auswahllisten in ein Portal außerhalb von `.modul` rendern.
+   Ampel aus dem Farbvokabular der Arbeitsflächen (`lagerbuch/_ui/verwaltung.module.css`); Rot gibt es hier
+   nicht (Falle 3), Fortschritt ist Graphit. Jede Farbe hat ihr Gegenstück im Dunkelmodus. */
+.modul, .tokens {
+  --gp-karte: #ffffff;
+  --gp-papier: #eef0f1;
+  --gp-tinte: #1a1d20;
+  --gp-ok-text: #1e7a3c;
+  --gp-ok-flaeche: #e4f2e9;
+  --gp-ok-linie: #9fcfae;
+  --gp-gelb-text: #8a5200;
+  --gp-gelb-kante: #b26a00;
+  --gp-gelb-flaeche: #fbf1dc;
+  --gp-gelb-linie: #e6c98f;
+  --gp-grau-text: #5b6570;
+  --gp-grau-flaeche: #e7eaec;
+  --gp-graphit: #3c434a;
+  --gp-event-flaeche: #e8ecf2;
+  --gp-event-linie: #b9c3d0;
+  --gp-event-kante: #1a1d20;
+  --gp-sperre-a: #e3e6e8;
+  --gp-sperre-b: #f4f5f6;
+  --gp-sperre-linie: #c4c9ce;
+}
+:root[data-theme="dark"] .modul, :root[data-theme="dark"] .tokens {
+  --gp-karte: #141414;
+  --gp-papier: #1c2024;
+  --gp-tinte: #e6e8ea;
+  --gp-ok-text: #7ee0a0;
+  --gp-ok-flaeche: #10261a;
+  --gp-ok-linie: #2d5a3c;
+  --gp-gelb-text: #d9a032;
+  --gp-gelb-kante: #d9a032;
+  --gp-gelb-flaeche: #2a1e05;
+  --gp-gelb-linie: #5e4610;
+  --gp-grau-text: #9aa4ad;
+  --gp-grau-flaeche: #1c2024;
+  --gp-graphit: #c9d1d8;
+  --gp-event-flaeche: #1a2230;
+  --gp-event-linie: #3a4656;
+  --gp-event-kante: #c9d1db;
+  --gp-sperre-a: #24282c;
+  --gp-sperre-b: #181b1e;
+  --gp-sperre-linie: #3c4349;
+}
+.modul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+
+.neben { font-size: 13px; color: var(--iuk-gedaempft); }
+.warnText { color: var(--gp-gelb-text); }
+.zeile { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.zweiSpalten { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
+
+/* Chips: Fläche und Text als Paar, nie antds Tag-Vorgabe. */
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.chip.ok { color: var(--gp-ok-text); background: var(--gp-ok-flaeche); }
+.chip.gelb { color: var(--gp-gelb-text); background: var(--gp-gelb-flaeche); }
+.chip.grau { color: var(--gp-grau-text); background: var(--gp-grau-flaeche); }
+.chip.projekt { color: var(--gp-grau-text); background: transparent; border: 1px dashed var(--gp-grau-text); line-height: 18px; }
+
+/* KPI-Kachel: 4px Kante in der Ampelfarbe, sonst neutral. Die Kachel ist ein Link (44px Tapfläche). */
+.kacheln { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.kachel { display: grid; gap: 2px; min-height: 44px; background: var(--gp-karte); border: 1px solid var(--iuk-linie); border-inline-start: 4px solid var(--gp-grau-text); border-radius: 8px; padding: 12px 16px; color: inherit; text-decoration: none; }
+.kachel:hover, .kachel:focus-visible { border-color: var(--gp-grau-text); }
+.kachel:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px; }
+.kachel.warn { border-inline-start-color: var(--gp-gelb-kante); }
+.kachelZahl { font-family: var(--font-display); font-size: 34px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.kachelText { font-size: 14px; color: var(--iuk-gedaempft); }
+
+/* Listenzeilen der Übersicht. */
+.liste { display: grid; }
+.terminZeile, .lueckeZeile { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 0; border-top: 1px solid var(--iuk-linie); color: inherit; text-decoration: none; }
+.terminZeile:first-child, .lueckeZeile:first-child { border-top: 0; }
+.terminZeile:hover .terminTitel, .lueckeZeile:hover .terminTitel { text-decoration: underline; }
+.terminText { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.terminTitel { font-weight: 600; }
+
+.datumsblock { flex: none; width: 48px; border: 1px solid var(--iuk-linie); border-radius: 8px; display: grid; justify-items: center; padding: 4px 0; background: var(--gp-karte); line-height: 1.1; }
+.datumsblock span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--iuk-gedaempft); }
+.datumsblock b { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+
+/* Karten der Listen. */
+.karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; }
+.karten.eng { grid-template-columns: minmax(0, 1fr); }
+.vorhabenKarte { display: flex; gap: 14px; align-items: flex-start; background: var(--gp-karte); border: 1px solid var(--iuk-linie); border-radius: 8px; padding: 14px 16px; color: inherit; text-decoration: none; }
+.vorhabenKarte:hover { border-color: var(--gp-grau-text); }
+.vorhabenKarte:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 2px; }
+.vorhabenKarte.vorbei { opacity: .75; }
+.vkText { flex: 1; display: grid; gap: 4px; min-width: 0; }
+.vkTitel { font-size: 16px; font-weight: 600; }
+.vkFuss { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: 4px; }
+.projektZeichen { flex: none; width: 48px; height: 48px; border-radius: 8px; background: var(--gp-papier); display: grid; place-items: center; color: var(--iuk-gedaempft); }
+
+.person { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.kreis { width: 30px; height: 30px; border-radius: 50%; background: var(--gp-grau-flaeche); display: inline-grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
+
+/* Detailseite. */
+.kopfChips { display: flex; gap: 6px; margin-bottom: 6px; }
+.fakten { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 24px; }
+.fakten > div { display: grid; gap: 2px; align-content: start; }
+.aufgaben { display: grid; }
+.aufgabe { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(200px, 300px) auto; gap: 4px 12px; align-items: center; border-top: 1px solid var(--iuk-linie); padding: 6px 0; }
+.aufgabe:first-child { border-top: 0; }
+.aText { display: grid; gap: 1px; min-width: 0; }
+.aufgabe.erledigt .aTitel { text-decoration: line-through; color: var(--iuk-gedaempft); }
+.nochNiemand { color: var(--gp-gelb-text); }
+.neueAufgabe { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--iuk-linie); }
+.beteiligt { display: grid; gap: 10px; }
+.beteiligtZeile { display: grid; gap: 2px; }
+.beteiligtZeile .neben { margin-inline-start: 38px; }
+.kartenKopf { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Formular im Flyin. */
+.formular { display: grid; gap: 16px; }
+.feld { display: grid; gap: 6px; }
+.feldTitel { font-weight: 600; font-size: 14px; }
+.feldFehler { font-size: 13px; color: var(--gp-gelb-text); }
+.schalterZeile { display: flex; gap: 12px; align-items: flex-start; }
+.konflikt { border-inline-start: 3px solid var(--gp-gelb-kante); background: var(--gp-gelb-flaeche); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 14px; display: grid; gap: 2px; }
+.knoepfe { display: flex; gap: 8px; flex-wrap: wrap; }
+.zweiFelder { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; }
+
+/* Kalender: Einträge und Legende. Bedeutung nie allein über Farbe — die Legende nennt sie, der Titel steht dabei. */
+.legende { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--iuk-gedaempft); align-items: center; }
+.muster { display: inline-block; width: 22px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-inline-end: 6px; border: 1px solid; border-inline-start-width: 3px; }
+.eintrag { display: block; width: 100%; text-align: start; font-size: 12px; line-height: 1.3; border-radius: 4px; padding: 2px 6px; margin-bottom: 3px; border: 1px solid; border-inline-start-width: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--gp-tinte); text-decoration: none; }
+.eintrag:hover { text-decoration: underline; color: var(--gp-tinte); }
+.eintrag:focus-visible { outline: 2px solid var(--iuk-marke); outline-offset: 1px; }
+.event { background: var(--gp-event-flaeche); border-color: var(--gp-event-linie); border-inline-start-color: var(--gp-event-kante); }
+.zugesagt { background: var(--gp-ok-flaeche); border-color: var(--gp-ok-linie); border-inline-start-color: var(--gp-ok-text); }
+.angefragt { background: var(--gp-gelb-flaeche); border-color: var(--gp-gelb-linie); border-inline-start-color: var(--gp-gelb-kante); border-style: dashed solid dashed solid; }
+.gesperrt { background: repeating-linear-gradient(135deg, var(--gp-sperre-a) 0 4px, var(--gp-sperre-b) 4px 8px); border-color: var(--gp-sperre-linie); border-inline-start-color: var(--gp-grau-text); }
+.kalenderKopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 12px; }
+.kalenderMonat { font-family: var(--font-display); font-size: 22px; font-weight: 600; min-width: 10ch; }
+.kalenderZelle { display: grid; }
+.punktReihe { display: none; gap: 3px; flex-wrap: wrap; }
+.punkt { width: 8px; height: 8px; border-radius: 50%; border: 1px solid; border-inline-start-width: 1px; }
+.tagesliste { display: grid; gap: 8px; }
+.tagesliste .eintrag { font-size: 14px; padding: 8px 10px; white-space: normal; min-height: 44px; margin: 0; }
+
+@media (max-width: 767.98px) {
+  .aufgabe { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .aWer { grid-column: 2 / 4; grid-row: 2; }
+  .neueAufgabe { grid-template-columns: minmax(0, 1fr); }
+  /* Im schmalen Raster ist kein Platz für Titel: nur Punkte, die Tagesliste darunter nennt alles. */
+  .kalenderZelle .eintrag { display: none; }
+  .punktReihe { display: flex; }
+}
