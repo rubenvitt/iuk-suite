@@ -35,4 +35,6 @@ aus Lifeline Hub übernimmt IDA-323, sobald LLH-1520 sie angelegt hat.
 
 Das Modul ist für die Übergangszeit gedacht. Rückbau: Eintrag in `core/registry.ts`, Ordner
 `src/app/m/unterkunft`, Zeichen in `core/favicon/zeichen.ts` (danach `scripts/app-icon-generat.ts`),
-Zeile in `.env.example`, e2e-Spec samt Eintrag in `e2e/gruppen.json`; die Release-Notiz bleibt.
+Zeile in `.env.example`, e2e-Spec samt Eintrag in `e2e/gruppen.json`, `unterkunft` in der erwarteten
+Modulliste von `core/shell/launcherEintraege.test.ts` und das Zeichen `tent` in `core/ikonen/katalog.ts`,
+sofern es sonst niemand nutzt; die Release-Notiz bleibt.

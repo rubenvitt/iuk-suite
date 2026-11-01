@@ -235,15 +235,15 @@ export const MODULES: ModuleDef[] = [
   { key: "schichtplan", title: "Schichtplanung", icon: "calendar", shell: "full",
     requiresAuth: true, requiredGroups: ["schichtplan-nutzer", "schichtplan-admin"], adminGroups: ["schichtplan-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
-  // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
-  // seine Einstellungen mit eigenem Schlüssel unter `api/konfiguration` abholt; die Seiten riegelt
-  // `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).
   // unterkunft: Rechner für Unterkunft und Zelte von Betroffenen (IDA-322), vorübergehend neben Lifeline Hub
   // (dort LLH-1520). Rechnet nur im Browser, ohne Datenbank und ohne Endpunkt, liest und schreibt keine
   // Einsatzdaten — deshalb jeder Angemeldete, keine eigene Gruppe.
   { key: "unterkunft", title: "Unterkunftsrechner", icon: "tent", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
+  // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
+  // seine Einstellungen mit eigenem Schlüssel unter `api/konfiguration` abholt; die Seiten riegelt
+  // `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).
   { key: "lagemonitor", title: "Lagemonitor", icon: "monitor", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["lagemonitor-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },

@@ -11,6 +11,8 @@ import s from "./unterkunft.module.css";
 
 const ZAHL = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 const z = (x: number | null | undefined) => (x == null ? "–" : ZAHL.format(x));
+/** Zeltmaße mit zwei Stellen: 5,64 m darf nicht als 5,6 m erscheinen, die Rechnung nutzt 5,64. */
+const MASS = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 });
 const TYPEN = RICHTWERTE.zelte.typen.map((t) => t.typ);
 const leererBestand = (): Zeltbestand => Object.fromEntries(TYPEN.map((t) => [t, 0]));
 
@@ -339,7 +341,7 @@ function richtwertZeilen(): RichtwertZeile[] {
     zeilen.push({
       key: `zelt-${t.typ}`,
       groesse: `Zelt ${t.typ}`,
-      wert: `${t.schlafplaetze} Feldbetten · ${t.garnituren} Garnituren · ${z(t.laenge_m)} × ${z(t.breite_m)} m`,
+      wert: `${t.schlafplaetze} Feldbetten · ${t.garnituren} Garnituren · ${MASS.format(t.laenge_m)} × ${MASS.format(t.breite_m)} m`,
       herkunft: RICHTWERTE.zelte.herkunft,
       quelle: `${RICHTWERTE.zelte.quelle} · ${RICHTWERTE.zelte.bezug}`,
     });

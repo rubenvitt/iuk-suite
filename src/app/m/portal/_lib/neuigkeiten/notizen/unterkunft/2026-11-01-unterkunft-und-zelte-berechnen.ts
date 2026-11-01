@@ -8,10 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Unterkunft und Zelte berechnen",
   inhalt: [
     absatz(
-      "In der neuen App Unterkunftsrechner gibst du Personen, Räume, Fläche oder einen Zeltbestand ein und siehst sofort, was für die Unterbringung gebraucht wird: Feldbetten, Zelte, Toiletten, Wasser, Krankenbetten und Biergarnituren.",
-    ),
-    absatz(
-      "Unter Richtwerte steht zu jedem Wert, woher er kommt; Werte ohne Quelle sind als Annahme markiert.",
+      "In der neuen App Unterkunftsrechner gibst du Personen, Räume, Fläche oder einen Zeltbestand ein und siehst sofort, was die Unterbringung braucht: Feldbetten, Zelte, Toiletten, Wasser, Krankenbetten und Biergarnituren. Unter Richtwerte steht zu jedem Wert, woher er kommt; Werte ohne Quelle sind als Annahme markiert.",
     ),
   ],
 };
