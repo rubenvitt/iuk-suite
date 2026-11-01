@@ -561,6 +561,40 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "schichtplan": {
+    "planung": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "einheit": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "schicht": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "temp_helfer": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "zuordnung": {
+      "mode": "audited",
+      "primaryKey": [
+        "schicht_id",
+        "quelle",
+        "helfer_id"
+      ]
+    }
+  },
   "lagemonitor": {
     "lagemonitor_anzeige": {
       "mode": "audited",

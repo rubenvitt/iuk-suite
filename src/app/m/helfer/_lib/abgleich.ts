@@ -12,7 +12,7 @@ import { nanoid } from "nanoid";
 import type { HelferDb } from "../_db/client";
 import { helfer, importlauf } from "../_db/schema";
 import { AUSSCHLUSSGRUENDE, ausschlussgrund, type Ausschlussgrund, type Importfilter } from "./filter";
-import type { Qualifikation, QuellPerson } from "./hiorg/person";
+import { fahrerlaubnisklassen, type Qualifikation, type QuellPerson } from "./hiorg/person";
 import type { Quelle } from "./einstellungen";
 
 export type Abgleichklasse = "neu" | "geaendert" | "unveraendert" | "entfaellt";
@@ -24,6 +24,7 @@ export interface Abgleichzeile {
   status: string;
   gruppen: string[];
   qualifikationen: Qualifikation[];
+  fahrerlaubnis: string[];
   klasse: Abgleichklasse;
   /** Die eigene Kennung, wenn die Person schon im Bestand ist. */
   id: string | null;
@@ -44,11 +45,12 @@ export interface Abgleichplan {
 }
 
 /** Stabile Reihenfolge, damit eine bloß umsortierte Antwort nicht als Änderung zählt. */
-function kanonisch(p: Pick<QuellPerson, "gruppen" | "qualifikationen">): { gruppen: string[]; qualifikationen: Qualifikation[] } {
+function kanonisch(p: Pick<QuellPerson, "gruppen" | "qualifikationen" | "fahrerlaubnis">): { gruppen: string[]; qualifikationen: Qualifikation[]; fahrerlaubnis: string[] } {
   const de = (a: string, b: string) => a.localeCompare(b, "de");
   return {
     gruppen: [...p.gruppen].sort(de),
     qualifikationen: [...p.qualifikationen].sort((a, b) => de(a.liste, b.liste) || de(a.name, b.name) || de(a.kurz, b.kurz)),
+    fahrerlaubnis: fahrerlaubnisklassen(p.fahrerlaubnis),
   };
 }
 
@@ -85,6 +87,7 @@ export function planeAbgleich(
     const klasse: Abgleichklasse = !alt ? "neu"
       : alt.vorname !== p.vorname || alt.nachname !== p.nachname || alt.status !== p.status
         || alt.gruppen !== JSON.stringify(k.gruppen) || alt.qualifikationen !== JSON.stringify(k.qualifikationen)
+        || alt.fahrerlaubnis !== JSON.stringify(k.fahrerlaubnis)
         ? "geaendert" : "unveraendert";
     zeilen.push({ quellId: p.quellId, vorname: p.vorname, nachname: p.nachname, status: p.status, ...k, klasse, id: alt?.id ?? null });
   }
@@ -94,6 +97,7 @@ export function planeAbgleich(
     zeilen.push({
       quellId: b.quellId, vorname: b.vorname, nachname: b.nachname, status: b.status,
       gruppen: JSON.parse(b.gruppen) as string[], qualifikationen: JSON.parse(b.qualifikationen) as Qualifikation[],
+      fahrerlaubnis: JSON.parse(b.fahrerlaubnis) as string[],
       klasse: "entfaellt", id: b.id,
     });
   }
@@ -130,6 +134,7 @@ export function wendeAbgleichAn(
       const werte = {
         vorname: z.vorname, nachname: z.nachname, status: z.status,
         gruppen: JSON.stringify(z.gruppen), qualifikationen: JSON.stringify(z.qualifikationen),
+        fahrerlaubnis: JSON.stringify(z.fahrerlaubnis),
       };
       if (z.klasse === "neu") {
         tx.insert(helfer).values({

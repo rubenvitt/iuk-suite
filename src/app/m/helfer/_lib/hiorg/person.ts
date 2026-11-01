@@ -40,6 +40,11 @@ export interface QuellPerson {
   austritt: string | null;
   gruppen: string[];
   qualifikationen: Qualifikation[];
+  /**
+   * Nur die Fahrerlaubnisklassen (`B`, `C1` …), sortiert und ohne Dopplung — nie Nummer, Datum oder
+   * Beschränkung (IDA-313). Die Excel-Datei kennt keine Spalte dafür; fehlt der Wert, gilt `[]`.
+   */
+  fahrerlaubnis?: string[];
 }
 
 const text = (max: number) => z.string().trim().max(max);
@@ -61,6 +66,8 @@ const personSchema = z.object({
     austritt_datum: z.string().nullish().catch(null),
     gruppen_namen: z.array(text(80)).max(200).catch([]),
     qualifikationen: z.array(qualifikationSchema.nullable().catch(null)).max(200).catch([]),
+    // Aus `fahrerlaubnis` nur `klassen`; Nummer, Datum und Beschränkung verwirft `z.object` (strip).
+    fahrerlaubnis: z.object({ klassen: z.array(text(10).catch("")).max(40).catch([]) }).nullish().catch(null),
   }),
 });
 
@@ -68,6 +75,12 @@ const antwortSchema = z.object({
   data: z.array(z.unknown()).max(20_000),
   links: z.object({ next: z.string().url().nullish() }).nullish().catch(null),
 });
+
+/** `c1 `, `C1`, `b` → `B`, `C1` — großgeschrieben, ohne Leere und Dopplung, sortiert. */
+export function fahrerlaubnisklassen(roh: readonly string[] | null | undefined): string[] {
+  const klassen = new Set((roh ?? []).map((k) => k.trim().toUpperCase()).filter((k) => /^[A-Z0-9]{1,6}$/.test(k)));
+  return [...klassen].sort((a, b) => a.localeCompare(b, "de"));
+}
 
 /** `01.01.2000`, `2000-01-01` oder `2000-01-01T…` → `2000-01-01`; leer oder unlesbar → `null`. */
 export function datumAlsIso(roh: string | null | undefined): string | null {
@@ -112,6 +125,7 @@ export function lesePersonal(json: unknown): Personalseite {
       qualifikationen: a.qualifikationen
         .filter((q): q is z.infer<typeof qualifikationSchema> => q !== null && q.name !== "")
         .map((q) => ({ liste: q.liste, name: q.name, kurz: q.name_kurz })),
+      fahrerlaubnis: fahrerlaubnisklassen(a.fahrerlaubnis?.klassen),
     });
   }
   return { ok: true, personen, unlesbar, weiter: antwort.data.links?.next ?? null };

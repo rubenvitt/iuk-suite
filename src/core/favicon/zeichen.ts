@@ -196,6 +196,17 @@ const HELFER = modulZeichen(
 );
 
 /**
+ * Schichtplan: Kalenderblatt mit zwei Ringen, ausgespart drei versetzte Schichtbalken wie im Raster.
+ */
+const SCHICHTPLAN = modulZeichen(
+  "Schichtplanung",
+  `<mask id="s"><rect width="64" height="64" fill="#fff"/>` +
+    `<rect x="9" y="37" width="17" height="5" rx="2.5"/><rect x="20" y="45" width="20" height="5" rx="2.5"/><rect x="9" y="53" width="14" height="5" rx="2.5"/></mask>` +
+    `<rect class="t" mask="url(#s)" x="4" y="28" width="42" height="34" rx="5"/>` +
+    `<rect class="t" x="12" y="23" width="5" height="9" rx="2.5"/><rect class="t" x="30" y="23" width="5" height="9" rx="2.5"/>`,
+);
+
+/**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
@@ -213,6 +224,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   fahrzeuge: FAHRZEUGE,
   helfer: HELFER,
   lagemonitor: LAGEMONITOR,
+  schichtplan: SCHICHTPLAN,
 };
 
 /** Die Favicons als fertige SVG-Dateien, gefärbt mit Hell/Dunkel-Umschaltung. */

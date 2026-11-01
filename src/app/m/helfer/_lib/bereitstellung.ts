@@ -14,6 +14,9 @@
  *
  * Wer hier ein Feld ergänzt, prüft zuerst, ob das Einsatzbuch es wirklich braucht;
  * `bereitstellung.test.ts` hält die Feldliste fest.
+ *
+ * Zweiter Empfänger ist die Schichtplanung (`helferFuerSchichtplanung`, IDA-313): ALLE übernommenen
+ * Helfer, denn die Freigabe gilt nur fürs Einsatzbuch, und zusätzlich die Fahrerlaubnisklassen.
  */
 import { desc, eq } from "drizzle-orm";
 import { getDb, type HelferDb } from "../_db/client";
@@ -34,25 +37,52 @@ export interface Bereitstellung {
   stand: string | null;
 }
 
+function json<T>(roh: string, ersatz: T): T {
+  try {
+    return JSON.parse(roh) as T;
+  } catch {
+    // Ein unlesbarer Wert heißt hier „nichts“: das Einsatzbuch übernimmt die Person dann nicht.
+    return ersatz;
+  }
+}
+
+function stand(db: HelferDb): string | null {
+  const letzter = db.select({ zeitpunkt: importlauf.zeitpunkt }).from(importlauf).orderBy(desc(importlauf.zeitpunkt)).limit(1).get();
+  return letzter?.zeitpunkt.toISOString() ?? null;
+}
+
 export function bereitgestellteHelfer(db: HelferDb = getDb()): Bereitstellung {
   const zeilen = db.select({
     id: helfer.id, vorname: helfer.vorname, nachname: helfer.nachname, qualifikationen: helfer.qualifikationen, herkunft: helfer.herkunft,
   }).from(helfer).where(eq(helfer.fuerEinsatzbuch, true)).all();
-  const letzter = db.select({ zeitpunkt: importlauf.zeitpunkt }).from(importlauf).orderBy(desc(importlauf.zeitpunkt)).limit(1).get();
   return {
-    stand: letzter?.zeitpunkt.toISOString() ?? null,
-    helfer: zeilen.map((z) => {
-      let qualifikationen: Qualifikation[] = [];
-      try {
-        qualifikationen = JSON.parse(z.qualifikationen) as Qualifikation[];
-      } catch {
-        // Ein unlesbarer Wert heißt hier „keine Qualifikation“: das Einsatzbuch übernimmt die Person dann nicht.
-      }
-      return {
-        id: z.id, vorname: z.vorname, nachname: z.nachname,
-        qualifikationen: qualifikationen.map((q) => ({ name: q.name, kurz: q.kurz })),
-        demo: z.herkunft === "demo",
-      };
-    }),
+    stand: stand(db),
+    helfer: zeilen.map((z) => ({
+      id: z.id, vorname: z.vorname, nachname: z.nachname,
+      qualifikationen: json<Qualifikation[]>(z.qualifikationen, []).map((q) => ({ name: q.name, kurz: q.kurz })),
+      demo: z.herkunft === "demo",
+    })),
+  };
+}
+
+export interface HelferFuerSchichtplanung extends BereitgestellterHelfer {
+  /** Nur die Klassen, z. B. `["B", "C1"]`. */
+  fahrerlaubnis: string[];
+}
+
+/** Alle übernommenen Helfer — der Import lässt ohnehin nur Aktive durch —, ohne Blick auf die Einsatzbuch-Freigabe. */
+export function helferFuerSchichtplanung(db: HelferDb = getDb()): { helfer: HelferFuerSchichtplanung[]; stand: string | null } {
+  const zeilen = db.select({
+    id: helfer.id, vorname: helfer.vorname, nachname: helfer.nachname, qualifikationen: helfer.qualifikationen,
+    fahrerlaubnis: helfer.fahrerlaubnis, herkunft: helfer.herkunft,
+  }).from(helfer).all();
+  return {
+    stand: stand(db),
+    helfer: zeilen.map((z) => ({
+      id: z.id, vorname: z.vorname, nachname: z.nachname,
+      qualifikationen: json<Qualifikation[]>(z.qualifikationen, []).map((q) => ({ name: q.name, kurz: q.kurz })),
+      fahrerlaubnis: json<string[]>(z.fahrerlaubnis, []),
+      demo: z.herkunft === "demo",
+    })),
   };
 }

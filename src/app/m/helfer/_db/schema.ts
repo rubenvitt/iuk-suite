@@ -4,7 +4,7 @@
  * DATENSPARSAMKEIT IST HIER DAS SCHEMA, NICHT EINE ZUSAGE DANEBEN. HiOrg liefert je Person auch
  * Bankverbindung, Geburtsdatum, Anschrift, Allergien, Führerschein und Angehörige
  * (`GET /core/v1/personal`, eine Feldauswahl ist nicht dokumentiert). Gespeichert wird nur, was für
- * die Auswahl im Einsatzbuch nötig ist: Name, Kontostatus, Gruppen, Qualifikationen. Für alles
+ * die Auswahl im Einsatzbuch nötig ist: Name, Kontostatus, Gruppen, Qualifikationen, Fahrerlaubnisklassen (für die Schichtplanung). Für alles
  * andere gibt es keine Spalte, und `_lib/hiorg/person.ts` verwirft es schon beim Lesen.
  */
 export { auditOutbox } from "@/core/audit/_db/schema";
@@ -26,6 +26,8 @@ export const helfer = sqliteTable("helfer", {
   status: text("status").notNull(),
   gruppen: text("gruppen").notNull().default("[]"),
   qualifikationen: text("qualifikationen").notNull().default("[]"),
+  /** JSON `string[]`, nur die Klassen (IDA-313); Nummer und Datum der Fahrerlaubnis haben keine Spalte. */
+  fahrerlaubnis: text("fahrerlaubnis").notNull().default("[]"),
   fuerEinsatzbuch: integer("fuer_einsatzbuch", { mode: "boolean" }).notNull().default(true),
   importiertAm: integer("importiert_am", { mode: "timestamp" }).notNull(),
   aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull(),
@@ -34,6 +36,7 @@ export const helfer = sqliteTable("helfer", {
   check("helfer_herkunft", sql`herkunft IN ('hiorg','demo','datei')`),
   check("helfer_gruppen_json", sql`json_valid(gruppen)`),
   check("helfer_qualifikationen_json", sql`json_valid(qualifikationen)`),
+  check("helfer_fahrerlaubnis_json", sql`json_valid(fahrerlaubnis)`),
 ]);
 
 /** Schlüssel/Wert; `wert` ist JSON. Schlüssel: `quelle`, `filter`, `neueFreigeben` (`_lib/einstellungen.ts`). */
