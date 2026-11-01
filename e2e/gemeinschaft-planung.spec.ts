@@ -43,7 +43,7 @@ test("planen: Projekt, Aufgabe, Event mit Bar, Konflikt, Kalender, Übersicht, l
   const projektUrl = page.url();
 
   // Aufgabe ohne Zuständige anlegen, dann abhaken.
-  await page.getByLabel("Neue Aufgabe").fill("Grill ausleihen");
+  await page.getByLabel("Neue Aufgabe", { exact: true }).fill("Grill ausleihen");
   await page.getByRole("button", { name: "Hinzufügen" }).click();
   await expect(page.getByText("0 von 1 erledigt · 1 ohne Zuständige")).toBeVisible();
   await page.getByLabel("„Grill ausleihen“ erledigt").check();
