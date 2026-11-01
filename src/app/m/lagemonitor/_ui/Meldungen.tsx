@@ -87,6 +87,8 @@ export function Meldungen({
     setFehler(null);
     setFeldFehler({});
     setLaeuft("neu");
+    // Stand beim Absenden: stehen schon drei am Monitor, wartet die neue auf einen freien Platz.
+    const besetzt = amMonitor.size >= MELDUNGEN_MAX_AKTIV;
     void meldungAnlegenAction({ text, uhrzeit, anzeigenAb, kategorieId, laufzeitMinuten: laufzeit })
       .then((r) => {
         if (!r.ok) {
@@ -97,7 +99,13 @@ export function Meldungen({
         aendere("", "", kategorieId);
         setAnzeigenAb("");
         setLaufzeit(LAUFZEIT_VORGABE);
-        void message.success(r.wert.anzeigenAb ? `Meldung geplant ab ${ABLAUF.format(new Date(r.wert.anzeigenAb))}.` : "Meldung angelegt. Der Monitor zeigt sie spätestens in einer Minute.");
+        void message.success(
+          r.wert.anzeigenAb
+            ? `Meldung geplant ab ${ABLAUF.format(new Date(r.wert.anzeigenAb))}.`
+            : besetzt
+              ? `Meldung angelegt. Sie wartet, bis am Monitor einer der ${MELDUNGEN_MAX_AKTIV} Plätze frei wird.`
+              : "Meldung angelegt. Der Monitor zeigt sie spätestens in einer Minute.",
+        );
       })
       .catch(() => setFehler("Anlegen ist fehlgeschlagen. Bitte noch einmal versuchen."))
       .finally(() => setLaeuft(null));
