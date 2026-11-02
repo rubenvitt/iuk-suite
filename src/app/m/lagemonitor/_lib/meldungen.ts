@@ -9,7 +9,7 @@
  * Minute). Den Ablauf prüft der Monitor zusätzlich selbst, damit eine Meldung auch ohne Verbindung zur
  * Suite pünktlich verschwindet.
  */
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
