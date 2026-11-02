@@ -1,11 +1,13 @@
 import { headers } from "next/headers";
-import { Shell } from "@/core/shell/Shell";
 import { requireUnterkunftHost } from "./_lib/host";
-import { UNTERKUNFT_NAV } from "./_lib/nav";
 import { requireUnterkunftSitzung } from "./_lib/zugang";
 
+/**
+ * Host und Sitzung oberhalb jeder künftigen `loading.tsx` (Falle 23). Ohne Hülle, weil das Druckblatt
+ * keine haben darf; der Rechner setzt sie in `(rechner)/layout.tsx`. Jede Seite fragt trotzdem selbst.
+ */
 export default async function UnterkunftLayout({ children }: { children: React.ReactNode }) {
   requireUnterkunftHost(await headers());
   await requireUnterkunftSitzung();
-  return <Shell variant="full" moduleKey="unterkunft" nav={UNTERKUNFT_NAV}>{children}</Shell>;
+  return children;
 }

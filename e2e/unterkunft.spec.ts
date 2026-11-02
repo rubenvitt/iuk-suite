@@ -34,6 +34,21 @@ test("rechnen: Personen getrennt, Räume, Richtwerte", async ({ page }) => {
   await expect(page.getByTestId("raum").nth(1)).toContainText("Plätze 22");
   await expect(page.locator("[class*=kpiWert]").first()).toHaveText("70");
 
+  // Drucken (IDA-330): das Blatt rechnet die Eingabe aus dem Link mit demselben Kern.
+  const druck = page.getByRole("link", { name: /Drucken/ });
+  const href = await druck.getAttribute("href");
+  expect(href).toMatch(/^\/druck\?e=/);
+  const blatt = await page.context().newPage();
+  await blatt.addInitScript(() => { window.print = () => {}; });
+  await blatt.goto(url(href!));
+  await expect(blatt.getByRole("article", { name: "Druckblatt Unterkunft" })).toContainText("Grundlage: Räume");
+  await expect(blatt.getByRole("row", { name: /^Raum 1/ })).toContainText("48");
+  await expect(blatt.getByRole("row", { name: /^Raum 2/ })).toContainText("22");
+  await expect(blatt.getByRole("button", { name: "Drucken" })).toBeVisible();
+  await blatt.emulateMedia({ media: "print" });
+  await expect(blatt.getByRole("button", { name: "Drucken" })).toBeHidden();
+  await blatt.close();
+
   await klickeWennRuhig(page.getByRole("tab", { name: "Richtwerte" }));
   await expect(page.getByRole("table", { name: "Richtwerte" })).toContainText("Schlaffläche je Person");
 });

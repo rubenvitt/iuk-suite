@@ -5,6 +5,7 @@ import { Button, Card, Input, InputNumber, Segmented, Select, Switch, Tabs } fro
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle } from "@/core/tabelle";
+import { druckHref } from "../_lib/druckLink";
 import { plaetzeImRaum, nutzflaeche, rechne, type Belegung, type Eingabe, type Ergebnis, type Weg, type Zeltbestand } from "../_lib/rechner";
 import { ABWEICHUNGEN, RICHTWERTE, RICHTWERT_ZEILEN, type Herkunft, type RichtwertSchluessel } from "../_lib/richtwerte";
 import s from "./unterkunft.module.css";
@@ -400,12 +401,23 @@ function RichtwerteAnsicht() {
 export function Unterkunftsrechner() {
   useTokensAmBody();
   const [st, setSt] = useState<Zustand>(ANFANG);
-  const ergebnis = useMemo(() => rechne(eingabeAus(st)), [st]);
+  const eingabe = useMemo(() => eingabeAus(st), [st]);
+  const ergebnis = useMemo(() => rechne(eingabe), [eingabe]);
 
   return (
     <div className={s.modul}>
       <Seitenkopf
         titel="Unterkunft und Zelte"
+        aktionen={
+          <Button
+            href={ergebnis.personen > 0 ? druckHref(eingabe) : undefined}
+            target="_blank"
+            disabled={ergebnis.personen === 0}
+            icon={<Icons8Ikone name="print" groesse={16} />}
+          >
+            Drucken
+          </Button>
+        }
       />
       <Tabs
         items={[
