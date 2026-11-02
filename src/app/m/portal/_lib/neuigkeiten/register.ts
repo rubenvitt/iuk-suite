@@ -36,6 +36,7 @@ import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahr
 import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-01-schichten-im-voraus-planen";
 import gemeinschaftUndBar from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-01-gemeinschaft-und-bar";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
+import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
 import lagemonitorEinstellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-lagemonitor-einstellen";
 import lagemonitorMeldungen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-meldungen-am-monitor";
 import lagemonitorQrCode from "@/app/m/portal/_lib/neuigkeiten/notizen/lagemonitor/2026-10-27-qr-code-ehrenamt";
@@ -170,6 +171,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   schichtenImVorausPlanen,
   gemeinschaftUndBar,
   unterkunftUndZelteBerechnen,
+  unterkunftBerechnungDrucken,
   lagemonitorEinstellen,
   lagemonitorMeldungen,
   lagemonitorQrCode,

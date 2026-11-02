@@ -1,0 +1,86 @@
+/* Druckblatt des Unterkunftsrechners (IDA-330). Papier ist immer hell und unabhängig von data-theme;
+   Bedeutung trägt nie die Farbe allein, der Ausdruck kommt oft schwarzweiß aus dem Gerät im Fahrzeug.
+   Eigene Werte statt `--ant-*` (Falle 2). Vorbild: `schichtplan/_ui/blatt.module.css`. */
+.seite { padding: 24px 16px; background: #eef0f1; min-height: 100dvh; color: #111; }
+.knopf { position: fixed; top: 16px; right: 16px; z-index: 1; }
+.leer { max-width: 210mm; margin: 64px auto; font-size: 16px; color: #111; }
+
+.blatt {
+  width: min(210mm, 100%);
+  margin: 0 auto;
+  padding: 12mm;
+  background: #fff;
+  color: #111;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+  font-size: 13px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.kopf { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; border-block-end: 2px solid #111; padding-block-end: 6px; }
+.titel { font-family: var(--font-display); font-size: 24px; font-weight: 700; margin: 0; letter-spacing: 0.01em; }
+.meta { font-size: 12px; color: #333; margin-block-start: 2px; }
+
+/* Zum Ausfüllen von Hand: Linien mit Platz für Kuli-Schrift. */
+.kopffelder { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 16px; margin-block: 10px 12px; }
+.kopffeld { display: flex; align-items: flex-end; gap: 6px; font-size: 12px; font-weight: 600; }
+.schreiblinie { flex: 1; border-block-end: 1px solid #111; min-height: 22px; }
+
+.grundlage { margin-block-end: 10px; }
+.grundlageKopf, .liste caption, .bedarf caption {
+  caption-side: top;
+  text-align: start;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-block-end: 3px;
+}
+.grundlageWerte { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 14px; }
+.liste { width: 100%; border-collapse: collapse; font-size: 12px; }
+.liste th, .liste td { border-block-end: 1px solid #999; padding: 3px 6px 3px 0; text-align: start; font-weight: 400; }
+.liste thead th { font-size: 11px; font-weight: 700; border-block-end: 1.5px solid #111; }
+.liste tbody th { font-weight: 600; }
+.liste .zahl { text-align: end; white-space: nowrap; }
+.liste tr { break-inside: avoid; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-block: 4px 2px; }
+.kpi { border: 1.5px solid #111; border-radius: 4px; padding: 4px 8px; }
+.kpiTitel { font-size: 11px; font-weight: 600; }
+.kpiWert { font-family: var(--font-display); font-size: 24px; font-weight: 700; line-height: 1.1; }
+.kpiWert small { font-size: 13px; font-weight: 500; }
+.zusatz { font-size: 12px; margin-block-end: 4px; }
+
+/* Zwei Spalten Bedarf; ein Abschnitt wird nicht über einen Seitenumbruch zerrissen. */
+.abschnitte { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin-block-start: 10px; }
+.abschnitt { break-inside: avoid; }
+.bedarf { width: 100%; border-collapse: collapse; }
+.bedarf thead th { font-size: 10px; font-weight: 600; text-align: start; border-block-end: 1.5px solid #111; padding: 2px 0; }
+.bedarf tbody th { text-align: start; font-weight: 400; padding: 4px 0; border-block-end: 1px solid #999; }
+.bedarf td { padding: 4px 0; border-block-end: 1px solid #999; }
+.bedarf .soll { text-align: end; font-weight: 700; white-space: nowrap; padding-inline-end: 8px; }
+.bedarf td.soll small { font-weight: 400; }
+.bedarf .ist { width: 22mm; }
+.bedarf td.ist { border: 1px solid #111; }
+.bedarf thead th.ist { text-align: center; }
+.unten { font-size: 11px; margin-block-start: 4px; }
+
+/* Markiert Werte ohne Quelle und behobene Rechenfehler; Rahmen statt Farbe. */
+.marke { display: inline-block; margin-inline-start: 5px; padding: 0 4px; border: 1px solid #111; border-radius: 3px; font-size: 9px; font-weight: 600; line-height: 13px; vertical-align: 1px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+@media screen and (max-width: 767.98px) {
+  .blatt { padding: 16px; }
+  .kpis, .abschnitte { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .abschnitte { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Benannt (Falle 18): Next legt CSS-Module routenübergreifend in gemeinsame Chunks, eine unbenannte
+   @page-Regel träfe dann auch fremde Druckseiten. `page` sitzt am gemeinsamen Vorfahren. */
+@page unterkunftblatt { size: 210mm 297mm; margin: 10mm 12mm; }
+@media print {
+  .seite { page: unterkunftblatt; padding: 0; background: #fff; min-height: 0; }
+  .knopf { display: none; }
+  .blatt { width: auto; padding: 0; box-shadow: none; }
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .abschnitte { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
