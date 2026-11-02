@@ -20,7 +20,7 @@ type Zeile = typeof kategorie.$inferSelect;
 export function kategorieDtoAus(z: Zeile): KategorieDTO {
   // Ein Zeichen, das aus der Auswahl gefallen ist, zeigt wie eine neue Kategorie das erste.
   const zeichen = (ZEICHEN as readonly string[]).includes(z.zeichen) ? (z.zeichen as Zeichen) : ZEICHEN[0];
-  return { id: z.id, name: z.name, zeichen, farbe: farbe(z.farbe).wert, vorlaufMinuten: z.vorlaufMinuten };
+  return { id: z.id, name: z.name, zeichen, farbe: farbe(z.farbe).wert, vorlaufMinuten: z.vorlaufMinuten, verschwindenMinuten: z.verschwindenMinuten };
 }
 
 export function listeKategorien(db: LagemonitorDb): KategorieDTO[] {

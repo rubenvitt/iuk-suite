@@ -95,6 +95,8 @@ export const meldung = sqliteTable("lagemonitor_meldung", {
   kategorieId: text("kategorie_id").references(() => kategorie.id, { onDelete: "set null" }),
   /** Optional: ein Zeitpunkt, bis zu dem der Monitor herunterzählt („in 12 min“). */
   zeitpunkt: integer("zeitpunkt", { mode: "timestamp" }),
+  /** Optional: ab wann der Monitor sie zeigt (geplante Meldung); `null` ab dem Anlegen. Die Laufzeit zählt ab hier. */
+  anzeigenAb: integer("anzeigen_ab", { mode: "timestamp" }),
   ablaufAm: integer("ablauf_am", { mode: "timestamp" }).notNull(),
   angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
   angelegtVon: text("angelegt_von").notNull(),
@@ -113,6 +115,8 @@ export const kategorie = sqliteTable("lagemonitor_kategorie", {
   farbe: text("farbe").notNull(),
   /** Minuten vor der Countdown-Uhrzeit, ab denen die Meldung blinkt; `null` blinkt nie. */
   vorlaufMinuten: integer("vorlauf_minuten"),
+  /** Minuten nach der Countdown-Uhrzeit, nach denen die Meldung verschwindet; `null` bleibt bis zum Ablauf. */
+  verschwindenMinuten: integer("verschwinden_minuten"),
   reihenfolge: integer("reihenfolge").notNull(),
   angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
 });

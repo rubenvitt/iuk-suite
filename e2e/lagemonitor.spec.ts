@@ -100,7 +100,7 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   // Eine ungespeicherte Änderung an der Anzeige überlebt das Anlegen (neuer Stand vom Server).
   await page.getByLabel("Standort", { exact: true }).fill("Ungespeichert");
   await klickeWennRuhig(neu.getByRole("button", { name: "Meldung anlegen" }));
-  const laufend = page.getByRole("list", { name: "Laufende Meldungen" });
+  const laufend = page.getByRole("list", { name: "Laufende und geplante Meldungen" });
   await expect(laufend).toContainText(text);
   await expect(page.getByLabel("Standort", { exact: true })).toHaveValue("Ungespeichert");
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "false");
@@ -109,14 +109,27 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   await page.getByLabel("Neuer Zugang").fill("Meldungen e2e");
   await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
   const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec((await page.getByTestId("neuer-schluessel").textContent()) ?? "")?.[1];
-  const abholen = async () => (await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json()).notices as { text: string; countdownTo: string | null; expiresAt: string; category: { name: string; color: string; icon: { paths: string[] } | null; alertLeadMinutes: number | null } | null }[];
+  const abholen = async () => (await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json()).notices as { text: string; countdownTo: string | null; expiresAt: string; showFrom: string | null; category: { name: string; color: string; icon: { paths: string[] } | null; alertLeadMinutes: number | null } | null }[];
   const notices = await abholen();
   const n = notices.find((x) => x.text === text);
   expect(n?.countdownTo).toMatch(/T\d\d:\d\d:00\.000Z$/);
   expect(n?.category).toMatchObject({ name: "Besprechung", color: "purple", alertLeadMinutes: 10 });
   expect(n?.category?.icon?.paths.length).toBeGreaterThan(0);
-  // Ohne Angabe 24 Stunden.
-  expect(Date.parse(n!.expiresAt) - Date.now()).toBeGreaterThan(23.9 * 3_600_000);
+  // „Besprechung“ verschwindet nach der Vorgabe 15 Minuten nach der Uhrzeit, lange vor dem Ende der Laufzeit (ein Tag).
+  expect(Date.parse(n!.expiresAt) - Date.parse(n!.countdownTo!)).toBe(15 * 60_000);
+  expect(n?.showFrom).toBeNull();
+
+  // Eine geplante Meldung steht in der Liste, geht aber erst kurz vor ihrem Beginn an den Monitor.
+  const geplant = `Geplant e2e ${Date.now() % 100_000}`;
+  const inZweiStunden = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Europe/Berlin" }).format(Date.now() + 2 * 3_600_000);
+  await neu.getByLabel("Text").fill(geplant);
+  await neu.getByLabel("Anzeigen ab (freiwillig)").fill(inZweiStunden);
+  await expect(neu.getByTestId("meldung-plan")).toContainText(`Erscheint`);
+  await klickeWennRuhig(neu.getByRole("button", { name: "Meldung anlegen" }));
+  await expect(laufend.getByRole("listitem").filter({ hasText: geplant })).toContainText("geplant ab");
+  expect((await abholen()).some((x) => x.text === geplant)).toBe(false);
+  await klickeWennRuhig(page.getByRole("button", { name: `Meldung beenden: ${geplant}` }));
+  await expect(laufend).not.toContainText(geplant);
 
   await klickeWennRuhig(page.getByRole("button", { name: `Meldung beenden: ${text}` }));
   await expect(laufend).toHaveCount(0);

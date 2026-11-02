@@ -10,7 +10,7 @@ import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
 import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
-import { naechsteUhrzeit, type MeldungDTO } from "../_lib/meldungRegeln";
+import { MELDUNGEN_MAX_AKTIV, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
@@ -19,6 +19,7 @@ import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
 import { OeffentlicheLinks } from "./OeffentlicheLinks";
 import { Zugaenge } from "./Zugaenge";
+import { ZumMonitor } from "./ZumMonitor";
 import v from "./verwaltung.module.css";
 
 const STAND = zeitFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
@@ -139,12 +140,18 @@ export function AnzeigeVerwaltung({
   const bandMeldungen = useMemo<VorschauMeldung[]>(() => {
     const zaehler = (ziel: number | null) => (ziel !== null && jetzt !== null ? countdownText(ziel, jetzt) : null);
     const blinkt = (ziel: number | null, k: KategorieDTO | null) => jetzt !== null && istFaellig(ziel, k?.vorlaufMinuten ?? null, jetzt);
-    const laufend = meldungen.map((m) => {
+    // Wie am Monitor: höchstens drei begonnene. Ohne Uhr (Server, vor dem Hydrieren) die ohne späteren Beginn.
+    const amMonitor = jetzt === null ? meldungen.filter((m) => m.anzeigenAb === null).slice(0, MELDUNGEN_MAX_AKTIV) : sichtbar(meldungen, jetzt);
+    const laufend = amMonitor.map((m) => {
       const ziel = m.zeitpunkt ? Date.parse(m.zeitpunkt) : null;
       return { text: m.text, countdown: zaehler(ziel), kategorie: m.kategorie, faellig: blinkt(ziel, m.kategorie) };
     });
     if (!entwurf) return laufend;
-    const ziel = entwurf.uhrzeit && jetzt !== null ? naechsteUhrzeit(entwurf.uhrzeit, new Date(jetzt)).getTime() : null;
+    // Beginnt der Entwurf später oder stehen schon drei am Monitor, zeigt ihn der Monitor jetzt noch nicht.
+    if (laufend.length >= MELDUNGEN_MAX_AKTIV) return laufend;
+    const plan = jetzt === null ? null : planeMeldung({ uhrzeit: entwurf.uhrzeit, anzeigenAb: entwurf.anzeigenAb, laufzeitMinuten: 0 }, new Date(jetzt));
+    if (plan?.anzeigenAb) return laufend;
+    const ziel = plan?.zeitpunkt?.getTime() ?? null;
     const k = kategorien.find((x) => x.id === entwurf.kategorieId) ?? null;
     return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true, kategorie: k, faellig: blinkt(ziel, k) }];
   }, [meldungen, kategorien, entwurf, jetzt]);
@@ -205,6 +212,7 @@ export function AnzeigeVerwaltung({
       <Seitenkopf
         titel="Lagemonitor"
         beschreibung="Was der Bildschirm im FüKw zeigt. Die Vorschau zeigt jede Änderung sofort mit Beispieldaten, noch bevor du speicherst. Der Monitor holt gespeicherte Einstellungen spätestens nach einer Minute ab und behält sie, auch wenn die Verbindung zur Suite abreißt."
+        aktionen={<ZumMonitor online={online} />}
       />
 
       <div className={v.raster}>

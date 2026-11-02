@@ -101,6 +101,21 @@ export const VORLAEUFE = [
 const VORLAUF_WERTE = VORLAEUFE.map((v) => v.minuten) as (number | null)[];
 
 /**
+ * Wie viele Minuten nach der Countdown-Uhrzeit die Meldung vom Monitor verschwindet; `null` bleibt sie bis zum
+ * Ende ihrer Laufzeit. „Bis zum Ablauf“ statt „Nie“, damit die Wahl nicht mit dem Blinken verwechselt wird.
+ */
+export const VERSCHWINDEN = [
+  { minuten: null, text: "Bis zum Ablauf" },
+  { minuten: 0, text: "Sofort" },
+  { minuten: 5, text: "5 min danach" },
+  { minuten: 10, text: "10 min danach" },
+  { minuten: 15, text: "15 min danach" },
+  { minuten: 30, text: "30 min danach" },
+  { minuten: 60, text: "1 h danach" },
+] as const;
+const VERSCHWINDEN_WERTE = VERSCHWINDEN.map((v) => v.minuten) as (number | null)[];
+
+/**
  * Wie lange eine Meldung nach der Uhrzeit weiterblinkt. Danach zeigt sie ruhig „seit 12 min“: wer es
  * bis dahin nicht gesehen hat, sieht es auch blinkend nicht mehr, und ein Dauerblinken stumpft ab.
  */
@@ -116,6 +131,7 @@ export interface KategorieDTO {
   zeichen: Zeichen;
   farbe: Farbe;
   vorlaufMinuten: number | null;
+  verschwindenMinuten: number | null;
 }
 
 export const kategorieEingabe = z.object({
@@ -130,6 +146,11 @@ export const kategorieEingabe = z.object({
     .number()
     .nullable()
     .refine((n) => VORLAUF_WERTE.includes(n), "Bitte wählen, wann die Meldung blinkt."),
+  verschwindenMinuten: z
+    .number()
+    .nullable()
+    .refine((n) => VERSCHWINDEN_WERTE.includes(n), "Bitte wählen, wann die Meldung verschwindet.")
+    .default(null),
 });
 export type KategorieEingabe = z.input<typeof kategorieEingabe>;
 

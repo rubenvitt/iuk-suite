@@ -2,7 +2,7 @@ import { zeitFormat } from "@/core/zeit";
 import type { LagemonitorDb } from "../_db/client";
 import { anzeige, zugang } from "../_db/schema";
 import { konfigurationEingabe, speichereKonfiguration, VORGABE } from "./konfiguration";
-import { aktiveMeldungen, legeMeldungAn, meldungEingabe } from "./meldungen";
+import { offeneMeldungen, legeMeldungAn, meldungEingabe } from "./meldungen";
 import { legeZugangAn } from "./schluessel";
 
 /**
@@ -25,7 +25,7 @@ export async function seedLokalLagemonitor(db: LagemonitorDb): Promise<string[]>
     const { schluessel } = legeZugangAn(db, "FüKw Uelzen (Demo)", "Demodaten");
     zeilen.push(`lagemonitor: Zugang angelegt (LAGEMONITOR_SUITE_TOKEN=${schluessel})`);
   }
-  if (aktiveMeldungen(db).length > 0) {
+  if (offeneMeldungen(db).length > 0) {
     zeilen.push("lagemonitor: Meldung läuft, nicht geändert");
   } else {
     const uhrzeit = zeitFormat("de-DE", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(Date.now() + 45 * 60_000);

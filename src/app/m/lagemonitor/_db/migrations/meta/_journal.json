@@ -50,6 +50,13 @@
       "when": 1793462963133,
       "tag": "0006_kategorien",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793563222316,
+      "tag": "0007_planbare_meldungen",
+      "breakpoints": true
     }
   ]
 }
