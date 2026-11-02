@@ -128,6 +128,8 @@ export interface LauncherEintrag {
   abschnitt: string;
   /** Öffnet in neuem Tab (`services.openInNewTab`). */
   extern: boolean;
+  /** Modulversion (`core/version`, `modulVersion`) — nur der Haupteintrag eines Suite-Moduls. */
+  version?: string;
 }
 
 /**

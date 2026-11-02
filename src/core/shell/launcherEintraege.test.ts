@@ -72,6 +72,17 @@ describe("modulEintraege", () => {
     // aber zur Suite.
     expect(portal?.extern).toBe(false);
   });
+
+  it("trägt die Modulversion nur am Haupteintrag, nie an der Verwaltungskachel (IDA-328)", () => {
+    vi.stubEnv("PORT", "3000");
+    vi.stubEnv("SUITE_MODULVERSIONEN", "portal=1.2.0,lagerbuch=1.0.3");
+    const eintraege = modulEintraege(["lagerbuch-admin"]);
+    expect(eintraege.find((e) => e.key === "portal")?.version).toBe("1.2.0");
+    expect(eintraege.find((e) => e.key === "lagerbuch")?.version).toBe("1.0.3");
+    expect(eintraege.filter((e) => e.key.endsWith(":verwaltung")).every((e) => e.version === undefined)).toBe(true);
+    vi.stubEnv("SUITE_MODULVERSIONEN", "");
+    expect(modulEintraege([]).find((e) => e.key === "portal")?.version).toBeUndefined();
+  });
 });
 
 describe("modulEintraege: das App-Icon für die Portal-Kachel", () => {

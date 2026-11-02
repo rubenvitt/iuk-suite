@@ -19,6 +19,7 @@ import { Befehlspalette } from "@/core/shell/Befehlspalette";
 import { SuiteNav } from "@/core/shell/SuiteNav";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { SCHRIFT } from "@/core/theme/schrift";
+import { modulVersion } from "@/core/version";
 import s from "./shell.module.css";
 
 /**
@@ -71,6 +72,9 @@ export async function SuiteHeader({
    * Generator-Seite sieht, lädt ihn irgendwohin ein, wo er nichts zu suchen hat.
    */
   const weg = angemeldet ? rueckmeldeweg() : null;
+  // Hier gelesen, nicht in `SuiteNav`: das ist eine Client-Komponente, und `process.env`
+  // gibt es im Client-Bundle nicht (IDA-328).
+  const version = modulVersion(moduleKey);
 
   /*
    * NUR NOCH DIE KOPFZEILE. Bis 2026-08-13 stand hier eine zweite Zeile mit
@@ -148,6 +152,7 @@ export async function SuiteHeader({
           angemeldet={angemeldet}
           profilHref={angemeldet ? moduleUrl("portal") : null}
           rueckmeldeweg={weg}
+          modulStand={version ? `${mod.title} ${version}` : null}
           befehlspalette={
             /* Nur angemeldet, aus demselben Grund wie der Umschalter: anonym führte jeder
                Eintrag in den Login (IDA-303). Die Listen sind dieselben, die die Kopfzeile

@@ -195,6 +195,9 @@ jobs:
       # (`NUR_APP` in scripts/version.mjs): dann auf `main` kein `build`, `merge`,
       # `release`, `deploy`. Die App hat ihren eigenen Release-Weg (einsatzbuch.yml).
       ausliefern: ${{ steps.rechne.outputs.ausliefern }}
+      # Je Modul eine eigene Nummer (`modul=X.Y.Z,…`), die nur zaehlt, wenn sich am Modul
+      # etwas aendert (scripts/modulversion.mjs). Geht wie SUITE_VERSION ins Image.
+      modulversionen: ${{ steps.module.outputs.modulversionen }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -204,6 +207,8 @@ jobs:
           node-version: 22
       - id: rechne
         run: node scripts/version.mjs
+      - id: module
+        run: node scripts/modulversion.mjs
 
   # GRUPPEN STATT WORKER — und das ist keine Geschmacksfrage.
   # `playwright.config.ts` steht auf `workers: 1`, weil der Fake-clamd seine
@@ -647,6 +652,7 @@ jobs:
           build-args: |
             SUITE_REVISION=${{ github.sha }}
             SUITE_VERSION=${{ needs.version.outputs.version }}
+            SUITE_MODULVERSIONEN=${{ needs.version.outputs.modulversionen }}
           # Cache pro Plattform trennen, sonst überschreiben sich die beiden
           # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
           cache-from: type=gha,scope=${{ matrix.platform }}
@@ -690,6 +696,7 @@ jobs:
           build-args: |
             SUITE_REVISION=${{ github.sha }}
             SUITE_VERSION=${{ needs.version.outputs.version }}
+            SUITE_MODULVERSIONEN=${{ needs.version.outputs.modulversionen }}
           # Ohne Tag hochladen — die Tags vergibt der merge-Job auf der
           # Manifest-Liste, sonst würde jede Plattform :latest überschreiben.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true

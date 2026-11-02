@@ -54,6 +54,7 @@ export function ProfilAnsicht({
   angemeldetSeit,
   version,
   revision,
+  module = [],
 }: {
   name: string | null;
   email: string | null;
@@ -67,6 +68,8 @@ export function ProfilAnsicht({
   version: string;
   /** `laufendeRevision()` — der volle Commit oder `unbekannt`. */
   revision: string;
+  /** Modulversionen (`core/version`, `modulversionen`), nach Titel; leer ohne CI-Image. */
+  module?: { titel: string; version: string }[];
 }) {
   const [fragt, setFragt] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
@@ -143,6 +146,21 @@ export function ProfilAnsicht({
             {revision === "unbekannt" ? "unbekannt" : revision.slice(0, 12)}
           </Text>
         </Zeile>
+        {module.length > 0 ? (
+          <Zeile titel="Module">
+            <div
+              data-testid="modul-versionen"
+              style={{ display: "grid", gridTemplateColumns: "max-content max-content", columnGap: SPACE.md }}
+            >
+              {module.map((m) => (
+                <div key={m.titel} style={{ display: "contents" }}>
+                  <span>{m.titel}</span>
+                  <Text type="secondary">{m.version}</Text>
+                </div>
+              ))}
+            </div>
+          </Zeile>
+        ) : null}
         <Text type="secondary">
           Die Versionsnummer nennt den Stand, der gerade läuft. Was sich darin geändert hat,
           steht unter Neuigkeiten.

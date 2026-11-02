@@ -230,6 +230,20 @@ export function DiensteRaster({
                           >
                             {e.title}
                           </span>
+                          {e.version ? (
+                            <span
+                              data-testid="kachel-version"
+                              style={{
+                                ...SCHRIFT.neben,
+                                color: "var(--iuk-gedaempft)",
+                                marginInlineStart: "auto",
+                                alignSelf: "flex-start",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {e.version}
+                            </span>
+                          ) : null}
                         </div>
                         {e.beschreibung ? (
                           <div

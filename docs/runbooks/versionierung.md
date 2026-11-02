@@ -149,6 +149,28 @@ Sicherungen des normalen Rollouts. Die Warnung aus `auto-rollout.md` gilt unver�
 
 ---
 
+# Teil E2 — Modulversionen (IDA-328)
+
+Neben der Suite-Nummer hat jedes Modul eine eigene, die nur steigt, wenn sich am Modul etwas
+ändert. `scripts/modulversion.mjs` rechnet sie im Job `version` (Ausgabe `modulversionen`),
+das Image trägt sie als `SUITE_MODULVERSIONEN=modul=X.Y.Z,…`, `core/version.ts`
+(`modulVersion`, `modulversionen`) liest sie. Zu sehen: klein auf der Startseitenkachel,
+unten im Nutzermenü des Moduls, gesammelt auf der Profilseite und als `modulVersion` in
+`/api/health/<modul>`.
+
+* **Zählt für Modul X**, wenn ein Commit des Schritts ausgelieferten Code unter
+  `src/app/m/X/` ändert (keine `*.test.ts(x)`, keine Release-Notiz) oder den Scope `X` trägt.
+  Eine `core`-Änderung, die gezielt ein Modul betrifft, bekommt deshalb dessen Scope
+  (`fix(lagerbuch): …`); ohne Scope zählt sie für kein Modul.
+* **Zählt nie:** Commits vom Typ `test`, `docs`, `ci`, `style`.
+* **Sprung** wie die Suite: `feat` Minor, `!`/`BREAKING CHANGE` Major, sonst Patch.
+* **Start** ist der Merge, der `scripts/modulversion.mjs` anlegt: dort steht jedes Modul auf
+  1.0.0. Ein später angelegtes Modul beginnt ebenfalls bei 1.0.0. Die Datei deshalb nie
+  umbenennen oder löschen und neu anlegen — der Start wanderte mit.
+* **Herleitung von Hand:** `node scripts/modulversion.mjs [<commit>]`.
+
+---
+
 # Teil F — Fehlerbilder
 
 ### F1 — `version` rot: „Kein Versionstag … und der Anker … ist kein Vorfahr"

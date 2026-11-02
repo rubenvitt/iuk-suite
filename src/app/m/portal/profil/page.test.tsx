@@ -5,6 +5,7 @@ vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/core/version", () => ({
   laufendeVersion: () => "1.4.2",
   laufendeRevision: () => "0123456789abcdef0123456789abcdef01234567",
+  modulversionen: () => ({ portal: "1.2.0" }),
 }));
 
 import { auth } from "@/core/auth";
