@@ -24,13 +24,12 @@ export function hostAbweisung(req: Request): Response | null {
  * Wohin der Login zurückkehrt: absolut, auf den Host des Moduls (Vorbild `lagerbuch/_lib/zugang.ts`,
  * `verwaltungsZiel`). Ein relatives Ziel landet nach der Anmeldung auf dem Portal-Host, weil `AUTH_URL`
  * suiteweit gilt, und dort antwortet der Host-Riegel mit 404. Protokoll und Port kommen aus dem Request,
- * sonst bricht der Rückweg in Dev/E2E still. Der erste Prod-Host hat Vorrang; ohne ihn zählt der
- * angefragte Host nur, wenn er belegt dieses Modul ist (kein offener Redirector).
+ * sonst bricht der Rückweg in Dev/E2E still. Der angefragte Host zählt nur, wenn er belegt dieses Modul
+ * ist (kein offener Redirector); sonst der erste Prod-Host.
  */
 export function anmeldeZiel(headers: Headers, pfad: string): string {
   const angefragt = resolveHost(headers);
-  const host =
-    prodHostsFor(getModule("gemeinschaft"))[0] ?? (istGemeinschaftHost(headers) ? angefragt.split(":")[0] : undefined);
+  const host = istGemeinschaftHost(headers) ? angefragt.split(":")[0] : prodHostsFor(getModule("gemeinschaft"))[0];
   if (!host) return `/m/gemeinschaft${pfad === "/" ? "" : pfad}`;
   const proto = headers.get("x-forwarded-proto")?.split(",")[0].trim() || "http";
   const port = angefragt.split(":")[1];

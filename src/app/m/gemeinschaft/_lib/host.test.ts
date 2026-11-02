@@ -25,6 +25,12 @@ describe("anmeldeZiel", () => {
     expect(anmeldeZiel(kopf, "/bar")).toBe("http://gemeinschaft.localtest.me:3000/bar");
   });
 
+  it("bleibt lokal auf dem lokalen Host, auch wenn ein Prod-Host gesetzt ist", () => {
+    process.env.SUITE_HOST_GEMEINSCHAFT = "gemeinschaft.iuk-ue.de";
+    const kopf = new Headers({ host: "gemeinschaft.localtest.me:3000" });
+    expect(anmeldeZiel(kopf, "/bar")).toBe("http://gemeinschaft.localtest.me:3000/bar");
+  });
+
   it("nimmt keinen fremden Host als Ziel", () => {
     delete process.env.SUITE_HOST_GEMEINSCHAFT;
     const kopf = new Headers({ host: "boese.example.org" });
