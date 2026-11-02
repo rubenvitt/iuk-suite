@@ -9,7 +9,7 @@
  * Minute). Den Ablauf prüft der Monitor zusätzlich selbst, damit eine Meldung auch ohne Verbindung zur
  * Suite pünktlich verschwindet.
  */
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
@@ -33,8 +33,9 @@ function dtoAus(z: typeof meldung.$inferSelect, k: typeof kategorie.$inferSelect
 }
 
 /**
- * Die laufenden und geplanten Meldungen, nach Beginn (die früher begonnene oben, so stehen sie auch am
- * Monitor). Was die Kategorie nach der Uhrzeit schon beendet hat, fehlt.
+ * Die laufenden und geplanten Meldungen, die zuerst fällige oben (so stehen sie auch am Monitor): nach der
+ * Uhrzeit, bis zu der heruntergezählt wird, ohne Countdown nach dem Beginn. Was die Kategorie nach der Uhrzeit
+ * schon beendet hat, fehlt.
  */
 export function offeneMeldungen(db: LagemonitorDb, jetzt = new Date()): MeldungDTO[] {
   const zeilen = db
@@ -43,7 +44,11 @@ export function offeneMeldungen(db: LagemonitorDb, jetzt = new Date()): MeldungD
     .leftJoin(kategorie, eq(meldung.kategorieId, kategorie.id))
     .where(gt(meldung.ablaufAm, jetzt))
     // `angelegt_am` hat Sekunden; bei Gleichstand entscheidet die Reihenfolge des Anlegens (rowid), nicht die zufällige id.
-    .orderBy(sql`coalesce(${meldung.anzeigenAb}, ${meldung.angelegtAm})`, asc(meldung.angelegtAm), sql`"lagemonitor_meldung"."rowid"`)
+    .orderBy(
+      sql`coalesce(${meldung.zeitpunkt}, ${meldung.anzeigenAb}, ${meldung.angelegtAm})`,
+      sql`coalesce(${meldung.anzeigenAb}, ${meldung.angelegtAm})`,
+      sql`"lagemonitor_meldung"."rowid"`,
+    )
     .all()
     .map((r) => dtoAus(r.lagemonitor_meldung, r.lagemonitor_kategorie));
   return offen(zeilen, jetzt.getTime());
@@ -108,7 +113,7 @@ export interface Notice {
 }
 
 /**
- * Was der Monitor jetzt zeigen soll oder in den nächsten Minuten zeigen wird, nach Beginn sortiert. Der Monitor
+ * Was der Monitor jetzt zeigen soll oder in den nächsten Minuten zeigen wird, die zuerst fällige oben. Der Monitor
  * zeigt davon die ersten drei begonnenen (Repo `lagemonitor`, `src/web/monitor.rs`, `NOTICES_VISIBLE_MAX`), genau
  * wie `sichtbar` hier; Wartende stehen mit drin, damit sie auch ohne Suite nachrücken.
  */

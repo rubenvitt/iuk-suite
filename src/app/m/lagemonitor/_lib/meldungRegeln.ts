@@ -165,8 +165,8 @@ export function offen<T extends Zeitlich>(liste: T[], jetzt: number): T[] {
 }
 
 /**
- * Was der Monitor jetzt zeigt: die begonnenen, nicht abgelaufenen Meldungen, die früher begonnene oben, höchstens
- * `MELDUNGEN_MAX_AKTIV`. Eine weitere wartet, bis ein Platz frei wird. Erwartet die Liste nach Beginn sortiert.
+ * Was der Monitor jetzt zeigt: die begonnenen, nicht abgelaufenen Meldungen, die zuerst fällige oben, höchstens
+ * `MELDUNGEN_MAX_AKTIV`. Eine weitere wartet, bis ein Platz frei wird. Erwartet die Liste wie `offeneMeldungen`.
  */
 export function sichtbar<T extends Zeitlich>(liste: T[], jetzt: number): T[] {
   return liste.filter((m) => begonnen(m, jetzt) && endeVon(m) > jetzt).slice(0, MELDUNGEN_MAX_AKTIV);

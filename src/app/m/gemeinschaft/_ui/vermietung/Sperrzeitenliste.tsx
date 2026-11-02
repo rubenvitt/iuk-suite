@@ -77,7 +77,6 @@ export function Sperrzeitenliste({ anfragen, sperren, heute }: { anfragen: Anfra
   return (
     <div className={s.modul}>
       <Seitenkopf titel="Sperrzeiten"
-        beschreibung="Für eigene Veranstaltungen der Bereitschaft. In dieser Zeit kann niemand die Bar anfragen. Events der Gemeinschaft mit „Bar belegen“ stehen hier von selbst."
         aktionen={<Button type="primary" icon={<Icons8Ikone name="plus" groesse={16} />} onClick={() => { setE(leer); setFeldFehler({}); setNeu(true); }}>Sperrzeit eintragen</Button>} />
       <Kartentabelle<SperrzeitDTO>
         rowKey="id"
@@ -92,7 +91,7 @@ export function Sperrzeitenliste({ anfragen, sperren, heute }: { anfragen: Anfra
             render: (_: unknown, x: SperrzeitDTO) => (x.eventId
               ? <Button href={`/v/${x.eventId}`}>Zum Event</Button>
               : (
-                <Popconfirm title="Sperrzeit löschen?" description="Die Bar ist dann in dieser Zeit wieder frei." okText="Löschen" cancelText="Abbrechen" onConfirm={() => loeschen(x.id)}>
+                <Popconfirm title="Sperrzeit löschen?" okText="Löschen" cancelText="Abbrechen" onConfirm={() => loeschen(x.id)}>
                   <Button>Löschen</Button>
                 </Popconfirm>
               )),

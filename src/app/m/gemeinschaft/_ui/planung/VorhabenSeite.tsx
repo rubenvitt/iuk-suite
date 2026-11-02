@@ -116,7 +116,7 @@ export function VorhabenSeite({ v, heute, daten }: { v: VorhabenDetailDTO; heute
       </Card>
 
       <Card title="Aufgaben" extra={<span className={s.neben} data-zaehler="aufgaben">{erledigt} von {aufgaben.length} erledigt{ohne ? ` · ${ohne} ohne Zuständige` : ""}</span>}>
-        {aufgaben.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Noch keine Aufgaben. Leg unten die erste an.</p> : null}
+        {aufgaben.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Noch keine Aufgaben.</p> : null}
         <div className={s.aufgaben}>
           {aufgaben.map((a) => (
             <AufgabeZeile key={a.id} a={a} heute={heute} personen={personen}

@@ -4,13 +4,6 @@
  * Dunkelzweig) — hier keine eigenen Farbwerte, kein `--ant-*` (Falle 2). Trefferflächen mindestens 44px.
  */
 
-.lead {
-  margin: 8px 0 20px;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--go-gedaempft);
-}
-
 .karte {
   background: var(--go-blatt);
   border: 1px solid var(--go-linie);

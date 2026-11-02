@@ -38,7 +38,7 @@ export function Belegungsansicht({ anfragen, sperren, heute }: { anfragen: Anfra
 
   return (
     <div className={s.modul}>
-      <Seitenkopf titel="Belegung" beschreibung="Tag oder Eintrag antippen öffnet die Einzelheiten. Für Externe ohne Anmeldung steht im Kalender nur „frei“ oder „belegt“." />
+      <Seitenkopf titel="Belegung" />
       <div className={s.legende} aria-hidden="true">
         <span><i className={s.muster} />frei</span>
         <span><i className={`${s.muster} ${s.angefragt}`} />angefragt</span>

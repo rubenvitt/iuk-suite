@@ -10,15 +10,13 @@ import s from "./planung.module.css";
 import { VorhabenKarte } from "./teile";
 import { useVorhabenFlyin, VorhabenFlyin } from "./VorhabenFormular";
 
-const TEXTE: Record<VorhabenArt, { titel: string; beschreibung: string; neu: string }> = {
+const TEXTE: Record<VorhabenArt, { titel: string; neu: string }> = {
   event: {
     titel: "Events",
-    beschreibung: "Termine mit Datum und Uhrzeit. Ein Event kann zu einem Projekt gehören und die Bar belegen.",
     neu: "Event anlegen",
   },
   projekt: {
     titel: "Projekte",
-    beschreibung: "Vorhaben über mehrere Wochen ohne festen Tag, mit Aufgabenliste. Events können dazugehören.",
     neu: "Projekt anlegen",
   },
 };
@@ -36,7 +34,6 @@ export function VorhabenListe({ art, kommend, vorbei = [], daten }: {
     <div className={s.modul}>
       <Seitenkopf
         titel={t.titel}
-        beschreibung={t.beschreibung}
         aktionen={<Button type="primary" icon={<Icons8Ikone name="plus" groesse={18} />} onClick={() => flyin.oeffne({ art })}>{t.neu}</Button>}
       />
       {art === "event" ? (
@@ -45,7 +42,7 @@ export function VorhabenListe({ art, kommend, vorbei = [], daten }: {
       ) : null}
       {liste.length === 0 ? (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={art === "projekt" ? "Noch keine Projekte." : zeit === "kommend" ? "Keine kommenden Events. Leg mit „Event anlegen“ eins an." : "Noch keine vergangenen Events."} />
+          description={art === "projekt" ? "Noch keine Projekte." : zeit === "kommend" ? "Keine kommenden Events." : "Noch keine vergangenen Events."} />
       ) : (
         <div className={s.karten}>{liste.map((v) => <VorhabenKarte key={v.id} v={v} />)}</div>
       )}
