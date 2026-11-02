@@ -190,9 +190,10 @@ export function berechneModulversionen(cwd, ziel = "HEAD") {
   /** @param {string} h @returns {Commit} */
   const lies = (h) => ({
     nachricht: git(["log", "-1", "--format=%B", h], cwd).trim(),
-    // Ein Merge-Commit liefert hier keine Dateien — seine Inhalte stecken in den
-    // Commits des Zweigs, die einzeln gelesen werden.
-    dateien: git(["diff-tree", "--no-commit-id", "--name-only", "-r", h], cwd).split("\n").filter(Boolean),
+    // `--cc`: ein Merge-Commit liefert so nur, was er SELBST ändert — eine
+    // Konfliktauflösung. Alles andere steckt in den Commits des Zweigs, die einzeln
+    // gelesen werden; ein First-Parent-Diff zählte sie ein zweites Mal.
+    dateien: git(["diff-tree", "--cc", "--no-commit-id", "--name-only", "-r", h], cwd).split("\n").filter(Boolean),
   });
   const schritte = kette.map(([commit, erster, zweiter]) => {
     const hashes = zweiter

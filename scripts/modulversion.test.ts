@@ -122,13 +122,31 @@ describe("berechneModulversionen — an einer echten Historie", () => {
     expect(berechneModulversionen(repo).versionen).toEqual({ helfer: "1.0.0", lagerbuch: "1.1.0" });
   });
 
+  it("eine Änderung, die erst in der Konfliktauflösung des Merges entsteht, zählt", () => {
+    git("checkout", "-q", "-b", "konflikt");
+    datei("src/app/m/helfer/page.tsx", "zweig");
+    git("commit", "-q", "-m", "test(helfer): zählt selbst nicht");
+    git("checkout", "-q", "main");
+    datei("src/app/m/helfer/page.tsx", "main");
+    git("commit", "-q", "-m", "chore: Vorarbeit auf main");
+    try {
+      git("merge", "-q", "--no-ff", "konflikt", "-m", "Merge pull request #3");
+    } catch {
+      // erwartet: Konflikt
+    }
+    datei("src/app/m/helfer/page.tsx", "aufgelöst");
+    git("commit", "-q", "--no-edit");
+    // 1.0.1 aus dem direkten `chore`-Push, 1.0.2 aus der Auflösung im Merge.
+    expect(berechneModulversionen(repo).versionen.helfer).toBe("1.0.2");
+  });
+
   it("ein direkter Push zählt ebenso, und ein neues Modul beginnt bei 1.0.0", () => {
     datei("src/app/m/helfer/page.tsx");
     git("commit", "-q", "-m", "fix(helfer): Kleinigkeit");
     datei("src/app/m/neu/page.tsx");
     git("commit", "-q", "-m", "feat(neu): angelegt");
     expect(berechneModulversionen(repo).versionen).toEqual({
-      helfer: "1.0.1",
+      helfer: "1.0.3",
       lagerbuch: "1.1.0",
       neu: "1.0.0",
     });
