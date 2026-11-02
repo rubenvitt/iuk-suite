@@ -88,8 +88,8 @@ export function LetzteBuchungenTable({ zeilen }: {
   zeilen: UebersichtJournalZeile[];
 }) {
   if (zeilen.length === 0) {
-    // Punkt 5 der Pruefliste: der Leerzustand nennt, woher Buchungen kommen,
-    // statt nur "nichts da" zu sagen.
+    // Punkt 5 der Pruefliste: ein eigener Leerzustand statt einer leeren
+    // Tabelle; er nennt nur den Zustand, ohne Erklaerung.
     return (
       <Empty
         description="Noch keine Buchungen."

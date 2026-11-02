@@ -237,7 +237,8 @@ function Formular({ modulKey }: { modulKey: string }) {
       </div>
 
       <p style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
-        Bitte keine Patienten- oder Einsatzdaten eintragen.
+        Bitte keine Patienten- oder Einsatzdaten eintragen. Mitgeschickt werden dein Name, die Seite, auf der
+        du gerade bist, die Version der Suite und dein Browser.
       </p>
 
       {/* `warning` statt `error`: `colorError` ist das Rot der Primäraktion (Falle 3). */}

@@ -65,9 +65,9 @@ export function PlombenEditor({
   return (
     <div style={{ display: "grid", gap: SPACE.md }} data-rolle="plomben-editor">
       {/*
-        IDA-232: die Erklärung steht nur im Leerzustand — dort, wo jemand die
-        erste Plombe anlegt und wissen muss, wozu. Neben einer gepflegten Liste
-        war sie ein Dauerabsatz, den niemand mehr liest.
+        IDA-232: der Leerzustand nennt nur den Zustand. Erklärende Absätze
+        stehen seit der Bereinigung der Oberfläche nirgends mehr, auch nicht
+        neben einer gepflegten Liste.
       */}
       {plomben.length === 0 ? (
         <p style={{ margin: 0 }}>

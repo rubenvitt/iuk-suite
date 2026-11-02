@@ -43,7 +43,7 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   // Auf „aus“ stellen, nicht blind umschalten: der Ausgangszustand kommt aus der Datenbank.
   if ((await radar.getAttribute("aria-checked")) === "true") await klickeWennRuhig(radar);
   await expect(radar).toHaveAttribute("aria-checked", "false");
-  await expect(page.getByText(/Ausgeschaltet:.*Regenradar/)).toBeVisible();
+  await expect(vorschau.locator('[data-rolle="vorschau-radar"]')).toHaveCount(0);
   await expect(page.getByText("Ungespeicherte Änderungen", { exact: false })).toBeVisible();
 
   // QR-Code fürs Ehrenamt: aus als Vorgabe; an steht er in ruhiger Lage unten rechts in der Vorschau.
