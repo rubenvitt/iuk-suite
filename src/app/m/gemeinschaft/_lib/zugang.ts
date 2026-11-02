@@ -5,7 +5,7 @@ import { auditActor, auditDenied, auditLoginRequired } from "@/core/audit/server
 import { auth } from "@/core/auth";
 import { isModuleAdmin } from "@/core/groups";
 import { getModule } from "@/core/registry";
-import { istGemeinschaftHost } from "./host";
+import { anmeldeHref, istGemeinschaftHost } from "./host";
 
 export type Viewer = Session["user"];
 type EnvLike = Record<string, string | undefined>;
@@ -24,7 +24,7 @@ export async function requireLeitung(): Promise<Viewer> {
   const viewer = (await auth())?.user;
   if (!viewer) {
     auditLoginRequired("gemeinschaft");
-    redirect(`/login?callbackUrl=${encodeURIComponent("/m/gemeinschaft")}`);
+    redirect(anmeldeHref(await headers(), "/"));
   }
   if (!istLeitung(viewer.groups)) {
     auditDenied("gemeinschaft", auditActor(viewer));
