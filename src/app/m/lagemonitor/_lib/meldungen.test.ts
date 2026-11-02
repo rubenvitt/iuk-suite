@@ -52,6 +52,22 @@ describe("Meldungen am Lagemonitor", () => {
     expect(db.select().from(meldung).all()).toHaveLength(1);
   });
 
+  it("die Plätze am Monitor bekommen die zuerst fälligen, nicht die zuerst angelegten", () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: JETZT });
+    onTestFinished(() => { vi.useRealTimers(); });
+    const db = testDb();
+    // 13:00 Berlin. Angelegt in dieser Reihenfolge, „Fünf“ zuletzt, aber am frühesten fällig.
+    const plan: [string, string][] = [["Eins", "17:00"], ["Zwei", "23:00"], ["Drei", "19:00"], ["Vier", "23:30"], ["Fünf", "15:00"]];
+    plan.forEach(([text, uhrzeit], i) => expect(legeMeldungAn(db, eingabe({ text, uhrzeit }), "Ruben", new Date(JETZT.getTime() + i * 1000)).ok).toBe(true));
+    const danach = new Date(JETZT.getTime() + 10_000);
+    expect(aktiveMeldungen(db, danach).map((m) => m.text)).toEqual(["Fünf", "Eins", "Drei"]);
+    // Der Monitor nimmt die ersten drei in dieser Reihenfolge.
+    expect(alsVertrag(db, danach).notices.map((n) => n.text)).toEqual(["Fünf", "Eins", "Drei", "Zwei", "Vier"]);
+    // Ohne Countdown zählt der Beginn: jetzt angelegt, also jetzt fällig, vor allem, was erst später fällig wird.
+    expect(legeMeldungAn(db, eingabe({ text: "Funkkanal" }), "Ruben", danach)).toMatchObject({ ok: true, wartet: false });
+    expect(aktiveMeldungen(db, danach).map((m) => m.text)).toEqual(["Funkkanal", "Fünf", "Eins"]);
+  });
+
   it("abgelaufene Meldungen gehen nicht mehr raus, am Monitor stehen höchstens drei, die anderen warten", () => {
     vi.useFakeTimers({ toFake: ["Date"], now: JETZT });
     onTestFinished(() => { vi.useRealTimers(); });
