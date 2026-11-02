@@ -1,5 +1,5 @@
 import { test, expect, type Locator } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 import {
   E2E_FAHRZEUG_NAME, LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
 } from "./helpers/lagerbuch";
@@ -215,6 +215,8 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     const pfad = "/verwaltung/fahrzeuge/e2e-ohne-art?reiter=einstellungen";
     const antwort = await page.goto(lagerbuchUrl(pfad));
     expect(antwort!.status()).toBe(200);
+    // Falle 22: kurz nach `load` steht die Artwahl doppelt im DOM (versteckte Streaming-Kopie).
+    await warteAufGestreamteInhalte(page);
 
     const abschnitt = page.locator("h2", { hasText: "Art" })
       .locator("xpath=following-sibling::*[1]");
