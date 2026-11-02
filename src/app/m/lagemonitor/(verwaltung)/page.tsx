@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { getDb } from "../_db/client";
+import { listeFahrzeuge } from "../_lib/fahrzeuge";
 import { requireLagemonitorHost } from "../_lib/host";
 import { leseKonfiguration } from "../_lib/konfiguration";
 import { listeKategorien } from "../_lib/kategorien";
@@ -17,5 +18,5 @@ export default async function LagemonitorSeite() {
   requireLagemonitorHost(await headers());
   await requireLagemonitorVerwaltung();
   const db = getDb();
-  return <AnzeigeVerwaltung konfiguration={leseKonfiguration(db)} zugaenge={listeZugaenge(db)} meldungen={offeneMeldungen(db)} kategorien={listeKategorien(db)} links={listeLinks(db)} online={onlineAdresse()} />;
+  return <AnzeigeVerwaltung konfiguration={leseKonfiguration(db)} zugaenge={listeZugaenge(db)} meldungen={offeneMeldungen(db)} kategorien={listeKategorien(db)} links={listeLinks(db)} online={onlineAdresse()} fahrzeuge={listeFahrzeuge(db)} />;
 }

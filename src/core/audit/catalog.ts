@@ -682,6 +682,20 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "id"
       ]
+    },
+    "lagemonitor_fahrzeug": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ],
+      "unauditedColumns": {
+        "columns": [
+          "breite",
+          "laenge",
+          "gemeldet_am"
+        ],
+        "reason": "Die Position kommt mit jeder Abholung des Lagemonitors; im Audit stünde sonst das Bewegungsprofil, das es nach LGM-10 nicht geben soll."
+      }
     }
   },
   "konto": {

@@ -120,3 +120,25 @@ export const kategorie = sqliteTable("lagemonitor_kategorie", {
   reihenfolge: integer("reihenfolge").notNull(),
   angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
 });
+
+/**
+ * Ein Fahrzeug auf der Karte aller Lagemonitore (LGM-10). Name und Funkrufname kommen aus der Fahrzeugverwaltung
+ * (`stammId`, `fahrzeuge/_lib/bereitstellung.ts`), das Zeichen aus kommplan (`zeichen`, `kommplan/_lib/bereitstellung.ts`).
+ * Meldet ein Monitor mit `zugangId`, ist das die Position dieses Fahrzeugs. Je Fahrzeug steht nur die letzte Position:
+ * kein Verlauf, und die drei Positionsspalten stehen nicht im Audit (sonst wäre das Audit das Bewegungsprofil).
+ */
+export const fahrzeug = sqliteTable("lagemonitor_fahrzeug", {
+  id: text("id").primaryKey(),
+  stammId: text("stamm_id").notNull(),
+  zeichen: text("zeichen").notNull(),
+  zugangId: text("zugang_id").references(() => zugang.id, { onDelete: "set null" }),
+  breite: real("breite"),
+  laenge: real("laenge"),
+  /** Wann der Fix entstand (Abholzeit minus gemeldetes Alter), nicht wann er ankam. */
+  gemeldetAm: integer("gemeldet_am", { mode: "timestamp" }),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
+  angelegtVon: text("angelegt_von").notNull(),
+}, (t) => [
+  uniqueIndex("lagemonitor_fahrzeug_stamm_idx").on(t.stammId),
+  uniqueIndex("lagemonitor_fahrzeug_zugang_idx").on(t.zugangId),
+]);
