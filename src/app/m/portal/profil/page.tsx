@@ -4,6 +4,7 @@ import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { laufendeRevision, laufendeVersion, modulversionen } from "@/core/version";
 import { visibleSwitcherModules } from "@/core/registry";
+import { moduleUrl } from "@/core/shell/moduleUrl";
 import { ProfilAnsicht } from "@/app/m/portal/_ui/ProfilAnsicht";
 
 /**
@@ -22,7 +23,8 @@ export default async function ProfilPage() {
   // Nur die Module, die diese Person auch auf der Startseite sieht (IDA-328).
   const versionen = modulversionen();
   const modulStaende = visibleSwitcherModules(session.user.groups ?? [])
-    .filter((m) => versionen[m.key])
+    // `moduleUrl` wie im Launcher: ohne erreichbaren Host steht das Modul dort auch nicht.
+    .filter((m) => moduleUrl(m.key) && versionen[m.key])
     .map((m) => ({ titel: m.title, version: versionen[m.key] }));
 
   return (
