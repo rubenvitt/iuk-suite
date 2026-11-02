@@ -69,6 +69,8 @@ describe("modulversionen", () => {
   it("ohne CI-Image oder mit Unfug: keine Version statt einer falschen", () => {
     delete process.env.SUITE_MODULVERSIONEN;
     expect(modulVersion("lagerbuch")).toBeNull();
+    expect(modulVersion("toString")).toBeNull();
+    expect(modulVersion("constructor")).toBeNull();
     process.env.SUITE_MODULVERSIONEN = "lagerbuch=,helfer=abc,=1.0.0";
     expect(modulversionen()).toEqual({});
   });

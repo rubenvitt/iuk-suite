@@ -57,5 +57,7 @@ export function modulversionen(): Record<string, string> {
 
 /** Die Version eines Moduls, oder `null`, wenn dieses Image keine kennt. */
 export function modulVersion(modul: string): string | null {
-  return modulversionen()[modul] ?? null;
+  // `Object.hasOwn`: sonst lieferte `modulVersion("toString")` die geerbte Funktion.
+  const versionen = modulversionen();
+  return Object.hasOwn(versionen, modul) ? versionen[modul] : null;
 }
