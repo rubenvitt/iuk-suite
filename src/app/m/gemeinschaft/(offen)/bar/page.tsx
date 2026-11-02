@@ -4,7 +4,7 @@ import { auth } from "@/core/auth";
 import { tagesGrenzenInZone } from "@/core/zeit";
 import { getDb } from "../../_db/client";
 import { oeffentlicheBelegung } from "../../_lib/belegung";
-import { requireGemeinschaftHost } from "../../_lib/host";
+import { anmeldeHref, requireGemeinschaftHost } from "../../_lib/host";
 import { ladeBelegendeEintraege } from "../../_lib/vermietung";
 import { tagInZone } from "../../_lib/zeit";
 import { BarAnfrage, type Vorbelegung } from "../../_ui/bar/BarAnfrage";
@@ -19,7 +19,8 @@ export const metadata: Metadata = { title: "Bar mieten" };
  * angemeldet (egal welche Gruppe), sind Name und E-Mail vorausgefüllt — ohne Anmeldung kein Zwang.
  */
 export default async function BarSeite() {
-  requireGemeinschaftHost(await headers());
+  const kopf = await headers();
+  requireGemeinschaftHost(kopf);
   // Ein unlesbares Sitzungs-Cookie macht die öffentliche Seite nicht kaputt (wie `app/login/page.tsx`).
   const viewer = await auth().then((s) => s?.user ?? null, () => null);
   // `new Date()` statt `Date.now()`: `react-hooks/purity` (Vorbild `files/(verwaltung)/posteingang/page.tsx`).
@@ -33,7 +34,7 @@ export default async function BarSeite() {
       <p className="go-text" style={{ marginTop: 8 }}>
         Hier siehst du, wann die Bar frei ist, und kannst sie für deine Veranstaltung anfragen. Ob es klappt, siehst du danach über einen Link.
       </p>
-      <BarAnfrage belegt={belegt} heute={heute} vorbelegung={vorbelegung} anmeldeHref={`/login?callbackUrl=${encodeURIComponent("/bar")}`} />
+      <BarAnfrage belegt={belegt} heute={heute} vorbelegung={vorbelegung} anmeldeHref={anmeldeHref(kopf, "/bar")} />
     </OffenerRahmen>
   );
 }
