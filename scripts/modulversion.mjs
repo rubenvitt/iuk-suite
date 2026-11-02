@@ -193,7 +193,8 @@ export function berechneModulversionen(cwd, ziel = "HEAD") {
     // `--cc`: ein Merge-Commit liefert so nur, was er SELBST ändert — eine
     // Konfliktauflösung. Alles andere steckt in den Commits des Zweigs, die einzeln
     // gelesen werden; ein First-Parent-Diff zählte sie ein zweites Mal.
-    dateien: git(["diff-tree", "--cc", "--no-commit-id", "--name-only", "-r", h], cwd).split("\n").filter(Boolean),
+    // `-z`: ohne setzt git einen Pfad mit Umlaut in Anführungszeichen und Oktal-Escapes.
+    dateien: git(["diff-tree", "--cc", "--no-commit-id", "--name-only", "-z", "-r", h], cwd).split("\0").filter(Boolean),
   });
   const schritte = kette.map(([commit, erster, zweiter]) => {
     const hashes = zweiter

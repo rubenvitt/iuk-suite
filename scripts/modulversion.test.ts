@@ -140,6 +140,12 @@ describe("berechneModulversionen — an einer echten Historie", () => {
     expect(berechneModulversionen(repo).versionen.helfer).toBe("1.0.2");
   });
 
+  it("ein Dateiname mit Umlaut zählt wie jeder andere", () => {
+    datei("src/app/m/lagerbuch/übersicht.tsx");
+    git("commit", "-q", "-m", "chore: Umlaut im Pfad");
+    expect(berechneModulversionen(repo).versionen.lagerbuch).toBe("1.1.1");
+  });
+
   it("ein direkter Push zählt ebenso, und ein neues Modul beginnt bei 1.0.0", () => {
     datei("src/app/m/helfer/page.tsx");
     git("commit", "-q", "-m", "fix(helfer): Kleinigkeit");
@@ -147,7 +153,7 @@ describe("berechneModulversionen — an einer echten Historie", () => {
     git("commit", "-q", "-m", "feat(neu): angelegt");
     expect(berechneModulversionen(repo).versionen).toEqual({
       helfer: "1.0.3",
-      lagerbuch: "1.1.0",
+      lagerbuch: "1.1.1",
       neu: "1.0.0",
     });
   });
