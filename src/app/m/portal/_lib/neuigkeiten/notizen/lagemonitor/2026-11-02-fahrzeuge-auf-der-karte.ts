@@ -9,7 +9,7 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Unter Fahrzeuge auf der Karte wählst du ein Fahrzeug, sein taktisches Zeichen und den Zugang, über den sein Lagemonitor die Position meldet. " +
-        "Alle Lagemonitore zeigen das Fahrzeug dann mit Zeichen und Funkrufname; eine Position, die älter als zehn Minuten ist, erscheint ausgegraut mit Uhrzeit.",
+        "Jeder Lagemonitor auf dem neuen Stand zeigt das Fahrzeug dann mit Zeichen und Funkrufname; eine Position, die älter als zehn Minuten ist, erscheint ausgegraut mit Uhrzeit.",
     ),
   ],
 };

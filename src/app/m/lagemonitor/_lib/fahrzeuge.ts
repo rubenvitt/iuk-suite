@@ -7,7 +7,7 @@
  * Funkrufname und Zeichen gehören anderen Modulen und kommen nur über deren Bereitstellung. Ist eines davon nicht
  * lesbar, fehlen die Fahrzeuge — die Konfiguration selbst geht trotzdem hinaus.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { bereitgestellteFahrzeuge, type BereitgestelltesFahrzeug } from "@/app/m/fahrzeuge/_lib/bereitstellung";
@@ -55,10 +55,15 @@ export function positionAusKopf(wert: string | null): Position | null {
   return { lat, lon, alterS };
 }
 
-/** Setzt die Position des Fahrzeugs, das an diesem Zugang hängt; ohne Fahrzeug passiert nichts. */
+/**
+ * Setzt die Position des Fahrzeugs, das an diesem Zugang hängt; ohne Fahrzeug passiert nichts. Ein älterer Fix als der
+ * gespeicherte überschreibt ihn nicht (etwa eine verspätete Abholung nach einer schnelleren).
+ */
 export function meldePosition(db: LagemonitorDb, zugangId: string, p: Position, jetzt = new Date()): boolean {
   const gemeldetAm = new Date(jetzt.getTime() - p.alterS * 1000);
-  return db.update(fahrzeug).set({ breite: p.lat, laenge: p.lon, gemeldetAm }).where(eq(fahrzeug.zugangId, zugangId)).run().changes > 0;
+  return db.update(fahrzeug).set({ breite: p.lat, laenge: p.lon, gemeldetAm })
+    .where(and(eq(fahrzeug.zugangId, zugangId), or(isNull(fahrzeug.gemeldetAm), lte(fahrzeug.gemeldetAm, gemeldetAm))))
+    .run().changes > 0;
 }
 
 /** Ein Fahrzeug im Drahtformat. `own`: das Fahrzeug des abholenden Zugangs, der Monitor zeichnet es live aus dem GPS. */

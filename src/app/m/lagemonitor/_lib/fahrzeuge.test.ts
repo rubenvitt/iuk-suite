@@ -44,6 +44,13 @@ describe("Fahrzeuge auf der Karte", () => {
     expect(alsVehicles(db, zugangId, JETZT, Q)[0].own).toBe(true);
   });
 
+  it("ein älterer Fix überschreibt den gespeicherten neueren nicht", () => {
+    const { db, zugangId } = mitFuekw();
+    expect(meldePosition(db, zugangId, { lat: 53.0, lon: 10.6, alterS: 5 }, JETZT)).toBe(true);
+    expect(meldePosition(db, zugangId, { lat: 52.9, lon: 10.5, alterS: 60 }, JETZT)).toBe(false);
+    expect(alsVehicles(db, null, JETZT, Q)[0]).toMatchObject({ lat: 53.0, lon: 10.6, at: "2026-11-02T13:59:55.000Z" });
+  });
+
   it("die Position steht nicht im Audit — sonst wäre es ein Bewegungsprofil", () => {
     const { db, zugangId } = mitFuekw();
     const vorher = db.get<{ n: number }>(sql`SELECT count(*) n FROM audit_outbox WHERE object_type = 'lagemonitor_fahrzeug'`).n;
