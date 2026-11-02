@@ -59,7 +59,6 @@ export function NeuigkeitenListe({ neuigkeiten }: { neuigkeiten: Neuigkeit[] }) 
         data-testid="neuigkeiten-leer"
         status="info"
         title="Hier steht noch nichts"
-        subTitle="Sobald sich an einer deiner Apps etwas ändert, findest du es an dieser Stelle."
       />
     );
   }

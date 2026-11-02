@@ -66,7 +66,6 @@ export function CheckArtWahl({
         <Link className={s.zeile} href={ziel("kurz")} data-rolle="check-art-kurz">
           <div className={s.zeileHaupt}>
             <div className={s.zeileName}>Kurzcheck</div>
-            <div className={s.zeileMeta}>Reicht vor einem Sanitätsdienst</div>
             <p className={s.fussnote} style={{ margin: "4px 0 0" }}>{teile.join(" · ")}</p>
           </div>
           <Ikone name="chevron-rechts" />
@@ -74,7 +73,6 @@ export function CheckArtWahl({
         <Link className={s.zeile} href={ziel("voll")} data-rolle="check-art-voll">
           <div className={s.zeileHaupt}>
             <div className={s.zeileName}>Vollcheck</div>
-            <div className={s.zeileMeta}>Während der Desinfektion</div>
             <p className={s.fussnote} style={{ margin: "4px 0 0" }}>
               Alle {kurz.gesamt} Positionen zählen
               {plombenGesamt > 0 && " · Plomben neu setzen"}

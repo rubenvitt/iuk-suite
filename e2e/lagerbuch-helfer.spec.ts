@@ -1128,8 +1128,8 @@ test.describe("IDA-222 — Kurzcheck oder Vollcheck", () => {
     await page.waitForURL(/\/helfer\/check\?fz=/);
 
     const kurz = page.locator("[data-rolle='check-art-kurz']");
-    await expect(kurz).toContainText("Reicht vor einem Sanitätsdienst");
-    await expect(page.locator("[data-rolle='check-art-voll']")).toContainText("Während der Desinfektion");
+    await expect(kurz).toContainText("Kurzcheck");
+    await expect(page.locator("[data-rolle='check-art-voll']")).toContainText("Vollcheck");
 
     await kurz.click();
     await page.waitForURL((u) => u.searchParams.get("art") === "kurz");

@@ -16,9 +16,8 @@ export function DemoHinweis({ darfVerwalten }: { darfVerwalten: boolean }) {
       title="Demo-Modus"
       description={
         <>
-          Die Helfer stammen aus einer eingebauten Beispielantwort im Format von HiOrg-Server, alle Personen sind erfunden.
-          Das Einsatzbuch zeigt sie in seiner Vorschau, übernimmt sie aber nicht.
-          {darfVerwalten ? <> Die echte Quelle stellst du unter <Link href="/einstellungen">Einstellungen</Link> ein.</> : null}
+          Alle Personen sind erfunden.
+          {darfVerwalten ? <> <Link href="/einstellungen">Quelle ändern</Link></> : null}
         </>
       }
     />

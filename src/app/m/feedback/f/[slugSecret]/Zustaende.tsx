@@ -269,9 +269,6 @@ export function ZustandE({ slugSecret, surveyId }: { slugSecret: string; surveyI
   return (
     <Huelle titel="Von diesem Gerät ist schon eine Rückmeldung abgegeben.">
       <Block>
-        <p className={s.text}>
-          Wenn du das Handy weitergibst, kann die nächste Person einen leeren Bogen öffnen.
-        </p>
         <LeererBogen slugSecret={slugSecret} surveyId={surveyId} />
       </Block>
     </Huelle>

@@ -32,8 +32,8 @@ export default async function PortalAdminPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="portal-admin">
       <Seitenkopf titel="Dienste verwalten" />
-      {darfAuditLesen && <section><h2 style={{ margin: 0 }}>Audit-Log</h2><p>Änderungen, Anmeldungen und Abrufe in der gesamten Suite nachvollziehen.</p><Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Audit-Log öffnen</Link></section>}
-      {darfRechte && <section><h2 style={{ margin: 0 }}>Rechte</h2><p>Personen in die Gruppen aus Pocket ID aufnehmen: wer welches Modul benutzen oder verwalten darf.</p><Link href="/admin/rechte" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }} data-testid="rechte-einstieg">Rechte vergeben</Link></section>}
+      {darfAuditLesen && <section><h2 style={{ margin: 0 }}>Audit-Log</h2><Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Audit-Log öffnen</Link></section>}
+      {darfRechte && <section><h2 style={{ margin: 0 }}>Rechte</h2><Link href="/admin/rechte" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }} data-testid="rechte-einstieg">Rechte vergeben</Link></section>}
 
       <section>
         <ServiceTable services={services} gruppen={gruppen.optionen} />
@@ -47,8 +47,7 @@ export default async function PortalAdminPage() {
             in Pocket ID (lokal, e2e) ist die Liste aus der Suite der Normalfall. */}
         {gruppen.quelle === "error" && (
           <p style={{ marginBlock: 0, color: "var(--iuk-gedaempft)" }}>
-            Die Gruppen aus Pocket ID sind gerade nicht abrufbar. Du kannst eine Gruppe trotzdem
-            eintippen — sie muss genau so heißen wie in Pocket ID.
+            Die Gruppen aus Pocket ID sind gerade nicht abrufbar.
           </p>
         )}
         <ServiceForm gruppen={gruppen.optionen} />
@@ -58,13 +57,6 @@ export default async function PortalAdminPage() {
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: `0 ${SPACE.lg}px` }}>
           Ansprechpartner für Zugänge
         </h2>
-        {/* `--iuk-gedaempft` statt `opacity`: Deckkraft dimmt den Kontrast
-            unprüfbar mit und hat keinen Dunkelzweig (Falle/Randbedingung
-            „Kein opacity zum Dämpfen von Text", übernommen aus `DiensteRaster`). */}
-        <p style={{ marginBlock: `0 ${SPACE.md}px`, color: "var(--iuk-gedaempft)" }}>
-          Steht im Portal, wenn jemand für nichts freigeschaltet ist. Bleibt das Feld leer,
-          erscheint dort nur die Erklärung ohne Kontaktweg.
-        </p>
         <AnsprechpartnerForm wert={ansprechpartner} />
       </section>
 
@@ -72,11 +64,6 @@ export default async function PortalAdminPage() {
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBlock: `0 ${SPACE.lg}px` }}>
           Zeitzone
         </h2>
-        <p style={{ marginBlock: `0 ${SPACE.md}px`, color: "var(--iuk-gedaempft)" }}>
-          In dieser Zeitzone zeigt die Suite alle Uhrzeiten an, und in ihr beginnt und endet ein
-          Tag, etwa für Fristen, Tagesfilter und Dateinamen von Exporten. Ein Wechsel gilt sofort
-          und auch für schon gespeicherte Einträge.
-        </p>
         <ZeitzoneForm wert={zeitzone} zonen={waehlbareZeitzonen()} />
       </section>
     </div>

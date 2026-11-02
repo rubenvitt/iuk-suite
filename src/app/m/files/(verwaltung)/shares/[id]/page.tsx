@@ -353,10 +353,6 @@ export default async function ShareDetailSeite({
       {detail.alleUnvollstaendig && (
         <Card data-testid="files-detail-leer">
           <p>Keine Datei vollständig übertragen.</p>
-          <p>
-            Entweder ist der Upload abgebrochen, oder er läuft noch. Es gibt hier nichts
-            herunterzuladen — der öffentliche Link zeigt Empfängern denselben Zustand.
-          </p>
           {/*
            * ZWEI WEGE: „Löschen" steht als Knopf oben in der Handlungszeile,
            * „Erneut hochladen" führt auf `/shares/neu`. Einen Weg, die BYTES

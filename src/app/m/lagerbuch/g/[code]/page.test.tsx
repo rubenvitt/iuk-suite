@@ -364,7 +364,7 @@ describe("g/[code] — Bauform (§3.8.2, §11.6)", () => {
    *
    * FALLE 1: `Card`, `Statistic`, `Result`, `Progress`, `Table`, `Tag` und
    * `Button` sind in einer Server Component sicher (CLAUDE.md,
-   * not-found.tsx:1,57 benutzt Button so). `Typography.Title` und Geschwister
+   * not-found.tsx, Knopf „Zur Startseite“, benutzt Button so). `Typography.Title` und Geschwister
    * ergeben HTTP 500 — der Compound-Zugriff ist es, nicht der Import.
    */
   it("greift auf kein antd-Compound zu", () => {

@@ -210,7 +210,7 @@ function GruppenFormular({
           </span>
         )}
         <span style={T.meta}>
-          {`Vorgabe: ${DEFAULT_CLOSE_AFTER_HOURS} Stunden. Gilt für jede neu gestartete Umfrage — gerechnet ab Mitternacht nach dem Abendtag.`}
+          {`Vorgabe: ${DEFAULT_CLOSE_AFTER_HOURS} Stunden`}
         </span>
       </label>
       <div>
@@ -278,7 +278,6 @@ function Folgenschwer({
 
       <Zeile
         titel="Zugang neu vergeben"
-        erklaerung="Nötig, wenn der Aushang in falsche Hände geraten ist."
       >
         <Popconfirm
           title="Neues Secret erzeugen?"
@@ -357,7 +356,7 @@ function Zeile({
   children,
 }: {
   titel: string;
-  erklaerung: string;
+  erklaerung?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -372,7 +371,7 @@ function Zeile({
     >
       <div style={{ ...FELD, flex: "1 1 240px" }}>
         <span style={T.body}>{titel}</span>
-        <span style={T.meta}>{erklaerung}</span>
+        {erklaerung ? <span style={T.meta}>{erklaerung}</span> : null}
       </div>
       {children}
     </div>

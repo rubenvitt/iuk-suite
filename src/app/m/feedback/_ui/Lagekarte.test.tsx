@@ -218,13 +218,11 @@ beforeEach(() => {
 describe("Lagekarte — Belegung A (Erststart)", () => {
   const z = zustand({ belegung: "A", modus: "einrichtung" });
 
-  it("nennt den ersten Schritt und die zwei Schritte des Einrichtens", () => {
+  it("nennt den ersten Schritt", () => {
     const t = text(karte(z));
     expect(t).toContain("ERSTER SCHRITT");
     expect(t).toContain("Ersten Dienstabend anlegen und Feedback starten");
-    expect(t).toContain("Schritt 1");
-    expect(t).toContain("Schritt 2");
-    expect(t).toContain("der Code gilt dauerhaft");
+    expect(t).not.toContain("Schritt 1");
     expect(t).toContain("Gerade läuft kein Feedback.");
   });
 
@@ -280,9 +278,9 @@ describe("Lagekarte — Belegung C (laeuft, 0 Antworten)", () => {
     expect(t).toContain(formatDatumKurz(laufend.evening.date));
   });
 
-  it("bittet um den QR-Code statt leere Notenspuren zu zeigen", () => {
+  it("nennt den Leerzustand statt leere Notenspuren zu zeigen", () => {
     const t = text(karte(z));
-    expect(t).toContain("Noch keine Rückmeldung — zeig den QR-Code am Ende des Abends.");
+    expect(t).toContain("Noch keine Rückmeldung.");
     expect(zeichne(karte(z)).querySelector(".ant-progress")).toBeNull();
   });
 
@@ -388,16 +386,16 @@ describe("Lagekarte — Zwischenstand (§2.3)", () => {
       verteilungen,
     );
 
-  it("sagt bei zwei Rueckmeldungen, dass die Zahlen noch stark schwanken", () => {
+  it("nennt bei zwei Rueckmeldungen die Zahl", () => {
     const t = text(laufende(2));
     expect(t).toContain("ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG");
-    expect(t).toContain("Erst 2 Rückmeldungen — die Zahlen schwanken noch stark.");
+    expect(t).toContain("Erst 2 Rückmeldungen");
   });
 
   it("beugt den Hinweis bei genau einer Rueckmeldung", () => {
     const t = text(laufende(1));
-    expect(t).toContain("Erst 1 Rückmeldung — die Zahlen schwanken noch stark.");
-    expect(t).not.toContain("Rückmeldungen — die Zahlen");
+    expect(t).toContain("Erst 1 Rückmeldung");
+    expect(t).not.toContain("Erst 1 Rückmeldungen");
   });
 
   it("laesst den Hinweis ab drei Rueckmeldungen weg", () => {
@@ -407,9 +405,9 @@ describe("Lagekarte — Zwischenstand (§2.3)", () => {
   });
 
   it("zaehlt die Freitexte und zeigt sie nicht", () => {
-    expect(text(laufende(12, 5))).toContain("5 Freitexte — in der Auswertung nachlesen");
+    expect(text(laufende(12, 5))).toContain("5 Freitexte");
     const t = text(laufende(12, 1));
-    expect(t).toContain("1 Freitext — in der Auswertung nachlesen");
+    expect(t).toContain("1 Freitext");
     expect(t).not.toContain("Freitexte");
   });
 
@@ -965,7 +963,7 @@ describe("Lagekarte — „Teilnehmerzahl nachtragen“ (2.4)", () => {
     const t = zeichne(karte(c)).textContent ?? "";
     // Der Satz aus Belegung C bleibt — der Knopf tritt NEBEN ihn, nicht an
     // seine Stelle (§2.3, Zeile 249 der Entwurfstabelle).
-    expect(t).toContain("Noch keine Rückmeldung — zeig den QR-Code am Ende des Abends.");
+    expect(t).toContain("Noch keine Rückmeldung.");
     expect(t).toContain("Teilnehmerzahl nachtragen");
   });
 

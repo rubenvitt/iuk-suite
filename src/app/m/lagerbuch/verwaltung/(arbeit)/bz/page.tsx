@@ -43,7 +43,6 @@ export function bzSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     <>
       <SeitenKopf
         titel="BZ-Kontrolle"
-        beschreibung="Blutzuckermessgeräte mit Kontrollfrist, Referenzbereichen und Logbuch."
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>

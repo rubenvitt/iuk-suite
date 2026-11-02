@@ -92,7 +92,7 @@ export function LetzteBuchungenTable({ zeilen }: {
     // statt nur "nichts da" zu sagen.
     return (
       <Empty
-        description="Noch keine Buchungen. Buchungen entstehen beim Ein- und Auslagern im Artikelbestand."
+        description="Noch keine Buchungen."
       />
     );
   }

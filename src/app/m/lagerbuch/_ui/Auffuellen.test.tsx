@@ -436,17 +436,10 @@ describe("Auffuellen — ein deaktivierter Artikel nimmt nichts mehr an", () => 
     expect(buchen).not.toHaveBeenCalled();
   });
 
-  /**
-   * ⚠️ DER HINWEIS NENNT DEN AUSGANG, nicht nur die Lage. „Geht nicht" allein
-   * laesst jemanden mit dem Karton in der Hand stehen; der Schalter sitzt in
-   * der Verwaltung, und das ist die einzige brauchbare Auskunft an dieser
-   * Stelle. Zugesichert wird deshalb der WEG, nicht bloss das Wort.
-   */
-  it("sagt, warum — und wer es aendern kann", async () => {
+  it("nennt den Zustand", async () => {
     await zeigeInaktiv();
     const text = query('[data-rolle="auffuellen-inaktiv"]').textContent ?? "";
     expect(text).toContain("deaktiviert");
-    expect(text).toContain("Verwaltung");
   });
 
   it("steht auf einem AKTIVEN Artikel nicht da", async () => {

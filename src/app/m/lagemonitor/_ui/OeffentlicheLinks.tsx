@@ -62,12 +62,8 @@ export function OeffentlicheLinks({ liste, online }: { liste: LinkDTO[]; online:
   return (
     <Card title="Links für Rechner ohne Anmeldung">
       <div style={{ display: "grid", gap: SPACE.lg }}>
-        <span style={SCHRIFT.neben} className={v.gedaempft}>
-          Öffnet ein Rechner so einen Link, zeigt er den Online-Monitor ohne Anmeldung und bleibt dabei, auch nach einem Neustart. Wird der Link widerrufen, verliert jeder Rechner damit den Zugang nach spätestens einer Minute. Alle anderen melden sich mit ihrem Konto an.
-        </span>
-
         {online === null ? (
-          <span>Für den Online-Monitor ist noch keine Adresse eingetragen. Solange gibt es keine Links.</span>
+          <span>Für den Online-Monitor ist noch keine Adresse eingetragen.</span>
         ) : null}
 
         {neu ? (

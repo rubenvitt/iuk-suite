@@ -179,9 +179,6 @@ export function AusgabeAnsicht({ p, a, helfer, jetzt }: { p: PlanungDTO; a: Ausw
         <Button href={druck} target="_blank" icon={<Icons8Ikone name="print" groesse={16} />}>Drucken</Button>
         <Button type="primary" loading={laeuft} onClick={() => void excel()} icon={<Icons8Ikone name="download" groesse={16} />}>Excel herunterladen</Button>
       </div>
-      <span className={s.neben}>
-        Vorschau der Druckblätter. Die Excel-Datei enthält alle Schichten je Abschnitt und je Helfer sowie die Konflikte; sie ist auch die Übergabe an Lifeline Hub.
-      </span>
       <Blaetter p={p} helfer={helfer} sicht={sicht} auswahl={auswahl} jetzt={jetzt} />
     </div>
   );

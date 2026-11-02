@@ -124,7 +124,6 @@ export function OrtsetikettenChrome({
               {neueCodes === 1
                 ? "Für einen Ort ist gerade ein neuer Zugangs-Code entstanden."
                 : `Für ${neueCodes} Orte sind gerade neue Zugangs-Codes entstanden.`}
-              {" "}Diese Karten musst du ausdrucken und anbringen.
             </p>
           )}
           {/*
@@ -139,7 +138,6 @@ export function OrtsetikettenChrome({
                 {alteCodes === 1
                   ? "Eine Karte trägt noch einen alten 6-stelligen Code."
                   : `${alteCodes} Karten tragen noch einen alten 6-stelligen Code.`}
-                {" "}Er gilt weiter, kann aber bei einem Angriff für neue Geräte gesperrt werden.
               </p>
               <Button disabled={laeuft} onClick={alteErsetzen} style={{ marginBlockStart: SPACE.sm }}>
                 Alte Codes neu erzeugen
@@ -163,8 +161,7 @@ export function OrtsetikettenChrome({
           */}
           <p data-testid="lb-ort-format" style={{ margin: 0 }}>
             {ORT_JE_BLATT} Karten je A4-Blatt, je {ORT_KARTE_BREITE_MM} ×{" "}
-            {ORT_KARTE_HOEHE_MM} mm zum Ausschneiden. Im Druckdialog Seitengröße
-            und Ränder aus dem Dokument übernehmen.
+            {ORT_KARTE_HOEHE_MM} mm
           </p>
         </div>
         {/*

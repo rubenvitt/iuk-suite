@@ -411,7 +411,7 @@ export function TemplatePosEditor({
 
       {gruppen.length === 0 ? (
         <p style={{ ...SCHRIFT.neben, margin: 0 }}>
-          Noch keine Position. Lege oben die erste an.
+          Noch keine Position.
         </p>
       ) : fach.sichtbare.length === 0 ? (
         <p style={{ ...SCHRIFT.neben, margin: 0 }}>Keine Position passt zur Suche.</p>

@@ -24,7 +24,6 @@ export default function GeraetScanSeite() {
     <>
       <SeitenKopf
         titel="Gerät scannen"
-        beschreibung="Barcode auf das Kamerabild halten — der Sprung ins Geräteblatt erfolgt automatisch."
         zurueck={{ titel: "Geräte", href: "/verwaltung/geraete" }}
       />
       <GeraetScanner />

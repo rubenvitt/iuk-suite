@@ -95,11 +95,11 @@ describe("ChargenZaehlung", () => {
           onAendern={h.onAendern} />);
     }
 
-    it("zeigt die Charge mit ihrem Rest bei „Nicht zugeordnet“ und erklärt die Übernahme", async () => {
+    it("zeigt die Charge mit ihrem Rest bei „Nicht zugeordnet“ ", async () => {
       const h = harness();
       await zeige(h);
       expect(query("[data-charge-id='w1']").textContent).toContain("nicht zugeordnet 30");
-      expect(query("[data-rolle='ungeordnet-hinweis']").textContent).toContain("umgelagert");
+      expect(query("[data-rolle='ungeordnet-hinweis']").textContent).toContain("Nicht zugeordnet");
       // Ungezaehlt: kein Schalter, nichts gesendet.
       expect(queryAll("[data-rolle='uebernahme']")).toHaveLength(0);
     });

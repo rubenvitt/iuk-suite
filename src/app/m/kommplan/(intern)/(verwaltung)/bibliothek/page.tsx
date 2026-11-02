@@ -24,8 +24,7 @@ export default async function BibliothekSeite({ searchParams }: { searchParams: 
   const { reiter } = await searchParams;
   return (
     <Huelle>
-      <Seitenkopf titel="Bibliothek" zurueck={{ titel: "Alle Pläne", href: "/" }}
-        beschreibung="Stellen, Einheiten und Verbindungen, die du im Editor in Pläne kopierst — Pläne behalten ihre Kopien. Unter Zeichen baust du eigene taktische Zeichen; sie gelten in allen Plänen, die sie nutzen." />
+      <Seitenkopf titel="Bibliothek" zurueck={{ titel: "Alle Pläne", href: "/" }} />
       <Bibliothek bibliothek={bib} eigeneZeichen={eigene} zeichenIndex={zeichenIndexMitEigenen(db)} symbole={symboleMitEigenen(db, zeichen)}
         schrift={ZEICHENSCHRIFT.style.fontFamily} reiter={reiter === "zeichen" ? "zeichen" : undefined} />
     </Huelle>

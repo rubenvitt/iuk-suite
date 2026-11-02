@@ -69,7 +69,7 @@ export function EinheitenBereich({ einheiten, zeichenIndex, symbole, ladeSymbole
           <Button ref={csvKnopf} onClick={() => { setQuelle("csv"); csv.current?.click(); }}>CSV importieren</Button>
           <input ref={csv} className="kp-dateifeld" type="file" name="csv" accept=".csv,text/csv,text/plain" tabIndex={-1} aria-hidden="true"
             onChange={(e) => { const d = e.target.files?.[0]; if (d) void liesCsv(d); }} />
-          <p className="kp-hilfe">„Liste einfügen“: je Zeile erst der Typ, dann der Rufname (RTW RK UE 40-83-5). CSV mit Semikolon: Typ;Rufname;Notiz — die Notiz darf fehlen, eine Kopfzeile auch.</p>
+          <p className="kp-hilfe">Je Zeile: Typ Rufname · CSV: Typ;Rufname;Notiz</p>
         </>
       )}>
       {(z) => (

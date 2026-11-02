@@ -36,7 +36,6 @@ export function vorlagenInhalt(db: DB): ReactNode {
     <>
       <SeitenKopf
         titel="Vorlagen"
-        beschreibung="Bestückung einmal definieren und auf mehrere identisch gepackte Einheiten übertragen. Pro Einheit bleiben manuelle Abweichungen möglich."
         aktionen={<NeuTemplate />}
       />
       <TemplateTable zeilen={templateAnzeigeZeilen(db)} />

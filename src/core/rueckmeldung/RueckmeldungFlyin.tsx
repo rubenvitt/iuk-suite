@@ -176,8 +176,7 @@ function Formular({ modulKey }: { modulKey: string }) {
         title="Danke für deine Rückmeldung!"
         subTitle={
           <>
-            Sie hat die Nummer <strong data-testid="rueckmeldung-kennung">{kennung}</strong>. Nenn sie,
-            wenn du später danach fragst.
+            Sie hat die Nummer <strong data-testid="rueckmeldung-kennung">{kennung}</strong>.
           </>
         }
         extra={<Button onClick={schliesseRueckmeldung}>Schließen</Button>}
@@ -238,8 +237,7 @@ function Formular({ modulKey }: { modulKey: string }) {
       </div>
 
       <p style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
-        Bitte keine Patienten- oder Einsatzdaten eintragen. Mitgeschickt werden dein Name, die Seite, auf der
-        du gerade bist, die Version der Suite und dein Browser.
+        Bitte keine Patienten- oder Einsatzdaten eintragen.
       </p>
 
       {/* `warning` statt `error`: `colorError` ist das Rot der Primäraktion (Falle 3). */}

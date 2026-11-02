@@ -124,10 +124,6 @@ export function LoginForm({
           </div>
           <p className={styles.kicker}>Anmeldung</p>
           <h1 className={styles.titel}>Willkommen zurück</h1>
-          <p className={styles.einleitung}>
-            Du meldest dich über Pocket ID an – mit deinem Passkey, ohne Passwort. Danach kommst du
-            direkt hierher zurück.
-          </p>
 
           <Button type="primary" block loading={weiter} onClick={zuPocketId}>
             <span className={styles.knopfInhalt}>

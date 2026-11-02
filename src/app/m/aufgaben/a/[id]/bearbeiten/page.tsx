@@ -33,7 +33,6 @@ export function bearbeitenInhalt(task: AufgabeRow) {
         ]}
         titel="Aufgabe ändern"
         hilfe="aufgabe"
-        kontext="Zuweisung und Zustand ändern sich hier nicht. Jede Änderung steht danach im Verlauf."
       />
       <AufgabeFormular darfFuerAndere={false} bestand={task} />
     </>

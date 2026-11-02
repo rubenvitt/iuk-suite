@@ -926,9 +926,6 @@ function NachtragenFormular({
       style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
     >
       <input type="hidden" name="groupId" value={groupId} />
-      <p style={{ ...T.meta, margin: 0 }}>
-        Der Abend wird nur dokumentiert — es wird kein Feedback erhoben und kein QR-Code gültig.
-      </p>
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={T.kicker}>Datum</span>
         <Input

@@ -50,10 +50,6 @@ export function QualiZuordnung({ zeilen, auswahl, wahl, onWahl }: {
 }) {
   return (
     <section aria-label="Qualifikationen aus HiOrg" style={{ display: "grid", gap: SPACE.md }}>
-      <p style={{ margin: 0 }}>
-        So werden die Qualifikationen aus dem Helferverzeichnis den Kürzeln im Einsatzbuch zugeordnet. Hat jemand mehrere,
-        gilt die höchste. „Automatisch“ nimmt die eingebaute Zuordnung.
-      </p>
       {zeilen.length === 0 ? (
         <p style={{ margin: 0 }}>Im Helferverzeichnis trägt niemand eine Qualifikation.</p>
       ) : (

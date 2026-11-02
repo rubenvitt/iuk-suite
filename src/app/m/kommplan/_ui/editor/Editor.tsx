@@ -58,7 +58,6 @@ export interface HinweisAktion { text: string; tu(): void }
 interface Angelegt { nach: PlanInhalt; stelle: string; zurueck: string | null }
 const BEDIENHINWEIS = "Pfeiltasten wählen Stellen, Enter oder F2 bearbeitet, N legt eine Unterstelle an, Entf löscht, Plus und Minus zoomen";
 /** Sichtbar unter der Fläche (Entscheidung 9) — dieselben Befehle wie im `aria-label`, knapper. */
-const BEDIENZEILE = "Pfeile wählen · Enter oder F2 bearbeitet · N neue Unterstelle · Entf löscht · Strg/Cmd+Z nimmt zurück";
 /** Deckel der eingepassten Ansicht (Entscheidung 18): eine einzelne Karte nicht mit Maßstab 16. */
 export const EDITOR_MASSSTAB = 4;
 /**
@@ -507,7 +506,6 @@ export function Editor({ plan, symbole: symboleStart, zeichenIndex, schrift, sch
             ) : null)}
             leer={<div className="kp-leer"><p>Dieser Plan hat noch keine Stellen.</p><Button type="primary" onClick={() => lege("wurzel", null)}>Erste Stelle anlegen</Button></div>}
             werkzeuge={eingeklappt.size > 0 ? <Button onClick={() => setEingeklappt(new Set())}>Alle ausklappen</Button> : null} />
-          <p className="kp-hilfe kp-bedienhinweis">{BEDIENZEILE}</p>
           <div className={schriftKlasse}><Legende eintraege={eintraege} /></div>
           <Button onClick={() => oeffnePlan("verbindungen")}>Verbindungen bearbeiten</Button>
         </div>

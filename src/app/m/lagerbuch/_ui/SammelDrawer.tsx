@@ -170,9 +170,6 @@ export function SammelDrawer({
                 onChange={setKategorieWert}
                 aria-label="Kategorie für alle ausgewählten Artikel"
               />
-              <div style={SCHRIFT.neben}>
-                Leer lassen heißt „ohne Kategorie“.
-              </div>
             </FeldZeile>
 
             <FeldZeile an={fachAn} onAn={setFachAn} beschriftung={SAMMEL_FELDNAMEN.fach}>
@@ -203,10 +200,6 @@ export function SammelDrawer({
                 style={{ width: "100%" }}
               />
             </FeldZeile>
-          </div>
-          <div style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.md }}>
-            Name, Einheit und Mindestbestand gehören zum einzelnen Artikel und
-            werden in seiner Schublade geändert.
           </div>
         </section>
 

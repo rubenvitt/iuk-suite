@@ -221,12 +221,6 @@ function StartKarte({
       title={erststart ? "ERSTER SCHRITT" : "NÄCHSTER SCHRITT"}
       extra={<span style={T.meta}>Gerade läuft kein Feedback.</span>}
     >
-      {erststart && (
-        <p style={{ ...T.body, margin: "0 0 12px" }}>
-          Schritt 1: unten das erste Feedback starten. Schritt 2: den Aushang aufhängen — der Code
-          gilt dauerhaft.
-        </p>
-      )}
       <h2 style={{ ...T.h2, margin: "0 0 16px" }}>
         {erststart
           ? "Ersten Dienstabend anlegen und Feedback starten"
@@ -330,7 +324,7 @@ function LaufendeKarte({
 
       {nullAntworten ? (
         <p style={{ ...T.body, margin: 0 }}>
-          Noch keine Rückmeldung — zeig den QR-Code am Ende des Abends.
+          Noch keine Rückmeldung.
         </p>
       ) : (
         <div>
@@ -407,13 +401,12 @@ function LaufendeKarte({
           <p style={{ ...T.kicker, margin: 0 }}>ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG</p>
           {schwankt && (
             <p style={{ ...T.meta, margin: "8px 0 0" }}>
-              Erst {responseCount} {responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"} — die
-              Zahlen schwanken noch stark.
+              Erst {responseCount} {responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"}
             </p>
           )}
           {freitexte > 0 && (
             <p style={{ ...T.meta, margin: "8px 0 0" }}>
-              {freitexte} {freitexte === 1 ? "Freitext" : "Freitexte"} — in der Auswertung nachlesen
+              {freitexte} {freitexte === 1 ? "Freitext" : "Freitexte"}
             </p>
           )}
           {spuren.length > 0 && (

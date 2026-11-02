@@ -146,9 +146,7 @@ export function HelferAbgleich({ onSchliessen }: { onSchliessen: () => void }) {
     <Drawer open onClose={onSchliessen} title="Personal aus dem Helferverzeichnis" size={flyinBreite(720)} destroyOnHidden footer={fuss}>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
         <p style={{ margin: 0 }}>
-          Übernimmt die im Helferverzeichnis fürs Einsatzbuch freigegebenen Helfer mit Name und Qualifikation. Von Hand angelegtes
-          Personal bleibt, wie es ist; wer nicht mehr freigegeben ist, wird deaktiviert.
-          {plan ? ` Stand des Helferverzeichnisses: ${plan.stand ? ZEIT.format(new Date(plan.stand)) : "noch kein Abgleich mit HiOrg"}.` : null}
+          {plan ? `Stand des Helferverzeichnisses: ${plan.stand ? ZEIT.format(new Date(plan.stand)) : "noch kein Abgleich mit HiOrg"}` : null}
         </p>
         {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
         {anzahl("demo") > 0 ? (

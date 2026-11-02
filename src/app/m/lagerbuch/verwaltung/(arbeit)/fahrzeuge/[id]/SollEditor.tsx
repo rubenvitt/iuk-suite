@@ -564,7 +564,7 @@ export function SollEditor({
 
       {gruppen.length === 0 ? (
         <p style={{ ...SCHRIFT.neben, margin: 0 }}>
-          Noch keine Soll-Position. Lege oben die erste an.
+          Noch keine Soll-Position.
         </p>
       ) : fach.sichtbare.length === 0 ? (
         <p style={{ ...SCHRIFT.neben, margin: 0 }}>Keine Soll-Position passt zur Suche.</p>

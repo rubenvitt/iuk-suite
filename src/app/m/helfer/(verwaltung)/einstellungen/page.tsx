@@ -41,7 +41,7 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
   const { hiorg } = await searchParams;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.xl }}>
-      <Seitenkopf titel="Einstellungen" beschreibung="Quelle, Verbindung zu HiOrg-Server und Datenschutz." zurueck={{ titel: "Helfer", href: "/" }} />
+      <Seitenkopf titel="Einstellungen" zurueck={{ titel: "Helfer", href: "/" }} />
       {e.quelle === "demo" ? <DemoHinweis darfVerwalten={false} /> : null}
       {darfVerwalten ? (
         <Einstellungen
@@ -54,7 +54,7 @@ export default async function EinstellungenSeite({ searchParams }: { searchParam
         />
       ) : (
         <p style={{ margin: 0 }}>
-          Quelle: {QUELLE_TEXT[e.quelle]}{v ? `, verbunden als ${v.kontoName}` : ""}. Ändern dürfen nur die Verwaltenden des Moduls.
+          Quelle: {QUELLE_TEXT[e.quelle]}{v ? `, verbunden als ${v.kontoName}` : ""}
         </p>
       )}
       <section aria-labelledby="datenschutz" style={{ display: "grid", gap: SPACE.sm, maxWidth: 720 }}>

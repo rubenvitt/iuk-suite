@@ -7,7 +7,7 @@ import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { kategorieAendernAction, kategorieAnlegenAction, kategorieLoeschenAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { FARBEN, KATEGORIE_NAME_MAX, KATEGORIEN_MAX, NACHLAUF_MINUTEN, VERSCHWINDEN, VORLAEUFE, ZEICHEN, ZEICHEN_TEXT, type KategorieDTO, type KategorieEingabe } from "../_lib/kategorieRegeln";
+import { FARBEN, KATEGORIE_NAME_MAX, KATEGORIEN_MAX, VERSCHWINDEN, VORLAEUFE, ZEICHEN, ZEICHEN_TEXT, type KategorieDTO, type KategorieEingabe } from "../_lib/kategorieRegeln";
 import { KategorieMarke } from "./KategorieMarke";
 import v from "./verwaltung.module.css";
 
@@ -44,9 +44,6 @@ export function Kategorien({ liste }: { liste: KategorieDTO[] }) {
   return (
     <Card title="Meldekategorien">
       <div style={{ display: "grid", gap: SPACE.lg }}>
-        <span style={SCHRIFT.neben} className={v.gedaempft}>
-          Jede Meldung bekommt eine Kategorie. Am Monitor steht sie mit Zeichen und Farbe vor dem Text. Hat die Meldung eine Uhrzeit zum Herunterzählen, blinkt sie kurz vorher und bis {NACHLAUF_MINUTEN} Minuten danach, und sie kann danach von selbst verschwinden.
-        </span>
         {liste.length > 0 ? (
           <ul className={v.meldungen} aria-label="Kategorien">
             {liste.map((k) =>
@@ -93,7 +90,7 @@ export function Kategorien({ liste }: { liste: KategorieDTO[] }) {
             )}
           </ul>
         ) : (
-          <span>Noch keine Kategorie. Meldungen stehen dann als schlichte „Meldung“ am Monitor.</span>
+          <span>Noch keine Kategorie.</span>
         )}
         {bearbeitet === "neu" ? (
           <KategorieFormular
@@ -109,7 +106,7 @@ export function Kategorien({ liste }: { liste: KategorieDTO[] }) {
           />
         ) : voll ? (
           <span style={SCHRIFT.neben} className={v.gedaempft}>
-            Mehr als {KATEGORIEN_MAX} Kategorien gehen nicht. Für eine neue bitte erst eine löschen.
+            Höchstens {KATEGORIEN_MAX} Kategorien.
           </span>
         ) : (
           <div>
@@ -235,15 +232,11 @@ function KategorieFormular({
         </span>
         <Radio.Group
           aria-labelledby={`${basis}-verschwinden`}
-          aria-describedby={`${basis}-verschwinden-hilfe`}
           value={e.verschwindenMinuten == null ? BLEIBT : String(e.verschwindenMinuten)}
           optionType="button"
           onChange={(x) => setE({ ...e, verschwindenMinuten: x.target.value === BLEIBT ? null : Number(x.target.value) })}
           options={VERSCHWINDEN.map((l) => ({ value: l.minuten === null ? BLEIBT : String(l.minuten), label: l.text }))}
         />
-        <span id={`${basis}-verschwinden-hilfe`} style={SCHRIFT.neben} className={v.gedaempft}>
-          Für Meldungen mit Uhrzeit, etwa einer Besprechung: danach nimmt der Monitor sie von selbst weg, auch wenn ihre Laufzeit noch nicht um ist.
-        </span>
       </div>
       <div style={{ display: "flex", gap: SPACE.md, alignItems: "center", flexWrap: "wrap" }}>
         <span style={SCHRIFT.neben} className={v.gedaempft}>

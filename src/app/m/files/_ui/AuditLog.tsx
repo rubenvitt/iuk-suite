@@ -68,18 +68,6 @@ export type AuditLogProps = {
 export function AuditLog({ zeilen, mehrHref, obergrenzeZeilen }: AuditLogProps) {
   return (
     <Card title="Zugriffsprotokoll" data-testid="files-auditlog">
-      {/*
-       * DER KOPF SAGT, WAS DIE ADRESSE IST. Die Spaltenüberschrift trägt es
-       * knapp, dieser Satz die Begründung — ohne ihn steht in der Tabelle eine
-       * Zahl, deren Belastbarkeit niemand einschätzen kann.
-       */}
-      <p>
-        Protokolliert wird jede ausgelieferte Datei und jedes ZIP der ganzen Freigabe. Die Adresse
-        stammt aus dem Anfrage-Kopf und ist deshalb <strong>nicht bestätigt</strong>; gespeichert
-        wird sie <strong>gekürzt</strong> (letztes Oktett bzw. /48). Vorschauen werden nicht
-        protokolliert.
-      </p>
-
       {zeilen.length === 0 ? (
         <p data-testid="files-auditlog-leer">Noch kein Zugriff protokolliert.</p>
       ) : (

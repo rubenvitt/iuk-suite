@@ -27,7 +27,6 @@ export function Druckseite({ daten, schrift, automatisch = true }: { daten: Druc
   return (
     <main className={`kp-druck ${schrift.klasse}`} data-format={daten.format}>
       <Drucken automatisch={automatisch} />
-      {automatisch ? null : <p className="noprint kp-druck-svg-hinweis">Zum Herunterladen: je Blatt ein Knopf. Drucken geht weiter über „Drucken“.</p>}
       {daten.qrSatz ? <p className="noprint kp-druck-qr-satz" data-qr-satz="">{daten.qrSatz}</p> : null}
       <Druckblaetter format={daten.format} blaetter={daten.blaetter} rahmen={daten.rahmen} symbole={daten.symbole} schrift={schrift.familie}
         vorBlatt={daten.svgExport ? (b) => (

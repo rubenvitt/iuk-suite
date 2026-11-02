@@ -158,14 +158,11 @@ afterEach(async () => {
  * aussieht, als sei alles in Ordnung.
  */
 describe("KommendeAbende — leer ist ein Zustand, keine Sackgasse", () => {
-  it("erklärt, wozu die Zone da ist, statt eine leere Liste zu zeigen", () => {
+  it("nennt den Leerzustand, statt eine leere Liste zu zeigen", () => {
     const wirt = zeichne([]);
 
     expect(zeilen(wirt)).toHaveLength(0);
     expect(wirt.textContent).toContain("Noch nichts geplant.");
-    expect(wirt.textContent).toContain(
-      "Du kannst kommende Dienstabende im Voraus eintragen",
-    );
   });
 
   it("lässt „Dienstabend planen“ auch ohne einen einzigen Abend erreichbar", () => {

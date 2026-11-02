@@ -36,11 +36,6 @@ export interface GliederungGriff {
    */
   vergiss(): void;
 }
-export const GLIEDERUNG_BEDIENZEILE =
-  "Enter neue Stelle darunter, auf leerer Zeile ausrücken · Tab / Umschalt+Tab Ebene · Alt+↑/↓ verschieben · ↑/↓ wandern · " +
-  "Alt+V Verbindung · Alt+Z Zeichen · F2 oder Strg/Cmd+Enter Details · Esc verlässt das Titelfeld · " +
-  "Eine eingerückte Liste einfügen legt einen ganzen Zweig an · Alt+Enter übernimmt den ersten Vorschlag aus der Bibliothek";
-export const GLIEDERUNG_BEDIENZEILE_SCHMAL = "„⋯“ an jeder Zeile: anlegen, einrücken, verschieben, Details · Eine eingerückte Liste einfügen legt einen ganzen Zweig an";
 const LEER_ZIEL = "~leer";
 const KEIN_MENUE: MenuProps["items"] = [];
 
@@ -355,7 +350,6 @@ export function Gliederung(p: GliederungProps) {
         <div className="kp-leer">
           <p>Dieser Plan hat noch keine Stellen.</p>
           <Button ref={erste} type="primary" onClick={ersteStelle}>Erste Stelle anlegen</Button>
-          <p className="kp-hilfe">Tipp: Danach eine eingerückte Liste (aus Word, einer E-Mail oder einem Editor) ins Titelfeld einfügen — daraus wird ein ganzer Zweig.</p>
         </div>
       ) : (
         <ul className="kp-g-liste" aria-label="Gliederung">
@@ -373,8 +367,6 @@ export function Gliederung(p: GliederungProps) {
           })}
         </ul>
       )}
-      <p className="kp-hilfe kp-bedienhinweis kp-nur-breit">{GLIEDERUNG_BEDIENZEILE}</p>
-      <p className="kp-hilfe kp-bedienhinweis kp-nur-schmal">{GLIEDERUNG_BEDIENZEILE_SCHMAL}</p>
       {p.meldung ? <div className="kp-g-meldung" data-meldung="">{p.meldung}</div> : null}
     </div>
   );

@@ -70,16 +70,13 @@ export function RueckmeldungKarte({ weg }: { weg: Rueckmeldeweg }) {
           className="portal-kachel-link"
           style={{ display: "block" }}
         >
-          {/* ⚠️ „öffnet in einem neuen Tab" steht da, weil es stimmt und weil
-              ein Link, der unangekündigt das Fenster wechselt, für jeden ein
-              Bruch ist, der gerade nicht hinsieht. */}
-          <Kachel text="Etwas klappt nicht, fehlt oder geht besser? Schreib es auf — das Formular öffnet in einem neuen Tab." />
+          <Kachel text="Etwas klappt nicht, fehlt oder geht besser?" />
         </a>
       ) : (
         /* IDA-214: im Formular-Weg öffnet die Kachel das Flyin der Suite. Ein
            Knopf in einer Client-Insel, die Kachel selbst bleibt hier. */
         <RueckmeldungKachelKnopf>
-          <Kachel text="Etwas klappt nicht, fehlt oder geht besser? Schreib es auf — direkt hier in der Suite." />
+          <Kachel text="Etwas klappt nicht, fehlt oder geht besser?" />
         </RueckmeldungKachelKnopf>
       )}
     </section>

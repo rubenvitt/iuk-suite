@@ -52,9 +52,6 @@ export default function WifiPage() {
       <Typography.Title level={4} style={{ margin: 0 }}>
         WLAN-Zugang
       </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-        QR-Code zum Beitreten eines Funknetzes. Geräte verbinden sich mit einem Scan.
-      </Typography.Paragraph>
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
         <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
@@ -86,7 +83,6 @@ export default function WifiPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="off"
           />
-          <Typography.Text type="secondary">Leer lassen, wenn das Netz offen ist.</Typography.Text>
         </div>
 
         {/* Das <fieldset> bleibt: forms.test.tsx und preset-form.test.tsx greifen

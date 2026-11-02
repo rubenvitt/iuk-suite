@@ -28,7 +28,6 @@ export default async function Planliste() {
   return (
     <Huelle>
       <Seitenkopf titel="Kommunikationspläne"
-        beschreibung="Pläne und Fernmeldeskizzen deiner Einsätze. Ein neuer Plan ist privat, bis du ihn in der Organisation teilst."
         aktionen={
           <div className="kp-kopfaktionen">
             <NeuerPlan vorlagen={vorlagen} heute={heute} />

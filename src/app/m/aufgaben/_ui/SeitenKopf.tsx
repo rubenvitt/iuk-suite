@@ -55,7 +55,7 @@ export function SeitenKopf({
   brotkrume: { label: string; href?: string }[];
   titel: string;
   aktionen?: ReactNode;
-  kontext: string;
+  kontext?: string;
   /**
    * DER SCHLUESSEL DES ANLEITUNGSKAPITELS ZU DIESER SICHT (`_lib/hilfe.ts`s `SichtSchluessel`).
    *
@@ -76,7 +76,7 @@ export function SeitenKopf({
    */
   hilfe?: string;
 }) {
-  if (!kontext) {
+  if (kontext === "") {
     throw new Error(
       "SeitenKopf: die Kontextzeile darf nie leer sein — jeder Einstieg braucht einen " +
         "eigenen Satz, auch fuer den Leerfall (Spec §9.4).",
@@ -131,7 +131,7 @@ export function SeitenKopf({
           <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>{aktionen}</div>
         ) : null}
       </div>
-      <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>{kontext}</p>
+      {kontext ? <p style={{ ...SCHRIFT.neben, margin: `${SPACE.xs}px 0 0` }}>{kontext}</p> : null}
     </div>
   );
 }

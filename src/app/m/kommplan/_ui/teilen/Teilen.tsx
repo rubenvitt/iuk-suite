@@ -125,7 +125,6 @@ export function Teilen({ planId, basis, freigaben, onFreigaben, qr, organisation
       {organisation ? <Organisation planId={planId} {...organisation} onMeldung={setMeldung} /> : null}
       <fieldset className="kp-abschnitt">
         <legend>Neuen Link ausstellen</legend>
-        <p className="kp-hilfe">Wer den Link hat, sieht den aktuellen Stand dieses Plans ohne Anmeldung und kann ihn drucken — nicht bearbeiten.</p>
         <span className="kp-feldname" id="kp-teilen-dauer">Gültig für</span>
         {/* Einfache Radios statt Knopfgruppe (Review Phase 5): die gewählte Dauer stand dunkel in Suite-Rot auf Schwarz
             (≈ 2,5:1), und am Telefon zerriss die verbundene Gruppe in zwei Zeilen. Das Raster (`.kp-dauer`) bricht 4 → 2 × 2. */}

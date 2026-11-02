@@ -173,11 +173,7 @@ export function aufgabeInhalt(db: DB, akteur: Akteur, task: AufgabeRow, heute: s
               ))}
             </ul>
           )
-        ) : (
-          <p style={SCHRIFT.neben}>
-            Nachweise sind nur für Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.
-          </p>
-        )}
+        ) : null}
       </section>
 
       <section id="aktion" style={{ marginBlockEnd: SPACE.xl }}>

@@ -74,32 +74,19 @@ const KARTE = {
   body: { padding: "var(--fb-kartenpolster)" },
 } satisfies Record<string, CSSProperties>;
 
-const HAARLINIE: CSSProperties = {
-  border: 0,
-  borderTop: "1px solid var(--fb-split)",
-  margin: "16px 0",
-};
-
 export type TeilnahmeProps = {
   /** Die vollständige Teilnahme-Adresse — GEBAUT IN DER SEITE, hier nur gezeigt. */
   url: string;
   /** `{slug}-{secret}` — die Bild- und Download-Quelle bleibt ein relativer Pfad. */
   token: string;
   groupId: number;
-  /** Belegung A (Gruppe ganz neu): eine zusätzliche erste Zeile (§2.4). */
-  erststart: boolean;
 };
 
-export function Teilnahme({ url, token, groupId, erststart }: TeilnahmeProps) {
+export function Teilnahme({ url, token, groupId }: TeilnahmeProps) {
   const qrPfad = `/f/${token}/qr.png`;
 
   return (
     <Card variant="outlined" title="DAUERHAFTER ZUGANG" styles={KARTE}>
-      {erststart && (
-        <p style={{ ...T.meta, margin: "0 0 12px" }}>
-          Du kannst den Aushang schon vor dem ersten Abend drucken.
-        </p>
-      )}
 
       {/*
        * DER KASTEN IST HART `#ffffff`, auch im Dunkelmodus: ein QR auf dunklem
@@ -176,15 +163,6 @@ export function Teilnahme({ url, token, groupId, erststart }: TeilnahmeProps) {
         </Button>
       </Space>
 
-      <hr style={HAARLINIE} />
-      {/*
-       * NICHT gedämpft (§2.4): das ist die Kernaussage der Zone, nicht ihr
-       * Kleingedrucktes. Wer sie überliest, druckt jede Woche neu.
-       */}
-      <p style={{ ...T.body, margin: 0 }}>
-        Einmal ausdrucken reicht. Der Code bleibt für alle künftigen Dienstabende gültig — er hängt
-        an der Gruppe, nicht am Abend.
-      </p>
     </Card>
   );
 }

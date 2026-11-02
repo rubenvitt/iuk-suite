@@ -127,10 +127,6 @@ export function Meldungen({
   return (
     <Card title="Meldungen am Monitor">
       <div style={{ display: "grid", gap: SPACE.lg }}>
-        <span style={SCHRIFT.neben} className={v.gedaempft}>
-          {`Ein kurzer Hinweis als Band unter der Kopfzeile, mit Zeichen und Farbe seiner Kategorie, etwa „Nächste Lagebesprechung“. Jede Meldung läuft von selbst ab; du kannst sie auch vorher beenden. Planen kannst du bis zu ${MELDUNGEN_MAX_GEPLANT}, der Monitor zeigt davon höchstens ${MELDUNGEN_MAX_AKTIV} auf einmal, die früher begonnenen zuerst.`}
-        </span>
-
         {offene.length > 0 ? (
           <ul className={v.meldungen} aria-label="Laufende und geplante Meldungen">
             {offene.map((m) => (
@@ -209,12 +205,14 @@ export function Meldungen({
                 value={uhrzeit}
                 style={{ maxWidth: 160 }}
                 status={feldUhr ? "error" : undefined}
-                aria-describedby={`${basis}-uhrzeit-hilfe`}
+                aria-describedby={feldUhr ? `${basis}-uhrzeit-hilfe` : undefined}
                 onChange={(e) => aendere(text, e.target.value)}
               />
-              <div id={`${basis}-uhrzeit-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }} className={feldUhr ? undefined : v.gedaempft}>
-                {feldUhr ?? "Dann steht am Monitor „in 42 min“. Ist die Uhrzeit heute schon vorbei, gilt morgen."}
-              </div>
+              {feldUhr ? (
+                <div id={`${basis}-uhrzeit-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
+                  {feldUhr}
+                </div>
+              ) : null}
             </div>
             <div>
               <label htmlFor={`${basis}-ab`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
@@ -226,12 +224,14 @@ export function Meldungen({
                 value={anzeigenAb}
                 style={{ maxWidth: 160 }}
                 status={feldAb ? "error" : undefined}
-                aria-describedby={`${basis}-ab-hilfe`}
+                aria-describedby={feldAb ? `${basis}-ab-hilfe` : undefined}
                 onChange={(e) => aendere(text, uhrzeit, kategorieId, e.target.value)}
               />
-              <div id={`${basis}-ab-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }} className={feldAb ? undefined : v.gedaempft}>
-                {feldAb ?? "Leer: sofort. Mit einer Uhrzeit zum Herunterzählen gilt die Zeit davor, etwa 13:00 für eine Besprechung um 14:00."}
-              </div>
+              {feldAb ? (
+                <div id={`${basis}-ab-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
+                  {feldAb}
+                </div>
+              ) : null}
             </div>
             <div>
               <label htmlFor={`${basis}-laufzeit`} style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
@@ -248,7 +248,6 @@ export function Meldungen({
               {plan && planEnde !== null ? (
                 <div id={`${basis}-laufzeit-hilfe`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }} className={v.gedaempft} data-testid="meldung-plan">
                   {plan.anzeigenAb ? `Erscheint ${ABLAUF.format(plan.anzeigenAb)}, verschwindet ${ABLAUF.format(planEnde)}.` : `Verschwindet ${ABLAUF.format(planEnde)} vom Monitor.`}
-                  {plan.zeitpunkt && planEnde < plan.ablaufAm.getTime() ? " Früher als die Laufzeit, weil die Kategorie die Meldung nach der Uhrzeit wegnimmt." : ""}
                 </div>
               ) : null}
             </div>

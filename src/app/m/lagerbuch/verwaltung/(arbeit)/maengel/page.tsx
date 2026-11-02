@@ -40,7 +40,6 @@ export default function MaengelSeite() {
     <>
       <SeitenKopf
         titel="Mängel"
-        beschreibung="Von Helfern gemeldet, nachdem sie das Ortsetikett an einem Schrank, Fahrzeug oder einer Tasche gescannt haben."
       />
       <Card title={`Offen (${offen.length})`} style={{ marginBlockEnd: SPACE.lg }}>
         <OffeneMaengel maengel={offen} />

@@ -99,10 +99,7 @@ export function StammfahrzeugAbgleich({ onSchliessen }: { onSchliessen: () => vo
     >
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
         <p style={{ margin: 0 }}>
-          Übernimmt die Fahrzeuge der Fahrzeugverwaltung mit Typ, Kennung, Funkrufname und Standort. Was dort außer Dienst ist,
-          wird hier deaktiviert. Von Hand angelegte Fahrzeuge, die keinem Fahrzeug der Fahrzeugverwaltung zugeordnet sind, bleiben,
-          wie sie sind. Übernommene Fahrzeuge änderst du in der Fahrzeugverwaltung, der nächste Abgleich überschreibt sie hier.
-          {plan ? ` Stand der Fahrzeugverwaltung: ${plan.stand ? ZEIT.format(new Date(plan.stand)) : "noch keine Fahrzeuge"}.` : null}
+          {plan ? `Stand der Fahrzeugverwaltung: ${plan.stand ? ZEIT.format(new Date(plan.stand)) : "noch keine Fahrzeuge"}` : null}
         </p>
         {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
         {plan ? (

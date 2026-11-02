@@ -59,9 +59,6 @@ export default function ContactPage() {
       <Typography.Title level={4} style={{ margin: 0 }}>
         Kontakt-Visitenkarte
       </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-        vCard zum Speichern im Adressbuch des Scanners.
-      </Typography.Paragraph>
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
         {fields.map((f) => (

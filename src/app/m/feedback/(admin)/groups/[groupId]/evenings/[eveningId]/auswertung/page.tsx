@@ -180,8 +180,7 @@ export default async function AuswertungPage({
                   borderLeft: "3px solid var(--fb-line)",
                 }}
               >
-                Nur {stats.responseCount} {stats.responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"}{" "}
-                — bitte nicht als Urteil über den Abend lesen.
+                Nur {stats.responseCount} {stats.responseCount === 1 ? "Rückmeldung" : "Rückmeldungen"}
               </p>
             )}
             <Row gutter={[SPACE.xl, SPACE.lg]}>

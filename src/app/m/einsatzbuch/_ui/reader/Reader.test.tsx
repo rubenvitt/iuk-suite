@@ -132,7 +132,6 @@ describe("Reader", () => {
   it("zeigt keine Beispieldatei", async () => {
     await mount(<Reader bereitschaft="B" />);
     expect(document.body.textContent).not.toContain("Beispieldatei");
-    expect(document.body.textContent).toContain("Nichts wird hochgeladen");
   });
 
   it("öffnet die Vektordatei, meldet das Öffnen einmal und zeigt Kette und neuesten Einsatz", async () => {
@@ -184,7 +183,6 @@ describe("Reader", () => {
       expect(existsPortal("[data-bericht]")).toBe(true);
       const steuer = queryPortal("[data-druck-steuer]");
       expect(document.activeElement).toBe(knopf("Als PDF speichern", steuer));
-      expect(steuer.textContent).toContain("Im Druckdialog „Als PDF speichern“ wählen.");
       expect(queryPortal("[data-bericht]").textContent).toContain("DRK-Bereitschaft Uelzen");
       expect(queryPortal("[data-bericht]").textContent).toContain("Kette intakt (geprüft im Reader)");
 

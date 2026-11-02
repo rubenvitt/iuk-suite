@@ -331,9 +331,6 @@ export function AufgabeFormular({
             />
             Für mich selbst einstellen
           </label>
-          <p style={{ margin: `${SPACE.xs}px 0 0` }}>
-            Ohne Haken geht die Aufgabe an den Posteingang der Koordination.
-          </p>
         </div>
       ) : (
         // KEINE WAHL VORTAEUSCHEN, WO KEINE BESTEHT (Brief): eine BuFDi darf nur fuer sich selbst

@@ -49,7 +49,7 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Fahrzeuge"
-        beschreibung={`Die Fahrzeuge und Anhänger der Bereitschaft, ${aktiv} im Dienst. Von hier übernehmen Einsatzbuch, Lagerbuch und Funkgeräte Namen, Funkkenner und Kennzeichen. Ausgemusterte Fahrzeuge werden außer Dienst gestellt, nicht gelöscht.`}
+        beschreibung={`${aktiv} im Dienst`}
         aktionen={darfVerwalten ? <Button type="primary" onClick={() => setFormular({ eintrag: null })}>Fahrzeug anlegen</Button> : undefined}
       />
 

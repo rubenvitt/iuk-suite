@@ -79,7 +79,6 @@ export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date, auswahl: StammAuswahl
       */}
       <SeitenKopf
         titel="Fahrzeuge und Taschen"
-        beschreibung="Fahrzeuge und Taschen mit Soll-Abgleich und Verfallsmeldungen aus ihren Checks."
         aktionen={(
           <>
             {/*

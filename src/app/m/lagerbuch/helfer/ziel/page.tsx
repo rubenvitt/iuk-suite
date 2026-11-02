@@ -117,20 +117,6 @@ export default async function ZielSeite({
       laeuftAb={zugang.laeuftAb}
     >
       <div className={s.schirmKopf}>Ziel wählen</div>
-      {/*
-        ⚠️ DER SATZ NENNT DAS KÄRTCHEN NUR, WENN ES EINS GIBT (DRK-305). Die
-        Wahl hängt an `zugangsKennung(zugang)` — beim Kärtchen dessen Zeilen-Id,
-        beim angemeldeten Konto der OIDC-`sub`. „Mit diesem Kärtchen" wäre für
-        eine angemeldete Person nicht nur unhöflich, sondern falsch: sie
-        beschriebe eine Bindung an etwas, das diese Person nie in der Hand
-        hatte, und der Satz ist die einzige Stelle, an der der Schirm die
-        Reichweite der Wahl überhaupt erklärt.
-      */}
-      <p className={s.fussnote}>
-        {zugang.herkunft === "token"
-          ? "Die Wahl gilt für alle weiteren Entnahmen mit diesem Kärtchen und lässt sich jederzeit ändern."
-          : "Die Wahl gilt für alle weiteren Entnahmen in deiner Anmeldung und lässt sich jederzeit ändern."}
-      </p>
 
       <form action={waehleEntnahmeZiel} data-rolle="ziel-formular">
         <input type="hidden" name="returnTo" value={zurueck} />

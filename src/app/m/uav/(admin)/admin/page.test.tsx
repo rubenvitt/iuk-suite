@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
+import { exists, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
 import { testDb, type TestDb } from "../../_lib/testDb";
 import { teilnehmerAnlegen } from "../../_lib/queries";
 import type { ParticipantProgressDTO } from "../../_lib/typen";
@@ -36,15 +36,15 @@ describe("teilnehmerInhalt — Kopf, Formular, Tabelle", () => {
     expect(document.body.textContent).toContain("Bruno");
   });
 
-  it("benutzt den Seitenkopf der Suite: Beschreibung und CSV-Weg als Aktion", async () => {
+  it("benutzt den Seitenkopf der Suite: CSV-Weg als Aktion, ohne Beschreibung", async () => {
     /*
      * Die Seite baute ihren Kopf bis dahin selbst — ein eigenes `<h1>` in einer
      * eigenen Flex-Zeile mit dem CSV-Knopf daneben. Dieser Fall haelt fest, dass
-     * jetzt `core/shell/Seitenkopf` traegt (die beiden `data-testid` gehoeren ihm)
-     * und dass die Seite sagt, wofuer sie da ist.
+     * jetzt `core/shell/Seitenkopf` traegt (die `data-testid` gehoeren ihm)
+     * und dass die Seite keine Beschreibung mehr traegt.
      */
     await mount(teilnehmerInhalt([zeile("Bruno")]));
-    expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Zugang");
+    expect(exists('[data-testid="seitenkopf-beschreibung"]')).toBe(false);
     const aktionen = query('[data-testid="seitenkopf-aktionen"]');
     expect(aktionen.textContent).toContain("Liste als Excel");
     expect(aktionen.querySelector("a")?.getAttribute("href")).toBe("/api/admin/participants/export");

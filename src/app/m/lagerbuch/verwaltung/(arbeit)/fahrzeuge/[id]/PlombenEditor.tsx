@@ -71,9 +71,7 @@ export function PlombenEditor({
       */}
       {plomben.length === 0 ? (
         <p style={{ margin: 0 }}>
-          Noch keine Plombe angelegt. Eine Plombe bezeugt, dass ein Behälter seit dem letzten
-          Vollcheck zu war. Solange sie steht, liest der Kurzcheck nur ihre Nummer ab, statt das
-          Fach zu zählen. Gesetzt wird die Nummer im Vollcheck.
+          Noch keine Plombe angelegt.
         </p>
       ) : (
         <div style={{ display: "grid", gap: SPACE.sm }}>

@@ -36,7 +36,7 @@ export function EchterRechner({ rechner }: { rechner: EchterRechnerStatus | null
   return (
     <Card title="Echter Einsatzbuch-Rechner" className={styles.modul}>
       {!rechner ? (
-        <p>Noch kein echter Rechner eingerichtet. Die Einrichtung startet am Rechner selbst.</p>
+        <p>Noch kein echter Rechner eingerichtet.</p>
       ) : (
         <div style={{ display: "grid", gap: SPACE.md }}>
           <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: SPACE.sm, margin: 0 }}>

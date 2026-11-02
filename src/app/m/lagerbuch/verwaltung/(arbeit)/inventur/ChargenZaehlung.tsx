@@ -339,8 +339,7 @@ export function ChargenZaehlung({
       ) : null}
       {zeile.ungeordnet > 0 ? (
         <p data-rolle="ungeordnet-hinweis" style={{ margin: 0 }}>
-          Ein Teil liegt noch bei „Nicht zugeordnet“. Was du hier zählst, wird von dort in diesen
-          Zählort umgelagert.
+          Ein Teil liegt noch bei „Nicht zugeordnet“.
         </p>
       ) : null}
       {zeile.chargen.length === 0 ? null : (

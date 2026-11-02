@@ -48,7 +48,6 @@ export function sauerstoffSeitenInhalt(db: Leser): ReactNode {
     <>
       <SeitenKopf
         titel="Sauerstoff"
-        beschreibung="Flaschen mit Füllstand, Herkunft der jüngsten Messung und Standort. Ab wann eine Flasche gewechselt werden soll, steht je Flasche in ihren Stammdaten."
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>

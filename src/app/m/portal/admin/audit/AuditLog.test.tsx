@@ -9,8 +9,8 @@ afterEach(unmount);
 beforeEach(()=>vi.clearAllMocks());
 const ready:AuditView={state:"ready",page:{events:[]},filtered:false,pending:0,transferFailed:false};
 it.each([
- [ready,"Noch keine Ereignisse","Frühere Vorgänge werden nicht nachträglich rekonstruiert"],
- [{...ready,filtered:true},"Keine passenden Einträge","Ändere die Filter"],
+ [ready,"Noch keine Ereignisse","Noch keine Ereignisse"],
+ [{...ready,filtered:true},"Keine passenden Einträge","Keine passenden Einträge"],
  [{...ready,pending:12},"Ereignisse werden noch übernommen","12 Ereignisse"],
  [{...ready,transferFailed:true},"Ereignisübernahme gestört","unvollständig"],
  [{state:"unavailable",message:"Speicher prüfen"},"Audit-Log nicht verfügbar","Speicher prüfen"],

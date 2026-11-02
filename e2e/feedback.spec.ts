@@ -575,7 +575,7 @@ test("Hauptablauf in zwei Klicks: Gruppe öffnen, „Feedback starten“ — dan
   // Danach laeuft die Umfrage …
   await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();
   await expect(
-    page.getByText("Noch keine Rückmeldung — zeig den QR-Code am Ende des Abends."),
+    page.getByText("Noch keine Rückmeldung."),
   ).toBeVisible();
 
   // … und der Weg, sie zu verteilen, steht auf DERSELBEN Seite. Das ist die
@@ -620,7 +620,7 @@ test("Rücklauf erscheint im Cockpit, ohne dass jemand schließt — „Feedback
   await expect(page.getByText("25 % Rücklauf")).toBeVisible();
   await expect(page.getByText("ZWISCHENSTAND — NOCH NICHT ENDGÜLTIG")).toBeVisible();
   await expect(
-    page.getByText("Erst 1 Rückmeldung — die Zahlen schwanken noch stark."),
+    page.getByText("Erst 1 Rückmeldung"),
   ).toBeVisible();
   // Sie laeuft weiter: der Zwischenstand kostet kein Schliessen.
   await expect(page.getByRole("button", { name: "Feedback jetzt beenden" })).toBeVisible();

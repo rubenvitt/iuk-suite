@@ -150,12 +150,6 @@ describe("auffuellen — die Liste zeigt auf die Auffuellstrecke, nicht auf die 
     expect(query('[data-rolle="suche"]').dataset.basis).toBe("/auffuellen");
   });
 
-  it("nennt die Richtung, weil die Flaeche der Entnahme gleicht", async () => {
-    await mount(await AuffuellenSeite());
-    expect(query('[data-rolle="auffuellen-hinweis"]').textContent)
-      .toContain("Hier kommt Material ins Handlager");
-  });
-
   it("traegt das Etikett der angemeldeten Person, nicht ein Kaertchen-Label", async () => {
     await mount(await AuffuellenSeite());
     expect(query('[data-rolle="rahmen"]').dataset.etikett).toBe("Angemeldet: G. Führer");
@@ -170,7 +164,7 @@ describe("auffuellen — die Liste zeigt auf die Auffuellstrecke, nicht auf die 
  * fuehrt zum WARENEINGANG (Material entsteht), die Zeile darueber zum
  * UMRAEUMEN (Material wandert, netto null). Verwechselt jemand sie, stehen
  * dieselben Teile zweimal im append-only-Journal — die teuerste Falle des
- * Tickets. Deshalb wird der WORTLAUT mitgeprueft und nicht nur das `href`.
+ * Tickets. Deshalb wird das Verb mitgeprueft und nicht nur das `href`.
  */
 describe("auffuellen — der Weg in die Kiste", () => {
   it("zeigt den Einstieg mit der Zahl der Posten, wenn etwas drin liegt", async () => {
@@ -181,12 +175,11 @@ describe("auffuellen — der Weg in die Kiste", () => {
     expect(einstieg.textContent).toContain("2");
   });
 
-  it("sagt „einräumen“ und nennt es „nicht neu angenommen“", async () => {
+  it("sagt „einräumen“", async () => {
     kiste.mockReturnValue([{ artikelId: "a" }]);
     await mount(await AuffuellenSeite());
     const text = query('[data-rolle="kisten-einstieg"]').textContent ?? "";
     expect(text).toContain("einräumen");
-    expect(text).toContain("nicht neu angenommen");
     // ⚠️ DIE GEGENPROBE: „auffuellen" darf auf DIESEM Weg nicht stehen. Das
     // Wort gehoert dem anderen Vorgang, und beide Wege stehen untereinander.
     expect(text.toLowerCase()).not.toContain("auffüllen");

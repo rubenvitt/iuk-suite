@@ -71,7 +71,7 @@ describe("StatistikFlaeche", () => {
     await mount(<StatistikFlaeche daten={leer()} zeitraum={12} />);
     expect(document.querySelector(".recharts-wrapper")).toBeNull();
     expect(text()).toContain("Im gewählten Zeitraum wurde nichts verbraucht.");
-    expect(text()).toContain("Wähle oben einen Artikel");
+    expect(text()).toContain("Kein Artikel gewählt.");
   });
 
   it("zeichnet die Diagramme und warnt vor gemischten Zaehleinheiten", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ChangeEvent, type DragEvent } from "react";
 import { Alert, Button, Input } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { reportBrowserExport } from "@/core/audit/browser";
@@ -228,24 +228,7 @@ export function Reader({ bereitschaft }: { bereitschaft: string }) {
         />
       )}
       {fehler && <Alert type="warning" showIcon title={fehler} data-testid="reader-fehler" />}
-      <ul className={s.hinweise}>
-        <Hinweis zeichen={<Icons8Ikone name="archive" groesse={18} />} titel="Nichts wird hochgeladen" text="Die Datei wird nur in diesem Tab gelesen. Schließen oder Neuladen verwirft alles." />
-        <Hinweis zeichen={<Icons8Ikone name="key" groesse={18} />} titel="Entschlüsselung mit Kennwort" text="AES-256-GCM. Ohne das richtige Kennwort bleibt der Inhalt unlesbar." />
-        <Hinweis zeichen={<Icons8Ikone name="link" groesse={18} />} titel="Kette wird geprüft" text="Jeder Einsatz wird mit seinem Fingerabdruck und seinem Vorgänger abgeglichen." />
-      </ul>
     </div>
-  );
-}
-
-function Hinweis({ zeichen, titel, text }: { zeichen: ReactNode; titel: string; text: string }) {
-  return (
-    <li className={s.hinweis}>
-      <span className={s.hinweisZeichen} aria-hidden="true">{zeichen}</span>
-      <div>
-        <div className={s.hinweisTitel}>{titel}</div>
-        <div className={s.hinweisText}>{text}</div>
-      </div>
-    </li>
   );
 }
 
@@ -311,13 +294,6 @@ function OffeneDatei({ name, datei, wert, zone, bereitschaft, onSchliessen }: Of
       </div>
 
       <section aria-label="Über diese Datei" className={`${s.karte} ${s.info}`}>
-        <div className={s.infoSpalte}>
-          <span className={s.hinweisZeichen} aria-hidden="true"><Icons8Ikone name="key" groesse={20} /></span>
-          <div>
-            <div className={s.hinweisTitel}>Nur in diesem Tab entschlüsselt</div>
-            <div className={s.hinweisText}>Nichts wurde hochgeladen oder gespeichert. Schließen verwirft den Inhalt.</div>
-          </div>
-        </div>
         <div className={s.infoSpalte}>
           <span className={s.hinweisZeichen} aria-hidden="true"><Icons8Ikone name="archive" groesse={20} /></span>
           <div>

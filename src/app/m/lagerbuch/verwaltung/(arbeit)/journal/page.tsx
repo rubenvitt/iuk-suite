@@ -113,10 +113,6 @@ export function journalInhalt(daten: JournalSeitenDaten): ReactNode {
       */}
       <SeitenKopf
         titel="Journal"
-        beschreibung={
-          "Append-only Buchungsjournal — der Bestand ist immer die Summe "
-          + "der Buchungen."
-        }
       />
       <JournalFilter
         q={daten.werte.q}
