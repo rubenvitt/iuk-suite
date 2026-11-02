@@ -57,6 +57,13 @@
       "when": 1793563222316,
       "tag": "0007_planbare_meldungen",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793633241282,
+      "tag": "0008_fahrzeuge",
+      "breakpoints": true
     }
   ]
 }

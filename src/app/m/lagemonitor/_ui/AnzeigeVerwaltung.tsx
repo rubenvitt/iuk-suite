@@ -11,9 +11,11 @@ import type { FeldFehler } from "../_lib/actionErgebnis";
 import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
 import { MELDUNGEN_MAX_AKTIV, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
+import type { FahrzeugAuswahl, FahrzeugDTO } from "../_lib/fahrzeuge";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
+import { Fahrzeuge } from "./Fahrzeuge";
 import { Kategorien } from "./Kategorien";
 import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
@@ -93,6 +95,7 @@ export function AnzeigeVerwaltung({
   kategorien,
   links,
   online,
+  fahrzeuge,
 }: {
   konfiguration: KonfigurationDTO;
   zugaenge: ZugangDTO[];
@@ -100,6 +103,7 @@ export function AnzeigeVerwaltung({
   kategorien: KategorieDTO[];
   links: LinkDTO[];
   online: string | null;
+  fahrzeuge: { liste: FahrzeugDTO[]; auswahl: FahrzeugAuswahl };
 }) {
   const [gespeichert, setGespeichert] = useState(konfiguration);
   const [z, setZ] = useState<Zustand>(() => zustandAus(konfiguration));
@@ -446,6 +450,8 @@ export function AnzeigeVerwaltung({
       <OeffentlicheLinks liste={links} online={online} />
 
       <Zugaenge liste={zugaenge} />
+
+      <Fahrzeuge liste={fahrzeuge.liste} auswahl={fahrzeuge.auswahl} />
     </div>
   );
 }

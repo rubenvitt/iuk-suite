@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
+import { fahrzeugEingabe, legeFahrzeugAn, loescheFahrzeug } from "../_lib/fahrzeuge";
 import { konfigurationEingabe, speichereKonfiguration, type KonfigurationDTO } from "../_lib/konfiguration";
 import { beendeMeldung, legeMeldungAn, meldungEingabe, type MeldungDTO } from "../_lib/meldungen";
 import { aendereKategorie, kategorieEingabe, legeKategorieAn, loescheKategorie, type KategorieDTO } from "../_lib/kategorien";
@@ -136,6 +137,30 @@ export async function kategorieLoeschenAction(id: unknown): Promise<ActionErgebn
   if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekannte Kategorie." };
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     if (!loescheKategorie(getDb(), id)) return { ok: false, fehler: "Diese Kategorie gibt es nicht mehr." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Stellt ein Fahrzeug auf die Karte aller Monitore; seine Position kommt mit der nächsten Abholung seines Zugangs. */
+export async function fahrzeugAnlegenAction(eingabe: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  const e = fahrzeugEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = legeFahrzeugAn(getDb(), e.data, anzeigeName(viewer));
+    if (!r.ok) return r;
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Nimmt ein Fahrzeug von der Karte; seine letzte Position ist damit gelöscht. */
+export async function fahrzeugEntfernenAction(id: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekanntes Fahrzeug." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!loescheFahrzeug(getDb(), id)) return { ok: false, fehler: "Dieses Fahrzeug steht schon nicht mehr auf der Karte." };
     neuLaden();
     return { ok: true };
   });

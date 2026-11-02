@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { LagemonitorDb } from "../_db/client";
 import { anzeige } from "../_db/schema";
 import { alsPublicLinks, type PublicLink } from "./links";
+import type { Vehicle } from "./fahrzeuge";
 import { alsNotices, type Notice } from "./meldungen";
 
 export const VERTRAG_VERSION = 1;
@@ -285,9 +286,11 @@ export interface Vertrag {
   traffic: { tomtomKey: string | null; flow: boolean; incidents: boolean; speedCameras: boolean };
   /** Kartenausschnitt ohne Einsatz. Ältere Monitore übergehen das Feld und bleiben bei Zoom 9. */
   map: { zoom: number };
+  /** Fahrzeuge mit ihrer letzten Position (`_lib/fahrzeuge.ts`). Ältere Monitore übergehen das Feld. */
+  vehicles: Vehicle[];
 }
 
-export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
+export function alsVertrag(db: LagemonitorDb, jetzt = new Date(), vehicles: Vehicle[] = []): Vertrag {
   const z = zeile(db);
   const k = z ? dtoAus(z) : VORGABE;
   return {
@@ -317,5 +320,6 @@ export function alsVertrag(db: LagemonitorDb, jetzt = new Date()): Vertrag {
       speedCameras: k.verkehr.blitzer,
     },
     map: { zoom: k.kartenZoom },
+    vehicles,
   };
 }
