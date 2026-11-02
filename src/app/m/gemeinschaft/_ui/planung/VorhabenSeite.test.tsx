@@ -73,11 +73,12 @@ describe("Seite eines Projekts", () => {
     expect(query<HTMLInputElement>("input[aria-label='Neue Aufgabe']").value).toBe("");
   });
 
-  it("ein leeres Projekt nennt den nächsten Schritt", async () => {
+  it("ein leeres Projekt zeigt nur die Leerzustände, ohne Bedienhinweis", async () => {
     await zeige({ ...PROJEKT, aufgabenListe: [], eventKarten: [], verantwortlichId: null, verantwortlich: null });
     const text = document.body.textContent!;
     expect(text).toContain("Noch keine Aufgaben.");
     expect(text).toContain("Noch niemand eingeteilt.");
     expect(text).toContain("Noch keine Events.");
+    expect(text).not.toContain("Leg unten");
   });
 });
