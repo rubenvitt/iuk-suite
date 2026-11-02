@@ -108,6 +108,9 @@ ENV SUITE_REVISION=${SUITE_REVISION}
 # auch sie sich bei jedem Commit aendert und den `pnpm build`-Layer nicht beruehren darf.
 ARG SUITE_VERSION=unbekannt
 ENV SUITE_VERSION=${SUITE_VERSION}
+# Je Modul eine eigene Nummer (`scripts/modulversion.mjs`, `modulVersion()`), gleicher Weg.
+ARG SUITE_MODULVERSIONEN=
+ENV SUITE_MODULVERSIONEN=${SUITE_MODULVERSIONEN}
 
 USER nextjs
 EXPOSE 3000

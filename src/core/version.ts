@@ -39,3 +39,25 @@ export function laufendeVersion(): string {
   const wert = process.env.SUITE_VERSION?.trim();
   return wert ? wert : "unbekannt";
 }
+
+/**
+ * Alle Modulversionen dieses Images, z. B. `{ lagerbuch: "1.2.0", … }` — leer außerhalb
+ * eines CI-gebauten Images. Woher sie kommen: `scripts/modulversion.mjs`, Weg wie
+ * `SUITE_VERSION` (Build-Arg `SUITE_MODULVERSIONEN` → `ENV`). Zugriff in der Funktion,
+ * nicht auf Modulebene, aus demselben Grund wie oben.
+ */
+export function modulversionen(): Record<string, string> {
+  const ergebnis: Record<string, string> = {};
+  for (const paar of (process.env.SUITE_MODULVERSIONEN ?? "").split(",")) {
+    const [modul, version] = paar.split("=").map((t) => t.trim());
+    if (modul && version && /^\d+\.\d+\.\d+$/.test(version)) ergebnis[modul] = version;
+  }
+  return ergebnis;
+}
+
+/** Die Version eines Moduls, oder `null`, wenn dieses Image keine kennt. */
+export function modulVersion(modul: string): string | null {
+  // `Object.hasOwn`: sonst lieferte `modulVersion("toString")` die geerbte Funktion.
+  const versionen = modulversionen();
+  return Object.hasOwn(versionen, modul) ? versionen[modul] : null;
+}

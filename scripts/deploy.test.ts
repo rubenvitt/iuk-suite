@@ -253,6 +253,15 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     );
   });
 
+  it("BEIDE build-push-Schritte reichen auch die Modulversionen durch (IDA-328)", () => {
+    const treffer = buildJob.match(/SUITE_MODULVERSIONEN=\$\{\{\s*needs\.version\.outputs\.modulversionen\s*\}\}/g) ?? [];
+    expect(treffer.length, "einmal im lokalen Build, einmal im Push").toBeGreaterThanOrEqual(2);
+    expect(dockerfile).toMatch(/^ENV SUITE_MODULVERSIONEN=\$\{SUITE_MODULVERSIONEN\}/m);
+    expect(dockerfile.indexOf("ARG SUITE_MODULVERSIONEN")).toBeGreaterThan(
+      dockerfile.lastIndexOf("COPY --from=builder"),
+    );
+  });
+
   it("die Manifest-Liste trägt die Nummer als Tag, nur auf main", () => {
     expect(mergeJob).toMatch(
       /type=raw,value=\$\{\{\s*needs\.version\.outputs\.version\s*\}\},enable=\{\{is_default_branch\}\}/,

@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { laufendeRevision, laufendeVersion } from "@/core/version";
+import { laufendeRevision, laufendeVersion, modulversionen } from "@/core/version";
+import { visibleSwitcherModules } from "@/core/registry";
+import { moduleUrl } from "@/core/shell/moduleUrl";
 import { ProfilAnsicht } from "@/app/m/portal/_ui/ProfilAnsicht";
 
 /**
@@ -18,6 +20,12 @@ import { ProfilAnsicht } from "@/app/m/portal/_ui/ProfilAnsicht";
 export default async function ProfilPage() {
   const session = await auth();
   if (!session?.user) redirect("/login?callbackUrl=%2Fprofil");
+  // Nur die Module, die diese Person auch auf der Startseite sieht (IDA-328).
+  const versionen = modulversionen();
+  const modulStaende = visibleSwitcherModules(session.user.groups ?? [])
+    // `moduleUrl` wie im Launcher: ohne erreichbaren Host steht das Modul dort auch nicht.
+    .filter((m) => moduleUrl(m.key) && versionen[m.key])
+    .map((m) => ({ titel: m.title, version: versionen[m.key] }));
 
   return (
     <>
@@ -38,6 +46,7 @@ export default async function ProfilPage() {
         // Bauzeit-Wert still `unbekannt` bliebe.
         version={laufendeVersion()}
         revision={laufendeRevision()}
+        module={modulStaende}
       />
     </>
   );

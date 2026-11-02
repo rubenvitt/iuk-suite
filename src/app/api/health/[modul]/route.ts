@@ -1,5 +1,5 @@
 import { checkModuleHealth } from "@/core/health";
-import { laufendeRevision, laufendeVersion } from "@/core/version";
+import { laufendeRevision, laufendeVersion, modulVersion } from "@/core/version";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ modul: string }> }) {
   const { modul } = await ctx.params;
@@ -25,7 +25,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ modul: string 
    * Commit eindeutig, die Nummer ist es nur je erfolgreichem Lauf.
    */
   return Response.json(
-    { ...result, revision: laufendeRevision(), version: laufendeVersion() },
+    { ...result, revision: laufendeRevision(), version: laufendeVersion(), modulVersion: modulVersion(modul) ?? "unbekannt" },
     { status: result.status === "ok" ? 200 : 503 },
   );
 }

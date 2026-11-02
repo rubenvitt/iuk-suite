@@ -333,6 +333,7 @@ export function SuiteNav({
   profilHref,
   rueckmeldeweg,
   befehlspalette = null,
+  modulStand = null,
 }: {
   nav: SuiteNavItem[];
   /** Namensraum des gemerkten Aufklappzustands — siehe `NavListe`. */
@@ -353,6 +354,8 @@ export function SuiteNav({
   rueckmeldeweg: Rueckmeldeweg | null;
   /** Der Lupen-Knopf der Befehlspalette (IDA-303), vorn in der rechten Gruppe; anonym `null`. */
   befehlspalette?: ReactNode;
+  /** „Lagerbuch 1.2.0" — Name und Modulversion, oder `null` ohne CI-Image. Letzte Zeile im Nutzermenü. */
+  modulStand?: string | null;
 }) {
   const [offen, setOffen] = useState(false);
   /*
@@ -497,6 +500,24 @@ export function SuiteNav({
     // der niemand nach einem Abmeldefehler sucht.
     onClick: () => void signOut({ callbackUrl: "/api/auth/oidc-signout" }),
   };
+  /*
+   * DIE MODULVERSION, ganz unten und gedämpft (IDA-328): eine Auskunft, keine
+   * Handlung. `disabled`, damit sie weder Fokus noch Klick annimmt.
+   */
+  const standEintrag: MenuProps["items"] = modulStand
+    ? [
+        { type: "divider" as const },
+        {
+          key: "modulstand",
+          disabled: true,
+          label: (
+            <span data-testid="modul-version" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)" }}>
+              {modulStand}
+            </span>
+          ),
+        },
+      ]
+    : [];
   const nutzerEintraege: MenuProps["items"] = userName
     ? [
         {
@@ -505,8 +526,9 @@ export function SuiteNav({
           label: <span data-testid="nutzername">{userName}</span>,
           children: [...profilEintrag, ...feedbackEintrag, abmeldenEintrag],
         },
+        ...standEintrag,
       ]
-    : [...profilEintrag, ...feedbackEintrag, abmeldenEintrag];
+    : [...profilEintrag, ...feedbackEintrag, abmeldenEintrag, ...standEintrag];
 
   return (
     <>

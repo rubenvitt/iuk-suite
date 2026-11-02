@@ -12,6 +12,7 @@ import diensteFuerGruppen from "./notizen/portal/2026-10-18-dienste-fuer-gruppen
 import appSymbol from "./notizen/portal/2026-10-18-app-symbol";
 import rechteVergeben from "./notizen/portal/2026-10-21-rechte-vergeben";
 import wasStehtAn from "./notizen/portal/2026-10-31-was-steht-an";
+import modulversionen from "./notizen/portal/2026-11-02-modulversionen";
 import sucheUeberAlleModule from "./notizen/portal/2026-10-31-suche-ueber-alle-module";
 import springenMitStrgK from "./notizen/portal/2026-10-31-springen-mit-strg-k";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
@@ -276,6 +277,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   appSymbol,
   rechteVergeben,
   wasStehtAn,
+  modulversionen,
   sucheUeberAlleModule,
   springenMitStrgK,
   funkInDerSuite,

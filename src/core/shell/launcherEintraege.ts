@@ -2,6 +2,7 @@ import { appIconFuerKachel } from "@/core/favicon";
 import { hasAnyGroup } from "@/core/groups";
 import { VERWALTUNGSEINSTIEGE, verwaltungsGruppenFor, visibleSwitcherModules } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
+import { modulVersion } from "@/core/version";
 import { dienstEintraege } from "@/app/m/portal/_lib/launcher";
 import type { LauncherEintrag } from "@/core/shell/types";
 
@@ -43,6 +44,7 @@ export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
       abschnitt: ABSCHNITT_APPS,
       extern: false,
     };
+    const version = modulVersion(mod.key);
     const verwaltungen = VERWALTUNGSEINSTIEGE.filter(
       (v) => v.modul === mod.key && hasAnyGroup(groups, verwaltungsGruppenFor(v)),
     ).map((v) => ({
@@ -51,7 +53,8 @@ export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
       title: v.titel,
       href: `${href}${v.pfad}`,
     }));
-    return [eintrag, ...verwaltungen];
+    // Die Version nur am Haupteintrag: an der Verwaltungskachel stünde dieselbe Zahl doppelt.
+    return [version ? { ...eintrag, version } : eintrag, ...verwaltungen];
   });
 }
 
