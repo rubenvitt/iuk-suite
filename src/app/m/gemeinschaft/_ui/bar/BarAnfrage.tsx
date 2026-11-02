@@ -151,7 +151,6 @@ export function BarAnfrage({ belegt, heute, vorbelegung, anmeldeHref }: {
             </fieldset>
 
             {fehler ? <p className="go-fehler" role="alert">{fehler}</p> : null}
-            <p className="go-meta">Deine Angaben sieht nur, wer die Bar verwaltet. Im Kalender steht für alle anderen nur „belegt“.</p>
             <button className={`go-knopf ${s.voll}`} type="submit" disabled={sendet}>{sendet ? "Wird gesendet …" : "Anfrage senden"}</button>
           </form>
         </section>
@@ -167,7 +166,7 @@ function Danke({ code, nochmal }: { code: string; nochmal: () => void }) {
   return (
     <section className={s.karte} aria-labelledby="danke-titel">
       <p className={s.danke} id="danke-titel">Danke.</p>
-      <p className="go-text">Deine Anfrage ist angekommen. Ob die Bar zugesagt ist, siehst du unter diesem Link. Speicher ihn dir, eine E-Mail bekommst du nicht.</p>
+      <p className="go-text">Speicher dir diesen Link, eine E-Mail kommt nicht.</p>
       <div className={s.statuslink}>
         <code data-testid="statuslink">{link}</code>
         <button type="button" className="go-knopf go-knopf-leise" onClick={() => {

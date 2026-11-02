@@ -40,7 +40,7 @@ export function Kalender({ tag, heute, eintraege }: { tag: string; heute: string
 
   return (
     <div className={s.modul}>
-      <Seitenkopf titel="Kalender" beschreibung="Events der Gemeinschaft und die Belegung der Bar zusammen. Antippen öffnet die Einzelheiten." />
+      <Seitenkopf titel="Kalender" />
       <div className={s.legende}>
         {KALENDER_LEGENDE.map((l) => <span key={l.art}><i className={`${s.muster} ${s[l.art]}`} />{l.text}</span>)}
       </div>

@@ -76,7 +76,7 @@ describe("Seite eines Projekts", () => {
   it("ein leeres Projekt nennt den nächsten Schritt", async () => {
     await zeige({ ...PROJEKT, aufgabenListe: [], eventKarten: [], verantwortlichId: null, verantwortlich: null });
     const text = document.body.textContent!;
-    expect(text).toContain("Noch keine Aufgaben. Leg unten die erste an.");
+    expect(text).toContain("Noch keine Aufgaben.");
     expect(text).toContain("Noch niemand eingeteilt.");
     expect(text).toContain("Noch keine Events.");
   });
