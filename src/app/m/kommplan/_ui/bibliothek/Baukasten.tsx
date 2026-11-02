@@ -51,8 +51,7 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
           {bild.ok ? <p className="kp-hilfe">{bild.beschreibung}</p> : null}
           {bild.ok && bild.abgeleitet.length > 0 ? (
             <p className="kp-hilfe kp-baukasten-abgeleitet">
-              Abgeleitet: {abgeleiteteTeile(bild.abgeleitet).join(", ")}. Diese Teile sind nicht an der Vorschrift vermessen,
-              sondern aus vermessenen Nachbarformen abgeleitet.
+              Abgeleitet: {abgeleiteteTeile(bild.abgeleitet).join(", ")}
             </p>
           ) : null}
           {hinweise.map((h) => (
@@ -66,7 +65,6 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
       ))}
 
       <fieldset className="kp-abschnitt"><legend>Beschriftung im Körper</legend>
-        <p className="kp-hilfe">Text im Körper, etwa „ILS“ in der Mitte. Zu lange Texte meldet die Vorschau.</p>
         <div className="kp-baukasten-zonen">
           {ZONEN_IM_KOERPER.map(zone)}
           <div>
@@ -79,7 +77,6 @@ export default function Baukasten({ spec, onSpec, schrift }: { spec: SymbolSpec;
       </fieldset>
 
       <fieldset className="kp-abschnitt"><legend>Beschriftung außerhalb</legend>
-        <p className="kp-hilfe">Text neben dem Zeichen, etwa das Kreiskürzel unter dem Zeichen rechts.</p>
         <div className="kp-baukasten-zonen">
           {ZONEN_AUSSEN.map(zone)}
           <div>
@@ -115,7 +112,6 @@ function AchsenFeld({ basis, achse, spec, onSpec }: { basis: string; achse: Achs
   const kopf = (
     <>
       <label className="kp-feldname" htmlFor={id}>{achse.titel}</label>
-      <p className="kp-hilfe" id={`${id}-hilfe`}>{achse.hilfe}</p>
     </>
   );
   if (achse.art === "mehrfach") {
@@ -124,7 +120,7 @@ function AchsenFeld({ basis, achse, spec, onSpec }: { basis: string; achse: Achs
     return (
       <div className="kp-baukasten-achse" data-achse={achse.key}>
         {kopf}
-        <Select id={id} aria-describedby={`${id}-hilfe`} mode="multiple" allowClear showSearch={SUCHE} placeholder="— ohne —"
+        <Select id={id} mode="multiple" allowClear showSearch={SUCHE} placeholder="— ohne —"
           value={liste} options={optionen(feld, sperren?.get(feld) ?? liste.map((wert) => ({ wert, frei: true })), false)}
           onOpenChange={pruefe} loading={prueft} notFoundContent={prueft ? PRUEFT : undefined}
           onChange={(werte: string[]) => onSpec(setze(spec, [[feld, werte]]))} />
@@ -140,7 +136,7 @@ function AchsenFeld({ basis, achse, spec, onSpec }: { basis: string; achse: Achs
   return (
     <div className="kp-baukasten-achse" data-achse={achse.key}>
       {kopf}
-      <Select id={id} aria-describedby={`${id}-hilfe`} allowClear={achse.key !== "grundzeichen"} showSearch={SUCHE} placeholder="— ohne —"
+      <Select id={id} allowClear={achse.key !== "grundzeichen"} showSearch={SUCHE} placeholder="— ohne —"
         value={wert ?? undefined} options={mehrere ? gruppen : (gruppen[0]?.options ?? [])}
         onOpenChange={pruefe} loading={prueft} notFoundContent={prueft ? PRUEFT : undefined}
         onChange={(roh: string | undefined) => {

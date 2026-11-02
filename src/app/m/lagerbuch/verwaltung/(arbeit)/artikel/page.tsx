@@ -72,10 +72,7 @@ export function artikelSeitenInhalt(
     <>
       <SeitenKopf
         titel="Artikel & Bestand"
-        beschreibung={
-          "Handlager · Klick auf eine Zeile öffnet Chargen, Buchung und Stammdaten. "
-          + "Kreuze mehrere an, um sie gemeinsam zu bearbeiten."
-        }
+        beschreibung="Handlager"
       />
       <ArtikelTable
         zeilen={zeilen}

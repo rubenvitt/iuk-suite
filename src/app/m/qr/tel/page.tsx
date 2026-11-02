@@ -39,9 +39,6 @@ export default function TelPage() {
       <Typography.Title level={4} style={{ margin: 0 }}>
         Telefonnummer
       </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-        Beim Scannen öffnet sich der Wählvorgang im Telefon.
-      </Typography.Paragraph>
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
         <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
@@ -57,9 +54,6 @@ export default function TelPage() {
             required
             placeholder="+49 151 12345678"
           />
-          <Typography.Text type="secondary">
-            Internationales Format mit Ländervorwahl empfohlen (z. B. +49…).
-          </Typography.Text>
         </div>
 
         <Button htmlType="submit" type="primary" size="large" block disabled={!canSubmit}>

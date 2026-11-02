@@ -133,7 +133,7 @@ export default async function QrAdminPage({
         </ul>
         {presets.length === 0 && (
           <p style={{ color: "var(--iuk-gedaempft)" }}>
-            Noch keine Presets angelegt. Lege unten das erste an.
+            Noch keine Presets angelegt.
           </p>
         )}
       </section>

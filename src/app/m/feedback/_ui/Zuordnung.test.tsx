@@ -135,8 +135,6 @@ describe("Zuordnung — die Liste", () => {
   it("behauptet im Leerzustand nicht, nur Admins koennten die Gruppe sehen", () => {
     const t = markup([]);
     expect(t).not.toContain("nur Admins");
-    // Der Fachgruppen-Weg wird stattdessen benannt.
-    expect(t).toContain("Fachgruppen-Attribut");
   });
 
   /*

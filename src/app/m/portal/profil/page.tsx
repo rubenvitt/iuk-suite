@@ -23,7 +23,6 @@ export default async function ProfilPage() {
     <>
       <Seitenkopf
         titel="Profil"
-        beschreibung="Wer du für diese Suite bist — und wie du dich überall abmeldest."
         zurueck={{ titel: "Apps & Dienste", href: "/" }}
       />
       <ProfilAnsicht

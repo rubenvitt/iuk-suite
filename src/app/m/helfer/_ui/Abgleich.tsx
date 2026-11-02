@@ -124,16 +124,11 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: Quell
       {quelle === "datei" ? (
         <section aria-labelledby="excel-datei" style={{ display: "grid", gap: SPACE.md, maxWidth: 720 }}>
           <h2 id="excel-datei" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Excel-Datei</h2>
-          <p style={{ margin: 0 }}>
-            Gelesen wird das erste Blatt; die erste Zeile nennt die Spalten. Die Datei ist die ganze Liste: wer nicht mehr
-            darin steht, wird beim Übernehmen gelöscht. Die Datei selbst speichert die Suite nicht.
-          </p>
           <ul style={{ margin: 0, paddingInlineStart: SPACE.xl, display: "grid", gap: SPACE.xs }} aria-label="Spalten der Datei">
             {DATEI_SPALTEN.map((s) => (
-              <li key={s.feld}><b>{s.kopf}</b>{s.pflicht ? "" : " (freiwillig)"} — {s.hilfe}</li>
+              <li key={s.feld}><b>{s.kopf}</b>{s.pflicht ? "" : " (freiwillig)"}</li>
             ))}
           </ul>
-          <p style={{ ...SCHRIFT.neben, margin: 0 }}>Andere Spalten (z. B. Telefon oder Anschrift) bleiben unbeachtet und werden nicht gespeichert.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: SPACE.sm, alignItems: "flex-start" }}>
             <Upload
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -160,10 +155,6 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: Quell
 
       <section aria-labelledby="importfilter" style={{ display: "grid", gap: SPACE.md, maxWidth: 640 }}>
         <h2 id="importfilter" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Importfilter</h2>
-        <p style={{ margin: 0 }}>
-          Gesperrte Konten und Personen mit Austrittsdatum kommen nie in die Suite. Wer am Filter scheitert, wird
-          nicht gespeichert — auch nicht als Name in der Vorschau.
-        </p>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
           <legend style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}>{quelle === "hiorg" ? "Kontostatus in HiOrg" : "Kontostatus"}</legend>
           <Checkbox.Group
@@ -223,17 +214,6 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: Quell
             {plan.unlesbar > 0 ? ` · ${plan.unlesbar} unlesbar` : ""}
             {plan.doppelt > 0 ? ` · ${plan.doppelt} doppelt` : ""}
           </p>
-          {plan.unlesbar > 0 && quelle === "datei" ? (
-            <p style={{ ...SCHRIFT.neben, margin: 0 }}>
-              Unlesbar heißt: Vor- oder Nachname fehlt, ein Austrittsdatum lässt sich nicht lesen oder ein Wert ist zu lang.
-              Diese Zeilen werden nicht übernommen.
-            </p>
-          ) : null}
-          {plan.doppelt > 0 ? (
-            <p style={{ ...SCHRIFT.neben, margin: 0 }}>
-              Doppelt heißt: dieselbe Kennung{quelle === "datei" ? " oder, ohne Kennung, derselbe Name" : ""} steht mehrfach da; es zählt der erste Eintrag.
-            </p>
-          ) : null}
           {plan.ignorierteSpalten.length > 0 ? (
             <p style={{ ...SCHRIFT.neben, margin: 0 }} data-testid="ignorierte-spalten">
               Nicht gelesen: {plan.ignorierteSpalten.slice(0, 20).join(", ")}{plan.ignorierteSpalten.length > 20 ? " …" : ""}
@@ -248,7 +228,7 @@ export function Abgleich({ start, quelle }: { start: Importfilter; quelle: Quell
           ) : null}
           {plan.gruppen.length > 0 ? (
             <div>
-              <div style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}>Gruppen in der Quelle (Personen je Gruppe, vor dem Filter) — Klick schließt die Gruppe aus</div>
+              <div style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.xs }}>Gruppen in der Quelle</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: SPACE.xs }}>
                 {plan.gruppen.map((g) => {
                   const aus = filter.gruppenAus.includes(g.name);

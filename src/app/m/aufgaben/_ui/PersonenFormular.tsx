@@ -203,23 +203,9 @@ export function PersonenFormular({
               defaultValue={feldWert(state, "sub", "")}
               status={subFehler ? "error" : undefined}
               aria-invalid={subFehler ? true : undefined}
-              aria-describedby={subFehler ? "pf-sub-err" : "pf-sub-hinweis"}
+              aria-describedby={subFehler ? "pf-sub-err" : undefined}
             />
           )}
-          {/*
-           * DER AUSGANG AUS `NichtEingetragenSeite.tsx` (Brief: "kein Feld, das die Koordination
-           * raten laesst"). Die betroffene Person sieht ihren eigenen `sub` dort und gibt ihn
-           * weiter — dieser Text erklaert, woher der Wert kommt, statt ihn erraten zu lassen.
-           *
-           * MIT VERZEICHNIS STEHT DIESELBE AUSKUNFT ALS ZWEITER SATZ DA, nicht als Ersatz: der Weg
-           * ueber die Hinweisseite bleibt der Rueckfall, wenn das Verzeichnis niemanden findet oder
-           * gerade nicht antwortet (Kopfkommentar, Stufe b).
-           */}
-          <p id="pf-sub-hinweis" style={{ margin: `${SPACE.xs}px 0 0` }}>
-            {sucheAktiv
-              ? "Namen eintippen und die Person aus der Liste wählen — die Kennung unter jedem Vorschlag ist das, was gespeichert wird. Findet die Suche niemanden, geht auch eine getippte Kennung: die betroffene Person sieht sie auf der Hinweisseite, die sie nach dem Anmelden bekommt („Du bist noch nicht im Modul eingetragen.“)."
-              : "Die betroffene Person findet ihre eigene Kennung auf der Hinweisseite, die sie nach dem Anmelden sieht („Du bist noch nicht im Modul eingetragen.“) — sie gibt sie dir weiter."}
-          </p>
           {subFehler ? (
             <p id="pf-sub-err" style={{ margin: `${SPACE.xs}px 0 0` }}>
               {subFehler}
@@ -493,12 +479,12 @@ function Verzeichnisfeld({
         status={fehler ? "error" : undefined}
         placeholder="Name, E-Mail oder Kennung"
         aria-invalid={fehler ? true : undefined}
-        aria-describedby={fehler ? "pf-sub-err" : "pf-sub-hinweis"}
+        aria-describedby={fehler ? "pf-sub-err" : undefined}
         notFoundContent={
           sucht ? (
             <span>Suche läuft …</span>
           ) : wert.trim().length < PERSONEN_SUCHE_MIN_ZEICHEN ? null : status === "ok" ? (
-            <span>Niemand gefunden — eine getippte Kennung lässt sich trotzdem eintragen.</span>
+            <span>Niemand gefunden.</span>
           ) : (
             /*
              * DER UNTERSCHIED ZWISCHEN „KENNT NIEMANDEN" UND „ANTWORTET NICHT" GEHOERT AUF DEN
@@ -506,7 +492,7 @@ function Verzeichnisfeld({
              * schickt die Koordination auf die Suche nach einem Tippfehler, den es beim zweiten
              * gar nicht gibt.
              */
-            <span>Das Verzeichnis antwortet gerade nicht — die Kennung lässt sich eintragen.</span>
+            <span>Das Verzeichnis antwortet gerade nicht.</span>
           )
         }
       />

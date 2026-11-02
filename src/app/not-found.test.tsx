@@ -48,9 +48,9 @@ function variablenIn(selektor: string): string[] {
 describe("404: die Seite sagt, was los ist", () => {
   const markup = renderToStaticMarkup(<NotFound />);
 
-  it("nennt beide Faelle — nicht vorhanden UND nicht freigegeben", () => {
+  it("sagt nur, was los ist — ohne Erklaertext", () => {
     expect(markup).toContain("Diese Seite gibt es hier nicht.");
-    expect(markup).toMatch(/nicht freigegeben ist/);
+    expect(markup).not.toMatch(/nicht freigegeben ist/);
   });
 
   it("bietet genau einen Weg zurueck, und der ist relativ", () => {

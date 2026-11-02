@@ -51,7 +51,6 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
       <>
         <SeitenKopf
           titel={ENTNAHMEBOX_NAME}
-          beschreibung="Die Kiste in der Halle, in die Material aus Fahrzeugen und Taschen kommt."
         />
         {/*
           ⚠️ `type="warning"` UND NICHT `"error"` (Falle 3): in diesem Theme ist
@@ -127,10 +126,6 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
     <>
       <SeitenKopf
         titel={box.name}
-        beschreibung={
-          "Was hier liegt, wurde aus einem Fahrzeug oder einer Tasche genommen und ist "
-          + "noch nicht wieder eingeräumt. Es zählt weder zur Einheit noch zum Handlager."
-        }
         /*
          * DER WEG ZUM EINRAEUMEN — DRK-381.
          *

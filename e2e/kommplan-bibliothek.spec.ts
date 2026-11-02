@@ -155,7 +155,6 @@ test.describe("Telefon mit Touch", () => {
     await expect(titelFeld).toBeFocused();
     const zeilen = await page.locator(".kp-gliederung [data-zeile]").count();
     await speichertNach(page, () => titelFeld.pressSequentially(leit.slice(0, -1)));
-    await expect(page.locator(".kp-vorschlag-hinweis")).toBeHidden(); // kein Alt-Hinweis ohne Alt-Taste
     await speichertNach(page, () => page.locator(`[data-vorschlag]`, { hasText: leit }).tap());
     await expect(titelFeld).toHaveValue(leit);
     await expect(titelFeld).toBeFocused();

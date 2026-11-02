@@ -59,13 +59,11 @@ function legePerson(sub: string, rolle: Rolle, extra: Partial<PersonRow> = {}): 
 }
 
 describe("neuInhalt — die Formularseite", () => {
-  it("traegt die Ueberschrift und die Pflichtfeld-Kontextzeile", async () => {
+  it("traegt die Ueberschrift, ohne Kontextzeile", async () => {
     const malte = legePerson("dev:malte@test", "auftrag");
     await mount(neuInhalt(akteur(malte), HEUTE));
     expect(query("h1").textContent).toBe("Aufgabe einstellen");
-    expect(document.body.textContent).toContain(
-      "Titel, Erklärung, Priorität, Frist und Dauerschätzung sind Pflichtfelder.",
-    );
+    expect(document.body.textContent).not.toContain("sind Pflichtfelder");
   });
 
   /*

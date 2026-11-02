@@ -101,7 +101,6 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     <>
       <SeitenKopf
         titel="Verfall"
-        beschreibung="Chargen im Handlager nach Verfallsampel — und die an Einheiten und in der Entnahmebox gemeldeten Angaben."
       />
 
       <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.lg }}>

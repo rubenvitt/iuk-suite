@@ -87,9 +87,7 @@ function BeachtungEditorInhalt({ geraetId, hinweis, seitText }: BeachtungWerte) 
       <div ref={wurzel} style={{ display: "grid", gap: SPACE.md }}>
         {hinweis === null ? (
           <p style={SCHRIFT.neben}>
-            Für dieses Gerät ist nichts zu beachten. Ein Hinweis hier macht es in
-            der Liste gelb — für alles, was bei der nächsten Kontrolle jemand
-            wissen muss.
+            Für dieses Gerät ist nichts zu beachten.
           </p>
         ) : (
           /*

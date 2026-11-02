@@ -289,10 +289,6 @@ function Inhalt({
             Die Dateien werden gerade geprüft. Diese Seite aktualisiert sich von
             selbst.
           </p>
-          <p className="fp-meta">
-            Jede Datei wird vor der Freigabe auf Schadsoftware untersucht. Das
-            dauert je nach Größe einige Sekunden.
-          </p>
         </div>
       ) : (
         <>
@@ -382,8 +378,7 @@ export default async function FilesFreigabeSeite({
         <div data-testid="files-freigabe-passwort">
           <h1 className="fp-titel">{ladung.titel}</h1>
           <p className="fp-text">
-            Diese Freigabe ist mit einem Passwort geschützt. Sie haben es von der
-            Person erhalten, die Ihnen den Link gegeben hat.
+            Diese Freigabe ist mit einem Passwort geschützt.
           </p>
           {/* Nur die KOMPONENTE aus dem Client-Modul, nie ein Wert von dort:
               eine Konstante kaeme als Client-Referenz an und ergaebe HTTP 500

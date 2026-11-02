@@ -11,7 +11,6 @@ import {
   pruefeLoeschbar,
 } from "../../../../_actions/loeschen";
 import { einheitNomen, type Einheitenart } from "../../../../_lib/konstanten";
-import { SCHRIFT } from "../../../../_lib/schrift";
 import { LoeschButton } from "../../../../_ui/LoeschButton";
 import s from "../../../../_ui/verwaltung.module.css";
 
@@ -116,9 +115,6 @@ export function FahrzeugAktivToggle({
         />
         <span>{istAktiv ? "Aktiv" : "Inaktiv"}</span>
       </Space>
-      <span style={SCHRIFT.neben}>
-        Inaktive Einheiten stehen im Check nicht zur Wahl und nehmen kein Material an.
-      </span>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <section className={s.gefahr}>
         <div className={s.gtitle}>Gefahrenzone</div>

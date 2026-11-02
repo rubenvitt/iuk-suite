@@ -37,10 +37,6 @@ export function AnmeldeFlaeche({ code }: { code?: string }) {
         <h1>Anmelden</h1>
       </header>
 
-      <p className={styles["login-hinweis"]}>
-        Bitte gib deinen persönlichen Code ein. Du hast ihn von deiner Kursleitung erhalten.
-      </p>
-
       <LoginForm code={code} />
     </main>
   );

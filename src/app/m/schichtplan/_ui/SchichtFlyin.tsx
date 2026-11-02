@@ -130,7 +130,6 @@ export function SchichtInhalt({ p, a, helfer, sch, e, aktionen, onGeloescht }: {
           <Button disabled={sch.bis + STUNDE > p.bis} onClick={() => setze(sch.von, sch.bis + STUNDE)}>1 h länger</Button>
           <Button disabled={sch.bis - sch.von - STUNDE < MIN_SCHICHT} onClick={() => setze(sch.von, sch.bis - STUNDE)}>1 h kürzer</Button>
         </div>
-        <span className={s.neben}>Gilt nur für diese Schicht. Im Raster geht es auch per Ziehen.</span>
       </div>
 
       <div className={s.abschnitt}>

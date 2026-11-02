@@ -504,9 +504,6 @@ export function Entnahme({
             />
             <div className={s.zeileHaupt}>
               <div className={s.zeileName}>Zuerst ablaufende</div>
-              <div className={s.zeileMeta}>
-                <span>Die Vorgabe — nimmt die Charge mit dem nächsten Verfall</span>
-              </div>
             </div>
           </label>
         )}

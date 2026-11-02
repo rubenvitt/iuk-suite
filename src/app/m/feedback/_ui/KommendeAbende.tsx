@@ -114,8 +114,7 @@ export function KommendeAbende({
       >
         {abende.length === 0 ? (
           <p style={{ ...T.meta, margin: 0 }}>
-            Noch nichts geplant. Du kannst kommende Dienstabende im Voraus eintragen — das
-            Feedback gibst du dann an jedem Abend einzeln frei.
+            Noch nichts geplant.
           </p>
         ) : (
           <div>
@@ -359,10 +358,6 @@ function PlanenDialog({
         style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}
       >
         <input type="hidden" name="groupId" value={groupId} />
-        <p style={{ ...T.meta, margin: 0 }}>
-          Der Abend wird nur eingetragen. Das Feedback gibst du am Abend selbst frei — es kann
-          immer nur eines laufen.
-        </p>
 
         <label style={FELD}>
           <span style={T.kicker}>Datum</span>

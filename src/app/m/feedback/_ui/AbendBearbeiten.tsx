@@ -167,7 +167,6 @@ function BearbeitenFormular({
             defaultValue={feldWert(state, "participantCount", abend.teilnehmer?.toString() ?? "")}
             placeholder="optional"
           />
-          <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
         </label>
       )}
       <label style={FELD}>

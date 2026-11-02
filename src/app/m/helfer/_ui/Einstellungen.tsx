@@ -60,14 +60,13 @@ export function Einstellungen(p: EinstellungenProps) {
       <section aria-labelledby="quelle" style={{ display: "grid", gap: SPACE.sm }}>
         <h2 id="quelle" style={{ ...SCHRIFT.unterTitel, margin: 0 }}>Quelle</h2>
         <Radio.Group value={p.quelle} onChange={(e) => quelleWechseln(e.target.value as Quelle)} disabled={laeuft !== null} style={{ display: "grid", gap: SPACE.xs }}>
-          <Radio value="demo" style={{ minHeight: 44, alignItems: "center" }}>Demo — erfundene Helfer zum Ausprobieren</Radio>
+          <Radio value="demo" style={{ minHeight: 44, alignItems: "center" }}>Demo</Radio>
           <Radio value="hiorg" style={{ minHeight: 44, alignItems: "center" }} disabled={p.hiorgFehlt.length > 0}>HiOrg-Server</Radio>
-          <Radio value="datei" style={{ minHeight: 44, alignItems: "center" }}>Excel-Datei — die Liste unter „Abgleich“ hochladen</Radio>
+          <Radio value="datei" style={{ minHeight: 44, alignItems: "center" }}>Excel-Datei</Radio>
         </Radio.Group>
         {p.hiorgFehlt.length > 0 ? (
           <p style={{ ...SCHRIFT.neben, margin: 0 }}>
             HiOrg-Server ist nicht eingerichtet. Es fehlt in der Umgebung der Suite: {p.hiorgFehlt.join(", ")}.
-            Den Zugang (Client-ID und Secret) beantragt der Account-Inhaber beim HiOrg-Support.
           </p>
         ) : null}
       </section>
@@ -77,12 +76,11 @@ export function Einstellungen(p: EinstellungenProps) {
         {p.verbindung ? (
           <p style={{ margin: 0 }} data-testid="hiorg-verbindung">
             Verbunden als <b>{p.verbindung.kontoName}</b>, eingerichtet von {p.verbindung.verbundenVon} am {p.verbindung.verbundenAm},
-            zuletzt erneuert am {p.verbindung.erneuertAm}. Gelesen wird nur, was dieses Konto in HiOrg sehen darf.
+            zuletzt erneuert am {p.verbindung.erneuertAm}.
           </p>
         ) : (
           <p style={{ margin: 0 }}>
-            Nicht verbunden. Beim Verbinden meldest du dich einmal bei HiOrg-Server an; die Suite speichert danach nur ein
-            verschlüsseltes Erneuerungs-Token, nie dein Passwort.
+            Nicht verbunden.
           </p>
         )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: SPACE.sm }}>
@@ -109,14 +107,12 @@ export function Einstellungen(p: EinstellungenProps) {
           />
           Neu übernommene Helfer gleich fürs Einsatzbuch freigeben
         </label>
-        <p style={{ ...SCHRIFT.neben, margin: 0 }}>Aus: neue Helfer gibst du in der Liste einzeln oder gesammelt frei.</p>
       </section>
 
       <section aria-labelledby="loeschen" className={styles.gefahrenzone}>
         <h2 id="loeschen" className={styles.gefahrenTitel}>Alle Helferdaten löschen</h2>
         <p style={{ margin: 0 }}>
-          Löscht alle {p.anzahl} Helfer und das Abgleichprotokoll. Die Verbindung zu HiOrg bleibt; im Einsatzbuch werden die
-          Personen beim nächsten Abgleich deaktiviert.
+          Löscht alle {p.anzahl} Helfer und das Abgleichprotokoll.
         </p>
         <div>
           <Button

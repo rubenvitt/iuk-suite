@@ -161,10 +161,9 @@ export function MangelFormular({
         </div>
       </div>
 
-      <fieldset className={`${s.karte} ${m.abschnitt}`} style={{ padding: 0, margin: "14px 0 0" }} aria-describedby="mangel-punkte-hilfe">
+      <fieldset className={`${s.karte} ${m.abschnitt}`} style={{ padding: 0, margin: "14px 0 0" }}>
         <legend className={m.versteckt}>Was ist los?</legend>
         <div className={s.karteTitel} aria-hidden="true">Was ist los?</div>
-        <p id="mangel-punkte-hilfe" className={s.fussnote} style={{ padding: "4px 14px 0" }}>Alles ankreuzen, was passt.</p>
         {punkte.map((punkt) => (
           <label key={punkt} className={`${s.zeile} ${s.zeileWahl}`}>
             <input
@@ -184,7 +183,7 @@ export function MangelFormular({
           <textarea
             id="mangel-beschreibung"
             className={`${s.feld} ${m.beschreibung}`}
-            placeholder="Was genau, wo genau? Zum Beispiel: hintere Tür links klemmt"
+            placeholder="Was genau, wo genau?"
             maxLength={BESCHREIBUNG_MAX}
             value={beschreibung}
             onChange={(e) => setBeschreibung(e.target.value)}
@@ -239,9 +238,7 @@ export function MangelFormular({
             maxLength={NAME_MAX}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            aria-describedby="mangel-name-hilfe"
           />
-          <p id="mangel-name-hilfe" className={s.fussnote} style={{ marginTop: 6 }}>Nur für Rückfragen der Verwaltung.</p>
         </div>
       </div>
 

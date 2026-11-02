@@ -15,8 +15,7 @@ export default async function Archiv() {
   const viewer = await requireKommplanZugang();
   return (
     <Huelle>
-      <Seitenkopf titel="Archiv" zurueck={{ titel: "Alle Pläne", href: "/" }}
-        beschreibung="Archivierte Pläne lassen sich ansehen und drucken, aber nicht bearbeiten. Wiederhergestellt stehen sie wieder in der Liste. Endgültig gelöscht sind sie samt ihrer Links weg." />
+      <Seitenkopf titel="Archiv" zurueck={{ titel: "Alle Pläne", href: "/" }} />
       <PlanTabelle zeilen={listePlaene(getDb(), "archiv", personAus(viewer))} liste="archiv" />
     </Huelle>
   );

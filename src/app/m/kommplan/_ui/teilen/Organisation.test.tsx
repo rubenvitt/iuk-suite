@@ -18,10 +18,10 @@ const mitglieder = vi.fn();
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
 
 describe("Organisation im Flyin „Teilen“", () => {
-  it("privat: Hinweis und „In der Organisation teilen“ mit Rückfrage; erst nach Bestätigen geteilt", async () => {
+  it("privat: Zustand und „In der Organisation teilen“ mit Rückfrage; erst nach Bestätigen geteilt", async () => {
     aktion.teilen.mockResolvedValue({ ok: true, mitglieder: [] });
     await mount(<Organisation planId="p1" sichtbarkeit="privat" mitglieder={[]} onSichtbarkeit={sichtbarkeit} onMitglieder={mitglieder} />);
-    expect(query('[data-sichtbarkeit="privat"]').textContent).toContain("nur du siehst");
+    expect(query('[data-sichtbarkeit="privat"]').textContent).toContain("Privat");
     expect(exists('[data-sichtbarkeit="organisation"]')).toBe(false);
     await clickElement(knopf("In der Organisation teilen"));
     expect(aktion.teilen).not.toHaveBeenCalled();

@@ -196,8 +196,7 @@ export function Zuordnung({
         leer={{
           nichts: (
             <span style={T.meta}>
-              Niemand einzeln zugeordnet — Zugang kann zusätzlich über das
-              Fachgruppen-Attribut der Anmeldung bestehen.
+              Niemand einzeln zugeordnet.
             </span>
           ),
         }}
@@ -429,7 +428,7 @@ function Verzeichnisfeld({
             <span style={T.meta}>Suche läuft …</span>
           ) : text.trim().length >= SUCHE_MIN_ZEICHEN ? (
             <span style={T.meta}>
-              Keine Person gefunden — eine Kennung lässt sich trotzdem direkt eintragen.
+              Keine Person gefunden.
             </span>
           ) : null
         }

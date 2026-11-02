@@ -31,7 +31,6 @@ export function TitelVorschlaege({ stelle, onWahl, tabStopps = false }: { stelle
           {b.leiter ? `${b.titel} · ${b.leiter}` : b.titel}
         </Button>
       ))}
-      {vorschlaege.length > 0 ? <span className="kp-hilfe kp-vorschlag-hinweis">Alt+Enter nimmt den ersten</span> : null}
     </div>
   );
 }

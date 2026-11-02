@@ -65,15 +65,13 @@ export function PlombenEditor({
   return (
     <div style={{ display: "grid", gap: SPACE.md }} data-rolle="plomben-editor">
       {/*
-        IDA-232: die Erklärung steht nur im Leerzustand — dort, wo jemand die
-        erste Plombe anlegt und wissen muss, wozu. Neben einer gepflegten Liste
-        war sie ein Dauerabsatz, den niemand mehr liest.
+        IDA-232: der Leerzustand nennt nur den Zustand. Erklärende Absätze
+        stehen seit der Bereinigung der Oberfläche nirgends mehr, auch nicht
+        neben einer gepflegten Liste.
       */}
       {plomben.length === 0 ? (
         <p style={{ margin: 0 }}>
-          Noch keine Plombe angelegt. Eine Plombe bezeugt, dass ein Behälter seit dem letzten
-          Vollcheck zu war. Solange sie steht, liest der Kurzcheck nur ihre Nummer ab, statt das
-          Fach zu zählen. Gesetzt wird die Nummer im Vollcheck.
+          Noch keine Plombe angelegt.
         </p>
       ) : (
         <div style={{ display: "grid", gap: SPACE.sm }}>

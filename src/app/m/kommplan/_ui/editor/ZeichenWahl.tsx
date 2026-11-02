@@ -45,7 +45,7 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
 
   return (
     <div className="kp-zeichenwahl">
-      <p className="kp-hilfe" id={`${basis}-jetzt`}>{wert ? `Gewählt: ${titel.get(wert) ?? wert}` : "Kein Zeichen gewählt — die Karte trägt dann nur den Titel."}</p>
+      <p className="kp-hilfe" id={`${basis}-jetzt`}>{wert ? `Gewählt: ${titel.get(wert) ?? wert}` : "Kein Zeichen gewählt"}</p>
       {/* Enter wählt den ersten Treffer (leere Anfrage: den ersten Vorschlag), ↓ springt ins Raster (Kritik: sonst Tab für Tab). */}
       <Input aria-label="Zeichen suchen" aria-describedby={`${basis}-jetzt`} value={anfrage} onChange={(e) => suche(e.target.value)} placeholder={`z. B. ${SUCHBEISPIELE.join(", ")}`} allowClear
         onPressEnter={(e) => { e.preventDefault(); const erster = anfrage.trim() === "" ? vorschlaege[0] : treffer[0]?.schluessel; if (erster) waehle(erster); }}
@@ -58,7 +58,7 @@ export function ZeichenWahl({ wert, index, symbole, ladeSymbole, planZeichen, on
           : <p className="kp-hilfe" aria-live="polite">Kein Zeichen passt zu „{anfrage.trim()}“.</p>
       ) : null}
       {/* Eigener Tab: der Editor speichert selbst, aber wer gerade ein Flyin offen hat, soll es nicht verlieren. */}
-      <p className="kp-hilfe">Fehlt ein Zeichen, etwa für eine Leitstelle? <a href="/bibliothek?reiter=zeichen" target="_blank" rel="noopener">Eigene Zeichen bauen</a> (Bibliothek, neuer Tab).</p>
+      <p className="kp-hilfe"><a href="/bibliothek?reiter=zeichen" target="_blank" rel="noopener">Eigene Zeichen bauen</a></p>
       {wert ? <Button onClick={() => waehle(null)}>Kein Zeichen</Button> : null}
     </div>
   );

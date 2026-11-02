@@ -294,7 +294,6 @@ export function AufladenDialog({
             name="herkunft"
             label="Woher"
             rules={[{ required: true, message: "Herkunft wählen" }]}
-            extra="Neu angeliefert: kommt direkt vom Lieferanten, ohne vorher im Lager zu liegen."
           >
             <Select
               aria-label="Woher"

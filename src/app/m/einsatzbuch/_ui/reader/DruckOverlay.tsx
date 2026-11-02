@@ -80,7 +80,6 @@ export function DruckOverlay({ block, einsatz, kette, unveraendert, dateiname, b
       <div className={s.steuer} data-druck-steuer="">
         <div className={s.steuerText}>
           <span className={s.steuerTitel}>{`Einsatzbericht · ${einsatz.nummer}`}</span>
-          <span className={s.steuerHinweis}>Im Druckdialog „Als PDF speichern“ wählen.</span>
         </div>
         <Button onClick={onSchliessen}>Schließen</Button>
         <Button type="primary" icon={<Icons8Ikone name="print" />} onClick={drucken} ref={speichern}>Als PDF speichern</Button>

@@ -64,9 +64,6 @@ export default async function MangelSeite({
       <HelferRahmen aktiv="mangel" {...rahmen}>
         <div className={s.lesebahn}>
           <div className={s.schirmKopf}>Mangel melden — wo?</div>
-          <p className={s.fussnote} style={{ margin: "0 2px 10px" }}>
-            Am schnellsten geht es über das Ortsetikett am Schrank oder Fahrzeug. Oder hier wählen:
-          </p>
           <div className={s.karte} data-rolle="mangel-ortswahl">
             {orte.map((o) => (
               <Link key={o.id} className={`${s.zeile} ${s.zeileWahl}`} href={`/helfer/mangel?ort=${encodeURIComponent(o.id)}`}>

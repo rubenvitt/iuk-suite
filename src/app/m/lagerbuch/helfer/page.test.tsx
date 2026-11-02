@@ -333,21 +333,12 @@ describe("helfer/page.tsx", () => {
     expect(query("[data-rolle='suche']").getAttribute("data-anzahl")).toBe("2");
   });
 
-  it("traegt den Satz, der die Systemkamera erklaert", async () => {
-    // IDA-295: Helfer scannen seit dem 30.10.2026 nur noch Ortsetiketten —
-    // der Satz nennt deshalb den Schrank und nicht mehr das Regaletikett.
-    await mount(await HelferSeite());
-    expect(query("[data-rolle='helfer-hinweis']").textContent)
-      .toBe("Ortsetikett am Schrank scannen zeigt nur dessen Artikel — oder hier suchen.");
-  });
-
-  it("haengt Hinweis und Insel INNERHALB des Rahmens", async () => {
+  it("haengt die Insel INNERHALB des Rahmens", async () => {
     // Saessen sie auf einem Geschwister, faenden die `--lb-*`-Variablen sie
     // nicht — und der Fehler waere STILL: eine nicht aufloesbare CSS-Variable
     // ist gueltiges CSS und faellt auf `transparent` zurueck (Falle 2).
     await mount(await HelferSeite());
     const rahmen = query("[data-rolle='rahmen']");
-    expect(rahmen.contains(query("[data-rolle='helfer-hinweis']"))).toBe(true);
     expect(rahmen.contains(query("[data-rolle='suche']"))).toBe(true);
   });
 

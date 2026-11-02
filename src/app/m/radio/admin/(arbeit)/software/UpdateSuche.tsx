@@ -108,9 +108,6 @@ import u from "../../../_ui/update.module.css";
  * Verbraucher — der Test schreibt die Texte bewusst aus, ein Import waere tautologisch.
  */
 const UPDATE_TEXTE = {
-  /** ⛔ Woertlich `UpdateMode.tsx:40`. */
-  hinweis:
-    "Gerät suchen, mit einem Tap auf die Zielversion setzen. Nur die Geräte, die du wirklich aktualisiert hast.",
   /** ⛔ Woertlich `UpdateMode.tsx:68` — die Aufforderung, nicht die Abwesenheit von Zeilen. */
   leerOhneSuche: "Gerät suchen, um es zu aktualisieren",
   /** ⛔ Woertlich `UpdateMode.tsx:76`. */
@@ -330,12 +327,6 @@ export function UpdateSuche({
       <div className={u.flaeche} data-rolle="radio-update-flaeche">
         <header className={u.kopf}>
           <h1 className={u.titel}>{UPDATE_TEXTE.titel}</h1>
-          {/* 1:1 `UpdateMode.tsx:38-41` — die fachliche Auflage der Flaeche. Seit DRK-495 ein
-              ruhiger Satz unter dem Titel statt eines `Alert`: er wird einmal gelesen und
-              danach hundertmal uebersprungen. */}
-          <p className={u.hinweis}>
-            <span data-rolle="radio-update-hinweis">{UPDATE_TEXTE.hinweis}</span>
-          </p>
         </header>
 
         {/* Zielversion und Fortschritt als EIN Block: der Balken misst gegen genau diese Version. */}

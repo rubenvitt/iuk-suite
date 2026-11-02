@@ -115,14 +115,9 @@ export default async function HelferSeite({
           nur noch Ortsetiketten, keine Regaletiketten am Artikel. */}
       {schrank ? (
         <p className={s.fussnote} data-rolle="helfer-hinweis">
-          Hier steht nur, was laut Buch in diesem Schrank liegt.{" "}
           <Link href="/helfer" data-rolle="helfer-alle">Alle Artikel im Handlager</Link>
         </p>
-      ) : (
-        <p className={s.fussnote} data-rolle="helfer-hinweis">
-          Ortsetikett am Schrank scannen zeigt nur dessen Artikel — oder hier suchen.
-        </p>
-      )}
+      ) : null}
       <ArtikelSuche
         artikel={artikel}
         basis="/a"

@@ -548,10 +548,6 @@ export function AbgabeFormular({ token }: { token: string }) {
   return (
     <>
       <h1 className="fp-titel">Dateien abgeben</h1>
-      <p className="fp-text">
-        Wählen Sie die Dateien aus, die Sie übermitteln möchten. Auf dem Handy
-        können Sie im Auswahldialog auch direkt die Kamera benutzen.
-      </p>
       <form className={s.formular} data-testid="abgabe-formular" onSubmit={beiAbgabe} noValidate>
         {/* Kein leerer Bildschirm ohne JavaScript: die Inbox war nie ohne JS
             bedienbar (§8.2), also nennt der Block den Weg. */}

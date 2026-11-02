@@ -111,20 +111,6 @@ describe("BoxEinraeumen — was der Schirm sagt", () => {
       .not.toContain("gemeldet");
   });
 
-  it("nennt die Richtung UND die Art des Vorgangs", async () => {
-    /*
-     * ⚠️ DIE TEUERSTE FALLE DES TICKETS IST EINE SPRACHLICHE. Die Flaeche sieht
-     * der Entnahme und dem Auffuellen zum Verwechseln aehnlich — das ist
-     * Absicht (der vertraute Ablauf war die Anforderung) und genau deshalb die
-     * Gefahr: wer hier einen WARENEINGANG vermutet, bucht dieselben Teile ein
-     * zweites Mal ins append-only-Journal.
-     */
-    await mount(flaeche());
-    const hinweis = query("[data-rolle='einraeumen-hinweis']").textContent ?? "";
-    expect(hinweis).toContain("umgeräumt, nicht neu angenommen");
-    expect(hinweis).toContain("zurück ins Handlager");
-  });
-
   it("zeigt das Fach in der zugeklappten Zeile", async () => {
     // Es ist die Angabe, die beantwortet, wohin der Artikel gehoert — und die
     // einzige, die das kann: Fach und Schrank haengen in den Daten nicht

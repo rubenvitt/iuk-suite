@@ -384,19 +384,6 @@ describe("radio-Update-Modus: Zielversion und Fortschritt", () => {
     await mount(<UpdateSuche {...props()} />);
     expect(query<HTMLButtonElement>('[data-rolle="radio-update-tap"]').disabled).toBe(false);
   });
-
-  it("der Hinweis steht woertlich ueber der Flaeche", async () => {
-    /*
-     * ⛔ 1:1 `UpdateMode.tsx:40`. Er ist die einzige Stelle, an der der Flaeche ihre
-     * FACHLICHE Auflage anhaengt: „Nur die Geräte, die du wirklich aktualisiert hast" — ein
-     * Tap ist eine Behauptung ueber die Wirklichkeit, kein Filter.
-     */
-    await mount(<UpdateSuche {...props()} />);
-
-    expect(texte("radio-update-hinweis")).toEqual([
-      "Gerät suchen, mit einem Tap auf die Zielversion setzen. Nur die Geräte, die du wirklich aktualisiert hast.",
-    ]);
-  });
 });
 
 describe("radio-Update-Modus: was ein Tap schreibt", () => {

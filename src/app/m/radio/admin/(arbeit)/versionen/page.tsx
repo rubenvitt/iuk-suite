@@ -1,5 +1,4 @@
 // src/app/m/radio/admin/(arbeit)/versionen/page.tsx
-import { Alert } from "antd";
 import { getDb } from "../../../_db/client";
 import { versionenMitGeraetezahl } from "../../../_lib/lesepfade/versionen";
 import { requireRadioAdmin } from "../../../_lib/zugang";
@@ -77,9 +76,6 @@ import { VersionenTabelle } from "./VersionenTabelle";
  */
 const SEITEN_TEXTE = {
   titel: "Softwareversionen",
-  /** ⛔ Woertlich `SoftwareVersionsPage.tsx:185`. */
-  hinweis:
-    "Die als „Ziel“ markierte Version bestimmt, welche Geräte als „aktuell“ gelten. Neu angelegte Versionen werden nicht automatisch zum Ziel — die Reihenfolge dient nur der Anzeige.",
 } as const;
 
 export default async function RadioVersionenSeite() {
@@ -90,28 +86,6 @@ export default async function RadioVersionenSeite() {
   return (
     <>
       <h1 className={s.titel}>{SEITEN_TEXTE.titel}</h1>
-      {/*
-        ⛔ `type="info"` UND `showIcon` 1:1 `:182-186`. Kein Rotton auf einer Datenflaeche
-        (Falle 3): `colorError === colorPrimary` (`src/core/theme/theme.ts:32-33`).
-
-        ⛔ `title=` UND NICHT `message=` (`SoftwareVersionsPage.tsx:185`): unter antd 6 ist
-        `message` ABGEKUENDIGT — nachgeschlagen in
-        `node_modules/…/antd/es/alert/Alert.d.ts:50-52` („@deprecated please use `title`
-        instead"). Hausvorbild ist bereits die neue Form
-        (`lagerbuch/verwaltung/(arbeit)/checks/[id]/page.tsx:121-126`).
-
-        ⛔ DER TEXT TRAEGT EINEN EIGENEN GRIFF. Ohne ihn muesste der Playwright-Fall auf eine
-        antd-INTERNE Klasse greifen — die einzige Stelle dieser Flaeche, die das taete, und
-        genau die Art Griff, die bei einem Bauteil-Umbau still danebengeht. Dieselbe Bauform
-        und derselbe Grund wie in `import/ImportAssistent.tsx` (Griff am inneren `<span>`,
-        Begruendung `import/ImportAssistent.test.tsx:155-161`).
-      */}
-      <Alert
-        type="info"
-        showIcon
-        title={<span data-rolle="radio-versionen-hinweis">{SEITEN_TEXTE.hinweis}</span>}
-        className={s.abstand}
-      />
       <NeuVersion />
       <VersionenTabelle zeilen={zeilen} />
     </>

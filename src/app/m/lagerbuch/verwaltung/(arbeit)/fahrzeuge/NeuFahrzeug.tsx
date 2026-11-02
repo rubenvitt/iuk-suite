@@ -152,7 +152,6 @@ export function NeuFahrzeug({ stammAuswahl = [] }: { stammAuswahl?: StammAuswahl
             <Form.Item
               name="stammId"
               label="Fahrzeug aus der Fahrzeugverwaltung"
-              extra="Name und Kennzeichen kommen von dort. Fehlt ein Fahrzeug, lege es zuerst in der Fahrzeugverwaltung an."
               rules={[{ required: true, message: "Fahrzeug wählen" }]}
             >
               <Select

@@ -108,10 +108,6 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
       */}
       <Card title="Neue Messung" style={{ marginBlockEnd: SPACE.lg }}>
         <MessungForm flascheId={flasche.id} />
-        <p style={{ ...SCHRIFT.neben, margin: `${SPACE.sm}px 0 0` }}>
-          Der aktuelle Druck ist immer die jüngste Messung — eine Fehlmessung
-          korrigierst du mit einer neuen.
-        </p>
       </Card>
 
       <Card title="Messungsverlauf" style={{ marginBlockEnd: SPACE.lg }}>

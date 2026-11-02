@@ -25,7 +25,6 @@ import { SPACE } from "@/core/theme/tokens";
  */
 
 const KARTE = { maxInlineSize: 720 } as const;
-const ABSATZ = { ...SCHRIFT.text, marginBlock: `0 ${SPACE.md}px` } as const;
 
 function Meldung({ ergebnis }: { ergebnis: ProbeErgebnis | null }) {
   if (!ergebnis) return null;
@@ -41,9 +40,6 @@ export function FaelligkeitenEinrichten() {
   const [fehler, setFehler] = useState<ProbeErgebnis | null>(null);
   return (
     <Card title="Mitteilungen einrichten" style={KARTE} data-testid="faellig-einrichten">
-      <p style={ABSATZ}>
-        Du bekommst ein eigenes Thema, das nur für dich ist, und wählst danach aus, was darin stehen soll.
-      </p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: SPACE.md }}>
         <Button
           type="primary"
@@ -130,9 +126,6 @@ export function FaelligkeitenProbe() {
   const [laeuft, starte] = useTransition();
   return (
     <Card title="Probe" style={KARTE}>
-      <p style={ABSATZ}>
-        Schickt die Zusammenfassung sofort an dein Thema, so wie sie am Montag käme. Der Montag bleibt davon unberührt.
-      </p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: SPACE.md }}>
         <Button
           loading={laeuft}
@@ -166,10 +159,6 @@ export function FaelligkeitenAboVerwalten() {
   });
   return (
     <Card title="Thema ändern oder beenden" style={KARTE}>
-      <p style={ABSATZ}>
-        Ein neues Thema brauchst du, wenn jemand anderes deins kennt oder ein altes Telefon es noch abonniert
-        hat. Das bisherige Abo bekommt danach nichts mehr, und du abonnierst das neue wie oben beschrieben.
-      </p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: SPACE.md }}>
         <Popconfirm
           title="Neues Thema anlegen?"

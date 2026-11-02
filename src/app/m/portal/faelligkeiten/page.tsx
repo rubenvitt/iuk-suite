@@ -8,7 +8,6 @@ import { SPACE } from "@/core/theme/tokens";
 import { aboVon, vermerkeGruppen } from "@/app/m/portal/_lib/faelligkeiten/abos";
 import { auswahlOptionen } from "@/app/m/portal/_lib/faelligkeiten/auswahl";
 import { aboFuer, versand } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
-import { SENDE_STUNDE } from "@/app/m/portal/_lib/faelligkeiten/takt";
 import { FAELLIG_ANZEIGENAME } from "@/app/m/portal/_lib/ntfy";
 import { sammle, sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
 import {
@@ -50,17 +49,12 @@ export default async function FaelligkeitenPage() {
     <>
       <Seitenkopf
         titel="Was steht an"
-        beschreibung="Fristen aus den Apps, die du verwaltest. Ein Tipp auf eine Zeile führt dorthin, wo du sie erledigst."
         zurueck={{ titel: "Apps & Dienste", href: "/" }}
       />
       <FaelligkeitenListe gruppen={gruppen} />
       {v && personId && (
         <section style={{ marginBlockStart: SPACE.xl, display: "flex", flexDirection: "column", gap: SPACE.lg }}>
           <h2 style={{ ...SCHRIFT.titel, margin: 0 }}>Aufs Telefon</h2>
-          <p style={{ ...SCHRIFT.text, margin: 0, maxInlineSize: 720 }}>
-            Jeden Montag um {SENDE_STUNDE} Uhr kommt eine kurze Zusammenfassung als Mitteilung, wenn etwas fällig ist,
-            das du ausgewählt hast. Namen von Personen stehen darin nicht.
-          </p>
           {!abo && <FaelligkeitenEinrichten />}
           {abo && (
             <>

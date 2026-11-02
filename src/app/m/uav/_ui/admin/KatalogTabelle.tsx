@@ -154,7 +154,6 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Aufgabenkatalog"
-        beschreibung="Diese Aufgaben sehen die Teilnehmer in ihrem Training. Du legst fest, in welcher Reihenfolge sie erscheinen, wie oft jede geübt werden soll und welche gerade gilt."
         aktionen={
           <Button type="primary" onClick={() => setNeuOffen(true)}>
             Aufgabe anlegen

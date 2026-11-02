@@ -52,14 +52,13 @@ export function BriefkopfFormular({ organisation, logo }: { organisation: string
     <div className="kp-formular kp-einstellungen">
       <form aria-label="Organisation" onSubmit={speichereName} className="kp-formular">
         <label className="kp-feldname" htmlFor={`${basis}-org`}>Organisation</label>
-        <Input id={`${basis}-org`} name="organisation" value={name} maxLength={LAENGE_ORGANISATION} onChange={(e) => setName(e.target.value)}
-          placeholder="leer lassen, wenn im Kopf kein Name stehen soll" />
+        <Input id={`${basis}-org`} name="organisation" value={name} maxLength={LAENGE_ORGANISATION} onChange={(e) => setName(e.target.value)} />
         <div className="kp-formular-knoepfe"><Button type="primary" htmlType="submit" disabled={laeuft}>Speichern</Button></div>
       </form>
       <section aria-label="Logo" className="kp-formular">
         <p className="kp-feldname">Logo</p>
         <p className="kp-logo-stand">{logo ? `Logo: ${LOGO_TYP_NAME[logo.typ]}, ${Math.max(1, Math.round(logo.bytes / 1024))} KB` : "Kein Logo hinterlegt."}</p>
-        <p className="kp-hilfe">PNG, JPEG, WebP oder SVG, höchstens 1 MB. Es steht rechts oben auf jedem gedruckten Blatt; ein SVG wird vorher bereinigt.</p>
+        <p className="kp-hilfe">PNG, JPEG, WebP oder SVG, höchstens 1 MB</p>
         <input ref={datei} id={`${basis}-datei`} className="kp-dateifeld" type="file" name="logo" accept={LOGO_ANNAHME} tabIndex={-1} aria-hidden="true"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void lade(f); }} />
         <div className="kp-formular-knoepfe">

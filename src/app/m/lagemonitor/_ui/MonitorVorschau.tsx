@@ -99,13 +99,13 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
             ) : null}
             {v.karte.radar ? (
               szenario === "unwetter" ? (
-                <g>
+                <g data-rolle="vorschau-radar">
                   <ellipse className={s.radarLeicht} cx="300" cy="120" rx="120" ry="70" />
                   <ellipse className={s.radarMittel} cx="310" cy="125" rx="70" ry="42" />
                   <ellipse className={s.radarStark} cx="320" cy="128" rx="30" ry="20" />
                 </g>
               ) : (
-                <g>
+                <g data-rolle="vorschau-radar">
                   <ellipse className={s.radarLeicht} cx="380" cy="60" rx="50" ry="26" />
                   <ellipse className={s.radarLeicht} cx="60" cy="250" rx="36" ry="18" />
                 </g>

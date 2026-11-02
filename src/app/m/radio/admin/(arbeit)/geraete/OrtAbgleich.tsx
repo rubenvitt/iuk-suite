@@ -75,10 +75,6 @@ export function OrtAbgleich() {
       </Button>
       <Drawer open={offen} onClose={() => setOffen(false)} title="Orte aus der Fahrzeugverwaltung" width={flyinBreite(720)} destroyOnHidden>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
-          <p style={{ margin: 0 }}>
-            Verknüpft die Geräte, deren Lagerort ein Fahrzeug der Fahrzeugverwaltung ist, und schreibt dort den Namen des
-            Fahrzeugs als Lagerort. Andere Lagerorte bleiben, wie sie sind.
-          </p>
           {meldung ? <Alert type={meldung.art} showIcon={false} title={meldung.text} /> : null}
           {plan ? (
             <>

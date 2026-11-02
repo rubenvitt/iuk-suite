@@ -210,10 +210,6 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
         {zeilen.length === 0 ? (
           <Card data-testid="files-zugangslinks-leer">
             <p>Kein Abgabelink vorhanden.</p>
-            <p className={styles.hinweis}>
-              Ein Abgabelink erlaubt die anonyme Abgabe von Dateien — mit Laufzeit und Budget, ohne
-              Anmeldung. Der Code wird einmal ausgegeben.
-            </p>
           </Card>
         ) : (
           /*

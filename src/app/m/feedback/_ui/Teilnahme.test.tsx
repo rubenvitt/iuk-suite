@@ -43,12 +43,11 @@ function zeichne(element: ReactElement): HTMLElement {
   return wirt;
 }
 
-const zone = (over: { erststart?: boolean } = {}) => (
+const zone = () => (
   <Teilnahme
     url={URL_VOLL}
     token={TOKEN}
     groupId={7}
-    erststart={over.erststart ?? false}
   />
 );
 
@@ -108,12 +107,9 @@ describe("Teilnahme — Zone a (§2.4)", () => {
     expect(kasten!.getAttribute("style")).not.toContain("--fb-card");
   });
 
-  it("trägt den Kartentitel und die Kernaussage wortgenau", () => {
+  it("trägt den Kartentitel", () => {
     const t = zeichne(zone()).textContent ?? "";
     expect(t).toContain("DAUERHAFTER ZUGANG");
-    expect(t).toContain(
-      "Einmal ausdrucken reicht. Der Code bleibt für alle künftigen Dienstabende gültig — er hängt an der Gruppe, nicht am Abend.",
-    );
   });
 
   it("bietet Kopieren, PNG-Download und Aushang im neuen Tab", () => {
@@ -131,15 +127,6 @@ describe("Teilnahme — Zone a (§2.4)", () => {
     expect(aushang!.textContent).toContain("Aushang drucken");
   });
 
-  it("Belegung A: nennt zusätzlich, dass der Aushang schon vor dem ersten Abend druckbar ist", () => {
-    expect(zeichne(zone({ erststart: true })).textContent).toContain(
-      "Du kannst den Aushang schon vor dem ersten Abend drucken.",
-    );
-    expect(zeichne(zone({ erststart: false })).textContent).not.toContain(
-      "schon vor dem ersten Abend",
-    );
-  });
-
   /**
    * Die Zone ist auch dann sichtbar, wenn KEINE Umfrage läuft — und zwar
    * baulich: sie kennt keinen Umfrage-Zustand. Wäre sie an `laufend` gehängt,
@@ -151,8 +138,6 @@ describe("Teilnahme — Zone a (§2.4)", () => {
     for (const begriff of ["laufend", "survey", "zustand", "belegung", "CockpitZustand"]) {
       expect(code).not.toContain(begriff);
     }
-    // Und die Kernaussage steht auch ohne jede Variante da.
-    expect(zeichne(zone({ erststart: false })).textContent).toContain("Einmal ausdrucken reicht.");
   });
 
   /**

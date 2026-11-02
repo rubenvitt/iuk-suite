@@ -117,9 +117,6 @@ export function ProfilAnsicht({
         <Zeile titel="Angemeldet seit">
           {angemeldetSeit ? new Date(angemeldetSeit * 1000).toLocaleString("de-DE", { timeZone: zeitzone() }) : "Unbekannt"}
         </Zeile>
-        <Text type="secondary">
-          Name, Profilbild, E-Mail und Gruppen werden zentral verwaltet und lassen sich hier nicht ändern.
-        </Text>
       </Card>
 
       {/*
@@ -143,17 +140,9 @@ export function ProfilAnsicht({
             {revision === "unbekannt" ? "unbekannt" : revision.slice(0, 12)}
           </Text>
         </Zeile>
-        <Text type="secondary">
-          Die Versionsnummer nennt den Stand, der gerade läuft. Was sich darin geändert hat,
-          steht unter Neuigkeiten.
-        </Text>
       </Card>
 
       <Card title="Sitzungen">
-        <p data-testid="alle-abmelden-hinweis">
-          Beendet alle Sitzungen dieser Suite — auf diesem Gerät und auf allen anderen. Du musst
-          dich danach überall neu anmelden.
-        </p>
         {/*
          * `danger` OHNE `type="primary"`: in dieser Suite ist
          * `colorError === colorPrimary === #c8000f` (Falle 3). Eine rote Flaeche

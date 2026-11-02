@@ -66,11 +66,7 @@ describe("NachweisFormular — Untergrenzen-Regel als Beschriftung, Pruefung lie
   });
 });
 
-describe("NachweisFormular — die Dateiauswahl geht nach jedem Absenden verloren, und das steht da", () => {
-  it("der Hinweis steht STAENDIG da, nicht erst nach einem Fehler", async () => {
-    await mount(<NachweisFormular aufgabeId="a1" nachweisArt="bild" maxBytes={1024} />);
-    expect(document.body.textContent).toContain("muss die Datei bei einem erneuten Versuch");
-  });
+describe("NachweisFormular — die Obergrenze der Datei", () => {
 
   it("nennt die konfigurierte Obergrenze in MiB, aus der Prop, nicht hartcodiert", async () => {
     await mount(<NachweisFormular aufgabeId="a1" nachweisArt="bild" maxBytes={8 * 1024 * 1024} />);

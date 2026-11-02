@@ -78,10 +78,6 @@ export function QrDialog({ shareId, titel, qrDateiname, offen, schliessen }: QrD
         width={220}
         height={220}
       />
-      <p>
-        Der Code führt auf die öffentliche Freigabeseite. Er bleibt gültig, solange es die Freigabe
-        gibt — gedruckt ist gedruckt.
-      </p>
       {/* Kein `size`: `controlHeight` ist 56 und schon das richtige Touch-Masz;
           `size="large"` waeren 72px. */}
       <Button

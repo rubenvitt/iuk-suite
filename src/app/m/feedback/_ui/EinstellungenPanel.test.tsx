@@ -170,11 +170,9 @@ describe("EinstellungenPanel — Gruppe bearbeiten (§2.6 Punkt 1)", () => {
     expect(queryAll('[name="slug"]')).toHaveLength(0);
   });
 
-  it("nennt den Hilfetext der Frist wortgenau", async () => {
+  it("nennt die Vorgabe der Frist", async () => {
     await aufklappen();
-    expect(query(".ant-collapse-body").textContent).toContain(
-      "Vorgabe: 48 Stunden. Gilt für jede neu gestartete Umfrage — gerechnet ab Mitternacht nach dem Abendtag.",
-    );
+    expect(query(".ant-collapse-body").textContent).toContain("Vorgabe: 48 Stunden");
   });
 
   it("Speichern ist ein default-Knopf, kein Primaerknopf", async () => {

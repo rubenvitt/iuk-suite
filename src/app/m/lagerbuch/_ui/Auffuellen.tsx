@@ -263,9 +263,7 @@ export function Auffuellen({
             Artikel ist deaktiviert
           </div>
           <p className={s.fussnote} style={{ margin: "6px 0 0" }}>
-            Auf diesen Artikel geht kein Material mehr zu. Der vorhandene
-            Bestand lässt sich weiter entnehmen. Soll wieder aufgefüllt werden,
-            muss die Verwaltung den Artikel zuerst aktivieren.
+            Auf diesen Artikel geht kein Material mehr zu.
           </p>
         </div>
       )}
@@ -300,9 +298,6 @@ export function Auffuellen({
           />
           <div className={s.zeileHaupt}>
             <div className={s.zeileName}>Neue Charge</div>
-            <div className={s.zeileMeta}>
-              <span>Frische Ware mit eigener Nummer und eigenem Verfall</span>
-            </div>
           </div>
         </label>
 

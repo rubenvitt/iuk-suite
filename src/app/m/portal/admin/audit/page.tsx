@@ -12,7 +12,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     throw error;
   });
   return <div data-testid="audit-log">
-    <Seitenkopf titel="Audit-Log" beschreibung="Wer hat wann was geändert oder abgerufen? Hier siehst du Ereignisse aus der gesamten Suite. Nur Suite-Admins haben Zugriff." zurueck={{ titel: "Verwaltung", href: "/admin" }} />
+    <Seitenkopf titel="Audit-Log" zurueck={{ titel: "Verwaltung", href: "/admin" }} />
     <AuditLog key={JSON.stringify(search)} view={view} search={search} />
   </div>;
 }

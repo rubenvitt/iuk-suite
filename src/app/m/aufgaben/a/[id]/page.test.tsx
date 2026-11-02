@@ -173,9 +173,6 @@ describe("aufgabeInhalt — Nachweise sind enger als die Aufgabe (Spec §2)", ()
 
     await mount(aufgabeInhalt(t.db, akteur(fremderBufdi), a, HEUTE));
     expect(document.body.textContent).not.toContain("Geheimer Bericht");
-    expect(document.body.textContent).toContain(
-      "Nachweise sind nur für Koordination, Ersteller, Zugewiesene und den eingetragenen Prüfer sichtbar.",
-    );
   });
 
   it("die zugewiesene Person sieht den EIGENEN Nachweis", async () => {

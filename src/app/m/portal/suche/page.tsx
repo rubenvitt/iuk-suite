@@ -33,7 +33,6 @@ export default async function SuchSeite({ searchParams }: { searchParams: Promis
     <>
       <Seitenkopf
         titel="Suche"
-        beschreibung="Findet Funkgeräte, Fahrzeuge und Material in allen Modulen, die du öffnen darfst."
       />
       <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xl }}>
         <SuchFeld begriff={eingabe} />

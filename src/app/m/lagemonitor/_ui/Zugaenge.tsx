@@ -61,10 +61,6 @@ export function Zugaenge({ liste }: { liste: ZugangDTO[] }) {
   return (
     <Card title="Zugänge für den Monitor">
       <div style={{ display: "grid", gap: SPACE.lg }}>
-        <span style={SCHRIFT.neben} className={v.gedaempft}>
-          Jeder Lagemonitor holt seine Einstellungen mit einem eigenen Schlüssel ab. Wird ein Schlüssel widerrufen, zeigt der Monitor weiter den letzten Stand und meldet unten, dass er nichts Neues bekommt.
-        </span>
-
         {neu ? (
           <Alert
             type="success"
@@ -84,7 +80,7 @@ export function Zugaenge({ liste }: { liste: ZugangDTO[] }) {
         ) : null}
 
         {liste.length === 0 ? (
-          <span>Noch kein Zugang angelegt. Ohne Zugang zeigt der Monitor seine eigenen Vorgaben.</span>
+          <span>Noch kein Zugang angelegt.</span>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: SPACE.md }} aria-label="Zugänge">
             {liste.map((z) => (

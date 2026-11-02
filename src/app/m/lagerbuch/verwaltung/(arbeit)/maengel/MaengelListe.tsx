@@ -109,7 +109,6 @@ export function OffeneMaengel({ maengel }: { maengel: MangelKarte[] }) {
         onCancel={() => setOffen(null)}
         destroyOnHidden
       >
-        <Typography.Paragraph type="secondary">Was wurde gemacht? Freiwillig, hilft beim nächsten Mal.</Typography.Paragraph>
         <Input.TextArea
           aria-label="Vermerk"
           value={vermerk}

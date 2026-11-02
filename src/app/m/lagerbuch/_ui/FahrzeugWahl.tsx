@@ -77,8 +77,7 @@ export function FahrzeugWahl({
       */}
       {pfad === "/helfer/box" && (
         <p className={s.fussnote} data-rolle="wahl-zweck">
-          Aus welcher Einheit nimmst du den Überschuss heraus? Das Lagerbuch
-          schreibt ihn dort ab und der Entnahmebox zu.
+          Aus welcher Einheit nimmst du den Überschuss heraus?
         </p>
       )}
       <div className={s.karte}>

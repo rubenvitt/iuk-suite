@@ -23,7 +23,6 @@ export default async function ErstimportSeite() {
   const kopf = (
     <Seitenkopf
       titel="Erstimport"
-      beschreibung="Die Fahrzeuge aus Einsatzbuch, Lagerbuch und Funkgeräten einmal abgleichen: was zusammengehört, wird ein Fahrzeug hier, und jede Zeile in den Apps merkt sich, zu welchem es gehört. Nichts in den Apps wird dabei geändert."
       zurueck={{ titel: "Fahrzeuge", href: "/" }}
     />
   );

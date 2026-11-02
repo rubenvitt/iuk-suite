@@ -105,10 +105,6 @@ export function QrViewContent({
         </h1>
       ) : null}
       <QrDisplay text={data} label={label ?? "qr"} />
-      <Typography.Text type="secondary" style={{ display: "block", textAlign: "center" }}>
-        <strong>Helligkeit auf Maximum.</strong> Doppeltippen für Vollbild, lang drücken zum
-        Invertieren.
-      </Typography.Text>
       {showRawData ? (
         <Typography.Text
           type="secondary"

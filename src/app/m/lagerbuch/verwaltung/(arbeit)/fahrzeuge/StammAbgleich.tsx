@@ -72,10 +72,6 @@ export function StammAbgleich() {
       <Button onClick={() => void oeffnen()}>Mit Fahrzeugverwaltung abgleichen</Button>
       <Drawer open={offen} onClose={() => setOffen(false)} title="Fahrzeuge aus der Fahrzeugverwaltung" size={flyinBreite(720)} destroyOnHidden>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
-          <p style={{ margin: 0 }}>
-            Übernimmt Name und Kennzeichen der Fahrzeuge aus der Fahrzeugverwaltung; was dort außer Dienst ist, wird hier
-            stillgelegt. Soll, Bestand und Checks bleiben an ihrer Einheit. Taschen bleiben, wie sie sind.
-          </p>
           {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
           {plan ? (
             <>

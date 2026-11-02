@@ -295,9 +295,7 @@ describe("Auswertung — Kennzahlen, Kopfzone und Leerzustand (§3.2, §4.2, §4
   it("warnt bei unter drei Rueckmeldungen ohne Rot und ohne Icon", async () => {
     const evening = seed(NUR_SCHULNOTE, [{ q1: 1 }, { q1: 5 }]);
     const wirt = await zeichne(evening.id);
-    expect(wirt.textContent).toContain(
-      "Nur 2 Rückmeldungen — bitte nicht als Urteil über den Abend lesen.",
-    );
+    expect(wirt.textContent).toContain("Nur 2 Rückmeldungen");
     // 3px linke Kante in `--fb-line`, kein Alert, kein Rot (Farb-Klausel §4.9).
     expect(wirt.innerHTML.replace(/\s/g, "")).toContain("border-left:3pxsolidvar(--fb-line)");
     expect(wirt.querySelector(".ant-alert")).toBeNull();
@@ -306,7 +304,7 @@ describe("Auswertung — Kennzahlen, Kopfzone und Leerzustand (§3.2, §4.2, §4
 
   it("laesst den Hinweis ab drei Rueckmeldungen weg", async () => {
     const evening = seed(NUR_SCHULNOTE, [{ q1: 1 }, { q1: 2 }, { q1: 3 }]);
-    expect((await zeichne(evening.id)).textContent).not.toContain("bitte nicht als Urteil");
+    expect((await zeichne(evening.id)).textContent).not.toContain("Nur 3 Rückmeldungen");
   });
 
   it("traegt Rueckweg, Ueberschrift und die Textknoepfe der Seite", async () => {

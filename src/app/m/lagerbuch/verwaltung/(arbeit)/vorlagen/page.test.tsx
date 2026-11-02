@@ -306,7 +306,7 @@ describe("Vorlagenseite als Server Component", () => {
     const inhalt = vorlagenInhalt(t.db);
     const [kopf] = elementeVomTyp(inhalt, SeitenKopf);
     expect(kopf.props.titel).toBe("Vorlagen");
-    expect(kopf.props.beschreibung).toContain("Bestückung einmal definieren");
+    expect(kopf.props.beschreibung).toBeUndefined();
     expect(isValidElement(kopf.props.aktionen)).toBe(true);
     expect((kopf.props.aktionen as ReactElement).type).toBe(NeuTemplate);
 

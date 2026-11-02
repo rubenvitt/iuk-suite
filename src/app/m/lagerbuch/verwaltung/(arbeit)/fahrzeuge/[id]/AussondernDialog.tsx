@@ -282,7 +282,6 @@ export function AussondernDialog({
           <Form.Item
             name="chargeId"
             label="Charge"
-            extra="Ohne Angabe wird die am frühesten ablaufende Charge zuerst ausgebucht."
           >
             <Select
               aria-label="Charge"

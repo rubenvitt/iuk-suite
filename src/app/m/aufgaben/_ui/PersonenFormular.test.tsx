@@ -94,21 +94,12 @@ describe("PersonenFormular — Zeile 1 und die Action-Wahl", () => {
   });
 });
 
-describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld, mit Erklaerung", () => {
+describe("PersonenFormular — Anlegen: der sub ist ein echtes Feld", () => {
   it("zeigt ein leeres sub-Feld und den Anlege-Knopf, kein verstecktes personId", async () => {
     await mount(<PersonenFormular />);
     expect(query<HTMLInputElement>("#pf-sub").value).toBe("");
     expect(query("button[type='submit']").textContent).toBe("Person anlegen");
     expect(queryAll("input[name='personId']")).toHaveLength(0);
-  });
-
-  /**
-   * DER AUSGANG AUS `NichtEingetragenSeite.tsx` (Brief: "kein Feld, das die Koordination raten
-   * laesst") — das Formular erklaert, WOHER der sub kommt, statt ihn nur abzufragen.
-   */
-  it("erklaert, woher die Kennung kommt — kein blindes Rate-Feld", async () => {
-    await mount(<PersonenFormular />);
-    expect(document.body.textContent).toContain("Hinweisseite");
   });
 
   it("sendet sub, Name, Initialen, Rolle, Soll-Zeit, aktivVon/aktivBis beim Absenden", async () => {
@@ -275,13 +266,6 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     expect(query("#pf-sub").getAttribute("name")).toBeNull();
     expect(queryAll<HTMLInputElement>("input[name='sub']")).toHaveLength(1);
     expect(query<HTMLInputElement>("input[name='sub']").type).toBe("hidden");
-  });
-
-  it("erklaert beide Wege — Liste UND getippte Kennung von der Hinweisseite", async () => {
-    await mitVerzeichnis();
-    const hinweis = query("#pf-sub-hinweis").textContent ?? "";
-    expect(hinweis).toContain("aus der Liste");
-    expect(hinweis).toContain("Hinweisseite");
   });
 
   it("eine getippte Kennung IST der abgeschickte sub — ohne jeden Treffer", async () => {

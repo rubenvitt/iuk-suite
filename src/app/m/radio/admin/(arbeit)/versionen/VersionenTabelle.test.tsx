@@ -1177,35 +1177,6 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
     expect(quelle, "ein Date in der Seite").not.toMatch(/\bnew Date\(/);
   });
 
-  it("der erklaerende Hinweis der Seite steht woertlich wie im Bestand", () => {
-    /*
-     * ⛔ WOERTLICH `SoftwareVersionsPage.tsx:185` (1:1-Tafel Abschnitt E, `Spec:4815-4832`:
-     * „Diese Saetze sind selbst der Beleg — nicht paraphrasieren"). Er traegt seine
-     * typografischen Anfuehrungszeichen und seinen Gedankenstrich; es ist ein Bildschirmtext,
-     * kein Bezeichner.
-     *
-     * ⛔ ER IST DIE EINZIGE STELLE, AN DER DIE FLAECHE ERKLAERT, dass eine neu angelegte
-     * Version NICHT automatisch zum Ziel wird (`admin/actions.ts`,
-     * `versionAnlegenAction`; `_db/schema.ts:80-82`). Ohne ihn wartet der Bedienende auf eine
-     * Wirkung, die nie eintritt.
-     */
-    const quelle = readFileSync(QUELLE_SEITE, "utf8");
-    expect(quelle).toContain(
-      "Die als „Ziel“ markierte Version bestimmt, welche Geräte als „aktuell“ gelten. Neu angelegte Versionen werden nicht automatisch zum Ziel — die Reihenfolge dient nur der Anzeige.",
-    );
-    /*
-     * ⛔ UND ER TRAEGT DEN GRIFF, AUF DEN DER PLAYWRIGHT-FALL ZEIGT
-     * (`e2e/radio-verwaltung.spec.ts`, Fall 8). Ohne diese Zeile haette der e2e-Griff KEINEN
-     * Waechter auf der Vitest-Seite: er faellt erst in V23 auf, und dann als Fehler, der nach
-     * einem gebrochenen Abruf aussieht statt nach einem umbenannten Griff. ⛔ Die Alternative
-     * — ein Griff auf eine antd-INTERNE Klasse — ginge bei einem Bauteil-Umbau still daneben.
-     */
-    expect(
-      ohneKommentare(quelle),
-      "der Hinweis traegt keinen eigenen Griff — der Playwright-Fall greift ins Leere",
-    ).toMatch(/data-rolle="radio-versionen-hinweis"/);
-  });
-
   it("weder die Insel noch die Seite ruft message oder App.useApp", () => {
     /*
      * ⛔ KEIN TOAST — Entscheidung E6 (`Spec:3754-3776`), im Modul mehrfach ausgeschrieben

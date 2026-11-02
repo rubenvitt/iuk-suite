@@ -69,11 +69,6 @@ describe("teilnehmerDetailInhalt — Kopf und Stammdaten (Vorbild personenInhalt
       "/api/admin/participants/p1/export",
     );
   });
-
-  it("sagt im Seitenkopf, wofuer die Seite da ist", async () => {
-    await mount(teilnehmerDetailInhalt(fixture()));
-    expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Zugang");
-  });
 });
 
 describe("AdminTeilnehmerDetailPage", () => {

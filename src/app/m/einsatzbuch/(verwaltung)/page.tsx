@@ -31,7 +31,6 @@ export default async function EinsatzbuchUebersicht() {
     <>
       <Seitenkopf
         titel="Einsatzbuch"
-        beschreibung="Hier pflegst du Fahrzeuge, Personal, Alarmstichworte und die Einstellungen für den Einsatzbuch-Rechner."
         aktionen={
           <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
             <Link href="/rechner">Rechner verwalten</Link>

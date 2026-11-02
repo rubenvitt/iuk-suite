@@ -62,27 +62,23 @@ function zustandAus(k: KonfigurationDTO): Zustand {
   };
 }
 
-const MODUL_TEXT: { feld: keyof Omit<Module, "suchlage">; titel: string; text: string }[] = [
-  { feld: "wetter", titel: "Wetter", text: "Temperatur, Wind und Niederschlag am Standort in der rechten Spalte." },
-  { feld: "radar", titel: "Regenradar", text: "Der Niederschlag der letzten Minuten als Ebene auf der Karte." },
-  { feld: "warngebiete", titel: "Warngebiete auf der Karte", text: "Die Gebiete der aktuellen Warnungen als Umriss." },
-  { feld: "warnliste", titel: "Warnungen unter der Schwelle", text: "Leichtere Warnungen als Liste in der rechten Spalte. Ohne sie siehst du nur, was ins Band kommt." },
+const MODUL_TEXT: { feld: keyof Omit<Module, "suchlage">; titel: string }[] = [
+  { feld: "wetter", titel: "Wetter" },
+  { feld: "radar", titel: "Regenradar" },
+  { feld: "warngebiete", titel: "Warngebiete auf der Karte" },
+  { feld: "warnliste", titel: "Warnungen unter der Schwelle" },
 ];
 
-const VERKEHR_TEXT: { feld: keyof Verkehr; titel: string; text: string }[] = [
-  { feld: "fluss", titel: "Verkehrsfluss", text: "Wie stark die Straßen ausgelastet sind, grün bis rot auf der Karte. Von TomTom, alle 30 Minuten neu." },
-  { feld: "baustellen", titel: "Baustellen und Sperrungen", text: "Baustellen, gesperrte Straßen und Fahrstreifen als gestreifte Linie. Von TomTom, stündlich neu." },
-  {
-    feld: "blitzer",
-    titel: "Feste Blitzer",
-    text: "Fest installierte Blitzer aus OpenStreetMap, einmal am Tag neu. Nur am Online-Monitor, der Bildschirm im FüKw zeigt sie nie. Mobile Blitzer gibt es aus keiner offenen Quelle.",
-  },
+const VERKEHR_TEXT: { feld: keyof Verkehr; titel: string }[] = [
+  { feld: "fluss", titel: "Verkehrsfluss" },
+  { feld: "baustellen", titel: "Baustellen und Sperrungen" },
+  { feld: "blitzer", titel: "Feste Blitzer" },
 ];
 
-const TEIL_TEXT: { feld: keyof SuchlageTeile; titel: string; text: string }[] = [
-  { feld: "flugspuren", titel: "Flugspuren", text: "Die Spur jedes Flugs im laufenden Einsatz, jeder Flug in eigener Farbe." },
-  { feld: "gebiete", titel: "Suchgebiete", text: "Die in Suchlage gezeichneten Gebiete und Elemente." },
-  { feld: "drohnenbild", titel: "Drohnenbild", text: "Das Livebild fährt von rechts ein, solange eine Drohne sendet, und wieder hinaus, wenn es endet." },
+const TEIL_TEXT: { feld: keyof SuchlageTeile; titel: string }[] = [
+  { feld: "flugspuren", titel: "Flugspuren" },
+  { feld: "gebiete", titel: "Suchgebiete" },
+  { feld: "drohnenbild", titel: "Drohnenbild" },
 ];
 
 /**
@@ -211,7 +207,6 @@ export function AnzeigeVerwaltung({
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Lagemonitor"
-        beschreibung="Was der Bildschirm im FüKw zeigt. Die Vorschau zeigt jede Änderung sofort mit Beispieldaten, noch bevor du speicherst. Der Monitor holt gespeicherte Einstellungen spätestens nach einer Minute ab und behält sie, auch wenn die Verbindung zur Suite abreißt."
         aktionen={<ZumMonitor online={online} />}
       />
 
@@ -223,7 +218,7 @@ export function AnzeigeVerwaltung({
 
             <Card title="Standort und Warnregion">
               <div style={{ display: "grid", gap: SPACE.md }}>
-                {text("standortName", "Standort", "So heißt der Ort in der Kopfzeile und beim Wetter.")}
+                {text("standortName", "Standort")}
                 <div style={{ display: "grid", gap: SPACE.md, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
                   {zahl("standortBreite", "Breitengrad")}
                   {zahl("standortLaenge", "Längengrad")}
@@ -231,10 +226,10 @@ export function AnzeigeVerwaltung({
                 {zahl(
                   "kartenZoom",
                   "Zoomstufe der Karte",
-                  `Wie nah die Karte ohne Einsatz an den Standort heranzoomt, von ${KARTEN_ZOOM.min} bis ${KARTEN_ZOOM.max}. 9 zeigt etwa den Landkreis, 12 die Stadt. Läuft ein Einsatz in Suchlage, zeigt die Karte stattdessen das Suchgebiet.`,
+                  `${KARTEN_ZOOM.min} bis ${KARTEN_ZOOM.max}`,
                 )}
-                {text("regionName", "Warnregion", "Für diese Region kommen die Warnungen von NINA.")}
-                {text("regionArs", "Regionalschlüssel", "12 Ziffern, für einen Landkreis mit sieben Nullen am Ende (Uelzen: 033600000000).")}
+                {text("regionName", "Warnregion")}
+                {text("regionArs", "Regionalschlüssel", "12 Ziffern")}
               </div>
             </Card>
 
@@ -247,9 +242,6 @@ export function AnzeigeVerwaltung({
                   options={WARNSCHWELLEN.map((s) => ({ value: s.wert, label: s.text }))}
                   optionType="button"
                 />
-                <span style={SCHRIFT.neben} className={v.gedaempft}>
-                  {WARNSCHWELLEN.find((s) => s.wert === z.warnschwelle)?.erklaerung}
-                </span>
               </div>
             </Card>
 
@@ -259,7 +251,6 @@ export function AnzeigeVerwaltung({
                   key={m.feld}
                   id={`${basis}-${m.feld}`}
                   titel={m.titel}
-                  text={m.text}
                   an={z.module[m.feld]}
                   onChange={(an) => setze("module", { ...z.module, [m.feld]: an })}
                 />
@@ -271,7 +262,6 @@ export function AnzeigeVerwaltung({
                 <Schalter
                   id={`${basis}-suchlage`}
                   titel="Laufenden Suchlage-Einsatz zeigen"
-                  text="Läuft in Suchlage ein Einsatz, zeigt die Karte ihn und die Kopfzeile seinen Namen. Ohne Einsatz sieht der Monitor aus wie sonst."
                   an={z.module.suchlage}
                   onChange={(an) => {
                     setze("module", { ...z.module, suchlage: an });
@@ -285,14 +275,13 @@ export function AnzeigeVerwaltung({
                         id={`${basis}-suchlageLink`}
                         label="Großbild-Link aus Suchlage"
                         fehler={feldFehler.suchlageLink}
-                        hilfe="In Suchlage unter Einstellungen → Großbild einen Zugang anlegen und den Link hier einfügen. Er sieht so aus: https://suchlage…/kiosk#…"
                       >
                         <Input
                           id={`${basis}-suchlageLink`}
                           value={z.suchlageLink}
                           autoComplete="off"
                           status={feldFehler.suchlageLink ? "error" : undefined}
-                          aria-describedby={feldFehler.suchlageLink ? `${basis}-suchlageLink-fehler` : `${basis}-suchlageLink-hilfe`}
+                          aria-describedby={feldFehler.suchlageLink ? `${basis}-suchlageLink-fehler` : undefined}
                           onChange={(e) => setze("suchlageLink", e.target.value)}
                         />
                       </Feld>
@@ -322,7 +311,6 @@ export function AnzeigeVerwaltung({
                         key={t.feld}
                         id={`${basis}-${t.feld}`}
                         titel={t.titel}
-                        text={t.text}
                         an={z.suchlage[t.feld]}
                         onChange={(an) => setze("suchlage", { ...z.suchlage, [t.feld]: an })}
                       />
@@ -339,7 +327,6 @@ export function AnzeigeVerwaltung({
                     key={t.feld}
                     id={`${basis}-verkehr-${t.feld}`}
                     titel={t.titel}
-                    text={t.text}
                     an={z.verkehr[t.feld]}
                     onChange={(an) => setze("verkehr", { ...z.verkehr, [t.feld]: an })}
                   />
@@ -349,7 +336,6 @@ export function AnzeigeVerwaltung({
                     id={`${basis}-tomtomSchluessel`}
                     label="API-Schlüssel von TomTom"
                     fehler={feldFehler.tomtomSchluessel}
-                    hilfe="Auf developer.tomtom.com unter Keys. Nur der Monitor bekommt ihn; hier wird er nach dem Speichern nicht mehr angezeigt."
                   >
                     <Input.Password
                       id={`${basis}-tomtomSchluessel`}
@@ -357,7 +343,7 @@ export function AnzeigeVerwaltung({
                       autoComplete="off"
                       visibilityToggle={false}
                       status={feldFehler.tomtomSchluessel ? "error" : undefined}
-                      aria-describedby={feldFehler.tomtomSchluessel ? `${basis}-tomtomSchluessel-fehler` : `${basis}-tomtomSchluessel-hilfe`}
+                      aria-describedby={feldFehler.tomtomSchluessel ? `${basis}-tomtomSchluessel-fehler` : undefined}
                       onChange={(e) => setze("tomtomSchluessel", e.target.value)}
                     />
                   </Feld>
@@ -380,9 +366,6 @@ export function AnzeigeVerwaltung({
                 {tomtomNoetig && !tomtom ? (
                   <Alert type="warning" showIcon={false} title="Ohne TomTom-Schlüssel zeigt der Monitor weder Verkehrsfluss noch Baustellen." />
                 ) : null}
-                <span style={SCHRIFT.neben} className={v.gedaempft}>
-                  Das Gratiskontingent von TomTom teilen sich der Monitor im FüKw und der Online-Monitor. Deshalb holt jeder Monitor die Daten selten und behält sie lange.
-                </span>
               </div>
             </Card>
 
@@ -391,20 +374,19 @@ export function AnzeigeVerwaltung({
                 <Schalter
                   id={`${basis}-mitmachen`}
                   titel="QR-Code fürs Ehrenamt zeigen"
-                  text="Ein QR-Code unten rechts auf der Karte für alle, die am Bildschirm vorbeikommen und bei der Bereitschaft mitmachen möchten. Nur solange es ruhig ist: bei einer Warnung im Band oder einem Einsatz verschwindet er."
                   an={z.mitmachen.an}
                   onChange={(an) => setze("mitmachen", { ...z.mitmachen, an, text: z.mitmachen.text || MITMACHEN_TEXT_VORGABE })}
                 />
                 {z.mitmachen.an ? (
                   <>
-                    <Feld id={`${basis}-mitmachenAdresse`} label="Wohin der Code führt" fehler={feldFehler["mitmachen.adresse"]} hilfe="Die Mitmach-Seite eures Ortsvereins oder Kreisverbands, mit https://.">
+                    <Feld id={`${basis}-mitmachenAdresse`} label="Wohin der Code führt" fehler={feldFehler["mitmachen.adresse"]}>
                       <Input
                         id={`${basis}-mitmachenAdresse`}
                         value={z.mitmachen.adresse}
                         placeholder="https://…"
                         inputMode="url"
                         status={feldFehler["mitmachen.adresse"] ? "error" : undefined}
-                        aria-describedby={feldFehler["mitmachen.adresse"] ? `${basis}-mitmachenAdresse-fehler` : `${basis}-mitmachenAdresse-hilfe`}
+                        aria-describedby={feldFehler["mitmachen.adresse"] ? `${basis}-mitmachenAdresse-fehler` : undefined}
                         onChange={(e) => setze("mitmachen", { ...z.mitmachen, adresse: e.target.value })}
                       />
                     </Feld>
@@ -429,12 +411,12 @@ export function AnzeigeVerwaltung({
               </Button>
               <span style={SCHRIFT.neben} className={v.gedaempft} role="status">
                 {geaendert
-                  ? "Ungespeicherte Änderungen. Die Vorschau zeigt sie schon, der Monitor noch nicht."
+                  ? "Ungespeicherte Änderungen"
                   : erfolg
-                    ? "Gespeichert. Der Monitor zeigt es spätestens in einer Minute."
+                    ? "Gespeichert"
                     : gespeichert.aktualisiertAm
                       ? `Zuletzt gespeichert am ${STAND.format(new Date(gespeichert.aktualisiertAm))} von ${gespeichert.aktualisiertVon}.`
-                      : "Noch nie gespeichert: der Monitor zeigt seine Vorgaben."}
+                      : "Noch nie gespeichert"}
               </span>
             </div>
           </form>
@@ -454,25 +436,6 @@ export function AnzeigeVerwaltung({
                 optionType="button"
               />
               <MonitorVorschau v={bild} szenario={szenario} standort={z.standortName} />
-              {szenario === "einsatz" && !z.module.suchlage ? (
-                <Alert type="info" showIcon={false} title="Suchlage ist aus: Auch während eines Einsatzes zeigt der Monitor nur Wetter und Warnungen." />
-              ) : null}
-              <div>
-                <strong style={SCHRIFT.kicker}>Das siehst du</strong>
-                <ul className={v.liste} data-testid="vorschau-erklaerung">
-                  {bild.sichtbar.map((t) => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ul>
-              </div>
-              {bild.aus.length > 0 ? (
-                <div style={SCHRIFT.neben} className={v.gedaempft}>
-                  Ausgeschaltet: {bild.aus.join(", ")}.
-                </div>
-              ) : null}
-              <div style={SCHRIFT.neben} className={v.gedaempft}>
-                Der echte Monitor wird tagsüber hell und nachts dunkel; die Vorschau zeigt die Nachtansicht.
-              </div>
             </div>
           </Card>
         </aside>
@@ -488,17 +451,14 @@ export function AnzeigeVerwaltung({
 }
 
 /** Ein Schalter mit Titel und einem Satz, was er bewirkt. */
-function Schalter({ id, titel, text, an, onChange }: { id: string; titel: string; text: string; an: boolean; onChange: (an: boolean) => void }) {
+function Schalter({ id, titel, an, onChange }: { id: string; titel: string; an: boolean; onChange: (an: boolean) => void }) {
   return (
     <div className={v.schalter}>
-      <Switch id={id} checked={an} onChange={onChange} aria-describedby={`${id}-text`} />
+      <Switch id={id} checked={an} onChange={onChange} />
       <div>
         <label htmlFor={id} style={{ fontWeight: 600 }}>
           {titel}
         </label>
-        <div id={`${id}-text`} style={SCHRIFT.neben} className={v.gedaempft}>
-          {text}
-        </div>
       </div>
     </div>
   );

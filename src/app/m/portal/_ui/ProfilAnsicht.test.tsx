@@ -100,16 +100,6 @@ describe("ProfilAnsicht", () => {
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/api/auth/oidc-signout" });
   });
 
-  it("nennt die Grenze des Knopfes beim Namen", async () => {
-    // „Beendet alle Sitzungen dieser Suite" — nicht „meldet dich ueberall ab".
-    // Die Sitzung beim Identitaetsanbieter bleibt auf fremden Geraeten bestehen.
-    await mount(<ProfilAnsicht {...BASIS} />);
-    expect(query('[data-testid="alle-abmelden-hinweis"]').textContent).toContain(
-      "Sitzungen dieser Suite",
-    );
-    expect(exists('[data-testid="alle-abmelden"]')).toBe(true);
-  });
-
   it("faerbt den Knopf nicht als Primaeraktion ein", async () => {
     /*
      * `colorError === colorPrimary === #c8000f` (Falle 3 in

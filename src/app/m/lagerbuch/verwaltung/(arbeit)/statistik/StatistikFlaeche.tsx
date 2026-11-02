@@ -207,7 +207,6 @@ export function StatistikFlaeche({
         {auswertung.gemischteEinheiten ? (
           <p className={st.hinweis} style={{ marginBlockStart: SPACE.sm }}>
             Die Summen zählen verschiedene Einheiten (Stück, Packungen, Flaschen) zusammen.
-            Für genaue Mengen einen Artikel wählen.
           </p>
         ) : null}
       </Card>
@@ -238,10 +237,6 @@ export function StatistikFlaeche({
         ) : (
           <Leer>Im gewählten Zeitraum wurde nichts verbraucht.</Leer>
         )}
-        <p className={st.hinweis}>
-          Material, das auf ein Fahrzeug oder in eine Tasche geht, zählt erst als verbraucht, wenn es beim nächsten
-          Check fehlt. Umlagerungen, Aussonderungen und Inventurdifferenzen zählen nicht mit.
-        </p>
       </Card>
 
       <Card title="Am meisten verbraucht">
@@ -262,19 +257,14 @@ export function StatistikFlaeche({
           ) : (
             <EinheitenDiagramm zeilen={auswertung.jeEinheit} />
           )}
-          <p className={st.hinweis}>
-            Nachschub: was aus dem Handlager oder der Entnahmebox auf die Einheit gebucht wurde. Fehlmenge: was beim
-            Check fehlte.
-          </p>
         </Card>
 
         <Card title={gewaehlt ? `Bestandsverlauf: ${gewaehlt.name}` : "Bestandsverlauf"}>
           {!gewaehlt ? (
-            <Leer>Wähle oben einen Artikel oder klicke ihn in „Am meisten verbraucht“ an.</Leer>
+            <Leer>Kein Artikel gewählt.</Leer>
           ) : (
             <VerlaufDiagramm zeilen={verlauf} />
           )}
-          <p className={st.hinweis}>Bestand jeweils zum Monatsende, im laufenden Monat der Stand von heute.</p>
         </Card>
       </div>
 

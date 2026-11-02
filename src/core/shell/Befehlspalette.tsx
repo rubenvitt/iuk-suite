@@ -139,7 +139,7 @@ export function Befehlspalette({
           />
           {liste.length === 0 ? (
             <p data-testid="befehlspalette-leer" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)", margin: 0 }}>
-              Nichts passt. Für die Suche in allen Modulen mindestens zwei Zeichen eingeben.
+              Nichts passt.
             </p>
           ) : (
             <ul id={listenId} role="listbox" aria-label="Treffer" className={s.paletteListe}>
