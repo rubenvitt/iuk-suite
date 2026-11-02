@@ -102,13 +102,13 @@ export function PlanungFormular({ planung, fahrzeuge, onGespeichert }: {
       </div>
       {planung ? null : (
         <>
-          <Feld titel="Abschnitte" hilfe="Freitext, mit Enter übernehmen. Zum Beispiel UHS, Fußstreife, Sanitätswache.">
+          <Feld titel="Abschnitte">
             <Select mode="tags" value={abschnitte} onChange={setAbschnitte} open={false} suffixIcon={null} placeholder="Abschnitt eintippen" />
           </Feld>
-          <Feld titel="Fahrzeuge" hilfe={fahrzeuge.length ? "Aus der Fahrzeugverwaltung." : "In der Fahrzeugverwaltung ist noch kein Fahrzeug im Dienst."}>
+          <Feld titel="Fahrzeuge" hilfe={fahrzeuge.length ? undefined : "In der Fahrzeugverwaltung ist noch kein Fahrzeug im Dienst."}>
             <Select mode="multiple" value={gewaehlt} onChange={setGewaehlt} options={fahrzeuge.map((f) => ({ value: f.id, label: f.name }))} placeholder="Fahrzeuge wählen" showSearch={{ optionFilterProp: "label" }} />
           </Feld>
-          <Feld titel="Schichtlänge" hilfe="Für alles, was du hier hinzufügst; je Abschnitt später änderbar.">
+          <Feld titel="Schichtlänge">
             <Select value={laenge} onChange={setLaenge} options={laengenOptionen()} />
           </Feld>
         </>
@@ -177,14 +177,14 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
       {art === "abschnitt" ? (
         <div className={s.zweiSpalten}>
           <Feld titel="Name" fehler={fehler.name}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Sanitätswache Markt" maxLength={80} /></Feld>
-          <Feld titel="Kennung" hilfe="Optional, z. B. Funkrufname" fehler={fehler.kenner}><Input value={kenner} onChange={(e) => setKenner(e.target.value)} maxLength={40} /></Feld>
+          <Feld titel="Kennung" hilfe="Optional" fehler={fehler.kenner}><Input value={kenner} onChange={(e) => setKenner(e.target.value)} maxLength={40} /></Feld>
         </div>
       ) : (
-        <Feld titel="Fahrzeug" hilfe="Aus der Fahrzeugverwaltung." fehler={fehler.name}>
+        <Feld titel="Fahrzeug" fehler={fehler.name}>
           <Select value={fahrzeugId} onChange={setFahrzeugId} options={wahl.map((x) => ({ value: x.id, label: x.name }))} placeholder="Fahrzeug wählen" showSearch={{ optionFilterProp: "label" }} />
         </Feld>
       )}
-      <Feld titel="Schichtlänge" fehler={fehler.schichtMin} hilfe={einheit ? "Gilt für neu aufgezogene Schichten; bestehende bleiben, außer du teilst neu auf." : "Die Schichten laufen über den ganzen Zeitraum der Planung."}>
+      <Feld titel="Schichtlänge" fehler={fehler.schichtMin}>
         <Select value={laenge} onChange={setLaenge} options={laengenOptionen(einheit?.schichtMin)} />
       </Feld>
       {laengeGeaendert ? (
@@ -205,7 +205,6 @@ export function EinheitFormular({ planId, einheit, fahrzeuge, katalog, einteilun
           </div>
         ))}
         <Button onClick={() => setAnf([...anf, { quali: quali("San"), anzahl: 1 }])} icon={<Icons8Ikone name="plus" groesse={16} />} style={{ alignSelf: "flex-start" }}>Qualifikation fordern</Button>
-        <span className={s.neben}>Höhere Stufen zählen mit: eine Rettungssanitäterin deckt „Sanitäter“, Fahrerlaubnis C deckt C1.</span>
       </div>
       <Button type="primary" loading={laeuft} disabled={!gueltig} onClick={() => void speichern()}>{einheit ? "Speichern" : "Hinzufügen"}</Button>
     </div>
@@ -239,14 +238,13 @@ export function TempFormular({ planId, helfer, katalog, onPlanung }: {
 
   return (
     <div>
-      <p className={s.neben} style={{ marginBlockStart: 0 }}>Für Kräfte ohne Stammdatensatz, etwa aus Nachbarkreisen oder anderen Hilfsorganisationen. Sie gehören nur zu dieser Planung.</p>
       <div className={s.zweiSpalten}>
         <Feld titel="Vorname" fehler={fehler.vorname}><Input value={vorname} onChange={(e) => setVorname(e.target.value)} maxLength={80} /></Feld>
         <Feld titel="Nachname" fehler={fehler.nachname}><Input value={nachname} onChange={(e) => setNachname(e.target.value)} maxLength={80} /></Feld>
       </div>
       <Feld titel="Telefon" fehler={fehler.telefon}><Input value={telefon} onChange={(e) => setTelefon(e.target.value)} inputMode="tel" maxLength={40} /></Feld>
       <Feld titel="Organisation" fehler={fehler.organisation}><Input value={organisation} onChange={(e) => setOrganisation(e.target.value)} placeholder="z. B. Nachbarkreis" maxLength={120} /></Feld>
-      <Feld titel="Qualifikationen" hilfe="Auch eigene Kürzel, mit Enter übernehmen.">
+      <Feld titel="Qualifikationen">
         <Select mode="tags" value={qualis} onChange={setQualis} options={katalog.map((q) => ({ value: q.kurz, label: q.name === q.kurz ? q.kurz : `${q.name} (${q.kurz})` }))} showSearch={{ optionFilterProp: "label" }} />
       </Feld>
       <Button type="primary" loading={laeuft} disabled={!vorname.trim() || !nachname.trim()} onClick={() => void speichern()}>{helfer ? "Speichern" : "Anlegen"}</Button>

@@ -59,7 +59,7 @@ export function Eintragsflyin({ eintrag, anfragen, eintraege, schliessen, entsch
                 </>
               ) : (
                 <div>
-                  <Popconfirm title="Sperrzeit löschen?" description="Die Bar ist dann in dieser Zeit wieder frei." okText="Löschen" cancelText="Abbrechen" onConfirm={() => sperreLoeschen(eintrag.id)}>
+                  <Popconfirm title="Sperrzeit löschen?" okText="Löschen" cancelText="Abbrechen" onConfirm={() => sperreLoeschen(eintrag.id)}>
                     <Button>Sperrzeit löschen</Button>
                   </Popconfirm>
                 </div>

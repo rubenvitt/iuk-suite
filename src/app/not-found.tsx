@@ -34,16 +34,6 @@ export default function NotFound() {
         </p>
         <span className={styles.flagge} aria-hidden="true" />
         <h1 className={styles.titel}>Diese Seite gibt es hier nicht.</h1>
-        <p className={styles.text}>
-          Vielleicht ist der Link veraltet, vielleicht hat die Adresse einen
-          Tippfehler.
-        </p>
-        <p className={styles.text}>
-          Möglich ist auch, dass die Seite deinem Konto nicht offensteht: Was
-          nicht freigegeben ist, sieht hier genauso aus wie etwas, das es nicht
-          gibt. Wenn du sie eigentlich brauchst, wende dich an die
-          Administration.
-        </p>
         <div className={styles.aktion}>
           {/*
            * `/` und nicht der Suite-Host: unter dem Host-Rewrite

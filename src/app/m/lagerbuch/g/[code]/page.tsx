@@ -99,7 +99,6 @@ export default async function GeraetDeepLink({ params }: Props) {
       <p>
         Gescannt:{" "}
         <code data-testid="lb-barcode-code">{code}</code>
-        {" — bitte mit dem Typenschild vergleichen."}
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {/* Kein `size`: controlHeight ist 56 und schon das richtige Mass (Falle 4). */}

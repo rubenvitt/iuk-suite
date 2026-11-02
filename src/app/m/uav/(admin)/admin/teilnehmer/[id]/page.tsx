@@ -45,7 +45,6 @@ export function teilnehmerDetailInhalt(detail: ParticipantDetailDTO) {
     <>
       <Seitenkopf
         titel={detail.participant.name}
-        beschreibung="Stammdaten ändern, den Zugang neu vergeben und nachlesen, welche Aufgabe wie oft geübt wurde."
         zurueck={{ titel: "Teilnehmer", href: "/admin" }}
         aktionen={
           <Button href={`/api/admin/participants/${detail.participant.id}/export`}>

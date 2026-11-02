@@ -35,7 +35,7 @@ export function Anfragenliste({ anfragen, sperren, startId }: { anfragen: Anfrag
 
   return (
     <div className={s.modul}>
-      <Seitenkopf titel="Anfragen" beschreibung="Zusagen und Absagen sieht die Person auf ihrer Statusseite. Eine Absage braucht eine Begründung." />
+      <Seitenkopf titel="Anfragen" />
       <div style={{ maxWidth: "100%", overflowX: "auto" }}>
         <Segmented<Filter> value={filter} onChange={setFilter} aria-label="Anfragen filtern" options={[
           { value: "angefragt", label: `Offen (${zahl("angefragt")})` },

@@ -93,12 +93,8 @@ describe("SeitenKopf — die drei Zeilen", () => {
 });
 
 describe("SeitenKopf — die Kontextzeile ist nie leer", () => {
-  it("ohne kontext wirft die Komponente statt eine leere Zeile zu rendern", () => {
-    // Direkter Aufruf als Funktion (keine Hooks in `SeitenKopf`): der Wurf
-    // passiert synchron beim Aufruf, bevor React ueberhaupt etwas rendert.
-    expect(() =>
-      SeitenKopf({ brotkrume: [], titel: "T", kontext: undefined as unknown as string }),
-    ).toThrow(/Kontextzeile/);
+  it("ohne kontext rendert die Komponente keine Kontextzeile", () => {
+    expect(() => SeitenKopf({ brotkrume: [], titel: "T" })).not.toThrow();
   });
 
   it("eine leere Zeichenkette gilt ebenfalls als leer", () => {

@@ -19,7 +19,7 @@ export default async function ReaderSeite() {
   await requireEinsatzbuchZugang();
   return (
     <>
-      <Seitenkopf titel="Einsatzbuch-Datei öffnen" beschreibung="Öffne eine Datei, die du in der Verwaltung heruntergeladen hast. Du brauchst das Kennwort, mit dem sie gespeichert wurde. Läuft nur in deinem Browser · kein Server." />
+      <Seitenkopf titel="Einsatzbuch-Datei öffnen" />
       <Reader bereitschaft={leseEinstellungen(getDb()).bereitschaft} />
     </>
   );

@@ -91,7 +91,6 @@ export function Stammdaten({
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Stammdaten"
-        beschreibung="Fahrzeuge, Personal, Alarmstichworte und die Qualifikationen des Personals, aus denen der Einsatzbuch-Rechner auswählt. Deaktivierte Einträge verschwinden dort aus der Auswahl; versiegelte Einsätze behalten ihren Stand."
         aktionen={
           <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
             <Button type="primary" onClick={anlegen}>

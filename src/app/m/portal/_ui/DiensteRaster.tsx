@@ -113,12 +113,6 @@ export function DiensteRaster({
         title="Für dich ist noch nichts freigeschaltet"
         subTitle={
           <>
-            <p>
-              Welche Apps und Dienste du siehst, hängt an deinen Gruppen — im Moment passt keine
-              davon zu etwas, das hier steht. Wenn du gerade erst freigeschaltet wurdest: melde
-              dich einmal ab und wieder an. Neue Gruppen kommen mit der Anmeldung und werden sonst
-              erst nach bis zu einer Stunde von selbst nachgezogen.
-            </p>
             {ansprechpartner ? (
               <p data-testid="portal-kontakt">
                 <strong>Ansprechpartner:</strong> {ansprechpartner}

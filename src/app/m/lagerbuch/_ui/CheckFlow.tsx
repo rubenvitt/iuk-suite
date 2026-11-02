@@ -740,47 +740,6 @@ export function CheckFlow({
               bald ab oder sind abgelaufen – bitte tauschen oder der Verwaltung melden.
             </p>
           )}
-
-          {/*
-            DER AUFFUELLHINWEIS NACH DEM DIENST — DRK-301.
-
-            Er steht am ABSCHLUSS, nicht dauerhaft auf jedem Schritt: er
-            beschreibt eine Handlung NACH dem Check, und auf einem Schritt
-            konkurrierte er mit dessen eigener Anweisung (die Fussnoten dort
-            sind ohnehin dicht). Auf dem Fertig-Schirm ist er bei „Alles in
-            Ordnung" der einzige Satz und faellt genau dann auf, wenn nichts
-            anderes zu tun bleibt.
-
-            ⚠️ ER IST TEXT, KEIN WEG. Kein Link, kein Knopf: gemeint ist der
-            PHYSISCHE QR-Code am Handlager, und AK3 verlangt ausdruecklich, dass
-            der Hinweis allein keine Bestandsbuchung ausloest. Ein Link auf
-            `/helfer` waere zudem eine zweite, leisere Antwort auf dieselbe
-            Frage — und die faende niemand wieder, wenn DRK-312 das
-            Handlager-Etikett neu zuschneidet.
-
-            ⚠️ ER WIDERSPRICHT DEM NACHFUELLSCHRITT NICHT. Der bucht Handlager →
-            Fahrzeug INNERHALB dieses Checks; gemeint ist hier das Auffuellen
-            NACH dem Dienst, ausserhalb des Checks — der Weg, ohne den der
-            Handlagerbestand still auseinanderlaeuft.
-
-            ⚠️ NUR MIT SOLL-BESTUECKUNG, aus demselben Grund wie der Chip oben:
-            traegt das Fahrzeug nur Geraete und Flaschen, gibt es nichts
-            aufzufuellen, und der Satz spraeche von Arbeit, die es nicht gibt.
-          */}
-          {hatArtikel && (
-            <p className={s.fussnote} data-rolle="auffuell-hinweis">
-              {/*
-                ⚠️ `inDerEinheit`, NICHT `dieseEinheit` (Reviewrunde 8): „in"
-                mit einer ORTSANGABE verlangt den Dativ. `dieseEinheit` liefert
-                den Nominativ, und „Was in dieses Fahrzeug fehlt" ist falsches
-                Deutsch — der Baustein war da, ich hatte den falschen gegriffen.
-                Genau der Fehler, vor dem der Kopf von `konstanten.ts` warnt.
-              */}
-              <b>Nach dem Dienst auffüllen:</b> Was {inDerEinheit(fahrzeug.einheitenart)} fehlt, holst du aus dem
-              Handlager – scanne dafür den QR-Code am Handlager, damit die Entnahme dort gebucht
-              wird.
-            </p>
-          )}
         </div>
 
         {/*
@@ -993,11 +952,6 @@ export function CheckFlow({
           {zurueck}
           <div className={`${s.karte} ${s.kartePad}`}>
             <div className={s.zeileName}>Steht die Plombe vom letzten Vollcheck noch?</div>
-            <p className={s.fussnote}>
-              Lies die Nummer an der Plombe ab. Passt sie, ist der Behälter seitdem zu geblieben und
-              du musst ihn nicht öffnen. Fehlt die Plombe oder ist sie aufgebrochen, zählst du seinen
-              Inhalt gleich mit.
-            </p>
           </div>
           <div className={s.karte} data-rolle="plomben-liste">
             {ablesen.map((p) => {
@@ -1050,8 +1004,7 @@ export function CheckFlow({
           </div>
           {nieGesetzt.length > 0 && (
             <p className={s.fussnote} data-rolle="plomben-nie">
-              Noch ohne Plombe: {nieGesetzt.map((p) => p.bezeichnung).join(", ")}. Gesetzt wird beim
-              nächsten Vollcheck.
+              Noch ohne Plombe: {nieGesetzt.map((p) => p.bezeichnung).join(", ")}
             </p>
           )}
           {fehlerBereich}
@@ -1072,11 +1025,6 @@ export function CheckFlow({
         {zurueck}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>Behälter verplomben</div>
-          <p className={s.fussnote}>
-            Alles ist gezählt und aufgefüllt. Verschließ die Behälter mit einer neuen Plombe und trag
-            ihre Nummer ein – bis zum nächsten Vollcheck reicht es dann, sie abzulesen. Leer lassen,
-            wenn du keine neue Plombe gesetzt hast.
-          </p>
         </div>
         <div className={s.karte} data-rolle="plomben-liste">
           {plomben.map((p) => (
@@ -1199,25 +1147,9 @@ export function CheckFlow({
             Wie viel liegt wirklich {inDerEinheit(fahrzeug.einheitenart)}, und wie lange
             hält es?
           </div>
-          {/*
-            ZWEI SAETZE STATT FUENF (IDA-233). Was wegfiel, steht jetzt am
-            Bedienelement selbst: das leere Feld traegt „nicht gezählt", der
-            Leerknopf am Verfallsfeld sein eigenes Kreuz. Geblieben ist, was man
-            VOR dem ersten Tipp wissen muss — dass eine 0 bestaetigt werden will
-            (DRK-304), dass blind gezaehlt wird (IDA-219) und dass der Verfall
-            freiwillig und vorbelegt ist.
-          */}
-          <p className={s.fussnote}>
-            Trag ein, was du wirklich findest – tippen oder mit <b>+/−</b>, ein leeres Fach mit{" "}
-            <b>0</b>; das Soll zeigt dir erst der nächste Schritt. Der Verfall ist freiwillig und aus
-            dem letzten Check übernommen: nur ändern, wenn die Packung ein anderes (das{" "}
-            <b>früheste</b>) Datum zeigt.
-          </p>
           {art === "kurz" && (
             <p className={s.fussnote} data-rolle="stichprobe-hinweis">
-              <b>Heute {soll.length} von {sollAlle.length} Positionen.</b> Ausgewählt, weil sie lange
-              nicht gezählt, seit der letzten Zählung entnommen wurden oder bald ablaufen – dazu ein
-              Zufallsanteil.
+              <b>Heute {soll.length} von {sollAlle.length} Positionen</b>
             </p>
           )}
         </div>
@@ -1629,9 +1561,6 @@ export function CheckFlow({
         )}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>Sind die Geräte da und in Ordnung?</div>
-          <p className={s.fussnote}>
-            Alles ist auf <b>vorhanden · In Ordnung</b> vorbelegt – nur Abweichungen antippen.
-          </p>
         </div>
         <div className={s.karte}>
           {geraete.map((g) => {
@@ -1756,10 +1685,6 @@ export function CheckFlow({
         )}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>Welchen Druck zeigt das Manometer?</div>
-          <p className={s.fussnote}>
-            Jede Flasche ist auf den Nennfülldruck vorbelegt – mit <b>−</b> auf den abgelesenen Wert
-            runterstellen.
-          </p>
         </div>
         <div className={s.karte} data-rolle="o2-liste">
           {flaschen.map((f) => {
@@ -1924,11 +1849,6 @@ export function CheckFlow({
             <div className={s.zeileName}>
               Aus dem Handlager {inDieEinheit(fahrzeug.einheitenart)} legen
             </div>
-            <p className={s.fussnote}>
-              Die Überschriften sind die Fächer {inDerEinheit(fahrzeug.einheitenart)}, in die die
-              Teile gehören. Hol sie aus dem angegebenen Handlager-Fach und stell mit <b>+/−</b> ein,
-              wie viele du <b>wirklich</b> geholt hast.
-            </p>
           </div>
           {/*
             NACH ZIEL-FACH GEGLIEDERT (IDA-226), wie der Zaehlschritt. Das
@@ -1993,8 +1913,7 @@ export function CheckFlow({
               {entnahmebox ? (
                 <>
                   {grossAmAnfang(inDerEinheit(fahrzeug.einheitenart))} liegt mehr, als hingehört.
-                  Leg es in die <b>{entnahmebox.name}</b> und stell mit <b>+/−</b> ein, wie viel du{" "}
-                  <b>wirklich</b> hineingelegt hast.
+                  Leg es in die <b>{entnahmebox.name}</b>.
                 </>
               ) : (
                 <>

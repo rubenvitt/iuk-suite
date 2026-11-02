@@ -162,16 +162,8 @@ export function RechteVerwaltung({
                 </Card>
               ))}
             </div>
-            <p style={{ marginBlock: `${SPACE.lg}px 0`, color: "var(--iuk-gedaempft)" }}>
-              Eine Änderung gilt sofort in Pocket ID. Bei der Person wirkt sie nach einer neuen Anmeldung,
-              spätestens nach etwa einer Stunde.
-            </p>
           </section>
-        ) : (
-          <p style={{ margin: 0, color: "var(--iuk-gedaempft)" }}>
-            Wähle oben eine Person oder unten in der Liste „Rechte ändern“.
-          </p>
-        )}
+        ) : null}
       </div>
 
       <section aria-labelledby="rechte-uebersicht">

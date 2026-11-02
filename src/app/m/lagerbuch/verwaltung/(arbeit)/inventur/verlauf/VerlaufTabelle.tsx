@@ -92,7 +92,7 @@ export function VerlaufTabelle({ zeilen }: VerlaufTabelleProps) {
       scroll={{ x: "max-content" }}
       aria-label="Inventur-Verlauf"
       dataSource={zeilen}
-      locale={{ emptyText: "Noch keine Inventur abgeschlossen. Starte eine unter Inventur." }}
+      locale={{ emptyText: "Noch keine Inventur abgeschlossen." }}
       columns={SPALTEN}
     />
   );

@@ -110,8 +110,6 @@ export function Dashboard({ katalog, fortschritt, nurLesen = false }: Props) {
       {teileMitAufgaben.length === 0 ? (
         <p className={styles.leer}>
           <strong className={styles["leer-titel"]}>Noch keine Aufgaben</strong>
-          Sobald deine Kursleitung Aufgaben freigibt und du einmal online warst, stehen sie hier —
-          danach auch ohne Netz.
         </p>
       ) : (
         teileMitAufgaben.map(({ teil, titel, aufgaben }) => (

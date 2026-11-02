@@ -1309,15 +1309,6 @@ test.describe("radio-Verwaltung", () => {
       "Aktionen",
     ]);
 
-    /*
-     * ⛔ DER ERKLAERENDE HINWEIS STEHT WOERTLICH DA (`SoftwareVersionsPage.tsx:185`,
-     * 1:1-Tafel Abschnitt E). Er ist die einzige Stelle, an der die Flaeche sagt, dass eine
-     * neu angelegte Version NICHT automatisch zum Ziel wird — und der Schreibvorgang darunter
-     * ist genau der Fall, in dem jemand das Gegenteil erwartet.
-     */
-    await expect(page.locator('[data-rolle="radio-versionen-hinweis"]')).toContainText(
-      "Neu angelegte Versionen werden nicht automatisch zum Ziel",
-    );
 
     /*
      * ⛔ EIN WERT, DEN KEIN SEED UND KEIN ANDERER FALL DIESER DATEI FUEHRT — `value` traegt
@@ -1434,14 +1425,6 @@ test.describe("radio-Verwaltung", () => {
      */
     await expect(page.locator('[data-rolle="radio-neucode-eingabe"]')).toHaveCount(1);
 
-    /*
-     * ⛔ DER HINWEIS ERKLAERT DEN FEHLENDEN LOESCHKNOPF (NS-A6). Er ist die einzige Stelle, an
-     * der die Flaeche sagt, dass Sperren der einzige Widerruf ist — ohne ihn sucht eine
-     * bedienende Person nach einer Loeschung, die es absichtlich nicht gibt.
-     */
-    await expect(page.locator('[data-rolle="radio-zugaenge-hinweis"]')).toContainText(
-      "sperren ist der einzige Widerruf",
-    );
   });
 
   test("Fall 5a: /admin/zugaenge/blatt druckt OHNE Kopfzeile und OHNE Navigationsleiste", async ({

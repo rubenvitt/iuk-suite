@@ -29,7 +29,6 @@ export default async function HelferSeite() {
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Helfer"
-        beschreibung="Die aktiven Helferinnen und Helfer aus HiOrg-Server. Wer hier fürs Einsatzbuch freigegeben ist, steht dort zur Auswahl. Gespeichert sind nur Name, Kontostatus, Gruppen und Qualifikationen."
         aktionen={darfVerwalten ? <Link href="/abgleich">Mit der Quelle abgleichen</Link> : undefined}
       />
       {quelle === "demo" ? <DemoHinweis darfVerwalten={darfVerwalten} /> : null}

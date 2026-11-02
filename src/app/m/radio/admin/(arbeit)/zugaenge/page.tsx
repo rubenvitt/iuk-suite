@@ -1,5 +1,4 @@
 // src/app/m/radio/admin/(arbeit)/zugaenge/page.tsx
-import { Alert } from "antd";
 import Link from "next/link";
 import { getDb } from "../../../_db/client";
 import { codesListe } from "../../../_lib/lesepfade/codes";
@@ -88,15 +87,6 @@ import { CodeTabelle } from "./CodeTabelle";
 const SEITEN_TEXTE = {
   titel: "Zugänge",
   /**
-   * ⛔ ER ERKLAERT DEN FEHLENDEN LOESCHKNOPF, und das ist seine ganze Aufgabe. Ohne ihn sucht
-   * eine bedienende Person nach einer Loeschung, die es absichtlich nicht gibt (NS-A6,
-   * `_actions/codes.ts:20-52`), und haelt die Flaeche fuer unfertig. Der zweite Satz nennt die
-   * Wirkung der Sperre, weil sie sonst wie ein Anzeigezustand aussieht (`Spec:2229-2232`: sie
-   * wirkt binnen des naechsten Aufrufs, lesend wie schreibend).
-   */
-  hinweis:
-    "Ein Zugang wird nie gelöscht — sperren ist der einzige Widerruf, und die gesperrte Zeile bleibt mit Zeitpunkt und Person stehen. Eine Sperre wirkt beim nächsten Aufruf des Codes, auch mitten in einer laufenden Sitzung.",
-  /**
    * ⛔ ER NENNT, WAS AUF DEM BOGEN STEHT, und nicht bloss „Drucken": das Blatt zeigt nur die
    * AKTIVEN Zugaenge (`admin/(druck)/zugaenge/blatt/page.tsx`, der Filter mit seiner
    * Begruendung). Wer eine gesperrte Zeile darauf sucht, soll es hier schon lesen.
@@ -112,24 +102,6 @@ export default async function RadioZugaengeSeite() {
   return (
     <>
       <h1 className={s.titel}>{SEITEN_TEXTE.titel}</h1>
-      {/*
-        ⛔ `type="info"`, kein Rotton auf einer Datenflaeche (Falle 3):
-        `colorError === colorPrimary` (`src/core/theme/theme.ts:32-33`).
-
-        ⛔ `title=` UND NICHT `message=`: unter antd 6 ist `message` ABGEKUENDIGT
-        (`node_modules/…/antd/es/alert/Alert.d.ts:50-52`, „@deprecated please use `title`
-        instead"); dieselbe Form wie in `versionen/page.tsx`.
-
-        ⛔ DER TEXT TRAEGT EINEN EIGENEN GRIFF. Ohne ihn muesste ein Playwright-Fall auf eine
-        antd-INTERNE Klasse greifen — die Art Griff, die bei einem Bauteil-Umbau still
-        danebengeht.
-      */}
-      <Alert
-        type="info"
-        showIcon
-        title={<span data-rolle="radio-zugaenge-hinweis">{SEITEN_TEXTE.hinweis}</span>}
-        className={s.abstand}
-      />
       {/*
         ✅ DER LINK AUF DAS DRUCKBLATT — eingetragen in **V21**, im SELBEN Commit wie
         `admin/(druck)/zugaenge/blatt/page.tsx` (`.superpowers/sdd/planteil4/briefs/V21.md:26-27`).

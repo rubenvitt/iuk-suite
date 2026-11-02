@@ -309,7 +309,6 @@ describe("Die Zielwahl auf dem Konto-Weg (DRK-305)", () => {
   it("nennt kein Kärtchen — die Wahl hängt an der ANMELDUNG", async () => {
     await zeige();
     const text = query("[data-rolle='rahmen']").textContent ?? "";
-    expect(text).toContain("in deiner Anmeldung");
     expect(text).not.toContain("Kärtchen");
   });
 
@@ -336,11 +335,8 @@ describe("Die Zielwahl auf dem Konto-Weg (DRK-305)", () => {
 });
 
 describe("Die Zielwahl mit Kärtchen — die Gegenprobe (DRK-305)", () => {
-  it("nennt das Kärtchen und trägt `herkunft=token`", async () => {
-    // Ohne diese beiden Zeilen wäre auch eine Fassung grün, die den
-    // Kärtchen-Satz ersatzlos gestrichen hat.
+  it("trägt `herkunft=token`", async () => {
     await zeige();
-    expect(query("[data-rolle='rahmen']").textContent ?? "").toContain("mit diesem Kärtchen");
     const feld = formular().querySelector<HTMLInputElement>("input[type='hidden'][name='herkunft']");
     expect(feld?.value).toBe("token");
   });

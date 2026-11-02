@@ -167,10 +167,7 @@ export function Raster({ p, a, helfer, katalog, aktionen, oeffneSchicht, bearbei
     <div className={s.arbeitsflaeche}>
       <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
         <div className={s.zeile} style={{ justifyContent: "space-between" }}>
-          <span className={s.neben}>
-            Zeitbereich in einer Zeile aufziehen legt eine Schicht an. Eine Schicht ziehen verschiebt sie, an den Kanten ziehen ändert die Dauer.
-            Helfer aus der Liste auf eine Schicht ziehen; ein Klick öffnet die Schicht.
-          </span>
+          <span />
           <Segmented<Zoom> value={zoom} onChange={setZoom} options={[{ label: "Eng", value: "eng" }, { label: "Normal", value: "normal" }, { label: "Weit", value: "weit" }]} />
         </div>
         <div className={s.raster}>
@@ -338,9 +335,9 @@ function Helferleiste({ p, a, helfer, katalog }: { p: PlanungDTO; a: Auswertung;
             </div>
           );
         })}
-        {liste.length === 0 ? <span className={s.neben}>{helfer.length === 0 ? "Im Helfer-Modul steht noch niemand. Temporäre Helfer legst du unter „Helfer“ an." : "Niemand passt zu diesem Filter."}</span> : null}
+        {liste.length === 0 ? <span className={s.neben}>{helfer.length === 0 ? "Im Helfer-Modul steht noch niemand." : "Niemand passt zu diesem Filter."}</span> : null}
       </div>
-      <span className={s.neben}>{p.temporaere.length} temporäre Helfer in dieser Planung. Anlegen unter „Helfer“.</span>
+      <span className={s.neben}>{p.temporaere.length} temporäre Helfer in dieser Planung</span>
     </aside>
   );
 }

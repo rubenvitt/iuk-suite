@@ -51,14 +51,14 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           <label>Ergebnis<Select aria-label="Ergebnis" value={fields.result} options={options(RESULT_LABELS)} onChange={v=>field("result",v)} /></label>
         </div>
         <Checkbox style={{minHeight:44,alignItems:"center",marginBlockStart:SPACE.md}} checked={fields.includeSystem === "1"} onChange={event=>field("includeSystem",event.target.checked ? "1" : "")}>Systemeinträge anzeigen</Checkbox>
-        {fields.objectRefHash && <p>Auf dieses Objekt im Modul {MODULE_LABELS[fields.module]} und Objekttyp „{objectLabel(fields.objectType)}“ eingegrenzt. Andere Objekttypen, auch Downloads und Exporte, bleiben getrennt. <Button onClick={()=>setFields(previous=>({...previous,module:"",objectType:"",objectRefHash:""}))}>Objektfilter entfernen</Button></p>}
+        {fields.objectRefHash && <p>Auf dieses Objekt im Modul {MODULE_LABELS[fields.module]} und Objekttyp „{objectLabel(fields.objectType)}“ eingegrenzt. <Button onClick={()=>setFields(previous=>({...previous,module:"",objectType:"",objectRefHash:""}))}>Objektfilter entfernen</Button></p>}
         {error && <p ref={errorRef} tabIndex={-1} role="alert" id="audit-filter-error">{error.message}</p>}
         <Space className={css.actions} wrap style={{marginBlockStart:SPACE.lg}}>
           <Button type="primary" htmlType="submit" loading={pending}>Filter anwenden</Button>
           <Button disabled={pending} onClick={()=>{setFields(Object.fromEntries(FILTER_KEYS.map(key=>[key,""])));setError(null);navigate({});}}>Filter zurücksetzen</Button>
           <Button disabled={pending} onClick={()=>startTransition(()=>router.refresh())}>Neu laden</Button>
         </Space>
-        <p style={{...SCHRIFT.neben,marginBlockEnd:0}}>Zeiten und Tagesgrenzen in der Zeitzone {zeitzone()}. Die Personenkennung findest du in den Details eines Eintrags.</p>
+        <p style={{...SCHRIFT.neben,marginBlockEnd:0}}>Zeitzone {zeitzone()}</p>
       </form>
     </Card>
     <div role="status" aria-live="polite">{pending ? "Einträge werden geladen …" : ready ? `${ready.page.events.length} Einträge auf dieser Seite · Neueste zuerst` : ""}</div>
@@ -121,9 +121,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           {title:"Details",width:120,key:"details",render:(_,event)=><Button onClick={()=>setDetails(event)} aria-label={`Details: ${objectLabel(event.objectType)}`}>Details</Button>},
         ]} />
       </div>
-    </> : <Card><h2 style={SCHRIFT.unterTitel}>{ready.filtered ? "Keine passenden Einträge" : ready.transferFailed || ready.pending ? "Noch keine übernommenen Einträge" : "Noch keine Ereignisse"}</h2>
-      <p>{ready.filtered ? "Ändere die Filter oder setze sie zurück." : "Das Audit-Log erfasst Ereignisse ab der Aktivierung. Frühere Vorgänge werden nicht nachträglich rekonstruiert."}</p>
-      {committed.includeSystem !== "1" && <p>Systemeinträge sind ausgeblendet. Aktiviere Systemeinträge anzeigen und wähle Filter anwenden, um sie einzublenden.</p>}</Card>)}
+    </> : <Card><h2 style={SCHRIFT.unterTitel}>{ready.filtered ? "Keine passenden Einträge" : ready.transferFailed || ready.pending ? "Noch keine übernommenen Einträge" : "Noch keine Ereignisse"}</h2></Card>)}
     {ready && <Space className={css.actions} wrap>
       {(search.cursorId || ready.filtered) && <Button disabled={pending} onClick={()=>navigate(committed)}>Neueste Einträge</Button>}
       <Button disabled={pending||!ready.page.nextCursor} onClick={()=>navigate(committed,ready.page.nextCursor)}>Ältere Einträge</Button>

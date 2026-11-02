@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { einloesenAmGate, type GateZustand } from "../_actions/gate";
-import { LAGERBUCH_MARKE, LAGERBUCH_ZEILE } from "../_lib/marke";
+import { LAGERBUCH_ZEILE } from "../_lib/marke";
 import { CODEFELD_LAENGE, CODEFELD_MUSTER, CODEFELD_PLATZHALTER } from "../_lib/tokenForm";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
@@ -168,11 +168,6 @@ export function Gate({
       <div className={s.gateKarten}>
         <div className={s.gateKarte}>
           <h2>Im Dienst</h2>
-          <p className={s.fussnote}>
-            Gib den Code vom Etikett am Regal, im Fahrzeug oder an der Tasche ein. Kein Konto,
-            kein Passwort. Damit
-            kannst du Material entnehmen, aber nichts verwalten.
-          </p>
           {/*
             `.gateForm` traegt dieselbe Spalte wie `.gateKarte` (Flex, gap 12px)
             — nicht aus Symmetrie, sondern weil `<form>` sonst ein BLOCK ist:
@@ -224,11 +219,6 @@ export function Gate({
         */}
         <div className={s.gateKarte}>
           <h2>Verwaltung</h2>
-          <p className={s.fussnote}>
-            Hier verwaltest du das ganze {LAGERBUCH_MARKE}: Artikel und Chargen, die
-            Soll-Bestückung der Fahrzeuge und Taschen, Bestellvorschläge, das Journal und die
-            Zugangs-Codes.
-          </p>
           <div style={{ flex: 1 }} />
           {/*
             Ein `<a>`, kein `<Link>`: das Anmeldeziel liegt AUSSERHALB des

@@ -13,7 +13,7 @@ export default async function EinstellungenSeite() {
   await requireEinsatzbuchZugang();
   return (
     <>
-      <Seitenkopf titel="Einstellungen" beschreibung="Diese Werte bekommt der Einsatzbuch-Rechner zusammen mit den Stammdaten." />
+      <Seitenkopf titel="Einstellungen" />
       <EinstellungenFormular start={leseEinstellungen(getDb())} />
     </>
   );

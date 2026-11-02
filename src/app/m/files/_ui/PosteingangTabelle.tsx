@@ -287,11 +287,6 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
         <Seitenkopf titel="Posteingang" />
         <Card>
           <p>Noch keine Abgabe eingegangen.</p>
-          <p className={styles.hinweis}>
-            Abgaben entstehen ausschließlich über einen Abgabelink: er wird angelegt, einmal als
-            Code und QR ausgegeben und weitergegeben. Danach erscheint hier jede Datei mit Zeit,
-            Hinweis und Prüfzustand.
-          </p>
           {/*
            * DER WEG AUS DEM LEERZUSTAND. Ohne ihn waere diese Seite eine
            * Sackgasse — und `/zugangslinks` liegt in derselben Route-Group mit

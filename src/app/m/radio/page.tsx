@@ -162,10 +162,6 @@ export default async function RadioGatePage({
   return (
     <main className={s.gate}>
       <h1 className={s.titel}>Funkgeräte</h1>
-      <p className={s.hinweis}>
-        Scanne den QR-Code auf dem Aufsteller oder gib den Zugangs-Code von Hand ein. Kein
-        Konto, kein Passwort.
-      </p>
       {/*
         ⚠️ DIE MELDUNG GEHT IN DIE INSEL, NICHT DANEBEN — und das ist eine ausgesprochene
         Abweichung vom Wortlaut des Briefs (`briefs/A11.md:180`), die den Brief erfuellt

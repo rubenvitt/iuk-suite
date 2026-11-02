@@ -31,7 +31,6 @@ export default async function NeuigkeitenPage() {
     <>
       <Seitenkopf
         titel="Neuigkeiten"
-        beschreibung="Was sich in den Apps geändert hat, in der Reihenfolge, in der es passiert ist. Du siehst hier die Apps, die für dich freigeschaltet sind."
         zurueck={{ titel: "Apps & Dienste", href: "/" }}
       />
       <NeuigkeitenListe neuigkeiten={neuigkeiten} />

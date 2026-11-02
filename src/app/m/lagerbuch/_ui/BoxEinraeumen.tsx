@@ -264,19 +264,6 @@ export function BoxEinraeumen({
         </h1>
       </div>
 
-      {/*
-        ⚠️ DER SATZ SAGT DIE RICHTUNG UND DIE ART DES VORGANGS. Er steht hier
-        aus demselben Grund wie der Hinweis auf `/auffuellen`: die Flaeche sieht
-        der Entnahme und dem Auffuellen zum Verwechseln aehnlich — das ist
-        Absicht (der vertraute Ablauf war die Anforderung) und genau deshalb die
-        Gefahr. „Umgeraeumt, nicht angenommen" ist der Unterschied, an dem sonst
-        ein doppelter Buchbestand entsteht.
-      */}
-      <p className={s.fussnote} data-rolle="einraeumen-hinweis">
-        Was hier liegt, wurde aus einem Fahrzeug oder einer Tasche genommen. Du räumst
-        es zurück ins Handlager — umgeräumt, nicht neu angenommen. Eine Lieferung buchst
-        du unter „Auffüllen“. Abgelaufenes sonderst du direkt hier aus.
-      </p>
 
       {rueck && (
         <span

@@ -18,7 +18,6 @@ export default async function RechtePage({ searchParams }: { searchParams: Promi
   const kopf = (
     <Seitenkopf
       titel="Rechte"
-      beschreibung="Wer darf welches Modul benutzen oder verwalten? Hier nimmst du Personen in die Gruppen aus Pocket ID auf oder heraus."
       zurueck={{ titel: "Verwaltung", href: "/admin" }}
     />
   );

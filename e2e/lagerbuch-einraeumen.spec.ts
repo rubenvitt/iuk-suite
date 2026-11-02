@@ -118,9 +118,6 @@ test.describe("Aus der Entnahmebox einräumen (DRK-381)", () => {
 
     // ── 2) Die Flaeche antwortet und sagt die Richtung ────────────────────
     await expect(page).toHaveURL(/\/auffuellen\/box$/);
-    await expect(page.locator('[data-rolle="einraeumen-hinweis"]')).toContainText(
-      "umgeräumt, nicht neu angenommen",
-    );
 
     const zeile = page.locator('[data-rolle="einraeum-posten"]').filter({ hasText: ARTIKEL_NAME });
     await expect(zeile).toHaveCount(1);

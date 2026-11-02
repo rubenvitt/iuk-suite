@@ -60,7 +60,7 @@ export function Organisation({ planId, sichtbarkeit, mitglieder, onSichtbarkeit,
     return (
       <fieldset className="kp-abschnitt" data-sichtbarkeit="privat">
         <legend>Sichtbarkeit</legend>
-        <p className="kp-hilfe">Privat — nur du siehst und bearbeitest diesen Plan. Ein Link unten zeigt ihn trotzdem jedem, der ihn hat.</p>
+        <p className="kp-hilfe">Privat</p>
         <Popconfirm title="In der Organisation teilen?" description="Alle mit Zugang zu den Kommunikationsplänen sehen ihn dann. Privat machen lässt er sich danach nicht mehr."
           okText="Teilen" cancelText="Abbrechen" onConfirm={() => void teilen()}>
           <Button loading={laeuft === "teilen"}>In der Organisation teilen</Button>
@@ -75,7 +75,7 @@ export function Organisation({ planId, sichtbarkeit, mitglieder, onSichtbarkeit,
   return (
     <fieldset className="kp-abschnitt" data-sichtbarkeit="organisation">
       <legend>Sichtbarkeit</legend>
-      <p className="kp-hilfe">In der Organisation geteilt — alle mit Zugang sehen und drucken ihn. Bearbeiten dürfen du, die Modul-Admins und wen du hier einlädst.</p>
+      <p className="kp-hilfe">In der Organisation geteilt</p>
       <span className="kp-feldname" id={`kp-einladen-${planId}`}>Zum Bearbeiten einladen</span>
       <AutoComplete aria-labelledby={`kp-einladen-${planId}`} value={begriff} options={optionen} placeholder="Name eintippen"
         onSearch={(q) => { setBegriff(q); if (q.trim().length < MIN_ZEICHEN) setVorschlaege([]); }}

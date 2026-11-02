@@ -671,7 +671,7 @@ describe("Fehlerpfade ohne JavaScript (`?fehler=`)", () => {
 });
 
 describe("Zustand E — von diesem Geraet wurde schon abgestimmt", () => {
-  it("leitet nicht mehr stumm weiter, sondern erklaert die Weitergabe", async () => {
+  it("leitet nicht stumm weiter, sondern nennt den Zustand", async () => {
     const { token, survey } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
     cookieGetMock.mockImplementation((name: string) =>
       name === `feedback-${survey.id}` ? { name, value: "submitted" } : undefined,
@@ -679,9 +679,6 @@ describe("Zustand E — von diesem Geraet wurde schon abgestimmt", () => {
     const markup = await seite(token);
     expect(redirectMock).not.toHaveBeenCalled();
     expect(text(markup)).toContain("Von diesem Gerät ist schon eine Rückmeldung abgegeben.");
-    expect(text(markup)).toContain(
-      "Wenn du das Handy weitergibst, kann die nächste Person einen leeren Bogen öffnen.",
-    );
   });
 
   it("stellt „Leeren Bogen öffnen“ als natives <form> mit gebundener Server Action", async () => {

@@ -176,8 +176,7 @@ function Formular({ modulKey }: { modulKey: string }) {
         title="Danke für deine Rückmeldung!"
         subTitle={
           <>
-            Sie hat die Nummer <strong data-testid="rueckmeldung-kennung">{kennung}</strong>. Nenn sie,
-            wenn du später danach fragst.
+            Sie hat die Nummer <strong data-testid="rueckmeldung-kennung">{kennung}</strong>.
           </>
         }
         extra={<Button onClick={schliesseRueckmeldung}>Schließen</Button>}

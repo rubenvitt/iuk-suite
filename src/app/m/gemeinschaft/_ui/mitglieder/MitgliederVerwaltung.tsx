@@ -74,13 +74,6 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
     <div>
       <Seitenkopf
         titel="Mitglieder"
-        beschreibung={
-          <span style={{ display: "block", maxWidth: 720 }}>
-            Mitglieder der Gemeinschaft brauchen kein Konto. Jedes bekommt einen persönlichen Link: Dort sieht es
-            seine Aufgaben, hakt sie ab und trägt sich für offene ein. Geht ein Link in falsche Hände, erzeug einen
-            neuen, dann gilt der alte nicht mehr.
-          </span>
-        }
         aktionen={
           <Button type="primary" icon={<Icons8Ikone name="plus" groesse={16} />} onClick={() => oeffne({ id: null, name: "", telefon: "" })}>
             Mitglied anlegen
@@ -185,7 +178,6 @@ export function MitgliederVerwaltung({ zeilen, basis }: { zeilen: MitgliedZeile[
             <Form.Item
               label="Telefon"
               htmlFor="gm-mitglied-telefon"
-              extra="Freiwillig. Sieht nur die Leitung."
               validateStatus={feldFehler.telefon ? "error" : undefined}
               help={feldFehler.telefon}
             >

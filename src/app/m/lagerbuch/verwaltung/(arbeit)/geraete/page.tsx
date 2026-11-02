@@ -67,7 +67,6 @@ export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
     <>
       <SeitenKopf
         titel="Geräte"
-        beschreibung="Medizintechnik mit MTK-Frist und Objekte mit Ablaufdatum — zwei Klassen, eine Liste."
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>

@@ -50,7 +50,6 @@ export function kontrolleSeiteInhalt(db: DB, id: string): ReactNode {
     <>
       <SeitenKopf
         titel="Kontrolle erfassen"
-        beschreibung="Die Messwerte werden gegen die heute am Gerät hinterlegten Referenzbereiche bewertet; dieser Stand wird mit der Kontrolle eingefroren."
         zurueck={{ titel: detail.geraet.name, href: verwaltungDetailPfad("bz", detail.geraet.id) }}
       />
       <KontrolleForm {...formDto(detail)} />

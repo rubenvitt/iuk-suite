@@ -101,12 +101,6 @@ test.describe("Lagerbuch Auffuellen — der Weg der GF (DRK-313)", () => {
     expect(auffuellenSeite?.status(), "/auffuellen als angemeldete GF: HTTP").toBe(200);
     await page.waitForLoadState("networkidle");
 
-    // Der Satz, der die RICHTUNG nennt — die Flaeche sieht der Entnahme
-    // absichtlich aehnlich, und genau deshalb steht er da.
-    await expect(page.locator('[data-rolle="auffuellen-hinweis"]')).toContainText(
-      "Hier kommt Material ins Handlager",
-    );
-
     // ── 3) Artikel ueber die Suche oeffnen ────────────────────────────────
     // Ueber die Suche, NIE ueber Bildlauf: die Liste ist lang (200
     // Lastartikel), und ein frisch angelegter Artikel landet alphabetisch

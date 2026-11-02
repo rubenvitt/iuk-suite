@@ -20,8 +20,7 @@ export default async function Einstellungen() {
   const stand = ladeBriefkopf(db);
   return (
     <Huelle>
-      <Seitenkopf titel="Einstellungen" zurueck={{ titel: "Alle Pläne", href: "/" }}
-        beschreibung="Der Briefkopf gilt für alle Pläne: Organisation und Logo stehen rechts oben auf jedem gedruckten Blatt. Ohne Eintrag bleibt die Stelle leer." />
+      <Seitenkopf titel="Einstellungen" zurueck={{ titel: "Alle Pläne", href: "/" }} />
       <h2 className="kp-abschnittstitel">Vorschau des Kopfs</h2>
       <KopfVorschau kopf={kopfFuerZeichnung(db)} schrift={ZEICHENSCHRIFT.style.fontFamily} />
       <h2 className="kp-abschnittstitel">Briefkopf</h2>

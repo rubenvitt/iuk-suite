@@ -76,7 +76,7 @@ describe("TrendDiagramm — die Fragen sind zuschaltbar (§3.3)", () => {
     expect(mitText("Vorbereitet?").getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("sperrt die uebrigen Schalter beim Deckel — statt Klicks stumm zu verschlucken", async () => {
+  it("sperrt die uebrigen Schalter beim Deckel — statt Klicks zu verschlucken", async () => {
     await mount(<TrendDiagramm punkte={PUNKTE} fragen={FRAGEN} />);
 
     for (const text of ["Insgesamt?", "Vorbereitet?", "Verständlich?"]) {
@@ -90,8 +90,6 @@ describe("TrendDiagramm — die Fragen sind zuschaltbar (§3.3)", () => {
     for (const text of ["Insgesamt?", "Vorbereitet?", "Verständlich?"]) {
       expect(mitText(text).disabled).toBe(false);
     }
-    // Und die Reihe sagt, warum.
-    expect(document.body.textContent).toContain("Drei Kurven sind das Maximum");
 
     // Eine abwaehlen gibt den vierten wieder frei.
     await clickElement(mitText("Insgesamt?"));

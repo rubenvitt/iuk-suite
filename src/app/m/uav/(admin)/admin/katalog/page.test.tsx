@@ -58,11 +58,6 @@ describe("katalogInhalt — Kopf und Tabelle", () => {
     expect(query('[data-testid="seitenkopf-aktionen"]').textContent).toContain("Aufgabe anlegen");
   });
 
-  it("sagt im Seitenkopf, wofuer die Seite da ist", async () => {
-    await mount(katalogInhalt([{ ...aufgabe("1.1"), id: "a1", sortOrder: 0 }]));
-    expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Teilnehmer");
-  });
-
   it("zeigt einen Leerzustand statt einer nackten Tabelle", async () => {
     await mount(katalogInhalt([]));
     expect(document.body.textContent).toContain("Noch keine Aufgaben im Katalog.");

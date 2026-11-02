@@ -164,7 +164,6 @@
 .kp-kopfwerkzeuge { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 /* Fester Platz für den Status (Entscheidung 19): die Leiste bricht beim Autosave nicht um. */
 .kp-speicherstatus { font-size: 13px; color: var(--kp-gedaempft); min-width: 18ch; white-space: nowrap; }
-.kp-bedienhinweis { margin-block: 8px 0; }
 .kp-konflikt-text { margin: 0; }
 /* Im Editor endet die Fläche am unteren Bildrand (Editor.tsx misst `--kp-flaeche-oben`); 48 px bleiben
    für die Bedienzeile darunter. So liegen die Hinweise unten IN der Fläche im Bild (Mindesthöhe s. o.). */
@@ -281,7 +280,6 @@
 @media (max-width: 767.98px) {
   .kp-auswahl-name { display: none; }
   .kp-kopfvorschau { min-width: 1100px; } /* ≈ 12 px Organisationsname; der Rahmen scrollt */
-  .kp-vorschlag-hinweis { display: none; }
   .kp-bib-werkzeuge { display: grid; grid-template-columns: minmax(0, 1fr); }
   /* Der Aktionsbehälter des Seitenkopfs (core, ohne Klasse) ist ein Flex-Kind so breit wie sein Inhalt — ohne
      diese Regel bliebe auch das Raster darin schmal (Gegenstück zur Regel für .kp-kopfwerkzeuge im Editor). */

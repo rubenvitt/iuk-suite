@@ -144,9 +144,6 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Symbol</span>
         <Input name="icon" size="large" placeholder="z. B. 📶" defaultValue={preset?.icon ?? ""} />
-        <Typography.Text type="secondary">
-          Optional. Ohne Symbol zeigt die Kachel den ersten Buchstaben.
-        </Typography.Text>
       </label>
 
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>

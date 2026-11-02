@@ -41,7 +41,6 @@ export function MeineSeite({ link, daten }: { link: string; daten: MeineSeiteDat
   return (
     <>
       <h1 className="go-titel">Hallo {daten.vorname}</h1>
-      <p className={s.lead}>Hier siehst du, was du in der Gemeinschaft übernommen hast und wo noch jemand gebraucht wird.</p>
 
       {daten.verantwortlich.length > 0 ? (
         <div className={`${s.karte} ${s.hinweis}`}>
@@ -164,8 +163,7 @@ export function MeineSeite({ link, daten }: { link: string; daten: MeineSeiteDat
       </section>
 
       <p className={s.datenschutz}>
-        Dieser Link gehört nur dir, gib ihn nicht weiter. Wer ihn hat, sieht deine Aufgaben und kann sie abhaken.
-        Telefonnummern anderer siehst du hier nicht.
+        Gib diesen Link nicht weiter.
       </p>
     </>
   );

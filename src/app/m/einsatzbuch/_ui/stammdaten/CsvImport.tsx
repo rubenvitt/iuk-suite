@@ -79,7 +79,7 @@ export function CsvImport({ art, onFertig }: { art: Stammdatenart; onFertig: () 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <p style={{ margin: 0 }}>
-        Die Datei braucht die Kopfzeile „{kopf.join(";")}“. Trennzeichen Semikolon oder Komma, Excel-CSV geht direkt.
+        Kopfzeile: {kopf.join(";")}
       </p>
 
       <div>

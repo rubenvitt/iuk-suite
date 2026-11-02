@@ -218,9 +218,8 @@ describe("Plan-Flyin", () => {
     await clickElement(query('[data-option="qrAufDruck"]'));
     expect(query("[data-qr-hinweis]").textContent).toContain("keine Adresse eingerichtet");
   });
-  it("Schwarzweiß-Schalter setzt die Option; der Satz sagt, wofür sie gilt", async () => {
+  it("Schwarzweiß-Schalter setzt die Option", async () => {
     await mount(<Rahmen />);
-    expect(query("[data-sw-hinweis]").textContent).toBe("Gilt für Ausdruck und SVG-Datei; am Bildschirm bleibt der Plan farbig.");
     await clickElement(query('[data-option="schwarzweiss"]'));
     expect(stand.optionen.schwarzweiss).toBe(true);
   });

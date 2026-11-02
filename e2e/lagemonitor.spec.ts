@@ -26,7 +26,6 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   await expect(page.getByRole("heading", { name: "Lagemonitor" })).toBeVisible();
 
   const vorschau = page.getByTestId("monitor-vorschau");
-  const erklaerung = page.getByTestId("vorschau-erklaerung");
   await page.getByLabel("Standort", { exact: true }).fill(ort);
   await expect(vorschau).toContainText(`Lagemonitor · ${ort}`);
 
@@ -39,13 +38,12 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   await expect(vorschau).toContainText("1 WARNUNG · Unwetterwarnung");
   await klickeWennRuhig(schwelle.getByText("Extremes Unwetter", { exact: true }));
   await expect(vorschau).toContainText("RUHE · 2 Warnungen unter Schwelle");
-  await expect(erklaerung).toContainText("Kein Band");
 
   const radar = page.getByRole("switch", { name: "Regenradar" });
   // Auf „aus“ stellen, nicht blind umschalten: der Ausgangszustand kommt aus der Datenbank.
   if ((await radar.getAttribute("aria-checked")) === "true") await klickeWennRuhig(radar);
   await expect(radar).toHaveAttribute("aria-checked", "false");
-  await expect(page.getByText(/Ausgeschaltet:.*Regenradar/)).toBeVisible();
+  await expect(vorschau.locator('[data-rolle="vorschau-radar"]')).toHaveCount(0);
   await expect(page.getByText("Ungespeicherte Änderungen", { exact: false })).toBeVisible();
 
   // QR-Code fürs Ehrenamt: aus als Vorgabe; an steht er in ruhiger Lage unten rechts in der Vorschau.
@@ -55,7 +53,7 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   await expect(page.getByTestId("vorschau-qr")).toContainText("Lust mitzuhelfen?");
 
   await klickeWennRuhig(page.getByRole("button", { name: "Speichern" }));
-  await expect(page.getByText("Gespeichert. Der Monitor zeigt es spätestens in einer Minute.")).toBeVisible();
+  await expect(page.getByText("Gespeichert", { exact: true })).toBeVisible();
 
   await page.getByLabel("Neuer Zugang").fill("FüKw e2e");
   await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
@@ -95,7 +93,6 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   await klickeWennRuhig(wahlKnopf(neu, "Besprechung"));
   // Der Entwurf steht schon in der Vorschau, gestrichelt.
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "true");
-  await expect(page.getByTestId("vorschau-erklaerung")).toContainText(`Meldungsband Besprechung (noch nicht angelegt): „${text}“`);
 
   // Eine ungespeicherte Änderung an der Anzeige überlebt das Anlegen (neuer Stand vom Server).
   await page.getByLabel("Standort", { exact: true }).fill("Ungespeichert");
@@ -149,7 +146,7 @@ test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrs
       klickeWennRuhig(page.getByRole("button", { name: "Speichern" })),
     ]);
     expect(antwort.status()).toBe(200);
-    await expect(page.getByText("Gespeichert. Der Monitor zeigt es spätestens in einer Minute.")).toBeVisible();
+    await expect(page.getByText("Gespeichert", { exact: true })).toBeVisible();
   };
   // Ein Schlüssel aus einem früheren Lauf gegen dieselbe Datenbank: erst entfernen, sonst gilt er weiter.
   if (await page.getByText("Ein TomTom-Schlüssel ist hinterlegt.").isVisible()) {
@@ -164,7 +161,6 @@ test("TomTom-Schlüssel geht nur an den Monitor, die Vorschau zeigt die Verkehrs
   await expect(page.getByTestId("vorschau-verkehr")).toHaveCount(0);
   await feld.fill(SCHLUESSEL);
   await expect(page.getByTestId("vorschau-verkehr")).toBeVisible();
-  await expect(page.getByTestId("vorschau-erklaerung")).toContainText("Verkehrsfluss");
 
   await speichern();
   await expect(page.getByText("Ein TomTom-Schlüssel ist hinterlegt.")).toBeVisible();

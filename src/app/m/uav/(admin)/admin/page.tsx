@@ -49,7 +49,6 @@ export function teilnehmerInhalt(zeilen: ParticipantProgressDTO[]) {
     <>
       <Seitenkopf
         titel="Teilnehmer"
-        beschreibung="Hier legst du Teilnehmer an, gibst ihnen ihren Zugang weiter und siehst, wie weit jede und jeder im Training ist."
         aktionen={<Button href="/api/admin/participants/export">Liste als Excel</Button>}
       />
       <TeilnehmerAnlegen />

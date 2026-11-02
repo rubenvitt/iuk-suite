@@ -280,7 +280,6 @@ export default async function Cockpit({
                 url={teilnahmeUrl}
                 token={buildToken(group.slug, group.secret)}
                 groupId={id}
-                erststart={zustand.belegung === "A"}
               />
             </div>
           </Col>

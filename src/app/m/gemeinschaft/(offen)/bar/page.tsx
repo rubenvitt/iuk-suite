@@ -31,9 +31,6 @@ export default async function BarSeite() {
   return (
     <OffenerRahmen kicker="Gemeinschaft · Bar">
       <h1 className="go-titel">Bar mieten</h1>
-      <p className="go-text" style={{ marginTop: 8 }}>
-        Hier siehst du, wann die Bar frei ist, und kannst sie für deine Veranstaltung anfragen. Ob es klappt, siehst du danach über einen Link.
-      </p>
       <BarAnfrage belegt={belegt} heute={heute} vorbelegung={vorbelegung} anmeldeHref={anmeldeHref(kopf, "/bar")} />
     </OffenerRahmen>
   );

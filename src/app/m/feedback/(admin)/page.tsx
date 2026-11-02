@@ -114,7 +114,6 @@ export default async function FeedbackEinstieg() {
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
         <Seitenkopf
           titel="Deine Gruppen"
-          beschreibung="Je Gruppe ein dauerhafter QR-Code."
           // Der Vergleich hat keine `group_id`, gegen die ein Guard prüfen könnte
           // — er zeigt Daten ALLER Gruppen. Deshalb steht der Weg dorthin nur
           // Admins offen, und die Seite selbst prüft es ein zweites Mal (§3.4).

@@ -96,7 +96,7 @@ export function TrendDiagramm({ punkte, fragen }: TrendDiagrammProps) {
           })}
           {voll && (
             <span style={T.meta}>
-              Drei Kurven sind das Maximum — eine abwählen, um eine andere zu sehen.
+              Höchstens drei Kurven
             </span>
           )}
         </div>

@@ -170,10 +170,7 @@ describe("Journalseite — Regime B und Deckel", () => {
      * `JournalTable`; `JournalTable.test.tsx` prueft sie dort ueber mehrere
      * Seiten hinweg.
      */
-    expect(kopf.props.beschreibung).toBe(
-      "Append-only Buchungsjournal — der Bestand ist immer die Summe der Buchungen.",
-    );
-    expect(kopf.props.beschreibung).not.toMatch(/Treffer/);
+    expect(kopf.props.beschreibung).toBeUndefined();
   });
 
   it("normalisiert Vorgang und Datum vor SQL und reicht nur skalare Werte zur Insel", () => {
@@ -374,7 +371,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
     expect((leereTabelle.props as { leertext: string }).leertext)
       .toBe("Noch keine Buchung.");
     const [leererKopf] = elementeVomTyp(journalInhalt(ohneFilter), SeitenKopf);
-    expect(leererKopf.props.beschreibung).not.toMatch(/Treffer/);
+    expect(leererKopf.props.beschreibung).toBeUndefined();
 
     const mitFilter = journalDaten(t.db, { q: "ohne-treffer" });
     const [gefilterteTabelle] = elementeVomTyp(journalInhalt(mitFilter), JournalTable);

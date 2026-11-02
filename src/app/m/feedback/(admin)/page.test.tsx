@@ -285,13 +285,12 @@ describe("Einstieg — wer was sieht (§3.1)", () => {
     expect(karten(wirt)).toHaveLength(0);
   });
 
-  it("traegt Kopfzone und Halbsatz aus §3.1", async () => {
+  it("traegt die Kopfzone", async () => {
     gruppe("Meine", "meine");
     gruppe("Zweite", "zweite");
     authMock.mockResolvedValue(ADMIN);
     const wirt = await zeichne();
     expect(wirt.querySelector("h1")?.textContent).toBe("Deine Gruppen");
-    expect(wirt.textContent).toContain("Je Gruppe ein dauerhafter QR-Code.");
     // Der Einstieg ist die Wurzel — kein Rückweg, der auf sich selbst zeigt
     // (vormals eine Breadcrumb, seit Task 11 `Seitenkopf`s `zurueck`).
     expect(wirt.querySelector('[data-testid="seitenkopf-zurueck"]')).toBeNull();

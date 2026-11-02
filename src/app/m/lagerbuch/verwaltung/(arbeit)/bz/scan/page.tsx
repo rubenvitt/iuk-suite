@@ -27,7 +27,6 @@ export default function BzScanSeite() {
     <>
       <SeitenKopf
         titel="Gerät scannen"
-        beschreibung="Barcode auf das Kamerabild halten — der Sprung ins Geräteblatt erfolgt automatisch."
         zurueck={{ titel: "BZ-Kontrolle", href: "/verwaltung/bz" }}
       />
       <BzScanner />

@@ -35,7 +35,6 @@ export default async function ServerwartungPage() {
     <>
       <Seitenkopf
         titel="Serverwartung"
-        beschreibung="Wenn am Server gearbeitet wird oder etwas ausfällt, kommt eine Nachricht aufs Telefon. So bekommst du sie."
         zurueck={{ titel: "Apps & Dienste", href: "/" }}
       />
       <ServerwartungAnleitung abo={abo} />

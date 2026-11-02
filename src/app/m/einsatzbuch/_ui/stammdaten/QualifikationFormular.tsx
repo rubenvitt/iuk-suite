@@ -77,7 +77,7 @@ export function QualifikationFormular({
         <div id={`${basis}-kurz-hinweis`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
           {kurzGeaendert && anzahl > 0
             ? `Die neue Kurzform gilt beim Speichern für ${anzahl === 1 ? "eine Person" : `${anzahl} Personen`}. Abgeschlossene Einsätze behalten die alte.`
-            : "Steht im Einsatzbuch-Rechner am Personal, höchstens 20 Zeichen."}
+            : "Höchstens 20 Zeichen"}
         </div>
       </Feld>
 
@@ -103,7 +103,7 @@ export function QualifikationFormular({
           onChange={(wert) => setRang(typeof wert === "number" ? wert : null)}
         />
         <div id={`${basis}-rang-hinweis`} style={{ ...SCHRIFT.neben, marginBlockStart: SPACE.xs }}>
-          1 ist die höchste. Hat jemand im Helferverzeichnis mehrere Qualifikationen, gilt die mit dem höchsten Rang.
+          1 ist die höchste
         </div>
       </Feld>
 

@@ -74,8 +74,7 @@ export default async function QrHomePage() {
           {/* Die MinimalShell hat keinen Login-Einstieg im Header, und ein
               anonymes Modul leitet nirgends automatisch hin — ohne diesen Link
               wüsste der Nutzer vom Anmelden, käme aber nicht hin. */}
-          <Link href={`/login?callbackUrl=${encodeURIComponent("/")}`}>Anmelden</Link>, um
-          persönliche Schnellzugriffe zu sehen.
+          <Link href={`/login?callbackUrl=${encodeURIComponent("/")}`}>Anmelden</Link>
         </p>
       )}
 

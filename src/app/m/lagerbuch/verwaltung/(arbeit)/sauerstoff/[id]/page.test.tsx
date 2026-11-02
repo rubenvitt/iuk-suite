@@ -283,7 +283,7 @@ describe("Flaschenblatt als Server Component", () => {
     expect(textVon(warnung)).toContain("25 %");
   });
 
-  it("stellt die Messung vor Verlauf und Stammdaten und erklärt sie dort", () => {
+  it("stellt die Messung vor Verlauf und Stammdaten", () => {
     const seite = o2FlascheInhalt(t.db, "flasche-1") as ReactElement<{ children: ReactNode[] }>;
     const karten = elementeVomTyp(seite, Card).map((karte) =>
       (karte.props as { title: string }).title);
@@ -293,7 +293,6 @@ describe("Flaschenblatt als Server Component", () => {
       || elementeVomTyp(kind, typ).length > 0);
     expect(stelle(MessungForm)).toBeLessThan(stelle(VerlaufTabelle));
     expect(stelle(VerlaufTabelle)).toBeLessThan(stelle(ReferenzFelder));
-    expect(textVon(elementeVomTyp(seite, Card)[0])).toContain("Fehlmessung");
     const kopf = elementeVomTyp(seite, SeitenKopf)[0];
     expect((kopf.props as { beschreibung?: ReactNode }).beschreibung).toBeUndefined();
   });

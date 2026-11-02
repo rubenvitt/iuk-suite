@@ -186,8 +186,7 @@ export function NachweisFormular({
           aria-describedby={dateiFehler ? "nf-datei-err" : "nf-datei-hinweis"}
         />
         <p id="nf-datei-hinweis" style={{ margin: `${SPACE.xs}px 0 0`, fontSize: 12 }}>
-          Höchstens {alsMiB(maxBytes)}. Nach dem Absenden muss die Datei bei einem erneuten Versuch
-          erneut ausgewählt werden — die Auswahl bleibt nicht erhalten.
+          Höchstens {alsMiB(maxBytes)}
         </p>
         {dateiFehler ? (
           <p id="nf-datei-err" style={{ margin: `${SPACE.xs}px 0 0` }}>

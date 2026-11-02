@@ -78,10 +78,6 @@ export default async function AuffuellenSeite() {
           <Link className={`${s.zeile} ${s.zeileKnopf}`} href="/auffuellen/box" data-rolle="kisten-einstieg">
             <div className={s.zeileHaupt}>
               <div className={s.zeileName}>Aus der Entnahmebox einräumen</div>
-              <div className={s.zeileMeta}>
-                Material aus Fahrzeugen und Taschen zurück ins Handlager — umgeräumt,
-                nicht neu angenommen
-              </div>
             </div>
             <div className={s.mengenChip}>
               {inKiste}
@@ -93,14 +89,6 @@ export default async function AuffuellenSeite() {
       )}
 
       <div className={s.schirmKopf}>Artikel wählen</div>
-      {/*
-        DER SATZ SAGT DIE RICHTUNG, und er steht hier, weil die Flaeche darunter
-        der Entnahme zum Verwechseln aehnlich sieht — das ist Absicht (der
-        vertraute Ablauf war die Anforderung) und genau deshalb die Gefahr.
-      */}
-      <p className={s.fussnote} data-rolle="auffuellen-hinweis">
-        Hier kommt Material ins Handlager. Material heraus buchst du unter „Entnahme“.
-      </p>
       <ArtikelSuche artikel={artikel} basis="/auffuellen" />
     </AuffuellRahmen>
   );

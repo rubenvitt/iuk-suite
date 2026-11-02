@@ -75,7 +75,6 @@ export function PlanFormular({ angaben, inhalt, aendere, speichereAngaben, onEnt
         )}
         <label className="kp-schalter"><Switch data-option="schwarzweiss" checked={inhalt.optionen.schwarzweiss}
           onChange={(v) => aendere((q) => setzeOptionen(q, { schwarzweiss: v }))} /> Schwarzweiß drucken</label>
-        <p className="kp-hilfe" data-sw-hinweis="">Gilt für Ausdruck und SVG-Datei; am Bildschirm bleibt der Plan farbig.</p>
       </fieldset>
       <Verbindungen inhalt={inhalt} aendere={aendere} />
     </div>

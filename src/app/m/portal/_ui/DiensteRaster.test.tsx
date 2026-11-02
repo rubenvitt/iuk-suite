@@ -82,15 +82,13 @@ describe("DiensteRaster", () => {
    * nur die GEMISCHTE LISTE, nicht die Gruppen der Person. Wer Gruppen hat, zu
    * denen nur nichts passt, las damit eine Unwahrheit. Die Zusicherung oben
    * (`toContain("freigeschaltet")`) würde schon auf der Überschrift allein
-   * grün bleiben — dieser Test pinnt deshalb zusätzlich den nächsten Schritt,
-   * den der neue Satz nennt.
+   * grün bleiben — dieser Test hält die Falschaussage deshalb ausdrücklich
+   * draußen.
    */
-  it("nennt einen naechsten Schritt statt eine Unwahrheit ueber Gruppen", async () => {
+  it("sagt keine Unwahrheit ueber Gruppen", async () => {
     await mount(<DiensteRaster eintraege={[]} ansprechpartner={null} />);
     const leer = query('[data-testid="portal-leer"]');
     expect(leer.textContent).not.toContain("ist für dich keine hinterlegt");
-    expect(leer.textContent).toContain("ab und wieder an");
-    expect(leer.textContent).toContain("bis zu einer Stunde");
   });
 
   it("vergibt das Raster genau einmal, egal wie viele Abschnitte es gibt", async () => {

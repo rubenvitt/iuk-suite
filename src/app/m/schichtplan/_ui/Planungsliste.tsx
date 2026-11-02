@@ -22,11 +22,10 @@ export function Planungsliste({ liste, fahrzeuge }: { liste: PlanungKurz[]; fahr
     <div className={s.modul}>
       <Seitenkopf
         titel="Planungen"
-        beschreibung="Schichtplanung im Voraus für Veranstaltungen und große Lagen: Abschnitte und Fahrzeuge, Schichten, Helfer. Ab Einsatzbeginn übernimmt Lifeline Hub."
         aktionen={<Button type="primary" onClick={() => setNeu(true)} icon={<Icons8Ikone name="plus" groesse={16} />}>Neue Planung</Button>}
       />
       {liste.length === 0 ? (
-        <Card><span className={s.neben}>Noch keine Planung. Lege mit „Neue Planung“ die erste an.</span></Card>
+        <Card><span className={s.neben}>Noch keine Planung.</span></Card>
       ) : (
         <div className={s.karten}>
           {liste.map((p) => (

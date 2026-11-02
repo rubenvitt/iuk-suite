@@ -23,7 +23,6 @@ export default async function StatistikSeite({
     <>
       <SeitenKopf
         titel="Statistik"
-        beschreibung="Verbrauch, Nachschub an die Einheiten und Verfall. Gerechnet aus dem Journal."
       />
       <StatistikFlaeche daten={statistikDaten(getDb(), zeitraum)} zeitraum={zeitraum} />
     </>

@@ -406,7 +406,6 @@ export function Unterkunftsrechner() {
     <div className={s.modul}>
       <Seitenkopf
         titel="Unterkunft und Zelte"
-        beschreibung="Bedarf für die Unterbringung Betroffener aus Personen, Räumen, Fläche oder Zelten. Dieselben Richtwerte wie in Lifeline Hub."
       />
       <Tabs
         items={[

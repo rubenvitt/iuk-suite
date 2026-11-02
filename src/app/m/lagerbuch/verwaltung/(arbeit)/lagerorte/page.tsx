@@ -42,7 +42,6 @@ export function lagerorteSeitenInhalt(db: DB) {
     <>
       <SeitenKopf
         titel="Lagerorte"
-        beschreibung="Die Schränke im Handlager, ihre Reihenfolge und ihre Zugangshinweise."
       />
       <LagerorteListe zeilen={zeilen} />
     </>

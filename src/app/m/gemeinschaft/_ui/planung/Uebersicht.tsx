@@ -25,7 +25,7 @@ export function Uebersicht({ u, heute }: { u: UebersichtDTO; heute: string }) {
   const n = (zahl: number, eins: string, viele: string) => (zahl === 1 ? eins : viele);
   return (
     <div className={s.modul}>
-      <Seitenkopf titel="Übersicht" beschreibung="Was in der Gemeinschaft als Nächstes ansteht und wo noch jemand fehlt." />
+      <Seitenkopf titel="Übersicht" />
       <div className={s.kacheln}>
         <Kachel zahl={u.anfragen} text={n(u.anfragen, "Bar-Anfrage wartet", "Bar-Anfragen warten")} href="/vermietung/anfragen" warn />
         <Kachel zahl={u.vertraege} text={n(u.vertraege, "Vertrag nicht unterschrieben", "Verträge nicht unterschrieben")} href="/vermietung/anfragen" warn />
@@ -69,7 +69,6 @@ export function Uebersicht({ u, heute }: { u: UebersichtDTO; heute: string }) {
                 })}
               </div>
             )}
-            <p className={s.neben} style={{ margin: "12px 0 0" }}>Mitglieder sehen diese Aufgaben auch über ihren persönlichen Link und können sich selbst eintragen.</p>
           </Card>
         </section>
       </div>

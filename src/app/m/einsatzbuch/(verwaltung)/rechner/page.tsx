@@ -32,7 +32,6 @@ export default async function RechnerSeite() {
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
       <Seitenkopf
         titel="Rechner"
-        beschreibung="Der echte Einsatzbuch-Rechner, alle Test-Rechner und die letzten Schlüsselfreigaben."
         // IDA-289: die Anleitung steht HIER, weil sie neben den Rechner gehört — wer ihn
         // einrichtet, legt sie daneben.
         aktionen={
