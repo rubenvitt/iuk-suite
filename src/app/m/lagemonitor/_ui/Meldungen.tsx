@@ -128,7 +128,7 @@ export function Meldungen({
     <Card title="Meldungen am Monitor">
       <div style={{ display: "grid", gap: SPACE.lg }}>
         <span style={SCHRIFT.neben} className={v.gedaempft}>
-          {`Ein kurzer Hinweis als Band unter der Kopfzeile, mit Zeichen und Farbe seiner Kategorie, etwa „Nächste Lagebesprechung“. Jede Meldung läuft von selbst ab; du kannst sie auch vorher beenden. Planen kannst du bis zu ${MELDUNGEN_MAX_GEPLANT}, der Monitor zeigt davon höchstens ${MELDUNGEN_MAX_AKTIV} auf einmal, die früher begonnenen zuerst.`}
+          {`Ein kurzer Hinweis als Band unter der Kopfzeile, mit Zeichen und Farbe seiner Kategorie, etwa „Nächste Lagebesprechung“. Jede Meldung läuft von selbst ab; du kannst sie auch vorher beenden. Planen kannst du bis zu ${MELDUNGEN_MAX_GEPLANT}, der Monitor zeigt davon höchstens ${MELDUNGEN_MAX_AKTIV} auf einmal, die zuerst fälligen vorn.`}
         </span>
 
         {offene.length > 0 ? (
