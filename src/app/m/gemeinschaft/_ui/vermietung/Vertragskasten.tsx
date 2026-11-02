@@ -75,7 +75,7 @@ export function Vertragskasten({ a }: { a: AnfrageDTO }) {
       ) : (
         <Button icon={<Icons8Ikone name="upload" groesse={18} />} loading={laeuft} onClick={() => datei.current?.click()}>Unterschriebenen Vertrag ablegen (PDF)</Button>
       )}
-      <div className={s.neben}>Die Vorlage bleibt, wo sie ist. Hier steht nur, wie weit der Vertrag ist. Höchstens 10 MB, nur PDF.</div>
+      <div className={s.neben}>PDF, höchstens 10 MB</div>
     </div>
   );
 }
