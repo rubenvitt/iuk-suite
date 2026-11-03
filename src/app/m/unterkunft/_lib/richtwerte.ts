@@ -1,116 +1,109 @@
 /**
- * Richtwerte für Unterkunft und Zelte von Betroffenen (IDA-322).
+ * Richtwerte für Unterkunft und Zelte von Betroffenen (IDA-322, IDA-323).
  *
- * DIESELBEN WERTE WIE IN LIFELINE HUB: übernommen aus dem POC LLH-1519 (Rechenkern `rechner.js`), dessen
- * Umsetzung dort LLH-1520 ist. Die Suite trägt den Rechner nur vorübergehend; wer hier einen Wert ändert,
- * ändert ihn auch dort, sonst rechnen zwei Werkzeuge derselben Organisation verschieden.
+ * DIE BASIS GEHÖRT LIFELINE HUB: `lifeline-hub/richtwerte_basis.json` ist eine unveränderte Kopie von
+ * `src/unterkunft/richtwerte_basis.json` aus Lifeline Hub (LLH-1520), `lifeline-hub/faelle.json` die der
+ * gemeinsamen Testfälle (`tests/fixtures/unterkunft/faelle.json`). Herkunft und Stand stehen in `HERKUNFT`.
+ * Ein Wert wird dort geändert und hierher kopiert, nie hier allein, sonst rechnen zwei Werkzeuge derselben
+ * Organisation verschieden. `richtwerte.test.ts` hält Schlüssel, Grenzen und Quellen fest.
  *
- * Grundlage sind die Ausgangstabellen, korrigiert durch eine Recherche mit Quellen. `herkunft` sagt, wie
- * belastbar ein Wert ist: `recherche` = mit Quelle belegt, `tabelle` = aus den Ausgangstabellen,
- * `annahme` = ohne Quelle, Fachprüfung offen. `bezug` ist der Befund (W1–W9, F6), der den Wert betrifft.
+ * `herkunft` der Basis: `belegt` = mit Quelle, `annahme` = ohne Quelle, fachlich zu prüfen. Nur die Suite
+ * führt dazu den Befund (W1–W9, F6) aus der Prüfung der Ausgangstabellen (`BEFUND`).
  *
  * KEIN "use client": reine Daten, von Server Components wie Client-Inseln lesbar (Falle 6).
  */
+import basisDatei from "./lifeline-hub/richtwerte_basis.json";
 
-export type Herkunft = "tabelle" | "korrigiert" | "annahme" | "recherche";
-
-export type Richtwert = {
-  readonly wert: number;
-  readonly einheit: string;
-  readonly herkunft: Herkunft;
-  readonly bezug: string;
-  readonly quelle?: string;
-};
-
-export type Zelttyp = {
-  readonly typ: string;
-  readonly schlafplaetze: number;
-  readonly garnituren: number;
-  readonly laenge_m: number;
-  readonly breite_m: number;
-};
-
-const Q = {
-  nds: "Nds. RdErl. Aufnahmeplanung 15.11.2023 (aufgehoben 01.09.2024)",
-  drk: "DRK-LV RLP, Taschenkarte Betreuungsdienst 2024",
-  thw: "THW, Taschenkarten Logistikdaten / Flächenbedarf Zelt",
-  sphere: "Sphere Handbook 2018",
-  lander: "VwV Unterbringung Sachsen 2015, Mindestbedingungen Brandenburg 2016",
-  lanco: "LANCO/Cladis, Datenblätter SG",
-  ohne: "keine Quelle gefunden, Wert aus der Ausgangstabelle",
+/** Woher die beiden Kopien stammen. */
+export const HERKUNFT = {
+  repo: "rubenvitt/lifeline-hub",
+  commit: "c78d43a3563469e8caaff288276cad094254ffdd",
+  kopiert: "2026-11-03",
+  dateien: {
+    "lifeline-hub/richtwerte_basis.json": "src/unterkunft/richtwerte_basis.json",
+    "lifeline-hub/faelle.json": "tests/fixtures/unterkunft/faelle.json",
+  },
 } as const;
 
-export const RICHTWERTE = {
-  stand: "2026-11-01",
-  flaecheJePerson: { wert: 4, einheit: "m²", herkunft: "recherche", bezug: "W1", quelle: `${Q.drk}; THW; Nds. 3–4 m²; Sphere 3,5 m²` },
-  toiletteJeMaenner: { wert: 20, einheit: "Personen", herkunft: "recherche", bezug: "W2", quelle: `${Q.nds}; ${Q.drk}; Sphere` },
-  toiletteJeFrauen: { wert: 20, einheit: "Personen", herkunft: "recherche", bezug: "W2", quelle: `${Q.nds}; ${Q.drk}; Sphere` },
-  toiletteJeGemischt: { wert: 20, einheit: "Personen", herkunft: "recherche", bezug: "W2", quelle: `${Q.drk} (5 %)` },
-  urinalJeMaenner: { wert: 15, einheit: "Männer", herkunft: "recherche", bezug: "W3", quelle: `${Q.lander}; Nds. 15–20` },
-  anteilMaennerOhneTrennung: { wert: 0.5, einheit: "", herkunft: "tabelle", bezug: "W3" },
-  waschJe: { wert: 5, einheit: "Personen", herkunft: "recherche", bezug: "W7", quelle: `${Q.nds}; ${Q.drk}` },
-  duscheJe: { wert: 20, einheit: "Personen", herkunft: "recherche", bezug: "W7", quelle: `${Q.nds}; ${Q.drk} (kurzfristig)` },
-  krankenBettJe: { wert: 25, einheit: "Personen", herkunft: "annahme", bezug: "W4", quelle: Q.ohne },
-  krankenBettZuschlag: { wert: 1, einheit: "Bett", herkunft: "annahme", bezug: "W4", quelle: Q.ohne },
-  krankenFlaecheJeBett: { wert: 7.5, einheit: "m²", herkunft: "annahme", bezug: "W4", quelle: Q.ohne },
-  isolierAbPersonen: { wert: 201, einheit: "Personen", herkunft: "annahme", bezug: "W4", quelle: `${Q.ohne}; Nds. empfiehlt Isolationszimmer ohne Schwelle` },
-  wasserJeTag: { wert: 25, einheit: "l", herkunft: "recherche", bezug: "W6", quelle: `${Q.drk}; Minimum 15 l (Sphere, 1. WasSV)` },
-  trinkwasserJeTag: { wert: 3, einheit: "l", herkunft: "recherche", bezug: "W6", quelle: `${Q.sphere} (2,5–3 l)` },
-  faekalienJeTag: { wert: 1.5, einheit: "l", herkunft: "recherche", bezug: "W6", quelle: `${Q.sphere} (1–2 l)` },
-  abfallJeTag: { wert: 3, einheit: "l", herkunft: "recherche", bezug: "W6", quelle: `${Q.sphere} (0,5 kg ≈ 1–3 l)` },
-  ausgabeZweiteAb: { wert: 301, einheit: "Personen", herkunft: "annahme", bezug: "W8", quelle: Q.ohne },
-  sitzAnteil: { wert: 1 / 3, einheit: "", herkunft: "recherche", bezug: "W8", quelle: `${Q.nds}; DRK-RLP 30–50 %` },
-  plaetzeJeGarnitur: { wert: 8, einheit: "Plätze", herkunft: "recherche", bezug: "W8", quelle: Q.thw },
-  feldbettJePerson: { wert: 1, einheit: "Stück", herkunft: "recherche", bezug: "F6", quelle: `${Q.nds} (Einzelbelegung)` },
-  deckenJePerson: { wert: 2, einheit: "Stück", herkunft: "annahme", bezug: "F6", quelle: "Sphere: mind. 1, bei Kälte mehr; 2 ist Annahme" },
-  zeltAbstand: { wert: 2, einheit: "m", herkunft: "recherche", bezug: "F6", quelle: `${Q.sphere}; UNHCR 2016` },
-  zelte: {
-    herkunft: "recherche",
-    bezug: "F6",
-    quelle: `${Q.lanco}; ${Q.thw}; ${Q.drk}`,
-    typen: [
-      { typ: "SG 20", schlafplaetze: 6, garnituren: 4, laenge_m: 5.0, breite_m: 4.7 },
-      { typ: "SG 30", schlafplaetze: 10, garnituren: 6, laenge_m: 6.0, breite_m: 5.6 },
-      { typ: "SG 40", schlafplaetze: 12, garnituren: 8, laenge_m: 8.0, breite_m: 5.64 },
-      { typ: "SG 50", schlafplaetze: 14, garnituren: 12, laenge_m: 10.0, breite_m: 5.64 },
-    ] as readonly Zelttyp[],
-  },
-} as const satisfies {
-  stand: string;
-  zelte: { herkunft: Herkunft; bezug: string; quelle: string; typen: readonly Zelttyp[] };
-  [k: string]: unknown;
+export type RichtwertGruppe = "schlafen" | "sanitaer" | "gesundheit" | "versorgung" | "verpflegung" | "zelte";
+export type RichtwertHerkunft = "belegt" | "annahme";
+/** Für die Kennzeichnung im Rechner: dazu „korrigiert“ für behobene Rechenfehler der Ausgangstabellen. */
+export type Herkunft = RichtwertHerkunft | "korrigiert";
+
+export type RichtwertBasis = {
+  readonly schluessel: string;
+  readonly gruppe: RichtwertGruppe;
+  readonly bezeichnung: string;
+  readonly wert: number;
+  readonly einheit: string;
+  readonly min: number;
+  readonly max: number;
+  readonly ganzzahl: boolean;
+  readonly herkunft: RichtwertHerkunft;
+  readonly quelle: string;
 };
 
-export type Richtwerte = typeof RICHTWERTE;
+export type ZeltTyp = "sg20" | "sg30" | "sg40" | "sg50";
 
-/** Die Schlüssel mit einem einzelnen Zahlenwert (alles außer `stand` und `zelte`). */
-export type RichtwertSchluessel = Exclude<keyof Richtwerte, "stand" | "zelte">;
+export const RICHTWERTE_STAND: string = basisDatei.stand;
+export const RICHTWERTE_BASIS: readonly RichtwertBasis[] = basisDatei.werte as RichtwertBasis[];
+export const ZELTTYPEN: readonly { readonly typ: ZeltTyp; readonly bezeichnung: string }[] =
+  basisDatei.zelttypen as { typ: ZeltTyp; bezeichnung: string }[];
 
-/** Reihenfolge und Beschriftung der Richtwerte-Tabelle. */
-export const RICHTWERT_ZEILEN: readonly (readonly [string, RichtwertSchluessel])[] = [
-  ["Schlaffläche je Person", "flaecheJePerson"],
-  ["Toilette je Männer", "toiletteJeMaenner"],
-  ["Toilette je Frauen", "toiletteJeFrauen"],
-  ["Toilette ohne Trennung je", "toiletteJeGemischt"],
-  ["Urinal je Männer", "urinalJeMaenner"],
-  ["Anteil Männer ohne Trennung", "anteilMaennerOhneTrennung"],
-  ["Waschgelegenheit je", "waschJe"],
-  ["Dusche je", "duscheJe"],
-  ["Krankenbett je", "krankenBettJe"],
-  ["Krankenbetten Zuschlag", "krankenBettZuschlag"],
-  ["Fläche je Krankenbett", "krankenFlaecheJeBett"],
-  ["Isolierstation ab", "isolierAbPersonen"],
-  ["Wasser je Person und Tag", "wasserJeTag"],
-  ["Trinkwasser je Person und Tag", "trinkwasserJeTag"],
-  ["Fäkalien je Person und Tag", "faekalienJeTag"],
-  ["Abfall je Person und Tag", "abfallJeTag"],
-  ["Zweite Ausgabestelle ab", "ausgabeZweiteAb"],
-  ["Sitzplätze, Anteil der Personen", "sitzAnteil"],
-  ["Plätze je Biergarnitur", "plaetzeJeGarnitur"],
-  ["Feldbetten je Person", "feldbettJePerson"],
-  ["Decken je Person", "deckenJePerson"],
-  ["Abstand zwischen Zelten", "zeltAbstand"],
-];
+/** Flache Karte der wirksamen Werte, Schlüssel → Zahl. */
+export type Richtwerte = Record<string, number>;
+
+const NACH_SCHLUESSEL = new Map(RICHTWERTE_BASIS.map((r) => [r.schluessel, r]));
+
+export function richtwertBasis(schluessel: string): RichtwertBasis | undefined {
+  return NACH_SCHLUESSEL.get(schluessel);
+}
+
+/** Basis mit Overrides darüber (Ebene über Ebene); unbekannte Schlüssel und `null` erben. */
+export function mitOverrides(...ebenen: (Readonly<Record<string, number | null | undefined>> | undefined)[]): Richtwerte {
+  const wirksam: Richtwerte = Object.fromEntries(RICHTWERTE_BASIS.map((r) => [r.schluessel, r.wert]));
+  for (const ebene of ebenen) {
+    if (!ebene) continue;
+    for (const [k, v] of Object.entries(ebene)) {
+      if (NACH_SCHLUESSEL.has(k) && typeof v === "number" && Number.isFinite(v)) wirksam[k] = v;
+    }
+  }
+  return wirksam;
+}
+
+/** Die Basis als flache Karte; die Suite kennt keine Organisations- oder Einsatzwerte. */
+export const RICHTWERTE: Readonly<Richtwerte> = mitOverrides();
+
+/** Anzeigename eines Zelttyps (`sg30` → `SG 30`). */
+export function zeltName(typ: string): string {
+  return ZELTTYPEN.find((t) => t.typ === typ)?.bezeichnung ?? typ;
+}
+
+/** Befund aus der Prüfung der Ausgangstabellen, den ein Richtwert betrifft. */
+export const BEFUND: Readonly<Record<string, string>> = {
+  flaeche_je_person_m2: "W1",
+  toilette_je_personen_maenner: "W2",
+  toilette_je_personen_frauen: "W2",
+  toilette_je_personen_gemischt: "W2",
+  urinal_je_maenner: "W3",
+  maenneranteil_ohne_trennung_prozent: "W3",
+  waschplatz_je_personen: "W7",
+  dusche_je_personen: "W7",
+  krankenbett_je_personen: "W4",
+  krankenbett_zuschlag: "W4",
+  krankenflaeche_je_bett_m2: "W4",
+  isolierstation_ab_personen: "W4",
+  wasser_je_person_l: "W6",
+  trinkwasser_je_person_l: "W6",
+  faekalien_je_person_l: "W6",
+  abfall_je_person_l: "W6",
+  zweite_ausgabestelle_ab_personen: "W8",
+  personen_je_sitzplatz: "W8",
+  plaetze_je_garnitur: "W8",
+  feldbett_je_person: "F6",
+  decken_je_person: "F6",
+  zelt_abstand_m: "F6",
+};
 
 /** Wo und warum der Rechner von den Ausgangstabellen abweicht (Befund, Tabelle, Rechner). */
 export const ABWEICHUNGEN: readonly (readonly [string, string, string])[] = [

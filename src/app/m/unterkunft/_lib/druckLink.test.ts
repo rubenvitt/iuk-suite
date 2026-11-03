@@ -11,7 +11,7 @@ describe("druckLink", () => {
       { weg: "personen", trennung: true, personen: { maenner: 50, frauen: 50 } },
       { weg: "flaeche", trennung: false, flaeche: { gesamt_m2: 812.5 } },
       { weg: "raeume", trennung: true, raeume: [{ bezeichnung: "Großer Saal „Süd“", laenge_m: 15, breite_m: 13.5, abzuege: [{ laenge_m: 4, breite_m: 2.5 }], belegung: "frauen" }] },
-      { weg: "zelte", trennung: false, zelte: { gesamt: { "SG 20": 1, "SG 30": 0, "SG 40": 2, "SG 50": 3 } } },
+      { weg: "zelte", trennung: false, zelte: { gesamt: { sg20: 1, sg30: 0, sg40: 2, sg50: 3 } } },
     ];
     for (const e of eingaben) {
       const zurueck = eingabeAusParam(param(e));
@@ -19,6 +19,12 @@ describe("druckLink", () => {
       expect(rechne(zurueck!)).toEqual(rechne(e));
     }
     expect(eingabeAusParam(param(eingaben[2]))?.raeume?.[0].bezeichnung).toBe("Großer Saal „Süd“");
+  });
+
+  it("liest Zeltbestände aus Links mit dem alten Anzeigenamen", () => {
+    const e = eingabeAusParam(roh({ weg: "zelte", trennung: false, zelte: { gesamt: { "SG 30": 2, "SG 50": 4 } } }))!;
+    expect(e.zelte?.gesamt).toEqual({ sg20: 0, sg30: 2, sg40: 0, sg50: 4 });
+    expect(rechne(e).personen).toBe(76);
   });
 
   it("liefert null für fehlende, kaputte oder fremde Parameter", () => {

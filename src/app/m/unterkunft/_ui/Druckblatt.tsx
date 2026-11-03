@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { nutzflaeche, type Eingabe, type Ergebnis, type Weg } from "../_lib/rechner";
-import { RICHTWERTE, type Herkunft, type RichtwertSchluessel } from "../_lib/richtwerte";
+import { nutzflaeche, type Eingabe, type Ergebnis, type Weg, type Zeltbestand } from "../_lib/rechner";
+import { RICHTWERTE, RICHTWERTE_STAND, ZELTTYPEN, richtwertBasis, zeltName, type Herkunft } from "../_lib/richtwerte";
 import d from "./druck.module.css";
 
 /**
@@ -12,7 +12,6 @@ import d from "./druck.module.css";
 const ZAHL = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 const z = (x: number | null | undefined) => (x == null ? "–" : ZAHL.format(x));
 const MASS = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 });
-const TYPEN = RICHTWERTE.zelte.typen.map((t) => t.typ);
 
 const WEG_WORT: Record<Weg, string> = { personen: "Personen", raeume: "Räume", flaeche: "Schlaffläche", zelte: "Zeltbestand" };
 const HERKUNFT_WORT: Partial<Record<Herkunft, string>> = { annahme: "Annahme", korrigiert: "korrigiert" };
@@ -21,7 +20,7 @@ function Marke({ herkunft }: { herkunft: Herkunft }) {
   const wort = HERKUNFT_WORT[herkunft];
   return wort ? <span className={d.marke}>{wort}</span> : null;
 }
-const markeVon = (k: RichtwertSchluessel) => <Marke herkunft={RICHTWERTE[k].herkunft} />;
+const markeVon = (k: string) => <Marke herkunft={richtwertBasis(k)?.herkunft ?? "belegt"} />;
 
 type Zeile = { etikett: string; soll: string; einheit?: string; marke?: ReactNode };
 
@@ -108,7 +107,7 @@ function Grundlage({ e, er }: { e: Eingabe; er: Ergebnis }) {
   }
 
   if (e.weg === "zelte") {
-    const gruppen: [string, Record<string, number> | undefined][] = t
+    const gruppen: [string, Zeltbestand | undefined][] = t
       ? [["Männer", e.zelte?.maenner], ["Frauen", e.zelte?.frauen]]
       : [["Bestand", e.zelte?.gesamt]];
     return (
@@ -116,13 +115,13 @@ function Grundlage({ e, er }: { e: Eingabe; er: Ergebnis }) {
         <table className={d.liste}>
           <caption>{kopf}</caption>
           <thead>
-            <tr><th scope="col" />{TYPEN.map((typ) => <th key={typ} scope="col" className={d.zahl}>{typ}</th>)}</tr>
+            <tr><th scope="col" />{ZELTTYPEN.map((t) => <th key={t.typ} scope="col" className={d.zahl}>{t.bezeichnung}</th>)}</tr>
           </thead>
           <tbody>
             {gruppen.map(([etikett, b]) => (
               <tr key={etikett}>
                 <th scope="row">{etikett}</th>
-                {TYPEN.map((typ) => <td key={typ} className={d.zahl}>{z(b?.[typ] ?? 0)}</td>)}
+                {ZELTTYPEN.map(({ typ }) => <td key={typ} className={d.zahl}>{z(b?.[typ] ?? 0)}</td>)}
               </tr>
             ))}
           </tbody>
@@ -150,17 +149,16 @@ function Grundlage({ e, er }: { e: Eingabe; er: Ergebnis }) {
 
 /** Ein ganzes Druckblatt; `erstellt` ist der fertig formatierte Zeitpunkt in der Suite-Zone. */
 export function Druckblatt({ eingabe, er, erstellt }: { eingabe: Eingabe; er: Ergebnis; erstellt: string }) {
-  const rw = RICHTWERTE;
   const istPersonen = er.weg === "personen";
   const zusatz = er.trennung ? `${z(er.gruppen[0].personen)} Männer · ${z(er.gruppen[1].personen)} Frauen` : null;
-  const nurEinTyp = er.schlafen.zelte_je_typ.map((t) => `${t.typ}: ${z(t.anzahl)}`).join(" · ");
+  const nurEinTyp = er.schlafen.zelte_je_typ.map((t) => `${zeltName(t.typ)}: ${z(t.anzahl)}`).join(" · ");
 
   return (
     <article className={d.blatt} aria-label="Druckblatt Unterkunft">
       <header className={d.kopf}>
         <div>
           <h1 className={d.titel}>Notunterkunft · Bedarf</h1>
-          <div className={d.meta}>{`Erstellt ${erstellt} · Richtwerte Stand ${rw.stand}`}</div>
+          <div className={d.meta}>{`Erstellt ${erstellt} · Richtwerte Stand ${RICHTWERTE_STAND}`}</div>
         </div>
       </header>
 
@@ -184,55 +182,55 @@ export function Druckblatt({ eingabe, er, erstellt }: { eingabe: Eingabe; er: Er
         <Abschnitt
           titel="Schlafen"
           zeilen={[
-            { etikett: "Feldbetten", soll: z(er.material.feldbetten), einheit: "Stk.", marke: markeVon("feldbettJePerson") },
-            { etikett: "Decken", soll: z(er.material.decken), einheit: "Stk.", marke: markeVon("deckenJePerson") },
-            { etikett: "Fläche Gebäude", soll: z(er.schlafen.flaeche_m2), einheit: "m²", marke: markeVon("flaecheJePerson") },
+            { etikett: "Feldbetten", soll: z(er.material.feldbetten), einheit: "Stk.", marke: markeVon("feldbett_je_person") },
+            { etikett: "Decken", soll: z(er.material.decken), einheit: "Stk.", marke: markeVon("decken_je_person") },
+            { etikett: "Fläche Gebäude", soll: z(er.schlafen.flaeche_m2), einheit: "m²", marke: markeVon("flaeche_je_person_m2") },
           ]}
           unten={er.kapazitaet?.raeume?.length ? er.kapazitaet.raeume.map((r) => `${r.bezeichnung || "Raum"} ${r.plaetze}`).join(" · ") : null}
         />
         <Abschnitt
           titel={er.weg === "zelte" ? "Zelte (Bestand belegt)" : "Unterbringung im Zelt"}
           zeilen={[
-            ...er.schlafen.zeltmix.map((m) => ({ etikett: `${m.typ}`, soll: z(m.anzahl), einheit: "Zelte" })),
+            ...er.schlafen.zeltmix.map((m) => ({ etikett: zeltName(m.typ), soll: z(m.anzahl), einheit: "Zelte" })),
             { etikett: "Grundfläche", soll: z(er.schlafen.zeltmix_grundflaeche_m2), einheit: "m²" },
-            { etikett: `Platzbedarf mit ${z(rw.zeltAbstand.wert)} m Abstand`, soll: z(er.schlafen.zeltmix_platzbedarf_m2), einheit: "m²" },
+            { etikett: `Platzbedarf mit ${z(RICHTWERTE.zelt_abstand_m)} m Abstand`, soll: z(er.schlafen.zeltmix_platzbedarf_m2), einheit: "m²" },
           ]}
           unten={`Nur ein Typ: ${nurEinTyp}`}
         />
         <Abschnitt
           titel="Sanitär"
           zeilen={[
-            { etikett: "Toiletten", soll: z(er.sanitaer.toiletten), marke: markeVon("toiletteJeGemischt") },
+            { etikett: "Toiletten", soll: z(er.sanitaer.toiletten), marke: markeVon("toilette_je_personen_gemischt") },
             { etikett: "Urinale", soll: z(er.sanitaer.urinale), marke: <Marke herkunft="korrigiert" /> },
-            { etikett: "Waschgelegenheiten", soll: z(er.sanitaer.waschgelegenheiten), marke: markeVon("waschJe") },
-            ...(er.sanitaer.duschen != null ? [{ etikett: "Duschen", soll: z(er.sanitaer.duschen), marke: markeVon("duscheJe") }] : []),
+            { etikett: "Waschplätze", soll: z(er.sanitaer.waschplaetze), marke: markeVon("waschplatz_je_personen") },
+            { etikett: "Duschen", soll: z(er.sanitaer.duschen), marke: markeVon("dusche_je_personen") },
           ]}
         />
         <Abschnitt
           titel="Gesundheit"
           zeilen={[
-            { etikett: "Krankenbetten", soll: z(er.gesundheit.betten), marke: markeVon("krankenBettJe") },
-            { etikett: "Fläche Krankenstation", soll: z(er.gesundheit.flaeche_m2), einheit: "m²", marke: markeVon("krankenFlaecheJeBett") },
-            { etikett: "Isolierstation", soll: er.gesundheit.isolierstation ? "ja" : "nein", marke: markeVon("isolierAbPersonen") },
+            { etikett: "Krankenbetten", soll: z(er.gesundheit.betten), marke: markeVon("krankenbett_je_personen") },
+            { etikett: "Fläche Krankenstation", soll: z(er.gesundheit.flaeche_m2), einheit: "m²", marke: markeVon("krankenflaeche_je_bett_m2") },
+            { etikett: "Isolierstation", soll: er.gesundheit.isolierstation ? "ja" : "nein", marke: markeVon("isolierstation_ab_personen") },
           ]}
         />
         <Abschnitt
           titel="Ver- und Entsorgung je Tag"
           zeilen={[
-            { etikett: "Wasser", soll: z(er.versorgung.wasser_l_tag), einheit: "l", marke: markeVon("wasserJeTag") },
+            { etikett: "Wasser", soll: z(er.versorgung.wasser_l_tag), einheit: "l", marke: markeVon("wasser_je_person_l") },
             { etikett: "davon Trinkwasser", soll: z(er.versorgung.davon_trinkwasser_l_tag), einheit: "l" },
-            { etikett: "Fäkalien", soll: z(er.versorgung.faekalien_l_tag), einheit: "l", marke: markeVon("faekalienJeTag") },
-            { etikett: "Abfall", soll: z(er.versorgung.abfall_l_tag), einheit: "l", marke: markeVon("abfallJeTag") },
+            { etikett: "Fäkalien", soll: z(er.versorgung.faekalien_l_tag), einheit: "l", marke: markeVon("faekalien_je_person_l") },
+            { etikett: "Abfall", soll: z(er.versorgung.abfall_l_tag), einheit: "l", marke: markeVon("abfall_je_person_l") },
           ]}
         />
         <Abschnitt
           titel="Verpflegung"
           zeilen={[
-            { etikett: "Ausgabestellen", soll: `min. ${z(er.verpflegung.ausgabestellen_min)}`, marke: markeVon("ausgabeZweiteAb") },
-            { etikett: "Sitzplätze", soll: z(er.verpflegung.sitzplaetze), marke: markeVon("sitzAnteil") },
-            { etikett: "Biergarnituren", soll: z(er.verpflegung.garnituren), marke: markeVon("plaetzeJeGarnitur") },
+            { etikett: "Ausgabestellen", soll: `min. ${z(er.verpflegung.ausgabestellen)}`, marke: markeVon("zweite_ausgabestelle_ab_personen") },
+            { etikett: "Sitzplätze", soll: z(er.verpflegung.sitzplaetze), marke: markeVon("personen_je_sitzplatz") },
+            { etikett: "Biergarnituren", soll: z(er.verpflegung.garnituren), marke: markeVon("plaetze_je_garnitur") },
           ]}
-          unten={<>Aufenthaltszelte<Marke herkunft="korrigiert" />, nur ein Typ: {er.verpflegung.aufenthaltszelte_je_typ.map((t) => `${t.typ}: ${z(t.anzahl)}`).join(" · ")}</>}
+          unten={<>Aufenthaltszelte<Marke herkunft="korrigiert" />, nur ein Typ: {er.verpflegung.aufenthaltszelte_je_typ.map((t) => `${zeltName(t.typ)}: ${z(t.anzahl)}`).join(" · ")}</>}
         />
       </div>
     </article>
