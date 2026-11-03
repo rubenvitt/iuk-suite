@@ -5,7 +5,7 @@
 -- auf die Kennung stünde sonst neben dem genauen Zeitpunkt des Eingangs, und die
 -- Mitteilung speichert bewusst nur den Tag. Kasten (Link neu erzeugen) und interne
 -- Notizen sind gewöhnlich auditiert: dort handelt eine angemeldete Vertrauensperson. Die
--- anonymen Zeilen tragen als Zeitpunkt nur den Tag (UTC-Mitternacht), nicht die Uhrzeit.
+-- anonymen Zeilen tragen nur einen Tag: beim Anlegen den gespeicherten `tag`, sonst den UTC-Tag.
 CREATE TABLE `ehrlich_kasten` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`secret` text NOT NULL,
@@ -81,7 +81,7 @@ END;
 CREATE TRIGGER audit_ehrlich_mitteilungen_create AFTER INSERT ON "ehrlich_mitteilungen"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'create', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(strftime('%s', NEW."tag") AS INTEGER) * 1000, 'feedback', 'create', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_mitteilungen_update AFTER UPDATE ON "ehrlich_mitteilungen"
@@ -100,7 +100,7 @@ END;
 CREATE TRIGGER audit_ehrlich_nachrichten_create AFTER INSERT ON "ehrlich_nachrichten"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'create', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(strftime('%s', NEW."tag") AS INTEGER) * 1000, 'feedback', 'create', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_nachrichten_update AFTER UPDATE ON "ehrlich_nachrichten"

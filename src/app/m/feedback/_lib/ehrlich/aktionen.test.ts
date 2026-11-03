@@ -67,7 +67,7 @@ describe("einwerfenAktion", () => {
 
     const audit = h.sqlite.prepare("SELECT actor, object_ref, correlation_id, occurred_at FROM audit_outbox WHERE object_type = 'ehrlich_mitteilungen'").all() as { actor: string; object_ref: null; correlation_id: null; occurred_at: number }[];
     expect(audit).toHaveLength(1);
-    expect(audit[0].occurred_at % 86_400_000).toBe(0);
+    expect(audit[0].occurred_at).toBe(Date.parse(`${zeile.tag}T00:00:00Z`));
     expect(JSON.parse(audit[0].actor)).toEqual({ kind: "anonymous" });
     expect(audit[0].object_ref).toBeNull();
     expect(audit[0].correlation_id).toBeNull();
