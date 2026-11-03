@@ -1,9 +1,10 @@
 import { appIconFuerKachel } from "@/core/favicon";
 import { hasAnyGroup } from "@/core/groups";
-import { VERWALTUNGSEINSTIEGE, verwaltungsGruppenFor, visibleSwitcherModules } from "@/core/registry";
+import { APP_BEREICHE, BEREICH_WEITERE_APPS, VERWALTUNGSEINSTIEGE, bereichFuer, verwaltungsGruppenFor, visibleSwitcherModules } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { modulVersion } from "@/core/version";
-import { dienstEintraege } from "@/app/m/portal/_lib/launcher";
+import { dienstEintraege, launcherVorliebenVon, merkeLauncherAufruf } from "@/app/m/portal/_lib/launcher";
+import type { Auswahl } from "@/core/shell/launcherAuswahl";
 import type { LauncherEintrag } from "@/core/shell/types";
 
 /**
@@ -42,6 +43,7 @@ export function modulEintraege(groups: string[] | null): LauncherEintrag[] {
       appIconUrl: appIconFuerKachel(mod.key),
       href,
       abschnitt: ABSCHNITT_APPS,
+      bereich: bereichFuer(mod.key),
       extern: false,
     };
     const version = modulVersion(mod.key);
@@ -80,3 +82,15 @@ export function mischeEintraege(
 export async function launcherEintraege(groups: string[] | null): Promise<LauncherEintrag[]> {
   return mischeEintraege(modulEintraege(groups), await dienstEintraege(groups));
 }
+
+/**
+ * Angeheftet und Zuletzt der Person (IDA-338), und der Aufruf dieses Moduls gleich mit gemerkt.
+ * Das Portal selbst zählt nicht als Aufruf: es ist der Weg zu den anderen, und „Zuletzt: Portal“
+ * stünde sonst bei jedem ganz vorn.
+ */
+export function launcherAuswahl(personId: string | null | undefined, moduleKey: string): Auswahl {
+  return moduleKey === "portal" ? launcherVorliebenVon(personId) : merkeLauncherAufruf(personId, moduleKey);
+}
+
+/** Die Bereiche in Bildschirmreihenfolge, als Zeichenketten für die Client-Inseln. */
+export const BEREICHE_IN_REIHENFOLGE: readonly string[] = [...APP_BEREICHE.map((b) => b.titel), BEREICH_WEITERE_APPS];

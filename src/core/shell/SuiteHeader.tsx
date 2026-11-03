@@ -13,7 +13,7 @@ import { auth } from "@/core/auth";
 import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { getModule } from "@/core/registry";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { launcherEintraege } from "@/core/shell/launcherEintraege";
+import { BEREICHE_IN_REIHENFOLGE, launcherAuswahl, launcherEintraege } from "@/core/shell/launcherEintraege";
 import { AppUmschalter } from "@/core/shell/AppUmschalter";
 import { Befehlspalette } from "@/core/shell/Befehlspalette";
 import { SuiteNav } from "@/core/shell/SuiteNav";
@@ -59,6 +59,8 @@ export async function SuiteHeader({
   // eine Liste öffnen, die niemand zu sehen bekommt. Deshalb bleibt sie hier
   // ungerufen, und die Liste bleibt `[]`.
   const eintraege = angemeldet ? await launcherEintraege(session?.user?.groups ?? null) : [];
+  // IDA-338: dieselbe Grenze — anonym gibt es nichts zu merken und nichts anzuheften.
+  const auswahl = angemeldet ? launcherAuswahl(session?.user?.id, moduleKey) : { angeheftet: [], zuletzt: [] };
   /*
    * DER WEG ZUM RÜCKMELDEFORMULAR — hier aufgelöst und nicht in der Insel
    * (DRK-453, IDA-214). `rueckmeldeweg()` liest `process.env`, und das gibt es im
@@ -121,6 +123,8 @@ export async function SuiteHeader({
             modulTitel={mod.title}
             modulKey={moduleKey}
             eintraege={eintraege}
+            auswahl={auswahl}
+            bereiche={BEREICHE_IN_REIHENFOLGE}
             portalHref={moduleUrl("portal")}
           />
         ) : (

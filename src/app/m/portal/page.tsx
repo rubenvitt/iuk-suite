@@ -1,5 +1,5 @@
 import { auth } from "@/core/auth";
-import { launcherEintraege } from "@/core/shell/launcherEintraege";
+import { BEREICHE_IN_REIHENFOLGE, launcherAuswahl, launcherEintraege } from "@/core/shell/launcherEintraege";
 import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
 import { DiensteRaster } from "@/app/m/portal/_ui/DiensteRaster";
 import { RueckmeldungKarte } from "@/app/m/portal/_ui/RueckmeldungKarte";
@@ -51,7 +51,12 @@ export default async function PortalPage() {
     <>
       <Seitenkopf titel="Apps & Dienste" />
       {fristen && <FaelligkeitenKarte zaehlung={zaehle(fristen)} ausgefallen={fristen.some((g) => g.fehler)} />}
-      <DiensteRaster eintraege={eintraege} ansprechpartner={ansprechpartner} />
+      <DiensteRaster
+        eintraege={eintraege}
+        ansprechpartner={ansprechpartner}
+        auswahl={launcherAuswahl(session?.user?.id, "portal")}
+        bereiche={BEREICHE_IN_REIHENFOLGE}
+      />
       {rueckmeldung && <RueckmeldungKarte weg={rueckmeldung} />}
     </>
   );

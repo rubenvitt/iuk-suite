@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, Col, Empty, Input, Result, Row } from "antd";
+import { Button, Card, Col, Collapse, Empty, Input, Result, Row } from "antd";
 
 import { KACHEL_GRUND, TINTE } from "@/core/favicon/zeichen";
 import { Icons8Ikone, type Icons8Name } from "@/core/ikonen/Icons8Ikone";
@@ -13,6 +13,17 @@ import { SPACE } from "@/core/theme/tokens";
 import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
 import { SuchErgebnisse } from "@/app/m/portal/_ui/SuchErgebnisse";
 import { sucheAktion } from "@/app/m/portal/sucheAktion";
+import { merkeDienstAufrufAction, setzeAngeheftetAction } from "@/app/m/portal/actions";
+import {
+  istViel,
+  mitVerwaltungAmModul,
+  ordneAlle,
+  persoenlich,
+  type Auswahl,
+  type GeordneterEintrag,
+} from "@/core/shell/launcherAuswahl";
+
+const OHNE_AUSWAHL: Auswahl = { angeheftet: [], zuletzt: [] };
 
 /** So lange nach dem letzten Tastendruck, bevor die Module gefragt werden. */
 const VERZOEGERUNG_MS = 250;
@@ -43,9 +54,15 @@ const KBD = {
 export function DiensteRaster({
   eintraege,
   ansprechpartner,
+  auswahl = OHNE_AUSWAHL,
+  bereiche = [],
 }: {
   eintraege: LauncherEintrag[];
   ansprechpartner: string | null;
+  /** Angeheftet und Zuletzt der Person (IDA-338); wirkt erst ab `VIELE_EINTRAEGE_AB` Einträgen. */
+  auswahl?: Auswahl;
+  /** Reihenfolge der App-Bereiche, als Namen über die RSC-Grenze gereicht. */
+  bereiche?: readonly string[];
 }) {
   const [suche, setSuche] = useState("");
   const [modulSuche, setModulSuche] = useState<{ laedt: boolean; treffer: ModulErgebnis[]; fehler?: boolean }>({ laedt: false, treffer: [] });
@@ -53,6 +70,248 @@ export function DiensteRaster({
   const wecker = useRef<ReturnType<typeof setTimeout> | null>(null);
   const anfrage = useRef(0);
   const begriff = suchbegriff(suche);
+
+  // IDA-338: die persönliche Ordnung. `angeheftet` lebt hier, damit ein Klick sofort wirkt; die
+  // Aktion schreibt dahinter und meldet den gespeicherten Stand zurück.
+  const [angeheftet, setAngeheftet] = useState(auswahl.angeheftet);
+  const viel = istViel(eintraege);
+  const geordnet = useMemo(() => mitVerwaltungAmModul(eintraege), [eintraege]);
+  const eigene = useMemo(
+    () => persoenlich(geordnet, { angeheftet, zuletzt: auswahl.zuletzt }),
+    [geordnet, angeheftet, auswahl.zuletzt],
+  );
+  const alle = useMemo(() => ordneAlle(geordnet, bereiche), [geordnet, bereiche]);
+  const hatEigene = eigene.angeheftet.length + eigene.zuletzt.length > 0;
+  // Wer noch nichts angeheftet und nichts geöffnet hat, sieht „Alle“ gleich offen. Entschieden
+  // wird einmal beim Laden: das erste Anheften darf die Liste nicht unter der Hand zuklappen.
+  const [alleSichtbar, setAlleOffen] = useState(() => !hatEigene);
+
+  function anheften(key: string, an: boolean) {
+    const vorher = angeheftet;
+    setAngeheftet(an ? [...vorher.filter((k) => k !== key), key] : vorher.filter((k) => k !== key));
+    setzeAngeheftetAction(key, an).then(
+      (gespeichert) => setAngeheftet(gespeichert ?? vorher),
+      () => setAngeheftet(vorher),
+    );
+  }
+
+  function merkeDienst(key: string) {
+    // Feuer und vergessen: ein Dienst öffnet im neuen Tab, ein Fehler hier kostet nur „Zuletzt“.
+    merkeDienstAufrufAction(key).catch(() => undefined);
+  }
+
+  function kachel(e: LauncherEintrag) {
+    const zeichen = e.icon ?? "link";
+    return (
+      <Col key={e.key} xs={12} sm={8}>
+        {/* Der Link liegt AUSSEN: antds Card rendert kein <a>, und
+            die Kachel ist die einzige Navigation ins Ziel. */}
+        <a
+          href={e.href}
+          target={e.extern ? "_blank" : undefined}
+          rel={e.extern ? "noopener noreferrer" : undefined}
+          data-testid="service-tile"
+          onClick={e.extern ? () => merkeDienst(e.key) : undefined}
+          className="portal-kachel-link"
+          style={{ display: "block", blockSize: "100%" }}
+        >
+          {/* Die beiden Klassen tragen die Kachelkante und den
+              Fokusabgriff aus `portal.css` — `e2e/portal.spec.ts`
+              misst sie in Ruhe und im Hover, und die Kaskade
+              dahinter besitzt kein Quelltext-Scan. Ohne sie fällt
+              der Test, nicht der Build.
+
+              KEIN Kicker mit `e.abschnitt` auf der Kachel: die
+              Rubrik steht jetzt als Abschnittsüberschrift darüber,
+              und zweimal dasselbe Wort wäre Dekoration im Gewand
+              von Struktur. */}
+          <Card
+            hoverable
+            size="small"
+            className="portal-kachel"
+            style={{ blockSize: "100%" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+              {!e.extern ? (
+                <AppZeichen url={e.appIconUrl} zeichen={zeichen} />
+              ) : e.iconUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={e.iconUrl}
+                  alt=""
+                  width={20}
+                  height={20}
+                  referrerPolicy="no-referrer"
+                  loading="lazy"
+                />
+              ) : (
+                <Icons8Ikone name={zeichen} />
+              )}
+              {/* Ein Flex-Kind schrumpft nie unter sein längstes
+                  Wort: ohne `minInlineSize: 0` lief „Kommunikations-
+                  pläne“ auf dem Telefon aus der Kachel. Getrennt wird
+                  an der Silbe (`lang="de"`), sonst hart. */}
+              <span
+                data-testid="kachel-titel"
+                style={{
+                  ...SCHRIFT.unterTitel,
+                  minInlineSize: 0,
+                  overflowWrap: "anywhere",
+                  hyphens: "auto",
+                }}
+              >
+                {e.title}
+              </span>
+              {e.version ? (
+                <span
+                  data-testid="kachel-version"
+                  style={{
+                    ...SCHRIFT.neben,
+                    color: "var(--iuk-gedaempft)",
+                    marginInlineStart: "auto",
+                    alignSelf: "flex-start",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {e.version}
+                </span>
+              ) : null}
+            </div>
+            {e.beschreibung ? (
+              <div
+                style={{
+                  ...SCHRIFT.neben,
+                  color: "var(--iuk-gedaempft)",
+                  marginBlockStart: SPACE.xs,
+                }}
+              >
+                {e.beschreibung}
+              </div>
+            ) : null}
+          </Card>
+        </a>
+      </Col>
+    );
+  }
+
+  function pinKnopf(e: LauncherEintrag) {
+    const an = angeheftet.includes(e.key);
+    return (
+      <Button
+        type="text"
+        data-testid="anheften"
+        className="portal-anheften"
+        aria-pressed={an}
+        aria-label={an ? `${e.title} lösen` : `${e.title} anheften`}
+        title={an ? "Lösen" : "Anheften"}
+        icon={<Icons8Ikone name="pin" />}
+        onClick={() => anheften(e.key, !an)}
+      />
+    );
+  }
+
+  function zeile(e: GeordneterEintrag) {
+    return (
+      <div key={e.key} data-testid="portal-zeile" className="portal-zeile">
+        <a
+          href={e.href}
+          target={e.extern ? "_blank" : undefined}
+          rel={e.extern ? "noopener noreferrer" : undefined}
+          className="portal-zeile-link"
+          onClick={e.extern ? () => merkeDienst(e.key) : undefined}
+        >
+          {!e.extern ? (
+            <AppZeichen url={e.appIconUrl} zeichen={e.icon ?? "link"} groesse={28} />
+          ) : e.iconUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={e.iconUrl} alt="" width={20} height={20} referrerPolicy="no-referrer" loading="lazy" />
+          ) : (
+            <Icons8Ikone name={e.icon ?? "link"} />
+          )}
+          <span className="portal-zeile-titel">{e.title}</span>
+        </a>
+        {e.verwaltung ? (
+          <a href={e.verwaltung.href} className="portal-zweitlink" aria-label={e.verwaltung.titel}>
+            Verwaltung
+          </a>
+        ) : null}
+        {pinKnopf(e)}
+      </div>
+    );
+  }
+
+  function ueberschrift(titel: string, anzahl?: number) {
+    return (
+      <h2
+        data-testid="portal-abschnitt"
+        style={{ ...SCHRIFT.kicker, color: "var(--iuk-gedaempft)", marginBlock: "0 12px" }}
+      >
+        {titel}
+        {anzahl !== undefined ? <span className="portal-anzahl">{anzahl}</span> : null}
+      </h2>
+    );
+  }
+
+  function persoenlicheAnsicht() {
+    return (
+      <>
+        {eigene.angeheftet.length > 0 ? (
+          <section data-testid="portal-angeheftet">
+            {ueberschrift("Angeheftet")}
+            <Row gutter={[SPACE.lg, SPACE.lg]}>{eigene.angeheftet.map(kachel)}</Row>
+          </section>
+        ) : null}
+        {eigene.zuletzt.length > 0 ? (
+          <section data-testid="portal-zuletzt">
+            {ueberschrift("Zuletzt")}
+            <div className="portal-zeilen">{eigene.zuletzt.map(zeile)}</div>
+          </section>
+        ) : null}
+        {hatEigene ? (
+          <button
+            type="button"
+            data-testid="portal-alle"
+            className="portal-aufklapper"
+            aria-expanded={alleSichtbar}
+            onClick={() => setAlleOffen((v) => !v)}
+          >
+            <span style={SCHRIFT.kicker}>Alle Apps & Dienste</span>
+            <span className="portal-anzahl">{geordnet.length}</span>
+            <Icons8Ikone name={alleSichtbar ? "chevron-up" : "chevron-down"} />
+          </button>
+        ) : null}
+        {alleSichtbar ? (
+          <div data-testid="portal-alle-liste" style={{ display: "flex", flexDirection: "column", gap: SPACE.lg }}>
+            {alle.apps.map(([titel, liste]) => (
+              <section key={titel}>
+                {ueberschrift(titel)}
+                <div className="portal-zeilen">{liste.map(zeile)}</div>
+              </section>
+            ))}
+            {alle.dienste.length > 0 ? (
+              <section>
+                {ueberschrift("Weitere Dienste", alle.dienste.reduce((n, [, l]) => n + l.length, 0))}
+                <Collapse
+                  bordered={false}
+                  className="portal-kategorien"
+                  items={alle.dienste.map(([titel, liste]) => ({
+                    key: titel,
+                    label: (
+                      <span className="portal-kategorie">
+                        <span>{titel}</span>
+                        <span className="portal-kategorie-namen">{liste.map((e) => e.title).join(" · ")}</span>
+                      </span>
+                    ),
+                    children: <div className="portal-zeilen">{liste.map(zeile)}</div>,
+                  }))}
+                />
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   useEffect(() => () => {
     if (wecker.current) clearTimeout(wecker.current);
@@ -145,7 +404,9 @@ export function DiensteRaster({
         style={{ maxInlineSize: 480 }}
       />
 
-      {abschnitte.length === 0 ? (
+      {viel && !suche.trim() ? (
+        persoenlicheAnsicht()
+      ) : abschnitte.length === 0 ? (
         // Leer erst, wenn auch die Module nichts liefern (oder noch gar nicht gefragt sind).
         modulSuche.laedt || modulSuche.fehler || modulSuche.treffer.length > 0 ? null : (
           <Empty data-testid="portal-ohne-treffer" description={`Nichts gefunden für „${suche.trim()}“.`} />
@@ -163,98 +424,7 @@ export function DiensteRaster({
               {titel}
             </h2>
             <Row gutter={[SPACE.lg, SPACE.lg]}>
-              {liste.map((e) => {
-                const zeichen = e.icon ?? "link";
-                return (
-                  <Col key={e.key} xs={12} sm={8}>
-                    {/* Der Link liegt AUSSEN: antds Card rendert kein <a>, und
-                        die Kachel ist die einzige Navigation ins Ziel. */}
-                    <a
-                      href={e.href}
-                      target={e.extern ? "_blank" : undefined}
-                      rel={e.extern ? "noopener noreferrer" : undefined}
-                      data-testid="service-tile"
-                      className="portal-kachel-link"
-                      style={{ display: "block", blockSize: "100%" }}
-                    >
-                      {/* Die beiden Klassen tragen die Kachelkante und den
-                          Fokusabgriff aus `portal.css` — `e2e/portal.spec.ts`
-                          misst sie in Ruhe und im Hover, und die Kaskade
-                          dahinter besitzt kein Quelltext-Scan. Ohne sie fällt
-                          der Test, nicht der Build.
-
-                          KEIN Kicker mit `e.abschnitt` auf der Kachel: die
-                          Rubrik steht jetzt als Abschnittsüberschrift darüber,
-                          und zweimal dasselbe Wort wäre Dekoration im Gewand
-                          von Struktur. */}
-                      <Card
-                        hoverable
-                        size="small"
-                        className="portal-kachel"
-                        style={{ blockSize: "100%" }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
-                          {!e.extern ? (
-                            <AppZeichen url={e.appIconUrl} zeichen={zeichen} />
-                          ) : e.iconUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={e.iconUrl}
-                              alt=""
-                              width={20}
-                              height={20}
-                              referrerPolicy="no-referrer"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <Icons8Ikone name={zeichen} />
-                          )}
-                          {/* Ein Flex-Kind schrumpft nie unter sein längstes
-                              Wort: ohne `minInlineSize: 0` lief „Kommunikations-
-                              pläne“ auf dem Telefon aus der Kachel. Getrennt wird
-                              an der Silbe (`lang="de"`), sonst hart. */}
-                          <span
-                            data-testid="kachel-titel"
-                            style={{
-                              ...SCHRIFT.unterTitel,
-                              minInlineSize: 0,
-                              overflowWrap: "anywhere",
-                              hyphens: "auto",
-                            }}
-                          >
-                            {e.title}
-                          </span>
-                          {e.version ? (
-                            <span
-                              data-testid="kachel-version"
-                              style={{
-                                ...SCHRIFT.neben,
-                                color: "var(--iuk-gedaempft)",
-                                marginInlineStart: "auto",
-                                alignSelf: "flex-start",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {e.version}
-                            </span>
-                          ) : null}
-                        </div>
-                        {e.beschreibung ? (
-                          <div
-                            style={{
-                              ...SCHRIFT.neben,
-                              color: "var(--iuk-gedaempft)",
-                              marginBlockStart: SPACE.xs,
-                            }}
-                          >
-                            {e.beschreibung}
-                          </div>
-                        ) : null}
-                      </Card>
-                    </a>
-                  </Col>
-                );
-              })}
+              {liste.map(kachel)}
             </Row>
           </section>
         ))
@@ -296,18 +466,18 @@ const APP_RADIUS = Math.round((APP_ZEICHEN * 112) / 512);
  * eingebranntes Bild, kein Bedienelement. Die Haarlinie in `--iuk-linie` hebt
  * sie im hellen Thema von der weißen Card ab.
  */
-function AppZeichen({ url, zeichen }: { url?: string; zeichen: Icons8Name }) {
+function AppZeichen({ url, zeichen, groesse = APP_ZEICHEN }: { url?: string; zeichen: Icons8Name; groesse?: number }) {
   const rahmen = {
-    inlineSize: APP_ZEICHEN,
-    blockSize: APP_ZEICHEN,
+    inlineSize: groesse,
+    blockSize: groesse,
     flex: "none",
-    borderRadius: APP_RADIUS,
+    borderRadius: groesse === APP_ZEICHEN ? APP_RADIUS : Math.round((groesse * 112) / 512),
     boxShadow: "0 0 0 1px var(--iuk-linie)",
   } as const;
   if (url) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img data-testid="app-zeichen" src={url} alt="" width={APP_ZEICHEN} height={APP_ZEICHEN} style={rahmen} />
+      <img data-testid="app-zeichen" src={url} alt="" width={groesse} height={groesse} style={rahmen} />
     );
   }
   return (
@@ -322,7 +492,7 @@ function AppZeichen({ url, zeichen }: { url?: string; zeichen: Icons8Name }) {
         color: TINTE,
       }}
     >
-      <Icons8Ikone name={zeichen} groesse={24} />
+      <Icons8Ikone name={zeichen} groesse={Math.round(groesse * 0.6)} />
     </span>
   );
 }

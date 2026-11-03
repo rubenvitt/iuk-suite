@@ -130,6 +130,8 @@ export interface LauncherEintrag {
   extern: boolean;
   /** Modulversion (`core/version`, `modulVersion`) — nur der Haupteintrag eines Suite-Moduls. */
   version?: string;
+  /** Fachlicher Bereich eines Suite-Moduls (`bereichFuer` in `core/registry`); Dienste ordnen nach `abschnitt`. */
+  bereich?: string;
 }
 
 /**

@@ -33,7 +33,8 @@ import { renderToStaticMarkup } from "react-dom/server";
  * Interaktion in `renderToStaticMarkup` beobachten. Ein Mock prüfte hier nur
  * gegen sich selbst.
  */
-const { authMock, suiteNavMock, launcherEintraegeMock } = vi.hoisted(() => ({
+const { authMock, suiteNavMock, launcherEintraegeMock, launcherAuswahlMock } = vi.hoisted(() => ({
+  launcherAuswahlMock: vi.fn(() => ({ angeheftet: [], zuletzt: [] })),
   authMock: vi.fn(),
   suiteNavMock: vi.fn(() => null),
   launcherEintraegeMock: vi.fn(async () => []),
@@ -41,7 +42,11 @@ const { authMock, suiteNavMock, launcherEintraegeMock } = vi.hoisted(() => ({
 
 vi.mock("@/core/auth", () => ({ auth: authMock }));
 vi.mock("@/core/shell/SuiteNav", () => ({ SuiteNav: suiteNavMock }));
-vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: launcherEintraegeMock }));
+vi.mock("@/core/shell/launcherEintraege", () => ({
+  launcherEintraege: launcherEintraegeMock,
+  launcherAuswahl: launcherAuswahlMock,
+  BEREICHE_IN_REIHENFOLGE: [],
+}));
 
 import { SuiteHeader } from "./SuiteHeader";
 import { moduleUrl } from "./moduleUrl";
@@ -180,5 +185,16 @@ describe("SuiteHeader", () => {
     renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
     expect(launcherEintraegeMock).toHaveBeenCalledTimes(1);
     expect(launcherEintraegeMock).toHaveBeenCalledWith(groups);
+  });
+
+  it("merkt den Aufruf nur angemeldet und mit der ID aus der Sitzung (IDA-338)", async () => {
+    launcherAuswahlMock.mockClear();
+    authMock.mockResolvedValue(null);
+    renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
+    expect(launcherAuswahlMock).not.toHaveBeenCalled();
+
+    authMock.mockResolvedValue({ user: { id: "sub-1", name: "Test", groups: [] } });
+    renderToStaticMarkup(await SuiteHeader({ moduleKey: "qr" }));
+    expect(launcherAuswahlMock).toHaveBeenCalledWith("sub-1", "qr");
   });
 });

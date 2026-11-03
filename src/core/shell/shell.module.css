@@ -888,6 +888,56 @@
   border-radius: 8px;
 }
 
+/*
+ * IDA-338: ein Modul mit Verwaltung als EINE Zeile mit Zweitlink, statt zweier Einträge. Die Zeile
+ * trägt nur das Nebeneinander; Fläche und Aktivmarkierung bleiben am `.appEintrag` darin.
+ */
+.appEintragZeile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.appEintragZeile > .appEintrag {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.appZweitlink {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 999px;
+  color: var(--iuk-gedaempft);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.appZweitlink:hover {
+  color: inherit;
+  border-color: var(--iuk-gedaempft);
+}
+
+.umschalterAufklapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--iuk-gedaempft);
+  font: inherit;
+  cursor: pointer;
+}
+
+.umschalterAufklapper:hover {
+  background: var(--iuk-flaeche-aktiv);
+  color: inherit;
+}
+
 @media (min-width: 768px) {
   /*
    * AB HIER HÄNGT DAS PANEL WIEDER AM AUSLÖSER, nicht am Kopfblock — die

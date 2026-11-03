@@ -5,7 +5,17 @@ import { useMemo, useRef, useState } from "react";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { SCHRIFT } from "@/core/theme/schrift";
 import type { LauncherEintrag } from "@/core/shell/types";
+import {
+  istViel,
+  mitVerwaltungAmModul,
+  ordneAlle,
+  persoenlich,
+  type Auswahl,
+  type GeordneterEintrag,
+} from "@/core/shell/launcherAuswahl";
 import s from "./shell.module.css";
+
+const OHNE_AUSWAHL: Auswahl = { angeheftet: [], zuletzt: [] };
 
 /**
  * DER APP-UMSCHALTER — der Modultitel IST der Auslöser.
@@ -49,11 +59,17 @@ export function AppUmschalter({
   modulTitel,
   modulKey,
   eintraege,
+  auswahl = OHNE_AUSWAHL,
+  bereiche = [],
   portalHref,
 }: {
   modulTitel: string;
   modulKey: string;
   eintraege: LauncherEintrag[];
+  /** Angeheftet und Zuletzt der Person (IDA-338); wirkt erst ab `VIELE_EINTRAEGE_AB` Einträgen. */
+  auswahl?: Auswahl;
+  /** Reihenfolge der App-Bereiche (`APP_BEREICHE`), als Namen über die RSC-Grenze gereicht. */
+  bereiche?: readonly string[];
   /**
    * Fertiger Link auf die Portal-Startseite (§4 Punkt 4 des Entwurfs), oder
    * `null`, wenn `moduleUrl("portal")` keinen liefert (Prod ohne konfigurierten
@@ -89,10 +105,76 @@ export function AppUmschalter({
     return [...map.entries()];
   }, [gefiltert]);
 
+  // IDA-338: ab vielen Einträgen oben das Persönliche, der Rest geordnet dahinter.
+  const viel = istViel(eintraege);
+  const [alleOffen, setAlleOffen] = useState(false);
+  const geordnet = useMemo(() => mitVerwaltungAmModul(eintraege), [eintraege]);
+  const eigene = useMemo(() => persoenlich(geordnet, auswahl), [geordnet, auswahl]);
+  const alle = useMemo(() => ordneAlle(geordnet, bereiche), [geordnet, bereiche]);
+  const hatEigene = eigene.angeheftet.length + eigene.zuletzt.length > 0;
+
   function schliessen() {
     setOffen(false);
     setSuche("");
+    setAlleOffen(false);
     ausloeser.current?.focus();
+  }
+
+  function eintrag(e: GeordneterEintrag) {
+    const zeichen = e.icon ?? "link";
+    const link = (
+      <a
+        key={e.key}
+        data-testid="app-eintrag"
+        className={s.appEintrag}
+        href={e.href}
+        target={e.extern ? "_blank" : undefined}
+        rel={e.extern ? "noopener noreferrer" : undefined}
+        aria-current={e.key === modulKey ? "true" : undefined}
+      >
+        {e.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={e.iconUrl} alt="" className={s.appEintragBild} referrerPolicy="no-referrer" loading="lazy" />
+        ) : (
+          <Icons8Ikone name={zeichen} />
+        )}
+        <span className={s.appEintragTexte}>
+          <span className={s.appEintragTitel}>{e.title}</span>
+          {e.beschreibung ? <span className={s.appEintragText}>{e.beschreibung}</span> : null}
+        </span>
+      </a>
+    );
+    if (!e.verwaltung) return link;
+    // Zwei Links nebeneinander, nicht ineinander: ein `<a>` in einem `<a>` ist kein gültiges HTML.
+    return (
+      <div key={e.key} className={s.appEintragZeile}>
+        {link}
+        <a data-testid="app-verwaltung" className={s.appZweitlink} href={e.verwaltung.href} aria-label={e.verwaltung.titel}>
+          Verwaltung
+        </a>
+      </div>
+    );
+  }
+
+  function block(titel: string, liste: GeordneterEintrag[]) {
+    if (liste.length === 0) return null;
+    return (
+      <div key={titel}>
+        <div data-testid="app-abschnitt" className={s.umschalterAbschnitt} style={SCHRIFT.kicker}>
+          {titel}
+        </div>
+        <div className={s.umschalterListe}>{liste.map(eintrag)}</div>
+      </div>
+    );
+  }
+
+  function geordneteListe() {
+    return (
+      <>
+        {alle.apps.map(([titel, liste]) => block(titel, liste))}
+        {alle.dienste.map(([titel, liste]) => block(titel, liste))}
+      </>
+    );
   }
 
   return (
@@ -146,7 +228,27 @@ export function AppUmschalter({
               />
             </label>
 
-            {abschnitte.length === 0 ? (
+            {viel && !suche.trim() ? (
+              hatEigene ? (
+                <>
+                  {block("Angeheftet", eigene.angeheftet)}
+                  {block("Zuletzt", eigene.zuletzt)}
+                  <button
+                    type="button"
+                    data-testid="app-alle"
+                    className={s.umschalterAufklapper}
+                    aria-expanded={alleOffen}
+                    onClick={() => setAlleOffen((v) => !v)}
+                  >
+                    <span style={SCHRIFT.kicker}>Alle Apps & Dienste</span>
+                    <Icons8Ikone name={alleOffen ? "chevron-up" : "chevron-down"} />
+                  </button>
+                  {alleOffen ? geordneteListe() : null}
+                </>
+              ) : (
+                geordneteListe()
+              )
+            ) : abschnitte.length === 0 ? (
               // Zwei Zustände, eine Bedingung — und sie sind NICHT dasselbe
               // (Befund 3): eine leere Suche ist keine gescheiterte Suche.
               // Ist `suche` leer, kann `abschnitte` nur leer sein, weil

@@ -44,7 +44,11 @@ vi.mock("@/core/shell/Modulleiste", () => ({ Modulleiste: modulleisteMock }));
 // nicht gibt (kein `getModuleDb("portal")`-Setup hier, dieser Test dreht sich
 // um `files`). Ohne den Mock scheitert der Test unten an `SqliteError: no such
 // table: services`, nicht an der eigentlich geprüften Aussage.
-vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: vi.fn(async () => []) }));
+vi.mock("@/core/shell/launcherEintraege", () => ({
+  launcherEintraege: vi.fn(async () => []),
+  launcherAuswahl: vi.fn(() => ({ angeheftet: [], zuletzt: [] })),
+  BEREICHE_IN_REIHENFOLGE: [],
+}));
 
 import { VerwaltungsRahmen } from "./VerwaltungsRahmen";
 import { FILES_NAV } from "../_lib/nav";

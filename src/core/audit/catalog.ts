@@ -10,6 +10,10 @@ export type AuditTableDecision =
   | { mode: "excluded"; reason: string };
 export const AUDIT_TABLES = {
   "portal": {
+    "launcher_vorlieben": {
+      "mode": "excluded",
+      "reason": "Persönliche Bedienvorliebe (Angeheftet, Zuletzt im Launcher); ändert sich bei jedem Modulwechsel."
+    },
     "faelligkeiten_abos": {
       "mode": "audited",
       "primaryKey": [

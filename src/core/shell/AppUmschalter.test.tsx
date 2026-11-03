@@ -237,4 +237,48 @@ describe("Modul-Icons", () => {
     const namen = sichtbar.map((m) => m.icon);
     expect(new Set(namen).size, namen.join(", ")).toBe(namen.length);
   });
+
+  describe("viele Einträge (IDA-338)", () => {
+    const VIELE: LauncherEintrag[] = [
+      { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", href: "https://l", abschnitt: "Apps", bereich: "Material & Technik", extern: false },
+      { key: "radio", title: "Funkgeräte", icon: "walkie-talkie", href: "https://r", abschnitt: "Apps", bereich: "Einsatz & Lage", extern: false },
+      { key: "radio:verwaltung", title: "Funkgeräte-Verwaltung", icon: "walkie-talkie", href: "https://r/admin", abschnitt: "Apps", bereich: "Einsatz & Lage", extern: false },
+      ...Array.from({ length: 11 }, (_, i): LauncherEintrag => ({
+        key: `dienst:${i}`, title: `Dienst ${i}`, href: `https://d${i}`, abschnitt: "Tools", extern: true,
+      })),
+    ];
+    const titel = () => queryAll('[data-testid="app-abschnitt"]').map((a) => a.textContent);
+
+    it("zeigt nur Angeheftet und Zuletzt, der Rest klappt auf", async () => {
+      await mount(
+        umschalter({
+          eintraege: VIELE,
+          bereiche: ["Einsatz & Lage", "Material & Technik"],
+          auswahl: { angeheftet: ["radio"], zuletzt: ["radio", "dienst:4"] },
+        }),
+      );
+      await click('[data-testid="app-umschalter"]');
+      expect(titel()).toEqual(["Angeheftet", "Zuletzt"]);
+      // Die Verwaltung hängt als Zweitlink an der angehefteten App.
+      expect(query('[data-testid="app-verwaltung"]').getAttribute("href")).toBe("https://r/admin");
+      expect(query('[data-testid="app-alle"]').getAttribute("aria-expanded")).toBe("false");
+      await click('[data-testid="app-alle"]');
+      expect(titel()).toEqual(["Angeheftet", "Zuletzt", "Einsatz & Lage", "Material & Technik", "Tools"]);
+      expect(exists('[data-testid="app-fusszeile"]')).toBe(true);
+    });
+
+    it("ohne Persönliches gleich geordnet nach Bereich", async () => {
+      await mount(umschalter({ eintraege: VIELE, bereiche: ["Einsatz & Lage", "Material & Technik"] }));
+      await click('[data-testid="app-umschalter"]');
+      expect(exists('[data-testid="app-alle"]')).toBe(false);
+      expect(titel()).toEqual(["Einsatz & Lage", "Material & Technik", "Tools"]);
+    });
+
+    it("die Suche durchsucht weiter alles", async () => {
+      await mount(umschalter({ eintraege: VIELE, auswahl: { angeheftet: ["radio"], zuletzt: [] } }));
+      await click('[data-testid="app-umschalter"]');
+      await fill('[data-testid="app-suche"]', "Dienst 7");
+      expect(queryAll('[data-testid="app-eintrag"]').map((e) => e.textContent)).toEqual(["Dienst 7"]);
+    });
+  });
 });

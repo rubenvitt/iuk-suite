@@ -62,3 +62,23 @@ export const faelligkeitenAbos = sqliteTable("faelligkeiten_abos", {
 });
 
 export type FaelligkeitenAbo = typeof faelligkeitenAbos.$inferSelect;
+
+/**
+ * WAS JEMAND IM LAUNCHER ANGEHEFTET HAT UND ZULETZT GEÖFFNET HAT (IDA-338), eine Zeile je Person.
+ * Beide Listen tragen Schlüssel von `LauncherEintrag` (`portal`, `dienst:<id>` …) in der Reihenfolge
+ * auf dem Schirm. Was jemand nicht mehr sehen darf, bleibt stehen und wird beim Lesen gegen die
+ * sichtbaren Einträge gefiltert — ein Entzug wirkt so ohne Aufräumlauf, und eine Rückgabe des
+ * Rechts stellt die alte Ordnung wieder her.
+ *
+ * KEINE Audit-Trigger: das ist eine Bedienvorliebe der Person selbst, kein fachlicher Datensatz,
+ * und `zuletzt` ändert sich bei jedem Modulwechsel (`coverage-manifest.json` begründet dasselbe
+ * für die beiden Aktionen).
+ */
+export const launcherVorlieben = sqliteTable("launcher_vorlieben", {
+  personId: text("person_id").primaryKey(),
+  angeheftet: text("angeheftet", { mode: "json" }).$type<string[]>().notNull().$defaultFn(() => []),
+  zuletzt: text("zuletzt", { mode: "json" }).$type<string[]>().notNull().$defaultFn(() => []),
+  aktualisiertAm: integer("aktualisiert_am", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+export type LauncherVorlieben = typeof launcherVorlieben.$inferSelect;

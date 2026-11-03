@@ -953,6 +953,14 @@
     "kind": "context",
     "via": "sendeFaelligkeitenProbeAction"
   },
+  "src/app/m/portal/actions.ts#setzeAngeheftetAction": {
+    "kind": "excluded",
+    "reason": "Persönliche Bedienvorliebe (Angeheftet im Launcher, IDA-338), nur die eigene Zeile aus der Sitzung; kein fachlicher Datensatz."
+  },
+  "src/app/m/portal/actions.ts#merkeDienstAufrufAction": {
+    "kind": "excluded",
+    "reason": "Merkt „Zuletzt“ im Launcher für die eigene Person (IDA-338); kein fachlicher Datensatz."
+  },
   "src/app/m/portal/admin/rechte/actions.ts#setzeRechtAction": {
     "kind": "explicit-only",
     "reason": "Schreibt in Pocket ID, nicht in eine Suite-Datenbank; jede Aufnahme und Entfernung wird explizit auditiert."

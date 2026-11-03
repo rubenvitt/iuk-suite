@@ -29,6 +29,13 @@
       "when": 1793440489320,
       "tag": "0003_faelligkeiten_abos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793718871623,
+      "tag": "0004_launcher_vorlieben",
+      "breakpoints": true
     }
   ]
 }
