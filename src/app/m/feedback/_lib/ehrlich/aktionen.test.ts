@@ -121,6 +121,13 @@ describe("abholen und zurückschreiben", () => {
 
     expect(await zurueckschreibenAktion(null, fd({ code: r.code, text: "zu früh" }))).toMatchObject({ ok: true, gesendet: false });
     await antwortAktion(id, "Danke, wir kümmern uns.");
+    const nachricht = h.sqlite.prepare("SELECT tag FROM ehrlich_nachrichten WHERE mitteilung_id = ?").get(id) as { tag: string };
+    const nachrichtenAudit = h.sqlite.prepare("SELECT actor, object_ref, correlation_id, occurred_at FROM audit_outbox WHERE object_type = 'ehrlich_nachrichten'").all() as { actor: string; object_ref: null; correlation_id: null; occurred_at: number }[];
+    expect(nachrichtenAudit).toHaveLength(1);
+    expect(nachrichtenAudit[0].occurred_at).toBe(Date.parse(`${nachricht.tag}T00:00:00Z`));
+    expect(JSON.parse(nachrichtenAudit[0].actor)).toEqual({ kind: "anonymous" });
+    expect(nachrichtenAudit[0].object_ref).toBeNull();
+    expect(nachrichtenAudit[0].correlation_id).toBeNull();
     expect(await zurueckschreibenAktion(null, fd({ code: r.code, text: "nicht freigeschaltet" }))).toMatchObject({ gesendet: false });
     await rueckfrageAktion(id, true);
     await statusAktion(id, "erledigt");
