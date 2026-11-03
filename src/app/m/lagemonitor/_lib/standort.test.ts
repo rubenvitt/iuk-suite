@@ -68,6 +68,14 @@ describe("Standort je Monitor", () => {
     expect(listeStandorte(db, Q).je[fuekw].art).toBe("fest");
   });
 
+  it("der Wechsel zu GPS vergisst das Zeichen: ohne Fahrzeug wird daraus kein fester Ort", () => {
+    const { db, fuekw, fahrzeugId } = aufbau();
+    setzeStandort(db, fest(fuekw), Q);
+    setzeStandort(db, standortEingabe.parse({ zugangId: fuekw, art: "gps", name: "FüKw", fahrzeugId, breite: 52.9, laenge: 10.5 }), Q);
+    db.delete(fahrzeug).run();
+    expect(festeOrte(db, null, Q)).toEqual([]);
+  });
+
   it("prüft Zeichen, Koordinaten und Pflichtfelder", () => {
     const { db, online } = aufbau();
     expect(setzeStandort(db, { ...fest(online), zeichen: "gibt-es-nicht" }, Q)).toEqual({ ok: false, fehler: "Dieses Zeichen gibt es nicht (mehr)." });

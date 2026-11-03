@@ -145,7 +145,8 @@ export function setzeStandort(db: LagemonitorDb, e: StandortEingabe, q: Quellen 
     db.transaction((tx) => {
       tx.update(fahrzeug).set({ zugangId: null }).where(and(eq(fahrzeug.zugangId, e.zugangId), ne(fahrzeug.id, f.id))).run();
       tx.update(fahrzeug).set({ zugangId: e.zugangId }).where(and(eq(fahrzeug.id, f.id), or(isNull(fahrzeug.zugangId), eq(fahrzeug.zugangId, e.zugangId)))).run();
-      tx.update(zugang).set({ ortName: e.name, ortBreite: e.breite, ortLaenge: e.laenge }).where(eq(zugang.id, e.zugangId)).run();
+      // Ohne Zeichen: fällt das Fahrzeug später weg, wird der Ort bis zum ersten Fix nicht zum festen Ort auf allen Monitoren.
+      tx.update(zugang).set({ ortName: e.name, ortBreite: e.breite, ortLaenge: e.laenge, ortZeichen: null }).where(eq(zugang.id, e.zugangId)).run();
     });
     return { ok: true };
   }
