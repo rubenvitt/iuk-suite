@@ -90,7 +90,10 @@ describe("Löschfrist", () => {
 describe("Sofort-Push", () => {
   it("meldet neue Mitteilungen ohne Inhalt und nur einmal", () => {
     legeMitteilungAn(db, { ...einwurf, thema: "Miteinander", text: "Geheim" }, "2026-11-03");
-    const meldungen = feedbackSofortmeldungen(new Date("2026-11-02T12:00:00Z"), db);
+    // Am Einwurftag selbst nichts, am Folgetag erst ab 8 Uhr (Suite-Zone): der Push verrät keine Uhrzeit.
+    expect(feedbackSofortmeldungen(new Date("2026-11-02T23:00:00Z"), db, Date.parse("2026-11-03T22:00:00Z"))).toEqual([]);
+    expect(feedbackSofortmeldungen(new Date("2026-11-03T06:00:00Z"), db, Date.parse("2026-11-04T06:00:00Z"))).toEqual([]);
+    const meldungen = feedbackSofortmeldungen(new Date("2026-11-03T07:00:00Z"), db, Date.parse("2026-11-04T07:00:00Z"));
     expect(meldungen).toHaveLength(1);
     expect(JSON.stringify(meldungen)).not.toMatch(/Geheim|Miteinander/);
     vermerkeGemeldet(db, meldungen.map((m) => m.id));

@@ -313,7 +313,7 @@ export function loescheAbgelaufene(db: EhrlichDb, heute: string): number {
 
 // ---- Sofort-Push (über „Was steht an") ----
 
-export type Ungemeldet = { id: string; art: "mitteilung" | "rueckfrage" };
+export type Ungemeldet = { id: string; art: "mitteilung" | "rueckfrage"; tag: string };
 
 /** Neue Mitteilungen und Rückfragen, die noch nicht gemeldet sind, ab dem Tag von `seit`. */
 export function ungemeldete(db: EhrlichDb, seitTag: string): Ungemeldet[] {
@@ -323,14 +323,14 @@ export function ungemeldete(db: EhrlichDb, seitTag: string): Ungemeldet[] {
     .where(eq(ehrlichMitteilungen.gemeldet, false))
     .all()
     .filter((m) => m.tag >= seitTag)
-    .map((m) => ({ id: `m${m.id}`, art: "mitteilung" as const }));
+    .map((m) => ({ id: `m${m.id}`, art: "mitteilung" as const, tag: m.tag }));
   const rueck = db
     .select({ id: ehrlichNachrichten.id, tag: ehrlichNachrichten.tag })
     .from(ehrlichNachrichten)
     .where(and(eq(ehrlichNachrichten.gemeldet, false), eq(ehrlichNachrichten.von, "person")))
     .all()
     .filter((n) => n.tag >= seitTag)
-    .map((n) => ({ id: `r${n.id}`, art: "rueckfrage" as const }));
+    .map((n) => ({ id: `r${n.id}`, art: "rueckfrage" as const, tag: n.tag }));
   return [...neu, ...rueck];
 }
 

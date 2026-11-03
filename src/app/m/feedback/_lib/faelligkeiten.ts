@@ -6,9 +6,14 @@
  *
  * ⚠️ Nur feste Wörter in der Meldung: kein Thema, kein Name, kein Auszug. Schon das Thema („Miteinander") auf
  * einem fremden Sperrbildschirm sagt mehr, als eine anonyme Mitteilung preisgeben darf.
+ *
+ * ⚠️ Und nicht sofort: ein Push eine Minute nach dem Einwurf verrät die Uhrzeit, die der Kasten nicht
+ * speichert — wer jemanden am Aushang sah, könnte zuordnen. Gemeldet wird deshalb gebündelt am Folgetag ab
+ * `MELDESTUNDE` (Suite-Zone), passend zur Zusage „nur der Tag".
  */
 import type { Faelligkeit, Sofortmeldung } from "@/core/faelligkeiten";
 import { getDb } from "../_db/client";
+import { zeitFormat } from "@/core/zeit";
 import { tagVon, ungemeldete, vermerkeGemeldet, type EhrlichDb } from "./ehrlich/daten";
 import { istEhrlichLeser } from "./ehrlich/zugang";
 
@@ -22,8 +27,17 @@ export function feedbackFaelligkeiten(): Faelligkeit[] {
   return [];
 }
 
-export function feedbackSofortmeldungen(seit: Date, db: EhrlichDb = getDb()): Sofortmeldung[] {
-  return ungemeldete(db, tagVon(seit.getTime())).map((u) => ({
+export const MELDESTUNDE = 8;
+
+function stundeVon(ms: number): number {
+  const teil = zeitFormat("de-DE", { hour: "2-digit", hourCycle: "h23" }).formatToParts(ms).find((t) => t.type === "hour");
+  return Number(teil?.value ?? 0);
+}
+
+export function feedbackSofortmeldungen(seit: Date, db: EhrlichDb = getDb(), jetzt: number = Date.now()): Sofortmeldung[] {
+  if (stundeVon(jetzt) < MELDESTUNDE) return [];
+  const heute = tagVon(jetzt);
+  return ungemeldete(db, tagVon(seit.getTime())).filter((u) => u.tag < heute).map((u) => ({
     id: u.id,
     art: "Ehrlich gesagt",
     titel: u.art === "mitteilung" ? "Ehrlich gesagt: neue Mitteilung" : "Ehrlich gesagt: neue Rückfrage",

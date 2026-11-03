@@ -13,8 +13,8 @@ export type LeserTransport = (
  *
  * `GET /api/user-groups?search=<name>` findet die Gruppe, `GET /api/user-groups/<id>` liefert sie samt
  * `users`. Fünf Minuten zwischengespeichert; ein Fehler wird nie gespeichert, dann gilt der letzte gute
- * Stand (auch über die TTL hinaus) und der nächste Abruf frühestens nach 30 Sekunden. Ohne jeden Stand
- * ist die Liste leer, und die Seiten lassen die Zeile weg, statt Namen zu erfinden. Wirft nie.
+ * Stand nur innerhalb der TTL und der nächste Abruf frühestens nach 30 Sekunden. Sonst ist die Liste
+ * leer, und die Seiten lassen die Zeile weg, statt Namen zu erfinden oder zu verschweigen. Wirft nie.
  */
 const TTL_MS = 5 * 60_000;
 const FEHLER_SPERRE_MS = 30_000;
@@ -59,8 +59,8 @@ export async function ladeLeserNamen(
   jetzt: number = Date.now(),
 ): Promise<string[]> {
   if (stand && jetzt - stand.am < TTL_MS) return stand.namen;
-  if (jetzt < gesperrtBis) return stand?.namen ?? [];
-  const basis = (env.POCKET_ID_API_URL ?? env.POCKET_ID_ISSUER ?? "").trim().replace(/\/+$/, "");
+  if (jetzt < gesperrtBis) return frischeNamen(jetzt);
+  const basis = (env.POCKET_ID_API_URL?.trim() || env.POCKET_ID_ISSUER || "").trim().replace(/\/+$/, "");
   const apiKey = (env.POCKET_ID_API_KEY ?? "").trim();
   if (basis === "" || apiKey === "") return [];
   const gruppe = leserGruppe(env);
@@ -82,8 +82,13 @@ export async function ladeLeserNamen(
   } catch (fehler) {
     gesperrtBis = jetzt + FEHLER_SPERRE_MS;
     console.error("[feedback][ehrlich] Lesegruppe nicht ladbar:", fehler instanceof Error ? fehler.message : fehler);
-    return stand?.namen ?? [];
+    return frischeNamen(jetzt);
   }
+}
+
+/** Nach einem Fehler nur eine Liste, die noch in der TTL liegt: „Es lesen nur" darf kein neues Mitglied verschweigen. */
+function frischeNamen(jetzt: number): string[] {
+  return stand && jetzt - stand.am < TTL_MS ? stand.namen : [];
 }
 
 /** „A", „A und B", „A, B und C". */

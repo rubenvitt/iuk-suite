@@ -4,9 +4,9 @@ import { createHash, randomInt } from "node:crypto";
  * DER ABHOLCODE (IDA-309, Entscheidung 2026-11-01): wer anonym eine Antwort möchte, bekommt nach dem
  * Absenden einen Code der Form `WORT-0000-WORT` und liest darunter später die Antwort.
  *
- * Gespeichert wird nur der SHA-256 des genormten Codes (`code_hash`). Die Verwaltung kennt den Code
- * damit nie, und wer die Datenbank liest, kann ihn nicht einlösen. Raten bremst `codeGuard` in
- * `aktionen.ts` (Fehlversuche je IP, flüchtig im Speicher). 40 × 9000 × 40 = 14,4 Mio. Codes.
+ * Gespeichert wird nur der SHA-256 des genormten Codes (`code_hash`). Die Verwaltung sieht den Code
+ * damit nie im Klartext; gegen jemanden mit der Datenbank in der Hand schützt der Hash bei 14,4 Mio.
+ * Codes (40 × 9000 × 40) nicht. Raten über die Seite bremst `fehlversuche` in `aktionen.ts`.
  */
 export const CODE_WOERTER = [
   "AHORN", "BIRKE", "BUCHE", "DACHS", "ELCH", "ERLE", "ESCHE", "FALKE", "FICHTE", "FUCHS",

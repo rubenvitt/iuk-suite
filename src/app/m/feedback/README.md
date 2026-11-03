@@ -76,7 +76,8 @@ Entscheidungen stehen an IDA-309 (POC) und IDA-314 in Zunder.
 - **Namen auf dem Einwurf:** live aus Pocket ID (`_lib/ehrlich/leser.ts`, `POCKET_ID_API_*`), fünf Minuten
   zwischengespeichert. Antwortet Pocket ID nicht, fällt die Zeile weg, statt Namen zu erfinden.
 - **Push:** über die Abos von „Was steht an" (Sofort-Schritt, `_lib/faelligkeiten.ts`), Art „Ehrlich gesagt",
-  nur an die Lesegruppe und ohne Inhalt.
+  nur an die Lesegruppe, ohne Inhalt und gebündelt am Folgetag ab 8 Uhr — ein Push gleich nach dem Einwurf
+  verriete die Uhrzeit.
 - **Löschfrist:** erledigte Mitteilungen 12 Monate nach dem Erledigt-Tag (`_lib/ehrlich/hintergrund.ts`).
 
 | Zusage auf dem Einwurf | Deckung |
@@ -84,7 +85,8 @@ Entscheidungen stehen an IDA-309 (POC) und IDA-314 in Zunder.
 | kein Name (anonym) | `name`/`kontakt` werden nur beim Antwortweg „mit Namen" geschrieben (`legeMitteilungAn`). |
 | kein Konto | der öffentliche Pfad hat keine Sitzung; Mitteilungen und Gespräch sind im Audit `anonymous` (Migration 0004: fester Akteur, kein Objektbezug). |
 | keine IP | wie oben unter „Die IP": nur Schlüssel der flüchtigen Limiter in `_lib/ehrlich/aktionen.ts`. |
-| keine Uhrzeit | `tag` ist ein Kalendertag `JJJJ-MM-TT`; auch der Push-Merker `gemeldet` ist ein Wahrheitswert, kein Zeitpunkt. |
+| keine Uhrzeit | `tag` ist ein Kalendertag `JJJJ-MM-TT`; auch der Push-Merker `gemeldet` ist ein Wahrheitswert, kein Zeitpunkt, und der Push kommt erst am Folgetag (`MELDESTUNDE`). |
 
 `_lib/ehrlich/aktionen.test.ts` hält die Zusage gegen die echte Aktion fest. Der Abholcode steht nie im
-Klartext in der Datenbank (nur SHA-256), die Verwaltung kennt ihn also nicht.
+Klartext in der Datenbank (nur SHA-256), die Verwaltung sieht ihn also nicht. Gegen jemanden mit Zugriff auf die
+Datenbank schützt der Hash bei 14,4 Mio. möglichen Codes nicht.

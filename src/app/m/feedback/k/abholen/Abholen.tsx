@@ -6,6 +6,8 @@ import { abholenAktion, zurueckschreibenAktion, type AbholErgebnis } from "../..
 import { Blatt } from "../Blatt";
 import e from "../ehrlich.module.css";
 
+const NICHT_GESENDET = "Deine Antwort ging nicht raus. Versuch es später noch einmal.";
+
 const FEHLER: Record<Exclude<AbholErgebnis, { ok: true }>["fehler"], string> = {
   leer: "Gib zuerst deinen Abholcode ein.",
   unbekannt: "Zu diesem Code gibt es nichts. Prüf die Schreibweise.",
@@ -21,13 +23,26 @@ function langesDatum(tag: string): string {
 }
 
 export function Abholen({ schrift }: { schrift: string }) {
-  const [abgeholt, abholen, holt] = useActionState(abholenAktion, null);
-  const [geschrieben, schreiben, schreibt] = useActionState(zurueckschreibenAktion, null);
   const [code, setCode] = useState("");
   const [antwort, setAntwort] = useState("");
+  // Welche Aktion zuletzt antwortete: eine neue Abholung desselben Codes darf nicht hinter einem alten
+  // Schreibergebnis verschwinden (dort fehlte eine inzwischen eingegangene Antwort).
+  const [zuletzt, setZuletzt] = useState<"abholen" | "schreiben">("abholen");
+  const [abgeholt, abholen, holt] = useActionState(async (v: AbholErgebnis | null, fd: FormData) => {
+    const r = await abholenAktion(v, fd);
+    setZuletzt("abholen");
+    return r;
+  }, null);
+  const [geschrieben, schreiben, schreibt] = useActionState(async (v: AbholErgebnis | null, fd: FormData) => {
+    const r = await zurueckschreibenAktion(v, fd);
+    setZuletzt("schreiben");
+    // Den Text erst leeren, wenn er wirklich gespeichert ist.
+    if (r.ok && r.gesendet === true) setAntwort("");
+    return r;
+  }, null);
 
-  // Das jüngere Ergebnis gewinnt: nach dem Zurückschreiben steht das Gespräch mit der eigenen Nachricht da.
-  const ergebnis = geschrieben && geschrieben.code === abgeholt?.code ? geschrieben : abgeholt;
+  const ergebnis = zuletzt === "schreiben" && geschrieben ? geschrieben : abgeholt;
+  const nichtGesendet = zuletzt === "schreiben" && geschrieben?.ok === true && geschrieben.gesendet !== true;
   const fund = ergebnis?.ok ? ergebnis : null;
   const a = fund?.abholung;
 
@@ -84,13 +99,7 @@ export function Abholen({ schrift }: { schrift: string }) {
             ))
           )}
           {a.rueckfrageMoeglich ? (
-            <form
-              action={(fd) => {
-                schreiben(fd);
-                setAntwort("");
-              }}
-              style={{ marginTop: 28 }}
-            >
+            <form action={schreiben} style={{ marginTop: 28 }}>
               <input type="hidden" name="code" value={fund.code} />
               <label htmlFor="rueckfrage" className={e.feldLabel}>Möchtest du darauf antworten?</label>
               <textarea
@@ -105,6 +114,7 @@ export function Abholen({ schrift }: { schrift: string }) {
               <button className={s.knopf} type="submit" style={{ marginTop: 12 }} disabled={schreibt || antwort.trim() === ""}>
                 {schreibt ? "Wird gesendet…" : "Antwort senden"}
               </button>
+              {nichtGesendet ? <p className={s.meldung} role="alert">{NICHT_GESENDET}</p> : null}
             </form>
           ) : null}
           <details className={e.details}>
