@@ -6,7 +6,7 @@
  *
  * `DATA_DIR` wird bei jedem Aufruf gelesen, nicht beim Import (Tests setzen es um). Nur serverseitig.
  */
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 /** Grenze je Bild VOR dem Neurechnen; das Telefon verkleinert vorher. */
@@ -57,4 +57,9 @@ export async function leseFoto(id: string): Promise<Buffer | null> {
     if ((fehler as NodeJS.ErrnoException)?.code === "ENOENT") return null;
     throw fehler;
   }
+}
+
+/** Abgelegte Bilder wieder weg, wenn ihr Eintrag nicht zustande kam; ein fehlendes ist kein Fehler. */
+export async function entferneFotos(ids: Iterable<string>): Promise<void> {
+  await Promise.all([...ids].map((id) => rm(fotoPfad(id), { force: true })));
 }

@@ -3,17 +3,18 @@
  * Punkt mit Mangel höchstens ein Foto `foto:<punktId>`. Eine Route statt einer Server Action, weil Fotos
  * mitkommen. Prüfen darf jeder Angemeldete; ein Route Handler hat kein Layout, also riegelt er selbst.
  *
- * Erst werden die Fotos neu gerechnet und abgelegt, dann steht der Eintrag. Scheitert das Schreiben, bleiben
- * höchstens Bilder ohne Zeile liegen, die niemand ausliefert.
+ * Erst werden die Fotos neu gerechnet und abgelegt, dann steht der Eintrag. Fotos gibt es nur zu Punkten der
+ * Checkliste dieses Geräts; scheitert das Schreiben, gehen die abgelegten Bilder wieder weg.
  */
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../../../../../_db/client";
 import { idSchema, pruefungEingabe } from "../../../../../_lib/eingabe";
-import { legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fotos";
+import { entferneFotos, legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fotos";
 import { heute } from "../../../../../_lib/heute";
 import { hostAbweisung } from "../../../../../_lib/host";
 import { antwort, datei, formularGelesen, fremdeHerkunft } from "../../../../../_lib/koerper";
 import { Abgelehnt, neueId, pruefungAbschliessen } from "../../../../../_lib/schreiben";
+import { ladeAmGeraet } from "../../../../../_lib/telefon";
 import { anzeigename, requireAktion } from "../../../../../_lib/zugang";
 
 export const dynamic = "force-dynamic";
@@ -45,22 +46,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const p = pruefungEingabe.safeParse(roh);
     if (!p.success) return antwort(400, { ok: false, fehler: "Die Prüfung kam nicht vollständig an. Bitte noch einmal senden." });
 
-    const mitMangel = new Set(p.data.antworten.filter((a) => !a.ok).map((a) => a.punktId));
-    const fotos = new Map<string, string>();
-    for (const punktId of mitMangel) {
-      const d = datei(formular.get(`foto:${punktId}`));
-      if (!d) continue;
-      const bild = await rechneFotoNeu(new Uint8Array(await d.arrayBuffer()));
-      if (!bild) return antwort(400, { ok: false, fehler: "Ein Foto ließ sich nicht lesen. Bitte ein anderes wählen." });
-      const mangelId = neueId();
-      await legeFotoAb(mangelId, bild);
-      fotos.set(punktId, mangelId);
-    }
+    const db = getDb();
+    const amGeraet = ladeAmGeraet(db, id, heute());
+    if (!amGeraet) return antwort(400, { ok: false, fehler: "Dieses Gerät gibt es nicht mehr." });
+    const punkte = new Set(amGeraet.checkliste.map((pk) => pk.id));
+    const mitMangel = new Set(p.data.antworten.filter((a) => !a.ok && punkte.has(a.punktId)).map((a) => a.punktId));
 
+    const fotos = new Map<string, string>();
     try {
-      const r = pruefungAbschliessen(getDb(), id, p.data, fotos, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) });
+      for (const punktId of mitMangel) {
+        const d = datei(formular.get(`foto:${punktId}`));
+        if (!d) continue;
+        const bild = await rechneFotoNeu(new Uint8Array(await d.arrayBuffer()));
+        if (!bild) {
+          await entferneFotos(fotos.values());
+          return antwort(400, { ok: false, fehler: "Ein Foto ließ sich nicht lesen. Bitte ein anderes wählen." });
+        }
+        const mangelId = neueId();
+        await legeFotoAb(mangelId, bild);
+        fotos.set(punktId, mangelId);
+      }
+      const r = pruefungAbschliessen(db, id, p.data, fotos, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) });
       return antwort(200, { ok: true, maengel: r.maengel });
     } catch (e) {
+      await entferneFotos(fotos.values());
       if (e instanceof Abgelehnt) return antwort(400, { ok: false, fehler: e.message, feld: e.feld });
       throw e;
     }

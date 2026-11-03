@@ -12,6 +12,7 @@ import { RANG, type Stufe, type Zustand } from "../_lib/fristen";
 import type { Ergebnis, GeraetZeile } from "../_lib/typen";
 import { GeraetFormular, type GeraetWerte } from "./GeraetFormular";
 import { GruppenFilter } from "./GruppenFilter";
+import { NICHT_GESPEICHERT } from "./useAktion";
 import { FristChip, OrtText, stundenText, ZustandChip } from "./teile";
 import s from "./wartung.module.css";
 
@@ -59,6 +60,8 @@ export function GeraeteListe({
           setFeldFehler(r.feldFehler ?? {});
           if (!r.feldFehler) message.error(r.fehler);
         }
+      } catch {
+        message.error(NICHT_GESPEICHERT);
       } finally {
         sperre.current = false;
       }

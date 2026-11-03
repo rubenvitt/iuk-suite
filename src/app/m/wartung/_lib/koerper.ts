@@ -24,7 +24,9 @@ export function fremdeHerkunft(req: Request): boolean {
 
 /** Höchstens so viele Fotos je Sendung (ein Foto je Mangel). */
 export const MAX_FOTOS = 10;
-export const KOERPER_MAX = MAX_FOTOS * FOTO_MAX_BYTES + 256 * 1024;
+/** Platz für Textfelder und multipart-Rahmen neben den Fotos. */
+export const RAHMEN_MAX = 256 * 1024;
+export const KOERPER_MAX = MAX_FOTOS * FOTO_MAX_BYTES + RAHMEN_MAX;
 
 /** Den Körper lesen, aber nie mehr als `max` Bytes; gezählt wird beim Lesen. */
 export async function formularGelesen(req: Request, max = KOERPER_MAX): Promise<FormData | "zu_gross" | null> {

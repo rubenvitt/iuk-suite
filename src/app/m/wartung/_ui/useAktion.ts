@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { App } from "antd";
 import type { Ergebnis } from "../_lib/typen";
 
+/** Die Aktion kam nicht an oder warf (Netz weg, neuer Stand ausgerollt): keine Fehlerseite, nur der Satz. */
+export const NICHT_GESPEICHERT = "Nicht gespeichert. Bitte die Seite neu laden und noch einmal versuchen.";
+
 /**
  * Eine Server Action mit Sperre gegen Doppelklick, Erfolgsmeldung und Feldfehlern. Nach Erfolg lädt die
  * Seite über `revalidatePath` neu.
@@ -27,6 +30,8 @@ export function useAktion() {
           setFeldFehler(r.feldFehler ?? {});
           message.error(r.fehler);
         }
+      } catch {
+        message.error(NICHT_GESPEICHERT);
       } finally {
         sperre.current = false;
       }

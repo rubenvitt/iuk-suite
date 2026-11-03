@@ -5,10 +5,10 @@
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../../../../../_db/client";
 import { idSchema, mangelEingabe } from "../../../../../_lib/eingabe";
-import { legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fotos";
+import { entferneFotos, FOTO_MAX_BYTES, legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fotos";
 import { heute } from "../../../../../_lib/heute";
 import { hostAbweisung } from "../../../../../_lib/host";
-import { antwort, datei, formularGelesen, fremdeHerkunft } from "../../../../../_lib/koerper";
+import { antwort, datei, formularGelesen, fremdeHerkunft, RAHMEN_MAX } from "../../../../../_lib/koerper";
 import { Abgelehnt, mangelMelden, neueId } from "../../../../../_lib/schreiben";
 import { anzeigename, requireAktion } from "../../../../../_lib/zugang";
 
@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!idSchema.safeParse(id).success) return new Response(null, { status: 404 });
 
   return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Response> => {
-    const formular = await formularGelesen(req);
+    const formular = await formularGelesen(req, FOTO_MAX_BYTES + RAHMEN_MAX);
     if (formular === "zu_gross") return antwort(413, { ok: false, fehler: "Das Foto ist zu groß." });
     if (formular === null) return antwort(400, { ok: false, fehler: "Die Meldung kam nicht vollständig an. Bitte noch einmal senden." });
 
@@ -48,6 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
       return antwort(200, { ok: true });
     } catch (e) {
+      if (d) await entferneFotos([mangelId]);
       if (e instanceof Abgelehnt) return antwort(400, { ok: false, fehler: e.message, feld: e.feld });
       throw e;
     }

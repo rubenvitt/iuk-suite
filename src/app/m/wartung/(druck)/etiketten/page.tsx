@@ -19,7 +19,7 @@ export default async function EtikettenSeite({ searchParams }: { searchParams: P
   const q = await searchParams;
   const auswahl = gruppenAuswahl(rechte, ladeGruppen(db), q.gruppe);
   const alle = ladeGeraete(db, { gruppen: auswahl.gruppen, heute: heute() });
-  const geraete = typeof q.geraet === "string" && alle.some((g) => g.id === q.geraet) ? alle.filter((g) => g.id === q.geraet) : alle;
+  const geraete = typeof q.geraet === "string" ? alle.filter((g) => g.id === q.geraet) : alle;
   const basis = linkBasisAus(await headers());
   const codes = await Promise.all(geraete.map((g) => qrSvg(qrZiel(basis, g.id))));
   return (
