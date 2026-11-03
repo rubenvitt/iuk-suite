@@ -62,6 +62,50 @@ function traegtClientDirektive(quelle: string): boolean {
   return /^\s*["']use client["']/.test(ohneKommentare(quelle));
 }
 
+/** Zahl der Argumente je Pfadbefehl (SVG 1.1, Abschnitt „Path data"). */
+const ARGUMENTE: Record<string, number> = { m: 2, l: 2, h: 1, v: 1, c: 6, s: 4, q: 4, t: 2, a: 7, z: 0 };
+
+/**
+ * Prüft einen Pfad streng: nur Befehle und Zahlen, jede Zahl mit höchstens einem
+ * Dezimalpunkt (zwei hintereinander sind das Zeichen eines verlorenen Trennzeichens,
+ * auch wenn die Grammatik `0.20.5` als zwei Zahlen läse), und je Befehl ein
+ * Vielfaches seiner Argumentzahl. Liefert den ersten Befund oder `null`.
+ */
+function pfadFehler(pfad: string): string | null {
+  if (!/^\s*[Mm]/.test(pfad)) return "Pfad beginnt nicht mit M";
+  const doppelpunkt = pfad.match(/\d*\.\d+\.\d/);
+  if (doppelpunkt) return `Zahl mit zwei Dezimalpunkten bei „${doppelpunkt[0]}"`;
+  const token = /\s*,?\s*(?:([MmZzLlHhVvCcSsQqTtAa])|(-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?))/y;
+  let befehl: string | null = null;
+  let zahlen = 0;
+  const abschliessen = (): string | null => {
+    if (befehl === null) return null;
+    const soll = ARGUMENTE[befehl.toLowerCase()];
+    if (soll === 0 ? zahlen !== 0 : zahlen === 0 || zahlen % soll !== 0) {
+      return `„${befehl}" mit ${zahlen} Argumenten`;
+    }
+    return null;
+  };
+  let stelle = 0;
+  while (stelle < pfad.length) {
+    if (/^\s*$/.test(pfad.slice(stelle))) break;
+    token.lastIndex = stelle;
+    const treffer = token.exec(pfad);
+    if (!treffer) return `unlesbar ab Stelle ${stelle}: „${pfad.slice(stelle, stelle + 12)}"`;
+    stelle = token.lastIndex;
+    if (treffer[1]) {
+      const befund = abschliessen();
+      if (befund) return befund;
+      befehl = treffer[1];
+      zahlen = 0;
+    } else {
+      if (befehl === null) return "Zahl vor dem ersten Befehl";
+      zahlen += 1;
+    }
+  }
+  return abschliessen();
+}
+
 describe("core/ikonen — die eine Zeichenquelle", () => {
   it("keine Quelldatei importiert ein Icon-Paket", () => {
     // Tests sind ausgenommen: sie schreiben verbotene Importe als Fallbeispiele in Strings.
@@ -95,6 +139,26 @@ describe("core/ikonen — die eine Zeichenquelle", () => {
       expect(zeichen.pfade.length, name).toBeGreaterThan(0);
       expect(zeichen.id, name).toMatch(/^\w+$/);
     }
+  });
+
+  it("jeder Pfad ist gültige SVG-Pfadsyntax (IDA-317)", () => {
+    // IDA-317: Beim Runden (DRK-502) gingen in `apps` Trennzeichen verloren
+    // (`-0.30-0.40.1l`). Chromium bricht dort ab und zeichnet den Rest nicht.
+    const fehler = Object.entries(ICONS8).flatMap(([name, zeichen]) =>
+      zeichen.pfade.flatMap((pfad, i) => {
+        const befund = pfadFehler(pfad);
+        return befund ? [`${name}[${i}]: ${befund}`] : [];
+      }),
+    );
+    expect(fehler).toEqual([]);
+  });
+
+  it("die Pfadprüfung erkennt verlorene Trennzeichen", () => {
+    expect(pfadFehler("M1 1l2 2z")).toBeNull();
+    expect(pfadFehler("M1 1c-0.1 0-0.30-0.40.1l2 2z")).not.toBeNull();
+    expect(pfadFehler("M1 1h9c0.3 0 0.5-0.20.5-0.5z")).not.toBeNull();
+    expect(pfadFehler("M1 1c1 2 3 4 5l2 2z")).not.toBeNull();
+    expect(pfadFehler("M1 1 x")).not.toBeNull();
   });
 
   it("jeder Katalogschlüssel wird in `src` benutzt — der Katalog trägt keinen Ballast", () => {
