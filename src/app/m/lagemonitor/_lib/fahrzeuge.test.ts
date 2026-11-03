@@ -39,7 +39,7 @@ describe("Fahrzeuge auf der Karte", () => {
     meldePosition(db, zugangId, { lat: 52.9, lon: 10.5, alterS: 30 }, JETZT);
     meldePosition(db, zugangId, { lat: 53.0, lon: 10.6, alterS: 5 }, new Date(JETZT.getTime() + 60_000));
     expect(alsVehicles(db, null, JETZT, Q)).toEqual([
-      { id: expect.any(String), callSign: "Rotkreuz Uelzen 40-12-1", symbol: SVG, lat: 53.0, lon: 10.6, at: "2026-11-02T14:00:55.000Z", own: false },
+      { id: expect.any(String), callSign: "Rotkreuz Uelzen 40-12-1", symbol: SVG, lat: 53.0, lon: 10.6, at: "2026-11-02T14:00:55.000Z", own: false, fixed: false },
     ]);
     expect(alsVehicles(db, zugangId, JETZT, Q)[0].own).toBe(true);
   });

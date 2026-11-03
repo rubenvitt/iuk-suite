@@ -14,10 +14,7 @@ import { check, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-or
  */
 export const anzeige = sqliteTable("lagemonitor_anzeige", {
   id: text("id").primaryKey(),
-  standortName: text("standort_name").notNull(),
-  standortBreite: real("standort_breite").notNull(),
-  standortLaenge: real("standort_laenge").notNull(),
-  /** Zoomstufe der Karte ohne Einsatz, um den Standort (maplibre; 9 zeigt etwa einen Landkreis). */
+  /** Zoomstufe der Karte ohne Einsatz, um den eigenen Standort (maplibre; 9 zeigt etwa einen Landkreis). */
   kartenZoom: real("karten_zoom").notNull().default(9),
   /** Amtlicher Regionalschlüssel (12 Ziffern) für die NINA-Warnungen. */
   regionArs: text("region_ars").notNull(),
@@ -68,6 +65,16 @@ export const zugang = sqliteTable("lagemonitor_zugang", {
   angelegtVon: text("angelegt_von").notNull(),
   /** Letzte erfolgreiche Abholung; technischer Kontakt, nicht im Audit (`AUDIT_TABLES.lagemonitor`). */
   zuletztAbgeholtAm: integer("zuletzt_abgeholt_am", { mode: "timestamp" }),
+  /**
+   * Der Standort dieses Monitors (`_lib/standort.ts`). Meldet über den Zugang ein Fahrzeug (`fahrzeug.zugangId`),
+   * gilt dessen GPS, und der Ort hier ist nur der Name und der Ort bis zum ersten Fix. Sonst ist er ein fester Ort
+   * und steht mit `ortZeichen` auf allen Monitoren. `null`: noch nicht eingestellt.
+   */
+  ortName: text("ort_name"),
+  ortBreite: real("ort_breite"),
+  ortLaenge: real("ort_laenge"),
+  /** Taktisches Zeichen eines festen Orts (Schlüssel aus kommplan, wie `fahrzeug.zeichen`). */
+  ortZeichen: text("ort_zeichen"),
 }, (t) => [uniqueIndex("lagemonitor_zugang_schluessel_idx").on(t.schluesselHash)]);
 
 /**

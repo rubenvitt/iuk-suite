@@ -12,6 +12,7 @@ import { aendereKategorie, kategorieEingabe, legeKategorieAn, loescheKategorie, 
 import { legeLinkAn, linkAdresse, widerrufeLink } from "../_lib/links";
 import { onlineAdresse } from "../_lib/online";
 import { legeZugangAn, widerrufeZugang } from "../_lib/schluessel";
+import { setzeStandort, standortEingabe } from "../_lib/standort";
 import { anzeigeName, requireLagemonitorAktion } from "../_lib/zugang";
 
 function neuLaden(): void {
@@ -161,6 +162,19 @@ export async function fahrzeugEntfernenAction(id: unknown): Promise<ActionErgebn
   if (typeof id !== "string" || id.length === 0 || id.length > 64) return { ok: false, fehler: "Unbekanntes Fahrzeug." };
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     if (!loescheFahrzeug(getDb(), id)) return { ok: false, fehler: "Dieses Fahrzeug steht schon nicht mehr auf der Karte." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Setzt den Standort eines Monitors: GPS eines Fahrzeugs oder ein fester Ort. Der Monitor holt ihn mit der nächsten Abholung. */
+export async function standortSetzenAction(eingabe: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  const e = standortEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = setzeStandort(getDb(), e.data);
+    if (!r.ok) return r;
     neuLaden();
     return { ok: true };
   });
