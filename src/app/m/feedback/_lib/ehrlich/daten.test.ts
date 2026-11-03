@@ -99,4 +99,9 @@ describe("Sofort-Push", () => {
     vermerkeGemeldet(db, meldungen.map((m) => m.id));
     expect(ungemeldete(db, "2026-11-01")).toEqual([]);
   });
+  it("holt einen am Folgetag ausgefallenen Push am Tag danach nach", () => {
+    legeMitteilungAn(db, einwurf, "2026-11-03");
+    const jetzt = Date.parse("2026-11-05T07:30:00Z");
+    expect(feedbackSofortmeldungen(new Date(jetzt - 24 * 60 * 60_000), db, jetzt)).toHaveLength(1);
+  });
 });

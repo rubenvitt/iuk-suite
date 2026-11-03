@@ -25,6 +25,12 @@ describe("ladeLeserNamen", () => {
     expect(urls[0]).toMatch(/^https:\/\/id\.example\/api\/user-groups\?/);
   });
 
+  it("schickt den Schlüssel nie über HTTP", async () => {
+    const { t, urls } = transport([gruppe, mitglieder]);
+    expect(await ladeLeserNamen({ POCKET_ID_ISSUER: "http://id.example", POCKET_ID_API_KEY: "k" }, t, 0)).toEqual([]);
+    expect(urls).toEqual([]);
+  });
+
   it("gibt nach Ablauf der TTL bei einem Fehler keine alte Liste aus", async () => {
     const env = { POCKET_ID_ISSUER: "https://id.example", POCKET_ID_API_KEY: "k" };
     const { t } = transport([gruppe, mitglieder, new Error("weg"), new Error("weg")]);

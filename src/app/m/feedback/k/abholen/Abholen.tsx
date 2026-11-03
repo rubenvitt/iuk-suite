@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import s from "../../f/[slugSecret]/zettel.module.css";
 import { abholenAktion, zurueckschreibenAktion, type AbholErgebnis } from "../../_lib/ehrlich/aktionen";
 import { Blatt } from "../Blatt";
@@ -28,16 +28,23 @@ export function Abholen({ schrift }: { schrift: string }) {
   // Welche Aktion zuletzt antwortete: eine neue Abholung desselben Codes darf nicht hinter einem alten
   // Schreibergebnis verschwinden (dort fehlte eine inzwischen eingegangene Antwort).
   const [zuletzt, setZuletzt] = useState<"abholen" | "schreiben">("abholen");
+  // Der Entwurf gehört zu einem Code: ein anderer Code bekommt ein leeres Feld.
+  const entwurfCode = useRef<string | null>(null);
   const [abgeholt, abholen, holt] = useActionState(async (v: AbholErgebnis | null, fd: FormData) => {
     const r = await abholenAktion(v, fd);
     setZuletzt("abholen");
+    if (r.code !== entwurfCode.current) {
+      entwurfCode.current = r.code;
+      setAntwort("");
+    }
     return r;
   }, null);
   const [geschrieben, schreiben, schreibt] = useActionState(async (v: AbholErgebnis | null, fd: FormData) => {
+    const gesendeterText = String(fd.get("text") ?? "");
     const r = await zurueckschreibenAktion(v, fd);
     setZuletzt("schreiben");
-    // Den Text erst leeren, wenn er wirklich gespeichert ist.
-    if (r.ok && r.gesendet === true) setAntwort("");
+    // Den Text erst leeren, wenn er wirklich gespeichert ist, und nur, wenn er seither nicht geändert wurde.
+    if (r.ok && r.gesendet === true) setAntwort((jetzt) => (jetzt === gesendeterText ? "" : jetzt));
     return r;
   }, null);
 
@@ -109,6 +116,7 @@ export function Abholen({ schrift }: { schrift: string }) {
                 maxLength={2000}
                 rows={3}
                 value={antwort}
+                readOnly={schreibt}
                 onChange={(ev) => setAntwort(ev.target.value)}
               />
               <button className={s.knopf} type="submit" style={{ marginTop: 12 }} disabled={schreibt || antwort.trim() === ""}>

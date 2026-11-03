@@ -62,7 +62,8 @@ export async function ladeLeserNamen(
   if (jetzt < gesperrtBis) return frischeNamen(jetzt);
   const basis = (env.POCKET_ID_API_URL?.trim() || env.POCKET_ID_ISSUER || "").trim().replace(/\/+$/, "");
   const apiKey = (env.POCKET_ID_API_KEY ?? "").trim();
-  if (basis === "" || apiKey === "") return [];
+  // Der Schlüssel geht nur über HTTPS hinaus.
+  if (!basis.startsWith("https://") || apiKey === "") return [];
   const gruppe = leserGruppe(env);
   try {
     const suche = (await holeJson(transport, `${basis}/api/user-groups?${new URLSearchParams({ search: gruppe, "pagination[limit]": "100" })}`, apiKey)) as { data?: unknown };

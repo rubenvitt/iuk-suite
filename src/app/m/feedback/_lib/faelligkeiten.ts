@@ -37,7 +37,9 @@ function stundeVon(ms: number): number {
 export function feedbackSofortmeldungen(seit: Date, db: EhrlichDb = getDb(), jetzt: number = Date.now()): Sofortmeldung[] {
   if (stundeVon(jetzt) < MELDESTUNDE) return [];
   const heute = tagVon(jetzt);
-  return ungemeldete(db, tagVon(seit.getTime())).filter((u) => u.tag < heute).map((u) => ({
+  // Einen Tag weiter zurück als das Portal-Fenster: der früheste Versand ist der Folgetag des Einwurfs,
+  // und ein dort ausgefallener Push soll noch einen Tag nachgeholt werden.
+  return ungemeldete(db, tagVon(seit.getTime() - 24 * 60 * 60_000)).filter((u) => u.tag < heute).map((u) => ({
     id: u.id,
     art: "Ehrlich gesagt",
     titel: u.art === "mitteilung" ? "Ehrlich gesagt: neue Mitteilung" : "Ehrlich gesagt: neue Rückfrage",
