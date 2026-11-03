@@ -1,9 +1,11 @@
 /**
  * EINEN MANGEL AM GERÄT MELDEN (IDA-312) — POST, multipart: `text`, `einsatzbereit` (`ja`/`nein`) und
  * höchstens ein `foto`, dazu `sendung` (die ID vom Telefon: ein zweites Senden legt nichts doppelt an).
- * Melden darf jeder Angemeldete; der Handler riegelt selbst (kein Layout).
+ * Melden darf jeder mit dem QR-Code, auch ohne Anmeldung (IDA-337); dann mit freiwilligem `name` und hinter der
+ * Notbremse (`_lib/bremse.ts`). Der Handler riegelt selbst (kein Layout).
  */
 import { auditActor, withAuditContext } from "@/core/audit/server";
+import { auth } from "@/core/auth";
 import { getDb } from "../../../../../_db/client";
 import { idSchema, mangelEingabe } from "../../../../../_lib/eingabe";
 import { entferneFotos, FOTO_MAX_BYTES, legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fotos";
@@ -11,7 +13,8 @@ import { heute } from "../../../../../_lib/heute";
 import { hostAbweisung } from "../../../../../_lib/host";
 import { antwort, datei, formularGelesen, fremdeHerkunft, RAHMEN_MAX } from "../../../../../_lib/koerper";
 import { Abgelehnt, mangelMelden, schonGesendet } from "../../../../../_lib/schreiben";
-import { anzeigename, requireAktion } from "../../../../../_lib/zugang";
+import { meldungOhneAnmeldungErlaubt } from "../../../../../_lib/bremse";
+import { anzeigename, hatWartungZugang } from "../../../../../_lib/zugang";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +22,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const ab = hostAbweisung(req);
   if (ab) return ab;
   if (fremdeHerkunft(req)) return new Response(null, { status: 403 });
-  let viewer;
-  try {
-    ({ viewer } = await requireAktion("angemeldet"));
-  } catch {
-    return antwort(401, { ok: false, fehler: "Die Anmeldung ist abgelaufen. Bitte den QR-Code noch einmal scannen." });
-  }
+  const viewer = (await auth())?.user ?? null;
+  const mitZugang = viewer !== null && hatWartungZugang(viewer.groups);
   const { id } = await params;
   if (!idSchema.safeParse(id).success) return new Response(null, { status: 404 });
 
@@ -33,7 +32,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (formular === "zu_gross") return antwort(413, { ok: false, fehler: "Das Foto ist zu groß." });
     if (formular === null) return antwort(400, { ok: false, fehler: "Die Meldung kam nicht vollständig an. Bitte noch einmal senden." });
 
-    const m = mangelEingabe.safeParse({ text: String(formular.get("text") ?? ""), einsatzbereit: formular.get("einsatzbereit") !== "nein" });
+    const m = mangelEingabe.safeParse({
+      text: String(formular.get("text") ?? ""), einsatzbereit: formular.get("einsatzbereit") !== "nein", name: String(formular.get("name") ?? ""),
+    });
     if (!m.success) return antwort(400, { ok: false, fehler: m.error.issues[0]?.message ?? "Bitte beschreiben, was los ist.", feld: "text" });
 
     const sendung = idSchema.safeParse(formular.get("sendung"));
@@ -42,6 +43,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const schon = schonGesendet(getDb(), "mangel", mangelId, id);
     if (schon === "fremd") return antwort(400, { ok: false, fehler: "Die Meldung kam nicht vollständig an. Bitte noch einmal senden." });
     if (schon) return antwort(200, { ok: true });
+    if (!mitZugang && !meldungOhneAnmeldungErlaubt(id)) {
+      return antwort(429, { ok: false, fehler: "Gerade kommen zu viele Meldungen an. Bitte in ein paar Minuten noch einmal senden." });
+    }
     const d = datei(formular.get("foto"));
     if (d) {
       const bild = await rechneFotoNeu(new Uint8Array(await d.arrayBuffer()));
@@ -50,7 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     try {
       mangelMelden(getDb(), id, { id: mangelId, text: m.data.text, foto: d !== null, einsatzbereit: m.data.einsatzbereit }, {
-        jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer),
+        jetzt: Date.now(), heute: heute(), wer: mitZugang && viewer ? anzeigename(viewer) : m.data.name || "Ohne Anmeldung",
       });
       return antwort(200, { ok: true });
     } catch (e) {

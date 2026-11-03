@@ -12,6 +12,7 @@
  * Kein `"use client"` (Falle 6).
  */
 import { ladeRechte, type RechteDaten } from "@/app/m/portal/_lib/rechte";
+import { personSchluessel } from "@/core/faelligkeiten";
 
 export type GruppenJePerson = ReadonlyMap<string, readonly string[] | null>;
 
@@ -22,6 +23,10 @@ export async function personenGruppen(laden: () => Promise<RechteDaten> = () => 
   const namen = new Map(daten.gruppen.map((g) => [g.id, g.name]));
   return new Map(daten.personen.map((p) => [
     p.id,
-    p.gesperrt ? null : p.gruppenIds.map((id) => namen.get(id)).filter((n): n is string => n !== undefined),
+    p.gesperrt ? null : [
+      ...p.gruppenIds.map((id) => namen.get(id)).filter((n): n is string => n !== undefined),
+      // IDA-337: dazu der Personenschlüssel, wie `sichtSchluessel` auf der Seite (die Pocket-ID-Kennung IST der `sub`).
+      personSchluessel(p.id),
+    ],
   ]));
 }

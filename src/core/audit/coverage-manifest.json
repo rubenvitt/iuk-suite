@@ -1329,6 +1329,12 @@
   "src/app/m/wartung/_actions/verwaltung.ts#gruppeLoeschenAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#gruppeSpeichernAction": { "kind": "context", "via": "schreibe" },
   "src/app/m/wartung/_actions/verwaltung.ts#mangelBehebenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#verwalterHinzufuegenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#verwalterEntfernenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#suchePersonenAction": {
+    "kind": "excluded",
+    "reason": "Liest Vorschläge zum Zuordnen von Verwaltern (bekannte Personen und Personenverzeichnis, höchstens 20); schreibt nichts."
+  },
   "src/app/m/wartung/_actions/telefon.ts#stundenEintragenAction": { "kind": "context", "via": "stundenEintragenAction" },
   "src/app/m/wartung/(geraet)/g/[id]/pruefung/senden/route.ts#POST": { "kind": "context", "via": "POST" },
   "src/app/m/wartung/(geraet)/g/[id]/mangel/senden/route.ts#POST": { "kind": "context", "via": "POST" },

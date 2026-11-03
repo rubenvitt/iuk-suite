@@ -9,18 +9,20 @@
  *   * jede Frist, die nicht im Plan ist (überfällig oder in den nächsten 30 Tagen bzw. 20 Betriebsstunden);
  *   * jedes Gerät, das nicht einsatzbereit ist → überfällig; neue „nicht einsatzbereit“-Mängel gehen außerdem
  *     sofort als Push hinaus (`wartungSofortmeldungen`), nicht erst am Montag.
- * Jeder Eintrag trägt `sichtbarFuer`: die Pocket-ID-Gruppe seiner Gruppe und die Admin-Gruppen. So sehen die
- * Verwalter von Technik nur Technik (Entscheidung 2026-11-03 an IDA-307).
+ * Jeder Eintrag trägt `sichtbarFuer`: die Personenschlüssel der Verwalter seiner Gruppe (`personSchluessel`,
+ * IDA-337) und die Admin-Gruppen. So sehen die Verwalter von Technik nur Technik (Entscheidung 2026-11-03 an
+ * IDA-307).
  */
 import { adminGroupsFor } from "@/core/groups";
 import { getModule } from "@/core/registry";
-import type { Faelligkeit, Sofortmeldung } from "@/core/faelligkeiten";
+import { personSchluessel, type Faelligkeit, type Sofortmeldung } from "@/core/faelligkeiten";
 import { getDb, type WartungDb } from "../_db/client";
-import { gruppe } from "../_db/schema";
+import { verwalter } from "../_db/schema";
 import { ladeGeraete } from "./daten";
 import type { Wer } from "./fristen";
 import { tagInZone } from "./heute";
 import { ungepushteAusfaelle, vermerkeGepusht } from "./schreiben";
+import { hatWartungZugang } from "./zugang";
 
 export const WARTUNG_FAELLIGKEITS_ARTEN = ["Prüfung am Gerät", "Wartung", "Elektroprüfung", "Nicht einsatzbereit"] as const;
 type WartungFaelligkeit = Faelligkeit & { art: (typeof WARTUNG_FAELLIGKEITS_ARTEN)[number] };
@@ -33,20 +35,27 @@ const ART_JE_WER: Record<Wer, WartungFaelligkeit["art"]> = {
 
 type Leser = Pick<WartungDb, "select">;
 
-function pocketJeGruppe(db: Leser): Map<string, string> {
-  return new Map(db.select({ id: gruppe.id, pocket: gruppe.pocketGruppe }).from(gruppe).all().map((g) => [g.id, g.pocket]));
+/** Je Gruppe die Personenschlüssel ihrer Verwalter. */
+function verwalterJeGruppe(db: Leser): Map<string, string[]> {
+  const aus = new Map<string, string[]>();
+  for (const v of db.select({ g: verwalter.gruppeId, n: verwalter.nutzer }).from(verwalter).all()) {
+    aus.set(v.g, [...(aus.get(v.g) ?? []), personSchluessel(v.n)]);
+  }
+  return aus;
 }
 
 /**
  * Sieht diese Person überhaupt Fristen der Gerätewartung? Admin-Gruppen des Moduls OHNE den Suite-Admin-
- * Kurzschluss (wie das Lagerbuch) oder Verwalter einer Gruppe. Welche Einträge, sagt danach `sichtbarFuer`.
+ * Kurzschluss (wie das Lagerbuch) oder Verwalter einer Gruppe mit Modulzugang. `groups` sind die
+ * Sichtschlüssel des Portals (`sichtSchluessel`). Welche Einträge, sagt danach `sichtbarFuer`.
  * Eine nicht lesbare Datenbank heißt „nein“ — sonst risse sie die Startseite des Portals mit.
  */
 export function darfWartungFaelligkeitenSehen(groups: readonly string[] | null | undefined, db?: Leser): boolean {
   if (!groups || groups.length === 0) return false;
   if (adminGroupsFor(getModule("wartung")).some((g) => groups.includes(g))) return true;
   try {
-    return [...pocketJeGruppe(db ?? getDb()).values()].some((p) => groups.includes(p));
+    if (!hatWartungZugang(groups)) return false;
+    return [...verwalterJeGruppe(db ?? getDb()).values()].flat().some((p) => groups.includes(p));
   } catch {
     return false;
   }
@@ -54,8 +63,8 @@ export function darfWartungFaelligkeitenSehen(groups: readonly string[] | null |
 
 export function wartungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelligkeit[] {
   const admins = adminGroupsFor(getModule("wartung"));
-  const pocket = pocketJeGruppe(db);
-  const fuer = (gruppeId: string) => [...(pocket.has(gruppeId) ? [pocket.get(gruppeId)!] : []), ...admins];
+  const je = verwalterJeGruppe(db);
+  const fuer = (gruppeId: string) => [...(je.get(gruppeId) ?? []), ...admins];
   const geraete = ladeGeraete(db, { gruppen: null, heute: tagInZone(jetzt.getTime()) });
 
   const ausfaelle = geraete.filter((g) => g.zustand === "defekt").map((g): WartungFaelligkeit => ({
@@ -86,14 +95,14 @@ export function wartungFaelligkeiten(jetzt: Date, db: Leser = getDb()): Faelligk
 /** Neue „nicht einsatzbereit“-Meldungen für den Sofort-Push — ohne Freitext und ohne Namen. */
 export function wartungSofortmeldungen(seit: Date, db: Leser = getDb()): Sofortmeldung[] {
   const admins = adminGroupsFor(getModule("wartung"));
-  const pocket = pocketJeGruppe(db);
+  const je = verwalterJeGruppe(db);
   return ungepushteAusfaelle(db, seit.getTime()).map((m) => ({
     id: m.id,
     art: "Nicht einsatzbereit",
     titel: `Nicht einsatzbereit: ${m.geraetName}`,
     zeilen: [m.ort, m.foto ? "Mangel mit Foto gemeldet" : "Mangel gemeldet"],
     pfad: `/geraete/${m.geraetId}`,
-    sichtbarFuer: [...(pocket.has(m.gruppeId) ? [pocket.get(m.gruppeId)!] : []), ...admins],
+    sichtbarFuer: [...(je.get(m.gruppeId) ?? []), ...admins],
   }));
 }
 

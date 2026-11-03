@@ -14,7 +14,7 @@ import { anzeigename, requireAktion } from "../_lib/zugang";
  * über Route Handler, weil Fotos mitkommen (`g/[id]/pruefung/senden`, `g/[id]/mangel/senden`).
  */
 export async function stundenEintragenAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {
-  const { viewer } = await requireAktion("angemeldet");
+  const { viewer } = await requireAktion("zugang");
   const e = stundenEingabe.safeParse(eingabe);
   if (!idSchema.safeParse(geraetId).success || !e.success) return { ok: false, fehler: "Bitte ganze Stunden eingeben.", feldFehler: { stunden: "Bitte ganze Stunden eingeben." } };
   return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis> => {

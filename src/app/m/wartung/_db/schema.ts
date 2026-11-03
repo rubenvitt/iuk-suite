@@ -2,8 +2,9 @@
  * Die Datenbank des Moduls `wartung` (IDA-312, POC IDA-307): Geräte mit Prüf- und Wartungsfristen —
  * Stromerzeuger, Heizungen, Akkus, IT — aus mehreren Gruppen der Bereitschaft (Technik, I&K …).
  *
- * - Jedes Gerät gehört genau einer `gruppe`. Deren Verwalter sind die Mitglieder einer Pocket-ID-Gruppe
- *   (`gruppe.pocket_gruppe`); Modul-Admins sehen alles (`_lib/zugang.ts`).
+ * - Jedes Gerät gehört genau einer `gruppe`. Deren Verwalter ordnet der Admin im Modul zu (`verwalter`, je Person
+ *   der OIDC-`sub`); Modul-Admins sehen alles (`_lib/zugang.ts`). Pocket ID kennt nur `wartung-nutzer` und
+ *   `wartung-admin` (IDA-337).
  * - Gerätearten (`art`) mit ihren Fristen (`frist`) und der Checkliste (`checkpunkt`) gelten für alle Gruppen.
  * - Was an einem Gerät geschah, steht in `eintrag` (Prüfung, Erledigung einer Frist, abgelesene Stunden,
  *   gemeldeter oder behobener Mangel). Der Stand einer Frist ist der jüngste Eintrag mit ihrer `frist_id`;
@@ -16,19 +17,38 @@
  */
 export { auditOutbox } from "@/core/audit/_db/schema";
 import { sql } from "drizzle-orm";
-import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const gruppe = sqliteTable("gruppe", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  /** Name der Pocket-ID-Gruppe ihrer Verwalter, z. B. `wartung-technik`. */
-  pocketGruppe: text("pocket_gruppe").notNull(),
   position: integer("position").notNull().default(0),
   angelegtAm: integer("angelegt_am").notNull(),
   aktualisiertAm: integer("aktualisiert_am").notNull(),
+});
+
+/**
+ * Wer eine Gruppe verwaltet (IDA-337). `nutzer` ist der OIDC-`sub` und entscheidet; `name` ist der Anzeigename
+ * beim Zuordnen und steht nur in der Liste.
+ */
+export const verwalter = sqliteTable("verwalter", {
+  gruppeId: text("gruppe_id").notNull().references(() => gruppe.id, { onDelete: "cascade" }),
+  nutzer: text("nutzer").notNull(),
+  name: text("name").notNull(),
+  angelegtAm: integer("angelegt_am").notNull(),
 }, (t) => [
-  uniqueIndex("gruppe_pocket_idx").on(t.pocketGruppe),
+  primaryKey({ columns: [t.gruppeId, t.nutzer] }),
+  index("verwalter_nutzer_idx").on(t.nutzer),
 ]);
+
+/**
+ * BEKANNTE PERSONEN (Vorbild `kommplan_person`): wer das Modul geöffnet hat, mit Anzeigenamen. Quelle der
+ * Personensuche, wenn das Verzeichnis fehlt. Ein Namens-Cache, keine Rechte.
+ */
+export const person = sqliteTable("person", {
+  nutzer: text("nutzer").primaryKey(),
+  name: text("name").notNull(),
+});
 
 export const art = sqliteTable("art", {
   id: text("id").primaryKey(),

@@ -12,6 +12,7 @@ const notiz: Releasenotiz = {
         "Am Gerät scannst du den QR-Code und gehst die Prüfung Punkt für Punkt durch, meldest einen Mangel mit Foto oder trägst die Betriebsstunden ein. " +
         "Was fällig ist, siehst du als Verwalter deiner Gruppe auch unter Was steht an.",
     ),
+    absatz("Einen Mangel melden kann jeder über den QR-Code, auch ohne Anmeldung."),
   ],
 };
 

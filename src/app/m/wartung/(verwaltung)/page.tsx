@@ -7,7 +7,7 @@ import { gruppenAuswahl } from "../_lib/ansicht";
 import { faelligeFristen, ladeGeraete, ladeGruppen, ladeMaengel } from "../_lib/daten";
 import { WER_TEXT } from "../_lib/fristen";
 import { heute } from "../_lib/heute";
-import { istVerwalter, requireAngemeldet } from "../_lib/zugang";
+import { istVerwalter, requireZugang } from "../_lib/zugang";
 import { GruppenFilter } from "../_ui/GruppenFilter";
 import { Kicker, ZustandChip } from "../_ui/teile";
 import s from "../_ui/wartung.module.css";
@@ -26,7 +26,7 @@ function Kpi({ zahl, text, farbe, href }: { zahl: number; text: string; farbe: "
 
 /** Übersicht der Verwalter: was fällig ist und was nicht einsatzbereit ist. Wer nichts verwaltet, prüft. */
 export default async function Uebersicht({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { rechte } = await requireAngemeldet();
+  const { rechte } = await requireZugang();
   if (!istVerwalter(rechte)) redirect("/geraete");
   const db = getDb();
   const auswahl = gruppenAuswahl(rechte, ladeGruppen(db), (await searchParams).gruppe);

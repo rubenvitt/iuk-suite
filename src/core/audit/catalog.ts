@@ -653,6 +653,17 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "verwalter": {
+      "mode": "audited",
+      "primaryKey": [
+        "gruppe_id",
+        "nutzer"
+      ]
+    },
+    "person": {
+      "mode": "excluded",
+      "reason": "Anzeigenamen-Cache bei Seitenaufrufen (Quelle der Personensuche); Rechte stehen in verwalter."
+    },
     "art": {
       "mode": "audited",
       "primaryKey": [

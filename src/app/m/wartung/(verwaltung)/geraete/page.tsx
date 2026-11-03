@@ -2,7 +2,7 @@ import { getDb } from "../../_db/client";
 import { gruppenAuswahl } from "../../_lib/ansicht";
 import { bekannteOrte, ladeArten, ladeGeraete, ladeGruppen } from "../../_lib/daten";
 import { heute } from "../../_lib/heute";
-import { istVerwalter, requireAngemeldet } from "../../_lib/zugang";
+import { istVerwalter, requireZugang } from "../../_lib/zugang";
 import { GeraeteListe } from "../../_ui/GeraeteListe";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * kommen zur Telefonansicht, wo sie prüfen und melden.
  */
 export default async function GeraeteSeite({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { rechte } = await requireAngemeldet();
+  const { rechte } = await requireZugang();
   const db = getDb();
   const verwalter = istVerwalter(rechte);
   const alleGruppen = ladeGruppen(db);

@@ -90,8 +90,10 @@ export type ArtEingabe = z.infer<typeof artEingabe>;
 
 export const gruppeEingabe = z.object({
   name: pflicht(40, "Bitte einen Namen angeben."),
-  pocketGruppe: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{1,62}$/, "Nur Buchstaben, Ziffern, Punkt, Strich und Unterstrich."),
 });
+
+/** Eine Person einer Gruppe zuordnen oder dort entfernen (IDA-337). */
+export const verwalterEingabe = z.object({ gruppeId: idSchema, nutzer: z.string().trim().min(1).max(200) }).strict();
 export type GruppeEingabe = z.infer<typeof gruppeEingabe>;
 
 /** Die Prüfung am Gerät, wie sie die Route bekommt (Fotos getrennt im multipart). */
@@ -109,6 +111,8 @@ export type PruefungEingabe = z.infer<typeof pruefungEingabe>;
 export const mangelEingabe = z.object({
   text: pflicht(NOTIZ_MAX, "Bitte kurz beschreiben, was los ist."),
   einsatzbereit: z.boolean(),
+  /** Nur ohne Anmeldung: wer meldet, freiwillig (IDA-337). */
+  name: z.string().trim().max(NAME_MAX).default(""),
 });
 
 /** Erste Meldung je Feld aus einem Zod-Fehler. */

@@ -5,14 +5,16 @@ import Link from "next/link";
 import { Button, Input, Result } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { randomId } from "@/core/zufallsId";
-import { NOTIZ_MAX } from "../../_lib/eingabe";
+import { NAME_MAX, NOTIZ_MAX } from "../../_lib/eingabe";
 import type { SendeAntwort } from "../../_lib/koerper";
 import { Kicker } from "../teile";
 import { FotoWahl, verkleinere } from "./foto";
 import s from "../wartung.module.css";
 
-export function MangelAmGeraet({ geraetId, geraetName }: { geraetId: string; geraetName: string }) {
+/** `mitName`: ohne Anmeldung gemeldet — dann steht der Name, den man angibt, im Verlauf. */
+export function MangelAmGeraet({ geraetId, geraetName, mitName = false }: { geraetId: string; geraetName: string; mitName?: boolean }) {
   const [sendung] = useState(randomId);
+  const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [bereit, setBereit] = useState(true);
@@ -29,6 +31,7 @@ export function MangelAmGeraet({ geraetId, geraetName }: { geraetId: string; ger
       daten.set("sendung", sendung);
       daten.set("text", text);
       daten.set("einsatzbereit", bereit ? "ja" : "nein");
+      if (mitName) daten.set("name", name);
       if (foto) daten.set("foto", await verkleinere(foto), "foto.jpg");
       const r = await fetch(`/g/${geraetId}/mangel/senden`, { method: "POST", body: daten });
       const a = (await r.json().catch(() => null)) as SendeAntwort | null;
@@ -76,6 +79,12 @@ export function MangelAmGeraet({ geraetId, geraetName }: { geraetId: string; ger
           ))}
         </div>
       </section>
+      {mitName && (
+        <section className={s.karte}>
+          <Kicker className={s.karteTitel}>Dein Name</Kicker>
+          <Input value={name} maxLength={NAME_MAX} autoComplete="name" onChange={(e) => setName(e.target.value)} aria-label="Dein Name" />
+        </section>
+      )}
       <div className={s.fuss}>
         {fehler && <div className={`${s.neben} ${s.klein}`} style={{ marginBottom: 8 }} role="alert">{fehler}</div>}
         <Button type="primary" block disabled={!text.trim()} loading={laeuft} onClick={() => void senden()}>Mangel melden</Button>

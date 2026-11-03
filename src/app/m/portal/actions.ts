@@ -11,6 +11,7 @@ import { bereinigeAuswahl } from "@/app/m/portal/_lib/faelligkeiten/auswahl";
 import { sendeZielFuer, versand } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
 import { QUELLEN } from "@/app/m/portal/_lib/faelligkeiten/quellen";
 import { sammle, sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
+import { sichtSchluessel } from "@/core/faelligkeiten";
 import { sendeAnNtfy } from "@/app/m/portal/_lib/faelligkeiten/senden";
 import { faelligkeitenSeitenUrl, nachrichtFuerPerson } from "@/app/m/portal/_lib/faelligkeiten/takt";
 
@@ -83,7 +84,7 @@ const FAELLIG_PFAD = "/m/portal/faelligkeiten";
 async function faelligkeitenPerson() {
   const session = await auth();
   const personId = session?.user?.id;
-  const gruppen = session?.user?.groups ?? [];
+  const gruppen = sichtSchluessel(session?.user);
   const v = versand();
   if (!personId || !v || sichtbareQuellen(gruppen).length === 0) {
     auditDenied("portal", auditActor(session?.user));

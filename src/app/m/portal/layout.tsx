@@ -7,6 +7,7 @@ import { auth } from "@/core/auth";
 import { darfWartungSehen, wartungsAbo } from "@/app/m/portal/_lib/serverwartung";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
+import { sichtSchluessel } from "@/core/faelligkeiten";
 
 /**
  * Die Navigationseintraege des Moduls — als benannte Funktion, damit die
@@ -54,7 +55,7 @@ export default async function PortalLayout({ children }: { children: React.React
   ]);
   // Ohne eingerichtetes Abo fuehrte der Eintrag auf 404 (`serverwartung/page.tsx`).
   const darfWartung = wartungsAbo() !== null && darfWartungSehen(session?.user?.groups);
-  const darfFristen = sichtbareQuellen(session?.user?.groups).length > 0;
+  const darfFristen = sichtbareQuellen(sichtSchluessel(session?.user)).length > 0;
 
   return (
     <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen, darfWartung, darfFristen)}>

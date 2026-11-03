@@ -235,7 +235,7 @@ describe("personenGruppen", () => {
     await expect(personenGruppen(async () => ({ status: "error", gruppen: [], personen: [] }))).rejects.toThrow();
   });
 
-  it("Gruppennamen je Person, gesperrt heißt null", async () => {
+  it("Gruppennamen und Personenschlüssel je Person, gesperrt heißt null", async () => {
     const m = await personenGruppen(async () => ({
       status: "ok",
       gruppen: [{ id: "g1", name: "lager", anzeige: "Lager", ldap: false }],
@@ -244,7 +244,7 @@ describe("personenGruppen", () => {
         { id: "p2", name: "B", email: null, gruppenIds: ["g1"], gesperrt: true },
       ],
     }));
-    expect(m?.get("p1")).toEqual(["lager"]);
+    expect(m?.get("p1")).toEqual(["lager", "person:p1"]);
     expect(m?.get("p2")).toBeNull();
     expect(m?.has("p3")).toBe(false);
   });

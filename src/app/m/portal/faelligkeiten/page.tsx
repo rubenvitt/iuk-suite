@@ -10,6 +10,7 @@ import { auswahlOptionen } from "@/app/m/portal/_lib/faelligkeiten/auswahl";
 import { aboFuer, versand } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
 import { FAELLIG_ANZEIGENAME } from "@/app/m/portal/_lib/ntfy";
 import { nurSichtbare, sammle, sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
+import { sichtSchluessel } from "@/core/faelligkeiten";
 import {
   FaelligkeitenAboVerwalten, FaelligkeitenAuswahl, FaelligkeitenEinrichten, FaelligkeitenProbe,
 } from "@/app/m/portal/_ui/FaelligkeitenAbo";
@@ -31,18 +32,18 @@ export const dynamic = "force-dynamic";
  */
 export default async function FaelligkeitenPage() {
   const session = await auth();
-  const quellen = sichtbareQuellen(session?.user?.groups);
+  const quellen = sichtbareQuellen(sichtSchluessel(session?.user));
   if (quellen.length === 0) {
     auditDenied("portal", auditActor(session?.user));
     notFound();
   }
 
-  const gruppen = nurSichtbare(sammle(quellen, new Date()), session?.user?.groups);
+  const gruppen = nurSichtbare(sammle(quellen, new Date()), sichtSchluessel(session?.user));
   const v = versand();
   const personId = session?.user?.id;
   const abo = v && personId ? aboVon(personId) : null;
   // Der Stand für den Fall ohne Verzeichnis (lokal); mit Pocket ID fragt der Takt dort (`personenGruppen.ts`).
-  if (abo) vermerkeGruppen(abo, session?.user?.groups ?? []);
+  if (abo) vermerkeGruppen(abo, sichtSchluessel(session?.user));
   const ntfyAbo = v && abo ? aboFuer(v, abo.thema) : null;
 
   return (

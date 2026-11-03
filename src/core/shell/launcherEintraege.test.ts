@@ -43,7 +43,6 @@ describe("modulEintraege", () => {
       "lagerbuch",
       "radio",
       "unterkunft",
-      "wartung",
       "gamma",
     ]);
     const gamma = modulEintraege(groups).find((e) => e.key === "gamma");
