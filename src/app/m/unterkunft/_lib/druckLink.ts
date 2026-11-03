@@ -9,14 +9,13 @@
  * KEIN "use client": vom Rechner (Client) wie von der Druckseite (Server) gelesen (Falle 6).
  */
 import type { Belegung, Eingabe, Raum, Weg, Zeltbestand } from "./rechner";
-import { RICHTWERTE } from "./richtwerte";
+import { ZELTTYPEN } from "./richtwerte";
 
 export const DRUCK_PARAM = "e";
 const MAX_RAEUME = 200;
 const MAX_ABZUEGE = 10;
 const MAX_BEZEICHNUNG = 80;
 const WEGE: readonly Weg[] = ["personen", "flaeche", "raeume", "zelte"];
-const TYPEN = RICHTWERTE.zelte.typen.map((t) => t.typ);
 
 function zuBase64Url(text: string): string {
   const bytes = new TextEncoder().encode(text);
@@ -48,9 +47,10 @@ function zahlenfelder<K extends string>(x: unknown, schluessel: readonly K[]): P
   return aus;
 }
 
+/** Zeltbestand je Typ; Links von vor IDA-323 tragen den Anzeigenamen (`SG 30`) statt der Kennung (`sg30`). */
 function bestand(x: unknown): Zeltbestand | undefined {
   if (!istObjekt(x)) return undefined;
-  return Object.fromEntries(TYPEN.map((t) => [t, Math.floor(zahl(x[t]))]));
+  return Object.fromEntries(ZELTTYPEN.map((t) => [t.typ, Math.floor(zahl(x[t.typ] ?? x[t.bezeichnung]))]));
 }
 
 function raum(x: unknown): Raum {

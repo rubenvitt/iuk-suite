@@ -1,0 +1,2607 @@
+{
+  "_zweck": "Gemeinsame Testfälle des Unterkunfts- und Zeltrechners (LLH-1520, design.md D1). Gelesen von frontend/src/betreuung/unterkunft/rechnerFixture.test.ts, später auch vom Rust-Kern der Rechner-API (LLH-1524). Je Fall: eingabe, richtwerte (Overrides über der Basis aus src/unterkunft/richtwerte_basis.json) und das vollständige erwartete Ergebnis. bezug nennt den Befund aus LLH-1519 (W1–W9) oder die Grenze, die der Fall festhält.",
+  "faelle": [
+    {
+      "name": "personen_getrennt_50_50",
+      "bezug": "Spec-Szenario; W2, W7",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": true,
+        "personen": {
+          "maenner": 50,
+          "frauen": 50
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": true,
+        "personen": 100,
+        "gruppen": [
+          {
+            "gruppe": "maenner",
+            "personen": 50
+          },
+          {
+            "gruppe": "frauen",
+            "personen": 50
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 400,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 18
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 10
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 10
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 8
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 6
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 405.6,
+          "zeltmix_platzbedarf_m2": 672
+        },
+        "material": {
+          "feldbetten": 100,
+          "decken": 200
+        },
+        "sanitaer": {
+          "toiletten": 6,
+          "urinale": 4,
+          "waschplaetze": 20,
+          "duschen": 6
+        },
+        "gesundheit": {
+          "betten": 5,
+          "flaeche_m2": 37.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 2500,
+          "davon_trinkwasser_l_tag": 300,
+          "faekalien_l_tag": 150,
+          "abfall_l_tag": 300
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 34,
+          "garnituren": 5,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "personen_gesamt_100",
+      "bezug": "W3 (Urinal über Männeranteil mal 0,5)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 100
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 100,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 100
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 400,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 17
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 10
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 9
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 8
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 7
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 418.3,
+          "zeltmix_platzbedarf_m2": 689
+        },
+        "material": {
+          "feldbetten": 100,
+          "decken": 200
+        },
+        "sanitaer": {
+          "toiletten": 5,
+          "urinale": 4,
+          "waschplaetze": 20,
+          "duschen": 5
+        },
+        "gesundheit": {
+          "betten": 5,
+          "flaeche_m2": 37.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 2500,
+          "davon_trinkwasser_l_tag": 300,
+          "faekalien_l_tag": 150,
+          "abfall_l_tag": 300
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 34,
+          "garnituren": 5,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "personen_ohne_gesamt_summe_aus_gruppen",
+      "bezug": "Eingabe ohne Trennung, nur Männer und Frauen",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "maenner": 30,
+          "frauen": 12
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 42,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 42
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 168,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 7
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 5
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 169.2,
+          "zeltmix_platzbedarf_m2": 275
+        },
+        "material": {
+          "feldbetten": 42,
+          "decken": 84
+        },
+        "sanitaer": {
+          "toiletten": 3,
+          "urinale": 2,
+          "waschplaetze": 9,
+          "duschen": 3
+        },
+        "gesundheit": {
+          "betten": 3,
+          "flaeche_m2": 22.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1050,
+          "davon_trinkwasser_l_tag": 126,
+          "faekalien_l_tag": 63,
+          "abfall_l_tag": 126
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 14,
+          "garnituren": 2,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "personen_null",
+      "bezug": "Leere Eingabe ergibt überall 0",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 0
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 0,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 0
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 0,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 0
+            }
+          ],
+          "zeltmix": [],
+          "zeltmix_grundflaeche_m2": 0,
+          "zeltmix_platzbedarf_m2": 0
+        },
+        "material": {
+          "feldbetten": 0,
+          "decken": 0
+        },
+        "sanitaer": {
+          "toiletten": 0,
+          "urinale": 0,
+          "waschplaetze": 0,
+          "duschen": 0
+        },
+        "gesundheit": {
+          "betten": 0,
+          "flaeche_m2": 0,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 0,
+          "davon_trinkwasser_l_tag": 0,
+          "faekalien_l_tag": 0,
+          "abfall_l_tag": 0
+        },
+        "verpflegung": {
+          "ausgabestellen": 0,
+          "sitzplaetze": 0,
+          "garnituren": 0,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "personen_90_krankenstation",
+      "bezug": "W4 (immer +1 Bett, Fläche aus gerundeten Betten)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 90
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 90,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 90
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 360,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 15
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 9
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 8
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 7
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 6
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 361.9,
+          "zeltmix_platzbedarf_m2": 597
+        },
+        "material": {
+          "feldbetten": 90,
+          "decken": 180
+        },
+        "sanitaer": {
+          "toiletten": 5,
+          "urinale": 3,
+          "waschplaetze": 18,
+          "duschen": 5
+        },
+        "gesundheit": {
+          "betten": 5,
+          "flaeche_m2": 37.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 2250,
+          "davon_trinkwasser_l_tag": 270,
+          "faekalien_l_tag": 135,
+          "abfall_l_tag": 270
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 30,
+          "garnituren": 4,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "personen_getrennt_21_21",
+      "bezug": "W7 (je Gruppe aufgerundet, dann summiert)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": true,
+        "personen": {
+          "maenner": 21,
+          "frauen": 21
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": true,
+        "personen": 42,
+        "gruppen": [
+          {
+            "gruppe": "maenner",
+            "personen": 21
+          },
+          {
+            "gruppe": "frauen",
+            "personen": 21
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 168,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 8
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 6
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 4
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 2
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 180,
+          "zeltmix_platzbedarf_m2": 305
+        },
+        "material": {
+          "feldbetten": 42,
+          "decken": 84
+        },
+        "sanitaer": {
+          "toiletten": 4,
+          "urinale": 2,
+          "waschplaetze": 10,
+          "duschen": 4
+        },
+        "gesundheit": {
+          "betten": 3,
+          "flaeche_m2": 22.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1050,
+          "davon_trinkwasser_l_tag": 126,
+          "faekalien_l_tag": 63,
+          "abfall_l_tag": 126
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 14,
+          "garnituren": 2,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "isolierstation_200",
+      "bezug": "Grenze Isolierstation (Annahme ab 201)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 200
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 200,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 200
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 800,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 34
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 20
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 17
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 15
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 14
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 813.1,
+          "zeltmix_platzbedarf_m2": 1330
+        },
+        "material": {
+          "feldbetten": 200,
+          "decken": 400
+        },
+        "sanitaer": {
+          "toiletten": 10,
+          "urinale": 7,
+          "waschplaetze": 40,
+          "duschen": 10
+        },
+        "gesundheit": {
+          "betten": 9,
+          "flaeche_m2": 67.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 5000,
+          "davon_trinkwasser_l_tag": 600,
+          "faekalien_l_tag": 300,
+          "abfall_l_tag": 600
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 67,
+          "garnituren": 9,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "isolierstation_201",
+      "bezug": "Grenze Isolierstation (Annahme ab 201)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 201
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 201,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 201
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 804,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 34
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 21
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 17
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 15
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 14
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 813.1,
+          "zeltmix_platzbedarf_m2": 1330
+        },
+        "material": {
+          "feldbetten": 201,
+          "decken": 402
+        },
+        "sanitaer": {
+          "toiletten": 11,
+          "urinale": 7,
+          "waschplaetze": 41,
+          "duschen": 11
+        },
+        "gesundheit": {
+          "betten": 10,
+          "flaeche_m2": 75,
+          "isolierstation": true
+        },
+        "versorgung": {
+          "wasser_l_tag": 5025,
+          "davon_trinkwasser_l_tag": 603,
+          "faekalien_l_tag": 301.5,
+          "abfall_l_tag": 603
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 67,
+          "garnituren": 9,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "ausgabestelle_300",
+      "bezug": "Grenze zweite Ausgabestelle (Annahme ab 301)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 300
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 300,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 300
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 1200,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 50
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 30
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 25
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 22
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 21
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 1207.9,
+          "zeltmix_platzbedarf_m2": 1972
+        },
+        "material": {
+          "feldbetten": 300,
+          "decken": 600
+        },
+        "sanitaer": {
+          "toiletten": 15,
+          "urinale": 10,
+          "waschplaetze": 60,
+          "duschen": 15
+        },
+        "gesundheit": {
+          "betten": 13,
+          "flaeche_m2": 97.5,
+          "isolierstation": true
+        },
+        "versorgung": {
+          "wasser_l_tag": 7500,
+          "davon_trinkwasser_l_tag": 900,
+          "faekalien_l_tag": 450,
+          "abfall_l_tag": 900
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 100,
+          "garnituren": 13,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "ausgabestelle_301",
+      "bezug": "Grenze zweite Ausgabestelle; W9 (Aufenthaltszelte aus Garnituren für ein Drittel)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 301
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 301,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 301
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 1204,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 51
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 31
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 26
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 22
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 21
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 1218,
+          "zeltmix_platzbedarf_m2": 1986
+        },
+        "material": {
+          "feldbetten": 301,
+          "decken": 602
+        },
+        "sanitaer": {
+          "toiletten": 16,
+          "urinale": 11,
+          "waschplaetze": 61,
+          "duschen": 16
+        },
+        "gesundheit": {
+          "betten": 14,
+          "flaeche_m2": 105,
+          "isolierstation": true
+        },
+        "versorgung": {
+          "wasser_l_tag": 7525,
+          "davon_trinkwasser_l_tag": 903,
+          "faekalien_l_tag": 451.5,
+          "abfall_l_tag": 903
+        },
+        "verpflegung": {
+          "ausgabestellen": 2,
+          "sitzplaetze": 101,
+          "garnituren": 13,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "raeume_zwei_mit_abzug",
+      "bezug": "Spec-Szenario; W8 (je Raum abgerundet, dann summiert)",
+      "eingabe": {
+        "weg": "raeume",
+        "trennung": false,
+        "raeume": [
+          {
+            "bezeichnung": "Halle",
+            "laenge_m": 15,
+            "breite_m": 13.5,
+            "abzuege": [
+              {
+                "laenge_m": 4,
+                "breite_m": 2.5
+              }
+            ]
+          },
+          {
+            "bezeichnung": "Gymnastikraum",
+            "laenge_m": 12,
+            "breite_m": 8,
+            "abzuege": [
+              {
+                "laenge_m": 3,
+                "breite_m": 2
+              }
+            ]
+          }
+        ]
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "raeume",
+        "trennung": false,
+        "personen": 70,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 70
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 70,
+          "raeume": [
+            {
+              "bezeichnung": "Halle",
+              "nutzflaeche_m2": 192.5,
+              "plaetze": 48,
+              "gruppe": "gesamt"
+            },
+            {
+              "bezeichnung": "Gymnastikraum",
+              "nutzflaeche_m2": 90,
+              "plaetze": 22,
+              "gruppe": "gesamt"
+            }
+          ]
+        },
+        "schlafen": {
+          "flaeche_m2": 280,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 12
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 7
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 6
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 5
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg50",
+              "anzahl": 5
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 282,
+          "zeltmix_platzbedarf_m2": 458
+        },
+        "material": {
+          "feldbetten": 70,
+          "decken": 140
+        },
+        "sanitaer": {
+          "toiletten": 4,
+          "urinale": 3,
+          "waschplaetze": 14,
+          "duschen": 4
+        },
+        "gesundheit": {
+          "betten": 4,
+          "flaeche_m2": 30,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1750,
+          "davon_trinkwasser_l_tag": 210,
+          "faekalien_l_tag": 105,
+          "abfall_l_tag": 210
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 24,
+          "garnituren": 3,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "raeume_8m2_zaehlt_2",
+      "bezug": "W5, W8 (8 m² ergeben 2 Plätze, nicht 2,67 und nicht 3); W6 (Wasser, Fäkalien, Abfall ohne feste Abzüge, Toiletten aufgerundet)",
+      "eingabe": {
+        "weg": "raeume",
+        "trennung": false,
+        "raeume": [
+          {
+            "bezeichnung": "Büro",
+            "laenge_m": 4,
+            "breite_m": 2
+          },
+          {
+            "bezeichnung": "Flur",
+            "laenge_m": 2.5,
+            "breite_m": 4
+          }
+        ]
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "raeume",
+        "trennung": false,
+        "personen": 4,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 4
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 4,
+          "raeume": [
+            {
+              "bezeichnung": "Büro",
+              "nutzflaeche_m2": 8,
+              "plaetze": 2,
+              "gruppe": "gesamt"
+            },
+            {
+              "bezeichnung": "Flur",
+              "nutzflaeche_m2": 10,
+              "plaetze": 2,
+              "gruppe": "gesamt"
+            }
+          ]
+        },
+        "schlafen": {
+          "flaeche_m2": 16,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 23.5,
+          "zeltmix_platzbedarf_m2": 47
+        },
+        "material": {
+          "feldbetten": 4,
+          "decken": 8
+        },
+        "sanitaer": {
+          "toiletten": 1,
+          "urinale": 1,
+          "waschplaetze": 1,
+          "duschen": 1
+        },
+        "gesundheit": {
+          "betten": 2,
+          "flaeche_m2": 15,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 100,
+          "davon_trinkwasser_l_tag": 12,
+          "faekalien_l_tag": 6,
+          "abfall_l_tag": 12
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 2,
+          "garnituren": 1,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "raeume_getrennt_belegung",
+      "bezug": "Trennung über die Belegung je Raum",
+      "eingabe": {
+        "weg": "raeume",
+        "trennung": true,
+        "raeume": [
+          {
+            "bezeichnung": "Klasse 1",
+            "laenge_m": 9,
+            "breite_m": 7,
+            "belegung": "maenner"
+          },
+          {
+            "bezeichnung": "Klasse 2",
+            "laenge_m": 9,
+            "breite_m": 7,
+            "belegung": "frauen"
+          },
+          {
+            "bezeichnung": "Klasse 3",
+            "laenge_m": 8,
+            "breite_m": 6,
+            "belegung": "frauen"
+          }
+        ]
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "raeume",
+        "trennung": true,
+        "personen": 42,
+        "gruppen": [
+          {
+            "gruppe": "maenner",
+            "personen": 15
+          },
+          {
+            "gruppe": "frauen",
+            "personen": 27
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 42,
+          "raeume": [
+            {
+              "bezeichnung": "Klasse 1",
+              "nutzflaeche_m2": 63,
+              "plaetze": 15,
+              "gruppe": "maenner"
+            },
+            {
+              "bezeichnung": "Klasse 2",
+              "nutzflaeche_m2": 63,
+              "plaetze": 15,
+              "gruppe": "frauen"
+            },
+            {
+              "bezeichnung": "Klasse 3",
+              "nutzflaeche_m2": 48,
+              "plaetze": 12,
+              "gruppe": "frauen"
+            }
+          ]
+        },
+        "schlafen": {
+          "flaeche_m2": 168,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 8
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 5
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 5
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 4
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 192.7,
+          "zeltmix_platzbedarf_m2": 322
+        },
+        "material": {
+          "feldbetten": 42,
+          "decken": 84
+        },
+        "sanitaer": {
+          "toiletten": 3,
+          "urinale": 1,
+          "waschplaetze": 9,
+          "duschen": 3
+        },
+        "gesundheit": {
+          "betten": 3,
+          "flaeche_m2": 22.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1050,
+          "davon_trinkwasser_l_tag": 126,
+          "faekalien_l_tag": 63,
+          "abfall_l_tag": 126
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 14,
+          "garnituren": 2,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "raeume_abzug_groesser_als_raum",
+      "bezug": "Nutzfläche nie negativ",
+      "eingabe": {
+        "weg": "raeume",
+        "trennung": false,
+        "raeume": [
+          {
+            "bezeichnung": "Abstellraum",
+            "laenge_m": 2,
+            "breite_m": 2,
+            "abzuege": [
+              {
+                "laenge_m": 3,
+                "breite_m": 3
+              }
+            ]
+          }
+        ]
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "raeume",
+        "trennung": false,
+        "personen": 0,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 0
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 0,
+          "raeume": [
+            {
+              "bezeichnung": "Abstellraum",
+              "nutzflaeche_m2": 0,
+              "plaetze": 0,
+              "gruppe": "gesamt"
+            }
+          ]
+        },
+        "schlafen": {
+          "flaeche_m2": 0,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 0
+            }
+          ],
+          "zeltmix": [],
+          "zeltmix_grundflaeche_m2": 0,
+          "zeltmix_platzbedarf_m2": 0
+        },
+        "material": {
+          "feldbetten": 0,
+          "decken": 0
+        },
+        "sanitaer": {
+          "toiletten": 0,
+          "urinale": 0,
+          "waschplaetze": 0,
+          "duschen": 0
+        },
+        "gesundheit": {
+          "betten": 0,
+          "flaeche_m2": 0,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 0,
+          "davon_trinkwasser_l_tag": 0,
+          "faekalien_l_tag": 0,
+          "abfall_l_tag": 0
+        },
+        "verpflegung": {
+          "ausgabestellen": 0,
+          "sitzplaetze": 0,
+          "garnituren": 0,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 0
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "raeume_gleitkomma",
+      "bezug": "Gleitkomma-Rest 0,3 × 40 m = 12,000…02 m² ergibt 3 Plätze",
+      "eingabe": {
+        "weg": "raeume",
+        "trennung": false,
+        "raeume": [
+          {
+            "bezeichnung": "Gang",
+            "laenge_m": 0.3,
+            "breite_m": 40
+          }
+        ]
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "raeume",
+        "trennung": false,
+        "personen": 3,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 3
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 3,
+          "raeume": [
+            {
+              "bezeichnung": "Gang",
+              "nutzflaeche_m2": 12,
+              "plaetze": 3,
+              "gruppe": "gesamt"
+            }
+          ]
+        },
+        "schlafen": {
+          "flaeche_m2": 12,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 23.5,
+          "zeltmix_platzbedarf_m2": 47
+        },
+        "material": {
+          "feldbetten": 3,
+          "decken": 6
+        },
+        "sanitaer": {
+          "toiletten": 1,
+          "urinale": 1,
+          "waschplaetze": 1,
+          "duschen": 1
+        },
+        "gesundheit": {
+          "betten": 2,
+          "flaeche_m2": 15,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 75,
+          "davon_trinkwasser_l_tag": 9,
+          "faekalien_l_tag": 4.5,
+          "abfall_l_tag": 9
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 1,
+          "garnituren": 1,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "flaeche_gesamt_1000",
+      "bezug": "W1 (4 m² je Person)",
+      "eingabe": {
+        "weg": "flaeche",
+        "trennung": false,
+        "flaeche": {
+          "gesamt_m2": 1000
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "flaeche",
+        "trennung": false,
+        "personen": 250,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 250
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 250,
+          "raeume": null
+        },
+        "schlafen": {
+          "flaeche_m2": 1000,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 42
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 25
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 21
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 18
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 17
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 1003.9,
+          "zeltmix_platzbedarf_m2": 1635
+        },
+        "material": {
+          "feldbetten": 250,
+          "decken": 500
+        },
+        "sanitaer": {
+          "toiletten": 13,
+          "urinale": 9,
+          "waschplaetze": 50,
+          "duschen": 13
+        },
+        "gesundheit": {
+          "betten": 11,
+          "flaeche_m2": 82.5,
+          "isolierstation": true
+        },
+        "versorgung": {
+          "wasser_l_tag": 6250,
+          "davon_trinkwasser_l_tag": 750,
+          "faekalien_l_tag": 375,
+          "abfall_l_tag": 750
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 84,
+          "garnituren": 11,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "flaeche_getrennt_abrunden",
+      "bezug": "W5 (Kapazität abgerundet, je Gruppe)",
+      "eingabe": {
+        "weg": "flaeche",
+        "trennung": true,
+        "flaeche": {
+          "maenner_m2": 403,
+          "frauen_m2": 399
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "flaeche",
+        "trennung": true,
+        "personen": 199,
+        "gruppen": [
+          {
+            "gruppe": "maenner",
+            "personen": 100
+          },
+          {
+            "gruppe": "frauen",
+            "personen": 99
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 199,
+          "raeume": null
+        },
+        "schlafen": {
+          "flaeche_m2": 796,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 34
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 20
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 18
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 16
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 14
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 836.6,
+          "zeltmix_platzbedarf_m2": 1377
+        },
+        "material": {
+          "feldbetten": 199,
+          "decken": 398
+        },
+        "sanitaer": {
+          "toiletten": 10,
+          "urinale": 7,
+          "waschplaetze": 40,
+          "duschen": 10
+        },
+        "gesundheit": {
+          "betten": 9,
+          "flaeche_m2": 67.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 4975,
+          "davon_trinkwasser_l_tag": 597,
+          "faekalien_l_tag": 298.5,
+          "abfall_l_tag": 597
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 67,
+          "garnituren": 9,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "zelte_gesamt",
+      "bezug": "Kapazität aus Zeltbestand",
+      "eingabe": {
+        "weg": "zelte",
+        "trennung": false,
+        "zelte": {
+          "gesamt": {
+            "sg30": 3,
+            "sg50": 2
+          }
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "zelte",
+        "trennung": false,
+        "personen": 58,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 58
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 58,
+          "raeume": null
+        },
+        "schlafen": {
+          "flaeche_m2": 232,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 10
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 6
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 5
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 5
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 4
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 249.1,
+          "zeltmix_platzbedarf_m2": 414
+        },
+        "material": {
+          "feldbetten": 58,
+          "decken": 116
+        },
+        "sanitaer": {
+          "toiletten": 3,
+          "urinale": 2,
+          "waschplaetze": 12,
+          "duschen": 3
+        },
+        "gesundheit": {
+          "betten": 4,
+          "flaeche_m2": 30,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1450,
+          "davon_trinkwasser_l_tag": 174,
+          "faekalien_l_tag": 87,
+          "abfall_l_tag": 174
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 20,
+          "garnituren": 3,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "zelte_getrennt",
+      "bezug": "Kapazität aus Zeltbestand je Gruppe",
+      "eingabe": {
+        "weg": "zelte",
+        "trennung": true,
+        "zelte": {
+          "maenner": {
+            "sg20": 2,
+            "sg40": 1
+          },
+          "frauen": {
+            "sg50": 1
+          }
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "zelte",
+        "trennung": true,
+        "personen": 38,
+        "gruppen": [
+          {
+            "gruppe": "maenner",
+            "personen": 24
+          },
+          {
+            "gruppe": "frauen",
+            "personen": 14
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 38,
+          "raeume": null
+        },
+        "schlafen": {
+          "flaeche_m2": 152,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 7
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 5
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 2
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 146.4,
+          "zeltmix_platzbedarf_m2": 244
+        },
+        "material": {
+          "feldbetten": 38,
+          "decken": 76
+        },
+        "sanitaer": {
+          "toiletten": 3,
+          "urinale": 2,
+          "waschplaetze": 8,
+          "duschen": 3
+        },
+        "gesundheit": {
+          "betten": 3,
+          "flaeche_m2": 22.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 950,
+          "davon_trinkwasser_l_tag": 114,
+          "faekalien_l_tag": 57,
+          "abfall_l_tag": 114
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 13,
+          "garnituren": 2,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "zeltmix_rest_ins_kleinste",
+      "bezug": "Zeltmix: größtes zuerst, Rest ins kleinste passende",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 15
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 15,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 15
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 60,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 3
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 2
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 79.9,
+          "zeltmix_platzbedarf_m2": 139
+        },
+        "material": {
+          "feldbetten": 15,
+          "decken": 30
+        },
+        "sanitaer": {
+          "toiletten": 1,
+          "urinale": 1,
+          "waschplaetze": 3,
+          "duschen": 1
+        },
+        "gesundheit": {
+          "betten": 2,
+          "flaeche_m2": 15,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 375,
+          "davon_trinkwasser_l_tag": 45,
+          "faekalien_l_tag": 22.5,
+          "abfall_l_tag": 45
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 5,
+          "garnituren": 1,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "zeltmix_getrennt_je_gruppe",
+      "bezug": "W7 (Zeltmix je Gruppe, SG 20: 7 + 7)",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": true,
+        "personen": {
+          "maenner": 40,
+          "frauen": 40
+        }
+      },
+      "richtwerte": {},
+      "erwartet": {
+        "weg": "personen",
+        "trennung": true,
+        "personen": 80,
+        "gruppen": [
+          {
+            "gruppe": "maenner",
+            "personen": 40
+          },
+          {
+            "gruppe": "frauen",
+            "personen": 40
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 320,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 14
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 8
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 8
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 6
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg40",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 4
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 315.8,
+          "zeltmix_platzbedarf_m2": 520
+        },
+        "material": {
+          "feldbetten": 80,
+          "decken": 160
+        },
+        "sanitaer": {
+          "toiletten": 4,
+          "urinale": 3,
+          "waschplaetze": 16,
+          "duschen": 4
+        },
+        "gesundheit": {
+          "betten": 5,
+          "flaeche_m2": 37.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 2000,
+          "davon_trinkwasser_l_tag": 240,
+          "faekalien_l_tag": 120,
+          "abfall_l_tag": 240
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 27,
+          "garnituren": 4,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "override_flaeche_5_raeume",
+      "bezug": "Overrides: Einsatz setzt 5 m² je Person",
+      "eingabe": {
+        "weg": "raeume",
+        "trennung": false,
+        "raeume": [
+          {
+            "bezeichnung": "Halle",
+            "laenge_m": 15,
+            "breite_m": 13.5,
+            "abzuege": [
+              {
+                "laenge_m": 4,
+                "breite_m": 2.5
+              }
+            ]
+          }
+        ]
+      },
+      "richtwerte": {
+        "flaeche_je_person_m2": 5
+      },
+      "erwartet": {
+        "weg": "raeume",
+        "trennung": false,
+        "personen": 38,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 38
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 38,
+          "raeume": [
+            {
+              "bezeichnung": "Halle",
+              "nutzflaeche_m2": 192.5,
+              "plaetze": 38,
+              "gruppe": "gesamt"
+            }
+          ]
+        },
+        "schlafen": {
+          "flaeche_m2": 190,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 7
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 2
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 146.4,
+          "zeltmix_platzbedarf_m2": 244
+        },
+        "material": {
+          "feldbetten": 38,
+          "decken": 76
+        },
+        "sanitaer": {
+          "toiletten": 2,
+          "urinale": 2,
+          "waschplaetze": 8,
+          "duschen": 2
+        },
+        "gesundheit": {
+          "betten": 3,
+          "flaeche_m2": 22.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 950,
+          "davon_trinkwasser_l_tag": 114,
+          "faekalien_l_tag": 57,
+          "abfall_l_tag": 114
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 13,
+          "garnituren": 2,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "override_wasser_15",
+      "bezug": "Overrides: Wasser auf das Minimum 15 l",
+      "eingabe": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": {
+          "gesamt": 100
+        }
+      },
+      "richtwerte": {
+        "wasser_je_person_l": 15
+      },
+      "erwartet": {
+        "weg": "personen",
+        "trennung": false,
+        "personen": 100,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 100
+          }
+        ],
+        "kapazitaet": null,
+        "schlafen": {
+          "flaeche_m2": 400,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 17
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 10
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 9
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 8
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 7
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 418.3,
+          "zeltmix_platzbedarf_m2": 689
+        },
+        "material": {
+          "feldbetten": 100,
+          "decken": 200
+        },
+        "sanitaer": {
+          "toiletten": 5,
+          "urinale": 4,
+          "waschplaetze": 20,
+          "duschen": 5
+        },
+        "gesundheit": {
+          "betten": 5,
+          "flaeche_m2": 37.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1500,
+          "davon_trinkwasser_l_tag": 300,
+          "faekalien_l_tag": 150,
+          "abfall_l_tag": 300
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 34,
+          "garnituren": 5,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 2
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "override_zelt_sg50_16",
+      "bezug": "Overrides: eigener SG 50 mit 16 Feldbetten",
+      "eingabe": {
+        "weg": "zelte",
+        "trennung": false,
+        "zelte": {
+          "gesamt": {
+            "sg50": 3
+          }
+        }
+      },
+      "richtwerte": {
+        "zelt_sg50_schlafplaetze": 16
+      },
+      "erwartet": {
+        "weg": "zelte",
+        "trennung": false,
+        "personen": 48,
+        "gruppen": [
+          {
+            "gruppe": "gesamt",
+            "personen": 48
+          }
+        ],
+        "kapazitaet": {
+          "plaetze": 48,
+          "raeume": null
+        },
+        "schlafen": {
+          "flaeche_m2": 192,
+          "zelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 8
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 5
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 4
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix": [
+            {
+              "typ": "sg50",
+              "anzahl": 3
+            }
+          ],
+          "zeltmix_grundflaeche_m2": 169.2,
+          "zeltmix_platzbedarf_m2": 275
+        },
+        "material": {
+          "feldbetten": 48,
+          "decken": 96
+        },
+        "sanitaer": {
+          "toiletten": 3,
+          "urinale": 2,
+          "waschplaetze": 10,
+          "duschen": 3
+        },
+        "gesundheit": {
+          "betten": 3,
+          "flaeche_m2": 22.5,
+          "isolierstation": false
+        },
+        "versorgung": {
+          "wasser_l_tag": 1200,
+          "davon_trinkwasser_l_tag": 144,
+          "faekalien_l_tag": 72,
+          "abfall_l_tag": 144
+        },
+        "verpflegung": {
+          "ausgabestellen": 1,
+          "sitzplaetze": 16,
+          "garnituren": 2,
+          "aufenthaltszelte_je_typ": [
+            {
+              "typ": "sg20",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg30",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg40",
+              "anzahl": 1
+            },
+            {
+              "typ": "sg50",
+              "anzahl": 1
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

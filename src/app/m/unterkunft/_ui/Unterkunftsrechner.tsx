@@ -7,15 +7,14 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle } from "@/core/tabelle";
 import { druckHref } from "../_lib/druckLink";
 import { plaetzeImRaum, nutzflaeche, rechne, type Belegung, type Eingabe, type Ergebnis, type Weg, type Zeltbestand } from "../_lib/rechner";
-import { ABWEICHUNGEN, RICHTWERTE, RICHTWERT_ZEILEN, type Herkunft, type RichtwertSchluessel } from "../_lib/richtwerte";
+import { ABWEICHUNGEN, BEFUND, RICHTWERTE, RICHTWERTE_BASIS, RICHTWERTE_STAND, ZELTTYPEN, richtwertBasis, zeltName, type Herkunft } from "../_lib/richtwerte";
 import s from "./unterkunft.module.css";
 
 const ZAHL = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 const z = (x: number | null | undefined) => (x == null ? "–" : ZAHL.format(x));
 /** Zeltmaße mit zwei Stellen: 5,64 m darf nicht als 5,6 m erscheinen, die Rechnung nutzt 5,64. */
 const MASS = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 });
-const TYPEN = RICHTWERTE.zelte.typen.map((t) => t.typ);
-const leererBestand = (): Zeltbestand => Object.fromEntries(TYPEN.map((t) => [t, 0]));
+const leererBestand = (): Zeltbestand => Object.fromEntries(ZELTTYPEN.map((t) => [t.typ, 0]));
 
 type RaumZustand = { id: number; bezeichnung: string; laenge_m: number; breite_m: number; abzuege: { laenge_m: number; breite_m: number }[]; belegung: Belegung };
 type Zustand = {
@@ -89,18 +88,18 @@ function Feld({ titel, children }: { titel: string; children: ReactNode }) {
   );
 }
 
-const HERKUNFT_WORT: Record<Herkunft, string> = { tabelle: "Tabelle", korrigiert: "korrigiert", annahme: "Annahme", recherche: "belegt" };
+const HERKUNFT_WORT: Record<Herkunft, string> = { belegt: "belegt", annahme: "Annahme", korrigiert: "korrigiert" };
 
 /** Kennzeichnet Werte ohne Quelle („Annahme“) und behobene Rechenfehler („korrigiert“); belegte bleiben still. */
 function Marke({ herkunft, bezug }: { herkunft: Herkunft; bezug: string }) {
-  if (herkunft === "tabelle" || herkunft === "recherche") return null;
+  if (herkunft === "belegt") return null;
   return (
     <span className={`${s.chip} ${herkunft === "annahme" ? s.gelb : s.grau} ${s.marke}`} title={`Befund ${bezug}, siehe Richtwerte`}>
       {HERKUNFT_WORT[herkunft]}
     </span>
   );
 }
-const markeVon = (k: RichtwertSchluessel) => <Marke herkunft={RICHTWERTE[k].herkunft} bezug={RICHTWERTE[k].bezug} />;
+const markeVon = (k: string) => <Marke herkunft={richtwertBasis(k)?.herkunft ?? "belegt"} bezug={BEFUND[k] ?? ""} />;
 
 function Zeile({ etikett, wert, einheit, marke }: { etikett: string; wert: ReactNode; einheit?: string; marke?: ReactNode }) {
   return (
@@ -220,7 +219,7 @@ function Grundlage({ st, setze }: { st: Zustand; setze: (f: (alt: Zustand) => Zu
         {st.weg === "zelte" ? (
           <div className={s.zeltraster}>
             <span />
-            {TYPEN.map((typ) => <span key={typ} className={s.kopfzelle}>{typ}</span>)}
+            {ZELTTYPEN.map((t) => <span key={t.typ} className={s.kopfzelle}>{t.bezeichnung}</span>)}
             {zeilen.map(([gruppe, etikett]) => (
               <ZeltZeile
                 key={gruppe}
@@ -240,8 +239,8 @@ function ZeltZeile({ etikett, bestand, onChange }: { etikett: string; bestand: Z
   return (
     <>
       <span className={s.neben}>{etikett}</span>
-      {TYPEN.map((typ) => (
-        <Zahl key={typ} label={`${etikett} ${typ}`} wert={bestand[typ] ?? 0} onChange={(v) => onChange(typ, Math.floor(v))} />
+      {ZELTTYPEN.map(({ typ, bezeichnung }) => (
+        <Zahl key={typ} label={`${etikett} ${bezeichnung}`} wert={bestand[typ] ?? 0} onChange={(v) => onChange(typ, Math.floor(v))} />
       ))}
     </>
   );
@@ -250,9 +249,7 @@ function ZeltZeile({ etikett, bestand, onChange }: { etikett: string; bestand: Z
 function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
   const istPersonen = er.weg === "personen";
   const mix = (liste: { typ: string; anzahl: number }[]) =>
-    liste.length ? liste.map((m) => <span key={m.typ} className={`${s.chip} ${s.grau}`}>{m.anzahl} × {m.typ}</span>) : <span className={s.neben}>–</span>;
-  const rw = RICHTWERTE;
-
+    liste.length ? liste.map((m) => <span key={m.typ} className={`${s.chip} ${s.grau}`}>{m.anzahl} × {zeltName(m.typ)}</span>) : <span className={s.neben}>–</span>;
   return (
     <div className={s.ergebnis} aria-live="polite">
       <div className={s.kpis}>
@@ -261,7 +258,7 @@ function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
           wert={z(er.personen)}
           zusatz={er.trennung ? `${z(er.gruppen[0].personen)} Männer · ${z(er.gruppen[1].personen)} Frauen` : "ohne Trennung"}
         />
-        <Kpi titel="Schlaffläche" wert={z(er.schlafen.flaeche_m2)} einheit="m²" zusatz={`${z(rw.flaecheJePerson.wert)} m² je Person`} />
+        <Kpi titel="Schlaffläche" wert={z(er.schlafen.flaeche_m2)} einheit="m²" zusatz={`${z(RICHTWERTE.flaeche_je_person_m2)} m² je Person`} />
         <Kpi titel="Toiletten" wert={z(er.sanitaer.toiletten)} zusatz={`dazu ${z(er.sanitaer.urinale)} Urinale`} />
         <Kpi titel="Wasser" wert={z(er.versorgung.wasser_l_tag)} einheit="l" zusatz="je Tag" />
       </div>
@@ -269,9 +266,9 @@ function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
       <div className={s.karten}>
         <Card title="Schlafen" size="small">
           <table className={s.werte}><tbody>
-            <Zeile etikett="Feldbetten" wert={z(er.material.feldbetten)} einheit="Stk." marke={markeVon("feldbettJePerson")} />
-            <Zeile etikett="Decken" wert={z(er.material.decken)} einheit="Stk." marke={markeVon("deckenJePerson")} />
-            <Zeile etikett="Fläche Gebäude" wert={z(er.schlafen.flaeche_m2)} einheit="m²" marke={markeVon("flaecheJePerson")} />
+            <Zeile etikett="Feldbetten" wert={z(er.material.feldbetten)} einheit="Stk." marke={markeVon("feldbett_je_person")} />
+            <Zeile etikett="Decken" wert={z(er.material.decken)} einheit="Stk." marke={markeVon("decken_je_person")} />
+            <Zeile etikett="Fläche Gebäude" wert={z(er.schlafen.flaeche_m2)} einheit="m²" marke={markeVon("flaeche_je_person_m2")} />
           </tbody></table>
           {er.kapazitaet?.raeume?.length ? (
             <div className={s.unterzeile}>{er.kapazitaet.raeume.map((r) => `${r.bezeichnung || "Raum"} ${r.plaetze}`).join(" · ")}</div>
@@ -280,47 +277,47 @@ function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
 
         <Card title={er.weg === "zelte" ? "Zelte (Bestand belegt)" : "Unterbringung im Zelt"} size="small">
           <table className={s.werte}><tbody>
-            {er.schlafen.zelte_je_typ.map((t) => <Zeile key={t.typ} etikett={`nur ${t.typ}`} wert={z(t.anzahl)} einheit="Zelte" />)}
+            {er.schlafen.zelte_je_typ.map((t) => <Zeile key={t.typ} etikett={`nur ${zeltName(t.typ)}`} wert={z(t.anzahl)} einheit="Zelte" />)}
           </tbody></table>
           <div className={s.unterzeile}>Mix</div>
           <div className={s.mix}>{mix(er.schlafen.zeltmix)}</div>
           <table className={s.werte} style={{ marginBlockStart: 6 }}><tbody>
             <Zeile etikett="Grundfläche Mix" wert={z(er.schlafen.zeltmix_grundflaeche_m2)} einheit="m²" />
-            <Zeile etikett={`Platzbedarf mit ${z(rw.zeltAbstand.wert)} m Abstand`} wert={z(er.schlafen.zeltmix_platzbedarf_m2)} einheit="m²" />
+            <Zeile etikett={`Platzbedarf mit ${z(RICHTWERTE.zelt_abstand_m)} m Abstand`} wert={z(er.schlafen.zeltmix_platzbedarf_m2)} einheit="m²" />
           </tbody></table>
         </Card>
 
         <Card title="Sanitär" size="small">
           <table className={s.werte}><tbody>
-            <Zeile etikett="Toiletten" wert={z(er.sanitaer.toiletten)} marke={markeVon("toiletteJeGemischt")} />
+            <Zeile etikett="Toiletten" wert={z(er.sanitaer.toiletten)} marke={markeVon("toilette_je_personen_gemischt")} />
             <Zeile etikett="Urinale" wert={z(er.sanitaer.urinale)} marke={<Marke herkunft="korrigiert" bezug="W3" />} />
-            <Zeile etikett="Waschgelegenheiten" wert={z(er.sanitaer.waschgelegenheiten)} marke={markeVon("waschJe")} />
-            {er.sanitaer.duschen != null ? <Zeile etikett="Duschen" wert={z(er.sanitaer.duschen)} marke={markeVon("duscheJe")} /> : null}
+            <Zeile etikett="Waschplätze" wert={z(er.sanitaer.waschplaetze)} marke={markeVon("waschplatz_je_personen")} />
+            <Zeile etikett="Duschen" wert={z(er.sanitaer.duschen)} marke={markeVon("dusche_je_personen")} />
           </tbody></table>
         </Card>
 
         <Card title="Gesundheit" size="small">
           <table className={s.werte}><tbody>
-            <Zeile etikett="Krankenbetten" wert={z(er.gesundheit.betten)} marke={markeVon("krankenBettJe")} />
-            <Zeile etikett="Fläche Krankenstation" wert={z(er.gesundheit.flaeche_m2)} einheit="m²" marke={markeVon("krankenFlaecheJeBett")} />
-            <Zeile etikett="Isolierstation" wert={er.gesundheit.isolierstation ? "erforderlich" : "nicht erforderlich"} marke={markeVon("isolierAbPersonen")} />
+            <Zeile etikett="Krankenbetten" wert={z(er.gesundheit.betten)} marke={markeVon("krankenbett_je_personen")} />
+            <Zeile etikett="Fläche Krankenstation" wert={z(er.gesundheit.flaeche_m2)} einheit="m²" marke={markeVon("krankenflaeche_je_bett_m2")} />
+            <Zeile etikett="Isolierstation" wert={er.gesundheit.isolierstation ? "erforderlich" : "nicht erforderlich"} marke={markeVon("isolierstation_ab_personen")} />
           </tbody></table>
         </Card>
 
         <Card title="Ver- und Entsorgung" size="small">
           <table className={s.werte}><tbody>
-            <Zeile etikett="Wasser" wert={z(er.versorgung.wasser_l_tag)} einheit="l/Tag" marke={markeVon("wasserJeTag")} />
+            <Zeile etikett="Wasser" wert={z(er.versorgung.wasser_l_tag)} einheit="l/Tag" marke={markeVon("wasser_je_person_l")} />
             <Zeile etikett="davon Trinkwasser" wert={z(er.versorgung.davon_trinkwasser_l_tag)} einheit="l/Tag" />
-            <Zeile etikett="Fäkalien" wert={z(er.versorgung.faekalien_l_tag)} einheit="l/Tag" marke={markeVon("faekalienJeTag")} />
-            <Zeile etikett="Abfall" wert={z(er.versorgung.abfall_l_tag)} einheit="l/Tag" marke={markeVon("abfallJeTag")} />
+            <Zeile etikett="Fäkalien" wert={z(er.versorgung.faekalien_l_tag)} einheit="l/Tag" marke={markeVon("faekalien_je_person_l")} />
+            <Zeile etikett="Abfall" wert={z(er.versorgung.abfall_l_tag)} einheit="l/Tag" marke={markeVon("abfall_je_person_l")} />
           </tbody></table>
         </Card>
 
         <Card title="Verpflegung" size="small">
           <table className={s.werte}><tbody>
-            <Zeile etikett="Ausgabestellen" wert={`min. ${z(er.verpflegung.ausgabestellen_min)}`} marke={markeVon("ausgabeZweiteAb")} />
-            <Zeile etikett="Sitzplätze" wert={z(er.verpflegung.sitzplaetze)} marke={markeVon("sitzAnteil")} />
-            <Zeile etikett="Biergarnituren" wert={z(er.verpflegung.garnituren)} marke={markeVon("plaetzeJeGarnitur")} />
+            <Zeile etikett="Ausgabestellen" wert={`min. ${z(er.verpflegung.ausgabestellen)}`} marke={markeVon("zweite_ausgabestelle_ab_personen")} />
+            <Zeile etikett="Sitzplätze" wert={z(er.verpflegung.sitzplaetze)} marke={markeVon("personen_je_sitzplatz")} />
+            <Zeile etikett="Biergarnituren" wert={z(er.verpflegung.garnituren)} marke={markeVon("plaetze_je_garnitur")} />
           </tbody></table>
           <div className={s.unterzeile}>Aufenthaltszelte<Marke herkunft="korrigiert" bezug="W9" /></div>
           <div className={s.mix}>{mix(er.verpflegung.aufenthaltszelte_je_typ)}</div>
@@ -333,18 +330,22 @@ function ErgebnisAnsicht({ er }: { er: Ergebnis }) {
 type RichtwertZeile = { key: string; groesse: string; wert: string; herkunft: Herkunft; quelle: string };
 
 function richtwertZeilen(): RichtwertZeile[] {
-  const zeilen: RichtwertZeile[] = RICHTWERT_ZEILEN.map(([groesse, k]) => {
-    const e = RICHTWERTE[k];
-    const wert = k === "sitzAnteil" ? "⅓" : `${z(e.wert)}${e.einheit ? ` ${e.einheit}` : ""}`;
-    return { key: k, groesse, wert, herkunft: e.herkunft, quelle: `${"quelle" in e && e.quelle ? e.quelle : "Ausgangstabelle"} · ${e.bezug}` };
-  });
-  for (const t of RICHTWERTE.zelte.typen) {
+  const zeilen: RichtwertZeile[] = RICHTWERTE_BASIS.filter((r) => !r.schluessel.startsWith("zelt_sg")).map((r) => ({
+    key: r.schluessel,
+    groesse: r.bezeichnung,
+    wert: `${z(r.wert)}${r.einheit ? ` ${r.einheit}` : ""}`,
+    herkunft: r.herkunft,
+    quelle: BEFUND[r.schluessel] ? `${r.quelle} · ${BEFUND[r.schluessel]}` : r.quelle,
+  }));
+  for (const { typ, bezeichnung } of ZELTTYPEN) {
+    const wert = (teil: string) => RICHTWERTE[`zelt_${typ}_${teil}`];
+    const basis = richtwertBasis(`zelt_${typ}_schlafplaetze`);
     zeilen.push({
-      key: `zelt-${t.typ}`,
-      groesse: `Zelt ${t.typ}`,
-      wert: `${t.schlafplaetze} Feldbetten · ${t.garnituren} Garnituren · ${MASS.format(t.laenge_m)} × ${MASS.format(t.breite_m)} m`,
-      herkunft: RICHTWERTE.zelte.herkunft,
-      quelle: `${RICHTWERTE.zelte.quelle} · ${RICHTWERTE.zelte.bezug}`,
+      key: `zelt-${typ}`,
+      groesse: `Zelt ${bezeichnung}`,
+      wert: `${wert("schlafplaetze")} Feldbetten · ${wert("garnituren")} Garnituren · ${MASS.format(wert("laenge_m"))} × ${MASS.format(wert("breite_m"))} m`,
+      herkunft: basis?.herkunft ?? "belegt",
+      quelle: `${basis?.quelle ?? ""} · F6`,
     });
   }
   return zeilen;
@@ -357,7 +358,7 @@ const ABWEICHUNG_TABELLE = ABWEICHUNGEN.map(([nr, tabelle, rechner]) => ({ nr, t
 function RichtwerteAnsicht() {
   return (
     <div className={s.modul}>
-      <Card title="Richtwerte" extra={<span className={s.neben}>Stand {RICHTWERTE.stand}</span>}>
+      <Card title="Richtwerte" extra={<span className={s.neben}>Stand {RICHTWERTE_STAND}</span>}>
         <Kartentabelle<RichtwertZeile>
           aria-label="Richtwerte"
           rowKey="key"
