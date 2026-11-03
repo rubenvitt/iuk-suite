@@ -20,6 +20,8 @@ const VIELE_GRUPPEN = [
   "admin", "lagerbuch-admin", "files-admin", "feedback-admin", "kommplan-admin", "helfer-admin",
   "fahrzeuge-admin", "schichtplan-admin", "gemeinschaft-admin", "lagemonitor-admin", "uav-admin",
   "einsatzbuch-nutzer", "aufgaben-nutzer", "radio-admin", "wartung-admin", "qr-admin",
+  // Zugangsgruppen, die eine Admin-Gruppe nicht mitbringt (`requiredGroups` in `core/registry`).
+  "helfer-nutzer", "kommplan-nutzer", "feedback-nutzer", "wartung-nutzer", "alpha-users",
   // Die Gruppen der lokalen Demodienste (`portal/_lib/seedLokal.ts`): ohne sie fehlen die langen Namenslisten.
   "da-einsatz", "da-ausbildung", "da-verwaltung",
 ].join(",");
@@ -90,8 +92,13 @@ for (const breite of BREITEN) {
       await devLogin(page, { host: "portal.localtest.me", groups: VIELE_GRUPPEN });
       const fehler: string[] = [];
       for (const key of MIT_KOPFZEILE) {
-        await page.goto(`http://${key}.localtest.me:${E2E_PORT}/`);
+        const antwort = await page.goto(`http://${key}.localtest.me:${E2E_PORT}/`);
         await warteAufGestreamteInhalte(page);
+        // Gemessen wird nur, was wirklich die Modulseite ist — keine Fehler- oder Anmeldeseite.
+        const url = new URL(page.url());
+        expect(antwort?.status(), `${key}: HTTP-Status`).toBeLessThan(400);
+        expect(url.hostname, `${key}: umgeleitet nach ${page.url()}`).toBe(`${key}.localtest.me`);
+        expect(url.pathname, `${key}: umgeleitet nach ${page.url()}`).not.toMatch(/^\/(login|anmelden)/);
         const mass = await ueberlauf(page);
         if (mass.dokument > mass.vw) fehler.push(`${key}: ${mass.dokument}px — ${mass.schuldige.join(" | ")}`);
       }
