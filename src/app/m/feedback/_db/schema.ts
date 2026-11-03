@@ -154,3 +154,97 @@ export type UserGroupRow = typeof userGroups.$inferSelect;
 export type NewUserGroupRow = typeof userGroups.$inferInsert;
 export type KnownUserRow = typeof knownUsers.$inferSelect;
 export type NewKnownUserRow = typeof knownUsers.$inferInsert;
+
+/*
+ * ── „EHRLICH GESAGT" (IDA-314) ────────────────────────────────────────────────
+ *
+ * Der Kummerkasten der Bereitschaft: anonyme oder namentliche Mitteilungen an
+ * die Vertrauenspersonen (Pocket-ID-Gruppe aus `_lib/ehrlich/zugang.ts`). Eigene
+ * Tabellen, eigener öffentlicher Pfad (`k/`), eigener Menüpunkt — fachlich hat er
+ * mit Dienstabenden nichts zu tun (Entscheidung 2026-11-01 an IDA-309).
+ *
+ * WAS DIE ZUSAGE AUF DEM EINWURF DECKT („kein Konto, keine IP, keine Uhrzeit"):
+ * - `tag` ist ein Kalendertag `JJJJ-MM-TT` in der Suite-Zone, nie ein Zeitpunkt.
+ *   Auch `erledigt_tag` und `gemeldet` (ein Merker statt eines Zeitstempels)
+ *   folgen dem — ein „wann gepusht" auf die Minute verriete die Einwurfszeit.
+ * - Keine Spalte nimmt eine IP, ein Konto oder eine Sitzung auf; die IP dient nur
+ *   der flüchtigen Ratenbegrenzung im Speicher (`README.md`).
+ * - Mitteilungen und Gesprächsnachrichten sind im Audit `anonymous` (Migration
+ *   0004): ohne Akteur, ohne Objektbezug — sonst stünde neben der Kennung einer
+ *   Mitteilung der genaue Zeitpunkt ihres Eingangs im Protokoll.
+ * - Der Abholcode steht nie im Klartext in der Datenbank, nur sein SHA-256.
+ */
+export const ehrlichKasten = sqliteTable("ehrlich_kasten", {
+  // Genau eine Zeile: ein Kasten für die ganze Bereitschaft.
+  id: integer("id").primaryKey(),
+  secret: text("secret").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+export type EhrlichAntwortweg = "keine" | "code" | "name";
+export type EhrlichStatus = "neu" | "bearbeitung" | "erledigt";
+
+export const ehrlichMitteilungen = sqliteTable(
+  "ehrlich_mitteilungen",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    tag: text("tag").notNull(),
+    thema: text("thema"),
+    text: text("text").notNull(),
+    antwortweg: text("antwortweg").$type<EhrlichAntwortweg>().notNull(),
+    name: text("name"),
+    kontakt: text("kontakt"),
+    codeHash: text("code_hash"),
+    status: text("status").$type<EhrlichStatus>().notNull().default("neu"),
+    rueckfrageErlaubt: integer("rueckfrage_erlaubt", { mode: "boolean" }).notNull().default(false),
+    erledigtTag: text("erledigt_tag"),
+    gemeldet: integer("gemeldet", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [
+    uniqueIndex("idx_ehrlich_mitteilungen_code").on(t.codeHash),
+    index("idx_ehrlich_mitteilungen_tag").on(t.tag),
+    check("ehrlich_mitteilungen_antwortweg_check", sql`${t.antwortweg} IN ('keine','code','name')`),
+    check("ehrlich_mitteilungen_status_check", sql`${t.status} IN ('neu','bearbeitung','erledigt')`),
+  ],
+);
+
+/** Das Gespräch unter dem Abholcode: Antworten der Vertrauenspersonen und Rückfragen der Person. */
+export const ehrlichNachrichten = sqliteTable(
+  "ehrlich_nachrichten",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    mitteilungId: integer("mitteilung_id")
+      .notNull()
+      .references(() => ehrlichMitteilungen.id, { onDelete: "cascade" }),
+    von: text("von").$type<"vp" | "person">().notNull(),
+    // Name der Vertrauensperson; nur in der Verwaltung sichtbar, nie unter dem Code.
+    autor: text("autor"),
+    text: text("text").notNull(),
+    tag: text("tag").notNull(),
+    gemeldet: integer("gemeldet", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [
+    index("idx_ehrlich_nachrichten_mitteilung").on(t.mitteilungId),
+    check("ehrlich_nachrichten_von_check", sql`${t.von} IN ('vp','person')`),
+  ],
+);
+
+/** Interne Notizen der Vertrauenspersonen. `kontakt` markiert den Vermerk „kontaktiert". */
+export const ehrlichNotizen = sqliteTable(
+  "ehrlich_notizen",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    mitteilungId: integer("mitteilung_id")
+      .notNull()
+      .references(() => ehrlichMitteilungen.id, { onDelete: "cascade" }),
+    autor: text("autor").notNull(),
+    text: text("text").notNull(),
+    tag: text("tag").notNull(),
+    kontakt: integer("kontakt", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [index("idx_ehrlich_notizen_mitteilung").on(t.mitteilungId)],
+);
+
+export type EhrlichMitteilungRow = typeof ehrlichMitteilungen.$inferSelect;
+export type EhrlichNachrichtRow = typeof ehrlichNachrichten.$inferSelect;
+export type EhrlichNotizRow = typeof ehrlichNotizen.$inferSelect;

@@ -83,6 +83,30 @@ export const AUDIT_TABLES = {
     "known_users": {
       "mode": "excluded",
       "reason": "Anzeigenamen-Cache bei Seitenaufrufen; Rechte stehen in user_groups."
+    },
+    "ehrlich_kasten": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "ehrlich_mitteilungen": {
+      "mode": "anonymous",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "ehrlich_nachrichten": {
+      "mode": "anonymous",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "ehrlich_notizen": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
     }
   },
   "files": {

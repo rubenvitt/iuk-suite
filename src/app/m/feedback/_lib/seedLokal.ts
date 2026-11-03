@@ -1,3 +1,7 @@
+import {
+  gibAntwortFrei, kastenSecret, legeMitteilungAn, legeNotizAn, listeMitteilungen, setzeRueckfrage, setzeStatus, tagVon,
+  vermerkeGemeldet,
+} from "./ehrlich/daten";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "@/app/m/feedback/_db/schema";
 import type { GroupRow } from "@/app/m/feedback/_db/schema";
@@ -507,10 +511,44 @@ export async function seedLokalFeedback(
     seenAt: jetzt,
   });
 
+  zeilen.push(...seedEhrlichGesagt(db, jetzt));
+
   zeilen.push(
     `feedback: eingeschränkte Sicht — Dev-Login mit email=${NORD_DEV_EMAIL} und groups=feedback-nutzer sieht NUR diese beiden Gruppen.`,
     "feedback: volle Sicht — Dev-Login mit groups=feedback-admin sieht alle Gruppen, auch die des Boot-Seeds.",
   );
 
   return zeilen;
+}
+
+/** Der Demo-Abholcode — fest, damit man lokal „Antwort abholen" ohne Suche ausprobieren kann. */
+export const EHRLICH_DEMO_CODE = "LINDE-3307-OTTER";
+
+/**
+ * „Ehrlich gesagt" (IDA-314): fünf Mitteilungen wie im POC, nur erfundene Namen. Gate ist eine leere Tabelle —
+ * wer lokal schon Mitteilungen hat, bekommt keine dazu.
+ */
+function seedEhrlichGesagt(db: BetterSQLite3Database<typeof schema>, jetzt: Date): string[] {
+  const secret = kastenSecret(db, jetzt);
+  const adresse = `http://feedback.localtest.me:3000/k/${secret}`;
+  if (listeMitteilungen(db).length > 0) return [`feedback: „Ehrlich gesagt" hatte schon Mitteilungen — übersprungen. Einwurf: ${adresse}`];
+  const tag = (vorTagen: number) => tagVon(jetzt.getTime() - vorTagen * 86_400_000);
+  const ohne = { name: null, kontakt: null };
+  const erledigt = legeMitteilungAn(db, { ...ohne, thema: "Dienstabend", text: "Die Dienstabende fangen fast nie pünktlich an. Wer pünktlich ist, wartet oft 20 Minuten.", antwortweg: "keine" }, tag(24));
+  legeNotizAn(db, erledigt.id, "Erika Mustermann", "Mit der Gruppenleitung besprochen, Beginn ab November mit kurzer Ansage.", tag(20));
+  setzeStatus(db, erledigt.id, "erledigt", tag(20));
+  // Der Demo-Code: fester Zufall, damit „LINDE-3307-OTTER" herauskommt (Wort 16, Zahl 2307, Wort 21).
+  const folge = [16, 2307, 21];
+  let i = 0;
+  const beantwortet = legeMitteilungAn(db, { ...ohne, thema: "Einsatz & Dienst", text: "Die Dienstplanung für den Weihnachtsmarkt kam sehr kurzfristig. Mit Kindern ist das kaum zu schaffen. Könnte man die Liste früher rausgeben?", antwortweg: "code" }, tag(9), () => folge[i++ % 3]);
+  gibAntwortFrei(db, beantwortet.id, "Max Mustermann", "Danke für den Hinweis. Wir sprechen das beim nächsten Leitungstreffen an. Wie viel Vorlauf bräuchtest du?", tag(7));
+  setzeRueckfrage(db, beantwortet.id, true);
+  legeMitteilungAn(db, { ...ohne, thema: null, text: "Ich fand die Übung am Samstag richtig gut organisiert. Danke an alle, die das vorbereitet haben!", antwortweg: "keine" }, tag(6));
+  legeMitteilungAn(db, { thema: "Ausstattung", text: "Im RTW fehlt seit Wochen die zweite Absaugpumpe. Ich hab es schon zweimal gesagt, passiert ist nichts.", antwortweg: "name", name: "Tom Beispiel", kontakt: "beim Dienstabend" }, tag(3));
+  legeMitteilungAn(db, { ...ohne, thema: "Miteinander", text: "Beim letzten Dienstabend wurden die Neuen kaum einbezogen. Ich glaube, die kommen so nicht wieder.", antwortweg: "code" }, tag(1));
+  vermerkeGemeldet(db, listeMitteilungen(db).map((m) => `m${m.id}`));
+  return [
+    `feedback: „Ehrlich gesagt" — 5 Mitteilungen angelegt. Einwurf: ${adresse} · Abholen mit ${beantwortet.code ?? EHRLICH_DEMO_CODE}`,
+    "feedback: „Ehrlich gesagt“ lesen — Dev-Login mit groups=kummerkasten-leser, dann /ehrlich-gesagt.",
+  ];
 }

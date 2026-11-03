@@ -37,6 +37,9 @@ const newsreader = Newsreader({
   preload: true,
 });
 
+/** Die Klasse mit `--font-newsreader` — „Ehrlich gesagt" (`k/`) legt sie auf sein eigenes Blatt. */
+export const NEWSREADER_KLASSE = newsreader.variable;
+
 const KICKER = "Rückmeldung zum Dienstabend";
 
 /**
@@ -47,6 +50,7 @@ const KICKER = "Rückmeldung zum Dienstabend";
  */
 export function Huelle({
   titel,
+  kicker = KICKER,
   gross = false,
   fuellt = false,
   vorTitel,
@@ -54,6 +58,8 @@ export function Huelle({
   children,
 }: {
   titel: string;
+  /** Die Zeile über der Überschrift; „Ehrlich gesagt" (`k/`, IDA-314) setzt seine eigene. */
+  kicker?: string;
   /** "Danke." steht auch mobil auf t6 (32px, -0.02em) — Entwurf 3.3. */
   gross?: boolean;
   /**
@@ -87,7 +93,7 @@ export function Huelle({
       <div className={fuellt ? `${s.blatt} ${s.fuellt}` : s.blatt}>
         <header className={`${s.kopf} ${s.aufbau}`}>
           <p className={s.kicker}>
-            {KICKER}
+            {kicker}
             <span className={s.wortzeichen}>IDA</span>
           </p>
           {vorTitel}

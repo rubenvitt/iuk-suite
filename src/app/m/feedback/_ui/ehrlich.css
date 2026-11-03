@@ -1,0 +1,184 @@
+/*
+ * Die Verwaltung von „Ehrlich gesagt" (IDA-314). Farben nur aus `--fb-*` (feedback.css), nie `--ant-*`
+ * (Falle 2). Kein Rot auf einer Datenfläche (Falle 3): Statusmarken sind Form plus Wort.
+ */
+.eg-raster {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 960px) {
+  .eg-raster[data-detail] {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  }
+}
+@media (max-width: 959px) {
+  .eg-raster[data-detail] .eg-spalte-liste {
+    display: none;
+  }
+}
+@media (min-width: 960px) {
+  .eg-zurueck {
+    display: none;
+  }
+}
+.eg-spalte-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.eg-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.eg-liste li + li {
+  border-top: 1px solid var(--fb-split);
+}
+.eg-zeile {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 20px;
+  color: var(--fb-ink);
+  text-decoration: none;
+}
+.eg-zeile:hover {
+  background: var(--fb-tint);
+}
+.eg-zeile[aria-current="true"] {
+  background: var(--fb-fill);
+}
+.eg-zeile[data-neu] .eg-auszug {
+  font-weight: 600;
+}
+.eg-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fb-muted);
+}
+.eg-datum {
+  color: var(--fb-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.eg-auszug {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.eg-unten {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fb-muted);
+}
+.eg-stat {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.eg-stat[data-s="neu"] {
+  background: var(--fb-ink);
+}
+.eg-stat[data-s="bearbeitung"] {
+  border: 2px solid var(--fb-ink);
+}
+.eg-stat[data-s="erledigt"] {
+  border: 1px solid var(--fb-muted);
+  opacity: 0.6;
+}
+.eg-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--fb-fill);
+  color: var(--fb-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.eg-chip[data-umriss] {
+  background: transparent;
+  border: 1px solid var(--fb-line);
+  color: var(--fb-muted);
+}
+.eg-volltext {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.eg-trenner {
+  border: 0;
+  border-top: 1px solid var(--fb-split);
+  margin: 16px 0;
+}
+.eg-eintraege {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.eg-eintraege p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.eg-meta {
+  font-size: 12px;
+  color: var(--fb-muted);
+}
+.eg-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.eg-leer {
+  margin: 0;
+  padding: 20px;
+  color: var(--fb-muted);
+}
+.eg-qr {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+}
+.eg-qr-kasten {
+  background: #ffffff;
+  padding: 12px;
+  border: 1px solid var(--fb-line);
+  border-radius: 8px;
+  width: 184px;
+}
+.eg-qr-kasten img {
+  display: block;
+  width: 160px;
+  height: 160px;
+}
+.eg-url {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.eg-gefahr {
+  padding: 16px 20px;
+  border: 1px solid var(--fb-line);
+  border-radius: 8px;
+}

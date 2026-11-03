@@ -306,5 +306,9 @@
   "src/app/m/wartung/(verwaltung)/page.tsx#redirect:!istVerwalter(rechte):1": {
     "kind": "excluded",
     "reason": "Canonical navigation: people without a group they manage land on the device list, which they may see; no rejection."
+  },
+  "src/app/m/feedback/(admin)/page.tsx#redirect:viewer && nurEhrlichLeser(viewer):1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
   }
 }

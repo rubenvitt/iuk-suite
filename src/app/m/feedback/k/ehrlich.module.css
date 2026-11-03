@@ -1,0 +1,255 @@
+/*
+ * Die Zusätze von „Ehrlich gesagt" (IDA-314) zur Optik des Abendzettels (`f/[slugSecret]/zettel.module.css`).
+ * Alle Farben sind dessen Variablen (`--tinte`, `--linie` …): sie hängen an `.seite` und erben hierher.
+ * Kein Suite-Rot in dieser Datei — Rot hat auf den öffentlichen Seiten genau zwei Stellen (Fahne, Wortzeichen).
+ */
+
+.themen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.thema input,
+.option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.thema label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--linie-stark);
+  border-radius: 999px;
+  background: var(--blatt);
+  color: var(--graphit);
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.thema input:checked + label {
+  background: var(--knopf-grund);
+  border-color: var(--knopf-grund);
+  color: var(--knopf-schrift);
+  font-weight: 600;
+}
+
+.thema input:focus-visible + label,
+.option input:focus-visible + .punkt {
+  outline: 2px solid var(--tinte);
+  outline-offset: 2px;
+}
+
+.langfeld {
+  min-height: 7.5em;
+  resize: vertical;
+}
+
+.wahl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--linie);
+  border-radius: 8px;
+  background: var(--blatt);
+  cursor: pointer;
+}
+
+.option:has(input:checked) {
+  border-color: var(--graphit);
+  background: var(--tint);
+}
+
+.punkt {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border: 1.5px solid var(--graphit);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.option input:checked + .punkt {
+  border-width: 6px;
+  border-color: var(--tinte);
+}
+
+.otitel {
+  display: block;
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--tinte);
+}
+
+.otext {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gedaempft);
+}
+
+.felder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 4px 16px 16px 50px;
+}
+
+.feldLabel {
+  display: block;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--graphit);
+}
+
+.code {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 20px;
+  border: 1.5px dashed var(--linie-stark);
+  border-radius: 10px;
+  background: var(--tint);
+}
+
+.codeWert {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--tinte);
+  word-break: break-all;
+}
+
+
+.eingabe {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--linie-stark);
+  border-radius: 8px;
+  background: var(--blatt);
+  color: var(--tinte);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.eingabe:focus {
+  outline: 2px solid var(--graphit);
+  outline-offset: 1px;
+}
+
+.spur {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--gedaempft);
+}
+
+.spur li {
+  flex: 1;
+  padding-top: 8px;
+  border-top: 3px solid var(--linie);
+}
+
+.spur li[data-erreicht] {
+  border-top-color: var(--graphit);
+  color: var(--tinte);
+  font-weight: 600;
+}
+
+.antwort {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border-left: 2px solid var(--graphit);
+  border-radius: 0 8px 8px 0;
+  background: var(--tint);
+}
+
+.antwort[data-von="person"] {
+  margin-left: 24px;
+  border-left-color: var(--linie-stark);
+  background: transparent;
+  border: 1px solid var(--linie);
+  border-radius: 8px;
+}
+
+.von {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gedaempft);
+}
+
+.koerper {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.details {
+  margin-top: 24px;
+  font-size: 15px;
+  color: var(--graphit);
+}
+
+.details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.details p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tinte);
+}
+
+.fuss {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linie);
+}
+
+.textlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--tinte);
+  font-size: 15px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
