@@ -25,7 +25,22 @@ describe("Zeichen-Suche", () => {
     for (const beispiel of SUCHBEISPIELE) expect(sucheZeichen(index, beispiel).length, beispiel).toBeGreaterThan(0);
     expect(sucheZeichen(index, "rettungswagen")[0].titel).toBe("RTW");
     expect(sucheZeichen(index, "RTW")[0].titel).toBe("RTW");
-    expect(sucheZeichen(index, "Krankentransportwagen").map((e) => e.titel)).toEqual(["KTW", "NKTW"]);
+    expect(sucheZeichen(index, "Krankentransportwagen").map((e) => e.titel).slice(0, 4))
+      .toEqual(["KTW", "Krankentransportwagen mit 4 Tragen", "Krankentransportwagen Typ B", "NKTW"]);
+  });
+  it("findet typische Einsatzmittel über Titel, Kürzel und Aliase", () => {
+    const index = zeichenIndex();
+    expect(sucheZeichen(index, "KTW-B").map((e) => e.schluessel)).toEqual(["typisch:sanitaet.ktw-typ-b"]);
+    expect(sucheZeichen(index, "ELW")[0].schluessel).toBe("typisch:fuehrung.elw-1");
+    expect(sucheZeichen(index, "Rettungshundeführer")[0].schluessel).toBe("typisch:fachdienste.rettungshundefuehrer");
+    expect(sucheZeichen(index, "Notarzt")[0].schluessel).toBe("typisch:rettungsdienst.notarzt");
+  });
+  it("ganzer Name vor Namensanfang vor Suchtext, Langform zählt als Name", () => {
+    const eintraege = [
+      { schluessel: "typisch:x", titel: "Rettungswagen der Feuerwehr", suchtext: "rettungswagen der feuerwehr" },
+      { schluessel: "rezept:F.2.3", titel: "RTW", suchtext: "rtw f.2.3" },
+    ];
+    expect(sucheZeichen(eintraege, "Rettungswagen").map((e) => e.schluessel)).toEqual(["rezept:F.2.3", "typisch:x"]);
   });
   it("Langformen nur für Zeichen, die es gibt", () => {
     const schluessel = new Set(zeichenIndex().map((e) => e.schluessel));

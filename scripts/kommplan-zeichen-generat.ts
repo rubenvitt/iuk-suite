@@ -17,7 +17,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { RECIPES } from "@einsatzzeichen/conformance";
+import { RECIPES, TYPICAL_SYMBOLS } from "@einsatzzeichen/conformance";
 import { ALL_PICTOGRAMS, PRINT_MONOCHROME_THEME, TEXT_FONT_METRICS, drawSymbol, renderSvg } from "@einsatzzeichen/core";
 import { SECHSECK } from "../src/app/m/kommplan/_lib/layout/masse";
 
@@ -97,21 +97,28 @@ function kuerzelMitLuft(svg: string): string {
   });
 }
 
-// 1. Rezepte (ohne #alternative) und Zusatzzeichen.
+// 1. Rezepte (ohne #alternative), typische Einsatzmittel und Zusatzzeichen.
 const zeichen: Record<string, Symbol & { titel: string; suchtext: string }> = {};
 /** Dieselben Schlüssel im Druckthema (Phase 5, Entscheidung 14): Grauwerte und Strichmuster der Organisationen. */
 const zeichenSw: Record<string, Symbol> = {};
+type Spec = Parameters<typeof drawSymbol>[0];
+function nimmAuf(schluessel: string, spec: Spec, titel: string, suchtext: string, idPrefix: string): void {
+  if (Object.prototype.hasOwnProperty.call(zeichen, schluessel)) throw new GeneratFehler(`${schluessel} doppelt`);
+  const zeichnung = drawSymbol(spec, { title: titel });
+  zeichen[schluessel] = { titel, suchtext: suchtext.toLocaleLowerCase("de-DE"), ...zerlege(kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix })), schluessel) };
+  zeichenSw[schluessel] = zerlege(kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix, theme: PRINT_MONOCHROME_THEME })), schluessel);
+}
 for (const [abschnitt, rezept] of Object.entries(RECIPES)) {
   if (abschnitt.includes("#")) continue;
-  const schluessel = `rezept:${abschnitt}`;
-  const zeichnung = drawSymbol(rezept.spec, { title: rezept.title });
-  const svg = kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix: praefix(abschnitt) }));
-  zeichen[schluessel] = {
-    titel: rezept.title,
-    suchtext: `${rezept.title} ${abschnitt}`.toLocaleLowerCase("de-DE"),
-    ...zerlege(svg, schluessel),
-  };
-  zeichenSw[schluessel] = zerlege(kuerzelMitLuft(renderSvg(zeichnung, { size: 64, idPrefix: praefix(abschnitt), theme: PRINT_MONOCHROME_THEME })), schluessel);
+  nimmAuf(`rezept:${abschnitt}`, rezept.spec, rezept.title, `${rezept.title} ${abschnitt}`, praefix(abschnitt));
+}
+/**
+ * Typische Einsatzmittel (IDA-329): Fahrzeuge, Einheiten und Personen ohne Rezept im Katalog (KTW-B, ELW 1 HiOrg,
+ * Rettungshundeführer …). Eigenes Präfix, weil sie keine Abschnittsnummer haben; der Suchtext trägt Kürzel und Aliase.
+ */
+for (const [roh, t] of Object.entries(TYPICAL_SYMBOLS)) {
+  const schluessel = `typisch:${roh}`;
+  nimmAuf(schluessel, t.spec, t.title, [...new Set([t.title, t.abbreviation, ...(t.aliases ?? [])].join(" ").split(/\s+/).filter(Boolean))].join(" "), praefix(schluessel));
 }
 const ZUSATZ = [
   { schluessel: "zusatz:eal", titel: "Einsatzabschnittsleitung", text: "EAL" },
