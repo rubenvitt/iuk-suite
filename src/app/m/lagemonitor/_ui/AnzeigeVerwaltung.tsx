@@ -14,6 +14,7 @@ import { MELDUNGEN_MAX_AKTIV, planeMeldung, sichtbar, type MeldungDTO } from "..
 import type { FahrzeugAuswahl, FahrzeugDTO } from "../_lib/fahrzeuge";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
+import type { StandortAuswahl, StandortDTO } from "../_lib/standort";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
 import { Fahrzeuge } from "./Fahrzeuge";
 import { Kategorien } from "./Kategorien";
@@ -27,9 +28,6 @@ import v from "./verwaltung.module.css";
 const STAND = zeitFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
 
 interface Zustand {
-  standortName: string;
-  standortBreite: number | null;
-  standortLaenge: number | null;
   kartenZoom: number | null;
   regionArs: string;
   regionName: string;
@@ -46,9 +44,6 @@ interface Zustand {
 
 function zustandAus(k: KonfigurationDTO): Zustand {
   return {
-    standortName: k.standortName,
-    standortBreite: k.standortBreite,
-    standortLaenge: k.standortLaenge,
     kartenZoom: k.kartenZoom,
     regionArs: k.regionArs,
     regionName: k.regionName,
@@ -96,6 +91,7 @@ export function AnzeigeVerwaltung({
   links,
   online,
   fahrzeuge,
+  standorte,
 }: {
   konfiguration: KonfigurationDTO;
   zugaenge: ZugangDTO[];
@@ -104,6 +100,7 @@ export function AnzeigeVerwaltung({
   links: LinkDTO[];
   online: string | null;
   fahrzeuge: { liste: FahrzeugDTO[]; auswahl: FahrzeugAuswahl };
+  standorte: { je: Record<string, StandortDTO>; auswahl: StandortAuswahl };
 }) {
   const [gespeichert, setGespeichert] = useState(konfiguration);
   const [z, setZ] = useState<Zustand>(() => zustandAus(konfiguration));
@@ -156,7 +153,9 @@ export function AnzeigeVerwaltung({
     return [...laufend, { text: entwurf.text, countdown: zaehler(ziel), entwurf: true, kategorie: k, faellig: blinkt(ziel, k) }];
   }, [meldungen, kategorien, entwurf, jetzt]);
   const tomtom = z.tomtomSchluessel.trim() !== "" || (gespeichert.tomtomHinterlegt && !z.tomtomEntfernen);
-  const bild = useMemo(() => vorschau({ ...z, tomtom }, szenario, bandMeldungen), [z, tomtom, szenario, bandMeldungen]);
+  // Die Vorschau zeigt den Namen des ersten Monitors mit Standort; jeder Monitor hat seinen eigenen.
+  const vorschauOrt = zugaenge.map((x) => standorte.je[x.id]?.name).find((n): n is string => !!n) ?? "";
+  const bild = useMemo(() => vorschau({ ...z, standortName: vorschauOrt, tomtom }, szenario, bandMeldungen), [z, vorschauOrt, tomtom, szenario, bandMeldungen]);
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
     ereignis.preventDefault();
@@ -181,12 +180,14 @@ export function AnzeigeVerwaltung({
   const linkFeld = !gespeichert.suchlageVerbunden || linkErsetzen;
   const schluesselFeld = !gespeichert.tomtomHinterlegt || schluesselErsetzen;
   const tomtomNoetig = z.verkehr.fluss || z.verkehr.baustellen;
-  const zahl = (feld: "standortBreite" | "standortLaenge" | "kartenZoom", label: string, hilfe?: string) => (
+  const zahl = (feld: "kartenZoom", label: string, hilfe?: string) => (
     <Feld id={`${basis}-${feld}`} label={label} fehler={feldFehler[feld]} hilfe={hilfe}>
       <InputNumber
         id={`${basis}-${feld}`}
         value={z[feld]}
-        {...(feld === "kartenZoom" ? { step: 0.5, min: KARTEN_ZOOM.min, max: KARTEN_ZOOM.max } : { step: 0.0001, controls: false })}
+        step={0.5}
+        min={KARTEN_ZOOM.min}
+        max={KARTEN_ZOOM.max}
         decimalSeparator=","
         style={{ width: "100%" }}
         status={feldFehler[feld] ? "error" : undefined}
@@ -195,7 +196,7 @@ export function AnzeigeVerwaltung({
       />
     </Feld>
   );
-  const text = (feld: "standortName" | "regionArs" | "regionName", label: string, hilfe?: string) => (
+  const text = (feld: "regionArs" | "regionName", label: string, hilfe?: string) => (
     <Feld id={`${basis}-${feld}`} label={label} fehler={feldFehler[feld]} hilfe={hilfe}>
       <Input
         id={`${basis}-${feld}`}
@@ -220,13 +221,8 @@ export function AnzeigeVerwaltung({
           <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
-            <Card title="Standort und Warnregion">
+            <Card title="Karte und Warnregion">
               <div style={{ display: "grid", gap: SPACE.md }}>
-                {text("standortName", "Standort")}
-                <div style={{ display: "grid", gap: SPACE.md, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-                  {zahl("standortBreite", "Breitengrad")}
-                  {zahl("standortLaenge", "Längengrad")}
-                </div>
                 {zahl(
                   "kartenZoom",
                   "Zoomstufe der Karte",
@@ -439,7 +435,7 @@ export function AnzeigeVerwaltung({
                 options={SZENARIEN.map((s) => ({ value: s.wert, label: s.text }))}
                 optionType="button"
               />
-              <MonitorVorschau v={bild} szenario={szenario} standort={z.standortName} />
+              <MonitorVorschau v={bild} szenario={szenario} standort={vorschauOrt} />
             </div>
           </Card>
         </aside>
@@ -449,7 +445,7 @@ export function AnzeigeVerwaltung({
 
       <OeffentlicheLinks liste={links} online={online} />
 
-      <Zugaenge liste={zugaenge} />
+      <Zugaenge liste={zugaenge} standorte={standorte.je} auswahl={standorte.auswahl} />
 
       <Fahrzeuge liste={fahrzeuge.liste} auswahl={fahrzeuge.auswahl} />
     </div>

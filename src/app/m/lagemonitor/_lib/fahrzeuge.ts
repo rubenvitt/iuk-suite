@@ -23,13 +23,13 @@ export interface Quellen {
   zeichen: () => ZeichenWahl[];
   svg: (schluessel: readonly string[]) => Record<string, string>;
 }
-const QUELLEN: Quellen = {
+export const QUELLEN: Quellen = {
   stamm: () => bereitgestellteFahrzeuge().fahrzeuge,
   zeichen: () => zeichenAuswahl(),
   svg: (k) => zeichenAlsSvg(k),
 };
 
-function sicher<T>(lesen: () => T, ersatz: T): T {
+export function sicher<T>(lesen: () => T, ersatz: T): T {
   try {
     return lesen();
   } catch {
@@ -76,6 +76,8 @@ export interface Vehicle {
   lon: number;
   at: string;
   own: boolean;
+  /** Ein fester Ort (`_lib/standort.ts`, `festeOrte`) statt eines Fahrzeugs; ältere Monitore übergehen das Feld. */
+  fixed: boolean;
 }
 
 export function alsVehicles(db: LagemonitorDb, zugangId: string | null, jetzt = new Date(), q: Quellen = QUELLEN): Vehicle[] {
@@ -88,7 +90,7 @@ export function alsVehicles(db: LagemonitorDb, zugangId: string | null, jetzt = 
     const callSign = namen.get(f.stammId);
     const symbol = bilder[f.zeichen];
     if (!callSign || !symbol) return [];
-    return [{ id: f.id, callSign, symbol, lat: f.breite!, lon: f.laenge!, at: f.gemeldetAm!.toISOString(), own: f.zugangId !== null && f.zugangId === zugangId }];
+    return [{ id: f.id, callSign, symbol, lat: f.breite!, lon: f.laenge!, at: f.gemeldetAm!.toISOString(), own: f.zugangId !== null && f.zugangId === zugangId, fixed: false }];
   }).sort((a, b) => a.callSign.localeCompare(b.callSign, "de", { numeric: true }));
 }
 

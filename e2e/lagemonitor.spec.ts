@@ -26,8 +26,6 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   await expect(page.getByRole("heading", { name: "Lagemonitor" })).toBeVisible();
 
   const vorschau = page.getByTestId("monitor-vorschau");
-  await page.getByLabel("Standort", { exact: true }).fill(ort);
-  await expect(vorschau).toContainText(`Lagemonitor · ${ort}`);
 
   // Unwetter: ab „Unwetterwarnung“ kommt der Starkregen ins Band, ab „Extremes Unwetter“ in die Liste.
   // Über das sichtbare Etikett: das Radio selbst ist ein 0 × 0-Input (wie `kommplan-gliederung.spec.ts`).
@@ -60,6 +58,20 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   const zeilen = await page.getByTestId("neuer-schluessel").textContent();
   const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec(zeilen ?? "")?.[1];
   expect(schluessel).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  await klickeWennRuhig(page.getByRole("button", { name: "Fertig" }));
+
+  // Standort je Monitor (IDA-333): ein fester Ort mit eigenem Zeichen.
+  await klickeWennRuhig(page.getByRole("button", { name: "Standort bearbeiten: FüKw e2e" }).first());
+  const standort = page.getByRole("form", { name: "Standort von FüKw e2e" });
+  await klickeWennRuhig(wahlKnopf(standort, "Fester Ort"));
+  await standort.getByLabel("Name").fill(ort);
+  await standort.getByLabel("Breitengrad").fill("52,97");
+  await standort.getByLabel("Längengrad").fill("10,56");
+  await standort.getByLabel("Taktisches Zeichen").click();
+  await page.locator(".ant-select-dropdown:visible .ant-select-item-option").first().click();
+  await klickeWennRuhig(standort.getByRole("button", { name: "Standort speichern" }));
+  await expect(standort).toHaveCount(0);
+  await expect(vorschau).toContainText(`Lagemonitor · ${ort}`);
 
   // Warmlauf ohne Schlüssel (Falle 10), zugleich die Gegenprobe.
   const ohne = await page.request.get(url("/api/konfiguration"));
@@ -67,7 +79,8 @@ test("Vorschau folgt dem Formular, Zugang holt das Gespeicherte ab", async ({ pa
   const mit = await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } });
   expect(mit.status()).toBe(200);
   const vertrag = await mit.json();
-  expect(vertrag).toMatchObject({ version: 1, warnThreshold: "Extreme", location: { label: ort } });
+  expect(vertrag).toMatchObject({ version: 1, warnThreshold: "Extreme", location: { lat: 52.97, lon: 10.56, label: ort } });
+  expect(vertrag.vehicles).toContainEqual(expect.objectContaining({ callSign: ort, own: true, fixed: true, lat: 52.97, lon: 10.56 }));
   expect(vertrag.modules.radar).toBe(false);
   expect(vertrag.recruitment).toEqual({ url: "https://drk.example.org/mitmachen", text: "Lust mitzuhelfen? Werde Teil der Bereitschaft." });
 });
@@ -95,11 +108,11 @@ test("Meldung steht in der Vorschau und im Drahtformat, Beenden nimmt sie weg", 
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "true");
 
   // Eine ungespeicherte Änderung an der Anzeige überlebt das Anlegen (neuer Stand vom Server).
-  await page.getByLabel("Standort", { exact: true }).fill("Ungespeichert");
+  await page.getByLabel("Warnregion", { exact: true }).fill("Ungespeichert");
   await klickeWennRuhig(neu.getByRole("button", { name: "Meldung anlegen" }));
   const laufend = page.getByRole("list", { name: "Laufende und geplante Meldungen" });
   await expect(laufend).toContainText(text);
-  await expect(page.getByLabel("Standort", { exact: true })).toHaveValue("Ungespeichert");
+  await expect(page.getByLabel("Warnregion", { exact: true })).toHaveValue("Ungespeichert");
   await expect(page.getByTestId("vorschau-meldung").filter({ hasText: text })).toHaveAttribute("data-entwurf", "false");
   await expect(vorschau).toContainText(/in \d+( h)?/);
 

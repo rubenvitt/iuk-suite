@@ -64,6 +64,13 @@
       "when": 1793633241282,
       "tag": "0008_fahrzeuge",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793692199230,
+      "tag": "0009_standort_je_zugang",
+      "breakpoints": true
     }
   ]
 }

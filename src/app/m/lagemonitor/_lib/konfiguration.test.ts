@@ -8,9 +8,6 @@ const LINK = `https://suchlage.example.org/kiosk#${TOKEN}`;
 
 function eingabe(ueber: Partial<KonfigurationEingabe> = {}): KonfigurationEingabe {
   return konfigurationEingabe.parse({
-    standortName: "Bad Bevensen",
-    standortBreite: 53.08,
-    standortLaenge: 10.58,
     regionArs: "033600000000",
     regionName: "Landkreis Uelzen",
     warnschwelle: "Moderate",
@@ -36,15 +33,15 @@ describe("Großbild-Link aus Suchlage", () => {
 });
 
 describe("Eingabe", () => {
-  it("prüft Regionalschlüssel, Koordinaten und Link am Feld", () => {
-    const r = konfigurationEingabe.safeParse({ ...eingabe(), regionArs: "0336", standortBreite: 95, suchlageLink: "https://x.example/" });
+  it("prüft Regionalschlüssel, Zoomstufe und Link am Feld", () => {
+    const r = konfigurationEingabe.safeParse({ ...eingabe(), regionArs: "0336", kartenZoom: 95, suchlageLink: "https://x.example/" });
     expect(r.success).toBe(false);
     const felder = r.error!.issues.map((i) => i.path.join("."));
-    expect(felder).toEqual(expect.arrayContaining(["regionArs", "standortBreite", "suchlageLink"]));
+    expect(felder).toEqual(expect.arrayContaining(["regionArs", "kartenZoom", "suchlageLink"]));
   });
 
   it("eine fehlende Zahl ist ein Feldfehler, kein Absturz", () => {
-    const r = konfigurationEingabe.safeParse({ ...eingabe(), standortLaenge: null });
+    const r = konfigurationEingabe.safeParse({ ...eingabe(), kartenZoom: null });
     expect(r.success).toBe(false);
     expect(r.error!.issues[0].message).toBe("Bitte eine Zahl angeben.");
   });
@@ -62,12 +59,12 @@ describe("Speichern und Drahtformat", () => {
   it("speichert alles und gibt es im Format des Lagemonitors aus", () => {
     const db = testDb();
     const k = speichereKonfiguration(db, eingabe({ suchlageLink: LINK }), "Ruben", new Date("2026-10-27T18:00:00Z"));
-    expect(k).toMatchObject({ standortName: "Bad Bevensen", suchlageVerbunden: true, suchlageAdresse: "https://suchlage.example.org", aktualisiertVon: "Ruben" });
+    expect(k).toMatchObject({ suchlageVerbunden: true, suchlageAdresse: "https://suchlage.example.org", aktualisiertVon: "Ruben" });
     expect(JSON.stringify(k)).not.toContain(TOKEN);
     expect(alsVertrag(db)).toEqual({
       version: 1,
       changedAt: "2026-10-27T18:00:00.000Z",
-      location: { lat: 53.08, lon: 10.58, label: "Bad Bevensen" },
+      location: { lat: 52.9656, lon: 10.5594, label: "Uelzen" },
       region: { ars: "033600000000", name: "Landkreis Uelzen" },
       warnThreshold: "Moderate",
       modules: { weather: true, radar: false, warningAreas: true, warningList: true, suchlage: true },
@@ -96,7 +93,7 @@ describe("Speichern und Drahtformat", () => {
   it("ein leeres Linkfeld behält die Verbindung, Trennen löscht sie", () => {
     const db = testDb();
     speichereKonfiguration(db, eingabe({ suchlageLink: LINK }), "Ruben");
-    speichereKonfiguration(db, eingabe({ standortName: "Uelzen" }), "Ruben");
+    speichereKonfiguration(db, eingabe({ warnschwelle: "Extreme" }), "Ruben");
     expect(alsVertrag(db).suchlage?.token).toBe(TOKEN);
     speichereKonfiguration(db, eingabe({ suchlageTrennen: true }), "Ruben");
     expect(alsVertrag(db).suchlage).toBeNull();

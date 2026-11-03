@@ -91,3 +91,14 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Standort eines Monitors (StandortFormular), unter seiner Zeile aufgeklappt. */
+.standortFormular {
+  display: grid;
+  gap: 12px;
+}
+.standortKoordinaten {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}

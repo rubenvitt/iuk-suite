@@ -7,20 +7,24 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { zugangAnlegenAction, zugangWiderrufenAction } from "../_actions/verwaltung";
 import type { ZugangDTO } from "../_lib/schluessel";
+import type { StandortAuswahl, StandortDTO } from "../_lib/standort";
+import { StandortFormular, StandortZeichen, standortZeile } from "./StandortFormular";
 import v from "./verwaltung.module.css";
 
 const ZEIT = zeitFormat("de-DE", { dateStyle: "medium", timeStyle: "short" });
 
 /**
  * Die Schlüssel, mit denen ein Lagemonitor seine Einstellungen abholt. Der Schlüssel steht nach dem
- * Anlegen genau einmal da, zusammen mit den zwei Zeilen für die `.env` des Monitors.
+ * Anlegen genau einmal da, zusammen mit den zwei Zeilen für die `.env` des Monitors. Jeder Zugang ist ein
+ * Monitor mit eigenem Standort (`StandortFormular`).
  */
-export function Zugaenge({ liste }: { liste: ZugangDTO[] }) {
+export function Zugaenge({ liste, standorte, auswahl }: { liste: ZugangDTO[]; standorte: Record<string, StandortDTO>; auswahl: StandortAuswahl }) {
   const { message } = App.useApp();
   const [bezeichnung, setBezeichnung] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [neu, setNeu] = useState<{ bezeichnung: string; zeilen: string } | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  const [bearbeitet, setBearbeitet] = useState<string | null>(null);
   const id = useId();
 
   function anlegen(e: FormEvent<HTMLFormElement>): void {
@@ -59,7 +63,7 @@ export function Zugaenge({ liste }: { liste: ZugangDTO[] }) {
   }
 
   return (
-    <Card title="Zugänge für den Monitor">
+    <Card title="Monitore und ihr Standort">
       <div style={{ display: "grid", gap: SPACE.lg }}>
         {neu ? (
           <Alert
@@ -84,14 +88,23 @@ export function Zugaenge({ liste }: { liste: ZugangDTO[] }) {
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: SPACE.md }} aria-label="Zugänge">
             {liste.map((z) => (
-              <li key={z.id} style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <strong>{z.bezeichnung}</strong>
-                  <div style={SCHRIFT.neben} className={v.gedaempft}>
-                    angelegt {ZEIT.format(new Date(z.angelegtAm))} von {z.angelegtVon} ·{" "}
-                    {z.zuletztAbgeholtAm ? `zuletzt abgeholt ${ZEIT.format(new Date(z.zuletztAbgeholtAm))}` : "noch nie abgeholt"}
+              <li key={z.id} style={{ display: "grid", gap: SPACE.md }}>
+                <div style={{ display: "flex", gap: SPACE.md, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", gap: SPACE.md, alignItems: "center" }}>
+                  <StandortZeichen svg={standorte[z.id]?.svg ?? null} titel="" />
+                  <div>
+                    <strong>{z.bezeichnung}</strong>
+                    <div style={SCHRIFT.neben}>{standortZeile(standorte[z.id])}</div>
+                    <div style={SCHRIFT.neben} className={v.gedaempft}>
+                      angelegt {ZEIT.format(new Date(z.angelegtAm))} von {z.angelegtVon} ·{" "}
+                      {z.zuletztAbgeholtAm ? `zuletzt abgeholt ${ZEIT.format(new Date(z.zuletztAbgeholtAm))}` : "noch nie abgeholt"}
+                    </div>
                   </div>
                 </div>
+                <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
+                <Button aria-expanded={bearbeitet === z.id} aria-label={`Standort bearbeiten: ${z.bezeichnung}`} onClick={() => setBearbeitet(bearbeitet === z.id ? null : z.id)}>
+                  Standort
+                </Button>
                 <Popconfirm
                   title={`Zugang „${z.bezeichnung}“ widerrufen?`}
                   description="Der Monitor bekommt danach keine neuen Einstellungen mehr."
@@ -103,6 +116,11 @@ export function Zugaenge({ liste }: { liste: ZugangDTO[] }) {
                     Widerrufen
                   </Button>
                 </Popconfirm>
+                </div>
+                </div>
+                {bearbeitet === z.id ? (
+                  <StandortFormular zugangId={z.id} bezeichnung={z.bezeichnung} standort={standorte[z.id]} auswahl={auswahl} onFertig={() => setBearbeitet(null)} />
+                ) : null}
               </li>
             ))}
           </ul>

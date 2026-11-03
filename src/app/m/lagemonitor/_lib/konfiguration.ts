@@ -70,9 +70,6 @@ export const MITMACHEN_MAX_ZEICHEN = 60;
 
 /** Was die Seite sieht. Das Großbild-Token bleibt auf dem Server; die Seite erfährt nur, ob eins da ist. */
 export interface KonfigurationDTO {
-  standortName: string;
-  standortBreite: number;
-  standortLaenge: number;
   kartenZoom: number;
   regionArs: string;
   regionName: string;
@@ -90,11 +87,11 @@ export interface KonfigurationDTO {
   aktualisiertVon: string | null;
 }
 
-/** Vorgabe bis zum ersten Speichern: Uelzen, alles außer Suchlage an — wie der Lagemonitor ohne Suite. */
+/** Wo ein Monitor steht, dessen Standort noch niemand eingestellt hat; wie der Lagemonitor ohne Suite. */
+export const STANDORT_VORGABE = { lat: 52.9656, lon: 10.5594, label: "Uelzen" } as const;
+
+/** Vorgabe bis zum ersten Speichern: Landkreis Uelzen, alles außer Suchlage an — wie der Lagemonitor ohne Suite. */
 export const VORGABE: KonfigurationDTO = {
-  standortName: "Uelzen",
-  standortBreite: 52.9656,
-  standortLaenge: 10.5594,
   kartenZoom: KARTEN_ZOOM.vorgabe,
   regionArs: "033600000000",
   regionName: "Landkreis Uelzen",
@@ -143,9 +140,6 @@ export function istWebadresse(text: string): boolean {
 
 export const konfigurationEingabe = z
   .object({
-    standortName: z.string().trim().min(1, "Bitte einen Namen angeben.").max(60, "Höchstens 60 Zeichen."),
-    standortBreite: z.number({ error: "Bitte eine Zahl angeben." }).min(-90, "Zwischen -90 und 90.").max(90, "Zwischen -90 und 90."),
-    standortLaenge: z.number({ error: "Bitte eine Zahl angeben." }).min(-180, "Zwischen -180 und 180.").max(180, "Zwischen -180 und 180."),
     kartenZoom: z
       .number({ error: "Bitte eine Zahl angeben." })
       .min(KARTEN_ZOOM.min, `Zwischen ${KARTEN_ZOOM.min} und ${KARTEN_ZOOM.max}.`)
@@ -201,9 +195,6 @@ type Zeile = typeof anzeige.$inferSelect;
 
 function dtoAus(z: Zeile): KonfigurationDTO {
   return {
-    standortName: z.standortName,
-    standortBreite: z.standortBreite,
-    standortLaenge: z.standortLaenge,
     kartenZoom: z.kartenZoom,
     regionArs: z.regionArs,
     regionName: z.regionName,
@@ -239,9 +230,6 @@ export function speichereKonfiguration(db: LagemonitorDb, e: KonfigurationEingab
       ? { suchlageAdresse: neu.adresse, suchlageToken: neu.token }
       : { suchlageAdresse: alt?.suchlageAdresse ?? null, suchlageToken: alt?.suchlageToken ?? null };
   const werte = {
-    standortName: e.standortName,
-    standortBreite: e.standortBreite,
-    standortLaenge: e.standortLaenge,
     kartenZoom: e.kartenZoom,
     regionArs: e.regionArs,
     regionName: e.regionName,
@@ -290,13 +278,17 @@ export interface Vertrag {
   vehicles: Vehicle[];
 }
 
-export function alsVertrag(db: LagemonitorDb, jetzt = new Date(), vehicles: Vehicle[] = []): Vertrag {
+/**
+ * `location` ist der Standort des abholenden Monitors (`_lib/standort.ts`); ohne Angabe die Vorgabe. Bis zum
+ * Standort je Monitor (IDA-333) war er für alle Monitore derselbe.
+ */
+export function alsVertrag(db: LagemonitorDb, jetzt = new Date(), vehicles: Vehicle[] = [], location: Vertrag["location"] = STANDORT_VORGABE): Vertrag {
   const z = zeile(db);
   const k = z ? dtoAus(z) : VORGABE;
   return {
     version: VERTRAG_VERSION,
     changedAt: k.aktualisiertAm,
-    location: { lat: k.standortBreite, lon: k.standortLaenge, label: k.standortName },
+    location,
     region: { ars: k.regionArs, name: k.regionName },
     warnThreshold: k.warnschwelle,
     modules: {

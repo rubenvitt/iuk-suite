@@ -29,14 +29,17 @@ dagegen nur als SHA-256.
 
 ## 3. Einrichten
 
-1. Unter **Lagemonitor** Standort und Warnregion eintragen, Warnschwelle und Teile wählen, **Speichern**.
+1. Unter **Lagemonitor** Zoomstufe und Warnregion eintragen, Warnschwelle und Teile wählen, **Speichern**.
    Die Vorschau zeigt jede Änderung vorher mit Beispieldaten.
 2. Für Suchlage: in Suchlage unter **Einstellungen → Großbild** einen Zugang anlegen (etwa
    „Lagemonitor FüKw") und den Link `https://…/kiosk#…` unter **Suchlage** einfügen. Suchlage muss die
    Version mit der Lagemonitor-Schnittstelle haben (`/api/lagemonitor/v1/lage`).
 3. Unter **Zugänge für den Monitor** einen Zugang anlegen. Die zwei angezeigten Zeilen kommen in die
    `.env` des Lagemonitors (`deploy/README.md` im Repo `lagemonitor`, Abschnitt 9), danach den Dienst
-   neu starten. Der Schlüssel steht nur in diesem Moment da.
+   neu starten. Der Schlüssel steht nur in diesem Moment da. Die Liste heißt **Monitore und ihr Standort**.
+   Am Zugang mit **Standort** einstellen, wo der Monitor steht: **GPS eines Fahrzeugs** (das Fahrzeug muss
+   unter **Fahrzeuge auf der Karte** stehen; die Koordinaten gelten bis zum ersten Fix) oder **Fester Ort**
+   mit eigenem taktischen Zeichen. Feste Orte zeigen alle Monitore wie Fahrzeuge.
 4. Prüfen: nach spätestens einer Minute die Seite neu laden; in der Liste der Zugänge steht dann „zuletzt
    abgeholt“, und der Monitor zeigt unten keinen Hinweis „Konfiguration aus IUK-Suite nicht abholbar“.
 
