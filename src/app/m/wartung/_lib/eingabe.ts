@@ -97,7 +97,8 @@ export type GruppeEingabe = z.infer<typeof gruppeEingabe>;
 /** Die Prüfung am Gerät, wie sie die Route bekommt (Fotos getrennt im multipart). */
 export const pruefungEingabe = z.object({
   stunden,
-  antworten: z.array(z.object({ punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX) })).max(40),
+  antworten: z.array(z.object({ punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX) })).max(40)
+    .refine((a) => new Set(a.map((x) => x.punktId)).size === a.length, "Jeder Punkt der Checkliste darf nur einmal vorkommen."),
   ergebnis: z.enum(["ok", "mangel", "defekt"]),
   notiz: frei(NOTIZ_MAX),
 });

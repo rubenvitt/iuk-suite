@@ -5,7 +5,7 @@ import { App } from "antd";
 import type { Ergebnis } from "../_lib/typen";
 
 /** Die Aktion kam nicht an oder warf (Netz weg, neuer Stand ausgerollt): keine Fehlerseite, nur der Satz. */
-export const NICHT_GESPEICHERT = "Nicht gespeichert. Bitte die Seite neu laden und noch einmal versuchen.";
+export const NICHT_GESPEICHERT = "Ob gespeichert wurde, ist unklar. Bitte die Seite neu laden und nachsehen, bevor du es noch einmal versuchst.";
 
 /**
  * Eine Server Action mit Sperre gegen Doppelklick, Erfolgsmeldung und Feldfehlern. Nach Erfolg lädt die
