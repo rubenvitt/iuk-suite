@@ -54,7 +54,7 @@ export function Fahrzeuge({ liste, auswahl }: { liste: FahrzeugDTO[]; auswahl: F
 
   return (
     <Card title="Fahrzeuge auf der Karte">
-      <div style={{ display: "grid", gap: SPACE.lg }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
         {liste.length === 0 ? (
           <span>Noch kein Fahrzeug auf der Karte.</span>
         ) : (
@@ -93,7 +93,7 @@ export function Fahrzeuge({ liste, auswahl }: { liste: FahrzeugDTO[]; auswahl: F
           </ul>
         )}
 
-        <form onSubmit={anlegen} style={{ display: "grid", gap: SPACE.sm }}>
+        <form onSubmit={anlegen} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.sm }}>
           <span style={SCHRIFT.neben}>Neues Fahrzeug</span>
           <div style={{ display: "flex", gap: SPACE.sm, flexWrap: "wrap" }}>
             <Select
@@ -104,7 +104,7 @@ export function Fahrzeuge({ liste, auswahl }: { liste: FahrzeugDTO[]; auswahl: F
               showSearch={{ optionFilterProp: "label" }}
               options={auswahl.stamm.map((s) => ({ value: s.id, label: s.funkrufname }))}
               notFoundContent="Kein freies Fahrzeug in der Fahrzeugverwaltung."
-              style={{ flex: "1 1 220px" }}
+              style={{ flex: "1 1 220px", minWidth: 0 }}
             />
             <Select
               aria-label="Taktisches Zeichen"
@@ -113,7 +113,7 @@ export function Fahrzeuge({ liste, auswahl }: { liste: FahrzeugDTO[]; auswahl: F
               onChange={setZeichen}
               showSearch={{ optionFilterProp: "label" }}
               options={auswahl.zeichen.map((z) => ({ value: z.schluessel, label: z.titel }))}
-              style={{ flex: "1 1 220px" }}
+              style={{ flex: "1 1 220px", minWidth: 0 }}
             />
             <Select
               aria-label="Zugang, der die Position meldet"
@@ -123,7 +123,7 @@ export function Fahrzeuge({ liste, auswahl }: { liste: FahrzeugDTO[]; auswahl: F
               allowClear
               options={auswahl.zugaenge.map((z) => ({ value: z.id, label: z.bezeichnung }))}
               notFoundContent="Kein freier Zugang."
-              style={{ flex: "1 1 220px" }}
+              style={{ flex: "1 1 220px", minWidth: 0 }}
             />
             <Button htmlType="submit" loading={laeuft === "neu"}>
               Fahrzeug hinzufügen

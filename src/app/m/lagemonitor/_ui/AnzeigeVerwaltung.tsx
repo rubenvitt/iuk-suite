@@ -216,9 +216,9 @@ export function AnzeigeVerwaltung({
       />
 
       <div className={v.raster}>
-        <div style={{ display: "grid", gap: SPACE.lg, alignContent: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg, alignContent: "start" }}>
           <Meldungen liste={meldungen} kategorien={kategorien} jetzt={jetzt} onEntwurf={setEntwurf} />
-          <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
+          <form onSubmit={absenden} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }} aria-label="Einstellungen des Lagemonitors">
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
             <Card title="Karte und Warnregion">
