@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
-import { RECIPES } from "@einsatzzeichen/conformance";
+import { RECIPES, TYPICAL_SYMBOLS } from "@einsatzzeichen/conformance";
 import { CATALOG_TEXT_FONT_WEIGHT, TEXT_FONT_METRICS } from "@einsatzzeichen/core";
 import { SECHSECK } from "../layout/masse";
 import { textBreite } from "../layout/text";
@@ -34,6 +34,13 @@ describe("kommplan-Generat", () => {
     }
   }, 120_000);
 
+  it("hat die Felder, die `*.generiert.d.json.ts` deklariert (tsc liest das JSON nicht mehr selbst)", () => {
+    for (const e of Object.values(zeichen.zeichen)) expect(Object.keys(e).sort()).toEqual(["inhalt", "suchtext", "titel", "viewBox"]);
+    for (const e of Object.values(zeichenSw.zeichen)) expect(Object.keys(e).sort()).toEqual(["inhalt", "viewBox"]);
+    expect(Object.keys(zeichen).sort()).toEqual(["stand", "zeichen"]);
+    expect(Object.keys(zeichenSw).sort()).toEqual(["stand", "zeichen"]);
+  });
+
   it("vermerkt drei aufgelöste Paketversionen, in allen vier Dateien gleich", () => {
     expect(zeichen.stand).toEqual(grundlagen.stand);
     expect(zeichenSw.stand).toEqual(zeichen.stand);
@@ -42,11 +49,14 @@ describe("kommplan-Generat", () => {
     expect(Object.keys(zeichen.stand).sort()).toEqual(["conformance", "core", "schema"]);
   });
 
-  it("trägt jedes Hauptrezept und die vier Zusatzzeichen", () => {
+  it("trägt jedes Hauptrezept, jedes typische Einsatzmittel und die vier Zusatzzeichen", () => {
     const haupt = Object.keys(RECIPES).filter((k) => !k.includes("#"));
+    const typisch = Object.keys(TYPICAL_SYMBOLS);
     const schluessel = Object.keys(zeichen.zeichen);
-    expect(schluessel.length).toBe(haupt.length + 4);
+    expect(typisch.length).toBeGreaterThan(200);
+    expect(schluessel.length).toBe(haupt.length + typisch.length + 4);
     for (const k of haupt) expect(schluessel).toContain(`rezept:${k}`);
+    for (const k of typisch) expect(schluessel).toContain(`typisch:${k}`);
     for (const k of ["zusatz:eal", "zusatz:ea", "zusatz:stab", "zusatz:oel"]) expect(schluessel).toContain(k);
     const eintrag = (k: string) => (zeichen.zeichen as Record<string, { inhalt: string }>)[k].inhalt;
     expect(eintrag("rezept:D.1.4")).toContain(">EL<");

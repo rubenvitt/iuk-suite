@@ -30,7 +30,7 @@ describe("Zeichen-Index für den Editor (Entscheidung 4)", () => {
     const index = zeichenIndex();
     expect(index.length).toBeGreaterThan(200);
     expect(index[0]).toEqual({ schluessel: expect.any(String), titel: expect.any(String), suchtext: expect.any(String) });
-    expect(JSON.stringify(index).length).toBeLessThan(40_000);
+    expect(JSON.stringify(index).length / index.length).toBeLessThan(200); // je Eintrag; mit SVG wären es im Mittel rund 850
     const titel = index.map((e) => e.titel);
     expect(titel).toEqual([...titel].sort((a, b) => a.localeCompare(b, "de")));
   });
