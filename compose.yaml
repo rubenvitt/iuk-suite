@@ -143,6 +143,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+      # Takt der Probe INNERHALB von `start_period` (Docker Engine >= 25). Ohne die Zeile
+      # probt Docker auch in der Startphase nur alle `interval` = 30s — und Traefik nimmt
+      # einen Container erst in die Route, wenn er `healthy` ist. Jeder Rollout war dadurch
+      # bis zu ~30s lang 404 auf ALLEN Modul-Hosts, obwohl Next.js nach wenigen Sekunden
+      # antwortet. Mit 2s ist die Lücke etwa die Bootzeit. Nach `start_period` gilt wieder
+      # `interval`; die Probe ist ein lokales wget (gemessen ~0,15s), der kurze Takt kostet
+      # also nichts. Kein echtes Rolling Update: alter und neuer Container laufen nie parallel.
+      start_interval: 2s
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
