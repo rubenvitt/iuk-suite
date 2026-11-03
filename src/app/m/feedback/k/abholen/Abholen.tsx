@@ -33,7 +33,7 @@ export function Abholen({ schrift }: { schrift: string }) {
   const [abgeholt, abholen, holt] = useActionState(async (v: AbholErgebnis | null, fd: FormData) => {
     const r = await abholenAktion(v, fd);
     setZuletzt("abholen");
-    if (r.code !== entwurfCode.current) {
+    if (r.ok && r.code !== entwurfCode.current) {
       entwurfCode.current = r.code;
       setAntwort("");
     }

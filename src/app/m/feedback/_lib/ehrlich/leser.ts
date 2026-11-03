@@ -55,7 +55,8 @@ async function holeJson(transport: LeserTransport, url: string, apiKey: string):
 
 export async function ladeLeserNamen(
   env: EnvLike = process.env,
-  transport: LeserTransport = (url, init) => fetch(url, init),
+  // Keine Weiterleitung folgen: sie trüge den Schlüssel an ein Ziel, das die HTTPS-Prüfung nie sah.
+  transport: LeserTransport = (url, init) => fetch(url, { ...init, redirect: "error" }),
   jetzt: number = Date.now(),
 ): Promise<string[]> {
   if (stand && jetzt - stand.am < TTL_MS) return stand.namen;
