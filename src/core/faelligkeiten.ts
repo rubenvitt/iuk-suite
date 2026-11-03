@@ -42,11 +42,29 @@ export interface Faelligkeit {
    */
   person?: string;
   /**
-   * Nur für Personen mit einer dieser Gruppen (IDA-312: die Gerätewartung zeigt jeder Gruppe nur ihre Geräte).
+   * Nur für Personen mit einer dieser Gruppen oder Personenschlüssel (`personSchluessel`; IDA-312/337: die
+   * Gerätewartung zeigt den Verwaltern einer Gruppe nur deren Geräte).
    * Fehlt das Feld, sieht es jeder, der die Quelle sieht (`darfSehen`). Seite, Kachel und beide Pushs filtern
    * gleich (`portal/_lib/faelligkeiten/sammeln.ts`, `nurSichtbare`).
    */
   sichtbarFuer?: readonly string[];
+}
+
+/**
+ * IDA-337: `sichtbarFuer` darf statt einer Gruppe auch eine Person nennen — die Gerätewartung ordnet ihre Verwalter
+ * im Modul zu, nicht über Pocket-ID-Gruppen. Das Portal reicht deshalb überall `sichtSchluessel` statt der nackten
+ * Gruppen weiter: die Gruppen und dazu `person:<sub>`. Ein Pocket-ID-Gruppenname enthält keinen Doppelpunkt.
+ */
+export function personSchluessel(sub: string): string {
+  return `person:${sub}`;
+}
+
+/** Gruppen der Person und ihr Personenschlüssel (`sub`, sonst `id` — wie `auditActor`). */
+export function sichtSchluessel(
+  user: { groups?: readonly string[] | null; sub?: string | null; id?: string | null } | null | undefined,
+): string[] {
+  const kennung = user?.sub ?? user?.id;
+  return [...(user?.groups ?? []), ...(kennung ? [personSchluessel(kennung)] : [])];
 }
 
 /** Darf eine Person mit diesen Gruppen den Eintrag sehen? Nur die Einschränkung am Eintrag, nicht `darfSehen`. */

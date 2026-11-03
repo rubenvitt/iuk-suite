@@ -7,7 +7,7 @@
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { WartungDb, WartungSchreiber } from "../_db/client";
-import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel } from "../_db/schema";
+import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, verwalter } from "../_db/schema";
 import { artIkone, type ArtEingabe, type ErledigtEingabe, type GeraetEingabe, type GruppeEingabe, type PruefungEingabe } from "./eingabe";
 
 export class Abgelehnt extends Error {
@@ -39,23 +39,24 @@ function pruefeStunden(neu: number | null, alt: number | null): void {
 // ---------------------------------------------------------------- Gruppen
 
 export function gruppeSpeichern(db: WartungDb, id: string | null, e: GruppeEingabe, jetzt: number): string {
-  const doppelt = db.select({ id: gruppe.id }).from(gruppe).where(eq(gruppe.pocketGruppe, e.pocketGruppe)).get();
-  if (doppelt && doppelt.id !== id) throw new Abgelehnt("Diese Pocket-ID-Gruppe gehört schon zu einer anderen Gruppe.", "pocketGruppe");
   if (id) {
-    const r = db.update(gruppe).set({ name: e.name, pocketGruppe: e.pocketGruppe, aktualisiertAm: jetzt }).where(eq(gruppe.id, id)).run();
+    const r = db.update(gruppe).set({ name: e.name, aktualisiertAm: jetzt }).where(eq(gruppe.id, id)).run();
     if (r.changes === 0) throw new Abgelehnt("Diese Gruppe gibt es nicht mehr.");
     return id;
   }
   const neu = neueId();
   const position = db.select({ n: sql<number>`coalesce(max(position), -1) + 1` }).from(gruppe).get()?.n ?? 0;
-  db.insert(gruppe).values({ id: neu, name: e.name, pocketGruppe: e.pocketGruppe, position, angelegtAm: jetzt, aktualisiertAm: jetzt }).run();
+  db.insert(gruppe).values({ id: neu, name: e.name, position, angelegtAm: jetzt, aktualisiertAm: jetzt }).run();
   return neu;
 }
 
 export function gruppeLoeschen(db: WartungDb, id: string): void {
   const n = db.select({ n: sql<number>`count(*)` }).from(geraet).where(eq(geraet.gruppeId, id)).get()?.n ?? 0;
   if (n > 0) throw new Abgelehnt("Zu dieser Gruppe gehören noch Geräte, auch ausgemusterte.");
-  db.delete(gruppe).where(eq(gruppe.id, id)).run();
+  db.transaction((tx) => {
+    tx.delete(verwalter).where(eq(verwalter.gruppeId, id)).run();
+    tx.delete(gruppe).where(eq(gruppe.id, id)).run();
+  });
 }
 
 // ---------------------------------------------------------------- Gerätearten

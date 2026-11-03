@@ -1,6 +1,6 @@
 import { Shell } from "@/core/shell/Shell";
 import { wartungNav } from "../_lib/nav";
-import { requireAngemeldet } from "../_lib/zugang";
+import { requireZugang } from "../_lib/zugang";
 import s from "../_ui/wartung.module.css";
 
 /**
@@ -8,7 +8,7 @@ import s from "../_ui/wartung.module.css";
  * Rechten. Jede Seite ruft ihren Riegel noch einmal — eine Route Group ist keine Sicherheitsgrenze.
  */
 export default async function WartungVerwaltungLayout({ children }: { children: React.ReactNode }) {
-  const { rechte } = await requireAngemeldet();
+  const { rechte } = await requireZugang();
   return (
     <Shell variant="full" moduleKey="wartung" nav={wartungNav(rechte)}>
       <div className={s.modul}>{children}</div>

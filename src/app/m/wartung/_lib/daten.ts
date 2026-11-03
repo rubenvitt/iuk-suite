@@ -8,6 +8,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { WartungDb } from "../_db/client";
 import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel } from "../_db/schema";
+import { ladeVerwalter } from "./personen";
 import { fristStand, naechsteFrist, vergleicheStaende, zustandAus, type LetzteErledigung } from "./fristen";
 import type { ArtDTO, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, MangelDTO } from "./typen";
 
@@ -18,8 +19,9 @@ export function ladeGruppen(db: Leser): GruppeDTO[] {
     db.select({ id: geraet.gruppeId, n: sql<number>`count(*)` }).from(geraet).where(eq(geraet.aktiv, true))
       .groupBy(geraet.gruppeId).all().map((z) => [z.id, z.n]),
   );
+  const verwalter = ladeVerwalter(db);
   return db.select().from(gruppe).orderBy(asc(gruppe.position), asc(gruppe.name)).all()
-    .map((g) => ({ id: g.id, name: g.name, pocketGruppe: g.pocketGruppe, geraete: zahl.get(g.id) ?? 0 }));
+    .map((g) => ({ id: g.id, name: g.name, verwalter: verwalter.get(g.id) ?? [], geraete: zahl.get(g.id) ?? 0 }));
 }
 
 export function ladeArten(db: Leser): ArtDTO[] {

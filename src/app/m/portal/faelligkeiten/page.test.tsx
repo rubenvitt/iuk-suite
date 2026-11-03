@@ -109,6 +109,6 @@ describe("Seite „Was steht an“", () => {
     expect(auswahl.abgewaehlt).toEqual(["radio:Ausleihe"]);
     expect(auswahl.module.map((m) => m.modul)).toEqual(["radio"]);
     expect(baum.some((el) => el.type === FaelligkeitenProbe)).toBe(true);
-    expect(vermerkeGruppen).toHaveBeenCalledWith(expect.objectContaining({ personId: "person-1" }), ["funk-admin"]);
+    expect(vermerkeGruppen).toHaveBeenCalledWith(expect.objectContaining({ personId: "person-1" }), ["funk-admin", "person:person-1"]);
   });
 });

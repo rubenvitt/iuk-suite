@@ -6,6 +6,7 @@ import { RueckmeldungKarte } from "@/app/m/portal/_ui/RueckmeldungKarte";
 import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { nurSichtbare, sammle, sichtbareQuellen, zaehle } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
+import { sichtSchluessel } from "@/core/faelligkeiten";
 import { FaelligkeitenKarte } from "@/app/m/portal/_ui/FaelligkeitenKarte";
 
 /**
@@ -45,8 +46,8 @@ export default async function PortalPage() {
    */
   const rueckmeldung = rueckmeldeweg();
   // „Was steht an" (IDA-297): nur wer ein Quellmodul verwaltet, sieht die Kachel.
-  const quellen = sichtbareQuellen(session?.user?.groups);
-  const fristen = quellen.length > 0 ? nurSichtbare(sammle(quellen, new Date()), session?.user?.groups) : null;
+  const quellen = sichtbareQuellen(sichtSchluessel(session?.user));
+  const fristen = quellen.length > 0 ? nurSichtbare(sammle(quellen, new Date()), sichtSchluessel(session?.user)) : null;
   return (
     <>
       <Seitenkopf titel="Apps & Dienste" />

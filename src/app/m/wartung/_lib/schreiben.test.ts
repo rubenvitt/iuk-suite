@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { checkpunkt, eintrag, frist, geraet, mangel } from "../_db/schema";
+import type { DirectoryResult } from "@/core/directory";
+import { checkpunkt, eintrag, frist, geraet, mangel, verwalter } from "../_db/schema";
 import { ladeArten, ladeGeraet } from "./daten";
 import {
   Abgelehnt, artSpeichern, erledigtEintragen, geraetAnlegen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
   neueId, pruefungAbschliessen, schonGesendet, stundenEintragen, ungepushteAusfaelle,
 } from "./schreiben";
+import { merkePerson, verwalterHinzufuegen } from "./personen";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
+
+const OHNE_VERZEICHNIS: DirectoryResult = { status: "unconfigured", people: [] };
 
 const HEUTE = "2026-11-03";
 const K = { jetzt: Date.UTC(2026, 10, 3, 10), heute: HEUTE, wer: "Helfer A" };
@@ -138,11 +142,13 @@ describe("Verwaltung", () => {
     expect(db.select().from(frist).where(eq(frist.id, START.frist.heizung.wartung)).get()).toBeUndefined();
   });
 
-  it("Gruppen: Pocket-ID-Gruppe einmalig, Löschen nur ohne Geräte", () => {
+  it("Gruppen: Löschen nur ohne Geräte, die Verwalter gehen mit", () => {
     const { db } = mitStromerzeuger();
-    expect(() => gruppeSpeichern(db, null, { name: "Doppelt", pocketGruppe: "wartung-iuk" }, K.jetzt)).toThrow(/schon zu einer anderen/);
     expect(() => gruppeLoeschen(db, START.gruppe.technik)).toThrow(/noch Geräte/);
-    const neu = gruppeSpeichern(db, null, { name: "Logistik", pocketGruppe: "wartung-logistik" }, K.jetzt);
+    const neu = gruppeSpeichern(db, null, { name: "Logistik" }, K.jetzt);
+    merkePerson(db, "sub-1", "Verwalterin Logistik");
+    verwalterHinzufuegen(db, neu, "sub-1", K.jetzt, OHNE_VERZEICHNIS);
     gruppeLoeschen(db, neu);
+    expect(db.select().from(verwalter).all()).toEqual([]);
   });
 });

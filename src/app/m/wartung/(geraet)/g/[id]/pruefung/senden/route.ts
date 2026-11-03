@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (fremdeHerkunft(req)) return new Response(null, { status: 403 });
   let viewer;
   try {
-    ({ viewer } = await requireAktion("angemeldet"));
+    ({ viewer } = await requireAktion("zugang"));
   } catch {
     return antwort(401, { ok: false, fehler: "Die Anmeldung ist abgelaufen. Bitte den QR-Code noch einmal scannen." });
   }

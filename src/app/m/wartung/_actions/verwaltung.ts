@@ -1,21 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { z } from "zod";
+import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { auditActor, withAuditContext } from "@/core/audit/server";
+import { getDirectory, type DirectoryResult } from "@/core/directory";
 import { getDb } from "../_db/client";
 import { geraet } from "../_db/schema";
 import { ladeMangel } from "../_lib/daten";
 import {
-  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema,
+  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema, verwalterEingabe,
 } from "../_lib/eingabe";
+import {
+  SUCHE_MAX_TREFFER, SUCHE_MIN_ZEICHEN, verwalterEntfernen, verwalterHinzufuegen, vorschlaege,
+} from "../_lib/personen";
 import { heute } from "../_lib/heute";
 import {
   Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
   gruppeSpeichern, mangelBeheben,
 } from "../_lib/schreiben";
-import type { Ergebnis } from "../_lib/typen";
+import type { Ergebnis, PersonVorschlag } from "../_lib/typen";
 import { anzeigename, requireAktion, verwaltetGruppe, type Rechte, type Stufe, type Viewer } from "../_lib/zugang";
 
 /*
@@ -143,4 +147,37 @@ export async function gruppeSpeichernAction(id: string | null, eingabe: unknown)
 export async function gruppeLoeschenAction(id: string): Promise<Ergebnis> {
   if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
   return schreibe("admin", () => gruppeLoeschen(getDb(), id));
+}
+
+// ---------------------------------------------------------------- Verwalter einer Gruppe (nur Admins, IDA-337)
+
+const KEIN_VERZEICHNIS: DirectoryResult = { status: "error", people: [] };
+/** `core/directory` wirft nie; die Zeile überlebt einen Austausch gegen einen Client, der es doch tut. */
+async function verzeichnis(abruf: () => Promise<DirectoryResult>): Promise<DirectoryResult> {
+  try { return await abruf(); } catch { return KEIN_VERZEICHNIS; }
+}
+
+export async function verwalterHinzufuegenAction(eingabe: unknown): Promise<Ergebnis> {
+  const e = verwalterEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: UNGUELTIG };
+  // Erst das Recht, dann das Verzeichnis: dessen Antwort ist ein Ausschnitt der ganzen Organisation.
+  await requireAktion("admin");
+  const v = await verzeichnis(() => getDirectory().list());
+  return schreibe("admin", () => verwalterHinzufuegen(getDb(), e.data.gruppeId, e.data.nutzer, Date.now(), v));
+}
+
+export async function verwalterEntfernenAction(eingabe: unknown): Promise<Ergebnis> {
+  const e = verwalterEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: UNGUELTIG };
+  return schreibe("admin", () => verwalterEntfernen(getDb(), e.data.gruppeId, e.data.nutzer));
+}
+
+/** Lesend: höchstens `SUCHE_MAX_TREFFER` Vorschläge ab `SUCHE_MIN_ZEICHEN` Zeichen. */
+export async function suchePersonenAction(gruppeId: unknown, begriff: unknown): Promise<PersonVorschlag[]> {
+  await requireAktion("admin");
+  const id = idSchema.safeParse(gruppeId);
+  const q = z.string().max(100).safeParse(begriff);
+  if (!id.success || !q.success || q.data.trim().length < SUCHE_MIN_ZEICHEN) return [];
+  const v = await verzeichnis(() => getDirectory().search(q.data.trim(), SUCHE_MAX_TREFFER));
+  return vorschlaege(getDb(), id.data, q.data, v);
 }

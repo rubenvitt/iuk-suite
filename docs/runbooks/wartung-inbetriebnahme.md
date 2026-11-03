@@ -8,13 +8,14 @@ Lagerbuch.
 
 | Wer | Wie | Was |
 | --- | --- | --- |
-| jeder Angemeldete | QR-Code am Gerät (`/g/<id>`) oder **Geräte** | Prüfung mit Checkliste, Mangel mit Foto melden, Betriebsstunden eintragen |
-| Verwalter einer Gruppe | Mitglied der Pocket-ID-Gruppe dieser Gruppe (z. B. `wartung-technik`) | Geräte der Gruppe pflegen, Wartung/Elektroprüfung eintragen, Mängel beheben, Etiketten drucken; Gerätearten und Checklisten (gemeinsam für alle Gruppen) |
-| Admin | `wartung-admin` (`SUITE_ADMIN_GROUP_WARTUNG`; der Suite-Admin zählt mit) | alles, dazu **Gruppen** anlegen und ihre Pocket-ID-Gruppe festlegen |
+| jeder, auch ohne Anmeldung | QR-Code am Gerät (`/g/<id>`) | Mangel mit Foto melden, Name freiwillig; gebremst je Gerät (5 in 10 Minuten) und insgesamt (60 je Stunde) |
+| Zugang | Pocket-ID-Gruppe `wartung-nutzer` (`SUITE_ACCESS_GROUP_WARTUNG`) | dazu Prüfung mit Checkliste, Betriebsstunden, Geräteliste |
+| Verwalter einer Gruppe | vom Admin unter **Gruppen** zugeordnet (Tabelle `verwalter`, je Person der OIDC-`sub`) | Geräte der Gruppe pflegen, Wartung/Elektroprüfung eintragen, Mängel beheben, Etiketten drucken; Gerätearten und Checklisten (gemeinsam für alle Gruppen) |
+| Admin | `wartung-admin` (`SUITE_ADMIN_GROUP_WARTUNG`; der Suite-Admin zählt mit) | alles, dazu **Gruppen** anlegen und Verwalter zuordnen |
 
-Welche Gruppe ein Gerät hat und wer sie verwaltet, steht in der Moduldatenbank (`gruppe.pocket_gruppe`)
-und wird bei jeder Aktion daraus gelesen (IDOR). Gruppen im JWT sind so frisch wie der letzte Token-Refresh
-(≈ 1 Stunde).
+Pocket ID kennt nur `wartung-nutzer` und `wartung-admin` (IDA-337). Wer welche Gruppe verwaltet, steht in der
+Moduldatenbank und wird bei jeder Aktion daraus gelesen (IDOR). Ein Verwalter braucht zusätzlich Zugang.
+Gruppen im JWT sind so frisch wie der letzte Token-Refresh (≈ 1 Stunde); eine Zuordnung im Modul wirkt sofort.
 
 „Was steht an“ im Portal zeigt Fristen und nicht einsatzbereite Geräte nur den Verwaltern der jeweiligen
 Gruppe und den Modul-Admins (ohne Suite-Admin-Kurzschluss, wie im Lagerbuch). Ein neuer Mangel „nicht
@@ -30,15 +31,16 @@ SUITE_HOST_WARTUNG=wartung.iuk-ue.de
 
 Reihenfolge wie bei jedem neuen Modul: erst das Image mit dem Modul ausrollen, dann den Host setzen.
 Der Host braucht DNS und die Traefik-Regel (`SUITE_TRAEFIK_RULE`). Die Datenbank `wartung.db` legt der
-Boot-Pfad an (`MODULE_MIGRATIONS`), mit Startbestand: Gruppen Technik (`wartung-technik`) und I&K
-(`wartung-iuk`) und die vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter
+Boot-Pfad an (`MODULE_MIGRATIONS`), mit Startbestand: Gruppen Technik und I&K (noch ohne Verwalter) und die
+vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter
 `DATA_DIR/wartung/maengel/`; `scripts/backup.sh` sichert die `wartung.db`, die Fotos noch nicht (IDA-336).
 
 ## 3. Erste Schritte nach dem Deploy
 
-1. In Pocket ID die Gruppen `wartung-admin`, `wartung-technik` und `wartung-iuk` anlegen, die Verwalter
-   hineinnehmen und die Gruppen am OIDC-Client „IDA“ erlauben.
-2. Mit einem Admin anmelden, unter **Gruppen** Namen und Pocket-ID-Gruppen prüfen.
+1. In Pocket ID die Gruppen `wartung-admin` und `wartung-nutzer` anlegen, Personen hineinnehmen und die Gruppen
+   am OIDC-Client „IDA“ erlauben.
+2. Die künftigen Verwalter öffnen das Modul einmal (oder stehen im Personenverzeichnis). Mit einem Admin
+   anmelden und unter **Gruppen** je Gruppe die Verwalter zuordnen.
 3. Unter **Gerätearten und Checklisten** die Checklisten an die echten Geräte anpassen (der Startbestand
    ist ein plausibler Entwurf).
 4. Geräte anlegen, beim ersten Mal die letzten Wartungen und Elektroprüfungen unter **Erledigt eintragen**

@@ -7,8 +7,21 @@ import type { FristStand, FristVorlage, Wer, Zustand } from "./fristen";
 export interface GruppeDTO {
   id: string;
   name: string;
-  pocketGruppe: string;
+  /** Wer die Gruppe verwaltet (IDA-337), nach Namen. */
+  verwalter: VerwalterDTO[];
   geraete: number;
+}
+
+export interface VerwalterDTO {
+  /** OIDC-`sub`. */
+  nutzer: string;
+  name: string;
+}
+
+export interface PersonVorschlag {
+  nutzer: string;
+  name: string;
+  email: string | null;
 }
 
 export interface FristDTO extends FristVorlage {

@@ -248,12 +248,13 @@ export const MODULES: ModuleDef[] = [
   { key: "unterkunft", title: "Unterkunftsrechner", icon: "tent", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
-  // wartung: Gerätewartung (IDA-312) — Geräte mehrerer Gruppen mit Prüf- und Wartungsfristen. requiresAuth: true
-  // ohne Gruppe: prüfen und Mängel melden darf jeder Angemeldete (QR am Gerät, `/g/<id>`). Die Verwaltung einer
-  // Gruppe riegelt `_lib/zugang.ts` über deren Pocket-ID-Gruppe aus der Modul-Datenbank; Modul-Admins sehen alles.
+  // wartung: Gerätewartung (IDA-312, IDA-337) — Geräte mehrerer Gruppen mit Prüf- und Wartungsfristen.
+  // requiresAuth: false, weil jeder mit dem QR-Code am Gerät einen Mangel melden darf, auch ohne Anmeldung
+  // (`/g/<id>`, `/g/<id>/mangel`). Alles andere riegelt `_lib/zugang.ts` (Login, `requiredGroups`); wer welche
+  // Gruppe verwaltet, ordnet der Admin im Modul zu.
   { key: "wartung", title: "Gerätewartung", icon: "engine", shell: "full",
-    requiresAuth: true, requiredGroups: [], adminGroups: ["wartung-admin"],
-    prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
+    requiresAuth: false, requiredGroups: ["wartung-nutzer", "wartung-admin"], adminGroups: ["wartung-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },
   // lagemonitor: Verwaltung des Lagemonitors im FüKw (LGM-5). requiresAuth: false, weil der Lagemonitor
   // seine Einstellungen mit eigenem Schlüssel unter `api/konfiguration` abholt; die Seiten riegelt
   // `_lib/zugang.ts` über die Admin-Gruppe (der Suite-Admin zählt mit).
