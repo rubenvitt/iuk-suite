@@ -14,7 +14,11 @@ import { isValidElement, type ReactElement } from "react";
  * DOM-Mount bräuchte `_lib/launcher.ts` bis in eine echte Datenbank.
  */
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/core/shell/launcherEintraege", () => ({ launcherEintraege: vi.fn() }));
+vi.mock("@/core/shell/launcherEintraege", () => ({
+  launcherEintraege: vi.fn(),
+  launcherAuswahl: vi.fn(() => ({ angeheftet: [], zuletzt: [] })),
+  BEREICHE_IN_REIHENFOLGE: [],
+}));
 vi.mock("@/app/m/portal/_lib/einstellungen", () => ({
   leseAnsprechpartner: vi.fn(),
   setzeAnsprechpartner: vi.fn(),

@@ -115,3 +115,120 @@
     transition: none;
   }
 }
+
+/*
+ * IDA-338: die persönliche Ordnung ab vielen Einträgen — kompakte Zeilen für „Zuletzt“ und
+ * „Alle Apps & Dienste“, die Kacheln darüber bleiben die von oben. Eigene Klassen und
+ * Suite-Variablen (Falle 2); antd steuert nur `Button` und `Collapse` bei, deren Aussehen über
+ * Props läuft.
+ */
+.portal-zeilen {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 8px;
+}
+
+.portal-zeile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-block-size: 48px;
+  padding-inline-end: 4px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 8px;
+}
+
+.portal-zeile:hover {
+  border-color: var(--iuk-gedaempft);
+}
+
+.portal-zeile-link {
+  flex: 1;
+  min-inline-size: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 10px 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.portal-zeile-titel {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.portal-zweitlink {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 999px;
+  color: var(--iuk-gedaempft);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.portal-zweitlink:hover {
+  color: inherit;
+  border-color: var(--iuk-gedaempft);
+}
+
+.portal-anheften[aria-pressed="false"] {
+  color: var(--iuk-gedaempft);
+}
+
+.portal-anheften[aria-pressed="true"] {
+  color: var(--iuk-marke);
+}
+
+.portal-anzahl {
+  margin-inline-start: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--iuk-flaeche-aktiv);
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.portal-aufklapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  min-block-size: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 8px;
+  background: none;
+  color: var(--iuk-gedaempft);
+  font: inherit;
+  cursor: pointer;
+}
+
+.portal-aufklapper:hover {
+  color: inherit;
+  border-color: var(--iuk-gedaempft);
+}
+
+.portal-kategorie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-weight: 600;
+}
+
+.portal-kategorie-namen {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--iuk-gedaempft);
+}

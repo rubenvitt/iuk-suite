@@ -6,6 +6,8 @@ import { createService, deleteService, updateService } from "@/app/m/portal/_lib
 import { sichtbarkeitAusFormular } from "@/app/m/portal/_lib/gruppen";
 import { setzeAnsprechpartner, setzeZeitzone } from "@/app/m/portal/_lib/einstellungen";
 import { auth } from "@/core/auth";
+import { launcherEintraege } from "@/core/shell/launcherEintraege";
+import { istSchluessel, merkeAufruf, setzeAngeheftet } from "@/app/m/portal/_lib/vorlieben";
 import { aboVon, beendeAbo, richteAboEin, setzeAuswahl, wechsleThema } from "@/app/m/portal/_lib/faelligkeiten/abos";
 import { bereinigeAuswahl } from "@/app/m/portal/_lib/faelligkeiten/auswahl";
 import { sendeZielFuer, versand } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
@@ -150,4 +152,41 @@ export async function sendeFaelligkeitenProbeAction(): Promise<ProbeErgebnis> {
       return { ok: false, text: "Senden hat nicht geklappt. Versuch es später noch einmal." };
     }
   });
+}
+
+/**
+ * ANHEFTEN IM LAUNCHER (IDA-338). Die Person kommt aus der Sitzung, nie aus dem Aufruf; angeheftet
+ * wird nur, was sie gerade sehen darf — ein ausgedachter Schlüssel landet so nicht in ihrer Zeile.
+ * Lösen geht immer, auch für einen Eintrag, dessen Recht inzwischen weg ist.
+ *
+ * Kein Audit-Kontext: eine Bedienvorliebe der Person, kein fachlicher Datensatz
+ * (`coverage-manifest.json`).
+ */
+export async function setzeAngeheftetAction(key: unknown, an: unknown): Promise<string[] | null> {
+  const session = await auth();
+  const personId = session?.user?.id;
+  if (!personId || !istSchluessel(key) || typeof an !== "boolean") return null;
+  if (an) {
+    const sichtbar = await launcherEintraege(session?.user?.groups ?? null);
+    if (!sichtbar.some((e) => e.key === key)) return null;
+  }
+  const angeheftet = setzeAngeheftet(personId, key, an).angeheftet;
+  // Der Umschalter in der Kopfzeile derselben Seite liest die Auswahl auf dem Server.
+  revalidatePath("/m/portal");
+  return angeheftet;
+}
+
+/**
+ * Merkt den Aufruf eines externen Dienstes für „Zuletzt“. Suite-Module merkt die Kopfzeile selbst
+ * (`launcherAuswahl` in `core/shell/launcherEintraege.ts`); ein Dienst verlässt die Suite, deshalb
+ * meldet ihn die Startseite beim Klick.
+ */
+export async function merkeDienstAufrufAction(key: unknown): Promise<void> {
+  const session = await auth();
+  const personId = session?.user?.id;
+  // Ein Dienst ist ein `dienst:`-Eintrag, egal ob er im neuen Tab öffnet (`extern` folgt `openInNewTab`).
+  if (!personId || !istSchluessel(key) || !key.startsWith("dienst:")) return;
+  const sichtbar = await launcherEintraege(session?.user?.groups ?? null);
+  if (!sichtbar.some((e) => e.key === key)) return;
+  merkeAufruf(personId, key);
 }

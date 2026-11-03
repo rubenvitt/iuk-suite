@@ -399,3 +399,23 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
   // gemeinschaft: persönlicher Link eines Mitglieds und Statusseite einer Bar-Anfrage — der Code im Pfad ist der Zugang.
   { modul: "gemeinschaft", muster: /^\/m\/gemeinschaft\/(mein|status)\/[^/]/ },
 ];
+
+/**
+ * DIE FACHLICHEN BEREICHE DER APPS (IDA-338): nach ihnen ordnet „Alle Apps & Dienste“ die Apps,
+ * sobald jemand so viele Einträge sieht, dass die flache Liste nicht mehr trägt
+ * (`VIELE_EINTRAEGE_AB` in `core/shell/launcherAuswahl.ts`). Die Reihenfolge der Bereiche ist die
+ * Reihenfolge auf dem Schirm; ein Modul ohne Eintrag landet unter `BEREICH_WEITERE_APPS`.
+ * Am Dateiende aus demselben Grund wie `VERWALTUNGSEINSTIEGE`.
+ */
+export const APP_BEREICHE: readonly { titel: string; module: readonly string[] }[] = [
+  { titel: "Einsatz & Lage", module: ["einsatzbuch", "lagemonitor", "kommplan", "radio", "uav"] },
+  { titel: "Material & Technik", module: ["lagerbuch", "fahrzeuge", "wartung", "qr", "unterkunft"] },
+  { titel: "Menschen & Planung", module: ["helfer", "schichtplan", "aufgaben", "gemeinschaft"] },
+  { titel: "Austausch", module: ["portal", "files", "feedback"] },
+];
+
+export const BEREICH_WEITERE_APPS = "Weitere Apps";
+
+export function bereichFuer(modulKey: string): string {
+  return APP_BEREICHE.find((b) => b.module.includes(modulKey))?.titel ?? BEREICH_WEITERE_APPS;
+}

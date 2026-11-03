@@ -7,6 +7,12 @@ import type { ModulErgebnis } from "@/app/m/portal/_lib/suche";
 // Die Server Action läse Sitzung und Moduldatenbanken; hier zählt nur, was das Feld daraus macht.
 const sucheAktion = vi.hoisted(() => vi.fn<(begriff: string) => Promise<ModulErgebnis[]>>(async () => []));
 vi.mock("@/app/m/portal/sucheAktion", () => ({ sucheAktion }));
+// IDA-338: Anheften und Merken schrieben in die Portal-Datenbank; hier zählt nur der Aufruf.
+const aktionen = vi.hoisted(() => ({
+  setzeAngeheftetAction: vi.fn(async (key: unknown, an: unknown) => (an ? ["lagerbuch", key as string] : [])),
+  merkeDienstAufrufAction: vi.fn(async () => undefined),
+}));
+vi.mock("@/app/m/portal/actions", () => aktionen);
 
 /** Über die Verzögerung hinaus warten, bis die Module geantwortet haben. */
 const nachDerVerzoegerung = () => act(async () => { await new Promise((r) => setTimeout(r, 300)); });
@@ -159,5 +165,107 @@ describe("DiensteRaster", () => {
   it("zeigt das Kürzel der Befehlspalette im Suchfeld", async () => {
     await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} />);
     expect(query('[data-testid="portal-suche-kuerzel"]').textContent).toMatch(/^(Strg\+K|⌘K)$/);
+  });
+
+  describe("viele Einträge (IDA-338)", () => {
+    const VIELE: LauncherEintrag[] = [
+      { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", href: "https://l", abschnitt: "Apps", bereich: "Material & Technik", extern: false },
+      { key: "radio", title: "Funkgeräte", icon: "walkie-talkie", href: "https://r", abschnitt: "Apps", bereich: "Einsatz & Lage", extern: false },
+      { key: "radio:verwaltung", title: "Funkgeräte-Verwaltung", icon: "walkie-talkie", href: "https://r/admin", abschnitt: "Apps", bereich: "Einsatz & Lage", extern: false },
+      ...Array.from({ length: 11 }, (_, i): LauncherEintrag => ({
+        key: `dienst:${i}`, title: `Dienst ${i}`, href: `https://d${i}`, abschnitt: i < 6 ? "Doku" : "Tools", extern: true,
+      })),
+    ];
+    const BEREICHE = ["Einsatz & Lage", "Material & Technik"];
+
+    it("ohne Angeheftetes und Zuletzt steht „Alle“ gleich offen, geordnet nach Bereich", async () => {
+      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} />);
+      expect(exists('[data-testid="portal-angeheftet"]')).toBe(false);
+      expect(exists('[data-testid="portal-alle"]')).toBe(false);
+      expect(queryAll('[data-testid="portal-abschnitt"]').map((a) => a.textContent)).toEqual([
+        "Einsatz & Lage", "Material & Technik", "Weitere Dienste11",
+      ]);
+      // Die Verwaltung ist ein Zweitlink an ihrer App, keine eigene Zeile.
+      expect(queryAll('[data-testid="portal-zeile"]').map((z) => z.textContent)).toEqual(["FunkgeräteVerwaltung", "Lagerbuch"]);
+    });
+
+    it("zeigt oben Angeheftet als Kacheln und Zuletzt ohne Doppel, den Rest zugeklappt", async () => {
+      await mount(
+        <DiensteRaster
+          eintraege={VIELE}
+          ansprechpartner={null}
+          bereiche={BEREICHE}
+          auswahl={{ angeheftet: ["lagerbuch", "weg"], zuletzt: ["lagerbuch", "dienst:3", "radio"] }}
+        />,
+      );
+      expect(queryAll('[data-testid="portal-angeheftet"] [data-testid="service-tile"]').map((k) => k.getAttribute("href"))).toEqual(["https://l"]);
+      expect(queryAll('[data-testid="portal-zuletzt"] [data-testid="portal-zeile"]').map((z) => z.querySelector("a")!.getAttribute("href"))).toEqual([
+        "https://d3",
+        "https://r",
+      ]);
+      expect(query('[data-testid="portal-alle"]').getAttribute("aria-expanded")).toBe("false");
+      expect(exists('[data-testid="portal-alle-liste"]')).toBe(false);
+      await act(async () => (query('[data-testid="portal-alle"]') as HTMLButtonElement).click());
+      expect(exists('[data-testid="portal-alle-liste"]')).toBe(true);
+    });
+
+    it("anheften wirkt sofort und übernimmt danach den gespeicherten Stand", async () => {
+      await mount(
+        <DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} auswahl={{ angeheftet: ["lagerbuch"], zuletzt: ["radio"] }} />,
+      );
+      const knopf = query('[data-testid="portal-zuletzt"] [data-testid="anheften"]') as HTMLButtonElement;
+      expect(knopf.getAttribute("aria-pressed")).toBe("false");
+      await act(async () => knopf.click());
+      expect(aktionen.setzeAngeheftetAction).toHaveBeenCalledWith("radio", true);
+      expect(queryAll('[data-testid="portal-angeheftet"] [data-testid="service-tile"]').map((k) => k.getAttribute("href"))).toEqual([
+        "https://l",
+        "https://r",
+      ]);
+    });
+
+    it("das erste Anheften klappt die offene Liste nicht zu", async () => {
+      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} />);
+      const zeile = queryAll('[data-testid="portal-zeile"]').find((z) => z.textContent === "Lagerbuch")!;
+      await act(async () => (zeile.querySelector('[data-testid="anheften"]') as HTMLButtonElement).click());
+      expect(exists('[data-testid="portal-alle-liste"]')).toBe(true);
+      expect(query('[data-testid="portal-alle"]').getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("eine verspätete Antwort setzt einen neueren Klick nicht zurück", async () => {
+      let ersteAntwort: (v: string[]) => void = () => undefined;
+      aktionen.setzeAngeheftetAction
+        .mockImplementationOnce(() => new Promise<string[]>((r) => { ersteAntwort = r; }))
+        .mockImplementationOnce(async () => ["radio", "lagerbuch"]);
+      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} />);
+      const nadel = (text: string) =>
+        queryAll('[data-testid="portal-zeile"]').find((z) => z.textContent === text)!.querySelector('[data-testid="anheften"]') as HTMLButtonElement;
+      await act(async () => nadel("FunkgeräteVerwaltung").click());
+      await act(async () => nadel("Lagerbuch").click());
+      await act(async () => ersteAntwort(["radio"]));
+      expect(queryAll('[data-testid="portal-angeheftet"] [data-testid="service-tile"]').map((k) => k.getAttribute("href"))).toEqual([
+        "https://r",
+        "https://l",
+      ]);
+    });
+
+    it("die Suche zeigt wie bisher alle Treffer als Kacheln", async () => {
+      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} auswahl={{ angeheftet: ["lagerbuch"], zuletzt: [] }} />);
+      await fill('[data-testid="portal-suche"]', "Funk");
+      expect(queryAll('[data-testid="service-tile"]').map((k) => k.textContent)).toEqual(["Funkgeräte", "Funkgeräte-Verwaltung"]);
+    });
+
+    it("meldet den Klick auf einen Dienst für „Zuletzt“", async () => {
+      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} auswahl={{ angeheftet: ["dienst:2"], zuletzt: [] }} />);
+      const kachel = query('[data-testid="portal-angeheftet"] [data-testid="service-tile"]') as HTMLAnchorElement;
+      kachel.addEventListener("click", (e) => e.preventDefault());
+      await act(async () => kachel.click());
+      expect(aktionen.merkeDienstAufrufAction).toHaveBeenCalledWith("dienst:2");
+    });
+  });
+
+  it("unter der Schwelle bleibt alles wie bisher, auch mit Angeheftetem", async () => {
+    await mount(<DiensteRaster eintraege={EINTRAEGE} ansprechpartner={null} auswahl={{ angeheftet: ["lagerbuch"], zuletzt: ["lagerbuch"] }} />);
+    expect(exists('[data-testid="portal-angeheftet"]')).toBe(false);
+    expect(queryAll('[data-testid="service-tile"]').length).toBe(2);
   });
 });

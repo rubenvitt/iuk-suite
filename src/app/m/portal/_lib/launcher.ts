@@ -1,6 +1,9 @@
 import { getVisibleServicesForUser } from "@/app/m/portal/_lib/services";
 import type { Service } from "@/app/m/portal/_db/schema";
 import type { LauncherEintrag } from "@/core/shell/types";
+import { KEINE_VORLIEBEN, merkeAufruf, vorliebenVon, type Vorlieben } from "@/app/m/portal/_lib/vorlieben";
+
+export type { Vorlieben };
 
 /**
  * DIE EINE FUNKTION, DIE DAS PORTAL FÜR `core/shell` VERÖFFENTLICHT.
@@ -59,5 +62,31 @@ export async function dienstEintraege(groups: string[] | null): Promise<Launcher
   } catch (fehler) {
     console.error("[portal][launcher] Dienste nicht ladbar, Launcher faellt auf Module zurueck:", fehler);
     return [];
+  }
+}
+
+/**
+ * ANGEHEFTET UND ZULETZT (IDA-338) — dieselbe Bauform und derselbe Grund für try/catch wie
+ * `dienstEintraege` oben: die Kopfzeile jeder Seite liest und schreibt hier, und ein Problem der
+ * Portal-Datenbank darf höchstens die persönliche Ordnung kosten, nie die Seite.
+ */
+export function launcherVorliebenVon(personId: string | null | undefined): Vorlieben {
+  if (!personId) return KEINE_VORLIEBEN;
+  try {
+    return vorliebenVon(personId);
+  } catch (fehler) {
+    console.error("[portal][launcher] Vorlieben nicht ladbar:", fehler);
+    return KEINE_VORLIEBEN;
+  }
+}
+
+/** Merkt den Aufruf eines Moduls und gibt den neuen Stand zurück. */
+export function merkeLauncherAufruf(personId: string | null | undefined, key: string): Vorlieben {
+  if (!personId) return KEINE_VORLIEBEN;
+  try {
+    return merkeAufruf(personId, key);
+  } catch (fehler) {
+    console.error("[portal][launcher] Aufruf nicht gemerkt:", fehler);
+    return launcherVorliebenVon(personId);
   }
 }
