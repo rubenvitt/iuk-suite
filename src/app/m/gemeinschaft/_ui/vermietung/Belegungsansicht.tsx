@@ -9,6 +9,7 @@ import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type SperrzeitDTO
 import { monatText, tagText, zeitraumText, ZUSTAND_TEXT } from "../../_lib/vermietungText";
 import { tagInZone, uhrInZone } from "../../_lib/zeit";
 import { useEntscheidung } from "./Entscheidung";
+import { BarLink } from "./BarLink";
 import { Eintragsflyin } from "./Eintragsflyin";
 import { useTokensAmBody } from "./teile";
 import s from "./vermietung.module.css";
@@ -22,7 +23,7 @@ const JE_ZELLE = 3;
  * gesperrt), darunter die Liste des gewählten Tages; ein Eintrag öffnet das Flyin. Eigenes Raster statt antds
  * `Calendar`: der rechnet mit dayjs in der Gerätezone, die Belegung aber in der Suite-Zone.
  */
-export function Belegungsansicht({ anfragen, sperren, heute }: { anfragen: AnfrageDTO[]; sperren: SperrzeitDTO[]; heute: string }) {
+export function Belegungsansicht({ anfragen, sperren, heute, barLink }: { anfragen: AnfrageDTO[]; sperren: SperrzeitDTO[]; heute: string; barLink: string }) {
   useTokensAmBody();
   const entscheidung = useEntscheidung();
   const [tag, setTag] = useState(heute);
@@ -38,7 +39,7 @@ export function Belegungsansicht({ anfragen, sperren, heute }: { anfragen: Anfra
 
   return (
     <div className={s.modul}>
-      <Seitenkopf titel="Belegung" />
+      <Seitenkopf titel="Belegung" aktionen={<BarLink adresse={barLink} />} />
       <div className={s.legende} aria-hidden="true">
         <span><i className={s.muster} />frei</span>
         <span><i className={`${s.muster} ${s.angefragt}`} />angefragt</span>

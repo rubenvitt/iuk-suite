@@ -173,8 +173,23 @@ test("Sperrzeit anlegen macht den Tag öffentlich belegt; Löschen gibt ihn frei
   await expect(page.getByText("Sperrzeit gelöscht.")).toBeVisible();
 });
 
+test("Belegung führt zur Anfrageseite und liefert das QR-Plakat als PDF", async ({ page, browser }) => {
+  await devLogin(page, { host: HOST, groups: LEITUNG, callbackPath: "/vermietung" });
+  await oeffne(page, "/vermietung");
+  const kopf = page.getByTestId("seitenkopf-aktionen");
+  await expect(kopf.getByRole("link", { name: "Anfrageseite" })).toHaveAttribute("href", url("/bar"));
+  const plakat = await page.request.get(url("/vermietung/plakat"));
+  expect(plakat.status()).toBe(200);
+  expect(plakat.headers()["content-type"]).toBe("application/pdf");
+  expect((await plakat.body()).subarray(0, 5).toString("ascii")).toBe("%PDF-");
+
+  const gast = await (await browser.newContext()).request.get(url("/vermietung/plakat"));
+  expect(gast.status()).toBe(404);
+});
+
 test("ohne Leitungsrecht gibt es die Vermietung nicht", async ({ page }) => {
   await devLogin(page, { host: HOST, groups: "fahrzeuge-admin", callbackPath: "/vermietung" });
   const antwort = await page.goto(url("/vermietung"));
   expect(antwort?.status()).toBe(404);
+  expect((await page.request.get(url("/vermietung/plakat"))).status()).toBe(404);
 });

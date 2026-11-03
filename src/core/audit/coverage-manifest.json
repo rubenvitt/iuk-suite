@@ -199,6 +199,10 @@
     }
   },
   "src/app/m/gemeinschaft/(leitung)/vermietung/vertrag/[id]/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/gemeinschaft/(leitung)/vermietung/plakat/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Generated QR poster of the public request page; carries no business data, only the public URL."
+  },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#anzeigeSpeichernAction": { "kind": "context", "via": "anzeigeSpeichernAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#meldungAnlegenAction": { "kind": "context", "via": "meldungAnlegenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#meldungBeendenAction": { "kind": "context", "via": "meldungBeendenAction" },
