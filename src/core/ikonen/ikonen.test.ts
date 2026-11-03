@@ -62,6 +62,19 @@ function traegtClientDirektive(quelle: string): boolean {
   return /^\s*["']use client["']/.test(ohneKommentare(quelle));
 }
 
+/** Argumente je SVG-Pfadbefehl; Wiederholungen sind Vielfache. */
+const ARGUMENTE_JE_BEFEHL: Record<string, number> = { m: 2, l: 2, h: 1, v: 1, c: 6, s: 4, q: 4, t: 2, a: 7, z: 0 };
+
+/** Zerlegt `d` wie ein SVG-Parser: Zahlen gierig, `0.20.5` sind also `0.20` und `.5`. */
+function pfadBefehle(pfad: string): { zeichen: string; zahlen: string[] }[] {
+  const befehle: { zeichen: string; zahlen: string[] }[] = [];
+  for (const token of pfad.match(/[a-zA-Z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []) {
+    if (/[a-zA-Z]/.test(token)) befehle.push({ zeichen: token, zahlen: [] });
+    else befehle.at(-1)?.zahlen.push(token);
+  }
+  return befehle;
+}
+
 describe("core/ikonen — die eine Zeichenquelle", () => {
   it("keine Quelldatei importiert ein Icon-Paket", () => {
     // Tests sind ausgenommen: sie schreiben verbotene Importe als Fallbeispiele in Strings.
@@ -95,6 +108,27 @@ describe("core/ikonen — die eine Zeichenquelle", () => {
       expect(zeichen.pfade.length, name).toBeGreaterThan(0);
       expect(zeichen.id, name).toMatch(/^\w+$/);
     }
+  });
+
+  it("jeder Katalogpfad ist gültig: volle Argumentzahl je Befehl, keine verschluckte Null", () => {
+    // IDA-318: beim Runden auf 0,1 ging zwischen `-0.3` und einer folgenden `0` das Trennzeichen
+    // verloren (`-0.30`). Chromium bricht den Pfad dort mit „Expected number" ab.
+    const fehler: string[] = [];
+    for (const [name, zeichen] of Object.entries(ICONS8)) {
+      zeichen.pfade.forEach((pfad, index) => {
+        for (const { zeichen: befehl, zahlen } of pfadBefehle(pfad)) {
+          const soll = ARGUMENTE_JE_BEFEHL[befehl.toLowerCase()];
+          const gueltig =
+            soll === 0 ? zahlen.length === 0 : !!soll && zahlen.length > 0 && zahlen.length % soll === 0;
+          if (!gueltig) fehler.push(`${name}[${index}] ${befehl} ${zahlen.join(" ")}`);
+        }
+        // Gerundet wird auf eine Stelle: eine Endnull vor anderem als „." ist eine verschluckte Null.
+        for (const treffer of pfad.matchAll(/\d\.\d*0(?![\d.])/g)) {
+          fehler.push(`${name}[${index}] verschluckte Null: ${pfad.slice(treffer.index, treffer.index + 12)}`);
+        }
+      });
+    }
+    expect(fehler).toEqual([]);
   });
 
   it("jeder Katalogschlüssel wird in `src` benutzt — der Katalog trägt keinen Ballast", () => {
