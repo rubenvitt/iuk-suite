@@ -231,6 +231,23 @@ describe("DiensteRaster", () => {
       expect(query('[data-testid="portal-alle"]').getAttribute("aria-expanded")).toBe("true");
     });
 
+    it("eine verspätete Antwort setzt einen neueren Klick nicht zurück", async () => {
+      let ersteAntwort: (v: string[]) => void = () => undefined;
+      aktionen.setzeAngeheftetAction
+        .mockImplementationOnce(() => new Promise<string[]>((r) => { ersteAntwort = r; }))
+        .mockImplementationOnce(async () => ["radio", "lagerbuch"]);
+      await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} />);
+      const nadel = (text: string) =>
+        queryAll('[data-testid="portal-zeile"]').find((z) => z.textContent === text)!.querySelector('[data-testid="anheften"]') as HTMLButtonElement;
+      await act(async () => nadel("FunkgeräteVerwaltung").click());
+      await act(async () => nadel("Lagerbuch").click());
+      await act(async () => ersteAntwort(["radio"]));
+      expect(queryAll('[data-testid="portal-angeheftet"] [data-testid="service-tile"]').map((k) => k.getAttribute("href"))).toEqual([
+        "https://r",
+        "https://l",
+      ]);
+    });
+
     it("die Suche zeigt wie bisher alle Treffer als Kacheln", async () => {
       await mount(<DiensteRaster eintraege={VIELE} ansprechpartner={null} bereiche={BEREICHE} auswahl={{ angeheftet: ["lagerbuch"], zuletzt: [] }} />);
       await fill('[data-testid="portal-suche"]', "Funk");

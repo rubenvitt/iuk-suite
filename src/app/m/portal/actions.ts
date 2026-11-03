@@ -169,7 +169,10 @@ export async function setzeAngeheftetAction(key: unknown, an: unknown): Promise<
     const sichtbar = await launcherEintraege(session?.user?.groups ?? null);
     if (!sichtbar.some((e) => e.key === key)) return null;
   }
-  return setzeAngeheftet(personId, key, an).angeheftet;
+  const angeheftet = setzeAngeheftet(personId, key, an).angeheftet;
+  // Der Umschalter in der Kopfzeile derselben Seite liest die Auswahl auf dem Server.
+  revalidatePath("/m/portal");
+  return angeheftet;
 }
 
 /**
@@ -180,8 +183,9 @@ export async function setzeAngeheftetAction(key: unknown, an: unknown): Promise<
 export async function merkeDienstAufrufAction(key: unknown): Promise<void> {
   const session = await auth();
   const personId = session?.user?.id;
-  if (!personId || !istSchluessel(key)) return;
+  // Ein Dienst ist ein `dienst:`-Eintrag, egal ob er im neuen Tab öffnet (`extern` folgt `openInNewTab`).
+  if (!personId || !istSchluessel(key) || !key.startsWith("dienst:")) return;
   const sichtbar = await launcherEintraege(session?.user?.groups ?? null);
-  if (!sichtbar.some((e) => e.key === key && e.extern)) return;
+  if (!sichtbar.some((e) => e.key === key)) return;
   merkeAufruf(personId, key);
 }

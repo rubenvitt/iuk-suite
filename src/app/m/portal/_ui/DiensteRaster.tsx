@@ -86,16 +86,25 @@ export function DiensteRaster({
   // wird einmal beim Laden: das erste Anheften darf die Liste nicht unter der Hand zuklappen.
   const [alleSichtbar, setAlleOffen] = useState(() => !hatEigene);
 
+  // Jeder Klick zählt hoch; eine Antwort gilt nur, solange kein neuerer Klick unterwegs ist —
+  // sonst setzte der Stand des ersten Klicks den zweiten zurück.
+  const anheftKlick = useRef(0);
   function anheften(key: string, an: boolean) {
     const vorher = angeheftet;
+    const nummer = ++anheftKlick.current;
     setAngeheftet(an ? [...vorher.filter((k) => k !== key), key] : vorher.filter((k) => k !== key));
     setzeAngeheftetAction(key, an).then(
-      (gespeichert) => setAngeheftet(gespeichert ?? vorher),
-      () => setAngeheftet(vorher),
+      (gespeichert) => {
+        if (nummer === anheftKlick.current) setAngeheftet(gespeichert ?? vorher);
+      },
+      () => {
+        if (nummer === anheftKlick.current) setAngeheftet(vorher);
+      },
     );
   }
 
   function merkeDienst(key: string) {
+    if (!key.startsWith("dienst:")) return;
     // Feuer und vergessen: ein Dienst öffnet im neuen Tab, ein Fehler hier kostet nur „Zuletzt“.
     merkeDienstAufrufAction(key).catch(() => undefined);
   }
@@ -111,7 +120,7 @@ export function DiensteRaster({
           target={e.extern ? "_blank" : undefined}
           rel={e.extern ? "noopener noreferrer" : undefined}
           data-testid="service-tile"
-          onClick={e.extern ? () => merkeDienst(e.key) : undefined}
+          onClick={() => merkeDienst(e.key)}
           className="portal-kachel-link"
           style={{ display: "block", blockSize: "100%" }}
         >
@@ -218,7 +227,7 @@ export function DiensteRaster({
           target={e.extern ? "_blank" : undefined}
           rel={e.extern ? "noopener noreferrer" : undefined}
           className="portal-zeile-link"
-          onClick={e.extern ? () => merkeDienst(e.key) : undefined}
+          onClick={() => merkeDienst(e.key)}
         >
           {!e.extern ? (
             <AppZeichen url={e.appIconUrl} zeichen={e.icon ?? "link"} groesse={28} />

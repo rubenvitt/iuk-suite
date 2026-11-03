@@ -11,9 +11,10 @@ const VIELE_GRUPPEN = [
   "fahrzeuge-nutzer", "schichtplan-nutzer", "gemeinschaft-admin", "lagemonitor-admin", "uav-admin",
   "einsatzbuch-nutzer", "aufgaben-nutzer", "radio-admin", "wartung-admin",
 ].join(",");
-const EMAIL = "anheften@localtest.me";
 
-test("angeheftet steht nach dem Neuladen oben und im Umschalter eines anderen Moduls", async ({ page }) => {
+test("angeheftet steht nach dem Neuladen oben und im Umschalter eines anderen Moduls", async ({ page }, testInfo) => {
+  // Je Versuch eine eigene Person: ein Wiederholungslauf fände sonst die Nadel des ersten vor.
+  const EMAIL = `anheften-${testInfo.retry}-${Date.now()}@localtest.me`;
   await devLogin(page, { host: "portal.localtest.me", email: EMAIL, groups: VIELE_GRUPPEN });
   await warteAufGestreamteInhalte(page);
 
