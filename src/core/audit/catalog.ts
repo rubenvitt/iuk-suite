@@ -646,6 +646,50 @@ export const AUDIT_TABLES = {
       ]
     }
   },
+  "wartung": {
+    "gruppe": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "art": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "frist": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "checkpunkt": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "geraet": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "eintrag": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "mangel": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    }
+  },
   "lagemonitor": {
     "lagemonitor_anzeige": {
       "mode": "audited",

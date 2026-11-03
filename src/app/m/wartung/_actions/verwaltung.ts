@@ -1,0 +1,146 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import type { z } from "zod";
+import { eq } from "drizzle-orm";
+import { auditActor, withAuditContext } from "@/core/audit/server";
+import { getDb } from "../_db/client";
+import { geraet } from "../_db/schema";
+import { ladeMangel } from "../_lib/daten";
+import {
+  artEingabe, erledigtEingabe, feldFehlerAus, geraetEingabe, gruppeEingabe, idSchema,
+} from "../_lib/eingabe";
+import { heute } from "../_lib/heute";
+import {
+  Abgelehnt, artLoeschen, artSpeichern, erledigtEintragen, geraetAendern, geraetAktiv, geraetAnlegen, gruppeLoeschen,
+  gruppeSpeichern, mangelBeheben,
+} from "../_lib/schreiben";
+import type { Ergebnis } from "../_lib/typen";
+import { anzeigename, requireAktion, verwaltetGruppe, type Rechte, type Stufe, type Viewer } from "../_lib/zugang";
+
+/*
+ * Die Schreibwege der Verwaltung. Jede Action prüft Host, Sitzung und Stufe selbst (`requireAktion`) und die
+ * Gruppe des Geräts aus der Datenbank, nie aus der Eingabe (IDOR). Geschrieben wird im Audit-Kontext der
+ * angemeldeten Person; eine erwartbare Ablehnung wird zum Satz am Bildschirm.
+ */
+
+const UNGUELTIG = "Die Angaben sind unvollständig. Bitte die Seite neu laden.";
+const NICHT_DEINE = "Dieses Gerät gehört zu einer Gruppe, die du nicht verwaltest.";
+
+async function schreibe(
+  stufe: Stufe,
+  arbeit: (z: { viewer: Viewer; rechte: Rechte }) => Ergebnis | void,
+): Promise<Ergebnis> {
+  const z = await requireAktion(stufe);
+  return withAuditContext({ actor: auditActor(z.viewer) }, async (): Promise<Ergebnis> => {
+    let r: Ergebnis | void;
+    try {
+      r = arbeit(z);
+    } catch (e) {
+      if (e instanceof Abgelehnt) return { ok: false, fehler: e.message, feldFehler: e.feld ? { [e.feld]: e.message } : undefined };
+      throw e;
+    }
+    revalidatePath("/m/wartung", "layout");
+    return r ?? { ok: true };
+  });
+}
+
+function geprueft<T>(schema: z.ZodType<T>, eingabe: unknown):
+  { ok: true; wert: T } | { ok: false; ergebnis: Ergebnis } {
+  const r = schema.safeParse(eingabe);
+  if (r.success) return { ok: true, wert: r.data };
+  return { ok: false, ergebnis: { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: feldFehlerAus(r.error) } };
+}
+
+function gruppeDesGeraets(id: string): string | null {
+  return getDb().select({ g: geraet.gruppeId }).from(geraet).where(eq(geraet.id, id)).get()?.g ?? null;
+}
+
+function kontext(viewer: Viewer) {
+  return { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) };
+}
+
+// ---------------------------------------------------------------- Geräte
+
+export async function geraetAnlegenAction(eingabe: unknown): Promise<Ergebnis> {
+  const e = geprueft(geraetEingabe, eingabe);
+  if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
+  return schreibe("verwalter", ({ rechte }) => {
+    if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
+    return { ok: true, id: geraetAnlegen(getDb(), e.wert, Date.now()) };
+  });
+}
+
+export async function geraetAendernAction(id: string, eingabe: unknown): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  const e = geprueft(geraetEingabe, eingabe);
+  if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
+  return schreibe("verwalter", ({ rechte }) => {
+    const alt = gruppeDesGeraets(id);
+    if (!alt) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (!verwaltetGruppe(rechte, alt)) throw new Abgelehnt(NICHT_DEINE);
+    if (!verwaltetGruppe(rechte, e.wert.gruppeId)) throw new Abgelehnt("Diese Gruppe verwaltest du nicht.", "gruppeId");
+    geraetAendern(getDb(), id, e.wert, Date.now());
+  });
+}
+
+/** Ausmustern (aktiv = false) und zurückholen. */
+export async function geraetAktivAction(id: string, aktiv: boolean): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success || typeof aktiv !== "boolean") return { ok: false, fehler: UNGUELTIG };
+  return schreibe("verwalter", ({ rechte }) => {
+    const g = gruppeDesGeraets(id);
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
+    geraetAktiv(getDb(), id, aktiv, Date.now());
+  });
+}
+
+export async function erledigtEintragenAction(geraetId: string, eingabe: unknown): Promise<Ergebnis> {
+  if (!idSchema.safeParse(geraetId).success) return { ok: false, fehler: UNGUELTIG };
+  const e = geprueft(erledigtEingabe, eingabe);
+  if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
+  return schreibe("verwalter", ({ viewer, rechte }) => {
+    const g = gruppeDesGeraets(geraetId);
+    if (!g) throw new Abgelehnt("Dieses Gerät gibt es nicht mehr.");
+    if (!verwaltetGruppe(rechte, g)) throw new Abgelehnt(NICHT_DEINE);
+    erledigtEintragen(getDb(), geraetId, e.wert, kontext(viewer));
+  });
+}
+
+export async function mangelBehebenAction(id: string): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  return schreibe("verwalter", ({ viewer, rechte }) => {
+    const m = ladeMangel(getDb(), id);
+    if (!m) throw new Abgelehnt("Diesen Mangel gibt es nicht mehr.");
+    if (!verwaltetGruppe(rechte, m.gruppeId)) throw new Abgelehnt(NICHT_DEINE);
+    mangelBeheben(getDb(), id, kontext(viewer));
+  });
+}
+
+// ---------------------------------------------------------------- Gerätearten (jeder Verwalter)
+
+export async function artSpeichernAction(id: string | null, eingabe: unknown): Promise<Ergebnis> {
+  if (id !== null && !idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  const e = geprueft(artEingabe, eingabe);
+  if (!e.ok) { await requireAktion("verwalter"); return e.ergebnis; }
+  return schreibe("verwalter", () => ({ ok: true, id: artSpeichern(getDb(), id, e.wert, Date.now()) }));
+}
+
+export async function artLoeschenAction(id: string): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  return schreibe("verwalter", () => artLoeschen(getDb(), id));
+}
+
+// ---------------------------------------------------------------- Gruppen (nur Admins)
+
+export async function gruppeSpeichernAction(id: string | null, eingabe: unknown): Promise<Ergebnis> {
+  if (id !== null && !idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  const e = geprueft(gruppeEingabe, eingabe);
+  if (!e.ok) { await requireAktion("admin"); return e.ergebnis; }
+  return schreibe("admin", () => ({ ok: true, id: gruppeSpeichern(getDb(), id, e.wert, Date.now()) }));
+}
+
+export async function gruppeLoeschenAction(id: string): Promise<Ergebnis> {
+  if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
+  return schreibe("admin", () => gruppeLoeschen(getDb(), id));
+}

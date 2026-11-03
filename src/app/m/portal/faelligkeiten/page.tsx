@@ -9,7 +9,7 @@ import { aboVon, vermerkeGruppen } from "@/app/m/portal/_lib/faelligkeiten/abos"
 import { auswahlOptionen } from "@/app/m/portal/_lib/faelligkeiten/auswahl";
 import { aboFuer, versand } from "@/app/m/portal/_lib/faelligkeiten/konfiguration";
 import { FAELLIG_ANZEIGENAME } from "@/app/m/portal/_lib/ntfy";
-import { sammle, sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
+import { nurSichtbare, sammle, sichtbareQuellen } from "@/app/m/portal/_lib/faelligkeiten/sammeln";
 import {
   FaelligkeitenAboVerwalten, FaelligkeitenAuswahl, FaelligkeitenEinrichten, FaelligkeitenProbe,
 } from "@/app/m/portal/_ui/FaelligkeitenAbo";
@@ -37,7 +37,7 @@ export default async function FaelligkeitenPage() {
     notFound();
   }
 
-  const gruppen = sammle(quellen, new Date());
+  const gruppen = nurSichtbare(sammle(quellen, new Date()), session?.user?.groups);
   const v = versand();
   const personId = session?.user?.id;
   const abo = v && personId ? aboVon(personId) : null;

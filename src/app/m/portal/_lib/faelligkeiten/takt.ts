@@ -31,7 +31,7 @@ import { sendeZielFuer, versand, type SendeZiel, type Versand } from "./konfigur
 import { baueNachricht, type PushNachricht } from "./nachricht";
 import { personenGruppen, type GruppenJePerson } from "./personenGruppen";
 import { QUELLEN, type FaelligkeitsQuelle } from "./quellen";
-import { sammle, type FaelligkeitsGruppe } from "./sammeln";
+import { nurSichtbare, sammle, type FaelligkeitsGruppe } from "./sammeln";
 import { sendeAnNtfy } from "./senden";
 import { SOFORT_TAKT_MS, sofortschritt } from "./sofort";
 
@@ -101,7 +101,7 @@ export function nachrichtFuerPerson(
 ): PushNachricht | null {
   const sichtbar = new Set(quellen.filter((q) => q.darfSehen(gruppen)).map((q) => q.modul));
   if (sichtbar.size === 0) return null;
-  return baueNachricht(fuerPerson(alle, quellen, sichtbar, abo.abgewaehlt), seitenUrl);
+  return baueNachricht(fuerPerson(nurSichtbare(alle, gruppen), quellen, sichtbar, abo.abgewaehlt), seitenUrl);
 }
 
 let gemeldeteWoche: string | null = null;

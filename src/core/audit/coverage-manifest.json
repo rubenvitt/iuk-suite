@@ -1319,5 +1319,21 @@
       "via": "GET",
       "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
     }
+  },
+  "src/app/m/wartung/_actions/verwaltung.ts#artLoeschenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#artSpeichernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#erledigtEintragenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#geraetAendernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#geraetAktivAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#geraetAnlegenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#gruppeLoeschenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#gruppeSpeichernAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/verwaltung.ts#mangelBehebenAction": { "kind": "context", "via": "schreibe" },
+  "src/app/m/wartung/_actions/telefon.ts#stundenEintragenAction": { "kind": "context", "via": "stundenEintragenAction" },
+  "src/app/m/wartung/(geraet)/g/[id]/pruefung/senden/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/wartung/(geraet)/g/[id]/mangel/senden/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/wartung/(verwaltung)/maengel/foto/[id]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Viewing a defect photo is an ordinary manager read of the module's own data, like the defect list page; no export or delivery event."
   }
 }

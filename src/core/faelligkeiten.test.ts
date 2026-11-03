@@ -7,3 +7,13 @@ describe("tageDativ", () => {
     expect(tageDativ(4)).toBe("4 Tagen");
   });
 });
+
+describe("eintragSichtbar (IDA-312)", () => {
+  it("ohne Einschränkung sieht es jeder, mit nur die genannten Gruppen", async () => {
+    const { eintragSichtbar } = await import("./faelligkeiten");
+    expect(eintragSichtbar({}, null)).toBe(true);
+    expect(eintragSichtbar({ sichtbarFuer: ["a"] }, ["b", "a"])).toBe(true);
+    expect(eintragSichtbar({ sichtbarFuer: ["a"] }, ["b"])).toBe(false);
+    expect(eintragSichtbar({ sichtbarFuer: ["a"] }, null)).toBe(false);
+  });
+});

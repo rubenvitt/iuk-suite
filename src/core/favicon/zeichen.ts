@@ -225,6 +225,17 @@ const UNTERKUNFT = modulZeichen(
 );
 
 /**
+ * Gerätewartung: ein Stromerzeuger im Rohrrahmen, ausgespart die Anzeige und drei Lüftungsschlitze.
+ */
+const WARTUNG = modulZeichen(
+  "Gerätewartung",
+  `<mask id="w"><rect width="64" height="64" fill="#fff"/><circle cx="16" cy="44" r="6"/>` +
+    `<rect x="28" y="38" width="12" height="3" rx="1.5"/><rect x="28" y="43" width="12" height="3" rx="1.5"/><rect x="28" y="48" width="12" height="3" rx="1.5"/></mask>` +
+    `<rect class="t" mask="url(#w)" x="5" y="32" width="40" height="23" rx="4"/>` +
+    `<path class="t" d="M9 27h32a2 2 0 0 1 0 4H9a2 2 0 0 1 0-4ZM7 56h6v6H7ZM37 56h6v6h-6Z"/>`,
+);
+
+/**
  * Die Zeichen nach Dateiname (`/favicon/<name>.svg`). Die Namen sind die
  * Modulschlüssel der Registry, `ida` ist das Suite-Zeichen.
  */
@@ -243,6 +254,7 @@ export const FORMEN: Readonly<Record<string, Form>> = {
   helfer: HELFER,
   lagemonitor: LAGEMONITOR,
   schichtplan: SCHICHTPLAN,
+  wartung: WARTUNG,
   gemeinschaft: GEMEINSCHAFT,
   unterkunft: UNTERKUNFT,
 };
