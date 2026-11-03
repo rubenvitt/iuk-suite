@@ -35,6 +35,7 @@ const ANFRAGEN = [
 ];
 const SPERREN: SperrzeitDTO[] = [{ id: "ev-v1", von: um("2026-11-13", "18:00"), bis: um("2026-11-13", "23:00"), grund: "Event: Glühweinabend", eventId: "v1" }];
 
+const BAR = "https://gemeinschaft.example/bar";
 const knopfIn = (wurzel: ParentNode, text: string) => Array.from(wurzel.querySelectorAll<HTMLButtonElement>("button, a")).find((b) => b.textContent === text);
 const tabellenText = () => queryAll("table").map((t) => t.textContent).join(" ");
 
@@ -108,7 +109,7 @@ describe("Sperrzeitenliste", () => {
 
 describe("Belegungsansicht", () => {
   it("zeigt angefragt, zugesagt und gesperrt im Monat, Absagen nicht; ein Eintrag öffnet das Flyin", async () => {
-    await mount(<App><Belegungsansicht anfragen={ANFRAGEN} sperren={SPERREN} heute="2026-11-07" /></App>);
+    await mount(<App><Belegungsansicht anfragen={ANFRAGEN} sperren={SPERREN} heute="2026-11-07" barLink={BAR} /></App>);
     const zelle = (t: string) => document.querySelector<HTMLElement>(`[data-tag="${t}"]`)!;
     expect(zelle("2026-11-07").textContent).toContain("18:00 40. Geburtstag");
     expect(zelle("2026-11-07").textContent).toContain("20:00 Vereinstreffen");
@@ -121,5 +122,20 @@ describe("Belegungsansicht", () => {
     expect(details.textContent).toContain("Kommt aus einem Event der Gemeinschaft.");
     expect(knopfIn(details, "Zum Event")?.getAttribute("href")).toBe("/v/v1");
     expect(knopfIn(details, "Sperrzeit löschen")).toBeUndefined();
+  });
+});
+
+describe("Bar-Link in der Belegung", () => {
+  it("öffnet die Anfrageseite, kopiert ihren Link und führt zum QR-Plakat", async () => {
+    const schreiben = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: schreiben }, configurable: true });
+    await mount(<App><Belegungsansicht anfragen={[]} sperren={[]} heute="2026-11-07" barLink={BAR} /></App>);
+    const kopf = document.querySelector<HTMLElement>('[data-testid="seitenkopf-aktionen"]')!;
+    const seite = knopfIn(kopf, "Anfrageseite")!;
+    expect(seite.getAttribute("href")).toBe(BAR);
+    expect(seite.getAttribute("target")).toBe("_blank");
+    expect(knopfIn(kopf, "QR-Plakat")?.getAttribute("href")).toBe("/vermietung/plakat");
+    await clickElement(knopfIn(kopf, "Link kopieren")!);
+    expect(schreiben).toHaveBeenCalledWith(BAR);
   });
 });
