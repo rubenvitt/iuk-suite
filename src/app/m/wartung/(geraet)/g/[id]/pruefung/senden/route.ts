@@ -13,7 +13,7 @@ import { entferneFotos, legeFotoAb, rechneFotoNeu } from "../../../../../_lib/fo
 import { heute } from "../../../../../_lib/heute";
 import { hostAbweisung } from "../../../../../_lib/host";
 import { antwort, datei, formularGelesen, fremdeHerkunft } from "../../../../../_lib/koerper";
-import { Abgelehnt, neueId, pruefungAbschliessen } from "../../../../../_lib/schreiben";
+import { Abgelehnt, neueId, pruefungAbschliessen, schonGesendet } from "../../../../../_lib/schreiben";
 import { ladeAmGeraet } from "../../../../../_lib/telefon";
 import { anzeigename, requireAktion } from "../../../../../_lib/zugang";
 
@@ -47,6 +47,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!p.success) return antwort(400, { ok: false, fehler: "Die Prüfung kam nicht vollständig an. Bitte noch einmal senden." });
 
     const db = getDb();
+    const schon = schonGesendet(db, "pruefung", p.data.sendung, id);
+    if (schon === "fremd") return antwort(400, { ok: false, fehler: "Die Prüfung kam nicht vollständig an. Bitte noch einmal senden." });
+    if (schon) return antwort(200, { ok: true, maengel: schon.maengel });
     const amGeraet = ladeAmGeraet(db, id, heute());
     if (!amGeraet) return antwort(400, { ok: false, fehler: "Dieses Gerät gibt es nicht mehr." });
     const punkte = new Set(amGeraet.checkliste.map((pk) => pk.id));

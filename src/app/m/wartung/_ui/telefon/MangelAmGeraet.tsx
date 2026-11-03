@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button, Input, Result } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { randomId } from "@/core/zufallsId";
 import { NOTIZ_MAX } from "../../_lib/eingabe";
 import type { SendeAntwort } from "../../_lib/koerper";
 import { Kicker } from "../teile";
@@ -11,6 +12,7 @@ import { FotoWahl, verkleinere } from "./foto";
 import s from "../wartung.module.css";
 
 export function MangelAmGeraet({ geraetId, geraetName }: { geraetId: string; geraetName: string }) {
+  const [sendung] = useState(randomId);
   const [text, setText] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [bereit, setBereit] = useState(true);
@@ -24,6 +26,7 @@ export function MangelAmGeraet({ geraetId, geraetName }: { geraetId: string; ger
     setLaeuft(true);
     try {
       const daten = new FormData();
+      daten.set("sendung", sendung);
       daten.set("text", text);
       daten.set("einsatzbereit", bereit ? "ja" : "nein");
       if (foto) daten.set("foto", await verkleinere(foto), "foto.jpg");

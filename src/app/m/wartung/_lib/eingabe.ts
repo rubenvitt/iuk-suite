@@ -96,6 +96,8 @@ export type GruppeEingabe = z.infer<typeof gruppeEingabe>;
 
 /** Die Prüfung am Gerät, wie sie die Route bekommt (Fotos getrennt im multipart). */
 export const pruefungEingabe = z.object({
+  /** Vom Telefon je Prüfung einmal gezogen: kommt sie zweimal an, steht sie trotzdem nur einmal da. */
+  sendung: idSchema,
   stunden,
   antworten: z.array(z.object({ punktId: idSchema, ok: z.boolean(), text: frei(NOTIZ_MAX) })).max(40)
     .refine((a) => new Set(a.map((x) => x.punktId)).size === a.length, "Jeder Punkt der Checkliste darf nur einmal vorkommen."),

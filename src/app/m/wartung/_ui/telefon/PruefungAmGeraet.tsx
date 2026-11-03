@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button, Input, InputNumber, Progress, Result } from "antd";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { randomId } from "@/core/zufallsId";
 import { NOTIZ_MAX } from "../../_lib/eingabe";
 import { ERGEBNIS_TEXT, type Zustand } from "../../_lib/fristen";
 import type { SendeAntwort } from "../../_lib/koerper";
@@ -25,6 +26,7 @@ export function PruefungAmGeraet({
   stundenPflicht: boolean;
   stundenZuletzt: number | null;
 }) {
+  const [sendung] = useState(randomId);
   const [stunden, setStunden] = useState<number | null>(null);
   const [antworten, setAntworten] = useState<Record<string, Antwort>>({});
   const [ergebnis, setErgebnis] = useState<Zustand | null>(null);
@@ -52,7 +54,7 @@ export function PruefungAmGeraet({
     try {
       const daten = new FormData();
       daten.set("daten", JSON.stringify({
-        stunden, ergebnis: gewaehlt, notiz,
+        sendung, stunden, ergebnis: gewaehlt, notiz,
         antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text })),
       }));
       for (const c of maengel) {

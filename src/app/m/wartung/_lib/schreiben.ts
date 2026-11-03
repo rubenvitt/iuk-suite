@@ -169,6 +169,27 @@ export function mangelMelden(db: WartungDb, geraetId: string, m: NeuerMangel & {
 }
 
 /**
+ * Kam diese Sendung schon an? Geht die Antwort unterwegs verloren, schickt das Telefon dieselbe Prüfung bzw.
+ * denselben Mangel mit derselben ID noch einmal; dann steht nichts doppelt da. `fremd`: die ID gehört zu
+ * etwas anderem, das wird abgewiesen.
+ */
+export function schonGesendet(
+  db: Pick<WartungDb, "select">,
+  was: "pruefung" | "mangel",
+  id: string,
+  geraetId: string,
+): { maengel: number } | "fremd" | null {
+  if (was === "mangel") {
+    const m = db.select({ geraetId: mangel.geraetId }).from(mangel).where(eq(mangel.id, id)).get();
+    if (!m) return null;
+    return m.geraetId === geraetId ? { maengel: 1 } : "fremd";
+  }
+  const e = db.select({ geraetId: eintrag.geraetId, typ: eintrag.typ, maengel: eintrag.maengel }).from(eintrag).where(eq(eintrag.id, id)).get();
+  if (!e) return null;
+  return e.geraetId === geraetId && e.typ === "pruefung" ? { maengel: e.maengel ?? 0 } : "fremd";
+}
+
+/**
  * Die Prüfung am Gerät. Jeder Punkt der Checkliste ist beantwortet; ein Punkt mit Mangel wird ein Mangel (mit
  * dem Foto, das die Route schon abgelegt hat). „In Ordnung“ geht nur ohne Mangel, und ein schlechteres Ergebnis
  * ohne einzelnen Punkt braucht eine Bemerkung: sie wird dann der Mangel — sonst stünde ein Gerät auf „mit
@@ -206,7 +227,7 @@ export function pruefungAbschliessen(
 
     const pruefFrist = tx.select().from(frist).where(and(eq(frist.artId, g.artId), eq(frist.wer, "intern"))).get();
     tx.insert(eintrag).values({
-      id: neueId(), geraetId, typ: "pruefung", fristId: pruefFrist?.id ?? null, titel: pruefFrist?.name ?? "Prüfung",
+      id: p.sendung, geraetId, typ: "pruefung", fristId: pruefFrist?.id ?? null, titel: pruefFrist?.name ?? "Prüfung",
       am: k.heute, stunden: p.stunden, wer: k.wer, notiz: p.notiz, ergebnis: p.ergebnis,
       antworten: JSON.stringify(punkte.map((pk) => ({ text: pk.text, ok: antwort.get(pk.id)!.ok }))),
       maengel: maengel.length, angelegtAm: k.jetzt,

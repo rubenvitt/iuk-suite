@@ -4,7 +4,7 @@ import { checkpunkt, eintrag, frist, geraet, mangel } from "../_db/schema";
 import { ladeArten, ladeGeraet } from "./daten";
 import {
   Abgelehnt, artSpeichern, erledigtEintragen, geraetAnlegen, gruppeLoeschen, gruppeSpeichern, mangelBeheben, mangelMelden,
-  neueId, pruefungAbschliessen, stundenEintragen, ungepushteAusfaelle,
+  neueId, pruefungAbschliessen, schonGesendet, stundenEintragen, ungepushteAusfaelle,
 } from "./schreiben";
 import { START } from "./startbestand";
 import { testDb } from "./testDb";
@@ -36,9 +36,22 @@ describe("Startbestand", () => {
 });
 
 describe("Prüfung am Gerät", () => {
+  it("erkennt eine schon angekommene Sendung, nur am selben Gerät", () => {
+    const { db, id, punkte } = mitStromerzeuger();
+    const sendung = neueId();
+    expect(schonGesendet(db, "pruefung", sendung, id)).toBeNull();
+    pruefungAbschliessen(db, id, { sendung, stunden: 110, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K);
+    expect(schonGesendet(db, "pruefung", sendung, id)).toEqual({ maengel: 0 });
+    expect(schonGesendet(db, "pruefung", sendung, neueId())).toBe("fremd");
+    const m = neueId();
+    mangelMelden(db, id, { id: m, text: "Riss", foto: false, einsatzbereit: true }, K);
+    expect(schonGesendet(db, "mangel", m, id)).toEqual({ maengel: 1 });
+    expect(schonGesendet(db, "pruefung", m, id)).toBeNull();
+  });
+
   it("in Ordnung setzt die Frist und die Stunden", () => {
     const { db, id, punkte } = mitStromerzeuger();
-    pruefungAbschliessen(db, id, { stunden: 110, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K);
+    pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 110, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K);
     const g = ladeGeraet(db, id, HEUTE)!;
     expect(g.stunden).toBe(110);
     expect(g.zustand).toBe("ok");
@@ -49,17 +62,17 @@ describe("Prüfung am Gerät", () => {
 
   it("verlangt jeden Punkt, Stunden bei Pflicht und keinen Rückschritt", () => {
     const { db, id, punkte } = mitStromerzeuger();
-    expect(() => pruefungAbschliessen(db, id, { stunden: 110, antworten: alleOk(punkte).slice(1), ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow(Abgelehnt);
-    expect(() => pruefungAbschliessen(db, id, { stunden: null, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow("Betriebsstunden fehlen.");
-    expect(() => pruefungAbschliessen(db, id, { stunden: 90, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow(/Kleiner als der letzte Stand/);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 110, antworten: alleOk(punkte).slice(1), ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow(Abgelehnt);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow("Betriebsstunden fehlen.");
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 90, antworten: alleOk(punkte), ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow(/Kleiner als der letzte Stand/);
   });
 
   it("ein Punkt mit Mangel wird ein Mangel, mit Foto-Kennung; „In Ordnung“ geht dann nicht", () => {
     const { db, id, punkte } = mitStromerzeuger();
     const antworten = alleOk(punkte).map((a, i) => (i === 1 ? { ...a, ok: false, text: "Öl unter Minimum" } : a));
-    expect(() => pruefungAbschliessen(db, id, { stunden: 110, antworten, ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow(/nicht „In Ordnung“/);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 110, antworten, ergebnis: "ok", notiz: "" }, new Map(), K)).toThrow(/nicht „In Ordnung“/);
     const fotoId = neueId();
-    const r = pruefungAbschliessen(db, id, { stunden: 110, antworten, ergebnis: "mangel", notiz: "" }, new Map([[punkte[1].id, fotoId]]), K);
+    const r = pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 110, antworten, ergebnis: "mangel", notiz: "" }, new Map([[punkte[1].id, fotoId]]), K);
     expect(r.maengel).toBe(1);
     const m = db.select().from(mangel).where(eq(mangel.geraetId, id)).all();
     expect(m).toEqual([expect.objectContaining({ id: fotoId, text: "Ölstand: Öl unter Minimum", foto: true, einsatzbereit: true })]);
@@ -68,8 +81,8 @@ describe("Prüfung am Gerät", () => {
 
   it("nicht einsatzbereit ohne einzelnen Punkt braucht eine Bemerkung, die der Mangel wird", () => {
     const { db, id, punkte } = mitStromerzeuger();
-    expect(() => pruefungAbschliessen(db, id, { stunden: 110, antworten: alleOk(punkte), ergebnis: "defekt", notiz: "" }, new Map(), K)).toThrow(/Bemerkung/);
-    pruefungAbschliessen(db, id, { stunden: 110, antworten: alleOk(punkte), ergebnis: "defekt", notiz: "Springt nicht an" }, new Map(), K);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 110, antworten: alleOk(punkte), ergebnis: "defekt", notiz: "" }, new Map(), K)).toThrow(/Bemerkung/);
+    pruefungAbschliessen(db, id, { sendung: neueId(), stunden: 110, antworten: alleOk(punkte), ergebnis: "defekt", notiz: "Springt nicht an" }, new Map(), K);
     expect(ladeGeraet(db, id, HEUTE)!.zustand).toBe("defekt");
     expect(ungepushteAusfaelle(db, 0)).toEqual([expect.objectContaining({ geraetId: id, gruppeId: START.gruppe.technik })]);
   });
