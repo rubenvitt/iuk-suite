@@ -41,6 +41,18 @@ export interface Faelligkeit {
    * in eine Mitteilung auf fremden Sperrbildschirmen.
    */
   person?: string;
+  /**
+   * Nur für Personen mit einer dieser Gruppen (IDA-312: die Gerätewartung zeigt jeder Gruppe nur ihre Geräte).
+   * Fehlt das Feld, sieht es jeder, der die Quelle sieht (`darfSehen`). Seite, Kachel und beide Pushs filtern
+   * gleich (`portal/_lib/faelligkeiten/sammeln.ts`, `nurSichtbare`).
+   */
+  sichtbarFuer?: readonly string[];
+}
+
+/** Darf eine Person mit diesen Gruppen den Eintrag sehen? Nur die Einschränkung am Eintrag, nicht `darfSehen`. */
+export function eintragSichtbar(e: { sichtbarFuer?: readonly string[] }, gruppen: readonly string[] | null | undefined): boolean {
+  if (!e.sichtbarFuer) return true;
+  return (gruppen ?? []).some((g) => e.sichtbarFuer!.includes(g));
 }
 
 /** „1 Tag" / „3 Tagen" — die Dativform, die nach „seit" und „in" steht. */
@@ -67,4 +79,6 @@ export interface Sofortmeldung {
   zeilen: string[];
   /** Pfad auf dem Host des Moduls, an dem die Sache erledigt wird. */
   pfad: string;
+  /** Wie bei `Faelligkeit`: nur an Personen mit einer dieser Gruppen. */
+  sichtbarFuer?: readonly string[];
 }

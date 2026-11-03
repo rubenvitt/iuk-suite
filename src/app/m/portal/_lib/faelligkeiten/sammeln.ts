@@ -6,7 +6,7 @@
  *
  * Kein `"use client"` (Falle 6).
  */
-import type { Faelligkeit } from "@/core/faelligkeiten";
+import { eintragSichtbar, type Faelligkeit } from "@/core/faelligkeiten";
 import { sortiereFaelligkeiten } from "./anzeige";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { QUELLEN, type FaelligkeitsQuelle } from "./quellen";
@@ -49,6 +49,17 @@ export function sammle(
       return { modul: q.modul, titel: q.titel, basisUrl: basis(q.modul), eintraege: [], fehler: true };
     }
   });
+}
+
+/**
+ * Nur die Einträge, die diese Person sehen darf (`Faelligkeit.sichtbarFuer`). `sammle` liest für alle; jede
+ * Stelle, die einer Person etwas zeigt oder schickt, geht danach hier durch.
+ */
+export function nurSichtbare(
+  gruppen: readonly FaelligkeitsGruppe[],
+  groups: readonly string[] | null | undefined,
+): FaelligkeitsGruppe[] {
+  return gruppen.map((g) => ({ ...g, eintraege: g.eintraege.filter((e) => eintragSichtbar(e, groups)) }));
 }
 
 export function zaehle(gruppen: readonly FaelligkeitsGruppe[]): Zaehlung {

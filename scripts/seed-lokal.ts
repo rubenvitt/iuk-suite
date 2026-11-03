@@ -63,6 +63,8 @@ import * as gemeinschaftSchema from "@/app/m/gemeinschaft/_db/schema";
 import { seedLokalGemeinschaft } from "@/app/m/gemeinschaft/_lib/seedLokal";
 import * as lagemonitorSchema from "@/app/m/lagemonitor/_db/schema";
 import { seedLokalLagemonitor } from "@/app/m/lagemonitor/_lib/seedLokal";
+import { getDb as getWartungDb } from "@/app/m/wartung/_db/client";
+import { seedLokalWartung } from "@/app/m/wartung/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -86,6 +88,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "schichtplan", lauf: () => seedLokalSchichtplan(getModuleDb("schichtplan", schichtplanSchema)) },
   { key: "gemeinschaft", lauf: () => seedLokalGemeinschaft(getModuleDb("gemeinschaft", gemeinschaftSchema)) },
   { key: "lagemonitor", lauf: () => seedLokalLagemonitor(getModuleDb("lagemonitor", lagemonitorSchema)) },
+  { key: "wartung", lauf: () => seedLokalWartung(getWartungDb()) },
 ];
 
 /**

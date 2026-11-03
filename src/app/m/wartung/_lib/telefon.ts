@@ -1,0 +1,24 @@
+/**
+ * Was die Telefonseiten am Gerät lesen: das Gerät (aktiv), seine Checkliste und offene Mängel — ohne
+ * Gruppenfilter, denn prüfen darf jeder Angemeldete.
+ */
+import { asc, eq } from "drizzle-orm";
+import type { WartungDb } from "../_db/client";
+import { checkpunkt } from "../_db/schema";
+import { ladeGeraet, ladeMaengel } from "./daten";
+import type { CheckpunktDTO, GeraetZeile, MangelDTO } from "./typen";
+
+export interface AmGeraet {
+  g: GeraetZeile;
+  checkliste: CheckpunktDTO[];
+  offen: Pick<MangelDTO, "id" | "text" | "einsatzbereit">[];
+}
+
+export function ladeAmGeraet(db: Pick<WartungDb, "select">, id: string, heute: string): AmGeraet | null {
+  const g = ladeGeraet(db, id, heute);
+  if (!g || !g.aktiv) return null;
+  const checkliste = db.select({ id: checkpunkt.id, text: checkpunkt.text, hinweis: checkpunkt.hinweis }).from(checkpunkt)
+    .where(eq(checkpunkt.artId, g.artId)).orderBy(asc(checkpunkt.position)).all();
+  const offen = ladeMaengel(db, { gruppen: null, geraetId: id, offen: true }).map((m) => ({ id: m.id, text: m.text, einsatzbereit: m.einsatzbereit }));
+  return { g, checkliste, offen };
+}

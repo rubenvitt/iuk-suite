@@ -12,6 +12,10 @@ import {
   lagerbuchSofortmeldungen, vermerkeLagerbuchSofortmeldungen,
 } from "@/app/m/lagerbuch/_lib/faelligkeiten";
 import { darfRadioFaelligkeitenSehen, RADIO_FAELLIGKEITS_ARTEN, radioFaelligkeiten } from "@/app/m/radio/_lib/faelligkeiten";
+import {
+  darfWartungFaelligkeitenSehen, vermerkeWartungSofortmeldungen, WARTUNG_FAELLIGKEITS_ARTEN, wartungFaelligkeiten,
+  wartungSofortmeldungen,
+} from "@/app/m/wartung/_lib/faelligkeiten";
 
 export interface FaelligkeitsQuelle {
   /** Modul-Schlüssel aus `core/registry.ts` — daraus entsteht die Adresse der Links. */
@@ -37,4 +41,7 @@ export const QUELLEN: readonly FaelligkeitsQuelle[] = [
   { modul: "lagerbuch", titel: "Lagerbuch", arten: LAGERBUCH_FAELLIGKEITS_ARTEN, darfSehen: darfLagerbuchFaelligkeitenSehen, lesen: (j) => lagerbuchFaelligkeiten(j),
     sofort: { lesen: (seit) => lagerbuchSofortmeldungen(seit), vermerken: (ids, j) => vermerkeLagerbuchSofortmeldungen(ids, j) } },
   { modul: "radio", titel: "Funkgeräte", arten: RADIO_FAELLIGKEITS_ARTEN, darfSehen: darfRadioFaelligkeitenSehen, lesen: (j) => radioFaelligkeiten(j) },
+  // IDA-312: die Einträge tragen `sichtbarFuer` — jede Gruppe sieht nur ihre Geräte.
+  { modul: "wartung", titel: "Gerätewartung", arten: WARTUNG_FAELLIGKEITS_ARTEN, darfSehen: (g) => darfWartungFaelligkeitenSehen(g), lesen: (j) => wartungFaelligkeiten(j),
+    sofort: { lesen: (seit) => wartungSofortmeldungen(seit), vermerken: (ids, j) => vermerkeWartungSofortmeldungen(ids, j) } },
 ];

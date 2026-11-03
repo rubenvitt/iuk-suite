@@ -78,6 +78,8 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "schichtplan", migrationsFolder: "src/app/m/schichtplan/_db/migrations" },
   // gemeinschaft: OHNE Boot-Seed — Events, Mitglieder und Anfragen der Demo sind Entwicklungsdaten.
   { key: "gemeinschaft", migrationsFolder: "src/app/m/gemeinschaft/_db/migrations" },
+  // wartung: OHNE Boot-Seed — Gruppen, Arten und Geräte der Demo sind Entwicklungsdaten.
+  { key: "wartung", migrationsFolder: "src/app/m/wartung/_db/migrations" },
   // lagemonitor: OHNE Boot-Seed — die Beispielanzeige ist Entwicklungsdaten; das lokale Seed-Skript deckt Dev ab.
   { key: "lagemonitor", migrationsFolder: "src/app/m/lagemonitor/_db/migrations" },
 ];

@@ -20,7 +20,7 @@
  * Kein `"use client"`.
  */
 import type { FaelligkeitenAbo } from "@/app/m/portal/_db/schema";
-import type { Sofortmeldung } from "@/core/faelligkeiten";
+import { eintragSichtbar, type Sofortmeldung } from "@/core/faelligkeiten";
 import { artSchluessel } from "./auswahl";
 import { sendeZielFuer, type SendeZiel, type Versand } from "./konfiguration";
 import type { PushNachricht } from "./nachricht";
@@ -103,7 +103,7 @@ export async function sofortschritt(d: SofortAbhaengigkeiten): Promise<SofortErg
     for (const { q, m } of anstehend) {
       const empfaenger = abos.filter((abo) => {
         const gruppen = verzeichnis ? verzeichnis.get(abo.personId) ?? null : abo.gruppen;
-        return gruppen !== null && q.darfSehen(gruppen) && !abo.abgewaehlt.includes(artSchluessel(q.modul, m.art));
+        return gruppen !== null && q.darfSehen(gruppen) && eintragSichtbar(m, gruppen) && !abo.abgewaehlt.includes(artSchluessel(q.modul, m.art));
       });
       const nachricht = sofortNachricht(m, d.basis(q.modul));
       let erreicht = 0;

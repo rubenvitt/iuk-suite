@@ -286,5 +286,25 @@
   "src/app/m/portal/serverwartung/page.tsx#notFound:!darfWartungSehen(session?.user?.groups):1": {
     "kind": "denial",
     "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/wartung/(geraet)/g/[id]/pruefung/page.tsx#notFound:!frist || checkliste.length === 0:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/wartung/(verwaltung)/geraete/[id]/page.tsx#notFound:!idSchema.safeParse(id).success:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/wartung/(verwaltung)/geraete/[id]/page.tsx#notFound:!g:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/wartung/(verwaltung)/geraete/[id]/page.tsx#notFound:!verwaltetGruppe(rechte, g.gruppeId):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/wartung/(verwaltung)/page.tsx#redirect:!istVerwalter(rechte):1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation: people without a group they manage land on the device list, which they may see; no rejection."
   }
 }
