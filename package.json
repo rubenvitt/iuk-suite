@@ -36,7 +36,7 @@
     "better-sqlite3": "^13.0.3",
     "dayjs": "^1.11.23",
     "drizzle-orm": "^0.45.4",
-    "jose": "^6.2.12",
+    "jose": "^6.2.14",
     "nanoid": "^6.0.1",
     "next": "16.3.3",
     "next-auth": "5.0.0-beta.32",
