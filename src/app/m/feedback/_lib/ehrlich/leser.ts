@@ -9,7 +9,7 @@ export type LeserTransport = (
 
 /**
  * DIE NAMEN AUF DEM EINWURF (Entscheidung 2026-11-01): „Es lesen nur: …" nennt die Mitglieder der
- * Lesegruppe, so wie Pocket ID sie führt — keine zweite Liste, die man pflegen und vergessen kann.
+ * Lesegruppe mit Vornamen, so wie Pocket ID sie führt — keine zweite Liste, die man pflegen und vergessen kann.
  *
  * `GET /api/user-groups?search=<name>` findet die Gruppe, `GET /api/user-groups/<id>` liefert sie samt
  * `users`. Fünf Minuten zwischengespeichert; ein Fehler wird nie gespeichert, dann gilt der letzte gute
@@ -37,8 +37,8 @@ export function nameVon(roh: unknown): string | null {
   if (typeof roh !== "object" || roh === null) return null;
   const u = roh as Record<string, unknown>;
   if (u.disabled === true) return null;
-  const voll = [text(u.firstName), text(u.lastName)].filter(Boolean).join(" ");
-  return text(u.displayName) || voll || text(u.username) || null;
+  // Nur der Vorname (Ruben 2026-11-03); ohne Vorname das erste Wort des Anzeigenamens.
+  return text(u.firstName) || text(u.displayName).split(/\s+/)[0] || text(u.username) || null;
 }
 
 async function holeJson(transport: LeserTransport, url: string, apiKey: string): Promise<unknown> {

@@ -29,7 +29,6 @@ export function Blatt({
         <header className={`${s.kopf} ${s.aufbau}`}>
           <p className={s.kicker}>
             Ehrlich gesagt
-            <span className={s.wortzeichen}>IDA</span>
           </p>
           {vorTitel}
           <h1 className={gross ? `${s.titel} ${s.gross}` : s.titel}>{titel}</h1>

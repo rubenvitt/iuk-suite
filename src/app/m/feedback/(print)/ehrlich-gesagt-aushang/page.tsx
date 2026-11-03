@@ -25,7 +25,6 @@ export default async function EhrlichAushang() {
       <p className="fb-aushang-zeile">Jederzeit · anonym oder mit Namen</p>
       <footer className="fb-aushang-fuss">
         <span>{leser.length > 0 ? `Es lesen nur: ${namensreihe(leser)}` : ""}</span>
-        <span className="fb-aushang-wortzeichen">IDA</span>
       </footer>
       <Drucken />
     </main>
