@@ -4,7 +4,8 @@
 -- fester Akteur `{"kind":"anonymous"}`, kein Objektbezug, keine Korrelation. Ein Bezug
 -- auf die Kennung stünde sonst neben dem genauen Zeitpunkt des Eingangs, und die
 -- Mitteilung speichert bewusst nur den Tag. Kasten (Link neu erzeugen) und interne
--- Notizen sind gewöhnlich auditiert: dort handelt eine angemeldete Vertrauensperson.
+-- Notizen sind gewöhnlich auditiert: dort handelt eine angemeldete Vertrauensperson. Die
+-- anonymen Zeilen tragen als Zeitpunkt nur den Tag (UTC-Mitternacht), nicht die Uhrzeit.
 CREATE TABLE `ehrlich_kasten` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`secret` text NOT NULL,
@@ -80,39 +81,39 @@ END;
 CREATE TRIGGER audit_ehrlich_mitteilungen_create AFTER INSERT ON "ehrlich_mitteilungen"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), suite_audit_now(), 'feedback', 'create', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'create', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_mitteilungen_update AFTER UPDATE ON "ehrlich_mitteilungen"
 WHEN OLD."id" IS NOT NEW."id" OR OLD."tag" IS NOT NEW."tag" OR OLD."thema" IS NOT NEW."thema" OR OLD."text" IS NOT NEW."text" OR OLD."antwortweg" IS NOT NEW."antwortweg" OR OLD."name" IS NOT NEW."name" OR OLD."kontakt" IS NOT NEW."kontakt" OR OLD."code_hash" IS NOT NEW."code_hash" OR OLD."status" IS NOT NEW."status" OR OLD."rueckfrage_erlaubt" IS NOT NEW."rueckfrage_erlaubt" OR OLD."erledigt_tag" IS NOT NEW."erledigt_tag" OR OLD."gemeldet" IS NOT NEW."gemeldet"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), suite_audit_now(), 'feedback', 'update', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'update', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_mitteilungen_delete AFTER DELETE ON "ehrlich_mitteilungen"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), suite_audit_now(), 'feedback', 'delete', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'delete', 'ehrlich_mitteilungen', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_nachrichten_create AFTER INSERT ON "ehrlich_nachrichten"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), suite_audit_now(), 'feedback', 'create', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'create', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_nachrichten_update AFTER UPDATE ON "ehrlich_nachrichten"
 WHEN OLD."id" IS NOT NEW."id" OR OLD."mitteilung_id" IS NOT NEW."mitteilung_id" OR OLD."von" IS NOT NEW."von" OR OLD."autor" IS NOT NEW."autor" OR OLD."text" IS NOT NEW."text" OR OLD."tag" IS NOT NEW."tag" OR OLD."gemeldet" IS NOT NEW."gemeldet"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), suite_audit_now(), 'feedback', 'update', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'update', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_nachrichten_delete AFTER DELETE ON "ehrlich_nachrichten"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
-  VALUES (suite_audit_id(), suite_audit_now(), 'feedback', 'delete', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
+  VALUES (suite_audit_id(), CAST(suite_audit_now() / 86400000 AS INTEGER) * 86400000, 'feedback', 'delete', 'ehrlich_nachrichten', NULL, '{"kind":"anonymous"}', 'success', 'database', NULL);
 END;
 --> statement-breakpoint
 CREATE TRIGGER audit_ehrlich_notizen_create AFTER INSERT ON "ehrlich_notizen"
