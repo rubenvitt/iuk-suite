@@ -15,5 +15,7 @@ describe("etag", () => {
     expect(unveraendert(`"alt", ${e}`, e)).toBe(true);
     expect(unveraendert('"alt"', e)).toBe(false);
     expect(unveraendert(null, e)).toBe(false);
+    expect(unveraendert("*", e)).toBe(true);
+    expect(unveraendert('"alt,*,neu"', e)).toBe(false);
   });
 });

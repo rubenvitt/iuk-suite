@@ -15,6 +15,9 @@ export function etagVon(koerper: string): string {
  */
 export function unveraendert(ifNoneMatch: string | null, etag: string): boolean {
   if (!ifNoneMatch) return false;
-  const ohneW = (t: string) => t.trim().replace(/^W\//, "");
-  return ifNoneMatch.split(",").some((t) => ohneW(t) === ohneW(etag) || t.trim() === "*");
+  if (ifNoneMatch.trim() === "*") return true;
+  // Ein Entity-Tag darf Kommas enthalten: die Tags herausgreifen statt am Komma zu trennen.
+  const ohneW = (t: string) => t.replace(/^W\//, "");
+  const tags = ifNoneMatch.match(/(?:W\/)?"[^"]*"/g) ?? [];
+  return tags.some((t) => ohneW(t) === ohneW(etag));
 }
