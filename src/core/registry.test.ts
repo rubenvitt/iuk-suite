@@ -65,6 +65,7 @@ describe("registry", () => {
     expect(requiredGroupsFor(getModule("feedback"), {})).toEqual([
       "feedback-nutzer",
       "feedback-admin",
+      "kummerkasten-leser",
     ]);
   });
   it("requiredGroupsFor: SUITE_ACCESS_GROUP_<KEY> ersetzt die Liste vollstaendig", () => {

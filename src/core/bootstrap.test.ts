@@ -777,11 +777,14 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      *
      * ⛔ ANGEHOBEN VON `4` AUF `5` (IDA-297): `starteFaelligkeitenTakt`
      * (`src/app/m/portal/_lib/faelligkeiten/takt.ts`), dieselbe Ausnahme wie die beiden davor.
+     *
+     * ⛔ ANGEHOBEN VON `5` AUF `6` (IDA-314): `starteFeedbackHintergrund`
+     * (`src/app/m/feedback/_lib/ehrlich/hintergrund.ts`), die Löschfrist von „Ehrlich gesagt".
      */
     for (const name of starterAufrufe) {
       expect(importierteNamen, `${name}: kein benannter Import in bootstrap.ts`).toContain(name);
     }
-    expect(starterAufrufe.length).toBe(5);
+    expect(starterAufrufe.length).toBe(6);
   });
 
   it("kein Blockkommentar in den zwei gelesenen Ausschnitten, denn der Filter kennt nur //", () => {

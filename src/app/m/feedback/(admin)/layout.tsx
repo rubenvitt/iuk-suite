@@ -9,6 +9,8 @@ import { getModule } from "@/core/registry";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { requireFeedbackAccess } from "../_lib/requireFeedbackAccess";
 import { isFeedbackAdmin } from "../_lib/access";
+import { istEhrlichLeser } from "../_lib/ehrlich/zugang";
+import { nurEhrlichLeser } from "../_lib/ehrlich/einstieg";
 
 // full-Shell NUR für die Verwaltung: diese Route-Group liegt eine Ebene über
 // `f/` (Task 11), das sein eigenes, chrome-loses Layout hat. Next.js-Layouts
@@ -50,10 +52,16 @@ export default async function FeedbackAdminLayout({
    * auch im Verzugsfenster veralteter JWT-Gruppen (CLAUDE.md, bis zu eine
    * Stunde) koennen Navigation und Riegel nicht verschiedener Meinung sein.
    */
+  // „Ehrlich gesagt" (IDA-314) nur für die Lesegruppe — dasselbe Prädikat wie der Riegel der Seite. Wer NUR
+  // liest, hat in Übersicht und Vergleich nichts zu suchen und sieht nur diesen Eintrag.
+  const nurLeser = nurEhrlichLeser(viewer);
   const nav: SuiteNavItem[] = [
-    { key: "start", title: "Übersicht", href: "/" },
+    ...(nurLeser ? [] : [{ key: "start", title: "Übersicht", href: "/" }]),
     ...(isFeedbackAdmin(viewer)
       ? [{ key: "vergleich", title: "Vergleich", href: "/vergleich" }]
+      : []),
+    ...(istEhrlichLeser(viewer.groups)
+      ? [{ key: "ehrlich", title: "Ehrlich gesagt", href: "/ehrlich-gesagt" }]
       : []),
   ];
 

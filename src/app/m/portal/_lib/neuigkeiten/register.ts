@@ -38,6 +38,7 @@ import fahrzeugeAlsStammdaten from "@/app/m/portal/_lib/neuigkeiten/notizen/fahr
 import schichtenImVorausPlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/schichtplan/2026-11-01-schichten-im-voraus-planen";
 import gemeinschaftUndBar from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-01-gemeinschaft-und-bar";
 import gemeinschaftBarQrPlakat from "@/app/m/portal/_lib/neuigkeiten/notizen/gemeinschaft/2026-11-03-bar-qr-plakat";
+import feedbackEhrlichGesagt from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-11-03-ehrlich-gesagt";
 import wartungGeraetewartung from "@/app/m/portal/_lib/neuigkeiten/notizen/wartung/2026-11-03-geraetewartung";
 import unterkunftUndZelteBerechnen from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-01-unterkunft-und-zelte-berechnen";
 import unterkunftBerechnungDrucken from "@/app/m/portal/_lib/neuigkeiten/notizen/unterkunft/2026-11-03-berechnung-drucken";
@@ -176,6 +177,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   schichtenImVorausPlanen,
   gemeinschaftUndBar,
   gemeinschaftBarQrPlakat,
+  feedbackEhrlichGesagt,
   wartungGeraetewartung,
   unterkunftUndZelteBerechnen,
   unterkunftBerechnungDrucken,

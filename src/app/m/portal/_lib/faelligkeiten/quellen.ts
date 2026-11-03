@@ -11,6 +11,10 @@ import {
   darfLagerbuchFaelligkeitenSehen, LAGERBUCH_FAELLIGKEITS_ARTEN, lagerbuchFaelligkeiten,
   lagerbuchSofortmeldungen, vermerkeLagerbuchSofortmeldungen,
 } from "@/app/m/lagerbuch/_lib/faelligkeiten";
+import {
+  darfFeedbackFaelligkeitenSehen, FEEDBACK_FAELLIGKEITS_ARTEN, feedbackFaelligkeiten, feedbackSofortmeldungen,
+  vermerkeFeedbackSofortmeldungen,
+} from "@/app/m/feedback/_lib/faelligkeiten";
 import { darfRadioFaelligkeitenSehen, RADIO_FAELLIGKEITS_ARTEN, radioFaelligkeiten } from "@/app/m/radio/_lib/faelligkeiten";
 import {
   darfWartungFaelligkeitenSehen, vermerkeWartungSofortmeldungen, WARTUNG_FAELLIGKEITS_ARTEN, wartungFaelligkeiten,
@@ -44,4 +48,7 @@ export const QUELLEN: readonly FaelligkeitsQuelle[] = [
   // IDA-312: die Einträge tragen `sichtbarFuer` — jede Gruppe sieht nur ihre Geräte.
   { modul: "wartung", titel: "Gerätewartung", arten: WARTUNG_FAELLIGKEITS_ARTEN, darfSehen: (g) => darfWartungFaelligkeitenSehen(g), lesen: (j) => wartungFaelligkeiten(j),
     sofort: { lesen: (seit) => wartungSofortmeldungen(seit), vermerken: (ids, j) => vermerkeWartungSofortmeldungen(ids, j) } },
+  // IDA-314: „Ehrlich gesagt" hat keine Fristen, nur den Sofort-Push an die Vertrauenspersonen (ohne Inhalt).
+  { modul: "feedback", titel: "Ehrlich gesagt", arten: FEEDBACK_FAELLIGKEITS_ARTEN, darfSehen: darfFeedbackFaelligkeitenSehen, lesen: () => feedbackFaelligkeiten(),
+    sofort: { lesen: (seit) => feedbackSofortmeldungen(seit), vermerken: (ids) => vermerkeFeedbackSofortmeldungen(ids) } },
 ];

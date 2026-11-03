@@ -1349,5 +1349,49 @@
   "src/app/m/wartung/(verwaltung)/maengel/foto/[id]/route.ts#GET": {
     "kind": "excluded",
     "reason": "Viewing a defect photo is an ordinary manager read of the module's own data, like the defect list page; no export or delivery event."
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#einwerfenAktion": {
+    "kind": "context",
+    "via": "einwerfenAktion"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#abholenAktion": {
+    "kind": "excluded",
+    "reason": "Anonymous read under a pickup code; no mutation, failed guesses are rate-limited in memory."
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#zurueckschreibenAktion": {
+    "kind": "context",
+    "via": "zurueckschreibenAktion"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#statusAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#notizAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#kontaktiertAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#antwortAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#rueckfrageAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#loeschenAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/_lib/ehrlich/aktionen.ts#linkNeuAktion": {
+    "kind": "context",
+    "via": "alsLeser"
+  },
+  "src/app/m/feedback/k/[secret]/qr.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
   }
 }

@@ -77,8 +77,10 @@ export const MODULES: ModuleDef[] = [
   // anders benannten SSO-Gruppen setzt SUITE_ACCESS_GROUP_FEEDBACK (Zugang) und
   // SUITE_ADMIN_GROUP_FEEDBACK (Voll-Admin) in der .env. Beide Wege lesen über
   // requiredGroupsFor()/adminGroupsFor(), nicht diese Felder direkt.
+  // `kummerkasten-leser` (IDA-314): die Vertrauenspersonen von „Ehrlich gesagt" betreten das Modul, sehen aber
+  // ohne Zuordnung keine Gruppe — die Dienstabende bleiben bei `user_groups`/`fachgruppen` (`_lib/access.ts`).
   { key: "feedback", title: "Feedback", icon: "comment", shell: "full",
-    requiresAuth: false, requiredGroups: ["feedback-nutzer", "feedback-admin"],
+    requiresAuth: false, requiredGroups: ["feedback-nutzer", "feedback-admin", "kummerkasten-leser"],
     adminGroups: ["feedback-admin"], prodHosts: [], showInSwitcher: true,
     switcherGroupSources: ["access", "admin"] },
   // files: zwei Prod-Hosts in EINER Variable, die Reihenfolge trägt die Rolle
@@ -398,6 +400,8 @@ export const VERTRAULICHE_ANSICHTEN: readonly { modul: string; muster: RegExp }[
   { modul: "helfer", muster: /^\/m\/helfer(\/|$)/ },
   // gemeinschaft: persönlicher Link eines Mitglieds und Statusseite einer Bar-Anfrage — der Code im Pfad ist der Zugang.
   { modul: "gemeinschaft", muster: /^\/m\/gemeinschaft\/(mein|status)\/[^/]/ },
+  // feedback (IDA-314): Einwurf und Abholen von „Ehrlich gesagt" — das Secret steht im Pfad, die Antwort hinter dem Code.
+  { modul: "feedback", muster: /^\/m\/feedback\/k\// },
 ];
 
 /**

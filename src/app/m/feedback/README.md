@@ -59,3 +59,34 @@ Damit ist „keine Geräte- oder IP-Kennung" belegt und keine bloße Behauptung.
   trägt hinter einem Reverse-Proxy dessen eigenen Namen. Jede öffentlich sichtbare URL (QR-Code,
   Kopierzeile) löst den Host über `resolveHost` aus `core/routing` auf — `x-forwarded-host` vor
   `host`. Ein QR-Code ist ein Druckstück; ein falscher Host darin fällt erst an der Wand auf.
+
+## „Ehrlich gesagt" — der Kummerkasten (IDA-314)
+
+Ein Kasten für die ganze Bereitschaft: anonyme oder namentliche Mitteilungen an die Vertrauenspersonen.
+Entscheidungen stehen an IDA-309 (POC) und IDA-314 in Zunder.
+
+- **Öffentlich:** `k/<secret>` (Einwurf), `k/abholen` (Antwort unter dem Abholcode). Ohne Anmeldung, ohne
+  antd, Optik des Abendzettels. `k/` ist eine vertrauliche Ansicht (`VERTRAULICHE_ANSICHTEN` in
+  `core/registry.ts`: `no-store`, `noindex`, `no-referrer`).
+- **Verwaltung:** `(admin)/ehrlich-gesagt` und der Druck `(print)/ehrlich-gesagt-aushang`. Riegel ist allein
+  die Lesegruppe (`_lib/ehrlich/zugang.ts`, Vorgabe `kummerkasten-leser`, `SUITE_LESER_GROUP_FEEDBACK`) —
+  **nicht** `feedback-admin` und nicht der Suite-Betrieb. Damit die Vertrauenspersonen das Modul betreten,
+  steht die Gruppe in `requiredGroups` von `feedback`; wer `SUITE_ACCESS_GROUP_FEEDBACK` setzt, nimmt sie mit
+  auf. Ohne Zuordnung sieht die Lesegruppe dabei keine Dienstabend-Gruppe (`accessibleGroupFilter`).
+- **Namen auf dem Einwurf:** live aus Pocket ID (`_lib/ehrlich/leser.ts`, `POCKET_ID_API_*`), fünf Minuten
+  zwischengespeichert. Antwortet Pocket ID nicht, fällt die Zeile weg, statt Namen zu erfinden.
+- **Push:** über die Abos von „Was steht an" (Sofort-Schritt, `_lib/faelligkeiten.ts`), Art „Ehrlich gesagt",
+  nur an die Lesegruppe, ohne Inhalt und gebündelt am Folgetag ab 8 Uhr — ein Push gleich nach dem Einwurf
+  verriete die Uhrzeit.
+- **Löschfrist:** erledigte Mitteilungen 12 Monate nach dem Erledigt-Tag (`_lib/ehrlich/hintergrund.ts`).
+
+| Zusage auf dem Einwurf | Deckung |
+|---|---|
+| kein Name (anonym) | `name`/`kontakt` werden nur beim Antwortweg „mit Namen" geschrieben (`legeMitteilungAn`). |
+| kein Konto | der öffentliche Pfad hat keine Sitzung; Mitteilungen und Gespräch sind im Audit `anonymous` (Migration 0004: fester Akteur, kein Objektbezug). |
+| keine IP | wie oben unter „Die IP": nur Schlüssel der flüchtigen Limiter in `_lib/ehrlich/aktionen.ts`. |
+| keine Uhrzeit | `tag` ist ein Kalendertag `JJJJ-MM-TT`; auch der Push-Merker `gemeldet` ist ein Wahrheitswert, kein Zeitpunkt, und der Push kommt erst am Folgetag (`MELDESTUNDE`). |
+
+`_lib/ehrlich/aktionen.test.ts` hält die Zusage gegen die echte Aktion fest. Der Abholcode steht nie im
+Klartext in der Datenbank (nur SHA-256), die Verwaltung sieht ihn also nicht. Gegen jemanden mit Zugriff auf die
+Datenbank schützt der Hash bei 14,4 Mio. möglichen Codes nicht.
