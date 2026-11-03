@@ -222,12 +222,18 @@
   font-weight: 600;
 }
 
+/* Umbrechen statt `nowrap` + Ellipse: der Kopf der Collapse schrumpft nicht unter seinen Inhalt,
+   eine einzeilige lange Liste schob so die ganze Seite breiter als den Schirm (IDA-339). Zwei
+   Zeilen, dann abgeschnitten; `anywhere` bricht auch ein einzelnes langes Wort. */
 .portal-kategorie-namen {
+  flex-basis: 100%;
   min-inline-size: 0;
-  max-inline-size: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   font-size: 12px;
   font-weight: 400;
   color: var(--iuk-gedaempft);

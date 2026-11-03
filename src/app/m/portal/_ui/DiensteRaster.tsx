@@ -308,7 +308,7 @@ export function DiensteRaster({
                     label: (
                       <span className="portal-kategorie">
                         <span>{titel}</span>
-                        <span className="portal-kategorie-namen">{liste.map((e) => e.title).join(" · ")}</span>
+                        <span className="portal-kategorie-namen" data-testid="portal-kategorie-namen">{liste.map((e) => e.title).join(" · ")}</span>
                       </span>
                     ),
                     children: <div className="portal-zeilen">{liste.map(zeile)}</div>,

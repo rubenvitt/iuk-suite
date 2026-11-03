@@ -157,7 +157,7 @@ export function Meldungen({
         {voll ? (
           <Alert type="info" showIcon={false} title={`Es laufen oder warten ${MELDUNGEN_MAX_GEPLANT} Meldungen. Für eine neue bitte erst eine beenden.`} />
         ) : (
-          <form onSubmit={anlegen} style={{ display: "grid", gap: SPACE.md }} aria-label="Neue Meldung">
+          <form onSubmit={anlegen} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }} aria-label="Neue Meldung">
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
             {kategorien.length > 0 ? (
               <div style={{ display: "grid", gap: SPACE.xs }}>
@@ -168,6 +168,7 @@ export function Meldungen({
                   aria-labelledby={`${basis}-kategorie`}
                   value={kategorieId}
                   optionType="button"
+                  style={{ display: "flex", flexWrap: "wrap" }}
                   onChange={(e) => aendere(text, uhrzeit, e.target.value as string)}
                   options={kategorien.map((k) => ({
                     value: k.id,
