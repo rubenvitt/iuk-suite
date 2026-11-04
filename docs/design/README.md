@@ -538,3 +538,7 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
   `bewegung.test.ts` hält Kurve, Token und CSS zusammen.
 - **Haarlinie-Figuren** (`@lucasmarkes/hairline`) nur in Ruhezuständen: leere Listen, Anmeldung, 403/404,
   leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins.
+- **Navigation (Etappe 2):** `FullShell` trägt ein Menü mit zwei Ebenen statt Kopfzeile und Seitenleiste
+  (`core/shell/MenueRahmen.tsx`, `Navigator.tsx`): oben die App, darunter ihre Seiten; ein Tipp auf die App
+  schiebt „Alle Apps" herein. Desktop dauerhaft links, Telefon als Blatt von unten hinter dem Ort-Knopf.
+  Aktiv ist `--iuk-flaeche-aktiv` mit Tinte und 600, keine rote Kante. `MinimalShell` behält die Kopfzeile.

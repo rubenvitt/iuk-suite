@@ -164,6 +164,12 @@
   --iuk-gedaempft: #62626b;
   --iuk-linie: #e7e7e4;
   --iuk-flaeche-aktiv: rgb(24 24 27 / 0.05);
+  /* Haarlinie (IDA-347): Grund, Karte und Tinte für eigenes Markup, das antds Scope nicht sieht
+     (Falle 2) — dieselben Werte wie `colorBgLayout`, `colorBgContainer`, `colorText`
+     (`FARBEN.papier`, `karte`, `tinte`). Erster Nutzer ist das Menü von `FullShell`. */
+  --iuk-grund: #fafaf9;
+  --iuk-karte: #ffffff;
+  --iuk-tinte: #18181b;
 }
 
 :root[data-theme="dark"] {
@@ -171,6 +177,9 @@
   --iuk-gedaempft: #a1a1aa;
   --iuk-linie: #232327;
   --iuk-flaeche-aktiv: rgb(255 255 255 / 0.07);
+  --iuk-grund: #09090b;
+  --iuk-karte: #111113;
+  --iuk-tinte: #fafafa;
 }
 
 html,

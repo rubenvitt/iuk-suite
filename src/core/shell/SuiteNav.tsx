@@ -2,21 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { Avatar, Button, Drawer, Dropdown, Input } from "antd";
-import type { MenuProps } from "antd";
+import { Button, Drawer, Input } from "antd";
 // Dieselbe Zeichenfamilie wie die Navigationseintraege selbst (`navIkonen.tsx`):
 // Icons8 aus `core/ikonen` — der Pfeil sitzt neben einem Navigationszeichen,
 // und zwei Strichstaerken nebeneinander sieht man.
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
-import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
-import { oeffneRueckmeldung } from "@/core/rueckmeldung/flyinZustand";
 import type { Rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { RueckmeldungFlyin } from "@/core/rueckmeldung/RueckmeldungFlyin";
-import { initialen } from "@/core/shell/initialen";
+import { Nutzermenue } from "@/core/shell/Nutzermenue";
 import { gruppiereNav } from "@/core/shell/navAbschnitte";
 import { filtereNav, istLangeNav } from "@/core/shell/navFilter";
 import {
@@ -359,13 +356,6 @@ export function SuiteNav({
 }) {
   const [offen, setOffen] = useState(false);
   /*
-   * Der Zustand des Avatar-Menues wird SELBST gehalten, obwohl `Dropdown` das
-   * auch allein koennte: nur so laeszt sich `aria-expanded` am Ausloeser
-   * setzen. Ein Knopf, der ein Menue oeffnet, ohne das anzusagen, ist fuer
-   * Tastatur- und Screenreader-Bedienung stumm.
-   */
-  const [nutzerMenueOffen, setNutzerMenueOffen] = useState(false);
-  /*
    * `montiert` ist auf dem Server `false`, auf dem Client `true`. Damit
    * entsteht der Drawer serverseitig gar nicht — siehe die ausfuehrliche
    * Begruendung unten am Drawer selbst.
@@ -403,133 +393,6 @@ export function SuiteNav({
     <NavListe nav={nav} modulKey={modulKey} aufKlick={() => setOffen(false)} testIdZusatz="-drawer" />
   );
 
-  /*
-   * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen
-   * Screenreader nicht: rc-menu gibt dem Titel `role="presentation"`. Deshalb
-   * traegt der Ausloeser den Namen zusaetzlich in seinem `aria-label`. Die
-   * Initialen im Avatar sind fuer sich genommen bedeutungslos.
-   */
-  /*
-   * DER WEG AUFS PROFIL — und warum er auf einen ANDEREN Host zeigen darf.
-   *
-   * Die Profilseite existiert genau einmal, im Portal. Das Sitzungs-Cookie gilt
-   * ueber alle Modul-Hosts (`core/auth/cookies.ts`), eine Kopie je Modul waere
-   * fuenf Kopien derselben Seite. Der Preis ist ein Hostwechsel; deshalb ein
-   * echtes `<a>` und kein `next/link` — ueber eine Domaingrenze hinweg gibt es
-   * nichts clientseitig zu navigieren.
-   *
-   * KEIN ZIEL, KEIN EINTRAG: `moduleUrl` liefert in Prod `null`, solange keine
-   * Domain aufs Portal zeigt. Ein toter Link ist schlimmer als kein Link —
-   * dieselbe Regel wie beim Modultitel in `SuiteHeader`.
-   *
-   * Bewusst OHNE Zeichen: das Abmelde-Zeichen daneben steht fuer die eine
-   * folgenschwere Handlung, und ein zweites Zeichen naehme ihm die Betonung.
-   */
-  const profilEintrag = profilHref
-    ? [
-        {
-          key: "profil",
-          label: (
-            <a data-testid="profil-link" href={`${profilHref}/profil`}>
-              Profil
-            </a>
-          ),
-        },
-      ]
-    : [];
-
-  /**
-   * DER RÜCKMELDEWEG IM MENÜ (DRK-453) — der eine der drei Wege zum Formular,
-   * der immer steht. Der schwebende Knopf (`core/rueckmeldung`) verschwindet
-   * nach einmaliger Benutzung, die Portal-Kachel sieht nur, wer im Portal ist;
-   * dieser Eintrag ist der Ort, an dem man „wo war das nochmal?" beantwortet.
-   *
-   * ⚠️ EIN ECHTES `<a>` UND KEIN `next/link`, wie beim Profileintrag darüber —
-   * nur aus dem anderen Grund: dort geht es über eine Domaingrenze, hier aus
-   * der Anwendung heraus auf einen fremden Host. In beiden Fällen gibt es
-   * nichts clientseitig zu navigieren.
-   *
-   * ⚠️ `rel="noopener noreferrer"` GEHÖRT ZU `target="_blank"`: ohne `noopener`
-   * bekäme die fremde Seite über `window.opener` einen Griff auf das Fenster
-   * der Suite. Dieselbe Paarung steht in `RueckmeldungKnopf.tsx`.
-   *
-   * KEIN ZIEL, KEIN EINTRAG — dieselbe Regel wie beim Profil: ein toter Link
-   * ist schlimmer als kein Link.
-   */
-  const feedbackEintrag = !rueckmeldeweg
-    ? []
-    : rueckmeldeweg.art === "link"
-      ? [
-          {
-            key: "feedback",
-            label: (
-              <a
-                data-testid="feedback-link"
-                href={rueckmeldeweg.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Feedback geben
-              </a>
-            ),
-          },
-        ]
-      : [
-          {
-            // IDA-214: derselbe Eintrag öffnet das Flyin der Suite statt eines Tabs.
-            key: "feedback",
-            label: "Feedback geben",
-            "data-testid": "feedback-link",
-            onClick: () => {
-              setNutzerMenueOffen(false);
-              oeffneRueckmeldung();
-            },
-          },
-        ];
-
-  const abmeldenEintrag = {
-    key: "abmelden",
-    icon: <Icons8Ikone name="logout" />,
-    label: "Abmelden",
-    "data-testid": "abmelden",
-    // Ueber `oidc-signout`, damit auch die Sitzung bei Pocket ID endet — sonst
-    // meldet der naechste Login-Klick wortlos dieselbe Person wieder an.
-    // `void`, nicht das Promise schweben lassen: scheitert `signOut` (Netz weg,
-    // Endpunkt tot), ist die Ablehnung sonst unbehandelt und landet je nach
-    // Laufzeit als `unhandledrejection` in der Konsole — an einer Stelle, an
-    // der niemand nach einem Abmeldefehler sucht.
-    onClick: () => void signOut({ callbackUrl: "/api/auth/oidc-signout" }),
-  };
-  /*
-   * DIE MODULVERSION, ganz unten und gedämpft (IDA-328): eine Auskunft, keine
-   * Handlung. `disabled`, damit sie weder Fokus noch Klick annimmt.
-   */
-  const standEintrag: MenuProps["items"] = modulStand
-    ? [
-        { type: "divider" as const },
-        {
-          key: "modulstand",
-          disabled: true,
-          label: (
-            <span data-testid="modul-version" style={{ ...SCHRIFT.neben, color: "var(--iuk-gedaempft)" }}>
-              {modulStand}
-            </span>
-          ),
-        },
-      ]
-    : [];
-  const nutzerEintraege: MenuProps["items"] = userName
-    ? [
-        {
-          key: "nutzer",
-          type: "group",
-          label: <span data-testid="nutzername">{userName}</span>,
-          children: [...profilEintrag, ...feedbackEintrag, abmeldenEintrag],
-        },
-        ...standEintrag,
-      ]
-    : [...profilEintrag, ...feedbackEintrag, abmeldenEintrag, ...standEintrag];
-
   return (
     <>
       <div className={s.rechts}>
@@ -553,74 +416,17 @@ export function SuiteNav({
         <span className={s.nurDesktop}>
           <ThemeToggle />
         </span>
-        {angemeldet ? (
-          /*
-           * KEIN `forceRender` an diesem Dropdown, und das ist die eine Zeile,
-           * die hier wirklich zaehlt. antd rendert das Menue wie den Drawer
-           * durch ein Portal nach `document.body`; ein erzwungener Aufbau haette
-           * serverseitig kein `document` ("Portal only work in client side"),
-           * und der folgende Hydration-Mismatch hat auf diesem Zweig schon
-           * einmal die anonymen QR-Formulare unbenutzbar gemacht. Geschlossen
-           * legt `@rc-component/portal` gar nichts an — nachgeprueft mit `curl`
-           * gegen `next dev`, siehe Bericht. Deshalb braucht dieses Menue AUCH
-           * kein `montiert`-Gatter wie der Drawer weiter unten: es ist
-           * serverseitig ohnehin nur der Knopf.
-           */
-          <Dropdown
-            menu={{ items: nutzerEintraege }}
-            // `click`, nicht antds Vorgabe `hover`: auf einem Touchgeraet gibt
-            // es kein Hover, und dieses Menue traegt den einzigen Abmeldeweg.
-            trigger={["click"]}
-            placement="bottomRight"
-            open={nutzerMenueOffen}
-            onOpenChange={setNutzerMenueOffen}
-          >
-            <Button
-              type="text"
-              shape="circle"
-              data-testid="nutzermenue"
-              aria-label={userName ? `Nutzermenü — ${userName}` : "Nutzermenü"}
-              aria-haspopup="menu"
-              aria-expanded={nutzerMenueOffen}
-              /*
-               * Der Avatar sitzt IM Knopf, statt selbst der Ausloeser zu sein:
-               * `Avatar` ist ein `<span>` ohne Rolle und ohne Tastaturfokus.
-               * Der Knopf bringt beides mit und ist mit `controlHeight: 56`
-               * zugleich das Tap-Masz der Suite.
-               */
-              icon={
-                // `alt=""`: der Name steht schon im `aria-label` des Knopfes.
-                <Avatar size="small" src={userBild ?? undefined} alt="">
-                  {initialen(userName)}
-                </Avatar>
-              }
-            />
-          </Dropdown>
-        ) : (
-          /*
-           * Anonym steht hier ein Anmelden-Knopf — auf BEIDEN Groeszen, wie das
-           * Avatar-Menue. Vorher lag er allein im Drawer und war ab 768px
-           * unerreichbar, weil dessen Oeffner dort verschwindet.
-           *
-           * Und anonym gibt es KEINE Modulliste, sondern nur diesen Knopf.
-           *
-           * Der Grund ist nicht, dass die anderen Module kaputt waeren — wer
-           * abgemeldet auf `feedback` klickt, landet auf `/login`
-           * (`requireFeedbackAccess`, Login-Redirect), also genau dort, wohin
-           * direkt fuehrt. Ein Modulwechsler, dessen Eintraege allesamt zum
-           * Login umleiten, verspricht "hier kannst du hin" und liefert "hier
-           * musst du dich erst anmelden". Der eine Knopf sagt dasselbe
-           * ehrlicher und in einem Schritt.
-           *
-           * Praktisch bleibt ohnehin fast nichts uebrig: anonym liefert
-           * `canAccess()` nur die Module mit `requiresAuth: false` — heute `qr`
-           * (auf dem man dann schon ist) und `feedback` (Login). Eine Liste mit
-           * einem Eintrag, der zum Login fuehrt.
-           */
-          <Button type="text" data-testid="anmelden" href="/login" icon={<Icons8Ikone name="login" />}>
-            Anmelden
-          </Button>
-        )}
+        {/* Das Avatar-Menü bzw. anonym der Anmelden-Knopf — auf BEIDEN Größen. Seit IDA-347
+            (Etappe 2) eine eigene Komponente, weil auch die Seitenleiste von `FullShell` sie
+            trägt; die Begründungen stehen dort. */}
+        <Nutzermenue
+          angemeldet={angemeldet}
+          userName={userName}
+          userBild={userBild}
+          profilHref={profilHref}
+          rueckmeldeweg={rueckmeldeweg}
+          modulStand={modulStand}
+        />
       </div>
 
       {/*

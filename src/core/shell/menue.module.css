@@ -1,0 +1,443 @@
+/*
+ * EIN MENÜ, ZWEI EBENEN — die Hülle von `FullShell` (IDA-347, Etappe 2).
+ *
+ * Desktop: eine dauerhafte Seitenleiste links, KEINE Kopfzeile mehr. Telefon: oben ein einziger
+ * Ort-Knopf, der dasselbe Menü als Blatt von unten öffnet. Umgeschaltet wird per CSS am einen
+ * Breakpoint der Suite (768px, `docs/design/README.md`, „Mobil — ein Breakpoint"), nie per JS.
+ *
+ * KEINE `--ant-*`-VARIABLEN (Falle 2) und KEINE `.ant-*`-SELEKTOREN (Falle 20): alles hier ist
+ * eigenes Markup und liest die `--iuk-*`-Werte aus `globals.css`, die einen Dunkelzweig tragen.
+ *
+ * Haarlinie: kein roter Streifen, keine rote Kante am aktiven Eintrag. Aktiv ist eine leise
+ * Fläche (`--iuk-flaeche-aktiv`), Tinte als Schrift, Gewicht 600.
+ */
+
+.rahmen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  /* `100dvh`, nicht `100vh` — Begründung in `SuiteRahmen`. */
+  min-block-size: 100dvh;
+  background: var(--iuk-grund);
+}
+
+/* Die Fläche neben dem Menü. `min-inline-size: 0`, damit eine breite Tabelle die Spalte nicht
+   über den Rand schiebt (sie scrollt in sich, `docs/design/README.md`). */
+.flaeche {
+  min-inline-size: 0;
+}
+
+/*
+ * Der Träger des Menüs: am Telefon die Zeile mit dem Ort-Knopf, am Desktop die Seitenleiste.
+ * `line-height: normal` am gemeinsamen Vorfahren — nichts erbt hier mehr antds 64px aus der
+ * Kopfzeile (Falle 8), aber das Root-Layout setzt keinen eigenen Wert, und Knöpfe, Eingabefeld
+ * und Listen sollen dieselbe Zeilenbox haben.
+ */
+.kopf {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 100;
+  line-height: normal;
+  background: var(--iuk-grund);
+  color: var(--iuk-tinte);
+  border-block-end: 1px solid var(--iuk-linie);
+}
+
+.nurDesktop {
+  display: none;
+}
+
+/* ── Telefon: der Ort-Knopf ─────────────────────────────────────────────── */
+
+.ortZeile {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.ort {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 52px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ortText {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.ortApp {
+  font-size: 12px;
+  color: var(--iuk-gedaempft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ortSeite {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pfeil {
+  flex: none;
+  color: var(--iuk-gedaempft);
+}
+
+/* ── Desktop: die Seitenleiste ──────────────────────────────────────────── */
+
+@media (min-width: 768px) {
+  .rahmen {
+    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .kopf {
+    align-self: start;
+    block-size: 100dvh;
+    border-block-end: 0;
+    border-inline-end: 1px solid var(--iuk-linie);
+    overflow: hidden;
+  }
+
+  .nurDesktop {
+    display: flex;
+  }
+
+  .nurMobil {
+    display: none;
+  }
+}
+
+.leiste {
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.fuss {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-block-start: 1px solid var(--iuk-linie);
+}
+
+.nutzerKnopf {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.nutzerName {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Das Menü selbst (Seitenleiste und Blatt teilen es) ─────────────────── */
+
+.navi {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.suche {
+  flex: none;
+  padding: 12px 12px 8px;
+}
+
+/*
+ * DIE SPUR: beide Ebenen nebeneinander, je 100% breit; die Spur zeigt eine davon. Der Wechsel ist
+ * eine Verschiebung mit der Feder der Suite (`--iuk-feder`, `core/theme/bewegung.ts`).
+ * `prefers-reduced-motion: reduce` setzt in `globals.css` jede Dauer suiteweit auf null — der
+ * Endzustand hängt allein am Attribut `data-ebene`, an keinem JS-Zeitgeber.
+ */
+.spur {
+  position: relative;
+  flex: 1;
+  min-block-size: 0;
+  display: grid;
+  grid-template-columns: 100% 100%;
+  overflow: hidden;
+}
+
+.ebene {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 12px 16px;
+  transition:
+    transform var(--iuk-feder-dauer) var(--iuk-feder),
+    opacity 200ms ease;
+}
+
+.spur[data-ebene="apps"] > .ebene {
+  transform: translateX(-100%);
+}
+
+.spur[data-ebene="apps"] > .ebene:first-child,
+.spur[data-ebene="seiten"] > .ebene:last-child {
+  opacity: 0;
+}
+
+/* Die App bleibt oben stehen, während ihre Seiten darunter scrollen — sie ist das „wo bin ich". */
+.appKnopf {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  inline-size: 100%;
+  min-block-size: 56px;
+  margin-block-end: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 10px;
+  background: var(--iuk-karte);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.appKnopfText {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.appKnopfText strong {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appKnopfText span {
+  font-size: 12px;
+  color: var(--iuk-gedaempft);
+}
+
+.appzeichen {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 7px;
+  background: var(--iuk-karte);
+}
+
+.appzeichenGross {
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 10px;
+}
+
+.appzeichen img {
+  inline-size: 16px;
+  block-size: 16px;
+  object-fit: contain;
+}
+
+.gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-block-start: 4px;
+}
+
+.abschnitt {
+  padding: 14px 10px 6px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--iuk-gedaempft);
+}
+
+/* Ein Eintrag — Seite, App oder Treffer. 44px: die Bediendichte von `FullShell` (Falle 4). */
+.eintrag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--iuk-gedaempft);
+  font: inherit;
+  font-size: 14px;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.eintrag[aria-current] {
+  background: var(--iuk-flaeche-aktiv);
+  color: var(--iuk-tinte);
+  font-weight: 600;
+}
+
+.eintragText {
+  flex: 1;
+  min-inline-size: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eintragNeben {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--iuk-gedaempft);
+  white-space: nowrap;
+}
+
+.eintragZeile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.eintragZeile > .eintrag {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.zweitlink {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--iuk-linie);
+  border-radius: 999px;
+  color: var(--iuk-gedaempft);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.zurueck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--iuk-gedaempft);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.portal {
+  margin-block-start: 12px;
+  border-block-start: 1px solid var(--iuk-linie);
+  border-radius: 0;
+  min-block-size: 48px;
+}
+
+.treffer {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 12px 16px;
+}
+
+.nichts {
+  padding: 24px 10px;
+  color: var(--iuk-gedaempft);
+  font-size: 14px;
+  text-align: center;
+}
+
+@media (hover: hover) {
+  .eintrag:hover,
+  .zurueck:hover,
+  .ort:hover {
+    background: var(--iuk-flaeche-aktiv);
+    color: var(--iuk-tinte);
+  }
+
+  .appKnopf:hover {
+    border-color: var(--iuk-gedaempft);
+  }
+}
+
+/* ── Das Blatt (Telefon) ────────────────────────────────────────────────── */
+
+.blattInhalt {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  line-height: normal;
+}
+
+.griff {
+  flex: none;
+  inline-size: 36px;
+  block-size: 4px;
+  margin: 8px auto 2px;
+  border-radius: 2px;
+  background: var(--iuk-linie);
+}
+
+.blattFuss {
+  padding-block-end: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Druck (DRK-406) — Begründung an `SuiteRahmen`, Prop `druck` ────────── */
+
+@media print {
+  .druckRahmen {
+    display: block !important;
+    min-block-size: 0 !important;
+  }
+
+  .druckRahmen .kopf {
+    display: none !important;
+  }
+
+  .druckRahmen .druckInhalt {
+    padding: 0 !important;
+  }
+
+  /* Ein offenes Blatt hängt per Portal an `body`, außerhalb von `.druckRahmen` (Falle 18). */
+  body > div:has(> .blatt) {
+    display: none !important;
+  }
+}

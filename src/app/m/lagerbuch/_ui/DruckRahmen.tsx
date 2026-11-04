@@ -1,17 +1,17 @@
 import type { ReactNode } from "react";
-import { SuiteRahmen } from "@/core/shell/SuiteRahmen";
+import { MenueRahmen } from "@/core/shell/MenueRahmen";
 import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { LAGERBUCH_NAV } from "../_lib/nav";
 import s from "./verwaltung.module.css";
 
 /**
- * DER RAHMEN DES DRUCKASTS — seit DRK-406 MIT Kopfzeile und Modulnavigation am
+ * DER RAHMEN DES DRUCKASTS — seit DRK-406 MIT dem Menü der Suite am
  * Bildschirm, und ohne beides auf dem Papier.
  *
  * ⚠️ BIS DRK-406 WAR ER FAST LEER, und die Begründung dafür war richtig: alles,
  * was er zusätzlich renderte, landete auf dem Papier. Was sich geändert hat,
  * ist nicht diese Einsicht, sondern dass die Shell ihre eigenen Teile jetzt
- * ausblenden kann (`SuiteRahmen`, Prop `druck`) — `display: none` im
+ * ausblenden kann (`MenueRahmen`, Prop `druck`) — `display: none` im
  * Druckkontext, und was so wegfällt, zählt für Chromiums
  * Seitengrößen-Entscheidung nicht mit (CLAUDE.md, Falle 18).
  *
@@ -22,7 +22,7 @@ import s from "./verwaltung.module.css";
  * Einrichten mehrfach hintereinander aufruft, ist das jedes Mal ein
  * Dokumentwechsel zu viel.
  *
- * ⚠️ ER BENUTZT `SuiteRahmen` DIREKT UND NICHT `Shell`/`FullShell`, und das ist
+ * ⚠️ ER BENUTZT `MenueRahmen` DIREKT UND NICHT `Shell`/`FullShell`, und das ist
  * die tragende Zeile dieser Datei. `FullShell` hängt den schwebenden
  * RÜCKMELDEKNOPF ein (`core/rueckmeldung`, seit DRK-453; davor stand dort die
  * Formbricks-Einbindung, mit demselben Kopfkommentar aus demselben Grund).
@@ -46,7 +46,7 @@ import s from "./verwaltung.module.css";
  * nicht ihren Traeger.
  *
  * ⚠️ DER TRAEGER LIEGT AUSSEN, UM DIE SHELL HERUM. Innen — also nur um den
- * Inhalt — trügen Kopfzeile und Seitenleiste die Variablen nicht, und das
+ * Inhalt — trüge das Menü die Variablen nicht, und das
  * fiele erst im Dunkelmodus auf.
  *
  * KEIN "use client": der Rahmen ist eine Server Component und traegt deshalb
@@ -55,9 +55,9 @@ import s from "./verwaltung.module.css";
 export function DruckRahmen({ children }: { children: ReactNode }) {
   return (
     <div className={s.modul}>
-      <SuiteRahmen moduleKey="lagerbuch" nav={LAGERBUCH_NAV} druck>
+      <MenueRahmen moduleKey="lagerbuch" nav={LAGERBUCH_NAV} druck>
         <Arbeitsdichte>{children}</Arbeitsdichte>
-      </SuiteRahmen>
+      </MenueRahmen>
     </div>
   );
 }
