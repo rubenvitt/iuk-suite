@@ -190,6 +190,12 @@ export const mangel = sqliteTable("mangel", {
    * zählt, behebt ihn (`_lib/schreiben.ts`). `null`, wenn die Position inzwischen von der Liste ist.
    */
   inhaltId: text("inhalt_id").references(() => inhalt.id, { onDelete: "set null" }),
+  /**
+   * Seit wann ein zunächst einsatzbereit gemeldeter Mangel nicht mehr einsatzbereit ist (eine Kiste, deren
+   * Position weiter fehlt, wird als nicht einsatzbereit durchgezählt). Der Sofort-Push rechnet ab hier, nicht ab
+   * `gemeldetAm`, das der Meldezeitpunkt bleibt.
+   */
+  herabgestuftAm: integer("herabgestuft_am"),
 }, (t) => [
   index("mangel_geraet_idx").on(t.geraetId, t.behobenAm),
   index("mangel_offen_idx").on(t.behobenAm, t.gemeldetAm),

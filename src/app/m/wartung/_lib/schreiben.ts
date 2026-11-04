@@ -294,7 +294,9 @@ export function pruefungAbschliessen(
     }
     // Fehlt eine Position weiter und ist die Kiste jetzt nicht einsatzbereit, gilt das auch für ihren alten Mangel.
     if (p.ergebnis === "defekt") {
-      for (const m of nochOffen) tx.update(mangel).set({ einsatzbereit: false }).where(eq(mangel.id, m.id)).run();
+      for (const m of nochOffen) {
+        tx.update(mangel).set({ einsatzbereit: false, herabgestuftAm: k.jetzt }).where(and(eq(mangel.id, m.id), eq(mangel.einsatzbereit, true))).run();
+      }
     }
     for (const m of wiederDa) {
       tx.update(mangel).set({ behobenAm: k.jetzt, behobenVon: k.wer }).where(eq(mangel.id, m.id)).run();
@@ -320,11 +322,11 @@ export function mangelBeheben(db: WartungDb, id: string, k: Kontext): void {
 
 // ---------------------------------------------------------------- Sofort-Push
 
-/** Neue „nicht einsatzbereit“-Mängel, noch nicht gepusht, ab `seit`. */
+/** Neue „nicht einsatzbereit“-Mängel, noch nicht gepusht, ab `seit` (gemeldet oder später herabgestuft). */
 export function ungepushteAusfaelle(db: Pick<WartungDb, "select">, seit: number) {
   return db.select({ id: mangel.id, geraetId: mangel.geraetId, geraetName: geraet.name, ort: geraet.ort, gruppeId: geraet.gruppeId, foto: mangel.foto })
     .from(mangel).innerJoin(geraet, eq(geraet.id, mangel.geraetId))
-    .where(and(eq(mangel.einsatzbereit, false), isNull(mangel.gepushtAm), isNull(mangel.behobenAm), sql`${mangel.gemeldetAm} >= ${seit}`))
+    .where(and(eq(mangel.einsatzbereit, false), isNull(mangel.gepushtAm), isNull(mangel.behobenAm), sql`coalesce(${mangel.herabgestuftAm}, ${mangel.gemeldetAm}) >= ${seit}`))
     .all();
 }
 

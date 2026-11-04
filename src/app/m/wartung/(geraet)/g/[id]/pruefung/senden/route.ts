@@ -56,6 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const mitMangel = new Set(p.data.antworten.filter((a) => !a.ok && punkte.has(a.punktId)).map((a) => a.punktId));
 
     const fotos = new Map<string, string>();
+    let r: ReturnType<typeof pruefungAbschliessen>;
     try {
       for (const punktId of mitMangel) {
         const d = datei(formular.get(`foto:${punktId}`));
@@ -69,13 +70,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await legeFotoAb(mangelId, bild);
         fotos.set(punktId, mangelId);
       }
-      const r = pruefungAbschliessen(db, id, p.data, fotos, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) });
-      await entferneFotos(r.ungenutzteFotos);
-      return antwort(200, { ok: true, maengel: r.maengel });
+      r = pruefungAbschliessen(db, id, p.data, fotos, { jetzt: Date.now(), heute: heute(), wer: anzeigename(viewer) });
     } catch (e) {
       await entferneFotos(fotos.values());
       if (e instanceof Abgelehnt) return antwort(400, { ok: false, fehler: e.message, feld: e.feld });
       throw e;
     }
+    // Gespeichert ist gespeichert: das Aufräumen ungenutzter Fotos darf die Fotos der neuen Mängel nicht treffen.
+    await entferneFotos(r.ungenutzteFotos).catch(() => undefined);
+    return antwort(200, { ok: true, maengel: r.maengel });
   });
 }

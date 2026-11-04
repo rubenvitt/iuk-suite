@@ -17,6 +17,7 @@ CREATE INDEX `inhalt_geraet_idx` ON `inhalt` (`geraet_id`,`position`);--> statem
 ALTER TABLE `art` ADD `kiste` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `mangel` ADD `fehlt` integer DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE `mangel` ADD `inhalt_id` text REFERENCES inhalt(id) ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE `mangel` ADD `herabgestuft_am` integer;--> statement-breakpoint
 DROP TRIGGER `audit_art_update`;--> statement-breakpoint
 CREATE TRIGGER audit_art_update AFTER UPDATE ON "art"
 WHEN OLD."id" IS NOT NEW."id" OR OLD."name" IS NOT NEW."name" OR OLD."einzahl" IS NOT NEW."einzahl" OR OLD."ikone" IS NOT NEW."ikone" OR OLD."stunden_pflicht" IS NOT NEW."stunden_pflicht" OR OLD."position" IS NOT NEW."position" OR OLD."angelegt_am" IS NOT NEW."angelegt_am" OR OLD."aktualisiert_am" IS NOT NEW."aktualisiert_am" OR OLD."kiste" IS NOT NEW."kiste"
@@ -27,7 +28,7 @@ END;
 --> statement-breakpoint
 DROP TRIGGER `audit_mangel_update`;--> statement-breakpoint
 CREATE TRIGGER audit_mangel_update AFTER UPDATE ON "mangel"
-WHEN OLD."id" IS NOT NEW."id" OR OLD."geraet_id" IS NOT NEW."geraet_id" OR OLD."text" IS NOT NEW."text" OR OLD."foto" IS NOT NEW."foto" OR OLD."einsatzbereit" IS NOT NEW."einsatzbereit" OR OLD."gemeldet_am" IS NOT NEW."gemeldet_am" OR OLD."gemeldet_von" IS NOT NEW."gemeldet_von" OR OLD."behoben_am" IS NOT NEW."behoben_am" OR OLD."behoben_von" IS NOT NEW."behoben_von" OR OLD."gepusht_am" IS NOT NEW."gepusht_am" OR OLD."fehlt" IS NOT NEW."fehlt" OR OLD."inhalt_id" IS NOT NEW."inhalt_id"
+WHEN OLD."id" IS NOT NEW."id" OR OLD."geraet_id" IS NOT NEW."geraet_id" OR OLD."text" IS NOT NEW."text" OR OLD."foto" IS NOT NEW."foto" OR OLD."einsatzbereit" IS NOT NEW."einsatzbereit" OR OLD."gemeldet_am" IS NOT NEW."gemeldet_am" OR OLD."gemeldet_von" IS NOT NEW."gemeldet_von" OR OLD."behoben_am" IS NOT NEW."behoben_am" OR OLD."behoben_von" IS NOT NEW."behoben_von" OR OLD."gepusht_am" IS NOT NEW."gepusht_am" OR OLD."fehlt" IS NOT NEW."fehlt" OR OLD."inhalt_id" IS NOT NEW."inhalt_id" OR OLD."herabgestuft_am" IS NOT NEW."herabgestuft_am"
 BEGIN
   INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, object_ref, actor, result, origin, correlation_id)
   VALUES (suite_audit_id(), suite_audit_now(), 'wartung', 'update', 'mangel', suite_audit_reference(NEW.id), suite_audit_actor(), 'success', 'database', suite_audit_correlation());

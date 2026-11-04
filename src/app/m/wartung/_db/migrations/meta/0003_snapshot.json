@@ -872,6 +872,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "herabgestuft_am": {
+          "name": "herabgestuft_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {

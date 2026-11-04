@@ -4,7 +4,7 @@ import { eintrag, inhalt, mangel } from "../_db/schema";
 import { ladeArten, ladeGeraet, ladeInhalt } from "./daten";
 import { artEingabe, inhaltEingabe } from "./eingabe";
 import { wartungFaelligkeiten } from "./faelligkeiten";
-import { Abgelehnt, geraetAnlegen, inhaltSpeichern, neueId, pruefungAbschliessen } from "./schreiben";
+import { Abgelehnt, geraetAnlegen, inhaltSpeichern, neueId, pruefungAbschliessen, ungepushteAusfaelle } from "./schreiben";
 import { START } from "./startbestand";
 import { ladeAmGeraet } from "./telefon";
 import { testDb } from "./testDb";
@@ -128,12 +128,15 @@ describe("Materialkisten (IDA-335)", () => {
   it("fehlt eine Position weiter und ist die Kiste nicht einsatzbereit, gilt das für den alten Mangel; ein Foto dazu geht weg", () => {
     const { db, id, liste } = mitKiste();
     zaehle(db, id, liste, { 1: "" });
+    const spaeter = { ...K, jetzt: K.jetzt + 60_000 };
     const foto = neueId();
     const r = pruefungAbschliessen(db, id, {
       sendung: neueId(), stunden: null, ergebnis: "defekt", notiz: "", antworten: zaehlung(liste, { 1: "" }),
-    }, new Map([[liste[1].id, foto]]), K);
+    }, new Map([[liste[1].id, foto]]), spaeter);
     expect(r).toEqual({ maengel: 0, ungenutzteFotos: [foto] });
-    expect(offen(db, id)).toMatchObject([{ inhaltId: liste[1].id, einsatzbereit: false }]);
+    expect(offen(db, id)).toMatchObject([{ inhaltId: liste[1].id, einsatzbereit: false, gemeldetAm: K.jetzt, herabgestuftAm: spaeter.jetzt }]);
+    // Gemeldet wurde der Mangel vor `seit`, nicht einsatzbereit ist er erst jetzt: der Sofort-Push kommt.
+    expect(ungepushteAusfaelle(db, spaeter.jetzt).map((m) => m.geraetId)).toEqual([id]);
   });
 
   it("eine inzwischen geänderte Soll-Menge macht die Zählung ungültig", () => {
