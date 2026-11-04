@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb, type GemeinschaftDb } from "../_db/client";
 import {
-  Abgelehnt, entferneVertrag, legeSperrzeitAn, lehneAb, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag,
+  Abgelehnt, entferneVertrag, entferneVorlage, ladeVorlage, legeSperrzeitAn, setzeVorlageFeld, lehneAb, loescheSperrzeit, NichtGefunden, nimmZusageZurueck, sageZu, setzeVertrag,
 } from "../_lib/vermietung";
 import { begruendungSchema, idSchema, pruefeSperrzeit, vertragSchema, type Ergebnis } from "../_lib/vermietungEingabe";
+import { pruefeFeld, type Feld } from "../_lib/vertragFeld";
+import { leseVorlage } from "../_lib/vertragUnterschrift";
 import { requireLeitungAktion, type Viewer } from "../_lib/zugang";
 
 /*
@@ -79,4 +81,25 @@ export async function sperrzeitLoeschenAction(id: string): Promise<Ergebnis> {
   const viewer = await requireLeitungAktion();
   if (!idSchema.safeParse(id).success) { return { ok: false, fehler: UNGUELTIG }; }
   return ohneWert(await alsLeitung(viewer, (db) => loescheSperrzeit(db, id)));
+}
+
+/* ---------------- Vertragsvorlage (IDA-343) ---------------- */
+
+/** Setzt das Unterschriftenfeld der Vorlage (`null` entfernt es); geprüft gegen die echten Seitenmaße der PDF. */
+export async function vorlageFeldAction(feld: unknown): Promise<Ergebnis> {
+  const viewer = await requireLeitungAktion();
+  const v = ladeVorlage(getDb());
+  if (!v) return { ok: false, fehler: "Es liegt keine Vorlage. Bitte die Seite neu laden." };
+  let wert: Feld | null = null;
+  if (feld !== null) {
+    const lesbar = await leseVorlage(v.inhalt);
+    wert = lesbar.ok ? pruefeFeld(feld, lesbar.seiten) : null;
+    if (!wert) return { ok: false, fehler: "Das Feld ist zu klein oder liegt nicht ganz auf der Seite." };
+  }
+  return ohneWert(await alsLeitung(viewer, (db) => setzeVorlageFeld(db, wert)));
+}
+
+export async function vorlageEntfernenAction(): Promise<Ergebnis> {
+  const viewer = await requireLeitungAktion();
+  return ohneWert(await alsLeitung(viewer, (db) => entferneVorlage(db)));
 }

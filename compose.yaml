@@ -489,7 +489,8 @@ volumes:
   # kommplan.db. `clamav` mountet dasselbe Volume lesend — ein anderer Name dort zeigte clamd ein leeres
   # Verzeichnis, und JEDER Logo-Upload scheiterte fail-closed mit „Die Virenprüfung ist gerade nicht möglich".
   # Die Begründung steht HIER und nicht an den Mount-Zeilen: Zeilen weiter oben verschöben die Zeilenanker
-  # anderer Dateien in diese Datei (Review Phase 4).
+  # anderer Dateien in diese Datei (Review Phase 4). Seit IDA-343 nutzt `gemeinschaft` den Unterordner `gemeinschaft`
+  # für den Scan der Mietvertrags-Dateien (`gemeinschaft/_lib/vertragScan.ts`); die Dateien selbst stehen in gemeinschaft.db.
   kommplan_scan:
     name: kommplan_scan
   backup_data:

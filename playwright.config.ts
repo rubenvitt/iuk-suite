@@ -280,6 +280,10 @@ export default cloudTauglich(defineConfig({
         KOMMPLAN_AV_HOST: "127.0.0.1",
         KOMMPLAN_AV_PORT: String(E2E_PORTS.clamd),
         KOMMPLAN_AV_TIMEOUT_MS: "2000",
+        // Mietvertrag der Bar (IDA-343): dasselbe Fake-clamd, eigene Variablen (`gemeinschaft/_lib/vertragScan.ts`).
+        GEMEINSCHAFT_AV_HOST: "127.0.0.1",
+        GEMEINSCHAFT_AV_PORT: String(E2E_PORTS.clamd),
+        GEMEINSCHAFT_AV_TIMEOUT_MS: "2000",
         /*
          * DIE ZWEI GRUPPENNAMEN AUS EINER QUELLE (Quellenwechsel 2026-08-15) —
          * dieselbe Bauform wie `...LAGERBUCH_ENV` weiter unten, aus demselben
