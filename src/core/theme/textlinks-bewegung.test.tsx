@@ -7,11 +7,12 @@ import { renderToString } from "react-dom/server";
 import { createCache, extractStyle, StyleProvider } from "@ant-design/cssinjs";
 import { Alert, Breadcrumb, Button, Collapse, ConfigProvider, Form, Input, Menu, Pagination, Table, Tree } from "antd";
 import { buildTheme } from "@/core/theme/theme";
-import { mount, unmount } from "@/app/m/qr/_lib/test-dom";
+import { fill, mount, unmount } from "@/app/m/qr/_lib/test-dom";
 import { SuiteNav } from "@/core/shell/SuiteNav";
+import { SuiteLeiste } from "@/core/shell/Navigator";
 
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/core/theme/ThemeToggle", () => ({ ThemeToggle: () => null }));
 vi.mock("@/core/rueckmeldung/senden", () => ({ sendeRueckmeldung: vi.fn() }));
 
@@ -83,6 +84,29 @@ describe("Links im Lauftext (globals.css)", () => {
     const links = [...document.querySelectorAll<HTMLAnchorElement>("a[href]")];
     expect(links.length).toBeGreaterThan(0);
     expect(links.filter((l) => l.matches(LAUFTEXT)).map((l) => l.getAttribute("href"))).toEqual([]);
+  });
+
+  it("lässt das Menü von FullShell in Ruhe — Seiten, App-Ebene, Portal und Treffer", async () => {
+    await mount(createElement(SuiteLeiste, {
+      daten: {
+        modulKey: "lagerbuch", modulTitel: "Lagerbuch", modulIcon: "warehouse", modulBereich: "Material",
+        modulHref: "https://l.example", nav: [{ key: "start", title: "Übersicht", href: "/" }, { key: "artikel", title: "Artikel", href: "/artikel", abschnitt: "Bestand" }],
+        eintraege: [
+          { key: "lagerbuch", title: "Lagerbuch", icon: "warehouse", href: "https://l.example", abschnitt: "Apps", bereich: "Material", extern: false },
+          { key: "dienst:1", title: "Nextcloud", href: "https://n.example", abschnitt: "Zusammenarbeit", extern: true },
+        ],
+        auswahl: { angeheftet: [], zuletzt: [] }, bereiche: ["Material"], portalHref: "https://p.example",
+        suchHref: "https://p.example/suche", angemeldet: true, userName: "Ruben Vitt", userBild: null,
+        profilHref: "https://p.example", rueckmeldeweg: null, modulStand: null,
+      },
+    }));
+    const unterstrichen = () =>
+      [...document.querySelectorAll<HTMLAnchorElement>("a[href]")].filter((l) => l.matches(LAUFTEXT)).map((l) => l.getAttribute("href"));
+    expect(document.querySelectorAll('[data-testid="nav-link"], [data-testid="app-eintrag"], [data-testid="app-portal"]').length).toBeGreaterThan(3);
+    expect(unterstrichen()).toEqual([]);
+    await fill('[data-testid="befehlspalette-eingabe"]', "art");
+    expect(document.querySelectorAll('[data-testid="befehl"]').length).toBeGreaterThan(0);
+    expect(unterstrichen()).toEqual([]);
   });
 });
 
