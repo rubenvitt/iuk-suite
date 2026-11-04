@@ -157,6 +157,7 @@ export function Gliederung(p: GliederungProps) {
     if (b.zeichen) p.ladeSymbole([b.zeichen]);
     fokussiere(id, "ende");
   }
+  /** Erste Stelle eines leeren Plans und jede weitere freie Stelle: oberste Ebene, ans Ende (IDA-353). */
   function ersteStelle() { lege((q, id) => fuegeWurzelEin(q, id)); }
   function aktion(z: GliederungsZeile, a: ZeilenAktion) {
     const id = z.stelle.id;
@@ -367,6 +368,7 @@ export function Gliederung(p: GliederungProps) {
           })}
         </ul>
       )}
+      {zeilen.length > 0 ? <Button className="kp-g-frei" data-freie-stelle="" onClick={ersteStelle}>+ Freie Stelle</Button> : null}
       {p.meldung ? <div className="kp-g-meldung" data-meldung="">{p.meldung}</div> : null}
     </div>
   );
