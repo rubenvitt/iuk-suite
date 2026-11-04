@@ -5,10 +5,11 @@ import { z } from "zod";
 import { auditActor, withAuditContext } from "@/core/audit/server";
 import { getDb } from "../_db/client";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
-import { fahrzeugEingabe, legeFahrzeugAn, loescheFahrzeug } from "../_lib/fahrzeuge";
+import { fahrzeugEingabe, legeFahrzeugAn, loescheFahrzeug, QUELLEN, sicher } from "../_lib/fahrzeuge";
 import { konfigurationEingabe, speichereKonfiguration, type KonfigurationDTO } from "../_lib/konfiguration";
 import { beendeMeldung, legeMeldungAn, meldungEingabe, type MeldungDTO } from "../_lib/meldungen";
 import { aendereKategorie, kategorieEingabe, legeKategorieAn, loescheKategorie, type KategorieDTO } from "../_lib/kategorien";
+import { aendereObjekt, lagekarteEingabe, legeObjektAn, loescheObjekt, schalteObjekt } from "../_lib/lagekarte";
 import { legeLinkAn, linkAdresse, widerrufeLink } from "../_lib/links";
 import { onlineAdresse } from "../_lib/online";
 import { legeZugangAn, widerrufeZugang } from "../_lib/schluessel";
@@ -178,4 +179,60 @@ export async function standortSetzenAction(eingabe: unknown): Promise<ActionErge
     neuLaden();
     return { ok: true };
   });
+}
+
+const objektId = (id: unknown): id is string => typeof id === "string" && id.length > 0 && id.length <= 64;
+
+/** Legt einen Punkt oder eine Fläche auf der Lagekarte an; alle Monitore holen es mit der nächsten Abholung. */
+export async function lagekarteAnlegenAction(eingabe: unknown): Promise<ActionErgebnis<{ id: string }>> {
+  const viewer = await requireLagemonitorAktion();
+  const e = lagekarteEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = legeObjektAn(getDb(), e.data, anzeigeName(viewer));
+    if (!r.ok) return r;
+    neuLaden();
+    return { ok: true, wert: { id: r.id } };
+  });
+}
+
+export async function lagekarteAendernAction(id: unknown, eingabe: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (!objektId(id)) return { ok: false, fehler: "Unbekanntes Objekt." };
+  const e = lagekarteEingabe.safeParse(eingabe);
+  if (!e.success) return { ok: false, fehler: "Bitte die markierten Felder prüfen.", feldFehler: zodFehler(e.error) ?? undefined };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const r = aendereObjekt(getDb(), id, e.data, anzeigeName(viewer));
+    if (!r.ok) return r;
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Schaltet ein Objekt auf der Karte ein oder aus, ohne es zu löschen. */
+export async function lagekarteSchaltenAction(id: unknown, aufKarte: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (!objektId(id) || typeof aufKarte !== "boolean") return { ok: false, fehler: "Unbekanntes Objekt." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!schalteObjekt(getDb(), id, aufKarte, anzeigeName(viewer))) return { ok: false, fehler: "Dieses Objekt gibt es nicht mehr." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+export async function lagekarteLoeschenAction(id: unknown): Promise<ActionErgebnis> {
+  const viewer = await requireLagemonitorAktion();
+  if (!objektId(id)) return { ok: false, fehler: "Unbekanntes Objekt." };
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!loescheObjekt(getDb(), id)) return { ok: false, fehler: "Dieses Objekt gibt es nicht mehr." };
+    neuLaden();
+    return { ok: true };
+  });
+}
+
+/** Das Zeichen zur Auswahl im Formular, damit die Karte es gleich zeigt; `null`, wenn kommplan es nicht kennt. */
+export async function lagekarteZeichenAction(schluessel: unknown): Promise<string | null> {
+  await requireLagemonitorAktion();
+  if (typeof schluessel !== "string" || schluessel.length === 0 || schluessel.length > 80) return null;
+  return sicher(() => QUELLEN.svg([schluessel]), {})[schluessel] ?? null;
 }

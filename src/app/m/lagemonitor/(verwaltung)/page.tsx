@@ -4,6 +4,7 @@ import { listeFahrzeuge } from "../_lib/fahrzeuge";
 import { requireLagemonitorHost } from "../_lib/host";
 import { leseKonfiguration } from "../_lib/konfiguration";
 import { listeKategorien } from "../_lib/kategorien";
+import { listeLagekarte } from "../_lib/lagekarte";
 import { listeLinks } from "../_lib/links";
 import { offeneMeldungen } from "../_lib/meldungen";
 import { onlineAdresse } from "../_lib/online";
@@ -19,5 +20,5 @@ export default async function LagemonitorSeite() {
   requireLagemonitorHost(await headers());
   await requireLagemonitorVerwaltung();
   const db = getDb();
-  return <AnzeigeVerwaltung konfiguration={leseKonfiguration(db)} zugaenge={listeZugaenge(db)} meldungen={offeneMeldungen(db)} kategorien={listeKategorien(db)} links={listeLinks(db)} online={onlineAdresse()} fahrzeuge={listeFahrzeuge(db)} standorte={listeStandorte(db)} />;
+  return <AnzeigeVerwaltung konfiguration={leseKonfiguration(db)} zugaenge={listeZugaenge(db)} meldungen={offeneMeldungen(db)} kategorien={listeKategorien(db)} links={listeLinks(db)} online={onlineAdresse()} fahrzeuge={listeFahrzeuge(db)} standorte={listeStandorte(db)} lagekarte={listeLagekarte(db)} />;
 }

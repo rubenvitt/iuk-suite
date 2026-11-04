@@ -228,3 +228,79 @@ test("Kategorie anlegen, ändern und löschen", async ({ page }) => {
   await klickeWennRuhig(page.getByRole("button", { name: "Löschen", exact: true }).last());
   await expect(liste).not.toContainText(`${name} neu`);
 });
+
+test("Lagekarte: Fläche zeichnen, Punkt setzen, beides geht an die Monitore, ausgeschaltet nicht", async ({ page }) => {
+  const nr = Date.now() % 100_000;
+  const flaeche = `Raum e2e ${nr}`;
+  const punkt = `Wache e2e ${nr}`;
+  await devLogin(page, { host: HOST, groups: "lagemonitor-admin", callbackPath: "/" });
+  await page.goto(url("/"));
+  await page.waitForLoadState("networkidle");
+  await warteAufGestreamteInhalte(page);
+
+  // Fläche: drei Klicks auf die Karte, letzten wieder weg und neu, dann anlegen.
+  await klickeWennRuhig(page.getByRole("button", { name: "Neue Fläche" }));
+  const neu = page.getByRole("form", { name: "Neue Fläche" });
+  await neu.getByLabel("Name").fill(flaeche);
+  await klickeWennRuhig(wahlKnopf(neu, "Türkis"));
+  const karte = neu.getByTestId("lagekarte-karte");
+  await expect(karte).toHaveAttribute("data-bereit", "true", { timeout: 30_000 });
+  const box = (await karte.boundingBox())!;
+  for (const [fx, fy] of [[0.3, 0.3], [0.7, 0.3], [0.6, 0.7], [0.2, 0.8]]) {
+    await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+  }
+  const ecken = neu.getByTestId("lagekarte-ecken");
+  await expect(ecken).toHaveText("4 von 200 Eckpunkten");
+  await klickeWennRuhig(neu.getByRole("button", { name: "Letzten Punkt entfernen" }));
+  await expect(ecken).toHaveText("3 von 200 Eckpunkten");
+  await klickeWennRuhig(neu.getByRole("button", { name: "Fläche schließen" }));
+  // Geschlossen: ein weiterer Klick setzt keine Ecke mehr.
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  await expect(ecken).toHaveText("3 von 200 Eckpunkten");
+  await klickeWennRuhig(neu.getByRole("button", { name: "Fläche anlegen" }));
+  const liste = page.getByRole("list", { name: "Objekte der Lagekarte" });
+  await expect(liste).toContainText(flaeche);
+
+  // Punkt über die Zahlenfelder.
+  await klickeWennRuhig(page.getByRole("button", { name: "Neuer Punkt" }));
+  const p = page.getByRole("form", { name: "Neuer Punkt" });
+  await p.getByLabel("Name").fill(punkt);
+  await p.getByLabel("Taktisches Zeichen").click();
+  await page.locator(".ant-select-dropdown:visible .ant-select-item-option").first().click();
+  await p.getByLabel("Breitengrad").fill("52,9711");
+  await p.getByLabel("Längengrad").fill("10,5622");
+  await klickeWennRuhig(p.getByRole("button", { name: "Punkt anlegen" }));
+  await expect(liste).toContainText(punkt);
+
+  await page.getByLabel("Neuer Zugang").fill(`Lagekarte e2e ${nr}`);
+  await klickeWennRuhig(page.getByRole("button", { name: "Zugang anlegen" }));
+  const schluessel = /LAGEMONITOR_SUITE_TOKEN=(\S+)/.exec((await page.getByTestId("neuer-schluessel").textContent()) ?? "")?.[1];
+  await klickeWennRuhig(page.getByRole("button", { name: "Fertig" }));
+  type MapObject = { id: string; kind: string; name: string; color?: string; ring?: [number, number][]; symbol?: string | null; lat: number; lon: number };
+  const abholen = async () => (await (await page.request.get(url("/api/konfiguration"), { headers: { authorization: `Bearer ${schluessel}` } })).json()).mapObjects as MapObject[];
+  const objekte = await abholen();
+  const f = objekte.find((o) => o.name === flaeche);
+  const q = objekte.find((o) => o.name === punkt);
+  expect(f).toMatchObject({ kind: "area", color: "teal", id: expect.stringMatching(/^lk-/) });
+  expect(f!.ring).toHaveLength(4);
+  expect(f!.ring![0]).toEqual(f!.ring![3]);
+  expect(q).toMatchObject({ kind: "point", lat: 52.9711, lon: 10.5622 });
+  expect(q!.symbol).toContain("<svg");
+  // Flächen vor Punkten.
+  expect(objekte.findIndex((o) => o.kind === "point")).toBeGreaterThan(objekte.findLastIndex((o) => o.kind === "area"));
+
+  // Ausgeschaltet geht der Punkt nicht mehr hinaus; danach aufräumen.
+  const schalter = page.getByRole("switch", { name: `Auf der Karte: ${punkt}` });
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url() === url("/")),
+    klickeWennRuhig(schalter),
+  ]);
+  expect(antwort.status()).toBe(200);
+  await expect(schalter).toHaveAttribute("aria-checked", "false");
+  expect((await abholen()).some((o) => o.name === punkt)).toBe(false);
+  for (const name of [punkt, flaeche]) {
+    await klickeWennRuhig(page.getByRole("button", { name: `Löschen: ${name}` }));
+    await klickeWennRuhig(page.getByRole("button", { name: "Löschen", exact: true }).last());
+    await expect(page.getByRole("button", { name: `Löschen: ${name}` })).toHaveCount(0);
+  }
+});

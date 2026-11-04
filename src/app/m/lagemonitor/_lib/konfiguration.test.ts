@@ -75,6 +75,7 @@ describe("Speichern und Drahtformat", () => {
       traffic: { tomtomKey: null, flow: false, incidents: false, speedCameras: false },
       map: { zoom: 9 },
       vehicles: [],
+      mapObjects: [],
     });
   });
 

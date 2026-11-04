@@ -149,3 +149,24 @@ export const fahrzeug = sqliteTable("lagemonitor_fahrzeug", {
   uniqueIndex("lagemonitor_fahrzeug_stamm_idx").on(t.stammId),
   uniqueIndex("lagemonitor_fahrzeug_zugang_idx").on(t.zugangId),
 ]);
+
+/**
+ * Ein festes Objekt auf der Karte aller Lagemonitore (IDA-348, `_lib/lagekarte.ts`): ein Punkt mit taktischem Zeichen
+ * aus kommplan (`zeichen`, `breite`, `laenge`) oder eine Fläche mit Palettenfarbe (`farbe`, `ring`: die Ecken als
+ * JSON `[[Länge, Breite], …]`, offen). Nur Objekte mit `aufKarte` gehen an die Monitore (`mapObjects`).
+ */
+export const kartenobjekt = sqliteTable("lagemonitor_kartenobjekt", {
+  id: text("id").primaryKey(),
+  art: text("art").notNull(),
+  name: text("name").notNull(),
+  zeichen: text("zeichen"),
+  farbe: text("farbe"),
+  breite: real("breite"),
+  laenge: real("laenge"),
+  ring: text("ring"),
+  aufKarte: integer("auf_karte", { mode: "boolean" }).notNull().default(true),
+  angelegtAm: integer("angelegt_am", { mode: "timestamp" }).notNull(),
+  angelegtVon: text("angelegt_von").notNull(),
+  geaendertAm: integer("geaendert_am", { mode: "timestamp" }).notNull(),
+  geaendertVon: text("geaendert_von").notNull(),
+}, () => [check("lagemonitor_kartenobjekt_art", sql`art IN ('punkt','flaeche')`)]);

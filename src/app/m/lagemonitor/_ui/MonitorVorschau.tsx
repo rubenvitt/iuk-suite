@@ -2,6 +2,7 @@ import { BEISPIEL_EINSATZ, STUFE_TEXT, type Szenario, type Vorschau } from "../_
 import type { CSSProperties } from "react";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { farbe } from "../_lib/kategorieRegeln";
+import { inVorschau, schwerpunkt, type Lage, type LagekarteObjektDTO } from "../_lib/lagekarteRegeln";
 import { MitmachQr } from "./MitmachQr";
 import s from "./vorschau.module.css";
 
@@ -19,7 +20,62 @@ const WARNGEBIETE = ["M40,40 L300,25 L420,90 L400,260 L150,285 L30,220Z", "M240,
  * Der Bildschirm im FüKw in klein, mit Beispieldaten. Rein darstellend: was zu sehen ist, rechnet
  * `vorschau()` in `_lib/vorschau.ts`. Kein Text hier ist eine echte Lage; die Uhr steht still.
  */
-export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenario: Szenario; standort: string }) {
+/** Wo der Standort in der Vorschaukarte steht (`.standort` unten) und wie viele Monitorpixel ein Vorschaupunkt ist. */
+const KARTENMITTE = { mitteX: 218, mitteY: 142, massstab: 4 } as const;
+/** Ab dieser Zoomstufe schreibt der Monitor die Namen der Punkte dazu. */
+const NAMEN_AB_ZOOM = 12;
+
+/**
+ * Die Objekte der Lagekarte in der Vorschau: echt verortet um den Standort, wie der Monitor sie bei seiner Zoomstufe
+ * zeigt — anders als die Beispieldaten darum herum.
+ */
+function LagekarteVorschau({ objekte, mitte, zoom }: { objekte: LagekarteObjektDTO[]; mitte: Lage; zoom: number }) {
+  const an = objekte.filter((o) => o.aufKarte);
+  if (an.length === 0) return null;
+  const p = (l: Lage) => inVorschau(l, mitte, zoom, KARTENMITTE);
+  return (
+    <g data-testid="vorschau-lagekarte">
+      {an.flatMap((o) => {
+        if (o.art !== "flaeche" || !o.ring || o.ring.length < 3) return [];
+        const ton = farbe(o.farbe ?? "grau").nacht;
+        const [tx, ty] = p(schwerpunkt(o.ring));
+        return [
+          <g key={o.id} data-rolle="vorschau-flaeche">
+            <path className={s.lageFlaeche} style={{ "--lage": ton } as CSSProperties} d={`M${o.ring.map((l) => p(l).map((n) => n.toFixed(1)).join(",")).join(" L")}Z`} />
+            <text className={s.lageName} x={tx.toFixed(1)} y={ty.toFixed(1)}>{o.name}</text>
+          </g>,
+        ];
+      })}
+      {an.flatMap((o) => {
+        if (o.art !== "punkt" || o.breite === null || o.laenge === null) return [];
+        const [x, y] = p([o.laenge, o.breite]);
+        return [
+          <g key={o.id} data-rolle="vorschau-punkt">
+            {o.svg ? (
+              <image href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(o.svg)}`} x={(x - 6).toFixed(1)} y={(y - 6).toFixed(1)} width="12" height="12" />
+            ) : (
+              <rect className={s.lagePunkt} x={(x - 3).toFixed(1)} y={(y - 3).toFixed(1)} width="6" height="6" />
+            )}
+            {zoom >= NAMEN_AB_ZOOM ? <text className={s.lageName} x={x.toFixed(1)} y={(y + 14).toFixed(1)}>{o.name}</text> : null}
+          </g>,
+        ];
+      })}
+    </g>
+  );
+}
+
+export function MonitorVorschau({
+  v,
+  szenario,
+  standort,
+  lagekarte,
+}: {
+  v: Vorschau;
+  szenario: Szenario;
+  standort: string;
+  /** Die Lagekarte um den Standort des ersten Monitors; ohne sie nur die Beispieldaten. */
+  lagekarte?: { objekte: LagekarteObjektDTO[]; mitte: Lage; zoom: number };
+}) {
   const wetter = WETTER[szenario];
   const bandIds = new Set(v.band.map((w) => w.id));
   return (
@@ -70,6 +126,7 @@ export function MonitorVorschau({ v, szenario, standort }: { v: Vorschau; szenar
             <path className={s.strasse} d="M0,118 L440,152" />
             <path className={s.strasse} d="M212,122 L385,38" />
             <path className={s.ort} d="M190,120 L240,115 L250,150 L225,170 L195,160Z" />
+            {lagekarte ? <LagekarteVorschau {...lagekarte} /> : null}
             {v.karte.verkehr ? (
               <g data-testid="vorschau-verkehr">
                 <path className={`${s.fluss} ${s.flussFrei}`} d="M222,0 L215,90" />
