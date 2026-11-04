@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, warteAufGestreamteInhalte } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -29,6 +29,8 @@ test.describe("Vorlagenfeld im Fahrzeugblatt", () => {
     const pfad = "/verwaltung/fahrzeuge/e2e-vorlagen-fahrzeug?reiter=einstellungen";
     const antwort = await page.goto(lagerbuchUrl(pfad));
     expect(antwort!.status()).toBe(200);
+    // Falle 22: bis der Strom eingesetzt ist, steht das Feld zweimal im DOM (eine Kopie versteckt).
+    await warteAufGestreamteInhalte(page);
 
     const insel = page.locator("[data-rolle='template-verknuepfung']");
     const feld = insel.locator(".ant-select");
