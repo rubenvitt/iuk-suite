@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { randomId } from "@/core/zufallsId";
 import {
-  deserialisiere, ladeEntwurf, loescheEntwurf, raeumeAuf, serialisiere, speichereEntwurf,
+  SELBST_SENDEN_MS, deserialisiere, ladeEntwurf, loescheEntwurf, raeumeAuf, serialisiere, speichereEntwurf,
   type Sendung,
 } from "./ablage";
 import { istVeralteteAktion, wartezeit, type SendeZustand } from "./senden";
@@ -176,7 +176,8 @@ export function useEntwurf<S, N = unknown, R = unknown>(opt: EntwurfOptionen<S, 
     raeumeAuf();
     const e = ladeEntwurf<S>(schluessel);
     // Ein neuer Schlüssel erbt keine Sendung des vorigen (ein Dialog für mehrere Gegenstände).
-    sendung.current = e?.sendung ?? null;
+    // Eine zu alte Sendung geht nicht von selbst raus (`SELBST_SENDEN_MS`); die Eingaben bleiben.
+    sendung.current = e?.sendung && Date.now() - e.sendung.seit <= SELBST_SENDEN_MS ? e.sendung : null;
     if (e) {
       const gelesen = serialisiere(e.stand);
       if (gelesen !== anfang) {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button, Card, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Progress } from "antd";
 import dayjs from "dayjs";
 import { loescheEntwurf } from "@/core/entwurf/ablage";
+import { fingerabdruck } from "@/core/entwurf/ablage";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
@@ -232,7 +233,7 @@ export function GeraetAkte({
       </Modal>
 
       {aendern && <GeraetFormular
-        entwurfSchluessel={`wartung:geraet:${g.id}`}
+        entwurfSchluessel={`wartung:geraet:${g.id}:${fingerabdruck(g)}`}
         offen
         titel="Gerät bearbeiten"
         start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise }}

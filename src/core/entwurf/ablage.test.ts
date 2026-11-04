@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import dayjs from "dayjs";
 import {
-  HALTBARKEIT_MS, PRAEFIX, deserialisiere, entwurfSchluessel, ladeEntwurf, loescheEntwurf,
+  HALTBARKEIT_MS, PRAEFIX, deserialisiere, fingerabdruck, entwurfSchluessel, ladeEntwurf, loescheEntwurf,
   raeumeAuf, serialisiere, speichereEntwurf, vergissFluechtig,
 } from "./ablage";
 import { entwurfMeldung } from "./meldung";
@@ -36,13 +36,35 @@ describe("ablage", () => {
     expect(zurueck.s).toBe("x");
   });
 
-  it("verwirft alte Entwürfe, eine offene Sendung aber nie", () => {
+  it("verwirft alte Entwürfe, auch mit offener Sendung", () => {
     const alt = Date.now() - HALTBARKEIT_MS - 1;
     speichereEntwurf("m:alt", eintrag({ a: 1 }, alt));
     speichereEntwurf("m:sendung", { ...eintrag({ a: 1 }, alt), sendung: { id: "s", nutzlast: {}, seit: alt, versuche: 1 } });
+    speichereEntwurf("m:frisch", eintrag({ a: 1 }));
     raeumeAuf();
     expect(ladeEntwurf("m:alt")).toBeNull();
-    expect(ladeEntwurf("m:sendung")?.sendung?.id).toBe("s");
+    expect(ladeEntwurf("m:sendung")).toBeNull();
+    expect(ladeEntwurf("m:frisch")).not.toBeNull();
+  });
+
+  it("liest den neuesten Stand, auch wenn localStorage voll ist", () => {
+    speichereEntwurf("m:v", eintrag({ a: 1 }));
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error("QuotaExceeded");
+    };
+    try {
+      speichereEntwurf("m:v", eintrag({ a: 2 }));
+      expect(ladeEntwurf<{ a: number }>("m:v")?.stand.a).toBe(2);
+    } finally {
+      Storage.prototype.setItem = orig;
+    }
+  });
+
+  it("gibt einem Serverstand einen kurzen, stabilen Fingerabdruck", () => {
+    expect(fingerabdruck({ a: 1, b: "x" })).toBe(fingerabdruck({ a: 1, b: "x" }));
+    expect(fingerabdruck({ a: 1, b: "x" })).not.toBe(fingerabdruck({ a: 1, b: "y" }));
+    expect(fingerabdruck({ a: 1 })).toMatch(/^[0-9a-z]{1,7}$/);
   });
 
   it("trägt im Arbeitsspeicher weiter, wenn localStorage wirft", () => {

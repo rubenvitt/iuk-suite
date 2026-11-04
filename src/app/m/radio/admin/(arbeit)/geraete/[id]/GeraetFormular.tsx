@@ -6,6 +6,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { AutoComplete, Button, Checkbox, Col, DatePicker, Form, Input, Row, Select } from "antd";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { loescheEntwurf } from "@/core/entwurf/ablage";
+import { fingerabdruck } from "@/core/entwurf/ablage";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
 import { geraetAendernAction } from "../../../actions";
@@ -463,7 +464,8 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
    * ⚠️ NACH DEM SPEICHERN NUR LOESCHEN, NICHT `verwerfen()`: das setzte per `resetFields` auf die
    * `initialValues` des ersten Aufbaus zurueck, also auf den Stand VOR dem Speichern.
    */
-  const entwurfSchluessel = `radio:geraet:${geraet.id}`;
+  // IDA-358: der Serverstand im Schlüssel — ein Entwurf gegen einen älteren Stand findet sich nicht wieder.
+  const entwurfSchluessel = `radio:geraet:${geraet.id}:${fingerabdruck(geraet)}`;
   const entwurf = useFormEntwurf<FormularWerte>(form, entwurfSchluessel, { ohne: ["updateNote"] });
   const [gespeichert, setGespeichert] = useState(false);
 

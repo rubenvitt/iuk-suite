@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Switch } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { fingerabdruck } from "@/core/entwurf/ablage";
 import { serialisiere } from "@/core/entwurf/ablage";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
@@ -47,7 +48,7 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
    */
   const geaendert = e && ausgang && serialisiere(e) !== serialisiere(ausgang) ? e : null;
   const entwurf = useEntwurf<Entwurf | null>({
-    schluessel: e ? `wartung:art:${e.id ?? "neu"}` : null,
+    schluessel: e ? `wartung:art:${e.id ? `${e.id}:${fingerabdruck(ausgang)}` : "neu"}` : null,
     stand: geaendert,
     wiederherstellen: (w) => setE(w ?? ausgang),
   });

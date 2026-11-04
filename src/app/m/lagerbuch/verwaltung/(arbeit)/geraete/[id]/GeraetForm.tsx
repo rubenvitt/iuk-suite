@@ -13,6 +13,7 @@ import type { LagerortOption as Lagerort } from "../../../../_lib/lesepfade/bz";
 import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
 import { WAEHLER_IM_BILD } from "@/core/theme/waehlerImBild";
 import { useFormEntwurf } from "@/core/entwurf/useFormEntwurf";
+import { fingerabdruck } from "@/core/entwurf/ablage";
 import { EntwurfZeile } from "../../../../_ui/EntwurfZeile";
 
 export type GeraetInitial = {
@@ -94,7 +95,7 @@ export function GeraetForm({
     Werte,
     Parameters<typeof geraetSpeichern>[0] & object,
     Awaited<ReturnType<typeof geraetSpeichern>>
-  >(form, `lagerbuch:geraet:${initial.id}`, {
+  >(form, `lagerbuch:geraet:${initial.id}:${fingerabdruck(initial)}`, {
     senden: (nutzlast) => geraetSpeichern(nutzlast),
     antwort: (ergebnis) => {
       setZustand(ergebnis);

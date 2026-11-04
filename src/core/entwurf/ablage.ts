@@ -32,6 +32,14 @@ export const PRAEFIX = "iuk-entwurf:";
  */
 export const HALTBARKEIT_MS = 14 * 24 * 60 * 60 * 1000;
 
+/**
+ * Wie lange eine liegende Sendung beim nächsten Aufbau VON SELBST rausgeht. Danach
+ * bleiben nur die Eingaben stehen, und jemand sendet bewusst: auf einem geteilten
+ * Gerät soll eine Ausleihe von vorgestern nicht unter dem alten Namen buchen, wenn
+ * jemand anderes die Seite öffnet.
+ */
+export const SELBST_SENDEN_MS = 24 * 60 * 60 * 1000;
+
 export type Sendung = {
   /** Bleibt über alle Versuche gleich — der Server erkennt daran eine Wiederholung. */
   id: string;
@@ -91,16 +99,24 @@ function speicher(): Storage | null {
   }
 }
 
+/*
+ * Der flüchtige Stand zuerst: innerhalb einer Seite ist er immer der neueste. Ein
+ * `setItem`, das am vollen Speicher scheitert, ließe in `localStorage` sonst einen
+ * älteren Stand stehen, den ein zweites Lesen (Dialog erneut geöffnet) zurückholte.
+ * Nach dem Neuladen ist der flüchtige Stand leer, dann gilt `localStorage`.
+ */
 function roh(schluessel: string): string | null {
   const k = PRAEFIX + schluessel;
+  const neu = fluechtig.get(k);
+  if (neu != null) return neu;
   try {
     const s = speicher();
     const w = s?.getItem(k);
     if (w != null) return w;
   } catch {
-    /* weiter mit dem flüchtigen Stand */
+    /* kein Speicher */
   }
-  return fluechtig.get(k) ?? null;
+  return null;
 }
 
 export function ladeEntwurf<S>(schluessel: string, jetzt = Date.now()): Eintrag<S> | null {
@@ -109,8 +125,9 @@ export function ladeEntwurf<S>(schluessel: string, jetzt = Date.now()): Eintrag<
   try {
     const e = deserialisiere<Eintrag<S>>(text);
     if (!e || typeof e !== "object" || !("stand" in e)) return null;
-    // Eine offene Sendung verfällt nicht: sie ist eine Zusage, dass etwas ankommt.
-    if (!e.sendung && jetzt - (e.geaendert ?? 0) > HALTBARKEIT_MS) {
+    // Auch eine offene Sendung verfällt: nach `SELBST_SENDEN_MS` geht sie ohnehin nicht
+    // mehr von selbst raus, und zwei Wochen später gehört sie nicht mehr auf das Gerät.
+    if (jetzt - (e.geaendert ?? 0) > HALTBARKEIT_MS) {
       loescheEntwurf(schluessel);
       return null;
     }
@@ -143,6 +160,30 @@ export function loescheEntwurf(schluessel: string): void {
   } catch {
     /* nichts zu tun */
   }
+}
+
+/**
+ * Kurzer Fingerabdruck eines Serverstands, für den Schlüssel eines Entwurfs, der
+ * einen BESTEHENDEN Datensatz bearbeitet:
+ *
+ *   `radio:geraet:${id}:${fingerabdruck(geraet)}`
+ *
+ * ⚠️ OHNE IHN ÜBERSCHRIEBE EIN ALTER ENTWURF NEUERE WERTE. Der Entwurf ist ein ganzer
+ * Formularstand; hat inzwischen jemand anderes den Datensatz geändert, schickte das
+ * nächste Speichern die alten Werte der unberührten Felder mit zurück. Mit dem
+ * Fingerabdruck im Schlüssel findet sich ein Entwurf nur, solange der Serverstand
+ * derselbe ist, gegen den getippt wurde; sonst verfällt er nach `HALTBARKEIT_MS`.
+ *
+ * FNV-1a über die Serialisierung — kein Sicherheitsmerkmal, nur ein Vergleich.
+ */
+export function fingerabdruck(stand: unknown): string {
+  const text = serialisiere(stand) ?? "";
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 /** Alle Schlüssel (ohne Präfix) mit Entwurf auf diesem Gerät. */

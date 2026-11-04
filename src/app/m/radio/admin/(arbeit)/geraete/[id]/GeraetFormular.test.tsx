@@ -99,7 +99,7 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../../_lib/quelltextScan";
-import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
+import { fingerabdruck, ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { FELD_ETIKETTEN } from "../../../../_lib/lesepfade/ereignisse";
 import type { GeraetFormWerte, Vorschlagsfeld } from "../../../../_lib/lesepfade/geraete";
 import { GERAETE_MODI, STATUS_OPTIONEN } from "../../../../_lib/geraeteFelder";
@@ -1051,23 +1051,36 @@ describe("radio-Geraetakte: Entwurf auf dem Geraet (IDA-358)", () => {
     <GeraetFormular geraet={werte(teil)} rolle="admin" vorschlaege={LEERE_VORSCHLAEGE} versionen={["FW 1", "FW 2"]} />,
   );
 
+  // Der Serverstand steht im Schluessel (Review zu #502): ein Entwurf gilt nur gegen den Stand, gegen den getippt wurde.
+  const schluessel = (teil: Partial<GeraetFormWerte> = {}) => `radio:geraet:g-1:${fingerabdruck(werte(teil))}`;
+
   it("eine ungespeicherte Eingabe uebersteht ein Neuladen, die Update-Anmerkung nicht", async () => {
     await formular();
     await fill("#tei", "TEI-4711");
     await fill("#updateNote", "nicht ablegen");
-    expect(ladeEntwurf<Record<string, unknown>>("radio:geraet:g-1")?.stand).not.toHaveProperty("updateNote");
+    expect(ladeEntwurf<Record<string, unknown>>(schluessel())?.stand).toHaveProperty("tei", "TEI-4711");
+    expect(ladeEntwurf<Record<string, unknown>>(schluessel())?.stand).not.toHaveProperty("updateNote");
     await unmount();
     await formular();
     expect(document.querySelector<HTMLInputElement>("#tei")!.value).toBe("TEI-4711");
     expect(document.querySelector("[data-rolle='entwurf-hinweis']")?.textContent).toContain("Eingaben wiederhergestellt.");
   });
 
+  it("hat sich der Serverstand inzwischen geaendert, kommt der alte Entwurf nicht zurueck", async () => {
+    await formular();
+    await fill("#tei", "TEI-4711");
+    await unmount();
+    await formular({ rufname: "von jemand anderem" });
+    expect(document.querySelector<HTMLInputElement>("#tei")!.value).not.toBe("TEI-4711");
+  });
+
   it("nach bestaetigtem Speichern ist der Entwurf geloescht, die Werte bleiben stehen", async () => {
     aendernMock.mockResolvedValue({ ok: true });
     await formular();
     await fill("#tei", "TEI-4711");
+    expect(ladeEntwurf(schluessel())).not.toBeNull();
     await click('[data-rolle="radio-formular-speichern"]');
-    expect(ladeEntwurf("radio:geraet:g-1")).toBeNull();
+    expect(ladeEntwurf(schluessel())).toBeNull();
     expect(document.querySelector<HTMLInputElement>("#tei")!.value).toBe("TEI-4711");
   });
 });

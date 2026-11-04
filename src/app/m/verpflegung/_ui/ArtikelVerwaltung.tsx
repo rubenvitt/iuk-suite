@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { App, Button, Form, Input, InputNumber, Modal, Segmented, Select } from "antd";
 import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { fingerabdruck } from "@/core/entwurf/ablage";
 import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -50,7 +51,7 @@ export function ArtikelVerwaltung({ artikel, bestand }: { artikel: ArtikelDTO[];
   const [geaendert, setGeaendert] = useState<Werte | null>(null);
   const ausgang = offen === null ? null : offen === "neu" ? NEU : werteAus(offen);
   const entwurf = useEntwurf<Werte | null>({
-    schluessel: offen === null ? null : `verpflegung:artikel:${offen === "neu" ? "neu" : offen.id}`,
+    schluessel: offen === null ? null : `verpflegung:artikel:${offen === "neu" ? "neu" : `${offen.id}:${fingerabdruck(ausgang)}`}`,
     stand: geaendert,
     wiederherstellen: (w) => {
       if (w) form.setFieldsValue(w);

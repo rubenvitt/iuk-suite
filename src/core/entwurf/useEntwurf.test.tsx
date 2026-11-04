@@ -2,7 +2,7 @@
 import { act, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, fill, mount, query, unmount } from "@/app/m/qr/_lib/test-dom";
-import { ladeEntwurf, vergissFluechtig } from "./ablage";
+import { SELBST_SENDEN_MS, ladeEntwurf, vergissFluechtig } from "./ablage";
 import { useEntwurf } from "./useEntwurf";
 import { useEntwurfMeldung } from "./useEntwurfMeldung";
 
@@ -135,6 +135,25 @@ describe("useEntwurf", () => {
     await mount(<Formular />);
     expect(ids).toEqual([id]);
     expect(gespeichert()).toBeNull();
+  });
+
+  it("sendet eine zu alte Sendung nicht von selbst, die Eingaben bleiben", async () => {
+    senden = async () => { throw new TypeError("Failed to fetch"); };
+    await mount(<Formular />);
+    await fill("#feld", "alt");
+    await click("#senden");
+    await unmount();
+    const e = gespeichert()!;
+    localStorage.setItem("iuk-entwurf:test:formular", JSON.stringify({
+      ...e, sendung: { ...e.sendung!, seit: Date.now() - SELBST_SENDEN_MS - 1 },
+    }));
+    vergissFluechtig();
+    const s = vi.fn(async () => ({ ok: true }));
+    senden = s;
+    await mount(<Formular />);
+    expect(s).not.toHaveBeenCalled();
+    expect(query<HTMLInputElement>("#feld").value).toBe("alt");
+    expect(query("#zustand").textContent).toBe("ruhe");
   });
 
   it("lädt bei einer nach dem Rollout unbekannten Server Action einmal neu", async () => {
