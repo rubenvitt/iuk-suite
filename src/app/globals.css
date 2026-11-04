@@ -324,6 +324,24 @@ select {
 }
 
 /*
+ * Dasselbe an einer klickbaren Karte (`Card hoverable`: Kacheln, Kennzahlen, Gruppenkarten), nur
+ * schwächer — eine Fläche von 300px gibt bei 0.97 sichtbar 9px nach. `.ant-card-hoverable` ist ein
+ * antd-Klassenname (Falle 20, `bewegung.test.ts`). Die Übergänge für Rand und Schatten führt die
+ * Regel mit, weil der Shorthand antds eigene (0,1,0) ganz ersetzt.
+ */
+:root .ant-card-hoverable {
+  transition:
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    transform var(--iuk-feder-dauer) var(--iuk-feder);
+}
+
+:root .ant-card-hoverable:active {
+  transform: scale(0.985);
+  transition-duration: 60ms;
+}
+
+/*
  * Ein sichtbarer Fokusring für eigenes Markup. `:where` hält die Regel bei
  * (0,0,0), damit Modul-CSS sie weiterhin gezielt ersetzen kann; antd zeichnet
  * seinen Ring selbst (`controlOutline`, `colorPrimaryBorder`).
