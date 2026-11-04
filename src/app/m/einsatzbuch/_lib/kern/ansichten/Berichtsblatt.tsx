@@ -37,13 +37,15 @@ export function Berichtsblatt({ daten: d, bereitschaft, unveraendert }: { daten:
         <div><dt className={b.kicker}>Beginn</dt><dd>{d.beginn}</dd></div>
         <div><dt className={b.kicker}>Ende</dt><dd>{d.ende}</dd></div>
         <div><dt className={b.kicker}>Dauer</dt><dd>{d.dauer}</dd></div>
-        <div className={b.breit}><dt className={b.kicker}>Objekt, Lage vor Ort</dt><dd>{d.objekt}</dd></div>
+        {/* Ein verknüpfter Einsatz steht neben dem Objekt statt in einer eigenen Zeile: Mit ihr
+            passte die Vektordatei (Reader-E2E) nicht mehr auf eine A4-Seite. */}
+        <div className={d.umsysteme.length > 0 ? b.zweispaltig : b.breit}><dt className={b.kicker}>Objekt, Lage vor Ort</dt><dd>{d.objekt}</dd></div>
+        {d.umsysteme.map((u) => (
+          <div key={u.system}><dt className={b.kicker}>{`${u.titel}-Einsatz`}</dt><dd data-umsystem={u.system}>{u.einsatz}</dd></div>
+        ))}
         {d.leitstellenNummer && (
           <div className={b.breit}><dt className={b.kicker}>Einsatznummer Leitstelle</dt><dd data-leitstelle="">{d.leitstellenNummer}</dd></div>
         )}
-        {d.umsysteme.map((u) => (
-          <div key={u.system} className={b.breit}><dt className={b.kicker}>{`${u.titel}-Einsatz`}</dt><dd data-umsystem={u.system}>{u.einsatz}</dd></div>
-        ))}
       </dl>
 
       <dl className={b.zahlen}>
