@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { App, Button, Tag } from "antd";
+import { App, Button } from "antd";
+import { Statuschip } from "@/core/status/Statuschip";
 import {
   Kartentabelle,
   filterAktiv,
@@ -168,7 +169,7 @@ function Liste<T extends Stammeintrag>({
           title: "Status",
           key: "status",
           ...status,
-          render: (_: unknown, e: T) => <Tag color={e.aktiv ? "green" : "default"}>{e.aktiv ? "aktiv" : "inaktiv"}</Tag>,
+          render: (_: unknown, e: T) => <Statuschip ton={e.aktiv ? "ok" : "neutral"}>{e.aktiv ? "aktiv" : "inaktiv"}</Statuschip>,
         },
         {
           title: "Aktionen",
