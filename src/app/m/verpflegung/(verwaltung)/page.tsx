@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "antd";
+import { Kennzahl, Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { getDb } from "../_db/client";
 import { bestandJeArtikel, ladeBuchungen, ladeSicht, unterMindest } from "../_lib/daten";
@@ -12,14 +13,9 @@ import s from "../_ui/verpflegung.module.css";
 
 export const dynamic = "force-dynamic";
 
+/** Eine Kennzahl, die zu ihrer Liste führt; bei null kein Befund (kein Punkt). */
 function Kpi({ zahl, text, farbe, href }: { zahl: number; text: string; farbe: "rot" | "gelb"; href: string }) {
-  const klasse = zahl === 0 ? "" : farbe === "rot" ? s.kpiRot : s.kpiGelb;
-  return (
-    <Link href={href} className={`${s.kpi} ${klasse}`}>
-      <span className={s.kpiZahl}>{zahl}</span>
-      <span className={s.neben}>{text}</span>
-    </Link>
-  );
+  return <Kennzahl wert={zahl} label={text} ton={zahl === 0 ? undefined : farbe === "rot" ? "fehler" : "warnung"} href={href} />;
 }
 
 /** Übersicht: was abläuft, was fehlt, was zuletzt gebucht wurde. */
@@ -38,12 +34,12 @@ export default async function Uebersicht() {
   return (
     <>
       <Seitenkopf titel="Übersicht" />
-      <div className={s.kpis}>
+      <Kennzahlen aria-label="Lage">
         <Kpi zahl={abgelaufen.length} text="Chargen abgelaufen" farbe="rot" href="/mhd" />
         <Kpi zahl={kritisch.length} text="Chargen kritisch" farbe="rot" href="/mhd" />
         <Kpi zahl={bald.length} text="Chargen laufen bald ab" farbe="gelb" href="/mhd" />
         <Kpi zahl={fehlt.length} text="Artikel unter Mindestbestand" farbe="gelb" href="/artikel" />
-      </div>
+      </Kennzahlen>
       <div className={s.zwei}>
         <Card title="Läuft als Nächstes ab">
           {naechste.length === 0 ? (

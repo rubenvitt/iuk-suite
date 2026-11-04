@@ -3,13 +3,17 @@
  * gleich benutzen (Falle 1, Falle 6).
  */
 import type { ReactNode } from "react";
+import { Statuschip, type Statuston } from "@/core/status/Statuschip";
 import { ampelText, datumLang, restText, type MhdStatus } from "../_lib/mhd";
 import s from "./verpflegung.module.css";
 
 export type Farbe = "ok" | "gelb" | "rot" | "grau";
 
-export function Chip({ farbe, children, punkt }: { farbe: Farbe; children: ReactNode; punkt?: boolean }) {
-  return <span className={`${s.chip} ${s[farbe]}`}>{punkt && <span className={s.punkt} aria-hidden />}{children}</span>;
+/** Der Statuschip aus `core/status` (Haarlinie); `rot` (abgelaufen, gesperrt) ist der Fehlerton. Er trägt immer einen Punkt. */
+const TON: Record<Farbe, Statuston> = { ok: "ok", gelb: "warnung", rot: "fehler", grau: "neutral" };
+
+export function Chip({ farbe, children }: { farbe: Farbe; children: ReactNode; punkt?: boolean }) {
+  return <Statuschip ton={TON[farbe]}>{children}</Statuschip>;
 }
 
 /** Die Ampel neben dem Datum. Bedeutung nie allein über Farbe: das Wort steht immer dabei. */

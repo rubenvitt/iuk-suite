@@ -4,14 +4,18 @@
  */
 import type { ReactNode } from "react";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
+import { Statuschip, type Statuston } from "@/core/status/Statuschip";
 import { artIkone } from "../_lib/eingabe";
 import { datum, STUFE_TEXT, ZUSTAND_TEXT, type FristStand, type Stufe, type Zustand } from "../_lib/fristen";
 import s from "./wartung.module.css";
 
 export type Farbe = "ok" | "gelb" | "rot" | "grau";
 
+/** Der Statuschip aus `core/status`; `rot` (überfällig, defekt) ist der Fehlerton. */
+const TON: Record<Farbe, Statuston> = { ok: "ok", gelb: "warnung", rot: "fehler", grau: "neutral" };
+
 export function Chip({ farbe, children }: { farbe: Farbe; children: ReactNode }) {
-  return <span className={`${s.chip} ${s[farbe]}`}>{children}</span>;
+  return <Statuschip ton={TON[farbe]}>{children}</Statuschip>;
 }
 
 export const STUFE_FARBE: Record<Stufe, Farbe> = { ueberfaellig: "rot", bald: "gelb", ok: "ok" };

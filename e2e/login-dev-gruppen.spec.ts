@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test"; import { E2E_PORT } from "./hel
  * Kette hat keinen anderen Beobachter als einen echten Abruf.
  *
  * DIE ZWEITE ZUSAGE STEHT IM DRITTEN TEST: ohne Häkchen ist das Ergebnis exakt
- * der Freitext. Daran hängt `e2e/fixtures.ts:18` und mit ihm jede anmeldende
+ * der Freitext. Daran hängt `devLogin` (`e2e/fixtures.ts`) und mit ihm jede anmeldende
  * Spec der Suite — die Häkchen sind eine Ergänzung des Formulars, keine
  * Umstellung seines Vertrags.
  */

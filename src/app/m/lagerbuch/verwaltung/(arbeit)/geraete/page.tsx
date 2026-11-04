@@ -1,5 +1,3 @@
-import { Col, Row } from "antd";
-import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../_db/client";
 import type { Leser } from "../../../_lib/lesepfade/bestand";
 import {
@@ -9,6 +7,7 @@ import {
 import { lagerortOptionen } from "../../../_lib/lesepfade/bz";
 import { standortZeile } from "../../../_lib/konstanten";
 import { Kachel } from "../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import {
   GeraeteListe,
@@ -69,32 +68,24 @@ export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
         titel="Geräte"
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={mtkFaellig}
-            beschriftung="MTK fällig/bald"
-            ton={mtkFaellig ? "gelb" : "ok"}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={mtkUeberfaellig}
-            beschriftung="MTK überfällig"
-            ton={mtkUeberfaellig ? "rot" : "ok"}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={objektAblaufend}
-            beschriftung="Objekte ablaufend"
-            ton={objektAblaufend ? "gelb" : "ok"}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
+        <Kachel
+          zahl={mtkFaellig}
+          beschriftung="MTK fällig/bald"
+          ton={mtkFaellig ? "gelb" : "ok"}
+        />
+        <Kachel
+          zahl={mtkUeberfaellig}
+          beschriftung="MTK überfällig"
+          ton={mtkUeberfaellig ? "rot" : "ok"}
+        />
+        <Kachel
+          zahl={objektAblaufend}
+          beschriftung="Objekte ablaufend"
+          ton={objektAblaufend ? "gelb" : "ok"}
+        />
+      </Kennzahlen>
 
       <GeraeteListe zeilen={zeilen} lagerorte={lagerorte} />
     </>

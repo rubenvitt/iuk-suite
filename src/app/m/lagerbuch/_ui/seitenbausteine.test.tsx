@@ -4,8 +4,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 import { SeitenKopf } from "./SeitenKopf";
-import { Kachel } from "./Kachel";
-import s from "./verwaltung.module.css";
+import { Kachel, istTextwert } from "./Kachel";
 
 function parseQuelle(quelle: string): ts.SourceFile {
   return ts.createSourceFile(
@@ -144,36 +143,29 @@ describe("Kachel", () => {
 
   it("die Zahl traegt tabular-nums und KEINE Farbe", async () => {
     await mount(<Kachel zahl={12} beschriftung="offene Bestellpositionen" ton="rot" />);
-    const zahl = query("[data-rolle='kachelzahl']");
+    const zahl = query("[data-kennzahl-wert]");
     expect(zahl.getAttribute("style")).toMatch(/font-variant-numeric:\s*tabular-nums/);
-    // Eine rote 7 IST Rot auf einer Datenflaeche — die Kante traegt die Farbe,
+    // Eine rote 7 IST Rot auf einer Datenflaeche — der Punkt traegt die Farbe,
     // die Zahl traegt Tinte (§6.6.4).
     expect(zahl.getAttribute("style")).not.toMatch(/color:/);
   });
 
   it.each([
-    ["rot", "kpiRot"],
-    ["gelb", "kpiGelb"],
-    ["ok", "kpiOk"],
-  ] as const)("faerbt bei Ton %s die Kante ueber .%s", async (ton, klasse) => {
+    ["rot", "fehler"],
+    ["gelb", "warnung"],
+    ["ok", "ok"],
+  ] as const)("zeigt bei Ton %s den Punkt im Ton %s", async (ton, kern) => {
     await mount(<Kachel zahl={1} beschriftung="x" ton={ton} />);
-    expect(query(`.${s.kpi}`).className.split(" ")).toContain(s[klasse]);
+    expect(query("[data-kennzahl]").dataset.kennzahl).toBe(kern);
+    expect(exists("[aria-hidden=true]")).toBe(true);
   });
 
-  it("bekommt ohne Ton keine Kantenklasse", async () => {
-    await mount(<Kachel zahl={1} beschriftung="x" />);
-    const klassen = query(`.${s.kpi}`).className.split(" ");
-    expect(klassen).not.toContain(s.kpiRot);
-    expect(klassen).not.toContain(s.kpiGelb);
-    expect(klassen).not.toContain(s.kpiOk);
-  });
-
-  it("`grau` faerbt die Kante NICHT — er ist kein Ampelwert", async () => {
-    await mount(<Kachel zahl={1} beschriftung="x" ton="grau" />);
-    const klassen = query(`.${s.kpi}`).className.split(" ");
-    expect(klassen).not.toContain(s.kpiRot);
-    expect(klassen).not.toContain(s.kpiGelb);
-    expect(klassen).not.toContain(s.kpiOk);
+  it("ohne Ton und bei `grau` gibt es keinen Punkt — grau ist kein Ampelwert", async () => {
+    for (const ton of [undefined, "grau" as const]) {
+      await mount(<Kachel zahl={1} beschriftung="x" ton={ton} />);
+      expect(exists("[aria-hidden=true]")).toBe(false);
+      await unmount();
+    }
   });
 
   it("mit href wird sie ein Link mit Chevron", async () => {
@@ -182,7 +174,6 @@ describe("Kachel", () => {
     await mount(<Kachel zahl={3} beschriftung="abgelaufen" ton="rot" href="/verwaltung/verfall" />);
     const a = query("a");
     expect(a.getAttribute("href")).toBe("/verwaltung/verfall");
-    expect(a.className.split(" ")).toContain(s.kpiLink);
     expect(exists("a svg")).toBe(true);
   });
 
@@ -190,6 +181,17 @@ describe("Kachel", () => {
     await mount(<Kachel zahl={3} beschriftung="Buchungen im Journal" />);
     expect(exists("a")).toBe(false);
     expect(exists("svg")).toBe(false);
+  });
+
+  it.each([
+    ["Medizin", true],
+    ["MTK in 5 T", true],
+    ["12 bar", false],
+    ["85 %", false],
+    ["–", false],
+    [7, false],
+  ] as const)("„%s“ ist Textwert: %s", (zahl, text) => {
+    expect(istTextwert(zahl)).toBe(text);
   });
 });
 

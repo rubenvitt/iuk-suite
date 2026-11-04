@@ -1,4 +1,4 @@
-import { Card, Col, Row } from "antd";
+import { Card } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
@@ -9,6 +9,7 @@ import { o2FlascheDetail, type O2MessungZeile } from "../../../../_lib/lesepfade
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import s from "../../../../_ui/verwaltung.module.css";
 import { FlascheAktivToggle } from "./FlascheAktivToggle";
@@ -56,42 +57,34 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         */
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={juengste ? `${juengste.druckBar} bar` : "–"}
-            beschriftung="Aktueller Druck"
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={status === null ? "unbekannt" : `${status.prozent} %`}
-            beschriftung="Füllstand"
-            ton={status === null ? "grau" : ampelTon(status.ampel)}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={`${flasche.nennfuelldruckBar} bar`}
-            beschriftung="Nennfülldruck"
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={(
-              // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-              // Zweizeiler in einer Kachel, keine Geschwisterzeile in diesem
-              // Zuschnitt, die einen Skalenwert nahelegen wuerde.
-              <span style={{ display: "grid", gap: 2 }}>
-                <span>{flasche.aktiv ? "Aktiv" : "Inaktiv"}</span>
-                <span style={SCHRIFT.neben}>{standortZeile(detail.lagerortStandort)}</span>
-              </span>
-            )}
-            beschriftung="Status / Standort"
-            ton={flasche.aktiv ? "ok" : "grau"}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel
+          zahl={juengste ? `${juengste.druckBar} bar` : "–"}
+          beschriftung="Aktueller Druck"
+        />
+        <Kachel
+          zahl={status === null ? "unbekannt" : `${status.prozent} %`}
+          beschriftung="Füllstand"
+          ton={status === null ? "grau" : ampelTon(status.ampel)}
+        />
+        <Kachel
+          zahl={`${flasche.nennfuelldruckBar} bar`}
+          beschriftung="Nennfülldruck"
+        />
+        <Kachel
+          zahl={(
+            // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+            // Zweizeiler in einer Kachel, keine Geschwisterzeile in diesem
+            // Zuschnitt, die einen Skalenwert nahelegen wuerde.
+            <span style={{ display: "grid", gap: 2 }}>
+              <span>{flasche.aktiv ? "Aktiv" : "Inaktiv"}</span>
+              <span style={SCHRIFT.neben}>{standortZeile(detail.lagerortStandort)}</span>
+            </span>
+          )}
+          beschriftung="Status / Standort"
+          ton={flasche.aktiv ? "ok" : "grau"}
+        />
+      </Kennzahlen>
 
       {status?.wechseln ? (
         <div className={s.warnbox} style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.lg }}>

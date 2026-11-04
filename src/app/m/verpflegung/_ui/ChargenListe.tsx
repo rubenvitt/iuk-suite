@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Segmented } from "antd";
+import { Button } from "antd";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { Kartentabelle, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
 import { datumLang, mengeText } from "../_lib/mhd";
@@ -11,11 +12,11 @@ import { AmpelChip } from "./teile";
 import s from "./verpflegung.module.css";
 
 type Sicht = "alle" | "abgelaufen" | "kritisch" | "bald";
-const SICHTEN: { value: Sicht; label: string }[] = [
-  { value: "alle", label: "Alle" },
-  { value: "abgelaufen", label: "Abgelaufen" },
-  { value: "kritisch", label: "Kritisch" },
-  { value: "bald", label: "Bald" },
+const SICHTEN: { wert: Sicht; label: string }[] = [
+  { wert: "alle", label: "Alle" },
+  { wert: "abgelaufen", label: "Abgelaufen" },
+  { wert: "kritisch", label: "Kritisch" },
+  { wert: "bald", label: "Bald" },
 ];
 
 function passt(c: ChargeSicht, sicht: Sicht): boolean {
@@ -38,7 +39,7 @@ export function ChargenListe({ titel, chargen, kontrolle }: { titel: string; cha
     <>
       <Seitenkopf
         titel={titel}
-        aktionen={kontrolle ? <Segmented<Sicht> aria-label="Stufe" value={sicht} onChange={setSicht} options={SICHTEN} /> : undefined}
+        aktionen={kontrolle ? <Filterchips<Sicht> aria-label="Stufe" wert={sicht} onChange={setSicht} optionen={SICHTEN} /> : undefined}
       />
       <Kartentabelle<ChargeSicht>
         rowKey="id"

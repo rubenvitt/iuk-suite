@@ -199,7 +199,7 @@ das vorhandene `switcherEntries()`, rendert den Titel-Link und `SuiteNav`. `Full
 heute.
 
 `switcherEntries()` bleibt serverseitig, weil `moduleUrl()` `process.env` liest, das im Client-Bundle
-fehlt — dieselbe Begründung wie im heutigen Kommentar in `FullShell.tsx:25-28`.
+fehlt — dieselbe Begründung wie im heutigen Kommentar in `FullShell` (damals; heute `core/shell/MenueRahmen.tsx`).
 
 **`SuiteNav`** (Client Component) — Menü-Knopf, Drawer, Desktop-Modulknöpfe, Theme-Umschalter,
 Nutzerblock. Bekommt nur fertige `href`s. `AppSwitcher` geht darin auf und entfällt als eigene Datei.

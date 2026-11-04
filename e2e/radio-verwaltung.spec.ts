@@ -1693,7 +1693,7 @@ test.describe("radio-Verwaltung", () => {
      * angemeldete Person der Suite.
      *
      * ⛔ DIE LEERE GRUPPENLISTE IST DER FALL, und sie ist echt: `devLogin` fuellt das
-     * `groups`-Feld mit `""` (`e2e/fixtures.ts:18`). Die Sitzung ist damit gueltig — der
+     * `groups`-Feld mit `""` (`e2e/fixtures.ts`, `devLogin`). Die Sitzung ist damit gueltig — der
      * anonyme Zweig aus Fall A greift also gerade NICHT, und was hier misst, ist der
      * Gruppenriegel.
      */

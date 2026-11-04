@@ -29,7 +29,6 @@ import type { BestellZeile } from "../../../_lib/lesepfade/bestellung";
 import { bestellAnzeigeZeile, dynamic } from "./page";
 import { BESTELL_DATEINAME } from "@/app/m/lagerbuch/_lib/bestellExport";
 import { bestellListeText } from "@/app/m/lagerbuch/_lib/bestellText";
-import s from "../../../_ui/verwaltung.module.css";
 
 /**
  * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
@@ -161,7 +160,7 @@ function sammelKnopf(beschriftung: string): HTMLButtonElement {
 }
 
 function chipVon(id: string): string | null {
-  return query(`${BREIT} tbody tr[data-row-key='${id}'] .${s.chip}`).textContent;
+  return query(`${BREIT} tbody tr[data-row-key='${id}'] [data-statuschip]`).textContent;
 }
 
 describe("statusChip — Auflage 17", () => {
@@ -209,7 +208,7 @@ describe("statusChip — Auflage 17", () => {
 describe("statusChip-Text im DOM — exakte Trennung ohne Teilstring-Kollision", () => {
   it("'bestellt' (exact) trifft nur den datumslosen Chip, nie 'bestellt seit …'", async () => {
     await mount(<BestellListe zeilen={[BESTELLT_OHNE_DATUM, BESTELLT]} />);
-    const chipTexte = queryAll(`${BREIT} .${s.chip}`).map((el) => el.textContent);
+    const chipTexte = queryAll(`${BREIT} [data-statuschip]`).map((el) => el.textContent);
     expect(chipTexte.filter((text) => text === "bestellt")).toHaveLength(1);
     expect(chipTexte.filter((text) => text === "bestellt seit 01.08.2026")).toHaveLength(1);
   });

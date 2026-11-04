@@ -10,13 +10,13 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  *
  * 1. DIE AUSSAGE. Vitest prüft die Kachel-Props, aber nicht, dass beide Kacheln
  *    auch tatsächlich auf der Seite ankommen — `Kachel` ist eine Server
- *    Component über `Card`, und zwischen Props und Bildschirm liegt die ganze
+ *    Component über `core/kennzahl`, und zwischen Props und Bildschirm liegt die ganze
  *    RSC-Grenze. Ein `WERT` aus einem Client-Modul (Falle 6) oder ein
  *    Compound-Zugriff (Falle 1) zeigt sich erst hier als HTTP 500.
  *
- * 2. DIE BREITE. Aus drei Kacheln sind vier geworden, und die Aufteilung
- *    wechselte von `md={8}` auf `md={12} xl={6}`. `Kachel` nennt 190px als
- *    Untergrenze; vier Spalten ab 768px lägen bei ~180px darunter. ⚠️ KEIN TOR
+ * 2. DIE BREITE. Aus drei Kacheln sind vier geworden; seit der Haarlinie
+ *    bricht die Reihe selbst um (`core/kennzahl`, Mindestbreite je Zahl), und
+ *    190px bleibt die Untergrenze, die hier gemessen wird. ⚠️ KEIN TOR
  *    SIEHT DAS: `typecheck` prüft gültige Zahlen, `build` serialisiert sie
  *    klaglos, und Vitest kann es STRUKTURELL nicht sehen — jsdom rechnet keine
  *    Layoutboxen (Fallen 8/13/16, `CLAUDE.md`). Nur ein echter Browser kennt die
@@ -26,40 +26,34 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
 type Kachelstand = {
   zahl: string;
   text: string;
-  /** Die Ampelkante, aus der CSS-Modul-Klasse gelesen — `null` heißt ungefärbt. */
+  /** Der Ampelpunkt, aus `data-kennzahl` gelesen — `null` heißt ohne Befund. */
   kante: "rot" | "gelb" | "ok" | null;
   breite: number;
 };
 
 /**
- * Zahl, Beschriftung, Kante und Breite jeder Kachel, in der Reihenfolge der
+ * Zahl, Beschriftung, Ton und Breite jeder Kennzahl, in der Reihenfolge der
  * Zeile.
  *
- * ⚠️ DIE KANTE WIRD ÜBER DEN KLASSENNAMEN GELESEN, NICHT ÜBER DIE FARBE: die
- * Palette liegt in `verwaltung.module.css`, und ein Hexwert hier entschiede sie
- * mit. CSS-Module hashen den Namen, behalten den lokalen Teil aber darin — und
- * damit dieses Ablesen nicht STILL ins Leere läuft, prüft der erste Test unten
- * eine Zeile MIT roter und MIT grüner Kante. Fände das Muster nichts, wäre er
+ * ⚠️ DER TON WIRD ÜBER `data-kennzahl` GELESEN, NICHT ÜBER DIE FARBE: die
+ * Palette liegt in `core/status`, und ein Hexwert hier entschiede sie mit.
+ * Damit das Ablesen nicht STILL ins Leere läuft, prüft der erste Test unten
+ * eine Zeile MIT rotem und MIT grünem Ton. Fände das Attribut nichts, wäre er
  * rot; erst dadurch bedeutet die leere Erwartung im zweiten Test etwas.
  */
 async function kacheln(page: Page): Promise<Kachelstand[]> {
-  return page.locator('[data-rolle="kachelzahl"]').evaluateAll((zahlen) =>
+  return page.locator("[data-kennzahl-wert]").evaluateAll((zahlen) =>
     zahlen.map((zahl) => {
-      // span → innerer Flex-Kasten → der Kachelrahmen, der die Kante trägt.
-      const rahmen = zahl.parentElement!.parentElement!;
-      const klassen = rahmen.className;
-      const kante = /kpiRot/.test(klassen) ? "rot"
-        : /kpiGelb/.test(klassen) ? "gelb"
-        : /kpiOk/.test(klassen) ? "ok"
-        : null;
-      const karte = zahl.closest(".ant-card") ?? rahmen;
+      const rahmen = zahl.closest("[data-kennzahl]") as HTMLElement;
+      const ton = rahmen.dataset.kennzahl;
+      const kante = ton === "fehler" ? "rot" : ton === "warnung" ? "gelb" : ton === "ok" ? "ok" : null;
       return {
         zahl: (zahl.textContent ?? "").trim(),
-        // Die Beschriftung ist das Geschwister DES Zahlenkastens, nicht der
-        // ganze Kacheltext — sonst stünde die Zahl mit darin.
-        text: (zahl.parentElement?.nextElementSibling?.textContent ?? "").trim(),
+        // Die Beschriftung ist das Geschwister DER Zahl, nicht der ganze
+        // Kennzahltext — sonst stünde die Zahl mit darin.
+        text: (zahl.nextElementSibling?.textContent ?? "").trim(),
         kante: kante as "rot" | "gelb" | "ok" | null,
-        breite: Math.round(karte.getBoundingClientRect().width),
+        breite: Math.round(rahmen.getBoundingClientRect().width),
       };
     }));
 }
@@ -119,7 +113,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
    * sagte „1 auffällige Verfallsmeldung" und warf beide Zustände zusammen.
    *
    * Der Soll-Artikel trägt eine Angabe, die Erfassung ist also vollständig —
-   * deshalb darf die leere Kachel daneben eine grüne Kante zeigen.
+   * deshalb darf die leere Kennzahl daneben einen grünen Punkt zeigen.
    */
   test("nennt abgelaufen und bald ablaufend als zwei Zahlen", async ({ page }) => {
     const antwort = await page.goto(BLAETTER[0]);
@@ -139,7 +133,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
    * ⚠️ ZWEI NULLEN SIND KEINE ENTWARNUNG, solange nicht jeder Soll-Artikel
    * angesehen wurde — dieselbe Zurückhaltung, mit der die Fahrzeugliste ihr „im
    * grünen Bereich" gatet. `e2e-ungepflegt-fahrzeug` hat einen Soll-Artikel und
-   * keine Meldung: beide Kacheln zeigen 0, und KEINE trägt eine Kante.
+   * keine Meldung: beide Kennzahlen zeigen 0, und KEINE trägt einen Punkt.
    */
   test("gibt ohne vollständige Erfassung keine grüne Kante", async ({ page }) => {
     const antwort = await page.goto(BLAETTER[1]);
@@ -155,11 +149,12 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
   });
 
   /**
-   * ⚠️ 190px IST DIE UNTERGRENZE AUS `Kachel`, nicht eine hier erfundene Zahl.
-   * Gemessen bei 390px (eine Spalte), 768px (zwei) und 1280px (vier).
+   * ⚠️ 190px IST DIE ALTE UNTERGRENZE AUS `Kachel`, nicht eine hier erfundene
+   * Zahl. Gemessen bei 768px und 1280px; am Telefon (390px) stehen zwei je
+   * Zeile, und 150px reichen für eine Zahl mit kurzer Beschriftung.
    */
   for (const breite of [390, 768, 1280]) {
-    test(`hält bei ${breite}px alle vier Kacheln über 190px`, async ({ page }) => {
+    test(`hält bei ${breite}px alle vier Kennzahlen über ${breite < 400 ? 150 : 190}px`, async ({ page }) => {
       await page.setViewportSize({ width: breite, height: 900 });
       const antwort = await page.goto(BLAETTER[0]);
       expect(antwort!.status()).toBe(200);
@@ -171,7 +166,7 @@ test.describe("Kennzahlen auf dem Fahrzeugblatt", () => {
         expect(
           kachel.breite,
           `„${kachel.text}" ist bei ${breite}px nur ${kachel.breite}px breit`,
-        ).toBeGreaterThanOrEqual(190);
+        ).toBeGreaterThanOrEqual(breite < 400 ? 150 : 190);
       }
     });
   }

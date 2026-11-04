@@ -406,9 +406,9 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     await expect(page.getByText("Dieser Check läuft noch")).toHaveCount(0);
     await expect(page.getByText("alten Format")).toHaveCount(0);
 
-    // Die vier Kacheln, mit ihren Zahlen — 5 soll / 2 ist, 3 gewünscht / 1 gebucht.
+    // Die vier Kennzahlen, mit ihren Zahlen — 5 soll / 2 ist, 3 gewünscht / 1 gebucht.
     const kachel = (beschriftung: string) =>
-      page.locator(".ant-card", { hasText: beschriftung }).first();
+      page.locator("[data-kennzahl]", { hasText: beschriftung }).first();
     await expect(kachel("geprüfte Positionen")).toContainText("1");
     await expect(kachel("nachgefüllt")).toContainText("1");
     await expect(kachel("fehlt weiterhin")).toContainText("2");

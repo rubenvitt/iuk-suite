@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Segmented } from "antd";
+import { Button } from "antd";
 import { Ruhezustand } from "@/core/ruhe";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import type { FormularDaten, VorhabenArt, VorhabenKarteDTO } from "../../_lib/vorhabenTypen";
@@ -38,8 +39,8 @@ export function VorhabenListe({ art, kommend, vorbei = [], daten }: {
         aktionen={<Button type="primary" icon={<Icons8Ikone name="plus" groesse={18} />} onClick={() => flyin.oeffne({ art })}>{t.neu}</Button>}
       />
       {art === "event" ? (
-        <Segmented value={zeit} onChange={(w) => setZeit(w as "kommend" | "vorbei")} style={{ justifySelf: "start" }}
-          options={[{ value: "kommend", label: `Kommend (${kommend.length})` }, { value: "vorbei", label: `Vorbei (${vorbei.length})` }]} />
+        <Filterchips<"kommend" | "vorbei"> wert={zeit} onChange={setZeit} aria-label="Zeitraum"
+          optionen={[{ wert: "kommend", label: "Kommend", anzahl: kommend.length }, { wert: "vorbei", label: "Vorbei", anzahl: vorbei.length }]} />
       ) : null}
       {liste.length === 0 ? (
         <Ruhezustand figur="gemeinschaft"

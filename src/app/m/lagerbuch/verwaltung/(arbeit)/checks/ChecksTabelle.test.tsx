@@ -127,8 +127,8 @@ describe("ChecksTabelle", () => {
       zeile.querySelectorAll("[data-zeichen]"),
       (zeichen) => zeichen.getAttribute("data-zeichen"),
     )).toEqual(["warnung", "sauerstoff"]);
-    expect(queryAll(`${BREIT} .${s.rot}`)).toHaveLength(3);
-    expect(queryAll(`${BREIT} .${s.gelb}`)).toHaveLength(1);
+    expect(queryAll(`${BREIT} [data-statuschip=fehler]`)).toHaveLength(3);
+    expect(queryAll(`${BREIT} [data-statuschip=warnung]`)).toHaveLength(1);
     expect(exists(".ant-pagination")).toBe(false);
 
     const quelle = readFileSync(

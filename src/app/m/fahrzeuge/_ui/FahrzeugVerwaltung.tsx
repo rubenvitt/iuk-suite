@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { App, Button, Drawer, Tag } from "antd";
+import { App, Button, Drawer } from "antd";
+import { Statuschip } from "@/core/status/Statuschip";
 import { Kartentabelle, filterAktiv, nachText, trifftWert, werteAlsFilter, zustandsFilter, type FilterZustand } from "@/core/tabelle";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { flyinBreite } from "@/core/theme/flyin";
@@ -87,7 +88,7 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
             title: "Status",
             key: "status",
             ...status,
-            render: (_: unknown, f: FahrzeugDTO) => <Tag color={f.aktiv ? "green" : "default"}>{f.aktiv ? "aktiv" : "außer Dienst"}</Tag>,
+            render: (_: unknown, f: FahrzeugDTO) => <Statuschip ton={f.aktiv ? "ok" : "neutral"}>{f.aktiv ? "aktiv" : "außer Dienst"}</Statuschip>,
           },
           ...(darfVerwalten
             ? [{

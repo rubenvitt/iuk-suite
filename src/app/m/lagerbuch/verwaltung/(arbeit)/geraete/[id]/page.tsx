@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { Col, Row } from "antd";
 import { Seite } from "@/core/seite/Seite";
-import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerortOptionen } from "../../../../_lib/lesepfade/bz";
 import { standortZeile } from "../../../../_lib/konstanten";
 import { geraetById } from "../../../../_lib/lesepfade/geraete";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { GeraetAktivToggle } from "./GeraetAktivToggle";
 import { GeraetForm } from "./GeraetForm";
@@ -41,31 +40,23 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         )}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={geraet.typ === "medizin" ? "Medizin" : "Objekt"}
-            beschriftung="Gerätetyp"
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={chip ? chip.text : "–"}
-            beschriftung={geraet.typ === "medizin" ? "MTK-Fälligkeit" : "Ablauf"}
-            ton={faelligTon}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={standortZeile(detail.lagerortStandort)} beschriftung="Standort" />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={geraet.aktiv ? "aktiv" : "inaktiv"}
-            beschriftung="Status"
-            ton={geraet.aktiv ? "ok" : "gelb"}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel
+          zahl={geraet.typ === "medizin" ? "Medizin" : "Objekt"}
+          beschriftung="Gerätetyp"
+        />
+        <Kachel
+          zahl={chip ? chip.text : "–"}
+          beschriftung={geraet.typ === "medizin" ? "MTK-Fälligkeit" : "Ablauf"}
+          ton={faelligTon}
+        />
+        <Kachel zahl={standortZeile(detail.lagerortStandort)} beschriftung="Standort" />
+        <Kachel
+          zahl={geraet.aktiv ? "aktiv" : "inaktiv"}
+          beschriftung="Status"
+          ton={geraet.aktiv ? "ok" : "gelb"}
+        />
+      </Kennzahlen>
 
       <GeraetForm
         initial={{

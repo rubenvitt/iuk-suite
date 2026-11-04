@@ -18,6 +18,7 @@ import {
   werteAlsFilter,
   zustandsFilter,
 } from "@/core/tabelle";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
 import type { GeraetTyp } from "../../../_lib/domain/geraet";
@@ -92,6 +93,38 @@ const STATUS_FILTER = zustandsFilter<GeraetAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
   { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
 ]);
+
+/**
+ * DIE SCHNELLWAHL UEBER DER TABELLE (Haarlinie, Etappe 3) — Filterchips, die
+ * DIESELBEN Spaltenfilter setzen wie die Koepfe von „Fälligkeit" und „Status".
+ * Sie ist eine Abkuerzung, kein zweiter Filter: ein Haken im Kopf und eine
+ * Pille sind derselbe Zustand. Steht in den beiden Spalten etwas, das keiner
+ * Pille entspricht, ist keine gewaehlt. Andere Spalten (Klasse, Standort)
+ * bleiben, wie sie sind.
+ */
+type Schnellwahl = "alle" | "faellig" | "ohneDatum" | "inaktiv";
+
+const SCHNELLWAHL: Record<Schnellwahl, Pick<FilterZustand, "chip" | "aktiv">> = {
+  alle: { chip: null, aktiv: null },
+  faellig: { chip: ["faellig"], aktiv: null },
+  ohneDatum: { chip: ["ohneDatum"], aktiv: null },
+  inaktiv: { chip: null, aktiv: ["inaktiv"] },
+};
+
+function leer(werte: FilterZustand[string] | undefined): boolean {
+  return !werte || werte.length === 0;
+}
+
+function schnellwahlAus(filter: FilterZustand): Schnellwahl | null {
+  const [chip, aktiv] = [filter.chip, filter.aktiv];
+  if (leer(chip) && leer(aktiv)) return "alle";
+  if (leer(aktiv) && chip?.length === 1) {
+    if (chip[0] === "faellig") return "faellig";
+    if (chip[0] === "ohneDatum") return "ohneDatum";
+  }
+  if (leer(chip) && aktiv?.length === 1 && aktiv[0] === "inaktiv") return "inaktiv";
+  return null;
+}
 
 /** Rot vor gelb vor gruen: was Aufmerksamkeit verlangt, gehoert nach oben. */
 const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
@@ -202,6 +235,7 @@ export function GeraeteListe({
   // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
   const angezeigt = wendeFilterAn(gefiltert, spaltenliste, spaltenFilter);
   const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
+  const zaehle = (trifft: (zeile: GeraetAnzeigeZeile) => boolean) => gefiltert.filter(trifft).length;
 
   return (
     <>
@@ -220,6 +254,20 @@ export function GeraeteListe({
         </Button>
         <NeuGeraet lagerorte={lagerorte} />
       </Flex>
+
+      <div style={{ marginBlockEnd: SPACE.sm }}>
+        <Filterchips<Schnellwahl>
+          aria-label="Schnellwahl"
+          wert={schnellwahlAus(spaltenFilter)}
+          onChange={(w) => setSpaltenFilter((vorher) => ({ ...vorher, ...SCHNELLWAHL[w] }))}
+          optionen={[
+            { wert: "alle", label: "Alle", anzahl: gefiltert.length },
+            { wert: "faellig", label: "Fällig", anzahl: zaehle((z) => FAELLIG_FILTER.onFilter("faellig", z)) },
+            { wert: "ohneDatum", label: "Ohne Datum", anzahl: zaehle((z) => FAELLIG_FILTER.onFilter("ohneDatum", z)) },
+            { wert: "inaktiv", label: "Inaktiv", anzahl: zaehle((z) => !z.aktiv) },
+          ]}
+        />
+      </div>
 
       <Kartentabelle<GeraetAnzeigeZeile>
         rowKey="id"

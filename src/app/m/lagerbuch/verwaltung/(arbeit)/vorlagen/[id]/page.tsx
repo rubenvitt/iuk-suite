@@ -1,4 +1,4 @@
-import { Card, Col, Row } from "antd";
+import { Card } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
@@ -7,6 +7,7 @@ import { artikelListe } from "../../../../_lib/lesepfade/artikel";
 import { templateDetail } from "../../../../_lib/lesepfade/fahrzeuge";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { TemplateAktionen } from "./TemplateAktionen";
 import { TemplatePosEditor } from "./TemplatePosEditor";
@@ -65,31 +66,25 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         )}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
+      <Kennzahlen>
         {/* IDA-239 — eine Kachel mit Zahl führt zu ihrer Liste; bei null gibt
-            es dort nichts zu sehen. */}
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={positionen.length}
-            beschriftung="Positionen"
-            href={positionen.length > 0 ? "#positionen" : undefined}
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={faecher}
-            beschriftung="Fächer"
-            href={faecher > 0 ? "#positionen" : undefined}
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={verknuepfteFahrzeuge.length}
-            beschriftung="Einheiten"
-            href={verknuepfteFahrzeuge.length > 0 ? "#einheiten" : undefined}
-          />
-        </Col>
-      </Row>
+          es dort nichts zu sehen. */}
+        <Kachel
+          zahl={positionen.length}
+          beschriftung="Positionen"
+          href={positionen.length > 0 ? "#positionen" : undefined}
+        />
+        <Kachel
+          zahl={faecher}
+          beschriftung="Fächer"
+          href={faecher > 0 ? "#positionen" : undefined}
+        />
+        <Kachel
+          zahl={verknuepfteFahrzeuge.length}
+          beschriftung="Einheiten"
+          href={verknuepfteFahrzeuge.length > 0 ? "#einheiten" : undefined}
+        />
+      </Kennzahlen>
 
       <Card id="positionen" title="Positionen" style={{ marginBlockEnd: SPACE.lg }}>
         <TemplatePosEditor

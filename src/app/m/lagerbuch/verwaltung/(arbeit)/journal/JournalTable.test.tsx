@@ -200,11 +200,11 @@ describe("JournalTable", () => {
     expect(
       (negativ.querySelectorAll("td")[1].querySelector("span") as HTMLElement).style.fontWeight,
     ).toBe("600");
-    expect(negativ.querySelector(`.${s.chip}.${s.grau}`)).not.toBeNull();
+    expect(negativ.querySelector(`[data-statuschip][data-statuschip=neutral]`)).not.toBeNull();
     // Ruling A15: der rohe Code/die rohe Kennung steht im `title` des
     // Quelle-Chips, 1:1 aus der Alt-Anwendung
     // (`lagerbuch/src/app/verwaltung/(admin)/journal/page.tsx:62`).
-    expect(negativ.querySelector(`.${s.chip}`)?.getAttribute("title")).toBe("system");
+    expect(negativ.querySelector(`[data-statuschip]`)?.getAttribute("title")).toBe("system");
 
     const positiv = query("tr[data-row-key='journal-positiv']");
     expect(positiv.querySelector(`.${s.jdelta}.${s.jplus}`)).not.toBeNull();

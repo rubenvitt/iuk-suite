@@ -38,19 +38,7 @@
 .modul input:focus-visible,
 .modul select:focus-visible { outline: 2px solid var(--lb-rot); outline-offset: 2px; }
 
-.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 2.5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.ok { color: var(--lb-ampel-ok-text); background: var(--lb-ampel-ok-flaeche); }
-.gelb { color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche); }
-.rot { color: var(--lb-ampel-rot-text); background: var(--lb-ampel-rot-flaeche); }
-.grau { color: var(--lb-ampel-grau-text); background: var(--lb-ampel-grau-flaeche); }
 
-.kpis { min-width: 0; }
-.kpi { border-inline-start: 4px solid transparent; padding-inline-start: 12px; height: 100%; }
-.kpiRot { border-inline-start-color: var(--lb-ampel-rot-text); }
-.kpiGelb { border-inline-start-color: var(--lb-ampel-gelb-text); }
-.kpiOk { border-inline-start-color: var(--lb-ampel-ok-text); }
-.kpiLink { display: block; color: inherit; text-decoration: none; }
-.kpiLink:hover { background: var(--lb-papier); }
 
 /*
  * NATIVES MONATSFELD (Inventur, „Charge ergänzen") auf Arbeitsdichte 44px —

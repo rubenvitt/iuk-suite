@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
+import { Statuschip, type Statuston } from "@/core/status/Statuschip";
 import type { AmpelTon } from "../_lib/format";
 import { Ikone, type IkonName } from "./ikonen";
-import s from "./verwaltung.module.css";
 
 /**
- * DER STATUSCHIP — 80 Verwendungen, eigenes Markup, KEIN antd-`Tag`.
+ * DER STATUSCHIP DER VERWALTUNG — 80 Verwendungen, KEIN antd-`Tag`. Seit der
+ * Haarlinie (IDA-347, Etappe 3) ein Adapter auf `core/status`: das Lagerbuch
+ * behaelt seine Ampel-Namen, der Chip sieht aus wie in jedem anderen Modul.
+ * Die Helferflaechen tragen ihren eigenen (`HelferChip`) und bleiben, wie sie
+ * sind.
  *
  * KEIN "use client": er steht auf RSC-Seiten (Uebersicht, Check-Detail,
  * Verfallsliste) UND in Client-Inseln. Er ruft nichts auf Modulebene auf und
@@ -22,23 +26,31 @@ import s from "./verwaltung.module.css";
  *  3. `Tag.CheckableTag` ist ein Compound-Zugriff (Falle 1) — wer `Tag` als
  *     Baustein etabliert, macht den Griff dorthin wahrscheinlicher.
  *
- * DIE FARBE KOMMT NICHT ALS PROP, sondern ueber die Klasse aus den
- * CSS-Variablen (§6.6.2a). Nur so traegt der Chip beide Modi, ohne dass der
+ * DIE FARBE KOMMT NICHT ALS PROP, sondern ueber die Tonklasse des
+ * Kernbausteins und deren CSS-Variable (§6.6.2a). Nur so traegt der Chip beide Modi, ohne dass der
  * Server den Modus kennen muss — der Moduswechsel ist reines CSS
  * (`:root[data-theme="dark"]`), und eine Server Component weisz gar nicht,
  * welcher gilt.
  *
- * DIE NAMENSFALLE, die aus dem Bestand mitwandert: `s["gruen"]` waere
- * `undefined` und ergaebe `className="chip undefined"` — mit Polster und
- * Rundung, aber OHNE FARBE. Der Riegel dagegen ist der Typ `AmpelTon`, nicht
- * die Wachsamkeit; `ampelTon()` aus `_lib/format.ts` bildet `"gruen"` auf
- * `"ok"` ab und ist die einzige Quelle fuer diesen Wert.
+ * DIE NAMENSFALLE, die aus dem Bestand mitwandert: ein `"gruen"` faende in
+ * `TON` keinen Eintrag. Der Riegel ist der Typ `AmpelTon`, nicht die
+ * Wachsamkeit; `ampelTon()` aus `_lib/format.ts` bildet `"gruen"` auf `"ok"`
+ * ab und ist die einzige Quelle fuer diesen Wert. `rot` ist im Lagerbuch ein
+ * Missstand (abgelaufen, unter Mindestbestand) und damit Ton `fehler` — der
+ * einzige, der Rot traegt (Falle 3).
  *
  * UND DIE REGEL UEBER DER FARBE: jeder Chip traegt TEXT, nie nur Farbe. Das
  * Zeichen ist `aria-hidden` und Zugabe — `chargeText` und `geraetFaelligChip`
  * (Teil 3, T39) liefern den Text, und sie wandern mit statt durch ein farbiges
  * Zeichen ersetzt zu werden.
  */
+export const TON: Readonly<Record<AmpelTon, Statuston>> = {
+  ok: "ok",
+  gelb: "warnung",
+  rot: "fehler",
+  grau: "neutral",
+};
+
 export function Chip({
   ton,
   zeichen,
@@ -60,9 +72,12 @@ export function Chip({
   children: ReactNode;
 }) {
   return (
-    <span className={`${s.chip} ${s[ton]}`} title={title}>
-      {zeichen ? <Ikone name={zeichen} groesse={12} /> : null}
+    <Statuschip
+      ton={TON[ton]}
+      title={title}
+      symbol={zeichen ? <Ikone name={zeichen} groesse={12} /> : undefined}
+    >
       {children}
-    </span>
+    </Statuschip>
   );
 }

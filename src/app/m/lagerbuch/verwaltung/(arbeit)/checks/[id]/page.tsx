@@ -1,4 +1,4 @@
-import { Alert, Card, Col, Row } from "antd";
+import { Alert, Card } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
@@ -9,6 +9,7 @@ import { sollText, ueberschuss } from "../../../../_lib/domain/sollBereich";
 import { checkDetail, type CheckDetail } from "../../../../_lib/lesepfade/checks";
 import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import {
   CheckDetailTabellen,
@@ -332,38 +333,30 @@ export function checkDetailInhalt(
         * richtig herum: bei ihm steht nicht einmal fest, ob noch gezaehlt wird.
         */}
       {check.offen && !check.hatZwischenstand ? null : (
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={6}>
-          <Kachel
-            zahl={check.summe.positionen}
-            beschriftung="geprüfte Positionen"
-          />
-        </Col>
-        <Col xs={24} md={6}>
-          <Kachel
-            zahl={check.summe.nachgefuellt}
-            beschriftung="nachgefüllt"
-            ton={check.summe.nachgefuellt ? "rot" : "ok"}
-            href={sprung(check.summe.nachgefuellt, "nachfuellung")}
-          />
-        </Col>
-        <Col xs={24} md={6}>
-          <Kachel
-            zahl={check.summe.korrigiert}
-            beschriftung="korrigiert"
-            ton={check.summe.korrigiert ? "gelb" : "ok"}
-            href={sprung(check.summe.korrigiert, "abgleich")}
-          />
-        </Col>
-        <Col xs={24} md={6}>
-          <Kachel
-            zahl={check.summe.offen}
-            beschriftung="fehlt weiterhin"
-            ton={check.summe.offen ? "rot" : "ok"}
-            href={sprung(check.summe.offen, "abgleich")}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel
+          zahl={check.summe.positionen}
+          beschriftung="geprüfte Positionen"
+        />
+        <Kachel
+          zahl={check.summe.nachgefuellt}
+          beschriftung="nachgefüllt"
+          ton={check.summe.nachgefuellt ? "rot" : "ok"}
+          href={sprung(check.summe.nachgefuellt, "nachfuellung")}
+        />
+        <Kachel
+          zahl={check.summe.korrigiert}
+          beschriftung="korrigiert"
+          ton={check.summe.korrigiert ? "gelb" : "ok"}
+          href={sprung(check.summe.korrigiert, "abgleich")}
+        />
+        <Kachel
+          zahl={check.summe.offen}
+          beschriftung="fehlt weiterhin"
+          ton={check.summe.offen ? "rot" : "ok"}
+          href={sprung(check.summe.offen, "abgleich")}
+        />
+      </Kennzahlen>
       )}
 
       {/**

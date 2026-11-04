@@ -112,7 +112,7 @@ Einlösung namentlich T164 zu (`:251-259`).
 
 ## A9 — Die fünf E2E-Dateien benutzen den Helfer (T167–T171) · Koordinator
 
-`e2e/fixtures.ts:3-7`: `devLogin(page, { host, email?, groups?, callbackPath?, port? })`
+`e2e/fixtures.ts`, `devLogin`: `devLogin(page, { host, email?, groups?, callbackPath?, port? })`
 — `host` ist **Pflicht**, `groups` ist ein **`string`**, kein `string[]`. Der Plantext
 ist an sieben Stellen `tsc`-falsch.
 `e2e/helpers/lagerbuch.ts` ist laut eigenem Kopf „**DIE EINE QUELLE**" (Festlegung H9,

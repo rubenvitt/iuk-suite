@@ -14,7 +14,6 @@ import {
   VerlaufTabelle,
   type VerlaufAnzeigeZeile,
 } from "./VerlaufTabelle";
-import s from "../../../../_ui/verwaltung.module.css";
 
 const CHECK_ZEILE = {
   id: "messung-check",
@@ -61,7 +60,7 @@ describe("VerlaufTabelle", () => {
       "Token RTW 1",
       "Fahrzeug-Check",
     ]);
-    expect(query(`tbody .${s.grau}`).textContent).toBe("aus Check");
+    expect(query(`tbody [data-statuschip=neutral]`).textContent).toBe("aus Check");
     expect(exists(".ant-pagination")).toBe(false);
   });
 

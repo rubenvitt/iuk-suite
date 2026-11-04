@@ -1,4 +1,4 @@
-import { Card, Col, Row } from "antd";
+import { Card } from "antd";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
@@ -15,6 +15,7 @@ import {
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { Ikone } from "../../../../_ui/ikonen";
 import { LinkKnopf } from "../../../../_ui/LinkKnopf";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -152,47 +153,39 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         )}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={faelligText}
-            beschriftung="Nächste Kontrolle"
-            ton={ampelTon(faelligkeit.ampel)}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={letzte ? fmtTs(letzte.ts) : "–"}
-            beschriftung="Letzte Kontrolle"
-            ton={letzte ? (letzte.bestanden ? "ok" : "rot") : "grau"}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={akkuText}
-            /* Das Original nennt die Zahl der Wechsel mit
-             * (lagerbuch/src/app/verwaltung/(admin)/bz/[id]/page.tsx:45): ein
-             * Mittelwert aus zwei Intervallen und einer aus zwanzig sehen
-             * ohne sie gleich verlaesslich aus. */
-            beschriftung={`Ø Akku (${akku.anzahlWechsel} Wechsel)`}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={(
-              // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger
-              // Zweizeiler aus Status und Standort, keine Geschwisterzeile in
-              // dieser Kachel, die einen Skalenwert nahelegen wuerde.
-              <span style={{ display: "grid", gap: 2 }}>
-                <span>{geraet.aktiv ? "Aktiv" : "Inaktiv"}</span>
-                <span style={SCHRIFT.neben}>{standortZeile(detail.lagerortStandort)}</span>
-              </span>
-            )}
-            beschriftung="Status / Standort"
-            ton={geraet.aktiv ? "ok" : "grau"}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel
+          zahl={faelligText}
+          beschriftung="Nächste Kontrolle"
+          ton={ampelTon(faelligkeit.ampel)}
+        />
+        <Kachel
+          zahl={letzte ? fmtTs(letzte.ts) : "–"}
+          beschriftung="Letzte Kontrolle"
+          ton={letzte ? (letzte.bestanden ? "ok" : "rot") : "grau"}
+        />
+        <Kachel
+          zahl={akkuText}
+          /* Das Original nennt die Zahl der Wechsel mit
+           * (lagerbuch/src/app/verwaltung/(admin)/bz/[id]/page.tsx:45): ein
+           * Mittelwert aus zwei Intervallen und einer aus zwanzig sehen
+           * ohne sie gleich verlaesslich aus. */
+          beschriftung={`Ø Akku (${akku.anzahlWechsel} Wechsel)`}
+        />
+        <Kachel
+          zahl={(
+            // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) -- enger
+            // Zweizeiler aus Status und Standort, keine Geschwisterzeile in
+            // dieser Kachel, die einen Skalenwert nahelegen wuerde.
+            <span style={{ display: "grid", gap: 2 }}>
+              <span>{geraet.aktiv ? "Aktiv" : "Inaktiv"}</span>
+              <span style={SCHRIFT.neben}>{standortZeile(detail.lagerortStandort)}</span>
+            </span>
+          )}
+          beschriftung="Status / Standort"
+          ton={geraet.aktiv ? "ok" : "grau"}
+        />
+      </Kennzahlen>
 
       {/*
         DRK-311: EINE LAUFENDE BEACHTUNG STEHT VOR ALLEM ANDEREN — sie ist das,

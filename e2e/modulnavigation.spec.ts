@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { devLogin, oeffneMenue } from "./fixtures";
-import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
+import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
 /**
  * Der echte Abruf zu Plan B: die Lagerbuch-Verwaltung bekommt fünf Abschnitte

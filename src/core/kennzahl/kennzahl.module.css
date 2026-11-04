@@ -1,0 +1,88 @@
+/*
+ * FREISTEHENDE KENNZAHLEN (Haarlinie) — Regeln in `Kennzahl.tsx`.
+ *
+ * DIE TRENNLINIE: jede Kennzahl trägt links eine Haarlinie und davor ihr Polster. Die Zeile ist um
+ * genau dieses Maß nach links verschoben, der Rahmen schneidet es weg — so verschwindet die Linie
+ * am Anfang JEDER umbrochenen Zeile, und deren erste Zahl steht bündig an der Menükante. Ein
+ * `:first-child` könnte das nicht: welches Kind eine Zeile beginnt, weiß nur das Layout.
+ * `overflow: clip` statt `hidden`, damit der Rahmen kein Scrollcontainer wird.
+ *
+ * Eigene Variablen über `--iuk-*` (Falle 2), keine `.ant-*`-Selektoren (Falle 20).
+ */
+
+.rahmen {
+  --kz-polster: 24px;
+  overflow: clip;
+  min-inline-size: 0;
+  margin-block-end: 24px;
+}
+
+.zeile {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 16px;
+  margin-inline-start: calc(-1 * var(--kz-polster) - 1px);
+}
+
+.kennzahl {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-inline-size: 11rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-inline: var(--kz-polster);
+  padding-block: 2px;
+  border-inline-start: 1px solid var(--iuk-linie);
+  color: var(--iuk-tinte);
+  text-decoration: none;
+}
+
+.wert {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--iuk-gedaempft);
+}
+
+/* Die Tonklasse kommt aus `statuschip.module.css` und setzt `--sc-ton`. */
+.punkt {
+  flex: none;
+  align-self: center;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--sc-ton);
+}
+
+.chevron {
+  color: var(--iuk-gedaempft);
+  transition: transform var(--iuk-feder-dauer) var(--iuk-feder);
+}
+
+/* Verlinkt: kein Kasten, nur das Chevron rückt nach. Der Fokusring liegt innen, sonst schnitte
+   ihn der Rahmen ab. Die Fläche ist mit Zahl, Abstand und Beschriftung über 44px hoch. */
+.link {
+  cursor: pointer;
+  min-block-size: 44px;
+}
+.link:hover .chevron { transform: translateX(3px); color: var(--iuk-tinte); }
+.link:focus-visible { outline-offset: -2px; }
+
+@media (max-width: 767.98px) {
+  .rahmen { --kz-polster: 16px; }
+  .kennzahl { min-inline-size: 9.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
+  .link:hover .chevron { transform: none; }
+}

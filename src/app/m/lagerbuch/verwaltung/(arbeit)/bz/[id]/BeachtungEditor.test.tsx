@@ -10,7 +10,6 @@ import {
   queryAll,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
-import s from "../../../../_ui/verwaltung.module.css";
 import { BeachtungEditor } from "./BeachtungEditor";
 
 const mocks = vi.hoisted(() => ({ beachtungSetzen: vi.fn() }));
@@ -50,7 +49,7 @@ describe("BeachtungEditor ohne laufende Beachtung", () => {
     // ⚠️ KEIN Aufheben-Knopf: es gibt nichts aufzuheben, und ein gesperrter
     // Knopf laesst offen, ob gerade etwas steht oder nicht.
     expect(knopf("Beachtung aufheben")).toBeUndefined();
-    expect(exists(`.${s.chip}`)).toBe(false);
+    expect(exists(`[data-statuschip]`)).toBe(false);
   });
 
   /**
@@ -102,7 +101,7 @@ describe("BeachtungEditor mit laufender Beachtung", () => {
      * `.chip` traegt `white-space: nowrap` — stuende der Hinweis darin, waere
      * ein langer Satz eine einzige unbrechbare Zeile und liefe aus der Karte.
      */
-    expect(query(`.${s.chip}`).textContent).toContain("beachten");
+    expect(query(`[data-statuschip]`).textContent).toContain("beachten");
     expect(document.body.textContent).toContain("Display flackert");
     expect(document.body.textContent).toContain("seit 08.07. 09:15");
     // Das Feld ist vorbelegt — wer nur praeziser formulieren will, tippt den

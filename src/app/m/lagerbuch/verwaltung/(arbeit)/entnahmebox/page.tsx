@@ -1,4 +1,4 @@
-import { Alert, Button, Col, Row } from "antd";
+import { Alert, Button } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import { ENTNAHMEBOX_NAME } from "../../../_lib/konstanten";
@@ -8,6 +8,7 @@ import {
 import { fahrzeugListe } from "../../../_lib/lesepfade/fahrzeuge";
 import { fmtDatumZeit } from "../../../_lib/zeit";
 import { Kachel } from "../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { BoxAnsicht, type ZugangZeile } from "./BoxAnsicht";
 
@@ -156,14 +157,10 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
         </div>
       )}
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12}>
-          <Kachel zahl={inhalt.length} beschriftung="Artikel in der Box" />
-        </Col>
-        <Col xs={24} md={12}>
-          <Kachel zahl={teile} beschriftung="Teile insgesamt" />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel zahl={inhalt.length} beschriftung="Artikel in der Box" />
+        <Kachel zahl={teile} beschriftung="Teile insgesamt" />
+      </Kennzahlen>
 
       <BoxAnsicht
         boxName={box.name}

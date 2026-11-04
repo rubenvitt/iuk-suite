@@ -143,7 +143,7 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
    * auszublenden.
    *
    * Der zweite Teil des Problems faellt damit auch: `Layout{minHeight:100vh}`
-   * (FullShell.tsx:19) bliebe unter `visibility:hidden` im FLUSS und erzeugte
+   * (heute `.rahmen` in `core/shell/menue.module.css`) bliebe unter `visibility:hidden` im FLUSS und erzeugte
    * leere Folgeseiten hinter dem Bogen.
    */
   it("enthaelt NIRGENDS body * — in keiner CSS-Datei des Moduls", () => {

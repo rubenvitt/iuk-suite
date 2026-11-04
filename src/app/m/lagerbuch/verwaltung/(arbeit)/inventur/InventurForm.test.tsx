@@ -516,10 +516,10 @@ function tabellenZeilen(): string[] {
 }
 
 async function zeilenWahl(text: "Alle" | "Offen"): Promise<void> {
-  const punkt = queryAll<HTMLElement>(".ant-segmented-item")
+  const punkt = queryAll<HTMLElement>("[role=radiogroup][aria-label=Zeilen] [role=radio]")
     .find((element) => (element.textContent ?? "") === text);
-  if (!punkt) throw new Error(`Kein Segment: ${text}`);
-  await clickElement(punkt.querySelector<HTMLElement>("input") ?? punkt);
+  if (!punkt) throw new Error(`Keine Pille: ${text}`);
+  await clickElement(punkt);
 }
 
 const STIMMT_PFLASTER = "button[data-rolle='stimmt'][aria-label='Ist-Bestand Pflaster stimmt']";

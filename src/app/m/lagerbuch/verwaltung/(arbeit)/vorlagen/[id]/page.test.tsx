@@ -22,7 +22,6 @@ import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
-import verwaltungStyles from "../../../../_ui/verwaltung.module.css";
 import { TemplateAktionen } from "./TemplateAktionen";
 import { TemplatePosEditor } from "./TemplatePosEditor";
 import {
@@ -334,7 +333,7 @@ describe("VerknuepfteFahrzeugeTable", () => {
      * Auch der Zwischenstand traegt Grau und nicht Gelb: er ist erlaubt,
      * Migration 0010 backfillt bewusst nicht (Begruendung in `FahrzeugeListe`).
      */
-    expect(queryAll(`tbody .${verwaltungStyles.chip}.${verwaltungStyles.grau}`)
+    expect(queryAll(`tbody [data-statuschip][data-statuschip=neutral]`)
       .map((chip) => chip.textContent))
       .toEqual(["Fahrzeug", "Tasche", "inaktiv", "nicht zugeordnet"]);
     /*

@@ -3068,7 +3068,7 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
    * auszublenden.
    *
    * Der zweite Teil des Problems faellt damit auch: `Layout{minHeight:100vh}`
-   * (FullShell.tsx:19) bliebe unter `visibility:hidden` im FLUSS und erzeugte
+   * (damals `FullShell`, heute `.rahmen` in `core/shell/menue.module.css`) bliebe unter `visibility:hidden` im FLUSS und erzeugte
    * leere Folgeseiten hinter dem Bogen.
    */
   it("enthaelt NIRGENDS body * — in keiner CSS-Datei des Moduls", () => {
@@ -3324,7 +3324,7 @@ Erwartet: `ENOENT: no such file or directory, open '…/(druck)/druck.css'`.
  * (feedback-Aushang, files-Zugangslinks; Falle 43). Die Sichtbarkeitsumkehr wird
  * ersatzlos durch die eigene Route-Gruppe ersetzt: ohne Shell gibt es nichts
  * auszublenden. Damit entfaellt auch der zweite Teil des Problems —
- * `Layout{minHeight:100vh}` (FullShell.tsx:19) bliebe unter `visibility:hidden`
+ * `Layout{minHeight:100vh}` (damals `FullShell`, heute `.rahmen` in `core/shell/menue.module.css`) bliebe unter `visibility:hidden`
  * im Fluss und erzeugte leere Folgeseiten hinter dem Bogen.
  *
  * UND NICHT DAS files-MUSTER: `.druckbereich{position:fixed;inset:0;
@@ -3518,7 +3518,7 @@ import { DruckRahmen } from "@/app/m/lagerbuch/_ui/DruckRahmen";
  *
  * EIGENE ROUTE-GROUP OHNE SUITE-SHELL: laege der Bogen unter `(arbeit)`, druckte
  * `FullShell` Kopfzeile und App-Switcher mit — und `minHeight:100vh`
- * (FullShell.tsx:19) erzeugte leere Folgeseiten hinter dem Bogen.
+ * (damals `FullShell`, heute `.rahmen` in `core/shell/menue.module.css`) erzeugte leere Folgeseiten hinter dem Bogen.
  *
  * DER PREIS UND SEINE BEZAHLUNG — und das ist die sicherheitsrelevante Zeile
  * dieses Moduls: mit dem `(arbeit)`-Layout faellt auch dessen Zugriffsriegel

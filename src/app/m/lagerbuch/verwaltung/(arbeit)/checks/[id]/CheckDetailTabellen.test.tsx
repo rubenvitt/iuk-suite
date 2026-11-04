@@ -11,7 +11,6 @@ import {
   queryAll,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
-import s from "../../../../_ui/verwaltung.module.css";
 import {
   CheckDetailTabellen,
   type CheckDetailTabellenProps,
@@ -173,7 +172,7 @@ describe("CheckDetailTabellen", () => {
     expect(zellenTexte("verfall-1"))
       .toEqual(["Kompressen", "2026-08", "läuft bald ab"]);
     const druckGemessen = query("tr[data-row-key='flasche-1'] td:nth-child(2)");
-    expect(druckGemessen.querySelector(`.${s.chip}`)).toBeNull();
+    expect(druckGemessen.querySelector(`[data-statuschip]`)).toBeNull();
     // Mono-Indirektion (Task 5): SCHRIFT.mono bezieht die Familie seit dem
     // Adapter ueber `core/theme/schrift.ts` — `--font-mono`, die ROLLE, statt
     // der Familie. `--font-geist-mono` steht seit 2026-08-12 nur noch in der
@@ -184,14 +183,14 @@ describe("CheckDetailTabellen", () => {
     const druckUngemessen = query(
       "tr[data-row-key='flasche-ohne-druck'] td:nth-child(2)",
     );
-    expect(druckUngemessen.querySelector(`.${s.grau}`)).not.toBeNull();
+    expect(druckUngemessen.querySelector(`[data-statuschip=neutral]`)).not.toBeNull();
     expect(Array.from(
       document.querySelectorAll("tbody [data-zeichen]"),
       (zeichen) => zeichen.getAttribute("data-zeichen"),
     )).toEqual(["warnung", "warnung"]);
-    expect(queryAll(`${BREIT} .${s.rot}`).length).toBeGreaterThanOrEqual(2);
-    expect(queryAll(`${BREIT} .${s.ok}`).length).toBeGreaterThanOrEqual(2);
-    expect(queryAll(`${BREIT} .${s.gelb}`).length).toBeGreaterThanOrEqual(2);
+    expect(queryAll(`${BREIT} [data-statuschip=fehler]`).length).toBeGreaterThanOrEqual(2);
+    expect(queryAll(`${BREIT} [data-statuschip=ok]`).length).toBeGreaterThanOrEqual(2);
+    expect(queryAll(`${BREIT} [data-statuschip=warnung]`).length).toBeGreaterThanOrEqual(2);
     expect(exists(".ant-pagination")).toBe(false);
 
     const quelle = readFileSync(
