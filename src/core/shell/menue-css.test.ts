@@ -48,4 +48,8 @@ describe("menue.module.css", () => {
   it("nimmt das Menü aus dem Druck", () => {
     expect(CSS).toMatch(/@media print[\s\S]*\.druckRahmen \.kopf \{\s*display: none !important;/);
   });
+
+  it("blendet den Hover der Einträge über, statt umzuspringen", () => {
+    expect(CSS).toMatch(/\.eintrag,\s*\.zurueck,\s*\.ort,\s*\.appKnopf \{\s*transition:[^}]*background-color 140ms ease/);
+  });
 });

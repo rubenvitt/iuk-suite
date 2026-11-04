@@ -384,6 +384,17 @@
   text-align: center;
 }
 
+/* Hover blendet kurz über, statt umzuspringen (Haarlinie: 140ms wie im Entwurf). */
+.eintrag,
+.zurueck,
+.ort,
+.appKnopf {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
 @media (hover: hover) {
   .eintrag:hover,
   .zurueck:hover,

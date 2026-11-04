@@ -2,6 +2,7 @@ import { MenueRahmen } from "@/core/shell/MenueRahmen";
 import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { RueckmeldungKnopf } from "@/core/rueckmeldung/RueckmeldungKnopf";
+import { Seitenwechsel } from "@/core/shell/Seitenwechsel";
 import type { SuiteNavItem } from "@/core/shell/types";
 
 /**
@@ -43,6 +44,10 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * liest keine Suchparameter — er kennt nur `localStorage` —, und eine
  * `Suspense`-Grenze ohne etwas, das aussetzen könnte, wäre eine Zusage, die
  * niemand einlöst.
+ *
+ * DER SEITENWECHSEL BLENDET NUR HIER (Haarlinie, Etappe 3): `Seitenwechsel` liegt um den Inhalt der
+ * Arbeitsflächen, nicht in `MenueRahmen` (den nehmen auch die Druckflächen) und nicht in
+ * `MinimalShell`/`KioskShell` — Bedienflächen wechseln ohne Bewegung.
  */
 export async function FullShell({
   moduleKey,
@@ -58,7 +63,7 @@ export async function FullShell({
   return (
     <MenueRahmen moduleKey={moduleKey} nav={nav}>
       <Arbeitsdichte>
-        {children}
+        <Seitenwechsel>{children}</Seitenwechsel>
         {rueckmeldung && <RueckmeldungKnopf weg={rueckmeldung} />}
       </Arbeitsdichte>
     </MenueRahmen>

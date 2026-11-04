@@ -324,6 +324,24 @@ select {
 }
 
 /*
+ * Dasselbe an einer klickbaren Karte (`Card hoverable`: Kacheln, Kennzahlen, Gruppenkarten), nur
+ * schwächer — eine Fläche von 300px gibt bei 0.97 sichtbar 9px nach. `.ant-card-hoverable` ist ein
+ * antd-Klassenname (Falle 20, `bewegung.test.ts`). Die Übergänge für Rand und Schatten führt die
+ * Regel mit, weil der Shorthand antds eigene (0,1,0) ganz ersetzt.
+ */
+:root .ant-card-hoverable {
+  transition:
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    transform var(--iuk-feder-dauer) var(--iuk-feder);
+}
+
+:root .ant-card-hoverable:active {
+  transform: scale(0.985);
+  transition-duration: 60ms;
+}
+
+/*
  * Ein sichtbarer Fokusring für eigenes Markup. `:where` hält die Regel bei
  * (0,0,0), damit Modul-CSS sie weiterhin gezielt ersetzen kann; antd zeichnet
  * seinen Ring selbst (`controlOutline`, `colorPrimaryBorder`).
@@ -385,4 +403,82 @@ select {
 html :where(p, dd, blockquote, figcaption, .ant-alert-title, .ant-alert-description, .ant-form-item-extra) a:where(:not([class*="ant-"])) {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/*
+ * SEITENWECHSEL (Haarlinie, Etappe 3). `core/shell/Seitenwechsel.tsx` legt eine `<ViewTransition>`
+ * um den Inhalt von `FullShell`; die Klassen und Namen stehen in `core/shell/seitenwechselKlassen.ts`,
+ * `seitenwechsel.test.tsx` hält beide Seiten gleich.
+ *
+ * Der alte Inhalt geht schnell und ohne Weg, der neue kommt 6px von unten: zusammen 180ms, damit
+ * eine Navigation nicht wartet. Das Menü bekommt einen eigenen Namen und steht still — ohne ihn
+ * malte der Schnappschuss des alten, gescrollten Inhalts am Telefon über die klebende Kopfzeile.
+ * `display: none` am alten Menü verhindert, dass es kurz doppelt steht; `z-index` hält es (und das
+ * sich schließende Blatt) über dem Inhalt.
+ *
+ * `pointer-events: none`: die Überlagerung fing sonst jeden Klick in der Übergangszeit ab.
+ * Benannte Teilnehmer sind für diese 180ms dennoch nicht trefferfähig — Playwright wartet das über
+ * seine Trefferprüfung ab, `klickeWennRuhig` (Falle 12) bleibt gültig.
+ */
+::view-transition {
+  pointer-events: none;
+}
+
+/* React blendet die Wurzel aus (Deckkraft 0); ihr Standard-Ausblenden von 250ms verlängerte nur den Wechsel. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(.iuk-seite-aus) {
+  animation: 90ms ease-in both iuk-seite-aus;
+}
+
+::view-transition-new(.iuk-seite-ein) {
+  animation: 180ms cubic-bezier(0.32, 0.72, 0, 1) both iuk-seite-ein;
+}
+
+@keyframes iuk-seite-aus {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes iuk-seite-ein {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+::view-transition-group(iuk-menue),
+::view-transition-group(iuk-menueblatt) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-group(iuk-menueblatt) {
+  z-index: 101;
+}
+
+::view-transition-old(iuk-menue),
+::view-transition-old(iuk-menueblatt) {
+  display: none;
+}
+
+::view-transition-new(iuk-menue),
+::view-transition-new(iuk-menueblatt) {
+  animation: none;
+}
+
+/*
+ * Reduzierte Bewegung: kein Seitenwechsel. Die Pseudo-Elemente hängen am Wurzelelement und trifft
+ * `*, *::before, *::after` oben nicht; ohne Animation endet der Übergang im nächsten Bild.
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

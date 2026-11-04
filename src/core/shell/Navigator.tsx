@@ -16,6 +16,7 @@ import { gruppiereNav } from "@/core/shell/navAbschnitte";
 import { NavIkone } from "@/core/shell/navIkonen";
 import { Nutzermenue } from "@/core/shell/Nutzermenue";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
+import { SEITENWECHSEL } from "@/core/shell/seitenwechselKlassen";
 import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 import m from "./menue.module.css";
@@ -484,7 +485,7 @@ export function SuiteLeiste({ daten }: { daten: MenueDaten }) {
         }}
         aria-label="Navigation"
       >
-        <div data-testid="suite-drawer" className={m.blattInhalt}>
+        <div data-testid="suite-drawer" className={m.blattInhalt} style={{ viewTransitionName: SEITENWECHSEL.blatt }}>
           <div className={m.griff} aria-hidden="true" />
           <Navigator
             daten={daten}
