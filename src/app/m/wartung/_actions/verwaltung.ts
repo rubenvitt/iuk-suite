@@ -134,13 +134,16 @@ function eigeneUnterlage(rechte: Rechte, id: string) {
 
 export async function unterlageLoeschenAction(id: string): Promise<Ergebnis> {
   if (!idSchema.safeParse(id).success) return { ok: false, fehler: UNGUELTIG };
-  let typ: "pdf" | "bild" | null = null;
+  let weg: { id: string; typ: "pdf" | "bild" } | null = null;
   const r = await schreibe("verwalter", ({ rechte }) => {
-    typ = eigeneUnterlage(rechte, id).typ;
-    unterlageLoeschen(getDb(), id);
+    const u = eigeneUnterlage(rechte, id);
+    unterlageLoeschen(getDb(), u.id);
+    weg = { id: u.id, typ: u.typ };
   });
-  // Erst der Eintrag, dann die Datei: bricht es dazwischen, bleibt höchstens eine Datei ohne Verweis liegen.
-  if (r.ok && typ) await entferneUnterlage(id, typ);
+  // Erst der Eintrag, dann die Datei: bricht es dazwischen, bleibt höchstens eine Datei ohne Verweis liegen. Der Pfad
+  // entsteht aus der ID, wie sie in der Datenbank steht, nicht aus der Eingabe.
+  const datei = weg as { id: string; typ: "pdf" | "bild" } | null;
+  if (r.ok && datei) await entferneUnterlage(datei.id, datei.typ);
   return r;
 }
 
