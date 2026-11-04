@@ -249,8 +249,8 @@ export function pruefungAbschliessen(
     const antwort = new Map(p.antworten.map((x) => [x.punktId, x]));
     const meldung = a.kiste ? "Die Inhaltsliste hat sich geändert. Bitte neu durchzählen." : "Die Checkliste hat sich geändert. Bitte die Prüfung neu starten.";
     if (punkte.some((pk) => !antwort.has(pk.id))) throw new Abgelehnt(meldung);
-    // Gezählt wurde gegen die Menge auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
-    if (a.kiste && punkte.some((pk) => antwort.get(pk.id)!.soll !== pk.soll)) throw new Abgelehnt(meldung);
+    // Gezählt wurde gegen Menge und Wortlaut auf dem Bildschirm; hat sie jemand inzwischen geändert, gilt die Zählung nicht.
+    if (a.kiste && punkte.some((pk) => antwort.get(pk.id)!.soll !== pk.soll || antwort.get(pk.id)!.punkt !== pk.text)) throw new Abgelehnt(meldung);
     if (!a.kiste && a.stundenPflicht && p.stunden === null) throw new Abgelehnt("Betriebsstunden fehlen.", "stunden");
     pruefeStunden(p.stunden, g.stunden);
 

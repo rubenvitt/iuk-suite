@@ -60,7 +60,7 @@ export function PruefungAmGeraet({
       const daten = new FormData();
       daten.set("daten", JSON.stringify({
         sendung, stunden, ergebnis: gewaehlt, notiz,
-        antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll })),
+        antworten: checkliste.map((c) => ({ punktId: c.id, ok: antworten[c.id].ok, text: antworten[c.id].ok ? "" : antworten[c.id].text, soll: c.soll, punkt: kiste ? c.text : undefined })),
       }));
       for (const c of maengel) {
         const f = antworten[c.id].foto;

@@ -87,7 +87,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
   const ids = zeilen.map((z) => z.g.id);
   const fristen = db.select().from(frist).orderBy(asc(frist.position)).all();
   const letzte = letzteErledigungen(db, ids);
-  const offen = db.select({ g: mangel.geraetId, einsatzbereit: mangel.einsatzbereit, fehlt: mangel.fehlt }).from(mangel)
+  const offen = db.select({ g: mangel.geraetId, einsatzbereit: mangel.einsatzbereit, fehlt: mangel.fehlt, inhaltId: mangel.inhaltId }).from(mangel)
     .where(and(inArray(mangel.geraetId, ids), isNull(mangel.behobenAm))).all();
 
   return zeilen.map(({ g, gruppeName, artEinzahl, ikone, stundenPflicht, kiste }) => {
@@ -104,7 +104,9 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
       gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht, kiste,
       ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, aktiv: g.aktiv,
       zustand: zustandAus(eigene), staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
-      fehlend: eigene.filter((m) => m.fehlt).length,
+      // Nur Positionen, die noch auf der Liste stehen: ein Mangel zu einer entfernten Position bleibt offen,
+      // lässt sich aber durch Durchzählen nicht mehr beheben.
+      fehlend: eigene.filter((m) => m.fehlt && m.inhaltId !== null).length,
     };
   });
 }

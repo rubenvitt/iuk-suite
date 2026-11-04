@@ -26,7 +26,7 @@ function mitKiste() {
 type Liste = ReturnType<typeof ladeInhalt>;
 /** Eine Zählung: `fehlt` nennt die Positionen (Index → Text), die fehlen; gezählt gegen die angezeigte Menge. */
 const zaehlung = (liste: Liste, fehlt: Record<number, string> = {}) =>
-  liste.map((p, i) => ({ punktId: p.id, ok: !(i in fehlt), text: fehlt[i] ?? "", soll: p.soll }));
+  liste.map((p, i) => ({ punktId: p.id, ok: !(i in fehlt), text: fehlt[i] ?? "", soll: p.soll, punkt: p.text }));
 const zaehle = (db: ReturnType<typeof testDb>, id: string, liste: Liste, fehlt: Record<number, string> = {}) =>
   pruefungAbschliessen(db, id, {
     sendung: neueId(), stunden: null, ergebnis: Object.keys(fehlt).length ? "mangel" : "ok", notiz: "", antworten: zaehlung(liste, fehlt),
@@ -139,6 +139,14 @@ describe("Materialkisten (IDA-335)", () => {
     expect(ungepushteAusfaelle(db, spaeter.jetzt).map((m) => m.geraetId)).toEqual([id]);
   });
 
+  it("eine inzwischen umbenannte Position macht die Zählung ungültig", () => {
+    const { db, id, liste } = mitKiste();
+    const angezeigt = zaehlung(liste);
+    inhaltSpeichern(db, id, [{ ...liste[0], text: "HDMI-Kabel 5 m" }, liste[1]]);
+    expect(() => pruefungAbschliessen(db, id, { sendung: neueId(), stunden: null, ergebnis: "ok", notiz: "", antworten: angezeigt }, new Map(), K))
+      .toThrow(/Inhaltsliste hat sich geändert/);
+  });
+
   it("eine inzwischen geänderte Soll-Menge macht die Zählung ungültig", () => {
     const { db, id, liste } = mitKiste();
     const angezeigt = zaehlung(liste);
@@ -155,6 +163,8 @@ describe("Materialkisten (IDA-335)", () => {
     zaehle(db, id, liste, { 1: "" });
     inhaltSpeichern(db, id, [liste[0]]);
     expect(offen(db, id)).toMatchObject([{ fehlt: true, inhaltId: null }]);
+    // Offen bleibt er, „Kiste unvollständig“ zählt ihn aber nicht mehr: Durchzählen könnte ihn nie beheben.
+    expect(ladeGeraet(db, id, HEUTE)).toMatchObject({ offeneMaengel: 1, fehlend: 0 });
   });
 
   it("eine Materialkiste hat keine Betriebsstunden-Pflicht", () => {
