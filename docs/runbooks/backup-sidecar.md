@@ -39,6 +39,9 @@ Ticket: DRK-185. Entstanden aus Entscheidung **D1** der Lagerbuch-Portierung.
 * **Die Bildnachweise des Moduls `aufgaben` fehlten beim Umstieg noch im Tarball; seit
   DRK-365 sind sie drin** (Verzeichnis `aufgaben/`, Mount `aufgaben_data:/data/aufgaben:ro`).
   Eine Nebensicherung des Volumes darf nach dem ersten grünen Lauf weg.
+* **Die Mängelfotos von `lagerbuch` und `wartung` fehlten bis IDA-336 im Tarball; seither
+  sind sie drin** (`lagerbuch/maengel/`, `wartung/maengel/`). Sie liegen in `suite_data`
+  selbst, ein eigener Mount ist dafür nicht nötig.
 
 ## 1. Vorbedingung: vier Dateien statt zwei
 
@@ -337,7 +340,8 @@ Im Tarball müssen stehen: **jede** `*.db` aus `MODULE_MIGRATIONS` und `CORE_MIG
 (heute u. a. `portal.db`, `qr.db`, `feedback.db`, `files.db`, `lagerbuch.db`, `aufgaben.db`,
 `radio.db`, `uav.db`, `kommplan.db`, `zeichen.db`, `konto.db`, `audit.db`) — **und** ein
 Verzeichnis `files/` mit Blobs, sofern im Modul `files` überhaupt welche liegen, und ein
-Verzeichnis `aufgaben/` mit den Bildnachweisen, sofern es welche gibt.
+Verzeichnis `aufgaben/` mit den Bildnachweisen, sofern es welche gibt, sowie
+`lagerbuch/maengel/` und `wartung/maengel/` mit den Mängelfotos, sofern es welche gibt.
 
 > ⚠️ **Fehlt eine `*.db`, ist das KEIN Backup-Fehler, sondern ein Hinweis auf ein Modul,
 > das nie gebootet hat.** `scripts/backup.sh` sammelt ein, was in `$DATA_DIR` liegt; eine

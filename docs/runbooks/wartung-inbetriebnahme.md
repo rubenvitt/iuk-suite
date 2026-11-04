@@ -34,7 +34,7 @@ Der Host braucht DNS und die Traefik-Regel (`SUITE_TRAEFIK_RULE`). Die Datenbank
 Boot-Pfad an (`MODULE_MIGRATIONS`), mit Startbestand: Gruppen Technik und I&K (noch ohne Verwalter) und die
 vier Gerätearten mit Fristen und Checklisten. Mängelfotos liegen unter `DATA_DIR/wartung/maengel/`,
 Unterlagen am Gerät (IDA-300) unter `DATA_DIR/wartung/unterlagen/`; `scripts/backup.sh` sichert die
-`wartung.db`, beide Verzeichnisse noch nicht (IDA-336).
+`wartung.db` und seit IDA-336 beide Verzeichnisse (`wartung/maengel/`, `wartung/unterlagen/` im Tarball).
 
 ## 3. Erste Schritte nach dem Deploy
 
