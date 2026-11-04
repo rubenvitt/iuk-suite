@@ -88,6 +88,32 @@ for (const breite of BREITEN) {
       await pruefe(page, "Portal, Kategorien offen");
     });
 
+    test("„Ehrlich gesagt“: Einwurf, auch mit Namen", async ({ page, browser }) => {
+      /*
+       * Der Einwurf ist eine Unterseite ohne Kopfzeile, die Startseiten-Schleife unten sieht ihn
+       * nicht. Befund aus dem Betrieb: erst die Wahl „mit meinem Namen“ blendet die Felder ein, und
+       * die machten die Seite breiter als den Schirm. Deshalb jede der drei Wahlen einzeln messen.
+       */
+      const leser = await browser.newContext();
+      const aushang = await leser.newPage();
+      await devLogin(aushang, { host: "feedback.localtest.me", groups: "kummerkasten-leser", callbackPath: "/ehrlich-gesagt/aushang" });
+      await aushang.goto(`http://feedback.localtest.me:${E2E_PORT}/ehrlich-gesagt/aushang`);
+      const adresse = (await aushang.getByTestId("einwurf-adresse").textContent())!.trim();
+      await leser.close();
+
+      await page.goto(`http://feedback.localtest.me:${E2E_PORT}${new URL(adresse).pathname}`);
+      await expect(page.getByRole("heading", { name: "Was liegt dir auf dem Herzen?" })).toBeVisible();
+      await pruefe(page, "Einwurf");
+      for (const wahl of ["Ja, aber anonym.", "Ja, mit meinem Namen."]) {
+        await page.getByText(wahl).click();
+        await pruefe(page, `Einwurf, „${wahl}“`);
+      }
+      await expect(page.getByLabel("Dein Name")).toBeVisible();
+      await page.getByLabel("Dein Name").fill("Erika Mustermann-Lüdenscheidt");
+      await page.getByLabel("Wie erreicht man dich?").fill("erika.mustermann-luedenscheidt@beispiel.example");
+      await pruefe(page, "Einwurf mit Namen, ausgefüllt");
+    });
+
     test("Startseite jedes Moduls mit Kopfzeile", async ({ page }) => {
       await devLogin(page, { host: "portal.localtest.me", groups: VIELE_GRUPPEN });
       const fehler: string[] = [];
