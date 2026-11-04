@@ -25,7 +25,7 @@
   },
   {
     "name": "eimer-7",
-    "specs": "e2e/datumsfeld-enter.spec.ts e2e/einsatzbuch.spec.ts e2e/flyin-breite.spec.ts e2e/gemeinschaft-planung.spec.ts e2e/gemeinschaft-vermietung.spec.ts e2e/helfer.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-maengel.spec.ts e2e/lagerbuch-ruecklauf.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/portal.spec.ts e2e/uav.spec.ts"
+    "specs": "e2e/datumsfeld-enter.spec.ts e2e/einsatzbuch.spec.ts e2e/flyin-breite.spec.ts e2e/gemeinschaft-planung.spec.ts e2e/gemeinschaft-vermietung.spec.ts e2e/helfer.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-maengel.spec.ts e2e/lagerbuch-ruecklauf.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/portal.spec.ts e2e/ruhezustaende.spec.ts e2e/uav.spec.ts"
   },
   {
     "name": "eimer-8",

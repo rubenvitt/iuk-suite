@@ -735,8 +735,9 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
 
   it("zeigt ohne Daten den ungefilterten Anlegehinweis", async () => {
     await mount(<FahrzeugeListe zeilen={[]} />);
-    expect(query("tr.ant-table-placeholder").textContent)
-      .toBe("Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.");
+    // Die GANZE Liste ist leer: ein Ruhezustand mit Figur statt der Tabelle (`core/ruhe`).
+    expect(query('[data-rolle="ruhezustand"]').textContent).toBe("Noch keine Fahrzeuge und Taschen");
+    expect(exists("tr.ant-table-placeholder")).toBe(false);
   });
 });
 

@@ -167,9 +167,11 @@ export function HelferListe({ liste, darfVerwalten }: { liste: HelferDTO[]; darf
         filter={filter}
         onFilter={setFilter}
         leer={{
-          nichts: suche ? "Kein Name passt zur Suche." : "Noch keine Helfer übernommen. Unter „Abgleich“ holst du sie aus der Quelle.",
-          gefiltert: "Keine Person passt zum Filter.",
-          aktiv: gesucht.length > 0 && filterAktiv(filter),
+          nichts: "Noch keine Helfer übernommen",
+          gefiltert: suche ? "Kein Name passt zur Suche." : "Keine Person passt zum Filter.",
+          // Die Suche sieht dieses Bauteil nicht: eine leergesuchte Liste ist kein leerer Bestand.
+          aktiv: Boolean(suche) || (gesucht.length > 0 && filterAktiv(filter)),
+          figur: "helfer",
         }}
         columns={spalten}
       />

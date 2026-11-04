@@ -18,7 +18,7 @@ export function BuchungenListe({ zeilen }: { zeilen: BuchungDTO[] }) {
         rowKey="id"
         aria-label="Buchungen"
         dataSource={zeilen}
-        leer={{ nichts: "Noch keine Buchungen.", gefiltert: "Keine Buchung passt zum Filter." }}
+        leer={{ nichts: "Noch keine Buchungen", figur: "verpflegung", gefiltert: "Keine Buchung passt zum Filter." }}
         karte={{ titel: "artikel", kennzeichen: ["art", "menge"] }}
         columns={[
           {

@@ -461,3 +461,66 @@ describe("Kartentabelle — gesteuerte Filter", () => {
     }
   });
 });
+
+/*
+ * DER RUHEZUSTAND (IDA-347, Etappe 3): ist die GANZE Liste leer und nichts gefiltert, steht statt
+ * Tabelle und Karten die Figur des Moduls. Ein leerer FILTER bleibt der Satz in der Tabelle — nie
+ * eine Figur in einem Tabellenkörper.
+ */
+describe("Kartentabelle — Ruhezustand mit Figur", () => {
+  afterEach(async () => {
+    await unmount();
+  });
+
+  it("ersetzt bei leerer Liste Tabelle und Karten durch den Ruhezustand samt Aktion", async () => {
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={[]}
+        columns={SPALTEN}
+        leer={{ nichts: "Noch keine Artikel", figur: "lagerbuch", aktion: <Button>Anlegen</Button> }}
+      />,
+    );
+    const ruhe = query('[data-rolle="ruhezustand"]');
+    expect(ruhe.textContent).toBe("Noch keine ArtikelAnlegen");
+    expect(ruhe.querySelector('[data-figur="drawer"]')).toBeTruthy();
+    expect(document.querySelector("table")).toBeNull();
+    expect(document.querySelector('[data-rolle="schmalkarten-leer"]')).toBeNull();
+  });
+
+  it("zeigt bei leerem Filter weiter den Satz in der Tabelle, keine Figur", async () => {
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={[]}
+        columns={SPALTEN}
+        leer={{ nichts: "Noch keine Artikel", gefiltert: "Nichts passt.", aktiv: true, figur: "lagerbuch" }}
+      />,
+    );
+    expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeNull();
+    expect(query('[data-rolle="schmalkarten-leer"]').textContent).toBe("Nichts passt.");
+  });
+
+  it("zeigt während des Ladens keine Figur — leer ist dann noch keine Auskunft", async () => {
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        dataSource={[]}
+        columns={SPALTEN}
+        loading
+        leer={{ nichts: "Noch keine Artikel", figur: "lagerbuch" }}
+      />,
+    );
+    expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeNull();
+  });
+
+  it("bleibt ohne `figur` beim bisherigen Satz", async () => {
+    await mount(
+      <Kartentabelle<Zeile> aria-label="Artikel" rowKey="id" dataSource={[]} columns={SPALTEN} leer={{ nichts: "Leer." }} />,
+    );
+    expect(document.querySelector('[data-rolle="ruhezustand"]')).toBeNull();
+  });
+});

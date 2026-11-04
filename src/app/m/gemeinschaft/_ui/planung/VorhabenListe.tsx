@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Empty, Segmented } from "antd";
+import { Button, Segmented } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import type { FormularDaten, VorhabenArt, VorhabenKarteDTO } from "../../_lib/vorhabenTypen";
@@ -41,8 +42,8 @@ export function VorhabenListe({ art, kommend, vorbei = [], daten }: {
           options={[{ value: "kommend", label: `Kommend (${kommend.length})` }, { value: "vorbei", label: `Vorbei (${vorbei.length})` }]} />
       ) : null}
       {liste.length === 0 ? (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={art === "projekt" ? "Noch keine Projekte." : zeit === "kommend" ? "Keine kommenden Events." : "Noch keine vergangenen Events."} />
+        <Ruhezustand figur="gemeinschaft"
+          titel={art === "projekt" ? "Noch keine Projekte" : zeit === "kommend" ? "Keine kommenden Events" : "Noch keine vergangenen Events"} />
       ) : (
         <div className={s.karten}>{liste.map((v) => <VorhabenKarte key={v.id} v={v} />)}</div>
       )}

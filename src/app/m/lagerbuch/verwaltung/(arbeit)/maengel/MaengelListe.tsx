@@ -6,7 +6,8 @@
  * Bekommt nur serialisierbare Props (Falle 9); die Zeiten formatiert der Server in der Suite-Zone.
  */
 import { useState, useTransition } from "react";
-import { App, Button, Card, Empty, Flex, Image, Input, Modal, Tag, Typography } from "antd";
+import { App, Button, Card, Flex, Image, Input, Modal, Tag, Typography } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import { SPACE } from "@/core/theme/tokens";
 import { mangelErledigen, mangelWiederOeffnen } from "../../../_actions/maengel";
 import { VERMERK_MAX } from "../../../_lib/maengel/meldung";
@@ -69,7 +70,7 @@ export function OffeneMaengel({ maengel }: { maengel: MangelKarte[] }) {
   const [vermerk, setVermerk] = useState("");
   const [laeuft, start] = useTransition();
 
-  if (maengel.length === 0) return <Empty description="Kein offener Mangel." />;
+  if (maengel.length === 0) return <Ruhezustand figur="erledigt" titel="Kein offener Mangel" />;
 
   function erledigen(): void {
     if (!offen) return;
@@ -126,7 +127,7 @@ export function ErledigteMaengel({ maengel }: { maengel: MangelKarte[] }) {
   const { message } = App.useApp();
   const [laeuft, start] = useTransition();
 
-  if (maengel.length === 0) return <Empty description="Noch nichts erledigt." />;
+  if (maengel.length === 0) return <Ruhezustand figur="lagerbuch" titel="Noch nichts erledigt" groesse="klein" />;
 
   function wiederOeffnen(m: MangelKarte): void {
     start(async () => {

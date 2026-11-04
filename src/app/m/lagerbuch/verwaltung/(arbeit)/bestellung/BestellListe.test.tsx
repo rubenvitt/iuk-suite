@@ -400,17 +400,17 @@ describe("BestellListe", () => {
 
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
     expect(document.body.textContent)
-      .toContain("Kein Unterbestand und keine offene Bestellmarkierung.");
+      .toContain("Nichts zu bestellen");
 
     /*
      * ⚠️ DIE GEGENPROBE, ohne die der Fall auch ueber einem Rahmen gruen waere, der
-     * den Satz IMMER zeigt: mit Zeilen darf er nicht dastehen. „Kein Unterbestand"
+     * den Satz IMMER zeigt: mit Zeilen darf er nicht dastehen. „Nichts zu bestellen"
      * neben drei Unterbestaenden waere die teuerste Sorte 200.
      */
     await unmount();
     await mount(<BestellListe zeilen={ZEILEN} />);
     expect(document.body.textContent)
-      .not.toContain("Kein Unterbestand und keine offene Bestellmarkierung.");
+      .not.toContain("Nichts zu bestellen");
   });
 
   it("verriegelt pagination und den horizontalen Scrollvertrag", async () => {

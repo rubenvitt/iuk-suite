@@ -7,6 +7,7 @@ import { vereinigeGruppen } from "@/core/auth/devGroups";
 import { useEffect, useEffectEvent, useState, type CSSProperties } from "react";
 import { Button, Checkbox, Input } from "antd";
 import { HINTERGRUND_STANDARD, type Hintergrund } from "@/app/login/_lib/hintergrund";
+import { RuheFigur } from "@/core/ruhe";
 import { IdaLogo } from "./ida-logo";
 import styles from "./login-form.module.css";
 
@@ -121,6 +122,8 @@ export function LoginForm({
           <div className={styles.marke}>
             <IdaLogo className={styles.markeZeichen} />
             <span>IDA</span>
+            {/* Haarlinien-Figur der Anmeldung (IDA-347, Etappe 3): eine Antenne, die dem Zeiger folgt. */}
+            <RuheFigur figur="anmeldung" className={styles.figur} />
           </div>
           <p className={styles.kicker}>Anmeldung</p>
           <h1 className={styles.titel}>Willkommen zurück</h1>

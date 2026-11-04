@@ -540,7 +540,14 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
   Bewegung. `prefers-reduced-motion: reduce` schaltet jede Bewegung suiteweit ab;
   `bewegung.test.ts` und `seitenwechsel.test.tsx` halten Kurve, Token und CSS zusammen.
 - **Haarlinie-Figuren** (`@lucasmarkes/hairline`) nur in Ruhezuständen: leere Listen, Anmeldung, 403/404,
-  leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins.
+  leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins. **Etappe 3:** `Ruhezustand`
+  aus `core/ruhe` (serversicher): Figur, eine kurze Zeile, höchstens **eine** Aktion — kein Erklärtext.
+  Die Figur kommt als **Schlüssel** (`figur="lagerbuch"`, `"erledigt"`, `"fehlt"` …), nie als Komponente
+  (Falle 6); die Zuordnung Modul/Lage → Figur steht allein in `core/ruhe/figuren.ts`, jede Figur ist ein
+  eigener nachgeladener Chunk. Eine Liste bekommt ihn über `Kartentabelle` mit `leer.figur`: nur wenn die
+  **ganze** Liste leer und nichts gefiltert ist — ein leerer Filter bleibt der Satz in der Tabelle. Die
+  Fläche ist im Server-HTML reserviert (5:4), die Platten nehmen die Farbe des abgelesenen Untergrunds,
+  und bei reduzierter Bewegung steht die Figur still (kein Spiel, `pointer-events: none`).
 - **Navigation (Etappe 2):** `FullShell` trägt ein Menü mit zwei Ebenen statt Kopfzeile und Seitenleiste
   (`core/shell/MenueRahmen.tsx`, `Navigator.tsx`): oben die App, darunter ihre Seiten; ein Tipp auf die App
   schiebt „Alle Apps" herein. Desktop dauerhaft links, Telefon als Blatt von unten hinter dem Ort-Knopf.

@@ -358,7 +358,7 @@ export function LagerorteListe({ zeilen }: { zeilen: LagerortZeile[] }) {
         rowKey="id"
         aria-label="Lagerorte"
         dataSource={zeilen}
-        leer={{ nichts: "Noch keine Schränke. Lege oben den ersten an." }}
+        leer={{ nichts: "Noch keine Schränke", figur: "lagerbuch" }}
         columns={spaltenliste}
       />
     </>

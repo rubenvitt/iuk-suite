@@ -411,7 +411,7 @@ describe("BzListe", () => {
   it("zeigt ohne Daten und ohne Filter den fachlichen Anfangstext", async () => {
     await mount(<BzListe zeilen={[]} lagerorte={LAGERORTE} />);
     expect(document.body.textContent)
-      .toContain("Noch keine BZ-Geräte. Lege oben das erste an.");
+      .toContain("Noch keine BZ-Geräte");
   });
 
   it("erkennt den alleinigen Fälligkeitsfilter für den gefilterten Leertext", async () => {

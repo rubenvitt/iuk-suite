@@ -12,19 +12,15 @@ import NotFound from "./not-found";
  * sehen keine davon:
  *
  * 1. DER DUNKELMODUS. Er haengt an `:root[data-theme="dark"]` (Cookie-
- *    Umschalter), nicht an `prefers-color-scheme`. Und weil die Seite ihre
- *    Farben ueber eigene Variablen fuehrt, genuegt eine vergessene Zeile im
- *    Dunkel-Block, damit ein Wert hell stehenbleibt: dunkler Text auf dunklem
- *    Grund, ohne Fehlermeldung. Deshalb wird PAARWEISE geprueft, nicht auf
- *    Anwesenheit eines Dunkel-Blocks.
+ *    Umschalter), nicht an `prefers-color-scheme`. Die Seite faerbt sich
+ *    deshalb NUR aus `--iuk-*`, deren Dunkelzweig `globals.css` pflegt — eine
+ *    eigene Farbe ohne Dunkelzweig waere still hell.
  * 2. `--ant-*` IN EIGENEM MARKUP. antd deklariert seine Variablen auf der
  *    Scope-Klasse seiner eigenen Komponenten, nicht auf `:root` — hier waeren
  *    sie wirkungslos, und der Fehler ist, dass die Farbe einfach fehlt.
  *
- * Dazu der Text: der zweite Absatz ist kein Zierrat, sondern der Grund fuer
- * diese Aufgabe. Mehrere Riegel der Suite werfen absichtlich `notFound()` statt
- * eines 403; wer dort landet, muss erfahren, dass "gibt es nicht" hier auch
- * "darfst du nicht sehen" heissen kann.
+ * Dazu der Text: kein Erklaertext, nur der Satz. Er bleibt neutral ("hier"),
+ * weil mehrere Riegel absichtlich `notFound()` statt eines 403 werfen.
  */
 
 const quelle = (datei: string) => readFileSync(join(process.cwd(), "src/app", datei), "utf8");
@@ -37,16 +33,13 @@ const CSS = quelle("not-found.module.css");
 const CSS_CODE = ohneKommentare(CSS);
 const TSX_CODE = ohneKommentare(quelle("not-found.tsx"));
 
-/** Die `--nf-*`-Namen, die ein Selektor-Block deklariert. */
-function variablenIn(selektor: string): string[] {
-  const start = CSS_CODE.indexOf(`${selektor} {`);
-  expect(start, `Selektor fehlt: ${selektor}`).toBeGreaterThanOrEqual(0);
-  const block = CSS_CODE.slice(start, CSS_CODE.indexOf("}", start));
-  return [...block.matchAll(/(--nf-[a-z-]+)\s*:/g)].map((m) => m[1]).sort();
-}
-
 describe("404: die Seite sagt, was los ist", () => {
   const markup = renderToStaticMarkup(<NotFound />);
+
+  it("ist ein Ruhezustand mit der Figur fuer \u201enicht gefunden\u201c und dem Satz als Ueberschrift", () => {
+    expect(markup).toContain('data-figur="query"');
+    expect(markup).toMatch(/<h1[^>]*>Diese Seite gibt es hier nicht\.<\/h1>/);
+  });
 
   it("sagt nur, was los ist — ohne Erklaertext", () => {
     expect(markup).toContain("Diese Seite gibt es hier nicht.");
@@ -69,23 +62,20 @@ describe("404: die Seite sagt, was los ist", () => {
 });
 
 describe("404: beide Modi bleiben gepflegt", () => {
-  it("jede Farbvariable des Hellmodus hat eine Entsprechung im Dunkelmodus", () => {
-    const hell = variablenIn(".seite");
-    const dunkel = variablenIn(':root[data-theme="dark"] .seite');
-
-    expect(hell.length).toBeGreaterThan(0);
-    expect(dunkel).toEqual(hell);
+  it("faerbt sich nur aus den Suite-Tokens, deren Dunkelzweig `globals.css` traegt", () => {
+    const farben = [...CSS_CODE.matchAll(/(?:color|background):\s*([^;]+);/g)].map((m) => m[1].trim());
+    expect(farben.length).toBeGreaterThan(0);
+    for (const farbe of farben) expect(farbe).toMatch(/^var\(--iuk-[a-z-]+\)$/);
   });
 
   it("der Umschalter entscheidet, nicht das Betriebssystem", () => {
-    expect(CSS_CODE).toContain(':root[data-theme="dark"]');
     expect(CSS_CODE).not.toContain("prefers-color-scheme");
   });
 
   it("die Seite setzt ihren eigenen Grund — es gibt hier keine antd-Layout-Flaeche", () => {
     // Ohne Shell traegt der `body` die Vorgabefarbe des Browsers. Faellt diese
-    // Deklaration weg, steht die Karte im Dunkelmodus auf Weiss.
-    expect(CSS_CODE).toMatch(/background:\s*var\(--nf-grund\)/);
+    // Deklaration weg, steht die Figur im Dunkelmodus auf Weiss.
+    expect(CSS_CODE).toMatch(/background:\s*var\(--iuk-grund\)/);
     expect(CSS_CODE).toMatch(/min-height:\s*100dvh/);
   });
 

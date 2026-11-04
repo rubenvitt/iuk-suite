@@ -434,7 +434,8 @@ export function FahrzeugeListe({ zeilen, stammAuswahl }: { zeilen: FahrzeugAnzei
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}
         leer={{
-          nichts: "Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.",
+          nichts: "Noch keine Fahrzeuge und Taschen",
+          figur: "lagerbuch",
           gefiltert: "Keine Einheit passt zu Suche und Filter.",
           // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
           // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste

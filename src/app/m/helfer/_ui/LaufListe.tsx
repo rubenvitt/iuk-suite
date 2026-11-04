@@ -15,7 +15,7 @@ export function LaufListe({ laeufe }: { laeufe: LaufDTO[] }) {
       rowKey="id"
       aria-label="Letzte Abgleiche"
       dataSource={laeufe}
-      leer={{ nichts: "Noch kein Abgleich." }}
+      leer={{ nichts: "Noch kein Abgleich", figur: "helfer" }}
       columns={[
         { title: "Zeitpunkt", key: "zeitpunkt", render: (_: unknown, l: LaufDTO) => ZEIT.format(new Date(l.zeitpunkt)) },
         { title: "Quelle", key: "quelle", render: (_: unknown, l: LaufDTO) => QUELLE_TEXT[l.quelle] },

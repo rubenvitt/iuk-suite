@@ -20,6 +20,17 @@ import { antwortKoepfeFuer, decideRoute, resolveHost } from "@/core/routing";
  */
 type Weiche = (req: NextAuthRequest, event: NextFetchEvent) => NextResponse;
 
+/** Das interne Ziel fuer „Kein Zugriff" (`app/kein-zugriff/page.tsx`); von aussen nicht erreichbar,
+ *  weil jeder Host-Pfad vorher ins Modul umgeschrieben wird. */
+export const KEIN_ZUGRIFF_PFAD = "/kein-zugriff";
+
+/** Ein Seitenaufruf im Browser: GET/HEAD, HTML erwuenscht, kein RSC-Abruf des Client-Routers. */
+export function willSeite(req: Pick<NextRequest, "method" | "headers">): boolean {
+  if (req.method !== "GET" && req.method !== "HEAD") return false;
+  if (req.headers.get("rsc") !== null || req.headers.get("next-action") !== null) return false;
+  return (req.headers.get("accept") ?? "").includes("text/html");
+}
+
 /**
  * Die Weichenstellung selbst — inhaltlich unveraendert.
  */
@@ -51,6 +62,16 @@ const weiche: Weiche = (req) => {
       const key = nextUrl.pathname.match(/^\/m\/([^/]+)/)?.[1];
       const auditModule = (key ? findModule(key) : moduleForHost(host))?.key ?? "portal";
       auditDenied(auditModule as AuditModule, auditActor(req.auth?.user));
+      // Ein Seitenaufruf bekommt die Suite-Seite „Kein Zugriff" — weiter mit 403, den setzt
+      // `forbidden()` in `app/kein-zugriff/page.tsx` (ein Rewrite traegt keinen Status). Alles
+      // andere (API, Server Action, RSC-Abruf) bleibt beim nackten 403: der Client-Router faellt
+      // darauf auf einen Seitenaufruf zurueck und landet so ebenfalls hier.
+      if (willSeite(req)) {
+        const url = nextUrl.clone();
+        url.pathname = KEIN_ZUGRIFF_PFAD;
+        url.search = "";
+        return NextResponse.rewrite(url);
+      }
       return new NextResponse("Forbidden", { status: 403 });
     }
   }

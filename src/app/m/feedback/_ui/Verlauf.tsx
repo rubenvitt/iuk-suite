@@ -366,7 +366,7 @@ function VerlaufTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZ
       aria-label="Vergangene Dienstabende"
       rowKey="eveningId"
       dataSource={zeilen}
-      leer={{ nichts: LEER_TEXT, gefiltert: "Kein Abend passt zum Filter." }}
+      leer={{ nichts: LEER_TEXT, gefiltert: "Kein Abend passt zum Filter.", figur: "feedback" }}
       karte={(z) => <Abendblock groupId={groupId} zeile={z} />}
       size="middle"
       blaettern={{ pageSize: 12, hideOnSinglePage: true, size: "small" }}
@@ -636,7 +636,7 @@ function Zustandsvermerk({ zeile }: { zeile: VerlaufZeile }) {
   return null;
 }
 
-const LEER_TEXT = "Noch keine vergangenen Dienstabende.";
+const LEER_TEXT = "Noch keine vergangenen Dienstabende";
 
 /**
  * „14 / 18" plus 60px-Balken — und ohne Teilnehmerzahl „14" plus T.meta „—"

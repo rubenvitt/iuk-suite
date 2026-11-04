@@ -454,7 +454,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
         columns={spalten}
         dataSource={zeilen}
         aria-label={CODE_TEXTE.tabelleName}
-        leer={{ nichts: CODE_TEXTE.leer }}
+        leer={{ nichts: CODE_TEXTE.leer, figur: "radio" }}
       />
       {fehler !== null && (
         /*

@@ -68,7 +68,7 @@ export function LinksVerwaltung({ links }: { links: LinkZeile[] }) {
         rowKey="id"
         aria-label="Helfer-Links"
         dataSource={links}
-        leer={{ nichts: "Noch keine Helfer-Links." }}
+        leer={{ nichts: "Noch keine Helfer-Links", figur: "verpflegung" }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}
         columns={[
           { title: "Anlass", key: "name", render: (_: unknown, l: LinkZeile) => <strong>{l.name}</strong> },

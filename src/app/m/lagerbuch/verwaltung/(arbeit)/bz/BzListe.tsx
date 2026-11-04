@@ -285,7 +285,8 @@ export function BzListe({
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}
         leer={{
-          nichts: "Noch keine BZ-Geräte. Lege oben das erste an.",
+          nichts: "Noch keine BZ-Geräte",
+          figur: "lagerbuch",
           gefiltert: "Kein Gerät passt zu Suche und Filter.",
           // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
           // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste

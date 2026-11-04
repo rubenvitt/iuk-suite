@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { mangelBehebenAction } from "../_actions/verwaltung";
 import type { MangelDTO } from "../_lib/typen";
@@ -20,7 +21,7 @@ export function MaengelListe({ offen, behoben, gruppenWahl, gewaehlt }: {
     <>
       <Seitenkopf titel="Mängel" aktionen={<GruppenFilter wahl={gruppenWahl} gewaehlt={gewaehlt} />} />
       <Card title={`Offen (${offen.length})`}>
-        {offen.length === 0 ? <p className={s.neben} style={{ margin: 0 }}>Keine offenen Mängel.</p> : offen.map((m) => (
+        {offen.length === 0 ? <Ruhezustand figur="erledigt" titel="Keine offenen Mängel" groesse="klein" /> : offen.map((m) => (
           <MangelEintrag key={m.id} m={m} mitGeraet laeuft={laeuft} onBehoben={(id) => fuehreAus(() => mangelBehebenAction(id), "Als behoben eingetragen.")} />
         ))}
       </Card>

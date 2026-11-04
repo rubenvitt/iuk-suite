@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { App, Button, Tag } from "antd";
+import type { RuheSchluessel } from "@/core/ruhe";
 import {
   Kartentabelle,
   filterAktiv,
@@ -44,7 +45,7 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           liste={props.liste}
           onBearbeiten={props.onBearbeiten}
           beschriftung="Fahrzeuge"
-          leer={{ nichts: "Noch keine Fahrzeuge angelegt.", gefiltert: "Kein Fahrzeug passt zum Filter." }}
+          leer={{ nichts: "Noch keine Fahrzeuge", figur: "einsatzbuch", gefiltert: "Kein Fahrzeug passt zum Filter." }}
           spalten={[
             { title: "Kennung", key: "kennung", sorter: nachText<FahrzeugDTO>((f) => f.kennung), render: (_: unknown, f: FahrzeugDTO) => f.kennung },
             {
@@ -72,7 +73,7 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           liste={props.liste}
           onBearbeiten={props.onBearbeiten}
           beschriftung="Personal"
-          leer={{ nichts: "Noch kein Personal angelegt.", gefiltert: "Keine Person passt zum Filter." }}
+          leer={{ nichts: "Noch kein Personal", figur: "einsatzbuch", gefiltert: "Keine Person passt zum Filter." }}
           spalten={[
             { title: "Name", key: "name", sorter: nachText<PersonDTO>((p) => p.name), render: (_: unknown, p: PersonDTO) => p.name },
             {
@@ -92,7 +93,7 @@ export function StammdatenTabelle(props: StammdatenTabelleProps) {
           liste={props.liste}
           onBearbeiten={props.onBearbeiten}
           beschriftung="Stichworte"
-          leer={{ nichts: "Noch keine Stichworte angelegt.", gefiltert: "Kein Stichwort passt zum Filter." }}
+          leer={{ nichts: "Noch keine Stichworte", figur: "einsatzbuch", gefiltert: "Kein Stichwort passt zum Filter." }}
           spalten={[
             {
               title: "Gruppe",
@@ -127,7 +128,7 @@ function Liste<T extends Stammeintrag>({
   liste: T[];
   onBearbeiten: (eintrag: T) => void;
   beschriftung: string;
-  leer: { nichts: string; gefiltert: string };
+  leer: { nichts: string; gefiltert: string; figur?: RuheSchluessel };
   spalten: Spalten<T>;
 }) {
   const { message } = App.useApp();

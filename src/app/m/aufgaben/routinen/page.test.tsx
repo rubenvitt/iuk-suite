@@ -94,7 +94,7 @@ describe("routinenInhalt — Leerzustand", () => {
     await mount(routinenInhalt(t.db, alina));
 
     expect(query("h1").textContent).toBe("Routinen");
-    expect(document.body.textContent).toContain("Noch keine Routinen angelegt.");
+    expect(document.body.textContent).toContain("Noch keine Routinen");
     expect(queryAll("table")).toHaveLength(0);
     const knopf = queryAll("a").find((a) => a.textContent === "Routine anlegen");
     expect(knopf, "Anlege-Knopf im Leerzustand fehlt").toBeTruthy();

@@ -150,7 +150,7 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
       rowKey="id"
       aria-label="Zugriffsprotokoll"
       dataSource={anzeige}
-      leer={{ nichts: "Noch kein Zugriff protokolliert.", gefiltert: "Kein Eintrag passt zum Filter." }}
+      leer={{ nichts: "Noch kein Zugriff protokolliert", figur: "files", gefiltert: "Kein Eintrag passt zum Filter." }}
       columns={spalten}
       /* `size="small"` verdichtet die ZEILEN einer Tabelle und ist etwas
          anderes als `size` auf einem Bedienelement (dort wäre `large` 72px

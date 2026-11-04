@@ -132,7 +132,7 @@ describe("LetzteBuchungenTable", () => {
 
   it("behaelt den bisherigen Leerzustand ohne leere Tabelle", async () => {
     await mount(<LetzteBuchungenTable zeilen={[]} />);
-    expect(document.body.textContent).toContain("Noch keine Buchungen.");
+    expect(document.body.textContent).toContain("Noch keine Buchungen");
     expect(exists("table")).toBe(false);
   });
 });

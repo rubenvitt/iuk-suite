@@ -1,4 +1,4 @@
-import { Empty } from "antd";
+import { Ruhezustand } from "@/core/ruhe";
 import Link from "next/link";
 import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
@@ -247,9 +247,9 @@ describe("Verwaltungsübersicht", () => {
       null,
       null,
     ]);
-    expect(elementeVomTyp(seite, Empty).map((element) =>
-      (element.props as { description?: ReactNode }).description)).toEqual([
-      "Alles im grünen Bereich.",
+    expect(elementeVomTyp(seite, Ruhezustand).map((element) =>
+      (element.props as { titel?: ReactNode; figur?: string }))).toMatchObject([
+      { titel: "Alles im grünen Bereich", figur: "erledigt" },
     ]);
     const [journal] = elementeVomTyp(seite, LetzteBuchungenTable);
     expect(journal.props).toEqual({ zeilen: [] });

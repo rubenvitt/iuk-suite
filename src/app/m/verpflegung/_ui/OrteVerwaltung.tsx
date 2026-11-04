@@ -48,7 +48,7 @@ export function OrteVerwaltung({ orte }: { orte: OrtDTO[] }) {
         rowKey="id"
         aria-label="Lagerorte"
         dataSource={orte}
-        leer={{ nichts: "Noch keine Lagerorte." }}
+        leer={{ nichts: "Noch keine Lagerorte", figur: "verpflegung" }}
         karte={{ titel: "name", kennzeichen: ["stand"] }}
         columns={[
           { title: "Lagerort", key: "name", render: (_: unknown, o: OrtDTO) => <strong>{o.name}</strong> },

@@ -1,0 +1,79 @@
+/*
+ * RUHEZUSTÄNDE MIT HAARLINIEN-FIGUR (IDA-347, Etappe 3).
+ *
+ * KEINE `--ant-*`-VARIABLEN (Falle 2) und KEINE `.ant-*`-SELEKTOREN (Falle 20). Die Figur färbt sich
+ * über die sechs `--hairline-*`-Eigenschaften des Pakets; ihre eigenen Regeln stehen in `:where()`
+ * (Spezifität 0), jede Regel hier gewinnt also ohne `!important`.
+ *
+ * Hell/Dunkel kommt allein aus den `--iuk-*`-Tokens in `globals.css`, die an `:root[data-theme]`
+ * hängen — hier steht deshalb kein eigener Dunkelzweig, und schon gar kein `prefers-color-scheme`.
+ */
+
+.ruhe {
+  /* Worauf der Zustand steht — die Platten der Figur nehmen genau diese Farbe. Die Insel liest
+     den echten Untergrund ab und setzt ihn an der Figur; das hier ist der Rückfall. */
+  --ruhe-flaeche: var(--iuk-grund);
+
+  display: flex;
+  flex-direction: column;
+  /* Links an der Menükante wie jeder Inhalt unter `FullShell` (Etappe 2); mittig nur die Randseiten. */
+  align-items: flex-start;
+  gap: 12px;
+  padding-block: 24px 32px;
+  text-align: start;
+  min-inline-size: 0;
+}
+
+.mittig {
+  align-items: center;
+  text-align: center;
+}
+
+/*
+ * Die Fläche der Figur steht schon im Server-HTML in endgültiger Größe (5:4 wie das Paket):
+ * die Zeichnung kommt nachgeladen und verschiebt nichts.
+ */
+.figur {
+  --hairline-plate: var(--ruhe-flaeche);
+  --hairline-hi: var(--iuk-tinte);
+  --hairline-edge: color-mix(in srgb, var(--iuk-gedaempft) 70%, var(--ruhe-flaeche));
+  --hairline-mid: color-mix(in srgb, var(--iuk-gedaempft) 38%, var(--ruhe-flaeche));
+  --hairline-lo: var(--iuk-linie);
+
+  display: block;
+  position: relative;
+  inline-size: min(240px, 66vw);
+  aspect-ratio: 5 / 4;
+  flex: none;
+}
+
+.klein {
+  inline-size: min(168px, 48vw);
+}
+
+/* Reduzierte Bewegung: die Figur steht still — auch der Zeiger bewegt sie nicht. */
+@media (prefers-reduced-motion: reduce) {
+  .figur {
+    pointer-events: none;
+  }
+}
+
+.titel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--iuk-tinte);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.titelKlein {
+  font-size: 16px;
+}
+
+.aktion {
+  margin-block-start: 8px;
+}

@@ -60,7 +60,8 @@ export function FahrzeugVerwaltung({ liste, darfVerwalten }: { liste: FahrzeugDT
         filter={filter}
         onFilter={setFilter}
         leer={{
-          nichts: "Noch keine Fahrzeuge angelegt.",
+          nichts: "Noch keine Fahrzeuge",
+          figur: "fahrzeuge",
           gefiltert: "Kein Fahrzeug passt zum Filter.",
           aktiv: liste.length > 0 && filterAktiv(filter),
         }}

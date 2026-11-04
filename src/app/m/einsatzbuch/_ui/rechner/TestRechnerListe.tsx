@@ -39,7 +39,7 @@ export function TestRechnerListe({ liste }: { liste: TestRechnerZeile[] }) {
         rowKey="id"
         aria-label="Test-Rechner"
         dataSource={liste}
-        leer={{ nichts: "Keine Test-Rechner." }}
+        leer={{ nichts: "Keine Test-Rechner", figur: "einsatzbuch" }}
         columns={[
           { title: "Name", key: "name", sorter: nachText<TestRechnerZeile>((r) => r.name), render: (_: unknown, r) => r.name },
           { title: "Eingerichtet", key: "eingerichtet", render: (_: unknown, r) => `${r.eingerichtetAm} von ${r.eingerichtetVon}` },
