@@ -14,8 +14,8 @@ export default async function Archiv() {
   requireKommplanHost(await headers());
   const viewer = await requireKommplanZugang();
   return (
-    <Huelle>
-      <Seitenkopf titel="Archiv" zurueck={{ titel: "Alle Pläne", href: "/" }} />
+    <Huelle viewer={viewer}>
+      <Seitenkopf titel="Archiv" />
       <PlanTabelle zeilen={listePlaene(getDb(), "archiv", personAus(viewer))} liste="archiv" />
     </Huelle>
   );

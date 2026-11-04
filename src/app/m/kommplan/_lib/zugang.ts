@@ -50,7 +50,7 @@ export async function requireKommplanZugang(): Promise<Viewer> {
 /**
  * Seitenriegel der Verwaltungsseiten Bibliothek und Einstellungen (Umsetzungsplan Phase 4, Entscheidung 16):
  * nach `requireKommplanZugang` zusätzlich das Bearbeitungsrecht — sonst 404, damit sich die Seite nicht
- * verrät. Dasselbe Prädikat wie die Links in der Planliste und jede Server Action.
+ * verrät. Dasselbe Prädikat wie das Menü (`_lib/nav.ts`) und jede Server Action.
  */
 export function pruefeKommplanBearbeiten(viewer: Viewer): void {
   if (darfKommplanBearbeiten(viewer.groups)) return;
