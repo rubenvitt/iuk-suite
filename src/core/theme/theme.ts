@@ -228,7 +228,19 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       // Das Häkchen sitzt auf der Bedienfläche; dunkel ist die fast weiß.
       Checkbox: { colorBorder: kontur, ...(dark ? { colorWhite: FARBEN.nacht } : {}) },
       Switch: dark ? { handleBg: FARBEN.nacht } : {},
-      Button: { primaryShadow: "none", defaultShadow: "none", dangerShadow: "none", fontWeight: 520, dangerColor: "#ffffff" },
+      // Schrift auf dem gefüllten Gefahrknopf: hell Weiß auf `rot` (5,9:1); dunkel `nacht` auf `rotAufDunkel`,
+      // denn Weiß auf #e45a66 läge bei 3,5:1 (`theme.test.ts` hält ≥ 4,5:1 über Ruhe, Hover und Druck).
+      Button: { primaryShadow: "none", defaultShadow: "none", dangerShadow: "none", fontWeight: 520, dangerColor: dark ? FARBEN.nacht : "#ffffff" },
+      /*
+       * LINKS IM FLIESSTEXT SIND UNTERSTRICHEN. Seit der Haarlinie ist `colorLink`
+       * dieselbe Tinte wie der Text; ohne Strich wäre ein Link im Satz nur noch am
+       * Zeiger zu erkennen (WCAG 1.4.1). NUR an `Typography`, nicht global: antds
+       * Reset legt `linkDecoration` auf JEDES `<a>` in seinem Geltungsbereich —
+       * Menüeinträge, `Button href`, Kacheln, Brotkrumen und Namenslinks in
+       * Tabellen wären mit unterstrichen. `theme.test.ts` prüft beide Seiten am
+       * gerenderten CSS.
+       */
+      Typography: { linkDecoration: "underline", linkHoverDecoration: "underline", linkFocusDecoration: "underline" },
       // Flächen, die NICHT die Bedienfarbe tragen, behalten weiße Schrift (`bedienTinte`).
       Tooltip: WEISS,
       Badge: WEISS,

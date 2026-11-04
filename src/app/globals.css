@@ -324,14 +324,23 @@ select {
   outline-offset: 2px;
 }
 
-/* Reduzierte Bewegung gilt für alles, antd eingeschlossen. */
+/*
+ * Reduzierte Bewegung gilt für alles, antd eingeschlossen. Animationen kürzt die
+ * Regel auf 0.01ms (dann feuert `animationend` noch, auf das antds Motion wartet);
+ * Übergänge stellt sie auf 0s, NICHT auf 0.01ms: `transition-property` ist ab Werk
+ * `all`, eine Dauer ungleich null machte also jede Eigenschaft jedes Elements zum
+ * Übergang, und Layout spränge erst ein Bild später — der kommplan-Editor maß so
+ * die Fläche vor dem freigehaltenen Flyin-Platz (e2e `kommplan-editor.spec.ts`).
+ * antds Übergangs-Motions (Drawer, Collapse) schließen über ihre `motionDeadline`.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }

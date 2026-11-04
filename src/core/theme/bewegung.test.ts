@@ -27,7 +27,8 @@ describe("Bewegung der Haarlinie", () => {
   it("schaltet bei reduzierter Bewegung Übergänge und Animationen ab", () => {
     const block = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/.exec(CSS)?.[1] ?? "";
     expect(block).toMatch(/animation-duration:\s*0\.01ms !important/);
-    expect(block).toMatch(/transition-duration:\s*0\.01ms !important/);
+    // 0s, nicht 0.01ms: sonst würde jede Eigenschaft jedes Elements ein Übergang (`globals.css`).
+    expect(block).toMatch(/transition-duration:\s*0s !important/);
   });
 
   // Falle 20: die Druckregel zielt auf einen antd-Klassennamen — gerendert, nicht gelesen.

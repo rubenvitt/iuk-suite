@@ -8,14 +8,17 @@ import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { createCache, extractStyle, StyleProvider } from "@ant-design/cssinjs";
 import {
+  Button,
   Checkbox,
   ConfigProvider,
   DatePicker,
   Input,
   InputNumber,
+  Menu,
   Radio,
   Select,
   Table,
+  Typography,
   theme as antdTheme,
   type ThemeConfig,
 } from "antd";
@@ -97,6 +100,39 @@ describe("buildTheme", () => {
     for (const flaeche of [token.colorPrimary, token.colorPrimaryHover, token.colorPrimaryActive]) {
       expect(kontrast(token.colorTextLightSolid, flaeche), `auf ${flaeche}`).toBeGreaterThanOrEqual(7);
     }
+  });
+
+  it.each(MODES)("trägt die Schrift auf dem gefüllten Gefahrknopf mit 4,5:1 im Modus %s", (mode) => {
+    // `Button.dangerColor` ist die Schrift auf `colorError` (Ruhe, Hover, Druck). Weiß
+    // auf dem Dunkel-Rot #e45a66 läge bei 3,5:1 (CodeRabbit-Review zu #493).
+    const cfg = buildTheme(mode);
+    const token = antdTheme.getDesignToken(cfg);
+    const schrift = cfg.components!.Button!.dangerColor!;
+    for (const flaeche of [token.colorError, token.colorErrorHover, token.colorErrorActive]) {
+      expect(kontrast(schrift, flaeche), `${schrift} auf ${flaeche}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  /**
+   * LINKS IM TEXT SIND UNTERSTRICHEN, MENÜ UND KNÖPFE NICHT (Haarlinie). `colorLink`
+   * ist Tinte wie der Text; der Strich hängt deshalb an `Typography`. Gerendert,
+   * nicht gelesen (Falle 20): antds globaler `a`-Reset liest `--ant-link-decoration`,
+   * und nur der Typography-Geltungsbereich darf sie auf `underline` stellen.
+   */
+  it.each(MODES)("unterstreicht im Modus %s nur Typography-Links", (mode) => {
+    const cache = createCache();
+    const markup = renderToString(
+      createElement(StyleProvider, { cache },
+        createElement(ConfigProvider, { theme: buildTheme(mode) },
+          createElement(Typography.Link, { href: "/t" }, "Text"),
+          createElement(Button, { href: "/b" }, "Knopf"),
+          createElement(Menu, { items: [{ key: "m", label: createElement("a", { href: "/m" }, "Menü") }] }))),
+    );
+    expect(markup).toMatch(/<a[^>]*class="[^"]*\bant-typography-link\b/);
+    const css = extractStyle(cache, { plain: true });
+    const unterstreichen = [...css.matchAll(/([^{}]*)\{[^{}]*--ant-link-decoration:\s*underline/g)].map((m) => m[1].trim());
+    expect(unterstreichen).toEqual([".iuk.ant-typography"]);
+    expect(css).toMatch(/\.ant-typography\.ant-typography-link\{[^}]*text-decoration:var\(--ant-link-decoration\)/);
   });
 
   it("zeigt in antd dasselbe Dunkel-Rot wie eigenes Markup (`--iuk-marke`)", () => {
