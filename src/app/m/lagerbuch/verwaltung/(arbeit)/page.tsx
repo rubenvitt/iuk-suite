@@ -1,4 +1,4 @@
-import { Card, Col, Empty, Row } from "antd";
+import { Card, Empty } from "antd";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { SPACE } from "@/core/theme/tokens";
@@ -18,6 +18,7 @@ import { fmtTs } from "../../_lib/zeit";
 import { requireLagerbuchAdmin } from "../../_lib/zugang";
 import { Chip } from "../../_ui/Chip";
 import { Kachel } from "../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
 import s from "../../_ui/verwaltung.module.css";
 import {
@@ -149,49 +150,39 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
         })} Uhr`}
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={8}>
-          {/* IDA-239 — eine Kachel mit Zahl führt zu ihrer Liste: was unter
-              dem Mindestbestand liegt, wird über den Bestellvorschlag
-              nachgeholt. Bei null gibt es dort nichts zu tun. */}
-          <Kachel
-            zahl={k.unterMindest}
-            beschriftung="Artikel unter Mindestbestand"
-            ton={k.unterMindest ? "rot" : "ok"}
-            href={k.unterMindest > 0 ? "/verwaltung/bestellung" : undefined}
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={k.chargenKritisch}
-            beschriftung="Chargen bald fällig / kritisch"
-            ton={k.chargenKritisch ? "gelb" : "ok"}
-            href="/verwaltung/verfall"
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={k.chargenAbgelaufen}
-            beschriftung="abgelaufen — aussondern nötig"
-            ton={k.chargenAbgelaufen ? "rot" : "ok"}
-            href="/verwaltung/verfall"
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={k.nichtBestellt}
-            beschriftung="unter Mindestbestand, noch nicht bestellt"
-            href={k.nichtBestellt > 0 ? "/verwaltung/bestellung" : undefined}
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Kachel
-            zahl={k.buchungenGesamt}
-            beschriftung="Buchungen im Journal"
-            href={k.buchungenGesamt > 0 ? "/verwaltung/journal" : undefined}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        {/* IDA-239 — eine Kachel mit Zahl führt zu ihrer Liste: was unter
+            dem Mindestbestand liegt, wird über den Bestellvorschlag
+            nachgeholt. Bei null gibt es dort nichts zu tun. */}
+        <Kachel
+          zahl={k.unterMindest}
+          beschriftung="Artikel unter Mindestbestand"
+          ton={k.unterMindest ? "rot" : "ok"}
+          href={k.unterMindest > 0 ? "/verwaltung/bestellung" : undefined}
+        />
+        <Kachel
+          zahl={k.chargenKritisch}
+          beschriftung="Chargen bald fällig / kritisch"
+          ton={k.chargenKritisch ? "gelb" : "ok"}
+          href="/verwaltung/verfall"
+        />
+        <Kachel
+          zahl={k.chargenAbgelaufen}
+          beschriftung="abgelaufen — aussondern nötig"
+          ton={k.chargenAbgelaufen ? "rot" : "ok"}
+          href="/verwaltung/verfall"
+        />
+        <Kachel
+          zahl={k.nichtBestellt}
+          beschriftung="unter Mindestbestand, noch nicht bestellt"
+          href={k.nichtBestellt > 0 ? "/verwaltung/bestellung" : undefined}
+        />
+        <Kachel
+          zahl={k.buchungenGesamt}
+          beschriftung="Buchungen im Journal"
+          href={k.buchungenGesamt > 0 ? "/verwaltung/journal" : undefined}
+        />
+      </Kennzahlen>
 
       <Card
         title="Kritische Artikel"

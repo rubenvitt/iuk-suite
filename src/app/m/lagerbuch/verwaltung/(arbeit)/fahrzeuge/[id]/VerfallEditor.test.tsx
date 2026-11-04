@@ -15,7 +15,6 @@ import {
   VerfallEditor,
   type VerfallAnzeigeZeile,
 } from "./VerfallEditor";
-import s from "../../../../_ui/verwaltung.module.css";
 
 /**
  * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
@@ -219,7 +218,7 @@ describe("VerfallEditor — Bestand und Verfall je Artikel (IDA-232)", () => {
     expect(query("tr[data-row-key='a1'] [data-rolle='ist']").textContent).toBe("5");
     expect(mull.textContent).toContain("/ 4 Stk.");
     expect(query("tr[data-row-key='a2']").textContent).toContain("nicht erfasst");
-    expect(query(`tr[data-row-key='a3'] .${s.ok}`).textContent).toBe("bis 08/29");
+    expect(query(`tr[data-row-key='a3'] [data-statuschip=ok]`).textContent).toBe("bis 08/29");
   });
 
   it("sagt „unter Soll“, wo der Bestand die Summe des Solls nicht erreicht", async () => {

@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import { Col, Row } from "antd";
-import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import {
   bzAkkuKennzahlGesamt,
@@ -8,6 +6,7 @@ import {
   lagerortOptionen,
 } from "../../../_lib/lesepfade/bz";
 import { Kachel } from "../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { BzListe } from "./BzListe";
 import { bzAnzeigeZeilen } from "./bzAnzeige";
@@ -45,28 +44,20 @@ export function bzSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         titel="BZ-Kontrolle"
       />
 
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={faellig}
-            beschriftung="Kontrolle fällig/bald"
-            ton={faellig ? "gelb" : "ok"}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={ueberfaellig}
-            beschriftung="Überfällig / nie geprüft"
-            ton={ueberfaellig ? "rot" : "ok"}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={akkuText} beschriftung="Ø Akku-Lebensdauer" />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel zahl={aktive.length} beschriftung="Aktive Geräte" />
+        <Kachel
+          zahl={faellig}
+          beschriftung="Kontrolle fällig/bald"
+          ton={faellig ? "gelb" : "ok"}
+        />
+        <Kachel
+          zahl={ueberfaellig}
+          beschriftung="Überfällig / nie geprüft"
+          ton={ueberfaellig ? "rot" : "ok"}
+        />
+        <Kachel zahl={akkuText} beschriftung="Ø Akku-Lebensdauer" />
+      </Kennzahlen>
 
       <BzListe zeilen={zeilen} lagerorte={lagerorte} />
     </>

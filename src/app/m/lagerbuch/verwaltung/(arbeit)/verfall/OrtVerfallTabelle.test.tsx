@@ -10,7 +10,6 @@ import {
   queryAll,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
-import s from "../../../_ui/verwaltung.module.css";
 import {
   OrtVerfallTabelle,
   sucheTrifft,
@@ -268,8 +267,8 @@ describe("OrtVerfallTabelle — Spalten", () => {
   it("zeigt den Status als Chip im gelieferten Ton", async () => {
     await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
-    expect(query(`${BREIT} [data-row-key='f1:a2'] .${s.rot}`).textContent).toContain("abgelaufen");
-    expect(query(`${BREIT} [data-row-key='f2:a1'] .${s.gelb}`).textContent).toContain("läuft ab");
+    expect(query(`${BREIT} [data-row-key='f1:a2'] [data-statuschip=fehler]`).textContent).toContain("abgelaufen");
+    expect(query(`${BREIT} [data-row-key='f2:a1'] [data-statuschip=warnung]`).textContent).toContain("läuft ab");
   });
 
   /**
@@ -332,8 +331,8 @@ describe("OrtVerfallTabelle — nach Fahrzeug gruppieren", () => {
     const kopf = query(`${BREIT} [data-row-key='fzg:f1']`);
     expect(kopf.textContent).toContain("RTW Nord");
     expect(kopf.textContent).toContain("UE-RK 1234");
-    expect(kopf.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
-    expect(kopf.querySelector(`.${s.gelb}`)!.textContent).toContain("1 läuft ab");
+    expect(kopf.querySelector(`[data-statuschip=fehler]`)!.textContent).toContain("1 abgelaufen");
+    expect(kopf.querySelector(`[data-statuschip=warnung]`)!.textContent).toContain("1 läuft ab");
   });
 
   /**
@@ -360,7 +359,7 @@ describe("OrtVerfallTabelle — nach Fahrzeug gruppieren", () => {
     await spaltenFilter("Status", "abgelaufen");
     // Nur f1 hat eine abgelaufene Meldung.
     expect(document.querySelector("[data-row-key='fzg:f2']")).toBeNull();
-    expect(query(`${BREIT} [data-row-key='fzg:f1']`).querySelector(`.${s.gelb}`)).toBeNull();
+    expect(query(`${BREIT} [data-row-key='fzg:f1']`).querySelector(`[data-statuschip=warnung]`)).toBeNull();
   });
 });
 

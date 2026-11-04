@@ -1,4 +1,4 @@
-import { Card, Col, Row } from "antd";
+import { Card } from "antd";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
@@ -22,6 +22,7 @@ import { SCHRIFT } from "../../../../_lib/schrift";
 import { einheitenartLabel } from "../../../../_lib/konstanten";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
+import { Kennzahlen } from "@/core/kennzahl/Kennzahl";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "../ChecklisteKnopf";
 import { CheckDurchfuehrenKnopf } from "../CheckDurchfuehrenKnopf";
@@ -336,9 +337,9 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         einen dritten vermuten — und hier liegen die beiden Flächen einen Klick
         auseinander.
 
-        ⚠️ `md={12}` STATT `md={8}`: vier Kacheln nebeneinander unterschreiten
-        ab dem md-Umbruch die 190px, die `Kachel` als Untergrenze nennt. Zwei
-        Reihen zu zweit ab 768px, vier nebeneinander erst ab xl.
+        DIE REIHE BRICHT SELBST UM (`Kennzahlen`, Haarlinie): jede Zahl hat
+        eine Mindestbreite, und was nicht mehr daneben passt, rückt in die
+        nächste Zeile — ohne Breakpoints im Aufrufer.
 
         IDA-232 — DIE KACHELN FÜHREN HIN. „abgelaufen" und „läuft ab" öffnen
         die Bestandsliste mit genau diesem Filter, die beiden anderen das Soll.
@@ -348,42 +349,34 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         Zeile — die Liste führt nur Soll-Artikel; die Verfallsseite der
         Verwaltung zeigt jede Meldung.
       */}
-      <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.lg }}>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={aktivePositionen.length}
-            beschriftung="Soll-Positionen"
-            href={blattAdresse(fahrzeug.id, "soll")}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={faecher}
-            beschriftung="Fächer"
-            href={blattAdresse(fahrzeug.id, "soll")}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={kennzahlen.abgelaufen}
-            beschriftung="abgelaufen"
-            ton={kachelTon(kennzahlen.abgelaufen, "rot", kennzahlen)}
-            href={kennzahlen.abgelaufen > 0
-              ? blattAdresse(fahrzeug.id, "bestand", "abgelaufen")
-              : undefined}
-          />
-        </Col>
-        <Col xs={24} md={12} xl={6}>
-          <Kachel
-            zahl={kennzahlen.warnend}
-            beschriftung="läuft ab"
-            ton={kachelTon(kennzahlen.warnend, "gelb", kennzahlen)}
-            href={kennzahlen.warnend > 0
-              ? blattAdresse(fahrzeug.id, "bestand", "laeuft-ab")
-              : undefined}
-          />
-        </Col>
-      </Row>
+      <Kennzahlen>
+        <Kachel
+          zahl={aktivePositionen.length}
+          beschriftung="Soll-Positionen"
+          href={blattAdresse(fahrzeug.id, "soll")}
+        />
+        <Kachel
+          zahl={faecher}
+          beschriftung="Fächer"
+          href={blattAdresse(fahrzeug.id, "soll")}
+        />
+        <Kachel
+          zahl={kennzahlen.abgelaufen}
+          beschriftung="abgelaufen"
+          ton={kachelTon(kennzahlen.abgelaufen, "rot", kennzahlen)}
+          href={kennzahlen.abgelaufen > 0
+            ? blattAdresse(fahrzeug.id, "bestand", "abgelaufen")
+            : undefined}
+        />
+        <Kachel
+          zahl={kennzahlen.warnend}
+          beschriftung="läuft ab"
+          ton={kachelTon(kennzahlen.warnend, "gelb", kennzahlen)}
+          href={kennzahlen.warnend > 0
+            ? blattAdresse(fahrzeug.id, "bestand", "laeuft-ab")
+            : undefined}
+        />
+      </Kennzahlen>
 
       {/*
         IDA-232 — DIE REITER. Tagesgeschäft vor Einrichtung: das Blatt öffnet

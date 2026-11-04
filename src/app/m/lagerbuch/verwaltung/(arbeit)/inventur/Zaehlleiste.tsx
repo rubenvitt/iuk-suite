@@ -25,7 +25,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { Button, Flex, Segmented, Select } from "antd";
+import { Button, Flex, Select } from "antd";
+import { Filterchips } from "@/core/filterchips/Filterchips";
 import { useEntprellt } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import type { ZaehlOrt } from "../../../_lib/inventurOrt";
@@ -85,11 +86,11 @@ export function Zaehlleiste({
       </div>
       {/* ⚠️ „Offen" IST EIN SCHNAPPSCHUSS, kein laufender Filter — die
           Begruendung steht bei `offenStand` im Formular. */}
-      <Segmented<"alle" | "offen">
+      <Filterchips<"alle" | "offen">
         aria-label="Zeilen"
-        value={nurOffen ? "offen" : "alle"}
+        wert={nurOffen ? "offen" : "alle"}
         onChange={(wert) => onNurOffen(wert === "offen")}
-        options={[{ value: "alle", label: "Alle" }, { value: "offen", label: "Offen" }]}
+        optionen={[{ wert: "alle", label: "Alle" }, { wert: "offen", label: "Offen" }]}
       />
       <Select<string>
         value={zaehlOrtWert(ortId)}
