@@ -50,6 +50,7 @@
 .titel p { margin: 0; font-size: 13pt; }
 
 .raster { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4mm 6mm; }
+.raster dt, .raster dd { overflow-wrap: anywhere; }
 .raster dd { margin: 0; }
 .breit { grid-column: span 3; }
 

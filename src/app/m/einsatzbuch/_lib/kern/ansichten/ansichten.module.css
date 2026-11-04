@@ -125,8 +125,8 @@
 }
 .kennzahlen dd { margin: 0; font: 700 30px/1.1 var(--eb-display); font-variant-numeric: tabular-nums; }
 .raster { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 12px; font-size: 14px; }
-.raster dt { color: var(--eb-gedaempft); }
-.raster dd { margin: 0; font-variant-numeric: tabular-nums; }
+.raster dt { color: var(--eb-gedaempft); overflow-wrap: anywhere; }
+.raster dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .abschnitt { display: flex; flex-direction: column; gap: 8px; }
 .aufzaehlung { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .fahrzeug { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: baseline; }
