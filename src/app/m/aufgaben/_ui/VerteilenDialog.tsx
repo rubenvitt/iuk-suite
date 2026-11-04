@@ -1,14 +1,17 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button, Modal } from "antd";
 import { umverteilenAction, verteilenAction } from "../actions";
 import type { AuslastungZeile } from "../_db/queries";
 import type { AufgabeRow, PersonRow } from "../_db/schema";
 import { fmtStunden } from "../_lib/anzeige";
 import { fmtTagKurz } from "../_lib/datum";
-import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { DatumFeld, ZeitFeld } from "./Felder";
+import { useFormularEntwurf, WahlEntwurfKontext } from "./entwurf";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
 import { SPACE } from "@/core/theme/tokens";
 import s from "./aufgaben.module.css";
 
@@ -216,7 +219,21 @@ function VerteilenModal({
   art?: Zuweisungsart;
   onClose: () => void;
 }) {
-  const [state, formAction, isPending] = useActionState(ZUWEISUNG[art].aktion, FORM_START);
+  /*
+   * IDA-358: Ziel und Vorschlag liegen je Aufgabe auf dem Geraet, bis die Action sie angenommen
+   * hat. Verworfen wird IN der Action-Huelle, nicht an einem neuen `state`: nach dem Verteilen
+   * verschwindet die Zeile und mit ihr dieser Dialog im selben Zug — er saehe den Erfolg nie.
+   */
+  const formRef = useRef<HTMLFormElement>(null);
+  const entwurf = useFormularEntwurf(formRef, `aufgaben:${art}:${aufgabe.id}:${fingerabdruck(aufgabe)}`);
+  const { verwerfen, abgesendet } = entwurf;
+  const aktion = async (vorher: FormState, daten: FormData): Promise<FormState> => {
+    abgesendet();
+    const ergebnis = await ZUWEISUNG[art].aktion(vorher, daten);
+    if (ergebnis.ok) verwerfen();
+    return ergebnis;
+  };
+  const [state, formAction, isPending] = useActionState(aktion, FORM_START);
 
   const zielFehler = feldFehler(state, "zielId");
   const vorschlagDatumFehler = feldFehler(state, "vorschlagDatum");
@@ -232,10 +249,13 @@ function VerteilenModal({
 
   return (
     <Modal open onCancel={onClose} footer={null} title={ZUWEISUNG[art].titel(aufgabe.titel)}>
+      <WahlEntwurfKontext.Provider value={entwurf.wahl}>
       <form
+        ref={formRef}
         action={formAction}
         style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}
       >
+        <EntwurfHinweis entwurf={entwurf} />
         <input type="hidden" name="aufgabeId" value={feldWert(state, "aufgabeId", aufgabe.id)} />
 
         {/*
@@ -373,6 +393,7 @@ function VerteilenModal({
           </Button>
         </div>
       </form>
+      </WahlEntwurfKontext.Provider>
     </Modal>
   );
 }

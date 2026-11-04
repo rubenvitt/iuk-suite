@@ -4,6 +4,8 @@ import { useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs, { type Dayjs } from "dayjs";
 import { Alert, Button, DatePicker, Drawer, Input, Select, type InputRef } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { enterUebernimmtNurDasFeld } from "@/core/formular/enter";
 import { flyinBreite } from "@/core/theme/flyin";
 import { legePlanAnAction } from "../_actions/plan";
@@ -62,6 +64,14 @@ export function NeuerPlanFormular({ onAngelegt, onAbbrechen, titelRef, vorlagen 
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
+  // IDA-358: die Eingaben liegen auf dem Gerät, bis der Plan angelegt ist.
+  const entwurf = useEntwurf({
+    schluessel: `kommplan:neuer-plan:${startVorlage ?? "neu"}`,
+    stand: { vorlage, titel, typ, anlass, datum: datum ? datum.format("YYYY-MM-DD") : null },
+    wiederherstellen: (w) => {
+      setVorlage(w.vorlage); setTitel(w.titel); setTyp(w.typ); setAnlass(w.anlass); setDatum(w.datum ? dayjs(w.datum) : null);
+    },
+  });
 
   function absenden(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -69,7 +79,7 @@ export function NeuerPlanFormular({ onAngelegt, onAbbrechen, titelRef, vorlagen 
     setFehler(null); setFeldFehler({}); setLaeuft(true);
     void legePlanAnAction({ titel, typ, anlass, datum: datum ? datum.format("YYYY-MM-DD") : null, vorlage: vorlage === "" ? null : vorlage })
       .then((r) => {
-        if (r.ok) { onAngelegt(r.id); return; }
+        if (r.ok) { entwurf.verwerfen(); onAngelegt(r.id); return; }
         setFehler(r.fehler); setFeldFehler(r.feldFehler); setLaeuft(false);
       })
       .catch(() => { setFehler("Der Plan ließ sich nicht anlegen. Prüfe die Verbindung und versuche es noch einmal."); setLaeuft(false); });
@@ -83,6 +93,7 @@ export function NeuerPlanFormular({ onAngelegt, onAbbrechen, titelRef, vorlagen 
 
   return (
     <form aria-label="Neuer Plan" onSubmit={absenden} className="kp-formular">
+      <EntwurfHinweis entwurf={entwurf} />
       {fehler && Object.keys(feldFehler).length === 0 ? <Alert type="warning" showIcon title={fehler} /> : null}
       {vorlagen.length > 0 ? (
         <>

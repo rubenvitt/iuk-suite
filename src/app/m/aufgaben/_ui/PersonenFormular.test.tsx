@@ -22,6 +22,7 @@ import {
 } from "./testFelder";
 import type { PersonRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { entwurfSchluessel, ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 
 /*
  * DIESELBE PRUEFSTRATEGIE WIE `RoutineFormular.test.tsx`: `useActionState` selbst gemockt, die
@@ -49,6 +50,12 @@ vi.mock("../actions", () => ({
 
 import { PersonenFormular } from "./PersonenFormular";
 
+/** IDA-358: der Schluessel eines Bearbeiten-Entwurfs traegt den Fingerabdruck des Serverstands. */
+const entwurfZu = (anfang: string) => {
+  const k = entwurfSchluessel().find((x) => x.startsWith(anfang) && !x.endsWith(":wahl"));
+  return k ? ladeEntwurf(k) : null;
+};
+
 const PERSON: PersonRow = {
   id: "p1",
   sub: "dev:alina@localtest.me",
@@ -68,6 +75,9 @@ function stelleZustandEin(zustand: FormState, laeuft = false): void {
 }
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Eingaben auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   useActionStateMock.mockReset();
   personenSucheActionMock.mockReset();
   personenSucheActionMock.mockResolvedValue({ status: "ok", people: [] });
@@ -447,5 +457,26 @@ describe("PersonenFormular — Anlegen MIT Verzeichnis: Suche statt blindem Text
     await mount(<PersonenFormular person={PERSON} verzeichnisAktiv />);
     expect(exists("#pf-sub")).toBe(false);
     expect(queryAll("input[name='sub']")).toHaveLength(0);
+  });
+});
+
+describe("PersonenFormular — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("Name, Soll-Minuten und Datum ueberstehen das Neuladen; Erfolg raeumt den Entwurf", async () => {
+    await mount(<PersonenFormular person={PERSON} />);
+    await fill("#pf-name", "Alina Beispiel");
+    await fill("#pf-soll", "300");
+    await waehleDatum("#pf-aktiv-bis", "2027-07-31");
+    await unmount();
+
+    await mount(<PersonenFormular person={PERSON} />);
+    expect(query<HTMLInputElement>("#pf-name").value).toBe("Alina Beispiel");
+    expect(query<HTMLInputElement>("#pf-soll").value).toBe("300");
+    expect(feldWertImDom("aktivBis")).toBe("2027-07-31");
+    expect(query("[data-rolle='entwurf-hinweis']").textContent).toContain("Eingaben wiederhergestellt.");
+
+    stelleZustandEin({ ok: true });
+    await rerender(<PersonenFormular person={PERSON} />);
+    expect(entwurfZu("aufgaben:person:p1")).toBeNull();
+    expect(entwurfZu("aufgaben:person:p1")).toBeNull();
   });
 });

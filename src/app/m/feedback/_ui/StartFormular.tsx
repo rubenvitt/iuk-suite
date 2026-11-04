@@ -2,9 +2,11 @@
 
 import { useActionState, useRef, useState } from "react";
 import { Button, Col, Collapse, Input, Popconfirm, Row } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useFeldEntwurf } from "@/core/entwurf/useFeldEntwurf";
 import { startFeedbackAction } from "../actions";
 import { computeClosesAt } from "../_lib/lifecycle";
-import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
+import { FORM_START, feldFehler, feldWert, type FormState } from "../_lib/formState";
 import { T } from "./typo";
 import { formatZeitpunkt, tagAusEingabe } from "./datum";
 
@@ -66,9 +68,20 @@ export function StartFormular({
   variante = "primaer",
   nebenaktion,
 }: StartFormularProps) {
-  const [state, formAction, isPending] = useActionState(startFeedbackAction, FORM_START);
-  const [datum, setDatum] = useState(feldWert(state, "date", heute));
   const formular = useRef<HTMLFormElement>(null);
+  /*
+   * IDA-358: Thema und Teilnehmerzahl liegen auf dem Gerät, bis die Action den Start bestätigt.
+   * Verworfen wird IN der Action-Hülle: nach dem Start wechselt die Karte die Variante, und dieses
+   * Formular sähe den neuen Zustand nie.
+   */
+  const entwurf = useFeldEntwurf(formular, `feedback:start:${groupId}:${variante}`);
+  const { verwerfen } = entwurf;
+  const [state, formAction, isPending] = useActionState(async (vorher: FormState, daten: FormData) => {
+    const ergebnis = await startFeedbackAction(vorher, daten);
+    if (ergebnis.ok) verwerfen();
+    return ergebnis;
+  }, FORM_START);
+  const [datum, setDatum] = useState(feldWert(state, "date", heute));
 
   const datumsFehler = feldFehler(state, "date");
   const gewaehlt = tagAusEingabe(datum);
@@ -77,6 +90,7 @@ export function StartFormular({
 
   const felder = (
     <form action={formAction} ref={formular} className="fb-form">
+      <EntwurfHinweis entwurf={entwurf} />
       <input type="hidden" name="groupId" value={groupId} />
       <Row gutter={[12, 12]}>
         <Col xs={24} sm={8}>

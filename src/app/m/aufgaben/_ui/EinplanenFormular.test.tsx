@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 import { feldWertImDom, waehleDatum, waehleZeit } from "./testFelder";
 import type { AufgabeRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { entwurfSchluessel, ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 
 /*
  * GETESTET WIE `RoutineFormular.test.tsx` (Aufgabe 11): `useActionState` SELBST gemockt, nicht die
@@ -27,6 +28,12 @@ vi.mock("react", async (echt) => {
 vi.mock("../actions", () => ({ einplanenAction: EINPLANEN_MARKER }));
 
 import { EinplanenFormular } from "./EinplanenFormular";
+
+/** IDA-358: der Schluessel eines Bearbeiten-Entwurfs traegt den Fingerabdruck des Serverstands. */
+const entwurfZu = (anfang: string) => {
+  const k = entwurfSchluessel().find((x) => x.startsWith(anfang) && !x.endsWith(":wahl"));
+  return k ? ladeEntwurf(k) : null;
+};
 
 function task(over: Partial<AufgabeRow> & Pick<AufgabeRow, "id">): AufgabeRow {
   return {
@@ -63,6 +70,9 @@ function stelleZustandEin(zustand: FormState, laeuft = false): void {
 }
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Eingaben auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   useActionStateMock.mockReset();
   stelleZustandEin(FORM_START);
 });
@@ -140,7 +150,7 @@ describe("EinplanenFormular — Vorbelegung", () => {
  */
 describe("EinplanenFormular — kein Sonderfall fuer in_arbeit", () => {
   /**
-   * NICHT ueber `outerHTML`-Gleichheit verglichen: `action={formAction}` haengt eine Funktionsreferenz
+   * NICHT ueber `outerHTML`-Gleichheit verglichen: `action={absenden}` haengt eine Funktionsreferenz
    * an das `<form>`, und React ist frei, dafuer bei jedem Mount einen eigenen internen Marker zu
    * vergeben — ein Vergleich der rohen Zeichenkette wäre potenziell brüchig, ohne etwas ueber die
    * Aussage dieses Tests zu sagen. Verglichen wird deshalb die FACHLICH relevante Teilmenge: welche
@@ -282,5 +292,23 @@ describe("EinplanenFormular — waehrend `isPending`", () => {
     stelleZustandEin(FORM_START, true);
     await mount(<EinplanenFormular task={task({ id: "a1" })} />);
     expect(query<HTMLButtonElement>("button[type='submit']").disabled).toBe(true);
+  });
+});
+
+describe("EinplanenFormular — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("Tag und Dauer ueberstehen das Neuladen; Erfolg raeumt den Entwurf", async () => {
+    const t = task({ id: "a1" });
+    await mount(<EinplanenFormular task={t} />);
+    await waehleDatum("#ep-planDatum", "2026-11-05");
+    await fill("#ep-dauerMinuten", "25");
+    await unmount();
+
+    await mount(<EinplanenFormular task={t} />);
+    expect(feldWertImDom("planDatum")).toBe("2026-11-05");
+    expect(query<HTMLInputElement>("#ep-dauerMinuten").value).toBe("25");
+
+    stelleZustandEin({ ok: true });
+    await rerender(<EinplanenFormular task={t} />);
+    expect(entwurfZu(`aufgaben:einplanen:${t.id}:ep:`)).toBeNull();
   });
 });

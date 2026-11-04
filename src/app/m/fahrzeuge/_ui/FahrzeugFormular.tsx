@@ -2,6 +2,9 @@
 
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Alert, Button, Input, Radio, Switch } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { fahrzeugSpeichernAction } from "../_actions/verwaltung";
@@ -37,6 +40,8 @@ type Textfeld = "typ" | "funkrufname" | "funkkenner" | "kennzeichen" | "standort
  */
 export function FahrzeugFormular({ eintrag, onFertig }: { eintrag: FahrzeugDTO | null; onFertig: () => void }) {
   const [z, setZ] = useState<Zustand>(() => zustandAus(eintrag));
+  // IDA-358: die Eingaben liegen je Fahrzeug auf dem Gerät, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({ schluessel: eintrag ? `fahrzeuge:fahrzeug:${eintrag.id}:${fingerabdruck(eintrag)}` : "fahrzeuge:fahrzeug:neu", stand: z, wiederherstellen: setZ });
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
@@ -51,6 +56,7 @@ export function FahrzeugFormular({ eintrag, onFertig }: { eintrag: FahrzeugDTO |
     void fahrzeugSpeichernAction(eintrag?.id ?? null, z)
       .then((ergebnis) => {
         if (ergebnis.ok) {
+          entwurf.verwerfen();
           onFertig();
           return;
         }
@@ -75,6 +81,7 @@ export function FahrzeugFormular({ eintrag, onFertig }: { eintrag: FahrzeugDTO |
 
   return (
     <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.md }}>
+      <EntwurfHinweis entwurf={entwurf} />
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
       <Radio.Group

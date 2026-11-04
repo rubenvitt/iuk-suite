@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { click, fill, mount, query, queryAll, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
-import { waehleZeit } from "./testFelder";
+import { click, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { feldWertImDom, waehleZeit } from "./testFelder";
 import type { RoutineRow } from "../_db/schema";
 import { FORM_START, type FormState } from "../_lib/formState";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 
 /*
@@ -65,6 +66,9 @@ function stelleZustandEin(zustand: FormState, laeuft = false): void {
 }
 
 beforeEach(() => {
+  // IDA-358: das Formular legt seine Eingaben auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   useActionStateMock.mockReset();
   stelleZustandEin(FORM_START);
 });
@@ -224,5 +228,24 @@ describe("RoutineFormular — waehrend `isPending`", () => {
     stelleZustandEin(FORM_START, true);
     await mount(<RoutineFormular />);
     expect(query<HTMLButtonElement>("button[type='submit']").disabled).toBe(true);
+  });
+});
+
+describe("RoutineFormular — Entwurf auf dem Geraet (IDA-358)", () => {
+  it("Titel, Wochentage und Uhrzeit ueberstehen das Neuladen; Erfolg raeumt den Entwurf", async () => {
+    await mount(<RoutineFormular />);
+    await fill("#rt-titel", "Funkgeraete laden");
+    await click("#rt-wochentag-1");
+    await waehleZeit("#rt-uhrzeit", "08:15");
+    await unmount();
+
+    await mount(<RoutineFormular />);
+    expect(query<HTMLInputElement>("#rt-titel").value).toBe("Funkgeraete laden");
+    expect(angehakteIndizes()).toEqual([1]);
+    expect(feldWertImDom("uhrzeit")).toBe("08:15");
+
+    stelleZustandEin({ ok: true });
+    await rerender(<RoutineFormular />);
+    expect(ladeEntwurf("aufgaben:routine:neu")).toBeNull();
   });
 });

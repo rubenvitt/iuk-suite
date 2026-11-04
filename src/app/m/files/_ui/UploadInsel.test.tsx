@@ -58,7 +58,8 @@ import type { AnlegenErgebnis } from "../(verwaltung)/actions";
 import { FILES_CHUNK_BYTES } from "../_lib/grenzen";
 import { TITEL_MAX_LAENGE } from "@/core/titel";
 import { UploadInsel } from "./UploadInsel";
-import { click, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { ladeEntwurf, vergissFluechtig } from "@/core/entwurf/ablage";
+import { click, fill, mount, query, queryAll, rerender, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 
 // --- Der beobachtete `fetch` -----------------------------------------------
 
@@ -198,6 +199,9 @@ const gesendet = (fileId: string) => Number(eintrag(fileId).dataset.gesendet);
 const puts = () => aufrufe.filter((a) => a.method === "PUT");
 
 beforeEach(() => {
+  // IDA-358: die Insel legt ihre Textfelder auf dem Geraet ab.
+  localStorage.clear();
+  vergissFluechtig();
   stelleFetch();
   regie = () => ({ status: 200, koerper: {} });
   zustand = START;
@@ -220,6 +224,25 @@ describe("Titel", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe("IDA-358 — Entwurf der Textfelder", () => {
+  it("Titel und Beschreibung ueberstehen das Neuladen, das Passwort nicht; das Anlegen loescht den Entwurf", async () => {
+    await mount(insel());
+    await fill('input[name="title"]', "Uebung Nord");
+    await fill('textarea[name="description"]', "Bilder vom Samstag");
+    await fill('input[name="password"]', "geheim");
+    expect(JSON.stringify(ladeEntwurf("files:freigabe:neu")?.stand)).not.toContain("geheim");
+    await unmount();
+
+    await mount(insel());
+    expect(query<HTMLInputElement>('input[name="title"]').value).toBe("Uebung Nord");
+    expect(query<HTMLTextAreaElement>('textarea[name="description"]').value).toBe("Bilder vom Samstag");
+    expect(query<HTMLInputElement>('input[name="password"]').value).toBe("");
+
+    await sendeUndAntworte(erfolg("sh1234abcd", []));
+    expect(ladeEntwurf("files:freigabe:neu")).toBeNull();
+  });
+});
 
 describe("Chunk-Aufteilung", () => {
   it("zerlegt eine Datei ueber FILES_CHUNK_BYTES in aufeinander aufbauende Byte-Offsets", async () => {

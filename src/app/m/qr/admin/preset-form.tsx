@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Button, Checkbox, Input, Typography } from "antd";
 import { createPresetAction, updatePresetAction } from "@/app/m/qr/actions";
+import { fingerabdruck, loescheEntwurf } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { payloadToQrString } from "@/app/m/qr/_lib/payload";
 import { exceedsQrCapacity, QR_MAX_LENGTH } from "@/app/m/qr/_lib/qr";
 import { RAHMEN } from "@/app/m/qr/_lib/style";
@@ -83,6 +86,8 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   const wifi = preset?.kind === "wifi" ? preset.value : undefined;
   const card = preset?.kind === "vcard" ? preset.value : undefined;
 
+  const [label, setLabel] = useState(preset?.label ?? "");
+  const [icon, setIcon] = useState(preset?.icon ?? "");
   const [kind, setKind] = useState<QrKind>(preset?.kind ?? "url");
   const [value, setValue] = useState(plain);
 
@@ -95,6 +100,36 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
   const [tel, setTel] = useState(card?.tel ?? "");
   const [email, setEmail] = useState(card?.email ?? "");
   const [org, setOrg] = useState(card?.org ?? "");
+
+  /*
+   * IDA-358: die Eingaben liegen je Preset auf dem Geraet, bis die Action durchgelaufen ist (sie
+   * wirft bei jedem Fehler). Nach dem Anlegen leert `verwerfen` das Formular; nach dem Bearbeiten
+   * wird nur der Entwurf geloescht — `verwerfen` setzte die Felder auf den Stand vor dem Speichern.
+   */
+  // Beim Bearbeiten der Serverstand beim Aufbau (`fingerabdruck`): ein Entwurf gegen einen aelteren
+  // Stand ueberschreibt keine neueren Werte.
+  const [basis] = useState(() => (preset ? `${preset.id}:${fingerabdruck(preset)}` : "neu"));
+  const schluessel = `qr:preset:${basis}`;
+  const [gesichert, setGesichert] = useState(false);
+  const entwurf = useEntwurf({
+    schluessel,
+    stand: { label, icon, kind, value, ssid, password, encryption, hidden, name, tel, email, org },
+    wiederherstellen: (w) => {
+      setLabel(w.label); setIcon(w.icon); setKind(w.kind); setValue(w.value);
+      setSsid(w.ssid); setPassword(w.password); setEncryption(w.encryption); setHidden(w.hidden);
+      setName(w.name); setTel(w.tel); setEmail(w.email); setOrg(w.org);
+    },
+  });
+  async function absenden(daten: FormData): Promise<void> {
+    setGesichert(false);
+    await (preset ? updatePresetAction : createPresetAction)(daten);
+    if (preset) {
+      loescheEntwurf(schluessel);
+      setGesichert(true);
+    } else {
+      entwurf.verwerfen();
+    }
+  }
 
   // Leere Optionalfelder werden weggelassen statt als "" gespeichert — sonst
   // stuenden Geisterfelder in der Datenbank, die niemand eingegeben hat.
@@ -128,22 +163,23 @@ export function PresetForm({ preset }: { preset?: Preset } = {}) {
 
   return (
     <form
-      action={preset ? updatePresetAction : createPresetAction}
+      action={absenden}
       style={{ display: "flex", flexDirection: "column", gap: SPACE.lg, maxWidth: 448 }}
       data-testid="preset-form"
     >
       {/* Adressiert die Zeile. `parse` verwirft die mitvalidierte id aus der
           Nutzlast, damit ein Aktualisieren die Identitaet nie verschiebt. */}
       {preset && <input type="hidden" name="id" value={preset.id} />}
+      {gesichert ? null : <EntwurfHinweis entwurf={entwurf} />}
 
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Bezeichnung</span>
-        <Input name="label" size="large" required maxLength={80} defaultValue={preset?.label ?? ""} />
+        <Input name="label" size="large" required maxLength={80} value={label} onChange={(e) => setLabel(e.target.value)} />
       </label>
 
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
         <span style={{ fontWeight: 600 }}>Symbol</span>
-        <Input name="icon" size="large" placeholder="z. B. 📶" defaultValue={preset?.icon ?? ""} />
+        <Input name="icon" size="large" placeholder="z. B. 📶" value={icon} onChange={(e) => setIcon(e.target.value)} />
       </label>
 
       <label style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>

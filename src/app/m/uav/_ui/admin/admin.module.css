@@ -61,3 +61,12 @@
     width: 100%;
   }
 }
+
+/* IDA-358: die Statuszeile eines Entwurfs steht über der ganzen Formularzeile; ohne Meldung fällt sie weg. */
+.entwurf {
+  flex: 1 0 100%;
+}
+
+.entwurf:empty {
+  display: none;
+}

@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
+import { loescheEntwurf } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Alert, Button, Card, Input, Progress } from "antd";
 
 import { anlegenAction, type AnlegenErgebnis } from "../(verwaltung)/actions";
@@ -148,6 +151,8 @@ export interface UploadInselProps {
   readonly maxDateiBytes: number;
 }
 
+const ENTWURF = "files:freigabe:neu";
+
 export function UploadInsel({
   maxAblaufTage,
   maxDateienProShare,
@@ -197,6 +202,16 @@ export function UploadInsel({
     setEingespielt(state);
     if (!state.ok) setWerte((bisher) => ({ ...bisher, ...state.werte }));
   }
+
+  /*
+   * IDA-358: die vier Textfelder liegen auf dem Geraet, bis die Freigabe angelegt ist — die
+   * Dateiauswahl nicht (eine Datei laesst sich nicht ablegen), das Passwort nicht (ungesteuert).
+   * Nach dem Anlegen nur den Entwurf loeschen: die Felder bleiben stehen, waehrend hochgeladen wird.
+   */
+  const entwurf = useEntwurf({ schluessel: ENTWURF, stand: werte, wiederherstellen: setWerte });
+  useEffect(() => {
+    if (state.ok) loescheEntwurf(ENTWURF);
+  }, [state]);
 
   const setzeEintrag = useCallback((fileId: string, aendere: (e: Eintrag) => Eintrag) => {
     setEintraege((liste) => liste.map((e) => (e.fileId === fileId ? aendere(e) : e)));
@@ -412,6 +427,7 @@ export function UploadInsel({
     <div className={css.insel} data-testid="files-upload-insel">
       <Card>
         <form action={formAction}>
+          {state.ok ? null : <EntwurfHinweis entwurf={entwurf} />}
           <label className={css.feld}>
             <span className={css.beschriftung}>Titel</span>
             <Input

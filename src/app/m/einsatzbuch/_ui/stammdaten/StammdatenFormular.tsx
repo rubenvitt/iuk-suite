@@ -2,6 +2,9 @@
 
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Alert, Button, Input, InputNumber, Select, Switch } from "antd";
+import { fingerabdruck } from "@/core/entwurf/ablage";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { fahrzeugSpeichernAction, personSpeichernAction, stichwortSpeichernAction } from "../../_actions/stammdaten";
@@ -58,6 +61,8 @@ export function StammdatenFormular({
   onAbbrechen: () => void;
 }) {
   const [z, setZ] = useState<Zustand>(() => zustandAus(art, eintrag));
+  // IDA-358: die Eingaben liegen je Eintrag auf dem Gerät, bis das Speichern bestätigt ist.
+  const entwurf = useEntwurf({ schluessel: eintrag ? `einsatzbuch:${art}:${eintrag.id}:${fingerabdruck(eintrag)}` : `einsatzbuch:${art}:neu`, stand: z, wiederherstellen: setZ });
   const [fehler, setFehler] = useState<string | null>(null);
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState(false);
@@ -84,6 +89,7 @@ export function StammdatenFormular({
     void speichere()
       .then((ergebnis) => {
         if (ergebnis.ok) {
+          entwurf.verwerfen();
           onGespeichert();
           return;
         }
@@ -128,6 +134,7 @@ export function StammdatenFormular({
 
   return (
     <form onSubmit={absenden} style={{ display: "grid", gap: SPACE.md }}>
+      <EntwurfHinweis entwurf={entwurf} />
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
 
       {art === "fahrzeuge" ? (

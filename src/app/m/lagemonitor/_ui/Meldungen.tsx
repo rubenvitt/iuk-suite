@@ -2,6 +2,8 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { Alert, App, Button, Card, Input, Radio, Select } from "antd";
+import { EntwurfHinweis } from "@/core/entwurf/EntwurfHinweis";
+import { useEntwurf } from "@/core/entwurf/useEntwurf";
 import { Icons8Ikone } from "@/core/ikonen/Icons8Ikone";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -67,6 +69,20 @@ export function Meldungen({
   const [feldFehler, setFeldFehler] = useState<FeldFehler>({});
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const basis = useId();
+  /*
+   * IDA-358: eine angefangene Meldung liegt auf dem Gerät, bis sie angelegt ist. Ohne Text gibt
+   * es keinen Entwurf (`null`) — so räumt das Leeren nach dem Anlegen ihn von selbst weg, auch
+   * wenn die Kategorie gewählt bleibt.
+   */
+  const entwurf = useEntwurf({
+    schluessel: "lagemonitor:meldung:neu",
+    stand: text.trim() === "" ? null : { text, uhrzeit, anzeigenAb, kategorieId: kategorieWahl, laufzeit },
+    wiederherstellen: (w) => {
+      if (w) aendere(w.text, w.uhrzeit, w.kategorieId, w.anzeigenAb);
+      else aendere("", "", kategorieId, "");
+      setLaufzeit(w?.laufzeit ?? LAUFZEIT_VORGABE);
+    },
+  });
   // Was seit dem Laden abgelaufen ist, fällt mit der Uhr weg, nicht erst mit dem nächsten Stand vom Server.
   const offene = jetzt === null ? liste : offen(liste, jetzt);
   const voll = offene.length >= MELDUNGEN_MAX_GEPLANT;
@@ -158,6 +174,7 @@ export function Meldungen({
           <Alert type="info" showIcon={false} title={`Es laufen oder warten ${MELDUNGEN_MAX_GEPLANT} Meldungen. Für eine neue bitte erst eine beenden.`} />
         ) : (
           <form onSubmit={anlegen} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }} aria-label="Neue Meldung">
+            <EntwurfHinweis entwurf={entwurf} />
             {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
             {kategorien.length > 0 ? (
               <div style={{ display: "grid", gap: SPACE.xs }}>
