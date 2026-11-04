@@ -347,7 +347,7 @@ describe("GeraeteListe", () => {
 
   it("unterscheidet ungefilterten und gefilterten Leertext samt X-von-Y", async () => {
     await mount(<GeraeteListe zeilen={[]} lagerorte={LAGERORTE} />);
-    expect(document.body.textContent).toContain("Noch keine Geräte. Lege oben das erste an.");
+    expect(document.body.textContent).toContain("Noch keine Geräte");
     expect(exists(`.${s.filtertreffer}`)).toBe(false);
     await unmount();
 

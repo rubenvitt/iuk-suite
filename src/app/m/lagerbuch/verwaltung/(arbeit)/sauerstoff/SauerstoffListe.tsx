@@ -210,7 +210,8 @@ export function SauerstoffListe({
         filter={spaltenFilter}
         onFilter={setSpaltenFilter}
         leer={{
-          nichts: "Noch keine Sauerstoffflaschen vorhanden. Lege oben die erste an.",
+          nichts: "Noch keine Sauerstoffflaschen",
+          figur: "lagerbuch",
           gefiltert: "Keine Sauerstoffflasche passt zu den Filtern.",
           // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
           // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste

@@ -373,9 +373,7 @@ describe("TemplateTable", () => {
     await unmount();
 
     await mount(<TemplateTable zeilen={[]} />);
-    expect(document.body.textContent).toContain(
-      "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
-    );
+    expect(document.body.textContent).toContain("Noch keine Vorlagen");
   });
 
   /**
