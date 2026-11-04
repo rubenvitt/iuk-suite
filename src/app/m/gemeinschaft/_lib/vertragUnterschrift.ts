@@ -28,7 +28,7 @@ const beginntMit = (bytes: Buffer, kopf: Buffer) => bytes.length >= kopf.length 
  * Pixel laut IHDR. pdf-lib dekodiert ein PNG ganz im Speicher: ein kleines, stark komprimiertes Bild
  * mit riesigen Maßen sprengt sonst den gemeinsamen Next-Prozess. JPEG bettet pdf-lib ohne Dekodieren ein.
  */
-function pngPixel(bytes: Buffer): number {
+function pngPixel(bytes: Buffer): number | "animiert" {
   // Der Decoder nimmt den LETZTEN IHDR: genau einer, und zwar als erster Chunk, sonst abgelehnt. Kein APNG.
   let px = Infinity, ihdr = 0;
   for (let o = 8; o + 8 <= bytes.length;) {
@@ -40,7 +40,7 @@ function pngPixel(bytes: Buffer): number {
       px = bytes.readUInt32BE(o + 8) * bytes.readUInt32BE(o + 12);
     }
     // APNG: der Decoder baut jeden Frame in voller Größe auf, viele Frames = vielfacher Speicher.
-    if (typ === "acTL" || typ === "fcTL" || typ === "fdAT") return Infinity;
+    if (typ === "acTL" || typ === "fcTL" || typ === "fdAT") return "animiert";
     if (typ === "IEND") break;
     o += 12 + laenge;
   }
@@ -48,7 +48,7 @@ function pngPixel(bytes: Buffer): number {
 }
 const UNTERSCHRIFT_MAX_PIXEL = 4_000_000;
 const FOTO_MAX_PIXEL = 40_000_000;
-const pngPasst = (bytes: Buffer, max: number) => { const px = pngPixel(bytes); return px > 0 && px <= max; };
+const pngPasst = (bytes: Buffer, max: number) => { const px = pngPixel(bytes); return px !== "animiert" && px > 0 && px <= max; };
 
 export type VorlagePruefung = { ok: true; seiten: Seitenmass[] } | { ok: false; fehler: string };
 
@@ -127,6 +127,7 @@ export function pruefeUnterschriebeneDatei(name: string, bytes: Buffer): DateiPr
   if (bytes.length > VERTRAG_MAX_BYTES) return { ok: false, fehler: "Die Datei ist größer als 10 MB.", status: 413 };
   const art = beginntMit(bytes, PDF_KOPF) ? "pdf" : beginntMit(bytes, JPG_KOPF) ? "jpg" : beginntMit(bytes, PNG_KOPF) ? "png" : null;
   if (!art) return { ok: false, fehler: "Bitte eine PDF oder ein Foto (JPG, PNG) wählen.", status: 415 };
+  if (art === "png" && pngPixel(bytes) === "animiert") return { ok: false, fehler: "Animierte Bilder gehen nicht. Bitte ein Foto als JPG oder PNG wählen.", status: 415 };
   if (art === "png" && !pngPasst(bytes, FOTO_MAX_PIXEL)) return { ok: false, fehler: "Dieses Foto ist zu groß. Bitte als JPG speichern oder verkleinern.", status: 413 };
   return { ok: true, name: sichererName(name.replace(/\.(jpe?g|png)$/i, "")), art };
 }

@@ -175,7 +175,8 @@ describe("Eingaben", () => {
     expect(pruefeUnterschriebeneDatei("IMG.png", zweiter)).toMatchObject({ ok: false, status: 413 });
     const actl = Buffer.concat([Buffer.from([0, 0, 0, 8]), Buffer.from("acTL"), Buffer.alloc(8), Buffer.alloc(4)]);
     const apng = Buffer.concat([PNG.subarray(0, 33), actl, PNG.subarray(33)]);
-    expect(pruefeUnterschriebeneDatei("IMG.png", apng)).toMatchObject({ ok: false, status: 413 });
+    expect(pruefeUnterschriebeneDatei("IMG.png", apng)).toMatchObject({ ok: false, status: 415 });
+    expect(unterschriftAusDataUrl(`data:image/png;base64,${apng.toString("base64")}`)).toBeNull();
   });
 
   it("ohne Vorlage nimmt die Statusseite keinen Vertrag an", () => {
