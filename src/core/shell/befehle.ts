@@ -1,3 +1,4 @@
+import { trifft } from "@/core/shell/navFilter";
 import type { LauncherEintrag, SuiteNavItem } from "@/core/shell/types";
 
 /**
@@ -25,11 +26,15 @@ export interface Befehl {
 /** Für den Vergleich: klein, ohne Leerraum-Unterschiede. */
 const falte = (s: string) => s.toLocaleLowerCase("de").replace(/\s+/g, " ").trim();
 
-/** Jedes Wort der Eingabe muss irgendwo im Titel oder Hinweis vorkommen („ver art“ findet „Verwaltung · Artikel“). */
+/**
+ * Jedes Wort der Eingabe muss irgendwo im Titel oder Hinweis vorkommen („ver art“ findet „Verwaltung · Artikel“).
+ * Über `trifft` (`navFilter.ts`), damit „pruef“ „Prüfungen“ findet — „Springen zu“ ersetzt in `FullShell` den
+ * Filter der Seitenleiste, und der konnte das (e2e `modulnavigation.spec.ts`).
+ */
 function passt(nadel: string, ...felder: (string | undefined)[]): boolean {
   if (nadel === "") return true;
   const heuhaufen = falte(felder.filter(Boolean).join(" "));
-  return nadel.split(" ").every((wort) => heuhaufen.includes(wort));
+  return nadel.split(" ").every((wort) => trifft(heuhaufen, wort));
 }
 
 export function befehle({
