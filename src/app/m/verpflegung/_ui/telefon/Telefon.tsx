@@ -189,7 +189,7 @@ function Ausgeben({ art, chargen, ort, onZurueck }: { art: ArtikelDTO; chargen: 
         <Erfolg text={erfolg} />
       </Karte>
       {sortiert.length > 0 && (
-        <ChargenWahl chargen={sortiert} art={art} wahl={wahl} setWahl={(id) => { setWahl(id); }} zuerst sperrtGesperrte mitOrt={!ort} />
+        <ChargenWahl chargen={sortiert} art={art} wahl={wahl !== null && gewaehlt?.id === wahl ? wahl : null} setWahl={setWahl} zuerst sperrtGesperrte mitOrt={!ort} />
       )}
     </div>
   );
@@ -217,6 +217,7 @@ function Einbuchen({ art, chargen, ort, orte, heute, onZurueck }: {
           <span className={s.label} style={{ margin: 0 }}>Menge</span>
           <Stepper wert={menge} setWert={setMenge} einheit={art.einheit} />
         </div>
+        {orte.length === 0 && <div className={`${s.hinweis} ${s.grau}`}>Noch keine Lagerorte.</div>}
         {!ort && orte.length > 1 && (
           <div className={s.block}>
             <span className={s.label}>Wohin?</span>
