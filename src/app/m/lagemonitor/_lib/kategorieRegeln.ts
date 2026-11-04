@@ -11,18 +11,19 @@
 import { z } from "zod";
 import type { Icons8Name } from "@/core/ikonen/katalog";
 
+/** `ton` ist der Tag-, `nacht` der Nachtton des Monitors; die Lagekarte zeichnet Flächen im Dunkeln mit `nacht`. */
 export const FARBEN = [
-  { wert: "blau", text: "Blau", draht: "blue", ton: "#154e84" },
-  { wert: "tuerkis", text: "Türkis", draht: "teal", ton: "#0b6a6a" },
-  { wert: "gruen", text: "Grün", draht: "green", ton: "#1c6640" },
-  { wert: "ocker", text: "Ocker", draht: "ochre", ton: "#7a5200" },
-  { wert: "orange", text: "Orange", draht: "orange", ton: "#a34700" },
-  { wert: "violett", text: "Violett", draht: "purple", ton: "#5b3a9e" },
-  { wert: "grau", text: "Grau", draht: "grey", ton: "#4a525b" },
+  { wert: "blau", text: "Blau", draht: "blue", ton: "#154e84", nacht: "#4d94d6" },
+  { wert: "tuerkis", text: "Türkis", draht: "teal", ton: "#0b6a6a", nacht: "#2fb8b1" },
+  { wert: "gruen", text: "Grün", draht: "green", ton: "#1c6640", nacht: "#5cbf7a" },
+  { wert: "ocker", text: "Ocker", draht: "ochre", ton: "#7a5200", nacht: "#e8cc3a" },
+  { wert: "orange", text: "Orange", draht: "orange", ton: "#a34700", nacht: "#f29a4a" },
+  { wert: "violett", text: "Violett", draht: "purple", ton: "#5b3a9e", nacht: "#b07cff" },
+  { wert: "grau", text: "Grau", draht: "grey", ton: "#4a525b", nacht: "#9aa2ab" },
 ] as const;
 export type Farbe = (typeof FARBEN)[number]["wert"];
 export type FarbeDraht = (typeof FARBEN)[number]["draht"];
-const FARB_WERTE = FARBEN.map((f) => f.wert) as [Farbe, ...Farbe[]];
+export const FARB_WERTE = FARBEN.map((f) => f.wert) as [Farbe, ...Farbe[]];
 
 export function farbe(wert: string): (typeof FARBEN)[number] {
   return FARBEN.find((f) => f.wert === wert) ?? FARBEN[0];

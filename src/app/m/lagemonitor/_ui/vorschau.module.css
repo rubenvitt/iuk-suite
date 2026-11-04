@@ -366,3 +366,8 @@
   white-space: nowrap;
   overflow: hidden;
 }
+
+/* Lagekarte (IDA-348): Flächen fein umrandet in ihrer Palettenfarbe (Nachtton), leicht gefüllt, Name in der Mitte. */
+.lageFlaeche { fill: color-mix(in srgb, var(--lage) 15%, transparent); stroke: var(--lage); stroke-width: 1; }
+.lageName { fill: var(--lmv-text); font-size: 8px; font-family: var(--font-body); text-anchor: middle; dominant-baseline: middle; }
+.lagePunkt { fill: var(--lmv-gedaempft); stroke: var(--lmv-grund); stroke-width: 1; }

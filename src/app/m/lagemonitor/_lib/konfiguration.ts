@@ -10,6 +10,7 @@ import type { LagemonitorDb } from "../_db/client";
 import { anzeige } from "../_db/schema";
 import { alsPublicLinks, type PublicLink } from "./links";
 import type { Vehicle } from "./fahrzeuge";
+import type { MapObject } from "./lagekarte";
 import { alsNotices, type Notice } from "./meldungen";
 
 export const VERTRAG_VERSION = 1;
@@ -276,13 +277,15 @@ export interface Vertrag {
   map: { zoom: number };
   /** Fahrzeuge mit ihrer letzten Position (`_lib/fahrzeuge.ts`). Ältere Monitore übergehen das Feld. */
   vehicles: Vehicle[];
+  /** Feste Punkte und Flächen der Lagekarte (`_lib/lagekarte.ts`), für alle Monitore gleich. Ältere Monitore übergehen das Feld. */
+  mapObjects: MapObject[];
 }
 
 /**
  * `location` ist der Standort des abholenden Monitors (`_lib/standort.ts`); ohne Angabe die Vorgabe. Bis zum
  * Standort je Monitor (IDA-333) war er für alle Monitore derselbe.
  */
-export function alsVertrag(db: LagemonitorDb, jetzt = new Date(), vehicles: Vehicle[] = [], location: Vertrag["location"] = STANDORT_VORGABE): Vertrag {
+export function alsVertrag(db: LagemonitorDb, jetzt = new Date(), vehicles: Vehicle[] = [], location: Vertrag["location"] = STANDORT_VORGABE, mapObjects: MapObject[] = []): Vertrag {
   const z = zeile(db);
   const k = z ? dtoAus(z) : VORGABE;
   return {
@@ -313,5 +316,6 @@ export function alsVertrag(db: LagemonitorDb, jetzt = new Date(), vehicles: Vehi
     },
     map: { zoom: k.kartenZoom },
     vehicles,
+    mapObjects,
   };
 }

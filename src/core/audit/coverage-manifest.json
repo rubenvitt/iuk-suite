@@ -238,6 +238,14 @@
   "src/app/m/lagemonitor/_actions/verwaltung.ts#fahrzeugAnlegenAction": { "kind": "context", "via": "fahrzeugAnlegenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#fahrzeugEntfernenAction": { "kind": "context", "via": "fahrzeugEntfernenAction" },
   "src/app/m/lagemonitor/_actions/verwaltung.ts#standortSetzenAction": { "kind": "context", "via": "standortSetzenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#lagekarteAnlegenAction": { "kind": "context", "via": "lagekarteAnlegenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#lagekarteAendernAction": { "kind": "context", "via": "lagekarteAendernAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#lagekarteSchaltenAction": { "kind": "context", "via": "lagekarteSchaltenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#lagekarteLoeschenAction": { "kind": "context", "via": "lagekarteLoeschenAction" },
+  "src/app/m/lagemonitor/_actions/verwaltung.ts#lagekarteZeichenAction": {
+    "kind": "excluded",
+    "reason": "Read-only lookup of a tactical symbol image for the form; no business mutation or export."
+  },
   "src/app/m/helfer/_actions/verwaltung.ts#alleLoeschenAction": { "kind": "context", "via": "alleLoeschenAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#freigabeAction": { "kind": "context", "via": "freigabeAction" },
   "src/app/m/helfer/_actions/verwaltung.ts#neueFreigebenAction": { "kind": "context", "via": "neueFreigebenAction" },

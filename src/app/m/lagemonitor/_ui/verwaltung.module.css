@@ -102,3 +102,95 @@
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
+
+/* Lagekarte (Lagekarte.tsx): Haarlinien zwischen den Zeilen, keine Karte je Zeile. */
+.lagekarteListe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lagekarteListe > li {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 12px;
+  border-block-start: 1px solid var(--iuk-linie);
+}
+.lagekarteListe > li:last-child { border-block-end: 1px solid var(--iuk-linie); }
+.lagekarteZeile {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-inline-size: 0;
+}
+.lagekarteZeile > div { min-inline-size: 0; overflow-wrap: anywhere; }
+.lagekarteZeichen {
+  inline-size: 32px;
+  block-size: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+/* Fläche in der Liste: Umriss in der Palettenfarbe, leicht gefüllt wie am Monitor. */
+.lagekarteFlaeche {
+  inline-size: 22px;
+  block-size: 16px;
+  border: 1.5px solid var(--kategorie);
+  background: color-mix(in srgb, var(--kategorie) 16%, transparent);
+}
+.lagekarteAktionen {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.lagekarteFormular {
+  display: grid;
+  gap: 12px;
+  padding-block: 12px;
+  border-block-start: 1px solid var(--iuk-linie);
+}
+.lagekarteFormular + .lagekarteFormular { border-block-start: 0; }
+
+/* Die Karte selbst: feste Höhe, damit die Seite beim Nachladen nicht springt. `dvh` statt `vh` (Falle 16). */
+.karte {
+  block-size: clamp(260px, 55dvh, 440px);
+  inline-size: 100%;
+  border: 1px solid var(--iuk-linie);
+  background: var(--iuk-linie);
+}
+/* Griffe auf der Karte: 24px Fläche zum Greifen, sichtbar nur der kleine Kasten in der Mitte. */
+.kartenEcke {
+  inline-size: 24px;
+  block-size: 24px;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+.kartenEcke::after {
+  content: "";
+  inline-size: 10px;
+  block-size: 10px;
+  background: #fff;
+  border: 1px solid #1f2328;
+}
+.kartenEcke[data-ecke="0"]::after { background: #1f2328; }
+.kartenPunkt {
+  inline-size: 36px;
+  block-size: 36px;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+.kartenPunkt img { inline-size: 36px; block-size: 36px; pointer-events: none; }
+.kartenPunkt:empty::after {
+  content: "";
+  inline-size: 12px;
+  block-size: 12px;
+  background: #1f2328;
+  border: 2px solid #fff;
+}

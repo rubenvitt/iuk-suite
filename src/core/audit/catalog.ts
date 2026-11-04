@@ -802,6 +802,12 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "lagemonitor_kartenobjekt": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "lagemonitor_fahrzeug": {
       "mode": "audited",
       "primaryKey": [

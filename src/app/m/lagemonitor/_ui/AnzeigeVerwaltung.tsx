@@ -8,16 +8,18 @@ import { SPACE } from "@/core/theme/tokens";
 import { zeitFormat } from "@/core/zeit";
 import { anzeigeSpeichernAction } from "../_actions/verwaltung";
 import type { FeldFehler } from "../_lib/actionErgebnis";
-import { KARTEN_ZOOM, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
+import { KARTEN_ZOOM, STANDORT_VORGABE, MITMACHEN_MAX_ZEICHEN, MITMACHEN_TEXT_VORGABE, WARNSCHWELLEN, type KonfigurationDTO, type Mitmachen, type Module, type SuchlageTeile, type Verkehr, type Warnschwelle } from "../_lib/konfiguration";
 import { istFaellig, type KategorieDTO } from "../_lib/kategorieRegeln";
 import { MELDUNGEN_MAX_AKTIV, planeMeldung, sichtbar, type MeldungDTO } from "../_lib/meldungRegeln";
 import type { FahrzeugAuswahl, FahrzeugDTO } from "../_lib/fahrzeuge";
+import type { Lage, LagekarteObjektDTO } from "../_lib/lagekarteRegeln";
 import type { LinkDTO } from "../_lib/links";
 import type { ZugangDTO } from "../_lib/schluessel";
 import type { StandortAuswahl, StandortDTO } from "../_lib/standort";
 import { countdownText, SZENARIEN, vorschau, type Szenario, type VorschauMeldung } from "../_lib/vorschau";
 import { Fahrzeuge } from "./Fahrzeuge";
 import { Kategorien } from "./Kategorien";
+import { Lagekarte } from "./Lagekarte";
 import { Meldungen, type MeldungEntwurf } from "./Meldungen";
 import { MonitorVorschau } from "./MonitorVorschau";
 import { OeffentlicheLinks } from "./OeffentlicheLinks";
@@ -92,6 +94,7 @@ export function AnzeigeVerwaltung({
   online,
   fahrzeuge,
   standorte,
+  lagekarte,
 }: {
   konfiguration: KonfigurationDTO;
   zugaenge: ZugangDTO[];
@@ -101,6 +104,7 @@ export function AnzeigeVerwaltung({
   online: string | null;
   fahrzeuge: { liste: FahrzeugDTO[]; auswahl: FahrzeugAuswahl };
   standorte: { je: Record<string, StandortDTO>; auswahl: StandortAuswahl };
+  lagekarte: { liste: LagekarteObjektDTO[]; zeichen: { schluessel: string; titel: string }[] };
 }) {
   const [gespeichert, setGespeichert] = useState(konfiguration);
   const [z, setZ] = useState<Zustand>(() => zustandAus(konfiguration));
@@ -155,6 +159,11 @@ export function AnzeigeVerwaltung({
   const tomtom = z.tomtomSchluessel.trim() !== "" || (gespeichert.tomtomHinterlegt && !z.tomtomEntfernen);
   // Die Vorschau zeigt den Namen des ersten Monitors mit Standort; jeder Monitor hat seinen eigenen.
   const vorschauOrt = zugaenge.map((x) => standorte.je[x.id]?.name).find((n): n is string => !!n) ?? "";
+  // Die Lagekarte steht in der Vorschau und auf der Karte um den ersten Monitor mit Koordinaten.
+  const mitte = useMemo<Lage>(() => {
+    const s = zugaenge.map((x) => standorte.je[x.id]).find((o) => o && o.breite !== null && o.laenge !== null);
+    return s ? [s.laenge!, s.breite!] : [STANDORT_VORGABE.lon, STANDORT_VORGABE.lat];
+  }, [zugaenge, standorte]);
   const bild = useMemo(() => vorschau({ ...z, standortName: vorschauOrt, tomtom }, szenario, bandMeldungen), [z, vorschauOrt, tomtom, szenario, bandMeldungen]);
 
   function absenden(ereignis: FormEvent<HTMLFormElement>): void {
@@ -435,7 +444,7 @@ export function AnzeigeVerwaltung({
                 options={SZENARIEN.map((s) => ({ value: s.wert, label: s.text }))}
                 optionType="button"
               />
-              <MonitorVorschau v={bild} szenario={szenario} standort={vorschauOrt} />
+              <MonitorVorschau v={bild} szenario={szenario} standort={vorschauOrt} lagekarte={{ objekte: lagekarte.liste, mitte, zoom: z.kartenZoom ?? KARTEN_ZOOM.vorgabe }} />
             </div>
           </Card>
         </aside>
@@ -448,6 +457,8 @@ export function AnzeigeVerwaltung({
       <Zugaenge liste={zugaenge} standorte={standorte.je} auswahl={standorte.auswahl} />
 
       <Fahrzeuge liste={fahrzeuge.liste} auswahl={fahrzeuge.auswahl} />
+
+      <Lagekarte liste={lagekarte.liste} zeichen={lagekarte.zeichen} standort={mitte} />
     </div>
   );
 }
