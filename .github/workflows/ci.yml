@@ -1029,9 +1029,11 @@ jobs:
           SUITE_STACK_DIR: ${{ vars.SUITE_STACK_DIR }}
           SUITE_REVISION_ERWARTET: ${{ github.sha }}
           SUITE_IMAGE_BASIS: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # Beide optional; die Vorbelegungen stehen in scripts/deploy.sh.
+          # Alle optional; die Vorbelegungen stehen in scripts/deploy.sh.
           SUITE_HEALTH_URL: ${{ vars.SUITE_HEALTH_URL }}
           SUITE_BACKUP_CMD: ${{ vars.SUITE_BACKUP_CMD }}
+          # `aus` = Neustart per `up -d` statt Übergabe neben dem laufenden Container.
+          SUITE_DEPLOY_UEBERGABE: ${{ vars.SUITE_DEPLOY_UEBERGABE }}
         run: ./scripts/deploy.sh
       - name: ghcr-Zugangsdaten wieder entfernen
         if: always()
