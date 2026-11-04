@@ -22,7 +22,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  helfer:"Helfer (aus HiOrg)",hiorg_verbindung:"Verbindung zu HiOrg-Server",importlauf:"Abgleich der Helfer",
  stammfahrzeug:"Fahrzeug (Stammdaten)",
  planung:"Schichtplanung",einheit:"Abschnitt oder Fahrzeug (Schichtplanung)",schicht:"Schicht",temp_helfer:"Temporärer Helfer (Schichtplanung)",zuordnung:"Einteilung in eine Schicht",
- mitglied:"Mitglied (Gemeinschaft)",vorhaben:"Event oder Projekt (Gemeinschaft)",aufgabe:"Aufgabe (Gemeinschaft)",zustaendig:"Zuständigkeit für eine Aufgabe (Gemeinschaft)",sperrzeit:"Sperrzeit (Vermietung)",anfrage:"Mietanfrage",vertragsdatei:"Mietvertrag (PDF)",
+ mitglied:"Mitglied (Gemeinschaft)",vorhaben:"Event oder Projekt (Gemeinschaft)",aufgabe:"Aufgabe (Gemeinschaft)",zustaendig:"Zuständigkeit für eine Aufgabe (Gemeinschaft)",sperrzeit:"Sperrzeit (Vermietung)",anfrage:"Mietanfrage",vertragsdatei:"Mietvertrag (PDF)",vertragsvorlage:"Mietvertragsvorlage",
  gruppe:"Gruppe (Gerätewartung)",verwalter:"Verwalter einer Gruppe (Gerätewartung)",art:"Geräteart (Gerätewartung)",frist:"Frist einer Geräteart",checkpunkt:"Punkt der Prüf-Checkliste",geraet:"Gerät (Gerätewartung)",eintrag:"Prüfung oder Wartung eines Geräts",mangel:"Mangel an einem Gerät",unterlage:"Unterlage an einem Gerät",
  lagemonitor_anzeige:"Anzeige des Lagemonitors",lagemonitor_zugang:"Zugang des Lagemonitors",lagemonitor_meldung:"Meldung am Lagemonitor",lagemonitor_link:"Link für den Online-Lagemonitor",lagemonitor_kategorie:"Meldekategorie des Lagemonitors",lagemonitor_fahrzeug:"Fahrzeug auf der Karte des Lagemonitors",quellzuordnung:"Fahrzeugzuordnung (Stammdaten)",
 };
