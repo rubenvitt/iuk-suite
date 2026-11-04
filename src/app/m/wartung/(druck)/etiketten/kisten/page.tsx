@@ -72,3 +72,5 @@ export default async function KistenEtikettenSeite({ searchParams }: { searchPar
     </>
   );
 }
+
+export const metadata = { title: "Etiketten der Materialkisten" };

@@ -7,3 +7,5 @@ export default async function MangelSeite({ params }: { params: Promise<{ id: st
   const { g, viewer } = await geraetOeffentlich(params);
   return <MangelAmGeraet geraetId={g.id} geraetName={g.name} mitName={viewer === null} />;
 }
+
+export const metadata = { title: "Mangel melden" };

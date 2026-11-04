@@ -30,3 +30,5 @@ export default async function PlanungDruck({ params, searchParams }: {
     />
   );
 }
+
+export const metadata = { title: "Druck" };

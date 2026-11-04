@@ -51,3 +51,5 @@ export function lagerorteSeitenInhalt(db: DB) {
 export default function LagerorteSeite() {
   return lagerorteSeitenInhalt(getDb());
 }
+
+export const metadata = { title: "Lagerorte" };

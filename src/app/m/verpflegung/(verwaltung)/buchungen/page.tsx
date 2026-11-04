@@ -9,3 +9,5 @@ export default async function BuchungenSeite() {
   await requireZugang("/buchungen");
   return <BuchungenListe zeilen={ladeBuchungen(getDb(), 2000)} />;
 }
+
+export const metadata = { title: "Buchungen" };

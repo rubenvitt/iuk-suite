@@ -54,3 +54,5 @@ export default async function SuchSeite({ searchParams }: { searchParams: Promis
     </>
   );
 }
+
+export const metadata = { title: "Suche" };

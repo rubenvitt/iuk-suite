@@ -18,3 +18,5 @@ export default function QrViewPage() {
     </Suspense>
   );
 }
+
+export const metadata = { title: "QR-Code" };

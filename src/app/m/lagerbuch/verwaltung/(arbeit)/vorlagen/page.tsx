@@ -46,3 +46,5 @@ export function vorlagenInhalt(db: DB): ReactNode {
 export default function VorlagenSeite() {
   return vorlagenInhalt(getDb());
 }
+
+export const metadata = { title: "Vorlagen" };

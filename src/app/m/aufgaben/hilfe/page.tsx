@@ -142,3 +142,5 @@ export default async function HilfePage() {
   if (!akteur) return <NichtEingetragenSeite sub={await subFuerSitzung()} />;
   return hilfeInhalt(akteur, isoTag(new Date()));
 }
+
+export const metadata = { title: "Anleitung" };

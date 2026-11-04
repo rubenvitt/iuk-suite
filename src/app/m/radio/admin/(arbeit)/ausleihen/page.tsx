@@ -96,3 +96,5 @@ export default async function RadioAusleihenSeite({
     </>
   );
 }
+
+export const metadata = { title: "Ausleihen" };

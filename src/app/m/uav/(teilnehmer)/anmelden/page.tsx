@@ -28,3 +28,5 @@ export default async function Anmelden({
 
   return <AnmeldeFlaeche code={typeof code === "string" ? code : undefined} />;
 }
+
+export const metadata = { title: "Anmelden" };

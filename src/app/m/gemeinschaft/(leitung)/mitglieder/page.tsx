@@ -14,3 +14,5 @@ export default async function MitgliederSeite() {
   await requireLeitung();
   return <MitgliederVerwaltung zeilen={listeMitglieder(getDb())} basis={linkBasisAus(kopf)} />;
 }
+
+export const metadata = { title: "Mitglieder" };

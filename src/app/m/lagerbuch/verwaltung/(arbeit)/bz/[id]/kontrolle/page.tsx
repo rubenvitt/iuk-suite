@@ -65,3 +65,5 @@ export default async function KontrolleSeite({
   const { id } = await params;
   return kontrolleSeiteInhalt(getDb(), id);
 }
+
+export const metadata = { title: "Kontrolle erfassen" };

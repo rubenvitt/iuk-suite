@@ -30,3 +30,5 @@ export default async function BibliothekSeite({ searchParams }: { searchParams: 
     </Huelle>
   );
 }
+
+export const metadata = { title: "Bibliothek" };

@@ -117,3 +117,5 @@ export default async function AnmeldenPage({
   // Manifest: `excluded`, erfolgreiche Anmeldung ist keine Zugriffsentscheidung.
   redirect(rueckrufUrl(p, { code }));
 }
+
+export const metadata = { title: "Anmelden" };

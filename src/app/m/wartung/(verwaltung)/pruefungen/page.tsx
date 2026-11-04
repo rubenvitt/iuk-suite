@@ -18,3 +18,5 @@ export default async function PruefungenSeite({ searchParams }: { searchParams: 
     />
   );
 }
+
+export const metadata = { title: "Prüfungen und Wartungen" };

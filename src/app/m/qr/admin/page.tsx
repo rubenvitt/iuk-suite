@@ -155,3 +155,5 @@ export default async function QrAdminPage({
     </div>
   );
 }
+
+export const metadata = { title: "Presets verwalten" };

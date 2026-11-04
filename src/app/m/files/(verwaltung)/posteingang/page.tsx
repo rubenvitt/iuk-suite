@@ -118,3 +118,5 @@ export default async function FilesPosteingangSeite() {
 
   return <PosteingangTabelle zeilen={zeilen} jetztSekunden={jetztSekunden} />;
 }
+
+export const metadata = { title: "Posteingang" };

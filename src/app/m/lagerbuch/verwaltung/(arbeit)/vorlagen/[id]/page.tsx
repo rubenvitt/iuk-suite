@@ -114,3 +114,5 @@ export default async function VorlageDetailSeite({
   const { id } = await params;
   return vorlageInhalt(getDb(), id);
 }
+
+export const metadata = { title: "Vorlage" };

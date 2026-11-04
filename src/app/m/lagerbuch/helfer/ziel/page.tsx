@@ -181,3 +181,5 @@ export default async function ZielSeite({
     </HelferRahmen>
   );
 }
+
+export const metadata = { title: "Ziel wählen" };

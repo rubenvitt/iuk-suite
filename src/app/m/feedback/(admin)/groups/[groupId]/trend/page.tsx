@@ -176,3 +176,5 @@ function fragenAus(trend: ReturnType<typeof computeGroupTrend>): TrendFrage[] {
     werte: trend.map((t) => t.perQuestion[i]?.avg ?? null),
   }));
 }
+
+export const metadata = { title: "Trend" };

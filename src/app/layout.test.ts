@@ -82,10 +82,12 @@ describe("Root-Layout — Favicon nach Host", () => {
     expect(await apple("lagerbuch.localtest.me")).toMatch(/^\/favicon\/lagerbuch-apple-180\.png\?v=/);
   });
 
-  it("behält Titel und Beschreibung", async () => {
+  it("trägt Titelvorlage und Beschreibung des Hosts", async () => {
     kopf.host = "";
     const m = await generateMetadata();
-    expect(m.title).toBe("IDA");
+    expect(m.title).toEqual({ default: "IDA", template: "%s · IDA" });
     expect(m.description).toBe("Interne Dienste und Anwendungen");
+    kopf.host = "lagerbuch.localtest.me:3000";
+    expect((await generateMetadata()).title).toEqual({ default: "Lagerbuch", template: "%s · Lagerbuch" });
   });
 });

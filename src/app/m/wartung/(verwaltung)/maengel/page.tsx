@@ -19,3 +19,5 @@ export default async function MaengelSeite({ searchParams }: { searchParams: Pro
     />
   );
 }
+
+export const metadata = { title: "Mängel" };

@@ -115,3 +115,5 @@ export default async function RoutinenPage({
   // Akteur: die Berechtigung ist oben, an der Route, bereits entschieden.
   return routinenInhalt(db, akteur.person, bearbeiten);
 }
+
+export const metadata = { title: "Routinen" };

@@ -177,3 +177,5 @@ export default async function RadioUebersichtPage() {
     </>
   );
 }
+
+export const metadata = { title: "Übersicht" };

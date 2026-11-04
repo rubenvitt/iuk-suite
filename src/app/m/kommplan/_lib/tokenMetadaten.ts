@@ -6,7 +6,7 @@ import type { Metadata } from "next";
  * parallel zum Riegel und dürfte die Datenbank nicht anfassen.
  */
 export const TOKEN_METADATEN: Metadata = {
-  title: "Kommunikationspläne",
+  title: { absolute: "Kommunikationspläne" },
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
   referrer: "no-referrer",
 };

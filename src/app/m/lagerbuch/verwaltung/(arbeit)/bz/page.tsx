@@ -76,3 +76,5 @@ export function bzSeitenInhalt(db: DB, jetzt: Date): ReactNode {
 export default function BzSeite() {
   return bzSeitenInhalt(getDb(), new Date());
 }
+
+export const metadata = { title: "BZ-Kontrolle" };

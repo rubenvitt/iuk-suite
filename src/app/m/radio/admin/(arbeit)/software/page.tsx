@@ -131,3 +131,5 @@ export default async function RadioSoftwareSeite({
     />
   );
 }
+
+export const metadata = { title: "Update-Modus" };

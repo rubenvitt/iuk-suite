@@ -488,3 +488,5 @@ export default async function FahrzeugBlatt({
   const { id } = await params;
   return fahrzeugInhalt(getDb(), id, new Date());
 }
+
+export const metadata = { title: "Einheit" };

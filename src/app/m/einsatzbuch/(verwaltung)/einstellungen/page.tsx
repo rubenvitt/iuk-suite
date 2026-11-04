@@ -18,3 +18,5 @@ export default async function EinstellungenSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Einstellungen" };

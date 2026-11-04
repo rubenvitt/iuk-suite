@@ -55,3 +55,5 @@ export default async function TelefonSeite({ searchParams }: { searchParams: Pro
   };
   return <Telefon d={d} />;
 }
+
+export const metadata = { title: "Buchen" };

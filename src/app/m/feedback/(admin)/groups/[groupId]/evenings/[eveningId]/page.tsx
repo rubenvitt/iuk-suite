@@ -64,3 +64,5 @@ export default async function EveningDetail({
       : `/m/feedback/groups/${evening.groupId}`,
   );
 }
+
+export const metadata = { title: "Auswertung" };

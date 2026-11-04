@@ -93,3 +93,5 @@ export default async function AuffuellenSeite() {
     </AuffuellRahmen>
   );
 }
+
+export const metadata = { title: "Auffüllen" };

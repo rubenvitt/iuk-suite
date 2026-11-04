@@ -10,3 +10,5 @@ export default async function ArtenSeite() {
   await requireVerwalter();
   return <ArtenVerwaltung arten={ladeArten(getDb())} />;
 }
+
+export const metadata = { title: "Gerätearten und Checklisten" };

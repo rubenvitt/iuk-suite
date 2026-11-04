@@ -50,3 +50,5 @@ export default async function ErstimportSeite() {
     </div>
   );
 }
+
+export const metadata = { title: "Erstimport" };

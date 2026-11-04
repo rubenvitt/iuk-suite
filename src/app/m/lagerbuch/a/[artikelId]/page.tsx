@@ -267,3 +267,5 @@ export default async function ArtikelDeepLink({
     </HelferRahmen>
   );
 }
+
+export const metadata = { title: "Artikel" };

@@ -76,3 +76,5 @@ export default async function Aushang({
     </main>
   );
 }
+
+export const metadata = { title: "Aushang" };

@@ -91,3 +91,5 @@ export default async function RadioVersionenSeite() {
     </>
   );
 }
+
+export const metadata = { title: SEITEN_TEXTE.titel };

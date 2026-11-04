@@ -11,3 +11,5 @@ export default async function ArtikelSeite() {
   const { artikel, chargen } = ladeSicht(getDb(), heute());
   return <ArtikelVerwaltung artikel={artikel} bestand={Object.fromEntries(bestandJeArtikel(chargen))} />;
 }
+
+export const metadata = { title: "Artikel" };

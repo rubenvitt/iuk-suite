@@ -163,3 +163,5 @@ export default async function PersonenPage({
   const { bearbeiten } = await searchParams;
   return personenInhalt(db, heute, bearbeiten, verzeichnisAktiv);
 }
+
+export const metadata = { title: "Personen" };

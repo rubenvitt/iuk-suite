@@ -41,3 +41,5 @@ export default async function ServerwartungPage() {
     </>
   );
 }
+
+export const metadata = { title: "Serverwartung" };

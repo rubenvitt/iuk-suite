@@ -12,7 +12,7 @@ import { turnstileSiteKey } from "../../_lib/ehrlich/turnstile";
 import { Blatt } from "../Blatt";
 import { Einwurf } from "./Einwurf";
 
-export const metadata: Metadata = { title: "Ehrlich gesagt", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: { absolute: "Ehrlich gesagt" }, robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 /**

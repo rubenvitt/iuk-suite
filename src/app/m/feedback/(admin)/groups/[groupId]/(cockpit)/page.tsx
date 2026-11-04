@@ -553,3 +553,5 @@ function LetzterAbend({
     </Card>
   );
 }
+
+export const metadata = { title: "Gruppe" };

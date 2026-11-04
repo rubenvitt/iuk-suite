@@ -127,3 +127,5 @@ export default async function VergleichPage() {
     </>
   );
 }
+
+export const metadata = { title: "Gruppenvergleich" };

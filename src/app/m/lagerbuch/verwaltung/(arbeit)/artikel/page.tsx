@@ -93,3 +93,5 @@ export default async function ArtikelSeite({
   const viewer = await requireLagerbuchAdmin();
   return artikelSeitenInhalt(getDb(), new Date(), viewer.sub, await searchParams);
 }
+
+export const metadata = { title: "Artikel" };

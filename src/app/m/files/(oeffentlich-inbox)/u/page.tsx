@@ -19,3 +19,5 @@ import { InboxStart } from "../../_ui/InboxStart";
 export default function FilesInboxWurzel() {
   return <InboxStart />;
 }
+
+export const metadata = { title: "Dateien abgeben" };

@@ -96,3 +96,5 @@ export default async function OrtsetikettenSeite() {
     </>
   );
 }
+
+export const metadata = { title: "Ortsetiketten" };

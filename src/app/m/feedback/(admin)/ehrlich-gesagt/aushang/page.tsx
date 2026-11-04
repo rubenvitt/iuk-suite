@@ -19,3 +19,5 @@ export default async function EhrlichAushangSeite() {
     </div>
   );
 }
+
+export const metadata = { title: "QR-Code und Aushang" };

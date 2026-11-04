@@ -37,3 +37,5 @@ export default async function NeuigkeitenPage() {
     </>
   );
 }
+
+export const metadata = { title: "Neuigkeiten" };

@@ -20,3 +20,5 @@ export default async function InhaltSeite({ params }: { params: Promise<{ id: st
   const inhalt = ladeInhalt(getDb(), g.id);
   return <InhaltAmGeraet geraetId={g.id} geraetName={g.name} inhalt={inhalt} stand={inhaltStand(inhalt)} />;
 }
+
+export const metadata = { title: "Inhalt" };

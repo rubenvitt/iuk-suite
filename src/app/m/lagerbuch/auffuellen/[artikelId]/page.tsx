@@ -104,3 +104,5 @@ export default async function AuffuellenArtikelSeite({
     </AuffuellRahmen>
   );
 }
+
+export const metadata = { title: "Auffüllen" };

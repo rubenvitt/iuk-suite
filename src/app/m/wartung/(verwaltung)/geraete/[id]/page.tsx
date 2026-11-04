@@ -44,3 +44,5 @@ export default async function AktenSeite({ params }: { params: Promise<{ id: str
     />
   );
 }
+
+export const metadata = { title: "Gerät" };

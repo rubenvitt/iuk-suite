@@ -58,3 +58,5 @@ export default async function InventurVerlaufSeite() {
   await requireLagerbuchAdmin();
   return verlaufSeitenInhalt(getDb());
 }
+
+export const metadata = { title: "Inventur-Verlauf" };

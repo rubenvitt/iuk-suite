@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * `core/registry.ts` einen Eintrag für `/m/gemeinschaft/mein/`.
  */
 export const metadata: Metadata = {
-  title: "Gemeinschaft",
+  title: { absolute: "Gemeinschaft" },
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
   referrer: "no-referrer",
 };

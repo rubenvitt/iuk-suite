@@ -9,3 +9,5 @@ export default async function OrteSeite() {
   await requireAdmin("/orte");
   return <OrteVerwaltung orte={ladeOrte(getDb())} />;
 }
+
+export const metadata = { title: "Lagerorte" };

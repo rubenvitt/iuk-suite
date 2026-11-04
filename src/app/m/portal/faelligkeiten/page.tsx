@@ -80,3 +80,5 @@ export default async function FaelligkeitenPage() {
     </>
   );
 }
+
+export const metadata = { title: "Was steht an" };

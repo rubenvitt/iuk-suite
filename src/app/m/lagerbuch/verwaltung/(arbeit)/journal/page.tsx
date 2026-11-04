@@ -146,3 +146,5 @@ export default async function JournalSeite({
 }) {
   return journalInhalt(journalDaten(getDb(), await searchParams));
 }
+
+export const metadata = { title: "Journal" };

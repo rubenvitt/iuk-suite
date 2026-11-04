@@ -104,3 +104,5 @@ export function geraeteSeitenInhalt(db: Leser, jetzt: Date = new Date()) {
 export default function GeraeteSeite() {
   return geraeteSeitenInhalt(getDb(), new Date());
 }
+
+export const metadata = { title: "Geräte" };

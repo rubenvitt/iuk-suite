@@ -108,3 +108,5 @@ export default async function ChecklistenSeite({
     />
   );
 }
+
+export const metadata = { title: "Checklisten" };

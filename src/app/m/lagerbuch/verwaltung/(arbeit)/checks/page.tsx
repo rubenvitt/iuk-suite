@@ -285,3 +285,5 @@ export default async function ChecksSeite({
   await requireLagerbuchAdmin();
   return checksInhalt(getDb(), await searchParams);
 }
+
+export const metadata = { title: "Checks" };

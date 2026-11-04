@@ -53,3 +53,5 @@ export default async function EtikettenSeite({ searchParams }: { searchParams: P
     </>
   );
 }
+
+export const metadata = { title: "QR-Etiketten" };
