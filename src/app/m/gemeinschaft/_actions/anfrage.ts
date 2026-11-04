@@ -7,7 +7,12 @@ import { auth } from "@/core/auth";
 import { clientIpAus, RateLimiter } from "@/core/ratelimit";
 import { getDb } from "../_db/client";
 import { istLinkCode, neuerLinkCode } from "../_lib/kennung";
-import { Abgelehnt, anfragenSeit, legeAnfrageAn, NichtGefunden, zieheZurueck } from "../_lib/vermietung";
+import {
+  Abgelehnt, anfragenSeit, ladeVorlage, legeAnfrageAn, legeUnterschriebenAb, NichtGefunden, pruefeUnterschreibbar, zieheZurueck,
+} from "../_lib/vermietung";
+import { zeitraumText } from "../_lib/vermietungText";
+import { sichererName } from "../_lib/vermietungPdf";
+import { unterschriebenePdf, unterschriftAusDataUrl } from "../_lib/vertragUnterschrift";
 import { pruefeAnfrage, type Ergebnis } from "../_lib/vermietungEingabe";
 import { requireGemeinschaftHostAktion } from "../_lib/zugang";
 
@@ -65,6 +70,53 @@ export async function anfrageZurueckziehenAction(code: string): Promise<Ergebnis
   return withAuditContext({ actor: { kind: "anonymous" } }, async () => {
     try {
       zieheZurueck(getDb(), code, Date.now());
+      neuLaden();
+      return { ok: true };
+    } catch (e) {
+      if (e instanceof NichtGefunden) return { ok: false, fehler: "Diese Anfrage gibt es nicht." };
+      if (e instanceof Abgelehnt) return { ok: false, fehler: e.message };
+      throw e;
+    }
+  });
+}
+
+const jeAbsenderUnterschrift = new RateLimiter({ windowMs: 60 * 60_000, max: 20 });
+const NAME_MAX = 120;
+
+/**
+ * Die Person unterschreibt den Mietvertrag auf der Statusseite (IDA-343): getippter Name, gezeichnete Unterschrift
+ * (PNG als Data-URL, höchstens 400 KB — passt unter die 1 MB der Server Actions) und der Stand der Vorlage, die sie
+ * gesehen hat. Der Server setzt die Unterschrift in das Feld der Vorlage und legt die PDF beim Eintrag ab.
+ */
+export async function vertragUnterschreibenAction(code: string, eingabe: { name?: unknown; bild?: unknown; stand?: unknown }): Promise<Ergebnis> {
+  await requireGemeinschaftHostAktion();
+  if (typeof code !== "string" || !istLinkCode(code)) return { ok: false, fehler: "Diese Anfrage gibt es nicht." };
+  const name = typeof eingabe?.name === "string" ? eingabe.name.trim() : "";
+  if (name.length < 2 || name.length > NAME_MAX) return { ok: false, fehler: "Bitte deinen Namen eingeben.", feldFehler: { name: "Bitte deinen Namen eingeben." } };
+  const png = unterschriftAusDataUrl(eingabe?.bild);
+  if (!png) return { ok: false, fehler: "Bitte unterschreib im Feld." };
+  const stand = typeof eingabe?.stand === "string" && /^[0-9a-f]{64}$/.test(eingabe.stand) ? eingabe.stand : null;
+  if (!stand) return { ok: false, fehler: "Bitte die Seite neu laden." };
+  if (!jeAbsenderUnterschrift.check(clientIpAus(await headers()))) return { ok: false, fehler: "Zu viele Versuche. Bitte in einer Stunde noch einmal." };
+
+  return withAuditContext({ actor: { kind: "anonymous" } }, async () => {
+    const db = getDb();
+    try {
+      const a = pruefeUnterschreibbar(db, code);
+      const v = ladeVorlage(db);
+      if (!v || v.sha256 !== stand) throw new Abgelehnt("Der Vertrag wurde gerade geändert. Bitte die Seite neu laden und noch einmal ansehen.");
+      if (!v.zeichnen) throw new Abgelehnt("Bitte den unterschriebenen Vertrag hochladen.");
+      const jetzt = Date.now();
+      let pdf: Uint8Array;
+      try {
+        pdf = await unterschriebenePdf(v.inhalt, v.feld, png, { name, am: jetzt, zeitraum: zeitraumText(a.von, a.bis), anlass: a.anlass });
+      } catch {
+        return { ok: false, fehler: "Die Unterschrift ließ sich nicht übernehmen. Bitte noch einmal zeichnen." };
+      }
+      const datei = Buffer.from(pdf);
+      legeUnterschriebenAb(db, code, {
+        name: sichererName(`${v.name.replace(/\.pdf$/i, "").slice(0, 100)} – unterschrieben`), inhalt: datei, herkunft: "gezeichnet", unterschriebenVon: name, vorlageStand: stand,
+      }, jetzt);
       neuLaden();
       return { ok: true };
     } catch (e) {

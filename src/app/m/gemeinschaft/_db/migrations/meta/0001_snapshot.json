@@ -1,0 +1,847 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "514ffe2a-afcf-4834-8b00-ea929e2ea707",
+  "prevId": "fda1217d-f461-4fca-94f2-d2415fd4f1ef",
+  "tables": {
+    "anfrage": {
+      "name": "anfrage",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "raum": {
+          "name": "raum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'bar'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'angefragt'"
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "von": {
+          "name": "von",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bis": {
+          "name": "bis",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "anlass": {
+          "name": "anlass",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "personen": {
+          "name": "personen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "person": {
+          "name": "person",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kontakt": {
+          "name": "kontakt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hinweis": {
+          "name": "hinweis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "mitglied": {
+          "name": "mitglied",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "begruendung": {
+          "name": "begruendung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "vertrag": {
+          "name": "vertrag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'offen'"
+        },
+        "eingegangen_am": {
+          "name": "eingegangen_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "entschieden_am": {
+          "name": "entschieden_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "anfrage_code_idx": {
+          "name": "anfrage_code_idx",
+          "columns": [
+            "code"
+          ],
+          "isUnique": true
+        },
+        "anfrage_raum_von_idx": {
+          "name": "anfrage_raum_von_idx",
+          "columns": [
+            "raum",
+            "von"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "anfrage_status": {
+          "name": "anfrage_status",
+          "value": "status IN ('angefragt','zugesagt','abgelehnt','zurueckgezogen')"
+        },
+        "anfrage_vertrag": {
+          "name": "anfrage_vertrag",
+          "value": "vertrag IN ('offen','verschickt','unterschrieben')"
+        },
+        "anfrage_zeitraum": {
+          "name": "anfrage_zeitraum",
+          "value": "bis > von"
+        },
+        "anfrage_personen": {
+          "name": "anfrage_personen",
+          "value": "personen > 0"
+        }
+      }
+    },
+    "audit_outbox": {
+      "name": "audit_outbox",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "module": {
+          "name": "module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_type": {
+          "name": "object_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "object_ref": {
+          "name": "object_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "audit_outbox_occurred_idx": {
+          "name": "audit_outbox_occurred_idx",
+          "columns": [
+            "occurred_at",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_outbox_actor_json": {
+          "name": "audit_outbox_actor_json",
+          "value": "json_valid(\"audit_outbox\".\"actor\")"
+        }
+      }
+    },
+    "aufgabe": {
+      "name": "aufgabe",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "vorhaben_id": {
+          "name": "vorhaben_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "faellig": {
+          "name": "faellig",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erledigt_am": {
+          "name": "erledigt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "aufgabe_vorhaben_idx": {
+          "name": "aufgabe_vorhaben_idx",
+          "columns": [
+            "vorhaben_id",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "aufgabe_vorhaben_id_vorhaben_id_fk": {
+          "name": "aufgabe_vorhaben_id_vorhaben_id_fk",
+          "tableFrom": "aufgabe",
+          "tableTo": "vorhaben",
+          "columnsFrom": [
+            "vorhaben_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "aufgabe_faellig_tag": {
+          "name": "aufgabe_faellig_tag",
+          "value": "faellig IS NULL OR faellig GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        }
+      }
+    },
+    "mitglied": {
+      "name": "mitglied",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "telefon": {
+          "name": "telefon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "link": {
+          "name": "link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "mitglied_link_idx": {
+          "name": "mitglied_link_idx",
+          "columns": [
+            "link"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "sperrzeit": {
+      "name": "sperrzeit",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "raum": {
+          "name": "raum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'bar'"
+        },
+        "von": {
+          "name": "von",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bis": {
+          "name": "bis",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "grund": {
+          "name": "grund",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "sperrzeit_raum_von_idx": {
+          "name": "sperrzeit_raum_von_idx",
+          "columns": [
+            "raum",
+            "von"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "sperrzeit_zeitraum": {
+          "name": "sperrzeit_zeitraum",
+          "value": "bis > von"
+        }
+      }
+    },
+    "vertragsdatei": {
+      "name": "vertragsdatei",
+      "columns": {
+        "anfrage_id": {
+          "name": "anfrage_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "groesse": {
+          "name": "groesse",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "inhalt": {
+          "name": "inhalt",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "abgelegt_am": {
+          "name": "abgelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "herkunft": {
+          "name": "herkunft",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'leitung'"
+        },
+        "unterschrieben_von": {
+          "name": "unterschrieben_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vertragsdatei_anfrage_id_anfrage_id_fk": {
+          "name": "vertragsdatei_anfrage_id_anfrage_id_fk",
+          "tableFrom": "vertragsdatei",
+          "tableTo": "anfrage",
+          "columnsFrom": [
+            "anfrage_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "vertragsvorlage": {
+      "name": "vertragsvorlage",
+      "columns": {
+        "raum": {
+          "name": "raum",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "groesse": {
+          "name": "groesse",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "inhalt": {
+          "name": "inhalt",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "feld": {
+          "name": "feld",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "zeichnen": {
+          "name": "zeichnen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "abgelegt_am": {
+          "name": "abgelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "vorhaben": {
+      "name": "vorhaben",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "art": {
+          "name": "art",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "beschreibung": {
+          "name": "beschreibung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "verantwortlich_id": {
+          "name": "verantwortlich_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "projekt_id": {
+          "name": "projekt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "von": {
+          "name": "von",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bis": {
+          "name": "bis",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ort": {
+          "name": "ort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "bar_belegen": {
+          "name": "bar_belegen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "ziel": {
+          "name": "ziel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "angelegt_am": {
+          "name": "angelegt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "vorhaben_art_von_idx": {
+          "name": "vorhaben_art_von_idx",
+          "columns": [
+            "art",
+            "von"
+          ],
+          "isUnique": false
+        },
+        "vorhaben_projekt_idx": {
+          "name": "vorhaben_projekt_idx",
+          "columns": [
+            "projekt_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "vorhaben_verantwortlich_id_mitglied_id_fk": {
+          "name": "vorhaben_verantwortlich_id_mitglied_id_fk",
+          "tableFrom": "vorhaben",
+          "tableTo": "mitglied",
+          "columnsFrom": [
+            "verantwortlich_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "vorhaben_art": {
+          "name": "vorhaben_art",
+          "value": "art IN ('event','projekt')"
+        },
+        "vorhaben_event_zeit": {
+          "name": "vorhaben_event_zeit",
+          "value": "art <> 'event' OR (von IS NOT NULL AND bis IS NOT NULL AND bis > von)"
+        },
+        "vorhaben_projekt_ohne_zeit": {
+          "name": "vorhaben_projekt_ohne_zeit",
+          "value": "art <> 'projekt' OR (von IS NULL AND bis IS NULL AND projekt_id IS NULL AND bar_belegen = 0)"
+        },
+        "vorhaben_ziel_tag": {
+          "name": "vorhaben_ziel_tag",
+          "value": "ziel IS NULL OR ziel GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        }
+      }
+    },
+    "zustaendig": {
+      "name": "zustaendig",
+      "columns": {
+        "aufgabe_id": {
+          "name": "aufgabe_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mitglied_id": {
+          "name": "mitglied_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "zustaendig_mitglied_idx": {
+          "name": "zustaendig_mitglied_idx",
+          "columns": [
+            "mitglied_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "zustaendig_aufgabe_id_aufgabe_id_fk": {
+          "name": "zustaendig_aufgabe_id_aufgabe_id_fk",
+          "tableFrom": "zustaendig",
+          "tableTo": "aufgabe",
+          "columnsFrom": [
+            "aufgabe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "zustaendig_mitglied_id_mitglied_id_fk": {
+          "name": "zustaendig_mitglied_id_mitglied_id_fk",
+          "tableFrom": "zustaendig",
+          "tableTo": "mitglied",
+          "columnsFrom": [
+            "mitglied_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "zustaendig_aufgabe_id_mitglied_id_pk": {
+          "columns": [
+            "aufgabe_id",
+            "mitglied_id"
+          ],
+          "name": "zustaendig_aufgabe_id_mitglied_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

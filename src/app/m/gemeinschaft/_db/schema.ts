@@ -119,11 +119,34 @@ export const anfrage = sqliteTable("anfrage", {
   check("anfrage_personen", sql`personen > 0`),
 ]);
 
-/** Der unterschriebene Mietvertrag als PDF, höchstens einer je Anfrage. Kein Erzeugen, nur Ablage. */
+/**
+ * Der unterschriebene Mietvertrag als PDF, höchstens einer je Anfrage. `herkunft`: von der Leitung abgelegt, auf der
+ * Statusseite gezeichnet (dann `unterschriebenVon` = getippter Name) oder dort als Datei/Foto hochgeladen (IDA-343).
+ */
 export const vertragsdatei = sqliteTable("vertragsdatei", {
   anfrageId: text("anfrage_id").primaryKey().references(() => anfrage.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   groesse: integer("groesse").notNull(),
   inhalt: blob("inhalt", { mode: "buffer" }).notNull(),
+  abgelegtAm: integer("abgelegt_am").notNull(),
+  herkunft: text("herkunft", { enum: ["leitung", "gezeichnet", "hochgeladen"] }).notNull().default("leitung"),
+  unterschriebenVon: text("unterschrieben_von"),
+});
+
+/**
+ * Die Vertragsvorlage je Raum (IDA-343), höchstens eine. `sha256` ist der Stand, den die Statusseite beim
+ * Unterschreiben mitschickt — wurde die Vorlage dazwischen ersetzt, wird nicht unterschrieben. `feld` ist das
+ * Unterschriftenfeld als JSON (`_lib/vertragFeld.ts`), in PDF-Punkten; ohne Feld kommt die Unterschrift auf eine
+ * eigene letzte Seite.
+ */
+export const vertragsvorlage = sqliteTable("vertragsvorlage", {
+  raum: text("raum").primaryKey(),
+  name: text("name").notNull(),
+  groesse: integer("groesse").notNull(),
+  inhalt: blob("inhalt", { mode: "buffer" }).notNull(),
+  sha256: text("sha256").notNull(),
+  feld: text("feld"),
+  /** Darf auf der Statusseite gezeichnet werden? Aus = nur der Upload des unterschriebenen Ausdrucks. */
+  zeichnen: integer("zeichnen", { mode: "boolean" }).notNull().default(true),
   abgelegtAm: integer("abgelegt_am").notNull(),
 });

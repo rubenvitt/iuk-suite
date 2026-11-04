@@ -6,8 +6,10 @@ import { zeitpunkt } from "../../_lib/zeit";
 import { BarAnfrage } from "./BarAnfrage";
 import { Statusansicht } from "./Statusansicht";
 
-const aktion = vi.hoisted(() => ({ senden: vi.fn(), zurueck: vi.fn(), refresh: vi.fn() }));
-vi.mock("../../_actions/anfrage", () => ({ anfrageSendenAction: aktion.senden, anfrageZurueckziehenAction: aktion.zurueck }));
+const aktion = vi.hoisted(() => ({ senden: vi.fn(), zurueck: vi.fn(), refresh: vi.fn(), unterschreiben: vi.fn() }));
+vi.mock("../../_actions/anfrage", () => ({
+  anfrageSendenAction: aktion.senden, anfrageZurueckziehenAction: aktion.zurueck, vertragUnterschreibenAction: aktion.unterschreiben,
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: aktion.refresh }) }));
 
 const BELEGT = [{ von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-08", "01:00") }];
@@ -69,7 +71,7 @@ describe("Bar anfragen", () => {
 });
 
 describe("Statusseite", () => {
-  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "" };
+  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "", vertrag: null };
 
   it("Absage mit Begründung, ohne Zurückziehen", async () => {
     await mount(<Statusansicht code="abcdefghijklmnopqrstuv" a={{ ...A, status: "abgelehnt", begruendung: "Dienstabend." }} />);
@@ -90,5 +92,46 @@ describe("Statusseite", () => {
     await clickElement(knopf("Ja, zurückziehen"));
     expect(aktion.zurueck).toHaveBeenCalledWith("abcdefghijklmnopqrstuv");
     expect(aktion.refresh).toHaveBeenCalled();
+  });
+});
+
+describe("Mietvertrag auf der Statusseite (IDA-343)", () => {
+  const A = { von: zeitpunkt("2026-11-07", "18:00"), bis: zeitpunkt("2026-11-07", "23:00"), anlass: "Geburtstag", personen: 20, person: "Erika Sommer", kontakt: "05141 12345", begruendung: "" };
+  const CODE = "abcdefghijklmnopqrstuv";
+  const STAND = "a".repeat(64);
+
+  it("ohne Vorlage kein Vertrag", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "offen", vorlage: null, zeichnen: false, datei: null } }} />);
+    expect(exists('[data-testid="vertrag-unterschreiben"]')).toBe(false);
+    expect(exists('[data-testid="vertrag-status"]')).toBe(false);
+  });
+
+  it("mit Vorlage: ansehen, Name vorbelegt, Unterschreiben erst nach Zeichnen und Haken", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "verschickt", vorlage: STAND, zeichnen: true, datei: null } }} />);
+    expect(knopf("Vertrag ansehen (PDF)").getAttribute("href")).toBe(`/status/${CODE}/vertrag`);
+    expect(query<HTMLInputElement>('input[autocomplete="name"]').value).toBe("Erika Sommer");
+    expect(knopf("Unterschreiben").disabled).toBe(true);
+    expect(exists('[data-testid="unterschrift-flaeche"]')).toBe(true);
+    expect(query<HTMLInputElement>('[data-testid="vertrag-hochladen"]').accept).toBe("application/pdf,image/jpeg,image/png");
+  });
+
+  it("Zeichnen aus: nur ansehen und hochladen", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "verschickt", vorlage: STAND, zeichnen: false, datei: null } }} />);
+    expect(knopf("Vertrag ansehen (PDF)").getAttribute("href")).toBe(`/status/${CODE}/vertrag`);
+    expect(exists('[data-testid="unterschrift-flaeche"]')).toBe(false);
+    expect(exists('input[autocomplete="name"]')).toBe(false);
+    expect(knopf("Unterschriebenen Vertrag hochladen").className).not.toContain("go-knopf-leise");
+  });
+
+  it("unterschrieben: nur noch herunterladen", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "zugesagt", vertrag: { stand: "unterschrieben", vorlage: STAND, zeichnen: true, datei: { am: A.von, herkunft: "gezeichnet" } } }} />);
+    expect(query('[data-testid="vertrag-status"]').textContent).toContain("Unterschrieben");
+    expect(knopf("Vertrag herunterladen").getAttribute("href")).toBe(`/status/${CODE}/vertrag`);
+    expect(exists('[data-testid="vertrag-unterschreiben"]')).toBe(false);
+  });
+
+  it("bei einer Absage kein Vertrag, auch wenn eine Vorlage liegt", async () => {
+    await mount(<Statusansicht code={CODE} a={{ ...A, status: "abgelehnt", vertrag: null }} />);
+    expect(exists('[data-testid="vertrag-unterschreiben"]')).toBe(false);
   });
 });

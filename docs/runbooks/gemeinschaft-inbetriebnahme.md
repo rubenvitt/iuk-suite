@@ -32,17 +32,30 @@ DNS-Eintrag und die Traefik-Regel auf den Suite-Container. Die Datenbank `gemein
 Boot-Pfad an (`MODULE_MIGRATIONS`); sie gehört ins nächtliche Backup wie die anderen Moduldatenbanken
 (`backup-sidecar.md`). Die abgelegten Mietverträge (PDF) liegen in derselben Datenbank.
 
+Mietvertrag (IDA-343): Vorlage und unterschriebene Verträge liegen ebenfalls in `gemeinschaft.db`. Jede
+hochgeladene Datei (Vorlage, Ablage der Leitung, Upload auf der Statusseite) prüft clamd vor dem Speichern,
+fail-closed. Die Wegwerfdatei liegt unter `/data/kommplan-scan/gemeinschaft` (Volume `kommplan_scan`, das
+clamd schon lesend sieht); es braucht keinen neuen Mount. Eigene Variablen, nur bei abweichendem Scanner:
+
+```
+# GEMEINSCHAFT_AV_HOST=clamav
+# GEMEINSCHAFT_AV_PORT=3310
+# GEMEINSCHAFT_AV_TIMEOUT_MS=30000
+```
+
 ## 3. Erste Schritte nach dem Deploy
 
 1. Gruppe `gemeinschaft-admin` in Pocket ID anlegen, die Leitung hineinnehmen, die Gruppe am OIDC-Client
    „IDA“ erlauben.
 2. Mit der Leitung anmelden, unter **Mitglieder** die Gruppe anlegen und jedem seinen Link schicken.
 3. Unter **Vermietung → Sperrzeiten** die festen Termine der Bereitschaft eintragen (z. B. Dienstabende).
-4. Den Link `https://<host>/bar` dort bekannt machen, wo bisher nach der Bar gefragt wurde.
-5. Unter Portal → Verwaltung → Audit erscheinen die Änderungen mit Modul `gemeinschaft`.
+4. Unter **Vermietung → Mietvertrag** die Vorlage hochladen und das Unterschriftenfeld aufziehen.
+5. Den Link `https://<host>/bar` dort bekannt machen, wo bisher nach der Bar gefragt wurde.
+6. Unter Portal → Verwaltung → Audit erscheinen die Änderungen mit Modul `gemeinschaft`.
 
 ## 4. Was hier bewusst fehlt
 
 - **E-Mail.** Weder Mitglieder noch anfragende Personen bekommen Post; beide haben ihren Link.
-- **Vertrag erzeugen, Kaution, Abrechnung.** Der Mietvertrag hat nur einen Stand und eine abgelegte PDF.
+- **Kaution, Abrechnung, qualifizierte Signatur.** Der Mietvertrag ist eine Vorlage, die auf der Statusseite
+  per Fingerunterschrift (einfache elektronische Signatur) oder per hochgeladenem Ausdruck unterschrieben wird.
 - **Weitere Räume.** Das Datenmodell trägt `raum`, die Oberfläche kennt heute nur die Bar.

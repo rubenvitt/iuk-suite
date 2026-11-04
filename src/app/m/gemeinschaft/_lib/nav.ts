@@ -13,4 +13,5 @@ export const GEMEINSCHAFT_NAV: SuiteNavItem[] = [
   { key: "belegung", title: "Belegung", href: "/vermietung", ikon: "belegung", abschnitt: "Vermietung · Bar" },
   { key: "anfragen", title: "Anfragen", href: "/vermietung/anfragen", ikon: "anfragen", abschnitt: "Vermietung · Bar" },
   { key: "sperrzeiten", title: "Sperrzeiten", href: "/vermietung/sperrzeiten", ikon: "sperrzeiten", abschnitt: "Vermietung · Bar" },
+  { key: "mietvertrag", title: "Mietvertrag", href: "/vermietung/mietvertrag", ikon: "mietvertrag", abschnitt: "Vermietung · Bar" },
 ];

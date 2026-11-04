@@ -100,8 +100,9 @@ export type NavIkonName =
   // vergangene Buchungen, `kalender` die kommenden Termine; `events` sind Termine mit Datum,
   // `projekte` laufen über Wochen ohne festen Tag (die Mappe trägt das Sammeln von Aufgaben).
   // Für die Vermietung der Bar: `belegung` (Uhr: wann ist der Raum vergeben), `anfragen`
-  // (Eingang: was wartet auf eine Entscheidung), `sperrzeiten` (Verbot: hier geht nichts).
-  | "kalender" | "events" | "projekte" | "belegung" | "anfragen" | "sperrzeiten";
+  // (Eingang: was wartet auf eine Entscheidung), `sperrzeiten` (Verbot: hier geht nichts),
+  // `mietvertrag` (Dokument: die Vertragsvorlage, IDA-343).
+  | "kalender" | "events" | "projekte" | "belegung" | "anfragen" | "sperrzeiten" | "mietvertrag";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

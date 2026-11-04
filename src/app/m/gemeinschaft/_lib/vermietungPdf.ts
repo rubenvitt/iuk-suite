@@ -34,3 +34,8 @@ export function anhangKopf(name: string): string {
   const ascii = name.normalize("NFKD").replace(/[^\x20-\x7e]/g, "").replace(/["\\]/g, "") || "Mietvertrag.pdf";
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
+
+/** Wie `anhangKopf`, aber zum Ansehen im Browser (`inline`), etwa die Vorlage auf der Statusseite. */
+export function ansichtKopf(name: string): string {
+  return anhangKopf(name).replace(/^attachment/, "inline");
+}

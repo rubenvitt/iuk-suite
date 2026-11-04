@@ -6,10 +6,11 @@ import { Abgelehnt, ladeVertragsdatei, legeVertragAb, NichtGefunden } from "../.
 import { idSchema } from "../../../../_lib/vermietungEingabe";
 import { anhangKopf, pruefePdf, VERTRAG_MAX_BYTES } from "../../../../_lib/vermietungPdf";
 import { leitungImHandler } from "../../../../_lib/vermietungZugang";
+import { scanneVertrag, scanSatz } from "../../../../_lib/vertragScan";
 
 /**
  * `GET /vermietung/vertrag/<id>` lädt die Vertrags-PDF einer Zusage herunter, `POST` legt sie ab (Formularfeld
- * `datei`). Ein Route Handler statt einer Server Action, weil `serverActions.bodySizeLimit` (1 MB) suiteweit gilt
+ * `datei`; clamd prüft vor dem Speichern, IDA-343). Ein Route Handler statt einer Server Action, weil `serverActions.bodySizeLimit` (1 MB) suiteweit gilt
  * und für eine einzelne PDF nicht angehoben wird (Vorbild `aufgaben/a/[id]/nachweis/hochladen/route.ts`).
  *
  * Riegel in dieser Datei, weil ein Handler kein Layout über sich hat: Host → Leitung → Kennung → Zeile. Alles,
@@ -75,6 +76,8 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   const bytes = Buffer.from(await datei.arrayBuffer());
   const pruefung = pruefePdf(datei.name, datei.type, bytes);
   if (!pruefung.ok) return json(pruefung.status, { ok: false, fehler: pruefung.fehler });
+  const scan = await scanneVertrag(bytes);
+  if (scan.art !== "clean") return json(scan.art === "infected" ? 422 : 503, { ok: false, fehler: scanSatz(scan) ?? "" });
 
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
     try {

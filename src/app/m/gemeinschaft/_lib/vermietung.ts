@@ -1,13 +1,14 @@
 import { and, asc, count, eq, gt, lt } from "drizzle-orm";
 import type { GemeinschaftDb, GemeinschaftSchreiber } from "../_db/client";
-import { anfrage, sperrzeit, vertragsdatei, vorhaben } from "../_db/schema";
+import { anfrage, sperrzeit, vertragsdatei, vertragsvorlage, vorhaben } from "../_db/schema";
 import { EVENT_PRAEFIX, harteKonflikte, sperrenAusEvents, ueberlappt, type BarEvent, type Eintrag, type Zeitraum } from "./belegung";
 import { neueId, neuerLinkCode } from "./kennung";
 import type { AnfrageWert, SperrzeitWert } from "./vermietungEingabe";
+import { feldAusJson, type Feld } from "./vertragFeld";
 import { zeitraumText, type VertragStand } from "./vermietungText";
-import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type SperrzeitDTO, type StatusDTO } from "./vermietungTypen";
+import { anfrageAlsEintrag, sperreAlsEintrag, type AnfrageDTO, type Herkunft, type SperrzeitDTO, type StatusDTO, type VorlageDTO } from "./vermietungTypen";
 
-export type { AnfrageDTO, SperrzeitDTO, StatusDTO } from "./vermietungTypen";
+export type { AnfrageDTO, SperrzeitDTO, StatusDTO, VorlageDTO } from "./vermietungTypen";
 
 /**
  * Die Datenbankseite der Vermietung (IDA-315). Jede Funktion nimmt die Datenbank als Argument — die Actions
@@ -30,10 +31,14 @@ export function ladeAnfragen(db: GemeinschaftSchreiber): AnfrageDTO[] {
     personen: anfrage.personen, person: anfrage.person, kontakt: anfrage.kontakt, hinweis: anfrage.hinweis, mitglied: anfrage.mitglied,
     begruendung: anfrage.begruendung, vertrag: anfrage.vertrag, eingegangenAm: anfrage.eingegangenAm, entschiedenAm: anfrage.entschiedenAm,
     dateiName: vertragsdatei.name, dateiGroesse: vertragsdatei.groesse, dateiAm: vertragsdatei.abgelegtAm,
+    herkunft: vertragsdatei.herkunft, unterschriebenVon: vertragsdatei.unterschriebenVon,
   }).from(anfrage).leftJoin(vertragsdatei, eq(vertragsdatei.anfrageId, anfrage.id))
     .where(eq(anfrage.raum, RAUM)).orderBy(asc(anfrage.von)).all();
-  return zeilen.map(({ dateiName, dateiGroesse, dateiAm, ...a }) => ({
-    ...a, datei: dateiName !== null && dateiGroesse !== null && dateiAm !== null ? { name: dateiName, groesse: dateiGroesse, abgelegtAm: dateiAm } : null,
+  return zeilen.map(({ dateiName, dateiGroesse, dateiAm, herkunft, unterschriebenVon, ...a }) => ({
+    ...a,
+    datei: dateiName !== null && dateiGroesse !== null && dateiAm !== null
+      ? { name: dateiName, groesse: dateiGroesse, abgelegtAm: dateiAm, herkunft: herkunft ?? "leitung", unterschriebenVon }
+      : null,
   }));
 }
 
@@ -66,10 +71,17 @@ export function ladeBelegendeEintraege(db: GemeinschaftSchreiber, ab = 0): Eintr
 
 /** Die Statusseite: nur über den Code, nie über die Kennung (IDOR). */
 export function anfrageNachCode(db: GemeinschaftSchreiber, code: string): StatusDTO | null {
-  return db.select({
+  const z = db.select({
     status: anfrage.status, von: anfrage.von, bis: anfrage.bis, anlass: anfrage.anlass, personen: anfrage.personen,
-    person: anfrage.person, kontakt: anfrage.kontakt, begruendung: anfrage.begruendung,
-  }).from(anfrage).where(eq(anfrage.code, code)).get() ?? null;
+    person: anfrage.person, kontakt: anfrage.kontakt, begruendung: anfrage.begruendung, stand: anfrage.vertrag,
+    dateiAm: vertragsdatei.abgelegtAm, herkunft: vertragsdatei.herkunft,
+  }).from(anfrage).leftJoin(vertragsdatei, eq(vertragsdatei.anfrageId, anfrage.id)).where(eq(anfrage.code, code)).get();
+  if (!z) return null;
+  const { stand, dateiAm, herkunft, ...a } = z;
+  if (a.status !== "zugesagt") return { ...a, vertrag: null };
+  const v = db.select({ sha256: vertragsvorlage.sha256, zeichnen: vertragsvorlage.zeichnen }).from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
+  const datei = dateiAm !== null ? { am: dateiAm, herkunft: (herkunft ?? "leitung") as Herkunft } : null;
+  return { ...a, vertrag: { stand, vorlage: v?.sha256 ?? null, zeichnen: v?.zeichnen ?? false, datei } };
 }
 
 /** Wie viele Anfragen seit `ab` eingegangen sind — das Mengenbudget gegen Massenabsenden liegt in der Datenbank. */
@@ -129,6 +141,8 @@ export function sageZu(db: GemeinschaftDb, id: string, jetzt: number): { weitere
       throw new Abgelehnt(`Zusagen geht nicht: der Zeitraum ist schon belegt (${hart.map((x) => x.titel).join(", ")}). Lehne die Anfrage ab oder ändere zuerst die Sperrzeit.`);
     }
     tx.update(anfrage).set({ status: "zugesagt", begruendung: "", entschiedenAm: jetzt }).where(eq(anfrage.id, a.id)).run();
+    // Liegt eine Vorlage, steht der Vertrag ab jetzt auf der Statusseite: „verschickt“.
+    if (hatVorlage(tx)) tx.update(anfrage).set({ vertrag: "verschickt" }).where(and(eq(anfrage.id, a.id), eq(anfrage.vertrag, "offen"))).run();
     const offen = tx.select({ id: anfrage.id }).from(anfrage)
       .where(and(eq(anfrage.raum, RAUM), eq(anfrage.status, "angefragt"), lt(anfrage.von, a.bis), gt(anfrage.bis, a.von))).all();
     return { weitereOffene: offen.length };
@@ -188,14 +202,18 @@ export function loescheSperrzeit(db: GemeinschaftDb, id: string): void {
 
 /* ---------------- Vertrag als PDF ---------------- */
 
-/** Legt die PDF ab (ersetzt eine vorhandene). Steht der Vertrag noch auf „offen“, wird er „unterschrieben“ (POC). */
+/**
+ * Legt die unterschriebene PDF der Leitung ab (ersetzt eine vorhandene) und setzt „unterschrieben“. Seit IDA-343
+ * auch aus „verschickt“: den Stand setzt jetzt das Hochladen der Vorlage selbst, und eine abgelegte Datei gilt auf
+ * der Statusseite als unterschriebener Vertrag.
+ */
 export function legeVertragAb(db: GemeinschaftDb, id: string, name: string, inhalt: Buffer, jetzt: number): void {
   db.transaction((tx) => {
     const a = holeAnfrage(tx, id);
     if (a.status !== "zugesagt") throw new Abgelehnt("Einen Vertrag gibt es nur zu einer Zusage.");
-    const zeile = { anfrageId: a.id, name, groesse: inhalt.length, inhalt, abgelegtAm: jetzt };
-    tx.insert(vertragsdatei).values(zeile).onConflictDoUpdate({ target: vertragsdatei.anfrageId, set: { name, groesse: inhalt.length, inhalt, abgelegtAm: jetzt } }).run();
-    tx.update(anfrage).set({ vertrag: "unterschrieben" }).where(and(eq(anfrage.id, a.id), eq(anfrage.vertrag, "offen"))).run();
+    const zeile = { name, groesse: inhalt.length, inhalt, abgelegtAm: jetzt, herkunft: "leitung" as const, unterschriebenVon: null };
+    tx.insert(vertragsdatei).values({ anfrageId: a.id, ...zeile }).onConflictDoUpdate({ target: vertragsdatei.anfrageId, set: zeile }).run();
+    tx.update(anfrage).set({ vertrag: "unterschrieben" }).where(eq(anfrage.id, a.id)).run();
   });
 }
 
@@ -208,3 +226,104 @@ export function entferneVertrag(db: GemeinschaftDb, id: string): void {
   if (r.changes === 0) throw new NichtGefunden();
 }
 
+
+/* ---------------- Vertragsvorlage und Unterschrift (IDA-343) ---------------- */
+
+function hatVorlage(tx: GemeinschaftSchreiber): boolean {
+  return tx.select({ raum: vertragsvorlage.raum }).from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get() !== undefined;
+}
+
+export function ladeVorlageInfo(db: GemeinschaftSchreiber): VorlageDTO | null {
+  const v = db.select({ name: vertragsvorlage.name, groesse: vertragsvorlage.groesse, abgelegtAm: vertragsvorlage.abgelegtAm, sha256: vertragsvorlage.sha256, feld: vertragsvorlage.feld, zeichnen: vertragsvorlage.zeichnen })
+    .from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
+  return v ? { ...v, feld: feldAusJson(v.feld) } : null;
+}
+
+export function ladeVorlage(db: GemeinschaftSchreiber): { name: string; inhalt: Buffer; sha256: string; feld: Feld | null; zeichnen: boolean } | null {
+  const v = db.select({ name: vertragsvorlage.name, inhalt: vertragsvorlage.inhalt, sha256: vertragsvorlage.sha256, feld: vertragsvorlage.feld, zeichnen: vertragsvorlage.zeichnen })
+    .from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
+  return v ? { ...v, feld: feldAusJson(v.feld) } : null;
+}
+
+/**
+ * Legt die Vorlage ab oder ersetzt sie; ein Unterschriftenfeld der alten Vorlage gilt nicht weiter. Laufende Zusagen
+ * mit Stand „offen“ bekommen den Vertrag ab jetzt auf ihre Statusseite („verschickt“).
+ */
+export function legeVorlageAb(db: GemeinschaftDb, name: string, inhalt: Buffer, sha: string, jetzt: number): void {
+  db.transaction((tx) => {
+    const zeile = { name, groesse: inhalt.length, inhalt, sha256: sha, feld: null, abgelegtAm: jetzt };
+    tx.insert(vertragsvorlage).values({ raum: RAUM, ...zeile }).onConflictDoUpdate({ target: vertragsvorlage.raum, set: zeile }).run();
+    tx.update(anfrage).set({ vertrag: "verschickt" })
+      .where(and(eq(anfrage.raum, RAUM), eq(anfrage.status, "zugesagt"), eq(anfrage.vertrag, "offen"), gt(anfrage.bis, jetzt))).run();
+  });
+}
+
+export function setzeVorlageFeld(db: GemeinschaftDb, feld: Feld | null): void {
+  const r = db.update(vertragsvorlage).set({ feld: feld ? JSON.stringify(feld) : null }).where(eq(vertragsvorlage.raum, RAUM)).run();
+  if (r.changes === 0) throw new NichtGefunden();
+}
+
+/** Schaltet das Zeichnen auf der Statusseite an oder aus; beim Ersetzen der Vorlage bleibt die Wahl stehen. */
+export function setzeVorlageZeichnen(db: GemeinschaftDb, an: boolean): void {
+  const r = db.update(vertragsvorlage).set({ zeichnen: an }).where(eq(vertragsvorlage.raum, RAUM)).run();
+  if (r.changes === 0) throw new NichtGefunden();
+}
+
+export function entferneVorlage(db: GemeinschaftDb): void {
+  const r = db.delete(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).run();
+  if (r.changes === 0) throw new NichtGefunden();
+}
+
+/** Was die Statusseite zum Unterschreiben braucht; `null`, wenn der Code unbekannt ist. */
+export function vertragsGrundlage(db: GemeinschaftSchreiber, code: string) {
+  const a = db.select({ id: anfrage.id, status: anfrage.status, vertrag: anfrage.vertrag, von: anfrage.von, bis: anfrage.bis, anlass: anfrage.anlass, person: anfrage.person })
+    .from(anfrage).where(and(eq(anfrage.code, code), eq(anfrage.raum, RAUM))).get();
+  return a ?? null;
+}
+
+const SCHON_UNTERSCHRIEBEN = "Dieser Vertrag ist schon unterschrieben.";
+
+/** Darf auf dieser Statusseite (noch) unterschrieben werden? Wirft den Satz für die Oberfläche. */
+export function pruefeUnterschreibbar(tx: GemeinschaftSchreiber, code: string): NonNullable<ReturnType<typeof vertragsGrundlage>> {
+  const a = vertragsGrundlage(tx, code);
+  if (!a) throw new NichtGefunden();
+  if (a.status !== "zugesagt") throw new Abgelehnt("Einen Vertrag gibt es nur zu einer Zusage.");
+  if (a.vertrag === "unterschrieben") throw new Abgelehnt(SCHON_UNTERSCHRIEBEN);
+  const datei = tx.select({ id: vertragsdatei.anfrageId }).from(vertragsdatei).where(eq(vertragsdatei.anfrageId, a.id)).get();
+  if (datei) throw new Abgelehnt(SCHON_UNTERSCHRIEBEN);
+  if (!hatVorlage(tx)) throw new Abgelehnt("Zu dieser Zusage liegt kein Vertrag zum Unterschreiben vor.");
+  return a;
+}
+
+/**
+ * Legt den auf der Statusseite unterschriebenen Vertrag ab (gezeichnet oder hochgeladen) und setzt „unterschrieben“.
+ * `vorlageStand`: beim Zeichnen der SHA-256 der Vorlage, die die Person gesehen hat — wurde sie inzwischen ersetzt,
+ * wird nichts gespeichert. Alles in einer Transaktion, damit zwei gleichzeitige Unterschriften nicht beide landen.
+ */
+export function legeUnterschriebenAb(
+  db: GemeinschaftDb, code: string,
+  d: { name: string; inhalt: Buffer; herkunft: Exclude<Herkunft, "leitung">; unterschriebenVon: string | null; vorlageStand: string | null },
+  jetzt: number,
+): void {
+  db.transaction((tx) => {
+    const a = pruefeUnterschreibbar(tx, code);
+    if (d.vorlageStand !== null) {
+      const v = tx.select({ sha256: vertragsvorlage.sha256 }).from(vertragsvorlage).where(eq(vertragsvorlage.raum, RAUM)).get();
+      if (v?.sha256 !== d.vorlageStand) throw new Abgelehnt("Der Vertrag wurde gerade geändert. Bitte die Seite neu laden und noch einmal ansehen.");
+    }
+    tx.insert(vertragsdatei).values({
+      anfrageId: a.id, name: d.name, groesse: d.inhalt.length, inhalt: d.inhalt, abgelegtAm: jetzt, herkunft: d.herkunft, unterschriebenVon: d.unterschriebenVon,
+    }).run();
+    tx.update(anfrage).set({ vertrag: "unterschrieben" }).where(eq(anfrage.id, a.id)).run();
+  });
+}
+
+/** Für den Download auf der Statusseite: die unterschriebene Fassung, sonst bei einer Zusage die Vorlage. */
+export function vertragFuerStatus(db: GemeinschaftSchreiber, code: string): { id: string; art: "unterschrieben" | "vorlage"; name: string; inhalt: Buffer } | null {
+  const a = vertragsGrundlage(db, code);
+  if (!a || a.status !== "zugesagt") return null;
+  const datei = ladeVertragsdatei(db, a.id);
+  if (datei) return { id: a.id, art: "unterschrieben", ...datei };
+  const v = ladeVorlage(db);
+  return v ? { id: a.id, art: "vorlage", name: v.name, inhalt: v.inhalt } : null;
+}

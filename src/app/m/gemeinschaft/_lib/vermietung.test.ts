@@ -183,12 +183,12 @@ describe("Vertrag", () => {
     expect(() => entferneVertrag(db, id)).toThrow(NichtGefunden);
   });
 
-  it("Ablegen bei „verschickt“ lässt den Stand stehen", () => {
+  it("Ablegen bei „verschickt“ setzt „unterschrieben“ (IDA-343)", () => {
     const db = testDb();
     const id = idVon(db, legeAnfrageAn(db, wert("2026-11-07", "18:00", "2026-11-07", "23:00"), false, JETZT));
     sageZu(db, id, JETZT);
     setzeVertrag(db, id, "verschickt");
     legeVertragAb(db, id, "v.pdf", PDF, JETZT);
-    expect(ladeAnfragen(db)[0].vertrag).toBe("verschickt");
+    expect(ladeAnfragen(db)[0].vertrag).toBe("unterschrieben");
   });
 });

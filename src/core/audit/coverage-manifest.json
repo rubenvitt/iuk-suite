@@ -183,6 +183,7 @@
   "src/app/m/gemeinschaft/_actions/vorhaben.ts#zustaendigeSetzenAction": { "kind": "context", "via": "aendere" },
   "src/app/m/gemeinschaft/_actions/anfrage.ts#anfrageSendenAction": { "kind": "context", "via": "anfrageSendenAction" },
   "src/app/m/gemeinschaft/_actions/anfrage.ts#anfrageZurueckziehenAction": { "kind": "context", "via": "anfrageZurueckziehenAction" },
+  "src/app/m/gemeinschaft/_actions/anfrage.ts#vertragUnterschreibenAction": { "kind": "context", "via": "vertragUnterschreibenAction" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#anfrageZusagenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#anfrageAblehnenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/_actions/vermietung.ts#zusageZuruecknehmenAction": { "kind": "context", "via": "alsLeitung" },
@@ -199,6 +200,27 @@
     }
   },
   "src/app/m/gemeinschaft/(leitung)/vermietung/vertrag/[id]/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/gemeinschaft/(leitung)/vermietung/vorlage/datei/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "vertragsvorlage",
+      "reference": "RAUM"
+    }
+  },
+  "src/app/m/gemeinschaft/(leitung)/vermietung/vorlage/datei/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/gemeinschaft/(offen)/status/[code]/vertrag/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "vertragsdatei",
+      "reference": "v.id"
+    }
+  },
+  "src/app/m/gemeinschaft/(offen)/status/[code]/vertrag/route.ts#POST": { "kind": "context", "via": "POST" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageFeldAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageZeichnenAction": { "kind": "context", "via": "alsLeitung" },
+  "src/app/m/gemeinschaft/_actions/vermietung.ts#vorlageEntfernenAction": { "kind": "context", "via": "alsLeitung" },
   "src/app/m/gemeinschaft/(leitung)/vermietung/plakat/route.ts#GET": {
     "kind": "excluded",
     "reason": "Generated QR poster of the public request page; carries no business data, only the public URL."

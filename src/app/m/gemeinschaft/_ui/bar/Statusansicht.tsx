@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { anfrageZurueckziehenAction } from "../../_actions/anfrage";
 import type { StatusDTO } from "../../_lib/vermietungTypen";
 import { zeitraumText, ZUSTAND_TEXT } from "../../_lib/vermietungText";
+import { Vertragsbereich } from "./Vertragsbereich";
 import s from "./bar.module.css";
 
 const SATZ: Record<StatusDTO["status"], string> = {
@@ -37,6 +38,7 @@ export function Statusansicht({ code, a }: { code: string; a: StatusDTO }) {
   }
 
   return (
+    <>
     <section className={s.karte} aria-labelledby="status-titel">
       <h2 className={s.ueberschrift} id="status-titel">Deine Anfrage</h2>
       <span className={`${s.plakette} ${s[a.status] ?? ""}`} data-testid="status-stand">{ZUSTAND_TEXT[a.status]}</span>
@@ -67,5 +69,7 @@ export function Statusansicht({ code, a }: { code: string; a: StatusDTO }) {
       {fehler ? <p className="go-fehler" role="alert">{fehler}</p> : null}
       <p className="go-meta" style={{ marginTop: 20 }}><a href="/bar">Zum Kalender der Bar</a></p>
     </section>
+    {a.status === "zugesagt" && a.vertrag ? <Vertragsbereich code={code} person={a.person} v={a.vertrag} /> : null}
+    </>
   );
 }

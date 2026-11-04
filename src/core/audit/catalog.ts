@@ -672,6 +672,12 @@ export const AUDIT_TABLES = {
       "primaryKey": [
         "anfrage_id"
       ]
+    },
+    "vertragsvorlage": {
+      "mode": "audited",
+      "primaryKey": [
+        "raum"
+      ]
     }
   },
   "wartung": {
