@@ -16,8 +16,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  max-width: 40rem;
-  margin-inline: auto;
+  max-width: 40rem; /* links an der Menükante, nie mittig (Seitentypen, `docs/design/README.md`) */
+  min-inline-size: 0;
   padding-block-end: 2rem;
 }
 

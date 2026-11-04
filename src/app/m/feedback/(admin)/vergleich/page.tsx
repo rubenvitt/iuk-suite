@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
+import { Seite } from "@/core/seite/Seite";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "@/app/m/feedback/_db/client";
@@ -105,8 +106,8 @@ export default async function VergleichPage() {
     });
 
   return (
-    <>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+    <Seite typ="liste">
+      <div>
         <Seitenkopf
           titel="Gruppenvergleich"
           beschreibung="Ø Note (1 = beste) je Gruppe, über alle Dienstabende — bester zuerst."
@@ -115,8 +116,6 @@ export default async function VergleichPage() {
       </div>
       <div
         style={{
-          maxWidth: 1120,
-          margin: "0 auto",
           display: "flex",
           flexDirection: "column",
           gap: SPACE.xl,
@@ -124,7 +123,7 @@ export default async function VergleichPage() {
       >
         <VergleichTabelle zeilen={zeilen} />
       </div>
-    </>
+    </Seite>
   );
 }
 
