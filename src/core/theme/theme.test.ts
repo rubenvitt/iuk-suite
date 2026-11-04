@@ -585,6 +585,47 @@ describe("Ausgewählte Tabellenzeile", () => {
 });
 
 /**
+ * Haarlinie (IDA-347): keine senkrechten Trenner zwischen den Kopfzellen. antd malt sie als
+ * `::before` jeder Kopfzelle in `--ant-table-header-split-color`; gemessen am erzeugten CSS, in
+ * beiden Modi und unter beiden verschachtelten Dichten.
+ */
+describe("Tabellenkopf ohne Spaltentrenner", () => {
+  const zeile = { schluessel: "a", name: "Pflaster", menge: 3 };
+
+  it.each(MODES)("setzt den Trenner im Modus %s transparent", (mode) => {
+    const standard = antdTheme.getDesignToken(buildTheme(mode)).colorBorderSecondary;
+    for (const dichte of [undefined, ARBEITSDICHTE, SCHREIBTISCHDICHTE]) {
+      const tabelle = createElement(Table<typeof zeile>, {
+        rowKey: "schluessel",
+        dataSource: [zeile],
+        columns: [
+          { title: "Name", dataIndex: "name" },
+          { title: "Menge", dataIndex: "menge" },
+        ],
+      });
+      const cache = createCache();
+      const markup = renderToString(
+        createElement(
+          StyleProvider,
+          { cache },
+          createElement(
+            ConfigProvider,
+            { theme: buildTheme(mode) },
+            dichte ? createElement(ConfigProvider, { theme: dichte }, tabelle) : tabelle,
+          ),
+        ),
+      );
+      const css = extractStyle(cache, true);
+      expect(markup).toContain("ant-table-thead");
+      expect(css).toContain("--ant-table-header-split-color:transparent");
+      expect(css).not.toContain(`--ant-table-header-split-color:${standard}`);
+      // Der Trenner hängt weiter an der Variable — sonst liefe der Token ins Leere.
+      expect(css).toMatch(/::before\{[^}]*background-color:var\(--ant-table-header-split-color\)/);
+    }
+  });
+});
+
+/**
  * IDA-242: das Fenster der Datumsauswahl passt in jeder Dichte auf ein 375px-Telefon. Gerechnet
  * wird mit antds EIGENER Formel aus dem erzeugten CSS — geprüft wird deshalb auch, dass sie dort
  * noch so steht; ein Major, der sie umbaut, macht diesen Test rot statt die Rechnung still falsch.
