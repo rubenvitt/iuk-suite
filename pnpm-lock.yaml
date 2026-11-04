@@ -24,6 +24,9 @@ importers:
       '@einsatzzeichen/schema':
         specifier: 6.11.0
         version: 6.11.0
+      '@lucasmarkes/hairline':
+        specifier: ^0.5.1
+        version: 0.5.1(react@19.3.0)
       '@zxing/browser':
         specifier: ^0.2.1
         version: 0.2.1(@zxing/library@0.23.0)
@@ -1135,6 +1138,14 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lucasmarkes/hairline@0.5.1':
+    resolution: {integrity: sha512-zjY3bdMC3As/+enKitZ1X+D1HjpesQiAKzG1sbCFsOrb5xIuJEoepkJTBIO4jmFh6JXOQlGGylhV71nr9ipNpQ==}
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@napi-rs/canvas-android-arm64@1.1.0':
     resolution: {integrity: sha512-mKrSmRyhWK4q699Q1xthbZIZi7JBvLtsRNnOZAeFaLPOFT1yo8y82aRC2nNZbXTGJXU7fVDONgGQPr0vo3kerw==}
@@ -4955,6 +4966,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@lucasmarkes/hairline@0.5.1(react@19.3.0)':
+    optionalDependencies:
+      react: 19.3.0
 
   '@napi-rs/canvas-android-arm64@1.1.0':
     optional: true
