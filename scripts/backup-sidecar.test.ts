@@ -3482,6 +3482,17 @@ describe("scripts/backup.sh — die Maengelfotos von `lagerbuch` und `wartung` (
     expect(route.indexOf("await legeUnterlageAb(")).toBeLessThan(route.indexOf("unterlageAnlegen(getDb()"));
   });
 
+  it("bricht ab, wenn `unterlage` Zeilen hat, aber keine Unterlage kopiert wurde", () => {
+    const ab = befehl("if [ -f \"$work/wartung.db\" ]; then");
+    const block = kernZeilen.slice(ab, befehl("tar -czf")).join("\n");
+    expect(block).toContain('"select count(*) from unterlage"');
+    expect(block).toContain("|| echo 0");
+    expect(block).toContain('find "$work/wartung/unterlagen" -type f');
+    expect(block).toContain('[ "$zeilen_unterlagen" -gt 0 ] && [ "$unterlagen" -eq 0 ]');
+    expect(block).toContain('rm -rf "$work"');
+    expect(block).toContain("exit 1");
+  });
+
   it("die Annahme dahinter: das Foto liegt, BEVOR seine Zeile entsteht", () => {
     const lagerbuch = lies("src/app/m/lagerbuch/helfer/mangel/melden/route.ts");
     expect(lagerbuch.indexOf("await legeFotoAb(")).toBeGreaterThanOrEqual(0);

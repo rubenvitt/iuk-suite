@@ -274,6 +274,23 @@ for modul in lagerbuch wartung; do
   fi
 done
 
+# Und fuer die Unterlagen am Geraet (IDA-300): Zeilen in `unterlage`, aber keine Datei
+# kopiert. Jede Zeile hat ihre Datei, weil die Datei vor der Zeile entsteht.
+if [ -f "$work/wartung.db" ]; then
+  zeilen_unterlagen="$(sqlite3 "$work/wartung.db" "select count(*) from unterlage" \
+    2>/dev/null || echo 0)"
+  [ -n "$zeilen_unterlagen" ] || zeilen_unterlagen=0
+  unterlagen=0
+  if [ -d "$work/wartung/unterlagen" ]; then
+    unterlagen="$(find "$work/wartung/unterlagen" -type f | wc -l | tr -d ' ')"
+  fi
+  if [ "$zeilen_unterlagen" -gt 0 ] && [ "$unterlagen" -eq 0 ]; then
+    echo "backup: $zeilen_unterlagen rows in wartung.db (unterlage) but no files from $DATA_DIR/wartung/unterlagen — aborting" >&2
+    rm -rf "$work"
+    exit 1
+  fi
+fi
+
 # ⚠️ GEPACKT WIRD UNTER EINEM NAMEN, DER NICHT ALS GENERATION ZAEHLT (DRK-416). `tar`
 # schrieb frueher direkt auf `$stamp.tar.gz`, und ein WACHSENDES Archiv passt auf das
 # Muster, mit dem lokal wie am Ziel gezaehlt wird (TARBALL_MUSTER im Sidecar, `*.tar.gz`
