@@ -124,7 +124,7 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
               <Switch checked={e.stundenPflicht} disabled={e.kiste} onChange={(v) => setze({ stundenPflicht: v })} aria-label="Betriebsstunden bei jeder Prüfung Pflicht" />
             </Form.Item>
             <Form.Item label="Materialkiste mit Inhaltsliste">
-              <Switch checked={e.kiste} onChange={(v) => setze({ kiste: v, stundenPflicht: v ? false : e.stundenPflicht })} aria-label="Materialkiste mit Inhaltsliste" />
+              <Switch checked={e.kiste} onChange={(v) => setze(v ? { kiste: v, stundenPflicht: false, fristen: e.fristen.map((f) => ({ ...f, stunden: null })) } : { kiste: v })} aria-label="Materialkiste mit Inhaltsliste" />
             </Form.Item>
 
             <Kicker>Fristen</Kicker>
@@ -135,7 +135,7 @@ export function ArtenVerwaltung({ arten }: { arten: ArtDTO[] }) {
                 <div key={f.id ?? `neu-${i}`} className={s.fristreihe}>
                   <Input value={f.name} maxLength={KURZ_MAX} onChange={(x) => setzeFrist({ name: x.target.value })} aria-label={`Frist ${i + 1}: Name`} status={feldFehler[`fristen.${i}.name`] ? "error" : undefined} />
                   <InputNumber value={f.monate ?? undefined} min={1} max={120} precision={0} suffix="Monate" onChange={(v) => setzeFrist({ monate: v ?? null })} aria-label={`Frist ${i + 1}: alle … Monate`} style={{ width: "100%" }} status={feldFehler[`fristen.${i}.monate`] ? "error" : undefined} />
-                  <InputNumber value={f.stunden ?? undefined} min={1} precision={0} suffix="h" onChange={(v) => setzeFrist({ stunden: v ?? null })} aria-label={`Frist ${i + 1}: oder alle … Betriebsstunden`} style={{ width: "100%" }} />
+                  <InputNumber value={f.stunden ?? undefined} min={1} precision={0} suffix="h" disabled={e.kiste} onChange={(v) => setzeFrist({ stunden: v ?? null })} aria-label={`Frist ${i + 1}: oder alle … Betriebsstunden`} style={{ width: "100%" }} />
                   <Select value={f.wer} options={WER_WAHL} onChange={(v) => setzeFrist({ wer: v })} aria-label={`Frist ${i + 1}: wer erledigt`} />
                   <Button type="text" aria-label={`Frist ${i + 1} entfernen`} disabled={e.fristen.length === 1} onClick={() => setze({ fristen: e.fristen.filter((_, j) => j !== i) })} icon={<Icons8Ikone name="trash" groesse={16} />} />
                 </div>

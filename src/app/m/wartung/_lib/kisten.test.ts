@@ -148,5 +148,8 @@ describe("Materialkisten (IDA-335)", () => {
       fristen: [{ id: null, name: "Quartalsprüfung", wer: "intern" as const, monate: 3, stunden: null }] };
     expect(artEingabe.safeParse({ ...art, stundenPflicht: false }).success).toBe(true);
     expect(artEingabe.safeParse({ ...art, stundenPflicht: true }).success).toBe(false);
+    const nurStunden = [{ ...art.fristen[0], monate: null, stunden: 500 }];
+    expect(artEingabe.safeParse({ ...art, stundenPflicht: false, fristen: nurStunden }).success).toBe(false);
+    expect(artEingabe.safeParse({ ...art, stundenPflicht: false, kiste: false, checkliste: [{ id: null, text: "Sicht", hinweis: "" }], fristen: nurStunden }).success).toBe(true);
   });
 });
