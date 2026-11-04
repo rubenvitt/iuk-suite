@@ -9,6 +9,7 @@ import { rueckmeldeweg } from "@/core/rueckmeldung/konfiguration";
 import { BEREICHE_IN_REIHENFOLGE, launcherAuswahl, launcherEintraege } from "@/core/shell/launcherEintraege";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import { SuiteLeiste } from "@/core/shell/Navigator";
+import { SEITENWECHSEL } from "@/core/shell/seitenwechselKlassen";
 import type { SuiteNavItem } from "@/core/shell/types";
 import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
 import { SPACE } from "@/core/theme/tokens";
@@ -61,7 +62,9 @@ export async function MenueRahmen({
 
   return (
     <div className={druck ? `${m.rahmen} ${m.druckRahmen}` : m.rahmen}>
-      <header data-testid="suite-header" data-rahmen="menue" className={m.kopf}>
+      {/* Eigener Name: das Menü steht beim Seitenwechsel still (`globals.css`, „SEITENWECHSEL"). Inline
+          und nicht im CSS-Modul — das hasht auch `view-transition-name`. */}
+      <header data-testid="suite-header" data-rahmen="menue" className={m.kopf} style={{ viewTransitionName: SEITENWECHSEL.menue }}>
         {/* 44px auch im Menü (Falle 4: `FullShell` 44, „auch Telefon und Seitenleiste"). */}
         <Arbeitsdichte>
           <SuiteLeiste

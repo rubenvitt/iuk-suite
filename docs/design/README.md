@@ -534,8 +534,11 @@ später eine eigene (Instrumententafel). Die beiden bleiben getrennt.
   Ausnahme ist `feedback`, dessen eigener Entwurf (§4.7) den versalen Kicker verlangt.
 - **Bewegung:** eine Feder (`BEWEGUNG` in `core/theme/bewegung.ts`, als CSS `--iuk-feder` und
   `--iuk-feder-dauer` in `globals.css`), antds Motion-Tokens laufen darauf. Knöpfe geben beim Drücken
-  nach (`scale(0.97)`). `prefers-reduced-motion: reduce` schaltet jede Bewegung suiteweit ab;
-  `bewegung.test.ts` hält Kurve, Token und CSS zusammen.
+  nach (`scale(0.97)`). Unter `FullShell` blendet der Inhalt
+  beim Pfadwechsel in 180ms über (`core/shell/Seitenwechsel.tsx`, View Transitions); das Menü steht
+  still, Suchparameter und `router.refresh()` bewegen nichts, `MinimalShell` und Kiosk wechseln ohne
+  Bewegung. `prefers-reduced-motion: reduce` schaltet jede Bewegung suiteweit ab;
+  `bewegung.test.ts` und `seitenwechsel.test.tsx` halten Kurve, Token und CSS zusammen.
 - **Haarlinie-Figuren** (`@lucasmarkes/hairline`) nur in Ruhezuständen: leere Listen, Anmeldung, 403/404,
   leeres Portal, Fertig-Momente. Nie in Tabellen, Formularen oder Flyins.
 - **Navigation (Etappe 2):** `FullShell` trägt ein Menü mit zwei Ebenen statt Kopfzeile und Seitenleiste
