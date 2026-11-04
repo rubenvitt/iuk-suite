@@ -10,7 +10,8 @@ import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { erledigtEintragenAction, geraetAendernAction, geraetAktivAction, mangelBehebenAction } from "../_actions/verwaltung";
 import { NAME_MAX, NOTIZ_MAX } from "../_lib/eingabe";
 import { ERGEBNIS_TEXT, intervallText, WER_TEXT, type FristStand } from "../_lib/fristen";
-import type { EintragDTO, GeraetZeile, MangelDTO, UnterlageDTO } from "../_lib/typen";
+import type { FahrzeugWahl } from "../_lib/fahrzeugsuche";
+import type { BekannteOrte, EintragDTO, GeraetZeile, MangelDTO, UnterlageDTO } from "../_lib/typen";
 import { GeraetFormular } from "./GeraetFormular";
 import { MangelEintrag } from "./MangelEintrag";
 import { UnterlagenKarte } from "./UnterlagenKarte";
@@ -21,7 +22,7 @@ import s from "./wartung.module.css";
 type Erledigt = { am: string; stunden: number | null; wer: string; notiz: string };
 
 export function GeraetAkte({
-  g, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte,
+  g, maengel, verlauf, unterlagen, qr, heute, arten, gruppen, orte, fahrzeuge,
 }: {
   g: GeraetZeile;
   maengel: MangelDTO[];
@@ -31,7 +32,8 @@ export function GeraetAkte({
   heute: string;
   arten: { id: string; einzahl: string }[];
   gruppen: { id: string; name: string }[];
-  orte: string[];
+  orte: BekannteOrte;
+  fahrzeuge: FahrzeugWahl[];
 }) {
   const { laeuft, feldFehler, setFeldFehler, fuehreAus } = useAktion();
   const [eintragen, setEintragen] = useState<FristStand | null>(null);
@@ -203,10 +205,11 @@ export function GeraetAkte({
       {aendern && <GeraetFormular
         offen
         titel="Gerät bearbeiten"
-        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, hinweise: g.hinweise }}
+        start={{ gruppeId: g.gruppeId, artId: g.artId, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr, ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise }}
         gruppen={gruppen}
         arten={arten}
         orte={orte}
+        fahrzeuge={fahrzeuge}
         laeuft={laeuft}
         feldFehler={feldFehler}
         onAbbrechen={() => setAendern(false)}

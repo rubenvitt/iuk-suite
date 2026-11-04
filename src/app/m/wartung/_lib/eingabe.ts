@@ -45,6 +45,8 @@ export const geraetEingabe = z.object({
   seriennr: frei(KURZ_MAX),
   ortArt: z.enum(["lager", "fahrzeug"]),
   ort: pflicht(NAME_MAX, "Wo steht das Gerät?"),
+  /** Das Fahrzeug der Fahrzeugverwaltung (IDA-342); `null` im Lager und bei einem Fahrzeug von woanders. */
+  fahrzeugId: z.string().min(1).max(100).nullable().default(null),
   stunden,
   hinweise: frei(NOTIZ_MAX).default(""),
 });

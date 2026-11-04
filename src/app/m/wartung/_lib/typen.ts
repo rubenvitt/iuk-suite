@@ -59,6 +59,7 @@ export interface GeraetZeile {
   stundenPflicht: boolean;
   ortArt: "lager" | "fahrzeug";
   ort: string;
+  fahrzeugId: string | null;
   stunden: number | null;
   /** Freitext für den Steckbrief am QR-Code (IDA-300). */
   hinweise: string;
@@ -116,3 +117,9 @@ export type { Wer, Zustand };
 
 /** Ergebnis einer Server Action, mit Fehlern am Feld. */
 export type Ergebnis = { ok: true; id?: string } | { ok: false; fehler: string; feldFehler?: Record<string, string> };
+
+/** Orte, die schon vorkommen, je Art — Vorschläge im Gerät-Formular. */
+export interface BekannteOrte {
+  lager: string[];
+  fahrzeug: string[];
+}

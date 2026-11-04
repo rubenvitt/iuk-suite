@@ -10,7 +10,7 @@ import type { WartungDb } from "../_db/client";
 import { art, checkpunkt, eintrag, frist, geraet, gruppe, mangel, unterlage } from "../_db/schema";
 import { ladeVerwalter } from "./personen";
 import { fristStand, naechsteFrist, vergleicheStaende, zustandAus, type LetzteErledigung } from "./fristen";
-import type { ArtDTO, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, MangelDTO, UnterlageDTO } from "./typen";
+import type { ArtDTO, BekannteOrte, EintragDTO, FristZeile, GeraetZeile, GruppeDTO, MangelDTO, UnterlageDTO } from "./typen";
 
 type Leser = Pick<WartungDb, "select">;
 
@@ -101,7 +101,7 @@ export function ladeGeraete(db: Leser, filter: GeraeteFilter): GeraetZeile[] {
     return {
       id: g.id, name: g.name, hersteller: g.hersteller, typ: g.typ, seriennr: g.seriennr,
       gruppeId: g.gruppeId, gruppeName, artId: g.artId, artEinzahl, ikone, stundenPflicht,
-      ortArt: g.ortArt, ort: g.ort, stunden: g.stunden, hinweise: g.hinweise, aktiv: g.aktiv,
+      ortArt: g.ortArt, ort: g.ort, fahrzeugId: g.fahrzeugId, stunden: g.stunden, hinweise: g.hinweise, aktiv: g.aktiv,
       zustand: zustandAus(eigene), staende, naechste: naechsteFrist(staende), offeneMaengel: eigene.length,
     };
   });
@@ -190,9 +190,17 @@ export function ladeMangel(db: Leser, id: string): { id: string; geraetId: strin
     .from(mangel).innerJoin(geraet, eq(geraet.id, mangel.geraetId)).where(eq(mangel.id, id)).get() ?? null;
 }
 
-/** Standorte und Fahrzeuge, die schon vorkommen — Vorschläge im Formular. */
-export function bekannteOrte(db: Pick<WartungDb, "selectDistinct">): string[] {
-  return db.selectDistinct({ ort: geraet.ort }).from(geraet).orderBy(asc(geraet.ort)).all().map((z) => z.ort);
+/**
+ * Standorte und Fahrzeuge, die schon vorkommen — Vorschläge im Formular. Fahrzeuge mit Verweis fehlen hier:
+ * sie kommen aus der Fahrzeugverwaltung (IDA-342).
+ */
+export function bekannteOrte(db: Pick<WartungDb, "selectDistinct">): BekannteOrte {
+  const zeilen = db.selectDistinct({ ort: geraet.ort, ortArt: geraet.ortArt }).from(geraet)
+    .where(isNull(geraet.fahrzeugId)).orderBy(asc(geraet.ort)).all();
+  return {
+    lager: zeilen.filter((z) => z.ortArt === "lager").map((z) => z.ort),
+    fahrzeug: zeilen.filter((z) => z.ortArt === "fahrzeug").map((z) => z.ort),
+  };
 }
 
 /** Die Unterlagen eines Geräts in ihrer Reihenfolge (IDA-300). */
