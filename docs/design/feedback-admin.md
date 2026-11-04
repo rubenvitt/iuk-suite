@@ -163,9 +163,9 @@ Client-Inseln liegen in `(admin)/_ui/`.
 
 ### 2.1 Seitengerüst
 
-`FullShell` liefert `Content` mit `padding: 16` (`FullShell.tsx:45`). Darin **ein** Wrapper:
-`maxWidth: 1120, margin: "0 auto", display: flex, flexDirection: column, gap: 24`. Kein weiterer
-Container, keine verschachtelten Karten.
+`FullShell` liefert `Content` mit `padding: 16` (`MenueRahmen`). Darin **ein** Wrapper `<Seite typ="uebersicht">` (Einrichtung: `formular`, ≤ 960px),
+darin `display: flex, flexDirection: column, gap: 24`. **Links an der Menükante, nie mittig** (Seitentypen, `README.md`; die Mittelspalte
+von 1120px ist 2026-11-04 gefallen). Kein weiterer Container, keine verschachtelten Karten.
 
 Reihenfolge im DOM — **in jedem Zustand und in jeder Betriebsart dieselbe**:
 
@@ -299,7 +299,7 @@ neue starten" in einem `Popconfirm`. Die Zweistufigkeit ist reine UI: `createAnd
 aktive Geschwister in derselben Transaktion (`queries.ts:174-183`), es kann also kein Zwischenzustand
 entstehen.
 
-**Laptop.** Karte volle Spaltenbreite (`lg=15` von 1120 ≈ 630px), Kartenpolster 20.
+**Laptop.** Karte volle Spaltenbreite (`lg=15` der Inhaltsspalte, bei 1280 ≈ 610px), Kartenpolster 20.
 **390px.** Kartenpolster 16, Zähler 30px bleibt (die Zahl muss aus zwei Metern lesbar sein), „von 20"
 unter die Zahl, `Progress` volle Breite, Primärknopf `block` in Standardhöhe 56 (**nicht**
 `size="large"` = 72), „Feedback jetzt beenden" darunter mit 16px Abstand und `block` — nie neben dem
